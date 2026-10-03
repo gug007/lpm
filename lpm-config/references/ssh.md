@@ -23,16 +23,20 @@ services:
 |---|---|
 | `host` | Required and non-empty. |
 | `user` | Required and non-empty. |
-| `port` | Optional integer from 0 to 65535; defaults to 22. |
+| `port` | Optional unquoted integer from 0 to 65535; defaults to 22. |
 | `key` | Optional local identity-file path with `~` support. |
 | `dir` | Optional remote working directory; absolute or `~`-prefixed. |
+
+A quoted or fractional `port`, or a list or mapping for `host`, `user`, `key`, or `dir`, stops the app from loading the whole project.
+
+`dir` is a path on the host, never on this Mac, so `lpm config resolve` does not match a local directory against it. The only local directory that belongs to an SSH project is its sync mirror, `~/.lpm/sync/<project>`. `<project>` is the project's file name (`~/.lpm/projects/<project>.yml`), not its `name:` field.
 
 Service, action, and terminal `cwd` values are remote paths and are not checked on the local filesystem. Relative values resolve from `ssh.dir`.
 
 ## Action modes
 
 - Omit `mode` or use `mode: remote` to run on the host.
-- Use `mode: sync` to rsync `ssh.dir` into a local mirror, run locally, and sync changes back.
+- Use `mode: sync` to rsync `ssh.dir` into the local mirror `~/.lpm/sync/<project>`, run there, and sync changes back.
 
 ```yaml
 actions:

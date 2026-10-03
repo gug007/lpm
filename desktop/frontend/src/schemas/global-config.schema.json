@@ -7,50 +7,18 @@
   "properties": {
     "extends": {
       "type": "array",
-      "description": "Templates to layer underneath the global config. Refs are bare names (resolved from ~/.lpm/templates/<name>.yml), absolute paths, or paths relative to ~/.lpm/.",
+      "description": "Template names whose actions sit underneath the global config, each a bare name resolved to ~/.lpm/templates/<name>.yml. Earlier templates win over later ones; a template's own extends is not followed.",
       "items": { "type": "string" }
     },
     "actions": {
-      "oneOf": [
-        {
-          "type": "object",
-          "additionalProperties": { "$ref": "#/definitions/action" }
-        },
-        {
-          "type": "array",
-          "items": {
-            "allOf": [
-              { "$ref": "#/definitions/action" },
-              {
-                "type": "object",
-                "required": ["name"],
-                "properties": { "name": { "type": "string" } }
-              }
-            ]
-          }
-        }
-      ]
+      "type": "object",
+      "description": "Commands shown as buttons, menus and terminal launchers.",
+      "additionalProperties": { "$ref": "#/definitions/action" }
     },
     "terminals": {
-      "oneOf": [
-        {
-          "type": "object",
-          "additionalProperties": { "$ref": "#/definitions/terminal" }
-        },
-        {
-          "type": "array",
-          "items": {
-            "allOf": [
-              { "$ref": "#/definitions/terminal" },
-              {
-                "type": "object",
-                "required": ["name"],
-                "properties": { "name": { "type": "string" } }
-              }
-            ]
-          }
-        }
-      ]
+      "type": "object",
+      "description": "Deprecated alias for actions with type terminal; entries here default to type terminal. Declare new terminals under actions.",
+      "additionalProperties": { "$ref": "#/definitions/terminal" }
     },
     "zones": {
       "type": "object",
@@ -106,18 +74,18 @@
     },
     "action": {
       "oneOf": [
-        { "type": "string" },
+        { "type": "string", "description": "Shorthand for { cmd: ... }." },
         {
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "name": { "type": "string", "description": "Key used when the action is defined in array form." },
-            "cmd": { "type": "string" },
-            "label": { "type": "string" },
+            "cmd": { "type": "string", "description": "Shell command to run. May be left out when the entry has sub-actions, or when it only adjusts an entry declared in another config file." },
+            "label": { "type": "string", "description": "Button label. Defaults to the key." },
             "emoji": { "type": "string", "description": "Optional emoji shown as the action's icon and on the terminal tab it launches." },
-            "shortcut": { "type": "string", "description": "Optional keyboard shortcut that runs the action while the project is open, e.g. \"cmd+shift+b\". Must include cmd or alt." },
-            "cwd": { "type": "string" },
-            "prompt": { "type": "string", "description": "Prompt handed to the AI agent the command launches (claude, codex, ...), submitted once the agent is ready." },
+            "color": { "type": "string", "description": "Optional accent color for the button and the terminal tab it launches. A named accent adapts to the theme: red, orange, claude, amber, yellow, lime, green, emerald, teal, cyan, sky, blue, indigo, violet, purple, fuchsia, pink, rose, slate, gray or stone; add -deep for a darker tone (e.g. blue-deep). Any other value is used as a CSS color (e.g. #8b5cf6).", "examples": ["red", "orange", "claude", "amber", "yellow", "lime", "green", "emerald", "teal", "cyan", "sky", "blue", "indigo", "violet", "purple", "fuchsia", "pink", "rose", "slate", "gray", "stone", "blue-deep", "#8b5cf6"] },
+            "shortcut": { "type": "string", "description": "Optional keyboard shortcut that runs the action while the project is open, e.g. \"cmd+shift+b\". Needs cmd (ctrl counts as cmd) or alt, optionally shift, and exactly one key." },
+            "cwd": { "type": "string", "description": "Working directory: relative to the project root (ssh.dir on SSH projects), ~-prefixed, or absolute. Sub-actions inherit it." },
+            "env": { "$ref": "#/definitions/envMap" },
             "port": {
               "oneOf": [
                 { "type": "integer", "minimum": 0, "maximum": 65535 },
@@ -132,38 +100,49 @@
                   }
                 }
               ],
-              "description": "Port(s) the action wants free before it runs. Accepts a single port, an inclusive range string like \"3002-3010\", or a list mixing both. Busy ports are handled per \"portConflict\"."
+              "description": "Port(s) that must be free before it runs. Accepts a single port, an inclusive range string like \"3002-3010\", or a list mixing both. Busy ports are handled per \"portConflict\"."
             },
             "portConflict": {
               "type": "string",
               "enum": ["ask", "free", "fail"],
               "default": "ask",
-              "description": "What to do when a declared port is busy. \"ask\" (default) prompts before freeing it; \"free\" frees it automatically; \"fail\" refuses to run."
+              "description": "What to do when a declared port is busy. \"ask\" (default) prompts before freeing it; \"free\" frees it automatically; \"fail\" refuses to run. Sub-actions inherit it."
             },
-            "env": { "$ref": "#/definitions/envMap" },
-            "confirm": { "type": "boolean" },
+            "confirm": { "type": "boolean", "description": "Ask before running. In a file that adjusts an entry declared elsewhere, false leaves the other file's value in place." },
             "display": {
               "type": "string",
               "pattern": "^(?!button$)[^:]*$",
               "examples": ["header", "footer"],
               "default": "header",
-              "description": "Where the action appears. Defaults to \"header\" when omitted. \"footer\" pins it to the footer; any other name puts it in the zone of that name (see \"zones\"). \"menu\" is still accepted but no longer suggested.",
+              "description": "Where the button appears. Defaults to \"header\" when omitted. \"footer\" pins it to the footer; any other name puts it in the zone of that name (see \"zones\"), or in the header when no such zone exists. \"menu\" is still accepted but no longer suggested.",
               "errorMessage": "Invalid \"display\" value. Use \"header\", \"footer\" or a zone name without \":\" (\"button\" → use \"header\")."
             },
             "layer": { "type": "string", "description": "Which layer of its zone the button sits in. Applies only when \"display\" names a zone with layers. Without it, or naming a layer the zone doesn't have, the button shows in the zone's first layer." },
-            "primary": { "type": "string", "examples": ["last-used"], "description": "For an action with sub-actions: which sub-action the button's main part shows and runs. \"last-used\" follows your most recent pick; a sub-action key always shows that one. The arrow still opens the full list." },
-            "type": { "type": "string" },
-            "reuse": { "type": "boolean" },
             "position": {
               "type": "number",
-              "description": "Optional sort key. Lower values render first; entries without a position fall back to alphabetical order. Floats are allowed so items can be inserted between existing positions without renumbering."
+              "description": "Optional sort key. Lower values render first; entries without a position follow in alphabetical order. Inside a zone it orders the zone's buttons. Floats are allowed so items can be inserted between existing positions without renumbering."
             },
+            "primary": { "type": "string", "examples": ["last-used"], "description": "For an action with sub-actions: which sub-action the button's main part shows and runs. \"last-used\" follows your most recent pick; a sub-action key always shows that one. The arrow still opens the full list." },
+            "type": {
+              "type": "string",
+              "enum": ["terminal", "command", "background"],
+              "description": "How it runs. Omit for a one-shot with streamed output; \"terminal\" opens the command in a terminal tab; \"command\" submits the command into the currently focused terminal; \"background\" runs it hidden with a completion toast. Sub-actions inherit it."
+            },
+            "reuse": { "type": "boolean", "description": "With type terminal: reuse the terminal this action already opened instead of opening another. In a file that adjusts an entry declared elsewhere, false leaves the other file's value in place." },
+            "mode": {
+              "type": "string",
+              "enum": ["remote", "sync"],
+              "description": "Where it runs on SSH projects. \"remote\" (default) runs over ssh on the host; \"sync\" rsyncs ssh.dir into a local mirror, runs locally, then rsyncs changes back — useful when you want local tools (e.g. your local Claude Code) to act on remote files. Sub-actions inherit it."
+            },
+            "prompt": { "type": "string", "description": "Task submitted to the AI agent a terminal action launches (claude, codex, gemini, ...) once the agent is ready. {{key}} input placeholders are filled in." },
             "inputs": {
               "type": "object",
+              "description": "Values asked for before it runs. {{key}} in cmd, cwd, env values and prompt is replaced by the answer.",
               "additionalProperties": { "$ref": "#/definitions/actionInput" }
             },
             "actions": {
               "type": "object",
+              "description": "Sub-actions: a split button when cmd is set, a dropdown otherwise. They inherit cwd, env (merged key by key), mode, type and portConflict.",
               "additionalProperties": { "$ref": "#/definitions/action" }
             }
           }
@@ -174,13 +153,16 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "label": { "type": "string" },
-        "type": { "type": "string" },
-        "required": { "type": "boolean" },
+        "label": { "type": "string", "description": "Prompt label. Defaults to the key." },
+        "type": { "type": "string", "enum": ["text", "password", "radio"], "default": "text", "description": "\"text\" (default), \"password\" (never remembered) or \"radio\" (needs options)." },
+        "required": { "type": "boolean", "description": "Refuse an empty answer." },
         "placeholder": { "type": "string" },
-        "default": { "type": "string" },
+        "default": { "type": "string", "description": "Initial value. For a radio input it must match an option value." },
+        "persist": { "type": "boolean", "description": "Remember the last value entered for this input and pre-select it next time (per project + action), overriding \"default\" once a value has been chosen. Ignored for password inputs." },
+        "position": { "type": "number", "description": "Order of the prompt. Inputs with a position come first, lowest first; the rest follow in key order." },
         "options": {
           "type": "array",
+          "description": "Choices for a radio input: plain strings, or { label, value } mappings.",
           "items": {
             "oneOf": [
               { "type": "string" },
@@ -200,17 +182,18 @@
     },
     "terminal": {
       "oneOf": [
-        { "type": "string" },
+        { "type": "string", "description": "Shorthand for { cmd: ... }." },
         {
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "name": { "type": "string", "description": "Key used when the terminal is defined in array form." },
-            "cmd": { "type": "string" },
-            "label": { "type": "string" },
-            "emoji": { "type": "string", "description": "Optional emoji shown as the terminal tab's icon." },
-            "cwd": { "type": "string" },
-            "prompt": { "type": "string", "description": "Prompt handed to the AI agent the command launches (claude, codex, ...), submitted once the agent is ready." },
+            "cmd": { "type": "string", "description": "Shell command to run. May be left out when the entry has sub-actions, or when it only adjusts an entry declared in another config file." },
+            "label": { "type": "string", "description": "Button label. Defaults to the key." },
+            "emoji": { "type": "string", "description": "Optional emoji shown as the action's icon and on the terminal tab it launches." },
+            "color": { "type": "string", "description": "Optional accent color for the button and the terminal tab it launches. A named accent adapts to the theme: red, orange, claude, amber, yellow, lime, green, emerald, teal, cyan, sky, blue, indigo, violet, purple, fuchsia, pink, rose, slate, gray or stone; add -deep for a darker tone (e.g. blue-deep). Any other value is used as a CSS color (e.g. #8b5cf6).", "examples": ["red", "orange", "claude", "amber", "yellow", "lime", "green", "emerald", "teal", "cyan", "sky", "blue", "indigo", "violet", "purple", "fuchsia", "pink", "rose", "slate", "gray", "stone", "blue-deep", "#8b5cf6"] },
+            "shortcut": { "type": "string", "description": "Optional keyboard shortcut that runs the action while the project is open, e.g. \"cmd+shift+b\". Needs cmd (ctrl counts as cmd) or alt, optionally shift, and exactly one key." },
+            "cwd": { "type": "string", "description": "Working directory: relative to the project root (ssh.dir on SSH projects), ~-prefixed, or absolute. Sub-actions inherit it." },
+            "env": { "$ref": "#/definitions/envMap" },
             "port": {
               "oneOf": [
                 { "type": "integer", "minimum": 0, "maximum": 65535 },
@@ -225,37 +208,49 @@
                   }
                 }
               ],
-              "description": "Port(s) the terminal wants free before it launches. Accepts a single port, an inclusive range string like \"3002-3010\", or a list mixing both. Busy ports are handled per \"portConflict\"."
+              "description": "Port(s) that must be free before it runs. Accepts a single port, an inclusive range string like \"3002-3010\", or a list mixing both. Busy ports are handled per \"portConflict\"."
             },
             "portConflict": {
               "type": "string",
               "enum": ["ask", "free", "fail"],
               "default": "ask",
-              "description": "What to do when a declared port is busy. \"ask\" (default) prompts before freeing it; \"free\" frees it automatically; \"fail\" refuses to launch."
+              "description": "What to do when a declared port is busy. \"ask\" (default) prompts before freeing it; \"free\" frees it automatically; \"fail\" refuses to run. Sub-actions inherit it."
             },
-            "env": { "$ref": "#/definitions/envMap" },
-            "confirm": { "type": "boolean" },
-            "reuse": { "type": "boolean" },
+            "confirm": { "type": "boolean", "description": "Ask before running. In a file that adjusts an entry declared elsewhere, false leaves the other file's value in place." },
             "display": {
               "type": "string",
               "pattern": "^(?!button$)[^:]*$",
               "examples": ["header", "footer"],
               "default": "header",
-              "description": "Where the action appears. Defaults to \"header\" when omitted. \"footer\" pins it to the footer; any other name puts it in the zone of that name (see \"zones\"). \"menu\" is still accepted but no longer suggested.",
+              "description": "Where the button appears. Defaults to \"header\" when omitted. \"footer\" pins it to the footer; any other name puts it in the zone of that name (see \"zones\"), or in the header when no such zone exists. \"menu\" is still accepted but no longer suggested.",
               "errorMessage": "Invalid \"display\" value. Use \"header\", \"footer\" or a zone name without \":\" (\"button\" → use \"header\")."
             },
             "layer": { "type": "string", "description": "Which layer of its zone the button sits in. Applies only when \"display\" names a zone with layers. Without it, or naming a layer the zone doesn't have, the button shows in the zone's first layer." },
-            "primary": { "type": "string", "examples": ["last-used"], "description": "For an action with sub-actions: which sub-action the button's main part shows and runs. \"last-used\" follows your most recent pick; a sub-action key always shows that one. The arrow still opens the full list." },
             "position": {
               "type": "number",
-              "description": "Optional sort key. Lower values render first; entries without a position fall back to alphabetical order."
+              "description": "Optional sort key. Lower values render first; entries without a position follow in alphabetical order. Inside a zone it orders the zone's buttons. Floats are allowed so items can be inserted between existing positions without renumbering."
             },
+            "primary": { "type": "string", "examples": ["last-used"], "description": "For an action with sub-actions: which sub-action the button's main part shows and runs. \"last-used\" follows your most recent pick; a sub-action key always shows that one. The arrow still opens the full list." },
+            "type": {
+              "type": "string",
+              "enum": ["terminal", "command", "background"],
+              "description": "How it runs. Defaults to \"terminal\" in this section; \"terminal\" opens the command in a terminal tab; \"command\" submits the command into the currently focused terminal; \"background\" runs it hidden with a completion toast. Sub-actions inherit it."
+            },
+            "reuse": { "type": "boolean", "description": "With type terminal: reuse the terminal this action already opened instead of opening another. In a file that adjusts an entry declared elsewhere, false leaves the other file's value in place." },
+            "mode": {
+              "type": "string",
+              "enum": ["remote", "sync"],
+              "description": "Where it runs on SSH projects. \"remote\" (default) runs over ssh on the host; \"sync\" rsyncs ssh.dir into a local mirror, runs locally, then rsyncs changes back — useful when you want local tools (e.g. your local Claude Code) to act on remote files. Sub-actions inherit it."
+            },
+            "prompt": { "type": "string", "description": "Task submitted to the AI agent a terminal action launches (claude, codex, gemini, ...) once the agent is ready. {{key}} input placeholders are filled in." },
             "inputs": {
               "type": "object",
+              "description": "Values asked for before it runs. {{key}} in cmd, cwd, env values and prompt is replaced by the answer.",
               "additionalProperties": { "$ref": "#/definitions/actionInput" }
             },
             "actions": {
               "type": "object",
+              "description": "Sub-actions: a split button when cmd is set, a dropdown otherwise. They inherit cwd, env (merged key by key), mode, type and portConflict.",
               "additionalProperties": { "$ref": "#/definitions/action" }
             }
           }

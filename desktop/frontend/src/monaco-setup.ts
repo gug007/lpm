@@ -81,7 +81,7 @@ export function setupMonaco(): typeof monaco {
       },
       {
         uri: TEMPLATE_SCHEMA_URI,
-        // Templates share the RepoConfig shape, minus zones.
+        // Templates share the RepoConfig shapes, but hold only actions and terminals.
         fileMatch: [TEMPLATE_MODEL_URI],
         schema: templateSchema as object,
       },

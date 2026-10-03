@@ -1,10 +1,11 @@
 //! Project config loading + merge, mirroring the desktop app's
 //! `src-tauri/src/config.rs` semantics for the read-only CLI.
 //!
-//! Precedence (highest first): project `<name>.yml` (+ its `extends` templates),
-//! a duplicate's `parent_name` project, the repo `<root>/.lpm.yml`, then
-//! `global.yml`. Lower layers only fill fields the higher layers left empty —
-//! matching `merge_service` / `merge_action` in the app. Duplicated here on
+//! Actions precedence (highest first): project `<name>.yml` (+ its `extends`
+//! templates), a duplicate's `parent_name` project, the repo `<root>/.lpm.yml`,
+//! then `global.yml`. Services and profiles skip templates and `global.yml`.
+//! Lower layers only fill fields the higher layers left empty — matching
+//! `merge_service` / `merge_action` in the app. Duplicated here on
 //! purpose (v1): the CLI stays self-contained rather than sharing a crate with
 //! src-tauri.
 
@@ -56,6 +57,11 @@ impl Ctx {
     }
     pub fn project_path(&self, name: &str) -> PathBuf {
         self.projects_dir().join(format!("{name}.yml"))
+    }
+    /// The app's local rsync mirror of a remote project, where its `mode: sync`
+    /// actions run.
+    pub fn sync_dir(&self, name: &str) -> PathBuf {
+        self.lpm_dir.join("sync").join(name)
     }
     pub fn terminals_path(&self) -> PathBuf {
         self.lpm_dir.join("terminals.json")
@@ -156,6 +162,13 @@ pub struct SshSettings {
     pub host: String,
     #[serde(default)]
     pub user: String,
+    /// Unused here, but typed as in the app so a file it can't load fails too.
+    #[serde(default, rename = "port")]
+    _port: i64,
+    #[serde(default, rename = "key")]
+    _key: String,
+    #[serde(default)]
+    pub dir: String,
 }
 
 impl SshSettings {
@@ -253,6 +266,10 @@ pub struct ActionFull {
     pub label: String,
     #[serde(default)]
     pub emoji: String,
+    /// `_` fields are unused here but typed as in the app, so a file the app
+    /// can't parse drops its actions here too.
+    #[serde(default, rename = "color")]
+    _color: String,
     #[serde(default)]
     pub shortcut: String,
     #[serde(default)]
@@ -267,6 +284,12 @@ pub struct ActionFull {
     pub confirm: bool,
     #[serde(default)]
     pub display: String,
+    #[serde(default, rename = "layer")]
+    _layer: String,
+    #[serde(default, rename = "primary")]
+    _primary: String,
+    #[serde(default, rename = "prompt")]
+    _prompt: String,
     #[serde(rename = "type", default)]
     pub kind: String,
     #[serde(default)]
@@ -275,6 +298,8 @@ pub struct ActionFull {
     pub mode: String,
     #[serde(default)]
     pub position: Option<f64>,
+    #[serde(default, rename = "inputs")]
+    _inputs: BTreeMap<String, ActionInputDef>,
     #[serde(default)]
     actions: BTreeMap<String, ActionDef>, // children
     /// Set during layer building, not parsed: true when the entry came from a
@@ -301,6 +326,37 @@ impl ActionFull {
     }
 }
 
+/// The app's input shape. The CLI never reads inputs; the types only make a
+/// file the app can't parse drop its actions here too.
+#[allow(dead_code)]
+#[derive(Deserialize, Clone)]
+struct ActionInputDef {
+    #[serde(default)]
+    label: String,
+    #[serde(rename = "type", default)]
+    kind: String,
+    #[serde(default)]
+    required: bool,
+    #[serde(default)]
+    placeholder: String,
+    #[serde(default)]
+    default: String,
+    #[serde(default)]
+    persist: bool,
+    #[serde(default)]
+    options: Vec<ActionInputOptionDef>,
+    #[serde(default)]
+    position: Option<f64>,
+}
+
+#[allow(dead_code)]
+#[derive(Deserialize, Clone)]
+#[serde(untagged)]
+enum ActionInputOptionDef {
+    Scalar(String),
+    Full { label: String, value: String },
+}
+
 #[derive(Deserialize, Default)]
 struct ProjectYaml {
     #[serde(default)]
@@ -314,6 +370,9 @@ struct ProjectYaml {
     #[serde(default)]
     worktree: bool,
     ssh: Option<SshSettings>,
+    /// Unused here, but typed as in the app so a file it can't load fails too.
+    #[serde(rename = "claudeAccount", default)]
+    _claude_account: Option<String>,
     #[serde(default)]
     services: BTreeMap<String, ServiceDef>,
     #[serde(default)]
@@ -333,6 +392,23 @@ struct ActionsYaml {
     terminals: BTreeMap<String, ActionDef>,
     #[serde(default)]
     actions: BTreeMap<String, ActionDef>,
+}
+
+/// Just what locates a project on disk, read leniently so a file that fails the
+/// full parse can still be found (and fixed) from inside its directory.
+#[derive(Deserialize, Default)]
+struct LocationOnly {
+    #[serde(default)]
+    root: String,
+    ssh: Option<SshHost>,
+}
+
+#[derive(Deserialize, Default)]
+struct SshHost {
+    #[serde(default)]
+    host: String,
+    #[serde(default)]
+    user: String,
 }
 
 #[derive(Deserialize, Default)]
@@ -383,6 +459,16 @@ fn peek_parent_with(
 ) -> Option<String> {
     let y = parse_project_yaml_with(ctx, name, source_override).ok()?;
     (!y.parent_name.is_empty()).then_some(y.parent_name)
+}
+
+/// The parent a removal treats the project as a duplicate of, mirroring the
+/// app's `load_root_and_parent(name).ok()`: None when `parent_name` is unset,
+/// the file fails to load, or the project is remote (SSH), so the app keeps its
+/// folder and deletes only the YAML and sync mirror.
+pub fn removal_parent(ctx: &Ctx, name: &str) -> Option<String> {
+    let y = parse_project_yaml_with(ctx, name, None).ok()?;
+    let remote = y.ssh.as_ref().is_some_and(SshSettings::is_remote);
+    (!remote && !y.parent_name.is_empty()).then_some(y.parent_name)
 }
 
 /// Project file-name stems in `~/.lpm/projects`, sorted.
@@ -480,8 +566,9 @@ fn canonical(path: &Path) -> PathBuf {
 ///
 /// 1. `LPM_PROJECT_NAME` (exported by the app into its terminals) wins when set,
 ///    but must still name an existing project file — a stale value is an error.
-/// 2. Otherwise the cwd is matched against project roots; the deepest matching
-///    root wins so a duplicate rooted under its parent beats the parent.
+/// 2. Otherwise the cwd is matched against project roots (a remote project's is
+///    its sync mirror); the deepest matching root wins so a duplicate rooted
+///    under its parent beats the parent.
 /// 3. Otherwise there is nothing to infer.
 pub fn infer_project_name(ctx: &Ctx) -> Result<String, String> {
     if let Ok(name) = std::env::var("LPM_PROJECT_NAME") {
@@ -516,18 +603,28 @@ pub struct CwdResolution {
     pub available: Vec<String>,
 }
 
+/// A project's local directory: its expanded `root`, or for a remote project
+/// (whose `ssh.dir` is a path on the host) the app's sync mirror.
+fn local_dir(ctx: &Ctx, name: &str) -> Option<PathBuf> {
+    let loc = read_yaml::<LocationOnly>(&ctx.project_path(name))?;
+    let remote = loc
+        .ssh
+        .is_some_and(|ssh| !ssh.host.is_empty() && !ssh.user.is_empty());
+    if remote {
+        return Some(ctx.sync_dir(name));
+    }
+    (!loc.root.is_empty()).then(|| PathBuf::from(expand_home(&loc.root)))
+}
+
 pub fn resolve_project_for_cwd(ctx: &Ctx, cwd: &Path) -> CwdResolution {
     let cwd = canonical(cwd);
     let available = project_names(ctx);
     let mut matches: Vec<(usize, String)> = Vec::new();
     for name in &available {
-        let Ok(project) = resolve_project(ctx, name) else {
+        let Some(dir) = local_dir(ctx, name) else {
             continue;
         };
-        if project.root.is_empty() {
-            continue;
-        }
-        let root = canonical(Path::new(&project.root));
+        let root = canonical(&dir);
         if cwd.starts_with(&root) {
             matches.push((root.components().count(), name.clone()));
         }
@@ -548,7 +645,8 @@ pub fn resolve_project_for_cwd(ctx: &Ctx, cwd: &Path) -> CwdResolution {
 
 // ---- service merge ----------------------------------------------------------
 
-/// `config.mergeService`: `dst` (higher precedence) wins; empty fields fall back.
+/// `config.mergeService`: `dst` (higher precedence) wins; empty fields fall
+/// back, except `dependsOn`, which an overriding entry must repeat.
 fn merge_service(dst: &mut ServiceFull, src: &ServiceFull) {
     if dst.cmd.is_empty() {
         dst.cmd = src.cmd.clone();
@@ -564,9 +662,6 @@ fn merge_service(dst: &mut ServiceFull, src: &ServiceFull) {
     }
     if dst.env.is_empty() {
         dst.env = src.env.clone();
-    }
-    if dst.depends_on.is_empty() {
-        dst.depends_on = src.depends_on.clone();
     }
 }
 
@@ -752,6 +847,9 @@ pub struct ResolvedProject {
     /// Session name == `name:` field, or the file stem when unset.
     pub session: String,
     pub root: String,
+    /// The root the app shows (`frontend_root`): `root`, or `ssh.dir` verbatim
+    /// for a remote project.
+    pub display_root: String,
     pub label: String,
     pub is_remote: bool,
     pub parent_name: String,
@@ -849,8 +947,13 @@ fn resolve_project_with_source(
     let ssh = y.ssh.clone().unwrap_or_default();
     let is_remote = ssh.is_remote();
     let root = expand_home(&y.root);
+    let display_root = if is_remote {
+        ssh.dir.trim().to_string()
+    } else {
+        root.clone()
+    };
 
-    // ---- services: project -> parent -> repo .lpm.yml -> global ----
+    // ---- services/profiles: project -> parent -> repo .lpm.yml (never global) ----
     let mut services: BTreeMap<String, ServiceFull> = y
         .services
         .into_iter()
@@ -879,14 +982,6 @@ fn resolve_project_with_source(
                 .collect();
             merge_services_under(&mut services, &mut profiles, rs, ry.profiles);
         }
-    }
-    if let Some(gy) = read_yaml_with::<ProjectYaml>(&ctx.global_path(), source_override) {
-        let gs: BTreeMap<String, ServiceFull> = gy
-            .services
-            .into_iter()
-            .map(|(n, d)| (n, d.into_full()))
-            .collect();
-        merge_services_under(&mut services, &mut profiles, gs, gy.profiles);
     }
 
     let services: Vec<ResolvedService> = services
@@ -931,6 +1026,7 @@ fn resolve_project_with_source(
         file_name: file_name.to_string(),
         session,
         root,
+        display_root,
         label: y.label,
         is_remote,
         parent_name: y.parent_name,
@@ -1202,6 +1298,96 @@ mod tests {
     }
 
     #[test]
+    fn project_override_of_repo_service_without_depends_on_has_no_dependencies() {
+        let repo = tempfile::tempdir().unwrap();
+        std::fs::write(
+            repo.path().join(".lpm.yml"),
+            "services:\n  web:\n    cmd: npm run dev\n    cwd: frontend\n    port: 3000\n    portConflict: free\n    env:\n      B: \"2\"\n    dependsOn: [db]\n  db: docker compose up\n",
+        )
+        .unwrap();
+        let project = format!(
+            "root: {:?}\nservices:\n  web:\n    cmd: npm start\n    env:\n      A: \"1\"\n",
+            repo.path().to_string_lossy()
+        );
+        let (_d, ctx) = ctx_with(&[("p", &project)], None);
+        let rp = resolve_project(&ctx, "p").unwrap();
+        let web = rp.services.iter().find(|s| s.name == "web").unwrap();
+        assert_eq!(web.cmd, "npm start");
+        assert_eq!(web.cwd, "frontend", "empty cwd falls back to the repo");
+        assert_eq!(web.port, 3000, "zero port falls back to the repo");
+        assert_eq!(web.port_conflict, "free");
+        assert_eq!(
+            web.env,
+            BTreeMap::from([("A".to_string(), "1".to_string())]),
+            "non-empty env replaces the repo env whole"
+        );
+        assert!(
+            web.depends_on.is_empty(),
+            "dependsOn never falls back to a lower layer"
+        );
+        let db = rp.services.iter().find(|s| s.name == "db").unwrap();
+        assert_eq!(db.cmd, "docker compose up");
+    }
+
+    #[test]
+    fn duplicate_inherits_parent_services_with_dependencies() {
+        let proj = [
+            (
+                "base",
+                "root: /nonexistent-root\nservices:\n  api:\n    cmd: go run .\n    dependsOn: [db]\n  db: docker compose up\nprofiles:\n  default: [api]\n",
+            ),
+            ("base-1", "root: /nonexistent-root-1\nparent_name: base\n"),
+        ];
+        let (_d, ctx) = ctx_with(&proj, None);
+        let rp = resolve_project(&ctx, "base-1").unwrap();
+        let api = rp.services.iter().find(|s| s.name == "api").unwrap();
+        assert_eq!(api.depends_on, vec!["db".to_string()]);
+        assert_eq!(rp.profiles.get("default"), Some(&vec!["api".to_string()]));
+    }
+
+    #[test]
+    fn remote_and_rootless_projects_skip_repo_services() {
+        let repo = tempfile::tempdir().unwrap();
+        std::fs::write(
+            repo.path().join(".lpm.yml"),
+            "services:\n  web: npm run dev\n",
+        )
+        .unwrap();
+        let remote = format!(
+            "root: {:?}\nssh:\n  host: example.com\n  user: me\nservices:\n  api: go run .\n",
+            repo.path().to_string_lossy()
+        );
+        let (_d, ctx) = ctx_with(
+            &[
+                ("remote", &remote),
+                ("rootless", "services:\n  api: go run .\n"),
+            ],
+            None,
+        );
+        for name in ["remote", "rootless"] {
+            let rp = resolve_project(&ctx, name).unwrap();
+            let names: Vec<&str> = rp.services.iter().map(|s| s.name.as_str()).collect();
+            assert_eq!(names, vec!["api"], "{name}");
+        }
+    }
+
+    #[test]
+    fn global_services_and_profiles_are_ignored() {
+        let global = "services:\n  shared: echo shared\nprofiles:\n  default: [shared]\n";
+        let (_d, ctx) = ctx_with(
+            &[(
+                "p",
+                "root: /nonexistent-root\nservices:\n  web: npm run dev\n",
+            )],
+            Some(global),
+        );
+        let rp = resolve_project(&ctx, "p").unwrap();
+        let names: Vec<&str> = rp.services.iter().map(|s| s.name.as_str()).collect();
+        assert_eq!(names, vec!["web"]);
+        assert!(rp.profiles.is_empty());
+    }
+
+    #[test]
     fn terminals_block_becomes_terminal_kind_and_origin() {
         let ay: ActionsYaml =
             serde_norway::from_str("terminals:\n  codex:\n    position: 2\n").unwrap();
@@ -1249,5 +1435,142 @@ mod tests {
         let fable = cm.children.iter().find(|c| c.name == "fable").unwrap();
         assert_eq!(fable.cmd, "claude --model fable");
         assert_eq!(fable.cwd, "app", "child inherits parent cwd");
+    }
+
+    #[test]
+    fn remote_project_never_matches_a_local_cwd_by_root_or_ssh_dir() {
+        let local = tmp_dir();
+        let sub = local.path().join("src");
+        std::fs::create_dir_all(&sub).unwrap();
+        let dir = local.path().to_string_lossy().into_owned();
+        let (_d, ctx) = ctx_with(
+            &[
+                (
+                    "by-root",
+                    &format!("root: {dir:?}\nssh:\n  host: h\n  user: u\n"),
+                ),
+                (
+                    "by-dir",
+                    &format!("ssh:\n  host: h\n  user: u\n  dir: {dir:?}\n"),
+                ),
+            ],
+            None,
+        );
+        let result = resolve_project_for_cwd(&ctx, &sub);
+        assert!(result.candidates.is_empty(), "{:?}", result.candidates);
+    }
+
+    #[test]
+    fn remote_project_matches_its_sync_mirror() {
+        let (_d, ctx) = ctx_with(
+            &[
+                ("api", "ssh:\n  host: h\n  user: u\n  dir: ~/api\n"),
+                ("other", "ssh:\n  host: h\n  user: u\n  dir: ~/other\n"),
+            ],
+            None,
+        );
+        let mirror = ctx.lpm_dir.join("sync").join("api").join("src");
+        std::fs::create_dir_all(&mirror).unwrap();
+        let result = resolve_project_for_cwd(&ctx, &mirror);
+        assert_eq!(result.candidates, vec!["api"]);
+    }
+
+    #[test]
+    fn local_project_does_not_claim_a_sync_mirror_path() {
+        let (_d, ctx) = ctx_with(&[("api", "root: /nonexistent-root\n")], None);
+        let mirror = ctx.lpm_dir.join("sync").join("api");
+        std::fs::create_dir_all(&mirror).unwrap();
+        assert!(resolve_project_for_cwd(&ctx, &mirror).candidates.is_empty());
+    }
+
+    #[test]
+    fn cwd_resolution_still_finds_a_project_that_fails_to_load() {
+        let root = tmp_dir();
+        let body = format!(
+            "root: {:?}\nworktree: yes\nservices:\n  web: npm start\n",
+            root.path().to_string_lossy()
+        );
+        let (_d, ctx) = ctx_with(&[("broken", &body)], None);
+        assert!(resolve_project(&ctx, "broken").is_err());
+        assert_eq!(
+            resolve_project_for_cwd(&ctx, root.path()).candidates,
+            vec!["broken"]
+        );
+    }
+
+    const REMOTE: &str = "ssh:\n  host: h\n  user: u\n";
+
+    #[test]
+    fn project_fields_the_app_cannot_parse_fail_to_resolve() {
+        for field in [
+            "ssh:\n  host: h\n  user: u\n  port: \"22\"\n",
+            "ssh:\n  host: h\n  user: u\n  port: 22.5\n",
+            "ssh:\n  host: h\n  user: u\n  port: ~\n",
+            "ssh:\n  host: h\n  user: u\n  key: [a]\n",
+            "ssh:\n  host: h\n  user: u\n  dir: {a: b}\n",
+            "root: /x\nclaudeAccount: [work]\n",
+            "root: /x\nclaudeAccount: {id: work}\n",
+        ] {
+            let (_d, ctx) = ctx_with(&[("p", &format!("{field}services:\n  web: x\n"))], None);
+            assert!(resolve_project(&ctx, "p").is_err(), "{field}");
+        }
+    }
+
+    #[test]
+    fn project_fields_the_app_accepts_still_resolve() {
+        for field in [
+            "ssh:\n  host: h\n  user: u\n  port: 2222\n  key: ~/.ssh/id\n  dir: ~/app\n",
+            "ssh:\n  host: h\n  user: u\n  port: 0x16\n  key: 5\n  dir: true\n",
+            "ssh:\n  host: h\n  user: u\n  key: ~\n",
+            "root: /x\nclaudeAccount: work\n",
+            "root: /x\nclaudeAccount: 3\n",
+            "root: /x\nclaudeAccount: ~\n",
+            "root: /x\nwork_status: 5\n",
+        ] {
+            let (_d, ctx) = ctx_with(&[("p", &format!("{field}services:\n  web: x\n"))], None);
+            assert!(resolve_project(&ctx, "p").is_ok(), "{field}");
+        }
+    }
+
+    #[test]
+    fn action_fields_the_app_cannot_parse_drop_the_files_actions() {
+        for field in [
+            "color: 5",
+            "color: [red]",
+            "layer: 1",
+            "primary: ~",
+            "prompt: true",
+            "inputs: [a]",
+            "inputs: {k: x}",
+            "inputs: {k: {label: 1}}",
+            "inputs: {k: {required: \"yes\"}}",
+            "inputs: {k: {position: \"1\"}}",
+            "inputs: {k: {options: [1]}}",
+            "inputs: {k: {options: [{label: a}]}}",
+            "actions: {child: {cmd: y, inputs: [z]}}",
+        ] {
+            let body = format!("{REMOTE}actions:\n  a:\n    cmd: x\n    {field}\n  b: echo b\n");
+            let (_d, ctx) = ctx_with(&[("p", &body)], None);
+            let rp = resolve_project(&ctx, "p").unwrap();
+            assert!(rp.actions.is_empty(), "{field}");
+        }
+    }
+
+    #[test]
+    fn action_fields_the_app_accepts_keep_the_files_actions() {
+        for field in [
+            "color: red",
+            "layer: tools",
+            "primary: last-used",
+            "prompt: fix it",
+            "inputs: {k: {label: Key, type: radio, required: true, placeholder: p, default: b, persist: true, position: 2, options: [a, {label: B, value: b}]}}",
+            "inputs: {k: {position: ~}}",
+            "inputs: {k: {options: [{label: a, value: b, extra: c}]}}",
+        ] {
+            let body = format!("{REMOTE}actions:\n  a:\n    cmd: x\n    {field}\n");
+            let (_d, ctx) = ctx_with(&[("p", &body)], None);
+            let rp = resolve_project(&ctx, "p").unwrap();
+            assert_eq!(rp.actions.len(), 1, "{field}");
+        }
     }
 }

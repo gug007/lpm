@@ -4,17 +4,24 @@ Read this reference for global actions, repo-shared config, templates, `extends`
 
 ## Layers
 
-The precedence from lowest to highest is:
+Actions and terminals resolve from highest to lowest precedence:
 
 ```text
-templates < global < .lpm.yml < personal project
+personal project file
+  > its extends templates
+  > duplicate's parent file (duplicates only)
+  > the parent's extends templates
+  > repo <root>/.lpm.yml (local projects only)
+  > its extends templates
+  > ~/.lpm/global.yml
+  > its extends templates
 ```
 
-Higher layers win by field. Within `extends: [a, b, c]`, earlier templates win over later templates.
+Higher layers win by field. Within `extends: [a, b, c]`, earlier templates win over later templates. Services and profiles come only from the project file, the duplicate's parent, and `.lpm.yml`; zones from the project file, the parent, `.lpm.yml`, and `global.yml` (see `zones.md`).
 
 ## Repo config
 
-Write team-shared configuration to `<root>/.lpm.yml`. It supports `extends`, `services`, `actions`, `profiles`, and `zones` (declare terminals as actions with `type: terminal`). Do not put `name`, `root`, `parent_name`, `worktree`, or `ssh` in this file.
+Write team-shared configuration to `<root>/.lpm.yml`. It supports `extends`, `services`, `actions`, `profiles`, and `zones` (declare terminals as actions with `type: terminal`). Do not put `name`, `root`, `label`, `parent_name`, `worktree`, `ssh`, `claudeAccount`, or `work_status` in this file.
 
 ```yaml
 services:
@@ -51,13 +58,13 @@ actions:
     reuse: true
 ```
 
-Reference a template by bare name:
+Reference a template by bare name from a project file, `.lpm.yml`, or `global.yml`:
 
 ```yaml
 extends: [web-tools]
 ```
 
-Templates contribute only actions. Template loading is one level deep; a template’s own `extends` is not followed.
+Templates contribute only `actions` and `terminals`; the validator rejects any other key in a template. Template loading is one level deep; a template’s own `extends` is not followed. A name with no matching template is skipped silently.
 
 ## Sparse overrides
 
@@ -69,6 +76,10 @@ actions:
     position: 1
 ```
 
-Unset fields inherit from lower layers. Boolean `false` means “inherit” for `confirm` and `reuse`, so a sparse override cannot turn a lower `true` into `false`. Redefine the entry fully when that change is required.
+Unset fields inherit from lower layers. An empty string, `false` for `confirm` and `reuse`, or an omitted `position` also count as unset, so a sparse override cannot clear a lower value or turn a lower `true` into `false`; write the value you want, or redefine the entry fully in its own file.
+
+These fields replace the lower value whole instead of merging: `env`, `port`, `inputs`, and child `actions`. A sparse override that sets any child `actions` drops every child of the lower entry.
+
+The validator warns `no command or child actions; ensure this is a sparse override` for an override entry without `cmd`. That is expected; it errors only when no layer supplies a command or children.
 
 When the requested layer is ambiguous, default to the personal project file and tell the user they can say “share with the team” to use `.lpm.yml` instead.

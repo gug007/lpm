@@ -17,7 +17,8 @@ description: "Operate lpm-managed projects through the `lpm` CLI: start or stop 
 
 - `lpm list` — all projects, running state, agent counts.
 - `lpm project [name] [--full]` — one project in full (`--full` adds env maps, action details, terminal history).
-- `lpm config resolve [--cwd PATH] [--json]` — match a directory to its deepest project root without using `LPM_PROJECT_NAME`.
+- In `lpm list --json` and `lpm project --json`, when `isRemote` is `true`, `root` is the project's `ssh.dir`: a path on the SSH host, not on this machine. Don't `cd` into it or read files there locally.
+- `lpm config resolve [--cwd PATH] [--json]` — match a directory to its deepest project root without using `LPM_PROJECT_NAME`. An SSH project matches only from its local sync mirror `~/.lpm/sync/<project-file-name>`, never by `root` or `ssh.dir`.
 - `lpm config validate <file> [--json]` — validate syntax, fields, layer rules, and effective merged configuration.
 - `lpm config get --layer project|repo|global|template [--project NAME | --template NAME] [--create] [--json]` — read a config layer with the revision required for a safe write.
 - `lpm config apply --layer project|repo|global|template [--project NAME | --template NAME] [--create] --if-revision HASH (--stdin | --file PATH) [--json]` — validate a candidate and atomically apply it through the running app. Never edit a live config file directly.
@@ -28,7 +29,7 @@ description: "Operate lpm-managed projects through the `lpm` CLI: start or stop 
 - `lpm wait [project] [--service X | --port N | --agent] [--timeout 60]` — block until ready; `--agent` waits for the project's agents to settle.
 - `lpm duplicate [project] [-n N] [--label TEXT]... [--group X] [--run ACTION | --command CMD] [--prompt TEXT] [--include-uncommitted | --exclude-uncommitted]` — create parallel working directories. Always pass a `--label` describing the copy's purpose so it's identifiable in the app — one repeated `--label` per copy in creation order, `<project-name>-<short-description>` style such as `lpm-fix-auth`. Only omit it when you genuinely can't infer a purpose. Output lists each copy's path.
 - `lpm worktree [project] [-n N] [--label TEXT]... [--group X] [--run ACTION | --command CMD] [--prompt TEXT] [--reinstall-deps]` — create linked Git worktrees instead of standalone copies. The same labeling guidance applies. Output lists each worktree's path.
-- `lpm remove <copy-name>` — remove a duplicate. For a linked worktree, this also removes its Git worktree registration and lpm-created branch. Originals need `--force`; don't use `--force` unless the user explicitly asks.
+- `lpm remove <copy-name>` — remove a duplicate. For a linked worktree, this also removes its Git worktree registration and lpm-created branch. Originals and SSH projects (SSH duplicates too) need `--force`, and their folder is kept; don't use `--force` unless the user explicitly asks.
 - `lpm run [action | --command CMD] [--prompt TEXT] [-p proj]` — queue in a new app terminal, fire-and-forget.
 - `lpm set-status <key> <value>` / `lpm clear-status <key>` — report status to the app UI.
 

@@ -1,7 +1,7 @@
 ---
 name: lpm-config
-version: 1.2.0
-description: Create and edit lpm YAML configs for projects, duplicates, worktree metadata, services, actions, header and footer button zones, terminals, profiles, SSH projects, and shared config layers. Use when the user explicitly asks to configure lpm, add an lpm service/action/button/zone/terminal, edit `.lpm.yml`, or manage lpm templates or global config. For creating or removing linked Git worktrees and operating running projects, use `lpm-cli`.
+version: 1.3.0
+description: Create and edit lpm YAML configs for projects, duplicates, worktree metadata, services, actions, header and footer button zones and zone layers, terminals, profiles, SSH projects, and shared config layers. Use when the user explicitly asks to configure lpm, add an lpm service/action/button/zone/terminal, edit `.lpm.yml`, or manage lpm templates or global config. For creating or removing linked Git worktrees and operating running projects, use `lpm-cli`.
 ---
 
 # Configure lpm
@@ -11,7 +11,8 @@ Create and modify lpm config on macOS exclusively through `lpm config get` and `
 ## Load only the relevant reference
 
 - Read [references/core.md](references/core.md) for project identity, services, dependencies, profiles, duplicates, linked Git worktrees, and project creation.
-- Read [references/actions.md](references/actions.md) when adding or changing actions, buttons, terminals, zones, inputs, ports, shortcuts, or nested menus.
+- Read [references/actions.md](references/actions.md) when adding or changing actions, buttons, terminals, inputs, ports, shortcuts, colors, agent prompts, or nested menus.
+- Read [references/zones.md](references/zones.md) when creating, filling, rearranging, or removing button zones or zone layers.
 - Read [references/sharing.md](references/sharing.md) for `.lpm.yml`, global config, templates, `extends`, layering, and sparse overrides.
 - Read [references/ssh.md](references/ssh.md) for remote projects or `mode: sync`.
 - Read [references/validation.md](references/validation.md) before preparing a candidate and follow its transactional workflow.
@@ -26,7 +27,7 @@ lpm config resolve --cwd . --json
 
 Interpret the result:
 
-- One match: use the returned project name with `lpm config get`; never edit the returned `path`.
+- One match: use the returned project name with `lpm config get`; never edit the returned `path`. A match locates the file even when the app cannot load it; validation reports what to fix.
 - Multiple matches: ask which candidate to use.
 - No match: offer to create a project for the current directory or configure one of the returned `available` projects.
 
@@ -36,7 +37,7 @@ Use these explicit layer overrides:
 - “share with the team”, “check it in”, or “for everyone” → `<root>/.lpm.yml`
 - “template” or “reuse across projects” → `~/.lpm/templates/<name>.yml`
 
-When `lpm config resolve` is unavailable, inspect the YAML project files read-only. Match the current directory against expanded `root` paths by path components; the deepest root wins. Do not parse YAML with line-oriented tools and do not write a config without `lpm config apply`.
+When `lpm config resolve` is unavailable, inspect the YAML project files read-only. Match the current directory against expanded `root` paths by path components; the deepest root wins. An SSH project never matches by `root` or `ssh.dir` (a path on the host); only its local sync mirror `~/.lpm/sync/<project>` matches, where `<project>` is the project's file name (`~/.lpm/projects/<project>.yml`), not its `name:` field. Do not parse YAML with line-oriented tools and do not write a config without `lpm config apply`.
 
 ## Choose the shape
 
@@ -50,6 +51,11 @@ When `lpm config resolve` is unavailable, inspect the YAML project files read-on
 | Default action plus alternatives | parent `cmd` plus nested `actions` |
 | Split button whose main segment repeats the last used option | parent `primary: last-used` plus nested `actions` |
 | Menu with no default | nested `actions` without parent `cmd` |
+| Framed group of buttons in the header or footer | `zones` entry with `rows`, plus `display: <zone>` on each button |
+| Several button sets in one zone, switched with dots | zone `layers`, plus `layer: <key>` on each button |
+| Put a button declared elsewhere into a zone or layer | sparse override with `display`, `layer`, and `position` only |
+| Colored button or terminal tab | action `color` |
+| Agent terminal that starts with a task | `type: terminal` with an agent `cmd` plus `prompt` |
 | Hidden command with completion notification | `type: background` |
 | Send command into the focused terminal | `type: command` |
 | Reused visible pane | `type: terminal` plus `reuse: true` |
