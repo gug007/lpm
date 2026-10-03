@@ -56,8 +56,8 @@
       "type": "object",
       "description": "Framed groups of buttons in the header or the footer, 1 to 3 rows tall, available in every project. An action sits in a zone when its \"display\" is the zone's name. An entry with \"rows\" declares the zone; an entry without it only adjusts a zone declared in another config file.",
       "propertyNames": {
-        "pattern": "^(?!(?:header|footer|menu|button)$)[^:]+$",
-        "errorMessage": "Invalid zone name. It can't be empty, contain \":\", or be \"header\", \"footer\", \"menu\" or \"button\"."
+        "pattern": "^(?!(?:header|footer|menu|button)$)[^:/]+$",
+        "errorMessage": "Invalid zone name. It can't be empty, contain \":\" or \"/\", or be \"header\", \"footer\", \"menu\" or \"button\"."
       },
       "additionalProperties": { "$ref": "#/definitions/zone" }
     }
@@ -85,6 +85,22 @@
         "position": {
           "type": "number",
           "description": "Optional sort key among the items of the zone's bar. Lower values render first; entries without a position fall back to alphabetical order. Floats are allowed so items can be inserted between existing positions without renumbering."
+        },
+        "layers": {
+          "type": "object",
+          "description": "Keyed layers a zone can slide between; dots show with two or more. A button joins one with its \"layer\" key. A button with no \"layer\", or one naming a layer the zone doesn't have, shows in the first layer (lowest position, ties by key).",
+          "propertyNames": {
+            "pattern": "^[^:/]+$",
+            "errorMessage": "Invalid layer key. It can't be empty or contain \":\" or \"/\"."
+          },
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "label": { "type": "string", "description": "Name shown left of the dots while the layer is showing. Without one, only the dots show." },
+              "position": { "type": "number", "description": "Sort key among the zone's layers. Lower values come first; ties break by key." }
+            }
+          }
         }
       }
     },
@@ -134,6 +150,7 @@
               "description": "Where the action appears. Defaults to \"header\" when omitted. \"footer\" pins it to the footer; any other name puts it in the zone of that name (see \"zones\"). \"menu\" is still accepted but no longer suggested.",
               "errorMessage": "Invalid \"display\" value. Use \"header\", \"footer\" or a zone name without \":\" (\"button\" → use \"header\")."
             },
+            "layer": { "type": "string", "description": "Which layer of its zone the button sits in. Applies only when \"display\" names a zone with layers. Without it, or naming a layer the zone doesn't have, the button shows in the zone's first layer." },
             "primary": { "type": "string", "examples": ["last-used"], "description": "For an action with sub-actions: which sub-action the button's main part shows and runs. \"last-used\" follows your most recent pick; a sub-action key always shows that one. The arrow still opens the full list." },
             "type": { "type": "string" },
             "reuse": { "type": "boolean" },
@@ -227,6 +244,7 @@
               "description": "Where the action appears. Defaults to \"header\" when omitted. \"footer\" pins it to the footer; any other name puts it in the zone of that name (see \"zones\"). \"menu\" is still accepted but no longer suggested.",
               "errorMessage": "Invalid \"display\" value. Use \"header\", \"footer\" or a zone name without \":\" (\"button\" → use \"header\")."
             },
+            "layer": { "type": "string", "description": "Which layer of its zone the button sits in. Applies only when \"display\" names a zone with layers. Without it, or naming a layer the zone doesn't have, the button shows in the zone's first layer." },
             "primary": { "type": "string", "examples": ["last-used"], "description": "For an action with sub-actions: which sub-action the button's main part shows and runs. \"last-used\" follows your most recent pick; a sub-action key always shows that one. The arrow still opens the full list." },
             "position": {
               "type": "number",

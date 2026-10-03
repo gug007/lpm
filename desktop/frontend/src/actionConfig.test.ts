@@ -15,6 +15,22 @@ describe("setPlacementNote", () => {
     });
   });
 
+  it("writes the layer into the note beside the display", () => {
+    const parsed = doc("actions:\n  deploy:\n    position: 2\n    display: footer\n");
+
+    expect(setPlacementNote(parsed, "deploy", "build", "mobile")).toBe(true);
+
+    expect(parsed.toJSON()).toEqual({ actions: { deploy: { position: 2, display: "build", layer: "mobile" } } });
+  });
+
+  it("drops the note's layer when the placement has none", () => {
+    const parsed = doc("actions:\n  deploy:\n    display: build\n    layer: web\n");
+
+    expect(setPlacementNote(parsed, "deploy", "header", null)).toBe(true);
+
+    expect(parsed.toJSON()).toEqual({ actions: { deploy: { display: "header" } } });
+  });
+
   it("finds the note under terminals", () => {
     const parsed = doc("terminals:\n  shell:\n    position: 1\n    display: build\n");
 

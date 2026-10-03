@@ -1018,6 +1018,8 @@ struct ActionFull {
     #[serde(default)]
     display: String,
     #[serde(default)]
+    layer: String,
+    #[serde(default)]
     primary: String,
     #[serde(default)]
     prompt: String,
@@ -1618,6 +1620,8 @@ pub struct ActionInfo {
     pub confirm: bool,
     pub display: String,
     #[serde(skip_serializing_if = "String::is_empty")]
+    pub layer: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
     pub primary: String,
     #[serde(skip_serializing_if = "String::is_empty")]
     pub prompt: String,
@@ -1728,6 +1732,9 @@ fn merge_action(d: &mut ActionFull, s: &ActionFull) {
     }
     if d.display.is_empty() {
         d.display = s.display.clone();
+    }
+    if d.layer.is_empty() {
+        d.layer = s.layer.clone();
     }
     if d.primary.is_empty() {
         d.primary = s.primary.clone();
@@ -2043,6 +2050,7 @@ fn action_to_info(id: &str, name: &str, act: &ActionFull) -> ActionInfo {
         env: act.env.clone(),
         confirm: act.confirm,
         display: act.display.clone(),
+        layer: act.layer.clone(),
         primary: act.primary.clone(),
         prompt: act.prompt.clone(),
         kind: act.kind.clone(),
@@ -3205,6 +3213,28 @@ mod action_lookup_tests {
             kind: "terminal".into(),
             ..Default::default()
         }
+    }
+
+    #[test]
+    fn layer_falls_back_like_display() {
+        let mut project = ActionFull {
+            display: "build".into(),
+            ..Default::default()
+        };
+        let global = ActionFull {
+            layer: "web".into(),
+            ..Default::default()
+        };
+        merge_action(&mut project, &global);
+        assert_eq!(project.layer, "web");
+        let info = action_to_info("ios", "ios", &project);
+        assert_eq!(serde_json::to_value(&info).unwrap()["layer"], "web");
+    }
+
+    #[test]
+    fn an_empty_layer_is_omitted_from_action_info() {
+        let info = action_to_info("ios", "ios", &ActionFull::default());
+        assert!(serde_json::to_value(&info).unwrap().get("layer").is_none());
     }
 
     fn parent_with_child(child_name: &str, child: ActionFull) -> BTreeMap<String, ActionFull> {

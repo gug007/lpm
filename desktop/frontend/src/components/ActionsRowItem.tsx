@@ -1,6 +1,6 @@
 import type { MouseEvent } from "react";
 import type { RowItem } from "../actionsLayoutModel";
-import type { ActionInfo, ActionsLayout, ZoneDisplay, ZoneInfo } from "../types";
+import type { ActionInfo, ZoneDisplay, ZoneInfo } from "../types";
 import { ActionsSortableItem } from "./ActionsSortableItem";
 import { ActionView } from "./ActionView";
 import { ZoneView } from "./ZoneView";
@@ -8,9 +8,9 @@ import { ZoneView } from "./ZoneView";
 interface ActionsRowItemProps {
   item: RowItem;
   display: ZoneDisplay;
-  layout: ActionsLayout;
   // What to re-measure when a zone in this row resizes mid-drag.
   movedByResize: string[];
+  projectName: string;
   disabled: boolean;
   scope: string;
   onRun: (action: ActionInfo) => void;
@@ -23,8 +23,8 @@ interface ActionsRowItemProps {
 export function ActionsRowItem({
   item,
   display,
-  layout,
   movedByResize,
+  projectName,
   disabled,
   scope,
   onRun,
@@ -37,8 +37,8 @@ export function ActionsRowItem({
         <ZoneView
           zone={item.zone}
           display={display}
-          ids={layout.zones[item.zone.name] ?? []}
-          actions={item.actions}
+          layers={item.layers}
+          projectName={projectName}
           disabled={disabled}
           scope={scope}
           onRun={onRun}

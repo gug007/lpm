@@ -9,7 +9,17 @@ import {
   isHeaderDisplay,
   zoneDisplayOf,
 } from "./types";
-import { groupOf, isZoneItemId, rowOfZone, zoneGroup, zoneNameOfItem } from "./components/actionsDndLayout";
+import {
+  type ActionGroup,
+  groupOf,
+  isZoneGroup,
+  isZoneItemId,
+  rowOfZone,
+  zoneGroup,
+  zoneNameOfGroup,
+  zoneNameOfItem,
+} from "./components/actionsDndLayout";
+import { layerOfListKey, listKeyForAction, listKeysInLayout, zoneOfListKey } from "./zoneLayers";
 
 type Doc = ReturnType<typeof YAML.parseDocument>;
 
@@ -20,6 +30,9 @@ export interface ActionUpdate {
   // zone name). The header is written out rather than deleting the key so it
   // also overrides a display inherited from another config file.
   display?: string;
+  // Written beside display when the button changed lists. string → set the
+  // layer; null → drop it from the project file's entry; undefined → leave it.
+  layer?: string | null;
   // Where to write a sparse override when the key isn't already in the
   // project YAML — derived from the resolved action's type so a global
   // terminal override lands in `terminals:`, not `actions:`.
@@ -40,12 +53,23 @@ export interface LayoutUpdates {
 }
 
 // A display that names no zone of the layout shows in the header, as in
-// buildActionsModel, so it counts as the header here too.
-function placementOf(display: string, zones: ActionsLayout["zones"]): string | null {
+// buildActionsModel, so it counts as the header here too. A layer that's
+// missing counts as the zone's first. Without zone infos (callers that only
+// renumber a row) the layout's own keys, which come in layer order, stand in.
+function placementOf(action: ActionInfo, zones: ZoneInfo[], layout: ActionsLayout): ActionGroup | null {
+  const { display } = action;
   if (isHeaderDisplay(display)) return "header";
   if (isFooterDisplay(display)) return "footer";
   if (display === "menu") return null;
-  return Object.hasOwn(zones, display) ? zoneGroup(display) : "header";
+  const zone = zones.find((candidate) => candidate.name === display);
+  if (zone) return zoneGroup(listKeyForAction(zone, action.layer));
+  const keys = listKeysInLayout(layout, display);
+  if (keys.length === 0) return "header";
+  return zoneGroup(keys.find((key) => layerOfListKey(key) === action.layer) ?? keys[0]);
+}
+
+function isLayerGroup(group: ActionGroup | null): boolean {
+  return group !== null && isZoneGroup(group) && layerOfListKey(zoneNameOfGroup(group)) !== null;
 }
 
 // `before` is the layout a drag started from. A drag previews its moves into
@@ -60,12 +84,17 @@ export function buildLayoutUpdates(
 ): LayoutUpdates {
   const actions = new Map<string, ActionUpdate>();
   const zoneUpdates = new Map<string, ZoneUpdate>();
-  const previous = new Map<string, string | null>();
+  const previous = new Map<string, ActionGroup | null>();
   const sectionByKey = new Map<string, ActionSection>();
+  const hadLayer = new Set<string>();
   const zoneRow = new Map<string, ZoneDisplay>(zones.map((zone) => [zone.name, zoneDisplayOf(zone)]));
   for (const action of current) {
     const startGroup = before ? groupOf(before, action.name) : null;
-    previous.set(action.name, startGroup ?? placementOf(action.display, layout.zones));
+    const start = startGroup ?? placementOf(action, zones, layout);
+    previous.set(action.name, start);
+    // A previewed move out of a layer has already dropped the layer from the
+    // store, so the drag-start list says it had one.
+    if (action.layer !== undefined || isLayerGroup(start)) hadLayer.add(action.name);
     sectionByKey.set(action.name, action.type === "terminal" ? "terminals" : "actions");
   }
   for (const row of ["header", "footer"] as const) {
@@ -76,17 +105,23 @@ export function buildLayoutUpdates(
       zoneUpdates.set(name, start === undefined || start === row ? { position: index + 1 } : { position: index + 1, display: row });
     });
   }
-  const visit = (keys: string[], placement: string, display: string) => {
+  const visit = (keys: string[], placement: ActionGroup, display: string, layer: string | null) => {
     keys.forEach((key, index) => {
       if (isZoneItemId(key)) return;
       const update: ActionUpdate = { position: index + 1, section: sectionByKey.get(key) ?? "actions" };
-      if (previous.get(key) !== placement) update.display = display;
+      if (previous.get(key) !== placement) {
+        update.display = display;
+        if (layer !== null) update.layer = layer;
+        else if (hadLayer.has(key)) update.layer = null;
+      }
       actions.set(key, update);
     });
   };
-  visit(layout.header, "header", "header");
-  visit(layout.footer, "footer", "footer");
-  for (const [name, keys] of Object.entries(layout.zones)) visit(keys, zoneGroup(name), name);
+  visit(layout.header, "header", "header", null);
+  visit(layout.footer, "footer", "footer", null);
+  for (const [listKey, keys] of Object.entries(layout.zones)) {
+    visit(keys, zoneGroup(listKey), zoneOfListKey(listKey), layerOfListKey(listKey));
+  }
   return { actions, zones: zoneUpdates };
 }
 
@@ -99,6 +134,8 @@ export function applyActionUpdates(
     if (!update) return action;
     const next: ActionInfo = { ...action, position: update.position };
     if (update.display !== undefined) next.display = update.display;
+    if (update.layer === null) delete next.layer;
+    else if (update.layer !== undefined) next.layer = update.layer;
     return next;
   });
 }
@@ -117,15 +154,17 @@ function buildSeed(update: ActionUpdate, cmd?: string): Record<string, unknown> 
   const seed: Record<string, unknown> = { position: update.position };
   if (cmd !== undefined) seed.cmd = cmd;
   if (update.display !== undefined) seed.display = update.display;
+  if (typeof update.layer === "string") seed.layer = update.layer;
   return seed;
 }
 
 // Shorthand string entries are widened to map form so the position/display
 // fields have somewhere to attach. Keys present in the project YAML get an
 // in-place patch; keys that only exist in another file get a sparse override
-// (just position + display) so other fields keep inheriting. Zones get a
-// position the same way, plus display when they changed rows; an entry
-// without rows stays a note on a zone declared elsewhere.
+// (just position + display, and a layer when it names one) so other fields
+// keep inheriting. Zones get a position the same way, plus display when they
+// changed rows; an entry without rows stays a note on a zone declared
+// elsewhere.
 export function patchLayoutDoc(doc: Doc, updates: LayoutUpdates): void {
   const remaining = new Map(updates.actions);
   for (const section of ACTION_SECTIONS) {
@@ -141,6 +180,8 @@ export function patchLayoutDoc(doc: Doc, updates: LayoutUpdates): void {
       } else if (YAML.isMap(item.value)) {
         item.value.set("position", update.position);
         if (update.display !== undefined) item.value.set("display", update.display);
+        if (update.layer === null) item.value.delete("layer");
+        else if (update.layer !== undefined) item.value.set("layer", update.layer);
       }
       remaining.delete(key);
     }

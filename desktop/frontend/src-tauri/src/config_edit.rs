@@ -56,6 +56,7 @@ const SERVICE_REMOVE_KEYS: &[&str] = &[
 // rides along untouched through an edit. `prompt` and `inputs` are managed on
 // desktop but deliberately absent here: the phone editor doesn't surface
 // either, so keeping them unmanaged stops a phone edit from clearing them.
+// `layer` is left unmanaged the same way so a phone edit keeps it.
 const MANAGED_ACTION_KEYS: &[&str] = &[
     "label",
     "emoji",

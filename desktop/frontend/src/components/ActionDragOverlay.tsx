@@ -1,5 +1,5 @@
 import type { ActionInfo, ZoneDisplay, ZoneInfo } from "../types";
-import type { ActionsModel } from "../actionsLayoutModel";
+import type { ActionsModel, ZoneLayerView } from "../actionsLayoutModel";
 import { findActionByPath } from "../actionTree";
 import {
   type ActionGroup,
@@ -9,6 +9,8 @@ import {
   zoneNameOfGroup,
   zoneNameOfItem,
 } from "./actionsDndLayout";
+import { zoneOfListKey } from "../zoneLayers";
+import { openListKey } from "../store/zoneLayers";
 import { ActionView } from "./ActionView";
 import { ZoneEmptyHint } from "./ZoneEmptyHint";
 import { ZoneFrame } from "./ZoneFrame";
@@ -20,12 +22,13 @@ interface ActionDragOverlayProps {
   overGroup: ActionGroup | null;
   actions: ActionInfo[];
   model: ActionsModel;
+  projectName: string;
   scope: string;
 }
 
 interface FoundZone {
   zone: ZoneInfo;
-  actions: ActionInfo[];
+  layers: ZoneLayerView[];
   display: ZoneDisplay;
 }
 
@@ -36,7 +39,7 @@ function zoneNamed(model: ActionsModel, name: string): FoundZone | null {
   ] as const;
   for (const [display, items] of rows) {
     for (const item of items) {
-      if (item.kind === "zone" && item.zone.name === name) return { zone: item.zone, actions: item.actions, display };
+      if (item.kind === "zone" && item.zone.name === name) return { zone: item.zone, layers: item.layers, display };
     }
   }
   return null;
@@ -44,16 +47,18 @@ function zoneNamed(model: ActionsModel, name: string): FoundZone | null {
 
 // Mirrors the destination form factor while hovering, so the user sees how
 // the item will look where they're aiming — not where it came from.
-export function ActionDragOverlay({ id, overGroup, actions, model, scope }: ActionDragOverlayProps) {
+export function ActionDragOverlay({ id, overGroup, actions, model, projectName, scope }: ActionDragOverlayProps) {
   if (isZoneItemId(id)) {
     const found = zoneNamed(model, zoneNameOfItem(id));
     if (!found) return null;
     const display: ZoneDisplay = overGroup === "header" || overGroup === "footer" ? overGroup : found.display;
-    const filled = found.actions.length > 0;
+    const openKey = openListKey(projectName, found.zone);
+    const shown = (found.layers.find((layer) => layer.key === openKey) ?? found.layers[0])?.actions ?? [];
+    const filled = shown.length > 0;
     return (
       <ZoneFrame rows={found.zone.rows} display={display} state={filled ? "filled" : "empty"}>
         <div className={ZONE_GRID_CLASS} style={zoneGridStyle(found.zone.rows, filled)}>
-          {found.actions.map((action) => (
+          {shown.map((action) => (
             <ActionView
               key={action.name}
               action={action}
@@ -71,7 +76,7 @@ export function ActionDragOverlay({ id, overGroup, actions, model, scope }: Acti
   const action = findActionByPath(actions, id);
   if (!action) return null;
   const group = overGroup ?? groupOf(model.layout, id);
-  const found = group && isZoneGroup(group) ? zoneNamed(model, zoneNameOfGroup(group)) : null;
+  const found = group && isZoneGroup(group) ? zoneNamed(model, zoneOfListKey(zoneNameOfGroup(group))) : null;
   if (found) {
     return (
       <div style={{ height: zoneButtonHeight(found.zone.rows, found.display) }}>

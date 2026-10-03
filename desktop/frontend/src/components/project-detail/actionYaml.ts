@@ -24,6 +24,7 @@ export const MANAGED_ACTION_KEYS = new Set<string>([
   "port",
   "portConflict",
   "display",
+  "layer",
   "actions",
   "inputs",
   "position",

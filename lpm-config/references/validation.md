@@ -39,7 +39,7 @@ When the app is not running or the installed CLI does not provide `config get` a
 4. Services and executable action leaves have non-empty commands after layering.
 5. Service ports are unique; all ports are between 0 and 65535.
 6. `portConflict` is `ask`, `free`, or `fail`.
-7. `display` is `header`, `footer`, or a zone name without `:`; accept `menu` only as legacy, never `button`. `zones` entries are mappings with only `rows` (1–3), `label`, `position` and `display` (`header` or `footer`); a zone name is not empty, contains no `:`, and is not `header`, `footer`, `menu` or `button`.
+7. `display` is `header`, `footer`, or a zone name without `:` or `/`; accept `menu` only as legacy, never `button`. `zones` entries are mappings with only `rows` (1–3), `label`, `position`, `display` (`header` or `footer`) and `layers` (a mapping of layer key, without `:` or `/`, to a mapping with only `label` and `position`); `layer` on an action is a string; a zone name is not empty, contains no `:` or `/`, and is not `header`, `footer`, `menu` or `button`.
 8. `type` is `terminal`, `command`, or `background` when set.
 9. `mode` is `remote` or `sync`; `sync` requires SSH.
 10. Radio inputs have options and a matching default.

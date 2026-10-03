@@ -7,13 +7,13 @@ import { layoutWithoutZone } from "./components/actionsDndLayout";
 
 type Mutate = Parameters<typeof editProjectDoc>[1];
 
-function editZoneSource(projectName: string, source: ZoneInfo["source"], mutate: Mutate) {
+export function editZoneSource(projectName: string, source: ZoneInfo["source"], mutate: Mutate) {
   if (source === "repo") return editRepoDoc(projectName, mutate);
   if (source === "global") return editGlobalDoc(mutate);
   return editProjectDoc(projectName, mutate);
 }
 
-async function run(task: () => Promise<unknown>, failure: string): Promise<void> {
+export async function runZoneEdit(task: () => Promise<unknown>, failure: string): Promise<void> {
   try {
     await task();
   } catch (err) {
@@ -24,14 +24,14 @@ async function run(task: () => Promise<unknown>, failure: string): Promise<void>
 }
 
 export function createZone(projectName: string, snapshot: ActionsSnapshot, zone: NewZone): Promise<void> {
-  return run(
+  return runZoneEdit(
     () => editProjectDoc(projectName, (doc) => addZoneToDoc(doc, zone, snapshot)),
     "Could not add the zone",
   );
 }
 
 export function editZone(projectName: string, zone: ZoneInfo, details: ZoneDetails): Promise<void> {
-  return run(
+  return runZoneEdit(
     () => editZoneSource(projectName, zone.source, (doc) => setZoneDetailsInDoc(doc, zone.name, details)),
     "Could not save the zone",
   );
@@ -43,7 +43,7 @@ export function editZone(projectName: string, zone: ZoneInfo, details: ZoneDetai
 // repo or global file. If that move fails the zone stays. Then the zone itself
 // goes, along with any position note the project file kept for it.
 export function removeZone(projectName: string, zone: ZoneInfo, layout: ActionsLayout): Promise<void> {
-  return run(async () => {
+  return runZoneEdit(async () => {
     const moved = await useAppStore
       .getState()
       .reorderActions(projectName, layoutWithoutZone(layout, zone.name), layout);

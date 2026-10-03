@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { ClientRect, CollisionDetection } from "@dnd-kit/core";
 import type { ActionsLayout } from "../types";
 import { createActionsCollision } from "./actionsCollision";
-import { groupDropId, isNestId, isZoneItemId, nestId, zoneGroup, zoneItemId } from "./actionsDndLayout";
+import { groupDropId, isNestId, isZoneItemId, nestId, zoneDotsId, zoneGroup, zoneItemId } from "./actionsDndLayout";
 
 type Args = Parameters<CollisionDetection>[0];
 
@@ -115,11 +115,19 @@ function argsAt(
 function setup(
   canNest: (activeId: string, targetId: string) => boolean = () => true,
   forLayout: ActionsLayout = layout,
+  openListOf?: (zone: string) => string,
 ) {
   const updateIndicator = vi.fn();
   const updateMenuDrop = vi.fn();
   const held = { current: null };
-  const detect = createActionsCollision({ layout: forLayout, canNest, updateIndicator, updateMenuDrop, held });
+  const detect = createActionsCollision({
+    layout: forLayout,
+    canNest,
+    updateIndicator,
+    updateMenuDrop,
+    held,
+    openListOf,
+  });
   const ids = (args: Args) => detect(args).map((c) => String(c.id));
   const indicator = () => updateIndicator.mock.lastCall?.[0];
   return { ids, indicator };
@@ -346,5 +354,61 @@ describe("a still pointer", () => {
     expect(menu.ids(argsAt("deploy:staging", 270, 50))).toEqual(["web"]);
     expect(menu.ids(argsAt("deploy:staging", 270, 50, { rects: reflowed() }))).toEqual(["web"]);
     expect(menu.indicator()).toEqual({ group: "zone:tools", index: 3 });
+  });
+});
+
+describe("a zone with layers", () => {
+  const layered: ActionsLayout = {
+    ...layout,
+    zones: { "tools/a": ["ios", "android", "web"], "tools/b": ["sim"], empty: [] },
+  };
+  const OPEN_AREA = groupDropId(zoneGroup("tools/b"));
+  // Only the open layer registers droppables: layer b's one button and its drop area.
+  const layeredScene = (): [string, ClientRect][] =>
+    scene().flatMap(([id, rect]): [string, ClientRect][] => {
+      if (id === TOOLS_AREA) return [...button("sim", box(185, 5, 58, 29)), [OPEN_AREA, rect]];
+      return ["ios", "android", "web"].some((name) => id === name || id === nestId(name)) ? [] : [[id, rect]];
+    });
+  const openB = (zone: string) => (zone === "tools" ? "tools/b" : zone);
+
+  it("takes a button into its open layer", () => {
+    const { ids } = setup(undefined, layered, openB);
+    expect(ids(argsAt("lint", 270, 50, { rects: layeredScene() }))).toEqual([OPEN_AREA]);
+    expect(ids(argsAt("lint", 214, 20, { rects: layeredScene() }))).toEqual(["sim"]);
+  });
+
+  it("takes a menu item dragged out at its open layer's end", () => {
+    const { ids, indicator } = setup(undefined, layered, openB);
+    expect(ids(argsAt("deploy:staging", 270, 50, { rects: layeredScene() }))).toEqual(["sim"]);
+    expect(indicator()).toEqual({ group: "zone:tools/b", index: 1 });
+  });
+
+  // The dots pill hangs 8px below the frame (y 65-80), outside the frame and the header row.
+  const DOTS = zoneDotsId("tools");
+  const withDots = (): [string, ClientRect][] => [[DOTS, box(225, 65, 40, 15)], ...layeredScene()];
+
+  it("takes a button over its dots, below the frame or on it, at its open layer's end", () => {
+    const { ids } = setup(undefined, layered, openB);
+    expect(ids(argsAt("lint", 245, 76, { rects: withDots() }))).toEqual([OPEN_AREA]);
+    expect(ids(argsAt("lint", 245, 68, { rects: withDots() }))).toEqual([OPEN_AREA]);
+  });
+
+  it("takes a menu item over its dots at its open layer's end", () => {
+    const { ids, indicator } = setup(undefined, layered, openB);
+    expect(ids(argsAt("deploy:staging", 245, 76, { rects: withDots() }))).toEqual(["sim"]);
+    expect(indicator()).toEqual({ group: "zone:tools/b", index: 1 });
+  });
+
+  it("never targets the dots themselves from outside every droppable", () => {
+    const { ids } = setup(undefined, layered, openB);
+    expect(ids(argsAt("lint", 245, 200, { rects: withDots() }))).not.toContain(DOTS);
+  });
+
+  it("answers a still pointer afresh once a hover on the dots opens another layer", () => {
+    let open = "tools/a";
+    const { ids } = setup(undefined, layered, (zone) => (zone === "tools" ? open : zone));
+    expect(ids(argsAt("lint", 245, 76, { rects: withDots() }))).toEqual([groupDropId(zoneGroup("tools/a"))]);
+    open = "tools/b";
+    expect(ids(argsAt("lint", 245, 76, { rects: withDots() }))).toEqual([OPEN_AREA]);
   });
 });

@@ -34,12 +34,15 @@ import {
 } from "./actionInputs";
 import { ActionInputsEditor, CommandPreview } from "./ActionInputsEditor";
 import {
+  placementFields,
   placementFromYaml,
   placementOf,
+  placementParts,
   placementPatch,
   withDeclaredDisplay,
   withoutPlacement,
-  yamlDisplay,
+  yamlPlacement,
+  type YamlPlacement,
 } from "./actionPlacement";
 import {
   actionInfoFromPayload,
@@ -436,13 +439,15 @@ interface FormDraft {
   runMode: RunMode;
   reuse: boolean;
   confirm: boolean;
-  // "header", "footer" or the name of one of the project's zones.
+  // "header", "footer", the name of one of the project's zones, or zone/layer
+  // for a zone with layers.
   display: string;
   // Local-only, see ChildDraft. Kept out of every buildActionPatch / build*
   // path so they never reach YAML.
   runModeTouched: boolean;
   confirmTouched: boolean;
-  // True once the user picks a placement; until then a save leaves `display` alone.
+  // True once the user picks a placement; until then a save leaves `display`
+  // and `layer` alone.
   displayTouched: boolean;
 }
 
@@ -548,6 +553,8 @@ function buildActionPatch({
 
   const placement = placementPatch(display, displayTouched);
   if (placement.set) set.display = placement.set;
+  if (placement.layer) set.layer = placement.layer;
+  else if (placement.layer === null) remove.push("layer");
 
   if (shape === "dropdown") {
     remove.push(
@@ -599,7 +606,8 @@ function buildCreatePayload(
   base: Record<string, unknown> | null = null,
 ): Record<string, unknown> {
   const { set } = buildActionPatch(draft);
-  return { ...pickUnmanaged(base), ...set, display: draft.display, position };
+  const { display, layer } = placementParts(draft.display);
+  return { ...pickUnmanaged(base), ...set, display, ...(layer ? { layer } : {}), position };
 }
 
 // Semantic identity of a draft for dirty checks. Raw draft JSON won't do:
@@ -678,7 +686,7 @@ function inferShape(action: ActionInfo): Shape {
   return "button";
 }
 
-function actionToDraft(action: ActionInfo, zoneNames: readonly string[] = []): FormDraft {
+function actionToDraft(action: ActionInfo, zones: readonly ZoneInfo[] = []): FormDraft {
   const children: ChildDraft[] = (action.children ?? []).map((c) => ({
     id: crypto.randomUUID(),
     label: c.label,
@@ -706,7 +714,7 @@ function actionToDraft(action: ActionInfo, zoneNames: readonly string[] = []): F
     runMode: toRunMode(action.type),
     reuse: action.reuse ?? false,
     confirm: action.confirm,
-    display: placementOf(action.display, zoneNames),
+    display: placementOf(action.display, action.layer, zones),
     runModeTouched: true,
     confirmTouched: true,
     displayTouched: false,
@@ -825,12 +833,12 @@ export function ActionWizard({
   nextPositionRef.current = nextPosition;
   const initialDisplayRef = useRef(initialDisplay);
   initialDisplayRef.current = initialDisplay;
-  const zoneNamesRef = useRef<string[]>([]);
-  zoneNamesRef.current = zones.map((zone) => zone.name);
+  const zonesRef = useRef(zones);
+  zonesRef.current = zones;
 
   useEffect(() => {
     if (!open) return;
-    const nextDraft = editing ? actionToDraft(editing, zoneNamesRef.current) : defaultDraft(initialDisplayRef.current);
+    const nextDraft = editing ? actionToDraft(editing, zonesRef.current) : defaultDraft(initialDisplayRef.current);
     setDraft(nextDraft);
     setPromptSeed((n) => n + 1);
     setBaselineDraft(nextDraft);
@@ -876,7 +884,7 @@ export function ActionWizard({
       const base = payload ?? {};
       setEditingPayload(base);
       setWorkingBase(base);
-      setEditorBaseline(buildEditorContentForEdit(actionToDraft(editing, zoneNamesRef.current), base));
+      setEditorBaseline(buildEditorContentForEdit(actionToDraft(editing, zonesRef.current), base));
       if (modeRef.current === "editor") {
         setEditorContent(buildEditorContentForEdit(draftRef.current, base));
         setEditorSeed((n) => n + 1);
@@ -944,7 +952,8 @@ export function ActionWizard({
   const actionLabel = withEmoji(emoji, name.trim() || PLACEHOLDER_LABEL);
   // The preview mocks only the header and footer frames; a zone shows in its row.
   const previewDisplay =
-    display === "footer" || zones.some((zone) => zone.name === display && zoneDisplayOf(zone) === "footer")
+    display === "footer" ||
+    zones.some((zone) => zone.name === placementParts(display).display && zoneDisplayOf(zone) === "footer")
       ? "footer"
       : "header";
   const { title, primary: primaryLabel } = wizardCopy(isEditing);
@@ -1016,6 +1025,11 @@ export function ActionWizard({
     }
   };
 
+  const placeInNote = (key: string, value: string) => {
+    const { display, layer } = placementParts(value);
+    return updatePlacementNote(projectName, key, display, layer);
+  };
+
   const submit = async () => {
     if (saving) return;
     if (mode === "editor") {
@@ -1034,7 +1048,7 @@ export function ActionWizard({
       if (submission.kind === "edit") {
         await runPendingMove(submission.key);
         const placedInNote =
-          draft.displayTouched && (await updatePlacementNote(projectName, submission.key, draft.display));
+          draft.displayTouched && (await placeInNote(submission.key, draft.display));
         const patch = placedInNote ? withoutPlacement(submission.patch) : submission.patch;
         // A plain replaceAction patch leaves unmanaged fields alone, which is
         // safest against concurrent external edits — but if the user changed
@@ -1094,12 +1108,12 @@ export function ActionWizard({
         await runPendingMove(editing.name);
         const placement = placementFromYaml(
           draft,
-          yamlDisplay(buildCurrentYAML()),
-          payload.display,
-          zoneNamesRef.current,
+          yamlPlacement(buildCurrentYAML()),
+          placementFields(payload),
+          zonesRef.current,
         );
         const placedInNote =
-          placement.displayTouched && (await updatePlacementNote(projectName, editing.name, placement.display));
+          placement.displayTouched && (await placeInNote(editing.name, placement.display));
         await replaceActionPayload(
           projectName,
           editing.name,
@@ -1156,12 +1170,12 @@ export function ActionWizard({
   const draftFromYaml = (
     prev: FormDraft,
     info: ActionInfo,
-    shownDisplay: unknown,
-    nextDisplay: unknown,
+    shown: YamlPlacement,
+    next: YamlPlacement,
   ): FormDraft => ({
-    ...actionToDraft(info, zoneNamesRef.current),
+    ...actionToDraft(info, zonesRef.current),
     configLayer: prev.configLayer,
-    ...placementFromYaml(prev, shownDisplay, nextDisplay, zoneNamesRef.current),
+    ...placementFromYaml(prev, shown, next, zonesRef.current),
   });
 
   // Parses the editor content back into the form. Invalid or non-mapping YAML
@@ -1181,8 +1195,8 @@ export function ActionWizard({
       return;
     }
     const payload = parsed as Record<string, unknown>;
-    const shownDisplay = yamlDisplay(buildCurrentYAML());
-    setDraft((prev) => draftFromYaml(prev, actionInfoFromPayload(payload), shownDisplay, payload.display));
+    const shown = yamlPlacement(buildCurrentYAML());
+    setDraft((prev) => draftFromYaml(prev, actionInfoFromPayload(payload), shown, placementFields(payload)));
     setPromptSeed((n) => n + 1);
     setWorkingBase(payload);
     setEditorError(null);
@@ -1217,11 +1231,11 @@ export function ActionWizard({
   const applyAiResult = (yaml: string) => {
     setEditorContent(yaml);
     try {
-      const shownDisplay = yamlDisplay(buildCurrentYAML());
+      const shown = yamlPlacement(buildCurrentYAML());
       const info = yamlToActionInfo(yaml);
       const payload = YAML.parse(yaml) as Record<string, unknown>;
       setWorkingBase(payload);
-      setDraft((prev) => draftFromYaml(prev, info, shownDisplay, payload.display));
+      setDraft((prev) => draftFromYaml(prev, info, shown, placementFields(payload)));
       setPromptSeed((n) => n + 1);
       toast.success(
         editing ? "AI updated the action" : "AI generated an action",

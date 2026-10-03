@@ -65,6 +65,8 @@ interface ActionsDndProps {
   // Told when a drag starts and ends, so the page can hold layout work that
   // would move the rows to another parent mid-drag.
   onDragActiveChange?: (active: boolean) => void;
+  // The list a zone takes drops into: its open layer's.
+  openListOf?: (zone: string) => string;
   children: ReactNode;
 }
 
@@ -107,6 +109,7 @@ export function ActionsDnd({
   isMenu,
   renderOverlay,
   onDragActiveChange,
+  openListOf,
   children,
 }: ActionsDndProps) {
   const [indicator, setIndicator] = useState<ExtractIndicator | null>(null);
@@ -155,8 +158,15 @@ export function ActionsDnd({
 
   const collisionDetection = useMemo(
     () =>
-      createActionsCollision({ layout, canNest, updateIndicator, updateMenuDrop, held: heldCollisionRef }),
-    [canNest, layout, updateIndicator, updateMenuDrop],
+      createActionsCollision({
+        layout,
+        canNest,
+        updateIndicator,
+        updateMenuDrop,
+        held: heldCollisionRef,
+        openListOf,
+      }),
+    [canNest, layout, updateIndicator, updateMenuDrop, openListOf],
   );
 
   return (

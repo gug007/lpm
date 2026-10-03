@@ -14,6 +14,7 @@ interface HeaderActionsProps {
   wrapped: boolean;
   // Top-aligned once a zone can make the row taller than one button.
   alignTop: boolean;
+  projectName: string;
   disabled: boolean;
   scope: string;
   onRun: (action: ActionInfo) => void;
@@ -29,6 +30,7 @@ export function HeaderActions({
   layout,
   wrapped,
   alignTop,
+  projectName,
   disabled,
   scope,
   onRun,
@@ -62,8 +64,8 @@ export function HeaderActions({
           key={item.id}
           item={item}
           display="header"
-          layout={layout}
           movedByResize={movedByResize}
+          projectName={projectName}
           disabled={disabled}
           scope={scope}
           onRun={onRun}

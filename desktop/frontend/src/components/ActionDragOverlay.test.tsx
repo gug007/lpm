@@ -4,6 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ActionInfo, ZoneInfo } from "../types";
 import { buildActionsModel } from "../actionsLayoutModel";
+import { useZoneLayers } from "../store/zoneLayers";
 import { ActionDragOverlay } from "./ActionDragOverlay";
 import { type ActionGroup, zoneItemId } from "./actionsDndLayout";
 
@@ -31,8 +32,12 @@ afterEach(() => {
   container.remove();
 });
 
-function overlay(id: string, overGroup: ActionGroup | null): HTMLElement {
-  act(() => root.render(<ActionDragOverlay id={id} overGroup={overGroup} actions={actions} model={model} scope="t" />));
+function overlay(id: string, overGroup: ActionGroup | null, from = model): HTMLElement {
+  act(() =>
+    root.render(
+      <ActionDragOverlay id={id} overGroup={overGroup} actions={actions} model={from} projectName="app" scope="t" />,
+    ),
+  );
   return container.firstElementChild as HTMLElement;
 }
 
@@ -57,5 +62,16 @@ describe("ActionDragOverlay", () => {
     expect(overShip.style.height).toBe("21.5px");
     expect(overShip.querySelector("button")?.className).toContain("--composer-border");
     expect(overlay("lint", "zone:tools").style.height).toBe("29px");
+  });
+
+  it("draws a layered zone with its open layer's buttons only", () => {
+    const layered: ZoneInfo = { ...zones[0], layers: [{ name: "a" }, { name: "b" }] };
+    const layeredActions = [{ ...action("ios", "tools"), layer: "a" }, { ...action("web", "tools"), layer: "b" }];
+    const from = buildActionsModel(layeredActions, [layered]);
+    useZoneLayers.getState().setOpen("app", "tools", "b");
+    const names = () => [...overlay(zoneItemId("tools"), null, from).querySelectorAll("button")].map((b) => b.textContent);
+    expect(names()).toEqual(["web"]);
+    useZoneLayers.getState().setOpen("app", "tools", "a");
+    expect(names()).toEqual(["ios"]);
   });
 });
