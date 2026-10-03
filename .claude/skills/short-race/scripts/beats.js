@@ -153,7 +153,7 @@ const tagLeftToRight = (s, css, name) =>
 const tagAction = (s, label) =>
   s.control.evaluate((text, emoji) => {
     const clean = (el) => el.textContent.replace(new RegExp(emoji, "g"), "").replace(/\s+/g, " ").trim();
-    const btn = [...document.querySelectorAll('[data-actions-zone="header"] button')].find(
+    const btn = [...document.querySelectorAll('[data-actions-group="header"] button')].find(
       (b) => b.getBoundingClientRect().width > 0 && clean(b) === text,
     );
     if (btn) btn.dataset.lesson = "act-0";
@@ -476,8 +476,8 @@ module.exports = function compareBeats({ config, dir }) {
 
   async function setupRun(s) {
     await kit.focusWindow(s);
-    await kit.clickUntil(s, kit.PROJECT(project), () => kit.isVisible(s, `[data-actions-zone="header"]`), { at: [0.3, 0.5], ms: 300 });
-    await s.waitFor(`[data-actions-zone="header"]`, 8000);
+    await kit.clickUntil(s, kit.PROJECT(project), () => kit.isVisible(s, `[data-actions-group="header"]`), { at: [0.3, 0.5], ms: 300 });
+    await s.waitFor(`[data-actions-group="header"]`, 8000);
     await s.hold(800);
     await kit.clickUntil(s, COLLAPSE, async () => !(await kit.isVisible(s, COLLAPSE)), { ms: 250 });
     await s.hold(400);

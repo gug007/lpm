@@ -11,7 +11,7 @@ const LESSONS = process.env.LPM_LESSONS_DIR || path.join(os.homedir(), "Movies",
 const LEDGER = path.join(LESSONS, "_trust-ledger.json");
 
 const PROJECT = (name) => `nav >> text=${name}`;
-const HEADER = (name) => `[data-actions-zone="header"] >> button:has-text("${name}")`;
+const HEADER = (name) => `[data-actions-group="header"] >> button:has-text("${name}")`;
 const TABS = "button.h-6.font-mono";
 const COMPOSER_INPUT = '[data-composer-box] >> [role="textbox"]';
 const SEND = '[data-composer-box] >> button[aria-label="Send"]';
