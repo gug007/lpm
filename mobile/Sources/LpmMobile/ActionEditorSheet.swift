@@ -100,6 +100,11 @@ private struct ActionDraft {
     var reuse = false
     var confirm = false
     var placement: ActionPlacement = .header
+    /// A `display` written back until the user changes the placement picker, so
+    /// editing alone doesn't move the button: a zone name the picker can't
+    /// show, or an explicit `header` that overrides a footer or zone display
+    /// from another file.
+    var keptDisplay: String? = nil
     var inputs: [InputDraft] = []
     var children: [ChildDraft] = []
 }
@@ -370,6 +375,7 @@ struct ActionEditorSheet: View {
             Picker("Placement", selection: $draft.placement) {
                 ForEach(ActionPlacement.allCases) { Text($0.title).tag($0) }
             }
+            .onChange(of: draft.placement) { _, _ in draft.keptDisplay = nil }
         } header: {
             Text("Placement")
         }
@@ -447,7 +453,9 @@ struct ActionEditorSheet: View {
         d.runIn = ActionRunIn.from(body["type"] as? String)
         d.reuse = (body["reuse"] as? Bool) == true
         d.confirm = (body["confirm"] as? Bool) == true
-        d.placement = (body["display"] as? String) == "footer" ? .footer : .header
+        let display = body["display"] as? String ?? ""
+        d.placement = display == "footer" ? .footer : .header
+        if !["", "button", "footer"].contains(display) { d.keptDisplay = display }
         if let inputs = body["inputs"] as? [[String: Any]] {
             d.inputs = inputs.map(inputDraft)
         }
@@ -498,7 +506,7 @@ struct ActionEditorSheet: View {
 
         setOrRemove(&p, "label", draft.label.trimmed.nilIfEmpty)
         setOrRemove(&p, "emoji", draft.emoji.trimmed.nilIfEmpty)
-        setOrRemove(&p, "display", draft.placement == .footer ? "footer" : nil)
+        setOrRemove(&p, "display", draft.placement == .footer ? "footer" : draft.keptDisplay)
 
         switch draft.kind {
         case .command:

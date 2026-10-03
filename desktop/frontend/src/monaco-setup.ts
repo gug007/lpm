@@ -7,6 +7,7 @@ import { configureMonacoYaml } from "monaco-yaml";
 import projectSchema from "./schemas/project-config.schema.json";
 import globalSchema from "./schemas/global-config.schema.json";
 import repoSchema from "./schemas/repo-config.schema.json";
+import { templateSchema } from "./schemas/templateSchema";
 
 declare global {
   interface Window {
@@ -19,6 +20,7 @@ type WorkerLabel = string;
 export const PROJECT_SCHEMA_URI = "lpm://schemas/project-config.json";
 export const GLOBAL_SCHEMA_URI = "lpm://schemas/global-config.json";
 export const REPO_SCHEMA_URI = "lpm://schemas/repo-config.json";
+export const TEMPLATE_SCHEMA_URI = "lpm://schemas/template-config.json";
 export const ACTION_SCHEMA_URI = "lpm://schemas/action.json";
 export const PROJECT_MODEL_URI = "inmemory://lpm/project.yml";
 export const GLOBAL_MODEL_URI = "inmemory://lpm/global.yml";
@@ -74,10 +76,14 @@ export function setupMonaco(): typeof monaco {
       },
       {
         uri: REPO_SCHEMA_URI,
-        // Templates share the RepoConfig shape, so the same schema covers
-        // both file types — Monaco picks it up via two model URIs.
-        fileMatch: [REPO_MODEL_URI, TEMPLATE_MODEL_URI],
+        fileMatch: [REPO_MODEL_URI],
         schema: repoSchema as object,
+      },
+      {
+        uri: TEMPLATE_SCHEMA_URI,
+        // Templates share the RepoConfig shape, minus zones.
+        fileMatch: [TEMPLATE_MODEL_URI],
+        schema: templateSchema as object,
       },
       {
         uri: ACTION_SCHEMA_URI,

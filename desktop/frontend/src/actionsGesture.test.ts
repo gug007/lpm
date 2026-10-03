@@ -46,6 +46,12 @@ describe("detectGesture", () => {
     });
   });
 
+  it("child onto a zone -> extractToTop into that zone", () => {
+    expect(
+      detectGesture({ ...base, draggedId: "menu:a", extractTarget: { group: "zone:tools", index: 2 } }),
+    ).toEqual({ kind: "extractToTop", parent: "menu", child: "a", group: "zone:tools", index: 2 });
+  });
+
   it("child onto a sibling in the same menu -> reorderMenu (no position = swap-style)", () => {
     expect(detectGesture({ ...base, draggedId: "menu:a", overItemId: "menu:b" })).toEqual({
       kind: "reorderMenu", parent: "menu", child: "a", over: "b",

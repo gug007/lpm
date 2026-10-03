@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { toast } from "sonner";
 import { ActionsDnd } from "./ActionsDnd";
-import { type ActionGroup, applyMove, groupOf } from "./actionsDndLayout";
-import { ActionView } from "./ActionView";
+import { type ActionGroup, applyMove, groupOf, listOf, zoneOfButton } from "./actionsDndLayout";
+import { ActionDragOverlay } from "./ActionDragOverlay";
 import { ConfigEditor } from "./ConfigEditor";
 import { NotesView } from "./NotesView";
 import { ProjectAIInstructions } from "./ProjectAIInstructions";
@@ -19,12 +19,16 @@ import { ProfileForm } from "./project-detail/ProfileForm";
 import { ServiceContextMenu } from "./project-detail/ServiceContextMenu";
 import { ServiceForm } from "./project-detail/ServiceForm";
 import { ResumeSessionModal } from "./project-detail/ResumeSessionModal";
+import { RowMenus } from "./project-detail/RowMenus";
 import { TerminalPane } from "./project-detail/TerminalPane";
+import { ZoneMenus, type ZoneMenuState } from "./project-detail/ZoneMenus";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { deleteAction } from "../actionConfig";
+import { nextActionPosition } from "../actionsLayoutModel";
 import { deleteProfile } from "../profileConfig";
 import { deleteService } from "../serviceConfig";
-import { EMPTY_SERVICES, noop } from "./project-detail/constants";
+import { createZone } from "../zoneActions";
+import { EMPTY_SERVICES } from "./project-detail/constants";
 import { useActionsByDisplay } from "../hooks/useActionsByDisplay";
 import { useDetailView } from "../hooks/useDetailView";
 import { useEntityEditor } from "../hooks/useEntityEditor";
@@ -34,6 +38,7 @@ import { useOutsideClick } from "../hooks/useOutsideClick";
 import { useOverflowWrap } from "../hooks/useOverflowWrap";
 import { usePaneStatus } from "../hooks/usePaneStatus";
 import { useProjectActions } from "../hooks/useProjectActions";
+import { useRowMenu } from "../hooks/useRowMenu";
 import { useTerminalFontSize } from "../hooks/useTerminalFontSize";
 import { useTerminalTheme } from "../hooks/useTerminalTheme";
 import { getSettings } from "../store/settings";
@@ -52,15 +57,17 @@ import { useAppStore } from "../store/app";
 import { CopyClaudeSessionForFork } from "../../bridge/commands";
 import { loadLevelMap, levelOf as levelOfMap, type LevelMap } from "../actionLevels";
 import { type StructuralOp, structuralSubject } from "../actionsGesture";
-import { findActionByPath, resolveRunnableAction } from "../actionTree";
+import { resolveRunnableAction } from "../actionTree";
 import { findParentProject, projectDisplayName } from "./ProjectNameDisplay";
 import {
-  isFooterDisplay,
   type ActionInfo,
   type ActionsLayout,
   type ProfileInfo,
   type ProjectInfo,
   type ServiceInfo,
+  type ZoneDisplay,
+  type ZoneInfo,
+  zoneDisplayOf,
 } from "../types";
 import { projectStartProfile } from "../projectStartProfile";
 import { SyncedBar } from "./SyncedBar";
@@ -107,10 +114,13 @@ export function ProjectDetail({
   const { follows } = useFollowState();
   const { state: peerState } = usePeerState();
   const follow = follows.get(project.name);
-  const [showCreateAction, setShowCreateAction] = useState(false);
+  // The row a new action starts in; null while the create form is closed.
+  const [newActionRow, setNewActionRow] = useState<ZoneDisplay | null>(null);
   const [editingAction, setEditingAction] = useState<ActionInfo | null>(null);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [actionMenu, setActionMenu] = useState<{ x: number; y: number; action: ActionInfo } | null>(null);
+  const [zoneMenu, setZoneMenu] = useState<ZoneMenuState | null>(null);
+  const rowMenu = useRowMenu();
   const [actionToDelete, setActionToDelete] = useState<ActionInfo | null>(null);
   const [deletingAction, setDeletingAction] = useState(false);
   const [historyEntries, setHistoryEntries] = useState<PersistedHistoryEntry[]>(
@@ -170,8 +180,8 @@ export function ProjectDetail({
   const { theme: terminalTheme, themeStyle } = useTerminalTheme();
   const { fontSize, zoomIn, zoomOut } = useTerminalFontSize();
   const paneStatus = usePaneStatus(project.statusEntries);
-  const { headerActions, footerActions, headerIds, footerIds, layout: actionsLayout } =
-    useActionsByDisplay(project.actions);
+  const actionsModel = useActionsByDisplay(project.actions, project.zones);
+  const { layout: actionsLayout } = actionsModel;
 
   const keysActive = visible && focused;
   const { detailView, switchDetailView } = useDetailView({
@@ -193,7 +203,7 @@ export function ProjectDetail({
   });
   const { runningAction, handleRunAction, modals: actionModals } = projectActions;
 
-  const actionWizardOpen = showCreateAction || editingAction !== null;
+  const actionWizardOpen = newActionRow !== null || editingAction !== null;
   useActionShortcuts(
     project.actions,
     handleRunAction,
@@ -417,39 +427,32 @@ export function ProjectDetail({
   const reorderActions = useAppStore((s) => s.reorderActions);
   const previewReorderActions = useAppStore((s) => s.previewReorderActions);
   const handleMoveActions = useCallback(
-    (next: ActionsLayout) => reorderActions(project.name, next),
+    (next: ActionsLayout, before: ActionsLayout) => reorderActions(project.name, next, before),
     [reorderActions, project.name],
   );
   const handlePreviewActions = useCallback(
     (next: ActionsLayout) => previewReorderActions(project.name, next),
     [previewReorderActions, project.name],
   );
-  // Ref-tracked actions so the overlay renderer stays stable across
-  // every preview re-render — dnd-kit holds the renderOverlay reference
-  // for the duration of the drag, so a fresh function each frame would
-  // cause needless DragOverlay reconciliation.
+  // Ref-tracked so the overlay renderer stays stable across every preview
+  // re-render — dnd-kit holds the renderOverlay reference for the duration of
+  // the drag, so a fresh function each frame would cause needless DragOverlay
+  // reconciliation.
   const actionsRef = useRef(project.actions);
   actionsRef.current = project.actions;
+  const modelRef = useRef(actionsModel);
+  modelRef.current = actionsModel;
   const renderActionOverlay = useCallback(
-    (id: string, overGroup: ActionGroup | null) => {
-      const all = actionsRef.current ?? [];
-      const action = findActionByPath(all, id);
-      if (!action) return null;
-      // Mirror the destination form factor while hovering, so the user
-      // sees how the action will look in the zone they're aiming for —
-      // not the zone they came from.
-      const compact = overGroup ? overGroup === "footer" : isFooterDisplay(action.display);
-      return (
-        <ActionView
-          action={action}
-          compact={compact}
-          disabled={false}
-          onRun={noop}
-          scope={project.name}
-        />
-      );
-    },
-    [],
+    (id: string, overGroup: ActionGroup | null) => (
+      <ActionDragOverlay
+        id={id}
+        overGroup={overGroup}
+        actions={actionsRef.current ?? []}
+        model={modelRef.current}
+        scope={project.name}
+      />
+    ),
+    [project.name],
   );
 
   const levelMapRef = useRef<LevelMap>(new Map());
@@ -591,25 +594,54 @@ export function ProjectDetail({
   useEffect(() => {
     if (actionMenu && !existingActionKeys.includes(actionMenu.action.name)) setActionMenu(null);
   }, [actionMenu, existingActionKeys]);
-  const nextHeaderActionPosition =
-    headerActions.reduce((max, action, index) => Math.max(max, action.position ?? index + 1), 0) + 1;
+  // The form can still move a new action to another row or into a zone, so it
+  // starts past all of them: every action's position (a zone can hold more
+  // buttons than the rows have items) and each row's end (which counts its zones).
+  const newActionPosition = Math.max(
+    nextActionPosition(project.actions ?? []),
+    actionsModel.nextHeaderPosition,
+    actionsModel.nextFooterPosition,
+  );
   const showEmptyState = !project.running && detailView === "terminal" && terminalCount === 0;
 
+  // project.zones is a new array on every refresh and preview; keying the
+  // wrap check on the zone shape keeps it from re-measuring each time.
+  const zonesKey = (project.zones ?? []).map((z) => `${z.name}:${z.rows}`).join("|");
+  const [actionsDragging, setActionsDragging] = useState(false);
   const {
     wrapped: actionsWrapped,
     rowRef: headerRowRef,
     innerRef: innerContainerRef,
-  } = useOverflowWrap([
-    headerActions.length,
-    showProjectName,
-    project.running,
-    project.allServices.length,
-  ]);
+  } = useOverflowWrap(
+    [
+      // Re-measures whenever any button moves between rows or zones, which can
+      // change the header's width without changing its item count.
+      actionsLayout,
+      zonesKey,
+      showProjectName,
+      project.running,
+      project.allServices.length,
+    ],
+    actionsDragging,
+  );
 
   const handleActionContextMenu = useCallback((e: MouseEvent, action: ActionInfo) => {
     e.preventDefault();
     setActionMenu({ x: e.clientX, y: e.clientY, action });
   }, []);
+
+  const handleZoneContextMenu = useCallback((e: MouseEvent, zone: ZoneInfo) => {
+    e.preventDefault();
+    setZoneMenu({ x: e.clientX, y: e.clientY, zone });
+  }, []);
+
+  // An external edit can remove the zone while its menu is open; resizing
+  // the vanished name would recreate it.
+  useEffect(() => {
+    if (zoneMenu && !(project.zones ?? []).some((zone) => zone.name === zoneMenu.zone.name)) {
+      setZoneMenu(null);
+    }
+  }, [zoneMenu, project.zones]);
 
   // A null group means an external edit moved the action mid-menu; both
   // destinations stay enabled so it can still be placed.
@@ -617,7 +649,7 @@ export function ProjectDetail({
     if (!actionMenu) return null;
     const name = actionMenu.action.name;
     const group = groupOf(actionsLayout, name);
-    const row: string[] = group ? actionsLayout[group] : [];
+    const row: string[] = group ? listOf(actionsLayout, group) : [];
     const idx = row.indexOf(name);
     return {
       group,
@@ -626,7 +658,7 @@ export function ProjectDetail({
       toGroup: (target: ActionGroup) => {
         const next = applyMove(actionsLayout, name, {
           group: target,
-          index: actionsLayout[target].length,
+          index: listOf(actionsLayout, target).length,
         });
         reorderActions(project.name, next);
         if (target === "footer" && detailView !== "terminal") toast("Moved to footer");
@@ -639,6 +671,10 @@ export function ProjectDetail({
       },
     };
   }, [actionMenu, actionsLayout, reorderActions, project.name, detailView]);
+
+  const actionMenuZone = actionMenu
+    ? zoneOfButton(actionsLayout, project.zones ?? [], actionMenu.action.name)
+    : undefined;
 
   const handleConfirmDeleteAction = async () => {
     if (!actionToDelete) return;
@@ -655,16 +691,21 @@ export function ProjectDetail({
     }
   };
 
+  const hasZones = actionsModel.headerItems.some((item) => item.kind === "zone");
+  const actionsSnapshot = { actions: project.actions ?? [], zones: project.zones ?? [], layout: actionsLayout };
   const headerActionsNode = (
     <HeaderActions
-      actions={headerActions}
-      ids={headerIds}
+      items={actionsModel.headerItems}
+      layout={actionsLayout}
       wrapped={actionsWrapped}
+      alignTop={hasZones}
       disabled={runningAction !== null}
       scope={project.name}
       onRun={handleRunAction}
       onContextMenu={handleActionContextMenu}
-      onAddAction={() => setShowCreateAction(true)}
+      onZoneContextMenu={handleZoneContextMenu}
+      onAddAction={() => setNewActionRow("header")}
+      onAddZone={(rows) => void createZone(project.name, actionsSnapshot, { label: "", rows, display: "header" })}
     />
   );
 
@@ -729,6 +770,7 @@ export function ProjectDetail({
       canNest={canNest}
       isMenu={isMenu}
       renderOverlay={renderActionOverlay}
+      onDragActiveChange={setActionsDragging}
     >
       <div className="flex h-full flex-col">
         <Header
@@ -742,6 +784,8 @@ export function ProjectDetail({
           controls={controlsNode}
           trailing={onCloseColumn && <CloseColumnButton onClose={onCloseColumn} />}
           dimmed={onCloseColumn !== undefined && !focused}
+          alignTop={hasZones}
+          onRowContextMenu={rowMenu.onHeaderContextMenu}
         />
 
         {follow && (
@@ -763,14 +807,16 @@ export function ProjectDetail({
           terminalTheme={terminalTheme}
           fontSize={fontSize}
           paneStatus={paneStatus}
-          footerActions={footerActions}
-          footerIds={footerIds}
+          footerItems={actionsModel.footerItems}
+          layout={actionsLayout}
           disabled={runningAction !== null}
           onTerminalCountChange={setTerminalCount}
           onZoomIn={zoomIn}
           onZoomOut={zoomOut}
           onRunAction={handleRunAction}
           onActionContextMenu={handleActionContextMenu}
+          onZoneContextMenu={handleZoneContextMenu}
+          onFooterContextMenu={rowMenu.onFooterContextMenu}
           onResumeSession={handleOpenHistory}
         />
 
@@ -802,16 +848,18 @@ export function ProjectDetail({
         <Modals projectName={project.name} actionModals={actionModals} />
 
         <ActionWizard
-          open={showCreateAction || editingAction !== null}
+          open={actionWizardOpen}
           projectName={project.name}
           actions={project.actions}
           existingActionKeys={existingActionKeys}
-          nextPosition={nextHeaderActionPosition}
+          nextPosition={newActionPosition}
           projectRoot={project.root}
           isRemote={project.isRemote}
+          zones={project.zones ?? []}
+          initialDisplay={newActionRow ?? "header"}
           editing={editingAction}
           onClose={() => {
-            setShowCreateAction(false);
+            setNewActionRow(null);
             setEditingAction(null);
           }}
           onSaved={() => onRefresh()}
@@ -841,6 +889,12 @@ export function ProjectDetail({
             onMoveTo={actionMenuMove.toGroup}
             onMoveLeft={actionMenuMove.left}
             onMoveRight={actionMenuMove.right}
+            zoneLabel={actionMenuZone?.label}
+            zoneRow={actionMenuZone && zoneDisplayOf(actionMenuZone)}
+            onZoneMenu={
+              actionMenuZone &&
+              (() => setZoneMenu({ x: actionMenu.x, y: actionMenu.y, zone: actionMenuZone }))
+            }
             onEdit={() => setEditingAction(actionMenu.action)}
             canUngroup={!!actionMenu.action.children?.length}
             onUngroup={() => handleStructural({ kind: "ungroup", path: actionMenu.action.name })}
@@ -848,6 +902,21 @@ export function ProjectDetail({
             onClose={() => setActionMenu(null)}
           />
         )}
+
+        <ZoneMenus
+          projectName={project.name}
+          layout={actionsLayout}
+          menu={zoneMenu}
+          onClose={() => setZoneMenu(null)}
+        />
+
+        <RowMenus
+          projectName={project.name}
+          snapshot={actionsSnapshot}
+          menu={rowMenu.menu}
+          onClose={rowMenu.close}
+          onNewAction={setNewActionRow}
+        />
 
         <ConfirmDialog
           open={actionToDelete !== null}

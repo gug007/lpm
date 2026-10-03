@@ -3,11 +3,18 @@ import { type DependencyList, useCallback, useEffect, useLayoutEffect, useRef, u
 // Hysteresis: once wrapped, cache the row width required to fit inline
 // and only unwrap when the row grows past that threshold, preventing
 // oscillation at the boundary.
-export function useOverflowWrap(deps: DependencyList) {
+//
+// While paused (a drag is moving buttons between rows), changes are only
+// noted and measured once the pause ends: flipping `wrapped` mid-drag would
+// move the actions to another parent and remount every sortable in them.
+export function useOverflowWrap(deps: DependencyList, paused = false) {
   const rowRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
   const inlineMinWidthRef = useRef(0);
   const pendingMeasureRef = useRef(false);
+  const pausedRef = useRef(paused);
+  pausedRef.current = paused;
+  const staleRef = useRef(false);
   const [wrapped, setWrapped] = useState(false);
 
   const measure = useCallback(() => {
@@ -41,7 +48,10 @@ export function useOverflowWrap(deps: DependencyList) {
   useEffect(() => {
     const row = rowRef.current;
     if (!row) return;
-    const observer = new ResizeObserver(measure);
+    const observer = new ResizeObserver(() => {
+      if (pausedRef.current) staleRef.current = true;
+      else measure();
+    });
     observer.observe(row);
     return () => observer.disconnect();
   }, [measure]);
@@ -49,7 +59,8 @@ export function useOverflowWrap(deps: DependencyList) {
   // Content changed: drop the cached threshold and re-measure. If we're
   // currently wrapped, flip to inline first so the trailing effect below
   // measures a fresh inline layout.
-  useLayoutEffect(() => {
+  const remeasure = () => {
+    staleRef.current = false;
     inlineMinWidthRef.current = 0;
     if (wrapped) {
       pendingMeasureRef.current = true;
@@ -57,8 +68,18 @@ export function useOverflowWrap(deps: DependencyList) {
       return;
     }
     measure();
+  };
+
+  useLayoutEffect(() => {
+    if (paused) staleRef.current = true;
+    else remeasure();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
+
+  useLayoutEffect(() => {
+    if (!paused && staleRef.current) remeasure();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paused]);
 
   // Trailing measurement for the "was wrapped, forced to inline" path above.
   useLayoutEffect(() => {

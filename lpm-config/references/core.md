@@ -33,6 +33,7 @@ services:
 | `actions` | One-shot commands and buttons. |
 | `terminals` | Deprecated alias for `actions` with `type: terminal`; still supported. |
 | `profiles` | Named service subsets. |
+| `zones` | Framed groups of header or footer buttons; see `actions.md` → Zones. |
 
 Use short lowercase hyphenated keys such as `web`, `api-worker`, and `db-migrate`.
 
@@ -106,7 +107,7 @@ Create it with `lpm duplicate myapp --worktree --label myapp-feature`. Do not ad
 
 The source must be a local Git repository whose lpm root equals the repository root, with at least one commit. The worktree starts at the source’s current `HEAD` and does not include uncommitted changes. Remove it with `lpm remove <copy-name>` so lpm also removes the worktree registration and generated branch; do not move, trash, or delete its folder directly.
 
-The parent must exist and load successfully. Every duplicate inherits the parent’s services, actions, and profiles without per-entry overrides.
+The parent must exist and load successfully. Every duplicate inherits the parent’s services, actions, zones, and profiles without per-entry overrides.
 
 ## Project detection
 

@@ -467,7 +467,7 @@ export function BranchSwitcher({
         </button>
 
         {open && (
-          <div className="absolute bottom-full right-0 z-50 mb-2 w-[520px] overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl">
+          <div data-row-menu="off" className="absolute bottom-full right-0 z-50 mb-2 w-[520px] overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl">
             <div className="border-b border-[var(--border)] p-2">
               <input
                 ref={searchRef}
@@ -693,7 +693,7 @@ export function BranchSwitcher({
           <ChevronDownIcon />
         </button>
         {commitMenuOpen && (
-          <div className="absolute bottom-full right-0 z-10 mb-2">
+          <div data-row-menu="off" className="absolute bottom-full right-0 z-10 mb-2">
             <DrillMenu
               widthClassName="w-80"
               showClose={false}

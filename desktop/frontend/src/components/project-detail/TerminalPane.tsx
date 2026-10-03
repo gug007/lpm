@@ -4,7 +4,8 @@ import { TerminalFooter } from "../TerminalFooter";
 import { EmptyTerminalState } from "./EmptyTerminalState";
 import type { PaneStatus } from "../../hooks/usePaneStatus";
 import type { TerminalThemeName } from "../../terminal-themes";
-import type { ActionInfo, ServiceInfo } from "../../types";
+import type { RowItem } from "../../actionsLayoutModel";
+import type { ActionInfo, ActionsLayout, ServiceInfo, ZoneInfo } from "../../types";
 
 interface TerminalPaneProps {
   // active = the terminal tab is the visible detail view (hides when
@@ -27,14 +28,16 @@ interface TerminalPaneProps {
   terminalTheme: TerminalThemeName;
   fontSize: number;
   paneStatus: PaneStatus;
-  footerActions: ActionInfo[];
-  footerIds: string[];
+  footerItems: RowItem[];
+  layout: ActionsLayout;
   disabled: boolean;
   onTerminalCountChange: (n: number) => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
   onRunAction: (action: ActionInfo) => void;
   onActionContextMenu?: (e: MouseEvent, action: ActionInfo) => void;
+  onZoneContextMenu?: (e: MouseEvent, zone: ZoneInfo) => void;
+  onFooterContextMenu?: (e: MouseEvent<HTMLDivElement>) => void;
   onNewTerminal: () => void;
   onEditConfig: () => void;
   onResumeSession?: () => void;
@@ -53,14 +56,16 @@ export function TerminalPane({
   terminalTheme,
   fontSize,
   paneStatus,
-  footerActions,
-  footerIds,
+  footerItems,
+  layout,
   disabled,
   onTerminalCountChange,
   onZoomIn,
   onZoomOut,
   onRunAction,
   onActionContextMenu,
+  onZoneContextMenu,
+  onFooterContextMenu,
   onNewTerminal,
   onEditConfig,
   onResumeSession,
@@ -99,10 +104,12 @@ export function TerminalPane({
         active={active && visible}
         projectName={projectName}
         projectPath={projectRoot}
-        actions={footerActions}
-        actionIds={footerIds}
+        items={footerItems}
+        layout={layout}
         onRunAction={onRunAction}
         onActionContextMenu={onActionContextMenu}
+        onZoneContextMenu={onZoneContextMenu}
+        onRowContextMenu={onFooterContextMenu}
         disabled={disabled}
       />
     </div>

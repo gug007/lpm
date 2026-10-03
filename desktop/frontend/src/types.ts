@@ -31,9 +31,34 @@ export const isHeaderDisplay = (d: string) =>
 export const isFooterDisplay = (d: string) => d === "footer";
 
 export interface ActionsLayout {
+  // The header and footer rows each hold action ids and zone items
+  // (@zone/<name>), in order.
   header: string[];
   footer: string[];
+  // Zone name → the buttons inside it, in order.
+  zones: Record<string, string[]>;
 }
+
+export type ZoneRows = 1 | 2 | 3;
+
+// The bar a zone sits in.
+export type ZoneDisplay = "header" | "footer";
+
+// A framed spot in the header or footer row that holds buttons. Placement
+// only: the buttons point at it with `display: <name>`.
+export interface ZoneInfo {
+  name: string;
+  label: string;
+  rows: ZoneRows;
+  // Absent from an older host's payload, which means the header.
+  display?: ZoneDisplay;
+  position?: number;
+  // The config file that declares the zone; edits and removal go there.
+  source: "project" | "repo" | "global";
+}
+
+export const zoneDisplayOf = (zone: Pick<ZoneInfo, "display">): ZoneDisplay =>
+  zone.display === "footer" ? "footer" : "header";
 
 export interface ActionInputOption {
   label: string;
@@ -161,6 +186,7 @@ export interface ProjectInfo {
   services: ServiceInfo[];
   allServices: ServiceInfo[];
   actions: ActionInfo[];
+  zones?: ZoneInfo[];
   profiles: ProfileInfo[];
   activeProfile: string;
   statusEntries: StatusEntry[];

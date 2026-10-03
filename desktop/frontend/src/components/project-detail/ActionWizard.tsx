@@ -18,6 +18,7 @@ import {
   readActionPayload,
   replaceAction,
   replaceActionPayload,
+  updatePlacementNote,
   type ActionConfigLayer,
   type ActionPatch,
 } from "../../actionConfig";
@@ -33,6 +34,14 @@ import {
 } from "./actionInputs";
 import { ActionInputsEditor, CommandPreview } from "./ActionInputsEditor";
 import {
+  placementFromYaml,
+  placementOf,
+  placementPatch,
+  withDeclaredDisplay,
+  withoutPlacement,
+  yamlDisplay,
+} from "./actionPlacement";
+import {
   actionInfoFromPayload,
   pickUnmanaged,
   reorderById,
@@ -43,6 +52,7 @@ import {
 } from "./actionYaml";
 import { AdvancedDisclosure } from "./AdvancedDisclosure";
 import { AlsoConfiguredChip } from "./AlsoConfiguredChip";
+import { DisplayPicker } from "./DisplayPicker";
 import { useProjectSuggestions } from "./useProjectSuggestions";
 import { filterStaticTemplates, type ActionTemplate } from "./projectSuggestions";
 import { SortableItem, SortableList } from "../ui/SortableList";
@@ -52,7 +62,7 @@ import { slugify } from "../../slugify";
 import { uniqueKey } from "../../uniqueKey";
 import { withEmoji } from "../../withEmoji";
 import { ActionColorButton } from "../ActionColorButton";
-import { AI_CLI_OPTIONS, isFooterDisplay, type ActionInfo } from "../../types";
+import { AI_CLI_OPTIONS, type ActionInfo, type ZoneDisplay, type ZoneInfo, zoneDisplayOf } from "../../types";
 import { detectAICLI } from "../../slashCommands";
 import { InputComposer } from "../InputComposer";
 import {
@@ -93,8 +103,6 @@ import {
   GripVerticalIcon,
   HelpCircleIcon,
   MoonIcon,
-  PanelBottomIcon,
-  PanelTopIcon,
   PlayIcon,
   PlusIcon,
   SendIcon,
@@ -305,6 +313,10 @@ interface ActionWizardProps {
   // Absent for rootless mounts; skipped for remote/SSH projects.
   projectRoot?: string;
   isRemote?: boolean;
+  // The project's zones, offered as placements next to header and footer.
+  zones?: ZoneInfo[];
+  // Create-only: the row the form opens on, e.g. Footer from the footer's menu.
+  initialDisplay?: ZoneDisplay;
   onClose: () => void;
   onSaved: () => void;
 }
@@ -424,11 +436,14 @@ interface FormDraft {
   runMode: RunMode;
   reuse: boolean;
   confirm: boolean;
-  display: "header" | "footer";
+  // "header", "footer" or the name of one of the project's zones.
+  display: string;
   // Local-only, see ChildDraft. Kept out of every buildActionPatch / build*
   // path so they never reach YAML.
   runModeTouched: boolean;
   confirmTouched: boolean;
+  // True once the user picks a placement; until then a save leaves `display` alone.
+  displayTouched: boolean;
 }
 
 // Ports may be entered as a single value or a space/comma-separated list.
@@ -515,6 +530,7 @@ function buildActionPatch({
   reuse,
   confirm,
   display,
+  displayTouched,
 }: FormDraft): ActionPatch {
   const set: Record<string, unknown> = { label: name.trim() };
   const remove: string[] = [];
@@ -530,8 +546,8 @@ function buildActionPatch({
   if (shape !== "dropdown" && shortcut.trim()) set.shortcut = shortcut.trim();
   else remove.push("shortcut");
 
-  if (display === "footer") set.display = "footer";
-  else remove.push("display");
+  const placement = placementPatch(display, displayTouched);
+  if (placement.set) set.display = placement.set;
 
   if (shape === "dropdown") {
     remove.push(
@@ -662,7 +678,7 @@ function inferShape(action: ActionInfo): Shape {
   return "button";
 }
 
-function actionToDraft(action: ActionInfo): FormDraft {
+function actionToDraft(action: ActionInfo, zoneNames: readonly string[] = []): FormDraft {
   const children: ChildDraft[] = (action.children ?? []).map((c) => ({
     id: crypto.randomUUID(),
     label: c.label,
@@ -690,13 +706,14 @@ function actionToDraft(action: ActionInfo): FormDraft {
     runMode: toRunMode(action.type),
     reuse: action.reuse ?? false,
     confirm: action.confirm,
-    display: isFooterDisplay(action.display) ? "footer" : "header",
+    display: placementOf(action.display, zoneNames),
     runModeTouched: true,
     confirmTouched: true,
+    displayTouched: false,
   };
 }
 
-function defaultDraft(): FormDraft {
+function defaultDraft(display: string = "header"): FormDraft {
   return {
     shape: "button",
     name: "",
@@ -714,9 +731,10 @@ function defaultDraft(): FormDraft {
     runMode: "terminal",
     reuse: false,
     confirm: false,
-    display: "header",
+    display,
     runModeTouched: false,
     confirmTouched: false,
+    displayTouched: false,
   };
 }
 
@@ -745,6 +763,8 @@ export function ActionWizard({
   nextPosition = 1,
   projectRoot,
   isRemote = false,
+  zones = [],
+  initialDisplay = "header",
   onClose,
   onSaved,
 }: ActionWizardProps) {
@@ -803,10 +823,14 @@ export function ActionWizard({
   // identities) from re-firing the reset and wiping in-progress edits.
   const nextPositionRef = useRef(nextPosition);
   nextPositionRef.current = nextPosition;
+  const initialDisplayRef = useRef(initialDisplay);
+  initialDisplayRef.current = initialDisplay;
+  const zoneNamesRef = useRef<string[]>([]);
+  zoneNamesRef.current = zones.map((zone) => zone.name);
 
   useEffect(() => {
     if (!open) return;
-    const nextDraft = editing ? actionToDraft(editing) : defaultDraft();
+    const nextDraft = editing ? actionToDraft(editing, zoneNamesRef.current) : defaultDraft(initialDisplayRef.current);
     setDraft(nextDraft);
     setPromptSeed((n) => n + 1);
     setBaselineDraft(nextDraft);
@@ -852,7 +876,7 @@ export function ActionWizard({
       const base = payload ?? {};
       setEditingPayload(base);
       setWorkingBase(base);
-      setEditorBaseline(buildEditorContentForEdit(actionToDraft(editing), base));
+      setEditorBaseline(buildEditorContentForEdit(actionToDraft(editing, zoneNamesRef.current), base));
       if (modeRef.current === "editor") {
         setEditorContent(buildEditorContentForEdit(draftRef.current, base));
         setEditorSeed((n) => n + 1);
@@ -918,6 +942,11 @@ export function ActionWizard({
   const step2Complete = showShape && (shape === "button" || hasMenuOption);
   const step3Complete = showRunMode;
   const actionLabel = withEmoji(emoji, name.trim() || PLACEHOLDER_LABEL);
+  // The preview mocks only the header and footer frames; a zone shows in its row.
+  const previewDisplay =
+    display === "footer" || zones.some((zone) => zone.name === display && zoneDisplayOf(zone) === "footer")
+      ? "footer"
+      : "header";
   const { title, primary: primaryLabel } = wizardCopy(isEditing);
   const savingLabel = isEditing ? "Saving..." : "Creating...";
 
@@ -1004,6 +1033,9 @@ export function ActionWizard({
       });
       if (submission.kind === "edit") {
         await runPendingMove(submission.key);
+        const placedInNote =
+          draft.displayTouched && (await updatePlacementNote(projectName, submission.key, draft.display));
+        const patch = placedInNote ? withoutPlacement(submission.patch) : submission.patch;
         // A plain replaceAction patch leaves unmanaged fields alone, which is
         // safest against concurrent external edits — but if the user changed
         // env/inputs/etc. in the editor before switching to the form, only a
@@ -1012,10 +1044,13 @@ export function ActionWizard({
           await replaceActionPayload(
             projectName,
             submission.key,
-            mergeActionPayload(workingBase, submission.patch),
+            mergeActionPayload(
+              placedInNote ? withDeclaredDisplay(workingBase, editingPayload ?? {}) : workingBase,
+              patch,
+            ),
           );
         } else {
-          await replaceAction(projectName, submission.key, submission.patch);
+          await replaceAction(projectName, submission.key, patch);
         }
         toast.success("Action updated");
       } else {
@@ -1057,7 +1092,19 @@ export function ActionWizard({
     try {
       if (editing) {
         await runPendingMove(editing.name);
-        await replaceActionPayload(projectName, editing.name, payload);
+        const placement = placementFromYaml(
+          draft,
+          yamlDisplay(buildCurrentYAML()),
+          payload.display,
+          zoneNamesRef.current,
+        );
+        const placedInNote =
+          placement.displayTouched && (await updatePlacementNote(projectName, editing.name, placement.display));
+        await replaceActionPayload(
+          projectName,
+          editing.name,
+          placedInNote ? withDeclaredDisplay(payload, editingPayload ?? {}) : payload,
+        );
         toast.success("Action updated");
       } else {
         const key = uniqueKey(
@@ -1106,6 +1153,17 @@ export function ActionWizard({
     writeStoredMode("editor");
   };
 
+  const draftFromYaml = (
+    prev: FormDraft,
+    info: ActionInfo,
+    shownDisplay: unknown,
+    nextDisplay: unknown,
+  ): FormDraft => ({
+    ...actionToDraft(info, zoneNamesRef.current),
+    configLayer: prev.configLayer,
+    ...placementFromYaml(prev, shownDisplay, nextDisplay, zoneNamesRef.current),
+  });
+
   // Parses the editor content back into the form. Invalid or non-mapping YAML
   // keeps us in the editor with the error shown rather than silently discarding
   // the edits. Unmanaged fields the user typed become the new workingBase so
@@ -1123,10 +1181,8 @@ export function ActionWizard({
       return;
     }
     const payload = parsed as Record<string, unknown>;
-    setDraft((prev) => ({
-      ...actionToDraft(actionInfoFromPayload(payload)),
-      configLayer: prev.configLayer,
-    }));
+    const shownDisplay = yamlDisplay(buildCurrentYAML());
+    setDraft((prev) => draftFromYaml(prev, actionInfoFromPayload(payload), shownDisplay, payload.display));
     setPromptSeed((n) => n + 1);
     setWorkingBase(payload);
     setEditorError(null);
@@ -1161,12 +1217,11 @@ export function ActionWizard({
   const applyAiResult = (yaml: string) => {
     setEditorContent(yaml);
     try {
+      const shownDisplay = yamlDisplay(buildCurrentYAML());
       const info = yamlToActionInfo(yaml);
-      setWorkingBase(YAML.parse(yaml) as Record<string, unknown>);
-      setDraft((prev) => ({
-        ...actionToDraft(info),
-        configLayer: prev.configLayer,
-      }));
+      const payload = YAML.parse(yaml) as Record<string, unknown>;
+      setWorkingBase(payload);
+      setDraft((prev) => draftFromYaml(prev, info, shownDisplay, payload.display));
       setPromptSeed((n) => n + 1);
       toast.success(
         editing ? "AI updated the action" : "AI generated an action",
@@ -1463,7 +1518,12 @@ export function ActionWizard({
                     >
                       <DisplayPicker
                         display={display}
-                        onChange={(value) => updateField("display", value)}
+                        zones={zones}
+                        onChange={(value) =>
+                          setDraft((prev) =>
+                            prev.display === value ? prev : { ...prev, display: value, displayTouched: true },
+                          )
+                        }
                       />
                     </div>
                   </WizardStep>
@@ -1554,7 +1614,7 @@ export function ActionWizard({
                 reuse={reuse}
                 confirm={confirm}
                 cmd={cmd}
-                display={display}
+                display={previewDisplay}
                 hoveredHint={hoveredHint}
                 inputs={shape === "dropdown" ? [] : inputs}
                 promptFor={
@@ -2473,43 +2533,6 @@ function ConfirmPicker({
           icon={<HelpCircleIcon />}
           title="Ask before running"
           onClick={() => onConfirm(true)}
-        />
-      </div>
-    </div>
-  );
-}
-
-function DisplayPicker({
-  display,
-  onChange,
-}: {
-  display: "header" | "footer";
-  onChange: (value: "header" | "footer") => void;
-}) {
-  return (
-    <div>
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <span className="text-[12px] font-medium text-[var(--text-secondary)]">
-          Placement
-        </span>
-        <span className="text-[12px] text-[var(--text-muted)]">
-          {display === "footer"
-            ? "Pinned to the terminal footer bar."
-            : "In the header row above the terminal."}
-        </span>
-      </div>
-      <div className="grid grid-cols-2 gap-1 rounded-lg bg-[var(--bg-secondary)] p-1">
-        <ModeButton
-          active={display === "header"}
-          icon={<PanelTopIcon />}
-          title="Header"
-          onClick={() => onChange("header")}
-        />
-        <ModeButton
-          active={display === "footer"}
-          icon={<PanelBottomIcon />}
-          title="Footer"
-          onClick={() => onChange("footer")}
         />
       </div>
     </div>

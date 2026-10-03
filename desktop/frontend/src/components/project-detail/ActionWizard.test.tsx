@@ -18,6 +18,7 @@ vi.mock("../../actionConfig", () => ({
   readActionPayload: (...args: unknown[]) => readActionPayload(...(args as [])),
   replaceAction: vi.fn(),
   replaceActionPayload: vi.fn(),
+  updatePlacementNote: vi.fn(),
 }));
 
 vi.mock("../../monaco-setup", () => ({
@@ -236,5 +237,23 @@ describe("ActionWizard edit-mode editor seeding", () => {
     await render({ editing, existingActionKeys: ["deploy"] });
     expect(document.body.textContent).toContain("Saves to User config");
     expect(document.body.textContent).not.toContain("Locating config");
+  });
+});
+
+describe("ActionWizard placement of a new action", () => {
+  beforeEach(() => {
+    localStorage.setItem("lpm.actionWizard.mode", "editor");
+  });
+
+  it("starts in the footer when opened from the footer", async () => {
+    await render({ initialDisplay: "footer", nextPosition: 7, existingActionKeys: [] });
+    const yaml = document.querySelector('[data-testid="editor-value"]')?.textContent ?? "";
+    expect(yaml).toContain("display: footer");
+    expect(yaml).toContain("position: 7");
+  });
+
+  it("starts in the header otherwise", async () => {
+    await render({ existingActionKeys: [] });
+    expect(document.querySelector('[data-testid="editor-value"]')?.textContent).toContain("display: header");
   });
 });

@@ -9,7 +9,9 @@ const ROTATE_MS = 9000;
 
 const DEV = import.meta.env.DEV;
 
-export function AppTip({ hasCli = true }: { hasCli?: boolean }) {
+// rowHeight: set while the footer is top-aligned, so the tip stays centred on
+// the first footer row.
+export function AppTip({ hasCli = true, rowHeight }: { hasCli?: boolean; rowHeight?: number }) {
   const dismissed = useSettingsStore((s) => s.appTipsDismissed ?? false);
 
   const tips = useMemo(() => {
@@ -54,7 +56,11 @@ export function AppTip({ hasCli = true }: { hasCli?: boolean }) {
 
   return (
     <>
-      <div ref={slotRef} className="min-w-0 flex-1 overflow-hidden">
+      <div
+        ref={slotRef}
+        className={rowHeight ? "flex min-w-0 flex-1 items-center overflow-hidden" : "min-w-0 flex-1 overflow-hidden"}
+        style={rowHeight ? { height: rowHeight } : undefined}
+      >
         <div
           ref={contentRef}
           onMouseEnter={() => setPaused(true)}

@@ -4,6 +4,7 @@ import { PlusIcon, TrashIcon, ChevronDownIcon, ChevronRightIcon, ZapIcon, PlayIc
 import { uniqueKey } from "../uniqueKey";
 import { useAccountsStore } from "../store/accounts";
 import { useAppStore } from "../store/app";
+import { isFooterDisplay, isHeaderDisplay } from "../types";
 import {
   parseYaml,
   serializeToYaml,
@@ -57,6 +58,7 @@ function Select({ value, onChange, options, invalid }: { value: string; onChange
 }
 
 function DisplaySelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const inZone = !isHeaderDisplay(value) && !isFooterDisplay(value) && value !== "menu";
   return (
     <Select
       value={value === "button" ? "" : value}
@@ -65,6 +67,7 @@ function DisplaySelect({ value, onChange }: { value: string; onChange: (v: strin
         { value: "", label: "Header (default)" },
         { value: "footer", label: "Footer" },
         ...(value === "menu" ? [{ value: "menu", label: "Menu (legacy)" }] : []),
+        ...(inZone ? [{ value, label: `Zone “${value}”` }] : []),
       ]}
     />
   );

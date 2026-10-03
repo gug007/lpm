@@ -29,6 +29,9 @@ const SIZE_CLASSES = {
     text: "text-[var(--action-text,var(--text-secondary))]",
     hover: "hover:bg-[var(--action-tint-strong,var(--terminal-header-active))] hover:text-[var(--action-text,var(--text-primary))]",
     active: "bg-[var(--action-tint-strong,var(--bg-active))] text-[var(--action-text,var(--text-primary))]",
+    wrapper: "shrink-0",
+    fill: "",
+    primaryFill: "",
   },
   compact: {
     height: "",
@@ -43,8 +46,52 @@ const SIZE_CLASSES = {
     text: "text-[var(--action-text,var(--composer-fg-secondary))]",
     hover: "hover:bg-[var(--action-tint-strong,var(--terminal-header-active))] hover:text-[var(--action-text,var(--composer-fg))]",
     active: "bg-[var(--action-tint-strong,var(--terminal-header-active))] text-[var(--action-text,var(--composer-fg))]",
+    wrapper: "shrink-0",
+    fill: "",
+    primaryFill: "",
+  },
+  zone: {
+    height: "h-full",
+    rounded: "rounded-md",
+    roundedL: "rounded-l-md",
+    roundedR: "rounded-r-md",
+    padding: "px-2.5 text-[11px]",
+    chevronPad: "px-1",
+    side: "below",
+    border: "border border-[var(--border)] bg-[var(--action-tint,var(--bg-secondary))]",
+    dividerBorder: "border-l border-[var(--action-border,var(--border))]",
+    text: "text-[var(--action-text,var(--text-secondary))]",
+    hover: "hover:bg-[var(--action-tint-strong,var(--terminal-header-active))] hover:text-[var(--action-text,var(--text-primary))]",
+    active: "bg-[var(--action-tint-strong,var(--bg-active))] text-[var(--action-text,var(--text-primary))]",
+    wrapper: "flex h-full w-full",
+    fill: "w-full justify-center",
+    primaryFill: "flex-1 justify-center",
+  },
+  footerZone: {
+    height: "h-full",
+    rounded: "rounded-md",
+    roundedL: "rounded-l-md",
+    roundedR: "rounded-r-md",
+    padding: "px-2.5 text-[11px]",
+    chevronPad: "px-1",
+    side: "above",
+    border: "border border-[var(--composer-border)] bg-[var(--action-tint,var(--composer-surface))]",
+    dividerBorder: "border-l border-[var(--action-border,var(--composer-border))]",
+    text: "text-[var(--action-text,var(--composer-fg-secondary))]",
+    hover: "hover:bg-[var(--action-tint-strong,var(--terminal-header-active))] hover:text-[var(--action-text,var(--composer-fg))]",
+    active: "bg-[var(--action-tint-strong,var(--terminal-header-active))] text-[var(--action-text,var(--composer-fg))]",
+    wrapper: "flex h-full w-full",
+    fill: "w-full justify-center",
+    primaryFill: "flex-1 justify-center",
   },
 } as const;
+
+export type ActionSize = keyof typeof SIZE_CLASSES;
+
+// Footer buttons open their dropdowns upward, the rest downward.
+export function splitPanelSide(size: ActionSize): "above" | "below" {
+  return SIZE_CLASSES[size].side;
+}
 
 const PANEL_WIDTH = 288;
 
@@ -53,11 +100,11 @@ interface SplitButtonProps {
   disabled: boolean;
   onRunAction: (action: ActionInfo) => void;
   onContextMenu?: (e: MouseEvent) => void;
-  compact?: boolean;
+  size?: ActionSize;
   scope?: string;
 }
 
-export function SplitButton({ action, disabled, onRunAction, onContextMenu, compact = false, scope = "global" }: SplitButtonProps) {
+export function SplitButton({ action, disabled, onRunAction, onContextMenu, size = "default", scope = "global" }: SplitButtonProps) {
   const [open, setOpen] = useState(false);
   const [remembered, setRemembered] = useState<string | null>(() => loadRememberedChild(scope, action.name));
   useEffect(() => {
@@ -93,7 +140,7 @@ export function SplitButton({ action, disabled, onRunAction, onContextMenu, comp
     return () => clearTimeout(timer);
   }, [dragActive, springOver]);
   const panelOpen = open || (dragActive && keepOpenRef.current);
-  const s = compact ? SIZE_CLASSES.compact : SIZE_CLASSES.default;
+  const s = SIZE_CLASSES[size];
   const { triggerRef, panelRef, style } = useAnchoredPanel<HTMLDivElement, HTMLDivElement>({
     open: panelOpen,
     onClose: () => setOpen(false),
@@ -145,13 +192,13 @@ export function SplitButton({ action, disabled, onRunAction, onContextMenu, comp
   const trigger = isSplit ? (
     <div
       style={actionButtonStyle(action.color)}
-      className={`inline-flex items-stretch ${s.height} ${s.rounded} ${s.border}`}
+      className={`inline-flex items-stretch ${s.height} ${s.rounded} ${s.border} ${s.fill}`}
     >
       <button
         onClick={runPrimary}
         disabled={disabled}
         style={{ color: actionTextColor(primaryColor) }}
-        className={`flex items-center whitespace-nowrap ${s.roundedL} ${s.padding} font-medium ${s.text} transition-all duration-100 active:scale-[0.97] ${s.hover} disabled:cursor-not-allowed disabled:opacity-40`}
+        className={`flex items-center whitespace-nowrap ${s.primaryFill} ${s.roundedL} ${s.padding} font-medium ${s.text} transition-all duration-100 active:scale-[0.97] ${s.hover} disabled:cursor-not-allowed disabled:opacity-40`}
       >
         {primaryChild ? withEmoji(primaryChild.emoji, primaryChild.label) : withEmoji(action.emoji, action.label)}
       </button>
@@ -168,7 +215,7 @@ export function SplitButton({ action, disabled, onRunAction, onContextMenu, comp
       onClick={() => setOpen((v) => !v)}
       disabled={disabled}
       style={actionButtonStyle(action.color)}
-      className={`inline-flex items-center gap-1 whitespace-nowrap ${s.height} ${s.rounded} ${s.border} ${s.padding} font-medium ${s.text} transition-all duration-100 active:scale-[0.97] ${s.hover} disabled:cursor-not-allowed disabled:opacity-40`}
+      className={`inline-flex items-center gap-1 whitespace-nowrap ${s.fill} ${s.height} ${s.rounded} ${s.border} ${s.padding} font-medium ${s.text} transition-all duration-100 active:scale-[0.97] ${s.hover} disabled:cursor-not-allowed disabled:opacity-40`}
     >
       {withEmoji(action.emoji, action.label)}
       <ChevronDownIcon />
@@ -176,7 +223,7 @@ export function SplitButton({ action, disabled, onRunAction, onContextMenu, comp
   );
 
   return (
-    <div ref={triggerRef} onContextMenu={onContextMenu} className="shrink-0 cursor-grab select-none">
+    <div ref={triggerRef} onContextMenu={onContextMenu} className={`${s.wrapper} cursor-grab select-none`}>
       {trigger}
       {dropdown}
     </div>

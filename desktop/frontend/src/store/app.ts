@@ -3,9 +3,6 @@ import { toast } from "sonner";
 import YAML from "yaml";
 import {
   isDuplicate,
-  isFooterDisplay,
-  isHeaderDisplay,
-  type ActionInfo,
   type ActionsLayout,
   type DuplicateMode,
   type GeneratorRunSpec,
@@ -91,7 +88,14 @@ import {
   type AdoptedProject,
 } from "./adoptProject";
 import { activeChatStorageKey } from "../components/NotesView";
-import { ACTION_SECTIONS, type ActionSection } from "../actionConfig";
+import { buildActionsModel, sortByPosition } from "../actionsLayoutModel";
+import {
+  type LayoutUpdates,
+  applyActionUpdates,
+  applyZoneUpdates,
+  buildLayoutUpdates,
+  patchLayoutDoc,
+} from "../actionsLayoutUpdates";
 import { editGlobalDoc, editProjectDoc, editRepoDoc } from "../yamlQueue";
 import { applyOpToDoc } from "../actionsStructural";
 import { menuChildOrderFor } from "../actionTree";
@@ -369,7 +373,11 @@ interface AppState {
   attachProject: (name: string) => Promise<void>;
   focusDetachedProject: (name: string) => Promise<boolean>;
   refreshDetached: () => Promise<void>;
-  reorderActions: (projectName: string, layout: ActionsLayout) => Promise<void>;
+  // `before` is the layout a drag started from, passed by the drop (see
+  // buildLayoutUpdates); moves that weren't previewed leave it out. Resolves
+  // false when nothing was saved: an unknown project, or a failed write (the
+  // store has already toasted and resynced by then).
+  reorderActions: (projectName: string, layout: ActionsLayout, before?: ActionsLayout) => Promise<boolean>;
   applyStructuralOp: (
     projectName: string,
     op: StructuralOp,
@@ -379,42 +387,6 @@ interface AppState {
   // reorderActions.
   previewReorderActions: (projectName: string, layout: ActionsLayout) => void;
   refreshAfterRename: (newName?: string) => Promise<void>;
-}
-
-// Mirrors the backend's sortActionNames (projects.go) so optimistic updates
-// match what the next ListProjects will return.
-function sortActionsByPosition(actions: ActionInfo[]): ActionInfo[] {
-  return [...actions].sort((a, b) => {
-    const ap = a.position;
-    const bp = b.position;
-    if (ap !== undefined && bp !== undefined) {
-      return ap - bp || a.name.localeCompare(b.name);
-    }
-    if (ap !== undefined) return -1;
-    if (bp !== undefined) return 1;
-    return a.name.localeCompare(b.name);
-  });
-}
-
-type DisplayGroup = "header" | "footer" | null;
-
-interface ActionUpdate {
-  position: number;
-  // undefined → leave display untouched (within-group reorder, preserves
-  // legacy values like "button"). null → delete display (move to header
-  // default). string → set display.
-  display?: string | null;
-  // Where to write a sparse override when the key isn't already in the
-  // project YAML — derived from the resolved action's type so a global
-  // terminal override lands in `terminals:`, not `actions:`.
-  section: ActionSection;
-}
-
-function buildSeed(update: ActionUpdate, cmd?: string): Record<string, unknown> {
-  const seed: Record<string, unknown> = { position: update.position };
-  if (cmd !== undefined) seed.cmd = cmd;
-  if (typeof update.display === "string") seed.display = update.display;
-  return seed;
 }
 
 // Per-project write chain so a quick reorder + undo can't race two
@@ -428,110 +400,22 @@ function serializeActionsWrite(
   const prev = actionsWriteChain.get(projectName) ?? Promise.resolve();
   const next = prev.catch(() => undefined).then(task);
   actionsWriteChain.set(projectName, next);
+  // The caller gets a failure through `next`; this cleanup branch must not
+  // leave its own copy of it unhandled.
   next.finally(() => {
     if (actionsWriteChain.get(projectName) === next) {
       actionsWriteChain.delete(projectName);
     }
-  });
+  }).catch(() => undefined);
   return next;
 }
 
-// parseDocument (vs parse + stringify) keeps comments and unrelated
-// formatting; shorthand string entries are widened to map form so the
-// position/display fields have somewhere to attach. Keys present in the
-// project YAML get an in-place patch; keys that only exist in global.yml
-// get a sparse override entry appended (just position + display) so other
-// fields keep inheriting from global.
-async function persistActionUpdates(
-  projectName: string,
-  updates: Map<string, ActionUpdate>,
-): Promise<void> {
+// parseDocument (vs parse + stringify) keeps comments and unrelated formatting.
+async function persistLayoutUpdates(projectName: string, updates: LayoutUpdates): Promise<void> {
   const content = await ReadConfig(projectName);
   const doc = YAML.parseDocument(content || "{}");
-  const remaining = new Map(updates);
-  for (const section of ACTION_SECTIONS) {
-    const node = doc.get(section, true);
-    if (!YAML.isMap(node)) continue;
-    for (const item of node.items) {
-      if (!YAML.isScalar(item.key)) continue;
-      const key = String(item.key.value);
-      const update = remaining.get(key);
-      if (!update) continue;
-      if (YAML.isScalar(item.value) && typeof item.value.value === "string") {
-        item.value = doc.createNode(buildSeed(update, item.value.value));
-      } else if (YAML.isMap(item.value)) {
-        item.value.set("position", update.position);
-        if (update.display === null) item.value.delete("display");
-        else if (typeof update.display === "string")
-          item.value.set("display", update.display);
-      }
-      remaining.delete(key);
-    }
-  }
-  for (const [key, update] of remaining) {
-    let section = doc.get(update.section, true);
-    if (!YAML.isMap(section)) {
-      doc.set(update.section, doc.createNode({}));
-      section = doc.get(update.section, true);
-    }
-    if (!YAML.isMap(section)) continue;
-    section.set(key, buildSeed(update));
-  }
+  patchLayoutDoc(doc, updates);
   await SaveConfig(projectName, String(doc));
-}
-
-function buildActionUpdates(
-  current: ActionInfo[],
-  layout: ActionsLayout,
-): Map<string, ActionUpdate> {
-  const updates = new Map<string, ActionUpdate>();
-  const previousGroup = new Map<string, DisplayGroup>();
-  const sectionByKey = new Map<string, ActionSection>();
-  for (const a of current) {
-    if (isHeaderDisplay(a.display)) previousGroup.set(a.name, "header");
-    else if (isFooterDisplay(a.display)) previousGroup.set(a.name, "footer");
-    else previousGroup.set(a.name, null);
-    sectionByKey.set(a.name, a.type === "terminal" ? "terminals" : "actions");
-  }
-  const visit = (keys: string[], group: Exclude<DisplayGroup, null>) => {
-    keys.forEach((key, i) => {
-      const update: ActionUpdate = {
-        position: i + 1,
-        section: sectionByKey.get(key) ?? "actions",
-      };
-      if (previousGroup.get(key) !== group) {
-        update.display = group === "header" ? null : "footer";
-      }
-      updates.set(key, update);
-    });
-  };
-  visit(layout.header, "header");
-  visit(layout.footer, "footer");
-  return updates;
-}
-
-function applyActionUpdates(
-  actions: ActionInfo[],
-  updates: Map<string, ActionUpdate>,
-): ActionInfo[] {
-  return actions.map((a) => {
-    const update = updates.get(a.name);
-    if (!update) return a;
-    const next: ActionInfo = { ...a, position: update.position };
-    if (update.display === null) next.display = "";
-    else if (typeof update.display === "string") next.display = update.display;
-    return next;
-  });
-}
-
-function captureActionsLayout(actions: ActionInfo[] | undefined): ActionsLayout {
-  const header: string[] = [];
-  const footer: string[] = [];
-  for (const a of sortActionsByPosition(actions ?? [])) {
-    if (isHeaderDisplay(a.display)) header.push(a.name);
-    else if (isFooterDisplay(a.display)) footer.push(a.name);
-  }
-  return { header, footer };
 }
 
 function projectsEqual(a: ProjectInfo[], b: ProjectInfo[]): boolean {
@@ -546,12 +430,20 @@ function applyActionsLayoutToStore(
   projectName: string,
   project: ProjectInfo,
   layout: ActionsLayout,
-): Map<string, ActionUpdate> {
-  const updates = buildActionUpdates(project.actions ?? [], layout);
+  before?: ActionsLayout,
+): LayoutUpdates {
+  const updates = buildLayoutUpdates(project.actions ?? [], layout, before, project.zones ?? []);
   set((s) => ({
     projects: s.projects.map((p) =>
       p.name === projectName
-        ? { ...p, actions: sortActionsByPosition(applyActionUpdates(p.actions ?? [], updates)) }
+        ? {
+            ...p,
+            actions: sortByPosition(applyActionUpdates(p.actions ?? [], updates.actions)),
+            zones:
+              updates.zones.size === 0
+                ? p.zones
+                : sortByPosition(applyZoneUpdates(p.zones ?? [], updates.zones)),
+          }
         : p,
     ),
   }));
@@ -562,15 +454,15 @@ function applyActionsLayoutToStore(
 async function persistActionsLayoutOrRecover(
   get: AppGet,
   projectName: string,
-  updates: Map<string, ActionUpdate>,
-): Promise<void> {
+  updates: LayoutUpdates,
+): Promise<boolean> {
   try {
-    await serializeActionsWrite(projectName, () =>
-      persistActionUpdates(projectName, updates),
-    );
+    await serializeActionsWrite(projectName, () => persistLayoutUpdates(projectName, updates));
+    return true;
   } catch (err) {
     toast.error(`Failed to save action order: ${err}`);
     await get().refreshProjects();
+    return false;
   }
 }
 
@@ -1952,15 +1844,15 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  reorderActions: async (projectName, layout) => {
+  reorderActions: async (projectName, layout, before) => {
     const project = get().projects.find((p) => p.name === projectName);
-    if (!project) return;
+    if (!project) return false;
     // Position values can collide across groups because the header/
     // footer/menu filter runs after the sort. Display is only touched
     // when an action's group changed, so legacy values like "button"
     // survive a within-group reorder.
-    const updates = applyActionsLayoutToStore(set, projectName, project, layout);
-    await persistActionsLayoutOrRecover(get, projectName, updates);
+    const updates = applyActionsLayoutToStore(set, projectName, project, layout, before);
+    return persistActionsLayoutOrRecover(get, projectName, updates);
   },
 
   applyStructuralOp: async (projectName, op, level) => {
@@ -1978,7 +1870,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (op.kind === "extractToTop" && op.group && op.index != null) {
         const project = get().projects.find((p) => p.name === projectName);
         if (project) {
-          const base = captureActionsLayout(project.actions);
+          const base = buildActionsModel(project.actions, project.zones ?? []).layout;
           const next = applyMove(base, op.child, { group: op.group, index: op.index });
           await get().reorderActions(projectName, next);
         }

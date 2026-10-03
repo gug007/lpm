@@ -27,7 +27,7 @@ Use `--layer repo --project <name>`, `--layer global`, or `--layer template --te
 
 Treat any result other than `applied: true` as a failed change. Validation failures never alter the destination. Fix every error in the candidate and retry. On `revision_conflict`, discard the stale base, run `get` again, and merge the intended change into the latest content. Review warnings and report any that affect the requested behavior.
 
-The apply validator checks YAML shape, supported fields, config-layer restrictions, identity, SSH settings, commands, local directories, ports, action types, displays, modes, inputs, shortcuts, profiles, service dependencies, cycles, duplicates, and the effective merged project.
+The apply validator checks YAML shape, supported fields, config-layer restrictions, identity, SSH settings, commands, local directories, ports, action types, displays, modes, inputs, shortcuts, profiles, zones, service dependencies, cycles, duplicates, and the effective merged project.
 
 ## No-write fallback
 
@@ -39,7 +39,7 @@ When the app is not running or the installed CLI does not provide `config get` a
 4. Services and executable action leaves have non-empty commands after layering.
 5. Service ports are unique; all ports are between 0 and 65535.
 6. `portConflict` is `ask`, `free`, or `fail`.
-7. `display` is `header` or `footer`; accept `menu` only as legacy.
+7. `display` is `header`, `footer`, or a zone name without `:`; accept `menu` only as legacy, never `button`. `zones` entries are mappings with only `rows` (1–3), `label`, `position` and `display` (`header` or `footer`); a zone name is not empty, contains no `:`, and is not `header`, `footer`, `menu` or `button`.
 8. `type` is `terminal`, `command`, or `background` when set.
 9. `mode` is `remote` or `sync`; `sync` requires SSH.
 10. Radio inputs have options and a matching default.

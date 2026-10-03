@@ -83,7 +83,7 @@ export function OpenInDropdown({ projectPath, isRemote = false }: {
         </button>
       </div>
       {open && (
-        <div className="switcher-in absolute right-0 top-full z-50 mt-1.5 w-52 origin-top-right rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] p-1 shadow-xl">
+        <div data-row-menu="off" className="switcher-in absolute right-0 top-full z-50 mt-1.5 w-52 origin-top-right rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] p-1 shadow-xl">
           {groups.map((group, gi) => (
             <div key={group.label ?? "other"}>
               {group.label ? (

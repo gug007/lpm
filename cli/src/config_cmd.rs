@@ -12,6 +12,8 @@ use std::fmt::Write as _;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
+mod zones;
+
 #[derive(Clone, Copy, ValueEnum)]
 pub enum ConfigLayer {
     Project,
@@ -642,9 +644,17 @@ fn validate_value(ctx: &Ctx, path: &Path, kind: ConfigKind, value: &Value) -> Re
             "actions",
             "terminals",
             "profiles",
+            "zones",
         ][..],
-        ConfigKind::Repo => &["extends", "services", "actions", "terminals", "profiles"][..],
-        ConfigKind::Global => &["extends", "actions", "terminals"][..],
+        ConfigKind::Repo => &[
+            "extends",
+            "services",
+            "actions",
+            "terminals",
+            "profiles",
+            "zones",
+        ][..],
+        ConfigKind::Global => &["extends", "actions", "terminals", "zones"][..],
         ConfigKind::Template => &["actions", "terminals"][..],
     };
     validate_keys(root, allowed, "config", &mut report);
@@ -698,6 +708,7 @@ fn validate_value(ctx: &Ctx, path: &Path, kind: ConfigKind, value: &Value) -> Re
         );
     }
     validate_profiles(root, &mut report);
+    zones::validate_zones(root, &mut report);
     report
 }
 
@@ -740,6 +751,7 @@ fn validate_project_identity(ctx: &Ctx, root: &Mapping, report: &mut Report) {
             "actions",
             "terminals",
             "profiles",
+            "zones",
         ] {
             if root.get(Value::String(key.into())).is_some() {
                 report.error("config", format!("duplicate projects cannot define {key}"));
@@ -1011,7 +1023,7 @@ fn validate_action(
     validate_env(map, path, report);
     validate_port_conflict(map, path, report);
     validate_action_port(map, path, report);
-    validate_choice(map, "display", &["header", "footer", "menu"], path, report);
+    zones::validate_display(map, path, report);
     validate_choice(
         map,
         "type",
@@ -1462,7 +1474,7 @@ fn validate_effective_action(
 mod tests {
     use super::*;
 
-    fn context() -> (tempfile::TempDir, Ctx) {
+    pub(super) fn context() -> (tempfile::TempDir, Ctx) {
         let dir = tempfile::tempdir().unwrap();
         let ctx = Ctx {
             lpm_dir: dir.path().join(".lpm"),

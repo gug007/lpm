@@ -133,6 +133,7 @@ export function PortsPopover({ projectName, forwards, suggestions, onClose }: Po
   return (
     <div
       ref={ref}
+      data-row-menu="off"
       className="absolute right-0 top-full z-50 mt-1.5 w-[28rem] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-xl"
       style={{ "--app-draggable": "no-drag" } as React.CSSProperties}
     >

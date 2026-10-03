@@ -140,6 +140,7 @@ mod vaultkeychain;
 mod vaultkeyfile;
 mod voicetotext;
 mod watchfilter;
+mod zones;
 
 // Bring every command fn into scope so the generated `all_command_handlers!`
 // macro (which lists them unqualified) resolves the hand-written real
