@@ -1,15 +1,30 @@
 import { type ZoneInfo, zoneDisplayOf } from "../../types";
+import { layersOf, zoneListKey, zoneOfListKey } from "../../zoneLayers";
 import { PanelBottomIcon, PanelTopIcon } from "../icons";
 import { ModeButton } from "./ModeButton";
 
 interface DisplayPickerProps {
+  // "header", "footer", a zone, or zone/layer for a zone with layers.
   display: string;
   zones: ZoneInfo[];
   onChange: (value: string) => void;
 }
 
+// One chip per zone, or per layer of a zone with layers.
+function zoneChips(zones: ZoneInfo[]): Array<{ value: string; label: string }> {
+  return zones.flatMap((zone) => {
+    const layers = layersOf(zone);
+    if (layers.length === 0) return [{ value: zone.name, label: zone.label }];
+    return layers.map((layer, index) => ({
+      value: zoneListKey(zone.name, layer.name),
+      label: `${zone.label} › ${layer.label || `Layer ${index + 1}`}`,
+    }));
+  });
+}
+
 export function DisplayPicker({ display, zones, onChange }: DisplayPickerProps) {
-  const zone = zones.find((entry) => entry.name === display);
+  const zoneName = zoneOfListKey(display);
+  const zone = zones.find((entry) => entry.name === zoneName);
   return (
     <div>
       <div className="mb-3 flex items-center justify-between gap-3">
@@ -38,19 +53,19 @@ export function DisplayPicker({ display, zones, onChange }: DisplayPickerProps) 
       </div>
       {zones.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1">
-          {zones.map((entry) => (
+          {zoneChips(zones).map((chip) => (
             <button
-              key={entry.name}
+              key={chip.value}
               type="button"
-              aria-pressed={display === entry.name}
-              onClick={() => onChange(entry.name)}
+              aria-pressed={display === chip.value}
+              onClick={() => onChange(chip.value)}
               className={`rounded-md border px-2.5 py-1 text-[12px] font-medium transition-colors ${
-                display === entry.name
+                display === chip.value
                   ? "border-[var(--text-primary)] bg-[var(--bg-primary)] text-[var(--text-primary)]"
                   : "border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
               }`}
             >
-              {entry.label}
+              {chip.label}
             </button>
           ))}
         </div>

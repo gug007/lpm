@@ -1,4 +1,4 @@
-import type { CSSProperties, MouseEvent, ReactNode } from "react";
+import { type CSSProperties, type MouseEvent, type ReactNode, useEffect, useRef } from "react";
 import type { ZoneDisplay, ZoneRows } from "../types";
 import { ZONE_GAP_PX, zoneHeight } from "./zoneGeometry";
 
@@ -27,14 +27,25 @@ interface ZoneFrameProps {
   display?: ZoneDisplay;
   state: ZoneFrameState;
   onContextMenu?: (e: MouseEvent<HTMLDivElement>) => void;
+  onWheel?: (e: WheelEvent) => void;
   children: ReactNode;
 }
 
 // Exactly `rows` rows of its bar tall; its padding is the zone's one spacing value.
-export function ZoneFrame({ rows, display = "header", state, onContextMenu, children }: ZoneFrameProps) {
+export function ZoneFrame({ rows, display = "header", state, onContextMenu, onWheel, children }: ZoneFrameProps) {
   const style: CSSProperties = { height: zoneHeight(rows, display), padding: ZONE_GAP_PX };
+  const ref = useRef<HTMLDivElement>(null);
+  // Native and non-passive: React's onWheel is passive, so it couldn't keep a
+  // sideways swipe from also scrolling the row.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !onWheel) return;
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [onWheel]);
   return (
     <div
+      ref={ref}
       data-zone-frame=""
       onContextMenu={onContextMenu}
       style={style}

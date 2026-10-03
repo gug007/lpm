@@ -35,7 +35,8 @@ export interface ActionsLayout {
   // (@zone/<name>), in order.
   header: string[];
   footer: string[];
-  // Zone name → the buttons inside it, in order.
+  // A zone's list key (the zone name, or zone/layer for a layer) → the
+  // buttons inside it, in order. A zone's keys appear in layer order.
   zones: Record<string, string[]>;
 }
 
@@ -43,6 +44,12 @@ export type ZoneRows = 1 | 2 | 3;
 
 // The bar a zone sits in.
 export type ZoneDisplay = "header" | "footer";
+
+export interface LayerInfo {
+  name: string;
+  label?: string;
+  position?: number;
+}
 
 // A framed spot in the header or footer row that holds buttons. Placement
 // only: the buttons point at it with `display: <name>`.
@@ -55,6 +62,8 @@ export interface ZoneInfo {
   position?: number;
   // The config file that declares the zone; edits and removal go there.
   source: "project" | "repo" | "global";
+  // Sorted; absent or empty means one implicit layer.
+  layers?: LayerInfo[];
 }
 
 export const zoneDisplayOf = (zone: Pick<ZoneInfo, "display">): ZoneDisplay =>
@@ -89,6 +98,8 @@ export interface ActionInfo {
   env?: Record<string, string>;
   confirm: boolean;
   display: ActionDisplay;
+  // The layer of the zone named by display; a missing one means the first.
+  layer?: string;
   primary?: string;
   // Task handed to the AI agent the command launches, submitted once the agent
   // is ready. Only meaningful for terminal actions whose cmd starts an agent CLI.

@@ -984,6 +984,7 @@ fn validate_action(
             "env",
             "confirm",
             "display",
+            "layer",
             "type",
             "reuse",
             "mode",
@@ -1002,6 +1003,7 @@ fn validate_action(
         "cwd",
         "portConflict",
         "display",
+        "layer",
         "type",
         "mode",
     ] {

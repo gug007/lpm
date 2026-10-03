@@ -14,4 +14,21 @@ describe("DisplayPicker", () => {
     expect(markup("ship")).toContain("In the Ship zone of the footer row.");
     expect(markup("build")).toContain("In the Build zone of the header row.");
   });
+
+  it("offers one chip per layer of a layered zone, named after the zone and the layer", () => {
+    const layered: ZoneInfo[] = [
+      { name: "build", label: "Build", rows: 2, source: "project", layers: [{ name: "web", label: "Web" }, { name: "mobile" }] },
+      { name: "ship", label: "Ship", rows: 2, source: "project" },
+    ];
+    const markup = renderToStaticMarkup(<DisplayPicker display="build/mobile" zones={layered} onChange={() => {}} />);
+    const chips = [...markup.matchAll(/<button[^>]*aria-pressed="(true|false)"[^>]*>([^<]*)<\/button>/g)].map(
+      ([, pressed, text]) => [text, pressed],
+    );
+    expect(chips).toEqual([
+      ["Build › Web", "false"],
+      ["Build › Layer 2", "true"],
+      ["Ship", "false"],
+    ]);
+    expect(markup).toContain("In the Build zone of the header row.");
+  });
 });

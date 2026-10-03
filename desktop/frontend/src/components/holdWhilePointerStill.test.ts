@@ -56,6 +56,17 @@ describe("holdWhilePointerStill", () => {
     expect(hold(args(5, 7))[0].id).toBe("answer-2");
   });
 
+  it("answers afresh for a still pointer once its key changes", () => {
+    let key = "a";
+    const detect = vi.fn<CollisionDetection>(() => [{ id: `answer-${key}` }]);
+    const hold = holdWhilePointerStill(detect, { current: null }, () => key);
+    hold(args(5, 7));
+    expect(hold(args(5, 7))[0].id).toBe("answer-a");
+    key = "b";
+    expect(hold(args(5, 7))[0].id).toBe("answer-b");
+    expect(detect).toHaveBeenCalledTimes(2);
+  });
+
   it("passes through when there are no pointer coordinates", () => {
     const { hold, detect } = setup();
     hold(args(null));

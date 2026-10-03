@@ -33,6 +33,31 @@ describe("buildActionsModel", () => {
     expect(model.headerActions.map((a) => a.name)).toEqual(["test"]);
   });
 
+  it("sorts a layered zone's buttons into its layers, missing layers into the first", () => {
+    const zones: ZoneInfo[] = [
+      { name: "build", label: "Build", rows: 2, source: "project", layers: [{ name: "mobile" }, { name: "web" }] },
+    ];
+    const acts = [
+      action("ios", "build"),
+      { ...action("deploy", "build"), layer: "web" },
+      { ...action("old", "build"), layer: "gone" },
+    ];
+    const model = buildActionsModel(acts, zones);
+    expect(model.layout.zones).toEqual({ "build/mobile": ["ios", "old"], "build/web": ["deploy"] });
+    const item = model.headerItems[0];
+    expect(item.kind === "zone" && item.layers.map((l) => [l.key, l.ids])).toEqual([
+      ["build/mobile", ["ios", "old"]],
+      ["build/web", ["deploy"]],
+    ]);
+    expect(item.kind === "zone" && item.actions.map((a) => a.name)).toEqual(["ios", "old", "deploy"]);
+  });
+
+  it("gives a plain zone one layer view keyed by its name", () => {
+    const model = buildActionsModel([action("ios", "build")], [zone("build")]);
+    const item = model.headerItems[0];
+    expect(item.kind === "zone" && item.layers.map((l) => [l.key, l.layer, l.ids])).toEqual([["build", null, ["ios"]]]);
+  });
+
   it("shows a button whose zone is missing in the header", () => {
     const model = buildActionsModel([action("ios", "gone")], []);
     expect(model.layout.header).toEqual(["ios"]);

@@ -10,6 +10,7 @@ interface FooterActionsProps {
   layout: ActionsLayout;
   // Top-aligned once a zone can make the row taller than one button.
   alignTop: boolean;
+  projectName: string;
   disabled: boolean;
   scope: string;
   onRun: (action: ActionInfo) => void;
@@ -24,6 +25,7 @@ export function FooterActions({
   items,
   layout,
   alignTop,
+  projectName,
   disabled,
   scope,
   onRun,
@@ -45,8 +47,8 @@ export function FooterActions({
           key={item.id}
           item={item}
           display="footer"
-          layout={layout}
           movedByResize={movedByResize}
+          projectName={projectName}
           disabled={disabled}
           scope={scope}
           onRun={onRun}

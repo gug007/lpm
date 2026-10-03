@@ -42,6 +42,7 @@ import { useRowMenu } from "../hooks/useRowMenu";
 import { useTerminalFontSize } from "../hooks/useTerminalFontSize";
 import { useTerminalTheme } from "../hooks/useTerminalTheme";
 import { getSettings } from "../store/settings";
+import { openListKey } from "../store/zoneLayers";
 import {
   clearHiddenSessions,
   countPersistedTabs,
@@ -450,10 +451,16 @@ export function ProjectDetail({
         overGroup={overGroup}
         actions={actionsRef.current ?? []}
         model={modelRef.current}
+        projectName={project.name}
         scope={project.name}
       />
     ),
     [project.name],
+  );
+  const zones = project.zones;
+  const openListOf = useCallback(
+    (zone: string) => openListKey(project.name, zones?.find((candidate) => candidate.name === zone) ?? { name: zone }),
+    [project.name, zones],
   );
 
   const levelMapRef = useRef<LevelMap>(new Map());
@@ -700,6 +707,7 @@ export function ProjectDetail({
       layout={actionsLayout}
       wrapped={actionsWrapped}
       alignTop={hasZones}
+      projectName={project.name}
       disabled={runningAction !== null}
       scope={project.name}
       onRun={handleRunAction}
@@ -773,6 +781,7 @@ export function ProjectDetail({
       isMenu={isMenu}
       renderOverlay={renderActionOverlay}
       onDragActiveChange={setActionsDragging}
+      openListOf={openListOf}
     >
       <div className="flex h-full flex-col">
         <Header

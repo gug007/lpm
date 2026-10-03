@@ -8,10 +8,13 @@ import {
   isCrumbId,
   isGroupDropId,
   isNestId,
+  isZoneDotsId,
   isZoneItemId,
   listOf,
   nestId,
   zoneGroup,
+  zoneNameOfItem,
+  zoneOfDotsId,
   zoneUnderPointer,
 } from "./actionsDndLayout";
 import { type HeldCollision, holdWhilePointerStill } from "./holdWhilePointerStill";
@@ -43,10 +46,11 @@ function computeInsertion(
   ids: string[],
   layout: ActionsLayout,
   px: number,
+  openListOf: (zone: string) => string,
 ): ExtractIndicator | null {
   const zone = zoneUnderPointer(ids);
   if (zone !== null) {
-    const group = zoneGroup(zone);
+    const group = zoneGroup(openListOf(zone));
     return { group, index: listOf(layout, group).length };
   }
   const group = (["header", "footer"] as const).find((row) => ids.includes(groupDropId(row)));
@@ -69,6 +73,8 @@ export interface ActionsCollisionOptions {
   updateMenuDrop: (next: MenuDrop | null) => void;
   // The answer a still pointer keeps; cleared when the drag ends.
   held: { current: HeldCollision | null };
+  // The list a zone takes drops into: its open layer's.
+  openListOf?: (zone: string) => string;
 }
 
 // pointerWithin reports the item, its full-size nest zone, and the
@@ -84,6 +90,7 @@ export function createActionsCollision({
   updateIndicator,
   updateMenuDrop,
   held,
+  openListOf = (zone) => zone,
 }: ActionsCollisionOptions): CollisionDetection {
   const detect: CollisionDetection = (args) => {
     const active = String(args.active.id);
@@ -105,7 +112,7 @@ export function createActionsCollision({
         const rect = c.rect.current;
         if (!rect || rect.width <= 0 || rect.height <= 0) return false;
         const id = String(c.id);
-        if (isNestId(id)) return false;
+        if (isNestId(id) || isZoneDotsId(id)) return false;
         return zoneDrag ? rowLevel(id) : !isZoneItemId(id);
       });
       return closestCenter({ ...args, droppableContainers: measurable });
@@ -126,6 +133,24 @@ export function createActionsCollision({
       return !isGroupDropId(id) && !isNestId(id) && id !== active;
     });
     const nestHit = (name: string) => [{ id: nestId(name) }];
+    const extractTo = (ins: ExtractIndicator) => {
+      updateIndicator(ins);
+      updateMenuDrop(null);
+      const list = listOf(layout, ins.group);
+      const anchor = list[Math.min(ins.index, list.length - 1)];
+      return anchor ? [{ id: anchor }] : [{ id: groupDropId(ins.group) }];
+    };
+
+    // Over a zone's dots — where a hover opens another layer — a button joins
+    // the open layer at its end, whatever lies under the pill's upper half.
+    const dots = pointer.find((c) => isZoneDotsId(String(c.id)));
+    if (dots) {
+      const group = zoneGroup(openListOf(zoneOfDotsId(String(dots.id))));
+      if (activeRef) return extractTo({ group, index: listOf(layout, group).length });
+      updateIndicator(null);
+      updateMenuDrop(null);
+      return [{ id: groupDropId(group) }];
+    }
     const px = args.pointerCoordinates?.x ?? null;
     const py = args.pointerCoordinates?.y ?? null;
     const initialLeft = args.active.rect.current.initial?.left ?? args.collisionRect.left;
@@ -178,14 +203,8 @@ export function createActionsCollision({
         return nestHit(overItem);
       }
       // Otherwise surface an insertion gap and extract to that position.
-      const ins = px === null ? null : computeInsertion(args, ids, layout, px);
-      if (ins) {
-        updateIndicator(ins);
-        updateMenuDrop(null);
-        const list = listOf(layout, ins.group);
-        const anchor = list[Math.min(ins.index, list.length - 1)];
-        return anchor ? [{ id: anchor }] : [{ id: groupDropId(ins.group) }];
-      }
+      const ins = px === null ? null : computeInsertion(args, ids, layout, px, openListOf);
+      if (ins) return extractTo(ins);
       updateIndicator(null);
       updateMenuDrop(null);
       return nonNest;
@@ -195,15 +214,17 @@ export function createActionsCollision({
     updateMenuDrop(null);
     const zone = zoneUnderPointer(ids);
     if (zone !== null) {
-      const inside = listOf(layout, zoneGroup(zone));
+      const group = zoneGroup(openListOf(zone));
+      const inside = listOf(layout, group);
       // Includes the dragged button's own slot, so a drop in place stays a no-op.
       const inner = pointer.find((c) => inside.includes(String(c.id)));
-      if (!inner) return [{ id: groupDropId(zoneGroup(zone)) }];
+      if (!inner) return [{ id: groupDropId(group) }];
       return nests(String(inner.id)) ? nestHit(String(inner.id)) : [inner];
     }
     const target = items[0];
     if (!target) return nonNest;
     return nests(String(target.id)) ? nestHit(String(target.id)) : [target];
   };
-  return holdWhilePointerStill(detect, held);
+  const zones = [...layout.header, ...layout.footer].filter(isZoneItemId).map(zoneNameOfItem);
+  return holdWhilePointerStill(detect, held, () => zones.map(openListOf).join("\n"));
 }

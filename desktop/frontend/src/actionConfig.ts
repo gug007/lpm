@@ -188,17 +188,24 @@ export async function replaceAction(projectName: string, key: string, patch: Act
 // A drag saves placement as a `display` note in the project file, even for a
 // button declared in the repo or global file. The note wins over the declaring
 // file, so a placement picked in the form has to go into the note.
-export function setPlacementNote(doc: ActionDoc, key: string, display: string): boolean {
+export function setPlacementNote(doc: ActionDoc, key: string, display: string, layer: string | null = null): boolean {
   const match = findActionSection(doc, key);
   if (!match) return false;
   const entry = match.node.get(key, true);
   if (!YAML.isMap(entry) || hasActionBody(entry) || !entry.has("display")) return false;
   entry.set("display", display);
+  if (layer) entry.set("layer", layer);
+  else entry.delete("layer");
   return true;
 }
 
-export function updatePlacementNote(projectName: string, key: string, display: string): Promise<boolean> {
-  return editFirstLayer([projectLayer(projectName)], (doc) => setPlacementNote(doc, key, display));
+export function updatePlacementNote(
+  projectName: string,
+  key: string,
+  display: string,
+  layer: string | null = null,
+): Promise<boolean> {
+  return editFirstLayer([projectLayer(projectName)], (doc) => setPlacementNote(doc, key, display, layer));
 }
 
 // Whole-payload replacement for the YAML editor: drops every existing field

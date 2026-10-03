@@ -29,10 +29,11 @@ pub(super) fn validate_zones(root: &Mapping, report: &mut Report) {
             continue;
         };
         let path = format!("config.zones.{name}");
-        if matches!(name, "" | "header" | "footer" | "menu" | "button") || name.contains(':') {
+        if matches!(name, "" | "header" | "footer" | "menu" | "button") || name.contains([':', '/'])
+        {
             report.error(
                 &path,
-                "zone names can't be header, footer, menu or button, be empty, or contain ':'",
+                "zone names can't be header, footer, menu or button, be empty, or contain ':' or '/'",
             );
             continue;
         }
@@ -42,7 +43,7 @@ pub(super) fn validate_zones(root: &Mapping, report: &mut Report) {
         };
         validate_keys(
             map,
-            &["rows", "label", "position", "display"],
+            &["rows", "label", "position", "display", "layers"],
             &path,
             report,
         );
@@ -60,6 +61,41 @@ pub(super) fn validate_zones(root: &Mapping, report: &mut Report) {
         if let Some(display) = map.get(Value::String("display".into())) {
             if !matches!(display.as_str(), Some("header" | "footer")) {
                 report.error(&format!("{path}.display"), "expected header or footer");
+            }
+        }
+        if let Some(layers) = map.get(Value::String("layers".into())) {
+            validate_layers(layers, &format!("{path}.layers"), report);
+        }
+    }
+}
+
+fn validate_layers(value: &Value, path: &str, report: &mut Report) {
+    let Some(layers) = value.as_mapping() else {
+        report.error(path, "expected a mapping");
+        return;
+    };
+    string_keys(layers, path, report);
+    for (key, value) in layers {
+        let Some(name) = key.as_str() else {
+            continue;
+        };
+        let layer_path = format!("{path}.{name}");
+        if name.is_empty() || name.contains([':', '/']) {
+            report.error(
+                &layer_path,
+                "layer names can't be empty or contain ':' or '/'",
+            );
+            continue;
+        }
+        let Some(map) = value.as_mapping() else {
+            report.error(&layer_path, "expected a mapping");
+            continue;
+        };
+        validate_keys(map, &["label", "position"], &layer_path, report);
+        validate_string_field(map, "label", &format!("{layer_path}.label"), report);
+        if let Some(position) = map.get(Value::String("position".into())) {
+            if position.as_f64().is_none() {
+                report.error(&format!("{layer_path}.position"), "expected a number");
             }
         }
     }
@@ -159,6 +195,67 @@ mod tests {
     }
 
     #[test]
+    fn layers_accept_label_and_position() {
+        let report = zone_report(
+            "zones:\n  build:\n    rows: 2\n    layers:\n      mobile:\n        label: Mobile\n        position: 1\n      web: {}\n",
+        );
+        assert!(report.errors.is_empty(), "{:?}", report.errors);
+    }
+
+    #[test]
+    fn layers_reject_bad_shapes() {
+        let report = zone_report(
+            "zones:\n  build:\n    rows: 2\n    layers:\n      a:b: {}\n      c/d: {}\n      e:\n        label: 3\n        position: x\n        color: red\n      f: nope\n",
+        );
+        for needle in [
+            "config.zones.build.layers.a:b",
+            "config.zones.build.layers.c/d",
+            "config.zones.build.layers.e.label",
+            "config.zones.build.layers.e.position",
+            "config.zones.build.layers.e.color",
+            "config.zones.build.layers.f",
+        ] {
+            assert!(
+                report.errors.iter().any(|error| error.contains(needle)),
+                "missing {needle}: {:?}",
+                report.errors
+            );
+        }
+    }
+
+    #[test]
+    fn layers_must_be_a_mapping() {
+        let report = zone_report("zones:\n  build:\n    rows: 1\n    layers: [a, b]\n");
+        assert_eq!(
+            report.errors,
+            vec!["config.zones.build.layers: expected a mapping"]
+        );
+    }
+
+    #[test]
+    fn a_zone_name_with_a_slash_is_an_error() {
+        let report = zone_report("zones:\n  a/b:\n    rows: 1\n");
+        assert!(!report.errors.is_empty());
+    }
+
+    #[test]
+    fn an_action_layer_must_be_a_string() {
+        let bad: Value =
+            serde_norway::from_str("cmd: make ios\ndisplay: build\nlayer: [x]\n").unwrap();
+        let mut report = Report::new();
+        validate_action(&bad, "config.actions.ios", None, false, false, &mut report);
+        assert_eq!(
+            report.errors,
+            vec!["config.actions.ios.layer: expected a string"]
+        );
+        let good: Value =
+            serde_norway::from_str("cmd: make ios\ndisplay: build\nlayer: web\n").unwrap();
+        let mut report = Report::new();
+        validate_action(&good, "config.actions.ios", None, false, false, &mut report);
+        assert!(report.errors.is_empty() && report.warnings.is_empty());
+    }
+
+    #[test]
     fn validator_accepts_zones_and_zone_displays() {
         let (_dir, ctx) = context();
         let path = ctx.project_path("web");
@@ -251,7 +348,7 @@ mod tests {
         let (_dir, ctx) = context();
         let path = ctx.project_path("web");
         let bad_name =
-            "zone names can't be header, footer, menu or button, be empty, or contain ':'";
+            "zone names can't be header, footer, menu or button, be empty, or contain ':' or '/'";
         let cases = [
             (
                 ConfigKind::Project,

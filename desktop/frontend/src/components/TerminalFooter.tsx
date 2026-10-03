@@ -53,6 +53,7 @@ export function TerminalFooter({
         items={items}
         layout={layout}
         alignTop={alignTop}
+        projectName={projectName}
         disabled={disabled}
         scope={projectName}
         onRun={onRunAction}

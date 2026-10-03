@@ -2,13 +2,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, type ComponentProps } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import type { ActionInfo } from "../../types";
+import type { ActionInfo, ZoneInfo } from "../../types";
 
 const findActionSource = vi.fn(async () => "project" as const);
 const readActionPayload = vi.fn(async () => ({
   cmd: "echo hello-world",
   env: { FOO: "bar" },
 }));
+const replaceAction = vi.fn(async () => {});
+const updatePlacementNote = vi.fn(async () => false);
 
 vi.mock("../../actionConfig", () => ({
   appendActionToLayer: vi.fn(),
@@ -16,9 +18,9 @@ vi.mock("../../actionConfig", () => ({
   mergeActionPayload: (base: Record<string, unknown> | null) => ({ ...(base ?? {}) }),
   moveAction: vi.fn(),
   readActionPayload: (...args: unknown[]) => readActionPayload(...(args as [])),
-  replaceAction: vi.fn(),
+  replaceAction: (...args: unknown[]) => replaceAction(...(args as [])),
   replaceActionPayload: vi.fn(),
-  updatePlacementNote: vi.fn(),
+  updatePlacementNote: (...args: unknown[]) => updatePlacementNote(...(args as [])),
 }));
 
 vi.mock("../../monaco-setup", () => ({
@@ -255,5 +257,90 @@ describe("ActionWizard placement of a new action", () => {
   it("starts in the header otherwise", async () => {
     await render({ existingActionKeys: [] });
     expect(document.querySelector('[data-testid="editor-value"]')?.textContent).toContain("display: header");
+  });
+});
+
+describe("ActionWizard placement in a zone's layers", () => {
+  const zones: ZoneInfo[] = [
+    {
+      name: "build",
+      label: "Build",
+      rows: 2,
+      source: "project",
+      layers: [
+        { name: "web", label: "Web" },
+        { name: "mobile", label: "Mobile" },
+      ],
+    },
+  ];
+  const editing = { ...makeEditing(), display: "build", layer: "web" } as ActionInfo;
+
+  beforeEach(() => {
+    localStorage.setItem("lpm.actionWizard.mode", "form");
+  });
+
+  const buttonNamed = (text: string) =>
+    [...document.querySelectorAll("button")].find((button) => button.textContent?.trim() === text)!;
+
+  async function click(text: string) {
+    await act(async () => {
+      buttonNamed(text).click();
+    });
+  }
+
+  async function save() {
+    await click("Save changes⌘↵");
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(replaceAction).toHaveBeenCalledTimes(1);
+    const [, key, patch] = replaceAction.mock.calls[0] as unknown as [string, string, { set: Record<string, unknown>; remove: string[] }];
+    expect(key).toBe("deploy");
+    return patch;
+  }
+
+  it("leaves display and layer alone when placement wasn't touched", async () => {
+    await render({ editing, zones, existingActionKeys: ["deploy"] });
+    expect(buttonNamed("Build › Web").getAttribute("aria-pressed")).toBe("true");
+
+    const patch = await save();
+
+    expect(patch.set).not.toHaveProperty("display");
+    expect(patch.set).not.toHaveProperty("layer");
+    expect(patch.remove).not.toContain("display");
+    expect(patch.remove).not.toContain("layer");
+  });
+
+  it("writes the zone and the layer when another layer is picked", async () => {
+    await render({ editing, zones, existingActionKeys: ["deploy"] });
+    await click("Build › Mobile");
+
+    const patch = await save();
+
+    expect(patch.set).toMatchObject({ display: "build", layer: "mobile" });
+    expect(patch.remove).not.toContain("layer");
+  });
+
+  it("removes the layer when the header is picked", async () => {
+    await render({ editing, zones, existingActionKeys: ["deploy"] });
+    await click("Header");
+
+    const patch = await save();
+
+    expect(patch.set.display).toBe("header");
+    expect(patch.set).not.toHaveProperty("layer");
+    expect(patch.remove).toContain("layer");
+  });
+
+  it("puts the zone and the layer into the project file's placement note", async () => {
+    updatePlacementNote.mockResolvedValueOnce(true);
+    await render({ editing, zones, existingActionKeys: ["deploy"] });
+    await click("Build › Mobile");
+
+    const patch = await save();
+
+    expect(updatePlacementNote).toHaveBeenCalledWith("demo", "deploy", "build", "mobile");
+    expect(patch.set).not.toHaveProperty("display");
+    expect(patch.set).not.toHaveProperty("layer");
   });
 });

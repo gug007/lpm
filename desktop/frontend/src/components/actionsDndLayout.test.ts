@@ -17,6 +17,7 @@ import {
   rowOfZone,
   sameLayout,
   zoneGroup,
+  zoneDotsId,
   zoneItemId,
   zoneNameOfItem,
   zoneOfButton,
@@ -27,6 +28,12 @@ const layout = (): ActionsLayout => ({
   header: ["test", zoneItemId("build"), "lint"],
   footer: ["logs"],
   zones: { build: ["ios", "android"], agents: [] },
+});
+
+const layered = (): ActionsLayout => ({
+  header: ["test", zoneItemId("build"), "lint"],
+  footer: [],
+  zones: { "build/mobile": ["ios"], "build/web": ["web", "docs"], agents: [] },
 });
 
 const withFooterZone = (): ActionsLayout => ({
@@ -88,6 +95,10 @@ describe("zoneOfButton", () => {
     expect(zoneOfButton(layout(), zones, "test")).toBeUndefined();
     expect(zoneOfButton(layout(), zones, "logs")).toBeUndefined();
     expect(zoneOfButton(layout(), zones, "missing")).toBeUndefined();
+  });
+
+  it("finds the zone a button sits in through any of its layers", () => {
+    expect(zoneOfButton(layered(), zones, "docs")).toBe(zones[0]);
   });
 
   it("is undefined when the zone is no longer declared", () => {
@@ -211,6 +222,12 @@ describe("layoutWithoutZone", () => {
     expect(next.zones).toEqual({ build: ["ios"] });
   });
 
+  it("puts every layer's buttons where a layered zone was, in layer order", () => {
+    const next = layoutWithoutZone(layered(), "build");
+    expect(next.header).toEqual(["test", "ios", "web", "docs", "lint"]);
+    expect(next.zones).toEqual({ agents: [] });
+  });
+
   it("ignores a zone named like an object property", () => {
     expect(layoutWithoutZone(withFooterZone(), "toString")).toEqual(withFooterZone());
   });
@@ -229,11 +246,12 @@ describe("zoneUnderPointer", () => {
 });
 
 describe("movedByZoneResize", () => {
-  it("lists every header item, then the drop area and buttons of each header zone", () => {
+  it("lists every header item, then the dots, drop area and buttons of each header zone", () => {
     expect(movedByZoneResize(layout(), "header")).toEqual([
       "test",
       zoneItemId("build"),
       "lint",
+      zoneDotsId("build"),
       groupDropId(zoneGroup("build")),
       "ios",
       "android",
@@ -245,9 +263,24 @@ describe("movedByZoneResize", () => {
       "logs",
       zoneItemId("ship"),
       "tail",
+      zoneDotsId("ship"),
       groupDropId(zoneGroup("ship")),
       "prod",
       "beta",
+    ]);
+  });
+
+  it("lists the drop area and buttons of every layer of a layered zone", () => {
+    expect(movedByZoneResize(layered(), "header")).toEqual([
+      "test",
+      zoneItemId("build"),
+      "lint",
+      zoneDotsId("build"),
+      groupDropId(zoneGroup("build/mobile")),
+      "ios",
+      groupDropId(zoneGroup("build/web")),
+      "web",
+      "docs",
     ]);
   });
 });

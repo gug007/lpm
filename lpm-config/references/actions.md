@@ -88,6 +88,7 @@ Shell quotes inside an otherwise plain YAML value do not quote the value for YAM
 | `env` | string map | Environment variables. |
 | `confirm` | boolean | Confirm before destructive or irreversible commands. |
 | `display` | string | `header` by default, `footer`, or the name of a zone (see Zones); `menu` is legacy. Do not use deprecated `button`. |
+| `layer` | string | With `display: <zone>`, the key of the zone layer the button sits in; see Zones → Layers. |
 | `primary` | string | On a parent with child `actions`, `last-used` or a child key; sets which child the split button's main segment runs. |
 | `type` | string | Omit for the inline runner, or use `terminal`, `command`, or `background`. |
 | `reuse` | boolean | With `type: terminal`, reuse the same pane. |
@@ -122,9 +123,35 @@ actions:
 - A duplicate's own file can't declare zones (the validator rejects them); it inherits its parent's.
 - A zone entry without `rows` only adjusts a zone declared in another file — for example a `position` or `display` note in the project file.
 - `display` is `header` (the default) or `footer`; any other value is an error. Footer zones and footer buttons share one `position` numbering, as header zones and header buttons do.
-- Zone names can't be empty, `header`, `footer`, `menu` or `button`, and can't contain `:`.
+- Zone names can't be empty, `header`, `footer`, `menu` or `button`, and can't contain `:` or `/`.
 - Zones hold placement only. A button keeps its definition wherever it is declared; `display: <zone>` (usually written to the project file by drag and drop) puts it in the zone.
 - A button whose `display` names a zone that doesn't exist shows in the header.
+
+### Layers
+
+A zone can hold keyed layers that it slides between, each layer a separate set of buttons. A button points at one with `layer: <key>`.
+
+```yaml
+zones:
+  build:
+    rows: 2
+    layers:
+      mobile:
+        label: Mobile    # optional, shown next to the dots
+        position: 1
+      layer-2:
+        position: 2      # no label: dots only
+actions:
+  ios:
+    display: build
+    layer: layer-2       # no layer: the zone's first layer
+```
+
+- A layer entry holds only `label` (string) and `position` (number). Layer keys can't contain `:` or `/`.
+- The first layer is the one with the lowest `position`, ties broken by key. A button without `layer`, or naming a layer the zone doesn't have, shows in the first layer.
+- Dots appear only when the zone has 2 or more layers.
+- Layers merge across config files per layer key, field by field, like zones.
+- Adding a second layer to a zone without layers writes two: `layer-1`, which keeps today's buttons, and `layer-2`. A layer created without a name gets the key `layer-<n>`.
 
 ## Action types
 

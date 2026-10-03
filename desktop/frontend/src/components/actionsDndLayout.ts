@@ -1,4 +1,5 @@
 import type { ActionsLayout, ZoneDisplay, ZoneInfo } from "../types";
+import { listKeysInLayout, zoneOfListKey } from "../zoneLayers";
 
 // Where a button can live: the header row, the footer row, or a zone.
 export type ZoneGroup = `zone:${string}`;
@@ -6,8 +7,9 @@ export type ActionGroup = "header" | "footer" | ZoneGroup;
 
 const ZONE_GROUP_PREFIX = "zone:";
 
-export function zoneGroup(name: string): ZoneGroup {
-  return `${ZONE_GROUP_PREFIX}${name}`;
+// A zone's list: the zone name or zone/layer.
+export function zoneGroup(listKey: string): ZoneGroup {
+  return `${ZONE_GROUP_PREFIX}${listKey}`;
 }
 
 export function isZoneGroup(group: ActionGroup): group is ZoneGroup {
@@ -75,6 +77,19 @@ export function groupAcceptsDrag(group: ActionGroup, activeId: string | null): b
   return activeId === null || !isZoneItemId(activeId) || !isZoneGroup(group);
 }
 
+// A paged zone's dots pill hangs below its frame; a button dropped over it
+// joins the zone's open layer, so it is a drop target of its own.
+export const ZONE_DOTS_PREFIX = "zone-dots:";
+export function zoneDotsId(name: string): string {
+  return `${ZONE_DOTS_PREFIX}${name}`;
+}
+export function isZoneDotsId(id: string): boolean {
+  return id.startsWith(ZONE_DOTS_PREFIX);
+}
+export function zoneOfDotsId(id: string): string {
+  return id.slice(ZONE_DOTS_PREFIX.length);
+}
+
 export const NEST_ID_PREFIX = "nest:";
 export function nestId(name: string): string {
   return `${NEST_ID_PREFIX}${name}`;
@@ -116,7 +131,7 @@ export function groupOf(layout: ActionsLayout, id: string): ActionGroup | null {
 export function zoneOfButton(layout: ActionsLayout, zones: ZoneInfo[], id: string): ZoneInfo | undefined {
   const group = groupOf(layout, id);
   if (group === null || !isZoneGroup(group)) return undefined;
-  const name = zoneNameOfGroup(group);
+  const name = zoneOfListKey(zoneNameOfGroup(group));
   return zones.find((zone) => zone.name === name);
 }
 
@@ -141,16 +156,19 @@ export function rowOfZone(layout: ActionsLayout, name: string): ZoneDisplay | nu
 }
 
 // What a zone growing or shrinking can move: in a right-anchored row, the
-// items before it and the drop areas and buttons of the zones among them;
-// once the row wraps, any of them.
+// items before it and the dots, drop areas and buttons of the zones among
+// them; once the row wraps, any of them.
 export function movedByZoneResize(layout: ActionsLayout, row: ZoneDisplay): string[] {
   const items = row === "header" ? layout.header : layout.footer;
   return [
     ...items,
-    ...items.filter(isZoneItemId).flatMap((id) => {
-      const name = zoneNameOfItem(id);
-      return [groupDropId(zoneGroup(name)), ...(layout.zones[name] ?? [])];
-    }),
+    ...items
+      .filter(isZoneItemId)
+      .map(zoneNameOfItem)
+      .flatMap((name) => [
+        zoneDotsId(name),
+        ...listKeysInLayout(layout, name).flatMap((key) => [groupDropId(zoneGroup(key)), ...layout.zones[key]]),
+      ]),
   ];
 }
 
@@ -194,9 +212,10 @@ export function applyMove(
 
 // A zone's buttons take its spot in its row when the zone goes away.
 export function layoutWithoutZone(layout: ActionsLayout, name: string): ActionsLayout {
-  const inside = Object.hasOwn(layout.zones, name) ? layout.zones[name] : [];
+  const keys = listKeysInLayout(layout, name);
+  const inside = keys.flatMap((key) => layout.zones[key]);
   const zones = { ...layout.zones };
-  delete zones[name];
+  for (const key of keys) delete zones[key];
   const unwrap = (ids: string[]) => ids.flatMap((id) => (id === zoneItemId(name) ? inside : [id]));
   return { header: unwrap(layout.header), footer: unwrap(layout.footer), zones };
 }
