@@ -45,8 +45,9 @@ The skill guides the agent to prepare correct lpm YAML and apply it through a re
 - **Terminal actions** — actions that run in a persistent terminal pane (`type: terminal`, `reuse: true`)
 - **Active-terminal actions** — actions that submit a command into the currently focused terminal (`type: command`)
 - **Action groups** — nested sub-actions under a parent with inherited cwd/env
-- **Button zones** — framed groups of buttons in the header or the footer (`zones:` plus `display: <zone>`, optionally with `layers:` and `layer: <key>`)
+- **Button zones and layers** — framed groups of buttons in the header or the footer (`zones:` plus `display: <zone>`), optionally holding several layers switched with dots (`layers:` plus `layer: <key>`)
 - **Action inputs** — prompt users for parameters before running (text, password, radio); `persist: true` remembers the last value chosen
+- **Button colors and agent prompts** — `color` accents for buttons and terminal tabs; `prompt` hands a task to the AI agent a terminal action launches
 - **Profiles** — named subsets of services
 - **Duplicate projects** — inherit config from a parent project (`parent_name`)
 - **Global config** — shared actions across all projects

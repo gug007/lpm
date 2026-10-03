@@ -185,7 +185,7 @@ fn render_json(
         "name": p.file_name,
         "session": p.session,
         "label": p.label,
-        "root": p.root,
+        "root": p.display_root,
         "isRemote": p.is_remote,
         "parentName": p.parent_name,
         "worktree": p.worktree,
@@ -231,7 +231,11 @@ fn render_human(
     o.push_str(&format!(
         "  {}      {}\n",
         s.dim("root"),
-        if p.root.is_empty() { "—" } else { &p.root }
+        if p.display_root.is_empty() {
+            "—"
+        } else {
+            &p.display_root
+        }
     ));
     if p.is_remote {
         o.push_str(&format!("  {}    {}\n", s.dim("remote"), "yes"));
@@ -429,6 +433,7 @@ mod tests {
             file_name: "lpm".into(),
             session: "lpm".into(),
             root: "/tmp/lpm".into(),
+            display_root: "/tmp/lpm".into(),
             label: String::new(),
             is_remote: false,
             parent_name: String::new(),
@@ -544,5 +549,27 @@ mod tests {
         assert!(act.get("env").is_some());
         assert_eq!(act["emoji"], "🚀");
         assert_eq!(act["ports"][0], 3000);
+    }
+
+    #[test]
+    fn remote_project_shows_its_ssh_dir_as_root_like_the_app() {
+        let dir = tempfile::tempdir().unwrap();
+        let ctx = Ctx {
+            lpm_dir: dir.path().to_path_buf(),
+            socket_override: None,
+        };
+        std::fs::create_dir_all(ctx.projects_dir()).unwrap();
+        std::fs::write(
+            ctx.project_path("api"),
+            "ssh:\n  host: h\n  user: u\n  dir: \" ~/code/api \"\nservices:\n  api: run-api\n",
+        )
+        .unwrap();
+        let p = config::resolve_project(&ctx, "api").unwrap();
+
+        let v = render_json(&p, false, &[], &[], None, false);
+        let human = render_human(&Style { on: false }, &p, false, &[], None);
+
+        assert_eq!(v["root"], "~/code/api");
+        assert!(human.contains("root      ~/code/api\n"), "{human}");
     }
 }

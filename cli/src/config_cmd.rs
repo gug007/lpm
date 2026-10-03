@@ -7,11 +7,12 @@ use clap::{Subcommand, ValueEnum};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value as JsonValue};
 use serde_norway::{Mapping, Value};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt::Write as _;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
+mod project_fields;
 mod zones;
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -513,12 +514,30 @@ fn validate_candidate(ctx: &Ctx, target: &ConfigTarget, path: &Path, source: &st
         }
         ConfigLayer::Global | ConfigLayer::Template => {
             for project in config::project_names(ctx) {
+                let baseline = match config::resolve_project(ctx, &project) {
+                    Ok(resolved) => effective_report(&resolved).errors,
+                    Err(error) => {
+                        report.warning(
+                            &format!("project {project}"),
+                            format!("skipped, it already fails to load: {error}"),
+                        );
+                        continue;
+                    }
+                };
                 let mut effective = Report::new();
                 validate_effective_candidate(ctx, &project, path, source, &mut effective);
+                let (existing, new) = partition_new_errors(&baseline, effective.errors);
+                if !existing.is_empty() {
+                    report.warning(
+                        &format!("project {project}"),
+                        format!(
+                            "has existing errors, not caused by this change: {}",
+                            existing.join("; ")
+                        ),
+                    );
+                }
                 report.errors.extend(
-                    effective
-                        .errors
-                        .into_iter()
+                    new.into_iter()
                         .map(|error| format!("project {project}: {error}")),
                 );
                 report.warnings.extend(
@@ -547,10 +566,36 @@ fn validate_effective_candidate(
             return;
         }
     };
-    validate_effective_services(&project, report);
-    for action in project.actions.iter().chain(project.terminals.iter()) {
-        validate_effective_action(&project, action, report);
+    let effective = effective_report(&project);
+    report.errors.extend(effective.errors);
+    report.warnings.extend(effective.warnings);
+}
+
+/// Splits candidate errors into (pre-existing, new), counting occurrences: an
+/// error repeated more often than in the baseline is new each extra time.
+fn partition_new_errors(baseline: &[String], errors: Vec<String>) -> (Vec<String>, Vec<String>) {
+    let mut remaining: HashMap<&str, usize> = HashMap::new();
+    for error in baseline {
+        *remaining.entry(error.as_str()).or_default() += 1;
     }
+    errors
+        .into_iter()
+        .partition(|error| match remaining.get_mut(error.as_str()) {
+            Some(count) if *count > 0 => {
+                *count -= 1;
+                true
+            }
+            _ => false,
+        })
+}
+
+fn effective_report(project: &ResolvedProject) -> Report {
+    let mut report = Report::new();
+    validate_effective_services(project, &mut report);
+    for action in project.actions.iter().chain(project.terminals.iter()) {
+        validate_effective_action(project, action, "config.actions", &mut report);
+    }
+    report
 }
 
 fn validate(ctx: &Ctx, path: &Path, as_json: bool) -> Result<(), RunError> {
@@ -640,6 +685,7 @@ fn validate_value(ctx: &Ctx, path: &Path, kind: ConfigKind, value: &Value) -> Re
             "worktree",
             "ssh",
             "claudeAccount",
+            "work_status",
             "services",
             "actions",
             "terminals",
@@ -668,6 +714,8 @@ fn validate_value(ctx: &Ctx, path: &Path, kind: ConfigKind, value: &Value) -> Re
         }
     }
     validate_extends(root, &mut report);
+    project_fields::validate_claude_account(root, &mut report);
+    project_fields::validate_work_status(root, &mut report);
 
     let local_root = local_root(path, kind, root);
     let is_remote = root.get(Value::String("ssh".into())).is_some();
@@ -862,9 +910,15 @@ fn validate_services(
                 ),
             }
         }
-        let deps_value = map
-            .get(Value::String("dependsOn".into()))
-            .or_else(|| map.get(Value::String("depends_on".into())));
+        let camel = map.get(Value::String("dependsOn".into()));
+        let snake = map.get(Value::String("depends_on".into()));
+        if camel.is_some() && snake.is_some() {
+            report.error(
+                &format!("{path}.depends_on"),
+                "cannot be set together with dependsOn",
+            );
+        }
+        let deps_value = camel.or(snake);
         let deps = validate_string_list(deps_value, &format!("{path}.dependsOn"), report);
         dependencies.insert(name.to_string(), deps);
     }
@@ -977,6 +1031,7 @@ fn validate_action(
             "cmd",
             "label",
             "emoji",
+            "color",
             "shortcut",
             "cwd",
             "port",
@@ -985,6 +1040,8 @@ fn validate_action(
             "confirm",
             "display",
             "layer",
+            "primary",
+            "prompt",
             "type",
             "reuse",
             "mode",
@@ -999,11 +1056,14 @@ fn validate_action(
         "cmd",
         "label",
         "emoji",
+        "color",
         "shortcut",
         "cwd",
         "portConflict",
         "display",
         "layer",
+        "primary",
+        "prompt",
         "type",
         "mode",
     ] {
@@ -1046,6 +1106,7 @@ fn validate_action(
     validate_shortcut(map, path, report);
     validate_inputs(map, path, report);
     let children = map.get(Value::String("actions".into()));
+    validate_primary(map, children, path, report);
     if let Some(children) = children {
         let Some(entries) = children.as_mapping() else {
             report.error(&format!("{path}.actions"), "expected a mapping");
@@ -1075,6 +1136,24 @@ fn validate_action(
         report.warning(
             path,
             "no command or child actions; ensure this is a sparse override",
+        );
+    }
+}
+
+// A primary the entry's own children don't have falls back to the first
+// runnable child in the app. Children declared in another file can't be seen.
+fn validate_primary(map: &Mapping, children: Option<&Value>, path: &str, report: &mut Report) {
+    let Some(primary) = string_at(map, "primary").filter(|v| !v.is_empty() && *v != "last-used")
+    else {
+        return;
+    };
+    let Some(children) = children.and_then(Value::as_mapping) else {
+        return;
+    };
+    if !children.contains_key(Value::String(primary.into())) {
+        report.warning(
+            &format!("{path}.primary"),
+            format!("names no child action {primary:?}; the first runnable child is used"),
         );
     }
 }
@@ -1163,6 +1242,14 @@ fn validate_inputs(map: &Mapping, path: &str, report: &mut Report) {
                         &format!("{input_path}.options[{index}].{field}"),
                         report,
                     );
+                }
+                for field in ["label", "value"] {
+                    if !option.contains_key(Value::String(field.into())) {
+                        report.error(
+                            &format!("{input_path}.options[{index}].{field}"),
+                            "required",
+                        );
+                    }
                 }
                 if let Some(value) = string_at(option, "value") {
                     option_values.push(value.to_string());
@@ -1270,17 +1357,40 @@ fn validate_shortcut(map: &Mapping, path: &str, report: &mut Report) {
     let Some(shortcut) = string_at(map, "shortcut").filter(|v| !v.is_empty()) else {
         return;
     };
+    // Mirrors the app's parseShortcut: ctrl counts as cmd, shift alone isn't
+    // enough, and exactly one non-modifier key.
     let parts: Vec<String> = shortcut
         .split('+')
         .map(|v| v.trim().to_ascii_lowercase())
+        .filter(|v| !v.is_empty())
         .collect();
-    let modifier = parts
+    let required = parts.iter().any(|v| {
+        matches!(
+            v.as_str(),
+            "cmd" | "command" | "meta" | "ctrl" | "control" | "alt" | "opt" | "option"
+        )
+    });
+    let keys = parts
         .iter()
-        .any(|v| matches!(v.as_str(), "cmd" | "ctrl" | "alt" | "opt"));
-    if !modifier || parts.len() < 2 || parts.iter().any(String::is_empty) {
+        .filter(|v| {
+            !matches!(
+                v.as_str(),
+                "cmd"
+                    | "command"
+                    | "meta"
+                    | "ctrl"
+                    | "control"
+                    | "alt"
+                    | "opt"
+                    | "option"
+                    | "shift"
+            )
+        })
+        .count();
+    if !required || keys != 1 {
         report.error(
             &format!("{path}.shortcut"),
-            "expected a modifier plus one key",
+            "expected cmd, ctrl or alt (optionally with shift) plus exactly one key",
         );
     }
 }
@@ -1399,10 +1509,9 @@ fn validate_effective_project(ctx: &Ctx, path: &Path, report: &mut Report) {
             return;
         }
     };
-    validate_effective_services(&project, report);
-    for action in project.actions.iter().chain(project.terminals.iter()) {
-        validate_effective_action(&project, action, report);
-    }
+    let effective = effective_report(&project);
+    report.errors.extend(effective.errors);
+    report.warnings.extend(effective.warnings);
 }
 
 fn validate_effective_services(project: &ResolvedProject, report: &mut Report) {
@@ -1449,9 +1558,10 @@ fn validate_effective_services(project: &ResolvedProject, report: &mut Report) {
 fn validate_effective_action(
     project: &ResolvedProject,
     action: &ResolvedAction,
+    parent_path: &str,
     report: &mut Report,
 ) {
-    let path = format!("config.actions.{}", action.name);
+    let path = format!("{parent_path}.{}", action.name);
     if action.cmd.trim().is_empty() && action.children.is_empty() {
         report.error(
             &path,
@@ -1468,7 +1578,7 @@ fn validate_effective_action(
         }
     }
     for child in &action.children {
-        validate_effective_action(project, child, report);
+        validate_effective_action(project, child, &format!("{path}.actions"), report);
     }
 }
 
@@ -1732,5 +1842,530 @@ mod tests {
         let report = validate_candidate(&ctx, &target, &path, &candidate);
 
         assert!(report.errors.is_empty(), "{:?}", report.errors);
+    }
+
+    fn project_report(ctx: &Ctx, source: &str) -> Report {
+        let value: Value = serde_norway::from_str(source).unwrap();
+        validate_value(ctx, &ctx.project_path("web"), ConfigKind::Project, &value)
+    }
+
+    #[test]
+    fn validator_accepts_primary_prompt_and_color_on_actions_and_terminals() {
+        let (_dir, ctx) = context();
+        for section in ["actions", "terminals"] {
+            let report = project_report(
+                &ctx,
+                &format!(
+                    "root: /tmp\n{section}:\n  deploy:\n    primary: last-used\n    color: blue-deep\n    actions:\n      staging: ./deploy.sh staging\n      prod:\n        cmd: ./deploy.sh prod\n        color: '#8b5cf6'\n  agent:\n    cmd: claude\n    type: terminal\n    prompt: Review the open PR\n"
+                ),
+            );
+            assert!(report.errors.is_empty(), "{section}: {:?}", report.errors);
+        }
+    }
+
+    #[test]
+    fn validator_rejects_a_primary_prompt_or_color_that_is_not_a_string() {
+        let (_dir, ctx) = context();
+        let report = project_report(
+            &ctx,
+            "root: /tmp\nactions:\n  deploy:\n    cmd: ./deploy.sh\n    primary: [a]\n    prompt: 3\n    color: {x: 1}\n",
+        );
+        for field in ["primary", "prompt", "color"] {
+            let expected = format!("config.actions.deploy.{field}: expected a string");
+            assert!(
+                report.errors.contains(&expected),
+                "missing {expected:?}: {:?}",
+                report.errors
+            );
+        }
+    }
+
+    #[test]
+    fn validator_warns_when_primary_names_no_child_of_the_entry() {
+        let (_dir, ctx) = context();
+        let report = project_report(
+            &ctx,
+            "root: /tmp\nactions:\n  deploy:\n    primary: Prod\n    actions:\n      Staging: ./deploy.sh staging\n",
+        );
+        assert!(report.errors.is_empty(), "{:?}", report.errors);
+        assert!(
+            report
+                .warnings
+                .iter()
+                .any(|w| w.starts_with("config.actions.deploy.primary:")),
+            "{:?}",
+            report.warnings
+        );
+        let report = project_report(
+            &ctx,
+            "root: /tmp\nactions:\n  deploy:\n    primary: Staging\n    actions:\n      Staging: ./deploy.sh staging\n",
+        );
+        assert!(report.warnings.is_empty(), "{:?}", report.warnings);
+    }
+
+    #[test]
+    fn validator_requires_label_and_value_on_option_mappings() {
+        let (_dir, ctx) = context();
+        let report = project_report(
+            &ctx,
+            "root: /tmp\nactions:\n  deploy:\n    cmd: ./deploy.sh {{env}}\n    inputs:\n      env:\n        type: radio\n        options:\n          - value: staging\n          - label: Production\n          - label: QA\n            value: qa\n",
+        );
+        for expected in [
+            "config.actions.deploy.inputs.env.options[0].label: required",
+            "config.actions.deploy.inputs.env.options[1].value: required",
+        ] {
+            assert!(
+                report.errors.iter().any(|e| e == expected),
+                "missing {expected:?}: {:?}",
+                report.errors
+            );
+        }
+        assert_eq!(report.errors.len(), 2, "{:?}", report.errors);
+    }
+
+    #[test]
+    fn validator_reads_shortcuts_the_way_the_app_does() {
+        let (_dir, ctx) = context();
+        for good in [
+            "cmd+shift+b",
+            "ctrl+k",
+            "alt+1",
+            "opt+x",
+            "command+b",
+            "option+shift+f5",
+        ] {
+            let report = project_report(
+                &ctx,
+                &format!("root: /tmp\nactions:\n  t:\n    cmd: x\n    shortcut: '{good}'\n"),
+            );
+            assert!(report.errors.is_empty(), "{good}: {:?}", report.errors);
+        }
+        for bad in ["cmd+a+b", "shift+b", "b", "cmd+", "cmd+shift"] {
+            let report = project_report(
+                &ctx,
+                &format!("root: /tmp\nactions:\n  t:\n    cmd: x\n    shortcut: '{bad}'\n"),
+            );
+            assert!(
+                report
+                    .errors
+                    .iter()
+                    .any(|e| e.starts_with("config.actions.t.shortcut:")),
+                "{bad}: {:?}",
+                report.errors
+            );
+        }
+    }
+
+    #[test]
+    fn validator_checks_the_claude_account() {
+        let (_dir, ctx) = context();
+        for good in ["claudeAccount: work_2", "claudeAccount: ''"] {
+            let report = project_report(&ctx, &format!("root: /tmp\n{good}\n"));
+            assert!(report.errors.is_empty(), "{good}: {:?}", report.errors);
+        }
+        for bad in [
+            "claudeAccount: 3",
+            "claudeAccount: a/b",
+            "claudeAccount: [x]",
+        ] {
+            let report = project_report(&ctx, &format!("root: /tmp\n{bad}\n"));
+            assert!(
+                report
+                    .errors
+                    .iter()
+                    .any(|e| e.starts_with("config.claudeAccount:")),
+                "{bad}: {:?}",
+                report.errors
+            );
+        }
+    }
+
+    #[test]
+    fn validator_accepts_the_work_status_the_app_writes() {
+        let (_dir, ctx) = context();
+        std::fs::write(ctx.project_path("base"), "root: /tmp/base\n").unwrap();
+        for source in [
+            "root: /tmp\nwork_status:\n  state: in_progress\n  since: 1759500000000\n",
+            "root: /tmp\nwork_status:\n  state: custom\n  label: Review\n  emoji: \"\u{1F50D}\"\n  note: waiting on QA\n  since: 1\n",
+            "root: /tmp/copy\nparent_name: base\nwork_status:\n  state: done\n",
+        ] {
+            let report = project_report(&ctx, source);
+            assert!(report.errors.is_empty(), "{source}: {:?}", report.errors);
+        }
+    }
+
+    #[test]
+    fn validator_rejects_a_malformed_work_status() {
+        let (_dir, ctx) = context();
+        let cases = [
+            (
+                "work_status: done",
+                "config.work_status: expected a mapping",
+            ),
+            (
+                "work_status:\n  since: 1",
+                "config.work_status.state: required",
+            ),
+            (
+                "work_status:\n  state: ''",
+                "config.work_status.state: expected one of: in_progress, blocked, done, custom",
+            ),
+            (
+                "work_status:\n  state: paused",
+                "config.work_status.state: expected one of: in_progress, blocked, done, custom",
+            ),
+            (
+                "work_status:\n  state: custom",
+                "config.work_status.label: a custom status needs a label",
+            ),
+            (
+                "work_status:\n  state: done\n  since: soon",
+                "config.work_status.since: expected a non-negative integer",
+            ),
+            (
+                "work_status:\n  state: done\n  note: 3",
+                "config.work_status.note: expected a string",
+            ),
+            (
+                "work_status:\n  state: done\n  color: red",
+                "config.work_status.color: unknown field",
+            ),
+        ];
+        for (yaml, expected) in cases {
+            let report = project_report(&ctx, &format!("root: /tmp\n{yaml}\n"));
+            assert!(
+                report.errors.iter().any(|e| e == expected),
+                "missing {expected:?} for {yaml:?}: {:?}",
+                report.errors
+            );
+        }
+        let value: Value = serde_norway::from_str("work_status:\n  state: done\n").unwrap();
+        let repo = validate_value(&ctx, &ctx.global_path(), ConfigKind::Repo, &value);
+        assert!(repo
+            .errors
+            .contains(&"config.work_status: unknown field".to_string()));
+    }
+
+    #[test]
+    fn validator_rejects_both_depends_on_spellings_on_one_service() {
+        let (_dir, ctx) = context();
+        let report = project_report(
+            &ctx,
+            "root: /tmp\nservices:\n  db: run-db\n  web:\n    cmd: npm start\n    dependsOn: [db]\n    depends_on: [db]\n",
+        );
+        assert!(
+            report.errors.contains(
+                &"config.services.web.depends_on: cannot be set together with dependsOn"
+                    .to_string()
+            ),
+            "{:?}",
+            report.errors
+        );
+    }
+
+    #[test]
+    fn validator_reports_values_the_app_cannot_load_at_their_field_path() {
+        let (_dir, ctx) = context();
+        let remote = "ssh:\n  host: h\n  user: u\n";
+        for (source, path) in [
+            (format!("{remote}  port: \"22\"\n"), "config.ssh.port:"),
+            (format!("{remote}  port: 22.5\n"), "config.ssh.port:"),
+            (format!("{remote}  port: ~\n"), "config.ssh.port:"),
+            (format!("{remote}  key: [a]\n"), "config.ssh.key:"),
+            (format!("{remote}  dir: {{a: b}}\n"), "config.ssh.dir:"),
+            (
+                "root: /tmp\nclaudeAccount: [x]\n".into(),
+                "config.claudeAccount:",
+            ),
+            (
+                "root: /tmp\nclaudeAccount: {a: b}\n".into(),
+                "config.claudeAccount:",
+            ),
+            (
+                "root: /tmp\nactions:\n  a:\n    cmd: x\n    layer: 1\n".into(),
+                "config.actions.a.layer:",
+            ),
+            (
+                "root: /tmp\nactions:\n  a:\n    cmd: x\n    inputs: [k]\n".into(),
+                "config.actions.a.inputs:",
+            ),
+            (
+                "root: /tmp\nactions:\n  a:\n    cmd: x\n    inputs: {k: {position: \"1\"}}\n"
+                    .into(),
+                "config.actions.a.inputs.k.position:",
+            ),
+        ] {
+            let report = project_report(&ctx, &source);
+            assert!(
+                report.errors.iter().any(|e| e.starts_with(path)),
+                "{source}: {:?}",
+                report.errors
+            );
+        }
+    }
+
+    fn global_target() -> ConfigTarget {
+        ConfigTarget {
+            layer: ConfigLayer::Global,
+            project: String::new(),
+            template: String::new(),
+        }
+    }
+
+    #[test]
+    fn global_candidate_is_not_blocked_by_a_project_that_already_fails_to_load() {
+        let (dir, ctx) = context();
+        let root = dir.path().join("project");
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(
+            ctx.project_path("web"),
+            format!("root: {}\nservices:\n  web: run-web\n", root.display()),
+        )
+        .unwrap();
+        std::fs::write(
+            ctx.project_path("broken"),
+            "ssh:\n  host: h\n  user: u\n  port: \"22\"\nservices:\n  api: run-api\n",
+        )
+        .unwrap();
+
+        let report = validate_candidate(
+            &ctx,
+            &global_target(),
+            &ctx.global_path(),
+            "actions:\n  hello: echo hi\n",
+        );
+
+        assert!(report.errors.is_empty(), "{:?}", report.errors);
+        assert!(
+            report
+                .warnings
+                .iter()
+                .any(|w| w.starts_with("project broken:") && w.contains("already fails to load")),
+            "{:?}",
+            report.warnings
+        );
+    }
+
+    #[test]
+    fn global_candidate_that_breaks_a_healthy_project_is_refused() {
+        let (dir, ctx) = context();
+        let root = dir.path().join("project");
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(
+            ctx.project_path("web"),
+            format!("root: {}\nservices:\n  web: run-web\n", root.display()),
+        )
+        .unwrap();
+        std::fs::write(
+            ctx.project_path("broken"),
+            "ssh:\n  host: h\n  user: u\n  port: \"22\"\nservices:\n  api: run-api\n",
+        )
+        .unwrap();
+
+        let report = validate_candidate(
+            &ctx,
+            &global_target(),
+            &ctx.global_path(),
+            "actions:\n  build:\n    cmd: make\n    cwd: missing-dir\n",
+        );
+
+        assert!(
+            report
+                .errors
+                .iter()
+                .any(|e| e.starts_with("project web: config.actions.build.cwd:")),
+            "{:?}",
+            report.errors
+        );
+        assert!(
+            !report
+                .errors
+                .iter()
+                .any(|e| e.starts_with("project broken:")),
+            "{:?}",
+            report.errors
+        );
+    }
+
+    fn write_project_with_own_bad_cwd(ctx: &Ctx, root: &Path) {
+        std::fs::write(
+            ctx.project_path("legacy"),
+            format!(
+                "root: {}\nservices:\n  api: run-api\nactions:\n  old:\n    cmd: make\n    cwd: gone-dir\n",
+                root.display()
+            ),
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn global_candidate_is_not_blocked_by_a_project_with_existing_errors() {
+        let (dir, ctx) = context();
+        let root = dir.path().join("project");
+        std::fs::create_dir_all(&root).unwrap();
+        write_project_with_own_bad_cwd(&ctx, &root);
+
+        let report = validate_candidate(
+            &ctx,
+            &global_target(),
+            &ctx.global_path(),
+            "actions:\n  hello: echo hi\n",
+        );
+
+        assert!(report.errors.is_empty(), "{:?}", report.errors);
+        let warnings: Vec<_> = report
+            .warnings
+            .iter()
+            .filter(|w| w.starts_with("project legacy:"))
+            .collect();
+        assert_eq!(warnings.len(), 1, "{:?}", report.warnings);
+        assert!(
+            warnings[0].contains("not caused by this change")
+                && warnings[0].contains("config.actions.old.cwd"),
+            "{:?}",
+            warnings
+        );
+    }
+
+    #[test]
+    fn global_candidate_breaking_a_healthy_project_is_refused_next_to_a_broken_one() {
+        let (dir, ctx) = context();
+        let root = dir.path().join("project");
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(
+            ctx.project_path("web"),
+            format!("root: {}\nservices:\n  web: run-web\n", root.display()),
+        )
+        .unwrap();
+        write_project_with_own_bad_cwd(&ctx, &root);
+
+        let report = validate_candidate(
+            &ctx,
+            &global_target(),
+            &ctx.global_path(),
+            "actions:\n  build:\n    cmd: make\n    cwd: missing-dir\n",
+        );
+
+        assert!(
+            report
+                .errors
+                .iter()
+                .any(|e| e.starts_with("project web: config.actions.build.cwd:")),
+            "{:?}",
+            report.errors
+        );
+    }
+
+    #[test]
+    fn global_candidate_adding_a_new_error_to_a_broken_project_is_refused_for_it_only() {
+        let (dir, ctx) = context();
+        let root = dir.path().join("project");
+        std::fs::create_dir_all(&root).unwrap();
+        write_project_with_own_bad_cwd(&ctx, &root);
+
+        let report = validate_candidate(
+            &ctx,
+            &global_target(),
+            &ctx.global_path(),
+            "actions:\n  build:\n    cmd: make\n    cwd: missing-dir\n",
+        );
+
+        assert_eq!(report.errors.len(), 1, "{:?}", report.errors);
+        assert!(
+            report.errors[0].starts_with("project legacy: config.actions.build.cwd:"),
+            "{:?}",
+            report.errors
+        );
+        assert!(
+            report
+                .warnings
+                .iter()
+                .any(|w| w.starts_with("project legacy:") && w.contains("config.actions.old.cwd")),
+            "{:?}",
+            report.warnings
+        );
+    }
+
+    #[test]
+    fn global_child_with_the_same_name_and_bad_cwd_as_an_existing_child_is_refused() {
+        let (dir, ctx) = context();
+        let root = dir.path().join("project");
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(
+            ctx.project_path("legacy"),
+            format!(
+                "root: {}\nservices:\n  api: run-api\nactions:\n  deploy:\n    actions:\n      prod:\n        cmd: make\n        cwd: gone-dir\n",
+                root.display()
+            ),
+        )
+        .unwrap();
+
+        let report = validate_candidate(
+            &ctx,
+            &global_target(),
+            &ctx.global_path(),
+            "actions:\n  release:\n    actions:\n      prod:\n        cmd: make\n        cwd: gone-dir\n",
+        );
+
+        assert_eq!(report.errors.len(), 1, "{:?}", report.errors);
+        assert!(
+            report.errors[0]
+                .starts_with("project legacy: config.actions.release.actions.prod.cwd:"),
+            "{:?}",
+            report.errors
+        );
+        assert!(
+            report
+                .warnings
+                .iter()
+                .any(|w| w.starts_with("project legacy:")
+                    && w.contains("config.actions.deploy.actions.prod.cwd")),
+            "{:?}",
+            report.warnings
+        );
+    }
+
+    #[test]
+    fn global_error_identical_to_an_existing_one_is_still_refused() {
+        let (dir, ctx) = context();
+        let root = dir.path().join("project");
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(
+            ctx.project_path("legacy"),
+            format!(
+                "root: {}\nservices:\n  api: run-api\nactions:\n  deploy.actions.prod:\n    cmd: make\n    cwd: gone-dir\n",
+                root.display()
+            ),
+        )
+        .unwrap();
+
+        let report = validate_candidate(
+            &ctx,
+            &global_target(),
+            &ctx.global_path(),
+            "actions:\n  deploy:\n    actions:\n      prod:\n        cmd: make\n        cwd: gone-dir\n",
+        );
+
+        assert_eq!(
+            report.errors.len(),
+            1,
+            "{:?} {:?}",
+            report.errors,
+            report.warnings
+        );
+        assert!(
+            report.errors[0].starts_with("project legacy: config.actions.deploy.actions.prod.cwd:"),
+            "{:?}",
+            report.errors
+        );
+    }
+
+    #[test]
+    fn partition_new_errors_counts_baseline_occurrences() {
+        let baseline = vec!["a".to_string(), "b".to_string()];
+        let candidate = vec!["a".to_string(), "a".to_string(), "c".to_string()];
+        let (existing, new) = partition_new_errors(&baseline, candidate);
+        assert_eq!(existing, vec!["a".to_string()]);
+        assert_eq!(new, vec!["a".to_string(), "c".to_string()]);
     }
 }

@@ -10,7 +10,7 @@ use crate::style::Style;
 use crate::sessions;
 use crate::util::{print_json, shorten_home};
 use serde_json::{json, Value};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::io::IsTerminal;
 
 struct Row {
@@ -38,9 +38,20 @@ fn count_by_value(entries: &[StatusEntry]) -> BTreeMap<String, usize> {
 }
 
 pub fn run(ctx: &Ctx, as_json: bool) -> Result<(), RunError> {
-    let names = config::project_names(ctx);
-    let sessions = sessions::running_sessions();
+    let rows = collect_rows(ctx, &sessions::running_sessions());
+    if as_json {
+        print_json(&render_json(&rows));
+    } else {
+        let style = Style {
+            on: std::io::stdout().is_terminal(),
+        };
+        print!("{}", render_human(&style, &rows));
+    }
+    Ok(())
+}
 
+fn collect_rows(ctx: &Ctx, sessions: &HashSet<String>) -> Vec<Row> {
+    let names = config::project_names(ctx);
     let mut rows = Vec::with_capacity(names.len());
     for name in &names {
         match config::resolve_project(ctx, name) {
@@ -57,7 +68,7 @@ pub fn run(ctx: &Ctx, as_json: bool) -> Result<(), RunError> {
                 rows.push(Row {
                     name: name.clone(),
                     label: p.label,
-                    root: p.root,
+                    root: p.display_root,
                     is_remote: p.is_remote,
                     parent_name: p.parent_name,
                     worktree: p.worktree,
@@ -83,16 +94,7 @@ pub fn run(ctx: &Ctx, as_json: bool) -> Result<(), RunError> {
             }),
         }
     }
-
-    if as_json {
-        print_json(&render_json(&rows));
-    } else {
-        let style = Style {
-            on: std::io::stdout().is_terminal(),
-        };
-        print!("{}", render_human(&style, &rows));
-    }
-    Ok(())
+    rows
 }
 
 fn render_json(rows: &[Row]) -> Value {
@@ -210,5 +212,33 @@ mod tests {
     fn agent_summary_is_compact_and_sorted() {
         let counts = count_by_value(&[entry("Waiting"), entry("Running"), entry("Running")]);
         assert_eq!(agent_summary(&counts), "2 running, 1 waiting");
+    }
+
+    #[test]
+    fn remote_project_row_shows_its_ssh_dir_like_the_app() {
+        let dir = tempfile::tempdir().unwrap();
+        let ctx = Ctx {
+            lpm_dir: dir.path().to_path_buf(),
+            socket_override: Some(dir.path().join("none.sock")),
+        };
+        std::fs::create_dir_all(ctx.projects_dir()).unwrap();
+        std::fs::write(
+            ctx.project_path("api"),
+            "root: /local/stray\nssh:\n  host: h\n  user: u\n  dir: ~/code/api\nservices:\n  api: run-api\n",
+        )
+        .unwrap();
+        std::fs::write(
+            ctx.project_path("web"),
+            "root: /srv/web\nservices:\n  web: run-web\n",
+        )
+        .unwrap();
+
+        let rows = collect_rows(&ctx, &HashSet::new());
+        let json = render_json(&rows);
+
+        assert_eq!(json["projects"][0]["name"], "api");
+        assert_eq!(json["projects"][0]["root"], "~/code/api");
+        assert_eq!(json["projects"][1]["root"], "/srv/web");
+        assert!(render_human(&Style { on: false }, &rows).contains("~/code/api"));
     }
 }

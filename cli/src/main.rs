@@ -306,7 +306,7 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
-    /// Remove a project (via the running app). Originals require --force.
+    /// Remove a project (via the running app). Originals and SSH projects require --force.
     Remove {
         /// Project stem, `name:` field, or unambiguous prefix (required).
         name: String,

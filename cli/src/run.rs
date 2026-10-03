@@ -353,6 +353,7 @@ mod tests {
             file_name: "x".into(),
             session: "x".into(),
             root: String::new(),
+            display_root: String::new(),
             label: String::new(),
             is_remote: false,
             parent_name: String::new(),
