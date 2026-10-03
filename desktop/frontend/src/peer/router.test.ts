@@ -237,6 +237,17 @@ describe("isLocalOnlyCommand", () => {
     expect(isLocalOnlyCommand("install_update")).toBe(true);
   });
 
+  it("opens apps on this Mac even for a paired machine's path", () => {
+    expect(isLocalOnlyCommand("open_in")).toBe(true);
+    expect(isLocalOnlyCommand("open_file_in_editor")).toBe(true);
+    expect(isLocalOnlyCommand("open_path_in_default_app")).toBe(true);
+    expect(isLocalOnlyCommand("reveal_in_finder")).toBe(true);
+  });
+
+  it("reads a paired machine's file from here, in chunks", () => {
+    expect(isLocalOnlyCommand("notes_read_file_as_input")).toBe(true);
+  });
+
   it("keeps terminal control ownership local even for a peer-prefixed id", () => {
     expect(isLocalOnlyCommand("terminal_claim_control")).toBe(true);
     expect(isLocalOnlyCommand("terminal_present_control")).toBe(true);

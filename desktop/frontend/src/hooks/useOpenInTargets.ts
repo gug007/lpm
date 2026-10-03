@@ -7,6 +7,10 @@ export type OpenInTarget = main.OpenInTarget;
 
 export const OPEN_IN_SELECTED_KEY = "lpm.openIn.selectedId";
 
+export const EDITOR_IDS = new Set([
+  "cursor", "vscode", "vscode-insiders", "windsurf", "zed", "xcode", "sublime-text", "webstorm", "typora",
+]);
+
 export function primaryOpenInTarget(targets: OpenInTarget[]): OpenInTarget | null {
   if (targets.length === 0) return null;
   const id = localStorage.getItem(OPEN_IN_SELECTED_KEY) ?? "";

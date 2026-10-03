@@ -27,7 +27,7 @@ const DONE_TIMEOUT: Duration = Duration::from_secs(600);
 
 /// What one base64 JSON frame carries: tungstenite's 16 MiB default max frame,
 /// with room for the ~4/3 expansion and the envelope.
-const LEGACY_MAX_BYTES: u64 = 8 * 1024 * 1024;
+pub(crate) const LEGACY_MAX_BYTES: u64 = 8 * 1024 * 1024;
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]

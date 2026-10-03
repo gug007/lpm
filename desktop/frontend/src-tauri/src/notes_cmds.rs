@@ -293,12 +293,37 @@ pub async fn notes_save_attachment(
     Ok(path.to_string_lossy().into_owned())
 }
 
-#[tauri::command(async)]
-pub fn notes_read_file_as_input(
+/// A file on a paired machine is read from here (peerread.rs), so its size
+/// isn't held to one frame of the peer connection.
+#[tauri::command]
+pub async fn notes_read_file_as_input(
+    hub: State<'_, crate::peerclient::PeerClientHub>,
     path: String,
     max_bytes: Option<u64>,
 ) -> Result<NotesAttachmentInput, String> {
-    let expanded = config::expand_home(&path);
+    let hub = hub.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let cap = max_bytes
+            .unwrap_or(MAX_DROPPED_ATTACHMENT_BYTES)
+            .min(MAX_DROPPED_ATTACHMENT_BYTES);
+        match crate::mediapeer::split_peer_path(&path) {
+            Some((slug, host_path)) => {
+                let (name, data) = crate::peerread::read_whole(&hub, slug, host_path, cap)?;
+                Ok(NotesAttachmentInput {
+                    mime_type: mime_for(Path::new(&name), &data),
+                    name,
+                    data: B64.encode(&data),
+                })
+            }
+            None => read_file_as_input(&path, cap),
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+fn read_file_as_input(path: &str, cap: u64) -> Result<NotesAttachmentInput, String> {
+    let expanded = config::expand_home(path);
     let p = Path::new(&expanded);
     let meta = std::fs::metadata(p).map_err(|e| e.to_string())?;
     let name = p
@@ -308,9 +333,6 @@ pub fn notes_read_file_as_input(
     if meta.is_dir() {
         return Err(format!("{name} is a directory"));
     }
-    let cap = max_bytes
-        .unwrap_or(MAX_DROPPED_ATTACHMENT_BYTES)
-        .min(MAX_DROPPED_ATTACHMENT_BYTES);
     if meta.len() > cap {
         return Err(format!("{name} exceeds {}MB limit", cap / (1024 * 1024)));
     }

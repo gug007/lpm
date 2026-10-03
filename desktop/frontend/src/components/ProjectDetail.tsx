@@ -66,6 +66,7 @@ import { projectStartProfile } from "../projectStartProfile";
 import { SyncedBar } from "./SyncedBar";
 import { CloseColumnButton } from "./project-detail/CloseColumnButton";
 import { useFollowState } from "../hooks/useFollowState";
+import { peerSlugOf } from "../peer/markers";
 import { peerAlias, usePeerState } from "../peer/usePeerState";
 
 interface ProjectDetailProps {
@@ -671,6 +672,7 @@ export function ProjectDetail({
   const controlsNode = (
     <Controls
       project={project}
+      peerViaSsh={peerState.peers.some((p) => p.slug === peerSlugOf(project.root) && !!p.sshHost)}
       loading={loading}
       activeProfile={activeProfile}
       runningServiceNames={runningServiceNames}

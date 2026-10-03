@@ -37,6 +37,7 @@ const REMOTE_PAIR_UNSUPPORTED: &str = "this host needs to update lpm to show its
 /// A reachability failure rather than a refusal — a follower retries these with
 /// backoff instead of pausing.
 pub(crate) const PEER_NOT_CONNECTED: &str = "peer not connected";
+pub(crate) const PEER_DISCONNECTED: &str = "peer disconnected";
 pub(crate) const PEER_REQUEST_TIMED_OUT: &str = "peer request timed out";
 const PING_INTERVAL: Duration = Duration::from_secs(20);
 const BACKOFF_MIN: Duration = Duration::from_secs(1);
@@ -94,6 +95,8 @@ struct PeerConn {
     supports_remote_pair: AtomicBool, // host can arm its own phone pairing and hand back the QR
     supports_file_upload: AtomicBool, // host can take an attached file in chunks, not one frame
     supports_media_range: AtomicBool, // host serves a video's byte ranges for preview
+    supports_file_range: AtomicBool, // host serves any file a chunk at a time
+    in_run: AtomicBool,        // a request just queued is one of a run (see invoke_in_run)
     generation: AtomicU64,     // bump to retire the current connection thread
     // Present only for a peer reached over SSH. Owned here so the forward is torn
     // down with the connection rather than outliving it as a stray ssh process.
@@ -147,6 +150,8 @@ impl PeerConn {
             supports_remote_pair: AtomicBool::new(false),
             supports_file_upload: AtomicBool::new(false),
             supports_media_range: AtomicBool::new(false),
+            supports_file_range: AtomicBool::new(false),
+            in_run: AtomicBool::new(false),
             generation: AtomicU64::new(0),
         }
     }
@@ -341,7 +346,7 @@ impl PeerClientHub {
         self.inner.app.lock().unwrap().clone()
     }
 
-    fn peer_entry(&self, slug: &str) -> Option<PeerEntry> {
+    pub(crate) fn peer_entry(&self, slug: &str) -> Option<PeerEntry> {
         self.inner
             .config
             .lock()
@@ -719,6 +724,22 @@ impl PeerClientHub {
         )
     }
 
+    /// `invoke_blocking` for one request of a run (a video's blocks, a file's
+    /// chunks): the connection sends the next one out without waiting on its
+    /// poll. Terminal acks and the UI's polls don't, so a busy terminal never
+    /// keeps an idle connection waking fast.
+    pub(crate) fn invoke_in_run(
+        &self,
+        slug: &str,
+        cmd: &str,
+        args: Value,
+    ) -> Result<Value, String> {
+        if let Some(conn) = self.inner.conns.lock().unwrap().get(slug) {
+            conn.in_run.store(true, Ordering::Relaxed);
+        }
+        self.invoke_blocking(slug, cmd, args)
+    }
+
     /// Send one correlated request frame and block on its `result` reply (or a
     /// disconnect / timeout). The frame builder receives the allocated reqId so
     /// callers can shape any frame type — invoke, syncDigest, syncFetch, syncApply
@@ -836,6 +857,16 @@ impl PeerClientHub {
             .unwrap()
             .get(slug)
             .is_some_and(|c| c.supports_media_range.load(Ordering::Relaxed))
+    }
+
+    /// Whether this peer's host serves any file a chunk at a time.
+    pub(crate) fn supports_file_range(&self, slug: &str) -> bool {
+        self.inner
+            .conns
+            .lock()
+            .unwrap()
+            .get(slug)
+            .is_some_and(|c| c.supports_file_range.load(Ordering::Relaxed))
     }
 
     /// Guard: the peer must be connected and its host must speak "bring changes".
@@ -1411,7 +1442,7 @@ fn run_conn(hub: PeerClientHub, conn: Arc<PeerConn>, generation: u64) {
         conn.supports_sync.store(false, Ordering::Relaxed);
         conn.supports_sync2.store(false, Ordering::Relaxed);
         *conn.out.lock().unwrap() = None;
-        conn.fail_pending("peer disconnected");
+        conn.fail_pending(PEER_DISCONNECTED);
         emit_state_changed(&hub);
         if !conn.enabled.load(Ordering::SeqCst)
             || conn.generation.load(Ordering::SeqCst) != generation
@@ -1832,6 +1863,10 @@ fn connect_session(
         has_feature(crate::mediapeer::MEDIA_RANGE_FEATURE),
         Ordering::Relaxed,
     );
+    conn.supports_file_range.store(
+        has_feature(crate::peerread::FILE_RANGE_FEATURE),
+        Ordering::Relaxed,
+    );
 
     let (tx, rx) = mpsc::sync_channel::<String>(OUT_QUEUE);
     *conn.out.lock().unwrap() = Some(tx);
@@ -1865,6 +1900,8 @@ fn connect_session(
         engine.nudge();
     }
     let mut last_ping = Instant::now();
+    let mut quick_until: Option<Instant> = None;
+    let mut quick = false;
     'main: loop {
         if !conn.enabled.load(Ordering::SeqCst)
             || conn.generation.load(Ordering::SeqCst) != generation
@@ -1876,6 +1913,9 @@ fn connect_session(
         loop {
             match rx.try_recv() {
                 Ok(s) => {
+                    if conn.in_run.swap(false, Ordering::Relaxed) {
+                        quick_until = Some(Instant::now() + crate::peer::QUICK_FOR);
+                    }
                     if ws.write(Message::text(s)).is_err() {
                         break 'main;
                     }
@@ -1894,6 +1934,14 @@ fn connect_session(
             last_ping = Instant::now();
         }
         let _ = ws.flush();
+        // Quick for a moment after a request of a run goes out, so the next one
+        // goes out without waiting on POLL; a reply wakes the read by itself.
+        let want_quick = quick_until.is_some_and(|t| Instant::now() < t);
+        if want_quick != quick {
+            quick = want_quick;
+            let poll = if quick { crate::peer::QUICK_POLL } else { POLL };
+            let _ = ws.get_ref().tcp().set_read_timeout(Some(poll));
+        }
         match ws.read() {
             Ok(msg) => {
                 if msg.is_close() {

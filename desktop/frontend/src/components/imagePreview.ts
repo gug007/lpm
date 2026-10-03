@@ -9,11 +9,9 @@ import {
   type Size,
 } from "./imageFit";
 
-// A preview read of a peer-hosted image crosses the peer WebSocket as one
-// base64 frame, and the reader drops the whole connection to that Mac on an
-// oversized frame rather than failing the one call — so the preview asks for a
-// bounded read instead of the attachment ceiling.
-export const IMAGE_PREVIEW_MAX_BYTES = 8 * 1024 * 1024;
+// The same as a PDF preview's. An image on a paired machine comes a chunk at a
+// time; a host too old for that still caps it at 8 MB and says to update it.
+export const IMAGE_PREVIEW_MAX_BYTES = 64 * 1024 * 1024;
 
 export interface ImagePreview {
   dataUrl: string | null;

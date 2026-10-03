@@ -1,6 +1,7 @@
-// Progress for a file on its way to a peer Mac. The transport stamps every
-// `peer-upload-progress` event with the token the caller minted, so one toast per
-// upload can follow it and vanish the moment the upload settles either way.
+// Progress for a file on its way to or from a peer Mac. The transport stamps
+// every `peer-upload-progress` / `peer-download-progress` event with the token
+// the caller minted (a download's is the file's path), so one toast per transfer
+// can follow it and vanish the moment the transfer settles either way.
 import { toast } from "sonner";
 import { PeerState } from "../../bridge/commands";
 import { EventsOn } from "../../bridge/runtime";
@@ -23,13 +24,7 @@ export interface UploadToast {
 // before anyone could have read one.
 export const SHOW_AFTER_MS = 600;
 
-export function uploadToast(
-  name: string,
-  alias: string,
-  sent: number,
-  total: number,
-): UploadToast {
-  const title = `Sending ${name} to ${alias}…`;
+function transferToast(title: string, sent: number, total: number): UploadToast {
   if (total <= 0) return { title };
   return {
     title,
@@ -37,10 +32,33 @@ export function uploadToast(
   };
 }
 
+export function uploadToast(
+  name: string,
+  alias: string,
+  sent: number,
+  total: number,
+): UploadToast {
+  return transferToast(`Sending ${name} to ${alias}…`, sent, total);
+}
+
+export function downloadToast(
+  name: string,
+  alias: string,
+  received: number,
+  total: number,
+): UploadToast {
+  return transferToast(`Bringing ${name} from ${alias}…`, received, total);
+}
+
 interface Tracked {
   name: string;
   alias: string;
+  describe: typeof uploadToast;
   progress: UploadProgress | null;
+  // A download can turn out not to be one (the editor reached the file over
+  // SSH), so its toast waits for the first bytes as well as the delay.
+  waitsForBytes: boolean;
+  due: boolean;
   shown: boolean;
   timer: ReturnType<typeof setTimeout>;
 }
@@ -51,16 +69,24 @@ let subscribed = false;
 function subscribe(): void {
   if (subscribed) return;
   subscribed = true;
-  EventsOn("peer-upload-progress", (p: UploadProgress) => {
+  const onProgress = (p: UploadProgress) => {
     const tracked = p?.token ? inflight.get(p.token) : undefined;
     if (!tracked) return;
     tracked.progress = p;
-    if (tracked.shown) render(p.token, tracked);
-  });
+    show(p.token, tracked);
+  };
+  EventsOn("peer-upload-progress", onProgress);
+  EventsOn("peer-download-progress", onProgress);
+}
+
+function show(token: string, tracked: Tracked): void {
+  if (!tracked.due || (tracked.waitsForBytes && !tracked.progress)) return;
+  tracked.shown = true;
+  render(token, tracked);
 }
 
 function render(token: string, tracked: Tracked): void {
-  const { title, description } = uploadToast(
+  const { title, description } = tracked.describe(
     tracked.name,
     tracked.alias,
     tracked.progress?.sent ?? 0,
@@ -84,24 +110,51 @@ export function trackPeerUpload<T>(
   name: string,
   upload: Promise<T>,
 ): Promise<T> {
+  return track(token, slug, name, uploadToast, false, upload);
+}
+
+// `token` is the paired machine's path the download reads.
+export function trackPeerDownload<T>(
+  token: string,
+  slug: string,
+  name: string,
+  download: Promise<T>,
+): Promise<T> {
+  return track(token, slug, name, downloadToast, true, download);
+}
+
+function track<T>(
+  token: string,
+  slug: string,
+  name: string,
+  describe: typeof uploadToast,
+  waitsForBytes: boolean,
+  transfer: Promise<T>,
+): Promise<T> {
   subscribe();
   const tracked: Tracked = {
     name,
     alias: peerAlias([], slug),
+    describe,
     progress: null,
+    waitsForBytes,
+    due: false,
     shown: false,
     timer: setTimeout(() => {
-      tracked.shown = true;
-      render(token, tracked);
+      tracked.due = true;
+      show(token, tracked);
     }, SHOW_AFTER_MS),
   };
   inflight.set(token, tracked);
   void aliasFor(slug).then((alias) => {
     tracked.alias = alias;
-    if (tracked.shown) render(token, tracked);
+    if (tracked.shown && inflight.get(token) === tracked) render(token, tracked);
   });
-  return upload.finally(() => {
+  return transfer.finally(() => {
     clearTimeout(tracked.timer);
+    // A second transfer under the same token (the same file opened again) has
+    // taken the toast over, and clears it itself.
+    if (inflight.get(token) !== tracked) return;
     inflight.delete(token);
     if (tracked.shown) toast.dismiss(token);
   });

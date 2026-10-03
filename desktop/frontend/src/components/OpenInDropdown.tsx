@@ -1,11 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { ChevronDownIcon, CheckIcon } from "./icons";
 import { useOutsideClick } from "../hooks/useOutsideClick";
-import { launchOpenInTarget, useOpenInTargets, OPEN_IN_SELECTED_KEY, type OpenInTarget } from "../hooks/useOpenInTargets";
+import {
+  EDITOR_IDS,
+  launchOpenInTarget,
+  useOpenInTargets,
+  OPEN_IN_SELECTED_KEY,
+  type OpenInTarget,
+} from "../hooks/useOpenInTargets";
+import { isPeerMarked } from "../peer/markers";
 
-const EDITOR_IDS = new Set([
-  "cursor", "vscode", "vscode-insiders", "windsurf", "zed", "xcode", "sublime-text", "webstorm", "typora",
-]);
 const TERMINAL_IDS = new Set(["terminal", "iterm2", "ghostty", "warp"]);
 
 function groupTargets(targets: OpenInTarget[]) {
@@ -22,15 +26,25 @@ function groupTargets(targets: OpenInTarget[]) {
   ].filter((g) => g.items.length > 0);
 }
 
-export function OpenInDropdown({ projectPath, isRemote = false }: {
+export function OpenInDropdown({ projectPath, isRemote = false, peerViaSsh = false }: {
   projectPath: string;
   isRemote?: boolean;
+  // The project's paired machine is reached over SSH.
+  peerViaSsh?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const allTargets = useOpenInTargets();
+  // A project on a paired machine opens here only in an editor that reaches it
+  // over SSH, and only when this Mac reaches that machine over SSH at all.
+  const onPeer = isPeerMarked(projectPath);
   const targets = useMemo(
-    () => allTargets.filter((t) => !t.fileOnly && (!isRemote || t.remoteCapable)),
-    [allTargets, isRemote],
+    () =>
+      allTargets.filter((t) => {
+        if (t.fileOnly) return false;
+        if (onPeer) return peerViaSsh && !isRemote && t.remoteCapable;
+        return !isRemote || t.remoteCapable;
+      }),
+    [allTargets, isRemote, onPeer, peerViaSsh],
   );
   const groups = useMemo(() => groupTargets(targets), [targets]);
   const [selectedId, setSelectedId] = useState<string>(() => localStorage.getItem(OPEN_IN_SELECTED_KEY) ?? "");

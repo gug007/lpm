@@ -77,10 +77,7 @@ fn ssh_base_args(target: &SshTarget) -> Vec<String> {
 /// error because ssh's own failures (auth refused, unknown host) arrive there and
 /// are the ones worth showing a user verbatim.
 pub fn ssh_capture(target: &SshTarget, command: &str) -> Result<String, String> {
-    let mut args = ssh_base_args(target);
-    args.push(command.to_string());
-    let out = Command::new("ssh")
-        .args(&args)
+    let out = ssh_command(target, command)
         .stdin(Stdio::null())
         .output()
         .map_err(|e| format!("could not run ssh: {e}"))?;
@@ -93,6 +90,13 @@ pub fn ssh_capture(target: &SshTarget, command: &str) -> Result<String, String> 
         });
     }
     Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
+}
+
+/// `ssh` running `command` on the host, with the options every call here uses.
+pub fn ssh_command(target: &SshTarget, command: &str) -> Command {
+    let mut cmd = Command::new("ssh");
+    cmd.args(ssh_base_args(target)).arg(command);
+    cmd
 }
 
 /// Can we reach this machine at all? Separated from everything else so the first

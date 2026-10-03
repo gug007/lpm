@@ -2,9 +2,13 @@
 // embedded from assets/apps/*.png and returned as data: URIs.
 use crate::config::expand_home;
 use crate::files::resolve_existing_file;
+use crate::mediapeer::split_peer_path;
+use crate::peerclient::PeerClientHub;
+use crate::peeropen::PeerOpened;
 use base64::Engine;
 use serde::Serialize;
 use std::process::Command;
+use tauri::State;
 
 #[derive(Serialize)]
 pub struct OpenInTarget {
@@ -253,6 +257,25 @@ fn target(id: &str) -> Option<&'static Target> {
     TARGETS.iter().find(|t| t.id == id)
 }
 
+/// An app the user picked, found on this Mac.
+pub(crate) struct InstalledApp {
+    pub id: &'static str,
+    pub label: &'static str,
+    pub remote_capable: bool,
+    pub path: String,
+}
+
+pub(crate) fn installed_app(id: &str) -> Result<InstalledApp, String> {
+    let t = target(id).ok_or_else(|| format!("unknown app: {id}"))?;
+    let path = detect(id).ok_or_else(|| format!("{} is not installed", t.label))?;
+    Ok(InstalledApp {
+        id: t.id,
+        label: t.label,
+        remote_capable: t.remote_capable,
+        path,
+    })
+}
+
 fn shell_quote(s: &str) -> String {
     format!("'{}'", s.replace('\'', "'\\''"))
 }
@@ -261,7 +284,7 @@ fn applescript_escape(s: &str) -> String {
     s.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
-fn run(c: &mut Command) -> Result<(), String> {
+pub(crate) fn run(c: &mut Command) -> Result<(), String> {
     let status = c.status().map_err(|e| e.to_string())?;
     if !status.success() {
         return Err("command failed".into());
@@ -290,54 +313,53 @@ pub fn list_open_in_targets() -> Vec<OpenInTarget> {
         .collect()
 }
 
-#[tauri::command(async)]
-pub fn open_in(target_id: String, project_path: String) -> Result<(), String> {
-    let t = target(&target_id).ok_or_else(|| format!("unknown open-in target: {target_id}"))?;
-    let app_path = detect(&target_id).ok_or_else(|| format!("{} is not installed", t.label))?;
-    if project_path.is_empty() {
-        return Err("empty project path".into());
-    }
-    if let Some(ssh) = crate::sshexec::remote_project_for_path(&project_path) {
-        if !t.remote_capable {
-            return Err(format!("{} can't open a remote project", t.label));
+#[tauri::command]
+pub async fn open_in(
+    hub: State<'_, PeerClientHub>,
+    target_id: String,
+    project_path: String,
+) -> Result<(), String> {
+    let hub = hub.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let app = installed_app(&target_id)?;
+        if project_path.is_empty() {
+            return Err("empty project path".into());
         }
-        return open_remote(t, &app_path, &ssh, &project_path);
-    }
-    let path = expand_home(&project_path);
-    match target_id.as_str() {
-        "finder" => run(Command::new("open").arg(&path)),
-        "terminal" => launch_terminal(&path),
-        "iterm2" => launch_iterm(&path),
-        "ghostty" => launch_ghostty(&path),
-        // By bundle path, not label: a version-suffixed bundle (Path Finder 26)
-        // has no app named after the label for `open -a` to resolve.
-        _ => run(Command::new("open").args(["-a", &app_path, &path])),
-    }
+        if split_peer_path(&project_path).is_some() {
+            return crate::peeropen::open_folder(&hub, &app, &project_path);
+        }
+        if let Some(ssh) = crate::sshexec::remote_project_for_path(&project_path) {
+            if !app.remote_capable {
+                return Err(format!("{} can't open a remote project", app.label));
+            }
+            return open_remote(&app, &ssh, &project_path);
+        }
+        let path = expand_home(&project_path);
+        match app.id {
+            "finder" => run(Command::new("open").arg(&path)),
+            "terminal" => launch_terminal(&path),
+            "iterm2" => launch_iterm(&path),
+            "ghostty" => launch_ghostty(&path),
+            // By bundle path, not label: a version-suffixed bundle (Path Finder 26)
+            // has no app named after the label for `open -a` to resolve.
+            _ => run(Command::new("open").args(["-a", &app.path, &path])),
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Open a project on an SSH host via VS Code-family Remote-SSH. The remote dir
-/// (possibly `~`-relative) is resolved to an absolute path once and cached, then
-/// handed to the app's embedded CLI as a `vscode-remote://ssh-remote+…` folder
-/// URI. Preferring the embedded CLI over `open -a --args` is what makes this
-/// reliable when the app is already running.
+/// (possibly `~`-relative) is resolved to an absolute path once and cached.
 fn open_remote(
-    t: &Target,
-    app_path: &str,
+    app: &InstalledApp,
     ssh: &crate::config::SshSettings,
     project_dir: &str,
 ) -> Result<(), String> {
     let abs = resolve_remote_abs(ssh, project_dir)?;
-    let uri = remote_folder_uri(&ssh.user, &ssh.host, &abs);
-    match embedded_cli(app_path) {
-        Some(cli) => run(Command::new(cli).args(["--folder-uri", &uri])),
-        None => run(Command::new("open").args(["-a", t.label, "--args", "--folder-uri", &uri])),
-    }
-}
-
-// Authority carries no port: for a non-22 host VS Code relies on the user's
-// ~/.ssh/config (which we never modify).
-fn remote_folder_uri(user: &str, host: &str, abs_path: &str) -> String {
-    format!("vscode-remote://ssh-remote+{user}@{host}{abs_path}")
+    let port = u16::try_from(ssh.port).unwrap_or(0);
+    let authority = crate::remotessh::authority(&ssh.host, &ssh.user, port, &ssh.key);
+    crate::remotessh::open_folder(app, &authority, &abs)
 }
 
 /// The remote dir resolved to an absolute path (`cd <dir> && pwd` over the mux),
@@ -370,47 +392,55 @@ fn resolve_remote_abs(ssh: &crate::config::SshSettings, dir: &str) -> Result<Str
     Ok(abs)
 }
 
-/// The launcher binary inside `<App>.app/Contents/Resources/app/bin` (VS Code
-/// forks ship exactly one primary CLI there), detected rather than hardcoded.
-/// The `*-tunnel` companion is skipped; the remaining name wins.
-fn embedded_cli(app_path: &str) -> Option<String> {
-    let bin = std::path::Path::new(app_path).join("Contents/Resources/app/bin");
-    let mut names: Vec<String> = std::fs::read_dir(&bin)
-        .ok()?
-        .filter_map(|e| e.ok())
-        .filter(|e| e.file_type().map(|ft| ft.is_file()).unwrap_or(false))
-        .map(|e| e.file_name().to_string_lossy().into_owned())
-        .filter(|n| !n.ends_with("-tunnel"))
-        .collect();
-    names.sort();
-    names
-        .into_iter()
-        .next()
-        .map(|n| bin.join(n).to_string_lossy().into_owned())
-}
-
-#[tauri::command(async)]
-pub fn open_file_in_editor(
+/// `edit` (default true) says the file is one to edit rather than look at,
+/// which decides how a file on a paired machine is opened (peeropen.rs); the
+/// answer then says what the app was given.
+#[tauri::command]
+pub async fn open_file_in_editor(
+    app_handle: tauri::AppHandle,
+    hub: State<'_, PeerClientHub>,
     editor_id: String,
     abs_path: String,
     line: i64,
     col: i64,
-) -> Result<(), String> {
-    let abs = resolve_existing_file(&abs_path)?;
-    if !editor_id.is_empty() {
-        let t = target(&editor_id).ok_or_else(|| format!("unknown editor: {editor_id}"))?;
-        let app_path = detect(&editor_id).ok_or_else(|| format!("{} is not installed", t.label))?;
-        return open_file_with(&editor_id, &app_path, &abs, line, col);
-    }
-    // No editor specified: first installed target with a file-open recipe.
-    for t in TARGETS {
-        if editor_has_recipe(t.id) {
-            if let Some(app_path) = detect(t.id) {
-                return open_file_with(t.id, &app_path, &abs, line, col);
+    edit: Option<bool>,
+) -> Result<Option<PeerOpened>, String> {
+    let hub = hub.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let app = if editor_id.is_empty() {
+            None
+        } else {
+            Some(installed_app(&editor_id)?)
+        };
+        if split_peer_path(&abs_path).is_some() {
+            let edit = edit.unwrap_or(true);
+            return crate::peeropen::open_file(
+                &app_handle,
+                &hub,
+                &abs_path,
+                app.as_ref(),
+                line,
+                col,
+                edit,
+            )
+            .map(Some);
+        }
+        let abs = resolve_existing_file(&abs_path)?;
+        if let Some(app) = app {
+            return open_file_with(app.id, &app.path, &abs, line, col).map(|()| None);
+        }
+        // No editor specified: first installed target with a file-open recipe.
+        for t in TARGETS {
+            if editor_has_recipe(t.id) {
+                if let Some(app_path) = detect(t.id) {
+                    return open_file_with(t.id, &app_path, &abs, line, col).map(|()| None);
+                }
             }
         }
-    }
-    run(Command::new("open").arg(&abs))
+        run(Command::new("open").arg(&abs)).map(|()| None)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 fn editor_has_recipe(id: &str) -> bool {
@@ -420,7 +450,7 @@ fn editor_has_recipe(id: &str) -> bool {
     )
 }
 
-fn format_path_spec(path: &str, line: i64, col: i64) -> String {
+pub(crate) fn format_path_spec(path: &str, line: i64, col: i64) -> String {
     if line <= 0 {
         path.to_string()
     } else if col <= 0 {
@@ -430,24 +460,30 @@ fn format_path_spec(path: &str, line: i64, col: i64) -> String {
     }
 }
 
-fn open_file_with(id: &str, app_path: &str, abs: &str, line: i64, col: i64) -> Result<(), String> {
+/// The command-line launcher a VS Code-family editor ships in its bundle.
+pub(crate) fn vscode_cli(id: &str, app_path: &str) -> Option<String> {
+    let name = match id {
+        "cursor" => "cursor",
+        "vscode" => "code",
+        "vscode-insiders" => "code-insiders",
+        "windsurf" => "windsurf",
+        _ => return None,
+    };
+    Some(format!("{app_path}/Contents/Resources/app/bin/{name}"))
+}
+
+pub(crate) fn open_file_with(
+    id: &str,
+    app_path: &str,
+    abs: &str,
+    line: i64,
+    col: i64,
+) -> Result<(), String> {
     let spec = format_path_spec(abs, line, col);
+    if let Some(cli) = vscode_cli(id, app_path) {
+        return run(Command::new(cli).args(["-g", &spec]));
+    }
     match id {
-        "cursor" => run(
-            Command::new(format!("{app_path}/Contents/Resources/app/bin/cursor"))
-                .args(["-g", &spec]),
-        ),
-        "vscode" => run(
-            Command::new(format!("{app_path}/Contents/Resources/app/bin/code")).args(["-g", &spec]),
-        ),
-        "vscode-insiders" => run(Command::new(format!(
-            "{app_path}/Contents/Resources/app/bin/code-insiders"
-        ))
-        .args(["-g", &spec])),
-        "windsurf" => run(
-            Command::new(format!("{app_path}/Contents/Resources/app/bin/windsurf"))
-                .args(["-g", &spec]),
-        ),
         "sublime-text" => {
             run(Command::new(format!("{app_path}/Contents/SharedSupport/bin/subl")).arg(&spec))
         }
@@ -497,17 +533,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn folder_uri_has_ssh_remote_authority_and_absolute_path() {
-        // ssh.dir "~/code/app" resolves (remotely) to an absolute path, which the
-        // URI carries verbatim after the user@host authority.
-        let uri = remote_folder_uri("dev", "example.com", "/Users/dev/code/app");
-        assert_eq!(
-            uri,
-            "vscode-remote://ssh-remote+dev@example.com/Users/dev/code/app"
-        );
-    }
-
-    #[test]
     fn remote_capable_set_is_exactly_the_vscode_family() {
         let capable: Vec<&str> = TARGETS
             .iter()
@@ -518,22 +543,5 @@ mod tests {
             capable,
             vec!["cursor", "vscode", "vscode-insiders", "windsurf"]
         );
-    }
-
-    #[test]
-    fn embedded_cli_detects_launcher_and_skips_tunnel() {
-        let app = tempfile::tempdir().unwrap();
-        let bin = app.path().join("Contents/Resources/app/bin");
-        std::fs::create_dir_all(&bin).unwrap();
-        std::fs::write(bin.join("code"), "#!/bin/sh\n").unwrap();
-        std::fs::write(bin.join("code-tunnel"), "#!/bin/sh\n").unwrap();
-        let cli = embedded_cli(&app.path().to_string_lossy()).unwrap();
-        assert!(cli.ends_with("/bin/code"), "{cli}");
-    }
-
-    #[test]
-    fn embedded_cli_none_when_bin_missing() {
-        let app = tempfile::tempdir().unwrap();
-        assert!(embedded_cli(&app.path().to_string_lossy()).is_none());
     }
 }

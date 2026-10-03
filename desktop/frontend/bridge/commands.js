@@ -598,8 +598,8 @@ export function NotesSaveAttachment(project, hash, name) {
 export function NotesSearch(project, query, limit) {
   return invoke("notes_search", { project, query, limit });
 }
-export function OpenFileInEditor(editorID, absPath, line, col) {
-  return invoke("open_file_in_editor", { editorId: editorID, absPath, line, col });
+export function OpenFileInEditor(editorID, absPath, line, col, edit) {
+  return invoke("open_file_in_editor", { editorId: editorID, absPath, line, col, edit });
 }
 export function OpenIn(targetID, projectPath) {
   return invoke("open_in", { targetId: targetID, projectPath });

@@ -51,6 +51,15 @@ const LOCAL_ONLY_EXACT = new Set<string>([
   "send_later_remove",
   "notify_unattended",
   "claude_limits_account",
+  // An app opens where the person is. These take a paired machine's path and
+  // handle it here: Remote-SSH, or a read-only copy fetched over the peer.
+  "open_in",
+  "open_file_in_editor",
+  "open_path_in_default_app",
+  "reveal_in_finder",
+  // Reads a paired machine's file from here, a chunk at a time, so its size
+  // isn't held to one frame of the peer connection.
+  "notes_read_file_as_input",
 ]);
 
 export function isLocalOnlyCommand(cmd: string): boolean {

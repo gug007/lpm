@@ -3,7 +3,7 @@
 use crate::config::expand_home;
 use std::path::PathBuf;
 use std::process::Command;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Manager, State};
 use tauri_plugin_dialog::{DialogExt, FilePath};
 
 pub(crate) const READ_FILE_MAX_BYTES: usize = 5 * 1024 * 1024;
@@ -403,11 +403,28 @@ pub fn write_file_if_unchanged(
     })
 }
 
-#[tauri::command(async)]
-pub fn open_path_in_default_app(abs_path: String) -> Result<(), String> {
-    let resolved = resolve_existing(&abs_path)?;
+/// The answer says what the app was given when the file is on a paired
+/// machine (peeropen.rs).
+#[tauri::command]
+pub async fn open_path_in_default_app(
+    app: AppHandle,
+    hub: State<'_, crate::peerclient::PeerClientHub>,
+    abs_path: String,
+) -> Result<Option<crate::peeropen::PeerOpened>, String> {
+    let hub = hub.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        if crate::mediapeer::split_peer_path(&abs_path).is_some() {
+            return crate::peeropen::open_file(&app, &hub, &abs_path, None, 0, 0, false).map(Some);
+        }
+        open_default(&resolve_existing(&abs_path)?).map(|()| None)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+pub(crate) fn open_default(path: &str) -> Result<(), String> {
     let status = Command::new("open")
-        .arg(&resolved)
+        .arg(path)
         .status()
         .map_err(|e| e.to_string())?;
     if !status.success() {

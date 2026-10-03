@@ -287,8 +287,8 @@ async function projectFiles(cwd: string, raw: string): Promise<string[]> {
 async function openMatch(m: PathMatch, cwd: string): Promise<void> {
   const files = (await projectFiles(cwd, m.raw)).map((rel) => joinAbs(cwd, rel));
   const abs = files[0] ?? joinAbs(cwd, m.raw);
-  // A connected Mac's file would open in an app over there, not here, so it
-  // always gets the viewer, which reads it from that Mac.
+  // A connected Mac's file always gets the viewer, which reads it where it is;
+  // a default app here could only be handed a read-only copy of it.
   if (files.length <= 1 && getSettings().terminalOpenInDefaultApp && !isPeerMarked(abs)) {
     OpenPathInDefaultApp(abs).catch((err) => toast.error(`Open in Default app: ${err}`));
     return;

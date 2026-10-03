@@ -18,7 +18,7 @@ vi.mock("../../bridge/runtime", () => ({
   },
 }));
 
-import { SHOW_AFTER_MS, trackPeerUpload, uploadToast } from "./uploadProgress";
+import { SHOW_AFTER_MS, trackPeerDownload, trackPeerUpload, uploadToast } from "./uploadProgress";
 
 const SLUG = "a1b2c3d4";
 
@@ -139,5 +139,39 @@ describe("trackPeerUpload", () => {
     );
     d.resolve("/host/big.zip");
     await tracked;
+  });
+});
+
+describe("trackPeerDownload", () => {
+  it("shows a slow copy coming from the peer, keyed by the file's path", async () => {
+    const path = `/@peer-${SLUG}/srv/scans/book.pdf`;
+    const d = deferred<{ copy: boolean }>();
+    const tracked = trackPeerDownload(path, SLUG, "book.pdf", d.promise);
+    await vi.advanceTimersByTimeAsync(SHOW_AFTER_MS);
+    mocks.handlers["peer-download-progress"]?.({
+      token: path,
+      name: "book.pdf",
+      sent: 3 * 1024 * 1024,
+      total: 40 * 1024 * 1024,
+    });
+    expect(mocks.loading).toHaveBeenLastCalledWith("Bringing book.pdf from Studio…", {
+      id: path,
+      description: "3 MB of 40 MB",
+      duration: Infinity,
+    });
+    d.resolve({ copy: true });
+    await expect(tracked).resolves.toEqual({ copy: true });
+    expect(mocks.dismiss).toHaveBeenCalledWith(path);
+  });
+
+  it("shows nothing when no bytes come, as when the editor reached the file over SSH", async () => {
+    const path = `/@peer-${SLUG}/srv/app/main.ts`;
+    const d = deferred<{ copy: boolean }>();
+    const tracked = trackPeerDownload(path, SLUG, "main.ts", d.promise);
+    await vi.advanceTimersByTimeAsync(SHOW_AFTER_MS * 4);
+    expect(mocks.loading).not.toHaveBeenCalled();
+    d.resolve({ copy: false });
+    await tracked;
+    expect(mocks.dismiss).not.toHaveBeenCalled();
   });
 });

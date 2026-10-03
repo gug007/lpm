@@ -8,6 +8,7 @@ import type { ProfileInfo, ProjectInfo, ServiceInfo } from "../../types";
 
 interface ControlsProps {
   project: ProjectInfo;
+  peerViaSsh: boolean;
   loading: boolean;
   activeProfile: string;
   runningServiceNames: Set<string> | null;
@@ -28,6 +29,7 @@ interface ControlsProps {
 
 export function Controls({
   project,
+  peerViaSsh,
   loading,
   activeProfile,
   runningServiceNames,
@@ -49,7 +51,7 @@ export function Controls({
     <>
       {project.isRemote && <PortsButton projectName={project.name} />}
       <div style={NO_DRAG_STYLE}>
-        <OpenInDropdown projectPath={project.root} isRemote={project.isRemote} />
+        <OpenInDropdown projectPath={project.root} isRemote={project.isRemote} peerViaSsh={peerViaSsh} />
       </div>
       <StartStopGroup
         project={project}

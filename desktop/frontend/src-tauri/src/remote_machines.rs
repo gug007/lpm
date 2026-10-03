@@ -64,7 +64,7 @@ fn machine_state(m: &PhoneMachine) -> &'static str {
     }
 }
 
-fn display_name(entry: &PeerEntry) -> String {
+pub(crate) fn display_name(entry: &PeerEntry) -> String {
     let alias = entry.alias.trim();
     if alias.is_empty() {
         entry.host.clone()

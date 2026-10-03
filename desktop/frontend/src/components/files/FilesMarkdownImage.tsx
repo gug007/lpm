@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import { NotesReadFileAsInput } from "../../../bridge/commands";
 import { basename } from "../../path";
-import { IMAGE_PREVIEW_MAX_BYTES } from "../imagePreview";
+
+// A document can name many images, all read as it opens, so each is held to
+// less than an image opened on its own.
+const INLINE_IMAGE_MAX_BYTES = 8 * 1024 * 1024;
 
 interface FilesMarkdownImageProps {
   absPath: string;
@@ -20,7 +23,7 @@ export function FilesMarkdownImage({ absPath, alt, width, height }: FilesMarkdow
     let cancelled = false;
     setSrc(null);
     setFailed(false);
-    NotesReadFileAsInput(absPath, IMAGE_PREVIEW_MAX_BYTES)
+    NotesReadFileAsInput(absPath, INLINE_IMAGE_MAX_BYTES)
       .then((input: { mimeType?: string; data: string }) => {
         if (!cancelled) setSrc(`data:${input.mimeType || "image/png"};base64,${input.data}`);
       })

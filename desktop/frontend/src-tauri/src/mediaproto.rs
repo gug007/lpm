@@ -18,7 +18,7 @@ pub const SCHEME: &str = "lpm-media";
 
 /// wry hands WKWebView the whole response body in one allocation, so this is a
 /// memory ceiling rather than a tuning knob.
-const MAX_CHUNK: u64 = 1024 * 1024;
+pub(crate) const MAX_CHUNK: u64 = 1024 * 1024;
 
 /// A request with no `Range` has to be answered in full. Past this size we
 /// answer the first chunk as a 206 and let the media loader range-request the
@@ -115,11 +115,12 @@ pub(crate) fn read(path: &str, range: Option<&str>) -> Result<Media, StatusCode>
         return Err(StatusCode::FORBIDDEN);
     }
 
-    let mut file = File::open(path).map_err(|_| StatusCode::NOT_FOUND)?;
-    let meta = file.metadata().map_err(|_| StatusCode::NOT_FOUND)?;
+    // Checked before opening: opening a FIFO waits for a writer that may never come.
+    let meta = std::fs::metadata(path).map_err(|_| StatusCode::NOT_FOUND)?;
     if !meta.is_file() {
         return Err(StatusCode::FORBIDDEN);
     }
+    let mut file = File::open(path).map_err(|_| StatusCode::NOT_FOUND)?;
     let len = meta.len();
 
     let requested = range.map(|v| parse_range(v, len));
@@ -200,7 +201,7 @@ fn respond(media: Result<Media, StatusCode>, head: bool) -> Response<Vec<u8>> {
 /// Single-byte-range parse (`bytes=start-`, `bytes=start-end`, `bytes=-suffix`)
 /// clamped to one chunk. `None` means unsatisfiable. Multipart ranges aren't
 /// answered: media loaders never ask for them.
-fn parse_range(header_value: &str, len: u64) -> Option<(u64, u64)> {
+pub(crate) fn parse_range(header_value: &str, len: u64) -> Option<(u64, u64)> {
     if len == 0 {
         return None;
     }

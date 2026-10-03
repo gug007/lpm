@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
+import { pdfjsAssets } from "./vite-pdfjs-assets.ts";
 
 export default defineConfig({
   // Tauri injects its IPC into the webview; no framework runtime plugin needed.
@@ -13,7 +14,7 @@ export default defineConfig({
     // Don't let Rust build artifacts trigger HMR reload storms.
     watch: { ignored: ["**/src-tauri/**"] },
   },
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), pdfjsAssets()],
   build: {
     target: "es2022",
   },

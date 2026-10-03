@@ -39,6 +39,26 @@ use tungstenite::{accept_hdr, Error as WsError, Message, WebSocket};
 
 const DEFAULT_PORT: u16 = 8766; // mobile owns 8765
 const POLL: Duration = Duration::from_millis(25); // read-timeout / outbound-drain cadence
+/// The cadence for a while after a frame whose answer comes from another thread
+/// (a range read, an upload, a terminal's echo): it waits in the queue until
+/// the loop next drains it, which at POLL added tens of ms to every one of the
+/// hundreds of requests a video makes. Pings, acks and polls keep POLL.
+pub(crate) const QUICK_POLL: Duration = Duration::from_millis(2);
+pub(crate) const QUICK_FOR: Duration = Duration::from_millis(300);
+/// A keystroke's echo is queued within a few ms (the terminal flushes after
+/// 4); waiting longer than that at QUICK_POLL would cost every keystroke a
+/// burst of wakeups for nothing.
+const ECHO_WITHIN: Duration = Duration::from_millis(10);
+
+thread_local! {
+    // Set on the socket thread while it hands a frame's answer to another one:
+    // how long the answer may take to be queued.
+    static ANSWER_SOON: std::cell::Cell<Option<Duration>> = const { std::cell::Cell::new(None) };
+}
+
+fn answer_soon(within: Duration) {
+    ANSWER_SOON.with(|c| c.set(Some(c.get().map_or(within, |d| d.max(within)))));
+}
 const AUTH_TIMEOUT: Duration = Duration::from_secs(20);
 const OUT_QUEUE: usize = 1024; // per-client outbound depth; overflow drops (client re-seeds)
 const DISPATCH_TIMEOUT: Duration = Duration::from_secs(30); // webview-dispatch reply deadline
@@ -60,6 +80,7 @@ const HOST_FEATURES: &[&str] = &[
     crate::gitwatchhost::GIT_WATCH_FEATURE,
     crate::peeruploadhost::FILE_UPLOAD_FEATURE,
     crate::mediapeer::MEDIA_RANGE_FEATURE,
+    crate::peerread::FILE_RANGE_FEATURE,
     REMOTE_PAIR_FEATURE,
 ];
 
@@ -838,6 +859,8 @@ fn handle_conn(stream: TcpStream, hub: PeerHub, app: AppHandle, generation: u64)
         },
     );
     let _ = ws.get_ref().tcp().set_read_timeout(Some(POLL));
+    let mut quick_until: Option<Instant> = None;
+    let mut quick = false;
 
     'main: loop {
         if hub.inner.generation.load(Ordering::SeqCst) != generation
@@ -857,6 +880,12 @@ fn handle_conn(stream: TcpStream, hub: PeerHub, app: AppHandle, generation: u64)
             }
         }
         let _ = ws.flush();
+        let want_quick = quick_until.is_some_and(|t| Instant::now() < t);
+        if want_quick != quick {
+            quick = want_quick;
+            let poll = if quick { QUICK_POLL } else { POLL };
+            let _ = ws.get_ref().tcp().set_read_timeout(Some(poll));
+        }
         match ws.read() {
             Ok(msg) => {
                 if msg.is_close() {
@@ -869,6 +898,10 @@ fn handle_conn(stream: TcpStream, hub: PeerHub, app: AppHandle, generation: u64)
                             .is_err()
                         {
                             break;
+                        }
+                        if let Some(within) = ANSWER_SOON.with(|c| c.take()) {
+                            let until = Instant::now() + within;
+                            quick_until = Some(quick_until.map_or(until, |t| t.max(until)));
                         }
                     }
                 }
@@ -1302,6 +1335,7 @@ fn handle_msg(
         // again: gated on the fileUpload feature, so a client that hasn't seen it
         // sends the one-frame upload command instead.
         "uploadBegin" | "uploadChunk" | "uploadDone" | "uploadAbort" => {
+            answer_soon(QUICK_FOR);
             crate::peeruploadhost::handle(app, out, t, &v)
         }
         // Arm this host's own phone pairing and hand back the QR payload, so the
@@ -1476,6 +1510,7 @@ fn dispatch_invoke(
     // whole payload through the host webview. Args arrive with the frontend's
     // camelCase keys on this direct path.
     if cmd == "upload_clipboard_image_for_terminal" || cmd == "upload_file_for_terminal" {
+        answer_soon(QUICK_FOR);
         let s = |k: &str| {
             args.get(k)
                 .and_then(Value::as_str)
@@ -1510,12 +1545,20 @@ fn dispatch_invoke(
         });
         return;
     }
-    // A video on this Mac, previewed on the client: each range is a disk read,
-    // answered from Rust off the socket thread like an upload.
-    if cmd == crate::mediapeer::MEDIA_RANGE_CMD {
+    // A video previewed on the client, or any file it reads in chunks: each
+    // range is a disk read, answered from Rust off the socket thread like an
+    // upload.
+    if cmd == crate::mediapeer::MEDIA_RANGE_CMD || cmd == crate::peerread::FILE_RANGE_CMD {
+        answer_soon(QUICK_FOR);
+        let media = cmd == crate::mediapeer::MEDIA_RANGE_CMD;
         let out = out.clone();
         std::thread::spawn(move || {
-            let frame = match crate::mediapeer::serve_host(&args) {
+            let served = if media {
+                crate::mediapeer::serve_host(&args)
+            } else {
+                crate::peerread::serve_host(&args)
+            };
+            let frame = match served {
                 Ok(value) => result_frame(&req_id, true, value),
                 Err(e) => result_frame(&req_id, false, Value::String(e)),
             };
@@ -1532,6 +1575,14 @@ fn dispatch_invoke(
         return;
     }
     if is_denied(cmd) {
+        let _ = out.try_send(result_frame(
+            &req_id,
+            false,
+            Value::String(format!("command not permitted over peer connection: {cmd}")),
+        ));
+        return;
+    }
+    if names_a_paired_machine(&args) {
         let _ = out.try_send(result_frame(
             &req_id,
             false,
@@ -1608,6 +1659,8 @@ fn fast_path(app: &AppHandle, cmd: &str, args: &Value) -> Option<Result<Value, S
     let u16f = |k: &str| args.get(k).and_then(Value::as_u64).unwrap_or(0) as u16;
     match cmd {
         "write_terminal" => {
+            // The echo comes back from the terminal's reader thread.
+            answer_soon(ECHO_WITHIN);
             Some(pty::remote_write(&state, &s("id"), &s("data")).map(|_| Value::Null))
         }
         "resize_terminal" => {
@@ -1635,6 +1688,18 @@ fn fast_path(app: &AppHandle, cmd: &str, args: &Value) -> Option<Result<Value, S
             }))
         }
         _ => None,
+    }
+}
+
+/// The Mac sending a command strips its own markers, so a path still marked
+/// names a machine paired with this host, not with the sender: answering would
+/// have this host fetch from it on the sender's behalf.
+fn names_a_paired_machine(args: &Value) -> bool {
+    match args {
+        Value::String(s) => crate::mediapeer::split_peer_path(s).is_some(),
+        Value::Array(a) => a.iter().any(names_a_paired_machine),
+        Value::Object(o) => o.values().any(names_a_paired_machine),
+        _ => false,
     }
 }
 
@@ -1707,6 +1772,11 @@ fn is_denied(cmd: &str) -> bool {
             | "resume_tts"
             | "play_sound_preview"
             | "voice_to_text_toggle"
+            // launch an app on this machine's screen; the Mac asking opens its own
+            | "open_in"
+            | "open_file_in_editor"
+            | "open_path_in_default_app"
+            | "reveal_in_finder"
             // host-local browser overlay
             | "open_browser"
             | "close_browser"
@@ -2271,6 +2341,10 @@ mod tests {
         assert!(is_denied("save_settings"));
         assert!(is_denied("install_update"));
         assert!(is_denied("open_browser"));
+        assert!(is_denied("open_in"));
+        assert!(is_denied("open_file_in_editor"));
+        assert!(is_denied("open_path_in_default_app"));
+        assert!(is_denied("reveal_in_finder"));
         assert!(is_denied("start_claude_login"));
         // Control-ownership forgery and global host mutators must be blocked.
         assert!(is_denied("terminal_claim_control"));
@@ -2468,6 +2542,30 @@ mod tests {
     #[test]
     fn remote_pair_is_advertised_in_ready() {
         assert!(HOST_FEATURES.contains(&REMOTE_PAIR_FEATURE));
+    }
+
+    #[test]
+    fn a_path_on_another_machine_is_never_relayed() {
+        let marked = "/@peer-abcd1234/srv/a.pdf";
+        assert!(names_a_paired_machine(&json!({ "path": marked })));
+        assert!(names_a_paired_machine(
+            &json!({ "paths": ["/srv/b", marked] })
+        ));
+        assert!(names_a_paired_machine(
+            &json!({ "opts": { "files": [{ "path": marked }] } })
+        ));
+        assert!(!names_a_paired_machine(
+            &json!({ "path": "/srv/a.pdf", "max": 3 })
+        ));
+        assert!(!names_a_paired_machine(
+            &json!({ "id": "peer-abcd1234-web" })
+        ));
+    }
+
+    // Off this list a Mac reads this host's files in one 8 MB frame.
+    #[test]
+    fn file_range_is_advertised_in_ready() {
+        assert!(HOST_FEATURES.contains(&crate::peerread::FILE_RANGE_FEATURE));
     }
 
     #[test]

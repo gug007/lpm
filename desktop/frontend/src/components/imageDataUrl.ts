@@ -59,8 +59,8 @@ export function loadImageDataUrl(
   const key = readKey(path, slug);
   const cached = cacheGet(key);
   if (cached) return Promise.resolve(cached);
-  // A routed read comes back as one frame over the peer link, so it is capped
-  // where an upload is; past that the chip keeps its placeholder glyph.
+  // A chip for a paired machine's image is capped where an upload is, which is
+  // all an older host can send; past that the chip keeps its placeholder glyph.
   const read =
     key === path
       ? NotesReadFileAsInput(key)

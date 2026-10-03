@@ -1,8 +1,12 @@
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useOutsideClick } from "../hooks/useOutsideClick";
-import { useOpenInTargets, type OpenInTarget } from "../hooks/useOpenInTargets";
+import { EDITOR_IDS, useOpenInTargets, type OpenInTarget } from "../hooks/useOpenInTargets";
 import { OpenFileInEditor, OpenPathInDefaultApp } from "../../bridge/commands";
+import { basename } from "../path";
+import { isPeerMarked, peerSlugOf } from "../peer/markers";
+import { isEditable, noteReadOnlyCopy } from "../peer/readOnlyCopy";
+import { trackPeerDownload } from "../peer/uploadProgress";
 
 const SELECTED_KEY = "lpm.openFileWith.selectedId";
 const DEFAULT_APP_ID = "__default_app__";
@@ -25,9 +29,12 @@ interface OpenFileWithDropdownProps {
 export function OpenFileWithDropdown({ absPath, line, col, compact = false }: OpenFileWithDropdownProps) {
   const [open, setOpen] = useState(false);
   const editorTargets = useOpenInTargets();
+  // A file on a paired machine opens on this Mac, where a terminal or a file
+  // manager would have no folder of the file's to show.
+  const onPeer = isPeerMarked(absPath);
   const targets = useMemo<OpenInTarget[]>(
-    () => [...editorTargets, DEFAULT_APP_TARGET],
-    [editorTargets],
+    () => [...editorTargets.filter((t) => !onPeer || EDITOR_IDS.has(t.id)), DEFAULT_APP_TARGET],
+    [editorTargets, onPeer],
   );
   const [selectedId, setSelectedId] = useState<string>(
     () => localStorage.getItem(SELECTED_KEY) ?? "",
@@ -42,11 +49,13 @@ export function OpenFileWithDropdown({ absPath, line, col, compact = false }: Op
 
   const launch = async (t: OpenInTarget) => {
     try {
-      if (t.id === DEFAULT_APP_ID) {
-        await OpenPathInDefaultApp(absPath);
-      } else {
-        await OpenFileInEditor(t.id, absPath, line, col);
-      }
+      const opening =
+        t.id === DEFAULT_APP_ID
+          ? OpenPathInDefaultApp(absPath)
+          : OpenFileInEditor(t.id, absPath, line, col, isEditable(absPath));
+      const slug = peerSlugOf(absPath);
+      const opened = await (slug ? trackPeerDownload(absPath, slug, basename(absPath), opening) : opening);
+      noteReadOnlyCopy(absPath, opened);
     } catch (err) {
       toast.error(`Open in ${t.label}: ${err}`);
     }

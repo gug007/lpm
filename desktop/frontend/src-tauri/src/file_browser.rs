@@ -136,6 +136,9 @@ pub fn read_project_file(root: String, rel: String) -> Result<ProjectFileContent
 /// plainly rather than shelling out to a command it doesn't have.
 #[tauri::command(async)]
 pub fn reveal_in_finder(abs_path: String) -> Result<(), String> {
+    if crate::mediapeer::split_peer_path(&abs_path).is_some() {
+        return Err("Reveal in Finder works only for files on this Mac".into());
+    }
     let resolved = crate::files::resolve_existing_file(&abs_path)?;
     #[cfg(target_os = "macos")]
     {
