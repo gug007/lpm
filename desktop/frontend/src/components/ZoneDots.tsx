@@ -73,6 +73,7 @@ export function ZoneDots({ zone, layers, openKey, dragging, display, onOpen }: Z
       {layers[open].layer?.label && (
         <button
           type="button"
+          aria-label={`${layers[open].layer?.label}, next layer`}
           onClick={() => onOpen(layers[(open + 1) % layers.length].key)}
           className={`mr-0.5 ml-px grid cursor-pointer text-[10px] leading-none font-semibold ${tone.label}`}
           style={LIVE_DURING_DRAG}

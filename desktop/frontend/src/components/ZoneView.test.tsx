@@ -17,6 +17,7 @@ let root: Root;
 beforeEach(() => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   useZoneLayers.setState({ open: {} });
+  onZoneContextMenu.mockReset();
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
@@ -27,6 +28,8 @@ afterEach(() => {
   container.remove();
   vi.useRealTimers();
 });
+
+const onZoneContextMenu = vi.fn();
 
 function mount(zone: ZoneInfo, display: ZoneDisplay, layers: ZoneLayerView[]) {
   act(() =>
@@ -40,6 +43,7 @@ function mount(zone: ZoneInfo, display: ZoneDisplay, layers: ZoneLayerView[]) {
           disabled={false}
           scope="t"
           onRun={() => {}}
+          onZoneContextMenu={onZoneContextMenu}
         />
       </DndContext>,
     ),
@@ -70,7 +74,21 @@ function renderLayered(layers: LayerInfo[] = LAYERS, display: ZoneDisplay = "hea
   };
 }
 
+const rightClick = (el: Element) => {
+  const event = new MouseEvent("contextmenu", { bubbles: true, cancelable: true });
+  act(() => {
+    el.dispatchEvent(event);
+  });
+  return event;
+};
+
 describe("ZoneView", () => {
+  it("is a group named by its label", () => {
+    const { frame } = renderLayered();
+    expect(frame.getAttribute("role")).toBe("group");
+    expect(frame.getAttribute("aria-label")).toBe("Ship");
+  });
+
   it("spans two footer rows in the footer and two header rows in the header", () => {
     expect(render("footer").frame.style.height).toBe("57px");
     expect(render("header").frame.style.height).toBe("72px");
@@ -133,5 +151,34 @@ describe("a zone with layers", () => {
     expect(groups()).toEqual(["zone:ship/a"]);
     swipe(-40);
     expect(groups()).toEqual(["zone:ship/a"]);
+  });
+});
+
+describe("right-clicking a zone", () => {
+  const LABELLED: LayerInfo[] = [{ name: "dev", label: "Dev" }, { name: "prod", label: "Prod" }];
+
+  it("opens the zone's menu from its empty space", () => {
+    const { frame } = renderLayered();
+    expect(rightClick(frame).defaultPrevented).toBe(true);
+    expect(onZoneContextMenu).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens the zone's menu from a layer dot", () => {
+    const { dots } = renderLayered();
+    expect(rightClick(dots[1]).defaultPrevented).toBe(true);
+    expect(onZoneContextMenu).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens the zone's menu from the layer name", () => {
+    const { frame } = renderLayered(LABELLED);
+    const name = frame.querySelector<HTMLElement>("[data-zone-dots] button:not([aria-pressed])")!;
+    expect(rightClick(name).defaultPrevented).toBe(true);
+    expect(onZoneContextMenu).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves a button's right-click to the button", () => {
+    const { frame } = renderLayered();
+    rightClick(frame.querySelector("[data-actions-group] button")!);
+    expect(onZoneContextMenu).not.toHaveBeenCalled();
   });
 });

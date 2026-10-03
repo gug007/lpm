@@ -67,7 +67,10 @@ export function ZoneView({
   const handleContextMenu = (e: MouseEvent<HTMLDivElement>) => {
     // Skip what an action's menu already took: a right-click on a split
     // button's border or its portaled dropdown bubbles here outside any button.
-    if (!onZoneContextMenu || e.defaultPrevented || (e.target as HTMLElement).closest("button")) return;
+    // The layer dots and name are the zone's own, so they open its menu.
+    const target = e.target as HTMLElement;
+    const actionButton = target.closest("button") && !target.closest("[data-zone-dots]");
+    if (!onZoneContextMenu || e.defaultPrevented || actionButton) return;
     e.preventDefault();
     onZoneContextMenu(e, zone);
   };
@@ -100,6 +103,7 @@ export function ZoneView({
   );
   return (
     <ZoneFrame
+      label={zone.label}
       rows={zone.rows}
       display={display}
       state={state}
