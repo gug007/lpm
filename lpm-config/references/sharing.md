@@ -14,7 +14,7 @@ Higher layers win by field. Within `extends: [a, b, c]`, earlier templates win o
 
 ## Repo config
 
-Write team-shared configuration to `<root>/.lpm.yml`. It supports `extends`, `services`, `actions`, and `profiles` (declare terminals as actions with `type: terminal`). Do not put `name`, `root`, `parent_name`, `worktree`, or `ssh` in this file.
+Write team-shared configuration to `<root>/.lpm.yml`. It supports `extends`, `services`, `actions`, `profiles`, and `zones` (declare terminals as actions with `type: terminal`). Do not put `name`, `root`, `parent_name`, `worktree`, or `ssh` in this file.
 
 ```yaml
 services:
@@ -30,7 +30,7 @@ Repo config applies only to local projects and sits below the personal project f
 
 ## Global config
 
-Write personal actions and terminals available to every project to `~/.lpm/global.yml`. It supports `extends` and `actions` (including `type: terminal` shells).
+Write personal actions and terminals available to every project to `~/.lpm/global.yml`. It supports `extends`, `actions` (including `type: terminal` shells), and `zones`.
 
 ```yaml
 actions:

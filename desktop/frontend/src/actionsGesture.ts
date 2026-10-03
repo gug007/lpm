@@ -1,5 +1,5 @@
 import { splitChild } from "./actionIds";
-import type { ExtractIndicator } from "./components/actionsDndLayout";
+import type { ActionGroup, ExtractIndicator } from "./components/actionsDndLayout";
 
 export type StructuralOp =
   | { kind: "nest"; source: string; target: string }
@@ -12,7 +12,7 @@ export type StructuralOp =
       over?: string;
       position?: "before" | "after";
     }
-  | { kind: "extractToTop"; parent: string; child: string; group?: "header" | "footer"; index?: number }
+  | { kind: "extractToTop"; parent: string; child: string; group?: ActionGroup; index?: number }
   | { kind: "reorderMenu"; parent: string; child: string; over: string; position?: "before" | "after" };
 
 export interface GestureInput {

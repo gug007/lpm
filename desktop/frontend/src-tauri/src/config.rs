@@ -2010,7 +2010,7 @@ fn build_input_infos(inputs: &BTreeMap<String, ActionInputDef>) -> Vec<ActionInp
         .collect()
 }
 
-fn sort_action_names(names: &mut [String], pos_of: impl Fn(&str) -> Option<f64>) {
+pub(crate) fn sort_action_names(names: &mut [String], pos_of: impl Fn(&str) -> Option<f64>) {
     names.sort_by(|a, b| match (pos_of(a), pos_of(b)) {
         (Some(pa), Some(pb)) => pa
             .partial_cmp(&pb)
@@ -2276,6 +2276,7 @@ fn to_project_info(
         "services": running_services,
         "allServices": all_services,
         "actions": resolve_actions(file_name),
+        "zones": crate::zones::resolve_zones(file_name),
         "profiles": profiles,
         "activeProfile": active_profile,
         "statusEntries": [],
@@ -2327,6 +2328,7 @@ fn config_error_info(file_name: &str, err: &str) -> Value {
         "services": [],
         "allServices": [],
         "actions": [],
+        "zones": [],
         "profiles": [],
         "activeProfile": "",
         "statusEntries": [],
@@ -2549,6 +2551,7 @@ fn global_project_info() -> Value {
         "services": [],
         "allServices": [],
         "actions": resolve_actions(RESERVED_PROJECT_NAME),
+        "zones": crate::zones::resolve_zones(RESERVED_PROJECT_NAME),
         "profiles": [],
         "activeProfile": "",
         "statusEntries": [],

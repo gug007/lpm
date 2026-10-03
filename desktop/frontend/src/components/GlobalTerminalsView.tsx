@@ -90,7 +90,7 @@ export function GlobalTerminalsView({
         <ActionView
           key={a.name}
           action={a}
-          compact={false}
+          size="default"
           disabled={runningAction !== null}
           onRun={handleRunAction}
         />

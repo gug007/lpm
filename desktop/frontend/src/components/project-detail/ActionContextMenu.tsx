@@ -5,6 +5,8 @@ import {
   ChevronUpIcon,
   LayersIcon,
   MoveIcon,
+  PanelBottomIcon,
+  PanelTopIcon,
   PencilIcon,
   TrashIcon,
 } from "../icons";
@@ -12,6 +14,7 @@ import { ContextMenuItem } from "../ui/ContextMenuItem";
 import { ContextMenuSeparator } from "../ui/ContextMenuSeparator";
 import { ContextMenuShell } from "../ui/ContextMenuShell";
 import { ContextMenuSubmenu } from "../ui/ContextMenuSubmenu";
+import type { ZoneDisplay } from "../../types";
 import type { ActionGroup } from "../actionsDndLayout";
 
 interface ActionContextMenuProps {
@@ -23,6 +26,11 @@ interface ActionContextMenuProps {
   onMoveTo: (group: ActionGroup) => void;
   onMoveLeft: () => void;
   onMoveRight: () => void;
+  // Set when the button sits in a zone. A full zone leaves almost none of its
+  // frame to right-click, so its menu opens from here too.
+  zoneLabel?: string;
+  zoneRow?: ZoneDisplay;
+  onZoneMenu?: () => void;
   onEdit: () => void;
   canUngroup: boolean;
   onUngroup: () => void;
@@ -39,6 +47,9 @@ export function ActionContextMenu({
   onMoveTo,
   onMoveLeft,
   onMoveRight,
+  zoneLabel,
+  zoneRow,
+  onZoneMenu,
   onEdit,
   canUngroup,
   onUngroup,
@@ -79,6 +90,13 @@ export function ActionContextMenu({
           onClick={close(onMoveRight)}
         />
       </ContextMenuSubmenu>
+      {zoneLabel !== undefined && onZoneMenu && (
+        <ContextMenuItem
+          label={`Zone “${zoneLabel}”…`}
+          icon={zoneRow === "footer" ? <PanelBottomIcon /> : <PanelTopIcon />}
+          onClick={close(onZoneMenu)}
+        />
+      )}
       {canUngroup && (
         <ContextMenuItem label="Ungroup" icon={<LayersIcon />} onClick={close(onUngroup)} />
       )}

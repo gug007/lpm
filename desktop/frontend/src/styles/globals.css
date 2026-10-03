@@ -930,10 +930,10 @@ body[data-lpm-drag] [role="tooltip"] {
   opacity: 0;
 }
 
-/* No hover states or tooltips inside the zones mid-drag. Drops are
+/* No hover states or tooltips inside the action groups mid-drag. Drops are
    unaffected: collision detection is rect-based, not hit-tested. */
-body[data-lpm-drag] [data-actions-zone],
-body[data-lpm-drag] [data-actions-zone] * {
+body[data-lpm-drag] [data-actions-group],
+body[data-lpm-drag] [data-actions-group] * {
   pointer-events: none;
 }
 

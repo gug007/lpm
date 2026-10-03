@@ -1,7 +1,7 @@
 ---
 name: lpm-config
 version: 1.2.0
-description: Create and edit lpm YAML configs for projects, duplicates, worktree metadata, services, actions, terminals, profiles, SSH projects, and shared config layers. Use when the user explicitly asks to configure lpm, add an lpm service/action/button/terminal, edit `.lpm.yml`, or manage lpm templates or global config. For creating or removing linked Git worktrees and operating running projects, use `lpm-cli`.
+description: Create and edit lpm YAML configs for projects, duplicates, worktree metadata, services, actions, header and footer button zones, terminals, profiles, SSH projects, and shared config layers. Use when the user explicitly asks to configure lpm, add an lpm service/action/button/zone/terminal, edit `.lpm.yml`, or manage lpm templates or global config. For creating or removing linked Git worktrees and operating running projects, use `lpm-cli`.
 ---
 
 # Configure lpm
@@ -11,7 +11,7 @@ Create and modify lpm config on macOS exclusively through `lpm config get` and `
 ## Load only the relevant reference
 
 - Read [references/core.md](references/core.md) for project identity, services, dependencies, profiles, duplicates, linked Git worktrees, and project creation.
-- Read [references/actions.md](references/actions.md) when adding or changing actions, buttons, terminals, inputs, ports, shortcuts, or nested menus.
+- Read [references/actions.md](references/actions.md) when adding or changing actions, buttons, terminals, zones, inputs, ports, shortcuts, or nested menus.
 - Read [references/sharing.md](references/sharing.md) for `.lpm.yml`, global config, templates, `extends`, layering, and sparse overrides.
 - Read [references/ssh.md](references/ssh.md) for remote projects or `mode: sync`.
 - Read [references/validation.md](references/validation.md) before preparing a candidate and follow its transactional workflow.

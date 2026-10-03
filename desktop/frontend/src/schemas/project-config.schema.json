@@ -149,6 +149,15 @@
         "type": "array",
         "items": { "type": "string" }
       }
+    },
+    "zones": {
+      "type": "object",
+      "description": "Framed groups of buttons in the header or the footer, 1 to 3 rows tall. An action sits in a zone when its \"display\" is the zone's name. An entry with \"rows\" declares the zone; an entry without it only adjusts a zone declared in another config file.",
+      "propertyNames": {
+        "pattern": "^(?!(?:header|footer|menu|button)$)[^:]+$",
+        "errorMessage": "Invalid zone name. It can't be empty, contain \":\", or be \"header\", \"footer\", \"menu\" or \"button\"."
+      },
+      "additionalProperties": { "$ref": "#/definitions/zone" }
     }
   },
   "definitions": {
@@ -156,6 +165,27 @@
       "type": "object",
       "description": "Environment variables passed to the process.",
       "additionalProperties": { "type": "string" }
+    },
+    "zone": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "rows": {
+          "type": "integer",
+          "enum": [1, 2, 3],
+          "description": "Height in rows of the bar the zone sits in. An entry with \"rows\" declares the zone."
+        },
+        "label": { "type": "string", "description": "Name shown in menus. Defaults to the zone's key." },
+        "display": {
+          "type": "string",
+          "enum": ["header", "footer"],
+          "description": "The bar the zone sits in: \"header\" (default) or \"footer\". Footer zones share the footer's position numbering with footer buttons."
+        },
+        "position": {
+          "type": "number",
+          "description": "Optional sort key among the items of the zone's bar. Lower values render first; entries without a position fall back to alphabetical order. Floats are allowed so items can be inserted between existing positions without renumbering."
+        }
+      }
     },
     "service": {
       "oneOf": [
@@ -233,13 +263,12 @@
             "env": { "$ref": "#/definitions/envMap" },
             "confirm": { "type": "boolean", "description": "Prompt before running." },
             "display": {
-              "anyOf": [
-                { "type": "string", "enum": ["header", "footer"] },
-                { "type": "string", "pattern": "^menu$" }
-              ],
+              "type": "string",
+              "pattern": "^(?!button$)[^:]*$",
+              "examples": ["header", "footer"],
               "default": "header",
-              "description": "How the action appears in the UI. Defaults to \"header\" when omitted. \"menu\" is still accepted but no longer suggested.",
-              "errorMessage": "Invalid \"display\" value. Use \"header\" or \"footer\" (\"button\" → use \"header\")."
+              "description": "How the action appears in the UI. Defaults to \"header\" when omitted. \"footer\" pins it to the footer; any other name puts it in the zone of that name (see \"zones\"). \"menu\" is still accepted but no longer suggested.",
+              "errorMessage": "Invalid \"display\" value. Use \"header\", \"footer\" or a zone name without \":\" (\"button\" → use \"header\")."
             },
             "primary": { "type": "string", "examples": ["last-used"], "description": "For an action with sub-actions: which sub-action the button's main part shows and runs. \"last-used\" follows your most recent pick; a sub-action key always shows that one. The arrow still opens the full list." },
             "type": {
@@ -338,13 +367,12 @@
             "confirm": { "type": "boolean" },
             "reuse": { "type": "boolean" },
             "display": {
-              "anyOf": [
-                { "type": "string", "enum": ["header", "footer"] },
-                { "type": "string", "pattern": "^menu$" }
-              ],
+              "type": "string",
+              "pattern": "^(?!button$)[^:]*$",
+              "examples": ["header", "footer"],
               "default": "header",
-              "description": "How the terminal appears in the UI. Defaults to \"header\" when omitted. \"menu\" is still accepted but no longer suggested.",
-              "errorMessage": "Invalid \"display\" value. Use \"header\" or \"footer\" (\"button\" → use \"header\")."
+              "description": "How the terminal appears in the UI. Defaults to \"header\" when omitted. \"footer\" pins it to the footer; any other name puts it in the zone of that name (see \"zones\"). \"menu\" is still accepted but no longer suggested.",
+              "errorMessage": "Invalid \"display\" value. Use \"header\", \"footer\" or a zone name without \":\" (\"button\" → use \"header\")."
             },
             "primary": { "type": "string", "examples": ["last-used"], "description": "For an action with sub-actions: which sub-action the button's main part shows and runs. \"last-used\" follows your most recent pick; a sub-action key always shows that one. The arrow still opens the full list." },
             "position": {

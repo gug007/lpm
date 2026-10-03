@@ -1,10 +1,11 @@
 # Actions and terminals
 
-Read this reference for actions, buttons, terminals, input prompts, ports, shortcuts, and nested menus. An action entry is either a command string or the mapping described below.
+Read this reference for actions, buttons, terminals, zones, input prompts, ports, shortcuts, and nested menus. An action entry is either a command string or the mapping described below.
 
 - [Shapes](#shapes)
 - [Command quoting](#command-quoting)
 - [Fields](#fields)
+- [Zones](#zones)
 - [Action types](#action-types)
 - [Inputs](#inputs)
 - [Ports](#ports)
@@ -86,7 +87,7 @@ Shell quotes inside an otherwise plain YAML value do not quote the value for YAM
 | `cwd` | string | Relative to the local root or remote `ssh.dir`; local paths must exist. |
 | `env` | string map | Environment variables. |
 | `confirm` | boolean | Confirm before destructive or irreversible commands. |
-| `display` | string | `header` by default or `footer`; `menu` is legacy. Do not use deprecated `button`. |
+| `display` | string | `header` by default, `footer`, or the name of a zone (see Zones); `menu` is legacy. Do not use deprecated `button`. |
 | `primary` | string | On a parent with child `actions`, `last-used` or a child key; sets which child the split button's main segment runs. |
 | `type` | string | Omit for the inline runner, or use `terminal`, `command`, or `background`. |
 | `reuse` | boolean | With `type: terminal`, reuse the same pane. |
@@ -96,6 +97,34 @@ Shell quotes inside an otherwise plain YAML value do not quote the value for YAM
 | `position` | number | Lower values render first; floats are allowed. |
 | `inputs` | mapping | Values prompted before execution and substituted into `{{key}}`. |
 | `actions` | mapping | Nested child actions. |
+
+## Zones
+
+A zone is a framed spot in the desktop header or footer that holds buttons as buttons, not as menu items. It is 1, 2 or 3 rows of its bar tall, keeps that height when empty, and fills top to bottom, then the next column.
+
+```yaml
+zones:
+  build:
+    rows: 2          # 1, 2 or 3; an entry with rows declares the zone
+    label: Build     # optional, shown in menus
+    position: 3      # optional, order among the items of its bar
+  deploy:
+    rows: 1
+    display: footer  # header (default) or footer
+actions:
+  ios:
+    cmd: make ios
+    display: build   # show inside zone "build"
+    position: 1      # order inside the zone
+```
+
+- Declare a zone in the project file, the repo `.lpm.yml`, or `global.yml`. A higher file wins field by field: project file > duplicate's parent > repo `.lpm.yml` (local projects only) > `global.yml`.
+- A duplicate's own file can't declare zones (the validator rejects them); it inherits its parent's.
+- A zone entry without `rows` only adjusts a zone declared in another file — for example a `position` or `display` note in the project file.
+- `display` is `header` (the default) or `footer`; any other value is an error. Footer zones and footer buttons share one `position` numbering, as header zones and header buttons do.
+- Zone names can't be empty, `header`, `footer`, `menu` or `button`, and can't contain `:`.
+- Zones hold placement only. A button keeps its definition wherever it is declared; `display: <zone>` (usually written to the project file by drag and drop) puts it in the zone.
+- A button whose `display` names a zone that doesn't exist shows in the header.
 
 ## Action types
 
