@@ -1,6 +1,9 @@
 import { ReadGlobalConfig, SaveGlobalConfig } from "../../bridge/commands";
 import { GLOBAL_MODEL_URI } from "../monaco-setup";
+import { globalLayer, queueWrite } from "../yamlQueue";
 import { YamlConfigEditor } from "./YamlConfigEditor";
+
+const save = (content: string) => queueWrite(globalLayer.queueKey, () => SaveGlobalConfig(content));
 
 export function GlobalConfigEditor({ onBack }: { onBack: () => void }) {
   return (
@@ -9,7 +12,7 @@ export function GlobalConfigEditor({ onBack }: { onBack: () => void }) {
       description="Actions and terminals defined here are available in every project."
       modelUri={GLOBAL_MODEL_URI}
       load={ReadGlobalConfig}
-      save={SaveGlobalConfig}
+      save={save}
       onBack={onBack}
       docsUrl="https://lpm.cx/config#global-config"
     />

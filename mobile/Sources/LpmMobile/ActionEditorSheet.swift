@@ -58,11 +58,18 @@ private enum ActionRunIn: String, CaseIterable, Identifiable {
     }
 }
 
-/// Where the action appears in the project's controls.
-private enum ActionPlacement: String, CaseIterable, Identifiable {
-    case header, footer
-    var id: String { rawValue }
-    var title: String { self == .header ? "Top bar" : "Bottom bar" }
+/// Where the action appears in the project's controls. A zone is only offered
+/// for an action that already sits in one; the phone can't make or pick zones.
+private enum ActionPlacement: Hashable, Identifiable {
+    case header, footer, zone(String)
+    var id: Self { self }
+    var title: String {
+        switch self {
+        case .header: return "Top bar"
+        case .footer: return "Bottom bar"
+        case .zone(let name): return "Zone \u{201C}\(name)\u{201D}"
+        }
+    }
 }
 
 private struct OptionDraft: Identifiable {
@@ -100,11 +107,11 @@ private struct ActionDraft {
     var reuse = false
     var confirm = false
     var placement: ActionPlacement = .header
-    /// A `display` written back until the user changes the placement picker, so
-    /// editing alone doesn't move the button: a zone name the picker can't
-    /// show, or an explicit `header` that overrides a footer or zone display
-    /// from another file.
-    var keptDisplay: String? = nil
+    /// Where the action sat on disk. Moving it to the top bar from elsewhere
+    /// writes an explicit `header`, and so does keeping one, since it overrides
+    /// a footer or zone display from another file.
+    var seededPlacement: ActionPlacement = .header
+    var explicitHeader = false
     var inputs: [InputDraft] = []
     var children: [ChildDraft] = []
 }
@@ -373,12 +380,16 @@ struct ActionEditorSheet: View {
     private var placementSection: some View {
         Section {
             Picker("Placement", selection: $draft.placement) {
-                ForEach(ActionPlacement.allCases) { Text($0.title).tag($0) }
+                ForEach(placementOptions) { Text($0.title).tag($0) }
             }
-            .onChange(of: draft.placement) { _, _ in draft.keptDisplay = nil }
         } header: {
             Text("Placement")
         }
+    }
+
+    private var placementOptions: [ActionPlacement] {
+        if case .zone = draft.seededPlacement { return [.header, .footer, draft.seededPlacement] }
+        return [.header, .footer]
     }
 
     private var deleteSection: some View {
@@ -454,8 +465,13 @@ struct ActionEditorSheet: View {
         d.reuse = (body["reuse"] as? Bool) == true
         d.confirm = (body["confirm"] as? Bool) == true
         let display = body["display"] as? String ?? ""
-        d.placement = display == "footer" ? .footer : .header
-        if !["", "button", "footer"].contains(display) { d.keptDisplay = display }
+        switch display {
+        case "", "button", "header": d.placement = .header
+        case "footer": d.placement = .footer
+        default: d.placement = .zone(display)
+        }
+        d.seededPlacement = d.placement
+        d.explicitHeader = display == "header"
         if let inputs = body["inputs"] as? [[String: Any]] {
             d.inputs = inputs.map(inputDraft)
         }
@@ -506,7 +522,8 @@ struct ActionEditorSheet: View {
 
         setOrRemove(&p, "label", draft.label.trimmed.nilIfEmpty)
         setOrRemove(&p, "emoji", draft.emoji.trimmed.nilIfEmpty)
-        setOrRemove(&p, "display", draft.placement == .footer ? "footer" : draft.keptDisplay)
+        setOrRemove(&p, "display", displayValue)
+        if case .zone = draft.placement {} else { p.removeValue(forKey: "layer") }
 
         switch draft.kind {
         case .command:
@@ -525,6 +542,14 @@ struct ActionEditorSheet: View {
             }
         }
         return p
+    }
+
+    private var displayValue: String? {
+        switch draft.placement {
+        case .footer: return "footer"
+        case .zone(let name): return name
+        case .header: return draft.explicitHeader || draft.seededPlacement != .header ? "header" : nil
+        }
     }
 
     private func buildInputs() -> [[String: Any]] {

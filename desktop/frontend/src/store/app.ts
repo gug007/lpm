@@ -31,13 +31,11 @@ import {
   ListTemplates,
   MoveProjectRoot,
   PeerState,
-  ReadConfig,
   RemoveProject,
   RemoveProjectCascade,
   RemoveProjects,
   RenameTemplate,
   ResolvePortConflict,
-  SaveConfig,
   SetProjectLabel,
   SetWorkStatus,
   StartCloneProject,
@@ -389,33 +387,10 @@ interface AppState {
   refreshAfterRename: (newName?: string) => Promise<void>;
 }
 
-// Per-project write chain so a quick reorder + undo can't race two
-// read-modify-write SaveConfig calls through each other.
-const actionsWriteChain = new Map<string, Promise<void>>();
-
-function serializeActionsWrite(
-  projectName: string,
-  task: () => Promise<void>,
-): Promise<void> {
-  const prev = actionsWriteChain.get(projectName) ?? Promise.resolve();
-  const next = prev.catch(() => undefined).then(task);
-  actionsWriteChain.set(projectName, next);
-  // The caller gets a failure through `next`; this cleanup branch must not
-  // leave its own copy of it unhandled.
-  next.finally(() => {
-    if (actionsWriteChain.get(projectName) === next) {
-      actionsWriteChain.delete(projectName);
-    }
-  }).catch(() => undefined);
-  return next;
-}
-
-// parseDocument (vs parse + stringify) keeps comments and unrelated formatting.
-async function persistLayoutUpdates(projectName: string, updates: LayoutUpdates): Promise<void> {
-  const content = await ReadConfig(projectName);
-  const doc = YAML.parseDocument(content || "{}");
-  patchLayoutDoc(doc, updates);
-  await SaveConfig(projectName, String(doc));
+// The project file's one write queue keeps a drag save and a zone or layer
+// edit from racing their read-modify-write through each other.
+function persistLayoutUpdates(projectName: string, updates: LayoutUpdates): Promise<void> {
+  return editProjectDoc(projectName, (doc) => patchLayoutDoc(doc, updates));
 }
 
 function projectsEqual(a: ProjectInfo[], b: ProjectInfo[]): boolean {
@@ -457,7 +432,7 @@ async function persistActionsLayoutOrRecover(
   updates: LayoutUpdates,
 ): Promise<boolean> {
   try {
-    await serializeActionsWrite(projectName, () => persistLayoutUpdates(projectName, updates));
+    await persistLayoutUpdates(projectName, updates);
     return true;
   } catch (err) {
     toast.error(`Failed to save action order: ${err}`);

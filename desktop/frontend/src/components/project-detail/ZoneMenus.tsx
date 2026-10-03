@@ -8,6 +8,7 @@ import { addLayer, layersUnchanged, removeLayer, saveLayers } from "../../zoneLa
 import type { LayerDraft } from "../../zoneLayerConfig";
 import { layersOf, layoutHasZone } from "../../zoneLayers";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
+import { LayerNames } from "./LayerNames";
 import { ZoneContextMenu } from "./ZoneContextMenu";
 import { ZoneDialog } from "./ZoneDialog";
 
@@ -52,15 +53,6 @@ interface SharedLayers {
   zone: ZoneInfo;
   labels: string[];
   confirm: () => void;
-}
-
-function LayerNames({ labels }: { labels: string[] }) {
-  return labels.map((label, i) => (
-    <span key={i}>
-      {i > 0 && (i === labels.length - 1 ? " and " : ", ")}
-      <span className="font-medium text-[var(--text-primary)]">{label}</span>
-    </span>
-  ));
 }
 
 const NO_ZONE = { name: "", layers: [] };

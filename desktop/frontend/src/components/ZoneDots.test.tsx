@@ -65,6 +65,7 @@ describe("ZoneDots", () => {
     expect(label).not.toBeNull();
     const visible = [...label!.querySelectorAll("span")].filter((span) => !span.className.includes("invisible"));
     expect(visible.map((span) => span.textContent)).toEqual(["Dev"]);
+    expect(label!.getAttribute("aria-label")).toBe("Dev, next layer");
     // Every name sits in the label, so it's as wide as the widest one.
     expect(label!.textContent).toContain("Production");
   });

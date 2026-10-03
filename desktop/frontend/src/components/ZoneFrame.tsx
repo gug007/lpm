@@ -23,6 +23,7 @@ const FRAME_STATE: Record<ZoneDisplay, Record<ZoneFrameState, string>> = {
 };
 
 interface ZoneFrameProps {
+  label?: string;
   rows: ZoneRows;
   display?: ZoneDisplay;
   state: ZoneFrameState;
@@ -32,7 +33,7 @@ interface ZoneFrameProps {
 }
 
 // Exactly `rows` rows of its bar tall; its padding is the zone's one spacing value.
-export function ZoneFrame({ rows, display = "header", state, onContextMenu, onWheel, children }: ZoneFrameProps) {
+export function ZoneFrame({ label, rows, display = "header", state, onContextMenu, onWheel, children }: ZoneFrameProps) {
   const style: CSSProperties = { height: zoneHeight(rows, display), padding: ZONE_GAP_PX };
   const ref = useRef<HTMLDivElement>(null);
   // Native and non-passive: React's onWheel is passive, so it couldn't keep a
@@ -47,6 +48,8 @@ export function ZoneFrame({ rows, display = "header", state, onContextMenu, onWh
     <div
       ref={ref}
       data-zone-frame=""
+      role={label === undefined ? undefined : "group"}
+      aria-label={label}
       onContextMenu={onContextMenu}
       style={style}
       className={`relative box-border shrink-0 rounded-[10px] border transition-colors duration-150 ${FRAME_STATE[display][state]}`}
