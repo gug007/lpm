@@ -133,7 +133,15 @@ export function ZoneView({
       )}
       {open.ids.length === 0 && !extracting && <ZoneEmptyHint display={display} />}
       {pager && (
-        <ZoneDots zone={zone.name} layers={layers} openKey={open.key} dragging={buttonDrag} display={display} onOpen={showLayer} />
+        <ZoneDots
+          zone={zone.name}
+          layers={layers}
+          openKey={open.key}
+          dragging={buttonDrag}
+          display={display}
+          frameState={state}
+          onOpen={showLayer}
+        />
       )}
       {pager && buttonDrag && (
         <ZoneLayerRemeasure
