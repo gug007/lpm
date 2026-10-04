@@ -5,6 +5,7 @@ import type { ActionInfo, ZoneInfo } from "./types";
 import {
   type ActionsSnapshot,
   type NewZone,
+  addZoneAroundActionToDoc,
   addZoneToDoc,
   removeZoneFromDoc,
   setZoneDetailsInDoc,
@@ -145,6 +146,73 @@ describe("addZoneToDoc", () => {
     const out = add("zones:\n  deploy:\n    rows: 1\n", { ...HEADER_ZONE, label: "Deploy" }, snapshotOf());
     expect(Object.keys(out.zones)).toEqual(["deploy", "deploy-2"]);
     expect(out.zones["deploy-2"].label).toBe("Deploy");
+  });
+});
+
+const around = (yaml: string, action: string, now: ActionsSnapshot) => {
+  let key: string | null = null;
+  const out = run(yaml, (doc) => {
+    key = addZoneAroundActionToDoc(doc, action, 1, now);
+  });
+  return { out, key };
+};
+
+describe("addZoneAroundActionToDoc", () => {
+  it("puts the zone at the button's spot with the button inside", () => {
+    const now = snapshotOf([button("test", "", 1), button("lint", "", 2), button("deploy", "", 3)]);
+    const { out, key } = around("root: /tmp\n", "lint", now);
+    expect(key).toBe("zone");
+    expect(out.zones).toEqual({ zone: { rows: 1, position: 2 } });
+    expect(out.actions).toEqual({
+      test: { position: 1 },
+      lint: { position: 1, display: "zone" },
+      deploy: { position: 3 },
+    });
+  });
+
+  it("makes a footer zone for a footer button and leaves the header alone", () => {
+    const now = snapshotOf([button("test", "", 1), button("logs", "footer", 1), button("seed", "footer", 2)]);
+    const { out } = around("root: /tmp\n", "seed", now);
+    expect(out.zones).toEqual({ zone: { rows: 1, display: "footer", position: 2 } });
+    expect(out.actions).toEqual({ logs: { position: 1 }, seed: { position: 1, display: "zone" } });
+  });
+
+  it("goes right after the zone the button leaves, and drops the button's layer", () => {
+    const layers = [
+      { name: "mobile", position: 1 },
+      { name: "web", position: 2 },
+    ];
+    const now = snapshotOf(
+      [button("test", "", 1), { ...button("ios", "build", 1), layer: "mobile" }],
+      [zoneInfo("build", { rows: 2, position: 2, layers })],
+    );
+    const yaml =
+      "actions:\n  ios:\n    cmd: make ios\n    display: build\n    layer: mobile\n" +
+      "zones:\n  build:\n    rows: 2\n    position: 2\n    layers:\n      mobile:\n        position: 1\n      web:\n        position: 2\n";
+    const { out } = around(yaml, "ios", now);
+    expect(out.actions.ios).toEqual({ cmd: "make ios", display: "zone", position: 1 });
+    expect(out.zones.zone).toEqual({ rows: 1, position: 3 });
+    expect(out.zones.build.position).toBe(2);
+  });
+
+  it("writes a terminal button declared in another file as a sparse override", () => {
+    const claude = { ...button("claude"), type: "terminal" } as ActionInfo;
+    const { out } = around("root: /tmp\n", "claude", snapshotOf([button("test", "", 1), claude]));
+    expect(out.terminals).toEqual({ claude: { position: 1, display: "zone" } });
+    expect(out.zones.zone).toEqual({ rows: 1, position: 2 });
+  });
+
+  it("takes the next key when the project already has a zone of that name", () => {
+    const now = snapshotOf([button("test", "", 1)], [zoneInfo("zone", { rows: 2, position: 2 })]);
+    const { out, key } = around("zones:\n  zone:\n    rows: 2\n    position: 2\n", "test", now);
+    expect(key).toBe("zone-2");
+    expect(out.zones).toEqual({ zone: { rows: 2, position: 2 }, "zone-2": { rows: 1, position: 1 } });
+  });
+
+  it("changes nothing for a button that sits in no row", () => {
+    const { out, key } = around("root: /tmp\n", "ghost", snapshotOf([button("test")]));
+    expect(key).toBeNull();
+    expect(out).toEqual({ root: "/tmp" });
   });
 });
 

@@ -2,7 +2,15 @@ import { toast } from "sonner";
 import type { ActionsLayout, ZoneInfo } from "./types";
 import { useAppStore } from "./store/app";
 import { editGlobalDoc, editProjectDoc, editRepoDoc } from "./yamlQueue";
-import { type ActionsSnapshot, type NewZone, type ZoneDetails, addZoneToDoc, removeZoneFromDoc, setZoneDetailsInDoc } from "./zoneConfig";
+import {
+  type ActionsSnapshot,
+  type NewZone,
+  type ZoneDetails,
+  addZoneAroundActionToDoc,
+  addZoneToDoc,
+  removeZoneFromDoc,
+  setZoneDetailsInDoc,
+} from "./zoneConfig";
 import { layoutWithoutZone } from "./components/actionsDndLayout";
 
 type Mutate = Parameters<typeof editProjectDoc>[1];
@@ -26,6 +34,13 @@ export async function runZoneEdit(task: () => Promise<unknown>, failure: string)
 export function createZone(projectName: string, snapshot: ActionsSnapshot, zone: NewZone): Promise<void> {
   return runZoneEdit(
     () => editProjectDoc(projectName, (doc) => addZoneToDoc(doc, zone, snapshot)),
+    "Could not add the zone",
+  );
+}
+
+export function createZoneAround(projectName: string, snapshot: ActionsSnapshot, action: string): Promise<void> {
+  return runZoneEdit(
+    () => editProjectDoc(projectName, (doc) => addZoneAroundActionToDoc(doc, action, 1, snapshot)),
     "Could not add the zone",
   );
 }

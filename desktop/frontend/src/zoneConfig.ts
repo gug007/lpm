@@ -1,6 +1,7 @@
 import YAML from "yaml";
 import { buildLayoutUpdates, patchLayoutDoc } from "./actionsLayoutUpdates";
-import { zoneItemId } from "./components/actionsDndLayout";
+import { groupOf, isZoneGroup, rowOfZone, zoneItemId, zoneNameOfGroup } from "./components/actionsDndLayout";
+import { zoneOfListKey } from "./zoneLayers";
 import type { ActionInfo, ActionsLayout, ZoneDisplay, ZoneInfo, ZoneRows } from "./types";
 import { slugify } from "./slugify";
 import { uniqueKey } from "./uniqueKey";
@@ -75,6 +76,37 @@ export function addZoneToDoc(doc: Doc, { label, rows, display }: NewZone, snapsh
     zones: {},
   };
   patchLayoutDoc(doc, buildLayoutUpdates(snapshot.actions, row));
+}
+
+// A new zone holding one button, written with the move in one edit so it never
+// shows empty: it takes the button's spot in its row, or comes right after the
+// zone the button was in. Returns the zone's key, or null when the button sits
+// in no row or zone.
+export function addZoneAroundActionToDoc(doc: Doc, action: string, rows: ZoneRows, snapshot: ActionsSnapshot): string | null {
+  const { layout } = snapshot;
+  const group = groupOf(layout, action);
+  if (group === null) return null;
+  let from: string | null = null;
+  let display: ZoneDisplay | null = null;
+  if (isZoneGroup(group)) {
+    from = zoneOfListKey(zoneNameOfGroup(group));
+    display = rowOfZone(layout, from);
+  } else {
+    display = group;
+  }
+  if (display === null) return null;
+  const name = zoneKeyFor("", [...snapshot.zones.map((zone) => zone.name), ...zoneKeysIn(doc)]);
+  zonesOf(doc, true)?.set(name, doc.createNode(display === "footer" ? { rows, display } : { rows }));
+  const items = layout[display].filter((key) => key !== action);
+  const at = from === null ? layout[display].indexOf(action) : items.indexOf(zoneItemId(from)) + 1;
+  items.splice(at, 0, zoneItemId(name));
+  const next: ActionsLayout = {
+    header: display === "header" ? items : [],
+    footer: display === "footer" ? items : [],
+    zones: { [name]: [action] },
+  };
+  patchLayoutDoc(doc, buildLayoutUpdates(snapshot.actions, next, layout, snapshot.zones));
+  return name;
 }
 
 // An empty name drops `label`, so the zone shows its key or a lower file's label.
