@@ -5,11 +5,14 @@ import { extractToTop } from "./actionsStructural";
 import { extractOnto } from "./actionsStructural";
 import { reorderMenu } from "./actionsStructural";
 import { ungroupMenu } from "./actionsStructural";
-import { applyOpToDoc } from "./actionsStructural";
+import { applyOpToDoc, dropPlacementNote } from "./actionsStructural";
 
 function parse(s: string) {
   return YAML.parseDocument(s);
 }
+
+// A menu's children in the order they show.
+const shown = (order: string[]) => ({ orderOf: () => order });
 
 describe("nestEntry: leaf onto plain leaf -> split menu", () => {
   it("moves source under target.actions and keeps target cmd as default", () => {
@@ -325,19 +328,19 @@ function reorderedPositions(doc: ReturnType<typeof parse>) {
 describe("applyOpToDoc: reorderMenu matches the drag preview (arrayMove)", () => {
   it("moves the dragged child one slot down onto its neighbor", () => {
     const doc = parse(MENU_ABC);
-    applyOpToDoc(doc, { kind: "reorderMenu", parent: "menu", child: "a", over: "b" }, ["a", "b", "c"]);
+    applyOpToDoc(doc, { kind: "reorderMenu", parent: "menu", child: "a", over: "b" }, shown(["a", "b", "c"]));
     expect(reorderedPositions(doc)).toEqual({ b: 1, a: 2, c: 3 });
   });
 
   it("moves the dragged child down to the end", () => {
     const doc = parse(MENU_ABC);
-    applyOpToDoc(doc, { kind: "reorderMenu", parent: "menu", child: "a", over: "c" }, ["a", "b", "c"]);
+    applyOpToDoc(doc, { kind: "reorderMenu", parent: "menu", child: "a", over: "c" }, shown(["a", "b", "c"]));
     expect(reorderedPositions(doc)).toEqual({ b: 1, c: 2, a: 3 });
   });
 
   it("moves the dragged child up before the item it lands on", () => {
     const doc = parse(MENU_ABC);
-    applyOpToDoc(doc, { kind: "reorderMenu", parent: "menu", child: "c", over: "a" }, ["a", "b", "c"]);
+    applyOpToDoc(doc, { kind: "reorderMenu", parent: "menu", child: "c", over: "a" }, shown(["a", "b", "c"]));
     expect(reorderedPositions(doc)).toEqual({ c: 1, a: 2, b: 3 });
   });
 
@@ -353,15 +356,15 @@ actions:
       b:
         cmd: echo b
 `);
-    applyOpToDoc(doc, { kind: "reorderMenu", parent: "menu", child: "a", over: "b" }, ["a", "b", "c"]);
+    applyOpToDoc(doc, { kind: "reorderMenu", parent: "menu", child: "a", over: "b" }, shown(["a", "b", "c"]));
     expect(reorderedPositions(doc)).toEqual({ b: 1, a: 2, c: 3 });
   });
 
   it("is a no-op when over is missing, equals the dragged child, or no order is supplied", () => {
     const doc = parse(MENU_ABC);
     const before = String(doc);
-    applyOpToDoc(doc, { kind: "reorderMenu", parent: "menu", child: "a", over: "missing" }, ["a", "b", "c"]);
-    applyOpToDoc(doc, { kind: "reorderMenu", parent: "menu", child: "a", over: "a" }, ["a", "b", "c"]);
+    applyOpToDoc(doc, { kind: "reorderMenu", parent: "menu", child: "a", over: "missing" }, shown(["a", "b", "c"]));
+    applyOpToDoc(doc, { kind: "reorderMenu", parent: "menu", child: "a", over: "a" }, shown(["a", "b", "c"]));
     applyOpToDoc(doc, { kind: "reorderMenu", parent: "menu", child: "a", over: "b" });
     expect(String(doc)).toBe(before);
   });
@@ -373,7 +376,7 @@ describe("applyOpToDoc: position-aware reorderMenu (drop-indicator model)", () =
     applyOpToDoc(
       doc,
       { kind: "reorderMenu", parent: "menu", child: "c", over: "b", position: "before" },
-      ["a", "b", "c"],
+      shown(["a", "b", "c"]),
     );
     expect(reorderedPositions(doc)).toEqual({ a: 1, c: 2, b: 3 });
   });
@@ -383,7 +386,7 @@ describe("applyOpToDoc: position-aware reorderMenu (drop-indicator model)", () =
     applyOpToDoc(
       doc,
       { kind: "reorderMenu", parent: "menu", child: "a", over: "b", position: "after" },
-      ["a", "b", "c"],
+      shown(["a", "b", "c"]),
     );
     expect(reorderedPositions(doc)).toEqual({ b: 1, a: 2, c: 3 });
   });
@@ -393,7 +396,7 @@ describe("applyOpToDoc: position-aware reorderMenu (drop-indicator model)", () =
     applyOpToDoc(
       doc,
       { kind: "reorderMenu", parent: "menu", child: "c", over: "a", position: "before" },
-      ["a", "b", "c"],
+      shown(["a", "b", "c"]),
     );
     expect(reorderedPositions(doc)).toEqual({ c: 1, a: 2, b: 3 });
   });
@@ -403,7 +406,7 @@ describe("applyOpToDoc: position-aware reorderMenu (drop-indicator model)", () =
     applyOpToDoc(
       doc,
       { kind: "reorderMenu", parent: "menu", child: "a", over: "c", position: "after" },
-      ["a", "b", "c"],
+      shown(["a", "b", "c"]),
     );
     expect(reorderedPositions(doc)).toEqual({ b: 1, c: 2, a: 3 });
   });
@@ -649,5 +652,129 @@ describe("ungroupMenu", () => {
           Clean: { cmd: nested }
 `);
     expect(() => ungroupMenu(doc, "Build:iOS")).toThrow();
+  });
+});
+
+describe("moving items keeps what they resolved to", () => {
+  it("nests a button at the end of the menu as it shows, without its bar placement", () => {
+    const doc = parse(`
+terminals:
+  claude:
+    cmd: claude
+    position: 1
+    display: footer
+actions:
+  menu:
+    cmd: m
+    actions:
+      b: { cmd: b, position: 1 }
+      a: { cmd: a, position: 2 }
+`);
+    nestEntry(doc, "claude", "menu", shown(["b", "a"]));
+    const r = YAML.parse(String(doc));
+    expect(r.terminals.claude).toBeUndefined();
+    expect(r.actions.menu.actions.claude).toEqual({ cmd: "claude", type: "terminal", position: 3 });
+    expect(r.actions.menu.actions.b.position).toBe(1);
+    expect(r.actions.menu.actions.a.position).toBe(2);
+  });
+
+  it("writes the inherited cwd, env and type onto an item dragged out of its menu", () => {
+    const doc = parse(`
+actions:
+  build:
+    cwd: ios
+    type: background
+    env: { A: "1" }
+    actions:
+      sim:
+        cmd: make sim
+        env: { B: "2" }
+      device: make device
+`);
+    extractToTop(doc, "build", "sim");
+    const r = YAML.parse(String(doc));
+    expect(r.actions.sim).toEqual({ cmd: "make sim", env: { B: "2", A: "1" }, cwd: "ios", type: "background" });
+    expect(r.actions.build.actions.sim).toBeUndefined();
+  });
+
+  it("keeps only what the new parent wouldn't hand down anyway", () => {
+    const doc = parse(`
+actions:
+  src:
+    cwd: ios
+    env: { A: "1", B: "2" }
+    actions:
+      x: { cmd: x }
+  dst:
+    cwd: ios
+    env: { A: "1" }
+    actions:
+      p: { cmd: p }
+`);
+    extractOnto(doc, "src", "x", "dst");
+    const r = YAML.parse(String(doc));
+    expect(r.actions.dst.actions.x).toEqual({ cmd: "x", env: { B: "2" }, position: 2 });
+  });
+
+  it("places an item moved into another menu by that menu's shown order", () => {
+    const doc = parse(`
+actions:
+  src:
+    cmd: s
+    actions:
+      x: { cmd: x }
+      y: { cmd: y }
+  dst:
+    cmd: d
+    actions:
+      p: { cmd: p }
+      q: { cmd: q }
+`);
+    extractOnto(doc, "src", "x", "dst", "p", "after", shown(["q", "p"]));
+    const r = YAML.parse(String(doc));
+    expect(r.actions.dst.actions.q.position).toBe(1);
+    expect(r.actions.dst.actions.p.position).toBe(2);
+    expect(r.actions.dst.actions.x.position).toBe(3);
+  });
+
+  it("refuses to move an item its menu takes from another file", () => {
+    const doc = parse(`
+actions:
+  deploy:
+    cmd: d
+`);
+    expect(() => extractToTop(doc, "deploy", "staging")).toThrow(/another config file/);
+  });
+});
+
+describe("dropPlacementNote", () => {
+  it("removes an entry holding only a button's place", () => {
+    const doc = parse(`
+terminals:
+  claude:
+    position: 1
+actions:
+  lint:
+    position: 2
+    cmd: npm run lint
+`);
+    expect(dropPlacementNote(doc, "claude")).toBe(true);
+    expect(dropPlacementNote(doc, "lint")).toBe(false);
+    const r = YAML.parse(String(doc));
+    expect(r.terminals.claude).toBeUndefined();
+    expect(r.actions.lint.cmd).toBe("npm run lint");
+  });
+});
+
+describe("a position-only note is no menu", () => {
+  it("refuses to nest into an entry that only places a button declared elsewhere", () => {
+    const doc = parse(`
+actions:
+  deploy:
+    position: 3
+  lint:
+    cmd: npm run lint
+`);
+    expect(() => nestEntry(doc, "lint", "deploy")).toThrow(/another config file/);
   });
 });

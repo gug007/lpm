@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { type PointerEvent as ReactPointerEvent, useCallback, useEffect, useRef, useState } from "react";
 import {
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
   PointerSensor,
+  type PointerSensorOptions,
   type SensorDescriptor,
   type SensorOptions,
   useSensor,
@@ -22,9 +23,13 @@ import {
   isCrumbId,
   isGroupDropId,
   isNestId,
+  isZoneDotsId,
+  listOf,
   nestTargetOf,
   resolveTarget,
   sameLayout,
+  zoneGroup,
+  zoneOfDotsId,
 } from "../components/actionsDndLayout";
 
 export interface UseActionsDndOptions {
@@ -34,8 +39,8 @@ export interface UseActionsDndOptions {
   // Persists — fired once on drop, with the layout the drag started from.
   onMove: (next: ActionsLayout, before: ActionsLayout) => void;
   // Fired on a drop classified as a structural gesture (nest/extract/
-  // reorder); the caller then skips the flat reorder.
-  onStructural: (op: StructuralOp) => void;
+  // reorder); the caller then skips the flat reorder. false: refused.
+  onStructural: (op: StructuralOp) => boolean | void;
   // True when both actions live in the same config layer — nesting across
   // layers is rejected.
   canNest: (activeId: string, targetId: string) => boolean;
@@ -50,12 +55,26 @@ export interface UseActionsDndOptions {
   // Called from the start, end and cancel handlers, so the caller's own state
   // changes in the same render as the drag's.
   onDragActiveChange?: (active: boolean) => void;
+  // The list a zone takes drops into: its open layer's.
+  openListOf?: (zone: string) => string;
 }
+
+// How the lifted button settles on release: flying to its slot, or, when the
+// drop changed the menus, shrinking away where it was let go.
+export type DropSettle = "move" | "absorb";
 
 export interface UseActionsDndResult {
   sensors: SensorDescriptor<SensorOptions>[];
   activeId: string | null;
   overGroup: ActionGroup | null;
+  // The row or zone list the dragged button started in.
+  origin: ActionGroup | null;
+  // True while the pointer is away from every row, zone and menu, where a
+  // release puts the button back.
+  outside: boolean;
+  settle: DropSettle;
+  // The item a drop just moved into or out of a menu, until the change shows.
+  settlingId: string | null;
   onDragStart: (event: DragStartEvent) => void;
   onDragOver: (event: DragOverEvent) => void;
   onDragCancel: () => void;
@@ -69,6 +88,44 @@ export interface UseActionsDndResult {
 // that mouse input can never end, leaving a stuck overlay that blocks
 // clicks.
 const POINTER_OPTS = { activationConstraint: { distance: 5 } } as const;
+
+// On macOS a control-click is a right-click: it opens the button's context
+// menu, and a pending drag would block that menu and could start moving the
+// button under it.
+class PrimaryPointerSensor extends PointerSensor {
+  static activators = PointerSensor.activators.map((activator) => ({
+    ...activator,
+    handler: (event: ReactPointerEvent, options: PointerSensorOptions) =>
+      !event.nativeEvent.ctrlKey && activator.handler(event, options),
+  }));
+}
+
+// dnd-kit stops the click that ends a drop, but not one that follows a
+// cancel: after an Escape mid-drag, letting go over a button would run it.
+// The next press is a fresh gesture, so it lifts the block.
+// It belongs to the press being let go: it ends right after the release (the
+// click fires in the same task), at a key press, or soon in any case, so a
+// later keyboard or scripted click is never eaten.
+function swallowNextClick(): void {
+  const swallow = (event: MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    lift();
+  };
+  const afterRelease = () => setTimeout(lift, 0);
+  const timer = setTimeout(() => lift(), 1000);
+  const lift = () => {
+    clearTimeout(timer);
+    window.removeEventListener("click", swallow, true);
+    window.removeEventListener("pointerdown", lift, true);
+    window.removeEventListener("keydown", lift, true);
+    window.removeEventListener("pointerup", afterRelease, true);
+  };
+  window.addEventListener("click", swallow, true);
+  window.addEventListener("pointerdown", lift, true);
+  window.addEventListener("keydown", lift, true);
+  window.addEventListener("pointerup", afterRelease, true);
+}
 
 // Multi-container sortable: snapshot layout at drag-start, preview only
 // on cross-group moves (within-group reorder rides on SortableContext for
@@ -84,10 +141,15 @@ export function useActionsDnd({
   indicatorRef,
   menuDropRef,
   onDragActiveChange,
+  openListOf = (zone) => zone,
 }: UseActionsDndOptions): UseActionsDndResult {
-  const sensors = useSensors(useSensor(PointerSensor, POINTER_OPTS));
+  const sensors = useSensors(useSensor(PrimaryPointerSensor, POINTER_OPTS));
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overGroup, setOverGroup] = useState<ActionGroup | null>(null);
+  const [settle, setSettle] = useState<DropSettle>("move");
+  const [outside, setOutside] = useState(false);
+  const [origin, setOrigin] = useState<ActionGroup | null>(null);
+  const [settlingId, setSettlingId] = useState<string | null>(null);
   const baselineRef = useRef<ActionsLayout | null>(null);
 
   const layoutRef = useRef(layout);
@@ -97,6 +159,8 @@ export function useActionsDnd({
   const canNestRef = useRef(canNest);
   const isMenuRef = useRef(isMenu);
   const onDragActiveChangeRef = useRef(onDragActiveChange);
+  const openListOfRef = useRef(openListOf);
+  openListOfRef.current = openListOf;
   layoutRef.current = layout;
   onPreviewRef.current = onPreview;
   onMoveRef.current = onMove;
@@ -117,7 +181,11 @@ export function useActionsDnd({
 
   const onDragStart = useCallback((event: DragStartEvent) => {
     setActiveId(String(event.active.id));
+    setOrigin(groupOf(layoutRef.current, String(event.active.id)));
     setOverGroup(null);
+    setOutside(false);
+    setSettle("move");
+    setSettlingId(null);
     onDragActiveChangeRef.current?.(true);
     baselineRef.current = layoutRef.current;
     menuDropRef.current = null;
@@ -129,6 +197,7 @@ export function useActionsDnd({
 
   const onDragOver = useCallback((event: DragOverEvent) => {
     const { active, over } = event;
+    setOutside(!over);
     // A dragged-out menu item isn't a member of the row's sortable list, so
     // the flat cross-group preview doesn't apply — its placeholder is driven
     // by the extract indicator instead.
@@ -136,11 +205,21 @@ export function useActionsDnd({
       setOverGroup(null);
       return;
     }
+    // Away from everything the button shows back where it started, as a
+    // release there would leave it.
     if (!over) {
       setOverGroup(null);
+      if (baselineRef.current) revertToBaseline(baselineRef.current);
       return;
     }
     const currentLayout = layoutRef.current;
+    // The dots switch layers on a hover. Nothing moves while the pointer is on
+    // them: a button joining the open layer could widen the zone and slide the
+    // dots out from under the pointer before the hover opens another layer.
+    if (isZoneDotsId(String(over.id))) {
+      setOverGroup(zoneGroup(openListOfRef.current(zoneOfDotsId(String(over.id)))));
+      return;
+    }
     const target = resolveTarget(String(over.id), currentLayout);
     setOverGroup(target?.group ?? null);
     if (!target || !baselineRef.current) return;
@@ -152,23 +231,24 @@ export function useActionsDnd({
     const next = applyMove(baselineRef.current, draggedId, target);
     if (sameLayout(currentLayout, next)) return;
     onPreviewRef.current(next);
-  }, []);
+  }, [revertToBaseline]);
 
   const onDragCancel = useCallback(() => {
+    swallowNextClick();
     setActiveId(null);
     setOverGroup(null);
-    onDragActiveChangeRef.current?.(false);
+    setOutside(false);
     menuDropRef.current = null;
     const baseline = baselineRef.current;
     baselineRef.current = null;
     if (baseline) revertToBaseline(baseline);
+    onDragActiveChangeRef.current?.(false);
   }, [revertToBaseline, menuDropRef]);
 
-  const onDragEnd = useCallback((event: DragEndEvent) => {
+  // Commits or reverts the drop; the caller hears the drag is over only after,
+  // so a save has taken its own refresh hold before the drag's is let go.
+  const settleDrop = useCallback((event: DragEndEvent) => {
     const { active, over } = event;
-    setActiveId(null);
-    setOverGroup(null);
-    onDragActiveChangeRef.current?.(false);
     const baseline = baselineRef.current;
     baselineRef.current = null;
     // Inside an open drill menu the drop-indicator model decides the gesture:
@@ -177,12 +257,13 @@ export function useActionsDnd({
     const menuDrop = menuDropRef.current;
     menuDropRef.current = null;
     if (!baseline) return;
+    // Let go away from every row, zone and menu: nothing changes.
+    if (!over) return revertToBaseline(baseline);
     const current = layoutRef.current;
-    // Classify before the no-target early-return: extractToTop fires when a
-    // menu child is dropped on empty space (over absent or a group drop id).
-    // A child target id (parent:child) is an item; only group drop ids are not.
+    // A menu child let go over a row's empty part extracts to the top level. A
+    // child target id (parent:child) is an item; only group drop ids are not.
     const draggedId = String(active.id);
-    const overId = over ? String(over.id) : "";
+    const overId = String(over.id);
     // A breadcrumb drop moves the child out one level; it takes precedence, so
     // the nest/item targets are suppressed and detectGesture keys off crumbTarget.
     const crumbTarget = isCrumbId(overId) ? crumbTargetOf(overId) : undefined;
@@ -198,22 +279,27 @@ export function useActionsDnd({
       menuNest ?? (!onCrumb && isNestId(overId) ? nestTargetOf(overId) : null);
     const overItemId =
       menuReorderOver ??
-      (menuDrop || onCrumb || !over || isGroupDropId(overId) || isNestId(overId) ? null : overId);
+      (menuDrop || onCrumb || isGroupDropId(overId) || isNestId(overId) ? null : overId);
     const op = detectGesture({
       draggedId,
       draggedIsMenu: isMenuRef.current(draggedId),
       overNestTarget,
       overItemId,
-      sameLevel: overNestTarget !== null && canNestRef.current(draggedId, overNestTarget),
+      sameLevel:
+        (overNestTarget ?? menuReorderOver) !== null &&
+        canNestRef.current(draggedId, overNestTarget ?? menuReorderOver ?? ""),
       extractTarget: indicatorRef.current,
       crumbTarget,
       reorderPosition,
     });
     if (op) {
-      onStructuralRef.current(op);
+      // A refused op puts the button back, so it flies home like any revert.
+      const accepted = onStructuralRef.current(op) !== false;
+      setSettle(accepted ? "absorb" : "move");
+      if (accepted) setSettlingId(draggedId);
+      else revertToBaseline(baseline);
       return;
     }
-    if (!over) return revertToBaseline(baseline);
     // Cursor on the dragged item's own placeholder: the preview already
     // represents where the user wants it to land — commit current as
     // final. (Without this, cross-group drops snap back to baseline
@@ -223,12 +309,22 @@ export function useActionsDnd({
       onMoveRef.current(current, baseline);
       return;
     }
-    const target = resolveTarget(overId, current);
+    // Let go on a zone's dots: the button joins the end of the layer showing.
+    const dotsGroup = isZoneDotsId(overId) ? zoneGroup(openListOfRef.current(zoneOfDotsId(overId))) : null;
+    const target = dotsGroup ? { group: dotsGroup, index: listOf(baseline, dotsGroup).length } : resolveTarget(overId, current);
     if (!target) return revertToBaseline(baseline);
     const final = applyMove(baseline, draggedId, target);
     if (sameLayout(baseline, final)) return revertToBaseline(baseline);
     onMoveRef.current(final, baseline);
   }, [revertToBaseline, indicatorRef, menuDropRef]);
 
-  return { sensors, activeId, overGroup, onDragStart, onDragOver, onDragCancel, onDragEnd };
+  const onDragEnd = useCallback((event: DragEndEvent) => {
+    setActiveId(null);
+    setOverGroup(null);
+    setOutside(false);
+    settleDrop(event);
+    onDragActiveChangeRef.current?.(false);
+  }, [settleDrop]);
+
+  return { sensors, activeId, overGroup, origin, outside, settle, settlingId, onDragStart, onDragOver, onDragCancel, onDragEnd };
 }

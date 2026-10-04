@@ -82,8 +82,10 @@ export function detectGesture(input: GestureInput): StructuralOp | null {
         }
         // Cross-level before/after: the over row lives in a different menu (the
         // user spring-navigated up mid-drag). Move the child into that menu at
-        // the indicated side instead of extracting to the toolbar.
+        // the indicated side instead of extracting to the toolbar, when both
+        // menus live in the same config file.
         if (input.reorderPosition) {
+          if (!input.sameLevel) return null;
           return {
             kind: "extractOnto",
             parent: childRef.parent,

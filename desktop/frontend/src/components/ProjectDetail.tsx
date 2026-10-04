@@ -31,6 +31,7 @@ import { deleteService } from "../serviceConfig";
 import { createZoneAround } from "../zoneActions";
 import { EMPTY_SERVICES } from "./project-detail/constants";
 import { useActionsByDisplay } from "../hooks/useActionsByDisplay";
+import { useActionsDragging } from "../hooks/useActionsDragging";
 import { useDetailView } from "../hooks/useDetailView";
 import { useEntityEditor } from "../hooks/useEntityEditor";
 import { useKeyboardShortcut } from "../hooks/useKeyboardShortcut";
@@ -76,6 +77,7 @@ import { CloseColumnButton } from "./project-detail/CloseColumnButton";
 import { useFollowState } from "../hooks/useFollowState";
 import { peerSlugOf } from "../peer/markers";
 import { peerAlias, usePeerState } from "../peer/usePeerState";
+import { isPeerName } from "../peer/markers";
 
 interface ProjectDetailProps {
   project: ProjectInfo;
@@ -444,11 +446,15 @@ export function ProjectDetail({
   actionsRef.current = project.actions;
   const modelRef = useRef(actionsModel);
   modelRef.current = actionsModel;
+  const themeStyleRef = useRef(themeStyle);
+  themeStyleRef.current = themeStyle;
   const renderActionOverlay = useCallback(
-    (id: string, overGroup: ActionGroup | null) => (
+    (id: string, overGroup: ActionGroup | null, nestInto: string | null) => (
       <ActionDragOverlay
         id={id}
         overGroup={overGroup}
+        nestInto={nestInto}
+        footerStyle={themeStyleRef.current}
         actions={actionsRef.current ?? []}
         model={modelRef.current}
         projectName={project.name}
@@ -463,11 +469,18 @@ export function ProjectDetail({
   );
 
   const levelMapRef = useRef<LevelMap>(new Map());
+  // A drag's previews hand project.actions a new identity on every move
+  // between rows without touching any config file.
+  const {
+    dragging: actionsDragging,
+    draggingRef: actionsDraggingRef,
+    onDragActiveChange: handleActionsDragActive,
+  } = useActionsDragging();
   useEffect(() => {
     // Hidden instances stay mounted (App keeps every visited project's
     // detail alive); skipping them avoids re-reading all three config
     // layers per project on every refresh.
-    if (!visible) return;
+    if (!visible || actionsDraggingRef.current) return;
     let cancelled = false;
     loadLevelMap(project.name).then((m) => {
       if (!cancelled) levelMapRef.current = m;
@@ -493,8 +506,16 @@ export function ProjectDetail({
   const handleStructural = useCallback(
     (op: StructuralOp) => {
       const level = levelOf(structuralSubject(op));
-      if (!level) return;
-      applyStructuralOp(project.name, op, level);
+      if (!level) {
+        toast.error(
+          isPeerName(project.name)
+            ? "Menus from the other Mac's shared settings can't be changed here"
+            : "This menu comes from shared settings and can't be changed here",
+        );
+        return false;
+      }
+      void applyStructuralOp(project.name, op, level);
+      return true;
     },
     [applyStructuralOp, project.name, levelOf],
   );
@@ -616,7 +637,6 @@ export function ProjectDetail({
   const zonesKey = (project.zones ?? []).map((z) => `${z.name}:${z.rows}`).join("|");
   // The header's items and its zones' buttons; the footer's never change its width.
   const headerKey = movedByZoneResize(actionsLayout, "header").join("\n");
-  const [actionsDragging, setActionsDragging] = useState(false);
   const {
     wrapped: actionsWrapped,
     rowRef: headerRowRef,
@@ -780,7 +800,7 @@ export function ProjectDetail({
       canNest={canNest}
       isMenu={isMenu}
       renderOverlay={renderActionOverlay}
-      onDragActiveChange={setActionsDragging}
+      onDragActiveChange={handleActionsDragActive}
       openListOf={openListOf}
     >
       <div className="flex h-full flex-col">

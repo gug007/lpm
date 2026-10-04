@@ -5,7 +5,8 @@ import type { ActionInfo } from "../types";
 import { ChevronDownIcon } from "./icons";
 import { withEmoji } from "../withEmoji";
 import { actionButtonStyle, actionTextColor } from "../actionColors";
-import { useActionsDragActive } from "./ActionsDnd";
+import { isChildId } from "../actionIds";
+import { useActionsActiveId } from "./ActionsDnd";
 import { ActionMenu } from "./ActionMenu";
 import { SPRING_LOAD_MS, useSpringOver } from "./springLoad";
 import {
@@ -99,35 +100,42 @@ export function SplitButton({ action, disabled, onRunAction, onContextMenu, size
   useEffect(() => {
     setRemembered(loadRememberedChild(scope, action.name));
   }, [scope, action.name]);
-  const dragActive = useActionsDragActive();
+  const activeId = useActionsActiveId();
+  const dragActive = activeId !== null;
+  // Only menu items can be dropped into a menu's rows.
+  const childDrag = activeId !== null && isChildId(activeId);
   const springOver = useSpringOver();
-  // Keep this menu open through a drag only if it was already open when the
-  // drag started (so its items stay draggable), rather than popping every
-  // menu open on any drag.
+  // Keep this menu open through a drag only if it was open when one of its
+  // own items was picked up, so its rows stay where the item came from. Any
+  // other drag closes it: its rows would cover the buttons beneath and take
+  // no drop.
   const keepOpenRef = useRef(false);
   const prevDragActiveRef = useRef(false);
   // Set when a drag spring-opens this menu, so it closes again when the drag
   // ends rather than getting stuck open.
   const springOpenedRef = useRef(false);
   useEffect(() => {
-    if (dragActive && !prevDragActiveRef.current) keepOpenRef.current = open;
+    if (dragActive && !prevDragActiveRef.current) {
+      keepOpenRef.current = open && activeId.startsWith(`${action.name}:`);
+      if (open && !keepOpenRef.current) setOpen(false);
+    }
     if (!dragActive && prevDragActiveRef.current && springOpenedRef.current) {
       springOpenedRef.current = false;
       setOpen(false);
     }
     prevDragActiveRef.current = dragActive;
-  }, [dragActive, open]);
+  }, [dragActive, open, activeId, action.name]);
 
-  // Dwelling a dragged item over this button opens its dropdown so the user can
-  // move the item inside (spring-load), mirroring the breadcrumb spring-out.
+  // Resting a dragged menu item on this button opens its dropdown so the user
+  // can place the item inside (spring-load), mirroring the breadcrumb spring-out.
   useEffect(() => {
-    if (!dragActive || !springOver || keepOpenRef.current) return;
+    if (!childDrag || !springOver || keepOpenRef.current) return;
     const timer = setTimeout(() => {
       springOpenedRef.current = true;
       setOpen(true);
     }, SPRING_LOAD_MS);
     return () => clearTimeout(timer);
-  }, [dragActive, springOver]);
+  }, [childDrag, springOver]);
   const panelOpen = open || (dragActive && keepOpenRef.current);
   const s = SIZE_CLASSES[size];
   const { triggerRef, panelRef, style } = useAnchoredPanel<HTMLDivElement, HTMLDivElement>({
@@ -170,7 +178,7 @@ export function SplitButton({ action, disabled, onRunAction, onContextMenu, size
   };
 
   const dropdown = panelOpen && style && createPortal(
-    <div ref={panelRef} style={style} className="z-[70]">
+    <div ref={panelRef} style={style} data-actions-menu="" className="z-[70]">
       <ActionMenu action={action} onRun={handleSelectChild} onClose={() => setOpen(false)} />
     </div>,
     document.body,

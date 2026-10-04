@@ -14,7 +14,7 @@ export function ZoneExtractPlaceholder({ slot }: ZoneExtractPlaceholderProps) {
     return (
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-y-1 right-px w-0.5 rounded-full bg-[var(--accent-blue)]"
+        className="pointer-events-none absolute inset-y-0.5 -right-[3px] w-0.5 rounded-full bg-[var(--accent-blue)]"
       />
     );
   }

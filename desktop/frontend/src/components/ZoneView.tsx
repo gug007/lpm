@@ -4,7 +4,7 @@ import type { ActionInfo, ZoneDisplay, ZoneInfo } from "../types";
 import { useLayerSwipe } from "../hooks/useLayerSwipe";
 import { openLayerOfListKey, useOpenLayer } from "../store/zoneLayers";
 import { zoneListKey } from "../zoneLayers";
-import { useActionsActiveId, useActionsOverGroup, useExtractGroup } from "./ActionsDnd";
+import { useActionsActiveId, useActionsDragOrigin, useActionsOverGroup, useExtractGroup } from "./ActionsDnd";
 import { ActionsGroup } from "./ActionsGroup";
 import { ActionsSortableItem } from "./ActionsSortableItem";
 import { ActionView } from "./ActionView";
@@ -14,7 +14,7 @@ import { ZoneExtractPlaceholder } from "./ZoneExtractPlaceholder";
 import { ZoneFrame } from "./ZoneFrame";
 import { ZoneLayerPager } from "./ZoneLayerPager";
 import { ZoneLayerRemeasure } from "./ZoneLayerRemeasure";
-import { zoneFrameState } from "./zoneFrameState";
+import { holdsButtonsDuringDrag, zoneFrameState } from "./zoneFrameState";
 import { ZONE_GRID_CLASS, zoneButtonSize, zoneEndSlot, zoneGridStyle } from "./zoneGeometry";
 import { groupDropId, isZoneItemId, nestId, zoneGroup } from "./actionsDndLayout";
 
@@ -52,7 +52,8 @@ export function ZoneView({
   const extractGroup = useExtractGroup();
   // A dragged-out menu item has no over group; it's over the zone it would join.
   const overGroup = useActionsOverGroup() ?? extractGroup;
-  const { state, holdsButtons } = zoneFrameState({ ids: open.ids, activeId, overGroup, group });
+  const origin = useActionsDragOrigin();
+  const { state, holdsButtons } = zoneFrameState({ ids: open.ids, activeId, overGroup, group, origin });
   const extracting = extractGroup === group;
   const showLayer = (key: string) => openLayerOfListKey(projectName, key);
   const layerAt = (dir: 1 | -1) => layers[openIndex + dir];
@@ -88,7 +89,9 @@ export function ZoneView({
       group={group}
       ids={open.ids}
       placeholder={<ZoneExtractPlaceholder slot={zoneEndSlot(open.ids.length, zone.rows)} />}
-      className={ZONE_GRID_CLASS}
+      // As wide as its own columns, so a new column's line sits after them
+      // even on a layer narrower than the widest one.
+      className={`${ZONE_GRID_CLASS} relative w-fit`}
       style={zoneGridStyle(zone.rows, gridHoldsButtons)}
     >
       {open.actions.map((action) => (
@@ -113,7 +116,7 @@ export function ZoneView({
           openKey={open.key}
           renderPage={(layer, isOpen) =>
             isOpen ? (
-              openList(layers.some((view) => view.ids.some((id) => id !== activeId)))
+              openList(layers.some((view) => holdsButtonsDuringDrag(view.ids, activeId, origin, zoneGroup(view.key))))
             ) : (
               <div className={ZONE_GRID_CLASS} style={zoneGridStyle(zone.rows, true)}>
                 {layer.actions.map((action) => (

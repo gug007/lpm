@@ -48,6 +48,8 @@ export function DrillMenu({
     "keydown",
     (e) => {
       if (e.key !== "Escape") return;
+      // Mid-drag, Escape cancels the drag, through dnd-kit's own listener.
+      if (document.body.hasAttribute("data-lpm-drag")) return;
       if (drilled) {
         e.stopImmediatePropagation();
         api.pop();

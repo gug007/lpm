@@ -20,10 +20,16 @@ interface HeaderActionsProps {
   onAddAction: () => void;
 }
 
+// While dragging, the header only re-measures on drop, so a button brought in
+// from the footer wraps the inline row in place instead of pushing it over the
+// project name. Inline, so it beats the title row's shrink-0 for its children.
+const INLINE_DRAG_STYLE = { ...NO_DRAG_STYLE, flexShrink: 1, minWidth: 0 } as const;
+
 // The wrapper is the droppable group for cross-group drops from the footer.
 export function HeaderActions({ wrapped, alignTop, onAddAction, ...row }: HeaderActionsProps) {
   const dragActive = useActionsDragActive();
   const align = alignTop ? "items-start" : "items-center";
+  const inlineDrag = !wrapped && dragActive;
   return (
     <ActionsRow
       {...row}
@@ -31,11 +37,11 @@ export function HeaderActions({ wrapped, alignTop, onAddAction, ...row }: Header
       className={
         wrapped
           ? `flex flex-wrap ${align} justify-end gap-2`
-          : dragActive
-            ? `flex grow ${align} justify-end gap-2`
+          : inlineDrag
+            ? `flex grow flex-wrap ${align} justify-end gap-2`
             : `flex shrink-0 ${align} gap-2`
       }
-      style={NO_DRAG_STYLE}
+      style={inlineDrag ? INLINE_DRAG_STYLE : NO_DRAG_STYLE}
     >
       <AddActionButton onAddAction={onAddAction} />
     </ActionsRow>

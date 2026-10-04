@@ -11,6 +11,7 @@ import {
 } from "./types";
 import {
   type ActionGroup,
+  arrayEq,
   groupOf,
   isZoneGroup,
   isZoneItemId,
@@ -98,7 +99,12 @@ export function buildLayoutUpdates(
     if (action.layer !== undefined || isLayerGroup(start)) hadLayer.add(action.name);
     sectionByKey.set(action.name, action.type === "terminal" ? "terminals" : "actions");
   }
+  // A row or zone list the move left as it was keeps what it has: rewriting
+  // its positions would pin buttons declared in other files into this
+  // project's file for nothing.
+  const untouched = (keys: string[], start: string[] | undefined) => !!start && arrayEq(keys, start);
   for (const row of ["header", "footer"] as const) {
+    if (before && untouched(layout[row], before[row])) continue;
     layout[row].forEach((key, index) => {
       if (!isZoneItemId(key)) return;
       const name = zoneNameOfItem(key);
@@ -107,8 +113,12 @@ export function buildLayoutUpdates(
     });
   }
   const visit = (keys: string[], placement: ActionGroup, display: string, layer: string | null) => {
+    if (before && untouched(keys, isZoneGroup(placement) ? before.zones[listKeyOfGroup(placement)] : before[placement as ZoneDisplay])) return;
     keys.forEach((key, index) => {
-      if (isZoneItemId(key)) return;
+      // Not a top-level action (any more): a layout from before a nest or an
+      // outside edit still lists it, and a note for it would show as an empty
+      // button.
+      if (isZoneItemId(key) || !sectionByKey.has(key)) return;
       const update: ActionUpdate = { position: index + 1, section: sectionByKey.get(key) ?? "actions" };
       if (previous.get(key) !== placement) {
         update.display = display;

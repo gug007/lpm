@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { zoneGroup, zoneItemId } from "./actionsDndLayout";
+import { type ActionGroup, zoneGroup, zoneItemId } from "./actionsDndLayout";
 import { zoneFrameState } from "./zoneFrameState";
 
 const group = zoneGroup("ci");
@@ -63,5 +63,22 @@ describe("zone frame state", () => {
       holdsButtons: false,
     });
     expect(zoneFrameState({ ids: [], activeId: dragged, overGroup: "header", group }).state).toBe("empty");
+  });
+});
+
+describe("zoneFrameState across layers and lift-off", () => {
+  it("stays the drop target while a hover on its dots opens another layer", () => {
+    const state = (overGroup: ActionGroup) =>
+      zoneFrameState({ ids: ["ios"], activeId: "lint", overGroup, group: "zone:tools/b" }).state;
+    expect(state("zone:tools/a")).toBe("over");
+    expect(state("zone:tools/b")).toBe("over");
+    expect(state("zone:deploy")).toBe("target");
+  });
+
+  it("keeps a zone filled while its only button is lifted out of it", () => {
+    const lifted = zoneFrameState({ ids: ["ios"], activeId: "ios", overGroup: null, group: "zone:tools", origin: "zone:tools" });
+    expect(lifted.holdsButtons).toBe(true);
+    const hovering = zoneFrameState({ ids: ["lint"], activeId: "lint", overGroup: "zone:tools", group: "zone:tools", origin: "header" });
+    expect(hovering.holdsButtons).toBe(false);
   });
 });
