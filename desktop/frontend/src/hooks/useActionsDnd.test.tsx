@@ -1,8 +1,9 @@
+// @vitest-environment happy-dom
 import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { DragEndEvent, DragOverEvent, DragStartEvent } from "@dnd-kit/core";
 import type { ActionsLayout } from "../types";
-import { zoneItemId } from "../components/actionsDndLayout";
+import { zoneDotsId, zoneItemId } from "../components/actionsDndLayout";
 import { type UseActionsDndResult, useActionsDnd } from "./useActionsDnd";
 
 const layout = (): ActionsLayout => ({
@@ -13,7 +14,7 @@ const layout = (): ActionsLayout => ({
 
 // Renders the hook once and hands back its handlers; the state setters they
 // call are no-ops after a server render, so only the callbacks are observable.
-function mount(current: ActionsLayout) {
+function mount(current: ActionsLayout, openListOf?: (zone: string) => string) {
   const onPreview = vi.fn();
   const onMove = vi.fn();
   const onDragActiveChange = vi.fn();
@@ -29,6 +30,7 @@ function mount(current: ActionsLayout) {
       indicatorRef: { current: null },
       menuDropRef: { current: null },
       onDragActiveChange,
+      openListOf,
     });
     return null;
   }
@@ -93,5 +95,57 @@ describe("useActionsDnd drag activity", () => {
     api.onDragStart(start("lint"));
     api.onDragCancel();
     expect(onDragActiveChange.mock.calls).toEqual([[true], [false], [true], [false]]);
+  });
+});
+
+describe("useActionsDnd after a cancel", () => {
+  it("swallows the click a release over a button would send, until the next press", () => {
+    const { api } = mount(layout());
+    const button = document.createElement("button");
+    const onClick = vi.fn();
+    button.addEventListener("click", onClick);
+    document.body.append(button);
+    try {
+      api.onDragStart(start("lint"));
+      api.onDragCancel();
+      button.click();
+      expect(onClick).not.toHaveBeenCalled();
+      button.click();
+      expect(onClick).toHaveBeenCalledTimes(1);
+
+      api.onDragStart(start("lint"));
+      api.onDragCancel();
+      window.dispatchEvent(new Event("pointerdown"));
+      button.click();
+      expect(onClick).toHaveBeenCalledTimes(2);
+    } finally {
+      button.remove();
+    }
+  });
+});
+
+describe("useActionsDnd over a zone's dots", () => {
+  const layered = (): ActionsLayout => ({
+    header: ["build", "lint", zoneItemId("tools")],
+    footer: ["logs"],
+    zones: { "tools/a": ["ios"], "tools/b": ["sim"] },
+  });
+  const openB = (zone: string) => (zone === "tools" ? "tools/b" : zone);
+
+  it("moves nothing while the pointer is on them", () => {
+    const { api, onPreview } = mount(layered(), openB);
+    api.onDragStart(start("lint"));
+    api.onDragOver(over("lint", zoneDotsId("tools")));
+    expect(onPreview).not.toHaveBeenCalled();
+  });
+
+  it("drops the button at the end of the layer showing", () => {
+    const { api, onMove } = mount(layered(), openB);
+    api.onDragStart(start("lint"));
+    api.onDragEnd(end("lint", zoneDotsId("tools")));
+    expect(onMove).toHaveBeenCalledTimes(1);
+    const next: ActionsLayout = onMove.mock.calls[0][0];
+    expect(next.zones["tools/b"]).toEqual(["sim", "lint"]);
+    expect(next.header).toEqual(["build", zoneItemId("tools")]);
   });
 });

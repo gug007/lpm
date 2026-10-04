@@ -38,7 +38,9 @@ function overlay(id: string, overGroup: ActionGroup | null, from = model): HTMLE
       <ActionDragOverlay id={id} overGroup={overGroup} actions={actions} model={from} projectName="app" />,
     ),
   );
-  return container.firstElementChild as HTMLElement;
+  const first = container.firstElementChild as HTMLElement;
+  // A footer overlay comes wrapped in the terminal's colours.
+  return first.classList.contains("composer-terminal-surface") ? (first.firstElementChild as HTMLElement) : first;
 }
 
 describe("ActionDragOverlay", () => {
@@ -51,6 +53,13 @@ describe("ActionDragOverlay", () => {
   it("keeps a zone's own row while it is over nothing", () => {
     expect(overlay(zoneItemId("ship"), null).style.height).toBe("57px");
     expect(overlay(zoneItemId("tools"), null).style.height).toBe("72px");
+  });
+
+  it("brings the terminal's colours along for the footer", () => {
+    overlay("lint", "footer");
+    expect(container.firstElementChild?.classList.contains("composer-terminal-surface")).toBe(true);
+    overlay("lint", "header");
+    expect(container.firstElementChild?.classList.contains("composer-terminal-surface")).toBe(false);
   });
 
   it("draws a footer zone's buttons in the footer's colours", () => {

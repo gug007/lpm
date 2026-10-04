@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import YAML from "yaml";
 import {
   isDuplicate,
+  type ActionInfo,
   type ActionsLayout,
   type DuplicateMode,
   type GeneratorRunSpec,
@@ -95,13 +96,14 @@ import {
   patchLayoutDoc,
 } from "../actionsLayoutUpdates";
 import { editGlobalDoc, editProjectDoc, editRepoDoc } from "../yamlQueue";
-import { applyOpToDoc } from "../actionsStructural";
+import { type StructuralContext, applyOpToDoc, dropPlacementNote } from "../actionsStructural";
 import { menuChildOrderFor } from "../actionTree";
 import { applyMove } from "../components/actionsDndLayout";
 import type { StructuralOp } from "../actionsGesture";
 import type { ActionLevel } from "../actionLevels";
 import { projectStartProfile } from "../projectStartProfile";
 import { onProjectsRemoved } from "../sendLater/closeout";
+import { deferRefresh, holdRefresh, refreshHeld } from "./refreshHold";
 
 export type View =
   | "projects"
@@ -384,6 +386,9 @@ interface AppState {
   // Optimistic update without persist; final commit happens on drop via
   // reorderActions.
   previewReorderActions: (projectName: string, layout: ActionsLayout) => void;
+  // Puts project list refreshes off until the returned release is called, so
+  // they can't undo a drag's preview or a layout that is still being saved.
+  holdProjectsRefresh: () => () => void;
   refreshAfterRename: (newName?: string) => Promise<void>;
 }
 
@@ -432,16 +437,42 @@ async function persistActionsLayoutOrRecover(
     return true;
   } catch (err) {
     toast.error(`Failed to save action order: ${err}`);
-    await get().refreshProjects();
+    // Not awaited: the caller's hold puts it off until the save is over.
+    void get().refreshProjects();
     return false;
   }
 }
 
-// Resolved display order of a menu's children (leaf names) — children can
-// span config layers, so the resolver output is the only authoritative order.
-function menuChildOrder(get: AppGet, projectName: string, parent: string): string[] {
-  const project = get().projects.find((p) => p.name === projectName);
-  return project ? menuChildOrderFor(project.actions, parent) : [];
+// Menus' child order comes from the resolver: children span config layers,
+// which a single doc can't reconstruct.
+function structuralContext(get: AppGet, projectName: string): StructuralContext {
+  const actions = get().projects.find((p) => p.name === projectName)?.actions ?? [];
+  return { orderOf: (path) => menuChildOrderFor(actions, path) };
+}
+
+// A top-level button with nothing of its own: what a project file's position
+// note shows once the button it placed is gone from the file declaring it.
+function isEmptyButton(action: ActionInfo): boolean {
+  return !action.cmd && !action.children?.length && !action.emoji && (!action.label || action.label === action.name);
+}
+
+// Nesting a button declared in a shared file leaves behind the position notes
+// drags wrote for it in project files, and alone each would show as an empty
+// button. Every local project the shared file reaches, where the button now
+// resolves to one, loses its note: all of them for the global file, the ones
+// in the same checkout for a repo's.
+async function clearLeftoverNotes(get: AppGet, key: string, level: ActionLevel, projectName: string): Promise<void> {
+  if (level === "project" || isPeerName(projectName)) return;
+  const root = get().projects.find((p) => p.name === projectName)?.root;
+  const left = get().projects.filter(
+    (p) =>
+      !isPeerName(p.name) &&
+      (level === "global" || p.root === root) &&
+      (p.actions ?? []).some((a) => a.name === key && isEmptyButton(a)),
+  );
+  if (left.length === 0) return;
+  for (const project of left) await editProjectDoc(project.name, (doc) => dropPlacementNote(doc, key));
+  await get().refreshProjects();
 }
 
 // Held outside zustand state because functions don't belong in store
@@ -800,10 +831,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     }),
 
   refreshProjects: async () => {
+    if (refreshHeld()) return deferRefresh();
     const seq = ++projectsRefreshSeq;
     try {
       const list = await ListProjects();
       if (seq !== projectsRefreshSeq) return;
+      // Read before a drag or a layout save began: it would undo them.
+      if (refreshHeld()) return deferRefresh();
       // A non-array means the listing failed (the backend errors rather than
       // reporting an empty ~/.lpm/projects it couldn't read) — keep the last
       // known list instead of treating every project as gone.
@@ -1818,29 +1852,42 @@ export const useAppStore = create<AppState>((set, get) => ({
   reorderActions: async (projectName, layout, before) => {
     const project = get().projects.find((p) => p.name === projectName);
     if (!project) return false;
-    // Position values can collide across groups because the header/
-    // footer/menu filter runs after the sort. Display is only touched
-    // when an action's group changed, so legacy values like "button"
-    // survive a within-group reorder.
-    const updates = applyActionsLayoutToStore(set, projectName, project, layout, before);
-    return persistActionsLayoutOrRecover(get, projectName, updates);
+    const release = get().holdProjectsRefresh();
+    try {
+      // Position values can collide across groups because the header/
+      // footer/menu filter runs after the sort. Display is only touched
+      // when an action's group changed, so legacy values like "button"
+      // survive a within-group reorder.
+      const updates = applyActionsLayoutToStore(set, projectName, project, layout, before);
+      return await persistActionsLayoutOrRecover(get, projectName, updates);
+    } finally {
+      release();
+    }
   },
 
+  holdProjectsRefresh: () => holdRefresh(() => get().refreshProjects()),
+
   applyStructuralOp: async (projectName, op, level) => {
-    const childOrder =
-      op.kind === "reorderMenu" ? menuChildOrder(get, projectName, op.parent) : undefined;
-    const mutate = (doc: ReturnType<typeof YAML.parseDocument>) =>
-      applyOpToDoc(doc, op, childOrder);
+    const context = structuralContext(get, projectName);
+    const mutate = (doc: ReturnType<typeof YAML.parseDocument>) => applyOpToDoc(doc, op, context);
     try {
       if (level === "global") await editGlobalDoc(mutate);
       else if (level === "repo") await editRepoDoc(projectName, mutate);
       else await editProjectDoc(projectName, mutate);
       await get().refreshProjects();
+      // The nest is saved by now; a note that can't be cleared is no reason to say otherwise.
+      if (op.kind === "nest") {
+        await clearLeftoverNotes(get, op.source, level, projectName).catch((err) =>
+          reportError("actions.leftover_notes", err, { project: projectName }),
+        );
+      }
       // An extracted item lands appended; place it at the dropped gap by
       // running the normal reorder (which also sets its header/footer group).
+      // Only once it is a top-level action: placing one still in its menu
+      // would write an empty button.
       if (op.kind === "extractToTop" && op.group && op.index != null) {
         const project = get().projects.find((p) => p.name === projectName);
-        if (project) {
+        if (project?.actions?.some((action) => action.name === op.child)) {
           const base = buildActionsModel(project.actions, project.zones ?? []).layout;
           const next = applyMove(base, op.child, { group: op.group, index: op.index });
           await get().reorderActions(projectName, next);

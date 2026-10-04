@@ -4,7 +4,7 @@ import type { ActionInfo } from "../types";
 import { withEmoji } from "../withEmoji";
 import { actionTextColor } from "../actionColors";
 import { MenuSplitRow } from "./MenuSplitRow";
-import { useActionsActiveId, useMenuDrop } from "./ActionsDnd";
+import { useActionsActiveId, useActionsSettlingId, useMenuDrop } from "./ActionsDnd";
 
 const leafClass =
   "flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]";
@@ -35,10 +35,11 @@ export function ActionMenuRow({ child, onRun, onDrill }: Props) {
 
   const activeId = useActionsActiveId();
   const isDragging = activeId === child.name;
+  const settling = useActionsSettlingId() === child.name;
   const menuDrop = useMenuDrop();
   const mode = menuDrop?.target === child.name ? menuDrop.mode : null;
 
-  const style: CSSProperties = { opacity: isDragging ? 0.4 : undefined };
+  const style: CSSProperties = { opacity: settling ? 0 : isDragging ? 0.4 : undefined };
   const label = withEmoji(child.emoji, child.label);
   const hasChildren = !!child.children?.length;
 

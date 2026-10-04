@@ -95,6 +95,18 @@ describe("detectGesture", () => {
     });
   });
 
+  it("cross-level before/after drop into a menu from another config file -> nothing", () => {
+    expect(
+      detectGesture({
+        ...base,
+        draggedId: "tools:lint",
+        overItemId: "deploy:staging",
+        reorderPosition: "before",
+        sameLevel: false,
+      }),
+    ).toBeNull();
+  });
+
   it("cross-level drop without a before/after position -> extractToTop (drag to toolbar)", () => {
     expect(
       detectGesture({ ...base, draggedId: "Build:iOS:Release", overItemId: "Build:Tools" }),

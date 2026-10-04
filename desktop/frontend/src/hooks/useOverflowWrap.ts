@@ -45,15 +45,29 @@ export function useOverflowWrap(deps: DependencyList, paused = false) {
     });
   }, []);
 
+  // The row keeps its width when its contents grow (late fonts, a split
+  // button's remembered label, a zone's widest layer), so the inner items are
+  // watched too, and re-attached as they come and go.
   useEffect(() => {
     const row = rowRef.current;
+    const inner = innerRef.current;
     if (!row) return;
     const observer = new ResizeObserver(() => {
       if (pausedRef.current) staleRef.current = true;
       else measure();
     });
-    observer.observe(row);
-    return () => observer.disconnect();
+    const observeItems = () => {
+      observer.disconnect();
+      observer.observe(row);
+      if (inner) for (const item of inner.children) observer.observe(item);
+    };
+    observeItems();
+    const items = new MutationObserver(observeItems);
+    if (inner) items.observe(inner, { childList: true });
+    return () => {
+      items.disconnect();
+      observer.disconnect();
+    };
   }, [measure]);
 
   // Content changed: drop the cached threshold and re-measure. If we're

@@ -817,9 +817,24 @@ body {
   background: transparent !important;
 }
 
+/* The lifted action button. drop-shadow follows its rounded shape where a
+   box-shadow drew a square slab, and the tilt eases in instead of popping. */
+@keyframes lpm-actions-lift {
+  from {
+    transform: none;
+  }
+  to {
+    transform: scale(1.04) rotate(-1.5deg);
+  }
+}
 .lpm-actions-overlay {
-  box-shadow: 0 12px 28px -8px rgba(0, 0, 0, 0.45);
+  display: inline-block;
+  filter: drop-shadow(0 10px 14px rgba(0, 0, 0, 0.32)) drop-shadow(0 2px 3px rgba(0, 0, 0, 0.2));
+  animation: lpm-actions-lift 140ms ease-out both;
   will-change: transform;
+}
+[data-theme="dark"] .lpm-actions-overlay {
+  filter: drop-shadow(0 10px 16px rgba(0, 0, 0, 0.7)) drop-shadow(0 0 1px rgba(255, 255, 255, 0.25));
 }
 
 /* Composer input tabs, a two-step elevation above the bar: idle tabs get a faint
@@ -903,6 +918,7 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .lpm-actions-overlay {
+    animation: none;
     will-change: auto;
   }
 }
@@ -930,10 +946,32 @@ body[data-lpm-drag] [role="tooltip"] {
   opacity: 0;
 }
 
+/* A dragged button resting on another fills its ring in over NEST_ARM_MS
+   (ActionsDnd.tsx); once full, a drop nests. */
+@keyframes lpm-nest-charge {
+  from {
+    outline-color: transparent;
+  }
+  to {
+    outline-color: color-mix(in srgb, var(--accent-blue) 55%, transparent);
+  }
+}
+.lpm-nest-charging {
+  animation: lpm-nest-charge 600ms linear forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lpm-nest-charging {
+    animation: none;
+    outline-color: color-mix(in srgb, var(--accent-blue) 40%, transparent);
+  }
+}
+
 /* No hover states or tooltips inside the action groups mid-drag. Drops are
    unaffected: collision detection is rect-based, not hit-tested. */
 body[data-lpm-drag] [data-actions-group],
-body[data-lpm-drag] [data-actions-group] * {
+body[data-lpm-drag] [data-actions-group] *,
+body[data-lpm-drag] [data-actions-menu],
+body[data-lpm-drag] [data-actions-menu] * {
   pointer-events: none;
 }
 

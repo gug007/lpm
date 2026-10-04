@@ -20,6 +20,13 @@ const current = [
 ];
 
 describe("buildLayoutUpdates", () => {
+  it("skips ids that are no longer top-level actions", () => {
+    const layout: ActionsLayout = { header: ["test", "gone", "ios"], footer: ["logs"], zones: {} };
+    const { actions } = buildLayoutUpdates(current, layout);
+    expect(actions.has("gone")).toBe(false);
+    expect(actions.get("ios")).toMatchObject({ position: 3 });
+  });
+
   it("writes the zone name for a button that moved into a zone", () => {
     const layout: ActionsLayout = {
       header: [zoneItemId("build")],
@@ -275,7 +282,15 @@ describe("dropping a button the store has already previewed", () => {
     };
     const { actions } = buildLayoutUpdates(store, after, before);
     expect(actions.get("test")).toEqual({ position: 2, section: "actions" });
-    expect(actions.get("ios")).toEqual({ position: 1, section: "actions" });
+    // Its zone's list didn't change, so nothing is written for it at all.
+    expect(actions.get("ios")).toBeUndefined();
+  });
+
+  it("writes nothing for the rows a move left as they were", () => {
+    const start: ActionsLayout = { header: ["test", "shell"], footer: ["logs", "ios"], zones: {} };
+    const after: ActionsLayout = { header: ["test", "shell"], footer: ["ios", "logs"], zones: {} };
+    const { actions } = buildLayoutUpdates(current, after, start);
+    expect([...actions.keys()].sort()).toEqual(["ios", "logs"]);
   });
 
   it("falls back to the store's display for a button the drag-start layout doesn't list", () => {

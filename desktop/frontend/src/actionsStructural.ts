@@ -1,7 +1,15 @@
 import YAML from "yaml";
 import { arrayMove } from "@dnd-kit/sortable";
-import { ACTION_SECTIONS, findActionSection } from "./actionConfig";
+import { ACTION_SECTIONS, findActionSection, hasActionBody } from "./actionConfig";
 import type { StructuralOp } from "./actionsGesture";
+
+// What a single doc can't tell: menus merge their children across config files.
+export interface StructuralContext {
+  // A menu's children in the order they show, as leaf keys.
+  orderOf: (path: string) => string[];
+}
+
+const NO_CONTEXT: StructuralContext = { orderOf: () => [] };
 
 type Doc = ReturnType<typeof YAML.parseDocument>;
 type MapNode = YAML.YAMLMap;
@@ -97,18 +105,106 @@ function peekChildrenOf(node: unknown): MapNode | null {
   return YAML.isMap(children) ? children : null;
 }
 
-// Move a source entry (at any path depth) into target's nested actions: map.
-export function nestEntry(doc: Doc, sourcePath: string, targetPath: string): void {
+// Where a button sat in its bar means nothing inside a menu.
+const PLACEMENT_KEYS = ["position", "display", "layer"];
+
+// Removes a top-level entry that only places a button declared in another
+// file (position, display and layer alone). Returns whether one was removed.
+export function dropPlacementNote(doc: Doc, key: string): boolean {
+  for (const section of ACTION_SECTIONS) {
+    const node = doc.get(section, true);
+    if (!YAML.isMap(node)) continue;
+    const entry = node.get(key, true);
+    if (!YAML.isMap(entry)) continue;
+    const placementOnly = entry.items.every(
+      (item) => YAML.isScalar(item.key) && PLACEMENT_KEYS.includes(String(item.key.value)),
+    );
+    if (!placementOnly) return false;
+    node.delete(key);
+    return true;
+  }
+  return false;
+}
+
+// What an item takes from the items above it: the nearest cwd, port conflict
+// and type, and the env merged from the top down. A `terminals:` entry is a
+// terminal unless it names a type.
+interface Inherited {
+  cwd?: string;
+  portConflict?: string;
+  type?: string;
+  env: Record<string, string>;
+}
+
+const INHERITED_FIELDS = ["cwd", "portConflict", "type"] as const;
+
+// Read from this doc alone: what other config files add must never be copied
+// into it (a private env var into a committed .lpm.yml, say).
+function inheritedAt(doc: Doc, path: string): Inherited {
+  const segs = path.split(":");
+  const found: Inherited = { env: {} };
+  if (findTopEntry(doc, segs[0])?.section === "terminals") found.type = "terminal";
+  for (let i = 1; i <= segs.length; i++) {
+    const node = findEntryByPath(doc, segs.slice(0, i).join(":"))?.value;
+    if (!YAML.isMap(node)) continue;
+    for (const field of INHERITED_FIELDS) {
+      const value = node.get(field);
+      if (typeof value === "string" && value !== "") found[field] = value;
+    }
+    const env = node.get("env", true);
+    if (YAML.isMap(env)) Object.assign(found.env, env.toJSON());
+  }
+  return found;
+}
+
+// A moved item would quietly take what its new place hands down, so what it
+// had and would lose is written onto the item itself. Nothing can say "the
+// project root" or "the inline runner", so losing those can't be undone here.
+function keepInherited(doc: Doc, container: MapNode, key: string, had: Inherited, gets: Inherited): void {
+  const fields = INHERITED_FIELDS.filter((field) => had[field] && had[field] !== gets[field]);
+  const env = Object.entries(had.env).filter(([name, value]) => gets.env[name] !== value);
+  if (fields.length === 0 && env.length === 0) return;
+  const map = asMap(doc, container, key);
+  for (const field of fields) if (!map.has(field)) map.set(field, had[field]);
+  if (env.length === 0) return;
+  let own = map.get("env", true);
+  if (!YAML.isMap(own)) {
+    map.set("env", doc.createNode({}));
+    own = map.get("env", true);
+  }
+  if (!YAML.isMap(own)) return;
+  for (const [name, value] of env) if (!own.has(name)) own.set(name, value);
+}
+
+// What a top-level entry in `section` gets without naming anything.
+function topLevelDefaults(section: string): Inherited {
+  return section === "terminals" ? { type: "terminal", env: {} } : { env: {} };
+}
+
+// Move a source entry (at any path depth) into target's nested actions: map,
+// at its end, the way the drop showed it.
+export function nestEntry(doc: Doc, sourcePath: string, targetPath: string, context = NO_CONTEXT): void {
   if (sourcePath === targetPath) return;
   const source = findEntryByPath(doc, sourcePath);
   const target = findEntryByPath(doc, targetPath);
   if (!source || !target) return;
+  // A note that only places a button declared elsewhere: children grafted
+  // onto it would hide the menu that file gives the button.
+  if (!hasActionBody(target.value)) throw notHere();
   const leaf = source.key;
   if (peekChildrenOf(target.value)?.has(leaf)) throw conflictError(leaf);
+  const had = inheritedAt(doc, sourcePath);
+  const gets = inheritedAt(doc, targetPath);
   const node = source.parent.get(source.key, true);
   source.parent.delete(source.key);
+  if (YAML.isMap(node)) for (const key of PLACEMENT_KEYS) node.delete(key);
   const targetMap = asMap(doc, target.parent, target.key);
-  childActionsMap(doc, targetMap).set(leaf, node);
+  const children = childActionsMap(doc, targetMap);
+  children.set(leaf, node);
+  keepInherited(doc, children, leaf, had, gets);
+  const shown = context.orderOf(targetPath);
+  const order = (shown.length > 0 ? shown : childKeyOrder(children)).filter((key) => key !== leaf);
+  reorderMenu(doc, targetPath, [...order, leaf]);
 }
 
 // Remove a child node from its parent's nested actions: map; returns the
@@ -139,12 +235,20 @@ export function collapseMenu(doc: Doc, parentPath: string): void {
 
 export function extractToTop(doc: Doc, parentPath: string, childKey: string): void {
   if (findTopEntry(doc, childKey)) throw conflictError(childKey);
+  const had = inheritedAt(doc, parentPath);
   const node = detachChild(doc, parentPath, childKey);
-  if (node === null) return;
+  if (node === null) throw notHere();
   const section = findEntryByPath(doc, parentPath)?.section ?? ACTION_SECTIONS[0];
   const sectionMap = ensureSection(doc, section);
   sectionMap.set(childKey, node);
+  keepInherited(doc, sectionMap, childKey, had, topLevelDefaults(section));
   collapseMenu(doc, parentPath);
+}
+
+// The item isn't in the file the menu's level points at: its menu takes items
+// from another config file, which this edit can't reach.
+function notHere(): Error {
+  return new Error("this menu's items come from another config file");
 }
 
 // Rebuild a child order with `child` pulled out and re-inserted on the
@@ -186,19 +290,24 @@ export function extractOnto(
   targetPath: string,
   over?: string,
   position?: "before" | "after",
+  context = NO_CONTEXT,
 ): void {
   const target = findEntryByPath(doc, targetPath);
-  if (!target) return;
+  if (!target || !hasActionBody(target.value)) throw notHere();
   if (peekChildrenOf(target.value)?.has(childKey)) throw conflictError(childKey);
+  const had = inheritedAt(doc, parentPath);
+  const gets = inheritedAt(doc, targetPath);
   const node = detachChild(doc, parentPath, childKey);
-  if (node === null) return;
+  if (node === null) throw notHere();
   const targetMap = asMap(doc, target.parent, target.key);
   const targetChildren = childActionsMap(doc, targetMap);
   targetChildren.set(childKey, node);
-  if (over && position) {
-    const next = positionedOrder(childKeyOrder(targetChildren), childKey, over, position);
-    if (next) reorderMenu(doc, targetPath, next);
-  }
+  keepInherited(doc, targetChildren, childKey, had, gets);
+  // In the order the menu shows, which can differ from its keys' order here.
+  const shown = context.orderOf(targetPath);
+  const order = [...(shown.length > 0 ? shown : childKeyOrder(targetChildren)).filter((key) => key !== childKey), childKey];
+  const next = over && position ? positionedOrder(order, childKey, over, position) : order;
+  reorderMenu(doc, targetPath, next ?? order);
   collapseMenu(doc, parentPath);
 }
 
@@ -265,25 +374,22 @@ export function ungroupMenu(doc: Doc, path: string): void {
   }
 }
 
-// displayedChildren is the resolved display order of op.parent's children
-// (leaf names) — supplied by the caller because it merges config layers,
-// which a single doc can't reconstruct.
-export function applyOpToDoc(doc: Doc, op: StructuralOp, displayedChildren?: string[]): void {
+export function applyOpToDoc(doc: Doc, op: StructuralOp, context = NO_CONTEXT): void {
   switch (op.kind) {
     case "nest":
-      nestEntry(doc, op.source, op.target);
+      nestEntry(doc, op.source, op.target, context);
       return;
     case "ungroup":
       ungroupMenu(doc, op.path);
       return;
     case "extractOnto":
-      extractOnto(doc, op.parent, op.child, op.target, op.over, op.position);
+      extractOnto(doc, op.parent, op.child, op.target, op.over, op.position, context);
       return;
     case "extractToTop":
       extractToTop(doc, op.parent, op.child);
       return;
     case "reorderMenu": {
-      const order = displayedChildren ?? [];
+      const order = context.orderOf(op.parent);
       const from = order.indexOf(op.child);
       const overIdx = order.indexOf(op.over);
       if (from < 0 || overIdx < 0 || op.child === op.over) return;
