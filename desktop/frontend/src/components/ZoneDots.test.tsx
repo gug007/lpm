@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ZoneLayerView } from "../actionsLayoutModel";
 import type { ZoneDisplay } from "../types";
 import { ZoneDots } from "./ZoneDots";
+import type { ZoneFrameState } from "./ZoneFrame";
 
 const layer = (name: string, label?: string): ZoneLayerView => ({
   key: `ship/${name}`,
@@ -31,10 +32,24 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-function render(layers: ZoneLayerView[], openKey: string, dragging = false, display: ZoneDisplay = "header") {
+function render(
+  layers: ZoneLayerView[],
+  openKey: string,
+  dragging = false,
+  display: ZoneDisplay = "header",
+  frameState: ZoneFrameState = "filled",
+) {
   act(() =>
     root.render(
-      <ZoneDots zone="ship" layers={layers} openKey={openKey} dragging={dragging} display={display} onOpen={onOpen} />,
+      <ZoneDots
+        zone="ship"
+        layers={layers}
+        openKey={openKey}
+        dragging={dragging}
+        display={display}
+        frameState={frameState}
+        onOpen={onOpen}
+      />,
     ),
   );
   const dots = [...container.querySelectorAll<HTMLButtonElement>("button[aria-pressed]")];
@@ -59,15 +74,19 @@ describe("ZoneDots", () => {
     expect(dots.map((dot) => dot.getAttribute("aria-pressed"))).toEqual(["true", "false"]);
   });
 
-  it("shows the open layer's label only when it has one", () => {
-    expect(render([layer("a", "Dev"), layer("b")], "ship/b").label).toBeNull();
+  it("names the open layer once any layer has a label", () => {
+    expect(render([layer("a"), layer("b")], "ship/a").label).toBeNull();
     const { label } = render([layer("a", "Dev"), layer("b", "Production")], "ship/a");
     expect(label).not.toBeNull();
-    const visible = [...label!.querySelectorAll("span")].filter((span) => !span.className.includes("invisible"));
-    expect(visible.map((span) => span.textContent)).toEqual(["Dev"]);
+    const visible = (el: HTMLElement) =>
+      [...el.querySelectorAll("span")].filter((span) => !span.className.includes("invisible")).map((s) => s.textContent);
+    expect(visible(label!)).toEqual(["Dev"]);
     expect(label!.getAttribute("aria-label")).toBe("Dev, next layer");
     // Every name sits in the label, so it's as wide as the widest one.
     expect(label!.textContent).toContain("Production");
+    const unnamed = render([layer("a", "Dev"), layer("b")], "ship/b").label!;
+    expect(visible(unnamed)).toEqual(["Layer 2"]);
+    expect(unnamed.getAttribute("aria-label")).toBe("Layer 2, next layer");
   });
 
   it("opens the layer whose dot is clicked", () => {
@@ -135,15 +154,25 @@ describe("ZoneDots", () => {
     expect(dot.className).toContain("motion-reduce:transition-none");
   });
 
-  it("grows its dots while a button is dragged", () => {
-    expect(render([layer("a"), layer("b")], "ship/a").dots[0].className).toContain("h-3 w-3");
-    expect(render([layer("a"), layer("b")], "ship/a", true).dots[0].className).toContain("h-4 w-4");
+  it("draws the open layer as a capsule and grows every dot while a button is dragged", () => {
+    const size = (dragging: boolean) =>
+      render([layer("a"), layer("b")], "ship/a", dragging).dots.map((dot) => dot.firstElementChild!.className);
+    const [open, closed] = size(false);
+    expect(open).toContain("h-1 w-3");
+    expect(closed).toContain("h-1 w-1");
+    const [dragOpen, dragClosed] = size(true);
+    expect(dragOpen).toContain("h-2 w-4");
+    expect(dragClosed).toContain("h-2 w-2");
   });
 
-  it("cuts the frame's border in its bar's colour", () => {
-    expect(render([layer("a"), layer("b")], "ship/a").pill!.className).toContain("bg-[var(--bg-primary)]");
-    expect(render([layer("a"), layer("b")], "ship/a", false, "footer").pill!.className).toContain(
-      "bg-[var(--terminal-bg)]",
-    );
+  it("sits on the border line, a little taller while a button is dragged", () => {
+    expect(render([layer("a"), layer("b")], "ship/a").pill!.className).toContain("bottom-[-5.5px] h-[10px]");
+    expect(render([layer("a"), layer("b")], "ship/a", true).pill!.className).toContain("bottom-[-7.5px] h-[14px]");
+  });
+
+  it("brightens only a closed dot on hover", () => {
+    const [open, closed] = render([layer("a"), layer("b")], "ship/a").dots.map((dot) => dot.firstElementChild!.className);
+    expect(open).not.toContain("group-hover/dot:");
+    expect(closed).toContain("group-hover/dot:");
   });
 });
