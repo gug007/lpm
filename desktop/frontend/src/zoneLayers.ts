@@ -33,6 +33,26 @@ export function listKeysOfZone(zone: Pick<ZoneInfo, "name" | "layers">): string[
   return layers.length === 0 ? [zone.name] : layers.map((layer) => zoneListKey(zone.name, layer.name));
 }
 
+export interface ZonePlacement {
+  zone: ZoneInfo;
+  listKey: string;
+  label: string;
+}
+
+// Every list a button can be placed in: a zone, or each layer of a zone with
+// layers, named the way the menus show it.
+export function zonePlacements(zones: ZoneInfo[]): ZonePlacement[] {
+  return zones.flatMap((zone) => {
+    const layers = layersOf(zone);
+    if (layers.length === 0) return [{ zone, listKey: zone.name, label: zone.label }];
+    return layers.map((layer, index) => ({
+      zone,
+      listKey: zoneListKey(zone.name, layer.name),
+      label: `${zone.label} › ${layer.label || `Layer ${index + 1}`}`,
+    }));
+  });
+}
+
 export function listKeyForAction(zone: Pick<ZoneInfo, "name" | "layers">, layer: string | undefined): string {
   const layers = layersOf(zone);
   if (layers.length === 0) return zone.name;

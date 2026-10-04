@@ -9,7 +9,9 @@ import {
   listKeysOfZone,
   zoneListKey,
   zoneOfListKey,
+  zonePlacements,
 } from "./zoneLayers";
+import type { ZoneInfo } from "./types";
 
 const plain = { name: "build", layers: undefined };
 const layered = { name: "build", layers: [{ name: "mobile", label: "Mobile" }, { name: "web" }] };
@@ -55,5 +57,19 @@ describe("zone list keys", () => {
     expect(layerKeyFor("Mobile", ["mobile"])).toBe("mobile-2");
     expect(layerKeyFor("", ["layer-1"])).toBe("layer-2");
     expect(layerKeyFor("  ", ["layer-1", "layer-2"])).toBe("layer-3");
+  });
+});
+
+describe("zonePlacements", () => {
+  it("names a zone, and each layer of a zone with layers, the way menus show them", () => {
+    const zones: ZoneInfo[] = [
+      { name: "build", label: "Build", rows: 1, source: "project", layers: [{ name: "mobile", label: "Mobile" }, { name: "web" }] },
+      { name: "db", label: "Database", rows: 1, source: "project" },
+    ];
+    expect(zonePlacements(zones).map(({ listKey, label }) => [listKey, label])).toEqual([
+      ["build/mobile", "Build › Mobile"],
+      ["build/web", "Build › Layer 2"],
+      ["db", "Database"],
+    ]);
   });
 });

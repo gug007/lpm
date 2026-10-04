@@ -84,3 +84,57 @@ describe("ActionContextMenu zone entry", () => {
     expect(labels).toEqual(["Edit action", ...MOVE_ROWS, "Delete action"]);
   });
 });
+
+const TARGETS = [
+  { group: "zone:tasks/checks" as const, label: "Tasks › Checks", row: "header" as const },
+  { group: "zone:db" as const, label: "Database", row: "footer" as const },
+];
+
+const withZones = (extra: Partial<Props> = {}) =>
+  props({ currentGroup: "header", zoneTargets: TARGETS, actionLabel: "Test", onNewZone: vi.fn(), ...extra });
+
+const rowNamed = (all: Found[], label: string) => all.find((row) => row.props.label === label);
+
+describe("ActionContextMenu zone moves", () => {
+  it("offers a new zone and the zones the button can join, under Move", () => {
+    const labels = rows(withZones()).map((row) => row.props.label);
+    expect(labels).toEqual([
+      "Edit action",
+      ...MOVE_ROWS,
+      "New zone with “Test”",
+      "Into “Tasks › Checks”",
+      "Into “Database”",
+      "Delete action",
+    ]);
+  });
+
+  it("starts a zone with the button and closes the menu", () => {
+    const onNewZone = vi.fn();
+    const onClose = vi.fn();
+    rowNamed(rows(withZones({ onNewZone, onClose })), "New zone with “Test”")?.props.onClick?.();
+    expect(onNewZone).toHaveBeenCalledOnce();
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it("moves the button into the chosen zone", () => {
+    const onMoveTo = vi.fn();
+    rowNamed(rows(withZones({ onMoveTo })), "Into “Database”")?.props.onClick?.();
+    expect(onMoveTo).toHaveBeenCalledWith("zone:db");
+  });
+
+  it("marks each zone with its row's panel", () => {
+    const all = rows(withZones());
+    const iconOf = (label: string) => {
+      const icon = rowNamed(all, label)?.props.icon;
+      return isValidElement(icon) ? icon.type : undefined;
+    };
+    expect(iconOf("Into “Tasks › Checks”")).toBe(PanelTopIcon);
+    expect(iconOf("Into “Database”")).toBe(PanelBottomIcon);
+  });
+
+  it("lists the zones without a new-zone row when the button can't start one", () => {
+    const labels = rows(withZones({ onNewZone: undefined })).map((row) => row.props.label);
+    expect(labels).not.toContain("New zone with “Test”");
+    expect(labels).toContain("Into “Database”");
+  });
+});

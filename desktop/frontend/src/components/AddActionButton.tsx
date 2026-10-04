@@ -1,51 +1,13 @@
-import { useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import type { ZoneRows } from "../types";
-import { useAnchoredPanel } from "../hooks/useAnchoredPanel";
-import { useEventListener } from "../hooks/useEventListener";
-import { useOverlay } from "../store/overlay";
 import { GripVerticalIcon, MousePointerClickIcon, PlusIcon, SparkleIcon, TerminalIcon } from "./icons";
-import { NewActionChooser } from "./NewActionChooser";
 import { Tooltip } from "./ui/Tooltip";
-
-const PANEL_WIDTH = 260;
 
 interface AddActionButtonProps {
   onAddAction: () => void;
-  onAddZone: (rows: ZoneRows) => void;
 }
 
-export function AddActionButton({ onAddAction, onAddZone }: AddActionButtonProps) {
-  const [open, setOpen] = useState(false);
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const { triggerRef, panelRef, style } = useAnchoredPanel<HTMLDivElement, HTMLDivElement>({
-    open,
-    onClose: () => setOpen(false),
-    width: PANEL_WIDTH,
-    side: "below",
-    align: "right",
-  });
-  useOverlay(open);
-  // Capture-phase Escape so it closes the chooser alone, not also a fullscreen
-  // pane underneath. The chooser took focus when it opened, so give it back.
-  useEventListener(
-    "keydown",
-    (e) => {
-      if (e.key !== "Escape") return;
-      e.stopPropagation();
-      setOpen(false);
-      buttonRef.current?.focus();
-    },
-    document,
-    open,
-    true,
-  );
-  const choose = (fn: () => void) => {
-    setOpen(false);
-    fn();
-  };
+export function AddActionButton({ onAddAction }: AddActionButtonProps) {
   return (
-    <div ref={triggerRef} className="shrink-0">
+    <div className="shrink-0">
       <Tooltip
         content={
           <span className="flex flex-col">
@@ -94,15 +56,11 @@ export function AddActionButton({ onAddAction, onAddZone }: AddActionButtonProps
         }
         side="bottom"
         wide
-        disabled={open}
       >
         <button
-          ref={buttonRef}
           type="button"
-          onClick={() => setOpen((value) => !value)}
+          onClick={onAddAction}
           aria-label="Create action"
-          aria-haspopup="true"
-          aria-expanded={open}
           className="magic-ring group h-8 shrink-0 rounded-lg p-[1px] transition-all duration-150 active:scale-[0.97]"
         >
           <span className="flex h-full items-center gap-1 rounded-[calc(0.5rem-1px)] bg-[var(--bg-primary)] px-2.5 text-xs font-medium transition-colors duration-150 group-hover:bg-[color-mix(in_srgb,#a855f7_5%,var(--bg-primary))]">
@@ -113,17 +71,6 @@ export function AddActionButton({ onAddAction, onAddZone }: AddActionButtonProps
           </span>
         </button>
       </Tooltip>
-      {open &&
-        style &&
-        createPortal(
-          <div ref={panelRef} style={style} className="z-[70]">
-            <NewActionChooser
-              onAction={() => choose(onAddAction)}
-              onZone={(rows) => choose(() => onAddZone(rows))}
-            />
-          </div>,
-          document.body,
-        )}
     </div>
   );
 }

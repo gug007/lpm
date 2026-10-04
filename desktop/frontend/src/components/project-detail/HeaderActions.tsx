@@ -5,7 +5,7 @@ import { ActionsRowItem } from "../ActionsRowItem";
 import { AddActionButton } from "../AddActionButton";
 import { movedByZoneResize } from "../actionsDndLayout";
 import type { RowItem } from "../../actionsLayoutModel";
-import type { ActionInfo, ActionsLayout, ZoneInfo, ZoneRows } from "../../types";
+import type { ActionInfo, ActionsLayout, ZoneInfo } from "../../types";
 import { NO_DRAG_STYLE } from "./constants";
 
 interface HeaderActionsProps {
@@ -21,7 +21,6 @@ interface HeaderActionsProps {
   onContextMenu?: (e: MouseEvent, action: ActionInfo) => void;
   onZoneContextMenu?: (e: MouseEvent, zone: ZoneInfo) => void;
   onAddAction: () => void;
-  onAddZone: (rows: ZoneRows) => void;
 }
 
 // The wrapper is the droppable group for cross-group drops from the footer.
@@ -37,7 +36,6 @@ export function HeaderActions({
   onContextMenu,
   onZoneContextMenu,
   onAddAction,
-  onAddZone,
 }: HeaderActionsProps) {
   const dragActive = useActionsDragActive();
   const align = alignTop ? "items-start" : "items-center";
@@ -73,7 +71,7 @@ export function HeaderActions({
           onZoneContextMenu={onZoneContextMenu}
         />
       ))}
-      <AddActionButton onAddAction={onAddAction} onAddZone={onAddZone} />
+      <AddActionButton onAddAction={onAddAction} />
     </ActionsGroup>
   );
 }

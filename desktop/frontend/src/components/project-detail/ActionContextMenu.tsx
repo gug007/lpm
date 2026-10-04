@@ -8,6 +8,7 @@ import {
   PanelBottomIcon,
   PanelTopIcon,
   PencilIcon,
+  PlusIcon,
   TrashIcon,
 } from "../icons";
 import { ContextMenuItem } from "../ui/ContextMenuItem";
@@ -16,6 +17,13 @@ import { ContextMenuShell } from "../ui/ContextMenuShell";
 import { ContextMenuSubmenu } from "../ui/ContextMenuSubmenu";
 import type { ZoneDisplay } from "../../types";
 import type { ActionGroup } from "../actionsDndLayout";
+
+// A zone, or one layer of a zone, the button can move into.
+export interface ZoneTarget {
+  group: ActionGroup;
+  label: string;
+  row: ZoneDisplay;
+}
 
 interface ActionContextMenuProps {
   x: number;
@@ -31,6 +39,11 @@ interface ActionContextMenuProps {
   zoneLabel?: string;
   zoneRow?: ZoneDisplay;
   onZoneMenu?: () => void;
+  // The zones and layers the button can move into, its own list left out.
+  zoneTargets?: ZoneTarget[];
+  // Set when the button can start a zone of its own; the item quotes its label.
+  actionLabel?: string;
+  onNewZone?: () => void;
   onEdit: () => void;
   canUngroup: boolean;
   onUngroup: () => void;
@@ -50,6 +63,9 @@ export function ActionContextMenu({
   zoneLabel,
   zoneRow,
   onZoneMenu,
+  zoneTargets = [],
+  actionLabel,
+  onNewZone,
   onEdit,
   canUngroup,
   onUngroup,
@@ -89,6 +105,18 @@ export function ActionContextMenu({
           disabled={!canMoveRight}
           onClick={close(onMoveRight)}
         />
+        {(onNewZone || zoneTargets.length > 0) && <ContextMenuSeparator />}
+        {onNewZone && (
+          <ContextMenuItem label={`New zone with “${actionLabel}”`} icon={<PlusIcon />} onClick={close(onNewZone)} />
+        )}
+        {zoneTargets.map((target) => (
+          <ContextMenuItem
+            key={target.group}
+            label={`Into “${target.label}”`}
+            icon={target.row === "footer" ? <PanelBottomIcon /> : <PanelTopIcon />}
+            onClick={close(() => onMoveTo(target.group))}
+          />
+        ))}
       </ContextMenuSubmenu>
       {zoneLabel !== undefined && onZoneMenu && (
         <ContextMenuItem

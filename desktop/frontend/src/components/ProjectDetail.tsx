@@ -20,6 +20,7 @@ import { ServiceContextMenu } from "./project-detail/ServiceContextMenu";
 import { ServiceForm } from "./project-detail/ServiceForm";
 import { ResumeSessionModal } from "./project-detail/ResumeSessionModal";
 import { RowMenus } from "./project-detail/RowMenus";
+import { showMoveTarget, zoneTargetsFor } from "./project-detail/actionMenuZones";
 import { TerminalPane } from "./project-detail/TerminalPane";
 import { ZoneMenus, type ZoneMenuState } from "./project-detail/ZoneMenus";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
@@ -27,7 +28,7 @@ import { deleteAction } from "../actionConfig";
 import { nextActionPosition } from "../actionsLayoutModel";
 import { deleteProfile } from "../profileConfig";
 import { deleteService } from "../serviceConfig";
-import { createZone } from "../zoneActions";
+import { createZoneAround } from "../zoneActions";
 import { EMPTY_SERVICES } from "./project-detail/constants";
 import { useActionsByDisplay } from "../hooks/useActionsByDisplay";
 import { useDetailView } from "../hooks/useDetailView";
@@ -668,6 +669,7 @@ export function ProjectDetail({
           index: listOf(actionsLayout, target).length,
         });
         reorderActions(project.name, next);
+        showMoveTarget(project.name, target);
         if (target === "footer" && detailView !== "terminal") toast("Moved to footer");
       },
       left: () => {
@@ -713,7 +715,6 @@ export function ProjectDetail({
       onContextMenu={handleActionContextMenu}
       onZoneContextMenu={handleZoneContextMenu}
       onAddAction={() => setNewActionRow("header")}
-      onAddZone={(rows) => void createZone(project.name, actionsSnapshot, { label: "", rows, display: "header" })}
     />
   );
 
@@ -903,6 +904,13 @@ export function ProjectDetail({
             onZoneMenu={
               actionMenuZone &&
               (() => setZoneMenu({ x: actionMenu.x, y: actionMenu.y, zone: actionMenuZone }))
+            }
+            zoneTargets={zoneTargetsFor(project.zones ?? [], actionMenuMove.group)}
+            actionLabel={actionMenu.action.label || actionMenu.action.name}
+            onNewZone={
+              actionMenuMove.group === null
+                ? undefined
+                : () => void createZoneAround(project.name, actionsSnapshot, actionMenu.action.name)
             }
             onEdit={() => setEditingAction(actionMenu.action)}
             canUngroup={!!actionMenu.action.children?.length}
