@@ -4,7 +4,7 @@ import { useBranchPullRequest } from "../hooks/useBranchPullRequest";
 import { BranchPrLink } from "./BranchPrLink";
 import { BranchSwitcher } from "./BranchSwitcher";
 import { AppTip } from "./AppTip";
-import { FooterActions } from "./FooterActions";
+import { ActionsRow } from "./ActionsRow";
 import { FOOTER_ROW_PX } from "./zoneGeometry";
 import type { RowItem } from "../actionsLayoutModel";
 import type { ActionInfo, ActionsLayout, ZoneInfo } from "../types";
@@ -49,13 +49,13 @@ export function TerminalFooter({
       className={`composer-terminal-surface flex ${alignTop ? "items-start" : "items-center"} gap-2 bg-[var(--terminal-bg)] px-3 py-2`}
     >
       <AppTip rowHeight={alignTop ? FOOTER_ROW_PX : undefined} />
-      <FooterActions
+      <ActionsRow
+        display="footer"
         items={items}
         layout={layout}
-        alignTop={alignTop}
         projectName={projectName}
         disabled={disabled}
-        scope={projectName}
+        className={`flex flex-wrap ${alignTop ? "items-start" : "items-center"} justify-end gap-1`}
         onRun={onRunAction}
         onContextMenu={onActionContextMenu}
         onZoneContextMenu={onZoneContextMenu}
@@ -69,7 +69,7 @@ export function TerminalFooter({
             pullRequest={pullRequest}
           />
         )}
-      </FooterActions>
+      </ActionsRow>
     </div>
   );
 }

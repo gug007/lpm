@@ -3,14 +3,12 @@ import {
   ReadConfig,
   SaveConfig,
   ReadRepoConfig,
-  SaveRepoConfig,
   ReadGlobalConfig,
-  SaveGlobalConfig,
   GenerateProjectConfig,
 } from "../../bridge/commands";
 import { BrowserOpenURL } from "../../bridge/runtime";
 import { useYamlEditor } from "../hooks/useYamlEditor";
-import { globalLayer, queueWrite } from "../yamlQueue";
+import { globalLayer, projectLayer, queueWrite, repoLayer, saveLayer } from "../yamlQueue";
 import { VisualConfigEditor } from "./VisualConfigEditor";
 import { MonacoEditor } from "./MonacoEditor";
 import {
@@ -58,19 +56,19 @@ export function ConfigEditor({
   const userLoad = useCallback(() => ReadConfig(projectName), [projectName]);
   const userSave = useCallback(
     async (content: string) => {
-      const newName = await queueWrite(projectName, () => SaveConfig(projectName, content));
+      const newName = await queueWrite(projectLayer(projectName).queueKey, () => SaveConfig(projectName, content));
       onSavedRef.current(newName);
     },
     [projectName],
   );
   const repoLoad = useCallback(() => ReadRepoConfig(projectName), [projectName]);
   const repoSave = useCallback(
-    (content: string) => queueWrite(projectName, () => SaveRepoConfig(projectName, content)),
+    (content: string) => saveLayer(repoLayer(projectName), content),
     [projectName],
   );
   const globalLoad = useCallback(() => ReadGlobalConfig(), []);
   const globalSave = useCallback(
-    (content: string) => queueWrite(globalLayer.queueKey, () => SaveGlobalConfig(content)),
+    (content: string) => saveLayer(globalLayer, content),
     [],
   );
 

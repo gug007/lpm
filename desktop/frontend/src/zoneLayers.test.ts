@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  hasPager,
   layerKeyFor,
   layerOfListKey,
   layoutHasZone,
@@ -36,12 +35,6 @@ describe("zone list keys", () => {
     expect(listKeyForAction(layered, "gone")).toBe("build/mobile");
     expect(listKeyForAction(layered, "web")).toBe("build/web");
     expect(listKeyForAction(plain, "web")).toBe("build");
-  });
-
-  it("shows dots only with two or more layers", () => {
-    expect(hasPager(plain)).toBe(false);
-    expect(hasPager({ layers: [{ name: "a" }] })).toBe(false);
-    expect(hasPager(layered)).toBe(true);
   });
 
   it("finds a zone's lists in a layout", () => {

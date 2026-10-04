@@ -15,7 +15,7 @@ import { ContextMenuItem } from "../ui/ContextMenuItem";
 import { ContextMenuSeparator } from "../ui/ContextMenuSeparator";
 import { ContextMenuShell } from "../ui/ContextMenuShell";
 import { ContextMenuSubmenu } from "../ui/ContextMenuSubmenu";
-import type { ZoneDisplay } from "../../types";
+import { type ZoneDisplay, type ZoneInfo, zoneDisplayOf } from "../../types";
 import type { ActionGroup } from "../actionsDndLayout";
 
 // A zone, or one layer of a zone, the button can move into.
@@ -36,9 +36,8 @@ interface ActionContextMenuProps {
   onMoveRight: () => void;
   // Set when the button sits in a zone. A full zone leaves almost none of its
   // frame to right-click, so its menu opens from here too.
-  zoneLabel?: string;
-  zoneRow?: ZoneDisplay;
-  onZoneMenu?: () => void;
+  zone?: ZoneInfo;
+  onZoneMenu: (zone: ZoneInfo) => void;
   // The zones and layers the button can move into, its own list left out.
   zoneTargets?: ZoneTarget[];
   // Set when the button can start a zone of its own; the item quotes its label.
@@ -60,8 +59,7 @@ export function ActionContextMenu({
   onMoveTo,
   onMoveLeft,
   onMoveRight,
-  zoneLabel,
-  zoneRow,
+  zone,
   onZoneMenu,
   zoneTargets = [],
   actionLabel,
@@ -118,11 +116,11 @@ export function ActionContextMenu({
           />
         ))}
       </ContextMenuSubmenu>
-      {zoneLabel !== undefined && onZoneMenu && (
+      {zone && (
         <ContextMenuItem
-          label={`Zone “${zoneLabel}”…`}
-          icon={zoneRow === "footer" ? <PanelBottomIcon /> : <PanelTopIcon />}
-          onClick={close(onZoneMenu)}
+          label={`Zone “${zone.label}”…`}
+          icon={zoneDisplayOf(zone) === "footer" ? <PanelBottomIcon /> : <PanelTopIcon />}
+          onClick={close(() => onZoneMenu(zone))}
         />
       )}
       {canUngroup && (

@@ -35,7 +35,7 @@ afterEach(() => {
 function overlay(id: string, overGroup: ActionGroup | null, from = model): HTMLElement {
   act(() =>
     root.render(
-      <ActionDragOverlay id={id} overGroup={overGroup} actions={actions} model={from} projectName="app" scope="t" />,
+      <ActionDragOverlay id={id} overGroup={overGroup} actions={actions} model={from} projectName="app" />,
     ),
   );
   return container.firstElementChild as HTMLElement;

@@ -1,8 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useDndContext } from "@dnd-kit/core";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
-
-const SLIDE_MS = 340;
+import { SLIDE_MS } from "./ZoneLayerPager";
 
 interface ZoneLayerRemeasureProps {
   openKey: string;

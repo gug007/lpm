@@ -2,9 +2,9 @@ import type { MouseEvent } from "react";
 import type { ZoneLayerView } from "../actionsLayoutModel";
 import type { ActionInfo, ZoneDisplay, ZoneInfo } from "../types";
 import { useLayerSwipe } from "../hooks/useLayerSwipe";
-import { useOpenLayer, useZoneLayers } from "../store/zoneLayers";
-import { hasPager, layerOfListKey, zoneListKey } from "../zoneLayers";
-import { useActionsActiveId, useActionsOverGroup, useExtractIndicator } from "./ActionsDnd";
+import { openLayerOfListKey, useOpenLayer } from "../store/zoneLayers";
+import { zoneListKey } from "../zoneLayers";
+import { useActionsActiveId, useActionsOverGroup, useExtractGroup } from "./ActionsDnd";
 import { ActionsGroup } from "./ActionsGroup";
 import { ActionsSortableItem } from "./ActionsSortableItem";
 import { ActionView } from "./ActionView";
@@ -24,7 +24,6 @@ interface ZoneViewProps {
   layers: ZoneLayerView[];
   projectName: string;
   disabled: boolean;
-  scope: string;
   onRun: (action: ActionInfo) => void;
   onActionContextMenu?: (e: MouseEvent, action: ActionInfo) => void;
   onZoneContextMenu?: (e: MouseEvent, zone: ZoneInfo) => void;
@@ -36,27 +35,27 @@ export function ZoneView({
   layers,
   projectName,
   disabled,
-  scope,
   onRun,
   onActionContextMenu,
   onZoneContextMenu,
 }: ZoneViewProps) {
   const openKey = zoneListKey(zone.name, useOpenLayer(projectName, zone));
-  const open = layers.find((layer) => layer.key === openKey) ?? layers[0] ?? { key: zone.name, layer: null, ids: [], actions: [] };
-  const pager = hasPager(zone) && layers.length > 1;
+  const openIndex = Math.max(
+    0,
+    layers.findIndex((layer) => layer.key === openKey),
+  );
+  const open = layers[openIndex];
+  const pager = layers.length > 1;
   const group = zoneGroup(open.key);
   const activeId = useActionsActiveId();
   const buttonDrag = activeId !== null && !isZoneItemId(activeId);
-  const extractGroup = useExtractIndicator()?.group ?? null;
+  const extractGroup = useExtractGroup();
   // A dragged-out menu item has no over group; it's over the zone it would join.
   const overGroup = useActionsOverGroup() ?? extractGroup;
   const { state, holdsButtons } = zoneFrameState({ ids: open.ids, activeId, overGroup, group });
   const extracting = extractGroup === group;
-  const showLayer = (key: string) => {
-    const layer = layerOfListKey(key);
-    if (layer) useZoneLayers.getState().setOpen(projectName, zone.name, layer);
-  };
-  const layerAt = (dir: 1 | -1) => layers[layers.findIndex((layer) => layer.key === open.key) + dir];
+  const showLayer = (key: string) => openLayerOfListKey(projectName, key);
+  const layerAt = (dir: 1 | -1) => layers[openIndex + dir];
   const swipe = useLayerSwipe(
     (dir) => {
       const next = layerAt(dir);
@@ -81,15 +80,13 @@ export function ZoneView({
       disabled={disabled}
       onRun={onRun}
       onContextMenu={onActionContextMenu}
-      scope={scope}
+      scope={projectName}
     />
   );
   const openList = (gridHoldsButtons: boolean) => (
     <ActionsGroup
       group={group}
       ids={open.ids}
-      hint={false}
-      emptyHint={false}
       placeholder={<ZoneExtractPlaceholder slot={zoneEndSlot(open.ids.length, zone.rows)} />}
       className={ZONE_GRID_CLASS}
       style={zoneGridStyle(zone.rows, gridHoldsButtons)}

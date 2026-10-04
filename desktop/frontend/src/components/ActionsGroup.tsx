@@ -17,9 +17,6 @@ interface ActionsGroupProps {
   ids: string[];
   className?: string;
   style?: CSSProperties;
-  // Off for zones: their frame draws the drag state and the empty hint.
-  hint?: boolean;
-  emptyHint?: boolean;
   // Marks where a dragged-out menu item would land; rows default to a
   // button-sized gap.
   placeholder?: ReactNode;
@@ -31,8 +28,6 @@ export function ActionsGroup({
   ids,
   className,
   style,
-  hint = true,
-  emptyHint = true,
   placeholder,
   children,
 }: ActionsGroupProps) {
@@ -40,6 +35,8 @@ export function ActionsGroup({
   const { setNodeRef, hintClass } = useActionsDropZone(group, !groupAcceptsDrag(group, activeId));
   const indicator = useExtractIndicator();
   const compact = group !== "header";
+  // A zone's frame draws the drag state and the empty hint.
+  const framed = isZoneGroup(group);
   let content: ReactNode = children;
   if (indicator && indicator.group === group) {
     const arr = Children.toArray(children);
@@ -48,17 +45,17 @@ export function ActionsGroup({
     arr.splice(i, 0, <Fragment key="extract-placeholder">{mark}</Fragment>);
     content = arr;
   }
-  const strategy = isZoneGroup(group) ? rectSortingStrategy : horizontalListSortingStrategy;
+  const strategy = framed ? rectSortingStrategy : horizontalListSortingStrategy;
   return (
     <SortableContext items={ids} strategy={strategy}>
       <GroupContext.Provider value={group}>
         <div
           ref={setNodeRef}
           data-actions-group={group}
-          className={`${className ?? ""} ${hint ? hintClass : ""}`}
+          className={`${className ?? ""} ${framed ? "" : hintClass}`}
           style={style}
         >
-          {emptyHint && ids.length === 0 && <EmptyDropHint compact={compact} />}
+          {!framed && ids.length === 0 && <EmptyDropHint compact={compact} />}
           {content}
         </div>
       </GroupContext.Provider>

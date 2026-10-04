@@ -7,11 +7,11 @@ import {
   type NewZone,
   addZoneAroundActionToDoc,
   addZoneToDoc,
-  removeZoneFromDoc,
   setZoneDetailsInDoc,
   zoneDetailsOf,
   zoneKeyFor,
 } from "./zoneConfig";
+import { removeZoneFromDoc } from "./zoneDoc";
 
 const run = (yaml: string, edit: (doc: ReturnType<typeof YAML.parseDocument>) => void) => {
   const doc = YAML.parseDocument(yaml);
@@ -152,7 +152,7 @@ describe("addZoneToDoc", () => {
 const around = (yaml: string, action: string, now: ActionsSnapshot) => {
   let key: string | null = null;
   const out = run(yaml, (doc) => {
-    key = addZoneAroundActionToDoc(doc, action, 1, now);
+    key = addZoneAroundActionToDoc(doc, action, now);
   });
   return { out, key };
 };

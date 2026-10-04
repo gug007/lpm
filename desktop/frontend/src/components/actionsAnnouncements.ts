@@ -3,10 +3,9 @@ import {
   groupOfDropId,
   isGroupDropId,
   isZoneItemId,
-  zoneNameOfGroup,
   zoneNameOfItem,
+  zoneOfGroup,
 } from "./actionsDndLayout";
-import { zoneOfListKey } from "../zoneLayers";
 
 function describeTarget(id: UniqueIdentifier): string {
   const s = String(id);
@@ -15,7 +14,7 @@ function describeTarget(id: UniqueIdentifier): string {
   const group = groupOfDropId(s);
   if (group === "header") return "the header row";
   if (group === "footer") return "the footer row";
-  return `the ${zoneOfListKey(zoneNameOfGroup(group))} zone`;
+  return `the ${zoneOfGroup(group)} zone`;
 }
 
 // The dragged item as a sentence subject: "Action build" or "The tools zone".

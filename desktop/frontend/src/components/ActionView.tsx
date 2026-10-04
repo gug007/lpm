@@ -9,11 +9,18 @@ import { actionButtonStyle } from "../actionColors";
 import { formatShortcut, parseShortcut } from "../shortcutParse";
 import { COMPOSER_TOOLTIP_DELAY_MS } from "../composerText";
 
+const FLAT_BASE =
+  "flex cursor-grab select-none items-center rounded-md border px-2.5 text-[11px] font-medium transition-all duration-100 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40";
+const FLAT_HEADER_TONE =
+  "border-[var(--border)] bg-[var(--action-tint,var(--bg-secondary))] text-[var(--text-secondary)] hover:bg-[var(--action-tint-strong,var(--terminal-header-active))] hover:text-[var(--text-primary)]";
+const FLAT_FOOTER_TONE =
+  "border-[var(--composer-border)] bg-[var(--action-tint,var(--composer-surface))] text-[var(--composer-fg-secondary)] hover:bg-[var(--action-tint-strong,var(--composer-hover-bg))] hover:text-[var(--composer-fg)]";
+const FLAT_ZONE_FIT = "h-full w-full justify-center whitespace-nowrap";
+
 const FLAT_SIZE_CLASSES: Record<Exclude<ActionSize, "default">, string> = {
-  compact:
-    "flex cursor-grab select-none items-center rounded-md border border-[var(--composer-border)] bg-[var(--action-tint,var(--composer-surface))] px-2.5 py-1 text-[11px] font-medium text-[var(--composer-fg-secondary)] transition-all duration-100 hover:bg-[var(--action-tint-strong,var(--composer-hover-bg))] hover:text-[var(--composer-fg)] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40",
-  zone: "flex h-full w-full cursor-grab select-none items-center justify-center whitespace-nowrap rounded-md border border-[var(--border)] bg-[var(--action-tint,var(--bg-secondary))] px-2.5 text-[11px] font-medium text-[var(--text-secondary)] transition-all duration-100 hover:bg-[var(--action-tint-strong,var(--terminal-header-active))] hover:text-[var(--text-primary)] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40",
-  footerZone: "flex h-full w-full cursor-grab select-none items-center justify-center whitespace-nowrap rounded-md border border-[var(--composer-border)] bg-[var(--action-tint,var(--composer-surface))] px-2.5 text-[11px] font-medium text-[var(--composer-fg-secondary)] transition-all duration-100 hover:bg-[var(--action-tint-strong,var(--composer-hover-bg))] hover:text-[var(--composer-fg)] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40",
+  compact: `${FLAT_BASE} py-1 ${FLAT_FOOTER_TONE}`,
+  zone: `${FLAT_BASE} ${FLAT_ZONE_FIT} ${FLAT_HEADER_TONE}`,
+  footerZone: `${FLAT_BASE} ${FLAT_ZONE_FIT} ${FLAT_FOOTER_TONE}`,
 };
 
 interface ActionViewProps {

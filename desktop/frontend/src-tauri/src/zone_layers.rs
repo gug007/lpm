@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde::Serialize;
 use serde_norway::Value as Yaml;
 
-use crate::config::sort_action_names;
+use crate::config::sorted_by_position;
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct LayerEntry {
@@ -49,7 +49,7 @@ pub(crate) fn layers_of(value: &Yaml) -> BTreeMap<String, LayerEntry> {
 /// Declarations come highest precedence first.
 pub(crate) fn merge_zone_layers(declared: &[&BTreeMap<String, LayerEntry>]) -> Vec<LayerInfo> {
     let keys: BTreeSet<&String> = declared.iter().flat_map(|layers| layers.keys()).collect();
-    let mut layers: BTreeMap<String, LayerInfo> = keys
+    let layers: BTreeMap<String, LayerInfo> = keys
         .into_iter()
         .map(|key| {
             let entries: Vec<&LayerEntry> = declared
@@ -66,14 +66,7 @@ pub(crate) fn merge_zone_layers(declared: &[&BTreeMap<String, LayerEntry>]) -> V
             (key.clone(), info)
         })
         .collect();
-    let mut order: Vec<String> = layers.keys().cloned().collect();
-    sort_action_names(&mut order, |name| {
-        layers.get(name).and_then(|layer| layer.position)
-    });
-    order
-        .into_iter()
-        .filter_map(|name| layers.remove(&name))
-        .collect()
+    sorted_by_position(layers, |layer| layer.position)
 }
 
 #[cfg(test)]

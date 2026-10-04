@@ -16,8 +16,12 @@ export function isZoneGroup(group: ActionGroup): group is ZoneGroup {
   return group.startsWith(ZONE_GROUP_PREFIX);
 }
 
-export function zoneNameOfGroup(group: ZoneGroup): string {
+export function listKeyOfGroup(group: ZoneGroup): string {
   return group.slice(ZONE_GROUP_PREFIX.length);
+}
+
+export function zoneOfGroup(group: ZoneGroup): string {
+  return zoneOfListKey(listKeyOfGroup(group));
 }
 
 // A zone sits in the header or footer list beside buttons. Its id can't be an
@@ -117,7 +121,7 @@ export function crumbTargetOf(id: string): string {
 export function listOf(layout: ActionsLayout, group: ActionGroup): string[] {
   if (group === "header") return layout.header;
   if (group === "footer") return layout.footer;
-  return layout.zones[zoneNameOfGroup(group)] ?? [];
+  return layout.zones[listKeyOfGroup(group)] ?? [];
 }
 
 function groupsOf(layout: ActionsLayout): ActionGroup[] {
@@ -131,7 +135,7 @@ export function groupOf(layout: ActionsLayout, id: string): ActionGroup | null {
 export function zoneOfButton(layout: ActionsLayout, zones: ZoneInfo[], id: string): ZoneInfo | undefined {
   const group = groupOf(layout, id);
   if (group === null || !isZoneGroup(group)) return undefined;
-  const name = zoneOfListKey(zoneNameOfGroup(group));
+  const name = zoneOfGroup(group);
   return zones.find((zone) => zone.name === name);
 }
 
@@ -204,7 +208,7 @@ export function applyMove(
     ),
   };
   const list = isZoneGroup(target.group)
-    ? next.zones[zoneNameOfGroup(target.group)]
+    ? next.zones[listKeyOfGroup(target.group)]
     : next[target.group];
   list.splice(Math.max(0, Math.min(target.index, list.length)), 0, draggedId);
   return next;

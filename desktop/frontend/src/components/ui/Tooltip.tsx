@@ -16,14 +16,12 @@ interface TooltipProps {
   delay?: number;
   // Default "inline-flex" hugs the child; pass "flex w-full" for full-width triggers.
   triggerClassName?: string;
-  // While true the tooltip never shows, and one already showing hides.
-  disabled?: boolean;
 }
 
 const GAP = 8;
 const EDGE_MARGIN = 8;
 
-export function Tooltip({ content, children, side = "top", align = "center", wide = false, maxLines, delay = 0, triggerClassName = "inline-flex", disabled = false }: TooltipProps) {
+export function Tooltip({ content, children, side = "top", align = "center", wide = false, maxLines, delay = 0, triggerClassName = "inline-flex" }: TooltipProps) {
   const triggerRef = useRef<HTMLSpanElement>(null);
   const tooltipRef = useRef<HTMLSpanElement>(null);
   const showTimer = useRef<number | null>(null);
@@ -40,7 +38,6 @@ export function Tooltip({ content, children, side = "top", align = "center", wid
   // Reveal after the dwell delay (or immediately when delay is 0); leaving the
   // trigger before it elapses cancels the pending show.
   const show = useCallback(() => {
-    if (disabled) return;
     if (delay <= 0) {
       setVisible(true);
       return;
@@ -50,18 +47,12 @@ export function Tooltip({ content, children, side = "top", align = "center", wid
       showTimer.current = null;
       setVisible(true);
     }, delay);
-  }, [delay, clearShowTimer, disabled]);
+  }, [delay, clearShowTimer]);
 
   const hide = useCallback(() => {
     clearShowTimer();
     setVisible(false);
   }, [clearShowTimer]);
-
-  // Hides a showing tooltip and drops a pending dwell show. A layout effect, so
-  // it is gone before the frame that paints whatever disabled it.
-  useLayoutEffect(() => {
-    if (disabled) hide();
-  }, [disabled, hide]);
 
   // Drop a pending show if the trigger unmounts mid-dwell.
   useEffect(() => clearShowTimer, [clearShowTimer]);
@@ -117,7 +108,7 @@ export function Tooltip({ content, children, side = "top", align = "center", wid
         // Immediate (no dwell) on keyboard focus; :focus-visible keeps mouse
         // clicks from pinning the tooltip until blur.
         onFocus={(e) => {
-          if (!disabled && e.target.matches(":focus-visible")) setVisible(true);
+          if (e.target.matches(":focus-visible")) setVisible(true);
         }}
         onBlur={(e) => {
           if (!e.currentTarget.contains(e.relatedTarget)) hide();

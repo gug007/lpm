@@ -29,9 +29,6 @@ export type RowItem =
 export interface ActionsModel {
   headerItems: RowItem[];
   footerItems: RowItem[];
-  headerActions: ActionInfo[];
-  footerActions: ActionInfo[];
-  menuActions: ActionInfo[];
   layout: ActionsLayout;
   nextHeaderPosition: number;
   nextFooterPosition: number;
@@ -103,10 +100,6 @@ function rowItems(
   return entries.sort(comparePosition).map((entry) => entry.item);
 }
 
-function actionsOf(items: RowItem[]): ActionInfo[] {
-  return items.flatMap((item) => (item.kind === "action" ? [item.action] : []));
-}
-
 // Past the highest position in the row; an item without one counts as its index + 1.
 function nextPosition(items: RowItem[]): number {
   return (
@@ -133,12 +126,11 @@ export function buildActionsModel(actions: ActionInfo[], zones: ZoneInfo[]): Act
   const inZone = new Map<string, ActionInfo[]>(listKeys.map((key) => [key, []]));
   const header: ActionInfo[] = [];
   const footer: ActionInfo[] = [];
-  const menuActions: ActionInfo[] = [];
   for (const action of actions) {
     const zone = isHeaderDisplay(action.display) ? undefined : zoneByName.get(action.display);
     const zoneActions = zone && inZone.get(listKeyForAction(zone, action.layer));
     if (isFooterDisplay(action.display)) footer.push(action);
-    else if (action.display === "menu") menuActions.push(action);
+    else if (action.display === "menu") continue;
     else if (zoneActions) zoneActions.push(action);
     else header.push(action);
   }
@@ -154,9 +146,6 @@ export function buildActionsModel(actions: ActionInfo[], zones: ZoneInfo[]): Act
   return {
     headerItems,
     footerItems,
-    headerActions: actionsOf(headerItems),
-    footerActions: actionsOf(footerItems),
-    menuActions,
     layout,
     nextHeaderPosition: nextPosition(headerItems),
     nextFooterPosition: nextPosition(footerItems),

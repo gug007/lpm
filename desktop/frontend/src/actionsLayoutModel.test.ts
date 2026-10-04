@@ -29,8 +29,7 @@ describe("buildActionsModel", () => {
     );
     expect(model.layout.footer).toEqual(["logs"]);
     expect(model.layout.zones).toEqual({ build: ["ios"] });
-    expect(model.menuActions.map((a) => a.name)).toEqual(["old"]);
-    expect(model.headerActions.map((a) => a.name)).toEqual(["test"]);
+    expect(model.layout.header).toEqual([zoneItemId("build"), "test"]);
   });
 
   it("sorts a layered zone's buttons into its layers, missing layers into the first", () => {
@@ -75,17 +74,7 @@ describe("buildActionsModel", () => {
 
   it("renders header buttons in the order drag and drop sees", () => {
     const model = buildActionsModel([action("check"), action("alpha"), action("Build")], []);
-    expect(model.headerActions.map((a) => a.name)).toEqual(["Build", "alpha", "check"]);
-    expect(model.headerActions.map((a) => a.name)).toEqual(model.layout.header);
-  });
-
-  it("lists header buttons in header order without the zones between them", () => {
-    const model = buildActionsModel(
-      [action("lint", "", 3), action("test", "", 1)],
-      [zone("build", 2)],
-    );
-    expect(model.layout.header).toEqual(["test", zoneItemId("build"), "lint"]);
-    expect(model.headerActions.map((a) => a.name)).toEqual(["test", "lint"]);
+    expect(model.layout.header).toEqual(["Build", "alpha", "check"]);
   });
 });
 
@@ -97,7 +86,6 @@ describe("buildActionsModel with footer zones", () => {
     );
     expect(model.layout.footer).toEqual(["logs", zoneItemId("ship"), "shell"]);
     expect(model.footerItems.map((item) => item.kind)).toEqual(["action", "zone", "action"]);
-    expect(model.footerActions.map((a) => a.name)).toEqual(["logs", "shell"]);
     expect(model.layout.header).toEqual(["test", zoneItemId("build")]);
     expect(model.layout.zones).toEqual({ ship: ["prod"], build: [] });
   });

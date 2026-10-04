@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { ZoneInfo } from "../types";
-import { layersOf, zoneListKey } from "../zoneLayers";
+import { layerOfListKey, layersOf, zoneListKey, zoneOfListKey } from "../zoneLayers";
 
 const STORAGE_KEY = "lpm.zoneLayers";
 
@@ -60,4 +60,10 @@ export function useOpenLayer(project: string, zone: Pick<ZoneInfo, "name" | "lay
 export function openListKey(project: string, zone: Pick<ZoneInfo, "name" | "layers">): string {
   const stored = useZoneLayers.getState().open[mapKey(project, zone.name)];
   return zoneListKey(zone.name, resolveOpenLayer(zone, stored));
+}
+
+// Opens the layer a list key names; a zone without layers has none to open.
+export function openLayerOfListKey(project: string, key: string): void {
+  const layer = layerOfListKey(key);
+  if (layer) useZoneLayers.getState().setOpen(project, zoneOfListKey(key), layer);
 }

@@ -1,9 +1,9 @@
-import { ReadGlobalConfig, SaveGlobalConfig } from "../../bridge/commands";
+import { ReadGlobalConfig } from "../../bridge/commands";
 import { GLOBAL_MODEL_URI } from "../monaco-setup";
-import { globalLayer, queueWrite } from "../yamlQueue";
+import { globalLayer, saveLayer } from "../yamlQueue";
 import { YamlConfigEditor } from "./YamlConfigEditor";
 
-const save = (content: string) => queueWrite(globalLayer.queueKey, () => SaveGlobalConfig(content));
+const save = (content: string) => saveLayer(globalLayer, content);
 
 export function GlobalConfigEditor({ onBack }: { onBack: () => void }) {
   return (

@@ -1,4 +1,7 @@
-use super::{string_at, string_keys, validate_keys, validate_string_field, Mapping, Report, Value};
+use super::{
+    string_at, string_keys, validate_keys, validate_number_field, validate_string_field, Mapping,
+    Report, Value,
+};
 
 // Any name can be a zone: the CLI checks one file at a time and can't see
 // zones declared in the others. The app shows a button whose zone is missing
@@ -53,11 +56,7 @@ pub(super) fn validate_zones(root: &Mapping, report: &mut Report) {
             }
         }
         validate_string_field(map, "label", &format!("{path}.label"), report);
-        if let Some(position) = map.get(Value::String("position".into())) {
-            if position.as_f64().is_none() {
-                report.error(&format!("{path}.position"), "expected a number");
-            }
-        }
+        validate_number_field(map, "position", &format!("{path}.position"), report);
         if let Some(display) = map.get(Value::String("display".into())) {
             if !matches!(display.as_str(), Some("header" | "footer")) {
                 report.error(&format!("{path}.display"), "expected header or footer");
@@ -93,11 +92,7 @@ fn validate_layers(value: &Value, path: &str, report: &mut Report) {
         };
         validate_keys(map, &["label", "position"], &layer_path, report);
         validate_string_field(map, "label", &format!("{layer_path}.label"), report);
-        if let Some(position) = map.get(Value::String("position".into())) {
-            if position.as_f64().is_none() {
-                report.error(&format!("{layer_path}.position"), "expected a number");
-            }
-        }
+        validate_number_field(map, "position", &format!("{layer_path}.position"), report);
     }
 }
 

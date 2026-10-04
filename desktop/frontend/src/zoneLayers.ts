@@ -24,8 +24,9 @@ export function layersOf(zone: Pick<ZoneInfo, "layers">): LayerInfo[] {
   return zone.layers ?? [];
 }
 
-export function hasPager(zone: Pick<ZoneInfo, "layers">): boolean {
-  return layersOf(zone).length >= 2;
+// A layer without a label of its own is named by its place in the zone.
+export function layerName(label: string | undefined, index: number): string {
+  return label || `Layer ${index + 1}`;
 }
 
 export function listKeysOfZone(zone: Pick<ZoneInfo, "name" | "layers">): string[] {
@@ -48,7 +49,7 @@ export function zonePlacements(zones: ZoneInfo[]): ZonePlacement[] {
     return layers.map((layer, index) => ({
       zone,
       listKey: zoneListKey(zone.name, layer.name),
-      label: `${zone.label} › ${layer.label || `Layer ${index + 1}`}`,
+      label: `${zone.label} › ${layerName(layer.label, index)}`,
     }));
   });
 }

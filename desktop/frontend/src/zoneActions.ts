@@ -8,9 +8,9 @@ import {
   type ZoneDetails,
   addZoneAroundActionToDoc,
   addZoneToDoc,
-  removeZoneFromDoc,
   setZoneDetailsInDoc,
 } from "./zoneConfig";
+import { removeZoneFromDoc } from "./zoneDoc";
 import { layoutWithoutZone } from "./components/actionsDndLayout";
 
 type Mutate = Parameters<typeof editProjectDoc>[1];
@@ -40,7 +40,7 @@ export function createZone(projectName: string, snapshot: ActionsSnapshot, zone:
 
 export function createZoneAround(projectName: string, snapshot: ActionsSnapshot, action: string): Promise<void> {
   return runZoneEdit(
-    () => editProjectDoc(projectName, (doc) => addZoneAroundActionToDoc(doc, action, 1, snapshot)),
+    () => editProjectDoc(projectName, (doc) => addZoneAroundActionToDoc(doc, action, snapshot)),
     "Could not add the zone",
   );
 }

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { toast } from "sonner";
 import { ActionsDnd } from "./ActionsDnd";
-import { type ActionGroup, applyMove, groupOf, listOf, zoneOfButton } from "./actionsDndLayout";
+import { type ActionGroup, applyMove, groupOf, listOf, movedByZoneResize, zoneOfButton } from "./actionsDndLayout";
 import { ActionDragOverlay } from "./ActionDragOverlay";
 import { ConfigEditor } from "./ConfigEditor";
 import { NotesView } from "./NotesView";
@@ -69,7 +69,6 @@ import {
   type ServiceInfo,
   type ZoneDisplay,
   type ZoneInfo,
-  zoneDisplayOf,
 } from "../types";
 import { projectStartProfile } from "../projectStartProfile";
 import { SyncedBar } from "./SyncedBar";
@@ -452,7 +451,6 @@ export function ProjectDetail({
         actions={actionsRef.current ?? []}
         model={modelRef.current}
         projectName={project.name}
-        scope={project.name}
       />
     ),
     [project.name],
@@ -615,6 +613,8 @@ export function ProjectDetail({
   // project.zones is a new array on every refresh and preview; keying the
   // wrap check on the zone shape keeps it from re-measuring each time.
   const zonesKey = (project.zones ?? []).map((z) => `${z.name}:${z.rows}`).join("|");
+  // The header's items and its zones' buttons; the footer's never change its width.
+  const headerKey = movedByZoneResize(actionsLayout, "header").join("\n");
   const [actionsDragging, setActionsDragging] = useState(false);
   const {
     wrapped: actionsWrapped,
@@ -622,9 +622,9 @@ export function ProjectDetail({
     innerRef: innerContainerRef,
   } = useOverflowWrap(
     [
-      // Re-measures whenever any button moves between rows or zones, which can
-      // change the header's width without changing its item count.
-      actionsLayout,
+      // Re-measures whenever a button moves into, out of or within the header
+      // or its zones, which can change its width without changing its item count.
+      headerKey,
       zonesKey,
       showProjectName,
       project.running,
@@ -710,7 +710,6 @@ export function ProjectDetail({
       alignTop={hasZones}
       projectName={project.name}
       disabled={runningAction !== null}
-      scope={project.name}
       onRun={handleRunAction}
       onContextMenu={handleActionContextMenu}
       onZoneContextMenu={handleZoneContextMenu}
@@ -899,12 +898,8 @@ export function ProjectDetail({
             onMoveTo={actionMenuMove.toGroup}
             onMoveLeft={actionMenuMove.left}
             onMoveRight={actionMenuMove.right}
-            zoneLabel={actionMenuZone?.label}
-            zoneRow={actionMenuZone && zoneDisplayOf(actionMenuZone)}
-            onZoneMenu={
-              actionMenuZone &&
-              (() => setZoneMenu({ x: actionMenu.x, y: actionMenu.y, zone: actionMenuZone }))
-            }
+            zone={actionMenuZone}
+            onZoneMenu={(zone) => setZoneMenu({ x: actionMenu.x, y: actionMenu.y, zone })}
             zoneTargets={zoneTargetsFor(project.zones ?? [], actionMenuMove.group)}
             actionLabel={actionMenu.action.label || actionMenu.action.name}
             onNewZone={

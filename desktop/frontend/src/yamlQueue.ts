@@ -55,6 +55,11 @@ export const globalLayer: ConfigLayer = {
   queueKey: GLOBAL_QUEUE_KEY,
 };
 
+// For editors that save a whole file, so their saves queue with the edits.
+export async function saveLayer(layer: ConfigLayer, content: string): Promise<void> {
+  await queueWrite(layer.queueKey, () => layer.save(content));
+}
+
 type Doc = ReturnType<typeof YAML.parseDocument>;
 
 function editLayer(layer: ConfigLayer, mutate: (doc: Doc) => void) {
