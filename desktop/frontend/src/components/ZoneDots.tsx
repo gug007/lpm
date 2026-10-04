@@ -24,10 +24,7 @@ const TONE: Record<ZoneDisplay, { label: string; dot: string }> = {
 // dots take them back so a dragged button can hover one open.
 const LIVE_DURING_DRAG = { pointerEvents: "auto" } as const;
 
-function dotSize(open: boolean, dragging: boolean): string {
-  if (dragging) return open ? "h-2 w-4" : "h-2 w-2";
-  return open ? "h-1 w-3" : "h-1 w-1";
-}
+const dotSize = (dragging: boolean) => (dragging ? "h-2 w-2" : "h-1 w-1");
 
 interface ZoneDotsProps {
   zone: string;
@@ -113,7 +110,6 @@ export function ZoneDots({ zone, layers, openKey, dragging, display, frameState,
             >
               <span
                 className={`block rounded-full transition-[width,height,background-color] duration-300 ease-[cubic-bezier(.22,.8,.24,1)] motion-reduce:transition-none ${dotSize(
-                  isOpen,
                   dragging,
                 )} ${isOpen ? "bg-[var(--accent-blue)]" : tone.dot}`}
               />

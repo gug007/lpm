@@ -145,6 +145,10 @@ const LESSON_CAPTION: Record<
     heading: "Read every change an agent made before you commit",
     blurb: "A short video: review Claude's edits, undo one file, commit the rest.",
   },
+  "action-zones": {
+    heading: "Group your buttons into zones, with layers to flip between",
+    blurb: "A short video: start a zone from a button, add layers, and tidy the header.",
+  },
 };
 
 function DesktopOnlyPrompt({

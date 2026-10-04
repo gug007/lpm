@@ -154,14 +154,14 @@ describe("ZoneDots", () => {
     expect(dot.className).toContain("motion-reduce:transition-none");
   });
 
-  it("draws the open layer as a capsule and grows every dot while a button is dragged", () => {
+  it("draws the open layer as a dot of the same size, and grows every dot while a button is dragged", () => {
     const size = (dragging: boolean) =>
       render([layer("a"), layer("b")], "ship/a", dragging).dots.map((dot) => dot.firstElementChild!.className);
     const [open, closed] = size(false);
-    expect(open).toContain("h-1 w-3");
+    expect(open).toContain("h-1 w-1");
     expect(closed).toContain("h-1 w-1");
     const [dragOpen, dragClosed] = size(true);
-    expect(dragOpen).toContain("h-2 w-4");
+    expect(dragOpen).toContain("h-2 w-2");
     expect(dragClosed).toContain("h-2 w-2");
   });
 

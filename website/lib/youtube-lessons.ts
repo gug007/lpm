@@ -72,6 +72,13 @@ const LESSONS = {
       "Claude Code edits your files; lpm shows you every change before it's committed, in a diff view right next to the terminal.",
     uploadDate: "2026-09-30T09:00:00+00:00",
   },
+  "action-zones": {
+    id: "edfoTn3rZnQ",
+    name: "Action Zones in lpm: Stack Your Buttons in Rows and Layers",
+    description:
+      "Too many action buttons in your lpm header? Zones give a group of them a framed spot of its own, stacked up to three rows tall, with layers you flip between.",
+    uploadDate: "2026-10-04T09:00:00+00:00",
+  },
   "sixty-seconds": {
     id: "H46vW5DPbZk",
     name: "lpm in 60 Seconds: Start, Stop, Switch Projects and Run AI Agents",
