@@ -2,7 +2,8 @@ import type { ReactNode } from "react";
 import type { ZoneLayerView } from "../actionsLayoutModel";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
 
-const SLIDE = "transform 340ms cubic-bezier(.22,.8,.24,1), opacity 340ms";
+export const SLIDE_MS = 340;
+const SLIDE = `transform ${SLIDE_MS}ms cubic-bezier(.22,.8,.24,1), opacity ${SLIDE_MS}ms`;
 
 interface ZoneLayerPagerProps {
   layers: ZoneLayerView[];

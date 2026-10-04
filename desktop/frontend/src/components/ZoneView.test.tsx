@@ -41,7 +41,6 @@ function mount(zone: ZoneInfo, display: ZoneDisplay, layers: ZoneLayerView[]) {
           layers={layers}
           projectName="app"
           disabled={false}
-          scope="t"
           onRun={() => {}}
           onZoneContextMenu={onZoneContextMenu}
         />

@@ -64,7 +64,9 @@ describe("TerminalFooter", () => {
     expect(surface.className).toBe("composer-terminal-surface flex items-center gap-2 bg-[var(--terminal-bg)] px-3 py-2");
     expect(group.className.startsWith("flex flex-wrap items-center justify-end gap-1 ")).toBe(true);
     expect(tip.dataset.tip).toBe("auto");
-    expect(group.querySelector("button")?.className).toContain("px-2.5 py-1 text-[11px]");
+    expect(group.querySelector("button")?.className.split(" ")).toEqual(
+      expect.arrayContaining(["px-2.5", "py-1", "text-[11px]"]),
+    );
   });
 
   it("draws a footer zone in the row, aligned to the top with the tip on the first row", () => {

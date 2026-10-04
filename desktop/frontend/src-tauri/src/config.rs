@@ -2029,6 +2029,19 @@ pub(crate) fn sort_action_names(names: &mut [String], pos_of: impl Fn(&str) -> O
     });
 }
 
+/// The map's values in `sort_action_names` order.
+pub(crate) fn sorted_by_position<T>(
+    mut map: BTreeMap<String, T>,
+    pos_of: impl Fn(&T) -> Option<f64>,
+) -> Vec<T> {
+    let mut names: Vec<String> = map.keys().cloned().collect();
+    sort_action_names(&mut names, |name| map.get(name).and_then(|value| pos_of(value)));
+    names
+        .into_iter()
+        .filter_map(|name| map.remove(&name))
+        .collect()
+}
+
 // `id` may be composite (`parent:child`) for menu children; `name` is the
 // plain action name the label falls back to.
 fn action_to_info(id: &str, name: &str, act: &ActionFull) -> ActionInfo {
@@ -2284,7 +2297,12 @@ fn to_project_info(
         "services": running_services,
         "allServices": all_services,
         "actions": resolve_actions(file_name),
-        "zones": crate::zones::resolve_zones(file_name),
+        "zones": crate::zones::resolve_zones_with(
+            file_name,
+            Some(yaml.parent_name.as_str()).filter(|parent| !parent.is_empty()),
+            &expand_home(&yaml.root),
+            is_remote,
+        ),
         "profiles": profiles,
         "activeProfile": active_profile,
         "statusEntries": [],

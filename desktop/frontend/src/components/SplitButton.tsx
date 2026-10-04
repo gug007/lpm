@@ -15,75 +15,64 @@ import {
   resolvePrimaryChild,
 } from "./splitPrimary";
 
+// A row's palette, and which way its dropdowns open.
+const TONE = {
+  header: {
+    side: "below",
+    border: "border border-[var(--border)] bg-[var(--action-tint,var(--bg-secondary))]",
+    dividerBorder: "border-l border-[var(--action-border,var(--border))]",
+    text: "text-[var(--action-text,var(--text-secondary))]",
+    hover: "hover:bg-[var(--action-tint-strong,var(--terminal-header-active))] hover:text-[var(--action-text,var(--text-primary))]",
+    active: "bg-[var(--action-tint-strong,var(--bg-active))] text-[var(--action-text,var(--text-primary))]",
+  },
+  footer: {
+    side: "above",
+    border: "border border-[var(--composer-border)] bg-[var(--action-tint,var(--composer-surface))]",
+    dividerBorder: "border-l border-[var(--action-border,var(--composer-border))]",
+    text: "text-[var(--action-text,var(--composer-fg-secondary))]",
+    hover: "hover:bg-[var(--action-tint-strong,var(--terminal-header-active))] hover:text-[var(--action-text,var(--composer-fg))]",
+    active: "bg-[var(--action-tint-strong,var(--terminal-header-active))] text-[var(--action-text,var(--composer-fg))]",
+  },
+} as const;
+
+const ROW_FIT = { wrapper: "shrink-0", fill: "", primaryFill: "" } as const;
+
+// A zone's buttons fill their grid cell.
+const ZONE_FIT = {
+  height: "h-full",
+  rounded: "rounded-md",
+  roundedL: "rounded-l-md",
+  roundedR: "rounded-r-md",
+  padding: "px-2.5 text-[11px]",
+  chevronPad: "px-1",
+  wrapper: "flex h-full w-full",
+  fill: "w-full justify-center",
+  primaryFill: "flex-1 justify-center",
+} as const;
+
 const SIZE_CLASSES = {
   default: {
+    ...TONE.header,
+    ...ROW_FIT,
     height: "h-8",
     rounded: "rounded-lg",
     roundedL: "rounded-l-lg",
     roundedR: "rounded-r-lg",
     padding: "px-3.5 text-xs",
     chevronPad: "px-1.5",
-    side: "below",
-    border: "border border-[var(--border)] bg-[var(--action-tint,var(--bg-secondary))]",
-    dividerBorder: "border-l border-[var(--action-border,var(--border))]",
-    text: "text-[var(--action-text,var(--text-secondary))]",
-    hover: "hover:bg-[var(--action-tint-strong,var(--terminal-header-active))] hover:text-[var(--action-text,var(--text-primary))]",
-    active: "bg-[var(--action-tint-strong,var(--bg-active))] text-[var(--action-text,var(--text-primary))]",
-    wrapper: "shrink-0",
-    fill: "",
-    primaryFill: "",
   },
   compact: {
+    ...TONE.footer,
+    ...ROW_FIT,
     height: "",
     rounded: "rounded-md",
     roundedL: "rounded-l-md",
     roundedR: "rounded-r-md",
     padding: "px-2.5 py-1 text-[11px]",
     chevronPad: "px-1.5",
-    side: "above",
-    border: "border border-[var(--composer-border)] bg-[var(--action-tint,var(--composer-surface))]",
-    dividerBorder: "border-l border-[var(--action-border,var(--composer-border))]",
-    text: "text-[var(--action-text,var(--composer-fg-secondary))]",
-    hover: "hover:bg-[var(--action-tint-strong,var(--terminal-header-active))] hover:text-[var(--action-text,var(--composer-fg))]",
-    active: "bg-[var(--action-tint-strong,var(--terminal-header-active))] text-[var(--action-text,var(--composer-fg))]",
-    wrapper: "shrink-0",
-    fill: "",
-    primaryFill: "",
   },
-  zone: {
-    height: "h-full",
-    rounded: "rounded-md",
-    roundedL: "rounded-l-md",
-    roundedR: "rounded-r-md",
-    padding: "px-2.5 text-[11px]",
-    chevronPad: "px-1",
-    side: "below",
-    border: "border border-[var(--border)] bg-[var(--action-tint,var(--bg-secondary))]",
-    dividerBorder: "border-l border-[var(--action-border,var(--border))]",
-    text: "text-[var(--action-text,var(--text-secondary))]",
-    hover: "hover:bg-[var(--action-tint-strong,var(--terminal-header-active))] hover:text-[var(--action-text,var(--text-primary))]",
-    active: "bg-[var(--action-tint-strong,var(--bg-active))] text-[var(--action-text,var(--text-primary))]",
-    wrapper: "flex h-full w-full",
-    fill: "w-full justify-center",
-    primaryFill: "flex-1 justify-center",
-  },
-  footerZone: {
-    height: "h-full",
-    rounded: "rounded-md",
-    roundedL: "rounded-l-md",
-    roundedR: "rounded-r-md",
-    padding: "px-2.5 text-[11px]",
-    chevronPad: "px-1",
-    side: "above",
-    border: "border border-[var(--composer-border)] bg-[var(--action-tint,var(--composer-surface))]",
-    dividerBorder: "border-l border-[var(--action-border,var(--composer-border))]",
-    text: "text-[var(--action-text,var(--composer-fg-secondary))]",
-    hover: "hover:bg-[var(--action-tint-strong,var(--terminal-header-active))] hover:text-[var(--action-text,var(--composer-fg))]",
-    active: "bg-[var(--action-tint-strong,var(--terminal-header-active))] text-[var(--action-text,var(--composer-fg))]",
-    wrapper: "flex h-full w-full",
-    fill: "w-full justify-center",
-    primaryFill: "flex-1 justify-center",
-  },
+  zone: { ...TONE.header, ...ZONE_FIT },
+  footerZone: { ...TONE.footer, ...ZONE_FIT },
 } as const;
 
 export type ActionSize = keyof typeof SIZE_CLASSES;

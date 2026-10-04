@@ -16,10 +16,11 @@ import {
   isZoneItemId,
   rowOfZone,
   zoneGroup,
-  zoneNameOfGroup,
+  listKeyOfGroup,
   zoneNameOfItem,
 } from "./components/actionsDndLayout";
 import { layerOfListKey, listKeyForAction, listKeysInLayout, zoneOfListKey } from "./zoneLayers";
+import { zonesOf } from "./zoneDoc";
 
 type Doc = ReturnType<typeof YAML.parseDocument>;
 
@@ -56,7 +57,7 @@ export interface LayoutUpdates {
 // buildActionsModel, so it counts as the header here too. A layer that's
 // missing counts as the zone's first. Without zone infos (callers that only
 // renumber a row) the layout's own keys, which come in layer order, stand in.
-function placementOf(action: ActionInfo, zones: ZoneInfo[], layout: ActionsLayout): ActionGroup | null {
+function groupOfAction(action: ActionInfo, zones: ZoneInfo[], layout: ActionsLayout): ActionGroup | null {
   const { display } = action;
   if (isHeaderDisplay(display)) return "header";
   if (isFooterDisplay(display)) return "footer";
@@ -69,7 +70,7 @@ function placementOf(action: ActionInfo, zones: ZoneInfo[], layout: ActionsLayou
 }
 
 function isLayerGroup(group: ActionGroup | null): boolean {
-  return group !== null && isZoneGroup(group) && layerOfListKey(zoneNameOfGroup(group)) !== null;
+  return group !== null && isZoneGroup(group) && layerOfListKey(listKeyOfGroup(group)) !== null;
 }
 
 // `before` is the layout a drag started from. A drag previews its moves into
@@ -90,7 +91,7 @@ export function buildLayoutUpdates(
   const zoneRow = new Map<string, ZoneDisplay>(zones.map((zone) => [zone.name, zoneDisplayOf(zone)]));
   for (const action of current) {
     const startGroup = before ? groupOf(before, action.name) : null;
-    const start = startGroup ?? placementOf(action, zones, layout);
+    const start = startGroup ?? groupOfAction(action, zones, layout);
     previous.set(action.name, start);
     // A previewed move out of a layer has already dropped the layer from the
     // store, so the drag-start list says it had one.
@@ -196,12 +197,8 @@ export function patchLayoutDoc(doc: Doc, updates: LayoutUpdates): void {
     section.set(key, buildSeed(update));
   }
   if (updates.zones.size === 0) return;
-  let zones = doc.get("zones", true);
-  if (!YAML.isMap(zones)) {
-    doc.set("zones", doc.createNode({}));
-    zones = doc.get("zones", true);
-  }
-  if (!YAML.isMap(zones)) return;
+  const zones = zonesOf(doc, true);
+  if (!zones) return;
   for (const [name, update] of updates.zones) {
     const entry = zones.get(name, true);
     if (YAML.isMap(entry)) {

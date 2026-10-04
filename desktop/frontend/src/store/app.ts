@@ -389,10 +389,6 @@ interface AppState {
 
 // The project file's one write queue keeps a drag save and a zone or layer
 // edit from racing their read-modify-write through each other.
-function persistLayoutUpdates(projectName: string, updates: LayoutUpdates): Promise<void> {
-  return editProjectDoc(projectName, (doc) => patchLayoutDoc(doc, updates));
-}
-
 function projectsEqual(a: ProjectInfo[], b: ProjectInfo[]): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
@@ -432,7 +428,7 @@ async function persistActionsLayoutOrRecover(
   updates: LayoutUpdates,
 ): Promise<boolean> {
   try {
-    await persistLayoutUpdates(projectName, updates);
+    await editProjectDoc(projectName, (doc) => patchLayoutDoc(doc, updates));
     return true;
   } catch (err) {
     toast.error(`Failed to save action order: ${err}`);

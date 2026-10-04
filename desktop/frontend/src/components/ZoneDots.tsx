@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import type { ZoneLayerView } from "../actionsLayoutModel";
 import type { ZoneDisplay } from "../types";
+import { layerName } from "../zoneLayers";
 import { zoneDotsId } from "./actionsDndLayout";
 
 const HOVER_OPEN_MS = 500;
@@ -32,8 +33,6 @@ interface ZoneDotsProps {
   display: ZoneDisplay;
   onOpen: (key: string) => void;
 }
-
-const layerName = (view: ZoneLayerView, index: number) => view.layer?.label || `Layer ${index + 1}`;
 
 export function ZoneDots({ zone, layers, openKey, dragging, display, onOpen }: ZoneDotsProps) {
   const { setNodeRef } = useDroppable({ id: zoneDotsId(zone), disabled: !dragging });
@@ -89,7 +88,7 @@ export function ZoneDots({ zone, layers, openKey, dragging, display, onOpen }: Z
         </button>
       )}
       {layers.map((view, index) => {
-        const name = layerName(view, index);
+        const name = layerName(view.layer?.label, index);
         const isOpen = index === open;
         return (
           <button

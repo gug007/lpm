@@ -1,6 +1,6 @@
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
-import type { ZoneDisplay } from "../../types";
+import type { ZoneDisplay, ZoneInfo } from "../../types";
 import { PanelBottomIcon, PanelTopIcon } from "../icons";
 import { ActionContextMenu } from "./ActionContextMenu";
 
@@ -31,6 +31,7 @@ const props = (extra: Partial<Props> = {}): Props => ({
   onMoveTo: vi.fn(),
   onMoveLeft: vi.fn(),
   onMoveRight: vi.fn(),
+  onZoneMenu: vi.fn(),
   onEdit: vi.fn(),
   canUngroup: false,
   onUngroup: vi.fn(),
@@ -41,8 +42,10 @@ const props = (extra: Partial<Props> = {}): Props => ({
 
 const MOVE_ROWS = ["Move", "To header", "To footer", "Left", "Right"];
 
+const zone = (label: string, display?: ZoneDisplay): ZoneInfo => ({ name: "build", label, rows: 1, source: "project", display });
+
 function zoneEntryIcon(zoneRow: ZoneDisplay) {
-  const entry = rows(props({ zoneLabel: "Build", zoneRow, onZoneMenu: vi.fn() })).find(
+  const entry = rows(props({ zone: zone("Build", zoneRow) })).find(
     (row) => row.props.label === "Zone “Build”…",
   );
   const icon = entry?.props.icon;
@@ -51,19 +54,19 @@ function zoneEntryIcon(zoneRow: ZoneDisplay) {
 
 describe("ActionContextMenu zone entry", () => {
   it("follows Move for a button inside a zone", () => {
-    const labels = rows(props({ zoneLabel: "Build", onZoneMenu: vi.fn() })).map((row) => row.props.label);
+    const labels = rows(props({ zone: zone("Build") })).map((row) => row.props.label);
     expect(labels).toEqual(["Edit action", ...MOVE_ROWS, "Zone “Build”…", "Delete action"]);
   });
 
   it("quotes the name of a zone that has no label of its own", () => {
-    const labels = rows(props({ zoneLabel: "zone-2", onZoneMenu: vi.fn() })).map((row) => row.props.label);
+    const labels = rows(props({ zone: zone("zone-2") })).map((row) => row.props.label);
     expect(labels).toContain("Zone “zone-2”…");
   });
 
   it("opens the zone's menu and closes this one", () => {
     const onZoneMenu = vi.fn();
     const onClose = vi.fn();
-    const entry = rows(props({ zoneLabel: "Build", onZoneMenu, onClose })).find(
+    const entry = rows(props({ zone: zone("Build"), onZoneMenu, onClose })).find(
       (row) => row.props.label === "Zone “Build”…",
     );
     entry?.props.onClick?.();

@@ -69,7 +69,7 @@ async function dropLayers(
 
 export function removeLayer(projectName: string, zone: ZoneInfo, layer: string, layout: ActionsLayout): Promise<void> {
   const neighbour = neighbourLayer(zone, layer);
-  if (layersOf(zone).length < 2 || !neighbour) return Promise.resolve();
+  if (!neighbour) return Promise.resolve();
   let removed = false;
   return runZoneEdit(async () => {
     removed = await dropLayers(projectName, zone, [layer], [layer], layout, (doc) => removeLayerFromDoc(doc, zone.name, layer));

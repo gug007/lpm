@@ -1,5 +1,6 @@
 import YAML from "yaml";
 import type { ActionsLayout, ZoneInfo } from "./types";
+import { keysOf, removeZoneFromDoc, zonesOf } from "./zoneDoc";
 import { layerKeyFor, layersOf, zoneListKey } from "./zoneLayers";
 
 type Doc = ReturnType<typeof YAML.parseDocument>;
@@ -13,23 +14,18 @@ export interface LayerDraft {
 const FIRST_LAYER = "layer-1";
 
 function zoneEntryOf(doc: Doc, zone: string, create: boolean): YAML.YAMLMap | null {
-  const entry = doc.getIn(["zones", zone], true);
+  const zones = zonesOf(doc, create);
+  const entry = zones?.get(zone, true);
   if (YAML.isMap(entry)) return entry;
-  if (!create) return null;
-  const zones = doc.get("zones", true);
-  if (YAML.isMap(zones)) zones.set(zone, doc.createNode({}));
-  else doc.set("zones", doc.createNode({ [zone]: {} }));
-  const created = doc.getIn(["zones", zone], true);
+  if (!create || !zones) return null;
+  zones.set(zone, doc.createNode({}));
+  const created = zones.get(zone, true);
   return YAML.isMap(created) ? created : null;
 }
 
 function layersMapOf(entry: YAML.YAMLMap | null): YAML.YAMLMap | null {
   const layers = entry?.get("layers", true);
   return YAML.isMap(layers) ? layers : null;
-}
-
-function keysOf(map: YAML.YAMLMap | null): string[] {
-  return (map?.items ?? []).flatMap((item) => (YAML.isScalar(item.key) ? [String(item.key.value)] : []));
 }
 
 function positionOf(layer: unknown): number | undefined {
@@ -108,11 +104,7 @@ export function removeLayerFromDoc(doc: Doc, zone: string, layer: string): void 
   if (!entry || !layers) return;
   layers.delete(layer);
   if (layers.items.length === 0) entry.delete("layers");
-  if (entry.items.length > 0) return;
-  const zones = doc.get("zones", true);
-  if (!YAML.isMap(zones)) return;
-  zones.delete(zone);
-  if (zones.items.length === 0) doc.delete("zones");
+  if (entry.items.length === 0) removeZoneFromDoc(doc, zone);
 }
 
 export function neighbourLayer(zone: Pick<ZoneInfo, "layers">, layer: string): string | null {

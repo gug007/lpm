@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use serde::Serialize;
 use serde_norway::Value as Yaml;
 
-use crate::config::{global_path, peek_parent, project_path, project_root, sort_action_names};
+use crate::config::{global_path, peek_parent, project_path, project_root, sorted_by_position};
 use crate::zone_layers::{layers_of, merge_zone_layers, LayerEntry, LayerInfo};
 
 const RESERVED: &[&str] = &["", "header", "footer", "menu", "button"];
@@ -135,14 +135,7 @@ fn merge_files(files: &[(ZoneSource, BTreeMap<String, ZoneEntry>)]) -> Vec<ZoneI
         };
         zones.insert(name.clone(), zone);
     }
-    let mut order: Vec<String> = zones.keys().cloned().collect();
-    sort_action_names(&mut order, |name| {
-        zones.get(name).and_then(|zone| zone.position)
-    });
-    order
-        .into_iter()
-        .filter_map(|name| zones.remove(&name))
-        .collect()
+    sorted_by_position(zones, |zone| zone.position)
 }
 
 /// The files that can declare zones, highest precedence first, as in
@@ -169,10 +162,25 @@ fn zone_files(
 /// The zones a project shows, merged across the files `zone_files` lists.
 pub fn resolve_zones(file_name: &str) -> Vec<ZoneInfo> {
     let (root, is_remote) = project_root(file_name).unwrap_or_default();
+    resolve_zones_with(
+        file_name,
+        peek_parent(file_name).as_deref(),
+        &root,
+        is_remote,
+    )
+}
+
+/// `resolve_zones` for a caller that has already parsed the project file.
+pub fn resolve_zones_with(
+    file_name: &str,
+    parent: Option<&str>,
+    root: &str,
+    is_remote: bool,
+) -> Vec<ZoneInfo> {
     let files: Vec<_> = zone_files(
         project_path(file_name),
-        peek_parent(file_name).map(|parent| project_path(&parent)),
-        &root,
+        parent.map(project_path),
+        root,
         is_remote,
         global_path(),
     )

@@ -12,7 +12,6 @@ interface ActionsRowItemProps {
   movedByResize: string[];
   projectName: string;
   disabled: boolean;
-  scope: string;
   onRun: (action: ActionInfo) => void;
   onContextMenu?: (e: MouseEvent, action: ActionInfo) => void;
   onZoneContextMenu?: (e: MouseEvent, zone: ZoneInfo) => void;
@@ -26,7 +25,6 @@ export function ActionsRowItem({
   movedByResize,
   projectName,
   disabled,
-  scope,
   onRun,
   onContextMenu,
   onZoneContextMenu,
@@ -40,7 +38,6 @@ export function ActionsRowItem({
           layers={item.layers}
           projectName={projectName}
           disabled={disabled}
-          scope={scope}
           onRun={onRun}
           onActionContextMenu={onContextMenu}
           onZoneContextMenu={onZoneContextMenu}
@@ -56,7 +53,7 @@ export function ActionsRowItem({
         disabled={disabled}
         onRun={onRun}
         onContextMenu={onContextMenu}
-        scope={scope}
+        scope={projectName}
       />
     </ActionsSortableItem>
   );

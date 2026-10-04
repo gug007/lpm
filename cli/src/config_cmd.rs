@@ -489,6 +489,11 @@ impl Report {
         self.errors.push(format!("{path}: {}", message.as_ref()));
     }
 
+    fn merge(&mut self, other: Report) {
+        self.errors.extend(other.errors);
+        self.warnings.extend(other.warnings);
+    }
+
     fn warning(&mut self, path: &str, message: impl AsRef<str>) {
         self.warnings.push(format!("{path}: {}", message.as_ref()));
     }
@@ -514,28 +519,34 @@ fn validate_candidate(ctx: &Ctx, target: &ConfigTarget, path: &Path, source: &st
         }
         ConfigLayer::Global | ConfigLayer::Template => {
             for project in config::project_names(ctx) {
-                let baseline = match config::resolve_project(ctx, &project) {
-                    Ok(resolved) => effective_report(&resolved).errors,
-                    Err(error) => {
-                        report.warning(
-                            &format!("project {project}"),
-                            format!("skipped, it already fails to load: {error}"),
-                        );
-                        continue;
-                    }
-                };
                 let mut effective = Report::new();
                 validate_effective_candidate(ctx, &project, path, source, &mut effective);
-                let (existing, new) = partition_new_errors(&baseline, effective.errors);
-                if !existing.is_empty() {
-                    report.warning(
-                        &format!("project {project}"),
-                        format!(
-                            "has existing errors, not caused by this change: {}",
-                            existing.join("; ")
-                        ),
-                    );
-                }
+                // The baseline only matters when the candidate has errors to sort.
+                let new = if effective.errors.is_empty() {
+                    Vec::new()
+                } else {
+                    let baseline = match config::resolve_project(ctx, &project) {
+                        Ok(resolved) => effective_report(&resolved).errors,
+                        Err(error) => {
+                            report.warning(
+                                &format!("project {project}"),
+                                format!("skipped, it already fails to load: {error}"),
+                            );
+                            continue;
+                        }
+                    };
+                    let (existing, new) = partition_new_errors(&baseline, effective.errors);
+                    if !existing.is_empty() {
+                        report.warning(
+                            &format!("project {project}"),
+                            format!(
+                                "has existing errors, not caused by this change: {}",
+                                existing.join("; ")
+                            ),
+                        );
+                    }
+                    new
+                };
                 report.errors.extend(
                     new.into_iter()
                         .map(|error| format!("project {project}: {error}")),
@@ -566,9 +577,7 @@ fn validate_effective_candidate(
             return;
         }
     };
-    let effective = effective_report(&project);
-    report.errors.extend(effective.errors);
-    report.warnings.extend(effective.warnings);
+    report.merge(effective_report(&project));
 }
 
 /// Splits candidate errors into (pre-existing, new), counting occurrences: an
@@ -1076,11 +1085,7 @@ fn validate_action(
             }
         }
     }
-    if let Some(value) = map.get(Value::String("position".into())) {
-        if value.as_f64().is_none() {
-            report.error(&format!("{path}.position"), "expected a number");
-        }
-    }
+    validate_number_field(map, "position", &format!("{path}.position"), report);
     validate_cwd(map, path, local_root, remote, report);
     validate_env(map, path, report);
     validate_port_conflict(map, path, report);
@@ -1199,11 +1204,7 @@ fn validate_inputs(map: &Mapping, path: &str, report: &mut Report) {
                 }
             }
         }
-        if let Some(value) = input.get(Value::String("position".into())) {
-            if value.as_f64().is_none() {
-                report.error(&format!("{input_path}.position"), "expected a number");
-            }
-        }
+        validate_number_field(input, "position", &format!("{input_path}.position"), report);
         validate_choice(
             input,
             "type",
@@ -1448,6 +1449,14 @@ fn validate_string_field(map: &Mapping, key: &str, path: &str, report: &mut Repo
     }
 }
 
+fn validate_number_field(map: &Mapping, key: &str, path: &str, report: &mut Report) {
+    if let Some(value) = map.get(Value::String(key.into())) {
+        if value.as_f64().is_none() {
+            report.error(path, "expected a number");
+        }
+    }
+}
+
 fn validate_string_list(value: Option<&Value>, path: &str, report: &mut Report) -> Vec<String> {
     let Some(value) = value else {
         return Vec::new();
@@ -1509,9 +1518,7 @@ fn validate_effective_project(ctx: &Ctx, path: &Path, report: &mut Report) {
             return;
         }
     };
-    let effective = effective_report(&project);
-    report.errors.extend(effective.errors);
-    report.warnings.extend(effective.warnings);
+    report.merge(effective_report(&project));
 }
 
 fn validate_effective_services(project: &ResolvedProject, report: &mut Report) {

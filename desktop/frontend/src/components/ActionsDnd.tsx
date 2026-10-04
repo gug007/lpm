@@ -27,6 +27,14 @@ export function useExtractIndicator(): ExtractIndicator | null {
   return useContext(ExtractIndicatorContext);
 }
 
+// The indicator's row alone, for readers that would otherwise re-render on
+// every gap the pointer crosses.
+const ExtractGroupContext = createContext<ActionGroup | null>(null);
+
+export function useExtractGroup(): ActionGroup | null {
+  return useContext(ExtractGroupContext);
+}
+
 // While dragging a row within an open drill menu, this reports which sibling
 // the pointer is over and the action (before/after/nest). Rows read it to draw
 // the insertion line or nest highlight. null when not over a sibling row.
@@ -183,6 +191,7 @@ export function ActionsDnd({
       <DragActiveContext.Provider value={dragging}>
        <ActiveIdContext.Provider value={activeId}>
        <ExtractIndicatorContext.Provider value={indicator}>
+       <ExtractGroupContext.Provider value={indicator?.group ?? null}>
        <MenuDropContext.Provider value={menuDrop}>
        <OverGroupContext.Provider value={overGroup}>
         {children}
@@ -205,6 +214,7 @@ export function ActionsDnd({
         </DragOverlay>
        </OverGroupContext.Provider>
        </MenuDropContext.Provider>
+       </ExtractGroupContext.Provider>
        </ExtractIndicatorContext.Provider>
        </ActiveIdContext.Provider>
       </DragActiveContext.Provider>

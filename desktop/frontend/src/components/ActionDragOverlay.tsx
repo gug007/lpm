@@ -6,10 +6,9 @@ import {
   groupOf,
   isZoneGroup,
   isZoneItemId,
-  zoneNameOfGroup,
   zoneNameOfItem,
+  zoneOfGroup,
 } from "./actionsDndLayout";
-import { zoneOfListKey } from "../zoneLayers";
 import { openListKey } from "../store/zoneLayers";
 import { ActionView } from "./ActionView";
 import { ZoneEmptyHint } from "./ZoneEmptyHint";
@@ -23,7 +22,6 @@ interface ActionDragOverlayProps {
   actions: ActionInfo[];
   model: ActionsModel;
   projectName: string;
-  scope: string;
 }
 
 interface FoundZone {
@@ -47,7 +45,7 @@ function zoneNamed(model: ActionsModel, name: string): FoundZone | null {
 
 // Mirrors the destination form factor while hovering, so the user sees how
 // the item will look where they're aiming — not where it came from.
-export function ActionDragOverlay({ id, overGroup, actions, model, projectName, scope }: ActionDragOverlayProps) {
+export function ActionDragOverlay({ id, overGroup, actions, model, projectName }: ActionDragOverlayProps) {
   if (isZoneItemId(id)) {
     const found = zoneNamed(model, zoneNameOfItem(id));
     if (!found) return null;
@@ -65,7 +63,7 @@ export function ActionDragOverlay({ id, overGroup, actions, model, projectName, 
               size={zoneButtonSize(display)}
               disabled={false}
               onRun={noop}
-              scope={scope}
+              scope={projectName}
             />
           ))}
         </div>
@@ -76,11 +74,11 @@ export function ActionDragOverlay({ id, overGroup, actions, model, projectName, 
   const action = findActionByPath(actions, id);
   if (!action) return null;
   const group = overGroup ?? groupOf(model.layout, id);
-  const found = group && isZoneGroup(group) ? zoneNamed(model, zoneOfListKey(zoneNameOfGroup(group))) : null;
+  const found = group && isZoneGroup(group) ? zoneNamed(model, zoneOfGroup(group)) : null;
   if (found) {
     return (
       <div style={{ height: zoneButtonHeight(found.zone.rows, found.display) }}>
-        <ActionView action={action} size={zoneButtonSize(found.display)} disabled={false} onRun={noop} scope={scope} />
+        <ActionView action={action} size={zoneButtonSize(found.display)} disabled={false} onRun={noop} scope={projectName} />
       </div>
     );
   }
@@ -90,7 +88,7 @@ export function ActionDragOverlay({ id, overGroup, actions, model, projectName, 
       size={group === "footer" ? "compact" : "default"}
       disabled={false}
       onRun={noop}
-      scope={scope}
+      scope={projectName}
     />
   );
 }
