@@ -147,7 +147,7 @@ async function recordApp({ lines, beats, raw, framesDir, errorShot, lesson, lpmD
     const origin = { x: b.x / b.scale, y: b.y / b.scale, w: b.w / b.scale, h: b.h / b.scale, scale: b.scale };
     rec = new Recorder(raw);
     later(() => rec.stop(Date.now() - t0));
-    capture = new Capture({ rect: { x: b.x, y: b.y, w: b.w, h: b.h }, onFrame: (f) => rec.frame(f) });
+    capture = new Capture({ rect: { x: b.x, y: b.y, w: b.w, h: b.h }, pid: app.proc.pid, scale: b.scale, onFrame: (f) => rec.frame(f) });
     later(() => capture.stop());
     stage = await Stage.open(app, capture, { framesDir, log, mouse, origin, out: OUT, box: frameBox(OUT, FRAME, ZOOM) });
     later(() => stage.finish());

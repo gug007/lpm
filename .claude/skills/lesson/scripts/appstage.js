@@ -7,6 +7,7 @@
 const fs = require("fs");
 const path = require("path");
 const { execFileSync } = require("child_process");
+const { helper } = require("./helpers");
 const { sleep, Timing } = require("./words");
 const { OVERLAY_CSS, CURSOR_SVG, HOTSPOT, installStage } = require("./overlay");
 const { claudeTurn } = require("./agents");
@@ -221,8 +222,12 @@ class AppStage extends Timing {
   async pressAt(p) {
     await this.control.evaluate(() => window.__lc.tap());
     if (this.mouse === "real") {
+      // Another app in front (a browser an agent opened full screen) would
+      // take the click; the press lands only with the lesson window back.
+      await this.ensureFrontmost("clicking");
       await this.refreshOrigin();
       const s = this.screen(p.x, p.y);
+      await this.clearAt(s);
       // One atomic press: a held button with any pointer motion in between
       // starts a text drag in WebKit and the release never arrives as a click.
       execFileSync("cliclick", [`c:${s.x},${s.y}`]);
@@ -231,11 +236,27 @@ class AppStage extends Timing {
     }
   }
 
+  // The window under a real press must be the lesson's: another app's panel,
+  // dialog or banner there would take the click. It gets a few seconds to go.
+  async clearAt(p) {
+    const bin = helper("winat");
+    const end = Date.now() + 8000;
+    for (let waited = false; ; waited = true) {
+      const [pid, owner] = execFileSync(bin, [String(p.x), String(p.y)], { encoding: "utf8" }).trim().split("\t");
+      if (Number(pid) === this.app.proc.pid) {
+        if (waited) this.warn("click", `${owner} had covered the click at ${p.x},${p.y}; it moved away`);
+        return;
+      }
+      if (Date.now() > end) throw new Error(`${pid ? `a window of ${owner}` : "no lesson window"} is under the click at ${p.x},${p.y}; stopped before clicking it`);
+      await sleep(400);
+    }
+  }
+
   // Keystrokes go to whichever app is in front; after a focus loss that is
   // usually the terminal the take was started from, where "return" submits.
   // The lesson app is brought back once, else the take stops before typing.
   // Matched by pid: the user's own lpm is also called lpm-desktop.
-  async ensureFrontmost() {
+  async ensureFrontmost(what = "typing") {
     if (this.mouse !== "real") return;
     const front = () => {
       try {
@@ -243,7 +264,7 @@ class AppStage extends Timing {
         const [pid, ...name] = out.trim().split("\t");
         return { pid: Number(pid), name: name.join("\t") };
       } catch (e) {
-        throw new Error(`cannot tell which app has keyboard focus, so the take stops before typing (System Events: ${String(e.stderr || e.message).trim().slice(0, 200)})`);
+        throw new Error(`cannot tell which app has keyboard focus, so the take stops before ${what} (System Events: ${String(e.stderr || e.message).trim().slice(0, 200)})`);
       }
     };
     const first = front();
@@ -251,7 +272,7 @@ class AppStage extends Timing {
     await this.control.call("window", { focus: true }).catch(() => {});
     await sleep(300);
     const again = front();
-    if (again.pid !== this.app.proc.pid) throw new Error(`the lesson window lost keyboard focus to ${again.name}; stopped before typing into it`);
+    if (again.pid !== this.app.proc.pid) throw new Error(`the lesson window lost keyboard focus to ${again.name}; stopped before ${what}`);
     this.warn("focus", `keyboard focus had moved to ${first.name}; brought the lesson window back`);
   }
 

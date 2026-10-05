@@ -157,7 +157,7 @@ async function mux(lines, P, { file, crf = 18, audio = true }) {
   } else {
     const box = frameBox(OUT, FRAME, ZOOM);
     const assets = await frameAssets(path.join(path.dirname(DIR), "_frame"), { out: OUT, frame: { ...FRAME, zoom: ZOOM }, box });
-    video = videoGraph({ ...assets, out: OUT, box, cards: timeline.cards || [], cardFiles: timeline.cardFiles || [], zooms, totalMs });
+    video = videoGraph({ ...assets, out: OUT, box, cards: timeline.cards || [], cardFiles: timeline.cardFiles || [], zooms, totalMs, take: P.raw });
   }
   inputs.push(...video.inputs);
   let filter = video.filter;
@@ -185,7 +185,7 @@ async function mux(lines, P, { file, crf = 18, audio = true }) {
   const r = spawnSync("ffmpeg", argv, { stdio: ["ignore", "ignore", "pipe"], encoding: "utf8", maxBuffer: 1 << 26 });
   if (r.status !== 0) {
     fs.rmSync(file, { force: true });
-    throw new Error(`ffmpeg failed:\n${r.stderr.slice(-2000)}`);
+    throw new Error(`ffmpeg failed (${r.error?.code || r.signal || `exit ${r.status}`}):\n${(r.stderr || "").slice(-2000)}`);
   }
   return timeline;
 }

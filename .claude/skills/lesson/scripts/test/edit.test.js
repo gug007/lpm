@@ -53,6 +53,21 @@ test("a long wait between lines plays at 4x, and later lines move up by what it 
   near(mapTime(placed, 9000), 9000);
 });
 
+test("waitMaxSeconds caps how long a half-hour wait plays; without it the speed stops at 16x", () => {
+  const halfHour = 30 * 60 * 1000;
+  const long = {
+    ...take,
+    totalMs: take.totalMs + halfHour,
+    lines: take.lines.map((l) => (["review", "outro"].includes(l.id) ? { ...l, startMs: l.startMs + halfHour } : l)),
+    cards: take.cards.map((c) => (c.hold ? { ...c, startMs: c.startMs + halfHour } : c)),
+  };
+  const capped = planEdit({ timeline: long, lesson: { narration, waitMaxSeconds: 20 } }).cuts.find((c) => c.kind === "wait");
+  assert.ok((capped.toMs - capped.fromMs) / capped.speed <= 20000);
+  assert.ok(capped.speed > 16);
+  assert.strictEqual(planEdit({ timeline: long, lesson: { narration } }).cuts.find((c) => c.kind === "wait").speed, 16);
+  assert.strictEqual(planEdit({ timeline: take, lesson: { narration, waitMaxSeconds: 20 } }).cuts.find((c) => c.kind === "wait").speed, 4);
+});
+
 test("speedUpWaits: false keeps waits real time", () => {
   assert.strictEqual(planEdit({ timeline: take, lesson: { narration, speedUpWaits: false } }), null);
 });

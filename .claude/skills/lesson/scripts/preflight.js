@@ -208,10 +208,11 @@ function newestRustSource(than) {
   return best && path.relative(path.dirname(FRONTEND), best.p);
 }
 
-// The screen reader for the checks after a take, and the clipboard keeper.
+// The screen reader for the checks after a take, the clipboard keeper, the
+// capture of the lesson app alone, and the check under each real click.
 function helpers() {
   if (run("xcode-select", ["-p"]).status !== 0) return;
-  for (const name of ["ocr", "clipboard"]) {
+  for (const name of ["ocr", "clipboard", "appcap", "winat"]) {
     try {
       helper(name);
     } catch (e) {

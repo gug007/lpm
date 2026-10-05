@@ -17,7 +17,8 @@ A lesson lives in `~/Movies/lpm-lessons/<slug>/`. `scripts/new.js` writes a star
 | `music` | `false`, or a file, instead of the default bed |
 | `zooms` | mux-time edits of the take's zooms by id, see below |
 | `coldOpen` | `{ text, shots: [{ line, from, to }] }`: the video opens on the payoff. `text` is the hook (one or two sentences: what the viewer gets), spoken over the shots, which are cut from later in the take (`from`/`to` in seconds from that line's start, so they survive a new take). It replaces the first line's narration; the opening card follows, then the lesson from its second line. Pick the shots from a take's frames or `qa/sheet.jpg`; the hook is voiced on the first render that needs it, `--mux-only` included |
-| `speedUpWaits` | `false` keeps waits real time. By default a stretch of more than 2.5 s with nothing said between two lines (an agent working) plays at 4× under a badge, faster when it is long |
+| `speedUpWaits` | `false` keeps waits real time. By default a stretch of more than 2.5 s with nothing said between two lines (an agent working) plays at 4× under a badge, faster when it is long (up to 16×) |
+| `waitMaxSeconds` | the longest one wait may play, in seconds: a race that runs for half an hour plays at whatever speed fits (the badge shows it) |
 | `cover` | `{ words, line, at, crop, style }`: the thumbnail from a moment of the take instead of the plain opening card. `words` 2–4, adding to the title rather than repeating it; `at` seconds into `line`; `crop` `[x, y, w, h]` in the window's points (1100×620, default: the pane right of the sidebar); `style` `"window"` (words left, the window right, off the edge) or `"closeup"` (the crop full width under a band of canvas) |
 | `youtube` | `{ hook: [line, line], learn: [], tags: [], hashtags: [] }`, the upload's description and tags |
 

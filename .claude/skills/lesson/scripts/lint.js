@@ -96,7 +96,7 @@ function checkLesson(lesson, beats, { kind = "landscape" } = {}) {
   return { errors, warnings };
 }
 
-// lesson.json "coldOpen", "cover" and "speedUpWaits" (edit.js, cover.js).
+// lesson.json "coldOpen", "cover", "speedUpWaits" and "waitMaxSeconds" (edit.js, cover.js).
 function checkEdit(lesson, ids, errors, warnings) {
   const open = lesson.coldOpen;
   if (open) {
@@ -116,6 +116,7 @@ function checkEdit(lesson, ids, errors, warnings) {
     }
   }
   if (lesson.speedUpWaits != null && typeof lesson.speedUpWaits !== "boolean") errors.push('lesson.json "speedUpWaits" is true or false');
+  if (lesson.waitMaxSeconds != null && !(typeof lesson.waitMaxSeconds === "number" && lesson.waitMaxSeconds >= 5)) errors.push('lesson.json "waitMaxSeconds" is a number of seconds, 5 or more');
   const cover = lesson.cover;
   if (cover) {
     if (!cover.words) errors.push('lesson.json cover has no "words" (two to four, bigger than the title card\'s)');

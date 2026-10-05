@@ -175,25 +175,32 @@ const STILL_OUT = "out_color_matrix=bt601:out_range=pc";
 // ffmpeg inputs and the video half of the filter graph. Input 0 is the take;
 // the caller appends the audio inputs after these. `composite` is false for a
 // demo take, which already carries its frame and cards.
-function videoGraph({ out, canvas, shadow, mask, box, cards = [], cardFiles = [], zooms = [], totalMs, composite = true }) {
+function videoGraph({ out, canvas, shadow, mask, box, cards = [], cardFiles = [], zooms = [], totalMs, composite = true, take }) {
   const inputs = [];
   const parts = [];
   let last = "0:v";
   let next = 1;
   const opener = cards.find((c) => c.first && !c.hold);
   const spans = composite ? coverSpans(cards, totalMs) : [];
+  // A card later in the take gets the window and shadow from inputs of its
+  // own, read from where it starts: fed from the split below, its trim would
+  // hold every frame before it in the other branches (a card half an hour in
+  // queued half an hour of full frames, and ffmpeg was killed).
+  const late = [];
   if (composite) {
     const still = (file) => ["-framerate", String(FPS), "-loop", "1", "-i", file];
     inputs.push(...still(canvas), ...still(shadow), ...still(mask));
     // The window in its place, except while a card has it at the cover
     // position (drawn above that card, below).
     const home = spans.length ? `:enable='not(${spans.map((p) => `gte(t,${p.a.toFixed(3)})*lt(t,${p.b.toFixed(3)})`).join("+")})'` : "";
-    const copies = spans.length + 1;
+    const shared = spans.map((span, i) => ({ span, i })).filter(({ span }) => !(take && span.a > 0));
+    late.push(...spans.map((span, i) => ({ span, i })).filter(({ span }) => take && span.a > 0));
+    const copies = shared.length + 1;
     parts.push(
       `[0:v]scale=${box.w}:${box.h}:${CAPTURE_IN},format=rgba[w0]`,
       `[3:v]format=gray[m]`,
-      `[w0][m]alphamerge${copies > 1 ? `,split=${copies}${spans.map((_, i) => `[w${i + 1}c]`).join("")}` : ""}[w]`,
-      `[2:v]format=rgba${copies > 1 ? `,split=${copies}${spans.map((_, i) => `[s${i + 1}c]`).join("")}` : ""}[s]`,
+      `[w0][m]alphamerge${copies > 1 ? `,split=${copies}${shared.map(({ i }) => `[w${i + 1}c]`).join("")}` : ""}[w]`,
+      `[2:v]format=rgba${copies > 1 ? `,split=${copies}${shared.map(({ i }) => `[s${i + 1}c]`).join("")}` : ""}[s]`,
       `[1:v][s]overlay=x=0:y=0${home}[bg]`,
       `[bg][w]overlay=x=${box.x}:y=${box.y}:eof_action=repeat${home}[v0]`,
     );
@@ -228,6 +235,21 @@ function videoGraph({ out, canvas, shadow, mask, box, cards = [], cardFiles = []
       last = `v${i + 1}c`;
     }
   });
+  let input = next + cards.length;
+  for (const { span, i } of late) {
+    const at = span.a.toFixed(3);
+    const len = (span.b - span.a).toFixed(3);
+    const from = (file) => ["-framerate", String(FPS), "-loop", "1", "-t", len, "-i", file];
+    inputs.push("-ss", at, "-t", len, "-i", take, ...from(shadow), ...from(mask));
+    const shift = `setpts=PTS-STARTPTS+${at}/TB`;
+    parts.push(
+      `[${input}:v]scale=${box.w}:${box.h}:${CAPTURE_IN},format=rgba[w${i + 1}t]`,
+      `[${input + 2}:v]format=gray[m${i + 1}t]`,
+      `[w${i + 1}t][m${i + 1}t]alphamerge,${shift}[w${i + 1}c]`,
+      `[${input + 1}:v]format=rgba,${shift}[s${i + 1}c]`,
+    );
+    input += 3;
+  }
   const count = inputs.filter((a) => a === "-i").length;
   if (!parts.length) return { inputs, filter: null, label: "0:v", count, tags: [] };
   if (!composite) {

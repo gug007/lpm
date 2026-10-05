@@ -33,7 +33,12 @@ const snap = (ms) => Math.round(ms / FRAME_MS) * FRAME_MS;
 // A cut that must include a moment (the opening card's first frame) starts on
 // the frame at or before it.
 const snapDown = (ms) => Math.floor(ms / FRAME_MS) * FRAME_MS;
-const waitSpeed = (ms) => (ms <= 12000 ? 4 : Math.min(16, Math.ceil(ms / 3000)));
+// `maxS` (lesson.json "waitMaxSeconds") caps how long one wait plays, for an
+// agent that works for half an hour; past 16x the badge shows the real speed.
+const waitSpeed = (ms, maxS) => {
+  const speed = ms <= 12000 ? 4 : Math.min(16, Math.ceil(ms / 3000));
+  return maxS > 0 ? Math.max(speed, Math.ceil(ms / (maxS * 1000))) : speed;
+};
 const overlaps = (a0, a1, b0, b1) => a0 < b1 && b0 < a1;
 
 // Pure: the cuts for a take, or null when the render needs none. A cut is
@@ -79,7 +84,7 @@ function planEdit({ timeline, lesson, hookMs = 0, log = () => {} }) {
       const to = snap(b.startMs - WAIT_TAIL_MS);
       if (to - from < WAIT_SHORTEST_MS) continue;
       if ((timeline.cards || []).some((c) => overlaps(from, to, c.startMs, c.startMs + c.ms))) continue;
-      waits.push({ kind: "wait", fromMs: from, toMs: to, speed: waitSpeed(to - from), after: a.id });
+      waits.push({ kind: "wait", fromMs: from, toMs: to, speed: waitSpeed(to - from, lesson.waitMaxSeconds), after: a.id });
     }
   }
   if (!cuts.length && !waits.length) return null;
