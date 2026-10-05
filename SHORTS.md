@@ -26,3 +26,19 @@ Vertical lessons posted to TikTok and YouTube Shorts, oldest first. The short-pu
 - Opus 5.5 xhigh vs GPT-6.1 Sol xhigh: the giraffe test
 - GPT-6.1 Sol xhigh vs GPT-6 Astra xhigh: the giraffe test
 - GPT-5.6 Sol xhigh vs GPT-6 Astra xhigh: the giraffe test
+- Port 3000 already in use? Free it in one click
+- Stop retyping the same Claude Code prompt
+- Typed it in the wrong Claude Code? Send it to the right one
+- Claude Code can read your dev server logs. Just type @
+- Find any past Claude Code conversation in one search
+- Codex won't take your screenshot? Just ⌘V
+- Stop alt-tabbing to check on Claude Code
+- Which Claude Code needs you? One shortcut shows them all
+- Scheduled Codex tasks, on your own Mac
+- Run Claude Code overnight without touching your branch
+- Claude Code ran out. Codex kept going.
+- Claude Code gave you two ideas? Try both in separate copies
+- Click the file Claude Code made. It opens right there.
+- Claude Code just started 3 more Claude Codes
+- Codex: Medium vs Ultra on the same bug
+- Claude Code: Ultracode vs Max on the same prompt
