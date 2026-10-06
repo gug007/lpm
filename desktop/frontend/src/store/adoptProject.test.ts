@@ -10,6 +10,12 @@ describe("folderBaseName", () => {
     expect(folderBaseName("/home/ubuntu/taucloud/")).toBe("taucloud");
     expect(folderBaseName("/")).toBe("new-project");
   });
+
+  it("splits a Windows host's folder on either separator", () => {
+    expect(folderBaseName("C:\\Users\\lpm\\taucloud")).toBe("taucloud");
+    expect(folderBaseName("C:/Users/lpm/taucloud/")).toBe("taucloud");
+    expect(folderBaseName("\\\\nas\\share\\taucloud")).toBe("taucloud");
+  });
 });
 
 describe("adoptedProject", () => {

@@ -1,4 +1,4 @@
-import { useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { toast } from "sonner";
 import {
   CancelActionBackground,
@@ -20,6 +20,7 @@ import {
 } from "../components/BackgroundRunToast";
 import { trackBackgroundRun } from "../store/backgroundRuns";
 import type { ModelPick } from "../agentModelSwitch";
+import { captureActionRun, type ActionRunCapture } from "./actionRunCapture";
 
 export interface UseProjectActionsOptions {
   projectName: string;
@@ -37,7 +38,7 @@ export interface ActionModalConfig<T> {
 export interface ProjectActionsModals {
   confirm: ActionModalConfig<() => void>;
   inputs: { action: ActionInfo | null; onCancel: () => void; onSubmit: (values: Record<string, string>) => void };
-  running: { action: ActionInfo | null; onClose: () => void };
+  running: { action: ActionInfo | null; run: ActionRunCapture | null; onClose: () => void };
 }
 
 export interface RunActionOpts {
@@ -66,9 +67,35 @@ export function useProjectActions({
   onCloseRunning,
 }: UseProjectActionsOptions): UseProjectActionsResult {
   const [runningAction, setRunningAction] = useState<ActionInfo | null>(null);
+  const [runningCapture, setRunningCapture] = useState<ActionRunCapture | null>(null);
+  const captureRef = useRef<ActionRunCapture | null>(null);
   const [confirmAction, setConfirmAction] = useState<ActionInfo | null>(null);
   const [inputsAction, setInputsAction] = useState<ActionInfo | null>(null);
   const [pendingInputValues, setPendingInputValues] = useState<Record<string, string> | null>(null);
+
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      captureRef.current?.dispose();
+      captureRef.current = null;
+    };
+  }, []);
+
+  // A run that resolves after the view is gone has no modal to feed.
+  const showRun = (action: ActionInfo | null, capture: ActionRunCapture | null) => {
+    captureRef.current?.dispose();
+    captureRef.current = null;
+    if (!mountedRef.current) {
+      capture?.dispose();
+      return;
+    }
+    captureRef.current = capture;
+    setRunningCapture(capture);
+    setRunningAction(action);
+  };
 
   const ensurePortFree = async (action: ActionInfo): Promise<boolean> => {
     if (!action.port?.length) return true;
@@ -177,10 +204,13 @@ export function useProjectActions({
       }
       return;
     }
+    let capture: ActionRunCapture | null = null;
     try {
+      capture = await captureActionRun();
       await RunAction(projectName, action.name, inputValues);
-      setRunningAction(action);
+      showRun(action, capture);
     } catch (err) {
+      capture?.dispose();
       toast.error(`${action.label}: ${err}`);
     }
   };
@@ -235,8 +265,9 @@ export function useProjectActions({
       },
       running: {
         action: runningAction,
+        run: runningCapture,
         onClose: () => {
-          setRunningAction(null);
+          showRun(null, null);
           onCloseRunning?.();
         },
       },

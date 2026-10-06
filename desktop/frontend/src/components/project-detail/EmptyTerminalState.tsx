@@ -1,5 +1,12 @@
 import { HistoryIcon, SettingsIcon, TerminalIcon } from "../icons";
 import { chordLabel } from "../../keys";
+import { isMac } from "../../platform";
+
+// Off macOS the chords are spelled out ("Ctrl+Shift+T"), so each label keeps to
+// one line and the box widens to hold both buttons side by side.
+const BOX_WIDTH = isMac ? "max-w-sm" : "max-w-md";
+const BUTTON_ROW = isMac ? "flex items-center gap-3" : "flex flex-wrap items-center justify-center gap-3";
+const NOWRAP = isMac ? "" : " whitespace-nowrap";
 
 interface EmptyTerminalStateProps {
   projectName: string;
@@ -11,7 +18,7 @@ interface EmptyTerminalStateProps {
 export function EmptyTerminalState({ projectName, onNewTerminal, onEditConfig, onResumeSession }: EmptyTerminalStateProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden">
-      <div className="flex max-w-sm flex-col items-center gap-5 text-center">
+      <div className={`flex ${BOX_WIDTH} flex-col items-center gap-5 text-center`}>
         <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--bg-hover)] text-[var(--text-muted)]">
           <svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
             <polyline points="4 17 10 11 4 5" />
@@ -24,10 +31,10 @@ export function EmptyTerminalState({ projectName, onNewTerminal, onEditConfig, o
             Open a terminal to start working on {projectName}, or edit the project config.
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className={BUTTON_ROW}>
           <button
             onClick={onNewTerminal}
-            className="flex items-center gap-2 rounded-lg bg-[var(--text-primary)] px-4 py-2 text-xs font-medium text-[var(--bg-primary)] transition-all hover:opacity-85"
+            className={`flex items-center gap-2 rounded-lg bg-[var(--text-primary)] px-4 py-2 text-xs font-medium text-[var(--bg-primary)] transition-all hover:opacity-85${NOWRAP}`}
           >
             <TerminalIcon />
             New Terminal
@@ -35,7 +42,7 @@ export function EmptyTerminalState({ projectName, onNewTerminal, onEditConfig, o
           </button>
           <button
             onClick={onEditConfig}
-            className="flex items-center gap-2 rounded-lg border border-[var(--border)] px-4 py-2 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            className={`flex items-center gap-2 rounded-lg border border-[var(--border)] px-4 py-2 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]${NOWRAP}`}
           >
             <SettingsIcon />
             Edit Config

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { followStop } from "../followApi";
+import { trashName } from "../platform";
 import { useAppStore } from "../store/app";
 
 // Removing a synced copy: stop the syncing, then let the folder go.
@@ -49,7 +50,7 @@ export function RemoveSyncedCopyDialog({
       body={
         <>
           Remove <span className="font-medium text-[var(--text-primary)]">{project}</span> and move
-          its folder to the Trash? Syncing stops.
+          its folder to the {trashName()}? Syncing stops.
           <span className="mt-2 block">
             Nothing on <span className="font-medium text-[var(--text-primary)]">{macName}</span>{" "}
             changes, and you can sync it here again any time.

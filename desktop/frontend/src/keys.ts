@@ -1,4 +1,4 @@
-import { isMac } from "./platform";
+import { isLinux, isMac } from "./platform";
 
 export interface Chord {
   key: string;
@@ -20,8 +20,14 @@ const LETTER = /^[a-z]$/i;
 // Chords are authored the macOS way, with ⌘. Elsewhere ⌘ becomes Ctrl, and a
 // letter chord also takes Shift so plain Ctrl+letter stays with the terminal
 // (Ctrl+C, D, W, R…). A letter chord that already used Shift or Alt moves up to
-// the Ctrl+Alt tier, the way kitty and WezTerm layer their bindings.
-export function toPhysical(chord: Chord, mac: boolean = isMac): PhysicalChord {
+// the Ctrl+Alt tier, the way kitty and WezTerm layer their bindings. On Linux
+// ⌘U moves up too: GTK and IBus input methods take Ctrl+Shift+U for Unicode
+// entry whenever a text field or the terminal has focus.
+export function toPhysical(
+  chord: Chord,
+  mac: boolean = isMac,
+  linux: boolean = isLinux,
+): PhysicalChord {
   const key = chord.key;
   const meta = !!chord.meta;
   const shift = !!chord.shift;
@@ -30,6 +36,7 @@ export function toPhysical(chord: Chord, mac: boolean = isMac): PhysicalChord {
   if (!LETTER.test(key)) return { key, ctrl: true, meta: false, shift, alt };
   if (alt) return { key, ctrl: true, meta: false, shift, alt: true };
   if (shift) return { key, ctrl: true, meta: false, shift: true, alt: true };
+  if (linux && key.toLowerCase() === "u") return { key, ctrl: true, meta: false, shift: false, alt: true };
   return { key, ctrl: true, meta: false, shift: true, alt: false };
 }
 

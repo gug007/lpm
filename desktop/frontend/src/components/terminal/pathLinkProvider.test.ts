@@ -319,4 +319,14 @@ describe("Windows path formats", () => {
     );
     expect(resolvePrinted("/Users/me/app", "/tmp/a.txt", false, mounts)).toBe("/tmp/a.txt");
   });
+
+  it.each([false, true])("keeps a Windows host's printed paths on that host (Windows here: %s)", (win) => {
+    const cwd = "/@peer-a1b2c3d4C:\\app";
+    const mounts = { root: "C:\\Program Files\\Git", tmp: "C:\\Temp" };
+    expect(resolvePrinted(cwd, "src\\a.ts", win, mounts)).toBe("/@peer-a1b2c3d4C:\\app\\src\\a.ts");
+    expect(resolvePrinted(cwd, "src/a.ts", win, mounts)).toBe("/@peer-a1b2c3d4C:\\app\\src\\a.ts");
+    expect(resolvePrinted(cwd, "D:\\x\\b.ts", win, mounts)).toBe("/@peer-a1b2c3d4D:\\x\\b.ts");
+    expect(resolvePrinted(cwd, "/c/app/a.ts", win, mounts)).toBe("/@peer-a1b2c3d4C:\\app\\a.ts");
+    expect(resolvePrinted(cwd, "//nas/s/a.ts", win, mounts)).toBe("/@peer-a1b2c3d4\\\\nas\\s\\a.ts");
+  });
 });

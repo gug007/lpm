@@ -88,10 +88,10 @@ fn claude_plugins(home: &Path, out: &mut AgentCapabilities) {
 /// Hooks are listed, never edited: `src-tauri/src/hooks.rs` already owns three
 /// marked regions in this same file, and a second writer would fight it.
 fn claude_hooks(home: &Path, root: Option<&Path>, out: &mut AgentCapabilities) {
-    let mut files = vec![(home.join(".claude/settings.json"), "user")];
+    let mut files = vec![(home.join(".claude").join("settings.json"), "user")];
     if let Some(root) = root {
-        files.push((root.join(".claude/settings.json"), "project"));
-        files.push((root.join(".claude/settings.local.json"), "local"));
+        files.push((root.join(".claude").join("settings.json"), "project"));
+        files.push((root.join(".claude").join("settings.local.json"), "local"));
     }
     for (path, scope) in files {
         let Some(hooks) = read_json(&path).and_then(|j| j.get("hooks").cloned()) else {

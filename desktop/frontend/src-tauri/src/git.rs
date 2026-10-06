@@ -2,6 +2,7 @@
 // synchronous `git`/`gh` subprocess wrappers; the watcher uses the `notify`
 // crate. Struct JSON field names must match what the frontend deserializes.
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -26,7 +27,7 @@ pub(crate) fn tool_command(
     match crate::sshexec::remote_project_for_path(cwd) {
         Some(ssh) => crate::sshexec::remote_command(&ssh, cwd, program, args, envs),
         None => {
-            let mut cmd = Command::new(program);
+            let mut cmd = crate::osproc::command(program);
             cmd.args(args).current_dir(cwd);
             for (k, v) in envs {
                 cmd.env(k, v);
@@ -1441,10 +1442,10 @@ const GIT_FILE_ALLOW: &[&str] = &[
 /// (inside .git except the tracked refs/markers, or an ignored build dir). Shared
 /// with remote.rs's per-connection working-tree watcher.
 pub(crate) fn should_ignore(root: &str, full: &str) -> bool {
-    let rel = match full.strip_prefix(root) {
-        Some(r) => r.trim_start_matches('/'),
-        None => return true,
+    let Some(rel) = relative_to(root, full) else {
+        return true;
     };
+    let rel = rel.as_ref();
     if rel.is_empty() || rel == "." {
         return true;
     }
@@ -1460,6 +1461,39 @@ pub(crate) fn should_ignore(root: &str, full: &str) -> bool {
     }
     segs.iter()
         .any(|s| crate::config::IGNORED_WATCH_DIRS.contains(s))
+}
+
+/// `full` below `root` as a '/'-separated relative path, or None outside it.
+#[cfg(not(windows))]
+fn relative_to<'a>(root: &str, full: &'a str) -> Option<Cow<'a, str>> {
+    full.strip_prefix(root)
+        .map(|r| Cow::Borrowed(r.trim_start_matches('/')))
+}
+
+#[cfg(windows)]
+fn relative_to<'a>(root: &str, full: &'a str) -> Option<Cow<'a, str>> {
+    let rel = std::path::Path::new(full).strip_prefix(root).ok()?;
+    let parts: Vec<_> = rel
+        .components()
+        .map(|c| c.as_os_str().to_string_lossy())
+        .collect();
+    Some(Cow::Owned(parts.join("/")))
+}
+
+/// FSEvents reports canonical paths, so the root is canonicalized for
+/// `relative_to` to match. Windows reports changes under the very path it was
+/// asked to watch, and a canonical one there is a `\\?\` path that the
+/// frontend, matching events by the project's root, would never recognise.
+#[cfg(not(windows))]
+fn watch_root(path: String) -> String {
+    std::fs::canonicalize(&path)
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or(path)
+}
+
+#[cfg(windows)]
+fn watch_root(path: String) -> String {
+    path
 }
 
 /// Coalesce a burst into one window: quiet for DEBOUNCE, or MAX_COALESCE elapsed,
@@ -1526,14 +1560,11 @@ pub fn start_watching_project(
     // A remote project's `path` is a directory on the SSH host: it can't be
     // canonicalized or notify-watched locally, so keep it verbatim and poll.
     let remote = crate::sshexec::remote_project_for_path(&path);
-    // FSEvents delivers absolute (canonical) paths; canonicalize so strip_prefix
-    // matches. Local only — a remote path has no local form to resolve.
+    // Local only — a remote path has no local form to resolve.
     let path = if path.is_empty() || remote.is_some() {
         path
     } else {
-        std::fs::canonicalize(&path)
-            .map(|p| p.to_string_lossy().into_owned())
-            .unwrap_or(path)
+        watch_root(path)
     };
 
     let mut guard = state.inner.lock().unwrap();
@@ -1574,10 +1605,7 @@ pub fn start_watching_project(
                 if should_ignore(&root, &full) {
                     continue;
                 }
-                let rel = full
-                    .strip_prefix(&root)
-                    .map(|r| r.trim_start_matches('/'))
-                    .unwrap_or("");
+                let rel = relative_to(&root, &full).unwrap_or_default();
                 if rel.is_empty() {
                     continue;
                 }
@@ -1711,7 +1739,8 @@ pub fn stop_watching_project(state: State<'_, WatchState>) -> Result<(), String>
 mod tests {
     use super::{
         cat_file_size, cat_file_spec_ok, coalesce, fill_has_remote, git_show_prefix,
-        parse_status_and_files, split_diff_by_file, Change, GitStatus, CHANGE_CAP, MAX_COALESCE,
+        parse_status_and_files, relative_to, should_ignore, split_diff_by_file, Change, GitStatus,
+        CHANGE_CAP, MAX_COALESCE,
     };
     use std::time::Instant;
 
@@ -1755,6 +1784,27 @@ mod tests {
         let (files, unknown) = coalesce(&rx, Change::File("src/a.rs".into())).unwrap();
         assert!(!unknown);
         assert_eq!(files.len(), 2);
+    }
+
+    #[test]
+    fn watcher_paths_are_judged_relative_to_the_root() {
+        let roots: &[&str] = if cfg!(windows) {
+            &[r"C:\w\repo", r"\\?\C:\w\repo"]
+        } else {
+            &["/w/repo"]
+        };
+        for &root in roots {
+            let sep = if cfg!(windows) { r"\" } else { "/" };
+            let at = |rel: &str| format!("{root}{sep}{}", rel.replace('/', sep));
+            assert_eq!(relative_to(root, &at("src/notes.txt")).unwrap(), "src/notes.txt");
+            assert!(relative_to(root, "/elsewhere/x").is_none());
+            assert!(!should_ignore(root, &at("src/notes.txt")));
+            assert!(!should_ignore(root, &at(".git/HEAD")));
+            assert!(!should_ignore(root, &at(".git/refs/heads/main")));
+            assert!(should_ignore(root, &at(".git/objects/ab/cd")));
+            assert!(should_ignore(root, &at("node_modules/dep/index.js")));
+            assert!(should_ignore(root, root));
+        }
     }
 
     #[test]

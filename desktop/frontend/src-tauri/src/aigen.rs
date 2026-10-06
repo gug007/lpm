@@ -684,6 +684,14 @@ fn canceled_gens() -> &'static Mutex<HashSet<String>> {
     SET.get_or_init(|| Mutex::new(HashSet::new()))
 }
 
+/// gen_id -> the job holding every process of that run, so a cancel reaches
+/// the ones a tree walk can't (runjob.rs).
+#[cfg(windows)]
+fn gen_jobs() -> &'static Mutex<HashMap<String, crate::runjob::RunJob>> {
+    static MAP: OnceLock<Mutex<HashMap<String, crate::runjob::RunJob>>> = OnceLock::new();
+    MAP.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
 /// Keeps the pid registration tied to the lifetime of the run, so every exit
 /// path (including the `?` early returns) deregisters.
 struct GenGuard(String);
@@ -698,11 +706,20 @@ impl GenGuard {
         }
         Self(gen_id.to_string())
     }
+
+    #[cfg(windows)]
+    fn hold_job(&self, job: Option<crate::runjob::RunJob>) {
+        if let (false, Some(job)) = (self.0.is_empty(), job) {
+            gen_jobs().lock().unwrap().insert(self.0.clone(), job);
+        }
+    }
 }
 
 impl Drop for GenGuard {
     fn drop(&mut self) {
         if !self.0.is_empty() {
+            #[cfg(windows)]
+            gen_jobs().lock().unwrap().remove(&self.0);
             active_gens().lock().unwrap().remove(&self.0);
             // Also drops a flag raised by a cancel that landed after the run had
             // already read it, so nothing is left behind.
@@ -726,6 +743,10 @@ pub fn cancel_ai_generate(gen_id: String) -> bool {
     let Some(pid) = active_gens().lock().unwrap().get(&gen_id).copied() else {
         return false;
     };
+    #[cfg(windows)]
+    if let Some(job) = gen_jobs().lock().unwrap().get(&gen_id) {
+        job.terminate();
+    }
     canceled_gens().lock().unwrap().insert(gen_id);
     // Snapshot before signalling: once the roots die their children reparent.
     crate::proctree::kill_pids_async(crate::proctree::trees(&[pid]));
@@ -756,11 +777,15 @@ pub(crate) fn run_ai(
     }
     opts.claude_env.apply(&mut cmd);
     // Own session so cancelling reaps the CLI's descendants along with it.
-    // Windows cancels by walking the process tree, which needs no group.
+    // Windows cancels through the job the run is put in below, which needs no group.
     #[cfg(unix)]
     crate::osproc::detach(&mut cmd);
     let mut child = cmd.spawn().map_err(|e| format!("{cli}: start: {e}"))?;
+    #[cfg(windows)]
+    let job = crate::runjob::RunJob::attach(&child);
     let _gen = GenGuard::register(gen_id, child.id() as i32);
+    #[cfg(windows)]
+    _gen.hold_job(job);
     // From its own thread: a prompt bigger than the pipe buffer blocks until
     // the CLI reads it, and stdout must be drained meanwhile.
     if let Some(mut stdin) = child.stdin.take() {

@@ -178,8 +178,12 @@ export function GlobalTerminalsView({
           onSubmit={modals.inputs.onSubmit}
         />
       )}
-      {modals.running.action && (
-        <ActionTerminal label={modals.running.action.label} onClose={modals.running.onClose} />
+      {modals.running.action && modals.running.run && (
+        <ActionTerminal
+          label={modals.running.action.label}
+          run={modals.running.run}
+          onClose={modals.running.onClose}
+        />
       )}
     </div>
   );

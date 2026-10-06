@@ -478,6 +478,9 @@ export function MessageHistoryQuery(input) {
 export function MessageHistoryAdd(message) {
   return invoke("message_history_add", { message });
 }
+export function MediaHttpBase() {
+  return invoke("media_http_base");
+}
 export function NotifyUnattended(title, body) {
   return invoke("notify_unattended", { title, body });
 }
@@ -633,6 +636,9 @@ export function ReadBranchNameInstructions() {
 }
 export function ReadClipboardFiles() {
   return invoke("read_clipboard_files");
+}
+export function ReadClipboardImage() {
+  return invoke("read_clipboard_image");
 }
 export function ReadClipboardText(full) {
   return invoke("read_clipboard_text", full ? { full: true } : undefined);

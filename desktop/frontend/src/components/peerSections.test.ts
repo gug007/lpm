@@ -62,6 +62,21 @@ describe("buildPeerSections", () => {
     expect(hostedRemotely.has("lpm-sync")).toBe(true);
   });
 
+  it("marks a Windows host's row, and names its away copy by folder", () => {
+    const winRoot = "C:\\Users\\other\\Projects\\lpm";
+    const marked = buildPeerSections(
+      [copy, remote("lpm", winRoot)],
+      follows(follow("lpm-sync", winRoot)),
+      [peer()],
+    );
+    expect(marked.sections[0].mirrors.get(winRoot)).toBe(copy);
+    expect(marked.sections[0].strays).toEqual([]);
+    const away = buildPeerSections([copy], follows(follow("lpm-sync", winRoot)), [
+      peer({ connected: false }),
+    ]);
+    expect(away.sections[0].strays[0].label).toBe("lpm");
+  });
+
   // Running and testing here is the whole point of a copy, so it cannot vanish
   // with the Mac it came from.
   it("gives a copy its own row under a Mac that is away", () => {

@@ -1,5 +1,6 @@
 import { folderName } from "../path";
-import { peerRawName } from "../peer/markers";
+import { isWindowsHostPath, peerRawName } from "../peer/markers";
+import { isWindows } from "../platform";
 
 // What adopting a folder produced: the project's (routing) name, whether the
 // folder was already a project rather than newly registered, and the services
@@ -13,7 +14,7 @@ export interface AdoptedProject {
 const LISTED_SERVICES = 6;
 
 export function folderBaseName(dir: string): string {
-  return folderName(dir) || "new-project";
+  return folderName(dir, isWindows || isWindowsHostPath(dir)) || "new-project";
 }
 
 // A host running an older build answers with nothing; the folder's name is then

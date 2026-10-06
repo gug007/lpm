@@ -12,6 +12,7 @@ import {
   ResizeTerminal,
   AckTerminalData,
   ReadClipboardFiles,
+  ReadClipboardImage,
   ReadClipboardText,
   SaveClipboardImage,
   SetClipboardText,
@@ -27,8 +28,8 @@ import { quoteImagePathForPaste, unquotePastedPath } from "../composerValue";
 import { canFitHost, getTerminalTheme, isAtBottom, openTerminalLink, TERMINAL_FONT_FAMILY } from "./terminal-utils";
 import { handleCopyShortcut, handleNativeCopy, handleSelectAllShortcut, handleClearShortcut, isCopyShortcut, isPasteShortcut } from "./terminal/copySelection";
 import { terminalYieldsToApp } from "./terminal/terminalKeys";
-import { readPasteContent } from "./terminal/clipboardRead";
-import { isMac } from "../platform";
+import { readBackendImage, readPasteContent } from "./terminal/clipboardRead";
+import { isLinux, isMac, isWindows } from "../platform";
 import { ConsoleContextMenu } from "./terminal/ConsoleContextMenu";
 import { ArrowDownIcon } from "./terminal/icons";
 import { applyFilterQuery, FilterMirror } from "./terminal/FilterMirror";
@@ -429,8 +430,9 @@ function saveImageBlob(terminalId: string, blob: Blob, mimeType: string) {
           .then((text) => pasteToTerminal(terminalId, text))
           .catch((err) => writeTerminalError(terminalId, err));
       } else {
+        // A bare Windows path loses its backslashes to the shell's escaping.
         SaveClipboardImage(b64, mimeType)
-          .then((filePath) => pasteToTerminal(terminalId, filePath))
+          .then((filePath) => pasteToTerminal(terminalId, isWindows ? formatPastedPaths([filePath]) : filePath))
           .catch((err) =>
             logDiagnostic(
               "warn",
@@ -503,7 +505,8 @@ function pasteFromClipboard(terminalId: string): void {
   } catch {
     // No scripted paste here — read the clipboard instead.
   }
-  void readPasteContent(ReadClipboardFiles, () => ReadClipboardText(true)).then((clip) => {
+  const readImage = isLinux ? () => readBackendImage(ReadClipboardImage) : undefined;
+  void readPasteContent(ReadClipboardFiles, () => ReadClipboardText(true), undefined, readImage).then((clip) => {
     if (clip?.kind === "files") return pasteClipboardFiles(terminalId, clip.paths);
     if (clip?.kind === "image") saveImageBlob(terminalId, clip.blob, clip.mimeType);
     else if (clip) pasteToTerminal(terminalId, clip.text);
@@ -785,7 +788,10 @@ function createInteractiveSession(
   import("@xterm/addon-webgl")
     .then(({ WebglAddon }) => {
       try {
-        const webgl = new WebglAddon();
+        // WebKitGTK shows a WebGL canvas's previous frame until the next draw,
+        // so a pane that stops drawing (unfocused, no cursor blink) would stay
+        // one update behind; a preserved buffer is shown as drawn.
+        const webgl = new WebglAddon(isLinux ? { preserveDrawingBuffer: true } : undefined);
         webgl.onContextLoss(() => webgl.dispose());
         term.loadAddon(webgl);
       } catch {}

@@ -2,9 +2,17 @@
 // We avoid `node:path` (browser bundle). Paths are POSIX on macOS and Linux. On
 // Windows a local path may also be `C:\…`, `C:/…` or `\\server\share\…`, while
 // one that starts with `/` (a paired host's marker, an MSYS `/c/…` path) keeps
-// POSIX rules. Each helper takes `win` so tests can exercise both.
+// POSIX rules. A path on a paired Windows host (`/@peer-…C:\…`) has Windows
+// rules after its marker on any machine. Each helper takes `win` so tests can
+// exercise both.
 
-import { isPeerRoot, peerSlugOf, prefixRoot } from "./peer/markers";
+import {
+  isPeerRoot,
+  isWindowsHostPath,
+  peerSlugOf,
+  prefixRoot,
+  windowsRootMarker,
+} from "./peer/markers";
 import { isWindows } from "./platform";
 
 const DRIVE_RE = /^[A-Za-z]:[\\/]/;
@@ -19,16 +27,21 @@ const WIN_RUNS_BINARY_RE =
 const WIN_RUNS_SCRIPT_RE =
   /\.(?:bat|cmd|ps1|psm1|vbs|vbe|js|jse|wsf|wsh|hta|reg|msc|scf|url|sh|bash|py|pyw|pyz|pl|rb)$/i;
 
-export const windowsRules = (p: string, win = isWindows) => win && !p.startsWith("/");
+export const windowsRules = (p: string, win = isWindows) =>
+  (win && !p.startsWith("/")) || windowsRootMarker(p) !== "";
 
-// `C:\`, `C:/`, `\\server\share\` — the part of a Windows path `..` can't leave.
+// `C:\`, `C:/`, `\\server\share\` — the part of a Windows path `..` can't leave,
+// behind a Windows host's marker when there is one.
 function winRoot(p: string): string {
-  return DRIVE_RE.exec(p)?.[0] ?? UNC_ROOT_RE.exec(p)?.[0] ?? "";
+  const marker = windowsRootMarker(p);
+  const rest = p.slice(marker.length);
+  return marker + (DRIVE_RE.exec(rest)?.[0] ?? UNC_ROOT_RE.exec(rest)?.[0] ?? "");
 }
 
 // The separator a Windows path is written with: backslash unless it only uses `/`.
 function winSep(p: string): "\\" | "/" {
-  return p.includes("/") && !p.includes("\\") ? "/" : "\\";
+  const rest = p.slice(windowsRootMarker(p).length);
+  return rest.includes("/") && !rest.includes("\\") ? "/" : "\\";
 }
 
 // Absolute from a filesystem root: `/…`, or `C:\…` and `\\server\…` on Windows.
@@ -57,6 +70,8 @@ export function joinAbs(base: string, rel: string, win = isWindows): string {
     const slug = peerSlugOf(base);
     return slug && !isPeerRoot(rel) ? prefixRoot(slug, rel) : rel;
   }
+  const marker = windowsRootMarker(base);
+  if (marker && isWindowsHostPath(rel)) return marker + rel;
   if (rel === "~") return rel;
   if (win && isAbsolutePath(rel, true)) return rel;
   if (windowsRules(base, win)) return joinWin(base, rel);
@@ -123,6 +138,8 @@ export function normalizePath(p: string, win = isWindows): string {
 }
 
 function normalizeWin(p: string): string {
+  const marker = windowsRootMarker(p);
+  if (marker) return marker + normalizeWin(p.slice(marker.length));
   const root = winRoot(p);
   const sep = winSep(p);
   const out: string[] = [];

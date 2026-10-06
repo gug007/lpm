@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { chordLetter } from "../keyEvents";
+import { isMac } from "../platform";
 import { useKeyboardShortcut } from "./useKeyboardShortcut";
 
 export function useYamlEditor(
@@ -44,6 +46,17 @@ export function useYamlEditor(
     if (dirty) handleSave();
   });
 
+  // Off macOS the ⌘S above is Ctrl+Shift+S (keys.ts toPhysical); inside the
+  // editor plain Ctrl+S saves too, as in any other editor there.
+  const handleSaveKey = isMac
+    ? undefined
+    : (e: React.KeyboardEvent<HTMLElement>) => {
+        if (e.defaultPrevented || !e.ctrlKey || e.shiftKey || e.altKey || e.metaKey) return;
+        if (chordLetter(e.nativeEvent) !== "s" || !e.currentTarget.contains(e.target as Node)) return;
+        e.preventDefault();
+        if (dirty) handleSave();
+      };
+
   const handleTab = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Tab") {
       e.preventDefault();
@@ -66,6 +79,7 @@ export function useYamlEditor(
     error,
     validationError,
     handleSave,
+    handleSaveKey,
     handleTab,
   };
 }

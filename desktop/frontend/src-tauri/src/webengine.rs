@@ -43,21 +43,74 @@ fn disable_dmabuf(user_set: bool, nvidia: bool, headless: bool) -> bool {
 /// Ctrl+P prints, Ctrl+F opens find, Ctrl+Shift+C opens DevTools. WebView2
 /// applies this from the next navigation, so the frontend guards the first page
 /// load itself (webviewGuards.ts).
+///
+/// It also asks the user before a page reads the clipboard, which a terminal's
+/// Ctrl+Shift+V does; the app's own pages read it without that prompt.
 #[cfg(windows)]
 pub fn harden(win: &tauri::WebviewWindow) {
-    let _ = win.with_webview(|pv| unsafe {
+    crate::winfocus::attach(win);
+    use tauri::Manager;
+    let dev_url = if tauri::is_dev() {
+        win.config().build.dev_url.clone()
+    } else {
+        None
+    };
+    let _ = win.with_webview(move |pv| unsafe {
         use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Settings3;
         use windows_core::Interface;
         let Ok(core) = pv.controller().CoreWebView2() else {
             return;
         };
-        let Ok(settings) = core.Settings() else {
-            return;
-        };
-        if let Ok(settings) = settings.cast::<ICoreWebView2Settings3>() {
+        if let Ok(settings) = core.Settings().and_then(|s| s.cast::<ICoreWebView2Settings3>()) {
             let _ = settings.SetAreBrowserAcceleratorKeysEnabled(false);
         }
+        allow_app_clipboard_reads(&core, dev_url);
     });
+}
+
+#[cfg(windows)]
+fn allow_app_clipboard_reads(
+    core: &webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2,
+    dev_url: Option<tauri::Url>,
+) {
+    use webview2_com::Microsoft::Web::WebView2::Win32::{
+        COREWEBVIEW2_PERMISSION_KIND, COREWEBVIEW2_PERMISSION_KIND_CLIPBOARD_READ,
+        COREWEBVIEW2_PERMISSION_STATE_ALLOW,
+    };
+    let handler = webview2_com::PermissionRequestedEventHandler::create(Box::new(
+        move |_, args| unsafe {
+            let Some(args) = args else {
+                return Ok(());
+            };
+            let mut kind = COREWEBVIEW2_PERMISSION_KIND::default();
+            args.PermissionKind(&mut kind)?;
+            if kind != COREWEBVIEW2_PERMISSION_KIND_CLIPBOARD_READ {
+                return Ok(());
+            }
+            let mut uri = windows_core::PWSTR::null();
+            args.Uri(&mut uri)?;
+            if is_app_origin(&webview2_com::take_pwstr(uri), dev_url.as_ref()) {
+                args.SetState(COREWEBVIEW2_PERMISSION_STATE_ALLOW)?;
+            }
+            Ok(())
+        },
+    ));
+    let mut token = 0i64;
+    let _ = unsafe { core.add_PermissionRequested(&handler, &mut token) };
+}
+
+/// Whether `uri` belongs to the app's own pages: Tauri's asset host, or the dev
+/// server in a dev build.
+#[cfg(any(windows, test))]
+fn is_app_origin(uri: &str, dev_url: Option<&tauri::Url>) -> bool {
+    let Ok(origin) = tauri::Url::parse(uri).map(|u| u.origin()) else {
+        return false;
+    };
+    ["http://tauri.localhost", "https://tauri.localhost"]
+        .iter()
+        .filter_map(|app| tauri::Url::parse(app).ok())
+        .chain(dev_url.cloned())
+        .any(|app| app.origin() == origin)
 }
 
 #[cfg(not(windows))]
@@ -78,5 +131,18 @@ mod tests {
     #[test]
     fn a_headless_host_keeps_dmabuf() {
         assert!(!disable_dmabuf(false, true, true));
+    }
+
+    #[test]
+    fn only_the_apps_own_pages_read_the_clipboard_unprompted() {
+        assert!(is_app_origin("http://tauri.localhost/", None));
+        assert!(is_app_origin("https://tauri.localhost/index.html", None));
+        assert!(!is_app_origin("http://tauri.localhost.example.com/", None));
+        assert!(!is_app_origin("https://example.com/", None));
+        assert!(!is_app_origin("not a url", None));
+        let dev = tauri::Url::parse("http://127.0.0.1:9245").unwrap();
+        assert!(is_app_origin("http://127.0.0.1:9245/src/main.tsx", Some(&dev)));
+        assert!(!is_app_origin("http://127.0.0.1:9246/", Some(&dev)));
+        assert!(!is_app_origin("http://127.0.0.1:9245/", None));
     }
 }

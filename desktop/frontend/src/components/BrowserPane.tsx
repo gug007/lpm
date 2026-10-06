@@ -15,7 +15,7 @@ import { useOverlayStore } from "../store/overlay";
 import { useBrowserUrls } from "../store/browserUrls";
 import { getSettings, saveSettings } from "../store/settings";
 import { isDarkTheme } from "../theme";
-import { isLinux } from "../platform";
+import { isLinux, isWindows } from "../platform";
 import { toTarget } from "./browserTarget";
 import { ExternalBrowserPane } from "./ExternalBrowserPane";
 import { ChevronLeftIcon, ChevronRightIcon, RefreshIcon, SunIcon, MoonIcon, GlobeIcon } from "./icons";
@@ -173,20 +173,23 @@ function EmbeddedBrowserPane({ id, active }: BrowserPaneProps) {
             className="h-7 w-full rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2.5 text-xs text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--text-muted)]/60"
           />
         </form>
-        <button
-          className={navBtn}
-          onClick={() =>
-            setDark((d) => {
-              const next = !d;
-              void saveSettings({ browserTheme: next ? "dark" : "light" });
-              return next;
-            })
-          }
-          title={dark ? "Switch browser to light" : "Switch browser to dark"}
-          aria-label="Toggle browser theme"
-        >
-          {dark ? <SunIcon /> : <MoonIcon />}
-        </button>
+        {/* WebView2 pages keep their own color scheme (browser.rs sets it on macOS only). */}
+        {!isWindows && (
+          <button
+            className={navBtn}
+            onClick={() =>
+              setDark((d) => {
+                const next = !d;
+                void saveSettings({ browserTheme: next ? "dark" : "light" });
+                return next;
+              })
+            }
+            title={dark ? "Switch browser to light" : "Switch browser to dark"}
+            aria-label="Toggle browser theme"
+          >
+            {dark ? <SunIcon /> : <MoonIcon />}
+          </button>
+        )}
       </div>
       {/* The native webview floats over this hole once a page is opened. Before
           that — and while it's parked behind an overlay — the React layer shows. */}

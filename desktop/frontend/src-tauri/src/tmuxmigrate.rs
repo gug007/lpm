@@ -10,7 +10,6 @@
 // else) and reap their process trees, so a following start finds its ports free.
 // A marker file retires this for good, and everything here is skipped outright
 // when tmux isn't installed — this is lpm's last tmux call, not a dependency.
-use std::process::Command;
 
 const MARKER: &str = ".tmux-handover-done";
 
@@ -24,7 +23,7 @@ pub fn run_once() {
         // Snapshot before the kill: tmux hangs up the pane shell and its
         // children reparent to launchd, out of reach of any later walk.
         let victims = crate::proctree::trees(&roots);
-        let _ = Command::new("tmux")
+        let _ = crate::osproc::command("tmux")
             .args(["kill-session", "-t", &format!("={session}")])
             .output();
         crate::proctree::kill_pids(&victims);
@@ -37,7 +36,7 @@ pub fn run_once() {
 /// A session the user started by hand is not lpm's to end, even if lpm's own
 /// naming would have produced the same one.
 fn lpm_sessions() -> Vec<String> {
-    let out = Command::new("tmux")
+    let out = crate::osproc::command("tmux")
         .args(["list-sessions", "-F", "#{session_name}"])
         .output();
     let Ok(out) = out else { return Vec::new() };
@@ -58,7 +57,7 @@ fn lpm_sessions() -> Vec<String> {
 }
 
 fn pane_pids(session: &str) -> Vec<i32> {
-    let out = Command::new("tmux")
+    let out = crate::osproc::command("tmux")
         .args(["list-panes", "-t", &format!("={session}:"), "-F", "#{pane_pid}"])
         .output();
     match out {

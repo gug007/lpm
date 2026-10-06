@@ -23,6 +23,7 @@ import { AIGenerateModal } from "./AIGenerateModal";
 import { type AICLI } from "../types";
 import { getSettings, saveSettings } from "../store/settings";
 import { validateYaml } from "../yamlValidation";
+import { primaryHint } from "../shortcutHints";
 
 type ConfigTarget = "user" | "repo" | "global";
 
@@ -100,7 +101,7 @@ export function ConfigEditor({
   };
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col" onKeyDown={active.handleSaveKey}>
       {onBack && (
         <div className="flex items-center justify-between gap-3 px-6 pt-3 pb-2">
           <div className="flex items-center gap-2">
@@ -213,7 +214,7 @@ export function ConfigEditor({
               {activeError}
             </pre>
           )}
-          <span className="mb-2 text-[10px] text-[var(--text-muted)]">{"\u2318"}S</span>
+          <span className="mb-2 text-[10px] text-[var(--text-muted)]">{primaryHint("s")}</span>
           <button
             onClick={active.handleSave}
             disabled={!active.dirty || active.saving || Boolean(active.validationError)}

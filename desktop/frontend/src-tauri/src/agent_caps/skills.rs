@@ -60,13 +60,13 @@ pub(super) fn skill_roots_in(
     let mut candidates = vec![SkillRoot {
         cli: "claude",
         scope: "user",
-        path: home.join(".claude/skills"),
+        path: home.join(".claude").join("skills"),
     }];
     if let Some(project) = project {
         candidates.push(SkillRoot {
             cli: "claude",
             scope: "project",
-            path: project.join(".claude/skills"),
+            path: project.join(".claude").join("skills"),
         });
     }
     candidates.push(SkillRoot {
@@ -78,7 +78,7 @@ pub(super) fn skill_roots_in(
     candidates.push(SkillRoot {
         cli: "codex",
         scope: "user",
-        path: home.join(".agents/skills"),
+        path: home.join(".agents").join("skills"),
     });
 
     let mut out: Vec<SkillRoot> = Vec::new();

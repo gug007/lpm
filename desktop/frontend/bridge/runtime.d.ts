@@ -1,4 +1,5 @@
 export function EventsOn(eventName: string, callback: (...data: any) => void): () => void;
+export function EventsOnReady(eventName: string, callback: (...data: any) => void): Promise<() => void>;
 export function EventsEmit(eventName: string, ...data: any): void;
 
 export function BrowserOpenURL(url: string): void;

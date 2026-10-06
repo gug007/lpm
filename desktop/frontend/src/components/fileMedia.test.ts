@@ -64,4 +64,10 @@ describe("mediaSrc", () => {
       "lpm-media://localhost/%2Fhome%2Fme%2Fclip.mp4",
     );
   });
+
+  it("streams from the loopback endpoint when one is given (Linux)", () => {
+    expect(mediaSrc("/home/me/my clip.webm", false, "http://127.0.0.1:4100/abc")).toBe(
+      "http://127.0.0.1:4100/abc/%2Fhome%2Fme%2Fmy%20clip.webm",
+    );
+  });
 });

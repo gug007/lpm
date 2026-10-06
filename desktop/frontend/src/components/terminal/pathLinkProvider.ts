@@ -17,7 +17,7 @@ import {
   toSlash,
   windowsRules,
 } from "../../path";
-import { isPeerMarked } from "../../peer/markers";
+import { isPeerMarked, windowsRootMarker } from "../../peer/markers";
 import { isWindows } from "../../platform";
 import { getSettings } from "../../store/settings";
 import { openFileViewer } from "../../store/fileViewer";
@@ -310,19 +310,26 @@ export interface PathLinkProviderOptions {
   getCwd: () => string;
 }
 
-const isAbsolute = (raw: string) => isAbsolutePath(raw);
+// A terminal on a paired Windows host prints Windows paths wherever it is shown.
+const windowsCwd = (cwd: string) => isWindows || windowsRules(cwd);
+const isAbsolute = (raw: string, cwd: string) => isAbsolutePath(raw, windowsCwd(cwd));
 const RELOOK_MS = 5_000;
 
 // Where a printed path points: against the cwd, and on Windows with Git Bash's
 // `/c/…`, `/tmp/…` and `/usr/…` spellings turned back into the paths this
-// machine can open.
+// machine can open. A paired Windows host's Git Bash gets its drive and share
+// spellings mapped; where its own tree is, only that host knows.
 export function resolvePrinted(
   cwd: string,
   raw: string,
   windows = isWindows,
   mounts: MsysMounts | null = null,
 ): string {
-  const local = windows && !isPeerMarked(cwd) ? fromMsysPath(raw, mounts) : raw;
+  const local = windowsRootMarker(cwd)
+    ? fromMsysPath(raw)
+    : windows && !isPeerMarked(cwd)
+      ? fromMsysPath(raw, mounts)
+      : raw;
   return joinAbs(cwd, local, windows);
 }
 
@@ -349,8 +356,8 @@ const overlaps = (a: IBufferRange, b: IBufferRange) =>
 // path as printed if it exists, the one file it is the tail of, or several to
 // choose from. A file too new for the cached index gets one fresher look.
 async function projectFiles(cwd: string, raw: string): Promise<string[]> {
-  if (!cwd || isAbsolute(raw)) return [];
-  const printed = windowsRules(cwd) ? toSlash(raw) : raw;
+  if (!cwd || isAbsolute(raw, cwd)) return [];
+  const printed = windowsRules(cwd) ? toSlash(raw, true) : raw;
   const cached = await loadFileIndex(cwd);
   const found = cached ? candidatesFor(cached, printed) : [];
   if (found.length > 0) return found;
@@ -387,7 +394,12 @@ export function registerPathLinkProvider(
   const provider: ILinkProvider = {
     provideLinks(bufferLineNumber, callback) {
       const cwd = opts.getCwd();
-      const { paths, names, spaced } = scanLine(term.buffer.active, bufferLineNumber, term.cols);
+      const { paths, names, spaced } = scanLine(
+        term.buffer.active,
+        bufferLineNumber,
+        term.cols,
+        windowsCwd(cwd),
+      );
       const link = (m: PathMatch): ILink => ({
         range: m.range,
         text: m.text,
@@ -395,14 +407,14 @@ export function registerPathLinkProvider(
       });
       // Tilde and absolute matches don't need a cwd; relative ones do — drop
       // them when we have nothing to resolve against.
-      const direct = paths.filter((m) => isAbsolute(m.raw) || cwd);
+      const direct = paths.filter((m) => isAbsolute(m.raw, cwd) || cwd);
       const projectNames =
         cwd && names.length > 0
           ? loadFileIndex(cwd).then((index) => names.filter((m) => index?.byName.has(m.raw)))
           : null;
       if (!projectNames && spaced.length === 0) {
         // Hovering warms the index, so a click resolves at once.
-        if (cwd && paths.some((m) => !isAbsolute(m.raw))) void loadFileIndex(cwd);
+        if (cwd && paths.some((m) => !isAbsolute(m.raw, cwd))) void loadFileIndex(cwd);
         callback(direct.length > 0 ? direct.map(link) : undefined);
         return;
       }

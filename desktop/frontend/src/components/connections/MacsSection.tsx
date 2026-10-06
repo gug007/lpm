@@ -12,7 +12,7 @@ import {
 import { EventsOn } from "../../../bridge/runtime";
 import type { PeerClient, PeerHostState, DiscoveredPeer } from "../../peer/usePeerState";
 import { decodeInvite, type PeerInvite } from "../../peer/invite";
-import { peerNoun } from "../../peer/platform";
+import { connectsOnlyToMacs, peerNoun } from "../../peer/platform";
 import { Group, GroupHeader } from "./GroupedList";
 import { PeerRow } from "./PeerRow";
 import { AddRow } from "./AddRow";
@@ -169,8 +169,7 @@ export function MacsSection({
   // whole point of the section — so it starts open and only folds away once
   // this Mac has somewhere to connect to.
   const panelOpen = addOpen || macs.length === 0;
-  // A Linux or Windows desktop is listed here too, and isn't a Mac.
-  const onlyMacs = macs.every((p) => peerNoun(p) === "Mac");
+  const onlyMacs = connectsOnlyToMacs(macs, isMac);
 
   return (
     <section className="mt-8">

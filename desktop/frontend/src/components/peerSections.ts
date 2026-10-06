@@ -1,4 +1,4 @@
-import { parsePeerMarker, peerSlugOf, stripMarker } from "../peer/markers";
+import { isWindowsHostPath, parsePeerMarker, peerSlugOf, stripMarker } from "../peer/markers";
 import { isLinuxHost, peerNoun, type PeerNoun } from "../peer/platform";
 import { peerStatus, type PeerStatus } from "../peer/peerStatus";
 import type { FollowState } from "../followApi";
@@ -121,6 +121,6 @@ export function followForRow(
 }
 
 function folderName(path: string): string {
-  const parts = path.split("/").filter(Boolean);
+  const parts = path.split(isWindowsHostPath(path) ? /[\\/]/ : "/").filter(Boolean);
   return parts[parts.length - 1] ?? path;
 }

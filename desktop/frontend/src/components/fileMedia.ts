@@ -68,8 +68,15 @@ export const MEDIA_SCHEME = "lpm-media";
 // base64 blob. Path goes over as a single percent-encoded segment, which is
 // what the handler decodes. WebView2 only routes a custom scheme as
 // http://<scheme>.localhost/ (wry maps it back before the handler runs).
-export function mediaSrc(absPath: string, windows: boolean = isWindows): string {
+// WebKitGTK's player can't stream from a custom scheme at all, so Linux passes
+// the loopback endpoint that serves the same bytes (`httpBase`).
+export function mediaSrc(
+  absPath: string,
+  windows: boolean = isWindows,
+  httpBase: string | null = null,
+): string {
   const segment = encodeURIComponent(absPath);
+  if (httpBase) return `${httpBase}/${segment}`;
   return windows
     ? `http://${MEDIA_SCHEME}.localhost/${segment}`
     : `${MEDIA_SCHEME}://localhost/${segment}`;

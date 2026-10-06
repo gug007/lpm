@@ -28,14 +28,28 @@
           "jq",
           "rsync",
           "pulseaudio-utils | pipewire-bin",
-          "fontconfig"
+          "fontconfig",
+          "fonts-noto-color-emoji",
+          "gstreamer1.0-plugins-good",
+          "gstreamer1.0-libav"
         ],
         "postInstallScript": "packaging/linux/postinst.sh",
         "postRemoveScript": "packaging/linux/postrm.sh"
       },
       "rpm": {
         "depends": ["git", "openssh-clients", "xdg-utils"],
-        "recommends": ["wl-clipboard", "xclip", "iproute", "jq", "rsync", "pulseaudio-utils", "fontconfig"],
+        "recommends": [
+          "wl-clipboard",
+          "xclip",
+          "iproute",
+          "jq",
+          "rsync",
+          "pulseaudio-utils",
+          "fontconfig",
+          "google-noto-color-emoji-fonts",
+          "gstreamer1-plugins-good",
+          "gstreamer1-plugin-libav"
+        ],
         "postInstallScript": "packaging/linux/postinst.sh",
         "postRemoveScript": "packaging/linux/postrm.sh"
       }

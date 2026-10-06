@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { DeleteAgentSkill, PreviewAgentSkillDelete } from "../../../bridge/commands";
+import { trashName } from "../../platform";
 import type { AgentCapability } from "../../toolkit";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 
@@ -67,7 +68,7 @@ export function ToolkitDeleteDialog({
     setBusy(true);
     try {
       await DeleteAgentSkill(cwd, cap.path);
-      toast.success(`Moved ${cap.name} to the Trash`);
+      toast.success(`Moved ${cap.name} to the ${trashName()}`);
       onDeleted();
     } catch (err) {
       toast.error(String(err));
@@ -85,14 +86,14 @@ export function ToolkitDeleteDialog({
   const others = plan ? Math.max(0, plan.files - 1) : 0;
   const headline =
     !plan || (plan.truncated && others === 0) ? (
-      <>{name} and everything in its folder moves to the Trash.</>
+      <>{name} and everything in its folder moves to the {trashName()}.</>
     ) : others === 0 ? (
-      <>{name} moves to the Trash.</>
+      <>{name} moves to the {trashName()}.</>
     ) : (
       <>
         {name} and {plan.truncated ? "at least " : ""}
-        {others === 1 ? "1 other file" : `${others} other files`} in its folder move to the
-        Trash.
+        {others === 1 ? "1 other file" : `${others} other files`} in its folder move to the{" "}
+        {trashName()}.
       </>
     );
 
@@ -111,7 +112,7 @@ export function ToolkitDeleteDialog({
           {siblingPaths.length === 1 ? "that one stays" : "those stay"}.
         </p>
       )}
-      <p className="mt-2">You can restore it from the Trash.</p>
+      <p className="mt-2">You can restore it from the {trashName()}.</p>
     </>
   );
 

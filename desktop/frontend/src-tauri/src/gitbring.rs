@@ -127,7 +127,9 @@ fn is_slug(s: &str) -> bool {
 /// those forms or the bare ones.
 pub(crate) fn unmark(value: &str) -> &str {
     if let Some(rest) = value.strip_prefix("/@peer-") {
-        if is_slug(rest.get(..8).unwrap_or_default()) && rest[8..].starts_with('/') {
+        if is_slug(rest.get(..8).unwrap_or_default())
+            && (rest[8..].starts_with('/') || crate::mediapeer::is_windows_host_path(&rest[8..]))
+        {
             return &rest[8..];
         }
         return value;
@@ -162,6 +164,8 @@ mod tests {
         assert_eq!(unmark("peer-00ff00ff-my-app-2"), "my-app-2");
         assert_eq!(unmark("/@peer-abcd1234/Users/dev/web"), "/Users/dev/web");
         assert_eq!(unmark("/Users/dev/web"), "/Users/dev/web");
+        assert_eq!(unmark(r"/@peer-abcd1234C:\dev\web"), r"C:\dev\web");
+        assert_eq!(unmark(r"C:\dev\web"), r"C:\dev\web");
     }
 
     #[test]

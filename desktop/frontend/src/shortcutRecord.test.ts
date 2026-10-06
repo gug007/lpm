@@ -77,6 +77,16 @@ describe("captureShortcut on Linux and Windows", () => {
     expect(pc("Tab", { alt: true })).toEqual({ kind: "hint", text: "Alt+Tab is reserved by the system" });
   });
 
+  it("refuses the input method's Ctrl+Shift+U on Linux only", () => {
+    const linux = (key: string, mods: Mods) => captureShortcut(press(key, mods, "KeyU"), undefined, false, true);
+    expect(linux("U", { ctrl: true, shift: true })).toEqual({
+      kind: "hint",
+      text: "Ctrl+Shift+U is reserved by the system",
+    });
+    expect(linux("u", { ctrl: true, alt: true })).toEqual({ kind: "capture", canonical: "cmd+alt+u" });
+    expect(pc("U", { ctrl: true, shift: true })).toEqual({ kind: "capture", canonical: "cmd+u" });
+  });
+
   it("names lpm's own chords by their physical keys", () => {
     expect(pc("T", { ctrl: true, shift: true })).toEqual({ kind: "hint", text: "Ctrl+Shift+T is reserved by lpm" });
     expect(pc("PageDown", { ctrl: true, alt: true })).toEqual({

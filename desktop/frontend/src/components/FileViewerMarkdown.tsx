@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import type { ContentZoom } from "../hooks/useContentZoom";
 import { joinAbs, relTo, splitRoot } from "../path";
-import { peerSlugOf, prefixRoot, stripMarker } from "../peer/markers";
+import { peerSlugOf, prefixRoot, stripMarker, windowsRootMarker } from "../peer/markers";
 import { openFileViewer } from "../store/fileViewer";
 import { FilesMarkdownPreview } from "./files/FilesMarkdownPreview";
 
@@ -17,8 +17,9 @@ interface FileViewerMarkdownProps {
 // this viewer in place of this one.
 export function FileViewerMarkdown({ text, absPath, projectRoot, zoom }: FileViewerMarkdownProps) {
   const inProject = !!projectRoot && relTo(absPath, projectRoot) !== absPath;
-  const slug = peerSlugOf(absPath);
-  const outside = splitRoot(stripMarker(absPath));
+  // A Windows host's drive or share root keeps the marker that routes there.
+  const slug = windowsRootMarker(absPath) ? null : peerSlugOf(absPath);
+  const outside = splitRoot(slug ? stripMarker(absPath) : absPath);
   const root = inProject ? projectRoot : slug ? prefixRoot(slug, "/") : outside.root;
   const path = inProject ? relTo(absPath, projectRoot) : outside.rest;
   const onOpenFile = useCallback(

@@ -2391,6 +2391,7 @@ dependencies = [
  "core-foundation",
  "core-foundation-sys",
  "dirs",
+ "dunce",
  "embed-resource",
  "flate2",
  "getrandom 0.4.3",
