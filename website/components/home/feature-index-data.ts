@@ -209,7 +209,7 @@ export const FEATURE_INDEX: IndexGroup[] = [
       {
         icon: CalendarClock,
         title: "Automations",
-        body: "Schedule prompts, commands and actions. They fire only with lpm open on an awake Mac.",
+        body: "Schedule prompts, commands and actions. They fire only with lpm open on an awake computer.",
         href: AUTOMATIONS_PATH,
       },
       {
@@ -252,8 +252,8 @@ export const FEATURE_INDEX: IndexGroup[] = [
       },
       {
         icon: Laptop,
-        title: "Other Macs and Linux servers",
-        body: "Pair another Mac, or add a Linux server with one SSH string, and drive it from your sidebar.",
+        title: "Other computers and Linux servers",
+        body: "Pair another computer running lpm, or add a Linux server with one SSH string, and drive it from your sidebar.",
         href: LINUX_HOST_PATH,
       },
     ],
@@ -261,7 +261,7 @@ export const FEATURE_INDEX: IndexGroup[] = [
 ];
 
 export const FEATURE_INDEX_FACTS = [
-  "Apple Silicon and Intel builds",
+  "Builds for macOS, Windows and x86-64 Linux",
   "Any stack that runs in a terminal",
   "No Docker required",
   "Dev servers keep running after you quit",

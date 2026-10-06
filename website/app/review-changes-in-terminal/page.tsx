@@ -26,7 +26,7 @@ import Workflows from "./_components/workflows";
 
 const TITLE = "Review Code Changes in Terminal Before You Commit";
 const DESCRIPTION =
-  "See what Claude Code and Codex changed before you commit: every uncommitted change as one diff stack in a native Mac terminal, beside your running services.";
+  "See what Claude Code and Codex changed before you commit: every uncommitted change as one diff stack in a native desktop terminal, beside your running services.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -56,7 +56,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: TITLE,
     description:
-      "Review every change before you commit, without leaving your terminal. Press ⌘⇧R for a native macOS diff review, then commit with an AI-drafted message.",
+      "Review every change before you commit, without leaving your terminal: one keystroke opens a native diff review, then commit with an AI-drafted message.",
   },
 };
 
@@ -68,7 +68,7 @@ const structuredData = [
     about: [
       "review code changes in terminal",
       "review AI agent changes before commit",
-      "git diff viewer for Mac",
+      "desktop git diff viewer",
       "AI commit messages",
     ],
   }),
@@ -129,7 +129,7 @@ export default function ReviewChangesInTerminalPage() {
             href: MOBILE_PATH,
             title: "Review from your iPhone",
             description:
-              "Read diffs, mark files viewed, and commit from the lpm Link app while the Mac does the work.",
+              "Read diffs, mark files viewed, and commit from the lpm Link app while your computer does the work.",
           },
         ]}
       />

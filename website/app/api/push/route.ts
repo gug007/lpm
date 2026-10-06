@@ -89,7 +89,7 @@ export async function POST(request: Request): Promise<Response> {
       ? { aps: { "content-available": 1 }, blob }
       : {
           aps: {
-            alert: { title: "lpm", body: "Activity on your Mac" },
+            alert: { title: "lpm", body: "Activity in lpm" },
             sound: "default",
             "mutable-content": 1,
           },

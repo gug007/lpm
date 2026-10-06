@@ -247,7 +247,7 @@ export default function VsTmuxPage() {
             "You need sessions you can reattach from any SSH login, not from a desktop app.",
             "You use tmux for vim splits, logs, monitoring, ops work — not just dev servers.",
             "You have a tmuxinator or zellij setup that fits your brain perfectly — lpm will not talk you out of it.",
-            "You work on a platform other than macOS — lpm is macOS-only.",
+            "You work where lpm's desktop app does not go — *BSD, an ARM Linux machine, or a box with no desktop at all.",
           ],
         }}
       />

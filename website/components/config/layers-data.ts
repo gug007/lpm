@@ -26,6 +26,6 @@ export const CONFIG_LAYERS: ConfigLayer[] = [
     tab: "Global",
     path: "~/.lpm/global.yml",
     holds: "Actions and terminals",
-    scope: "Every project on this Mac",
+    scope: "Every project on this computer",
   },
 ];

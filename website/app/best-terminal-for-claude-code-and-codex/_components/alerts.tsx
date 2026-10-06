@@ -19,12 +19,12 @@ const CHANNELS: Channel[] = [
   {
     icon: Volume2,
     title: "A chime you choose",
-    body: "A sound plays when an agent finishes, asks for approval, or stops with an error. Pick the built-in chime, a macOS sound, your own file, or silence for each one.",
+    body: "A sound plays when an agent finishes, asks for approval, or stops with an error. Pick the built-in chime, a system sound, your own file, or silence for each one.",
   },
   {
     icon: BellRing,
-    title: "A banner when you are away",
-    body: "When no lpm window is in front, macOS shows a banner such as “Agent needs you” or “Agent finished”, naming the tab and project, so you can stay in your browser or editor until it matters.",
+    title: "A notification when you are away",
+    body: "When no lpm window is in front, your computer shows a notification such as “Agent needs you” or “Agent finished”, naming the tab and project, so you can stay in your browser or editor until it matters.",
   },
   {
     icon: Smartphone,

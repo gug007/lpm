@@ -14,7 +14,7 @@ export default function Hero() {
         <p className="mt-5 text-base sm:text-[17px] text-gray-600 dark:text-gray-400 max-w-xl mx-auto leading-relaxed">
           lpm opens a full, file-by-file diff review right beside your running
           services and AI agents. Read what changed, catch what shouldn&rsquo;t
-          ship, and commit with confidence — in one native macOS window. No
+          ship, and commit with confidence — in one native desktop window. No
           browser tab, no separate git GUI.
         </p>
 

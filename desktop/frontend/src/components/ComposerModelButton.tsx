@@ -214,6 +214,7 @@ export function ComposerModelButton({
       <Tooltip
         content={summary ? `Model  ·  ${summary}` : "Model"}
         delay={COMPOSER_TOOLTIP_DELAY_MS}
+        disabled={open}
       >
         <button
           type="button"

@@ -30,7 +30,7 @@ import StatsSection from "./_components/stats-section";
 
 const TITLE = "Claude Code & Codex Usage Tracker: Tokens & Limits";
 const DESCRIPTION =
-  "Track Claude Code and Codex usage in a free Mac app: tokens by project, estimated cost, 5-hour and weekly limits with pace, and a prompt sent at reset.";
+  "Track Claude Code and Codex usage in a free desktop app: tokens by project, estimated cost, 5-hour and weekly limits with pace, and a prompt sent at reset.";
 const SHARE_TITLE = "Where did your Claude Code and Codex tokens go?";
 
 export const metadata: Metadata = {
@@ -69,7 +69,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: SHARE_TITLE,
     description:
-      "See Claude Code and Codex tokens by project and your 5-hour and weekly limits with pace. Queue the next prompt for the reset. Free Mac app.",
+      "See Claude Code and Codex tokens by project and your 5-hour and weekly limits with pace. Queue the next prompt for the reset. Free desktop app.",
   },
 };
 
@@ -143,7 +143,7 @@ export default function ClaudeCodeCodexTokenUsagePage() {
             href: MOBILE_PATH,
             title: "Usage and Stats on your iPhone",
             description:
-              "Check limits and token totals from the lpm iPhone app, straight from your Mac.",
+              "Check limits and token totals from the lpm iPhone app, straight from your computer.",
           },
           {
             href: AI_AGENTS_PATH,

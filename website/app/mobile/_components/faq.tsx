@@ -9,9 +9,9 @@ type QA = {
 
 const FAQS: QA[] = [
   {
-    question: "Do I need lpm on my Mac to use the iPhone app?",
+    question: "Do I need lpm on a computer to use the iPhone app?",
     answer:
-      "Yes. lpm Link is a companion, not a standalone terminal. Every project, service, and AI agent runs in lpm on a Mac, or on a Linux server set up as an lpm host, and the phone is a live display and input client for it. You can pair several machines and switch between them in the app.",
+      "Yes. lpm Link is a companion, not a standalone terminal. Every project, service, and AI agent runs in the lpm desktop app on your Mac, Windows PC or Linux PC, or on a Linux server set up as an lpm host, and the phone is a live display and input client for it. You can pair several machines and switch between them in the app.",
   },
   {
     question: "How is this different from Claude Code's built-in remote control?",

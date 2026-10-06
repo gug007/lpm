@@ -57,7 +57,7 @@ const WORKFLOWS: Workflow[] = [
         triage new issues, bump dependencies, rerun a flaky suite. Save one
         as an automation and lpm runs it with Claude Code or Codex on your
         schedule, in the project or in a fresh copy, while the app is open
-        and the Mac is awake. See how to{" "}
+        and the computer is awake. See how to{" "}
         <Link
           href={AUTOMATIONS_PATH}
           className="font-medium text-gray-700 dark:text-gray-300 underline underline-offset-2 hover:text-gray-900 dark:hover:text-white"

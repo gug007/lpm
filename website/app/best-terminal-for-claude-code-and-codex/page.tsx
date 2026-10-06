@@ -22,9 +22,9 @@ import WhyParallel from "./_components/why-parallel";
 import Workflows from "./_components/workflows";
 import { AGENTS_DEMO } from "./_components/demo-tour";
 
-const TITLE = "Best Terminal for Claude Code and Codex on Mac (2026)";
+const TITLE = "Best Terminal for Claude Code and Codex (2026)";
 const DESCRIPTION =
-  "The best terminal for Claude Code and Codex on Mac: live status per agent, a chime or banner when one needs you, plan limits, and your dev servers beside them.";
+  "The best terminal for Claude Code and Codex: live status per agent, a chime or notification when one needs you, plan limits, and your dev servers beside them.";
 
 export const metadata: Metadata = {
   title: TITLE,

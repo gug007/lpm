@@ -10,5 +10,6 @@ export default function Image() {
     headline: ["Foreman vs Overmind for a", "Rails Procfile — and a third option."],
     subline:
       "One interleaved stream, one tmux-backed runner, one Mac app. What each does with the same three lines.",
+    platform: "macOS · Desktop App",
   });
 }

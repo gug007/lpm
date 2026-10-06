@@ -113,7 +113,8 @@ const GROUPS: Group[] = [
           "you want that per-process control with no multiplexer to install under it.",
         stayIf: (
           <>
-            you need Linux or *BSD, <code className="whitespace-nowrap">-m web=2,worker=3</code> scaling, or a
+            you need *BSD, ARM Linux or a box with no desktop,{" "}
+            <code className="whitespace-nowrap">-m web=2,worker=3</code> scaling, or a
             PORT handed to each process.
           </>
         ),
@@ -131,9 +132,9 @@ const GROUPS: Group[] = [
           "your inner loop is application code and the container boundary is buying you nothing on the laptop.",
         stayIf: (
           <>
-            production parity matters, someone on the team is on Linux, or a
-            dependency nobody wants to install natively. Add the folder and lpm
-            already lists <code>docker compose up</code>{" "}
+            production parity matters, the team needs one identical stack on
+            every OS, or a dependency nobody wants to install natively. Add the
+            folder and lpm already lists <code>docker compose up</code>{" "}
             <Link href={CONFIG_PATH} className={LINK}>
               as one of its services
             </Link>

@@ -88,7 +88,7 @@ export function ComposerMoreButton({ tools, isDefault, renderRow, onMove, onRese
 
   return (
     <div ref={triggerRef}>
-      <Tooltip content="More" delay={COMPOSER_TOOLTIP_DELAY_MS}>
+      <Tooltip content="More" delay={COMPOSER_TOOLTIP_DELAY_MS} disabled={open}>
         <button
           type="button"
           onMouseDown={keepEditorFocus}

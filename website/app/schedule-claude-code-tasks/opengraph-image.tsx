@@ -1,7 +1,7 @@
 import { OG_CONTENT_TYPE, OG_SIZE, ogImage } from "@/lib/og-template";
 
 export const alt =
-  "lpm Automations: schedule Claude Code and Codex to run nightly, on weekdays, or every few hours on your Mac.";
+  "lpm Automations: schedule Claude Code and Codex to run nightly, on weekdays, or every few hours on your computer.";
 export const size = OG_SIZE;
 export const contentType = OG_CONTENT_TYPE;
 

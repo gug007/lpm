@@ -12,6 +12,6 @@ export default function Image() {
       "Claude Code and Codex on projects.",
     ],
     subline:
-      "Services, per-tab agent status, and one prompt fanned out to 50 project copies. Both free, both macOS.",
+      "Services, per-tab agent status, and one prompt fanned out to 50 project copies. Both free, both native on macOS.",
   });
 }

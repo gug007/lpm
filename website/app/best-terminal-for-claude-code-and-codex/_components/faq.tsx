@@ -29,7 +29,7 @@ const FAQS: QA[] = [
   {
     question: "Will lpm tell me when Claude Code or Codex needs me?",
     answer:
-      "Yes. The agent's tab and its row in the sidebar change state, a chime plays when an agent finishes, asks for approval, or errors, and a macOS banner names the tab and project when no lpm window is in front. With the lpm Link iPhone app paired, the same events arrive as encrypted push notifications.",
+      "Yes. The agent's tab and its row in the sidebar change state, a chime plays when an agent finishes, asks for approval, or errors, and a system notification names the tab and project when no lpm window is in front. With the lpm Link iPhone app paired, the same events arrive as encrypted push notifications.",
   },
   {
     question: "Can I see my Claude Code and Codex usage limits?",

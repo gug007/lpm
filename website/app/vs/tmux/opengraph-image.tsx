@@ -10,5 +10,6 @@ export default function Image() {
     headline: ["A tmux alternative for Mac", "dev stacks — no .tmux.conf."],
     subline:
       "One live pane per service, no tmux installed, and an honest list of what tmux still does better.",
+    platform: "macOS · Desktop App",
   });
 }

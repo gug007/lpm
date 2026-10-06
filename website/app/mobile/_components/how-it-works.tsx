@@ -14,7 +14,8 @@ const STEPS: Step[] = [
       <>
         Download the native macOS app and open your projects as usual. The
         phone talks to this app, which is where every terminal and agent
-        actually runs. A Linux server running lpm works the same way.
+        actually runs. The Windows and Linux desktop apps, and a Linux server
+        running lpm, work the same way.
       </>
     ),
   },

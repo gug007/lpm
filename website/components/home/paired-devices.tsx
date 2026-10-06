@@ -124,7 +124,7 @@ export function PairedDevices({ companionLink = true, flush = false }: Props) {
               <AppStoreButton source="home-devices" />
               <p className="text-[13px] text-gray-500 dark:text-gray-400">
                 lpm link for iPhone and iPad. Scan one QR code to pair it with
-                your Mac.
+                your computer.
               </p>
             </div>
             <div className="mt-10 border-t border-gray-200 pt-10 sm:mt-14 sm:pt-12 dark:border-gray-800/60">

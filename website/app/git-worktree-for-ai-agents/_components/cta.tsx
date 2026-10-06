@@ -10,7 +10,7 @@ export default function Cta() {
           <br className="hidden sm:block" /> Copies when it is not.
         </h2>
         <p className="mt-6 text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-xl mx-auto leading-relaxed">
-          Download lpm for macOS and fan one prompt out to Claude Code, Codex,
+          Download lpm and fan one prompt out to Claude Code, Codex,
           or any terminal agent — in linked worktrees or standalone project
           copies, whichever the task needs.
         </p>

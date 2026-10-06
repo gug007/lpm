@@ -175,7 +175,7 @@ const structuredData = [
       "PM2 alternatives for local development",
       "PM2 versus tmux",
       "ecosystem.config.js",
-      "running multiple dev servers on macOS",
+      "running multiple dev servers locally",
       "parallel Claude Code and Codex sessions",
     ],
     dateModified: VS_REVIEWED_ISO,
@@ -198,7 +198,7 @@ export default function LpmVsPm2Page() {
       <ComparisonHero
         eyebrow="lpm vs PM2"
         title="A PM2 alternative for local development — and what to keep PM2 for."
-        description="PM2 is a production supervisor that also watches files in dev. lpm is the Mac workspace around your local stack: one pane per service, a switcher across repos, and copies for parallel agents."
+        description="PM2 is a production supervisor that also watches files in dev. lpm is the desktop workspace around your local stack: one pane per service, a switcher across repos, and copies for parallel agents."
         verdictLine="If both columns describe you, that is the normal case — run both."
         jumpHref="#map"
         jumpLabel="Every pm2 verb, mapped"
@@ -251,7 +251,7 @@ export default function LpmVsPm2Page() {
 
       <WhenToPick
         title="When PM2 is the right tool, and when lpm is"
-        description="Both run multiple processes. PM2 is strongest as a supervisor and also offers local watch mode; lpm specializes in an interactive multi-project Mac workspace. And if both columns describe you, that is the normal case."
+        description="Both run multiple processes. PM2 is strongest as a supervisor and also offers local watch mode; lpm specializes in an interactive multi-project desktop workspace. And if both columns describe you, that is the normal case."
         lpm={{
           name: "lpm",
           headline:
@@ -259,7 +259,7 @@ export default function LpmVsPm2Page() {
           points: [
             "You switch between several local projects a day and want a visual switcher instead of terminal tabs.",
             "Your stack is not just Node: a Go binary, a Python worker, a Rails server and a docker compose up sit in one config, each with its own pane. Add the folder and lpm writes the service list from your package.json, Procfile, Gemfile or go.mod — the dev script run by the package manager the repo declares or locks, framework ports included — and suggests Makefile or justfile targets as buttons.",
-            "You want each service in its own live pane in a native macOS app, not one interleaved log stream.",
+            "You want each service in its own live pane in a desktop app, not one interleaved log stream.",
             "You run Claude Code and Codex in parallel and want each session's output and status visible at once.",
             "You want to duplicate a project so a second agent works on its own checkout instead of the files you are editing. Both copies still reach the same database and the same ports — lpm names the process already holding one before a project starts.",
           ],

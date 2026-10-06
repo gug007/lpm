@@ -19,7 +19,7 @@ export default function StatsSection() {
         <SectionHeader
           eyebrow="Token usage"
           title="Claude Code and Codex token usage by project, model and session"
-          description="Stats reads the usage fields Claude Code and Codex already save on your Mac and matches each session to the lpm project it ran in, including sessions from other terminals and from before you installed lpm, as long as the files are still on disk."
+          description="Stats reads the usage fields Claude Code and Codex already save on your computer and matches each session to the lpm project it ran in, including sessions from other terminals and from before you installed lpm, as long as the files are still on disk."
           className="mb-10 sm:mb-12"
         />
 

@@ -129,6 +129,7 @@ export function SidebarNavRow({ entry, menuOpen, onOpenMenu }: SidebarNavRowProp
       side="right"
       wide
       delay={500}
+      disabled={menuOpen}
       triggerClassName="flex w-full"
     >
       {row}

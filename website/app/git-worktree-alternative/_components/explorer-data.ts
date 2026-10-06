@@ -144,7 +144,7 @@ export const EXPLORER_ROWS: ExplorerRow[] = [
       state: "present",
       reason: reinstall
         ? "left out of the copy, then installed fresh"
-        : "copied as a copy-on-write clone",
+        : "copied along, as a copy-on-write clone on APFS",
     }),
   },
   {
@@ -190,7 +190,7 @@ const ANNOUNCEMENTS: Record<OptionKey, { on: string; off: string }> = {
   },
   reinstall: {
     on: "Reinstall dependencies on: node_modules is left out, then installed fresh in the copy.",
-    off: "Reinstall dependencies off: node_modules comes along as a copy-on-write clone.",
+    off: "Reinstall dependencies off: node_modules comes along, as a copy-on-write clone on APFS.",
   },
 };
 

@@ -6,9 +6,14 @@ export const OG_CONTENT_TYPE = "image/png";
 type OgImageInput = {
   headline: string | string[];
   subline: string;
+  platform?: string;
 };
 
-export function ogImage({ headline, subline }: OgImageInput): ImageResponse {
+export function ogImage({
+  headline,
+  subline,
+  platform = "Desktop App",
+}: OgImageInput): ImageResponse {
   const headlineLines = Array.isArray(headline) ? headline : [headline];
 
   return new ImageResponse(
@@ -111,7 +116,7 @@ export function ogImage({ headline, subline }: OgImageInput): ImageResponse {
             />
             lpm.cx
           </div>
-          <div>macOS · Desktop App</div>
+          <div>{platform}</div>
         </div>
       </div>
     ),

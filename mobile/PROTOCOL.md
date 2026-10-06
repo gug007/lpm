@@ -625,7 +625,7 @@ The relay signs an APNs provider JWT with its `.p8` key (env vars
 `cx.lpm.mobile`) and forwards to the matching APNs environment as an `alert`
 push, priority 10, expiring after ~6h (a stale approval ping is noise):
 ```
-{ "aps": { "alert": { "title": "lpm", "body": "Activity on your Mac" }, "sound": "default", "mutable-content": 1 }, "blob": "<base64>" }
+{ "aps": { "alert": { "title": "lpm", "body": "Activity in lpm" }, "sound": "default", "mutable-content": 1 }, "blob": "<base64>" }
 ```
 The `aps.alert` is a deliberately generic fallback: the phone's notification
 service extension decrypts `blob` and rewrites the title/body (e.g.

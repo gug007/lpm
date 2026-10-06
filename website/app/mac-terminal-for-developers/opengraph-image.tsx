@@ -10,5 +10,6 @@ export default function Image() {
     headline: ["The Mac terminal app", "for developers running real stacks."],
     subline:
       "Replace scattered terminal tabs with a project-aware workspace — per-service logs, instant project switching, native Apple Silicon speed.",
+    platform: "macOS · Desktop App",
   });
 }

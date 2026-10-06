@@ -11,7 +11,7 @@ const FAQS: QA[] = [
   {
     question: "How do I review changes in the terminal with lpm?",
     answer:
-      "Press ⌘⇧R in a project. Every uncommitted change appears as one scrolling stack of diffs beside a tree of the changed files, each marked modified, added, deleted, renamed, or untracked, with added lines in green and removed lines in red. Switch between split and unified layouts, or open the Files tab's Changes view to step through files one at a time. The review sits in a pane beside your running services and terminals, so you never leave the window to see what changed.",
+      "Press ⌘⇧R in a project (Ctrl+Alt+Shift+R on Windows and Linux). Every uncommitted change appears as one scrolling stack of diffs beside a tree of the changed files, each marked modified, added, deleted, renamed, or untracked, with added lines in green and removed lines in red. Switch between split and unified layouts, or open the Files tab's Changes view to step through files one at a time. The review sits in a pane beside your running services and terminals, so you never leave the window to see what changed.",
   },
   {
     question: "Does lpm replace a git GUI like GitKraken or the GitHub diff view?",
@@ -36,12 +36,12 @@ const FAQS: QA[] = [
   {
     question: "Can I review changes from my iPhone?",
     answer:
-      "Yes, with the lpm Link iPhone app paired to your Mac. It shows every changed file's diff with syntax highlighting, lets you mark files as viewed, and can commit the selected files or create a pull request, while the git work itself runs on your Mac.",
+      "Yes, with the lpm Link iPhone app paired to your computer. It shows every changed file's diff with syntax highlighting, lets you mark files as viewed, and can commit the selected files or create a pull request, while the git work itself runs on your computer.",
   },
   {
-    question: "Is the diff viewer part of the Mac app or a browser page?",
+    question: "Is the diff viewer part of the desktop app or a browser page?",
     answer:
-      "The diff viewer is built into lpm's macOS desktop app alongside your terminal panes. lpm uses the macOS system webview for its interface instead of bundling Electron or Chromium, so the review stays in the same app window rather than opening a separate browser page.",
+      "The diff viewer is built into lpm's desktop app alongside your terminal panes. lpm uses the system webview for its interface instead of bundling Electron or Chromium, so the review stays in the same app window rather than opening a separate browser page.",
   },
 ];
 

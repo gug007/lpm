@@ -6,7 +6,7 @@ export function StatsFooter() {
   return (
     <div className="mt-12 flex flex-wrap items-center gap-3">
       <DownloadLink className="inline-flex min-h-11 items-center rounded-full bg-gray-900 px-5 text-sm font-medium text-white transition-opacity hover:opacity-85 dark:bg-white dark:text-gray-900">
-        Download lpm for Mac
+        Download lpm
       </DownloadLink>
       <a
         href={RELEASES_URL}

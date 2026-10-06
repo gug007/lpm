@@ -12,7 +12,7 @@ export default function Cta() {
         </h2>
         <p className="mx-auto mt-6 max-w-xl text-base leading-relaxed text-gray-600 dark:text-gray-400 sm:text-lg">
           lpm keeps agents, statuslines, services, logs, Git changes, and project
-          copies together in one native macOS app.
+          copies together in one native desktop app.
         </p>
         <div className="mt-10 flex justify-center">
           <HeroDownload source="statusline-cta" />

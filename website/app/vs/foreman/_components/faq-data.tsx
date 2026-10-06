@@ -79,19 +79,21 @@ export const FOREMAN_FAQ: FaqItem[] = [
     answer: (
       <>
         Foreman is a Ruby gem that runs on Linux as well as macOS, and Overmind
-        covers Linux, *BSD and macOS; neither documents a Windows setup. lpm is
-        the odd one out — its window opens on a Mac and nowhere else. A Linux
-        server can still be{" "}
+        covers Linux, *BSD and macOS; neither documents a Windows setup.
+        lpm&apos;s desktop app runs on macOS, and in beta on Windows 11 and
+        64-bit x86 Linux as a .deb, .rpm or AppImage; on Windows it needs Git
+        for Windows installed first. Unlike the other two it needs a desktop to
+        open on, but a Linux server can still be{" "}
         <Link
           href={LINUX_HOST_PATH}
           className="underline underline-offset-2 hover:text-gray-900 dark:hover:text-white"
         >
           where your Rails processes actually run
         </Link>
-        , with the Mac driving them.
+        , with the desktop app driving them.
       </>
     ),
     answerText:
-      "Foreman is a Ruby gem that runs on Linux as well as macOS, and Overmind covers Linux, *BSD and macOS; neither documents a Windows setup. lpm is the odd one out — its window opens on a Mac and nowhere else. A Linux server can still be where your Rails processes actually run, with the Mac driving them.",
+      "Foreman is a Ruby gem that runs on Linux as well as macOS, and Overmind covers Linux, *BSD and macOS; neither documents a Windows setup. lpm's desktop app runs on macOS, and in beta on Windows 11 and 64-bit x86 Linux as a .deb, .rpm or AppImage; on Windows it needs Git for Windows installed first. Unlike the other two it needs a desktop to open on, but a Linux server can still be where your Rails processes actually run, with the desktop app driving them.",
   },
 ];

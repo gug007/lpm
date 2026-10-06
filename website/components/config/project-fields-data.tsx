@@ -53,7 +53,7 @@ export const projectFields: Field[] = [
     description: (
       <>
         Makes this an SSH project: services, actions, and terminals run on a
-        remote machine instead of this Mac.{" "}
+        remote machine instead of this computer.{" "}
         <code className="font-mono">host</code>{" "}and{" "}
         <code className="font-mono">user</code>{" "}are required;{" "}
         <code className="font-mono">port</code>{" "}defaults to 22;{" "}

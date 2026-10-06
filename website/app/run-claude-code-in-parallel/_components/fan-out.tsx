@@ -30,8 +30,8 @@ const CARDS = [
   },
   {
     icon: Laptop,
-    title: "Copies on another Mac",
-    body: "Connected a second Mac that has the same project? Choose which Mac each copy is created on — it’s made from that Mac’s own version of the project and shows up in your sidebar.",
+    title: "Copies on another computer",
+    body: "Connected a second computer that has the same project? Choose which one each copy is created on — it’s made from that machine’s own version of the project and shows up in your sidebar.",
   },
 ];
 

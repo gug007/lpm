@@ -32,7 +32,8 @@ const STEPS: { icon: LucideIcon; title: string; body: React.ReactNode }[] = [
     title: "Keep it tidy",
     body: (
       <>
-        ⌘⇧M opens the Memory tab to browse, edit, rename, or delete sessions.
+        ⌘⇧M (Ctrl+Alt+Shift+M on Windows and Linux) opens the Memory tab to
+        browse, edit, rename, or delete sessions.
         Copies and worktrees share their original&apos;s memory, so a parallel
         run can report back to the same session.
       </>
@@ -86,7 +87,7 @@ export default function Memory() {
         </div>
         <p className="mt-8 text-center text-xs text-gray-500 dark:text-gray-400 max-w-xl mx-auto leading-relaxed">
           Memory is read only when you ask for it, so nothing is added to every
-          session on its own. Sessions stay on your Mac, separate from each
+          session on its own. Sessions stay on your computer, separate from each
           CLI&apos;s built-in memory, and are available for local projects.
         </p>
       </div>

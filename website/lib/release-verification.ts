@@ -1,20 +1,30 @@
 import "server-only";
+import {
+  DOWNLOAD_ENTRIES,
+  type DesktopOs,
+  type DownloadPlatform,
+} from "./downloads";
 import { REPO_API_URL } from "./links";
 
 const LATEST_RELEASE_API = `${REPO_API_URL}/releases/latest`;
 
-const EXPECTED_ASSETS = [
-  {
-    filename: "lpm-desktop-macos-arm64.dmg",
-    label: "Apple Silicon",
-    architecture: "arm64",
-  },
-  {
-    filename: "lpm-desktop-macos-amd64.dmg",
-    label: "Intel",
-    architecture: "x86_64",
-  },
-] as const;
+type ExpectedAsset = {
+  platform: DownloadPlatform;
+  label: string;
+  architecture: string;
+  required: boolean;
+};
+
+// The Windows and Linux files are attached by later release jobs, so for a
+// while after each release (or for good if a job fails) only the DMGs exist.
+const EXPECTED_ASSETS: ExpectedAsset[] = [
+  { platform: "mac-arm", label: "macOS Apple Silicon", architecture: "arm64", required: true },
+  { platform: "mac-intel", label: "macOS Intel", architecture: "x86_64", required: true },
+  { platform: "windows-x64", label: "Windows installer", architecture: "x64", required: false },
+  { platform: "linux-deb", label: "Linux .deb", architecture: "amd64", required: false },
+  { platform: "linux-rpm", label: "Linux .rpm", architecture: "amd64", required: false },
+  { platform: "linux-appimage", label: "Linux AppImage", architecture: "amd64", required: false },
+];
 
 type RawAsset = {
   name: string;
@@ -32,6 +42,8 @@ type RawRelease = {
 
 export type ReleaseVerificationAsset = {
   filename: string;
+  platform: DownloadPlatform;
+  os: DesktopOs;
   label: string;
   architecture: string;
   sha256: string;
@@ -64,14 +76,18 @@ export async function getLatestReleaseVerification(): Promise<ReleaseVerificatio
     const assets: ReleaseVerificationAsset[] = [];
 
     for (const expected of EXPECTED_ASSETS) {
-      const asset = release.assets.find(
-        ({ name }) => name === expected.filename,
-      );
+      const { filename, os } = DOWNLOAD_ENTRIES[expected.platform];
+      const asset = release.assets.find(({ name }) => name === filename);
       const sha256 = parseSha256(asset?.digest ?? null);
-      if (!asset || !sha256) return null;
+      if (!asset || !sha256) {
+        if (expected.required) return null;
+        continue;
+      }
 
       assets.push({
-        filename: expected.filename,
+        filename,
+        platform: expected.platform,
+        os,
         label: expected.label,
         architecture: expected.architecture,
         sha256,

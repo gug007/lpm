@@ -131,7 +131,7 @@ const VERDICT_CARDS: [VerdictCard, VerdictCard, VerdictCard] = [
   {
     label: "Docker Compose",
     title: "Keep compose",
-    body: "Prod parity down to the image tag, a teammate whose laptop is not a Mac, or an image there is no native way to install. Five rows in the table go to Compose, and the description names them.",
+    body: "Prod parity down to the image tag, the same stack on every teammate's OS, or an image there is no native way to install. Five rows in the table go to Compose, and the description names them.",
   },
 ];
 
@@ -192,16 +192,19 @@ const FAQ_ITEMS: FaqItem[] = [
     question: "Does lpm run on Linux or Windows?",
     answer: (
       <>
-        There is no Windows build, and no Linux desktop build either — the app
-        itself is macOS only. A Linux machine can still be{" "}
+        The desktop app runs on macOS, and in beta on Windows 11 and 64-bit
+        x86 Linux; there is no ARM build for either. Windows gets an installer
+        and needs Git for Windows set up first, because lpm runs your services
+        through its Git Bash; Linux gets .deb, .rpm and AppImage packages. A
+        Linux server can also be{" "}
         <Link href={LINUX_HOST_PATH} className={LINK}>
           the host that runs your services and agent sessions
         </Link>
-        , with the Mac window driving all of it.
+        , with the desktop app driving all of it.
       </>
     ),
     answerText:
-      "There is no Windows build, and no Linux desktop build either — the app itself is macOS only. A Linux machine can still be the host that runs your services and agent sessions, with the Mac window driving all of it.",
+      "The desktop app runs on macOS, and in beta on Windows 11 and 64-bit x86 Linux; there is no ARM build for either. Windows gets an installer and needs Git for Windows set up first, because lpm runs your services through its Git Bash; Linux gets .deb, .rpm and AppImage packages. A Linux server can also be the host that runs your services and agent sessions, with the desktop app driving all of it.",
   },
 ];
 

@@ -55,7 +55,8 @@ const FEATURES: Feature[] = [
     title: "A prompt box that knows your project",
     body: (
       <>
-        Press ⌘I for a composer under any terminal. Type @ to pull in a file, a
+        Press ⌘I (Ctrl+Shift+I on Windows and Linux) for a composer under any
+        terminal. Type @ to pull in a file, a
         branch, the changed files, or a running service&apos;s latest logs, and
         paste screenshots straight in.
       </>
@@ -77,7 +78,8 @@ const FEATURES: Feature[] = [
     title: "Everything running, on one screen",
     body: (
       <>
-        ⌘⇧A opens Activity: every Claude Code and Codex session, running
+        ⌘⇧A (Ctrl+Alt+Shift+A on Windows and Linux) opens Activity: every
+        Claude Code and Codex session, running
         service, and automation across your projects, with whatever needs you
         at the top. Move through it with j and k.
       </>
@@ -88,7 +90,8 @@ const FEATURES: Feature[] = [
     title: "Review before you commit",
     body: (
       <>
-        ⌘⇧R shows everything the agent changed as one stack of diffs, and the
+        ⌘⇧R (Ctrl+Alt+Shift+R on Windows and Linux) shows everything the agent
+        changed as one stack of diffs, and the
         Commit dialog drafts the message with AI. See how to{" "}
         <Link href={REVIEW_CHANGES_PATH} className={LINK}>
           review changes in the terminal

@@ -55,7 +55,7 @@ export default function Cli() {
               </h3>
               <p className="mt-1 text-sm leading-relaxed text-gray-500 dark:text-gray-400">
                 Commands that create or change something need lpm running on
-                your Mac. Up to 50 copies or worktrees per command.
+                your computer. Up to 50 copies or worktrees per command.
               </p>
             </li>
             <li>

@@ -35,7 +35,7 @@ const FEATURES: Feature[] = [
   {
     icon: ShieldCheck,
     title: "Your tokens stay where Claude put them",
-    body: "lpm never reads, copies, or exports credentials. Each account gets its own Claude Code home, and Claude Code itself keeps each login in the macOS Keychain — exactly as it does for a single account. No token files to back up, restore, or leak.",
+    body: "lpm never reads, copies, or exports credentials. Each account gets its own Claude Code home, and Claude Code itself stores each login where it always does (in the Keychain on macOS) — exactly as it does for a single account. lpm keeps no token files of its own to back up, restore, or leak.",
   },
   {
     icon: FolderSync,

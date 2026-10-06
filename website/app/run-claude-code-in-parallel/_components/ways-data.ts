@@ -19,7 +19,7 @@ export const WAYS: Way[] = [
     name: "Tabs and splits in one project",
     icon: PanelsLeftRight,
     keys: ["⌘T", "⌘D"],
-    entry: "New tab or split right",
+    entry: "New tab or split right · Ctrl+Shift+T, Ctrl+Shift+D on Windows and Linux",
     body: "Open another agent tab, or split the pane to watch two at once. Every agent works in the same folder, on the same branch, beside the same running dev server.",
     useWhen: [
       "The tasks touch different files",

@@ -166,7 +166,7 @@ export function TerminalHistoryButton({
           <ContextMenuItem label={tooltip} icon={icon} expanded={open} onClick={toggleOpen} />
         </div>
       ) : (
-      <Tooltip content={tooltip} delay={COMPOSER_TOOLTIP_DELAY_MS}>
+      <Tooltip content={tooltip} delay={COMPOSER_TOOLTIP_DELAY_MS} disabled={open}>
         <button
           ref={setTrigger}
           type="button"

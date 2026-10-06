@@ -74,12 +74,13 @@ export const CLI_AREA: FeatureArea = {
     },
     {
       title: "lpm pair · lpm mobile pair",
-      body: "Pair a headless server with a Mac or an iPhone from its terminal. The phone's QR code draws right in the shell.",
+      body: "Pair a headless server with your computer or an iPhone from its terminal. The phone's QR code draws right in the shell.",
       mono: true,
     },
     {
       title: "One-click install",
-      body: "Settings puts lpm on your PATH, linked to the app, so the command updates whenever the app does.",
+      body: "Settings puts lpm on your PATH; on macOS it's linked to the app, so the command updates whenever the app does.",
+      note: "The Linux .deb and .rpm add the command when they install.",
     },
   ],
 };
@@ -98,27 +99,29 @@ export const PLATFORM_AREA: FeatureArea = {
     {
       icon: ShieldCheck,
       title: "No telemetry in the apps",
-      body: "The Mac app, the CLI, and the iPhone app include no analytics or crash reporting. The Mac app checks GitHub for updates; otherwise the apps go online only for features you turn on and things you start.",
+      body: "The desktop app, the CLI, and the iPhone app include no analytics or crash reporting. The desktop app checks GitHub for updates; otherwise the apps go online only for features you turn on and things you start.",
       note: "Paired-iPhone pushes pass through lpm's relay, encrypted.",
     },
     {
       icon: BadgeCheck,
       title: "Signed and notarized",
       body: "Each macOS release is Developer ID signed and notarized by Apple, in one build for Apple Silicon and one for Intel.",
+      note: "The Windows and Linux builds aren't code-signed yet; compare their SHA-256 checksums before installing.",
     },
   ],
   features: [
     {
-      title: "One-click updates",
-      body: "lpm checks for a new version at launch and daily. Click Update and it relaunches in place while your services keep running.",
+      title: "Built-in updates",
+      body: "lpm checks for a new version at launch and daily. On macOS, click Update and it relaunches in place while your services keep running.",
+      note: "On Windows and Linux, the update notice opens the new download in your browser for you to install.",
     },
     {
       title: "Clean uninstall",
-      body: "Remove app stops your projects, removes the CLI, skills, and agent hooks it added, and moves lpm to the Trash. Your project folders are left alone.",
+      body: "Remove app stops your projects and removes the CLI, skills, and agent hooks it added. On macOS it also moves lpm to the Trash; on Windows and Linux you finish in Settings → Apps or with your package manager. Your project folders are left alone.",
     },
     {
       title: "Backup and transfer",
-      body: "Export your projects and settings and import them on another Mac, and back up the key that encrypts your notes.",
+      body: "Export your projects and settings and import them on another computer with the same operating system, and back up the key that encrypts your notes.",
     },
     {
       title: "Searchable settings",
@@ -135,8 +138,9 @@ export const PLATFORM_AREA: FeatureArea = {
       keys: ["⌘+", "⌘−", "⌘0"],
     },
     {
-      title: "Close to the Dock",
-      body: "Closing the window hides lpm so terminals and agent status keep going. The Dock menu lists every project and whether it's running.",
+      title: "Close without quitting",
+      body: "Closing the window hides lpm so terminals and agent status keep going. On macOS, the Dock menu lists every project and whether it's running.",
+      note: "On Windows and Linux, open lpm again to bring the window back; Ctrl+Shift+Q quits.",
     },
     {
       title: "Crash recovery",

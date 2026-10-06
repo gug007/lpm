@@ -56,7 +56,7 @@ export const STEPS: {
     step: "01",
     icon: Layers,
     title: "Open Skills & tools",
-    copy: "Press ⌘⇧K in any project, or choose Skills & tools from the ⋯ menu in the terminal pane header. You can pin it to the toolbar from there.",
+    copy: "Press ⌘⇧K (Ctrl+Alt+Shift+K on Windows and Linux) in any project, or choose Skills & tools from the ⋯ menu in the terminal pane header. You can pin it to the toolbar from there.",
   },
   {
     step: "02",
@@ -68,7 +68,7 @@ export const STEPS: {
     step: "03",
     icon: PencilLine,
     title: "Refine as you go",
-    copy: "Pick who runs it and press Create. Reopen the skill any time to edit it, and a deleted skill goes to the Trash, so you can get it back.",
+    copy: "Pick who runs it and press Create. Reopen the skill any time to edit it, and a deleted skill goes to the Trash (the Recycle Bin on Windows), so you can get it back.",
   },
 ];
 
@@ -96,7 +96,7 @@ export const PANE_ITEMS: { icon: LucideIcon; title: string; copy: string }[] = [
   {
     icon: Trash2,
     title: "Deletes you can undo",
-    copy: "Before a skill is removed, a preview shows exactly what goes to the macOS Trash.",
+    copy: "Before a skill is removed, a preview shows exactly what goes to the Trash (the Recycle Bin on Windows).",
   },
   {
     icon: Sparkles,

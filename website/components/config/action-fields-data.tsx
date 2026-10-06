@@ -142,7 +142,7 @@ export const actionFields: Field[] = [
         <code className="font-mono">primary: staging</code>) to pin it, or use{" "}
         <code className="font-mono">last-used</code>{" "}so the button follows
         whichever child you ran most recently — remembered per project on that
-        Mac. It takes precedence over the parent&rsquo;s own{" "}
+        computer. It takes precedence over the parent&rsquo;s own{" "}
         <code className="font-mono">cmd</code>.
       </>
     ),

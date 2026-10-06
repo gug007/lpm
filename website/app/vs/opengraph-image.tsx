@@ -9,6 +9,7 @@ export default function Image() {
   return ogImage({
     headline: ["tmux, iTerm2, PM2, Docker Compose:", "seven ways to run a Mac dev stack."],
     subline:
-      "Seven tools and lpm in one table, an honest verdict on each, and the two rows that go against lpm.",
+      "Seven tools and lpm in one table, an honest verdict on each, and the row that goes against lpm.",
+    platform: "macOS · Desktop App",
   });
 }

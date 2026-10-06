@@ -32,7 +32,7 @@ const FAQS: QA[] = [
   {
     question: "Where are my credentials stored? Does lpm see my tokens?",
     answer:
-      "Credentials live in the macOS Keychain, written and read by Claude Code itself, the same mechanism as a single-account setup, one entry per account. lpm never reads, copies, or exports tokens. Removing an account from lpm deletes its sign-in, and projects pinned to it fall back to your main Claude login.",
+      "Claude Code itself stores them, one login per account, wherever it normally keeps a login on your system (the Keychain on macOS) — the same mechanism as a single-account setup. lpm never reads, copies, or exports tokens. Removing an account from lpm deletes its sign-in, and projects pinned to it fall back to your main Claude login.",
   },
   {
     question: "Do my settings, memory, and skills work on every account?",
@@ -62,7 +62,7 @@ const FAQS: QA[] = [
   {
     question: "Any limitations I should know about?",
     answer:
-      "Account pinning applies to projects that run on your Mac; SSH projects use whatever Claude login exists on the remote host. Scheduled automations and AI skill drafting run on your main login, not the pinned one. Terminals that are already open keep the account they launched with, and a new pin applies to terminals you open afterwards. Keep Claude Code reasonably up to date, since pinning relies on it keeping each account's login separate. One gotcha: if you set CLAUDE_CONFIG_DIR by hand in your shell profile (~/.zprofile, ~/.zshrc), remove it, because a login shell re-sources it and overrides the per-project account.",
+      "Account pinning applies to projects that run on your computer; SSH projects use whatever Claude login exists on the remote host. Scheduled automations and AI skill drafting run on your main login, not the pinned one. Terminals that are already open keep the account they launched with, and a new pin applies to terminals you open afterwards. Keep Claude Code reasonably up to date, since pinning relies on it keeping each account's login separate. One gotcha: if you set CLAUDE_CONFIG_DIR by hand in your shell profile (such as ~/.zprofile, ~/.zshrc or ~/.bashrc), remove it, because a login shell re-sources it and overrides the per-project account.",
   },
 ];
 

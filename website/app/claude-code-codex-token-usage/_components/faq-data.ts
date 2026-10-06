@@ -28,12 +28,12 @@ export const FAQ_ITEMS: { question: string; answer: string }[] = [
   {
     question: "Does Claude Code share usage limits with claude.ai?",
     answer:
-      "Yes. Claude Code, claude.ai, Claude Desktop and the IDE extensions draw on one plan allowance. lpm's 5-hour and weekly meters include your claude.ai use too, because the percentages come from Claude Code itself. A separate Fable weekly limit, if your plan has one, shows in /usage and claude.ai Settings > Usage, not in lpm. Its Stats view counts only the Claude Code and Codex sessions on this Mac, so claude.ai chats use up your limit without appearing in Stats.",
+      "Yes. Claude Code, claude.ai, Claude Desktop and the IDE extensions draw on one plan allowance. lpm's 5-hour and weekly meters include your claude.ai use too, because the percentages come from Claude Code itself. A separate Fable weekly limit, if your plan has one, shows in /usage and claude.ai Settings > Usage, not in lpm. Its Stats view counts only the Claude Code and Codex sessions on this computer, so claude.ai chats use up your limit without appearing in Stats.",
   },
   {
     question: "What can I do when I hit my Claude Code or Codex usage limit?",
     answer:
-      "Wait for the reset, use a free reset if you have one, or pay to keep going. Claude Code 2.1.234 and later can wait in the open session and continue the interrupted task after the reset. Anthropic occasionally gives eligible plans a free limit reset, used from Settings > Usage on claude.ai or in Claude Desktop, and Pro and Max can turn on usage credits or upgrade. When Codex hits a limit, the current turn finishes; you can redeem an earned reset from /usage if you have one, Plus and Pro can buy credits, or you can switch to an API key. In lpm, press ⌥↵ and choose Limit resets: your next prompt goes out 30 seconds after the window resets, once the agent is idle, in a local Claude Code or Codex terminal.",
+      "Wait for the reset, use a free reset if you have one, or pay to keep going. Claude Code 2.1.234 and later can wait in the open session and continue the interrupted task after the reset. Anthropic occasionally gives eligible plans a free limit reset, used from Settings > Usage on claude.ai or in Claude Desktop, and Pro and Max can turn on usage credits or upgrade. When Codex hits a limit, the current turn finishes; you can redeem an earned reset from /usage if you have one, Plus and Pro can buy credits, or you can switch to an API key. In lpm, press ⌥↵ (Alt+Enter on Windows and Linux) and choose Limit resets: your next prompt goes out 30 seconds after the window resets, once the agent is idle, in a local Claude Code or Codex terminal.",
   },
   {
     question: "How much does Claude Code cost, and is lpm's estimate my bill?",
@@ -43,7 +43,7 @@ export const FAQ_ITEMS: { question: string; answer: string }[] = [
   {
     question: "Can I see Claude Code token usage by project?",
     answer:
-      "Yes. lpm's Stats view matches the Claude Code and Codex sessions on this Mac to the lpm project whose folder it ran in, including sessions started from another terminal or editor and ones from before you installed lpm. Copies and worktrees you make in lpm are projects of their own, so their tokens are counted separately; when project folders nest, the deepest one gets the session. Sort projects by tokens, sessions or name, and open a recent session to see its input, cached, output and reasoning tokens. SSH projects and projects on other Macs or Linux servers aren't counted.",
+      "Yes. lpm's Stats view matches the Claude Code and Codex sessions on this computer to the lpm project whose folder it ran in, including sessions started from another terminal or editor and ones from before you installed lpm. Copies and worktrees you make in lpm are projects of their own, so their tokens are counted separately; when project folders nest, the deepest one gets the session. Sort projects by tokens, sessions or name, and open a recent session to see its input, cached, output and reasoning tokens. SSH projects and projects on other computers or Linux servers aren't counted.",
   },
   {
     question: "What do ahead of pace, on pace and under pace mean?",
@@ -63,12 +63,12 @@ export const FAQ_ITEMS: { question: string; answer: string }[] = [
   {
     question: "Is lpm an alternative to ccusage or CodexBar?",
     answer:
-      "It covers similar ground in a different way. ccusage is a command-line report for many agent CLIs, with JSON export and 5-hour blocks estimated from logs. CodexBar is a menu-bar app that fetches limits for many providers through their accounts or browser cookies, even with no CLI running. lpm is the Mac app you run Claude Code and Codex in: it shows the limits the two CLIs report, judges pace, splits tokens by project, and can send a prompt when a limit resets. All three are free and open source.",
+      "It covers similar ground in a different way. ccusage is a command-line report for many agent CLIs, with JSON export and 5-hour blocks estimated from logs. CodexBar is a menu-bar app that fetches limits for many providers through their accounts or browser cookies, even with no CLI running. lpm is the desktop app you run Claude Code and Codex in: it shows the limits the two CLIs report, judges pace, splits tokens by project, and can send a prompt when a limit resets. All three are free and open source.",
   },
   {
     question: "Does lpm send my prompts or usage anywhere?",
     answer:
-      "No. Stats reads only the usage fields in Claude Code and Codex session files, not prompts or responses, and the limit meters use what the two CLIs report while they run. lpm doesn't contact Anthropic or OpenAI for these numbers and needs no account. If you pair the lpm iPhone app, it gets the same numbers straight from your Mac over your network or tailnet, with no cloud relay.",
+      "No. Stats reads only the usage fields in Claude Code and Codex session files, not prompts or responses, and the limit meters use what the two CLIs report while they run. lpm doesn't contact Anthropic or OpenAI for these numbers and needs no account. If you pair the lpm iPhone app, it gets the same numbers straight from your computer over your network or tailnet, with no cloud relay.",
   },
   {
     question: "Why doesn't All time go further back?",

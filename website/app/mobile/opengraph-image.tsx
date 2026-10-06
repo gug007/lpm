@@ -10,5 +10,6 @@ export default function Image() {
     headline: ["Control Claude Code and Codex", "from your iPhone."],
     subline:
       "The lpm iOS app mirrors every Mac terminal live — prompt agents, review diffs, commit and push, and get an encrypted alert when an agent is waiting.",
+    platform: "macOS · Desktop App",
   });
 }

@@ -25,7 +25,7 @@ import IphoneCallout from "./_components/iphone-callout";
 import JumpNav from "./_components/jump-nav";
 import Requirements from "./_components/requirements";
 
-const TITLE = "Features: Dev Servers, Claude Code & Codex on Mac";
+const TITLE = "Features: Dev Servers, Claude Code & Codex on Your Desktop";
 const DESCRIPTION =
   "What lpm does, on one page: dev servers, terminals, live Claude Code and Codex status, parallel copies, Git review, automations, and control from iPhone.";
 
@@ -140,7 +140,7 @@ export default function FeaturesPage() {
             href: LINUX_HOST_PATH,
             title: "Run Claude Code on a remote server",
             description:
-              "Add a Linux host with one SSH string and keep agents running after your Mac closes.",
+              "Add a Linux host with one SSH string and keep agents running after your laptop closes.",
           },
           {
             href: CONFIG_PATH,

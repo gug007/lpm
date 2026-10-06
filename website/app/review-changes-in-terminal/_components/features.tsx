@@ -24,7 +24,8 @@ const FEATURES: Feature[] = [
     title: "Every change, one keystroke away",
     body: (
       <>
-        Press <code className="text-xs">⌘⇧R</code> and every uncommitted change
+        Press <code className="text-xs">⌘⇧R</code>{" "}
+        (Ctrl+Alt+Shift+R on Windows and Linux) and every uncommitted change
         stacks up in one scrolling view beside a tree of the changed files,
         each marked modified, added, deleted, renamed, or untracked. Unchanged
         lines fold away, and you can switch between split and unified.
@@ -39,7 +40,7 @@ const FEATURES: Feature[] = [
   {
     icon: PencilLine,
     title: "Fix it in the diff",
-    body: "The right side of every diff is editable; save with ⌘S. If the agent rewrote the file while you were typing, lpm doesn't overwrite it and asks whether to keep yours or theirs.",
+    body: "The right side of every diff is editable; save with ⌘S (Ctrl+S on Windows and Linux). If the agent rewrote the file while you were typing, lpm doesn't overwrite it and asks whether to keep yours or theirs.",
   },
   {
     icon: Layers,
@@ -63,8 +64,8 @@ const FEATURES: Feature[] = [
   },
   {
     icon: Terminal,
-    title: "Mac desktop app, keyboard-driven, zero Electron",
-    body: "lpm ships as a macOS desktop app with native Apple silicon and Intel builds. Its interface uses the system webview instead of bundling Electron or Chromium, and you can move through changed files from the keyboard.",
+    title: "Desktop app, keyboard-driven, zero Electron",
+    body: "lpm ships as a native desktop app for macOS, Windows and 64-bit x86 Linux. Its interface uses the system webview instead of bundling Electron or Chromium, and you can move through changed files from the keyboard.",
   },
 ];
 

@@ -16,7 +16,7 @@ const MODES = [
   {
     name: "lpm Duplicate",
     title: "Standalone copies of the project you have now",
-    body: "An APFS copy-on-write clone with its own Git repository, carrying uncommitted work, ignored files, and installed dependencies. Regenerable build caches are left behind.",
+    body: "A copy of the folder with its own Git repository, carrying uncommitted work, ignored files, and installed dependencies; on APFS it is a copy-on-write clone. Regenerable build caches are left behind.",
     points: [
       "Pulls the latest commits by default; optionally keep committed work only or reinstall dependencies",
       "Each copy is independent, so several can sit on the same branch",

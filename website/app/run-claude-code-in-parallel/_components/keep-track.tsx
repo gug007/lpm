@@ -30,7 +30,7 @@ const ITEMS: { icon: typeof BellRing; title: string; body: ReactNode }[] = [
         <kbd className="rounded border border-gray-200 px-1 font-sans text-[12px] dark:border-gray-700">
           ⌘⇧A
         </kbd>{" "}
-        to list them all across your projects and copies, waiting ones first.
+        (Ctrl+Alt+Shift+A on Windows and Linux) to list them all across your projects and copies, waiting ones first.
         Filter to needs you, problems, working or done, move with j and k, and
         press Enter to jump to the tab.
       </>
@@ -38,12 +38,12 @@ const ITEMS: { icon: typeof BellRing; title: string; body: ReactNode }[] = [
   },
   {
     icon: BellRing,
-    title: "A chime, a banner, a push",
+    title: "A chime, a notification, a push",
     body: (
       <>
         Hear a sound when an agent finishes, needs approval or hits an error,
-        and get a macOS banner naming the tab and project when lpm isn’t in
-        front. Pair the free{" "}
+        and get a system notification naming the tab and project when lpm
+        isn’t in front. Pair the free{" "}
         <Link href={MOBILE_PATH} className={LINK}>
           lpm link iPhone app
         </Link>{" "}

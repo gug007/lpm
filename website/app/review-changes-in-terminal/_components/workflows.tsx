@@ -12,9 +12,10 @@ const WORKFLOWS: Workflow[] = [
       <>
         Claude Code just refactored your billing module across eight files. Open
         the review pane with{" "}
-        <code className="text-xs">⌘⇧R</code>, walk the diff file by file, and
+        <code className="text-xs">⌘⇧R</code>{" "}
+        (Ctrl+Alt+Shift+R on Windows and Linux), walk the diff file by file, and
         catch the one place it dropped a null check. Fix the line right in the
-        diff, save with ⌘S, and commit from the Commit dialog, all without
+        diff, save with ⌘S (Ctrl+S), and commit from the Commit dialog, all without
         leaving the agent&rsquo;s window.
       </>
     ),

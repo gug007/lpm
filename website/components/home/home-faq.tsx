@@ -28,24 +28,24 @@ const FAQS: QA[] = [
       "Yes. lpm is free and open source under the MIT license. There is no paid tier and no account: download it from lpm.cx, or browse the source on GitHub.",
   },
   {
-    question: "Which Macs and macOS versions are supported?",
+    question: "Which systems does lpm run on?",
     answer:
-      "lpm runs on macOS 12 or later. Download the Apple Silicon or the Intel build; both are signed with an Apple-issued Developer ID and notarized by Apple, and there is no Electron runtime.",
+      "macOS 12 or later, with one build for Apple Silicon and one for Intel, both signed with an Apple-issued Developer ID and notarized by Apple. Windows and Linux are in beta: Windows 11 on x64 with Git for Windows installed, and 64-bit x86 Linux with glibc 2.35 or newer (Ubuntu 22.04 and up) as a .deb, .rpm or AppImage. The Windows and Linux builds aren't code-signed yet. None of them uses Electron.",
   },
   {
     question: "Does lpm detect my services automatically?",
     answer:
-      "Yes. When you add a folder or clone a repo, lpm reads its files (package.json, Procfile, Docker Compose, and Python, Rails, Go or Rust projects, including apps inside a monorepo) and sets up each dev server with its start command and, when it can tell, its port. Detection runs on your Mac with no AI involved. If nothing is found, you get a starter service to fill in, and your AI agent can draft the setup for you.",
+      "Yes. When you add a folder or clone a repo, lpm reads its files (package.json, Procfile, Docker Compose, and Python, Rails, Go or Rust projects, including apps inside a monorepo) and sets up each dev server with its start command and, when it can tell, its port. Detection runs on your computer with no AI involved. If nothing is found, you get a starter service to fill in, and your AI agent can draft the setup for you.",
   },
   {
     question: "Which AI coding agents does lpm support?",
     answer:
-      "Claude Code and Codex get one-click buttons from the first launch and the deepest integration: live working, done and needs-you status, sounds and macOS notifications, resume and fork, and a model and effort picker. Gemini CLI and OpenCode can be added as one-click buttons too, and any other command-line agent or script runs in the built-in terminal. lpm doesn't install the agents; you use your own CLI and account.",
+      "Claude Code and Codex get one-click buttons from the first launch and the deepest integration: live working, done and needs-you status, sounds and system notifications, resume and fork, and a model and effort picker. Gemini CLI and OpenCode can be added as one-click buttons too, and any other command-line agent or script runs in the built-in terminal. lpm doesn't install the agents; you use your own CLI and account.",
   },
   {
     question: "Does lpm replace my terminal or editor?",
     answer:
-      "It can replace your terminal: every project gets tabs, split panes, search, a Files tab with an editor, a built-in browser tab and diff review. It works alongside your code editor, and one click opens a project in Cursor, VS Code, Zed, Xcode and others.",
+      "It can replace your terminal: every project gets tabs, split panes, search, a Files tab with an editor, diff review and, on macOS and Windows, a built-in browser tab. It works alongside your code editor, and one click opens a project in Cursor, VS Code, Zed and others.",
   },
   {
     question: "Is there an iPhone app?",
@@ -55,14 +55,14 @@ const FAQS: QA[] = [
         <Link href={MOBILE_PATH} className={LINK}>
           lpm link
         </Link>{" "}
-        pairs with your Mac by QR code. It mirrors your terminals live so you
-        can type into them, shows which agent needs you, sends encrypted push
-        notifications, and lets you start projects, review diffs, commit and
-        run automations. Everything still runs on your Mac.
+        pairs with your computer by QR code. It mirrors your terminals live so
+        you can type into them, shows which agent needs you, sends encrypted
+        push notifications, and lets you start projects, review diffs, commit
+        and run automations. Everything still runs on your computer.
       </>
     ),
     answerText:
-      "Yes. lpm link pairs with your Mac by QR code. It mirrors your terminals live so you can type into them, shows which agent needs you, sends encrypted push notifications, and lets you start projects, review diffs, commit and run automations. Everything still runs on your Mac.",
+      "Yes. lpm link pairs with your computer by QR code. It mirrors your terminals live so you can type into them, shows which agent needs you, sends encrypted push notifications, and lets you start projects, review diffs, commit and run automations. Everything still runs on your computer.",
   },
   {
     question: "Does lpm work with remote servers?",
@@ -92,7 +92,7 @@ const FAQS: QA[] = [
         No. The desktop app has no analytics, telemetry or account. It checks
         GitHub for updates, and AI features such as commit messages run through
         your own agent CLI. If you pair an iPhone and turn on push
-        notifications, they are sealed on your Mac and relayed through lpm.cx,
+        notifications, they are sealed on your computer and relayed through lpm.cx,
         which can&apos;t read them. Only this website uses visitor analytics;
         see the{" "}
         <Link href={PRIVACY_PATH} className={LINK}>
@@ -102,23 +102,25 @@ const FAQS: QA[] = [
       </>
     ),
     answerText:
-      "No. The desktop app has no analytics, telemetry or account. It checks GitHub for updates, and AI features such as commit messages run through your own agent CLI. If you pair an iPhone and turn on push notifications, they are sealed on your Mac and relayed through lpm.cx, which can't read them. Only this website uses visitor analytics; see the privacy policy.",
+      "No. The desktop app has no analytics, telemetry or account. It checks GitHub for updates, and AI features such as commit messages run through your own agent CLI. If you pair an iPhone and turn on push notifications, they are sealed on your computer and relayed through lpm.cx, which can't read them. Only this website uses visitor analytics; see the privacy policy.",
   },
   {
     question: "How does lpm update?",
     answer:
-      "lpm checks for a new version when it opens and every 24 hours while it runs. When one is out, an update button appears in the sidebar: one click downloads it, replaces the app and relaunches. You can also choose Check for Updates… from the lpm menu. Your dev servers keep running through the update.",
+      "lpm checks for a new version when it opens and every 24 hours while it runs, and you can choose Check for Updates… from the lpm menu. On macOS, an update button appears in the sidebar: one click downloads it, replaces the app and relaunches, and your dev servers keep running through the update. On Windows and Linux, lpm tells you about the new version and opens its download in your browser; run the installer or install the package to update.",
   },
   {
     question: "How do I uninstall lpm?",
     answer: (
       <>
         Open Settings → General → Remove app. lpm stops your projects and
-        removes itself: the app, the <code className={CODE}>lpm</code>{" "}
-        command, its agent skills, the hooks it added to Claude Code and
-        Codex, and its Claude Code status line, with an option to also erase
-        its settings, project configuration and notes. Your project folders
-        are never touched. To do it by hand, quit lpm, move lpm.app to the
+        removes the <code className={CODE}>lpm</code>{" "}command, its agent
+        skills, the hooks it added to Claude Code and Codex, and its Claude
+        Code status line. On macOS it also moves the app to the Trash, with an
+        option to erase its settings, project configuration and notes. On
+        Windows, finish in Settings → Apps → Installed apps; on Linux, remove
+        the package or delete the AppImage. Your project folders are never
+        touched. To do it by hand on macOS, quit lpm, move lpm.app to the
         Trash, delete <code className={CODE}>/usr/local/bin/lpm</code>{" "}and{" "}
         <code className={CODE}>~/.lpm</code>, then remove the lpm hooks in{" "}
         <code className={CODE}>~/.claude</code>{" "}and{" "}
@@ -128,7 +130,7 @@ const FAQS: QA[] = [
       </>
     ),
     answerText:
-      "Open Settings → General → Remove app. lpm stops your projects and removes itself: the app, the lpm command, its agent skills, the hooks it added to Claude Code and Codex, and its Claude Code status line, with an option to also erase its settings, project configuration and notes. Your project folders are never touched. To do it by hand, quit lpm, move lpm.app to the Trash, delete /usr/local/bin/lpm and ~/.lpm, then remove the lpm hooks in ~/.claude and ~/.codex and the lpm skills in ~/.claude/skills and ~/.agents/skills.",
+      "Open Settings → General → Remove app. lpm stops your projects and removes the lpm command, its agent skills, the hooks it added to Claude Code and Codex, and its Claude Code status line. On macOS it also moves the app to the Trash, with an option to erase its settings, project configuration and notes. On Windows, finish in Settings → Apps → Installed apps; on Linux, remove the package or delete the AppImage. Your project folders are never touched. To do it by hand on macOS, quit lpm, move lpm.app to the Trash, delete /usr/local/bin/lpm and ~/.lpm, then remove the lpm hooks in ~/.claude and ~/.codex and the lpm skills in ~/.claude/skills and ~/.agents/skills.",
   },
 ];
 

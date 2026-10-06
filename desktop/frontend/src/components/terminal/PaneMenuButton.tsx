@@ -50,7 +50,7 @@ export function PaneMenuButton({ actions, isDefault, onRun, onMove, onReset }: P
     // The mousedown must not reach the menu's outside-click listener, or a
     // click on the open button would close and reopen it.
     <span ref={ref} className="inline-flex" onMouseDown={(e) => e.stopPropagation()}>
-      <Tooltip content="More options" side="bottom" align="end">
+      <Tooltip content="More options" side="bottom" align="end" disabled={!!menu}>
         <IconBtn onClick={toggleMenu} ariaLabel="More options" active={!!menu}>
           <MoreHorizontalIcon />
         </IconBtn>

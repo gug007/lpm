@@ -1,6 +1,6 @@
 export const FAQS = [
   {
-    question: "How do I schedule Claude Code tasks on a Mac?",
+    question: "How do I schedule Claude Code tasks?",
     answer:
       "Open Automations in lpm and create a job. Write the prompt, pick Claude Code and a model, and choose when it runs: every day, on certain days, on an interval, or only when you start it. Each run happens in the background with no terminal tab to keep open, and the answer lands in the job's history, ready to read and reply to. lpm is free and open source.",
   },
@@ -10,9 +10,9 @@ export const FAQS = [
       "No crontab and no cron syntax. lpm has its own scheduler inside the app, and you set the schedule in a form rather than a cron expression. A job set for a fixed time starts within a few minutes of it, so jobs set for the same hour don't all begin at once. Intervals can be as short as 5 minutes.",
   },
   {
-    question: "Will a job run overnight or while my Mac is asleep?",
+    question: "Will a job run overnight or while my computer is asleep?",
     answer:
-      "Jobs run while lpm is open and your Mac is awake, so an overnight job needs both. If a run was due while the Mac slept or lpm was closed, it runs once when they're back; missed runs aren't replayed one by one. If a job is still running when it's due again, the new run is skipped.",
+      "Jobs run while lpm is open and your computer is awake, so an overnight job needs both. If a run was due while the computer slept or lpm was closed, it runs once when they're back; missed runs aren't replayed one by one. If a job is still running when it's due again, the new run is skipped.",
   },
   {
     question: "Will a scheduled agent change the folder I'm working in?",
@@ -32,7 +32,7 @@ export const FAQS = [
   {
     question: "Can I get notified on my iPhone when a job finishes?",
     answer:
-      "Yes, with the free lpm link app. A paired iPhone can get a push notification when a job starts, finishes, or fails or times out, and you choose which ones. Pushes arrive while the app isn't open on the phone, and jobs with no project aren't pushed. On the Mac, lpm raises a macOS notification for the same moments whenever it isn't the app in front.",
+      "Yes, with the free lpm link app. A paired iPhone can get a push notification when a job starts, finishes, or fails or times out, and you choose which ones. Pushes arrive while the app isn't open on the phone, and jobs with no project aren't pushed. On your computer, lpm raises a system notification for the same moments whenever it isn't the app in front.",
   },
   {
     question: "Can a script or another agent trigger an automation?",

@@ -27,14 +27,15 @@ export const AGENTS_AREA: FeatureArea = {
     {
       icon: BellRing,
       title: "Alerts when an agent needs you",
-      body: "Pick a chime, a macOS sound, or your own audio file for when an agent is done, wants approval, or fails, plus a macOS banner whenever lpm is in the background.",
+      body: "Pick a chime, a system sound, or your own audio file for when an agent is done, wants approval, or fails, plus a system notification whenever lpm is in the background.",
+      note: "On Linux, sounds need a sound player and banners need your desktop's notification service.",
       scope: "claude-codex",
     },
   ],
   features: [
     {
       title: "Terminal tabs per project",
-      body: "New tabs open in the project folder with your login shell, right next to the project's service output.",
+      body: "New tabs open in the project folder with your login shell (Git Bash on Windows), right next to the project's service output.",
       keys: ["⌘T", "⌘W"],
     },
     {
@@ -65,7 +66,7 @@ export const AGENTS_AREA: FeatureArea = {
     },
     {
       title: "Tabs that keep up",
-      body: "Claude Code and Codex tabs take the conversation's title. Rename any tab, give it an emoji, pin it against ⌘W, or undo an accidental close within a few seconds.",
+      body: "Claude Code and Codex tabs take the conversation's title. Rename any tab, give it an emoji, pin it so it can't be closed by accident, or undo an accidental close within a few seconds.",
     },
     {
       title: "Find and filter output",
@@ -78,11 +79,11 @@ export const AGENTS_AREA: FeatureArea = {
     },
     {
       title: "Clipboard from terminal apps",
-      body: "When a program in the terminal copies text, such as Claude Code copying its own selection, it lands in your Mac's clipboard.",
+      body: "When a program in the terminal copies text, such as Claude Code copying its own selection, it lands in your system clipboard.",
     },
     {
       title: "Paste screenshots for agents",
-      body: "Paste an image or drop files on a terminal and lpm types the file path for the agent to read. On SSH hosts and other Macs, files are uploaded first.",
+      body: "Paste an image or drop files on a terminal and lpm types the file path for the agent to read. On SSH hosts and other paired computers, files are uploaded first.",
     },
     {
       title: "Standalone terminals",
@@ -95,10 +96,11 @@ export const AGENTS_AREA: FeatureArea = {
     {
       title: "Browser tab",
       body: "A lightweight web tab next to your terminals, with its own URL field and back, forward, and reload buttons.",
+      note: "On Linux, the address opens in your default browser instead.",
     },
     {
       title: "Themes and fonts",
-      body: "Eight terminal color themes, any monospace font on your Mac, sizes from 8 to 24, and adjustable line height.",
+      body: "Eight terminal color themes, any monospace font you have installed, sizes from 8 to 24, and adjustable line height.",
       keys: ["⌘+", "⌘−"],
     },
   ],
@@ -113,7 +115,7 @@ export const COMPOSER_AREA: FeatureArea = {
     {
       icon: MessageSquareText,
       title: "A composer under every terminal",
-      body: "Write with normal text editing and undo, press Enter to send and Shift+Enter for a new line. Hide it with ⌘I and a slim bar keeps the agent's status in view.",
+      body: "Write with normal text editing and undo, press Enter to send and Shift+Enter for a new line. Hide it and a slim bar keeps the agent's status in view.",
       keys: ["⌘I"],
     },
     {
@@ -160,12 +162,12 @@ export const COMPOSER_AREA: FeatureArea = {
     },
     {
       title: "Send to another tab",
-      body: "Send what you're writing to any other open tab, even one on a paired Mac, to run right away or wait in that tab's composer.",
+      body: "Send what you're writing to any other open tab, even one on a paired computer, to run right away or wait in that tab's composer.",
     },
     {
       title: "Voice dictation",
-      body: "Tap the mic to dictate a prompt instead of typing it.",
-      note: "Uses the separate, free VoiceToText Mac app.",
+      body: "On macOS, tap the mic to dictate a prompt instead of typing it.",
+      note: "Uses the separate, free VoiceToText Mac app. Not available on Windows or Linux.",
     },
     {
       title: "Your toolbar, your way",

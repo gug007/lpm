@@ -10,7 +10,7 @@ export default function Cta() {
           <br className="hidden sm:block" /> Know which one needs you.
         </h2>
         <p className="mt-6 text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-xl mx-auto leading-relaxed">
-          lpm is a free, open-source Mac app. Run as many Claude Code and Codex
+          lpm is a free, open-source desktop app. Run as many Claude Code and Codex
           sessions as you can review, fan one prompt out to copies or worktrees,
           and check what each run changed before you ship it.
         </p>

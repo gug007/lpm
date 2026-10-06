@@ -91,13 +91,10 @@ export function FilesPane({
     const source = changesOnly ? git.items : index;
     return source ? rankFiles(source, query) : null;
   }, [filtering, changesOnly, git.items, index, query]);
-  const rows = useMemo(
-    () =>
-      changesOnly
-        ? buildMatchTree(git.items ?? NO_ITEMS, collapsed)
-        : flattenTree(listings, expanded),
-    [changesOnly, git.items, collapsed, listings, expanded],
-  );
+  // Apart, so a folder listing refreshing under the git view leaves its rows be.
+  const changeRows = useMemo(() => buildMatchTree(git.items ?? NO_ITEMS, collapsed), [git.items, collapsed]);
+  const folderRows = useMemo(() => flattenTree(listings, expanded), [listings, expanded]);
+  const rows = changesOnly ? changeRows : folderRows;
   const ignoredPaths = useMemo(() => ignoredPathsOf(listings), [listings]);
   // Which file the diff stack is scrolled to, so the rail follows the reading.
   const [stackPath, setStackPath] = useState<string | null>(null);

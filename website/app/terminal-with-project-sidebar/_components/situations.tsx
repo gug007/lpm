@@ -18,7 +18,7 @@ const SITUATIONS = [
     icon: Server,
     title: "Local, remote, and agent-driven work at once",
     lead: "A local stack, an SSH box, and Claude Code running somewhere in between.",
-    body: "SSH projects sit in the same list as local ones, and a paired Mac gets its own section, so remote work is not a separate app to alt-tab into. When Claude Code or Codex needs an answer, the row it is working in turns amber — you find out from the sidebar instead of by checking each terminal in turn.",
+    body: "SSH projects sit in the same list as local ones, and a paired computer gets its own section, so remote work is not a separate app to alt-tab into. When Claude Code or Codex needs an answer, the row it is working in turns amber — you find out from the sidebar instead of by checking each terminal in turn.",
   },
 ];
 

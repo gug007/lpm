@@ -9,7 +9,7 @@ export default function Cta() {
           Stop guessing where the tokens went.
         </h2>
         <p className="mx-auto mt-6 max-w-xl text-base leading-relaxed tracking-wide text-gray-500 dark:text-gray-400 sm:text-lg">
-          lpm is free and open source. Download it for macOS, run Claude Code
+          lpm is free and open source. Download it, run Claude Code
           and Codex in your projects, and see what they used, how much of your
           plan is left, and when it resets.
         </p>

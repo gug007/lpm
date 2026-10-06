@@ -1,3 +1,4 @@
+import { DOWNLOAD_ENTRIES } from "./downloads";
 import { REPO_API_URL } from "./links";
 
 const RELEASES_API = `${REPO_API_URL}/releases`;
@@ -38,14 +39,17 @@ export type DownloadStats = {
   fetchedAt: string;
 };
 
+const DESKTOP_ASSET_LABELS: Record<string, string> = {
+  [DOWNLOAD_ENTRIES["mac-arm"].filename]: "macOS Desktop — Apple Silicon",
+  [DOWNLOAD_ENTRIES["mac-intel"].filename]: "macOS Desktop — Intel",
+  [DOWNLOAD_ENTRIES["windows-x64"].filename]: "Windows Desktop — x64",
+  [DOWNLOAD_ENTRIES["linux-deb"].filename]: "Linux Desktop — .deb",
+  [DOWNLOAD_ENTRIES["linux-rpm"].filename]: "Linux Desktop — .rpm",
+  [DOWNLOAD_ENTRIES["linux-appimage"].filename]: "Linux Desktop — AppImage",
+};
+
 function classify(name: string): string | null {
-  if (name === "lpm-desktop-macos-arm64.dmg") {
-    return "macOS Desktop — Apple Silicon";
-  }
-  if (name === "lpm-desktop-macos-amd64.dmg") {
-    return "macOS Desktop — Intel";
-  }
-  return null;
+  return DESKTOP_ASSET_LABELS[name] ?? null;
 }
 
 const PER_PAGE = 100;

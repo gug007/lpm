@@ -1,31 +1,25 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { trackDownload } from "@/lib/analytics";
+import { trackDownload, type DownloadPlatform } from "@/lib/analytics";
 
 type Props = {
   href: string;
-  architecture: string;
+  platform: DownloadPlatform;
   className?: string;
   children: ReactNode;
 };
 
 export function TrackedAssetLink({
   href,
-  architecture,
+  platform,
   className,
   children,
 }: Props) {
   return (
     <a
       href={href}
-      onClick={() =>
-        trackDownload({
-          source: "checksums",
-          platform: architecture === "x86_64" ? "mac-intel" : "mac-arm",
-          href,
-        })
-      }
+      onClick={() => trackDownload({ source: "checksums", platform, href })}
       className={className}
     >
       {children}

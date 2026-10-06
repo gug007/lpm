@@ -18,7 +18,7 @@ export function Hero() {
               aria-hidden="true"
               className="mr-2 -mt-px inline-block h-1.5 w-1.5 rounded-full bg-emerald-500/90 align-middle dark:bg-emerald-400/90"
             />
-            Free Mac app for Claude Code &amp; Codex
+            Free desktop app for AI Agents (Claude Code &amp; Codex..)
           </span>{" "}
           Every project. Every agent.
           <br />
@@ -30,7 +30,7 @@ export function Hero() {
           <span className="font-medium text-gray-900 dark:text-gray-100">
             see which agent is working, done, or waiting on you
           </span>
-          , and duplicate a project in seconds.
+          , and duplicate a project for each agent.
         </p>
 
         <div className="mx-auto mt-[clamp(1.25rem,3vh,1.75rem)] max-w-3xl">

@@ -1,5 +1,5 @@
+import type { DownloadPlatform } from "@/lib/downloads";
 import { APP_STORE_URL, RELEASES_URL } from "@/lib/links";
-import type { MacDownloadPlatform } from "@/lib/use-platform";
 
 declare global {
   interface Window {
@@ -7,7 +7,7 @@ declare global {
   }
 }
 
-export type DownloadPlatform = MacDownloadPlatform;
+export type { DownloadPlatform } from "@/lib/downloads";
 export type DownloadSource =
   | "hero"
   | "home-cta"
@@ -139,8 +139,8 @@ export function trackGithubVisit({
   window.gtag("event", "github_visit", {
     source,
     link_url: href,
-    // The releases page serves the same .dmg as the download buttons, so this
-    // link is a real download path that never reaches trackDownload.
+    // The releases page serves the same installers as the download buttons, so
+    // this link is a real download path that never reaches trackDownload.
     is_release_path: href.startsWith(RELEASES_URL),
   });
 }

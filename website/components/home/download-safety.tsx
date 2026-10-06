@@ -1,4 +1,5 @@
 import {
+  FlaskConical,
   LockKeyhole,
   PackageCheck,
   ShieldCheck,
@@ -20,12 +21,25 @@ type SafetyItem = {
   body: React.ReactNode;
 };
 
-const SAFETY_ITEMS: SafetyItem[] = [
-  {
-    icon: ShieldCheck,
-    title: "Notarized",
-    body: "Signed with an Apple Developer ID and notarized, so Gatekeeper opens it.",
-  },
+// The Windows and Linux files are attached after the DMGs, so the checksum
+// list below can hold only the Mac builds for a while after a release.
+function betaItem(checksumsBelow: boolean): SafetyItem {
+  return {
+    icon: FlaskConical,
+    title: "Windows and Linux beta",
+    body: checksumsBelow
+      ? "Not code-signed yet, so compare the SHA-256 checksums below. The Windows installer needs no admin rights."
+      : "Not code-signed yet, so compare the SHA-256 checksum on the GitHub release page. The Windows installer needs no admin rights.",
+  };
+}
+
+const NOTARIZED_ITEM: SafetyItem = {
+  icon: ShieldCheck,
+  title: "Notarized on macOS",
+  body: "The Mac builds are signed with an Apple Developer ID and notarized, so Gatekeeper opens them.",
+};
+
+const OTHER_ITEMS: SafetyItem[] = [
   {
     icon: LockKeyhole,
     title: "Private",
@@ -47,12 +61,15 @@ const SAFETY_ITEMS: SafetyItem[] = [
   {
     icon: PackageCheck,
     title: "Native builds",
-    body: "Apple Silicon and Intel, macOS 12 or later. No Electron, no extra installer.",
+    body: "macOS 12 or later on Apple Silicon or Intel, Windows 11 x64, and 64-bit x86 Linux. No Electron.",
   },
 ];
 
 export async function DownloadSafety() {
   const release = await getLatestReleaseVerification();
+  const checksumsBelow =
+    release?.assets.some(({ os }) => os !== "macos") ?? false;
+  const items = [NOTARIZED_ITEM, betaItem(checksumsBelow), ...OTHER_ITEMS];
 
   return (
     <div
@@ -64,11 +81,11 @@ export async function DownloadSafety() {
           Know exactly what you&rsquo;re installing
         </h3>
         <p className="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
-          Open source, shipped from public GitHub releases under Developer ID
-          N7S7ZCZ5P7.
+          Open source, shipped from public GitHub releases. The Mac builds are
+          signed under Developer ID N7S7ZCZ5P7.
         </p>
         <ul className="mt-5 grid gap-x-8 gap-y-3 sm:grid-cols-2">
-          {SAFETY_ITEMS.map(({ icon: Icon, title, body }) => (
+          {items.map(({ icon: Icon, title, body }) => (
             <li key={title} className="flex gap-2.5">
               <Icon
                 className="mt-0.5 h-4 w-4 shrink-0 text-gray-500 dark:text-gray-400"
@@ -98,17 +115,25 @@ export async function DownloadSafety() {
       )}
 
       <SafetyDisclosure title="How to remove lpm">
-        Choose Remove app in lpm&apos;s settings: it stops your projects and
-        removes the app, the <code className={CODE}>lpm</code>{" "}command, its
-        agent skills, its Claude Code and Codex hooks and its Claude Code status
-        line, and can also erase settings, project config and notes. By hand:
-        quit lpm, trash <code className={CODE}>lpm.app</code>, delete{" "}
-        <code className={CODE}>/usr/local/bin/lpm</code>{" "}and{" "}
-        <code className={CODE}>~/.lpm</code>, then remove the lpm hooks in{" "}
-        <code className={CODE}>~/.claude</code>{" "}and{" "}
-        <code className={CODE}>~/.codex</code>{" "}and the lpm skills in{" "}
-        <code className={CODE}>~/.claude/skills</code>{" "}and{" "}
-        <code className={CODE}>~/.agents/skills</code>.
+        <p>
+          Choose Remove app in lpm&apos;s settings: it stops your projects and
+          removes the <code className={CODE}>lpm</code>{" "}command, its agent
+          skills, its Claude Code and Codex hooks and its Claude Code status
+          line. On macOS it also moves the app to the Trash and can erase
+          settings, project config and notes. On Windows, finish in Settings →
+          Apps → Installed apps; on Linux, remove the package or delete the
+          AppImage. Both keep your settings in{" "}
+          <code className={CODE}>~/.lpm</code>.
+        </p>
+        <p className="mt-2">
+          By hand on macOS: quit lpm, trash <code className={CODE}>lpm.app</code>,
+          delete <code className={CODE}>/usr/local/bin/lpm</code>{" "}and{" "}
+          <code className={CODE}>~/.lpm</code>, then remove the lpm hooks in{" "}
+          <code className={CODE}>~/.claude</code>{" "}and{" "}
+          <code className={CODE}>~/.codex</code>{" "}and the lpm skills in{" "}
+          <code className={CODE}>~/.claude/skills</code>{" "}and{" "}
+          <code className={CODE}>~/.agents/skills</code>.
+        </p>
       </SafetyDisclosure>
     </div>
   );

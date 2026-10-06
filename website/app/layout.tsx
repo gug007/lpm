@@ -30,16 +30,18 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "lpm — Free Mac App to Run Claude Code, Codex & Dev Projects",
+    default: "lpm — Free Desktop App to Run Claude Code, Codex & Dev Projects",
     template: "%s — lpm",
   },
   description:
-    "Start, switch, and duplicate local dev projects on your Mac, and run Claude Code and Codex side by side with live agent status. Free and open source.",
+    "Start, switch, and duplicate dev projects, and run Claude Code and Codex side by side with live status. Free and open source for Mac, Windows and x86-64 Linux.",
   keywords: [
     "run claude code in parallel",
     "claude code multiple projects",
     "schedule claude code tasks",
     "macOS app",
+    "Windows app",
+    "Linux app",
     "project switcher",
     "run multiple dev servers",
     "coding agents in parallel",
@@ -48,18 +50,18 @@ export const metadata: Metadata = {
     "dev tools",
   ],
   openGraph: {
-    title: "lpm — Free Mac App to Run Claude Code, Codex & Dev Projects",
+    title: "lpm — Free Desktop App to Run Claude Code, Codex & Dev Projects",
     description:
-      "Start, switch, and duplicate local dev projects on your Mac, and run Claude Code and Codex side by side with live agent status. Free and open source.",
+      "Start, switch, and duplicate dev projects, and run Claude Code and Codex side by side with live status. Free and open source for Mac, Windows and x86-64 Linux.",
     type: "website",
     url: SITE_URL,
     siteName: "lpm",
   },
   twitter: {
     card: "summary_large_image",
-    title: "lpm — Free Mac App to Run Claude Code, Codex & Dev Projects",
+    title: "lpm — Free Desktop App to Run Claude Code, Codex & Dev Projects",
     description:
-      "Start, switch, and duplicate local dev projects on your Mac, and run Claude Code and Codex side by side with live agent status. Free and open source.",
+      "Start, switch, and duplicate dev projects, and run Claude Code and Codex side by side with live status. Free and open source for Mac, Windows and x86-64 Linux.",
   },
 };
 
@@ -82,12 +84,15 @@ const themeScript = `
 
 const PUBLISHER_ID = `${SITE_URL}/#publisher`;
 
+const OPERATING_SYSTEMS =
+  "macOS 12 or later, Windows 11 (x64), Linux (x86-64, glibc 2.35 or later)";
+
 const FEATURE_LIST = [
   "Detects a project's dev servers when you add or clone it",
   "One-click start and stop for every service, with profiles",
   "Live output per service with listening ports and port-conflict checks",
   "Built-in terminals with Claude Code, Codex, Gemini, and OpenCode launchers",
-  "Live Claude Code and Codex status with sounds and macOS notifications",
+  "Live Claude Code and Codex status with sounds and system notifications",
   "Prompt composer with @ mentions, images, and slash-command autocomplete",
   "Duplicate a project or create Git worktrees to run agents in parallel",
   "Scheduled automations that run agent prompts, commands, or actions",
@@ -96,7 +101,7 @@ const FEATURE_LIST = [
   "Claude Code and Codex token stats and plan-limit meters",
   "Multiple Claude Code accounts pinned per project",
   "SSH remote projects with port forwarding",
-  "Control another Mac or a Linux server from your Mac",
+  "Control another computer running lpm or a Linux server from the app",
   "iPhone companion with live terminals and push notifications",
   "lpm CLI and agent skills so coding agents can drive lpm",
 ];
@@ -123,9 +128,9 @@ const buildStructuredData = (softwareVersion: string | null) => ({
       "@id": APP_ID,
       name: "lpm",
       description:
-        "A free, open-source Mac app that starts, stops, duplicates, and switches between local dev projects, with a built-in terminal for running Claude Code, Codex, and other AI coding agents in parallel.",
+        "A free, open-source desktop app for macOS, Windows and x86-64 Linux that starts, stops, duplicates, and switches between local dev projects, with a built-in terminal for running Claude Code, Codex, and other AI coding agents in parallel.",
       applicationCategory: "DeveloperApplication",
-      operatingSystem: "macOS",
+      operatingSystem: OPERATING_SYSTEMS,
       featureList: FEATURE_LIST,
       url: SITE_URL,
       image: `${SITE_URL}/screenrecording/start-project-poster.jpg`,

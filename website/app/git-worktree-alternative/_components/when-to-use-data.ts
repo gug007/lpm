@@ -21,8 +21,8 @@ export const WORKTREE_WINS: { title: string; body: string }[] = [
     body: "A post-checkout hook or a setup script already copies .env and installs dependencies in every new checkout.",
   },
   {
-    title: "You're not on a Mac.",
-    body: "lpm's desktop app is macOS only. Git worktrees work anywhere Git does.",
+    title: "You're on a system lpm doesn't support.",
+    body: "lpm's desktop app needs macOS, Windows 11 on x64, or 64-bit x86 Linux as new as Ubuntu 22.04. Git worktrees work anywhere Git does.",
   },
 ];
 

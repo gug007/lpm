@@ -38,7 +38,7 @@ const DOES_NOT = [
     body: "Server projects have no port forwarding of their own. Reaching a dev server from your Mac's browser is still an SSH forward you set up yourself.",
   },
   {
-    title: "Mac-only things, on a server project",
+    title: "Local-only things, on a server project",
     body: "Opening the project in your editor, and anything else that needs an app installed on your Mac, stays Mac-side. Files are the exception: drag one onto a server terminal and lpm uploads it there.",
   },
 ];

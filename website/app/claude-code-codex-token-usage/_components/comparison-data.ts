@@ -61,7 +61,7 @@ export const COLUMNS: ComparisonColumn[] = [
   {
     id: "lpm",
     name: "lpm",
-    kind: "Mac app with your agents",
+    kind: "Desktop app with your agents",
     icon: Gauge,
     iconTone: "text-emerald-600 dark:text-emerald-300",
   },
@@ -237,7 +237,7 @@ export const ROWS: ComparisonRow[] = [
       lpm: {
         verdict: "neutral",
         value: "Free, MIT",
-        detail: "macOS, with an iPhone app",
+        detail: "macOS, Windows and 64-bit x86 Linux, with an iPhone app",
       },
     },
   },

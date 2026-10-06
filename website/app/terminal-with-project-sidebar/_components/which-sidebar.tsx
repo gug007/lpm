@@ -31,7 +31,7 @@ const ANSWERS: {
     verdict: "partly",
     label: "Not the primary model",
     title: "A saved SSH host list",
-    body: "lpm is not an SSH host manager, but SSH projects sit in the same project list as local ones — no separate SSH badge on the row. A paired Mac or host appears as its own section, headed by that machine's name, which you can drag anywhere in the list.",
+    body: "lpm is not an SSH host manager, but SSH projects sit in the same project list as local ones — no separate SSH badge on the row. A paired computer or host appears as its own section, headed by that machine's name, which you can drag anywhere in the list.",
   },
 ];
 

@@ -279,7 +279,7 @@ export default function OvermindVsPage() {
             "You develop over SSH on a remote box, where a dropped connection leaves the tmux session running and overmind connect picks the process back up.",
             "You use overmind start -m web=2,worker=3, or you rely on Overmind handing each process a PORT.",
             "Your workflow is one project at a time and you're happy driving everything from the shell.",
-            "Your team develops on Linux or *BSD as well as macOS.",
+            "Your team develops on *BSD, ARM Linux or a box with no desktop as well as macOS.",
           ],
         }}
       />

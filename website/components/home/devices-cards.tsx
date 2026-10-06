@@ -23,14 +23,14 @@ const CARDS: {
   {
     icon: Laptop,
     href: `${FEATURES_PATH}#devices`,
-    title: "Connect another Mac",
-    body: "Pair two Macs and the other one's projects appear in your sidebar. Start its services and run its agents from here.",
+    title: "Connect another computer",
+    body: "Pair two computers running lpm and the other one's projects appear in your sidebar. Start its services and run its agents from here.",
   },
   {
     icon: Server,
     href: LINUX_HOST_PATH,
     title: "Add a Linux host",
-    body: "Type user@server and lpm sets itself up there. Services and agents keep running after your Mac closes.",
+    body: "Type user@server and lpm sets itself up there. Services and agents keep running after your laptop closes.",
   },
 ];
 

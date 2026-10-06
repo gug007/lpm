@@ -138,7 +138,7 @@ export const COMPARISON_ROWS: ComparisonRow[] = [
       },
       {
         verdict: "yes",
-        value: "Copied, copy-on-write",
+        value: "Copied, copy-on-write on APFS",
         detail: "Or installed fresh with Reinstall dependencies",
       },
     ],

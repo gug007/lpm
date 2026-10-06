@@ -57,16 +57,18 @@ export function useVirtualList(
     };
   }, [listRef, update, schedule]);
 
-  // Scrolls the least distance that brings a row fully into view.
+  // Scrolls the least distance that brings a row fully into view; false when
+  // the row or the list's size isn't known yet.
   const ensureVisible = useCallback(
     (index: number) => {
       const el = listRef.current;
       const { scrollTop, height } = stateRef.current;
-      if (!el || index < 0 || !height) return;
+      if (!el || index < 0 || !height) return false;
       const top = index * rowHeight;
       const bottom = top + rowHeight;
       if (top < scrollTop) el.scrollTop = top;
       else if (bottom > scrollTop + height) el.scrollTop = bottom - height;
+      return true;
     },
     [listRef, rowHeight],
   );

@@ -10,7 +10,7 @@ export function Cta() {
           Let lpm write your first one.
         </h2>
         <p className="mt-6 text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-xl mx-auto leading-relaxed">
-          Download lpm for macOS and point it at a project folder. It writes
+          Download lpm and point it at a project folder. It writes
           the file for you with the services it finds, and Claude Code and
           Codex are one click away in every project.
         </p>

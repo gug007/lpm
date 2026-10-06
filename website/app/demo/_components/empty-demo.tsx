@@ -37,11 +37,11 @@ function DesktopOnlyPrompt() {
       className={`flex flex-col items-center gap-3 px-5 py-10 text-center ${FRAME}`}
     >
       <p className="max-w-xs text-[13px] leading-relaxed text-[#919191]">
-        lpm is a macOS app with a multi-pane terminal workspace. Open this page
+        lpm is a desktop app with a multi-pane terminal workspace. Open this page
         on your computer to try the interactive demo.
       </p>
       <DownloadLink className="inline-flex min-h-11 items-center rounded-lg bg-[#e5e5e5] px-4 py-2 text-[13px] font-medium text-[#1a1a1a] transition-all duration-100 hover:opacity-85 active:scale-[0.97]">
-        Get lpm for Mac
+        Get lpm
       </DownloadLink>
     </div>
   );

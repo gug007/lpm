@@ -77,7 +77,7 @@ export const FAQ_ITEMS: { question: string; answer: string }[] = [
   {
     question: "Is there a Linux version of the lpm app?",
     answer:
-      "Not as a desktop app. The interface is macOS-only and that is where you sit; Linux is supported as a host — the same lpm runs there without a screen and is driven from your Mac. If you work primarily on Linux, this is not the tool for you yet.",
+      "Yes, in beta: alongside macOS there is a desktop app for Windows 11 (x64) and for 64-bit x86 Linux as new as Ubuntu 22.04, as a .deb, .rpm or AppImage. This page is about the other way lpm runs on Linux, as a host: the same lpm runs on a server without a screen and is driven from the desktop app on your laptop, whether that is a Mac, a Windows PC or a Linux machine.",
   },
 ];
 

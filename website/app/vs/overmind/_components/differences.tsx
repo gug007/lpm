@@ -18,7 +18,7 @@ const ROWS: MatrixRow[] = [
   },
   {
     label: "Which machines it runs on",
-    lpm: "Mac app; Linux and SSH boxes as hosts",
+    lpm: "a desktop app for macOS, or Windows 11 and x64 Linux in beta; Linux and SSH boxes as hosts",
     competitor: "macOS, Linux, *BSD",
   },
   {
@@ -92,9 +92,9 @@ export function Differences() {
           afresh every time it starts where lpm imported it once, hands each
           process a{" "}
           <code className="font-mono text-[0.9em]">PORT</code>, runs several
-          instances of one process, installs on Linux and *BSD where lpm needs a
-          Mac to drive from, and drops you at a prompt inside a running process
-          with{" "}
+          instances of one process, installs on *BSD, ARM Linux and boxes with
+          no desktop where lpm needs a desktop to drive from, and drops you at a
+          prompt inside a running process with{" "}
           <code className="font-mono text-[0.9em]">overmind connect</code>. If
           one of those five is load-bearing, stay where you are — nothing below
           outweighs a workflow that already works.

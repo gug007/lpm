@@ -289,11 +289,11 @@ export default function LpmStatuslineDemo() {
                 Applied by lpm
               </div>
               <p className="mt-3 text-sm leading-relaxed text-gray-300">
-                In the Mac app, changes save to the active agent configuration
+                In the desktop app, changes save to the active agent configuration
                 while you work. No script, JSON, or TOML editing required.
               </p>
               <DownloadLink className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-full bg-white px-4 text-sm font-semibold text-gray-950 transition hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black">
-                Download lpm for macOS
+                Download lpm
                 <ArrowRight className="h-4 w-4" aria-hidden />
               </DownloadLink>
             </div>

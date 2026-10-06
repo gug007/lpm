@@ -11,7 +11,7 @@ export default function Cta() {
           Not just another checkout.
         </h2>
         <p className="mt-6 text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-xl mx-auto leading-relaxed">
-          lpm is free and open source. Download it for macOS and turn the
+          lpm is free and open source. Download it and turn the
           project already on your disk into standalone copies for Claude Code,
           Codex and any other terminal agent.
         </p>

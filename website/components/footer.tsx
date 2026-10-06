@@ -178,7 +178,7 @@ export function Footer() {
             </a>
           </div>
           <p className="text-[13px] text-gray-500 dark:text-gray-400">
-            Free and open source, built for Mac developers.
+            Free and open source, built for developers.
           </p>
         </div>
       </div>

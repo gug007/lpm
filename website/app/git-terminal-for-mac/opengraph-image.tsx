@@ -10,5 +10,6 @@ export default function Image() {
     headline: ["Git and your dev servers,", "in the same window."],
     subline:
       "Branch, rebase, and push right next to live service logs — no toggling between a git client and a separate terminal.",
+    platform: "macOS · Desktop App",
   });
 }

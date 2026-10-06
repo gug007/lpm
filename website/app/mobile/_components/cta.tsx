@@ -14,7 +14,7 @@ export default function Cta() {
           Prompt your agents, review the diff, and ship it from anywhere.
         </h2>
         <p className="mt-6 text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-xl mx-auto leading-relaxed">
-          Download the native macOS app, get lpm Link from the App Store, and
+          Download the lpm desktop app, get lpm Link from the App Store, and
           pair your iPhone or iPad in Settings → Mobile devices. Free, native,
           and yours: the work stays on your Mac, the control comes with you.
         </p>

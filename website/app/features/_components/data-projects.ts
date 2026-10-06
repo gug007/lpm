@@ -86,7 +86,7 @@ export const PROJECTS_AREA: FeatureArea = {
     },
     {
       title: "Form or source editor",
-      body: "Edit a project in a form, or switch to the source with autocomplete, inline validation, and ⌘S to save. Edits made outside lpm show up right away.",
+      body: "Edit a project in a form, or switch to the source with autocomplete, inline validation, and ⌘S (Ctrl+S on Windows and Linux) to save. Edits made outside lpm show up right away.",
     },
     {
       title: "Personal, team, and global setups",
@@ -94,7 +94,7 @@ export const PROJECTS_AREA: FeatureArea = {
     },
     {
       title: "Open in your editor",
-      body: "Open a project in Cursor, VS Code, Windsurf, Zed, Xcode, WebStorm, Sublime Text, Terminal, iTerm, Ghostty, Warp, or Finder. Only apps you have installed are listed.",
+      body: "Open a project in Cursor, VS Code, Windsurf, Zed, WebStorm, or Sublime Text, in a terminal app, or in your file manager: on macOS that includes Xcode, iTerm, Ghostty, Warp, and Finder, and on Windows, Windows Terminal, Git Bash, and File Explorer. Only apps you have installed are listed.",
     },
     {
       title: "Folders and work statuses",

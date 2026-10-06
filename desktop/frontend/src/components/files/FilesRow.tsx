@@ -7,6 +7,10 @@ import { IGNORED_TEXT, decorationOf } from "./gitDecorations";
 import type { TreeCursorStore } from "./treeCursor";
 import type { Item } from "./treeModel";
 
+// The tree virtualizes on this height, so every row is pinned to it: sized by
+// content, the status letter made file rows half a pixel taller than folders.
+export const FILES_ROW_PX = 26;
+
 export interface RowTarget extends Item {
   x: number;
   y: number;
@@ -71,8 +75,8 @@ export const FilesRow = memo(function FilesRow({
         e.preventDefault();
         onContextMenu({ path: item.path, isDir: item.isDir, x: e.clientX, y: e.clientY });
       }}
-      style={{ paddingLeft: `${depth * INDENT_PX + BASE_LEFT_PX}px` }}
-      className={`group flex cursor-pointer select-none items-center gap-1.5 py-[5px] pr-2.5 transition-colors ${
+      style={{ height: FILES_ROW_PX, paddingLeft: `${depth * INDENT_PX + BASE_LEFT_PX}px` }}
+      className={`group flex cursor-pointer select-none items-center gap-1.5 pr-2.5 transition-colors ${
         selected ? "bg-[var(--bg-active)]" : "hover:bg-[var(--bg-hover)]"
       } ${cursor ? "ring-1 ring-inset ring-[var(--accent-cyan)]/50" : ""}`}
     >

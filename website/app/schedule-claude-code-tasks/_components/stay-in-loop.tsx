@@ -18,7 +18,7 @@ export default function StayInLoop() {
       <div className="mx-auto max-w-6xl px-6">
         <SectionHeader
           eyebrow="Stay in the loop"
-          title="Hear back on your Mac, your iPhone, or in a terminal"
+          title="Hear back on your computer, your iPhone, or in a terminal"
           description="You don't have to keep the Automations screen open to know how the night went."
           className="mb-12"
         />
@@ -28,12 +28,12 @@ export default function StayInLoop() {
               <Bell className="h-5 w-5" aria-hidden />
             </span>
             <h3 className="mt-5 text-base font-semibold text-gray-900 dark:text-gray-100">
-              On your Mac
+              On your computer
             </h3>
             <p className={BODY}>
               The sidebar counts unread results until you open them. When lpm
-              isn&apos;t in front, macOS banners follow each run, and a finished
-              run&apos;s banner carries the first line of the answer, what a
+              isn&apos;t in front, system notifications follow each run, and a
+              finished run&apos;s notification carries the first line of the answer, what a
               Claude Code run cost and how the check went.
             </p>
             <div className="mt-auto pt-6">

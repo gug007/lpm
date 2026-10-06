@@ -44,7 +44,7 @@ const ROWS: Row[] = [
     whereItShines:
       "One scriptable config that follows you across macOS, Linux, and Windows.",
     howLpmDiffers:
-      "lpm is built for the Mac, and its per-project setup is edited in the app rather than scripted in Lua — it starts your services, not just your shell.",
+      "lpm is built Mac-first, and its per-project setup is edited in the app rather than scripted in Lua — it starts your services, not just your shell.",
   },
   {
     name: "Alacritty",

@@ -17,16 +17,16 @@ export const FEATURE_FAQS = [
   {
     question: "Do my dev servers and automations keep running when lpm is closed?",
     answer:
-      "Dev servers do: they keep running after you quit or update lpm, and the app picks them up again when you reopen it. In-app terminals, including agent tabs, end when you quit. Automations need lpm open on an awake Mac; a run that came due while it wasn't fires once when lpm is back. For work that keeps going after your Mac closes, add a Linux host.",
+      "Dev servers do: they keep running after you quit or update lpm, and the app picks them up again when you reopen it. In-app terminals, including agent tabs, end when you quit. Automations need lpm open on an awake computer; a run that came due while it wasn't fires once when lpm is back. For work that keeps going after your laptop closes, add a Linux host.",
   },
   {
     question: "Which features talk to the network?",
     answer:
-      "A few, and none of them send your code to lpm. Update checks go to GitHub, AI commit messages go through the agent CLI you installed under your own account, links to your other Macs, servers, and iPhone are direct, and iPhone push alerts cross one relay encrypted so only your phone can read them. The Mac app, CLI, and iPhone app have no analytics or telemetry built in.",
+      "A few, and none of them send your code to lpm. Update checks go to GitHub, AI commit messages go through the agent CLI you installed under your own account, links to your other computers, servers, and iPhone are direct, and iPhone push alerts cross one relay encrypted so only your phone can read them. The desktop app, CLI, and iPhone app have no analytics or telemetry built in.",
   },
   {
     question: "Can I use lpm from my iPhone or another computer?",
     answer:
-      "Yes. The lpm link app mirrors terminals and controls projects from an iPhone or iPad, Connect Macs lets one Mac drive another, and a Linux host or SSH project runs work on a server. Every command runs on the machine that owns the project, so it has to be on and reachable, for example over your home network or Tailscale.",
+      "Yes. The lpm link app mirrors terminals and controls projects from an iPhone or iPad, Connect computers lets one computer running lpm drive another, and a Linux host or SSH project runs work on a server. Every command runs on the machine that owns the project, so it has to be on and reachable, for example over your home network or Tailscale.",
   },
 ];

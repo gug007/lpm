@@ -29,8 +29,8 @@ const ENTRIES: { n: number; term: string; body: string }[] = [
   },
   {
     n: 6,
-    term: "Paired Macs and hosts",
-    body: "A Mac or Linux host you have paired appears as its own section, headed by that machine's name. A new one lands at the bottom of the list; drag its header to move it above your local projects. Its rows open the same project view your local rows do.",
+    term: "Paired computers and hosts",
+    body: "Another computer or a Linux host you have paired appears as its own section, headed by that machine's name. A new one lands at the bottom of the list; drag its header to move it above your local projects. Its rows open the same project view your local rows do.",
   },
   {
     n: 7,

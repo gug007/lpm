@@ -2,18 +2,42 @@ import {
   Bot,
   GitPullRequest,
   Globe,
-  Laptop,
   Server,
   Smartphone,
+  type LucideIcon,
 } from "lucide-react";
+import { BetaTag } from "@/components/home/beta-tag";
+import { OsIcon } from "@/components/home/os-icon";
 import { SectionHeader } from "@/components/section-header";
+import type { DesktopOs } from "@/lib/downloads";
 import { REQUIREMENTS_AREA } from "./areas";
 
-const REQUIREMENTS = [
+type Requirement = {
+  icon: LucideIcon | DesktopOs;
+  title: string;
+  body: string;
+  beta?: boolean;
+};
+
+const ICON = "h-4 w-4 text-gray-500 dark:text-gray-400";
+
+const REQUIREMENTS: Requirement[] = [
   {
-    icon: Laptop,
-    title: "A Mac",
+    icon: "macos",
+    title: "macOS",
     body: "macOS 12 or later; pick the Apple Silicon or the Intel download.",
+  },
+  {
+    icon: "windows",
+    title: "Windows",
+    body: "Windows 11 on an x64 PC; there is no ARM64 build. Install Git for Windows first: terminals, services, and agents run in its Git Bash.",
+    beta: true,
+  },
+  {
+    icon: "linux",
+    title: "Linux",
+    body: "A 64-bit x86 (amd64) desktop with glibc 2.35 or newer, such as Ubuntu 22.04 and up; there is no ARM build. Choose the .deb, .rpm, or AppImage; with the AppImage, install Git, SSH, and a clipboard tool (wl-clipboard or xclip) yourself.",
+    beta: true,
   },
   {
     icon: Bot,
@@ -28,7 +52,7 @@ const REQUIREMENTS = [
   {
     icon: Smartphone,
     title: "iPhone or iPad",
-    body: "The free lpm link app, paired with a Mac or Linux host that is awake and running lpm.",
+    body: "The free lpm link app, paired with a computer or Linux host that is awake and running lpm.",
   },
   {
     icon: Server,
@@ -59,17 +83,24 @@ export default function Requirements() {
             </span>
           }
           title="What you need"
-          description="Only a Mac is required. Everything else depends on which features you use."
+          description="A computer on one of the three systems below. Everything else depends on which features you use."
         />
         <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {REQUIREMENTS.map(({ icon: ItemIcon, title, body }) => (
+          {REQUIREMENTS.map(({ icon: ItemIcon, title, body, beta }) => (
             <div
               key={title}
               className="rounded-2xl border border-gray-200 p-5 dark:border-gray-800"
             >
               <dt className="flex items-center gap-2.5 text-sm font-semibold text-gray-900 dark:text-gray-100">
-                <ItemIcon className="h-4 w-4 text-gray-500 dark:text-gray-400" aria-hidden />
+                {typeof ItemIcon === "string" ? (
+                  <OsIcon os={ItemIcon} className={ICON} />
+                ) : (
+                  <ItemIcon className={ICON} aria-hidden />
+                )}
                 {title}
+                {beta && (
+                  <BetaTag className="border-gray-300 text-gray-500 dark:border-gray-700 dark:text-gray-400" />
+                )}
               </dt>
               <dd className="mt-2 text-sm leading-relaxed text-gray-600 dark:text-gray-400">
                 {body}

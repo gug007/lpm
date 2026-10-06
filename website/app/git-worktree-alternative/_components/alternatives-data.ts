@@ -183,7 +183,7 @@ export const ALTERNATIVE_GROUPS: AlternativeGroup[] = [
         mechanisms: [
           { kind: "menu", steps: ["Right-click a project", "Duplicate"] },
         ],
-        gets: "Up to 50 standalone copies of the folder you're working in, each a fast APFS copy-on-write clone. Build caches like .next stay behind.",
+        gets: "Up to 50 standalone copies of the folder you're working in, each a fast copy-on-write clone on APFS and a full copy where the disk can't clone. Build caches like .next stay behind.",
         chips: {
           repository: { verdict: "yes" },
           branch: { verdict: "yes" },

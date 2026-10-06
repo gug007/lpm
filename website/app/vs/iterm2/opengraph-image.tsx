@@ -10,5 +10,6 @@ export default function Image() {
     headline: ["An iTerm2 alternative that runs", "whole projects, not just panes."],
     subline:
       "One click starts every service, ports on each service tab, a checkout per agent. Keep iTerm2 for the shell.",
+    platform: "macOS · Desktop App",
   });
 }

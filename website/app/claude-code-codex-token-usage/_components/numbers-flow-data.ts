@@ -44,7 +44,7 @@ export const FLOW_STAGES: FlowStage[] = [
     ],
   },
   {
-    title: "What lpm does on your Mac",
+    title: "What lpm does on your computer",
     highlight: true,
     items: [
       {
@@ -84,7 +84,7 @@ export const FLOW_STAGES: FlowStage[] = [
         lead: "lpm iPhone app",
         href: MOBILE_PATH,
         detail:
-          "straight from your Mac over your network or tailnet, no cloud relay",
+          "straight from your computer over your network or tailnet, no cloud relay",
       },
     ],
   },

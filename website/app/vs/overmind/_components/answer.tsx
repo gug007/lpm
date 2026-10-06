@@ -39,8 +39,8 @@ export function Answer() {
         What you give up: lpm reads the Procfile once rather than on every
         start, will not hand each process a{" "}
         <code className={CODE}>PORT</code>, will not run two copies of one
-        process, and needs a Mac to drive it. Everything else on this page is
-        what you get in exchange.
+        process, and needs a desktop to drive it from, where Overmind runs in
+        any shell. Everything else on this page is what you get in exchange.
       </p>
       <CodeBlock filename="Procfile → ~/.lpm/projects/myapp.yml">
         {CONVERSION}

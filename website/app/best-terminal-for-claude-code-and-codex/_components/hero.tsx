@@ -13,7 +13,7 @@ export default function Hero() {
           view.
         </h1>
         <p className="mt-5 text-base sm:text-[17px] text-gray-600 dark:text-gray-400 max-w-xl mx-auto leading-relaxed">
-          A native macOS app that shows what each Claude Code and Codex session
+          A native desktop app that shows what each Claude Code and Codex session
           is doing, pings you when one needs an answer, and runs your dev
           servers in panes right beside them.
         </p>

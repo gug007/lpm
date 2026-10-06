@@ -26,8 +26,8 @@ export function EditorSection() {
         </FeatureCard>
         <FeatureCard icon={Code} title="Source">
           One click switches to the YAML, with schema hints as you type. ⌘S
-          saves, and invalid YAML is refused. Repo and Global always open
-          here.
+          (Ctrl+S on Windows and Linux) saves, and invalid YAML is refused.
+          Repo and Global always open here.
         </FeatureCard>
         <FeatureCard icon={Sparkles} title="Generate with AI">
           Pick an installed AI CLI — Claude Code, Codex, Gemini, or OpenCode —

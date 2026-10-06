@@ -6,7 +6,7 @@ const FAQS = [
   {
     question: "How do I customize a Claude Code statusline in lpm?",
     answer:
-      "Open Settings (⌘, or the More menu at the bottom of the lpm sidebar), choose AI & Integrations, and click Customize beside Claude Code status line. Start with Clean, Minimalistic, Modern, or Custom, then arrange items and tune their appearance. lpm applies valid changes while you work, and the preview updates alongside.",
+      "Open Settings (⌘, on macOS, Ctrl+, on Windows and Linux, or the More menu at the bottom of the lpm sidebar), choose AI & Integrations, and click Customize beside Claude Code status line. Start with Clean, Minimalistic, Modern, or Custom, then arrange items and tune their appearance. lpm applies valid changes while you work, and the preview updates alongside.",
   },
   {
     question: "What can I change in the Claude Code statusline?",
@@ -39,6 +39,11 @@ const FAQS = [
       "No. If you already have one, it shows up as My status line. Try a preset or build a custom line, and pick My status line again whenever you want your original back.",
   },
   {
+    question: "Does the Claude Code statusline work on Windows and Linux?",
+    answer:
+      "Yes. The Claude Code statusline reads its session data with jq, which macOS 15 and later include; on older macOS, install it with brew install jq. On Windows, install it first (winget install jqlang.jq); until you do, the line shows that hint instead. On Linux, the .deb and .rpm packages bring jq along; with the AppImage, install jq yourself. The Codex status line needs nothing extra.",
+  },
+  {
     question: "Does the statusline use extra AI tokens?",
     answer:
       "No. The statusline formats session information already exposed by Claude Code or Codex. Previewing and rendering it does not send an additional model request.",
@@ -46,7 +51,7 @@ const FAQS = [
   {
     question: "Is statusline configuration private?",
     answer:
-      "Yes. lpm is a native macOS app and applies statusline settings locally on your Mac. The visual editor does not require you to paste agent configuration or session data into a website.",
+      "Yes. lpm is a native desktop app and applies statusline settings locally on your computer. The visual editor does not require you to paste agent configuration or session data into a website.",
   },
 ];
 
@@ -57,7 +62,7 @@ export default function Faq() {
         <SectionHeader
           eyebrow="FAQ"
           title="What to know before you customize"
-          description="How the visual editor works, what each agent supports, and what stays on your Mac."
+          description="How the visual editor works, what each agent supports, and what stays on your computer."
         />
         <ul className="space-y-3">
           {FAQS.map(({ question, answer }) => (

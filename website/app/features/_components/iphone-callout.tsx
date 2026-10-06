@@ -14,8 +14,8 @@ export default function IphoneCallout() {
           lpm link is free on the App Store
         </h3>
         <p className="mt-1.5 text-sm leading-relaxed text-gray-600 dark:text-gray-400">
-          In lpm on your Mac, open Settings → Mobile devices, choose Add a
-          device, then scan the QR code with your iPhone or iPad.
+          In lpm on your computer, open Settings → Mobile devices, choose Add
+          a device, then scan the QR code with your iPhone or iPad.
         </p>
         <Link
           href={MOBILE_PATH}

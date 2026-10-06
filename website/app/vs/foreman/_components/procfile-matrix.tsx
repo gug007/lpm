@@ -32,14 +32,6 @@ const ROWS: Row[] = [
     cells: [false, "foreman export", false],
   },
   {
-    label: "Installs on a Windows or Linux workstation",
-    cells: [
-      "Mac app; Linux only as a remote host",
-      "Linux, macOS",
-      "Linux, *BSD, macOS",
-    ],
-  },
-  {
     label: "Attach a shell to one running process",
     cells: ["panes are read-only", false, "overmind connect"],
   },
@@ -102,6 +94,14 @@ const ROWS: Row[] = [
   {
     label: "A desktop window rather than a foreground command",
     cells: [true, "a foreground command", "a foreground command plus tmux"],
+  },
+  {
+    label: "Installs on a Windows or Linux workstation",
+    cells: [
+      "Windows 11 and x64 Linux, in beta; macOS",
+      "Linux, macOS",
+      "Linux, *BSD, macOS",
+    ],
   },
   {
     label: "Licence on the gem, the binary and the app",
@@ -167,7 +167,7 @@ export function ProcfileMatrix() {
         <SectionHeader
           eyebrow="All three, side by side"
           title="The same three lines, three ways"
-          description="Nine of these twenty-one rows go to Foreman or Overmind. They are the first nine."
+          description="Eight of these twenty-one rows go to Foreman or Overmind. They are the first eight."
         />
 
         <div className="hidden md:block overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-800">

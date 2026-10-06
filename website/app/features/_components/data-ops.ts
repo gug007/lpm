@@ -12,7 +12,7 @@ export const AUTOMATIONS_AREA: FeatureArea = {
       icon: CalendarClock,
       title: "Scheduled automations",
       body: "Run a Claude Code, Codex, Gemini CLI, or OpenCode prompt, a shell command, or a saved action every day, on chosen weekdays, on an interval, or at a random time in a window.",
-      note: "Needs lpm running and the Mac awake to fire.",
+      note: "Needs lpm running and the computer awake to fire.",
       href: AUTOMATIONS_PATH,
       linkLabel: "Schedule Claude Code tasks",
     },
@@ -52,7 +52,7 @@ export const AUTOMATIONS_AREA: FeatureArea = {
     },
     {
       title: "Week view and unread results",
-      body: "See the week's schedule on a calendar board, with unread badges, a Running marker, and macOS banners when lpm is in the background.",
+      body: "See the week's schedule on a calendar board, with unread badges, a Running marker, and system notifications when lpm is in the background.",
     },
     {
       title: "Agent, model, and access per job",

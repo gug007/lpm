@@ -22,7 +22,7 @@ export default function Hero() {
       />
       <div className="max-w-5xl mx-auto px-6 text-center">
         <p className="text-xs font-medium uppercase tracking-[0.25em] text-emerald-700 dark:text-emerald-300/70 mb-5">
-          Free, open-source Mac app
+          Free, open-source desktop app
         </p>
         <h1 className="text-[2.25rem] sm:text-5xl md:text-[clamp(2.75rem,6.2vh,3.75rem)] font-extrabold tracking-tight leading-[1.06] bg-gradient-to-br from-gray-900 via-gray-800 to-gray-600 dark:from-white dark:via-gray-100 dark:to-gray-400 bg-clip-text text-transparent">
           Track Claude Code and Codex usage: tokens, cost, and plan limits.

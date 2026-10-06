@@ -206,6 +206,7 @@ export default function LpmVsIterm2Page() {
         jumpHref="#matrix"
         jumpLabel="Jump to the iTerm2 rows"
         downloadSource="vs-iterm2-hero"
+        macFocus
       />
 
       <ComparisonBasis
@@ -300,7 +301,7 @@ export default function LpmVsIterm2Page() {
 
       <WhenToPick
         title="When to keep iTerm2 alone, and when to add lpm"
-        description="Two free, macOS-only, open-source tools. The split is whether your bottleneck is the emulator itself or everything you have to start inside it."
+        description="Two free, open-source tools, both native on macOS. The split is whether your bottleneck is the emulator itself or everything you have to start inside it."
         lpm={{
           name: "lpm",
           headline:
@@ -389,6 +390,7 @@ export default function LpmVsIterm2Page() {
           </>
         }
         downloadSource="vs-iterm2-cta"
+        macFocus
       />
     </>
   );

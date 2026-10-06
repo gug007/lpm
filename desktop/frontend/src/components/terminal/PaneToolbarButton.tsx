@@ -46,6 +46,7 @@ export function PaneToolbarButton({
         }
         side="bottom"
         align="end"
+        disabled={!!menu}
       >
         <IconBtn onClick={onRun} ariaLabel={meta.label} active={active}>
           {meta.icon}

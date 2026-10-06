@@ -10,8 +10,9 @@ export function StatsHeader() {
         lpm download stats
       </h1>
       <p className="mt-3 text-sm leading-relaxed text-gray-500 dark:text-gray-400">
-        Downloads of the macOS desktop app — the Apple Silicon and Intel disk
-        images — summed across every release on{" "}
+        Downloads of the lpm desktop app — the macOS disk images, plus the
+        Windows installer and Linux packages on newer releases — summed across
+        every release on{" "}
         <a href={`${REPO_URL}/releases`} className={STATS_LINK}>
           GitHub Releases
         </a>

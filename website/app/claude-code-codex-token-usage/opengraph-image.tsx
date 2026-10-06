@@ -9,6 +9,6 @@ export default function Image() {
   return ogImage({
     headline: ["Claude Code & Codex", "tokens, cost & limits."],
     subline:
-      "Tokens by project and session, live 5-hour and weekly meters with pace, and a prompt sent when your limit resets. Free for Mac.",
+      "Tokens by project and session, live 5-hour and weekly meters with pace, and a prompt sent when your limit resets. Free and open source.",
   });
 }

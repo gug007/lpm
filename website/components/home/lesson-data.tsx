@@ -17,7 +17,7 @@ export const LESSON_STEPS: LessonStep[] = [
         Click <strong>+</strong>{" "}in the sidebar and pick a folder, or paste a
         Git URL and lpm clones it. lpm reads the project&rsquo;s own files and
         fills in the dev servers it finds — start commands, folders and ports
-        — using built-in rules on your Mac, no&nbsp;AI.
+        — using built-in rules on your computer, no&nbsp;AI.
       </>
     ),
     lesson: "add-project",

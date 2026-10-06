@@ -14,6 +14,7 @@ type Props = {
   jumpHref?: string;
   jumpLabel?: string;
   downloadSource?: DownloadSource;
+  macFocus?: boolean;
 };
 
 export function ComparisonHero({
@@ -24,6 +25,7 @@ export function ComparisonHero({
   jumpHref,
   jumpLabel,
   downloadSource,
+  macFocus,
 }: Props) {
   return (
     <section className="pt-[clamp(4.5rem,9.5vh,6.5rem)] pb-[clamp(1.25rem,3vh,2rem)] text-center">
@@ -53,7 +55,7 @@ export function ComparisonHero({
         )}
 
         <div className="mt-[clamp(1.25rem,3vh,1.75rem)] flex justify-center">
-          <HeroDownload source={downloadSource} />
+          <HeroDownload source={downloadSource} macFocus={macFocus} />
         </div>
 
         {jumpHref && jumpLabel && (

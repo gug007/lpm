@@ -100,7 +100,7 @@ const VERDICT_CARDS: [VerdictCard, VerdictCard, VerdictCard] = [
   {
     label: "lpm",
     title: "Switch to lpm",
-    body: "A pane per process, a project switcher across repos, services that outlive the app, and Claude Code or Codex in the next tab. Mac only, and it takes Procfile.dev in once, as the project is added, rather than on every start.",
+    body: "A pane per process, a project switcher across repos, services that outlive the app, and Claude Code or Codex in the next tab. It is a desktop app, not a command for any shell, and it takes Procfile.dev in once, as the project is added, rather than on every start.",
   },
 ];
 
@@ -259,7 +259,7 @@ export default function LpmVsForemanPage() {
             "foreman export generates the units your deploy depends on (Foreman).",
             "One interleaved stream is genuinely how you read your app (Foreman).",
             "You need overmind connect and per-process restart, and tmux is already installed (Overmind).",
-            "Someone on the team develops on Linux (Foreman and Overmind both run there; Overmind on *BSD too).",
+            "Someone on the team develops on ARM Linux or a box with no desktop (Foreman and Overmind both run there; Overmind on *BSD too).",
           ],
         }}
       />

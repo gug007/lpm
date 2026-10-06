@@ -33,7 +33,7 @@ export const FAQ_ITEMS: { question: string; answer: string }[] = [
   {
     question: "How much disk space does a project copy use?",
     answer:
-      "On APFS, lpm makes a copy-on-write clone, so the copy shares its unchanged file blocks with the original instead of storing them twice. Space grows as files in the copy change, as builds write new caches, and when Reinstall dependencies writes a fresh node_modules. Build caches such as .next are skipped rather than cloned. On non-APFS volumes, and on Linux file systems without reflink support, the copy is a full copy.",
+      "On APFS (macOS), lpm makes a copy-on-write clone, so the copy shares its unchanged file blocks with the original instead of storing them twice. Space grows as files in the copy change, as builds write new caches, and when Reinstall dependencies writes a fresh node_modules. Build caches such as .next are skipped rather than cloned. On Linux, btrfs and XFS can share blocks the same way. Everywhere else, including ext4 and Windows, the copy is a full copy.",
   },
   {
     question: "How do I get changes from a copy back into my main project?",
@@ -53,6 +53,6 @@ export const FAQ_ITEMS: { question: string; answer: string }[] = [
   {
     question: "Can every project be duplicated?",
     answer:
-      "Local projects can, and so can projects on a connected Linux server or another connected Mac. Folders that aren't Git repositories work too; the Git options are skipped. SSH projects can't be duplicated, and a project that is itself a linked Git worktree has to use New Worktree instead. New Worktree needs the project folder to be the root of a Git repository with at least one commit.",
+      "Local projects can, and so can projects on a connected Linux server or another connected computer. Folders that aren't Git repositories work too; the Git options are skipped. SSH projects can't be duplicated, and a project that is itself a linked Git worktree has to use New Worktree instead. New Worktree needs the project folder to be the root of a Git repository with at least one commit.",
   },
 ];

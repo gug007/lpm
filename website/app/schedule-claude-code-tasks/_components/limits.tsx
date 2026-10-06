@@ -2,8 +2,8 @@ import { Info } from "lucide-react";
 
 const LIMITS = [
   {
-    title: "Your Mac has to be awake",
-    body: "Jobs run while lpm is open and the Mac is awake. A run missed while it slept or lpm was closed runs once when it's back; missed runs aren't replayed one by one.",
+    title: "Your computer has to be awake",
+    body: "Jobs run while lpm is open and the computer is awake. A run missed while it slept or lpm was closed runs once when it's back; missed runs aren't replayed one by one.",
   },
   {
     title: "Full access means no approval prompts",
@@ -44,7 +44,7 @@ export default function Limits() {
               Know the rules before you walk away.
             </h2>
             <p className="mt-4 max-w-2xl text-base leading-relaxed text-white/60">
-              Automations run inside the desktop app on your Mac, using the agent
+              Automations run inside the desktop app on your computer, using the agent
               CLIs you already have installed and signed in. That comes with a
               few limits worth knowing up front.
             </p>

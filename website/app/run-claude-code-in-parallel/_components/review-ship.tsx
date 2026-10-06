@@ -9,6 +9,7 @@ const STEPS = [
     shortcut: "⌘⇧R",
     title: "Read every diff",
     body: "Open any copy and see all of its uncommitted changes as one scrolling stack of diffs, split or unified. Fix a line right in the diff before you commit.",
+    note: "On Windows and Linux: Ctrl+Alt+Shift+R.",
   },
   {
     icon: GitPullRequest,

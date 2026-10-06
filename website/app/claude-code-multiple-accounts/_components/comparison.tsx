@@ -13,7 +13,7 @@ const APPROACHES = [
   { key: "lpm", label: "lpm" },
   { key: "switchers", label: "Account switchers" },
   { key: "manual", label: "Manual CLAUDE_CONFIG_DIR" },
-  { key: "users", label: "Separate macOS users" },
+  { key: "users", label: "Separate OS users" },
 ] as const;
 
 const ROWS: Row[] = [

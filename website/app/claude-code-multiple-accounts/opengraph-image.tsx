@@ -1,7 +1,7 @@
 import { OG_CONTENT_TYPE, OG_SIZE, ogImage } from "@/lib/og-template";
 
 export const alt =
-  "lpm — run multiple Claude Code accounts on one Mac, one per project.";
+  "lpm — run multiple Claude Code accounts on one computer, one per project.";
 export const size = OG_SIZE;
 export const contentType = OG_CONTENT_TYPE;
 

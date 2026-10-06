@@ -152,7 +152,7 @@ export const TOOL_ROWS: ToolRow[] = [
   },
   {
     label: "Available outside macOS",
-    lpm: "macOS only",
+    lpm: "Windows 11 and x64 Linux (beta)",
     iterm2: false,
     tmux: "Linux, *BSD",
     cmux: false,

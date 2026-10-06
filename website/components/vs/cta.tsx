@@ -7,9 +7,10 @@ type Props = {
   title: ReactNode;
   description: ReactNode;
   downloadSource?: DownloadSource;
+  macFocus?: boolean;
 };
 
-export function Cta({ title, description, downloadSource }: Props) {
+export function Cta({ title, description, downloadSource, macFocus }: Props) {
   return (
     <section id="download" className="scroll-mt-20 py-20 sm:py-24 text-center">
       <div className="max-w-3xl mx-auto px-6">
@@ -21,7 +22,7 @@ export function Cta({ title, description, downloadSource }: Props) {
         </p>
 
         <div className="mt-10 flex justify-center">
-          <HeroDownload source={downloadSource} />
+          <HeroDownload source={downloadSource} macFocus={macFocus} />
         </div>
 
         <div className="mt-6">

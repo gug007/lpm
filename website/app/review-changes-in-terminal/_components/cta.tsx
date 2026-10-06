@@ -11,10 +11,10 @@ export default function Cta() {
           Right where you already work.
         </h2>
         <p className="mt-6 text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-xl mx-auto leading-relaxed">
-          Grab the native macOS download, drag it to Applications and open a
-          project. Every change your agents make is one keystroke from a full
-          diff, beside your running services. Runs on Intel and Apple Silicon
-          Macs with macOS 12 or later.
+          Download lpm and open a project. Every change your agents make is one
+          keystroke from a full diff, beside your running services. Runs on
+          macOS 12 or later (Apple Silicon and Intel), with builds for Windows
+          11 (x64) and 64-bit x86 Linux.
         </p>
 
         <div className="mt-10 flex justify-center">

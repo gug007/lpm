@@ -11,7 +11,8 @@ const STEPS: ReactNode[] = [
   "Write the prompt in the terminal's composer, as usual.",
   <>
     Press <kbd className={KBD}>⌥</kbd>
-    <kbd className={`${KBD} ml-0.5`}>↵</kbd>, or open the Send menu&apos;s arrow and choose{" "}
+    <kbd className={`${KBD} ml-0.5`}>↵</kbd>{" "}(Alt+Enter on Windows and Linux), or open the Send
+    menu&apos;s arrow and choose{" "}
     <strong className={STRONG}>Send later</strong>.
   </>,
   <>
@@ -88,8 +89,8 @@ export default function ResetSection() {
 
         <p className="mx-auto mt-12 max-w-3xl text-pretty text-center text-xs leading-relaxed text-gray-500 dark:text-gray-400">
           Works in local Claude Code and Codex terminals that have a live limit reading, not over SSH
-          or on another Mac. lpm has to be open and the Mac awake when the prompt comes
-          due: if lpm is closed or the Mac is asleep more than 5 minutes past that time, the prompt
+          or on another connected computer. lpm has to be open and the computer awake when the
+          prompt comes due: if lpm is closed or the computer is asleep more than 5 minutes past that time, the prompt
           is marked Missed instead of sent. For prompts on a timetable,{" "}
           <Link href={AUTOMATIONS_PATH} className={TEXT_LINK}>
             schedule recurring Claude Code and Codex runs

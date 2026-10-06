@@ -3,7 +3,7 @@ import Link from "next/link";
 import { REPO_URL, TERMS_PATH } from "@/lib/links";
 
 const DESCRIPTION =
-  "Terms of service for lpm, the free and open-source Mac app, and the lpm.cx website: acceptable use, the open-source license, no warranty, and liability.";
+  "Terms of service for lpm, the free and open-source desktop app, and the lpm.cx website: acceptable use, the open-source license, no warranty, and liability.";
 
 export const metadata: Metadata = {
   title: "Terms of Service",

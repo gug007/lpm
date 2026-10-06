@@ -111,7 +111,8 @@ const FEATURES: Feature[] = [
     title: "See every skill an agent loads",
     body: (
       <>
-        ⌘⇧K lists the skills, MCP servers, and hooks Claude Code and Codex will
+        ⌘⇧K (Ctrl+Alt+Shift+K on Windows and Linux) lists the skills, MCP
+        servers, and hooks Claude Code and Codex will
         load in a folder, and lets you write a new skill in a form. More on{" "}
         <Link
           href={SKILLS_PATH}

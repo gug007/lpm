@@ -11,20 +11,20 @@ import type { FeatureArea } from "./feature-types";
 
 export const DEVICES_AREA: FeatureArea = {
   id: "devices",
-  title: "Drive projects on another Mac, a server, or over SSH",
+  title: "Drive projects on another computer, a server, or over SSH",
   description:
-    "Work runs where the project lives, and lpm on your Mac is the screen and keyboard. Machines connect to each other directly, not through a cloud relay.",
+    "Work runs where the project lives, and lpm on your computer is the screen and keyboard. Machines connect to each other directly, not through a cloud relay.",
   highlights: [
     {
       icon: Laptop,
-      title: "Connect Macs",
-      body: "Pair two Macs and the other Mac's projects appear in your sidebar under its name. Start its services, use its terminals and agents, review its changes, and run its actions.",
-      note: "Both Macs run lpm, and the host turns on “Allow control of this Mac”.",
+      title: "Connect computers",
+      body: "Pair two computers running lpm and the other one's projects appear in your sidebar under its name. Start its services, use its terminals and agents, review its changes, and run its actions.",
+      note: "The host turns on “Allow control” in its settings. On Windows, that asks for a firewall permission the first time.",
     },
     {
       icon: Server,
       title: "A Linux host from one SSH string",
-      body: "Type user@server and lpm installs itself there, pairs, and connects through SSH. Services and agents keep running on the server after your Mac closes.",
+      body: "Type user@server and lpm installs itself there, pairs, and connects through SSH. Services and agents keep running on the server after your laptop closes.",
       href: LINUX_HOST_PATH,
       linkLabel: "Run agents on a server",
     },
@@ -40,7 +40,7 @@ export const DEVICES_AREA: FeatureArea = {
   features: [
     {
       title: "Pair the way that suits you",
-      body: "Paste a one-time invite, type an address and code by hand, or tap a nearby Mac and confirm the same 6-digit code on both screens.",
+      body: "Paste a one-time invite, type an address and code by hand, or tap a nearby computer and confirm the same 6-digit code on both screens.",
     },
     {
       title: "Pinned, revocable connections",
@@ -52,12 +52,12 @@ export const DEVICES_AREA: FeatureArea = {
       note: "You set up Tailscale; lpm detects the address.",
     },
     {
-      title: "Sync to This Mac",
-      body: "Mirror a project from another Mac into a local copy that follows its branch and uncommitted edits within seconds, so you can build and test it here.",
-      note: "One-way: the other Mac always wins.",
+      title: "Sync to this computer",
+      body: "Mirror a project from another computer into a local copy that follows its branch and uncommitted edits within seconds, so you can build and test it here.",
+      note: "One-way: the other computer always wins.",
     },
     {
-      title: "Config sync between Macs",
+      title: "Config sync between computers",
       body: "Compare and sync lpm settings, global config, and presets between paired machines, with a preview and a backup first, or keep them in sync automatically.",
       note: "Syncs lpm setup, never your source code.",
     },
@@ -67,19 +67,20 @@ export const DEVICES_AREA: FeatureArea = {
     },
     {
       title: "SSH that reconnects",
-      body: "SSH terminals share one connection per host with keepalives and reconnect on their own. A reconnect starts a fresh remote shell.",
+      body: "SSH terminals keep their connection alive and reconnect on their own. A reconnect starts a fresh remote shell.",
+      note: "On macOS and Linux, a project's terminals share one connection per host; on Windows each opens its own, which is slower.",
     },
     {
       title: "Files to remote terminals",
-      body: "Drop or paste files into a terminal on another Mac, a Linux host, or an SSH server, and lpm uploads them and pastes the remote path.",
+      body: "Drop or paste files into a terminal on another computer, a Linux host, or an SSH server, and lpm uploads them and pastes the remote path.",
     },
     {
-      title: "Server alerts on your Mac",
-      body: "When an agent on a Linux host finishes or needs you, your Mac plays the chime and shows the banner as if it ran locally.",
+      title: "Server alerts on your computer",
+      body: "When an agent on a Linux host finishes or needs you, lpm plays the chime and shows the notification as if it ran locally.",
     },
     {
       title: "Manage Linux hosts",
-      body: "See the lpm version on each host, update or reinstall it from your Mac, install the agent skills there, or remove it.",
+      body: "See the lpm version on each host, update or reinstall it from the desktop app, install the agent skills there, or remove it.",
     },
     {
       title: "Remote folders in your editor",
@@ -87,7 +88,7 @@ export const DEVICES_AREA: FeatureArea = {
     },
     {
       title: "Take control",
-      body: "A terminal open in several places is controlled from one at a time. Take control moves it to the window, Mac, or phone you're on.",
+      body: "A terminal open in several places is controlled from one at a time. Take control moves it to the window, computer, or phone you're on.",
     },
   ],
 };
@@ -96,23 +97,23 @@ export const IPHONE_AREA: FeatureArea = {
   id: "iphone",
   title: "Your terminals and agents, in your pocket",
   description:
-    "The free lpm link app for iPhone and iPad mirrors terminals, sends prompts, and tells you when an agent needs you. Everything still runs on your Mac or Linux host.",
+    "The free lpm link app for iPhone and iPad mirrors terminals, sends prompts, and tells you when an agent needs you. Everything still runs on your computer or Linux host.",
   highlights: [
     {
       icon: Smartphone,
       title: "Live terminals",
-      body: "Open any terminal running on your Mac and watch it live with 10,000 lines of scrollback. Tap to type into it, with extra keys for Esc, Tab, Ctrl-C, and the arrows.",
+      body: "Open any terminal running on your computer and watch it live with 10,000 lines of scrollback. Tap to type into it, with extra keys for Esc, Tab, Ctrl-C, and the arrows.",
     },
     {
       icon: BellRing,
       title: "Push notifications",
-      body: "Get a push when an agent waits for you, finishes, or errors, and optionally when automations run. Content is encrypted on your Mac and only your phone can read it.",
+      body: "Get a push when an agent waits for you, finishes, or errors, and optionally when automations run. Content is encrypted on your computer and only your phone can read it.",
       note: "Agent alerts come from Claude Code and Codex.",
     },
     {
       icon: MessageSquareText,
       title: "A real prompt composer",
-      body: "Multi-line prompts land as one message, with photos, files, / commands, and @ mentions. Drafts sync with the same terminal on your Mac.",
+      body: "Multi-line prompts land as one message, with photos, files, / commands, and @ mentions. Drafts sync with the same terminal on your computer.",
     },
   ],
   features: [
@@ -146,17 +147,17 @@ export const IPHONE_AREA: FeatureArea = {
     },
     {
       title: "Easy pairing",
-      body: "Scan a QR code, tap a nearby Mac and match a code, or type the details in. Pair several Macs and Linux servers and switch between them.",
+      body: "Scan a QR code, tap a nearby computer and match a code, or type the details in. Pair several computers and Linux servers and switch between them.",
     },
     {
       title: "Home and away",
       body: "Keep a home address and a Tailscale address for each machine; the app connects to whichever answers.",
-      note: "Your Mac has to be awake.",
+      note: "Your computer has to be awake.",
     },
     {
       title: "Manage terminal tabs",
       body: "Open a new terminal, and rename, pin, reorder, or close tabs from your phone.",
-      note: "Needs the lpm window open on your Mac.",
+      note: "Needs the lpm window open on your computer.",
     },
     {
       title: "iPhone and iPad",

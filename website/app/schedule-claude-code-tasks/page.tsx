@@ -27,7 +27,7 @@ import RunHistory from "./_components/run-history";
 import Schedules from "./_components/schedules";
 import StayInLoop from "./_components/stay-in-loop";
 
-const TITLE = "Schedule Claude Code Tasks & Codex Runs on Your Mac";
+const TITLE = "Schedule Claude Code Tasks & Codex Runs";
 const DESCRIPTION =
   "Run Claude Code and Codex on a schedule: nightly, on weekdays or every few hours, in a fresh copy or Git worktree, with results you can read and reply to.";
 const SOCIAL_DESCRIPTION =
@@ -124,7 +124,7 @@ export default function ScheduleClaudeCodeTasksPage() {
             href: TOKEN_USAGE_PATH,
             title: "Claude Code & Codex token usage",
             description:
-              "See where the tokens went, by project, model and session, on your Mac.",
+              "See where the tokens went, by project, model and session, on your computer.",
           },
           {
             href: CONNECT_AGENTS_PATH,
@@ -136,7 +136,7 @@ export default function ScheduleClaudeCodeTasksPage() {
             href: FEATURES_PATH,
             title: "Everything lpm does",
             description:
-              "Projects, services, terminals, agents, review and automations, all in one Mac app.",
+              "Projects, services, terminals, agents, review and automations, all in one desktop app.",
           },
         ]}
       />

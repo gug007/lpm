@@ -55,7 +55,7 @@ const CAPABILITIES: Capability[] = [
     editor: false,
   },
   {
-    label: "Native macOS app with dark mode",
+    label: "Native desktop app with dark mode",
     lpm: true,
     tabs: true,
     tmux: false,

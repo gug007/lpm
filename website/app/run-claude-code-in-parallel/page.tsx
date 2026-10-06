@@ -29,9 +29,9 @@ import ParallelVisual from "./_components/parallel-visual";
 import ReviewShip from "./_components/review-ship";
 import ThreeWays from "./_components/three-ways";
 
-const TITLE = "Run Claude Code in Parallel: Multiple Sessions on Mac";
+const TITLE = "Run Claude Code in Parallel: Multiple Sessions at Once";
 const DESCRIPTION =
-  "Run several Claude Code and Codex sessions at once on your Mac: tabs, project copies or Git worktrees, live status for each session, and every diff to review.";
+  "Run several Claude Code and Codex sessions at once: tabs, project copies or Git worktrees, live status for each session, and every diff to review.";
 const SOCIAL_DESCRIPTION =
   "Tabs, full project copies or Git worktrees for parallel Claude Code and Codex agents, with Working, Needs you and Done on every session.";
 

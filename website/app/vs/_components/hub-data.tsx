@@ -97,7 +97,7 @@ export const HUB_FAQ: FaqItem[] = [
   {
     question: "Which of these run on Linux or Windows?",
     answer:
-      "tmux, Docker Compose, Foreman and PM2 all run on Linux, and Compose and PM2 run on Windows too; Overmind covers Linux, *BSD and macOS. iTerm2, cmux and lpm are Mac apps. lpm can drive a Linux machine as a headless host from the Mac, but the app itself is macOS only.",
+      "tmux, Docker Compose, Foreman and PM2 all run on Linux, and Compose and PM2 run on Windows too; Overmind covers Linux, *BSD and macOS. iTerm2 and cmux are Mac apps. lpm's desktop app runs on macOS, and in beta on Windows 11 (with Git for Windows installed) and on 64-bit x86 Linux as a .deb, .rpm or AppImage; there is no ARM build for either. It can also drive a headless Linux server as a host.",
   },
   {
     question: "Which of them will launch Claude Code or Codex for me?",

@@ -10,5 +10,6 @@ export default function Image() {
     headline: ["The Mac SSH client and terminal", "that makes remote dev feel local."],
     subline:
       "Import your SSH hosts, forward remote ports to localhost, and run remote services beside your local stack in one native window.",
+    platform: "macOS · Desktop App",
   });
 }

@@ -75,7 +75,7 @@ const ROWS: MatrixRow[] = [
   },
   {
     label: "Where you install it",
-    lpm: "a Mac app; a Linux box joins as a remote host",
+    lpm: "a desktop app for macOS, or Windows 11 and x64 Linux in beta; a Linux box joins as a remote host",
     competitor: "on each Unix box you use it on",
   },
 ];

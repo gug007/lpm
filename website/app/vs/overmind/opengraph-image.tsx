@@ -13,5 +13,6 @@ export default function Image() {
     ],
     subline:
       "Restart any one process with no tmux installed, and the Procfile imported line by line when you add the folder.",
+    platform: "macOS · Desktop App",
   });
 }

@@ -26,6 +26,7 @@ export const AGENT_SETUP_AREA: FeatureArea = {
       icon: PanelBottom,
       title: "Status line designer",
       body: "Build the line under Claude Code from presets or drag-and-drop items like model, branch, context left, and usage meters, and pick Codex's footer fields the same way.",
+      note: "The Claude Code presets need jq, which macOS 15 and later include.",
       scope: "claude-codex",
       href: STATUSLINE_PATH,
       linkLabel: "Status lines",
@@ -57,7 +58,8 @@ export const AGENT_SETUP_AREA: FeatureArea = {
     },
     {
       title: "Encrypted project notes",
-      body: "A private notes space per project, organized as chats with attachments and search, encrypted on disk with the key in your Keychain. Agents don't read them.",
+      body: "A private notes space per project, organized as chats with attachments and search, encrypted on disk. Agents don't read them.",
+      note: "The key lives in the macOS Keychain, Windows Credential Manager, or a file only you can read on Linux.",
       keys: ["⌘⇧N"],
     },
   ],

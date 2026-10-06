@@ -166,17 +166,17 @@ function DesktopOnlyPrompt({
       />
       <div className="flex flex-col items-center gap-3 border-t border-[#2e2e2e] px-5 py-5 text-center">
         <p className="max-w-xs text-[13px] leading-relaxed text-[#919191]">
-          lpm is a macOS app with a multi-pane terminal workspace. Open this
+          lpm is a desktop app with a multi-pane terminal workspace. Open this
           page on your computer to try the interactive demo.
         </p>
         <DownloadLink className="rounded-lg bg-[#e5e5e5] px-4 py-2 text-[13px] font-medium text-[#1a1a1a] transition-all duration-100 hover:opacity-85 active:scale-[0.97]">
-          Get lpm for Mac
+          Get lpm
         </DownloadLink>
         <Link
           href={MOBILE_PATH}
           className="text-[12px] text-[#919191] underline decoration-[#4a4a4a] underline-offset-4 transition-colors hover:text-white hover:decoration-current"
         >
-          Or check your Macs from your iPhone
+          Or check your computers from your iPhone
         </Link>
       </div>
     </div>
@@ -280,7 +280,7 @@ function DemoStage({
               >
                 Done poking around?{" "}
                 <DownloadLink className="underline decoration-gray-300 underline-offset-4 transition-colors hover:text-gray-900 hover:decoration-current dark:decoration-gray-600 dark:hover:text-white">
-                  Get lpm for Mac
+                  Get lpm
                 </DownloadLink>{" "}
                 and point it at your own projects.
               </p>

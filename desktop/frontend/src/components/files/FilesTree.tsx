@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { SearchIcon, XIcon } from "../icons";
 import { FilesAllChangesRow } from "./FilesAllChangesRow";
-import type { RowTarget } from "./FilesRow";
+import { FILES_ROW_PX, type RowTarget } from "./FilesRow";
 import { FilesRows } from "./FilesRows";
 import { FilesViewSwitch } from "./FilesViewSwitch";
 import type { IndexEntry } from "./filesFilter";
@@ -22,7 +22,6 @@ export interface ActivateOptions {
 }
 
 const NO_ROWS: TreeRow[] = [];
-const DEFAULT_ROW_PX = 26;
 
 interface FilesTreeProps {
   rows: TreeRow[];
@@ -94,14 +93,8 @@ export function FilesTree({
   );
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  // Rows are one height; the first mounted one says which.
-  const [rowHeight, setRowHeight] = useState(DEFAULT_ROW_PX);
-  const virtual = useVirtualList(listRef, items.length, rowHeight);
+  const virtual = useVirtualList(listRef, items.length, FILES_ROW_PX);
   const { ensureVisible } = virtual;
-  useEffect(() => {
-    const row = listRef.current?.querySelector<HTMLElement>('[role="treeitem"]');
-    if (row?.offsetHeight) setRowHeight(row.offsetHeight);
-  }, [virtual.first, virtual.last]);
 
   // Keyboard travel starts from the open file.
   useEffect(() => {
@@ -109,14 +102,22 @@ export function FilesTree({
   }, [selectedPath, cursorStore]);
 
   // The selected row, and the cursor while the list has focus, stay in view.
+  // A selection is revealed once per list, as soon as its row is there: the
+  // same list refreshing leaves the rail where the user scrolled it.
+  const listKind = filtering ? "matches" : changesOnly ? "changes" : "files";
+  const revealedRef = useRef<string | null>(null);
   useEffect(() => {
     const indexOf = (path: string | null) => (path ? items.findIndex((it) => it.path === path) : -1);
-    ensureVisible(indexOf(cursorStore.getState().selectedPath));
+    const reveal = (path: string | null) => {
+      revealedRef.current = ensureVisible(indexOf(path)) ? `${listKind}:${path}` : null;
+    };
+    const { selectedPath } = cursorStore.getState();
+    if (revealedRef.current !== `${listKind}:${selectedPath}`) reveal(selectedPath);
     return cursorStore.subscribe((s, prev) => {
-      if (s.selectedPath !== prev.selectedPath) ensureVisible(indexOf(s.selectedPath));
+      if (s.selectedPath !== prev.selectedPath) reveal(s.selectedPath);
       if (s.listFocused && s.cursorPath !== prev.cursorPath) ensureVisible(indexOf(s.cursorPath));
     });
-  }, [items, cursorStore, ensureVisible]);
+  }, [items, listKind, cursorStore, ensureVisible]);
 
   // A breadcrumb reveal lands the cursor on that folder and hands the list
   // focus, so the arrow keys continue from there.

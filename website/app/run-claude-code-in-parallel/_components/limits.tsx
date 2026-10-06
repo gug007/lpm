@@ -25,7 +25,7 @@ const LIMITS = [
   {
     icon: HardDrive,
     title: "Copies need a local project on disk",
-    body: "SSH projects can’t be duplicated or given worktrees. On APFS a copy is near-instant and shares unchanged data at first; on other file systems it is a full copy.",
+    body: "SSH projects can’t be duplicated or given worktrees. On APFS a copy is near-instant and shares unchanged data at first; where the disk can’t clone, it is a full copy.",
   },
   {
     icon: Eye,

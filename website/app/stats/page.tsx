@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { DOWNLOAD_ENTRIES, DOWNLOADS_BY_OS } from "@/lib/downloads";
 import { getDownloadStats, type ReleaseStat } from "@/lib/github-stats";
 import { REPO_URL, STATS_PATH } from "@/lib/links";
 import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
@@ -11,7 +12,7 @@ export const revalidate = 3600;
 
 const TITLE = "Download Stats by Release";
 const DESCRIPTION =
-  "Live download counts for lpm across all GitHub releases, refreshed hourly — see how many times each version of the free Mac app has been downloaded.";
+  "Live download counts for lpm across all GitHub releases, refreshed hourly — see how many times each version of the free desktop app has been downloaded.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -45,16 +46,52 @@ const structuredData = [
   ]),
 ];
 
-function downloadsByAsset(releases: ReleaseStat[], name: string): number {
+function downloadsByAsset(releases: ReleaseStat[], ...names: string[]): number {
   return releases.reduce(
     (sum, r) =>
-      sum + r.assets.filter((a) => a.name === name).reduce((s, a) => s + a.downloads, 0),
+      sum +
+      r.assets
+        .filter((a) => names.includes(a.name))
+        .reduce((s, a) => s + a.downloads, 0),
     0,
   );
 }
 
+type PlatformCard = { label: string; value: number; note: string };
+
+// The Windows and Linux files only exist on newer releases, so their cards
+// appear once they have been downloaded at all.
+function platformCards(releases: ReleaseStat[]): PlatformCard[] {
+  const count = (...names: string[]) => downloadsByAsset(releases, ...names);
+  const cards: PlatformCard[] = [
+    {
+      label: "Apple Silicon",
+      value: count(DOWNLOAD_ENTRIES["mac-arm"].filename),
+      note: "M-series Macs",
+    },
+    {
+      label: "Intel",
+      value: count(DOWNLOAD_ENTRIES["mac-intel"].filename),
+      note: "x86-64 Macs",
+    },
+  ];
+  const windows = count(DOWNLOAD_ENTRIES["windows-x64"].filename);
+  if (windows > 0) {
+    cards.push({ label: "Windows", value: windows, note: "x64 installer" });
+  }
+  const linux = count(...DOWNLOADS_BY_OS.linux.map(({ filename }) => filename));
+  if (linux > 0) {
+    cards.push({ label: "Linux", value: linux, note: ".deb, .rpm and AppImage" });
+  }
+  return cards;
+}
+
 export default async function StatsPage() {
   const stats = await getDownloadStats();
+  const cards = stats ? platformCards(stats.releases) : [];
+  const cardGrid = cards.length > 2 ? "sm:grid-cols-4" : "sm:grid-cols-3";
+  const totalSpan =
+    cards.length > 3 ? "col-span-2 sm:col-span-4" : "col-span-2 sm:col-span-1";
 
   return (
     <article className="max-w-3xl mx-auto px-6 pt-28 pb-16 sm:pt-32 sm:pb-20">
@@ -66,24 +103,17 @@ export default async function StatsPage() {
 
       {stats ? (
         <>
-          <section className="mt-10 grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <section className={`mt-10 grid grid-cols-2 gap-3 ${cardGrid}`}>
             <StatCard
               label="Total desktop downloads"
               value={stats.total}
               note={`Across ${stats.releases.length} releases`}
               emphasis
-              className="col-span-2 sm:col-span-1"
+              className={totalSpan}
             />
-            <StatCard
-              label="Apple Silicon"
-              value={downloadsByAsset(stats.releases, "lpm-desktop-macos-arm64.dmg")}
-              note="M-series Macs"
-            />
-            <StatCard
-              label="Intel"
-              value={downloadsByAsset(stats.releases, "lpm-desktop-macos-amd64.dmg")}
-              note="x86-64 Macs"
-            />
+            {cards.map((card) => (
+              <StatCard key={card.label} {...card} />
+            ))}
           </section>
 
           <section className="mt-12">

@@ -41,7 +41,7 @@ import ToolkitOverview from "./_components/toolkit-overview";
 
 const TITLE = "Create & Edit Claude Code and Codex Skills";
 const DESCRIPTION =
-  "Create and edit Claude Code and Codex skills in lpm for Mac: AI drafts the SKILL.md, you pick who runs it, and every skill shows its per-turn context cost.";
+  "Create and edit Claude Code and Codex skills in lpm: AI drafts the SKILL.md, you pick who runs it, and every skill shows its per-turn context cost.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -72,7 +72,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: TITLE,
     description:
-      "A visual skill editor for Claude Code and Codex, built into lpm for macOS.",
+      "A visual skill editor for Claude Code and Codex, built into the lpm desktop app.",
   },
 };
 
@@ -85,7 +85,7 @@ const structuredData = [
       "Claude Code skills",
       "Codex skills",
       "SKILL.md editor",
-      "macOS developer tools",
+      "desktop developer tools",
     ],
   }),
   breadcrumbJsonLd([
@@ -109,7 +109,7 @@ export default function ClaudeCodeCodexSkillsPage() {
         <div className="absolute inset-x-0 top-0 -z-10 h-[50rem] bg-[radial-gradient(circle_at_20%_14%,rgba(217,119,87,0.17),transparent_28%),radial-gradient(circle_at_80%_12%,rgba(16,163,127,0.16),transparent_27%)] dark:bg-[radial-gradient(circle_at_20%_14%,rgba(217,119,87,0.22),transparent_28%),radial-gradient(circle_at_80%_12%,rgba(16,163,127,0.2),transparent_27%)]" />
         <div className="mx-auto max-w-5xl px-6">
           <p className="mb-5 text-xs font-medium uppercase tracking-[0.25em] text-gray-500 dark:text-gray-400">
-            Built into lpm · macOS
+            Built into the lpm desktop app
           </p>
           <h1 className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-600 bg-clip-text text-[2.25rem] font-extrabold leading-[1.06] tracking-[-0.04em] text-transparent dark:from-white dark:via-gray-100 dark:to-gray-400 sm:text-5xl md:text-[clamp(2.75rem,6.2vh,3.75rem)]">
             Create Claude Code & Codex skills.{" "}
@@ -325,7 +325,7 @@ export default function ClaudeCodeCodexSkillsPage() {
             href: TOKEN_USAGE_PATH,
             title: "Claude Code & Codex usage and limits",
             description:
-              "Tokens and cost by project, plus live 5-hour and weekly limit meters, in a private Mac app.",
+              "Tokens and cost by project, plus live 5-hour and weekly limit meters, in a private desktop app.",
           },
           {
             href: CONNECT_AGENTS_PATH,

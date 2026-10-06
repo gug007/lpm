@@ -57,7 +57,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: TITLE,
     description:
-      "One field — user@host — and lpm installs itself on your Linux server over SSH. Its projects, terminals, services and AI agents appear in your Mac sidebar and keep running when you close the lid.",
+      "One field — user@host — and lpm installs itself on your Linux server over SSH. Its projects, terminals, services and AI agents appear in your sidebar and keep running when you close the lid.",
     type: "website",
     url: LINUX_HOST_PATH,
     siteName: "lpm",
@@ -66,7 +66,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: TITLE,
     description:
-      "Move long Claude Code and Codex runs onto a Linux box you own, and drive it from the Mac app you already use.",
+      "Move long Claude Code and Codex runs onto a Linux box you own, and drive it from the desktop app you already use.",
   },
 };
 

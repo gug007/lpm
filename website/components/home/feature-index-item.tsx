@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
+import { ShortcutLabel } from "@/components/shortcut-label";
 import type { IndexItem } from "./feature-index-data";
 
 export function FeatureIndexItem({ item }: { item: IndexItem }) {
@@ -20,7 +21,7 @@ export function FeatureIndexItem({ item }: { item: IndexItem }) {
             </span>
             {keys && (
               <kbd className="mt-px hidden shrink-0 rounded-md border border-gray-200 bg-white px-1.5 font-mono text-[10.5px] leading-[18px] text-gray-500 dark:border-gray-700 dark:bg-white/[0.04] dark:text-gray-400 sm:inline-block">
-                {keys}
+                <ShortcutLabel mac={keys} />
               </kbd>
             )}
             <ArrowRight

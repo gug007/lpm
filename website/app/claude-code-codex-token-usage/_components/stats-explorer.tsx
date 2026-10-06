@@ -124,7 +124,7 @@ export default function StatsExplorer() {
           </div>
 
           <div className="flex flex-col gap-1 pt-1 text-[11px] text-[var(--text-muted)] lg:flex-row lg:items-center lg:justify-between lg:gap-4">
-            <p>Usage metadata stays on this Mac. Prompts and responses are not included.</p>
+            <p>Usage metadata stays on this computer. Prompts and responses are not included.</p>
             <p>{`${formatCount(FILES_SCANNED)} local history files scanned · SSH projects excluded`}</p>
           </div>
         </div>

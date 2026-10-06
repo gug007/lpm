@@ -191,8 +191,9 @@ export default function ComparisonsHubPage() {
           every start. lpm uses either one once, when you add the folder — a
           service per Procfile line, or a single <code>docker compose up</code>{" "}
           for the compose file — and keeps a list of its own after that. Five of
-          the seven also run somewhere other than a Mac; lpm does not, and the
-          table below says so.
+          the seven also run somewhere other than a Mac. So does lpm, on
+          Windows 11 and 64-bit x86 Linux; the table below says where each one
+          runs.
         </p>
         <CodeBlock filename="The same two processes, three ways">
           {SHAPES}
@@ -222,9 +223,10 @@ export default function ComparisonsHubPage() {
               either way.
             </span>
             <span className="mt-3 block">
-              lpm&apos;s desktop app is macOS only. A Linux box can take the
-              other end of it — the services and the agents run there, the Mac
-              drives them —{" "}
+              lpm&apos;s desktop app runs on macOS, and in beta on Windows 11
+              and 64-bit x86 Linux. A headless Linux server can also take the
+              other end of it — the services and the agents run there, the
+              desktop app drives them —{" "}
               <Link
                 href={LINUX_HOST_PATH}
                 className="underline underline-offset-2 hover:text-gray-900 dark:hover:text-white"
@@ -257,7 +259,7 @@ export default function ComparisonsHubPage() {
         reviewed={VS_REVIEWED}
         reviewedIso={VS_REVIEWED_ISO}
         sources={HUB_SOURCES}
-        lpmNote="Where we cannot name a workflow difference we do not invent one — two rows above go against lpm."
+        lpmNote="Where we cannot name a workflow difference we do not invent one — one row above goes against lpm outright."
       />
 
       <Router />
@@ -308,7 +310,7 @@ export default function ComparisonsHubPage() {
             href: LINUX_HOST_PATH,
             title: "Run Claude Code on a remote server",
             description:
-              "Driving a headless Linux host from the Mac — the only Linux in the table lpm has a story for.",
+              "Pair a headless Linux server and drive its services and agents from the desktop app.",
           },
         ]}
       />

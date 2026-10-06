@@ -22,7 +22,7 @@ export default function Hero() {
       <div className="absolute inset-x-0 top-0 -z-10 h-[44rem] bg-[radial-gradient(circle_at_top_left,rgba(20,184,166,0.12),transparent_34%),radial-gradient(circle_at_top_right,rgba(34,211,238,0.11),transparent_32%)] dark:bg-[radial-gradient(circle_at_top_left,rgba(20,184,166,0.16),transparent_32%),radial-gradient(circle_at_top_right,rgba(34,211,238,0.14),transparent_30%)]" />
       <div className="max-w-4xl mx-auto px-6 text-center">
         <p className="text-xs font-medium uppercase tracking-[0.25em] text-teal-700/70 dark:text-teal-300/70 mb-5">
-          Linux hosts, from the Mac app
+          Linux hosts, from the desktop app
         </p>
         <h1 className="text-[2.25rem] sm:text-5xl md:text-[clamp(2.75rem,6.2vh,3.75rem)] font-extrabold tracking-tight leading-[1.06] bg-gradient-to-br from-gray-900 via-gray-800 to-gray-600 dark:from-white dark:via-gray-100 dark:to-gray-400 bg-clip-text text-transparent">
           Run Claude Code and Codex on a Linux server, from your Mac.

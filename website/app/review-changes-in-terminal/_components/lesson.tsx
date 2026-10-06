@@ -3,7 +3,7 @@ import { LessonSection } from "@/components/lesson-section";
 const STEPS = [
   {
     title: "Open Review changes",
-    body: "When the agent is done, click the ⋯ menu above the terminal and choose Review changes, or press ⌘⇧R.",
+    body: "When the agent is done, click the ⋯ menu above the terminal and choose Review changes, or press ⌘⇧R (Ctrl+Alt+Shift+R on Windows and Linux).",
   },
   {
     title: "Read every change in one stack",

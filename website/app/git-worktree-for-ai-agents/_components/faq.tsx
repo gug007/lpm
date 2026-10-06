@@ -60,7 +60,7 @@ export const FAQ_ITEMS: { question: string; answer: string }[] = [
   {
     question: "How much disk does each copy use?",
     answer:
-      "A linked worktree is very compact because the repository data is shared. A Duplicate begins as an APFS clone whose unchanged blocks stay shared on disk, and it only grows as each copy changes. Regenerable build caches such as .next, dist, and target are skipped rather than cloned.",
+      "A linked worktree is very compact because the repository data is shared. On APFS, a Duplicate begins as a clone whose unchanged blocks stay shared on disk, and it only grows as each copy changes; where the disk can't clone, as on ext4 or Windows, it is a full copy. Regenerable build caches such as .next, dist, and target are skipped rather than cloned.",
   },
   {
     question: "How many parallel agents should I run?",

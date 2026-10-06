@@ -14,9 +14,9 @@ export default function Hero() {
           What lpm does, from dev servers to Claude Code and Codex
         </h1>
         <p className="mx-auto mt-5 max-w-2xl text-pretty text-base leading-relaxed text-gray-600 sm:text-[17px] dark:text-gray-400">
-          lpm is a free, open-source Mac app for your local projects and the AI
-          agents working in them. This guide walks through {FEATURE_COUNT} features
-          in {AREAS.length} areas, with the fine print where it matters.
+          lpm is a free, open-source desktop app for your local projects and the
+          AI agents working in them. This guide walks through {FEATURE_COUNT}{" "}
+          features in {AREAS.length} areas, with the fine print where it matters.
         </p>
         <div className="mt-[clamp(1.25rem,3vh,1.75rem)] flex justify-center">
           <HeroDownload source="features-hero" />

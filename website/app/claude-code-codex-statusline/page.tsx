@@ -42,9 +42,9 @@ import {
 
 // Every query this page ranks for on page one leads with "codex", so the title
 // does too.
-const TITLE = "Codex & Claude Code Statusline Editor for Mac";
+const TITLE = "Codex & Claude Code Statusline Editor";
 const DESCRIPTION =
-  "Build a custom Codex or Claude Code statusline in a visual editor: pick a preset, reorder fields, tune colors and meters, preview live. Free Mac app.";
+  "Build a custom Codex or Claude Code statusline in a visual editor: pick a preset, reorder fields, tune colors and meters, preview live. Free desktop app.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -75,7 +75,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: TITLE,
     description:
-      "Visual statusline editor for Codex and Claude Code, built into lpm for macOS.",
+      "Visual statusline editor for Codex and Claude Code, built into the lpm desktop app.",
   },
 };
 
@@ -88,7 +88,7 @@ const structuredData = [
       "Claude Code statusline",
       "Codex status line",
       "visual statusline editor",
-      "macOS developer tools",
+      "desktop developer tools",
     ],
   }),
   breadcrumbJsonLd([
@@ -117,7 +117,7 @@ export default function ClaudeCodeCodexStatuslinePage() {
         <div className="absolute inset-x-0 top-0 -z-10 h-[50rem] bg-[radial-gradient(circle_at_20%_14%,rgba(217,119,87,0.17),transparent_28%),radial-gradient(circle_at_80%_12%,rgba(16,163,127,0.16),transparent_27%)] dark:bg-[radial-gradient(circle_at_20%_14%,rgba(217,119,87,0.22),transparent_28%),radial-gradient(circle_at_80%_12%,rgba(16,163,127,0.2),transparent_27%)]" />
         <div className="mx-auto max-w-6xl px-6">
           <p className="mb-5 text-xs font-medium uppercase tracking-[0.25em] text-gray-500 dark:text-gray-400">
-            Built into lpm · macOS
+            Built into the lpm desktop app
           </p>
           <h1 className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-600 bg-clip-text text-[2.25rem] font-extrabold leading-[1.06] tracking-[-0.04em] text-transparent dark:from-white dark:via-gray-100 dark:to-gray-400 sm:text-5xl md:text-[clamp(2.75rem,6.2vh,3.75rem)]">
             Customize Claude Code & Codex statuslines without editing config

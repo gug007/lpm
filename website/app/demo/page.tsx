@@ -3,7 +3,7 @@ import { EmptyDemo } from "./_components/empty-demo";
 
 const TITLE = "Interactive Demo";
 const DESCRIPTION =
-  "Try lpm in your browser: an empty Mac workspace where you add a project, start its services, and open Claude Code and Codex from the toolbar.";
+  "Try lpm in your browser: an empty workspace where you add a project, start its services, and open Claude Code and Codex from the toolbar.";
 
 export const metadata: Metadata = {
   title: TITLE,

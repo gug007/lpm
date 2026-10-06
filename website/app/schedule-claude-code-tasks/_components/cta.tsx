@@ -9,7 +9,7 @@ export default function Cta() {
           Put your agents on a schedule.
         </h2>
         <p className="mx-auto mt-6 max-w-xl text-pretty text-base leading-relaxed text-gray-500 sm:text-lg dark:text-gray-400">
-          Download lpm for macOS, open Automations, and give Claude Code or
+          Download lpm, open Automations, and give Claude Code or
           Codex its first night shift. Free and open source.
         </p>
         <div className="mt-10 flex justify-center">

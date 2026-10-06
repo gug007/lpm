@@ -227,7 +227,7 @@ export function FilesHeader({
       {/* The mousedown must not reach the menu's outside-click listener, or a
           click on the open button would close and reopen it. */}
       <span className="inline-flex" onMouseDown={(e) => e.stopPropagation()}>
-        <Tooltip content="More options" side="bottom" align="end">
+        <Tooltip content="More options" side="bottom" align="end" disabled={!!sideMenu}>
           <button
             ref={moreRef}
             type="button"

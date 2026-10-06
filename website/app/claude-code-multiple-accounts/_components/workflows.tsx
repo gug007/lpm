@@ -12,7 +12,7 @@ type Workflow = {
 
 const WORKFLOWS: Workflow[] = [
   {
-    title: "Company seat and personal subscription on one Mac",
+    title: "Company seat and personal subscription on one computer",
     body: (
       <>
         Pin the client repo to your company seat and leave the side project on

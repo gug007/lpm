@@ -24,7 +24,8 @@ export const PARALLEL_AREA: FeatureArea = {
     {
       icon: Copy,
       title: "Duplicate a project",
-      body: "Make up to 50 independent copies at once. On APFS they're copy-on-write clones that bring your .env files and node_modules along and leave build output and caches behind.",
+      body: "Make up to 50 independent copies at once. They bring your .env files and node_modules along and leave build output and caches behind.",
+      note: "On a Mac, copies are copy-on-write clones that share disk space; on Windows and Linux they're usually full copies.",
       href: WORKTREE_ALTERNATIVE_PATH,
       linkLabel: "Git worktree alternative",
     },
@@ -66,8 +67,8 @@ export const PARALLEL_AREA: FeatureArea = {
       body: "Copies and worktrees share the original's session memory, so an agent in one copy can pick up where another left off.",
     },
     {
-      title: "Copies on another Mac",
-      body: "If a paired Mac has this project too, you can place each new copy on that Mac instead.",
+      title: "Copies on another computer",
+      body: "If a paired computer has this project too, you can place each new copy there instead.",
     },
     {
       title: "Ports stay in your hands",
@@ -103,7 +104,7 @@ export const GIT_AREA: FeatureArea = {
       icon: GitCommitHorizontal,
       title: "AI commit messages",
       body: "Pick files, then let your installed agent CLI write a conventional-commit message from the diff. Auto Commit does it all in one click, and can push too.",
-      note: "Uses Claude Code, Codex, Gemini CLI, or OpenCode on your Mac.",
+      note: "Uses Claude Code, Codex, Gemini CLI, or OpenCode on your computer.",
       href: GIT_TERMINAL_MAC_PATH,
       linkLabel: "Git in lpm",
     },
@@ -153,13 +154,14 @@ export const GIT_AREA: FeatureArea = {
     },
     {
       title: "Files tab",
-      body: "A file tree with Git status colors beside a code editor with syntax highlighting. Jump to any file by name and save with ⌘S.",
+      body: "A file tree with Git status colors beside a code editor with syntax highlighting. Jump to any file by name and save with ⌘S (Ctrl+S on Windows and Linux).",
       note: "A lightweight editor, not an IDE.",
       keys: ["⌘⇧E", "⌘P"],
     },
     {
       title: "Markdown, image, and video preview",
       body: "Markdown renders the way GitHub shows it, images open with zoom, and videos play inline.",
+      note: "On Linux, MP4 video needs the codec packages the .deb and .rpm recommend.",
     },
     {
       title: "Open at the exact line",

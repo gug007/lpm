@@ -193,9 +193,10 @@ export default function LpmVsCmuxPage() {
           lands on top of another&apos;s work.
         </p>
         <p>
-          Both are free to use and macOS-only, and their configs describe
-          different things, so running both is a normal setup rather than a
-          compromise.
+          Both are free to use and native on macOS — cmux only there, while lpm
+          also has builds for Windows 11 and 64-bit x86 Linux — and their
+          configs describe different things, so running both is a normal setup
+          rather than a compromise.
         </p>
         <CodeBlock filename="Three agents, one prompt">
           {`lpm start api
@@ -295,7 +296,7 @@ lpm status --json`}
 
       <Cta
         title="Run your projects, your way."
-        description="lpm is free under MIT and macOS-only. Add a repo, let lpm list its services, and keep cmux open beside it."
+        description="lpm is free under MIT and native on macOS. Add a repo, let lpm list its services, and keep cmux open beside it."
         downloadSource="vs-cmux-cta"
       />
     </>

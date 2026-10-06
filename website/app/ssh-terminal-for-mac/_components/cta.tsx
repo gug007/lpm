@@ -20,7 +20,7 @@ export default function Cta() {
         </p>
 
         <div className="mt-10 flex justify-center">
-          <HeroDownload source="ssh-cta" />
+          <HeroDownload source="ssh-cta" macFocus />
         </div>
 
         <div className="mt-8">

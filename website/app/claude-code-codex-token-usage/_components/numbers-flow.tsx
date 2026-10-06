@@ -9,7 +9,7 @@ const SETUP_CARDS: { dot: string; title: string; body: ReactNode }[] = [
   {
     dot: CODEX_DOT,
     title: "Codex: nothing to set up.",
-    body: "lpm reads the limits Codex writes to its session files on this Mac, whichever terminal you ran it in, so if you've used Codex before its meters can appear as soon as lpm opens. Some plans report only a weekly window.",
+    body: "lpm reads the limits Codex writes to its session files on this computer, whichever terminal you ran it in, so if you've used Codex before its meters can appear as soon as lpm opens. Some plans report only a weekly window.",
   },
   {
     dot: CLAUDE_DOT,
@@ -35,7 +35,7 @@ export default function NumbersFlow() {
         <SectionHeader
           eyebrow="Private by design"
           title="Where lpm gets the numbers"
-          description="Everything comes from files and readings already on your Mac, and lpm never asks Anthropic or OpenAI for any of it."
+          description="Everything comes from files and readings already on your computer, and lpm never asks Anthropic or OpenAI for any of it."
           className="mb-12"
         />
 
@@ -89,8 +89,8 @@ export default function NumbersFlow() {
         <p className="mx-auto mt-8 max-w-3xl text-pretty text-center text-xs leading-relaxed text-gray-500 dark:text-gray-400">
           Stats and Usage are in the More menu at the bottom of lpm&apos;s
           sidebar; right-click either and choose Move to the sidebar to keep it
-          in view. Not counted in Stats: SSH projects, projects on other Macs or
-          Linux servers you control from lpm, and sessions outside your lpm
+          in view. Not counted in Stats: SSH projects, projects on other
+          computers or Linux servers you control from lpm, and sessions outside your lpm
           projects. The 5-hour and weekly meters still include everything that
           counts toward those windows, including claude.ai chat.
         </p>

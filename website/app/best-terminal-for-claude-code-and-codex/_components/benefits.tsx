@@ -48,7 +48,7 @@ export default function Benefits() {
       <div className="max-w-3xl mx-auto px-6">
         <SectionHeader
           eyebrow="Why the desktop app"
-          title="What changes when you run agents in a real macOS window"
+          title="What changes when you run agents in a real desktop window"
         />
         <ol className="space-y-10">
           {OUTCOMES.map(({ title, body }, i) => (
