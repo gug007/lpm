@@ -282,15 +282,13 @@ pub fn move_pane_status(
     Ok(())
 }
 
-/// Every 30s, clear entries whose agent PID is gone (kill(pid,0)==ESRCH).
+/// Every 30s, clear entries whose agent PID is gone.
 /// Hooks don't pass --pid today, so this is dormant but kept for fidelity.
 pub fn start_pid_sweep(store: Arc<StatusStore>, app: AppHandle) {
     std::thread::spawn(move || loop {
         std::thread::sleep(std::time::Duration::from_secs(30));
         for (project, key, pid) in store.pid_candidates() {
-            let alive = unsafe { libc::kill(pid as libc::pid_t, 0) } == 0
-                || std::io::Error::last_os_error().raw_os_error() != Some(libc::ESRCH);
-            if !alive && store.clear(&project, &key) {
+            if !crate::osproc::is_alive(pid as u32) && store.clear(&project, &key) {
                 let _ = app.emit("status-changed", &project);
             }
         }

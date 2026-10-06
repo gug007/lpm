@@ -13,6 +13,8 @@ import { ROLLUP_SEPARATOR_CLASS, rollupSegments } from "./sidebarRollup";
 import { SortableItem } from "./ui/SortableList";
 import type { MirrorRow } from "./peerSections";
 import type { PeerStatus } from "../peer/peerStatus";
+import type { PeerNoun } from "../peer/platform";
+import { isMac } from "../platform";
 import { isPeerSectionCollapsed, setPeerSectionCollapsed } from "../peer/peerSectionCollapse";
 import { PeerReconnect, PeerRemotePair, PeerRemove, PeerSetAlias } from "../../bridge/commands";
 import { useAppStore } from "../store/app";
@@ -56,6 +58,7 @@ export function SidebarPeerSection({
   host,
   connected,
   linuxHost,
+  noun = linuxHost ? "server" : "Mac",
   status,
   projects,
   strays,
@@ -72,6 +75,8 @@ export function SidebarPeerSection({
   connected: boolean;
   /// Which machine this is, for the header's glyph.
   linuxHost: boolean;
+  /// What its dialogs call it.
+  noun?: PeerNoun;
   /// How it is doing, for the header's plate and its second line.
   status: PeerStatus;
   projects: ProjectInfo[];
@@ -246,7 +251,8 @@ export function SidebarPeerSection({
 
       <ConfirmDialog
         open={confirmOpen}
-        title="Disconnect Mac"
+        // On macOS a server's section keeps the title it has always had.
+        title={isMac && noun === "server" ? "Disconnect Mac" : `Disconnect ${noun}`}
         variant="destructive"
         confirmLabel="Remove"
         body={
@@ -262,7 +268,7 @@ export function SidebarPeerSection({
 
       <RenameModal
         open={renameOpen}
-        title={linuxHost ? "Rename server" : "Rename Mac"}
+        title={`Rename ${noun}`}
         description="The name this Mac lists it under. Nothing changes on the machine itself."
         initialValue={alias}
         onClose={() => setRenameOpen(false)}

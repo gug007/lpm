@@ -2,6 +2,8 @@
 // actually load in a directory, and why a capability that looks installed may
 // not be.
 
+import { isWindows } from "./platform";
+
 export type CapabilityKind =
   | "mcp"
   | "skill"
@@ -102,8 +104,10 @@ export function shortPath(path: string, home = ""): string {
   return h && path.startsWith(h) ? `~${path.slice(h.length)}` : path;
 }
 
-function guessHome(path: string): string {
-  const match = /^\/(?:Users|home)\/[^/]+/.exec(path);
+const WIN_HOME_RE = /^[A-Za-z]:[\\/]Users[\\/][^\\/]+/i;
+
+function guessHome(path: string, win = isWindows): string {
+  const match = /^\/(?:Users|home)\/[^/]+/.exec(path) ?? (win ? WIN_HOME_RE.exec(path) : null);
   return match ? match[0] : "";
 }
 

@@ -239,19 +239,23 @@ fn opted_out_at(lpm_dir: &std::path::Path) -> bool {
 /// incomplete installs get re-written, absence is left alone because it means
 /// they never clicked Install (or deliberately removed them).
 ///
-/// A Linux host has no Settings pane, so absence there can only ever mean nobody
-/// could be asked — and a machine whose entire purpose is running agents is the
-/// last place the skills describing lpm to those agents should be missing. So it
-/// installs on the first start and keeps the files current on every start after,
-/// which is also what makes `Update lpm there` update them: the new binary
-/// carries new copies and the unit restarts into this. `install_agent_hooks`
-/// already writes into the same home directory on the same terms.
+/// A headless Linux host has no Settings pane, so absence there can only ever
+/// mean nobody could be asked — and a machine whose entire purpose is running
+/// agents is the last place the skills describing lpm to those agents should be
+/// missing. So it installs on the first start and keeps the files current on
+/// every start after, which is also what makes `Update lpm there` update them:
+/// the new binary carries new copies and the unit restarts into this.
+/// `install_agent_hooks` already writes into the same home directory on the same
+/// terms. A Linux or Windows desktop has the pane, so it behaves like a Mac.
 pub fn refresh_at_startup() {
     let dirs = targets();
     // cfg!, not #[cfg] — the host branch then compiles on a Mac too, so it is
-    // type-checked by the build everyone actually runs. lpm_dir() is not touched
-    // off-Linux; the constant folds the call away.
-    if cfg!(target_os = "linux") && !opted_out_at(&crate::config::lpm_dir()) {
+    // type-checked by the build everyone actually runs. Neither headless() nor
+    // lpm_dir() is consulted on a Mac; the constant folds the calls away.
+    if cfg!(not(target_os = "macos"))
+        && crate::sys::headless()
+        && !opted_out_at(&crate::config::lpm_dir())
+    {
         ensure_all(&dirs);
         return;
     }

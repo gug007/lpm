@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { GitShowPrefix } from "../../bridge/commands";
-import { basename, relTo } from "../path";
+import { basename, dirname, relTo } from "../path";
 import { isPeerRoot, stripMarker } from "../peer/markers";
 import { isSourceImage, mediaKind } from "./fileMedia";
 import { useChangedFiles } from "./files/useChangedFiles";
@@ -25,8 +25,7 @@ const STATUS_LABEL: Record<string, string> = {
 export function viewerLocation(absPath: string, projectRoot: string) {
   const rel = projectRoot ? relTo(absPath, projectRoot) : absPath;
   if (rel !== absPath) return { root: projectRoot, rel };
-  const cut = absPath.lastIndexOf("/");
-  const dir = cut > 0 ? absPath.slice(0, cut) : "/";
+  const dir = dirname(absPath);
   return { root: isPeerRoot(`${dir}/`) && !isPeerRoot(dir) ? `${dir}/` : dir, rel: basename(absPath) };
 }
 

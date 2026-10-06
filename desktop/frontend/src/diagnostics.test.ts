@@ -53,6 +53,10 @@ describe("diagnostic redaction", () => {
     expect(value).not.toContain("secret-value");
   });
 
+  it("redacts a Windows profile folder", () => {
+    expect(redactDiagnosticString("open C:\\Users\\alice\\code\\a.ts")).toBe("open ~\\code\\a.ts");
+  });
+
   it("redacts sensitive object fields and handles cycles", () => {
     const value: Record<string, unknown> = { token: "secret", name: "safe" };
     value.self = value;

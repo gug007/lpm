@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ArrowRight, RefreshCw, Trash2, X } from "lucide-react";
 import { Modal } from "../ui/Modal";
 import { PeerSyncRun } from "../../../bridge/commands";
+import { MACHINE as M } from "../../machineWords";
 
 export interface SyncItem {
   kind: "project" | "global" | "template";
@@ -36,8 +37,8 @@ function DirectionArrow({
   direction: SyncItem["direction"];
   peerName: string;
 }) {
-  const from = direction === "toRemote" ? "This Mac" : peerName;
-  const to = direction === "toRemote" ? peerName : "This Mac";
+  const from = direction === "toRemote" ? M.ThisMachine : peerName;
+  const to = direction === "toRemote" ? peerName : M.ThisMachine;
   return (
     <span className="flex shrink-0 items-center gap-1 text-[11px] text-[var(--text-muted)]">
       <span className="max-w-[90px] truncate">{from}</span>
@@ -54,7 +55,7 @@ function RemoveLabel({
   direction: SyncItem["direction"];
   peerName: string;
 }) {
-  const where = direction === "toRemote" ? peerName : "This Mac";
+  const where = direction === "toRemote" ? peerName : M.ThisMachine;
   return (
     <span
       className="flex shrink-0 items-center gap-1 text-[11px] text-[var(--accent-red)]"
@@ -69,7 +70,7 @@ function RemoveLabel({
 function ConflictBadge() {
   return (
     <span
-      title="Changed on both Macs — the newer change wins, and a backup is kept."
+      title={`Changed on both ${M.plural} — the newer change wins, and a backup is kept.`}
       className="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium"
       style={{
         color: "var(--accent-amber)",
@@ -144,8 +145,8 @@ export function SyncPreviewModal({
             <span className="font-mono text-[var(--text-secondary)]">{peerName}</span>
           </h3>
           <p className="mt-1 text-[12px] leading-snug text-[var(--text-muted)]">
-            The newer copy of each item wins, and when an item changed on both Macs the newer change
-            is kept. A full backup of each Mac's config is taken first.
+            The newer copy of each item wins, and when an item changed on both {M.plural} the newer change
+            is kept. A full backup of each {M.noun}&#39;s config is taken first.
           </p>
         </div>
         <button
@@ -166,7 +167,7 @@ export function SyncPreviewModal({
                 <p className="text-lg font-semibold tabular-nums text-[var(--text-primary)]">
                   {result.applied}
                 </p>
-                <p className="text-[11px] text-[var(--text-muted)]">applied to this Mac</p>
+                <p className="text-[11px] text-[var(--text-muted)]">applied to {M.thisMachine}</p>
               </div>
               <div className="flex-1">
                 <p className="text-lg font-semibold tabular-nums text-[var(--text-primary)]">
@@ -191,7 +192,7 @@ export function SyncPreviewModal({
             )}
             {result.applied > 0 && result.backupPath && (
               <p className="text-[11px] leading-snug text-[var(--text-muted)]">
-                A backup of this Mac's previous config was saved to{" "}
+                A backup of {M.thisMachine}&#39;s previous config was saved to{" "}
                 <span className="break-all font-mono text-[var(--text-secondary)]">
                   {result.backupPath}
                 </span>

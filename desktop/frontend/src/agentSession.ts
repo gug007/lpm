@@ -1,4 +1,5 @@
 import type { TerminalInstance } from "./paneTree";
+import { commandName } from "./path";
 
 const ENV_ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/;
 const SESSION_ID = /^[A-Za-z0-9_-]{1,128}$/;
@@ -31,7 +32,7 @@ export function parseAgentCommand(
   return {
     tokens,
     programIdx,
-    program: tokens[programIdx].split("/").pop() ?? "",
+    program: commandName(tokens[programIdx]),
   };
 }
 

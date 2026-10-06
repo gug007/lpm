@@ -10,7 +10,11 @@ import {
 } from "../hooks/useOpenInTargets";
 import { isPeerMarked } from "../peer/markers";
 
-const TERMINAL_IDS = new Set(["terminal", "iterm2", "ghostty", "warp"]);
+const TERMINAL_IDS = new Set([
+  "terminal", "iterm2", "ghostty", "warp",
+  "gnome-terminal", "ptyxis", "konsole", "xfce4-terminal", "kitty", "alacritty", "wezterm", "xterm",
+  "windows-terminal", "powershell", "git-bash",
+]);
 
 function groupTargets(targets: OpenInTarget[]) {
   const editors: OpenInTarget[] = [];

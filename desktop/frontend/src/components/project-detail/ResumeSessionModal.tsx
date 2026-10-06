@@ -6,6 +6,7 @@ import { ResumeSessionRow } from "./ResumeSessionRow";
 import { ResumeSessionEmpty } from "./ResumeSessionEmpty";
 import { ResumeSessionFooter } from "./ResumeSessionFooter";
 import { ResumeSessionSkeleton } from "./ResumeSessionSkeleton";
+import { isHideSessionChord } from "./resumeSessionKeys";
 import {
   SESSION_PAGE_SIZE,
   filterByProvider,
@@ -202,7 +203,7 @@ export function ResumeSessionModal({
     }
     // The search field holds focus throughout, so hiding can only claim a chord
     // that isn't already text editing: bare ⌫ types, ⌥⌫ deletes a word.
-    if ((e.key === "Backspace" || e.key === "Delete") && e.metaKey) {
+    if (isHideSessionChord(e)) {
       if (activeRow && canHide) {
         e.preventDefault();
         hide(activeRow);

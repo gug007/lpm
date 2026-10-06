@@ -25,12 +25,34 @@ fn resolve_lpm_dir(env: Option<std::ffi::OsString>, home: PathBuf) -> PathBuf {
     match env.filter(|v| !v.is_empty()) {
         Some(v) => {
             let raw = v.to_string_lossy();
-            match raw.strip_prefix("~/") {
-                Some(rest) => home.join(rest),
+            match strip_tilde(&raw, cfg!(windows)) {
+                Some(rest) => home.join(&*native_seps(rest)),
                 None => PathBuf::from(v),
             }
         }
         None => home.join(".lpm"),
+    }
+}
+
+/// What follows a leading `~/` — or, on Windows, `~\` too.
+fn strip_tilde(p: &str, windows: bool) -> Option<&str> {
+    if let Some(rest) = p.strip_prefix("~/") {
+        return Some(rest);
+    }
+    if windows {
+        p.strip_prefix("~\\")
+    } else {
+        None
+    }
+}
+
+/// A home-relative remainder with Windows' own separator, so a `~/a/b` written
+/// on a Mac expands to `C:\Users\me\a\b`. Unchanged elsewhere.
+fn native_seps(rest: &str) -> std::borrow::Cow<'_, str> {
+    if cfg!(windows) {
+        std::borrow::Cow::Owned(rest.replace('/', "\\"))
+    } else {
+        std::borrow::Cow::Borrowed(rest)
     }
 }
 
@@ -229,8 +251,9 @@ pub fn project_exists(name: &str) -> bool {
     project_path(name).exists()
 }
 
-/// config.ValidateName: reject empty, path separators, `.`/`..`, and the
-/// reserved global name.
+/// config.ValidateName: reject empty, path separators, `.`/`..`, the reserved
+/// global name, and a name this platform can't use as a file name (the project
+/// file is `<name>.yml`, and a duplicate's folder carries the name too).
 pub fn validate_name(name: &str) -> Result<(), String> {
     if name.is_empty()
         || name.contains('/')
@@ -238,6 +261,7 @@ pub fn validate_name(name: &str) -> Result<(), String> {
         || name == "."
         || name == ".."
         || name == RESERVED_PROJECT_NAME
+        || !crate::fsname::is_portable(name)
     {
         return Err(format!("invalid project name: {name:?}"));
     }
@@ -276,10 +300,10 @@ pub fn expand_home(p: &str) -> String {
             .to_string_lossy()
             .into_owned();
     }
-    if let Some(rest) = p.strip_prefix("~/") {
+    if let Some(rest) = strip_tilde(p, cfg!(windows)) {
         return dirs::home_dir()
             .unwrap_or_default()
-            .join(rest)
+            .join(&*native_seps(rest))
             .to_string_lossy()
             .into_owned();
     }
@@ -288,18 +312,44 @@ pub fn expand_home(p: &str) -> String {
 
 /// Inverse of expand_home: collapse a $HOME-prefixed path to `~` / `~/rest`.
 pub fn collapse_home(p: &str) -> String {
+    let home = dirs::home_dir().unwrap_or_default();
+    collapse_home_in(p, &home.to_string_lossy(), cfg!(windows))
+}
+
+/// `collapse_home` against an explicit home. Windows paths compare without
+/// regard to case or separator, and collapse to the same `~/a/b` a Mac writes.
+fn collapse_home_in(p: &str, home: &str, windows: bool) -> String {
     if p.is_empty() {
         return String::new();
     }
-    let home = dirs::home_dir().unwrap_or_default();
-    let home = home.to_string_lossy();
-    if p == home {
+    if !windows {
+        if p == home {
+            return "~".into();
+        }
+        if let Some(rest) = p.strip_prefix(&format!("{home}/")) {
+            return format!("~/{rest}");
+        }
+        return p.to_string();
+    }
+    let is_sep = |c: char| c == '/' || c == '\\';
+    let home = home.trim_end_matches(is_sep);
+    let same_byte = |a: u8, b: u8| {
+        a.eq_ignore_ascii_case(&b) || (is_sep(char::from(a)) && is_sep(char::from(b)))
+    };
+    let under_home = !home.is_empty()
+        && p.get(..home.len())
+            .is_some_and(|head| head.bytes().zip(home.bytes()).all(|(a, b)| same_byte(a, b)));
+    if !under_home {
+        return p.to_string();
+    }
+    let tail = &p[home.len()..];
+    if tail.is_empty() {
         return "~".into();
     }
-    if let Some(rest) = p.strip_prefix(&format!("{home}/")) {
-        return format!("~/{rest}");
+    match tail.strip_prefix(is_sep) {
+        Some(rest) => format!("~/{}", rest.replace('\\', "/")),
+        None => p.to_string(),
     }
-    p.to_string()
 }
 
 // ---- settings ---------------------------------------------------------------
@@ -565,11 +615,13 @@ pub fn save_claude_accounts(v: &Value) -> Result<(), String> {
 
 /// Each account gets its own Claude config dir so logins stay separate, while
 /// settings, memory, skills, and lpm status hooks stay shared with ~/.claude
-/// via symlinks.
+/// via symlinks (on Windows without the symlink privilege: junctions, and
+/// copies of the two files that are refreshed here on every resolve).
 fn ensure_claude_account_dir(id: &str) -> Result<(), String> {
     let dir = claude_account_dir(id);
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let main = dirs::home_dir().unwrap_or_default().join(".claude");
+    let ledger = dir.join(".lpm-copies");
     for name in [
         "settings.json",
         "CLAUDE.md",
@@ -578,11 +630,7 @@ fn ensure_claude_account_dir(id: &str) -> Result<(), String> {
         "commands",
         "plugins",
     ] {
-        let src = main.join(name);
-        let dst = dir.join(name);
-        if src.exists() && std::fs::symlink_metadata(&dst).is_err() {
-            let _ = std::os::unix::fs::symlink(&src, &dst);
-        }
+        let _ = crate::fslink::mirror(&main.join(name), &dir.join(name), &ledger);
     }
     Ok(())
 }
@@ -604,7 +652,13 @@ pub fn claude_config_dir_for_account(id: &str) -> Option<String> {
     // Re-link on every resolve so assets added to ~/.claude after the account
     // was created still reach it.
     let _ = ensure_claude_account_dir(id);
-    Some(claude_account_dir(id).to_string_lossy().into_owned())
+    let dir = claude_account_dir(id).to_string_lossy().into_owned();
+    // Forward slashes on Windows too: the hook and status-line scripts run in
+    // Git Bash and find the account with `*/claude-accounts/*` patterns.
+    if cfg!(windows) {
+        return Some(dir.replace('\\', "/"));
+    }
+    Some(dir)
 }
 
 /// How a spawned child should treat `CLAUDE_CONFIG_DIR`. `Scrub` is distinct
@@ -700,11 +754,19 @@ pub fn claude_limits_account(name: &str) -> String {
 const DEFAULT_LIMITS_ACCOUNT: &str = "default";
 
 fn limits_account_of_config_dir(dir: Option<&str>) -> String {
-    dir.and_then(|d| {
-        let (parent, id) = d.trim_end_matches('/').rsplit_once('/')?;
-        (parent.ends_with("/claude-accounts") && !id.is_empty()).then(|| id.to_string())
-    })
-    .unwrap_or_else(|| DEFAULT_LIMITS_ACCOUNT.to_string())
+    let dir = dir.map(|d| {
+        if cfg!(windows) {
+            d.replace('\\', "/")
+        } else {
+            d.to_string()
+        }
+    });
+    dir.as_deref()
+        .and_then(|d| {
+            let (parent, id) = d.trim_end_matches('/').rsplit_once('/')?;
+            (parent.ends_with("/claude-accounts") && !id.is_empty()).then(|| id.to_string())
+        })
+        .unwrap_or_else(|| DEFAULT_LIMITS_ACCOUNT.to_string())
 }
 
 /// Remove an account and its isolated Claude config dir. The id is validated
@@ -1216,53 +1278,122 @@ pub fn shell_quote(s: &str) -> String {
 }
 
 /// /tmp/lpm-<uid> — short path keeps the ControlPath socket under sun_path's limit.
+#[cfg(unix)]
 pub fn ssh_control_dir() -> String {
     let uid = unsafe { libc::getuid() };
     format!("/tmp/lpm-{uid}")
 }
 
+#[cfg(unix)]
 pub fn ssh_control_path() -> String {
     format!("{}/cm-%C", ssh_control_dir())
 }
 
+/// No-op on Windows: there is no ControlMaster socket to house.
 pub fn ensure_ssh_control_dir() -> Result<(), String> {
-    use std::os::unix::fs::DirBuilderExt;
-    std::fs::DirBuilder::new()
-        .recursive(true)
-        .mode(0o700)
-        .create(ssh_control_dir())
-        .map_err(|e| e.to_string())
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        std::fs::DirBuilder::new()
+            .recursive(true)
+            .mode(0o700)
+            .create(ssh_control_dir())
+            .map_err(|e| e.to_string())
+    }
+    #[cfg(windows)]
+    Ok(())
 }
 
-/// ssh connection args (no leading "ssh", no trailing command). -t always; -p
-/// only when port>0 && !=22; -i only when key set (~-expanded for the local client).
-pub fn ssh_args(ssh: &SshSettings) -> Vec<String> {
-    let mut args = vec![
-        "-t".into(),
+/// Connection sharing plus keepalive/timeout options shared by every builder.
+/// Win32-OpenSSH can't multiplex (a ControlPath fails with "getsockname failed:
+/// Not a socket"), so Windows turns sharing off explicitly, which also beats a
+/// `ControlMaster auto` in an ssh_config synced from a Mac.
+fn ssh_conn_opts() -> Vec<String> {
+    #[cfg(unix)]
+    let mut opts: Vec<String> = vec![
         "-o".into(),
         "ControlMaster=auto".into(),
         "-o".into(),
         format!("ControlPath={}", ssh_control_path()),
         "-o".into(),
         "ControlPersist=10m".into(),
-        "-o".into(),
-        "ServerAliveInterval=15".into(),
-        "-o".into(),
-        "ServerAliveCountMax=3".into(),
-        "-o".into(),
-        "ConnectTimeout=10".into(),
     ];
+    #[cfg(windows)]
+    let mut opts: Vec<String> = vec![
+        "-o".into(),
+        "ControlMaster=no".into(),
+        "-o".into(),
+        "ControlPath=none".into(),
+    ];
+    opts.extend(
+        [
+            "-o",
+            "ServerAliveInterval=15",
+            "-o",
+            "ServerAliveCountMax=3",
+            "-o",
+            "ConnectTimeout=10",
+        ]
+        .map(String::from),
+    );
+    opts
+}
+
+/// `-p`/`-P <port>` when not the default, `-i <key>` when a key is set.
+fn push_port_and_key(args: &mut Vec<String>, ssh: &SshSettings, port_flag: &str) {
     if ssh.port > 0 && ssh.port != 22 {
-        args.push("-p".into());
+        args.push(port_flag.into());
         args.push(ssh.port.to_string());
     }
     let key = ssh.key.trim();
     if !key.is_empty() {
         args.push("-i".into());
-        args.push(expand_home(key));
+        args.push(ssh_local_path(key));
     }
+}
+
+/// A path on THIS machine handed to the ssh client (an identity file): `~`
+/// expanded locally.
+#[cfg(unix)]
+pub fn ssh_local_path(p: &str) -> String {
+    expand_home(p)
+}
+
+/// A path on THIS machine handed to the ssh client (an identity file): `~` or
+/// `~\` expanded locally, with native separators.
+#[cfg(windows)]
+pub fn ssh_local_path(p: &str) -> String {
+    let p = match p.strip_prefix("~\\") {
+        Some(rest) => format!("~/{rest}"),
+        None => p.to_string(),
+    };
+    expand_home(&p).replace('/', "\\")
+}
+
+/// ssh connection args (no leading "ssh", no trailing command). -t always; -p
+/// only when port>0 && !=22; -i only when key set (~-expanded for the local client).
+pub fn ssh_args(ssh: &SshSettings) -> Vec<String> {
+    let mut args = vec!["-t".to_string()];
+    args.extend(ssh_conn_opts());
+    push_port_and_key(&mut args, ssh, "-p");
     args.push(format!("{}@{}", ssh.user, ssh.host));
     args
+}
+
+/// Options for an ssh nobody can answer: every one the app runs in the
+/// background. Windows only: a CREATE_NO_WINDOW child still gets a hidden
+/// console, and Win32-OpenSSH reads a passphrase, password or host-key answer
+/// from it, blocking forever. On Unix the app has no controlling tty, so ssh
+/// already fails rather than asks.
+pub fn ssh_batch_opts() -> Vec<String> {
+    #[cfg(windows)]
+    {
+        vec!["-o".into(), "BatchMode=yes".into()]
+    }
+    #[cfg(unix)]
+    {
+        Vec::new()
+    }
 }
 
 /// ssh connection args for a NON-interactive exec (git/file subprocesses). Same
@@ -1270,29 +1401,9 @@ pub fn ssh_args(ssh: &SshSettings) -> Vec<String> {
 /// translate LF to CRLF and corrupt binary blobs and porcelain `-z` output, so
 /// these paths must stay tty-less.
 pub fn ssh_exec_args(ssh: &SshSettings) -> Vec<String> {
-    let mut args = vec![
-        "-o".into(),
-        "ControlMaster=auto".into(),
-        "-o".into(),
-        format!("ControlPath={}", ssh_control_path()),
-        "-o".into(),
-        "ControlPersist=10m".into(),
-        "-o".into(),
-        "ServerAliveInterval=15".into(),
-        "-o".into(),
-        "ServerAliveCountMax=3".into(),
-        "-o".into(),
-        "ConnectTimeout=10".into(),
-    ];
-    if ssh.port > 0 && ssh.port != 22 {
-        args.push("-p".into());
-        args.push(ssh.port.to_string());
-    }
-    let key = ssh.key.trim();
-    if !key.is_empty() {
-        args.push("-i".into());
-        args.push(expand_home(key));
-    }
+    let mut args = ssh_batch_opts();
+    args.extend(ssh_conn_opts());
+    push_port_and_key(&mut args, ssh, "-p");
     args.push(format!("{}@{}", ssh.user, ssh.host));
     args
 }
@@ -1301,41 +1412,15 @@ pub fn ssh_exec_args(ssh: &SshSettings) -> Vec<String> {
 /// so an scp call from a long-lived terminal session reuses the auth. Note `-P`
 /// (capital) for the port, unlike ssh's `-p`; no `-t`.
 pub fn scp_args(ssh: &SshSettings) -> Vec<String> {
-    let mut args = vec![
-        "-o".into(),
-        "ControlMaster=auto".into(),
-        "-o".into(),
-        format!("ControlPath={}", ssh_control_path()),
-        "-o".into(),
-        "ControlPersist=10m".into(),
-        "-o".into(),
-        "ServerAliveInterval=15".into(),
-        "-o".into(),
-        "ServerAliveCountMax=3".into(),
-        "-o".into(),
-        "ConnectTimeout=10".into(),
-    ];
-    if ssh.port > 0 && ssh.port != 22 {
-        args.push("-P".into());
-        args.push(ssh.port.to_string());
-    }
-    let key = ssh.key.trim();
-    if !key.is_empty() {
-        args.push("-i".into());
-        args.push(expand_home(key));
-    }
+    let mut args = ssh_batch_opts();
+    args.extend(ssh_conn_opts());
+    push_port_and_key(&mut args, ssh, "-P");
     args
 }
 
-/// Local hostname (libc gethostname), "" on failure.
+/// Local hostname, "" on failure.
 pub fn hostname() -> String {
-    let mut buf = [0u8; 256];
-    let rc = unsafe { libc::gethostname(buf.as_mut_ptr() as *mut libc::c_char, buf.len()) };
-    if rc != 0 {
-        return String::new();
-    }
-    let end = buf.iter().position(|&b| b == 0).unwrap_or(buf.len());
-    String::from_utf8_lossy(&buf[..end]).into_owned()
+    crate::sys::hostname().unwrap_or_default()
 }
 
 pub fn hostname_or_mac() -> String {
@@ -1493,7 +1578,11 @@ pub fn ssh_command_line(
     inner_cmd: &str,
 ) -> String {
     let mut argv = vec!["ssh".to_string()];
+    #[cfg(unix)]
     argv.extend(ssh_args(ssh));
+    // Git Bash re-parses the line, and a Windows key path is full of backslashes.
+    #[cfg(windows)]
+    argv.extend(ssh_args(ssh).iter().map(|a| shell_quote(a)));
     let script = build_remote_script(&join_remote_dir(&ssh.dir, cwd), env, inner_cmd);
     let wrapped = wrap_as_login_shell(&script);
     if !wrapped.is_empty() {
@@ -3474,7 +3563,10 @@ mod ssh_exec_tests {
             !args.iter().any(|a| a == "-t"),
             "exec must be tty-less: {args:?}"
         );
+        #[cfg(unix)]
         assert!(args.iter().any(|a| a == "ControlMaster=auto"));
+        #[cfg(windows)]
+        assert!(args.iter().any(|a| a == "ControlMaster=no"));
         assert!(args.iter().any(|a| a == "ServerAliveInterval=15"));
         assert!(args.iter().any(|a| a == "ServerAliveCountMax=3"));
         assert!(args.iter().any(|a| a == "ConnectTimeout=10"));
@@ -3499,6 +3591,93 @@ mod ssh_exec_tests {
             ..ssh.clone()
         });
         assert!(!d.iter().any(|a| a == "-p"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn unix_builders_share_one_control_master() {
+        let ssh = SshSettings {
+            host: "h".into(),
+            user: "u".into(),
+            port: 2222,
+            key: "/k/id".into(),
+            dir: String::new(),
+        };
+        let control_path = format!("ControlPath={}", ssh_control_path());
+        let conn = [
+            "-o",
+            "ControlMaster=auto",
+            "-o",
+            &control_path,
+            "-o",
+            "ControlPersist=10m",
+            "-o",
+            "ServerAliveInterval=15",
+            "-o",
+            "ServerAliveCountMax=3",
+            "-o",
+            "ConnectTimeout=10",
+        ];
+        let build = |parts: &[&[&str]]| -> Vec<String> {
+            parts.concat().into_iter().map(String::from).collect()
+        };
+        assert_eq!(
+            ssh_args(&ssh),
+            build(&[&["-t"], &conn, &["-p", "2222", "-i", "/k/id", "u@h"]])
+        );
+        assert_eq!(
+            ssh_exec_args(&ssh),
+            build(&[&conn, &["-p", "2222", "-i", "/k/id", "u@h"]])
+        );
+        assert_eq!(
+            scp_args(&ssh),
+            build(&[&conn, &["-P", "2222", "-i", "/k/id"]])
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_builders_never_multiplex() {
+        let ssh = remote("~/proj");
+        for args in [ssh_args(&ssh), ssh_exec_args(&ssh), scp_args(&ssh)] {
+            assert!(args.iter().any(|a| a == "ControlMaster=no"), "{args:?}");
+            assert!(args.iter().any(|a| a == "ControlPath=none"), "{args:?}");
+            assert!(!args.iter().any(|a| a.starts_with("ControlPersist")));
+        }
+        assert!(ensure_ssh_control_dir().is_ok());
+    }
+
+    // A hidden console still takes a prompt that nobody will ever see, so a
+    // background call fails instead; a pane's ssh keeps asking.
+    #[cfg(windows)]
+    #[test]
+    fn windows_background_ssh_never_prompts() {
+        let ssh = remote("~/proj");
+        for args in [ssh_exec_args(&ssh), scp_args(&ssh)] {
+            assert!(args.windows(2).any(|w| w == ["-o", "BatchMode=yes"]), "{args:?}");
+        }
+        assert!(!ssh_args(&ssh).iter().any(|a| a.starts_with("BatchMode")));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_key_paths_are_native() {
+        let home = dirs::home_dir().unwrap();
+        let want = home.join(".ssh").join("id").to_string_lossy().into_owned();
+        assert_eq!(ssh_local_path("~/.ssh/id"), want);
+        assert_eq!(ssh_local_path("~\\.ssh\\id"), want);
+        assert_eq!(ssh_local_path("C:/keys/id"), "C:\\keys\\id");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_command_line_quotes_a_backslash_key_for_bash() {
+        let ssh = SshSettings {
+            key: "C:\\keys\\my id".into(),
+            ..remote("/srv")
+        };
+        let line = ssh_command_line(&ssh, "", &BTreeMap::new(), "true");
+        assert!(line.contains("'-i' 'C:\\keys\\my id'"), "{line}");
     }
 
     #[test]
@@ -3691,6 +3870,60 @@ mod lpm_dir_tests {
             resolve_lpm_dir(Some("~/.lpm-lessons".into()), home.clone()),
             home.join(".lpm-lessons")
         );
+    }
+}
+
+#[cfg(test)]
+mod home_path_tests {
+    use super::{collapse_home_in, strip_tilde};
+
+    #[test]
+    fn a_backslash_tilde_is_home_only_on_windows() {
+        assert_eq!(strip_tilde("~/a/b", false), Some("a/b"));
+        assert_eq!(strip_tilde("~/a", true), Some("a"));
+        assert_eq!(strip_tilde("~\\a\\b", true), Some("a\\b"));
+        assert_eq!(strip_tilde("~\\a", false), None);
+        assert_eq!(strip_tilde("~user/a", true), None);
+        assert_eq!(strip_tilde("/abs", true), None);
+    }
+
+    #[test]
+    fn unix_collapse_needs_an_exact_home_prefix() {
+        let home = "/Users/me";
+        assert_eq!(collapse_home_in("/Users/me", home, false), "~");
+        assert_eq!(
+            collapse_home_in("/Users/me/code/app", home, false),
+            "~/code/app"
+        );
+        assert_eq!(
+            collapse_home_in("/Users/meg/app", home, false),
+            "/Users/meg/app"
+        );
+        assert_eq!(
+            collapse_home_in("/users/me/app", home, false),
+            "/users/me/app"
+        );
+        assert_eq!(collapse_home_in("", home, false), "");
+    }
+
+    #[test]
+    fn windows_collapse_ignores_case_and_separator() {
+        let home = r"C:\Users\Me";
+        assert_eq!(collapse_home_in(r"C:\Users\Me", home, true), "~");
+        assert_eq!(collapse_home_in(r"C:\Users\Me\", home, true), "~/");
+        assert_eq!(
+            collapse_home_in(r"c:\users\me\code\app", home, true),
+            "~/code/app"
+        );
+        assert_eq!(
+            collapse_home_in("C:/Users/Me/code/app", home, true),
+            "~/code/app"
+        );
+        assert_eq!(
+            collapse_home_in(r"C:\Users\Megan\app", home, true),
+            r"C:\Users\Megan\app"
+        );
+        assert_eq!(collapse_home_in(r"D:\code", home, true), r"D:\code");
     }
 }
 

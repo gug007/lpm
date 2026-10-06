@@ -44,7 +44,9 @@ pub struct PtySession {
     pub project_name: String,
     pub declared: HashSet<u16>,
     writer: Mutex<Box<dyn Write + Send>>,
-    master: Mutex<Box<dyn MasterPty + Send>>,
+    // None only on Windows, once the shell has exited and the pseudoconsole
+    // was closed to give the reader its EOF (see `close_on_exit`).
+    master: Mutex<Option<Box<dyn MasterPty + Send>>>,
     child: Mutex<Box<dyn Child + Send + Sync>>,
     // flow (Mutex) + resume (Condvar) == Go mu+cond; closed (RwLock) == Go
     // closeMu+closed. Kept separate so a write/resize never blocks the reader's
@@ -57,6 +59,37 @@ pub struct PtySession {
     // render at, so we cache cols/rows here and update them on every resize.
     cols: AtomicU16,
     rows: AtomicU16,
+}
+
+impl PtySession {
+    fn resize_pty(&self, cols: u16, rows: u16) -> Result<(), String> {
+        let master = self.master.lock().unwrap();
+        let master = master
+            .as_ref()
+            .ok_or_else(|| format!("terminal closed: {}", self.id))?;
+        master
+            .resize(PtySize {
+                rows,
+                cols,
+                pixel_width: 0,
+                pixel_height: 0,
+            })
+            .map_err(|e| e.to_string())
+    }
+}
+
+/// ConPTY keeps its output pipe open after the shell exits, so the reader
+/// would wait forever for an EOF that only closing the pseudoconsole sends.
+#[cfg(windows)]
+fn close_on_exit(sess: &Arc<PtySession>) {
+    let Some(pid) = sess.child.lock().unwrap().process_id() else {
+        return;
+    };
+    let sess = sess.clone();
+    crate::procwin::on_exit(pid, move || {
+        let master = sess.master.lock().unwrap().take();
+        drop(master);
+    });
 }
 
 type SessionMap = Arc<Mutex<HashMap<String, Arc<PtySession>>>>;
@@ -142,12 +175,22 @@ pub fn terminal_foreground_command(state: State<'_, PtyState>, id: String) -> St
     if sess.remote {
         return String::new();
     }
+    #[cfg(unix)]
     let leader = sess
         .master
         .lock()
         .unwrap()
-        .process_group_leader()
+        .as_ref()
+        .and_then(|m| m.process_group_leader())
         .filter(|p| *p > 0);
+    // No tty foreground group on Windows: the job is found under the shell.
+    #[cfg(windows)]
+    let leader = sess
+        .child
+        .lock()
+        .unwrap()
+        .process_id()
+        .map(|shell| crate::procwin::foreground_pid(shell) as i32);
     let Some(pid) = leader else {
         return String::new();
     };
@@ -249,6 +292,8 @@ fn spawn_io_threads(
         std::thread::spawn(move || {
             let mut reader = reader;
             let mut buf = vec![0u8; READ_BUF];
+            #[cfg(windows)]
+            let mut handshake = crate::conptyreply::Handshake::default();
             loop {
                 match reader.read(&mut buf) {
                     Ok(0) | Err(_) => {
@@ -256,7 +301,11 @@ fn spawn_io_threads(
                         return;
                     }
                     Ok(n) => {
-                        if tx.send(Ok(buf[..n].to_vec())).is_err() {
+                        #[cfg(windows)]
+                        let chunk = handshake.answer(&buf[..n], &sess.writer);
+                        #[cfg(not(windows))]
+                        let chunk = buf[..n].to_vec();
+                        if tx.send(Ok(chunk)).is_err() {
                             return;
                         }
                         let mut f = sess.flow.lock().unwrap();
@@ -340,7 +389,8 @@ fn event_safe(s: &str) -> String {
 /// selection that way) then decodes stdin as Mac Roman and mangles multi-byte
 /// text. True when none of the standard locale vars are set, so we can seed a
 /// UTF-8 default — same fallback Terminal.app applies, mirrors the LC_CTYPE
-/// override in clipboard.rs. Any inherited locale is left untouched.
+/// override in clipboard.rs. Any inherited locale is left untouched. Callers
+/// seed on Unix only: MSYS already defaults to C.UTF-8 and has no bare `UTF-8`.
 pub(crate) fn env_lacks_locale<I: IntoIterator<Item = (String, String)>>(vars: I) -> bool {
     !vars
         .into_iter()
@@ -416,6 +466,10 @@ fn start_internal(
         // a leaked TMUX makes TUIs like Claude Code disable their mouse UX.
         builder.env_remove("TMUX");
         builder.env_remove("TMUX_PANE");
+        #[cfg(target_os = "linux")]
+        if let Some(key) = crate::webengine::app_only_env() {
+            builder.env_remove(key);
+        }
         builder.env("TERM", "xterm-256color");
         builder.env("TERM_PROGRAM", "kitty");
         builder.env("LPM_SOCKET_PATH", config::socket_path());
@@ -428,11 +482,17 @@ fn start_internal(
         }
         let shell = login_shell();
         builder = CommandBuilder::new(&shell);
-        builder.arg("-l"); // login shell, matches Go exec.Command(shell, "-l")
+        // login shell, matches Go exec.Command(shell, "-l")
+        for arg in crate::shellpath::login_args() {
+            builder.arg(arg);
+        }
         builder.cwd(&dir);
+        // MSYS's login profile otherwise starts every shell in $HOME.
+        #[cfg(windows)]
+        builder.env("CHERE_INVOKING", "1");
         // Inherit the full parent env (== Go os.Environ()); CommandBuilder otherwise
         // passes only what we set, which would drop PATH and break the shell.
-        if env_lacks_locale(std::env::vars()) {
+        if cfg!(unix) && env_lacks_locale(std::env::vars()) {
             builder.env("LC_CTYPE", "UTF-8");
         }
         for (k, v) in std::env::vars() {
@@ -443,6 +503,10 @@ fn start_internal(
         // a leaked TMUX makes TUIs like Claude Code disable their mouse UX.
         builder.env_remove("TMUX");
         builder.env_remove("TMUX_PANE");
+        #[cfg(target_os = "linux")]
+        if let Some(key) = crate::webengine::app_only_env() {
+            builder.env_remove(key);
+        }
         builder.env("TERM", "xterm-256color");
         builder.env("TERM_PROGRAM", "kitty");
         builder.env("LPM_SOCKET_PATH", config::socket_path());
@@ -517,7 +581,7 @@ fn spawn_with_builder(
             HashSet::new()
         },
         writer: Mutex::new(writer),
-        master: Mutex::new(pair.master),
+        master: Mutex::new(Some(pair.master)),
         child: Mutex::new(child),
         flow: Mutex::new(FlowState {
             unacked: 0,
@@ -533,6 +597,8 @@ fn spawn_with_builder(
         .lock()
         .unwrap()
         .insert(id.clone(), sess.clone());
+    #[cfg(windows)]
+    close_on_exit(&sess);
     spawn_io_threads(app.clone(), sess, state.sessions.clone(), reader);
     Ok(id)
 }
@@ -690,7 +756,7 @@ pub fn start_claude_login(
     builder.arg("-ilc");
     builder.arg("claude /login");
     builder.cwd(&home);
-    if env_lacks_locale(std::env::vars()) {
+    if cfg!(unix) && env_lacks_locale(std::env::vars()) {
         builder.env("LC_CTYPE", "UTF-8");
     }
     for (k, v) in std::env::vars() {
@@ -698,8 +764,16 @@ pub fn start_claude_login(
     }
     builder.env_remove("TMUX");
     builder.env_remove("TMUX_PANE");
+    #[cfg(target_os = "linux")]
+    if let Some(key) = crate::webengine::app_only_env() {
+        builder.env_remove(key);
+    }
     builder.env("TERM", "xterm-256color");
     builder.env("TERM_PROGRAM", "kitty");
+    // Git Bash rewrites a native program's `/login` argument into a Windows
+    // path (`C:/Program Files/Git/login`) unless told not to.
+    #[cfg(windows)]
+    builder.env("MSYS_NO_PATHCONV", "1");
     // Pin the login to this account's config dir. Set last so no inherited
     // CLAUDE_CONFIG_DIR can leak the login into the wrong account's store.
     builder.env(config::CLAUDE_CONFIG_DIR_ENV, &dir);
@@ -738,17 +812,7 @@ pub fn resize_terminal(
     if *sess.closed.read().unwrap() {
         return Err(format!("terminal closed: {id}"));
     }
-    let r = sess
-        .master
-        .lock()
-        .unwrap()
-        .resize(PtySize {
-            rows,
-            cols,
-            pixel_width: 0,
-            pixel_height: 0,
-        })
-        .map_err(|e| e.to_string());
+    let r = sess.resize_pty(cols, rows);
     if r.is_ok() {
         sess.cols.store(cols, Ordering::Relaxed);
         sess.rows.store(rows, Ordering::Relaxed);
@@ -908,16 +972,7 @@ pub fn remote_resize(state: &PtyState, id: &str, cols: u16, rows: u16) -> Result
     if *sess.closed.read().unwrap() {
         return Err(format!("terminal closed: {id}"));
     }
-    sess.master
-        .lock()
-        .unwrap()
-        .resize(PtySize {
-            rows,
-            cols,
-            pixel_width: 0,
-            pixel_height: 0,
-        })
-        .map_err(|e| e.to_string())?;
+    sess.resize_pty(cols, rows)?;
     sess.cols.store(cols, Ordering::Relaxed);
     sess.rows.store(rows, Ordering::Relaxed);
     Ok(())
@@ -984,6 +1039,7 @@ mod tests {
         );
     }
 
+    #[cfg(unix)]
     #[test]
     fn prefers_the_environment_shell_when_set() {
         // $SHELL is set in any normal test environment; when it isn't, the

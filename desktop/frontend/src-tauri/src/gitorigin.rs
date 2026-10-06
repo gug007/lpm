@@ -110,6 +110,9 @@ fn quiet_fetch(cwd: &str) -> bool {
     unsafe {
         libc::kill(-(child.id() as i32), libc::SIGKILL);
     }
+    // No process groups: end the ssh (or credential helper) git started too.
+    #[cfg(windows)]
+    crate::osproc::kill_tree(child.id());
     let _ = child.kill();
     let _ = child.wait();
     false

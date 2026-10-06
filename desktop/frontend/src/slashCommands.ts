@@ -1,4 +1,5 @@
 import { AI_CLI_OPTIONS, type AICLI } from "./types";
+import { commandName } from "./path";
 
 // One slash command surfaced by the composer's autocomplete, mirroring the Rust
 // AgentCommand returned by ListAgentCommands.
@@ -55,7 +56,7 @@ export function detectAICLI(cmd: string | undefined | null): AICLI | null {
 export function findAICLI(cmd: string | undefined | null): { cli: AICLI; end: number } | null {
   if (!cmd) return null;
   for (const m of cmd.matchAll(/[^\s;&|]+/g)) {
-    const base = m[0].split("/").pop() ?? m[0];
+    const base = commandName(m[0]);
     const hit = AI_CLIS.find((c) => c === base);
     if (hit) return { cli: hit, end: m.index + m[0].length };
   }

@@ -14,10 +14,11 @@ import {
   type SyncProgress,
 } from "../syncApi";
 import { EventsOn } from "../../bridge/runtime";
+import { MACHINE } from "../machineWords";
 
 const PHASE_LABEL: Record<SyncPhase, string> = {
   creating: "Making the folder",
-  preparing: "Preparing on the other Mac",
+  preparing: `Preparing on ${MACHINE.otherMachine}`,
   transferring: "Copying the project over",
   indexing: "Reading it in",
   applying: "Putting the files in place",
@@ -137,7 +138,7 @@ export function SyncSetupModal({
         </div>
         <div className="min-w-0">
           <h3 className="text-[15px] font-semibold leading-tight text-[var(--text-primary)]">
-            Sync to this Mac
+            Sync to {MACHINE.thisMachine}
           </h3>
           <p className="mt-1 text-[12px] leading-snug text-[var(--text-muted)]">
             <span className="font-mono text-[var(--text-secondary)]">{remoteName}</span> from{" "}

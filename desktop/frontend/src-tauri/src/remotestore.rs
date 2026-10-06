@@ -11,7 +11,6 @@
 // `pairing_code` from disk, apply the caller's intent, write atomically.
 use crate::config;
 use serde::{Deserialize, Serialize};
-use std::os::unix::io::AsRawFd;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, MutexGuard};
@@ -270,9 +269,11 @@ struct FileLock(#[allow(dead_code)] std::fs::File);
 /// doesn't implement advisory locks at all — some network home directories,
 /// including on a headless Linux host — fails identically forever, and retrying
 /// would put a full second of sleeps in front of every single save.
-fn lock_retryable(errno: Option<i32>) -> bool {
-    // EAGAIN shares EWOULDBLOCK's value on every target this builds for.
-    matches!(errno, Some(libc::EWOULDBLOCK) | Some(libc::EINTR))
+fn lock_retryable(err: &std::io::Error) -> bool {
+    matches!(
+        err.kind(),
+        std::io::ErrorKind::WouldBlock | std::io::ErrorKind::Interrupted
+    )
 }
 
 /// Take the lock, or give up and let the caller proceed unlocked — neither a
@@ -285,17 +286,18 @@ fn lock_file(path: &Path) -> Option<FileLock> {
     if let Some(parent) = lock_path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
-    let file = std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&lock_path)
-        .ok()?;
+    let mut options = std::fs::OpenOptions::new();
+    options.create(true).append(true);
+    // LockFileEx wants read or write-data access, which an append-only handle lacks.
+    #[cfg(windows)]
+    options.read(true);
+    let file = options.open(&lock_path).ok()?;
     for _ in 0..LOCK_ATTEMPTS {
-        if unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } == 0 {
-            return Some(FileLock(file));
-        }
-        if !lock_retryable(std::io::Error::last_os_error().raw_os_error()) {
-            return None;
+        match crate::fsperm::try_lock_exclusive(&file) {
+            Ok(true) => return Some(FileLock(file)),
+            Ok(false) => {}
+            Err(e) if lock_retryable(&e) => {}
+            Err(_) => return None,
         }
         std::thread::sleep(LOCK_RETRY);
     }

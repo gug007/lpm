@@ -1,10 +1,10 @@
 // Shared 32-byte AES-256 vault key — port of desktop/vault/*.go.
 //
 // One key backs every at-rest-encryption feature. Where it lives is platform-
-// specific: the login Keychain on macOS (vaultkeychain.rs), a 0600 file on a
-// headless host with no keystore (vaultkeyfile.rs). This module owns the portable
-// half — get-or-create, AES-256-GCM construction, and the passphrase-protected
-// export/import wire format both backends share.
+// specific: the login Keychain on macOS (vaultkeychain.rs), Credential Manager
+// on Windows (vaultcred.rs), a 0600 file on Linux (vaultkeyfile.rs). This module
+// owns the portable half — get-or-create, AES-256-GCM construction, and the
+// passphrase-protected export/import wire format every backend shares.
 
 use aes_gcm::aead::{Aead, KeyInit, Payload};
 use aes_gcm::{Aes256Gcm, Nonce};
@@ -13,9 +13,11 @@ use base64::Engine;
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroize;
 
+#[cfg(windows)]
+use crate::vaultcred as store;
 #[cfg(target_os = "macos")]
 use crate::vaultkeychain as store;
-#[cfg(not(target_os = "macos"))]
+#[cfg(all(unix, not(target_os = "macos")))]
 use crate::vaultkeyfile as store;
 
 pub const KEY_LEN: usize = 32;
@@ -51,7 +53,12 @@ impl std::fmt::Display for VaultError {
                 f,
                 "vault: keychain item exists but access was denied (open Keychain Access, delete 'lpm vault key', then retry)"
             ),
-            #[cfg(not(target_os = "macos"))]
+            #[cfg(windows)]
+            VaultError::Denied => write!(
+                f,
+                "vault: a vault key already exists in Credential Manager but could not be read (remove the 'lpm/vault' entry only if you have no encrypted notes to keep)"
+            ),
+            #[cfg(all(unix, not(target_os = "macos")))]
             VaultError::Denied => write!(
                 f,
                 "vault: a vault key already exists but could not be read (check ownership and permissions of ~/.lpm/vault-key)"
@@ -63,7 +70,12 @@ impl std::fmt::Display for VaultError {
                 f,
                 "vault: local keychain holds a different vault key; delete it before importing"
             ),
-            #[cfg(not(target_os = "macos"))]
+            #[cfg(windows)]
+            VaultError::KeyConflict => write!(
+                f,
+                "vault: Credential Manager holds a different vault key; remove the 'lpm/vault' entry before importing"
+            ),
+            #[cfg(all(unix, not(target_os = "macos")))]
             VaultError::KeyConflict => write!(
                 f,
                 "vault: this machine holds a different vault key; remove ~/.lpm/vault-key before importing"

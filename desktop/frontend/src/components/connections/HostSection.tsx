@@ -15,6 +15,7 @@ import { Group, GroupHeader, Row } from "./GroupedList";
 import { AddRow } from "./AddRow";
 import { RowMenu } from "./RowMenu";
 import { StatusLine } from "./StatusLine";
+import { MACHINE as M } from "../../machineWords";
 
 export function HostSection({
   host,
@@ -79,7 +80,7 @@ export function HostSection({
 
   return (
     <section>
-      <GroupHeader>This Mac</GroupHeader>
+      <GroupHeader>{M.ThisMachine}</GroupHeader>
       <Group>
         <div className="flex items-center gap-4 bg-[var(--bg-secondary)] px-4 py-4">
           <div
@@ -95,13 +96,13 @@ export function HostSection({
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold text-[var(--text-primary)]">
-              Allow control of this Mac
+              Allow control of {M.thisMachine}
             </p>
             <div className="mt-0.5">
               {!host.enabled ? (
                 <StatusLine
                   tone="off"
-                  text="Off — turn on to let another Mac connect"
+                  text={`Off — turn on to let ${M.anotherMachine} connect`}
                   className="text-[12px]"
                 />
               ) : host.running ? (
@@ -122,7 +123,7 @@ export function HostSection({
           </div>
           <Toggle
             enabled={host.enabled}
-            ariaLabel="Allow control of this Mac"
+            ariaLabel={`Allow control of ${M.thisMachine}`}
             onChange={(v) => void applyHost({ enabled: v })}
           />
         </div>
@@ -132,7 +133,7 @@ export function HostSection({
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium text-[var(--text-primary)]">Port</p>
               <p className="text-[11px] leading-relaxed text-[var(--text-muted)]">
-                The port other Macs connect to.
+                The port other {M.plural} connect to.
               </p>
             </div>
             <input
@@ -150,11 +151,13 @@ export function HostSection({
         )}
       </Group>
 
-      <GroupHeader className="mt-8">Macs that can control this Mac</GroupHeader>
+      <GroupHeader className="mt-8">
+        {M.Plural} that can control {M.thisMachine}
+      </GroupHeader>
       <Group>
         {host.devices.length === 0 && !pairing && (
           <p className="px-4 py-5 text-center text-[12px] text-[var(--text-muted)]">
-            No Macs paired yet. Pair one to let it open this Mac's projects.
+            No {M.plural} paired yet. Pair one to let it open {M.thisMachine}&#39;s projects.
           </p>
         )}
         {host.devices.map((d) => (
@@ -164,19 +167,19 @@ export function HostSection({
             </div>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-[var(--text-primary)]">
-                {d.name || "Mac"}
+                {d.name || M.Noun}
               </p>
               <p className="text-[11px] text-[var(--text-muted)]">
-                Can open this Mac's projects from over there
+                Can open {M.thisMachine}&#39;s projects from over there
               </p>
             </div>
             <RowMenu
-              ariaLabel={`Options for ${d.name || "Mac"}`}
+              ariaLabel={`Options for ${d.name || M.Noun}`}
               items={[
                 {
                   label: "Remove access",
                   destructive: true,
-                  onClick: () => setRevokeDevice({ id: d.id, name: d.name || "Mac" }),
+                  onClick: () => setRevokeDevice({ id: d.id, name: d.name || M.Noun }),
                 },
               ]}
             />
@@ -191,10 +194,10 @@ export function HostSection({
             style={{ backgroundColor: "color-mix(in srgb, var(--accent-green) 5%, transparent)" }}
           >
             <p className="text-sm font-medium text-[var(--text-primary)]">
-              Waiting for another Mac to join
+              Waiting for {M.anotherMachine} to join
             </p>
             <p className="mb-3 mt-0.5 text-[11px] leading-relaxed text-[var(--text-muted)]">
-              Copy this invite and paste it on the other Mac. It works once and stays active until
+              Copy this invite and paste it on {M.otherMachine}. It works once and stays active until
               used.
             </p>
             <InviteChip invite={invite} />
@@ -216,8 +219,8 @@ export function HostSection({
           </div>
         ) : (
           <AddRow
-            title={pairingBusy ? "Preparing…" : "Pair another Mac"}
-            description="Create a one-time invite to paste on the other Mac."
+            title={pairingBusy ? "Preparing…" : `Pair ${M.anotherMachine}`}
+            description={`Create a one-time invite to paste on ${M.otherMachine}.`}
             busy={pairingBusy}
             onClick={() => void startPairing()}
           />
@@ -226,14 +229,14 @@ export function HostSection({
 
       <ConfirmDialog
         open={revokeDevice !== null}
-        title="Remove paired Mac"
+        title={`Remove paired ${M.noun}`}
         variant="destructive"
         confirmLabel="Remove"
         body={
           <>
             Stop letting{" "}
             <span className="font-medium text-[var(--text-primary)]">{revokeDevice?.name}</span>{" "}
-            control this Mac? It will need a new invite to reconnect.
+            control {M.thisMachine}? It will need a new invite to reconnect.
           </>
         }
         onCancel={() => setRevokeDevice(null)}

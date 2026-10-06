@@ -4,7 +4,10 @@
 // like portforward.rs's `-L` tunnels (shared ControlMaster mux, SIGKILL on
 // teardown). The remote socket path is `$HOME/.lpm/fwd/status-<local-host>.sock`
 // — local-hostname-scoped so two Macs forwarding to one host don't collide.
+// Windows forwards to a loopback TCP relay instead (statusrelay.rs): Win32-OpenSSH
+// can't connect a forward to a local AF_UNIX socket.
 use crate::config::{self, SshSettings};
+use crate::osproc;
 use std::collections::{HashMap, HashSet};
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
@@ -17,7 +20,7 @@ const WATCHDOG_INTERVAL: Duration = Duration::from_secs(20);
 #[derive(Default)]
 pub struct StatusFwdState {
     // host_key -> `ssh -N -R` child pid.
-    forwards: Arc<Mutex<HashMap<String, i32>>>,
+    forwards: Arc<Mutex<HashMap<String, u32>>>,
     // host_key -> remote $HOME (resolved once per host for the absolute -R path).
     homes: Mutex<HashMap<String, String>>,
     // Serializes forward setup so concurrent spawns to one host don't race two
@@ -25,6 +28,9 @@ pub struct StatusFwdState {
     setup: Mutex<()>,
     // host_keys whose pty-vs-exec $HOME mismatch has been probed this app run.
     probed: Mutex<HashSet<String>>,
+    // Loopback port of the status relay the Windows forwards target.
+    #[cfg(windows)]
+    relay_port: Mutex<Option<u16>>,
 }
 
 /// Emitted once per host when the pty session's `$HOME` differs from the exec
@@ -109,7 +115,7 @@ fn remote_socket_abs(home: &str) -> String {
     )
 }
 
-/// `ssh -N -R <remote.sock>:<local.sock>` on a DEDICATED connection (ssh_args
+/// `ssh -N -R <remote.sock>:<local>` on a DEDICATED connection (ssh_args
 /// minus -t, meaningless with -N). Never the shared mux: a mux client only
 /// registers the forward in the master and exits 0 immediately, so the child
 /// pid stops meaning "forward alive", ExitOnForwardFailure is not honored, and
@@ -117,7 +123,7 @@ fn remote_socket_abs(home: &str) -> String {
 /// prepended so they win over ssh_args' mux options (first -o per keyword
 /// wins). ExitOnForwardFailure so a stale remote socket fails fast rather than
 /// silently not forwarding.
-fn forward_argv(ssh: &SshSettings, remote_sock: &str, local_sock: &str) -> Vec<String> {
+fn forward_argv(ssh: &SshSettings, remote_sock: &str, local: &str) -> Vec<String> {
     let mut argv = vec![
         "-N".into(),
         "-o".into(),
@@ -129,8 +135,9 @@ fn forward_argv(ssh: &SshSettings, remote_sock: &str, local_sock: &str) -> Vec<S
         "-o".into(),
         "ControlPath=none".into(),
         "-R".into(),
-        format!("{remote_sock}:{local_sock}"),
+        format!("{remote_sock}:{local}"),
     ];
+    argv.extend(config::ssh_batch_opts());
     for a in config::ssh_args(ssh) {
         if a != "-t" {
             argv.push(a);
@@ -146,7 +153,7 @@ pub(crate) fn run_with_timeout(mut cmd: Command, timeout: Duration) -> Option<Ve
         .stderr(Stdio::null());
     let mut child = cmd.spawn().ok()?;
     let mut stdout = child.stdout.take()?;
-    let pid = child.id() as i32;
+    let pid = child.id();
     let (tx, rx) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
         let mut buf = Vec::new();
@@ -159,7 +166,7 @@ pub(crate) fn run_with_timeout(mut cmd: Command, timeout: Duration) -> Option<Ve
             Some(buf)
         }
         Err(_) => {
-            unsafe { libc::kill(pid, libc::SIGKILL) };
+            osproc::kill(pid);
             let _ = child.wait();
             None
         }
@@ -195,7 +202,7 @@ fn prep_remote_dir(ssh: &SshSettings, remote_sock: &str) -> bool {
 
 fn forward_alive(state: &StatusFwdState, ssh: &SshSettings) -> bool {
     if let Some(&pid) = state.forwards.lock().unwrap().get(&host_key(ssh)) {
-        return unsafe { libc::kill(pid, 0) } == 0;
+        return osproc::is_alive(pid);
     }
     false
 }
@@ -288,9 +295,14 @@ fn ensure_forward_blocking(app: &AppHandle, ssh: &SshSettings) {
     if config::ensure_ssh_control_dir().is_err() {
         return;
     }
-    let local_sock = config::remote_socket_path();
-    let child = Command::new("ssh")
-        .args(forward_argv(ssh, &remote_sock, &local_sock))
+    #[cfg(unix)]
+    let local = config::remote_socket_path();
+    #[cfg(windows)]
+    let Some(local) = relay_port(&state).map(|port| format!("127.0.0.1:{port}")) else {
+        return;
+    };
+    let child = osproc::command("ssh")
+        .args(forward_argv(ssh, &remote_sock, &local))
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -299,7 +311,9 @@ fn ensure_forward_blocking(app: &AppHandle, ssh: &SshSettings) {
         Ok(c) => c,
         Err(_) => return,
     };
-    let pid = child.id() as i32;
+    #[cfg(windows)]
+    crate::sshjob::tie_to_app(&child);
+    let pid = child.id();
     state.forwards.lock().unwrap().insert(key.clone(), pid);
     // Reap the child and drop its entry when it dies, so the next spawn re-establishes.
     let forwards = state.forwards.clone();
@@ -316,14 +330,36 @@ fn ensure_forward_blocking(app: &AppHandle, ssh: &SshSettings) {
     }
 }
 
+/// The status relay's port, started on first use. Admits only connections
+/// whose far end is one of our `ssh -R` children, or a process a wrapper `ssh`
+/// provably launched under one: Windows never reparents an orphan and recycles
+/// pids, so a parent pid alone can name a stranger.
+#[cfg(windows)]
+fn relay_port(state: &StatusFwdState) -> Option<u16> {
+    let mut port = state.relay_port.lock().unwrap();
+    if port.is_none() {
+        let forwards = state.forwards.clone();
+        let admit: crate::statusrelay::Admit = Arc::new(move |stream| {
+            let Some(owner) = crate::statusrelay::peer_owner_pid(stream) else {
+                return false;
+            };
+            let pids: Vec<u32> = forwards.lock().unwrap().values().copied().collect();
+            crate::procwin::is_proven_descendant(owner, &pids)
+        });
+        let target = std::path::PathBuf::from(config::remote_socket_path());
+        *port = crate::statusrelay::start(target, admit).ok();
+    }
+    *port
+}
+
 /// Kill every status forward on app exit (mirrors portforward::stop_all_forwards).
 pub fn stop_all(app: &AppHandle) {
     let state = app.state::<StatusFwdState>();
-    let pids: Vec<i32> = std::mem::take(&mut *state.forwards.lock().unwrap())
+    let pids: Vec<u32> = std::mem::take(&mut *state.forwards.lock().unwrap())
         .into_values()
         .collect();
     for pid in pids {
-        unsafe { libc::kill(pid, libc::SIGKILL) };
+        osproc::kill(pid);
     }
 }
 
@@ -431,6 +467,23 @@ mod tests {
         assert_eq!(argv.last().unwrap(), "dev@host");
     }
 
+    #[test]
+    fn forward_argv_can_target_a_loopback_relay() {
+        let argv = forward_argv(&ssh(), "/r/s.sock", "127.0.0.1:4567");
+        assert!(argv
+            .windows(2)
+            .any(|w| w[0] == "-R" && w[1] == "/r/s.sock:127.0.0.1:4567"));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_forward_never_multiplexes_or_prompts() {
+        let argv = forward_argv(&ssh(), "/r/s.sock", "127.0.0.1:4567");
+        assert!(!argv.iter().any(|a| a == "ControlMaster=auto"), "{argv:?}");
+        assert!(argv.iter().any(|a| a == "BatchMode=yes"), "{argv:?}");
+    }
+
+    #[cfg(unix)]
     #[test]
     fn forward_argv_overrides_mux_before_ssh_args() {
         // A mux client only registers the forward in the master and exits, so

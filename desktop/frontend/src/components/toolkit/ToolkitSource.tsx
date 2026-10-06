@@ -1,3 +1,5 @@
+import { primaryHint } from "../../shortcutHints";
+
 interface ToolkitSourceProps {
   draft: string;
   baseline: string;
@@ -42,7 +44,7 @@ export function ToolkitSource({
       <div className="flex items-center gap-2 border-t border-[var(--border)] px-4 py-2">
         <span className="flex-1 text-[11px] text-[var(--text-muted)]">
           {editable
-            ? "⌘S save"
+            ? `${primaryHint("s")} save`
             : "Read-only — another tool owns this file's format. Change it with the agent's own command."}
         </span>
         {editable && dirty && (

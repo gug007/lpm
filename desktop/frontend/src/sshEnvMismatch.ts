@@ -1,3 +1,5 @@
+import { MACHINE } from "./machineWords";
+
 // An SSH endpoint can route lpm's background connection and its interactive
 // terminals into different environments (gateway vs container, different user).
 // The status socket then binds where terminals can't reach it, so notifications
@@ -18,5 +20,5 @@ export function parseSshEnvMismatch(payload: unknown): SshEnvMismatch | null {
 }
 
 export function sshEnvMismatchMessage(m: SshEnvMismatch): string {
-  return `Notifications from ${m.hostLabel} can't reach this Mac: terminals on that server open in a different environment than the connection lpm sets up. Point the project at the machine's direct SSH address to fix this.`;
+  return `Notifications from ${m.hostLabel} can't reach ${MACHINE.thisMachine}: terminals on that server open in a different environment than the connection lpm sets up. Point the project at the machine's direct SSH address to fix this.`;
 }

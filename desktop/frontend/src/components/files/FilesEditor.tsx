@@ -1,3 +1,4 @@
+import { uriPath } from "../../path";
 import { formatBytes } from "../../syncApi";
 import { FolderIcon } from "../icons";
 import { ImageFileView } from "../ImageFileView";
@@ -108,7 +109,7 @@ export function FilesEditor({
       key={file.path}
       value={value}
       onChange={onChange}
-      modelUri={`lpm-files://${absPath}`}
+      modelUri={`lpm-files://${uriPath(absPath)}`}
       perInstance
       onSave={onSave}
       readOnly={!file.writable}

@@ -5,7 +5,8 @@ import { EventsOn } from "../../bridge/runtime";
 export interface PeerHostDevice {
   id: string;
   name: string;
-  // "macos" / "linux". Empty for a device paired before platforms were reported.
+  // "macos" / "linux" / "windows". Empty for a device paired before platforms
+  // were reported.
   platform?: string;
 }
 
@@ -65,10 +66,14 @@ export interface PeerClient {
   // self-updates (the updater is macOS-only), so this is the only way to know it
   // has drifted behind this Mac.
   version?: string;
-  // What the other end runs, re-reported on every connect. A "linux" peer is a
-  // headless host rather than someone's Mac. Empty until its next connect for an
-  // entry paired before hosts sent it — treat unknown as a Mac, never as Linux.
+  // What the other end runs ("macos" / "linux" / "windows"), re-reported on every
+  // connect. Empty until its next connect for an entry paired before hosts sent
+  // it — treat unknown as a Mac, never as Linux.
   platform?: string;
+  // Whether nobody is at the machine: a host under Xvfb rather than someone's
+  // desktop. null from a build that predates it, where Linux always meant a host
+  // (see peer/platform.ts).
+  headless?: boolean | null;
 }
 
 export interface DiscoveredPeer {

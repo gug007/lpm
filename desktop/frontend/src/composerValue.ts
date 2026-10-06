@@ -2,6 +2,9 @@
 // that decides which paths are images. Its own module so DOM-free code (e.g.
 // jobsFormat) can share them without pulling in the editor's DOM helpers.
 
+import { isRootedPath } from "./path";
+import { isWindows } from "./platform";
+
 // A single attachment: the `[Image #N]` token in the serialized text and the
 // local file path it resolves to.
 export interface ComposerImage {
@@ -53,10 +56,11 @@ export function quoteImagePathForPaste(path: string): string {
 // Only a quoted ABSOLUTE path is unwrapped — every path this pairs with is
 // absolute — so prose that merely opens and closes with a quote (`"before.png"`)
 // stays quoted and is not mistaken for an attachment.
-export function unquotePastedPath(part: string): string {
+export function unquotePastedPath(part: string, win = isWindows): string {
   const trimmed = part.trim();
-  if (!trimmed.startsWith('"/') || !trimmed.endsWith('"')) return trimmed;
-  return trimmed.slice(1, -1).replace(/\\([\\"])/g, "$1");
+  if (trimmed.length < 2 || !trimmed.startsWith('"') || !trimmed.endsWith('"')) return trimmed;
+  const inner = trimmed.slice(1, -1).replace(/\\([\\"])/g, "$1");
+  return isRootedPath(inner, win) ? inner : trimmed;
 }
 
 const IMAGE_TOKEN_RE = /\[Image #(\d+)\]/g;
@@ -84,14 +88,15 @@ export function composerValueToText(value: ComposerValue): string {
 // An absolute path standing on its own in the prompt text — the shape an
 // attachment serializes to, and what parsing turns back into a chip.
 const ABS_PATH_RE = /(?<![^\s])\/\S+/g;
+const WIN_ABS_PATH_RE = /(?<![^\s])(?:\/|[A-Za-z]:[\\/]|\\\\)\S+/g;
 
 // Reverse of composerValueToText: every standalone absolute image path becomes an
 // attachment token again, so an edited prompt shows its chips back. Any other
 // path stays literal text, and re-serializing reproduces the stored string
 // verbatim.
-export function textToPrompt(text: string): ComposerValue {
+export function textToPrompt(text: string, win = isWindows): ComposerValue {
   const images: ComposerImage[] = [];
-  const out = text.replace(ABS_PATH_RE, (path) => {
+  const out = text.replace(win ? WIN_ABS_PATH_RE : ABS_PATH_RE, (path) => {
     if (!isImagePath(path)) return path;
     const token = images.length + 1;
     images.push({ token, path });

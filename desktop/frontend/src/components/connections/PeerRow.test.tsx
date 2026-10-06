@@ -108,6 +108,54 @@ describe("PeerRow", () => {
     expect(container.textContent).toContain("Connected");
   });
 
+  // A Linux desktop reached over SSH got its lpm from a package. Offering the
+  // host installer there would put a second app beside it.
+  it("offers no host update on a desktop, however far behind", () => {
+    render(
+      peer({
+        platform: "linux",
+        headless: false,
+        sshHost: "me@workstation",
+        version: "1.0.0",
+        connected: true,
+      }),
+      "1.2.0",
+    );
+    expect(button("Update")).toBeUndefined();
+    expect(container.textContent).not.toContain("update available");
+    expect(container.querySelector(".lucide-server")).toBeNull();
+  });
+
+  it("keeps a Mac reached over SSH the update it always offered", () => {
+    render(
+      peer({
+        platform: "macos",
+        headless: false,
+        sshHost: "me@mac",
+        version: "1.0.0",
+        connected: true,
+      }),
+      "1.2.0",
+    );
+    expect(button("Update")).toBeDefined();
+  });
+
+  it("still offers it on a headless host", () => {
+    render(
+      peer({
+        platform: "linux",
+        headless: true,
+        sshHost: "root@box",
+        version: "1.0.0",
+        connected: true,
+      }),
+      "1.2.0",
+    );
+    expect(button("Update")).toBeDefined();
+    expect(container.textContent).toContain("update available");
+    expect(container.querySelector(".lucide-server")).not.toBeNull();
+  });
+
   it("has nothing to retry on a peer that is switched off", () => {
     render(peer({ enabled: false, lastError: "Operation timed out (os error 60)" }));
     expect(container.textContent).toContain("Off");

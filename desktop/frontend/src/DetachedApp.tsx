@@ -87,7 +87,7 @@ export function DetachedApp({ projectName }: DetachedAppProps) {
   if (!project) {
     return (
       <div className="flex h-screen flex-col bg-[var(--bg-primary)]">
-        <div className="app-drag absolute inset-x-0 top-0 h-10" />
+        <div className="app-drag absolute inset-x-0 top-0 h-10 native-chrome:hidden" />
       </div>
     );
   }

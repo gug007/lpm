@@ -191,3 +191,51 @@ fn codex_missing_database_is_empty_not_an_error() {
     let home = TempDir::new().unwrap();
     assert!(summaries(home.path(), "/work/lpm", "", 10).is_empty());
 }
+
+#[test]
+fn windows_cwd_match_ignores_separator_and_drive_case() {
+    let home = TempDir::new().unwrap();
+    write_threads(
+        home.path(),
+        &[
+            (
+                SESSION_A,
+                "Here",
+                r"C:\Users\dev\lpm",
+                1_700_000_000,
+                0,
+                "cli",
+            ),
+            (
+                SESSION_B,
+                "Also",
+                "c:/users/dev/lpm",
+                1_700_000_100,
+                0,
+                "cli",
+            ),
+            (
+                "019fac59-0da4-7160-b104-5b8429ba1056",
+                "Elsewhere",
+                r"C:\Users\dev\lpm-other",
+                1_700_000_200,
+                0,
+                "cli",
+            ),
+        ],
+    );
+    let connection = Connection::open(home.path().join("state_9.sqlite")).unwrap();
+    let mut statement = connection
+        .prepare(&format!(
+            "SELECT id FROM threads WHERE {WINDOWS_CWD_FILTER} ORDER BY updated_at"
+        ))
+        .unwrap();
+    let ids: Vec<String> = statement
+        .query_map([windows_query_cwd(r"\\?\C:/Users/Dev/lpm")], |row| {
+            row.get(0)
+        })
+        .unwrap()
+        .flatten()
+        .collect();
+    assert_eq!(ids, [SESSION_A, SESSION_B]);
+}

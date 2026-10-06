@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import type { IBuffer } from "@xterm/xterm";
 import phoneTapSource from "../../../../../mobile/web/pathtap.js?raw";
 
-import { findPathMatches, readLineWindow, scanLine } from "./pathLinkProvider";
+import { findPathMatches, readLineWindow, resolvePrinted, scanLine } from "./pathLinkProvider";
 
 const phoneModule = { exports: {} };
 new Function("module", phoneTapSource)(phoneModule);
@@ -248,5 +248,75 @@ describe("readLineWindow", () => {
 
   it("stops at a row that is not a wrapped continuation", () => {
     expect(readLineWindow(fakeBuffer([row("one"), row("two")], 3), 0).text).toBe("one");
+  });
+});
+
+const WIN_CASES: [string, { raw: string; text?: string; line?: number; col?: number } | null][] = [
+  ["C:\\Users\\me\\app\\src\\a.ts:12:3", { raw: "C:\\Users\\me\\app\\src\\a.ts", line: 12, col: 3 }],
+  ["error in C:/Users/me/app/a.ts(4,2): x", { raw: "C:/Users/me/app/a.ts", text: "C:/Users/me/app/a.ts(4,2)", line: 4, col: 2 }],
+  ["at file:///C:/Users/me/a.ts:3:9", { raw: "C:/Users/me/a.ts", text: "file:///C:/Users/me/a.ts:3:9", line: 3, col: 9 }],
+  ["open \\\\srv\\share\\docs\\a.md now", { raw: "\\\\srv\\share\\docs\\a.md" }],
+  ["src\\components\\App.tsx:7 warning", { raw: "src\\components\\App.tsx", line: 7 }],
+  ["C:\\PROGRA~1\\tool\\run.ps1", { raw: "C:\\PROGRA~1\\tool\\run.ps1" }],
+  ["/c/Users/me/app/a.ts:5", { raw: "/c/Users/me/app/a.ts", line: 5 }],
+  ["see https://example.com/a/b.js now", null],
+  ["loaded webpack:///src/a.ts", null],
+];
+
+describe("Windows path formats", () => {
+  it.each(WIN_CASES)("%s", (text, want) => {
+    const [m] = findPathMatches(fakeBuffer([row(text)], 80), 1, true);
+    if (!want) {
+      expect(m).toBeUndefined();
+      return;
+    }
+    expect(m?.raw).toBe(want.raw);
+    if (want.text) expect(m.text).toBe(want.text);
+    expect(m.line).toBe(want.line ?? 0);
+    expect(m.col).toBe(want.col ?? 0);
+  });
+
+  it.each(CASES)("still reads the POSIX form %s", (text, want) => {
+    const [m] = findPathMatches(fakeBuffer([row(text)], 80), 1, true);
+    expect(m?.raw).toBe(want?.raw);
+  });
+
+  it("leaves Windows paths alone on macOS and Linux", () => {
+    expect(findPathMatches(fakeBuffer([row("C:\\Users\\me\\a.ts:3")], 80), 1, false)).toEqual([]);
+  });
+
+  it("keeps the bare name inside a Windows path from linking on its own", () => {
+    const { paths, names } = scanLine(fakeBuffer([row("C:\\app\\README.md")], 80), 1, 0, true);
+    expect(paths.map((m) => m.raw)).toEqual(["C:\\app\\README.md"]);
+    expect(names).toEqual([]);
+  });
+
+  it("reads a drive path with spaces, backslashes intact", () => {
+    const spaced = (text: string) =>
+      scanLine(fakeBuffer([row(text)], 120), 1, 120, true).spaced.map((g) => g.map((m) => m.raw));
+    expect(spaced("at C:\\Program Files\\My App\\main.ts:3")).toEqual([["C:\\Program Files\\My App\\main.ts"]]);
+    expect(spaced("at C:/Program Files/My App/main.ts")).toEqual([["C:/Program Files/My App/main.ts"]]);
+    expect(spaced("cd /c/Users/Jane Doe/a.ts")).toEqual([["/c/Users/Jane Doe/a.ts"]]);
+  });
+
+  it("opens the MSYS drive spelling as the drive path", () => {
+    expect(resolvePrinted("C:\\app", "/c/Users/me/a.ts", true)).toBe("C:\\Users\\me\\a.ts");
+    expect(resolvePrinted("C:\\app", "src/a.ts", true)).toBe("C:\\app\\src\\a.ts");
+    expect(resolvePrinted("C:\\app", "D:\\x\\b.ts", true)).toBe("D:\\x\\b.ts");
+    expect(resolvePrinted("/@peer-a1b2c3d4/home/app", "/c/x.ts", true)).toBe("/@peer-a1b2c3d4/c/x.ts");
+    expect(resolvePrinted("/Users/me/app", "/c/x.ts", false)).toBe("/c/x.ts");
+  });
+
+  it("maps Git Bash's own tree when its mounts are known", () => {
+    const mounts = { root: "C:\\Program Files\\Git", tmp: "C:\\Temp" };
+    expect(resolvePrinted("C:\\app", "/tmp/a.log.txt", true, mounts)).toBe("C:\\Temp\\a.log.txt");
+    expect(resolvePrinted("C:\\app", "/etc/bash.bashrc.sh", true, mounts)).toBe(
+      "C:\\Program Files\\Git\\etc\\bash.bashrc.sh",
+    );
+    expect(resolvePrinted("C:\\app", "/tmp/a.txt", true)).toBe("/tmp/a.txt");
+    expect(resolvePrinted("/@peer-a1b2c3d4/home/app", "/tmp/a.txt", true, mounts)).toBe(
+      "/@peer-a1b2c3d4/tmp/a.txt",
+    );
+    expect(resolvePrinted("/Users/me/app", "/tmp/a.txt", false, mounts)).toBe("/tmp/a.txt");
   });
 });

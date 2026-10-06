@@ -79,11 +79,12 @@ import { useShortcutCapture } from "../../hooks/useShortcutCapture";
 import { useSettingsStore } from "../../store/settings";
 import { configuredHotkeyCombos } from "../../hotkeys";
 import {
-  canonicalShortcut,
   formatShortcut,
-  isReservedShortcut,
   parseShortcut,
+  reservedShortcutMessage,
+  shortcutIdentity,
 } from "../../shortcutParse";
+import { shortcutRequirementHint } from "../../shortcutRecord";
 import { AIActionModal } from "./AIActionModal";
 import { ModeButton } from "./ModeButton";
 import {
@@ -121,6 +122,7 @@ import { Switch } from "../ui/Switch";
 import { EmojiSlotButton } from "../EmojiPickerButton";
 import { useDiscardGuard } from "../../hooks/useDiscardGuard";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
+import { enterHint } from "../../shortcutHints";
 
 const NEW_ACTION_KEY = "new-action";
 const PLACEHOLDER_LABEL = "New action";
@@ -746,9 +748,9 @@ function defaultDraft(display: string = "header"): FormDraft {
   };
 }
 
-// Canonical shortcuts already bound by other actions in the tree (the action
-// being edited is excluded so re-saving it doesn't flag itself), mapped to the
-// holding action's label so the duplicate warning can name it.
+// Shortcuts already bound by other actions in the tree (the action being edited
+// is excluded so re-saving it doesn't flag itself), keyed by shortcutIdentity
+// and mapped to the holding action's label so the duplicate warning can name it.
 function collectTakenShortcuts(
   actions: ActionInfo[],
   editingName: string | undefined,
@@ -757,7 +759,7 @@ function collectTakenShortcuts(
   forEachAction(actions, (action) => {
     if (!action.shortcut || action.name === editingName) return;
     const parsed = parseShortcut(action.shortcut);
-    if (parsed) taken.set(canonicalShortcut(parsed), action.label);
+    if (parsed) taken.set(shortcutIdentity(parsed), action.label);
   });
   return taken;
 }
@@ -1676,7 +1678,7 @@ export function ActionWizard({
                 {saving ? savingLabel : primaryLabel}
                 {!saving && (
                   <kbd className="font-sans text-[11px] font-normal opacity-50">
-                    ⌘↵
+                    {enterHint({ meta: true })}
                   </kbd>
                 )}
               </button>
@@ -1800,12 +1802,12 @@ function ShortcutField({
   });
 
   const parsed = value ? parseShortcut(value) : null;
-  const reserved = parsed ? isReservedShortcut(parsed, reservedCombos) : false;
-  const holder = parsed ? taken.get(canonicalShortcut(parsed)) : undefined;
+  const reserved = parsed ? reservedShortcutMessage(parsed, reservedCombos) : null;
+  const holder = parsed ? taken.get(shortcutIdentity(parsed)) : undefined;
 
   const warning =
     parsed && reserved
-      ? `${formatShortcut(parsed)} is reserved by lpm`
+      ? reserved
       : parsed && holder
         ? `${formatShortcut(parsed)} is already used by “${holder}”`
         : null;
@@ -1852,7 +1854,7 @@ function ShortcutField({
       >
         {hint ??
           warning ??
-          "Press this shortcut to run the action. Requires ⌘ or ⌥."}
+          `Press this shortcut to run the action. ${shortcutRequirementHint()}`}
       </p>
     </FieldSection>
   );

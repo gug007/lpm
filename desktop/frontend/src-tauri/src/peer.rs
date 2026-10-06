@@ -198,7 +198,9 @@ pub(crate) struct PeerEntry {
     #[serde(default)]
     pub auto_sync: bool, // keep config in sync automatically (Phase 4); old peer.json loads as false
     #[serde(default)]
-    pub platform: String, // the remote's "macos" / "linux"; a Linux entry is a headless host, not a Mac. Empty until its next connect re-reports it
+    pub platform: String, // the remote's "macos" / "linux" / "windows". Empty until its next connect re-reports it
+    #[serde(default)]
+    pub headless: Option<bool>, // the remote's `hostHeadless`: nobody is at it (a host under Xvfb). None = a build that predates it, where Linux always meant a host
     #[serde(default)]
     pub ssh: crate::peertunnel::SshTarget, // set => reach this peer by forwarding `port` over SSH instead of dialling `host` directly
     #[serde(default)]
@@ -954,7 +956,7 @@ fn authenticate(ws: &mut ConnWs, hub: &PeerHub, app: &AppHandle) -> Option<Strin
                     let _ = ws.send(Message::text(
                         json!({ "t": "paired", "deviceId": id, "token": token,
                             "slug": slug, "hostName": machine_name(), "hostId": hub.host_id(),
-                            "hostPlatform": platform_id(),
+                            "hostPlatform": platform_id(), "hostHeadless": crate::sys::headless(),
                             "hostVersion": crate::commands_real::get_version() })
                         .to_string(),
                     ));
@@ -988,7 +990,8 @@ fn authenticate(ws: &mut ConnWs, hub: &PeerHub, app: &AppHandle) -> Option<Strin
                 // paired before this existed learns it on its next connect.
                 let _ = ws.send(Message::text(
                     json!({ "t": "ready", "hostName": machine_name(),
-                        "hostPlatform": platform_id(), "hostVersion": crate::commands_real::get_version(),
+                        "hostPlatform": platform_id(), "hostHeadless": crate::sys::headless(),
+                        "hostVersion": crate::commands_real::get_version(),
                         "phoneServerId": crate::remote::phone_server_id(app),
                         "features": HOST_FEATURES })
                     .to_string(),
@@ -1126,7 +1129,7 @@ fn handle_pair_request(
             let _ = ws.send(Message::text(
                 json!({ "t": "paired", "deviceId": dev_id, "token": token, "slug": slug,
                     "hostName": machine_name(), "hostId": hub.host_id(),
-                    "hostPlatform": platform_id(),
+                    "hostPlatform": platform_id(), "hostHeadless": crate::sys::headless(),
                     "hostVersion": crate::commands_real::get_version(),
                     "reciprocal": d.reciprocal })
                 .to_string(),
@@ -2100,11 +2103,11 @@ pub(crate) fn machine_name() -> String {
     crate::sys::machine_name()
 }
 
-/// Which OS this end is, reported both ways during pairing and on every auth. A
-/// Linux peer is a headless host running under Xvfb rather than someone's Mac,
-/// and the two are worth telling apart in the UI. `std::env::consts::OS` spelling
-/// ("macos" / "linux") — not `get_platform`'s Go-style "darwin/arm64", which
-/// exists to match update-asset names.
+/// Which OS this end is, reported both ways during pairing and on every auth.
+/// `std::env::consts::OS` spelling ("macos" / "linux" / "windows") — not
+/// `get_platform`'s Go-style "darwin/arm64", which exists to match update-asset
+/// names. Whether anyone is at the machine rides beside it as `hostHeadless`:
+/// Linux is a desktop too, so the OS alone no longer says it is a host.
 pub(crate) fn platform_id() -> &'static str {
     std::env::consts::OS
 }
@@ -2115,32 +2118,6 @@ fn primary_lan_ip() -> Option<String> {
     let sock = std::net::UdpSocket::bind("0.0.0.0:0").ok()?;
     sock.connect("192.0.2.1:80").ok()?; // TEST-NET-1: non-routable, never leaves the host
     sock.local_addr().ok().map(|a| a.ip().to_string())
-}
-
-/// This Mac's Tailscale IPv4 (100.64.0.0/10 CGNAT range), if a tailnet interface
-/// is up — reachable from anywhere on the shared tailnet, not just the LAN.
-fn tailscale_ip() -> Option<String> {
-    let mut ifap: *mut libc::ifaddrs = std::ptr::null_mut();
-    if unsafe { libc::getifaddrs(&mut ifap) } != 0 {
-        return None;
-    }
-    let mut result = None;
-    let mut cur = ifap;
-    while !cur.is_null() {
-        let addr = unsafe { (*cur).ifa_addr };
-        if !addr.is_null() && unsafe { (*addr).sa_family } as i32 == libc::AF_INET {
-            let sin = addr as *const libc::sockaddr_in;
-            let ip = std::net::Ipv4Addr::from(u32::from_be(unsafe { (*sin).sin_addr.s_addr }));
-            let o = ip.octets();
-            if o[0] == 100 && (64..=127).contains(&o[1]) {
-                result = Some(ip.to_string());
-                break;
-            }
-        }
-        cur = unsafe { (*cur).ifa_next };
-    }
-    unsafe { libc::freeifaddrs(ifap) };
-    result
 }
 
 /// Addresses to advertise for pairing, most-preferred first: LAN IP then
@@ -2165,7 +2142,8 @@ pub(crate) fn candidate_hosts() -> Vec<String> {
     if let Some(ip) = primary_lan_ip() {
         hosts.push(ip);
     }
-    if let Some(ip) = tailscale_ip() {
+    // Reachable from anywhere on the shared tailnet, not just the LAN.
+    if let Some(ip) = crate::netif::tailscale_ip() {
         if !hosts.contains(&ip) {
             hosts.push(ip);
         }
@@ -2254,6 +2232,7 @@ mod tests {
                 last_sync_at: 0,
                 auto_sync: true,
                 platform: "linux".into(),
+                headless: Some(false),
                 version: "1.2.3".into(),
                 phone_server_id: "sid".into(),
                 ssh: crate::peertunnel::SshTarget {
@@ -2272,6 +2251,8 @@ mod tests {
         // turn a tunnelled host into one lpm tries to dial directly.
         assert_eq!(back.peers[0].ssh.destination(), "root@198.51.100.7");
         assert_eq!(back.peers[0].version, "1.2.3");
+        // A Linux desktop must not come back as a host to be installed over.
+        assert_eq!(back.peers[0].headless, Some(false));
         assert_eq!(back.peers[0].phone_server_id, "sid");
         assert_eq!(back.host.devices[0].slug_assigned, "abcd1234");
         assert_eq!(back.peers.len(), 1);
@@ -2293,6 +2274,7 @@ mod tests {
         assert!(cfg.peers[0].enabled);
         assert!(cfg.peers[0].tls_fp.is_none());
         assert!(!cfg.peers[0].auto_sync);
+        assert!(cfg.peers[0].headless.is_none());
     }
 
     #[test]

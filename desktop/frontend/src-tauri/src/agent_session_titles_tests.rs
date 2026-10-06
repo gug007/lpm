@@ -411,6 +411,25 @@ fn fallback_titles_are_sanitized_and_compacted() {
 }
 
 #[test]
+fn drive_letter_paths_are_recognised_as_pasted_paths() {
+    assert!(is_drive_path(r"C:\Users\dev\Pictures\shot.png fix this"));
+    assert!(is_drive_path("d:/shots/a.png"));
+    assert!(!is_drive_path("C:"));
+    assert!(!is_drive_path("C:shot.png"));
+    assert!(!is_drive_path("ab:/x"));
+    assert!(!is_drive_path("/Users/dev/a.png"));
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_image_paths_are_stripped_from_titles() {
+    assert_eq!(
+        strip_leading_image_path(r#""C:\Users\dev\Pictures\Screenshot 1.png" why is this red?"#),
+        "why is this red?"
+    );
+}
+
+#[test]
 fn attached_images_are_stripped_from_the_words_that_follow_them() {
     assert_eq!(
         strip_image_placeholders("[Image #1] why is this red?"),

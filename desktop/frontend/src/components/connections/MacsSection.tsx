@@ -12,12 +12,14 @@ import {
 import { EventsOn } from "../../../bridge/runtime";
 import type { PeerClient, PeerHostState, DiscoveredPeer } from "../../peer/usePeerState";
 import { decodeInvite, type PeerInvite } from "../../peer/invite";
+import { peerNoun } from "../../peer/platform";
 import { Group, GroupHeader } from "./GroupedList";
 import { PeerRow } from "./PeerRow";
 import { AddRow } from "./AddRow";
 import { AddMacPanel } from "./AddMacPanel";
 import { ClipboardInviteRow } from "./ClipboardInviteRow";
 import { NearbyMacRow } from "./NearbyMacRow";
+import { isMac } from "../../platform";
 
 // The Mac we're currently asking to pair with, plus the code to compare once the
 // other Mac responds.
@@ -167,10 +169,12 @@ export function MacsSection({
   // whole point of the section — so it starts open and only folds away once
   // this Mac has somewhere to connect to.
   const panelOpen = addOpen || macs.length === 0;
+  // A Linux or Windows desktop is listed here too, and isn't a Mac.
+  const onlyMacs = macs.every((p) => peerNoun(p) === "Mac");
 
   return (
     <section className="mt-8">
-      <GroupHeader>Macs you connect to</GroupHeader>
+      <GroupHeader>{onlyMacs ? "Macs you connect to" : "Computers you connect to"}</GroupHeader>
       <Group>
         {macs.map((p) => (
           <PeerRow key={p.slug} peer={p} onRemove={setRemovePeer} refresh={refresh} />
@@ -206,7 +210,7 @@ export function MacsSection({
 
         {macs.length > 0 && (
           <AddRow
-            title="Connect another Mac"
+            title={isMac ? "Connect another Mac" : "Connect another computer"}
             description="Paste the invite it created, or enter its details."
             expanded={addOpen}
             onClick={() => setAddOpen((v) => !v)}
@@ -225,7 +229,7 @@ export function MacsSection({
 
       <ConfirmDialog
         open={removePeer !== null}
-        title="Disconnect Mac"
+        title={`Disconnect ${removePeer ? peerNoun(removePeer) : "Mac"}`}
         variant="destructive"
         confirmLabel="Disconnect"
         body={

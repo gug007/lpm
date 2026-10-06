@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "build:cli": "bash ../../scripts/build-cli.sh",
-    "check:cache": "bash ../../scripts/check-build-cache.sh",
+    "build:cli": "node ../../scripts/build-cli.mjs",
+    "check:cache": "node ../../scripts/check-build-cache.mjs",
     "preview": "vite preview",
     "tauri": "tauri",
     "test": "vitest run",

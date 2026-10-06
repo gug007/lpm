@@ -186,10 +186,13 @@ fn skipped(root: &Path, dir: &Path) -> bool {
         .unwrap_or(true)
 }
 
+/// Always `/`-separated: it names the folder in the config and in the service
+/// name, which read the same on every platform.
 fn relative(root: &Path, dir: &Path) -> Option<String> {
-    dir.strip_prefix(root)
-        .ok()
-        .map(|rel| rel.to_string_lossy().into_owned())
+    let rel = dir.strip_prefix(root).ok()?.to_string_lossy().into_owned();
+    #[cfg(windows)]
+    let rel = rel.replace('\\', "/");
+    Some(rel)
 }
 
 /// Final names: at the root a candidate keeps its own; in a subfolder a lone

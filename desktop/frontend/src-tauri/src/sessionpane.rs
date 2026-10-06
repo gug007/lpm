@@ -26,12 +26,19 @@ const ROWS: u16 = 50;
 /// boundary, so callers already handle the error.
 const MAX_COMMAND: usize = 1024 * 1024;
 
+/// What pressing Return types. A Unix tty takes either byte; ConPTY reads its
+/// input as keystrokes, and Return is the carriage return a terminal sends.
+const ENTER: &[u8] = if cfg!(windows) { b"\r" } else { b"\n" };
+
 pub struct Pane {
     pub id: String,
     pub service: String,
     pub pid: i32,
     grid: Mutex<Grid>,
-    master: Mutex<Box<dyn MasterPty + Send>>,
+    // None only on Windows, once the shell has exited: ConPTY keeps its output
+    // pipe open until the pseudoconsole is closed, so the reader would never
+    // see the EOF that reaps the pane.
+    master: Mutex<Option<Box<dyn MasterPty + Send>>>,
     writer: Mutex<Box<dyn Write + Send>>,
     child: Mutex<Box<dyn Child + Send + Sync>>,
 }
@@ -58,12 +65,14 @@ impl Pane {
         // A login shell, because tmux ran panes as login shells too (an empty
         // default-command means "login shell from default-shell") — dropping it
         // would silently take nvm/rbenv/asdf off PATH for every service.
-        builder.arg("-l");
+        for arg in crate::shellpath::login_args() {
+            builder.arg(arg);
+        }
         builder.cwd(spawn_dir(&spec.dir));
         // Same locale guard the app's own terminals get: a Finder-launched .app
         // inherits no LANG/LC_*, and a shell that decides it is not UTF-8 puts
         // mojibake into the screen model this pane's logs are read from.
-        if crate::pty::env_lacks_locale(std::env::vars()) {
+        if cfg!(unix) && crate::pty::env_lacks_locale(std::env::vars()) {
             builder.env("LC_CTYPE", "UTF-8");
         }
         for (k, v) in std::env::vars() {
@@ -74,6 +83,9 @@ impl Pane {
         builder.env_remove("TMUX");
         builder.env_remove("TMUX_PANE");
         builder.env("TERM", "xterm-256color");
+        // MSYS's login profile otherwise starts every shell in $HOME.
+        #[cfg(windows)]
+        builder.env("CHERE_INVOKING", "1");
 
         let child = pair
             .slave
@@ -95,10 +107,18 @@ impl Pane {
             service: spec.service.clone(),
             pid,
             grid: Mutex::new(Grid::new(COLS as usize, ROWS as usize)),
-            master: Mutex::new(pair.master),
+            master: Mutex::new(Some(pair.master)),
             writer: Mutex::new(writer),
             child: Mutex::new(child),
         });
+        #[cfg(windows)]
+        if pid > 0 {
+            let held = pane.clone();
+            crate::procwin::on_exit(pid as u32, move || {
+                let master = held.master.lock().unwrap().take();
+                drop(master);
+            });
+        }
         pane.clone().read_loop(reader, on_exit);
         if !spec.command.is_empty() {
             if let Err(error) = pane.send(&spec.command) {
@@ -120,12 +140,18 @@ impl Pane {
         std::thread::spawn(move || {
             let mut parser = Parser::default();
             let mut buf = vec![0u8; 16 * 1024];
+            #[cfg(windows)]
+            let mut handshake = crate::conptyreply::Handshake::default();
             loop {
                 match reader.read(&mut buf) {
                     Ok(0) | Err(_) => break,
                     Ok(n) => {
+                        #[cfg(windows)]
+                        let bytes = &handshake.answer(&buf[..n], &self.writer)[..];
+                        #[cfg(not(windows))]
+                        let bytes = &buf[..n];
                         let mut grid = self.grid.lock().unwrap();
-                        parser.feed(&buf[..n], &mut grid);
+                        parser.feed(bytes, &mut grid);
                     }
                 }
             }
@@ -147,7 +173,7 @@ impl Pane {
         let mut writer = self.writer.lock().unwrap();
         writer
             .write_all(line.as_bytes())
-            .and_then(|_| writer.write_all(b"\n"))
+            .and_then(|_| writer.write_all(ENTER))
             .and_then(|_| writer.flush())
             .map_err(|e| format!("write to pane {}: {e}", self.id))
     }
@@ -160,12 +186,29 @@ impl Pane {
     /// same delivery with one hazard removed: a ^C that lands in the window
     /// before the shell has installed its own handler kills the shell outright,
     /// and the shell is the one thing in a pane that must survive a stop.
+    ///
+    /// Windows has no process groups to signal, so it types the ^C after all:
+    /// ConPTY turns it into a console Ctrl+C for the pane's job, and bash at
+    /// its prompt (interactive, see `shellpath::login_args`) shrugs it off.
     pub fn interrupt(&self) -> Result<(), String> {
+        #[cfg(unix)]
         self.signal_foreground(libc::SIGINT);
+        #[cfg(windows)]
+        self.type_ctrl_c()?;
         let mut grid = self.grid.lock().unwrap();
         grid.reset();
         grid.clear_history();
         Ok(())
+    }
+
+    /// Type a ^C into the pane, leaving its screen as it is.
+    #[cfg(windows)]
+    pub fn type_ctrl_c(&self) -> Result<(), String> {
+        let mut writer = self.writer.lock().unwrap();
+        writer
+            .write_all(b"\x03")
+            .and_then(|_| writer.flush())
+            .map_err(|e| format!("interrupt pane {}: {e}", self.id))
     }
 
     /// Signal the pane's foreground job, never the pane's shell. Normally the
@@ -173,12 +216,14 @@ impl Pane {
     /// group and hands that group the terminal. A shell running without job
     /// control leaves its job in its own group, so there the only way to reach
     /// the job without hitting the shell is to signal its descendants.
+    #[cfg(unix)]
     fn signal_foreground(&self, signal: i32) {
         let foreground = self
             .master
             .lock()
             .unwrap()
-            .process_group_leader()
+            .as_ref()
+            .and_then(|m| m.process_group_leader())
             .filter(|pgid| *pgid > 1 && *pgid != self.pid);
         if let Some(pgid) = foreground {
             unsafe { libc::killpg(pgid, signal) };
@@ -209,13 +254,23 @@ impl Pane {
     /// The pid of whatever currently has the pty's foreground process group —
     /// the job whose name and cwd `lpm project` shows as the pane's. Falls back
     /// to the shell when nothing is in the foreground.
+    #[cfg(unix)]
     pub fn foreground_pid(&self) -> i32 {
         self.master
             .lock()
             .unwrap()
-            .process_group_leader()
+            .as_ref()
+            .and_then(|m| m.process_group_leader())
             .filter(|p| *p > 0)
             .unwrap_or(self.pid)
+    }
+
+    #[cfg(windows)]
+    pub fn foreground_pid(&self) -> i32 {
+        if self.pid <= 0 {
+            return self.pid;
+        }
+        crate::procwin::foreground_pid(self.pid as u32) as i32
     }
 
     /// Close the pty. The caller reaps the process tree, snapshotting every

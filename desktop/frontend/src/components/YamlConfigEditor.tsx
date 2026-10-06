@@ -4,6 +4,7 @@ import { useYamlEditor } from "../hooks/useYamlEditor";
 import { validateYaml } from "../yamlValidation";
 import { ChevronLeftIcon } from "./icons";
 import { MonacoEditor } from "./MonacoEditor";
+import { primaryHint } from "../shortcutHints";
 
 interface YamlConfigEditorProps {
   title: string;
@@ -73,7 +74,7 @@ export function YamlConfigEditor({
             {activeError && (
               <span className="flex-1 text-xs text-[var(--accent-red)]">{activeError}</span>
             )}
-            <span className="text-[10px] text-[var(--text-muted)]">{"⌘"}S</span>
+            <span className="text-[10px] text-[var(--text-muted)]">{primaryHint("s")}</span>
             <button
               onClick={handleSave}
               disabled={!dirty || saving || Boolean(validationError)}

@@ -31,7 +31,7 @@ export function Header({
   alignTop = false,
   onRowContextMenu,
 }: HeaderProps) {
-  const indent = sidebarCollapsed ? "pl-[100px]" : "";
+  const indent = sidebarCollapsed ? "pl-[100px] native-chrome:pl-8" : "";
   const align = alignTop ? "items-start" : "items-center";
   return (
     <>

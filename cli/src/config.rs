@@ -29,14 +29,10 @@ impl Ctx {
     /// terminals) overrides the socket so the CLI talks to the instance that
     /// owns the terminal — e.g. a dev build running beside the installed app.
     pub fn from_home() -> Self {
-        let home = dirs::home_dir().unwrap_or_default();
-        let lpm_dir = match std::env::var_os("LPM_DIR").filter(|v| !v.is_empty()) {
-            Some(v) => match v.to_string_lossy().strip_prefix("~/") {
-                Some(rest) => home.join(rest),
-                None => PathBuf::from(v),
-            },
-            None => home.join(".lpm"),
-        };
+        let lpm_dir = resolve_lpm_dir(
+            std::env::var_os("LPM_DIR"),
+            dirs::home_dir().unwrap_or_default(),
+        );
         let socket_override = std::env::var_os("LPM_SOCKET_PATH")
             .filter(|p| !p.is_empty())
             .map(PathBuf::from);
@@ -88,6 +84,9 @@ impl Ctx {
     }
 }
 
+/// Separators that may follow a leading `~`: Windows paths use either.
+pub const HOME_SEPARATORS: &[char] = if cfg!(windows) { &['/', '\\'] } else { &['/'] };
+
 /// Mirrors `config.ExpandHome`: a leading `~` resolves to the home directory.
 pub fn expand_home(p: &str) -> String {
     if p == "~" {
@@ -96,7 +95,7 @@ pub fn expand_home(p: &str) -> String {
             .to_string_lossy()
             .into_owned();
     }
-    if let Some(rest) = p.strip_prefix("~/") {
+    if let Some(rest) = strip_tilde(p, HOME_SEPARATORS) {
         return dirs::home_dir()
             .unwrap_or_default()
             .join(rest)
@@ -104,6 +103,39 @@ pub fn expand_home(p: &str) -> String {
             .into_owned();
     }
     p.to_string()
+}
+
+/// LPM_DIR resolved as the app's `config::lpm_dir` resolves it, so both find
+/// the same projects and sockets: a leading `~` and separator is the home
+/// directory, and on Windows the rest takes Windows' own separator.
+fn resolve_lpm_dir(env: Option<std::ffi::OsString>, home: PathBuf) -> PathBuf {
+    match env.filter(|v| !v.is_empty()) {
+        Some(v) => {
+            let raw = v.to_string_lossy();
+            match strip_tilde(&raw, HOME_SEPARATORS) {
+                Some(rest) => home.join(&*native_seps(rest)),
+                None => PathBuf::from(v),
+            }
+        }
+        None => home.join(".lpm"),
+    }
+}
+
+fn native_seps(rest: &str) -> std::borrow::Cow<'_, str> {
+    if cfg!(windows) {
+        std::borrow::Cow::Owned(rest.replace('/', "\\"))
+    } else {
+        std::borrow::Cow::Borrowed(rest)
+    }
+}
+
+/// What follows a leading `~` and one of `separators`.
+fn strip_tilde<'a>(p: &'a str, separators: &[char]) -> Option<&'a str> {
+    let rest = p.strip_prefix('~')?;
+    let first = rest.chars().next()?;
+    separators
+        .contains(&first)
+        .then(|| &rest[first.len_utf8()..])
 }
 
 /// `config.ResolveCwd`: absolute cwd as-is, empty -> root, else root/cwd.
@@ -1094,8 +1126,56 @@ mod tests {
 
     /// A tempdir under `/tmp` (a symlink to `/private/tmp` on macOS), so
     /// canonicalization is actually exercised by the cwd-match tests.
+    #[cfg(unix)]
     fn tmp_dir() -> tempfile::TempDir {
         tempfile::Builder::new().tempdir_in("/tmp").unwrap()
+    }
+
+    #[cfg(windows)]
+    fn tmp_dir() -> tempfile::TempDir {
+        tempfile::tempdir().unwrap()
+    }
+
+    #[test]
+    fn lpm_dir_resolves_as_the_app_resolves_it() {
+        let home = PathBuf::from("/Users/x");
+        assert_eq!(resolve_lpm_dir(None, home.clone()), home.join(".lpm"));
+        assert_eq!(resolve_lpm_dir(Some("".into()), home.clone()), home.join(".lpm"));
+        assert_eq!(
+            resolve_lpm_dir(Some("/tmp/lessons".into()), home.clone()),
+            PathBuf::from("/tmp/lessons")
+        );
+        assert_eq!(
+            resolve_lpm_dir(Some("~/.lpm-lessons".into()), home.clone()),
+            home.join(".lpm-lessons")
+        );
+        #[cfg(unix)]
+        assert_eq!(
+            resolve_lpm_dir(Some("~\\lpm-test".into()), home.clone()),
+            PathBuf::from("~\\lpm-test")
+        );
+        #[cfg(windows)]
+        {
+            let home = PathBuf::from(r"C:\Users\me");
+            assert_eq!(
+                resolve_lpm_dir(Some(r"~\lpm-test".into()), home.clone()).as_os_str(),
+                r"C:\Users\me\lpm-test"
+            );
+            assert_eq!(
+                resolve_lpm_dir(Some("~/a/b".into()), home).as_os_str(),
+                r"C:\Users\me\a\b"
+            );
+        }
+    }
+
+    #[test]
+    fn a_tilde_path_strips_only_a_listed_separator() {
+        assert_eq!(strip_tilde("~/code/web", &['/']), Some("code/web"));
+        assert_eq!(strip_tilde("~\\code\\web", &['/']), None);
+        assert_eq!(strip_tilde("~\\code\\web", &['/', '\\']), Some("code\\web"));
+        assert_eq!(strip_tilde("~", &['/']), None);
+        assert_eq!(strip_tilde("~bob/code", &['/']), None);
+        assert_eq!(strip_tilde("/abs/~/x", &['/']), None);
     }
 
     #[test]

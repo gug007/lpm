@@ -1,6 +1,7 @@
 import type { Terminal } from "@xterm/xterm";
 import type { SerializeAddon } from "@xterm/addon-serialize";
 import { SetClipboardText } from "../../../bridge/commands";
+import { isMac } from "../../platform";
 
 // Cleans terminal selections before they hit the clipboard:
 //   1. merges soft-wrapped rows back into one logical line
@@ -262,14 +263,29 @@ export function copyTerminalSelection(
   void writeClipboard(payload.plain, payload.html).catch(() => {});
 }
 
-export function isCopyShortcut(e: KeyboardEvent): boolean {
-  if (!e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return false;
+// ⌘ on macOS; Ctrl+Shift elsewhere, where plain Ctrl+C/V/A belong to the shell.
+function onTerminalChordMods(e: KeyboardEvent, mac: boolean, macIgnoresShift = false): boolean {
+  if (e.altKey) return false;
+  if (!mac) return e.ctrlKey && e.shiftKey && !e.metaKey;
+  return e.metaKey && !e.ctrlKey && (macIgnoresShift || !e.shiftKey);
+}
+
+function isLetterChord(e: KeyboardEvent, letter: string): boolean {
   const key = e.key.toLowerCase();
-  if (key === "c") return true;
+  if (key === letter) return true;
   // Non-Latin layouts (e.g. Russian "с") keep ⌘C on the physical C key but
   // report their own letter; Latin layouts that move "c" elsewhere (Dvorak)
   // must not match the physical key.
-  return e.code === "KeyC" && !/^[a-z]$/.test(key);
+  return e.code === `Key${letter.toUpperCase()}` && !/^[a-z]$/.test(key);
+}
+
+export function isCopyShortcut(e: KeyboardEvent, mac: boolean = isMac): boolean {
+  return onTerminalChordMods(e, mac) && isLetterChord(e, "c");
+}
+
+// Off macOS only: ⌘V reaches a macOS terminal as a native paste event instead.
+export function isPasteShortcut(e: KeyboardEvent, mac: boolean = isMac): boolean {
+  return !mac && onTerminalChordMods(e, false) && isLetterChord(e, "v");
 }
 
 // Returns true if the event was a Cmd+C over a live selection that we copied.
@@ -309,13 +325,15 @@ export function handleNativeCopy(
   return true;
 }
 
-export function handleSelectAllShortcut(e: KeyboardEvent, term: Terminal): boolean {
+export function handleSelectAllShortcut(
+  e: KeyboardEvent,
+  term: Terminal,
+  mac: boolean = isMac,
+): boolean {
   if (
     !(
       e.type === "keydown" &&
-      e.metaKey &&
-      !e.ctrlKey &&
-      !e.altKey &&
+      onTerminalChordMods(e, mac, true) &&
       e.key.toLowerCase() === "a"
     )
   ) {

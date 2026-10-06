@@ -7,6 +7,7 @@ import { useAIPicker } from "../hooks/useAIPicker";
 import { useAIGeneration, isCanceledError } from "../hooks/useAIGeneration";
 import { aiEffectiveFast } from "../types";
 import { AIPickerButton } from "./ui/AIPickerButton";
+import { isMac } from "../platform";
 
 export function AiRefineBar({
   selection,
@@ -107,7 +108,7 @@ export function AiRefineBar({
               : disabled
                 ? "Load your status line to use AI."
                 : ai.anyAvailable
-                  ? "⌘ Enter to refine"
+                  ? `${isMac ? "⌘ Enter" : "Ctrl+Enter"} to refine`
                   : "Install an AI coding CLI to use this"}
           </span>
           {ai.anyAvailable && (

@@ -15,7 +15,9 @@
 
 use std::io::ErrorKind;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, TcpListener, TcpStream};
-use std::process::{Child, Command, Stdio};
+#[cfg(unix)]
+use std::process::Command;
+use std::process::{Child, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -82,6 +84,9 @@ const BACKOFF_MAX: Duration = Duration::from_secs(30);
 /// leftovers in `ps`. `SetEnv` is inert here — `-N` runs no remote command, and a
 /// server that doesn't accept the variable simply ignores it — which is the point:
 /// it changes nothing about the connection and exists only to be greppable.
+/// Windows has no `ps` to grep (its forwards die with the app instead), and the
+/// OpenSSH 7.7 some Windows 10 builds ship rejects `SetEnv` outright.
+#[cfg(unix)]
 const TUNNEL_MARKER: &str = "LPM_PEER_TUNNEL=1";
 
 /// The options every lpm-run ssh shares. `BatchMode` so a host that wants a
@@ -112,7 +117,7 @@ pub fn push_target_args(args: &mut Vec<String>, target: &SshTarget) {
     let key = target.key.trim();
     if !key.is_empty() {
         args.push("-i".into());
-        args.push(crate::config::expand_home(key));
+        args.push(crate::config::ssh_local_path(key));
     }
     args.push(target.destination());
 }
@@ -124,9 +129,9 @@ pub fn push_target_args(args: &mut Vec<String>, target: &SshTarget) {
 pub fn ssh_forward_args(target: &SshTarget, local_port: u16, remote_port: u16) -> Vec<String> {
     let mut args = vec!["-N".into()];
     args.extend(ssh_common_args());
+    #[cfg(unix)]
+    args.extend(["-o".into(), format!("SetEnv={TUNNEL_MARKER}")]);
     args.extend([
-        "-o".into(),
-        format!("SetEnv={TUNNEL_MARKER}"),
         "-o".into(),
         "ExitOnForwardFailure=yes".into(),
         "-o".into(),
@@ -149,7 +154,8 @@ pub fn ssh_forward_args(target: &SshTarget, local_port: u16, remote_port: u16) -
 ///
 /// Split from the killing so the filter can be tested against a listing without
 /// spawning anything.
-fn orphan_pids(ps_output: &str) -> Vec<i32> {
+#[cfg(unix)]
+fn orphan_pids(ps_output: &str) -> Vec<u32> {
     ps_output
         .lines()
         .filter_map(|line| {
@@ -158,7 +164,7 @@ fn orphan_pids(ps_output: &str) -> Vec<i32> {
             if ppid != "1" || !command.contains(TUNNEL_MARKER) {
                 return None;
             }
-            pid.parse::<i32>().ok()
+            pid.parse::<u32>().ok()
         })
         .collect()
 }
@@ -169,8 +175,15 @@ fn orphan_pids(ps_output: &str) -> Vec<i32> {
 /// survives SIGKILL — a force-quit, a crash, or (constantly, in development) the
 /// rebuild that restarts the app. The ssh child is re-parented to init and holds
 /// its local port and its session on the server until the machine reboots, so
-/// they accumulate one per SSH-reached peer per launch.
+/// they accumulate one per SSH-reached peer per launch. Windows forwards are tied
+/// to the app's lifetime (sshjob.rs), so there is nothing to reap there.
 pub fn reap_orphaned_forwards() {
+    #[cfg(unix)]
+    reap_unix();
+}
+
+#[cfg(unix)]
+fn reap_unix() {
     let Ok(out) = Command::new("ps")
         .args(["-axo", "pid=,ppid=,command="])
         .stdin(Stdio::null())
@@ -181,7 +194,7 @@ pub fn reap_orphaned_forwards() {
     for pid in orphan_pids(&String::from_utf8_lossy(&out.stdout)) {
         // SIGTERM, not SIGKILL: ssh tears its forward down on it, and a stuck one
         // is re-reaped on the next launch anyway.
-        unsafe { libc::kill(pid, libc::SIGTERM) };
+        crate::osproc::terminate(pid);
     }
 }
 
@@ -356,13 +369,15 @@ fn set_down(inner: &Inner, err: &str) {
 fn spawn_forward(inner: &Inner) -> Result<(), String> {
     let local = free_local_port()?;
     let args = ssh_forward_args(&inner.target, local, inner.remote_port);
-    let child = Command::new("ssh")
+    let child = crate::osproc::command("ssh")
         .args(&args)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
         .spawn()
         .map_err(|e| format!("could not run ssh: {e}"))?;
+    #[cfg(windows)]
+    crate::sshjob::tie_to_app(&child);
     *inner.child.lock().unwrap() = Some(child);
 
     let deadline = Instant::now() + CONNECT_TIMEOUT;
@@ -469,9 +484,13 @@ mod tests {
         t.key = "/tmp/id_test".into();
         let args = ssh_forward_args(&t, 1, 2);
         assert!(args.windows(2).any(|w| w[0] == "-p" && w[1] == "2222"));
-        assert!(args
-            .windows(2)
-            .any(|w| w[0] == "-i" && w[1] == "/tmp/id_test"));
+        // Win32-OpenSSH is handed native separators.
+        let key = if cfg!(windows) {
+            r"\tmp\id_test"
+        } else {
+            "/tmp/id_test"
+        };
+        assert!(args.windows(2).any(|w| w[0] == "-i" && w[1] == key));
     }
 
     // Port 22 is ssh's own default; passing it adds noise to every command line.
@@ -484,12 +503,14 @@ mod tests {
 
     // The marker is what separates our leftovers from a forward someone set up by
     // hand; without it on the command line the reaper has nothing safe to match.
+    #[cfg(unix)]
     #[test]
     fn a_forward_is_stamped_so_it_can_be_reaped_later() {
         let args = ssh_forward_args(&target(), 1, 2);
         assert!(args.iter().any(|a| a.contains(TUNNEL_MARKER)), "{args:?}");
     }
 
+    #[cfg(unix)]
     #[test]
     fn reaps_only_re_parented_forwards_of_ours() {
         let listing = concat!(
@@ -502,6 +523,7 @@ mod tests {
         assert_eq!(orphan_pids(listing), vec![501]);
     }
 
+    #[cfg(unix)]
     #[test]
     fn a_garbled_listing_kills_nothing() {
         assert!(orphan_pids("").is_empty());

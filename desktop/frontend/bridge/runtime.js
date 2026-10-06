@@ -6,6 +6,8 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { subscribePeerGlobalEvent, GLOBAL_PEER_EVENTS } from "../src/peer/route";
+import { isMac, isWindows } from "../src/platform";
+import { installWebviewGuards } from "../src/webviewGuards";
 
 // Tauri's listen() is async (returns Promise<UnlistenFn>) but callers expect a
 // synchronous unsubscribe, so bridge the race: if unsubscribed before the
@@ -60,12 +62,15 @@ export async function WindowGetSize() {
 // the coordinates are already what elementFromPoint() wants — do NOT divide
 // by devicePixelRatio (doing so halved hit-tests on Retina, pulling drops
 // toward the top-left so the terminal's left/top edges silently missed).
+// WebKitGTK reports logical pixels too; only WebView2 hands over physical
+// client pixels, which need the scale taken out.
 let fileDropHandler = null;
 let dragSubscribed = false;
 
 function toLogical(position) {
   if (!position) return { x: 0, y: 0 };
-  return { x: Math.round(position.x), y: Math.round(position.y) };
+  const scale = isWindows ? window.devicePixelRatio || 1 : 1;
+  return { x: Math.round(position.x / scale), y: Math.round(position.y / scale) };
 }
 
 function ensureDragSubscription() {
@@ -113,8 +118,10 @@ export function OnFileDropOff() {
 // equivalent, so translate: on primary-button mousedown, if the target's
 // computed `--app-draggable` resolves to "drag", start an OS window drag
 // (double-click toggles maximize). Keeps all component markup unchanged.
+// Linux and Windows keep the OS title bar, which already does both.
 function initWindowDrag() {
   if (typeof window === "undefined" || typeof document === "undefined") return;
+  if (!isMac) return;
   const win = getCurrentWindow();
   const isDrag = (target) => {
     if (!(target instanceof Element)) return false;
@@ -136,3 +143,4 @@ function initWindowDrag() {
 }
 
 initWindowDrag();
+if (typeof window !== "undefined") installWebviewGuards();

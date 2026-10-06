@@ -4,6 +4,7 @@ import { ContextMenuSeparator } from "../ui/ContextMenuSeparator";
 import { ContextMenuShell } from "../ui/ContextMenuShell";
 import { FILE_CHORDS, copyAbsolutePath, copyText, revealInFinder } from "./fileActions";
 import type { RowTarget } from "./FilesRow";
+import { revealLabel } from "../../machineWords";
 
 interface FilesRowMenuProps {
   target: RowTarget;
@@ -56,7 +57,7 @@ export function FilesRowMenu({ target, absPath, onOpen, onDiscard, onClose }: Fi
         }}
       />
       <ContextMenuItem
-        label="Reveal in Finder"
+        label={revealLabel()}
         shortcut={FILE_CHORDS.reveal}
         onClick={() => {
           void revealInFinder(absPath);

@@ -7,7 +7,9 @@
 // show the main window and emit the events the frontend already listens for
 // (menu-open-settings / menu-open-feedback). Dock menu + traffic-light
 // repositioning (objc2-only, cosmetic/niche) are intentionally not ported.
-use tauri::menu::{AboutMetadataBuilder, MenuBuilder, MenuEvent, MenuItemBuilder, SubmenuBuilder};
+use tauri::menu::MenuEvent;
+#[cfg(target_os = "macos")]
+use tauri::menu::{AboutMetadataBuilder, MenuBuilder, MenuItemBuilder, SubmenuBuilder};
 use tauri::{AppHandle, Emitter, Manager};
 
 const ID_SETTINGS: &str = "lpm-menu-settings";
@@ -15,6 +17,10 @@ const ID_FEEDBACK: &str = "lpm-menu-feedback";
 const ID_CHECK_UPDATES: &str = "lpm-menu-check-updates";
 const ID_SELECT_ALL: &str = "lpm-menu-select-all";
 
+// Installed on macOS only. On Linux/Windows it would be an in-window menubar
+// whose Ctrl accelerators (Ctrl+A, Ctrl+,) take keys from the terminal; the app
+// UI offers these entries there instead (AppMenuButton.tsx).
+#[cfg(target_os = "macos")]
 pub fn build_and_set(app: &AppHandle) -> tauri::Result<()> {
     let version = option_env!("LPM_VERSION").unwrap_or("dev");
     let year = chrono::Local::now().format("%Y");

@@ -11,8 +11,26 @@ fn main() {
         Some(lpm_desktop_lib::DAEMON_ARG) => lpm_desktop_lib::run_session_daemon(),
         // Uninstall's "stop everything on this machine", which needs no app and
         // no CLI — the binary being removed can end its own work.
-        Some(lpm_desktop_lib::STOP_SESSIONS_ARG) => lpm_desktop_lib::stop_sessions_and_exit(),
+        Some(lpm_desktop_lib::STOP_SESSIONS_ARG) => {
+            #[cfg(windows)]
+            attach_parent_console();
+            lpm_desktop_lib::stop_sessions_and_exit()
+        }
+        #[cfg(windows)]
+        Some(lpm_desktop_lib::REMOVE_AGENT_HOOKS_ARG) => {
+            lpm_desktop_lib::remove_agent_hooks_and_exit()
+        }
         _ => {}
     }
     lpm_desktop_lib::run();
+}
+
+// A windows-subsystem exe starts without a console, so the failure line would
+// never reach the uninstaller's terminal; borrow the caller's console instead.
+#[cfg(windows)]
+fn attach_parent_console() {
+    use windows_sys::Win32::System::Console::{AttachConsole, ATTACH_PARENT_PROCESS};
+    unsafe {
+        AttachConsole(ATTACH_PARENT_PROCESS);
+    }
 }

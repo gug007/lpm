@@ -1,4 +1,5 @@
 import { Kbd } from "../ui/Kbd";
+import { HIDE_SESSION_LABEL } from "./resumeSessionKeys";
 
 interface ResumeSessionFooterProps {
   // Enter resumes a closed conversation but only re-focuses a live one, so the
@@ -28,7 +29,7 @@ export function ResumeSessionFooter({
         {canHide && (
           <>
             {" · "}
-            <Kbd>⌘⌫</Kbd> to hide
+            <Kbd>{HIDE_SESSION_LABEL}</Kbd> to hide
           </>
         )}
         {" · "}

@@ -6,7 +6,7 @@
 // the suggestions list is empty in practice (only a manually-forwarded port is
 // "marked", and it's then filtered out as already-forwarding). Manual forwarding
 // works end-to-end. Frontend is event-driven: it refetches on "ports-changed".
-use crate::{config, ports};
+use crate::{config, osproc, ports};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::io::Read;
@@ -22,7 +22,11 @@ const DIAL_TIMEOUT: Duration = Duration::from_millis(200);
 const POLL_SLEEP: Duration = Duration::from_millis(75);
 
 // --- poller (port discovery over ssh) + PTY-output sniff --------------------
+// Windows polls slower: without a ControlMaster every poll is a fresh handshake.
+#[cfg(unix)]
 const POLL_INTERVAL: Duration = Duration::from_secs(3); // portpoller.go portPollInterval
+#[cfg(windows)]
+const POLL_INTERVAL: Duration = Duration::from_secs(10);
 const POLL_TIMEOUT: Duration = Duration::from_secs(6); // portpoller.go portPollTimeout
                                                        // ss (preferred) or netstat: list TCP listeners, address in field 4. Header-less.
 const LISTING_CMD: &str = "(command -v ss >/dev/null 2>&1 && ss -tlnH) || (command -v netstat >/dev/null 2>&1 && netstat -tln 2>/dev/null | tail -n +3)";
@@ -54,7 +58,7 @@ struct Forward {
     id: u64,
     local_port: u16,
     remote_port: u16,
-    pid: i32, // ssh -N -L child; killed (SIGKILL) on teardown
+    pid: u32, // ssh -N -L child; killed (SIGKILL) on teardown
 }
 
 #[derive(Default)]
@@ -77,7 +81,7 @@ pub struct PortFwdState {
 
 /// `ssh -N -L 127.0.0.1:L:127.0.0.1:R <conn args, minus -t>`. Reuses the shared
 /// ControlMaster mux (ssh_args), so killing this `-N` child never tears down the
-/// master that terminals/scp use.
+/// master that terminals/scp use. On Windows (no mux) it is its own connection.
 fn forward_argv(ssh: &config::SshSettings, local: u16, remote: u16) -> Vec<String> {
     let mut argv = vec![
         "-N".into(),
@@ -88,6 +92,7 @@ fn forward_argv(ssh: &config::SshSettings, local: u16, remote: u16) -> Vec<Strin
         "-L".into(),
         format!("127.0.0.1:{local}:127.0.0.1:{remote}"),
     ];
+    argv.extend(config::ssh_batch_opts());
     for a in config::ssh_args(ssh) {
         if a != "-t" {
             argv.push(a); // -t is meaningless with -N (pseudo-terminal warning)
@@ -175,14 +180,16 @@ fn forward_impl(
     };
 
     config::ensure_ssh_control_dir()?;
-    let mut child = Command::new("ssh")
+    let mut child = osproc::command("ssh")
         .args(forward_argv(&info.ssh, local_port, remote_port))
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
         .spawn()
         .map_err(|e| format!("start ssh: {e}"))?;
-    let pid = child.id() as i32;
+    #[cfg(windows)]
+    crate::sshjob::tie_to_app(&child);
+    let pid = child.id();
     let stderr = child.stderr.take();
 
     // Single reader thread: drains stderr (last ~512 bytes) + waits the child,
@@ -215,7 +222,7 @@ fn forward_impl(
     }
 
     if let Err(err) = wait_for_local_listen(local_port, &done) {
-        unsafe { libc::kill(pid, libc::SIGKILL) };
+        osproc::kill(pid);
         wait_done(&done);
         let tail = config::trim_tail(&stderr_buf.lock().unwrap(), 200);
         return Err(if tail.is_empty() {
@@ -234,7 +241,7 @@ fn forward_impl(
         let epochs = state.epochs.lock().unwrap();
         if epochs.get(project).copied().unwrap_or(0) != epoch {
             drop(epochs);
-            unsafe { libc::kill(pid, libc::SIGKILL) };
+            osproc::kill(pid);
             wait_done(&done);
             // Retire the mark that armed this forward so a later observation
             // of a genuinely live listener can suggest/forward it again.
@@ -346,7 +353,7 @@ pub fn remove_port_forward(
         }
     }
     if let Some(pid) = killed {
-        unsafe { libc::kill(pid, libc::SIGKILL) };
+        osproc::kill(pid);
     }
     let _ = app.emit("ports-changed", &project);
     Ok(())
@@ -479,14 +486,14 @@ pub fn stop_project_forwards(app: &AppHandle, project: &str) {
         .unwrap()
         .entry(project.to_string())
         .or_insert(0) += 1;
-    let pids: Vec<i32> = {
+    let pids: Vec<u32> = {
         let mut f = state.forwards.lock().unwrap();
         f.remove(project)
             .map(|v| v.into_iter().map(|e| e.pid).collect())
             .unwrap_or_default()
     };
     for pid in pids {
-        unsafe { libc::kill(pid, libc::SIGKILL) };
+        osproc::kill(pid);
     }
     {
         let mut s = state.suggestions.lock().unwrap();
@@ -511,7 +518,7 @@ pub fn stop_all_forwards(app: &AppHandle) {
     let all: HashMap<String, Vec<Forward>> = std::mem::take(&mut state.forwards.lock().unwrap());
     for (_, v) in all {
         for e in v {
-            unsafe { libc::kill(e.pid, libc::SIGKILL) };
+            osproc::kill(e.pid);
         }
     }
 }
@@ -609,15 +616,13 @@ fn fetch_listening_ports(ssh: &config::SshSettings, declared: &HashSet<u16>) -> 
         return Vec::new();
     }
     // ssh connection args minus -t (we're capturing output, not on a tty).
-    let mut args: Vec<String> = config::ssh_args(ssh)
-        .into_iter()
-        .filter(|a| a != "-t")
-        .collect();
+    let mut args = config::ssh_batch_opts();
+    args.extend(config::ssh_args(ssh).into_iter().filter(|a| a != "-t"));
     args.push("-o".into());
     args.push("ConnectTimeout=6".into());
     args.push(LISTING_CMD.into());
 
-    let mut cmd = Command::new("ssh");
+    let mut cmd = osproc::command("ssh");
     cmd.args(&args)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
@@ -632,7 +637,7 @@ fn fetch_listening_ports(ssh: &config::SshSettings, declared: &HashSet<u16>) -> 
 fn run_with_timeout(mut cmd: Command, timeout: Duration) -> Option<Vec<u8>> {
     let mut child = cmd.spawn().ok()?;
     let mut stdout = child.stdout.take()?;
-    let pid = child.id() as i32;
+    let pid = child.id();
     let (tx, rx) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
         let mut buf = Vec::new();
@@ -645,7 +650,7 @@ fn run_with_timeout(mut cmd: Command, timeout: Duration) -> Option<Vec<u8>> {
             Some(buf)
         }
         Err(_) => {
-            unsafe { libc::kill(pid, libc::SIGKILL) };
+            osproc::kill(pid);
             let _ = child.wait();
             None
         }
@@ -858,5 +863,23 @@ fn prune_suggestions(app: &AppHandle, state: &PortFwdState, project: &str, liste
     };
     if changed {
         let _ = app.emit("ports-changed", project);
+    }
+}
+
+#[cfg(all(test, windows))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn windows_forward_never_prompts() {
+        let ssh = config::SshSettings {
+            host: "host".into(),
+            user: "dev".into(),
+            port: 0,
+            key: String::new(),
+            dir: String::new(),
+        };
+        let argv = forward_argv(&ssh, 4000, 3000);
+        assert!(argv.iter().any(|a| a == "BatchMode=yes"), "{argv:?}");
     }
 }

@@ -3,6 +3,7 @@ import { Sparkles } from "lucide-react";
 import { Modal } from "./ui/Modal";
 import { XIcon } from "./icons";
 import { useAutoGrowTextarea } from "../hooks/useAutoGrowTextarea";
+import { enterHint } from "../shortcutHints";
 
 interface ComposerVariantsModalProps {
   open: boolean;
@@ -127,7 +128,7 @@ function VariantCard({ index, value, onChange, onUse }: VariantCardProps) {
           type="button"
           onClick={onUse}
           disabled={!canUse}
-          title="Use this rewrite  ·  ⌘↵"
+          title={`Use this rewrite  ·  ${enterHint({ meta: true })}`}
           className="rounded-md bg-[var(--accent-cyan)] px-2.5 py-1 text-[11.5px] font-medium text-[var(--bg-primary)] transition-opacity hover:opacity-90 disabled:opacity-30"
         >
           Use this

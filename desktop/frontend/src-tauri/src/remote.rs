@@ -1221,7 +1221,7 @@ fn authenticate(ws: &mut ClientWs, hub: &RemoteHub) -> FirstFrame {
 /// running headless has a window server nobody is looking at, so the request
 /// would sit unanswered for its whole window and then time out.
 pub(crate) fn pair_requests_supported() -> bool {
-    cfg!(target_os = "macos")
+    cfg!(target_os = "macos") || !crate::sys::headless()
 }
 
 /// The immediate refusal for a pair-by-approval request on a machine that can't
@@ -5422,33 +5422,11 @@ fn primary_lan_ip() -> Option<String> {
     sock.local_addr().ok().map(|a| a.ip().to_string())
 }
 
-/// This Mac's Tailscale IPv4, if a tailnet interface is up. Tailscale assigns
-/// addresses from the 100.64.0.0/10 CGNAT range, so we scan the interface list
-/// for one — no dependency on the `tailscale` CLI being in PATH. Advertising it
-/// in the pairing QR lets the phone reach this Mac from anywhere it shares the
-/// tailnet (cellular, another network), not just the local Wi-Fi.
+/// This Mac's Tailscale IPv4, if a tailnet interface is up. Advertising it in the
+/// pairing QR lets the phone reach this Mac from anywhere it shares the tailnet
+/// (cellular, another network), not just the local Wi-Fi.
 fn tailscale_ip() -> Option<String> {
-    let mut ifap: *mut libc::ifaddrs = std::ptr::null_mut();
-    if unsafe { libc::getifaddrs(&mut ifap) } != 0 {
-        return None;
-    }
-    let mut result = None;
-    let mut cur = ifap;
-    while !cur.is_null() {
-        let addr = unsafe { (*cur).ifa_addr };
-        if !addr.is_null() && unsafe { (*addr).sa_family } as i32 == libc::AF_INET {
-            let sin = addr as *const libc::sockaddr_in;
-            let ip = std::net::Ipv4Addr::from(u32::from_be(unsafe { (*sin).sin_addr.s_addr }));
-            let o = ip.octets();
-            if o[0] == 100 && (64..=127).contains(&o[1]) {
-                result = Some(ip.to_string());
-                break;
-            }
-        }
-        cur = unsafe { (*cur).ifa_next };
-    }
-    unsafe { libc::freeifaddrs(ifap) };
-    result
+    crate::netif::tailscale_ip()
 }
 
 /// Addresses to advertise for pairing, most-preferred first: the LAN IP (lowest
@@ -5951,8 +5929,13 @@ mod tests {
     }
 
     #[test]
-    fn only_macos_presents_the_approval_dialog() {
-        assert_eq!(pair_requests_supported(), cfg!(target_os = "macos"));
+    fn only_a_headless_host_refuses_the_approval_dialog() {
+        assert_eq!(
+            pair_requests_supported(),
+            cfg!(target_os = "macos") || !crate::sys::headless()
+        );
+        #[cfg(target_os = "macos")]
+        assert!(pair_requests_supported());
     }
 
     // The user-visible bug this whole store exists for: the release app and a
@@ -6325,6 +6308,7 @@ mod tests {
     // Anything that can reach the port can send a wrong code, so a rejected
     // pairing must not move the file — least of all reverting a setting the other
     // instance just wrote.
+    #[cfg(unix)]
     #[test]
     fn a_rejected_pairing_code_does_not_touch_the_config() {
         use std::os::unix::fs::MetadataExt;

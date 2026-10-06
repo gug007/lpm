@@ -3,6 +3,7 @@ import {
   DEFAULT_PR_TITLE_INSTRUCTIONS,
   DEFAULT_PR_DESCRIPTION_INSTRUCTIONS,
 } from "../aiInstructions";
+import { chordLabel } from "../keys";
 
 interface PRInstructionsFormProps {
   titleLoad: () => Promise<string>;
@@ -63,7 +64,7 @@ export function PRInstructionsForm({
           {error && (
             <span className="flex-1 text-xs text-[var(--accent-red)]">{error}</span>
           )}
-          <span className="text-[10px] text-[var(--text-muted)]">{"⌘"}S</span>
+          <span className="text-[10px] text-[var(--text-muted)]">{chordLabel({ key: "s", meta: true })}</span>
           <button
             onClick={handleSave}
             disabled={!dirty || saving}

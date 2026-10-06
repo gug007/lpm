@@ -12,7 +12,6 @@ use base64::Engine;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::Read;
-use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, State};
@@ -283,11 +282,12 @@ pub async fn notes_save_attachment(
         return Ok(String::new());
     };
     let data = state.open(&project)?.blobs.read(&hash)?;
-    // file_name() strips any path components in `name` (traversal guard).
+    // file_name() strips any path components in `name` (traversal guard); a
+    // name from another Mac this platform can't hold is made legal.
     let base = Path::new(&name)
         .file_name()
-        .map(|s| s.to_os_string())
-        .unwrap_or_else(|| name.clone().into());
+        .map(|s| crate::fsname::portable(&s.to_string_lossy()))
+        .unwrap_or_else(|| name.clone());
     let path = dir.join(base);
     std::fs::write(&path, &data).map_err(|e| e.to_string())?;
     Ok(path.to_string_lossy().into_owned())
@@ -366,7 +366,7 @@ pub async fn vault_export_key(
     let ts = chrono::Local::now().format("%Y%m%d-%H%M%S");
     let path = dir.join(format!("lpm-vault-{host}-{ts}.json"));
     std::fs::write(&path, data.as_bytes()).map_err(|e| e.to_string())?;
-    let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
+    let _ = crate::fsperm::set_mode(&path, 0o600);
     Ok(path.to_string_lossy().into_owned())
 }
 

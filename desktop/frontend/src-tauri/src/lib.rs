@@ -18,6 +18,10 @@ mod bounds;
 mod browser;
 mod claude_account_pin;
 mod cli_install;
+#[cfg(any(target_os = "linux", all(unix, test)))]
+mod cli_install_linux;
+#[cfg(any(windows, test))]
+mod cli_install_windows;
 mod claude_session_state;
 mod clipboard;
 mod codex_statusline;
@@ -27,8 +31,11 @@ mod config_cmds;
 mod config_edit;
 mod configclassify;
 mod configwatch;
+#[cfg(any(windows, test))]
+mod conptyreply;
 mod control;
 mod daemonize;
+mod daemonlaunch;
 mod detached;
 mod detect;
 mod dockmenu;
@@ -37,6 +44,9 @@ mod files;
 mod firstlaunch;
 mod fonts;
 mod fsatomic;
+mod fslink;
+mod fsname;
+mod fsperm;
 mod generated_commands;
 mod git;
 mod gitignore;
@@ -52,9 +62,12 @@ mod gitpush;
 mod gitsync;
 mod gitwatchhost;
 mod gitworkstate;
+mod hookform;
 mod hooks;
+mod ipc;
 mod jobs;
 mod lesson;
+mod lifecycle;
 mod log_streaming;
 mod mainwindow;
 mod mdns;
@@ -63,10 +76,15 @@ mod mediapeer;
 mod mediaproto;
 mod menu;
 mod message_history;
+mod msysmounts;
+mod netif;
 mod notes_blobs;
 mod notes_cmds;
 mod notes_store;
 mod openin;
+mod osproc;
+#[cfg(any(windows, test))]
+mod panestop;
 mod peer;
 mod peerclient;
 mod peercopy;
@@ -84,8 +102,11 @@ mod phonefile;
 mod portforward;
 mod ports;
 mod portsprobe;
+#[cfg(any(windows, test))]
+mod portsprobe_windows;
 mod procinfo;
 mod proctree;
+mod procwin;
 mod projects_crud;
 mod pty;
 mod pull_request;
@@ -110,6 +131,7 @@ mod sessions;
 mod session_memory;
 mod session_memory_files;
 mod session_memory_scope;
+mod shellpath;
 mod skill_install;
 mod skill_install_remote;
 mod sockdeliver;
@@ -117,11 +139,17 @@ mod socketsrv;
 mod sound;
 mod sshconfig;
 mod sshexec;
+#[cfg(windows)]
+mod sshjob;
 mod sshprobe;
 mod sshsync;
+#[cfg(any(windows, test))]
+mod sshsync_tar;
 mod status;
 mod statusfwd;
 mod statusnotify;
+#[cfg(any(windows, test))]
+mod statusrelay;
 mod syncstate;
 mod syncsurface;
 mod sys;
@@ -132,19 +160,30 @@ mod textinput;
 mod tmuxmigrate;
 mod transfer;
 mod trash;
+#[cfg(any(windows, test))]
+mod treecopy;
 mod openaitts;
 mod secrets;
 mod tts;
 mod uninstall;
+#[cfg(any(not(target_os = "macos"), test))]
+mod updatenotice;
 mod updates;
 mod upload;
 mod vault;
 #[cfg(target_os = "macos")]
 mod vaultkeychain;
-#[cfg(not(target_os = "macos"))]
+#[cfg(windows)]
+mod vaultcred;
+#[cfg(all(unix, not(target_os = "macos")))]
 mod vaultkeyfile;
 mod voicetotext;
 mod watchfilter;
+mod webengine;
+#[cfg(windows)]
+mod wincred;
+#[cfg(windows)]
+mod winpath;
 mod zone_layers;
 mod zones;
 
@@ -186,8 +225,10 @@ use gitsync::{sync_project_cancel, sync_project_start};
 use hooks::*;
 use jobs::*;
 use lesson::*;
+use lifecycle::quit_app;
 use log_streaming::*;
 use message_history::*;
+use msysmounts::get_msys_mounts;
 use notes_cmds::*;
 use openin::*;
 use peer::{
@@ -252,13 +293,34 @@ pub fn stop_sessions_and_exit() -> ! {
     }
 }
 
+/// The argument the Windows uninstaller runs before deleting the app: the hooks
+/// lpm wrote call the CLI beside the app by absolute path, so they have to go
+/// with it rather than fail in every agent session afterwards.
+#[cfg(windows)]
+pub const REMOVE_AGENT_HOOKS_ARG: &str = "--remove-agent-hooks";
+
+/// Run by the Windows uninstaller, which an upgrade also runs: take out only the
+/// agent hook entries that point at the exe about to be deleted. Services, the
+/// CLI copy and skills stay; a newer lpm puts the hooks back on its first start.
+#[cfg(windows)]
+pub fn remove_agent_hooks_and_exit() -> ! {
+    hooks::remove_agent_hook_entries();
+    let _ = session_memory::remove_for_uninstall();
+    std::process::exit(0)
+}
+
 // The attribute belongs to `run` — it is the app's entry point. Anything added
 // above must stay above this line.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(target_os = "linux")]
+    webengine::prepare_linux_env();
+
     // Finder-launched apps have a minimal PATH; restore Homebrew locations so
     // ssh/git/gh lookups work (matches the Go app's tmux.init()).
     sys::ensure_path();
+    #[cfg(windows)]
+    sys::drop_unusable_std_handles();
 
     // Turn off macOS smart substitutions before any webview is created so the
     // composer never rewrites typed text (e.g. double space -> ". ").
@@ -269,7 +331,11 @@ pub fn run() {
     let peer_hub = peer::PeerHub::default();
     let peer_client_hub = peerclient::PeerClientHub::new(peer_hub.config_arc());
 
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    #[cfg(not(target_os = "macos"))]
+    let builder = lifecycle::with_single_instance(builder);
+
+    builder
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
@@ -304,7 +370,14 @@ pub fn run() {
                 if window.label() == "main" {
                     mainwindow::persist_now(window.app_handle());
                     api.prevent_close();
+                    #[cfg(not(target_os = "macos"))]
+                    if lifecycle::close_quits() {
+                        window.app_handle().exit(0);
+                        return;
+                    }
                     let _ = window.hide();
+                    #[cfg(not(target_os = "macos"))]
+                    lifecycle::explain_hidden_once(window.app_handle());
                 }
             }
         })
@@ -312,12 +385,14 @@ pub fn run() {
             firstlaunch::seed_global_actions();
             let handle = app.handle().clone();
             lesson::start(handle.clone());
+            #[cfg(target_os = "macos")]
             if let Err(e) = menu::build_and_set(&handle) {
                 eprintln!("warning: failed to set app menu: {e}");
             }
             dockmenu::install(&handle);
             // Restore the saved main-window bounds, then persist on move/resize.
             if let Some(win) = handle.get_webview_window("main") {
+                webengine::harden(&win);
                 mainwindow::restore(&win);
                 mainwindow::attach(&win);
             }

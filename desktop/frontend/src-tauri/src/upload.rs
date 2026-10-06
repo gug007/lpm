@@ -8,7 +8,6 @@
 use crate::pty::{self, PtyState};
 use crate::{clipboard, config};
 use std::path::Path;
-use std::process::Command;
 use tauri::State;
 
 #[tauri::command(async)]
@@ -96,9 +95,10 @@ fn upload_files(ssh: &config::SshSettings, locals: &[String]) -> Result<Vec<Stri
     let remote_cmd = format!(
         "mkdir -p \"$HOME/.lpm/uploads/{batch}\" && printf '%s' \"$HOME/.lpm/uploads/{batch}\""
     );
-    let mut mkdir_args = config::ssh_args(ssh);
+    let mut mkdir_args = config::ssh_batch_opts();
+    mkdir_args.extend(config::ssh_args(ssh));
     mkdir_args.push(remote_cmd);
-    let out = Command::new("ssh")
+    let out = crate::osproc::command("ssh")
         .args(&mkdir_args)
         .output()
         .map_err(|e| format!("ssh mkdir: {e}"))?;
@@ -121,7 +121,7 @@ fn upload_files(ssh: &config::SshSettings, locals: &[String]) -> Result<Vec<Stri
         scp_args.push(p.clone());
     }
     scp_args.push(format!("{}@{}:{}/", ssh.user, ssh.host, remote_dir));
-    let scp = Command::new("scp")
+    let scp = crate::osproc::command("scp")
         .args(&scp_args)
         .output()
         .map_err(|e| format!("scp: {e}"))?;

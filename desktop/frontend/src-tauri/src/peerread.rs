@@ -381,6 +381,7 @@ mod tests {
         );
     }
 
+    #[cfg(unix)]
     #[test]
     fn the_host_refuses_a_fifo_without_waiting_on_it() {
         let dir = tempfile::tempdir().unwrap();

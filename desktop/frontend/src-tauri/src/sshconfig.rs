@@ -183,7 +183,10 @@ fn expand_include_path(pat: &str, home: &Path) -> PathBuf {
     if p.is_absolute() {
         return p.to_path_buf();
     }
-    if let Some(rest) = pat.strip_prefix("~/") {
+    let tilde = pat
+        .strip_prefix("~/")
+        .or_else(|| pat.strip_prefix("~\\").filter(|_| cfg!(windows)));
+    if let Some(rest) = tilde {
         return home.join(rest);
     }
     home.join(".ssh").join(pat)
@@ -193,4 +196,46 @@ fn expand_include_path(pat: &str, home: &Path) -> PathBuf {
 fn dedupe_hosts(hosts: &mut Vec<SshConfigHost>) {
     let mut seen = std::collections::HashSet::new();
     hosts.retain(|h| seen.insert(h.name.clone()));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn include_paths_resolve_like_ssh() {
+        let home = Path::new("/h");
+        assert_eq!(expand_include_path("~/x.conf", home), home.join("x.conf"));
+        assert_eq!(
+            expand_include_path("conf.d/*", home),
+            home.join(".ssh").join("conf.d/*")
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_include_takes_a_backslash_tilde() {
+        let home = Path::new(r"C:\Users\dev");
+        assert_eq!(
+            expand_include_path(r"~\.ssh\extra", home),
+            home.join(r".ssh\extra")
+        );
+    }
+
+    // Win32-OpenSSH users often edit ~/.ssh/config with Notepad (CRLF).
+    #[test]
+    fn crlf_config_parses_like_lf() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config");
+        std::fs::write(
+            &path,
+            "Host box\r\n  HostName 10.0.0.2\r\n  User dev\r\n  Port 2222\r\n",
+        )
+        .unwrap();
+        let hosts = parse_ssh_config(&path, dir.path(), 0).unwrap();
+        assert_eq!(hosts.len(), 1);
+        assert_eq!(hosts[0].host_name, "10.0.0.2");
+        assert_eq!(hosts[0].user, "dev");
+        assert_eq!(hosts[0].port, 2222);
+    }
 }

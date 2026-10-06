@@ -13,13 +13,13 @@
 // under a caller-supplied run id so CancelActionBackground can reap its process
 // tree mid-flight.
 // stderr is merged into stdout via dup2(1,2) so lines interleave in write order,
-// matching Go's single os.Pipe.
+// matching Go's single os.Pipe (Windows hands both handles one pipe instead).
 use crate::{config, ports, proctree};
 use serde::Serialize;
 use std::collections::HashMap;
-use std::io::BufRead;
-use std::os::unix::process::{CommandExt, ExitStatusExt};
-use std::process::{Command, ExitStatus, Stdio};
+use std::io::{BufRead, Read};
+use std::path::Path;
+use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::{Mutex, OnceLock};
 use tauri::{AppHandle, Emitter};
 
@@ -267,7 +267,9 @@ fn resolve_action_command(
 }
 
 /// Route the child's stderr into its stdout pipe (Go points both at one writer).
+#[cfg(unix)]
 fn merge_stderr_into_stdout(cmd: &mut Command) {
+    use std::os::unix::process::CommandExt;
     unsafe {
         cmd.pre_exec(|| {
             if libc::dup2(1, 2) == -1 {
@@ -278,6 +280,32 @@ fn merge_stderr_into_stdout(cmd: &mut Command) {
     }
 }
 
+/// Spawn with stderr merged into stdout, returning the child and the combined
+/// stream. Consumes the command: on Windows it holds the pipe's write end,
+/// and the reader only sees EOF once every copy of that is gone.
+fn spawn_merged(mut cmd: Command) -> Result<(Child, Box<dyn Read + Send>), String> {
+    #[cfg(unix)]
+    {
+        cmd.stdout(Stdio::piped());
+        merge_stderr_into_stdout(&mut cmd);
+        let mut child = cmd.spawn().map_err(|e| e.to_string())?;
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or("failed to capture action output")?;
+        Ok((child, Box::new(stdout)))
+    }
+    #[cfg(windows)]
+    {
+        let (reader, writer) = std::io::pipe().map_err(|e| e.to_string())?;
+        let stderr = writer.try_clone().map_err(|e| e.to_string())?;
+        cmd.stdout(writer).stderr(stderr);
+        let child = cmd.spawn().map_err(|e| e.to_string())?;
+        drop(cmd);
+        Ok((child, Box::new(reader)))
+    }
+}
+
 /// Build the child process for an action. Local actions run through the user's
 /// interactive login shell so shell init (nvm, version managers, PATH) is loaded;
 /// the cwd is set with an explicit `cd` so the user's rc can't redirect it.
@@ -285,24 +313,24 @@ fn merge_stderr_into_stdout(cmd: &mut Command) {
 /// environment on the far side.
 fn action_command(plan: &ActionPlan) -> Command {
     let mut cmd = if plan.login_shell {
-        let shell = crate::sys::login_shell();
-        let script = format!("cd {} && {}", config::shell_quote(&plan.cwd), plan.cmd_str);
-        let mut cmd = Command::new(shell);
-        cmd.arg("-ilc").arg(script).current_dir(&plan.cwd);
-        cmd
+        let cwd = crate::shellpath::shell_path(Path::new(&plan.cwd));
+        let script = format!("cd {} && {}", config::shell_quote(&cwd), plan.cmd_str);
+        crate::shellpath::shell_script("-ilc", &script)
     } else {
-        let mut cmd = Command::new("/bin/sh");
-        cmd.arg("-c").arg(&plan.cmd_str).current_dir(&plan.cwd);
-        cmd
+        crate::shellpath::sh_script(&plan.cmd_str)
     };
+    cmd.current_dir(&plan.cwd);
     plan.claude_env.apply(&mut cmd);
     cmd
 }
 
 /// Go ProcessState.String(): "exit status N" / "signal: N".
 fn exit_status_string(s: Option<ExitStatus>) -> String {
+    #[cfg(unix)]
+    use std::os::unix::process::ExitStatusExt;
     match s {
         Some(st) if st.code().is_some() => format!("exit status {}", st.code().unwrap()),
+        #[cfg(unix)]
         Some(st) if st.signal().is_some() => format!("signal: {}", st.signal().unwrap()),
         _ => "exit status 1".into(),
     }
@@ -319,14 +347,7 @@ pub fn run_action(
     ports::format_action_port(&action_name, &plan.ports)?; // pre-check; no spawn on conflict
     let on_exit = plan.on_exit.take();
 
-    let mut cmd = action_command(&plan);
-    cmd.stdout(Stdio::piped());
-    merge_stderr_into_stdout(&mut cmd);
-    let mut child = cmd.spawn().map_err(|e| e.to_string())?;
-    let stdout = child
-        .stdout
-        .take()
-        .ok_or("failed to capture action output")?;
+    let (mut child, stdout) = spawn_merged(action_command(&plan))?;
 
     let app2 = app.clone();
     std::thread::spawn(move || {
@@ -428,22 +449,14 @@ fn run_action_background_inner(
 
     let mut cmd = action_command(&plan);
     cmd.stdin(Stdio::null());
-    cmd.stdout(Stdio::piped());
-    merge_stderr_into_stdout(&mut cmd); // stdout carries combined output
-                                        // New session: own group so a cancel can signal the whole tree without
-                                        // touching us, and — unlike process_group(0) — no controlling terminal.
-                                        // With one (app launched from a terminal, e.g. `tauri dev`) the interactive
-                                        // login shell sees its group in the background and self-stops with SIGTTIN
-                                        // before running the command; it opens /dev/tty directly, so a null stdin
-                                        // alone doesn't prevent that.
-    unsafe {
-        cmd.pre_exec(|| {
-            if libc::setsid() == -1 {
-                return Err(std::io::Error::last_os_error());
-            }
-            Ok(())
-        });
-    }
+    // New session: own group so a cancel can signal the whole tree without
+    // touching us, and — unlike process_group(0) — no controlling terminal.
+    // With one (app launched from a terminal, e.g. `tauri dev`) the interactive
+    // login shell sees its group in the background and self-stops with SIGTTIN
+    // before running the command; it opens /dev/tty directly, so a null stdin
+    // alone doesn't prevent that. Windows has neither: cancel walks the tree.
+    #[cfg(unix)]
+    crate::osproc::detach(&mut cmd);
     // The run is registered (pid 0) before resolve, so a cancel can land while we
     // are still here — honor it instead of launching a process the cancel's
     // `pid > 0` guard could no longer reach.
@@ -456,11 +469,8 @@ fn run_action_background_inner(
     {
         return Err(CANCELLED_ERR.into());
     }
-    let mut child = cmd.spawn().map_err(|e| e.to_string())?;
-    let stdout = child
-        .stdout
-        .take()
-        .ok_or("failed to capture action output")?;
+    // stdout carries combined output
+    let (mut child, stdout) = spawn_merged(cmd)?;
     // Publish the pid and, under the same lock, catch a cancel that slipped in
     // between the check above and the spawn — the canceller saw pid 0 and
     // couldn't kill, so it's on us to reap the tree now.
@@ -540,6 +550,66 @@ pub fn cancel_action_background(run_id: String) -> Result<(), String> {
         proctree::kill_tree_async(pid);
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod command_tests {
+    use super::*;
+
+    fn plan(cwd: &str, login_shell: bool) -> ActionPlan {
+        ActionPlan {
+            cmd_str: "make 'a b'".into(),
+            cwd: cwd.into(),
+            ports: Vec::new(),
+            login_shell,
+            claude_env: config::ClaudeEnv::Inherit,
+            on_exit: None,
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_local_action_cds_into_its_cwd_through_the_login_shell() {
+        let cmd = action_command(&plan("/srv/my app", true));
+        assert_eq!(cmd.get_program(), crate::sys::login_shell().as_str());
+        let args: Vec<_> = cmd.get_args().collect();
+        assert_eq!(args, ["-ilc", "cd '/srv/my app' && make 'a b'"]);
+        assert_eq!(cmd.get_current_dir(), Some(Path::new("/srv/my app")));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_remote_action_line_runs_under_sh() {
+        let cmd = action_command(&plan("/srv/app", false));
+        assert_eq!(cmd.get_program(), "/bin/sh");
+        let args: Vec<_> = cmd.get_args().collect();
+        assert_eq!(args, ["-c", "make 'a b'"]);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn a_local_action_cds_into_the_msys_spelling_of_its_cwd() {
+        let cmd = action_command(&plan(r"C:\work\my app", true));
+        let script = cmd
+            .get_envs()
+            .find(|(k, _)| *k == "LPM_SHELL_SCRIPT")
+            .and_then(|(_, v)| v)
+            .map(|v| v.to_string_lossy().into_owned());
+        assert_eq!(script.as_deref(), Some("cd '/c/work/my app' && make 'a b'"));
+        assert_eq!(cmd.get_current_dir(), Some(Path::new(r"C:\work\my app")));
+    }
+
+    #[test]
+    fn merged_output_carries_both_streams_to_eof() {
+        let (mut child, out) =
+            spawn_merged(crate::shellpath::sh_script("echo out; echo err 1>&2")).unwrap();
+        let mut text = String::new();
+        std::io::BufReader::new(out)
+            .read_to_string(&mut text)
+            .unwrap();
+        child.wait().unwrap();
+        assert_eq!(text, "out\nerr\n");
+    }
 }
 
 #[cfg(test)]

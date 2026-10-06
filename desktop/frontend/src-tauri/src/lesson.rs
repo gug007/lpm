@@ -3,11 +3,10 @@
 //! Unix socket that runs JavaScript in the main webview and places the window
 //! where the screen recorder expects it. Never compiled into release builds'
 //! behaviour: `socket()` is `None` there whatever the environment says.
+use crate::ipc::{UnixListener, UnixStream};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
-use std::os::unix::fs::PermissionsExt;
-use std::os::unix::net::{UnixListener, UnixStream};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, State, Webview, Window};
 
@@ -41,7 +40,7 @@ pub fn start(app: AppHandle) {
             return;
         }
     };
-    let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
+    let _ = crate::fsperm::set_mode(std::path::Path::new(&path), 0o600);
     std::thread::spawn(move || {
         for conn in listener.incoming().flatten() {
             let app = app.clone();

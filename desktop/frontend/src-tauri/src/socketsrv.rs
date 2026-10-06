@@ -36,11 +36,10 @@
 // `remote-run-task` (the app stays the single owner of run-state, port forwards,
 // and UI events) and reply OK / ERROR: <msg>. std::thread (no tokio), matching
 // the pty/session house style.
+use crate::ipc::{UnixListener, UnixStream};
 use crate::status::{now_millis, StatusEntry, StatusStore};
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
-use std::os::unix::fs::PermissionsExt;
-use std::os::unix::net::{UnixListener, UnixStream};
 use std::sync::Arc;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
@@ -72,7 +71,7 @@ pub fn start(socket_path: String, store: Arc<StatusStore>, app: AppHandle, restr
             return;
         }
     };
-    if let Err(e) = std::fs::set_permissions(&socket_path, std::fs::Permissions::from_mode(0o600)) {
+    if let Err(e) = crate::fsperm::set_mode(std::path::Path::new(&socket_path), 0o600) {
         eprintln!("warning: failed to set socket permissions: {e}");
         let _ = std::fs::remove_file(&socket_path);
         return;

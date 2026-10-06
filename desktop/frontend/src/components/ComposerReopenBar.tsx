@@ -3,6 +3,9 @@ import { useComposerStore } from "../store/composer";
 import { MessageIcon } from "./icons";
 import { AgentStatusChip } from "./AgentStatusChip";
 import type { PaneAgentStatus } from "../hooks/usePaneStatus";
+import { chordLabel } from "../keys";
+
+const TOGGLE_INPUT = chordLabel({ key: "i", meta: true });
 
 interface ComposerReopenBarProps {
   // Terminal the input would target; drives the same placeholder as the live
@@ -25,7 +28,7 @@ export function ComposerReopenBar({ targetLabel, fontSize, agentStatus }: Compos
       <button
         type="button"
         onClick={() => useComposerStore.getState().setOpen(true)}
-        title="Show input (⌘I)"
+        title={`Show input (${TOGGLE_INPUT})`}
         aria-label={`Show message input for ${targetLabel}`}
         className="flex w-full cursor-pointer items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-1.5 text-left text-[var(--text-muted)] transition-colors hover:border-[var(--text-muted)] hover:text-[var(--text-primary)]"
       >
@@ -47,7 +50,7 @@ export function ComposerReopenBar({ targetLabel, fontSize, agentStatus }: Compos
             mutedClassName="text-[var(--text-muted)]"
           />
         )}
-        <span className="shrink-0 font-mono text-[11px]">⌘I</span>
+        <span className="shrink-0 font-mono text-[11px]">{TOGGLE_INPUT}</span>
       </button>
     </div>
   );

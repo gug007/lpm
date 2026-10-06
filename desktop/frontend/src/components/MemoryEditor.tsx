@@ -1,3 +1,5 @@
+import { enterHint } from "../shortcutHints";
+
 interface MemoryEditorProps {
   draft: string;
   // What the file read when editing started: while the draft still matches it
@@ -44,7 +46,9 @@ export function MemoryEditor({
         className="min-h-0 w-full flex-1 resize-none bg-[var(--bg-primary)] px-8 py-5 font-mono text-[var(--text-primary)] focus:outline-none"
       />
       <div className="flex items-center gap-2 border-t border-[var(--border)] px-4 py-2.5">
-        <span className="flex-1 text-[11px] text-[var(--text-muted)]">⌘⏎ save · esc cancel</span>
+        <span className="flex-1 text-[11px] text-[var(--text-muted)]">
+          {enterHint({ meta: true }, "⏎")} save · esc cancel
+        </span>
         <button
           onClick={onCancel}
           className="rounded-md border border-[var(--border)] px-2.5 py-1 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"

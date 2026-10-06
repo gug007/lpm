@@ -4,13 +4,14 @@ import { COMPOSER_TOOL_BUTTON_CLASS } from "./composerToolStyles";
 import { PlusIcon } from "./icons";
 import { ContextMenuItem } from "./ui/ContextMenuItem";
 import { Tooltip } from "./ui/Tooltip";
+import { chordLabel } from "../keys";
 
 interface ComposerNewInputButtonProps {
   variant?: ComposerToolVariant;
   onClick: () => void;
 }
 
-const SHORTCUT = "⌘⇧T";
+const SHORTCUT = chordLabel({ key: "t", meta: true, shift: true });
 
 // Opens another prompt tab in the composer, so a second draft can be written
 // without losing the first.

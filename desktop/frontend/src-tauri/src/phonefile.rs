@@ -27,6 +27,10 @@ fn resolve(root: Option<&str>, raw: &str) -> Result<PathBuf, String> {
     if raw.is_empty() {
         return Err("No file to open.".into());
     }
+    #[cfg(windows)]
+    let msys = msys_to_windows(raw);
+    #[cfg(windows)]
+    let raw = msys.as_deref().unwrap_or(raw);
     let expanded = PathBuf::from(crate::config::expand_home(raw));
     if expanded.is_absolute() {
         return Ok(expanded);
@@ -35,6 +39,24 @@ fn resolve(root: Option<&str>, raw: &str) -> Result<PathBuf, String> {
         Some(r) => Ok(Path::new(r).join(expanded)),
         None => Err(NOT_FOUND.into()),
     }
+}
+
+/// Terminals on Windows run Git Bash, which prints `C:\Users\…` as
+/// `/c/Users/…`; that is the form a path tapped there arrives in.
+#[cfg(any(windows, test))]
+fn msys_to_windows(raw: &str) -> Option<String> {
+    let rest = raw.strip_prefix('/')?;
+    let mut chars = rest.chars();
+    let drive = chars.next().filter(char::is_ascii_alphabetic)?;
+    let tail = chars.as_str();
+    if !(tail.is_empty() || tail.starts_with('/')) {
+        return None;
+    }
+    Some(format!(
+        "{}:\\{}",
+        drive.to_ascii_uppercase(),
+        tail.trim_start_matches('/').replace('/', "\\")
+    ))
 }
 
 fn read_chunk(path: &Path, offset: u64, length: u64) -> Result<Chunk, String> {
@@ -106,14 +128,25 @@ mod tests {
     #[test]
     fn resolve_keeps_absolute_and_expands_home() {
         assert_eq!(
-            resolve(Some("/p"), "/a/b.mp4").unwrap(),
-            PathBuf::from("/a/b.mp4")
+            resolve(Some("/p"), "/srv/b.mp4").unwrap(),
+            PathBuf::from("/srv/b.mp4")
         );
         let home = dirs::home_dir().unwrap();
         assert_eq!(
             resolve(None, "~/Movies/x.mp4").unwrap(),
             home.join("Movies/x.mp4")
         );
+    }
+
+    #[test]
+    fn git_bash_drive_paths_map_to_windows_ones() {
+        assert_eq!(
+            msys_to_windows("/c/Users/dev/clip.mp4").as_deref(),
+            Some(r"C:\Users\dev\clip.mp4")
+        );
+        assert_eq!(msys_to_windows("/d").as_deref(), Some(r"D:\"));
+        assert_eq!(msys_to_windows("/srv/app"), None);
+        assert_eq!(msys_to_windows("relative/x"), None);
     }
 
     #[test]

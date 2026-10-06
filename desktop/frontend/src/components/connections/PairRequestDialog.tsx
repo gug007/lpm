@@ -3,6 +3,7 @@ import { EventsOn } from "../../../bridge/runtime";
 import { PeerState, PeerHostRespondPairing } from "../../../bridge/commands";
 import { Modal } from "../ui/Modal";
 import type { PeerPairRequest, PeerStateShape } from "../../peer/usePeerState";
+import { MACHINE } from "../../machineWords";
 
 function groupSas(sas: string): string {
   return sas.length === 6 ? `${sas.slice(0, 3)} ${sas.slice(3)}` : sas;
@@ -78,7 +79,7 @@ export function PairRequestDialog() {
           onChange={(e) => setReciprocal(e.target.checked)}
           className="h-4 w-4 accent-[var(--accent-cyan)]"
         />
-        Also control {active.name} from this Mac
+        Also control {active.name} from {MACHINE.thisMachine}
       </label>
 
       <div className="mt-5 flex justify-end gap-2">

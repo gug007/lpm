@@ -2391,10 +2391,12 @@ dependencies = [
  "core-foundation",
  "core-foundation-sys",
  "dirs",
+ "embed-resource",
  "flate2",
  "getrandom 0.4.3",
  "glob",
  "hex",
+ "if-addrs",
  "libc",
  "mdns-sd",
  "mime_guess",
@@ -2420,12 +2422,17 @@ dependencies = [
  "tauri-plugin-dialog",
  "tauri-plugin-notification",
  "tauri-plugin-opener",
+ "tauri-plugin-single-instance",
  "tempfile",
  "time",
  "toml_edit 0.25.13+spec-1.1.0",
  "tungstenite",
+ "uds_windows",
  "urlencoding",
  "uuid",
+ "webview2-com",
+ "windows-core 0.61.2",
+ "windows-sys 0.61.2",
  "zeroize",
 ]
 
@@ -4630,6 +4637,22 @@ dependencies = [
  "thiserror 2.0.19",
  "url",
  "windows",
+ "zbus",
+]
+
+[[package]]
+name = "tauri-plugin-single-instance"
+version = "2.4.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "db817fe9295e19b7d8357e900af31edb93703dd9fb6de524b007b47b6afc63b0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tauri",
+ "thiserror 2.0.19",
+ "tokio",
+ "tracing",
+ "windows-sys 0.60.2",
  "zbus",
 ]
 

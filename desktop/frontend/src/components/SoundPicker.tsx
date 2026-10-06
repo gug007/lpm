@@ -1,11 +1,10 @@
 import { Play, FolderOpen } from "lucide-react";
 import { PlaySoundPreview, PickAudioFile } from "../../bridge/commands";
+import { basename, isRootedPath } from "../path";
 import { SettingsSelect } from "./SettingsSelect";
 
 const ICON_BTN =
   "flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[var(--border)] text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-active)] disabled:opacity-40";
-
-const basename = (p: string) => p.split("/").pop() || p;
 
 export function SoundPicker({
   value,
@@ -18,7 +17,7 @@ export function SoundPicker({
   event: "done" | "waiting" | "error";
   onChange: (value: string) => void;
 }) {
-  const isPath = value.startsWith("/");
+  const isPath = isRootedPath(value);
   const silent = value === "none" || value === "";
 
   // A button, not a <select> option: opening the native dialog from inside a
@@ -38,7 +37,7 @@ export function SoundPicker({
       >
         <option value="chime">Chime (default)</option>
         <option value="none">None</option>
-        {isPath && <option value={value}>{basename(value)} (file)</option>}
+        {isPath && <option value={value}>{basename(value) || value} (file)</option>}
         {sounds.map((name) => (
           <option key={name} value={name}>
             {name}

@@ -6,6 +6,7 @@ import type { TerminalTargetInfo } from "../store/terminalTargets";
 import { GLOBAL_TERMINALS_KEY } from "../terminals";
 import { promptPreview } from "./preview";
 import { whenLabel } from "./time";
+import { MACHINE } from "../machineWords";
 
 function projectTitle(projectName: string): string {
   if (projectName === GLOBAL_TERMINALS_KEY) return "Terminals";
@@ -56,7 +57,8 @@ export function announceMissed(items: ScheduledPrompt[], atLaunch: boolean): voi
   const fresh = missed.filter((i) => !announced.has(i.id));
   saveAnnounced(new Set(missed.map((i) => i.id)));
   if (fresh.length === 0) return;
-  const away = atLaunch ? "lpm wasn't running or the Mac was asleep" : "the Mac was asleep";
+  const asleep = `the ${MACHINE.noun} was asleep`;
+  const away = atLaunch ? `lpm wasn't running or ${asleep}` : asleep;
   let title: string;
   let description: string;
   if (fresh.length === 1) {

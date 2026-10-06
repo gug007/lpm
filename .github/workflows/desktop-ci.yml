@@ -1,0 +1,298 @@
+name: Desktop CI
+
+# The app ships on macOS, Linux and Windows, and is developed on a Mac. This is
+# what keeps the other two honest on every change: the frontend's unit tests on
+# all three systems, the Rust crates tested and the app smoke-tested on Windows,
+# and the Linux build packaged, installed and actually launched. linux-host.yml
+# covers the Rust tests on Linux.
+
+on:
+  push:
+    # main, plus port/** branches that need the Windows and Linux runners before
+    # a PR exists; a branch with a PR open is covered by `pull_request`.
+    branches: [main, "port/**"]
+    paths:
+      - "desktop/**"
+      - "cli/**"
+      - "scripts/build-cli.*"
+      - ".github/workflows/desktop-ci.yml"
+  pull_request:
+    paths:
+      - "desktop/**"
+      - "cli/**"
+      - "scripts/build-cli.*"
+      - ".github/workflows/desktop-ci.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: desktop-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  frontend:
+    name: Frontend (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-latest, macos-14]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: desktop/frontend
+    steps:
+      # Windows runners check out with CRLF; the repo is LF.
+      - name: Keep LF line endings
+        if: runner.os == 'Windows'
+        working-directory: .
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: desktop/frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit --no-fund
+
+      - name: Typecheck
+        run: npx tsc --noEmit -p tsconfig.json
+
+      - name: Unit tests
+        run: npx vitest run
+
+  # The Rust tests, plus the debug app (frontend embedded, lesson control socket
+  # compiled in) driven by desktop/windows/smoke.ps1. Every step after the
+  # build runs whatever failed before it, so a red unit test never hides the
+  # smoke result or the other way round. One command per step: under pwsh a
+  # failing native command mid-script does not fail the step.
+  windows:
+    name: Windows (Rust + smoke)
+    runs-on: windows-latest
+    timeout-minutes: 120
+    env:
+      AWS_LC_SYS_PREBUILT_NASM: "1"
+      LPM_CLI_TARGET: x86_64-pc-windows-msvc
+    steps:
+      # Shell scripts the app embeds (include_str!) and byte-exact test fixtures
+      # must stay LF.
+      - name: Keep LF line endings
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@v5
+
+      # Parses the smoke scripts and tests their helpers (AF_UNIX client
+      # included) in seconds, before a long build gives a typo its first run.
+      # A failure is reported at the end rather than skipping everything else.
+      - name: Smoke script self-test
+        id: selftest
+        continue-on-error: true
+        run: ./desktop/windows/smoke-selftest.ps1
+
+      # windows-2025 has no D: drive and ~33 GB free on C:, which the debug
+      # build, the test build and the CLI's two profiles come close to.
+      - name: Free disk space
+        run: |
+          $free = [math]::Round((Get-PSDrive C).Free / 1GB, 1)
+          Write-Host "C: has $free GB free"
+          if ($free -lt 25 -and (Test-Path C:\Android)) {
+            cmd /c rmdir /s /q C:\Android
+            Write-Host ("C: has {0} GB free without the Android SDK" -f [math]::Round((Get-PSDrive C).Free / 1GB, 1))
+          }
+          exit 0
+
+      # OpenSSL's configure (rusqlite's vendored SQLCipher) needs Strawberry
+      # Perl; Git for Windows' perl lacks its modules and can come first on PATH.
+      - name: Use Strawberry Perl for OpenSSL
+        run: |
+          $perl = 'C:\Strawberry\perl\bin\perl.exe'
+          if (Test-Path $perl) { "OPENSSL_SRC_PERL=$perl" >> $env:GITHUB_ENV }
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: desktop/frontend/package-lock.json
+
+      # Saved from red runs too: the first runs on a new platform are red, and
+      # each would otherwise start from a cold build.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            desktop/frontend/src-tauri
+            cli
+          cache-on-failure: true
+
+      - name: Install frontend dependencies
+        working-directory: desktop/frontend
+        run: npm ci --prefer-offline --no-audit --no-fund
+
+      # beforeBuildCommand stages the CLI sidecar (LPM_CLI_TARGET) and builds
+      # the frontend, which `cargo test` below needs at build-script time too.
+      - name: Build the debug app
+        id: build
+        working-directory: desktop/frontend
+        run: npx tauri build --debug --no-bundle
+
+      # Hosted runners start at 1024x768.
+      - name: Set display resolution
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        continue-on-error: true
+        shell: powershell
+        run: Set-DisplayResolution -Width 1920 -Height 1080 -Force
+
+      - name: Smoke test the app
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        timeout-minutes: 25
+        run: ./desktop/windows/smoke.ps1 -ArtifactsDir "$env:RUNNER_TEMP\smoke"
+
+      # A hung smoke leaves the app, its session daemon and the services under
+      # it behind, holding files the test build and the cache step need.
+      - name: Stop leftover lpm processes
+        if: always()
+        run: |
+          foreach ($leftover in @(Get-Process -Name lpm-desktop, 'lpm-dev-sessiond-*' -ErrorAction SilentlyContinue)) {
+            taskkill /F /T /PID $leftover.Id
+          }
+          exit 0
+
+      - name: Upload smoke artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-smoke
+          path: ${{ runner.temp }}/smoke
+          if-no-files-found: ignore
+          retention-days: 14
+
+      # `cargo test` compiles every target a separate `cargo check` would.
+      - name: Test CLI
+        if: ${{ !cancelled() }}
+        working-directory: cli
+        run: cargo test
+
+      - name: Test desktop crate
+        if: ${{ !cancelled() }}
+        timeout-minutes: 40
+        working-directory: desktop/frontend/src-tauri
+        run: cargo test --lib
+
+      - name: Disk space left
+        if: always()
+        run: Get-PSDrive C | Format-Table Name, @{ n = 'FreeGB'; e = { [math]::Round($_.Free / 1GB, 1) } }, @{ n = 'UsedGB'; e = { [math]::Round($_.Used / 1GB, 1) } }
+
+      - name: Fail on the smoke script self-test
+        if: ${{ !cancelled() && steps.selftest.outcome == 'failure' }}
+        run: |
+          Write-Host "::error::the smoke script self-test failed; see its step"
+          exit 1
+
+  # Pinned to 24.04 rather than ubuntu-latest, which is moving to 26.04: a new
+  # release's WebKitGTK packaging is adopted on purpose, not found as a red build.
+  linux-desktop:
+    name: Linux desktop (package + smoke)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+
+      # xvfb, a window manager and a session bus stand in for a desktop: without
+      # a WM the window maps at 10x10 and the page never runs. xdotool, wmctrl
+      # and xclip are the user's keyboard, close button and clipboard; import
+      # takes the screenshots.
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libsoup-3.0-dev \
+            build-essential curl wget file pkg-config \
+            xvfb matchbox-window-manager dbus dbus-x11 \
+            xdotool wmctrl xclip x11-utils imagemagick
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: desktop/frontend/package-lock.json
+
+      # Saved on failure too: a red smoke test is fixed by re-running it, and
+      # each re-run would otherwise rebuild everything from scratch.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          workspaces: |
+            desktop/frontend/src-tauri
+            cli
+
+      - name: Install frontend dependencies
+        working-directory: desktop/frontend
+        run: npm ci --prefer-offline --no-audit --no-fund
+
+      # Through the Tauri CLI so the frontend is embedded (a plain cargo build
+      # points at the dev server). --debug keeps it quick and keeps the lesson
+      # control socket the smoke test reads the page through; the deb is the
+      # release's packaging config exercised on every change.
+      - name: Build and package
+        id: build
+        working-directory: desktop/frontend
+        run: npx tauri build --debug --bundles deb
+
+      # Real X input against the built app in an isolated HOME: a terminal typed
+      # into, Ctrl+C and Ctrl+Q reaching the shell, the Ctrl+Shift shortcuts,
+      # paste, close-to-hide, the single-instance handoff, quit, and a service
+      # that outlives the app until stopped. Prints the app log when it fails.
+      - name: Desktop smoke test
+        timeout-minutes: 15
+        run: >-
+          bash desktop/linux/tests/desktop-smoke.sh
+          --app desktop/frontend/src-tauri/target/debug/lpm-desktop
+          --artifacts "$RUNNER_TEMP/desktop-smoke"
+
+      - name: Upload smoke screenshots and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-desktop-smoke
+          path: ${{ runner.temp }}/desktop-smoke
+          if-no-files-found: ignore
+          retention-days: 14
+
+      # Whatever the smoke test said, so one failure never hides the other.
+      - name: Install the package
+        id: install
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          deb=$(ls desktop/frontend/src-tauri/target/debug/bundle/deb/*.deb)
+          dpkg-deb --info "$deb"
+          dpkg-deb --contents "$deb"
+          echo "PACKAGE=$(dpkg-deb --field "$deb" Package)" >> "$GITHUB_ENV"
+          sudo apt-get install -y "$PWD/$deb"
+          dpkg -L "$(dpkg-deb --field "$deb" Package)" | grep -E '^/usr/(bin|share/applications)/'
+          [ "$(readlink /usr/bin/lpm)" = lpm-cli ] || { echo "::error::/usr/bin/lpm is not the CLI link"; exit 1; }
+          lpm --version
+
+      - name: Remove the package
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: |
+          sudo apt-get remove -y "$PACKAGE"
+          if [ -e /usr/bin/lpm ] || [ -L /usr/bin/lpm ]; then
+              echo "::error::/usr/bin/lpm left behind"
+              exit 1
+          fi

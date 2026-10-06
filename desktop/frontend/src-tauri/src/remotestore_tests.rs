@@ -35,6 +35,7 @@ fn ids(cfg: &RemoteConfig) -> Vec<String> {
     cfg.devices.iter().map(|d| d.id.clone()).collect()
 }
 
+#[cfg(unix)]
 fn inode(path: &Path) -> u64 {
     use std::os::unix::fs::MetadataExt;
     std::fs::metadata(path).unwrap().ino()
@@ -129,6 +130,7 @@ fn revoke_sticks_across_a_later_unrelated_write() {
 // attempt. Declining must be inert: no rewrite of a file another instance owns
 // half of, and no change to what this process is serving from memory — even
 // though our settings differ from disk, so a rewrite would not be a no-op.
+#[cfg(unix)]
 #[test]
 fn a_declined_update_leaves_the_file_and_memory_untouched() {
     let dir = tempfile::tempdir().unwrap();
@@ -169,6 +171,7 @@ fn a_declined_update_leaves_the_file_and_memory_untouched() {
 // A save that fails must not leave memory believing it succeeded: the revoke path
 // reports the failure to the user while dropping the device from memory, and the
 // next successful write would then persist a revoke that was reported as failed.
+#[cfg(unix)]
 #[test]
 fn a_failed_write_is_not_committed_to_memory() {
     use std::os::unix::fs::PermissionsExt;
@@ -422,17 +425,34 @@ fn config_status_refuses_only_a_file_it_cannot_use() {
     );
 }
 
+#[cfg(unix)]
 #[test]
 fn only_contention_is_worth_retrying_the_lock() {
-    assert!(lock_retryable(Some(libc::EWOULDBLOCK)), "someone holds it");
-    assert!(lock_retryable(Some(libc::EINTR)));
+    let errno = std::io::Error::from_raw_os_error;
     assert!(
-        !lock_retryable(Some(libc::ENOTSUP)),
+        lock_retryable(&errno(libc::EWOULDBLOCK)),
+        "someone holds it"
+    );
+    assert!(lock_retryable(&errno(libc::EINTR)));
+    assert!(
+        !lock_retryable(&errno(libc::ENOTSUP)),
         "a filesystem without advisory locks fails identically forever"
     );
-    assert!(!lock_retryable(Some(libc::EOPNOTSUPP)));
-    assert!(!lock_retryable(Some(libc::EBADF)));
-    assert!(!lock_retryable(None));
+    assert!(!lock_retryable(&errno(libc::EOPNOTSUPP)));
+    assert!(!lock_retryable(&errno(libc::EBADF)));
+    assert!(!lock_retryable(&std::io::Error::other("unknown")));
+}
+
+#[test]
+fn a_held_lock_is_waited_on_then_given_up() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("remote.json");
+    let held = lock_file(&path).expect("a free lock is taken");
+    let started = std::time::Instant::now();
+    assert!(lock_file(&path).is_none(), "a second holder is refused");
+    assert!(started.elapsed() >= LOCK_RETRY * (LOCK_ATTEMPTS - 1));
+    drop(held);
+    assert!(lock_file(&path).is_some());
 }
 
 #[test]
@@ -468,6 +488,7 @@ fn server_ids_survive_a_write_by_the_other_flavor() {
 
 // fsatomic replaces the file by rename, so a fresh inode is proof a write
 // happened — and an unchanged inode proof that none did.
+#[cfg(unix)]
 #[test]
 fn an_update_that_changes_nothing_does_not_rewrite_the_file() {
     let dir = tempfile::tempdir().unwrap();
@@ -487,6 +508,7 @@ fn an_update_that_changes_nothing_does_not_rewrite_the_file() {
     assert_ne!(inode(&path), before);
 }
 
+#[cfg(unix)]
 #[test]
 fn config_file_is_written_owner_only() {
     use std::os::unix::fs::PermissionsExt;

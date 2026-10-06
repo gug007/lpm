@@ -11,29 +11,52 @@
 // `with administrator privileges` (the standard macOS GUI auth prompt). We never
 // silently overwrite anything we don't recognize as our own: a regular file or a
 // foreign symlink at the target aborts with an error the UI surfaces.
+//
+// Linux links ~/.local/bin/lpm instead, which needs no root. Inside an AppImage
+// the sidecar lives in a mount that vanishes when the app quits, so the link
+// targets a copy kept under ~/.local/share/lpm/bin. Windows has no symlinks
+// without admin rights; cli_install_windows.rs copies the CLI and edits PATH.
+#![cfg_attr(windows, allow(dead_code))]
+
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 
+#[cfg(target_os = "macos")]
 const INSTALL_DIR: &str = "/usr/local/bin";
 const LINK_NAME: &str = "lpm";
 /// Bundled sidecar file name (Tauri strips the target-triple suffix on bundling).
-const BUNDLED_BIN: &str = "lpm-cli";
+pub(crate) const BUNDLED_BIN: &str = if cfg!(windows) {
+    "lpm-cli.exe"
+} else {
+    "lpm-cli"
+};
 
+#[cfg(target_os = "macos")]
 fn link_path() -> PathBuf {
     Path::new(INSTALL_DIR).join(LINK_NAME)
 }
 
-/// Absolute path of the bundled CLI inside the running .app, or an error when
+#[cfg(all(unix, not(target_os = "macos")))]
+fn link_path() -> PathBuf {
+    dirs::home_dir()
+        .unwrap_or_default()
+        .join(".local/bin")
+        .join(LINK_NAME)
+}
+
+#[cfg(windows)]
+fn link_path() -> PathBuf {
+    crate::cli_install_windows::target_path()
+}
+
+/// Absolute path of the bundled CLI inside the running app, or an error when
 /// not running from a packaged bundle (dev builds) or the file is missing.
-fn bundled_cli_path() -> Result<PathBuf, String> {
+pub(crate) fn bundled_cli_path() -> Result<PathBuf, String> {
     let exe = std::env::current_exe().map_err(|e| format!("cannot resolve app path: {e}"))?;
     let dir = exe
         .parent()
         .ok_or_else(|| "cannot resolve app directory".to_string())?;
-    // A packaged app runs from …/lpm.app/Contents/MacOS/. Anything else (e.g.
-    // target/debug during `tauri dev`) is a dev build with no signed sidecar to
-    // point at, so refuse rather than linking a throwaway path into PATH.
-    if !dir.ends_with("Contents/MacOS") {
+    if !is_packaged_dir(dir) {
         return Err("The command line tool is only available in the packaged app.".into());
     }
     let cli = dir.join(BUNDLED_BIN);
@@ -41,6 +64,60 @@ fn bundled_cli_path() -> Result<PathBuf, String> {
         return Err(format!("bundled CLI not found at {}", cli.display()));
     }
     Ok(cli)
+}
+
+// A packaged app runs from …/lpm.app/Contents/MacOS/. Anything else (e.g.
+// target/debug during `tauri dev`) is a dev build with no signed sidecar to
+// point at, so refuse rather than linking a throwaway path into PATH.
+#[cfg(target_os = "macos")]
+fn is_packaged_dir(dir: &Path) -> bool {
+    dir.ends_with("Contents/MacOS")
+}
+
+// Every other bundle (deb, rpm, AppImage, the Windows installer) puts the
+// sidecar beside the executable, so only a cargo build dir is a dev build. A
+// headless host's installer puts the CLI on PATH itself.
+#[cfg(not(target_os = "macos"))]
+fn is_packaged_dir(dir: &Path) -> bool {
+    !crate::sys::headless() && !is_cargo_build_dir(dir)
+}
+
+/// target/{debug,release} or target/<triple>/{debug,release}.
+#[cfg(any(not(target_os = "macos"), test))]
+fn is_cargo_build_dir(dir: &Path) -> bool {
+    let profile = matches!(
+        dir.file_name().and_then(|n| n.to_str()),
+        Some("debug" | "release")
+    );
+    profile
+        && dir
+            .ancestors()
+            .skip(1)
+            .take(2)
+            .any(|a| a.file_name() == Some(std::ffi::OsStr::new("target")))
+}
+
+/// Where `lpm` on PATH should resolve: the bundled sidecar, or inside an
+/// AppImage its stable copy.
+#[cfg(unix)]
+fn link_target() -> Result<PathBuf, String> {
+    let bundled = bundled_cli_path()?;
+    #[cfg(target_os = "linux")]
+    if crate::cli_install_linux::in_appimage(&bundled) {
+        return crate::cli_install_linux::stable_copy_path()
+            .ok_or_else(|| "cannot resolve the data directory".into());
+    }
+    Ok(bundled)
+}
+
+#[cfg(any(not(target_os = "macos"), test))]
+pub(crate) fn same_contents(a: &Path, b: &Path) -> bool {
+    match (std::fs::metadata(a), std::fs::metadata(b)) {
+        (Ok(ma), Ok(mb)) if ma.len() == mb.len() => {
+            matches!((std::fs::read(a), std::fs::read(b)), (Ok(x), Ok(y)) if x == y)
+        }
+        _ => false,
+    }
 }
 
 /// What currently occupies the symlink target path.
@@ -131,10 +208,12 @@ fn plan_install(state: &PathState, expected: &Path) -> InstallPlan {
     }
 }
 
+#[cfg(target_os = "macos")]
 fn shell_quote(s: &str) -> String {
     format!("'{}'", s.replace('\'', "'\\''"))
 }
 
+#[cfg(target_os = "macos")]
 fn applescript_escape(s: &str) -> String {
     s.replace('\\', "\\\\").replace('"', "\\\"")
 }
@@ -144,6 +223,7 @@ fn applescript_escape(s: &str) -> String {
 /// caller can decide whether to escalate. A refused unlink propagates rather
 /// than being swallowed: letting it fall through to `symlink` would report the
 /// leftover entry (EEXIST) instead of the permission problem that caused it.
+#[cfg(unix)]
 fn symlink_direct(expected: &Path, link: &Path, replace: bool) -> std::io::Result<()> {
     if let Some(parent) = link.parent() {
         std::fs::create_dir_all(parent)?;
@@ -159,6 +239,7 @@ fn symlink_direct(expected: &Path, link: &Path, replace: bool) -> std::io::Resul
 }
 
 /// Run a shell command via the macOS admin prompt.
+#[cfg(target_os = "macos")]
 fn escalated_shell(inner: &str, cancel_msg: &str, fail_prefix: &str) -> Result<(), String> {
     let script = format!(
         "do shell script \"{}\" with administrator privileges",
@@ -182,6 +263,7 @@ fn escalated_shell(inner: &str, cancel_msg: &str, fail_prefix: &str) -> Result<(
 /// Escalate via the macOS admin prompt. `ln -sf` covers both create and
 /// replace-ours; the foreign-occupant cases are already rejected before we get
 /// here, so force is safe.
+#[cfg(target_os = "macos")]
 fn symlink_escalated(expected: &Path, link: &Path) -> Result<(), String> {
     let dir = link.parent().map(|p| p.to_path_buf()).unwrap_or_default();
     let inner = format!(
@@ -203,11 +285,13 @@ fn symlink_escalated(expected: &Path, link: &Path) -> Result<(), String> {
 /// foreign occupants were rejected before we got here. A fresh create hitting
 /// AlreadyExists raced with an occupant we never classified, so it stays an
 /// error.
+#[cfg(target_os = "macos")]
 fn should_escalate(kind: std::io::ErrorKind, replace: bool) -> bool {
     kind == std::io::ErrorKind::PermissionDenied
         || (replace && kind == std::io::ErrorKind::AlreadyExists)
 }
 
+#[cfg(target_os = "macos")]
 fn do_install(expected: &Path, link: &Path, replace: bool) -> Result<(), String> {
     match symlink_direct(expected, link, replace) {
         Ok(()) => Ok(()),
@@ -216,10 +300,15 @@ fn do_install(expected: &Path, link: &Path, replace: bool) -> Result<(), String>
     }
 }
 
+#[cfg(all(unix, not(target_os = "macos")))]
+fn do_install(expected: &Path, link: &Path, replace: bool) -> Result<(), String> {
+    symlink_direct(expected, link, replace).map_err(|e| format!("failed to create symlink: {e}"))
+}
+
 /// First `lpm` executable in PATH order, or None. `dirs` is in shell-resolution
 /// order. `is_file()` follows symlinks, so a dangling symlink — which the shell
 /// skips during exec resolution — does not count as a hit.
-fn first_lpm_in(dirs: &[String]) -> Option<PathBuf> {
+pub(crate) fn first_lpm_in(dirs: &[String]) -> Option<PathBuf> {
     dirs.iter()
         .map(|d| Path::new(d).join(LINK_NAME))
         .find(|p| p.is_file())
@@ -252,11 +341,8 @@ fn parse_cli_version(raw: &str) -> String {
 
 /// Run the on-PATH CLI binary and read its reported version, or None when it
 /// can't be executed. `bin` is the executable to run.
-fn read_cli_version(bin: &Path) -> Option<String> {
-    let out = std::process::Command::new(bin)
-        .arg("--version")
-        .output()
-        .ok()?;
+pub(crate) fn read_cli_version(bin: &Path) -> Option<String> {
+    let out = crate::osproc::command(bin).arg("--version").output().ok()?;
     if !out.status.success() {
         return None;
     }
@@ -308,6 +394,7 @@ fn status_value_in(state: &PathState, expected: &Path, dirs: &[String]) -> Value
     })
 }
 
+#[cfg(unix)]
 fn repair_at(expected: &Path, link: &Path) {
     if let InstallPlan::ReplaceOurs = plan_install(&current_state(link), expected) {
         let _ = symlink_direct(expected, link, true);
@@ -323,18 +410,28 @@ fn removable(state: &PathState) -> bool {
 /// occupants are left untouched. Permission-denied escalates via the admin
 /// prompt; a cancelled prompt surfaces as Err the caller treats as non-fatal.
 pub fn remove_managed_symlink() -> Result<(), String> {
-    let link = link_path();
-    if !removable(&current_state(&link)) {
-        return Ok(());
-    }
-    match std::fs::remove_file(&link) {
-        Ok(()) => Ok(()),
-        Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => escalated_shell(
-            &format!("rm {}", shell_quote(&link.to_string_lossy())),
-            "Removal cancelled.",
-            "failed to remove symlink",
-        ),
-        Err(e) => Err(format!("failed to remove symlink: {e}")),
+    #[cfg(windows)]
+    return crate::cli_install_windows::remove();
+    #[cfg(unix)]
+    {
+        #[cfg(target_os = "linux")]
+        if let Some(copy) = crate::cli_install_linux::stable_copy_path() {
+            let _ = std::fs::remove_file(copy);
+        }
+        let link = link_path();
+        if !removable(&current_state(&link)) {
+            return Ok(());
+        }
+        match std::fs::remove_file(&link) {
+            Ok(()) => Ok(()),
+            #[cfg(target_os = "macos")]
+            Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => escalated_shell(
+                &format!("rm {}", shell_quote(&link.to_string_lossy())),
+                "Removal cancelled.",
+                "failed to remove symlink",
+            ),
+            Err(e) => Err(format!("failed to remove symlink: {e}")),
+        }
     }
 }
 
@@ -343,10 +440,19 @@ pub fn remove_managed_symlink() -> Result<(), String> {
 /// escalates — an admin prompt must not appear spontaneously at launch. Failures
 /// are left for the Settings install button.
 pub fn repair_symlink_quietly() {
-    let Ok(expected) = bundled_cli_path() else {
-        return;
-    };
-    repair_at(&expected, &link_path());
+    #[cfg(windows)]
+    crate::cli_install_windows::repair_quietly();
+    #[cfg(unix)]
+    {
+        let Ok(expected) = link_target() else {
+            return;
+        };
+        #[cfg(target_os = "linux")]
+        if removable(&current_state(&link_path())) {
+            let _ = crate::cli_install_linux::refresh_copy(&expected);
+        }
+        repair_at(&expected, &link_path());
+    }
 }
 
 // ---- commands ---------------------------------------------------------------
@@ -357,35 +463,58 @@ pub fn repair_symlink_quietly() {
 /// UI can hide the control gracefully.
 #[tauri::command(async)]
 pub fn cli_install_status() -> Result<Value, String> {
-    let expected = match bundled_cli_path() {
-        Ok(p) => p,
-        Err(_) => {
-            return Ok(json!({
-                "status": "unavailable",
-                "linkPath": link_path().to_string_lossy(),
-            }))
-        }
-    };
-    Ok(status_value(&current_state(&link_path()), &expected))
+    #[cfg(windows)]
+    return crate::cli_install_windows::status();
+    #[cfg(unix)]
+    {
+        let expected = match link_target() {
+            Ok(p) => p,
+            Err(_) => {
+                return Ok(json!({
+                    "status": "unavailable",
+                    "linkPath": link_path().to_string_lossy(),
+                }))
+            }
+        };
+        let value = status_value(&current_state(&link_path()), &expected);
+        #[cfg(target_os = "linux")]
+        let value = match bundled_cli_path() {
+            Ok(bundled) => crate::cli_install_linux::adjust_status(
+                value,
+                &expected,
+                &bundled,
+                &crate::sys::shell_path_dirs(),
+            ),
+            Err(_) => value,
+        };
+        Ok(value)
+    }
 }
 
 /// Symlink the bundled CLI to /usr/local/bin/lpm (escalating for permission if
 /// needed). Idempotent; refuses to overwrite a foreign occupant.
 #[tauri::command(async)]
 pub fn install_cli() -> Result<Value, String> {
-    let expected = bundled_cli_path()?;
-    let link = link_path();
-    match plan_install(&current_state(&link), &expected) {
-        InstallPlan::AlreadyInstalled => {}
-        InstallPlan::Create => do_install(&expected, &link, false)?,
-        InstallPlan::ReplaceOurs => do_install(&expected, &link, true)?,
-        InstallPlan::RefuseForeign(msg) => return Err(msg),
+    #[cfg(windows)]
+    return crate::cli_install_windows::install();
+    #[cfg(unix)]
+    {
+        let expected = link_target()?;
+        #[cfg(target_os = "linux")]
+        crate::cli_install_linux::refresh_copy(&expected)?;
+        let link = link_path();
+        match plan_install(&current_state(&link), &expected) {
+            InstallPlan::AlreadyInstalled => {}
+            InstallPlan::Create => do_install(&expected, &link, false)?,
+            InstallPlan::ReplaceOurs => do_install(&expected, &link, true)?,
+            InstallPlan::RefuseForeign(msg) => return Err(msg),
+        }
+        // Re-read so the UI gets the authoritative post-install state.
+        Ok(status_value(&current_state(&link), &expected))
     }
-    // Re-read so the UI gets the authoritative post-install state.
-    Ok(status_value(&current_state(&link), &expected))
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
 
@@ -611,9 +740,9 @@ mod tests {
 
     #[test]
     fn not_shadowed_when_first_hit_is_link_path() {
-        // The only PATH dir is INSTALL_DIR, so the sole `lpm` reachable is our own
-        // link_path() (or none) — never a shadowing binary.
-        let dirs = vec![INSTALL_DIR.to_string()];
+        // The only PATH dir is the link's own, so the sole `lpm` reachable is our
+        // own link_path() (or none) — never a shadowing binary.
+        let dirs = vec![link_path().parent().unwrap().to_string_lossy().into_owned()];
         let state = PathState::OurSymlink(expected());
         assert_eq!(shadowed_by(&state, &expected(), &dirs), None);
         assert_eq!(
@@ -655,6 +784,7 @@ mod tests {
         assert_eq!(std::fs::read(&link).unwrap(), b"foreign");
     }
 
+    #[cfg(target_os = "macos")]
     #[test]
     fn escalation_covers_refused_replace() {
         assert!(should_escalate(std::io::ErrorKind::PermissionDenied, false));
@@ -689,10 +819,33 @@ mod tests {
             std::fs::write(&expected, b"new").unwrap();
             let err = symlink_direct(&expected, &link, true).unwrap_err();
             assert_eq!(err.kind(), std::io::ErrorKind::PermissionDenied);
+            #[cfg(target_os = "macos")]
             assert!(should_escalate(err.kind(), true));
             assert_eq!(std::fs::read_link(&link).unwrap(), stale);
         }
 
         std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+
+    #[test]
+    fn cargo_build_dirs_are_dev_builds() {
+        assert!(is_cargo_build_dir(Path::new("/src/lpm/target/debug")));
+        assert!(is_cargo_build_dir(Path::new("/src/lpm/target/release")));
+        assert!(is_cargo_build_dir(Path::new(
+            "/src/lpm/target/x86_64-unknown-linux-gnu/release"
+        )));
+        assert!(!is_cargo_build_dir(Path::new("/usr/bin")));
+        assert!(!is_cargo_build_dir(Path::new("/tmp/.mount_lpmXYZ/usr/bin")));
+        assert!(!is_cargo_build_dir(Path::new("/home/u/release")));
+    }
+
+    // The AppImage copy keeps the sidecar's name, so a link to it reads as ours.
+    #[test]
+    fn stable_copy_is_recognized_as_ours() {
+        let copy = crate::cli_install_linux::stable_copy_path().unwrap();
+        assert_eq!(
+            classify(true, true, Some(&copy)),
+            PathState::OurSymlink(copy.clone())
+        );
     }
 }

@@ -8,7 +8,6 @@
 use rusqlite::{params, params_from_iter, Connection};
 use serde::Serialize;
 use std::collections::HashMap;
-use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -84,7 +83,7 @@ impl Store {
     /// from vault so one Keychain round-trip serves every project this session.
     pub fn open(dir: &Path, key: &[u8; 32]) -> Result<Store, String> {
         std::fs::create_dir_all(dir).map_err(|e| format!("notes: create dir: {e}"))?;
-        let _ = std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700));
+        let _ = crate::fsperm::set_mode(dir, 0o700);
 
         let db_path = dir.join("notes.db");
         let conn = Connection::open(&db_path).map_err(|e| format!("notes: open db: {e}"))?;

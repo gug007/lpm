@@ -20,7 +20,6 @@
 // doesn't know (a process younger than the snapshot), a machine without `ps`.
 // Dropping a real agent's status would leave a tab dark for the rest of a turn.
 use std::collections::HashMap;
-use std::process::Command;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
@@ -47,6 +46,7 @@ type Cached = Mutex<Option<(Instant, Arc<Table>)>>;
 
 /// The leading whitespace-delimited field of `s`, and what follows it. `ps`
 /// right-aligns its numeric columns, so the fields are split by runs of spaces.
+#[cfg(any(unix, test))]
 fn split_field(s: &str) -> Option<(&str, &str)> {
     let s = s.trim_start();
     let end = s.find(char::is_whitespace)?;
@@ -55,6 +55,7 @@ fn split_field(s: &str) -> Option<(&str, &str)> {
 
 /// Parse `ps -e -o pid=,ppid=,comm=` output. `comm` is whatever remains on the
 /// line: macOS prints the executable's full path, which can hold spaces.
+#[cfg(any(unix, test))]
 fn parse_table(out: &str) -> Table {
     let mut table = Table::new();
     for line in out.lines() {
@@ -79,14 +80,34 @@ fn parse_table(out: &str) -> Table {
 
 /// pid -> (ppid, comm) for every process on the machine. Empty when `ps` is
 /// unavailable, which reads as "nothing known" and so accepts every report.
+#[cfg(unix)]
 fn scan() -> Table {
-    let Ok(out) = Command::new("ps")
+    let Ok(out) = crate::osproc::command("ps")
         .args(["-e", "-o", "pid=,ppid=,comm="])
         .output()
     else {
         return Table::new();
     };
     parse_table(&String::from_utf8_lossy(&out.stdout))
+}
+
+/// The same table from a Toolhelp snapshot, names without `.exe`. A hook run
+/// from Git Bash reports an MSYS pid, which this table doesn't know, and an
+/// npm-installed agent runs as `node`; both fail open.
+#[cfg(windows)]
+fn scan() -> Table {
+    crate::procwin::snapshot()
+        .into_iter()
+        .map(|p| {
+            (
+                p.pid as i32,
+                Proc {
+                    ppid: p.ppid as i32,
+                    comm: p.name,
+                },
+            )
+        })
+        .collect()
 }
 
 /// The process table, scanned at most once per [`TABLE_TTL`] unless `fresh`

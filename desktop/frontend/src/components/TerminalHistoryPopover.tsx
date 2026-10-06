@@ -44,6 +44,7 @@ import { AlarmClock } from "lucide-react";
 import { useSendLater } from "../store/sendLater";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { Kbd } from "./ui/Kbd";
+import { enterHint } from "../shortcutHints";
 
 interface TerminalHistoryPopoverProps {
   containerRef: RefObject<HTMLDivElement | null>;
@@ -175,7 +176,7 @@ export function TerminalHistoryPopover({
             title: "No drafts yet",
             hint: (
               <>
-                Write a prompt in the composer and press <Kbd>⌘↵</Kbd> to save it here for later
+                Write a prompt in the composer and press <Kbd>{enterHint({ meta: true })}</Kbd> to save it here for later
                 instead of sending it.
               </>
             ),

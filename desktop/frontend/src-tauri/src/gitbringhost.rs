@@ -536,9 +536,18 @@ mod tests {
             .join("work")
             .to_string_lossy()
             .to_string();
+        // Git for Windows defaults to autocrlf=true, which checks out CRLF.
         git(
             &sender,
-            &["clone", "--no-hardlinks", "-q", &sender, &receiver],
+            &[
+                "clone",
+                "--no-hardlinks",
+                "-q",
+                "-c",
+                "core.autocrlf=false",
+                &sender,
+                &receiver,
+            ],
         )
         .unwrap();
 

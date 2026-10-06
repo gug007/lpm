@@ -1,4 +1,5 @@
 import { Modal } from "./ui/Modal";
+import { MACHINE } from "../machineWords";
 
 export interface Pairing {
   code: string;
@@ -35,7 +36,9 @@ export function PairingModal({
           <p className="mt-1 text-xs text-[var(--text-muted)]">
             In the lpm mobile app, tap Add device and scan this code. It works once and expires
             after a device pairs.
-            {machine ? " The phone connects straight to that machine, so it keeps working while this Mac is off." : ""}
+            {machine
+              ? ` The phone connects straight to that machine, so it keeps working while ${MACHINE.thisMachine} is off.`
+              : ""}
           </p>
           <div className="mt-4 flex flex-col items-center gap-3">
             {pairing.svg ? (

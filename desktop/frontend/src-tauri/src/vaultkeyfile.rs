@@ -1,6 +1,6 @@
-// Non-macOS vault key storage: a 0600 file at ~/.lpm/vault-key. Backend for
-// vault.rs wherever there is no login Keychain (the headless Linux host);
-// vaultkeychain.rs is the macOS counterpart.
+// Linux vault key storage: a 0600 file at ~/.lpm/vault-key. Backend for vault.rs
+// on Linux, desktop and headless host alike; vaultkeychain.rs (macOS) and
+// vaultcred.rs (Windows) are the counterparts.
 //
 // SECURITY POSTURE: on a headless host there is no OS keystore to hold the key —
 // no unlocked login keyring, no user to prompt. The key is therefore protected by

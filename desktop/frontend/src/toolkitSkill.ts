@@ -3,6 +3,7 @@
 
 import type { AgentCapability, CapabilityRoot } from "./toolkit";
 import { CLI_LABELS, shortPath, splitFrontmatter } from "./toolkit";
+import { joinPath } from "./path";
 
 export const SKILL_NAME_MAX = 64;
 export const SKILL_DESCRIPTION_MAX = 1024;
@@ -63,7 +64,7 @@ export function titleCaseSkillName(name: string): string {
 }
 
 export function skillFilePath(root: string, name: string): string {
-  return `${root.replace(/\/+$/, "")}/${name}/SKILL.md`;
+  return joinPath(root, `${name}/SKILL.md`);
 }
 
 // A double-quoted scalar is what lpm's own bundled skills use: it round-trips

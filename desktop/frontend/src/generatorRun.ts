@@ -1,4 +1,4 @@
-import { shellQuote } from "./terminal-io";
+import { agentPromptCommand } from "./agentPromptCommand";
 import type { GeneratorRunSpec } from "./types";
 
 // Translates a generator's run spec into the command launched in the new
@@ -14,5 +14,5 @@ export function buildGeneratorRunCommand(
   }
   const cli = spec.cli || defaultCli || "claude";
   const prompt = spec.prompt.trim();
-  return { label: "Agent", cmd: prompt ? `${cli} ${shellQuote(prompt)}` : cli };
+  return { label: "Agent", cmd: prompt ? agentPromptCommand(cli, prompt) : cli };
 }

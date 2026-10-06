@@ -3,6 +3,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon } from "@xterm/addon-search";
 import type { SerializeAddon } from "@xterm/addon-serialize";
 import { handleCopyShortcut, handleNativeCopy } from "./copySelection";
+import { readOnlyTerminalYields } from "./terminalKeys";
 import { filterLines, stripAnsi } from "./filterLines";
 
 const MATCH_DECORATIONS = {
@@ -148,7 +149,9 @@ export class FilterMirror {
       search = new SearchAddon();
       term.loadAddon(search);
     } catch {}
-    term.attachCustomKeyEventHandler((e) => !handleCopyShortcut(e, term, null));
+    term.attachCustomKeyEventHandler(
+      (e) => !handleCopyShortcut(e, term, null) && !readOnlyTerminalYields(e),
+    );
     host.addEventListener("copy", (e) => handleNativeCopy(e, term, null), true);
     // xterm preventDefaults mousedown without focusing itself, so a selection
     // drag would otherwise leave ⌘C pointed at the previously focused element.

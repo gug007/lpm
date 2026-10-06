@@ -1,6 +1,6 @@
 [package]
 name = "lpm-cli"
-version = "0.23.5"
+version = "0.24.0"
 edition = "2021"
 description = "Command-line companion for the lpm desktop app"
 
@@ -18,6 +18,13 @@ dirs = "6"
 # terminal); the image/svg/pic renderers would pull in a decoder stack for output
 # nothing here can display.
 qrcode = { version = "0.14", default-features = false }
+
+# Windows 10 1803+ speaks AF_UNIX, so the CLI dials the app's socket by path on
+# every platform.
+[target.'cfg(windows)'.dependencies]
+uds_windows = "1.2"
+# `lpm hook` reports the pid it ran under; Windows has no getppid.
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Diagnostics_ToolHelp"] }
 
 [dev-dependencies]
 tempfile = "3"

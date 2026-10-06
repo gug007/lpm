@@ -26,6 +26,7 @@ import { generateVariants, resolveTransformParams } from "../composerVariants";
 import { isCanceledError, useAIGeneration } from "../hooks/useAIGeneration";
 import { ComposerActionsButton } from "./ComposerActionsButton";
 import { ComposerMicButton } from "./ComposerMicButton";
+import { DICTATION_AVAILABLE } from "../hooks/useVoiceDictation";
 import { ComposerActionsModal } from "./ComposerActionsModal";
 import { ComposerVariantsModal } from "./ComposerVariantsModal";
 import { TerminalHistoryButton } from "./TerminalHistoryButton";
@@ -60,6 +61,7 @@ import {
   readClipboardPayload,
   writeClipboardPayload,
 } from "./composerClipboard";
+import { isFormatChord } from "./composerKeys";
 
 export { EMPTY_COMPOSER };
 export type { ComposerImage, ComposerValue };
@@ -598,6 +600,10 @@ export function InputComposer({
   const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     const editor = editorRef.current;
     if (!editor) return;
+    if (isFormatChord(e.nativeEvent)) {
+      e.preventDefault();
+      return;
+    }
     // Shift+Enter inserts a newline; plain Enter bubbles so the host (e.g. a
     // dialog) can submit on it.
     if (e.key === "Enter" && e.shiftKey && !e.nativeEvent.isComposing) {
@@ -697,7 +703,7 @@ export function InputComposer({
         )}
 
         <div className="flex items-center justify-start gap-1 px-2 pb-2">
-          <ComposerMicButton disabled={disabled} />
+          {DICTATION_AVAILABLE && <ComposerMicButton disabled={disabled} />}
           {showActions && (
             <ComposerActionsButton
               align="left"

@@ -4,7 +4,7 @@ import { ArrowUp, Loader2, Minus, Plus, Settings2, Sparkles } from "lucide-react
 import { useAutoGrowTextarea } from "../hooks/useAutoGrowTextarea";
 import { useAnchoredPanel } from "../hooks/useAnchoredPanel";
 import { useOverlay } from "../store/overlay";
-import { useVoiceDictation } from "../hooks/useVoiceDictation";
+import { DICTATION_AVAILABLE, useVoiceDictation } from "../hooks/useVoiceDictation";
 import { composerActionIcon, type ComposerAction } from "../store/composerActions";
 import { MAX_VARIANTS } from "../composerVariants";
 import type { ComposerToolPresentation } from "../composerTools";
@@ -256,16 +256,18 @@ export function ComposerActionsButton({
 
             <div className="shrink-0 border-t border-[var(--border)] p-2">
               <div className="group flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)]/50 px-2 py-1.5 transition-colors focus-within:border-[var(--accent-cyan)]/40 focus-within:bg-[var(--bg-secondary)]">
-                <button
-                  type="button"
-                  onMouseDown={keepEditorFocus}
-                  onClick={() => void toggleDictation()}
-                  title="Dictate"
-                  aria-label="Dictate"
-                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-                >
-                  <MicIcon size={14} />
-                </button>
+                {DICTATION_AVAILABLE && (
+                  <button
+                    type="button"
+                    onMouseDown={keepEditorFocus}
+                    onClick={() => void toggleDictation()}
+                    title="Dictate"
+                    aria-label="Dictate"
+                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                  >
+                    <MicIcon size={14} />
+                  </button>
+                )}
                 <textarea
                   ref={inputRef}
                   rows={1}

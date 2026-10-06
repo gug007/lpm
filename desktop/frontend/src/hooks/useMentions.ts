@@ -3,6 +3,7 @@ import { GitChangedFiles, ListBranches, ListDirFiles } from "../../bridge/comman
 import { useAppStore } from "../store/app";
 import { isDuplicate } from "../types";
 import { mentionGroup, rankMentions, type MentionItem } from "../mentions";
+import { toSlash, windowsRules } from "../path";
 import { findParentProject, projectDisplayName } from "../components/ProjectNameDisplay";
 
 interface DirFileEntry {
@@ -78,11 +79,11 @@ export function useMentions(
       try {
         const list = (await ListDirFiles(dir)) as DirFileEntry[];
         if (generation.current !== gen) return;
-        const items: MentionItem[] = list.map((e) => ({
-          kind: e.isDir ? "dir" : "file",
-          label: e.path,
-          insert: e.path,
-        }));
+        const slash = windowsRules(dir);
+        const items: MentionItem[] = list.map((e) => {
+          const path = slash ? toSlash(e.path, true) : e.path;
+          return { kind: e.isDir ? "dir" : "file", label: path, insert: path };
+        });
         fileCache.current.set(dir, items);
         setFiles(items);
       } catch {

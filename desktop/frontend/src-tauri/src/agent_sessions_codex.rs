@@ -58,7 +58,7 @@ pub(crate) fn summaries(
             format!("COALESCE({},0)", recency.join(","))
         };
 
-        let mut filters = vec!["cwd = ?1".to_string()];
+        let mut filters = vec![CWD_FILTER.to_string()];
         if has("archived") {
             filters.push("COALESCE(archived,0) = 0".into());
         }
@@ -101,6 +101,7 @@ pub(crate) fn summaries(
             continue;
         };
         let pattern = format!("%{}%", escape_like(needle));
+        let cwd = query_cwd(cwd);
         let params: Vec<&dyn rusqlite::ToSql> = if needle.is_empty() || searchable.is_empty() {
             vec![&cwd]
         } else {
@@ -142,6 +143,28 @@ pub(crate) fn summaries(
             .collect();
     }
     Vec::new()
+}
+
+/// Codex records a thread's cwd as its OS spelled it. On Windows the same
+/// directory can reach lpm with the other separator or drive-letter case, so
+/// the match there ignores both.
+const CWD_FILTER: &str = if cfg!(windows) {
+    WINDOWS_CWD_FILTER
+} else {
+    "cwd = ?1"
+};
+const WINDOWS_CWD_FILTER: &str = r"REPLACE(cwd,'/','\') = ?1 COLLATE NOCASE";
+
+fn query_cwd(cwd: &str) -> String {
+    if cfg!(windows) {
+        windows_query_cwd(cwd)
+    } else {
+        cwd.to_string()
+    }
+}
+
+fn windows_query_cwd(cwd: &str) -> String {
+    cwd.trim_start_matches(r"\\?\").replace('/', r"\")
 }
 
 fn escape_like(needle: &str) -> String {

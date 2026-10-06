@@ -18,6 +18,14 @@ describe("buildSearchEntries", () => {
     expect(ids(withTTS)).toContain("tts.enable");
   });
 
+  it("omits rows backed by macOS-only features elsewhere", () => {
+    const pc = ids(buildSearchEntries({ experimentalTTS: true, mac: false }));
+    expect(pc).not.toContain("ai.voiceToText");
+    expect(pc).toContain("general.removeApp");
+    expect(pc).toContain("general.updates");
+    expect(ids(withTTS)).toEqual(expect.arrayContaining(["general.removeApp", "ai.voiceToText"]));
+  });
+
   it("indexes dynamic shortcut and sound rows from their source arrays", () => {
     expect(ids(withTTS)).toEqual(
       expect.arrayContaining([

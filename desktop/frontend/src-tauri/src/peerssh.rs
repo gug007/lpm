@@ -94,7 +94,7 @@ pub fn ssh_capture(target: &SshTarget, command: &str) -> Result<String, String> 
 
 /// `ssh` running `command` on the host, with the options every call here uses.
 pub fn ssh_command(target: &SshTarget, command: &str) -> Command {
-    let mut cmd = Command::new("ssh");
+    let mut cmd = crate::osproc::command("ssh");
     cmd.args(ssh_base_args(target)).arg(command);
     cmd
 }
@@ -105,10 +105,82 @@ pub fn probe(target: &SshTarget) -> Result<(), String> {
     ssh_capture(target, "true").map(|_| ())
 }
 
-pub fn is_installed(target: &SshTarget) -> bool {
-    ssh_capture(target, "command -v lpm >/dev/null 2>&1 && echo yes")
-        .map(|s| s.trim() == "yes")
-        .unwrap_or(false)
+/// Where the installer puts the host. The app reads the same path to know it is
+/// one (`sys::headless`).
+const HOST_PREFIX: &str = "/opt/lpm";
+/// Where the deb and rpm put the desktop app.
+const PACKAGE_BIN: &str = "/usr/bin";
+const INSTALL_MARK: &str = "LPM_INSTALL:";
+
+/// What lpm a machine already has.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Installed {
+    Nothing,
+    /// `lpm` on PATH and no desktop: the host this file installs and updates, as
+    /// every such machine was before lpm shipped as a Linux desktop app.
+    Host,
+    /// The Linux desktop app. Never installed over — a host beside it would run a
+    /// second app against the same `~/.lpm` and socket.
+    Desktop,
+}
+
+/// Under `sh`: the probe defines a function, and the login shell can be any.
+fn installed_probe() -> String {
+    format!(
+        "sh -c {}",
+        crate::config::shell_quote(&installed_probe_in(HOST_PREFIX, PACKAGE_BIN))
+    )
+}
+
+/// A desktop is known by its own footprint, never by a file a host leaves
+/// behind (a stopped host keeps its `~/.lpm/lpm.sock`): the packaged binary, the
+/// copy of the CLI an AppImage installs, or an `lpm-desktop` running as this
+/// login from outside the host's prefix. A host install outranks all of them.
+/// Without one, the answer is the one this always gave: `lpm` on PATH is
+/// installed, and no `lpm` is an install to make.
+fn installed_probe_in(prefix: &str, package_bin: &str) -> String {
+    format!(
+        "app_running() {{ for p in $(pgrep -u \"$(id -u)\" -x lpm-desktop 2>/dev/null); do \
+         case \"$(readlink /proc/$p/exe 2>/dev/null)\" in ''|{prefix}/*) ;; *) return 0 ;; esac; \
+         done; return 1; }}; \
+         if [ ! -x {prefix}/lpm-desktop ] && {{ [ -x {package_bin}/lpm-desktop ] \
+         || [ -x \"${{XDG_DATA_HOME:-$HOME/.local/share}}/lpm/bin/lpm-cli\" ] || app_running; }}; \
+         then echo {INSTALL_MARK}desktop; \
+         elif command -v lpm >/dev/null 2>&1; then echo {INSTALL_MARK}host; \
+         else echo {INSTALL_MARK}none; fi"
+    )
+}
+
+fn parse_installed(out: &str) -> Installed {
+    match out
+        .lines()
+        .rev()
+        .find_map(|line| line.trim().strip_prefix(INSTALL_MARK))
+    {
+        Some("host") => Installed::Host,
+        Some("desktop") => Installed::Desktop,
+        _ => Installed::Nothing,
+    }
+}
+
+pub fn installed(target: &SshTarget) -> Installed {
+    ssh_capture(target, &installed_probe())
+        .map(|out| parse_installed(&out))
+        .unwrap_or(Installed::Nothing)
+}
+
+fn desktop_refusal(target: &SshTarget, action: &str) -> String {
+    format!(
+        "lpm on {} is the desktop app, not a host — {action} on that machine",
+        target.destination()
+    )
+}
+
+fn refuse_desktop(target: &SshTarget, action: &str) -> Result<(), String> {
+    if installed(target) == Installed::Desktop {
+        return Err(desktop_refusal(target, action));
+    }
+    Ok(())
 }
 
 /// Run something on the host as root, escalating only when the login isn't
@@ -223,9 +295,13 @@ fn ssh_run(
     on_failure: &str,
     on_timeout: &str,
 ) -> Result<(), String> {
-    let mut ssh = Command::new("ssh");
-    ssh.args(ssh_base_args(target)).arg(command);
-    crate::peersshrun::run(ssh, stdin_script, timeout, on_failure, on_timeout)
+    crate::peersshrun::run(
+        ssh_command(target, &command),
+        stdin_script,
+        timeout,
+        on_failure,
+        on_timeout,
+    )
 }
 
 /// Fetch the published tarball on the host and run its installer. Deliberately
@@ -241,6 +317,13 @@ pub fn install(target: &SshTarget) -> Result<(), String> {
         "the installer timed out on the host",
     )
     .map_err(explain_install_failure)
+}
+
+/// `install` on a machine that already has lpm. Refused where that lpm is the
+/// desktop app: it came from a package, and the host would land beside it.
+pub fn update(target: &SshTarget) -> Result<(), String> {
+    refuse_desktop(target, "update it")?;
+    install(target)
 }
 
 /// The uninstaller, shipped in the tarball *and* embedded here so it can run on a
@@ -262,7 +345,10 @@ fn uninstall_command(purge_data: bool) -> String {
 }
 
 /// Undo the install on the host, and optionally delete its `~/.lpm` as well.
+/// Never on a desktop: the script is for a host, and there the agent skills it
+/// removes, and the data `--purge` deletes, can be that app's.
 pub fn uninstall(target: &SshTarget, purge_data: bool) -> Result<(), String> {
+    refuse_desktop(target, "uninstall it")?;
     ssh_run(
         target,
         uninstall_command(purge_data),
@@ -305,12 +391,18 @@ fn app_script(command: &str) -> String {
     )
 }
 
-fn invite_script() -> String {
-    app_script("lpm pair --json")
+/// A desktop's app runs as the login that sits at it, so there is no one to
+/// escalate to: sudo could only reach root's empty `~/.lpm`, or answer "open the
+/// app" with a password prompt.
+fn invite_script(installed: Installed) -> String {
+    match installed {
+        Installed::Desktop => "lpm pair --json".into(),
+        Installed::Host | Installed::Nothing => app_script("lpm pair --json"),
+    }
 }
 
-pub fn request_invite(target: &SshTarget) -> Result<RemoteInvite, String> {
-    let raw = ssh_capture(target, &invite_script())?;
+pub fn request_invite(target: &SshTarget, installed: Installed) -> Result<RemoteInvite, String> {
+    let raw = ssh_capture(target, &invite_script(installed))?;
     parse_invite(&raw)
 }
 
@@ -322,7 +414,13 @@ pub fn request_invite(target: &SshTarget) -> Result<RemoteInvite, String> {
 /// Only rewritten on positive evidence — anything else is passed through, so a
 /// change to the CLI's wording costs the better message, never a wrong one.
 /// (The phrase is `require_app` in cli/src/control.rs.)
-fn explain_unreachable_app(target: &SshTarget, err: String) -> String {
+///
+/// A desktop gets its own advice: there is no service to restart, only an app
+/// someone opens — and it may have no `lpm` command at all.
+fn explain_unreachable_app(target: &SshTarget, installed: Installed, err: String) -> String {
+    if installed == Installed::Desktop {
+        return explain_unreachable_desktop(target, err);
+    }
     if !err.contains("app is not running") {
         return err;
     }
@@ -332,6 +430,31 @@ fn explain_unreachable_app(target: &SshTarget, err: String) -> String {
          without systemd — then connect again.",
         target.destination()
     )
+}
+
+fn explain_unreachable_desktop(target: &SshTarget, err: String) -> String {
+    let dest = target.destination();
+    if err.contains("app is not running") {
+        return format!(
+            "lpm is installed on {dest} but isn't open there, so it can't mint an invite. \
+             Open lpm on that machine, then connect again."
+        );
+    }
+    let no_cli = [
+        "lpm: not found",
+        "lpm: command not found",
+        "command not found: lpm",
+    ]
+    .iter()
+    .any(|shell_says| err.contains(shell_says));
+    if no_cli {
+        return format!(
+            "lpm's desktop app is on {dest}, but its `lpm` command isn't, so it can't mint an \
+             invite over SSH. Create an invite in Settings → Connections on that machine and \
+             paste it here instead."
+        );
+    }
+    err
 }
 
 /// The answer out of whatever the login shell printed. A chatty `~/.bashrc` or an
@@ -476,7 +599,8 @@ pub fn add_host(
         return Err("no host given".into());
     }
     probe(target)?;
-    if !is_installed(target) {
+    let existing = installed(target);
+    if existing == Installed::Nothing {
         if !install_if_missing {
             return Err("lpm isn't installed on that machine yet".into());
         }
@@ -491,7 +615,8 @@ pub fn add_host(
     if !missing.is_empty() {
         eprintln!("warning: {}", missing_tools_error(&missing));
     }
-    let invite = request_invite(target).map_err(|e| explain_unreachable_app(target, e))?;
+    let invite = request_invite(target, existing)
+        .map_err(|e| explain_unreachable_app(target, existing, e))?;
     ensure_hosting(target, invite.port)?;
     let (tunnel, local) = open_pairing_tunnel(target, invite.port)?;
 
@@ -766,6 +891,7 @@ mod tests {
 
     // The Mac reads success or failure off ssh's exit status, which is the
     // script's — the trap must neither swallow a failure nor invent one.
+    #[cfg(unix)]
     #[test]
     fn the_scratch_dir_goes_and_the_exit_status_stays() {
         let out = tempfile::tempdir().unwrap();
@@ -803,7 +929,8 @@ mod tests {
     // running perfectly. Escalating without -H fails the same way, one home over.
     #[test]
     fn the_invite_escalates_when_the_login_cannot_reach_the_app() {
-        let script = invite_script();
+        let script = invite_script(Installed::Host);
+        assert_eq!(script, invite_script(Installed::Nothing));
         assert!(script.contains("sudo -n -H lpm pair --json"), "{script}");
         assert!(!script.contains("sudo -n lpm pair"), "{script}");
     }
@@ -813,7 +940,7 @@ mod tests {
     // one code, throw it away, and mint another.
     #[test]
     fn the_invite_is_minted_exactly_once() {
-        let script = invite_script();
+        let script = invite_script(Installed::Host);
         assert_eq!(script.matches("lpm pair --json").count(), 2, "{script}");
         assert!(script.contains("if lpm connections"), "{script}");
         assert!(!script.contains("lpm pair --json ||"), "{script}");
@@ -824,14 +951,54 @@ mod tests {
     // what to do about it.
     #[test]
     fn an_app_that_isnt_answering_names_the_machine() {
+        for installed in [Installed::Host, Installed::Nothing] {
+            let err = explain_unreachable_app(
+                &target(),
+                installed,
+                "lpm: lpm app is not running — start it to control projects".into(),
+            );
+            assert!(err.contains("root@example.test"), "{err}");
+            assert!(err.contains("systemctl restart lpm"), "{err}");
+            // A host with no service manager runs it under the supervisor instead.
+            assert!(err.contains("lpm-host restart"), "{err}");
+        }
+    }
+
+    // A desktop has no service to restart: someone has to open the app there.
+    #[test]
+    fn a_desktop_that_isnt_open_says_to_open_it() {
         let err = explain_unreachable_app(
             &target(),
+            Installed::Desktop,
             "lpm: lpm app is not running — start it to control projects".into(),
         );
         assert!(err.contains("root@example.test"), "{err}");
-        assert!(err.contains("systemctl restart lpm"), "{err}");
-        // A host with no service manager runs it under the supervisor instead.
-        assert!(err.contains("lpm-host restart"), "{err}");
+        assert!(err.contains("Open lpm on that machine"), "{err}");
+        assert!(!err.contains("systemctl"), "{err}");
+        assert!(!err.contains("lpm-host"), "{err}");
+    }
+
+    // A desktop app whose CLI was never put on PATH can't mint an invite over
+    // SSH at all, whichever shell is the one saying so.
+    #[test]
+    fn a_desktop_without_its_cli_points_at_an_invite_instead() {
+        for shell_says in [
+            "sh: 1: lpm: not found",
+            "bash: line 1: lpm: command not found",
+            "zsh:1: command not found: lpm",
+        ] {
+            let err = explain_unreachable_app(&target(), Installed::Desktop, shell_says.into());
+            assert!(err.contains("Settings → Connections"), "{err}");
+            assert!(err.contains("root@example.test"), "{err}");
+        }
+        assert_eq!(
+            explain_unreachable_app(
+                &target(),
+                Installed::Desktop,
+                "Permission denied (publickey).".into()
+            ),
+            "Permission denied (publickey)."
+        );
     }
 
     // Everything else is the host's own evidence and must survive intact —
@@ -843,7 +1010,7 @@ mod tests {
             "the host's invite had no pairing code",
         ] {
             assert_eq!(
-                explain_unreachable_app(&target(), raw.to_string()),
+                explain_unreachable_app(&target(), Installed::Host, raw.to_string()),
                 raw,
                 "{raw}"
             );
@@ -855,7 +1022,138 @@ mod tests {
     // error about something else.
     #[test]
     fn a_root_login_never_escalates() {
-        assert!(invite_script().contains("[ \"$(id -u)\" = 0 ]"));
+        assert!(invite_script(Installed::Host).contains("[ \"$(id -u)\" = 0 ]"));
+    }
+
+    // A desktop's app is the login's own, so a closed app has to come back as
+    // the CLI's "not running" — the words its advice is keyed on — not as sudo
+    // asking for a password.
+    #[test]
+    fn a_desktop_invite_never_escalates() {
+        assert_eq!(invite_script(Installed::Desktop), "lpm pair --json");
+    }
+
+    // Same trap as the missing-tool probe: an motd lands ahead of the answer, and
+    // a probe that said nothing at all is "nothing there", as it always was.
+    #[test]
+    fn the_install_probe_reads_its_sentinel_through_a_chatty_shell() {
+        let noisy = format!("Welcome to Ubuntu\nhost\n{INSTALL_MARK}desktop\n");
+        assert_eq!(parse_installed(&noisy), Installed::Desktop);
+        assert_eq!(
+            parse_installed(&format!("{INSTALL_MARK}host")),
+            Installed::Host
+        );
+        assert_eq!(
+            parse_installed(&format!("{INSTALL_MARK}none")),
+            Installed::Nothing
+        );
+        assert_eq!(parse_installed(""), Installed::Nothing);
+        assert_eq!(
+            parse_installed(&format!("{INSTALL_MARK}windows")),
+            Installed::Nothing
+        );
+    }
+
+    // The probe itself, run in a shell against a fake machine. A host keeps the
+    // answer it always got — `lpm` on PATH or not — whatever it left behind; a
+    // desktop is caught only by what a desktop install puts there.
+    #[cfg(unix)]
+    #[test]
+    fn the_install_probe_tells_a_host_from_a_desktop() {
+        use std::os::unix::fs::PermissionsExt;
+        let root = tempfile::tempdir().unwrap();
+        let prefix = root.path().join("opt-lpm");
+        let package = root.path().join("usr-bin");
+        let bin = root.path().join("bin");
+        let home = root.path().join("h");
+        for dir in [&prefix, &package, &bin, &home.join(".lpm")] {
+            std::fs::create_dir_all(dir).unwrap();
+        }
+        let executable = |path: &std::path::Path| {
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, "#!/bin/sh\n").unwrap();
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        };
+        let run = || {
+            let out = Command::new("/bin/sh")
+                .arg("-c")
+                .arg(installed_probe_in(
+                    &prefix.to_string_lossy(),
+                    &package.to_string_lossy(),
+                ))
+                .env("PATH", &bin)
+                .env("HOME", &home)
+                .env_remove("XDG_DATA_HOME")
+                .output()
+                .unwrap();
+            parse_installed(&String::from_utf8_lossy(&out.stdout))
+        };
+
+        assert_eq!(run(), Installed::Nothing);
+
+        // A host stopped by systemd never removes its socket, and an uninstall
+        // that keeps the data keeps it too: that machine has nothing installed.
+        let sock = home.join(".lpm/lpm.sock");
+        drop(std::os::unix::net::UnixListener::bind(&sock).unwrap());
+        assert!(sock.exists());
+        assert_eq!(run(), Installed::Nothing, "a leftover socket");
+
+        executable(&bin.join("lpm"));
+        assert_eq!(run(), Installed::Host, "the CLI alone, as it always was");
+
+        executable(&package.join("lpm-desktop"));
+        assert_eq!(run(), Installed::Desktop, "the packaged app");
+        std::fs::remove_file(package.join("lpm-desktop")).unwrap();
+
+        let appimage_cli = home.join(".local/share/lpm/bin/lpm-cli");
+        executable(&appimage_cli);
+        assert_eq!(run(), Installed::Desktop, "an AppImage's CLI");
+
+        executable(&prefix.join("lpm-desktop"));
+        assert_eq!(
+            run(),
+            Installed::Host,
+            "a host beside a desktop is still ours"
+        );
+
+        std::fs::remove_file(bin.join("lpm")).unwrap();
+        assert_eq!(
+            run(),
+            Installed::Nothing,
+            "a host whose `lpm` is gone is reinstalled"
+        );
+    }
+
+    // What actually goes over ssh: the probe wrapped for a login shell that
+    // isn't sh, still answering with its sentinel.
+    #[cfg(unix)]
+    #[test]
+    fn the_shipped_probe_answers_through_a_login_shell() {
+        let home = tempfile::tempdir().unwrap();
+        for shell in ["/bin/sh", "/bin/zsh", "/bin/bash"] {
+            if !std::path::Path::new(shell).exists() {
+                continue;
+            }
+            let out = Command::new(shell)
+                .arg("-c")
+                .arg(installed_probe())
+                .env("PATH", "/usr/bin:/bin")
+                .env("HOME", home.path())
+                .output()
+                .unwrap();
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            assert!(stdout.contains(INSTALL_MARK), "{shell}: {stdout}");
+        }
+    }
+
+    // Updating or removing over SSH is for the host this file installed. The
+    // refusal names the machine and where the job belongs instead.
+    #[test]
+    fn a_desktop_is_never_updated_or_removed_from_here() {
+        let err = desktop_refusal(&target(), "update it");
+        assert!(err.contains("root@example.test"), "{err}");
+        assert!(err.contains("desktop app"), "{err}");
+        assert!(err.contains("update it on that machine"), "{err}");
     }
 
     // ssh_capture hands back whatever the login shell put on stdout, so an motd

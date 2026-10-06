@@ -3,6 +3,7 @@ import {
   composerValueToText,
   EMPTY_COMPOSER,
   quoteImagePathForPaste,
+  textToPrompt,
   unquotePastedPath,
 } from "./composerValue";
 
@@ -102,5 +103,21 @@ describe("unquotePastedPath", () => {
     expect(unquotePastedPath('"rename before.png to after.png"')).toBe(
       '"rename before.png to after.png"',
     );
+  });
+
+  it("turns a standalone Windows image path back into a chip on Windows", () => {
+    const text = "see C:\\Users\\me\\shot.png and \\\\srv\\s\\b.jpg";
+    expect(textToPrompt(text, true).images.map((i) => i.path)).toEqual([
+      "C:\\Users\\me\\shot.png",
+      "\\\\srv\\s\\b.jpg",
+    ]);
+    expect(textToPrompt(text, false).images).toEqual([]);
+  });
+
+  it("recovers a quoted Windows path on Windows only", () => {
+    const path = "C:\\Users\\me\\Screen shot.png";
+    expect(unquotePastedPath(quoteImagePathForPaste(path), true)).toBe(path);
+    expect(unquotePastedPath(quoteImagePathForPaste("\\\\srv\\s\\a b.png"), true)).toBe("\\\\srv\\s\\a b.png");
+    expect(unquotePastedPath(quoteImagePathForPaste(path), false)).toBe(quoteImagePathForPaste(path));
   });
 });

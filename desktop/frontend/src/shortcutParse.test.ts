@@ -4,6 +4,8 @@ import {
   formatShortcut,
   isReservedShortcut,
   parseShortcut,
+  reservedShortcutMessage,
+  shortcutIdentity,
 } from "./shortcutParse";
 
 describe("parseShortcut", () => {
@@ -81,5 +83,60 @@ describe("formatShortcut", () => {
   it("renders macOS modifier glyphs", () => {
     expect(formatShortcut(parseShortcut("cmd+shift+b")!)).toBe("⌘⇧B");
     expect(formatShortcut(parseShortcut("alt+enter")!)).toBe("⌥↩");
+  });
+
+  it("renders the physical chord in words off macOS", () => {
+    expect(formatShortcut(parseShortcut("cmd+b")!, false)).toBe("Ctrl+Shift+B");
+    expect(formatShortcut(parseShortcut("cmd+shift+b")!, false)).toBe("Ctrl+Alt+Shift+B");
+    expect(formatShortcut(parseShortcut("cmd+pagedown")!, false)).toBe("Ctrl+PageDown");
+    expect(formatShortcut(parseShortcut("alt+enter")!, false)).toBe("Alt+Enter");
+  });
+});
+
+describe("reserved shortcuts off macOS", () => {
+  it("swap the file-stepping chords and flag the desktop's own", () => {
+    expect(isReservedShortcut(parseShortcut("cmd+alt+pagedown")!, undefined, false)).toBe(true);
+    expect(isReservedShortcut(parseShortcut("cmd+alt+pagedown")!, undefined, true)).toBe(false);
+    expect(isReservedShortcut(parseShortcut("cmd+alt+arrowdown")!, undefined, false)).toBe(false);
+    expect(reservedShortcutMessage(parseShortcut("cmd+alt+arrowdown")!, undefined, false)).toBe(
+      "Ctrl+Alt+↓ is reserved by the system",
+    );
+    expect(reservedShortcutMessage(parseShortcut("cmd+alt+arrowdown")!, undefined, true)).toBe(
+      "⌘⌥↓ is reserved by lpm",
+    );
+    expect(reservedShortcutMessage(parseShortcut("cmd+shift+b")!, undefined, false)).toBeNull();
+  });
+
+  it("compare physical chords, where ⌘⇧X and ⌘⌥⇧X are the same keys", () => {
+    const shiftC = parseShortcut("cmd+shift+c")!;
+    expect(isReservedShortcut(shiftC, undefined, false)).toBe(true);
+    expect(isReservedShortcut(shiftC, undefined, true)).toBe(false);
+    expect(reservedShortcutMessage(shiftC, undefined, false)).toBe("Ctrl+Alt+Shift+C is reserved by lpm");
+    expect(isReservedShortcut(parseShortcut("cmd+alt+shift+r")!, undefined, false)).toBe(true);
+    expect(isReservedShortcut(parseShortcut("cmd+alt+shift+r")!, undefined, true)).toBe(false);
+
+    const extra = new Set(["cmd+alt+shift+j"]);
+    expect(isReservedShortcut(parseShortcut("cmd+shift+j")!, extra, false)).toBe(true);
+    expect(isReservedShortcut(parseShortcut("cmd+shift+j")!, extra, true)).toBe(false);
+    expect(isReservedShortcut(parseShortcut("cmd+j")!, extra, false)).toBe(false);
+  });
+
+  it("keep a reserved \"+\" key, which parseShortcut can't read back", () => {
+    const plus = { key: "+", meta: true, shift: false, alt: false };
+    expect(isReservedShortcut(plus, undefined, false)).toBe(true);
+    expect(isReservedShortcut(plus, undefined, true)).toBe(true);
+    expect(isReservedShortcut({ ...plus, key: "-" }, undefined, false)).toBe(true);
+  });
+});
+
+describe("shortcutIdentity", () => {
+  it("is the stored combo on macOS and the physical chord elsewhere", () => {
+    const shifted = parseShortcut("cmd+shift+j")!;
+    const optShifted = parseShortcut("cmd+alt+shift+j")!;
+    expect(shortcutIdentity(shifted, true)).toBe("cmd+shift+j");
+    expect(shortcutIdentity(optShifted, true)).toBe("cmd+alt+shift+j");
+    expect(shortcutIdentity(shifted, false)).toBe("ctrl+alt+shift+j");
+    expect(shortcutIdentity(optShifted, false)).toBe("ctrl+alt+shift+j");
+    expect(shortcutIdentity(parseShortcut("cmd+j")!, false)).toBe("ctrl+shift+j");
   });
 });

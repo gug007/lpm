@@ -10,7 +10,6 @@ use crate::send_later_model::{
     Snapshot,
 };
 use std::collections::{BTreeMap, HashSet};
-use std::os::fd::AsRawFd;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{self, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex};
@@ -129,8 +128,7 @@ fn take_sender_lock() -> Option<std::fs::File> {
         .write(true)
         .open(config::lpm_dir().join("send-later.lock"))
         .ok()?;
-    // SAFETY: flock only reads the descriptor, which `file` keeps open.
-    let held = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } == 0;
+    let held = crate::fsperm::try_lock_exclusive(&file).unwrap_or(false);
     held.then_some(file)
 }
 

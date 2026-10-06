@@ -1,5 +1,7 @@
-// "Open in <editor/app>" — port of desktop/openin.go. macOS-only. App icons are
-// embedded from assets/apps/*.png and returned as data: URIs.
+// "Open in <editor/app>" — port of desktop/openin.go. The targets, their ids and
+// their order are shared; each OS finds and starts the apps its own way
+// (openin_macos.rs, openin_linux.rs, openin_windows.rs). App icons are embedded
+// from assets/apps/*.png and returned as data: URIs.
 use crate::config::expand_home;
 use crate::files::resolve_existing_file;
 use crate::mediapeer::split_peer_path;
@@ -9,6 +11,21 @@ use base64::Engine;
 use serde::Serialize;
 use std::process::Command;
 use tauri::State;
+
+#[cfg(target_os = "macos")]
+#[path = "openin_macos.rs"]
+mod backend;
+#[cfg(windows)]
+#[path = "openin_windows.rs"]
+mod backend;
+#[cfg(all(unix, not(target_os = "macos")))]
+#[path = "openin_linux.rs"]
+mod backend;
+
+use backend::detect;
+#[cfg(target_os = "macos")]
+pub(crate) use backend::detect_by_paths;
+pub(crate) use backend::{open_file_with, vscode_cli};
 
 #[derive(Serialize)]
 pub struct OpenInTarget {
@@ -26,209 +43,92 @@ struct Target {
     id: &'static str,
     label: &'static str,
     icon: &'static str, // png filename, or "" when no asset
+    os: u8,
     file_only: bool,
     remote_capable: bool,
 }
 
-// Display order = this order.
-const TARGETS: &[Target] = &[
+const MAC: u8 = 1;
+const LINUX: u8 = 2;
+const WINDOWS: u8 = 4;
+const ALL: u8 = MAC | LINUX | WINDOWS;
+const HERE: u8 = if cfg!(target_os = "macos") {
+    MAC
+} else if cfg!(windows) {
+    WINDOWS
+} else {
+    LINUX
+};
+
+const fn app(id: &'static str, label: &'static str, icon: &'static str, os: u8) -> Target {
     Target {
-        id: "cursor",
-        label: "Cursor",
-        icon: "cursor.png",
-        file_only: false,
-        remote_capable: true,
-    },
-    Target {
-        id: "vscode",
-        label: "Visual Studio Code",
-        icon: "vscode.png",
-        file_only: false,
-        remote_capable: true,
-    },
-    Target {
-        id: "vscode-insiders",
-        label: "Visual Studio Code - Insiders",
-        icon: "vscode-insiders.png",
-        file_only: false,
-        remote_capable: true,
-    },
-    Target {
-        id: "windsurf",
-        label: "Windsurf",
-        icon: "windsurf.png",
-        file_only: false,
-        remote_capable: true,
-    },
-    Target {
-        id: "zed",
-        label: "Zed",
-        icon: "zed.png",
+        id,
+        label,
+        icon,
+        os,
         file_only: false,
         remote_capable: false,
-    },
+    }
+}
+
+const fn remote(t: Target) -> Target {
     Target {
-        id: "xcode",
-        label: "Xcode",
-        icon: "xcode.png",
-        file_only: false,
-        remote_capable: false,
-    },
+        remote_capable: true,
+        ..t
+    }
+}
+
+const fn file_only(t: Target) -> Target {
     Target {
-        id: "sublime-text",
-        label: "Sublime Text",
-        icon: "sublime-text.png",
-        file_only: false,
-        remote_capable: false,
-    },
-    Target {
-        id: "webstorm",
-        label: "WebStorm",
-        icon: "",
-        file_only: false,
-        remote_capable: false,
-    },
-    Target {
-        id: "typora",
-        label: "Typora",
-        icon: "typora.png",
         file_only: true,
-        remote_capable: false,
-    },
-    Target {
-        id: "terminal",
-        label: "Terminal",
-        icon: "terminal.png",
-        file_only: false,
-        remote_capable: false,
-    },
-    Target {
-        id: "iterm2",
-        label: "iTerm",
-        icon: "iterm2.png",
-        file_only: false,
-        remote_capable: false,
-    },
-    Target {
-        id: "ghostty",
-        label: "Ghostty",
-        icon: "ghostty.png",
-        file_only: false,
-        remote_capable: false,
-    },
-    Target {
-        id: "warp",
-        label: "Warp",
-        icon: "warp.png",
-        file_only: false,
-        remote_capable: false,
-    },
-    Target {
-        id: "finder",
-        label: "Finder",
-        icon: "finder.png",
-        file_only: false,
-        remote_capable: false,
-    },
-    Target {
-        id: "path-finder",
-        label: "Path Finder",
-        icon: "",
-        file_only: false,
-        remote_capable: false,
-    },
+        ..t
+    }
+}
+
+// Display order = this order, filtered to the OS this runs on.
+const TARGETS: &[Target] = &[
+    remote(app("cursor", "Cursor", "cursor.png", ALL)),
+    remote(app("vscode", "Visual Studio Code", "vscode.png", ALL)),
+    remote(app(
+        "vscode-insiders",
+        "Visual Studio Code - Insiders",
+        "vscode-insiders.png",
+        ALL,
+    )),
+    remote(app("windsurf", "Windsurf", "windsurf.png", ALL)),
+    app("zed", "Zed", "zed.png", ALL),
+    app("xcode", "Xcode", "xcode.png", MAC),
+    app("sublime-text", "Sublime Text", "sublime-text.png", ALL),
+    app("webstorm", "WebStorm", "", ALL),
+    app("intellij-idea", "IntelliJ IDEA", "", LINUX | WINDOWS),
+    app("pycharm", "PyCharm", "", LINUX | WINDOWS),
+    app("goland", "GoLand", "", LINUX | WINDOWS),
+    app("rustrover", "RustRover", "", LINUX | WINDOWS),
+    app("clion", "CLion", "", LINUX | WINDOWS),
+    app("phpstorm", "PhpStorm", "", LINUX | WINDOWS),
+    app("rubymine", "RubyMine", "", LINUX | WINDOWS),
+    app("rider", "Rider", "", LINUX | WINDOWS),
+    file_only(app("typora", "Typora", "typora.png", ALL)),
+    app("terminal", "Terminal", "terminal.png", MAC),
+    app("windows-terminal", "Windows Terminal", "", WINDOWS),
+    app("powershell", "PowerShell", "", WINDOWS),
+    app("git-bash", "Git Bash", "", WINDOWS),
+    app("gnome-terminal", "GNOME Terminal", "", LINUX),
+    app("ptyxis", "Ptyxis", "", LINUX),
+    app("konsole", "Konsole", "", LINUX),
+    app("xfce4-terminal", "Xfce Terminal", "", LINUX),
+    app("iterm2", "iTerm", "iterm2.png", MAC),
+    app("ghostty", "Ghostty", "ghostty.png", MAC | LINUX),
+    app("kitty", "kitty", "", LINUX),
+    app("alacritty", "Alacritty", "", LINUX | WINDOWS),
+    app("wezterm", "WezTerm", "", LINUX | WINDOWS),
+    app("warp", "Warp", "warp.png", MAC | LINUX),
+    app("xterm", "XTerm", "", LINUX),
+    app("finder", "Finder", "finder.png", MAC),
+    app("finder", "Files", "", LINUX),
+    app("finder", "File Explorer", "", WINDOWS),
+    app("path-finder", "Path Finder", "", MAC),
 ];
-
-fn home() -> String {
-    dirs::home_dir()
-        .unwrap_or_default()
-        .to_string_lossy()
-        .into_owned()
-}
-
-/// `/Applications/X.app` also checks `~/Applications/X.app`.
-fn app_candidates(path: &str) -> Vec<String> {
-    match path.strip_prefix("/Applications/") {
-        Some(rest) => vec![
-            path.to_string(),
-            format!("{}/Applications/{}", home(), rest),
-        ],
-        None => vec![path.to_string()],
-    }
-}
-
-pub(crate) fn detect_by_paths(paths: &[&str]) -> Option<String> {
-    for p in paths {
-        for cand in app_candidates(p) {
-            if std::fs::metadata(&cand).is_ok() {
-                return Some(cand);
-            }
-        }
-    }
-    None
-}
-
-fn detect_by_prefix(prefix: &str) -> Option<String> {
-    let pl = prefix.to_lowercase();
-    for dir in [
-        "/Applications".to_string(),
-        format!("{}/Applications", home()),
-    ] {
-        if let Ok(rd) = std::fs::read_dir(&dir) {
-            for e in rd.flatten() {
-                let name = e.file_name().to_string_lossy().to_lowercase();
-                if name.starts_with(&pl) && name.ends_with(".app") {
-                    return Some(e.path().to_string_lossy().into_owned());
-                }
-            }
-        }
-    }
-    None
-}
-
-/// Detected app bundle path, or None when not installed.
-fn detect(id: &str) -> Option<String> {
-    match id {
-        "cursor" => detect_by_paths(&[
-            "/Applications/Cursor.app",
-            "/Applications/Cursor Nightly.app",
-        ])
-        .or_else(|| detect_by_prefix("Cursor")),
-        "vscode" => detect_by_paths(&[
-            "/Applications/Visual Studio Code.app",
-            "/Applications/Code.app",
-        ]),
-        "vscode-insiders" => detect_by_paths(&[
-            "/Applications/Visual Studio Code - Insiders.app",
-            "/Applications/Code - Insiders.app",
-        ]),
-        "windsurf" => detect_by_paths(&["/Applications/Windsurf.app"]),
-        "zed" => detect_by_paths(&["/Applications/Zed.app", "/Applications/Zed Preview.app"]),
-        "xcode" => detect_by_paths(&["/Applications/Xcode.app"]),
-        "sublime-text" => detect_by_paths(&["/Applications/Sublime Text.app"]),
-        "webstorm" => detect_by_paths(&["/Applications/WebStorm.app"])
-            .or_else(|| detect_by_prefix("WebStorm")),
-        "typora" => detect_by_paths(&["/Applications/Typora.app"]),
-        "terminal" => detect_by_paths(&[
-            "/System/Applications/Utilities/Terminal.app",
-            "/Applications/Utilities/Terminal.app",
-        ]),
-        "iterm2" => detect_by_paths(&["/Applications/iTerm.app", "/Applications/iTerm2.app"]),
-        "ghostty" => detect_by_paths(&["/Applications/Ghostty.app"]),
-        "warp" => detect_by_paths(&["/Applications/Warp.app"]),
-        "finder" => Some("/System/Library/CoreServices/Finder.app".to_string()),
-        // Cocoatech ships the bundle both plain and version-suffixed depending on
-        // the release, and Setapp installs into its own subfolder (which the
-        // prefix scan doesn't walk), so all three are named explicitly.
-        "path-finder" => detect_by_paths(&[
-            "/Applications/Path Finder 26.app",
-            "/Applications/Path Finder.app",
-            "/Applications/Setapp/Path Finder.app",
-        ])
-        .or_else(|| detect_by_prefix("Path Finder")),
-        _ => None,
-    }
-}
 
 fn icon_data_uri(file: &str) -> String {
     let bytes: &[u8] = match file {
@@ -253,11 +153,16 @@ fn icon_data_uri(file: &str) -> String {
     )
 }
 
-fn target(id: &str) -> Option<&'static Target> {
-    TARGETS.iter().find(|t| t.id == id)
+fn targets() -> impl Iterator<Item = &'static Target> {
+    TARGETS.iter().filter(|t| t.os & HERE != 0)
 }
 
-/// An app the user picked, found on this Mac.
+fn target(id: &str) -> Option<&'static Target> {
+    targets().find(|t| t.id == id)
+}
+
+/// An app the user picked, found on this machine. `path` is whatever the OS
+/// backend launches it by: a bundle on macOS, a launcher elsewhere.
 pub(crate) struct InstalledApp {
     pub id: &'static str,
     pub label: &'static str,
@@ -276,14 +181,7 @@ pub(crate) fn installed_app(id: &str) -> Result<InstalledApp, String> {
     })
 }
 
-fn shell_quote(s: &str) -> String {
-    format!("'{}'", s.replace('\'', "'\\''"))
-}
-
-fn applescript_escape(s: &str) -> String {
-    s.replace('\\', "\\\\").replace('"', "\\\"")
-}
-
+#[cfg(target_os = "macos")]
 pub(crate) fn run(c: &mut Command) -> Result<(), String> {
     let status = c.status().map_err(|e| e.to_string())?;
     if !status.success() {
@@ -292,18 +190,69 @@ pub(crate) fn run(c: &mut Command) -> Result<(), String> {
     Ok(())
 }
 
+/// Start an app in its own session (so it outlives lpm) without a console
+/// window flashing up for a `.cmd` launcher.
+#[cfg(not(target_os = "macos"))]
+pub(crate) fn run(c: &mut Command) -> Result<(), String> {
+    #[cfg(unix)]
+    crate::osproc::detach(c);
+    #[cfg(windows)]
+    crate::osproc::no_window(c);
+    launch(c)
+}
+
+/// There is no `open -a` to hand the app to, so the app (or its launcher) is
+/// our child. A launcher that exits at once is judged by its status; anything
+/// still running after a moment (a terminal, an AppImage, a Flatpak wrapper) is
+/// the app itself, left to run and reaped in the background.
+#[cfg(not(target_os = "macos"))]
+pub(crate) fn launch(c: &mut Command) -> Result<(), String> {
+    use std::time::{Duration, Instant};
+    let program = std::path::Path::new(c.get_program())
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let mut child = c
+        .stdin(std::process::Stdio::null())
+        .spawn()
+        .map_err(|e| format!("{program}: {e}"))?;
+    let deadline = Instant::now() + Duration::from_millis(1500);
+    while Instant::now() < deadline {
+        match child.try_wait() {
+            Ok(Some(status)) if status.success() => return Ok(()),
+            Ok(Some(status)) => return Err(format!("{program} exited with {status}")),
+            Ok(None) => std::thread::sleep(Duration::from_millis(50)),
+            Err(e) => return Err(e.to_string()),
+        }
+    }
+    std::thread::spawn(move || {
+        let _ = child.wait();
+    });
+    Ok(())
+}
+
+/// The Command for a launcher path. On Linux a launcher can carry fixed
+/// arguments (`flatpak run <app>`, a desktop entry's `--no-sandbox`) joined to
+/// the program by NUL, the one character no path holds; elsewhere it is just
+/// the program.
+pub(crate) fn launcher(app_path: &str) -> Command {
+    let mut parts = app_path.split('\0');
+    let mut c = crate::osproc::command(parts.next().unwrap_or_default());
+    c.args(parts);
+    c
+}
+
 // ---- commands ---------------------------------------------------------------
 
 #[tauri::command(async)]
 pub fn list_open_in_targets() -> Vec<OpenInTarget> {
-    TARGETS
-        .iter()
+    targets()
         .filter(|t| detect(t.id).is_some())
         .map(|t| OpenInTarget {
             id: t.id.into(),
             label: t.label.into(),
             icon: if t.icon.is_empty() {
-                String::new()
+                backend::system_icon(t.id).unwrap_or_default()
             } else {
                 icon_data_uri(t.icon)
             },
@@ -334,16 +283,7 @@ pub async fn open_in(
             }
             return open_remote(&app, &ssh, &project_path);
         }
-        let path = expand_home(&project_path);
-        match app.id {
-            "finder" => run(Command::new("open").arg(&path)),
-            "terminal" => launch_terminal(&path),
-            "iterm2" => launch_iterm(&path),
-            "ghostty" => launch_ghostty(&path),
-            // By bundle path, not label: a version-suffixed bundle (Path Finder 26)
-            // has no app named after the label for `open -a` to resolve.
-            _ => run(Command::new("open").args(["-a", &app.path, &path])),
-        }
+        backend::open_folder(&app, &expand_home(&project_path))
     })
     .await
     .map_err(|e| e.to_string())?
@@ -430,23 +370,39 @@ pub async fn open_file_in_editor(
             return open_file_with(app.id, &app.path, &abs, line, col).map(|()| None);
         }
         // No editor specified: first installed target with a file-open recipe.
-        for t in TARGETS {
+        for t in targets() {
             if editor_has_recipe(t.id) {
                 if let Some(app_path) = detect(t.id) {
                     return open_file_with(t.id, &app_path, &abs, line, col).map(|()| None);
                 }
             }
         }
-        run(Command::new("open").arg(&abs)).map(|()| None)
+        backend::open_default(&abs).map(|()| None)
     })
     .await
     .map_err(|e| e.to_string())?
 }
 
 fn editor_has_recipe(id: &str) -> bool {
+    is_vscode_family(id) || is_jetbrains(id) || matches!(id, "sublime-text" | "zed")
+}
+
+fn is_vscode_family(id: &str) -> bool {
+    matches!(id, "cursor" | "vscode" | "vscode-insiders" | "windsurf")
+}
+
+fn is_jetbrains(id: &str) -> bool {
     matches!(
         id,
-        "cursor" | "vscode" | "vscode-insiders" | "windsurf" | "sublime-text" | "webstorm" | "zed"
+        "webstorm"
+            | "intellij-idea"
+            | "pycharm"
+            | "goland"
+            | "rustrover"
+            | "clion"
+            | "phpstorm"
+            | "rubymine"
+            | "rider"
     )
 }
 
@@ -460,72 +416,25 @@ pub(crate) fn format_path_spec(path: &str, line: i64, col: i64) -> String {
     }
 }
 
-/// The command-line launcher a VS Code-family editor ships in its bundle.
-pub(crate) fn vscode_cli(id: &str, app_path: &str) -> Option<String> {
-    let name = match id {
-        "cursor" => "cursor",
-        "vscode" => "code",
-        "vscode-insiders" => "code-insiders",
-        "windsurf" => "windsurf",
-        _ => return None,
-    };
-    Some(format!("{app_path}/Contents/Resources/app/bin/{name}"))
-}
-
-pub(crate) fn open_file_with(
-    id: &str,
-    app_path: &str,
-    abs: &str,
-    line: i64,
-    col: i64,
-) -> Result<(), String> {
-    let spec = format_path_spec(abs, line, col);
-    if let Some(cli) = vscode_cli(id, app_path) {
-        return run(Command::new(cli).args(["-g", &spec]));
+/// What an editor's own launcher takes to open a file at a line, wherever the
+/// launcher is a plain command line rather than a macOS bundle.
+#[cfg(any(test, not(target_os = "macos")))]
+fn file_args(id: &str, abs: &str, line: i64, col: i64) -> Vec<String> {
+    if is_vscode_family(id) {
+        return vec!["-g".into(), format_path_spec(abs, line, col)];
     }
-    match id {
-        "sublime-text" => {
-            run(Command::new(format!("{app_path}/Contents/SharedSupport/bin/subl")).arg(&spec))
-        }
-        "zed" => run(Command::new(format!("{app_path}/Contents/MacOS/cli")).arg(&spec)),
-        "webstorm" => {
-            let mut c = Command::new(format!("{app_path}/Contents/MacOS/webstorm"));
-            if line > 0 {
-                c.arg("--line").arg(line.to_string());
-                if col > 0 {
-                    c.arg("--column").arg(col.to_string());
-                }
-            }
-            c.arg(abs);
-            run(&mut c)
-        }
-        // xcode, typora, terminals, file managers: no per-line recipe — open the
-        // app on the file.
-        _ => run(Command::new("open").args(["-a", app_path, abs])),
+    if matches!(id, "sublime-text" | "zed") {
+        return vec![format_path_spec(abs, line, col)];
     }
-}
-
-fn launch_terminal(path: &str) -> Result<(), String> {
-    let esc = applescript_escape(path);
-    run(Command::new("osascript").args([
-        "-e",
-        &format!("tell application \"Terminal\" to do script \"cd {esc}; clear\""),
-    ]))?;
-    run(Command::new("osascript").args(["-e", "tell application \"Terminal\" to activate"]))
-}
-
-fn launch_iterm(path: &str) -> Result<(), String> {
-    let esc = applescript_escape(path);
-    let script = format!(
-        "tell application \"iTerm\"\n  activate\n  create window with default profile\n  tell current session of current window to write text \"cd {esc}; clear\"\nend tell"
-    );
-    run(Command::new("osascript").args(["-e", &script]))
-}
-
-fn launch_ghostty(path: &str) -> Result<(), String> {
-    let shell = crate::sys::login_shell();
-    let inner = format!("cd {} && exec {shell}", shell_quote(path));
-    run(Command::new("open").args(["-na", "Ghostty.app", "--args", "-e", &shell, "-lc", &inner]))
+    let mut args = Vec::new();
+    if is_jetbrains(id) && line > 0 {
+        args.extend(["--line".to_string(), line.to_string()]);
+        if col > 0 {
+            args.extend(["--column".to_string(), col.to_string()]);
+        }
+    }
+    args.push(abs.to_string());
+    args
 }
 
 #[cfg(test)]
@@ -534,8 +443,7 @@ mod tests {
 
     #[test]
     fn remote_capable_set_is_exactly_the_vscode_family() {
-        let capable: Vec<&str> = TARGETS
-            .iter()
+        let capable: Vec<&str> = targets()
             .filter(|t| t.remote_capable)
             .map(|t| t.id)
             .collect();
@@ -543,5 +451,78 @@ mod tests {
             capable,
             vec!["cursor", "vscode", "vscode-insiders", "windsurf"]
         );
+    }
+
+    #[test]
+    fn each_os_lists_an_id_once() {
+        for os in [MAC, LINUX, WINDOWS] {
+            let mut ids: Vec<&str> = TARGETS
+                .iter()
+                .filter(|t| t.os & os != 0)
+                .map(|t| t.id)
+                .collect();
+            let total = ids.len();
+            ids.sort();
+            ids.dedup();
+            assert_eq!(ids.len(), total, "duplicate id for os {os}");
+        }
+    }
+
+    #[test]
+    fn macos_keeps_its_original_targets_in_order() {
+        let ids: Vec<&str> = TARGETS
+            .iter()
+            .filter(|t| t.os & MAC != 0)
+            .map(|t| t.id)
+            .collect();
+        assert_eq!(
+            ids,
+            vec![
+                "cursor",
+                "vscode",
+                "vscode-insiders",
+                "windsurf",
+                "zed",
+                "xcode",
+                "sublime-text",
+                "webstorm",
+                "typora",
+                "terminal",
+                "iterm2",
+                "ghostty",
+                "warp",
+                "finder",
+                "path-finder",
+            ]
+        );
+    }
+
+    #[test]
+    fn mac_only_apps_stay_off_other_platforms() {
+        for id in ["xcode", "terminal", "iterm2", "path-finder"] {
+            assert!(TARGETS.iter().filter(|t| t.id == id).all(|t| t.os == MAC));
+        }
+    }
+
+    #[test]
+    fn file_args_follow_each_editor_family() {
+        assert_eq!(file_args("vscode", "/a.rs", 3, 4), vec!["-g", "/a.rs:3:4"]);
+        assert_eq!(file_args("zed", "/a.rs", 3, 0), vec!["/a.rs:3"]);
+        assert_eq!(
+            file_args("pycharm", "/a.py", 7, 2),
+            vec!["--line", "7", "--column", "2", "/a.py"]
+        );
+        assert_eq!(file_args("webstorm", "/a.ts", 0, 0), vec!["/a.ts"]);
+        assert_eq!(file_args("typora", "/a.md", 9, 1), vec!["/a.md"]);
+    }
+
+    #[test]
+    fn launcher_splits_fixed_arguments() {
+        let c = launcher("/usr/bin/flatpak\0run\0com.visualstudio.code");
+        assert_eq!(c.get_program(), "/usr/bin/flatpak");
+        let args: Vec<_> = c.get_args().collect();
+        assert_eq!(args, vec!["run", "com.visualstudio.code"]);
+        let plain = launcher("/Applications/Cursor.app/Contents/Resources/app/bin/cursor");
+        assert_eq!(plain.get_args().count(), 0);
     }
 }

@@ -3,7 +3,7 @@ name = "lpm-desktop"
 version = "0.0.1"
 description = "lpm — Local Project Manager"
 edition = "2021"
-rust-version = "1.85"
+rust-version = "1.89"
 
 # Tauri 2 convention: a lib crate (the app logic) plus a thin main.rs binary.
 # rlib only: main.rs is the sole consumer. Tauri's template also emits staticlib
@@ -15,9 +15,8 @@ crate-type = ["rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
-
-[target.'cfg(target_os = "macos")'.build-dependencies]
 cc = "1"
+embed-resource = "3"
 
 [dependencies]
 tauri = { version = "2", features = ["unstable"] }  # unstable = multiwebview (in-pane browser)
@@ -99,6 +98,49 @@ reqwest = { version = "0.13", default-features = false, features = ["blocking", 
 # OpenSSL — keeps the build free of libssl-dev on minimal server images.
 [target.'cfg(not(target_os = "macos"))'.dependencies]
 reqwest = { version = "0.13", default-features = false, features = ["blocking", "rustls"] }
+# Linux/Windows have no Dock to bring a hidden main window back, so a second
+# launch hands off to the running instance, which shows its window.
+tauri-plugin-single-instance = "2"
+
+# Windows desktop. AF_UNIX sockets (Windows 10 1803+) keep the socket protocols
+# path-based like on Unix; windows-sys covers process control (Job Objects,
+# Toolhelp snapshots, console control events) and the OS integrations.
+[target.'cfg(windows)'.dependencies]
+uds_windows = "1.2"
+if-addrs = "0.15"
+windows-sys = { version = "0.61", features = [
+  "Wdk_System_Threading",
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_Security_Credentials",
+  "Win32_Storage_FileSystem",
+  "Win32_System_Console",
+  "Win32_System_Diagnostics_ToolHelp",
+  "Win32_System_JobObjects",
+  "Win32_System_Registry",
+  "Win32_System_Threading",
+  "Win32_NetworkManagement_IpHelper",
+  "Win32_Networking_WinSock",
+  "Win32_Media_Audio",
+  "Win32_UI_Shell",
+  "Win32_UI_WindowsAndMessaging",
+  "Win32_UI_Input_KeyboardAndMouse",
+  "Win32_System_Com",
+  "Win32_System_DataExchange",
+  "Win32_System_Memory",
+  "Win32_System_Ole",
+  "Win32_System_Pipes",
+  "Win32_System_ProcessStatus",
+  "Win32_System_SystemInformation",
+  "Win32_System_SystemServices",
+  "Win32_System_IO",
+  "Win32_Graphics_Gdi",
+  "Win32_Globalization",
+] }
+# WebView2 settings Tauri doesn't expose (browser accelerator keys), reached via
+# Webview::with_webview. Same versions wry already pulls in.
+webview2-com = "0.38"
+windows-core = "0.61"
 
 # Every rebuild orphans its object files (content-hashed names) and cargo never
 # reclaims them. Coarser codegen units cut that leak from ~261 files per edit to

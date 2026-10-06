@@ -4,6 +4,8 @@ import { ContextMenuItem } from "../ui/ContextMenuItem";
 import { ContextMenuShell } from "../ui/ContextMenuShell";
 import { copyTerminalSelection } from "./copySelection";
 import { copyConsole, saveConsole, type ConsoleFilter } from "./consoleActions";
+import { chordLabel } from "../../keys";
+import { isMac } from "../../platform";
 
 interface ConsoleContextMenuProps {
   x: number;
@@ -43,7 +45,7 @@ export function ConsoleContextMenu({
     <ContextMenuShell x={x} y={y} onClose={onClose}>
       <ContextMenuItem
         label="Copy"
-        shortcut="⌘C"
+        shortcut={chordLabel({ key: "c", meta: true })}
         disabled={!hasSelection && !appCopyAvailable}
         onClick={run(() => {
           if (hasSelection) copyTerminalSelection(term, serialize);
@@ -51,17 +53,17 @@ export function ConsoleContextMenu({
         })}
       />
       {canPaste && onPaste && (
-        <ContextMenuItem label="Paste" shortcut="⌘V" onClick={run(onPaste)} />
+        <ContextMenuItem label="Paste" shortcut={chordLabel({ key: "v", meta: true })} onClick={run(onPaste)} />
       )}
       <ContextMenuItem
         label="Select All"
-        shortcut="⌘A"
+        shortcut={chordLabel({ key: "a", meta: true })}
         onClick={run(() => term.selectAll())}
       />
       <div className="my-1 h-px bg-[var(--border)]" />
       <ContextMenuItem
         label="Clear console"
-        shortcut="⌃L"
+        shortcut={isMac ? "⌃L" : "Ctrl+L"}
         onClick={run(onClear)}
       />
       <div className="my-1 h-px bg-[var(--border)]" />

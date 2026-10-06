@@ -11,6 +11,9 @@ import { DiffConflictBanner } from "./review/DiffConflictBanner";
 import { useFileViewerFile } from "./useFileViewerFile";
 import { useFileViewerView } from "./useFileViewerView";
 import { useVideoPreview } from "./videoPreview";
+import { matchesChord } from "../keys";
+
+const CLOSE_CHORD = { key: "w", meta: true };
 
 // Monaco's own popups (find, palette, go to line, context menu) take Escape
 // first; with none open it reaches the dialog and closes it.
@@ -91,7 +94,7 @@ export function FileViewer({
   useEventListener(
     "keydown",
     (e) => {
-      if (e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "w") {
+      if (matchesChord(e, CLOSE_CHORD)) {
         e.preventDefault();
         e.stopPropagation();
         if (!editing) onClose();

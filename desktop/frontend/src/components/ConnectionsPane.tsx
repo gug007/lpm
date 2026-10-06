@@ -1,5 +1,6 @@
 import { usePeerState } from "../peer/usePeerState";
 import { isLinuxHost } from "../peer/platform";
+import { MACHINE } from "../machineWords";
 import { HostSection } from "./connections/HostSection";
 import { MacsSection } from "./connections/MacsSection";
 import { LinuxHostsSection } from "./connections/LinuxHostsSection";
@@ -12,6 +13,7 @@ import { SyncSection } from "./connections/SyncSection";
 //
 // Linux hosts get their own list: they're headless servers you keep work running
 // on, not machines someone is sitting at, and they're brought online differently.
+// A Linux or Windows desktop is someone's machine, so it sits with the Macs.
 export function ConnectionsPane() {
   const { state, refresh } = usePeerState();
   const linuxHosts = state.peers.filter(isLinuxHost);
@@ -20,7 +22,7 @@ export function ConnectionsPane() {
   return (
     <div className="mt-2">
       <p className="mb-6 text-[12px] leading-relaxed text-[var(--text-muted)]">
-        Connect this Mac to another Mac, or to a Linux server, and work across both from one place.
+        Connect {MACHINE.thisMachine} to {MACHINE.anotherMachine}, or to a Linux server, and work across both from one place.
         A connected machine's projects appear in your sidebar and open just like local ones.
       </p>
       <HostSection host={state.host} refresh={refresh} />

@@ -249,6 +249,7 @@ mod tests {
         assert!(!state.use_colors);
     }
 
+    #[cfg(unix)]
     #[test]
     fn apply_updates_symlink_target_without_replacing_link() {
         let dir = tempfile::tempdir().unwrap();

@@ -16,6 +16,7 @@ import {
   GetServiceLogs,
   NotesReadFileAsInput,
   ReadClipboardFiles,
+  ReadClipboardText,
   RemoteSetComposerDraft,
   RenameMemorySession,
   SaveClipboardImage,
@@ -65,6 +66,7 @@ import { MemoryPreviewPopover } from "./MemoryPreviewPopover";
 import { ImageLightbox } from "./ImageLightbox";
 import { loadImageDataUrl, seedImageDataUrl } from "./imageDataUrl";
 import { TerminalDropOverlay } from "./terminal/TerminalDropOverlay";
+import { readPasteContent, unlessNativePaste } from "./terminal/clipboardRead";
 import { TERMINAL_FONT_FAMILY } from "./terminal-utils";
 import { basename } from "../path";
 import { composerPlaceholder } from "../composerText";
@@ -108,6 +110,8 @@ import {
   readClipboardPayload,
   writeClipboardPayload,
 } from "./composerClipboard";
+import { composerChord, composerKeepsCtrlChord, isFormatInput, runComposerEdit } from "./composerKeys";
+import { isMac } from "../platform";
 import { SlashCommandMenu } from "./SlashCommandMenu";
 import { useSlashCommands } from "../hooks/useSlashCommands";
 import {
@@ -952,6 +956,28 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     };
   }, [pointInComposer]);
 
+  // Plain text — inserted verbatim so rich clipboard HTML can't leak markup (or
+  // styled chips) into the field. A pasted "[Image #N]" token whose path is
+  // still mapped (a cut/copied chip) is rebuilt as the image chip.
+  const insertPastedText = useCallback(
+    (text: string) => {
+      const segments = splitByImageTokens(text);
+      if (segments.some((s) => s.image !== null && imagePaths.current.has(s.image))) {
+        insertItems(
+          segments
+            .map((s) => (s.image !== null && imagePaths.current.has(s.image) ? createImageChip(s.image) : s.text))
+            .filter((it) => typeof it !== "string" || it.length > 0),
+          false,
+        );
+        return;
+      }
+      document.execCommand("insertText", false, text);
+      histIdx.current = -1;
+      syncState();
+    },
+    [insertItems, syncState],
+  );
+
   const handlePaste = useCallback(
     (e: ClipboardEvent<HTMLDivElement>) => {
       const dt = e.clipboardData;
@@ -991,28 +1017,32 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
         insertItems(payloadToItems(payload, registerImagePath), false);
         return;
       }
-      // Plain text — insert it verbatim so rich clipboard HTML can't leak markup
-      // (or styled chips) into the field. A pasted "[Image #N]" token whose path
-      // is still mapped (a cut/copied chip) is rebuilt as the image chip.
       e.preventDefault();
       const text = dt.getData("text/plain");
-      if (!text) return;
-      const segments = splitByImageTokens(text);
-      if (segments.some((s) => s.image !== null && imagePaths.current.has(s.image))) {
-        insertItems(
-          segments
-            .map((s) => (s.image !== null && imagePaths.current.has(s.image) ? createImageChip(s.image) : s.text))
-            .filter((it) => typeof it !== "string" || it.length > 0),
-          false,
-        );
-        return;
-      }
-      document.execCommand("insertText", false, text);
-      histIdx.current = -1;
-      syncState();
+      if (text) insertPastedText(text);
     },
-    [addImageBlob, addPeerLocalFiles, insertFilePaths, insertImageChips, insertItems, isRemotePeer, registerImagePath, syncState],
+    [addImageBlob, addPeerLocalFiles, insertFilePaths, insertImageChips, insertItems, insertPastedText, isRemotePeer, registerImagePath],
   );
+
+  // Ctrl+Shift+V off macOS with no paste event behind it: the clipboard is read
+  // instead and fed through the same routes as handlePaste. Text needs the
+  // field's focus to type into; without it the text lands like a chip insert.
+  const pasteFromClipboard = useCallback(() => {
+    void readPasteContent(ReadClipboardFiles, () => ReadClipboardText(true)).then((clip) => {
+      const editor = editorRef.current;
+      if (!clip || !editor) return;
+      if (clip.kind === "files") {
+        if (isRemotePeer) void addPeerLocalFiles(clip.paths);
+        else insertFilePaths(clip.paths);
+      } else if (clip.kind === "image") {
+        void addImageBlob(clip.blob).then((chip) => insertImageChips([chip], 1));
+      } else if (editor.contains(document.activeElement)) {
+        insertPastedText(clip.text);
+      } else {
+        insertItems([clip.text], false);
+      }
+    });
+  }, [addImageBlob, addPeerLocalFiles, insertFilePaths, insertImageChips, insertItems, insertPastedText, isRemotePeer]);
 
   // In-app / web drags deliver File objects through the DOM (OS file drops go
   // through the bridge handler above instead).
@@ -1481,6 +1511,8 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       } else if (e.inputType === "historyRedo") {
         e.preventDefault();
         historyRef.current.redo();
+      } else if (!isMac && isFormatInput(e.inputType)) {
+        e.preventDefault();
       }
     };
     editor.addEventListener("beforeinput", onBeforeInput);
@@ -2026,6 +2058,27 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
         return;
       }
     }
+    // Off macOS the field supplies its own Ctrl editing keys and undo, plus the
+    // physical forms of the ⌘ chords handled below (composerKeys.ts).
+    const chord = composerChord(e.nativeEvent);
+    if (chord) {
+      e.stopPropagation();
+      if (chord === "paste") {
+        if (document.execCommand("paste")) e.preventDefault();
+        else unlessNativePaste(e.currentTarget, pasteFromClipboard);
+        return;
+      }
+      e.preventDefault();
+      if (chord === "undo") undo();
+      else if (chord === "redo") redo();
+      else if (chord === "newTab") addTab();
+      else if (chord === "closeTab") closeTab(activeId.current);
+      else {
+        runComposerEdit(chord);
+        scheduleNormalize();
+      }
+      return;
+    }
     // Handles ⌘Z/⌘⇧Z only when it reaches keydown (native stack empty, so the
     // Edit-menu item is disabled); the enabled-menu case goes through the
     // beforeinput listener above. We always own ⌘Z — native undo corrupts this
@@ -2061,7 +2114,8 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     // shortcuts, which treat Ctrl as Cmd and would preventDefault them. ⌘ chords
     // belong to the app: one that must not fire mid-prompt declares
     // `whileTyping: false` at its own registration instead of being listed here.
-    if (e.ctrlKey && !e.metaKey) {
+    // Off macOS app chords carry Ctrl too, so only the field's own keys stop.
+    if (composerKeepsCtrlChord(e.nativeEvent)) {
       e.stopPropagation();
     }
     // Any caret move can make WebKit inject stray chars around a chip — the

@@ -1,5 +1,9 @@
 import type { SettingsTab, View } from "./store/app";
 import { HOTKEYS } from "./hotkeys";
+import { chordLabel } from "./keys";
+import { MACHINE } from "./machineWords";
+import { isMac } from "./platform";
+import { removeAppDescription } from "./removeAppCopy";
 
 export type SettingsFlag = "experimentalTTS";
 
@@ -10,6 +14,9 @@ export type SettingsRowEntry = {
   label: string;
   description: string;
   keywords?: string[];
+  // Backed by something only macOS has; the row and its search entry are
+  // hidden elsewhere.
+  macOnly?: boolean;
 };
 
 export type SettingsViewEntry = {
@@ -175,7 +182,7 @@ export const ROWS = {
     tab: "general",
     id: "general.removeApp",
     label: "Remove app",
-    description: "Uninstall lpm and everything it installed on this Mac",
+    description: removeAppDescription(),
     keywords: ["uninstall", "delete", "trash"],
   },
   "notifications.sound": {
@@ -249,7 +256,7 @@ export const ROWS = {
     tab: "terminal",
     id: "terminal.input",
     label: "Terminal input",
-    description: "Show the message input below each terminal. Toggle anytime with ⌘I",
+    description: `Show the message input below each terminal. Toggle anytime with ${chordLabel({ key: "i", meta: true })}`,
     keywords: ["composer", "message", "prompt"],
   },
   "terminal.filesTreeSide": {
@@ -298,7 +305,9 @@ export const ROWS = {
     tab: "tts",
     id: "tts.openaiKey",
     label: "OpenAI API Key",
-    description: "Stored in the macOS Keychain, never in settings.json",
+    description: isMac
+      ? "Stored in the macOS Keychain, never in settings.json"
+      : "Stored on this computer, never in settings.json",
     keywords: ["speech", "openai", "api key", "keychain", "secret"],
   },
   "tts.openaiVoice": {
@@ -365,6 +374,7 @@ export const ROWS = {
     description:
       "Free offline dictation — Claude Code, Codex, Cursor, Slack, or any text field",
     keywords: ["dictation", "speech", "voice"],
+    macOnly: true,
   },
   "ai.accounts": {
     kind: "row",
@@ -428,7 +438,7 @@ export const ROWS = {
     tab: "backup",
     id: "backup.vaultImport",
     label: "Restore your key",
-    description: "Load a saved key file to unlock notes on this Mac.",
+    description: `Load a saved key file to unlock notes on ${MACHINE.thisMachine}.`,
     keywords: ["encryption", "key", "vault"],
   },
   "mobile.devices": {
@@ -540,7 +550,9 @@ export function rowProps(
 
 export function buildSearchEntries(ctx: {
   experimentalTTS: boolean;
+  mac?: boolean;
 }): SettingsSearchEntry[] {
+  const mac = ctx.mac ?? isMac;
   const entries: SettingsSearchEntry[] = [
     ...Object.values(ROWS),
     ...soundEntries(),
@@ -549,7 +561,8 @@ export function buildSearchEntries(ctx: {
     ...MODAL_ENTRIES,
   ];
   return entries.filter(
-    (e) => e.kind !== "row" || e.tab !== "tts" || ctx.experimentalTTS,
+    (e) =>
+      e.kind !== "row" || ((e.tab !== "tts" || ctx.experimentalTTS) && (mac || !e.macOnly)),
   );
 }
 

@@ -20,6 +20,7 @@ import {
   countPersistedTabs,
   getProjectTerminals,
 } from "../terminals";
+import { chordLabel } from "../keys";
 
 interface GlobalTerminalsViewProps {
   visible?: boolean;
@@ -129,7 +130,7 @@ export function GlobalTerminalsView({
             >
               <TerminalIcon />
               New Terminal
-              <kbd className="ml-1 text-[10px] opacity-70">⌘T</kbd>
+              <kbd className="ml-1 text-[10px] opacity-70">{chordLabel({ key: "t", meta: true })}</kbd>
             </button>
           </div>
         </div>

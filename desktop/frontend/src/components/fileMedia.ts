@@ -1,4 +1,5 @@
 import { isImagePath } from "../composerValue";
+import { isWindows } from "../platform";
 
 export type MediaKind = "image" | "video" | "pdf";
 
@@ -65,7 +66,11 @@ export const MEDIA_SCHEME = "lpm-media";
 // <video> seeks by asking for byte ranges, so the bytes have to stay
 // random-access on the Rust side instead of crossing the IPC boundary as one
 // base64 blob. Path goes over as a single percent-encoded segment, which is
-// what the handler decodes.
-export function mediaSrc(absPath: string): string {
-  return `${MEDIA_SCHEME}://localhost/${encodeURIComponent(absPath)}`;
+// what the handler decodes. WebView2 only routes a custom scheme as
+// http://<scheme>.localhost/ (wry maps it back before the handler runs).
+export function mediaSrc(absPath: string, windows: boolean = isWindows): string {
+  const segment = encodeURIComponent(absPath);
+  return windows
+    ? `http://${MEDIA_SCHEME}.localhost/${segment}`
+    : `${MEDIA_SCHEME}://localhost/${segment}`;
 }

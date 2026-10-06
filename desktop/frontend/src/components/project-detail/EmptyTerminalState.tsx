@@ -1,4 +1,5 @@
 import { HistoryIcon, SettingsIcon, TerminalIcon } from "../icons";
+import { chordLabel } from "../../keys";
 
 interface EmptyTerminalStateProps {
   projectName: string;
@@ -30,7 +31,7 @@ export function EmptyTerminalState({ projectName, onNewTerminal, onEditConfig, o
           >
             <TerminalIcon />
             New Terminal
-            <kbd className="ml-1 text-[10px] opacity-70">⌘T</kbd>
+            <kbd className="ml-1 text-[10px] opacity-70">{chordLabel({ key: "t", meta: true })}</kbd>
           </button>
           <button
             onClick={onEditConfig}
@@ -38,7 +39,7 @@ export function EmptyTerminalState({ projectName, onNewTerminal, onEditConfig, o
           >
             <SettingsIcon />
             Edit Config
-            <kbd className="ml-1 text-[10px] opacity-70">⌘E</kbd>
+            <kbd className="ml-1 text-[10px] opacity-70">{chordLabel({ key: "e", meta: true })}</kbd>
           </button>
         </div>
         {onResumeSession && (

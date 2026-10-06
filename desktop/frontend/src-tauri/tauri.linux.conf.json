@@ -1,0 +1,44 @@
+{
+  "bundle": {
+    "targets": ["deb", "appimage", "rpm"],
+    "icon": [
+      "icons/icon.png",
+      "icons/32x32.png",
+      "icons/64x64.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png"
+    ],
+    "publisher": "gug007",
+    "homepage": "https://lpm.cx",
+    "category": "DeveloperTool",
+    "shortDescription": "Switch between projects and terminals in seconds",
+    "longDescription": "Start, stop, duplicate and switch between your dev projects with a single click, with a built-in terminal for running AI coding agents like Claude Code and Codex alongside your services.",
+    "linux": {
+      "deb": {
+        "section": "devel",
+        "depends": [
+          "libwebkit2gtk-4.1-0 (>= 2.40)",
+          "git",
+          "openssh-client",
+          "xdg-utils"
+        ],
+        "recommends": [
+          "wl-clipboard | xclip | xsel",
+          "iproute2",
+          "jq",
+          "rsync",
+          "pulseaudio-utils | pipewire-bin",
+          "fontconfig"
+        ],
+        "postInstallScript": "packaging/linux/postinst.sh",
+        "postRemoveScript": "packaging/linux/postrm.sh"
+      },
+      "rpm": {
+        "depends": ["git", "openssh-clients", "xdg-utils"],
+        "recommends": ["wl-clipboard", "xclip", "iproute", "jq", "rsync", "pulseaudio-utils", "fontconfig"],
+        "postInstallScript": "packaging/linux/postinst.sh",
+        "postRemoveScript": "packaging/linux/postrm.sh"
+      }
+    }
+  }
+}

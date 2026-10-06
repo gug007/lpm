@@ -28,6 +28,7 @@ import { ToolkitComposerField } from "./ToolkitComposerField";
 import { ToolkitSkillModal } from "./ToolkitSkillModal";
 import { ToolkitSkillOptions } from "./ToolkitSkillOptions";
 import { FIELD } from "./surfaces";
+import { enterHint } from "../../shortcutHints";
 
 function Notice({ tone, children }: { tone: "warn" | "bad"; children: ReactNode }) {
   return (
@@ -217,7 +218,7 @@ export function ToolkitCreate({
       open={open}
       title="New skill"
       subtitle="A task your agent can run on its own, saved where the CLI you pick will read it."
-      hint={hint ?? (blocked ? "" : "↩ creates it and opens it")}
+      hint={hint ?? (blocked ? "" : `${enterHint({}, "↩")} creates it and opens it`)}
       submitLabel="Create skill"
       busyLabel="Creating…"
       busy={busy}

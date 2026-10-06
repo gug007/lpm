@@ -9,6 +9,7 @@ import {
 import { SettingsRow } from "./Settings";
 import { SettingsSelect } from "./SettingsSelect";
 import { BTN_SECONDARY } from "./ui/buttons";
+import { isMac } from "../platform";
 
 /// The key lives in the macOS Keychain (a 0600 file on a Linux host), never in
 /// settings.json — so this row can ask whether one is saved, but never reads it
@@ -31,7 +32,7 @@ export function OpenAIKeyRow() {
       setValue("");
       setEditing(false);
       setSaved(true);
-      toast.success("OpenAI key saved to the Keychain");
+      toast.success(isMac ? "OpenAI key saved to the Keychain" : "OpenAI key saved");
     } catch (err) {
       toast.error(`Couldn't save key: ${String(err)}`);
     }
@@ -51,7 +52,9 @@ export function OpenAIKeyRow() {
     saved === null
       ? "Checking…"
       : saved
-        ? "Saved in the Keychain"
+        ? isMac
+          ? "Saved in the Keychain"
+          : "Saved on this computer"
         : "Required for the OpenAI engine";
 
   return (

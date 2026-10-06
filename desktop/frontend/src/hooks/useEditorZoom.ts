@@ -3,6 +3,7 @@ import { DEFAULT_MONACO_FONT_SIZE, clampMonacoFontSize } from "../monaco-theme";
 import { saveSettings, useSettingsStore } from "../store/settings";
 import type { ContentZoom } from "./useContentZoom";
 import { useEventListener } from "./useEventListener";
+import { hasPrimaryMod } from "../keyEvents";
 
 const noSurface = () => {};
 
@@ -21,7 +22,7 @@ export function useEditorZoom(enabled: boolean): ContentZoom {
   useEventListener(
     "keydown",
     (e) => {
-      if (!e.metaKey || e.ctrlKey || e.altKey) return;
+      if (!hasPrimaryMod(e) || e.altKey) return;
       if (e.key === "=" || e.key === "+") zoomIn();
       else if (e.key === "-") zoomOut();
       else if (e.key === "0") zoomReset();

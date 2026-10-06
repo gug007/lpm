@@ -62,14 +62,17 @@ pub fn shorten_home(path: &str) -> String {
     let Some(home) = dirs::home_dir() else {
         return path.to_string();
     };
-    let home = home.to_string_lossy();
+    shorten_under(path, &home.to_string_lossy(), crate::config::HOME_SEPARATORS)
+}
+
+fn shorten_under(path: &str, home: &str, separators: &[char]) -> String {
     if path == home {
         return "~".to_string();
     }
-    if let Some(rest) = path.strip_prefix(&format!("{home}/")) {
-        return format!("~/{rest}");
+    match path.strip_prefix(home) {
+        Some(rest) if rest.starts_with(separators) => format!("~{rest}"),
+        _ => path.to_string(),
     }
-    path.to_string()
 }
 
 #[cfg(test)]
@@ -85,6 +88,21 @@ mod tests {
         assert_eq!(relative(now - 3 * 3_600_000, now), "3h ago");
         assert_eq!(relative(now - 2 * 86_400_000, now), "2d ago");
         assert_eq!(relative(0, now), "unknown");
+    }
+
+    #[test]
+    fn shorten_under_collapses_only_the_home_directory_itself() {
+        let unix = &['/'][..];
+        assert_eq!(shorten_under("/Users/a", "/Users/a", unix), "~");
+        assert_eq!(shorten_under("/Users/a/code", "/Users/a", unix), "~/code");
+        assert_eq!(shorten_under("/Users/ab/code", "/Users/a", unix), "/Users/ab/code");
+        assert_eq!(shorten_under("/srv/code", "/Users/a", unix), "/srv/code");
+
+        let windows = &['/', '\\'][..];
+        let home = r"C:\Users\a";
+        assert_eq!(shorten_under(r"C:\Users\a\code", home, windows), r"~\code");
+        assert_eq!(shorten_under(r"C:\Users\a\code", home, unix), r"C:\Users\a\code");
+        assert_eq!(shorten_under(r"C:\Users\ab", home, windows), r"C:\Users\ab");
     }
 
     #[test]

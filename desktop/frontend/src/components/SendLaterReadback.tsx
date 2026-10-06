@@ -1,5 +1,6 @@
 import { useState, type KeyboardEvent } from "react";
 import { clockLabel, countdownLabel, dayLabel, parseWhen } from "../sendLater/time";
+import { enterHint } from "../shortcutHints";
 
 interface SendLaterReadbackProps {
   at: number;
@@ -79,7 +80,7 @@ export function SendLaterReadback({ at, now, limitAt, onTyped, onDone }: SendLat
           className="h-8 w-60 rounded-lg border border-[var(--accent-blue)] bg-[var(--bg-secondary)] px-2.5 text-[14px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
         />
         <span className={`text-[10.5px] ${error ? "text-[var(--accent-amber-text)]" : "text-[var(--text-muted)]"}`}>
-          {error ? "Try 2h, 90m, 5pm or fri 10am" : `↵ to set${limitAt !== null ? " · “reset” for when the limit resets" : ""}`}
+          {error ? "Try 2h, 90m, 5pm or fri 10am" : `${enterHint()} to set${limitAt !== null ? " · “reset” for when the limit resets" : ""}`}
         </span>
       </div>
     );

@@ -56,4 +56,12 @@ describe("mediaSrc", () => {
       "/Users/me/Screen Recording #2?.mov",
     );
   });
+
+  it("uses WebView2's http://<scheme>.localhost form on Windows", () => {
+    const src = mediaSrc("C:\\Users\\me\\Videos\\clip one.mp4", true);
+    expect(src).toBe("http://lpm-media.localhost/C%3A%5CUsers%5Cme%5CVideos%5Cclip%20one.mp4");
+    expect(mediaSrc("/home/me/clip.mp4", false)).toBe(
+      "lpm-media://localhost/%2Fhome%2Fme%2Fclip.mp4",
+    );
+  });
 });

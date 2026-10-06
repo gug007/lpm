@@ -314,9 +314,17 @@ mod tests {
             .join("work")
             .to_string_lossy()
             .to_string();
+        // Git for Windows defaults to autocrlf=true, which checks out CRLF.
         git_out(
             &receiver_dir.path().to_string_lossy(),
-            &["clone", "-q", &sender, &receiver],
+            &[
+                "clone",
+                "-q",
+                "-c",
+                "core.autocrlf=false",
+                &sender,
+                &receiver,
+            ],
         )
         .unwrap();
         // Local-only build output: it must survive every sync.

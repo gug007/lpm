@@ -61,6 +61,7 @@ import { useFilesView } from "../store/filesView";
 import { canForkSession } from "../forkSession";
 import { actionTextColor } from "../actionColors";
 import { SendLaterTabMark } from "./SendLaterTabMark";
+import { chordLabel } from "../keys";
 
 export type StatusKind = "Done" | "Waiting" | "Error";
 
@@ -518,7 +519,7 @@ function PaneViewImpl(props: PaneViewProps) {
           <Tooltip
             content={
               <>
-                Split right <span className="ml-1 opacity-70">⌘D</span>
+                Split right <span className="ml-1 opacity-70">{chordLabel({ key: "d", meta: true })}</span>
               </>
             }
             side="bottom"
@@ -531,7 +532,7 @@ function PaneViewImpl(props: PaneViewProps) {
           <Tooltip
             content={
               <>
-                Split down <span className="ml-1 opacity-70">⌘⇧D</span>
+                Split down <span className="ml-1 opacity-70">{chordLabel({ key: "d", meta: true, shift: true })}</span>
               </>
             }
             side="bottom"

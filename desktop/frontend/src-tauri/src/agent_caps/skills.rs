@@ -371,8 +371,16 @@ mod tests {
     use tempfile::tempdir;
 
     /// A home that never has to exist: `skill_roots_in` is pure path arithmetic,
-    /// and no test may touch the developer's real `$HOME`.
+    /// and no test may touch the developer's real `$HOME`. Rooted with a drive
+    /// on Windows, where `/tmp/…` is not absolute and every root would drop.
+    #[cfg(not(windows))]
     const FAKE_HOME: &str = "/tmp/lpm-skill-tests-home";
+    #[cfg(windows)]
+    const FAKE_HOME: &str = r"C:\lpm-skill-tests-home";
+    #[cfg(not(windows))]
+    const FAKE_PROJECT: &str = "/tmp/lpm-skill-tests-project";
+    #[cfg(windows)]
+    const FAKE_PROJECT: &str = r"C:\lpm-skill-tests-project";
 
     fn roots_for(project: Option<&Path>) -> Vec<SkillRoot> {
         let home = Path::new(FAKE_HOME);
@@ -439,7 +447,7 @@ mod tests {
 
     #[test]
     fn only_a_direct_child_of_a_root_is_a_skill_folder() {
-        let project = Path::new("/tmp/lpm-skill-tests-project");
+        let project = Path::new(FAKE_PROJECT);
         let roots = roots_for(Some(project));
         let user = Path::new(FAKE_HOME).join(".claude/skills");
 
@@ -637,6 +645,7 @@ mod tests {
         assert_eq!(trashed.into_inner(), vec![dir]);
     }
 
+    #[cfg(unix)]
     #[test]
     fn a_symlinked_skill_folder_is_refused() {
         let project = tempdir().unwrap();
@@ -657,6 +666,7 @@ mod tests {
         assert!(real.join("SKILL.md").is_file());
     }
 
+    #[cfg(unix)]
     #[test]
     fn a_symlinked_root_is_still_usable() {
         let project = tempdir().unwrap();

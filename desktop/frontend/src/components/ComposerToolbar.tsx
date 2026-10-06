@@ -13,6 +13,7 @@ import { ComposerToolbarSlot } from "./ComposerToolbarSlot";
 import { SquarePenIcon } from "./icons";
 import { SendSplitButton, type SendSplitButtonProps } from "./SendSplitButton";
 import { TerminalHistoryButton, type TerminalHistoryButtonProps } from "./TerminalHistoryButton";
+import { DICTATION_AVAILABLE } from "../hooks/useVoiceDictation";
 
 export type ComposerHistorySource = Pick<
   TerminalHistoryButtonProps,
@@ -45,6 +46,7 @@ interface ComposerToolbarProps {
 // it between the two from either place.
 export function ComposerToolbar({ boxRef, history, onNewInput, actions, memory, model, fork, send }: ComposerToolbarProps) {
   const layout = useComposerToolbar({
+    mic: DICTATION_AVAILABLE,
     actions: actions !== null,
     memory: memory !== null,
     model: model !== null,
