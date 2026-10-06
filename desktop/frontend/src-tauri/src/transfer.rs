@@ -6,11 +6,10 @@
 // the current config to ~/.lpm.backup-<ts> first, then merges the archive in:
 // projects honor `overwrite` (kept ones reported as skipped); top-level files
 // always clobber; settings.json always merges (preserving per-machine keys).
-use crate::config;
+use crate::{config, fsperm};
 use serde::Serialize;
 use serde_json::{Map, Value};
 use std::collections::HashSet;
-use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt, PermissionsExt};
 use std::path::{Component, Path, PathBuf};
 use tauri::{AppHandle, Emitter};
 
@@ -34,6 +33,8 @@ pub struct ImportReport {
     pub missing_roots: Vec<MissingRoot>,
     pub missing_tools: Vec<String>,
     pub backup_path: String,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub unportable: Vec<String>,
 }
 
 #[derive(Serialize, Default)]
@@ -158,7 +159,8 @@ pub async fn import_config(
         .prefix("lpm-import-")
         .tempdir()
         .map_err(|e| e.to_string())?;
-    extract_tar_gz(&archive, tmp.path()).map_err(|e| format!("extract archive: {e}"))?;
+    let unportable =
+        extract_tar_gz(&archive, tmp.path()).map_err(|e| format!("extract archive: {e}"))?;
 
     let valid = std::iter::once("projects")
         .chain(std::iter::once("settings.json"))
@@ -172,6 +174,7 @@ pub async fn import_config(
 
     let mut report = ImportReport {
         backup_path: backup,
+        unportable,
         ..Default::default()
     };
     apply_import(tmp.path(), overwrite, &mut report)?;
@@ -183,11 +186,14 @@ pub async fn import_config(
     Ok(Some(report))
 }
 
-fn extract_tar_gz(src: &Path, dst: &Path) -> Result<(), String> {
+/// Unpack `src` into `dst`. Returns the entries left out because this platform
+/// can't name them, each given once by its path up to the offending name.
+fn extract_tar_gz(src: &Path, dst: &Path) -> Result<Vec<String>, String> {
     let f = std::fs::File::open(src).map_err(|e| e.to_string())?;
     let gz = flate2::read::GzDecoder::new(f);
     let mut ar = tar::Archive::new(gz);
     let mut total: u64 = 0;
+    let mut unportable: Vec<String> = Vec::new();
     for entry in ar.entries().map_err(|e| e.to_string())? {
         let mut entry = entry.map_err(|e| e.to_string())?;
         let raw = entry.path().map_err(|e| e.to_string())?.into_owned();
@@ -196,13 +202,18 @@ fn extract_tar_gz(src: &Path, dst: &Path) -> Result<(), String> {
             Some(_) => continue, // "." / empty
             None => return Err(format!("unsafe archive entry {:?}", raw.to_string_lossy())),
         };
+        if let Some(part) = unportable_part(&rel) {
+            let shown = part.to_string_lossy().replace('\\', "/");
+            if !unportable.contains(&shown) {
+                unportable.push(shown);
+            }
+            continue;
+        }
         let target = dst.join(&rel);
         let mode = entry.header().mode().unwrap_or(0o644) & 0o777;
         match entry.header().entry_type() {
             tar::EntryType::Directory => {
-                std::fs::DirBuilder::new()
-                    .recursive(true)
-                    .mode(mode)
+                fsperm::dir_mode(std::fs::DirBuilder::new().recursive(true), mode)
                     .create(&target)
                     .map_err(|e| e.to_string())?;
             }
@@ -218,19 +229,21 @@ fn extract_tar_gz(src: &Path, dst: &Path) -> Result<(), String> {
                 if let Some(p) = target.parent() {
                     std::fs::create_dir_all(p).map_err(|e| e.to_string())?;
                 }
-                let mut out = std::fs::OpenOptions::new()
-                    .create(true)
-                    .write(true)
-                    .truncate(true)
-                    .mode(mode)
-                    .open(&target)
-                    .map_err(|e| e.to_string())?;
+                let mut out = fsperm::open_mode(
+                    std::fs::OpenOptions::new()
+                        .create(true)
+                        .write(true)
+                        .truncate(true),
+                    mode,
+                )
+                .open(&target)
+                .map_err(|e| e.to_string())?;
                 std::io::copy(&mut entry, &mut out).map_err(|e| e.to_string())?;
             }
             _ => {} // symlinks / hardlinks / special: silently ignored (matches Go)
         }
     }
-    Ok(())
+    Ok(unportable)
 }
 
 /// Lexical safety: returns the normalized relative path, or None if the entry
@@ -245,6 +258,20 @@ fn safe_relative(name: &Path) -> Option<PathBuf> {
         }
     }
     Some(rel)
+}
+
+/// `rel` up to its first name this platform can't hold, if it has one: a Mac
+/// project may be called "Client: Site", and on Windows the ':' would write
+/// into an alternate stream of another file.
+fn unportable_part(rel: &Path) -> Option<PathBuf> {
+    let mut part = PathBuf::new();
+    for name in rel.iter() {
+        part.push(name);
+        if !crate::fsname::is_portable(&name.to_string_lossy()) {
+            return Some(part);
+        }
+    }
+    None
 }
 
 /// Snapshot the whole ~/.lpm tree to a timestamped `~/.lpm.backup-<ts>` sibling,
@@ -301,7 +328,7 @@ pub(crate) fn snapshot_lpm(src: &Path, dst: &Path) -> Result<(), String> {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
         Err(e) => return Err(e.to_string()),
     };
-    mkdir_mode(dst, info.permissions().mode())?;
+    mkdir_mode(dst, fsperm::mode(&info))?;
     for entry in std::fs::read_dir(src).map_err(|e| e.to_string())? {
         let entry = entry.map_err(|e| e.to_string())?;
         let name = entry.file_name();
@@ -319,9 +346,9 @@ pub(crate) fn snapshot_lpm(src: &Path, dst: &Path) -> Result<(), String> {
         if meta.file_type().is_symlink() {
             continue; // top-level symlinks skipped (Go: !IsDir && !IsRegular)
         } else if meta.is_dir() {
-            copy_tree(&sp, &dp, meta.permissions().mode())?;
+            copy_tree(&sp, &dp, fsperm::mode(&meta))?;
         } else if meta.is_file() {
-            copy_file(&sp, &dp, meta.permissions().mode())?;
+            copy_file(&sp, &dp, fsperm::mode(&meta))?;
         }
     }
     Ok(())
@@ -388,10 +415,7 @@ fn apply_import(tmp: &Path, overwrite: bool, report: &mut ImportReport) -> Resul
             if exists {
                 std::fs::remove_dir_all(&dst_dir).map_err(|e| e.to_string())?;
             }
-            let mode = std::fs::metadata(&src)
-                .map_err(|e| e.to_string())?
-                .permissions()
-                .mode();
+            let mode = fsperm::mode(&std::fs::metadata(&src).map_err(|e| e.to_string())?);
             copy_tree(&src, &dst_dir, mode)?;
         }
     }
@@ -474,7 +498,7 @@ fn detect_import_issues() -> (Vec<MissingRoot>, Vec<String>) {
         }
         for cmd in config::project_cmd_strings(&name) {
             if let Some(tool) = program_token(&cmd) {
-                if tool.contains('/') || !seen.insert(tool.clone()) {
+                if tool.contains(std::path::is_separator) || !seen.insert(tool.clone()) {
                     continue;
                 }
                 if !crate::sys::which(&tool) {
@@ -517,21 +541,18 @@ fn copy_tree(src: &Path, dst: &Path, mode: u32) -> Result<(), String> {
         let dp = dst.join(entry.file_name());
         let meta = std::fs::symlink_metadata(&sp).map_err(|e| e.to_string())?;
         if meta.file_type().is_symlink() {
-            let target = std::fs::read_link(&sp).map_err(|e| e.to_string())?;
-            std::os::unix::fs::symlink(target, &dp).map_err(|e| e.to_string())?;
+            crate::fslink::copy_link(&sp, &dp, None).map_err(|e| e.to_string())?;
         } else if meta.is_dir() {
-            copy_tree(&sp, &dp, meta.permissions().mode())?;
+            copy_tree(&sp, &dp, fsperm::mode(&meta))?;
         } else {
-            copy_file(&sp, &dp, meta.permissions().mode())?;
+            copy_file(&sp, &dp, fsperm::mode(&meta))?;
         }
     }
     Ok(())
 }
 
 fn mkdir_mode(dir: &Path, mode: u32) -> Result<(), String> {
-    std::fs::DirBuilder::new()
-        .recursive(true)
-        .mode(mode & 0o777)
+    fsperm::dir_mode(std::fs::DirBuilder::new().recursive(true), mode & 0o777)
         .create(dir)
         .map_err(|e| e.to_string())
 }
@@ -561,28 +582,44 @@ mod tests {
     }
 
     #[test]
+    fn a_name_is_unportable_only_where_the_platform_refuses_it() {
+        assert_eq!(unportable_part(Path::new("projects/a.yml")), None);
+        let colon = Path::new("projects/Client: Site.yml");
+        let nested = Path::new("zdotdir/a?b/c");
+        if cfg!(windows) {
+            assert_eq!(unportable_part(colon), Some(colon.to_path_buf()));
+            assert_eq!(unportable_part(nested), Some(PathBuf::from("zdotdir/a?b")));
+        } else {
+            assert_eq!(unportable_part(colon), None);
+            assert_eq!(unportable_part(nested), None);
+        }
+    }
+
+    fn write_archive(path: &Path, entries: &[(&str, &[u8])]) {
+        let f = std::fs::File::create(path).unwrap();
+        let gz = flate2::write::GzEncoder::new(f, flate2::Compression::default());
+        let mut tw = tar::Builder::new(gz);
+        for (name, body) in entries {
+            let mut h = tar::Header::new_gnu();
+            h.set_mode(0o644);
+            h.set_size(body.len() as u64);
+            h.set_mtime(0);
+            tw.append_data(&mut h, name, *body).unwrap();
+        }
+        tw.into_inner().unwrap().finish().unwrap();
+    }
+
+    #[test]
     fn extract_roundtrip() {
         let dir = tempfile::tempdir().unwrap();
         let archive = dir.path().join("c.tar.gz");
-        {
-            let f = std::fs::File::create(&archive).unwrap();
-            let gz = flate2::write::GzEncoder::new(f, flate2::Compression::default());
-            let mut tw = tar::Builder::new(gz);
-            for (name, body) in [
-                ("global.yml", &b"root: ~/x"[..]),
-                ("projects/a.yml", &b"hi"[..]),
-            ] {
-                let mut h = tar::Header::new_gnu();
-                h.set_mode(0o644);
-                h.set_size(body.len() as u64);
-                h.set_mtime(0);
-                tw.append_data(&mut h, name, body).unwrap();
-            }
-            tw.into_inner().unwrap().finish().unwrap();
-        }
+        write_archive(
+            &archive,
+            &[("global.yml", b"root: ~/x"), ("projects/a.yml", b"hi")],
+        );
         let out = dir.path().join("extracted");
         std::fs::create_dir_all(&out).unwrap();
-        extract_tar_gz(&archive, &out).unwrap();
+        assert!(extract_tar_gz(&archive, &out).unwrap().is_empty());
         assert_eq!(
             std::fs::read_to_string(out.join("global.yml")).unwrap(),
             "root: ~/x"
@@ -591,6 +628,38 @@ mod tests {
             std::fs::read_to_string(out.join("projects/a.yml")).unwrap(),
             "hi"
         ); // nested dir created
+    }
+
+    #[test]
+    fn an_unportable_name_is_left_out_without_failing_the_rest() {
+        let dir = tempfile::tempdir().unwrap();
+        let archive = dir.path().join("c.tar.gz");
+        write_archive(
+            &archive,
+            &[
+                ("projects/Client: Site.yml", b"colon"),
+                ("projects/a.yml", b"hi"),
+                ("zdotdir/bad:dir/x", b"x"),
+                ("zdotdir/bad:dir/y", b"y"),
+            ],
+        );
+        let out = dir.path().join("extracted");
+        std::fs::create_dir_all(&out).unwrap();
+        let left_out = extract_tar_gz(&archive, &out).unwrap();
+        assert_eq!(
+            std::fs::read_to_string(out.join("projects/a.yml")).unwrap(),
+            "hi"
+        );
+        if cfg!(windows) {
+            assert_eq!(left_out, ["projects/Client: Site.yml", "zdotdir/bad:dir"]);
+            assert_eq!(std::fs::read_dir(out.join("projects")).unwrap().count(), 1);
+        } else {
+            assert!(left_out.is_empty());
+            assert_eq!(
+                std::fs::read_to_string(out.join("projects/Client: Site.yml")).unwrap(),
+                "colon"
+            );
+        }
     }
 
     #[test]

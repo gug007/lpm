@@ -7,6 +7,7 @@ import type { HistoryScope } from "../store/messageHistory";
 import { GLOBAL_TERMINALS_KEY } from "../terminals";
 import { ScheduledPromptRow } from "./ScheduledPromptRow";
 import { Kbd } from "./ui/Kbd";
+import { enterHint } from "../shortcutHints";
 
 interface ScheduledPromptListProps {
   scope: HistoryScope;
@@ -53,7 +54,7 @@ export function ScheduledPromptList({ scope, projectName, search, fromHistoryKey
         </span>
         {!search && (
           <span className="max-w-[340px] text-[12px] leading-relaxed text-[var(--text-muted)]">
-            Write a prompt and press <Kbd>⌥↵</Kbd> to send it later: at a time, after a delay, or when the
+            Write a prompt and press <Kbd>{enterHint({ alt: true })}</Kbd> to send it later: at a time, after a delay, or when the
             agent's usage limit resets.
           </span>
         )}

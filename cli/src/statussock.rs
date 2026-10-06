@@ -4,11 +4,25 @@
 //! (socket absent, app not running, timeout, error reply) degrades to None so
 //! the CLI still renders everything else.
 
+use net::UnixStream;
 use serde::Deserialize;
 use std::io::{BufRead, BufReader, Write};
-use std::os::unix::net::UnixStream;
 use std::path::Path;
 use std::time::Duration;
+
+/// The app's sockets are path-addressed AF_UNIX on every platform (Windows 10
+/// 1803+ has it too); only the type behind the name differs.
+pub mod net {
+    #[cfg(unix)]
+    pub use std::os::unix::net::UnixStream;
+    #[cfg(windows)]
+    pub use uds_windows::UnixStream;
+
+    #[cfg(all(test, unix))]
+    pub use std::os::unix::net::UnixListener;
+    #[cfg(all(test, windows))]
+    pub use uds_windows::UnixListener;
+}
 
 /// A per-pane agent status row, matching `status.rs`'s `StatusEntry` JSON.
 #[derive(Deserialize, Clone)]
@@ -171,8 +185,8 @@ pub fn list_status(socket_path: &Path, project: &str) -> Option<Vec<StatusEntry>
 
 #[cfg(test)]
 mod tests {
+    use super::net::UnixListener;
     use super::*;
-    use std::os::unix::net::UnixListener;
 
     /// Mirrors the desktop server's `shell_split` (socketsrv.rs) so quoting
     /// round-trips are verified against the real grammar: quotes toggle state,

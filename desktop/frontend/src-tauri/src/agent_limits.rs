@@ -763,12 +763,14 @@ mod tests {
     }
 
     fn backdate(path: &Path, secs: i64) {
-        let c = std::ffi::CString::new(path.to_string_lossy().as_bytes()).unwrap();
-        let t = libc::timeval {
-            tv_sec: secs as libc::time_t,
-            tv_usec: 0,
-        };
-        unsafe { libc::utimes(c.as_ptr(), [t, t].as_ptr()) };
+        let t = UNIX_EPOCH + Duration::from_secs(secs as u64);
+        let times = std::fs::FileTimes::new().set_accessed(t).set_modified(t);
+        std::fs::File::options()
+            .write(true)
+            .open(path)
+            .unwrap()
+            .set_times(times)
+            .unwrap();
     }
 
     #[test]

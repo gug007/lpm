@@ -47,11 +47,12 @@ pub(crate) fn copy_to_mac(
 }
 
 /// One folder per host file keeps the file's own name, which is what the app
-/// shows in its title, while two same-named files on a host stay apart.
+/// shows in its title, while two same-named files on a host stay apart. A name
+/// this platform can't hold has the offending characters replaced.
 fn copy_path(root: &Path, slug: &str, host_path: &str) -> PathBuf {
     let name = Path::new(host_path)
         .file_name()
-        .map(|n| n.to_string_lossy().into_owned())
+        .map(|n| crate::fsname::portable(&n.to_string_lossy()))
         .filter(|n| !n.is_empty())
         .unwrap_or_else(|| "file".to_string());
     let key = hex::encode(&Sha256::digest(host_path.as_bytes())[..8]);
@@ -71,16 +72,22 @@ fn new_copy(dest: &Path) -> Result<NamedTempFile, String> {
 /// edit can't be saved where it would be lost, and quarantined like a
 /// download, since it came from another machine.
 fn keep_copy(tmp: NamedTempFile, dest: &Path) -> Result<(), String> {
-    use std::os::unix::fs::PermissionsExt;
     if same_contents(tmp.path(), dest) {
         return Ok(());
     }
     // Before the chmod: setting an attribute needs write access.
-    quarantine(tmp.as_file());
-    tmp.as_file()
-        .set_permissions(std::fs::Permissions::from_mode(0o444))
-        .map_err(|e| e.to_string())?;
-    tmp.persist(dest).map_err(|e| e.error.to_string())?;
+    quarantine(&tmp);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        tmp.as_file()
+            .set_permissions(std::fs::Permissions::from_mode(0o444))
+            .map_err(|e| e.to_string())?;
+    }
+    crate::fsatomic::persist(tmp, dest).map_err(|e| e.to_string())?;
+    // After the swap on Windows, which resets the attributes of what it renames.
+    #[cfg(windows)]
+    crate::fsatomic::set_readonly(dest, true).map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -106,8 +113,9 @@ fn same_contents(a: &Path, b: &Path) -> bool {
 }
 
 #[cfg(target_os = "macos")]
-fn quarantine(file: &std::fs::File) {
+fn quarantine(tmp: &NamedTempFile) {
     use std::os::fd::AsRawFd;
+    let file = tmp.as_file();
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())
@@ -127,12 +135,22 @@ fn quarantine(file: &std::fs::File) {
     }
 }
 
-#[cfg(not(target_os = "macos"))]
-fn quarantine(_file: &std::fs::File) {}
+/// Windows' equivalent is the Mark of the Web: a Zone.Identifier stream naming
+/// the Internet zone, which moves with the file when it is renamed into place.
+#[cfg(windows)]
+fn quarantine(tmp: &NamedTempFile) {
+    let mut stream = tmp.path().as_os_str().to_owned();
+    stream.push(":Zone.Identifier");
+    let _ = std::fs::write(stream, b"[ZoneTransfer]\r\nZoneId=3\r\n");
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn quarantine(_tmp: &NamedTempFile) {}
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
     use std::os::unix::fs::MetadataExt;
 
     fn write_copy(dest: &Path, data: &[u8]) -> Result<(), String> {
@@ -153,26 +171,39 @@ mod tests {
             copy_path(root, "abcd1234", "/").file_name().unwrap(),
             "file"
         );
+        assert_eq!(
+            copy_path(root, "abcd1234", "/srv/a:b?.txt")
+                .file_name()
+                .unwrap()
+                .to_string_lossy(),
+            crate::fsname::portable("a:b?.txt")
+        );
     }
 
     #[test]
     fn a_changed_copy_is_swapped_in_read_only() {
-        use std::os::unix::fs::PermissionsExt;
         let dir = tempfile::tempdir().unwrap();
         let dest = dir.path().join("k").join("a.txt");
         write_copy(&dest, b"one").unwrap();
+        #[cfg(unix)]
         let first = std::fs::metadata(&dest).unwrap().ino();
         write_copy(&dest, b"two").unwrap();
         let meta = std::fs::metadata(&dest).unwrap();
         assert_eq!(std::fs::read(&dest).unwrap(), b"two");
-        assert_ne!(meta.ino(), first);
-        assert_eq!(meta.permissions().mode() & 0o777, 0o444);
+        assert!(meta.permissions().readonly());
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_ne!(meta.ino(), first);
+            assert_eq!(meta.permissions().mode() & 0o777, 0o444);
+        }
         assert_eq!(
             std::fs::read_dir(dest.parent().unwrap()).unwrap().count(),
             1
         );
     }
 
+    #[cfg(unix)]
     #[test]
     fn an_unchanged_copy_is_kept() {
         let dir = tempfile::tempdir().unwrap();

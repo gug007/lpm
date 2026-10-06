@@ -1,4 +1,4 @@
-import { shellQuote } from "../../terminal-io";
+import { agentPromptCommand } from "../../agentPromptCommand";
 import { detectAICLI } from "../../slashCommands";
 import { type PaneLeaf, type TerminalInstance } from "../../paneTree";
 
@@ -30,7 +30,7 @@ export function foldAgentPrompt(
   prompt?: string | string[],
 ): { cmd: string; prompt?: string | string[] } {
   if (typeof prompt === "string" && prompt.trim() && detectAICLI(cmd)) {
-    return { cmd: `${cmd} ${shellQuote(prompt.trim())}`, prompt: undefined };
+    return { cmd: agentPromptCommand(cmd, prompt.trim()), prompt: undefined };
   }
   return { cmd, prompt };
 }

@@ -5,7 +5,11 @@ const MODIFIERS = new Set(["⌘", "⇧", "⌥", "⌃"]);
 
 // Split a combo label into its individual keys so each renders as its own cap:
 // modifier glyphs each stand alone, the remaining run is one key ("Esc", "↵", "R").
-function splitKeys(label: string): string[] {
+// A label spelled in words splits at its pluses ("Ctrl+Shift+T", "Ctrl++").
+export function splitKeys(label: string): string[] {
+  if (label && ![...label].some((ch) => MODIFIERS.has(ch))) {
+    return label.match(/[^+]+|\+(?=$)/g) ?? [label];
+  }
   const keys: string[] = [];
   let buf = "";
   for (const ch of label) {

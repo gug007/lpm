@@ -43,6 +43,7 @@ import { ChatList } from "./ChatList";
 import { MiniChatRail } from "./MiniChatRail";
 import { Modal } from "./ui/Modal";
 import { logDiagnostic } from "../diagnostics";
+import { enterHint } from "../shortcutHints";
 
 const PAGE_SIZE = 50;
 const MAX_ATTACHMENT_BYTES = 100 * 1024 * 1024;
@@ -834,8 +835,8 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
                 aria-hidden="true"
                 className="hidden text-[10px] text-[var(--text-muted)] sm:inline"
               >
-                <kbd className="font-mono">↵</kbd> send ·{" "}
-                <kbd className="font-mono">⇧↵</kbd> newline · markdown
+                <kbd className="font-mono">{enterHint()}</kbd> send ·{" "}
+                <kbd className="font-mono">{enterHint({ shift: true })}</kbd> newline · markdown
               </span>
               <button
                 onClick={handleSend}
@@ -978,7 +979,7 @@ const MessageRow = memo(function MessageRow({
               Cancel
             </button>
             <span className="ml-auto text-[10px] text-[var(--text-muted)]">
-              ⌘↵ save · esc cancel
+              {enterHint({ meta: true })} save · esc cancel
             </span>
           </div>
         </div>

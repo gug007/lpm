@@ -347,6 +347,7 @@ Restarting services...
         assert_eq!(got, vec!["x".repeat(MAX_LINE)]);
     }
 
+    #[cfg(unix)]
     fn sh(script: &str) -> Command {
         let mut cmd = Command::new("sh");
         cmd.arg("-c").arg(script);
@@ -355,6 +356,7 @@ Restarting services...
 
     // Far more stderr than a pipe holds, then the reason. Read only after exit,
     // the command blocks on its first full pipe and this ends in the timeout.
+    #[cfg(unix)]
     #[test]
     fn a_chatty_command_cannot_stall_on_a_full_pipe() {
         let script = "i=0; while [ $i -lt 20000 ]; do echo \"noise $i\" >&2; echo \"out $i\"; \
@@ -378,6 +380,7 @@ Restarting services...
         .is_ok());
     }
 
+    #[cfg(unix)]
     #[test]
     fn the_script_arrives_on_stdin_and_the_deadline_still_holds() {
         let err = run(

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { CheckIcon, CopyIcon } from "./icons";
+import { isMac } from "../platform";
 
 function CopyChip({ value }: { value: string }) {
   const [copied, setCopied] = useState(false);
@@ -42,11 +43,13 @@ export function AgentToolsManualSetup() {
         sentence="Written to ~/.claude and ~/.agents. Re-run Install to update, or remove them with:"
         command="rm -rf ~/.claude/skills/lpm-{config,cli} ~/.agents/skills/lpm-{config,cli}"
       />
-      <Entry
-        label="Command line"
-        sentence="Link the lpm command yourself; app updates follow the symlink automatically:"
-        command="ln -sf /Applications/lpm.app/Contents/MacOS/lpm-cli /usr/local/bin/lpm"
-      />
+      {isMac && (
+        <Entry
+          label="Command line"
+          sentence="Link the lpm command yourself; app updates follow the symlink automatically:"
+          command="ln -sf /Applications/lpm.app/Contents/MacOS/lpm-cli /usr/local/bin/lpm"
+        />
+      )}
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { X } from "lucide-react";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { Modal } from "../ui/Modal";
 import { SURFACE_TOKENS } from "./surfaces";
+import { enterHint } from "../../shortcutHints";
 
 interface ToolkitSkillModalProps {
   // The tab this was opened from is showing. A hidden tab hides the dialog
@@ -116,7 +117,7 @@ export function ToolkitSkillModal({
             <button
               type="submit"
               disabled={blocked || busy}
-              title="⌘↩"
+              title={enterHint({ meta: true }, "↩")}
               className="rounded-lg bg-[var(--text-primary)] px-4 py-2 text-[13px] font-medium text-[var(--bg-primary)] shadow-sm transition-opacity hover:opacity-90 disabled:opacity-40"
             >
               {busy ? busyLabel : submitLabel}

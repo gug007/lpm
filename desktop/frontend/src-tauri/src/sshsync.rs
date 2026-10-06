@@ -6,13 +6,17 @@
 // rsync uses a plain `ssh [-p PORT] [-i KEY]` transport (NOT the ControlMaster
 // mux that terminals/scp share) — matching Go's rsyncShell exactly. Pull/push
 // use `--update` (never clobber a newer file on the other side) + `--force`.
+// Windows has no usable rsync and moves tar streams instead (sshsync_tar.rs).
 use crate::config::{self, SshSettings};
 use notify::{RecursiveMode, Watcher};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+#[cfg(unix)]
 use std::process::Command;
 use std::sync::mpsc::{channel, RecvTimeoutError};
-use std::sync::{Arc, Mutex, OnceLock};
+#[cfg(unix)]
+use std::sync::OnceLock;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -25,6 +29,8 @@ struct ProjectSync {
 }
 struct SyncInner {
     last_pull: Option<Instant>,
+    #[cfg(windows)]
+    manifest: crate::sshsync_tar::Manifest,
 }
 
 #[derive(Default)]
@@ -40,6 +46,7 @@ fn sync_dir(project: &str) -> PathBuf {
 }
 
 /// `ssh [-p PORT] [-i KEY]` for rsync's `-e` (Go rsyncShell). Plain ssh, no mux.
+#[cfg(unix)]
 fn rsync_shell(ssh: &SshSettings) -> String {
     let mut parts = vec!["ssh".to_string()];
     if ssh.port > 0 && ssh.port != 22 {
@@ -54,10 +61,12 @@ fn rsync_shell(ssh: &SshSettings) -> String {
     parts.join(" ")
 }
 
+#[cfg(unix)]
 fn remote_ref(ssh: &SshSettings) -> String {
     format!("{}@{}:{}", ssh.user, ssh.host, ssh.dir)
 }
 
+#[cfg(unix)]
 fn rsync_args(ssh: &SshSettings, src: &str, dst: &str) -> Vec<String> {
     vec![
         "-az".into(),
@@ -70,6 +79,7 @@ fn rsync_args(ssh: &SshSettings, src: &str, dst: &str) -> Vec<String> {
     ]
 }
 
+#[cfg(unix)]
 fn rsync_available() -> bool {
     // rsync's presence on PATH doesn't change during a session — probe once.
     static AVAILABLE: OnceLock<bool> = OnceLock::new();
@@ -93,6 +103,7 @@ pub fn ensure_project_sync(
     if ssh.dir.trim().is_empty() {
         return Err("sync-mode actions require a remote directory (ssh.dir) to be set".into());
     }
+    #[cfg(unix)]
     if !rsync_available() {
         return Err("rsync was not found on PATH — required for sync-mode actions".into());
     }
@@ -104,7 +115,11 @@ pub fn ensure_project_sync(
             .or_insert_with(|| {
                 Arc::new(ProjectSync {
                     path: sync_dir(project).to_string_lossy().into_owned(),
-                    inner: Mutex::new(SyncInner { last_pull: None }),
+                    inner: Mutex::new(SyncInner {
+                        last_pull: None,
+                        #[cfg(windows)]
+                        manifest: Default::default(),
+                    }),
                 })
             })
             .clone()
@@ -118,16 +133,7 @@ pub fn ensure_project_sync(
             .map(|t| t.elapsed() < PULL_TTL)
             .unwrap_or(false);
         if !fresh {
-            let src = format!("{}/", remote_ref(ssh));
-            let dst = format!("{}/", entry.path);
-            let out = Command::new("rsync")
-                .args(rsync_args(ssh, &src, &dst))
-                .output()
-                .map_err(|e| format!("rsync pull: {e}"))?;
-            if !out.status.success() {
-                let tail = config::trim_tail(&out.stderr, 500);
-                return Err(format!("rsync pull failed: {tail}"));
-            }
+            pull(ssh, &entry.path, &mut inner)?;
             inner.last_pull = Some(Instant::now());
         }
     }
@@ -136,24 +142,54 @@ pub fn ensure_project_sync(
     Ok(entry.path.clone())
 }
 
-/// Push the local cache back to the remote (local → remote). Serialized with
-/// pull via the per-project lock. Emits "sync-error" on failure.
-fn push_project_sync(app: &AppHandle, ssh: &SshSettings, entry: &Arc<ProjectSync>) {
-    let _guard = entry.inner.lock().unwrap();
-    let src = format!("{}/", entry.path);
+#[cfg(unix)]
+fn pull(ssh: &SshSettings, path: &str, _inner: &mut SyncInner) -> Result<(), String> {
+    let src = format!("{}/", remote_ref(ssh));
+    let dst = format!("{path}/");
+    let out = crate::osproc::command("rsync")
+        .args(rsync_args(ssh, &src, &dst))
+        .output()
+        .map_err(|e| format!("rsync pull: {e}"))?;
+    if !out.status.success() {
+        let tail = config::trim_tail(&out.stderr, 500);
+        return Err(format!("rsync pull failed: {tail}"));
+    }
+    Ok(())
+}
+
+#[cfg(windows)]
+fn pull(ssh: &SshSettings, path: &str, inner: &mut SyncInner) -> Result<(), String> {
+    crate::sshsync_tar::pull(ssh, Path::new(path), &mut inner.manifest)
+}
+
+#[cfg(unix)]
+fn push(ssh: &SshSettings, path: &str, _inner: &mut SyncInner) -> Result<(), String> {
+    let src = format!("{path}/");
     let dst = format!("{}/", remote_ref(ssh));
-    match Command::new("rsync")
+    match crate::osproc::command("rsync")
         .args(rsync_args(ssh, &src, &dst))
         .output()
     {
-        Ok(out) if out.status.success() => {}
+        Ok(out) if out.status.success() => Ok(()),
         Ok(out) => {
             let tail = config::trim_tail(&out.stderr, 500);
-            let _ = app.emit("sync-error", format!("rsync push failed: {tail}"));
+            Err(format!("rsync push failed: {tail}"))
         }
-        Err(e) => {
-            let _ = app.emit("sync-error", format!("rsync push: {e}"));
-        }
+        Err(e) => Err(format!("rsync push: {e}")),
+    }
+}
+
+#[cfg(windows)]
+fn push(ssh: &SshSettings, path: &str, inner: &mut SyncInner) -> Result<(), String> {
+    crate::sshsync_tar::push(ssh, Path::new(path), &mut inner.manifest)
+}
+
+/// Push the local cache back to the remote (local → remote). Serialized with
+/// pull via the per-project lock. Emits "sync-error" on failure.
+fn push_project_sync(app: &AppHandle, ssh: &SshSettings, entry: &Arc<ProjectSync>) {
+    let mut inner = entry.inner.lock().unwrap();
+    if let Err(e) = push(ssh, &entry.path, &mut inner) {
+        let _ = app.emit("sync-error", e);
     }
 }
 

@@ -2,6 +2,7 @@ import { Copy, GitFork, Pin, PinOff, Sparkles } from "lucide-react";
 import { PencilIcon, XIcon } from "../icons";
 import { ContextMenuItem } from "../ui/ContextMenuItem";
 import { ContextMenuShell } from "../ui/ContextMenuShell";
+import { chordLabel } from "../../keys";
 
 interface TabContextMenuProps {
   x: number;
@@ -78,7 +79,7 @@ export function TabContextMenu({
       <ContextMenuItem
         label="Close"
         icon={<XIcon />}
-        shortcut="⌘W"
+        shortcut={chordLabel({ key: "w", meta: true })}
         destructive
         onClick={close(onCloseTab)}
       />

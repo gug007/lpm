@@ -6,6 +6,11 @@
 // set_position hop to the main thread and block, which would DEADLOCK if the
 // command itself ran on main. The webviews load external content and are
 // deliberately not in any capability, so visited pages can't reach our commands.
+//
+// Linux has no in-pane browser: GTK packs a child webview into the window's box
+// beside the app instead of floating it over the pane, and ignores its bounds
+// (tauri#16132). Pages open in the system browser there, and the frontend shows
+// its own fallback pane (ExternalBrowserPane.tsx).
 use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -22,8 +27,11 @@ pub struct BrowserState {
 
 const OFFSCREEN: f64 = -32000.0; // park here to hide without destroying page state
 
+const EMBEDDED: bool = !cfg!(target_os = "linux");
+
 // WKWebView's default app UA omits the "Version/… Safari/…" tokens, so UA-sniffing
 // sites (Google) serve a stripped-down page; a real Safari UA gets the modern site.
+#[cfg(target_os = "macos")]
 const SAFARI_UA: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Safari/605.1.15";
 
 #[derive(Clone, Serialize)]
@@ -39,6 +47,17 @@ fn place(wv: &tauri::Webview, x: f64, y: f64, width: f64, height: f64) -> Result
     wv.set_size(LogicalSize::new(width.max(1.0), height.max(1.0)))
         .map_err(|e| e.to_string())?;
     Ok(())
+}
+
+fn open_externally(app: &AppHandle, url: &str) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    let target = parse_url(url)?;
+    if target.scheme() == "about" {
+        return Ok(());
+    }
+    app.opener()
+        .open_url(target.as_str(), None::<&str>)
+        .map_err(|e| e.to_string())
 }
 
 fn parse_url(url: &str) -> Result<tauri::Url, String> {
@@ -62,6 +81,9 @@ pub fn open_browser(
     width: f64,
     height: f64,
 ) -> Result<(), String> {
+    if !EMBEDDED {
+        return open_externally(&app, &url);
+    }
     if let Some(wv) = app.get_webview(&id) {
         if !url.trim().is_empty() {
             wv.navigate(parse_url(&url)?).map_err(|e| e.to_string())?;
@@ -72,7 +94,6 @@ pub fn open_browser(
     let (app2, id2) = (app.clone(), id.clone());
     let (app_pl, id_pl) = (app.clone(), id.clone());
     let builder = WebviewBuilder::new(&id, WebviewUrl::External(parse_url(&url)?))
-        .user_agent(SAFARI_UA)
         // Main-frame loads only, so the address bar follows the page itself — not
         // the iframes/widgets a site embeds (Google's account switcher, etc.).
         .on_page_load(move |_wv, payload| {
@@ -104,6 +125,9 @@ pub fn open_browser(
             }
             true
         });
+    // Other engines already send their own browser's UA.
+    #[cfg(target_os = "macos")]
+    let builder = builder.user_agent(SAFARI_UA);
     win.add_child(
         builder,
         LogicalPosition::new(x, y),
@@ -139,6 +163,9 @@ pub fn hide_browser(app: AppHandle, id: String) -> Result<(), String> {
 
 #[tauri::command(async)]
 pub fn navigate_browser(app: AppHandle, id: String, url: String) -> Result<(), String> {
+    if !EMBEDDED {
+        return open_externally(&app, &url);
+    }
     match app.get_webview(&id) {
         Some(wv) => wv.navigate(parse_url(&url)?).map_err(|e| e.to_string()),
         None => Err("browser is not open".into()),

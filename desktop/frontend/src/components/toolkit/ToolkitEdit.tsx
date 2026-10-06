@@ -22,6 +22,8 @@ import { SkillDescriptionField } from "./SkillDescriptionField";
 import { ToolkitComposerField } from "./ToolkitComposerField";
 import { ToolkitRunMode } from "./ToolkitRunMode";
 import { ToolkitSkillModal } from "./ToolkitSkillModal";
+import { enterHint } from "../../shortcutHints";
+import { windowsRules } from "../../path";
 
 interface ToolkitEditProps {
   cwd: string;
@@ -90,7 +92,10 @@ export function ToolkitEdit({ cwd, cap, open, onBack, onSaved }: ToolkitEditProp
 
   const manualAllowed = cap.cli === "claude" || cap.cli === "codex";
   const invocation = `${cap.cli === "codex" ? "$" : "/"}${cap.name}`;
-  const skillRoot = cap.path.replace(/\/[^/]+\/SKILL\.md$/, "");
+  const skillRoot = cap.path.replace(
+    windowsRules(cap.path) ? /[\\/][^\\/]+[\\/]SKILL\.md$/ : /\/[^/]+\/SKILL\.md$/,
+    "",
+  );
 
   const save = async () => {
     if (saving || !edited || descriptionError || instructionsError || baseline === null) return;
@@ -123,7 +128,7 @@ export function ToolkitEdit({ cwd, cap, open, onBack, onSaved }: ToolkitEditProp
     ? error
     : baseline === null
       ? "Opening…"
-      : (descriptionError ?? instructionsError ?? (edited ? "↩ saves it" : ""));
+      : (descriptionError ?? instructionsError ?? (edited ? `${enterHint({}, "↩")} saves it` : ""));
 
   return (
     <ToolkitSkillModal

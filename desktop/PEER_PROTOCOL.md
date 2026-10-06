@@ -50,7 +50,7 @@ Holds both roles behind one shared in-memory lock:
   "peers": [
     { "slug": "abcd1234", "alias": "Studio", "host": "100.64.0.5", "port": 8766,
       "deviceId": "uuid", "token": "raw-token", "tlsFp": "hex-sha256", "enabled": true,
-      "autoSync": false, "platform": "linux" }
+      "autoSync": false, "platform": "linux", "headless": true }
   ]
 }
 ```
@@ -130,19 +130,27 @@ marker before sending over the wire; the host only ever sees raw host-local ids.
 First client frame within 20s, or the host closes the socket.
 
 - **Pair** (first time): client → `{ "t": "pair", "code", "name", "platform" }`
-  host → `{ "t": "paired", "deviceId", "token", "slug", "hostName", "hostPlatform" }`
+  host → `{ "t": "paired", "deviceId", "token", "slug", "hostName", "hostPlatform", "hostHeadless" }`
   The single-use pairing code is consumed on success. `name` is the client
   machine's display name; `hostName` is the host's.
 - **Resume** (already paired): client → `{ "t": "auth", "deviceId", "token" }`
-  host → `{ "t": "ready", "hostName", "hostPlatform", "hostVersion", "phoneServerId", "features": ["configSync", "configSync2"] }`
+  host → `{ "t": "ready", "hostName", "hostPlatform", "hostHeadless", "hostVersion", "phoneServerId", "features": ["configSync", "configSync2"] }`
 - On failure either returns `{ "t": "error", "error" }` and the host closes.
 
-`platform` / `hostPlatform` are `std::env::consts::OS` spelling (`macos`, `linux`)
-and tell a headless Linux host apart from someone's Mac in the Connections pane.
-Both are absent from a build that predates them, which reads as unknown and is
-treated as a Mac. `hostPlatform` rides every `ready`, not just pairing, so an entry
-stored before it existed fills itself in on the next connect rather than needing a
-re-pair.
+`platform` / `hostPlatform` are `std::env::consts::OS` spelling (`macos`, `linux`,
+`windows`). Both are absent from a build that predates them, which reads as
+unknown and is treated as a Mac. `hostPlatform` rides every `ready`, not just
+pairing, so an entry stored before it existed fills itself in on the next connect
+rather than needing a re-pair.
+
+`hostHeadless` (bool) says nobody is at the host: lpm running under Xvfb as a
+Linux host (`LPM_HEADLESS=1`, or the binary under `/opt/lpm`), as opposed to
+someone's Mac, Linux or Windows desktop. It is what the Connections pane and the
+sidebar use to show a machine as a server, and the only kind of peer the client
+offers to update or remove lpm on over SSH. A build that predates it omits it,
+and the client stores it as unknown (`headless: null`) on every `ready` that
+lacks it: unknown on a `linux` peer means a host, since Linux only ran headless
+before desktops shipped. Older clients ignore the field.
 
 `phoneServerId` is the `serverId` the host's mobile server gives phones (see
 `mobile/PROTOCOL.md`). The client stores it on the peer entry so a phone connected

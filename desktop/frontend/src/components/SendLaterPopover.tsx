@@ -15,6 +15,7 @@ import { SendLaterDatePanel } from "./SendLaterDatePanel";
 import { SendLaterFooterButton as FooterButton } from "./SendLaterFooterButton";
 import { SendLaterReadback } from "./SendLaterReadback";
 import { SendLaterTimeline, type TimelineFlag } from "./SendLaterTimeline";
+import { enterHint } from "../shortcutHints";
 
 interface SendLaterPopoverProps {
   // The prompt box it hangs above, right-aligned with it.
@@ -240,7 +241,7 @@ export function SendLaterPopover({ anchorRef, picker, projectName, agent, onPick
           className="flex h-7 shrink-0 items-center gap-1.5 rounded-lg bg-[var(--accent-blue)] px-3 text-[12px] font-medium text-[var(--bg-primary)] transition-opacity hover:opacity-90 disabled:opacity-40"
         >
           {ready ? scheduleButtonLabel(value, now) : `Pick a time at least ${MIN_DELAY / MINUTE} min ahead`}
-          {ready && <span className="text-[11px] opacity-70">↵</span>}
+          {ready && <span className="text-[11px] opacity-70">{enterHint()}</span>}
         </button>
       </div>
     </div>,

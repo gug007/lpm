@@ -1,9 +1,10 @@
 import { PlusIcon } from "./icons";
 import { Tooltip } from "../ui/Tooltip";
+import { chordLabel } from "../../keys";
 
 export function AddTerminalButton({ onAddTerminal }: { onAddTerminal: () => void }) {
   return (
-    <Tooltip content="New terminal  ·  ⌘T" side="bottom">
+    <Tooltip content={`New terminal  ·  ${chordLabel({ key: "t", meta: true })}`} side="bottom">
       <button
         onClick={onAddTerminal}
         aria-label="New terminal"

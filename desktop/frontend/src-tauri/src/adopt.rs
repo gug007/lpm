@@ -71,6 +71,7 @@ mod tests {
         assert!(!same_folder(Path::new("/a/b"), Path::new("/a/c")));
     }
 
+    #[cfg(unix)]
     #[test]
     fn same_folder_resolves_symlinks() {
         let tmp = tempfile::tempdir().unwrap();

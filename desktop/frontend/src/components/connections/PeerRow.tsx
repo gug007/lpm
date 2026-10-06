@@ -18,7 +18,8 @@ import { HostActionError } from "./HostActionError";
 import { RowMenu } from "./RowMenu";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { RenameModal } from "../RenameModal";
-import { isLinuxHost } from "../../peer/platform";
+import { isLinuxHost, managesHostInstall, peerNoun } from "../../peer/platform";
+import { isMac } from "../../platform";
 import { isHostBehind } from "../../peer/hostVersion";
 import {
   hostSkillDone,
@@ -66,8 +67,9 @@ export function PeerRow({
   const [skillsDone, setSkillsDone] = useState(false);
   const [skills, setSkills] = useState<HostSkillState>("unknown");
   // Installing is only possible on a machine we can reach ourselves, which is
-  // what sshHost means. A Mac we merely dial has no such action.
-  const reachable = !!peer.sshHost;
+  // what sshHost means. A Mac we merely dial has no such action, and neither
+  // does a Linux or Windows desktop we happen to reach over SSH.
+  const reachable = managesHostInstall(peer);
   const behind = reachable && isHostBehind(peer.version ?? "", appVersion);
   // Skills ride the peer connection rather than SSH, so this covers a host we
   // only reach through a tunnel too. A paired Mac is left out on purpose: it has
@@ -346,8 +348,8 @@ export function PeerRow({
       />
       <RenameModal
         open={renaming}
-        title={isLinuxHost(peer) ? "Rename server" : "Rename Mac"}
-        description="The name this Mac lists it under. Nothing changes on the machine itself."
+        title={`Rename ${peerNoun(peer)}`}
+        description={`The name this ${isMac ? "Mac" : "computer"} lists it under. Nothing changes on the machine itself.`}
         initialValue={name}
         onClose={() => setRenaming(false)}
         onSubmit={(value) => void PeerSetAlias(peer.slug, value).then(refresh)}

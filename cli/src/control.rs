@@ -53,8 +53,8 @@ mod tests {
     fn a_non_json_reply_is_an_error_not_a_panic() {
         assert!(parse_json("OK").is_err());
     }
+    use crate::statussock::net::UnixListener;
     use std::io::{BufRead, BufReader, Write};
-    use std::os::unix::net::UnixListener;
 
     /// A Ctx whose socket is served by a one-shot thread replying `reply`.
     fn ctx_with_server(

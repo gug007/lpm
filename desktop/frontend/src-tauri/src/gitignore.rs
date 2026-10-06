@@ -7,7 +7,7 @@ use crate::sshexec::remote_output;
 use std::collections::HashSet;
 use std::io::Write;
 use std::path::Path;
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 
 /// Names per remote command: a folder with thousands of entries goes over in
 /// several round trips rather than one command line the host may refuse.
@@ -21,7 +21,7 @@ pub fn ignored_names(dir: &Path, names: &[&str]) -> HashSet<String> {
     if names.is_empty() {
         return HashSet::new();
     }
-    let Ok(mut child) = Command::new("git")
+    let Ok(mut child) = crate::osproc::command("git")
         .args(["check-ignore", "-z", "--stdin"])
         .current_dir(dir)
         .stdin(Stdio::piped())
@@ -78,6 +78,7 @@ fn parse_nul_list(bytes: &[u8]) -> HashSet<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::process::Command;
 
     fn git(dir: &Path, args: &[&str]) {
         let status = Command::new("git")

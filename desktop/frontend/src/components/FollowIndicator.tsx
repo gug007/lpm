@@ -2,6 +2,7 @@ import { Tooltip } from "./ui/Tooltip";
 import { SyncGlyph } from "./SyncGlyph";
 import { SyncTooltipCard } from "./SyncTooltipCard";
 import { isFirstSync, type FollowState } from "../followApi";
+import { MACHINE } from "../machineWords";
 
 const TOOLTIP_DELAY_MS = 350;
 
@@ -39,7 +40,7 @@ export function FollowIndicator({
             onOpen();
           }}
           onPointerDown={(e) => e.stopPropagation()}
-          aria-label={`${ariaLabel(follow, macName)}. Open the copy on this Mac`}
+          aria-label={`${ariaLabel(follow, macName)}. Open the copy on ${MACHINE.thisMachine}`}
           className="flex shrink-0 items-center rounded opacity-90 transition-opacity hover:opacity-100"
         >
           {icon}

@@ -7,6 +7,7 @@ import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { SerializeAddon } from "@xterm/addon-serialize";
 import { canFitHost, getTerminalTheme, openTerminalLink } from "./terminal-utils";
 import { copyTerminalSelection, handleCopyShortcut, handleNativeCopy, handleSelectAllShortcut, handleClearShortcut } from "./terminal/copySelection";
+import { readOnlyTerminalYields } from "./terminal/terminalKeys";
 import { applyFilterQuery, FilterMirror } from "./terminal/FilterMirror";
 import { registerPathLinkProvider } from "./terminal/pathLinkProvider";
 import { installLinkHoverRefresh } from "./terminal/linkHoverRefresh";
@@ -107,7 +108,7 @@ function createPaneSession(opts: {
     if (handleCopyShortcut(e, term, serialize)) return false;
     if (handleSelectAllShortcut(e, term)) return false;
     if (handleClearShortcut(e, term, { force: true, onClear: () => clearPaneSession(session) })) return false;
-    return true;
+    return !readOnlyTerminalYields(e);
   });
 
   host.addEventListener("copy", (e) => handleNativeCopy(e, term, serialize), true);

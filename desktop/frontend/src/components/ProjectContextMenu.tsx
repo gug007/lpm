@@ -13,6 +13,8 @@ import type { CustomWorkStatus, ProjectGroup, WorkStatus } from "../types";
 import type { WorkStatusChoice } from "../workStatus";
 import type { SideBySideMenuItem } from "../hooks/useSideBySideMenu";
 import { WorkStatusSubmenu } from "./WorkStatusSubmenu";
+import { chordLabel } from "../keys";
+import { MACHINE } from "../machineWords";
 
 // The sync controls a row only has while a copy of it is synced here. The remote
 // project's row and the copy's own row both get them, since either is a way to
@@ -213,11 +215,11 @@ export function ProjectContextMenu({
       />
       {!remote && (
         <ContextMenuSubmenu label="Project files" icon={<FileIcon size={14} />}>
-          <ContextMenuItem label="Edit Config" icon={<SettingsIcon />} shortcut="⌘E" onClick={close(onEditConfig)} />
-          <ContextMenuItem label="Notes" icon={<MessageIcon />} shortcut="⌘⇧N" onClick={close(onOpenNotes)} />
+          <ContextMenuItem label="Edit Config" icon={<SettingsIcon />} shortcut={chordLabel({ key: "e", meta: true })} onClick={close(onEditConfig)} />
+          <ContextMenuItem label="Notes" icon={<MessageIcon />} shortcut={chordLabel({ key: "n", meta: true, shift: true })} onClick={close(onOpenNotes)} />
           <ContextMenuItem label="AI Instructions" icon={<SparkleIcon />} onClick={close(onOpenAI)} />
           {!sshRemote && (
-            <ContextMenuItem label="Memory" icon={<BrainIcon />} shortcut="⌘⇧M" onClick={close(onOpenMemory)} />
+            <ContextMenuItem label="Memory" icon={<BrainIcon />} shortcut={chordLabel({ key: "m", meta: true, shift: true })} onClick={close(onOpenMemory)} />
           )}
         </ContextMenuSubmenu>
       )}
@@ -246,7 +248,7 @@ export function ProjectContextMenu({
       />
       {onSyncHere && (
         <ContextMenuItem
-          label="Sync to This Mac…"
+          label={`Sync to ${MACHINE.ThisMachineTitle}…`}
           icon={<DownloadIcon />}
           onClick={close(onSyncHere)}
         />
@@ -255,7 +257,7 @@ export function ProjectContextMenu({
         <>
           {following.onOpenCopy && (
             <ContextMenuItem
-              label="Open Copy on This Mac"
+              label={`Open Copy on ${MACHINE.ThisMachineTitle}`}
               icon={<HardDriveIcon />}
               onClick={close(following.onOpenCopy)}
             />

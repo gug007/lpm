@@ -249,6 +249,26 @@ else
     echo "  skip perl is not installed"
 fi
 
+echo "== the app is told it is a host =="
+# The same binary is a Linux desktop app too, so the OS no longer says which it
+# is. The unit says so, and an update has to carry that to hosts installed
+# before it did — so the units are rewritten and reloaded on every run, ahead of
+# the restart that picks them up.
+grep -qx 'Environment=LPM_HEADLESS=1' "$HERE/lpm.service" && ok "lpm.service sets LPM_HEADLESS=1" ||
+    no "lpm.service does not set LPM_HEADLESS=1"
+line_of() { grep -nF -- "$1" "$INSTALL" | head -n 1 | cut -d: -f1; }
+UNITS_AT=$(line_of 'install -m644 "$SRC/lpm-xvfb.service" "$SRC/lpm-wm.service" "$SRC/lpm.service" "$UNIT_DIR/"')
+RELOAD_AT=$(line_of 'systemctl daemon-reload')
+RESTART_AT=$(line_of 'systemctl restart lpm.service')
+if [ -n "$UNITS_AT" ] && [ -n "$RELOAD_AT" ] && [ -n "$RESTART_AT" ] &&
+    [ "$UNITS_AT" -lt "$RELOAD_AT" ] && [ "$RELOAD_AT" -lt "$RESTART_AT" ]; then
+    ok "every install rewrites the units, reloads them, then restarts"
+else
+    no "units at '$UNITS_AT', reload at '$RELOAD_AT', restart at '$RESTART_AT'"
+fi
+grep -qF 'install -m755 "$SRC/hostctl.sh" "$PREFIX/hostctl.sh"' "$INSTALL" &&
+    ok "and a container's supervisor, which sets it there" || no "install.sh no longer installs hostctl.sh"
+
 rm -rf "$ROOT"
 echo
 echo "passed $PASS, failed $FAIL"

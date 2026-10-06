@@ -2,6 +2,7 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown, MonitorSmartphone } from "lucide-react";
 import { useAnchoredPanel } from "../hooks/useAnchoredPanel";
+import { MACHINE } from "../machineWords";
 
 export interface CopyTargetOption {
   name: string;
@@ -21,7 +22,7 @@ export function CopyMacSelect({
   options,
   value,
   onChange,
-  title = "Which Mac this copy is created on",
+  title = `Which ${MACHINE.noun} this copy is created on`,
 }: CopyMacSelectProps) {
   const [open, setOpen] = useState(false);
   const { triggerRef, panelRef, style } = useAnchoredPanel<

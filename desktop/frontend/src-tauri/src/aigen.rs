@@ -7,9 +7,8 @@
 use crate::config;
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
-use std::io::{BufRead, BufReader, Read};
-use std::os::unix::process::CommandExt;
-use std::process::{Command, Stdio};
+use std::io::{BufRead, BufReader, Read, Write};
+use std::process::Stdio;
 use std::sync::{Mutex, OnceLock};
 use tauri::{AppHandle, Emitter};
 
@@ -582,7 +581,14 @@ pub(crate) struct RunOptions {
     claude_env: config::ClaudeEnv,
 }
 
-fn build_args(cli: &str, prompt: &str, o: &RunOptions) -> Vec<String> {
+/// Windows caps a whole command line at 32,767 UTF-16 units, which a diff
+/// prompt can outgrow, so there the prompt goes over stdin. Each CLI reads it
+/// from there when the argument is left out (codex wants an explicit `-`).
+const PROMPT_ON_STDIN: bool = cfg!(windows);
+
+/// The CLI's argv: with `prompt` in it, or without it when `None` and the
+/// prompt arrives on stdin.
+fn build_args(cli: &str, prompt: Option<&str>, o: &RunOptions) -> Vec<String> {
     let s = |x: &str| x.to_string();
     match cli {
         "claude" => {
@@ -605,7 +611,7 @@ fn build_args(cli: &str, prompt: &str, o: &RunOptions) -> Vec<String> {
                 a.push(s("--effort"));
                 a.push(o.effort.clone());
             }
-            a.push(prompt.to_string());
+            a.extend(prompt.map(s));
             a
         }
         "codex" => {
@@ -632,11 +638,15 @@ fn build_args(cli: &str, prompt: &str, o: &RunOptions) -> Vec<String> {
                 a.push(s("-c"));
                 a.push(s("service_tier=fast"));
             }
-            a.push(prompt.to_string());
+            a.push(s(prompt.unwrap_or("-")));
             a
         }
         "gemini" => {
-            let mut a = vec![s("-p"), prompt.to_string(), s("--approval-mode"), s("yolo")];
+            let mut a = match prompt {
+                Some(p) => vec![s("-p"), s(p)],
+                None => vec![],
+            };
+            a.extend([s("--approval-mode"), s("yolo")]);
             if !o.model.is_empty() {
                 a.push(s("--model"));
                 a.push(o.model.clone());
@@ -650,7 +660,7 @@ fn build_args(cli: &str, prompt: &str, o: &RunOptions) -> Vec<String> {
                 a.push(s("--model"));
                 a.push(o.model.clone());
             }
-            a.push(prompt.to_string());
+            a.extend(prompt.map(s));
             a
         }
     }
@@ -735,25 +745,30 @@ pub(crate) fn run_ai(
     gen_id: &str,
 ) -> Result<String, String> {
     detect(cli)?;
-    let args = build_args(cli, prompt, &opts);
+    let args = build_args(cli, (!PROMPT_ON_STDIN).then_some(prompt), &opts);
 
-    let mut cmd = Command::new(cli);
-    cmd.args(&args)
-        .current_dir(cwd)
+    let mut cmd = crate::shellpath::cli_command(cli, &args);
+    cmd.current_dir(cwd)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+    if PROMPT_ON_STDIN {
+        cmd.stdin(Stdio::piped());
+    }
     opts.claude_env.apply(&mut cmd);
     // Own session so cancelling reaps the CLI's descendants along with it.
-    unsafe {
-        cmd.pre_exec(|| {
-            if libc::setsid() == -1 {
-                return Err(std::io::Error::last_os_error());
-            }
-            Ok(())
-        });
-    }
+    // Windows cancels by walking the process tree, which needs no group.
+    #[cfg(unix)]
+    crate::osproc::detach(&mut cmd);
     let mut child = cmd.spawn().map_err(|e| format!("{cli}: start: {e}"))?;
     let _gen = GenGuard::register(gen_id, child.id() as i32);
+    // From its own thread: a prompt bigger than the pipe buffer blocks until
+    // the CLI reads it, and stdout must be drained meanwhile.
+    if let Some(mut stdin) = child.stdin.take() {
+        let prompt = prompt.to_owned();
+        std::thread::spawn(move || {
+            let _ = stdin.write_all(prompt.as_bytes());
+        });
+    }
 
     let stdout = child.stdout.take().ok_or("no stdout")?;
     // Drain stderr on its own thread so a chatty CLI can't deadlock on a full pipe.
@@ -1440,7 +1455,7 @@ pub(crate) fn ropts(
 }
 
 fn git_diff_head(cwd: &str) -> String {
-    Command::new("git")
+    crate::osproc::command("git")
         .args(["diff", "HEAD"])
         .current_dir(cwd)
         .output()
@@ -1542,6 +1557,71 @@ mod str_tail_tests {
         // 'é' is 2 bytes; a cut at byte 1 from the end lands mid-char.
         assert_eq!(str_tail("éé", 1), "");
         assert_eq!(str_tail("éé", 3), "é");
+    }
+}
+
+#[cfg(test)]
+mod build_args_tests {
+    use super::*;
+
+    fn opts() -> RunOptions {
+        ropts(None, "m".into(), String::new(), false, false)
+    }
+
+    const CLAUDE_FLAGS: [&str; 9] = [
+        "-p",
+        "--verbose",
+        "--output-format",
+        "stream-json",
+        "--permission-mode",
+        "bypassPermissions",
+        "--disallowedTools=Edit,Write,NotebookEdit",
+        "--model",
+        "m",
+    ];
+
+    #[test]
+    fn an_inline_prompt_rides_in_argv() {
+        let mut claude = CLAUDE_FLAGS.to_vec();
+        claude.push("say hi");
+        assert_eq!(build_args("claude", Some("say hi"), &opts()), claude);
+        assert_eq!(
+            build_args("codex", Some("say hi"), &opts()).last().unwrap(),
+            "say hi"
+        );
+        assert_eq!(
+            build_args("gemini", Some("say hi"), &opts()),
+            ["-p", "say hi", "--approval-mode", "yolo", "--model", "m"]
+        );
+        assert_eq!(
+            build_args("opencode", Some("say hi"), &opts()),
+            ["run", "--model", "m", "say hi"]
+        );
+    }
+
+    #[test]
+    fn a_stdin_prompt_leaves_only_the_marker_each_cli_needs() {
+        assert_eq!(build_args("claude", None, &opts()), CLAUDE_FLAGS);
+        assert_eq!(
+            build_args("codex", None, &opts()),
+            [
+                "exec",
+                "--sandbox",
+                "read-only",
+                "--skip-git-repo-check",
+                "--model",
+                "m",
+                "-"
+            ]
+        );
+        assert_eq!(
+            build_args("gemini", None, &opts()),
+            ["--approval-mode", "yolo", "--model", "m"]
+        );
+        assert_eq!(
+            build_args("opencode", None, &opts()),
+            ["run", "--model", "m"]
+        );
     }
 }
 

@@ -175,6 +175,7 @@ fn reach_hint(bind: &str) -> &'static str {
 fn platform_suffix(row: &Value) -> String {
     match row.get("platform").and_then(Value::as_str).unwrap_or("") {
         "linux" => " (Linux)".to_string(),
+        "windows" => " (Windows)".to_string(),
         _ => String::new(),
     }
 }
@@ -189,5 +190,10 @@ mod tests {
         assert_eq!(platform_suffix(&serde_json::json!({"platform": "macos"})), "");
         // Paired before hosts reported a platform: say nothing rather than guess.
         assert_eq!(platform_suffix(&serde_json::json!({})), "");
+    }
+
+    #[test]
+    fn windows_rows_are_marked() {
+        assert_eq!(platform_suffix(&serde_json::json!({"platform": "windows"})), " (Windows)");
     }
 }

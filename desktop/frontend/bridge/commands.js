@@ -238,6 +238,9 @@ export function GenerateProjectConfig(projectName, cli, extraPrompt, genId = "")
 export function GeneratePRTitle(projectName, cwd, cli, model, effort, fast, base, genId = "") {
   return invoke("generate_pr_title", { projectName, cwd, cli, model, effort, fast, base, genId });
 }
+export function GetMsysMounts() {
+  return invoke("get_msys_mounts");
+}
 export function GetPlatform() {
   return invoke("get_platform");
 }
@@ -622,14 +625,17 @@ export function PickImageFile() {
 export function PullBranch(cwd, strategy, flags) {
   return invoke("pull_branch", { cwd, strategy, flags });
 }
+export function QuitApp() {
+  return invoke("quit_app");
+}
 export function ReadBranchNameInstructions() {
   return invoke("read_branch_name_instructions");
 }
 export function ReadClipboardFiles() {
   return invoke("read_clipboard_files");
 }
-export function ReadClipboardText() {
-  return invoke("read_clipboard_text");
+export function ReadClipboardText(full) {
+  return invoke("read_clipboard_text", full ? { full: true } : undefined);
 }
 export function ReadCommitInstructions() {
   return invoke("read_commit_instructions");

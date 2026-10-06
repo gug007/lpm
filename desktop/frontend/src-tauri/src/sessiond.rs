@@ -12,12 +12,11 @@
 // (sessions.rs). That keeps this process small enough to be obviously correct
 // and lets it keep running across an app upgrade that changed the rules.
 use crate::daemonize;
+use crate::ipc::{UnixListener, UnixStream};
 use crate::sessionpane::Pane;
 use crate::sessionproto::{read_line, write_line, PaneInfo, PaneSpec, Request, Response};
 use std::collections::HashMap;
 use std::io::{BufReader, BufWriter};
-use std::os::unix::fs::PermissionsExt;
-use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Mutex, OnceLock};
@@ -101,6 +100,16 @@ impl Registry {
 /// would orphan the dev server it launched — the shell can't forward a signal
 /// it never receives — so every pid under it is snapshotted first.
 fn teardown(panes: &[std::sync::Arc<Pane>], wait: bool) {
+    // Windows first stops the jobs with ^C and a grace period, so a teardown
+    // nobody waits for runs whole on its own thread.
+    #[cfg(windows)]
+    if !wait {
+        let panes = panes.to_vec();
+        std::thread::spawn(move || teardown(&panes, true));
+        return;
+    }
+    #[cfg(windows)]
+    crate::panestop::interrupt_and_wait(panes);
     // One process-table scan for every pane, not one per pane: `trees` takes all
     // the roots at once, and a project stop would otherwise fork `ps` per service.
     let roots: Vec<i32> = panes.iter().map(|p| p.pid).collect();
@@ -376,7 +385,7 @@ pub fn run() -> ! {
     let Ok(listener) = UnixListener::bind(&path) else {
         std::process::exit(1);
     };
-    let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
+    let _ = crate::fsperm::set_mode(&path, 0o600);
     start_janitor();
     for stream in listener.incoming().flatten() {
         std::thread::spawn(move || serve(stream));

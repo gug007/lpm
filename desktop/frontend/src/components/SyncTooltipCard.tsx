@@ -1,6 +1,7 @@
 import { Play } from "lucide-react";
 import { SyncGlyph } from "./SyncGlyph";
 import { isFirstSync, type FollowState } from "../followApi";
+import { MACHINE } from "../machineWords";
 
 // What the sync mark says when the pointer rests on it. Written for someone meeting
 // synced copies for the first time: a headline for what is happening now, one plain
@@ -31,7 +32,7 @@ export function SyncTooltipCard({
       <span className="flex items-start gap-2 rounded-lg bg-[var(--bg-hover)] px-2.5 py-2 text-[12px] leading-[1.45] text-[var(--text-secondary)]">
         <Play size={11} strokeWidth={2} className="mt-[3px] shrink-0 text-[var(--accent-green)]" />
         <span>
-          <span className="text-[var(--text-primary)]">Run it on this Mac.</span> Start its services
+          <span className="text-[var(--text-primary)]">Run it on {MACHINE.thisMachine}.</span> Start its services
           and agents here, without touching {macName}.
         </span>
       </span>

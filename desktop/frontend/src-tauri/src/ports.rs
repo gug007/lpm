@@ -10,6 +10,7 @@ use crate::services::ServiceState;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::net::TcpListener;
+#[cfg(unix)]
 use std::process::Command;
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, State};
@@ -54,6 +55,12 @@ fn holder_phrase(h: &Holder, lpm_project: &str) -> String {
 }
 
 pub(crate) fn can_bind(port: i64) -> bool {
+    // Windows grants a 127.0.0.1 bind while another process holds 0.0.0.0:port,
+    // so the listener table has the final say there.
+    #[cfg(windows)]
+    if listening_ports().iter().any(|&(_, p)| p == port) {
+        return false;
+    }
     TcpListener::bind(("127.0.0.1", port as u16)).is_ok()
 }
 
@@ -90,6 +97,15 @@ fn lpm_pane_index() -> HashMap<i64, String> {
         .collect()
 }
 
+#[cfg(windows)]
+fn process_parents() -> HashMap<i64, i64> {
+    crate::osproc::process_table()
+        .into_iter()
+        .map(|(pid, ppid)| (pid as i64, ppid as i64))
+        .collect()
+}
+
+#[cfg(unix)]
 fn process_parents() -> HashMap<i64, i64> {
     let mut parents = HashMap::new();
     if let Ok(o) = Command::new("ps").args(["-e", "-o", "pid=,ppid="]).output() {
@@ -124,9 +140,36 @@ fn walk_to_owner<T: Clone>(
         if let Some(v) = pane_map.get(&cur) {
             return Some(v.clone());
         }
-        cur = *parents.get(&cur)?;
+        cur = parent_of(parents, cur)?;
     }
     None
+}
+
+#[cfg(unix)]
+fn parent_of(parents: &HashMap<i64, i64>, pid: i64) -> Option<i64> {
+    parents.get(&pid).copied()
+}
+
+/// Windows never reparents an orphan and recycles pids, so a dead parent's pid
+/// can come back on an unrelated process, such as another project's pane shell.
+#[cfg(windows)]
+fn parent_of(parents: &HashMap<i64, i64>, pid: i64) -> Option<i64> {
+    real_parent(parents, pid, |p| crate::procwin::created(p as u32))
+}
+
+/// `pid`'s recorded parent, unless that process was created after `pid` and
+/// so only holds the parent's recycled pid. Unknown creation times pass.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn real_parent(
+    parents: &HashMap<i64, i64>,
+    pid: i64,
+    created: impl Fn(i64) -> Option<u64>,
+) -> Option<i64> {
+    let ppid = *parents.get(&pid)?;
+    match (created(ppid), created(pid)) {
+        (Some(parent), Some(child)) if parent > child => None,
+        _ => Some(ppid),
+    }
 }
 
 fn walk_to_project(
@@ -227,6 +270,13 @@ fn check_action_port(action: &str, ports: &[i64], policy: &str) -> Vec<PortConfl
     out
 }
 
+#[cfg(unix)]
+const KILL_HINT: &str = "kill";
+// Dash switches survive Git Bash, which rewrites a `/PID` argument into a path.
+// Without -F a windowless dev server refuses to close.
+#[cfg(windows)]
+const KILL_HINT: &str = "taskkill -F -PID";
+
 /// portcheck.FormatActionPort: Ok(()) when free, else a human-readable error
 /// (one bullet per conflict) used as the RunAction/RunActionBackground pre-check.
 pub fn format_action_port(action: &str, ports: &[i64]) -> Result<(), String> {
@@ -246,7 +296,7 @@ pub fn format_action_port(action: &str, ports: &[i64]) -> Result<(), String> {
         if !c.lpm_project.is_empty() {
             msg.push_str(&format!(" (stop the '{}' project in lpm)", c.lpm_project));
         } else if c.pid > 0 {
-            msg.push_str(&format!(" (run: kill {})", c.pid));
+            msg.push_str(&format!(" (run: {} {})", KILL_HINT, c.pid));
         }
     }
     Err(msg)
@@ -401,6 +451,13 @@ fn free_port(
     wait_bindable(port, Duration::from_secs(5))
 }
 
+#[cfg(windows)]
+fn kill_term(pid: i64) -> Result<(), String> {
+    crate::osproc::terminate(pid as u32);
+    Ok(())
+}
+
+#[cfg(unix)]
 fn kill_term(pid: i64) -> Result<(), String> {
     let status = Command::new("kill")
         .args(["-TERM", &pid.to_string()])
@@ -469,6 +526,30 @@ mod tests {
         let c = approved(1234, "node", "foo");
         let err = approved_holder_mismatch(&c, &holder(1234, "node"), "bar").unwrap();
         assert!(err.contains("lpm project \"bar\""), "{err}");
+    }
+
+    #[test]
+    fn a_parent_born_after_its_child_is_a_recycled_pid() {
+        let parents = HashMap::from([(30, 20), (20, 10)]);
+        let created = |pid: i64| match pid {
+            10 => Some(100),
+            20 => Some(500),
+            30 => Some(300),
+            _ => None,
+        };
+        assert_eq!(real_parent(&parents, 30, created), None);
+        assert_eq!(real_parent(&parents, 20, created), Some(10));
+        assert_eq!(real_parent(&parents, 20, |_| None), Some(10));
+        assert_eq!(real_parent(&parents, 10, created), None);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn the_kill_hint_forces_and_has_no_slash_switch_for_git_bash_to_rewrite() {
+        assert!(KILL_HINT.split(' ').all(|word| !word.starts_with('/')));
+        assert!(KILL_HINT
+            .split(' ')
+            .any(|word| word.eq_ignore_ascii_case("-F")));
     }
 
     #[test]

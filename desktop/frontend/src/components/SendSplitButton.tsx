@@ -9,6 +9,7 @@ import { MENU_PANEL_CLASS } from "./ui/ContextMenuShell";
 import { ContextMenuItem } from "./ui/ContextMenuItem";
 import { ChevronUpIcon, CopyIcon, ForwardIcon, SendIcon, SquarePenIcon } from "./icons";
 import { Tooltip } from "./ui/Tooltip";
+import { enterHint } from "../shortcutHints";
 
 export interface SendSplitButtonProps {
   // Nothing to send (empty/whitespace) — disables both the send and draft paths.
@@ -82,7 +83,7 @@ export function SendSplitButton({ disabled, busy, onSend, onSaveDraft, onSendLat
       className={`${SEND_SHELL_CLASS} ${sendShellTint(inert)}`}
       style={sendGlow(inert)}
     >
-      <Tooltip content="Send  ·  ↵" delay={COMPOSER_TOOLTIP_DELAY_MS}>
+      <Tooltip content={`Send  ·  ${enterHint()}`} delay={COMPOSER_TOOLTIP_DELAY_MS}>
         <button
           type="button"
           onClick={() => {
@@ -123,7 +124,7 @@ export function SendSplitButton({ disabled, busy, onSend, onSaveDraft, onSendLat
               label="Send later"
               description="Pick a moment on a timeline, today or later"
               icon={<AlarmClock size={13} strokeWidth={1.5} />}
-              shortcut="⌥↵"
+              shortcut={enterHint({ alt: true })}
               onClick={() => {
                 setOpen(false);
                 onSendLater();
@@ -133,7 +134,7 @@ export function SendSplitButton({ disabled, busy, onSend, onSaveDraft, onSendLat
               label="Save as draft"
               description="Keep this prompt without sending it"
               icon={<SquarePenIcon size={13} />}
-              shortcut="⌘↵"
+              shortcut={enterHint({ meta: true })}
               onClick={() => {
                 setOpen(false);
                 onSaveDraft();

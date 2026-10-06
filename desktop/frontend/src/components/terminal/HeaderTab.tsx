@@ -6,6 +6,7 @@ import { TabTooltipCard, tabCardHasDetails } from "./TabTooltipCard";
 import { useIsTruncated } from "../../hooks/useIsTruncated";
 import type { PaneAgentStatus } from "../../hooks/usePaneStatus";
 import { actionAccentColor, actionTextColor } from "../../actionColors";
+import { chordLabel } from "../../keys";
 
 export function HeaderTab({
   label,
@@ -141,7 +142,7 @@ export function HeaderTab({
               </span>
             </Tooltip>
           ) : closable ? (
-            <Tooltip content="Close  ·  ⌘W" side="bottom" triggerClassName="hidden group-hover:inline-flex">
+            <Tooltip content={`Close  ·  ${chordLabel({ key: "w", meta: true })}`} side="bottom" triggerClassName="hidden group-hover:inline-flex">
               <span
                 onClick={(e) => {
                   e.stopPropagation();

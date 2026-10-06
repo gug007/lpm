@@ -1,11 +1,12 @@
 //! Opening a folder or file on another machine in a VS Code-family editor over
 //! its Remote-SSH extension, for SSH projects and for paired machines alike.
 
+#[cfg(target_os = "macos")]
 use std::process::Command;
 
 use serde_json::{json, Value};
 
-use crate::openin::{format_path_spec, run, vscode_cli, InstalledApp};
+use crate::openin::{format_path_spec, launcher, run, vscode_cli, InstalledApp};
 
 /// The authority Remote-SSH connects with. Plain `user@host` leaves the rest to
 /// ~/.ssh/config; anything that can't ride in it (a port, an IPv6 address, a
@@ -50,12 +51,23 @@ fn folder_uri(authority: &str, abs: &str) -> String {
 }
 
 /// Preferring the embedded CLI over `open -a --args` is what makes this reliable
-/// when the app is already running.
+/// when the app is already running. Off macOS the detected launcher is that CLI.
 pub(crate) fn open_folder(app: &InstalledApp, authority: &str, abs: &str) -> Result<(), String> {
     let uri = folder_uri(authority, abs);
-    match embedded_cli(&app.path) {
-        Some(cli) => run(Command::new(cli).args(["--folder-uri", &uri])),
-        None => run(Command::new("open").args(["-a", app.label, "--args", "--folder-uri", &uri])),
+    #[cfg(target_os = "macos")]
+    {
+        match embedded_cli(&app.path) {
+            Some(cli) => run(Command::new(cli).args(["--folder-uri", &uri])),
+            None => {
+                run(Command::new("open").args(["-a", app.label, "--args", "--folder-uri", &uri]))
+            }
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let cli = vscode_cli(app.id, &app.path)
+            .ok_or_else(|| format!("{} can't open a remote project", app.label))?;
+        run(launcher(&cli).args(["--folder-uri", &uri]))
     }
 }
 
@@ -70,7 +82,7 @@ pub(crate) fn open_file(
 ) -> Result<(), String> {
     let cli = vscode_cli(app.id, &app.path)
         .ok_or_else(|| format!("{} can't open a remote file", app.label))?;
-    run(Command::new(cli).args([
+    run(launcher(&cli).args([
         "--remote",
         authority,
         "-g",
@@ -81,6 +93,7 @@ pub(crate) fn open_file(
 /// The launcher binary inside `<App>.app/Contents/Resources/app/bin` (VS Code
 /// forks ship exactly one primary CLI there), detected rather than hardcoded.
 /// The `*-tunnel` companion is skipped; the remaining name wins.
+#[cfg(target_os = "macos")]
 fn embedded_cli(app_path: &str) -> Option<String> {
     let bin = std::path::Path::new(app_path).join("Contents/Resources/app/bin");
     let mut names: Vec<String> = std::fs::read_dir(&bin)
@@ -173,6 +186,7 @@ mod tests {
         assert!(!can_name("box", "DOMAIN\\dev"));
     }
 
+    #[cfg(target_os = "macos")]
     #[test]
     fn embedded_cli_detects_launcher_and_skips_tunnel() {
         let app = tempfile::tempdir().unwrap();
@@ -181,9 +195,13 @@ mod tests {
         std::fs::write(bin.join("code"), "#!/bin/sh\n").unwrap();
         std::fs::write(bin.join("code-tunnel"), "#!/bin/sh\n").unwrap();
         let cli = embedded_cli(&app.path().to_string_lossy()).unwrap();
-        assert!(cli.ends_with("/bin/code"), "{cli}");
+        assert!(
+            std::path::Path::new(&cli).ends_with(std::path::Path::new("bin").join("code")),
+            "{cli}"
+        );
     }
 
+    #[cfg(target_os = "macos")]
     #[test]
     fn embedded_cli_none_when_bin_missing() {
         let app = tempfile::tempdir().unwrap();

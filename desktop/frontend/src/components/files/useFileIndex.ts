@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ListDirFiles } from "../../../bridge/commands";
 import { useGitChanged } from "../../hooks/useGitChanged";
+import { toSlash, windowsRules } from "../../path";
 import { indexEntry, type IndexEntry } from "./filesFilter";
 
 // Refetch at most once per window: an agent mid-refactor fires a change every
@@ -24,7 +25,12 @@ export function useFileIndex(root: string, wanted: boolean, active: boolean): In
     staleRef.current = false;
     try {
       const raw = (await ListDirFiles(root)) as { path: string; isDir: boolean }[];
-      setIndex(Array.isArray(raw) ? raw.map((e) => indexEntry(e.path, !!e.isDir)) : []);
+      const slash = windowsRules(root);
+      setIndex(
+        Array.isArray(raw)
+          ? raw.map((e) => indexEntry(slash ? toSlash(e.path, true) : e.path, !!e.isDir))
+          : [],
+      );
     } catch {
       staleRef.current = true;
       setIndex([]);

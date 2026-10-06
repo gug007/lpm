@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+/* Linux and Windows keep the OS title bar, so nothing in the React chrome makes
+   room for macOS traffic lights there. */
+@custom-variant native-chrome (&:where(.platform-linux *, .platform-windows *));
+
 :root,
 [data-theme="light"] {
   color-scheme: light;

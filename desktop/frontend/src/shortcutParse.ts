@@ -1,4 +1,6 @@
 import type { KeyboardShortcut } from "./hooks/useKeyboardShortcut";
+import { chordLabel, toPhysical, type PhysicalChord } from "./keys";
+import { isMac } from "./platform";
 
 const MOD_ALIASES: Record<string, "meta" | "shift" | "alt"> = {
   cmd: "meta",
@@ -68,8 +70,10 @@ function keyLabel(key: string): string {
   return KEY_GLYPHS[key.toLowerCase()] ?? key.toUpperCase();
 }
 
-// Human-facing rendering using macOS modifier glyphs, e.g. "⌘⇧B".
-export function formatShortcut(s: KeyboardShortcut): string {
+// Human-facing rendering: macOS glyphs ("⌘⇧B"), or the physical chord in words
+// elsewhere ("Ctrl+Alt+Shift+B").
+export function formatShortcut(s: KeyboardShortcut, mac: boolean = isMac): string {
+  if (!mac) return chordLabel(s, false);
   const parts: string[] = [];
   if (s.meta) parts.push("⌘");
   if (s.alt) parts.push("⌥");
@@ -83,8 +87,9 @@ export function formatShortcut(s: KeyboardShortcut): string {
 // the OS before the webview sees it, so the wizard blocks them. This list is a
 // hand-maintained mirror of the scattered shortcut sources noted below — when a
 // new global shortcut is added there, add it here too (the source file is named
-// per group so the pairing is easy to find).
-const RESERVED = new Set<string>([
+// per group so the pairing is easy to find). Entries are authored the macOS way;
+// off macOS each one stands for its keys.ts toPhysical form.
+const RESERVED_SHARED = [
   // App.tsx — sidebar + new terminal (Cmd+1..9 added below)
   "cmd+b",
   "cmd+t",
@@ -104,14 +109,11 @@ const RESERVED = new Set<string>([
   "cmd+-",
   "cmd+0",
   // useFilesChords.ts — path chords and the Markdown preview flip in the
-  // Files tab; ⌃⌥↑ / ⌃⌥↓ step files there and in the review tab (Ctrl parses
-  // as cmd)
+  // Files tab (its file-stepping chords differ per platform, see below)
   "cmd+shift+v",
   "cmd+alt+r",
   "cmd+alt+c",
   "cmd+alt+shift+c",
-  "cmd+alt+arrowup",
-  "cmd+alt+arrowdown",
   // useDetailView.ts (Cmd+E / Cmd+Shift+N) + useYamlEditor (Cmd+S)
   "cmd+e",
   "cmd+shift+n",
@@ -138,13 +140,98 @@ const RESERVED = new Set<string>([
   "cmd+enter",
   // TerminalComposer.tsx — send the prompt later
   "alt+enter",
-]);
-// App.tsx — Cmd+1..9 select project by index
-for (let n = 1; n <= 9; n++) RESERVED.add(`cmd+${n}`);
+  // App.tsx — Cmd+1..9 select project by index
+  ...Array.from({ length: 9 }, (_, i) => `cmd+${i + 1}`),
+];
 
-// Configurable hotkey combos aren't in RESERVED;
+// useFilesChords.ts — stepping files in the Files and review tabs: ⌃⌥↑ / ⌃⌥↓ on
+// macOS (Ctrl parses as cmd), Ctrl+Alt+PageUp / PageDown elsewhere, where
+// Ctrl+Alt+arrows switch workspaces.
+const RESERVED_MAC = new Set([...RESERVED_SHARED, "cmd+alt+arrowup", "cmd+alt+arrowdown"]);
+const RESERVED_PC = new Set([...RESERVED_SHARED, "cmd+alt+pageup", "cmd+alt+pagedown"]);
+
+export function reservedShortcuts(mac: boolean = isMac): ReadonlySet<string> {
+  return mac ? RESERVED_MAC : RESERVED_PC;
+}
+
+// Chords Linux desktops and Windows take before any app sees them: workspace and
+// window switching, session keys, the VT switch, the run dialog.
+const SYSTEM_CHORDS = new Set<string>([
+  "ctrl+alt+delete",
+  "ctrl+alt+backspace",
+  "ctrl+alt+tab",
+  "ctrl+alt+escape",
+  "ctrl+alt+t",
+  "ctrl+alt+l",
+  "ctrl+alt+d",
+  "ctrl+shift+escape",
+  "ctrl+escape",
+  "alt+tab",
+  "alt+shift+tab",
+  "alt+escape",
+  "alt+space",
+  ...["arrowleft", "arrowright", "arrowup", "arrowdown"].flatMap((k) => [
+    `ctrl+alt+${k}`,
+    `ctrl+alt+shift+${k}`,
+  ]),
+  ...Array.from({ length: 12 }, (_, i) => [`ctrl+alt+f${i + 1}`, `alt+f${i + 1}`]).flat(),
+]);
+
+export function physicalChordId(p: PhysicalChord): string {
+  const mods = [p.ctrl && "ctrl", p.meta && "meta", p.alt && "alt", p.shift && "shift"];
+  const key = p.key === " " ? "space" : p.key.toLowerCase();
+  return [...mods.filter(Boolean), key].join("+");
+}
+
+export function isSystemShortcut(s: KeyboardShortcut, mac: boolean = isMac): boolean {
+  return !mac && SYSTEM_CHORDS.has(physicalChordId(toPhysical(s, false)));
+}
+
+// What two shortcuts collide on: the stored combo on macOS, the physical chord
+// elsewhere, where ⌘⇧X and ⌘⌥⇧X are both Ctrl+Alt+Shift+X.
+export function shortcutIdentity(s: KeyboardShortcut, mac: boolean = isMac): string {
+  return mac ? canonicalShortcut(s) : physicalChordId(toPhysical(s, false));
+}
+
+const CANONICAL_MODS = { cmd: "meta", alt: "alt", shift: "shift" } as const;
+const CANONICAL_MOD = /^(cmd|alt|shift)\+(.+)$/;
+
+// Inverse of canonicalShortcut. The key is whatever follows the modifiers, so
+// the "+" of "cmd++" survives, which parseShortcut's split would drop.
+function fromCanonical(id: string): KeyboardShortcut {
+  const s: KeyboardShortcut = { key: id, meta: false, shift: false, alt: false };
+  for (let m = CANONICAL_MOD.exec(s.key); m; m = CANONICAL_MOD.exec(s.key)) {
+    s[CANONICAL_MODS[m[1] as keyof typeof CANONICAL_MODS]] = true;
+    s.key = m[2];
+  }
+  return s;
+}
+
+const physicalIdOf = (id: string) => shortcutIdentity(fromCanonical(id), false);
+const RESERVED_PC_PHYSICAL = new Set([...RESERVED_PC].map(physicalIdOf));
+
+// Configurable hotkey combos aren't in the reserved sets;
 // callers that must block them (the action wizard) pass them via `extra`.
-export function isReservedShortcut(s: KeyboardShortcut, extra?: ReadonlySet<string>): boolean {
+export function isReservedShortcut(
+  s: KeyboardShortcut,
+  extra?: ReadonlySet<string>,
+  mac: boolean = isMac,
+): boolean {
+  if (!mac) {
+    const id = shortcutIdentity(s, false);
+    return RESERVED_PC_PHYSICAL.has(id) || [...(extra ?? [])].some((e) => physicalIdOf(e) === id);
+  }
   const id = canonicalShortcut(s);
-  return RESERVED.has(id) || (extra?.has(id) ?? false);
+  return reservedShortcuts(mac).has(id) || (extra?.has(id) ?? false);
+}
+
+// Why a shortcut can't be bound, in the user's own key names; null when free.
+export function reservedShortcutMessage(
+  s: KeyboardShortcut,
+  extra?: ReadonlySet<string>,
+  mac: boolean = isMac,
+): string | null {
+  if (isSystemShortcut(s, mac)) return `${formatShortcut(s, mac)} is reserved by the system`;
+  if (isReservedShortcut(s, extra, mac)) return `${formatShortcut(s, mac)} is reserved by lpm`;
+  return null;
 }

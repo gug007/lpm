@@ -3,6 +3,7 @@ import {
   type Highlighter,
   type BundledLanguage,
 } from "shiki";
+import { basename } from "./path";
 
 export interface Token {
   content: string;
@@ -66,7 +67,7 @@ export const DIFF_META_PREFIXES = [
 ];
 
 export function getLang(path: string): string {
-  const name = path.split("/").pop()?.toLowerCase() ?? "";
+  const name = basename(path).toLowerCase();
   const ext = name.split(".").pop() ?? "";
   return EXT_LANG[ext] ?? "";
 }

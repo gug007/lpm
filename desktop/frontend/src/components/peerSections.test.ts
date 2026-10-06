@@ -136,7 +136,19 @@ describe("buildPeerSections", () => {
   it("carries the machine's platform and state for its header", () => {
     const { sections } = buildPeerSections([], new Map(), [peer({ platform: "linux" })]);
     expect(sections[0].linuxHost).toBe(true);
+    expect(sections[0].noun).toBe("server");
     expect(sections[0].status).toEqual({ tone: "live", text: "Connected", detail: "" });
+  });
+
+  it("heads a Linux or Windows desktop like a machine, not a server", () => {
+    const { sections } = buildPeerSections([], new Map(), [
+      peer({ slug: "aaaa1111", platform: "linux", headless: false }),
+      peer({ slug: "bbbb2222", platform: "windows", headless: false }),
+    ]);
+    expect(sections.map((s) => [s.linuxHost, s.noun])).toEqual([
+      [false, "computer"],
+      [false, "computer"],
+    ]);
   });
 
   it("reads an unknown platform as a Mac, and a failure as an error", () => {

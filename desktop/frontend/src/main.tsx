@@ -18,6 +18,7 @@ import { queryClient } from "./queryClient";
 import { MIRROR_PROJECT } from "./mirror";
 import { initMenuEditEvents } from "./menuEdit";
 import { initScrollbarFade } from "./scrollbarFade";
+import { applyPlatformClass } from "./platform";
 import { AppRecovery } from "./components/AppRecovery";
 import { ErrorBoundary } from "./components/ui/ErrorBoundary";
 import {
@@ -33,6 +34,7 @@ const detachedProject = MIRROR_PROJECT;
 const surface = detachedProject ? "detached" : "main";
 const root = createRoot(document.getElementById("root")!);
 
+applyPlatformClass();
 initScrollbarFade();
 initMenuEditEvents();
 initializeDiagnostics(surface);

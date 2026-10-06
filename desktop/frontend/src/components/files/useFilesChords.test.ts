@@ -37,3 +37,33 @@ describe("filesChord", () => {
     expect(filesChord(key({ key: "r", code: "KeyR", altKey: true }))).toBeNull();
   });
 });
+
+describe("filesChord off macOS", () => {
+  const pc = (init: KeyboardEventInit) => filesChord(key(init), false);
+
+  it("saves on Ctrl+S and on ⌘S's physical Ctrl+Shift+S", () => {
+    expect(pc({ key: "s", ctrlKey: true })).toBe("save");
+    expect(pc({ key: "S", ctrlKey: true, shiftKey: true })).toBe("save");
+    expect(pc({ key: "s", metaKey: true })).toBeNull();
+  });
+
+  it("uses the Ctrl+Alt tier for the ⌘⌥ and ⌘⇧ chords", () => {
+    expect(pc({ key: "r", code: "KeyR", ctrlKey: true, altKey: true })).toBe("reveal");
+    expect(pc({ key: "c", code: "KeyC", ctrlKey: true, altKey: true })).toBe("copyPath");
+    expect(pc({ key: "C", code: "KeyC", ctrlKey: true, altKey: true, shiftKey: true })).toBe(
+      "copyRelativePath",
+    );
+    expect(pc({ key: "V", ctrlKey: true, altKey: true, shiftKey: true })).toBe("togglePreview");
+    expect(pc({ key: "V", ctrlKey: true, shiftKey: true })).toBeNull();
+  });
+
+  it("steps files on Ctrl+Alt+PageDown / PageUp, leaving Ctrl+Alt+arrows to the desktop", () => {
+    expect(pc({ key: "PageDown", ctrlKey: true, altKey: true })).toBe("nextFile");
+    expect(pc({ key: "PageUp", ctrlKey: true, altKey: true })).toBe("prevFile");
+    expect(pc({ key: "ArrowDown", ctrlKey: true, altKey: true })).toBeNull();
+  });
+
+  it("lets AltGr characters type", () => {
+    expect(pc({ key: "ć", code: "KeyC", ctrlKey: true, altKey: true })).toBeNull();
+  });
+});

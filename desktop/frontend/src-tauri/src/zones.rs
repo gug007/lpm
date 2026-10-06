@@ -346,9 +346,18 @@ mod tests {
             PathBuf::from("/global.yml"),
         )
         .iter()
-        .map(|(source, path)| format!("{source:?}:{}", path.display()))
+        .map(|(source, path)| format!("{source:?}:{}", posix(path)))
         .collect::<Vec<_>>()
         .join(" > ")
+    }
+
+    /// Windows joins `.lpm.yml` with `\`; the order, not the separator, is
+    /// what these tests pin.
+    fn posix(path: &Path) -> String {
+        let shown = path.display().to_string();
+        #[cfg(windows)]
+        let shown = shown.replace('\\', "/");
+        shown
     }
 
     #[test]

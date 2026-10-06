@@ -1,9 +1,13 @@
 name: Linux host
 
-# lpm's UI ships on macOS, but the same binary is meant to run headless on a
-# Linux server that a Mac drives over the peer protocol. Nobody develops on
-# Linux, so without this job the `#[cfg(not(target_os = "macos"))]` branches are
-# only ever typechecked by eye. This compiles and tests them on every push.
+# The same binary that is the Linux desktop app also runs headless on a Linux
+# server that a Mac drives over the peer protocol. Nobody develops on Linux, so
+# without this job the `#[cfg(not(target_os = "macos"))]` branches are only ever
+# typechecked by eye. This compiles and tests them on every push; desktop-ci.yml
+# packages and launches the desktop build.
+#
+# Pinned to 24.04 rather than ubuntu-latest, which is moving to 26.04: a new
+# release's WebKitGTK packaging is adopted on purpose, not found as a red build.
 
 on:
   push:
@@ -14,12 +18,14 @@ on:
     paths:
       - "desktop/frontend/src-tauri/**"
       - "cli/**"
+      - "scripts/build-cli.*"
       - "desktop/linux/**"
       - ".github/workflows/linux-host.yml"
   pull_request:
     paths:
       - "desktop/frontend/src-tauri/**"
       - "cli/**"
+      - "scripts/build-cli.*"
       # The install scripts and the supervisor that stands in for systemd on a
       # container host. Shell is the one part of a host nothing else here
       # type-checks, and it only reaches a user through this workflow.
@@ -40,7 +46,7 @@ jobs:
   # real thing. Seconds to run, so it is its own job rather than a step behind
   # the build everything else in this file waits on.
   scripts:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
 
@@ -66,7 +72,7 @@ jobs:
           sh desktop/linux/tests/cleanup-test.sh
 
   check:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
 
@@ -135,7 +141,7 @@ jobs:
   #     gh workflow run linux-host.yml --ref <branch>
   binary:
     if: github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
 
@@ -165,8 +171,8 @@ jobs:
       # embedding is driven by the env the CLI sets up for tauri-build, NOT by
       # the cargo profile: a plain cargo build yields a binary that still points
       # at devUrl and shows "Could not connect to 127.0.0.1" on a machine with no
-      # dev server. --no-bundle skips the macOS-only bundle targets; the CLI runs
-      # beforeBuildCommand (frontend + CLI sidecar) itself.
+      # dev server. --no-bundle stops at the binary (release.yml builds the
+      # packages); the CLI runs beforeBuildCommand (frontend + CLI sidecar) itself.
       - name: Build lpm binary
         working-directory: desktop/frontend
         run: |

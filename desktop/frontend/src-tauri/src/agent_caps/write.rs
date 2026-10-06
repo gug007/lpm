@@ -135,13 +135,21 @@ pub fn write_agent_capability(
 mod tests {
     use super::*;
 
+    /// A rooted path on every platform: `/repo` alone has no drive on Windows,
+    /// so it would fail the absolute-path gate before reaching the rule tested.
+    fn abs(posix: &str) -> PathBuf {
+        #[cfg(windows)]
+        let posix = format!("C:{posix}");
+        PathBuf::from(posix)
+    }
+
     #[test]
     fn only_markdown_under_a_known_root_is_editable() {
         let home = dirs::home_dir().unwrap_or_default();
         assert!(is_editable(&home.join(".claude/skills/deploy/SKILL.md")));
         assert!(is_editable(&home.join(".agents/skills/lpm/SKILL.md")));
-        assert!(is_editable(Path::new("/repo/proj/.claude/agents/review.md")));
-        assert!(is_editable(Path::new("/repo/proj/CLAUDE.md")));
+        assert!(is_editable(&abs("/repo/proj/.claude/agents/review.md")));
+        assert!(is_editable(&abs("/repo/proj/CLAUDE.md")));
     }
 
     #[test]
@@ -149,7 +157,7 @@ mod tests {
         let home = dirs::home_dir().unwrap_or_default();
         assert!(!is_editable(&home.join(".claude.json")));
         assert!(!is_editable(&home.join(".codex/config.toml")));
-        assert!(!is_editable(Path::new("/repo/proj/.mcp.json")));
+        assert!(!is_editable(&abs("/repo/proj/.mcp.json")));
     }
 
     #[test]
@@ -164,7 +172,7 @@ mod tests {
     /// repo that happens to live under one still owns its own capability files.
     #[test]
     fn a_checkout_under_a_plugins_folder_is_still_editable() {
-        assert!(is_editable(Path::new(
+        assert!(is_editable(&abs(
             "/repo/wordpress/plugins/acme/.claude/commands/deploy.md"
         )));
     }
@@ -173,12 +181,12 @@ mod tests {
     fn traversal_and_relative_paths_are_rejected() {
         assert!(!is_editable(Path::new("../../etc/passwd.md")));
         assert!(!is_editable(Path::new("relative/SKILL.md")));
-        assert!(!is_editable(Path::new("/repo/proj/.claude/../../x.md")));
+        assert!(!is_editable(&abs("/repo/proj/.claude/../../x.md")));
     }
 
     #[test]
     fn an_ordinary_repo_file_is_not_a_capability() {
-        assert!(!is_editable(Path::new("/repo/proj/src/main.md")));
-        assert!(!is_editable(Path::new("/repo/proj/README.md")));
+        assert!(!is_editable(&abs("/repo/proj/src/main.md")));
+        assert!(!is_editable(&abs("/repo/proj/README.md")));
     }
 }

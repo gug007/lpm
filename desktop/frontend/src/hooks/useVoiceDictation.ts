@@ -1,6 +1,10 @@
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import { VoiceToTextAvailable, VoiceToTextToggle } from "../../bridge/commands";
+import { isMac } from "../platform";
+
+// VoiceToText is a macOS app; elsewhere the composer offers no dictation.
+export const DICTATION_AVAILABLE = isMac;
 
 // Shared dictation control: toggles VoiceToText, or surfaces the install prompt
 // when the helper app isn't present. The dictated text pastes into whatever

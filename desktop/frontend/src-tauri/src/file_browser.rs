@@ -132,12 +132,16 @@ pub fn read_project_file(root: String, rel: String) -> Result<ProjectFileContent
     Ok(content_of(bytes, true))
 }
 
-/// Show the file in Finder, selected. macOS only — a Linux host reports that
-/// plainly rather than shelling out to a command it doesn't have.
+/// Show the file selected in Finder, or in the file manager on Linux and
+/// Windows. A headless host has none and reports that plainly.
 #[tauri::command(async)]
 pub fn reveal_in_finder(abs_path: String) -> Result<(), String> {
     if crate::mediapeer::split_peer_path(&abs_path).is_some() {
-        return Err("Reveal in Finder works only for files on this Mac".into());
+        return Err(if cfg!(target_os = "macos") {
+            "Reveal in Finder works only for files on this Mac".into()
+        } else {
+            "Only files on this computer can be shown in the file manager".into()
+        });
     }
     let resolved = crate::files::resolve_existing_file(&abs_path)?;
     #[cfg(target_os = "macos")]
@@ -154,8 +158,10 @@ pub fn reveal_in_finder(abs_path: String) -> Result<(), String> {
     }
     #[cfg(not(target_os = "macos"))]
     {
-        let _ = resolved;
-        Err("Reveal in Finder is only available on macOS".into())
+        if crate::sys::headless() {
+            return Err("This host has no file manager to show the file in".into());
+        }
+        crate::files::reveal(&resolved)
     }
 }
 

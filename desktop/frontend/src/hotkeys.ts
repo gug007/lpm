@@ -1,4 +1,5 @@
 import { canonicalShortcut, parseShortcut } from "./shortcutParse";
+import { isMac } from "./platform";
 
 export type HotkeyId =
   | "toggleAgentOverview"
@@ -14,7 +15,7 @@ export interface HotkeyDef {
   default: string;
 }
 
-export const HOTKEYS: HotkeyDef[] = [
+const MAC_HOTKEYS: HotkeyDef[] = [
   {
     id: "toggleAgentOverview",
     label: "Activity",
@@ -46,6 +47,20 @@ export const HOTKEYS: HotkeyDef[] = [
     default: "cmd+shift+backspace",
   },
 ];
+
+// Ctrl+Alt+arrows switch workspaces on Linux desktops (and rotate the screen on
+// some Windows drivers), so tabs step with Ctrl+PageDown / PageUp there.
+const PC_DEFAULTS: Partial<Record<HotkeyId, string>> = {
+  tabSwitchNext: "cmd+pagedown",
+  tabSwitchPrev: "cmd+pageup",
+};
+
+export function hotkeyDefs(mac: boolean = isMac): HotkeyDef[] {
+  if (mac) return MAC_HOTKEYS;
+  return MAC_HOTKEYS.map((def) => ({ ...def, default: PC_DEFAULTS[def.id] ?? def.default }));
+}
+
+export const HOTKEYS: HotkeyDef[] = hotkeyDefs();
 
 const HOTKEY_BY_ID = new Map(HOTKEYS.map((h) => [h.id, h]));
 

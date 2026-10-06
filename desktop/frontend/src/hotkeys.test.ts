@@ -1,9 +1,22 @@
 import { describe, expect, it } from "vitest";
 import {
   configuredHotkeyCombos,
+  hotkeyDefs,
   normalizeHotkeys,
   resolveHotkey,
 } from "./hotkeys";
+
+describe("hotkeyDefs", () => {
+  it("steps tabs with Ctrl+PageDown / PageUp off macOS, where Ctrl+Alt+arrows switch workspaces", () => {
+    expect(Object.fromEntries(hotkeyDefs(false).map((d) => [d.id, d.default]))).toEqual({
+      toggleAgentOverview: "cmd+shift+a",
+      tabSwitchNext: "cmd+pagedown",
+      tabSwitchPrev: "cmd+pageup",
+      renameProject: "cmd+r",
+      deleteProject: "cmd+shift+backspace",
+    });
+  });
+});
 
 describe("normalizeHotkeys", () => {
   it("returns a dense default map for missing/empty input", () => {

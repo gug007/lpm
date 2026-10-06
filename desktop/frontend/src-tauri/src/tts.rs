@@ -5,13 +5,33 @@
 // each as a "tts-audio" event (bare base64 string — a complete 24kHz WAV the
 // frontend's Web Audio player decodes per chunk). State transitions go out as
 // "tts-state" ("playing"/"paused"/"stopped"/"error"); errors as "tts-error".
-// Pause/Resume are SIGSTOP/SIGCONT; Stop wakes (SIGCONT) then kills.
+// Pause/Resume are SIGSTOP/SIGCONT; Stop wakes (SIGCONT) then kills. Windows
+// has no such signals, so it suspends and resumes the process's threads.
 use crate::config;
-use std::io::BufRead;
+use std::io::{BufRead, Write};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, Manager, State};
+
+/// python.org's Windows installer puts `python` on PATH, not `python3`.
+const PYTHON: &str = if cfg!(windows) { "python" } else { "python3" };
+
+/// `pip3 <args>`; on Windows `python -m pip`, the spelling that is always there.
+fn pip(args: &[&str]) -> Command {
+    #[cfg(windows)]
+    {
+        let mut cmd = crate::osproc::command(PYTHON);
+        cmd.args(["-m", "pip"]).args(args);
+        cmd
+    }
+    #[cfg(not(windows))]
+    {
+        let mut cmd = crate::osproc::command("pip3");
+        cmd.args(args);
+        cmd
+    }
+}
 
 const PLAYING: &str = "playing";
 const PAUSED: &str = "paused";
@@ -45,6 +65,17 @@ except Exception as e:
     print(json.dumps({"type":"error","error":str(e)}))
     sys.exit(1)
 "#;
+
+/// Windows caps a whole command line at 32,767 UTF-16 units, short of a long
+/// reply, so there the text goes over stdin and argv[1] is a placeholder.
+const TEXT_ON_STDIN: bool = cfg!(windows);
+const TEXT_FROM_ARGV: &str = "text = sys.argv[1]\n";
+// Raw bytes: Windows Python decodes a text stdin with the ANSI code page.
+const TEXT_FROM_STDIN: &str = "text = sys.stdin.buffer.read().decode(\"utf-8\")\n";
+
+fn stdin_script() -> String {
+    TTS_SCRIPT.replacen(TEXT_FROM_ARGV, TEXT_FROM_STDIN, 1)
+}
 
 #[derive(serde::Deserialize)]
 struct TtsChunk {
@@ -109,17 +140,27 @@ pub fn start_tts(app: AppHandle, state: State<'_, TtsState>, text: String) -> Re
 
     stop_internal(&app, &state.inner); // tear down any prior session first
 
-    let mut child = Command::new("python3")
-        .arg("-c")
-        .arg(TTS_SCRIPT)
-        .arg(&text) // sys.argv[1]
+    let mut cmd = crate::osproc::command(PYTHON);
+    cmd.arg("-c");
+    if TEXT_ON_STDIN {
+        cmd.arg(stdin_script()).arg("-").stdin(Stdio::piped());
+    } else {
+        cmd.arg(TTS_SCRIPT)
+            .arg(&text) // sys.argv[1]
+            .stdin(Stdio::null());
+    }
+    let mut child = cmd
         .arg(&voice) // sys.argv[2]
         .arg(format!("{speed:.2}")) // sys.argv[3]
-        .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::null()) // errors arrive as JSON on stdout
         .spawn()
         .map_err(|e| format!("start tts process: {e}"))?;
+    if let Some(mut stdin) = child.stdin.take() {
+        std::thread::spawn(move || {
+            let _ = stdin.write_all(text.as_bytes());
+        });
+    }
     let stdout = child.stdout.take().ok_or("create stdout pipe")?;
     let pid = child.id() as i32;
     let id = state.counter.fetch_add(1, Ordering::SeqCst) + 1;
@@ -191,10 +232,14 @@ fn stop_internal(app: &AppHandle, inner: &Inner) {
     };
     // Wake a possibly-paused process so the kill isn't queued behind SIGSTOP,
     // then terminate. SIGKILL (== Go's context-cancel) dies promptly.
+    #[cfg(unix)]
     unsafe {
         libc::kill(sess.pid, libc::SIGCONT);
         libc::kill(sess.pid, libc::SIGKILL);
     }
+    // TerminateProcess ends a suspended process just the same.
+    #[cfg(windows)]
+    let _ = sess.child.kill();
     let _ = sess.child.wait(); // reap; the reader thread will see None -> no double emit
     let _ = app.emit("tts-state", STOPPED);
 }
@@ -206,9 +251,7 @@ pub fn pause_tts(app: AppHandle, state: State<'_, TtsState>) -> Result<(), Strin
     if sess.state != PLAYING {
         return Err(format!("tts is not playing (state: {})", sess.state));
     }
-    if unsafe { libc::kill(sess.pid, libc::SIGSTOP) } != 0 {
-        return Err(format!("pause tts: {}", std::io::Error::last_os_error()));
-    }
+    freeze(sess.pid, true).map_err(|e| format!("pause tts: {e}"))?;
     sess.state = PAUSED.into();
     drop(guard);
     let _ = app.emit("tts-state", PAUSED);
@@ -222,18 +265,31 @@ pub fn resume_tts(app: AppHandle, state: State<'_, TtsState>) -> Result<(), Stri
     if sess.state != PAUSED {
         return Err(format!("tts is not paused (state: {})", sess.state));
     }
-    if unsafe { libc::kill(sess.pid, libc::SIGCONT) } != 0 {
-        return Err(format!("resume tts: {}", std::io::Error::last_os_error()));
-    }
+    freeze(sess.pid, false).map_err(|e| format!("resume tts: {e}"))?;
     sess.state = PLAYING.into();
     drop(guard);
     let _ = app.emit("tts-state", PLAYING);
     Ok(())
 }
 
+/// Stop (`true`) or continue the synthesizer: SIGSTOP/SIGCONT, or on Windows
+/// suspending/resuming every thread of the process.
+fn freeze(pid: i32, stop: bool) -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        let sig = if stop { libc::SIGSTOP } else { libc::SIGCONT };
+        if unsafe { libc::kill(pid, sig) } != 0 {
+            return Err(std::io::Error::last_os_error());
+        }
+        Ok(())
+    }
+    #[cfg(windows)]
+    crate::procwin::suspend(pid as u32, stop)
+}
+
 #[tauri::command(async)]
 pub fn check_kokoro_installed() -> bool {
-    Command::new("python3")
+    crate::osproc::command(PYTHON)
         .args(["-c", "from kokoro import KPipeline; import soundfile"])
         .status()
         .map(|s| s.success())
@@ -242,8 +298,7 @@ pub fn check_kokoro_installed() -> bool {
 
 #[tauri::command(async)]
 pub fn install_kokoro() -> Result<(), String> {
-    let out = Command::new("pip3")
-        .args(["install", "kokoro", "soundfile"])
+    let out = pip(&["install", "kokoro", "soundfile"])
         .output()
         .map_err(|e| e.to_string())?;
     if !out.status.success() {
@@ -258,8 +313,7 @@ pub fn install_kokoro() -> Result<(), String> {
 
 #[tauri::command(async)]
 pub fn uninstall_kokoro() -> Result<(), String> {
-    let out = Command::new("pip3")
-        .args(["uninstall", "-y", "kokoro", "soundfile"])
+    let out = pip(&["uninstall", "-y", "kokoro", "soundfile"])
         .output()
         .map_err(|e| e.to_string())?;
     if !out.status.success() {
@@ -346,5 +400,22 @@ pub fn openai_speed() -> f64 {
         1.0
     } else {
         speed
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_stdin_script_takes_the_text_from_stdin_and_keeps_the_rest() {
+        assert_eq!(TTS_SCRIPT.matches(TEXT_FROM_ARGV).count(), 1);
+        let script = stdin_script();
+        assert!(!script.contains(TEXT_FROM_ARGV));
+        assert_eq!(script.matches(TEXT_FROM_STDIN).count(), 1);
+        assert_eq!(
+            script.replacen(TEXT_FROM_STDIN, TEXT_FROM_ARGV, 1),
+            TTS_SCRIPT
+        );
     }
 }

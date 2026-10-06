@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useEventListener } from "./useEventListener";
-import { canonicalShortcut, formatShortcut, isReservedShortcut } from "../shortcutParse";
-import type { KeyboardShortcut } from "./useKeyboardShortcut";
+import { captureShortcut } from "../shortcutRecord";
 
 interface Options {
   reserved?: ReadonlySet<string>;
@@ -31,22 +30,13 @@ export function useShortcutCapture({ reserved, onCapture }: Options): ShortcutCa
         setHint(null);
         return;
       }
-      if (["Meta", "Shift", "Alt", "Control"].includes(event.key)) return;
-      const shortcut: KeyboardShortcut = {
-        key: event.key.length === 1 ? event.key.toLowerCase() : event.key,
-        meta: event.metaKey || event.ctrlKey,
-        shift: event.shiftKey,
-        alt: event.altKey,
-      };
-      if (!shortcut.meta && !shortcut.alt) {
-        setHint("Add ⌘ or ⌥ to make a shortcut");
+      const result = captureShortcut(event, reserved);
+      if (result.kind === "ignore") return;
+      if (result.kind === "hint") {
+        setHint(result.text);
         return;
       }
-      if (isReservedShortcut(shortcut, reserved)) {
-        setHint(`${formatShortcut(shortcut)} is reserved by lpm`);
-        return;
-      }
-      onCapture(canonicalShortcut(shortcut));
+      onCapture(result.canonical);
       setRecording(false);
       setHint(null);
     },

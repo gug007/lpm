@@ -10,6 +10,7 @@ mod config_cmd;
 mod control;
 mod duplicate;
 mod error;
+mod hook;
 mod job;
 mod list;
 mod logs;
@@ -345,6 +346,15 @@ fn exclude_uncommitted_override(exclude: bool, include: bool) -> Option<bool> {
 }
 
 fn main() -> ExitCode {
+    // Agent hooks bypass clap: a usage error exits 2, which Claude Code reads as
+    // "block this tool call", so a hook always exits 0 whatever it was given.
+    let args: Vec<String> = std::env::args_os()
+        .map(|arg| arg.to_string_lossy().into_owned())
+        .collect();
+    if args.get(1).map(String::as_str) == Some("hook") {
+        hook::run(&args[2..]);
+        return ExitCode::SUCCESS;
+    }
     let cli = Cli::parse();
     let ctx = config::Ctx::from_home();
 

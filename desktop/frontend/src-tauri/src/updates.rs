@@ -7,10 +7,13 @@
 // relaunches. In dev there is no enclosing .app, so InstallUpdate errors early
 // (before any destructive step).
 //
-// The whole flow is .app/DMG-shaped and therefore macOS-only. A Linux host is
-// updated by whatever installed it (package manager, tarball, image rebuild), so
-// there the commands stay registered — the peer protocol must look identical
-// from a Mac client — but refuse, and no auto-check thread is started.
+// The download-and-swap flow is .app/DMG-shaped and therefore macOS-only. A
+// Linux or Windows desktop gets a notice instead: the same check picks this
+// machine's installer (updatenotice.rs) and InstallUpdate opens its download in
+// the browser. A headless Linux host is updated by whatever installed it
+// (package manager, tarball, image rebuild), so there the commands stay
+// registered — the peer protocol must look identical from a Mac client — but
+// refuse, and no auto-check thread is started.
 #![cfg_attr(not(target_os = "macos"), allow(dead_code))]
 
 use serde::{Deserialize, Serialize};
@@ -19,10 +22,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Mutex;
 use std::time::Duration;
-#[cfg(target_os = "macos")]
 use std::time::SystemTime;
 use tauri::{AppHandle, State};
-#[cfg(target_os = "macos")]
 use tauri::{Emitter, Manager};
 
 const RELEASES_URL: &str = "https://api.github.com/repos/gug007/lpm/releases/latest";
@@ -38,6 +39,9 @@ pub struct UpdateInfo {
     pub current_version: String,
     pub latest_version: String,
     pub update_avail: bool,
+    /// Linux/Windows: the installer to download for this update.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub download_url: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -92,27 +96,22 @@ fn newer(latest: &str, current: &str) -> bool {
 const UNSUPPORTED: &str =
     "lpm updates itself only on macOS — update this host the way you installed it.";
 
-#[cfg(target_os = "macos")]
 #[tauri::command(async)]
 pub fn check_for_update(state: State<'_, UpdateState>) -> Result<UpdateInfo, String> {
+    #[cfg(not(target_os = "macos"))]
+    if crate::sys::headless() {
+        return Err(UNSUPPORTED.into());
+    }
     do_check(&state)
-}
-
-#[cfg(not(target_os = "macos"))]
-#[tauri::command(async)]
-pub fn check_for_update(_state: State<'_, UpdateState>) -> Result<UpdateInfo, String> {
-    Err(UNSUPPORTED.into())
-}
-
-#[cfg(not(target_os = "macos"))]
-pub fn check_and_emit(_app: &AppHandle) -> Result<(), String> {
-    Err(UNSUPPORTED.into())
 }
 
 /// Background check used by the "Check for Updates…" menu item and the
 /// auto-checker — emits "update-available" when a newer release exists.
-#[cfg(target_os = "macos")]
 pub fn check_and_emit(app: &AppHandle) -> Result<(), String> {
+    #[cfg(not(target_os = "macos"))]
+    if crate::sys::headless() {
+        return Err(UNSUPPORTED.into());
+    }
     let state = app.state::<UpdateState>();
     let info = do_check(&state)?;
     if info.update_avail {
@@ -130,11 +129,11 @@ const AUTO_CHECK_TICK: Duration = Duration::from_secs(15 * 60);
 /// slept — tick in short intervals and compare SystemTime instead. A failed
 /// check (e.g. network not up yet at login) retries on the next tick rather
 /// than silently waiting another 24h.
-#[cfg(not(target_os = "macos"))]
-pub fn start_auto_check(_app: AppHandle) {}
-
-#[cfg(target_os = "macos")]
 pub fn start_auto_check(app: AppHandle) {
+    #[cfg(not(target_os = "macos"))]
+    if crate::sys::headless() {
+        return;
+    }
     std::thread::spawn(move || {
         let mut next_check = SystemTime::now();
         loop {
@@ -183,22 +182,47 @@ fn do_check(state: &UpdateState) -> Result<UpdateInfo, String> {
     let current = current_version();
     let current = current.trim_start_matches('v').to_string();
 
-    let suffix = format!("macos-{}.dmg", go_arch());
-    let url = release
-        .assets
-        .iter()
-        .find(|a| a.name.ends_with(&suffix))
-        .map(|a| a.browser_download_url.clone())
-        .unwrap_or_default();
+    #[cfg(target_os = "macos")]
+    let (url, installable) = {
+        let suffix = format!("macos-{}.dmg", go_arch());
+        let url = release
+            .assets
+            .iter()
+            .find(|a| a.name.ends_with(&suffix))
+            .map(|a| a.browser_download_url.clone())
+            .unwrap_or_default();
+        (url, true)
+    };
+    // A release without this platform's installer is not offered at all, so
+    // the notice never points at nothing.
+    #[cfg(not(target_os = "macos"))]
+    let (url, installable) = {
+        let url = installer_url(&release.assets);
+        let found = !url.is_empty();
+        (url, found)
+    };
+    let download_url = (cfg!(not(target_os = "macos")) && installable).then(|| url.clone());
     *state.pending_url.lock().unwrap() = url;
 
     Ok(UpdateInfo {
         // Dev/debug builds report version "dev" (parsed as 0.0.0) and have no
         // enclosing .app to swap — never offer them an update they can't apply.
-        update_avail: current != "dev" && newer(&latest, &current),
+        update_avail: current != "dev" && installable && newer(&latest, &current),
         latest_version: latest,
         current_version: current,
+        download_url,
     })
+}
+
+/// Download URL of this machine's installer in the release, or "".
+#[cfg(not(target_os = "macos"))]
+fn installer_url(assets: &[Asset]) -> String {
+    let names: Vec<&str> = assets.iter().map(|a| a.name.as_str()).collect();
+    let kind = crate::updatenotice::current();
+    crate::updatenotice::pick(&names, kind, std::env::consts::ARCH)
+        .and_then(|name| assets.iter().find(|a| a.name == name))
+        .map(|a| a.browser_download_url.clone())
+        .unwrap_or_default()
 }
 
 /// Probe that the folder holding the .app is writable before downloading
@@ -248,10 +272,30 @@ pub(crate) fn app_bundle_path() -> Result<PathBuf, String> {
     ))
 }
 
+/// Linux/Windows: open the new installer's download in the browser. Returns
+/// Err even then, so a caller waiting for the app to restart stops waiting and
+/// shows what to do next.
 #[cfg(not(target_os = "macos"))]
 #[tauri::command(async)]
-pub fn install_update(_app: AppHandle, _state: State<'_, UpdateState>) -> Result<(), String> {
-    Err(UNSUPPORTED.into())
+pub fn install_update(app: AppHandle, state: State<'_, UpdateState>) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    if crate::sys::headless() {
+        return Err(UNSUPPORTED.into());
+    }
+    if current_version() == "dev" {
+        return Err("Updates aren't available in development builds.".into());
+    }
+    let info = do_check(&state)?;
+    let Some(url) = info.download_url.filter(|_| info.update_avail) else {
+        return Err("You're already on the latest version.".into());
+    };
+    app.opener()
+        .open_url(url, None::<String>)
+        .map_err(|e| format!("failed to open the download: {e}"))?;
+    Err(format!(
+        "The lpm {} installer is downloading in your browser. Open it to finish updating.",
+        info.latest_version
+    ))
 }
 
 #[cfg(target_os = "macos")]
@@ -444,6 +488,7 @@ fn copy_with_progress(
     Ok(())
 }
 
+#[cfg(target_os = "macos")]
 pub(crate) fn spawn_detached_bash(script: &str) -> Result<(), String> {
     use std::os::unix::process::CommandExt;
     let mut cmd = Command::new("bash");
@@ -483,6 +528,7 @@ mod tests {
         assert!(matches!(go_arch(), "arm64" | "amd64"));
     }
 
+    #[cfg(unix)]
     #[test]
     fn writable_probe() {
         use std::os::unix::fs::PermissionsExt;

@@ -106,6 +106,8 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let cwd = dir.path().to_string_lossy().to_string();
         git_out(&cwd, &["init", "-q", "-b", "main"]).unwrap();
+        // Git for Windows defaults to autocrlf=true, which checks out CRLF.
+        git_out(&cwd, &["config", "core.autocrlf", "false"]).unwrap();
         std::fs::write(dir.path().join("a.txt"), "one\n").unwrap();
         git_out(&cwd, &["add", "-A"]).unwrap();
         git_out_env(&cwd, &["commit", "-q", "-m", "first"], &LPM_IDENTITY).unwrap();

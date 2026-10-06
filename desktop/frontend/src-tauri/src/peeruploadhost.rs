@@ -84,11 +84,12 @@ fn str_arg(v: &Value, key: &str) -> String {
 
 /// The name is chosen by the other Mac, so it is reduced to a basename before it
 /// ever reaches the filesystem: only the temp folder made for this one upload may
-/// be written to, never a path the sender picked.
+/// be written to, never a path the sender picked. A Mac name this platform can't
+/// hold has the offending characters replaced.
 fn safe_basename(name: &str) -> String {
     std::path::Path::new(name.trim())
         .file_name()
-        .map(|s| s.to_string_lossy().into_owned())
+        .map(|s| crate::fsname::portable(&s.to_string_lossy()))
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| "file".to_string())
 }
@@ -240,7 +241,11 @@ mod tests {
             );
         }
         let path = finish(&json!({ "uploadId": id })).unwrap();
-        assert!(path.ends_with("/report.pdf"), "{path}");
+        assert_eq!(
+            std::path::Path::new(&path).file_name().unwrap(),
+            "report.pdf",
+            "{path}"
+        );
         assert_eq!(std::fs::read(&path).unwrap(), body);
         let _ = std::fs::remove_file(&path);
     }
@@ -325,6 +330,18 @@ mod tests {
             );
             let _ = std::fs::remove_file(&path);
         }
+    }
+
+    #[test]
+    fn a_name_this_platform_cant_hold_still_arrives() {
+        assert_eq!(
+            safe_basename("shots/what?: v2.png"),
+            crate::fsname::portable("what?: v2.png")
+        );
+        let (id, _) = begun("shots/what?: v2.png", 0);
+        let path = finish(&json!({ "uploadId": id })).unwrap();
+        assert!(std::path::Path::new(&path).is_file(), "{path}");
+        let _ = std::fs::remove_file(&path);
     }
 
     #[test]

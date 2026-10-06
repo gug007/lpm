@@ -5,6 +5,7 @@
 // ssh_command_argv) these are tty-less (config::ssh_exec_args) so binary blobs
 // and porcelain `-z` output survive unmangled.
 use crate::config::{self, SshSettings};
+use crate::osproc;
 use std::collections::HashMap;
 use std::process::Command;
 use std::sync::{Mutex, OnceLock};
@@ -83,7 +84,7 @@ pub fn remote_command(
 ) -> Command {
     let resolved = resolve_program(ssh, program);
     let script = build_remote_exec(dir, &resolved, args, envs);
-    let mut cmd = Command::new("ssh");
+    let mut cmd = osproc::command("ssh");
     cmd.args(config::ssh_exec_args(ssh));
     cmd.arg(script);
     cmd
@@ -134,7 +135,7 @@ fn resolve_program(ssh: &SshSettings, program: &str) -> String {
 /// falls back to the bare name.
 fn lookup_program(ssh: &SshSettings, program: &str) -> Option<String> {
     let inner = format!("command -v {}", config::shell_quote(program));
-    let out = Command::new("ssh")
+    let out = osproc::command("ssh")
         .args(config::ssh_exec_args(ssh))
         .arg(format!("bash -lc {}", config::shell_quote(&inner)))
         .output()

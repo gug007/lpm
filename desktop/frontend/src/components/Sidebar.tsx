@@ -44,6 +44,9 @@ import { SidebarAgentSummary } from "./SidebarAgentSummary";
 import { SidebarRollupLine } from "./SidebarRollupLine";
 import { SidebarIcon, AlertCircleIcon, MoreVerticalIcon, DetachIcon, PlusIcon, ServerIcon } from "./icons";
 import { SidebarFooterNav } from "./SidebarFooterNav";
+import { AppMenuButton } from "./AppMenuButton";
+import { isMac } from "../platform";
+import { chordLabel } from "../keys";
 import { SidebarAgentToolsPill } from "./SidebarAgentToolsPill";
 import { SidebarUsage } from "./SidebarUsage";
 import { ProgressBar } from "./ui/ProgressBar";
@@ -119,6 +122,7 @@ import {
 import { isPeerName, peerRawName, peerSlugOf, stripMarker } from "../peer/markers";
 import { peerAlias, usePeerState } from "../peer/usePeerState";
 import { SidebarSendLaterMark } from "./SidebarSendLaterMark";
+import { openReleasePage, UPDATES_INSTALL_IN_APP } from "../releasePage";
 
 // Half a row: `py-2` (8px twice) around `text-sm`'s 20px line. The elbows meet a
 // row here, and a row showing its agents is taller than the block it sits in, so
@@ -784,6 +788,10 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   }), []);
 
   const handleUpdate = async () => {
+    if (!UPDATES_INSTALL_IN_APP) {
+      openReleasePage();
+      return;
+    }
     setInstalling(true);
     setUpdateError("");
     setProgress(-1);
@@ -1325,6 +1333,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           host={section.host}
           connected={section.connected}
           linuxHost={section.linuxHost}
+          noun={section.noun}
           status={section.status}
           projects={section.projects}
           strays={section.strays}
@@ -1517,12 +1526,13 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
         className="app-drag flex h-11 shrink-0 items-center justify-end pr-3 pt-[7px]"
         style={{ minWidth: width }}
       >
+        {!isMac && <AppMenuButton onSettings={onSettings} onFeedback={onFeedback} />}
         <div className={collapsed ? "opacity-0 pointer-events-none" : "opacity-100"}>
           <button
             onClick={() => onCollapsedChange(true)}
             style={{ "--app-draggable": "no-drag" } as React.CSSProperties}
             className="flex h-5 w-5 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-            title="Collapse sidebar (⌘B)"
+            title={`Collapse sidebar (${chordLabel({ key: "b", meta: true })})`}
           >
             <SidebarIcon />
           </button>
@@ -1902,7 +1912,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           </span>
           {!installing && (
             <span className="ml-auto text-[10px] font-medium text-[var(--accent-green)]">
-              Update
+              {UPDATES_INSTALL_IN_APP ? "Update" : "Download"}
             </span>
           )}
         </button>

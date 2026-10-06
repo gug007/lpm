@@ -431,7 +431,8 @@ fn strip_leading_image_path(value: &str) -> &str {
         Some(quote @ (b'\'' | b'"' | b'`')) => (&trimmed[1..], Some(quote as char)),
         _ => (trimmed, None),
     };
-    if !path.starts_with('/') && !path.starts_with("~/") {
+    if !path.starts_with('/') && !path.starts_with("~/") && !(cfg!(windows) && is_drive_path(path))
+    {
         return value;
     }
 
@@ -460,6 +461,15 @@ fn strip_leading_image_path(value: &str) -> &str {
         remainder = remainder.strip_prefix(quote).unwrap_or(remainder);
     }
     remainder.trim_start()
+}
+
+/// `C:\…` or `C:/…` — where a pasted image path starts on Windows.
+fn is_drive_path(path: &str) -> bool {
+    let bytes = path.as_bytes();
+    bytes.len() > 2
+        && bytes[0].is_ascii_alphabetic()
+        && bytes[1] == b':'
+        && matches!(bytes[2], b'\\' | b'/')
 }
 
 fn compact(value: &str, strip_prompt_markup: bool) -> Option<String> {

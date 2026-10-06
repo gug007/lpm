@@ -32,8 +32,68 @@ pub fn should_notify(app: &AppHandle) -> bool {
     enabled() && !window_attended(app)
 }
 
+/// Linux banners go over D-Bus to the desktop's notification daemon; a headless
+/// host has none, and its paired Mac and phone get the news instead.
 pub fn notify(app: &AppHandle, title: &str, body: &str) {
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        if crate::sys::headless() {
+            return;
+        }
+    }
+    #[cfg(windows)]
+    register_toast_app_id(app);
     let _ = app.notification().builder().title(title).body(body).show();
+}
+
+/// Windows shows a toast only for an AppUserModelID something registered. The
+/// installer's Start-menu shortcut carries it; a portable or not-yet-installed
+/// copy registers it under HKCU, with the name the toast's header shows. The
+/// notification plugin sends the bundle identifier as that id.
+#[cfg(windows)]
+fn register_toast_app_id(app: &AppHandle) {
+    use windows_sys::Win32::System::Registry::{
+        RegCloseKey, RegCreateKeyExW, RegSetValueExW, HKEY, HKEY_CURRENT_USER, KEY_SET_VALUE,
+        REG_OPTION_NON_VOLATILE, REG_SZ,
+    };
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        let wide = |s: &str| s.encode_utf16().chain([0]).collect::<Vec<u16>>();
+        let subkey = wide(&format!(
+            r"Software\Classes\AppUserModelId\{}",
+            app.config().identifier
+        ));
+        let mut key: HKEY = std::ptr::null_mut();
+        let created = unsafe {
+            RegCreateKeyExW(
+                HKEY_CURRENT_USER,
+                subkey.as_ptr(),
+                0,
+                std::ptr::null(),
+                REG_OPTION_NON_VOLATILE,
+                KEY_SET_VALUE,
+                std::ptr::null(),
+                &mut key,
+                std::ptr::null_mut(),
+            )
+        };
+        if created != 0 {
+            return;
+        }
+        let name = wide("DisplayName");
+        let value = wide(&app.package_info().name);
+        unsafe {
+            RegSetValueExW(
+                key,
+                name.as_ptr(),
+                0,
+                REG_SZ,
+                value.as_ptr().cast(),
+                (value.len() * 2) as u32,
+            );
+            RegCloseKey(key);
+        }
+    });
 }
 
 /// A banner the frontend asks for, behind the same two gates as every other.

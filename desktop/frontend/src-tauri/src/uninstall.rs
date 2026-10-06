@@ -4,14 +4,20 @@
 // detached script that optionally deletes ~/.lpm and moves the .app to the
 // Trash once this process has exited. Data removal happens post-exit so the
 // shutdown handlers can't recreate files behind it.
+//
+// On Linux and Windows the app itself belongs to its installer (package
+// manager, AppImage file, Windows Apps settings), so "Remove" runs the same
+// cleanup, leaves the app and ~/.lpm in place, and says where to finish.
 use tauri::{AppHandle, State};
 
+#[cfg(target_os = "macos")]
 fn applescript_escape(s: &str) -> String {
     s.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
 /// The detached post-exit script: wait for this pid to die, optionally delete
 /// the data dir, then move the .app to the Trash via Finder.
+#[cfg(target_os = "macos")]
 fn cleanup_script(pid: u32, app_path: &str, data_dir: Option<&str>) -> String {
     let data_rm = data_dir
         .map(|d| format!("rm -rf {}; ", crate::updates::shell_quote(d)))
@@ -26,6 +32,43 @@ fn cleanup_script(pid: u32, app_path: &str, data_dir: Option<&str>) -> String {
     format!("while kill -0 {pid} 2>/dev/null; do sleep 0.2; done; sleep 0.5; {data_rm}{trash}")
 }
 
+/// Returns Err even after a clean sweep: the message is where to finish.
+#[cfg(not(target_os = "macos"))]
+#[tauri::command(async)]
+pub fn uninstall_app(
+    app: AppHandle,
+    state: State<'_, crate::services::ServiceState>,
+    remove_data: bool,
+) -> Result<(), String> {
+    let _ = remove_data;
+    if crate::sys::headless() {
+        return Err("Remove this host the way you installed it.".into());
+    }
+    if crate::updates::current_version() == "dev" {
+        return Err("Removing the app isn't available in development builds.".into());
+    }
+    let _ = crate::services::stop_all(app, state);
+    remove_footprint();
+    Err(FINISH_REMOVAL.into())
+}
+
+/// Everything lpm wrote outside its own install, best effort: the agent hooks
+/// and status line, the memory hook, agent skills and the CLI on PATH.
+#[cfg(not(target_os = "macos"))]
+pub fn remove_footprint() {
+    let _ = crate::hooks::remove_agent_hooks_for_uninstall();
+    let _ = crate::session_memory::remove_for_uninstall();
+    let _ = crate::skill_install::remove_agent_skills();
+    let _ = crate::cli_install::remove_managed_symlink();
+}
+
+#[cfg(windows)]
+const FINISH_REMOVAL: &str = "lpm's command line tool, agent skills and hooks are removed. To finish, uninstall lpm in Settings > Apps > Installed apps. Your lpm settings are kept.";
+
+#[cfg(all(unix, not(target_os = "macos")))]
+const FINISH_REMOVAL: &str = "lpm's command line tool, agent skills and hooks are removed. To finish, uninstall lpm with your package manager or delete the AppImage. Your settings in ~/.lpm are kept.";
+
+#[cfg(target_os = "macos")]
 #[tauri::command(async)]
 pub fn uninstall_app(
     app: AppHandle,
@@ -64,7 +107,7 @@ pub fn uninstall_app(
     Ok(())
 }
 
-#[cfg(test)]
+#[cfg(all(test, target_os = "macos"))]
 mod tests {
     use super::*;
 

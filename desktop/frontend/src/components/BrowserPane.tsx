@@ -15,6 +15,9 @@ import { useOverlayStore } from "../store/overlay";
 import { useBrowserUrls } from "../store/browserUrls";
 import { getSettings, saveSettings } from "../store/settings";
 import { isDarkTheme } from "../theme";
+import { isLinux } from "../platform";
+import { toTarget } from "./browserTarget";
+import { ExternalBrowserPane } from "./ExternalBrowserPane";
 import { ChevronLeftIcon, ChevronRightIcon, RefreshIcon, SunIcon, MoonIcon, GlobeIcon } from "./icons";
 
 interface BrowserPaneProps {
@@ -22,15 +25,9 @@ interface BrowserPaneProps {
   active: boolean;
 }
 
-// Precedence: explicit scheme → localhost (http) → domain-shaped (https) → Google search.
-function toTarget(raw: string): string {
-  const v = raw.trim();
-  if (!v) return "";
-  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(v) || v.startsWith("about:")) return v;
-  if (/^(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?(\/|$)/.test(v)) return "http://" + v;
-  if (!/\s/.test(v) && /^[^\s/]+\.[a-z]{2,}([:/?#]|$)/i.test(v)) return "https://" + v;
-  return "https://www.google.com/search?q=" + encodeURIComponent(v);
-}
+// Linux can't float a webview over the pane (see browser.rs), so pages open in
+// the system browser there.
+export const BrowserPane = isLinux ? ExternalBrowserPane : EmbeddedBrowserPane;
 
 function hostOf(addr: string): string {
   try {
@@ -40,7 +37,7 @@ function hostOf(addr: string): string {
   }
 }
 
-export function BrowserPane({ id, active }: BrowserPaneProps) {
+function EmbeddedBrowserPane({ id, active }: BrowserPaneProps) {
   const holeRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const openedRef = useRef(false);

@@ -9,13 +9,21 @@ import type {
   ILinkProvider,
   Terminal,
 } from "@xterm/xterm";
-import { toast } from "sonner";
-import { joinAbs } from "../../path";
+import {
+  fromMsysPath,
+  isAbsolutePath,
+  joinAbs,
+  type MsysMounts,
+  toSlash,
+  windowsRules,
+} from "../../path";
 import { isPeerMarked } from "../../peer/markers";
+import { isWindows } from "../../platform";
 import { getSettings } from "../../store/settings";
 import { openFileViewer } from "../../store/fileViewer";
-import { OpenPathInDefaultApp } from "../../../bridge/commands";
 import { candidatesFor, fileExists, loadFileIndex } from "./fileIndex";
+import { msysMounts } from "./msysMounts";
+import { openInDefaultApp } from "./openInDefaultApp";
 
 // Matches paths with at least one separator and a whole file extension,
 // optionally followed by a position: `:line[:col]`, tsc's `(line[,col])` or
@@ -32,6 +40,18 @@ const POSITION = String.raw`(?::(\d+)(?::(\d+))?|\((\d+)(?:,\s?(\d+))?\)|#L(\d+)
 const PATH_RE = new RegExp(
   String.raw`(?<![\w./~-])(?<!:(?=[\d/]))(?:file:\/\/(?=\/))?` +
     String.raw`((?:~\/|\.{1,2}\/|\/|(?![@+])${SEG}+\/)(?:${SEG}|\/)*\.[a-zA-Z]\w{0,9})(?![\w/])` +
+    POSITION,
+  "g",
+);
+
+// Windows only: drive (`C:\x\a.ts`, `C:/x/a.ts`, `file:///C:/x/a.ts`) and
+// share (`\\srv\share\a.ts`) paths, and relative ones written with backslashes
+// (`src\a.ts`), with the same positions. Git Bash's `/c/x/a.ts` is a POSIX
+// path to PATH_RE and is mapped to its drive when opened.
+const WIN_SEG = String.raw`(?:[\w.@+~-]|\[{1,2}[\w.-]+\]{1,2}|\([\w.-]+\))`;
+const WIN_PATH_RE = new RegExp(
+  String.raw`(?<![\w./\\~-])(?:file:\/\/\/(?=[A-Za-z]:))?` +
+    String.raw`((?:[A-Za-z]:[\\/]|\\\\${WIN_SEG}+\\${WIN_SEG}+\\|(?![@+])${WIN_SEG}+\\)(?:${WIN_SEG}|[\\/])*\.[a-zA-Z]\w{0,9})(?![\w/\\])` +
     POSITION,
   "g",
 );
@@ -53,6 +73,35 @@ const SPACED_START_RE = /(?<![\w./~\\-])(file:\/\/(?=\/))?(?=~?\/[^\s/])/g;
 const SPACED_END_RE = /\.[a-zA-Z]\w{0,9}(?![\w/])/g;
 const SPACED_BREAK_RE = /\s~?\/|\s\s|[\t"`]/;
 const SPACED_POSITION_RE = new RegExp(POSITION, "y");
+
+interface SpacedRules {
+  start: RegExp;
+  end: RegExp;
+  brk: RegExp;
+  unescape: boolean;
+}
+
+const POSIX_SPACED: SpacedRules[] = [
+  { start: SPACED_START_RE, end: SPACED_END_RE, brk: SPACED_BREAK_RE, unescape: true },
+];
+
+// On Windows `C:\Program Files\…` is the common spaced path, and a backslash
+// there is a separator, never an escape. A POSIX run never starts right after
+// a drive's colon, where it would only be that path's tail.
+const WIN_SPACED: SpacedRules[] = [
+  {
+    start: /(?<![\w./~\\:-])(file:\/\/(?=\/))?(?=~?\/[^\s/])/g,
+    end: SPACED_END_RE,
+    brk: /\s~?\/|\s[A-Za-z]:[\\/]|\s\s|[\t"`]/,
+    unescape: true,
+  },
+  {
+    start: /(?<![\w./\\~-])(file:\/\/\/)?(?=[A-Za-z]:[\\/][^\s\\/])/g,
+    end: /\.[a-zA-Z]\w{0,9}(?![\w/\\])/g,
+    brk: /\s~?\/|\s[A-Za-z]:[\\/]|\s\s|[\t"`]/,
+    unescape: false,
+  },
+];
 const MAX_SPACED_CHARS = 400;
 const MAX_SPACED_CANDIDATES = 8;
 
@@ -195,35 +244,37 @@ function collect(win: LineWindow, re: RegExp, taken: [number, number][]): PathMa
 
 // The readings of each spaced run that reaches row `y` (1-based), longest
 // first, for the caller to try against the disk.
-function spacedCandidates(win: LineWindow, y: number): PathMatch[][] {
+function spacedCandidates(win: LineWindow, y: number, rulesets: SpacedRules[]): PathMatch[][] {
   const groups: PathMatch[][] = [];
   let budget = MAX_SPACED_CANDIDATES;
-  for (const s of win.text.matchAll(SPACED_START_RE)) {
-    if (budget <= 0) break;
-    const from = s.index + s[0].length;
-    const tail = win.text.slice(from, from + MAX_SPACED_CHARS);
-    // Cut before the break's last character, so no reading holds a whole one.
-    const brk = SPACED_BREAK_RE.exec(tail);
-    const run = brk ? tail.slice(0, brk.index + brk[0].length - 1) : tail;
-    const group: PathMatch[] = [];
-    for (const e of run.matchAll(SPACED_END_RE)) {
-      const body = run.slice(0, e.index + e[0].length);
-      if (!body.includes(" ")) continue;
-      SPACED_POSITION_RE.lastIndex = from + body.length;
-      // POSITION is optional, so the sticky match always lands, if empty.
-      const pos = SPACED_POSITION_RE.exec(win.text)!;
-      const lastIdx = from + body.length + pos[0].length - 1;
-      const range = rangeOf(win, s.index, lastIdx);
-      if (range.start.y > y || range.end.y < y) continue;
-      group.push({
-        raw: body.replace(/\\(.)/g, "$1"),
-        text: win.text.slice(s.index, lastIdx + 1),
-        ...position(pos.slice(1)),
-        range,
-      });
+  for (const rules of rulesets) {
+    for (const s of win.text.matchAll(rules.start)) {
+      if (budget <= 0) break;
+      const from = s.index + s[0].length;
+      const tail = win.text.slice(from, from + MAX_SPACED_CHARS);
+      // Cut before the break's last character, so no reading holds a whole one.
+      const brk = rules.brk.exec(tail);
+      const run = brk ? tail.slice(0, brk.index + brk[0].length - 1) : tail;
+      const group: PathMatch[] = [];
+      for (const e of run.matchAll(rules.end)) {
+        const body = run.slice(0, e.index + e[0].length);
+        if (!body.includes(" ")) continue;
+        SPACED_POSITION_RE.lastIndex = from + body.length;
+        // POSITION is optional, so the sticky match always lands, if empty.
+        const pos = SPACED_POSITION_RE.exec(win.text)!;
+        const lastIdx = from + body.length + pos[0].length - 1;
+        const range = rangeOf(win, s.index, lastIdx);
+        if (range.start.y > y || range.end.y < y) continue;
+        group.push({
+          raw: rules.unescape ? body.replace(/\\(.)/g, "$1") : body,
+          text: win.text.slice(s.index, lastIdx + 1),
+          ...position(pos.slice(1)),
+          range,
+        });
+      }
+      if (group.length > 0) groups.push(group.reverse().slice(0, budget));
+      budget -= group.length;
     }
-    if (group.length > 0) groups.push(group.reverse().slice(0, budget));
-    budget -= group.length;
   }
   return groups;
 }
@@ -231,19 +282,25 @@ function spacedCandidates(win: LineWindow, y: number): PathMatch[][] {
 // Paths on the logical line the given row belongs to, in buffer coordinates,
 // the bare file names outside them, and the readings of any path with spaces
 // (`cols` lets those follow an agent's own line breaks). bufferLineNumber is
-// 1-based, matching ILinkProvider.provideLinks.
-export function scanLine(buffer: IBuffer, bufferLineNumber: number, cols = 0) {
+// 1-based, matching ILinkProvider.provideLinks. `windows` adds Windows paths.
+export function scanLine(buffer: IBuffer, bufferLineNumber: number, cols = 0, windows = isWindows) {
   const win = readLineWindow(buffer, bufferLineNumber - 1);
   if (!win.text) return { paths: [], names: [], spaced: [] };
   const taken: [number, number][] = [];
-  const paths = collect(win, PATH_RE, taken);
+  const winPaths = windows ? collect(win, WIN_PATH_RE, taken) : [];
+  const paths = [...winPaths, ...collect(win, PATH_RE, taken)];
   const names = collect(win, NAME_RE, taken);
   const joined = cols > 0 ? readLineWindow(buffer, bufferLineNumber - 1, cols) : win;
-  return { paths, names, spaced: spacedCandidates(joined, bufferLineNumber) };
+  const spaced = spacedCandidates(joined, bufferLineNumber, windows ? WIN_SPACED : POSIX_SPACED);
+  return { paths, names, spaced };
 }
 
-export function findPathMatches(buffer: IBuffer, bufferLineNumber: number): PathMatch[] {
-  return scanLine(buffer, bufferLineNumber).paths;
+export function findPathMatches(
+  buffer: IBuffer,
+  bufferLineNumber: number,
+  windows = isWindows,
+): PathMatch[] {
+  return scanLine(buffer, bufferLineNumber, 0, windows).paths;
 }
 
 export interface PathLinkProviderOptions {
@@ -253,14 +310,30 @@ export interface PathLinkProviderOptions {
   getCwd: () => string;
 }
 
-const isAbsolute = (raw: string) => raw.startsWith("/") || raw.startsWith("~/");
+const isAbsolute = (raw: string) => isAbsolutePath(raw);
 const RELOOK_MS = 5_000;
+
+// Where a printed path points: against the cwd, and on Windows with Git Bash's
+// `/c/…`, `/tmp/…` and `/usr/…` spellings turned back into the paths this
+// machine can open.
+export function resolvePrinted(
+  cwd: string,
+  raw: string,
+  windows = isWindows,
+  mounts: MsysMounts | null = null,
+): string {
+  const local = windows && !isPeerMarked(cwd) ? fromMsysPath(raw, mounts) : raw;
+  return joinAbs(cwd, local, windows);
+}
 
 // The longest reading of each spaced run that names a file.
 async function confirmSpaced(groups: PathMatch[][], cwd: string): Promise<PathMatch[]> {
+  const mounts = await msysMounts();
   const picks = await Promise.all(
     groups.map(async (group) => {
-      const found = await Promise.all(group.map((m) => fileExists(joinAbs(cwd, m.raw))));
+      const found = await Promise.all(
+        group.map((m) => fileExists(resolvePrinted(cwd, m.raw, isWindows, mounts))),
+      );
       return group[found.indexOf(true)];
     }),
   );
@@ -277,20 +350,25 @@ const overlaps = (a: IBufferRange, b: IBufferRange) =>
 // choose from. A file too new for the cached index gets one fresher look.
 async function projectFiles(cwd: string, raw: string): Promise<string[]> {
   if (!cwd || isAbsolute(raw)) return [];
+  const printed = windowsRules(cwd) ? toSlash(raw) : raw;
   const cached = await loadFileIndex(cwd);
-  const found = cached ? candidatesFor(cached, raw) : [];
+  const found = cached ? candidatesFor(cached, printed) : [];
   if (found.length > 0) return found;
   const fresh = await loadFileIndex(cwd, RELOOK_MS);
-  return fresh && fresh !== cached ? candidatesFor(fresh, raw) : [];
+  return fresh && fresh !== cached ? candidatesFor(fresh, printed) : [];
 }
 
 async function openMatch(m: PathMatch, cwd: string): Promise<void> {
   const files = (await projectFiles(cwd, m.raw)).map((rel) => joinAbs(cwd, rel));
-  const abs = files[0] ?? joinAbs(cwd, m.raw);
+  const abs = files[0] ?? resolvePrinted(cwd, m.raw, isWindows, await msysMounts());
   // A connected Mac's file always gets the viewer, which reads it where it is;
   // a default app here could only be handed a read-only copy of it.
-  if (files.length <= 1 && getSettings().terminalOpenInDefaultApp && !isPeerMarked(abs)) {
-    OpenPathInDefaultApp(abs).catch((err) => toast.error(`Open in Default app: ${err}`));
+  if (
+    files.length <= 1 &&
+    getSettings().terminalOpenInDefaultApp &&
+    !isPeerMarked(abs) &&
+    openInDefaultApp(abs)
+  ) {
     return;
   }
   openFileViewer({

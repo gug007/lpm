@@ -40,6 +40,7 @@ import type {
   RunMode,
   SpawnTask,
 } from "../types";
+import { MACHINE } from "../machineWords";
 
 const MIN_COUNT = 1;
 const MAX_COUNT = 50;
@@ -210,7 +211,7 @@ export function BulkDuplicateDialog({
     if (!sourceName) return [];
     const out: CopyTargetOption[] = [];
     if (projects.some((p) => !isPeerName(p.name) && p.name === rawName)) {
-      out.push({ name: rawName, label: "This Mac" });
+      out.push({ name: rawName, label: MACHINE.ThisMachine });
     }
     for (const peer of peerState.peers) {
       if (!peer.connected) continue;
@@ -224,7 +225,7 @@ export function BulkDuplicateDialog({
       const peer = peerState.peers.find((p) => p.slug === slug);
       out.unshift({
         name: sourceName,
-        label: slug ? peer?.alias || peer?.host || "Connected Mac" : "This Mac",
+        label: slug ? peer?.alias || peer?.host || `Connected ${MACHINE.noun}` : MACHINE.ThisMachine,
       });
     }
     return out;
@@ -742,7 +743,7 @@ export function BulkDuplicateDialog({
                   automatically.
                   {showTargets &&
                     anyRemoteCopy &&
-                    " The copy is created on the chosen Mac, from its own copy of the project."}
+                    ` The copy is created on the chosen ${MACHINE.noun}, from its own copy of the project.`}
                 </p>
               </div>
             ) : (
@@ -865,14 +866,14 @@ export function BulkDuplicateDialog({
                     ? `Run #1 is ${currentName} — the prompt runs in its existing terminal; the rest are fresh copies.`
                     : anyRemoteCopy && !anyLocalCopy
                       ? showTargets
-                        ? "The copies are created on the chosen Mac, from its own copy of the project."
-                        : "The copies are created on the connected Mac."
+                        ? `The copies are created on the chosen ${MACHINE.noun}, from its own copy of the project.`
+                        : `The copies are created on the connected ${MACHINE.noun}.`
                       : hasGroup
                         ? `The copies are grouped under “${trimmedGroup}” in the sidebar.`
                         : "Name a folder above to keep the copies together in the sidebar, or leave it blank."}
                   {anyRemoteCopy &&
                     (anyLocalCopy || seeded) &&
-                    " Copies set to another Mac are created there, from that Mac's own copy of the project."}{" "}
+                    ` Copies set to ${MACHINE.anotherMachine} are created there, from that ${MACHINE.noun}'s own copy of the project.`}{" "}
                   Use the menu beside a copy to run a different action or command
                   on it.
                 </p>

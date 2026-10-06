@@ -1,5 +1,5 @@
 import { FileExists, ListDirFiles } from "../../../bridge/commands";
-import { basename, normalizePath } from "../../path";
+import { basename, normalizePath, toSlash, windowsRules } from "../../path";
 
 // How long a project's file list answers link hovers and clicks before the
 // next one walks the project again.
@@ -16,16 +16,19 @@ export interface FileIndex {
 const cache = new Map<string, { at: number; index: Promise<FileIndex | null> }>();
 const exists = new Map<string, { at: number; found: Promise<boolean> }>();
 
-function build(raw: unknown): FileIndex {
+// `slash`: the walk came back with Windows separators, which the index keeps
+// in the `/` form printed references are matched in.
+function build(raw: unknown, slash: boolean): FileIndex {
   const paths = new Set<string>();
   const byName = new Map<string, string[]>();
   for (const entry of Array.isArray(raw) ? raw : []) {
     if (entry?.isDir || typeof entry?.path !== "string") continue;
-    paths.add(entry.path);
-    const name = basename(entry.path);
+    const path: string = slash ? toSlash(entry.path, true) : entry.path;
+    paths.add(path);
+    const name = basename(path, false);
     const same = byName.get(name);
-    if (same) same.push(entry.path);
-    else byName.set(name, [entry.path]);
+    if (same) same.push(path);
+    else byName.set(name, [path]);
   }
   return { paths, byName };
 }
@@ -35,7 +38,8 @@ function build(raw: unknown): FileIndex {
 export function loadFileIndex(root: string, maxAgeMs = FRESH_MS): Promise<FileIndex | null> {
   const hit = cache.get(root);
   if (hit && Date.now() - hit.at < maxAgeMs) return hit.index;
-  const index = (ListDirFiles(root) as Promise<unknown>).then(build, () => null);
+  const slash = windowsRules(root);
+  const index = (ListDirFiles(root) as Promise<unknown>).then((raw) => build(raw, slash), () => null);
   cache.set(root, { at: Date.now(), index });
   return index;
 }

@@ -11,6 +11,7 @@ use crate::config;
 use crate::sessionclient as client;
 use crate::sessionproto::{PaneInfo, PaneSpec, Request};
 use std::collections::{BTreeMap, HashSet};
+use std::path::Path;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ServicePane {
@@ -110,6 +111,7 @@ pub fn capture_pane(pane_id: &str, lines: i64) -> Result<String, String> {
     Ok(text.trim().to_string())
 }
 
+#[cfg_attr(windows, allow(dead_code))]
 pub fn kill_session(name: &str) -> Result<(), String> {
     client::query(&Request::KillSession {
         session: name.to_string(),
@@ -140,8 +142,25 @@ pub fn kill_pane(pane_id: &str) -> Result<(), String> {
 pub fn stop_service_pane(pane_id: &str) -> Result<(), String> {
     client::query(&Request::Interrupt {
         pane: pane_id.to_string(),
-    })
-    .map(|_| ())
+    })?;
+    #[cfg(windows)]
+    settle_after_interrupt(pane_id);
+    Ok(())
+}
+
+/// Windows stops a service by typing ^C, and when the console gets round to
+/// it, it discards any input queued behind it — a start sent straight after
+/// the stop would vanish. The pane redraws (the ^C echo, the next prompt) once
+/// that has happened; a job that ignores ^C draws nothing, hence the bound.
+#[cfg(windows)]
+fn settle_after_interrupt(pane_id: &str) {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(1);
+    while std::time::Instant::now() < deadline {
+        if capture_pane(pane_id, 0).map_or(true, |screen| !screen.is_empty()) {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
 }
 
 /// Type a command line into a pane's shell.
@@ -182,7 +201,10 @@ fn build_command(
             // an empty cmd, which open-coding this left as a trailing `&&`).
             let cwd = config::resolve_cwd(root, cwd_raw);
             let body = config::build_local_script(env, cmd);
-            let cd = format!("cd {}", config::shell_quote(&cwd));
+            let cd = format!(
+                "cd {}",
+                config::shell_quote(&crate::shellpath::shell_path(Path::new(&cwd)))
+            );
             if body.is_empty() {
                 cd
             } else {
@@ -306,6 +328,31 @@ mod tests {
         panic!("timed out waiting for {what}");
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn a_local_service_line_cds_into_its_dir_verbatim() {
+        let env = BTreeMap::from([("PORT".to_string(), "3000".to_string())]);
+        assert_eq!(
+            build_command("/srv/my app", "web", &env, "npm start", None),
+            "cd '/srv/my app/web' && export PORT='3000' && npm start"
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn a_local_service_line_cds_into_the_msys_spelling_of_its_dir() {
+        assert_eq!(
+            build_command(
+                r"C:\work\my app",
+                "web",
+                &BTreeMap::new(),
+                "npm start",
+                None
+            ),
+            "cd '/c/work/my app/web' && npm start"
+        );
+    }
+
     #[test]
     fn starting_a_project_opens_one_labelled_pane_per_service() {
         let session = SessionGuard::new("labels");
@@ -411,6 +458,30 @@ mod tests {
         assert_eq!(list_pane_ids(&session.0).len(), 1, "the pane is still there");
     }
 
+    /// Windows stops a pane with ^C before the kill, so a script's INT trap
+    /// runs — including a script whose job MSYS started by exec, which the
+    /// Windows process tree loses track of.
+    #[cfg(windows)]
+    #[test]
+    fn a_waited_kill_lets_a_script_trap_its_ctrl_c_first() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("svc.sh"),
+            "trap 'echo interrupted > svc.marker; exit 0' INT\n: > svc.started\nwhile :; do sleep 300; done\n",
+        )
+        .unwrap();
+        let session = SessionGuard::new("trap");
+        let root = dir.path().to_string_lossy().into_owned();
+        start_project_services(&session.0, &root, &[service("svc", "bash ./svc.sh")], None)
+            .unwrap();
+        eventually("the script to start", || dir.path().join("svc.started").exists());
+        std::thread::sleep(Duration::from_secs(1));
+
+        kill_session_wait(&session.0).unwrap();
+
+        assert!(dir.path().join("svc.marker").exists(), "the INT trap never ran");
+    }
+
     #[test]
     fn killing_a_session_waits_for_its_processes_to_die() {
         let session = SessionGuard::new("killwait");
@@ -428,9 +499,8 @@ mod tests {
         // kill_session_wait must not return while the pane's shell is still
         // alive — a start that follows it would otherwise race a port the old
         // process has not released.
-        assert_ne!(
-            unsafe { libc::kill(pids[0], 0) },
-            0,
+        assert!(
+            !crate::osproc::is_alive(pids[0] as u32),
             "the pane shell is still alive after a waited kill"
         );
     }

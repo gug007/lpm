@@ -11,6 +11,7 @@ import {
   observeMonacoTheme,
 } from "../monaco-theme";
 import { getSettings, saveSettings, useSettingsStore } from "../store/settings";
+import { altKeyLabel, shiftKeyLabel } from "../keys";
 
 type Monaco = typeof monacoNs;
 
@@ -274,7 +275,6 @@ export function MonacoEditor({
     editorRef.current?.updateOptions({ fontSize: size });
   }, [settingsFontSize, ready]);
 
-  const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
   const showFormatHint = language === "yaml";
 
   return (
@@ -285,9 +285,9 @@ export function MonacoEditor({
           className="pointer-events-none absolute top-3 right-4 select-none font-mono text-[10px] font-medium uppercase tracking-wider text-neutral-500/70 dark:text-neutral-400/60"
           aria-hidden
         >
-          <kbd>{isMac ? "⇧" : "Shift"}</kbd>
+          <kbd>{shiftKeyLabel()}</kbd>
           <span className="mx-0.5">+</span>
-          <kbd>{isMac ? "⌥" : "Alt"}</kbd>
+          <kbd>{altKeyLabel()}</kbd>
           <span className="mx-0.5">+</span>
           <kbd>F</kbd>
           <span className="ml-2 normal-case tracking-normal">format</span>

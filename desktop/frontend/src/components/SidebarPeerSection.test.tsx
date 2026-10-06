@@ -253,6 +253,33 @@ describe("SidebarPeerSection header", () => {
     expect(document.body.textContent).toContain("AB12-CD34");
   });
 
+  function disconnectDialogText(props: Record<string, unknown>): string {
+    render(props);
+    const more = container.querySelector(
+      '[aria-label="Options for GURGENS-MACBOOK-PRO"]',
+    ) as HTMLButtonElement;
+    act(() => more.click());
+    const disconnect = [...document.querySelectorAll("button")].find(
+      (b) => b.textContent?.trim() === "Disconnect…",
+    );
+    act(() => disconnect!.click());
+    return document.body.textContent ?? "";
+  }
+
+  // macOS has always titled a server's dialog this way; only a Linux or
+  // Windows desktop, which it never had, reads otherwise.
+  it("keeps the disconnect title macOS always showed", () => {
+    expect(disconnectDialogText({})).toContain("Disconnect Mac");
+  });
+
+  it("keeps the disconnect title macOS always showed for a server", () => {
+    expect(disconnectDialogText({ linuxHost: true, noun: "server" })).toContain("Disconnect Mac");
+  });
+
+  it("names a Linux or Windows desktop for what it is", () => {
+    expect(disconnectDialogText({ noun: "computer" })).toContain("Disconnect computer");
+  });
+
   it("offers phone pairing only while the machine is reachable", () => {
     render({ connected: false, status: OFF });
     const more = container.querySelector(

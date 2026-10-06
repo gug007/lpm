@@ -143,6 +143,15 @@ fn is_valid_name(name: &str) -> bool {
         && bytes
             .iter()
             .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || *b == b'-')
+        && !(cfg!(windows) && is_windows_device_name(name))
+}
+
+/// `con.md` and friends open a device, not a file, on Windows.
+fn is_windows_device_name(name: &str) -> bool {
+    matches!(name, "con" | "prn" | "aux" | "nul")
+        || ((name.starts_with("com") || name.starts_with("lpt"))
+            && name.len() == 4
+            && name.as_bytes()[3].is_ascii_digit())
 }
 
 /// `baseline` is the content the caller last loaded: Some means "only write if
@@ -395,6 +404,16 @@ mod tests {
             &"a".repeat(MAX_NAME_LEN),
         ] {
             assert!(is_valid_name(good), "{good:?} should be accepted");
+        }
+    }
+
+    #[test]
+    fn windows_device_names_are_recognised() {
+        for device in ["con", "prn", "aux", "nul", "com1", "lpt9"] {
+            assert!(is_windows_device_name(device), "{device}");
+        }
+        for name in ["console", "com", "com10", "lpt-1", "nul-check", "auth"] {
+            assert!(!is_windows_device_name(name), "{name}");
         }
     }
 

@@ -20,6 +20,7 @@ import {
   type RemoteAction,
   type RemoteFailure,
 } from "../remoteStatus";
+import { MACHINE } from "../machineWords";
 
 const APP_STORE_URL = "https://apps.apple.com/app/lpm-link/id6788396977";
 
@@ -326,7 +327,7 @@ export function MobileSettingsPane() {
       {state.enabled && state.identityRotated && state.devices.length > 0 && (
         <RemoteNotice tone={REMOTE_TONE_STYLE.starting}>
           <span className="font-medium" style={{ color: "var(--accent-amber-text)" }}>
-            This Mac&#39;s security identity was reset.
+            {MACHINE.ThisMachine}&#39;s security identity was reset.
           </span>{" "}
           Devices paired before the reset can&#39;t connect until they trust it again — on each
           device, accept the new identity when prompted, or pair it again below.
@@ -406,7 +407,7 @@ export function MobileSettingsPane() {
                       </p>
                       <p className="text-[11px] text-[var(--text-muted)]">
                         {p.connected
-                          ? "A device paired here connects straight to this machine, so it keeps working while this Mac is off."
+                          ? `A device paired here connects straight to this machine, so it keeps working while ${MACHINE.thisMachine} is off.`
                           : "Not connected — reconnect it under Connections to pair a device."}
                       </p>
                     </div>
@@ -430,18 +431,18 @@ export function MobileSettingsPane() {
         <SectionLabel>Using lpm away from home</SectionLabel>
         <div className="overflow-hidden rounded-xl border border-[var(--border)]">
           <p className="px-4 py-3 text-[12px] leading-relaxed text-[var(--text-muted)]">
-            Keep this Mac awake with remote control on — every command still runs here. On the same
+            Keep {MACHINE.thisMachine} awake with remote control on — every command still runs here. On the same
             Wi-Fi, your phone connects directly. To use lpm over cellular or another network, put
             both devices on a{" "}
             <span className="font-medium text-[var(--text-secondary)]">Tailscale</span> tailnet and
-            include this Mac's Tailscale address in the pairing QR below, so scanning it works from
+            include {MACHINE.thisMachine}&#39;s Tailscale address in the pairing QR below, so scanning it works from
             anywhere on the tailnet.
           </p>
           {state.tailscaleHost ? (
             <div className="border-t border-[var(--border)]">
               <Row
                 label="Add Tailscale address to QR"
-                description={`Advertises ${state.tailscaleHost} in the pairing QR so the phone can reach this Mac over the tailnet.`}
+                description={`Advertises ${state.tailscaleHost} in the pairing QR so the phone can reach ${MACHINE.thisMachine} over the tailnet.`}
               >
                 <Toggle
                   enabled={state.tailscale}
@@ -451,7 +452,7 @@ export function MobileSettingsPane() {
             </div>
           ) : (
             <p className="border-t border-[var(--border)] px-4 py-3 text-[12px] leading-relaxed text-[var(--text-muted)]">
-              No Tailscale address detected on this Mac yet. Once this Mac joins a tailnet, its
+              No Tailscale address detected on {MACHINE.thisMachine} yet. Once {MACHINE.thisMachine} joins a tailnet, its
               address can be added to the pairing QR here.
             </p>
           )}

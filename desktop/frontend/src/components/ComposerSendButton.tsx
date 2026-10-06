@@ -2,6 +2,7 @@ import { COMPOSER_TOOLTIP_DELAY_MS } from "../composerText";
 import { SEND_SHELL_CLASS, sendFaceClass, sendGlow, sendShellTint } from "./composerSendStyles";
 import { SendIcon } from "./icons";
 import { Tooltip } from "./ui/Tooltip";
+import { enterHint } from "../shortcutHints";
 
 interface ComposerSendButtonProps {
   // Nothing to send (empty/whitespace).
@@ -26,7 +27,7 @@ export function ComposerSendButton({
 
   return (
     <div className={`shrink-0 ${SEND_SHELL_CLASS} ${sendShellTint(inert)}`} style={sendGlow(inert)}>
-      <Tooltip content="Send  ·  ↵" delay={COMPOSER_TOOLTIP_DELAY_MS}>
+      <Tooltip content={`Send  ·  ${enterHint()}`} delay={COMPOSER_TOOLTIP_DELAY_MS}>
         <button
           type={type}
           onClick={onClick}

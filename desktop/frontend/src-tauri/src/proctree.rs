@@ -5,19 +5,28 @@
 // instead reap the whole tree: signal the leader's process group (portable-pty
 // setsids the pane shell, so the group leader == the shell pid) plus a ps-ppid
 // descendant walk as a backstop for grandchildren that started their own group.
+//
+// Windows has neither signals nor process groups: the tree comes from a
+// Toolhelp snapshot (procwin.rs) and every process in it is ended outright.
+// Service panes get their grace period before that, as a typed ^C
+// (panestop.rs).
+#[cfg(unix)]
 use std::collections::{HashMap, HashSet};
-use std::process::Command;
 use std::thread;
 use std::time::{Duration, Instant};
 
-const POLL_MS: u64 = 50;
-const TERM_TIMEOUT_MS: u64 = 3000;
+pub(crate) const POLL_MS: u64 = 50;
+pub(crate) const TERM_TIMEOUT_MS: u64 = 3000;
 
 /// pid -> its direct children for every process on the machine, from one `ps`
 /// scan. Empty when ps is unavailable — callers then reap only the roots.
+#[cfg(unix)]
 fn children_map() -> HashMap<i32, Vec<i32>> {
     let mut children: HashMap<i32, Vec<i32>> = HashMap::new();
-    if let Ok(o) = Command::new("ps").args(["-e", "-o", "pid=,ppid="]).output() {
+    if let Ok(o) = crate::osproc::command("ps")
+        .args(["-e", "-o", "pid=,ppid="])
+        .output()
+    {
         for line in String::from_utf8_lossy(&o.stdout).lines() {
             let mut f = line.split_whitespace();
             if let (Some(pid), Some(ppid)) = (f.next(), f.next()) {
@@ -33,6 +42,7 @@ fn children_map() -> HashMap<i32, Vec<i32>> {
 /// Every process in the subtrees rooted at `roots` (roots included), from a
 /// single process-table snapshot. Capture this BEFORE killing the roots — once
 /// they die their children reparent to launchd and drop out of the walk.
+#[cfg(unix)]
 pub(crate) fn trees(roots: &[i32]) -> Vec<i32> {
     let mut stack: Vec<i32> = roots.iter().copied().filter(|&p| p > 1).collect();
     if stack.is_empty() {
@@ -53,6 +63,23 @@ pub(crate) fn trees(roots: &[i32]) -> Vec<i32> {
     out
 }
 
+#[cfg(windows)]
+pub(crate) fn trees(roots: &[i32]) -> Vec<i32> {
+    let roots: Vec<u32> = roots
+        .iter()
+        .filter(|&&p| p > 1)
+        .map(|&p| p as u32)
+        .collect();
+    if roots.is_empty() {
+        return Vec::new();
+    }
+    crate::procwin::trees(&roots)
+        .into_iter()
+        .map(|p| p as i32)
+        .collect()
+}
+
+#[cfg(unix)]
 fn signal_all(pids: &[i32], sig: i32) {
     for &pid in pids {
         // pid <= 1 would make -pid target our own group (0) or broadcast (-1) —
@@ -73,6 +100,7 @@ fn signal_all(pids: &[i32], sig: i32) {
 /// Polling instead means well-behaved processes are confirmed dead in <100ms
 /// and only TERM-ignoring trees wait out the full timeout. Blocking — callers
 /// that must not stall use the *_async entry points.
+#[cfg(unix)]
 pub(crate) fn kill_pids(pids: &[i32]) {
     let mut survivors: Vec<i32> = pids.iter().copied().filter(|&p| p > 1).collect();
     if survivors.is_empty() {
@@ -93,6 +121,33 @@ pub(crate) fn kill_pids(pids: &[i32]) {
         thread::sleep(Duration::from_millis(POLL_MS));
     }
     signal_all(&survivors, libc::SIGKILL);
+}
+
+/// End the pids, children before parents (`trees` lists parents first) so a
+/// supervisor can't respawn a worker in the gap, then wait until they are
+/// gone. TerminateProcess is already the hard kill, so there is no second
+/// phase; and since Windows hands a freed pid out again quickly, a process
+/// counts as still there only while its creation time matches too.
+#[cfg(windows)]
+pub(crate) fn kill_pids(pids: &[i32]) {
+    let mut survivors: Vec<(u32, Option<u64>)> = pids
+        .iter()
+        .filter(|&&p| p > 1)
+        .map(|&p| (p as u32, crate::procwin::created(p as u32)))
+        .collect();
+    for &(pid, _) in survivors.iter().rev() {
+        crate::osproc::kill(pid);
+    }
+    let deadline = Instant::now() + Duration::from_millis(TERM_TIMEOUT_MS);
+    loop {
+        survivors.retain(|&(pid, born)| {
+            born.is_some() && crate::procwin::created(pid) == born && crate::osproc::is_alive(pid)
+        });
+        if survivors.is_empty() || Instant::now() >= deadline {
+            return;
+        }
+        thread::sleep(Duration::from_millis(POLL_MS));
+    }
 }
 
 /// Reap an already-snapshotted set of pids on a background thread. Callers that

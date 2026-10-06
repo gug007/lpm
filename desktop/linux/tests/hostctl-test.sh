@@ -56,7 +56,8 @@ cat > "$BIN/lpm-desktop" <<EOF
 echo "\$\$" >> "$STATE/app.pids"
 { echo "HOME=\$HOME"; echo "DISPLAY=\$DISPLAY"; echo "SHELL=\${SHELL:-}";
   echo "PWD=\$PWD"; echo "DMABUF=\${WEBKIT_DISABLE_DMABUF_RENDERER:-}";
-  echo "A11Y=\${NO_AT_BRIDGE:-}"; echo "MARK=\${LPM_TEST_MARK:-}"; } > "$STATE/app.env"
+  echo "A11Y=\${NO_AT_BRIDGE:-}"; echo "MARK=\${LPM_TEST_MARK:-}";
+  echo "HEADLESS=\${LPM_HEADLESS:-}"; } > "$STATE/app.env"
 if [ ! -f "$STATE/escapee.pid" ]; then
     # Stands in for the session daemon: started by the app, not tracked by the
     # supervisor, and expected to outlive the stop.
@@ -126,6 +127,8 @@ check "extra host.env keys reach the app" "$(val MARK)" "env-file"
 check "working directory is the service home" "$(val PWD)" "$ROOT/home"
 check "dmabuf renderer is off" "$(val DMABUF)" "1"
 check "a11y bridge is off" "$(val A11Y)" "1"
+# The same binary is a desktop app elsewhere; this is what makes it a host here.
+check "the app is told nobody is at this machine" "$(val HEADLESS)" "1"
 
 echo "== status / double start =="
 ctl status > "$ROOT/out" 2>&1

@@ -1,5 +1,5 @@
 import { parsePeerMarker, peerSlugOf, stripMarker } from "../peer/markers";
-import { isLinuxHost } from "../peer/platform";
+import { isLinuxHost, peerNoun, type PeerNoun } from "../peer/platform";
 import { peerStatus, type PeerStatus } from "../peer/peerStatus";
 import type { FollowState } from "../followApi";
 import type { PeerClient } from "../peer/usePeerState";
@@ -33,6 +33,8 @@ export interface PeerSection {
   connected: boolean;
   /// Which machine this is, for the header's glyph.
   linuxHost: boolean;
+  /// What the header's copy calls it.
+  noun: PeerNoun;
   /// How it is doing, resolved here so the header never reaches for the store.
   status: PeerStatus;
   /// The Mac's own project rows; empty while it is away.
@@ -71,6 +73,7 @@ export function buildPeerSections(
     host: peer.host,
     connected: Boolean(peer.connected),
     linuxHost: isLinuxHost(peer),
+    noun: peerNoun(peer),
     status: peerStatus(peer),
     projects: peer.connected ? (byPeer.get(peer.slug) ?? []) : [],
     mirrors: new Map(),

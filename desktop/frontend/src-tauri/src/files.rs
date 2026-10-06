@@ -2,6 +2,7 @@
 // and BrowseFolder. BrowseFolder uses tauri-plugin-dialog's blocking picker.
 use crate::config::expand_home;
 use std::path::PathBuf;
+#[cfg(target_os = "macos")]
 use std::process::Command;
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_dialog::{DialogExt, FilePath};
@@ -422,6 +423,7 @@ pub async fn open_path_in_default_app(
     .map_err(|e| e.to_string())?
 }
 
+#[cfg(target_os = "macos")]
 pub(crate) fn open_default(path: &str) -> Result<(), String> {
     let status = Command::new("open")
         .arg(path)
@@ -431,6 +433,33 @@ pub(crate) fn open_default(path: &str) -> Result<(), String> {
         return Err("open failed".into());
     }
     Ok(())
+}
+
+/// xdg-open (or gio) on Linux, ShellExecute on Windows.
+#[cfg(not(target_os = "macos"))]
+pub(crate) fn open_default(path: &str) -> Result<(), String> {
+    tauri_plugin_opener::open_path(path, None::<&str>).map_err(|e| e.to_string())
+}
+
+/// Show `path` selected in the file manager: Explorer on Windows, the
+/// org.freedesktop.FileManager1 service (or the OpenURI portal) on Linux. A
+/// Linux desktop offering neither still gets the folder opened.
+#[cfg(not(target_os = "macos"))]
+pub(crate) fn reveal(path: &str) -> Result<(), String> {
+    let revealed = tauri_plugin_opener::reveal_item_in_dir(path).map_err(|e| e.to_string());
+    #[cfg(windows)]
+    {
+        revealed
+    }
+    #[cfg(not(windows))]
+    {
+        revealed.or_else(|_| {
+            let dir = std::path::Path::new(path)
+                .parent()
+                .unwrap_or(std::path::Path::new(path));
+            open_default(&dir.to_string_lossy())
+        })
+    }
 }
 
 /// Shared with openin.rs.

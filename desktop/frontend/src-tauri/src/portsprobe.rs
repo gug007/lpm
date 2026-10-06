@@ -1,7 +1,8 @@
 // Which local process holds which TCP port. The question is the same on every
 // platform; the tool that answers it is not — `lsof` on macOS, `ss` (iproute2)
 // on Linux, where lsof is frequently absent on minimal server and container
-// images. ports.rs consumes only the two functions at the bottom.
+// images, and the IP Helper listener tables on Windows (portsprobe_windows.rs).
+// ports.rs consumes only the two functions at the bottom.
 //
 // Both parsers are compiled and tested everywhere, so the Linux `ss` format stays
 // covered by the macOS test run; only the command dispatch is platform-gated.
@@ -10,8 +11,9 @@
 // once per process (OnceLock) rather than shelling out to `command -v` per call.
 
 use std::collections::HashMap;
+#[cfg(unix)]
 use std::process::Command;
-#[cfg(not(target_os = "macos"))]
+#[cfg(all(unix, not(target_os = "macos")))]
 use std::sync::OnceLock;
 
 #[derive(Clone, Default)]
@@ -22,6 +24,7 @@ pub struct Holder {
 
 /// Trailing `:port` of a listen address. Handles `0.0.0.0:3000`, `[::]:8080`,
 /// `*:3000` and `ss`'s interface-scoped `127.0.0.53%lo:53`.
+#[cfg(any(unix, test))]
 fn port_from_addr(addr: &str) -> Option<i64> {
     addr.rsplit_once(':')
         .and_then(|(_, p)| p.parse::<i64>().ok())
@@ -29,6 +32,7 @@ fn port_from_addr(addr: &str) -> Option<i64> {
 
 // ---- lsof (macOS, and Linux hosts that have it) -----------------------------
 
+#[cfg(any(unix, test))]
 pub(crate) fn parse_lsof(s: &str) -> HashMap<i64, Holder> {
     let mut result = HashMap::new();
     let mut current = Holder::default();
@@ -63,6 +67,7 @@ pub(crate) fn parse_lsof(s: &str) -> HashMap<i64, Holder> {
 /// All (pid, port) pairs currently in TCP LISTEN, regardless of which port —
 /// one call we then attribute to panes by process ancestry. A process may
 /// listen on several ports, so the same pid can appear more than once.
+#[cfg(any(unix, test))]
 pub(crate) fn parse_lsof_listeners(s: &str) -> Vec<(i64, i64)> {
     let mut out = Vec::new();
     let mut pid = 0i64;
@@ -86,6 +91,7 @@ pub(crate) fn parse_lsof_listeners(s: &str) -> Vec<(i64, i64)> {
     out
 }
 
+#[cfg(unix)]
 fn lsof_listeners() -> Vec<(i64, i64)> {
     match Command::new("lsof")
         .args(["-nP", "-iTCP", "-sTCP:LISTEN", "-Fpn"])
@@ -96,6 +102,7 @@ fn lsof_listeners() -> Vec<(i64, i64)> {
     }
 }
 
+#[cfg(unix)]
 fn lsof_holders(ports: &[i64]) -> HashMap<i64, Holder> {
     let mut args: Vec<String> = vec!["-nP".into()];
     for p in ports {
@@ -117,7 +124,7 @@ fn lsof_holders(ports: &[i64]) -> HashMap<i64, Holder> {
 /// Local address is whitespace field 4. The process column is absent entirely
 /// when iproute2 can't see the owner (another user's socket without root), which
 /// is a holder we simply can't name — same outcome lsof gives in that case.
-#[cfg(any(not(target_os = "macos"), test))]
+#[cfg(any(all(unix, not(target_os = "macos")), test))]
 fn parse_ss_row(line: &str) -> Option<(Holder, i64)> {
     let fields: Vec<&str> = line.split_whitespace().collect();
     if fields.len() < 4 || fields[0] != "LISTEN" {
@@ -147,7 +154,7 @@ fn parse_ss_row(line: &str) -> Option<(Holder, i64)> {
     Some((holder, port))
 }
 
-#[cfg(any(not(target_os = "macos"), test))]
+#[cfg(any(all(unix, not(target_os = "macos")), test))]
 pub(crate) fn parse_ss(s: &str) -> HashMap<i64, Holder> {
     let mut result = HashMap::new();
     for line in s.split('\n') {
@@ -160,7 +167,7 @@ pub(crate) fn parse_ss(s: &str) -> HashMap<i64, Holder> {
     result
 }
 
-#[cfg(any(not(target_os = "macos"), test))]
+#[cfg(any(all(unix, not(target_os = "macos")), test))]
 pub(crate) fn parse_ss_listeners(s: &str) -> Vec<(i64, i64)> {
     let mut out = Vec::new();
     for line in s.split('\n') {
@@ -175,7 +182,7 @@ pub(crate) fn parse_ss_listeners(s: &str) -> Vec<(i64, i64)> {
 
 /// `-H` (header-less) landed in iproute2 4.x; every distro lpm can host on has
 /// it. Probed once because these run on a poll loop.
-#[cfg(not(target_os = "macos"))]
+#[cfg(all(unix, not(target_os = "macos")))]
 fn have_ss() -> bool {
     static HAVE: OnceLock<bool> = OnceLock::new();
     *HAVE.get_or_init(|| {
@@ -189,7 +196,7 @@ fn have_ss() -> bool {
     })
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(all(unix, not(target_os = "macos")))]
 fn ss_output() -> Option<String> {
     let out = Command::new("ss").args(["-lntpH"]).output().ok()?;
     Some(String::from_utf8_lossy(&out.stdout).into_owned())
@@ -202,7 +209,11 @@ pub fn listening_ports() -> Vec<(i64, i64)> {
     {
         lsof_listeners()
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(windows)]
+    {
+        crate::portsprobe_windows::listening_ports()
+    }
+    #[cfg(all(unix, not(target_os = "macos")))]
     {
         if have_ss() {
             return ss_output()
@@ -223,7 +234,11 @@ pub fn lookup_holders(ports: &[i64]) -> HashMap<i64, Holder> {
     {
         lsof_holders(ports)
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(windows)]
+    {
+        crate::portsprobe_windows::lookup_holders(ports)
+    }
+    #[cfg(all(unix, not(target_os = "macos")))]
     {
         if have_ss() {
             let Some(out) = ss_output() else {

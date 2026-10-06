@@ -9,6 +9,7 @@ import { rowProps } from "../../settings-registry";
 import { GroupHeader, Group } from "./GroupedList";
 import { Toggle } from "./Toggle";
 import { SyncPreviewModal, type SyncItem } from "./SyncPreviewModal";
+import { MACHINE as M } from "../../machineWords";
 
 interface DiffState {
   loading: boolean;
@@ -29,7 +30,7 @@ function pillFor(peer: PeerClient, diff: DiffState | undefined): Pill {
     return {
       text: "Update needed",
       color: "var(--accent-amber)",
-      title: "The other Mac needs to update lpm to sync config.",
+      title: `${M.OtherMachine} needs to update lpm to sync config.`,
     };
   if (!diff || diff.loading) return { text: "Checking…", color: "var(--text-muted)" };
   if (diff.error) return { text: "Error", color: "var(--accent-red)", title: diff.error };
@@ -42,9 +43,9 @@ function pillFor(peer: PeerClient, diff: DiffState | undefined): Pill {
 // terms. Null when off (nothing to explain) or fully able to sync (no hint).
 function autoHint(p: PeerClient): string | null {
   if (!p.autoSync) return null;
-  if (!p.connected) return "Waits until the other Mac is connected.";
-  if (!p.supportsSync2) return "Waits until the other Mac is updated.";
-  if (!p.pinned) return "Waits until this Mac and the other Mac have verified each other.";
+  if (!p.connected) return `Waits until ${M.otherMachine} is connected.`;
+  if (!p.supportsSync2) return `Waits until ${M.otherMachine} is updated.`;
+  if (!p.pinned) return `Waits until ${M.thisMachine} and ${M.otherMachine} have verified each other.`;
   return null;
 }
 
@@ -137,9 +138,9 @@ export function SyncSection({ peers }: { peers: PeerClient[] }) {
       <GroupHeader>Config sync</GroupHeader>
       <Group>
         <p className="px-4 py-3 text-[12px] leading-relaxed text-[var(--text-muted)]">
-          Mirror projects, global config, and settings between paired Macs. The newer copy of each
-          item wins, and a change on both Macs keeps the newer one; local paths, accounts, and window
-          layout stay per-Mac.
+          Mirror projects, global config, and settings between paired {M.plural}. The newer copy of each
+          item wins, and a change on both {M.plural} keeps the newer one; local paths, accounts, and window
+          layout stay per-{M.noun}.
         </p>
         {peers.map((p) => {
           const diff = diffs[p.slug];
@@ -194,7 +195,7 @@ export function SyncSection({ peers }: { peers: PeerClient[] }) {
                     Keep in sync automatically
                   </p>
                   <p className="mt-0.5 text-[11px] leading-relaxed text-[var(--text-muted)]">
-                    Changes on either Mac sync shortly after they happen. If both Macs change the
+                    Changes on either {M.noun} sync shortly after they happen. If both {M.plural} change the
                     same item, the newer change wins and a backup is kept.
                   </p>
                   {hint && <p className="mt-1 text-[11px] text-[var(--text-muted)]">{hint}</p>}

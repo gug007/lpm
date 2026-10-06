@@ -52,15 +52,17 @@ fn persist(win: &WebviewWindow) {
         return;
     };
     let g = |k: &str| obj.get(k).and_then(|v| v.as_i64());
-    if g("windowX") == Some(xi)
-        && g("windowY") == Some(yi)
+    let keep_position = bounds::positions_supported();
+    if (!keep_position || (g("windowX") == Some(xi) && g("windowY") == Some(yi)))
         && g("windowWidth") == Some(wi)
         && g("windowHeight") == Some(hi)
     {
         return;
     }
-    obj.insert("windowX".into(), xi.into());
-    obj.insert("windowY".into(), yi.into());
+    if keep_position {
+        obj.insert("windowX".into(), xi.into());
+        obj.insert("windowY".into(), yi.into());
+    }
     obj.insert("windowWidth".into(), wi.into());
     obj.insert("windowHeight".into(), hi.into());
     let _ = config::save_settings(&s);

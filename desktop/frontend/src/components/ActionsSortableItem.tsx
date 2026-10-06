@@ -7,6 +7,7 @@ import { NestDropZone } from "./NestDropZone";
 import { nestId } from "./actionsDndLayout";
 import { SpringOverContext } from "./springLoad";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
+import { isMac } from "../platform";
 
 interface ActionsSortableItemProps {
   id: string;
@@ -54,7 +55,7 @@ export function ActionsSortableItem({
   // On macOS a control-click is a right-click: it opens the button's menu, and
   // the click WebKit still sends after it must not also run the action.
   const skipControlClick = (e: MouseEvent<HTMLDivElement>) => {
-    if (!e.ctrlKey) return;
+    if (!isMac || !e.ctrlKey) return;
     e.preventDefault();
     e.stopPropagation();
   };

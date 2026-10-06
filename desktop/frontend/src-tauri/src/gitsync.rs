@@ -171,7 +171,8 @@ fn seed_from_twin(twin: &str, root: &Path) -> u64 {
     let twin_root = Path::new(&twin_root);
     let mut seeded = 0;
     for name in seedable(twin_root, root) {
-        if crate::projects_crud::clone_entry(&twin_root.join(&name), &root.join(&name)).is_ok() {
+        let (from, to) = (twin_root.join(&name), root.join(&name));
+        if crate::projects_crud::clone_entry(&from, &to, (twin_root, root)).is_ok() {
             seeded += 1;
         }
     }
@@ -412,6 +413,8 @@ mod tests {
         let dest_path = dest_dir.path().join("synced");
         create_repo(&dest_path).unwrap();
         let dest = dest_path.to_string_lossy().to_string();
+        // Git for Windows defaults to autocrlf=true, which checks out CRLF.
+        git_out(&dest, &["config", "core.autocrlf", "false"]).unwrap();
         git_out(
             &dest,
             &[

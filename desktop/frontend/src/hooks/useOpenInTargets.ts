@@ -9,6 +9,7 @@ export const OPEN_IN_SELECTED_KEY = "lpm.openIn.selectedId";
 
 export const EDITOR_IDS = new Set([
   "cursor", "vscode", "vscode-insiders", "windsurf", "zed", "xcode", "sublime-text", "webstorm", "typora",
+  "intellij-idea", "pycharm", "goland", "rustrover", "clion", "phpstorm", "rubymine", "rider",
 ]);
 
 export function primaryOpenInTarget(targets: OpenInTarget[]): OpenInTarget | null {

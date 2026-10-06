@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { EventsOn } from "../../bridge/runtime";
 import { RemoteRespondPairRequest } from "../../bridge/commands";
 import { Modal } from "./ui/Modal";
+import { MACHINE } from "../machineWords";
 
 interface PairRequest {
   requestId: string;
@@ -58,7 +59,7 @@ export function PairApprovalHost() {
         <span className="font-medium text-[var(--text-primary)]">
           {request.name}
         </span>{" "}
-        wants to control this Mac from the lpm app.
+        wants to control {MACHINE.thisMachine} from the lpm app.
       </p>
 
       <div className="mt-5 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] px-4 py-4 text-center">

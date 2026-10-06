@@ -1,4 +1,5 @@
 import type { ContentZoom } from "../hooks/useContentZoom";
+import { uriPath } from "../path";
 import { formatBytes } from "../syncApi";
 import { FileViewerMarkdown } from "./FileViewerMarkdown";
 import { ImageFileView } from "./ImageFileView";
@@ -96,7 +97,7 @@ export function FileViewerContent({
     <MonacoEditor
       value={value}
       onChange={onChange}
-      modelUri={`lpm-file://${absPath}`}
+      modelUri={`lpm-file://${uriPath(absPath)}`}
       perInstance
       onSave={onSave}
       readOnly={!editing}

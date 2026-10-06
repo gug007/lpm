@@ -1,3 +1,4 @@
+import { folderName } from "../path";
 import { peerRawName } from "../peer/markers";
 
 // What adopting a folder produced: the project's (routing) name, whether the
@@ -12,7 +13,7 @@ export interface AdoptedProject {
 const LISTED_SERVICES = 6;
 
 export function folderBaseName(dir: string): string {
-  return dir.split("/").filter(Boolean).pop() || "new-project";
+  return folderName(dir) || "new-project";
 }
 
 // A host running an older build answers with nothing; the folder's name is then

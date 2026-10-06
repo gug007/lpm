@@ -6,7 +6,6 @@
 // exist and notifications die silently. Nothing bridges the namespaces — the only
 // remedy is to detect the split over a pty channel and warn the user.
 use crate::config::{self, SshSettings};
-use std::process::Command;
 use std::time::Duration;
 
 const PROBE_TIMEOUT: Duration = Duration::from_secs(12);
@@ -33,6 +32,7 @@ fn probe_script() -> String {
 /// element, after `ssh_args`' trailing `user@host`.
 pub fn pty_probe_argv(ssh: &SshSettings) -> Vec<String> {
     let mut argv = vec!["-t".to_string()];
+    argv.extend(config::ssh_batch_opts());
     argv.extend(config::ssh_args(ssh));
     argv.push(probe_script());
     argv
@@ -62,7 +62,7 @@ pub fn parse_pty_home(output: &[u8]) -> Option<String> {
 
 /// Resolve the remote `$HOME` as seen from a pty session, or None on failure/timeout.
 pub fn probe_pty_home(ssh: &SshSettings) -> Option<String> {
-    let mut cmd = Command::new("ssh");
+    let mut cmd = crate::osproc::command("ssh");
     cmd.args(pty_probe_argv(ssh));
     let out = crate::statusfwd::run_with_timeout(cmd, PROBE_TIMEOUT)?;
     parse_pty_home(&out)

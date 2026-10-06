@@ -12,6 +12,7 @@ import {
   ResizeTerminal,
   AckTerminalData,
   ReadClipboardFiles,
+  ReadClipboardText,
   SaveClipboardImage,
   SetClipboardText,
   IsTerminalRemote,
@@ -24,7 +25,10 @@ import { sendTerminalInput, shellQuote } from "../terminal-io";
 import { inPassiveColumn } from "../sideBySide";
 import { quoteImagePathForPaste, unquotePastedPath } from "../composerValue";
 import { canFitHost, getTerminalTheme, isAtBottom, openTerminalLink, TERMINAL_FONT_FAMILY } from "./terminal-utils";
-import { handleCopyShortcut, handleNativeCopy, handleSelectAllShortcut, handleClearShortcut, isCopyShortcut } from "./terminal/copySelection";
+import { handleCopyShortcut, handleNativeCopy, handleSelectAllShortcut, handleClearShortcut, isCopyShortcut, isPasteShortcut } from "./terminal/copySelection";
+import { terminalYieldsToApp } from "./terminal/terminalKeys";
+import { readPasteContent } from "./terminal/clipboardRead";
+import { isMac } from "../platform";
 import { ConsoleContextMenu } from "./terminal/ConsoleContextMenu";
 import { ArrowDownIcon } from "./terminal/icons";
 import { applyFilterQuery, FilterMirror } from "./terminal/FilterMirror";
@@ -405,7 +409,7 @@ function extractImageBlob(
   return null;
 }
 
-function saveImageBlob(terminalId: string, blob: File, mimeType: string) {
+function saveImageBlob(terminalId: string, blob: Blob, mimeType: string) {
   const peer = isPeerName(terminalId);
   // A remote (peer) terminal caps the image so its base64 stays under the peer
   // link's frame limit; the upload command runs on the host and returns a path
@@ -473,6 +477,37 @@ export function pastePeerUploads(terminalId: string, paths: string[]): Promise<v
   return uploadPeerFiles(terminalId, paths)
     .then((hostPaths) => pasteToTerminal(terminalId, formatPastedPaths(hostPaths)))
     .catch((err) => writeTerminalError(terminalId, err));
+}
+
+// A peer pane's Mac has none of these paths, so the files go over the link
+// first and what gets pasted is where the host put them.
+function pasteClipboardFiles(terminalId: string, paths: string[]): Promise<void> {
+  if (isPeerName(terminalId)) return pastePeerUploads(terminalId, paths);
+  return getTerminalRemote(terminalId).then((remote) => {
+    if (remote) {
+      return UploadAndQuoteForTerminal(terminalId, paths)
+        .then((text) => pasteToTerminal(terminalId, text))
+        .catch((err) => writeTerminalError(terminalId, err));
+    }
+    pasteToTerminal(terminalId, formatPastedPaths(paths));
+  });
+}
+
+// Ctrl+Shift+V off macOS has no native paste behind it (WebKitGTK binds none,
+// Chromium's pastes plain text only). A real paste event gets ⌘V's handling;
+// failing that, read the clipboard and feed the same paths. The clipboard read
+// starts right away, while the keypress still counts as a user gesture.
+function pasteFromClipboard(terminalId: string): void {
+  try {
+    if (document.execCommand("paste")) return;
+  } catch {
+    // No scripted paste here — read the clipboard instead.
+  }
+  void readPasteContent(ReadClipboardFiles, () => ReadClipboardText(true)).then((clip) => {
+    if (clip?.kind === "files") return pasteClipboardFiles(terminalId, clip.paths);
+    if (clip?.kind === "image") saveImageBlob(terminalId, clip.blob, clip.mimeType);
+    else if (clip) pasteToTerminal(terminalId, clip.text);
+  });
 }
 
 // Subscribe a peer terminal to its host stream: the host answers with its
@@ -701,9 +736,19 @@ function createInteractiveSession(
         e.preventDefault();
         return false;
       }
-      copyChordForwarded = true;
-      return true;
+      // Off macOS the chord is Ctrl+Shift+C, which xterm would send as ^C.
+      copyChordForwarded = isMac;
+      if (!copyChordForwarded) e.preventDefault();
+      return copyChordForwarded;
     }
+    if (isPasteShortcut(e)) {
+      if (e.type === "keydown") {
+        e.preventDefault();
+        pasteFromClipboard(terminalId);
+      }
+      return false;
+    }
+    if (!isMac) return !terminalYieldsToApp(e);
     if (!e.metaKey) return true;
     return false;
   });
@@ -975,19 +1020,7 @@ function createInteractiveSession(
       };
       ReadClipboardFiles()
         .then((paths) => {
-          if (paths && paths.length > 0) {
-            // A peer pane's Mac has none of these paths, so the files go over
-            // the link first and what gets pasted is where the host put them.
-            if (isPeerName(terminalId)) return pastePeerUploads(terminalId, paths);
-            return getTerminalRemote(terminalId).then((remote) => {
-              if (remote) {
-                return UploadAndQuoteForTerminal(terminalId, paths)
-                  .then((text) => pasteToTerminal(terminalId, text))
-                  .catch((err) => writeTerminalError(terminalId, err));
-              }
-              pasteToTerminal(terminalId, formatPastedPaths(paths));
-            });
-          }
+          if (paths && paths.length > 0) return pasteClipboardFiles(terminalId, paths);
           fallback();
         })
         .catch(fallback);

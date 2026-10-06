@@ -1,12 +1,12 @@
 // Project CRUD — port of desktop/projects.go create/remove, clone.go, and
-// duplicate.go. macOS-only. No new Cargo deps: git/cp run as subprocesses,
-// uuid (existing) provides entropy, serde_norway writes configs.
+// duplicate.go. git and (on macOS/Linux) cp run as subprocesses; Windows has no
+// cp, so its copies are native (treecopy.rs). uuid (existing) provides entropy,
+// serde_norway writes configs.
 use crate::adopt::{self, AdoptedProject};
 use crate::config;
 use serde::Deserialize;
 use serde_norway::{Mapping, Value as Yaml};
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 #[derive(Deserialize)]
@@ -130,8 +130,11 @@ pub(crate) fn register_synced_project(
 }
 
 /// APFS copy-on-write clone of one file or directory (a full copy off APFS).
-pub(crate) fn clone_entry(from: &Path, to: &Path) -> Result<(), String> {
-    cp_c_r(from, to)
+/// `roots` are the whole source and destination projects, so on Windows a
+/// junction anywhere in the entry that points into the source project leads to
+/// the same place in the destination.
+pub(crate) fn clone_entry(from: &Path, to: &Path, roots: (&Path, &Path)) -> Result<(), String> {
+    copy_entry(from, to, roots)
 }
 
 /// Drop a synced project's config again after a failed setup.
@@ -246,7 +249,7 @@ fn run_clone(
     argv.push(url.to_string());
     argv.push(dest.to_string_lossy().into_owned());
 
-    let out = Command::new("git")
+    let out = crate::osproc::command("git")
         .args(&argv)
         .output()
         .map_err(|e| format!("clone failed: {e}"))?;
@@ -419,11 +422,11 @@ fn clone_args() -> &'static [&'static str] {
     &["-c", "-R"]
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(all(unix, not(target_os = "macos")))]
 fn clone_args() -> &'static [&'static str] {
     static REFLINK: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     let supported = *REFLINK.get_or_init(|| {
-        Command::new("/bin/cp")
+        crate::osproc::command("/bin/cp")
             .arg("--help")
             .output()
             .map(|o| {
@@ -439,8 +442,9 @@ fn clone_args() -> &'static [&'static str] {
     }
 }
 
+#[cfg(unix)]
 fn cp_c_r(from: &Path, to: &Path) -> Result<(), String> {
-    let out = Command::new("/bin/cp")
+    let out = crate::osproc::command("/bin/cp")
         .args(clone_args())
         .arg(from)
         .arg(to)
@@ -456,12 +460,40 @@ fn cp_c_r(from: &Path, to: &Path) -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(windows)]
+fn cp_c_r(from: &Path, to: &Path) -> Result<(), String> {
+    copy_entry(from, to, (from, to))
+}
+
+/// One entry of a duplicate. `roots` are the whole source and copy: on Windows a
+/// junction anywhere in the entry that points into the source project (pnpm's
+/// node_modules, workspace links) is pointed at the same place in the copy.
+#[cfg(unix)]
+fn copy_entry(from: &Path, to: &Path, _roots: (&Path, &Path)) -> Result<(), String> {
+    cp_c_r(from, to)
+}
+
+#[cfg(windows)]
+fn copy_entry(from: &Path, to: &Path, roots: (&Path, &Path)) -> Result<(), String> {
+    crate::treecopy::copy(from, to, roots)
+        .map_err(|e| format!("clone copy failed for {}: {e}", from.display()))
+}
+
 /// macOS APFS copy-on-write clone (kernel falls back to a full copy off-APFS).
 /// Recurses only into dirs holding something prunable, so the rest is cloned whole
 /// in one `cp -c -R` and keeps COW. Caches are pruned at every depth in both modes;
 /// the reinstall variant additionally prunes node_modules, while a kept node_modules
 /// is cloned whole/opaque (its packages ship dist/build/out we must not strip).
 fn cp_clone(src: &Path, dst: &Path, skip_node_modules: bool) -> Result<(), String> {
+    clone_pruned(src, dst, skip_node_modules, (src, dst))
+}
+
+fn clone_pruned(
+    src: &Path,
+    dst: &Path,
+    skip_node_modules: bool,
+    roots: (&Path, &Path),
+) -> Result<(), String> {
     std::fs::create_dir(dst).map_err(|e| format!("create duplicate dir failed: {e}"))?;
     for entry in std::fs::read_dir(src).map_err(|e| format!("read source failed: {e}"))? {
         let entry = entry.map_err(|e| e.to_string())?;
@@ -476,16 +508,16 @@ fn cp_clone(src: &Path, dst: &Path, skip_node_modules: bool) -> Result<(), Strin
             && name.to_str() != Some("node_modules")
             && subtree_has_prunable(&from, skip_node_modules)
         {
-            cp_clone(&from, &to, skip_node_modules)?;
+            clone_pruned(&from, &to, skip_node_modules, roots)?;
         } else {
-            cp_c_r(&from, &to)?;
+            copy_entry(&from, &to, roots)?;
         }
     }
     Ok(())
 }
 
 fn git_in(dir: &Path, args: &[&str]) -> Result<(), String> {
-    let out = Command::new("git")
+    let out = crate::osproc::command("git")
         .args(args)
         .current_dir(dir)
         .output()
@@ -503,7 +535,7 @@ fn git_output_message(output: &std::process::Output) -> String {
 }
 
 fn ensure_worktree_source(root: &Path) -> Result<(), String> {
-    let inside = Command::new("git")
+    let inside = crate::osproc::command("git")
         .arg("-C")
         .arg(root)
         .args(["rev-parse", "--is-inside-work-tree"])
@@ -512,7 +544,7 @@ fn ensure_worktree_source(root: &Path) -> Result<(), String> {
     if !inside.status.success() || String::from_utf8_lossy(&inside.stdout).trim() != "true" {
         return Err("Git worktrees require a local Git repository.".into());
     }
-    let top_level = Command::new("git")
+    let top_level = crate::osproc::command("git")
         .arg("-C")
         .arg(root)
         .args(["rev-parse", "--show-toplevel"])
@@ -526,7 +558,7 @@ fn ensure_worktree_source(root: &Path) -> Result<(), String> {
     if !top_level.status.success() || !is_top_level {
         return Err("Git worktrees require the project root to be the repository root.".into());
     }
-    let head = Command::new("git")
+    let head = crate::osproc::command("git")
         .arg("-C")
         .arg(root)
         .args(["rev-parse", "--verify", "HEAD"])
@@ -566,7 +598,7 @@ fn create_linked_worktree(
     worktree_root: &Path,
     branch: &str,
 ) -> Result<(), String> {
-    let output = Command::new("git")
+    let output = crate::osproc::command("git")
         .arg("-C")
         .arg(source_root)
         .args(["worktree", "add", "-b"])
@@ -591,7 +623,7 @@ fn remove_linked_worktree(
     worktree_root: &Path,
     branch: &str,
 ) -> Result<(), String> {
-    let common_output = Command::new("git")
+    let common_output = crate::osproc::command("git")
         .arg("-C")
         .arg(repository_root)
         .args(["rev-parse", "--git-common-dir"])
@@ -617,14 +649,14 @@ fn remove_linked_worktree(
         }
     };
     let output = if worktree_root.exists() {
-        Command::new("git")
+        crate::osproc::command("git")
             .arg("-C")
             .arg(repository_root)
             .args(["worktree", "remove", "--force"])
             .arg(worktree_root)
             .output()
     } else {
-        Command::new("git")
+        crate::osproc::command("git")
             .arg("-C")
             .arg(repository_root)
             .args(["worktree", "prune"])
@@ -639,7 +671,7 @@ fn remove_linked_worktree(
             format!("could not remove Git worktree: {message}")
         });
     }
-    let _ = Command::new("git")
+    let _ = crate::osproc::command("git")
         .arg("--git-dir")
         .arg(common_dir)
         .args(["branch", "-D", branch])
@@ -675,7 +707,7 @@ fn run_install(root: &Path, pm: crate::detect::PackageManager) -> Result<(), Str
         config::shell_quote(&root.to_string_lossy()),
         pm.install_cmd()
     );
-    let out = Command::new(shell)
+    let out = crate::osproc::command(shell)
         .arg("-ilc")
         .arg(script)
         .current_dir(root)
@@ -1101,13 +1133,13 @@ pub fn duplicate_projects(
 // ---- move folder (rename the on-disk root) ----------------------------------
 
 /// Move a directory, falling back to a faithful copy+delete only when `rename`
-/// can't span volumes (EXDEV == errno 18 on macOS). Unlike `cp_clone`, this
-/// prunes nothing — a move must be byte-faithful. Leaves the source untouched
-/// when the copy fails.
+/// can't span volumes (EXDEV; ERROR_NOT_SAME_DEVICE on Windows). Unlike
+/// `cp_clone`, this prunes nothing — a move must be byte-faithful. Leaves the
+/// source untouched when the copy fails.
 fn move_dir(from: &Path, to: &Path) -> Result<(), String> {
     match std::fs::rename(from, to) {
         Ok(()) => Ok(()),
-        Err(e) if e.raw_os_error() == Some(18) => {
+        Err(e) if crosses_volumes(&e) => {
             if let Err(copy_err) = cp_c_r(from, to) {
                 let _ = std::fs::remove_dir_all(to);
                 return Err(copy_err);
@@ -1115,6 +1147,23 @@ fn move_dir(from: &Path, to: &Path) -> Result<(), String> {
             config::remove_dir_all_retry(from)
         }
         Err(e) => Err(format!("could not move folder: {e}")),
+    }
+}
+
+fn crosses_volumes(err: &std::io::Error) -> bool {
+    const ERROR_NOT_SAME_DEVICE: i32 = 17;
+    err.kind() == std::io::ErrorKind::CrossesDevices
+        || (cfg!(windows) && err.raw_os_error() == Some(ERROR_NOT_SAME_DEVICE))
+}
+
+/// The same path as written, ignoring trailing separators (on Windows, either
+/// separator). A case-only difference is left to the canonical-path check.
+fn same_path_text(a: &str, b: &str) -> bool {
+    if cfg!(windows) {
+        let norm = |s: &str| s.trim_end_matches(['/', '\\']).replace('/', "\\");
+        norm(a) == norm(b)
+    } else {
+        a.trim_end_matches('/') == b.trim_end_matches('/')
     }
 }
 
@@ -1128,7 +1177,11 @@ fn resolve_destination(old_expanded: &str, new_root: &str) -> Result<String, Str
     let dest_expanded = config::expand_home(trimmed);
     let dest_path = Path::new(&dest_expanded);
     if !dest_path.is_absolute() {
-        return Err("Enter a full path starting with / or ~.".into());
+        return Err(if cfg!(windows) {
+            "Enter a full path starting with a drive letter or ~.".into()
+        } else {
+            "Enter a full path starting with / or ~.".into()
+        });
     }
     if dest_path
         .components()
@@ -1136,7 +1189,7 @@ fn resolve_destination(old_expanded: &str, new_root: &str) -> Result<String, Str
     {
         return Err("The path can't contain \"..\".".into());
     }
-    if dest_expanded.trim_end_matches('/') == old_expanded.trim_end_matches('/') {
+    if same_path_text(&dest_expanded, old_expanded) {
         return Err("The folder is already at that location.".into());
     }
 
@@ -1275,6 +1328,11 @@ fn remove_one(app: &AppHandle, name: &str) -> Result<(), String> {
 
     // Stop the running session before deleting files (session name == file name
     // for created projects), then tear down port forwards/poller + sync mirror.
+    // Windows waits out the services' graceful stop: a process still running in
+    // the folder keeps it from being deleted.
+    #[cfg(windows)]
+    let _ = crate::sessions::kill_session_wait(name);
+    #[cfg(not(windows))]
     let _ = crate::sessions::kill_session(name);
     crate::portforward::stop_project_forwards(app, name); // tunnels + poller + suggestions
     crate::sshsync::remove_project_sync(app, name); // watcher + local cache dir
@@ -1595,6 +1653,7 @@ fn map_clone_error(msg: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::process::Command;
 
     fn write_file(path: &Path, contents: &str) {
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -1658,6 +1717,34 @@ mod tests {
         assert!(!d.join(".next").exists());
     }
 
+    #[cfg(windows)]
+    #[test]
+    fn a_cloned_entry_keeps_its_junctions_inside_the_destination_project() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (twin, mirror) = (tmp.path().join("twin"), tmp.path().join("mirror"));
+        write_file(&twin.join("packages/pkg/index.js"), "pkg");
+        write_file(&twin.join("node_modules/.pnpm/next/index.js"), "next");
+        std::fs::create_dir_all(twin.join("apps/web/node_modules")).unwrap();
+        crate::fslink::junction(&twin.join("packages/pkg"), &twin.join("node_modules/pkg"))
+            .unwrap();
+        crate::fslink::junction(
+            &twin.join("node_modules/.pnpm/next"),
+            &twin.join("apps/web/node_modules/next"),
+        )
+        .unwrap();
+        std::fs::create_dir_all(mirror.join("apps/web")).unwrap();
+        let roots = (twin.as_path(), mirror.as_path());
+        for entry in ["node_modules", "apps/web/node_modules"] {
+            clone_entry(&twin.join(entry), &mirror.join(entry), roots).unwrap();
+        }
+        let link = |rel: &str| std::fs::read_link(mirror.join(rel)).unwrap();
+        assert_eq!(link("node_modules/pkg"), mirror.join("packages/pkg"));
+        assert_eq!(
+            link("apps/web/node_modules/next"),
+            mirror.join("node_modules/.pnpm/next")
+        );
+    }
+
     #[test]
     fn duplicate_takes_the_preferred_id_when_free() {
         let tmp = tempfile::tempdir().unwrap();
@@ -1689,6 +1776,28 @@ mod tests {
             "lpm/Project-name-draft-lock"
         );
         assert_eq!(worktree_branch_name("---"), "lpm/worktree");
+    }
+
+    #[test]
+    fn a_move_to_where_the_folder_already_is_is_spotted() {
+        assert!(same_path_text("/a/proj/", "/a/proj"));
+        assert!(!same_path_text("/a/proj", "/a/proj2"));
+        #[cfg(windows)]
+        assert!(same_path_text(r"C:\a\proj\", "C:/a/proj"));
+    }
+
+    #[test]
+    fn only_a_cross_volume_rename_falls_back_to_copying() {
+        assert!(crosses_volumes(&std::io::Error::from(
+            std::io::ErrorKind::CrossesDevices
+        )));
+        assert!(!crosses_volumes(&std::io::Error::from(
+            std::io::ErrorKind::PermissionDenied
+        )));
+        #[cfg(unix)]
+        assert!(crosses_volumes(&std::io::Error::from_raw_os_error(
+            libc::EXDEV
+        )));
     }
 
     #[test]

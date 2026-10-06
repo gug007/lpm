@@ -372,6 +372,10 @@ supervise() {
     : "${GTK_A11Y:=none}"
     export WEBKIT_DISABLE_DMABUF_RENDERER WEBKIT_DISABLE_COMPOSITING_MODE
     export LIBGL_ALWAYS_SOFTWARE GDK_BACKEND NO_AT_BRIDGE GTK_A11Y
+    # The unit's Environment=LPM_HEADLESS=1: the same binary is also a desktop
+    # app, and this is what tells it nobody is at this machine.
+    : "${LPM_HEADLESS:=1}"
+    export LPM_HEADLESS
 
     # The unit's WorkingDirectory=%h. An image whose root account has no home
     # directory is a real thing, and the app keeps everything it owns under it.

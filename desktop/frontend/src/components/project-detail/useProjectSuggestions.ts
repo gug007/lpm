@@ -7,10 +7,7 @@ import {
   parsePackageJsonScripts,
   type ActionTemplate,
 } from "./projectSuggestions";
-
-function joinPath(root: string, name: string): string {
-  return `${root.replace(/\/+$/, "")}/${name}`;
-}
+import { joinPath } from "../../path";
 
 async function tryRead(path: string): Promise<string | null> {
   try {

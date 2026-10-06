@@ -10,6 +10,7 @@ import { PromptField } from "./PromptField";
 import { AICliSelect } from "./ui/AICliSelect";
 import { GeneratorIconView } from "./generatorIcons";
 import { FIELD_CLASS, HELPER_TEXT, SECTION_LABEL } from "./ui/fields";
+import { joinPath } from "../path";
 
 interface GeneratorRunModalProps {
   generator: Generator;
@@ -39,7 +40,7 @@ export function GeneratorRunModal({ generator, onClose }: GeneratorRunModalProps
 
   const run = async () => {
     if (!canRun) return;
-    const root = `${destParent.replace(/\/+$/, "")}/${name.trim()}`;
+    const root = joinPath(destParent, name.trim());
     const spec: GeneratorRunSpec = isCommand
       ? { type: "command", command: command.trim() }
       : { type: "ai", cli, prompt: prompt.trim() };

@@ -421,6 +421,7 @@ impl PeerClientHub {
                     "lastError": last_error,
                     "autoSync": p.auto_sync,
                     "platform": p.platform,
+                    "headless": p.headless,
                     "sshHost": p.ssh.destination(),
                     "version": p.version,
                     "tunnel": tunnel,
@@ -661,6 +662,7 @@ impl PeerClientHub {
                 last_sync_at: 0,
                 auto_sync: false,
                 platform: s("hostPlatform"),
+                headless: reply.get("hostHeadless").and_then(Value::as_bool),
                 version: s("hostVersion"),
                 phone_server_id: String::new(),
                 ssh: Default::default(),
@@ -1745,27 +1747,13 @@ fn persist_tls_fp(hub: &PeerClientHub, slug: &str, fp: &str) {
 /// itself — and so a host that was updated, or moved to another machine under the
 /// same identity, doesn't go on claiming the old values.
 ///
-/// Both fields in one pass because they arrive together: on a first connect after
-/// an upgrade they are both new, and saving twice would write the config and wake
-/// every listener twice for a single event. An empty value means "not reported",
-/// never "cleared".
+/// All fields in one pass because they arrive together: on a first connect after
+/// an upgrade they are all new, and saving more than once would write the config
+/// and wake every listener repeatedly for a single event.
 fn persist_host_report(hub: &PeerClientHub, slug: &str, ready: &Value) {
-    let reported = |k: &str| ready.get(k).and_then(Value::as_str).unwrap_or("");
     let mut cfg = hub.inner.config.lock().unwrap();
     let changed = match cfg.peers.iter_mut().find(|p| p.slug == slug) {
-        Some(p) => [
-            (&mut p.platform, reported("hostPlatform")),
-            (&mut p.version, reported("hostVersion")),
-            (&mut p.phone_server_id, reported("phoneServerId")),
-        ]
-        .into_iter()
-        .fold(false, |changed, (field, value)| {
-            if value.is_empty() || field.as_str() == value {
-                return changed;
-            }
-            *field = value.to_string();
-            true
-        }),
+        Some(p) => apply_host_report(p, ready),
         None => false,
     };
     if !changed {
@@ -1775,6 +1763,54 @@ fn persist_host_report(hub: &PeerClientHub, slug: &str, ready: &Value) {
     drop(cfg);
     let _ = peer::save_config(&snapshot);
     emit_state_changed(hub);
+}
+
+/// An empty string means "not reported", never "cleared". `hostHeadless` is taken
+/// as sent, absence included: a build that doesn't send it predates Linux
+/// desktops, and a machine that went back to one is a host again.
+fn apply_host_report(p: &mut PeerEntry, ready: &Value) -> bool {
+    let reported = |k: &str| ready.get(k).and_then(Value::as_str).unwrap_or("");
+    let changed = [
+        (&mut p.platform, reported("hostPlatform")),
+        (&mut p.version, reported("hostVersion")),
+        (&mut p.phone_server_id, reported("phoneServerId")),
+    ]
+    .into_iter()
+    .fold(false, |changed, (field, value)| {
+        if value.is_empty() || field.as_str() == value {
+            return changed;
+        }
+        *field = value.to_string();
+        true
+    });
+    let headless = ready.get("hostHeadless").and_then(Value::as_bool);
+    if p.headless == headless {
+        return changed;
+    }
+    p.headless = headless;
+    true
+}
+
+/// Whether lpm on this peer is ours to update or remove over SSH. Never on a
+/// Linux or Windows desktop: its lpm came from a package, and the host installer
+/// would put a second app beside it on the same `~/.lpm`. Every other peer keeps
+/// what it had before desktops shipped there, a Linux one that doesn't say
+/// whether it is headless included.
+pub(crate) fn manages_host_install(p: &PeerEntry) -> bool {
+    match p.platform.as_str() {
+        "windows" => false,
+        "linux" => p.headless != Some(false),
+        _ => true,
+    }
+}
+
+fn desktop_peer_refusal(p: &PeerEntry, action: &str) -> String {
+    let name = if p.alias.trim().is_empty() {
+        p.ssh.destination()
+    } else {
+        p.alias.clone()
+    };
+    format!("lpm on {name} is the desktop app, not a host — {action} on that machine")
 }
 
 /// Dial, authenticate, then run the read/write loop until the socket drops. Ok
@@ -2158,16 +2194,20 @@ pub async fn peer_update_host(hub: State<'_, PeerClientHub>, slug: String) -> Re
     tauri::async_runtime::spawn_blocking(move || {
         let target = {
             let cfg = hub.inner.config.lock().unwrap();
-            cfg.peers
+            let p = cfg
+                .peers
                 .iter()
                 .find(|p| p.slug == slug)
-                .map(|p| p.ssh.clone())
-                .ok_or_else(|| "that host is no longer configured".to_string())?
+                .ok_or_else(|| "that host is no longer configured".to_string())?;
+            if !manages_host_install(p) {
+                return Err(desktop_peer_refusal(p, "update it"));
+            }
+            p.ssh.clone()
         };
         if !target.is_set() {
             return Err("lpm can only update a host it reaches over SSH".into());
         }
-        crate::peerssh::install(&target)
+        crate::peerssh::update(&target)
     })
     .await
     .map_err(|e| e.to_string())?
@@ -2195,11 +2235,15 @@ pub async fn peer_uninstall_host(
     tauri::async_runtime::spawn_blocking(move || {
         let (target, was_enabled) = {
             let cfg = hub_state.inner.config.lock().unwrap();
-            cfg.peers
+            let p = cfg
+                .peers
                 .iter()
                 .find(|p| p.slug == removal_slug)
-                .map(|p| (p.ssh.clone(), p.enabled))
-                .ok_or_else(|| "that host is no longer configured".to_string())?
+                .ok_or_else(|| "that host is no longer configured".to_string())?;
+            if !manages_host_install(p) {
+                return Err(desktop_peer_refusal(p, "uninstall it"));
+            }
+            (p.ssh.clone(), p.enabled)
         };
         if !target.is_set() {
             return Err("lpm can only remove itself from a host it reaches over SSH".into());
@@ -2320,6 +2364,7 @@ pub(crate) fn add_peer_blocking(
             // every `ready` reports it, so this takes the same back-fill path as
             // an entry paired before hosts sent a platform at all.
             platform: String::new(),
+            headless: None,
             version: String::new(),
             phone_server_id: String::new(),
             ssh: Default::default(),
@@ -2971,6 +3016,77 @@ mod tests {
         assert_eq!(row.get("slug").and_then(Value::as_str), Some("aabbccdd"));
         assert_eq!(row.get("connected").and_then(Value::as_bool), Some(false));
         assert_eq!(row.get("enabled").and_then(Value::as_bool), Some(true));
+        // Unknown, not false: the UI reads a Linux peer that hasn't said as a host.
+        assert_eq!(row.get("headless"), Some(&Value::Null));
+    }
+
+    fn reported(platform: &str, headless: Option<bool>) -> Value {
+        let mut ready = json!({ "t": "ready", "hostPlatform": platform, "hostVersion": "1.0.0" });
+        if let Some(h) = headless {
+            ready["hostHeadless"] = json!(h);
+        }
+        ready
+    }
+
+    #[test]
+    fn a_host_report_records_whether_anyone_is_at_the_machine() {
+        let mut p = PeerEntry::default();
+        assert!(apply_host_report(&mut p, &reported("linux", Some(false))));
+        assert_eq!((p.platform.as_str(), p.headless), ("linux", Some(false)));
+        assert!(
+            !apply_host_report(&mut p, &reported("linux", Some(false))),
+            "the same report again changes nothing"
+        );
+        assert!(apply_host_report(&mut p, &reported("linux", Some(true))));
+        assert_eq!(p.headless, Some(true));
+    }
+
+    // A build that predates the field is a host if it runs Linux at all, so its
+    // silence has to clear a stale "desktop" rather than keep it.
+    #[test]
+    fn a_host_too_old_to_report_headless_reads_as_unknown() {
+        let mut p = PeerEntry {
+            platform: "linux".into(),
+            headless: Some(false),
+            ..Default::default()
+        };
+        assert!(apply_host_report(&mut p, &reported("linux", None)));
+        assert_eq!(p.headless, None);
+        assert!(manages_host_install(&p));
+    }
+
+    #[test]
+    fn a_linux_or_windows_desktop_is_never_installed_over_ssh() {
+        let entry = |platform: &str, headless: Option<bool>| PeerEntry {
+            platform: platform.into(),
+            headless,
+            ..Default::default()
+        };
+        assert!(manages_host_install(&entry("linux", Some(true))));
+        assert!(manages_host_install(&entry("linux", None)));
+        // An SSH-reached peer that hasn't connected yet: what it always was.
+        assert!(manages_host_install(&entry("", None)));
+        assert!(!manages_host_install(&entry("linux", Some(false))));
+        assert!(!manages_host_install(&entry("windows", Some(false))));
+        assert!(!manages_host_install(&entry("windows", None)));
+        // A Mac reached over SSH is offered what it always was.
+        assert!(manages_host_install(&entry("macos", Some(false))));
+        assert!(manages_host_install(&entry("macos", None)));
+    }
+
+    #[test]
+    fn a_desktop_refusal_names_the_machine() {
+        let mut p = PeerEntry {
+            alias: "Workstation".into(),
+            ..Default::default()
+        };
+        let err = desktop_peer_refusal(&p, "update it");
+        assert!(err.contains("Workstation"), "{err}");
+        assert!(err.contains("update it on that machine"), "{err}");
+        p.alias = " ".into();
+        p.ssh.host = "box.example".into();
+        p.ssh.user = "me".into();
+        assert!(desktop_peer_refusal(&p, "update it").contains("me@box.example"));
     }
 
     #[test]

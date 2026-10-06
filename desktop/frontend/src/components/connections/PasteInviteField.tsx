@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { decodeInvite } from "../../peer/invite";
+import { MACHINE } from "../../machineWords";
 
 // The primary way to connect: paste one invite string. The field recognizes a
 // valid invite as you paste — a quiet accent edge + inline check + accent-filled
@@ -37,7 +38,7 @@ export function PasteInviteField({
                 submit();
               }
             }}
-            placeholder="Paste invite from the other Mac"
+            placeholder={`Paste invite from ${MACHINE.otherMachine}`}
             spellCheck={false}
             autoCapitalize="off"
             autoCorrect="off"

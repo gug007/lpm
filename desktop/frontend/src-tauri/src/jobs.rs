@@ -8,7 +8,6 @@ use chrono::{Datelike, TimeZone};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, HashMap, HashSet};
-use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::{Mutex, OnceLock};
@@ -990,6 +989,10 @@ struct ActiveRun {
     /// reboot can only be a stranger wearing the same number.
     #[serde(default, rename = "bootAt", skip_serializing_if = "Option::is_none")]
     boot_at: Option<u64>,
+    /// The pid's creation time (Windows only), so a recycled pid can't pass
+    /// for the run after a relaunch.
+    #[serde(default, rename = "procStart", skip_serializing_if = "Option::is_none")]
+    proc_start: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -1271,23 +1274,33 @@ enum Dispatch {
 /// streams detached and its own session (so an app launched from a terminal
 /// doesn't stop the shell with SIGTTIN).
 fn shell_command(cwd: &str, cmd: &str, env: &[(String, String)]) -> Command {
-    let shell = crate::sys::login_shell();
-    let script = format!("cd {} && {}", config::shell_quote(cwd), cmd);
-    let mut c = Command::new(shell);
-    c.arg("-ilc").arg(script).current_dir(cwd);
+    let script = format!(
+        "cd {} && {}",
+        config::shell_quote(&crate::shellpath::shell_path(Path::new(cwd))),
+        cmd
+    );
+    let mut c = crate::shellpath::shell_script("-ilc", &script);
+    c.current_dir(cwd);
     for (k, v) in env {
         c.env(k, v);
     }
     c.stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
-    unsafe {
-        c.pre_exec(|| {
-            if libc::setsid() == -1 {
-                return Err(std::io::Error::last_os_error());
-            }
-            Ok(())
-        });
+    #[cfg(unix)]
+    crate::osproc::detach(&mut c);
+    #[cfg(windows)]
+    crate::procwin::detach(&mut c);
+    c
+}
+
+/// `shell_command` for a captured run. An agent's prompt is an argv word, which
+/// Git Bash would rewrite into a Windows path when it starts with `/`; a plain
+/// command keeps the rewrite its author may rely on.
+fn captured_command(cwd: &str, line: &str, env: &[(String, String)], agent: bool) -> Command {
+    let mut c = shell_command(cwd, line, env);
+    if agent {
+        crate::shellpath::verbatim_args(&mut c, line);
     }
     c
 }
@@ -1359,10 +1372,13 @@ fn run_env(
     env
 }
 
+/// SIGKILL the run's process group. Windows has no groups: the run's tree is
+/// walked from its root instead.
 fn kill_group(pid: i32) {
-    unsafe {
-        libc::kill(-pid, libc::SIGKILL);
-    }
+    #[cfg(unix)]
+    crate::osproc::kill_group(pid as u32, true);
+    #[cfg(windows)]
+    crate::proctree::kill_pids(&crate::proctree::trees(&[pid]));
 }
 
 enum WaitVerdict {
@@ -2004,7 +2020,7 @@ fn reap_run(
 fn captured_shell_line(cmdline: &str, log_path: &Path) -> String {
     format!(
         "( {cmdline} ) > {} 2>&1",
-        config::shell_quote(&log_path.to_string_lossy())
+        config::shell_quote(&crate::shellpath::shell_path(log_path))
     )
 }
 
@@ -2044,7 +2060,9 @@ fn spawn_captured(app: &AppHandle, key: &str, root: &str, spec: CaptureSpec) -> 
     let env2 = env.clone();
     let log_path = logs.join(format!("{}-{}.log", key.replace('/', "_"), now_secs()));
     let cmdline = capture_cmdline(agent.as_deref(), &cmdline, &log_path);
-    match shell_command(root, &captured_shell_line(&cmdline, &log_path), &env).spawn() {
+    let is_agent = agent.is_some();
+    let line = captured_shell_line(&cmdline, &log_path);
+    match captured_command(root, &line, &env, is_agent).spawn() {
         Ok(mut child) => {
             let started = now_secs();
             active_runs()
@@ -2063,6 +2081,7 @@ fn spawn_captured(app: &AppHandle, key: &str, root: &str, spec: CaptureSpec) -> 
                     follows,
                     compacted,
                     boot_at: Some(boot_epoch()),
+                    proc_start: proc_start(child.id()),
                 });
             });
             let app2 = app.clone();
@@ -2079,8 +2098,13 @@ fn spawn_captured(app: &AppHandle, key: &str, root: &str, spec: CaptureSpec) -> 
                 if result == CONTEXT_FULL {
                     if let Some(fb) = fallback {
                         let log2 = log_path.with_extension("compact.log");
-                        if let Ok(mut retry) =
-                            shell_command(&root2, &captured_shell_line(&fb, &log2), &env2).spawn()
+                        if let Ok(mut retry) = captured_command(
+                            &root2,
+                            &captured_shell_line(&fb, &log2),
+                            &env2,
+                            is_agent,
+                        )
+                        .spawn()
                         {
                             active_runs()
                                 .lock()
@@ -2091,6 +2115,7 @@ fn spawn_captured(app: &AppHandle, key: &str, root: &str, spec: CaptureSpec) -> 
                                     f.jobs.get_mut(&key2).and_then(|st| st.active_run.as_mut())
                                 {
                                     ar.pid = retry.id() as i32;
+                                    ar.proc_start = proc_start(retry.id());
                                     ar.log_path = log2.to_string_lossy().into_owned();
                                     ar.compacted = true;
                                 }
@@ -2642,6 +2667,7 @@ fn spawn_pipeline(app: &AppHandle, project: &str, job: JobResolved, trigger: Tri
 
 /// When this machine booted, from the monotonic clock. A persisted pid is only
 /// trusted when it was spawned in this boot.
+#[cfg(unix)]
 fn boot_epoch() -> u64 {
     let mut ts = libc::timespec {
         tv_sec: 0,
@@ -2653,9 +2679,28 @@ fn boot_epoch() -> u64 {
     now_secs().saturating_sub(ts.tv_sec as u64)
 }
 
+#[cfg(windows)]
+fn boot_epoch() -> u64 {
+    let uptime_ms = unsafe { windows_sys::Win32::System::SystemInformation::GetTickCount64() };
+    now_secs().saturating_sub(uptime_ms / 1000)
+}
+
+/// The creation time that, with the pid, identifies a run's process on
+/// Windows, where no process group marks it as ours. Unix needs none.
+fn proc_start(pid: u32) -> Option<u64> {
+    #[cfg(windows)]
+    return crate::procwin::created(pid);
+    #[cfg(unix)]
+    {
+        let _ = pid;
+        None
+    }
+}
+
 /// Whether the recorded run child is still alive and still ours: same boot,
 /// pid exists, and the pid still leads its own process group (what setsid gave
-/// it) — a recycled pid fails that test.
+/// it) — a recycled pid fails that test. Windows has no groups, so the pid's
+/// process must have been created when the recorded one was.
 fn orphan_alive(run: &ActiveRun) -> bool {
     let same_boot = run
         .boot_at
@@ -2664,7 +2709,15 @@ fn orphan_alive(run: &ActiveRun) -> bool {
     if !same_boot {
         return false;
     }
-    unsafe { libc::kill(run.pid, 0) == 0 && libc::getpgid(run.pid) == run.pid }
+    #[cfg(unix)]
+    return unsafe { libc::kill(run.pid, 0) == 0 && libc::getpgid(run.pid) == run.pid };
+    #[cfg(windows)]
+    {
+        run.pid > 0
+            && run.proc_start.is_some()
+            && crate::osproc::is_alive(run.pid as u32)
+            && proc_start(run.pid as u32) == run.proc_start
+    }
 }
 
 /// The history entry for a run whose watcher died with the previous app
@@ -4738,6 +4791,29 @@ mod tests {
     }
 
     #[test]
+    fn only_agent_runs_turn_off_msys_argument_rewriting() {
+        let env = vec![("LPM_JOB_ID".to_string(), "nightly".to_string())];
+        let line = "( claude -p '/review the diff' ) > log 2>&1";
+        let excl = |c: &Command| {
+            c.get_envs()
+                .find(|(k, _)| *k == "MSYS2_ARG_CONV_EXCL")
+                .and_then(|(_, v)| v)
+                .map(|v| v.to_string_lossy().into_owned())
+        };
+        let agent = captured_command("/tmp", line, &env, true);
+        let plain = captured_command("/tmp", line, &env, false);
+        assert_eq!(excl(&plain), None);
+        if cfg!(windows) {
+            assert_eq!(excl(&agent).as_deref(), Some("/review"));
+        } else {
+            assert_eq!(excl(&agent), None);
+        }
+        assert!(agent
+            .get_envs()
+            .any(|(k, v)| k == "LPM_JOB_ID" && v == Some("nightly".as_ref())));
+    }
+
+    #[test]
     fn wait_or_kill_honors_stop_request() {
         let key = "test-cancel/job";
         let root = std::env::temp_dir().to_string_lossy().into_owned();
@@ -4815,6 +4891,7 @@ mod tests {
             follows: None,
             compacted: false,
             boot_at: None,
+            proc_start: None,
         };
         let clean =
             "noise\n{\"result\":\"Did the work.\",\"session_id\":\"s-9\",\"total_cost_usd\":0.05}";
@@ -5198,6 +5275,7 @@ mod tests {
             follows: None,
             compacted: false,
             boot_at: None,
+            proc_start: None,
         });
         assert!(job_is_live(&st, "quiet/job"));
     }

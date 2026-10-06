@@ -3,6 +3,7 @@ import { Modal } from "./ui/Modal";
 import { ChevronRightIcon, FolderIcon } from "./icons";
 import { BrowseFolder } from "../../bridge/commands";
 import { modalInputDefaults } from "../forms/styles";
+import { basename, folderName, isAbsolutePath, joinPath } from "../path";
 
 interface ProjectRenameModalProps {
   open: boolean;
@@ -50,15 +51,14 @@ export function ProjectRenameModal({
       const el = rootRef.current;
       if (!el) return;
       el.focus();
-      el.setSelectionRange(currentRoot.lastIndexOf("/") + 1, currentRoot.length);
+      el.setSelectionRange(currentRoot.length - basename(currentRoot).length, currentRoot.length);
     });
   }, [expanded, currentRoot]);
 
   const labelTrim = label.trim();
   const labelChanged = labelTrim.length > 0 && labelTrim !== displayName.trim();
   const rootTrim = root.trim();
-  const looksAbsolute =
-    rootTrim.startsWith("/") || rootTrim === "~" || rootTrim.startsWith("~/");
+  const looksAbsolute = isAbsolutePath(rootTrim);
   const folderChanged =
     expanded &&
     canRenameFolder &&
@@ -70,8 +70,7 @@ export function ProjectRenameModal({
   const browse = async () => {
     const parent = await BrowseFolder();
     if (!parent) return;
-    const base = currentRoot.split("/").filter(Boolean).pop() ?? "";
-    setRoot(`${parent.replace(/\/+$/, "")}/${base}`);
+    setRoot(joinPath(parent, folderName(currentRoot)));
   };
 
   const handleSubmit = async (e: FormEvent) => {

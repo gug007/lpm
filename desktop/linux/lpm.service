@@ -10,6 +10,10 @@ PartOf=lpm-xvfb.service
 [Service]
 Environment=DISPLAY=:99
 Environment=HOME=%h
+# Nobody is at this machine. The same binary is also a Linux desktop app, so the
+# OS alone doesn't say which this is; this does, and the app passes it on to
+# every Mac that connects.
+Environment=LPM_HEADLESS=1
 WorkingDirectory=%h
 # Written by install.sh: SHELL, plus anything else this machine needs. systemd
 # starts a service with almost no environment — no login shell has run — and

@@ -9,6 +9,7 @@ import { ProjectsPanel } from "./stats/ProjectsPanel";
 import { RecentSessionsPanel } from "./stats/RecentSessionsPanel";
 import { StatsSkeleton } from "./stats/StatsSkeleton";
 import { distinctModelCount, providerMeta } from "./stats/statsDerive";
+import { MACHINE } from "../machineWords";
 
 const PERIODS = [
   { days: 1, label: "Today" },
@@ -151,7 +152,7 @@ export function StatsView() {
             )}
 
             <div className="flex items-center justify-between text-[10px] text-[var(--text-muted)]">
-              <span>Usage metadata stays on this Mac. Prompts and responses are not included.</span>
+              <span>Usage metadata stays on {MACHINE.thisMachine}. Prompts and responses are not included.</span>
               <span>{totalFiles.toLocaleString()} local history files scanned · SSH projects excluded</span>
             </div>
           </div>

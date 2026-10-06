@@ -46,7 +46,10 @@ fn label_for(name: &str) -> String {
 
 // ---- commands ---------------------------------------------------------------
 
-#[tauri::command]
+// Building a window from a command running on the main thread deadlocks on
+// Windows: WebView2 can't finish creating the new view inside the IPC callback.
+#[cfg_attr(windows, tauri::command(async))]
+#[cfg_attr(not(windows), tauri::command)]
 pub fn detach_project(
     app: AppHandle,
     state: State<'_, DetachedState>,
@@ -117,7 +120,8 @@ pub fn list_detached_projects(state: State<'_, DetachedState>) -> Vec<String> {
     state.labels.lock().unwrap().keys().cloned().collect()
 }
 
-#[tauri::command]
+#[cfg_attr(windows, tauri::command(async))]
+#[cfg_attr(not(windows), tauri::command)]
 pub fn restore_detached_windows(app: AppHandle, state: State<'_, DetachedState>) {
     restore_impl(&app, &state);
 }
@@ -193,6 +197,7 @@ fn open_window(
     };
 
     let win = builder.build().map_err(|e| e.to_string())?;
+    crate::webengine::harden(&win);
     attach_events(app, project_name, &label, &win);
     state
         .labels

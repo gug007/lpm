@@ -40,6 +40,7 @@ import {
 import { ProgressBar } from "./ui/ProgressBar";
 import { ShortcutRecorder } from "./ui/ShortcutRecorder";
 import { HOTKEYS, resolveHotkey, configuredHotkeyCombos } from "../hotkeys";
+import { shortcutRequirementHint } from "../shortcutRecord";
 import { BTN_SECONDARY } from "./ui/buttons";
 import { SkillInstallControl } from "./SkillInstallControl";
 import { statuslineSelectionLabel } from "./ClaudeStatusLineView";
@@ -96,6 +97,11 @@ import {
   type SettingsSearchEntry,
 } from "../settings-registry";
 import type { SettingsTab } from "../store/app";
+import { chordLabel } from "../keys";
+import { isMac } from "../platform";
+import { openReleasePage, UPDATES_INSTALL_IN_APP } from "../releasePage";
+import { MACHINE } from "../machineWords";
+import { removeAppConfirmText } from "../removeAppCopy";
 
 const NAV_ICONS: Record<string, LucideIcon> = {
   general: SlidersHorizontal,
@@ -127,7 +133,7 @@ const HOOKS_DESCRIPTION: Record<HooksStatus, string> = {
 import type { View } from "../store/app";
 
 const PAGE_SUBTITLES: Partial<Record<SettingsTab, string>> = {
-  shortcuts: "Click a shortcut, then press the keys you want. Requires ⌘ or ⌥.",
+  shortcuts: `Click a shortcut, then press the keys you want. ${shortcutRequirementHint()}`,
 };
 
 interface SettingsProps {
@@ -511,7 +517,10 @@ export function Settings({
       // The app quits itself once removal is scheduled; the overlay stays up.
     } catch (err) {
       setRemovingApp(false);
-      toast.error(String(err));
+      // Off macOS the app stays installed, so the backend always answers with
+      // where to finish rather than quitting.
+      if (isMac) toast.error(String(err));
+      else toast.info(String(err), { duration: 15_000 });
     }
   };
 
@@ -657,8 +666,8 @@ export function Settings({
                 })}
               >
                 {version === "dev" ? null : updateStatus === "available" ? (
-                  <button onClick={handleInstallUpdate} className="rounded-md bg-[var(--accent-green)] px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90">
-                    Update
+                  <button onClick={UPDATES_INSTALL_IN_APP ? handleInstallUpdate : openReleasePage} className="rounded-md bg-[var(--accent-green)] px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90">
+                    {UPDATES_INSTALL_IN_APP ? "Update" : "Download"}
                   </button>
                 ) : (
                   <button onClick={handleCheckUpdate} disabled={updateStatus === "checking" || updateStatus === "installing"} className={BTN_SECONDARY}>
@@ -883,7 +892,7 @@ export function Settings({
               <SettingsRow
                 {...rowProps("tts.enable", {
                   description: ttsEnabled
-                    ? "Cmd+Shift+L to read selected text"
+                    ? `${isMac ? "Cmd+Shift+L" : chordLabel({ key: "l", meta: true, shift: true })} to read selected text`
                     : "Read terminal text aloud using Kokoro",
                 })}
               >
@@ -897,7 +906,7 @@ export function Settings({
                       onChange={(e) => updateSettings({ ttsEngine: e.target.value })}
                       aria-label="Engine"
                     >
-                      <option value="kokoro">Kokoro (on this Mac)</option>
+                      <option value="kokoro">{`Kokoro (on ${MACHINE.thisMachine})`}</option>
                       <option value="openai">OpenAI</option>
                     </SettingsSelect>
                   </SettingsRow>
@@ -962,9 +971,11 @@ export function Settings({
               <SettingsRow {...rowProps("ai.branchInstructions")}>
                 <button onClick={() => onNavigate("branch-instructions")} className={BTN_SECONDARY}>Edit</button>
               </SettingsRow>
-              <SettingsRow {...rowProps("ai.voiceToText")}>
-                <button onClick={() => BrowserOpenURL("https://voicetotext.cc")} className={BTN_SECONDARY}>Learn more</button>
-              </SettingsRow>
+              {isMac && (
+                <SettingsRow {...rowProps("ai.voiceToText")}>
+                  <button onClick={() => BrowserOpenURL("https://voicetotext.cc")} className={BTN_SECONDARY}>Learn more</button>
+                </SettingsRow>
+              )}
             </SettingsSection>
 
             <SettingsSection
@@ -1118,7 +1129,7 @@ export function Settings({
             </SettingsSection>
             <SettingsSection
               title="Encryption key"
-              description="Your notes are locked with a secret key. Back it up to move notes between Macs or recover them later."
+              description={`Your notes are locked with a secret key. Back it up to move notes between ${MACHINE.plural} or recover them later.`}
             >
               <SettingsRow {...rowProps("backup.vaultExport")}>
                 <button onClick={() => setShowVaultExport(true)} className={BTN_SECONDARY}>
@@ -1184,26 +1195,30 @@ export function Settings({
             variant="destructive"
             confirmLabel="Remove"
             body={
-              <>
-                <p>
-                  The app, its command line tool, and its agent skills will be
-                  removed from this Mac. Your project folders won't be touched.
-                </p>
-                <label className="mt-4 flex cursor-pointer items-start gap-2 text-[var(--text-primary)]">
-                  <input
-                    type="checkbox"
-                    checked={removeAppData}
-                    onChange={(e) => setRemoveAppData(e.target.checked)}
-                    className="mt-0.5"
-                  />
-                  <span>
-                    Also delete settings and project configurations
-                    <span className="block text-[11px] text-[var(--text-muted)]">
-                      Removes every lpm setting, note, and project configuration.
+              isMac ? (
+                <>
+                  <p>
+                    The app, its command line tool, and its agent skills will be
+                    removed from {MACHINE.thisMachine}. Your project folders won't be touched.
+                  </p>
+                  <label className="mt-4 flex cursor-pointer items-start gap-2 text-[var(--text-primary)]">
+                    <input
+                      type="checkbox"
+                      checked={removeAppData}
+                      onChange={(e) => setRemoveAppData(e.target.checked)}
+                      className="mt-0.5"
+                    />
+                    <span>
+                      Also delete settings and project configurations
+                      <span className="block text-[11px] text-[var(--text-muted)]">
+                        Removes every lpm setting, note, and project configuration.
+                      </span>
                     </span>
-                  </span>
-                </label>
-              </>
+                  </label>
+                </>
+              ) : (
+                <p>{removeAppConfirmText()}</p>
+              )
             }
             onCancel={() => setShowRemoveApp(false)}
             onConfirm={handleRemoveApp}
@@ -1298,7 +1313,7 @@ export function Settings({
           <PassphraseModal
             open={showVaultExport}
             title="Back up your encryption key"
-            body="Choose a password to protect the backup file. You'll need this password later to restore your key on another Mac — write it down or save it in a password manager. Anyone who has both the file and this password can read your notes."
+            body={`Choose a password to protect the backup file. You'll need this password later to restore your key on ${MACHINE.anotherMachine} — write it down or save it in a password manager. Anyone who has both the file and this password can read your notes.`}
             submitLabel="Back up"
             confirm
             onCancel={() => setShowVaultExport(false)}
@@ -1308,7 +1323,7 @@ export function Settings({
           <PassphraseModal
             open={showVaultImport}
             title="Restore your encryption key"
-            body="Pick the backup file in the next dialog, then enter the password you chose when you created it. If this Mac already has a different key stored, remove it from the Keychain first."
+            body={`Pick the backup file in the next dialog, then enter the password you chose when you created it. If ${MACHINE.thisMachine} already has a different key stored, remove it${isMac ? " from the Keychain" : ""} first.`}
             submitLabel="Restore"
             onCancel={() => setShowVaultImport(false)}
             onSubmit={handleVaultImport}
@@ -1585,8 +1600,10 @@ function RemovingOverlay() {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
       <div className="flex flex-col items-center gap-3 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-6 py-5 shadow-lg">
         <RefreshIcon spinning size={24} />
-        <p className="text-sm font-medium text-[var(--text-primary)]">Removing lpm...</p>
-        <p className="text-xs text-[var(--text-muted)]">The app will close when finished</p>
+        <p className="text-sm font-medium text-[var(--text-primary)]">
+          {isMac ? "Removing lpm..." : "Removing lpm's tools..."}
+        </p>
+        {isMac && <p className="text-xs text-[var(--text-muted)]">The app will close when finished</p>}
       </div>
     </div>
   );
@@ -1853,6 +1870,7 @@ function ImportReportModal({
   if (!report) return null;
 
   const { imported, skipped, missingRoots, missingTools } = report;
+  const unportable: string[] = report.unportable ?? [];
   const nothingHappened = imported.length === 0 && skipped.length === 0;
 
   return (
@@ -1886,11 +1904,21 @@ function ImportReportModal({
         </ReportSection>
       )}
 
+      {unportable.length > 0 && (
+        <ReportSection
+          title={`Not imported (${unportable.length})`}
+          tone="warn"
+          note={`Their names use characters ${MACHINE.thisMachine} can't have in a file name. Rename them where they came from, then export again.`}
+        >
+          <ReportList items={unportable} mono />
+        </ReportSection>
+      )}
+
       {missingRoots.length > 0 && (
         <ReportSection
           title={`Missing project folders (${missingRoots.length})`}
           tone="warn"
-          note="These projects reference folders that don't exist on this Mac. Clone or create them, then reopen the project."
+          note={`These projects reference folders that don't exist on ${MACHINE.thisMachine}. Clone or create them, then reopen the project.`}
         >
           <ul className="flex flex-col gap-1 text-xs font-mono">
             {missingRoots.map((mr: any) => (

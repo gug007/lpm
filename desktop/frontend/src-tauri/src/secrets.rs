@@ -1,7 +1,7 @@
-// Named secrets (API keys) kept out of settings.json: the macOS login Keychain
-// on this platform, a 0600 file under ~/.lpm on every other. Mirrors the
-// vault.rs / vaultkeychain.rs / vaultkeyfile.rs split, but stores arbitrary
-// strings under a caller-chosen account name rather than one fixed 32-byte key.
+// Named secrets (API keys) kept out of settings.json: the login Keychain on
+// macOS, Credential Manager on Windows, a 0600 file under ~/.lpm on Linux.
+// Mirrors the vault.rs backend split, but stores arbitrary strings under a
+// caller-chosen account name rather than one fixed 32-byte key.
 //
 // Values are write-only from the UI's point of view: `get` exists for the
 // synthesizer, `has` is what the frontend asks so a key is never sent back to a
@@ -112,7 +112,30 @@ mod imp {
     }
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(windows)]
+mod imp {
+    use crate::wincred;
+
+    pub fn get(account: &str) -> Result<Option<String>, String> {
+        match wincred::read(account) {
+            Ok(None) => Ok(None),
+            Ok(Some(bytes)) => String::from_utf8(bytes)
+                .map(|s| Some(s).filter(|s| !s.is_empty()))
+                .map_err(|_| "stored secret is not valid UTF-8".into()),
+            Err(code) => Err(format!("read Credential Manager: error {code}")),
+        }
+    }
+
+    pub fn set(account: &str, value: &str) -> Result<(), String> {
+        wincred::write(account, &format!("lpm {account}"), value.as_bytes())
+    }
+
+    pub fn delete(account: &str) -> Result<(), String> {
+        wincred::delete(account)
+    }
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
 mod imp {
     use std::io::Write;
     use std::path::PathBuf;

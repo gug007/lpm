@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { EventsOn } from "../../bridge/runtime";
 import { GetServiceLogs, StartLogStreaming, StopLogStreaming, ClearStatus, FocusMainWindow, RemoteSetTerminalLabels } from "../../bridge/commands";
 import { IS_MIRROR_WINDOW, requestRunInDuplicates } from "../mirror";
+import { chordLabel } from "../keys";
 
 // Log streaming is refcounted per viewer in Rust; the two windows that can watch
 // one project's logs must identify themselves so pausing one doesn't stop the
@@ -744,7 +745,8 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
       { key: "+", meta: true },
       { key: "-", meta: true },
       { key: "w", meta: true },
-      { key: "d", meta: true, whileTyping: false },
+      { key: "d", meta: true, shift: false, whileTyping: false },
+      { key: "d", meta: true, shift: true, whileTyping: false },
       { key: "f", meta: true, whileTyping: false },
       { key: "i", meta: true },
       { key: "r", meta: true, shift: true },
@@ -790,7 +792,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
       if (matched.key === "d") {
         const pane = getFocusedPane();
         if (!pane) return;
-        splitPane(pane.id, event.shiftKey ? "col" : "row");
+        splitPane(pane.id, matched.shift ? "col" : "row");
         return;
       }
       if (matched.key === "f") {
@@ -1124,7 +1126,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
             className="flex items-center gap-2 rounded-lg bg-[var(--text-primary)] px-4 py-2 text-xs font-medium text-[var(--bg-primary)] transition-all hover:opacity-85"
           >
             New Terminal
-            <kbd className="ml-1 text-[10px] opacity-70">⌘T</kbd>
+            <kbd className="ml-1 text-[10px] opacity-70">{chordLabel({ key: "t", meta: true })}</kbd>
           </button>
         </div>
       )}

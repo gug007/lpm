@@ -12,6 +12,8 @@ import { SendTargetItem } from "./SendTargetItem";
 import { parsePeerMarker } from "../peer/markers";
 import { peerAliasMap, type PeerClient } from "../peer/usePeerState";
 import { buildSendTargets, flattenTargets, type SendTargetRow } from "../sendTargets";
+import { enterHint } from "../shortcutHints";
+import { MACHINE } from "../machineWords";
 
 // Run the prompt in the tab you pick, or move it there unsent so it waits in that
 // tab's input.
@@ -218,7 +220,7 @@ export function SendToTerminalModal({
                 state={states.get(row.terminalId)}
                 active={active?.terminalId === row.terminalId}
                 disabled={busy || blocked(row)}
-                blockedReason={blocked(row) ? "Another Mac" : undefined}
+                blockedReason={blocked(row) ? MACHINE.AnotherMachine : undefined}
                 primary={primaryFor(row)}
                 onPick={pick}
                 onHover={() => setCursor(rows.indexOf(row))}
@@ -230,7 +232,7 @@ export function SendToTerminalModal({
 
       {rows.length > 0 && (
         <div className="border-t border-[var(--border)] px-4 py-2 text-[11px] text-[var(--text-muted)]">
-          ↵ {VERB[activePrimary]} · ⌘↵ {VERB[activePrimary === "send" ? "move" : "send"]}
+          {enterHint()} {VERB[activePrimary]} · {enterHint({ meta: true })} {VERB[activePrimary === "send" ? "move" : "send"]}
         </div>
       )}
     </Modal>

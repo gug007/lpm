@@ -8,6 +8,7 @@ import { EventsOn } from "../../../bridge/runtime";
 import { useAIPicker } from "../../hooks/useAIPicker";
 import { isCanceledError, useAIGeneration } from "../../hooks/useAIGeneration";
 import { aiEffectiveFast } from "../../types";
+import { enterHint } from "../../shortcutHints";
 
 const ACTION_YAML_PROGRESS_EVENT = "action-yaml-progress";
 
@@ -160,7 +161,7 @@ export function AIActionModal({
 
         <footer className="flex items-center justify-between gap-3 px-7 pb-6 pt-3">
           <span className="text-[11px] text-[var(--text-muted)]">
-            <kbd className="rounded border border-[var(--border)] bg-[var(--bg-secondary)] px-1 py-px font-mono text-[10px]">⌘↵</kbd>{" "}
+            <kbd className="rounded border border-[var(--border)] bg-[var(--bg-secondary)] px-1 py-px font-mono text-[10px]">{enterHint({ meta: true })}</kbd>{" "}
             to run
           </span>
           <div className="flex items-center gap-2">

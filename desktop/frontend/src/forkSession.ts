@@ -6,6 +6,8 @@
 // (`codex resume` would double-write the live rollout); the fork's real id
 // arrives later through the SessionStart hook -> `agent-session` event, the
 // same after-the-fact upgrade a normal Codex launch uses.
+import { commandName } from "./path";
+
 const ENV_ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/;
 
 export interface ForkLaunch {
@@ -17,7 +19,7 @@ function parse(resumeCmd: string | undefined) {
   const tokens = (resumeCmd ?? "").trim().split(/\s+/).filter(Boolean);
   const progIdx = tokens.findIndex((t) => !ENV_ASSIGNMENT.test(t));
   if (progIdx === -1) return null;
-  const prog = tokens[progIdx].split("/").pop() ?? "";
+  const prog = commandName(tokens[progIdx]);
   return { tokens, progIdx, prog };
 }
 

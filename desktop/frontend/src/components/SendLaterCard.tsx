@@ -13,6 +13,7 @@ import { promptStatus } from "../sendLater/status";
 import { TONE_TEXT } from "../sendLater/toneStyles";
 import { useOverlay } from "../store/overlay";
 import { useSendLater, type ScheduledPrompt } from "../store/sendLater";
+import { enterHint } from "../shortcutHints";
 
 interface SendLaterCardProps {
   items: ScheduledPrompt[];
@@ -91,7 +92,7 @@ export function SendLaterCard({ items, anchor, fromHistoryKey, now, onClose }: S
             <div className="-ml-2 mt-0.5 flex items-center gap-0.5">
               <button
                 type="button"
-                title={item.state === "due" ? "Types it in now, as if you pressed ↵" : undefined}
+                title={item.state === "due" ? `Types it in now, as if you pressed ${enterHint()}` : undefined}
                 onClick={act(() => sendScheduledNow(item))}
                 className={`${ACTION_CLASS} font-medium text-[var(--accent-blue-text)]`}
               >
