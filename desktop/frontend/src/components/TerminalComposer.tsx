@@ -25,7 +25,7 @@ import {
   UploadClipboardImageForTerminal,
 } from "../../bridge/commands";
 import { registerFileDropHandler } from "../fileDrop";
-import { isPeerName, peerSlugOf, PEER_UPLOAD_MAX_BYTES } from "../peer/markers";
+import { isPeerName, peerSlugOf, prefixRoot, PEER_UPLOAD_MAX_BYTES } from "../peer/markers";
 import { uploadPeerFile } from "../peer/uploadFiles";
 import { useAIPicker } from "../hooks/useAIPicker";
 import { getSettings } from "../store/settings";
@@ -57,6 +57,7 @@ import { stepRecall } from "./composerRecall";
 import { recordMessage, saveDraft } from "../store/messageHistory";
 import { buildTerminalPayload } from "../composerPayload";
 import { sendToTerminal } from "../store/terminalTargets";
+import { openFileViewer } from "../store/fileViewer";
 import type { SendTargetRow } from "../sendTargets";
 import { useAppStore } from "../store/app";
 import { ComposerTabStrip, type ComposerTabView } from "./ComposerTabStrip";
@@ -2233,19 +2234,29 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       }
       return;
     }
-    // Clicking elsewhere on an image chip opens it full-window; a non-image file
-    // chip has no preview, so its body click does nothing (remove via the "×").
-    // A chip with no mapped path (shouldn't happen) falls back to selecting it as
-    // a unit so it can still be deleted with Backspace.
+    // Clicking elsewhere on a chip previews it: an image full-window in the
+    // lightbox, any other file in the file viewer, which reads a peer
+    // terminal's attachment from the host it was uploaded to. A chip with no
+    // mapped path (shouldn't happen) falls back to selecting it as a unit so it
+    // can still be deleted with Backspace.
     const chip = target.closest<HTMLElement>("[data-img]");
     if (chip) {
       e.preventDefault();
       const path = imagePaths.current.get(Number(chip.dataset.img));
-      if (path && isImagePath(path)) {
-        dismissPreview();
-        setLightboxPath(path);
-      } else if (!path) {
+      if (!path) {
         selectChip(chip);
+        return;
+      }
+      dismissPreview();
+      if (isImagePath(path)) {
+        setLightboxPath(path);
+      } else {
+        openFileViewer({
+          absPath: peerSlug ? prefixRoot(peerSlug, path) : path,
+          line: 0,
+          col: 0,
+          projectRoot: cwd,
+        });
       }
       return;
     }

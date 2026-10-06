@@ -33,7 +33,7 @@ export const FILE_CHIP_LABEL_CLASS = "max-w-[160px] truncate";
 // A labeled image token, like the CLIs' inline "[Image #N]" — kept as an "Image
 // N" pill, modernized: a real thumbnail avatar leads (a muted glyph until it
 // loads via setChipThumbnail). Hovering the chip swaps the avatar for a remove
-// "×" overlay — click it to drop the image; click the label to open the lightbox.
+// "×" overlay — click it to drop the attachment; click the label to preview it.
 const CHIP_CLASS = `group ${IMAGE_CHIP_CLASS} cursor-zoom-in transition-colors hover:bg-[#38bdf8]/30`;
 
 const THUMB_CLASS = `${IMAGE_CHIP_THUMB_CLASS} cursor-pointer text-[var(--text-secondary)] transition-colors hover:text-[var(--accent-red)]`;
@@ -82,14 +82,12 @@ export function createImageChip(n: number): HTMLSpanElement {
 
 // Re-skin an image chip (createImageChip) as a generic file attachment: a
 // file-type glyph and the file's basename replace the thumbnail avatar and the
-// "Image N" label. The `[Image #N]` token, the path map, and the remove/cut
-// behavior are shared with image chips — only the resting look differs, so a
-// dropped .txt/.mp4 still resolves to its path on send. Idempotent.
+// "Image N" label. The `[Image #N]` token, the path map, and the remove/cut/
+// preview behavior are shared with image chips — only the resting look differs,
+// so a dropped .txt/.mp4 still resolves to its path on send. Idempotent.
 export function renderFileChip(chip: HTMLElement, path: string): void {
   if (chip.dataset.file === "1") return;
   chip.dataset.file = "1";
-  chip.classList.remove("cursor-zoom-in");
-  chip.classList.add("cursor-default");
   const label = chip.querySelector<HTMLElement>("[data-img-label]");
   if (label) {
     label.textContent = basename(path);
