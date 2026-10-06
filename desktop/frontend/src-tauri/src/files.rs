@@ -40,6 +40,10 @@ pub async fn browse_folder(app: AppHandle, default_dir: Option<String>) -> Resul
     let start = default_dir
         .map(|d| expand_home(&d))
         .filter(|d| !d.is_empty() && std::path::Path::new(d).is_dir());
+    // GTK's chooser otherwise opens on its virtual Recent view, where a typed
+    // path never navigates and Open stays disabled.
+    #[cfg(target_os = "linux")]
+    let start = start.or_else(|| dirs::home_dir().map(|h| h.to_string_lossy().into_owned()));
     let picked = pick_path(app, move |app| {
         let mut builder = app.dialog().file().set_title("Select project folder");
         if let Some(dir) = start {
@@ -79,7 +83,7 @@ pub fn list_dirs(path: String) -> Result<DirListing, String> {
     } else {
         expand_home(trimmed)
     };
-    let canon = std::fs::canonicalize(&raw).map_err(|e| format!("cannot open {raw}: {e}"))?;
+    let canon = dunce::canonicalize(&raw).map_err(|e| format!("cannot open {raw}: {e}"))?;
     if !canon.is_dir() {
         return Err(format!("not a directory: {}", canon.display()));
     }
@@ -87,7 +91,7 @@ pub fn list_dirs(path: String) -> Result<DirListing, String> {
     for entry in std::fs::read_dir(&canon).map_err(|e| e.to_string())? {
         let Ok(entry) = entry else { continue };
         let name = entry.file_name().to_string_lossy().into_owned();
-        if name.starts_with('.') {
+        if is_hidden(&entry, &name) {
             continue;
         }
         match std::fs::metadata(entry.path()) {
@@ -102,6 +106,23 @@ pub fn list_dirs(path: String) -> Result<DirListing, String> {
         parent,
         dirs,
     })
+}
+
+#[cfg(not(windows))]
+fn is_hidden(_entry: &std::fs::DirEntry, name: &str) -> bool {
+    name.starts_with('.')
+}
+
+/// Also what File Explorer hides, among it the legacy "Application Data"-style
+/// junctions in a profile folder, none of which can be opened.
+#[cfg(windows)]
+fn is_hidden(entry: &std::fs::DirEntry, name: &str) -> bool {
+    use std::os::windows::fs::MetadataExt;
+    const FILE_ATTRIBUTE_HIDDEN: u32 = 0x2;
+    name.starts_with('.')
+        || entry
+            .metadata()
+            .is_ok_and(|m| m.file_attributes() & FILE_ATTRIBUTE_HIDDEN != 0)
 }
 
 #[tauri::command]

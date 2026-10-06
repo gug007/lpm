@@ -13,6 +13,10 @@ use std::io::Write;
 #[path = "clipboard_windows.rs"]
 mod win;
 
+#[cfg(any(test, all(unix, not(target_os = "macos"))))]
+#[path = "clipboard_linux.rs"]
+mod linux;
+
 // Byte-for-byte the Go AppleScript (note `|path|` escaping + `character id 10`).
 #[cfg(target_os = "macos")]
 const READ_FILES_SCRIPT: &str = r#"use framework "AppKit"
@@ -177,7 +181,7 @@ fn cap_text(mut s: String) -> String {
     s
 }
 
-#[cfg(unix)]
+#[cfg(target_os = "macos")]
 fn clipboard_text() -> Result<String, String> {
     let Some((program, args)) = read_argv() else {
         return Ok(String::new());
@@ -191,6 +195,32 @@ fn clipboard_text() -> Result<String, String> {
         return Ok(String::new());
     }
     Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn clipboard_text() -> Result<String, String> {
+    linux::text()
+}
+
+/// An image the clipboard holds, for a paste whose webview hands over none
+/// (WebKitGTK paste events carry no image data).
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClipboardImage {
+    mime_type: String,
+    b64_data: String,
+}
+
+#[tauri::command(async)]
+pub fn read_clipboard_image() -> Option<ClipboardImage> {
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let image = linux::image();
+    #[cfg(not(all(unix, not(target_os = "macos"))))]
+    let image: Option<(String, Vec<u8>)> = None;
+    image.map(|(mime_type, bytes)| ClipboardImage {
+        mime_type,
+        b64_data: B64.encode(bytes),
+    })
 }
 
 #[cfg(windows)]
@@ -256,6 +286,8 @@ struct ClipboardTool {
     /// Reads the MIME type given as the last argument; None for a tool that
     /// only reads text.
     read_typed: Option<(&'static str, &'static [&'static str])>,
+    /// Lists the offered types one per line; None for a tool that can't.
+    list_types: Option<(&'static str, &'static [&'static str])>,
 }
 
 #[cfg(all(unix, not(target_os = "macos")))]
@@ -264,16 +296,19 @@ const CLIPBOARD_TOOLS: &[ClipboardTool] = &[
         write: ("wl-copy", &[]),
         read: ("wl-paste", &["--no-newline", "--type", "text"]),
         read_typed: Some(("wl-paste", &["--no-newline", "--type"])),
+        list_types: Some(("wl-paste", &["--list-types"])),
     },
     ClipboardTool {
         write: ("xclip", &["-selection", "clipboard"]),
         read: ("xclip", &["-selection", "clipboard", "-o"]),
         read_typed: Some(("xclip", &["-selection", "clipboard", "-o", "-t"])),
+        list_types: Some(("xclip", &["-selection", "clipboard", "-o", "-t", "TARGETS"])),
     },
     ClipboardTool {
         write: ("xsel", &["--clipboard", "--input"]),
         read: ("xsel", &["--clipboard", "--output"]),
         read_typed: None,
+        list_types: None,
     },
 ];
 
@@ -307,11 +342,6 @@ fn write_argv() -> Result<(&'static str, &'static [&'static str]), String> {
 #[cfg(target_os = "macos")]
 fn read_argv() -> Option<(&'static str, &'static [&'static str])> {
     Some(("pbpaste", &[]))
-}
-
-#[cfg(all(unix, not(target_os = "macos")))]
-fn read_argv() -> Option<(&'static str, &'static [&'static str])> {
-    clipboard_tool().map(|t| t.read)
 }
 
 /// Write text to the system clipboard. The WKWebView refuses

@@ -4,7 +4,6 @@
 
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
-use std::path::Path;
 use std::time::UNIX_EPOCH;
 
 use base64::engine::general_purpose::STANDARD as B64;
@@ -25,10 +24,9 @@ pub(crate) const FILE_RANGE_CMD: &str = "file_read_range";
 const CHUNK: u64 = 1024 * 1024;
 
 fn name_of(path: &str) -> String {
-    Path::new(path)
-        .file_name()
-        .map(|n| n.to_string_lossy().into_owned())
-        .unwrap_or_else(|| path.to_string())
+    crate::mediapeer::host_file_name(path)
+        .unwrap_or(path)
+        .to_string()
 }
 
 /// Host side: up to a chunk of the file from `offset`, never past the size it

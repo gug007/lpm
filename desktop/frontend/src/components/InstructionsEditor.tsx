@@ -1,4 +1,5 @@
 import { useYamlEditor } from "../hooks/useYamlEditor";
+import { primaryHint } from "../shortcutHints";
 import { ChevronLeftIcon } from "./icons";
 
 interface InstructionsEditorProps {
@@ -18,7 +19,7 @@ export function InstructionsEditor({
   save,
   onBack,
 }: InstructionsEditorProps) {
-  const { content, setContent, dirty, saving, error, handleSave } =
+  const { content, setContent, dirty, saving, error, handleSave, handleSaveKey } =
     useYamlEditor(load, save);
 
   return (
@@ -39,6 +40,7 @@ export function InstructionsEditor({
         <textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}
+          onKeyDown={handleSaveKey}
           spellCheck={false}
           className="min-h-0 flex-1 w-full resize-none bg-[var(--bg-primary)] px-4 py-3 text-xs leading-relaxed text-[var(--text-primary)] outline-none"
           placeholder={placeholder}
@@ -48,7 +50,7 @@ export function InstructionsEditor({
             {error && (
               <span className="flex-1 text-xs text-[var(--accent-red)]">{error}</span>
             )}
-            <span className="text-[10px] text-[var(--text-muted)]">{"\u2318"}S</span>
+            <span className="text-[10px] text-[var(--text-muted)]">{primaryHint("s")}</span>
             <button
               onClick={handleSave}
               disabled={!dirty || saving}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { detectPlatform } from "./platform";
+import { detectPlatform, trashName } from "./platform";
 
 describe("detectPlatform", () => {
   it("recognises WKWebView on macOS", () => {
@@ -35,5 +35,13 @@ describe("detectPlatform", () => {
 
   it("falls back to linux for unknown engines", () => {
     expect(detectPlatform("", "")).toBe("linux");
+  });
+});
+
+describe("trashName", () => {
+  it("names the Recycle Bin on Windows and the Trash elsewhere", () => {
+    expect(trashName("windows")).toBe("Recycle Bin");
+    expect(trashName("macos")).toBe("Trash");
+    expect(trashName("linux")).toBe("Trash");
   });
 });

@@ -135,4 +135,31 @@ describe("AppMenuButton", () => {
     act(() => buttonByText("Help Improve lpm")!.click());
     expect(onFeedback).toHaveBeenCalledTimes(1);
   });
+
+  it("keeps its tooltip off the open menu", () => {
+    vi.useFakeTimers();
+    try {
+      const button = document.querySelector<HTMLButtonElement>("button[aria-label='lpm menu']")!;
+      const tooltip = () => document.querySelector("[role=tooltip]")?.textContent ?? null;
+      expect(button.hasAttribute("title")).toBe(false);
+
+      act(() => {
+        button.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+        vi.advanceTimersByTime(600);
+      });
+      expect(tooltip()).toBe("lpm menu");
+
+      act(() => button.click());
+      expect(buttonByText("Settings")).toBeTruthy();
+      expect(tooltip()).toBeNull();
+
+      act(() => {
+        button.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+        vi.advanceTimersByTime(600);
+      });
+      expect(tooltip()).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

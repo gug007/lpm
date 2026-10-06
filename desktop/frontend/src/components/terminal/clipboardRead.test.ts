@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { readClipboardContent, readPasteContent, unlessNativePaste } from "./clipboardRead";
+import { readBackendImage, readClipboardContent, readPasteContent, unlessNativePaste } from "./clipboardRead";
 
 function item(parts: Record<string, Blob>): ClipboardItem {
   return {
@@ -68,6 +68,46 @@ describe("readPasteContent", () => {
     expect(await readPasteContent(files, () => Promise.resolve(42), { read })).toBeNull();
     expect(order).toEqual(["clipboard", "files"]);
   });
+
+  it("takes the backend's image before any text when the webview has none", async () => {
+    const png = new Blob(["x"], { type: "image/png" });
+    const readImage = () => Promise.resolve({ kind: "image" as const, blob: png, mimeType: "image/png" });
+    const readText = vi.fn(() => Promise.resolve("\x89PNG"));
+    expect(await readPasteContent(() => Promise.resolve([]), readText, refused, readImage)).toEqual({
+      kind: "image",
+      blob: png,
+      mimeType: "image/png",
+    });
+    expect(readText).not.toHaveBeenCalled();
+  });
+
+  it("falls back to text when the backend finds no image", async () => {
+    const readImage = () => Promise.resolve(null);
+    expect(await readPasteContent(() => Promise.resolve([]), () => Promise.resolve("t"), refused, readImage)).toEqual({
+      kind: "text",
+      text: "t",
+    });
+    const failing = () => Promise.reject(new Error("no tool"));
+    expect(await readPasteContent(() => Promise.resolve([]), () => Promise.resolve("t"), refused, failing)).toEqual({
+      kind: "text",
+      text: "t",
+    });
+  });
+});
+
+describe("readBackendImage", () => {
+  it("turns the backend's base64 into an image blob", async () => {
+    const clip = await readBackendImage(() => Promise.resolve({ mimeType: "image/png", b64Data: btoa("PNGDATA") }));
+    expect(clip?.kind).toBe("image");
+    if (clip?.kind !== "image") return;
+    expect(clip.mimeType).toBe("image/png");
+    expect(clip.blob.type).toBe("image/png");
+    expect(await clip.blob.text()).toBe("PNGDATA");
+  });
+
+  it("is null when the clipboard holds no image", async () => {
+    expect(await readBackendImage(() => Promise.resolve(null))).toBeNull();
+  });
 });
 
 describe("unlessNativePaste", () => {
@@ -98,5 +138,26 @@ describe("unlessNativePaste", () => {
     unlessNativePaste(target, vi.fn());
     vi.runAllTimers();
     expect(remove).toHaveBeenCalledWith("paste", expect.any(Function), { capture: true });
+  });
+
+  const pasteEvent = (types: string[]) =>
+    Object.assign(new Event("paste"), { clipboardData: { types } });
+
+  it("on Windows, still runs the fallback when the native paste carried nothing", () => {
+    const target = new EventTarget();
+    const fallback = vi.fn();
+    unlessNativePaste(target, fallback, false);
+    target.dispatchEvent(pasteEvent([]));
+    vi.runAllTimers();
+    expect(fallback).toHaveBeenCalledTimes(1);
+  });
+
+  it("on Windows, stands down when the native paste carried data", () => {
+    const target = new EventTarget();
+    const fallback = vi.fn();
+    unlessNativePaste(target, fallback, false);
+    target.dispatchEvent(pasteEvent(["text/plain"]));
+    vi.runAllTimers();
+    expect(fallback).not.toHaveBeenCalled();
   });
 });

@@ -589,9 +589,10 @@ pub fn resolve_project_name(ctx: &Ctx, query: &str) -> Result<String, ResolveErr
 
 /// Canonicalize a path, tolerating failure by returning it unchanged. macOS
 /// symlinks real temp dirs through `/private`, so a raw `/tmp/...` root won't
-/// string-match a canonicalized cwd without this.
+/// string-match a canonicalized cwd without this. On Windows the result keeps
+/// its plain `C:\...` form rather than the `\\?\` one, since it is printed.
 fn canonical(path: &Path) -> PathBuf {
-    std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
+    dunce::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
 }
 
 /// Infer the current project's file-name stem from the environment.

@@ -143,7 +143,18 @@ fn is_valid_name(name: &str) -> bool {
         && bytes
             .iter()
             .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || *b == b'-')
-        && !(cfg!(windows) && is_windows_device_name(name))
+}
+
+fn check_name(name: &str) -> Result<(), String> {
+    if !is_valid_name(name) {
+        return Err(BAD_NAME.into());
+    }
+    if cfg!(windows) && is_windows_device_name(name) {
+        return Err(format!(
+            "“{name}” is a name Windows reserves, so it can't be a session name."
+        ));
+    }
+    Ok(())
 }
 
 /// `con.md` and friends open a device, not a file, on Windows.
@@ -178,9 +189,7 @@ fn write_session_at(
     content: &str,
     baseline: Option<&str>,
 ) -> Result<(), String> {
-    if !is_valid_name(name) {
-        return Err(BAD_NAME.into());
-    }
+    check_name(name)?;
     let path = dir.join(format!("{name}.md"));
     if let Some(expected) = baseline {
         let current = match std::fs::read(&path) {
@@ -216,9 +225,7 @@ pub fn delete_memory_session(project: String, name: String) -> Result<(), String
 }
 
 fn delete_session_at(dir: &Path, name: &str) -> Result<(), String> {
-    if !is_valid_name(name) {
-        return Err(BAD_NAME.into());
-    }
+    check_name(name)?;
     let path = dir.join(format!("{name}.md"));
     match std::fs::remove_file(&path) {
         Ok(()) => Ok(()),
@@ -246,9 +253,8 @@ pub fn rename_memory_session(
 }
 
 fn rename_session_at(dir: &Path, from: &str, to: &str) -> Result<(), String> {
-    if !is_valid_name(from) || !is_valid_name(to) {
-        return Err(BAD_NAME.into());
-    }
+    check_name(from)?;
+    check_name(to)?;
     if from == to {
         return Ok(());
     }
@@ -415,6 +421,15 @@ mod tests {
         for name in ["console", "com", "com10", "lpt-1", "nul-check", "auth"] {
             assert!(!is_windows_device_name(name), "{name}");
         }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn a_device_name_is_refused_for_what_it_is() {
+        let err = check_name("con").unwrap_err();
+        assert_ne!(err, BAD_NAME);
+        assert!(err.contains("reserves"), "{err}");
+        assert_eq!(check_name("Con").unwrap_err(), BAD_NAME);
     }
 
     #[test]

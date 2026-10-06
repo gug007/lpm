@@ -1,7 +1,7 @@
 import type { KeyboardShortcut } from "./hooks/useKeyboardShortcut";
 import { keyName } from "./keys";
 import { chordLetter, isAltGraphChar, type KeyEventLike } from "./keyEvents";
-import { isMac, isWindows } from "./platform";
+import { isLinux, isMac, isWindows } from "./platform";
 import { canonicalShortcut, reservedShortcutMessage } from "./shortcutParse";
 
 export type CaptureResult =
@@ -55,10 +55,17 @@ function pcShortcut(e: KeyEventLike): KeyboardShortcut | string {
   return `${pressedLabel(e, letter)} is kept for the terminal. Add Shift`;
 }
 
+// GTK and IBus input methods start Unicode entry on Ctrl+Shift+U whenever a
+// text field or the terminal has focus, so that press never reaches lpm there.
+function claimedByInputMethod(e: KeyEventLike): boolean {
+  return e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey && chordLetter(e) === "u";
+}
+
 export function captureShortcut(
   e: KeyEventLike,
   reserved?: ReadonlySet<string>,
   mac: boolean = isMac,
+  linux: boolean = isLinux,
 ): CaptureResult {
   if (MODIFIER_KEYS.includes(e.key)) return { kind: "ignore" };
   if (mac) {
@@ -73,6 +80,9 @@ export function captureShortcut(
   }
   if (e.metaKey) {
     return { kind: "hint", text: `${isWindows ? "Windows key" : "Super"} shortcuts belong to the system` };
+  }
+  if (linux && claimedByInputMethod(e)) {
+    return { kind: "hint", text: `${pressedLabel(e, "u")} is reserved by the system` };
   }
   const shortcut = pcShortcut(e);
   if (typeof shortcut === "string") return { kind: "hint", text: shortcut };

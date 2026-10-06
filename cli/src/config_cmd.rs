@@ -658,11 +658,11 @@ fn absolute_path_from(path: &Path, cwd: &Path) -> PathBuf {
     } else {
         cwd.join(path)
     };
-    std::fs::canonicalize(&path).unwrap_or(path)
+    dunce::canonicalize(&path).unwrap_or(path)
 }
 
 fn comparable_path(path: &Path) -> PathBuf {
-    std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
+    dunce::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
 }
 
 fn config_kind(ctx: &Ctx, path: &Path) -> ConfigKind {

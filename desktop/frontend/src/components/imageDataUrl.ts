@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { NotesReadFileAsInput } from "../../bridge/commands";
-import { PEER_UPLOAD_MAX_BYTES, prefixRoot } from "../peer/markers";
+import { PEER_UPLOAD_MAX_BYTES, isWindowsHostPath, prefixRoot } from "../peer/markers";
 
 // Data URLs are reused across previews so re-opening the same image doesn't
 // re-read it from disk. Bounded LRU: base64 data URLs are large and the composer
@@ -33,7 +33,7 @@ function cacheSet(key: string, url: string) {
 // machine, which has nothing at it. The marker also keeps two hosts' identically
 // named temp files apart in the cache. `slug` is absent for a local file.
 function readKey(path: string, slug?: string | null): string {
-  return slug && path.startsWith("/") ? prefixRoot(slug, path) : path;
+  return slug && (path.startsWith("/") || isWindowsHostPath(path)) ? prefixRoot(slug, path) : path;
 }
 
 // Seat bytes already in hand — a peer image is uploaded FROM here, so its pixels

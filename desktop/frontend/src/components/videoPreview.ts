@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type SyntheticEvent } from "
 import { isPeerMarked, peerSlugOf } from "../peer/markers";
 import { peerAlias, usePeerState, type PeerClient } from "../peer/usePeerState";
 import { canPlayVideo, mediaSrc } from "./fileMedia";
+import { useMediaHttpBase } from "./useMediaHttpBase";
 
 export interface VideoPreview {
   src: string | null;
@@ -77,8 +78,9 @@ export function useVideoPreview(path: string, active: boolean): VideoPreview {
     const unreachable = onPeer && peersLoaded ? peerVideoBlock(path, peerState.peers) : null;
     return unreachable ?? (canPlayVideo(path) ? null : UNSUPPORTED);
   }, [path, active, onPeer, peersLoaded, peerState.peers]);
+  const media = useMediaHttpBase(active);
   // Until the peer list arrives there is no telling whether that Mac streams.
-  const waiting = onPeer && !peersLoaded;
+  const waiting = (onPeer && !peersLoaded) || !media.ready;
 
   const error = blocked ?? (active ? playbackError : null);
   const parts = [
@@ -87,7 +89,7 @@ export function useVideoPreview(path: string, active: boolean): VideoPreview {
   ].filter(Boolean);
 
   return {
-    src: active && path && !error && !waiting ? mediaSrc(path) : null,
+    src: active && path && !error && !waiting ? mediaSrc(path, undefined, media.base) : null,
     error,
     meta: parts.length > 0 ? parts.join(" · ") : null,
     onLoadedMetadata,

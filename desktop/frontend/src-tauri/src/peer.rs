@@ -1061,6 +1061,19 @@ fn pair_device(
 const PAIR_APPROVE_WINDOW: Duration = Duration::from_secs(120);
 const RECIPROCAL_WINDOW: Duration = Duration::from_secs(30);
 
+/// The immediate refusal for a pair-by-approval request on a machine nobody is
+/// at to approve it (a headless host), or `None` when the dialog can be shown.
+fn pair_request_refusal(supported: bool) -> Option<Value> {
+    if supported {
+        return None;
+    }
+    Some(json!({
+        "t": "error",
+        "error": "Pairing this way needs someone at that machine to approve it. \
+                  Use its pairing code instead.",
+    }))
+}
+
 /// Drive a tap-to-approve pairing request: emit it to the UI, park on the user's
 /// decision (staying responsive so a cancelled requester is noticed), and on
 /// approval mint the device and reply `paired`. Returns the device id on success
@@ -1072,6 +1085,10 @@ fn handle_pair_request(
     name: &str,
     platform: &str,
 ) -> Option<String> {
+    if let Some(frame) = pair_request_refusal(crate::remote::pair_requests_supported()) {
+        let _ = ws.send(Message::text(frame.to_string()));
+        return None;
+    }
     let (id, sas, rx) = hub.begin_pair_request(name);
     let _ = ws.send(Message::text(
         json!({ "t": "pairPending", "sas": sas }).to_string(),
@@ -2835,5 +2852,16 @@ mod tests {
             reply.get("error").and_then(Value::as_str),
             Some("pairing declined")
         );
+    }
+
+    // Nobody is at a headless host to tap Accept, so the requester hears at once
+    // instead of waiting out the approval window against an unseen dialog.
+    #[test]
+    fn a_headless_host_refuses_pair_requests_at_once() {
+        assert!(pair_request_refusal(true).is_none());
+        let frame = pair_request_refusal(false).expect("a headless host must refuse");
+        assert_eq!(frame.get("t").and_then(Value::as_str), Some("error"));
+        let message = frame.get("error").and_then(Value::as_str).unwrap_or_default();
+        assert!(message.contains("pairing code"), "{message}");
     }
 }

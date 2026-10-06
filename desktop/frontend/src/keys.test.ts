@@ -39,6 +39,19 @@ describe("toPhysical", () => {
   it("renders macOS glyphs on macOS", () => {
     expect(chordLabel({ key: "d", meta: true, shift: true }, true)).toBe("⌘⇧D");
   });
+
+  it("moves ⌘U off the input method's Ctrl+Shift+U on Linux only", () => {
+    expect(toPhysical({ key: "u", meta: true }, false, true)).toEqual({
+      key: "u",
+      ctrl: true,
+      meta: false,
+      shift: false,
+      alt: true,
+    });
+    expect(chordLabel({ key: "u", meta: true }, false)).toBe("Ctrl+Shift+U");
+    expect(toPhysical({ key: "u", meta: true }, true, true).meta).toBe(true);
+    expect(toPhysical({ key: "t", meta: true }, false, true).shift).toBe(true);
+  });
 });
 
 describe("matchesChord", () => {

@@ -45,7 +45,7 @@ import { SidebarRollupLine } from "./SidebarRollupLine";
 import { SidebarIcon, AlertCircleIcon, MoreVerticalIcon, DetachIcon, PlusIcon, ServerIcon } from "./icons";
 import { SidebarFooterNav } from "./SidebarFooterNav";
 import { AppMenuButton } from "./AppMenuButton";
-import { isMac } from "../platform";
+import { isMac, trashName } from "../platform";
 import { chordLabel } from "../keys";
 import { SidebarAgentToolsPill } from "./SidebarAgentToolsPill";
 import { SidebarUsage } from "./SidebarUsage";
@@ -1738,7 +1738,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             <span className="font-medium text-[var(--text-primary)]">
               {pendingTrashLabel}
             </span>{" "}
-            from lpm and move its source folder to the Trash?
+            from lpm and move its source folder to the {trashName()}?
             {trashDupCount > 0 && (
               <span className="mt-2 block">
                 Its {trashDupCount} duplicate{trashDupPlural}{" "}
@@ -1746,7 +1746,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
               </span>
             )}
             <span className="mt-2 block">
-              You can restore the folder from the Trash
+              You can restore the folder from the {trashName()}
               {trashDupCount > 0 ? "; the duplicates can't be restored." : "."}
             </span>
           </>

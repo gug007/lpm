@@ -1,3 +1,4 @@
+import { enterHint } from "../../shortcutHints";
 import { Kbd } from "../ui/Kbd";
 import { HIDE_SESSION_LABEL } from "./resumeSessionKeys";
 
@@ -24,7 +25,7 @@ export function ResumeSessionFooter({
   return (
     <div className="flex items-center justify-between gap-3 border-t border-[var(--border)] px-5 py-3">
       <span className="text-[11px] text-[var(--text-muted)]">
-        <Kbd>↑</Kbd> <Kbd>↓</Kbd> to browse · <Kbd>↵</Kbd>{" "}
+        <Kbd>↑</Kbd> <Kbd>↓</Kbd> to browse · <Kbd>{enterHint()}</Kbd>{" "}
         {picksOpenTab ? "to go to its tab" : "to resume"}
         {canHide && (
           <>

@@ -24,7 +24,7 @@ pub(crate) fn copy_to_mac(
     host_name: &str,
     progress: impl FnMut(u64, u64),
 ) -> Result<PathBuf, String> {
-    let dest = copy_path(&std::env::temp_dir().join(COPIES_DIR), slug, host_path);
+    let dest = copy_path(&copies_root(&std::env::temp_dir())?, slug, host_path);
     let mut tmp = new_copy(&dest)?;
     let fetched = crate::peerread::fetch(
         hub,
@@ -46,13 +46,41 @@ pub(crate) fn copy_to_mac(
     Ok(dest)
 }
 
+/// macOS and Windows give each user a temp folder of their own.
+#[cfg(any(target_os = "macos", not(unix)))]
+fn copies_root(tmp: &Path) -> Result<PathBuf, String> {
+    Ok(tmp.join(COPIES_DIR))
+}
+
+/// Linux shares /tmp between users, so the copies get a folder named for this
+/// one that only it can enter. One another user made first is refused.
+#[cfg(all(unix, not(target_os = "macos")))]
+fn copies_root(tmp: &Path) -> Result<PathBuf, String> {
+    use std::os::unix::fs::{DirBuilderExt, MetadataExt, PermissionsExt};
+    let uid = unsafe { libc::getuid() };
+    let root = tmp.join(format!("{COPIES_DIR}-{uid}"));
+    if let Err(e) = std::fs::DirBuilder::new().mode(0o700).create(&root) {
+        if e.kind() != std::io::ErrorKind::AlreadyExists {
+            return Err(e.to_string());
+        }
+    }
+    let meta = std::fs::symlink_metadata(&root).map_err(|e| e.to_string())?;
+    if !meta.is_dir() || meta.uid() != uid {
+        return Err(format!("{} is not this user's own folder", root.display()));
+    }
+    if meta.mode() & 0o077 != 0 {
+        std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o700))
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(root)
+}
+
 /// One folder per host file keeps the file's own name, which is what the app
 /// shows in its title, while two same-named files on a host stay apart. A name
 /// this platform can't hold has the offending characters replaced.
 fn copy_path(root: &Path, slug: &str, host_path: &str) -> PathBuf {
-    let name = Path::new(host_path)
-        .file_name()
-        .map(|n| crate::fsname::portable(&n.to_string_lossy()))
+    let name = crate::mediapeer::host_file_name(host_path)
+        .map(crate::fsname::portable)
         .filter(|n| !n.is_empty())
         .unwrap_or_else(|| "file".to_string());
     let key = hex::encode(&Sha256::digest(host_path.as_bytes())[..8]);
@@ -172,6 +200,12 @@ mod tests {
             "file"
         );
         assert_eq!(
+            copy_path(root, "abcd1234", r"C:\srv\one\receipt.pdf")
+                .file_name()
+                .unwrap(),
+            "receipt.pdf"
+        );
+        assert_eq!(
             copy_path(root, "abcd1234", "/srv/a:b?.txt")
                 .file_name()
                 .unwrap()
@@ -212,6 +246,27 @@ mod tests {
         let first = std::fs::metadata(&dest).unwrap().ino();
         write_copy(&dest, b"%PDF-1.4").unwrap();
         assert_eq!(std::fs::metadata(&dest).unwrap().ino(), first);
+    }
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    #[test]
+    fn copies_live_in_a_folder_only_this_user_can_enter() {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = |p: &Path| std::fs::metadata(p).unwrap().permissions().mode() & 0o777;
+        let uid = unsafe { libc::getuid() };
+        let tmp = tempfile::tempdir().unwrap();
+        let root = copies_root(tmp.path()).unwrap();
+        assert_eq!(root, tmp.path().join(format!("{COPIES_DIR}-{uid}")));
+        assert_eq!(mode(&root), 0o700);
+
+        std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o775)).unwrap();
+        assert_eq!(copies_root(tmp.path()).unwrap(), root);
+        assert_eq!(mode(&root), 0o700, "a folder left open to others is closed up");
+
+        let planted = tempfile::tempdir().unwrap();
+        std::os::unix::fs::symlink(tmp.path(), planted.path().join(format!("{COPIES_DIR}-{uid}")))
+            .unwrap();
+        assert!(copies_root(planted.path()).is_err(), "a symlink in its place is refused");
     }
 
     #[cfg(target_os = "macos")]

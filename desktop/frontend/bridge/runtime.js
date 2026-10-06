@@ -39,6 +39,18 @@ export function EventsOn(eventName, callback) {
   };
 }
 
+// EventsOn that resolves once the local listener is attached, for a caller that
+// must not miss an event emitted by the command it is about to run.
+export async function EventsOnReady(eventName, callback) {
+  const off = await listen(eventName, (event) => callback(event.payload));
+  if (!GLOBAL_PEER_EVENTS.has(eventName)) return off;
+  const offPeer = subscribePeerGlobalEvent(eventName, callback);
+  return () => {
+    off();
+    offPeer();
+  };
+}
+
 export function EventsEmit(eventName, data) {
   void emit(eventName, data);
 }

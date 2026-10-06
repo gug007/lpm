@@ -1,13 +1,18 @@
 import type { Terminal } from "@xterm/xterm";
 import { BrowserOpenURL } from "../../bridge/runtime";
 import { ansiColors } from "./terminal-colors";
+import { isLinux } from "../platform";
 
 export { ansiColors };
 
 export const openTerminalLink = (_e: MouseEvent, uri: string) => BrowserOpenURL(uri);
 
-export const TERMINAL_FONT_FAMILY =
-  "'SF Mono', Menlo, Monaco, 'Courier New', 'Segoe UI Emoji', 'Noto Color Emoji', monospace";
+// Linux has none of the Mac fonts, and fontconfig answers 'Courier New' with a
+// Courier clone (Nimbus Mono PS) whose ascent overflows the cell, clipping the
+// first row; the usual Linux monospace fonts stand in for both there.
+export const TERMINAL_FONT_FAMILY = isLinux
+  ? "'DejaVu Sans Mono', 'Liberation Mono', 'Noto Sans Mono', 'Noto Color Emoji', monospace"
+  : "'SF Mono', Menlo, Monaco, 'Courier New', 'Segoe UI Emoji', 'Noto Color Emoji', monospace";
 
 // A chosen font always keeps the default stack behind it, so a missing family
 // still renders and the emoji fallbacks stay reachable for glyphs it lacks.

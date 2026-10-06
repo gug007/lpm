@@ -11,6 +11,7 @@ import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { ContextMenuItem } from "./ui/ContextMenuItem";
 import { ContextMenuSeparator } from "./ui/ContextMenuSeparator";
 import { ContextMenuShell } from "./ui/ContextMenuShell";
+import { Tooltip } from "./ui/Tooltip";
 
 interface AppMenuButtonProps {
   onSettings: () => void;
@@ -76,22 +77,24 @@ export function AppMenuButton({ onSettings, onFeedback }: AppMenuButtonProps) {
 
   return (
     <div className="mr-auto pl-3">
-      <button
-        onClick={openMenu}
-        // While open, keep this press from reaching the menu's outside-click
-        // handler, so the click below closes the menu instead of reopening it.
-        onMouseDown={(e) => {
-          if (menu) e.stopPropagation();
-        }}
-        style={{ "--app-draggable": "no-drag" } as CSSProperties}
-        className="flex h-5 w-5 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] [&_svg]:h-3.5 [&_svg]:w-3.5"
-        title="lpm menu"
-        aria-label="lpm menu"
-        aria-haspopup="menu"
-        aria-expanded={menu !== null}
-      >
-        <MenuIcon />
-      </button>
+      {/* Not a native title: the webview would draw it over the open menu. */}
+      <Tooltip content="lpm menu" side="right" delay={500} disabled={menu !== null} triggerClassName="flex">
+        <button
+          onClick={openMenu}
+          // While open, keep this press from reaching the menu's outside-click
+          // handler, so the click below closes the menu instead of reopening it.
+          onMouseDown={(e) => {
+            if (menu) e.stopPropagation();
+          }}
+          style={{ "--app-draggable": "no-drag" } as CSSProperties}
+          className="flex h-5 w-5 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] [&_svg]:h-3.5 [&_svg]:w-3.5"
+          aria-label="lpm menu"
+          aria-haspopup="menu"
+          aria-expanded={menu !== null}
+        >
+          <MenuIcon />
+        </button>
+      </Tooltip>
       {menu && (
         <ContextMenuShell x={menu.x} y={menu.y} minWidth={200} onClose={() => setMenu(null)}>
           <ContextMenuItem label="Settings…" shortcut={chordLabel(SETTINGS_CHORD)} onClick={pick(onSettings)} />

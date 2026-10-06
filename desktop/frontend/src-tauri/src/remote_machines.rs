@@ -138,7 +138,7 @@ fn route_host(entry: &PeerEntry) -> String {
 /// What `ssh -G` resolves a destination to. Only reads the local ssh config; it
 /// never connects.
 fn ssh_hostname(alias: &str) -> Option<String> {
-    let out = std::process::Command::new("ssh")
+    let out = crate::osproc::command("ssh")
         .args(["-G", alias])
         .stdin(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())

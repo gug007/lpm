@@ -32,3 +32,10 @@ export function peerNoun(peer: PeerRole): PeerNoun {
   if (!peer.platform || peer.platform === "macos") return "Mac";
   return "computer";
 }
+
+// Whether what this computer connects to reads as Macs: every one listed, since
+// a Linux or Windows desktop is listed too, or with none yet, this computer's
+// own kind.
+export function connectsOnlyToMacs(peers: PeerRole[], thisIsMac: boolean): boolean {
+  return peers.length > 0 ? peers.every((p) => peerNoun(p) === "Mac") : thisIsMac;
+}

@@ -306,6 +306,25 @@ fn spawn_merged(mut cmd: Command) -> Result<(Child, Box<dyn Read + Send>), Strin
     }
 }
 
+/// The lines a run prints. On Windows a local action's Git Bash, interactive
+/// with no terminal to run jobs on, says so before the action's own output
+/// starts; those notices are dropped.
+fn output_lines(
+    stdout: Box<dyn Read + Send>,
+    login_shell: bool,
+) -> impl Iterator<Item = std::io::Result<String>> {
+    let mut leading = cfg!(windows) && login_shell;
+    std::io::BufReader::new(stdout).lines().filter(move |line| {
+        leading = leading && matches!(line, Ok(l) if is_job_control_notice(l));
+        !leading
+    })
+}
+
+fn is_job_control_notice(line: &str) -> bool {
+    line.ends_with(": no job control in this shell")
+        || line.contains(": cannot set terminal process group (")
+}
+
 /// Build the child process for an action. Local actions run through the user's
 /// interactive login shell so shell init (nvm, version managers, PATH) is loaded;
 /// the cwd is set with an explicit `cd` so the user's rc can't redirect it.
@@ -348,12 +367,13 @@ pub fn run_action(
     let on_exit = plan.on_exit.take();
 
     let (mut child, stdout) = spawn_merged(action_command(&plan))?;
+    let login_shell = plan.login_shell;
 
     let app2 = app.clone();
     std::thread::spawn(move || {
         // lines() drops the trailing '\n' and still yields a final newline-less
         // tail — matches Go bufio.Scanner default.
-        for line in std::io::BufReader::new(stdout).lines() {
+        for line in output_lines(stdout, login_shell) {
             match line {
                 Ok(l) => {
                     let _ = app2.emit("action-output", ActionOutput { line: l });
@@ -491,7 +511,7 @@ fn run_action_background_inner(
     // Stream lines so the run toast can preview output live and the phone poll can
     // read the accumulated buffer; keep a bounded tail for the failure message.
     let mut tail: Vec<u8> = Vec::new();
-    for line in std::io::BufReader::new(stdout).lines() {
+    for line in output_lines(stdout, plan.login_shell) {
         let Ok(l) = line else { break };
         tail.extend_from_slice(l.as_bytes());
         tail.push(b'\n');
@@ -609,6 +629,23 @@ mod command_tests {
             .unwrap();
         child.wait().unwrap();
         assert_eq!(text, "out\nerr\n");
+    }
+
+    #[test]
+    fn git_bash_job_control_notices_stay_out_of_a_local_actions_output() {
+        let out = "bash: cannot set terminal process group (-1): Inappropriate ioctl for device\n\
+                   bash: no job control in this shell\n\
+                   hello\n\
+                   bash: no job control in this shell\n";
+        let lines = |login_shell| {
+            output_lines(Box::new(std::io::Cursor::new(out.as_bytes().to_vec())), login_shell)
+                .map(Result::unwrap)
+                .collect::<Vec<_>>()
+        };
+        let all: Vec<String> = out.lines().map(String::from).collect();
+        assert_eq!(lines(false), all);
+        let expected = if cfg!(windows) { &all[2..] } else { &all[..] };
+        assert_eq!(lines(true), expected);
     }
 }
 

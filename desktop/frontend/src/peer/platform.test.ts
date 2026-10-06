@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isLinuxHost, managesHostInstall, peerNoun } from "./platform";
+import { connectsOnlyToMacs, isLinuxHost, managesHostInstall, peerNoun } from "./platform";
 
 describe("isLinuxHost", () => {
   it("splits Linux hosts from Macs", () => {
@@ -67,5 +67,17 @@ describe("peerNoun", () => {
     expect(peerNoun({ platform: "linux" })).toBe("server");
     expect(peerNoun({ platform: "linux", headless: false })).toBe("computer");
     expect(peerNoun({ platform: "windows", headless: false })).toBe("computer");
+  });
+});
+
+describe("connectsOnlyToMacs", () => {
+  it("goes by this computer while nothing is paired", () => {
+    expect(connectsOnlyToMacs([], true)).toBe(true);
+    expect(connectsOnlyToMacs([], false)).toBe(false);
+  });
+
+  it("goes by what is paired once anything is", () => {
+    expect(connectsOnlyToMacs([{ platform: "macos" }], false)).toBe(true);
+    expect(connectsOnlyToMacs([{ platform: "macos" }, { platform: "windows", headless: false }], true)).toBe(false);
   });
 });

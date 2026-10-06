@@ -16,6 +16,7 @@ import {
   GetServiceLogs,
   NotesReadFileAsInput,
   ReadClipboardFiles,
+  ReadClipboardImage,
   ReadClipboardText,
   RemoteSetComposerDraft,
   RenameMemorySession,
@@ -66,7 +67,7 @@ import { MemoryPreviewPopover } from "./MemoryPreviewPopover";
 import { ImageLightbox } from "./ImageLightbox";
 import { loadImageDataUrl, seedImageDataUrl } from "./imageDataUrl";
 import { TerminalDropOverlay } from "./terminal/TerminalDropOverlay";
-import { readPasteContent, unlessNativePaste } from "./terminal/clipboardRead";
+import { readBackendImage, readPasteContent, unlessNativePaste } from "./terminal/clipboardRead";
 import { TERMINAL_FONT_FAMILY } from "./terminal-utils";
 import { basename } from "../path";
 import { composerPlaceholder } from "../composerText";
@@ -111,7 +112,7 @@ import {
   writeClipboardPayload,
 } from "./composerClipboard";
 import { composerChord, composerKeepsCtrlChord, isFormatInput, runComposerEdit } from "./composerKeys";
-import { isMac } from "../platform";
+import { isLinux, isMac } from "../platform";
 import { SlashCommandMenu } from "./SlashCommandMenu";
 import { useSlashCommands } from "../hooks/useSlashCommands";
 import {
@@ -1020,6 +1021,15 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       e.preventDefault();
       const text = dt.getData("text/plain");
       if (text) insertPastedText(text);
+      // WebKitGTK's paste events never carry an image, so one that brought no
+      // text may still have an image behind it.
+      else if (isLinux) {
+        void readBackendImage(ReadClipboardImage)
+          .catch(() => null)
+          .then((image) => {
+            if (image?.kind === "image") void addImageBlob(image.blob).then((chip) => insertImageChips([chip], 1));
+          });
+      }
     },
     [addImageBlob, addPeerLocalFiles, insertFilePaths, insertImageChips, insertItems, insertPastedText, isRemotePeer, registerImagePath],
   );
@@ -1028,7 +1038,8 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // instead and fed through the same routes as handlePaste. Text needs the
   // field's focus to type into; without it the text lands like a chip insert.
   const pasteFromClipboard = useCallback(() => {
-    void readPasteContent(ReadClipboardFiles, () => ReadClipboardText(true)).then((clip) => {
+    const readImage = isLinux ? () => readBackendImage(ReadClipboardImage) : undefined;
+    void readPasteContent(ReadClipboardFiles, () => ReadClipboardText(true), undefined, readImage).then((clip) => {
       const editor = editorRef.current;
       if (!clip || !editor) return;
       if (clip.kind === "files") {

@@ -39,6 +39,8 @@ pub fn with_single_instance(builder: tauri::Builder<tauri::Wry>) -> tauri::Build
         return builder;
     }
     RELAUNCH_REOPENS.store(true, Ordering::Relaxed);
+    #[cfg(windows)]
+    let builder = builder.plugin(crate::winhandoff::plugin());
     builder.plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
         show_main(app)
     }))

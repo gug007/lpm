@@ -106,6 +106,29 @@ pub fn drop_unusable_std_handles() {
     }
 }
 
+/// Stop children inheriting this process's std handles behind their own. Every
+/// spawn passes on all inheritable handles, and a launcher that redirected the
+/// app's output handed it inheritable ones, so the session daemon, which
+/// outlives the app, would hold the app's log file or pipe open. A child given
+/// the app's stream still gets its own copy of it.
+#[cfg(windows)]
+pub fn keep_std_handles_from_children() {
+    use windows_sys::Win32::Foundation::{
+        SetHandleInformation, HANDLE_FLAG_INHERIT, INVALID_HANDLE_VALUE,
+    };
+    use windows_sys::Win32::System::Console::{
+        GetStdHandle, STD_ERROR_HANDLE, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE,
+    };
+    for id in [STD_INPUT_HANDLE, STD_OUTPUT_HANDLE, STD_ERROR_HANDLE] {
+        unsafe {
+            let handle = GetStdHandle(id);
+            if !handle.is_null() && handle != INVALID_HANDLE_VALUE {
+                SetHandleInformation(handle, HANDLE_FLAG_INHERIT, 0);
+            }
+        }
+    }
+}
+
 /// Git for Windows' bash.exe, when installed.
 #[cfg(windows)]
 pub fn git_bash() -> Option<String> {

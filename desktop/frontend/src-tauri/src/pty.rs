@@ -358,7 +358,7 @@ fn spawn_io_threads(
             .lock()
             .unwrap()
             .wait()
-            .map(|s| s.exit_code() as i32)
+            .map(|s| reported_exit_code(s.exit_code(), sess.remote, cfg!(windows)))
             .unwrap_or(0);
         let _ = app.emit(&format!("pty-exit-{}", sess.id), code);
         crate::remote::tee_exit(&app, &sess.id, code);
@@ -367,6 +367,17 @@ fn spawn_io_threads(
         sessions.lock().unwrap().remove(&sess.id);
         crate::peer::tee_exit(&app, &sess.id, code);
     });
+}
+
+/// The exit code a pane reports. OpenSSH's client returns -1 when the
+/// connection drops; Unix keeps the low byte, 255, which is what the UI
+/// reconnects on, while Windows reports all 32 bits.
+fn reported_exit_code(code: u32, remote: bool, windows: bool) -> i32 {
+    if windows && remote && code == u32::MAX {
+        255
+    } else {
+        code as i32
+    }
 }
 
 /// Replace every character Tauri disallows in an event name with `_`. Mirrors
@@ -841,19 +852,17 @@ pub fn ack_terminal_data(
     Ok(())
 }
 
-#[tauri::command]
-pub fn stop_terminal(app: AppHandle, state: State<'_, PtyState>, id: String) -> Result<(), String> {
+/// Take a session out of service ahead of killing its shell, returning the
+/// shell's pid.
+fn close_session(app: &AppHandle, state: &PtyState, id: &str) -> Option<i32> {
     // remove first so no new I/O can grab the session, then wake the reader,
     // mark closed, and kill the child (which closes the fd -> reader EOF).
-    let sess = state.sessions.lock().unwrap().remove(&id);
-    let Some(sess) = sess else {
-        return Ok(());
-    };
+    let sess = state.sessions.lock().unwrap().remove(id)?;
     // Purge the pane's status entries here, not only in the frontend close
     // handlers, so close paths that never touch the webview (peer stop) can't
     // leave an orphaned sidebar badge behind.
     let store = app.state::<Arc<crate::status::StatusStore>>();
-    if store.clear_pane(&sess.project_name, &id) {
+    if store.clear_pane(&sess.project_name, id) {
         let _ = app.emit("status-changed", &sess.project_name);
     }
     {
@@ -862,14 +871,40 @@ pub fn stop_terminal(app: AppHandle, state: State<'_, PtyState>, id: String) -> 
         sess.resume.notify_one();
     }
     *sess.closed.write().unwrap() = true;
+    let child = sess.child.lock().unwrap();
+    child.process_id().map(|p| p as i32)
+}
+
+#[tauri::command]
+pub fn stop_terminal(app: AppHandle, state: State<'_, PtyState>, id: String) -> Result<(), String> {
     // Reap the shell's whole process tree, not just the shell pid: killing only
     // the login shell leaves dev-server/agent grandchildren (node/next-server)
     // orphaned and burning CPU. kill_tree_async snapshots + reaps off-thread so
     // the UI thread never blocks; the flush thread reaps the shell zombie on EOF.
-    if let Some(pid) = sess.child.lock().unwrap().process_id().map(|p| p as i32) {
+    if let Some(pid) = close_session(&app, &state, &id) {
         crate::proctree::kill_tree_async(pid);
     }
     Ok(())
+}
+
+/// Close every terminal of a project and wait until their process trees are
+/// gone. Windows refuses to delete a folder that a live process works in.
+#[cfg(windows)]
+pub fn stop_project_terminals(app: &AppHandle, project_name: &str) {
+    let state = app.state::<PtyState>();
+    let ids: Vec<String> = state
+        .sessions
+        .lock()
+        .unwrap()
+        .values()
+        .filter(|s| s.project_name == project_name)
+        .map(|s| s.id.clone())
+        .collect();
+    let roots: Vec<i32> = ids
+        .iter()
+        .filter_map(|id| close_session(app, &state, id))
+        .collect();
+    crate::proctree::kill_pids(&crate::proctree::trees(&roots));
 }
 
 /// Reap every live terminal's process tree, synchronously. RunEvent::Exit calls
@@ -1010,8 +1045,18 @@ pub fn remote_terminals(state: &PtyState, project: &str) -> Vec<RemoteTerminal> 
 
 #[cfg(test)]
 mod tests {
-    use super::{env_lacks_locale, event_safe, incomplete_utf8_tail, PtyState};
+    use super::{env_lacks_locale, event_safe, incomplete_utf8_tail, reported_exit_code, PtyState};
     use crate::sys::login_shell;
+
+    #[test]
+    fn a_dropped_ssh_connection_reports_255_on_windows_too() {
+        assert_eq!(reported_exit_code(u32::MAX, true, true), 255);
+        assert_eq!(reported_exit_code(u32::MAX, false, true), -1);
+        assert_eq!(reported_exit_code(u32::MAX, true, false), -1);
+        assert_eq!(reported_exit_code(255, true, false), 255);
+        assert_eq!(reported_exit_code(0, true, true), 0);
+        assert_eq!(reported_exit_code(130, true, true), 130);
+    }
 
     // A restart used to hand out `proj-1` again, and a tab restored against the
     // old `proj-1` bound to whatever new terminal took the id.

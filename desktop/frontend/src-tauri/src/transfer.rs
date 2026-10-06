@@ -322,6 +322,12 @@ fn prune_backups(keep: usize) {
     }
 }
 
+/// A lock file the running app holds. Windows locks are mandatory, so reading
+/// one fails, and the empty file has nothing worth restoring anyway.
+fn is_held_lock(name: &str) -> bool {
+    cfg!(windows) && name.ends_with(".lock")
+}
+
 pub(crate) fn snapshot_lpm(src: &Path, dst: &Path) -> Result<(), String> {
     let info = match std::fs::metadata(src) {
         Ok(i) => i,
@@ -337,7 +343,11 @@ pub(crate) fn snapshot_lpm(src: &Path, dst: &Path) -> Result<(), String> {
         // tokens, and no snapshot_backup caller (peer sync, config import) ever
         // mutates or restores pairing state, so it must not land in a timestamped
         // backup dir where a stale copy would leak indefinite peer access.
-        if name_str == "lpm.sock" || name_str.ends_with(".sock") || name_str == "peer.json" {
+        if name_str == "lpm.sock"
+            || name_str.ends_with(".sock")
+            || name_str == "peer.json"
+            || is_held_lock(&name_str)
+        {
             continue;
         }
         let sp = entry.path();
@@ -567,6 +577,27 @@ fn now_secs() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(windows)]
+    #[test]
+    fn a_snapshot_skips_the_lock_files_the_app_holds() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (src, dst) = (tmp.path().join("lpm"), tmp.path().join("backup"));
+        std::fs::create_dir_all(src.join("projects")).unwrap();
+        std::fs::write(src.join("settings.json"), "{}").unwrap();
+        std::fs::write(src.join("projects/app.yml"), "name: app\n").unwrap();
+        let lock = std::fs::OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .write(true)
+            .open(src.join("send-later.lock"))
+            .unwrap();
+        assert!(fsperm::try_lock_exclusive(&lock).unwrap());
+        snapshot_lpm(&src, &dst).unwrap();
+        assert_eq!(std::fs::read_to_string(dst.join("settings.json")).unwrap(), "{}");
+        assert!(dst.join("projects/app.yml").is_file());
+        assert!(!dst.join("send-later.lock").exists());
+    }
 
     #[test]
     fn safe_relative_blocks_traversal() {

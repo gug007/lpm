@@ -77,23 +77,32 @@ fn serve<R: Runtime>(
     if !is_app_webview(label) {
         return empty(StatusCode::FORBIDDEN);
     }
+    serve_path(
+        app,
+        request.uri().path().trim_start_matches('/'),
+        request.method() == Method::HEAD,
+        request
+            .headers()
+            .get(header::RANGE)
+            .and_then(|v| v.to_str().ok()),
+    )
+}
 
-    // The frontend sends the absolute path as one percent-encoded segment.
-    let Ok(decoded) = urlencoding::decode(request.uri().path().trim_start_matches('/')) else {
+/// One media request, wherever it came in: `segment` is the absolute path as
+/// one percent-encoded segment, the way the frontend sends it.
+pub(crate) fn serve_path<R: Runtime>(
+    app: &AppHandle<R>,
+    segment: &str,
+    head: bool,
+    range: Option<&str>,
+) -> Response<Vec<u8>> {
+    let Ok(decoded) = urlencoding::decode(segment) else {
         return empty(StatusCode::BAD_REQUEST);
     };
 
     // WebKit's media loader ranges from the first byte and never sends HEAD, so
     // HEAD only answers a hand-written probe, which needs the length alone.
-    let head = request.method() == Method::HEAD;
-    let range = if head {
-        Some("bytes=0-0")
-    } else {
-        request
-            .headers()
-            .get(header::RANGE)
-            .and_then(|v| v.to_str().ok())
-    };
+    let range = if head { Some("bytes=0-0") } else { range };
     let media = match crate::mediapeer::split_peer_path(&decoded) {
         Some((slug, host_path)) => crate::mediapeer::fetch(app, slug, host_path, range),
         None => read(&decoded, range),

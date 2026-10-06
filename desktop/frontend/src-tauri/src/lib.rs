@@ -38,6 +38,8 @@ mod daemonize;
 mod daemonlaunch;
 mod detached;
 mod detect;
+#[cfg(any(windows, test))]
+mod dirdelete;
 mod dockmenu;
 mod file_browser;
 mod files;
@@ -66,12 +68,16 @@ mod hookform;
 mod hooks;
 mod ipc;
 mod jobs;
+#[cfg(any(target_os = "linux", test))]
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+mod kokoro_venv;
 mod lesson;
 mod lifecycle;
 mod log_streaming;
 mod mainwindow;
 mod mdns;
 mod mediacache;
+mod mediahttp;
 mod mediapeer;
 mod mediaproto;
 mod menu;
@@ -120,6 +126,8 @@ mod remote_notes;
 mod remotessh;
 mod remotestore;
 mod remotetls;
+#[cfg(windows)]
+mod runjob;
 mod send_later;
 mod send_later_model;
 mod services;
@@ -183,6 +191,10 @@ mod webengine;
 #[cfg(windows)]
 mod wincred;
 #[cfg(windows)]
+mod winfocus;
+#[cfg(windows)]
+mod winhandoff;
+#[cfg(windows)]
 mod winpath;
 mod zone_layers;
 mod zones;
@@ -227,6 +239,7 @@ use jobs::*;
 use lesson::*;
 use lifecycle::quit_app;
 use log_streaming::*;
+use mediahttp::media_http_base;
 use message_history::*;
 use msysmounts::get_msys_mounts;
 use notes_cmds::*;
@@ -299,14 +312,29 @@ pub fn stop_sessions_and_exit() -> ! {
 #[cfg(windows)]
 pub const REMOVE_AGENT_HOOKS_ARG: &str = "--remove-agent-hooks";
 
-/// Run by the Windows uninstaller, which an upgrade also runs: take out only the
-/// agent hook entries that point at the exe about to be deleted. Services, the
-/// CLI copy and skills stay; a newer lpm puts the hooks back on its first start.
+/// Run by the Windows uninstaller when an installer upgrades lpm: take out only
+/// the agent hook entries that point at the exe about to be deleted. Services,
+/// the CLI copy and skills stay; the newer lpm puts the hooks back on its first
+/// start.
 #[cfg(windows)]
 pub fn remove_agent_hooks_and_exit() -> ! {
     hooks::remove_agent_hook_entries();
     let _ = session_memory::remove_for_uninstall();
     std::process::exit(0)
+}
+
+/// The argument the Windows uninstaller runs instead when lpm is being removed
+/// rather than upgraded.
+#[cfg(windows)]
+pub const UNINSTALL_ARG: &str = "--uninstall";
+
+/// Stop every service, then take out what Settings > Remove app would: hooks,
+/// skills, and the CLI copy with its Path entry.
+#[cfg(windows)]
+pub fn uninstall_and_exit() -> ! {
+    let stopped = sessions::shutdown_daemon();
+    uninstall::remove_footprint();
+    std::process::exit(i32::from(stopped.is_err()))
 }
 
 // The attribute belongs to `run` — it is the app's entry point. Anything added
@@ -321,6 +349,8 @@ pub fn run() {
     sys::ensure_path();
     #[cfg(windows)]
     sys::drop_unusable_std_handles();
+    #[cfg(windows)]
+    sys::keep_std_handles_from_children();
 
     // Turn off macOS smart substitutions before any webview is created so the
     // composer never rewrites typed text (e.g. double space -> ". ").

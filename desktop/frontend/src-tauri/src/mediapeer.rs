@@ -18,8 +18,9 @@ use crate::mediaproto::{Chunk, Media};
 pub(crate) const MEDIA_RANGE_FEATURE: &str = "mediaRange";
 pub(crate) const MEDIA_RANGE_CMD: &str = "media_read_range";
 
-/// The slug and host path of a peer-marked path: `/@peer-<slug>/abs` or
-/// `/@peer-<slug>~/rel`, whose `~` the host expands.
+/// The slug and host path of a peer-marked path: `/@peer-<slug>/abs`,
+/// `/@peer-<slug>~/rel`, whose `~` the host expands, or a Windows host's
+/// `/@peer-<slug>C:\abs` (also `C:/abs`, `\\server\share\abs`).
 pub(crate) fn split_peer_path(value: &str) -> Option<(&str, &str)> {
     let rest = value.strip_prefix("/@peer-")?;
     let slug = rest.get(..8)?;
@@ -27,7 +28,28 @@ pub(crate) fn split_peer_path(value: &str) -> Option<(&str, &str)> {
     let is_slug = slug
         .bytes()
         .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b));
-    (is_slug && (path.starts_with('/') || path.starts_with("~/"))).then_some((slug, path))
+    let is_host_path =
+        path.starts_with('/') || path.starts_with("~/") || is_windows_host_path(path);
+    (is_slug && is_host_path).then_some((slug, path))
+}
+
+/// A host path written the Windows way: `C:\…`, `C:/…` or `\\server\…`.
+pub(crate) fn is_windows_host_path(path: &str) -> bool {
+    let b = path.as_bytes();
+    let drive = b.len() >= 3
+        && b[0].is_ascii_alphabetic()
+        && b[1] == b':'
+        && matches!(b[2], b'\\' | b'/');
+    drive || path.starts_with("\\\\")
+}
+
+/// The file name a host path ends in. A Windows host's path splits at either
+/// slash on whichever machine reads it; any other path as this one's do.
+pub(crate) fn host_file_name(path: &str) -> Option<&str> {
+    if is_windows_host_path(path) {
+        return path.rsplit(['\\', '/']).next().filter(|n| !n.is_empty());
+    }
+    std::path::Path::new(path).file_name().and_then(|n| n.to_str())
 }
 
 /// Host side: one range of a video for a paired Mac. Only the extensions the
@@ -143,6 +165,34 @@ mod tests {
             split_peer_path("/@peer-abcd1234~/Movies/clip.mp4"),
             Some(("abcd1234", "~/Movies/clip.mp4"))
         );
+    }
+
+    #[test]
+    fn splits_a_windows_hosts_paths() {
+        assert_eq!(
+            split_peer_path(r"/@peer-abcd1234C:\lpm\app\clip.mp4"),
+            Some(("abcd1234", r"C:\lpm\app\clip.mp4"))
+        );
+        assert_eq!(
+            split_peer_path("/@peer-abcd1234c:/lpm/app"),
+            Some(("abcd1234", "c:/lpm/app"))
+        );
+        assert_eq!(
+            split_peer_path(r"/@peer-abcd1234\\nas\share\a.mp4"),
+            Some(("abcd1234", r"\\nas\share\a.mp4"))
+        );
+        assert_eq!(split_peer_path("/@peer-abcd1234C:"), None);
+        assert_eq!(split_peer_path("/@peer-abcd1234C:x"), None);
+        assert_eq!(split_peer_path(r"/@peer-abcd1234\x"), None);
+    }
+
+    #[test]
+    fn names_the_file_a_host_path_ends_in() {
+        assert_eq!(host_file_name("/Users/dev/clip.mp4"), Some("clip.mp4"));
+        assert_eq!(host_file_name(r"C:\lpm\app\clip.mp4"), Some("clip.mp4"));
+        assert_eq!(host_file_name(r"C:\lpm/app/a b.png"), Some("a b.png"));
+        assert_eq!(host_file_name(r"\\nas\share\x.pdf"), Some("x.pdf"));
+        assert_eq!(host_file_name(r"C:\"), None);
     }
 
     #[test]

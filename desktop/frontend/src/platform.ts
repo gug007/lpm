@@ -41,3 +41,7 @@ export function fileManagerName(p: Platform = platform): string {
   if (p === "windows") return "File Explorer";
   return "Files";
 }
+
+export function trashName(p: Platform = platform): string {
+  return p === "windows" ? "Recycle Bin" : "Trash";
+}

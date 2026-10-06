@@ -20,6 +20,8 @@ fn main() {
         Some(lpm_desktop_lib::REMOVE_AGENT_HOOKS_ARG) => {
             lpm_desktop_lib::remove_agent_hooks_and_exit()
         }
+        #[cfg(windows)]
+        Some(lpm_desktop_lib::UNINSTALL_ARG) => lpm_desktop_lib::uninstall_and_exit(),
         _ => {}
     }
     lpm_desktop_lib::run();

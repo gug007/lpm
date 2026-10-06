@@ -33,8 +33,8 @@ export function Modals({ projectName, actionModals }: ModalsProps) {
         />
       )}
 
-      {running.action && (
-        <ActionTerminal label={running.action.label} onClose={running.onClose} />
+      {running.action && running.run && (
+        <ActionTerminal label={running.action.label} run={running.run} onClose={running.onClose} />
       )}
     </>
   );

@@ -1,30 +1,17 @@
-import { useState, useEffect, useRef } from "react";
-import { EventsOn } from "../../../bridge/runtime";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 import { XIcon, CheckIcon } from "../icons";
 import { SpinnerIcon, ErrorCircleIcon } from "./icons";
+import type { ActionRunCapture } from "../../hooks/actionRunCapture";
 
 interface ActionTerminalProps {
   label: string;
+  run: ActionRunCapture;
   onClose: () => void;
 }
 
-export function ActionTerminal({ label, onClose }: ActionTerminalProps) {
-  const [lines, setLines] = useState<string[]>([]);
-  const [done, setDone] = useState<{ success: boolean; error?: string } | null>(null);
+export function ActionTerminal({ label, run, onClose }: ActionTerminalProps) {
+  const { lines, done } = useSyncExternalStore(run.subscribe, run.snapshot);
   const bottomRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const cleanupOutput = EventsOn("action-output", (data: { line: string }) => {
-      setLines((prev) => [...prev, data.line]);
-    });
-    const cleanupDone = EventsOn("action-done", (data: { success: boolean; error?: string }) => {
-      setDone(data);
-    });
-    return () => {
-      if (typeof cleanupOutput === "function") cleanupOutput();
-      if (typeof cleanupDone === "function") cleanupDone();
-    };
-  }, []);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });

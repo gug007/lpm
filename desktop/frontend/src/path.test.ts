@@ -13,6 +13,7 @@ import {
   splitRoot,
   toSlash,
   uriPath,
+  windowsRules,
 } from "./path";
 import { findAgreedSlug, stripArgs } from "./peer/router";
 
@@ -215,5 +216,48 @@ describe("Windows link safety and MSYS UNC paths", () => {
     const mounts = { root: "C:\\Program Files\\Git", tmp: "C:\\Users\\u\\AppData\\Local\\Temp" };
     expect(fromMsysPath("//nas/builds/app/report.html", mounts)).toBe("\\\\nas\\builds\\app\\report.html");
     expect(fromMsysPath("/usr/share/x", mounts)).toBe("C:\\Program Files\\Git\\usr\\share\\x");
+  });
+});
+
+describe("a paired Windows host's paths", () => {
+  const WIN_HOST_ROOT = "/@peer-a1b2c3d4C:\\Users\\dev\\app";
+
+  it.each([false, true])("follow Windows rules after the marker (Windows here: %s)", (win) => {
+    expect(windowsRules(WIN_HOST_ROOT, win)).toBe(true);
+    expect(joinAbs(WIN_HOST_ROOT, "src/a.ts", win)).toBe(`${WIN_HOST_ROOT}\\src\\a.ts`);
+    expect(readTarget(joinAbs(WIN_HOST_ROOT, "src/a.ts", win))).toEqual({
+      slug: "a1b2c3d4",
+      hostPath: "C:\\Users\\dev\\app\\src\\a.ts",
+    });
+    expect(readTarget(joinAbs(WIN_HOST_ROOT, "D:\\logs\\x.log", win)).hostPath).toBe("D:\\logs\\x.log");
+    expect(readTarget(joinAbs(WIN_HOST_ROOT, "\\\\nas\\s\\x.md", win)).hostPath).toBe("\\\\nas\\s\\x.md");
+    expect(readTarget(joinAbs(WIN_HOST_ROOT, "~/notes.md", win)).hostPath).toBe("~/notes.md");
+    expect(relTo(`${WIN_HOST_ROOT}\\src\\a.ts`, WIN_HOST_ROOT, win)).toBe("src/a.ts");
+    expect(relTo(`${WIN_HOST_ROOT}/src/a.ts`, WIN_HOST_ROOT, win)).toBe("src/a.ts");
+    expect(normalizePath(`${WIN_HOST_ROOT}\\src\\..\\..\\..\\..\\x.md`, win)).toBe("/@peer-a1b2c3d4C:\\x.md");
+    expect(basename(WIN_HOST_ROOT, win)).toBe("app");
+    expect(basename(`${WIN_HOST_ROOT}/src/a.ts`, win)).toBe("a.ts");
+    expect(dirname(`${WIN_HOST_ROOT}\\a.md`, win)).toBe(WIN_HOST_ROOT);
+    expect(dirname("/@peer-a1b2c3d4C:\\a.md", win)).toBe("/@peer-a1b2c3d4C:\\");
+    expect(splitRoot(`${WIN_HOST_ROOT}\\a.md`, win)).toEqual({
+      root: "/@peer-a1b2c3d4C:\\",
+      rest: "Users/dev/app/a.md",
+    });
+    expect(joinPath(WIN_HOST_ROOT, "package.json", win)).toBe(`${WIN_HOST_ROOT}\\package.json`);
+  });
+
+  it("keeps the separator the host path is written with", () => {
+    expect(joinAbs("/@peer-a1b2c3d4C:/dev/app", "src\\a.ts", false)).toBe("/@peer-a1b2c3d4C:/dev/app/src/a.ts");
+    expect(dirname("/@peer-a1b2c3d4\\\\nas\\share\\a.md", false)).toBe("/@peer-a1b2c3d4\\\\nas\\share\\");
+    expect(fromMsysPath(`${WIN_HOST_ROOT}\\a.ts`, { root: "C:\\Git", tmp: "C:\\Temp" })).toBe(
+      `${WIN_HOST_ROOT}\\a.ts`,
+    );
+  });
+
+  it("leaves POSIX hosts' and this machine's paths to their own rules", () => {
+    expect(windowsRules(HOST_ROOT, true)).toBe(false);
+    expect(windowsRules("/Users/dev/C:\\x", false)).toBe(false);
+    expect(joinAbs("/Users/dev", "C:\\x.ts", false)).toBe("/Users/dev/C:\\x.ts");
+    expect(basename("/@peer-a1b2c3d4/home/a\\b.md", false)).toBe("a\\b.md");
   });
 });

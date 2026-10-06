@@ -9,6 +9,8 @@ import {
   prefixRoot,
   stripMarker,
   peerRawName,
+  isWindowsHostPath,
+  windowsRootMarker,
 } from "./markers";
 
 const SLUG = "a1b2c3d4";
@@ -41,6 +43,22 @@ describe("peer markers", () => {
     expect(stripMarker(marked)).toBe("~/.lpm/memory/app/plan.md");
     expect(parsePeerMarker("/@peer-a1b2c3d4~")).toBeNull();
     expect(parsePeerMarker("/@peer-a1b2c3d4~user/x")).toBeNull();
+  });
+
+  it("round-trips a Windows host's drive and share paths", () => {
+    for (const hostPath of ["C:\\lpm\\app", "c:/lpm/app", "\\\\nas\\share\\app"]) {
+      const marked = prefixRoot(SLUG, hostPath);
+      expect(parsePeerMarker(marked)).toEqual({ slug: SLUG, raw: hostPath, kind: "root" });
+      expect(stripMarker(marked)).toBe(hostPath);
+      expect(windowsRootMarker(marked)).toBe("/@peer-a1b2c3d4");
+      expect(isWindowsHostPath(hostPath)).toBe(true);
+    }
+    expect(parsePeerMarker("/@peer-a1b2c3d4C:")).toBeNull();
+    expect(parsePeerMarker("/@peer-a1b2c3d4C:x")).toBeNull();
+    expect(parsePeerMarker("/@peer-a1b2c3d4\\x")).toBeNull();
+    expect(windowsRootMarker(prefixRoot(SLUG, "/Users/dev/app"))).toBe("");
+    expect(windowsRootMarker("C:\\lpm\\app")).toBe("");
+    expect(isWindowsHostPath("/Users/dev/app")).toBe(false);
   });
 
   it("preserves raw names containing hyphens and dots", () => {

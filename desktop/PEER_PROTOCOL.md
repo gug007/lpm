@@ -120,7 +120,8 @@ route by pattern without a registry lookup:
 
 - Project name: `peer-{slug}-{rawName}`
 - Terminal id: `peer-{slug}-{hostTerminalId}`
-- Project root: `/@peer-{slug}{hostAbsolutePath}`
+- Project root: `/@peer-{slug}{hostAbsolutePath}` — the host path as the host
+  writes it: `/…` or `~/…`, or on a Windows host `C:\…`, `C:/…` or `\\server\share\…`
 
 All prefixes are Tauri-event-safe (`[a-zA-Z0-9-_:/]`). The client strips the
 marker before sending over the wire; the host only ever sees raw host-local ids.

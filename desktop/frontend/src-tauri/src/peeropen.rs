@@ -12,7 +12,7 @@ use std::time::Duration;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 
-use crate::mediapeer::split_peer_path;
+use crate::mediapeer::{host_file_name, split_peer_path};
 use crate::openin::{open_file_with, InstalledApp};
 use crate::peerclient::PeerClientHub;
 use crate::peercopy::copy_to_mac;
@@ -82,10 +82,7 @@ pub(crate) fn open_file(
             });
         }
     }
-    let name = std::path::Path::new(peer.host_path)
-        .file_name()
-        .map(|n| n.to_string_lossy().into_owned())
-        .unwrap_or_default();
+    let name = host_file_name(peer.host_path).unwrap_or_default();
     let local = copy_to_mac(hub, peer.slug, peer.host_path, &peer.name, |sent, total| {
         let _ = app_handle.emit(
             "peer-download-progress",

@@ -475,8 +475,7 @@ fn copy_entry(from: &Path, to: &Path, _roots: (&Path, &Path)) -> Result<(), Stri
 
 #[cfg(windows)]
 fn copy_entry(from: &Path, to: &Path, roots: (&Path, &Path)) -> Result<(), String> {
-    crate::treecopy::copy(from, to, roots)
-        .map_err(|e| format!("clone copy failed for {}: {e}", from.display()))
+    crate::treecopy::copy(from, to, roots).map_err(|e| format!("clone copy failed: {e}"))
 }
 
 /// macOS APFS copy-on-write clone (kernel falls back to a full copy off-APFS).
@@ -648,6 +647,17 @@ fn remove_linked_worktree(
             repository_root.join(path)
         }
     };
+    // git empties the folder before it finds out that something holds it open,
+    // so Windows checks first. A folder without its `.git` link is what such a
+    // stopped removal left behind: no longer a worktree, so just delete it.
+    #[cfg(windows)]
+    if worktree_root.exists() {
+        if worktree_root.join(".git").exists() {
+            crate::dirdelete::ensure_unused(worktree_root)?;
+        } else {
+            crate::dirdelete::remove(worktree_root)?;
+        }
+    }
     let output = if worktree_root.exists() {
         crate::osproc::command("git")
             .arg("-C")
@@ -1328,10 +1338,15 @@ fn remove_one(app: &AppHandle, name: &str) -> Result<(), String> {
 
     // Stop the running session before deleting files (session name == file name
     // for created projects), then tear down port forwards/poller + sync mirror.
-    // Windows waits out the services' graceful stop: a process still running in
-    // the folder keeps it from being deleted.
+    // Windows waits out the services' graceful stop and closes the terminals: a
+    // process still running in the folder keeps it from being deleted.
     #[cfg(windows)]
-    let _ = crate::sessions::kill_session_wait(name);
+    {
+        let _ = crate::sessions::kill_session_wait(name);
+        if is_duplicate && !root.trim().is_empty() {
+            crate::pty::stop_project_terminals(app, name);
+        }
+    }
     #[cfg(not(windows))]
     let _ = crate::sessions::kill_session(name);
     crate::portforward::stop_project_forwards(app, name); // tunnels + poller + suggestions
@@ -1345,6 +1360,9 @@ fn remove_one(app: &AppHandle, name: &str) -> Result<(), String> {
                 &worktree_branch_name(name),
             )?;
         } else if !root.trim().is_empty() {
+            #[cfg(windows)]
+            crate::dirdelete::remove(Path::new(&root))?;
+            #[cfg(not(windows))]
             config::remove_dir_all_retry(Path::new(&root))?;
         }
         // Numbered duplicate names get reused; purge per-name state so the
@@ -1407,6 +1425,11 @@ pub fn trash_project(app: AppHandle, name: String) -> Result<(), String> {
         return Err(format!(
             "cannot remove {name:?} from disk: no source folder"
         ));
+    }
+    #[cfg(windows)]
+    {
+        let _ = crate::sessions::kill_session_wait(&name);
+        crate::pty::stop_project_terminals(&app, &name);
     }
     crate::trash::move_to_trash(Path::new(&root))?;
     cascade_remove(&app, &name)

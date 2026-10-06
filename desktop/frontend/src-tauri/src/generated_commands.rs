@@ -216,6 +216,8 @@ macro_rules! all_command_handlers {
             read_branch_name_instructions,
             read_clipboard_files,
             read_clipboard_text,
+            read_clipboard_image,
+            media_http_base,
             read_commit_instructions,
             read_config,
             read_file,

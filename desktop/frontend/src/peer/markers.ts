@@ -6,9 +6,11 @@
 //   name / terminal id : peer-{slug}-{raw}
 //   project root        : /@peer-{slug}{hostAbsolutePath}   (host path starts with /)
 //   home-relative path  : /@peer-{slug}~/{rest}             (the host expands ~)
+//   Windows host root   : /@peer-{slug}C:\{rest}            (also C:/…, \\server\share\…)
 //
 // A root stays a valid absolute-looking path (starts with /) so string ops and
-// display don't break. Both forms are Tauri-event-name safe.
+// display don't break; path.ts gives a Windows host's root Windows rules after
+// its marker. Both forms are Tauri-event-name safe.
 
 // What one base64 JSON frame can carry over the peer WebSocket (tungstenite's
 // ~16 MiB default max frame): 8 MB of raw bytes, whose base64 (~10.7 MB) plus
@@ -21,8 +23,12 @@
 export const PEER_UPLOAD_MAX_BYTES = 8 * 1024 * 1024;
 
 const SLUG = "[0-9a-f]{8}";
+// How a Windows host writes an absolute path: `C:\…`, `C:/…` or `\\server\…`.
+const WIN_HOST_PATH = String.raw`[A-Za-z]:[\\/]|\\\\`;
 const NAME_RE = new RegExp(`^peer-(${SLUG})-([\\s\\S]*)$`);
-const ROOT_RE = new RegExp(`^/@peer-(${SLUG})((?:/|~/)[\\s\\S]*)$`);
+const ROOT_RE = new RegExp(`^/@peer-(${SLUG})((?:/|~/|${WIN_HOST_PATH})[\\s\\S]*)$`);
+const WIN_HOST_PATH_RE = new RegExp(`^(?:${WIN_HOST_PATH})`);
+const WIN_ROOT_MARKER_RE = new RegExp(`^/@peer-${SLUG}(?=${WIN_HOST_PATH})`);
 
 export interface PeerMarker {
   slug: string;
@@ -64,6 +70,16 @@ export function prefixName(slug: string, raw: string): string {
 
 export function prefixRoot(slug: string, hostPath: string): string {
   return `/@peer-${slug}${hostPath}`;
+}
+
+// A bare host path written the Windows way, whichever machine reads it.
+export function isWindowsHostPath(path: string): boolean {
+  return WIN_HOST_PATH_RE.test(path);
+}
+
+// The marker in front of a path on a Windows host; "" for any other value.
+export function windowsRootMarker(value: string): string {
+  return WIN_ROOT_MARKER_RE.exec(value)?.[0] ?? "";
 }
 
 // The host-native identifier for a marked value; returns the value unchanged

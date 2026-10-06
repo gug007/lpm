@@ -4,6 +4,7 @@ import { CheckAICLIs } from "../../bridge/commands";
 import { isCanceledError, useAIGeneration } from "../hooks/useAIGeneration";
 import { EventsOn } from "../../bridge/runtime";
 import type { main } from "../../bridge/models";
+import { enterHint } from "../shortcutHints";
 
 import { type AICLI, AI_CLI_OPTIONS } from "../types";
 
@@ -219,7 +220,7 @@ export function AIGenerateModal({ open, onCancel, onGenerate }: AIGenerateModalP
 
       <div className="mt-6 flex items-center justify-between">
         <div className="text-[11px] text-[var(--text-muted)]">
-          <kbd className="font-mono">{"\u2318\u21B5"}</kbd> Generate
+          <kbd className="font-mono">{enterHint({ meta: true })}</kbd> Generate
           <span className="mx-1.5">·</span>
           <kbd className="font-mono">Esc</kbd> Cancel
         </div>

@@ -15,9 +15,22 @@ use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 /// python.org's Windows installer puts `python` on PATH, not `python3`.
+#[cfg(not(target_os = "linux"))]
 const PYTHON: &str = if cfg!(windows) { "python" } else { "python3" };
 
+/// The interpreter Kokoro runs under; Linux keeps it in its own environment.
+#[cfg(target_os = "linux")]
+fn python() -> Command {
+    crate::kokoro_venv::python()
+}
+
+#[cfg(not(target_os = "linux"))]
+fn python() -> Command {
+    crate::osproc::command(PYTHON)
+}
+
 /// `pip3 <args>`; on Windows `python -m pip`, the spelling that is always there.
+#[cfg(not(target_os = "linux"))]
 fn pip(args: &[&str]) -> Command {
     #[cfg(windows)]
     {
@@ -140,7 +153,7 @@ pub fn start_tts(app: AppHandle, state: State<'_, TtsState>, text: String) -> Re
 
     stop_internal(&app, &state.inner); // tear down any prior session first
 
-    let mut cmd = crate::osproc::command(PYTHON);
+    let mut cmd = python();
     cmd.arg("-c");
     if TEXT_ON_STDIN {
         cmd.arg(stdin_script()).arg("-").stdin(Stdio::piped());
@@ -289,7 +302,7 @@ fn freeze(pid: i32, stop: bool) -> std::io::Result<()> {
 
 #[tauri::command(async)]
 pub fn check_kokoro_installed() -> bool {
-    crate::osproc::command(PYTHON)
+    python()
         .args(["-c", "from kokoro import KPipeline; import soundfile"])
         .status()
         .map(|s| s.success())
@@ -298,34 +311,49 @@ pub fn check_kokoro_installed() -> bool {
 
 #[tauri::command(async)]
 pub fn install_kokoro() -> Result<(), String> {
-    let out = pip(&["install", "kokoro", "soundfile"])
-        .output()
-        .map_err(|e| e.to_string())?;
-    if !out.status.success() {
-        return Err(format!(
-            "pip3 install failed: {}\n{}",
-            out.status,
-            combined(&out)
-        ));
+    #[cfg(target_os = "linux")]
+    {
+        crate::kokoro_venv::install()
     }
-    Ok(())
+    #[cfg(not(target_os = "linux"))]
+    {
+        let out = pip(&["install", "kokoro", "soundfile"])
+            .output()
+            .map_err(|e| e.to_string())?;
+        if !out.status.success() {
+            return Err(format!(
+                "pip3 install failed: {}\n{}",
+                out.status,
+                combined(&out)
+            ));
+        }
+        Ok(())
+    }
 }
 
 #[tauri::command(async)]
 pub fn uninstall_kokoro() -> Result<(), String> {
-    let out = pip(&["uninstall", "-y", "kokoro", "soundfile"])
-        .output()
-        .map_err(|e| e.to_string())?;
-    if !out.status.success() {
-        return Err(format!(
-            "pip3 uninstall failed: {}\n{}",
-            out.status,
-            combined(&out)
-        ));
+    #[cfg(target_os = "linux")]
+    {
+        crate::kokoro_venv::uninstall()
     }
-    Ok(())
+    #[cfg(not(target_os = "linux"))]
+    {
+        let out = pip(&["uninstall", "-y", "kokoro", "soundfile"])
+            .output()
+            .map_err(|e| e.to_string())?;
+        if !out.status.success() {
+            return Err(format!(
+                "pip3 uninstall failed: {}\n{}",
+                out.status,
+                combined(&out)
+            ));
+        }
+        Ok(())
+    }
 }
 
+#[cfg(not(target_os = "linux"))]
 fn combined(out: &std::process::Output) -> String {
     let mut s = String::from_utf8_lossy(&out.stdout).into_owned();
     s.push_str(&String::from_utf8_lossy(&out.stderr));
