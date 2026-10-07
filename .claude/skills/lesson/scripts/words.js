@@ -25,7 +25,7 @@ const norm = (t) =>
     .flatMap((w) => (/^\d{1,6}$/.test(w) ? spell(Number(w)) : [w]));
 
 // How the transcript tends to spell names the voice says right.
-const HEARD_AS = { cloud: "claude", clod: "claude", clods: "claudes", clawed: "claude", codecs: "codex", codec: "codex" };
+const HEARD_AS = { cloud: "claude", clod: "claude", clawd: "claude", clods: "claudes", clawed: "claude", codecs: "codex", codec: "codex" };
 const SOUND_ALIKE = [["to", "too", "two"], ["for", "four"]];
 const same = (heard, word) =>
   heard === word ||

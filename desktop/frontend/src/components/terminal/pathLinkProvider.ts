@@ -1,8 +1,6 @@
 import type {
   IBuffer,
-  IBufferCell,
   IBufferCellPosition,
-  IBufferLine,
   IBufferRange,
   IDisposable,
   ILink,
@@ -22,6 +20,7 @@ import { isWindows } from "../../platform";
 import { getSettings } from "../../store/settings";
 import { openFileViewer } from "../../store/fileViewer";
 import { candidatesFor, fileExists, loadFileIndex } from "./fileIndex";
+import { type LineWindow, readLineWindow } from "./lineWindow";
 import { msysMounts } from "./msysMounts";
 import { openInDefaultApp } from "./openInDefaultApp";
 
@@ -111,107 +110,6 @@ function position(g: (string | undefined)[]): { line: number; col: number } {
   return { line: num(g[0] ?? g[2] ?? g[4]), col: num(g[1] ?? g[3] ?? g[5]) };
 }
 
-const MAX_WINDOW_CHARS = 2048;
-const MAX_WINDOW_ROWS = 64;
-// How near the right edge a row must end, after room for the next row's first
-// word, to read as an agent's renderer having pushed that word down a row.
-const EDGE_SLACK = 4;
-
-// One logical (possibly wrapped) buffer line as it reads on screen, plus the
-// buffer coordinates every character came from. String offsets are not column
-// numbers: a wide glyph is one character across two cells and a glyph with
-// combining marks is several characters in one cell, so a path found in `text`
-// has to be mapped back through these to underline the cells it was drawn in.
-export interface LineWindow {
-  text: string;
-  x: number[];
-  y: number[];
-  width: number[];
-}
-
-function appendLine(win: LineWindow, line: IBufferLine, y: number, cell: IBufferCell): void {
-  let text = "";
-  const x: number[] = [];
-  const width: number[] = [];
-  for (let col = 0; col < line.length; col++) {
-    if (!line.getCell(col, cell)) continue;
-    const w = cell.getWidth();
-    if (w === 0) continue; // trailing half of a wide glyph
-    const chars = cell.getChars() || " ";
-    for (let i = 0; i < chars.length; i++) {
-      x.push(col);
-      width.push(w);
-    }
-    text += chars;
-  }
-  // Trailing blanks are padding, not content — dropping them lets a wrapped
-  // continuation join tight to the row above.
-  let end = text.length;
-  while (end > 0 && text[end - 1] === " ") end--;
-  win.text += text.slice(0, end);
-  for (let i = 0; i < end; i++) {
-    win.x.push(x[i]);
-    win.y.push(y);
-    win.width.push(width[i]);
-  }
-}
-
-// Claude Code wraps its own output, breaking at a blank with a real newline, so
-// xterm never marks the next row as a continuation. A row that ends where the
-// next row's first word would no longer have fit reads as one that was.
-function wordWrapped(a: LineWindow, b: LineWindow, cols: number): boolean {
-  const n = a.text.length;
-  const word = b.text.trimStart().match(/^\S+/)?.[0].length ?? 0;
-  if (n === 0 || word === 0) return false;
-  return a.x[n - 1] + a.width[n - 1] + 1 + word > cols - EDGE_SLACK;
-}
-
-// The logical line around a row: the rows xterm soft-wrapped into it and, given
-// `cols`, the rows an agent word-wrapped, joined back with the blank the break
-// took and without the next row's indent.
-export function readLineWindow(buffer: IBuffer, lineIndex: number, cols = 0): LineWindow {
-  const win: LineWindow = { text: "", x: [], y: [], width: [] };
-  if (!buffer.getLine(lineIndex)) return win;
-
-  const cell = buffer.getNullCell();
-  const rows = new Map<number, LineWindow>();
-  const rowAt = (y: number): LineWindow => {
-    let row = rows.get(y);
-    if (!row) {
-      row = { text: "", x: [], y: [], width: [] };
-      const line = buffer.getLine(y);
-      if (line) appendLine(row, line, y, cell);
-      rows.set(y, row);
-    }
-    return row;
-  };
-  const softWrapped = (y: number) => !!buffer.getLine(y)?.isWrapped;
-  const continues = (y: number) =>
-    !!buffer.getLine(y + 1) &&
-    (softWrapped(y + 1) || (cols > 0 && wordWrapped(rowAt(y), rowAt(y + 1), cols)));
-
-  let top = lineIndex;
-  while (top > 0 && lineIndex - top < MAX_WINDOW_ROWS && continues(top - 1)) top--;
-
-  for (let y = top; ; y++) {
-    const row = rowAt(y);
-    let from = 0;
-    if (y > top && !softWrapped(y)) {
-      from = row.text.length - row.text.trimStart().length;
-      win.text += " ";
-      win.x.push(row.x[from]);
-      win.y.push(y);
-      win.width.push(row.width[from]);
-    }
-    win.text += row.text.slice(from);
-    win.x.push(...row.x.slice(from));
-    win.y.push(...row.y.slice(from));
-    win.width.push(...row.width.slice(from));
-    if (win.text.length >= MAX_WINDOW_CHARS || !continues(y)) break;
-  }
-  return win;
-}
-
 export interface PathMatch {
   raw: string;
   text: string;
@@ -279,20 +177,30 @@ function spacedCandidates(win: LineWindow, y: number, rulesets: SpacedRules[]): 
   return groups;
 }
 
+// Paths an agent broke at the right edge that reach row `y` (1-based), read
+// across the cut for the caller to try against the disk.
+function cutCandidates(win: LineWindow, y: number, windows: boolean): PathMatch[] {
+  const taken: [number, number][] = [];
+  const found = [...(windows ? collect(win, WIN_PATH_RE, taken) : []), ...collect(win, PATH_RE, taken)];
+  return found.filter((m) => m.range.start.y !== m.range.end.y && m.range.start.y <= y && m.range.end.y >= y);
+}
+
 // Paths on the logical line the given row belongs to, in buffer coordinates,
-// the bare file names outside them, and the readings of any path with spaces
-// (`cols` lets those follow an agent's own line breaks). bufferLineNumber is
-// 1-based, matching ILinkProvider.provideLinks. `windows` adds Windows paths.
+// the bare file names outside them, the readings of any path with spaces and
+// of any path cut at the right edge (`cols` lets those two follow an agent's
+// own line breaks). bufferLineNumber is 1-based, matching
+// ILinkProvider.provideLinks. `windows` adds Windows paths.
 export function scanLine(buffer: IBuffer, bufferLineNumber: number, cols = 0, windows = isWindows) {
   const win = readLineWindow(buffer, bufferLineNumber - 1);
-  if (!win.text) return { paths: [], names: [], spaced: [] };
+  if (!win.text) return { paths: [], names: [], spaced: [], cut: [] };
   const taken: [number, number][] = [];
   const winPaths = windows ? collect(win, WIN_PATH_RE, taken) : [];
   const paths = [...winPaths, ...collect(win, PATH_RE, taken)];
   const names = collect(win, NAME_RE, taken);
   const joined = cols > 0 ? readLineWindow(buffer, bufferLineNumber - 1, cols) : win;
   const spaced = spacedCandidates(joined, bufferLineNumber, windows ? WIN_SPACED : POSIX_SPACED);
-  return { paths, names, spaced };
+  const cut = cols > 0 ? cutCandidates(readLineWindow(buffer, bufferLineNumber - 1, cols, true), bufferLineNumber, windows) : [];
+  return { paths, names, spaced, cut };
 }
 
 export function findPathMatches(
@@ -333,8 +241,9 @@ export function resolvePrinted(
   return joinAbs(cwd, local, windows);
 }
 
-// The longest reading of each spaced run that names a file.
-async function confirmSpaced(groups: PathMatch[][], cwd: string): Promise<PathMatch[]> {
+// The first reading of each group that names a file: the longest of a spaced
+// run, or a path read across an agent's cut.
+async function confirmOnDisk(groups: PathMatch[][], cwd: string): Promise<PathMatch[]> {
   const mounts = await msysMounts();
   const picks = await Promise.all(
     groups.map(async (group) => {
@@ -394,7 +303,7 @@ export function registerPathLinkProvider(
   const provider: ILinkProvider = {
     provideLinks(bufferLineNumber, callback) {
       const cwd = opts.getCwd();
-      const { paths, names, spaced } = scanLine(
+      const { paths, names, spaced, cut } = scanLine(
         term.buffer.active,
         bufferLineNumber,
         term.cols,
@@ -412,14 +321,16 @@ export function registerPathLinkProvider(
         cwd && names.length > 0
           ? loadFileIndex(cwd).then((index) => names.filter((m) => index?.byName.has(m.raw)))
           : null;
-      if (!projectNames && spaced.length === 0) {
+      const readings = [...spaced, ...cut.map((m) => [m])];
+      if (!projectNames && readings.length === 0) {
         // Hovering warms the index, so a click resolves at once.
         if (cwd && paths.some((m) => !isAbsolute(m.raw, cwd))) void loadFileIndex(cwd);
         callback(direct.length > 0 ? direct.map(link) : undefined);
         return;
       }
-      void Promise.all([confirmSpaced(spaced, cwd), projectNames ?? []]).then(([long, short]) => {
-        // A path with spaces outranks the pieces of it that read as paths alone.
+      void Promise.all([confirmOnDisk(readings, cwd), projectNames ?? []]).then(([long, short]) => {
+        // A path with spaces or cut by the agent outranks the pieces of it that
+        // read as paths alone.
         const rest = [...direct, ...short].filter((m) => !long.some((l) => overlaps(l.range, m.range)));
         const links = [...long, ...rest].map(link);
         callback(links.length > 0 ? links : undefined);

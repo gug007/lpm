@@ -1,8 +1,8 @@
 ---
 name: short-race
-version: 1.1.0
+version: 1.1.1
 argument-hint: "\"<model A>\" vs \"<model B>\" [prompt: …]"
-description: "Make a short vertical (9:16) video that races two AI models on the same prompt in lpm, side by side: Run in duplicates puts each model in its own copy of the project, shown as side-by-side columns, the same prompt sent to both, the real finish times on the pane headers, then both results live in lpm's browser. Default prompt: a giraffe flying a one-seat plane as animated HTML. Models in, 1080x1920 MP4 + cover + post caption out. Use when the user asks for a TikTok, Reel or Short that compares models, such as \"opus 5.5 max vs gpt 6 astra ultra\", \"opus 5.5 vs grok 4.7\" (Claude models run in Claude Code, GPT models in Codex, every other model in Cursor CLI) or \"opus 5 vs opus 5.5\"."
+description: "Make a short vertical (9:16) video that races two AI models on the same prompt in lpm, side by side: Run in duplicates puts each model in its own copy of the project, shown as side-by-side columns, the same prompt sent to both, the real finish times on the pane headers, then both results live in lpm's browser. Default prompt: a giraffe flying a one-seat plane as animated HTML. Models in, 1080x1920 MP4 + cover + post caption out. Use when the user asks for a TikTok, Reel or Short that compares models, such as \"opus 5.5 max vs gpt 6 astra ultra\", \"opus 5.5 vs grok 4.7\" (Claude models run in Claude Code, GPT models in Codex, every other model in Cursor CLI) or \"opus 5 vs opus 5.5\". When the models build a game, use short-game."
 ---
 
 Races two models on one prompt and cuts it into a TikTok. It writes a lesson for the `short` skill and records it with that skill's pipeline. Everything in that SKILL.md still holds and is not repeated here: payoff-first cut, captions, safe zones, review, the lesson data dir and workspace, foreground takes.

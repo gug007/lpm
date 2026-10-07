@@ -2,7 +2,8 @@ import { describe, it, expect } from "vitest";
 import type { IBuffer } from "@xterm/xterm";
 import phoneTapSource from "../../../../../mobile/web/pathtap.js?raw";
 
-import { findPathMatches, readLineWindow, resolvePrinted, scanLine } from "./pathLinkProvider";
+import { readLineWindow } from "./lineWindow";
+import { findPathMatches, resolvePrinted, scanLine } from "./pathLinkProvider";
 
 const phoneModule = { exports: {} };
 new Function("module", phoneTapSource)(phoneModule);
@@ -269,6 +270,41 @@ describe("paths with spaces", () => {
     const rows = [row("⏺ /Users/me/How to"), row("  Anyone.pdf")];
     expect(raws(rows, 80, 1)).toEqual([]);
     expect(raws(rows, 80, 2)).toEqual([]);
+  });
+});
+
+describe("paths an agent cut at the right edge", () => {
+  // Claude Code breaks a path longer than the row at the last column and indents the rest.
+  const head = "⏺ /Users/me/Movies/lpm-lessons/tiktok/opus-5-5-high-vs-gpt-6-astra-high-3d-runner/opus-5-5-high-vs-gpt-6-astra-high-";
+  const want = "/Users/me/Movies/lpm-lessons/tiktok/opus-5-5-high-vs-gpt-6-astra-high-3d-runner/opus-5-5-high-vs-gpt-6-astra-high-3d-runner.mp4";
+  const offered = (rows: FakeRow[], cols: number, line: number) => {
+    const s = scanLine(fakeBuffer(rows, cols), line, cols);
+    return [...s.paths, ...s.spaced.flat(), ...s.cut];
+  };
+
+  it("rejoins the path from either row", () => {
+    const rows = [row(head), row("  3d-runner.mp4")];
+    for (const line of [1, 2]) {
+      const m = offered(rows, head.length, line).find((c) => c.raw === want);
+      expect(m?.range).toEqual({ start: { x: 3, y: 1 }, end: { x: 15, y: 2 } });
+    }
+  });
+
+  it("carries a position across the cut", () => {
+    const rows = [row("  at /Users/me/app/src/comp"), row("  onents/App.tsx:12:3 failed")];
+    const [m] = offered(rows, rows[0].cells.length, 2).filter((c) => c.raw === "/Users/me/app/src/components/App.tsx");
+    expect(m).toMatchObject({ text: "/Users/me/app/src/components/App.tsx:12:3", line: 12, col: 3 });
+  });
+
+  it("still links a whole path that merely ends at the edge", () => {
+    const rows = [row("  edit /Users/me/app/a.ts"), row("  src/b.ts too")];
+    const s = scanLine(fakeBuffer(rows, rows[0].cells.length), 1, rows[0].cells.length);
+    expect(s.paths.map((m) => m.raw)).toEqual(["/Users/me/app/a.ts"]);
+  });
+
+  it("doesn't rejoin a row that ended well short of the edge", () => {
+    const rows = [row(head), row("  3d-runner.mp4")];
+    expect(offered(rows, head.length + 10, 1).map((c) => c.raw)).not.toContain(want);
   });
 });
 

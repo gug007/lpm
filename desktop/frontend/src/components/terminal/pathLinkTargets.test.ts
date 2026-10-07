@@ -23,18 +23,18 @@ import { openFileViewer } from "../../store/fileViewer";
 import { registerPathLinkProvider } from "./pathLinkProvider";
 import { forgetFileIndexes } from "./fileIndex";
 
-function bufferOf(text: string): IBuffer {
+function bufferOf(rows: string[], cols: number): IBuffer {
   const scratch = { chars: "", width: 1 };
   const cell = { getChars: () => scratch.chars, getWidth: () => scratch.width };
   return {
     getNullCell: () => cell,
     getLine: (y: number) =>
-      y === 0
+      y < rows.length
         ? {
             isWrapped: false,
-            length: 120,
+            length: cols,
             getCell: (x: number) => {
-              scratch.chars = text[x] ?? "";
+              scratch.chars = rows[y][x] ?? "";
               return cell;
             },
           }
@@ -42,17 +42,20 @@ function bufferOf(text: string): IBuffer {
   } as unknown as IBuffer;
 }
 
-async function linksOn(text: string, cwd = "/repo"): Promise<ILink[]> {
+// One row of output, or several in a terminal `cols` wide, scanned at `line`.
+async function linksOn(text: string | string[], cwd = "/repo", line = 1): Promise<ILink[]> {
   let provider: ILinkProvider | null = null;
+  const rows = typeof text === "string" ? [text] : text;
   const term = {
-    buffer: { active: bufferOf(text) },
+    ...(typeof text === "string" ? {} : { cols: rows[0].length }),
+    buffer: { active: bufferOf(rows, typeof text === "string" ? 120 : rows[0].length) },
     registerLinkProvider: (p: ILinkProvider) => {
       provider = p;
       return { dispose() {} };
     },
   } as unknown as Terminal;
   registerPathLinkProvider(term, { getCwd: () => cwd });
-  return new Promise((resolve) => provider!.provideLinks(1, (links) => resolve(links ?? [])));
+  return new Promise((resolve) => provider!.provideLinks(line, (links) => resolve(links ?? [])));
 }
 
 async function click(text: string, linkText: string, cwd = "/repo") {
@@ -173,5 +176,28 @@ describe("paths with spaces", () => {
     mocks.files = ["/@peer-abcd1234/Users/dev/My Files/clip.mp4"];
     const req = await click("wrote /Users/dev/My Files/clip.mp4", "/Users/dev/My Files/clip.mp4", cwd);
     expect(req.absPath).toBe("/@peer-abcd1234/Users/dev/My Files/clip.mp4");
+  });
+});
+
+describe("paths an agent cut at the right edge", () => {
+  // Claude Code breaks a path longer than the row at the last column and indents the rest.
+  const rows = ["⏺ /Users/me/Movies/clips/opus-vs-gpt-3d-", "  runner.mp4"];
+  const path = "/Users/me/Movies/clips/opus-vs-gpt-3d-runner.mp4";
+
+  it("links the whole path from either row when it is a file", async () => {
+    mocks.files = [path];
+    for (const line of [1, 2]) {
+      const links = await linksOn(rows, "/repo", line);
+      expect(links.map((l) => l.text)).toEqual([path]);
+    }
+    const [link] = await linksOn(rows, "/repo", 2);
+    link.activate({} as MouseEvent, link.text);
+    await vi.waitFor(() => expect(openFileViewer).toHaveBeenCalled());
+    expect(vi.mocked(openFileViewer).mock.calls[0][0].absPath).toBe(path);
+  });
+
+  it("links nothing when the joined path is not a file", async () => {
+    expect(await linksOn(rows, "/repo", 1)).toEqual([]);
+    expect(await linksOn(rows, "/repo", 2)).toEqual([]);
   });
 });
