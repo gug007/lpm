@@ -42,3 +42,4 @@ Vertical lessons posted to TikTok and YouTube Shorts, oldest first. The short-pu
 - Claude Code just started 3 more Claude Codes
 - Codex: Medium vs Ultra on the same bug
 - Claude Code: Ultracode vs Max on the same prompt
+- Claude vs Gemini: Opus 5.5 high vs Gemini 3.1 Pro build a 3D game
