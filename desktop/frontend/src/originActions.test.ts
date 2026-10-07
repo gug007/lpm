@@ -121,7 +121,7 @@ describe("pullDeck", () => {
   const COPY = "/Users/me/Projects/reader-copy";
   const AHEAD = "/Users/me/Projects/reader-ahead";
   const deck = [
-    { root: ROOT, name: "reader" },
+    { root: ROOT, name: "reader", isParent: true },
     { root: COPY, name: "reader-copy" },
     { root: AHEAD, name: "reader-ahead" },
   ];
@@ -132,7 +132,7 @@ describe("pullDeck", () => {
     useOriginStatus.getState().setStatus(AHEAD, status({ ahead: 2, behind: 1 }));
   });
 
-  it("pulls the rows that only need a pull, one at a time, then steps away", async () => {
+  it("pulls the rows that only need a pull, side by side, then steps away", async () => {
     let inFlight = 0;
     let most = 0;
     mocks.pull.mockImplementation(async () => {
@@ -145,12 +145,36 @@ describe("pullDeck", () => {
     await run;
 
     expect(mocks.pull.mock.calls.map((call) => call[0])).toEqual([ROOT, COPY]);
-    expect(most).toBe(1);
+    expect(most).toBe(2);
     expect(mocks.push).not.toHaveBeenCalled();
     expect(pulls()).toMatchObject({ total: 2, done: 2, running: false, failed: [] });
 
     vi.advanceTimersByTime(2500);
     expect(pulls()).toBeUndefined();
+  });
+
+  it("pulls the parent and its worktrees one at a time, beside the copies", async () => {
+    const TREES = ["/Users/me/Projects/reader-a", "/Users/me/Projects/reader-b"];
+    for (const tree of TREES) useOriginStatus.getState().setStatus(tree, status({ behind: 1 }));
+    const inFlight = new Set<string>();
+    let most = 0;
+    let mostShared = 0;
+    mocks.pull.mockImplementation(async (root: string) => {
+      inFlight.add(root);
+      most = Math.max(most, inFlight.size);
+      mostShared = Math.max(mostShared, [ROOT, ...TREES].filter((r) => inFlight.has(r)).length);
+      await Promise.resolve();
+      inFlight.delete(root);
+    });
+    await pullDeck("reader", [
+      ...deck,
+      ...TREES.map((root) => ({ root, name: root, worktree: true })),
+    ]);
+
+    expect(mocks.pull).toHaveBeenCalledTimes(4);
+    expect(most).toBe(2);
+    expect(mostShared).toBe(1);
+    expect(pulls()).toMatchObject({ total: 4, done: 4, running: false, failed: [] });
   });
 
   it("keeps going past a failure, names it, and keeps it for Retry", async () => {

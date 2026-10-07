@@ -104,7 +104,7 @@ describe("SidebarDeckPullRow", () => {
   it("shows progress, then the result", () => {
     behind(...COPIES);
     setDeck({ total: 4, done: 1, running: true, failed: [] });
-    expect(show()!.textContent).toBe("Pulling 2 of 4");
+    expect(show()!.textContent).toBe("1 of 4 pulled");
     setDeck({ total: 4, done: 4, running: false, failed: [] });
     expect(show()!.textContent).toBe("✓ 4 pulled");
   });

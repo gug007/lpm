@@ -39,12 +39,11 @@ export function SidebarDeckPullRow({
   });
 
   if (pull?.running) {
-    const now = Math.min(pull.done + 1, pull.total);
     return (
       <div role="status" className={`${ROW_CLASS} ${pad} text-[var(--text-muted)]`}>
         <SpinnerIcon />
         <span>
-          Pulling {now} of {pull.total}
+          {pull.done} of {pull.total} pulled
         </span>
         <span
           aria-hidden

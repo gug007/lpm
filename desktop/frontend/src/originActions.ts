@@ -74,9 +74,29 @@ export function plainPullMark(root: string): OriginMark | null {
   return isPlainPull(mark) ? mark : null;
 }
 
-// Pull every row of a deck that only needs a plain pull. One at a time: a deck's
-// worktrees share one repository, and two pulls in it race for the same refs.
-export async function pullDeck(deck: string, rows: { root: string; name: string }[]): Promise<void> {
+const PULLS_AT_ONCE = 4;
+
+interface DeckPullRow {
+  root: string;
+  name: string;
+  worktree?: boolean;
+  isParent?: boolean;
+}
+
+// The parent and its worktrees share one repository, where two pulls race for
+// the same refs, so they queue in one lane; each copy has a repository of its own.
+function repoLanes(rows: DeckPullRow[]): DeckPullRow[][] {
+  const lanes = new Map<string, DeckPullRow[]>();
+  for (const row of rows) {
+    const repo = row.worktree || row.isParent ? "" : row.root;
+    lanes.set(repo, [...(lanes.get(repo) ?? []), row]);
+  }
+  return [...lanes.values()];
+}
+
+// Pull every row of a deck that only needs a plain pull, separate repositories
+// side by side.
+export async function pullDeck(deck: string, rows: DeckPullRow[]): Promise<void> {
   if (useDeckPull.getState().decks[deck]?.running) return;
   const todo = rows.filter((row) => plainPullMark(row.root));
   if (todo.length === 0) return;
@@ -85,13 +105,19 @@ export async function pullDeck(deck: string, rows: { root: string; name: string 
   const publish = (running: boolean) =>
     useDeckPull.getState().setDeck(deck, { total: todo.length, done, running, failed: [...failed] });
   publish(true);
-  for (const row of todo) {
-    // Re-read each turn: the poller or the row's own button may have got there first.
-    const mark = plainPullMark(row.root);
-    if (mark && !(await runOriginAction(row.root, mark, row.name))) failed.push(row.root);
-    done++;
-    publish(true);
-  }
+  const queue = repoLanes(todo);
+  const worker = async () => {
+    for (let lane = queue.shift(); lane; lane = queue.shift()) {
+      for (const row of lane) {
+        // Re-read each turn: the poller or the row's own button may have got there first.
+        const mark = plainPullMark(row.root);
+        if (mark && !(await runOriginAction(row.root, mark, row.name))) failed.push(row.root);
+        done++;
+        publish(true);
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(PULLS_AT_ONCE, queue.length) }, worker));
   publish(false);
   if (failed.length > 0) return;
   const finished = useDeckPull.getState().decks[deck];
