@@ -18,6 +18,7 @@ const { mmss } = require("./chapters");
 const { MASTER } = require("./mix");
 const { helper } = require("./helpers");
 const { STILL_OUT } = require("./compose");
+const { editTimeline } = require("./edit");
 
 const DEAD_AIR_MS = 2500;
 const ERROR_TEXT = [
@@ -219,6 +220,9 @@ if (require.main === module) {
   }
   const d = path.resolve(dir);
   const read = (f) => JSON.parse(fs.readFileSync(path.join(d, f), "utf8"));
-  const report = runQa({ dir: d, mp4: path.join(d, `${path.basename(d)}.mp4`), raw: path.join(d, "record.mkv"), timeline: read("timeline.json"), lesson: read("lesson.json"), vertical });
+  // timeline.json is the take's clock; an edited MP4 plays the cut in edit.json.
+  const taken = read("timeline.json");
+  const timeline = fs.existsSync(path.join(d, "edit.json")) ? editTimeline(taken, { dropped: [] }, read("edit.json"), null) : taken;
+  const report = runQa({ dir: d, mp4: path.join(d, `${path.basename(d)}.mp4`), raw: path.join(d, "record.mkv"), timeline, lesson: read("lesson.json"), vertical });
   process.exit(report.pass ? 0 : 1);
 }

@@ -35,6 +35,8 @@
     brightCyan: '#60fdff', brightWhite: '#ffffff',
   };
 
+  // Set when xterm opens an OSC 8 hyperlink, so the tap that did it can tell.
+  let linkOpened = false;
   const term = new Terminal({
     fontSize: 12,
     // Match the desktop's effective font stack exactly (no color-emoji font):
@@ -46,6 +48,9 @@
     scrollback: 10000,
     allowProposedApi: true,
     theme,
+    // OSC 8 hyperlinks, whose text isn't the URL. xterm's default confirm() +
+    // window.open does nothing in a WKWebView.
+    linkHandler: { activate: (e, uri) => { linkOpened = true; post('openURL', uri); } },
   });
   const fit = new FitAddon.FitAddon();
   term.loadAddon(fit);
@@ -138,6 +143,15 @@
       const r = el.querySelector('.xterm-rows')?.firstElementChild;
       return (r && r.getBoundingClientRect().height) || Math.ceil(term.options.fontSize * 1.2);
     };
+    // xterm opens OSC 8 hyperlinks on its own click, so a tap is replayed as one:
+    // iOS's compatibility mouse events can stop at the hover the link reacts to.
+    const clickAt = (x, y) => {
+      const screen = el.querySelector('.xterm-screen');
+      const init = { clientX: x, clientY: y, bubbles: true, cancelable: true, view: window, button: 0 };
+      screen.dispatchEvent(new MouseEvent('mousemove', init));
+      screen.dispatchEvent(new MouseEvent('mousedown', { ...init, buttons: 1 }));
+      screen.dispatchEvent(new MouseEvent('mouseup', init));
+    };
     const mouseOn = () => {
       const m = term.modes && term.modes.mouseTrackingMode;
       return !!m && m !== 'none';
@@ -181,17 +195,32 @@
       e.preventDefault();
     }, { passive: false });
     const end = e => {
-      // A touch that never became a scroll is a tap: on a file path it opens the
-      // preview (preventDefault keeps iOS from also focusing and raising the
-      // keyboard); anywhere else it focuses the terminal so iOS opens the
-      // keyboard (xterm focuses its hidden input on focus()).
+      // A touch that never became a scroll is a tap: on a URL it opens in the
+      // browser and on a file path it opens the preview (preventDefault keeps iOS
+      // from also focusing and raising the keyboard); anywhere else it focuses the
+      // terminal so iOS opens the keyboard (xterm focuses its hidden input on
+      // focus()).
       if (lastY !== null && !scrolling) {
         const t = e.changedTouches[0];
-        const hits = t ? LpmPathTap.pathsAtPoint(term, t.clientX, t.clientY) : [];
-        if (hits.length) {
+        const url = t ? LpmPathTap.urlAtPoint(term, t.clientX, t.clientY) : null;
+        const hits = t && !url ? LpmPathTap.pathsAtPoint(term, t.clientX, t.clientY) : [];
+        if (url) {
+          e.preventDefault();
+          LpmPathTap.flash(term, url);
+          post('openURL', url.url);
+        } else if (hits.length) {
           e.preventDefault();
           LpmPathTap.flash(term, hits[0]);
           post('openPath', { paths: hits.map(h => h.path), line: hits[0].line });
+        } else if (t) {
+          const hadFocus = document.activeElement === term.textarea;
+          linkOpened = false;
+          clickAt(t.clientX, t.clientY);
+          if (!linkOpened) term.focus();
+          else {
+            e.preventDefault();
+            if (!hadFocus) term.blur();
+          }
         } else {
           term.focus();
         }

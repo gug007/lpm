@@ -58,6 +58,7 @@ struct WebTerminalView: UIViewRepresentable {
         controller.add(context.coordinator, name: "resize")
         controller.add(context.coordinator, name: "ready")
         controller.add(context.coordinator, name: "openPath")
+        controller.add(context.coordinator, name: "openURL")
 
         let config = WKWebViewConfiguration()
         config.userContentController = controller
@@ -117,7 +118,7 @@ struct WebTerminalView: UIViewRepresentable {
 
     static func dismantleUIView(_ web: WKWebView, coordinator: Coordinator) {
         let c = web.configuration.userContentController
-        ["input", "resize", "ready", "openPath"].forEach { c.removeScriptMessageHandler(forName: $0) }
+        ["input", "resize", "ready", "openPath", "openURL"].forEach { c.removeScriptMessageHandler(forName: $0) }
         coordinator.model?.terminalSubmit[coordinator.termId] = nil
         coordinator.model?.terminalCapture[coordinator.termId] = nil
         coordinator.model?.unsubscribe(coordinator.termId)
@@ -337,6 +338,12 @@ struct WebTerminalView: UIViewRepresentable {
             case "openPath":
                 if let d = msg.body as? [String: Any], let paths = d["paths"] as? [String], !paths.isEmpty {
                     onOpenPath?(paths, d["line"] as? Int ?? 0)
+                }
+            case "openURL":
+                // The text comes from whatever the terminal printed: open web links only.
+                if let s = msg.body as? String, let url = URL(string: s),
+                   let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" {
+                    UIApplication.shared.open(url)
                 }
             case "ready":
                 ready = true

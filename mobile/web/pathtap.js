@@ -8,6 +8,9 @@
 // breaks across rows xterm never marks as wrapped. A second reading rejoins rows
 // that run into the right edge (dropping the next row's indent). Both readings
 // go to the Mac, which opens the first one that exists.
+//
+// A tap on an http(s) URL opens it in the browser; it is read the same way, so
+// a URL the agent wrapped onto the next row still opens whole.
 (function () {
   const SEG = String.raw`(?:[\w.@+-]|\[{1,2}[\w.-]+\]{1,2}|\([\w.-]+\))`;
   const PATH_RE = new RegExp(
@@ -17,10 +20,15 @@
     'g',
   );
   const PATH_CHAR = /[\w./~@+()[\]-]/;
+  const URL_RE = /\bhttps?:\/\/[^\s"'`<>{}|\\^]*[^\s"'`<>{}|\\^.,:;!?)\]]/g;
   const MAX_ROWS = 64;
   const MAX_CHARS = 2048;
-  // How close to the right edge a row must end to read as cut off there.
-  const EDGE_SLACK = 4;
+  // How close to the right edge a row must end to read as cut off there, and
+  // which characters may sit either side of the cut.
+  const PATH_JOIN = { char: PATH_CHAR, slack: 4 };
+  // Claude Code breaks a long URL at the last column, so any looser and a URL
+  // that merely ends near the edge would swallow the next row's first word.
+  const URL_JOIN = { char: /[^\s"'`<>{}|\\^]/, slack: 1 };
 
   // One row's characters and the cells they sit in (a wide glyph is one char
   // over two cells), trailing blanks dropped.
@@ -45,7 +53,7 @@
     return row;
   }
 
-  function readingOf(buf, cols, index, rejoin) {
+  function readingOf(buf, cols, index, rejoin, join = PATH_JOIN) {
     const cell = buf.getNullCell();
     const rows = new Map();
     const rowAt = y => {
@@ -65,9 +73,9 @@
       if (!a || !b || !a.text) return false;
       const lastCol = a.x[a.x.length - 1] + a.w[a.w.length - 1];
       const head = b.text.trimStart();
-      return lastCol >= cols - EDGE_SLACK
-        && PATH_CHAR.test(a.text[a.text.length - 1])
-        && head.length > 0 && PATH_CHAR.test(head[0]);
+      return lastCol >= cols - join.slack
+        && join.char.test(a.text[a.text.length - 1])
+        && head.length > 0 && join.char.test(head[0]);
     };
 
     const win = { text: '', x: [], y: [], w: [] };
@@ -90,28 +98,44 @@
     return win;
   }
 
-  // The path in `win` drawn over cell (col, y), within a cell of the finger.
-  function matchAt(win, col, y) {
+  // The character in `win` drawn over cell (col, y), within a cell of the finger.
+  function charAt(win, col, y) {
     let hit = -1, best = 2;
     for (let i = 0; i < win.text.length; i++) {
       if (win.y[i] !== y) continue;
       const d = col < win.x[i] ? win.x[i] - col : Math.max(0, col - (win.x[i] + win.w[i] - 1));
       if (d < best) { best = d; hit = i; }
     }
+    return hit;
+  }
+
+  // The match of `re` in `win` that covers character `hit`, with its cell span.
+  function matchOver(win, re, hit) {
     if (hit < 0) return null;
-    PATH_RE.lastIndex = 0;
+    re.lastIndex = 0;
     let m;
-    while ((m = PATH_RE.exec(win.text)) !== null) {
+    while ((m = re.exec(win.text)) !== null) {
       const start = m.index, last = m.index + m[0].length - 1;
       if (hit < start || hit > last) continue;
       return {
-        path: m[1],
-        line: parseInt(m[2] || m[4] || m[6] || '0', 10),
+        m,
         start: { x: win.x[start], y: win.y[start] },
         end: { x: win.x[last] + win.w[last] - 1, y: win.y[last] },
       };
     }
     return null;
+  }
+
+  function matchAt(win, col, y) {
+    const hit = matchOver(win, PATH_RE, charAt(win, col, y));
+    if (!hit) return null;
+    const m = hit.m;
+    return {
+      path: m[1],
+      line: parseInt(m[2] || m[4] || m[6] || '0', 10),
+      start: hit.start,
+      end: hit.end,
+    };
   }
 
   // Every reading of the path under buffer cell (col, index), longest first.
@@ -125,19 +149,39 @@
     return out;
   }
 
-  // Map a touch point to a buffer cell and read the paths there.
-  function pathsAtPoint(term, clientX, clientY) {
+  // The URL under buffer cell (col, index). The rejoined reading comes first;
+  // the plain one catches a URL glued onto the end of the row above it.
+  function urlAt(buf, cols, index, col) {
+    for (const rejoin of [true, false]) {
+      const win = readingOf(buf, cols, index, rejoin, URL_JOIN);
+      const hit = matchOver(win, URL_RE, charAt(win, col, index));
+      if (hit) return { url: hit.m[0], start: hit.start, end: hit.end };
+    }
+    return null;
+  }
+
+  // Map a touch point to a buffer cell.
+  function cellAtPoint(term, clientX, clientY) {
     const screen = term.element && term.element.querySelector('.xterm-screen');
-    if (!screen) return [];
+    if (!screen) return null;
     const r = screen.getBoundingClientRect();
     const col = Math.floor((clientX - r.left) / (r.width / term.cols));
     const row = Math.floor((clientY - r.top) / (r.height / term.rows));
-    if (col < 0 || row < 0 || col >= term.cols || row >= term.rows) return [];
-    const buf = term.buffer.active;
-    return pathsAt(buf, term.cols, buf.viewportY + row, col);
+    if (col < 0 || row < 0 || col >= term.cols || row >= term.rows) return null;
+    return { col, index: term.buffer.active.viewportY + row };
   }
 
-  // Briefly select the tapped path, so the tap reads as having hit it.
+  function pathsAtPoint(term, clientX, clientY) {
+    const c = cellAtPoint(term, clientX, clientY);
+    return c ? pathsAt(term.buffer.active, term.cols, c.index, c.col) : [];
+  }
+
+  function urlAtPoint(term, clientX, clientY) {
+    const c = cellAtPoint(term, clientX, clientY);
+    return c ? urlAt(term.buffer.active, term.cols, c.index, c.col) : null;
+  }
+
+  // Briefly select the tapped path or URL, so the tap reads as having hit it.
   function flash(term, m) {
     const length = (m.end.y - m.start.y) * term.cols + (m.end.x - m.start.x) + 1;
     try {
@@ -146,7 +190,7 @@
     } catch (e) {}
   }
 
-  const api = { pathsAt, pathsAtPoint, flash };
+  const api = { pathsAt, pathsAtPoint, urlAt, urlAtPoint, flash };
   if (typeof window !== 'undefined') window.LpmPathTap = api;
   if (typeof module !== 'undefined') module.exports = api;
 })();

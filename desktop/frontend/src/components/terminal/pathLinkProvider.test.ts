@@ -8,6 +8,7 @@ const phoneModule = { exports: {} };
 new Function("module", phoneTapSource)(phoneModule);
 const phoneTap = phoneModule.exports as {
   pathsAt: (buf: IBuffer, cols: number, index: number, col: number) => { path: string; line: number }[];
+  urlAt: (buf: IBuffer, cols: number, index: number, col: number) => { url: string } | null;
 };
 
 interface FakeCell {
@@ -182,6 +183,38 @@ describe("phone rejoin", () => {
   ])("rejoins %j", (rows, want) => {
     const buf = fakeBuffer(rows.map((r) => row(r)), 20);
     expect(phoneTap.pathsAt(buf, 20, 0, 4).map((m) => m.path)).toContain(want);
+  });
+});
+
+describe("phone URL taps", () => {
+  const urlAt = (rows: string[], cols: number, y: number, x: number) =>
+    phoneTap.urlAt(fakeBuffer(rows.map((r) => row(r)), cols), cols, y, x)?.url ?? null;
+
+  it.each([
+    ["see https://github.com/gug007/lpm/pull/113 (merged)", "https://github.com/gug007/lpm/pull/113"],
+    ["(https://lpm.cx/docs)", "https://lpm.cx/docs"],
+    ["sentence ends at https://lpm.cx.", "https://lpm.cx"],
+    ["http://localhost:3000/api?x=1&y=2#top", "http://localhost:3000/api?x=1&y=2#top"],
+  ])("reads %s", (text, want) => {
+    expect(urlAt([text], 80, 0, text.indexOf(want) + 3)).toBe(want);
+  });
+
+  it("ignores text that isn't a URL", () => {
+    expect(urlAt(["see src/App.tsx here"], 80, 0, 6)).toBeNull();
+  });
+
+  // Claude Code breaks a URL longer than the row at the last column and indents the rest.
+  it("rejoins a URL broken at the right edge, from either row", () => {
+    const rows = ["⏺ https://example.com/abcdefghijklmn", "  opqrstuvwxyz/end and more"];
+    const cols = rows[0].length;
+    const want = "https://example.com/abcdefghijklmnopqrstuvwxyz/end";
+    expect(urlAt(rows, cols, 0, 5)).toBe(want);
+    expect(urlAt(rows, cols, 1, 5)).toBe(want);
+  });
+
+  it("keeps a URL that ends near the edge off the next row", () => {
+    const rows = ["see https://lpm.cx/a", "5. next item"];
+    expect(urlAt(rows, rows[0].length + 2, 0, 6)).toBe("https://lpm.cx/a");
   });
 });
 
