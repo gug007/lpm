@@ -663,6 +663,11 @@ fn has_clients(hub: &RemoteHub) -> bool {
     !hub.inner.clients.lock().unwrap().is_empty()
 }
 
+pub(crate) fn phones_connected(app: &AppHandle) -> bool {
+    app.try_state::<RemoteHub>()
+        .is_some_and(|hub| has_clients(hub.inner()))
+}
+
 /// Tell every connected phone why its connection is about to end — the machine
 /// is going to sleep, lpm is quitting, or remote control was turned off — and
 /// give the connection threads a moment to write it before the sockets close.
@@ -5414,6 +5419,10 @@ fn install_forwarders(hub: &RemoteHub, app: &AppHandle) {
     app.listen("memory-changed", move |e| {
         let project = serde_json::from_str::<String>(e.payload()).unwrap_or_default();
         broadcast(&h, json!({ "t": "memory-changed", "project": project }));
+    });
+    let a = app.clone();
+    app.listen("peer-state-changed", move |_| {
+        crate::remote_machines::notify_changed(&a);
     });
     let h = hub.clone();
     app.listen("job-seen", move |_| {

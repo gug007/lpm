@@ -93,6 +93,12 @@ final class MachineImporter {
         }
     }
 
+    /// The saved machine a machine of the live Mac's is, once it is on this phone.
+    func record(for m: RemoteMachine, macs: [MacRecord]) -> MacRecord? {
+        guard let sourceId else { return nil }
+        return record(m, source: sourceId, macs: macs)
+    }
+
     /// The live Mac (`source` is its serverId) listed its machines. Starts adding
     /// every one that's new here and pairable now.
     func update(_ list: [RemoteMachine], source: String, macs: [MacRecord]) {
@@ -140,10 +146,14 @@ final class MachineImporter {
 
     // MARK: deciding
 
+    private func record(_ m: RemoteMachine, source: String, macs: [MacRecord]) -> MacRecord? {
+        if let sid = m.serverId, let mac = macs.first(where: { $0.serverId == sid }) { return mac }
+        guard let id = Self.ledger()[Self.key(source, m.slug)] else { return nil }
+        return macs.first { $0.localId.uuidString == id }
+    }
+
     private func isOnPhone(_ m: RemoteMachine, source: String, macs: [MacRecord]) -> Bool {
-        if let sid = m.serverId, macs.contains(where: { $0.serverId == sid }) { return true }
-        guard let id = Self.ledger()[Self.key(source, m.slug)] else { return false }
-        return macs.contains { $0.localId.uuidString == id }
+        record(m, source: source, macs: macs) != nil
     }
 
     private func wasRemoved(_ m: RemoteMachine, source: String, macs: [MacRecord]) -> Bool {

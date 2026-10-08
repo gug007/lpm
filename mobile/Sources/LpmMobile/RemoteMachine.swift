@@ -2,7 +2,7 @@ import Foundation
 
 /// One machine the connected Mac itself connects to — a Linux server or another
 /// Mac — as listed by the `machines` reply.
-struct RemoteMachine: Identifiable, Equatable {
+struct RemoteMachine: Identifiable {
     enum State: String {
         /// The Mac is connected to it and can get this phone a pairing code.
         case ready
@@ -19,9 +19,13 @@ struct RemoteMachine: Identifiable, Equatable {
     /// talked to a build of it that reports one.
     let serverId: String?
     let state: State
+    /// Its own projects as the Mac's sidebar shows them. Nil when the Mac didn't
+    /// send them: it isn't connected, didn't answer, or the Mac predates them.
+    let projects: [Project]?
 
     var id: String { slug }
     var isLinuxHost: Bool { platform == "linux" }
+    var isConnected: Bool { state != .offline }
 
     init(_ o: [String: Any]) {
         slug = o["slug"] as? String ?? ""
@@ -29,6 +33,7 @@ struct RemoteMachine: Identifiable, Equatable {
         platform = nonEmpty(o["platform"])
         serverId = nonEmpty(o["serverId"])
         state = State(rawValue: o["state"] as? String ?? "") ?? .offline
+        projects = (o["projects"] as? [[String: Any]])?.map(Project.init)
     }
 }
 

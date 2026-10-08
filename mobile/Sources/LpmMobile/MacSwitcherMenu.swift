@@ -19,6 +19,7 @@ struct MacSwitcherMenu: View {
             } else {
                 ForEach(model.macs) { mac in
                     Button {
+                        model.pendingNotificationTarget = nil
                         model.switchTo(mac)
                     } label: {
                         Text(mac.displayName)

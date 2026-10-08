@@ -31,6 +31,13 @@ struct NotificationOpenTarget: Equatable {
         self.kind = itemId == nil ? .project : target
         self.itemId = itemId
     }
+
+    init(serverId: String, project: String, terminal: String?) {
+        self.serverId = serverId
+        self.project = project
+        self.kind = terminal == nil ? .project : .terminal
+        self.itemId = terminal
+    }
 }
 
 /// Bridges UIKit's remote-notification callbacks into the SwiftUI app: forwards the

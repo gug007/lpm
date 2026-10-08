@@ -719,9 +719,19 @@ impl PeerClientHub {
         cmd: &str,
         args: Value,
     ) -> Result<Value, String> {
+        self.invoke_within(slug, cmd, args, INVOKE_TIMEOUT)
+    }
+
+    pub(crate) fn invoke_within(
+        &self,
+        slug: &str,
+        cmd: &str,
+        args: Value,
+        timeout: Duration,
+    ) -> Result<Value, String> {
         self.request_blocking(
             slug,
-            INVOKE_TIMEOUT,
+            timeout,
             |req| json!({ "t": "invoke", "reqId": req, "cmd": cmd, "args": args }),
         )
     }
@@ -2153,6 +2163,9 @@ fn handle_frame(conn: &Arc<PeerConn>, app: Option<&AppHandle>, txt: &str) {
                             );
                         });
                     }
+                }
+                if matches!(name, "projects-changed" | "status-changed") {
+                    crate::remote_machines::notify_changed(app);
                 }
                 // A forwarded config-change event is a remote sync trigger: the
                 // other Mac edited its projects/templates or wrote session memory,

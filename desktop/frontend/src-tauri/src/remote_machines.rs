@@ -9,11 +9,20 @@
 // adds the one thing the machine can't know about itself — the address it is
 // actually reached at, which for a server behind NAT or an SSH forward is not
 // any address the server sees on its own interfaces.
+//
+// Each connected machine's projects ride along, so the phone's list can show
+// them in the machine's sidebar slot just as this Mac's sidebar does.
 use crate::peer::PeerEntry;
 use crate::peerclient::{PeerClientHub, PhoneMachine};
 use serde_json::{json, Value};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::SyncSender;
+use std::time::Duration;
 use tauri::{AppHandle, Manager};
+
+const PROJECTS_TIMEOUT: Duration = Duration::from_secs(8);
+const PUSH_DELAY: Duration = Duration::from_millis(800);
+static PUSH_PENDING: AtomicBool = AtomicBool::new(false);
 
 pub fn handle(app: &AppHandle, out: &SyncSender<String>, t: &str, v: &Value) {
     let Some(hub) = app.try_state::<PeerClientHub>() else {
@@ -22,8 +31,11 @@ pub fn handle(app: &AppHandle, out: &SyncSender<String>, t: &str, v: &Value) {
     let hub = hub.inner().clone();
     match t {
         "machines" => {
-            let machines: Vec<Value> = hub.phone_machines().iter().map(machine_json).collect();
-            let _ = out.try_send(json!({ "t": "machines", "machines": machines }).to_string());
+            let out = out.clone();
+            // Asks every connected machine for its projects, so off the read loop.
+            std::thread::spawn(move || {
+                let _ = out.try_send(machines_frame(&hub).to_string());
+            });
         }
         "machinePair" => {
             let slug = v
@@ -40,6 +52,81 @@ pub fn handle(app: &AppHandle, out: &SyncSender<String>, t: &str, v: &Value) {
         }
         _ => {}
     }
+}
+
+/// A machine connected, dropped, or changed its projects: send every phone the
+/// fresh list. A burst of changes becomes one push.
+pub(crate) fn notify_changed(app: &AppHandle) {
+    if !crate::remote::phones_connected(app) || PUSH_PENDING.swap(true, Ordering::AcqRel) {
+        return;
+    }
+    let app = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(PUSH_DELAY);
+        PUSH_PENDING.store(false, Ordering::Release);
+        if let Some(hub) = app.try_state::<PeerClientHub>() {
+            crate::remote::broadcast_frame(&app, machines_frame(hub.inner()));
+        }
+    });
+}
+
+fn machines_frame(hub: &PeerClientHub) -> Value {
+    let machines = hub.phone_machines();
+    let projects: Vec<Option<Vec<Value>>> = std::thread::scope(|s| {
+        let asks: Vec<_> = machines
+            .iter()
+            .map(|m| s.spawn(|| machine_projects(hub, m)))
+            .collect();
+        asks.into_iter()
+            .map(|ask| ask.join().ok().flatten())
+            .collect()
+    });
+    let settings = crate::config::load_settings();
+    let list: Vec<Value> = machines
+        .iter()
+        .zip(projects)
+        .map(|(m, projects)| {
+            let mut v = machine_json(m);
+            if let Some(projects) = projects {
+                let order = settings
+                    .get("peerProjectOrder")
+                    .and_then(|o| o.get(&m.entry.slug));
+                v["projects"] = Value::Array(order_projects(projects, order));
+            }
+            v
+        })
+        .collect();
+    json!({ "t": "machines", "machines": list })
+}
+
+/// The machine's own project list, as it answers `list_projects` to this Mac's
+/// sidebar. None when it isn't connected or doesn't answer in time.
+fn machine_projects(hub: &PeerClientHub, m: &PhoneMachine) -> Option<Vec<Value>> {
+    if !m.connected {
+        return None;
+    }
+    match hub.invoke_within(&m.entry.slug, "list_projects", json!({}), PROJECTS_TIMEOUT) {
+        Ok(Value::Array(projects)) => Some(projects),
+        _ => None,
+    }
+}
+
+/// The row order this Mac's sidebar keeps for the machine's section
+/// (`peerProjectOrder`, as peerRowOrder.ts applies it): listed names first in
+/// that order, the rest after them in the machine's own order.
+fn order_projects(mut projects: Vec<Value>, order: Option<&Value>) -> Vec<Value> {
+    let Some(order) = order.and_then(Value::as_array) else {
+        return projects;
+    };
+    let rank = |p: &Value| {
+        let name = p.get("name").and_then(Value::as_str);
+        order
+            .iter()
+            .position(|n| n.as_str().is_some() && n.as_str() == name)
+            .unwrap_or(order.len())
+    };
+    projects.sort_by_key(rank);
+    projects
 }
 
 fn machine_json(m: &PhoneMachine) -> Value {
@@ -254,6 +341,26 @@ mod tests {
         assert_eq!(url_param(url, "c").as_deref(), Some("AB12-CD34"));
         assert_eq!(url_param("lpm://pair?p=1&f=", "f"), None);
         assert_eq!(url_param("no-query", "f"), None);
+    }
+
+    #[test]
+    fn projects_follow_the_sidebar_order_then_the_machines_own() {
+        let projects = ["c", "a", "new", "b"]
+            .iter()
+            .map(|n| json!({ "name": n }))
+            .collect();
+        let names = |v: Vec<Value>| -> Vec<String> {
+            v.iter()
+                .map(|p| p["name"].as_str().unwrap().to_string())
+                .collect()
+        };
+        let order = json!(["b", "gone", "a", "c"]);
+        assert_eq!(
+            names(order_projects(projects, Some(&order))),
+            vec!["b", "a", "c", "new"]
+        );
+        let unordered = vec![json!({ "name": "z" }), json!({ "name": "y" })];
+        assert_eq!(names(order_projects(unordered, None)), vec!["z", "y"]);
     }
 
     #[test]

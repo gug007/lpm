@@ -2183,10 +2183,12 @@ final class AppModel {
 
     /// The projects list arranged exactly like the desktop sidebar (a port of
     /// Sidebar.tsx's tree build): walk `sidebarOrder`, emitting each folder with
-    /// its members and each loose (non-duplicate, non-member) project, with every
-    /// duplicate nested immediately after its parent. Folders/loose projects
-    /// missing from the order are appended so nothing vanishes. A duplicate whose
-    /// parent is gone counts as top-level (mirrors the desktop's `isDuplicate`).
+    /// its members, each loose (non-duplicate, non-member) project, and each
+    /// connected machine's section at its `peer:<slug>` slot, with every
+    /// duplicate nested immediately after its parent. Folders/loose projects/
+    /// machines missing from the order are appended so nothing vanishes. A
+    /// duplicate whose parent is gone counts as top-level (mirrors the desktop's
+    /// `isDuplicate`).
     var sidebarItems: [SidebarItem] {
         let byName = Dictionary(projects.map { ($0.name, $0) }, uniquingKeysWith: { a, _ in a })
         // project name -> folder id
@@ -2218,6 +2220,8 @@ final class AppModel {
             return r
         }
 
+        let sections = machineSections
+        var machines = Dictionary(sections.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         var seenGroups = Set<String>()
         func emitGroup(_ g: ProjectFolder) {
             seenGroups.insert(g.id)
@@ -2229,6 +2233,10 @@ final class AppModel {
             if token.hasPrefix("group:") {
                 let gid = String(token.dropFirst("group:".count))
                 if let g = groupsById[gid], !seenGroups.contains(gid) { emitGroup(g) }
+            } else if token.hasPrefix("peer:") {
+                if let section = machines.removeValue(forKey: String(token.dropFirst("peer:".count))) {
+                    out.append(.machine(section))
+                }
             } else if let p = byName[token], !rendered.contains(token),
                       !isDup(p), membership[token] == nil {
                 out.append(contentsOf: rows(for: p).map(SidebarItem.project))
@@ -2239,6 +2247,9 @@ final class AppModel {
         for g in groups where !seenGroups.contains(g.id) { emitGroup(g) }
         for p in projects where !rendered.contains(p.name) && !isDup(p) && membership[p.name] == nil {
             out.append(contentsOf: rows(for: p).map(SidebarItem.project))
+        }
+        for section in sections where machines[section.id] != nil {
+            out.append(.machine(section))
         }
         return out
     }
@@ -2936,11 +2947,13 @@ struct SidebarRow: Identifiable {
 enum SidebarItem: Identifiable {
     case project(SidebarRow)
     case folder(ProjectFolder, [SidebarRow])
+    case machine(MachineSection)
 
     var id: String {
         switch self {
         case .project(let r): return "p:" + r.project.name
         case .folder(let g, _): return "g:" + g.id
+        case .machine(let m): return "m:" + m.id
         }
     }
 }

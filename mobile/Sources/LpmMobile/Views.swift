@@ -126,8 +126,12 @@ struct ProjectsView: View {
     private var hasTickingAgent: Bool {
         model.projects.contains { project in
             agentRows(project).contains(where: \.isTicking)
+        } || model.machineSections.contains { section in
+            section.rows.contains { projectAgentRows($0.project, now: now, tabTitles: [:]).contains(where: \.isTicking) }
         }
     }
+
+    private var listIsEmpty: Bool { model.projects.isEmpty && model.machineSections.isEmpty }
 
     @ViewBuilder
     private func sidebarRow(_ item: SidebarItem) -> some View {
@@ -151,6 +155,48 @@ struct ProjectsView: View {
                     projectLink(row, indented: true)
                 }
             }
+        case .machine(let section):
+            let key = "m:" + section.id
+            let open = expandedOverride[key] ?? true
+            MachineHeader(section: section, expanded: open) { expandedOverride[key] = !open }
+            if open {
+                ForEach(section.rows) { row in
+                    machineProjectLink(row, in: section)
+                }
+            }
+        }
+    }
+
+    /// A project of one of the Mac's machines. It lives on that machine, so
+    /// opening it switches this phone over to it.
+    @ViewBuilder
+    private func machineProjectLink(_ row: SidebarRow, in section: MachineSection) -> some View {
+        let agents = projectAgentRows(row.project, now: now, tabTitles: [:])
+        let indent: CGFloat = 20
+        Button {
+            model.openOnMachine(section, project: row.project.name)
+        } label: {
+            HStack {
+                ProjectRow(project: row.project, agentCount: agents.count, stale: isStale, showsQueued: false)
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.leading, indent)
+            .foregroundStyle(section.record == nil ? Color.secondary : Color.primary)
+        }
+        .disabled(section.record == nil)
+        .listRowSeparator(agents.isEmpty ? .visible : .hidden, edges: .bottom)
+
+        if !agents.isEmpty {
+            ProjectTerminalDeck(rows: agents, now: now) { agent in
+                if let terminal = agent.terminalId {
+                    model.openOnMachine(section, project: row.project.name, terminal: terminal)
+                }
+            }
+            .disabled(section.record == nil)
+            .listRowInsets(EdgeInsets(top: 0, leading: 16 + 22 + indent, bottom: 8, trailing: 16))
+            .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
         }
     }
 
@@ -327,12 +373,12 @@ struct ProjectsView: View {
         // A bar above the list only for a problem with a fix on this iPhone. A
         // list with nothing to show puts any problem in its place instead.
         .safeAreaInset(edge: .top) {
-            if !model.projects.isEmpty {
+            if !listIsEmpty {
                 ConnectionStatusBar()
             }
         }
         .overlay {
-            if model.projects.isEmpty {
+            if listIsEmpty {
                 if let issue = model.link.visibleIssue, !issue.isConnecting {
                     IssueCard(issue: issue)
                         .padding(.horizontal, 20)
@@ -675,6 +721,9 @@ struct ProjectRow: View {
     var agentCount: Int = 0
     /// From the list saved at the last connection: what was running then, not now.
     var stale: Bool = false
+    /// Starts and stops waiting on the live Mac. Off for another machine's
+    /// project, whose name can match one of the Mac's own.
+    var showsQueued: Bool = true
 
     var body: some View {
         HStack {
@@ -694,8 +743,10 @@ struct ProjectRow: View {
                 if let status = project.workStatus, let note = status.note {
                     WorkStatusNoteLine(status: status, note: note)
                 }
-                ForEach(model.link.queued(for: project.name)) { action in
-                    QueuedActionLine(action: action)
+                if showsQueued {
+                    ForEach(model.link.queued(for: project.name)) { action in
+                        QueuedActionLine(action: action)
+                    }
                 }
             }
             Spacer()
