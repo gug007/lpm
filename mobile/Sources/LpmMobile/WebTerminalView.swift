@@ -94,7 +94,9 @@ struct WebTerminalView: UIViewRepresentable {
         let coordinator = context.coordinator
         model.subscribe(
             term.id,
-            onSeed: { [coordinator] _, _, data, reset in coordinator.seed(data, reset: reset) },
+            onSeed: { [coordinator] cols, rows, data, reset in
+                coordinator.seed(data, reset: reset, ptyCols: cols, ptyRows: rows)
+            },
             onOutput: { [coordinator] data in coordinator.feed(data) }
         )
         // The composer submits through here so the page can apply bracketed-paste.
@@ -231,11 +233,21 @@ struct WebTerminalView: UIViewRepresentable {
         /// buffered before it is stale — drop it. A non-resetting one is the slice
         /// this phone missed while it was away: it belongs after whatever is
         /// already buffered, so it goes through the normal feed path.
-        func seed(_ data: String, reset: Bool) {
+        func seed(_ data: String, reset: Bool, ptyCols: Int, ptyRows: Int) {
+            matchPtySize(cols: ptyCols, rows: ptyRows)
             guard reset else { feed(data); return }
             feedBuffer.removeAll(keepingCapacity: true)
             guard ready else { pendingSeed = data; return }
             evalSeed(data)
+        }
+
+        /// A seed carries the PTY's size, which can still be another surface's: a
+        /// resize sent while the link was down is dropped, and the desktop resizes
+        /// the PTY while the phone is away. xterm only reports a size when its own
+        /// fit changes, so re-send ours.
+        private func matchPtySize(cols: Int, rows: Int) {
+            guard lastCols > 0, lastRows > 0, cols != lastCols || rows != lastRows else { return }
+            model?.resize(termId, cols: lastCols, rows: lastRows)
         }
 
         func feed(_ data: String) {

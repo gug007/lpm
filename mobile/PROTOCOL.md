@@ -257,7 +257,7 @@ succeed, so the phone stops reconnecting and offers to pair again (sending
 | `{ "t": "historyAdd", "project": "<name>", "id": "<termId>", "label": "<tab>", "text": "…" }` | — records a prompt the phone sent into the shared message history |
 | `{ "t": "status", "project": "<name>" }` | `{ "t": "status", "project": "<name>", "status": [StatusEntry…] }` |
 | `{ "t": "clearStatus", "project": "<name>", "paneId": "<terminal id>", "value": "Done"\|"Error" }` | — dismisses a finished agent status (the Activity screen's clear), removing **every** entry on `paneId` whose value is `value`; two agents sharing one terminal therefore clear together, which is why the phone only offers it when the row is the pane's only holder of that value. No reply: on a change the Mac emits `status-changed`, which refreshes the desktop and every connected phone. A no-op when nothing matches |
-| `{ "t": "sub", "id": "<termId>", "from": <streamOffset>? }` | `{ "t": "seed", "id": "<termId>", "cols": N, "rows": N, "data": "<recent scrollback>", "off": <streamOffset>, "reset": bool, "owner": ControlOwner\|null, "draft": { "text": "…", "rev": N }? }`, then a live stream of `o` frames. Subscribing also *presents* the terminal (see control ownership below); `owner` tells the phone whether it may render live or must show a "take control" placeholder. The optional `draft` carries the terminal composer's mirrored active-input text (see composer draft sync below); it is **present only** when a non-empty draft is stored, so on (re)open/reconnect the phone restores it — but only into an empty input, never clobbering a prompt in progress. **Resuming:** a phone that still has the terminal on screen (reconnect, unlock, a gap in `o` frames) sends `from` = the offset it last applied; when the Mac still holds that point the reply is `reset: false` and `data` is **only the missed slice**, appended to the live emulator. Otherwise (`from` omitted, or scrolled out of the ring) it is `reset: true`: reset the emulator and replay `data` as the whole screen. Prefer resuming — a replay only approximates the screen a running full-screen program believes it is drawing on, so its next incremental update lands on stale cells |
+| `{ "t": "sub", "id": "<termId>", "from": <streamOffset>? }` | `{ "t": "seed", "id": "<termId>", "cols": N, "rows": N, "data": "<recent scrollback>", "off": <streamOffset>, "reset": bool, "owner": ControlOwner\|null, "draft": { "text": "…", "rev": N }? }`, then a live stream of `o` frames. Subscribing also *claims* the terminal (see control ownership below); `owner` tells the phone whether it may render live or must show a "take control" placeholder. `cols`/`rows` are the PTY's current size, which can still be the previous owner's — an owning phone whose fitted size differs sends `resize` right after the seed. The optional `draft` carries the terminal composer's mirrored active-input text (see composer draft sync below); it is **present only** when a non-empty draft is stored, so on (re)open/reconnect the phone restores it — but only into an empty input, never clobbering a prompt in progress. **Resuming:** a phone that still has the terminal on screen (reconnect, unlock, a gap in `o` frames) sends `from` = the offset it last applied; when the Mac still holds that point the reply is `reset: false` and `data` is **only the missed slice**, appended to the live emulator. Otherwise (`from` omitted, or scrolled out of the ring) it is `reset: true`: reset the emulator and replay `data` as the whole screen. Prefer resuming — a replay only approximates the screen a running full-screen program believes it is drawing on, so its next incremental update lands on stale cells |
 | `{ "t": "unsub", "id": "<termId>" }` | — (also stops presenting the terminal) |
 | `{ "t": "claim", "id": "<termId>" }` | — (the "Take control" action) takes ownership of the terminal; the previous owner is pushed a `control` frame and flips to its own placeholder |
 | `{ "t": "in", "id": "<termId>", "d": "ls\r" }` | — (keystrokes; see hex framing) |
@@ -898,13 +898,16 @@ d = "<utf-8 text>"              // sent as-is
 
 - **One PTY, one geometry — single-owner control.** A terminal is rendered live
   and controllable in exactly one surface at a time (a desktop window or a phone),
-  tracked server-side in `control.rs`. `sub` *presents* a terminal (opening its
-  screen); the first presenter owns it, later presenters must `claim` to take over
-  ("Take control"). The **owner** renders live and drives the shared PTY size; any
-  other surface shows a "take control" placeholder and does **not** `resize`. The
-  server enforces this: a `resize` from a non-owner phone is dropped. Ownership
-  transfers to a remaining presenter when the owner `unsub`s or disconnects, and
-  every change is pushed as a `control` frame (and the `owner` field of `seed`).
+  tracked server-side in `control.rs`. A phone's `sub` *claims* a terminal (the
+  screen just opened is where it's live); desktop windows present it and take over
+  on focus, and anyone can `claim` ("Take control"). The **owner** renders live and
+  drives the shared PTY size; any other surface shows a "take control" placeholder
+  and does **not** `resize`. The server enforces this: a `resize` from a non-owner
+  phone is dropped. Ownership transfers to a remaining presenter when the owner
+  `unsub`s or disconnects, and every change is pushed as a `control` frame (and the
+  `owner` field of `seed`). A `resize` sent while the link is down is dropped, not
+  replayed, and the desktop resizes the PTY while the phone is away — so the owning
+  phone re-sends its size after any `seed` whose `cols`/`rows` differ from its own.
 - **Flow control is owner-only.** The phone never acknowledges output; the
   desktop owns backpressure. A phone that falls behind simply re-`sub`s and gets
   a fresh `seed`.
