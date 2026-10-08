@@ -1,0 +1,8 @@
+module LpmTailnet {
+    header "LpmTailnet.h"
+    link "lpmtailnet"
+    link "resolv"
+    link framework "CoreFoundation"
+    link framework "Security"
+    export *
+}

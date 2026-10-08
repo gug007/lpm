@@ -1527,7 +1527,27 @@ type ClientWs = WebSocket<ClientStream>;
 /// the handshake read timeout. `None` timeout uses the OS default (the persistent
 /// reconnect path).
 fn tcp_connect(host: &str, port: u16, timeout: Option<Duration>) -> Result<TcpStream, String> {
-    let tcp = match timeout {
+    let tcp = if crate::netif::tailscale_ip().is_some() {
+        // The Tailscale app routes tailnet addresses itself. It may be on a
+        // different tailnet than the built-in node, so that is the fallback.
+        os_connect(host, port, timeout).or_else(|e| {
+            crate::tailnet_dial::dial(host, port, timeout)
+                .and_then(Result::ok)
+                .ok_or(e)
+        })?
+    } else {
+        match crate::tailnet_dial::dial(host, port, timeout) {
+            Some(through_tailnet) => through_tailnet?,
+            None => os_connect(host, port, timeout)?,
+        }
+    };
+    let _ = tcp.set_nodelay(true);
+    let _ = tcp.set_read_timeout(Some(HANDSHAKE_TIMEOUT));
+    Ok(tcp)
+}
+
+fn os_connect(host: &str, port: u16, timeout: Option<Duration>) -> Result<TcpStream, String> {
+    Ok(match timeout {
         Some(t) => {
             let addr = (host, port)
                 .to_socket_addrs()
@@ -1537,10 +1557,7 @@ fn tcp_connect(host: &str, port: u16, timeout: Option<Duration>) -> Result<TcpSt
             TcpStream::connect_timeout(&addr, t).map_err(|e| e.to_string())?
         }
         None => TcpStream::connect((host, port)).map_err(|e| e.to_string())?,
-    };
-    let _ = tcp.set_nodelay(true);
-    let _ = tcp.set_read_timeout(Some(HANDSHAKE_TIMEOUT));
-    Ok(tcp)
+    })
 }
 
 /// Complete the WebSocket handshake over a live TLS session. The TLS handshake has

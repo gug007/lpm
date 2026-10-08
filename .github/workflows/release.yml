@@ -43,6 +43,13 @@ jobs:
           cache: npm
           cache-dependency-path: desktop/frontend/package-lock.json
 
+      # The built-in Tailscale sidecar (tailnet/, Go) is built and shipped beside
+      # the app, and tauri-build checks it exists like the CLI sidecar.
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: tailnet/go.mod
+          cache-dependency-path: tailnet/go.sum
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -199,6 +206,13 @@ jobs:
             libsoup-3.0-dev \
             build-essential curl wget file pkg-config
 
+      # The built-in Tailscale sidecar (tailnet/, Go) is built and shipped beside
+      # the app, and tauri-build checks it exists like the CLI sidecar.
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: tailnet/go.mod
+          cache-dependency-path: tailnet/go.sum
+
       - uses: dtolnay/rust-toolchain@stable
       - uses: actions/setup-node@v4
         with:
@@ -233,8 +247,9 @@ jobs:
           mkdir -p lpm-host
           cp desktop/frontend/src-tauri/target/release/lpm-desktop lpm-host/
           cp desktop/frontend/src-tauri/binaries/lpm-cli-x86_64-unknown-linux-gnu lpm-host/lpm
+          cp desktop/frontend/src-tauri/binaries/lpm-tailnet-x86_64-unknown-linux-gnu lpm-host/lpm-tailnet
           cp desktop/linux/*.service desktop/linux/*.sh desktop/linux/README.md lpm-host/
-          chmod +x lpm-host/lpm-desktop lpm-host/lpm lpm-host/install.sh lpm-host/uninstall.sh lpm-host/host-cleanup.sh lpm-host/hostctl.sh
+          chmod +x lpm-host/lpm-desktop lpm-host/lpm lpm-host/lpm-tailnet lpm-host/install.sh lpm-host/uninstall.sh lpm-host/host-cleanup.sh lpm-host/hostctl.sh
           tar czf lpm-host-linux-amd64.tar.gz lpm-host
           ls -lh lpm-host-linux-amd64.tar.gz
 
@@ -274,6 +289,13 @@ jobs:
             librsvg2-dev \
             libsoup-3.0-dev \
             build-essential curl wget file pkg-config patchelf
+
+      # The built-in Tailscale sidecar (tailnet/, Go) is built and shipped beside
+      # the app, and tauri-build checks it exists like the CLI sidecar.
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: tailnet/go.mod
+          cache-dependency-path: tailnet/go.sum
 
       - uses: dtolnay/rust-toolchain@stable
       - uses: actions/setup-node@v4
@@ -355,6 +377,13 @@ jobs:
           node-version: "22"
           cache: npm
           cache-dependency-path: desktop/frontend/package-lock.json
+
+      # The built-in Tailscale sidecar (tailnet/, Go) is built and shipped beside
+      # the app, and tauri-build checks it exists like the CLI sidecar.
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: tailnet/go.mod
+          cache-dependency-path: tailnet/go.sum
 
       - uses: dtolnay/rust-toolchain@stable
 

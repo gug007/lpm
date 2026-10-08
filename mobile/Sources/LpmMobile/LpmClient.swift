@@ -14,7 +14,12 @@ final class LpmClient: NSObject {
     struct Endpoint {
         var host: String
         var port: Int
-        var url: URL? { WssURL.make(host: host, port: port) }
+        /// The URL to dial now — a tailnet address goes through the built-in
+        /// Tailscale node when it's on, so call this once per connection.
+        func dialURL() -> URL? {
+            let target = BuiltInTailscale.route(host: host, port: port)
+            return WssURL.make(host: target.host, port: target.port)
+        }
     }
 
     // Callbacks are delivered on the main queue.
@@ -281,6 +286,10 @@ final class LpmClient: NSObject {
     // What the most recent transport failure looked like, refreshed on every
     // failed attempt and reported once retries stop being patient.
     private var failureHint = LpmClient.offlineHint
+    // This attempt goes through the built-in Tailscale node's loopback bridge,
+    // where a tailnet that can't reach the Mac surfaces as a failed TLS
+    // handshake rather than as an unreachable host.
+    private var dialedThroughTailnet = false
 
     /// The URLSession error code behind the most recent transport failure, for
     /// the model to append to the offline message — "secure connection failed"
@@ -488,10 +497,11 @@ final class LpmClient: NSObject {
         // pairing there are no other addresses to fall back to, and routing it
         // through `transientFailure` would report the address problem as the Mac
         // never answering, so name it for what it is.
-        guard let url = endpoint.url else {
+        guard let url = endpoint.dialURL() else {
             if pairRequestName != nil { return failPair(Self.badAddressReason) }
             return transientFailure("bad host")
         }
+        dialedThroughTailnet = url.host() != endpoint.host && url.host() == "127.0.0.1"
         teardownTask()
         set(.connecting)
         let task = session.webSocketTask(with: url)
@@ -564,7 +574,7 @@ final class LpmClient: NSObject {
     /// "unreachable", "secure handshake failed", and "refused" need different
     /// user action.
     private func transientFailure(_ reason: String, error: Error? = nil) {
-        failureHint = Self.classifyFailure(error)
+        failureHint = dialedThroughTailnet ? Self.offlineHint : Self.classifyFailure(error)
         lastTransportErrorCode = (error as NSError?).flatMap {
             $0.domain == NSURLErrorDomain ? $0.code : nil
         }

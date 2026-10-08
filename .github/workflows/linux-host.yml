@@ -19,6 +19,8 @@ on:
       - "desktop/frontend/src-tauri/**"
       - "cli/**"
       - "scripts/build-cli.*"
+      - "scripts/build-tailnet.*"
+      - "tailnet/**"
       - "desktop/linux/**"
       - ".github/workflows/linux-host.yml"
   pull_request:
@@ -26,6 +28,8 @@ on:
       - "desktop/frontend/src-tauri/**"
       - "cli/**"
       - "scripts/build-cli.*"
+      - "scripts/build-tailnet.*"
+      - "tailnet/**"
       # The install scripts and the supervisor that stands in for systemd on a
       # container host. Shell is the one part of a host nothing else here
       # type-checks, and it only reaches a user through this workflow.
@@ -91,6 +95,13 @@ jobs:
             build-essential curl wget file pkg-config \
             iproute2
 
+      # The built-in Tailscale sidecar (tailnet/, Go) is built and shipped beside
+      # the app, and tauri-build checks it exists like the CLI sidecar.
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: tailnet/go.mod
+          cache-dependency-path: tailnet/go.sum
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
@@ -115,13 +126,20 @@ jobs:
           cargo check --all-targets
           cargo test
 
-      # tauri-build resolves frontendDist ("../dist") and the CLI sidecar at
-      # build-script time, so both must exist before the crate will check.
-      - name: Build frontend and CLI sidecar
+      - name: Test built-in Tailscale
+        working-directory: tailnet
+        run: |
+          go vet ./...
+          go test ./...
+
+      # tauri-build resolves frontendDist ("../dist") and the sidecars at
+      # build-script time, so they must exist before the crate will check.
+      - name: Build frontend and sidecars
         working-directory: desktop/frontend
         run: |
           npm ci
           npm run build:cli
+          npm run build:tailnet
           npm run build
 
       - name: Check desktop crate
@@ -156,6 +174,13 @@ jobs:
             libsoup-3.0-dev \
             build-essential curl wget file pkg-config
 
+      # The built-in Tailscale sidecar (tailnet/, Go) is built and shipped beside
+      # the app, and tauri-build checks it exists like the CLI sidecar.
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: tailnet/go.mod
+          cache-dependency-path: tailnet/go.sum
+
       - uses: dtolnay/rust-toolchain@stable
       - uses: actions/setup-node@v5
         with:
@@ -184,6 +209,7 @@ jobs:
           mkdir -p out
           cp desktop/frontend/src-tauri/target/release/lpm-desktop out/
           cp desktop/frontend/src-tauri/binaries/lpm-cli-* out/ || true
+          cp desktop/frontend/src-tauri/target/release/lpm-tailnet out/
           chmod +x out/*
           ls -lh out/
 

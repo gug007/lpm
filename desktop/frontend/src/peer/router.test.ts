@@ -233,6 +233,7 @@ describe("isLocalOnlyCommand", () => {
     expect(isLocalOnlyCommand("peer_invoke")).toBe(true);
     expect(isLocalOnlyCommand("peer_term_attach")).toBe(true);
     expect(isLocalOnlyCommand("remote_state")).toBe(true);
+    expect(isLocalOnlyCommand("tailnet_sign_in")).toBe(true);
     expect(isLocalOnlyCommand("save_settings")).toBe(true);
     expect(isLocalOnlyCommand("install_update")).toBe(true);
   });

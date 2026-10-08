@@ -32,9 +32,21 @@ targets:
       # relative paths (xterm/xterm.js …) intact.
       - path: web
         type: folder
+    # Built-in Tailscale: the Go node in ../tailnet/ios, compiled by
+    # build-tailnet.sh into a static library for the SDK being built and imported
+    # into Swift as the LpmTailnet module. Needs Go (`brew install go`).
+    preBuildScripts:
+      - name: Build built-in Tailscale
+        script: '"$SRCROOT/build-tailnet.sh"'
+        basedOnDependencyAnalysis: false
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: cx.lpm.mobile
+        SWIFT_INCLUDE_PATHS: $(SRCROOT)/../tailnet/ios/include
+        LIBRARY_SEARCH_PATHS: $(inherited) $(DERIVED_FILE_DIR)/tailnet
+        # build-tailnet.sh runs the Go toolchain, which reads and writes its
+        # caches outside the project.
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
         MARKETING_VERSION: "1.32"
         CURRENT_PROJECT_VERSION: "1"
         SWIFT_VERSION: "5.9"
@@ -69,11 +81,11 @@ targets:
         UIBackgroundModes:
           - remote-notification
           - audio
-        # Export compliance: all crypto here is exempt — standard TLS (wss://) for
-        # transport, plus OS-provided primitives (the Keychain and CryptoKit: SHA-256
-        # cert pinning and AES-GCM push-payload decryption). Standard/exempt
-        # encryption keeps this false, so App Store Connect stops prompting for
-        # export-compliance docs on every build.
+        # Export compliance: standard TLS (wss://) for transport, plus OS-provided
+        # primitives (the Keychain and CryptoKit: SHA-256 cert pinning and AES-GCM
+        # push-payload decryption). The built-in Tailscale node (liblpmtailnet.a)
+        # also carries its own standard WireGuard, Noise and TLS code, not Apple's,
+        # so confirm this answer in App Store Connect before shipping it.
         ITSAppUsesNonExemptEncryption: false
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:

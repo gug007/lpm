@@ -442,6 +442,27 @@ pub fn machine_name() -> String {
     return "Linux host".to_string();
 }
 
+/// The running macOS major version (12 for Monterey), if it can be read.
+#[cfg(target_os = "macos")]
+pub fn macos_major() -> Option<u32> {
+    let mut buf = [0u8; 32];
+    let mut len = buf.len();
+    let rc = unsafe {
+        libc::sysctlbyname(
+            c"kern.osproductversion".as_ptr(),
+            buf.as_mut_ptr().cast(),
+            &mut len,
+            std::ptr::null_mut(),
+            0,
+        )
+    };
+    if rc != 0 {
+        return None;
+    }
+    let text = std::str::from_utf8(&buf[..len]).ok()?;
+    text.trim_end_matches('\0').split('.').next()?.parse().ok()
+}
+
 /// True when this process is a headless lpm host (a Linux server driven from a
 /// Mac): no one sits at this machine, so chimes, approval prompts and the like
 /// belong to the paired Mac. The host's supervisors set `LPM_HEADLESS=1`; a host

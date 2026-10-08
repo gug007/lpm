@@ -32,14 +32,23 @@ struct ContentView: View {
             }
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { model.reconnectIfNeeded() }
-            else { model.suspendRecoveryDiscovery() }
+            switch phase {
+            case .active:
+                BuiltInTailscale.shared.foreground()
+                model.reconnectIfNeeded()
+            case .background:
+                BuiltInTailscale.shared.background()
+                model.suspendRecoveryDiscovery()
+            default:
+                model.suspendRecoveryDiscovery()
+            }
         }
         // Consume a pending notification-tap target once its Mac has loaded.
         .onChange(of: model.pendingNotificationTarget) { _, _ in consumePendingOpen() }
         .onChange(of: model.projectsLoaded) { _, _ in consumePendingOpen() }
         .onChange(of: model.activeMacId) { _, _ in consumePendingOpen() }
         .onAppear {
+            BuiltInTailscale.shared.foreground()
             model.bootstrap()
             // Warm WebKit now so the first terminal opens without the ~2s cold start.
             TerminalWebPool.prewarm()
@@ -337,6 +346,8 @@ struct PairingView: View {
                             .frame(maxWidth: .infinity)
                             .padding(.horizontal)
                     }
+
+                    TailnetPairingRow()
                 }
             }
             .padding(.horizontal, 20)

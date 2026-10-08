@@ -449,6 +449,14 @@ export const ROWS = {
     description: "Pair your iPhone to mirror terminals and control projects",
     keywords: ["iphone", "phone", "ios", "remote"],
   },
+  "mobile.tailscale": {
+    kind: "row",
+    tab: "mobile",
+    id: "mobile.tailscale",
+    label: "Built-in Tailscale",
+    description: `Reach ${MACHINE.thisMachine} from your phone on any network, without the Tailscale app`,
+    keywords: ["tailscale", "tailnet", "vpn", "cellular", "away", "anywhere", "remote"],
+  },
   "connections.peers": {
     kind: "row",
     tab: "connections",

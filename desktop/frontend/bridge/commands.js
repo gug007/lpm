@@ -535,6 +535,18 @@ export function RemoteState() {
 export function RemoteSetConfig(enabled, port, tailscale) {
   return invoke("remote_set_config", { enabled, port, tailscale });
 }
+export function TailnetState() {
+  return invoke("tailnet_state");
+}
+export function TailnetSetEnabled(enabled) {
+  return invoke("tailnet_set_enabled", { enabled });
+}
+export function TailnetSignIn() {
+  return invoke("tailnet_sign_in");
+}
+export function TailnetSignOut() {
+  return invoke("tailnet_sign_out");
+}
 export function RemoteStartPairing() {
   return invoke("remote_start_pairing");
 }

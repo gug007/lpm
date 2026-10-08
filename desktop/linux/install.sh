@@ -277,6 +277,11 @@ echo "==> Installing binaries into $PREFIX"
 install -d "$PREFIX"
 install -m755 "$SRC/lpm-desktop" "$PREFIX/lpm-desktop"
 install -m755 "$SRC/lpm" "$PREFIX/lpm"
+# Built-in Tailscale, found by the app beside its own executable. Tarballs from
+# before it existed don't carry it.
+if [ -f "$SRC/lpm-tailnet" ]; then
+    install -m755 "$SRC/lpm-tailnet" "$PREFIX/lpm-tailnet"
+fi
 ln -sf "$PREFIX/lpm" /usr/local/bin/lpm
 
 STEP=env

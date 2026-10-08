@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "build:cli": "node ../../scripts/build-cli.mjs",
+    "build:tailnet": "node ../../scripts/build-tailnet.mjs",
     "check:cache": "node ../../scripts/check-build-cache.mjs",
     "preview": "vite preview",
     "tauri": "tauri",

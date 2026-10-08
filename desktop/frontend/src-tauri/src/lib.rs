@@ -161,6 +161,9 @@ mod statusrelay;
 mod syncstate;
 mod syncsurface;
 mod sys;
+mod tailnet;
+mod tailnet_cmds;
+mod tailnet_dial;
 mod templates;
 mod termgrid;
 mod termvt;
@@ -271,6 +274,7 @@ use sound::*;
 use sshconfig::*;
 use status::*;
 use statusnotify::notify_unattended;
+use tailnet_cmds::{tailnet_set_enabled, tailnet_sign_in, tailnet_sign_out, tailnet_state};
 use tauri::Manager;
 use templates::*;
 use transfer::*;
@@ -460,6 +464,10 @@ pub fn run() {
             // forwarder over the status socket once the user opts in.
             agent_limits::start(handle.clone());
 
+            // Built-in Tailscale node, when it is switched on: the mobile and
+            // peer servers below point their ports at it as they start.
+            tailnet::start(&handle);
+
             // Mobile remote-control server (the phone app connects here). Reads
             // its own ~/.lpm/remote.json; a no-op until enabled + paired.
             let hub = app.state::<remote::RemoteHub>().inner().clone();
@@ -562,6 +570,7 @@ pub fn run() {
                 app.state::<gitfollow::Engine>().stop(); // retire the follow scheduler
                 peer::stop(&app.state::<peer::PeerHub>()); // retire the peer host threads
                 peerclient::stop(&app.state::<peerclient::PeerClientHub>()); // drop peer client conns
+                tailnet::stop(); // take the built-in Tailscale node offline
                 let _ = std::fs::remove_file(config::socket_path());
                 let _ = std::fs::remove_file(config::remote_socket_path());
             }

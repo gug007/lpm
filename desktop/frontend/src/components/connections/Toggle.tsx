@@ -2,18 +2,21 @@ export function Toggle({
   enabled,
   onChange,
   ariaLabel,
+  disabled = false,
 }: {
   enabled: boolean;
   onChange: (v: boolean) => void;
   ariaLabel?: string;
+  disabled?: boolean;
 }) {
   return (
     <button
       role="switch"
       aria-checked={enabled}
       aria-label={ariaLabel}
+      disabled={disabled}
       onClick={() => onChange(!enabled)}
-      className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+      className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors disabled:opacity-60 ${
         enabled ? "bg-[var(--accent-green)]" : "bg-[var(--bg-active)]"
       }`}
     >

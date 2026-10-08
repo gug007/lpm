@@ -15,12 +15,16 @@ on:
       - "desktop/**"
       - "cli/**"
       - "scripts/build-cli.*"
+      - "scripts/build-tailnet.*"
+      - "tailnet/**"
       - ".github/workflows/desktop-ci.yml"
   pull_request:
     paths:
       - "desktop/**"
       - "cli/**"
       - "scripts/build-cli.*"
+      - "scripts/build-tailnet.*"
+      - "tailnet/**"
       - ".github/workflows/desktop-ci.yml"
   workflow_dispatch:
 
@@ -116,6 +120,13 @@ jobs:
         run: |
           $perl = 'C:\Strawberry\perl\bin\perl.exe'
           if (Test-Path $perl) { "OPENSSL_SRC_PERL=$perl" >> $env:GITHUB_ENV }
+
+      # The built-in Tailscale sidecar (tailnet/, Go) is built and shipped beside
+      # the app, and tauri-build checks it exists like the CLI sidecar.
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: tailnet/go.mod
+          cache-dependency-path: tailnet/go.sum
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -223,6 +234,13 @@ jobs:
             build-essential curl wget file pkg-config \
             xvfb matchbox-window-manager dbus dbus-x11 \
             xdotool wmctrl xclip x11-utils imagemagick
+
+      # The built-in Tailscale sidecar (tailnet/, Go) is built and shipped beside
+      # the app, and tauri-build checks it exists like the CLI sidecar.
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: tailnet/go.mod
+          cache-dependency-path: tailnet/go.sum
 
       - uses: dtolnay/rust-toolchain@stable
 

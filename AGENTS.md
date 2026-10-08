@@ -8,6 +8,9 @@ lpm starts, stops, duplicates, and switches between local dev projects, with a b
 - `cli/` — Rust CLI (`lpm`)
 - `mobile/` — iOS companion app (SwiftUI); `.xcodeproj` is generated — run `xcodegen generate` after adding files
 - `website/` — Next.js marketing site (lpm.cx)
+- `tailnet/` — built-in Tailscale (Go, tsnet): `cmd/lpm-tailnet` is the desktop
+  sidecar (`scripts/build-tailnet.mjs`), `ios/` the static library lpm Link links
+  (`mobile/build-tailnet.sh`). Needs Go (`brew install go`)
 
 
 ## Conventions
@@ -29,8 +32,9 @@ lpm starts, stops, duplicates, and switches between local dev projects, with a b
   plain Ctrl+letter to the terminal and composer. Show platform-correct labels
 - Check every Rust change for Windows with
   `AWS_LC_SYS_PREBUILT_NASM=1 cargo check --target x86_64-pc-windows-gnu`
-  (needs `brew install mingw-w64`, the rustup target, and a placeholder
-  `binaries/lpm-cli-x86_64-pc-windows-gnu.exe`)
+  (needs `brew install mingw-w64`, the rustup target, a placeholder
+  `binaries/lpm-cli-x86_64-pc-windows-gnu.exe`, and
+  `node scripts/build-tailnet.mjs x86_64-pc-windows-gnu`)
 - One React component per file
 - Keep files focused: don't grow a file past ~400 lines — put new features in their own module
 - Bump `version` in `cli/Cargo.toml` on any `cli/` change — patch for fixes, minor for new commands/flags — so stale installed binaries stay detectable via `lpm --version`

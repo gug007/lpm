@@ -63,7 +63,12 @@ const LOCAL_ONLY_EXACT = new Set<string>([
 ]);
 
 export function isLocalOnlyCommand(cmd: string): boolean {
-  return cmd.startsWith("peer_") || cmd.startsWith("remote_") || LOCAL_ONLY_EXACT.has(cmd);
+  return (
+    cmd.startsWith("peer_") ||
+    cmd.startsWith("remote_") ||
+    cmd.startsWith("tailnet_") ||
+    LOCAL_ONLY_EXACT.has(cmd)
+  );
 }
 
 // Commands whose result is a freshly created host terminal id that must be

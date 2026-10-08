@@ -2182,6 +2182,11 @@ final class AppModel {
         return s
     }
 
+    /// What to check when the Mac's addresses don't answer, which away from
+    /// home means the tailnet: lpm's own Tailscale or the Tailscale app.
+    private static let awayFromHomeHint =
+        "Away from your Wi-Fi, check that Built-in Tailscale or the Tailscale app is connected on both devices."
+
     private func unreachableMessage(_ hosts: [String]) -> String {
         // Prefer the per-address reasons from the last probe — "192.168.0.80: no
         // route · 100.92.155.108: timed out" separates Wi-Fi-only-at-home from
@@ -2189,11 +2194,11 @@ final class AppModel {
         let failures = lastProbeOutcomes.filter { !$0.reachable }
         if !failures.isEmpty {
             let detail = failures.map { "\($0.host): \($0.detail)" }.joined(separator: " · ")
-            return "Couldn't reach \(machineLabel) — \(detail). On cellular, open the Tailscale app and make sure it's connected on both devices."
+            return "Couldn't reach \(machineLabel) — \(detail). \(Self.awayFromHomeHint)"
         }
         let list = hosts.filter { !$0.isEmpty }.joined(separator: ", ")
         let target = list.isEmpty ? machineLabel : "\(machineLabel) at \(list)"
-        return "Couldn't reach \(target) — none of its addresses responded. On cellular, open the Tailscale app and make sure it's connected on both devices."
+        return "Couldn't reach \(target) — none of its addresses responded. \(Self.awayFromHomeHint)"
     }
 
     /// Per-host probe reasons for the pairing screen — e.g. "192.168.0.80: timed
@@ -2203,7 +2208,7 @@ final class AppModel {
         let detail = outcomes.isEmpty
             ? hosts.filter { !$0.isEmpty }.joined(separator: ", ")
             : outcomes.map { "\($0.host): \($0.detail)" }.joined(separator: " · ")
-        return "Couldn't reach \(machineLabel) — \(detail). On cellular, open the Tailscale app and confirm it's connected on both devices."
+        return "Couldn't reach \(machineLabel) — \(detail). \(Self.awayFromHomeHint)"
     }
 
     /// Foreground backstop for notification withdrawal: iOS drops background clear

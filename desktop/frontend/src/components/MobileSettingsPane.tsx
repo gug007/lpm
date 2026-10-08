@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { PlusIcon, ServerIcon, SmartphoneIcon } from "./icons";
 import { PairingModal, type Pairing } from "./PairingModal";
 import { RemoteNotice } from "./RemoteNotice";
+import { TailnetCard } from "./TailnetCard";
 import { usePeerState } from "../peer/usePeerState";
 import {
   RemoteState,
@@ -428,38 +429,29 @@ export function MobileSettingsPane() {
       )}
 
       <div className="mt-8">
-        <SectionLabel>Using lpm away from home</SectionLabel>
-        <div className="overflow-hidden rounded-xl border border-[var(--border)]">
-          <p className="px-4 py-3 text-[12px] leading-relaxed text-[var(--text-muted)]">
-            Keep {MACHINE.thisMachine} awake with remote control on — every command still runs here. On the same
-            Wi-Fi, your phone connects directly. To use lpm over cellular or another network, put
-            both devices on a{" "}
-            <span className="font-medium text-[var(--text-secondary)]">Tailscale</span> tailnet and
-            include {MACHINE.thisMachine}&#39;s Tailscale address in the pairing QR below, so scanning it works from
-            anywhere on the tailnet.
-          </p>
-          {state.tailscaleHost ? (
-            <div className="border-t border-[var(--border)]">
-              <Row
-                label="Add Tailscale address to QR"
-                description={`Advertises ${state.tailscaleHost} in the pairing QR so the phone can reach ${MACHINE.thisMachine} over the tailnet.`}
-              >
-                <Toggle
-                  enabled={state.tailscale}
-                  onChange={(v) => apply({ tailscale: v }, "tailscale")}
-                />
-              </Row>
-            </div>
-          ) : (
-            <p className="border-t border-[var(--border)] px-4 py-3 text-[12px] leading-relaxed text-[var(--text-muted)]">
-              No Tailscale address detected on {MACHINE.thisMachine} yet. Once {MACHINE.thisMachine} joins a tailnet, its
-              address can be added to the pairing QR here.
-            </p>
-          )}
+        <SectionLabel>Away from home</SectionLabel>
+        <div data-settings-row="mobile.tailscale">
+          <TailnetCard />
         </div>
+        {state.tailscaleHost && (
+          <div className="mt-3 overflow-hidden rounded-xl border border-[var(--border)]">
+            <Row
+              label="Add the Tailscale app's address to QR"
+              description={`The Tailscale app is running on ${MACHINE.thisMachine} at ${state.tailscaleHost}. Advertise it so a phone with the app can reach ${MACHINE.thisMachine} over the tailnet.`}
+            >
+              <Toggle
+                enabled={state.tailscale}
+                onChange={(v) => apply({ tailscale: v }, "tailscale")}
+              />
+            </Row>
+          </div>
+        )}
         {failure?.slot === "network" && (
           <RemoteNotice tone={problemTone}>{failure.message}</RemoteNotice>
         )}
+        <p className="mt-2 px-1 text-[11px] leading-relaxed text-[var(--text-muted)]">
+          Every command still runs on {MACHINE.thisMachine}, so keep it awake with remote control on.
+        </p>
       </div>
 
       <PairingModal pairing={pairing} onClose={() => setPairing(null)} />

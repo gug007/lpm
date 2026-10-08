@@ -674,12 +674,14 @@ pub fn apply(hub: &PeerHub, app: &AppHandle) {
     if !cfg.enabled {
         hub.inner.running.store(false, Ordering::Relaxed);
         crate::mdns::withdraw_peer();
+        crate::tailnet::set_forward(crate::tailnet::Service::Peer, None);
         return;
     }
     let bind = bind_address(&cfg);
     let port = effective_port(cfg.port);
     let addr = format!("{bind}:{port}");
     let advertise = bind != LOOPBACK;
+    crate::tailnet::set_forward(crate::tailnet::Service::Peer, None);
     let host_id = cfg.host_id.clone();
     let (hub, app) = (hub.clone(), app.clone());
     std::thread::spawn(move || {
@@ -722,6 +724,21 @@ pub fn apply(hub: &PeerHub, app: &AppHandle) {
             });
         } else {
             crate::mdns::withdraw_peer();
+        }
+        // A host bound to one interface was kept off the others on purpose, the
+        // tailnet included.
+        if bind == ALL_INTERFACES {
+            if let Some((forwarded, local)) = crate::tailnet::forward_listener() {
+                crate::tailnet::set_forward(
+                    crate::tailnet::Service::Peer,
+                    Some(crate::tailnet::Forward {
+                        tailnet: port,
+                        local,
+                    }),
+                );
+                let (hub, app) = (hub.clone(), app.clone());
+                std::thread::spawn(move || accept_loop(forwarded, hub, app, generation));
+            }
         }
         accept_loop(listener, hub, app, generation);
     });
@@ -1727,7 +1744,7 @@ fn names_a_paired_machine(args: &Value) -> bool {
 /// router carries the same guard, so this is defense in depth — when in doubt
 /// project-scoped ops are allowed and app-meta ops are denied.
 fn is_denied(cmd: &str) -> bool {
-    if cmd.starts_with("peer_") || cmd.starts_with("remote_") {
+    if cmd.starts_with("peer_") || cmd.starts_with("remote_") || cmd.starts_with("tailnet_") {
         return true;
     }
     matches!(
@@ -2159,8 +2176,12 @@ pub(crate) fn candidate_hosts() -> Vec<String> {
     if let Some(ip) = primary_lan_ip() {
         hosts.push(ip);
     }
-    // Reachable from anywhere on the shared tailnet, not just the LAN.
-    if let Some(ip) = crate::netif::tailscale_ip() {
+    // Reachable from anywhere on the shared tailnet, not just the LAN — through
+    // the Tailscale app, or lpm's built-in node.
+    for ip in [crate::netif::tailscale_ip(), crate::tailnet::ip()]
+        .into_iter()
+        .flatten()
+    {
         if !hosts.contains(&ip) {
             hosts.push(ip);
         }
@@ -2337,6 +2358,9 @@ mod tests {
         assert!(is_denied("remote_start_pairing"));
         assert!(is_denied("remote_revoke_device"));
         assert!(is_denied("remote_set_config"));
+        // A paired machine must never switch this one's tailnet off or sign it out.
+        assert!(is_denied("tailnet_set_enabled"));
+        assert!(is_denied("tailnet_sign_out"));
         assert!(is_denied("save_settings"));
         assert!(is_denied("install_update"));
         assert!(is_denied("open_browser"));

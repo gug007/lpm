@@ -342,10 +342,13 @@ pub(crate) fn snapshot_lpm(src: &Path, dst: &Path) -> Result<(), String> {
         // Skip live sockets and pairing credentials: peer.json holds raw device
         // tokens, and no snapshot_backup caller (peer sync, config import) ever
         // mutates or restores pairing state, so it must not land in a timestamped
-        // backup dir where a stale copy would leak indefinite peer access.
+        // backup dir where a stale copy would leak indefinite peer access. The
+        // built-in Tailscale keys are skipped for the same reason, and because a
+        // restored copy would put two devices on one tailnet identity.
         if name_str == "lpm.sock"
             || name_str.ends_with(".sock")
             || name_str == "peer.json"
+            || crate::tailnet::STATE_DIRS.contains(&name_str.as_ref())
             || is_held_lock(&name_str)
         {
             continue;
@@ -597,6 +600,22 @@ mod tests {
         assert_eq!(std::fs::read_to_string(dst.join("settings.json")).unwrap(), "{}");
         assert!(dst.join("projects/app.yml").is_file());
         assert!(!dst.join("send-later.lock").exists());
+    }
+
+    #[test]
+    fn a_snapshot_leaves_the_tailnet_keys_behind() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (src, dst) = (tmp.path().join("lpm"), tmp.path().join("backup"));
+        for dir in crate::tailnet::STATE_DIRS {
+            std::fs::create_dir_all(src.join(dir)).unwrap();
+            std::fs::write(src.join(dir).join("tailscaled.state"), "{}").unwrap();
+        }
+        std::fs::write(src.join("tailnet.json"), "{}").unwrap();
+        snapshot_lpm(&src, &dst).unwrap();
+        for dir in crate::tailnet::STATE_DIRS {
+            assert!(!dst.join(dir).exists(), "{dir} was copied");
+        }
+        assert!(dst.join("tailnet.json").is_file());
     }
 
     #[test]

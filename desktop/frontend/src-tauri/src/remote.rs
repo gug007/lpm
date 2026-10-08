@@ -765,6 +765,7 @@ fn apply(hub: &RemoteHub, app: &AppHandle) {
     let generation = hub.inner.generation.fetch_add(1, Ordering::SeqCst) + 1;
     let cfg = hub.config();
     hub.inner.enabled.store(cfg.enabled, Ordering::Relaxed);
+    crate::tailnet::set_forward(crate::tailnet::Service::Phone, None);
     if !cfg.enabled {
         hub.inner.running.store(false, Ordering::Relaxed);
         crate::mdns::withdraw();
@@ -830,6 +831,17 @@ fn apply(hub: &RemoteHub, app: &AppHandle) {
             port,
             dev: is_dev_instance(),
         });
+        if let Some((forwarded, local)) = crate::tailnet::forward_listener() {
+            crate::tailnet::set_forward(
+                crate::tailnet::Service::Phone,
+                Some(crate::tailnet::Forward {
+                    tailnet: port,
+                    local,
+                }),
+            );
+            let (hub, app) = (hub.clone(), app.clone());
+            std::thread::spawn(move || accept_loop(forwarded, hub, app, generation));
+        }
         accept_loop(listener, hub, app, generation);
     });
 }
@@ -5430,19 +5442,23 @@ fn tailscale_ip() -> Option<String> {
 }
 
 /// Addresses to advertise for pairing, most-preferred first: the LAN IP (lowest
-/// latency at home) then the Tailscale IP (reachable away from home, when the
-/// away-from-home toggle is on). The phone probes them and keeps whichever it
-/// can reach.
+/// latency at home) then the Tailscale app's IP (reachable away from home, when
+/// the away-from-home toggle is on), then the built-in Tailscale node's IP
+/// whenever that node is connected. The phone probes them and keeps whichever
+/// it can reach.
 fn candidate_hosts(include_tailscale: bool) -> Vec<String> {
     let mut hosts = Vec::new();
     if let Some(ip) = primary_lan_ip() {
         hosts.push(ip);
     }
-    if include_tailscale {
-        if let Some(ip) = tailscale_ip() {
-            if !hosts.contains(&ip) {
-                hosts.push(ip);
-            }
+    let system = if include_tailscale {
+        tailscale_ip()
+    } else {
+        None
+    };
+    for ip in [system, crate::tailnet::ip()].into_iter().flatten() {
+        if !hosts.contains(&ip) {
+            hosts.push(ip);
         }
     }
     if hosts.is_empty() {

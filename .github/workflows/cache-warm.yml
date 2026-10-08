@@ -56,6 +56,12 @@ jobs:
         working-directory: desktop/frontend
         run: npm ci --prefer-offline --no-audit --no-fund
 
+      # beforeBuildCommand builds the built-in Tailscale sidecar (tailnet/, Go).
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: tailnet/go.mod
+          cache-dependency-path: tailnet/go.sum
+
       # --no-bundle stops after the cargo build: no signing, notarization or DMG.
       # LPM_CLI_TARGET pins the sidecar triple the Tauri build script validates.
       # `-- --timings` mirrors release.yml so the cargo arg passthrough is

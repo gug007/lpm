@@ -28,6 +28,13 @@ jobs:
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
+      # The built-in Tailscale sidecar (tailnet/, Go) is built and shipped beside
+      # the app, and tauri-build checks it exists like the CLI sidecar.
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: tailnet/go.mod
+          cache-dependency-path: tailnet/go.sum
+
       - uses: dtolnay/rust-toolchain@stable
       - name: Check skills
         run: bash scripts/check-skills.sh
@@ -38,6 +45,8 @@ jobs:
         # `externalBin` sidecar exists. `tauri build`'s beforeBuildCommand isn't
         # run here, so stage binaries/lpm-cli-<triple> ourselves first.
         run: bash scripts/build-cli.sh
+      - name: Stage Tailscale sidecar
+        run: node scripts/build-tailnet.mjs
       - name: Test desktop skill integration
         run: |
           cargo test --manifest-path desktop/frontend/src-tauri/Cargo.toml skill_install::tests
