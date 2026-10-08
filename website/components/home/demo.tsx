@@ -100,6 +100,10 @@ const LESSON_CAPTION: Record<
   YouTubeLessonId,
   { heading: string; blurb: string }
 > = {
+  "connect-iphone": {
+    heading: "Pair your iPhone once, use it from anywhere",
+    blurb: "A short video: pair lpm Link, set up Built-in Tailscale, and run Claude Code from your phone.",
+  },
   "sixty-seconds": {
     heading:
       "Start a project, then hand it to Claude Code or Codex — one click each",

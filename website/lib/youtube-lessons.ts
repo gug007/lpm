@@ -79,6 +79,13 @@ const LESSONS = {
       "Too many action buttons in your lpm header? Zones give a group of them a framed spot of its own, stacked up to three rows tall, with layers you flip between.",
     uploadDate: "2026-10-04T09:00:00+00:00",
   },
+  "connect-iphone": {
+    id: "OxDe-Vud69U",
+    name: "Connect your iPhone to lpm",
+    description:
+      "Connect the lpm Link iPhone app to lpm on your Mac, and set up Built-in Tailscale so it keeps working on cellular and any Wi-Fi.",
+    uploadDate: "2026-10-08T09:00:00+00:00",
+  },
   "sixty-seconds": {
     id: "H46vW5DPbZk",
     name: "lpm in 60 Seconds: Start, Stop, Switch Projects and Run AI Agents",

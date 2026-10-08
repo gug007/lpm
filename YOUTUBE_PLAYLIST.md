@@ -27,3 +27,4 @@ Manual order. Each published lesson is appended here and to the playlist in the 
 - Use Claude Code and Codex Together: Claude Writes, Codex Reviews — https://youtu.be/yPT4uCC-Cj4
 - Claude Code Effort Levels Explained: Low vs Max vs Ultracode on Opus 5.5 — https://youtu.be/VPxDo44-ZEU
 - Let Claude Code Start Its Own Parallel Claude Codes with the lpm CLI — https://youtu.be/06CUZPBJEDA
+- Connect your iPhone to lpm — https://youtu.be/OxDe-Vud69U

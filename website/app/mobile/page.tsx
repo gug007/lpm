@@ -15,6 +15,7 @@ import {
   iosAppJsonLd,
   jsonLdString,
   webPageJsonLd,
+  youtubeLessonJsonLd,
 } from "@/lib/structured-data";
 import Composer from "./_components/composer";
 import Control from "./_components/control";
@@ -23,6 +24,7 @@ import Faq from "./_components/faq";
 import Features from "./_components/features";
 import Hero from "./_components/hero";
 import HowItWorks from "./_components/how-it-works";
+import Lesson from "./_components/lesson";
 import MoreOnPhone from "./_components/more-on-phone";
 import Notifications from "./_components/notifications";
 import Problem from "./_components/problem";
@@ -96,6 +98,7 @@ const structuredData = [
     { name: "Home", path: "/" },
     { name: "lpm for iPhone", path: MOBILE_PATH },
   ]),
+  youtubeLessonJsonLd("connect-iphone"),
 ];
 
 export default function MobilePage() {
@@ -116,6 +119,7 @@ export default function MobilePage() {
       <MoreOnPhone />
       <Notifications />
       <HowItWorks />
+      <Lesson />
       <Security />
       <Faq />
       <RelatedPages
