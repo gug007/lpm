@@ -156,6 +156,38 @@ describe("PeerRow", () => {
     expect(container.querySelector(".lucide-server")).not.toBeNull();
   });
 
+  // Nobody clicked anything here: the app started it after updating itself.
+  it("shows an automatic update in progress and offers no second one", () => {
+    render(
+      peer({
+        platform: "linux",
+        sshHost: "root@box",
+        version: "1.0.0",
+        connected: true,
+        updating: true,
+      }),
+      "1.2.0",
+    );
+    expect(container.textContent).toContain("Updating lpm");
+    expect(button("Update")).toBeUndefined();
+  });
+
+  it("says when an automatic update failed, and why", () => {
+    render(
+      peer({
+        platform: "linux",
+        sshHost: "root@box",
+        version: "1.0.0",
+        connected: true,
+        updateError: "curl: (22) The requested URL returned error: 404",
+      }),
+      "1.2.0",
+    );
+    expect(container.textContent).toContain("Automatic update failed: curl: (22)");
+    expect(container.textContent).toContain("Connected");
+    expect(button("Update")).toBeDefined();
+  });
+
   it("has nothing to retry on a peer that is switched off", () => {
     render(peer({ enabled: false, lastError: "Operation timed out (os error 60)" }));
     expect(container.textContent).toContain("Off");

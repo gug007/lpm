@@ -401,6 +401,7 @@ impl PeerClientHub {
                             .map(|t| t.state().as_str())
                     })
                     .unwrap_or("");
+                let (updating, update_error) = crate::hostautoupdate::row_state(&p.slug);
                 json!({
                     "slug": p.slug,
                     "alias": p.alias,
@@ -425,6 +426,8 @@ impl PeerClientHub {
                     "sshHost": p.ssh.destination(),
                     "version": p.version,
                     "tunnel": tunnel,
+                    "updating": updating,
+                    "updateError": update_error,
                 })
             })
             .collect();
@@ -1418,7 +1421,7 @@ pub fn stop(hub: &PeerClientHub) {
     hub.inner.conns.lock().unwrap().clear();
 }
 
-fn emit_state_changed(hub: &PeerClientHub) {
+pub(crate) fn emit_state_changed(hub: &PeerClientHub) {
     if let Some(app) = hub.app() {
         let _ = app.emit("peer-state-changed", ());
     }
@@ -1945,6 +1948,7 @@ fn connect_session(
     }
     let _ = ws.flush();
     emit_state_changed(hub);
+    crate::hostautoupdate::nudge();
 
     let app = hub.app();
     // A reconnect is a sync trigger: the peer just became reachable and its feature
@@ -2237,7 +2241,7 @@ pub async fn peer_update_host(hub: State<'_, PeerClientHub>, slug: String) -> Re
         if !target.is_set() {
             return Err("lpm can only update a host it reaches over SSH".into());
         }
-        crate::peerssh::update(&target)
+        crate::hostautoupdate::exclusive(&hub, &slug, || crate::peerssh::update(&target))
     })
     .await
     .map_err(|e| e.to_string())?
@@ -2281,7 +2285,9 @@ pub async fn peer_uninstall_host(
         // Before the ssh: the supervised forward keeps redialling a machine whose
         // app is being stopped, and its retries would race the removal.
         hub_state.stop_conn(&removal_slug, "removing lpm from this host");
-        let removed = crate::peerssh::uninstall(&target, purge_data);
+        let removed = crate::hostautoupdate::exclusive(&hub_state, &removal_slug, || {
+            crate::peerssh::uninstall(&target, purge_data)
+        });
         // A removal that failed leaves a host that is still there and still ours
         // to talk to. Without this it would sit disconnected with nothing saying
         // why, and the only way back would be toggling it off and on.

@@ -5,6 +5,7 @@ import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { Group, GroupHeader } from "./GroupedList";
 import { PeerRow } from "./PeerRow";
 import { AddLinuxHost } from "./AddLinuxHost";
+import { HostAutoUpdateRow } from "./HostAutoUpdateRow";
 
 // Always shown, unlike the Macs list: a server has no lpm on it to discover and
 // no one sitting at it to approve a request, so the only way it can appear here
@@ -41,6 +42,7 @@ export function LinuxHostsSection({
         ))}
         <AddLinuxHost refresh={refresh} />
       </Group>
+      {hosts.length > 0 && <HostAutoUpdateRow />}
 
       <ConfirmDialog
         open={removePeer !== null}

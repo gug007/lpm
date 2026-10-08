@@ -473,6 +473,15 @@ export const ROWS = {
     description: "Control another machine's projects from this one",
     keywords: ["peer", "remote", "mac", "linux", "server", "host", "nearby", "discover"],
   },
+  "connections.hostUpdates": {
+    kind: "row",
+    tab: "connections",
+    id: "connections.hostUpdates",
+    label: "Update hosts automatically",
+    description:
+      "When lpm updates, each Linux host follows once none of its agents are working. Its terminals restart; services keep running.",
+    keywords: ["linux", "server", "host", "upgrade", "update", "version", "auto"],
+  },
   "connections.sync": {
     kind: "row",
     tab: "connections",

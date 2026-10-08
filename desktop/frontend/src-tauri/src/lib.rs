@@ -66,6 +66,7 @@ mod gitwatchhost;
 mod gitworkstate;
 mod hookform;
 mod hooks;
+mod hostautoupdate;
 mod ipc;
 mod jobs;
 #[cfg(any(target_os = "linux", test))]
@@ -484,6 +485,7 @@ pub fn run() {
             *peer_hub.config_arc().lock().unwrap() = peer::load_config();
             peer::start(peer_hub, handle.clone());
             let peer_client_hub = app.state::<peerclient::PeerClientHub>().inner().clone();
+            hostautoupdate::start(peer_client_hub.clone());
             peerclient::start(peer_client_hub.clone(), handle.clone());
             // Per-peer auto-sync engine: drives the same sync path unattended when
             // a peer has auto-sync on. Managed so the config watcher and the peer

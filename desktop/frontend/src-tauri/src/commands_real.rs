@@ -45,7 +45,9 @@ pub fn load_settings() -> Value {
 
 #[tauri::command]
 pub fn save_settings(s: Value) -> Result<(), String> {
-    config::save_settings(&s)
+    config::save_settings(&s)?;
+    crate::hostautoupdate::nudge();
+    Ok(())
 }
 
 #[tauri::command]

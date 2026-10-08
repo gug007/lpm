@@ -81,6 +81,9 @@ export interface Settings {
   // Fetch in the background and mark projects whose branch on origin moved on.
   // Unset means on.
   checkOrigin?: boolean;
+  // Put Linux hosts on this app's release once nothing is running on them.
+  // Unset means on.
+  autoUpdateHosts?: boolean;
   experimentalTTS?: boolean;
   ttsEnabled?: boolean;
   ttsEngine?: string;
@@ -183,6 +186,7 @@ function normalize(s: main.Settings): Settings {
     gitPush: normalizeGitPush(s.gitPush),
     gitFetch: normalizeGitFetch(s.gitFetch),
     checkOrigin: s.checkOrigin,
+    autoUpdateHosts: s.autoUpdateHosts,
     experimentalTTS: s.experimentalTTS,
     ttsEnabled: s.ttsEnabled,
     ttsEngine: s.ttsEngine || undefined,

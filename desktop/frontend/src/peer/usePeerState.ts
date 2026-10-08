@@ -66,6 +66,10 @@ export interface PeerClient {
   // self-updates (the updater is macOS-only), so this is the only way to know it
   // has drifted behind this Mac.
   version?: string;
+  // An install this app is running there, and what the last automatic one
+  // failed with. Set for automatic updates too, which no row started.
+  updating?: boolean;
+  updateError?: string;
   // What the other end runs ("macos" / "linux" / "windows"), re-reported on every
   // connect. Empty until its next connect for an entry paired before hosts sent
   // it — treat unknown as a Mac, never as Linux.

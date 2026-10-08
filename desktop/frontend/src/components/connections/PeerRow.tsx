@@ -78,6 +78,11 @@ export function PeerRow({
   // One action either way — it always installs the current release — so the label
   // only says which of the two the user is really doing.
   const actionLabel = behind ? "Update" : "Reinstall";
+  // Also true while this app updates the host on its own, which no click here
+  // started — the row has to say so all the same.
+  const installing = updating || !!peer.updating;
+  const shownError =
+    actionError ?? (peer.updateError ? `Automatic update failed: ${peer.updateError}` : null);
 
   // A retry either lands (the peer goes connected) or falls back into whatever
   // it was failing with. The dial gets a few seconds to say which before the row
@@ -195,13 +200,13 @@ export function PeerRow({
         </div>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-[var(--text-primary)]">{name}</p>
-          {updating ? (
+          {removing ? (
+            <StatusLine tone="pending" text="Removing lpm over SSH…" />
+          ) : installing ? (
             <StatusLine
               tone="pending"
               text={behind ? "Updating lpm over SSH…" : "Reinstalling lpm over SSH…"}
             />
-          ) : removing ? (
-            <StatusLine tone="pending" text="Removing lpm over SSH…" />
           ) : installingSkills ? (
             <StatusLine tone="pending" text="Installing skills…" />
           ) : retrying ? (
@@ -216,21 +221,21 @@ export function PeerRow({
               note={versionNote(peer, behind, skills)}
             />
           )}
-          {actionError && (
+          {shownError && (
             // Below the status line rather than in place of it: what the machine
             // is doing is still true while something we asked of it failed.
-            <HostActionError text={actionError} />
+            <HostActionError text={shownError} />
           )}
         </div>
 
-        {canRetry && !updating && !removing && !retrying ? (
+        {canRetry && !installing && !removing && !retrying ? (
           <button
             onClick={() => void reconnect()}
             className={`${PILL_CLASS} text-[var(--accent-cyan)] hover:bg-[var(--bg-hover)]`}
           >
             Reconnect
           </button>
-        ) : behind && !updating && !removing ? (
+        ) : behind && !installing && !removing ? (
           <button
             onClick={() => setConfirming(true)}
             className={`${PILL_CLASS} text-[var(--accent-cyan)] hover:bg-[var(--bg-hover)]`}
@@ -246,7 +251,7 @@ export function PeerRow({
               ? [
                   {
                     label: behind ? "Update lpm there" : "Reinstall lpm there",
-                    disabled: updating || removing,
+                    disabled: installing || removing,
                     onClick: () => setConfirming(true),
                   },
                 ]
@@ -260,7 +265,7 @@ export function PeerRow({
               ? [
                   {
                     label: hostSkillLabel(skills),
-                    disabled: updating || removing || installingSkills,
+                    disabled: installing || removing || installingSkills,
                     onClick: () => void installSkills(),
                   },
                 ]
@@ -274,7 +279,7 @@ export function PeerRow({
                   {
                     label: "Remove lpm from this host…",
                     destructive: true,
-                    disabled: updating || removing,
+                    disabled: installing || removing,
                     onClick: () => {
                       setPurgeData(false);
                       setConfirmingRemoval(true);
