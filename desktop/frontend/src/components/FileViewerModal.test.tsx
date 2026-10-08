@@ -74,6 +74,7 @@ vi.mock("./files/FilesDiffEditor", () => ({
   ),
 }));
 vi.mock("./OpenFileWithDropdown", () => ({ OpenFileWithDropdown: () => null }));
+vi.mock("./pdf/pdfEngine", () => ({ openPdf: vi.fn() }));
 
 import * as commands from "../../bridge/commands";
 import { isPeerRoot } from "../peer/markers";
