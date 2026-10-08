@@ -88,6 +88,13 @@ export function computeProjectStatus(
   return { isDone, isWaiting, isError, className };
 }
 
+// The rows listed under an expanded project already shimmer while they work,
+// so the name only carries the working state while they are folded away.
+export function rowNameClass(status: ProjectStatus, tasksListed: boolean): string | null {
+  if (tasksListed && status.className === "sidebar-shimmer") return null;
+  return status.className;
+}
+
 export interface AgentAmbient {
   needsYou: number;
   hasError: boolean;
