@@ -52,25 +52,6 @@ struct ContentView: View {
         .onAppear {
             BuiltInTailscale.shared.foreground()
             model.bootstrap()
-            #if DEBUG
-            if let drive = ProcessInfo.processInfo.environment["LPM_DRIVE"] {
-                Task { @MainActor in
-                    for step in drive.split(separator: ";") {
-                        try? await Task.sleep(nanoseconds: 2_000_000_000)
-                        let parts = step.split(separator: "=", maxSplits: 1).map(String.init)
-                        let args = parts.count > 1 ? parts[1].split(separator: ",").map(String.init) : []
-                        switch parts[0] {
-                        case "pair": model.pair(hosts: [args[0]], port: Int(args[1]) ?? 0, code: args[2])
-                        case "hosts":
-                            if let id = model.activeMacId, let port = model.activeRecord?.port {
-                                model.updateEndpoint(of: id, hosts: args, port: port)
-                            }
-                        default: break
-                        }
-                    }
-                }
-            }
-            #endif
             // Warm WebKit now so the first terminal opens without the ~2s cold start.
             TerminalWebPool.prewarm()
         }

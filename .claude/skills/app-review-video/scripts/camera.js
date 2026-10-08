@@ -1,9 +1,9 @@
-// The camera: it frames whatever each click changed. A tap whose response
-// stays on one device and fills only part of it (a menu, the message field,
-// a reply arriving) eases the picture in on that part, up to 1.8x; a response
-// on both devices (a tap on the phone that starts something on the Mac)
-// eases back out so cause and effect are both in view. A click outside the
-// current close-up always pulls back first.
+// The camera: it frames what a tap on the phone changed. The phone is a fifth
+// of the frame, so a tap whose response stays on the phone and fills only part
+// of it (a menu, the message field) eases the picture in on that part, up to
+// 1.8x. A response that reaches the Mac (a tap that starts something there),
+// or any click on the Mac, eases back out so both are in view; the Mac reads
+// fine at full view.
 const { strong, weak } = require("./activity");
 const { outTime } = require("./edit");
 
@@ -28,36 +28,34 @@ function view(t, stage) {
 function plan({ events, frames, rec, layout, spans, duration }) {
   const stage = { w: layout.stageW, h: layout.stageH };
   const wide = { scale: 1, cx: stage.w / 2, cy: stage.h / 2, side: "both" };
-  const sides = { phone: rel(rec.phone, rec.rect), mac: rel(rec.app, rec.rect) };
+  const phone = rel(rec.phone, rec.rect);
   const toStage = (x, y) => [layout.ox + x * layout.fit, layout.oy + y * layout.fit];
   const clicks = events.filter((e) => e.kind === "down");
   const keys = [];
   let current = wide;
 
   const target = (c, n) => {
-    const side = inside(sides.phone, c.x, c.y) ? "phone" : "mac";
-    const other = side === "phone" ? "mac" : "phone";
+    if (!inside(phone, c.x, c.y)) return wide;
     const end = Math.min(clicks[n + 1]?.src ?? duration, c.src + LOOK);
     let box = null;
-    let otherMoved = false;
+    let macMoved = false;
     for (let i = Math.ceil(c.src * 10); i <= Math.min(frames.length - 1, end * 10); i++) {
       const f = frames[i];
-      if (strong({ mac: other === "mac" ? f.mac : 0, phone: other === "phone" ? f.phone : 0 })) otherMoved = true;
-      const b = f[`${side}Box`];
-      if (!b || !weak({ mac: f[side], phone: 0 })) continue;
+      if (strong({ mac: f.mac, phone: 0 })) macMoved = true;
+      const b = f.phoneBox;
+      if (!b || !weak({ mac: 0, phone: f.phone })) continue;
       box = box ? [Math.min(box[0], b[0]), Math.min(box[1], b[1]), Math.max(box[2], b[2]), Math.max(box[3], b[3])] : b;
     }
-    if (otherMoved) return wide;
+    if (macMoved) return wide;
     if (!box) return null;
-    const r = sides[side];
-    const x0 = Math.max(r.x, Math.min(box[0], c.x - 40) - PAD);
-    const y0 = Math.max(r.y, Math.min(box[1], c.y - 40) - PAD);
-    const x1 = Math.min(r.x + r.w, Math.max(box[2], c.x + 40) + PAD);
-    const y1 = Math.min(r.y + r.h, Math.max(box[3], c.y + 40) + PAD);
+    const x0 = Math.max(phone.x, Math.min(box[0], c.x - 40) - PAD);
+    const y0 = Math.max(phone.y, Math.min(box[1], c.y - 40) - PAD);
+    const x1 = Math.min(phone.x + phone.w, Math.max(box[2], c.x + 40) + PAD);
+    const y1 = Math.min(phone.y + phone.h, Math.max(box[3], c.y + 40) + PAD);
     const scale = Math.min(stage.w / ((x1 - x0) * layout.fit), stage.h / ((y1 - y0) * layout.fit), MAX_SCALE);
     if (scale < MIN_SCALE) return wide;
     const [cx, cy] = toStage((x0 + x1) / 2, (y0 + y1) / 2);
-    return { scale, cx, cy, side };
+    return { scale, cx, cy, side: "phone" };
   };
 
   const same = (a, b) => Math.abs(a.scale - b.scale) < 0.15 && Math.hypot(a.cx - b.cx, a.cy - b.cy) < 80;

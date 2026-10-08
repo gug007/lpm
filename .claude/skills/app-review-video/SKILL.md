@@ -1,8 +1,8 @@
 ---
 name: app-review-video
-version: 1.0.0
+version: 1.1.0
 argument-hint: "[--device \"iPhone 18 Pro\"] [--build <n>]"
-description: "Record the App Store review demo video for lpm Link: the lpm desktop app and lpm Link on a physical iPhone (live through iPhone Mirroring) side by side, pairing and then controlling the Mac from the phone, driven with computer use. Isolated review Mac with demo projects, recorder that captures only those two windows, idle waits cut, numbered step captions, title and closing cards, 1920x1080 MP4. Use when the user asks for an App Store / App Review / Apple review video, a physical-device demo video, or a video of connecting the iPhone to the Mac."
+description: "Record the App Store review demo video for lpm Link: the lpm desktop app and lpm Link on a physical iPhone (live through iPhone Mirroring) side by side, pairing and then controlling the Mac from the phone, driven with computer use. Isolated review Mac with demo projects, recorder that captures only those two windows plus a log of the clicks, waits between clicks cut, tap ripples, close-ups on the phone, other people's Mac names blurred, numbered step captions, title and closing cards, 1920x1080 MP4. Use when the user asks for an App Store / App Review / Apple review video, a physical-device demo video, or a video of connecting the iPhone to the Mac."
 ---
 
 App Review asks for a video of lpm Link on a **physical device** connected to the Mac (the
@@ -20,13 +20,26 @@ and every tap and click is a real one made with computer use.
   left of the iPhone Mirroring window, as tall as the phone.
 - `record` starts a ScreenCaptureKit recording of the rectangle around both windows, with
   every other app left out (notifications, the user's windows and dialogs never show) and the
-  pointer drawn. It returns at once; the capture keeps running.
+  pointer drawn. It also logs every mouse press, release and move and the moment of each
+  key press (never which key) to `events.jsonl`, through a listen-only event tap. It returns
+  at once; the capture keeps running.
 - `mark "<caption>" "<subtitle>"` starts the next numbered step caption.
 - `checkpoint` before an uncertain action; `cut` if it went wrong drops everything since the
   checkpoint from the video. Redo the action after the cut.
-- `stop`, then `render --device "<model>" [--build <n>] [--version <v>] [--cut a-b,…]`
-  (raw seconds) writes `~/Movies/lpm-app-review/<stamp>/lpm-link-<version>-app-review.mp4`
-  and `steps.txt` (where each step starts). The version defaults to `mobile/project.yml`.
+- `stop`, then `render --device "<model>" [--build <n>] [--version <v>] [--cut a-b,…]
+  [--redact <regex>] [--no-camera]` writes
+  `~/Movies/lpm-app-review/<stamp>/lpm-link-<version>-app-review.mp4` and `steps.txt` (where
+  each step starts). The version defaults to `mobile/project.yml`. The render:
+  - keeps each click's response (the screen changes until the next click, at most 12 s) with a
+    short hold, and drops everything between: waits, a server's log, a clock (`edit.js`);
+  - draws a ripple at every click;
+  - eases in up to 1.8x on the part of the phone a tap changed (a menu, the message field)
+    when the response stays on the phone, and back out when it reaches the Mac or the next
+    click is on the Mac; the header then names only the device in view (`camera.js`);
+  - reads the kept frames twice a second with Vision and blurs any line in someone's
+    possessive form ("Someone's MacBook Pro"), any email address and any `--redact` pattern,
+    for as long as it is on screen; the review Mac's own name stays readable (`redact.js`);
+  - with no `events.jsonl` (an older take) it cuts on screen changes alone.
 - `teardown` quits the review Mac (the phone hears it close), stops its servers and deletes
   its data and demo projects.
 
@@ -56,13 +69,14 @@ focus to another granted app, and the click then lands in the wrong one.
 | 6 | Take the terminal back on the Mac / The same session, with what the iPhone ran | Mac: **Take control** | the command and its output in the Mac terminal; phone "Active on Main window" |
 
 Then wait 2 s and `stop`. The raw take runs about three minutes; the render keeps every change
-with a short hold and drops the waits between actions, so about 1:15 plus the cards.
+with a short hold and drops the waits between actions, so about 1:20 plus the cards.
 
 **After**
 1. `render`, then look at it before showing anyone: `ffmpeg -i <mp4> -vf
    "fps=1/3,scale=480:-2,tile=5x7" -frames:v 1 sheet.png` and read `steps.txt`. Check each
    step shows its result on both sides. To drop a fumble, find its raw seconds (frames of
-   `raw.mov`) and render again with `--cut a-b`.
+   `raw.mov`) and render again with `--cut a-b`. Look at a frame of step 1 at full size: the
+   other Macs' names must be blurred.
 2. Clean up the phone (it would keep MacBook Pro as an offline Mac): back to the projects
    list, title **MacBook Pro ⌄ → Manage machines… → MacBook Pro → Remove from this iPhone →
    Remove → Done**; the app is on "Connect to your Mac" again. Then
@@ -79,15 +93,20 @@ with a short hold and drops the waits between actions, so about 1:15 plus the ca
   on the phone, and the Mac's composer mirrors the draft. Type commands with no double dashes
   or quotes (`git status && ls src`). If one slips in: ⌘A, delete, retype, and `--cut` the
   stretch (or `checkpoint`/`cut` around it).
-- The phone's Wi-Fi list shows every lpm Mac on the network, the user's own included, and an
-  entry from an earlier `setup` can linger for a minute. Tap the one with the `--name` name
-  and "Tap, then approve on the Mac".
+- The phone's Wi-Fi list shows every lpm Mac on the network, the user's own included (their
+  names are blurred in the render), and an entry from an earlier `setup` can linger for a
+  minute. Tap the one with the `--name` name and "Tap, then approve on the Mac".
 - Anything that changes the screen on its own keeps footage: periodic log output, a scrolling
   log, a spinner. The seed servers print one line and stay quiet; keep demos that way. An
   output sheet left open on the phone while a server logs scrolls on every line.
 - The phone is a fifth of the frame, so the render weighs its changes separately (strong: Mac
   1000+ or phone 450+ changed pixels of a 640-wide copy; bursts of 3+ small changes count as
   typing). A lone small change is cut as idle.
+- Computer use's clicks and pointer moves reach the event tap; its key presses (Escape, at
+  least) may not. Typing is still kept: it falls inside the response window of the click on
+  the field, where screen changes decide.
+- ffmpeg: a split → crop → overlay pair per blurred box, chained, doubles the frame requests
+  per box (12 boxes took seconds, 16 never finished). One split feeds every crop instead.
 - The review app loads its UI from Vite on :9245; `setup` starts one with HMR off when none
   runs. `teardown` stops only the one it started.
 - The macOS recording indicator in the menu bar and computer use hiding other apps happen
