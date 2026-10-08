@@ -553,6 +553,12 @@ export function RemoteStartPairing() {
 export function RemoteRevokeDevice(id) {
   return invoke("remote_revoke_device", { id });
 }
+export function RemoteRenameDevice(id, name) {
+  return invoke("remote_rename_device", { id, name });
+}
+export function RemoteSetKeepAwake(enabled) {
+  return invoke("remote_set_keep_awake", { enabled });
+}
 export function RemoteRespondPairRequest(requestId, allow) {
   return invoke("remote_respond_pair_request", { requestId, allow });
 }

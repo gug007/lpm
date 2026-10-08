@@ -41,11 +41,16 @@ final class MacDiscovery {
     }
 
     private(set) var found: [DiscoveredMac] = []
+    /// iOS refused the browse because Local Network access is off for lpm.
+    private(set) var denied = false
+    /// Browsing has run long enough without a result to say nothing was found.
+    private(set) var searchedAWhile = false
     /// Called on every change to `found`, so a non-view owner (recovery in the app
     /// model) can react without observing the property.
     var onChange: (([DiscoveredMac]) -> Void)?
 
     @ObservationIgnored private var browser: NWBrowser?
+    @ObservationIgnored private var patience: DispatchWorkItem?
 
     /// Begin browsing. Idempotent — a second call while already browsing is a no-op.
     func start() {
@@ -58,17 +63,37 @@ final class MacDiscovery {
             MainActor.assumeIsolated { self.apply(results) }
         }
         browser.stateUpdateHandler = { [weak self] state in
-            guard let self, case .failed = state else { return }
-            MainActor.assumeIsolated { self.restart() }
+            guard let self else { return }
+            MainActor.assumeIsolated {
+                switch state {
+                case .failed: self.restart()
+                case .waiting(let error): self.denied = Self.isPolicyDenied(error)
+                case .ready: self.denied = false
+                default: break
+                }
+            }
         }
         self.browser = browser
         browser.start(queue: .main)
+        patience?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.searchedAWhile = true }
+        patience = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5, execute: work)
+    }
+
+    /// Local Network access turned off surfaces as a DNS policy refusal.
+    private static func isPolicyDenied(_ error: NWError) -> Bool {
+        if case .dns(let code) = error { return code == -65570 }
+        return false
     }
 
     /// Stop browsing and drop the current results.
     func stop() {
         browser?.cancel()
         browser = nil
+        patience?.cancel()
+        patience = nil
+        searchedAWhile = false
         if !found.isEmpty {
             found = []
             onChange?(found)

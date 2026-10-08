@@ -363,6 +363,8 @@ export function Settings({
           `[data-settings-row="${id}"]`,
         );
         if (el) {
+          // A setting folded under a disclosure is shown before it is pointed at.
+          if (el instanceof HTMLDetailsElement) el.open = true;
           el.scrollIntoView({ block: "center", behavior: "smooth" });
           el.classList.add("settings-search-flash");
           window.setTimeout(() => el.classList.remove("settings-search-flash"), 1500);

@@ -52,6 +52,17 @@ pub(crate) struct Device {
     // phone paired with only one flavor gets no phantom pushes from the other.
     #[serde(default)]
     pub(crate) paired_server_id: Option<String>,
+    // The name this machine shows for the phone, set in Settings. Empty means the
+    // phone's own `name`, which iOS reports as just "iPhone".
+    pub(crate) alias: String,
+    // When the phone last connected or disconnected (ms; 0 = not since pairing),
+    // and how it came in then (remotepresence::Route).
+    pub(crate) last_seen: i64,
+    pub(crate) last_route: String,
+    // Fields a newer lpm wrote that this one doesn't know: kept, so this build
+    // saving the file doesn't erase them.
+    #[serde(flatten)]
+    pub(crate) extra: serde_json::Map<String, serde_json::Value>,
 }
 
 // Manual Default (not derived) so `..Default::default()` agrees with serde: agent
@@ -73,6 +84,10 @@ impl Default for Device {
             push_automation_done: false,
             push_automation_error: false,
             paired_server_id: None,
+            alias: String::new(),
+            last_seen: 0,
+            last_route: String::new(),
+            extra: Default::default(),
         }
     }
 }
@@ -91,6 +106,7 @@ pub(crate) struct RemoteConfig {
     pub(crate) pairing_code_armed_at: i64,
     pub(crate) tailscale: bool, // advertise this Mac's Tailscale address in the pairing QR
     pub(crate) push_relay: String, // override for the APNs relay URL (empty => DEFAULT_PUSH_RELAY)
+    pub(crate) keep_awake: bool, // keep this machine from idle-sleeping while remote control is on
     // Stable identity of this Mac, minted on first run and persisted. Sent to the
     // phone so it can distinguish and label multiple paired Macs, and mixed into
     // the push collapse id so same-named projects on different Macs don't collide.
@@ -101,6 +117,9 @@ pub(crate) struct RemoteConfig {
     #[serde(default)]
     pub(crate) dev_server_id: Option<String>,
     pub(crate) devices: Vec<Device>,
+    // See Device::extra.
+    #[serde(flatten)]
+    pub(crate) extra: serde_json::Map<String, serde_json::Value>,
 }
 
 impl Default for RemoteConfig {
@@ -112,9 +131,11 @@ impl Default for RemoteConfig {
             pairing_code_armed_at: 0,
             tailscale: true, // away-from-home works out of the box; the toggle opts out
             push_relay: String::new(),
+            keep_awake: false,
             server_id: None,
             dev_server_id: None,
             devices: Vec::new(),
+            extra: Default::default(),
         }
     }
 }
@@ -328,6 +349,7 @@ fn rebase_owned_settings(next: &mut RemoteConfig, mem: &RemoteConfig) {
     next.port = mem.port;
     next.tailscale = mem.tailscale;
     next.push_relay = mem.push_relay.clone();
+    next.keep_awake = mem.keep_awake;
     next.server_id = mem.server_id.clone().or_else(|| next.server_id.take());
     next.dev_server_id = mem
         .dev_server_id

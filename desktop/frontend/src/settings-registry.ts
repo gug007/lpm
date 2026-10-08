@@ -457,6 +457,14 @@ export const ROWS = {
     description: `Reach ${MACHINE.thisMachine} from your phone on any network, without the Tailscale app`,
     keywords: ["tailscale", "tailnet", "vpn", "cellular", "away", "anywhere", "remote"],
   },
+  "mobile.keepAwake": {
+    kind: "row",
+    tab: "mobile",
+    id: "mobile.keepAwake",
+    label: `Keep ${MACHINE.thisMachine} awake`,
+    description: "While remote control is on and it's plugged in",
+    keywords: ["sleep", "awake", "power", "battery", "port", "caffeinate", "security code", "identity"],
+  },
   "connections.peers": {
     kind: "row",
     tab: "connections",

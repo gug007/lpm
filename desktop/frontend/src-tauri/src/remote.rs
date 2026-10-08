@@ -31,6 +31,7 @@
 // sniffing the first byte; that branch can be dropped once the pinned app ships.
 // When enabled the server binds every interface (0.0.0.0) so a paired phone can
 // reach it over the LAN or tailnet.
+use crate::remotepresence::Route;
 use crate::remotestore::{
     config_status, is_dev_instance, load_config, refresh_devices, try_refresh_devices, update,
     Device, RemoteConfig, StoreError,
@@ -117,6 +118,9 @@ const READ_SILENCE_DEAD: Duration = Duration::from_secs(90); // give the connect
 // Fail a blocked write instead of hanging for the kernel's retransmission
 // timeout (minutes) on a peer that stopped ACKing.
 const WRITE_TIMEOUT: Duration = Duration::from_secs(20);
+// How long a goodbye gets to reach the phones: several drain ticks of every
+// connection thread, short enough not to hold up sleep or quit.
+const FAREWELL_FLUSH: Duration = Duration::from_millis(250);
 const PAIRING_CODE_TTL: Duration = Duration::from_secs(10 * 60); // armed pairing-code lifetime
 const WRONG_CODE_DELAY: Duration = Duration::from_millis(500); // per-attempt brute-force brake
 const OUT_QUEUE: usize = 1024; // per-client outbound depth; overflow drops (phone resyncs)
@@ -187,6 +191,7 @@ struct Client {
     tx: SyncSender<String>,
     subs: Arc<Mutex<HashSet<String>>>,
     device_id: String,
+    route: Route,
 }
 
 /// Recent output for one terminal, positioned in that terminal's byte stream.
@@ -595,7 +600,7 @@ impl RemoteHub {
             .devices
             .iter()
             .find(|d| d.id == id)
-            .map(|d| d.name.clone())
+            .map(|d| crate::remotepresence::display_name(d).to_string())
             .filter(|n| !n.is_empty())
             .unwrap_or_else(|| "iPhone".to_string())
     }
@@ -650,6 +655,20 @@ pub fn tee_exit(app: &AppHandle, id: &str, code: i32) {
 /// frame — and any I/O that feeds it — when the fan-out would go nowhere.
 fn has_clients(hub: &RemoteHub) -> bool {
     !hub.inner.clients.lock().unwrap().is_empty()
+}
+
+/// Tell every connected phone why its connection is about to end — the machine
+/// is going to sleep, lpm is quitting, or remote control was turned off — and
+/// give the connection threads a moment to write it before the sockets close.
+pub(crate) fn farewell(hub: &RemoteHub, reason: &str) {
+    if !hub.inner.enabled.load(Ordering::Relaxed) || !has_clients(hub) {
+        return;
+    }
+    broadcast(
+        hub,
+        json!({ "t": "bye", "reason": reason, "at": crate::status::now_millis() }),
+    );
+    std::thread::sleep(FAREWELL_FLUSH);
 }
 
 fn broadcast(hub: &RemoteHub, val: Value) {
@@ -728,6 +747,10 @@ pub fn start(hub: RemoteHub, app: AppHandle) {
     sweep_pairing_code(&hub);
     seed_claude_limits_enabled();
     install_forwarders(&hub, &app);
+    let notify = app.clone();
+    crate::keepawake::on_change(move || {
+        let _ = notify.emit("remote-devices-changed", ());
+    });
     apply(&hub, &app);
 }
 
@@ -762,9 +785,13 @@ fn listen_failure_message(port: u16, err: Option<&std::io::Error>) -> String {
 /// (Re)start or stop the listener to match the current config. Bumping the
 /// generation retires any previous accept loop and connection threads.
 fn apply(hub: &RemoteHub, app: &AppHandle) {
-    let generation = hub.inner.generation.fetch_add(1, Ordering::SeqCst) + 1;
     let cfg = hub.config();
+    if !cfg.enabled {
+        farewell(hub, "off");
+    }
+    let generation = hub.inner.generation.fetch_add(1, Ordering::SeqCst) + 1;
     hub.inner.enabled.store(cfg.enabled, Ordering::Relaxed);
+    sync_keep_awake(hub);
     crate::tailnet::set_forward(crate::tailnet::Service::Phone, None);
     if !cfg.enabled {
         hub.inner.running.store(false, Ordering::Relaxed);
@@ -840,10 +867,19 @@ fn apply(hub: &RemoteHub, app: &AppHandle) {
                 }),
             );
             let (hub, app) = (hub.clone(), app.clone());
-            std::thread::spawn(move || accept_loop(forwarded, hub, app, generation));
+            std::thread::spawn(move || accept_loop(forwarded, hub, app, generation, true));
         }
-        accept_loop(listener, hub, app, generation);
+        accept_loop(listener, hub, app, generation, false);
     });
+}
+
+/// Hold or release keep-awake to match the saved settings. Every caller goes
+/// through here, serialized, so the last one to run applies the latest config.
+fn sync_keep_awake(hub: &RemoteHub) {
+    static SYNC: Mutex<()> = Mutex::new(());
+    let _turn = SYNC.lock().unwrap();
+    let cfg = hub.config();
+    crate::keepawake::set(cfg.enabled && cfg.keep_awake);
 }
 
 /// Signal a clean shutdown (app exit). Retires threads and drops clients.
@@ -855,13 +891,21 @@ pub fn stop(hub: &RemoteHub) {
     crate::mdns::withdraw();
 }
 
-fn accept_loop(listener: TcpListener, hub: RemoteHub, app: AppHandle, generation: u64) {
+/// `through_tailnet` marks the listener the built-in Tailscale node hands its
+/// connections to.
+fn accept_loop(
+    listener: TcpListener,
+    hub: RemoteHub,
+    app: AppHandle,
+    generation: u64,
+    through_tailnet: bool,
+) {
     loop {
         if hub.inner.generation.load(Ordering::SeqCst) != generation {
             return; // retired by a config change or shutdown
         }
         match listener.accept() {
-            Ok((stream, _)) => {
+            Ok((stream, peer)) => {
                 // The listener is non-blocking (so accept() can poll the
                 // generation), and on macOS the accepted socket inherits that
                 // flag. A non-blocking socket ignores set_read_timeout — reads
@@ -869,8 +913,9 @@ fn accept_loop(listener: TcpListener, hub: RemoteHub, app: AppHandle, generation
                 // first read fail and the whole handler busy-spin. Force it back
                 // to blocking so the read timeouts we set actually apply.
                 let _ = stream.set_nonblocking(false);
+                let route = Route::of(Some(peer.ip()), through_tailnet);
                 let (hub, app) = (hub.clone(), app.clone());
-                std::thread::spawn(move || handle_conn(stream, hub, app, generation));
+                std::thread::spawn(move || handle_conn(stream, hub, app, generation, route));
             }
             Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
                 std::thread::sleep(Duration::from_millis(200));
@@ -935,7 +980,7 @@ fn log_handshake_failure(peer: &str, reason: &str) {
     }
 }
 
-fn handle_conn(stream: TcpStream, hub: RemoteHub, app: AppHandle, generation: u64) {
+fn handle_conn(stream: TcpStream, hub: RemoteHub, app: AppHandle, generation: u64, route: Route) {
     let Some(mut ws) = accept_ws(stream) else {
         return;
     };
@@ -974,8 +1019,10 @@ fn handle_conn(stream: TcpStream, hub: RemoteHub, app: AppHandle, generation: u6
             tx,
             subs: subs.clone(),
             device_id: device_id.clone(),
+            route,
         },
     );
+    note_presence(&hub, &app, &device_id, route);
     let _ = ws.get_ref().tcp().set_read_timeout(Some(POLL));
     let _ = ws.get_ref().tcp().set_write_timeout(Some(WRITE_TIMEOUT));
 
@@ -1079,21 +1126,38 @@ fn handle_conn(stream: TcpStream, hub: RemoteHub, app: AppHandle, generation: u6
     // still fires — harmlessly, since that connection re-claims the presenter slot
     // when it processes its own `sub`.
     let owner = mobile_owner(&hub, &device_id);
-    let changed = {
+    let (changed, still_here) = {
         let mut clients = hub.inner.clients.lock().unwrap();
         clients.remove(&conn_id);
         if clients.values().any(|c| c.device_id == device_id) {
-            Vec::new()
+            (Vec::new(), true)
         } else {
-            app.state::<crate::control::ControlState>()
-                .drop_surface(&owner)
+            let changed = app
+                .state::<crate::control::ControlState>()
+                .drop_surface(&owner);
+            (changed, false)
         }
     };
     for (id, new_owner) in changed {
         crate::control::broadcast(&app, &id, &new_owner);
     }
+    // A socket that lingered after the phone moved networks closes late; the
+    // newer connection is the one to record.
+    if still_here {
+        let _ = app.emit("remote-devices-changed", ());
+    } else {
+        note_presence(&hub, &app, &device_id, route);
+    }
     let _ = ws.close(None);
     let _ = ws.flush();
+}
+
+/// A phone connected or left: stamp when and how, and let an open Settings
+/// pane refresh its row.
+fn note_presence(hub: &RemoteHub, app: &AppHandle, device_id: &str, route: Route) {
+    let now = crate::status::now_millis();
+    hub.update_config_opt(|cfg| crate::remotepresence::note_seen(cfg, device_id, route, now));
+    let _ = app.emit("remote-devices-changed", ());
 }
 
 // --- auth / pairing ----------------------------------------------------------
@@ -1401,8 +1465,13 @@ fn mint_device(cfg: &mut RemoteConfig, name: &str, replaces: Option<&str>) -> (S
         paired_server_id,
         ..Default::default()
     };
+    let mut device = device;
     let id = device.id.clone();
     if let Some(old) = replaces {
+        // A phone pairing again keeps the name it was given here.
+        if let Some(prev) = cfg.devices.iter().find(|d| d.id == old) {
+            device.alias = prev.alias.clone();
+        }
         cfg.devices.retain(|d| d.id != old);
     }
     cfg.devices.push(device);
@@ -5502,21 +5571,35 @@ fn pairing_qr_svg(payload: &str) -> Option<String> {
 
 pub(crate) fn state_value(hub: &RemoteHub) -> Value {
     let cfg = hub.config();
+    // A phone that moved networks can briefly hold two connections; the newest
+    // one says how it is connected now.
+    let mut live: HashMap<String, (u64, Route)> = HashMap::new();
+    for (conn_id, c) in hub.inner.clients.lock().unwrap().iter() {
+        let newest = live.get(&c.device_id).is_none_or(|(id, _)| *conn_id > *id);
+        if newest {
+            live.insert(c.device_id.clone(), (*conn_id, c.route));
+        }
+    }
     let devices: Vec<Value> = cfg
         .devices
         .iter()
-        .map(|d| json!({ "id": d.id, "name": d.name, "createdAt": d.created_at }))
+        .map(|d| crate::remotepresence::device_json(d, live.get(&d.id).map(|(_, r)| *r)))
         .collect();
     json!({
         "enabled": cfg.enabled,
         "port": effective_port(cfg.port),
         "tailscale": cfg.tailscale,
+        "keepAwake": cfg.keep_awake,
+        "keepAwakeStatus": crate::keepawake::status(cfg.keep_awake, cfg.enabled),
         "running": hub.inner.running.load(Ordering::Relaxed),
         "bindError": hub.bind_error(),
         "configError": hub.config_error(),
         "host": primary_lan_ip(),
         "tailscaleHost": tailscale_ip(),
         "identityRotated": cfg.enabled && crate::remotetls::identity_rotated(),
+        // Reading the code loads (or first creates) the certificate, which
+        // shouldn't happen just because the pane was opened.
+        "identityCode": if cfg.enabled { crate::remotetls::identity_code() } else { String::new() },
         "hasPendingCode": !cfg.pairing_code.is_empty()
             && !pairing_code_expired(cfg.pairing_code_armed_at),
         "devices": devices,
@@ -5697,6 +5780,29 @@ pub fn remote_revoke_device(hub: State<'_, RemoteHub>, id: String) -> Result<Val
     Ok(state_value(&hub))
 }
 
+/// Name a phone on this Mac; an empty name goes back to the phone's own.
+#[tauri::command(async)]
+pub fn remote_rename_device(
+    app: AppHandle,
+    hub: State<'_, RemoteHub>,
+    id: String,
+    name: String,
+) -> Result<Value, String> {
+    hub.try_update_config(|cfg| crate::remotepresence::rename(cfg, &id, &name))?
+        .ok_or_else(|| "That device isn't paired any more.".to_string())?;
+    let _ = app.emit("remote-devices-changed", ());
+    Ok(state_value(&hub))
+}
+
+/// Keep this machine awake while remote control is on. Saved without
+/// restarting the server, so connected phones stay connected.
+#[tauri::command(async)]
+pub fn remote_set_keep_awake(hub: State<'_, RemoteHub>, enabled: bool) -> Result<Value, String> {
+    hub.try_update_config(|cfg| cfg.keep_awake = enabled)?;
+    sync_keep_awake(&hub);
+    Ok(state_value(&hub))
+}
+
 /// Resolve the pending approve-on-Mac request from the dialog's Allow/Deny.
 /// Async so it never runs on (and blocks) the UI thread; the work is just a
 /// short lock + channel send that wakes the waiting connection thread.
@@ -5761,6 +5867,43 @@ mod tests {
     fn arm(cfg: &mut RemoteConfig, code: &str) {
         cfg.pairing_code = code.to_string();
         cfg.pairing_code_armed_at = crate::status::now_millis();
+    }
+
+    fn attach_client(hub: &RemoteHub, device: &str) -> mpsc::Receiver<String> {
+        let (tx, rx) = mpsc::sync_channel::<String>(8);
+        hub.inner.clients.lock().unwrap().insert(
+            hub.inner.next_id.fetch_add(1, Ordering::SeqCst) + 1,
+            Client {
+                tx,
+                subs: Arc::new(Mutex::new(HashSet::new())),
+                device_id: device.to_string(),
+                route: Route::Network,
+            },
+        );
+        rx
+    }
+
+    #[test]
+    fn farewell_tells_every_phone_why() {
+        let hub = RemoteHub::default();
+        hub.inner.enabled.store(true, Ordering::Relaxed);
+        let first = attach_client(&hub, "a");
+        let second = attach_client(&hub, "b");
+        farewell(&hub, "sleep");
+        for rx in [first, second] {
+            let frame: Value = serde_json::from_str(&rx.try_recv().unwrap()).unwrap();
+            assert_eq!(frame["t"], "bye");
+            assert_eq!(frame["reason"], "sleep");
+            assert!(frame["at"].as_u64().unwrap() > 0);
+        }
+    }
+
+    #[test]
+    fn farewell_is_silent_while_the_server_is_off() {
+        let hub = RemoteHub::default();
+        let rx = attach_client(&hub, "a");
+        farewell(&hub, "quit");
+        assert!(rx.try_recv().is_err());
     }
 
     // Regression for the non-blocking-accept bug: a socket accepted from a
@@ -6815,6 +6958,7 @@ mod tests {
             pairing_code_armed_at: 42,
             tailscale: true,
             push_relay: "http://localhost:3000/api/push".into(),
+            keep_awake: true,
             server_id: Some("srv-1".into()),
             dev_server_id: Some("dev-1".into()),
             devices: vec![Device {
@@ -6832,7 +6976,12 @@ mod tests {
                 push_automation_done: true,
                 push_automation_error: false,
                 paired_server_id: Some("srv-1".into()),
+                alias: "Work iPhone".into(),
+                last_seen: 43,
+                last_route: "tailscale".into(),
+                extra: Default::default(),
             }],
+            extra: Default::default(),
         };
         let s = serde_json::to_string(&cfg).unwrap();
         let back: RemoteConfig = serde_json::from_str(&s).unwrap();
@@ -6847,6 +6996,10 @@ mod tests {
         assert_eq!(back.devices[0].id, "d1");
         assert_eq!(back.devices[0].apns_token, "deadbeef");
         assert_eq!(back.devices[0].apns_env, "sandbox");
+        assert!(back.keep_awake);
+        assert_eq!(back.devices[0].alias, "Work iPhone");
+        assert_eq!(back.devices[0].last_seen, 43);
+        assert_eq!(back.devices[0].last_route, "tailscale");
         assert_eq!(
             back.devices[0].push_key,
             base64::engine::general_purpose::STANDARD.encode([7u8; 32])

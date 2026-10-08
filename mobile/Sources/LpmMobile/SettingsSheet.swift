@@ -19,22 +19,6 @@ struct SettingsSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Appearance") {
-                    Picker("Theme", selection: $appearanceRaw) {
-                        ForEach(AppearanceMode.allCases) { mode in
-                            Label(mode.label, systemImage: mode.systemImage).tag(mode.rawValue)
-                        }
-                    }
-                }
-
-                Section {
-                    TerminalSettingsControls()
-                } header: {
-                    Text("Terminal")
-                } footer: {
-                    Text("Font size and color scheme for the built-in terminal.")
-                }
-
                 Section {
                     NavigationLink {
                         TailnetSettingsView()
@@ -49,6 +33,22 @@ struct SettingsSheet: View {
                     Text("Away from home")
                 } footer: {
                     Text("Reach your Mac over cellular or any network, no Tailscale app needed.")
+                }
+
+                Section("Appearance") {
+                    Picker("Theme", selection: $appearanceRaw) {
+                        ForEach(AppearanceMode.allCases) { mode in
+                            Label(mode.label, systemImage: mode.systemImage).tag(mode.rawValue)
+                        }
+                    }
+                }
+
+                Section {
+                    TerminalSettingsControls()
+                } header: {
+                    Text("Terminal")
+                } footer: {
+                    Text("Font size and color scheme for the built-in terminal.")
                 }
 
                 Section {

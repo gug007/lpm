@@ -1,10 +1,9 @@
 import SwiftUI
 
 /// The navigation-bar title menu for choosing which saved Mac is live. Shows the
-/// active Mac's name; tapping opens a menu of all saved Macs (checkmark on the
-/// active one), the live Mac's own servers and Macs still being added here, and
-/// "Add a Mac…". With a single saved Mac it still works as an entry point for
-/// adding another.
+/// active Mac's name; tapping opens a menu of all saved Macs with whether each
+/// answers right now (checkmark on the active one), the live Mac's own servers
+/// and Macs still being added here, "Add a machine…" and "Manage machines…".
 struct MacSwitcherMenu: View {
     @Environment(AppModel.self) private var model
 
@@ -21,12 +20,10 @@ struct MacSwitcherMenu: View {
                     Button {
                         model.switchTo(mac)
                     } label: {
-                        if mac.localId == model.activeMacId {
-                            Label(mac.displayName, systemImage: "checkmark")
-                        } else {
-                            Label(mac.displayName,
-                                  systemImage: mac.isLinuxHost ? "server.rack" : "desktopcomputer")
-                        }
+                        Text(mac.displayName)
+                        Text(status(of: mac))
+                        Image(systemName: mac.localId == model.activeMacId
+                              ? "checkmark" : (mac.isLinuxHost ? "server.rack" : "desktopcomputer"))
                     }
                 }
                 let pending = model.machineImporter.rows(macs: model.macs)
@@ -43,6 +40,11 @@ struct MacSwitcherMenu: View {
                 } label: {
                     Label("Add a machine…", systemImage: "plus")
                 }
+                Button {
+                    model.link.manageOpen = true
+                } label: {
+                    Label("Manage machines…", systemImage: "slider.horizontal.3")
+                }
             }
         } label: {
             HStack(spacing: 4) {
@@ -54,6 +56,23 @@ struct MacSwitcherMenu: View {
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
             }
+        }
+    }
+
+    /// Whether a saved machine is reachable: the live one's own status, and for
+    /// the others the last check, so switching isn't a guess.
+    private func status(of mac: MacRecord) -> String {
+        if mac.localId == model.activeMacId { return model.link.statusLine.text }
+        return MacSwitcherMenu.reachText(model.link.reach[mac.localId], lastConnected: mac.lastConnected)
+    }
+
+    static func reachText(_ reach: MacReach?, lastConnected: Date?) -> String {
+        switch reach {
+        case .online?: return "Online"
+        case .checking?: return "Checking…"
+        default:
+            guard let last = lastConnected else { return "Not answering right now" }
+            return "Last connected \(last.formatted(.relative(presentation: .named)))"
         }
     }
 

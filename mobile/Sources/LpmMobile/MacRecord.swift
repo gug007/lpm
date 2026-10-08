@@ -21,6 +21,10 @@ struct MacRecord: Codable, Identifiable, Equatable {
     // What the machine runs on ("macos"/"linux"), learned on every connect like
     // `name`. nil until a build that reports it is reached — treat as a Mac.
     var platform: String? = nil
+    // When the phone was last connected to it, and why it last went away if it
+    // said so. Absent from records saved before these existed.
+    var lastConnected: Date? = nil
+    var farewell: Farewell? = nil
 
     var id: UUID { localId }
 

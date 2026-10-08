@@ -172,6 +172,8 @@ export function MessageHistorySetFolder(...args: any[]): Promise<any>;
 export function LoadSettings(...args: any[]): Promise<any>;
 export function RemoteState(...args: any[]): Promise<any>;
 export function RemoteSetConfig(...args: any[]): Promise<any>;
+export function RemoteRenameDevice(...args: any[]): Promise<any>;
+export function RemoteSetKeepAwake(...args: any[]): Promise<any>;
 export function TailnetState(...args: any[]): Promise<any>;
 export function TailnetSetEnabled(...args: any[]): Promise<any>;
 export function TailnetSignIn(...args: any[]): Promise<any>;

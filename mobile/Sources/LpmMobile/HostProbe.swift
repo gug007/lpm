@@ -49,6 +49,26 @@ enum HostProbe {
         await race(hosts, port: port, timeout: timeout).winner
     }
 
+    /// Whether any of the addresses answers — probing even a lone address, which
+    /// `race` hands back untested.
+    static func anyReachable(_ hosts: [String], port: Int, timeout: TimeInterval = 6) async -> Bool {
+        let candidates = hosts.filter { !$0.isEmpty }
+        if candidates.count == 1 { return await open(candidates[0], port: port, timeout: timeout).reachable }
+        return await race(candidates, port: port, timeout: timeout).winner != nil
+    }
+
+    /// Check every address and report each one, for the address list.
+    static func checkAll(_ hosts: [String], port: Int, timeout: TimeInterval = 6) async -> [Outcome] {
+        await withTaskGroup(of: Outcome.self) { group in
+            for host in hosts where !host.isEmpty {
+                group.addTask { await open(host, port: port, timeout: timeout) }
+            }
+            var outcomes: [Outcome] = []
+            for await outcome in group { outcomes.append(outcome) }
+            return outcomes
+        }
+    }
+
     /// Probe one host. Reachability is signalled two ways, whichever fires first:
     /// the delegate's `didOpenWithProtocol`, and a `sendPing` round-trip — the
     /// ping also *drives* the connection, since a `URLSessionWebSocketTask` may

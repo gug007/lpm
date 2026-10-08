@@ -82,13 +82,15 @@ export interface RemoteFailure {
   message: string;
 }
 
-export type RemoteAction = "server" | "tailscale" | "pair" | "revoke";
+export type RemoteAction = "server" | "tailscale" | "keepAwake" | "pair" | "revoke" | "rename";
 
 const ACTION_FAILURE: Record<RemoteAction, RemoteFailure> = {
   server: { slot: "server", message: "That change wasn't saved." },
   tailscale: { slot: "network", message: "That change wasn't saved." },
   pair: { slot: "devices", message: "Couldn't start pairing." },
   revoke: { slot: "devices", message: "That device wasn't revoked." },
+  keepAwake: { slot: "server", message: "That change wasn't saved." },
+  rename: { slot: "devices", message: "That name wasn't saved." },
 };
 
 /** The Mac rejects with a plain sentence, not an error object, so `instanceof

@@ -91,6 +91,14 @@ final class LpmClient: NSObject {
     // carrying the match code to display), or refused with a reason.
     var onPairPending: ((_ matchCode: String) -> Void)?
     var onPairDenied: ((_ reason: String, _ message: String?) -> Void)?
+    // The Mac said why it's closing the connection (going to sleep, quitting,
+    // remote control turned off) just before it does.
+    var onFarewell: ((_ reason: String, _ at: Date) -> Void)?
+    // The Mac answered again after a goodbye, so it didn't go away after all.
+    var onFarewellWithdrawn: (() -> Void)?
+    // The raw text of every `projects` and `sidebar` frame, so the model can save
+    // the last list per Mac and show it before the next connection lands.
+    var onListFrame: ((_ text: String) -> Void)?
     // A reconnect reached `ready` carrying the Mac's identity, so the active
     // record can learn/refresh its serverId and name. Absent on older Macs.
     var onIdentity: ((_ serverId: String?, _ serverName: String?, _ platform: String?) -> Void)?
@@ -242,9 +250,10 @@ final class LpmClient: NSObject {
     private let probeTimeout: TimeInterval = 4
     private let baseBackoff: TimeInterval = 1.5
     private let maxBackoff: TimeInterval = 20
-    // After a few quick retries fail, stop pretending and surface an honest error
-    // (while still retrying underneath), so the UI never spins forever.
-    private let patientAttempts = 3
+    // After a quick retry fails, stop pretending and surface an honest error
+    // (while still retrying underneath), so the UI never spins forever. The
+    // status bar already says "connecting" after a couple of seconds.
+    private let patientAttempts = 1
 
     static let offlineHint = "Can't reach your Mac. On cellular, make sure Tailscale is connected on both devices."
 
@@ -275,6 +284,12 @@ final class LpmClient: NSObject {
     // succeed. Mapped to user-facing copy by the model, which turns it into a
     // "pair again" prompt.
     static let unauthorizedError = "device-unauthorized"
+
+    // Failures the Mac reports in an `error` frame during pairing, and the one
+    // this client raises when it has nothing to authenticate with.
+    static let pairingRejectedError = "pairing rejected"
+    static let pairingUnavailableError = "pairing unavailable"
+    static let noCredentialError = "no credential"
 
     /// True for any of the retryable "offline" hints — the states the model's
     /// stale-host repick and mDNS recovery should react to, not just the generic
@@ -312,6 +327,9 @@ final class LpmClient: NSObject {
         }
         return parts.joined(separator: "/")
     }
+
+    // Set by a `bye` until the Mac shows it is still there.
+    private var farewellPending = false
 
     // The auth/pair frame for the current attempt, transmitted only once the
     // socket reports open (see startAttempt for why it can't be sent earlier).
@@ -439,6 +457,17 @@ final class LpmClient: NSObject {
         startAttempt()
     }
 
+    /// Dial a different saved address for the same Mac now, keeping everything
+    /// this connection was watching, so a phone that changed networks resumes its
+    /// terminals instead of starting over.
+    func move(to host: String) {
+        endpoint = Endpoint(host: host, port: endpoint.port)
+        retryNow()
+    }
+
+    /// The address this client dials.
+    var host: String { endpoint.host }
+
     /// Foreground probe: a `.ready` state after the app was backgrounded is often
     /// stale — iOS kills the socket within seconds, and a half-open cellular path
     /// even accepts sends — so a plain "already ready" check would leave the UI
@@ -523,7 +552,7 @@ final class LpmClient: NSObject {
         } else if let c = credential {
             pendingHandshakeFrame = Wire.auth(deviceId: c.deviceId, token: c.token)
         } else {
-            return fatal("no credential")
+            return fatal(Self.noCredentialError)
         }
         task.resume()
         receiveLoop(task)
@@ -678,7 +707,7 @@ final class LpmClient: NSObject {
                     self.heartbeatDeadline?.cancel()
                     self.heartbeatDeadline = nil
                     self.heartbeatArmedAt = nil
-                    if let err { self.transientFailure("ping failed", error: err) }
+                    if let err { self.transientFailure("ping failed", error: err) } else { self.noteStillThere() }
                 }
             }
         }
@@ -1115,10 +1144,18 @@ final class LpmClient: NSObject {
                 // structs) touches nothing @MainActor. Then hop to main only to
                 // dispatch the already-parsed frame. The serial callback queue plus
                 // the ordered main.async preserves frame order exactly.
-                let frame: Wire.Inbound? = { if case .string(let text) = message { return Wire.Inbound.parse(text) } else { return nil } }()
+                let text: String? = { if case .string(let text) = message { return text } else { return nil } }()
+                let frame = text.map(Wire.Inbound.parse)
                 self.main {
                     guard task === self.task else { return } // a superseded task's callback
-                    if let frame { self.dispatch(frame) }
+                    if let frame {
+                        switch frame {
+                        case .projects, .sidebar: if let text { self.onListFrame?(text) }
+                        default: break
+                        }
+                        if case .bye = frame {} else { self.noteStillThere() }
+                        self.dispatch(frame)
+                    }
                     self.receiveLoop(task)
                 }
             }
@@ -1157,6 +1194,10 @@ final class LpmClient: NSObject {
                 self.flushPending()
                 self.onIdentity?(serverId, serverName, platform)
                 if !hosts.isEmpty { self.onAdvertisedHosts?(serverId, hosts) }
+            case .bye(let reason, let at):
+                let when = at.map { Date(timeIntervalSince1970: Double($0) / 1000) } ?? Date()
+                self.farewellPending = true
+                self.onFarewell?(reason, when)
             case .error(let e):
                 // The Mac dropped this device's record: retrying the same
                 // credential is pointless, so stop and report it as the sentinel
@@ -1320,6 +1361,12 @@ final class LpmClient: NSObject {
                 self.onNotesAttachment?(project, hash, data, error)
             case .pong, .unknown: break
         }
+    }
+
+    private func noteStillThere() {
+        guard farewellPending else { return }
+        farewellPending = false
+        onFarewellWithdrawn?()
     }
 
     private func set(_ s: State) {

@@ -57,6 +57,26 @@ pub fn fingerprint() -> String {
     material().fingerprint.clone()
 }
 
+/// The short code people compare to confirm this machine's identity: the first
+/// twelve hex digits of the fingerprint, grouped in fours. lpm Link shows the
+/// same code for the certificate it sees.
+pub fn identity_code() -> String {
+    code_of(&fingerprint())
+}
+
+fn code_of(fingerprint: &str) -> String {
+    let hex: Vec<char> = fingerprint
+        .chars()
+        .filter(char::is_ascii_hexdigit)
+        .take(12)
+        .map(|c| c.to_ascii_uppercase())
+        .collect();
+    hex.chunks(4)
+        .map(|c| c.iter().collect::<String>())
+        .collect::<Vec<_>>()
+        .join(" · ")
+}
+
 fn crypto_provider() -> Arc<rustls::crypto::CryptoProvider> {
     Arc::new(rustls::crypto::aws_lc_rs::default_provider())
 }
@@ -249,5 +269,15 @@ impl rustls::client::danger::ServerCertVerifier for NoVerify {
 
     fn supported_verify_schemes(&self) -> Vec<rustls::SignatureScheme> {
         self.0.signature_verification_algorithms.supported_schemes()
+    }
+}
+
+#[cfg(test)]
+mod code_tests {
+    use super::code_of;
+
+    #[test]
+    fn identity_code_groups_the_fingerprint_start() {
+        assert_eq!(code_of("4f9a21c78b03deadbeef0000"), "4F9A · 21C7 · 8B03");
     }
 }

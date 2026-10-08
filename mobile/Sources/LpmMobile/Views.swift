@@ -26,11 +26,13 @@ struct ContentView: View {
     var body: some View {
         Group {
             if model.macs.isEmpty {
-                PairingView()
+                NavigationStack { PairingView() }
             } else {
                 NavigationStack(path: $path) { ProjectsView() }
             }
         }
+        .modifier(ConnectionSheets())
+        .onChange(of: BuiltInTailscale.shared.status.state) { _, state in model.tailnetChanged(state) }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .active:
@@ -85,341 +87,9 @@ struct ContentView: View {
     }
 }
 
-struct PairingView: View {
-    // Non-nil when shown as the "Add a Mac" sheet: adds a Cancel button that
-    // returns to the projects list (reconnecting the previously active Mac).
-    var onCancel: (() -> Void)? = nil
-    @Environment(AppModel.self) private var model
-    @State private var host = ""
-    @State private var port = "8765"
-    @State private var code = ""
-    @State private var scanning = false
-    @State private var scannedHosts: [String] = []
-    // Local-network discovery, running only while this screen is visible.
-    @State private var discovery = MacDiscovery()
-    @State private var resolvingNearbyId: String?
-    // The nearby Mac last tapped and the address its resolution filled in, so the
-    // row shows a checkmark only while the address field still holds that address.
-    @State private var lastResolvedNearbyId: String?
-    @State private var lastResolvedNearbyHost: String?
-    // The resolved address + name of the Mac being paired via approve-on-Mac, kept
-    // so the waiting sheet can retry and the "Enter code instead" fallback can fill
-    // the manual fields.
-    @State private var approvalMacName = ""
-    @State private var approvalHost = ""
-    @State private var approvalPort = 8765
-
-    private var trimmedHost: String {
-        host.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private var trimmedCode: String {
-        code.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    /// The typed host plus any other addresses the QR advertised (e.g. the
-    /// Tailscale IP), typed one first, deduped. Pairing probes all of them so a
-    /// scan that autofills the LAN IP still reaches the Mac over the tailnet.
-    private var pairHosts: [String] {
-        ([trimmedHost] + scannedHosts).reduce(into: [String]()) { acc, h in
-            if !h.isEmpty && !acc.contains(h) { acc.append(h) }
-        }
-    }
-
-    private var canPair: Bool {
-        !trimmedHost.isEmpty && !trimmedCode.isEmpty
-    }
-
-    /// The nearby row to mark selected: the one whose resolved address still
-    /// matches what's typed in the address field (cleared if the user edits it).
-    private var selectedNearbyId: String? {
-        guard let id = lastResolvedNearbyId, let h = lastResolvedNearbyHost, trimmedHost == h else { return nil }
-        return id
-    }
-
-    /// Tap a nearby Mac: resolve its address and start approve-on-Mac pairing (the
-    /// user confirms on the Mac, no code typed). The resolved address is remembered
-    /// so the waiting sheet can retry or fall back to entering the code manually.
-    /// A machine that can't show the approval dialog (a headless host) skips
-    /// straight to the manual fields with its address filled in.
-    private func selectNearby(_ mac: MacDiscovery.DiscoveredMac) {
-        resolvingNearbyId = mac.id
-        Task {
-            let resolved = await discovery.resolve(mac)
-            resolvingNearbyId = nil
-            guard let resolved else { return }
-            approvalMacName = mac.displayName
-            approvalHost = resolved.host
-            approvalPort = Int(resolved.port)
-            // Remember the resolved address for the row's checkmark, which only
-            // lights once that address actually fills the manual field (i.e. after
-            // "Enter code instead") — not during the approval flow.
-            lastResolvedNearbyId = mac.id
-            lastResolvedNearbyHost = resolved.host
-            if mac.requestPair {
-                model.pairViaApproval(host: resolved.host, port: Int(resolved.port))
-            } else {
-                host = resolved.host
-                port = String(resolved.port)
-                scannedHosts = []
-            }
-        }
-    }
-
-    private func retryApproval() {
-        guard !approvalHost.isEmpty else { return }
-        model.pairViaApproval(host: approvalHost, port: approvalPort)
-    }
-
-    /// Fall back to today's flow: fill the manual fields with the resolved address
-    /// so the user can type the pairing code, and end the approval attempt.
-    private func enterCodeInstead() {
-        host = approvalHost
-        port = String(approvalPort)
-        scannedHosts = []
-        model.cancelApprovalPairing()
-    }
-
-    private var isPairing: Bool {
-        if case .connecting = model.connection { return true }
-        return false
-    }
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 28) {
-                VStack(alignment: .leading, spacing: 14) {
-                    Image(systemName: "macbook.and.iphone")
-                        .font(.system(size: 42, weight: .semibold))
-                        .symbolRenderingMode(.hierarchical)
-                        .foregroundStyle(.blue)
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Pair with your Mac")
-                            .font(.largeTitle.weight(.bold))
-
-                        Text("Open lpm Settings on your Mac, add a mobile device, then scan the QR code or enter the pairing details.")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-                .padding(.top, 28)
-
-                Button {
-                    scanning = true
-                } label: {
-                    HStack(spacing: 14) {
-                        Image(systemName: "qrcode.viewfinder")
-                            .font(.system(size: 23, weight: .medium))
-                            .foregroundStyle(.white)
-                            .frame(width: 42, height: 42)
-                            .background(.blue, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text("Scan QR Code")
-                                .font(.headline)
-                                .foregroundStyle(.primary)
-                            Text("Use the code from lpm on your Mac")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        Spacer()
-
-                        Image(systemName: "chevron.right")
-                            .font(.footnote.weight(.semibold))
-                            .foregroundStyle(.tertiary)
-                    }
-                    .padding(16)
-                    .background(
-                        Color(uiColor: .secondarySystemGroupedBackground),
-                        in: RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    )
-                }
-                .buttonStyle(.plain)
-
-                if onCancel == nil {
-                    Button {
-                        model.enterDemo()
-                    } label: {
-                        HStack(spacing: 14) {
-                            Image(systemName: "play.circle.fill")
-                                .font(.system(size: 23, weight: .medium))
-                                .foregroundStyle(.white)
-                                .frame(width: 42, height: 42)
-                                .background(.purple, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text("Try Demo")
-                                    .font(.headline)
-                                    .foregroundStyle(.primary)
-                                Text("See how lpm works with sample projects — no Mac needed")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-
-                            Spacer()
-
-                            Image(systemName: "chevron.right")
-                                .font(.footnote.weight(.semibold))
-                                .foregroundStyle(.tertiary)
-                        }
-                        .padding(16)
-                        .background(
-                            Color(uiColor: .secondarySystemGroupedBackground),
-                            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        )
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                if !discovery.found.isEmpty {
-                    NearbyMacsView(
-                        macs: discovery.found,
-                        pairedServerIds: Set(model.macs.compactMap { $0.serverId }),
-                        resolvingId: resolvingNearbyId,
-                        selectedId: selectedNearbyId,
-                        onPick: selectNearby
-                    )
-                }
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("ENTER MANUALLY")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-
-                    VStack(spacing: 0) {
-                        PairingFieldRow(
-                            systemImage: "network",
-                            placeholder: "Mac host or Tailnet IP",
-                            text: $host,
-                            keyboardType: .URL,
-                            autocapitalization: .never
-                        )
-
-                        Divider().padding(.leading, 56)
-
-                        PairingFieldRow(
-                            systemImage: "number",
-                            placeholder: "Port",
-                            text: $port,
-                            keyboardType: .numberPad,
-                            autocapitalization: .never
-                        )
-
-                        Divider().padding(.leading, 56)
-
-                        PairingFieldRow(
-                            systemImage: "key",
-                            placeholder: "Pairing code",
-                            text: $code,
-                            autocapitalization: .characters
-                        )
-                    }
-                    .background(
-                        Color(uiColor: .secondarySystemGroupedBackground),
-                        in: RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    )
-                }
-
-                VStack(spacing: 12) {
-                    Button {
-                        model.pair(hosts: pairHosts, port: Int(port) ?? 8765, code: trimmedCode)
-                    } label: {
-                        HStack(spacing: 8) {
-                            if isPairing { ProgressView().controlSize(.small) }
-                            Text(isPairing ? "Pairing…" : "Pair").font(.headline)
-                        }
-                        .frame(maxWidth: .infinity, minHeight: 50)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .buttonBorderShape(.roundedRectangle(radius: 14))
-                    .disabled(!canPair || isPairing)
-
-                    if case .failed(let err) = model.connection {
-                        Text(err)
-                            .font(.footnote)
-                            .foregroundStyle(.red)
-                            .multilineTextAlignment(.center)
-                            .frame(maxWidth: .infinity)
-                            .padding(.horizontal)
-                    }
-
-                    TailnetPairingRow()
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 32)
-        }
-        .scrollDismissesKeyboard(.interactively)
-        .onAppear { discovery.start() }
-        .onDisappear { discovery.stop() }
-        .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
-        .toolbar {
-            if let onCancel {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel") { onCancel() }
-                }
-            }
-        }
-        .sheet(isPresented: $scanning) {
-            QRScannerView { payload in
-                host = payload.host
-                port = String(payload.port)
-                code = payload.code
-                scannedHosts = payload.hosts
-                model.pair(hosts: payload.hosts, port: payload.port, code: payload.code,
-                           fingerprint: payload.fingerprint)
-            }
-        }
-        .sheet(isPresented: Binding(
-            get: { model.approvalPairing != nil },
-            set: { if !$0 { model.cancelApprovalPairing() } }
-        )) {
-            ApprovalPairingSheet(
-                macName: approvalMacName,
-                onCancel: { model.cancelApprovalPairing() },
-                onRetry: retryApproval,
-                onEnterCode: enterCodeInstead
-            )
-        }
-    }
-}
-
-struct PairingFieldRow: View {
-    let systemImage: String
-    let placeholder: String
-    @Binding var text: String
-    var keyboardType: UIKeyboardType = .default
-    var autocapitalization: TextInputAutocapitalization? = nil
-
-    var body: some View {
-        HStack(spacing: 14) {
-            Image(systemName: systemImage)
-                .font(.system(size: 18, weight: .medium))
-                .foregroundStyle(.secondary)
-                .frame(width: 26)
-
-            TextField(placeholder, text: $text)
-                .font(.body)
-                .keyboardType(keyboardType)
-                .textInputAutocapitalization(autocapitalization)
-                .autocorrectionDisabled()
-        }
-        .frame(minHeight: 52)
-        .padding(.horizontal, 16)
-    }
-}
-
 struct ProjectsView: View {
     @Environment(AppModel.self) private var model
     @State private var expandedOverride: [String: Bool] = [:]
-    @State private var confirmingRemove = false
-    @State private var renamingMac = false
-    @State private var renameText = ""
-    @State private var editingEndpoint = false
     @State private var showingSettings = false
     @State private var addingProject = false
     // The duplicate pending removal-confirmation. Removing deletes its folder from
@@ -458,26 +128,6 @@ struct ProjectsView: View {
         }
     }
 
-    /// A friendly reference to a Mac in confirmation copy: its name in quotes, or
-    /// "the Mac at <address>" while it's still identified only by an IP.
-    private func macReference(_ record: MacRecord) -> String {
-        record.isAddressName ? "the Mac at \(record.displayAddress)" : "“\(record.displayName)”"
-    }
-
-    private var removeMacTitle: String {
-        guard let active = model.activeRecord else { return "Remove this Mac?" }
-        return active.isAddressName ? "Remove this Mac?" : "Remove “\(active.displayName)”?"
-    }
-
-    private var removeMacMessage: String {
-        let active = model.activeRecord
-        let first = (active?.isAddressName ?? false)
-            ? "This iPhone will be unpaired from the Mac at \(active!.displayAddress) and its notifications will stop."
-            : "This iPhone will be unpaired and notifications from this Mac will stop."
-        let switchSentence = model.nextMacAfterRemoval.map { " You’ll switch to \(macReference($0))." } ?? ""
-        return first + switchSentence + " To add it back, scan its QR code again."
-    }
-
     @ViewBuilder
     private func sidebarRow(_ item: SidebarItem) -> some View {
         switch item {
@@ -510,7 +160,8 @@ struct ProjectsView: View {
         NavigationLink(value: row.project.name) {
             ProjectRow(project: row.project,
                        pending: model.pendingRun[row.project.name] != nil,
-                       agentCount: agents.count)
+                       agentCount: agents.count,
+                       stale: isStale)
                 .padding(.leading, indent)
         }
         .projectRowActions(row.project, removing: $removing, duplicating: $duplicating,
@@ -534,13 +185,33 @@ struct ProjectsView: View {
         }
     }
 
+    /// The list on screen is the one saved from the last connection, not live.
+    private var isStale: Bool { model.link.listAsOf != nil && !model.link.isReady }
+
     var body: some View {
         List {
-            ForEach(model.sidebarItems) { item in
-                sidebarRow(item)
+            Section {
+                ForEach(model.sidebarItems) { item in
+                    sidebarRow(item)
+                }
+            } header: {
+                if isStale, let asOf = model.link.listAsOf {
+                    Text("Last update · \(asOf.formatted(Calendar.current.isDateInToday(asOf) ? .dateTime.hour().minute() : .dateTime.month().day().hour().minute()))")
+                        .textCase(nil)
+                }
+            } footer: {
+                if isStale {
+                    Text("Projects open read-only until your Mac is back. Start and Stop wait for it, for up to 2 minutes.")
+                }
             }
         }
         .refreshable { await model.refreshProjects() }
+        .task(id: model.macs.count) {
+            while model.macs.count > 1 && !Task.isCancelled {
+                model.link.refreshReach()
+                try? await Task.sleep(nanoseconds: 60_000_000_000)
+            }
+        }
         // Terminal rows are named after the tab they run in, and only the Mac knows
         // those names. Keyed on which projects have agents so the ask lands after
         // the project list itself has arrived, and again whenever an agent starts
@@ -561,11 +232,8 @@ struct ProjectsView: View {
         .navigationTitle("Projects")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                ConnectionIndicator(state: model.connection, needsRepair: model.needsRepair)
-            }
             ToolbarItem(placement: .principal) {
-                MacSwitcherMenu()
+                MacTitle()
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
@@ -601,26 +269,6 @@ struct ProjectsView: View {
                     }
                     Button { folderNameText = ""; creatingFolder = true } label: {
                         Label("New Folder…", systemImage: "folder.badge.plus")
-                    }
-                    Button {
-                        renameText = model.activeRecord?.displayName ?? ""
-                        renamingMac = true
-                    } label: {
-                        Label("Rename this Mac", systemImage: "pencil")
-                    }
-                    Button { editingEndpoint = true } label: {
-                        Label("Edit Address…", systemImage: "network")
-                    }
-                    // Also the way back when the phone's saved credential is
-                    // unusable but the connection never reports it (no stored
-                    // credential at all), which leaves no error to act on.
-                    if !model.demoMode {
-                        Button { model.repairActiveMac() } label: {
-                            Label("Pair Again…", systemImage: "macbook.and.iphone")
-                        }
-                    }
-                    Button(role: .destructive) { confirmingRemove = true } label: {
-                        Label("Remove this Mac", systemImage: "trash")
                     }
                 } label: {
                     // An agent waiting on you lives one tap deep, under Activity —
@@ -667,55 +315,28 @@ struct ProjectsView: View {
                 AutomationDetailView(project: project, jobId: id)
             }
         }
-        // A list left over from the last session would otherwise look live while
-        // the Mac is refusing this device — say so above it, with the only action
-        // that can actually fix it.
+        // One bar, above the list, for whatever is wrong with the link — and the
+        // one fix for it. A list with nothing to show puts the problem in its
+        // place instead.
         .safeAreaInset(edge: .top) {
-            if model.needsRepair && !model.projects.isEmpty {
-                RepairNoticeBar { model.repairActiveMac() }
+            if !model.projects.isEmpty || model.link.visibleIssue?.isConnecting == true {
+                ConnectionStatusBar()
             }
         }
         .overlay {
             if model.projects.isEmpty {
-                if model.needsRepair {
-                    ContentUnavailableView {
-                        Label("Pair with your Mac again", systemImage: "macbook.and.iphone")
-                    } description: {
-                        Text("Your Mac no longer recognizes this device, so it won't accept the connection. Pair with it again to restore access.")
-                    } actions: {
-                        Button("Pair Again") { model.repairActiveMac() }
-                            .buttonStyle(.borderedProminent)
-                    }
+                if let issue = model.link.visibleIssue, !issue.isConnecting {
+                    IssueCard(issue: issue)
+                        .padding(.horizontal, 20)
                 } else if model.projectsLoaded {
                     ContentUnavailableView("No projects", systemImage: "folder")
-                } else if case .failed(let msg) = model.connection {
-                    ContentUnavailableView {
-                        Label("Can't reach your Mac", systemImage: "wifi.slash")
-                    } description: {
-                        Text(msg)
-                    } actions: {
-                        Button("Retry") { model.retryConnection() }
-                            .buttonStyle(.borderedProminent)
-                    }
                 } else {
                     ProjectListSkeleton()
                 }
             }
         }
         .animation(.default, value: model.projectsLoaded)
-        .alert(removeMacTitle, isPresented: $confirmingRemove) {
-            Button("Remove", role: .destructive) { model.removeActiveMac() }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text(removeMacMessage)
-        }
-        .alert("Rename Mac", isPresented: $renamingMac) {
-            TextField("Mac name", text: $renameText)
-            Button("Cancel", role: .cancel) {}
-            Button("Save") { model.renameActiveMac(renameText) }
-        } message: {
-            Text("Leave blank to use the name reported by the Mac.")
-        }
+        .animation(.default, value: model.link.visibleIssue)
         .sheet(isPresented: Binding(get: { model.addingMac }, set: { model.addingMac = $0 }),
                onDismiss: { model.cancelAddMac() }) {
             NavigationStack {
@@ -742,15 +363,6 @@ struct ProjectsView: View {
         } message: {
             Text(model.actionError ?? "")
         }
-        .alert(
-            "This Mac's identity has changed",
-            isPresented: Binding(get: { model.identityMismatch }, set: { if !$0 { model.identityMismatch = false } })
-        ) {
-            Button("Trust New Identity") { model.trustNewIdentity() }
-            Button("Cancel", role: .cancel) { model.identityMismatch = false }
-        } message: {
-            Text("The security identity of this Mac differs from the one you paired with. This is expected if lpm was reinstalled on your Mac — but if you weren't expecting it, someone may be impersonating your Mac. Only trust the new identity if you recognize the change.")
-        }
         .sheet(item: $duplicating) { p in
             DuplicateOptionsView(project: p, defaults: model.duplicateDefaults) { options in
                 model.duplicateProject(p, options: options)
@@ -761,9 +373,6 @@ struct ProjectsView: View {
         }
         .sheet(isPresented: $addingProject) {
             AddProjectSheet()
-        }
-        .sheet(isPresented: $editingEndpoint) {
-            EditEndpointView()
         }
         .alert(
             "Heads up",
@@ -787,18 +396,11 @@ struct ProjectsView: View {
             }
         }
         .safeAreaInset(edge: .top) {
-            if let status = model.recoveryStatus {
-                RecoveryBanner(text: status)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-            }
-        }
-        .safeAreaInset(edge: .top) {
             if model.demoMode {
                 DemoBanner { model.exitDemo() }
             }
         }
         .animation(.default, value: model.duplicateProgress == nil)
-        .animation(.default, value: model.recoveryStatus)
     }
 }
 
@@ -855,27 +457,6 @@ struct NotificationTerminalDestination: View {
             }
         }
         .task { model.loadTerminals(projectName) }
-    }
-}
-
-/// A slim top banner shown while automatic endpoint recovery is finding the Mac
-/// on the local network and reconnecting to it.
-private struct RecoveryBanner: View {
-    let text: String
-
-    var body: some View {
-        HStack(spacing: 10) {
-            ProgressView().controlSize(.small)
-            Text(text)
-                .font(.subheadline.weight(.medium))
-                .lineLimit(1)
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
-        .padding(.horizontal)
-        .padding(.bottom, 6)
     }
 }
 
@@ -1056,42 +637,6 @@ private extension View {
     }
 }
 
-/// A dot + one-word status for the live link to the Mac. The dot carries the
-/// color; it pulses while the socket is still connecting.
-struct ConnectionIndicator: View {
-    let state: LpmClient.State
-    var needsRepair = false
-
-    private var tint: SwiftUI.Color {
-        switch state {
-        case .ready: return .green
-        case .connecting: return .orange
-        case .failed: return .red
-        case .idle: return .gray
-        }
-    }
-    private var label: String {
-        if needsRepair { return "not paired" }
-        switch state {
-        case .ready: return "live"
-        case .connecting: return "connecting"
-        case .failed, .idle: return "offline"
-        }
-    }
-
-    var body: some View {
-        HStack(spacing: 5) {
-            Image(systemName: "circle.fill")
-                .font(.system(size: 7))
-                .foregroundStyle(tint)
-                .symbolEffect(.pulse, isActive: state == .connecting)
-            Text(label)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.secondary)
-        }
-    }
-}
-
 struct FolderHeader: View {
     let name: String
     let count: Int
@@ -1113,11 +658,14 @@ struct FolderHeader: View {
 }
 
 struct ProjectRow: View {
+    @Environment(AppModel.self) private var model
     let project: Project
     var pending: Bool = false
     /// How many terminals the project has going. What each of them is doing is in
     /// the deck underneath, so the row itself only counts them.
     var agentCount: Int = 0
+    /// From the list saved at the last connection: what was running then, not now.
+    var stale: Bool = false
 
     var body: some View {
         HStack {
@@ -1125,7 +673,7 @@ struct ProjectRow: View {
                 if pending {
                     ProgressView().controlSize(.mini)
                 } else {
-                    RunningDot(running: project.running)
+                    RunningDot(running: project.running, stale: stale)
                 }
             }
             .frame(width: 14)
@@ -1134,8 +682,12 @@ struct ProjectRow: View {
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(project.label)
+                    .foregroundStyle(stale ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
                 if let status = project.workStatus, let note = status.note {
                     WorkStatusNoteLine(status: status, note: note)
+                }
+                ForEach(model.link.queued(for: project.name)) { action in
+                    QueuedActionLine(action: action)
                 }
             }
             Spacer()
@@ -1158,11 +710,50 @@ struct ProjectRow: View {
 struct RunningDot: View {
     let running: Bool
     var size: CGFloat = 8
+    /// Last known, not live: a running project shows as a ring, not a lit dot.
+    var stale: Bool = false
 
     var body: some View {
-        Circle()
-            .fill(running ? .green : .secondary)
-            .frame(width: size, height: size)
+        if stale && running {
+            Circle()
+                .strokeBorder(Color.secondary, lineWidth: 1.5)
+                .frame(width: size, height: size)
+        } else {
+            Circle()
+                .fill(running && !stale ? .green : .secondary)
+                .frame(width: size, height: size)
+        }
+    }
+}
+
+/// A Start, Stop or Run tapped while the Mac was away, shown on its project:
+/// waiting (with Cancel), or not sent after the wait ran out (with Try again).
+struct QueuedActionLine: View {
+    @Environment(AppModel.self) private var model
+    let action: QueuedAction
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: action.expired ? "exclamationmark.circle" : "clock")
+            Text(action.expired ? "\(action.verb) wasn't sent" : "\(action.verb) · waiting for the Mac")
+            Text("·")
+            Button(action.expired ? "Try again" : "Cancel") {
+                if action.expired { model.link.retryQueued(action.id) } else { model.link.cancelQueued(action.id) }
+            }
+            .buttonStyle(.borderless)
+            .fontWeight(.semibold)
+            if action.expired {
+                Button {
+                    model.link.cancelQueued(action.id)
+                } label: {
+                    Image(systemName: "xmark")
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel("Dismiss")
+            }
+        }
+        .font(.caption)
+        .foregroundStyle(action.expired ? Color.red : Color.orange)
     }
 }
 
@@ -1276,10 +867,7 @@ struct TerminalScreen: View {
                 // is down — keystrokes and scroll are live traffic, dropped by
                 // design, so the user needs to see WHY nothing responds.
                 if model.connection != .ready {
-                    TerminalConnectionBanner(state: model.connection,
-                                             needsRepair: model.needsRepair,
-                                             onRetry: { model.retryConnection() },
-                                             onRepair: { model.repairActiveMac() })
+                    TerminalConnectionBanner()
                     .frame(maxHeight: .infinity, alignment: .top)
                     .padding(.top, 8)
                     .transition(.move(edge: .top).combined(with: .opacity))
@@ -1296,7 +884,7 @@ struct TerminalScreen: View {
             .background(theme.backgroundColor.ignoresSafeArea(.all, edges: .all))
             .animation(.easeOut(duration: keyboard.duration), value: keyboard.height)
             .ignoresSafeArea(.keyboard, edges: .bottom)
-            .navigationTitle(term.label)
+            .connectionTitle(term.label)
             .navigationBarTitleDisplayMode(.inline)
             .projectMenuToolbar(project: liveProject, onSpawnedTerminal: { t in
                 // The new terminal is owned by the desktop that opened it; claim it
@@ -1320,78 +908,6 @@ struct TerminalScreen: View {
             .toolbarBackground(theme.backgroundColor, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
-    }
-}
-
-/// Bar above a list the Mac is no longer serving: its records for this device are
-/// gone, so everything on screen is stale and only re-pairing brings it back.
-struct RepairNoticeBar: View {
-    let onRepair: () -> Void
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "macbook.and.iphone")
-                .font(.system(size: 17, weight: .medium))
-                .foregroundStyle(.orange)
-            Text("Your Mac no longer recognizes this device.")
-                .font(.footnote)
-                .foregroundStyle(.primary)
-                .fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: 8)
-            Button("Pair Again", action: onRepair)
-                .font(.footnote.weight(.semibold))
-                .buttonStyle(.borderedProminent)
-                .buttonBorderShape(.capsule)
-                .controlSize(.small)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background(.bar)
-    }
-}
-
-/// Floating capsule over the terminal while the Mac link is down. Keystrokes and
-/// scroll are dropped (not queued) during a gap, so this is the only signal that
-/// the frozen screen is a connection problem and not a hung app.
-struct TerminalConnectionBanner: View {
-    let state: LpmClient.State
-    var needsRepair = false
-    let onRetry: () -> Void
-    var onRepair: () -> Void = {}
-
-    private var reconnecting: Bool {
-        if case .connecting = state { return true }
-        return false
-    }
-
-    var body: some View {
-        HStack(spacing: 8) {
-            if reconnecting {
-                ProgressView()
-                    .controlSize(.small)
-                    .tint(.white)
-                Text("Reconnecting…")
-            } else if needsRepair {
-                // Retrying a credential the Mac has dropped can only fail again,
-                // so this offers the one action that works.
-                Image(systemName: "macbook.and.iphone")
-                Text("Not paired")
-                Button("Pair Again", action: onRepair)
-                    .fontWeight(.semibold)
-            } else {
-                Image(systemName: "wifi.slash")
-                Text("Offline")
-                Button("Retry", action: onRetry)
-                    .fontWeight(.semibold)
-            }
-        }
-        .font(.footnote)
-        .foregroundStyle(.white)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
-        .background(.black.opacity(0.6), in: Capsule())
-        .overlay(Capsule().strokeBorder(.white.opacity(0.15)))
-        .environment(\.colorScheme, .dark)
     }
 }
 

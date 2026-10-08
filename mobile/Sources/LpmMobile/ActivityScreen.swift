@@ -74,8 +74,9 @@ struct ActivityScreen: View {
         .searchable(text: $query,
                     placement: .navigationBarDrawer(displayMode: .always),
                     prompt: "Search projects and agents")
-        .navigationTitle("Activity")
+        .connectionTitle("Activity")
         .navigationBarTitleDisplayMode(.inline)
+        .safeAreaInset(edge: .top) { ConnectionStatusBar() }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button { grouped.toggle() } label: {
@@ -212,14 +213,11 @@ struct ActivityScreen: View {
     // answering; while it refuses this device there is nothing to report on.
     @ViewBuilder
     private var emptyState: some View {
-        if model.needsRepair {
+        if model.needsRepair || model.link.identityRejected {
             ContentUnavailableView {
-                Label("Not connected to your Mac", systemImage: "macbook.and.iphone")
+                Label("Not connected to \(model.link.macLabel)", systemImage: "macbook.and.iphone")
             } description: {
-                Text("Your Mac no longer recognizes this device, so its activity can't be shown. Pair with it again to restore access.")
-            } actions: {
-                Button("Pair Again") { model.repairActiveMac() }
-                    .buttonStyle(.borderedProminent)
+                Text("Its activity shows again once it's paired.")
             }
         } else {
             let narrowed = !query.trimmingCharacters(in: .whitespaces).isEmpty || kind != .all

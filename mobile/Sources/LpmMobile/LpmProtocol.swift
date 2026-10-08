@@ -440,6 +440,9 @@ enum Wire {
         // that can't show the dialog at all), or "timeout" (no answer).
         case pairDenied(reason: String, message: String?)
         case ready(serverId: String?, serverName: String?, hosts: [String], platform: String?)
+        // The Mac is about to close this connection on purpose: "sleep", "quit" or
+        // "off" (remote control turned off), with when it said so (ms).
+        case bye(reason: String, at: Int?)
         case error(String)
         // The projects reply also brings the Mac's work-status palette (the
         // user's own statuses and the order they put the menu in), since the
@@ -636,6 +639,8 @@ enum Wire {
                               serverName: obj["serverName"] as? String,
                               hosts: obj["hosts"] as? [String] ?? [],
                               platform: obj["platform"] as? String)
+            case "bye":
+                return .bye(reason: obj["reason"] as? String ?? "", at: obj["at"] as? Int)
             case "error": return .error(obj["error"] as? String ?? "error")
             case "projects":
                 // A Mac too old to send a palette gets the shipped one.

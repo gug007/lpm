@@ -1,17 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { PlusIcon, ServerIcon, SmartphoneIcon } from "./icons";
 import { PairingModal, type Pairing } from "./PairingModal";
 import { RemoteNotice } from "./RemoteNotice";
-import { TailnetCard } from "./TailnetCard";
+import { ReachCard } from "./mobile/ReachCard";
+import { PhonesSection } from "./mobile/PhonesSection";
 import { usePeerState } from "../peer/usePeerState";
+import { useTailnetState } from "../hooks/useTailnetState";
 import {
   RemoteState,
   RemoteSetConfig,
+  RemoteSetKeepAwake,
   RemoteStartPairing,
   RemoteRevokeDevice,
+  RemoteRenameDevice,
   PeerRemotePair,
 } from "../../bridge/commands";
-import { EventsOn, BrowserOpenURL } from "../../bridge/runtime";
+import { EventsOn } from "../../bridge/runtime";
 import {
   REMOTE_TONE_STYLE,
   commandFailure,
@@ -21,98 +24,43 @@ import {
   type RemoteAction,
   type RemoteFailure,
 } from "../remoteStatus";
+import { canReachAway, type KeepAwakeStatus } from "../mobile/reachStatus";
+import { anyOverTailscale, type PhoneDevice } from "../mobile/phoneStatus";
 import { MACHINE } from "../machineWords";
-
-const APP_STORE_URL = "https://apps.apple.com/app/lpm-link/id6788396977";
-
-interface Device {
-  id: string;
-  name: string;
-  createdAt: number;
-}
 
 interface RemoteStateShape {
   enabled: boolean;
   port: number;
   tailscale: boolean;
+  keepAwake: boolean;
+  keepAwakeStatus: KeepAwakeStatus;
   running: boolean;
   host: string | null;
   tailscaleHost: string | null;
   identityRotated: boolean;
+  identityCode: string;
   hasPendingCode: boolean;
   bindError: string | null;
   configError: string | null;
-  devices: Device[];
+  devices: PhoneDevice[];
 }
 
 const DEFAULT_STATE: RemoteStateShape = {
   enabled: false,
   port: 8765,
   tailscale: true,
+  keepAwake: false,
+  keepAwakeStatus: "off",
   running: false,
   host: null,
   tailscaleHost: null,
   identityRotated: false,
+  identityCode: "",
   hasPendingCode: false,
   bindError: null,
   configError: null,
   devices: [],
 };
-
-function AppleIcon({ size = 18 }: { size?: number } = {}) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
-      <path d="M16.4 12.8c0-2.3 1.9-3.4 2-3.5-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.1-2.8.9-3.5.9-.7 0-1.8-.9-3-.8-1.5 0-2.9.9-3.7 2.2-1.6 2.7-.4 6.8 1.1 9 .8 1.1 1.7 2.3 2.9 2.3 1.2 0 1.6-.7 3-.7s1.8.7 3 .7c1.2 0 2-1.1 2.8-2.2.9-1.3 1.2-2.5 1.3-2.6-.1 0-2.5-1-2.5-3.5zM14.2 5.9c.6-.8 1.1-1.9 1-3-.9 0-2.1.6-2.8 1.4-.6.7-1.1 1.8-1 2.9 1 .1 2.1-.5 2.8-1.3z" />
-    </svg>
-  );
-}
-
-function Toggle({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <button
-      role="switch"
-      aria-checked={enabled}
-      onClick={() => onChange(!enabled)}
-      className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
-        enabled ? "bg-[var(--accent-green)]" : "bg-[var(--bg-active)]"
-      }`}
-    >
-      <span
-        className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${
-          enabled ? "translate-x-4" : "translate-x-0.5"
-        }`}
-      />
-    </button>
-  );
-}
-
-function Row({
-  label,
-  description,
-  children,
-}: {
-  label: string;
-  description: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-4 px-4 py-3">
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-[var(--text-primary)]">{label}</p>
-        <p className="text-[11px] leading-relaxed text-[var(--text-muted)]">{description}</p>
-      </div>
-      <div className="shrink-0">{children}</div>
-    </div>
-  );
-}
-
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <h2 className="mb-2 text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">
-      {children}
-    </h2>
-  );
-}
 
 export function MobileSettingsPane() {
   const [state, setState] = useState<RemoteStateShape>(DEFAULT_STATE);
@@ -122,18 +70,31 @@ export function MobileSettingsPane() {
   // Pairing minted by a connected peer machine: the phone scans this Mac's
   // screen but connects straight to that machine.
   const { state: peerState } = usePeerState();
-  const [hostPairing, setHostPairing] = useState<{ machine: string; pairing: Pairing } | null>(
-    null,
-  );
-  const [hostPairingBusy, setHostPairingBusy] = useState<string | null>(null);
+  const tailnet = useTailnetState();
+  const [hostPairing, setHostPairing] = useState<{ machine: string; pairing: Pairing } | null>(null);
+  const [hostPairingBusy, setHostPairingBusy] = useState(false);
   const [hostFailure, setHostFailure] = useState<string | null>(null);
   const reports = useRef(0);
+  // Devices change whenever a phone connects or leaves; only a phone that wasn't
+  // listed before means the pairing code on screen has been used.
+  const knownDevices = useRef<Set<string> | null>(null);
+  // Bumped when a pairing code is shown, so only a later read can close it.
+  const pairingShown = useRef(0);
 
   const refresh = useCallback(async (): Promise<RemoteStateShape | null> => {
     const seen = reports.current;
+    const shown = pairingShown.current;
     try {
       const fresh = { ...DEFAULT_STATE, ...((await RemoteState()) as RemoteStateShape) };
       setState((prev) => mergeRefreshedState(prev, fresh, reports.current !== seen));
+      const ids = new Set(fresh.devices.map((d) => d.id));
+      const known = knownDevices.current;
+      const paired = known && [...ids].some((id) => !known.has(id));
+      // A code that was used, replaced or withdrawn elsewhere is no use on screen.
+      if (paired || (!fresh.hasPendingCode && shown === pairingShown.current && shown > 0)) {
+        setPairing(null);
+      }
+      knownDevices.current = ids;
       return fresh;
     } catch {
       // The Mac may still be starting up — keep what the pane already shows.
@@ -156,7 +117,6 @@ export function MobileSettingsPane() {
   useEffect(() => {
     const offDevices = EventsOn("remote-devices-changed", () => {
       void refresh();
-      setPairing(null);
     });
     const offServer = EventsOn(
       "remote-server-changed",
@@ -175,26 +135,30 @@ export function MobileSettingsPane() {
     };
   }, [refresh]);
 
-  const apply = useCallback(
+  const run = useCallback(
     async (
-      next: Partial<Pick<RemoteStateShape, "enabled" | "port" | "tailscale">>,
       action: RemoteAction,
+      optimistic: Partial<RemoteStateShape>,
+      command: () => Promise<unknown>,
     ) => {
-      const merged = { ...state, ...next };
-      setState((s) => ({ ...s, ...next }));
+      setState((s) => ({ ...s, ...optimistic }));
       setFailure(null);
       try {
-        const s = (await RemoteSetConfig(
-          merged.enabled,
-          merged.port,
-          merged.tailscale,
-        )) as RemoteStateShape;
+        const s = (await command()) as RemoteStateShape;
         setState((prev) => mergeCommandState(prev, { ...DEFAULT_STATE, ...s }));
       } catch (err) {
         await reportFailure(action, err);
       }
     },
-    [state, reportFailure],
+    [reportFailure],
+  );
+
+  const apply = useCallback(
+    (next: Partial<Pick<RemoteStateShape, "enabled" | "port" | "tailscale">>, action: RemoteAction) => {
+      const merged = { ...state, ...next };
+      return run(action, next, () => RemoteSetConfig(merged.enabled, merged.port, merged.tailscale));
+    },
+    [state, run],
   );
 
   const startPairing = useCallback(async () => {
@@ -202,6 +166,7 @@ export function MobileSettingsPane() {
     setFailure(null);
     try {
       const p = (await RemoteStartPairing()) as Pairing;
+      pairingShown.current += 1;
       setPairing(p);
       await refresh();
     } catch (err) {
@@ -212,7 +177,7 @@ export function MobileSettingsPane() {
   }, [refresh, reportFailure]);
 
   const startHostPairing = useCallback(async (slug: string, machine: string) => {
-    setHostPairingBusy(slug);
+    setHostPairingBusy(true);
     setHostFailure(null);
     try {
       const p = (await PeerRemotePair(slug)) as Pairing;
@@ -220,109 +185,51 @@ export function MobileSettingsPane() {
     } catch (err) {
       setHostFailure(`Couldn't get a pairing code from ${machine} — ${String(err)}`);
     } finally {
-      setHostPairingBusy(null);
+      setHostPairingBusy(false);
     }
   }, []);
 
-  const revoke = useCallback(
-    async (id: string) => {
-      setFailure(null);
-      try {
-        const s = (await RemoteRevokeDevice(id)) as RemoteStateShape;
-        setState((prev) => mergeCommandState(prev, { ...DEFAULT_STATE, ...s }));
-      } catch (err) {
-        await reportFailure("revoke", err);
-      }
-    },
-    [reportFailure],
-  );
+  // Tailscale is the way to reach this machine from anywhere: offer the app's
+  // address when it runs here, else turn on the built-in one and sign in.
+  const setUpAway = () => {
+    if (state.tailscaleHost && !state.tailscale) void apply({ tailscale: true }, "tailscale");
+    else void tailnet.signIn();
+  };
 
   const status = remoteStatus(state);
-  const tone = REMOTE_TONE_STYLE[status.tone];
   const problemTone = REMOTE_TONE_STYLE.problem;
-  const live = status.tone === "live";
+  const deviceUsedTailscale = anyOverTailscale(state.devices);
+  const awayReady = canReachAway({
+    ...state,
+    builtInRunning: tailnet.state.enabled && tailnet.state.state === "running",
+    deviceUsedTailscale,
+  });
 
   return (
     <>
-      <div className="mt-2 flex items-center gap-4 rounded-xl border border-[var(--border)] px-4 py-4">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[var(--bg-active)] text-[var(--text-secondary)]">
-          <AppleIcon size={20} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-[var(--text-primary)]">lpm Link</p>
-          <p className="mt-0.5 text-[12px] text-[var(--text-muted)]">
-            The companion app for iPhone and iPad. Install it, then pair below.
-          </p>
-        </div>
-        <button
-          onClick={() => BrowserOpenURL(APP_STORE_URL)}
-          className="shrink-0 rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-        >
-          App Store
-        </button>
-      </div>
+      <ReachCard
+        reach={state}
+        tailnet={tailnet}
+        deviceUsedTailscale={deviceUsedTailscale}
+        onEnabled={(v) => void apply({ enabled: v }, "server")}
+        onUseApp={(v) => void apply({ tailscale: v }, "tailscale")}
+        onPort={(port) => void apply({ port }, "server")}
+        onKeepAwake={(v) => void run("keepAwake", { keepAwake: v }, () => RemoteSetKeepAwake(v))}
+      />
 
-      <div className="mt-3 flex items-center gap-4 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] px-4 py-4">
-        <div
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-colors"
-          style={{
-            backgroundColor: live
-              ? "color-mix(in srgb, var(--accent-green) 15%, transparent)"
-              : "var(--bg-active)",
-            color: live ? "var(--accent-green)" : "var(--text-muted)",
-          }}
-        >
-          <SmartphoneIcon size={18} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-[var(--text-primary)]">Remote control</p>
-          <div className="mt-0.5 flex items-center gap-1.5 text-[12px]">
-            <span
-              className="h-1.5 w-1.5 shrink-0 rounded-full"
-              style={{ backgroundColor: tone.dot }}
-            />
-            <span style={{ color: tone.text }}>
-              {status.label}
-              {status.address && (
-                <span className="ml-1 font-mono text-[var(--text-muted)]">{status.address}</span>
-              )}
-            </span>
-          </div>
-        </div>
-        <Toggle enabled={state.enabled} onChange={(v) => apply({ enabled: v }, "server")} />
-      </div>
-
-      {failure?.slot === "server" && (
+      {(failure?.slot === "server" || failure?.slot === "network") && (
         <RemoteNotice tone={problemTone}>{failure.message}</RemoteNotice>
       )}
 
-      {state.configError && (
-        <RemoteNotice tone={problemTone}>{state.configError}</RemoteNotice>
-      )}
+      {state.configError && <RemoteNotice tone={problemTone}>{state.configError}</RemoteNotice>}
 
       {status.problem && (
-        <RemoteNotice tone={tone}>
-          <span className="font-medium" style={{ color: tone.text }}>
+        <RemoteNotice tone={REMOTE_TONE_STYLE[status.tone]}>
+          <span className="font-medium" style={{ color: REMOTE_TONE_STYLE[status.tone].text }}>
             Remote control couldn&#39;t start.
           </span>{" "}
           {status.problem}
         </RemoteNotice>
-      )}
-
-      {state.enabled && (
-        <div className="mt-3 divide-y divide-[var(--border)] rounded-xl border border-[var(--border)]">
-          <Row label="Port" description="The port the mobile app connects to.">
-            <input
-              type="number"
-              value={state.port}
-              min={1024}
-              max={65535}
-              onChange={(e) => setState((s) => ({ ...s, port: Number(e.target.value) || 0 }))}
-              onBlur={() => apply({ port: state.port }, "server")}
-              className="w-20 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1 text-sm tabular-nums text-[var(--text-primary)] outline-none focus:border-[var(--accent-cyan)]"
-            />
-          </Row>
-        </div>
       )}
 
       {state.enabled && state.identityRotated && state.devices.length > 0 && (
@@ -330,131 +237,38 @@ export function MobileSettingsPane() {
           <span className="font-medium" style={{ color: "var(--accent-amber-text)" }}>
             {MACHINE.ThisMachine}&#39;s security identity was reset.
           </span>{" "}
-          Devices paired before the reset can&#39;t connect until they trust it again — on each
-          device, accept the new identity when prompted, or pair it again below.
+          Devices paired before the reset can&#39;t connect until they trust it again. On each one,
+          open lpm Link, check it shows{" "}
+          <span className="font-mono font-semibold text-[var(--text-primary)]">{state.identityCode}</span>, and
+          tap The codes match — or pair it again below.
         </RemoteNotice>
       )}
 
       <div className="mt-8">
-        <SectionLabel>Paired devices</SectionLabel>
-        <div className="overflow-hidden rounded-xl border border-[var(--border)]">
-          <div className="divide-y divide-[var(--border)]">
-            {state.devices.length === 0 ? (
-              <p className="px-4 py-5 text-center text-[12px] text-[var(--text-muted)]">
-                No devices paired yet.
-              </p>
-            ) : (
-              state.devices.map((d) => (
-                <div key={d.id} className="flex items-center gap-3 px-4 py-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--bg-active)] text-[var(--text-muted)]">
-                    <SmartphoneIcon size={16} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-[var(--text-primary)]">
-                      {d.name || "Device"}
-                    </p>
-                    <p className="text-[11px] text-[var(--text-muted)]">
-                      Paired {new Date(d.createdAt).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => revoke(d.id)}
-                    className="shrink-0 rounded-md px-2.5 py-1 text-xs text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--accent-red)]"
-                  >
-                    Revoke
-                  </button>
-                </div>
-              ))
-            )}
-            <button
-              onClick={startPairing}
-              disabled={pairingBusy}
-              className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-60"
-            >
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-dashed border-[var(--border)] text-[var(--text-muted)]">
-                <PlusIcon />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-[var(--text-primary)]">
-                  {pairingBusy ? "Preparing…" : "Add a device"}
-                </p>
-                <p className="text-[11px] text-[var(--text-muted)]">
-                  Scan a one-time QR code from the mobile app.
-                </p>
-              </div>
-            </button>
-          </div>
-        </div>
-        {failure?.slot === "devices" && (
-          <RemoteNotice tone={problemTone}>{failure.message}</RemoteNotice>
-        )}
+        <PhonesSection
+          devices={state.devices}
+          peers={peerState.peers}
+          awayReady={awayReady}
+          pairing={pairingBusy || hostPairingBusy}
+          settingUpAway={tailnet.busy === "signIn"}
+          onSetUpAway={setUpAway}
+          onPairHere={() => void startPairing()}
+          onPairPeer={(slug, name) => void startHostPairing(slug, name)}
+          onRename={(id, name) => void run("rename", {}, () => RemoteRenameDevice(id, name))}
+          onRevoke={(id) => void run("revoke", {}, () => RemoteRevokeDevice(id))}
+        />
+        {failure?.slot === "devices" && <RemoteNotice tone={problemTone}>{failure.message}</RemoteNotice>}
+        {hostFailure && <RemoteNotice tone={problemTone}>{hostFailure}</RemoteNotice>}
       </div>
 
-      {peerState.peers.length > 0 && (
-        <div className="mt-8">
-          <SectionLabel>Devices on other machines</SectionLabel>
-          <div className="overflow-hidden rounded-xl border border-[var(--border)]">
-            <div className="divide-y divide-[var(--border)]">
-              {peerState.peers.map((p) => {
-                const name = p.alias || p.host || "another machine";
-                return (
-                  <div key={p.slug} className="flex items-center gap-3 px-4 py-3">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--bg-active)] text-[var(--text-muted)]">
-                      <ServerIcon />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-[var(--text-primary)]">
-                        {name}
-                      </p>
-                      <p className="text-[11px] text-[var(--text-muted)]">
-                        {p.connected
-                          ? `A device paired here connects straight to this machine, so it keeps working while ${MACHINE.thisMachine} is off.`
-                          : "Not connected — reconnect it under Connections to pair a device."}
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => startHostPairing(p.slug, name)}
-                      disabled={!p.connected || hostPairingBusy !== null}
-                      className="shrink-0 rounded-md px-2.5 py-1 text-xs text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-50 disabled:hover:bg-transparent"
-                    >
-                      {hostPairingBusy === p.slug ? "Preparing…" : "Add a device"}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-          {hostFailure && <RemoteNotice tone={problemTone}>{hostFailure}</RemoteNotice>}
-        </div>
-      )}
-
-      <div className="mt-8">
-        <SectionLabel>Away from home</SectionLabel>
-        <div data-settings-row="mobile.tailscale">
-          <TailnetCard />
-        </div>
-        {state.tailscaleHost && (
-          <div className="mt-3 overflow-hidden rounded-xl border border-[var(--border)]">
-            <Row
-              label="Add the Tailscale app's address to QR"
-              description={`The Tailscale app is running on ${MACHINE.thisMachine} at ${state.tailscaleHost}. Advertise it so a phone with the app can reach ${MACHINE.thisMachine} over the tailnet.`}
-            >
-              <Toggle
-                enabled={state.tailscale}
-                onChange={(v) => apply({ tailscale: v }, "tailscale")}
-              />
-            </Row>
-          </div>
-        )}
-        {failure?.slot === "network" && (
-          <RemoteNotice tone={problemTone}>{failure.message}</RemoteNotice>
-        )}
-        <p className="mt-2 px-1 text-[11px] leading-relaxed text-[var(--text-muted)]">
-          Every command still runs on {MACHINE.thisMachine}, so keep it awake with remote control on.
-        </p>
-      </div>
-
-      <PairingModal pairing={pairing} onClose={() => setPairing(null)} />
+      <PairingModal
+        pairing={pairing}
+        onClose={() => setPairing(null)}
+        onSetUpTailscale={() => {
+          setPairing(null);
+          setUpAway();
+        }}
+      />
       <PairingModal
         pairing={hostPairing?.pairing ?? null}
         machine={hostPairing?.machine}

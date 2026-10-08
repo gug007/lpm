@@ -7,7 +7,12 @@ import UserNotifications
 /// status. Views observe this; the client drives it.
 @Observable @MainActor
 final class AppModel {
-    var connection: LpmClient.State = .idle
+    var connection: LpmClient.State = .idle {
+        didSet { if connection != oldValue { link.noteState(connection, from: oldValue) } }
+    }
+    // The connection as the UI explains it: the issue, the status line, address
+    // checks, queued actions and the sheets around them.
+    let link = LinkStore()
     var projects: [Project] = []
     // False until the first projects list arrives, so the UI can tell an empty
     // list apart from "still loading" and show a spinner instead of "No projects".
@@ -319,27 +324,22 @@ final class AppModel {
     // authed connection can land in either order; whichever is second sends the
     // apnsToken frame (idempotent, re-sent on every reconnect).
     @ObservationIgnored private var apnsTokenHex: String?
-    // Ask for notification permission only once; iOS no-ops a repeat prompt.
-    @ObservationIgnored private var didRequestPushAuthorization = false
     // Registers the same push identity with the saved Macs the live socket doesn't
     // reach, so notifications arrive from all of them and not just the active one.
     @ObservationIgnored private let pushRegistrar = PushRegistrar(deviceName: UIDevice.current.name)
     // The payload of the last registration sent over the live socket, recorded as
     // registered once that Mac acknowledges it.
     @ObservationIgnored private var lastSentPushPayload: PushRegistrar.Payload?
-    // The addresses the current attempt is racing, so a failure can name exactly
-    // what it tried (LAN vs Tailscale) instead of a generic "can't reach".
-    @ObservationIgnored private var attemptHosts: [String] = []
-    // Per-host reasons from the most recent probe, so the offline message can say
-    // *why* each address failed ("no route" vs "refused" vs "timed out") instead
-    // of only that none responded.
-    @ObservationIgnored private var lastProbeOutcomes: [HostProbe.Outcome] = []
     // Guards the opportunistic host migration in onState against overlapping
     // re-probes while one is already in flight.
     @ObservationIgnored private var repicking = false
     // The host the live client was built for, so migration only rebuilds when a
     // *different* address becomes reachable.
-    @ObservationIgnored private var currentHost: String?
+    @ObservationIgnored var currentHost: String?
+    // The address probe `connectBest` runs before it dials: bumped by every new
+    // attempt and by a session reset, so a probe that was overtaken never dials.
+    @ObservationIgnored private var probeGeneration = 0
+    @ObservationIgnored private(set) var probing = false
     // The candidate addresses/port of an in-flight pairing, stamped onto the
     // saved-Mac record once the `paired` frame lands.
     @ObservationIgnored private var pendingPairHosts: [String] = []
@@ -364,6 +364,8 @@ final class AppModel {
     @ObservationIgnored private var recoveryHandled: Set<String> = []
 
     init() {
+        link.model = self
+        link.network.onChange = { [weak self] from, to in self?.networkChanged(from: from, to: to) }
         git.model = self
         gitAuto.model = self
         memory.model = self
@@ -388,9 +390,11 @@ final class AppModel {
     }
 
     func bootstrap() {
+        link.network.start()
         MacStore.migrateLegacyIfNeeded()
         macs = MacStore.loadRecords()
         activeMacId = MacStore.loadActiveId() ?? macs.first?.localId
+        restoreSnapshot()
         guard let cred = activeCredential() else { return }
         connectBest(credential: cred)
     }
@@ -402,12 +406,12 @@ final class AppModel {
     }
 
     /// The active Mac's stored credential, if any.
-    private func activeCredential() -> LpmClient.Credential? {
+    func activeCredential() -> LpmClient.Credential? {
         guard let id = activeMacId, macs.contains(where: { $0.localId == id }) else { return nil }
         return Keychain.load(for: id)
     }
 
-    private func persistMacs() {
+    func persistMacs() {
         guard !demoMode else { return } // demo state is in-memory only
         MacStore.saveRecords(macs)
         MacStore.saveActiveId(activeMacId)
@@ -415,24 +419,31 @@ final class AppModel {
 
     /// Probe the remembered addresses and connect to whichever the phone can
     /// reach right now — the LAN IP at home, the Tailscale IP away from home.
-    private func connectBest(credential: LpmClient.Credential) {
+    func connectBest(credential: LpmClient.Credential) {
         guard !demoMode else { return } // Demo Mode owns its own in-process client
         let hosts = savedHosts()
         let port = savedPort()
-        attemptHosts = hosts
         connection = .connecting
+        probeGeneration += 1
+        let generation = probeGeneration
+        probing = true
         Task { @MainActor in
             var (winner, outcomes) = await HostProbe.race(hosts, port: port)
+            link.noteProbe(outcomes)
             if winner == nil {
                 // On foreground the Tailscale on-demand tunnel may not be up yet;
                 // give it a moment and probe once more before falling back.
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
                 (winner, outcomes) = await HostProbe.race(hosts, port: port)
+                link.noteProbe(outcomes)
             }
-            lastProbeOutcomes = outcomes
             // When nothing answers, prefer the Tailscale (CGNAT) address over the
             // LAN IP — the LAN IP is unroutable on cellular, so retrying it spins.
             let host = winner ?? Self.cgnatHost(hosts) ?? hosts.first ?? "127.0.0.1"
+            // A switch, pairing or newer attempt since this probe began owns the
+            // link now.
+            guard generation == probeGeneration else { return }
+            probing = false
             connect(host: host, port: port, credential: credential)
         }
     }
@@ -505,9 +516,13 @@ final class AppModel {
         Task { @MainActor in
             defer { repicking = false }
             let (winner, outcomes) = await HostProbe.race(savedHosts(), port: savedPort())
-            if !outcomes.isEmpty { lastProbeOutcomes = outcomes }
+            link.noteProbe(outcomes)
             guard let winner, winner != currentHost, c === client else { return }
-            connect(host: winner, port: savedPort(), credential: cred)
+            if c.deviceId != nil {
+                moveLink(c, to: winner)
+            } else {
+                connect(host: winner, port: savedPort(), credential: cred)
+            }
         }
     }
 
@@ -601,6 +616,8 @@ final class AppModel {
         guard !demoMode else { return } // never dial a socket while in Demo Mode
         client?.disconnect()
         currentHost = host
+        link.host = host
+        link.pairing = false
         identityMismatch = false
         needsRepair = false
         // Enforce the stored pin for this Mac, read fresh on each TLS handshake so
@@ -654,19 +671,22 @@ final class AppModel {
         pendingPairHosts = hosts
         pendingPairPort = UInt16(clamping: port)
         pendingPairFingerprint = fingerprint
-        attemptHosts = hosts
+        link.pairing = true
+        link.host = hosts.first
         connection = .connecting
         Task { @MainActor in
             // The probe uses the real WebSocket transport, so if none respond the
             // live connection wouldn't either — fail fast and report each host's
             // reason rather than spin on a generic hint for the whole timeout.
             let (winner, outcomes) = await HostProbe.race(hosts, port: port)
+            link.noteProbe(outcomes)
             guard let host = winner else {
-                connection = .failed(probeDiagnostic(outcomes, hosts: hosts))
+                connection = .failed(LpmClient.offlineHint)
                 return
             }
             client?.disconnect()
             currentHost = host
+            link.host = host
             // No stored pin during pairing; instead verify the observed cert against
             // the fingerprint the QR advertised (if any). The observed fingerprint is
             // pinned once the pairing handshake succeeds (handlePaired).
@@ -691,9 +711,10 @@ final class AppModel {
         pendingPairHosts = [host]
         pendingPairPort = UInt16(clamping: port)
         pendingPairFingerprint = nil
-        attemptHosts = [host]
         approvalPairing = .requesting
         currentHost = host
+        link.pairing = true
+        link.host = host
         // No QR fingerprint and no stored pin for a brand-new Mac: trust-on-first-use,
         // then pin the observed cert in `handlePaired` (mirrors the code-pair path).
         let c = LpmClient(endpoint: .init(host: host, port: port),
@@ -714,41 +735,40 @@ final class AppModel {
             client = nil
             currentHost = nil
             pendingPairHosts = []
+            link.pairing = false
+            link.host = nil
         }
         if client == nil, let cred = activeCredential() { connectBest(credential: cred) }
     }
 
     func reconnectIfNeeded() {
+        guard !link.identityRejected else { return }
         // Even a `.ready` state can be stale after backgrounding (half-open
         // socket) — probe it instead of trusting it, so a dead link is noticed
         // now rather than on the next heartbeat.
         if case .ready = connection { client?.verifyNow(); return }
-        // Reuse the live client when we have one — it re-auths and re-subscribes
-        // to the terminals this phone was watching. Only rebuild (and re-probe
-        // for a reachable address) on a cold start with no client.
-        if let client {
-            client.connect()
-        } else if let cred = activeCredential() {
-            connectBest(credential: cred)
-        }
+        // The phone may be on a different network than when it went to the
+        // background, so check every saved address rather than redialling the
+        // last one. The live client is kept: it re-subscribes to the terminals
+        // this phone was watching.
+        rehome(reason: nil)
+        link.refreshReach()
     }
 
-    /// The "Retry" button: force an immediate attempt now, skipping any backoff.
-    /// Re-probes for a reachable address if we don't have a live client yet.
+    /// The "Try again" button: check every saved address now and dial the one that
+    /// answers, skipping any backoff.
     func retryConnection() {
-        if let client {
-            client.retryNow()
-        } else if let cred = activeCredential() {
-            connectBest(credential: cred)
-        }
+        guard !link.identityRejected else { return }
+        link.noteTrying()
+        rehome(reason: nil)
     }
 
-    private func savedHosts() -> [String] {
+    func savedHosts() -> [String] {
         let hosts = activeRecord?.hosts ?? []
         return hosts.isEmpty ? ["127.0.0.1"] : hosts
     }
 
-    private func savedPort() -> Int {
+    func savedPort() -> Int {
         Int(activeRecord?.port ?? MacStore.defaultPort)
     }
 
@@ -758,9 +778,13 @@ final class AppModel {
     /// session, reset all cached per-session state, then connect to the target.
     func switchTo(_ record: MacRecord) {
         guard record.localId != activeMacId else { return }
+        if case .ready = connection { noteLeavingActiveMac() }
         resetSessionState()
         activeMacId = record.localId
         MacStore.saveActiveId(activeMacId)
+        restoreSnapshot()
+        link.reach[record.localId] = nil
+        link.refreshReach(force: true)
         if let cred = Keychain.load(for: record.localId) {
             connectBest(credential: cred)
         }
@@ -772,6 +796,8 @@ final class AppModel {
     func beginAddMac() {
         if demoMode { exitDemo(); return }
         pendingRepairMacId = nil
+        link.repairMacId = nil
+        link.repairReason = nil
         addingMac = true
     }
 
@@ -780,9 +806,13 @@ final class AppModel {
     /// being re-paired: the new credential replaces the dead one on the Mac, and
     /// the `serverId` dedupe in `handlePaired` refreshes the saved record in place
     /// rather than adding a second entry for the same Mac.
-    func repairActiveMac() {
+    func repairActiveMac(reason: RepairReason? = nil) {
         guard !demoMode, activeMacId != nil else { return }
         pendingRepairMacId = activeMacId
+        link.repairMacId = activeMacId
+        link.repairReason = reason ?? (needsRepair ? .notRecognized : .chosen)
+        link.sheetOpen = false
+        link.identityCheckOpen = false
         addingMac = true
     }
 
@@ -812,6 +842,7 @@ final class AppModel {
         resetSessionState()
         macs = MacStore.loadRecords()
         activeMacId = MacStore.loadActiveId() ?? macs.first?.localId
+        restoreSnapshot()
         if let cred = activeCredential() { connectBest(credential: cred) }
     }
 
@@ -825,13 +856,24 @@ final class AppModel {
     func cancelAddMac() {
         addingMac = false
         pendingRepairMacId = nil
+        link.repairMacId = nil
+        link.repairReason = nil
         if let client, client.deviceId == nil {
             client.disconnect()
             self.client = nil
             currentHost = nil
             pendingPairHosts = []
+            link.pairing = false
+            link.host = nil
         }
-        if client == nil, let cred = activeCredential() { connectBest(credential: cred) }
+        if let summary = link.pendingSummary {
+            link.pendingSummary = nil
+            link.summary = summary
+        }
+        if client == nil, let cred = activeCredential() {
+            restoreSnapshot()
+            connectBest(credential: cred)
+        }
     }
 
     /// Give the active Mac a user-chosen display name. A blank/whitespace name —
@@ -839,8 +881,8 @@ final class AppModel {
     /// on) the learned name, so future serverName updates aren't pinned over. Only
     /// touches `customName`, which learning/re-pairing never overwrites, so the
     /// rename survives reconnects.
-    func renameActiveMac(_ newName: String) {
-        guard let id = activeMacId, let idx = macs.firstIndex(where: { $0.localId == id }) else { return }
+    func renameMac(_ id: UUID, to newName: String) {
+        guard let idx = macs.firstIndex(where: { $0.localId == id }) else { return }
         let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
         macs[idx].customName = (trimmed.isEmpty || trimmed == macs[idx].name) ? nil : trimmed
         persistMacs()
@@ -850,16 +892,22 @@ final class AppModel {
     /// The saved credential is untouched — this is not a re-pair — so the change
     /// only affects how the phone reaches the Mac. Re-probes the new addresses and
     /// reconnects on whichever answers.
-    func updateActiveMacEndpoint(hosts: [String], port: UInt16) {
-        guard let id = activeMacId, let idx = macs.firstIndex(where: { $0.localId == id }) else { return }
+    func updateEndpoint(of id: UUID, hosts: [String], port: UInt16) {
+        guard let idx = macs.firstIndex(where: { $0.localId == id }) else { return }
         let cleaned = hosts
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
         guard !cleaned.isEmpty else { return }
+        let changed = macs[idx].hosts != cleaned || macs[idx].port != port
         macs[idx].hosts = cleaned
         macs[idx].port = port
         persistMacs()
-        if let cred = activeCredential() { connectBest(credential: cred) }
+        if id == activeMacId {
+            if changed, let cred = activeCredential() { connectBest(credential: cred) }
+        } else {
+            link.reach[id] = nil
+            link.refreshReach(force: true)
+        }
     }
 
     /// The Mac `removeActiveMac()` would switch to after removing the active one
@@ -869,20 +917,23 @@ final class AppModel {
         macs.first { $0.localId != activeMacId }
     }
 
-    /// Remove the active Mac: drop its connection, delete its record + Keychain
-    /// credential, then switch to another saved Mac if one remains — otherwise
-    /// return to the pairing screen.
-    func removeActiveMac() {
+    /// Remove a saved Mac: delete its record + Keychain credential and its saved
+    /// project list. Removing the active one drops its connection and switches to
+    /// another saved Mac if one remains — otherwise back to the pairing screen.
+    func removeMac(_ id: UUID) {
         if demoMode { exitDemo(); return }
-        guard let id = activeMacId else { return }
-        let next = nextMacAfterRemoval
-        resetSessionState()
+        let wasActive = id == activeMacId
+        let next = wasActive ? nextMacAfterRemoval : nil
+        if wasActive { resetSessionState() }
         Keychain.delete(for: id)
         PushRegistrar.forget(id)
+        link.snapshots.remove(id)
+        link.reach[id] = nil
         macs.removeAll { $0.localId == id }
-        activeMacId = next?.localId
+        if wasActive { activeMacId = next?.localId }
         persistMacs()
-        if let next, let cred = Keychain.load(for: next.localId) {
+        if wasActive, let next, let cred = Keychain.load(for: next.localId) {
+            restoreSnapshot()
             connectBest(credential: cred)
         }
     }
@@ -932,8 +983,22 @@ final class AppModel {
         }
         pendingPairFingerprint = nil
         approvalPairing = nil
+        if let idx = macs.firstIndex(where: { $0.localId == localId }) {
+            macs[idx].farewell = nil
+            macs[idx].lastConnected = Date()
+        }
         activeMacId = localId
         persistMacs()
+        link.pairing = false
+        link.repairMacId = nil
+        link.repairReason = nil
+        // Shown once the pairing screen has gone, so the two never compete.
+        let summary = PairedSummary(macId: localId)
+        if addingMac {
+            link.pendingSummary = summary
+        } else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in self?.link.summary = summary }
+        }
         addingMac = false
     }
 
@@ -1012,9 +1077,23 @@ final class AppModel {
     /// reconnect. Only reachable from the explicit mismatch prompt — never silent.
     func trustNewIdentity() {
         guard let id = activeMacId else { return }
-        Keychain.deletePin(for: id)
+        // Pin exactly the certificate whose code the user compared, so a further
+        // change is caught again instead of trusted on first use.
+        if let fp = link.newFingerprint { Keychain.savePin(fp, for: id) } else { Keychain.deletePin(for: id) }
         identityMismatch = false
+        link.identityCheckOpen = false
+        link.newFingerprint = nil
+        link.clearFailure()
         if let cred = activeCredential() { connectBest(credential: cred) }
+    }
+
+    /// The codes didn't match: stop connecting to whatever answered, and leave
+    /// re-pairing as the way back.
+    func rejectNewIdentity() {
+        client?.disconnect()
+        identityMismatch = false
+        link.identityRejected = true
+        link.identityCheckOpen = false
     }
 
     /// Tear down the live connection to the current Mac and clear every cached
@@ -1023,6 +1102,9 @@ final class AppModel {
     private func resetSessionState() {
         client?.disconnect()
         client = nil
+        probeGeneration += 1
+        probing = false
+        link.resetSession()
         machineImporter.detach()
         currentHost = nil
         stopBrowsing()
@@ -1160,17 +1242,22 @@ final class AppModel {
         schedulePushSweep()
     }
 
-    /// After the first `ready`: ask for notification permission once, then register
-    /// for remote notifications (registering again after a denial is a no-op).
+    /// After each `ready`: register for remote notifications once the user has
+    /// allowed them. Asking is left to the moment it has a reason — the check
+    /// after pairing, or Settings → Notifications.
     private func requestPushRegistration() {
-        if didRequestPushAuthorization {
-            UIApplication.shared.registerForRemoteNotifications()
-            return
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            guard [.authorized, .provisional, .ephemeral].contains(settings.authorizationStatus) else { return }
+            DispatchQueue.main.async { UIApplication.shared.registerForRemoteNotifications() }
         }
-        didRequestPushAuthorization = true
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in
+    }
+
+    /// Ask for notification permission, then register when it's granted.
+    func allowNotifications(_ done: @escaping (Bool) -> Void = { _ in }) {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
             DispatchQueue.main.async {
-                UIApplication.shared.registerForRemoteNotifications()
+                if granted { UIApplication.shared.registerForRemoteNotifications() }
+                done(granted)
             }
         }
     }
@@ -1339,13 +1426,27 @@ final class AppModel {
 
     func startProject(_ p: Project, profile: String = "") {
         Haptics.tap()
-        markRunPending(p.name, desired: true)
-        client?.startProject(p.name, profile: profile)
+        whenConnected(profile.isEmpty ? "Start" : "Start \(profile)", project: p.name) { [weak self] c in
+            self?.markRunPending(p.name, desired: true)
+            c.startProject(p.name, profile: profile)
+        }
     }
     func stopProject(_ p: Project) {
         Haptics.tap()
-        markRunPending(p.name, desired: false)
-        client?.stopProject(p.name)
+        whenConnected("Stop", project: p.name) { [weak self] c in
+            self?.markRunPending(p.name, desired: false)
+            c.stopProject(p.name)
+        }
+    }
+
+    /// Send now when the Mac is connected; otherwise keep the action waiting in
+    /// plain sight until it is, for at most a couple of minutes.
+    private func whenConnected(_ verb: String, project: String, _ work: @escaping (LpmClient) -> Void) {
+        if case .ready = connection, let client {
+            work(client)
+        } else {
+            link.enqueue(verb, project: project, work)
+        }
     }
     /// Show the in-flight spinner until the projects push confirms the desired
     /// state; give up after a timeout so a lost request can't spin forever.
@@ -1418,17 +1519,24 @@ final class AppModel {
     /// Start/stop one service. Mirrors markRunPending: the row spins until the
     /// projects push confirms the desired state (or a timeout gives up).
     func toggleService(_ project: String, service: String) {
-        let proj = projects.first(where: { $0.name == project })
-        let running = (proj?.running ?? false)
-            && (proj?.services.contains(where: { $0.name == service }) ?? false)
-        let desired = !running
-        pendingServiceToggle[project, default: [:]][service] = desired
-        DispatchQueue.main.asyncAfter(deadline: .now() + 12) { [weak self] in
-            if self?.pendingServiceToggle[project]?[service] == desired {
-                self?.pendingServiceToggle[project]?[service] = nil
+        let desired = !serviceRunning(project, service)
+        whenConnected("\(desired ? "Start" : "Stop") \(service)", project: project) { [weak self] c in
+            // A wait for the Mac can outlast the list it was tapped on; the wire
+            // verb toggles, so only send it while it still moves the right way.
+            guard let self, self.serviceRunning(project, service) != desired else { return }
+            self.pendingServiceToggle[project, default: [:]][service] = desired
+            DispatchQueue.main.asyncAfter(deadline: .now() + 12) { [weak self] in
+                if self?.pendingServiceToggle[project]?[service] == desired {
+                    self?.pendingServiceToggle[project]?[service] = nil
+                }
             }
+            c.toggleService(project, service: service)
         }
-        client?.toggleService(project, service: service)
+    }
+
+    private func serviceRunning(_ project: String, _ service: String) -> Bool {
+        let proj = projects.first(where: { $0.name == project })
+        return (proj?.running ?? false) && (proj?.services.contains(where: { $0.name == service }) ?? false)
     }
     func loadTerminals(_ project: String) { client?.requestTerminals(project: project) }
 
@@ -1795,10 +1903,14 @@ final class AppModel {
     func runAction(_ project: String, action: String,
                    inputValues: [String: String] = [:], confirmed: Bool = false,
                    onSpawn: ((TerminalInfo) -> Void)? = nil) {
-        client?.runAction(project: project, action: action, inputValues: inputValues, confirmed: confirmed)
-        markTerminalCreating(project)
-        spawnCallbacks[project] = onSpawn
-        reloadTerminalsSoon(project)
+        let label = projects.first { $0.name == project }?.actions.flatMap(\.runnableLeaves)
+            .first { $0.name == action }?.label ?? action
+        whenConnected("Run “\(label)”", project: project) { [weak self] c in
+            c.runAction(project: project, action: action, inputValues: inputValues, confirmed: confirmed)
+            self?.markTerminalCreating(project)
+            self?.spawnCallbacks[project] = onSpawn
+            self?.reloadTerminalsSoon(project)
+        }
     }
 
     /// Start a non-terminal action headlessly on the Mac and return its runId. The
@@ -2131,86 +2243,6 @@ final class AppModel {
         return out
     }
 
-    /// How connection copy names the machine this session targets: the saved
-    /// record's real name when it has one, else a platform-appropriate generic.
-    /// While pairing a new machine the active record is still the previous one,
-    /// so a failure there never borrows an unrelated machine's name.
-    private var machineLabel: String {
-        guard !addingMac, let rec = activeRecord else { return "your Mac" }
-        if !rec.isAddressName { return rec.displayName }
-        return rec.isLinuxHost ? "your Linux host" : "your Mac"
-    }
-
-    /// `machineLabel` at the start of a sentence ("your Mac" → "Your Mac";
-    /// a real machine name is left exactly as saved).
-    private var machineLabelSentence: String {
-        let label = machineLabel
-        return label.hasPrefix("your ") ? "Your " + label.dropFirst(5) : label
-    }
-
-    /// Turn a raw client failure into something the pairing screen can act on:
-    /// the generic offline hint becomes the exact addresses tried (LAN vs
-    /// Tailscale), and a server-side code rejection reads as a code problem — so
-    /// "wrong network" and "bad/expired code" never look the same.
-    private func userFacing(_ s: LpmClient.State) -> LpmClient.State {
-        guard case .failed(let msg) = s else { return s }
-        if msg == LpmClient.offlineHint { return .failed(unreachableMessage(attemptHosts)) }
-        if msg == "pairing rejected" {
-            return .failed("Pairing code rejected — codes work once. Get a fresh code from the machine you're adding, then scan or type it again.")
-        }
-        if msg == "pairing unavailable" {
-            return .failed("lpm couldn't save this pairing on the other machine, so there's nothing wrong with the code. Its Mobile settings show what needs fixing — then pair again.")
-        }
-        if msg == LpmClient.identityChangedError {
-            return .failed("\(machineLabelSentence)'s security identity has changed since you paired. Trust the new identity to reconnect, or pair it again.")
-        }
-        if msg == LpmClient.pairMismatchError {
-            return .failed("This machine's security identity doesn't match its QR code. The code may be stale — get a fresh one, then scan again.")
-        }
-        if msg == LpmClient.secureFailedError {
-            let code = (client?.lastTransportErrorChain).map { " (error \($0))" } ?? ""
-            let probes = lastProbeOutcomes.isEmpty ? "" :
-                " Probe: " + lastProbeOutcomes.map { "\($0.host): \($0.detail)" }.joined(separator: " · ") + "."
-            return .failed("\(machineLabelSentence) answered\(currentHost.map { " at \($0)" } ?? ""), but a secure connection couldn't be made\(code).\(probes) This usually means lpm there or this app is out of date, or its security identity was reset — update both, then pair again.")
-        }
-        if msg == LpmClient.unauthorizedError {
-            return .failed("\(machineLabelSentence) no longer recognizes this device. Pair with it again to restore access.")
-        }
-        if msg == LpmClient.refusedError {
-            return .failed("\(machineLabelSentence) answered\(currentHost.map { " at \($0)" } ?? ""), but nothing is listening on port \(savedPort()). Make sure lpm is running there — if it is, its port may have changed; re-pair or fix it under Edit Address.")
-        }
-        return s
-    }
-
-    /// What to check when the Mac's addresses don't answer, which away from
-    /// home means the tailnet: lpm's own Tailscale or the Tailscale app.
-    private static let awayFromHomeHint =
-        "Away from your Wi-Fi, check that Built-in Tailscale or the Tailscale app is connected on both devices."
-
-    private func unreachableMessage(_ hosts: [String]) -> String {
-        // Prefer the per-address reasons from the last probe — "192.168.0.80: no
-        // route · 100.92.155.108: timed out" separates Wi-Fi-only-at-home from
-        // Tailscale-down at a glance.
-        let failures = lastProbeOutcomes.filter { !$0.reachable }
-        if !failures.isEmpty {
-            let detail = failures.map { "\($0.host): \($0.detail)" }.joined(separator: " · ")
-            return "Couldn't reach \(machineLabel) — \(detail). \(Self.awayFromHomeHint)"
-        }
-        let list = hosts.filter { !$0.isEmpty }.joined(separator: ", ")
-        let target = list.isEmpty ? machineLabel : "\(machineLabel) at \(list)"
-        return "Couldn't reach \(target) — none of its addresses responded. \(Self.awayFromHomeHint)"
-    }
-
-    /// Per-host probe reasons for the pairing screen — e.g. "192.168.0.80: timed
-    /// out · 100.92.155.108: refused" — so LAN-blocked vs Tailscale-down is
-    /// obvious without another debugging round-trip.
-    private func probeDiagnostic(_ outcomes: [HostProbe.Outcome], hosts: [String]) -> String {
-        let detail = outcomes.isEmpty
-            ? hosts.filter { !$0.isEmpty }.joined(separator: ", ")
-            : outcomes.map { "\($0.host): \($0.detail)" }.joined(separator: " · ")
-        return "Couldn't reach \(machineLabel) — \(detail). \(Self.awayFromHomeHint)"
-    }
-
     /// Foreground backstop for notification withdrawal: iOS drops background clear
     /// pushes for suspended/force-quit apps, so after each projects refresh we prune
     /// delivered notifications whose status entry no longer exists. Only touches
@@ -2271,19 +2303,30 @@ final class AppModel {
             // A pinned-identity mismatch on reconnect (not a QR pairing abort, which
             // the pairing screen surfaces): flag it so the UI can prompt to trust the
             // new identity. Any other state clears the flag.
-            self.identityMismatch = { if case .failed(LpmClient.identityChangedError) = s { return true }; return false }()
+            let mismatch: Bool = { if case .failed(LpmClient.identityChangedError) = s { return true }; return false }()
+            if mismatch && !self.identityMismatch {
+                // Keep the certificate the Mac presented, so the user can compare its
+                // code with the one the Mac shows before trusting it.
+                self.link.newFingerprint = c.observedFingerprint
+                self.link.identityCheckOpen = true
+            }
+            self.identityMismatch = mismatch
             // Same shape: the Mac no longer holds a record for this device, so the
             // UI must offer re-pairing instead of a retry. Any other state clears it.
             self.needsRepair = { if case .failed(LpmClient.unauthorizedError) = s { return true }; return false }()
-            self.connection = self.userFacing(s)
+            self.connection = s
             self.repickHostIfStale(s, from: c)
             self.startRecoveryIfStale(s, from: c)
             let nowReady: Bool = { if case .ready = s { return true }; return false }()
             // The live socket dropped: any request awaiting a reply is now dead
             // (the reply can't survive the reconnect). Reset in-flight bookkeeping.
-            if self.wasReady && !nowReady { self.handleConnectionReset() }
+            if self.wasReady && !nowReady {
+                self.handleConnectionReset()
+                self.noteLeavingActiveMac()
+            }
             self.wasReady = nowReady
             if nowReady {
+                self.noteConnected(c)
                 // The link is back — a recovery browse (if any) has done its job.
                 self.stopBrowsing()
                 self.recoveryStatus = nil
@@ -2325,6 +2368,19 @@ final class AppModel {
         c.onAdvertisedHosts = { [weak self] serverId, hosts in
             self?.mergeAdvertisedHosts(serverId: serverId, hosts: hosts)
         }
+        c.onFarewell = { [weak self, weak c] reason, at in
+            guard let self, let c, c === self.client else { return }
+            self.noteFarewell(reason, at: at)
+        }
+        c.onFarewellWithdrawn = { [weak self, weak c] in
+            guard let self, let c, c === self.client else { return }
+            self.withdrawFarewell()
+        }
+        c.onListFrame = { [weak self, weak c] text in
+            guard let self, let c, c === self.client, c.deviceId != nil, !self.demoMode,
+                  let id = self.activeMacId else { return }
+            self.link.snapshots.record(text, for: id)
+        }
         c.onApnsToken = { [weak self, weak c] ok in
             guard let self else { return }
             guard ok else {
@@ -2345,6 +2401,11 @@ final class AppModel {
             guard let self else { return }
             self.projects = p
             self.projectsLoaded = true
+            self.link.listAsOf = nil
+            // Waiting actions go out against the live list, not the saved one.
+            if case .ready = self.connection, let client = self.client, !self.link.pairing {
+                self.link.flushQueued(to: client)
+            }
             for proj in p where self.pendingRun[proj.name] == proj.running {
                 self.pendingRun[proj.name] = nil
             }

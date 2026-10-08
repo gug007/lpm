@@ -144,9 +144,9 @@ struct ProjectDetail: View {
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
             }
         }
-        .navigationTitle(title)
+        .connectionTitle(title, otherwise: live.running ? "Running" : "Stopped")
         .navigationBarTitleDisplayMode(.inline)
-        .navigationSubtitleCompat(live.running ? "Running" : "Stopped")
+        .safeAreaInset(edge: .top) { ConnectionStatusBar() }
         .navigationDestination(item: $openTerminal) { TerminalScreen(term: $0, project: live) }
         .alert("Rename terminal", isPresented: Binding(
             get: { renaming != nil },

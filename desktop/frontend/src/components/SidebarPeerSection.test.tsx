@@ -250,6 +250,12 @@ describe("SidebarPeerSection header", () => {
     // phone must reach — so the QR and code shown are what IT handed back.
     expect(mocks.remotePair).toHaveBeenCalledWith("aabbccdd");
     expect(document.body.textContent).toContain("Pair a device with GURGENS-MACBOOK-PRO");
+    // Its code only works on that machine's network, so it waits for consent.
+    expect(document.body.textContent).not.toContain("AB12-CD34");
+    const local = [...document.querySelectorAll("button")].find(
+      (b) => b.textContent?.trim() === "Pair for this network only",
+    );
+    await act(async () => local!.click());
     expect(document.body.textContent).toContain("AB12-CD34");
   });
 

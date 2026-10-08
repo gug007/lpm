@@ -6,8 +6,10 @@ struct NotificationSettingsView: View {
     @Environment(AppModel.self) private var model
 
     // Whether the OS-level permission was denied; if so the master toggle can't
-    // actually deliver anything, so we surface a jump to Settings.
+    // actually deliver anything, so we surface a jump to Settings. Not asked yet
+    // offers the prompt itself.
     @State private var systemDenied = false
+    @State private var notAsked = false
 
     private var isConnected: Bool {
         if case .ready = model.connection { return true }
@@ -27,6 +29,13 @@ struct NotificationSettingsView: View {
                             if let url = URL(string: UIApplication.openSettingsURLString) {
                                 UIApplication.shared.open(url)
                             }
+                        }
+                    }
+                } else if notAsked {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Get a nudge on your phone when something happens while the app is closed.")
+                        Button("Allow notifications") {
+                            model.allowNotifications { _ in refreshSystemStatus() }
                         }
                     }
                 } else {
@@ -72,6 +81,7 @@ struct NotificationSettingsView: View {
         UNUserNotificationCenter.current().getNotificationSettings { settings in
             DispatchQueue.main.async {
                 systemDenied = settings.authorizationStatus == .denied
+                notAsked = settings.authorizationStatus == .notDetermined
             }
         }
     }

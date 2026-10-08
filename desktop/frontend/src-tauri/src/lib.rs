@@ -83,6 +83,8 @@ mod mediaproto;
 mod menu;
 mod message_history;
 mod msysmounts;
+mod keepawake;
+mod sleepwatch;
 mod netif;
 mod notes_blobs;
 mod notes_cmds;
@@ -119,6 +121,7 @@ mod pull_request;
 mod ptymodes;
 mod ptyring;
 mod remote;
+mod remotepresence;
 mod remote_git_auto;
 mod remote_machines;
 mod remote_memory;
@@ -471,7 +474,8 @@ pub fn run() {
             // Mobile remote-control server (the phone app connects here). Reads
             // its own ~/.lpm/remote.json; a no-op until enabled + paired.
             let hub = app.state::<remote::RemoteHub>().inner().clone();
-            remote::start(hub, handle.clone());
+            remote::start(hub.clone(), handle.clone());
+            sleepwatch::start(move || remote::farewell(&hub, "sleep"));
 
             // Peer host + client servers (Mac-to-Mac control). Load the shared
             // ~/.lpm/peer.json once into the lock both roles hold, then start the
@@ -565,12 +569,14 @@ pub fn run() {
                 portforward::stop_all_forwards(app); // kill ssh -L tunnels + pollers
                 statusfwd::stop_all(app); // kill ssh -R status forwards
                 sshsync::stop_all_sync_watchers(app); // drop rsync mirror watchers
+                remote::farewell(&app.state::<remote::RemoteHub>(), "quit"); // tell phones lpm is closing
                 remote::stop(&app.state::<remote::RemoteHub>()); // retire the mobile server threads
                 app.state::<autosync::Engine>().stop(); // retire the auto-sync scheduler
                 app.state::<gitfollow::Engine>().stop(); // retire the follow scheduler
                 peer::stop(&app.state::<peer::PeerHub>()); // retire the peer host threads
                 peerclient::stop(&app.state::<peerclient::PeerClientHub>()); // drop peer client conns
                 tailnet::stop(); // take the built-in Tailscale node offline
+                keepawake::set(false); // let this machine sleep again
                 let _ = std::fs::remove_file(config::socket_path());
                 let _ = std::fs::remove_file(config::remote_socket_path());
             }
