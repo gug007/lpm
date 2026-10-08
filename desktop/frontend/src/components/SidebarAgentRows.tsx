@@ -68,7 +68,8 @@ export const SidebarAgentRows = memo(function SidebarAgentRows({
           <span className={MARK_SLOT} />
           {/* The name is the state: it shimmers while the work runs, pulses
               amber while it waits on the user and turns blue when it lands, the
-              same way the project name above and the tab it runs in do. */}
+              same way the tab it runs in does. Only this row shimmers — the
+              project name above leaves the working state to it. */}
           <span
             className={`min-w-0 flex-1 truncate ${
               agent.state === "idle" ? "" : AGENT_STATE_TONE[agent.state]

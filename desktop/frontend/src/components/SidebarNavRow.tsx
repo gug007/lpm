@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { ProjectStatus } from "../agentStatus";
+import { rowNameClass, type ProjectStatus } from "../agentStatus";
 import type { SidebarAgentRow } from "../sidebarAgents";
 import type { NavItemId } from "../sidebarNav";
 import { MoreVerticalIcon } from "./icons";
@@ -33,7 +33,8 @@ export interface SidebarNavEntry {
   trailing?: ReactNode;
   description?: string;
   // What the row's agents are doing, worn by the label the way a project row's
-  // name wears it: a shimmer while one works, amber while one waits on you.
+  // name wears it: amber while one waits on you, and a shimmer while one works
+  // with its rows folded away.
   status?: ProjectStatus;
   // Only in the sidebar: the menu has no room for a list under a row.
   agents?: SidebarNavAgents;
@@ -60,11 +61,8 @@ export function SidebarNavRow({ entry, menuOpen, onOpenMenu }: SidebarNavRowProp
   // row is never padded for something the user cannot see. A chevron parks at
   // the row's end all the time and steps aside for that button on hover.
   const trailingPad = canExpand ? "pr-8 group-hover:pr-14" : "group-hover:pr-9";
-  const label = status?.className ? (
-    <span className={status.className}>{entry.label}</span>
-  ) : (
-    entry.label
-  );
+  const nameClass = status ? rowNameClass(status, isExpanded) : null;
+  const label = nameClass ? <span className={nameClass}>{entry.label}</span> : entry.label;
 
   const row = (
     <div className="group relative flex w-full items-center">

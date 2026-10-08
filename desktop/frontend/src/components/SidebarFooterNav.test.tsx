@@ -268,16 +268,16 @@ describe("SidebarFooterNav Terminals agents", () => {
     useTerminalTitles.setState({ byProject: { __global__: titles } });
   };
 
-  it("paints the Terminals label with its agents' state and lists their tabs", () => {
+  it("lists the tabs and leaves the working shimmer to them", () => {
     const onOpenTerminalTab = vi.fn();
     seed([entry(STATUS_RUNNING, "t1")], { t1: "Mac storage" });
     renderNav({ onOpenTerminalTab });
 
     const terminals = buttonWithText("Terminals")!;
-    expect(terminals.querySelector(".sidebar-shimmer")?.textContent).toBe("Terminals");
+    expect(terminals.querySelector(".sidebar-shimmer")).toBeNull();
 
     const tab = buttonWithText("Mac storage");
-    expect(tab).toBeDefined();
+    expect(tab?.querySelector(".sidebar-shimmer")?.textContent).toBe("Mac storage");
     act(() => tab!.click());
     expect(onOpenTerminalTab).toHaveBeenCalledWith("t1");
   });
@@ -311,6 +311,9 @@ describe("SidebarFooterNav Terminals agents", () => {
     act(() => byLabel("Hide agents in Terminals")!.click());
     expect(buttonWithText("Mac storage")).toBeUndefined();
     expect(useCollapsedAgents.getState().collapsed.has("__global__")).toBe(true);
+    expect(buttonWithText("Terminals")!.querySelector(".sidebar-shimmer")?.textContent).toBe(
+      "Terminals",
+    );
 
     act(() => byLabel("Show agents in Terminals")!.click());
     expect(buttonWithText("Mac storage")).toBeDefined();

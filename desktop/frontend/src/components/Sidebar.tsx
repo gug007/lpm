@@ -28,7 +28,7 @@ import {
   type ProjectGroup,
   type ProjectInfo,
 } from "../types";
-import { agentAmbient, computeProjectStatus } from "../agentStatus";
+import { agentAmbient, computeProjectStatus, rowNameClass } from "../agentStatus";
 import { projectAgentRows, sidebarProjectAlert, type SidebarAgentRow } from "../sidebarAgents";
 import { useCollapsedAgents, useCollapsedDecks } from "../sidebarCollapsed";
 import { SidebarAgentChevron } from "./SidebarAgentChevron";
@@ -952,6 +952,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     // working list, not to that one.
     const canExpand = !selecting && agents.length > 0;
     const isExpanded = canExpand && !collapsedAgents.has(project.name);
+    const nameClass = rowNameClass(status, isExpanded);
     const mark = peerRow?.mark;
     const trailing = rowTrailing(canExpand, Boolean(mark));
     const trailingPad = isContextTarget ? trailing.menu : trailing.rest;
@@ -999,7 +1000,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
               : displayName)
           }
         >
-          {status.className ? <span className={status.className}>{name}</span> : name}
+          {nameClass ? <span className={nameClass}>{name}</span> : name}
         </span>
         <SidebarSendLaterMark projectName={project.name} />
         {isDetached && !isSelf && (

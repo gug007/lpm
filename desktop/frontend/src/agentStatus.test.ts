@@ -4,6 +4,7 @@ import {
   agentStateOf,
   computeProjectStatus,
   providerMeta,
+  rowNameClass,
   statusProvider,
 } from "./agentStatus";
 import {
@@ -46,6 +47,28 @@ describe("agentStateOf", () => {
     expect(agentStateOf(STATUS_RUNNING)).toBe("working");
     expect(agentStateOf(STATUS_DONE)).toBe("done");
     expect(agentStateOf("Compacting")).toBe("idle");
+  });
+});
+
+describe("rowNameClass", () => {
+  const running = computeProjectStatus([entry("claude_code_abc123", STATUS_RUNNING)]);
+
+  it("keeps the shimmer while the tasks are hidden", () => {
+    expect(rowNameClass(running, false)).toBe("sidebar-shimmer");
+  });
+
+  it("drops the shimmer once the tasks are listed under the row", () => {
+    expect(rowNameClass(running, true)).toBe(null);
+  });
+
+  it("keeps a wait and a problem on the name with the tasks listed", () => {
+    const waiting = computeProjectStatus([
+      entry("claude_code_abc123", STATUS_RUNNING),
+      entry("codex_%3", STATUS_WAITING),
+    ]);
+    const failed = computeProjectStatus([entry("codex_%4", STATUS_ERROR)]);
+    expect(rowNameClass(waiting, true)).toBe("sidebar-waiting");
+    expect(rowNameClass(failed, true)).toBe("text-[var(--accent-red-text)]");
   });
 });
 

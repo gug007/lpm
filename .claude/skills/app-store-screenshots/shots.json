@@ -1,0 +1,60 @@
+{
+  "outDir": "~/Pictures/lpm-link-app-store",
+  "devices": {
+    "iphone": { "simulator": "iPhone 18 Pro", "folder": "iphone-6.3", "size": [1206, 2622] },
+    "ipad": { "simulator": "iPad Pro 13-inch (M5)", "folder": "ipad-13", "size": [2064, 2752] }
+  },
+  "shots": [
+    {
+      "name": "projects",
+      "route": "list",
+      "title": "Your Mac's projects,\nin your pocket",
+      "subtitle": "Every project, dev server and AI agent at a glance",
+      "devices": ["iphone", "ipad"]
+    },
+    {
+      "name": "agent",
+      "route": "project:storefront > terminal:storefront/demo-storefront-claude",
+      "wait": 6,
+      "title": "Reply to your\nAI agents",
+      "subtitle": "Read what they did and send the next prompt",
+      "devices": ["iphone", "ipad"]
+    },
+    {
+      "name": "project",
+      "route": "project:storefront",
+      "title": "Know when an agent\nneeds you",
+      "subtitle": "Start and stop dev servers on your Mac with a tap",
+      "devices": ["iphone"]
+    },
+    {
+      "name": "diff",
+      "route": "project:storefront > changes:storefront",
+      "wait": 5,
+      "title": "Review changes\nbefore you commit",
+      "subtitle": "Line-by-line diffs of everything your agents wrote",
+      "devices": ["iphone", "ipad"]
+    },
+    {
+      "name": "usage",
+      "route": "usage",
+      "title": "Stay ahead of\nusage limits",
+      "subtitle": "Live plan usage for your AI coding tools",
+      "devices": ["iphone", "ipad"]
+    },
+    {
+      "name": "stats",
+      "route": "stats",
+      "title": "See where your\ntokens go",
+      "subtitle": "Tokens, sessions and cost by project and model",
+      "devices": ["iphone", "ipad"]
+    },
+    {
+      "name": "automation",
+      "route": "automations > automation:storefront/nightly-tests",
+      "title": "Automations\non a schedule",
+      "subtitle": "Nightly tests run on your Mac and report back",
+      "devices": ["iphone", "ipad"]
+    }
+  ]
+}
