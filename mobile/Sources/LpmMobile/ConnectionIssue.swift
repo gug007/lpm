@@ -38,6 +38,12 @@ enum ConnectionIssue: Equatable {
         if case .connecting = self { return true }
         return false
     }
+
+    /// A tap on this iPhone can fix it, so it earns a bar of its own. The rest
+    /// only need waiting, and the line under the Mac's name says so.
+    var needsYou: Bool {
+        copy(mac: "your Mac").actions.contains { $0 != .retry && $0 != .details }
+    }
 }
 
 /// A button an issue offers. The view decides how each is carried out.
@@ -101,8 +107,8 @@ extension ConnectionIssue {
         case .awayNeedsTailscale(let setup):
             switch setup {
             case .turnOn:
-                return IssueCopy(title: "\(Mac) is on your home network",
-                                 message: "Turn on Built-in Tailscale to reach it from here.",
+                return IssueCopy(title: "Built-in Tailscale is off",
+                                 message: "Turn it on to reach \(mac) away from home.",
                                  icon: "network", tone: .problem, actions: [.turnOnTailscale, .details])
             case .signIn:
                 return IssueCopy(title: "Sign in to Built-in Tailscale",
@@ -262,13 +268,19 @@ extension ConnectionIssue {
 }
 
 /// The line under the Mac's name: how the phone is connected, or why it isn't.
+/// Connecting and waiting on the Mac show only here, so it names the cause.
 struct LinkStatusLine: Equatable {
     enum Tone: Equatable { case live, waiting, problem }
 
     let text: String
     let tone: Tone
+    var pulse = false
 
-    static func make(ready: Bool, demo: Bool, kind: AddressKind?, issue: ConnectionIssue?) -> LinkStatusLine {
+    /// `slow` is a connect that has gone on long enough to say so, `route` how
+    /// the phone expects to reach the Mac from its network, and `found` a Mac
+    /// just found at a new address on this network.
+    static func make(ready: Bool, demo: Bool, kind: AddressKind?, issue: ConnectionIssue?,
+                     slow: Bool = false, route: AddressKind? = nil, found: Bool = false) -> LinkStatusLine {
         if demo { return LinkStatusLine(text: "Demo · sample projects", tone: .live) }
         if ready {
             switch kind {
@@ -278,17 +290,41 @@ struct LinkStatusLine: Equatable {
             }
         }
         switch issue {
-        case .connecting, nil: return LinkStatusLine(text: "Connecting…", tone: .waiting)
+        case .connecting, nil:
+            if slow { return LinkStatusLine(text: "Still connecting", tone: .waiting, pulse: true) }
+            if found { return LinkStatusLine(text: "Found it, reconnecting…", tone: .waiting, pulse: true) }
+            return LinkStatusLine(text: connecting(over: route), tone: .waiting, pulse: true)
         case .farewell(let f):
             switch f.reason {
-            case .sleep: return LinkStatusLine(text: "Asleep", tone: .waiting)
+            case .sleep: return LinkStatusLine(text: "Asleep since \(f.at.clockStamp)", tone: .waiting)
             case .quit: return LinkStatusLine(text: "lpm is closed", tone: .waiting)
             case .off: return LinkStatusLine(text: "Remote control is off", tone: .waiting)
             }
+        case .notAnswering, .pairUnreachable: return LinkStatusLine(text: "Not answering", tone: .problem)
+        case .lpmNotRunning: return LinkStatusLine(text: "lpm isn't running", tone: .problem)
+        case .awayNeedsTailscale(.app): return LinkStatusLine(text: "Can't reach it over Tailscale", tone: .problem)
+        case .phoneOffline: return LinkStatusLine(text: "iPhone is offline", tone: .problem)
         case .notRecognized, .identityRejected: return LinkStatusLine(text: "Not paired", tone: .problem)
         case .identityChanged: return LinkStatusLine(text: "Check its identity", tone: .problem)
         default: return LinkStatusLine(text: "Not connected", tone: .problem)
         }
+    }
+
+    private static func connecting(over route: AddressKind?) -> String {
+        switch route {
+        case .tailscale: return "Connecting over Tailscale…"
+        case .internet: return "Connecting over the internet…"
+        case .home, .localName: return "Connecting on your network…"
+        default: return "Connecting…"
+        }
+    }
+}
+
+extension Date {
+    /// A clock time, with the day in front when it isn't today.
+    var clockStamp: String {
+        formatted(Calendar.current.isDateInToday(self) ? .dateTime.hour().minute()
+                                                      : .dateTime.month().day().hour().minute())
     }
 }
 

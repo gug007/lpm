@@ -212,6 +212,9 @@ final class LpmClient: NSObject {
     // also collapses a burst of gap-triggered resyncs into a single request.
     private var awaitingSeed = Set<String>()
     private(set) var state: State = .idle
+    /// The last frame or heartbeat reply from the Mac. A link found dead on the
+    /// way back from the background was last current then, not when noticed.
+    private(set) var lastHeard: Date?
 
     // Requests made while the link is down or half-dead, delivered on the next
     // `ready`. iOS kills the socket seconds after backgrounding and the
@@ -1364,6 +1367,7 @@ final class LpmClient: NSObject {
     }
 
     private func noteStillThere() {
+        lastHeard = Date()
         guard farewellPending else { return }
         farewellPending = false
         onFarewellWithdrawn?()

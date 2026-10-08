@@ -1,13 +1,13 @@
 import SwiftUI
 
-/// The one bar that says what's wrong with the link to the Mac and offers the
-/// one fix. Hidden while connected and during a quick reconnect; after a couple
-/// of seconds it says what it's doing, and once it gives up it names the cause.
+/// The bar over a screen for a problem a tap on this iPhone fixes, with that
+/// fix. Connecting, and a Mac that's asleep or not answering, stay in the line
+/// under the Mac's name.
 struct ConnectionStatusBar: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        if let issue = model.link.visibleIssue {
+        if let issue = model.link.barIssue {
             IssueContent(issue: issue, style: .bar)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
@@ -45,9 +45,17 @@ struct IssueContent: View {
     var hidesDetails = false
     var onAction: ((IssueAction) -> Void)? = nil
 
-    private var copy: IssueCopy { issue.copy(mac: model.link.macLabel) }
+    private var copy: IssueCopy { issue.copy(mac: style == .bar ? model.link.macNoun : model.link.macLabel) }
 
-    private var actions: [IssueAction] { copy.actions.filter { !(hidesDetails && $0 == .details) } }
+    /// The bar leaves Details to the line under the Mac's name, which opens them.
+    private var actions: [IssueAction] {
+        copy.actions.filter { $0 != .details || !(hidesDetails || style == .bar) }
+    }
+
+    /// A bar with one fix puts it beside the words rather than under them.
+    private var inlineAction: IssueAction? {
+        style == .bar && actions.count == 1 ? actions[0] : nil
+    }
 
     private var tint: Color { copy.tone == .waiting ? .orange : .red }
 
@@ -58,7 +66,7 @@ struct IssueContent: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: inlineAction == nil ? .top : .center, spacing: 12) {
             Group {
                 if issue.isConnecting {
                     ProgressView().controlSize(.small)
@@ -88,7 +96,7 @@ struct IssueContent: View {
                         .font(.footnote.weight(.medium))
                         .foregroundStyle(.orange)
                 }
-                if !actions.isEmpty {
+                if !actions.isEmpty && inlineAction == nil {
                     HStack(spacing: 8) {
                         ForEach(Array(actions.enumerated()), id: \.offset) { index, action in
                             actionButton(action, primary: index == 0 && action != .details)
@@ -98,6 +106,9 @@ struct IssueContent: View {
                 }
             }
             Spacer(minLength: 0)
+            if let inlineAction {
+                actionButton(inlineAction, primary: true)
+            }
         }
     }
 

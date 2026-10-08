@@ -19,13 +19,13 @@ extension AppModel {
 
     /// The live link to the active Mac just ended: remember when it was last
     /// current, for its saved list and for the Mac picker.
-    func noteLeavingActiveMac() {
+    func noteLeavingActiveMac(asOf: Date = Date()) {
         guard !demoMode, !link.pairing, let id = activeMacId,
               let idx = macs.firstIndex(where: { $0.localId == id }) else { return }
-        macs[idx].lastConnected = Date()
+        macs[idx].lastConnected = asOf
         persistMacs()
-        link.snapshots.touch(id)
-        if !projects.isEmpty { link.listAsOf = Date() }
+        link.snapshots.touch(id, at: asOf)
+        if !projects.isEmpty { link.listAsOf = asOf }
     }
 
     /// The link came up: whatever the Mac said on its way out no longer applies.
@@ -69,6 +69,7 @@ extension AppModel {
     /// Built-in Tailscale changed state; once it's up, its addresses work.
     func tailnetChanged(_ state: String) {
         guard state == "running" else { return }
+        link.tailnetCameUp()
         if case .ready = connection { return }
         rehome(reason: nil)
     }

@@ -31,11 +31,10 @@ struct MacTitle: View {
     }
 
     private var detail: String? {
-        let waiting = model.link.waitingCount
-        if waiting > 0 && !model.link.isReady {
-            return waiting == 1 ? "1 action waiting" : "\(waiting) actions waiting"
-        }
-        return model.link.statusLine.tone == .problem ? "tap for details" : nil
+        let link = model.link
+        if link.waitingCount > 0 && !link.isReady { return "\(link.waitingCount) waiting" }
+        let dragging = link.slowConnect && link.issue?.isConnecting == true
+        return link.statusLine.tone == .problem || dragging ? "Details" : nil
     }
 }
 
@@ -76,7 +75,7 @@ struct LinkStatusLabel: View {
             Image(systemName: "circle.fill")
                 .font(.system(size: 6))
                 .foregroundStyle(tint)
-                .symbolEffect(.pulse, isActive: line.text.hasSuffix("…"))
+                .symbolEffect(.pulse, isActive: line.pulse)
             Text(detail.map { "\(line.text) · \($0)" } ?? line.text)
                 .font(.caption2.weight(.medium))
                 .foregroundStyle(.secondary)

@@ -52,6 +52,25 @@ struct ContentView: View {
         .onAppear {
             BuiltInTailscale.shared.foreground()
             model.bootstrap()
+            #if DEBUG
+            if let drive = ProcessInfo.processInfo.environment["LPM_DRIVE"] {
+                Task { @MainActor in
+                    for step in drive.split(separator: ";") {
+                        try? await Task.sleep(nanoseconds: 2_000_000_000)
+                        let parts = step.split(separator: "=", maxSplits: 1).map(String.init)
+                        let args = parts.count > 1 ? parts[1].split(separator: ",").map(String.init) : []
+                        switch parts[0] {
+                        case "pair": model.pair(hosts: [args[0]], port: Int(args[1]) ?? 0, code: args[2])
+                        case "hosts":
+                            if let id = model.activeMacId, let port = model.activeRecord?.port {
+                                model.updateEndpoint(of: id, hosts: args, port: port)
+                            }
+                        default: break
+                        }
+                    }
+                }
+            }
+            #endif
             // Warm WebKit now so the first terminal opens without the ~2s cold start.
             TerminalWebPool.prewarm()
         }
@@ -189,6 +208,13 @@ struct ProjectsView: View {
     /// The list on screen is the one saved from the last connection, not live.
     private var isStale: Bool { model.link.listAsOf != nil && !model.link.isReady }
 
+    /// When the saved list was last live, once a reconnect has gone on long
+    /// enough to matter.
+    private var listAge: Date? {
+        guard isStale, !model.link.quietReconnect else { return nil }
+        return model.link.listAsOf
+    }
+
     var body: some View {
         List {
             Section {
@@ -196,12 +222,12 @@ struct ProjectsView: View {
                     sidebarRow(item)
                 }
             } header: {
-                if isStale, let asOf = model.link.listAsOf {
-                    Text("Last update · \(asOf.formatted(Calendar.current.isDateInToday(asOf) ? .dateTime.hour().minute() : .dateTime.month().day().hour().minute()))")
+                if let asOf = listAge {
+                    Text("Updated \(asOf.clockStamp)")
                         .textCase(nil)
                 }
             } footer: {
-                if isStale {
+                if listAge != nil {
                     Text("Projects open read-only until your Mac is back. Start and Stop wait for it, for up to 2 minutes.")
                 }
             }
@@ -317,11 +343,10 @@ struct ProjectsView: View {
                 AutomationDetailView(project: project, jobId: id)
             }
         }
-        // One bar, above the list, for whatever is wrong with the link — and the
-        // one fix for it. A list with nothing to show puts the problem in its
-        // place instead.
+        // A bar above the list only for a problem with a fix on this iPhone. A
+        // list with nothing to show puts any problem in its place instead.
         .safeAreaInset(edge: .top) {
-            if !model.projects.isEmpty || model.link.visibleIssue?.isConnecting == true {
+            if !model.projects.isEmpty {
                 ConnectionStatusBar()
             }
         }
@@ -339,6 +364,7 @@ struct ProjectsView: View {
         }
         .animation(.default, value: model.projectsLoaded)
         .animation(.default, value: model.link.visibleIssue)
+        .animation(.default, value: listAge)
         .sheet(isPresented: Binding(get: { model.addingMac }, set: { model.addingMac = $0 }),
                onDismiss: { model.cancelAddMac() }) {
             NavigationStack {
@@ -684,7 +710,6 @@ struct ProjectRow: View {
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(project.label)
-                    .foregroundStyle(stale ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
                 if let status = project.workStatus, let note = status.note {
                     WorkStatusNoteLine(status: status, note: note)
                 }

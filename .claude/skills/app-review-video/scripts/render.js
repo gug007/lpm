@@ -78,10 +78,12 @@ async function render({ dir, version, build, device = "iPhone", cut, redact = []
   inputs.push("-framerate", String(FPS), "-i", path.join(work, "ripple-%02d.png"));
 
   const g = [`[0:v]setpts=PTS-STARTPTS,fps=${FPS},select='${select}',setpts=N/${FPS}/TB,scale=${layout.vw}:${layout.vh}:flags=lanczos[s0]`];
+  // One split feeds every blurred crop: a split per box, chained, makes each
+  // frame request double per box and stalls ffmpeg past a dozen boxes.
+  if (blurs.length) g.push(`[s0]split=${blurs.length + 1}[sb]${blurs.map((_, i) => `[c${i}]`).join("")}`);
   blurs.forEach((b, i) => {
-    g.push(`[s${i}]split[s${i}a][s${i}b]`);
-    g.push(`[s${i}b]crop=${b.w}:${b.h}:${b.x}:${b.y},boxblur=luma_radius='min(12,min(w,h)/2-1)':chroma_radius='min(6,min(cw,ch)/2-1)':luma_power=2[b${i}]`);
-    g.push(`[s${i}a][b${i}]overlay=${b.x}:${b.y}:enable='between(t,${b.from.toFixed(3)},${b.to.toFixed(3)})'[s${i + 1}]`);
+    g.push(`[c${i}]crop=${b.w}:${b.h}:${b.x}:${b.y},boxblur=luma_radius='min(12,min(w,h)/2-1)':chroma_radius='min(6,min(cw,ch)/2-1)':luma_power=2[b${i}]`);
+    g.push(`[${i ? `s${i}` : "sb"}][b${i}]overlay=${b.x}:${b.y}:enable='between(t,${b.from.toFixed(3)},${b.to.toFixed(3)})'[s${i + 1}]`);
   });
   g.push(`color=c=black:s=${layout.stageW}x${layout.stageH}:r=${FPS}:d=${main.toFixed(3)}[cv]`);
   g.push(`[cv][s${blurs.length}]overlay=${layout.ox}:${layout.oy}:shortest=1[t0]`);

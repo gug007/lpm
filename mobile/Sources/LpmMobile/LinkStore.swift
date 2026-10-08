@@ -86,6 +86,7 @@ final class LinkStore {
     var repairReason: RepairReason?
 
     @ObservationIgnored private var slowTimer: DispatchWorkItem?
+    @ObservationIgnored private var slowCeilingTimer: DispatchWorkItem?
     @ObservationIgnored private var tryingTimer: DispatchWorkItem?
     @ObservationIgnored private var queuedWork: [UUID: (LpmClient) -> Void] = [:]
     @ObservationIgnored private var reachCheckedAt: Date?
@@ -148,39 +149,72 @@ final class LinkStore {
         facts.flatMap(ConnectionIssue.derive)
     }
 
-    /// The issue worth a bar right now: none while a reconnect is still quick.
+    /// The issue worth showing right now: none while a reconnect is still quick.
     var visibleIssue: ConnectionIssue? {
         guard let issue else { return nil }
         if issue.isConnecting && !slowConnect { return nil }
         return issue
     }
 
+    /// The issue worth a bar over the list: only one a tap on this iPhone fixes.
+    var barIssue: ConnectionIssue? {
+        guard let issue = visibleIssue, issue.needsYou else { return nil }
+        return issue
+    }
+
+    /// A reconnect still in its first seconds, which changes nothing on screen
+    /// but the line under the Mac's name.
+    var quietReconnect: Bool { issue?.isConnecting == true && !slowConnect }
+
+    /// How the bar names the machine: the title right above it shows its name.
+    var macNoun: String {
+        !pairing && model?.activeRecord?.isLinuxHost == true ? "your Linux host" : "your Mac"
+    }
+
+    /// How the phone expects to reach the Mac from the network it's on: its home
+    /// address on the Mac's own network, otherwise one that works from anywhere.
+    private var expectedRoute: AddressKind? {
+        guard let model, !pairing, network.isOnline, let hosts = model.activeRecord?.hosts else { return nil }
+        if network.medium != .cellular && atHome(hosts) { return .home }
+        let kinds = hosts.map(AddressKind.of)
+        if kinds.contains(.tailscale) { return .tailscale }
+        return kinds.contains(.internet) ? .internet : nil
+    }
+
     var statusLine: LinkStatusLine {
         LinkStatusLine.make(ready: isReady, demo: model?.demoMode ?? false,
-                            kind: host.map(AddressKind.of), issue: issue)
+                            kind: host.map(AddressKind.of), issue: issue,
+                            slow: slowConnect, route: expectedRoute,
+                            found: model?.recoveryStatus != nil)
     }
 
     var identityCode: String? { newFingerprint.map(IdentityCode.of(fingerprint:)) }
 
     // MARK: updates from the model
 
+    /// How long a connect runs before the line says it's still going.
+    private static let slowAfter: TimeInterval = 4
+    /// Past this it's slow even while Built-in Tailscale is still starting.
+    private static let slowCeiling: TimeInterval = 15
+
     func noteState(_ state: LpmClient.State, from old: LpmClient.State) {
         switch state {
         case .connecting:
             guard old != .connecting else { return }
             // A retry after a failure is already slow; restarting the clock
-            // would hide the bar and bring it back on every attempt.
+            // would flip the line back on every attempt.
             if case .failed = old { slowConnect = true; return }
             slowConnect = false
-            slowTimer?.cancel()
-            let work = DispatchWorkItem { [weak self] in
+            armSlow(after: Self.slowAfter, waitingOnTailnet: true)
+            slowCeilingTimer?.cancel()
+            let ceiling = DispatchWorkItem { [weak self] in
                 guard let self, case .connecting = self.model?.connection else { return }
                 self.slowConnect = true
             }
-            slowTimer = work
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: work)
+            slowCeilingTimer = ceiling
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.slowCeiling, execute: ceiling)
         case .ready:
-            slowTimer?.cancel()
+            cancelSlow()
             slowConnect = false
             connectedSince = Date()
             reconnectReason = nil
@@ -190,13 +224,37 @@ final class LinkStore {
             endTrying()
             if let host { checks[host] = AddressCheck(reachable: true, detail: "ok", at: Date()) }
         case .failed(let raw):
-            slowTimer?.cancel()
+            cancelSlow()
             if LpmClient.isOfflineHint(raw) { lastFailure = raw }
             endTrying()
         case .idle:
-            slowTimer?.cancel()
+            cancelSlow()
         }
         if state != .ready { connectedSince = nil }
+    }
+
+    /// Built-in Tailscale coming back after a suspend is part of a normal open,
+    /// so a connect waiting on it starts its count once it's up.
+    private func armSlow(after delay: TimeInterval, waitingOnTailnet: Bool) {
+        slowTimer?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, case .connecting = self.model?.connection else { return }
+            let tailscale = BuiltInTailscale.shared
+            if waitingOnTailnet && tailscale.enabled && tailscale.status.state == "starting" { return }
+            self.slowConnect = true
+        }
+        slowTimer = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+    }
+
+    private func cancelSlow() {
+        slowTimer?.cancel()
+        slowCeilingTimer?.cancel()
+    }
+
+    func tailnetCameUp() {
+        guard case .connecting = model?.connection, !slowConnect else { return }
+        armSlow(after: Self.slowAfter, waitingOnTailnet: false)
     }
 
     func clearFailure() {
@@ -240,7 +298,7 @@ final class LinkStore {
     }
 
     func resetSession() {
-        slowTimer?.cancel()
+        cancelSlow()
         host = nil
         pairing = false
         checks = [:]

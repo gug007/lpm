@@ -35,10 +35,10 @@ final class ProjectSnapshots {
         save(entry, for: mac)
     }
 
-    /// Stamp the saved list as current up to now — the moment the link dropped.
-    func touch(_ mac: UUID) {
+    /// Stamp the saved list as current up to `at`, the last time the link was live.
+    func touch(_ mac: UUID, at: Date) {
         guard var entry = self.entry(mac) else { return }
-        entry.at = Date()
+        entry.at = at
         save(entry, for: mac)
     }
 

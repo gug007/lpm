@@ -2322,7 +2322,7 @@ final class AppModel {
             // (the reply can't survive the reconnect). Reset in-flight bookkeeping.
             if self.wasReady && !nowReady {
                 self.handleConnectionReset()
-                self.noteLeavingActiveMac()
+                self.noteLeavingActiveMac(asOf: c.lastHeard ?? Date())
             }
             self.wasReady = nowReady
             if nowReady {
