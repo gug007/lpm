@@ -6,7 +6,8 @@
 //   mark "<caption>" ["<subtitle>"]          start the next numbered step caption
 //   checkpoint / cut                         cut drops the video since the last checkpoint
 //   stop                                     finish the recording
-//   render [--version <v>] [--build <n>] [--device "iPhone 18 Pro"] [--cut a-b,...] [--dir <dir>]
+//   render [--version <v>] [--build <n>] [--device "iPhone 18 Pro"] [--cut a-b,...]
+//          [--redact <regex>] [--no-camera] [--dir <dir>]
 //   eval "<js>"                              run JavaScript in the review app's page
 //   status                                   session paths, pids, windows
 //   teardown                                 quit the review Mac and delete its data
@@ -60,7 +61,8 @@ async function main() {
     case "render": {
       const dir = f.dir || session.readState().out;
       if (!dir) throw new Error("no session directory: pass --dir");
-      await require("./render").render({ dir, version: f.version || mobileVersion(), build: f.build, device: f.device, cut: f.cut });
+      await require("./render").render({ dir, version: f.version || mobileVersion(), build: f.build, device: f.device, cut: f.cut,
+        redact: f.redact ? [f.redact] : [], camera: !f["no-camera"] });
       break;
     }
     case "eval":
@@ -75,7 +77,7 @@ async function main() {
       await session.teardown();
       break;
     default:
-      console.log(fs.readFileSync(__filename, "utf8").split("\n").slice(1, 12).join("\n").replace(/^\/\/ ?/gm, ""));
+      console.log(fs.readFileSync(__filename, "utf8").split("\n").slice(1, 13).join("\n").replace(/^\/\/ ?/gm, ""));
       process.exit(cmd ? 1 : 0);
   }
 }

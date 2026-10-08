@@ -6,6 +6,9 @@
 // puts the system's purple sharing badge over its traffic lights. Apps that
 // start later are excluded as they appear. SIGINT or SIGTERM finishes the file;
 // the wall-clock time of the movie's first frame goes to stdout as epoch ms.
+// Mouse presses, releases and moves (global points) and the moments keys are
+// pressed (never which key) go to events.jsonl beside the movie, so the edit
+// knows when each action happened.
 import AVFoundation
 import CoreMedia
 import Foundation
@@ -118,5 +121,51 @@ Task {
         fail(error.localizedDescription)
     }
 }
+// A listen-only tap: it observes input, it never changes or sends any.
+final class EventLog {
+    private let out: FileHandle?
+    private var lastMove: Int64 = 0
+
+    init(_ url: URL) {
+        FileManager.default.createFile(atPath: url.path, contents: nil)
+        out = try? FileHandle(forWritingTo: url)
+    }
+
+    func write(_ kind: String, _ e: CGEvent?) {
+        let now = Int64(Date().timeIntervalSince1970 * 1000)
+        var line = "{\"t\":\(now),\"k\":\"\(kind)\""
+        if let e {
+            if kind == "move" {
+                guard now - lastMove >= 80 else { return }
+                lastMove = now
+            }
+            line += ",\"x\":\(Int(e.location.x)),\"y\":\(Int(e.location.y))"
+        }
+        out?.write((line + "}\n").data(using: .utf8)!)
+    }
+}
+
+let eventLog = EventLog(outURL.deletingLastPathComponent().appendingPathComponent("events.jsonl"))
+var eventTap: CFMachPort?
+let kinds: [CGEventType: String] = [
+    .leftMouseDown: "down", .leftMouseUp: "up", .mouseMoved: "move", .leftMouseDragged: "move", .keyDown: "key",
+]
+let mask = kinds.keys.reduce(CGEventMask(0)) { $0 | (1 << $1.rawValue) }
+eventTap = CGEvent.tapCreate(tap: .cgSessionEventTap, place: .tailAppendEventTap, options: .listenOnly, eventsOfInterest: mask,
+                             callback: { _, type, event, _ in
+    if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+        if let tap = eventTap { CGEvent.tapEnable(tap: tap, enable: true) }
+    } else if let kind = kinds[type] {
+        eventLog.write(kind, kind == "key" ? nil : event)
+    }
+    return Unmanaged.passUnretained(event)
+}, userInfo: nil)
+if let tap = eventTap {
+    CFRunLoopAddSource(CFRunLoopGetMain(), CFMachPortCreateRunLoopSource(nil, tap, 0), .commonModes)
+    CGEvent.tapEnable(tap: tap, enable: true)
+} else {
+    FileHandle.standardError.write("reviewcap: no input events (the terminal lacks Input Monitoring); the edit falls back to pixel changes\n".data(using: .utf8)!)
+}
+
 _ = sources
-dispatchMain()
+CFRunLoopRun()

@@ -1,10 +1,17 @@
 // card < specs.json: renders each spec {out, w, h, bg, boxes, items} to a PNG
-// of w x h pixels. boxes: {x, y, w, h, color, radius}; items: text drawn with
+// of w x h pixels. boxes: {x, y, w, h, color, radius, stroke, line}, filled
+// with color and/or outlined with stroke; items: text drawn with
 // the system font {text, x, y, w, size, weight, color, align}, where (x, y) is
 // the top of the text and `w` (optional) wraps it inside [x, x + w].
 import AppKit
 
-struct Box: Decodable { let x, y, w, h: Double; let color: String; let radius: Double? }
+struct Box: Decodable {
+    let x, y, w, h: Double
+    let color: String?
+    let radius: Double?
+    let stroke: String?
+    let line: Double?
+}
 struct Item: Decodable {
     let text: String
     let x, y: Double
@@ -50,9 +57,16 @@ func render(_ spec: Spec) throws {
         NSRect(x: 0, y: 0, width: spec.w, height: spec.h).fill()
     }
     for b in spec.boxes ?? [] {
-        color(b.color).setFill()
-        let r = NSRect(x: b.x, y: b.y, width: b.w, height: b.h)
-        NSBezierPath(roundedRect: r, xRadius: b.radius ?? 0, yRadius: b.radius ?? 0).fill()
+        let path = NSBezierPath(roundedRect: NSRect(x: b.x, y: b.y, width: b.w, height: b.h), xRadius: b.radius ?? 0, yRadius: b.radius ?? 0)
+        if let fill = b.color {
+            color(fill).setFill()
+            path.fill()
+        }
+        if let stroke = b.stroke {
+            color(stroke).setStroke()
+            path.lineWidth = b.line ?? 1
+            path.stroke()
+        }
     }
     for it in spec.items ?? [] {
         let para = NSMutableParagraphStyle()
