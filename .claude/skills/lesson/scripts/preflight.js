@@ -221,6 +221,27 @@ function helpers() {
   }
 }
 
+// lpm Link beside the app (lesson.json "phone"): the simulator, Device Hub
+// to show it, idb to tap it and xcodegen for the lesson build of the app.
+function phone() {
+  if (!lesson.phone) return;
+  const { IDB_PYTHON, DEVICE_HUB } = require("./phone");
+  if (!fs.existsSync(DEVICE_HUB)) missing.push(`Device Hub (Xcode 27's simulator app) at ${DEVICE_HUB}`);
+  if (!onPath("xcodegen")) missing.push("xcodegen, for the lesson build of lpm Link: brew install xcodegen");
+  if (!onPath("idb_companion")) missing.push("idb_companion, to tap the simulated iPhone: brew install facebook/fb/idb-companion");
+  if (!fs.existsSync(IDB_PYTHON)) {
+    const venv = path.dirname(path.dirname(IDB_PYTHON));
+    missing.push(`the idb client: python3 -m venv ${venv} && ${venv}/bin/pip install fb-idb`);
+  }
+  for (const name of ["winplace", "axpress"]) {
+    try {
+      helper(name);
+    } catch (e) {
+      missing.push(e.message);
+    }
+  }
+}
+
 async function main() {
   tools();
   chromium();
@@ -232,6 +253,7 @@ async function main() {
     agents();
     trust();
     app();
+    phone();
     if (!missing.some((m) => m.startsWith("Xcode"))) permissions();
   }
   for (const d of done) console.log(`preflight: ${d}`);

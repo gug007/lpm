@@ -122,7 +122,7 @@ function checkEdit(lesson, ids, errors, warnings) {
     if (!cover.words) errors.push('lesson.json cover has no "words" (two to four, bigger than the title card\'s)');
     else if (cover.words.split(/\s+/).length > 5) warnings.push(`the cover's words ("${cover.words}") are many for a thumbnail; two to four read at feed size`);
     if (!ids.has(cover.line)) errors.push(`lesson.json cover: "line" names "${cover.line}", which is not a narration line`);
-    if (cover.style && !["window", "closeup"].includes(cover.style)) errors.push(`lesson.json cover: style "${cover.style}" is "window" or "closeup"`);
+    if (cover.style && !["window", "closeup", "phone"].includes(cover.style)) errors.push(`lesson.json cover: style "${cover.style}" is "window", "closeup" or "phone"`);
     if (cover.crop && !(Array.isArray(cover.crop) && cover.crop.length === 4 && cover.crop.every((v) => typeof v === "number" && v >= 0))) {
       errors.push('lesson.json cover: "crop" is [x, y, width, height] in the app window\'s points');
     }

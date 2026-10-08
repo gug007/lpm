@@ -4,13 +4,16 @@
 // timeline the mux lays the audio (and, for the app, the cards) on.
 const fs = require("fs");
 const path = require("path");
-const { spawnSync } = require("child_process");
+const { spawnSync, execFileSync } = require("child_process");
 const { openStage, OUT, FRAME, ZOOM } = require("./stage");
 const { frameBox } = require("./compose");
 const { Recorder } = require("./recorder");
 const { launchApp, REPO, APP_BIN } = require("./app");
 const { Capture } = require("./capture");
 const { AppStage } = require("./appstage");
+const { PhoneStage, findScreen } = require("./phonestage");
+const { preparePhone } = require("./phone");
+const { PHONE_LAYOUT, phoneLayout } = require("./phonecompose");
 const { renderCards, APP_LAYOUT } = require("./cards");
 const { sleep } = require("./words");
 const { prepareState, killStaleServices } = require("./state");
@@ -25,6 +28,32 @@ const TAIL_MS = 1800;
 const WINDOW_AT = process.env.LESSON_WIN_X
   ? { x: Number(process.env.LESSON_WIN_X), y: Number(process.env.LESSON_WIN_Y) || 80 }
   : { center: true };
+// With a phone, Device Hub's iPhone window stands at the right of the main
+// display and the app window left of it, `PHONE_GAP` points apart.
+const PHONE_GAP = 40;
+
+function mainScreen() {
+  const out = execFileSync("osascript", ["-l", "JavaScript", "-e", 'ObjC.import("AppKit"); var f = $.NSScreen.mainScreen.frame; f.size.width + " " + f.size.height'], { encoding: "utf8" });
+  const [w, h] = out.trim().split(" ").map(Number);
+  return { w, h };
+}
+
+// Places the app window beside the phone's and returns the capture around
+// both, in points, with each window's place inside it.
+async function placeBesidePhone(app, phone, size) {
+  const screen = mainScreen();
+  const now = phone.window();
+  const hub = phone.window({ x: screen.w - now.w - 24, y: Math.max(32, Math.round((screen.h - now.h) / 2) + 12) });
+  await app.control.call("window", { x: hub.x - PHONE_GAP - size.w, y: Math.round(hub.y + hub.h / 2 - size.h / 2), top: true, focus: true });
+  await sleep(500);
+  const b = await app.control.call("bounds");
+  const win = { x: b.x / b.scale, y: b.y / b.scale, w: b.w / b.scale, h: b.h / b.scale };
+  const x = Math.min(win.x, hub.x);
+  const y = Math.min(win.y, hub.y);
+  const rect = { x, y, w: Math.max(win.x + win.w, hub.x + hub.w) - x, h: Math.max(win.y + win.h, hub.y + hub.h) - y };
+  const inside = (r) => ({ x: Math.round((r.x - x) * b.scale), y: Math.round((r.y - y) * b.scale), w: Math.round(r.w * b.scale), h: Math.round(r.h * b.scale) });
+  return { b, rect, region: inside(win), hub: inside(hub) };
+}
 
 // `progress` collects the lines done so far, for the partial timeline a failed
 // take leaves; `check` throws when the recording can no longer be used.
@@ -109,15 +138,18 @@ function appStamp(ui) {
   return { commit: git("rev-parse", "--short", "HEAD"), dirtyFrontendFiles: dirty, binaryBuiltAt: built, ui };
 }
 
+// `phone` ({ device, env }, lesson.json "phone") puts lpm Link in the iOS
+// Simulator beside the app and records both (phone.js, phonestage.js).
 // `win` sizes the app window (points); `Stage` may extend AppStage with beat
 // calls of its own, and whatever its `timelineExtras()` returns is saved with
 // the timeline; `pace` tightens or loosens the gaps around the narration.
 // Everything the take sets up is undone however it ends (teardown.js); a
 // failed take throws with `partial` (the lines it got through) and leaves the
 // screen at that moment in `errorShot`.
-async function recordApp({ lines, beats, raw, framesDir, errorShot, lesson, lpmDir, keepState, mouse, win, Stage = AppStage, pace = {} }) {
+async function recordApp({ lines, beats, raw, framesDir, errorShot, lesson, lpmDir, keepState, mouse, win, Stage = AppStage, pace = {}, phone }) {
   const { gapMs = GAP_MS, leadMs = LEAD_MS, tailMs = TAIL_MS } = pace;
-  const size = win || { w: FRAME.width, h: FRAME.height };
+  const size = win || (phone ? PHONE_LAYOUT.app : { w: FRAME.width, h: FRAME.height });
+  if (phone) Stage = PhoneStage;
   let t0 = Date.now();
   const log = (m) => console.log(`  ${((Date.now() - t0) / 1000).toFixed(2)}s ${m}`);
   const undo = [];
@@ -139,17 +171,36 @@ async function recordApp({ lines, beats, raw, framesDir, errorShot, lesson, lpmD
     later(() => app.close());
     // Sizing is asynchronous on macOS; centring in the same call would use the
     // old size, so the window is sized first and placed once that has settled.
+    let phoneSide = null;
+    if (phone) {
+      phoneSide = await preparePhone({ device: phone.device, env: phone.env, log });
+      later(() => phoneSide.close());
+    }
     await app.control.call("window", { w: size.w, h: size.h });
     await sleep(400);
-    await app.control.call("window", { ...WINDOW_AT, top: true, focus: true });
-    await sleep(500);
-    const b = await app.control.call("bounds");
+    let b, placed;
+    if (phoneSide) {
+      placed = await placeBesidePhone(app, phoneSide, size);
+      b = placed.b;
+    } else {
+      await app.control.call("window", { ...WINDOW_AT, top: true, focus: true });
+      await sleep(500);
+      b = await app.control.call("bounds");
+    }
     const origin = { x: b.x / b.scale, y: b.y / b.scale, w: b.w / b.scale, h: b.h / b.scale, scale: b.scale };
     rec = new Recorder(raw);
     later(() => rec.stop(Date.now() - t0));
-    capture = new Capture({ rect: { x: b.x, y: b.y, w: b.w, h: b.h }, pid: app.proc.pid, scale: b.scale, onFrame: (f) => rec.frame(f) });
+    const px = (r) => ({ x: Math.round(r.x * b.scale), y: Math.round(r.y * b.scale), w: Math.round(r.w * b.scale), h: Math.round(r.h * b.scale) });
+    capture = placed
+      ? new Capture({ rect: px(placed.rect), pid: [app.proc.pid, phoneSide.pid], scale: b.scale, onFrame: (f) => rec.frame(f) })
+      : new Capture({ rect: { x: b.x, y: b.y, w: b.w, h: b.h }, pid: app.proc.pid, scale: b.scale, onFrame: (f) => rec.frame(f) });
     later(() => capture.stop());
-    stage = await Stage.open(app, capture, { framesDir, log, mouse, origin, out: OUT, box: frameBox(OUT, FRAME, ZOOM) });
+    const layout = phoneSide ? phoneLayout(OUT, ZOOM) : null;
+    stage = await Stage.open(app, capture, {
+      framesDir, log, mouse, origin, out: OUT,
+      box: layout ? layout.mac : frameBox(OUT, FRAME, ZOOM),
+      phone: phoneSide && { driver: phoneSide.driver, press: phoneSide.press, layout },
+    });
     later(() => stage.finish());
     await stage.frame("stage");
     await stage.cover();
@@ -160,6 +211,12 @@ async function recordApp({ lines, beats, raw, framesDir, errorShot, lesson, lpmD
       throw new Error(`${e.message} (captured ${capture.frames} frames; nudge: ${nudgeError || "ok"}; ${capture.err.slice(-200)})`);
     });
     await app.control.evaluate(() => document.getElementById("lesson-tick")?.remove()).catch(() => {});
+    const phoneRegion = placed && findScreen(capture.latest, placed.hub, phoneLayout(OUT, ZOOM).device);
+    if (phoneRegion) {
+      log(`phone screen at ${JSON.stringify(phoneRegion)} of the capture`);
+      const k = b.scale;
+      phoneSide.setScreen({ x: placed.rect.x + phoneRegion.x / k, y: placed.rect.y + phoneRegion.y / k, w: phoneRegion.w / k, h: phoneRegion.h / k });
+    }
     t0 = rec.startWall;
     stage.t0 = t0;
     const check = () => {
@@ -175,7 +232,8 @@ async function recordApp({ lines, beats, raw, framesDir, errorShot, lesson, lpmD
     await rec.stop(totalMs);
     const extras = stage.timelineExtras ? stage.timelineExtras() : {};
     const warnings = stage.warnings?.length ? { warnings: stage.warnings } : {};
-    return { totalMs, lines: timeline, cards: stage.cards, zooms: stage.zooms, box: { w: b.w, h: b.h, scale: b.scale }, app: appStamp(app.ui), ...warnings, ...extras };
+    const both = placed ? { region: placed.region, phone: { region: phoneRegion, hub: placed.hub, captureW: placed.rect.w } } : {};
+    return { totalMs, lines: timeline, cards: stage.cards, zooms: stage.zooms, box: { w: b.w, h: b.h, scale: b.scale }, app: appStamp(app.ui), ...both, ...warnings, ...extras };
   } catch (e) {
     stopping = true;
     if (capture?.latest) {

@@ -19,7 +19,8 @@ A lesson lives in `~/Movies/lpm-lessons/<slug>/`. `scripts/new.js` writes a star
 | `coldOpen` | `{ text, shots: [{ line, from, to }] }`: the video opens on the payoff. `text` is the hook (one or two sentences: what the viewer gets), spoken over the shots, which are cut from later in the take (`from`/`to` in seconds from that line's start, so they survive a new take). It replaces the first line's narration; the opening card follows, then the lesson from its second line. Pick the shots from a take's frames or `qa/sheet.jpg`; the hook is voiced on the first render that needs it, `--mux-only` included |
 | `speedUpWaits` | `false` keeps waits real time. By default a stretch of more than 2.5 s with nothing said between two lines (an agent working) plays at 4× under a badge, faster when it is long (up to 16×) |
 | `waitMaxSeconds` | the longest one wait may play, in seconds: a race that runs for half an hour plays at whatever speed fits (the badge shows it) |
-| `cover` | `{ words, line, at, crop, style }`: the thumbnail from a moment of the take instead of the plain opening card. `words` 2–4, adding to the title rather than repeating it; `at` seconds into `line`; `crop` `[x, y, w, h]` in the window's points (1100×620, default: the pane right of the sidebar); `style` `"window"` (words left, the window right, off the edge) or `"closeup"` (the crop full width under a band of canvas) |
+| `cover` | `{ words, line, at, crop, style }`: the thumbnail from a moment of the take instead of the plain opening card. `words` 2–4, adding to the title rather than repeating it; `at` seconds into `line`; `crop` `[x, y, w, h]` in the window's points (1100×620, default: the pane right of the sidebar; in the capture's points with a phone); `style` `"window"` (words left, the window right, off the edge), `"closeup"` (the crop full width under a band of canvas) or `"phone"` (words left, lpm Link's screen right in a drawn iPhone; no crop) |
+| `phone` | `{ device, env }`: lpm Link in the iOS Simulator beside the app, recorded with it and shown as a drawn iPhone right of the window (see "The phone" below). `env` reaches the app (`LPM_LESSON_ONLY_MAC` limits its "On this Wi-Fi" list to that Mac name) |
 | `youtube` | `{ hook: [line, line], learn: [], tags: [], hashtags: [] }`, the upload's description and tags |
 
 ## beats.js
@@ -63,6 +64,18 @@ Selectors: CSS, `text=<substring>`, `css:has-text("…")` and `a >> b` chains; t
 ## The kit (`scripts/kit.js`)
 
 `PROJECT(name)`, `HEADER(name)` (header action buttons), `TABS`, `COMPOSER_INPUT`, `SEND`; `writeProject`, `neutralShell`; `openAgent(s, "Claude", { cue })` (clicks until a new terminal tab opens, returns when); `claudeDone(root, since, { prompt, configDir })`, `codexDone(root, since)`, `until(s, check, { timeout, label })`; `clickUntil(s, sel, done)`; `typeInto(s, text)`; `waitGone(s, sel)`; `scrollTo(s, css)` (smoothly, inside its own scroll container); `isVisible`, `count`, `tagByPosition`, `focusWindow`, `focusLeft` (a vertical push-in that keeps canvas out of frame; a plain `s.zoom` on a landscape stage), `park`.
+
+## The phone
+
+With `"phone"` in lesson.json the stage also drives lpm Link (`scripts/phonestage.js`). The app window is 980×640 points, shown at 0.88 beside the phone. Phone elements come from the simulated iPhone's accessibility tree: `"Done"` is the exact label, `{ contains: "MacBook Pro" }` a part of it, `{ label, type: "Button", index }` narrows it.
+
+| call | notes |
+| --- | --- |
+| `s.tap(sel, { cue, lead, at, verify, verifyMs, tries })` | a tap on the phone on its cue word, drawn as a touch mark: the element with that label nearest the point is pressed through Device Hub's accessibility bridge. `verify` (a phone selector or async fn) must pass afterwards; while the target is still there it is tapped again, `tries` times in all (2). The project screen's toolbar (back, +, ···) isn't in the tree, so it can't be tapped |
+| `s.phoneWaitFor(sel, timeout)`, `s.phoneGone(sel, timeout)`, `s.phoneFind(sel)` | the phone's screen; `phoneFind` gives the element (`frame` in device points) or null |
+| `s.phoneZoom(sel, { scale, at, ms, cue })` | `s.zoom` on a phone element, or on `{ point: [x, y] }` in device points (a terminal's text has no element); the phone sits at the frame's right edge, so the picture stops there |
+
+`scripts/headscale.js` gives a lesson its own tailnet (`startHeadscale()` in `setup`, account `alex`): both apps reach it through `TS_CONTROL_URL` (`http://127.0.0.1:18480`), the phone's sign-in sheet shows a plain "Signing in…" page and is let in by itself, and the Mac's sign-in link (caught in `window.__lessonOpened`, never opened) is let in with `tailnet.approve(link)`. Stop it in the last beat. To fill the phone's terminal composer, send the Mac's draft for that terminal (`remote_set_composer_draft` with the `data-terminal-id`, a word at a time): lpm's draft sync puts it in the phone's composer, whose send button then sends it. Lesson 32 (`32-connect-your-iphone-to-lpm`) is the worked example, Claude Code from the phone included.
 
 ## Recipes
 

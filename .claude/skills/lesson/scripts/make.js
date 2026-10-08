@@ -24,6 +24,7 @@ const { runQa } = require("./qa");
 const { HOOK_ID, planEdit, renderEdit } = require("./edit");
 const { renderCover } = require("./cover");
 const { DEFAULT_LPM_DIR } = require("./state");
+const { PHONE_LAYOUT, phoneLayout, phoneAssets } = require("./phonecompose");
 
 const ROOT = process.env.LPM_LESSONS_DIR || path.join(os.homedir(), "Movies/lpm-lessons");
 let o, DIR;
@@ -99,6 +100,7 @@ async function record(lines) {
             lpmDir: o["lpm-dir"] || process.env.LPM_LESSON_DIR || DEFAULT_LPM_DIR,
             keepState: !!o["keep-state"],
             mouse: o["dom-mouse"] ? "dom" : "real",
+            phone: lesson.phone,
           });
   } catch (e) {
     if (take) {
@@ -154,6 +156,14 @@ async function mux(lines, P, { file, crf = 18, audio = true }) {
   let video;
   if (source === "demo") {
     video = videoGraph({ out: OUT, zooms, totalMs, composite: false });
+  } else if (timeline.phone) {
+    // The window and lpm Link side by side (phonecompose.js).
+    const layout = phoneLayout(OUT, ZOOM);
+    const frameDir = path.join(path.dirname(DIR), "_frame");
+    const frame = { ...FRAME, width: PHONE_LAYOUT.window.w, height: PHONE_LAYOUT.window.h, zoom: ZOOM };
+    const assets = await frameAssets(frameDir, { out: OUT, frame, box: layout.mac });
+    const phone = { layout, region: timeline.phone.region, assets: await phoneAssets(frameDir, { out: OUT, layout, zoom: ZOOM }), taps: timeline.taps || [] };
+    video = videoGraph({ ...assets, out: OUT, box: layout.mac, cards: timeline.cards || [], cardFiles: timeline.cardFiles || [], zooms, totalMs, take: P.raw, region: timeline.region, phone });
   } else {
     const box = frameBox(OUT, FRAME, ZOOM);
     const assets = await frameAssets(path.join(path.dirname(DIR), "_frame"), { out: OUT, frame: { ...FRAME, zoom: ZOOM }, box });
@@ -263,7 +273,9 @@ async function finish(lines, P, timeline, taken) {
     const have = fs.existsSync(stampFile) ? JSON.parse(fs.readFileSync(stampFile, "utf8")) : null;
     const thumb = path.join(DIR, "thumbnail.jpg");
     if (!fs.existsSync(thumb) || JSON.stringify(have) !== JSON.stringify(want)) {
-      if (lesson.cover) await renderCover({ cover: lesson.cover, raw: P.raw, timeline: taken, frame: FRAME, file: thumb });
+      // With a phone the take holds both windows; the cover's crop is in its points.
+      const frame = taken.phone ? { width: taken.phone.captureW } : FRAME;
+      if (lesson.cover) await renderCover({ cover: lesson.cover, raw: P.raw, timeline: taken, frame, file: thumb });
       else await renderThumbnail(opener.title, thumb, OUT);
       fs.writeFileSync(stampFile, JSON.stringify(want));
       console.log(`thumbnail -> ${thumb}`);

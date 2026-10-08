@@ -1,5 +1,5 @@
-// appcap <pid> <x> <y> <w> <h> <pw> <ph> <fps>: the screen inside the
-// rectangle (global points) with every app but <pid> left out, as raw BGRA
+// appcap <pid[,pid…]> <x> <y> <w> <h> <pw> <ph> <fps>: the screen inside the
+// rectangle (global points) with every app but the given ones left out, as raw BGRA
 // frames of <pw>x<ph> pixels on stdout, one per change. Another app's window,
 // a notification or a dialog over the rectangle is never in the picture, so a
 // take survives whatever else the Mac is doing. The display is captured with
@@ -18,12 +18,12 @@ func fail(_ message: String) -> Never {
 
 let args = CommandLine.arguments
 guard args.count == 9,
-      let pid = Int32(args[1]),
+      case let pids = Set(args[1].split(separator: ",").compactMap({ Int32($0) })), !pids.isEmpty,
       let x = Double(args[2]), let y = Double(args[3]),
       let w = Double(args[4]), let h = Double(args[5]),
       let pw = Int(args[6]), let ph = Int(args[7]),
       let fps = Int32(args[8]) else {
-    fail("usage: appcap <pid> <x> <y> <w> <h> <pw> <ph> <fps>")
+    fail("usage: appcap <pid[,pid…]> <x> <y> <w> <h> <pw> <ph> <fps>")
 }
 signal(SIGPIPE, SIG_IGN)
 
@@ -76,14 +76,14 @@ var running: (SCStream, Output)?
 Task {
     do {
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
-        guard content.applications.contains(where: { $0.processID == pid }) else {
+        for pid in pids where !content.applications.contains(where: { $0.processID == pid }) {
             fail("no app with pid \(pid) has a window on screen")
         }
         let rect = CGRect(x: x, y: y, width: w, height: h)
         guard let display = content.displays.first(where: { $0.frame.contains(CGPoint(x: rect.midX, y: rect.midY)) }) else {
             fail("no display holds \(rect)")
         }
-        let others = { (apps: [SCRunningApplication]) in apps.filter { $0.processID != pid } }
+        let others = { (apps: [SCRunningApplication]) in apps.filter { !pids.contains($0.processID) } }
         let filter = SCContentFilter(display: display, excludingApplications: others(content.applications), exceptingWindows: [])
         let config = SCStreamConfiguration()
         config.sourceRect = rect.offsetBy(dx: -display.frame.minX, dy: -display.frame.minY)

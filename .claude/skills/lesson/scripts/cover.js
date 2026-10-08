@@ -1,7 +1,9 @@
 // The YouTube cover when lesson.json has a "cover": the cards' canvas and
 // serif, a few big words, and the app itself at a moment of the take.
 // "window" sets the words left and the window right, running off the edge;
-// "closeup" fills everything under a band of canvas with the crop, big.
+// "closeup" fills everything under a band of canvas with the crop, big;
+// "phone" (a lesson with lpm Link beside the app) sets the words left and the
+// phone's screen right, in a drawn iPhone.
 // Without a "cover" the thumbnail stays the opening card (cards.js).
 const fs = require("fs");
 const path = require("path");
@@ -9,7 +11,7 @@ const { execFileSync } = require("child_process");
 const { CANVAS, POOLS, POOLS_AT_REST } = require("./overlay");
 const { CAPTURE_IN } = require("./compose");
 
-const STYLES = ["window", "closeup"];
+const STYLES = ["window", "closeup", "phone"];
 // The pane right of the sidebar, under the header, in the window's points.
 const DEFAULT_CROP = [260, 120, 580, 260];
 const SERIF = `"Iowan Old Style", "Palatino", Georgia, serif`;
@@ -24,6 +26,19 @@ const canvasCss = `
 `;
 
 function layout(style, words, img, aspect) {
+  if (style === "phone") {
+    const h = 1240;
+    const w = Math.round(h * aspect);
+    return `<style>${canvasCss}
+      .words { left: 128px; top: 50%; transform: translateY(-50%); width: 1300px; font-size: 220px; }
+      .phone { position: absolute; left: ${2560 - w - 300}px; top: ${720 - h / 2}px; width: ${w}px; height: ${h}px; padding: 18px; border-radius: 118px; background: #101012; border: 2px solid #4a4a50;
+        box-shadow: 0 80px 180px -40px rgba(0,0,0,.55), 0 20px 52px -20px rgba(0,0,0,.35); }
+      .phone img { display: block; width: 100%; height: 100%; border-radius: 100px; object-fit: cover; }
+    </style>
+    <div class="pools"></div>
+    <div class="words">${words}</div>
+    <div class="phone"><img src="${img}"></div>`;
+  }
   if (style === "closeup") {
     return `<style>${canvasCss}
       body { background: #1b1b1b; }
@@ -54,9 +69,12 @@ async function renderCover({ cover, raw, timeline, frame, file }) {
   const line = timeline.lines.find((l) => l.id === cover.line);
   if (!line) throw new Error(`cover: the take has no line "${cover.line}"`);
   const style = cover.style || "window";
-  const [x, y, w, h] = cover.crop || DEFAULT_CROP;
+  if (style === "phone" && !timeline.phone) throw new Error('cover: style "phone" needs a take with lpm Link beside the app');
   const rawWidth = Number(execFileSync("ffprobe", ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width", "-of", "csv=p=0", raw], { encoding: "utf8" }).trim());
-  const k = rawWidth / frame.width;
+  // The phone's screen is cut where the take found it, in the capture's pixels.
+  const k = style === "phone" ? 1 : rawWidth / frame.width;
+  const r = timeline.phone?.region;
+  const [x, y, w, h] = style === "phone" ? [r.x, r.y, r.w, r.h] : cover.crop || DEFAULT_CROP;
   const work = `${file}.work`;
   fs.mkdirSync(work, { recursive: true });
   try {

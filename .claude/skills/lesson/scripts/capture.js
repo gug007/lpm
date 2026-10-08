@@ -1,6 +1,7 @@
 // Screen capture of one rectangle (physical pixels), delivered as JPEG frames
 // with their arrival time so the Recorder can lay them on a constant-rate
-// timeline. Given the lesson app's pid, only that app's windows are captured
+// timeline. Given the lesson app's pid (or a list: the app and the iOS
+// Simulator beside it), only those apps' windows are captured
 // (appcap.swift, ScreenCaptureKit), so another app's window, a notification or
 // a system dialog over the lesson never reaches the video; LESSON_CAPTURE=screen
 // takes the whole screen through ffmpeg's AVFoundation input instead.
