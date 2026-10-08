@@ -52,6 +52,12 @@ struct ContentView: View {
         .onAppear {
             BuiltInTailscale.shared.foreground()
             model.bootstrap()
+            #if DEBUG
+            if let n = ProcessInfo.processInfo.environment["LPM_REPRO_NAME"] {
+                model.enterDemo()
+                model.macs[0].customName = n
+            }
+            #endif
             // Warm WebKit now so the first terminal opens without the ~2s cold start.
             TerminalWebPool.prewarm()
         }
