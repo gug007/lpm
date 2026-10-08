@@ -5,10 +5,16 @@ import SwiftUI
 /// connection details.
 struct MacTitle: View {
     @Environment(AppModel.self) private var model
+    var screenWidth: CGFloat = 0
+
+    /// Room kept free on each side for the bar's trailing button. A title wider
+    /// than the space left between them is slid off-center by the bar, leaving the
+    /// status line out of line with the name.
+    private static let barItemInset: CGFloat = 72
 
     var body: some View {
         VStack(spacing: 1) {
-            MacSwitcherMenu()
+            MacSwitcherMenu(maxWidth: titleWidth)
             Button {
                 model.link.sheetOpen = true
             } label: {
@@ -20,12 +26,35 @@ struct MacTitle: View {
         }
     }
 
+    private var titleWidth: CGFloat? {
+        screenWidth > 0 ? max(0, screenWidth - 2 * Self.barItemInset) : nil
+    }
+
     private var detail: String? {
         let waiting = model.link.waitingCount
         if waiting > 0 && !model.link.isReady {
             return waiting == 1 ? "1 action waiting" : "\(waiting) actions waiting"
         }
         return model.link.statusLine.tone == .problem ? "tap for details" : nil
+    }
+}
+
+/// Offers its content no more than `max` points of width, even when asked for its
+/// ideal size, as a toolbar menu sizes its label.
+struct WidthCap: Layout {
+    let max: CGFloat?
+
+    private func proposal(_ proposal: ProposedViewSize) -> ProposedViewSize {
+        guard let max else { return proposal }
+        return ProposedViewSize(width: min(proposal.width ?? max, max), height: proposal.height)
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        subviews.first?.sizeThatFits(self.proposal(proposal)) ?? .zero
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        subviews.first?.place(at: bounds.origin, proposal: ProposedViewSize(bounds.size))
     }
 }
 

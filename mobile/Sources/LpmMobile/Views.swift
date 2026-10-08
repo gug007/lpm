@@ -52,12 +52,6 @@ struct ContentView: View {
         .onAppear {
             BuiltInTailscale.shared.foreground()
             model.bootstrap()
-            #if DEBUG
-            if let n = ProcessInfo.processInfo.environment["LPM_REPRO_NAME"] {
-                model.enterDemo()
-                model.macs[0].customName = n
-            }
-            #endif
             // Warm WebKit now so the first terminal opens without the ~2s cold start.
             TerminalWebPool.prewarm()
         }
@@ -118,6 +112,7 @@ struct ProjectsView: View {
     // The terminal a tapped task row opens. A task row is not a disclosure row —
     // it pushes without the chevron a NavigationLink would draw.
     @State private var openTerminal: TerminalTarget?
+    @State private var screenWidth: CGFloat = 0
 
     private func isExpanded(_ g: ProjectFolder) -> Bool { expandedOverride[g.id] ?? !g.collapsed }
 
@@ -212,6 +207,7 @@ struct ProjectsView: View {
             }
         }
         .refreshable { await model.refreshProjects() }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { screenWidth = $0 }
         .task(id: model.macs.count) {
             while model.macs.count > 1 && !Task.isCancelled {
                 model.link.refreshReach()
@@ -239,7 +235,7 @@ struct ProjectsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .principal) {
-                MacTitle()
+                MacTitle(screenWidth: screenWidth)
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {

@@ -6,6 +6,7 @@ import SwiftUI
 /// and Macs still being added here, "Add a machine…" and "Manage machines…".
 struct MacSwitcherMenu: View {
     @Environment(AppModel.self) private var model
+    var maxWidth: CGFloat? = nil
 
     var body: some View {
         Menu {
@@ -47,14 +48,17 @@ struct MacSwitcherMenu: View {
                 }
             }
         } label: {
-            HStack(spacing: 4) {
-                Text(model.activeRecord?.displayName ?? "Mac")
-                    .font(.headline)
-                    .lineLimit(1)
-                    .foregroundStyle(.primary)
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.secondary)
+            WidthCap(max: maxWidth) {
+                HStack(spacing: 4) {
+                    Text(model.activeRecord?.displayName ?? "Mac")
+                        .font(.headline)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                        .foregroundStyle(.primary)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
             }
         }
     }
