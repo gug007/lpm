@@ -417,6 +417,9 @@ pub fn hostname() -> Option<String> {
 /// every platform then falls back to the network hostname, and finally to a
 /// generic label.
 pub fn machine_name() -> String {
+    if let Some(name) = crate::lesson::machine_name() {
+        return name;
+    }
     #[cfg(target_os = "macos")]
     {
         if let Ok(out) = std::process::Command::new("scutil")

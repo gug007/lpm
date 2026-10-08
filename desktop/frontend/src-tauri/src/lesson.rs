@@ -30,6 +30,16 @@ pub fn active() -> bool {
     socket().is_some()
 }
 
+/// The machine name a recording shows on the paired phone in place of the
+/// real one (which carries the owner's name and a dev suffix).
+pub fn machine_name() -> Option<String> {
+    socket()?;
+    std::env::var("LPM_LESSON_MACHINE_NAME")
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
 pub fn start(app: AppHandle) {
     let Some(path) = socket() else { return };
     let _ = std::fs::remove_file(&path);

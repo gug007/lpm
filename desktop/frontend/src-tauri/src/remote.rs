@@ -161,12 +161,18 @@ fn server_name() -> String {
         let mut base = crate::sys::machine_name();
         // Suffix the dev build so the phone's switcher shows two distinct entries
         // when a dev and a prod instance run on the same Mac.
-        if is_dev_instance() {
+        if shows_dev_marker() {
             base.push_str(" (dev)");
         }
         base
     })
     .clone()
+}
+
+/// A recording instance stands in for a user's Mac, so it carries no dev
+/// marker even though it is a debug build.
+fn shows_dev_marker() -> bool {
+    is_dev_instance() && crate::lesson::machine_name().is_none()
 }
 
 /// The listen port for a configured value and flavor. The dev instance sits at the
@@ -856,7 +862,7 @@ fn apply(hub: &RemoteHub, app: &AppHandle) {
             server_id,
             server_name: server_name(),
             port,
-            dev: is_dev_instance(),
+            dev: shows_dev_marker(),
         });
         if let Some((forwarded, local)) = crate::tailnet::forward_listener() {
             crate::tailnet::set_forward(
