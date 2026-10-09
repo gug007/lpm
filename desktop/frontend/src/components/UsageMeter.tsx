@@ -7,6 +7,7 @@ import {
   resetAbsolute,
   resetText,
 } from "./stats/limitsFormat";
+import { PaceTick } from "./PaceTick";
 import { usePrefersReducedMotion } from "./stats/usePrefersReducedMotion";
 
 interface UsageMeterProps {
@@ -44,7 +45,7 @@ export function UsageMeter({ label, win, windowMs, now, stale }: UsageMeterProps
     hasData && pace?.verdict === "over" && pace.exhaustsInMs != null
       ? `runs out in ~${durationShort(pace.exhaustsInMs)}, before reset`
       : "";
-  const showTick = hasData && !!pace && pace.verdict !== "early" && pace.verdict !== "unknown";
+  const showTick = hasData && !!pace;
   const elapsed = pace ? Math.round(pace.elapsedPercent) : 0;
 
   const valueText = hasData
@@ -95,24 +96,20 @@ export function UsageMeter({ label, win, windowMs, now, stale }: UsageMeterProps
         aria-valuenow={hasData ? Math.min(100, shown) : 0}
         aria-valuetext={valueText}
         title={showTick ? `${elapsed}% of the window has elapsed` : undefined}
-        className="relative h-1.5 w-full overflow-hidden rounded-full bg-[var(--bg-active)]"
+        className="relative w-full"
       >
-        <div
-          className="h-full rounded-full"
-          style={{
-            width: `${hasData ? barPct : 0}%`,
-            backgroundColor: barColor(barPct),
-            opacity: stale ? 0.4 : 1,
-            transition: reducedMotion ? "none" : "width 700ms ease-out",
-          }}
-        />
-        {showTick && (
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--bg-active)]">
           <div
-            aria-hidden="true"
-            className="absolute inset-y-0 w-px -translate-x-1/2 bg-[var(--text-secondary)] opacity-70"
-            style={{ left: `${pace.elapsedPercent}%` }}
+            className="h-full rounded-full"
+            style={{
+              width: `${hasData ? barPct : 0}%`,
+              backgroundColor: barColor(barPct),
+              opacity: stale ? 0.4 : 1,
+              transition: reducedMotion ? "none" : "width 700ms ease-out",
+            }}
           />
-        )}
+        </div>
+        {showTick && <PaceTick at={pace.elapsedPercent / 100} dim={stale} />}
       </div>
 
       <div className="flex min-h-[14px] flex-col gap-0.5">

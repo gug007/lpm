@@ -1,6 +1,7 @@
 import { providerMeta } from "../agentStatus";
 import type { UsageMeter } from "../sidebarUsage";
 import { CheckIcon } from "./icons";
+import { PaceTick } from "./PaceTick";
 
 interface ClaudeAccountMenuRowProps {
   label: string;
@@ -46,13 +47,7 @@ export function ClaudeAccountMenuRow({ label, signedIn, meters, current, onClick
                   backgroundColor: meter.fill,
                 }}
               />
-              {meter.pace !== null && (
-                <span
-                  aria-hidden="true"
-                  className="absolute -top-[3px] h-[9px] w-0.5 -translate-x-1/2 rounded-full bg-[var(--text-primary)]"
-                  style={{ left: `${meter.pace * 100}%` }}
-                />
-              )}
+              {meter.pace !== null && <PaceTick at={meter.pace} />}
             </span>
             <span
               className={`w-7 shrink-0 text-right tabular-nums ${

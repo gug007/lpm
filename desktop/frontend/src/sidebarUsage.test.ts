@@ -98,21 +98,21 @@ describe("usageRows", () => {
     expect(codex.pace).toBeCloseTo(72 / 168);
   });
 
-  it("holds the tick back until enough of the window has passed", () => {
+  it("draws the tick from the very start of the window", () => {
+    const HOUR = 60 * 60;
     const nowS = Math.floor(NOW / 1000);
-    const [codex] = usageRows(
+    const [claude] = usageRows(
       {
-        codex: {
-          provider: "codex",
-          fiveHour: { usedPercent: 20, resetsAt: nowS + 5 * 60 * 60 - 60 },
+        claude: {
+          provider: "claude",
+          weekly: { usedPercent: 23, resetsAt: nowS + 160 * HOUR },
           updatedAt: NOW,
         },
       },
       null,
       NOW,
-      { window: "fiveHour" },
     );
-    expect(codex.pace).toBeNull();
+    expect(claude.pace).toBeCloseTo(8 / 168);
   });
 
   it("follows the chosen window", () => {

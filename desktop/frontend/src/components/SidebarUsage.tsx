@@ -7,6 +7,7 @@ import { useTokensToday } from "../hooks/useTokensToday";
 import { useAccountsStore } from "../store/accounts";
 import { useSettingsStore } from "../store/settings";
 import { usageSidebarTools, usageSidebarWindow } from "./usageSidebarSettings";
+import { PaceTick } from "./PaceTick";
 import { SidebarUsagePopover } from "./SidebarUsagePopover";
 import { UsageProviderCard } from "./UsageProviderCard";
 import { Tooltip } from "./ui/Tooltip";
@@ -56,13 +57,7 @@ function RowBody({ row }: { row: UsageRow }) {
             }}
           />
         </span>
-        {row.pace !== null && (
-          <span
-            aria-hidden="true"
-            className="absolute -top-[3px] h-[9px] w-0.5 -translate-x-1/2 rounded-full bg-[var(--text-primary)]"
-            style={{ left: `${row.pace * 100}%`, opacity: row.stale ? 0.4 : 1 }}
-          />
-        )}
+        {row.pace !== null && <PaceTick at={row.pace} dim={row.stale} />}
       </span>
     </>
   );

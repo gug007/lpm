@@ -46,7 +46,7 @@ export interface UsageRow {
   fill: string;
   fraction: number;
   /** How far through its window the clock is (0–1), where the bar draws its
-   *  pace tick; null with no window, or while it is too early to judge. */
+   *  pace tick; null with no window. */
   pace: number | null;
   /** Trailing line: when the window resets, the day's spend when no window has
    *  been reported for that tool yet, or a dash for an account that is idle. */
@@ -146,11 +146,10 @@ function live(win: LimitWindow | undefined, now: number): LimitWindow | undefine
   return win.resetsAt > 0 && win.resetsAt * 1000 <= now ? undefined : win;
 }
 
-/** Where the bar draws its pace tick (0–1), or null while it is too early, or
- *  impossible, to judge the window. */
+/** Where the bar draws its pace tick (0–1), or null without a window clock. */
 function paceTick(win: LimitWindow | undefined, windowMs: number, now: number): number | null {
   const pace = computePace(win, windowMs, now);
-  return pace && pace.verdict !== "early" && pace.verdict !== "unknown" ? pace.elapsedPercent / 100 : null;
+  return pace ? pace.elapsedPercent / 100 : null;
 }
 
 function pickWindow(
