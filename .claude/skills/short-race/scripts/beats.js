@@ -6,10 +6,10 @@
 // B (or, when model B runs in the other CLI, the copy's run override starts the
 // project's second button, pinned to model B, with the prompt typed again, or,
 // for Cursor, passed as its launch argument), and
-// "Open side by side" shows run #1 and the copy as two columns, or, with
-// `stacked` in compare.json, as two rows, run #1 on top. A race to index.html,
-// then both pages in lpm's own browser. Each pane header carries a colour badge
-// with the model and its time. `cue` = the spoken word an action lands on.
+// "Open side by side", split into rows, shows run #1 on top and the copy below.
+// A race to index.html, then both pages in lpm's own browser. Each pane header
+// carries a colour badge with the model and its time. `cue` = the spoken word
+// an action lands on.
 //
 // The opening lines' beats are never seen (the video opens on the payoff), so
 // the last of them does all of the setup above, up to both agents running. A
@@ -440,7 +440,7 @@ module.exports = function compareBeats({ config, dir }) {
   async function openPage(s, i) {
     const file = roots[i] && path.join(roots[i], "index.html");
     await kit.focusWindow(s);
-    // Work in the column first: the click that moves focus to it re-renders
+    // Work in the row first: the click that moves focus to it re-renders
     // it, and a menu click landing mid re-render is lost. Click its pane
     // header, not the terminal: a file path the agent printed there opens a
     // file preview over everything.
@@ -459,7 +459,7 @@ module.exports = function compareBeats({ config, dir }) {
     const menu = `${HEAD(i)} >> button[aria-label="More options"]`;
     const end = Date.now() + 20000;
     while (!(await kit.isVisible(s, ADDR(i)))) {
-      if (Date.now() > end) throw new Error(`no browser opened in column ${i}`);
+      if (Date.now() > end) throw new Error(`no browser opened in row ${i}`);
       await tagPanes(s);
       if (await kit.isVisible(s, OPEN_BROWSER)) await s.click(OPEN_BROWSER, { at: [0.3, 0.5], ms: 250 });
       else await s.click(menu, { ms: 250 });
@@ -500,7 +500,7 @@ module.exports = function compareBeats({ config, dir }) {
     kit.park(s);
   }
 
-  // Runs the prompt in 2 copies, then waits for the copy's column and both
+  // Runs the prompt in 2 copies, then waits for the copy's row and both
   // agents to start.
   async function startRace(s) {
     const run = 'button:has-text("Run 2 in parallel")';
@@ -570,13 +570,13 @@ module.exports = function compareBeats({ config, dir }) {
       // A global.yml already there keeps the default Claude and Codex buttons
       // out of the header, so it holds only the buttons above.
       fs.writeFileSync(path.join(lpmDir, "global.yml"), "actions: {}\n");
-      // The copy has no remote to pull from. A project as wide as the window,
-      // as each row is, shows a tip in its footer.
+      // The copy has no remote to pull from. A row is as wide as the window, and
+      // a project that wide shows a tip in its footer.
       settings({
         defaultProjectDirectory: workspace,
         projectOrder: [project],
         runInDuplicatesSideBySide: true,
-        runInDuplicatesLayout: config.stacked ? "rows" : "columns",
+        runInDuplicatesLayout: "rows",
         duplicatePullLatest: false,
         appTipsDismissed: true,
       });
@@ -586,7 +586,7 @@ module.exports = function compareBeats({ config, dir }) {
       if (!teased) await setupRace(s);
     },
     tease: async (s) => setupRace(s),
-    // The first shot: both agents already at work, each column's banner naming
+    // The first shot: both agents already at work, each row's banner naming
     // its model as the line does. The clocks tick from here on.
     run: async (s) => {
       await tagAll(s);
@@ -595,8 +595,7 @@ module.exports = function compareBeats({ config, dir }) {
       // under the prompt, about halfway down its screen early in a chat.
       const banner = (i) => (sides[i].cli === "cursor" ? [0.3, 0.45] : [0.3, 0.1]);
       await kit.focusLeft(s, TERM(0), { scale: 1.6, at: banner(0), ms: 450, cue: config.cues.a });
-      const second = { scale: 1.6, at: banner(1), ms: 450, cue: config.cues.b };
-      await (config.stacked ? kit.focusLeft(s, TERM(1), second) : s.focus(TERM(1), second));
+      await kit.focusLeft(s, TERM(1), { scale: 1.6, at: banner(1), ms: 450, cue: config.cues.b });
       await s.wide({ ms: 450, cue: config.cues.lpm });
     },
     wait: async (s) => {

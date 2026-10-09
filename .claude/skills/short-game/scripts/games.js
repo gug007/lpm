@@ -1,7 +1,6 @@
 // The games a race can ask for. Each prompt keeps short-race's rules: index.html
-// at the project root, one file, a stage with sizes as shares of it, scaled to
-// fit and never cropped, "Don't run or test it". The stage is wide, 900x360,
-// because the reveal stacks the two games one above the other. A game plays
+// at the project root, one file, the wide 900x360 stage with sizes as shares of
+// it, scaled to fit and never cropped, "Don't run or test it". A game plays
 // itself, so the reveal is live gameplay with nobody at the controls.
 const GAMES = {
   runner: {
