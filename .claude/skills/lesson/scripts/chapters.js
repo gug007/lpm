@@ -5,8 +5,8 @@
 const MIN_MS = 10000;
 const SAME_MS = 2000;
 
-// `spoken` (optional) maps a line id to its first word's start and last
-// word's end in ms from the line's start, so a chapter lands between words.
+// `spoken` (optional) maps a line id to its last word's end in ms from the
+// line's start, so a chapter doesn't replay much of the line before.
 function chapters(timeline, lesson, spoken = {}) {
   const narration = lesson.narration || [];
   const byId = new Map(narration.map((n) => [n.id, n]));
@@ -46,8 +46,8 @@ function chapters(timeline, lesson, spoken = {}) {
 // after it, when that cuts nothing you'd hear; else the second before, as
 // the end of a word before beats the start of one cut off.
 function onSecond(ms, lines, spoken = {}) {
-  const line = lines.find((l) => l.startMs === ms);
-  const first = ms + (line && spoken[line.id] ? spoken[line.id].first : 0);
+  // The clip's own start: a transcript can miss a line's first words.
+  const first = ms;
   const prevEnd = Math.max(0, ...lines.filter((l) => l.startMs < ms - 1 && l.ms).map((l) => l.startMs + (spoken[l.id] ? spoken[l.id].last : l.ms)));
   const down = Math.floor(first / 1000) * 1000;
   const up = Math.ceil(first / 1000) * 1000;

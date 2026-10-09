@@ -35,7 +35,9 @@ function wordsOf(line) {
 }
 
 // Words a line must not end on: "lpm / Link", "Set / up", "the / Mac".
-const CLINGS = new Set(["lpm", "a", "an", "the", "to", "of", "on", "in", "at", "by", "your", "its", "and", "or", "so", "set", "sign", "take", "turn", "up", "can", "will", "you"]);
+const CLINGS = new Set(["lpm", "a", "an", "the", "to", "of", "on", "in", "at", "by", "your", "its", "and", "or", "so", "set", "sign", "take", "turn", "up", "can", "will", "you", "same", "really"]);
+// …nor start on the particle of a phrasal verb ("plugged / in", "shows / up").
+const PARTICLES = new Set(["in", "up", "out", "on", "off", "down", "over", "back"]);
 const capital = (w) => /^[A-Z]/.test(w);
 
 // Two balanced lines when the text is longer than one, broken after a
@@ -51,10 +53,11 @@ function wrap(text) {
     const after = text.slice(i + 1).split(" ")[0];
     let cost = Math.abs(i - mid);
     if (Math.max(i, text.length - i - 1) > LINE_CHARS) cost += 100;
-    if (/[,;:.!?]["')]?$/.test(before)) cost -= 6;
+    if (/[,;:.!?]["')]?$/.test(before)) cost -= 10;
     if (CLINGS.has(before.toLowerCase().replace(/[^a-z]/g, ""))) cost += 30;
     if (capital(before) && capital(after) && !/[,;:.!?]$/.test(before)) cost += 30;
     if (/['’]s$/.test(before)) cost += 30;
+    if (PARTICLES.has(after.replace(/[^a-z]/gi, "").toLowerCase()) && /^[a-z]/.test(before)) cost += 30;
     if (cost < bestCost) [best, bestCost] = [i, cost];
   }
   return best < 0 ? text : `${text.slice(0, best)}\n${text.slice(best + 1)}`;

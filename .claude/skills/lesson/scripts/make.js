@@ -291,7 +291,7 @@ async function render(lines, P, hook) {
 async function finish(lines, P, timeline, taken) {
   const srt = P.mp4.replace(/\.mp4$/, ".srt");
   console.log(`captions: ${writeCaptions(srt, timeline, lines)} -> ${srt}`);
-  const spoken = Object.fromEntries(lines.filter((l) => l.words?.length).map((l) => [l.id, { first: l.words[0].start * 1000, last: l.words.at(-1).end * 1000 }]));
+  const spoken = Object.fromEntries(lines.filter((l) => l.words?.length).map((l) => [l.id, { last: l.words.at(-1).end * 1000 }]));
   const ch = chapters(timeline, lesson, spoken);
   fs.writeFileSync(path.join(P.home, "chapters.txt"), chaptersText(ch.list));
   console.log(`chapters: ${ch.list.map((c) => c.name).join(" | ")}`);

@@ -123,12 +123,25 @@ function installStage({ cursorSvg, hotspot, hiddenText, scale }) {
     ...extra,
   });
   const focusable = (el) => el && el.closest && el.closest("input, textarea, select, button, a[href], [tabindex], [contenteditable]");
+  // The element under the drawn pointer: leaving it sends out/leave events
+  // as a real pointer would, so hover cards and tooltips close again.
+  let hovered = null;
   const hover = (x, y) => {
     const el = document.elementFromPoint(x, y);
     if (!el) return;
+    if (hovered && hovered !== el && hovered.isConnected) {
+      hovered.dispatchEvent(new PointerEvent("pointerout", mouseInit(x, y, { relatedTarget: el })));
+      hovered.dispatchEvent(new MouseEvent("mouseout", mouseInit(x, y, { relatedTarget: el })));
+      for (let n = hovered; n && !n.contains(el); n = n.parentElement) {
+        n.dispatchEvent(new PointerEvent("pointerleave", mouseInit(x, y, { relatedTarget: el, bubbles: false })));
+        n.dispatchEvent(new MouseEvent("mouseleave", mouseInit(x, y, { relatedTarget: el, bubbles: false })));
+      }
+    }
     el.dispatchEvent(new PointerEvent("pointermove", mouseInit(x, y)));
     el.dispatchEvent(new MouseEvent("mousemove", mouseInit(x, y)));
-    el.dispatchEvent(new MouseEvent("mouseover", mouseInit(x, y)));
+    el.dispatchEvent(new PointerEvent("pointerover", mouseInit(x, y, { relatedTarget: hovered })));
+    el.dispatchEvent(new MouseEvent("mouseover", mouseInit(x, y, { relatedTarget: hovered })));
+    hovered = el;
   };
   const dispatchClick = (x, y) => {
     const el = document.elementFromPoint(x, y);

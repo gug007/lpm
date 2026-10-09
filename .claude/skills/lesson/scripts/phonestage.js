@@ -128,9 +128,12 @@ class PhoneStage extends AppStage {
 
   // Back one screen (iOS's back gesture on an element labelled `label`,
   // for a toolbar that has no element of its own), until `verify` shows.
+  // `mark` ([x, y] in device points) draws the tap on the screen's back
+  // button that the gesture stands for.
   async phoneBack(label, opts = {}) {
     if (opts.cue) await this.holdUntil(this.cueMs(opts.cue) - (opts.lead ?? 0));
     await this.phoneWaitFor(label, opts.timeout);
+    if (opts.mark) this.taps.push({ atMs: Date.now() - this.t0, ...this.phoneOut(...opts.mark) });
     this.phone.back(typeof label === "string" ? label : label.label);
     this.log(`phone: back from ${describeSel(label)}`);
     // The screen behind is in the tree before the animation ends, and a
