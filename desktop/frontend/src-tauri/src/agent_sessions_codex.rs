@@ -136,6 +136,7 @@ pub(crate) fn summaries(
                         session_id: id,
                         updated_at,
                         git_branch: branch.filter(|b| !b.is_empty()),
+                        account: None,
                     }
                 },
             )

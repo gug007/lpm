@@ -26,6 +26,8 @@ export interface TerminalStartOpts {
   // Starts the agent `cmd` launches on this model and level (Run in duplicates
   // racing models), as session-only flags.
   launchModel?: ModelPick;
+  // A scheduled job's terminal: stays on the project's fixed Claude account.
+  fixedAccount?: boolean;
 }
 
 export interface UseTerminalsResult {

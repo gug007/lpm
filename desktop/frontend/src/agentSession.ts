@@ -71,6 +71,15 @@ export function agentSessionRefOf(
   return null;
 }
 
+// The Claude conversation a launch command continues, if any. A terminal
+// started for it runs on the account that holds that conversation. A fork is a
+// new session, so it follows the project's own account choice instead.
+export function claudeResumeSessionId(command: string | undefined): string | undefined {
+  if (parseAgentCommand(command)?.tokens.includes("--fork-session")) return undefined;
+  const ref = agentSessionRefOf(command);
+  return ref?.provider === "claude" ? ref.sessionId : undefined;
+}
+
 // Which agent conversation a tab belongs to: the live id its SessionStart hook
 // reported, falling back to the resume command until that first event lands.
 export function agentSessionOf(tab: TerminalInstance): AgentSessionRef | null {

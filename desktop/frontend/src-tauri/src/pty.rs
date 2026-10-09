@@ -43,6 +43,9 @@ pub struct PtySession {
     // (flush() scans output for localhost URLs to auto-forward / suggest).
     pub project_name: String,
     pub declared: HashSet<u16>,
+    /// The Claude account this terminal's shell was started for (`default` for
+    /// the main login); None for remote panes and the login pane.
+    pub claude_account: Option<String>,
     writer: Mutex<Box<dyn Write + Send>>,
     // None only on Windows, once the shell has exited and the pseudoconsole
     // was closed to give the reader its EOF (see `close_on_exit`).
@@ -417,6 +420,7 @@ struct SpawnTarget {
     root: String,
     ssh: Option<config::SshSettings>,
     claude_env: config::ClaudeEnv,
+    claude_account: Option<String>,
 }
 
 fn start_internal(
@@ -548,7 +552,15 @@ fn start_internal(
         }
     }
 
-    spawn_with_builder(app, state, id, project_name, ssh.cloned(), builder)
+    spawn_with_builder(
+        app,
+        state,
+        id,
+        project_name,
+        ssh.cloned(),
+        target.claude_account.clone(),
+        builder,
+    )
 }
 
 /// Open a PTY for an already-built command, register the session, and start its
@@ -562,6 +574,7 @@ fn spawn_with_builder(
     id: String,
     project_name: &str,
     ssh: Option<config::SshSettings>,
+    claude_account: Option<String>,
     builder: CommandBuilder,
 ) -> Result<String, String> {
     let is_remote = ssh.is_some();
@@ -591,6 +604,7 @@ fn spawn_with_builder(
         } else {
             HashSet::new()
         },
+        claude_account,
         writer: Mutex::new(writer),
         master: Mutex::new(Some(pair.master)),
         child: Mutex::new(child),
@@ -657,17 +671,27 @@ fn resolve_restore_cmds(cmd: &str) -> (String, String) {
 
 // --- commands ----------------------------------------------------------------
 
-fn resolve_spawn(project_name: &str) -> Result<SpawnTarget, String> {
+/// `session_id` is set when the terminal continues an existing Claude
+/// conversation, which then starts on the account that holds it.
+/// `fixed_account` is set for a scheduled job's terminal: it never switches.
+fn resolve_spawn(
+    project_name: &str,
+    session_id: Option<&str>,
+    fixed_account: Option<bool>,
+) -> Result<SpawnTarget, String> {
     let info = config::spawn_info(project_name)?;
     // Resolve the env decision here at spawn time — this is where the accounts
     // validation + symlink ensure side-effects belong, not in the polling paths
     // that also call spawn_info.
-    let claude_env = config::claude_env_for_account(info.claude_account.as_deref());
+    let resume = session_id.map(|sid| (info.root.as_str(), sid));
+    let switching = fixed_account != Some(true);
+    let spawn = crate::claude_pool::spawn_env(project_name, resume, switching);
     let ssh = if info.is_remote { Some(info.ssh) } else { None };
     Ok(SpawnTarget {
         root: info.root,
         ssh,
-        claude_env,
+        claude_env: spawn.env,
+        claude_account: spawn.account,
     })
 }
 
@@ -689,8 +713,10 @@ pub fn start_terminal(
     app: AppHandle,
     state: State<'_, PtyState>,
     project_name: String,
+    session_id: Option<String>,
+    fixed_account: Option<bool>,
 ) -> Result<String, String> {
-    let target = resolve_spawn(&project_name)?;
+    let target = resolve_spawn(&project_name, session_id.as_deref(), fixed_account)?;
     start_internal(&app, &state, &project_name, &target, "", &BTreeMap::new())
 }
 
@@ -701,8 +727,10 @@ pub fn start_terminal_with_cwd_env(
     project_name: String,
     cwd: String,
     env: HashMap<String, String>,
+    session_id: Option<String>,
+    fixed_account: Option<bool>,
 ) -> Result<String, String> {
-    let target = resolve_spawn(&project_name)?;
+    let target = resolve_spawn(&project_name, session_id.as_deref(), fixed_account)?;
     let env: BTreeMap<String, String> = env.into_iter().collect();
     start_internal(&app, &state, &project_name, &target, &cwd, &env)
 }
@@ -713,8 +741,9 @@ pub fn start_terminal_for_restore(
     state: State<'_, PtyState>,
     project_name: String,
     terminal_name: String,
+    session_id: Option<String>,
 ) -> Result<String, String> {
-    let target = resolve_spawn(&project_name)?;
+    let target = resolve_spawn(&project_name, session_id.as_deref(), None)?;
     let (cwd, env, _) = resolve_terminal_spawn(&project_name, &terminal_name)?;
     start_internal(&app, &state, &project_name, &target, &cwd, &env)
 }
@@ -725,8 +754,10 @@ pub fn start_terminal_for_config(
     state: State<'_, PtyState>,
     project_name: String,
     terminal_name: String,
+    session_id: Option<String>,
+    fixed_account: Option<bool>,
 ) -> Result<TerminalLaunch, String> {
-    let target = resolve_spawn(&project_name)?;
+    let target = resolve_spawn(&project_name, session_id.as_deref(), fixed_account)?;
     // On the plain-shell fallback `cmd` is empty, so startCmd is empty and the
     // frontend injects nothing.
     let (cwd, env, cmd) = resolve_terminal_spawn(&project_name, &terminal_name)?;
@@ -789,7 +820,15 @@ pub fn start_claude_login(
     // CLAUDE_CONFIG_DIR can leak the login into the wrong account's store.
     builder.env(config::CLAUDE_CONFIG_DIR_ENV, &dir);
 
-    spawn_with_builder(&app, &state, id, "claude-login", None, builder)
+    spawn_with_builder(&app, &state, id, "claude-login", None, None, builder)
+}
+
+/// The Claude account a terminal was started for, so a tab can say which
+/// account its sessions run as.
+#[tauri::command]
+pub fn terminal_claude_account(state: State<'_, PtyState>, id: String) -> Option<String> {
+    let sess = state.sessions.lock().unwrap().get(&id).cloned()?;
+    sess.claude_account.clone()
 }
 
 #[tauri::command]

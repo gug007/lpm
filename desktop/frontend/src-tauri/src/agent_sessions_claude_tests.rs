@@ -41,7 +41,31 @@ fn candidate(path: PathBuf, session_id: &str) -> Candidate {
         path,
         session_id: session_id.to_string(),
         updated_at: 1_700_000_000_000,
+        account: None,
     }
+}
+
+#[test]
+fn candidates_from_several_accounts_keep_the_newest_copy_of_a_session() {
+    let main = TempDir::new().unwrap();
+    let work = TempDir::new().unwrap();
+    let sid = "0f8c2a51-6a8e-4c43-9a1e-2b7f3f5d9c10";
+    std::fs::write(main.path().join(format!("{sid}.jsonl")), "{}\n").unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    std::fs::write(work.path().join(format!("{sid}.jsonl")), "{}\n").unwrap();
+    std::fs::write(
+        work.path()
+            .join("1b2c3d4e-0000-4000-8000-000000000000.jsonl"),
+        "{}\n",
+    )
+    .unwrap();
+    let found = candidates_in([
+        ("default".to_string(), main.path().to_path_buf()),
+        ("work".to_string(), work.path().to_path_buf()),
+    ]);
+    assert_eq!(found.len(), 2);
+    let copy = found.iter().find(|c| c.session_id == sid).unwrap();
+    assert_eq!(copy.account.as_deref(), Some("work"));
 }
 
 #[test]

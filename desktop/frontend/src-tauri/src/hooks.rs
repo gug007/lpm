@@ -190,7 +190,7 @@ fn claude_settings_path() -> PathBuf {
 // project therefore needs the source transcript copied under the copy's slug
 // before `claude --resume --fork-session` runs there.
 
-fn claude_project_slug(root: &str) -> String {
+pub(crate) fn claude_project_slug(root: &str) -> String {
     // Claude names the dir after its own cwd, which never carries Windows'
     // verbatim `\\?\` prefix (`C:\Users\me\app` -> `C--Users-me-app`).
     let root = if cfg!(windows) {
@@ -214,10 +214,6 @@ pub(crate) fn claude_sessions_root_of(env: crate::config::ClaudeEnv) -> PathBuf 
             .unwrap_or_else(|_| home().join(".claude")),
         crate::config::ClaudeEnv::Scrub => home().join(".claude"),
     }
-}
-
-fn claude_sessions_root(project: &str) -> PathBuf {
-    claude_sessions_root_of(crate::config::claude_env_for_project(project))
 }
 
 /// Where claude keeps a project's transcripts — one `<session id>.jsonl` per
@@ -254,17 +250,15 @@ pub fn copy_claude_session_for_fork(
     let src_root = crate::config::spawn_info(&source_project)?.root;
     let dst_root = crate::config::spawn_info(&dest_project)?.root;
     let file = format!("{session_id}.jsonl");
-    let src = claude_transcript_path(
-        crate::config::claude_env_for_project(&source_project),
-        &src_root,
-        &session_id,
-    );
-    if !src.is_file() {
-        return Err("session transcript not found".into());
+    // A fork is a new session, so it runs on the account the destination's
+    // new sessions use; the transcript has to be there for it to resume.
+    let (_, src) = crate::claude_dirs::find_transcript(&src_root, &session_id)
+        .ok_or("session transcript not found")?;
+    let dest_env = crate::claude_pool::spawn_env(&dest_project, None, true).env;
+    let dst_dir = claude_sessions_dir(dest_env, &dst_root);
+    if dst_dir.join(&file) == src {
+        return Ok(());
     }
-    let dst_dir = claude_sessions_root(&dest_project)
-        .join("projects")
-        .join(claude_project_slug(&dst_root));
     std::fs::create_dir_all(&dst_dir).map_err(|e| e.to_string())?;
     std::fs::copy(&src, dst_dir.join(&file)).map_err(|e| e.to_string())?;
     Ok(())

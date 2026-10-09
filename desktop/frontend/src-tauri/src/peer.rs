@@ -1803,6 +1803,10 @@ fn is_denied(cmd: &str) -> bool {
             | "claude_accounts_status"
             | "claude_account_usage"
             | "start_claude_login"
+            | "claude_pool_state"
+            | "set_claude_pool"
+            | "accept_claude_pool_pick"
+            | "resume_claude_pool"
             // host-local audio / voice
             | "start_tts"
             | "stop_tts"

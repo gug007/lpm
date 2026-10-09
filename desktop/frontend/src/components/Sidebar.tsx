@@ -16,7 +16,8 @@ import { SortableContext, verticalListSortingStrategy, type SortingStrategy } fr
 import { StatusDot, dotKind } from "./StatusDot";
 import { getSettings, saveSettings, useSettingsStore } from "../store/settings";
 import { useAppStore } from "../store/app";
-import { openClaudeAccountSettings, pinClaudeAccount } from "../store/claudeAccountPin";
+import { openClaudeAccountSettings, setClaudeAccountChoice } from "../store/claudeAccountPin";
+import { useClaudePoolStore } from "../store/claudePool";
 import { GLOBAL_TERMINALS_KEY } from "../terminals";
 import { useTerminalTitles } from "../store/terminalTitles";
 import { EventsOn } from "../../bridge/runtime";
@@ -49,6 +50,7 @@ import { isMac, trashName } from "../platform";
 import { chordLabel } from "../keys";
 import { SidebarAgentToolsPill } from "./SidebarAgentToolsPill";
 import { SidebarUsage } from "./SidebarUsage";
+import { ClaudePoolBanner } from "./ClaudePoolBanner";
 import { SortableItem } from "./ui/SortableList";
 import {
   type SidebarLayout,
@@ -1633,11 +1635,10 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             onEditWorkStatus={workStatusDialogs.openEdit}
             onRemoveWorkStatus={workStatusDialogs.confirmRemove}
             onReorderWorkStatuses={workStatusDialogs.reorder}
-            claudeAccount={contextProject?.claudeAccount}
-            parentClaudeAccount={
-              projects.find((p) => p.name === contextProject?.parentName)?.claudeAccount
-            }
-            onPickClaudeAccount={(account) => void pinClaudeAccount(contextMenu.name, account)}
+            claudeChoice={contextProject ?? undefined}
+            parentClaudeChoice={projects.find((p) => p.name === contextProject?.parentName)}
+            onPickClaudeAccount={(choice) => void setClaudeAccountChoice(contextMenu.name, choice)}
+            onChooseClaudeAccounts={() => useClaudePoolStore.getState().openListDialog(contextMenu.name)}
             onManageClaudeAccounts={openClaudeAccountSettings}
             onEditConfig={() => onOpenProjectView(contextMenu.name, "config")}
             onOpenNotes={() => onOpenProjectView(contextMenu.name, "notes")}
@@ -1891,6 +1892,8 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       )}
 
       <SidebarAgentToolsPill />
+
+      <ClaudePoolBanner />
 
       <SidebarUsage onOpen={onUsage} />
 

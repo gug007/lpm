@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { agentSessionRefOf, buildClaudeResumeCmd } from "./agentSession";
+import { agentSessionRefOf, buildClaudeResumeCmd, claudeResumeSessionId } from "./agentSession";
 
 describe("agentSessionRefOf", () => {
   it("extracts Claude's resume id around other flags", () => {
@@ -51,5 +51,21 @@ describe("buildClaudeResumeCmd", () => {
     expect(buildClaudeResumeCmd(undefined, "actual-id")).toBe(
       "claude --resume actual-id",
     );
+  });
+});
+
+describe("claudeResumeSessionId", () => {
+  const sid = "0f8c2a51-6a8e-4c43-9a1e-2b7f3f5d9c10";
+
+  it("names the conversation a Claude launch continues", () => {
+    expect(claudeResumeSessionId(`claude --resume ${sid}`)).toBe(sid);
+    expect(claudeResumeSessionId(`FOO=1 claude --model opus --resume ${sid}`)).toBe(sid);
+  });
+
+  it("leaves forks, new sessions and other agents to the project's choice", () => {
+    expect(claudeResumeSessionId(`claude --resume ${sid} --fork-session --session-id x`)).toBeUndefined();
+    expect(claudeResumeSessionId(`claude --session-id ${sid}`)).toBeUndefined();
+    expect(claudeResumeSessionId(`codex resume ${sid}`)).toBeUndefined();
+    expect(claudeResumeSessionId(undefined)).toBeUndefined();
   });
 });

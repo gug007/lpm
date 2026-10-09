@@ -1,5 +1,6 @@
 import { useCallback, type RefObject } from "react";
 import {
+  CopyClaudeSessionForFork,
   StartTerminal,
   StartTerminalForConfig,
   StartTerminalForRestore,
@@ -8,6 +9,7 @@ import {
 import { sendTerminalInput } from "../../terminal-io";
 import { logDiagnostic } from "../../diagnostics";
 import { buildForkLaunch, claudeSessionIdOf } from "../../forkSession";
+import { claudeResumeSessionId } from "../../agentSession";
 import { isInteractivePaneSessionDead } from "../../components/InteractivePane";
 import {
   getProjectTerminals,
@@ -184,7 +186,7 @@ export function useTabCreation({
       // restore (see configLaunchCmds for what the tab keeps).
       if (opts?.configName) {
         // The backend writes this command itself, so it is pinned here too.
-        const started = await StartTerminalForConfig(projectName, opts.configName);
+        const started = await StartTerminalForConfig(projectName, opts.configName, opts.fixedAccount);
         const launch = {
           ...started,
           startCmd: pinLaunchCommand(started.startCmd, opts.launchModel),
@@ -210,14 +212,17 @@ export function useTabCreation({
 
       // Ad-hoc command terminals (e.g. action-as-terminal invocations) are
       // ephemeral — the command is typed once but not persisted.
+      const sessionId = claudeResumeSessionId(cmd);
       const id =
         opts?.cwd || opts?.env
           ? await StartTerminalWithCwdEnv(
               projectName,
               opts.cwd ?? "",
               opts.env ?? {},
+              sessionId,
+              opts.fixedAccount,
             )
-          : await StartTerminal(projectName);
+          : await StartTerminal(projectName, sessionId, opts?.fixedAccount);
       addTerminal(
         makeTerminal(id, label, {
           actionName: opts?.actionName,
@@ -245,10 +250,11 @@ export function useTabCreation({
     async (entry: PersistedHistoryEntry) => {
       if (IS_MIRROR_WINDOW) return forward("resumeFromHistory", entry);
       let id: string;
+      const sessionId = claudeResumeSessionId(entry.resumeCmd);
       try {
         id = entry.actionName
-          ? await StartTerminalForRestore(projectName, entry.actionName)
-          : await StartTerminal(projectName);
+          ? await StartTerminalForRestore(projectName, entry.actionName, sessionId)
+          : await StartTerminal(projectName, sessionId);
       } catch {
         return;
       }
@@ -289,7 +295,11 @@ export function useTabCreation({
       const launch = buildForkLaunch(tab.resumeCmd);
       if (!launch) return;
       let id: string;
+      // The fork starts on the account this project's new sessions use, so
+      // the conversation it branches from has to be there first.
+      const source = claudeSessionIdOf(tab.resumeCmd);
       try {
+        if (source) await CopyClaudeSessionForFork(projectName, projectName, source);
         id = tab.actionName
           ? await StartTerminalForRestore(projectName, tab.actionName)
           : await StartTerminal(projectName);

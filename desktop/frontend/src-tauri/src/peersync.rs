@@ -697,7 +697,10 @@ fn referenced_templates(local: &DigestMap, remote: &DigestMap) -> BTreeSet<Strin
 /// are base64-encoded; text files travel verbatim.
 pub fn read_item(kind: &str, name: &str) -> Result<WireItem, String> {
     let path = read_path(kind, name)?;
-    let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
+    let mut bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
+    if kind == "project" {
+        bytes = without_account_list(bytes);
+    }
     let mtime = mtime_millis(&path);
     let binary = kind == "global" && name.starts_with("generator-icons/");
     let (enc, content) = match (!binary)
@@ -715,6 +718,24 @@ pub fn read_item(kind: &str, name: &str) -> Result<WireItem, String> {
         mtime,
         ..Default::default()
     })
+}
+
+/// A project's own Claude account list names accounts on this Mac only. The
+/// receiver keeps its own anyway, and an older build that doesn't know the key
+/// as machine-local would store this Mac's list and never match digests again,
+/// so it is not sent.
+fn without_account_list(bytes: Vec<u8>) -> Vec<u8> {
+    let Ok(mut y) = serde_norway::from_slice::<serde_norway::Value>(&bytes) else {
+        return bytes;
+    };
+    let removed = y
+        .as_mapping_mut()
+        .and_then(|m| m.remove(serde_norway::Value::String("claudeAccounts".into())))
+        .is_some();
+    match removed.then(|| serde_norway::to_string(&y)).transpose() {
+        Ok(Some(out)) => out.into_bytes(),
+        _ => bytes,
+    }
 }
 
 fn read_path(kind: &str, name: &str) -> Result<PathBuf, String> {
@@ -1019,6 +1040,20 @@ mod tests {
             digest(a),
             digest(b),
             "only root/ssh/claudeAccount/parent_name/worktree differ"
+        );
+    }
+
+    #[test]
+    fn the_account_list_is_neither_compared_nor_sent() {
+        let own = "name: web\nroot: /x\nclaudeAccounts: [work, default]\nservices:\n  api:\n    cmd: run\n";
+        let none = "name: web\nroot: /x\nservices:\n  api:\n    cmd: run\n";
+        assert_eq!(digest(own), digest(none));
+        let sent = String::from_utf8(without_account_list(own.as_bytes().to_vec())).unwrap();
+        assert!(!sent.contains("claudeAccounts"));
+        assert_eq!(digest(&sent), digest(none));
+        assert_eq!(
+            without_account_list(none.as_bytes().to_vec()),
+            none.as_bytes()
         );
     }
 

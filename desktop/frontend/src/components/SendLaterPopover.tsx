@@ -23,6 +23,8 @@ interface SendLaterPopoverProps {
   picker: SendLaterPicker;
   projectName: string;
   agent: LimitAgent | null;
+  // The terminal the prompt goes to, when known: its own Claude account.
+  terminalId?: string;
   onPick: (at: number, kind: ScheduledPromptKind, choice: LastChoice | null) => void;
   // Whether focus should go back to the input: yes for Escape, no for a click
   // somewhere else, which already put focus where the user wanted it.
@@ -36,7 +38,7 @@ const ICON = { size: 11, strokeWidth: 1.75 } as const;
 
 // Choosing when a prompt goes out: a readback of the moment on top, the line
 // from now to tomorrow morning with its flags, and the button that names it.
-export function SendLaterPopover({ anchorRef, picker, projectName, agent, onPick, onClose }: SendLaterPopoverProps) {
+export function SendLaterPopover({ anchorRef, picker, projectName, agent, terminalId, onPick, onClose }: SendLaterPopoverProps) {
   const now = useNow(true, 30_000);
   const scale = useMemo(() => buildScale(now), [now]);
   const earliest = now + MIN_DELAY;
@@ -48,7 +50,7 @@ export function SendLaterPopover({ anchorRef, picker, projectName, agent, onPick
   );
   const [style, setStyle] = useState<CSSProperties | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
-  const limit = useLimitReset(projectName, agent, now);
+  const limit = useLimitReset(projectName, agent, now, terminalId);
   useOverlay();
   const shown = preview ?? value;
   const ready = value >= earliest;

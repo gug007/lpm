@@ -119,7 +119,14 @@ export interface ActionInfo {
 // so an attached image lands as its own bracketed paste, exactly like a manual
 // composer send.
 export type SpawnTask =
-  | { kind: "action"; actionName: string; prompt?: string | string[]; launchModel?: ModelPick }
+  // `fixedAccount`: a scheduled job's run, which never switches Claude accounts.
+  | {
+      kind: "action";
+      actionName: string;
+      prompt?: string | string[];
+      launchModel?: ModelPick;
+      fixedAccount?: boolean;
+    }
   | { kind: "command"; command: string; prompt?: string | string[]; launchModel?: ModelPick }
   // Continue a forked agent conversation in the copy: `command` launches the
   // fork; startCmd/resumeCmd become the new tab's persisted restore identity.
@@ -209,7 +216,17 @@ export interface ProjectInfo {
   // The project's own Claude account pin: absent when unset, "" for the main
   // login, otherwise a ClaudeAccount id.
   claudeAccount?: string;
+  // The project's own ordered account list ("default" is the main login);
+  // empty on a copy that uses the main accounts instead of its parent's.
+  claudeAccounts?: string[];
 }
+
+// What a project's new Claude sessions use, as written by the project menu.
+export type ClaudeAccountChoice =
+  | { kind: "parent" }
+  | { kind: "main" }
+  | { kind: "pin"; id: string }
+  | { kind: "list"; ids: string[] };
 
 export interface TokenUsage {
   inputTokens: number;

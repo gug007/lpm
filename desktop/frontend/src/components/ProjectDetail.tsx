@@ -267,7 +267,12 @@ export function ProjectDetail({
           );
       } else {
         const action = resolveRunnableAction(actions, task.actionName);
-        if (action) handleRunAction(action, { prompt: task.prompt, launchModel: task.launchModel });
+        if (action)
+          handleRunAction(action, {
+            prompt: task.prompt,
+            launchModel: task.launchModel,
+            fixedAccount: task.fixedAccount,
+          });
         else
           toast.error(
             `Couldn't run "${task.actionName}" in ${project.name} — no matching action.`,

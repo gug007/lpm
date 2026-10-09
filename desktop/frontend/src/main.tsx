@@ -14,6 +14,7 @@ import { initTTSEvents } from "./store/tts";
 import { useGeneratorsStore } from "./store/generators";
 import { useWorkStatusesStore } from "./store/workStatuses";
 import { useAccountsStore } from "./store/accounts";
+import { useClaudePoolStore } from "./store/claudePool";
 import { queryClient } from "./queryClient";
 import { MIRROR_PROJECT } from "./mirror";
 import { initMenuEditEvents } from "./menuEdit";
@@ -100,6 +101,7 @@ async function startApplication() {
     useGeneratorsStore.getState().hydrate();
     useWorkStatusesStore.getState().hydrate();
     useAccountsStore.getState().hydrate();
+    void useClaudePoolStore.getState().hydrate();
     void initSendLater();
     initTTSEvents();
     logDiagnostic(

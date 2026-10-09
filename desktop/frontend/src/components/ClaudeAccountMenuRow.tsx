@@ -1,7 +1,7 @@
 import { providerMeta } from "../agentStatus";
 import type { UsageMeter } from "../sidebarUsage";
 import { CheckIcon } from "./icons";
-import { PaceTick } from "./PaceTick";
+import { AccountMeters } from "./AccountMeters";
 
 interface ClaudeAccountMenuRowProps {
   label: string;
@@ -35,30 +35,7 @@ export function ClaudeAccountMenuRow({ label, signedIn, meters, current, onClick
         )}
         <span className="flex w-3 shrink-0 justify-end text-[var(--text-muted)]">{current && <CheckIcon />}</span>
       </span>
-      {signedIn &&
-        meters.map((meter) => (
-          <span key={meter.label} className="flex w-full items-center gap-1.5 pl-3.5 text-[10px] text-[var(--text-muted)]">
-            <span className="w-3.5 shrink-0">{meter.label}</span>
-            <span className="relative h-[3px] flex-1 rounded-full bg-[var(--bg-active)]">
-              <span
-                className="block h-full rounded-full"
-                style={{
-                  width: `${meter.fraction > 0 ? Math.max(2, Math.round(meter.fraction * 100)) : 0}%`,
-                  backgroundColor: meter.fill,
-                }}
-              />
-              {meter.pace !== null && <PaceTick at={meter.pace} />}
-            </span>
-            <span
-              className={`w-7 shrink-0 text-right tabular-nums ${
-                meter.percent >= 95 ? "text-[var(--accent-red)]" : "text-[var(--text-secondary)]"
-              }`}
-            >
-              {meter.percentText}
-            </span>
-            <span className="w-10 shrink-0 text-right tabular-nums">{meter.detail}</span>
-          </span>
-        ))}
+      {signedIn && <AccountMeters meters={meters} className="pl-3.5" />}
     </button>
   );
 }

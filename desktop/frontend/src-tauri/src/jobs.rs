@@ -2228,7 +2228,8 @@ fn dispatch_run(
                     app,
                     key,
                     target,
-                    json!({ "kind": "action", "actionName": id }),
+                    // A scheduled run stays on the project's fixed account.
+                    json!({ "kind": "action", "actionName": id, "fixedAccount": true }),
                 )
             } else {
                 let app2 = app.clone();
@@ -2241,13 +2242,8 @@ fn dispatch_run(
                     static SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
                     let seq = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                     let run_id = format!("job-{}-{}", now_secs(), seq);
-                    let _ = crate::actions::run_action_background(
-                        app2,
-                        target2,
-                        id2,
-                        std::collections::HashMap::new(),
-                        run_id,
-                    );
+                    let _ =
+                        crate::actions::run_action_background_for_job(app2, target2, id2, run_id);
                 });
                 Dispatch::Ran
             }

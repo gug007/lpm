@@ -50,6 +50,8 @@ import { isPeerName, peerSlugOf } from "./peer/markers";
 import { publishPeerSnapshot } from "./peer/retainedSessions";
 import { PeerDisconnectedBanner } from "./components/PeerDisconnectedBanner";
 import { startSendLaterRunner } from "./sendLater/runner";
+import { ClaudePoolConsentDialog } from "./components/ClaudePoolConsentDialog";
+import { ClaudeAccountPoolDialog } from "./components/ClaudeAccountPoolDialog";
 
 export default function App() {
   const projects = useAppStore((s) => s.projects);
@@ -249,6 +251,8 @@ export default function App() {
         richColors
         toastOptions={{ duration: 5000 }}
       />
+      <ClaudeAccountPoolDialog />
+      <ClaudePoolConsentDialog />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar
           projects={projects}

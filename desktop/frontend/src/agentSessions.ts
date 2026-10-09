@@ -14,6 +14,8 @@ export interface AgentSessionSummary {
   preview?: string | null;
   updatedAt: number;
   gitBranch?: string | null;
+  // The Claude account holding the conversation ("default" = main login).
+  account?: string | null;
 }
 
 export interface AgentSessionPage {
@@ -35,6 +37,8 @@ export interface SessionRow {
   preview: string;
   updatedAt: number;
   gitBranch: string | null;
+  // The Claude account resuming it runs on, when lpm knows it.
+  account?: string;
   resumeCmd: string;
   actionName?: string;
   label: string;
@@ -141,6 +145,7 @@ export function mergeSessionRows({
       // a "January 1970" day header — the close time is the next best truth.
       updatedAt: session.updatedAt > 0 ? session.updatedAt : (entry?.closedAt ?? 0),
       gitBranch: session.gitBranch?.trim() || null,
+      account: session.account ?? undefined,
       resumeCmd: entry?.resumeCmd ?? resumeCmdFor(session),
       actionName: entry?.actionName,
       label: entry?.label ?? providerMeta(session.provider).short,

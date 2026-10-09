@@ -384,6 +384,14 @@ export const ROWS = {
     description: "Keep each project signed in to the right Claude account.",
     keywords: ["login", "sign in", "account", "accounts", "multiple", "switch", "claude"],
   },
+  "ai.accountSwitching": {
+    kind: "row",
+    tab: "ai",
+    id: "ai.accountSwitching",
+    label: "Account switching",
+    description: "Let new Claude sessions take turns on your accounts as each nears its usage limits.",
+    keywords: ["switch", "rotate", "limit", "usage", "pool", "accounts", "claude", "5-hour", "weekly"],
+  },
   "ai.statusLine": {
     kind: "row",
     tab: "ai",

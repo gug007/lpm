@@ -21,7 +21,7 @@ Higher layers win by field. Within `extends: [a, b, c]`, earlier templates win o
 
 ## Repo config
 
-Write team-shared configuration to `<root>/.lpm.yml`. It supports `extends`, `services`, `actions`, `profiles`, and `zones` (declare terminals as actions with `type: terminal`). Do not put `name`, `root`, `label`, `parent_name`, `worktree`, `ssh`, `claudeAccount`, or `work_status` in this file.
+Write team-shared configuration to `<root>/.lpm.yml`. It supports `extends`, `services`, `actions`, `profiles`, and `zones` (declare terminals as actions with `type: terminal`). Do not put `name`, `root`, `label`, `parent_name`, `worktree`, `ssh`, `claudeAccount`, `claudeAccounts`, or `work_status` in this file.
 
 ```yaml
 services:

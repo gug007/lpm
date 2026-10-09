@@ -304,7 +304,7 @@ would.
 Mirrors the portable subset of `~/.lpm` between two paired Macs: projects (present
 on both — intersection only), synced global files + dirs (union — created when
 one-sided), and templates referenced by a matched project. Machine-local parts
-(project `root`/`ssh`/`claudeAccount`/`parent_name`, settings.json window/geometry
+(project `root`/`ssh`/`claudeAccount`/`claudeAccounts`/`parent_name`, settings.json window/geometry
 keys) are stripped from the compared **portable digest** and preserved locally on
 apply, so two Macs that differ only in local paths compare as in sync. The client
 drives every sync; the host answers. Each side that receives changes snapshots

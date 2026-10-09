@@ -208,11 +208,14 @@ fn substitute_inputs(a: &mut config::ActionResolved, input_values: &HashMap<Stri
 
 /// resolveActionCommand: resolve the action, substitute {{key}} inputs, and build
 /// the local script or the remote ssh command line.
+/// `switching` is false for scheduled jobs: they run on the project's fixed
+/// account and never move between accounts.
 fn resolve_action_command(
     app: &AppHandle,
     project: &str,
     action: &str,
     input_values: &HashMap<String, String>,
+    switching: bool,
 ) -> Result<ActionPlan, String> {
     let mut a = config::resolve_action_full(project, action)
         .ok_or_else(|| format!("action {action:?} not found in project {project:?}"))?;
@@ -260,7 +263,7 @@ fn resolve_action_command(
             cwd: config::resolve_cwd(&info.root, &a.cwd),
             ports: a.ports,
             login_shell: true,
-            claude_env: config::claude_env_for_account(info.claude_account.as_deref()),
+            claude_env: crate::claude_pool::spawn_env(project, None, switching).env,
             on_exit: None,
         })
     }
@@ -362,7 +365,7 @@ pub fn run_action(
     action_name: String,
     input_values: HashMap<String, String>,
 ) -> Result<(), String> {
-    let mut plan = resolve_action_command(&app, &project_name, &action_name, &input_values)?;
+    let mut plan = resolve_action_command(&app, &project_name, &action_name, &input_values, true)?;
     ports::format_action_port(&action_name, &plan.ports)?; // pre-check; no spawn on conflict
     let on_exit = plan.on_exit.take();
 
@@ -404,6 +407,35 @@ pub fn run_action_background(
     input_values: HashMap<String, String>,
     run_id: String,
 ) -> Result<(), String> {
+    run_background(app, project_name, action_name, input_values, run_id, true)
+}
+
+/// A scheduled job's action run: same as `run_action_background`, on the
+/// project's fixed account.
+pub fn run_action_background_for_job(
+    app: AppHandle,
+    project_name: String,
+    action_name: String,
+    run_id: String,
+) -> Result<(), String> {
+    run_background(
+        app,
+        project_name,
+        action_name,
+        HashMap::new(),
+        run_id,
+        false,
+    )
+}
+
+fn run_background(
+    app: AppHandle,
+    project_name: String,
+    action_name: String,
+    input_values: HashMap<String, String>,
+    run_id: String,
+    switching: bool,
+) -> Result<(), String> {
     // Register up-front so a polling client (the phone) sees the run even if
     // resolve/spawn fails before any output is produced. The entry is retained
     // after completion — its terminal status is stamped in below and it's dropped
@@ -435,8 +467,14 @@ pub fn run_action_background(
         );
     }
 
-    let result =
-        run_action_background_inner(&app, &project_name, &action_name, &input_values, &run_id);
+    let result = run_action_background_inner(
+        &app,
+        &project_name,
+        &action_name,
+        &input_values,
+        &run_id,
+        switching,
+    );
 
     let mut runs = background_runs().lock().unwrap();
     if let Some(r) = runs.get_mut(&run_id) {
@@ -462,8 +500,9 @@ fn run_action_background_inner(
     action_name: &str,
     input_values: &HashMap<String, String>,
     run_id: &str,
+    switching: bool,
 ) -> Result<(), String> {
-    let mut plan = resolve_action_command(app, project_name, action_name, input_values)?;
+    let mut plan = resolve_action_command(app, project_name, action_name, input_values, switching)?;
     ports::format_action_port(action_name, &plan.ports)?;
     let on_exit = plan.on_exit.take();
 

@@ -17,6 +17,13 @@ mod autosync;
 mod bounds;
 mod browser;
 mod claude_account_pin;
+mod claude_choice;
+mod claude_dirs;
+mod claude_limit_hits;
+mod claude_pool;
+mod claude_pool_members;
+mod claude_pool_pick;
+mod claude_pool_store;
 mod cli_install;
 #[cfg(any(target_os = "linux", all(unix, test)))]
 mod cli_install_linux;
@@ -223,6 +230,7 @@ use agent_caps::{
 use aigen::*;
 use browser::*;
 use claude_account_pin::*;
+use claude_pool::{accept_claude_pool_pick, claude_pool_state, resume_claude_pool, set_claude_pool};
 use claude_session_state::*;
 use cli_install::*;
 use clipboard::*;
@@ -468,6 +476,7 @@ pub fn run() {
             // ~/.codex/sessions; Claude limits arrive via the statusline
             // forwarder over the status socket once the user opts in.
             agent_limits::start(handle.clone());
+            claude_pool::init(&handle);
 
             // Built-in Tailscale node, when it is switched on: the mobile and
             // peer servers below point their ports at it as they start.

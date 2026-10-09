@@ -4,6 +4,7 @@ import {
   TerminalExists,
 } from "../../../bridge/commands";
 import { isPeerMarked } from "../../peer/markers";
+import { claudeResumeSessionId } from "../../agentSession";
 import {
   type PersistedPaneNode,
   type PersistedTab,
@@ -129,10 +130,13 @@ async function reifyTab(t: PersistedTab, projectName: string): Promise<ReifiedTa
   return { id: await startFresh(t, projectName), adopted: false };
 }
 
+// A tab that continues a Claude conversation restarts on the account holding
+// it, whatever account new sessions in the project use now.
 function startFresh(t: PersistedTab, projectName: string): Promise<string> {
+  const sessionId = claudeResumeSessionId(t.resumeCmd);
   return t.actionName
-    ? StartTerminalForRestore(projectName, t.actionName)
-    : StartTerminal(projectName);
+    ? StartTerminalForRestore(projectName, t.actionName, sessionId)
+    : StartTerminal(projectName, sessionId);
 }
 
 async function reifyTree(

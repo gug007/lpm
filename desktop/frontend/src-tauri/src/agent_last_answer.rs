@@ -68,11 +68,9 @@ fn locate(project_name: &str, provider: &str, session_id: &str) -> Result<Answer
     }
 
     Ok(match provider {
-        AgentProvider::Claude => Answers::Claude(crate::hooks::claude_transcript_path(
-            config::claude_env_for_account(project.claude_account.as_deref()),
-            &project.root,
-            session_id,
-        )),
+        AgentProvider::Claude => {
+            Answers::Claude(crate::claude_dirs::transcript_for(&project, session_id))
+        }
         AgentProvider::Codex => Answers::Codex {
             home: codex_home(),
             session_id: session_id.to_string(),

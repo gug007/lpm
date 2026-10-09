@@ -832,6 +832,24 @@ export function SetWorkStatus(name, status) {
 export function SetClaudeAccount(name, account) {
   return invoke("set_claude_account", { name, account });
 }
+export function SetClaudeAccountChoice(name, choice) {
+  return invoke("set_claude_account_choice", { name, choice });
+}
+export function ClaudePoolState() {
+  return invoke("claude_pool_state");
+}
+export function SetClaudePool(patch) {
+  return invoke("set_claude_pool", { patch });
+}
+export function AcceptClaudePoolPick(key) {
+  return invoke("accept_claude_pool_pick", { key });
+}
+export function ResumeClaudePool() {
+  return invoke("resume_claude_pool");
+}
+export function TerminalClaudeAccount(id) {
+  return invoke("terminal_claude_account", { id });
+}
 export function MoveProjectRoot(name, newRoot) {
   return invoke("move_project_root", { name, newRoot });
 }
@@ -847,17 +865,17 @@ export function StartProjectWithServices(name, services) {
 export function StartService(projectName, paneIndex) {
   return invoke("start_service", { projectName, paneIndex });
 }
-export function StartTerminal(projectName) {
-  return invoke("start_terminal", { projectName });
+export function StartTerminal(projectName, sessionId, fixedAccount) {
+  return invoke("start_terminal", { projectName, sessionId, fixedAccount });
 }
-export function StartTerminalForConfig(projectName, terminalName) {
-  return invoke("start_terminal_for_config", { projectName, terminalName });
+export function StartTerminalForConfig(projectName, terminalName, fixedAccount) {
+  return invoke("start_terminal_for_config", { projectName, terminalName, fixedAccount });
 }
-export function StartTerminalForRestore(projectName, terminalName) {
-  return invoke("start_terminal_for_restore", { projectName, terminalName });
+export function StartTerminalForRestore(projectName, terminalName, sessionId) {
+  return invoke("start_terminal_for_restore", { projectName, terminalName, sessionId });
 }
-export function StartTerminalWithCwdEnv(projectName, cwd, env) {
-  return invoke("start_terminal_with_cwd_env", { projectName, cwd, env });
+export function StartTerminalWithCwdEnv(projectName, cwd, env, sessionId, fixedAccount) {
+  return invoke("start_terminal_with_cwd_env", { projectName, cwd, env, sessionId, fixedAccount });
 }
 export function SetOpenAIKey(key) {
   return invoke("set_openai_key", { key });

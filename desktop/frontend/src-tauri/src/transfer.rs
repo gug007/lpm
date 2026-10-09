@@ -348,6 +348,9 @@ pub(crate) fn snapshot_lpm(src: &Path, dst: &Path) -> Result<(), String> {
         if name_str == "lpm.sock"
             || name_str.ends_with(".sock")
             || name_str == "peer.json"
+            // Account logins: on Linux and Windows Claude Code keeps them as
+            // plain files inside these dirs.
+            || name_str == "claude-accounts"
             || crate::tailnet::STATE_DIRS.contains(&name_str.as_ref())
             || is_held_lock(&name_str)
         {

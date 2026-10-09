@@ -17,6 +17,23 @@ import {
 } from "../visualConfigYaml";
 
 const INHERIT_OPTION = "__inherit__";
+const MAIN_OPTION = "__main__";
+const LIST_OPTION = "__list__";
+
+// Which option the Claude account select shows for the project's own keys.
+function claudeChoiceValue(form: ConfigForm): string {
+  if (form.claudeAccount !== null) return form.claudeAccount;
+  if (form.claudeAccounts?.length) return LIST_OPTION;
+  if (form.claudeAccounts) return MAIN_OPTION;
+  return form.parentName ? INHERIT_OPTION : MAIN_OPTION;
+}
+
+function claudeChoicePatch(value: string, form: ConfigForm): Partial<ConfigForm> {
+  if (value === LIST_OPTION) return {};
+  if (value === INHERIT_OPTION) return { claudeAccount: null, claudeAccounts: null };
+  if (value === MAIN_OPTION) return { claudeAccount: null, claudeAccounts: form.parentName ? [] : null };
+  return { claudeAccount: value, claudeAccounts: null };
+}
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -408,12 +425,16 @@ export function VisualConfigEditor({ content, onChange, onEditYaml, isRemote = f
         {!isRemote && !form.hasSsh && (
           <Field label="Claude account">
             <Select
-              value={form.claudeAccount === null ? (form.parentName ? INHERIT_OPTION : "") : form.claudeAccount}
-              onChange={(v) => update({ claudeAccount: v === INHERIT_OPTION ? null : v })}
+              value={claudeChoiceValue(form)}
+              onChange={(v) => update(claudeChoicePatch(v, form))}
               invalid={Boolean(form.claudeAccount) && !accounts.some((a) => a.id === form.claudeAccount)}
               options={[
                 ...(form.parentName ? [{ value: INHERIT_OPTION, label: "Inherit from parent" }] : []),
-                { value: "", label: "Default (main login)" },
+                { value: MAIN_OPTION, label: "Main accounts" },
+                ...(form.claudeAccounts?.length
+                  ? [{ value: LIST_OPTION, label: "Own list (set in the project menu)" }]
+                  : []),
+                { value: "", label: "Main login only" },
                 ...accounts.map((a) => {
                   const email = accountStatuses[a.id]?.email;
                   return { value: a.id, label: email ? `${a.label} — ${email}` : a.label };

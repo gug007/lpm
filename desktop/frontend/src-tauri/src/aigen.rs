@@ -1473,9 +1473,8 @@ pub(crate) fn ropts(
         effort,
         fast,
         writes,
-        claude_env: project_name
-            .map(config::claude_env_for_project)
-            .unwrap_or(config::ClaudeEnv::Inherit),
+        claude_env: crate::claude_pool::spawn_env(project_name.unwrap_or("__global__"), None, true)
+            .env,
     }
 }
 

@@ -80,8 +80,9 @@ pub fn save_claude_accounts(a: Value) -> Result<(), String> {
     config::save_claude_accounts(&a)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn remove_claude_account(id: String) -> Result<(), String> {
+    crate::claude_pool::log_out(&id);
     config::remove_claude_account(&id)
 }
 

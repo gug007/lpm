@@ -53,6 +53,9 @@ export interface ConfigForm {
   root: string;
   parentName: string;
   claudeAccount: string | null;
+  // The project's own account list; null when the key is absent. An empty list
+  // on a copy means "the main accounts, not the parent's choice".
+  claudeAccounts: string[] | null;
   hasSsh: boolean;
   services: ServiceEntry[];
   actions: ActionEntry[];
@@ -86,6 +89,11 @@ export function parseYaml(yaml: string): ConfigForm {
     root: raw.root || "",
     parentName: typeof raw.parent_name === "string" ? raw.parent_name : "",
     claudeAccount: typeof raw.claudeAccount === "string" ? raw.claudeAccount : null,
+    claudeAccounts: Array.isArray(raw.claudeAccounts)
+      ? raw.claudeAccounts.filter((id: unknown): id is string => typeof id === "string")
+      : typeof raw.claudeAccounts === "string"
+        ? [raw.claudeAccounts]
+        : null,
     hasSsh: isPlainObject(raw.ssh),
     services: Object.entries((raw.services as Record<string, unknown>) || {}).map(([key, v]) => {
       const base = parseEntry(key, v);
@@ -171,15 +179,12 @@ export function serializeToYaml(form: ConfigForm, originalContent: string): stri
   if (form.root) doc.root = form.root;
   else delete doc.root;
 
-  const parentPresent = typeof doc.parent_name === "string" && doc.parent_name !== "";
-  if (form.claudeAccount === null) {
-    delete doc.claudeAccount;
-  } else if (form.claudeAccount === "") {
-    if (parentPresent) doc.claudeAccount = "";
-    else delete doc.claudeAccount;
-  } else {
-    doc.claudeAccount = form.claudeAccount;
-  }
+  // "" is written out on every project: it means the main login only, which
+  // an absent key no longer does (that is the main accounts).
+  if (form.claudeAccount === null) delete doc.claudeAccount;
+  else doc.claudeAccount = form.claudeAccount;
+  if (form.claudeAccounts === null) delete doc.claudeAccounts;
+  else doc.claudeAccounts = form.claudeAccounts;
 
   const origSvcs = isPlainObject(doc.services) ? doc.services : {};
   const svcs: Record<string, unknown> = {};

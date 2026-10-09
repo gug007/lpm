@@ -73,14 +73,32 @@ export const projectFields: Field[] = [
     description: (
       <>
         Id of the Claude account this project&rsquo;s terminals, actions, and
-        AI features use. Accounts are managed in the desktop app under Settings
-        &rarr; AI &amp; Integrations, which also writes this field for you via
-        the project form. Omit it to use your main Claude login. Not applied to
-        SSH projects — the remote host has its own Claude login. See{" "}
+        AI features always use. Accounts are managed in the desktop app under
+        Settings &rarr; AI &amp; Integrations, which also writes this field for
+        you via the project menu. Set it to an empty string to always use your
+        main Claude login; leave it out to use your main accounts. Not applied
+        to SSH projects — the remote host has its own Claude login. See{" "}
         <DocLink href={CLAUDE_ACCOUNTS_PATH}>
           multiple Claude Code accounts
         </DocLink>
         .
+      </>
+    ),
+  },
+  {
+    name: "claudeAccounts",
+    type: "[]string",
+    required: false,
+    description: (
+      <>
+        Up to three Claude account ids, in order, for this project&rsquo;s new
+        sessions to take turns on when account switching is turned on in
+        Settings. Each new session starts on the first listed account that is
+        under 90% of its 5-hour and weekly limits; sessions already running
+        stay where they are. Use{" "}
+        <code className="font-mono">default</code>{" "}for the main login.
+        Ignored when{" "}
+        <code className="font-mono">claudeAccount</code>{" "}is set.
       </>
     ),
   },

@@ -75,13 +75,13 @@ import { Modal } from "./ui/Modal";
 import { TrafficLights } from "./ui/TrafficLights";
 import { MobileSettingsPane } from "./MobileSettingsPane";
 import { ConnectionsPane } from "./ConnectionsPane";
-import { PlusIcon, SettingsIcon, TrashIcon } from "./icons";
+import { SettingsIcon, TrashIcon } from "./icons";
 import { useAppStore } from "../store/app";
 import { useAccountsStore } from "../store/accounts";
-import type { ClaudeAccount } from "../types";
-import { ClaudeAccountRow } from "./ClaudeAccountRow";
-import { ClaudeAccountsSetupGuide } from "./ClaudeAccountsSetupGuide";
-import { ClaudeLoginModal } from "./ClaudeLoginModal";
+import { ClaudeAccountsSection } from "./ClaudeAccountsSection";
+import { ClaudeSwitchingSection } from "./ClaudeSwitchingSection";
+import { SettingsSection } from "./SettingsSection";
+import { Toggle } from "./ui/Toggle";
 import { InlineNameEditor } from "./InlineNameEditor";
 import { modalInputClass, modalInputDefaults } from "../forms/styles";
 import { SettingsSearch } from "./SettingsSearch";
@@ -312,17 +312,8 @@ export function Settings({
   const [newTemplateName, setNewTemplateName] = useState("");
   const [creatingTemplateBusy, setCreatingTemplateBusy] = useState(false);
   const [confirmDeleteTemplate, setConfirmDeleteTemplate] = useState<string | null>(null);
-  const accounts = useAccountsStore((s) => s.accounts);
-  const accountStatuses = useAccountsStore((s) => s.statuses);
-  const accountUsage = useAccountsStore((s) => s.usage);
-  const addAccount = useAccountsStore((s) => s.add);
-  const renameAccount = useAccountsStore((s) => s.rename);
-  const removeAccount = useAccountsStore((s) => s.remove);
   const refreshAccountStatuses = useAccountsStore((s) => s.refreshStatuses);
-  const [addingAccount, setAddingAccount] = useState(false);
   const [accountsCollapsed, setAccountsCollapsed] = useState(true);
-  const [confirmDeleteAccount, setConfirmDeleteAccount] = useState<ClaudeAccount | null>(null);
-  const [loginAccount, setLoginAccount] = useState<ClaudeAccount | null>(null);
   const [query, setQuery] = useState("");
   const [pendingRevealId, setPendingRevealId] = useState<string | null>(null);
   const [showRemoveApp, setShowRemoveApp] = useState(false);
@@ -978,78 +969,11 @@ export function Settings({
               )}
             </SettingsSection>
 
-            <SettingsSection
-              id="ai.accounts"
-              title="Multiple Claude accounts"
-              description="Keep each project signed in to the right Claude account."
-              collapsible
+            <ClaudeAccountsSection
               collapsed={accountsCollapsed}
               onToggle={() => setAccountsCollapsed((c) => !c)}
-              summary={
-                accounts.length > 0
-                  ? `${accounts.length} account${accounts.length === 1 ? "" : "s"}`
-                  : "Set up"
-              }
-            >
-              <ClaudeAccountsSetupGuide
-                accounts={accounts}
-                statuses={accountStatuses}
-                usage={accountUsage}
-              />
-              {accounts.map((acc) => (
-                <ClaudeAccountRow
-                  key={acc.id}
-                  id={acc.id}
-                  label={acc.label}
-                  status={accountStatuses[acc.id]}
-                  usage={accountUsage[acc.id] ?? []}
-                  onRename={(label) =>
-                    renameAccount(acc.id, label).catch((err) =>
-                      toast.error(`Failed to rename account: ${err}`),
-                    )
-                  }
-                  onSignIn={() => setLoginAccount(acc)}
-                  onDelete={() => setConfirmDeleteAccount(acc)}
-                />
-              ))}
-              {addingAccount ? (
-                <div className="flex items-center gap-3 bg-[var(--bg-secondary)]/30 px-4 py-3 text-sm">
-                  <InlineNameEditor
-                    initial=""
-                    placeholder="e.g. Work"
-                    commitTitle="Add (Esc to cancel)"
-                    onCommit={(label) => {
-                      setAddingAccount(false);
-                      addAccount(label).catch((err) =>
-                        toast.error(`Failed to add account: ${err}`),
-                      );
-                    }}
-                    onCancel={() => setAddingAccount(false)}
-                  />
-                </div>
-              ) : (
-                <div className="flex items-center justify-end bg-[var(--bg-secondary)]/30 px-4 py-3">
-                  <button
-                    onClick={() => setAddingAccount(true)}
-                    className={`${BTN_SECONDARY} flex items-center gap-1.5`}
-                  >
-                    <PlusIcon />
-                    Add account
-                  </button>
-                </div>
-              )}
-            </SettingsSection>
-            {!accountsCollapsed && (
-              <div className="mt-3 flex items-start gap-2 px-1 text-[10px] leading-relaxed text-[var(--text-muted)]">
-                <span className="mt-px shrink-0 rounded border border-[var(--border)] px-1.5 py-px font-medium uppercase tracking-wide">
-                  Note
-                </span>
-                <p>
-                  Remove a manually set <code className="text-[var(--text-secondary)]">CLAUDE_CONFIG_DIR</code> from
-                  your shell profile. Login shells re-source it and override project accounts.
-                </p>
-              </div>
-            )}
+            />
+            <ClaudeSwitchingSection />
 
             <SettingsSection>
               <SettingsRow
@@ -1245,49 +1169,6 @@ export function Settings({
             }}
           />
 
-          <ConfirmDialog
-            open={confirmDeleteAccount !== null}
-            title="Remove account"
-            variant="destructive"
-            confirmLabel="Remove"
-            body={
-              <>
-                Remove{" "}
-                <span className="font-medium text-[var(--text-primary)]">
-                  {confirmDeleteAccount?.label}
-                </span>
-                ? Its sign-in data will be deleted.{" "}
-                {confirmDeleteAccount &&
-                (accountUsage[confirmDeleteAccount.id]?.length ?? 0) > 0 ? (
-                  <>
-                    Used by{" "}
-                    <span className="font-medium text-[var(--text-primary)]">
-                      {accountUsage[confirmDeleteAccount.id].join(", ")}
-                    </span>
-                    {" "}— they will fall back to your main Claude login.
-                  </>
-                ) : (
-                  <>Projects assigned to it will use your main Claude login instead.</>
-                )}
-              </>
-            }
-            onCancel={() => setConfirmDeleteAccount(null)}
-            onConfirm={() => {
-              if (confirmDeleteAccount) {
-                removeAccount(confirmDeleteAccount.id).catch((err) =>
-                  toast.error(`Failed to remove account: ${err}`),
-                );
-              }
-              setConfirmDeleteAccount(null);
-            }}
-          />
-
-          {loginAccount && (
-            <ClaudeLoginModal
-              account={loginAccount}
-              onClose={() => setLoginAccount(null)}
-            />
-          )}
 
           <NewTemplateModal
             open={creatingTemplate}
@@ -1357,93 +1238,6 @@ function PageHeader({
         <p className="mt-1.5 max-w-md text-xs leading-relaxed text-[var(--text-muted)]">
           {description}
         </p>
-      )}
-    </div>
-  );
-}
-
-function SettingsSection({
-  id,
-  title,
-  description,
-  children,
-  collapsible = false,
-  collapsed = false,
-  onToggle,
-  summary,
-}: {
-  id?: string;
-  title?: string;
-  description?: string;
-  children: React.ReactNode;
-  collapsible?: boolean;
-  collapsed?: boolean;
-  onToggle?: () => void;
-  summary?: React.ReactNode;
-}) {
-  if (collapsible && collapsed) {
-    return (
-      <div className="mt-6" data-settings-row={id}>
-        <button
-          type="button"
-          onClick={onToggle}
-          className="group flex w-full items-center justify-between gap-4 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] px-4 py-3 text-left transition-colors hover:bg-[var(--bg-hover)]"
-        >
-          <span className="min-w-0 flex-1">
-            <span className="block text-sm font-medium text-[var(--text-primary)]">
-              {title}
-            </span>
-            {description && (
-              <span className="block text-[11px] text-[var(--text-muted)]">
-                {description}
-              </span>
-            )}
-          </span>
-          <span className="flex shrink-0 items-center gap-2 text-[var(--text-muted)]">
-            {summary && <span className="text-[11px]">{summary}</span>}
-            <ChevronRight
-              size={14}
-              className="transition-colors group-hover:text-[var(--text-primary)]"
-            />
-          </span>
-        </button>
-      </div>
-    );
-  }
-  const content = (
-    <>
-      {description && (
-        <p className="pb-2 text-[11px] leading-relaxed text-[var(--text-muted)]">
-          {description}
-        </p>
-      )}
-      <div className="divide-y divide-[var(--border)] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)]">
-        {children}
-      </div>
-    </>
-  );
-  return (
-    <div className="mt-6 space-y-2" data-settings-row={id}>
-      {collapsible ? (
-        <button
-          type="button"
-          onClick={onToggle}
-          className="group flex w-full items-center gap-1.5 text-[13px] font-semibold text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]"
-        >
-          <span>{title}</span>
-          <ChevronRight size={14} className="rotate-90 transition-transform group-hover:translate-y-0.5" />
-        </button>
-      ) : (
-        title && (
-          <h2 className="px-0.5 text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--text-muted)]">
-            {title}
-          </h2>
-        )
-      )}
-      {collapsible ? (
-        <div className="field-reveal space-y-2">{content}</div>
-      ) : (
-        content
       )}
     </div>
   );
@@ -1521,35 +1315,6 @@ function SegmentButton({
     >
       {icon}
       {label}
-    </button>
-  );
-}
-
-function Toggle({
-  enabled,
-  onChange,
-  "aria-label": ariaLabel,
-}: {
-  enabled: boolean;
-  onChange: (v: boolean) => void;
-  "aria-label"?: string;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={enabled}
-      aria-label={ariaLabel}
-      onClick={() => onChange(!enabled)}
-      className={`relative inline-flex h-[22px] w-[38px] shrink-0 cursor-pointer items-center rounded-full outline-none transition-colors duration-200 ease-out focus-visible:ring-2 focus-visible:ring-[var(--accent-green)]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-secondary)] ${
-        enabled ? "bg-[var(--accent-green)]" : "bg-[var(--bg-active)]"
-      }`}
-    >
-      <span
-        className={`inline-block h-[18px] w-[18px] rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.3)] transition-transform duration-200 ease-out ${
-          enabled ? "translate-x-[18px]" : "translate-x-0.5"
-        }`}
-      />
     </button>
   );
 }

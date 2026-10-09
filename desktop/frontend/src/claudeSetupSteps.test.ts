@@ -21,6 +21,11 @@ describe("deriveClaudeSetupSteps", () => {
     expect(p.currentStep).toBe(1);
   });
 
+  it("taking turns in account switching counts as assigned", () => {
+    const p = deriveClaudeSetupSteps([acc("1")], { "1": signedIn }, {}, ["default", "1"]);
+    expect(p.allComplete).toBe(true);
+  });
+
   it("signed in but unassigned: step 3 is current", () => {
     const p = deriveClaudeSetupSteps([acc("1")], { "1": signedIn }, {});
     expect(p.completion).toEqual([true, true, false]);

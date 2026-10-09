@@ -29,7 +29,8 @@ services:
 | `label` | Optional display name. |
 | `parent_name` | Existing project inherited by a duplicate. |
 | `worktree` | Set to `true` only for a linked Git worktree duplicate created by lpm; requires `parent_name`. |
-| `claudeAccount` | Claude account id that this project's terminals, actions, and AI features run as; see [Claude account](#claude-account). |
+| `claudeAccount` | Claude account id that this project's terminals, actions, and AI features always run as; see [Claude account](#claude-account). |
+| `claudeAccounts` | Ordered Claude account ids that new sessions take turns on; see [Claude account](#claude-account). |
 | `work_status` | Status badge written by the app's status menu. Keep it as returned; do not author it. |
 | `extends` | Bare template names whose actions sit under this file's; see `sharing.md`. |
 | `services` | Long-running commands. |
@@ -49,8 +50,16 @@ claudeAccount: work
 ```
 
 - The value is an account id from Settings: letters, digits, `-`, or `_`. An id that no longer exists falls back to the main login.
-- Omit the key to use the main login. A duplicate without the key follows its parent's account; set `claudeAccount: ""` in the duplicate's own file to force the main login.
-- SSH projects ignore it; the remote host has its own login.
+- Set `claudeAccount: ""` to always use the main login.
+- Omit both keys to use the main accounts from Settings (just the main login unless switching is turned on there).
+- `claudeAccounts` lists up to three ids (`default` is the main login). When switching is on in Settings, each new session starts on the first listed account under 90% of its 5-hour and weekly limits; the project never uses accounts outside its list. `claudeAccount` wins when both are set.
+
+```yaml
+claudeAccounts: [work, side]
+```
+
+- A duplicate without either key follows its parent's choice; `claudeAccounts: []` in its own file means the main accounts instead.
+- SSH projects ignore both; the remote host has its own login.
 - A duplicate's own file can only be changed in the app (the project's account menu), because `--layer project` targets the parent's file.
 
 Use short lowercase hyphenated keys such as `web`, `api-worker`, and `db-migrate`.
@@ -127,7 +136,7 @@ Create it with `lpm duplicate myapp --worktree --label myapp-feature`. Do not ad
 
 The source must be a local Git repository whose lpm root equals the repository root, with at least one commit. The worktree starts at the source’s current `HEAD` and does not include uncommitted changes. Remove it with `lpm remove <copy-name>` so lpm also removes the worktree registration and generated branch; do not move, trash, or delete its folder directly.
 
-The parent must exist and load successfully. Every duplicate inherits the parent’s services, actions, zones, profiles, and `claudeAccount` without per-entry overrides. A duplicate's own file may hold only `name`, `root`, `label`, `parent_name`, `worktree`, `claudeAccount`, and `work_status`; the validator rejects `extends`, `ssh`, `services`, `actions`, `terminals`, `profiles`, and `zones` there.
+The parent must exist and load successfully. Every duplicate inherits the parent’s services, actions, zones, profiles, and Claude account choice (`claudeAccount` or `claudeAccounts`) without per-entry overrides. A duplicate's own file may hold only `name`, `root`, `label`, `parent_name`, `worktree`, `claudeAccount`, `claudeAccounts`, and `work_status`; the validator rejects `extends`, `ssh`, `services`, `actions`, `terminals`, `profiles`, and `zones` there.
 
 `lpm config get` and `lpm config apply` with `--layer project --project <duplicate>` read and write the parent's file, so a change there reaches the parent and every copy.
 

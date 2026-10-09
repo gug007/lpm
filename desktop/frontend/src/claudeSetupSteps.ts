@@ -11,10 +11,14 @@ export function deriveClaudeSetupSteps(
   accounts: ClaudeAccount[],
   statuses: Record<string, ClaudeAccountStatus>,
   usage: Record<string, string[]>,
+  // Accounts taking turns in Settings → Account switching count as in use.
+  switching: string[] = [],
 ): ClaudeSetupProgress {
   const hasAccount = accounts.length > 0;
   const hasSignedIn = accounts.some((a) => statuses[a.id]?.signedIn ?? false);
-  const hasAssignment = accounts.some((a) => (usage[a.id]?.length ?? 0) > 0);
+  const hasAssignment = accounts.some(
+    (a) => (usage[a.id]?.length ?? 0) > 0 || switching.includes(a.id),
+  );
 
   const completion: [boolean, boolean, boolean] = [hasAccount, hasSignedIn, hasAssignment];
   const currentStep = completion.findIndex((done) => !done);

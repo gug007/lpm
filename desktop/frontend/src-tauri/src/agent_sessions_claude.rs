@@ -26,6 +26,23 @@ pub(crate) struct Candidate {
     path: PathBuf,
     session_id: String,
     updated_at: i64,
+    account: Option<String>,
+}
+
+/// Candidates from every account's transcript dir, newest first. A session id
+/// found in more than one dir (a fork copied across) keeps its newest file.
+pub(crate) fn candidates_in(dirs: impl IntoIterator<Item = (String, PathBuf)>) -> Vec<Candidate> {
+    let mut all: Vec<Candidate> = Vec::new();
+    for (account, dir) in dirs {
+        for mut c in candidates(&dir) {
+            c.account = Some(account.clone());
+            all.push(c);
+        }
+    }
+    all.sort_by_key(|c| std::cmp::Reverse(c.updated_at));
+    let mut seen = std::collections::HashSet::new();
+    all.retain(|c| seen.insert(c.session_id.clone()));
+    all
 }
 
 /// Every transcript in the project's directory, newest first. Only metadata is
@@ -56,6 +73,7 @@ pub(crate) fn candidates(dir: &Path) -> Vec<Candidate> {
             path,
             session_id,
             updated_at: epoch_millis(meta.modified().ok()),
+            account: None,
         });
     }
     out.sort_by_key(|c| std::cmp::Reverse(c.updated_at));
@@ -162,6 +180,7 @@ fn summary(candidate: &Candidate) -> Option<AgentSessionSummary> {
         preview: scan.head.preview,
         updated_at: candidate.updated_at,
         git_branch: scan.head.git_branch,
+        account: candidate.account.clone(),
     })
 }
 

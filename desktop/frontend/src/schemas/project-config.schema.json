@@ -44,7 +44,14 @@
     },
     "claudeAccount": {
       "type": "string",
-      "description": "Id of the Claude account (Settings → AI & Integrations) whose login this project's terminals, actions, and AI features use, via CLAUDE_CONFIG_DIR. Omit it to use the main login, or set it to \"\" to force the main login in a duplicate whose parent pins an account. Has no effect on SSH projects — the remote host has its own Claude login."
+      "description": "Id of the one Claude account (Settings → AI & Integrations) whose login this project's terminals, actions, and AI features always use, via CLAUDE_CONFIG_DIR. Set it to \"\" to always use the main login. Omit it (and claudeAccounts) to use the main accounts from Settings. Has no effect on SSH projects — the remote host has its own Claude login."
+    },
+    "claudeAccounts": {
+      "type": "array",
+      "maxItems": 3,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[A-Za-z0-9_-]+$" },
+      "description": "Up to three Claude account ids, in order, for new sessions in this project to take turns on: each starts on the first account under 90% of its 5-hour and weekly limits. \"default\" is the main login. Ignored when claudeAccount is set. An empty list in a duplicate means the main accounts instead of the parent's choice. Has no effect on SSH projects."
     },
     "work_status": {
       "type": "object",

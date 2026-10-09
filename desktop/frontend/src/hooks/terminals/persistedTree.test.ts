@@ -252,6 +252,26 @@ describe("reifyTreeWithFreshPtys", () => {
     expect(started).toEqual([]);
   });
 
+  it("restarts a tab that continues a Claude conversation on that conversation's account", async () => {
+    h.startTerminal.mockResolvedValue("pty-a");
+    h.startForRestore.mockResolvedValue("pty-b");
+    const sid = "0f8c2a51-6a8e-4c43-9a1e-2b7f3f5d9c10";
+    await reifyTreeWithFreshPtys(
+      leaf([
+        { label: "Claude", resumeCmd: `claude --resume ${sid}` },
+        { label: "Agent", actionName: "agent", resumeCmd: `claude --model opus --resume ${sid}` },
+        { label: "Shell" },
+      ]),
+      "demo",
+      [],
+      [],
+      [],
+    );
+    expect(h.startTerminal).toHaveBeenCalledWith("demo", sid);
+    expect(h.startTerminal).toHaveBeenCalledWith("demo", undefined);
+    expect(h.startForRestore).toHaveBeenCalledWith("demo", "agent", sid);
+  });
+
   // The park is bookkeeping for the peer's pty, not a request for a terminal of
   // our own. Once that pty is gone, launching a shell in its place resurrects the
   // entry as a zombie — the amplifier that turned 6 tabs into 81 on a headless host.
@@ -445,7 +465,7 @@ describe("reifyTreeWithFreshPtys", () => {
       [],
     );
 
-    expect(h.startTerminal).toHaveBeenCalledWith("proj");
+    expect(h.startTerminal).toHaveBeenCalledWith("proj", undefined);
     expect(asLeaf(tree).tabs[0].startCmd).toBe("npm run dev");
   });
 

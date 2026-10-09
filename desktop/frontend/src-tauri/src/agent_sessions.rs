@@ -27,6 +27,10 @@ pub(crate) struct AgentSessionSummary {
     /// Last write, in epoch milliseconds.
     pub updated_at: i64,
     pub git_branch: Option<String>,
+    /// The Claude account whose config dir holds the conversation, which is
+    /// where resuming it runs (`default` for the main login).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub account: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -54,12 +58,13 @@ pub fn list_agent_sessions(
 
     let limit = limit.clamp(1, MAX_LIMIT);
     let needle = search.trim().to_lowercase();
-    let transcripts = crate::hooks::claude_sessions_dir(
-        config::claude_env_for_account(project.claude_account.as_deref()),
-        &project.root,
-    );
-
-    let candidates = claude::candidates(&transcripts);
+    let candidates =
+        claude::candidates_in(crate::claude_dirs::account_dirs().into_iter().map(|a| {
+            (
+                a.id,
+                crate::claude_dirs::sessions_dir(&a.dir, &project.root),
+            )
+        }));
     let (sessions, scanned) = claude::summaries(&candidates, &needle, limit);
     let codex = codex::summaries(&codex_home(), &project.root, &needle, limit);
     Ok(merge_page(
@@ -102,6 +107,7 @@ mod tests {
             preview: Some("prompt".into()),
             updated_at,
             git_branch: None,
+            account: None,
         }
     }
 

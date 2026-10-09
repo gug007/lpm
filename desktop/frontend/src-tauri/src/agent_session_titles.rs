@@ -46,11 +46,7 @@ pub fn agent_session_title(
 
     match provider {
         AgentProvider::Claude => {
-            let transcript = crate::hooks::claude_transcript_path(
-                config::claude_env_for_account(project.claude_account.as_deref()),
-                &project.root,
-                &session_id,
-            );
+            let transcript = crate::claude_dirs::transcript_for(&project, &session_id);
             cached_claude_transcript_title(&transcript).map_err(|e| e.to_string())
         }
         AgentProvider::Codex => Ok(codex_session_title(&codex_home(), &session_id)),

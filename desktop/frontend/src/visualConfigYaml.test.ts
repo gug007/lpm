@@ -57,10 +57,34 @@ describe("claudeAccount tri-state", () => {
     expect(YAML.parse(out).claudeAccount).toBe("");
   });
 
-  it("empty string without a parent deletes the key", () => {
+  it("empty string without a parent still pins the main login", () => {
     const original = "root: ~/x\nclaudeAccount: acc-1\n";
     const out = serializeToYaml({ ...parseYaml(original), claudeAccount: "" }, original);
-    expect(YAML.parse(out).claudeAccount).toBeUndefined();
+    expect(YAML.parse(out).claudeAccount).toBe("");
+  });
+
+  it("keeps the account list untouched when only other fields change", () => {
+    const original = "root: ~/x\nclaudeAccounts: [work, default]\n";
+    const form = parseYaml(original);
+    expect(form.claudeAccounts).toEqual(["work", "default"]);
+    const out = YAML.parse(serializeToYaml({ ...form, name: "renamed" }, original));
+    expect(out.claudeAccounts).toEqual(["work", "default"]);
+  });
+
+  it("a pin replaces the account list", () => {
+    const original = "root: ~/x\nclaudeAccounts: [work]\n";
+    const out = YAML.parse(
+      serializeToYaml({ ...parseYaml(original), claudeAccount: "side", claudeAccounts: null }, original),
+    );
+    expect(out.claudeAccount).toBe("side");
+    expect(out.claudeAccounts).toBeUndefined();
+  });
+
+  it("an empty list on a copy is kept, meaning the main accounts", () => {
+    const original = "root: ~/x\nparent_name: base\nclaudeAccounts: []\n";
+    const form = parseYaml(original);
+    expect(form.claudeAccounts).toEqual([]);
+    expect(YAML.parse(serializeToYaml(form, original)).claudeAccounts).toEqual([]);
   });
 
   it("a non-empty value is written through", () => {

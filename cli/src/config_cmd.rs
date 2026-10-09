@@ -694,6 +694,7 @@ fn validate_value(ctx: &Ctx, path: &Path, kind: ConfigKind, value: &Value) -> Re
             "worktree",
             "ssh",
             "claudeAccount",
+            "claudeAccounts",
             "work_status",
             "services",
             "actions",
@@ -724,6 +725,7 @@ fn validate_value(ctx: &Ctx, path: &Path, kind: ConfigKind, value: &Value) -> Re
     }
     validate_extends(root, &mut report);
     project_fields::validate_claude_account(root, &mut report);
+    project_fields::validate_claude_accounts(root, &mut report);
     project_fields::validate_work_status(root, &mut report);
 
     let local_root = local_root(path, kind, root);
@@ -1981,6 +1983,36 @@ mod tests {
                     .errors
                     .iter()
                     .any(|e| e.starts_with("config.claudeAccount:")),
+                "{bad}: {:?}",
+                report.errors
+            );
+        }
+    }
+
+    #[test]
+    fn validator_checks_the_claude_account_list() {
+        let (_dir, ctx) = context();
+        for good in [
+            "claudeAccounts: [work, default]",
+            "claudeAccounts: []",
+            "claudeAccounts: [a, b, c]",
+        ] {
+            let report = project_report(&ctx, &format!("root: /tmp\n{good}\n"));
+            assert!(report.errors.is_empty(), "{good}: {:?}", report.errors);
+        }
+        for bad in [
+            "claudeAccounts: work",
+            "claudeAccounts: [a/b]",
+            "claudeAccounts: [3]",
+            "claudeAccounts: [a, b, c, d]",
+            "claudeAccounts: [a, a]",
+        ] {
+            let report = project_report(&ctx, &format!("root: /tmp\n{bad}\n"));
+            assert!(
+                report
+                    .errors
+                    .iter()
+                    .any(|e| e.starts_with("config.claudeAccounts")),
                 "{bad}: {:?}",
                 report.errors
             );

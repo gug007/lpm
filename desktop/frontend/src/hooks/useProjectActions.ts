@@ -52,6 +52,8 @@ export interface RunActionOpts {
   skipPrompts?: boolean;
   // Starts the agent the action launches on this model and level.
   launchModel?: ModelPick;
+  // A scheduled job's run: stays on the project's fixed Claude account.
+  fixedAccount?: boolean;
 }
 
 export interface UseProjectActionsResult {
@@ -147,6 +149,7 @@ export function useProjectActions({
             color: action.color,
             prompt: actionPrompt(action, inputValues, opts),
             launchModel: opts.launchModel,
+            fixedAccount: opts.fixedAccount,
           });
           return;
         }
@@ -168,6 +171,7 @@ export function useProjectActions({
           color: action.color,
           prompt: actionPrompt(action, inputValues, opts),
           launchModel: opts.launchModel,
+          fixedAccount: opts.fixedAccount,
         });
       } catch (err) {
         toast.error(`${action.label}: ${err}`);

@@ -990,6 +990,9 @@ fn cmd_set_status(args: &[String], store: &StatusStore, app: &AppHandle) -> Stri
     {
         return "OK".into();
     }
+    if value == "Error" {
+        crate::claude_limit_hits::on_error_status(project, &entry.key);
+    }
     // An agent the tab's agent launched borrows the tab's pane id but is nobody's
     // tab: its own row would wear this tab's name, ring its own chime and push its
     // own "done". Retire anything it managed to store before its process tree was

@@ -2478,7 +2478,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
         <SendLaterPopover
           anchorRef={containerRef}
           picker={sendLater.picker}
-          {...pickerLimitSource(sendLater.picker, projectName, agentName, isRemotePeer || projectIsRemote)}
+          {...pickerLimitSource(sendLater.picker, projectName, agentName, isRemotePeer || projectIsRemote, terminalId)}
           onPick={(at, kind, choice) => void sendLater.pick(at, kind, choice)}
           onClose={(refocus) => {
             sendLater.close();
@@ -2533,8 +2533,11 @@ function pickerLimitSource(
   projectName: string,
   agentName: string,
   remote: boolean,
-): { projectName: string; agent: LimitAgent | null } {
-  if (picker.mode !== "reschedule") return { projectName, agent: limitAgentFor(agentName, remote) };
+  terminalId: string,
+): { projectName: string; agent: LimitAgent | null; terminalId?: string } {
+  if (picker.mode !== "reschedule") {
+    return { projectName, agent: limitAgentFor(agentName, remote), terminalId };
+  }
   const item = picker.item;
   const itemRemote =
     isPeerName(item.projectName) ||

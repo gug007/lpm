@@ -4,7 +4,8 @@ import { ContextMenuItem } from "./ui/ContextMenuItem";
 import { ContextMenuSeparator } from "./ui/ContextMenuSeparator";
 import { ContextMenuShell } from "./ui/ContextMenuShell";
 import { ContextMenuSubmenu } from "./ui/ContextMenuSubmenu";
-import { ClaudeAccountSubmenu } from "./ClaudeAccountSubmenu";
+import { ClaudeAccountSubmenu, type ClaudeOwnChoice } from "./ClaudeAccountSubmenu";
+import type { ClaudeAccountChoice } from "../types";
 import { MoveToFolderSubmenu } from "./MoveToFolderSubmenu";
 import { OpenInBrowserSubmenu } from "./OpenInBrowserSubmenu";
 import { ProjectGitSubmenu } from "./ProjectGitSubmenu";
@@ -62,10 +63,12 @@ interface ProjectContextMenuProps {
   onEditWorkStatus: (entry: CustomWorkStatus) => void;
   onRemoveWorkStatus: (entry: CustomWorkStatus) => void;
   onReorderWorkStatuses: (order: string[]) => void;
-  // The project's own Claude account pin, and the ways to change it.
-  claudeAccount?: string;
-  parentClaudeAccount?: string;
-  onPickClaudeAccount: (account: string | null) => void;
+  // The project's own Claude account choice (and its parent's), and the ways
+  // to change it.
+  claudeChoice?: ClaudeOwnChoice;
+  parentClaudeChoice?: ClaudeOwnChoice;
+  onPickClaudeAccount: (choice: ClaudeAccountChoice) => void;
+  onChooseClaudeAccounts: () => void;
   onManageClaudeAccounts: () => void;
   onRename: () => void;
   renameShortcut?: string;
@@ -121,9 +124,10 @@ export function ProjectContextMenu({
   onEditWorkStatus,
   onRemoveWorkStatus,
   onReorderWorkStatuses,
-  claudeAccount,
-  parentClaudeAccount,
+  claudeChoice,
+  parentClaudeChoice,
   onPickClaudeAccount,
+  onChooseClaudeAccounts,
   onManageClaudeAccounts,
   onRename,
   renameShortcut,
@@ -225,10 +229,11 @@ export function ProjectContextMenu({
       )}
       {!remote && !sshRemote && (
         <ClaudeAccountSubmenu
-          pinned={claudeAccount}
+          own={claudeChoice}
           isCopy={isDuplicate}
-          parentPinned={parentClaudeAccount}
+          parent={parentClaudeChoice}
           onPick={onPickClaudeAccount}
+          onChooseList={onChooseClaudeAccounts}
           onManage={onManageClaudeAccounts}
           onClose={onClose}
         />

@@ -640,6 +640,7 @@ pub fn ingest_from_socket(
         let changed = store.set(&claude_store_key(account_id), limits, now, fresh);
         if changed {
             emit_snapshot(app, store);
+            crate::claude_pool::refresh();
         }
         if changed || !limits_path().exists() {
             persist_claude(store);

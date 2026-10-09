@@ -41,11 +41,7 @@ pub fn claude_session_state(
     if project.is_remote {
         return Err("agent session state is only available for local projects".into());
     }
-    let transcript = crate::hooks::claude_transcript_path(
-        config::claude_env_for_account(project.claude_account.as_deref()),
-        &project.root,
-        &session_id,
-    );
+    let transcript = crate::claude_dirs::transcript_for(&project, &session_id);
     let found =
         collect_tail(&transcript, TAIL_BYTES, 1, newest_state).map_err(|e| e.to_string())?;
     Ok(found.into_iter().next())

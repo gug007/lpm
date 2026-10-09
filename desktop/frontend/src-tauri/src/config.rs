@@ -575,6 +575,14 @@ pub fn load_claude_accounts() -> Value {
     }
 }
 
+/// Registered account ids that are safe to turn into a directory name.
+pub(crate) fn registered_claude_account_ids() -> Vec<String> {
+    claude_account_ids(&load_claude_accounts())
+        .into_iter()
+        .filter(|id| valid_claude_account_id(id))
+        .collect()
+}
+
 fn claude_account_ids(v: &Value) -> Vec<String> {
     v.get("accounts")
         .and_then(Value::as_array)
@@ -597,6 +605,13 @@ pub fn valid_claude_account_id(id: &str) -> bool {
 }
 
 pub fn save_claude_accounts(v: &Value) -> Result<(), String> {
+    let existing = claude_account_ids(&load_claude_accounts());
+    if claude_account_ids(v)
+        .iter()
+        .any(|id| id == crate::claude_dirs::MAIN_LOGIN && !existing.contains(id))
+    {
+        return Err("\"default\" is reserved for the main login".into());
+    }
     std::fs::create_dir_all(lpm_dir()).map_err(|e| e.to_string())?;
     let data = serde_json::to_vec_pretty(v).map_err(|e| e.to_string())?;
     crate::fsatomic::write(
@@ -710,7 +725,9 @@ fn claude_account_of(y: &ProjectYaml) -> Option<String> {
     if let Some(v) = &y.claude_account {
         return Some(v.clone());
     }
-    if y.parent_name.is_empty() {
+    // An own account list is this project's choice too, so the parent's pin
+    // no longer applies.
+    if y.claude_accounts.is_some() || y.parent_name.is_empty() {
         return None;
     }
     parse_project_yaml(&y.parent_name)
@@ -718,21 +735,14 @@ fn claude_account_of(y: &ProjectYaml) -> Option<String> {
         .and_then(|p| p.claude_account)
 }
 
-/// The effective account for spawning, `None` for remote projects (which run on
-/// the far side and never get a local `CLAUDE_CONFIG_DIR`). Shared by
-/// `spawn_info` and `claude_env_for_project` so both resolve identically.
+/// The project's pinned account, `None` for remote projects (which run on the
+/// far side and never get a local `CLAUDE_CONFIG_DIR`) and for projects with no
+/// pin. Spawns go through `claude_pool::spawn_env`, which also covers lists.
 fn effective_claude_account(y: &ProjectYaml) -> Option<String> {
     if y.ssh.as_ref().map(|s| s.is_remote()).unwrap_or(false) {
         return None;
     }
     claude_account_of(y)
-}
-
-pub fn claude_env_for_project(name: &str) -> ClaudeEnv {
-    let Ok(y) = parse_project_yaml(name) else {
-        return ClaudeEnv::Inherit;
-    };
-    claude_env_for_account(effective_claude_account(&y).as_deref())
 }
 
 /// The account a project's Claude usage readings are filed under in the limits
@@ -741,19 +751,18 @@ pub fn claude_env_for_project(name: &str) -> ClaudeEnv {
 /// account, and whatever lpm itself was started with when nothing is pinned.
 /// Mirrors the statusline forwarder's own rule for naming the account.
 pub fn claude_limits_account(name: &str) -> String {
-    let pinned = parse_project_yaml(name)
-        .ok()
-        .and_then(|y| effective_claude_account(&y));
-    match pinned {
-        Some(id) if claude_account_ids(&load_claude_accounts()).contains(&id) => id,
-        Some(_) => DEFAULT_LIMITS_ACCOUNT.to_string(),
-        None => limits_account_of_config_dir(std::env::var(CLAUDE_CONFIG_DIR_ENV).ok().as_deref()),
-    }
+    crate::claude_pool::account_for_project(name)
+}
+
+/// The limits key of the login a project with no account of its own runs as
+/// when no switching applies: lpm's own ambient dir, else the main login.
+pub(crate) fn ambient_limits_account() -> String {
+    limits_account_of_config_dir(std::env::var(CLAUDE_CONFIG_DIR_ENV).ok().as_deref())
 }
 
 const DEFAULT_LIMITS_ACCOUNT: &str = "default";
 
-fn limits_account_of_config_dir(dir: Option<&str>) -> String {
+pub(crate) fn limits_account_of_config_dir(dir: Option<&str>) -> String {
     let dir = dir.map(|d| {
         if cfg!(windows) {
             d.replace('\\', "/")
@@ -784,7 +793,8 @@ pub fn remove_claude_account(id: &str) -> Result<(), String> {
     if let Some(list) = v.get_mut("accounts").and_then(Value::as_array_mut) {
         list.retain(|a| a.get("id").and_then(Value::as_str) != Some(id));
     }
-    save_claude_accounts(&v)
+    save_claude_accounts(&v)?;
+    crate::claude_pool_store::forget_account(id)
 }
 
 /// Whether an account is signed in and, if so, its email — derived from a
@@ -865,18 +875,44 @@ pub fn claude_account_usage() -> Value {
         let Ok(y) = parse_project_yaml(&file) else {
             continue;
         };
-        if let Some(id) = effective_claude_account(&y) {
-            if !id.is_empty() {
-                let display = if y.name.is_empty() {
-                    file.clone()
-                } else {
-                    y.name.clone()
-                };
-                usage.entry(id).or_default().push(display);
-            }
+        let display = if y.name.is_empty() {
+            file.clone()
+        } else {
+            y.name.clone()
+        };
+        let ids = match crate::claude_choice::claude_choice(&file) {
+            crate::claude_choice::AccountChoice::Pin(id) => vec![id],
+            crate::claude_choice::AccountChoice::List { ids, .. } => ids,
+            _ => Vec::new(),
+        };
+        for id in ids.into_iter().filter(|id| !id.is_empty()) {
+            usage.entry(id).or_default().push(display.clone());
         }
     }
     json!({ "usage": usage })
+}
+
+/// The raw account keys of one project file, for `claude_choice`. None when the
+/// file can't be read or parsed.
+pub(crate) struct ClaudeKeys {
+    pub account: Option<String>,
+    pub accounts: Option<serde_norway::Value>,
+    pub parent: String,
+    pub remote: bool,
+}
+
+pub(crate) fn claude_keys(name: &str) -> Option<ClaudeKeys> {
+    let y = parse_project_yaml(name).ok()?;
+    Some(ClaudeKeys {
+        remote: y.ssh.as_ref().map(|s| s.is_remote()).unwrap_or(false),
+        account: y.claude_account,
+        accounts: y.claude_accounts,
+        parent: y.parent_name,
+    })
+}
+
+pub(crate) fn is_global_project(name: &str) -> bool {
+    name == RESERVED_PROJECT_NAME
 }
 
 pub fn save_generator_icon(src_path: &str, id: &str) -> Result<String, String> {
@@ -1153,6 +1189,10 @@ struct ProjectYaml {
     ssh: Option<SshSettings>,
     #[serde(rename = "claudeAccount", default)]
     claude_account: Option<String>,
+    /// Held untyped for the same reason as `work_status`: a hand-edited value
+    /// that isn't a list drops only the account list, never the project.
+    #[serde(rename = "claudeAccounts", default)]
+    claude_accounts: Option<serde_norway::Value>,
     #[serde(default)]
     services: BTreeMap<String, ServiceDef>,
     #[serde(default)]
@@ -2404,6 +2444,9 @@ fn to_project_info(
     }
     if let Some(account) = yaml.claude_account.take() {
         info["claudeAccount"] = json!(account);
+    }
+    if let Some(list) = yaml.claude_accounts.take() {
+        info["claudeAccounts"] = json!(crate::claude_choice::account_list(&list));
     }
     info
 }

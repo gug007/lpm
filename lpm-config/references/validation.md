@@ -34,7 +34,7 @@ The apply validator checks YAML shape, supported fields, config-layer restrictio
 When the app is not running or the installed CLI does not provide `config get` and `config apply`, tell the user to start or update lpm from Settings. Do not modify the live file directly. You may inspect the configuration read-only and use this checklist to prepare a proposed candidate:
 
 1. The YAML parses as a mapping and contains no invented fields.
-2. A personal project sets exactly one of `root` and `ssh`. `ssh.port` is an unquoted integer; `ssh.host`, `user`, `key`, and `dir` are strings. `claudeAccount`, when present, is a string of letters, digits, `-`, or `_` (or empty). `work_status`, when present, is left as the app wrote it.
+2. A personal project sets exactly one of `root` and `ssh`. `ssh.port` is an unquoted integer; `ssh.host`, `user`, `key`, and `dir` are strings. `claudeAccount`, when present, is a string of letters, digits, `-`, or `_` (or empty). `claudeAccounts`, when present, is a list of at most three such ids, none empty or repeated. `work_status`, when present, is left as the app wrote it.
 3. A local project resolves every `cwd` to an existing directory.
 4. Services and executable action leaves have non-empty commands after layering; every service entry has its own `cmd`; a non-duplicate project has at least one service.
 5. Service ports are unique; all ports are between 0 and 65535.

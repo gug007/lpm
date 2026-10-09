@@ -1,6 +1,7 @@
 import { memo } from "react";
 import { BranchIcon, TrashIcon } from "../icons";
 import { providerMeta } from "../../agentStatus";
+import { accountLabel, MAIN_LOGIN } from "../../claudePoolText";
 import { relativeTime, shortStamp } from "../../relativeTime";
 import { echoesTitle } from "../../sessionText";
 import type { SessionRow } from "../../agentSessions";
@@ -73,6 +74,11 @@ export const ResumeSessionRow = memo(function ResumeSessionRow({
             style={{ backgroundColor: meta.color }}
           />
           <span className="shrink-0 text-[var(--text-secondary)]">{meta.short}</span>
+          {row.account && row.account !== MAIN_LOGIN && (
+            <span className="shrink-0" title="Resumes on this Claude account">
+              · {accountLabel(row.account)}
+            </span>
+          )}
           {row.gitBranch && (
             <span className="flex min-w-0 max-w-[35%] items-center gap-1">
               <span aria-hidden>·</span>
