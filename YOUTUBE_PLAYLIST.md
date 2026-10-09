@@ -28,3 +28,4 @@ Manual order. Each published lesson is appended here and to the playlist in the 
 - Claude Code Effort Levels Explained: Low vs Max vs Ultracode on Opus 5.5 — https://youtu.be/VPxDo44-ZEU
 - Let Claude Code Start Its Own Parallel Claude Codes with the lpm CLI — https://youtu.be/06CUZPBJEDA
 - Run Claude Code from Your iPhone: Connect lpm Link to Your Mac with Built-in Tailscale — https://youtu.be/OGttu6tgb0I
+- Use Multiple Claude Code Accounts and Switch Automatically — https://youtu.be/-vvdAsp4JJU

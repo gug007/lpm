@@ -137,6 +137,10 @@ const LESSON_CAPTION: Record<
     heading: "A Claude account for each project, all signed in at once",
     blurb: "A short video: add a second account and switch a project to it when one runs low.",
   },
+  "accounts-switching": {
+    heading: "New Claude sessions move to the account with room",
+    blurb: "A short video: add an account, give a project its own, and turn on switching.",
+  },
   "codex-statusline": {
     heading: "Usage limits and context left, under the Codex prompt",
     blurb: "A short video: pick a Codex status line layout and open Codex again.",

@@ -79,7 +79,7 @@ const structuredData = [
       path: CLAUDE_ACCOUNTS_PATH,
     },
   ]),
-  youtubeLessonJsonLd("multiple-accounts"),
+  youtubeLessonJsonLd("accounts-switching"),
 ];
 
 export default function ClaudeCodeMultipleAccountsPage() {

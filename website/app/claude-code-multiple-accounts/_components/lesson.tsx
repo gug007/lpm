@@ -3,24 +3,24 @@ import { LessonSection } from "@/components/lesson-section";
 const STEPS = [
   {
     title: "Add an account and sign in once",
-    body: "Settings, AI & Integrations, Multiple Claude accounts. Name it Work, click Sign in, and finish Claude's own login in the browser.",
+    body: "Settings, AI & Integrations, Claude accounts. Click Add account, name it, then Add and sign in, and finish Claude's own login in the browser.",
   },
   {
-    title: "Pick it from the project's menu",
-    body: "Open the ⋮ menu on a project in the sidebar and choose the account under Claude account. New Claude sessions in that project run on it, while your other projects keep theirs at the same time.",
+    title: "Give a project its own account",
+    body: "Open the ⋮ menu on a project in the sidebar, then Claude account, and pick one under Always use one account. Each account shows its 5-hour and weekly usage beside its name.",
   },
   {
-    title: "Switch when one runs low",
-    body: "The same menu shows every account's 5-hour and weekly usage and when each resets, so moving a project to the account with room is one click.",
+    title: "Let new sessions switch",
+    body: "Turn on Switch accounts automatically and confirm each account is yours. New sessions start on the first account that isn't close to a limit, and running sessions stay where they are.",
   },
 ];
 
 export default function Lesson() {
   return (
     <LessonSection
-      lesson="multiple-accounts"
+      lesson="accounts-switching"
       title="Two subscriptions, one Mac, no logging out"
-      description="A short lesson from the lpm series: add a second Claude Code account, give a project its own, and switch when the main login is almost out."
+      description="A lesson from the lpm series: add a second Claude Code account, give a project its own, and let new sessions move to the account with room when the main login is almost out."
       steps={STEPS}
     />
   );

@@ -51,6 +51,13 @@ const LESSONS = {
       "Adding a second Claude Code account in lpm, picking which account each project uses from its menu, and switching a project to the account with room left when one hits its 5-hour or weekly limit.",
     uploadDate: "2026-09-25T09:00:00+00:00",
   },
+  "accounts-switching": {
+    id: "-vvdAsp4JJU",
+    name: "Use Multiple Claude Code Accounts and Switch Automatically",
+    description:
+      "Use more than one Claude Code account on one Mac: sign in to each account once, give a project its own account, and let new Claude sessions switch to another account when one gets close to its 5-hour or weekly limit.",
+    uploadDate: "2026-10-09T09:00:00+00:00",
+  },
   "codex-statusline": {
     id: "TO3yguc3qAM",
     name: "Codex Statusline: Show Usage Limits and Context Left in lpm",
