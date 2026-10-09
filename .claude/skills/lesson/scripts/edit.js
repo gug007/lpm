@@ -177,9 +177,10 @@ async function badge(dir, speed) {
 
 // Cuts `src` (the straight render) into `out`. `mix(clips, totalMs)` returns
 // the soundtrack's { inputs, filter } ending in [a]; `clips` are the voiced
-// lines ({ id, wav }) by id, `hook` the hook's clip. Returns the edited
-// timeline.
-async function renderEdit({ src, out, plan, timeline, clips, hook, mix, badgeDir, workDir, size, log = console.log }) {
+// lines ({ id, wav }) by id, `hook` the hook's clip. `badgeAt` ({ x, y, scale })
+// places the speed pill, by default in the pane's empty rows. Returns the
+// edited timeline.
+async function renderEdit({ src, out, plan, timeline, clips, hook, mix, badgeDir, workDir, size, badgeAt, log = console.log }) {
   fs.mkdirSync(workDir, { recursive: true });
   const segments = [];
   for (const [i, c] of plan.cuts.entries()) {
@@ -188,8 +189,11 @@ async function renderEdit({ src, out, plan, timeline, clips, hook, mix, badgeDir
     let graph = `[0:v]setpts=(PTS-STARTPTS)/${c.speed}${c.speed > 1 ? `,fps=${FPS}` : ""}`;
     if (c.speed > 1) {
       args.push("-loop", "1", "-i", await badge(badgeDir, c.speed));
-      // In the pane's empty rows, right of the sidebar.
-      graph += `[sp];[1:v]format=rgba,scale=out_color_matrix=bt709:out_range=tv,format=yuva420p[b];[sp][b]overlay=x=${Math.round(size.width * 0.59)}-overlay_w/2:y=${Math.round(size.height / 2)}-overlay_h/2:shortest=1`;
+      // In the pane's empty rows, right of the sidebar, unless the layout
+      // names a free spot.
+      const at = badgeAt || { x: size.width * 0.59, y: size.height / 2, scale: 1 };
+      const shrink = at.scale && at.scale !== 1 ? `,scale=iw*${at.scale}:-1` : "";
+      graph += `[sp];[1:v]format=rgba${shrink},scale=out_color_matrix=bt709:out_range=tv,format=yuva420p[b];[sp][b]overlay=x=${Math.round(at.x)}-overlay_w/2:y=${Math.round(at.y)}-overlay_h/2:shortest=1`;
     }
     graph += `,${MASTER_OUT}[v]`;
     ffmpeg([...args, "-filter_complex", graph, "-map", "[v]", "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-r", String(FPS), ...MASTER_TAGS, "-video_track_timescale", "15360", file]);

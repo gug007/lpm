@@ -130,8 +130,26 @@ struct PairingView: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+            if repairTarget == nil { setupVideoLink }
         }
         .padding(.top, onCancel == nil ? 28 : 8)
+    }
+
+    private static let setupVideoURL = URL(string: "https://www.youtube.com/watch?v=OxDe-Vud69U")!
+
+    private var setupVideoLink: some View {
+        Link(destination: Self.setupVideoURL) {
+            Label {
+                HStack(spacing: 6) {
+                    Text("Watch how to connect").fontWeight(.semibold)
+                    Text("2:22").foregroundStyle(Color.secondary).monospacedDigit()
+                }
+            } icon: {
+                Image(systemName: "play.rectangle.fill")
+            }
+            .font(.callout)
+        }
+        .padding(.top, 4)
     }
 
     private var title: String {

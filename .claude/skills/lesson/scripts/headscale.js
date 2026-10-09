@@ -72,9 +72,17 @@ const authId = (url) => {
 };
 
 // `user` is the account both devices sign in to (what the apps show as the
+// A picture of the real sign-in page (`page`, a PNG at the phone's width)
+// shown instead of the plain one, so the video shows what a viewer will see.
+const pictured = (file) => `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sign in</title>
+<style>html, body { margin: 0; background: #fff; } img { display: block; width: 100%; }</style>
+<img alt="" src="data:image/png;base64,${fs.readFileSync(file).toString("base64")}">`;
+
 // Tailscale account); `approveAfterMs` is how long the sign-in page stays up
-// before the device is let in.
-async function startHeadscale({ user = "alex", approveAfterMs = 1200, log = () => {} } = {}) {
+// before the device is let in; `page` pictures the real sign-in page.
+async function startHeadscale({ user = "alex", approveAfterMs = 1200, page = null, log = () => {} } = {}) {
+  const signInPage = page ? pictured(page) : SIGNING_IN;
   if (!fs.existsSync(BIN)) {
     throw new Error(`no Headscale at ${BIN}: GOBIN=${path.dirname(BIN)} go install github.com/juanfont/headscale/cmd/headscale@v0.29.4`);
   }
@@ -103,7 +111,7 @@ async function startHeadscale({ user = "alex", approveAfterMs = 1200, log = () =
   const proxy = http.createServer((req, res) => {
     if (req.method === "GET" && authId(req.url)) {
       res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
-      res.end(SIGNING_IN);
+      res.end(signInPage);
       setTimeout(() => approve(req.url).catch((e) => log(`tailnet: ${e.message}`)), approveAfterMs);
       return;
     }

@@ -126,7 +126,9 @@ const ch = mp4Chapters() || chapters(timeline, lesson);
 for (const p of ch.problems) warnings.push(`chapters: ${p}`);
 
 // The description in the order the skill asks for; lesson.json "youtube"
-// ({ hook, learn, tags, hashtags }) carries the lesson's own words.
+// ({ hook, learn, sections, tags, hashtags }) carries the lesson's own words;
+// `sections` ([{ heading, lines }]) follow "What you'll learn" (what a viewer
+// needs first, what to do when a step doesn't match).
 const yt = lesson.youtube || {};
 const todo = JSON.stringify(yt).match(/"[^"]*\bTODO\b[^"]*"/);
 if (todo) {
@@ -145,6 +147,7 @@ const description = [
   LPM_LINE,
   "https://lpm.cx",
   yt.learn?.length ? `What you'll learn:\n${yt.learn.map((l) => `- ${l}`).join("\n")}` : null,
+  ...(yt.sections || []).map((x) => `${x.heading}:\n${x.lines.map((l) => `- ${l}`).join("\n")}`),
   `Chapters:\n${chaptersText(ch.list).trim()}`,
   series ? `Part of the series "${series}"${seriesUrl ? `: ${seriesUrl}` : ""}` : null,
   hashtags.join(" ") || null,

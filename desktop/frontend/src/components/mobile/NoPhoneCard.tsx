@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { SetupStep } from "./SetupStep";
 import { AppleIcon } from "./AppleIcon";
-import { LINK_BUTTON, PRIMARY_BUTTON, SECONDARY_BUTTON } from "./styles";
+import { PRIMARY_BUTTON, QUIET_BUTTON, SECONDARY_BUTTON } from "./styles";
 import { BrowserOpenURL } from "../../../bridge/runtime";
 import { APP_STORE_URL } from "../../mobile/links";
 import { MACHINE } from "../../machineWords";
@@ -48,7 +48,7 @@ export function NoPhoneCard({
       >
         {!awayReady && !skipped && (
           <>
-            <button onClick={() => setSkipped(true)} className={LINK_BUTTON}>
+            <button onClick={() => setSkipped(true)} className={QUIET_BUTTON}>
               Skip
             </button>
             <button onClick={onSetUpAway} disabled={settingUpAway} className={PRIMARY_BUTTON}>

@@ -82,6 +82,9 @@ function prepareState({ lpmDir, lesson, keepState, log = () => {} }) {
       fs.copyFileSync(reading, path.join(dir, "agent-limits.json"));
       settings({ claudeLimitsEnabled: true });
     }
+    // Without the copy the app still reads the live usage (Codex sessions,
+    // the day's Claude spend) once an agent runs: hide the meters outright.
+    if (lesson.limits === false) settings({ usageInSidebar: false });
   }
   const workspace = process.env.LPM_LESSON_WORKSPACE || DEFAULT_WORKSPACE;
   if (!keepState && (workspace === DEFAULT_WORKSPACE || workspace.startsWith(dir + path.sep))) {

@@ -36,7 +36,16 @@ function chapters(timeline, lesson) {
     const len = (i + 1 < merged.length ? merged[i + 1].ms : endMs) - m.ms;
     if (len < MIN_MS) problems.push(`"${m.name}" lasts ${(len / 1000).toFixed(1)} s; YouTube needs 10 s or more`);
   });
-  return { list: merged.map(({ ms, name }) => ({ ms, name })), problems };
+  return { list: merged.map(({ ms, name }) => ({ ms: ms && onSecond(ms, timeline.lines), name })), problems };
+}
+
+// YouTube starts a chapter on a whole second: the one nearer the line's first
+// word, unless that second still plays the end of the line before.
+function onSecond(ms, lines) {
+  const prevEnd = Math.max(0, ...lines.filter((l) => l.startMs < ms - 1 && l.ms).map((l) => l.startMs + l.ms));
+  const down = Math.floor(ms / 1000) * 1000;
+  const up = Math.ceil(ms / 1000) * 1000;
+  return Math.max(0, prevEnd - down) <= up - ms ? down : up;
 }
 
 const mmss = (ms) => `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, "0")}`;

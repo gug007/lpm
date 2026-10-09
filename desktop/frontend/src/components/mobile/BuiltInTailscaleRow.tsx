@@ -37,17 +37,27 @@ export function BuiltInTailscaleRow({
   const [setupOpen, setSetupOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  // A finished sign-in brings the node through "starting" once more on its
+  // way to running: that is the sign-in completing, not setup starting over.
+  const [signedIn, setSignedIn] = useState(false);
+  useEffect(() => {
+    if (s.state === "needsLogin") setSignedIn(true);
+    else if (s.state !== "starting") setSignedIn(false);
+  }, [s.state]);
+  const finishing = s.enabled && signedIn && s.state === "starting";
+
   // Past sign-in (connected, waiting for an admin, refused) the setup steps
   // have nothing left to offer.
   const pastSignIn =
-    s.enabled && (["running", "needsApproval", "stopped", "error"].includes(s.state) || (s.state === "off" && !!s.error));
+    s.enabled &&
+    (finishing || ["running", "needsApproval", "stopped", "error"].includes(s.state) || (s.state === "off" && !!s.error));
   useEffect(() => {
     if (pastSignIn) setSetupOpen(false);
   }, [pastSignIn]);
 
   const signingIn = s.enabled && s.state === "needsLogin";
   const resuming = signingIn && opened;
-  const showSetup = s.available && (setupOpen || signingIn);
+  const showSetup = s.available && !pastSignIn && (setupOpen || signingIn);
   const turnOff: RowMenuItem = { label: "Turn off", onClick: () => void setEnabled(false) };
   const signOutItem: RowMenuItem = { label: "Sign out", onClick: () => void signOut(), destructive: true };
   const adminButton = (
@@ -75,6 +85,7 @@ export function BuiltInTailscaleRow({
         menu: [],
       };
     }
+    if (finishing) return { tone: "idle", subtitle: "Finishing sign-in…", menu: [] };
     switch (s.state) {
       case "running":
         return {

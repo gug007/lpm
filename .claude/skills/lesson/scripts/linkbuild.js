@@ -2,9 +2,13 @@
 // mobile/ (the repo itself is never touched) where the "On this Wi-Fi" list
 // shows only the Mac named in LPM_LESSON_ONLY_MAC, so the other lpm Macs on
 // the network (the user's own, named after them) never reach the recording;
-// and where a Mac found on Bonjour whose .local address doesn't resolve
-// within 1.5 s (the simulator often gets NoSuchRecord for it) is reached at
-// LPM_LESSON_MAC_ADDRESS ("host:port") instead.
+// where a Mac found on Bonjour whose .local address doesn't resolve within
+// 1.5 s (the simulator often gets NoSuchRecord for it) is reached at
+// LPM_LESSON_MAC_ADDRESS ("host:port") instead; and where, while the file
+// LPM_LESSON_AWAY_FLAG names exists, every address but a tailnet one fails at
+// once, so the phone reconnects over Tailscale as it would away from home.
+// Optional patches leave out what a lesson must not film (a "watch the setup
+// video" link inside the setup video) and are skipped when their code is gone.
 // Built again only when the app's sources or the patch change.
 const crypto = require("crypto");
 const fs = require("fs");
@@ -18,7 +22,8 @@ const SRC = path.join(HOME, "src");
 const APP = path.join(HOME, "dd/Build/Products/Release-iphonesimulator/LpmMobile.app");
 const BUNDLE_ID = "cx.lpm.mobile";
 
-// [file, anchor, replacement]: each anchor must appear exactly once.
+// [file, anchor, replacement]: each anchor must appear exactly once;
+// { optional: true, file, anchor, replacement } may also be missing.
 const PATCHES = [
   [
     "MacDiscovery.swift",
@@ -36,10 +41,29 @@ const PATCHES = [
       "            return (String(fixed[..<colon]), port)\n" +
       "        }\n",
   ],
+  [
+    "BuiltInTailscale.swift",
+    "    nonisolated static func route(host: String, port: Int) -> (host: String, port: Int) {\n",
+    "    nonisolated static func route(host: String, port: Int) -> (host: String, port: Int) {\n" +
+      '        if let flag = ProcessInfo.processInfo.environment["LPM_LESSON_AWAY_FLAG"], !isTailnetHost(host),\n' +
+      "           FileManager.default.fileExists(atPath: flag) {\n" +
+      '            return ("127.0.0.1", 9)\n' +
+      "        }\n",
+  ],
+  {
+    optional: true,
+    file: "PairingView.swift",
+    anchor: "            if repairTarget == nil { setupVideoLink }\n",
+    replacement: "",
+  },
 ];
 
+// Signed to run locally, so the simulator honours the app's entitlements: an
+// unsigned build gets no keychain, and its pairing is gone the next launch.
+const SIGNING = ["CODE_SIGN_IDENTITY=-", "CODE_SIGN_STYLE=Manual", "DEVELOPMENT_TEAM=", "PROVISIONING_PROFILE_SPECIFIER=", "CODE_SIGNING_REQUIRED=NO"];
+
 function sourcesStamp() {
-  const hash = crypto.createHash("sha256").update(JSON.stringify(PATCHES));
+  const hash = crypto.createHash("sha256").update(JSON.stringify([PATCHES, SIGNING]));
   const walk = (dir) => {
     for (const name of fs.readdirSync(dir).sort()) {
       if (["build", ".build", "xcuserdata", "LpmMobile.xcodeproj"].includes(name)) continue;
@@ -55,10 +79,12 @@ function sourcesStamp() {
 }
 
 function applyPatches(sources) {
-  for (const [file, anchor, replacement] of PATCHES) {
+  for (const patch of PATCHES) {
+    const { file, anchor, replacement, optional } = Array.isArray(patch) ? { file: patch[0], anchor: patch[1], replacement: patch[2] } : patch;
     const p = path.join(sources, file);
     const text = fs.readFileSync(p, "utf8");
     const count = text.split(anchor).length - 1;
+    if (optional && count === 0) continue;
     if (count !== 1) {
       throw new Error(`lpm Link patch anchor in ${file} matched ${count} times (want 1); update PATCHES in scripts/linkbuild.js to the new code`);
     }
@@ -82,7 +108,7 @@ function ensureLinkBuild({ log = console.log } = {}) {
   try {
     const out = execFileSync("xcodebuild", ["-project", "LpmMobile.xcodeproj", "-scheme", "LpmMobile",
       "-configuration", "Release", "-sdk", "iphonesimulator", "-destination", "generic/platform=iOS Simulator",
-      "-derivedDataPath", path.join(HOME, "dd"), "CODE_SIGNING_ALLOWED=NO", "build"],
+      "-derivedDataPath", path.join(HOME, "dd"), ...SIGNING, "build"],
       { cwd: path.join(SRC, "mobile"), maxBuffer: 1 << 28 });
     fs.writeFileSync(logFile, out);
   } catch (e) {

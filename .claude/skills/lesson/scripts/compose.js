@@ -10,6 +10,7 @@ const { CARD_FADE_MS, OPEN_LIFT } = require("./appstage");
 const { POOLS, POOLS_AT_REST } = require("./overlay");
 const { track, toFrames } = require("./keyframes");
 const { phoneLayer } = require("./phonecompose");
+const { insetLayer } = require("./insets");
 
 const FPS = 30;
 
@@ -109,7 +110,11 @@ function coverLayer(span, { out, box }, shadowIn, windowIn, label) {
   const tx = COVER.x * box.w;
   const ty = COVER.y * box.h;
   const s = `(1-${k}*(${span.at}))`;
-  const trim = `trim=start=${span.a.toFixed(3)}:end=${span.b.toFixed(3)}`;
+  // Two frames past each end of the span, where the window already sits in its
+  // own place: the zoom stage re-times frames, and a layer that ends exactly
+  // where the window's home copy begins left one empty frame between them.
+  const edge = 2 / FPS;
+  const trim = `trim=start=${Math.max(0, span.a - edge).toFixed(3)}:end=${(span.b + edge).toFixed(3)}`;
   const fade = span.fadeIn != null ? `,fade=t=in:st=${span.fadeIn.toFixed(3)}:d=${(COVER.fadeInMs / 1000).toFixed(3)}:alpha=1` : "";
   const padH = out.height + 2 * Math.ceil(ty) + 2;
   return [
@@ -177,8 +182,9 @@ const STILL_OUT = "out_color_matrix=bt601:out_range=pc";
 // the caller appends the audio inputs after these. `composite` is false for a
 // demo take, which already carries its frame and cards. A take that also
 // captured the phone gives the window's `region` of it (pixels) and `phone`
-// (phonecompose.js phoneLayer's layout, region, assets and taps).
-function videoGraph({ out, canvas, shadow, mask, box, cards = [], cardFiles = [], zooms = [], totalMs, composite = true, take, region, phone }) {
+// (phonecompose.js phoneLayer's layout, region, assets and taps). `insets`
+// (insets.js, with their drawn `file`s) lie over the zoomed picture.
+function videoGraph({ out, canvas, shadow, mask, box, cards = [], cardFiles = [], zooms = [], totalMs, composite = true, take, region, phone, insets = [] }) {
   const crop = region ? `crop=${region.w}:${region.h}:${region.x}:${region.y},` : "";
   const inputs = [];
   const parts = [];
@@ -216,6 +222,13 @@ function videoGraph({ out, canvas, shadow, mask, box, cards = [], cardFiles = []
   if (zooms.length) {
     parts.push(`[${last}]${zoomStage(zooms, out)}[vz]`);
     last = "vz";
+  }
+  if (insets.length) {
+    const layer = insetLayer({ from: last, to: "vi", base: next, insets, fps: FPS });
+    inputs.push(...layer.inputs);
+    parts.push(...layer.parts);
+    next += insets.length;
+    last = "vi";
   }
   const fade = CARD_FADE_MS / 1000;
   cards.forEach((card, i) => {
@@ -258,7 +271,17 @@ function videoGraph({ out, canvas, shadow, mask, box, cards = [], cardFiles = []
   // The phone's inputs come after everything else; its labels tie it in
   // between the window and the zoom.
   if (composite && phone) {
-    const layer = phoneLayer({ from: "vm", to: "v0", base: input, ...phone, home, captureIn: CAPTURE_IN, fps: FPS });
+    // The phone fades in as the opening card hands over and out as the end
+    // card comes in; any other card hides it outright.
+    const opener = spans.find((p) => cards[p.card]?.first && !cards[p.card]?.hold);
+    const closer = spans.find((p) => cards[p.card]?.hold);
+    const others = spans.filter((p) => p !== opener && p !== closer);
+    const phoneHome = others.length ? `:enable='not(${others.map((p) => `gte(t,${p.a.toFixed(3)})*lt(t,${p.b.toFixed(3)})`).join("+")})'` : "";
+    const fades = {
+      in: opener ? { st: opener.b - OPEN_LIFT.riseMs / 1000, d: OPEN_LIFT.riseMs / 1000 } : null,
+      out: closer ? { st: closer.a, d: COVER.moveMs / 1000 } : null,
+    };
+    const layer = phoneLayer({ from: "vm", to: "v0", base: input, ...phone, home: phoneHome, fades, captureIn: CAPTURE_IN, fps: FPS });
     inputs.push(...layer.inputs);
     parts.push(...layer.parts);
   }

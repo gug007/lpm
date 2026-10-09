@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 import { PairPhoneButton } from "./PairPhoneButton";
 import { PhoneRow } from "./PhoneRow";
 import { NoPhoneCard } from "./NoPhoneCard";
+import { SetupVideoLink } from "./SetupVideoLink";
 import { LINK_BUTTON } from "./styles";
 import { BrowserOpenURL } from "../../../bridge/runtime";
-import { APP_STORE_URL } from "../../mobile/links";
+import { APP_STORE_URL, SETUP_VIDEO_URL } from "../../mobile/links";
 import { sortPhones, type PhoneDevice } from "../../mobile/phoneStatus";
 import type { PeerClient } from "../../peer/usePeerState";
 
@@ -45,9 +46,12 @@ export function PhonesSection({
     <>
       <div className="mb-2 flex items-center justify-between gap-3">
         <h2 className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">Your devices</h2>
-        {(devices.length > 0 || peers.length > 0) && (
-          <PairPhoneButton peers={peers} busy={pairing} onPairHere={onPairHere} onPairPeer={onPairPeer} />
-        )}
+        <div className="flex items-center gap-3">
+          {devices.length === 0 && <SetupVideoLink />}
+          {(devices.length > 0 || peers.length > 0) && (
+            <PairPhoneButton peers={peers} busy={pairing} onPairHere={onPairHere} onPairPeer={onPairPeer} />
+          )}
+        </div>
       </div>
       {devices.length === 0 ? (
         <NoPhoneCard
@@ -68,6 +72,10 @@ export function PhonesSection({
             lpm Link for iPhone and iPad ·{" "}
             <button onClick={() => BrowserOpenURL(APP_STORE_URL)} className={LINK_BUTTON}>
               App Store
+            </button>{" "}
+            ·{" "}
+            <button onClick={() => BrowserOpenURL(SETUP_VIDEO_URL)} className={LINK_BUTTON}>
+              Setup video
             </button>
           </p>
         </>

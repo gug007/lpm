@@ -24,7 +24,11 @@ const { runQa } = require("./qa");
 const { HOOK_ID, planEdit, renderEdit } = require("./edit");
 const { renderCover } = require("./cover");
 const { DEFAULT_LPM_DIR } = require("./state");
-const { PHONE_LAYOUT, phoneLayout, phoneAssets } = require("./phonecompose");
+const { PHONE_LAYOUT, phoneLayout, phoneAssets, clearOfPhone } = require("./phonecompose");
+const { hideClaudeStatusLine } = require("./guard");
+const { insetTimes, insetAsset } = require("./insets");
+const { fitMasks } = require("./maskfit");
+const { CACHE } = require("./helpers");
 
 const ROOT = process.env.LPM_LESSONS_DIR || path.join(os.homedir(), "Movies/lpm-lessons");
 let o, DIR;
@@ -88,6 +92,11 @@ async function record(lines) {
   const P = paths();
   const common = { lines, beats, raw: take ? take.raw : P.raw, framesDir, voice: VOICE };
   const interrupted = take && onTeardown(() => failTake(take, new Error("interrupted (Ctrl-C or a kill signal)")));
+  // "limits": false keeps usage off screen, Claude's own status line included
+  // (take.sh's settings guard puts it back).
+  if (lesson.limits === false && source === "app" && hideClaudeStatusLine(path.join(CACHE, "agent-settings.backup.json"))) {
+    console.log("Claude Code runs without your status line for this take");
+  }
   let timeline;
   try {
     timeline =
@@ -150,24 +159,30 @@ async function mux(lines, P, { file, crf = 18, audio = true }) {
   if (fit.errors.length) throw new Error(fit.errors.join("\n"));
   const { totalMs } = timeline;
   const spoken = timeline.lines.map((t) => ({ ...t, line: lines.find((l) => l.id === t.id) })).filter((t) => !t.line.silent);
-  const zooms = editZooms(timeline.zooms || [], lesson.zooms, (m) => console.log(m));
+  const edited = editZooms(timeline.zooms || [], lesson.zooms, (m) => console.log(m));
+  const zooms = timeline.phone ? clearOfPhone(edited, phoneLayout(OUT, ZOOM), OUT) : edited;
   if (zooms.some((z) => z.id)) console.log(`zooms: ${zooms.map((z) => z.id).join(" ")} (lesson.json "zooms" adjusts one by id)`);
   const inputs = ["-i", P.raw];
   let video;
   if (source === "demo") {
     video = videoGraph({ out: OUT, zooms, totalMs, composite: false });
-  } else if (timeline.phone) {
-    // The window and lpm Link side by side (phonecompose.js).
-    const layout = phoneLayout(OUT, ZOOM);
-    const frameDir = path.join(path.dirname(DIR), "_frame");
-    const frame = { ...FRAME, width: PHONE_LAYOUT.window.w, height: PHONE_LAYOUT.window.h, zoom: ZOOM };
-    const assets = await frameAssets(frameDir, { out: OUT, frame, box: layout.mac });
-    const phone = { layout, region: timeline.phone.region, assets: await phoneAssets(frameDir, { out: OUT, layout, zoom: ZOOM }), taps: timeline.taps || [] };
-    video = videoGraph({ ...assets, out: OUT, box: layout.mac, cards: timeline.cards || [], cardFiles: timeline.cardFiles || [], zooms, totalMs, take: P.raw, region: timeline.region, phone });
   } else {
-    const box = frameBox(OUT, FRAME, ZOOM);
-    const assets = await frameAssets(path.join(path.dirname(DIR), "_frame"), { out: OUT, frame: { ...FRAME, zoom: ZOOM }, box });
-    video = videoGraph({ ...assets, out: OUT, box, cards: timeline.cards || [], cardFiles: timeline.cardFiles || [], zooms, totalMs, take: P.raw });
+    const frameDir = path.join(path.dirname(DIR), "_frame");
+    const insets = await Promise.all(
+      insetTimes(timeline, lesson.insets).map(async (i) => ({ ...i, file: await insetAsset(frameDir, { out: OUT, zoom: ZOOM, inset: i, lessonDir: DIR }) })),
+    );
+    if (timeline.phone) {
+      // The window and lpm Link side by side (phonecompose.js).
+      const layout = phoneLayout(OUT, ZOOM);
+      const frame = { ...FRAME, width: PHONE_LAYOUT.window.w, height: PHONE_LAYOUT.window.h, zoom: ZOOM };
+      const assets = await frameAssets(frameDir, { out: OUT, frame, box: layout.mac });
+      const phone = { layout, region: timeline.phone.region, assets: await phoneAssets(frameDir, { out: OUT, layout, zoom: ZOOM }), taps: timeline.taps || [], masks: fitMasks(P.raw, timeline, timeline.phoneMasks || [], layout.device, (m) => console.log(m)) };
+      video = videoGraph({ ...assets, out: OUT, box: layout.mac, cards: timeline.cards || [], cardFiles: timeline.cardFiles || [], zooms, totalMs, take: P.raw, region: timeline.region, phone, insets });
+    } else {
+      const box = frameBox(OUT, FRAME, ZOOM);
+      const assets = await frameAssets(frameDir, { out: OUT, frame: { ...FRAME, zoom: ZOOM }, box });
+      video = videoGraph({ ...assets, out: OUT, box, cards: timeline.cards || [], cardFiles: timeline.cardFiles || [], zooms, totalMs, take: P.raw, insets });
+    }
   }
   inputs.push(...video.inputs);
   let filter = video.filter;
@@ -217,6 +232,13 @@ function place(part, P, timeline) {
   console.log(`muxed -> ${P.mp4}`);
 }
 
+// With lpm Link beside the window the pane's middle is taken; the speed pill
+// sits small on the canvas under the window instead.
+function speedPillBesidePhone() {
+  const { mac } = phoneLayout(OUT, ZOOM);
+  return { x: mac.x + mac.w / 2, y: (mac.y + mac.h + OUT.height) / 2, scale: 0.6 };
+}
+
 // The straight render, or with a cold open or long waits, the edit of it
 // (edit.js). Returns the timeline as the MP4 plays it.
 async function render(lines, P, hook) {
@@ -247,6 +269,7 @@ async function render(lines, P, hook) {
       badgeDir: path.join(path.dirname(DIR), "_frame"),
       workDir: work,
       size: OUT,
+      badgeAt: taken.phone ? speedPillBesidePhone() : null,
     });
     place(part, P, taken);
     fs.writeFileSync(editFile, JSON.stringify(edited.edit, null, 2));

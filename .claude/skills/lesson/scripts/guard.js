@@ -205,7 +205,22 @@ function restore(backup, log = console.log) {
   return ok;
 }
 
-module.exports = { save, restore, tomlScan, restoreToml, restoreJson };
+// A lesson that keeps usage off screen runs Claude Code without the user's
+// status line, which shows their cost, context and limits. Only while a take
+// holds `backup`, so `restore` puts it back afterwards.
+function hideClaudeStatusLine(backup) {
+  if (!fs.existsSync(backup)) return false;
+  const { file } = targets().find((t) => t.name === "claude");
+  const text = read(file);
+  if (!text) return false;
+  const json = JSON.parse(text);
+  if (!("statusLine" in json)) return false;
+  delete json.statusLine;
+  fs.writeFileSync(file, JSON.stringify(json, null, 2) + "\n");
+  return true;
+}
+
+module.exports = { save, restore, hideClaudeStatusLine, tomlScan, restoreToml, restoreJson };
 
 if (require.main === module) {
   const [cmd, backup] = process.argv.slice(2);

@@ -33,13 +33,27 @@ function wordsOf(line) {
   return out;
 }
 
-// Two balanced lines when the text is longer than one.
+// Words a line must not end on: "lpm / Link", "Set / up", "the / Mac".
+const CLINGS = new Set(["lpm", "a", "an", "the", "to", "of", "on", "in", "at", "by", "your", "its", "and", "or", "so", "set", "sign", "take", "turn", "up"]);
+const capital = (w) => /^[A-Z]/.test(w);
+
+// Two balanced lines when the text is longer than one, broken after a
+// comma when one is near the middle and never inside a name or a label
+// ("Claude Code", "Set up Built-in Tailscale").
 function wrap(text) {
   if (text.length <= LINE_CHARS) return text;
   const mid = text.length / 2;
   let best = -1;
+  let bestCost = Infinity;
   for (let i = text.indexOf(" "); i >= 0; i = text.indexOf(" ", i + 1)) {
-    if (best < 0 || Math.abs(i - mid) < Math.abs(best - mid)) best = i;
+    const before = text.slice(0, i).split(" ").at(-1);
+    const after = text.slice(i + 1).split(" ")[0];
+    let cost = Math.abs(i - mid);
+    if (Math.max(i, text.length - i - 1) > LINE_CHARS) cost += 100;
+    if (/[,;:.!?]["')]?$/.test(before)) cost -= 6;
+    if (CLINGS.has(before.toLowerCase().replace(/[^a-z]/g, ""))) cost += 30;
+    if (capital(before) && capital(after) && !/[,;:.!?]$/.test(before)) cost += 30;
+    if (cost < bestCost) [best, bestCost] = [i, cost];
   }
   return best < 0 ? text : `${text.slice(0, best)}\n${text.slice(best + 1)}`;
 }
@@ -79,6 +93,15 @@ function lineCues(line, startMs, limitMs) {
     if (a.length < 12 && a.length + 1 + b.length <= CUE_CHARS && span <= CUE_MS) {
       groups.splice(i, 2, [...groups[i], ...groups[i + 1]]);
       i--;
+    }
+  }
+  // A short tail ("so tap it.") flashes by on its own; it joins the cue before.
+  const last = groups.at(-1);
+  if (groups.length > 1) {
+    const a = groups.at(-2).map((x) => x.text).join(" ");
+    const b = last.map((x) => x.text).join(" ");
+    if (b.length < 20 && a.length + 1 + b.length <= CUE_CHARS && last.at(-1).ms - groups.at(-2)[0].ms <= CUE_MS) {
+      groups.splice(-2, 2, [...groups.at(-2), ...last]);
     }
   }
   return groups.map((g, i) => {

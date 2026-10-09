@@ -5609,7 +5609,7 @@ pub(crate) fn state_value(hub: &RemoteHub) -> Value {
         "running": hub.inner.running.load(Ordering::Relaxed),
         "bindError": hub.bind_error(),
         "configError": hub.config_error(),
-        "host": primary_lan_ip(),
+        "host": crate::lesson::lan_address().or_else(primary_lan_ip),
         "tailscaleHost": tailscale_ip(),
         "identityRotated": cfg.enabled && crate::remotetls::identity_rotated(),
         // Reading the code loads (or first creates) the certificate, which
@@ -5726,11 +5726,22 @@ pub fn remote_set_config(
 ) -> Result<Value, String> {
     hub.try_update_config(|cfg| {
         cfg.enabled = enabled;
-        cfg.port = port;
+        cfg.port = port_to_store(cfg.port, port, is_dev_instance());
         cfg.tailscale = tailscale;
     })?;
     apply(&hub, &app);
     Ok(state_value(&hub))
+}
+
+/// The pane shows, and sends back, the effective port. Sent back unchanged it
+/// keeps the configured value, so turning remote control on in a dev build
+/// doesn't move the port up by the dev offset each time.
+fn port_to_store(configured: u16, requested: u16, dev: bool) -> u16 {
+    if requested == effective_port_for(configured, dev) {
+        configured
+    } else {
+        requested
+    }
 }
 
 /// Arm a fresh single-use pairing code and build the QR payload the phone scans.
@@ -6783,6 +6794,15 @@ mod tests {
         // (unit tests build in debug, where is_dev_instance() is true).
         assert_eq!(effective_port_for(0, false), DEFAULT_PORT);
         assert_eq!(effective_port_for(9000, false), 9000);
+    }
+
+    #[test]
+    fn saving_the_shown_port_keeps_the_configured_one() {
+        assert_eq!(port_to_store(8870, 8872, true), 8870);
+        assert_eq!(port_to_store(0, DEFAULT_PORT + 2, true), 0);
+        assert_eq!(port_to_store(9000, 9000, false), 9000);
+        assert_eq!(port_to_store(8870, 9100, true), 9100);
+        assert_eq!(port_to_store(0, 9100, false), 9100);
     }
 
     #[test]

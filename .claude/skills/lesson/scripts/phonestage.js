@@ -30,6 +30,22 @@ class PhoneStage extends AppStage {
     super(app, capture, opts);
     this.phone = opts.phone;
     this.taps = [];
+    this.masks = [];
+  }
+
+  // Paints over part of the phone's screen until the returned function is
+  // called: `rect` [x, y, w, h] in device points, `color` "#rrggbb", or
+  // `image` (a PNG's absolute path) stretched over it. For what would only
+  // mislead in the video, such as the stand-in sign-in page in place of
+  // Tailscale's.
+  // `fit` trims it to the frames where that spot looks as it does mid-way
+  // (maskfit.js), for a mask over something that slides in and out.
+  phoneMask(rect, { color = "#ffffff", image = null, fit = false } = {}) {
+    const mask = { fromMs: Date.now() - this.t0, toMs: null, rect, color, ...(image && { image }), ...(fit && { fit }) };
+    this.masks.push(mask);
+    return () => {
+      if (mask.toMs == null) mask.toMs = Date.now() - this.t0;
+    };
   }
 
   static async open(app, capture, opts = {}) {
@@ -102,6 +118,27 @@ class PhoneStage extends AppStage {
     }
   }
 
+  // The phone's Home button, on the cue word.
+  async phoneHome(opts = {}) {
+    if (opts.cue) await this.holdUntil(this.cueMs(opts.cue) - (opts.lead ?? 0));
+    this.phone.home();
+    this.log("phone: home");
+    await sleep(opts.settle ?? 700);
+  }
+
+  // Opens lpm Link from the home screen afresh, as after a while away: the
+  // icon gets the touch mark and the app starts again with the lesson's env.
+  async phoneOpenApp(icon = "lpm", opts = {}) {
+    const e = await this.phoneWaitFor({ label: icon, type: "Button" }, opts.timeout);
+    if (opts.cue) await this.holdUntil(this.cueMs(opts.cue) - (opts.lead ?? 0));
+    const x = e.frame.x + e.frame.width / 2;
+    const y = e.frame.y + e.frame.height * 0.4;
+    this.taps.push({ atMs: Date.now() - this.t0, ...this.phoneOut(x, y) });
+    this.phone.relaunch();
+    this.log(`phone: open ${icon} afresh`);
+    if (opts.verify) await this.phoneWaitFor(opts.verify, opts.verifyMs ?? 15000);
+  }
+
   // Push the picture in on a phone element (see AppStage.zoom), or on
   // `{ point: [x, y] }` in device points for what has no element (a terminal's
   // text).
@@ -114,8 +151,25 @@ class PhoneStage extends AppStage {
     await this.recordZoom(opts.scale ?? 1.8, o.x, o.y, opts, { sel: describeSel(sel), at, rect: { x: tl.x, y: tl.y, w: br.x - tl.x, h: br.y - tl.y } });
   }
 
+  // Push the picture in on a Mac element and a phone element together, as
+  // close as both still fit (two rows that show the same thing).
+  async zoomBoth(macSel, phoneSel, opts = {}) {
+    await this.waitFor(macSel);
+    const r = await this.control.evaluate((s) => window.__lc.rect(s), macSel);
+    const a = this.outPoint(r);
+    const b = this.outPoint({ x: r.x + r.w, y: r.y + r.h });
+    const e = await this.phoneWaitFor(phoneSel, opts.timeout);
+    const c = this.phoneOut(e.frame.x, e.frame.y);
+    const d = this.phoneOut(e.frame.x + e.frame.width, e.frame.y + e.frame.height);
+    const [x0, x1, y0, y1] = [Math.min(a.x, c.x), Math.max(b.x, d.x), Math.min(a.y, c.y), Math.max(b.y, d.y)];
+    const fit = Math.min(this.out.width / (x1 - x0), this.out.height / (y1 - y0)) * (opts.margin ?? 0.88);
+    const rect = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+    await this.recordZoom(Math.min(opts.scale ?? 2, fit), (x0 + x1) / 2, (y0 + y1) / 2, opts, { sel: `${macSel} + ${describeSel(phoneSel)}`, rect });
+  }
+
   timelineExtras() {
-    return { taps: this.taps };
+    const end = Date.now() - this.t0;
+    return { taps: this.taps, phoneMasks: this.masks.map((m) => ({ ...m, toMs: m.toMs ?? end })) };
   }
 }
 

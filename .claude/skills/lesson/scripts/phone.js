@@ -1,6 +1,6 @@
 // lpm Link in the iOS Simulator, beside the lesson app: the simulated iPhone is
 // started in Device Hub (Xcode 27's simulator app, which owns the device: quit
-// it and the device shuts down) with a 9:41 status bar, the lesson build of
+// it and the device shuts down) with a clean status bar, the lesson build of
 // lpm Link (linkbuild.js) installed fresh for every take and launched with the
 // lesson's environment, and Device Hub's compact iPhone window placed where
 // the capture expects it. The phone's screen is read through idb
@@ -147,7 +147,7 @@ async function preparePhone({ device = "iPhone 17", env = {}, at, log = () => {}
   for (let i = 0; i < 120 && findDevice(device).state !== "Booted"; i++) await sleep(500);
   if (findDevice(device).state !== "Booted") throw new Error(`the ${device} simulator did not start: select it in Device Hub and click Start`);
   simctl(["bootstatus", d.udid, "-b"]);
-  simctl(["status_bar", d.udid, "override", "--time", "9:41", "--dataNetwork", "wifi", "--wifiMode", "active", "--wifiBars", "3",
+  simctl(["status_bar", d.udid, "override", "--dataNetwork", "wifi", "--wifiMode", "active", "--wifiBars", "3",
     "--cellularMode", "active", "--cellularBars", "4", "--operatorName", "", "--batteryState", "discharging", "--batteryLevel", "100"]);
   simctl(["ui", d.udid, "appearance", "light"]);
   let win = hubWindow(pid, at);
@@ -161,7 +161,12 @@ async function preparePhone({ device = "iPhone 17", env = {}, at, log = () => {}
     }
     for (let i = 0; i < 20 && (win = hubWindow(pid, at)).h < win.w * 1.6; i++) await sleep(250);
   }
-  if (win.h >= win.w * 1.6 && (win.w !== HUB_SIZE.w || win.h !== HUB_SIZE.h)) win = hubWindow(pid, { x: win.x, y: win.y, ...HUB_SIZE });
+  // Just after switching to compact Device Hub may still be sizing the
+  // window itself and drop ours, so it is asked until it holds.
+  for (let i = 0; i < 10 && win.h >= win.w * 1.6 && (win.w !== HUB_SIZE.w || win.h !== HUB_SIZE.h); i++) {
+    win = hubWindow(pid, { x: win.x, y: win.y, ...HUB_SIZE });
+    if (win.w !== HUB_SIZE.w || win.h !== HUB_SIZE.h) await sleep(400);
+  }
   if (win.h < win.w * 1.6) {
     throw new Error(`Device Hub's window is ${win.w}x${win.h}: select the ${device} and use the ⤡ button in Device Hub's toolbar (Switch to compact window), then try again`);
   }
@@ -198,7 +203,8 @@ async function preparePhone({ device = "iPhone 17", env = {}, at, log = () => {}
   }
   await sleep(800);
   const childEnv = Object.fromEntries(Object.entries(env).map(([k, v]) => [`SIMCTL_CHILD_${k}`, String(v)]));
-  simctl(["launch", "--terminate-running-process", d.udid, BUNDLE_ID], { env: { ...process.env, ...childEnv } });
+  const launch = () => simctl(["launch", "--terminate-running-process", d.udid, BUNDLE_ID], { env: { ...process.env, ...childEnv } });
+  launch();
   log(`lpm Link launched on the ${device} simulator (Device Hub window ${win.w}x${win.h} at ${win.x},${win.y})`);
 
   // The phone's screen on the Mac's display (global points), once the capture
@@ -215,6 +221,9 @@ async function preparePhone({ device = "iPhone 17", env = {}, at, log = () => {}
       const at = [(screen.x + (x * screen.w) / deviceSize.w).toFixed(1), (screen.y + (y * screen.h) / deviceSize.h).toFixed(1)];
       axpress(pid, "--at", ...at, ...(label ? [label] : []));
     },
+    home: () => axpress(pid, "Home"),
+    // A tap on the home screen's icon would start lpm Link without `env`.
+    relaunch: launch,
     close: async () => {
       driver.close();
       try {

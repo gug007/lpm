@@ -54,3 +54,25 @@ test("a card later in the take reads the window from its own inputs, seeked to t
   assert.match(g.filter, /\[w3t\]\[m3t\]alphamerge,setpts=PTS-STARTPTS\+100\.000\/TB\[w3c\]/);
   assert.strictEqual(g.count, 3 + 3 + 6);
 });
+
+test("a push-in on the window stops short of the phone when its target still fits", () => {
+  const { phoneLayout, clearOfPhone } = require("../phonecompose");
+  const out = { width: 2560, height: 1440 };
+  const layout = phoneLayout(out, 2);
+  const row = { x: 864, y: 429, w: 856, h: 109 };
+  const [mac, phone, both, out1] = clearOfPhone(
+    [
+      { id: "a", scale: 1.5, cx: 1292, cy: 484, rect: row },
+      { id: "b", scale: 1.6, cx: 2210, cy: 498, rect: { x: 2021, y: 452, w: 379, h: 94 } },
+      { id: "c", scale: 1.4, cx: 1657, cy: 558, rect: { x: 864, y: 429, w: 1587, h: 258 } },
+      { id: "d", scale: 1, cx: 1280, cy: 720 },
+    ],
+    layout,
+    out,
+  );
+  assert.ok(mac.cx + 1280 / 1.5 <= layout.outer.x);
+  assert.ok(mac.cx - 1280 / 1.5 <= row.x);
+  assert.strictEqual(phone.cx, 2210);
+  assert.strictEqual(both.cx, 1657);
+  assert.strictEqual(out1.cx, 1280);
+});

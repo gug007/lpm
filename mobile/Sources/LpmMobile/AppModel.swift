@@ -1410,7 +1410,9 @@ final class AppModel {
 
     /// The owner's friendly name, for the placeholder ("Active on <name>").
     func controlOwnerLabel(_ id: String) -> String {
-        controlOwner[id]?.label ?? "another device"
+        guard let owner = controlOwner[id] else { return "another device" }
+        if owner.kind == "window", let mac = activeRecord?.displayName { return mac }
+        return owner.label
     }
 
     /// Take control here (the "Take control" button): this phone becomes the owner

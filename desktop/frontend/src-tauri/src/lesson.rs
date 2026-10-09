@@ -40,6 +40,17 @@ pub fn machine_name() -> Option<String> {
         .filter(|s| !s.is_empty())
 }
 
+/// The network address a recording shows for this machine in place of the
+/// real one (which names the network it is on, a phone hotspot included).
+/// Display only: pairing still hands phones the real addresses.
+pub fn lan_address() -> Option<String> {
+    socket()?;
+    std::env::var("LPM_LESSON_LAN_ADDRESS")
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
 pub fn start(app: AppHandle) {
     let Some(path) = socket() else { return };
     let _ = std::fs::remove_file(&path);

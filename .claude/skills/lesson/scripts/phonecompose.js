@@ -82,18 +82,25 @@ html, body { margin: 0; background: transparent; width: ${d}px; height: ${d}px; 
 
 // The phone on top of the picture labelled `from`, out as `to`: its body and
 // shadow, the screen cropped out of the take (input 0) and masked, and a touch
-// mark at every tap. `home` hides it while a card holds the window; `base` is
-// the index its first input will get.
-function phoneLayer({ from, to, base, layout, region, assets, taps = [], home = "", captureIn, fps }) {
+// mark at every tap. `masks` paint over parts of the screen for a while
+// (phonestage.js phoneMask), in a colour or with a picture. `fades.in`/`fades.out` ({ st, d } in seconds)
+// bring it in and take it away; `home` hides it while another card holds the
+// window; `base` is the index its first input will get.
+function phoneLayer({ from, to, base, layout, region, assets, taps = [], masks = [], home = "", fades = {}, captureIn, fps }) {
   const still = (file) => ["-framerate", String(fps), "-loop", "1", "-i", file];
   const inputs = [...still(assets.frame), ...still(assets.mask)];
   const { screen } = layout;
+  const fade = [
+    fades.in && `fade=t=in:st=${fades.in.st.toFixed(3)}:d=${fades.in.d.toFixed(3)}:alpha=1`,
+    fades.out && `fade=t=out:st=${fades.out.st.toFixed(3)}:d=${fades.out.d.toFixed(3)}:alpha=1`,
+  ].filter(Boolean).map((f) => `,${f}`).join("");
+  const pictures = masks.filter((m) => m.image);
   const parts = [
-    `[${base}:v]format=rgba[pf]`,
+    `[${base}:v]format=rgba${fade}[pf]`,
     `[${from}][pf]overlay=x=0:y=0${home}[pb]`,
-    `[0:v]crop=${region.w}:${region.h}:${region.x}:${region.y},scale=${screen.w}:${screen.h}:${captureIn},format=rgba[ps0]`,
+    `[0:v]crop=${region.w}:${region.h}:${region.x}:${region.y},scale=${screen.w}:${screen.h}:${captureIn},format=rgba${maskBoxes(masks, layout)}[${pictures.length ? "pp0" : "ps0"}]`,
     `[${base + 1}:v]format=gray[pm]`,
-    `[ps0][pm]alphamerge[ps]`,
+    `[ps0][pm]alphamerge${fade}[ps]`,
     `[pb][ps]overlay=x=${screen.x}:y=${screen.y}:eof_action=repeat${home}[${taps.length ? "pt0" : to}]`,
   ];
   const len = TOUCH.ms / 1000;
@@ -105,7 +112,43 @@ function phoneLayer({ from, to, base, layout, region, assets, taps = [], home = 
       `[pt${i}][tc${i}]overlay=x=${Math.round(tap.x)}-(w/2):y=${Math.round(tap.y)}-(h/2):eof_action=pass[${i === taps.length - 1 ? to : `pt${i + 1}`}]`,
     );
   });
+  const k = screen.w / layout.device.w;
+  pictures.forEach((m, j) => {
+    const [x, y, w, h] = m.rect.map((v) => Math.round(v * k));
+    const len = Math.max(0.04, (m.toMs - m.fromMs) / 1000);
+    inputs.push("-framerate", String(fps), "-loop", "1", "-t", len.toFixed(3), "-i", m.image);
+    parts.push(
+      `[${base + 2 + taps.length + j}:v]scale=${w}:${h},format=rgba,setpts=PTS-STARTPTS+${(m.fromMs / 1000).toFixed(3)}/TB[pi${j}]`,
+      `[pp${j}][pi${j}]overlay=x=${x}:y=${y}:eof_action=pass[${j === pictures.length - 1 ? "ps0" : `pp${j + 1}`}]`,
+    );
+  });
   return { inputs, parts };
 }
 
-module.exports = { PHONE_LAYOUT, DEVICE, TOUCH, phoneLayout, phonePoint, phoneAssets, phoneLayer };
+// drawbox filters for the colour masks, in the screen's own pixels.
+function maskBoxes(masks, layout) {
+  const k = layout.screen.w / layout.device.w;
+  return masks
+    .filter((m) => !m.image)
+    .map((m) => {
+      const [x, y, w, h] = m.rect.map((v) => Math.round(v * k));
+      const between = `between(t,${(m.fromMs / 1000).toFixed(3)},${(m.toMs / 1000).toFixed(3)})`;
+      return `,drawbox=x=${x}:y=${y}:w=${w}:h=${h}:color=0x${m.color.replace("#", "")}@1:t=fill:enable='${between}'`;
+    })
+    .join("");
+}
+
+// A push-in on the window stops short of the phone beside it rather than
+// cutting the phone in half, as long as what it pushes in on still fits.
+function clearOfPhone(zooms, layout, out) {
+  const edge = layout.outer.x - 16;
+  return zooms.map((z) => {
+    if (z.scale <= 1 || !z.rect || z.rect.x + z.rect.w > layout.mac.x + layout.mac.w) return z;
+    const half = out.width / 2 / z.scale;
+    if (z.cx + half <= edge || z.cx - half >= layout.outer.x) return z;
+    const cx = Math.round(edge - half);
+    return cx - half <= z.rect.x ? { ...z, cx } : z;
+  });
+}
+
+module.exports = { PHONE_LAYOUT, DEVICE, TOUCH, phoneLayout, phonePoint, phoneAssets, phoneLayer, clearOfPhone };
