@@ -13,7 +13,9 @@ const MAKER = path.resolve(SKILL, "..", "short");
 const ROOT = process.env.LPM_TIKTOK_DIR || path.join(process.env.LPM_LESSONS_DIR || path.join(os.homedir(), "Movies/lpm-lessons"), "tiktok");
 const DEFAULT_PROMPT =
   "Build a giraffe flying a one-seat propeller plane, its neck sticking out the top, in index.html at the project root. One file, no libraries or images. It's shown in a wide, short panel and the window can be any size. Lay the scene out on a 900x360 stage: the plane spans about 25% of the stage's width, centered, with its body about 70% of the way down, and the giraffe's head reaches about 15% from the top. Scale the whole stage to fit the panel, centered, never cropped; the sky fills the rest. No scrolling. Animate forever. Don't open it. Don't run or test it. No questions, just write it.";
-const WINDOW = { w: 900, h: 1000 };
+// The wide shot shows the window 982 px wide, centred in 1080x1920: 990 is the
+// tallest that stays clear of TikTok's caption area (y 1500) and the headline.
+const WINDOW = { w: 900, h: 990 };
 const CLI_NAME = { claude: "Claude Code", codex: "Codex", cursor: "Cursor" };
 
 const args = process.argv.slice(2);

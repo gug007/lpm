@@ -26,7 +26,7 @@ Creator Search Insights (global, last 7 days, 2026-10-07): "Using AI to build a 
 
 ## One above the other
 
-short-race runs every race in rows: Run in duplicates with **Open side by side** split into **Rows**, run #1 on top and the copy below, from the start of the race to the reveal. Model A's cyan bar sits over the top row and model B's pink one over the bottom, with the clocks and then the finish times, and each row opens its own `index.html` in lpm's browser. Each game gets the window's full width, about 900x325 of page in the 900x1000 window, hence the wide 900x360 stage.
+short-race runs every race in rows: Run in duplicates with **Open side by side** split into **Rows**, run #1 on top and the copy below, from the start of the race to the reveal. Model A's cyan bar sits over the top row and model B's pink one over the bottom, with the clocks and then the finish times, and each row opens its own `index.html` in lpm's browser. Each game gets the window's full width, about 900x320 of page in short-race's 900x990 window, hence the wide 900x360 stage.
 
 ## Make one
 

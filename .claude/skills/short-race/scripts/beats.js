@@ -255,8 +255,9 @@ const tagPanes = (s) =>
     return heads.length;
   });
 
-// A colour bar over each pane header naming its model, with a clock on the
-// right. Fixed to the header's current box, so call it again after a layout
+// A colour bar over each pane header naming its model, its clock just after
+// the name: the bottom row's right end is under TikTok's like and comment
+// buttons. Fixed to the header's current box, so call it again after a layout
 // change.
 const badges = (s, items) =>
   s.control.evaluate((list) => {
@@ -275,7 +276,7 @@ const badges = (s, items) =>
         document.body.append(b);
       }
       const r = h.getBoundingClientRect();
-      b.style.cssText = `position:fixed;left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${Math.max(r.height, 38)}px;z-index:2147483646;pointer-events:none;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 12px;background:${it.bg};color:${it.fg};font:800 19px/1 -apple-system,BlinkMacSystemFont,system-ui,sans-serif;letter-spacing:-.01em;box-shadow:0 4px 14px rgba(0,0,0,.35);white-space:nowrap`;
+      b.style.cssText = `position:fixed;left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${Math.max(r.height, 38)}px;z-index:2147483646;pointer-events:none;box-sizing:border-box;display:flex;align-items:center;justify-content:flex-start;gap:22px;padding:0 12px;background:${it.bg};color:${it.fg};font:800 19px/1 -apple-system,BlinkMacSystemFont,system-ui,sans-serif;letter-spacing:-.01em;box-shadow:0 4px 14px rgba(0,0,0,.35);white-space:nowrap`;
       b.firstChild.textContent = it.name;
       b.lastChild.textContent = it.time || "";
       b.lastChild.style.fontVariantNumeric = "tabular-nums";
