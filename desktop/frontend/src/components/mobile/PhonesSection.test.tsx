@@ -67,7 +67,7 @@ describe("PhonesSection setup video", () => {
   it("links the video from the heading until a device is paired", () => {
     render([]);
     const link = buttonIn(header(), "Setup video")!;
-    expect(link.textContent).toBe("Setup video · 2:22");
+    expect(link.textContent).toBe("Setup video · 3:41");
     act(() => link.click());
     expect(open).toHaveBeenCalledWith(SETUP_VIDEO_URL);
   });

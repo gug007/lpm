@@ -80,11 +80,11 @@ const LESSONS = {
     uploadDate: "2026-10-04T09:00:00+00:00",
   },
   "connect-iphone": {
-    id: "OxDe-Vud69U",
-    name: "Connect your iPhone to lpm",
+    id: "OGttu6tgb0I",
+    name: "Run Claude Code from Your iPhone: Connect lpm Link to Your Mac with Built-in Tailscale",
     description:
-      "Connect the lpm Link iPhone app to lpm on your Mac, and set up Built-in Tailscale so it keeps working on cellular and any Wi-Fi.",
-    uploadDate: "2026-10-08T09:00:00+00:00",
+      "Run Claude Code on your Mac from your iPhone, at home or on cellular: connect lpm Link to lpm, set up Built-in Tailscale on both devices, pair them and send a prompt from your phone.",
+    uploadDate: "2026-10-09T09:00:00+00:00",
   },
   "sixty-seconds": {
     id: "H46vW5DPbZk",

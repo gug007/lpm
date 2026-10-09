@@ -135,14 +135,14 @@ struct PairingView: View {
         .padding(.top, onCancel == nil ? 28 : 8)
     }
 
-    private static let setupVideoURL = URL(string: "https://www.youtube.com/watch?v=OxDe-Vud69U")!
+    private static let setupVideoURL = URL(string: "https://www.youtube.com/watch?v=OGttu6tgb0I")!
 
     private var setupVideoLink: some View {
         Link(destination: Self.setupVideoURL) {
             Label {
                 HStack(spacing: 6) {
                     Text("Watch how to connect").fontWeight(.semibold)
-                    Text("2:22").foregroundStyle(Color.secondary).monospacedDigit()
+                    Text("3:41").foregroundStyle(Color.secondary).monospacedDigit()
                 }
             } icon: {
                 Image(systemName: "play.rectangle.fill")
