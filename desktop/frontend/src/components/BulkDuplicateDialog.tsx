@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Columns2, Folder, GitBranch, Package, RefreshCw, X } from "lucide-react";
+import { Folder, GitBranch, Package, RefreshCw, X } from "lucide-react";
 import { useEventListener } from "../hooks/useEventListener";
 import { Modal } from "./ui/Modal";
 import { ActionPicker } from "./ActionPicker";
@@ -14,6 +14,7 @@ import { CopyRow, focusLabelSuffix } from "./CopyRow";
 import { CopyMacSelect, type CopyTargetOption } from "./CopyMacSelect";
 import { ShellCommandInput } from "./ShellCommandInput";
 import { SwitchRow } from "./SwitchRow";
+import { SideBySideOption } from "./SideBySideOption";
 import { CollapsibleSection } from "./CollapsibleSection";
 import { SegmentedControl } from "./ui/SegmentedControl";
 import {
@@ -31,7 +32,7 @@ import { findActionByPath, flattenRunnableActions } from "../actionTree";
 import { findParentProject, projectDisplayName } from "./ProjectNameDisplay";
 import { RunModelSelect } from "./RunModelSelect";
 import { EMPTY_PICK, pickSummary, switchableCLI, type ModelPick } from "../agentModelSwitch";
-import { MAX_SIDE_BY_SIDE } from "../sideBySide";
+import type { SideBySideLayout } from "../sideBySide";
 import type {
   CopyOverride,
   CopyRunMode,
@@ -94,6 +95,7 @@ export interface BulkDuplicateOptions {
   groupName: string;
   // Show run #1 and the copies next to each other as the copies land.
   sideBySide: boolean;
+  sideBySideLayout: SideBySideLayout;
 }
 
 // Everything the "run in duplicates" flow (a composer's split button) hands the
@@ -157,6 +159,7 @@ export function BulkDuplicateDialog({
   const [reinstallDeps, setReinstallDeps] = useState(false);
   const [pullLatest, setPullLatest] = useState(true);
   const [sideBySide, setSideBySide] = useState(true);
+  const [sideBySideLayout, setSideBySideLayout] = useState<SideBySideLayout>("columns");
   const [groupName, setGroupName] = useState("");
   // Whether the folder-name autocomplete suggestions are showing.
   const [folderOpen, setFolderOpen] = useState(false);
@@ -285,6 +288,7 @@ export function BulkDuplicateDialog({
     setReinstallDeps(s.duplicateReinstallDeps ?? false);
     setPullLatest(s.duplicatePullLatest ?? true);
     setSideBySide(s.runInDuplicatesSideBySide ?? true);
+    setSideBySideLayout(s.runInDuplicatesLayout ?? "columns");
     setGroupName("");
     setFolderOpen(false);
     // A composer-seeded run stays collapsed — its target/prompt are already set
@@ -557,7 +561,7 @@ export function BulkDuplicateDialog({
         duplicateCommand: command || undefined,
       });
     } else {
-      saveSettings({ runInDuplicatesSideBySide: sideBySide });
+      saveSettings({ runInDuplicatesSideBySide: sideBySide, runInDuplicatesLayout: sideBySideLayout });
     }
     const valid = new Set(targets.map((t) => t.name));
     const fallback = valid.has(sourceName) || targets.length === 0 ? sourceName : targets[0].name;
@@ -575,6 +579,7 @@ export function BulkDuplicateDialog({
       }),
       groupName: single || !anyLocalCopy ? "" : trimmedGroup,
       sideBySide: seeded && sideBySide,
+      sideBySideLayout,
     });
   };
 
@@ -879,12 +884,11 @@ export function BulkDuplicateDialog({
                 </p>
                 {seeded && (
                   <div className="-mx-4 -mb-3 mt-3 border-t border-[var(--border)]">
-                    <SwitchRow
-                      checked={sideBySide}
-                      onChange={setSideBySide}
-                      icon={<Columns2 size={18} />}
-                      title="Open side by side"
-                      description={`Show the runs next to each other as the copies are created (up to ${MAX_SIDE_BY_SIDE}).`}
+                    <SideBySideOption
+                      enabled={sideBySide}
+                      onEnabledChange={setSideBySide}
+                      layout={sideBySideLayout}
+                      onLayoutChange={setSideBySideLayout}
                     />
                   </div>
                 )}

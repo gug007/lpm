@@ -1,7 +1,13 @@
 import { useMemo } from "react";
 import { create } from "zustand";
 import { useAppStore } from "./app";
-import { MAX_SIDE_BY_SIDE, addColumn, removeColumn, sideBySideColumns } from "../sideBySide";
+import {
+  MAX_SIDE_BY_SIDE,
+  addColumn,
+  removeColumn,
+  sideBySideColumns,
+  type SideBySideLayout,
+} from "../sideBySide";
 import type { BulkDuplicateOptions } from "../components/BulkDuplicateDialog";
 
 // The projects shown side by side, in column order. It stays set while the user
@@ -10,8 +16,9 @@ import type { BulkDuplicateOptions } from "../components/BulkDuplicateDialog";
 // duplicates adds each copy as it's created) and draws as one project.
 interface SideBySideStore {
   names: string[];
+  layout: SideBySideLayout;
   // Shows `names`, the first one in front.
-  open: (names: string[]) => void;
+  open: (names: string[], layout?: SideBySideLayout) => void;
   add: (name: string, anchor: string, focus?: boolean) => void;
   remove: (name: string) => void;
   close: () => void;
@@ -26,18 +33,20 @@ function mount(names: string[]): void {
 
 export const useSideBySide = create<SideBySideStore>((set, get) => ({
   names: [],
+  layout: "columns",
 
-  open: (names) => {
+  open: (names, layout = "columns") => {
     const next = names.slice(0, MAX_SIDE_BY_SIDE);
     mount(next);
-    set({ names: next });
+    set({ names: next, layout });
     if (next[0]) useAppStore.getState().selectProject(next[0]);
   },
 
   add: (name, anchor, focus = false) => {
-    const next = addColumn(get().names, anchor, name);
+    const { names, layout } = get();
+    const next = addColumn(names, anchor, name);
     mount(next);
-    set({ names: next });
+    set({ names: next, layout: names.includes(anchor) ? layout : "columns" });
     if (focus && next.includes(name)) useAppStore.getState().selectProject(name);
   },
 
@@ -51,7 +60,7 @@ export const useSideBySide = create<SideBySideStore>((set, get) => ({
     if (app.selected === name && neighbor) app.selectProject(neighbor);
   },
 
-  close: () => set({ names: [] }),
+  close: () => set({ names: [], layout: "columns" }),
 
   prune: (existing) =>
     set((s) => {
@@ -85,7 +94,7 @@ export function duplicateBeside(
 ): Promise<void> {
   const { bulkDuplicate } = useAppStore.getState();
   if (!opts.sideBySide) return bulkDuplicate(project, count, opts);
-  useSideBySide.getState().open([project]);
+  useSideBySide.getState().open([project], opts.sideBySideLayout);
   return bulkDuplicate(project, count, {
     ...opts,
     keepSelection: true,

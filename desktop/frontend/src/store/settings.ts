@@ -17,6 +17,7 @@ import { normalizeSidebarNav, type NavItemId } from "../sidebarNav";
 import { normalizePaneToolbar, type PaneActionId } from "../paneActions";
 import { normalizeComposerToolbar, type ComposerToolId } from "../composerTools";
 import type { PeerRowOrder } from "../components/peerRowOrder";
+import type { SideBySideLayout } from "../sideBySide";
 
 export interface DetachedWindowState {
   detached: boolean;
@@ -102,6 +103,7 @@ export interface Settings {
   duplicateRunSectionOpen?: boolean;
   duplicateOptionsSectionOpen?: boolean;
   runInDuplicatesSideBySide?: boolean;
+  runInDuplicatesLayout?: SideBySideLayout;
   composerOpen?: boolean;
   autoCloseComposerOnSend?: boolean;
   appTipsDismissed?: boolean;
@@ -207,6 +209,7 @@ function normalize(s: main.Settings): Settings {
     duplicateRunSectionOpen: s.duplicateRunSectionOpen,
     duplicateOptionsSectionOpen: s.duplicateOptionsSectionOpen,
     runInDuplicatesSideBySide: s.runInDuplicatesSideBySide,
+    runInDuplicatesLayout: s.runInDuplicatesLayout === "rows" ? "rows" : undefined,
     composerOpen: s.composerOpen,
     autoCloseComposerOnSend:
       s.autoCloseComposerOnSend ?? defaults.autoCloseComposerOnSend,

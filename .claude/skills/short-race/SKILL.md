@@ -1,6 +1,6 @@
 ---
 name: short-race
-version: 1.1.1
+version: 1.2.0
 argument-hint: "\"<model A>\" vs \"<model B>\" [prompt: …]"
 description: "Make a short vertical (9:16) video that races two AI models on the same prompt in lpm, side by side: Run in duplicates puts each model in its own copy of the project, shown as side-by-side columns, the same prompt sent to both, the real finish times on the pane headers, then both results live in lpm's browser. Default prompt: a giraffe flying a one-seat plane as animated HTML. Models in, 1080x1920 MP4 + cover + post caption out. Use when the user asks for a TikTok, Reel or Short that compares models, such as \"opus 5.5 max vs gpt 6 astra ultra\", \"opus 5.5 vs grok 4.7\" (Claude models run in Claude Code, GPT models in Codex, every other model in Cursor CLI) or \"opus 5 vs opus 5.5\". When the models build a game, use short-game."
 ---
@@ -25,6 +25,7 @@ The race uses lpm's own **Run in duplicates** with **Open side by side**, not a 
   - Claude vs Codex: the project gets a second header button that launches model B pinned. The copy's run menu ("Run on this copy", right of its name) is set to Action → that button, and the prompt is typed again into the copy's own box, since an override starts empty.
   - Claude or Codex vs Cursor: the same, except that nothing is typed: the Cursor button carries the prompt as its launch argument, read from `prompt.txt` in the lesson workspace (outside both projects). lpm folds a prompt into the launch command only for Claude Code and Codex, and a prompt pasted into a CLI that is still booting gets lost. A Cursor model is always model B: `new.js` refuses one on the left, and two Cursor models can't race each other.
 - lpm clones the project into a copy (its own folder, so each agent writes its own `index.html`), starts the copy's agent on model B, sends it the prompt, and shows run #1 and the copy as two columns. Run #1 keeps the keyboard.
+- `"stacked": true` in `compare.json` (short-game sets it) splits side by side into **Rows** instead (`runInDuplicatesLayout` in the lesson's settings, so the dialog opens on it): run #1 on top, the copy below, for the whole video. A stacked race needs a wide stage in its prompt.
 
 ## Models
 

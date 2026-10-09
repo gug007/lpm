@@ -1,8 +1,8 @@
 ---
 name: short-game
-version: 1.0.0
+version: 1.1.0
 argument-hint: "\"<model A>\" vs \"<model B>\" [game: runner|racer|flappy|snake|shooter|breakout] [title: …]"
-description: "Make a short vertical (9:16) video where two AI models build the same self-playing game in lpm, side by side, and both games then play live in lpm's browser. It is a short-race whose prompt comes from a ready game catalog (3D endless runner, 3D racer, Flappy Bird, Snake, space shooter, Breakout), with the hook, headline, title and caption written around the game and the brand pair people search for (\"Claude vs Gemini: build a 3D game 🎮\"). Models in, 1080x1920 MP4 + cover + post caption out. Use when the user asks for a TikTok, Reel or Short where models build a game, such as \"opus 5.5 high vs gemini 3.1 pro build a 3D game\", \"Claude vs GPT 6: Opus 5.5 high vs Astra high build a 3D game\" or \"claude vs grok make flappy bird\". A race on any other prompt is short-race."
+description: "Make a short vertical (9:16) video where two AI models build the same self-playing game in lpm, one above the other, and both games then play live in lpm's browser. It is a short-race whose prompt comes from a ready game catalog (3D endless runner, 3D racer, Flappy Bird, Snake, space shooter, Breakout), with the hook, headline, title and caption written around the game and the brand pair people search for (\"Claude vs Gemini: build a 3D game 🎮\"). Models in, 1080x1920 MP4 + cover + post caption out. Use when the user asks for a TikTok, Reel or Short where models build a game, such as \"opus 5.5 high vs gemini 3.1 pro build a 3D game\", \"Claude vs GPT 6: Opus 5.5 high vs Astra high build a 3D game\" or \"claude vs grok make flappy bird\". A race on any other prompt is short-race."
 ---
 
 A short-race with a game for its prompt. `scripts/new.js` writes the lesson through short-race's own `new.js`, so everything in `../short-race/SKILL.md` and `../short/SKILL.md` still holds (models and CLIs, Run in duplicates, the take, the review) and is not repeated here. This file covers only what a game race adds.
@@ -22,7 +22,11 @@ Creator Search Insights (global, last 7 days, 2026-10-07): "Using AI to build a 
 | `shooter` | a space shooter blasting enemy waves | build a space shooter 🚀 |
 | `breakout` | Breakout with fresh brick walls | build Breakout 🧱 |
 
-`node scripts/new.js --list` prints them. Every prompt in `scripts/games.js` keeps short-race's rules: `index.html` at the project root, one file, no libraries or images, the 420x740 stage with sizes given as shares of it, scaled to fit and never cropped, and "Don't run or test it". On top of that the game plays itself and restarts at once after a crash, so the reveal is live play with nobody at the controls. The `runner` prompt is word for word the one that was raced and published, so leave it as it is. Add a new game to `games.js` in the same shape (build, play, layout, restart, then the copy fields), not as a one-off `--prompt`.
+`node scripts/new.js --list` prints them. Every prompt in `scripts/games.js` keeps short-race's rules: `index.html` at the project root, one file, no libraries or images, a stage with sizes given as shares of it, scaled to fit and never cropped, and "Don't run or test it". On top of that the game plays itself and restarts at once after a crash, so the reveal is live play with nobody at the controls. The stage is wide, 900x360, to fill a stacked row (see Stacked); the two races posted before 2026-10-09 ran in columns on short-race's tall 420x740 stage. A layout puts the action across the width (Snake's board spans the height, the shooter's enemies come in from the right), and sizes that a tall stage gave as shares of its width are shares of the height or a smaller share of the width here. Add a new game to `games.js` in the same shape (build, play, layout, restart, then the copy fields), not as a one-off `--prompt`.
+
+## Stacked: one above the other
+
+A game race is stacked, not in columns, so each game gets the window's full width. `stacked: true` in `compare.json` (`new.js` sets it, the dry run too) makes short-race open Run in duplicates with **Open side by side** split into **Rows**: run #1 on top, the copy below, from the start of the race to the end. Model A's cyan bar sits over the top pane and model B's pink one over the bottom, with the clocks and then the finish times, and at the reveal each row opens its own `index.html` in lpm's browser. In the 900x1000 window each row shows about 900x325 of page, hence the wide 900x360 stage.
 
 ## Make one
 
@@ -54,7 +58,7 @@ Creator Search Insights (global, last 7 days, 2026-10-07): "Using AI to build a 
    LPM_TIKTOK_DIR=<scratchpad>/race-dry <scratchpad>/race-dry/dry/take.sh --no-audio --frames
    ```
 
-   It uses the same models and flow, a red-square prompt and a 10-minute limit. Check `frames/` as short-race says: `02-run.jpg` shows both banners with the right models, both prompts sent and no intro screen, and `05-payoff.jpg` shows both pages open.
+   It uses the same models and flow, a red-square prompt and a 10-minute limit. Check `frames/` as short-race says: `02-run.jpg` shows both banners with the right models, one row above the other, both prompts sent and no intro screen, and `05-payoff.jpg` shows both pages open, the cyan bar (model A) on top and the pink one below.
 
 4. The video: `<slug>/take.sh --frames`, run with Bash `run_in_background` and waited on with an until-loop over its log. A take lasts as long as the slower side: Gemini 3.1 Pro finished the runner in 2–3 minutes, Opus 5.5 high in 12. When a side times out (`✗ no page`), retake at a lower effort under a new slug. Keep the timed-out folder, and don't post it.
 

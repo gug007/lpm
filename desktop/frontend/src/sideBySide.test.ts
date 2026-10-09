@@ -72,4 +72,15 @@ describe("gridShape", () => {
     expect(gridShape(5)).toEqual({ cols: 3, rows: 2 });
     expect(gridShape(6)).toEqual({ cols: 3, rows: 2 });
   });
+
+  it("stacks up to three in one column as rows", () => {
+    expect(gridShape(2, "rows")).toEqual({ cols: 1, rows: 2 });
+    expect(gridShape(3, "rows")).toEqual({ cols: 1, rows: 3 });
+  });
+
+  it("wraps four or more rows into two columns", () => {
+    expect(gridShape(4, "rows")).toEqual({ cols: 2, rows: 2 });
+    expect(gridShape(5, "rows")).toEqual({ cols: 2, rows: 3 });
+    expect(gridShape(6, "rows")).toEqual({ cols: 2, rows: 3 });
+  });
 });

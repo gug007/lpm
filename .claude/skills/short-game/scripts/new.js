@@ -2,6 +2,7 @@
 // node new.js "<model A>" "<model B>" [--game runner] [--pair "Claude vs GPT 6"] [--title "…"] [--slug s] [--force] [--dry <scratch dir>] [--list]
 // Writes a short-race lesson whose prompt is a self-playing game from games.js,
 // then rewrites its copy around the game: hook, headline, title and caption.
+// The reveal stacks the two games one above the other (compare.json's stacked).
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -79,7 +80,7 @@ const dryRoot = opt("--dry");
 if (dryRoot) {
   const { dir } = race({ root: path.resolve(dryRoot), slug: "dry", racePrompt: DRY_PROMPT, subject: "a red square" });
   const c = readJson(path.join(dir, "compare.json"));
-  writeJson(path.join(dir, "compare.json"), { ...c, timeoutMin: 10 });
+  writeJson(path.join(dir, "compare.json"), { ...c, timeoutMin: 10, stacked: true });
   console.log(`dry run (about 2 min, real pointer and keys):\n  LPM_TIKTOK_DIR=${path.resolve(dryRoot)} ${dir}/take.sh --no-audio --frames`);
   process.exit(0);
 }
@@ -106,7 +107,7 @@ lesson.post.caption =
   `${pair} for coding: ${game.caption}. ${a.headline} and ${b.headline} got the same prompt, ${game.what}, ` +
   "and built it side by side in lpm's terminal. Which one wins? Comment the two models you want me to race next.";
 writeJson(lessonFile, lesson);
-writeJson(compareFile, { ...compare, game: gameKey, timeoutMin: TIMEOUT_MIN });
+writeJson(compareFile, { ...compare, game: gameKey, timeoutMin: TIMEOUT_MIN, stacked: true });
 
 console.log(out.trimEnd());
 console.log(`  game:     ${gameKey} (${game.noun}), ${TIMEOUT_MIN} min per side

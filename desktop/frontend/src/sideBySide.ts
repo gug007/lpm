@@ -2,6 +2,9 @@
 // the columns get too narrow for an agent's output to be readable.
 export const MAX_SIDE_BY_SIDE = 6;
 
+// Columns put the projects next to each other, rows one above the other.
+export type SideBySideLayout = "columns" | "rows";
+
 // The columns to draw: the set, minus projects that no longer exist, and only
 // while the project the user is in is one of them — navigating anywhere else
 // shows that project alone.
@@ -32,10 +35,15 @@ export function removeColumn(names: readonly string[], name: string): string[] {
   return next.length < 2 ? [] : next;
 }
 
-// Up to three across; four or more wrap into two rows.
-export function gridShape(count: number): { cols: number; rows: number } {
-  if (count <= 3) return { cols: Math.max(count, 1), rows: 1 };
-  return { cols: Math.ceil(count / 2), rows: 2 };
+// Up to three across; four or more wrap into two rows. Rows turns that grid on
+// its side: up to three stacked, four or more in two columns.
+export function gridShape(
+  count: number,
+  layout: SideBySideLayout = "columns",
+): { cols: number; rows: number } {
+  const along = count <= 3 ? Math.max(count, 1) : Math.ceil(count / 2);
+  const wrap = count <= 3 ? 1 : 2;
+  return layout === "rows" ? { cols: wrap, rows: along } : { cols: along, rows: wrap };
 }
 
 const PASSIVE_COLUMN = '[data-project-column="passive"]';

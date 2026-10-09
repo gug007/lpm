@@ -19,7 +19,7 @@ interface ProjectColumnsProps {
 }
 
 // The selected project on its own, or the side-by-side set as a grid of
-// columns. The wrapper and each detail's key stay the same in both layouts, so
+// columns or rows. The wrapper and each detail's key stay the same in both layouts, so
 // switching never remounts a project (and its live terminals).
 export function ProjectColumns({
   mounted,
@@ -34,6 +34,7 @@ export function ProjectColumns({
   const projects = useAppStore((s) => s.projects);
   const selectProject = useAppStore((s) => s.selectProject);
   const names = useSideBySide((s) => s.names);
+  const layout = useSideBySide((s) => s.layout);
   const leave = useSideBySide((s) => s.remove);
   const close = useSideBySide((s) => s.close);
   const prune = useSideBySide((s) => s.prune);
@@ -49,7 +50,7 @@ export function ProjectColumns({
 
   const columns = showing ? onScreen : [];
   const split = columns.length >= 2;
-  const { cols, rows } = gridShape(columns.length);
+  const { cols, rows } = gridShape(columns.length, layout);
 
   return (
     <div
