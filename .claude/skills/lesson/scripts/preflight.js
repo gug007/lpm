@@ -242,8 +242,17 @@ function phone() {
   }
 }
 
+// lesson.json "power": true for a take that shows Keep this Mac awake: on
+// battery the app answers "this Mac can sleep until it's plugged in".
+function power() {
+  if (!lesson.power || process.platform !== "darwin") return;
+  const r = spawnSync("pmset", ["-g", "ps"], { encoding: "utf8" });
+  if (!/AC Power/.test(r.stdout || "")) missing.push("the Mac on AC power: this lesson shows Keep this Mac awake, which reads \"On battery\" otherwise");
+}
+
 async function main() {
   tools();
+  power();
   chromium();
   await music();
   voice();

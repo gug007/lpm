@@ -222,6 +222,10 @@ async function preparePhone({ device = "iPhone 17", env = {}, at, log = () => {}
       axpress(pid, "--at", ...at, ...(label ? [label] : []));
     },
     home: () => axpress(pid, "Home"),
+    // iOS's back gesture, sent to an element with that label on screen.
+    back: (label) => axpress(pid, "--cancel", label),
+    // The status bar's network, e.g. { dataNetwork: "5g", wifiMode: "failed" } once "away".
+    statusBar: (o) => simctl(["status_bar", d.udid, "override", ...Object.entries(o).flatMap(([k, v]) => [`--${k}`, String(v)])]),
     // A tap on the home screen's icon would start lpm Link without `env`.
     relaunch: launch,
     close: async () => {

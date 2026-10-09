@@ -138,6 +138,7 @@ macro_rules! all_command_handlers {
             import_config,
             install_kokoro,
             install_update,
+            cancel_update,
             is_terminal_remote,
             drain_pending_job_tasks,
             clear_job_state,

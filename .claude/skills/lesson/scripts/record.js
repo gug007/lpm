@@ -199,7 +199,7 @@ async function recordApp({ lines, beats, raw, framesDir, errorShot, lesson, lpmD
     stage = await Stage.open(app, capture, {
       framesDir, log, mouse, origin, out: OUT,
       box: layout ? layout.mac : frameBox(OUT, FRAME, ZOOM),
-      phone: phoneSide && { driver: phoneSide.driver, press: phoneSide.press, home: phoneSide.home, relaunch: phoneSide.relaunch, layout },
+      phone: phoneSide && { driver: phoneSide.driver, press: phoneSide.press, home: phoneSide.home, back: phoneSide.back, relaunch: phoneSide.relaunch, statusBar: phoneSide.statusBar, layout },
     });
     later(() => stage.finish());
     await stage.frame("stage");

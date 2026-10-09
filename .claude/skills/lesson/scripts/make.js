@@ -26,7 +26,7 @@ const { renderCover } = require("./cover");
 const { DEFAULT_LPM_DIR } = require("./state");
 const { PHONE_LAYOUT, phoneLayout, phoneAssets, clearOfPhone } = require("./phonecompose");
 const { hideClaudeStatusLine } = require("./guard");
-const { insetTimes, insetAsset } = require("./insets");
+const { insetTimes, insetAsset, pointerAssets, pngSize } = require("./insets");
 const { fitMasks } = require("./maskfit");
 const { CACHE } = require("./helpers");
 
@@ -169,19 +169,25 @@ async function mux(lines, P, { file, crf = 18, audio = true }) {
   } else {
     const frameDir = path.join(path.dirname(DIR), "_frame");
     const insets = await Promise.all(
-      insetTimes(timeline, lesson.insets).map(async (i) => ({ ...i, file: await insetAsset(frameDir, { out: OUT, zoom: ZOOM, inset: i, lessonDir: DIR }) })),
+      insetTimes(timeline, lesson.insets).map(async (i) => ({
+        ...i,
+        zoom: ZOOM,
+        imageSize: pngSize(path.resolve(DIR, i.image)),
+        file: await insetAsset(frameDir, { out: OUT, zoom: ZOOM, inset: i, lessonDir: DIR }),
+      })),
     );
+    const insetPointer = insets.some((i) => i.click) ? await pointerAssets(frameDir, ZOOM) : null;
     if (timeline.phone) {
       // The window and lpm Link side by side (phonecompose.js).
       const layout = phoneLayout(OUT, ZOOM);
       const frame = { ...FRAME, width: PHONE_LAYOUT.window.w, height: PHONE_LAYOUT.window.h, zoom: ZOOM };
       const assets = await frameAssets(frameDir, { out: OUT, frame, box: layout.mac });
       const phone = { layout, region: timeline.phone.region, assets: await phoneAssets(frameDir, { out: OUT, layout, zoom: ZOOM }), taps: timeline.taps || [], masks: fitMasks(P.raw, timeline, timeline.phoneMasks || [], layout.device, (m) => console.log(m)) };
-      video = videoGraph({ ...assets, out: OUT, box: layout.mac, cards: timeline.cards || [], cardFiles: timeline.cardFiles || [], zooms, totalMs, take: P.raw, region: timeline.region, phone, insets });
+      video = videoGraph({ ...assets, out: OUT, box: layout.mac, cards: timeline.cards || [], cardFiles: timeline.cardFiles || [], zooms, totalMs, take: P.raw, region: timeline.region, phone, insets, insetPointer });
     } else {
       const box = frameBox(OUT, FRAME, ZOOM);
       const assets = await frameAssets(frameDir, { out: OUT, frame: { ...FRAME, zoom: ZOOM }, box });
-      video = videoGraph({ ...assets, out: OUT, box, cards: timeline.cards || [], cardFiles: timeline.cardFiles || [], zooms, totalMs, take: P.raw, insets });
+      video = videoGraph({ ...assets, out: OUT, box, cards: timeline.cards || [], cardFiles: timeline.cardFiles || [], zooms, totalMs, take: P.raw, insets, insetPointer });
     }
   }
   inputs.push(...video.inputs);
@@ -285,7 +291,8 @@ async function render(lines, P, hook) {
 async function finish(lines, P, timeline, taken) {
   const srt = P.mp4.replace(/\.mp4$/, ".srt");
   console.log(`captions: ${writeCaptions(srt, timeline, lines)} -> ${srt}`);
-  const ch = chapters(timeline, lesson);
+  const spoken = Object.fromEntries(lines.filter((l) => l.words?.length).map((l) => [l.id, { first: l.words[0].start * 1000, last: l.words.at(-1).end * 1000 }]));
+  const ch = chapters(timeline, lesson, spoken);
   fs.writeFileSync(path.join(P.home, "chapters.txt"), chaptersText(ch.list));
   console.log(`chapters: ${ch.list.map((c) => c.name).join(" | ")}`);
   for (const p of ch.problems) console.log(`  chapters: ${p}`);

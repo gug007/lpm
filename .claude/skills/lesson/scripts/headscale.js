@@ -80,7 +80,8 @@ const pictured = (file) => `<!doctype html><meta charset="utf-8"><meta name="vie
 <img alt="" src="data:image/png;base64,${fs.readFileSync(file).toString("base64")}">`;
 
 // Tailscale account); `approveAfterMs` is how long the sign-in page stays up
-// before the device is let in; `page` pictures the real sign-in page.
+// before the device is let in (null: until approvePending); `page` pictures
+// the real sign-in page.
 async function startHeadscale({ user = "alex", approveAfterMs = 1200, page = null, log = () => {} } = {}) {
   const signInPage = page ? pictured(page) : SIGNING_IN;
   if (!fs.existsSync(BIN)) {
@@ -99,6 +100,7 @@ async function startHeadscale({ user = "alex", approveAfterMs = 1200, page = nul
   let serverLog = "";
   server.stderr.on("data", (d) => (serverLog = (serverLog + d).slice(-4000)));
   const approved = new Set();
+  let pending = null;
   const approve = async (url) => {
     const id = authId(url);
     if (!id) throw new Error(`not a sign-in address: ${url}`);
@@ -112,7 +114,8 @@ async function startHeadscale({ user = "alex", approveAfterMs = 1200, page = nul
     if (req.method === "GET" && authId(req.url)) {
       res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
       res.end(signInPage);
-      setTimeout(() => approve(req.url).catch((e) => log(`tailnet: ${e.message}`)), approveAfterMs);
+      pending = req.url;
+      if (approveAfterMs != null) setTimeout(() => approve(req.url).catch((e) => log(`tailnet: ${e.message}`)), approveAfterMs);
       return;
     }
     const up = http.request({ host: "127.0.0.1", port: PORTS.server, method: req.method, path: req.url, headers: req.headers }, (r) => {
@@ -161,7 +164,13 @@ async function startHeadscale({ user = "alex", approveAfterMs = 1200, page = nul
     }
   }
   log(`tailnet: Headscale at ${CONTROL_URL}, account "${user}"`);
-  return { url: CONTROL_URL, user, approve, stop, nodes: async () => JSON.parse(await hs("nodes", "list", "-o", "json") || "[]") };
+  // The sign-in page last opened through the proxy (the phone's sheet), let
+  // in when a beat says so (with `approveAfterMs: null`).
+  const approvePending = async () => {
+    if (!pending) throw new Error("tailnet: no sign-in page has been opened");
+    await approve(pending);
+  };
+  return { url: CONTROL_URL, user, approve, approvePending, stop, nodes: async () => JSON.parse(await hs("nodes", "list", "-o", "json") || "[]") };
 }
 
 module.exports = { startHeadscale, CONTROL_URL, BIN, authId };

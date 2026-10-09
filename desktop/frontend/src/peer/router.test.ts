@@ -236,6 +236,7 @@ describe("isLocalOnlyCommand", () => {
     expect(isLocalOnlyCommand("tailnet_sign_in")).toBe(true);
     expect(isLocalOnlyCommand("save_settings")).toBe(true);
     expect(isLocalOnlyCommand("install_update")).toBe(true);
+    expect(isLocalOnlyCommand("cancel_update")).toBe(true);
   });
 
   it("opens apps on this Mac even for a paired machine's path", () => {

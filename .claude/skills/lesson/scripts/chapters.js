@@ -5,7 +5,9 @@
 const MIN_MS = 10000;
 const SAME_MS = 2000;
 
-function chapters(timeline, lesson) {
+// `spoken` (optional) maps a line id to its first word's start and last
+// word's end in ms from the line's start, so a chapter lands between words.
+function chapters(timeline, lesson, spoken = {}) {
   const narration = lesson.narration || [];
   const byId = new Map(narration.map((n) => [n.id, n]));
   const marks = [];
@@ -36,16 +38,21 @@ function chapters(timeline, lesson) {
     const len = (i + 1 < merged.length ? merged[i + 1].ms : endMs) - m.ms;
     if (len < MIN_MS) problems.push(`"${m.name}" lasts ${(len / 1000).toFixed(1)} s; YouTube needs 10 s or more`);
   });
-  return { list: merged.map(({ ms, name }) => ({ ms: ms && onSecond(ms, timeline.lines), name })), problems };
+  return { list: merged.map(({ ms, name }) => ({ ms: ms && onSecond(ms, timeline.lines, spoken), name })), problems };
 }
 
-// YouTube starts a chapter on a whole second: the one nearer the line's first
-// word, unless that second still plays the end of the line before.
-function onSecond(ms, lines) {
-  const prevEnd = Math.max(0, ...lines.filter((l) => l.startMs < ms - 1 && l.ms).map((l) => l.startMs + l.ms));
-  const down = Math.floor(ms / 1000) * 1000;
-  const up = Math.ceil(ms / 1000) * 1000;
-  return Math.max(0, prevEnd - down) <= up - ms ? down : up;
+// YouTube starts a chapter on a whole second. The second before the line's
+// first word, when the line before has finished by then; else the second
+// after it, when that cuts nothing you'd hear; else the second before, as
+// the end of a word before beats the start of one cut off.
+function onSecond(ms, lines, spoken = {}) {
+  const line = lines.find((l) => l.startMs === ms);
+  const first = ms + (line && spoken[line.id] ? spoken[line.id].first : 0);
+  const prevEnd = Math.max(0, ...lines.filter((l) => l.startMs < ms - 1 && l.ms).map((l) => l.startMs + (spoken[l.id] ? spoken[l.id].last : l.ms)));
+  const down = Math.floor(first / 1000) * 1000;
+  const up = Math.ceil(first / 1000) * 1000;
+  if (down >= prevEnd) return down;
+  return up - first <= 30 ? up : down;
 }
 
 const mmss = (ms) => `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, "0")}`;

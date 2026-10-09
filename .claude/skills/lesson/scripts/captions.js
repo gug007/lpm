@@ -13,6 +13,7 @@ const CUE_MS = 6000;
 const PAUSE_MS = 650;
 const TAIL_MS = 300;
 const MIN_MS = 700;
+const SHORT_MS = 1500;
 
 // The words of one narration line as written, each with its onset (ms into
 // the clip); punctuation-only tokens ride on the word before.
@@ -34,7 +35,7 @@ function wordsOf(line) {
 }
 
 // Words a line must not end on: "lpm / Link", "Set / up", "the / Mac".
-const CLINGS = new Set(["lpm", "a", "an", "the", "to", "of", "on", "in", "at", "by", "your", "its", "and", "or", "so", "set", "sign", "take", "turn", "up"]);
+const CLINGS = new Set(["lpm", "a", "an", "the", "to", "of", "on", "in", "at", "by", "your", "its", "and", "or", "so", "set", "sign", "take", "turn", "up", "can", "will", "you"]);
 const capital = (w) => /^[A-Z]/.test(w);
 
 // Two balanced lines when the text is longer than one, broken after a
@@ -53,6 +54,7 @@ function wrap(text) {
     if (/[,;:.!?]["')]?$/.test(before)) cost -= 6;
     if (CLINGS.has(before.toLowerCase().replace(/[^a-z]/g, ""))) cost += 30;
     if (capital(before) && capital(after) && !/[,;:.!?]$/.test(before)) cost += 30;
+    if (/['’]s$/.test(before)) cost += 30;
     if (cost < bestCost) [best, bestCost] = [i, cost];
   }
   return best < 0 ? text : `${text.slice(0, best)}\n${text.slice(best + 1)}`;
@@ -95,13 +97,19 @@ function lineCues(line, startMs, limitMs) {
       i--;
     }
   }
-  // A short tail ("so tap it.") flashes by on its own; it joins the cue before.
-  const last = groups.at(-1);
-  if (groups.length > 1) {
-    const a = groups.at(-2).map((x) => x.text).join(" ");
-    const b = last.map((x) => x.text).join(" ");
-    if (b.length < 20 && a.length + 1 + b.length <= CUE_CHARS && last.at(-1).ms - groups.at(-2)[0].ms <= CUE_MS) {
-      groups.splice(-2, 2, [...groups.at(-2), ...last]);
+  // A cue that would flash by ("so tap it.", "Get it from the App Store.")
+  // joins the one before it, or else the one after, when the two still fit.
+  const text = (g) => g.map((x) => x.text).join(" ");
+  const shown = (i) => (i + 1 < groups.length ? groups[i + 1][0].ms : lastWord ? lastWord.end * 1000 : line.ms) - groups[i][0].ms;
+  const fits = (a, b) => text(a).length + 1 + text(b).length <= CUE_CHARS && b.at(-1).ms - a[0].ms <= CUE_MS;
+  for (let i = 0; i < groups.length && groups.length > 1; i++) {
+    if (shown(i) >= SHORT_MS && text(groups[i]).length >= 12) continue;
+    if (i > 0 && fits(groups[i - 1], groups[i])) {
+      groups.splice(i - 1, 2, [...groups[i - 1], ...groups[i]]);
+      i -= 2;
+    } else if (i + 1 < groups.length && fits(groups[i], groups[i + 1])) {
+      groups.splice(i, 2, [...groups[i], ...groups[i + 1]]);
+      i -= 1;
     }
   }
   return groups.map((g, i) => {

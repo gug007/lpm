@@ -184,7 +184,7 @@ const STILL_OUT = "out_color_matrix=bt601:out_range=pc";
 // captured the phone gives the window's `region` of it (pixels) and `phone`
 // (phonecompose.js phoneLayer's layout, region, assets and taps). `insets`
 // (insets.js, with their drawn `file`s) lie over the zoomed picture.
-function videoGraph({ out, canvas, shadow, mask, box, cards = [], cardFiles = [], zooms = [], totalMs, composite = true, take, region, phone, insets = [] }) {
+function videoGraph({ out, canvas, shadow, mask, box, cards = [], cardFiles = [], zooms = [], totalMs, composite = true, take, region, phone, insets = [], insetPointer = null }) {
   const crop = region ? `crop=${region.w}:${region.h}:${region.x}:${region.y},` : "";
   const inputs = [];
   const parts = [];
@@ -224,10 +224,10 @@ function videoGraph({ out, canvas, shadow, mask, box, cards = [], cardFiles = []
     last = "vz";
   }
   if (insets.length) {
-    const layer = insetLayer({ from: last, to: "vi", base: next, insets, fps: FPS });
+    const layer = insetLayer({ from: last, to: "vi", base: next, insets, fps: FPS, pointer: insetPointer });
     inputs.push(...layer.inputs);
     parts.push(...layer.parts);
-    next += insets.length;
+    next += layer.count;
     last = "vi";
   }
   const fade = CARD_FADE_MS / 1000;
@@ -271,14 +271,15 @@ function videoGraph({ out, canvas, shadow, mask, box, cards = [], cardFiles = []
   // The phone's inputs come after everything else; its labels tie it in
   // between the window and the zoom.
   if (composite && phone) {
-    // The phone fades in as the opening card hands over and out as the end
-    // card comes in; any other card hides it outright.
+    // The phone fades in as the window settles at the end of the opening
+    // card's hand-over (not while the window still glides across it) and
+    // out as the end card comes in; any other card hides it outright.
     const opener = spans.find((p) => cards[p.card]?.first && !cards[p.card]?.hold);
     const closer = spans.find((p) => cards[p.card]?.hold);
     const others = spans.filter((p) => p !== opener && p !== closer);
     const phoneHome = others.length ? `:enable='not(${others.map((p) => `gte(t,${p.a.toFixed(3)})*lt(t,${p.b.toFixed(3)})`).join("+")})'` : "";
     const fades = {
-      in: opener ? { st: opener.b - OPEN_LIFT.riseMs / 1000, d: OPEN_LIFT.riseMs / 1000 } : null,
+      in: opener ? { st: opener.b - (0.3 * OPEN_LIFT.riseMs) / 1000, d: (0.45 * OPEN_LIFT.riseMs) / 1000 } : null,
       out: closer ? { st: closer.a, d: COVER.moveMs / 1000 } : null,
     };
     const layer = phoneLayer({ from: "vm", to: "v0", base: input, ...phone, home: phoneHome, fades, captureIn: CAPTURE_IN, fps: FPS });

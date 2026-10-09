@@ -352,6 +352,9 @@ export function InstallAgentSkill() {
 export function InstallUpdate() {
   return invoke("install_update");
 }
+export function CancelUpdate() {
+  return invoke("cancel_update");
+}
 export function IsTerminalRemote(id) {
   return invoke("is_terminal_remote", { id });
 }

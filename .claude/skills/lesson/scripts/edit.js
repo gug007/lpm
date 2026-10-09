@@ -25,6 +25,8 @@ const HOOK_TAIL_MS = 450;
 // The opening card's hand-over (the window gliding into place) ends this long
 // after the card does.
 const CARD_LIFT_MS = OPEN_LIFT.riseMs - OPEN_LIFT.leadMs + 50;
+// The opening card's first frames, before its words and window fade in.
+const CARD_SKIP_MS = 150;
 const RESUME_LEAD_MS = 300;
 // The id the hook's clip, caption and timeline entry go by.
 const HOOK_ID = "coldOpen";
@@ -66,7 +68,8 @@ function planEdit({ timeline, lesson, hookMs = 0, log = () => {} }) {
     }
     const card = (timeline.cards || []).find((c) => c.first && !c.hold);
     if (card) {
-      cuts.push({ kind: "card", fromMs: snapDown(card.startMs), toMs: snap(card.startMs + card.ms + CARD_LIFT_MS), speed: 1 });
+      // From the hook straight into the card, past its first empty frames.
+      cuts.push({ kind: "card", fromMs: snapDown(card.startMs + CARD_SKIP_MS), toMs: snap(card.startMs + card.ms + CARD_LIFT_MS), speed: 1 });
       if (card.ms > 3000) log(`coldOpen: the opening card stays up ${(card.ms / 1000).toFixed(1)} s; end it sooner with s.card(title, { until })`);
     }
     const second = lines[1];
@@ -77,7 +80,7 @@ function planEdit({ timeline, lesson, hookMs = 0, log = () => {} }) {
     for (let i = 0; i + 1 < lines.length; i++) {
       const a = lines[i];
       const b = lines[i + 1];
-      if (!text.get(a.id) || a.startMs < mainFrom) continue;
+      if (!text.get(a.id) || a.startMs < mainFrom || (lesson.keepWaits || []).includes(a.id)) continue;
       const end = a.startMs + a.ms;
       if (b.startMs - end <= WAIT_MIN_MS) continue;
       const from = snap(end + WAIT_HEAD_MS);
@@ -130,7 +133,8 @@ function editTimeline(timeline, plan, placed, hook) {
     if (startMs != null) lines.push({ ...l, startMs: Math.round(startMs) });
   }
   const cards = (timeline.cards || []).flatMap((c) => {
-    const startMs = at(c.startMs);
+    // The opening card's cut starts a few frames into it (CARD_SKIP_MS).
+    const startMs = at(c.startMs) ?? (c.first ? (placed.find((p) => p.kind === "card")?.outStartMs ?? null) : null);
     return startMs == null ? [] : [{ ...c, startMs: Math.round(startMs) }];
   });
   const last = placed.at(-1);

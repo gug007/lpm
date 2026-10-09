@@ -6,6 +6,8 @@
 // simulated iPhone's own accessibility elements (its hit test reaches only
 // some of them, the labelled tree all), so this is how a lesson taps lpm Link. An Accessibility action: no click or keystroke
 // reaches any app. Exits 1 when there is nothing to press.
+// axpress <pid> --cancel <label>: AXCancel on the element labelled <label>,
+// which on the simulated iPhone is the system's back gesture.
 import ApplicationServices
 import Foundation
 
@@ -47,6 +49,26 @@ func labelled(_ e: AXUIElement, _ label: String, _ depth: Int, into found: inout
     }
     guard depth < 16 else { return }
     for child in (attr(e, kAXChildrenAttribute) as? [AXUIElement]) ?? [] { labelled(child, label, depth + 1, into: &found) }
+}
+
+if args[2] == "--cancel" {
+    guard args.count == 4 else { fail("usage: axpress <pid> --cancel <label>") }
+    func cancellable(_ e: AXUIElement, _ depth: Int) -> AXUIElement? {
+        var names: CFArray?
+        if [kAXTitleAttribute, kAXDescriptionAttribute].contains(where: { attr(e, $0) as? String == args[3] }),
+           AXUIElementCopyActionNames(e, &names) == .success, (names as? [String])?.contains(kAXCancelAction) == true {
+            return e
+        }
+        guard depth < 16 else { return nil }
+        for child in (attr(e, kAXChildrenAttribute) as? [AXUIElement]) ?? [] {
+            if let hit = cancellable(child, depth + 1) { return hit }
+        }
+        return nil
+    }
+    for window in (attr(app, kAXWindowsAttribute) as? [AXUIElement]) ?? [] {
+        if let e = cancellable(window, 0) { exit(AXUIElementPerformAction(e, kAXCancelAction as CFString) == .success ? 0 : 1) }
+    }
+    fail("nothing labelled \"\(args[3])\" to cancel")
 }
 
 if args[2] == "--at" {

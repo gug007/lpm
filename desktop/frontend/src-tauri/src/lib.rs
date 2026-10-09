@@ -181,6 +181,7 @@ mod openaitts;
 mod secrets;
 mod tts;
 mod uninstall;
+mod updatejob;
 #[cfg(any(not(target_os = "macos"), test))]
 mod updatenotice;
 mod updates;

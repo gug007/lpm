@@ -115,11 +115,17 @@ function phoneLayer({ from, to, base, layout, region, assets, taps = [], masks =
   const k = screen.w / layout.device.w;
   pictures.forEach((m, j) => {
     const [x, y, w, h] = m.rect.map((v) => Math.round(v * k));
-    const len = Math.max(0.04, (m.toMs - m.fromMs) / 1000);
-    inputs.push("-framerate", String(fps), "-loop", "1", "-t", len.toFixed(3), "-i", m.image);
+    // A moving mask (maskfit.js `track`) steps to each recorded offset.
+    const at = m.track
+      ? `'${m.track.reduceRight((rest, [ms, dy], i) => (i ? `if(lt(t,${(ms / 1000).toFixed(3)}),${Math.round((m.rect[1] + m.track[i - 1][1]) * k)},${rest})` : rest), String(Math.round((m.rect[1] + m.track.at(-1)[1]) * k)))}'`
+      : y;
+    // On for exactly the capture's frames from fromMs to toMs (a delayed
+    // input would start on the nearest whole frame instead).
+    const on = `'gte(t,${(m.fromMs / 1000).toFixed(4)})*lt(t,${(m.toMs / 1000).toFixed(4)})'`;
+    inputs.push("-framerate", String(fps), "-loop", "1", "-i", m.image);
     parts.push(
-      `[${base + 2 + taps.length + j}:v]scale=${w}:${h},format=rgba,setpts=PTS-STARTPTS+${(m.fromMs / 1000).toFixed(3)}/TB[pi${j}]`,
-      `[pp${j}][pi${j}]overlay=x=${x}:y=${y}:eof_action=pass[${j === pictures.length - 1 ? "ps0" : `pp${j + 1}`}]`,
+      `[${base + 2 + taps.length + j}:v]scale=${w}:${h},format=rgba[pi${j}]`,
+      `[pp${j}][pi${j}]overlay=x=${x}:y=${at}:enable=${on}:shortest=0:repeatlast=1[${j === pictures.length - 1 ? "ps0" : `pp${j + 1}`}]`,
     );
   });
   return { inputs, parts };

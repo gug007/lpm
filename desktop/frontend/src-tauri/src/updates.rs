@@ -16,10 +16,12 @@
 // refuse, and no auto-check thread is started.
 #![cfg_attr(not(target_os = "macos"), allow(dead_code))]
 
+use crate::updatejob::UpdateJob;
 use serde::{Deserialize, Serialize};
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
 use std::time::SystemTime;
@@ -31,6 +33,7 @@ const RELEASES_URL: &str = "https://api.github.com/repos/gug007/lpm/releases/lat
 #[derive(Default)]
 pub struct UpdateState {
     pending_url: Mutex<String>,
+    job: UpdateJob,
 }
 
 #[derive(Serialize, Clone)]
@@ -298,6 +301,8 @@ pub fn install_update(app: AppHandle, state: State<'_, UpdateState>) -> Result<(
     ))
 }
 
+/// Returns Ok only when cancel_update stopped it: a finished install relaunches
+/// the app instead of returning.
 #[cfg(target_os = "macos")]
 #[tauri::command(async)]
 pub fn install_update(app: AppHandle, state: State<'_, UpdateState>) -> Result<(), String> {
@@ -306,11 +311,30 @@ pub fn install_update(app: AppHandle, state: State<'_, UpdateState>) -> Result<(
     if current_version() == "dev" {
         return Err("Updates aren't available in development builds.".into());
     }
+    let mut job = state.job.begin()?;
+    match install(&app, &state, &mut job) {
+        Err(_) if job.cancelled() => Ok(()),
+        result => result,
+    }
+}
+
+#[tauri::command]
+pub fn cancel_update(state: State<'_, UpdateState>) -> bool {
+    state.job.cancel()
+}
+
+#[cfg(target_os = "macos")]
+fn install(
+    app: &AppHandle,
+    state: &UpdateState,
+    job: &mut crate::updatejob::JobGuard,
+) -> Result<(), String> {
     let _ = app.emit("update-status", "checking");
 
     // Re-check so we install the actual latest release, not whatever was
     // stashed at the last check — a newer version may have shipped since.
-    let info = do_check(&state)?;
+    let check_app = app.clone();
+    let info = job.run(move || do_check(&check_app.state::<UpdateState>()))?;
     if !info.update_avail {
         return Err("You're already on the latest version.".into());
     }
@@ -331,6 +355,7 @@ pub fn install_update(app: AppHandle, state: State<'_, UpdateState>) -> Result<(
         .to_path_buf();
     ensure_app_dir_writable(&app_dir)?;
 
+    job.check()?;
     let _ = app.emit("update-status", "downloading");
 
     // Download the DMG to a temp file, emitting integer percent progress.
@@ -341,8 +366,9 @@ pub fn install_update(app: AppHandle, state: State<'_, UpdateState>) -> Result<(
         .map_err(|e| format!("failed to create temp file: {e}"))?;
     let app_progress = app.clone();
     let url_owned = url.clone();
+    let cancel = job.flag();
     let mut out_file = tmp.as_file().try_clone().map_err(|e| e.to_string())?;
-    run_off_worker(move || {
+    job.run(move || {
         let client = reqwest::blocking::Client::builder()
             .timeout(Duration::from_secs(300))
             .user_agent("lpm")
@@ -359,13 +385,14 @@ pub fn install_update(app: AppHandle, state: State<'_, UpdateState>) -> Result<(
             ));
         }
         let total = resp.content_length().unwrap_or(0);
-        copy_with_progress(&mut resp, &mut out_file, total, &|pct| {
+        copy_with_progress(&mut resp, &mut out_file, total, &cancel, &|pct| {
             let _ = app_progress.emit("update-progress", pct);
         })
         .map_err(|e| format!("failed to save update: {e}"))
     })?;
     let dmg_path = tmp.into_temp_path();
 
+    job.commit()?;
     let _ = app.emit("update-status", "installing");
 
     let mount = tempfile::Builder::new()
@@ -465,12 +492,16 @@ fn copy_with_progress(
     src: &mut impl Read,
     dst: &mut impl std::io::Write,
     total: u64,
+    cancel: &AtomicBool,
     emit: &dyn Fn(i64),
 ) -> std::io::Result<()> {
     let mut buf = [0u8; 64 * 1024];
     let mut written: u64 = 0;
     let mut last_pct: i64 = -1;
     loop {
+        if cancel.load(Ordering::SeqCst) {
+            return Err(std::io::ErrorKind::Interrupted.into());
+        }
         let n = src.read(&mut buf)?;
         if n == 0 {
             break;

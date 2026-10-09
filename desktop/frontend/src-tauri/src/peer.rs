@@ -1783,6 +1783,7 @@ fn is_denied(cmd: &str) -> bool {
             // updater / installers
             | "check_for_update"
             | "install_update"
+            | "cancel_update"
             | "install_kokoro"
             | "uninstall_kokoro"
             | "install_cli"
@@ -2363,6 +2364,7 @@ mod tests {
         assert!(is_denied("tailnet_sign_out"));
         assert!(is_denied("save_settings"));
         assert!(is_denied("install_update"));
+        assert!(is_denied("cancel_update"));
         assert!(is_denied("open_browser"));
         assert!(is_denied("open_in"));
         assert!(is_denied("open_file_in_editor"));

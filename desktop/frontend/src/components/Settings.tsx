@@ -37,22 +37,22 @@ import {
   type TerminalThemeName,
   getTerminalThemeColors,
 } from "../terminal-themes";
-import { ProgressBar } from "./ui/ProgressBar";
 import { ShortcutRecorder } from "./ui/ShortcutRecorder";
 import { HOTKEYS, resolveHotkey, configuredHotkeyCombos } from "../hotkeys";
 import { shortcutRequirementHint } from "../shortcutRecord";
 import { BTN_SECONDARY } from "./ui/buttons";
 import { SkillInstallControl } from "./SkillInstallControl";
+import { useUpdateInstall } from "./useUpdateInstall";
+import type { UpdateInstallState } from "../store/updateInstall";
 import { statuslineSelectionLabel } from "./ClaudeStatusLineView";
 import { codexStatuslineSelectionLabel } from "./CodexStatusLineView";
 import { StatusLineRowPreview } from "./StatusLineRowPreview";
 import { onStatusLineChanged } from "./statusLineChanges";
 import { AgentToolsManualSetup } from "./AgentToolsManualSetup";
-import { BrowserOpenURL, EventsOn } from "../../bridge/runtime";
+import { BrowserOpenURL } from "../../bridge/runtime";
 import {
   GetVersion,
   CheckForUpdate,
-  InstallUpdate,
   CheckClaudeHooks,
   ResetClaudeHooks,
   ExportConfig,
@@ -150,8 +150,6 @@ function getUpdateDescription(
   switch (status) {
     case "checking":
       return "Checking...";
-    case "installing":
-      return "Downloading and installing...";
     case "available":
       return `v${latestVersion} available`;
     case "up-to-date":
@@ -161,6 +159,12 @@ function getUpdateDescription(
     default:
       return "Check for new versions";
   }
+}
+
+function installDescription({ phase, progress, cancelling }: UpdateInstallState): string {
+  if (cancelling) return "Cancelling update...";
+  if (phase === "installing") return "Installing. lpm restarts in a moment.";
+  return phase === "downloading" && progress >= 0 ? `Downloading... ${progress}%` : "Downloading...";
 }
 
 export function Settings({
@@ -297,8 +301,6 @@ export function Settings({
   const [hooksStatus, setHooksStatus] = useState<HooksStatus>("idle");
   const [showResetDialog, setShowResetDialog] = useState(false);
   const [resettingHooks, setResettingHooks] = useState(false);
-  const [installProgress, setInstallProgress] = useState(-1);
-  const [installPhase, setInstallPhase] = useState<"checking" | "downloading" | "installing">("checking");
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [showImportOptions, setShowImportOptions] = useState(false);
@@ -394,13 +396,6 @@ export function Settings({
     GetVersion().then(setVersion);
   }, []);
 
-  useEffect(() => EventsOn("update-progress", (pct: number) => setInstallProgress(pct)), []);
-  useEffect(() => EventsOn("update-status", (status: string) => {
-    if (status === "checking") setInstallPhase("checking");
-    else if (status === "downloading") setInstallPhase("downloading");
-    else if (status === "installing") setInstallPhase("installing");
-  }), []);
-
   useEventListener(
     "change",
     () => {
@@ -410,9 +405,13 @@ export function Settings({
     theme === "system",
   );
 
+  const update = useUpdateInstall();
+  const shownUpdateStatus: UpdateStatus = update.active ? "installing" : update.error ? "error" : updateStatus;
+
   const handleCheckUpdate = async () => {
     setUpdateStatus("checking");
     setUpdateError("");
+    update.dismissError();
     try {
       const info = await CheckForUpdate();
       setUpdateStatus(info.updateAvail ? "available" : "up-to-date");
@@ -431,17 +430,6 @@ export function Settings({
     }
   }, [pendingUpdateCheck]);
 
-  const handleInstallUpdate = async () => {
-    setUpdateStatus("installing");
-    setInstallProgress(-1);
-    setInstallPhase("checking");
-    try {
-      await InstallUpdate();
-    } catch (err) {
-      setUpdateStatus("error");
-      setUpdateError(String(err));
-    }
-  };
 
   const handleCheckHooks = async () => {
     setHooksStatus("checking");
@@ -544,7 +532,7 @@ export function Settings({
 
   return (
     <div className="-mx-6 flex flex-1 overflow-hidden">
-      {updateStatus === "installing" && <InstallingOverlay phase={installPhase} progress={installProgress} />}
+      {update.dialogs}
       {removingApp && <RemovingOverlay />}
 
       <nav className="flex w-52 shrink-0 flex-col overflow-y-auto border-r border-[var(--border)] bg-[var(--bg-sidebar)] px-3 pt-6">
@@ -664,16 +652,26 @@ export function Settings({
                   description:
                     version === "dev"
                       ? "Not available in development builds"
-                      : getUpdateDescription(updateStatus, latestVersion, updateError),
+                      : update.active
+                        ? installDescription(update)
+                        : getUpdateDescription(shownUpdateStatus, latestVersion, update.error || updateError),
                 })}
               >
-                {version === "dev" ? null : updateStatus === "available" ? (
-                  <button onClick={UPDATES_INSTALL_IN_APP ? handleInstallUpdate : openReleasePage} className="rounded-md bg-[var(--accent-green)] px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90">
+                {version === "dev" ? null : update.active ? (
+                  <button
+                    onClick={update.cancel}
+                    disabled={update.cancelling || update.phase === "installing"}
+                    className={BTN_SECONDARY}
+                  >
+                    {update.phase === "installing" ? <RefreshIcon spinning /> : "Cancel"}
+                  </button>
+                ) : shownUpdateStatus === "available" ? (
+                  <button onClick={UPDATES_INSTALL_IN_APP ? update.request : openReleasePage} className="rounded-md bg-[var(--accent-green)] px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90">
                     {UPDATES_INSTALL_IN_APP ? "Update" : "Download"}
                   </button>
                 ) : (
-                  <button onClick={handleCheckUpdate} disabled={updateStatus === "checking" || updateStatus === "installing"} className={BTN_SECONDARY}>
-                    {updateStatus === "checking" || updateStatus === "installing" ? <RefreshIcon spinning /> : "Check"}
+                  <button onClick={handleCheckUpdate} disabled={shownUpdateStatus === "checking"} className={BTN_SECONDARY}>
+                    {shownUpdateStatus === "checking" ? <RefreshIcon spinning /> : "Check"}
                   </button>
                 )}
               </SettingsRow>
@@ -1572,28 +1570,6 @@ function RefreshIcon({ spinning, size = 12 }: { spinning?: boolean; size?: numbe
       <polyline points="23 4 23 10 17 10" />
       <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
     </svg>
-  );
-}
-
-function InstallingOverlay({ phase, progress }: { phase: "checking" | "downloading" | "installing"; progress: number }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="flex flex-col items-center gap-3 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-6 py-5 shadow-lg">
-        <RefreshIcon spinning size={24} />
-        <p className="text-sm font-medium text-[var(--text-primary)]">
-          {phase === "checking"
-            ? "Checking for updates..."
-            : phase === "downloading"
-            ? "Downloading update..."
-            : "Installing update..."}
-        </p>
-        {phase === "downloading" && progress >= 0 ? (
-          <ProgressBar value={progress} />
-        ) : (
-          <p className="text-xs text-[var(--text-muted)]">The app will restart when finished</p>
-        )}
-      </div>
-    </div>
   );
 }
 

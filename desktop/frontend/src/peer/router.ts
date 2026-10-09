@@ -19,6 +19,7 @@ const LOCAL_ONLY_EXACT = new Set<string>([
   "resume_tts",
   "check_for_update",
   "install_update",
+  "cancel_update",
   "load_claude_accounts",
   "save_claude_accounts",
   "remove_claude_account",

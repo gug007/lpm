@@ -126,6 +126,35 @@ class PhoneStage extends AppStage {
     await sleep(opts.settle ?? 700);
   }
 
+  // Back one screen (iOS's back gesture on an element labelled `label`,
+  // for a toolbar that has no element of its own), until `verify` shows.
+  async phoneBack(label, opts = {}) {
+    if (opts.cue) await this.holdUntil(this.cueMs(opts.cue) - (opts.lead ?? 0));
+    await this.phoneWaitFor(label, opts.timeout);
+    this.phone.back(typeof label === "string" ? label : label.label);
+    this.log(`phone: back from ${describeSel(label)}`);
+    // The screen behind is in the tree before the animation ends, and a
+    // second back sent during it is lost: wait for this one to go.
+    await this.phoneGone(label, opts.verifyMs ?? 5000);
+    if (opts.verify) await this.phoneWaitFor(opts.verify, opts.verifyMs ?? 5000);
+    await sleep(opts.settle ?? 350);
+  }
+
+  // The phone's status bar network (simctl status_bar override keys), e.g.
+  // { dataNetwork: "5g", wifiMode: "failed" } when the story leaves home.
+  phoneStatusBar(opts) {
+    this.phone.statusBar(opts);
+    this.log(`phone: status bar ${JSON.stringify(opts)}`);
+  }
+
+  // A touch mark at device point (x, y) without pressing anything: a tap on a
+  // stand-in picture (a provider on the pictured sign-in page).
+  async phoneTouch(x, y, opts = {}) {
+    if (opts.cue) await this.holdUntil(this.cueMs(opts.cue) - (opts.lead ?? 0));
+    this.taps.push({ atMs: Date.now() - this.t0, ...this.phoneOut(x, y) });
+    this.log(`phone: touch ${Math.round(x)},${Math.round(y)}`);
+  }
+
   // Opens lpm Link from the home screen afresh, as after a while away: the
   // icon gets the touch mark and the app starts again with the lesson's env.
   async phoneOpenApp(icon = "lpm", opts = {}) {

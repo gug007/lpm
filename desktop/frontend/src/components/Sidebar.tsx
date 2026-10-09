@@ -20,7 +20,7 @@ import { openClaudeAccountSettings, pinClaudeAccount } from "../store/claudeAcco
 import { GLOBAL_TERMINALS_KEY } from "../terminals";
 import { useTerminalTitles } from "../store/terminalTitles";
 import { EventsOn } from "../../bridge/runtime";
-import { CheckForUpdate, InstallUpdate, SetClipboardText } from "../../bridge/commands";
+import { CheckForUpdate, SetClipboardText } from "../../bridge/commands";
 import {
   isDuplicate,
   type DuplicateMode,
@@ -42,14 +42,13 @@ import { deckKindLabel, deckLabel, deckRunDomId } from "./sidebarDeck";
 import { SidebarAgentRows } from "./SidebarAgentRows";
 import { SidebarAgentSummary } from "./SidebarAgentSummary";
 import { SidebarRollupLine } from "./SidebarRollupLine";
-import { SidebarIcon, AlertCircleIcon, MoreVerticalIcon, DetachIcon, PlusIcon, ServerIcon } from "./icons";
+import { SidebarIcon, MoreVerticalIcon, DetachIcon, PlusIcon, ServerIcon } from "./icons";
 import { SidebarFooterNav } from "./SidebarFooterNav";
 import { AppMenuButton } from "./AppMenuButton";
 import { isMac, trashName } from "../platform";
 import { chordLabel } from "../keys";
 import { SidebarAgentToolsPill } from "./SidebarAgentToolsPill";
 import { SidebarUsage } from "./SidebarUsage";
-import { ProgressBar } from "./ui/ProgressBar";
 import { SortableItem } from "./ui/SortableList";
 import {
   type SidebarLayout,
@@ -94,6 +93,8 @@ import { ProjectNameDisplay, projectDisplayName } from "./ProjectNameDisplay";
 import { SidebarWorkStatusLine } from "./SidebarWorkStatusLine";
 import { WorkStatusMark } from "./WorkStatusMark";
 import { useWorkStatusDialogs } from "./useWorkStatusDialogs";
+import { SidebarUpdateRow } from "./SidebarUpdateRow";
+import { useUpdateInstall } from "./useUpdateInstall";
 import { useWorkStatusesStore } from "../store/workStatuses";
 import { workStatusNote, type WorkStatusInput } from "../workStatus";
 import { RenameModal } from "./RenameModal";
@@ -226,11 +227,8 @@ interface PeerRowOptions {
 }
 
 export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, onCollapsedChange, onSelect, onOpenProjectView, onToggle, onTerminals, onFleet, onStats, onUsage, onScheduled, onMobile, onFeedback, onSettings, onAddProject, onBulkDuplicate, onRemoveProject, onRemoveProjectCascade, onRemoveProjectFromDisk, onRemoveProjectsBatch, onRenameProject, onSetWorkStatus, onMoveProjectRoot, onApplySidebarLayout, onReorderDuplicate, onCreateGroup, onRenameGroup, onDeleteGroup, onToggleGroupCollapsed, onMoveProjectToGroup, onMoveProjectsToGroup, onDetachProject, onAttachProject, detached, detachedSelf, showTerminals, showFleet, showStats, showUsage, showMobile, showScheduled, showSettings, duplicatingNames, pendingDuplicates, removingNames }: SidebarProps) {
-  const [updateInfo, setUpdateInfo] = useState<{ latestVersion: string } | null>(null);
-  const [installing, setInstalling] = useState(false);
-  const [progress, setProgress] = useState(-1); // -1 = no progress yet
-  const [updatePhase, setUpdatePhase] = useState<"checking" | "downloading" | "installing">("checking");
-  const [updateError, setUpdateError] = useState("");
+  const [updateInfo, setUpdateInfo] = useState<{ currentVersion: string; latestVersion: string } | null>(null);
+  const update = useUpdateInstall();
   const [contextMenu, setContextMenu] = useState<{ name: string; x: number; y: number } | null>(null);
   const [groupMenu, setGroupMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
@@ -780,31 +778,13 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
         logDiagnostic("warn", "update.check_failed", "Update check failed", err),
       );
   }, []);
-  useEffect(() => EventsOn("update-progress", (pct: number) => setProgress(pct)), []);
-  useEffect(() => EventsOn("update-status", (status: string) => {
-    if (status === "checking") setUpdatePhase("checking");
-    else if (status === "downloading") setUpdatePhase("downloading");
-    else if (status === "installing") setUpdatePhase("installing");
-  }), []);
-
-  const handleUpdate = async () => {
+  const handleUpdate = () => {
     if (!UPDATES_INSTALL_IN_APP) {
       openReleasePage();
       return;
     }
-    setInstalling(true);
-    setUpdateError("");
-    setProgress(-1);
-    setUpdatePhase("checking");
-    try {
-      await InstallUpdate();
-    } catch (err) {
-      setInstalling(false);
-      setUpdateError(String(err));
-    }
+    update.request();
   };
-
-  const dismissError = () => setUpdateError("");
 
   // Folder drop zones win over reorder only when a PROJECT is dragged onto a
   // folder it doesn't already belong to; folders and peer sections only reorder.
@@ -1901,22 +1881,13 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
         }}
       />
 
-      {updateInfo && (
-        <button
-          onClick={handleUpdate}
-          disabled={installing}
-          className="mx-2 mb-2 flex items-center gap-2 rounded-md px-3 py-2 text-left transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-50"
-        >
-          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--accent-green)]" />
-          <span className="text-xs text-[var(--text-secondary)]">
-            {installing ? "Updating..." : `v${updateInfo.latestVersion}`}
-          </span>
-          {!installing && (
-            <span className="ml-auto text-[10px] font-medium text-[var(--accent-green)]">
-              {UPDATES_INSTALL_IN_APP ? "Update" : "Download"}
-            </span>
-          )}
-        </button>
+      {(updateInfo || update.active || update.error) && (
+        <SidebarUpdateRow
+          currentVersion={updateInfo?.currentVersion ?? ""}
+          latestVersion={updateInfo?.latestVersion ?? ""}
+          update={update}
+          onUpdate={handleUpdate}
+        />
       )}
 
       <SidebarAgentToolsPill />
@@ -1947,48 +1918,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
         onMouseDown={handleResizeStart}
         className="absolute inset-y-0 -right-2 w-4 cursor-col-resize before:absolute before:inset-y-0 before:left-1/2 before:-translate-x-1/2 before:w-1 hover:before:bg-[var(--accent-cyan)]/20 active:before:bg-[var(--accent-cyan)]/30"
       />
-      {updateError && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="flex flex-col items-center gap-4 rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-8 py-6 shadow-2xl">
-            <span className="text-red-400"><AlertCircleIcon /></span>
-            <div className="flex flex-col items-center gap-1">
-              <p className="text-sm font-medium text-[var(--text-primary)]">Update failed</p>
-              <p className="max-w-[240px] text-center text-[11px] text-[var(--text-muted)]">{updateError}</p>
-            </div>
-            <div className="flex gap-2">
-              <button onClick={dismissError} className="rounded-md border border-[var(--border)] px-3 py-1.5 text-xs text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)]">
-                Dismiss
-              </button>
-              <button onClick={handleUpdate} className="rounded-md bg-[var(--accent-green)] px-3 py-1.5 text-xs text-black transition-opacity hover:opacity-80">
-                Retry
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      {installing && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="flex flex-col items-center gap-4 rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-8 py-6 shadow-2xl">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="animate-spin text-[var(--accent-green)]">
-              <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-            </svg>
-            <div className="flex flex-col items-center gap-1">
-              <p className="text-sm font-medium text-[var(--text-primary)]">
-                {updatePhase === "checking"
-                  ? "Checking for updates..."
-                  : updatePhase === "downloading"
-                  ? "Downloading update..."
-                  : "Installing update..."}
-              </p>
-              {updatePhase === "downloading" && progress >= 0 ? (
-                <ProgressBar value={progress} />
-              ) : (
-                <p className="text-[11px] text-[var(--text-muted)]">The app will restart automatically</p>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      {update.dialogs}
     </aside>
   );
 }
