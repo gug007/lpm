@@ -11,7 +11,7 @@ const PAINS: { title: string; body: string }[] = [
   },
   {
     title: "Work and personal usage blur together",
-    body: "Each Claude subscription has its own usage allowance. When one login serves every repo, a heavy afternoon on a side project eats the quota your work project needed — and there's no way to tell which project spent it.",
+    body: "Each Claude subscription has its own usage allowance. When one login serves every repo, a heavy afternoon on a side project eats the quota your work project needed — and there's no way to tell which project spent it. When that login hits its limit, the only way onto your other subscription is another logout.",
   },
 ];
 

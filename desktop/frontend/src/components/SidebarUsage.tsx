@@ -11,6 +11,7 @@ import { useSettingsStore } from "../store/settings";
 import { usageSidebarTools, usageSidebarWindow } from "./usageSidebarSettings";
 import { displayNameForProjectName } from "./ProjectNameDisplay";
 import { PaceTick } from "./PaceTick";
+import { SidebarUsageAccountMenu } from "./SidebarUsageAccountMenu";
 import { SidebarUsagePopover } from "./SidebarUsagePopover";
 import { UsageProviderCard } from "./UsageProviderCard";
 import { Tooltip } from "./ui/Tooltip";
@@ -104,7 +105,7 @@ function RowBody({ row, note }: { row: UsageRow; note?: AccountNote }) {
 // to what it spent today, so a row never goes blank. Hovering a row opens the
 // same card the Usage window shows. With more than one Claude account listed,
 // the selected project's account carries an "in use" tag and the rest of its
-// pool a "pool" tag.
+// pool a "pool" tag. Right-clicking an account row switches to that account.
 export function SidebarUsage({ onOpen }: { onOpen: () => void }) {
   const enabled = useSettingsStore((s) => s.usageInSidebar ?? true);
   const tools = useSettingsStore(usageSidebarTools);
@@ -118,6 +119,7 @@ export function SidebarUsage({ onOpen }: { onOpen: () => void }) {
   const projects = useAppStore((s) => s.projects);
   const inUse = useProjectClaudeAccounts(enabled ? selected : null);
   const [hovered, setHovered] = useState<{ id: string; anchor: DOMRect } | null>(null);
+  const [menu, setMenu] = useState<{ account: string; label: string; x: number; y: number } | null>(null);
   const timer = useRef<number | null>(null);
 
   const accounts = useMemo(
@@ -175,6 +177,16 @@ export function SidebarUsage({ onOpen }: { onOpen: () => void }) {
             onClick={onOpen}
             onMouseEnter={(e) => row.data && open(row.id, e.currentTarget)}
             onMouseLeave={close}
+            onContextMenu={
+              row.id.startsWith(CLAUDE_ACCOUNT_ROW)
+                ? (e) => {
+                    e.preventDefault();
+                    close();
+                    const account = row.id.slice(CLAUDE_ACCOUNT_ROW.length);
+                    setMenu({ account, label: row.label, x: e.clientX, y: e.clientY });
+                  }
+                : undefined
+            }
             className="flex w-full flex-col gap-1 rounded-md px-3 py-1 text-left hover:bg-[var(--bg-hover)]"
           >
             <RowBody row={row} note={note} />
@@ -231,6 +243,16 @@ export function SidebarUsage({ onOpen }: { onOpen: () => void }) {
           </div>
         );
       })}
+      {menu && (
+        <SidebarUsageAccountMenu
+          account={menu.account}
+          label={menu.label}
+          x={menu.x}
+          y={menu.y}
+          onOpenUsage={onOpen}
+          onClose={() => setMenu(null)}
+        />
+      )}
     </div>
   );
 }

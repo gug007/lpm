@@ -28,7 +28,7 @@ import Workflows from "./_components/workflows";
 
 const TITLE = "Multiple Claude Code Accounts — No Logging Out";
 const DESCRIPTION =
-  "Pin a Claude Code account to each project and keep work and personal signed in at once — no logout, no config swapping. Open a repo, get the right account.";
+  "Pin a Claude Code account to each project, or let new sessions move to an account with room when one nears its limit. Every account stays signed in — no logout.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -41,6 +41,8 @@ export const metadata: Metadata = {
     "claude code work and personal account",
     "claude code account switcher alternative",
     "claude code usage limit switch account",
+    "claude code auto switch account",
+    "claude code switch account when limit reached",
     "CLAUDE_CONFIG_DIR per project",
   ],
   alternates: {
@@ -69,6 +71,7 @@ const structuredData = [
       "multiple Claude Code accounts",
       "per-project Claude account",
       "Claude Code account switching",
+      "automatic Claude account switching",
       "parallel AI coding agents",
     ],
   }),

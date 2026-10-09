@@ -11,7 +11,7 @@ const FAQS: QA[] = [
   {
     question: "How is this different from claude-swap and other account switchers?",
     answer:
-      "Switchers change the globally active account: back up the current credentials, restore another set, restart your sessions — and every project on the machine flips together. lpm doesn't switch anything. Each project is pinned to an account, all accounts stay signed in side by side, and two projects can run two different accounts at the same moment. There's also no credential handling: switchers copy token files or Keychain entries around; lpm just points each project at its own Claude Code home and lets Claude manage its own login there.",
+      "Switchers change the globally active account: back up the current credentials, restore another set, restart your sessions — and every project on the machine flips together. lpm never swaps a login. Each project points at its own account, all accounts stay signed in side by side, and two projects can run two different accounts at the same moment. Even automatic switching only decides which account the next new session starts on; nothing already running moves. There's also no credential handling: switchers copy token files or Keychain entries around; lpm just points each project at its own Claude Code home and lets Claude manage its own login there.",
   },
   {
     question:
@@ -22,12 +22,22 @@ const FAQS: QA[] = [
   {
     question: "What do I do when one account hits its limit?",
     answer:
-      "Open the project's menu in the sidebar and pick another account under Claude account. The menu shows each account's 5-hour and weekly usage and when it resets, so you can pick the one with room. New Claude sessions in that project run on the new account right away; sessions already open keep the account they started with. When the first account resets, switch back the same way.",
+      "Two ways. Turn on Switch accounts automatically in Settings, and new Claude sessions move to the next account in your list once one is close to its 5-hour or weekly limit: lpm either asks in the sidebar first or moves them on its own and tells you. Or open the project's menu in the sidebar and pick another account under Claude account, which shows each account's usage and when it resets. Either way, sessions already open keep the account they started with.",
+  },
+  {
+    question: "How does automatic switching pick an account?",
+    answer:
+      "Up to three accounts take turns, in the order you drag them in Settings. A new session starts on the first one that is under 90% of both its 5-hour and weekly limits. Accounts that hit a limit, are signed out, or are signed in as the same Claude account twice are skipped; if every account is close, the one with the most room is used. A project can keep its own list with Choose accounts in its menu, and a pinned project never switches. Resuming a past conversation goes back to the account that holds it.",
+  },
+  {
+    question: "Is switching accounts when one runs low allowed?",
+    answer:
+      "Before switching starts, lpm asks you to confirm that every account in the list is yours alone. Anthropic hasn't said whether switching accounts when one runs low is allowed, and it can limit or close accounts it believes break its terms; usage credits or a higher plan are Anthropic's supported ways to keep working past a limit. Team and Enterprise seats only join once you allow them, since their use counts against the organization, and if an account is ever put on hold, lpm pauses switching everywhere until you turn it back on.",
   },
   {
     question: "Do I have to log out and back in when I change projects?",
     answer:
-      "No. You sign in to each account once, with the Sign in button next to it in Settings. After that, moving between projects is just clicking in the sidebar; each project's terminals are already signed in as the right account, even when several projects with different accounts are running at once.",
+      "No. You sign in to each account once, right after you add it in Settings. After that, moving between projects is just clicking in the sidebar; each project's terminals are already signed in as the right account, even when several projects with different accounts are running at once.",
   },
   {
     question: "Where are my credentials stored? Does lpm see my tokens?",
@@ -42,12 +52,12 @@ const FAQS: QA[] = [
   {
     question: "What happens to the account I already use?",
     answer:
-      "Nothing. Your existing login stays the default: any project without a pin keeps using it, and you don't re-authenticate anything. You only add the extra accounts, a work seat or a client seat, and pin them where they belong.",
+      "Nothing. Your existing login stays the main one: any project without its own account keeps using it until you turn on switching, and you don't re-authenticate anything. You only add the extra accounts, a work seat or a client seat, and pin them where they belong.",
   },
   {
     question: "Do duplicates and worktrees keep the pinned account?",
     answer:
-      "Yes. Copies and worktrees inherit the parent project's account, so a fan-out of a work repo stays on the work seat. A copy can still pick its own account from its menu in the sidebar, and Same as parent puts it back.",
+      "Yes. Copies and worktrees inherit the parent project's account or list, so a fan-out of a work repo stays on the work seat. A copy can still pick its own account from its menu in the sidebar, and Same as parent puts it back.",
   },
   {
     question: "I use an API key in some projects — does pinning interfere?",
@@ -62,7 +72,7 @@ const FAQS: QA[] = [
   {
     question: "Any limitations I should know about?",
     answer:
-      "Account pinning applies to projects that run on your computer; SSH projects use whatever Claude login exists on the remote host. Scheduled automations and AI skill drafting run on your main login, not the pinned one. Terminals that are already open keep the account they launched with, and a new pin applies to terminals you open afterwards. Keep Claude Code reasonably up to date, since pinning relies on it keeping each account's login separate. One gotcha: if you set CLAUDE_CONFIG_DIR by hand in your shell profile (such as ~/.zprofile, ~/.zshrc or ~/.bashrc), remove it, because a login shell re-sources it and overrides the per-project account.",
+      "Per-project accounts apply to projects that run on your computer; SSH projects use whatever Claude login exists on the remote host. Scheduled automations run on the project's own account and never switch. Automatic switching needs Claude usage turned on in lpm, since it decides by each account's usage. Terminals that are already open keep the account they launched with, and a new choice applies to terminals you open afterwards. Keep Claude Code reasonably up to date, since pinning relies on it keeping each account's login separate. One gotcha: if you set CLAUDE_CONFIG_DIR by hand in your shell profile (such as ~/.zprofile, ~/.zshrc or ~/.bashrc), remove it, because a login shell re-sources it and overrides the per-project account.",
   },
 ];
 

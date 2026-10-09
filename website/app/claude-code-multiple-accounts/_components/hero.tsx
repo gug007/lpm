@@ -7,7 +7,7 @@ export default function Hero() {
       <div className="absolute inset-x-0 top-0 -z-10 h-[38rem] bg-[radial-gradient(circle_at_top_left,rgba(217,119,6,0.14),transparent_32%),radial-gradient(circle_at_top_right,rgba(20,184,166,0.12),transparent_30%)] dark:bg-[radial-gradient(circle_at_top_left,rgba(217,119,6,0.16),transparent_30%),radial-gradient(circle_at_top_right,rgba(20,184,166,0.14),transparent_28%)]" />
       <div className="max-w-4xl mx-auto px-6">
         <p className="text-xs font-medium uppercase tracking-[0.25em] text-amber-700/70 dark:text-amber-300/70 mb-5">
-          Account pinning
+          Claude accounts
         </p>
         <h1 className="text-[2.25rem] sm:text-5xl md:text-[clamp(2.75rem,6.2vh,3.75rem)] font-extrabold tracking-tight leading-[1.06] bg-gradient-to-br from-gray-900 via-gray-800 to-gray-600 dark:from-white dark:via-gray-100 dark:to-gray-400 bg-clip-text text-transparent">
           Multiple Claude Code accounts on one computer — no logging out.
@@ -16,7 +16,8 @@ export default function Hero() {
           lpm pins a Claude Code account to each project. Work repos run on the
           company seat, side projects stay personal — at the same time, in one
           window. Sign in to each account once; after that, opening a project
-          just uses the right one.
+          just uses the right one. And when an account nears its limit, new
+          sessions can move to one with room.
         </p>
 
         <div className="mt-[clamp(1rem,2vh,1.5rem)] flex flex-wrap justify-center gap-3 text-xs font-medium text-gray-600 dark:text-gray-300">
@@ -25,6 +26,9 @@ export default function Hero() {
           </span>
           <span className="rounded-full border border-gray-200 bg-white/70 px-3 py-1.5 shadow-sm dark:border-gray-800 dark:bg-white/[0.04]">
             accounts run in parallel
+          </span>
+          <span className="rounded-full border border-gray-200 bg-white/70 px-3 py-1.5 shadow-sm dark:border-gray-800 dark:bg-white/[0.04]">
+            switch when one runs low
           </span>
           <span className="rounded-full border border-gray-200 bg-white/70 px-3 py-1.5 shadow-sm dark:border-gray-800 dark:bg-white/[0.04]">
             no logout, no token copying

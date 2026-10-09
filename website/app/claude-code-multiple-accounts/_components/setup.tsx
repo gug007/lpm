@@ -12,22 +12,23 @@ type Step = {
 const STEPS: Step[] = [
   {
     title: "Add your accounts",
-    body: "Name them anything: Work, Client A. Your current login stays the default; you only add the extra ones.",
-    path: ["Settings", "AI & Integrations", "Add account"],
+    body: "Name them anything: Work, Client A. Your current login stays the main one; you only add the extra ones.",
+    path: ["Settings", "AI & Integrations", "Claude accounts", "Add account"],
   },
   {
     title: "Sign in once",
-    body: "Click Sign in next to the account. lpm opens Claude's own sign-in for it, then shows the email you signed in with.",
-    path: ["Settings", "AI & Integrations", "Sign in"],
+    body: "Add and sign in opens Claude's own sign-in for the new account. Its row then shows the plan, the email you signed in with, and its usage.",
+    path: ["Add account", "Add and sign in"],
   },
   {
     title: "Pin a project",
-    body: "Open the project's menu in the sidebar and pick the account under Claude account, which shows each account's 5-hour and weekly usage. Settings lists which projects use each account.",
+    body: "Open the project's menu in the sidebar and pick the account under Claude account. Every terminal in the project, and lpm's commit, PR, and branch helpers, now use it.",
     path: ["Project menu", "Claude account"],
   },
   {
-    title: "Just work",
-    body: "Every terminal in the project, and lpm's commit, PR, and branch helpers, now use its account. Other projects run theirs at the same time.",
+    title: "Or let it switch",
+    body: "Turn on Switch accounts automatically and confirm each account is yours. Projects without their own account start new sessions on the first one with room.",
+    path: ["Claude accounts", "Switch accounts automatically"],
   },
 ];
 
@@ -37,7 +38,7 @@ export default function Setup() {
       <div className="max-w-5xl mx-auto px-6">
         <SectionHeader
           eyebrow="Setup"
-          title="Zero to pinned in four steps"
+          title="From one login to many in four steps"
           description="One-time setup, about two minutes. No config files required — the app writes them for you."
         />
         <ol className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">

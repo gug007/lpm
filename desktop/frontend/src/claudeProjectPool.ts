@@ -26,6 +26,11 @@ function viewOf(source: PoolSource, pool: ClaudePool | null): PoolView | undefin
   return source.kind === "list" ? (poolForProject(pool, source.owner) ?? main) : main;
 }
 
+/** Whether the project, or the parent a copy follows, is pinned to one account. */
+export function projectPinned(project: ProjectInfo, projects: ProjectInfo[]): boolean {
+  return sourceOf(project, projects).kind === "pin";
+}
+
 /** The pool a project's new Claude sessions pick from, or undefined when it is
  *  pinned to one account. */
 export function projectPool(
