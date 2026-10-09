@@ -53,7 +53,7 @@ interface AccountsState {
   usage: Record<string, string[]>;
   hydrate: () => Promise<void>;
   refreshStatuses: () => Promise<void>;
-  add: (label: string) => Promise<void>;
+  add: (label: string) => Promise<ClaudeAccount>;
   rename: (id: string, label: string) => Promise<void>;
   remove: (id: string) => Promise<void>;
 }
@@ -100,7 +100,11 @@ export const useAccountsStore = create<AccountsState>((set, get) => {
       }
     },
 
-    add: async (label) => persist([...get().accounts, { id: crypto.randomUUID(), label }]),
+    add: async (label) => {
+      const account = { id: crypto.randomUUID(), label };
+      await persist([...get().accounts, account]);
+      return account;
+    },
 
     rename: async (id, label) =>
       persist(get().accounts.map((a) => (a.id === id ? { ...a, label } : a))),

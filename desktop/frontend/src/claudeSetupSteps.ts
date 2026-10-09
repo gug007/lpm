@@ -11,7 +11,7 @@ export function deriveClaudeSetupSteps(
   accounts: ClaudeAccount[],
   statuses: Record<string, ClaudeAccountStatus>,
   usage: Record<string, string[]>,
-  // Accounts taking turns in Settings → Account switching count as in use.
+  // Accounts in rotation in Settings → Claude accounts count as in use.
   switching: string[] = [],
 ): ClaudeSetupProgress {
   const hasAccount = accounts.length > 0;

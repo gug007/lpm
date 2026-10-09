@@ -79,7 +79,6 @@ import { SettingsIcon, TrashIcon } from "./icons";
 import { useAppStore } from "../store/app";
 import { useAccountsStore } from "../store/accounts";
 import { ClaudeAccountsSection } from "./ClaudeAccountsSection";
-import { ClaudeSwitchingSection } from "./ClaudeSwitchingSection";
 import { SettingsSection } from "./SettingsSection";
 import { Toggle } from "./ui/Toggle";
 import { InlineNameEditor } from "./InlineNameEditor";
@@ -313,7 +312,6 @@ export function Settings({
   const [creatingTemplateBusy, setCreatingTemplateBusy] = useState(false);
   const [confirmDeleteTemplate, setConfirmDeleteTemplate] = useState<string | null>(null);
   const refreshAccountStatuses = useAccountsStore((s) => s.refreshStatuses);
-  const [accountsCollapsed, setAccountsCollapsed] = useState(true);
   const [query, setQuery] = useState("");
   const [pendingRevealId, setPendingRevealId] = useState<string | null>(null);
   const [showRemoveApp, setShowRemoveApp] = useState(false);
@@ -341,7 +339,6 @@ export function Settings({
       return;
     }
     setActiveTab(entry.tab);
-    if (entry.id === "ai.accounts") setAccountsCollapsed(false);
     setPendingRevealId(entry.id);
     setQuery("");
   };
@@ -969,11 +966,7 @@ export function Settings({
               )}
             </SettingsSection>
 
-            <ClaudeAccountsSection
-              collapsed={accountsCollapsed}
-              onToggle={() => setAccountsCollapsed((c) => !c)}
-            />
-            <ClaudeSwitchingSection />
+            <ClaudeAccountsSection />
 
             <SettingsSection>
               <SettingsRow

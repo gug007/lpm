@@ -48,7 +48,7 @@ export function ClaudeAccountPoolDialog() {
     const a = accountOf(id);
     if (!a?.signedIn) return "Sign in first";
     if (a.plan !== "max" && a.plan !== "pro" && !pool.allowed.includes(id)) {
-      return "Allow it under Settings → Account switching first";
+      return "Allow it under Settings → Claude accounts first";
     }
     return null;
   };

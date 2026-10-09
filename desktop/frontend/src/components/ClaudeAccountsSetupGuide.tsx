@@ -16,7 +16,7 @@ const STEPS = [
   { title: "Sign in", hint: "Opens a terminal running claude /login." },
   {
     title: "Put it to work",
-    hint: "Project menu → Claude account, or add it to Account switching below.",
+    hint: "Project menu → Claude account, or put it in rotation below.",
   },
 ] as const;
 

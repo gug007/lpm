@@ -6,11 +6,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   agentUsageStats: vi.fn(),
   agentLimits: vi.fn(),
+  claudeLimitsAccount: vi.fn(),
+  app: { selected: null as string | null, projects: [] as unknown[] },
 }));
 
+vi.mock("../store/app", () => ({
+  useAppStore: (select: (state: unknown) => unknown) => select(mocks.app),
+}));
 vi.mock("../../bridge/commands", () => ({
   AgentUsageStats: mocks.agentUsageStats,
   AgentLimits: mocks.agentLimits,
+  ClaudeLimitsAccount: mocks.claudeLimitsAccount,
+  AcceptClaudePoolPick: vi.fn(),
+  ClaudePoolState: vi.fn(),
+  ResumeClaudePool: vi.fn(),
+  SetClaudePool: vi.fn(),
   LoadClaudeAccounts: vi.fn(async () => ({ accounts: [] })),
   SaveClaudeAccounts: vi.fn(),
   RemoveClaudeAccount: vi.fn(),
@@ -22,6 +32,7 @@ vi.mock("../../bridge/runtime", () => ({
 }));
 
 import { useAccountsStore } from "../store/accounts";
+import { useClaudePoolStore, type ClaudePool } from "../store/claudePool";
 import { useSettingsStore } from "../store/settings";
 import { SidebarUsage } from "./SidebarUsage";
 
@@ -85,6 +96,9 @@ beforeEach(() => {
     usageSidebarWindow: undefined,
   });
   useAccountsStore.setState({ accounts: [], statuses: {}, usage: {} });
+  useClaudePoolStore.setState({ pool: null });
+  mocks.app.selected = null;
+  mocks.app.projects = [];
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
@@ -149,6 +163,114 @@ describe("SidebarUsage", () => {
     expect(rows[0].textContent).toContain("91%");
     expect(rows[1].textContent).toContain("Home");
     expect(rows[1].textContent).toContain("12%");
+  });
+
+  describe("the selected project's account", () => {
+    function twoAccounts() {
+      mocks.agentLimits.mockResolvedValue({
+        "claude:acc-work": {
+          provider: "claude",
+          accountId: "acc-work",
+          weekly: { usedPercent: 40, resetsAt: IN_TWO_HOURS + 86_400 },
+          updatedAt: Date.now(),
+        },
+        "claude:acc-home": {
+          provider: "claude",
+          accountId: "acc-home",
+          weekly: { usedPercent: 12, resetsAt: IN_TWO_HOURS + 86_400 },
+          updatedAt: Date.now(),
+        },
+      });
+      useAccountsStore.setState({
+        accounts: [
+          { id: "acc-work", label: "Work" },
+          { id: "acc-home", label: "Home" },
+        ],
+      });
+    }
+
+    function tag(account: string) {
+      const row = [...container.querySelectorAll("button")].find((b) => b.textContent?.includes(account))!;
+      return row.querySelector('[aria-hidden="true"].rounded')?.textContent ?? null;
+    }
+
+    it("tags the account it runs on", async () => {
+      twoAccounts();
+      mocks.app.selected = "api";
+      mocks.app.projects = [{ name: "api", isRemote: false, claudeAccount: "acc-home" }];
+      await render();
+
+      expect(mocks.claudeLimitsAccount).not.toHaveBeenCalled();
+      expect(tag("Home")).toBe("in use");
+      expect(tag("Work")).toBeNull();
+      expect(container.textContent).toContain("New Claude sessions in api use this account");
+    });
+
+    it("tags the rest of its pool while switching is on", async () => {
+      twoAccounts();
+      mocks.app.selected = "api";
+      mocks.app.projects = [{ name: "api", isRemote: false, claudeAccounts: ["acc-work", "acc-home"] }];
+      useClaudePoolStore.setState({
+        pool: {
+          active: true,
+          pools: [{ key: "project:api", project: "api", members: ["acc-work", "acc-home"], current: "acc-work", pick: null }],
+        } as unknown as ClaudePool,
+      });
+      mocks.claudeLimitsAccount.mockResolvedValue("acc-work");
+      await render();
+
+      expect(tag("Work")).toBe("in use");
+      expect(tag("Home")).toBe("pool");
+    });
+
+    it("keeps the tag in place while switching projects", async () => {
+      twoAccounts();
+      useClaudePoolStore.setState({
+        pool: {
+          active: false,
+          pools: [{ key: "__main__", project: null, members: [], current: null, pick: null }],
+        } as unknown as ClaudePool,
+      });
+      mocks.app.projects = [
+        { name: "api", isRemote: false },
+        { name: "web", isRemote: false },
+        { name: "pinned", isRemote: false, claudeAccount: "acc-work" },
+      ];
+      mocks.claudeLimitsAccount.mockResolvedValue("acc-home");
+      mocks.app.selected = "api";
+      await render();
+      expect(tag("Home")).toBe("in use");
+
+      for (const [selected, account] of [
+        ["web", "Home"],
+        ["pinned", "Work"],
+        ["api", "Home"],
+      ]) {
+        mocks.app.selected = selected;
+        act(() => root.render(<SidebarUsage onOpen={() => {}} />));
+        expect(tag(account)).toBe("in use");
+      }
+    });
+
+    it("marks nothing for a remote project", async () => {
+      twoAccounts();
+      mocks.app.selected = "far";
+      mocks.app.projects = [{ name: "far", isRemote: true }];
+      await render();
+
+      expect(mocks.claudeLimitsAccount).not.toHaveBeenCalled();
+      expect(tag("Work")).toBeNull();
+      expect(tag("Home")).toBeNull();
+    });
+
+    it("marks nothing with a single Claude row", async () => {
+      mocks.app.selected = "api";
+      mocks.app.projects = [{ name: "api", isRemote: false }];
+      mocks.claudeLimitsAccount.mockResolvedValue("default");
+      await render();
+
+      expect(tag("Claude")).toBeNull();
+    });
   });
 
   it("hides a tool the user turned off", async () => {
