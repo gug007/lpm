@@ -243,8 +243,10 @@ function resolve(spec, effort = null) {
   // submits once it is up; --trust skips the new folder's trust prompt, and
   // --force lets its shell calls run, as Codex's sandbox does, rather than
   // stop the race on an approval. Ultracode's Workflow tool waits on a review
-  // under acceptEdits, so it is allowed up front (before --permission-mode:
-  // --allowedTools would take the words after it as more tools).
+  // under acceptEdits, so it is allowed up front. Bash is denied outright: a
+  // shell call waits on an approval nobody gives, and ultracode's reviewers
+  // make one to check their arithmetic (both before --permission-mode: these
+  // flags take the words after them as more tools).
   const cmd = {
     claude: [
       "claude",
@@ -252,6 +254,7 @@ function resolve(spec, effort = null) {
       r.model,
       r.effort && `--effort ${r.effort}`,
       ultracode && "--allowedTools Workflow",
+      "--disallowedTools Bash",
       "--permission-mode acceptEdits",
     ],
     codex: ["codex", "-m", r.model, r.effort && `-c model_reasoning_effort=${r.effort}`, "-c check_for_update_on_startup=false"],
