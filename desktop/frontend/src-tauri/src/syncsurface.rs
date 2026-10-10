@@ -93,8 +93,8 @@ const GLOBAL_FILES: &[GlobalFile] = &[
 // Synced dirs are walked recursively, so `memory/<project>/<session>.md` rides the
 // same whole-file path as the flat dirs. It stays out of the export archive: the
 // archive is a config handoff, while session memory is work-in-progress notes. The
-// pre-apply backup is unaffected — `transfer::snapshot_backup` copies all of ~/.lpm
-// rather than the export list, so a conflict loser is still recoverable.
+// pre-apply backup is unaffected — `transfer::snapshot_sync_backup` copies the sync
+// surface rather than the export list, so a conflict loser is still recoverable.
 const GLOBAL_DIRS: &[GlobalDir] = &[
     GlobalDir {
         name: "generator-icons",
@@ -169,6 +169,13 @@ pub(crate) fn sync_global_dirs() -> impl Iterator<Item = &'static str> {
 /// check and the watcher's directory classifier consult this).
 pub(crate) fn is_sync_global_dir(dir: &str) -> bool {
     GLOBAL_DIRS.iter().any(|d| d.sync && d.name == dir)
+}
+
+/// Folder metadata a file browser drops into any directory it opens (Finder's
+/// .DS_Store, Explorer's Thumbs.db and desktop.ini). It describes that machine's
+/// window, not config, so it never syncs and never counts as a config edit.
+pub(crate) fn is_os_junk(file_name: &str) -> bool {
+    matches!(file_name, ".DS_Store" | "Thumbs.db" | "desktop.ini")
 }
 
 /// Global config directories carried in the export archive (zdotdir today;
@@ -288,6 +295,15 @@ mod tests {
         assert!(!export_global_dirs().any(|d| d == "memory"));
         // A dir is not a whole-file unit: only its members cross.
         assert!(!is_sync_global_file("memory"));
+    }
+
+    #[test]
+    fn file_browser_metadata_is_junk() {
+        assert!(is_os_junk(".DS_Store"));
+        assert!(is_os_junk("Thumbs.db"));
+        assert!(is_os_junk("desktop.ini"));
+        assert!(!is_os_junk(".zshrc"));
+        assert!(!is_os_junk("auth-refactor.md"));
     }
 
     #[test]

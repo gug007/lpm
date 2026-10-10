@@ -48,7 +48,8 @@ fn is_zero(n: &u64) -> bool {
 // none of them can drift. settings.json among the global files gets a special
 // digest + merge; every other synced file is a byte-identical newest-wins replace.
 use crate::syncsurface::{
-    is_sync_global_file, sync_global_dirs, sync_global_files, PER_MACHINE_KEYS, PROJECT_LOCAL_KEYS,
+    is_os_junk, is_sync_global_file, sync_global_dirs, sync_global_files, PER_MACHINE_KEYS,
+    PROJECT_LOCAL_KEYS,
 };
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
@@ -281,9 +282,16 @@ fn tombstone_eligible(key: &str) -> bool {
 }
 
 /// Whether a global relative path is a synced-dir file (the only globals a deletion
-/// may cross): under a synced dir with at least one path segment beneath it.
+/// may cross): under a synced dir with at least one path segment beneath it, and
+/// not file-browser metadata.
 fn is_deletable_global(rel: &str) -> bool {
     let p = Path::new(rel);
+    if p.file_name()
+        .and_then(|n| n.to_str())
+        .is_some_and(is_os_junk)
+    {
+        return false;
+    }
     sync_global_dirs().any(|d| p.starts_with(d) && p.components().count() > 1)
 }
 
@@ -321,6 +329,9 @@ fn collect_global_dir(lpm: &Path, rel: &Path, out: &mut BTreeMap<String, ItemDig
     };
     for e in entries.flatten() {
         let name = e.file_name();
+        if name.to_str().is_some_and(is_os_junk) {
+            continue;
+        }
         let child_rel = rel.join(&name);
         let path = e.path();
         let Ok(meta) = std::fs::symlink_metadata(&path) else {
@@ -909,13 +920,8 @@ fn safe_global_rel(name: &str) -> Result<PathBuf, String> {
     if rel.components().any(|c| !matches!(c, Component::Normal(_))) {
         return Err(format!("unsafe global path: {name}"));
     }
-    if is_sync_global_file(name) {
+    if syncable_global(name) {
         return Ok(rel.to_path_buf());
-    }
-    for d in sync_global_dirs() {
-        if rel.starts_with(d) && rel.components().count() > 1 {
-            return Ok(rel.to_path_buf());
-        }
     }
     Err(format!("global not permitted: {name}"))
 }
@@ -1288,6 +1294,38 @@ mod tests {
         // other instead of being resurrected.
         assert!(is_deletable_global("memory/web/auth-refactor.md"));
         assert!(syncable_global("memory/web/auth-refactor.md"));
+    }
+
+    #[test]
+    fn finder_metadata_in_a_synced_dir_never_syncs() {
+        let lpm = tempfile::tempdir().unwrap();
+        let web = lpm.path().join("memory/web");
+        std::fs::create_dir_all(&web).unwrap();
+        std::fs::write(web.join("auth-refactor.md"), "# Auth\n").unwrap();
+        std::fs::write(lpm.path().join("memory/.DS_Store"), [0u8, 1]).unwrap();
+        std::fs::write(web.join(".DS_Store"), [0u8, 2]).unwrap();
+
+        let mut out = BTreeMap::new();
+        collect_global_dir(lpm.path(), Path::new("memory"), &mut out);
+        let keys: Vec<&String> = out.keys().collect();
+        assert_eq!(keys, vec!["memory/web/auth-refactor.md"]);
+
+        // An older peer that still tracks it can neither push it nor delete it here,
+        // and a sidecar entry already recorded for it never becomes a tombstone.
+        assert!(safe_global_rel("memory/.DS_Store").is_err());
+        assert!(safe_global_rel("generator-icons/Thumbs.db").is_err());
+        assert!(!syncable_global("memory/.DS_Store"));
+        assert!(!tombstone_eligible("global/memory/.DS_Store"));
+        assert!(delete_global("memory/.DS_Store").is_err());
+    }
+
+    #[test]
+    fn a_peer_advertising_finder_metadata_plans_nothing() {
+        let local = DigestMap::default();
+        let mut remote = DigestMap::default();
+        remote.globals.insert("memory/.DS_Store".into(), id("x", 9));
+        assert!(compute_plan(&local, &remote).is_empty());
+        assert!(compute_plan_v2(&local, &remote, &BTreeMap::new()).is_empty());
     }
 
     #[test]

@@ -16,7 +16,10 @@ use tauri::{AppHandle, Emitter};
 // The top-level files, per-machine settings keys, and exported dirs all come from
 // syncsurface.rs, the single manifest shared with peersync.rs so the two surfaces
 // can't drift.
-use crate::syncsurface::{export_global_dirs, export_top_level_files, PER_MACHINE_KEYS};
+use crate::syncsurface::{
+    export_global_dirs, export_top_level_files, sync_global_dirs, sync_global_files,
+    PER_MACHINE_KEYS,
+};
 
 // Hardening Go lacks: bound extraction so a crafted archive can't exhaust disk.
 const MAX_ENTRY_BYTES: u64 = 256 * 1024 * 1024;
@@ -275,17 +278,56 @@ fn unportable_part(rel: &Path) -> Option<PathBuf> {
 }
 
 /// Snapshot the whole ~/.lpm tree to a timestamped `~/.lpm.backup-<ts>` sibling,
-/// returning the backup path. Shared by config import and peer config sync so both
-/// take an identical, restorable backup before mutating config.
+/// returning the backup path. Config import takes it before merging an archive in.
 pub(crate) fn snapshot_backup() -> Result<String, String> {
-    let backup = format!(
-        "{}.backup-{}",
-        config::lpm_dir().to_string_lossy(),
-        chrono::Local::now().format("%Y%m%d-%H%M%S")
-    );
+    let backup = backup_path();
     snapshot_lpm(&config::lpm_dir(), Path::new(&backup))?;
     prune_backups(BACKUP_KEEP);
     Ok(backup)
+}
+
+/// Snapshot only what peer config sync can overwrite — projects, templates and the
+/// synced global files and dirs — to a `~/.lpm.backup-<ts>` sibling before a sync
+/// applies anything. A whole-tree snapshot would also copy the SSH-project mirrors
+/// under ~/.lpm/sync on every run, which can be gigabytes.
+pub(crate) fn snapshot_sync_backup() -> Result<String, String> {
+    let backup = backup_path();
+    snapshot_sync_surface(&config::lpm_dir(), Path::new(&backup))?;
+    prune_backups(BACKUP_KEEP);
+    Ok(backup)
+}
+
+fn backup_path() -> String {
+    format!(
+        "{}.backup-{}",
+        config::lpm_dir().to_string_lossy(),
+        chrono::Local::now().format("%Y%m%d-%H%M%S")
+    )
+}
+
+fn snapshot_sync_surface(src: &Path, dst: &Path) -> Result<(), String> {
+    let mode = std::fs::metadata(src)
+        .map(|m| fsperm::mode(&m))
+        .unwrap_or(0o755);
+    mkdir_mode(dst, mode)?;
+    for name in ["projects", "templates"]
+        .into_iter()
+        .chain(sync_global_dirs())
+    {
+        let sp = src.join(name);
+        match std::fs::symlink_metadata(&sp) {
+            Ok(meta) if meta.is_dir() => copy_tree(&sp, &dst.join(name), fsperm::mode(&meta))?,
+            _ => {}
+        }
+    }
+    for name in sync_global_files() {
+        let sp = src.join(name);
+        match std::fs::symlink_metadata(&sp) {
+            Ok(meta) if meta.is_file() => copy_file(&sp, &dst.join(name), fsperm::mode(&meta))?,
+            _ => {}
+        }
+    }
+    Ok(())
 }
 
 /// Keep only the newest `keep` `~/.lpm.backup-*` snapshots, deleting older ones.
@@ -619,6 +661,41 @@ mod tests {
             assert!(!dst.join(dir).exists(), "{dir} was copied");
         }
         assert!(dst.join("tailnet.json").is_file());
+    }
+
+    #[test]
+    fn a_sync_backup_holds_only_what_sync_can_overwrite() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (src, dst) = (tmp.path().join("lpm"), tmp.path().join("backup"));
+        for (rel, body) in [
+            ("projects/app.yml", "name: app\n"),
+            ("templates/base.yml", "services: {}\n"),
+            ("memory/app/notes.md", "# Notes\n"),
+            ("zdotdir/.zshrc", "export A=1\n"),
+            ("settings.json", "{}"),
+            ("global.yml", "x: 1\n"),
+            ("sync/app/node_modules/pkg/index.js", "x"),
+            ("message-history.db", "x"),
+            ("groups.json", "{}"),
+        ] {
+            let p = src.join(rel);
+            std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+            std::fs::write(p, body).unwrap();
+        }
+        snapshot_sync_surface(&src, &dst).unwrap();
+        for rel in [
+            "projects/app.yml",
+            "templates/base.yml",
+            "memory/app/notes.md",
+            "zdotdir/.zshrc",
+            "settings.json",
+            "global.yml",
+        ] {
+            assert!(dst.join(rel).is_file(), "{rel} missing");
+        }
+        for rel in ["sync", "message-history.db", "groups.json"] {
+            assert!(!dst.join(rel).exists(), "{rel} copied");
+        }
     }
 
     #[test]

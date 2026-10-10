@@ -307,8 +307,10 @@ one-sided), and templates referenced by a matched project. Machine-local parts
 (project `root`/`ssh`/`claudeAccount`/`claudeAccounts`/`parent_name`, settings.json window/geometry
 keys) are stripped from the compared **portable digest** and preserved locally on
 apply, so two Macs that differ only in local paths compare as in sync. The client
-drives every sync; the host answers. Each side that receives changes snapshots
-`~/.lpm` to `~/.lpm.backup-<ts>` first. Rust: `peersync.rs` (shared digest / plan /
+drives every sync; the host answers. Each side that receives changes first copies
+what a sync can overwrite (projects, templates, the synced global files and dirs) to
+`~/.lpm.backup-<ts>`. File-browser metadata (`.DS_Store`, `Thumbs.db`,
+`desktop.ini`) in a synced dir is never synced. Rust: `peersync.rs` (shared digest / plan /
 apply), `syncstate.rs` (the revision sidecar), driven from `peerclient.rs` (client)
 and answered in `peer.rs` (host).
 

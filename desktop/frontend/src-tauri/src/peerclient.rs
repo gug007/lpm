@@ -29,7 +29,7 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(3); // per-candidate dial 
 const PAIR_REQUEST_WINDOW: Duration = Duration::from_secs(150); // wait for the other Mac to approve
 const INVOKE_TIMEOUT: Duration = Duration::from_secs(35);
 const SYNC_TIMEOUT: Duration = Duration::from_secs(60); // digest / fetch round-trip
-const SYNC_APPLY_TIMEOUT: Duration = Duration::from_secs(180); // host snapshots ~/.lpm first
+const SYNC_APPLY_TIMEOUT: Duration = Duration::from_secs(180); // an older host snapshots all of ~/.lpm first
 const SYNC_UNSUPPORTED: &str = "the other Mac needs to update lpm to sync config";
 const GIT_BRING_UNSUPPORTED: &str = "the other Mac needs to update lpm to send its changes";
 const REMOTE_PAIR_TIMEOUT: Duration = Duration::from_secs(20); // arm a code + render its QR
@@ -1100,7 +1100,7 @@ impl PeerClientHub {
                 serde_json::from_value(resp.get("items").cloned().unwrap_or_else(|| json!([])))
                     .map_err(|e| format!("bad fetch reply: {e}"))?
             };
-            match crate::transfer::snapshot_backup() {
+            match crate::transfer::snapshot_sync_backup() {
                 Ok(path) => {
                     backup_path = path;
                     for it in &fetched {
@@ -2668,7 +2668,7 @@ pub async fn peer_sync_status(
 }
 
 /// Apply a previously-previewed config-sync plan both directions and record the
-/// sync time. Each side that receives changes snapshots ~/.lpm first.
+/// sync time. Each side that receives changes backs up its synced config first.
 #[tauri::command]
 pub async fn peer_sync_run(
     hub: State<'_, PeerClientHub>,

@@ -1420,7 +1420,7 @@ fn handle_remote_pair(
 }
 
 /// Answer one config-sync request from a client. Digest/fetch are read-only;
-/// apply snapshots ~/.lpm first, then applies with the shared portable-merge
+/// apply backs up the synced config first, then applies with the shared portable-merge
 /// rules and refreshes the host UI. A `v:2` request speaks configSync2 and carries
 /// the client's sidecar device id; a legacy (`v:1`) request gets the pre-Phase-2
 /// map (no revisions, no tombstones) and applies without touching the sidecar.
@@ -1468,7 +1468,7 @@ fn handle_sync(app: &AppHandle, out: &SyncSender<String>, t: &str, v: &Value) {
                     .unwrap_or_default();
             let mut applied = 0u64;
             let mut errors: Vec<String> = Vec::new();
-            match crate::transfer::snapshot_backup() {
+            match crate::transfer::snapshot_sync_backup() {
                 Ok(_) => {
                     // Sidecar entries to write after the files land (revisions of the
                     // received units, keyed under the sending Mac's device id).

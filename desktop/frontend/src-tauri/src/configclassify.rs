@@ -2,7 +2,7 @@
 // what one event dirties. Split out of configwatch so the watcher plumbing and
 // this pure, heavily-tested mapping each stay small.
 use crate::peersync;
-use crate::syncsurface::{is_sync_global_dir, is_sync_global_file};
+use crate::syncsurface::{is_os_junk, is_sync_global_dir, is_sync_global_file};
 use std::collections::BTreeSet;
 use std::path::{Component, Path};
 
@@ -63,6 +63,9 @@ pub(crate) fn classify(lpm: &Path, path: &Path) -> Option<Category> {
             _ => None,
         })
         .collect();
+    if segs.last().is_some_and(|name| is_os_junk(name)) {
+        return None;
+    }
     match segs.as_slice() {
         [name] if *name == "settings.json" => Some(Category::Settings),
         [name] if *name == "groups.json" => Some(Category::Sidebar),
@@ -253,6 +256,15 @@ mod tests {
         );
         // The memory root itself is not attributable to any project.
         assert_eq!(classify(&lpm(), &at("memory")), None);
+    }
+
+    #[test]
+    fn finder_metadata_is_not_a_config_edit() {
+        assert_eq!(classify(&lpm(), &at("memory/.DS_Store")), None);
+        assert_eq!(classify(&lpm(), &at("memory/web/.DS_Store")), None);
+        assert_eq!(classify(&lpm(), &at("templates/.DS_Store")), None);
+        assert_eq!(classify(&lpm(), &at("generator-icons/Thumbs.db")), None);
+        assert_eq!(classify(&lpm(), &at("zdotdir/desktop.ini")), None);
     }
 
     #[test]
