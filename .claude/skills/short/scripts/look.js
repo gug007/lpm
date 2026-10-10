@@ -96,6 +96,7 @@ function paintScene(scene) {
       box.append(span);
     }
     sticker.append(box);
+    sticker.style.top = st.top == null ? "" : `${st.top}px`;
     sticker.style.opacity = String(Math.min(1, st.p / 0.4));
     sticker.style.transform = `scale(${0.72 + 0.28 * backOut(st.p)})${st.kind === "hook" ? " rotate(-1.5deg)" : ""}`;
   }

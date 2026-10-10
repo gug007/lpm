@@ -1,13 +1,14 @@
 // The games a race can ask for. Each prompt keeps short-race's rules: index.html
-// at the project root, one file, the wide 900x360 stage with sizes as shares of
-// it, scaled to fit and never cropped, "Don't run or test it". A game plays
-// itself, so the reveal is live gameplay with nobody at the controls.
+// at the project root, one file, a stage with sizes as shares of it, scaled to
+// fit and never cropped, "Don't run or test it". The stage is 900x700, the
+// shape of a row in the tall window new.js sets up. A game plays itself, so the
+// reveal is live gameplay with nobody at the controls.
 const GAMES = {
   runner: {
     slug: "3d-runner",
     build: "a 3D endless runner game that plays itself",
     play: "A runner sprints down a 3D track that stretches to the horizon, and the game steers itself: it switches lanes, jumps over obstacles and grabs coins on its own, with a score that keeps climbing.",
-    layout: "the track's vanishing point sits in the middle, about 30% from the top, and the runner stands about 75% of the way down, about 30% of the stage's height tall",
+    layout: "the track's vanishing point sits in the middle, about 30% from the top, and the runner stands about 75% of the way down, about 18% of the stage's height tall",
     restart: "if the runner ever crashes, restart at once.",
     subject: "a 3D game that plays itself",
     noun: "a 3D game",
@@ -31,7 +32,7 @@ const GAMES = {
     slug: "flappy-bird",
     build: "a Flappy Bird game that plays itself",
     play: "A bird flaps through the gaps between scrolling pipes on its own, over a parallax background, with a score that keeps climbing.",
-    layout: "the bird flies about 25% from the left, about 5% of the stage's width wide, and each gap between the pipes is about 45% of the stage's height",
+    layout: "the bird flies about 25% from the left, about 5% of the stage's width wide, and each gap between the pipes is about 30% of the stage's height",
     restart: "if the bird ever hits a pipe, restart at once.",
     subject: "Flappy Bird that plays itself",
     noun: "Flappy Bird",
@@ -92,8 +93,8 @@ const GAMES = {
 
 const prompt = (g) =>
   `Build ${g.build}, in index.html at the project root. One file, no libraries or images. ${g.play} ` +
-  "It's shown in a wide, short panel and the window can be any size. " +
-  `Lay the game out on a 900x360 stage: ${g.layout}. ` +
+  "It's shown in a panel a bit wider than tall, of any size. " +
+  `Lay the game out on a 900x700 stage: ${g.layout}. ` +
   "Scale the whole stage to fit the panel, centered, never cropped; the background fills the rest. No scrolling. " +
   `Play forever: ${g.restart} Don't open it. Don't run or test it. No questions, just write it.`;
 

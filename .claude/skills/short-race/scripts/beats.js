@@ -20,6 +20,7 @@ const os = require("os");
 const path = require("path");
 const { execFileSync } = require("child_process");
 const { cursorChat } = require("./cursor");
+const { trimPayoff } = require("./trim");
 const kit = require("../../short/scripts/kit");
 
 const AGENT_STARTUP_MS = 7000;
@@ -604,6 +605,7 @@ module.exports = function compareBeats({ config, dir }) {
         async () => {
           await (racing ?? race(s));
           for (let i = 0; i < 2; i++) await openPage(s, i);
+          if (config.payoff === "bars") await trimPayoff(s);
           await tagPanes(s);
           await badges(s, badgeItems());
           kit.park(s, 0.5, 0.02);

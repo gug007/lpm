@@ -14,18 +14,21 @@ const ANCHOR_Y = 0.36;
 
 const even = (n) => Math.round(n / 2) * 2;
 
-// `win` is the capture in physical pixels.
-function geometry(win) {
+// `win` is the capture in physical pixels. `shiftY` shows the window that many
+// output pixels below centre in the wide shot.
+function geometry(win, { shiftY = 0 } = {}) {
   const cw = even(win.w * SPAN);
   const ch = even((cw * 16) / 9);
   if (win.h > ch) throw new Error(`a ${win.w}x${win.h} window is too tall for the vertical canvas`);
-  return {
+  const g = {
     win,
     canvas: { w: cw, h: ch },
     ox: even((cw - win.w) / 2),
     oy: even((ch - win.h) / 2),
     zFit: cw / (win.w * (1 + 2 * MARGIN)),
   };
+  g.centre = { cx: g.ox + win.w / 2, cy: g.oy + win.h / 2 - (shiftY * crop(g, 1).h) / OUT.height };
+  return g;
 }
 
 function crop(g, s) {
@@ -37,7 +40,7 @@ function crop(g, s) {
 // from the stage's focus/wide calls (points, `scale` physical px per point)
 // and its pointer moves. A pan never starts before the previous move is over.
 function cameraKeys({ zooms = [], pointer = [], g, scale }) {
-  const centre = { cx: g.ox + g.win.w / 2, cy: g.oy + g.win.h / 2 };
+  const { centre } = g;
   const aim = (s, x, y) => ({ cx: g.ox + x * scale, cy: g.oy + y * scale + (0.5 - ANCHOR_Y) * crop(g, s).h });
   const events = [
     ...zooms.map((z) => ({ t: z.startMs, zoom: z })),
@@ -76,7 +79,7 @@ function cameraKeys({ zooms = [], pointer = [], g, scale }) {
 function cameraFilter(keys, g, offset = 0) {
   const fk = keys.map((k) => ({ ...k, f: Math.round((k.startMs / 1000) * FPS), d: Math.max(1, Math.round((k.ms / 1000) * FPS)) }));
   const n = offset ? `(in+${offset})` : "in";
-  const centre = { cx: g.ox + g.win.w / 2, cy: g.oy + g.win.h / 2 };
+  const { centre } = g;
   const z = track(fk, g.zFit, (k) => g.zFit * k.s, n);
   const cx = track(fk, centre.cx, (k) => k.cx, n);
   const cy = track(fk, centre.cy, (k) => k.cy, n);

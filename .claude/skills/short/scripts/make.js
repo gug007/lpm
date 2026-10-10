@@ -140,21 +140,24 @@ async function compose(lines) {
   for (const n of fit.notes) console.log(n);
   if (fit.errors.length) throw new Error(fit.errors.join("\n"));
   const log = (m) => console.log(m);
-  const g = geometry({ w: t.box.w, h: t.box.h });
+  const g = geometry({ w: t.box.w, h: t.box.h }, { shiftY: lesson.windowShiftY });
   const open = lesson.open ?? 1;
   const edit = editList({ lines: t.lines, totalMs: t.totalMs, cuts: t.cuts, payoffMs: t.payoffMs, open, log });
   const keys = cameraKeys({ zooms: t.zooms, pointer: t.pointer, g, scale: t.box.scale });
   const timed = t.lines.map((tl) => ({ ...tl, line: lines.find((l) => l.id === tl.id), outMs: edit.toOutMs(tl.startMs) }));
   const labels = (t.labels || []).map((l) => ({ ...l, startMs: edit.toOutMs(l.startMs) }));
-  const track = textTrack({
-    lines: timed,
-    labels,
-    outMs: edit.outMs,
-    headline: lesson.headline ?? timed[0].line.headline,
-    cta: lesson.cta === false ? null : lesson.cta || "lpm.cx",
-    open,
-    slam: lesson.slam,
-  });
+  const track = {
+    ...textTrack({
+      lines: timed,
+      labels,
+      outMs: edit.outMs,
+      headline: lesson.headline ?? timed[0].line.headline,
+      cta: lesson.cta === false ? null : lesson.cta || "lpm.cx",
+      open,
+      slam: lesson.slam,
+    }),
+    stickerTop: lesson.stickerTop,
+  };
   const look = await renderBackdrop(path.join(path.dirname(DIR), "_look"), g, WINDOW_RADIUS_PT * t.box.scale);
   const overlay = await renderTrack(path.join(DIR, "overlay"), track, edit.outMs);
   console.log(`text track: ${overlay.frames} changes, ${overlay.painted} painted`);

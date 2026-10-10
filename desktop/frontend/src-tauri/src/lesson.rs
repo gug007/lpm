@@ -146,6 +146,10 @@ fn handle(app: &AppHandle, op: &str, req: &Value) -> Result<Value, String> {
             let win = main_window(app)?;
             let num = |k: &str| req[k].as_f64();
             if let (Some(w), Some(h)) = (num("w"), num("h")) {
+                // A take may record a window narrower than the app's own
+                // minimum (a tall short-game take is 570 pt wide).
+                win.set_min_size(None::<LogicalSize<f64>>)
+                    .map_err(|e| e.to_string())?;
                 win.set_size(LogicalSize::new(w, h))
                     .map_err(|e| e.to_string())?;
             }

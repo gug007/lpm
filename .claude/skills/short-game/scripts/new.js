@@ -75,9 +75,24 @@ function race({ root, slug, racePrompt, subject }) {
 const readJson = (f) => JSON.parse(fs.readFileSync(f, "utf8"));
 const writeJson = (f, v) => fs.writeFileSync(f, JSON.stringify(v, null, 2) + "\n");
 
+// A narrow, tall window, so each row takes about half the frame. The wide shot
+// scales it to 982x1723 px and sits 6 px below centre, so at the payoff,
+// trimmed to the colour bars, the top bar clears TikTok's tabs (y 150) and the
+// headline sits just under it. Each row's page is then about 570x448 pt, the
+// 900x700 stage's shape. A 16" MacBook Pro screen with the Dock showing holds
+// a window up to 1009 pt tall.
+const TALL = { window: { w: 570, h: 1000 }, windowShiftY: 6, stickerTop: 230 };
+function makeTall(dir) {
+  const lessonFile = path.join(dir, "lesson.json");
+  writeJson(lessonFile, { ...readJson(lessonFile), ...TALL });
+  const compareFile = path.join(dir, "compare.json");
+  writeJson(compareFile, { ...readJson(compareFile), payoff: "bars" });
+}
+
 const dryRoot = opt("--dry");
 if (dryRoot) {
   const { dir } = race({ root: path.resolve(dryRoot), slug: "dry", racePrompt: DRY_PROMPT, subject: "a red square" });
+  makeTall(dir);
   const c = readJson(path.join(dir, "compare.json"));
   writeJson(path.join(dir, "compare.json"), { ...c, timeoutMin: 10 });
   console.log(`dry run (about 2 min, real pointer and keys):\n  LPM_TIKTOK_DIR=${path.resolve(dryRoot)} ${dir}/take.sh --no-audio --frames`);
@@ -87,6 +102,7 @@ if (dryRoot) {
 const timeoutMin = game.timeoutMin || TIMEOUT_MIN;
 const slug = opt("--slug") || `${sides.map((s) => s.dir).join("-vs-")}-${game.slug}`.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 const { out, dir } = race({ slug, racePrompt: prompt(game), subject: game.subject });
+makeTall(dir);
 
 const lessonFile = path.join(dir, "lesson.json");
 const compareFile = path.join(dir, "compare.json");
