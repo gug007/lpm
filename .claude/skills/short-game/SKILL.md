@@ -23,11 +23,11 @@ Creator Search Insights (global, last 7 days, 2026-10-07): "Using AI to build a 
 | `breakout` | Breakout with fresh brick walls | build Breakout 🧱 |
 | `gta` | a top-down GTA-style police chase in a Vice City-style town | build GTA 6 🚓 |
 
-`node scripts/new.js --list` prints them. Every prompt in `scripts/games.js` keeps short-race's rules: `index.html` at the project root, one file, no libraries or images, a stage with sizes given as shares of it, scaled to fit and never cropped, and "Don't run or test it". On top of that the game plays itself and restarts at once after a crash, so the reveal is live play with nobody at the controls. The stage is wide, 900x360, to fill a row (see One above the other); the two races posted before 2026-10-09 ran in columns on short-race's tall 420x740 stage. A layout puts the action across the width (Snake's board spans the height, the shooter's enemies come in from the right), and sizes that a tall stage gave as shares of its width are shares of the height or a smaller share of the width here. Add a new game to `games.js` in the same shape (build, play, layout, restart, then the copy fields), not as a one-off `--prompt`.
+`node scripts/new.js --list` prints them. Every prompt in `scripts/games.js` keeps short-race's rules: `index.html` at the project root, one file, no libraries or images, a stage with sizes given as shares of it, scaled to fit and never cropped, and "Don't run or test it". On top of that the game plays itself and restarts at once after a crash, so the reveal is live play with nobody at the controls. The stage is wide, 900x360, to fill a row (see One above the other); the two races posted before 2026-10-09 ran in columns on short-race's tall 420x740 stage. A layout puts the action across the width (Snake's board spans the height, the shooter's enemies come in from the right), and sizes that a tall stage gave as shares of its width are shares of the height or a smaller share of the width here. Add a new game to `games.js` in the same shape (build, play, layout, restart, then the copy fields), not as a one-off `--prompt`. Keep its whole prompt under about 850 characters: a Claude or Codex copy gets it on a launch line that macOS cuts off at 1024 bytes (see short-race's Traps), and `new.js` refuses a longer one.
 
 ## One above the other
 
-short-race runs every race in rows: Run in duplicates with **Open side by side** split into **Rows**, run #1 on top and the copy below, from the start of the race to the reveal. Model A's cyan bar sits over the top row and model B's pink one over the bottom, with the clocks and then the finish times, and each row opens its own `index.html` in lpm's browser. Each game gets the window's full width, about 900x320 of page in short-race's 900x990 window, hence the wide 900x360 stage.
+short-race runs every race in rows: Run in duplicates with **Open side by side** split into **Rows**, run #1 on top and the copy below, from the start of the race to the reveal. Model A's cyan bar sits over the top row and model B's pink one over the bottom, with the clocks and then the finish times, and each row opens its own `index.html` in lpm's browser. Each game gets the window's full width, about 800x320 of page in short-race's 800x990 window, the wide 900x360 stage's own shape.
 
 ## Make one
 
@@ -44,7 +44,7 @@ short-race runs every race in rows: Run in duplicates with **Open side by side**
    - Headline: "<pair>: build a 3D game 🎮".
    - Title: "<pair>: <A> vs <B> build a 3D game". `--title` uses the user's exact wording (label words such as "Astra high").
    - Caption: "<pair> for coding: making a 3D game with AI. <A> and <B> got the same prompt, a self-playing endless runner, and built it side by side in lpm's terminal. Which one wins? Comment the two models you want me to race next."
-   - `compare.json`: `game` and `timeoutMin: 40`.
+   - `compare.json`: `game` and `timeoutMin: 40`, or the game's own `timeoutMin` (GTA: 60, since Opus 5.5 high took 37:25 on it).
 
    The slug is `<A>-vs-<B>-<game>`. `--slug` and `--force` work as in short-race.
 

@@ -84,6 +84,7 @@ if (dryRoot) {
   process.exit(0);
 }
 
+const timeoutMin = game.timeoutMin || TIMEOUT_MIN;
 const slug = opt("--slug") || `${sides.map((s) => s.dir).join("-vs-")}-${game.slug}`.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 const { out, dir } = race({ slug, racePrompt: prompt(game), subject: game.subject });
 
@@ -106,10 +107,10 @@ lesson.post.caption =
   `${pair} for coding: ${game.caption}. ${a.headline} and ${b.headline} got the same prompt, ${game.what}, ` +
   "and built it side by side in lpm's terminal. Which one wins? Comment the two models you want me to race next.";
 writeJson(lessonFile, lesson);
-writeJson(compareFile, { ...compare, game: gameKey, timeoutMin: TIMEOUT_MIN });
+writeJson(compareFile, { ...compare, game: gameKey, timeoutMin });
 
 console.log(out.trimEnd());
-console.log(`  game:     ${gameKey} (${game.noun}), ${TIMEOUT_MIN} min per side
+console.log(`  game:     ${gameKey} (${game.noun}), ${timeoutMin} min per side
   hook:     ${hook.text}
   headline: ${hook.headline}
   title:    ${lesson.title}`);

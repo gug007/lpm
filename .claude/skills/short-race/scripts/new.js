@@ -13,9 +13,11 @@ const MAKER = path.resolve(SKILL, "..", "short");
 const ROOT = process.env.LPM_TIKTOK_DIR || path.join(process.env.LPM_LESSONS_DIR || path.join(os.homedir(), "Movies/lpm-lessons"), "tiktok");
 const DEFAULT_PROMPT =
   "Build a giraffe flying a one-seat propeller plane, its neck sticking out the top, in index.html at the project root. One file, no libraries or images. It's shown in a wide, short panel and the window can be any size. Lay the scene out on a 900x360 stage: the plane spans about 25% of the stage's width, centered, with its body about 70% of the way down, and the giraffe's head reaches about 15% from the top. Scale the whole stage to fit the panel, centered, never cropped; the sky fills the rest. No scrolling. Animate forever. Don't open it. Don't run or test it. No questions, just write it.";
-// The wide shot shows the window 982 px wide, centred in 1080x1920: 990 is the
-// tallest that stays clear of TikTok's caption area (y 1500) and the headline.
-const WINDOW = { w: 900, h: 990 };
+// The wide shot scales the window to 982 px wide, centred in 1080x1920, so the
+// narrower it is the taller it shows: at 800 it runs from just under the
+// headline to TikTok's caption area (y 1500), with only its footer below, and
+// each row's page is 800x320, the 900x360 stage's own 2.5:1.
+const WINDOW = { w: 800, h: 990 };
 const CLI_NAME = { claude: "Claude Code", codex: "Codex", cursor: "Cursor" };
 
 const args = process.argv.slice(2);
@@ -77,6 +79,18 @@ const subject = giraffe ? "a giraffe flying a plane" : opt("--subject")?.trim().
 if (!subject) {
   console.error('a custom --prompt needs --subject "<what it builds>", such as "a lava lamp": the video says it aloud');
   process.exit(1);
+}
+// lpm types the copy's launch line, prompt included, into a shell that is still
+// starting, and macOS cuts a terminal line off at 1024 bytes: the agent never
+// starts and the race waits out its limit. Cursor reads its prompt from a file.
+const LINE_MAX = 1000;
+if (b.cli !== "cursor") {
+  const line = `${b.cmd} --session-id ${"0".repeat(36)} '${prompt.replace(/'/g, "'\\''")}'`;
+  const bytes = Buffer.byteLength(line);
+  if (bytes > LINE_MAX) {
+    console.error(`the copy's launch line would be ${bytes} bytes, over the ${LINE_MAX} a starting shell takes: shorten the prompt by ${bytes - LINE_MAX}`);
+    process.exit(1);
+  }
 }
 const slugify = (t) => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 const topic = giraffe ? "giraffe" : slugify(subject).split("-").slice(0, 3).join("-");
