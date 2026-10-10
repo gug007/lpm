@@ -31,6 +31,19 @@ const MARKER: &str = "# lpm-hook";
 /// hook that ran in it. Placing a reporter in a tree and watching an agent live
 /// are different questions about different processes.
 const REPORTER_PID_OPT: &str = " --reporter-pid=$PPID";
+
+/// `$pq`: the project name ready to sit between single quotes in a frame, the
+/// way the socket splits it — an apostrophe in the name (`Bob's app`) otherwise
+/// ended the quote early and the whole frame failed to parse. Runs after the
+/// env recovery, which may fill in the name, and costs nothing for a plain one.
+const PROJECT_ARG: &str =
+    r#"pq=$LPM_PROJECT_NAME; case "$pq" in *\'*) pq=$(printf '%s' "$pq" | sed "s/'/'\"'\"'/g");; esac;"#;
+
+/// Reads the payload's own `session_id`. Agents serialize it as the payload's
+/// first key, so the match is anchored there: a tool's input or result can hold a
+/// `session_id` key of its own, and an unanchored match took that one — filing
+/// the turn's Running under a key its Stop never ends.
+const SID_SED: &str = r#"sed -n 's/^[^"]*"session_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p'"#;
 const STATUSLINE_MARKER: &str = "# lpm-statusline:";
 
 // Status line scripts (presets and the user's Custom line) are generated from a
@@ -182,6 +195,18 @@ fn claude_settings_path() -> PathBuf {
     home().join(".claude").join("settings.json")
 }
 
+/// The settings Claude reads in lpm's terminals: CLAUDE_CONFIG_DIR's when the
+/// login profile points it elsewhere, else ~/.claude's.
+fn claude_terminal_settings_path() -> PathBuf {
+    crate::agentdirs::claude_config_dir()
+        .map(|dir| dir.join("settings.json"))
+        .unwrap_or_else(claude_settings_path)
+}
+
+fn codex_hooks_json_path() -> Option<PathBuf> {
+    crate::agentdirs::codex_home().map(|dir| dir.join("hooks.json"))
+}
+
 // ---- fork-into-copy transcript copy -----------------------------------------
 //
 // Claude Code keys session transcripts by cwd: `<config>/projects/<slug>/
@@ -269,16 +294,23 @@ pub fn copy_claude_session_for_fork(
 pub struct ClaudeHooksStatus {
     pub settings_exists: bool,
     pub hooks_installed: bool,
+    /// Claude's own settings switch hooks off, installed or not.
+    pub hooks_disabled: bool,
+    /// The program the hooks run is gone (hookform.rs), so they report nothing.
+    pub helper_missing: bool,
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn check_claude_hooks() -> ClaudeHooksStatus {
-    claude_hooks_status_at(&claude_settings_path())
+    ClaudeHooksStatus {
+        helper_missing: crate::hookform::helper_missing(),
+        ..claude_hooks_status_at(&claude_terminal_settings_path())
+    }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn reset_claude_hooks() -> Result<(), String> {
-    reset_claude_hooks_at(&claude_settings_path())
+    reset_claude_hooks_at(&claude_terminal_settings_path())
 }
 
 fn claude_hooks_status_at(path: &Path) -> ClaudeHooksStatus {
@@ -288,7 +320,7 @@ fn claude_hooks_status_at(path: &Path) -> ClaudeHooksStatus {
     let Ok(settings) = serde_json::from_slice::<Value>(&data) else {
         return ClaudeHooksStatus {
             settings_exists: true,
-            hooks_installed: false,
+            ..Default::default()
         };
     };
     let hooks_installed = settings
@@ -299,34 +331,90 @@ fn claude_hooks_status_at(path: &Path) -> ClaudeHooksStatus {
     ClaudeHooksStatus {
         settings_exists: true,
         hooks_installed,
+        hooks_disabled: claude_hooks_disabled(&settings, claude_managed_settings().as_ref()),
+        ..Default::default()
     }
+}
+
+/// Whether Claude runs no hooks of the user's at all: `disableAllHooks` in the
+/// user's or the machine's managed settings, or managed settings that allow only
+/// their own hooks. lpm's hooks are then in place but never run.
+fn claude_hooks_disabled(user: &Value, managed: Option<&Value>) -> bool {
+    let on = |v: &Value, key: &str| v.get(key).and_then(Value::as_bool) == Some(true);
+    on(user, "disableAllHooks")
+        || managed.is_some_and(|m| on(m, "disableAllHooks") || on(m, "allowManagedHooksOnly"))
+}
+
+/// The machine's managed Claude settings file, where Claude looks for it.
+fn claude_managed_settings() -> Option<Value> {
+    let dir = if cfg!(target_os = "macos") {
+        "/Library/Application Support/ClaudeCode"
+    } else if cfg!(windows) {
+        r"C:\Program Files\ClaudeCode"
+    } else {
+        "/etc/claude-code"
+    };
+    let data = std::fs::read(Path::new(dir).join("managed-settings.json")).ok()?;
+    serde_json::from_slice(&data).ok()
 }
 
 fn reset_claude_hooks_at(path: &Path) -> Result<(), String> {
     // Validate for a real UI error, then reinstall (which strips+re-adds lpm hooks,
-    // keeping the user's own — unlike removing the whole `hooks` key).
-    let data = std::fs::read(path).map_err(|e| format!("cannot read Claude settings: {e}"))?;
-    serde_json::from_slice::<Value>(&data)
-        .map_err(|e| format!("invalid JSON in Claude settings: {e}"))?;
+    // keeping the user's own — unlike removing the whole `hooks` key). A missing
+    // file is started by the install, as long as Claude's folder exists.
+    match std::fs::read(path) {
+        Ok(data) => {
+            serde_json::from_slice::<Value>(&data)
+                .map_err(|e| format!("invalid JSON in Claude settings: {e}"))?;
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound && path.parent().is_some_and(Path::is_dir) => {}
+        Err(e) => return Err(format!("cannot read Claude settings: {e}")),
+    }
     install_claude_hooks_at(path)
 }
 
-/// Fired async at startup (app.go: `go a.installAgentHooks()`).
+/// Fired async at startup (app.go: `go a.installAgentHooks()`), and again from
+/// [`refresh_agent_hooks`]. Writes only what changed.
 pub fn install_agent_hooks() {
+    LAST_INSTALL.store(crate::status::now_millis(), std::sync::atomic::Ordering::Relaxed);
     let _ = install_claude_hooks_at(&claude_settings_path()); // best-effort at startup
+    if let Some(dir) = crate::agentdirs::claude_config_dir() {
+        let _ = install_claude_hooks_at(&dir.join("settings.json"));
+    }
     for path in account_settings_copies() {
         let _ = install_claude_hooks_at(&path);
     }
     install_codex_hooks();
 }
 
-/// Settings files of lpm's Claude accounts that are their own copies rather than
-/// links to ~/.claude/settings.json — which happens only on Windows, where a
-/// file symlink needs Developer Mode — so each needs the hooks written into it.
-fn account_settings_copies() -> Vec<PathBuf> {
-    if !cfg!(windows) {
-        return Vec::new();
+static LAST_INSTALL: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new(0);
+
+/// Install the hooks again when a terminal opens, at most once a minute: an
+/// agent installed, or first run, after lpm started had no hooks until lpm's
+/// next launch. Off the caller's thread; a lesson recording leaves the user's
+/// agent setup alone.
+pub fn refresh_agent_hooks() {
+    use std::sync::atomic::Ordering;
+    let now = crate::status::now_millis();
+    let last = LAST_INSTALL.load(Ordering::Relaxed);
+    // 0: the startup install hasn't run yet and will (lib.rs), in order with the
+    // status-line writes that share Claude's settings file.
+    if last == 0 || now - last < 60_000 || crate::lesson::active() {
+        return;
     }
+    if LAST_INSTALL
+        .compare_exchange(last, now, Ordering::Relaxed, Ordering::Relaxed)
+        .is_ok()
+    {
+        std::thread::spawn(install_agent_hooks);
+    }
+}
+
+/// Settings files of lpm's Claude accounts that are their own copies rather than
+/// links to ~/.claude/settings.json, so each needs the hooks written into it.
+/// Windows makes copies (a file symlink needs Developer Mode); anywhere else an
+/// account can end up with one too, when the link is replaced by a real file.
+fn account_settings_copies() -> Vec<PathBuf> {
     std::fs::read_dir(crate::config::lpm_dir().join("claude-accounts"))
         .into_iter()
         .flatten()
@@ -334,6 +422,11 @@ fn account_settings_copies() -> Vec<PathBuf> {
         .map(|entry| entry.path().join("settings.json"))
         .filter(|path| std::fs::symlink_metadata(path).is_ok_and(|meta| meta.is_file()))
         .collect()
+}
+
+/// The settings CLAUDE_CONFIG_DIR points Claude at, when that isn't ~/.claude.
+fn profile_settings() -> Option<PathBuf> {
+    crate::agentdirs::claude_config_dir().map(|dir| dir.join("settings.json"))
 }
 
 /// App uninstall: restore the user's Claude status line (drop the usage-limit
@@ -345,8 +438,8 @@ pub fn remove_agent_hooks_for_uninstall() -> Result<(), String> {
     let forwarder = remove_claude_statusline_at(&settings);
     let statusline = restore_statusline_at(&settings, &statuslines_dir());
     let claude = strip_hooks_json_at(&settings);
-    let codex = strip_hooks_json_at(&home().join(".codex").join("hooks.json"));
-    for path in account_settings_copies() {
+    let codex = codex_hooks_json_path().map_or(Ok(()), |path| strip_hooks_json_at(&path));
+    for path in account_settings_copies().into_iter().chain(profile_settings()) {
         let _ = remove_claude_statusline_at(&path);
         let _ = strip_hooks_json_at(&path);
     }
@@ -360,8 +453,10 @@ pub fn remove_agent_hook_entries() {
     let settings = claude_settings_path();
     let _ = remove_claude_statusline_at(&settings);
     let _ = strip_hooks_json_at(&settings);
-    let _ = strip_hooks_json_at(&home().join(".codex").join("hooks.json"));
-    for path in account_settings_copies() {
+    if let Some(path) = codex_hooks_json_path() {
+        let _ = strip_hooks_json_at(&path);
+    }
+    for path in account_settings_copies().into_iter().chain(profile_settings()) {
         let _ = remove_claude_statusline_at(&path);
         let _ = strip_hooks_json_at(&path);
     }
@@ -405,16 +500,27 @@ fn merge_claude_hooks(data: &[u8]) -> Option<Vec<u8>> {
 }
 
 /// The Claude events lpm reports on, each with the matcher it is installed under.
-const CLAUDE_EVENTS: [(&str, &str); 8] = [
+const CLAUDE_EVENTS: [(&str, &str); 14] = [
     ("SessionStart", ""),
+    ("PreCompact", "manual"),
+    ("PostCompact", "manual"),
     ("UserPromptSubmit", ""),
     ("PreToolUse", ""),
     ("PostToolUse", ""),
-    ("Notification", "permission_prompt"),
+    ("PostToolUseFailure", ""),
+    ("PermissionRequest", ""),
+    ("Elicitation", ""),
+    ("ElicitationResult", ""),
+    ("Notification", CLAUDE_ASKS),
     ("Stop", ""),
     ("StopFailure", ""),
     ("SessionEnd", ""),
 ];
+
+/// The notifications that mean a dialog is waiting on the user. `idle_prompt`
+/// only says a finished session is still open, and `auth_success` asks nothing.
+const CLAUDE_ASKS: &str =
+    "permission_prompt|elicitation_dialog|agent_needs_input|worker_permission_prompt";
 
 fn merge_claude_hooks_in(data: &[u8], form: &HookForm) -> Option<Vec<u8>> {
     let mut settings = serde_json::from_slice::<Value>(data).ok()?;
@@ -444,26 +550,40 @@ fn merge_claude_hooks_in(data: &[u8], form: &HookForm) -> Option<Vec<u8>> {
     // tab (they would clobber one key); a per-session key survives both. `--pane`
     // still carries the resolved tab attribution. Keys must not collide in the
     // StatusStore (keyed by project+key), or only one would show as running.
-    let set_running = send_cmd_with_sid("set_status '$LPM_PROJECT_NAME' claude_code_${sid:-$LPM_PANE_ID} Running --icon=bolt --color=#4C8DFF --pane=$LPM_PANE_ID");
-    let set_error = send_cmd_with_sid("set_status '$LPM_PROJECT_NAME' claude_code_${sid:-$LPM_PANE_ID} Error --icon=warning --color=#ef4444 --pane=$LPM_PANE_ID");
-    let set_waiting = send_cmd_with_sid("set_status '$LPM_PROJECT_NAME' claude_code_${sid:-$LPM_PANE_ID} Waiting --icon=bell --color=#f59e0b --pane=$LPM_PANE_ID");
-    let clear =
-        send_cmd_with_sid("clear_status '$LPM_PROJECT_NAME' claude_code_${sid:-$LPM_PANE_ID}");
+    let set_running = claude_main_thread_cmd("set_status '$pq' claude_code_${sid:-$LPM_PANE_ID} Running --icon=bolt --color=#4C8DFF --pane=$LPM_PANE_ID");
+    // Marked as a prompt: one submitted while a turn is still going queues
+    // behind it (socketsrv.rs), and its own turn starts without a hook.
+    let set_prompted = claude_main_thread_cmd("set_status '$pq' claude_code_${sid:-$LPM_PANE_ID} Running --icon=bolt --color=#4C8DFF --pane=$LPM_PANE_ID --prompt");
+    let set_error = claude_main_thread_cmd("set_status '$pq' claude_code_${sid:-$LPM_PANE_ID} Error --icon=warning --color=#ef4444 --pane=$LPM_PANE_ID");
+    let set_waiting = send_cmd_with_sid("set_status '$pq' claude_code_${sid:-$LPM_PANE_ID} Waiting --icon=bell --color=#f59e0b --pane=$LPM_PANE_ID");
+    // An ended session takes back only what was happening in it; a finish it
+    // reported stays until the user has seen it.
+    let clear = send_cmd_with_sid(
+        "clear_status '$pq' claude_code_${sid:-$LPM_PANE_ID} --live",
+    );
     let set_resume = capture_resume_cmd("claude");
 
     append_hook(hooks, "SessionStart", claude_hook(&set_resume, ""));
-    append_hook(hooks, "UserPromptSubmit", claude_hook(&set_running, ""));
+    append_hook(hooks, "UserPromptSubmit", claude_hook(&set_prompted, ""));
     append_hook(hooks, "PreToolUse", claude_hook(&set_running, ""));
-    // Approving a permission fires no hook of its own, so the Waiting that the
-    // prompt raised would outlive the dialog until the NEXT tool call — a long
-    // build right after an approval read as "needs you" the whole way through.
-    // PostToolUse is the first event after the approved tool has run.
+    // Answering a dialog fires no hook of its own; a tool that ran or failed
+    // after it is the first sign the agent is back at work (agentturn.rs covers
+    // the answer itself).
     append_hook(hooks, "PostToolUse", claude_hook(&set_running, ""));
-    append_hook(
-        hooks,
-        "Notification",
-        claude_hook(&set_waiting, "permission_prompt"),
-    );
+    append_hook(hooks, "PostToolUseFailure", claude_hook(&set_running, ""));
+    // PermissionRequest fires as the dialog opens; the permission_prompt
+    // Notification only after it has sat unanswered for 6 s.
+    append_hook(hooks, "PermissionRequest", claude_hook(&set_waiting, ""));
+    // An MCP dialog's spinner keeps animating while it waits, so only its own
+    // ElicitationResult may end this Waiting (agentturn.rs).
+    let set_asked = send_cmd_with_sid("set_status '$pq' claude_code_${sid:-$LPM_PANE_ID} Waiting --icon=bell --color=#f59e0b --pane=$LPM_PANE_ID --hold");
+    append_hook(hooks, "Elicitation", claude_hook(&set_asked, ""));
+    append_hook(hooks, "ElicitationResult", claude_hook(&set_running, ""));
+    append_hook(hooks, "Notification", claude_hook(&set_waiting, CLAUDE_ASKS));
+    // A /compact is model work started without a prompt; compaction inside a
+    // turn (matcher "auto") is already covered by the turn's own reports.
+    append_hook(hooks, "PreCompact", claude_hook(&set_running, "manual"));
+    append_hook(hooks, "PostCompact", claude_hook(&clear, "manual"));
     append_hook(hooks, "Stop", claude_hook(&claude_stop_cmd(), ""));
     append_hook(hooks, "StopFailure", claude_hook(&set_error, ""));
     append_hook(hooks, "SessionEnd", claude_hook(&clear, ""));
@@ -481,8 +601,18 @@ fn changed_json(settings: &Value, original: &Value) -> Option<Vec<u8>> {
 }
 
 fn install_claude_hooks_at(path: &Path) -> Result<(), String> {
-    let Ok(data) = std::fs::read(path) else {
-        return Ok(()); // missing settings — do NOT create the file
+    let data = match std::fs::read(path) {
+        Ok(data) => data,
+        // Claude is installed (its folder exists) but has never written its
+        // settings: start them, or every session runs without lpm's hooks.
+        // Without the folder Claude isn't here, and nothing is created.
+        Err(e)
+            if e.kind() == std::io::ErrorKind::NotFound
+                && path.parent().is_some_and(Path::is_dir) =>
+        {
+            b"{}".to_vec()
+        }
+        Err(_) => return Ok(()),
     };
     // Write only on change; errors propagate so the Reset button can surface them.
     if let Some(out) = merge_claude_hooks_in(&data, &crate::hookform::local()) {
@@ -492,8 +622,13 @@ fn install_claude_hooks_at(path: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// Where Claude and Codex read their configuration on a host, as its login
+/// shell expands them: the folder its profile exports, else the default.
+const REMOTE_CLAUDE_SETTINGS: &str = "\"${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json\"";
+const REMOTE_CODEX_HOME: &str = "\"${CODEX_HOME:-$HOME/.codex}\"";
+
 /// Best-effort: install the Claude status hooks into the REMOTE
-/// ~/.claude/settings.json over ssh, so agents on the host report status. A
+/// Claude settings over ssh, so agents on the host report status. A
 /// reachable host with a missing/empty file is treated as `{}` and the file is
 /// created (fresh servers had no hooks otherwise); an unreachable host, an
 /// unreadable or unparseable existing file, or a failed write is a failure the
@@ -503,8 +638,10 @@ fn install_claude_hooks_at(path: &Path) -> Result<(), String> {
 pub fn install_remote_claude_hooks(ssh: &crate::config::SshSettings) -> bool {
     // `cat` failing on an EXISTING file (perms) must fail the script, so it is
     // distinguishable from "missing" — only a missing file may become `{}`.
-    let script = "if [ -e \"$HOME/.claude/settings.json\" ]; then cat \"$HOME/.claude/settings.json\"; else printf %s '{}'; fi";
-    let read = crate::sshexec::remote_command(ssh, "", "bash", &["-lc", script], &[]).output();
+    let script = format!(
+        "if [ -e {REMOTE_CLAUDE_SETTINGS} ]; then cat {REMOTE_CLAUDE_SETTINGS}; else printf %s '{{}}'; fi"
+    );
+    let read = crate::sshexec::remote_login_script(ssh, &script).output();
     let Ok(out) = read else { return false };
     if !out.status.success() {
         return false;
@@ -518,7 +655,7 @@ pub fn install_remote_claude_hooks(ssh: &crate::config::SshSettings) -> bool {
         return false; // corrupt settings — merge would misreport it as up to date
     }
     match merge_claude_hooks(&data) {
-        Some(merged) => write_remote_file(ssh, "\"$HOME/.claude/settings.json\"", &merged),
+        Some(merged) => write_remote_file(ssh, REMOTE_CLAUDE_SETTINGS, &merged),
         None => true, // already up to date
     }
 }
@@ -528,41 +665,48 @@ pub fn install_remote_claude_hooks(ssh: &crate::config::SshSettings) -> bool {
 /// ~/.codex/hooks.json. Gated on the remote ~/.codex dir existing (never
 /// created), the same gate the local install applies; within it, config.toml
 /// and hooks.json are created when missing, also matching local.
-/// Returns whether the host is now installed. A missing remote ~/.codex is
-/// success (nothing to do — the dir is never created); an unreachable host or a
-/// failed read/write is a failure the caller retries.
+/// Returns whether the host is now installed. A missing remote ~/.codex is not
+/// (the dir is never created, but Codex may be installed there later), and
+/// neither is an unreachable host or a failed read/write; the caller retries.
 pub fn install_remote_codex_hooks(ssh: &crate::config::SshSettings) -> bool {
     let read = |script: &str| {
-        crate::sshexec::remote_command(ssh, "", "bash", &["-lc", script], &[])
+        crate::sshexec::remote_login_script(ssh, script)
             .output()
             .ok()
             .filter(|o| o.status.success())
             .map(|o| o.stdout)
     };
-    let Some(gate) = read("[ -d \"$HOME/.codex\" ] && echo yes || true") else {
+    let Some(gate) = read(&format!("[ -d {REMOTE_CODEX_HOME} ] && echo yes || true")) else {
         return false;
     };
     if String::from_utf8_lossy(&gate).trim() != "yes" {
-        return true; // no remote codex — nothing to install
+        return false; // no remote Codex yet: try again once it may be there
     }
-    let mut ok = true;
-    match read("cat \"$HOME/.codex/config.toml\" 2>/dev/null || true") {
-        Some(config) => {
-            if let Some(new) = merge_codex_feature(&String::from_utf8_lossy(&config)) {
-                ok = write_remote_file(ssh, "\"$HOME/.codex/config.toml\"", new.as_bytes()) && ok;
-            }
+    let hooks_file = format!("{REMOTE_CODEX_HOME}/hooks.json");
+    let Some(mut hooks) = read(&format!("cat {hooks_file} 2>/dev/null || true")) else {
+        return false;
+    };
+    if let Some(new) = merge_codex_hooks(&hooks) {
+        if !write_remote_file(ssh, &hooks_file, &new) {
+            return false;
         }
-        None => ok = false,
+        hooks = new;
     }
-    match read("cat \"$HOME/.codex/hooks.json\" 2>/dev/null || true") {
-        Some(hooks) => {
-            if let Some(new) = merge_codex_hooks(&hooks) {
-                ok = write_remote_file(ssh, "\"$HOME/.codex/hooks.json\"", &new) && ok;
-            }
-        }
-        None => ok = false,
+    // Codex keys trust by the hooks file's absolute path on the host.
+    let config_file = format!("{REMOTE_CODEX_HOME}/config.toml");
+    let (Some(codex_home), Some(config), Some(version)) = (
+        read(&format!("printf '%s' {REMOTE_CODEX_HOME}")),
+        read(&format!("cat {config_file} 2>/dev/null || true")),
+        read("codex --version 2>/dev/null || true"),
+    ) else {
+        return false;
+    };
+    let hooks_path = Path::new(String::from_utf8_lossy(&codex_home).trim()).join("hooks.json");
+    let key = crate::codexfeature::key_for(&String::from_utf8_lossy(&version));
+    match merge_codex_config(&String::from_utf8_lossy(&config), &hooks_path, &hooks, key) {
+        Some(new) => write_remote_file(ssh, &config_file, new.as_bytes()),
+        None => true,
     }
-    ok
 }
 
 /// Overwrite a remote file atomically (temp + rename) with `bytes` piped over
@@ -576,7 +720,7 @@ pub fn write_remote_file(ssh: &crate::config::SshSettings, path_expr: &str, byte
         "mkdir -p \"$(dirname {path_expr})\" && t={path_expr}.lpmtmp && cat > \"$t\" && [ \"$(wc -c < \"$t\")\" -eq {} ] && mv -f \"$t\" {path_expr}",
         bytes.len()
     );
-    let child = crate::sshexec::remote_command(ssh, "", "bash", &["-lc", &script], &[])
+    let child = crate::sshexec::remote_login_script(ssh, &script)
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
@@ -593,7 +737,11 @@ pub fn write_remote_file(ssh: &crate::config::SshSettings, path_expr: &str, byte
 struct HookInstallState {
     done: std::collections::HashSet<String>,
     in_flight: std::collections::HashSet<String>,
+    tried: std::collections::HashMap<String, std::time::Instant>,
 }
+
+/// How long an unfinished remote install waits before a new terminal retries it.
+const REMOTE_RETRY: std::time::Duration = std::time::Duration::from_secs(300);
 
 fn hook_install_state() -> &'static std::sync::Mutex<HookInstallState> {
     static STATE: std::sync::OnceLock<std::sync::Mutex<HookInstallState>> =
@@ -603,16 +751,19 @@ fn hook_install_state() -> &'static std::sync::Mutex<HookInstallState> {
 
 /// Install the remote Claude + Codex hooks per host per app run (best-effort,
 /// off-thread). Called on every remote terminal spawn: the host key is recorded
-/// only after a fully successful install, so a failed attempt (host briefly
-/// unreachable, etc.) is retried on the next spawn. An in-flight guard keeps
+/// only after a fully successful install, so an attempt that didn't finish —
+/// the host briefly unreachable, or Codex not installed there yet — is retried
+/// by a later spawn, at most every [`REMOTE_RETRY`]. An in-flight guard keeps
 /// concurrent spawns from running two installs for one host at once.
 pub fn install_remote_agent_hooks_once(ssh: &crate::config::SshSettings) {
     let key = format!("{}@{}:{}", ssh.user, ssh.host, ssh.port);
     {
         let mut st = hook_install_state().lock().unwrap();
-        if st.done.contains(&key) || !st.in_flight.insert(key.clone()) {
-            return; // already installed, or an install is already running
+        let recent = st.tried.get(&key).is_some_and(|at| at.elapsed() < REMOTE_RETRY);
+        if st.done.contains(&key) || recent || !st.in_flight.insert(key.clone()) {
+            return; // installed, tried a moment ago, or an install is running
         }
+        st.tried.insert(key.clone(), std::time::Instant::now());
     }
     let ssh = ssh.clone();
     std::thread::spawn(move || {
@@ -627,81 +778,66 @@ pub fn install_remote_agent_hooks_once(ssh: &crate::config::SshSettings) {
 }
 
 fn install_codex_hooks() {
-    install_codex_hooks_at(&home().join(".codex"));
+    if let Some(dir) = crate::agentdirs::codex_home() {
+        install_codex_hooks_at(dir);
+    }
 }
 
 fn install_codex_hooks_at(codex_dir: &Path) {
     if !codex_dir.exists() {
         return;
     }
+    let hooks_path = codex_dir.join("hooks.json");
+    let mut hooks = std::fs::read(&hooks_path).unwrap_or_default();
+    if let Some(out) = merge_codex_hooks_in(&hooks, &crate::hookform::local()) {
+        if crate::fsatomic::write(&hooks_path, &out, crate::fsatomic::Mode::Preserve(0o644)).is_err() {
+            return;
+        }
+        hooks = out;
+    }
     let config_path = codex_dir.join("config.toml");
     let content = std::fs::read_to_string(&config_path).unwrap_or_default();
-    if let Some(new) = merge_codex_feature(&content) {
+    if let Some(new) = merge_codex_config(&content, &hooks_path, &hooks, crate::codexfeature::local_key()) {
         let _ = crate::fsatomic::write(
             &config_path,
             new.as_bytes(),
             crate::fsatomic::Mode::Preserve(0o644),
         );
     }
-    let hooks_path = codex_dir.join("hooks.json");
-    let data = std::fs::read(&hooks_path).unwrap_or_default();
-    if let Some(out) = merge_codex_hooks_in(&data, &crate::hookform::local()) {
-        let _ = crate::fsatomic::write(&hooks_path, &out, crate::fsatomic::Mode::Preserve(0o644));
-    }
 }
 
-/// Pure: config.toml content with the hooks feature enabled — migrating the
-/// deprecated codex_hooks flag lpm used to write — or None when already up to
-/// date. Shared by the local and remote installs.
-fn merge_codex_feature(content: &str) -> Option<String> {
-    let key_line = |line: &str, key: &str| {
-        line.trim_start()
-            .strip_prefix(key)
-            .is_some_and(|rest| rest.trim_start().starts_with('='))
-    };
-    let mut in_features = false;
-    let mut has_hooks = false;
-    let mut has_deprecated = false;
-    for line in content.lines() {
-        let t = line.trim();
-        if t.starts_with('[') {
-            in_features = t == "[features]";
-        } else if in_features {
-            has_hooks |= key_line(line, "hooks");
-            has_deprecated |= key_line(line, "codex_hooks");
-        }
-    }
-    if has_hooks && !has_deprecated {
-        return None;
-    }
+/// Pure: config.toml with the hooks feature on and lpm's hooks in `hooks` (the
+/// content of `hooks_path`) trusted, or None when it is already so. Shared by
+/// the local and remote installs.
+fn merge_codex_config(content: &str, hooks_path: &Path, hooks: &[u8], key: &str) -> Option<String> {
+    let featured = merge_codex_feature(content, key);
+    let base = featured.as_deref().unwrap_or(content);
+    let trusted = serde_json::from_slice::<Value>(hooks)
+        .ok()
+        .and_then(|json| crate::codextrust::trust_lpm_hooks(base, hooks_path, &json, MARKER));
+    trusted.or(featured)
+}
 
-    let mut out = String::new();
-    let mut in_features = false;
-    let mut seen_features = false;
-    for line in content.lines() {
-        let t = line.trim();
-        if t.starts_with('[') {
-            in_features = t == "[features]";
-            out.push_str(line);
-            out.push('\n');
-            if in_features && !seen_features {
-                seen_features = true;
-                if !has_hooks {
-                    out.push_str("hooks = true\n");
-                }
-            }
-            continue;
-        }
-        if in_features && key_line(line, "codex_hooks") {
-            continue;
-        }
-        out.push_str(line);
-        out.push('\n');
+/// Pure: config.toml content with the hooks feature enabled under `key` (see
+/// codexfeature.rs), the other name for it removed, or None when already up to
+/// date. Edited as TOML, not as lines: a `[features]` header written any other
+/// way (a trailing comment, spaced brackets, an inline table) used to get a
+/// second `[features]` table appended, which Codex refuses to start with. A
+/// config that doesn't parse is never rewritten.
+fn merge_codex_feature(content: &str, key: &str) -> Option<String> {
+    use crate::codexfeature::{KEY, LEGACY_KEY};
+    let other = if key == KEY { LEGACY_KEY } else { KEY };
+    let mut doc: toml_edit::DocumentMut = content.parse().ok()?;
+    let features = doc
+        .entry("features")
+        .or_insert_with(|| toml_edit::Item::Table(toml_edit::Table::new()))
+        .as_table_like_mut()?;
+    let mut changed = features.remove(other).is_some();
+    if features.get(key).is_none() {
+        features.insert(key, toml_edit::value(true));
+        changed = true;
     }
-    if !seen_features {
-        out.push_str("\n[features]\nhooks = true\n");
-    }
-    Some(out)
+    changed.then(|| doc.to_string())
 }
 
 /// Pure: merge the lpm Codex hooks into hooks.json `data` (missing/invalid →
@@ -714,13 +850,19 @@ fn merge_codex_hooks(data: &[u8]) -> Option<Vec<u8>> {
 
 /// The Codex events lpm reports on. In the CLI form one SessionStart run sends
 /// both the status and the resume id the sh form splits across two entries.
-const CODEX_EVENTS: [&str; 6] = [
+const CODEX_EVENTS: [&str; 12] = [
     "SessionStart",
+    "PreCompact",
+    "PostCompact",
     "UserPromptSubmit",
     "PreToolUse",
     "PostToolUse",
     "PermissionRequest",
     "Stop",
+    "Interrupt",
+    "SessionEnd",
+    "SubagentStart",
+    "SubagentStop",
 ];
 
 fn merge_codex_hooks_in(data: &[u8], form: &HookForm) -> Option<Vec<u8>> {
@@ -767,9 +909,15 @@ fn merge_codex_hooks_in(data: &[u8], form: &HookForm) -> Option<Vec<u8>> {
 
 fn codex_shell_events() -> Vec<(&'static str, Vec<Value>)> {
     // Per-pane key, same reason as the Claude hooks.
-    let set_running = codex_status_cmd("set_status '$LPM_PROJECT_NAME' codex_$LPM_PANE_ID Running --icon=sparkle --color=#10A37F --pane=$LPM_PANE_ID");
-    let set_done = codex_status_cmd("set_status '$LPM_PROJECT_NAME' codex_$LPM_PANE_ID Done --icon=checkmark --color=#4ade80 --pane=$LPM_PANE_ID");
-    let set_resume = capture_resume_cmd("codex");
+    let set_running_frame =
+        "set_status '$pq' codex_$LPM_PANE_ID Running --icon=sparkle --color=#10A37F --pane=$LPM_PANE_ID";
+    let clear_frame = "clear_status '$pq' codex_$LPM_PANE_ID --live";
+    let set_running = codex_status_cmd(set_running_frame);
+    let set_done = codex_status_cmd("set_status '$pq' codex_$LPM_PANE_ID Done --icon=checkmark --color=#4ade80 --pane=$LPM_PANE_ID");
+    // Interrupt and SessionEnd fire for the root thread only, so they need no
+    // gate; like Claude's SessionEnd they keep a finish the user hasn't seen.
+    let clear = send_cmd(clear_frame);
+    let set_resume = codex_resume_cmd();
     let pre_tool = codex_pre_tool_use_cmd();
     let permission = codex_permission_request_cmd();
 
@@ -777,8 +925,8 @@ fn codex_shell_events() -> Vec<(&'static str, Vec<Value>)> {
     // two: the status ping plus the resume-capture hook that reports Codex's
     // real session id back to the socket (Codex has no --session-id-at-launch).
     // PostToolUse flips Waiting back to Running once a tool (or an answered
-    // request_user_input) completes, so approval/question badges don't stay
-    // pinned for the rest of a long turn.
+    // request_user_input) completes. A PermissionRequest is only announced once
+    // no PostToolUse has said the call went ahead without asking (socketsrv.rs).
     vec![
         (
             "SessionStart",
@@ -789,6 +937,12 @@ fn codex_shell_events() -> Vec<(&'static str, Vec<Value>)> {
         ("PostToolUse", vec![codex_entry(&set_running)]),
         ("PermissionRequest", vec![codex_entry(&permission)]),
         ("Stop", vec![codex_entry(&set_done)]),
+        ("Interrupt", vec![codex_entry(&clear)]),
+        ("SessionEnd", vec![codex_entry(&clear)]),
+        ("PreCompact", vec![codex_entry(&codex_manual_compact_cmd(set_running_frame))]),
+        ("PostCompact", vec![codex_entry(&codex_manual_compact_cmd(clear_frame))]),
+        ("SubagentStart", vec![codex_entry(&codex_child_cmd("start"))]),
+        ("SubagentStop", vec![codex_entry(&codex_child_cmd("stop"))]),
     ]
 }
 
@@ -810,7 +964,7 @@ fn send_cmd(cmd: &str) -> String {
     let recover = crate::sockdeliver::env_recover_group();
     let deliver = crate::sockdeliver::delivery_group();
     format!(
-        "[ -t 0 ] || cat >/dev/null 2>&1; {recover} m=\"{cmd}{REPORTER_PID_OPT}\"; {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
+        "[ -t 0 ] || cat >/dev/null 2>&1; {recover} {PROJECT_ARG} m=\"{cmd}{REPORTER_PID_OPT}\"; {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
     )
 }
 
@@ -822,11 +976,15 @@ fn send_cmd(cmd: &str) -> String {
 /// the final answer). Sub-agent payloads carry `agent_id`; the root thread's
 /// never do. Codex serializes it ahead of `transcript_path`, so only that
 /// structural prefix is inspected — `tool_input`/`prompt` prose can't match.
+/// Codex's memory consolidation is a hidden thread of its own, with no
+/// `agent_id` and no Stop hook for lpm, working in the memory folder under
+/// CODEX_HOME; its reports would flip an idle tab back to Running for good. Its
+/// `cwd` gives it away, and comes ahead of any free text too.
 /// Reading through `head` drains stdin like `send_cmd`, and the `[ -t 0 ]` guard
 /// keeps an interactive run from blocking. Leaves the prefix in `h` for callers
 /// that read other leading fields.
 fn codex_root_gate() -> &'static str {
-    "[ -t 0 ] || h=$(head -c 8192; cat >/dev/null 2>&1); case \"${h%%transcript_path*}\" in *agent_id*) exit 0;; esac;"
+    "[ -t 0 ] || h=$(head -c 8192; cat >/dev/null 2>&1); case \"${h%%transcript_path*}\" in *agent_id*) exit 0;; esac; cw=${h#*\\\"cwd\\\":\\\"}; case \"${cw%%\\\"*}\" in \"${CODEX_HOME:-$HOME/.codex}\"/memories*) exit 0;; esac;"
 }
 
 /// `send_cmd` for a Codex status frame: the same recover/stage/deliver chain
@@ -836,7 +994,30 @@ fn codex_status_cmd(cmd: &str) -> String {
     let recover = crate::sockdeliver::env_recover_group();
     let deliver = crate::sockdeliver::delivery_group();
     format!(
-        "{gate} {recover} m=\"{cmd}{REPORTER_PID_OPT}\"; {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
+        "{gate} {recover} {PROJECT_ARG} m=\"{cmd}{REPORTER_PID_OPT}\"; {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
+    )
+}
+
+/// Codex SubagentStart/SubagentStop: which of the root's sub-agents are live, so
+/// a root that stops before them keeps the tab Running (agentchildren.rs). The
+/// id is the payload's first `agent_id`, ahead of any free text.
+fn codex_child_cmd(phase: &str) -> String {
+    let recover = crate::sockdeliver::env_recover_group();
+    let deliver = crate::sockdeliver::delivery_group();
+    format!(
+        "h=$(cat); c=${{h#*\\\"agent_id\\\":\\\"}}; c=${{c%%\\\"*}}; case \"$c\" in ''|*[!A-Za-z0-9-]*) c=;; esac; {recover} {PROJECT_ARG} m=\"agent_child '$pq' codex_$LPM_PANE_ID $c {phase}{REPORTER_PID_OPT}\"; {{ [ -n \"$c\" ] && [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
+    )
+}
+
+/// `codex_status_cmd` for a `/compact` the user ran: model work no prompt
+/// started. Compaction Codex runs inside a turn (trigger "auto") is the turn's
+/// own business, and its reports already cover it.
+fn codex_manual_compact_cmd(cmd: &str) -> String {
+    let gate = codex_root_gate();
+    let recover = crate::sockdeliver::env_recover_group();
+    let deliver = crate::sockdeliver::delivery_group();
+    format!(
+        "{gate} case \"$h\" in *\\\"trigger\\\":\\\"manual\\\"*) ;; *) exit 0;; esac; {recover} {PROJECT_ARG} m=\"{cmd}{REPORTER_PID_OPT}\"; {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
     )
 }
 
@@ -855,7 +1036,22 @@ fn send_cmd_with_sid(cmd: &str) -> String {
     let recover = crate::sockdeliver::env_recover_group();
     let deliver = crate::sockdeliver::delivery_group();
     format!(
-        "{recover} sid=$(sed -n 's/.*\"session_id\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p' | head -n1); m=\"{cmd}{REPORTER_PID_OPT}\"; {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
+        "{recover} {PROJECT_ARG} sid=$({SID_SED} | head -n1); m=\"{cmd}{REPORTER_PID_OPT}\"; {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
+    )
+}
+
+/// `send_cmd_with_sid` for a report only the session's main thread may make. A
+/// sub-agent's hooks run under the parent's session id and carry `agent_id`,
+/// which Claude serializes ahead of `hook_event_name`, so only that prefix is
+/// read and tool input can't fake it. Ungated, a background sub-agent's tool
+/// call turned the main thread's open question back into Running, and a
+/// sub-agent's failed API call showed the whole tab as a Problem. A sub-agent's
+/// own question still reaches the user: the Waiting reports stay ungated.
+fn claude_main_thread_cmd(cmd: &str) -> String {
+    let recover = crate::sockdeliver::env_recover_group();
+    let deliver = crate::sockdeliver::delivery_group();
+    format!(
+        "{recover} {PROJECT_ARG} p=$(cat); case \"${{p%%hook_event_name*}}\" in *\\\"agent_id\\\"*) exit 0;; esac; sid=$(printf '%s' \"$p\" | {SID_SED}); m=\"{cmd}{REPORTER_PID_OPT}\"; {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
     )
 }
 
@@ -896,7 +1092,10 @@ fn send_cmd_with_sid(cmd: &str) -> String {
 /// and treating it as a pause pinned tabs on Running for hours — every later
 /// Stop re-reported the same value, which dedups away in status.rs and so never
 /// healed. These are therefore the only types that can be downgraded, and only
-/// on POSITIVE evidence.
+/// on POSITIVE evidence. Claude's own housekeeping — a `dream` (memory
+/// consolidation), an `auto-mode scan`, a `memory import` — joins them: it is
+/// ambient work that finishes without ever waking the session, so a Running it
+/// held up stayed until the next prompt.
 ///
 /// JSON escapes `"` inside strings but leaves `{`, `}` and `[`, `]` raw, so no
 /// check on the shape of a naively cut array body can tell "the array closed"
@@ -932,7 +1131,7 @@ fn claude_stop_cmd() -> String {
     let running = "Running --icon=bolt --color=#4C8DFF";
     let ty = "\"type\"[[:space:]]*:[[:space:]]*";
     format!(
-        "{recover} p=$(cat); sid=$(printf '%s' \"$p\" | sed -n 's/.*\"session_id\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p'); bt=$(printf '%s' \"$p\" | sed -n 's/.*\"background_tasks\"[[:space:]]*:[[:space:]]*\\[[[:space:]]*\\(.\\{{0,1\\}}\\).*/\\1/p'); st=\"{done}\"; if [ \"$bt\" = \"{{\" ]; then st=\"{running}\"; f=$(printf '%s' \"$p\" | sed -n 's/.*\"background_tasks\"[[:space:]]*:[[:space:]]*\\[//p' | sed -e 's/\\\\./Z/g' -e 's/{ty}\"teammate\"/T/g' -e 's/{ty}\"monitor\"/T/g' -e 's/{ty}\"shell\"/T/g' -e 's/{ty}\"[^\"]*\"/X/g' -e 's/\"[^\"]*\"/Q/g'); b=${{f%%]*}}; case \"$f\" in *\"]\"*) case \"$b\" in *\"[\"*) ;; *) n=$(printf '%s' \"$b\" | tr -cd '{{' | wc -c | tr -d ' '); c=$(printf '%s' \"$b\" | tr -cd '}}' | wc -c | tr -d ' '); k=$(printf '%s' \"$b\" | tr -cd 'T' | wc -c | tr -d ' '); x=$(printf '%s' \"$b\" | tr -cd 'X' | wc -c | tr -d ' '); if [ \"$n\" -gt 0 ] && [ \"$n\" = \"$c\" ] && [ \"$k\" = \"$n\" ] && [ \"$x\" = 0 ]; then st=\"{done}\"; fi;; esac;; esac; fi; m=\"set_status '$LPM_PROJECT_NAME' {key} $st --pane=$LPM_PANE_ID{REPORTER_PID_OPT}\"; {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
+        "{recover} {PROJECT_ARG} p=$(cat); sid=$(printf '%s' \"$p\" | {SID_SED}); bt=$(printf '%s' \"$p\" | sed -n 's/.*\"background_tasks\"[[:space:]]*:[[:space:]]*\\[[[:space:]]*\\(.\\{{0,1\\}}\\).*/\\1/p'); st=\"{done}\"; if [ \"$bt\" = \"{{\" ]; then st=\"{running}\"; f=$(printf '%s' \"$p\" | sed -n 's/.*\"background_tasks\"[[:space:]]*:[[:space:]]*\\[//p' | sed -e 's/\\\\./Z/g' -e 's/{ty}\"teammate\"/T/g' -e 's/{ty}\"monitor\"/T/g' -e 's/{ty}\"shell\"/T/g' -e 's/{ty}\"dream\"/T/g' -e 's/{ty}\"auto-mode scan\"/T/g' -e 's/{ty}\"memory import\"/T/g' -e 's/{ty}\"[^\"]*\"/X/g' -e 's/\"[^\"]*\"/Q/g'); b=${{f%%]*}}; case \"$f\" in *\"]\"*) case \"$b\" in *\"[\"*) ;; *) n=$(printf '%s' \"$b\" | tr -cd '{{' | wc -c | tr -d ' '); c=$(printf '%s' \"$b\" | tr -cd '}}' | wc -c | tr -d ' '); k=$(printf '%s' \"$b\" | tr -cd 'T' | wc -c | tr -d ' '); x=$(printf '%s' \"$b\" | tr -cd 'X' | wc -c | tr -d ' '); if [ \"$n\" -gt 0 ] && [ \"$n\" = \"$c\" ] && [ \"$k\" = \"$n\" ] && [ \"$x\" = 0 ]; then st=\"{done}\"; fi;; esac;; esac; fi; m=\"set_status '$pq' {key} $st --pane=$LPM_PANE_ID{REPORTER_PID_OPT}\"; {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
     )
 }
 
@@ -956,7 +1155,18 @@ fn capture_resume_cmd(provider: &str) -> String {
     let recover = crate::sockdeliver::env_recover_group();
     let deliver = crate::sockdeliver::delivery_group();
     format!(
-        "{recover} sid=$(sed -n 's/.*\"session_id\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p' | head -n1); m=\"set_resume '$LPM_PROJECT_NAME' $LPM_PANE_ID $sid --provider={provider}{REPORTER_PID_OPT}\"; {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && [ -n \"$sid\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
+        "{recover} {PROJECT_ARG} sid=$({SID_SED} | head -n1); m=\"set_resume '$pq' $LPM_PANE_ID $sid --provider={provider}{REPORTER_PID_OPT}\"; {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && [ -n \"$sid\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
+    )
+}
+
+/// `capture_resume_cmd` behind [`codex_root_gate`]: a thread other than the
+/// tab's root must not become what the tab resumes.
+fn codex_resume_cmd() -> String {
+    let gate = codex_root_gate();
+    let recover = crate::sockdeliver::env_recover_group();
+    let deliver = crate::sockdeliver::delivery_group();
+    format!(
+        "{gate} {recover} {PROJECT_ARG} sid=$(printf '%s' \"$h\" | {SID_SED} | head -n1); m=\"set_resume '$pq' $LPM_PANE_ID $sid --provider=codex{REPORTER_PID_OPT}\"; {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && [ -n \"$sid\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
     )
 }
 
@@ -982,7 +1192,7 @@ fn codex_permission_request_cmd() -> String {
     let recover = crate::sockdeliver::env_recover_group();
     let deliver = crate::sockdeliver::delivery_group();
     format!(
-        "{recover} tp=$(sed -n 's/.*\"transcript_path\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\"[[:space:]]*,[[:space:]]*\"cwd\".*/\\1/p' | head -n1); auto=\"\"; if [ -f \"$tp\" ]; then tc=\"\"; for n in 1048576 16777216 0; do if [ \"$n\" = 0 ]; then tc=$(grep -a '\"type\":\"turn_context\"' \"$tp\" 2>/dev/null | tail -n 1); else tc=$(tail -c \"$n\" \"$tp\" 2>/dev/null | grep -a '\"type\":\"turn_context\"' | tail -n 1); fi; [ -n \"$tc\" ] && break; done; auto=$(printf '%s\\n' \"$tc\" | grep -E '\"approval_policy\":(\"on-request\"|\\{{\"granular\")' | grep -F '\"approvals_reviewer\":\"auto_review\"'); fi; m=\"set_status '$LPM_PROJECT_NAME' codex_$LPM_PANE_ID Waiting --icon=bell --color=#f59e0b --pane=$LPM_PANE_ID{REPORTER_PID_OPT}\"; {{ [ -z \"$auto\" ] && [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
+        "{recover} {PROJECT_ARG} tp=$(sed -n 's/.*\"transcript_path\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\"[[:space:]]*,[[:space:]]*\"cwd\".*/\\1/p' | head -n1); auto=\"\"; if [ -f \"$tp\" ]; then tc=\"\"; for n in 1048576 16777216 0; do if [ \"$n\" = 0 ]; then tc=$(grep -a '\"type\":\"turn_context\"' \"$tp\" 2>/dev/null | tail -n 1); else tc=$(tail -c \"$n\" \"$tp\" 2>/dev/null | grep -a '\"type\":\"turn_context\"' | tail -n 1); fi; [ -n \"$tc\" ] && break; done; auto=$(printf '%s\\n' \"$tc\" | grep -E '\"approval_policy\":(\"on-request\"|\\{{\"granular\")' | grep -F '\"approvals_reviewer\":\"auto_review\"'); fi; m=\"set_status '$pq' codex_$LPM_PANE_ID Waiting --icon=bell --color=#f59e0b --approval --pane=$LPM_PANE_ID{REPORTER_PID_OPT}\"; {{ [ -z \"$auto\" ] && [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
     )
 }
 
@@ -999,7 +1209,7 @@ fn codex_pre_tool_use_cmd() -> String {
     let recover = crate::sockdeliver::env_recover_group();
     let deliver = crate::sockdeliver::delivery_group();
     format!(
-        "{gate} {recover} tn=$(printf '%s' \"${{h%%tool_input*}}\" | sed -n 's/.*\"permission_mode\"[[:space:]]*:[[:space:]]*\"[^\"]*\"[[:space:]]*,[[:space:]]*\"tool_name\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p' | head -n1); st=\"Running --icon=sparkle --color=#10A37F\"; [ \"$tn\" = \"request_user_input\" ] && st=\"Waiting --icon=bell --color=#f59e0b\"; m=\"set_status '$LPM_PROJECT_NAME' codex_$LPM_PANE_ID $st --pane=$LPM_PANE_ID{REPORTER_PID_OPT}\"; {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
+        "{gate} {recover} {PROJECT_ARG} tn=$(printf '%s' \"${{h%%tool_input*}}\" | sed -n 's/.*\"permission_mode\"[[:space:]]*:[[:space:]]*\"[^\"]*\"[[:space:]]*,[[:space:]]*\"tool_name\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p' | head -n1); st=\"Running --icon=sparkle --color=#10A37F --step\"; [ \"$tn\" = \"request_user_input\" ] && st=\"Waiting --icon=bell --color=#f59e0b\"; m=\"set_status '$pq' codex_$LPM_PANE_ID $st --pane=$LPM_PANE_ID{REPORTER_PID_OPT}\"; {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
     )
 }
 
@@ -2381,6 +2591,28 @@ fn append_hook(hooks: &mut Map<String, Value>, event: &str, entry: Value) {
 mod tests {
     use super::*;
 
+    #[test]
+    fn hooks_switched_off_by_claudes_own_settings_are_reported() {
+        let user_off = json!({ "disableAllHooks": true });
+        let plain = json!({});
+        assert!(claude_hooks_disabled(&user_off, None));
+        assert!(!claude_hooks_disabled(&plain, None));
+        assert!(claude_hooks_disabled(&plain, Some(&json!({ "allowManagedHooksOnly": true }))));
+        assert!(claude_hooks_disabled(&plain, Some(&json!({ "disableAllHooks": true }))));
+        assert!(!claude_hooks_disabled(&plain, Some(&json!({ "disableAllHooks": false }))));
+    }
+
+    #[test]
+    fn claude_settings_are_started_where_claude_is_installed() {
+        let home = tempfile::tempdir().unwrap();
+        let settings = home.path().join(".claude").join("settings.json");
+        install_claude_hooks_at(&settings).unwrap();
+        assert!(!settings.exists(), "no Claude folder, nothing created");
+        std::fs::create_dir_all(settings.parent().unwrap()).unwrap();
+        install_claude_hooks_at(&settings).unwrap();
+        assert!(claude_hooks_status_at(&settings).hooks_installed);
+    }
+
     /// The shell the generated lines run under: `sh`, or Git Bash on Windows.
     fn posix_sh() -> String {
         if cfg!(windows) {
@@ -2447,7 +2679,7 @@ mod tests {
         let cmd = start[0]["hooks"][0]["command"].as_str().unwrap();
         assert!(cmd.contains("session_id"), "{cmd}");
         assert!(
-            cmd.contains("set_resume '$LPM_PROJECT_NAME' $LPM_PANE_ID $sid --provider=claude"),
+            cmd.contains("set_resume '$pq' $LPM_PANE_ID $sid --provider=claude"),
             "{cmd}"
         );
     }
@@ -2594,9 +2826,9 @@ mod tests {
     }
 
     #[test]
-    fn missing_settings_is_noop() {
+    fn missing_settings_without_claude_is_noop() {
         let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("settings.json"); // does not exist
+        let path = dir.path().join(".claude").join("settings.json"); // no Claude folder
         install_claude_hooks_at(&path).unwrap();
         assert!(!path.exists(), "must not create the file");
         let st = claude_hooks_status_at(&path);
@@ -2960,6 +3192,28 @@ mod tests {
         );
     }
 
+    /// Codex's memory consolidation thread works in CODEX_HOME's memory folder
+    /// and never reports a Stop, so none of its reports may speak for the tab.
+    #[cfg(unix)]
+    #[test]
+    fn codex_memory_consolidation_never_speaks_for_the_tab() {
+        let payload = |cwd: &str| {
+            format!(
+                r#"{{"session_id":"m1","turn_id":"t1","transcript_path":null,"cwd":"{cwd}","hook_event_name":"UserPromptSubmit","model":"m","permission_mode":"default","prompt":"consolidate"}}"#
+            )
+        };
+        let home = std::env::temp_dir().join("lpm-codex-home");
+        let cmd = format!(
+            "CODEX_HOME={}; {}",
+            home.display(),
+            installed_codex_cmd("UserPromptSubmit")
+        );
+        let memories = format!("{}/memories", home.display());
+        assert_eq!(run_codex_hook(&cmd, &payload(&memories)), None);
+        let msg = run_codex_hook(&cmd, &payload("/work/app")).unwrap();
+        assert!(msg.contains("codex_pane-1 Running"), "{msg}");
+    }
+
     /// The gate reads only the structural prefix ahead of `transcript_path`:
     /// prose in `tool_input` naming the field is not a sub-agent.
     #[cfg(unix)]
@@ -2984,12 +3238,33 @@ mod tests {
         assert!(msg.contains("codex_pane-1 Running"), "{msg}");
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn codex_sub_agents_report_their_start_and_stop() {
+        let payload = |event: &str, tail: &str| {
+            format!(
+                r#"{{"session_id":"s1","turn_id":"t1","transcript_path":null,"cwd":"/tmp","hook_event_name":"{event}","model":"m","permission_mode":"default","agent_id":"019a-77","agent_type":"default"{tail}}}"#
+            )
+        };
+        let start = run_codex_hook(&codex_child_cmd("start"), &payload("SubagentStart", "")).unwrap();
+        assert!(start.starts_with("agent_child 'proj' codex_pane-1 019a-77 start"), "{start}");
+        let quoted = r#","last_assistant_message":"done: \"agent_id\":\"fake\"""#;
+        let stop = run_codex_hook(&codex_child_cmd("stop"), &payload("SubagentStop", quoted)).unwrap();
+        assert!(stop.starts_with("agent_child 'proj' codex_pane-1 019a-77 stop"), "{stop}");
+        assert_eq!(run_codex_hook(&codex_child_cmd("start"), r#"{"hook_event_name":"SubagentStart"}"#), None);
+    }
+
     /// Runs a generated hook command under `sh` with `payload` on stdin and a
     /// live unix socket at $LPM_SOCKET_PATH, returning the message the hook
     /// delivered (None when the hook suppressed delivery). Exercises the real
     /// sed/tail/grep gating and the nc delivery path end to end.
     #[cfg(unix)]
     fn run_codex_hook(cmd: &str, payload: &str) -> Option<String> {
+        run_hook_in_project(cmd, payload, "proj")
+    }
+
+    #[cfg(unix)]
+    fn run_hook_in_project(cmd: &str, payload: &str, project: &str) -> Option<String> {
         use std::io::{Read, Write};
         let td = tempfile::tempdir().unwrap();
         let sock = td.path().join("s.sock");
@@ -3000,7 +3275,7 @@ mod tests {
             .arg("-c")
             .arg(cmd)
             .env("LPM_SOCKET_PATH", &sock)
-            .env("LPM_PROJECT_NAME", "proj")
+            .env("LPM_PROJECT_NAME", project)
             .env("LPM_PANE_ID", "pane-1")
             .env("HOME", td.path())
             .env_remove("TMUX")
@@ -3028,6 +3303,75 @@ mod tests {
             std::thread::sleep(std::time::Duration::from_millis(25));
         }
         None
+    }
+
+    /// The lpm command installed for a Claude event, as Claude would run it.
+    #[cfg(unix)]
+    fn claude_installed(event: &str) -> String {
+        let v: Value = serde_json::from_slice(&merge_claude_hooks(b"{}").unwrap()).unwrap();
+        v["hooks"][event][0]["hooks"][0]["command"]
+            .as_str()
+            .unwrap()
+            .to_string()
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn claude_frames_key_by_the_payloads_own_session_id() {
+        let cmd = claude_installed("PreToolUse");
+        let payload = r#"{"session_id":"s1","transcript_path":"/t","cwd":"/c","hook_event_name":"PreToolUse","tool_name":"mcp__notes__open","tool_input":{"session_id":"foreign"}}"#;
+        let msg = run_codex_hook(&cmd, payload).expect("main thread reports");
+        assert!(msg.contains(" claude_code_s1 Running "), "{msg}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn claude_sub_agents_ask_but_never_speak_for_the_session() {
+        let sub = |event: &str| {
+            format!(
+                r#"{{"session_id":"s1","transcript_path":"/t","cwd":"/c","agent_id":"a7","agent_type":"general-purpose","hook_event_name":"{event}","tool_name":"Read","tool_input":{{}}}}"#
+            )
+        };
+        for event in ["PreToolUse", "PostToolUse", "PostToolUseFailure", "StopFailure"] {
+            assert_eq!(run_codex_hook(&claude_installed(event), &sub(event)), None, "{event}");
+        }
+        let asked = run_codex_hook(&claude_installed("PermissionRequest"), &sub("PermissionRequest"));
+        assert!(asked.is_some_and(|m| m.contains(" claude_code_s1 Waiting ")));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn codex_reports_only_a_compact_the_user_ran() {
+        let v: Value = serde_json::from_slice(&merge_codex_hooks(b"{}").unwrap()).unwrap();
+        let cmd = |event: &str| v["hooks"][event][0]["hooks"][0]["command"].as_str().unwrap().to_string();
+        let payload = |trigger: &str| {
+            format!(r#"{{"session_id":"t1","turn_id":"u1","transcript_path":"/t","cwd":"/c","hook_event_name":"PreCompact","model":"m","trigger":"{trigger}"}}"#)
+        };
+        let msg = run_codex_hook(&cmd("PreCompact"), &payload("manual")).expect("manual compact reports");
+        assert!(msg.contains(" codex_pane-1 Running "), "{msg}");
+        assert_eq!(run_codex_hook(&cmd("PreCompact"), &payload("auto")), None);
+        let msg = run_codex_hook(&cmd("PostCompact"), &payload("manual")).unwrap();
+        assert!(msg.starts_with("clear_status 'proj' codex_pane-1 --live"), "{msg}");
+    }
+
+    /// The socket splits frames like a shell, so the name must survive quoting.
+    #[cfg(unix)]
+    #[test]
+    fn a_project_name_with_an_apostrophe_still_reaches_the_socket() {
+        let payload = r#"{"session_id":"s1","transcript_path":"/t","cwd":"/c","hook_event_name":"PreToolUse","tool_name":"Read","tool_input":{}}"#;
+        let msg = run_hook_in_project(&claude_installed("PreToolUse"), payload, "Bob's app")
+            .expect("frame delivered");
+        assert!(msg.starts_with(r#"set_status 'Bob'"'"'s app' claude_code_s1 Running "#), "{msg}");
+        let codex = codex_status_cmd("set_status '$pq' codex_$LPM_PANE_ID Done");
+        let msg = run_hook_in_project(&codex, r#"{"session_id":"t"}"#, "Bob's app").unwrap();
+        assert!(msg.starts_with(r#"set_status 'Bob'"'"'s app' codex_pane-1 Done"#), "{msg}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn tool_input_naming_an_agent_id_is_still_the_main_thread() {
+        let payload = r#"{"session_id":"s1","transcript_path":"/t","cwd":"/c","hook_event_name":"PreToolUse","tool_name":"Task","tool_input":{"agent_id":"a7"}}"#;
+        assert!(run_codex_hook(&claude_installed("PreToolUse"), payload).is_some());
     }
 
     #[cfg(unix)]
@@ -3274,12 +3618,23 @@ mod tests {
 
         let msg = stop(
             "Thinking it over.",
-            r#"[{"id":"bt1","type":"dream","status":"running","description":"x"}]"#,
+            r#"[{"id":"bt1","type":"cloud session","status":"running","description":"x"}]"#,
         );
         assert!(
             msg.contains("claude_code_s1 Running"),
-            "an unrecognized task type must not be downgraded: {msg}"
+            "a task type not known to finish silently must not be downgraded: {msg}"
         );
+
+        for ambient in ["dream", "auto-mode scan", "memory import"] {
+            let msg = stop(
+                "Done.",
+                &format!(r#"[{{"id":"bt1","type":"{ambient}","status":"running","description":"x"}}]"#),
+            );
+            assert!(
+                msg.contains("claude_code_s1 Done"),
+                "{ambient} never wakes the session, so the turn is over: {msg}"
+            );
+        }
 
         // A teammate description is the first ~50 chars of its spawn prompt, so
         // raw `{`, `}`, `[` and `]` land in it routinely — and JSON escapes none
@@ -3523,29 +3878,44 @@ mod tests {
 
     #[test]
     fn codex_feature_enables_hooks() {
+        assert_eq!(merge_codex_feature("", "hooks").unwrap(), "[features]\nhooks = true\n");
         assert_eq!(
-            merge_codex_feature("").unwrap(),
-            "\n[features]\nhooks = true\n"
+            merge_codex_feature("model = \"o3\"\n[features]\nweb = true\n", "hooks").unwrap(),
+            "model = \"o3\"\n[features]\nweb = true\nhooks = true\n"
         );
-        assert_eq!(
-            merge_codex_feature("model = \"o3\"\n[features]\nweb = true\n").unwrap(),
-            "model = \"o3\"\n[features]\nhooks = true\nweb = true\n"
-        );
-        assert!(merge_codex_feature("[features]\nhooks = true\n").is_none());
+        assert!(merge_codex_feature("[features]\nhooks = true\n", "hooks").is_none());
         // A hooks key outside [features] (e.g. lpm's own [hooks.state]) doesn't count.
-        let other_section = merge_codex_feature("[hooks.state]\nhooks = true\n").unwrap();
+        let other_section = merge_codex_feature("[hooks.state]\nhooks = true\n", "hooks").unwrap();
         assert!(other_section.contains("[features]\nhooks = true\n"));
+    }
+
+    /// Valid TOML that the old line matcher didn't recognize as `[features]`
+    /// got a second table appended, and Codex refused to start.
+    #[test]
+    fn codex_feature_edits_any_valid_features_table_in_place() {
+        for (config, expected) in [
+            ("[features] # mine\nweb = true\n", "[features] # mine\nweb = true\nhooks = true\n"),
+            ("[ features ]\nweb = true\n", "[ features ]\nweb = true\nhooks = true\n"),
+            ("features = { web = true }\n", "features = { web = true , hooks = true }\n"),
+        ] {
+            let out = merge_codex_feature(config, "hooks").unwrap();
+            assert_eq!(out, expected);
+            assert!(out.parse::<toml_edit::DocumentMut>().is_ok(), "{out}");
+        }
+        assert_eq!(merge_codex_feature("[features\nbroken", "hooks"), None, "never rewrite what can't be read");
     }
 
     #[test]
     fn codex_feature_migrates_deprecated_flag() {
         let migrated =
-            merge_codex_feature("[features]\ncodex_hooks = true\n\n[other]\nx = 1\n").unwrap();
+            merge_codex_feature("[features]\ncodex_hooks = true\n\n[other]\nx = 1\n", "hooks").unwrap();
         assert_eq!(migrated, "[features]\nhooks = true\n\n[other]\nx = 1\n");
         // Both present: only the deprecated flag is dropped.
-        let both = merge_codex_feature("[features]\nhooks = true\ncodex_hooks = true\n").unwrap();
+        let both = merge_codex_feature("[features]\nhooks = true\ncodex_hooks = true\n", "hooks").unwrap();
         assert_eq!(both, "[features]\nhooks = true\n");
-        assert!(merge_codex_feature(&both).is_none(), "migration settles");
+        assert!(merge_codex_feature(&both, "hooks").is_none(), "migration settles");
+        let old = merge_codex_feature("[features]\nhooks = true\n", "codex_hooks").unwrap();
+        assert_eq!(old, "[features]\ncodex_hooks = true\n", "the name Codex 0.123 and older read");
     }
 
     #[test]
@@ -3607,9 +3977,9 @@ mod tests {
 
     #[test]
     fn capture_resume_cmd_shape() {
-        let s = capture_resume_cmd("codex");
+        let s = codex_resume_cmd();
         assert!(s.contains("session_id"), "extracts session_id from stdin");
-        assert!(s.contains("set_resume '$LPM_PROJECT_NAME' $LPM_PANE_ID $sid --provider=codex"));
+        assert!(s.contains("set_resume '$pq' $LPM_PANE_ID $sid --provider=codex"));
         assert!(s.contains("[ -S \"$LPM_SOCKET_PATH\" ]") && s.contains("[ -n \"$sid\" ]"));
         // Now also gated on a known project (not just pane) so we never resume ''.
         assert!(

@@ -15,10 +15,17 @@
 // keeps the answer right when a harness runs its hooks through a wrapper shell,
 // which puts the reporter's own agent in its ancestry either way.
 //
-// Every uncertainty fails OPEN (report accepted): a pane whose shell is not on
-// the path at all (tmux, whose panes hang off the server), a pid the table
-// doesn't know (a process younger than the snapshot), a machine without `ps`.
-// Dropping a real agent's status would leave a tab dark for the rest of a turn.
+// A path that climbs to init without meeting the pane's shell belongs to no
+// part of the tab at all, though it carries the tab's identity: an editor the
+// tab opened (`code .`) runs its own agents, Claude's background daemon runs
+// the sessions sent to it, a detached `nohup` run outlives its shell. Their
+// reports speak for the tab no more than a nested agent's do.
+//
+// Every uncertainty fails OPEN (report accepted): a path through a terminal
+// multiplexer (tmux's panes hang off its server, not off the tab's shell), a
+// pid the table doesn't know (a process younger than the snapshot), a machine
+// without `ps`. Dropping a real agent's status would leave a tab dark for the
+// rest of a turn.
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
@@ -128,31 +135,77 @@ fn process_table(fresh: bool) -> Arc<Table> {
     table
 }
 
-fn is_agent(comm: &str) -> bool {
-    let name = comm.rsplit('/').next().unwrap_or(comm);
-    AGENT_COMMS.contains(&name)
+/// What separates an agent from one it launched: agents run what they launch
+/// through a shell (Claude's Bash tool, Codex's `zsh -lc`).
+/// Servers whose panes run the tab's agents without descending from its shell.
+const MULTIPLEXER_COMMS: [&str; 5] = ["tmux", "screen", "zellij", "abduco", "dtach"];
+
+const SHELL_COMMS: [&str; 12] = [
+    "sh", "bash", "zsh", "dash", "fish", "ksh", "tcsh", "csh", "nu", "pwsh", "powershell", "cmd",
+];
+
+fn basename(comm: &str) -> &str {
+    comm.rsplit(['/', '\\']).next().unwrap_or(comm)
 }
 
-/// Whether `reporter` sits under an agent that itself sits under `pane_shell`.
-/// Split from [`is_nested_agent`] so the walk is testable against a fixed table.
+fn agent_name(comm: &str) -> Option<&str> {
+    let name = basename(comm);
+    AGENT_COMMS.contains(&name).then_some(name)
+}
+
+#[cfg(test)]
+fn is_agent(comm: &str) -> bool {
+    agent_name(comm).is_some()
+}
+
+/// A login shell's comm carries a leading dash (`-zsh`).
+fn is_shell(comm: &str) -> bool {
+    SHELL_COMMS.contains(&basename(comm).trim_start_matches('-'))
+}
+
+fn is_multiplexer(comm: &str) -> bool {
+    let name = basename(comm).to_ascii_lowercase();
+    MULTIPLEXER_COMMS.iter().any(|m| name.starts_with(m))
+}
+
+/// Whether `reporter` sits under an agent that itself sits under `pane_shell`,
+/// or outside the pane's tree altogether. Split from [`is_nested_agent`] so the
+/// walk is testable against a fixed table.
+///
+/// Counts agents, not agent-named processes: one agent can be several in a row
+/// with no shell between them — a Volta shim that spawns the real binary rather
+/// than exec'ing it, or Codex's background daemon under the `codex` that started
+/// it — and those are the tab's own agent, not one it launched.
 fn nested_in_table(table: &Table, reporter: i32, pane_shell: i32) -> bool {
     if reporter <= 1 || pane_shell <= 1 {
         return false;
     }
     let mut pid = reporter;
     let mut agents = 0;
+    let mut inside: Option<&str> = None;
+    let mut multiplexed = false;
     for _ in 0..MAX_DEPTH {
+        let proc = table.get(&pid);
         if pid == pane_shell {
-            return agents >= 2;
+            // A pane whose root process is the agent itself (`exec claude`).
+            let root = proc.and_then(|p| agent_name(&p.comm));
+            let root_counts = root.is_some_and(|name| inside != Some(name));
+            return agents + usize::from(root_counts) >= 2;
         }
-        let Some(proc) = table.get(&pid) else {
+        let Some(proc) = proc else {
             return false;
         };
-        if is_agent(&proc.comm) {
-            agents += 1;
+        match agent_name(&proc.comm) {
+            Some(name) if inside != Some(name) => {
+                agents += 1;
+                inside = Some(name);
+            }
+            Some(_) => {}
+            None if is_shell(&proc.comm) => inside = None,
+            None => multiplexed |= is_multiplexer(&proc.comm),
         }
         if proc.ppid <= 1 {
-            return false;
+            return !multiplexed;
         }
         pid = proc.ppid;
     }
@@ -160,7 +213,8 @@ fn nested_in_table(table: &Table, reporter: i32, pane_shell: i32) -> bool {
 }
 
 /// True when the process that reported is an agent another agent in the same
-/// pane launched, and so speaks for no tab of its own.
+/// pane launched, or one running outside the pane's process tree, and so speaks
+/// for no tab of its own.
 pub fn is_nested_agent(reporter: i32, pane_shell: i32) -> bool {
     if reporter <= 1 || pane_shell <= 1 || reporter == pane_shell {
         return false;
@@ -245,12 +299,74 @@ mod tests {
         assert!(nested_in_table(&t, 30, 10));
     }
 
+    /// Codex 0.160 hosts sessions in a background daemon its TUI starts, and the
+    /// daemon runs the hooks: daemon -> TUI -> pane shell is still one agent.
+    #[test]
+    fn codex_daemon_under_its_own_tui_is_not_nested() {
+        let t = table(&[
+            (10, 1, "-zsh"),
+            (20, 10, "codex"),
+            (30, 20, "/u/.codex/packages/app-server-daemon/releases/0.160.0/bin/codex"),
+        ]);
+        assert!(!nested_in_table(&t, 30, 10));
+    }
+
+    /// Volta's shims spawn the real tool instead of exec'ing it, keeping argv0.
+    #[test]
+    fn a_shim_that_spawns_the_real_agent_is_one_agent() {
+        let claude = table(&[(10, 1, "-zsh"), (20, 10, "claude"), (30, 20, "claude")]);
+        assert!(!nested_in_table(&claude, 30, 10));
+        let codex = table(&[
+            (10, 1, "-zsh"),
+            (20, 10, "codex"),
+            (30, 20, "node"),
+            (40, 30, "/v/vendor/aarch64-apple-darwin/codex/codex"),
+        ]);
+        assert!(!nested_in_table(&codex, 40, 10));
+    }
+
+    #[test]
+    fn an_agent_launched_through_a_tool_shell_is_nested_even_with_the_same_name() {
+        let t = table(&[
+            (10, 1, "-zsh"),
+            (20, 10, "codex"),
+            (30, 20, "/bin/zsh"),
+            (40, 30, "codex"),
+        ]);
+        assert!(nested_in_table(&t, 40, 10));
+    }
+
     /// A tmux pane hangs off the tmux server, not off the tab's shell: the walk
     /// never reaches the pane and must accept rather than blame.
     #[test]
     fn agent_outside_the_pane_tree_is_accepted() {
         let t = table(&[(10, 1, "-zsh"), (99, 1, "tmux"), (20, 99, "claude")]);
         assert!(!nested_in_table(&t, 20, 10));
+    }
+
+    #[test]
+    fn an_agent_launched_by_a_pane_that_is_the_agent_is_nested() {
+        let t = table(&[(10, 1, "claude"), (20, 10, "zsh"), (30, 20, "codex")]);
+        assert!(nested_in_table(&t, 30, 10));
+        assert!(!nested_in_table(&t, 20, 10), "the root agent's own tool shell");
+    }
+
+    /// An editor the tab opened, Claude's background daemon, a detached run:
+    /// each climbs to init without passing the tab's shell.
+    #[test]
+    fn agent_outside_the_tab_is_rejected() {
+        let editor = table(&[
+            (10, 1, "-zsh"),
+            (100, 1, "/Applications/Cursor.app/Contents/MacOS/Cursor"),
+            (150, 100, "Cursor Helper"),
+            (200, 150, "/bin/zsh"),
+            (300, 200, "claude"),
+        ]);
+        assert!(nested_in_table(&editor, 300, 10));
+        let detached = table(&[(10, 1, "-zsh"), (300, 1, "claude")]);
+        assert!(nested_in_table(&detached, 300, 10));
+        let screen = table(&[(10, 1, "-zsh"), (99, 1, "SCREEN"), (20, 99, "zsh"), (30, 20, "codex")]);
+        assert!(!nested_in_table(&screen, 30, 10));
     }
 
     #[test]

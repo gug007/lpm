@@ -49,6 +49,20 @@ extension AppModel {
         }
     }
 
+    /// The live Mac's connected machines with their projects, as Activity and the
+    /// ambient badge count them.
+    var activityMachines: [ActivityMachine] {
+        machineSections.map {
+            ActivityMachine(slug: $0.machine.slug, name: $0.machine.name, projects: $0.machine.projects ?? [])
+        }
+    }
+
+    /// Every project whose agents the ambient badge counts: the Mac's own and its
+    /// connected machines'.
+    var ambientProjects: [Project] {
+        projects + activityMachines.flatMap(\.projects)
+    }
+
     /// Open a project of one of the Mac's machines: switch this phone to that
     /// machine, then go to the project (and the terminal, when one is given) once
     /// its list has loaded.

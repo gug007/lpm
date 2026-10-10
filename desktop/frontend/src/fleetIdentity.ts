@@ -1,5 +1,6 @@
 import type { ProjectInfo } from "./types";
 import { projectDisplayName } from "./components/ProjectNameDisplay";
+import { GLOBAL_TERMINALS_KEY, GLOBAL_TERMINALS_LABEL } from "./terminals";
 
 /** `name` is the routing key every command takes, `label` the only thing safe
  *  to show. An empty `name` means the row belongs to no single project. */
@@ -32,6 +33,18 @@ export function namelessIdentity(label: string): FleetProjectIdentity {
   return {
     name: "",
     label,
+    isCopy: false,
+    isWorktree: false,
+    isRemote: false,
+    peerAlias: null,
+  };
+}
+
+/** The global Terminals: no project, but a place of their own to open. */
+export function terminalsIdentity(): FleetProjectIdentity {
+  return {
+    name: GLOBAL_TERMINALS_KEY,
+    label: GLOBAL_TERMINALS_LABEL,
     isCopy: false,
     isWorktree: false,
     isRemote: false,

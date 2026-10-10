@@ -27,9 +27,12 @@ interface PeerMeta {
 }
 
 let peers: PeerMeta[] = [];
-// Last good translated project list per peer — served (as-is) when a live
-// list_projects call fails so a transient hiccup doesn't blank the sidebar.
-const peerListCache = new Map<string, ProjectInfo[]>();
+// Last good translated project list per peer and when it came, served when a
+// live list_projects call fails or is slow so a hiccup doesn't blank the sidebar.
+const peerListCache = new Map<string, { list: ProjectInfo[]; at: number }>();
+// The list_projects call each peer is still answering. Every listing shares it:
+// a peer that stopped answering holds one call open, not one per refresh.
+const pendingPeerLists = new Map<string, { call: Promise<ProjectInfo[]>; startedAt: number }>();
 let registryStarted = false;
 // Whether a peer_state call has ever landed. Until one has, an empty `peers`
 // means "not known yet", NOT "nothing is paired" — see loadRegistry.
@@ -41,6 +44,11 @@ const peerChangeListeners = new Set<() => void>();
 // How long list_projects waits for a registry it hasn't loaded yet. Bounded so a
 // stalled peer_state can only delay the remote rows, never the local ones.
 const REGISTRY_WAIT_MS = 2_000;
+// How long a listing waits on one peer's call. A Mac that stopped answering
+// would otherwise hold back every project's status, this Mac's own included.
+const PEER_LIST_WAIT_MS = 4_000;
+// A cached list older than this no longer says what that Mac's agents are doing.
+const PEER_STATUS_FRESH_MS = 15_000;
 
 async function refreshPeers(): Promise<void> {
   try {
@@ -122,20 +130,42 @@ async function routedListProjects(): Promise<ProjectInfo[]> {
   const listing = invoke("list_projects") as Promise<ProjectInfo[] | null>;
   if (!registryLoaded) await Promise.race([loadRegistry(), delay(REGISTRY_WAIT_MS)]);
   const local = (await listing) ?? [];
-  const slugs = connectedSlugs();
-  const peerLists = await Promise.all(
-    slugs.map(async (slug) => {
-      try {
-        const raw = await invoke("peer_invoke", { slug, cmd: "list_projects", args: {} });
-        const translated = translateResult("list_projects", slug, raw) as ProjectInfo[];
-        peerListCache.set(slug, translated);
-        return translated;
-      } catch {
-        return peerListCache.get(slug) ?? [];
-      }
-    }),
-  );
+  const peerLists = await Promise.all(connectedSlugs().map(listPeerProjects));
   return mergeProjectLists(local, peerLists);
+}
+
+function peerListCall(slug: string) {
+  const pending = pendingPeerLists.get(slug);
+  if (pending) return pending;
+  const call = invoke("peer_invoke", { slug, cmd: "list_projects", args: {} }).then((raw) => {
+    const list = translateResult("list_projects", slug, raw) as ProjectInfo[];
+    peerListCache.set(slug, { list, at: Date.now() });
+    return list;
+  });
+  const entry = { call, startedAt: Date.now() };
+  pendingPeerLists.set(slug, entry);
+  void call
+    .catch(() => {})
+    .finally(() => {
+      if (pendingPeerLists.get(slug) === entry) pendingPeerLists.delete(slug);
+    });
+  return entry;
+}
+
+async function listPeerProjects(slug: string): Promise<ProjectInfo[]> {
+  const { call, startedAt } = peerListCall(slug);
+  const budget = Math.max(0, startedAt + PEER_LIST_WAIT_MS - Date.now());
+  const answer = await Promise.race([call, delay(budget).then(() => null)]).catch(() => null);
+  return answer ?? cachedPeerList(slug);
+}
+
+// What a peer that hasn't answered said last: its projects stay listed, but
+// statuses that old would show its agents frozen as they were, as if live.
+function cachedPeerList(slug: string): ProjectInfo[] {
+  const cached = peerListCache.get(slug);
+  if (!cached) return [];
+  if (Date.now() - cached.at < PEER_STATUS_FRESH_MS) return cached.list;
+  return cached.list.map((project) => ({ ...project, statusEntries: [] }));
 }
 
 async function dispatchToPeer(

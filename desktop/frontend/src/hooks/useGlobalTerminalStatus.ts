@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { EventsOn } from "../../bridge/runtime";
+import { EventsOnReady } from "../../bridge/runtime";
 import { useGlobalAgentStatus } from "../store/globalAgentStatus";
 import { GLOBAL_TERMINALS_KEY } from "../terminals";
 import { usePaneStatus, type PaneStatus } from "./usePaneStatus";
@@ -8,31 +8,38 @@ import { usePaneStatus, type PaneStatus } from "./usePaneStatus";
 const DEBOUNCE_MS = 250;
 
 /** Keeps the global Terminals' agent statuses current for the whole window:
- *  fetched once up front, again on each of the reserved project's status events,
- *  and when the window comes back into view after events may have been missed.
- *  Mounted once, in the main window, so the sidebar reads them whether or not
- *  the Terminals view has ever been opened. */
+ *  fetched once the status listener is attached, so no event can slip between
+ *  the read and the subscription, again on each of the reserved project's
+ *  status events, and when the window comes back into view. Mounted in every
+ *  window, so the sidebar reads them whether or not the Terminals view has ever
+ *  been opened. */
 export function useGlobalAgentStatusSync(): void {
   useEffect(() => {
     const { refresh } = useGlobalAgentStatus.getState();
-    void refresh();
 
     let timer: ReturnType<typeof setTimeout> | null = null;
-    const cancelStatus = EventsOn("status-changed", (project: string) => {
+    let cancelStatus: (() => void) | null = null;
+    let unmounted = false;
+    void EventsOnReady("status-changed", (project: string) => {
       if (project !== GLOBAL_TERMINALS_KEY) return;
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
         timer = null;
         void refresh();
       }, DEBOUNCE_MS);
+    }).then((off) => {
+      if (unmounted) return off();
+      cancelStatus = off;
+      void refresh();
     });
     const onVisibility = () => {
       if (!document.hidden) void refresh();
     };
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
+      unmounted = true;
       if (timer) clearTimeout(timer);
-      cancelStatus();
+      cancelStatus?.();
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, []);

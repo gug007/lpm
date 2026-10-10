@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { buildSendTargets, flattenTargets, GLOBAL_TERMINALS_LABEL } from "./sendTargets";
-import { GLOBAL_TERMINALS_KEY } from "./terminals";
+import { buildSendTargets, flattenTargets } from "./sendTargets";
+import { GLOBAL_TERMINALS_KEY, GLOBAL_TERMINALS_LABEL } from "./terminals";
 
 const tab = (id: string, label: string) => ({ id, label, emoji: "", historyKey: `hk-${id}` });
 

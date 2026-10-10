@@ -46,8 +46,12 @@ final class NotificationService: UNNotificationServiceExtension {
             }
         }
         // Carry the status entry key so a later background clear / foreground
-        // reconcile can find and withdraw exactly this notification.
+        // reconcile can find and withdraw exactly this notification, and the status
+        // it announced so one that has moved on is withdrawn too.
         info["statusKey"] = statusKey
+        if !status.isEmpty {
+            info["status"] = status
+        }
         // Carry the sending Mac's id (absent on old Macs) so a clear/reconcile from
         // one Mac never withdraws a same-named project's notification from another.
         if let serverId = payload["serverId"] as? String, !serverId.isEmpty {

@@ -89,7 +89,6 @@ export function FleetEmpty({
         </button>
       </>
     );
-    notes.push("Terminal sessions aren't tracked.");
   }
 
   if (hiddenAutomationMacs.length > 0) {

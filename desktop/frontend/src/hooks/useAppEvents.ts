@@ -4,6 +4,7 @@ import { EventsOn } from "../../bridge/runtime";
 import { DrainPendingJobTasks, RemoteTakeRunActions } from "../../bridge/commands";
 import { useAppStore } from "../store/app";
 import { applyRemoteDraft } from "../store/composerDrafts";
+import { onFocusMainTerminal } from "../mainWindowFocus";
 import { useSettingsStore } from "../store/settings";
 import type { SpawnTask } from "../types";
 
@@ -107,6 +108,7 @@ export function useAppEvents(): void {
       addProject,
       triggerRemoteAction,
       triggerRemoteTerminalOp,
+      focusProjectTerminal,
     } = useAppStore.getState();
 
     const cancelDock = EventsOn("dock-project-selected", (name: string) => {
@@ -216,6 +218,9 @@ export function useAppEvents(): void {
     const cancelFeedback = EventsOn("menu-open-feedback", () => {
       setFeedbackOpen(true);
     });
+    const cancelFocusTerminal = onFocusMainTerminal(({ projectName, terminalId }) =>
+      focusProjectTerminal(projectName, terminalId),
+    );
 
     // A job that found work while the app window was closed parked its task in
     // Rust. Now that the main window (and the remote-run-task listener above)
@@ -236,6 +241,7 @@ export function useAppEvents(): void {
       if (typeof cancelPRInstr === "function") cancelPRInstr();
       if (typeof cancelBranchInstr === "function") cancelBranchInstr();
       if (typeof cancelFeedback === "function") cancelFeedback();
+      cancelFocusTerminal();
     };
   }, []);
 }

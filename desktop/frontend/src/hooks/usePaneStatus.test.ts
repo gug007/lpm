@@ -121,6 +121,14 @@ describe("paneAgentStatus", () => {
     expect(paneAgentStatus(undefined, "%1")).toBeNull();
   });
 
+  it("lets a question on a tab outrank a problem beside it", () => {
+    const s = derivePaneStatus(
+      [entry("a", STATUS_ERROR, "%1"), entry("b", STATUS_WAITING, "%1")],
+      NOW,
+    );
+    expect(paneAgentStatus(s, "%1")?.state).toBe("needs-you");
+  });
+
   it("maps each status to its product state", () => {
     const s = derivePaneStatus(
       [

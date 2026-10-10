@@ -68,9 +68,46 @@ pub fn probe_pty_home(ssh: &SshSettings) -> Option<String> {
     parse_pty_home(&out)
 }
 
+/// The hooks hand each status to lpm over a Unix socket through the first of
+/// a netcat that speaks `-U`, python3 or perl (sockdeliver.rs). A host with none
+/// of them (BusyBox images, minimal containers) drops every status in silence.
+const DELIVERY_PROBE: &str = "{ nc -h 2>&1 | grep -q -- -U; } || python3 -c 'import socket; socket.AF_UNIX' 2>/dev/null || perl -MIO::Socket::UNIX -e 1 2>/dev/null; echo \"lpm-delivery:$?\"";
+
+/// Whether agents on the host can deliver their status, or None when the probe
+/// itself failed (unreachable host, timeout).
+pub fn can_deliver_status(ssh: &SshSettings) -> Option<bool> {
+    let cmd = crate::sshexec::remote_login_script(ssh, DELIVERY_PROBE);
+    let out = crate::statusfwd::run_with_timeout(cmd, PROBE_TIMEOUT)?;
+    parse_delivery(&out)
+}
+
+fn parse_delivery(output: &[u8]) -> Option<bool> {
+    let text = String::from_utf8_lossy(output);
+    let code = text.rsplit("lpm-delivery:").next()?.trim();
+    (text.contains("lpm-delivery:")).then(|| code == "0")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn the_delivery_probe_finds_a_way_to_reach_lpm_here() {
+        let out = std::process::Command::new("bash")
+            .args(["-c", DELIVERY_PROBE])
+            .output()
+            .unwrap();
+        assert_eq!(parse_delivery(&out.stdout), Some(true));
+        let bare = std::process::Command::new("/bin/bash")
+            .args(["-c", DELIVERY_PROBE])
+            .env("PATH", "/nonexistent")
+            .output()
+            .unwrap();
+        assert_eq!(parse_delivery(&bare.stdout), Some(false), "a host with none of them");
+        assert_eq!(parse_delivery(b"motd\nlpm-delivery:1\n"), Some(false));
+        assert_eq!(parse_delivery(b""), None);
+    }
 
     fn ssh() -> SshSettings {
         SshSettings {

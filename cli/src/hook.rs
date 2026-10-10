@@ -22,15 +22,30 @@ use std::path::{Path, PathBuf};
 use transport::{deliver, is_socket, parent_pid, status_socket};
 
 const CLAUDE_RUNNING: &str = "Running --icon=bolt --color=#4C8DFF";
+const CLAUDE_PROMPTED: &str = "Running --icon=bolt --color=#4C8DFF --prompt";
 const CODEX_RUNNING: &str = "Running --icon=sparkle --color=#10A37F";
+/// A tool call starting. Unlike the rest it can't settle an approval request
+/// still in its grace period: the call's own start can arrive after the request.
+const CODEX_STEP: &str = "Running --icon=sparkle --color=#10A37F --step";
 const WAITING: &str = "Waiting --icon=bell --color=#f59e0b";
+const APPROVAL: &str = "Waiting --icon=bell --color=#f59e0b --approval";
+const HELD_WAITING: &str = "Waiting --icon=bell --color=#f59e0b --hold";
 const ERROR: &str = "Error --icon=warning --color=#ef4444";
 const DONE: &str = "Done --icon=checkmark --color=#4ade80";
 
 /// Background task types a Claude turn can end beside and still be finished:
 /// an idle-but-registered teammate, a wake-on-event monitor, a backgrounded
-/// shell. Anything else in `background_tasks` means the turn only paused.
-const SETTLED_TASK_TYPES: [&str; 3] = ["teammate", "monitor", "shell"];
+/// shell, and Claude's own housekeeping (a dream, an auto-mode scan, a memory
+/// import), which ends without waking the session. Anything else in
+/// `background_tasks` means the turn only paused.
+const SETTLED_TASK_TYPES: [&str; 6] = [
+    "teammate",
+    "monitor",
+    "shell",
+    "dream",
+    "auto-mode scan",
+    "memory import",
+];
 
 /// Tail windows searched for a Codex rollout's last `turn_context` before the
 /// whole file: large tool output can push it megabytes behind the write head.
@@ -45,23 +60,61 @@ pub struct HookEnv {
     pub pane: String,
     pub config_dir: Option<String>,
     pub home: Option<PathBuf>,
+    pub codex_home: Option<PathBuf>,
     pub reporter_pid: Option<u32>,
 }
 
 impl HookEnv {
     fn from_process() -> Self {
-        let var = |name: &str| std::env::var(name).unwrap_or_default();
+        let session = tmux_session_env();
+        // Inside tmux the session's copy names the tab that attached it; the
+        // process's own may be the tab that started the tmux server.
+        let var = |name: &str| {
+            session
+                .get(name)
+                .cloned()
+                .or_else(|| std::env::var(name).ok())
+                .unwrap_or_default()
+        };
         HookEnv {
-            socket: std::env::var_os("LPM_SOCKET_PATH")
+            socket: Some(var("LPM_SOCKET_PATH"))
                 .filter(|v| !v.is_empty())
                 .map(PathBuf::from),
             project: var("LPM_PROJECT_NAME"),
             pane: var("LPM_PANE_ID"),
             config_dir: std::env::var("CLAUDE_CONFIG_DIR").ok(),
             home: dirs::home_dir(),
+            codex_home: std::env::var_os("CODEX_HOME")
+                .filter(|v| !v.is_empty())
+                .map(PathBuf::from)
+                .or_else(|| dirs::home_dir().map(|home| home.join(".codex"))),
             reporter_pid: parent_pid(),
         }
     }
+}
+
+/// The LPM_* values in the environment of the tmux session this runs in, which
+/// tmux keeps per session from the client that attached it (lpm's terminals set
+/// that up). Empty outside tmux, or when tmux can't be asked.
+fn tmux_session_env() -> std::collections::HashMap<String, String> {
+    let (Some(_), Ok(pane)) = (std::env::var_os("TMUX"), std::env::var("TMUX_PANE")) else {
+        return Default::default();
+    };
+    std::process::Command::new("tmux")
+        .args(["showenv", "-t", &pane])
+        .stderr(std::process::Stdio::null())
+        .output()
+        .map(|out| parse_tmux_env(&String::from_utf8_lossy(&out.stdout)))
+        .unwrap_or_default()
+}
+
+/// `showenv` lines (`NAME=value`, or `-NAME` for one removed) -> lpm's values.
+fn parse_tmux_env(out: &str) -> std::collections::HashMap<String, String> {
+    out.lines()
+        .filter_map(|line| line.split_once('='))
+        .filter(|(name, value)| name.starts_with("LPM_") && !value.is_empty())
+        .map(|(name, value)| (name.to_string(), value.to_string()))
+        .collect()
 }
 
 /// Entry point for `lpm hook <agent> <event> [ignored...]`. Trailing arguments
@@ -125,25 +178,42 @@ fn claude_frames(event: &str, payload: &Value, env: &HookEnv) -> Vec<String> {
     // Keyed by Claude's own session id so one session's frames share a key even
     // if the pane id shifts, with the pane as the fallback key.
     let key = format!("claude_code_{}", sid.unwrap_or(&env.pane));
+    // A sub-agent's hooks run under the parent's session id and carry
+    // `agent_id`; it may raise a question, but only the main thread says whether
+    // the session is working or failed.
+    let main_thread = payload.get("agent_id").is_none();
+    let main = |value: &str| -> Vec<String> {
+        main_thread.then(|| status_frame(&key, value, env)).into_iter().collect()
+    };
     match event {
         "SessionStart" => sid
             .map(|sid| resume_frame("claude", sid, env))
             .into_iter()
             .collect(),
-        "UserPromptSubmit" | "PreToolUse" | "PostToolUse" => {
-            vec![status_frame(&key, CLAUDE_RUNNING, env)]
-        }
-        "Notification" => vec![status_frame(&key, WAITING, env)],
+        // A prompt submitted mid-turn queues behind it (desktop socketsrv.rs).
+        "UserPromptSubmit" => main(CLAUDE_PROMPTED),
+        "PreToolUse" | "PostToolUse" | "PostToolUseFailure" | "ElicitationResult"
+        | "PreCompact" => main(CLAUDE_RUNNING),
+        "PostCompact" => vec![clear_live_frame(&key, env)],
+        "PermissionRequest" | "Notification" => vec![status_frame(&key, WAITING, env)],
+        // An MCP dialog: only its ElicitationResult may end this Waiting.
+        "Elicitation" => vec![status_frame(&key, HELD_WAITING, env)],
         "Stop" => vec![status_frame(&key, claude_stop_status(payload), env)],
-        "StopFailure" => vec![status_frame(&key, ERROR, env)],
-        "SessionEnd" => vec![format!(
-            "clear_status {} {}{}",
-            quote_arg(&env.project),
-            token(&key),
-            reporter(env)
-        )],
+        "StopFailure" => main(ERROR),
+        "SessionEnd" => vec![clear_live_frame(&key, env)],
         _ => Vec::new(),
     }
+}
+
+/// Takes back a Running or Waiting the agent can no longer end itself, leaving
+/// a finish the user hasn't seen.
+fn clear_live_frame(key: &str, env: &HookEnv) -> String {
+    format!(
+        "clear_status {} {} --live{}",
+        quote_arg(&env.project),
+        token(key),
+        reporter(env)
+    )
 }
 
 /// `Stop` fires at every turn boundary, including a turn that handed off to
@@ -174,20 +244,26 @@ fn codex_frames(event: &str, payload: &Value, env: &HookEnv) -> Vec<String> {
     let key = format!("codex_{}", env.pane);
     // Codex runs the tab's hooks inside thread-spawned sub-agents too; their
     // payloads carry `agent_id` and their turns end in SubagentStop, so only the
-    // root thread may speak for the tab's status.
-    let root = payload.get("agent_id").is_none();
+    // root thread may speak for the tab's status. Its hidden memory-consolidation
+    // thread carries no `agent_id` and reports no Stop, but works in the memory
+    // folder under CODEX_HOME.
+    let root = payload.get("agent_id").is_none() && !in_codex_memories(payload, env);
     let status = |value: &str| root.then(|| status_frame(&key, value, env));
     match event {
         "SessionStart" => status(CODEX_RUNNING)
             .into_iter()
-            .chain(str_field(payload, "session_id").map(|sid| resume_frame("codex", sid, env)))
+            .chain(
+                str_field(payload, "session_id")
+                    .filter(|_| root)
+                    .map(|sid| resume_frame("codex", sid, env)),
+            )
             .collect(),
         "UserPromptSubmit" | "PostToolUse" => status(CODEX_RUNNING).into_iter().collect(),
         "PreToolUse" => {
             let value = if str_field(payload, "tool_name") == Some("request_user_input") {
                 WAITING
             } else {
-                CODEX_RUNNING
+                CODEX_STEP
             };
             status(value).into_iter().collect()
         }
@@ -197,12 +273,38 @@ fn codex_frames(event: &str, payload: &Value, env: &HookEnv) -> Vec<String> {
             if auto {
                 Vec::new()
             } else {
-                vec![status_frame(&key, WAITING, env)]
+                vec![status_frame(&key, APPROVAL, env)]
             }
         }
         "Stop" => status(DONE).into_iter().collect(),
+        "Interrupt" | "SessionEnd" => vec![clear_live_frame(&key, env)],
+        // Only a /compact the user ran; compaction inside a turn is the turn's.
+        "PreCompact" | "PostCompact" if str_field(payload, "trigger") != Some("manual") => {
+            Vec::new()
+        }
+        "PreCompact" => status(CODEX_RUNNING).into_iter().collect(),
+        "PostCompact" => root.then(|| clear_live_frame(&key, env)).into_iter().collect(),
+        "SubagentStart" | "SubagentStop" => {
+            let phase = if event == "SubagentStart" { "start" } else { "stop" };
+            str_field(payload, "agent_id")
+                .map(|child| child_frame(&key, child, phase, env))
+                .into_iter()
+                .collect()
+        }
         _ => Vec::new(),
     }
+}
+
+fn in_codex_memories(payload: &Value, env: &HookEnv) -> bool {
+    let (Some(cwd), Some(codex_home)) = (str_field(payload, "cwd"), env.codex_home.as_deref())
+    else {
+        return false;
+    };
+    Path::new(cwd)
+        .strip_prefix(codex_home)
+        .ok()
+        .and_then(|rest| rest.iter().next())
+        .is_some_and(|dir| dir.to_string_lossy().starts_with("memories"))
 }
 
 /// Whether Codex sends this session's approvals to its automatic reviewer, which
@@ -280,6 +382,17 @@ fn status_frame(key: &str, value: &str, env: &HookEnv) -> String {
         quote_arg(&env.project),
         token(key),
         token(&env.pane),
+        reporter(env)
+    )
+}
+
+/// A sub-agent of the agent reporting under `key` began or ended.
+fn child_frame(key: &str, child: &str, phase: &str, env: &HookEnv) -> String {
+    format!(
+        "agent_child {} {} {} {phase}{}",
+        quote_arg(&env.project),
+        token(key),
+        token(child),
         reporter(env)
     )
 }

@@ -503,6 +503,26 @@ pub fn removal_parent(ctx: &Ctx, name: &str) -> Option<String> {
     (!remote && !y.parent_name.is_empty()).then_some(y.parent_name)
 }
 
+/// The key the app files its global Terminals' statuses under. It names no
+/// project file, so only the verbs that talk to the status store accept it.
+pub const GLOBAL_TERMINALS: &str = "__global__";
+
+/// What the app calls a status group: the global Terminals by name, a project by
+/// its file name.
+pub fn status_group_label(name: &str) -> &str {
+    if name == GLOBAL_TERMINALS {
+        "Terminals"
+    } else {
+        name
+    }
+}
+
+/// The tab this command runs in, when that tab belongs to `project`.
+pub fn own_pane(project: &str) -> Option<String> {
+    let pane = std::env::var("LPM_PANE_ID").ok().filter(|p| !p.is_empty())?;
+    (std::env::var("LPM_PROJECT_NAME").ok()? == project).then_some(pane)
+}
+
 /// Project file-name stems in `~/.lpm/projects`, sorted.
 pub fn project_names(ctx: &Ctx) -> Vec<String> {
     let mut names: Vec<String> = match std::fs::read_dir(ctx.projects_dir()) {

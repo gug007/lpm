@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   listAllJobs: vi.fn(),
   clearStatus: vi.fn(),
   selectProject: vi.fn(),
+  setView: vi.fn(),
   focusProjectTerminal: vi.fn(),
   toggleService: vi.fn(),
   startProject: vi.fn(),
@@ -42,6 +43,7 @@ vi.mock("../store/app", () => ({
       selected: null,
       addProject: mocks.addProject,
       selectProject: mocks.selectProject,
+      setView: mocks.setView,
       focusProjectTerminal: mocks.focusProjectTerminal,
       toggleService: mocks.toggleService,
       startProject: mocks.startProject,
@@ -56,6 +58,7 @@ vi.mock("../peer/usePeerState", () => ({
 import { FleetView } from "./FleetView";
 import { FLEET_RESETTLE_MS } from "../useFleetOrder";
 import { useTerminalTitles } from "../store/terminalTitles";
+import { useGlobalAgentStatus } from "../store/globalAgentStatus";
 
 const T0 = 1_700_000_000_000;
 
@@ -126,7 +129,9 @@ beforeEach(() => {
   mocks.startProject.mockClear();
   mocks.stopProject.mockClear();
   mocks.selectProject.mockClear();
+  mocks.setView.mockClear();
   mocks.openAutomations.mockClear();
+  useGlobalAgentStatus.setState({ entries: [] });
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
@@ -176,6 +181,24 @@ describe("FleetView", () => {
     );
   });
 
+  it("lists the global Terminals' agents under Terminals", async () => {
+    mocks.projects = [project("api", [])];
+    useGlobalAgentStatus.setState({
+      entries: [entry("claude_code_g", "Waiting"), { ...entry("codex_h", "Running"), paneID: "" }],
+    });
+    await render();
+    expect(rowText()).toHaveLength(2);
+    expect(rowText()[0]).toContain("Terminals");
+    expect(rowText()[0]).toContain("Needs you");
+    press("j");
+    press("Enter");
+    expect(mocks.focusProjectTerminal).toHaveBeenCalledWith("__global__", "pty-claude_code_g");
+    press("j");
+    press("Enter");
+    expect(mocks.setView).toHaveBeenCalledWith("terminals");
+    expect(mocks.selectProject).not.toHaveBeenCalled();
+  });
+
   it("explains why a waiting row cannot be dismissed", async () => {
     mocks.projects = [project("api", [entry("claude_code_a", "Waiting")])];
     await render();
@@ -202,7 +225,6 @@ describe("FleetView", () => {
     await render();
     const page = flat(container);
     expect(page).toContain("All 2 projects are quiet");
-    expect(page).toContain("Terminal sessions aren't tracked");
     // Four zeroes say nothing the empty state doesn't say better.
     expect(page).not.toContain("0 needs you");
   });
@@ -226,7 +248,7 @@ describe("FleetView", () => {
     mocks.projects = [project("api", [entry("claude_code_a", "Running")])];
     await render();
     const scope =
-      "Activity includes supported agents started from projects opened during this session. Terminal sessions aren't tracked.";
+      "Activity includes supported agents started in Terminals and in projects opened during this session.";
     expect(
       container.querySelector(`button[aria-label="${scope}"]`),
     ).toBeTruthy();

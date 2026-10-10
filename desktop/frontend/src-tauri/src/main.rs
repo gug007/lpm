@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
+    lpm_desktop_lib::forget_inherited_tab();
     // The session daemon is this same binary under a flag, so it can never
     // drift from the app's idea of the protocol and there is no second
     // executable to install or sign. It has to be decided here, before any of

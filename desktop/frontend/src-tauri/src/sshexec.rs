@@ -90,6 +90,21 @@ pub fn remote_command(
     cmd
 }
 
+/// Run `script` in the host's login bash (so its PATH and exports apply) with
+/// only the script's own output on stdout. Whatever the login profile prints, a
+/// banner or a `fortune`, goes to stderr instead of into the answer being read.
+pub fn remote_login_script(ssh: &SshSettings, script: &str) -> Command {
+    let mut cmd = osproc::command("ssh");
+    cmd.args(config::ssh_exec_args(ssh));
+    cmd.arg(login_script(script));
+    cmd
+}
+
+fn login_script(script: &str) -> String {
+    let inner = format!("exec 1>&3 3>&-; {script}");
+    format!("exec bash -lc {} 3>&1 1>&2", config::shell_quote(&inner))
+}
+
 fn build_remote_exec(dir: &str, program: &str, args: &[&str], envs: &[(&str, &str)]) -> String {
     let mut parts: Vec<String> = Vec::new();
     let dir = dir.trim();
@@ -134,27 +149,56 @@ fn resolve_program(ssh: &SshSettings, program: &str) -> String {
 /// None when the host is unreachable or the program is not found; the caller then
 /// falls back to the bare name.
 fn lookup_program(ssh: &SshSettings, program: &str) -> Option<String> {
-    let inner = format!("command -v {}", config::shell_quote(program));
-    let out = osproc::command("ssh")
-        .args(config::ssh_exec_args(ssh))
-        .arg(format!("bash -lc {}", config::shell_quote(&inner)))
+    let out = remote_login_script(ssh, &format!("command -v {}", config::shell_quote(program)))
         .output()
         .ok()?;
     if !out.status.success() {
         return None;
     }
-    let path = String::from_utf8_lossy(&out.stdout)
+    last_path_line(&String::from_utf8_lossy(&out.stdout))
+}
+
+/// The answer to a `bash -lc` query that prints an absolute path last. A login
+/// profile can print first (a banner, `fortune`), and that text must not be
+/// taken for the path.
+pub fn last_path_line(output: &str) -> Option<String> {
+    output
         .lines()
-        .next()
-        .unwrap_or("")
-        .trim()
-        .to_string();
-    (!path.is_empty()).then_some(path)
+        .rev()
+        .map(str::trim)
+        .find(|line| line.starts_with('/'))
+        .map(str::to_string)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn a_login_script_answers_on_stdout_with_the_profile_on_stderr() {
+        let home = tempfile::tempdir().unwrap();
+        std::fs::write(home.path().join(".profile"), "echo 'Welcome to the build VM'\n").unwrap();
+        let out = std::process::Command::new("sh")
+            .args(["-c", &login_script("printf '%s' \"$HOME\"")])
+            .env("HOME", home.path())
+            .env_remove("BASH_ENV")
+            .output()
+            .unwrap();
+        assert_eq!(String::from_utf8_lossy(&out.stdout), home.path().to_string_lossy());
+        assert!(String::from_utf8_lossy(&out.stderr).contains("Welcome"));
+    }
+
+    #[test]
+    fn a_login_banner_is_not_the_answer() {
+        assert_eq!(last_path_line("/usr/bin/bash\n").as_deref(), Some("/usr/bin/bash"));
+        assert_eq!(
+            last_path_line("Welcome to the build VM\n/usr/bin/bash\n").as_deref(),
+            Some("/usr/bin/bash")
+        );
+        assert_eq!(last_path_line("Welcome\n/home/u").as_deref(), Some("/home/u"));
+        assert_eq!(last_path_line("not found\n"), None);
+    }
 
     fn ssh(dir: &str) -> SshSettings {
         SshSettings {

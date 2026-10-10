@@ -4,8 +4,9 @@
 // connect to ~/.lpm/lpm.sock and send shell-quoted text commands:
 //   ping
 //   set_status <project> <key> <value> [--icon=X] [--color=X] [--priority=N] [--pid=N]
-//               [--pane=X] [--reporter-pid=N]
-//   clear_status <project> <key>
+//               [--pane=X] [--reporter-pid=N] [--hold] [--prompt]
+//               (--hold: only a hook ends this Waiting; --prompt: a submitted prompt)
+//   clear_status <project> <key> [--live]   (--live: only a Running/Waiting entry)
 //   list_status <project>
 //   start_project <project> [--profile=X]
 //   stop_project <project>
@@ -49,20 +50,22 @@ use tauri::{AppHandle, Emitter, Manager};
 /// `restricted`, only the status verbs are served (the socket a remote SSH host
 /// reaches over `ssh -R`); every control verb is refused so a remote host can
 /// never drive the Mac.
-pub fn start(socket_path: String, store: Arc<StatusStore>, app: AppHandle, restricted: bool) {
-    ensure_socket_dir(&socket_path);
+pub fn start(default_path: String, store: Arc<StatusStore>, app: AppHandle, restricted: bool) {
+    ensure_socket_dir(&default_path);
     // Probe before stealing: `remove_file` can't tell a stale socket (unclean
     // exit) from a live one owned by another lpm instance. Only a definitive
-    // PONG proves an owner is alive — decline in that case so first-wins is
-    // deterministic and the owner keeps working. A probe that connects but never
-    // answers (wedged peer) is treated as not-alive so a hung socket can't stall
-    // startup; we proceed to steal it.
-    if socket_is_live(&socket_path) {
-        eprintln!(
-            "warning: another lpm instance already owns {socket_path}; this instance will not receive agent status on it"
-        );
-        return;
-    }
+    // PONG proves an owner is alive — the owner keeps it, and this instance
+    // serves a path of its own beside it, which its terminals and SSH forwards
+    // are pointed at (`serving`), so its agents still report to it. A probe that
+    // connects but never answers (wedged peer) is treated as not-alive so a hung
+    // socket can't stall startup; we proceed to steal it.
+    let socket_path = if socket_is_live(&default_path) {
+        let own = instance_path(&default_path);
+        eprintln!("warning: another lpm instance owns {default_path}; this one serves {own}");
+        own
+    } else {
+        default_path.clone()
+    };
     let _ = std::fs::remove_file(&socket_path); // clear a stale socket from an unclean exit
     let listener = match UnixListener::bind(&socket_path) {
         Ok(l) => l,
@@ -76,6 +79,7 @@ pub fn start(socket_path: String, store: Arc<StatusStore>, app: AppHandle, restr
         let _ = std::fs::remove_file(&socket_path);
         return;
     }
+    bound().lock().unwrap().insert(default_path, socket_path);
     std::thread::spawn(move || {
         for conn in listener.incoming() {
             let Ok(stream) = conn else { continue };
@@ -83,6 +87,42 @@ pub fn start(socket_path: String, store: Arc<StatusStore>, app: AppHandle, restr
             std::thread::spawn(move || handle_client(stream, &store, &app, restricted));
         }
     });
+}
+
+/// Default socket path -> the path this instance actually serves for it.
+fn bound() -> &'static std::sync::Mutex<HashMap<String, String>> {
+    static BOUND: std::sync::OnceLock<std::sync::Mutex<HashMap<String, String>>> =
+        std::sync::OnceLock::new();
+    BOUND.get_or_init(Default::default)
+}
+
+/// A path of this process's own beside `default_path`, for when another
+/// instance owns the default.
+fn instance_path(default_path: &str) -> String {
+    let path = std::path::Path::new(default_path);
+    let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("lpm");
+    path.with_file_name(format!("{stem}-{}.sock", std::process::id()))
+        .to_string_lossy()
+        .into_owned()
+}
+
+/// The socket this instance serves in place of `default_path` — the path its
+/// terminals and forwards must report to. The default itself until `start` ran.
+pub fn serving(default_path: &str) -> String {
+    bound()
+        .lock()
+        .unwrap()
+        .get(default_path)
+        .cloned()
+        .unwrap_or_else(|| default_path.to_string())
+}
+
+/// Remove the sockets this instance bound, and only those: the default path
+/// may belong to another instance that is still running.
+pub fn release() {
+    for path in bound().lock().unwrap().values() {
+        let _ = std::fs::remove_file(path);
+    }
 }
 
 /// Make sure the directory the socket lives in exists before binding into it.
@@ -134,8 +174,20 @@ fn socket_is_live(path: &str) -> bool {
 fn remote_allowed(command: &str) -> bool {
     matches!(
         command,
-        "ping" | "set_status" | "clear_status" | "list_status" | "set_resume"
+        "ping" | "set_status" | "clear_status" | "list_status" | "set_resume" | "agent_child"
     )
+}
+
+/// Messages an SSH host kept while the forward was down (fwdspool.rs), taken as
+/// if they had just come through it.
+pub(crate) fn replay_remote(app: &AppHandle, frames: &str) {
+    let store = app.state::<std::sync::Arc<StatusStore>>();
+    for line in frames.lines().filter(|line| !line.is_empty()) {
+        let verb = shell_split(line).into_iter().next().unwrap_or_default().to_lowercase();
+        if remote_allowed(&verb) {
+            process_command(line, &store, app);
+        }
+    }
 }
 
 fn handle_client(stream: UnixStream, store: &StatusStore, app: &AppHandle, restricted: bool) {
@@ -180,6 +232,7 @@ fn process_command(line: &str, store: &StatusStore, app: &AppHandle) -> String {
         "ping" => "PONG".into(),
         "set_status" => cmd_set_status(args, store, app),
         "clear_status" => cmd_clear_status(args, store, app),
+        "agent_child" => cmd_agent_child(args, app),
         "list_status" => cmd_list_status(args, store),
         "start_project" => cmd_start_project(args, app),
         "stop_project" => cmd_stop_project(args, app),
@@ -190,7 +243,7 @@ fn process_command(line: &str, store: &StatusStore, app: &AppHandle) -> String {
         "config_apply" => cmd_config_apply(args, app),
         "remove_project" => cmd_remove_project(args, app),
         "run_task" => cmd_run_task(args, app),
-        "set_resume" => cmd_set_resume(args, app),
+        "set_resume" => cmd_set_resume(args, store, app),
         "agent_limits" => cmd_agent_limits(args, app),
         "list_jobs" => cmd_list_jobs(args),
         "list_all_jobs" => cmd_list_all_jobs(),
@@ -613,9 +666,10 @@ fn cmd_agent_limits(args: &[String], app: &AppHandle) -> String {
 /// Resume at a throwaway run and dropping the name the tab was carrying. Only the
 /// tab's own agent gets to say. `/clear`, a compaction and a fork all mint a new
 /// id from the SAME process, so the legitimate retag still lands.
-fn cmd_set_resume(args: &[String], app: &AppHandle) -> String {
+fn cmd_set_resume(args: &[String], store: &StatusStore, app: &AppHandle) -> String {
     match parse_resume_args(args) {
-        Ok(a) => {
+        Ok(mut a) => {
+            a.pane_id = store.current_pane(&a.pane_id);
             let (_, options) = parse_options(args);
             if nested_agent_report(app, &a.pane_id, &options) {
                 return "OK".into();
@@ -921,12 +975,6 @@ fn opt_or_positional(
         .or_else(|| positional.get(index).cloned())
 }
 
-/// The keys the agent hooks report under (hooks.rs). A key outside these is a
-/// caller's own — `lpm set-status` — and speaks for whatever it likes.
-fn is_agent_key(key: &str) -> bool {
-    key.starts_with("claude_code_") || key.starts_with("codex_")
-}
-
 /// A key naming the pane rather than a session is one the tab's own agent
 /// reports under too: every codex hook keys that way, and the claude hooks fall
 /// back to it for a payload carrying no session id. Retiring such an entry
@@ -965,7 +1013,7 @@ fn cmd_set_status(args: &[String], store: &StatusStore, app: &AppHandle) -> Stri
     let (Some(project), Some(key), Some(value)) = (positional.first(), key, value) else {
         return "ERROR: usage: set_status <project> <key> <value> [--icon=X] [--color=X] [--priority=N] [--pid=N]".into();
     };
-    let pane_id = options.get("pane").cloned().unwrap_or_default();
+    let pane_id = store.current_pane(options.get("pane").map_or("", String::as_str));
     let entry = StatusEntry {
         key,
         value: value.clone(),
@@ -978,6 +1026,7 @@ fn cmd_set_status(args: &[String], store: &StatusStore, app: &AppHandle) -> Stri
         timestamp: now_millis(),
         agent_pid: options.get("pid").and_then(|p| p.parse().ok()).unwrap_or(0),
         pane_id: pane_id.clone(),
+        held: options.contains_key("hold"),
         // Filled in by the store, which is the only thing that sees the state
         // this report replaces.
         ..Default::default()
@@ -998,16 +1047,80 @@ fn cmd_set_status(args: &[String], store: &StatusStore, app: &AppHandle) -> Stri
     // own "done". Retire anything it managed to store before its process tree was
     // visible, so a dropped frame can't leave a row nothing will ever clear —
     // unless the key is the tab's own, in which case that entry is the tab's.
-    if is_agent_key(&entry.key) && nested_agent_report(app, &entry.pane_id, &options) {
+    if crate::status::is_agent_key(&entry.key) && nested_agent_report(app, &entry.pane_id, &options) {
         if !key_names_the_pane(&entry.key, &entry.pane_id) && store.clear(project, &entry.key) {
             let _ = app.emit("status-changed", project);
         }
         return "OK".into();
     }
-    if store.set(project, entry) {
+    if options.contains_key("approval") {
+        crate::approvalgrace::defer(app, project, entry);
+        return "OK".into();
+    }
+    if !options.contains_key("step") {
+        crate::approvalgrace::settle(project, &entry.key);
+    }
+    // A prompt submitted while the session is still busy queues behind the
+    // turn instead of starting one; it is held for the Stop that ends that turn.
+    if options.contains_key("prompt") && store.queue_prompt(project, &entry.key) {
+        return "OK".into();
+    }
+    if value == crate::status::STATUS_DONE && crate::agentchildren::hold_done(store, project, &entry) {
+        return "OK".into();
+    }
+    if value == crate::status::STATUS_DONE
+        && (store.take_queued_prompt(project, &entry.key) || entry.key.starts_with("codex_"))
+    {
+        crate::agentturn::finish_unless_still_working(app, project, entry);
+        return "OK".into();
+    }
+    publish(app, store, project, entry);
+    "OK".into()
+}
+
+/// Store a report and tell everyone who listens: the status-changed event, the
+/// chime, the banner. Returns whether anything changed.
+pub(crate) fn publish(app: &AppHandle, store: &StatusStore, project: &str, entry: StatusEntry) -> bool {
+    let watched = crate::status::is_live(&entry.value) || entry.agent_pid > 0;
+    let stored = entry.clone();
+    let retired = store.retire_other_sessions(project, &stored.key, &stored.pane_id);
+    if !store.set(project, entry) {
+        if retired {
+            let _ = app.emit("status-changed", project);
+        }
+        return false;
+    }
+    // The tab can close between the caller's check and the store: its close
+    // cleanup has then already run, and this entry would be left for good.
+    let pane_id = &stored.pane_id;
+    if !pane_id.is_empty()
+        && !crate::pty::session_exists(&app.state::<crate::pty::PtyState>(), pane_id)
+    {
+        store.clear_if_unchanged(project, &stored.key, &stored);
+        return false;
+    }
+    if !store.is_closing(pane_id) {
         let _ = app.emit("status-changed", project);
-        crate::sound::announce_status(app, project, &value, &pane_id);
-        crate::statusnotify::notify_status(app, project, &value, &pane_id);
+        crate::sound::announce_status(app, project, &stored.value, pane_id);
+        crate::statusnotify::notify_status(app, project, &stored.value, pane_id);
+    }
+    if watched {
+        crate::agentturn::nudge();
+    }
+    true
+}
+
+/// `agent_child <project> <key> <child> start|stop`: a sub-agent of the agent
+/// reporting under `key` began or ended (agentchildren.rs).
+fn cmd_agent_child(args: &[String], app: &AppHandle) -> String {
+    let (positional, _) = parse_options(args);
+    let [project, key, child, phase] = positional.as_slice() else {
+        return "ERROR: usage: agent_child <project> <key> <child> start|stop".into();
+    };
+    match phase.as_str() {
+        "start" => crate::agentchildren::started(project, key, child),
+        "stop" => crate::agentchildren::stopped(app, project, key, child),
+        _ => return "ERROR: agent_child phase is start or stop".into(),
     }
     "OK".into()
 }
@@ -1016,9 +1129,18 @@ fn cmd_clear_status(args: &[String], store: &StatusStore, app: &AppHandle) -> St
     let (positional, options) = parse_options(args);
     let key = opt_or_positional(&options, "key", &positional, 1);
     let (Some(project), Some(key)) = (positional.first(), key) else {
-        return "ERROR: usage: clear_status <project> <key>".into();
+        return "ERROR: usage: clear_status <project> <key> [--live]".into();
     };
-    if store.clear(project, &key) {
+    crate::approvalgrace::settle(project, &key);
+    if options.contains_key("live") {
+        crate::agentchildren::forget(project, &key);
+    }
+    let cleared = if options.contains_key("live") {
+        store.clear_live(project, &key)
+    } else {
+        store.clear(project, &key)
+    };
+    if cleared {
         let _ = app.emit("status-changed", project);
     }
     "OK".into()
@@ -1246,17 +1368,6 @@ mod tests {
         assert!(!key_names_the_pane("claude_code_9a15513b", "pty-3"));
         assert!(!key_names_the_pane("codex_pty-30", "pty-3"));
         assert!(!key_names_the_pane("codex_", ""));
-    }
-
-    #[test]
-    fn agent_keys_are_the_ones_the_hooks_report_under() {
-        assert!(is_agent_key("claude_code_9a15513b-e4a3"));
-        assert!(is_agent_key("codex_pty-3"));
-        // A caller's own key: `lpm set-status` names whatever it likes, and the
-        // nested-agent rule has no business second-guessing it.
-        assert!(!is_agent_key("deploy"));
-        assert!(!is_agent_key("claude"));
-        assert!(!is_agent_key("my_codex_run"));
     }
 
     #[test]

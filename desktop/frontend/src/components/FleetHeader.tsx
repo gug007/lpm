@@ -7,7 +7,7 @@ import { Tooltip } from "./ui/Tooltip";
 import { HelpCircleIcon, LayersIcon, SearchIcon, XIcon } from "./icons";
 
 const ACTIVITY_SCOPE =
-  "Activity includes supported agents started from projects opened during this session. Terminal sessions aren't tracked.";
+  "Activity includes supported agents started in Terminals and in projects opened during this session.";
 
 export const KIND_OPTIONS: readonly {
   value: FleetKindFilter;

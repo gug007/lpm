@@ -1,4 +1,4 @@
-import { GLOBAL_TERMINALS_KEY } from "./terminals";
+import { GLOBAL_TERMINALS_KEY, GLOBAL_TERMINALS_LABEL } from "./terminals";
 import { peerSlugOf } from "./peer/markers";
 import type { TerminalTargetInfo } from "./store/terminalTargets";
 
@@ -24,8 +24,6 @@ export interface SendTargetGroup {
   projectLabel: string;
   rows: SendTargetRow[];
 }
-
-export const GLOBAL_TERMINALS_LABEL = "Terminals";
 
 interface BuildOptions {
   byProject: Record<string, TerminalTargetInfo[]>;

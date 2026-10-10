@@ -53,10 +53,10 @@ export function HeaderTab({
   const hasHoverIcon = closable || !!pinned;
   const { ref: labelRef, truncated } = useIsTruncated(label);
 
-  const statusClassName = error
-    ? "text-red-400"
-    : waiting
+  const statusClassName = waiting
     ? "sidebar-waiting"
+    : error
+    ? "text-red-400"
     : shimmer
     ? "sidebar-shimmer"
     : "";

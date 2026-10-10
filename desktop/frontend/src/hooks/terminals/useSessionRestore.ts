@@ -24,6 +24,7 @@ import {
   relaunchNoticeFor,
 } from "../../peer/relaunchNotices";
 import { reifyTreeWithFreshPtys, legacyEntriesToTree } from "./persistedTree";
+import { stopLeftoverPtys } from "./leftoverPtys";
 
 interface UseSessionRestoreProps {
   projectName: string;
@@ -88,6 +89,7 @@ export function useSessionRestore({
       };
     }
 
+    stopLeftoverPtys(projectName);
     const saved = getProjectTerminals(projectName);
     const persistedTree = saved.panes ?? legacyEntriesToTree(saved.terminals);
     if (!persistedTree) return;

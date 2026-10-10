@@ -14,8 +14,9 @@ private func agentRow(_ project: ActivityIdentity, _ entry: StatusEntry, now: In
                       tabTitles: [String: String]) -> ActivityRow {
     let title = agentProviderLabel(forStatusKey: entry.key)
     let tab = tabTitles[entry.paneID]
+    let place = project.machine.map { "\($0)/\(project.name)" } ?? project.name
     return ActivityRow(
-        id: "agent:\(project.name):\(entry.key)",
+        id: "agent:\(place):\(entry.key)",
         kind: .agent,
         project: project,
         title: title,
@@ -78,6 +79,9 @@ private func dismissKey(_ row: ActivityRow) -> String? {
 private func dismissBlockedReason(_ row: ActivityRow, isShared: Bool) -> String? {
     if row.kind == .automation {
         return "This automation clears itself when the run finishes."
+    }
+    if let machine = row.project.machineName {
+        return "This agent runs on \(machine) — open it there to clear this."
     }
     switch row.state {
     case .needsYou:
@@ -147,8 +151,10 @@ private func serviceGroup(_ project: Project, _ identity: ActivityIdentity) -> A
 
 /// `terminalTitles` is project -> terminal id -> that tab's name; only projects
 /// whose terminals the phone has fetched contribute one. `now` is unix millis.
-func buildActivity(projects: [Project], jobs: [AutomationJob], now: Int,
-                   terminalTitles: [String: [String: String]]) -> Activity {
+/// Everything Activity lists: the Mac's own projects in full, and the agents on
+/// the machines it connects to — which the Mac's own Activity counts too.
+func buildActivity(projects: [Project], machines: [ActivityMachine] = [], jobs: [AutomationJob],
+                   now: Int, terminalTitles: [String: [String: String]]) -> Activity {
     var identities: [String: ActivityIdentity] = [:]
     for project in projects { identities[project.name] = ActivityIdentity(project) }
 
@@ -165,6 +171,15 @@ func buildActivity(projects: [Project], jobs: [AutomationJob], now: Int,
         if let group = serviceGroup(project, identity) {
             services.append(group)
             busy.insert(project.name)
+        }
+    }
+
+    for machine in machines {
+        for project in machine.projects {
+            let identity = ActivityIdentity(project, on: machine)
+            for entry in project.statusEntries {
+                rows.append(agentRow(identity, entry, now: now, tabTitles: [:]))
+            }
         }
     }
 

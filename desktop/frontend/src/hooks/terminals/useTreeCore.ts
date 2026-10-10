@@ -3,6 +3,7 @@ import { getProjectTerminals, saveProjectTerminals } from "../../terminals";
 import { type PaneNode, collectTerminals, isTerminalTab, panePath } from "../../paneTree";
 import { IS_MIRROR_WINDOW } from "../../mirror";
 import { treeToPersisted } from "./persistedTree";
+import { rememberLivePtys } from "./leftoverPtys";
 
 // High-frequency events (divider drags, pane focus clicks) mutate state
 // on every tick; batch the resulting disk writes to the trailing edge so
@@ -41,6 +42,7 @@ export function useTreeCore({ projectName, onCountRef }: UseTreeCoreProps) {
       // A mirror window never owns the persisted tree — the owner (main
       // window) is the single source of truth for terminals.json.
       if (IS_MIRROR_WINDOW) return;
+      rememberLivePtys(projectName, next);
       if (next && collectTerminals(next).some(isTerminalTab)) holdPanesRef.current = false;
       const focusedId = focusedRef.current;
       // serviceFilterModes is a removed field (filter mode is now a single

@@ -12,6 +12,13 @@ mod agent_usage_claude;
 mod agent_usage_codex;
 mod agent_caps;
 mod agentnest;
+mod agentchildren;
+mod agentdirs;
+mod codexfeature;
+mod fwdspool;
+mod agentturn;
+mod bannerwithdraw;
+mod approvalgrace;
 mod aigen;
 mod autosync;
 mod bounds;
@@ -32,6 +39,7 @@ mod cli_install_windows;
 mod claude_session_state;
 mod clipboard;
 mod codex_statusline;
+mod codextrust;
 mod commands_real;
 mod config;
 mod config_cmds;
@@ -150,6 +158,7 @@ mod sessiond;
 mod sessionpane;
 mod sessionproto;
 mod sessions;
+mod shellwrap;
 mod session_memory;
 mod session_memory_files;
 mod session_memory_scope;
@@ -363,6 +372,25 @@ pub fn uninstall_and_exit() -> ! {
 // The attribute belongs to `run` — it is the app's entry point. Anything added
 // above must stay above this line.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
+/// The variables a terminal tab exports to say which tab it is (pty.rs).
+const TAB_IDENTITY_VARS: [&str; 4] = [
+    "LPM_PANE_ID",
+    "LPM_PROJECT_NAME",
+    "LPM_SOCKET_PATH",
+    "LPM_MEMORY_DIR",
+];
+
+/// This process is no terminal tab, but it can be started from one — a dev
+/// build, the binary run by hand — and would then hand that tab's identity to
+/// its session daemon, service panes and jobs, whose agents reported on a tab
+/// that never ran them. Terminals set their own. Called first thing in `main`,
+/// while the process is still single-threaded.
+pub fn forget_inherited_tab() {
+    for var in TAB_IDENTITY_VARS {
+        std::env::remove_var(var);
+    }
+}
+
 pub fn run() {
     #[cfg(target_os = "linux")]
     webengine::prepare_linux_env();
@@ -468,7 +496,8 @@ pub fn run() {
                 handle.clone(),
                 true,
             );
-            status::start_pid_sweep(store, handle.clone());
+            agentturn::start_sweep(handle.clone());
+            bannerwithdraw::start(&handle);
             // Keep each SSH host's `ssh -R` status forward alive for as long as it
             // has a live pane — without it a dropped forward silently ends remote
             // agent status (and its sound) for the rest of the session.
@@ -521,18 +550,17 @@ pub fn run() {
             let chores = !lesson::active();
 
             // Install agent status hooks (Claude Code / Codex) so they report to
-            // the socket. Backgrounded — touches files, never blocks startup.
-            if chores {
-                std::thread::spawn(hooks::install_agent_hooks);
-            }
-
-            // Silently refresh what the user already opted into installing:
-            // stale agent skills and active status-line presets get re-written,
-            // and a stale CLI symlink gets repointed. Foreign installs stay alone.
-            // On a headless host the skills are installed here outright — there
-            // is no pane to opt in from; see refresh_at_startup.
+            // the socket, then silently refresh what the user already opted into
+            // installing: stale agent skills and active status-line presets get
+            // re-written, and a stale CLI symlink gets repointed. Foreign installs
+            // stay alone. On a headless host the skills are installed here
+            // outright — there is no pane to opt in from; see refresh_at_startup.
+            // One background thread, in this order: the hooks and the status line
+            // both rewrite ~/.claude/settings.json, and two writers racing left
+            // whichever wrote last holding a copy without the other's change.
             std::thread::spawn(move || {
                 if chores {
+                    hooks::install_agent_hooks();
                     skill_install::refresh_at_startup();
                     cli_install::repair_symlink_quietly();
                     hooks::reapply_claude_limits_if_enabled();
@@ -595,8 +623,7 @@ pub fn run() {
                 peerclient::stop(&app.state::<peerclient::PeerClientHub>()); // drop peer client conns
                 tailnet::stop(); // take the built-in Tailscale node offline
                 keepawake::set(false); // let this machine sleep again
-                let _ = std::fs::remove_file(config::socket_path());
-                let _ = std::fs::remove_file(config::remote_socket_path());
+                socketsrv::release();
             }
             // Dock-icon click with no visible window restores the hidden main
             // window — otherwise it would stay hidden after the close button.

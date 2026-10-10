@@ -10,12 +10,15 @@ import { TerminalDropOverlayHost } from "./components/terminal/TerminalDropOverl
 import { MainTopBar } from "./components/MainTopBar";
 import { useProjectsSync } from "./hooks/useProjectsSync";
 import { useAmbientAppEvents } from "./hooks/useAppEvents";
+import { useGlobalAgentStatusSync } from "./hooks/useGlobalTerminalStatus";
 import { useProjectWatcher } from "./hooks/useProjectWatcher";
 import { useKeyboardShortcut } from "./hooks/useKeyboardShortcut";
 import { useIsFullscreen } from "./hooks/useIsFullscreen";
 import { useAppStore } from "./store/app";
 import { useResolvedTheme } from "./theme";
 import { FocusMainWindow } from "../bridge/commands";
+import { focusMainTerminal } from "./mainWindowFocus";
+import { GLOBAL_TERMINALS_KEY } from "./terminals";
 
 interface DetachedAppProps {
   projectName: string;
@@ -60,6 +63,7 @@ export function DetachedApp({ projectName }: DetachedAppProps) {
   const refreshAfterRename = useAppStore((s) => s.refreshAfterRename);
 
   useProjectsSync({ mode: "detached" });
+  useGlobalAgentStatusSync();
   useAmbientAppEvents();
 
   const project = projects.find((p) => p.name === projectName);
@@ -114,6 +118,7 @@ export function DetachedApp({ projectName }: DetachedAppProps) {
           onOpenProjectView={(name) => void handleSelect(name)}
           onToggle={toggleProjectRunning}
           onTerminals={() => FocusMainWindow(undefined, "terminals")}
+          onTerminalTab={(id) => focusMainTerminal(GLOBAL_TERMINALS_KEY, id)}
           onFleet={() => FocusMainWindow(undefined, "fleet")}
           onStats={() => FocusMainWindow(undefined, "stats")}
           onUsage={() => FocusMainWindow(undefined, "usage")}

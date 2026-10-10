@@ -111,7 +111,7 @@ describe("computeProjectStatus", () => {
     expect(status.className).toBe("sidebar-waiting");
   });
 
-  it("lets Error outrank Waiting, Running and Done", () => {
+  it("lets Waiting outrank Error, Running and Done, as every surface does", () => {
     const status = computeProjectStatus([
       entry("claude_code_abc123", STATUS_DONE),
       entry("claude_code_def456", STATUS_RUNNING),
@@ -122,8 +122,16 @@ describe("computeProjectStatus", () => {
       isDone: true,
       isWaiting: true,
       isError: true,
-      className: "text-[var(--accent-red-text)]",
+      className: "sidebar-waiting",
     });
+  });
+
+  it("lets Error outrank Running and Done", () => {
+    const status = computeProjectStatus([
+      entry("claude_code_def456", STATUS_RUNNING),
+      entry("codex_%4", STATUS_ERROR),
+    ]);
+    expect(status.className).toBe("text-[var(--accent-red-text)]");
   });
 
   it("prefers Running over Done for the className", () => {

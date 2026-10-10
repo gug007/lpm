@@ -7,6 +7,7 @@ fn env() -> HookEnv {
         pane: "pane-1".into(),
         config_dir: None,
         home: None,
+        codex_home: Some("/home/u/.codex".into()),
         reporter_pid: Some(42),
     }
 }
@@ -29,15 +30,30 @@ fn claude_frames_match_the_sh_hooks() {
         one("claude", "SessionStart", p),
         "set_resume 'proj' pane-1 s1 --provider=claude --reporter-pid=42"
     );
-    for event in ["UserPromptSubmit", "PreToolUse", "PostToolUse"] {
+    assert_eq!(
+        one("claude", "UserPromptSubmit", p),
+        "set_status 'proj' claude_code_s1 Running --icon=bolt --color=#4C8DFF --prompt --pane=pane-1 --reporter-pid=42"
+    );
+    for event in [
+        "PreToolUse",
+        "PostToolUse",
+        "PostToolUseFailure",
+        "ElicitationResult",
+    ] {
         assert_eq!(
             one("claude", event, p),
             "set_status 'proj' claude_code_s1 Running --icon=bolt --color=#4C8DFF --pane=pane-1 --reporter-pid=42"
         );
     }
+    for event in ["Notification", "PermissionRequest"] {
+        assert_eq!(
+            one("claude", event, p),
+            "set_status 'proj' claude_code_s1 Waiting --icon=bell --color=#f59e0b --pane=pane-1 --reporter-pid=42"
+        );
+    }
     assert_eq!(
-        one("claude", "Notification", p),
-        "set_status 'proj' claude_code_s1 Waiting --icon=bell --color=#f59e0b --pane=pane-1 --reporter-pid=42"
+        one("claude", "Elicitation", p),
+        "set_status 'proj' claude_code_s1 Waiting --icon=bell --color=#f59e0b --hold --pane=pane-1 --reporter-pid=42"
     );
     assert_eq!(
         one("claude", "StopFailure", p),
@@ -45,7 +61,7 @@ fn claude_frames_match_the_sh_hooks() {
     );
     assert_eq!(
         one("claude", "SessionEnd", p),
-        "clear_status 'proj' claude_code_s1 --reporter-pid=42"
+        "clear_status 'proj' claude_code_s1 --live --reporter-pid=42"
     );
 }
 
@@ -107,9 +123,15 @@ fn claude_stop_keeps_running_while_background_work_is_in_flight() {
         "Running",
     );
     stop_is(
-        r#"[{"id":"b","type":"dream","status":"running","description":"x"}]"#,
+        r#"[{"id":"b","type":"cloud session","status":"running","description":"x"}]"#,
         "Running",
     );
+    for ambient in ["dream", "auto-mode scan", "memory import"] {
+        stop_is(
+            &format!(r#"[{{"id":"b","type":"{ambient}","status":"running","description":"x"}}]"#),
+            "Done",
+        );
+    }
     stop_is("[]", "Done");
     assert!(one("claude", "Stop", r#"{"session_id":"s1"}"#).contains("claude_code_s1 Done"));
     let decoy = r#"{"session_id":"s1","last_assistant_message":"I set \"background_tasks\":[{ here","background_tasks":[]}"#;
@@ -161,12 +183,34 @@ fn tool_payload(subagent: bool, tool_name: &str, tool_input: &str) -> String {
 }
 
 #[test]
+fn codex_memory_consolidation_never_speaks_for_the_tab() {
+    let payload = |cwd: &str| {
+        format!(r#"{{"session_id":"m1","turn_id":"t1","cwd":"{cwd}","hook_event_name":"SessionStart"}}"#)
+    };
+    none("codex", "SessionStart", &payload("/home/u/.codex/memories"));
+    none("codex", "UserPromptSubmit", &payload("/home/u/.codex/memories_v2/x"));
+    assert_eq!(frames("codex", "SessionStart", payload("/work/app").as_bytes(), &env()).len(), 2);
+}
+
+#[test]
+fn codex_sub_agents_report_their_start_and_stop() {
+    let payload = r#"{"session_id":"s1","hook_event_name":"SubagentStop","agent_id":"019a-77","agent_type":"default","last_assistant_message":"x"}"#;
+    assert_eq!(
+        one("codex", "SubagentStop", payload),
+        "agent_child 'proj' codex_pane-1 019a-77 stop --reporter-pid=42"
+    );
+    assert!(one("codex", "SubagentStart", payload).ends_with("019a-77 start --reporter-pid=42"));
+    none("codex", "SubagentStart", r#"{"session_id":"s1"}"#);
+}
+
+#[test]
 fn codex_frames_match_the_sh_hooks() {
     let shell = tool_payload(false, "shell", r#"{"command":["ls"]}"#);
     let running = "set_status 'proj' codex_pane-1 Running --icon=sparkle --color=#10A37F --pane=pane-1 --reporter-pid=42";
+    let step = "set_status 'proj' codex_pane-1 Running --icon=sparkle --color=#10A37F --step --pane=pane-1 --reporter-pid=42";
     assert_eq!(one("codex", "UserPromptSubmit", &shell), running);
     assert_eq!(one("codex", "PostToolUse", &shell), running);
-    assert_eq!(one("codex", "PreToolUse", &shell), running);
+    assert_eq!(one("codex", "PreToolUse", &shell), step);
     assert_eq!(
         one("codex", "Stop", &shell),
         "set_status 'proj' codex_pane-1 Done --icon=checkmark --color=#4ade80 --pane=pane-1 --reporter-pid=42"
@@ -194,10 +238,7 @@ fn codex_sub_agents_never_speak_for_the_tab() {
     for event in ["UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop"] {
         none("codex", event, &sub);
     }
-    assert_eq!(
-        frames("codex", "SessionStart", sub.as_bytes(), &env()),
-        vec!["set_resume 'proj' pane-1 s1 --provider=codex --reporter-pid=42".to_string()]
-    );
+    none("codex", "SessionStart", &sub);
     let grep = tool_payload(
         false,
         "shell",
@@ -344,4 +385,47 @@ fn delivers_every_frame_to_the_recovered_socket_in_order() {
 #[test]
 fn reports_the_process_that_ran_the_hook() {
     assert_eq!(parent_pid(), Some(std::os::unix::process::parent_id()));
+}
+
+#[test]
+fn codex_interrupt_and_session_end_take_back_what_was_live() {
+    let p = r#"{"session_id":"t1","turn_id":"u1","cwd":"/tmp/p"}"#;
+    for event in ["Interrupt", "SessionEnd"] {
+        assert_eq!(
+            one("codex", event, p),
+            "clear_status 'proj' codex_pane-1 --live --reporter-pid=42"
+        );
+    }
+}
+
+#[test]
+fn a_claude_sub_agent_can_ask_but_not_speak_for_the_session() {
+    let sub = r#"{"session_id":"s1","agent_id":"a7","agent_type":"general-purpose"}"#;
+    for event in ["UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure", "StopFailure"] {
+        none("claude", event, sub);
+    }
+    assert!(one("claude", "PermissionRequest", sub).contains("claude_code_s1 Waiting"));
+}
+
+#[test]
+fn a_manual_compact_is_work_and_an_automatic_one_is_the_turns() {
+    let claude = r#"{"session_id":"s1","trigger":"manual"}"#;
+    assert!(one("claude", "PreCompact", claude).contains("claude_code_s1 Running"));
+    assert!(one("claude", "PostCompact", claude).starts_with("clear_status 'proj' claude_code_s1 --live"));
+    let manual = r#"{"session_id":"t1","turn_id":"u1","trigger":"manual"}"#;
+    assert!(one("codex", "PreCompact", manual).contains("codex_pane-1 Running"));
+    assert!(one("codex", "PostCompact", manual).starts_with("clear_status 'proj' codex_pane-1 --live"));
+    let auto = r#"{"session_id":"t1","turn_id":"u1","trigger":"auto"}"#;
+    none("codex", "PreCompact", auto);
+    none("codex", "PostCompact", auto);
+}
+
+#[test]
+fn a_tmux_session_names_the_tab_that_attached_it() {
+    let env = super::parse_tmux_env(
+        "LPM_PANE_ID=tab-b\nLPM_PROJECT_NAME=Bob's app\n-LPM_SOCKET_PATH\nTERM=xterm\nLPM_EMPTY=\n",
+    );
+    assert_eq!(env.get("LPM_PANE_ID").map(String::as_str), Some("tab-b"));
+    assert_eq!(env.get("LPM_PROJECT_NAME").map(String::as_str), Some("Bob's app"));
+    assert!(!env.contains_key("LPM_SOCKET_PATH") && !env.contains_key("TERM") && !env.contains_key("LPM_EMPTY"));
 }

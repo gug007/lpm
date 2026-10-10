@@ -1,6 +1,11 @@
 import { useRef, useCallback, type RefObject } from "react";
 import { toast } from "sonner";
-import { StopTerminal, ClearPaneStatus } from "../../../bridge/commands";
+import {
+  StopTerminal,
+  ClearPaneStatus,
+  HoldPaneStatus,
+  ReleasePaneStatus,
+} from "../../../bridge/commands";
 import { disposeInteractivePaneSession } from "../../components/InteractivePane";
 import { forgetComposerDraft } from "../../store/composerDrafts";
 import { showUndoCloseToast } from "../../components/UndoCloseToast";
@@ -142,6 +147,7 @@ export function useTabClose({
       if (!entry || entry.finalized) return;
       entry.finalized = true;
       toast.dismiss(entry.toastId);
+      if (isTerminalTab(entry.tab)) ReleasePaneStatus(projectName, id).catch(() => {});
       const current = treeRef.current;
       const pane = current ? findPane(current, entry.paneId) : null;
       if (current && pane) {
@@ -174,7 +180,7 @@ export function useTabClose({
       const paneId = nextId("pane");
       applyTree(makePaneLeaf(paneId, [entry.tab], 0), paneId);
     },
-    [applyTree],
+    [applyTree, projectName],
   );
 
   // Register a closing terminal tab for undo and raise its toast instead of
@@ -191,6 +197,9 @@ export function useTabClose({
         toastId,
         finalized: false,
       });
+      // Its agent runs on until the close is final; a tab that is gone neither
+      // shows it nor announces it.
+      if (isTerminalTab(tab)) HoldPaneStatus(projectName, tab.id).catch(() => {});
       showUndoCloseToast({
         toastId,
         label: terminalDisplayLabel(tab),

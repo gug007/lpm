@@ -11,6 +11,7 @@ import { applyFleetFilter, type FleetFilter } from "./fleetFilter";
 import {
   fleetIdentityOf,
   namelessIdentity,
+  terminalsIdentity,
   type FleetProjectIdentity,
 } from "./fleetIdentity";
 import {
@@ -93,6 +94,8 @@ export interface FleetSnapshot {
   /** Project -> terminal id -> the name that tab is showing. Only projects
    *  open in this session publish one. */
   terminalTitles: Record<string, Record<string, string>>;
+  /** The global Terminals' agents, which no project in `projects` carries. */
+  terminalEntries: StatusEntry[];
 }
 
 export interface Fleet {
@@ -292,7 +295,7 @@ function serviceGroup(
 }
 
 export function buildFleet(snapshot: FleetSnapshot): Fleet {
-  const { projects, jobs, now, filter, peerAliases, terminalTitles } = snapshot;
+  const { projects, jobs, now, filter, peerAliases, terminalTitles, terminalEntries } = snapshot;
 
   const byName = new Map(projects.map((p) => [p.name, p]));
   const identities = new Map<string, FleetProjectIdentity>();
@@ -308,15 +311,18 @@ export function buildFleet(snapshot: FleetSnapshot): Fleet {
   const rows: FleetRow[] = [];
   const services: FleetServiceGroup[] = [];
   const busy = new Set<string>();
+  const pushAgents = (identity: FleetProjectIdentity, entries: StatusEntry[]) => {
+    const tabTitles = terminalTitles[identity.name] ?? {};
+    // One row per tab, the same fold the sidebar applies — see foldByPane.
+    for (const held of foldByPane([...entries].sort(byUrgency))) {
+      rows.push(agentRow(identity, held, now, tabTitles));
+      busy.add(identity.name);
+    }
+  };
+  pushAgents(terminalsIdentity(), terminalEntries);
   for (const project of projects) {
     const identity = identities.get(project.name) as FleetProjectIdentity;
-    const tabTitles = terminalTitles[project.name] ?? {};
-    // One row per tab, the same fold the sidebar applies — see foldByPane.
-    const sorted = [...(project.statusEntries ?? [])].sort(byUrgency);
-    for (const held of foldByPane(sorted)) {
-      rows.push(agentRow(identity, held, now, tabTitles));
-      busy.add(project.name);
-    }
+    pushAgents(identity, project.statusEntries ?? []);
     const group = serviceGroup(project, identity);
     if (group) {
       services.push(group);

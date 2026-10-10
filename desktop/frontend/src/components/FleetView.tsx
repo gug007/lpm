@@ -2,6 +2,8 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ClearStatus } from "../../bridge/commands";
 import { useAppStore } from "../store/app";
+import { useGlobalAgentStatus } from "../store/globalAgentStatus";
+import { GLOBAL_TERMINALS_KEY } from "../terminals";
 import { useTerminalTitles } from "../store/terminalTitles";
 import { peerAliasMap, usePeerState } from "../peer/usePeerState";
 import { useAllJobs, type ScheduledJob } from "../hooks/useJobs";
@@ -38,11 +40,13 @@ export function FleetView({ onExit, onOpenAutomations }: FleetViewProps) {
   const selected = useAppStore((s) => s.selected);
   const addProject = useAppStore((s) => s.addProject);
   const selectProject = useAppStore((s) => s.selectProject);
+  const setView = useAppStore((s) => s.setView);
   const focusProjectTerminal = useAppStore((s) => s.focusProjectTerminal);
   const toggleService = useAppStore((s) => s.toggleService);
   const startProject = useAppStore((s) => s.startProject);
   const stopProject = useAppStore((s) => s.stopProject);
   const terminalTitles = useTerminalTitles((s) => s.byProject);
+  const terminalEntries = useGlobalAgentStatus((s) => s.entries);
   const { state: peerState } = usePeerState();
   const reducedMotion = usePrefersReducedMotion();
   const { jobs } = useAllJobs();
@@ -69,8 +73,9 @@ export function FleetView({ onExit, onOpenAutomations }: FleetViewProps) {
         filter: {},
         peerAliases,
         terminalTitles,
+        terminalEntries,
       }),
-    [projects, jobs, peerAliases, terminalTitles],
+    [projects, jobs, peerAliases, terminalTitles, terminalEntries],
   );
 
   const visible = useMemo(
@@ -104,14 +109,20 @@ export function FleetView({ onExit, onOpenAutomations }: FleetViewProps) {
     else toast.info("This automation isn't tied to one project.");
   }, [onOpenAutomations]);
 
+  const openPlace = useCallback(
+    (name: string) =>
+      name === GLOBAL_TERMINALS_KEY ? setView("terminals") : selectProject(name),
+    [setView, selectProject],
+  );
+
   const openRow = useCallback(
     (row: FleetRow) => {
       if (!row.project.name) openAutomations();
       else if (row.terminalId)
         focusProjectTerminal(row.project.name, row.terminalId);
-      else selectProject(row.project.name);
+      else openPlace(row.project.name);
     },
-    [focusProjectTerminal, selectProject, openAutomations],
+    [focusProjectTerminal, openPlace, openAutomations],
   );
 
   // A lit profile means the project is running that profile and nothing else,
@@ -269,7 +280,7 @@ export function FleetView({ onExit, onOpenAutomations }: FleetViewProps) {
                         project={group.project}
                         onOpen={() =>
                           group.project.name
-                            ? selectProject(group.project.name)
+                            ? openPlace(group.project.name)
                             : openAutomations()
                         }
                       />

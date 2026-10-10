@@ -3,7 +3,7 @@
 //! no active agents", which `list_status` alone cannot.
 
 use crate::config::{self, Ctx};
-use crate::error::{resolve_error, RunError};
+use crate::error::{resolve_status_target, RunError};
 use crate::statussock::{self, StatusEntry};
 use crate::style::{status_value, Style};
 use crate::util::{now_millis, print_json, relative};
@@ -22,8 +22,12 @@ pub fn run(ctx: &Ctx, project: Option<&str>, as_json: bool) -> Result<(), RunErr
 
     let single = project.is_some();
     let requested = match project {
-        Some(q) => vec![config::resolve_project_name(ctx, q).map_err(resolve_error)?],
-        None => config::project_names(ctx),
+        Some(q) => vec![resolve_status_target(ctx, Some(q))?],
+        None => {
+            let mut names = config::project_names(ctx);
+            names.push(config::GLOBAL_TERMINALS.to_string());
+            names
+        }
     };
 
     let mut groups: Vec<(String, Vec<StatusEntry>)> = Vec::new();
@@ -45,7 +49,7 @@ pub fn run(ctx: &Ctx, project: Option<&str>, as_json: bool) -> Result<(), RunErr
     };
 
     if single && groups[0].1.is_empty() {
-        println!("no live status for {}", groups[0].0);
+        println!("no live status for {}", config::status_group_label(&groups[0].0));
         return Ok(());
     }
     if groups.is_empty() {
@@ -83,7 +87,7 @@ fn render_human(s: &Style, groups: &[(String, Vec<StatusEntry>)]) -> String {
     let now = now_millis();
     let mut o = String::new();
     for (name, entries) in groups {
-        o.push_str(&format!("{}\n", s.bold(name)));
+        o.push_str(&format!("{}\n", s.bold(config::status_group_label(name))));
         if entries.is_empty() {
             o.push_str(&format!("  {}\n", s.dim("(no active agents)")));
             continue;

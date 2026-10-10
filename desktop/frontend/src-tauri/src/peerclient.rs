@@ -40,6 +40,10 @@ pub(crate) const PEER_NOT_CONNECTED: &str = "peer not connected";
 pub(crate) const PEER_DISCONNECTED: &str = "peer disconnected";
 pub(crate) const PEER_REQUEST_TIMED_OUT: &str = "peer request timed out";
 const PING_INTERVAL: Duration = Duration::from_secs(20);
+/// A host answers every ping, so a link this quiet is dead even though no
+/// FIN or RST came to say so (the host asleep, its network gone). Long enough
+/// for a host busy with a slow request to answer late.
+const SILENCE_LIMIT: Duration = Duration::from_secs(60);
 const BACKOFF_MIN: Duration = Duration::from_secs(1);
 const BACKOFF_MAX: Duration = Duration::from_secs(30);
 /// How long a connect attempt waits for the forward before calling it a failure.
@@ -2041,6 +2045,7 @@ fn connect_session(
         engine.nudge();
     }
     let mut last_ping = Instant::now();
+    let mut last_heard = Instant::now();
     let mut quick_until: Option<Instant> = None;
     let mut quick = false;
     'main: loop {
@@ -2065,6 +2070,9 @@ fn connect_session(
                 Err(TryRecvError::Disconnected) => break 'main,
             }
         }
+        if last_heard.elapsed() >= SILENCE_LIMIT {
+            break;
+        }
         if last_ping.elapsed() >= PING_INTERVAL {
             if ws
                 .write(Message::text(json!({ "t": "ping" }).to_string()))
@@ -2085,6 +2093,7 @@ fn connect_session(
         }
         match ws.read() {
             Ok(msg) => {
+                last_heard = Instant::now();
                 if msg.is_close() {
                     break;
                 }

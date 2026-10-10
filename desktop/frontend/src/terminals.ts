@@ -82,6 +82,7 @@ export const HIDDEN_SESSIONS_CAP = 500;
 // Reserved projectName for the global terminals pane tree. Mirrors
 // GlobalProjectName in internal/config — both must stay in sync.
 export const GLOBAL_TERMINALS_KEY = "__global__";
+export const GLOBAL_TERMINALS_LABEL = "Terminals";
 
 export interface TerminalsConfig {
   projects: Record<string, ProjectTerminalState>;

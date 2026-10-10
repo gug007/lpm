@@ -6,10 +6,12 @@ import UIKit
 /// phone from one network to another.
 extension AppModel {
     /// Show the active Mac's last saved project list until a live one arrives.
+    /// Without its agents' states: the saved list is from the last time the Mac
+    /// sent one, and they have moved on since — often while this phone watched.
     func restoreSnapshot() {
         guard !demoMode, projects.isEmpty, let id = activeMacId,
               let snapshot = link.snapshots.load(id) else { return }
-        projects = snapshot.projects
+        projects = snapshot.projects.map { $0.withStatus([]) }
         workStatuses = snapshot.workStatuses
         workStatusOrder = snapshot.workStatusOrder
         sidebarOrder = snapshot.sidebarOrder

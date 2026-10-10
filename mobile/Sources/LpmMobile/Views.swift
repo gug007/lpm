@@ -332,7 +332,7 @@ struct ProjectsView: View {
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundStyle(.primary)
                         .overlay(alignment: .topTrailing) {
-                            let ambient = agentAmbient(model.projects)
+                            let ambient = agentAmbient(model.ambientProjects)
                             // An agent waiting on you outranks an automation that
                             // merely has something to read.
                             if ambient.isLit {
@@ -347,7 +347,7 @@ struct ProjectsView: View {
                                     .offset(x: 5, y: -5)
                             }
                         }
-                        .accessibilityLabel(agentAmbient(model.projects).needsYou > 0
+                        .accessibilityLabel(agentAmbient(model.ambientProjects).needsYou > 0
                                             ? "More — an agent needs you"
                                             : model.automationsUnread > 0
                                               ? "More — automations have new messages"

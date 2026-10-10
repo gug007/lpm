@@ -176,6 +176,21 @@ describe("applyFleetFilter", () => {
     expect(visible.services).toEqual([]);
   });
 
+  it("lists a terminal with a problem behind its question under problems, as counted", () => {
+    const asking = {
+      ...rows[0],
+      id: "agent:app:claude_code_w",
+      state: "needs-you" as const,
+      holdsError: true,
+    };
+    const failed = { ...rows[1], id: "agent:site:codex_e", state: "error" as const, holdsError: true };
+    const visible = applyFleetFilter([...rows, asking, failed], services, { state: "error" });
+    expect(ids(visible.rows)).toEqual(["agent:app:claude_code_w", "agent:site:codex_e"]);
+    expect(ids(applyFleetFilter([asking], [], { state: "needs-you" }).rows)).toEqual([
+      "agent:app:claude_code_w",
+    ]);
+  });
+
   it("applies the status, the kind and the query together", () => {
     const visible = applyFleetFilter(rows, services, {
       state: "working",

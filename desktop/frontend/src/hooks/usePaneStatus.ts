@@ -26,11 +26,12 @@ export interface PaneStatus {
   agents: Map<string, PaneAgentStatus>;
 }
 
-// Precedence when one pane carries several statuses, matching how the tab
-// renders them: the most urgent one wins, and it is the one the chip reads.
+// Precedence when one pane carries several statuses: the most urgent one wins,
+// and it is the one the chip reads. A question outranks a problem, the same
+// order every other surface uses (AGENT_STATE_RANK).
 const RANK: Record<string, number> = {
-  [STATUS_ERROR]: 0,
-  [STATUS_WAITING]: 1,
+  [STATUS_WAITING]: 0,
+  [STATUS_ERROR]: 1,
   [STATUS_RUNNING]: 2,
   [STATUS_DONE]: 3,
 };
