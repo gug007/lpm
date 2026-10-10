@@ -75,6 +75,18 @@ const GAMES = {
     caption: "making Breakout with AI",
     what: "a self-playing Breakout",
   },
+  gta: {
+    slug: "gta-6",
+    build: "a GTA-style car chase game that plays itself, set in a sunny Vice City-style beach town",
+    play: "Seen from above like the first GTA games, with the buildings drawn as 3D blocks rising toward the camera, a stolen sports car drives itself through streets lined with palm trees and neon, swerving around traffic and grabbing cash while police cars with flashing red and blue lights chase it, with wanted stars and a cash counter that keeps climbing.",
+    layout: "the camera follows the player's car, which stays near the middle of the stage, about 7% of the stage's width long, the city moves past around it, and the wanted stars and the cash sit in the top-left corner",
+    restart: "if the car is ever wrecked or boxed in by the police, flash WASTED or BUSTED for a second, then restart at once.",
+    subject: "a GTA game that plays itself",
+    noun: "GTA 6",
+    headline: "build GTA 6 🚓",
+    caption: "making GTA 6 with AI",
+    what: "a self-playing GTA-style car chase",
+  },
 };
 
 const prompt = (g) =>
