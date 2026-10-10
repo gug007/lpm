@@ -8,13 +8,15 @@ const mocks = vi.hoisted(() => ({
   entries: [] as unknown[],
   getProject: vi.fn(),
   listeners: new Map<string, (...data: unknown[]) => void>(),
+  attached: Promise.resolve(),
 }));
 
 vi.mock("../../bridge/commands", () => ({
   GetProject: (name: string) => mocks.getProject(name),
 }));
 vi.mock("../../bridge/runtime", () => ({
-  EventsOn: (name: string, cb: (...data: unknown[]) => void) => {
+  EventsOnReady: async (name: string, cb: (...data: unknown[]) => void) => {
+    await mocks.attached;
     mocks.listeners.set(name, cb);
     return () => mocks.listeners.delete(name);
   },
@@ -69,6 +71,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   mocks.entries = [];
   mocks.listeners.clear();
+  mocks.attached = Promise.resolve();
   mocks.getProject.mockReset();
   mocks.getProject.mockImplementation(() =>
     Promise.resolve({ name: "__global__", statusEntries: mocks.entries }),
@@ -94,6 +97,38 @@ describe("useGlobalAgentStatusSync", () => {
     mocks.entries = [entry("t1", "Running"), entry("t2", "Done")];
     await fire("__global__");
     expect(out()).toBe("t1|t2");
+  });
+
+  it("reads only once its listener is attached, so no event falls in between", async () => {
+    let attach!: () => void;
+    mocks.attached = new Promise((resolve) => (attach = resolve));
+    await render(true);
+    expect(mocks.getProject).not.toHaveBeenCalled();
+
+    mocks.entries = [entry("t1", "Running")];
+    await act(async () => attach());
+    expect(mocks.getProject).toHaveBeenCalledTimes(1);
+    expect(out()).toBe("t1|");
+  });
+
+  it("keeps the newest read when an older one resolves last", async () => {
+    await render(true);
+    const reads: Array<(rows: StatusEntry[]) => void> = [];
+    mocks.getProject.mockImplementation(
+      () =>
+        new Promise((resolve) =>
+          reads.push((rows) => resolve({ name: "__global__", statusEntries: rows })),
+        ),
+    );
+    await fire("__global__");
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    expect(reads).toHaveLength(2);
+
+    await act(async () => reads[1]([entry("t1", "Done")]));
+    await act(async () => reads[0]([entry("t1", "Running")]));
+    expect(out()).toBe("|t1");
   });
 
   it("ignores other projects' status events and debounces bursts", async () => {

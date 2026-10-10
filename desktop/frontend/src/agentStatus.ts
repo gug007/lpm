@@ -78,10 +78,10 @@ export function computeProjectStatus(
         break;
     }
   }
-  const className = isError
-    ? "text-[var(--accent-red-text)]"
-    : isWaiting
+  const className = isWaiting
     ? "sidebar-waiting"
+    : isError
+    ? "text-[var(--accent-red-text)]"
     : isWorking
     ? "sidebar-shimmer"
     : null;
@@ -101,7 +101,7 @@ export interface AgentAmbient {
 }
 
 /** The whole app's agents rolled up, for the sidebar's ambient badge. */
-export function agentAmbient(projects: ProjectInfo[]): AgentAmbient {
+export function agentAmbient(projects: Pick<ProjectInfo, "statusEntries">[]): AgentAmbient {
   let needsYou = 0;
   let hasError = false;
   for (const project of projects) {

@@ -24,6 +24,11 @@ pub(crate) fn local() -> HookForm {
     HookForm::Shell
 }
 
+/// A Windows build whose CLI is gone: the hooks it installed can't report.
+pub(crate) fn helper_missing() -> bool {
+    cfg!(windows) && bundled_cli().is_none()
+}
+
 /// The CLI bundled next to the app executable (Tauri's `externalBin`, installed
 /// without its target-triple suffix).
 fn bundled_cli() -> Option<PathBuf> {

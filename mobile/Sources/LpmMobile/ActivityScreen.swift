@@ -55,6 +55,7 @@ struct ActivityScreen: View {
 
     private var activity: Activity {
         buildActivity(projects: model.projects,
+                      machines: model.activityMachines,
                       jobs: model.automations,
                       now: now,
                       terminalTitles: model.activityTerminalTitles)
@@ -258,6 +259,11 @@ struct ActivityScreen: View {
         case .agent:
             let project = row.project.name
             guard !project.isEmpty else { return }
+            if let slug = row.project.machine {
+                guard let section = model.machineSections.first(where: { $0.machine.slug == slug }) else { return }
+                model.openOnMachine(section, project: project, terminal: row.terminalId)
+                return
+            }
             if let terminal = row.terminalId {
                 route = .terminal(project: project, id: terminal)
             } else {

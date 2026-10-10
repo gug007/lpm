@@ -129,6 +129,12 @@ export function ClearStatus(project, paneID, value) {
 export function ClearPaneStatus(project, paneID) {
   return invoke("clear_pane_status", { project, paneId: paneID });
 }
+export function HoldPaneStatus(project, paneID) {
+  return invoke("hold_pane_status", { project, paneId: paneID });
+}
+export function ReleasePaneStatus(project, paneID) {
+  return invoke("release_pane_status", { project, paneId: paneID });
+}
 export function MovePaneStatus(project, oldPaneID, newPaneID) {
   return invoke("move_pane_status", {
     project,

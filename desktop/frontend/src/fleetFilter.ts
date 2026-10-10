@@ -18,6 +18,12 @@ export interface FleetVisible {
   services: FleetServiceGroup[];
 }
 
+/** "Problems" takes every terminal holding one, the way the header counts them:
+ *  a question can be the agent speaking for a terminal with a problem behind it. */
+function inState(row: FleetRow, state: AgentState): boolean {
+  return state === "error" ? row.holdsError : row.state === state;
+}
+
 function matchesQuery(row: FleetRow, query: string): boolean {
   return (
     row.project.label.toLowerCase().includes(query) ||
@@ -61,7 +67,7 @@ export function applyFleetFilter(
   let visibleServices = kind === "all" || kind === "services" ? services : [];
 
   if (state !== "all") {
-    visibleRows = visibleRows.filter((row) => row.state === state);
+    visibleRows = visibleRows.filter((row) => inState(row, state));
     visibleServices = [];
   }
 

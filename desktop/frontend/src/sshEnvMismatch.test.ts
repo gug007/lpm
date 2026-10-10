@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { parseSshEnvMismatch, sshEnvMismatchMessage } from "./sshEnvMismatch";
+import {
+  parseSshEnvMismatch,
+  parseSshUndeliverable,
+  sshEnvMismatchMessage,
+  sshStatusUndeliverableMessage,
+} from "./sshEnvMismatch";
 
 describe("parseSshEnvMismatch", () => {
   it("accepts a complete payload", () => {
@@ -31,5 +36,16 @@ describe("parseSshEnvMismatch", () => {
     });
     expect(msg).toContain("dev@gateway");
     expect(msg).not.toMatch(/socket|pty|exec|\$HOME/i);
+  });
+});
+
+describe("ssh status undeliverable", () => {
+  it("names the host and what to change for each reason", () => {
+    const tools = parseSshUndeliverable({ hostLabel: "dev@box", reason: "tools" });
+    expect(tools && sshStatusUndeliverableMessage(tools)).toContain("python3, perl");
+    const fwd = parseSshUndeliverable({ hostLabel: "dev@box", reason: "forwarding" });
+    expect(fwd && sshStatusUndeliverableMessage(fwd)).toContain("StreamLocalForwarding");
+    expect(parseSshUndeliverable({ hostLabel: "dev@box", reason: "other" })).toBeNull();
+    expect(parseSshUndeliverable("dev@box")).toBeNull();
   });
 });

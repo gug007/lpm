@@ -41,8 +41,8 @@ struct NotificationOpenTarget: Equatable {
 }
 
 /// Bridges UIKit's remote-notification callbacks into the SwiftUI app: forwards the
-/// APNs device token to the model, suppresses banners while foregrounded (the live
-/// socket already shows status), and routes a notification tap to its destination.
+/// APNs device token to the model, suppresses banners the live socket already shows
+/// while foregrounded, and routes a notification tap to its destination.
 final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     weak var model: AppModel?
     // The device token and a cold-launch notification tap can both arrive before
@@ -116,10 +116,18 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         }
     }
 
+    /// The open app shows its live Mac's statuses itself. A push only comes when
+    /// the Mac has no socket to this phone: another saved Mac, or the live one
+    /// while the link is down. That news is shown like it would be in the
+    /// background, or nothing on the phone would show it at all.
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 willPresent notification: UNNotification,
                                 withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
-        completionHandler([])
+        let serverId = notification.request.content.userInfo["serverId"] as? String
+        let shown = MainActor.assumeIsolated {
+            model?.showsLive(serverId: serverId) ?? false
+        }
+        completionHandler(shown ? [] : [.banner, .list, .sound])
     }
 
     func userNotificationCenter(_ center: UNUserNotificationCenter,

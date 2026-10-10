@@ -2262,10 +2262,24 @@ final class AppModel {
     /// notifications for a project that's in this list (leaving unknown projects and
     /// just-arrived alerts whose status hasn't synced yet alone) and only when the
     /// project's live status keys no longer include the notification's key.
+    /// Withdraw the active Mac's delivered notifications whose news is over: the
+    /// status is gone, or has moved on from the one announced (a "waiting" whose
+    /// agent got its answer and went back to work).
+    /// Whether the open app is showing this Mac's statuses live right now. A push
+    /// from an old Mac carries no id and is taken to be the live one's.
+    func showsLive(serverId: String?) -> Bool {
+        guard connection == .ready else { return false }
+        guard let serverId, !serverId.isEmpty else { return true }
+        return serverId == activeRecord?.serverId
+    }
+
     private func reconcileNotifications(_ projects: [Project]) {
-        var liveKeys: [String: Set<String>] = [:]
+        var live: [String: [String: String]] = [:]
         for project in projects {
-            liveKeys[project.name] = Set(project.statusEntries.map(\.key))
+            live[project.name] = Dictionary(
+                project.statusEntries.map { ($0.key, $0.value) },
+                uniquingKeysWith: { first, _ in first }
+            )
         }
         // This projects list belongs to the active Mac, so it may only prune that
         // Mac's notifications. A notification with a serverId is pruned only when it
@@ -2279,8 +2293,11 @@ final class AppModel {
                 let info = note.request.content.userInfo
                 guard let project = info["project"] as? String,
                       let key = info["statusKey"] as? String,
-                      let keys = liveKeys[project], !keys.contains(key)
+                      let entries = live[project]
                 else { return nil }
+                let announced = info["status"] as? String
+                let current = entries[key]
+                if let current, announced == nil || announced == current { return nil }
                 if let noteServerId = info["serverId"] as? String, !noteServerId.isEmpty,
                    noteServerId != activeServerId {
                     return nil
@@ -2647,6 +2664,7 @@ final class AppModel {
             if let idx = self.projects.firstIndex(where: { $0.name == proj }) {
                 // Copy with fresh status — preserves services/actions.
                 self.projects[idx] = self.projects[idx].withStatus(entries)
+                self.reconcileNotifications([self.projects[idx]])
             }
         }
     }

@@ -18,8 +18,8 @@ import { getSettings, saveSettings, useSettingsStore } from "../store/settings";
 import { useAppStore } from "../store/app";
 import { openClaudeAccountSettings, setClaudeAccountChoice } from "../store/claudeAccountPin";
 import { useClaudePoolStore } from "../store/claudePool";
-import { GLOBAL_TERMINALS_KEY } from "../terminals";
 import { useTerminalTitles } from "../store/terminalTitles";
+import { useGlobalAgentStatus } from "../store/globalAgentStatus";
 import { EventsOn } from "../../bridge/runtime";
 import { CheckForUpdate, SetClipboardText } from "../../bridge/commands";
 import {
@@ -154,6 +154,8 @@ interface SidebarProps {
   onOpenProjectView: (name: string, view: "config" | "notes" | "ai" | "memory") => void;
   onToggle: (name: string) => void;
   onTerminals: () => void;
+  /** Opens one of the global Terminals' tabs. */
+  onTerminalTab: (terminalId: string) => void;
   onFleet: () => void;
   onStats: () => void;
   onUsage: () => void;
@@ -229,7 +231,7 @@ interface PeerRowOptions {
   mark?: React.ReactNode;
 }
 
-export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, onCollapsedChange, onSelect, onOpenProjectView, onToggle, onTerminals, onFleet, onStats, onUsage, onScheduled, onMobile, onFeedback, onSettings, onAddProject, onBulkDuplicate, onRemoveProject, onRemoveProjectCascade, onRemoveProjectFromDisk, onRemoveProjectsBatch, onRenameProject, onSetWorkStatus, onMoveProjectRoot, onApplySidebarLayout, onReorderDuplicate, onCreateGroup, onRenameGroup, onDeleteGroup, onToggleGroupCollapsed, onMoveProjectToGroup, onMoveProjectsToGroup, onDetachProject, onAttachProject, detached, detachedSelf, showTerminals, showFleet, showStats, showUsage, showMobile, showScheduled, showSettings, duplicatingNames, pendingDuplicates, removingNames }: SidebarProps) {
+export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, onCollapsedChange, onSelect, onOpenProjectView, onToggle, onTerminals, onTerminalTab, onFleet, onStats, onUsage, onScheduled, onMobile, onFeedback, onSettings, onAddProject, onBulkDuplicate, onRemoveProject, onRemoveProjectCascade, onRemoveProjectFromDisk, onRemoveProjectsBatch, onRenameProject, onSetWorkStatus, onMoveProjectRoot, onApplySidebarLayout, onReorderDuplicate, onCreateGroup, onRenameGroup, onDeleteGroup, onToggleGroupCollapsed, onMoveProjectToGroup, onMoveProjectsToGroup, onDetachProject, onAttachProject, detached, detachedSelf, showTerminals, showFleet, showStats, showUsage, showMobile, showScheduled, showSettings, duplicatingNames, pendingDuplicates, removingNames }: SidebarProps) {
   const [updateInfo, setUpdateInfo] = useState<{ currentVersion: string; latestVersion: string } | null>(null);
   const update = useUpdateInstall();
   const [contextMenu, setContextMenu] = useState<{ name: string; x: number; y: number } | null>(null);
@@ -378,7 +380,11 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   // modals (rename / remove / duplicate) must resolve a peer row's target too.
   const allByName = useMemo(() => new Map(projects.map((p) => [p.name, p])), [projects]);
 
-  const ambient = useMemo(() => agentAmbient(projects), [projects]);
+  const terminalEntries = useGlobalAgentStatus((s) => s.entries);
+  const ambient = useMemo(
+    () => agentAmbient([...projects, { statusEntries: terminalEntries }]),
+    [projects, terminalEntries],
+  );
 
   // The clamp inside `projectAgentRows` only reads `now` against timestamps that
   // change with `projects`, so pinning it to this memo costs nothing.
@@ -1905,7 +1911,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       <SidebarFooterNav
         showTerminals={showTerminals}
         onTerminals={onTerminals}
-        onOpenTerminalTab={(terminalId) => focusProjectTerminal(GLOBAL_TERMINALS_KEY, terminalId)}
+        onOpenTerminalTab={onTerminalTab}
         showActivity={showFleet}
         onActivity={onFleet}
         needsYou={ambient.needsYou}

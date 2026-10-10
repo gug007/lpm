@@ -6,6 +6,7 @@ import {
   removePrompt,
   schedulePrompt,
   sendPromptNow,
+  useSendLater,
   type ScheduledPrompt,
 } from "../store/sendLater";
 import { useTerminalTargets } from "../store/terminalTargets";
@@ -67,8 +68,17 @@ async function toDrafts(item: ScheduledPrompt): Promise<void> {
   }
 }
 
+// Send now skips the wait for the agent to finish, but never types into a
+// question, which would take the prompt as its answer: that wait is the user's
+// to end, so they are shown the question.
 export function sendScheduledNow(item: ScheduledPrompt): void {
   sendPromptNow(item.id).catch((err) => toast.error(`Couldn't send it: ${String(err)}`));
+  if (useSendLater.getState().holds[item.id] !== "asking") return;
+  toast(`${item.terminalLabel || "The agent"} is waiting for your answer`, {
+    description: "Answer it, and the prompt goes in right after.",
+  });
+  const target = liveTarget(item);
+  if (target) useAppStore.getState().focusProjectTerminal(item.projectName, target.id);
 }
 
 // Take a prompt off the schedule into the input to change it. The time is kept,

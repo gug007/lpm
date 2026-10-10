@@ -9,9 +9,9 @@ const DEBOUNCE_MS = 250;
 
 interface ProjectsSyncOptions {
   // Detached windows skip templates (only the main settings UI shows
-  // them) and the 10s poll fallback (the main window already polls and
-  // broadcasts via projects-changed, so a per-window poll multiplies
-  // ListProjects load by the number of detached windows).
+  // them) and the 10s poll fallback: every window hears the same status and
+  // project events, and refreshes on coming back into view, so a per-window
+  // poll would mostly multiply ListProjects load by the number of windows.
   mode?: "main" | "detached";
 }
 

@@ -59,6 +59,7 @@ function build(over: Partial<FleetSnapshot> & { now: number }): Fleet {
     filter: {},
     peerAliases: {},
     terminalTitles: {},
+    terminalEntries: [],
     ...over,
   });
 }
@@ -955,6 +956,25 @@ describe("counts and quiet projects", () => {
     expect(fleet.counts).toEqual({ needsYou: 1, error: 1, working: 1, done: 1 });
     expect(fleet.rows.every((r) => r.project.name === "app")).toBe(true);
     expect(fleet.quietProjectCount).toBe(2);
+  });
+
+  it("counts the global Terminals' agents without counting Terminals as a project", () => {
+    const fleet = build({
+      now: T0,
+      projects: [project({ name: "quiet-one" })],
+      terminalEntries: [
+        entry("claude_code_w", STATUS_WAITING, "__global__-1"),
+        entry("codex_r", STATUS_RUNNING, "__global__-2"),
+      ],
+      terminalTitles: { __global__: { "__global__-1": "Release notes" } },
+    });
+    expect(fleet.counts).toEqual({ needsYou: 1, error: 0, working: 1, done: 0 });
+    expect(fleet.rows.map((r) => [r.project.name, r.project.label, r.terminalId])).toEqual([
+      ["__global__", "Terminals", "__global__-1"],
+      ["__global__", "Terminals", "__global__-2"],
+    ]);
+    expect(fleet.rows[0].tabTitle).toBe("Release notes");
+    expect(fleet.quietProjectCount).toBe(1);
   });
 
   it("does not count a project with running services as quiet", () => {

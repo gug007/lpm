@@ -492,7 +492,7 @@ fn scan_custom_remote(cli: &str, ssh: &config::SshSettings, dir: &str) -> Vec<Ag
     if script.is_empty() {
         return Vec::new();
     }
-    let out = crate::sshexec::remote_command(ssh, "", "bash", &["-lc", &script], &[]).output();
+    let out = crate::sshexec::remote_login_script(ssh, &script).output();
     match out {
         Ok(o) if o.status.success() => parse_remote_scan(&o.stdout),
         _ => Vec::new(),

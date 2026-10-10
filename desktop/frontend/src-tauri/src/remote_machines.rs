@@ -15,14 +15,35 @@
 use crate::peer::PeerEntry;
 use crate::peerclient::{PeerClientHub, PhoneMachine};
 use serde_json::{json, Value};
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::SyncSender;
-use std::time::Duration;
+use std::sync::{Mutex, OnceLock};
+use std::time::{Duration, Instant};
 use tauri::{AppHandle, Manager};
 
-const PROJECTS_TIMEOUT: Duration = Duration::from_secs(8);
+/// How long a list waits on one machine. One that stopped answering would
+/// otherwise hold back every machine's news, and blank its own section.
+const PROJECTS_TIMEOUT: Duration = Duration::from_secs(4);
+/// A machine's last list stands in for it while it doesn't answer; its agents'
+/// states only while they can still be current.
+const STATUS_FRESH: Duration = Duration::from_secs(15);
 const PUSH_DELAY: Duration = Duration::from_millis(800);
 static PUSH_PENDING: AtomicBool = AtomicBool::new(false);
+
+/// Each machine's last answered list, and when it came.
+type LastLists = Mutex<HashMap<String, (Instant, Vec<Value>)>>;
+
+fn last_lists() -> &'static LastLists {
+    static LISTS: OnceLock<LastLists> = OnceLock::new();
+    LISTS.get_or_init(Default::default)
+}
+
+/// One push at a time, so a slow one can't land after the one that followed it.
+fn push_lock() -> &'static Mutex<()> {
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(Default::default)
+}
 
 pub fn handle(app: &AppHandle, out: &SyncSender<String>, t: &str, v: &Value) {
     let Some(hub) = app.try_state::<PeerClientHub>() else {
@@ -63,6 +84,7 @@ pub(crate) fn notify_changed(app: &AppHandle) {
     let app = app.clone();
     std::thread::spawn(move || {
         std::thread::sleep(PUSH_DELAY);
+        let _one_at_a_time = push_lock().lock().unwrap();
         PUSH_PENDING.store(false, Ordering::Release);
         if let Some(hub) = app.try_state::<PeerClientHub>() {
             crate::remote::broadcast_frame(&app, machines_frame(hub.inner()));
@@ -100,15 +122,43 @@ fn machines_frame(hub: &PeerClientHub) -> Value {
 }
 
 /// The machine's own project list, as it answers `list_projects` to this Mac's
-/// sidebar. None when it isn't connected or doesn't answer in time.
+/// sidebar — or, while it doesn't answer, the last one it gave. None when it
+/// isn't connected or never answered.
 fn machine_projects(hub: &PeerClientHub, m: &PhoneMachine) -> Option<Vec<Value>> {
     if !m.connected {
         return None;
     }
-    match hub.invoke_within(&m.entry.slug, "list_projects", json!({}), PROJECTS_TIMEOUT) {
-        Ok(Value::Array(projects)) => Some(projects),
-        _ => None,
+    let slug = &m.entry.slug;
+    match hub.invoke_within(slug, "list_projects", json!({}), PROJECTS_TIMEOUT) {
+        Ok(Value::Array(projects)) => {
+            last_lists()
+                .lock()
+                .unwrap()
+                .insert(slug.clone(), (Instant::now(), projects.clone()));
+            Some(projects)
+        }
+        _ => last_lists()
+            .lock()
+            .unwrap()
+            .get(slug)
+            .map(|(at, projects)| last_known(projects, at.elapsed())),
     }
+}
+
+/// A machine's last list as it can still be shown `age` later: its projects
+/// stay, its agents' states only while recent.
+fn last_known(projects: &[Value], age: Duration) -> Vec<Value> {
+    if age < STATUS_FRESH {
+        return projects.to_vec();
+    }
+    projects
+        .iter()
+        .map(|p| {
+            let mut p = p.clone();
+            p["statusEntries"] = json!([]);
+            p
+        })
+        .collect()
 }
 
 /// The row order this Mac's sidebar keeps for the machine's section
@@ -279,6 +329,15 @@ fn url_param(url: &str, key: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_machine_that_stops_answering_keeps_its_projects_but_not_old_states() {
+        let projects = vec![json!({ "name": "api", "statusEntries": [{ "key": "k", "value": "Running" }] })];
+        assert_eq!(last_known(&projects, Duration::from_secs(1)), projects);
+        let stale = last_known(&projects, Duration::from_secs(60));
+        assert_eq!(stale[0]["name"], "api");
+        assert_eq!(stale[0]["statusEntries"], json!([]));
+    }
 
     fn machine(connected: bool, supports_remote_pair: bool) -> PhoneMachine {
         PhoneMachine {

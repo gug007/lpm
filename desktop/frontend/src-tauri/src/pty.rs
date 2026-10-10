@@ -12,7 +12,7 @@ use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize}
 use serde::Serialize;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::io::{Read, Write};
-use std::sync::atomic::{AtomicU16, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicI64, AtomicU16, AtomicU64, Ordering};
 use std::sync::mpsc::{sync_channel, RecvTimeoutError};
 use std::sync::{Arc, Condvar, Mutex, RwLock};
 use std::time::Duration;
@@ -62,9 +62,45 @@ pub struct PtySession {
     // render at, so we cache cols/rows here and update them on every resize.
     cols: AtomicU16,
     rows: AtomicU16,
+    /// When the pane last drew anything (unix millis) — how agentturn.rs tells a
+    /// working agent, which animates, from one that stopped without a hook.
+    last_output: AtomicI64,
 }
 
 impl PtySession {
+    pub fn last_output(&self) -> i64 {
+        self.last_output.load(Ordering::Relaxed)
+    }
+
+    /// Whether the reader is holding off until the window catches up. Output
+    /// stops reaching `last_output` then, however busy the program is.
+    pub fn output_paused(&self) -> bool {
+        self.flow.lock().unwrap().paused
+    }
+
+    /// Whether the pane's shell is back at its prompt, with no job in front of
+    /// it. None where that can't be told cheaply: a remote pane, whose jobs run
+    /// on another machine, and Windows, which has no foreground process group.
+    pub fn shell_at_prompt(&self) -> Option<bool> {
+        if self.remote {
+            return None;
+        }
+        #[cfg(unix)]
+        {
+            let shell = self.child.lock().unwrap().process_id()? as i32;
+            let leader = self
+                .master
+                .lock()
+                .unwrap()
+                .as_ref()?
+                .process_group_leader()
+                .filter(|p| *p > 0)?;
+            Some(leader == shell)
+        }
+        #[cfg(windows)]
+        None
+    }
+
     fn resize_pty(&self, cols: u16, rows: u16) -> Result<(), String> {
         let master = self.master.lock().unwrap();
         let master = master
@@ -304,6 +340,8 @@ fn spawn_io_threads(
                         return;
                     }
                     Ok(n) => {
+                        sess.last_output
+                            .store(crate::status::now_millis(), Ordering::Relaxed);
                         #[cfg(windows)]
                         let chunk = handshake.answer(&buf[..n], &sess.writer);
                         #[cfg(not(windows))]
@@ -487,7 +525,7 @@ fn start_internal(
         }
         builder.env("TERM", "xterm-256color");
         builder.env("TERM_PROGRAM", "kitty");
-        builder.env("LPM_SOCKET_PATH", config::socket_path());
+        builder.env("LPM_SOCKET_PATH", crate::socketsrv::serving(&config::socket_path()));
         builder.env("LPM_PROJECT_NAME", project_name);
         builder.env("LPM_PANE_ID", &id);
     } else {
@@ -524,9 +562,11 @@ fn start_internal(
         }
         builder.env("TERM", "xterm-256color");
         builder.env("TERM_PROGRAM", "kitty");
-        builder.env("LPM_SOCKET_PATH", config::socket_path());
+        builder.env("LPM_SOCKET_PATH", crate::socketsrv::serving(&config::socket_path()));
         builder.env("LPM_PROJECT_NAME", project_name);
         builder.env("LPM_PANE_ID", &id);
+        crate::shellwrap::apply(&mut builder, &shell);
+        crate::hooks::refresh_agent_hooks();
         // Where the lpm-memory skill saves and recalls work sessions. Resolved
         // here because a duplicate shares its original's folder, which the agent
         // can't derive from the project name or the cwd. Not set for remote
@@ -616,6 +656,7 @@ fn spawn_with_builder(
         closed: RwLock::new(false),
         cols: AtomicU16::new(80),
         rows: AtomicU16::new(24),
+        last_output: AtomicI64::new(0),
     });
     state
         .sessions
@@ -832,14 +873,24 @@ pub fn terminal_claude_account(state: State<'_, PtyState>, id: String) -> Option
 }
 
 #[tauri::command]
-pub fn write_terminal(state: State<'_, PtyState>, id: String, data: String) -> Result<(), String> {
-    let sess = lookup(&state, &id)?;
+pub fn write_terminal(
+    app: AppHandle,
+    state: State<'_, PtyState>,
+    id: String,
+    data: String,
+) -> Result<(), String> {
+    write_input(&app, &lookup(&state, &id)?, &data)
+}
+
+/// Input to a terminal from anywhere — its own window, the phone, a peer Mac —
+/// so the agent turn watch (agentturn.rs) sees every key that can end a turn.
+fn write_input(app: &AppHandle, sess: &Arc<PtySession>, data: &str) -> Result<(), String> {
     if *sess.closed.read().unwrap() {
-        return Err(format!("terminal closed: {id}"));
+        return Err(format!("terminal closed: {}", sess.id));
     }
     let buf: Vec<u8> = match data.strip_prefix(HEX_MARKER) {
         Some(hexpart) => hex::decode(hexpart).map_err(|e| format!("decode hex: {e}"))?,
-        None => data.into_bytes(),
+        None => data.as_bytes().to_vec(),
     };
     // Bind to a statement so the writer guard drops before `sess`.
     let r = sess
@@ -848,6 +899,9 @@ pub fn write_terminal(state: State<'_, PtyState>, id: String, data: String) -> R
         .unwrap()
         .write_all(&buf)
         .map_err(|e| e.to_string());
+    if r.is_ok() {
+        crate::agentturn::on_input(app, sess, &buf);
+    }
     r
 }
 
@@ -1014,28 +1068,16 @@ pub struct RemoteTerminal {
     pub remote: bool,
 }
 
-fn session(state: &PtyState, id: &str) -> Option<Arc<PtySession>> {
+pub(crate) fn session(state: &PtyState, id: &str) -> Option<Arc<PtySession>> {
     state.sessions.lock().unwrap().get(id).cloned()
 }
 
 /// Write input to a terminal from the remote server (same hex-marker contract as
 /// write_terminal). Errors mirror the command's.
-pub fn remote_write(state: &PtyState, id: &str, data: &str) -> Result<(), String> {
-    let sess = session(state, id).ok_or_else(|| format!("terminal not found: {id}"))?;
-    if *sess.closed.read().unwrap() {
-        return Err(format!("terminal closed: {id}"));
-    }
-    let buf: Vec<u8> = match data.strip_prefix(HEX_MARKER) {
-        Some(hexpart) => hex::decode(hexpart).map_err(|e| format!("decode hex: {e}"))?,
-        None => data.as_bytes().to_vec(),
-    };
-    let r = sess
-        .writer
-        .lock()
-        .unwrap()
-        .write_all(&buf)
-        .map_err(|e| e.to_string());
-    r
+pub fn remote_write(app: &AppHandle, id: &str, data: &str) -> Result<(), String> {
+    let sess = session(&app.state::<PtyState>(), id)
+        .ok_or_else(|| format!("terminal not found: {id}"))?;
+    write_input(app, &sess, data)
 }
 
 /// Resize a terminal from the remote server. One PTY has one geometry, so this

@@ -13,13 +13,16 @@ interface GlobalAgentStatusState {
   refresh: () => Promise<void>;
 }
 
+let refreshSeq = 0;
+
 export const useGlobalAgentStatus = create<GlobalAgentStatusState>((set) => ({
   entries: [],
 
   refresh: async () => {
+    const seq = ++refreshSeq;
     try {
       const info: ProjectInfo | null = await GetProject(GLOBAL_TERMINALS_KEY);
-      set({ entries: info?.statusEntries ?? [] });
+      if (seq === refreshSeq) set({ entries: info?.statusEntries ?? [] });
     } catch {
       /* the reserved project always resolves; a failed read keeps the last rows */
     }

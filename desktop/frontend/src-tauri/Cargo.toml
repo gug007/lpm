@@ -84,7 +84,7 @@ time = "0.3"
 # is app-wide on macOS). Versions match what Tauri already pulls in.
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
-objc2-foundation = { version = "0.3", features = ["NSString"] }
+objc2-foundation = { version = "0.3", features = ["NSString", "NSArray", "NSUserNotification"] }
 # macOS Keychain (legacy login keychain, generic password), used only by
 # vaultkeychain.rs. Raw SecItem FFI: kSec* constants + errSec codes from -sys,
 # core-foundation to build the query dictionaries. We mirror go-keychain's exact

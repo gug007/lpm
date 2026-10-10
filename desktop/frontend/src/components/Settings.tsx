@@ -119,7 +119,14 @@ const NAV_ICONS: Record<string, LucideIcon> = {
 
 const darkModeQuery = window.matchMedia("(prefers-color-scheme: dark)");
 
-type HooksStatus = "idle" | "checking" | "installed" | "missing" | "no-settings";
+type HooksStatus =
+  | "idle"
+  | "checking"
+  | "installed"
+  | "missing"
+  | "no-settings"
+  | "disabled"
+  | "no-helper";
 type UpdateStatus = "idle" | "checking" | "available" | "up-to-date" | "installing" | "error";
 
 const HOOKS_DESCRIPTION: Record<HooksStatus, string> = {
@@ -128,6 +135,8 @@ const HOOKS_DESCRIPTION: Record<HooksStatus, string> = {
   installed: "Hooks installed correctly",
   missing: "Hooks not configured",
   "no-settings": "Claude Code settings not found",
+  disabled: "Claude Code's settings turn its hooks off, so its progress can't show",
+  "no-helper": "Part of lpm is missing, so Claude Code's progress can't show. Reinstall lpm",
 };
 
 import type { View } from "../store/app";
@@ -426,6 +435,10 @@ export function Settings({
       const status = await CheckClaudeHooks();
       if (!status.settingsExists) {
         setHooksStatus("no-settings");
+      } else if (status.hooksDisabled) {
+        setHooksStatus("disabled");
+      } else if (status.helperMissing) {
+        setHooksStatus("no-helper");
       } else if (status.hooksInstalled) {
         setHooksStatus("installed");
       } else {

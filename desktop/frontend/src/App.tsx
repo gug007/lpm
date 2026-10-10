@@ -33,8 +33,9 @@ import { useKeyboardShortcut } from "./hooks/useKeyboardShortcut";
 import { useProjectSwitcher } from "./hooks/useProjectSwitcher";
 import { useProjectsSync } from "./hooks/useProjectsSync";
 import { useGlobalAgentStatusSync } from "./hooks/useGlobalTerminalStatus";
+import { GLOBAL_TERMINALS_KEY } from "./terminals";
 import { useAppEvents } from "./hooks/useAppEvents";
-import { useSshEnvMismatchToasts } from "./hooks/useSshEnvMismatchToasts";
+import { useSshStatusWarnings } from "./hooks/useSshStatusWarnings";
 import { useProjectWatcher } from "./hooks/useProjectWatcher";
 import { useOriginStatusPoller } from "./hooks/useOriginStatusPoller";
 import { getSettings, saveSettings, useSettingsStore } from "./store/settings";
@@ -72,6 +73,7 @@ export default function App() {
   const checkOrigin = useSettingsStore((s) => s.checkOrigin ?? true);
 
   const setView = useAppStore((s) => s.setView);
+  const focusProjectTerminal = useAppStore((s) => s.focusProjectTerminal);
   const toggleAgentOverview = useAppStore((s) => s.toggleAgentOverview);
   const settingsTab = useAppStore((s) => s.settingsTab);
   const setSettingsTab = useAppStore((s) => s.setSettingsTab);
@@ -140,7 +142,7 @@ export default function App() {
   usePeerDispatcher();
   const { state: peerState } = usePeerState();
   usePeerAutoSyncToasts(peerState.peers);
-  useSshEnvMismatchToasts();
+  useSshStatusWarnings();
   const isFullscreen = useIsFullscreen();
 
   // Terminal sessions on a dropped peer are kept alive so the reconnect can resume
@@ -265,6 +267,7 @@ export default function App() {
           onOpenProjectView={openProjectDetailView}
           onToggle={toggleProjectRunning}
           onTerminals={() => setView("terminals")}
+          onTerminalTab={(id) => focusProjectTerminal(GLOBAL_TERMINALS_KEY, id)}
           onFleet={toggleAgentOverview}
           onStats={() => setView("stats")}
           onUsage={() => setUsageOpen(true)}

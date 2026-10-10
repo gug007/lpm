@@ -31,6 +31,7 @@ mod terminals;
 mod sessions;
 mod util;
 mod wait;
+mod waitagent;
 
 use clap::{Parser, Subcommand};
 use std::process::ExitCode;
@@ -166,13 +167,18 @@ enum Commands {
     Wait {
         /// Project stem, `name:` field, or unambiguous prefix. Omit to infer it.
         name: Option<String>,
+        /// The project, as a flag like the other commands take it.
+        #[arg(long, short = 'p', conflicts_with = "name")]
+        project: Option<String>,
         /// Wait for this declared service to be running.
         #[arg(long)]
         service: Option<String>,
         /// Wait for this TCP port to be listening (needs no project).
         #[arg(long, conflicts_with = "service")]
         port: Option<i64>,
-        /// Wait until the project's AI agents settle (needs the app running).
+        /// Wait until the project's AI agents settle: one reports after the wait
+        /// starts and none is still working, ignoring the calling tab's own agent
+        /// (needs the app running).
         #[arg(long, conflicts_with_all = ["service", "port"])]
         agent: bool,
         /// Give up after this many seconds (1..=3600).
@@ -194,6 +200,7 @@ enum Commands {
         color: Option<String>,
         #[arg(long)]
         priority: Option<i64>,
+        /// Terminal tab the status belongs to; defaults to the tab this runs in.
         #[arg(long)]
         pane: Option<String>,
         /// Project to set on; omit to infer from the environment / cwd.
@@ -392,6 +399,7 @@ fn main() -> ExitCode {
         } => service_cmd::run(&ctx, &service, op, project.as_deref(), json),
         Commands::Wait {
             name,
+            project,
             service,
             port,
             agent,
@@ -399,7 +407,7 @@ fn main() -> ExitCode {
             json,
         } => wait::run(
             &ctx,
-            name.as_deref(),
+            name.or(project).as_deref(),
             service.as_deref(),
             port,
             agent,

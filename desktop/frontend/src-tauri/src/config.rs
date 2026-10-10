@@ -93,6 +93,8 @@ pub fn message_history_path() -> PathBuf {
 }
 
 const RESERVED_PROJECT_NAME: &str = "__global__";
+/// What the app calls the reserved project: the global Terminals view.
+const RESERVED_PROJECT_LABEL: &str = "Terminals";
 
 /// Mirrors config.EnsureDirs: create the projects + templates dirs.
 pub fn ensure_dirs() -> Result<(), String> {
@@ -171,6 +173,9 @@ pub fn peek_worktree(name: &str) -> bool {
 /// copy suffix kept, else the file name. Unknown names come back as given, so a
 /// notice about a project that no longer exists still says something.
 pub fn project_display_name(name: &str) -> String {
+    if is_global_project(name) {
+        return RESERVED_PROJECT_LABEL.to_string();
+    }
     let Ok(yaml) = parse_project_yaml(name) else {
         return name.to_string();
     };
@@ -206,7 +211,12 @@ fn display_name_of(name: &str, label: &str, parent: Option<(&str, &str)>) -> Str
 
 #[cfg(test)]
 mod display_name_tests {
-    use super::display_name_of;
+    use super::{display_name_of, project_display_name, RESERVED_PROJECT_NAME};
+
+    #[test]
+    fn the_global_terminals_are_called_terminals() {
+        assert_eq!(project_display_name(RESERVED_PROJECT_NAME), "Terminals");
+    }
 
     #[test]
     fn label_wins_over_everything() {
@@ -1647,10 +1657,14 @@ pub fn socket_path() -> String {
 /// `ssh -R` forward. Only status verbs are served here — never the project
 /// control verbs — so a remote host can't drive the Mac (socketsrv.rs).
 pub fn remote_socket_path() -> String {
-    lpm_dir()
-        .join("lpm-remote.sock")
-        .to_string_lossy()
-        .into_owned()
+    // Named per build like socket_path: a dev build and the installed app share
+    // ~/.lpm, and one name had each binding or deleting the other's.
+    let name = if cfg!(debug_assertions) {
+        "lpm-remote-dev.sock"
+    } else {
+        "lpm-remote.sock"
+    };
+    lpm_dir().join(name).to_string_lossy().into_owned()
 }
 
 /// (expanded root, is_remote) for a project, for terminal spawning.

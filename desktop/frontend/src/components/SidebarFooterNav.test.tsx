@@ -287,9 +287,7 @@ describe("SidebarFooterNav Terminals agents", () => {
     renderNav();
 
     const terminals = buttonWithText("Terminals")!;
-    expect(terminals.querySelector(".text-\\[var\\(--accent-red-text\\)\\]")?.textContent).toBe(
-      "Terminals",
-    );
+    expect(terminals.querySelector(".sidebar-waiting")?.textContent).toBe("Terminals");
     expect(terminals.textContent).toContain("Problem");
   });
 

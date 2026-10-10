@@ -1,11 +1,9 @@
 use serde::Serialize;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::sync::OnceLock;
 use toml_edit::{value, Array, DocumentMut, Item, Table};
 
 const DEFAULT_ITEMS: [&str; 3] = ["model-with-reasoning", "current-dir", "thread-name"];
-static RESOLVED_CODEX_HOME: OnceLock<Result<PathBuf, String>> = OnceLock::new();
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -16,20 +14,9 @@ pub struct CodexStatuslineState {
 }
 
 fn config_path() -> Result<PathBuf, String> {
-    let codex_home = RESOLVED_CODEX_HOME
-        .get_or_init(|| {
-            crate::sys::capture_login_env("CODEX_HOME")
-                .map(PathBuf::from)
-                .or_else(|| {
-                    std::env::var_os("CODEX_HOME")
-                        .filter(|value| !value.is_empty())
-                        .map(PathBuf::from)
-                })
-                .or_else(|| dirs::home_dir().map(|home| home.join(".codex")))
-                .ok_or_else(|| "cannot resolve the Codex config directory".to_string())
-        })
-        .clone()?;
-    Ok(codex_home.join("config.toml"))
+    crate::agentdirs::codex_home()
+        .map(|dir| dir.join("config.toml"))
+        .ok_or_else(|| "cannot resolve the Codex config directory".to_string())
 }
 
 fn read_document(path: &Path) -> Result<DocumentMut, String> {

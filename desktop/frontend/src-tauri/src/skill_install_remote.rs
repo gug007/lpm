@@ -74,7 +74,7 @@ fn probe_script(stamp: &str) -> String {
 }
 
 fn probe(ssh: &SshSettings, stamp: &str) -> RemoteState {
-    let out = crate::sshexec::remote_command(ssh, "", "bash", &["-lc", &probe_script(stamp)], &[])
+    let out = crate::sshexec::remote_login_script(ssh, &probe_script(stamp))
         .output();
     let Ok(out) = out else {
         return RemoteState::Unknown;
@@ -125,7 +125,7 @@ pub fn install_remote_agent_skills(ssh: &SshSettings) -> bool {
         RemoteState::Stale => {}
     }
 
-    let pruned = crate::sshexec::remote_command(ssh, "", "bash", &["-lc", &prune_script()], &[])
+    let pruned = crate::sshexec::remote_login_script(ssh, &prune_script())
         .output()
         .map(|o| o.status.success())
         .unwrap_or(false);

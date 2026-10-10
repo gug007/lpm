@@ -28,6 +28,8 @@ pub struct StatusFwdState {
     setup: Mutex<()>,
     // host_keys whose pty-vs-exec $HOME mismatch has been probed this app run.
     probed: Mutex<HashSet<String>>,
+    // host_keys already warned that their sshd refuses the forward.
+    refused: Arc<Mutex<HashSet<String>>>,
     // Loopback port of the status relay the Windows forwards target.
     #[cfg(windows)]
     relay_port: Mutex<Option<u16>>,
@@ -48,11 +50,25 @@ fn host_key(ssh: &SshSettings) -> String {
     format!("{}@{}:{}", ssh.user, ssh.host, ssh.port)
 }
 
-fn socket_basename() -> String {
-    format!(
-        "status-{}.sock",
-        config::sanitize_host(&config::hostname_or_mac())
-    )
+/// The forwarded socket's name on the host. Fixed for the run, so a hostname
+/// that changes mid-run (a new network) can't split the forward from the
+/// terminals already pointing at it; unique per lpm instance (Mac, data dir,
+/// build), so two instances' forwards to one host never replace each other's;
+/// and short, because ssh refuses a forward whose path doesn't fit a socket
+/// address (104 bytes on a Mac) and the host's home dir comes on top.
+fn socket_basename() -> &'static str {
+    static NAME: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    NAME.get_or_init(|| {
+        let mac = config::hostname_or_mac();
+        let host: String = config::sanitize_host(&mac).chars().take(16).collect();
+        let instance = format!(
+            "{mac}|{}|{}",
+            config::lpm_dir().display(),
+            cfg!(debug_assertions)
+        );
+        let digest = <sha2::Sha256 as sha2::Digest>::digest(instance.as_bytes());
+        format!("status-{host}-{}.sock", &hex::encode(digest)[..8])
+    })
 }
 
 /// LPM_SOCKET_PATH as a shell expression the remote LOGIN shell expands, so a
@@ -122,14 +138,13 @@ fn remote_socket_abs(home: &str) -> String {
 /// the forward dies with the master. ControlMaster=no + ControlPath=none are
 /// prepended so they win over ssh_args' mux options (first -o per keyword
 /// wins). ExitOnForwardFailure so a stale remote socket fails fast rather than
-/// silently not forwarding.
+/// silently not forwarding. Keepalives follow ssh_args', so a dead link takes
+/// the forward down as soon as it takes the terminals.
 fn forward_argv(ssh: &SshSettings, remote_sock: &str, local: &str) -> Vec<String> {
     let mut argv = vec![
         "-N".into(),
         "-o".into(),
         "ExitOnForwardFailure=yes".into(),
-        "-o".into(),
-        "ServerAliveInterval=30".into(),
         "-o".into(),
         "ControlMaster=no".into(),
         "-o".into(),
@@ -178,12 +193,9 @@ fn remote_home(state: &StatusFwdState, ssh: &SshSettings) -> Option<String> {
     if let Some(h) = state.homes.lock().unwrap().get(&key) {
         return Some(h.clone());
     }
-    let cmd = crate::sshexec::remote_command(ssh, "", "bash", &["-lc", "printf %s \"$HOME\""], &[]);
+    let cmd = crate::sshexec::remote_login_script(ssh, "printf %s \"$HOME\"");
     let out = run_with_timeout(cmd, RESOLVE_TIMEOUT)?;
-    let home = String::from_utf8_lossy(&out).trim().to_string();
-    if !home.starts_with('/') {
-        return None;
-    }
+    let home = crate::sshexec::last_path_line(&String::from_utf8_lossy(&out))?;
     state.homes.lock().unwrap().insert(key, home.clone());
     Some(home)
 }
@@ -196,7 +208,7 @@ fn prep_remote_dir(ssh: &SshSettings, remote_sock: &str) -> bool {
         "mkdir -p \"$HOME/.lpm/fwd\" && chmod 700 \"$HOME/.lpm/fwd\" && rm -f {}",
         config::shell_quote(remote_sock)
     );
-    let cmd = crate::sshexec::remote_command(ssh, "", "bash", &["-lc", &script], &[]);
+    let cmd = crate::sshexec::remote_login_script(ssh, &script);
     run_with_timeout(cmd, RESOLVE_TIMEOUT).is_some()
 }
 
@@ -207,19 +219,36 @@ fn forward_alive(state: &StatusFwdState, ssh: &SshSettings) -> bool {
     false
 }
 
+/// `ssh-status-undeliverable`: a host whose agents can't report, and why —
+/// "tools" (nothing to send a status with) or "forwarding" (sshd won't carry it).
+fn undeliverable(host_label: String, reason: &str) -> serde_json::Value {
+    serde_json::json!({ "hostLabel": host_label, "reason": reason })
+}
+
+/// What ssh prints when the server won't forward a socket for it
+/// (AllowStreamLocalForwarding, DisableForwarding, a `restrict` key).
+fn forward_refused(stderr: &str) -> bool {
+    stderr.contains("remote port forwarding failed")
+}
+
 /// True the first time `key` is seen, false thereafter — one env-mismatch probe
 /// per host per app run.
 fn mark_probed_once(probed: &Mutex<HashSet<String>>, key: &str) -> bool {
     probed.lock().unwrap().insert(key.to_string())
 }
 
-/// Off the setup mutex: compare the pty session's `$HOME` against the exec
-/// channel's (already resolved) and warn the UI if they diverge. Silent on probe
-/// failure or a matching home.
+/// Off the setup mutex, the checks that warn the UI when this host's agents
+/// can't reach lpm: compare the pty session's `$HOME` against the exec
+/// channel's (already resolved), and look for a way to deliver a status at all.
+/// Silent on probe failure or when all is well.
 fn spawn_env_mismatch_probe(app: &AppHandle, ssh: &SshSettings, exec_home: String) {
     let app = app.clone();
     let ssh = ssh.clone();
     std::thread::spawn(move || {
+        if crate::sshprobe::can_deliver_status(&ssh) == Some(false) {
+            let host = format!("{}@{}", ssh.user, ssh.host);
+            let _ = app.emit("ssh-status-undeliverable", undeliverable(host, "tools"));
+        }
         let Some(pty_home) = crate::sshprobe::probe_pty_home(&ssh) else {
             return;
         };
@@ -296,7 +325,7 @@ fn ensure_forward_blocking(app: &AppHandle, ssh: &SshSettings) {
         return;
     }
     #[cfg(unix)]
-    let local = config::remote_socket_path();
+    let local = crate::socketsrv::serving(&config::remote_socket_path());
     #[cfg(windows)]
     let Some(local) = relay_port(&state).map(|port| format!("127.0.0.1:{port}")) else {
         return;
@@ -305,7 +334,7 @@ fn ensure_forward_blocking(app: &AppHandle, ssh: &SshSettings) {
         .args(forward_argv(ssh, &remote_sock, &local))
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .stderr(Stdio::piped())
         .spawn();
     let mut child = match child {
         Ok(c) => c,
@@ -317,13 +346,32 @@ fn ensure_forward_blocking(app: &AppHandle, ssh: &SshSettings) {
     state.forwards.lock().unwrap().insert(key.clone(), pid);
     // Reap the child and drop its entry when it dies, so the next spawn re-establishes.
     let forwards = state.forwards.clone();
+    let refused = state.refused.clone();
     let reap_key = key.clone();
+    let stderr = child.stderr.take();
+    let app_for_reap = app.clone();
+    let host_label = format!("{}@{}", ssh.user, ssh.host);
     std::thread::spawn(move || {
-        let _ = child.wait();
-        let mut f = forwards.lock().unwrap();
-        if f.get(&reap_key) == Some(&pid) {
-            f.remove(&reap_key);
+        let mut said = String::new();
+        if let Some(mut stderr) = stderr {
+            use std::io::Read;
+            let _ = stderr.by_ref().take(16 * 1024).read_to_string(&mut said);
         }
+        let _ = child.wait();
+        {
+            let mut f = forwards.lock().unwrap();
+            if f.get(&reap_key) == Some(&pid) {
+                f.remove(&reap_key);
+            }
+        }
+        if forward_refused(&said) && refused.lock().unwrap().insert(reap_key) {
+            let _ = app_for_reap.emit("ssh-status-undeliverable", undeliverable(host_label, "forwarding"));
+        }
+    });
+    let forwards = state.forwards.clone();
+    let alive_key = key.clone();
+    crate::fwdspool::replay_when_up(app, ssh, &remote_sock, move || {
+        forwards.lock().unwrap().get(&alive_key) == Some(&pid)
     });
     if mark_probed_once(&state.probed, &key) {
         spawn_env_mismatch_probe(app, ssh, home);
@@ -346,7 +394,7 @@ fn relay_port(state: &StatusFwdState) -> Option<u16> {
             let pids: Vec<u32> = forwards.lock().unwrap().values().copied().collect();
             crate::procwin::is_proven_descendant(owner, &pids)
         });
-        let target = std::path::PathBuf::from(config::remote_socket_path());
+        let target = std::path::PathBuf::from(crate::socketsrv::serving(&config::remote_socket_path()));
         *port = crate::statusrelay::start(target, admit).ok();
     }
     *port
@@ -375,6 +423,21 @@ mod tests {
             key: String::new(),
             dir: String::new(),
         }
+    }
+
+    #[test]
+    fn a_refused_forward_is_told_apart_from_a_dropped_link() {
+        assert!(forward_refused("Warning: remote port forwarding failed for listen path /h/.lpm/fwd/s.sock\n"));
+        assert!(!forward_refused("Connection to host closed by remote host.\n"));
+    }
+
+    #[test]
+    fn the_socket_name_is_short_enough_for_any_ordinary_home() {
+        let base = socket_basename();
+        assert!(base.len() <= "status-".len() + 16 + 1 + 8 + ".sock".len(), "{base}");
+        // ssh rejects a forward whose path won't fit sockaddr_un (104 on macOS).
+        assert!(remote_socket_abs("/home/a-rather-long-user-name").len() < 104);
+        assert_eq!(socket_basename(), base, "stable for the run");
     }
 
     #[test]

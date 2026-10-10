@@ -13,9 +13,11 @@ use tauri_plugin_notification::NotificationExt;
 /// Some window of the app is on screen and frontmost — someone is looking at it
 /// right now, and the badge in the tab strip is notice enough. Detached terminal
 /// windows count: a user watching one is as present as one at the main window.
-/// No window at all (headless host, closed to the dock) is unattended.
+/// No window at all (headless host, closed to the dock) is unattended. Windows,
+/// not webview windows: a browser pane's webview takes the main window off that
+/// list.
 pub fn window_attended(app: &AppHandle) -> bool {
-    app.webview_windows()
+    app.windows()
         .values()
         .any(|w| w.is_visible().unwrap_or(false) && w.is_focused().unwrap_or(false))
 }
@@ -141,7 +143,9 @@ pub fn notify_status(app: &AppHandle, project: &str, value: &str, pane_id: &str)
     }
     let terminal = crate::remote::terminal_label(app, pane_id).unwrap_or_default();
     let name = config::project_display_name(project);
-    notify(app, title, &status_body(&terminal, &name, verb));
+    let body = status_body(&terminal, &name, verb);
+    notify(app, title, &body);
+    crate::bannerwithdraw::record(project, pane_id, value, &body);
 }
 
 /// The same banner for a transition on a paired host, which already resolved

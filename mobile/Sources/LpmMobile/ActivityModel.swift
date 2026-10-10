@@ -77,6 +77,10 @@ struct ActivityIdentity: Equatable {
     var isCopy = false
     var isWorktree = false
     var isRemote = false
+    /// The Mac's connected machine the project lives on, by slug and name; nil
+    /// for the Mac's own.
+    var machine: String?
+    var machineName: String?
 
     /// Exactly one surface shows these per layout — the row when the list is flat,
     /// the section header when it is grouped.
@@ -84,15 +88,18 @@ struct ActivityIdentity: Equatable {
         guard !name.isEmpty else { return [] }
         return [isCopy ? "Copy" : nil,
                 isWorktree ? "Worktree" : nil,
-                isRemote ? "SSH" : nil].compactMap { $0 }
+                isRemote ? "SSH" : nil,
+                machineName].compactMap { $0 }
     }
 
-    init(_ project: Project) {
+    init(_ project: Project, on machine: ActivityMachine? = nil) {
         name = project.name
         label = project.label
         isCopy = !project.parentName.isEmpty && !project.worktree
         isWorktree = project.worktree
         isRemote = project.isRemote
+        self.machine = machine?.slug
+        machineName = machine?.name
     }
 
     /// A row that belongs to no single project: `label` stands for the set instead.
@@ -100,6 +107,13 @@ struct ActivityIdentity: Equatable {
         self.name = ""
         self.label = label
     }
+}
+
+/// One of the Mac's connected machines and its projects, as Activity lists them.
+struct ActivityMachine {
+    var slug: String
+    var name: String
+    var projects: [Project]
 }
 
 let multiProjectLabel = "Multiple projects"

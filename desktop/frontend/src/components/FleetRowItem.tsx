@@ -65,6 +65,7 @@ export const FleetRowItem = memo(function FleetRowItem({
     // The row is the terminal, and a terminal can hold more than one agent —
     // say so rather than quietly showing the loudest of them.
     row.shared > 0 ? `+${row.shared} more in this terminal` : null,
+    row.holdsError && row.state !== "error" ? "also a problem" : null,
     row.detail,
   ].filter((part): part is string => part !== null);
   // Screen readers get the project even when the header is the one showing it.

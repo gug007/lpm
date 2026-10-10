@@ -8,6 +8,11 @@
 // from `$m` (never from stdin, which a failed `nc` may already have drained) and
 // receive it through the environment (LPM_MSG/LPM_SOCK) so the payload is never
 // interpolated into the python/perl source — the only quoting-safe option.
+//
+// On an SSH host the socket is the far end of lpm's forward, which goes down
+// whenever the Mac sleeps or lpm restarts and leaves the socket file behind.
+// A message none of them could deliver there is kept in a spool beside it, and
+// lpm replays the spool once the forward is back (statusfwd.rs).
 
 const DELIVER_PY: &str = r#"import os,socket
 s=socket.socket(socket.AF_UNIX)
@@ -22,6 +27,14 @@ except Exception:
 const DELIVER_PL: &str =
     "my $s=IO::Socket::UNIX->new(Peer=>$ENV{LPM_SOCK}) or exit 1; print $s $ENV{LPM_MSG}.chr(10); close $s;";
 
+/// The spool beside a forward's socket, `<socket>.spool`.
+pub const SPOOL_SUFFIX: &str = ".spool";
+
+/// Keep `$m` for replay when the socket is a forward's; bounded, so a host whose
+/// forward never comes back doesn't fill its disk.
+const SPOOL: &str = r#"case "$LPM_SOCKET_PATH" in */.lpm/fwd/*.sock) q="$LPM_SOCKET_PATH.spool"; [ "$(wc -c < "$q" 2>/dev/null || echo 0)" -lt 65536 ] && printf '%s
+' "$m" >> "$q";; esac"#;
+
 /// A brace group that delivers `$m` to `$LPM_SOCKET_PATH`, trying nc → python3 →
 /// perl in order and stopping at the first success. Returned already wrapped in
 /// `{ …; }` so a caller can guard it as `<tests> && <group>` without the `||`
@@ -33,7 +46,9 @@ pub fn delivery_group() -> String {
     s.push_str(DELIVER_PY);
     s.push_str(r#"' || LPM_MSG="$m" LPM_SOCK="$LPM_SOCKET_PATH" perl -MIO::Socket::UNIX -e '"#);
     s.push_str(DELIVER_PL);
-    s.push_str("'; }");
+    s.push_str("' || { ");
+    s.push_str(SPOOL);
+    s.push_str("; }; }");
     s
 }
 
@@ -128,14 +143,38 @@ pub fn env_recover_group() -> String {
         s.push_str(&tmux_showenv_fallback(var, "-g"));
     }
     s.push_str("fi; ");
-    // Final socket fallback, in or out of tmux.
-    s.push_str("if [ ! -S \"$LPM_SOCKET_PATH\" ]; then for s in \"$HOME\"/.lpm/fwd/status-*.sock \"$HOME\"/.lpm/lpm.sock; do [ -S \"$s\" ] && LPM_SOCKET_PATH=$s && break; done; fi;");
+    // Final socket fallback, in or out of tmux. Codex runs its hooks with the
+    // user's shell, and zsh aborts the whole hook on a glob that matches nothing
+    // (`no matches found`, exit 1) — which Codex shows as "Hook failed" after
+    // every step wherever no lpm socket was handed down. sh keeps the pattern.
+    // Only when no socket was handed down at all: one that was, but is gone for
+    // the moment, belongs to this Mac, and another socket here may be another's.
+    s.push_str("if [ -z \"$LPM_SOCKET_PATH\" ]; then [ -n \"$ZSH_VERSION\" ] && setopt nonomatch; for s in \"$HOME\"/.lpm/fwd/status-*.sock \"$HOME\"/.lpm/lpm.sock; do [ -S \"$s\" ] && LPM_SOCKET_PATH=$s && break; done; fi;");
     s
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Codex runs hooks under the user's shell: an unmatched socket glob must not
+    /// fail the hook under zsh.
+    #[cfg(unix)]
+    #[test]
+    fn the_socket_search_survives_zsh_with_nothing_to_find() {
+        if std::process::Command::new("zsh").arg("-c").arg("true").status().is_err() {
+            return;
+        }
+        let home = tempfile::tempdir().unwrap();
+        let status = std::process::Command::new("zsh")
+            .args(["-c", &format!("{} echo ok", env_recover_group())])
+            .env("HOME", home.path())
+            .env_remove("LPM_SOCKET_PATH")
+            .env_remove("TMUX")
+            .output()
+            .unwrap();
+        assert!(status.status.success(), "{}", String::from_utf8_lossy(&status.stderr));
+    }
 
     #[test]
     fn tries_nc_then_python_then_perl_in_order() {
@@ -144,8 +183,10 @@ mod tests {
         let py = g.find("python3 -c").expect("python3 fallback");
         let pl = g.find("perl -MIO::Socket::UNIX").expect("perl fallback");
         assert!(nc < py && py < pl, "must fall back nc -> python3 -> perl");
-        // Each fallback is reached only when the prior one fails.
-        assert_eq!(g.matches("||").count(), 2, "two `||` fallbacks");
+        // Each fallback is reached only when the prior one fails; the spool last.
+        let spool = g.find(".spool").expect("spool fallback");
+        assert!(pl < spool);
+        assert_eq!(g.matches("||").count(), 4, "three fallbacks, and the spool's size read");
     }
 
     #[test]
@@ -262,7 +303,7 @@ mod tests {
         // not in tmux only the socket glob runs — exactly as before.
         let tmux_open = r.find("if [ -n \"$TMUX\" ]; then").expect("tmux block");
         let glob = r
-            .find("if [ ! -S \"$LPM_SOCKET_PATH\" ]; then for s in")
+            .find("if [ -z \"$LPM_SOCKET_PATH\" ]; then")
             .expect("socket glob");
         assert!(tmux_open < glob, "socket glob follows the tmux block: {r}");
     }

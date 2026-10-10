@@ -30,7 +30,7 @@ use std::collections::{HashMap, HashSet};
 use std::io::{self, Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::mpsc::{self, SyncSender, TryRecvError};
+use std::sync::mpsc::{self, SyncSender, TryRecvError, TrySendError};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Listener, Manager, State};
@@ -275,6 +275,9 @@ struct Conn {
     tx: SyncSender<String>,
     subs: Arc<Mutex<HashSet<String>>>,
     device_id: String,
+    // An event didn't fit in the full out-queue. Events carry no offsets to
+    // repair from, so once the queue drains the client is told to re-list.
+    missed_event: Arc<AtomicBool>,
 }
 
 /// A command routed to the host webview, awaiting `peer_dispatch_reply`. Holds the
@@ -635,8 +638,16 @@ fn broadcast(hub: &PeerHub, val: Value) {
     let payload = val.to_string();
     let clients = hub.inner.clients.lock().unwrap();
     for c in clients.values() {
-        let _ = c.tx.try_send(payload.clone());
+        if let Err(TrySendError::Full(_)) = c.tx.try_send(payload.clone()) {
+            c.missed_event.store(true, Ordering::Relaxed);
+        }
     }
+}
+
+/// Sent after events were dropped: a project list change makes every client
+/// window list again, which brings back whatever the lost events said.
+fn missed_events_frame() -> String {
+    json!({ "t": "evt", "name": "projects-changed", "payload": Value::Null }).to_string()
 }
 
 /// The control surface a peer connection presents on the host, so host windows
@@ -879,6 +890,7 @@ fn handle_conn(stream: TcpStream, hub: PeerHub, app: AppHandle, generation: u64)
     let (tx, rx) = mpsc::sync_channel::<String>(OUT_QUEUE);
     let out = tx.clone();
     let subs = Arc::new(Mutex::new(HashSet::new()));
+    let missed_event = Arc::new(AtomicBool::new(false));
     let conn_id = hub.inner.next_id.fetch_add(1, Ordering::SeqCst) + 1;
     hub.inner.clients.lock().unwrap().insert(
         conn_id,
@@ -886,6 +898,7 @@ fn handle_conn(stream: TcpStream, hub: PeerHub, app: AppHandle, generation: u64)
             tx,
             subs: subs.clone(),
             device_id: device_id.clone(),
+            missed_event: missed_event.clone(),
         },
     );
     let _ = ws.get_ref().tcp().set_read_timeout(Some(POLL));
@@ -908,6 +921,11 @@ fn handle_conn(stream: TcpStream, hub: PeerHub, app: AppHandle, generation: u64)
                 Err(TryRecvError::Empty) => break,
                 Err(TryRecvError::Disconnected) => break 'main,
             }
+        }
+        if missed_event.swap(false, Ordering::Relaxed)
+            && ws.write(Message::text(missed_events_frame())).is_err()
+        {
+            break 'main;
         }
         let _ = ws.flush();
         let want_quick = quick_until.is_some_and(|t| Instant::now() < t);
@@ -1709,7 +1727,7 @@ fn fast_path(app: &AppHandle, cmd: &str, args: &Value) -> Option<Result<Value, S
         "write_terminal" => {
             // The echo comes back from the terminal's reader thread.
             answer_soon(ECHO_WITHIN);
-            Some(pty::remote_write(&state, &s("id"), &s("data")).map(|_| Value::Null))
+            Some(pty::remote_write(app, &s("id"), &s("data")).map(|_| Value::Null))
         }
         "resize_terminal" => {
             let id = s("id");
@@ -2231,6 +2249,33 @@ mod tests {
     #[test]
     fn the_agent_session_is_forwarded_to_peers() {
         assert!(FORWARDED_EVENTS.contains(&"agent-session"));
+    }
+
+    // Terminal output can fill a slow client's queue; an agent's status event
+    // that doesn't fit must still reach it once the queue drains.
+    #[test]
+    fn an_event_dropped_on_a_full_queue_is_owed_a_relist() {
+        let hub = PeerHub::default();
+        let (tx, rx) = mpsc::sync_channel::<String>(1);
+        let missed_event = Arc::new(AtomicBool::new(false));
+        hub.inner.clients.lock().unwrap().insert(
+            1,
+            Conn {
+                tx,
+                subs: Arc::default(),
+                device_id: "d".into(),
+                missed_event: missed_event.clone(),
+            },
+        );
+        broadcast(&hub, json!({ "t": "evt", "name": "status-changed" }));
+        assert!(!missed_event.load(Ordering::Relaxed));
+        broadcast(&hub, json!({ "t": "evt", "name": "status-changed" }));
+        assert!(missed_event.load(Ordering::Relaxed));
+        assert!(rx.try_recv().is_ok());
+
+        let frame: Value = serde_json::from_str(&missed_events_frame()).unwrap();
+        assert_eq!(frame["t"], "evt");
+        assert!(FORWARDED_EVENTS.contains(&frame["name"].as_str().unwrap()));
     }
 
     #[test]

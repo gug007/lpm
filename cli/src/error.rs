@@ -54,3 +54,17 @@ pub fn resolve_or_infer(ctx: &Ctx, name: Option<&str>) -> Result<String, RunErro
             .map_err(|m| RunError::NotFound(format!("{m}\npass a project name or run `lpm list`"))),
     }
 }
+
+/// `resolve_or_infer` for the verbs that only read or write agent statuses,
+/// which also reach the global Terminals: named by their key, or inferred
+/// inside one of their tabs.
+pub fn resolve_status_target(ctx: &Ctx, name: Option<&str>) -> Result<String, RunError> {
+    let in_global_tab = || {
+        std::env::var("LPM_PROJECT_NAME").is_ok_and(|p| p == config::GLOBAL_TERMINALS)
+    };
+    match name {
+        Some(config::GLOBAL_TERMINALS) => Ok(config::GLOBAL_TERMINALS.to_string()),
+        None if in_global_tab() => Ok(config::GLOBAL_TERMINALS.to_string()),
+        _ => resolve_or_infer(ctx, name),
+    }
+}

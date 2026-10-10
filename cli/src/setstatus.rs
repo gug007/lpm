@@ -1,9 +1,9 @@
 //! `lpm set-status <key> <value> [...]` and `lpm clear-status <key>` — thin
 //! pass-throughs to the app's `set_status` / `clear_status` socket verbs.
 
-use crate::config::Ctx;
+use crate::config::{self, Ctx};
 use crate::control;
-use crate::error::{resolve_or_infer, RunError};
+use crate::error::{resolve_status_target, RunError};
 use crate::statussock::{checked_arg, hex_encode, legacy_text, text_opt};
 
 #[allow(clippy::too_many_arguments)]
@@ -18,7 +18,7 @@ pub fn run_set(
     project: Option<&str>,
 ) -> Result<(), RunError> {
     control::require_app(ctx)?;
-    let file_name = resolve_or_infer(ctx, project)?;
+    let file_name = resolve_status_target(ctx, project)?;
 
     // key/value ride positionally for pre-hex apps (flattened, lossy only
     // across newlines) and as byte-exact hex options that win on current apps.
@@ -42,21 +42,22 @@ pub fn run_set(
     if let Some(v) = priority {
         line.push_str(&format!(" --priority={v}"));
     }
-    if let Some(v) = pane {
+    // Run inside one of the project's tabs, the status belongs to that tab.
+    if let Some(v) = pane.map(str::to_string).or_else(|| config::own_pane(&file_name)) {
         line.push_str(&format!(
             " --pane={}",
-            checked_arg("pane id", v).map_err(RunError::NotFound)?
+            checked_arg("pane id", &v).map_err(RunError::NotFound)?
         ));
     }
 
     control::send_command(ctx, &line)?;
-    println!("set {key}={value} on {file_name}");
+    println!("set {key}={value} on {}", config::status_group_label(&file_name));
     Ok(())
 }
 
 pub fn run_clear(ctx: &Ctx, key: &str, project: Option<&str>) -> Result<(), RunError> {
     control::require_app(ctx)?;
-    let file_name = resolve_or_infer(ctx, project)?;
+    let file_name = resolve_status_target(ctx, project)?;
 
     control::send_command(
         ctx,
@@ -67,6 +68,6 @@ pub fn run_clear(ctx: &Ctx, key: &str, project: Option<&str>) -> Result<(), RunE
             hex_encode(key)
         ),
     )?;
-    println!("cleared {key} on {file_name}");
+    println!("cleared {key} on {}", config::status_group_label(&file_name));
     Ok(())
 }

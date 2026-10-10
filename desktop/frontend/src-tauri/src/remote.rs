@@ -2614,7 +2614,7 @@ fn handle_msg(
         }
         "in" => {
             if let (Some(id), Some(d)) = (str_field("id"), str_field("d")) {
-                let _ = pty::remote_write(&app.state::<pty::PtyState>(), &id, &d);
+                let _ = pty::remote_write(app, &id, &d);
             }
         }
         "resize" => {
