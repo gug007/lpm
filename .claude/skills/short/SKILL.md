@@ -48,7 +48,7 @@ The recorder, the voice and the mix are the `lesson` skill's (`../lesson/scripts
 - `post.caption` goes into post.txt for TikTok: one or two search-friendly sentences (people search TikTok like Google), then at most 5 hashtags (TikTok's cap: a 6th loses its `#`), `lpm` among them. Keep the brand lowercase `lpm`.
 - **Use searched words.** Search sent 0% of the views so far, and For You shows a new account's posts mostly to people near the phone that posts them, so search is the way to reach coding viewers elsewhere. TikTok's Creator Search Insights (global, 2026-09-27): "claude tips" 224K and rising fast, "claude vs gemini" 194K, "claude ai vs chatgpt" 138K, "claude vs gemini vs gpt" 127K, "ai agents for beginners" 116K, "vibe coding apps" 96K, "how to vibe code with claude code" 85K; "claude code tips" only 1.9K, and nobody searches for "claude limit". Say "Claude" and "ChatGPT" rather than "Claude Code" and "Codex" in headlines and captions, and frame a feature as a "Claude tip" rather than by its lpm name.
 - `settings` in lesson.json seeds the app's settings.json (for example `terminalFontSize`); `"limits": false` leaves the sidebar meters out.
-- `windowShiftY` shows the window that many pixels below centre in the wide shot (negative: above). `stickerTop` moves the headline and step stickers from y 190. short-game's tall window uses both to keep its top colour bar clear of TikTok's tabs with the headline just under it.
+- `windowShiftY` shows the window that many pixels below centre in the wide shot (negative: above). `stickerTop` moves the headline and step stickers from y 190. short-race's tall window uses both to keep its top colour bar clear of TikTok's tabs with the headline just under it.
 
 ## Beats
 

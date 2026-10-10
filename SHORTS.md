@@ -45,3 +45,4 @@ Vertical lessons posted to TikTok and YouTube Shorts, oldest first. The short-pu
 - Claude vs Gemini: Opus 5.5 high vs Gemini 3.1 Pro build a 3D game
 - Claude vs GPT 6: Opus 5.5 high vs Astra high build a 3D game
 - Claude Haiku 5.5 vs Claude Opus 5.5 build GTA 6
+- Opus 5.5 medium ultracode vs Opus 5.5 xhigh build GTA 6

@@ -1,7 +1,7 @@
 // The games a race can ask for. Each prompt keeps short-race's rules: index.html
 // at the project root, one file, a stage with sizes as shares of it, scaled to
 // fit and never cropped, "Don't run or test it". The stage is 900x700, the
-// shape of a row in the tall window new.js sets up. A game plays itself, so the
+// shape of a row in short-race's tall window. A game plays itself, so the
 // reveal is live gameplay with nobody at the controls.
 const GAMES = {
   runner: {

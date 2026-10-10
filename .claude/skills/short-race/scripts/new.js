@@ -12,12 +12,15 @@ const SKILL = path.resolve(__dirname, "..");
 const MAKER = path.resolve(SKILL, "..", "short");
 const ROOT = process.env.LPM_TIKTOK_DIR || path.join(process.env.LPM_LESSONS_DIR || path.join(os.homedir(), "Movies/lpm-lessons"), "tiktok");
 const DEFAULT_PROMPT =
-  "Build a giraffe flying a one-seat propeller plane, its neck sticking out the top, in index.html at the project root. One file, no libraries or images. It's shown in a wide, short panel and the window can be any size. Lay the scene out on a 900x360 stage: the plane spans about 25% of the stage's width, centered, with its body about 70% of the way down, and the giraffe's head reaches about 15% from the top. Scale the whole stage to fit the panel, centered, never cropped; the sky fills the rest. No scrolling. Animate forever. Don't open it. Don't run or test it. No questions, just write it.";
-// The wide shot scales the window to 982 px wide, centred in 1080x1920, so the
-// narrower it is the taller it shows: at 800 it runs from just under the
-// headline to TikTok's caption area (y 1500), with only its footer below, and
-// each row's page is 800x320, the 900x360 stage's own 2.5:1.
-const WINDOW = { w: 800, h: 990 };
+  "Build a giraffe flying a one-seat propeller plane, its neck sticking out the top, in index.html at the project root. One file, no libraries or images. It's shown in a panel a bit wider than tall, of any size. Lay the scene out on a 900x700 stage: the plane spans about 40% of the stage's width, centered, with its body about halfway down, and the giraffe's head reaches about 10% from the top. Scale the whole stage to fit the panel, centered, never cropped; the sky fills the rest. No scrolling. Animate forever. Don't open it. Don't run or test it. No questions, just write it.";
+// A narrow, tall window, so each row takes about half the frame. The wide shot
+// scales it to 982x1723 px and sits 6 px below centre, so at the payoff,
+// trimmed to the colour bars, the top bar clears TikTok's tabs (y 150) and the
+// headline sits just under it. Each row's page is then about 570x448 pt, the
+// 900x700 stage's shape, and TikTok's caption covers the bottom row's lower
+// 40%, so the giraffe sits high on the stage. A 16" MacBook Pro screen with
+// the Dock showing holds a window up to 1009 pt tall.
+const TALL = { window: { w: 570, h: 1000 }, windowShiftY: 6, stickerTop: 230 };
 const CLI_NAME = { claude: "Claude Code", codex: "Codex", cursor: "Cursor" };
 
 const args = process.argv.slice(2);
@@ -160,7 +163,7 @@ const hashtags = [
 const what = giraffe ? "a giraffe flying a one-seat plane, built as an animated web page" : `${subject}, built as a web page`;
 const lesson = {
   title: `${a.headline} vs ${b.headline}${giraffe ? ": the giraffe test" : ", same prompt"}`,
-  window: WINDOW,
+  ...TALL,
   open: 2,
   slam: sameModel ? { a: a.label, b: b.label } : { a: a.name, b: b.name },
   narration,
@@ -175,6 +178,7 @@ const compare = {
   prompt,
   project: "arena",
   pickA,
+  payoff: "bars",
   cues: {
     a: sameModel ? effortWord(a) : a.name,
     b: sameModel ? effortWord(b) : b.name,
