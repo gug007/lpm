@@ -22,6 +22,7 @@ const { execFileSync } = require("child_process");
 const { cursorChat } = require("./cursor");
 const { trimPayoff } = require("./trim");
 const kit = require("../../short/scripts/kit");
+const { claudeEntries } = require("../../lesson/scripts/agents");
 
 const AGENT_STARTUP_MS = 7000;
 const BUILD_TIMEOUT_MS = 15 * 60 * 1000;
@@ -31,6 +32,13 @@ const BADGE = [
 ];
 
 const COLLAPSE = 'button[title^="Collapse sidebar"]';
+// The Expand button is always there, faded out while the sidebar is open.
+const sidebarShut = (s) =>
+  s.control.evaluate(() =>
+    [...document.querySelectorAll('button[title^="Expand sidebar"]')].some(
+      (b) => b.getBoundingClientRect().width > 0 && getComputedStyle(b.parentElement).opacity === "1",
+    ),
+  );
 const OPEN_BROWSER = 'button:has-text("Open browser")';
 const ACT = '[data-lesson="act-0"]';
 const TERM = (i) => `[data-lesson="term-${i}"]`;
@@ -106,6 +114,25 @@ function codexDone(root, since) {
 }
 
 const claudeDir = (root) => path.join(os.homedir(), ".claude", "projects", root.replace(/[^a-zA-Z0-9]/g, "-"));
+
+// A Claude side is done once its last turn has ended with none of its
+// background tasks still running. An ultracode side starts its workflow in the
+// background and ends a turn at once ("I started the workflow…"), then takes
+// up the result in a new turn when the workflow's task-notification comes in.
+function claudeSettled(root, since) {
+  const entries = claudeEntries(root, { since });
+  const last = entries.filter((e) => e.type === "assistant").at(-1);
+  if (last?.message?.stop_reason !== "end_turn") return false;
+  const told = entries.filter((e) => e.type === "user").map((e) => ({ at: e.at, text: JSON.stringify(e.message?.content ?? "") }));
+  const ids = (re) => told.flatMap((t) => [...t.text.matchAll(re)].map((m) => m[1]));
+  const reported = new Set(ids(/<task-id>(\w+)<\/task-id>/g));
+  const lastReport = told.filter((t) => t.text.includes("<task-notification>")).at(-1);
+  return ids(/in background\b[^"]*?\bID: (\w+)/g).every((id) => reported.has(id)) && (!lastReport || last.at > lastReport.at);
+}
+
+// Whether the session in `root` took its prompt with ultracode on: Claude
+// Code attaches a reminder that starts "Ultracode is on:" to every such turn.
+const ultracodeIn = (root, since) => claudeEntries(root, { since }).some((e) => JSON.stringify(e).includes("Ultracode is on:"));
 
 // When the agent in `root` took the prompt, read from its own transcript, so
 // each side is timed from its own start: the copy starts later than run #1
@@ -316,7 +343,7 @@ module.exports = function compareBeats({ config, dir }) {
       const chat = cursorChat(roots[i], sentAt[i]);
       return chat?.ended && Date.now() - chat.updatedAt > CURSOR_SETTLE_MS ? chat.updatedAt : null;
     }
-    return (cli === "claude" ? kit.claudeDone(roots[i], sentAt[i]) : codexDone(roots[i], sentAt[i])) ? Date.now() : null;
+    return (cli === "claude" ? claudeSettled(roots[i], sentAt[i]) : codexDone(roots[i], sentAt[i])) ? Date.now() : null;
   };
 
   // The copy's folder: Run in duplicates clones the project next to it as
@@ -386,6 +413,28 @@ module.exports = function compareBeats({ config, dir }) {
     while ((now = await shown()) !== want && Date.now() < end) await s.hold(300);
     s.log(`run #1 model: ${now}`);
     if (now !== want) throw new Error(`run #1 reads "${now}", not "${want}"`);
+  }
+
+  // Ultracode, switched on in run #1's own session: on its launch line it
+  // would reach the copy too, which runs the same button. Typed into the
+  // terminal, past the composer's slash menu.
+  async function ultracodeOn(s) {
+    await kit.focusWindow(s);
+    await s.click(TERM(0), { at: [0.5, 0.5], ms: 300 });
+    await s.type("/effort ultracode on");
+    await s.hold(400);
+    await s.keys("return");
+    await s.hold(1500);
+  }
+
+  // Run #1 took the prompt with ultracode on and the copy without it, or the
+  // take stops here rather than race the wrong pair.
+  async function checkUltracode(s) {
+    const end = Date.now() + 30000;
+    while (Date.now() < end && !ultracodeIn(roots[0], clickedRun)) await s.hold(500);
+    const on = roots.map((r) => Boolean(r && ultracodeIn(r, clickedRun)));
+    s.log(`ultracode: run #1 ${on[0] ? "on" : "off"}, copy ${on[1] ? "on" : "off"}`);
+    if (!on[0] || on[1]) throw new Error("ultracode has to be on in run #1 only");
   }
 
   async function typePrompt(s) {
@@ -481,7 +530,15 @@ module.exports = function compareBeats({ config, dir }) {
     await kit.clickUntil(s, kit.PROJECT(project), () => kit.isVisible(s, `[data-actions-group="header"]`), { at: [0.3, 0.5], ms: 300 });
     await s.waitFor(`[data-actions-group="header"]`, 8000);
     await s.hold(800);
-    await kit.clickUntil(s, COLLAPSE, async () => !(await kit.isVisible(s, COLLAPSE)), { ms: 250 });
+    // Collapse still reads visible once the sidebar is shut, and in the tall
+    // window the header's agent button sits where it was: a second click
+    // starts another agent. So click once, and wait for Expand to fade in.
+    for (let i = 0; i < 3 && !(await sidebarShut(s)); i++) {
+      await s.click(COLLAPSE, { ms: 250 });
+      const shut = Date.now() + 3000;
+      while (Date.now() < shut && !(await sidebarShut(s))) await s.hold(150);
+    }
+    if (!(await sidebarShut(s))) throw new Error("the sidebar never collapsed");
     await s.hold(400);
     const found = Date.now() + 8000;
     const button = BUTTON[sides[0].cli];
@@ -522,6 +579,7 @@ module.exports = function compareBeats({ config, dir }) {
     noteStarts();
     s.log(`copy: ${roots[1]}`);
     if (roots[1] && fs.existsSync(path.join(roots[1], "index.html"))) s.log("warning: the copy cloned run #1's index.html");
+    if (sides[0].ultracode) await checkUltracode(s);
     s.log(`panes: ${await tagAll(s)}`);
     await badges(s, badgeItems());
   }
@@ -529,6 +587,7 @@ module.exports = function compareBeats({ config, dir }) {
   async function setupRace(s) {
     await setupRun(s);
     if (config.pickA) await pickModelA(s);
+    if (sides[0].ultracode) await ultracodeOn(s);
     await typePrompt(s);
     await openDuplicates(s);
     if (sides[1].cli !== sides[0].cli) await overrideCopy(s);

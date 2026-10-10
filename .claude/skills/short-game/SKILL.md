@@ -52,6 +52,8 @@ A game race records a narrow, tall window so each row takes about half the frame
 
    **Effort.** A Claude side with no effort is raced at high, and the script says so. Otherwise it would run at the user's saved default: Opus 5.5 at xhigh on the runner thought for 21 minutes, hit Claude Code's output cap, resumed, and still had no page at the 40-minute limit. When the user asks for xhigh or max, run it, but warn them it may time out. Gemini 3.1 Pro has one fixed level and takes no effort. A model name in `--pair` that the voice transcript mishears fails the dropped-words check: see short-race's Traps.
 
+   **Ultracode.** `node scripts/new.js "opus 5.5 medium ultracode" "opus 5.5 xhigh" --game gta` races Claude Code's dynamic workflows (short-race's Models). The ultracode side goes on the left. `new.js` writes a same-model hook ("Medium ultracode or extra high effort?"): reword the hook, headline, slam and run line around "Ultracode or *extra high*?", and set `timeoutMin` for the slower side (120 for xhigh on GTA).
+
 2. Tell the user a take is starting and to leave the keyboard and mouse alone.
 
 3. Dry run on a trivial prompt. It takes about 2 minutes instead of a whole race:

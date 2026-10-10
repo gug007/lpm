@@ -205,10 +205,18 @@ function brandOf(r) {
 const isCodexModel = (word) =>
   word.startsWith("gpt") || (fs.existsSync(CODEX_CACHE) && codexTable().some((m) => !m.hidden && m.slug.split("-").includes(word)));
 
+// "ultracode" in a Claude spec ("opus 5.5 medium ultracode"): Claude Code's
+// standing dynamic-workflow orchestration on top of the effort, offered on the
+// models that orchestrate (not Haiku).
+const ULTRACODE = /\bult?ra[\s-]?code\b/;
+const ULTRACODE_FAMILIES = new Set(["fable", "opus", "sonnet"]);
+
 // `effort` is the race's own, for a side that names none.
 function resolve(spec, effort = null) {
-  const raw = spec
-    .toLowerCase()
+  const lower = spec.toLowerCase();
+  const ultracode = ULTRACODE.test(lower);
+  const raw = lower
+    .replace(ULTRACODE, " ")
     .replace(/\b(claude code|claude|codex|openai|anthropic|cursor|in)\b/g, " ")
     .replace(/[·,]/g, " ")
     .trim()
@@ -226,24 +234,38 @@ function resolve(spec, effort = null) {
     : isCodexModel(words[0])
       ? resolveCodex(words, wanted, spec)
       : resolveCursor(words, wanted, spec);
-  const label = r.effort ? `${r.name} · ${r.effort}` : r.name;
+  if (ultracode && !(r.cli === "claude" && ULTRACODE_FAMILIES.has(words[0]))) {
+    throw new Error(`"${spec}": ultracode is Claude Code's, on Fable, Opus and Sonnet only`);
+  }
+  const level = [r.effort, ultracode && "ultracode"].filter(Boolean);
+  const label = [r.name, ...level].join(" · ");
   // Cursor gets the prompt as its launch argument (beats.js), which it
   // submits once it is up; --trust skips the new folder's trust prompt, and
   // --force lets its shell calls run, as Codex's sandbox does, rather than
-  // stop the race on an approval.
+  // stop the race on an approval. Ultracode's Workflow tool waits on a review
+  // under acceptEdits, so it is allowed up front (before --permission-mode:
+  // --allowedTools would take the words after it as more tools).
   const cmd = {
-    claude: ["claude", "--model", r.model, r.effort && `--effort ${r.effort}`, "--permission-mode acceptEdits"],
+    claude: [
+      "claude",
+      "--model",
+      r.model,
+      r.effort && `--effort ${r.effort}`,
+      ultracode && "--allowedTools Workflow",
+      "--permission-mode acceptEdits",
+    ],
     codex: ["codex", "-m", r.model, r.effort && `-c model_reasoning_effort=${r.effort}`, "-c check_for_update_on_startup=false"],
     cursor: ["agent", "--model", r.model.includes("[") ? `'${r.model}'` : r.model, "--trust", "--force"],
   }[r.cli];
   return {
     ...r,
+    ultracode,
     label,
     brand: brandOf(r),
-    headline: r.effort ? `${r.name} ${r.effort}` : r.name,
-    spokenEffort: r.effort ? SPOKEN_EFFORT[r.effort] || r.effort : null,
+    headline: [r.name, ...level].join(" "),
+    spokenEffort: level.map((l) => SPOKEN_EFFORT[l] || l).join(" ") || null,
     pickerEffort: r.effort ? (r.effort === "xhigh" ? "Extra High" : title(r.effort)) : null,
-    dir: `${r.name}${r.effort ? " " + r.effort : ""}`.toLowerCase().replace(/[^a-z0-9.]+/g, "-"),
+    dir: [r.name, ...level].join(" ").toLowerCase().replace(/[^a-z0-9.]+/g, "-"),
     emoji: { claude: "✻", codex: "◆", cursor: "⬢" }[r.cli],
     cmd: cmd.filter(Boolean).join(" "),
   };

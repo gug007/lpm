@@ -60,6 +60,12 @@ if (a.cli === "cursor") {
   );
   process.exit(1);
 }
+// Ultracode is switched on in run #1's own session (/effort ultracode on); the
+// copy starts a fresh one.
+if (b.ultracode) {
+  console.error(`put ${b.label} on the left: ultracode is switched on in run #1's session, and the copy starts a fresh one`);
+  process.exit(1);
+}
 if (!crossCli && !b.pickerModel) {
   console.error(`the copy's model picker can't pick ${b.name} (it offers each family's newest); swap the sides or pick the newest`);
   process.exit(1);
@@ -69,7 +75,8 @@ if (!crossCli && !b.pickerModel) {
 // it: Claude only (the Codex picker isn't scripted), and a family's newest
 // only, as for model B. Otherwise the header button launches it pinned.
 const pickA = a.cli === "claude" && Boolean(a.pickerModel);
-if (pickA) a.cmd = "claude --permission-mode acceptEdits";
+const PIN = / --(model|effort) \S+/g;
+if (pickA) a.cmd = a.cmd.replace(PIN, "");
 
 const prompt = opt("--prompt") || DEFAULT_PROMPT;
 const giraffe = prompt === DEFAULT_PROMPT;
@@ -83,9 +90,15 @@ if (!subject) {
 // lpm types the copy's launch line, prompt included, into a shell that is still
 // starting, and macOS cuts a terminal line off at 1024 bytes: the agent never
 // starts and the race waits out its limit. Cursor reads its prompt from a file.
-const LINE_MAX = 1000;
+// The line is measured as lpm writes it, so the margin covers only the newline
+// and a stray byte or two.
+const LINE_MAX = 1010;
 if (b.cli !== "cursor") {
-  const line = `${b.cmd} --session-id ${"0".repeat(36)} '${prompt.replace(/'/g, "'\\''")}'`;
+  // On the same CLI the copy runs run #1's button with model B pinned on it
+  // the way the dialog's picker pins it: by family name ("--model opus").
+  const pinB = [`--model ${b.pickerModel?.toLowerCase()}`, b.effort && `--effort ${b.effort}`].filter(Boolean).join(" ");
+  const copyCmd = crossCli ? b.cmd : `${a.cmd.replace(PIN, "")} ${pinB}`;
+  const line = `${copyCmd} --session-id ${"0".repeat(36)} '${prompt.replace(/'/g, "'\\''")}'`;
   const bytes = Buffer.byteLength(line);
   if (bytes > LINE_MAX) {
     console.error(`the copy's launch line would be ${bytes} bytes, over the ${LINE_MAX} a starting shell takes: shorten the prompt by ${bytes - LINE_MAX}`);
@@ -205,7 +218,7 @@ exec "${RUN_TAKE}" "$(dirname "$0")" "$@"
 );
 
 console.log(`${slug}
-  left:   ${a.label}  →  ${a.cmd}${pickA ? `, then ${[a.pickerModel, a.pickerEffort].filter(Boolean).join(" · ")} in its composer` : ""}
+  left:   ${a.label}  →  ${a.cmd}${pickA ? `, then ${[a.pickerModel, a.pickerEffort].filter(Boolean).join(" · ")} in its composer` : ""}${a.ultracode ? ", then /effort ultracode on in its terminal" : ""}
   right:  ${b.label}  →  ${crossCli ? `the copy's run override: ` : ""}${b.cmd}${b.cli === "cursor" ? " <prompt>" : ""}
   prompt: ${prompt}
   ${dir}/take.sh --no-audio --frames   (dry run)
