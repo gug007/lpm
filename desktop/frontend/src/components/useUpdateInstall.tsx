@@ -51,10 +51,13 @@ export function useUpdateInstall(): UpdateInstall {
   const [busy, setBusy] = useState<BusyAgentPlace[] | null>(null);
 
   useEffect(() => EventsOn("update-progress", (pct: number) => setInstall({ progress: pct })), []);
+  // A paired Mac can start the install too, so its steps alone say one is
+  // running, and "idle" says one this app didn't start has stopped.
   useEffect(
     () =>
       EventsOn("update-status", (status: string) => {
-        if (isUpdatePhase(status)) setInstall({ phase: status });
+        if (isUpdatePhase(status)) setInstall({ active: true, phase: status });
+        else if (status === "idle") setInstall({ active: false, cancelling: false });
       }),
     [],
   );

@@ -4,6 +4,7 @@ import { EventsOn } from "../../bridge/runtime";
 import { DrainPendingJobTasks, RemoteTakeRunActions } from "../../bridge/commands";
 import { useAppStore } from "../store/app";
 import { applyRemoteDraft } from "../store/composerDrafts";
+import { useSettingsStore } from "../store/settings";
 import type { SpawnTask } from "../types";
 
 // Events safe to handle in every window — they don't reach into
@@ -76,11 +77,17 @@ export function useAmbientAppEvents(): void {
       },
     );
 
+    // A paired Mac changed some of this machine's settings on disk.
+    const cancelPeerSettings = EventsOn("peer-settings-changed", () => {
+      void useSettingsStore.getState().hydrate();
+    });
+
     return () => {
       if (typeof cancelSyncError === "function") cancelSyncError();
       if (typeof cancelJobStatus === "function") cancelJobStatus();
       if (typeof cancelFollowPaused === "function") cancelFollowPaused();
       if (typeof cancelFollowReplaced === "function") cancelFollowReplaced();
+      if (typeof cancelPeerSettings === "function") cancelPeerSettings();
     };
   }, []);
 }

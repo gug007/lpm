@@ -10,6 +10,18 @@ export const HEADER_PLATE_CLASS =
 
 const NEUTRAL_PLATE_CLASS = "text-[var(--text-secondary)]";
 
+export interface HeaderLine2Action {
+  label: string;
+  /** `accent` for something to do, `muted` for stopping something. */
+  tone: "accent" | "muted";
+  onClick: () => void;
+}
+
+const LINE2_ACTION_TONE = {
+  accent: "text-[var(--accent-green-text)]",
+  muted: "text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
+};
+
 interface SidebarHeaderShellProps {
   /** The identity glyph in the plate: a folder, a laptop, a server. */
   glyph: ReactNode;
@@ -23,6 +35,8 @@ interface SidebarHeaderShellProps {
   /** The second line, which costs 16px and so only renders when the header has
    *  something to say that its rows are not already saying. */
   line2?: ReactNode;
+  /** A button that reads as the tail of line 2. */
+  line2Action?: HeaderLine2Action;
   /** Parks at the row's edge, and only while line 2 is silent — the line says
    *  it better than a numeral does. Steps aside for the ⋮ under the cursor,
    *  the way a peer row's trailing mark does. */
@@ -42,6 +56,7 @@ export function SidebarHeaderShell({
   expanded,
   line1,
   line2,
+  line2Action,
   trailing,
   active,
   isContextTarget,
@@ -109,6 +124,12 @@ export function SidebarHeaderShell({
           {line2 && (
             <span className="mt-px truncate text-[10px] leading-[13px] text-[var(--text-muted)]">
               {line2}
+              {line2Action && (
+                <>
+                  {" "}
+                  <span className="invisible font-medium">{line2Action.label}</span>
+                </>
+              )}
             </span>
           )}
         </span>
@@ -125,6 +146,26 @@ export function SidebarHeaderShell({
           </span>
         )}
       </button>
+      {twoLine && line2Action && (
+        // Line 2 laid out again over itself with only the action live: no
+        // button can sit inside the header's own, so the copy in there holds
+        // its place. Pinned to that line's box — the plate column and line 1
+        // above it.
+        <span className="pointer-events-none absolute left-8 right-2 top-[25px] truncate text-[10px] leading-[13px]">
+          <span className="invisible">{line2}</span>{" "}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              line2Action.onClick();
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
+            className={`pointer-events-auto rounded-sm font-medium outline-none hover:underline focus-visible:ring-1 focus-visible:ring-[var(--accent-cyan)]/60 ${LINE2_ACTION_TONE[line2Action.tone]}`}
+          >
+            {line2Action.label}
+          </button>
+        </span>
+      )}
       {showMore && (
         <button
           onClick={(e) => {

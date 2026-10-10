@@ -82,7 +82,17 @@ const HOST_FEATURES: &[&str] = &[
     crate::mediapeer::MEDIA_RANGE_FEATURE,
     crate::peerread::FILE_RANGE_FEATURE,
     REMOTE_PAIR_FEATURE,
+    crate::peersettings::HOST_SETTINGS_FEATURE,
 ];
+
+/// HOST_FEATURES plus those this build offers only on some platforms.
+fn host_features() -> Vec<&'static str> {
+    let mut features = HOST_FEATURES.to_vec();
+    if crate::peerupdate::advertised() {
+        features.push(crate::peerupdate::SELF_UPDATE_FEATURE);
+    }
+    features
+}
 
 /// Global events forwarded verbatim to every authed peer as `{t:"evt", …}`. The
 /// client re-emits each locally (with identifier translation) so the mirrored
@@ -1010,7 +1020,7 @@ fn authenticate(ws: &mut ConnWs, hub: &PeerHub, app: &AppHandle) -> Option<Strin
                         "hostPlatform": platform_id(), "hostHeadless": crate::sys::headless(),
                         "hostVersion": crate::commands_real::get_version(),
                         "phoneServerId": crate::remote::phone_server_id(app),
-                        "features": HOST_FEATURES })
+                        "features": host_features() })
                     .to_string(),
                 ));
                 Some(id.to_string())
@@ -1383,6 +1393,15 @@ fn handle_msg(
         "remotePair" => handle_remote_pair(out, &v, || {
             crate::remote::remote_start_pairing(app.clone(), app.state())
         }),
+        // A paired Mac updating lpm here. The updater is on the invoke denylist,
+        // and this way the install runs in Rust and reports each step straight
+        // back to the Mac that asked.
+        "selfUpdate" => crate::peerupdate::handle_start(app, out, &v),
+        "selfUpdateCancel" => crate::peerupdate::handle_cancel(app, out, &v),
+        // A paired Mac reading or changing the few settings that are this
+        // machine's own. Settings are on the invoke denylist; these frames reach
+        // only those fields (peersettings.rs).
+        "settingsGet" | "settingsSet" => crate::peersettings::handle(app, out, t, &v),
         // Not a request/reply: the follower states which folders it follows, and
         // this Mac pushes their changes until it says otherwise or goes away.
         "gitFollowWatch" => {
@@ -2562,6 +2581,23 @@ mod tests {
     #[test]
     fn remote_pair_is_advertised_in_ready() {
         assert!(HOST_FEATURES.contains(&REMOTE_PAIR_FEATURE));
+    }
+
+    // Off this list the asking Mac tells the user to update a host that already
+    // shares its settings.
+    #[test]
+    fn host_settings_are_advertised_in_ready() {
+        assert!(HOST_FEATURES.contains(&crate::peersettings::HOST_SETTINGS_FEATURE));
+    }
+
+    // Off this list no Mac can update lpm here; on it where lpm can't replace
+    // itself, the asking Mac would offer an update that can only fail.
+    #[test]
+    fn self_update_is_advertised_where_lpm_updates_itself() {
+        assert_eq!(
+            host_features().contains(&crate::peerupdate::SELF_UPDATE_FEATURE),
+            cfg!(target_os = "macos")
+        );
     }
 
     #[test]

@@ -105,13 +105,16 @@ mod peer;
 mod peerclient;
 mod peercopy;
 mod peerdiscovery;
+mod peermacupdate;
 mod peeropen;
 mod peerread;
 mod peerssh;
 mod peersshrun;
+mod peersettings;
 mod peersync;
 mod peertls;
 mod peertunnel;
+mod peerupdate;
 mod peeruploadhost;
 mod peeruploadrun;
 mod phonefile;
@@ -272,6 +275,8 @@ use peerclient::{
     peer_update_host,
 };
 use peerdiscovery::{peer_discovery_start, peer_discovery_stop};
+use peermacupdate::{peer_cancel_mac_update, peer_update_mac};
+use peersettings::{peer_settings_get, peer_settings_set};
 use peeruploadrun::peer_upload_file;
 use portforward::*;
 use ports::*;

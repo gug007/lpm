@@ -96,6 +96,8 @@ struct PeerConn {
     supports_file_upload: AtomicBool, // host can take an attached file in chunks, not one frame
     supports_media_range: AtomicBool, // host serves a video's byte ranges for preview
     supports_file_range: AtomicBool, // host serves any file a chunk at a time
+    supports_self_update: AtomicBool, // a paired Mac can update lpm there (peermacupdate.rs)
+    supports_host_settings: AtomicBool, // host shares its own settings (peersettings.rs)
     in_run: AtomicBool,        // a request just queued is one of a run (see invoke_in_run)
     generation: AtomicU64,     // bump to retire the current connection thread
     // Present only for a peer reached over SSH. Owned here so the forward is torn
@@ -151,6 +153,8 @@ impl PeerConn {
             supports_file_upload: AtomicBool::new(false),
             supports_media_range: AtomicBool::new(false),
             supports_file_range: AtomicBool::new(false),
+            supports_self_update: AtomicBool::new(false),
+            supports_host_settings: AtomicBool::new(false),
             in_run: AtomicBool::new(false),
             generation: AtomicU64::new(0),
         }
@@ -386,6 +390,12 @@ impl PeerClientHub {
                 let supports_media_range = conn
                     .map(|c| c.supports_media_range.load(Ordering::Relaxed))
                     .unwrap_or(false);
+                let supports_self_update = conn
+                    .map(|c| c.supports_self_update.load(Ordering::Relaxed))
+                    .unwrap_or(false);
+                let supports_host_settings = conn
+                    .map(|c| c.supports_host_settings.load(Ordering::Relaxed))
+                    .unwrap_or(false);
                 let last_error = conn
                     .map(|c| c.last_error.lock().unwrap().clone())
                     .unwrap_or_default();
@@ -415,6 +425,8 @@ impl PeerClientHub {
                     "supportsGitFollow": supports_git_follow,
                     "supportsFileUpload": supports_file_upload,
                     "supportsMediaRange": supports_media_range,
+                    "supportsSelfUpdate": supports_self_update,
+                    "supportsHostSettings": supports_host_settings,
                     // Whether the peer's identity is pinned (verified-encrypted). An
                     // auto run refuses an unpinned channel, so the UI hints on it.
                     "pinned": p.tls_fp.is_some(),
@@ -759,7 +771,7 @@ impl PeerClientHub {
     /// disconnect / timeout). The frame builder receives the allocated reqId so
     /// callers can shape any frame type — invoke, syncDigest, syncFetch, syncApply
     /// — over the same pending-map machinery.
-    fn request_blocking(
+    pub(crate) fn request_blocking(
         &self,
         slug: &str,
         timeout: Duration,
@@ -862,6 +874,26 @@ impl PeerClientHub {
             .unwrap()
             .get(slug)
             .is_some_and(|c| c.supports_file_upload.load(Ordering::Relaxed))
+    }
+
+    /// Whether lpm on this peer can be updated from here.
+    pub(crate) fn supports_self_update(&self, slug: &str) -> bool {
+        self.inner
+            .conns
+            .lock()
+            .unwrap()
+            .get(slug)
+            .is_some_and(|c| c.supports_self_update.load(Ordering::Relaxed))
+    }
+
+    /// Whether this peer shares its own settings with this Mac.
+    pub(crate) fn supports_host_settings(&self, slug: &str) -> bool {
+        self.inner
+            .conns
+            .lock()
+            .unwrap()
+            .get(slug)
+            .is_some_and(|c| c.supports_host_settings.load(Ordering::Relaxed))
     }
 
     /// Whether this peer's host serves a video's byte ranges for preview.
@@ -1967,6 +1999,14 @@ fn connect_session(
         has_feature(crate::peerread::FILE_RANGE_FEATURE),
         Ordering::Relaxed,
     );
+    conn.supports_self_update.store(
+        has_feature(crate::peerupdate::SELF_UPDATE_FEATURE),
+        Ordering::Relaxed,
+    );
+    conn.supports_host_settings.store(
+        has_feature(crate::peersettings::HOST_SETTINGS_FEATURE),
+        Ordering::Relaxed,
+    );
 
     let (tx, rx) = mpsc::sync_channel::<String>(OUT_QUEUE);
     *conn.out.lock().unwrap() = Some(tx);
@@ -2095,6 +2135,13 @@ fn handle_frame(conn: &Arc<PeerConn>, app: Option<&AppHandle>, txt: &str) {
                 if let Some(engine) = app.try_state::<crate::gitfollow::Engine>() {
                     engine.note_remote_change(slug, cwd);
                 }
+            }
+        }
+        // A step of an update this Mac asked the peer to install. Relayed as is;
+        // the caller waiting on the request's `result` is the one that ends it.
+        "selfUpdateProgress" => {
+            if let Some(app) = app {
+                crate::peermacupdate::relay_progress(app, slug, &v);
             }
         }
         "result" => {

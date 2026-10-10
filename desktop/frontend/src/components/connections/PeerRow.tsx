@@ -9,7 +9,7 @@ import {
   PeerUpdateHost,
 } from "../../../bridge/commands";
 import type { PeerClient } from "../../peer/usePeerState";
-import { peerStatus } from "../../peer/peerStatus";
+import { peerStatus, type StatusTone } from "../../peer/peerStatus";
 import { Toggle } from "./Toggle";
 import { Row } from "./GroupedList";
 import { LaptopIcon } from "./LaptopIcon";
@@ -21,6 +21,8 @@ import { RenameModal } from "../RenameModal";
 import { isLinuxHost, managesHostInstall, peerNoun } from "../../peer/platform";
 import { isMac } from "../../platform";
 import { isHostBehind } from "../../peer/hostVersion";
+import { useMacUpdateLine } from "../../peer/useMacUpdateLine";
+import type { MacUpdateLine } from "../../peer/macUpdate";
 import {
   hostSkillDone,
   hostSkillError,
@@ -180,6 +182,12 @@ export function PeerRow({
   };
 
   const status = peerStatus(peer);
+  // A Mac updates itself when asked, so it needs none of the SSH install above.
+  const { line: macLine, act: onMacAction } = useMacUpdateLine(peer.slug, name, {
+    connected: live,
+    supportsSelfUpdate: !reachable && peer.supportsSelfUpdate,
+    version: peer.version,
+  });
   // Only offer a retry once a dial has actually failed — while it's still
   // "Connecting…" the button would just interrupt the attempt in flight.
   const canRetry = status.tone === "error";
@@ -213,6 +221,20 @@ export function PeerRow({
             <StatusLine tone="pending" text="Reconnecting…" />
           ) : skillsDone ? (
             <StatusLine tone="live" text={hostSkillDone(skills)} />
+          ) : macLine ? (
+            <StatusLine
+              tone={macLineTone(macLine.kind, status.tone)}
+              text={
+                macLine.kind === "available" ? `${status.text} · ${macLine.text}` : macLine.text
+              }
+              action={
+                macLine.action && {
+                  label: macLine.action.label,
+                  accent: macLine.action.kind === "update",
+                  onClick: onMacAction,
+                }
+              }
+            />
           ) : (
             <StatusLine
               tone={status.tone}
@@ -361,6 +383,11 @@ export function PeerRow({
       />
     </>
   );
+}
+
+function macLineTone(kind: MacUpdateLine["kind"], connection: StatusTone): StatusTone {
+  if (kind === "available") return connection;
+  return kind === "done" ? "live" : "pending";
 }
 
 // Shown whenever we know it, not only when there's something to do about it: it's

@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   clearSelection: vi.fn(),
   addProjectForPeer: vi.fn(),
   setAlias: vi.fn(() => Promise.resolve()),
+  updateMac: vi.fn(() => new Promise(() => {})),
+  settingsGet: vi.fn(() => Promise.resolve({})),
   remotePair: vi.fn(() =>
     Promise.resolve({
       code: "AB12-CD34",
@@ -29,9 +31,16 @@ vi.mock("../../bridge/commands", () => ({
   PeerReconnect: vi.fn(),
   PeerSetAlias: mocks.setAlias,
   PeerRemotePair: mocks.remotePair,
+  PeerUpdateMac: mocks.updateMac,
+  PeerCancelMacUpdate: vi.fn(() => Promise.resolve(true)),
+  PeerSettingsGet: mocks.settingsGet,
+  PeerSettingsSet: vi.fn(() => Promise.resolve({})),
+  PeerInvoke: vi.fn(() => new Promise(() => {})),
+  GetVersion: vi.fn(() => Promise.resolve("1.43.0")),
 }));
 
 import { SidebarPeerSection } from "./SidebarPeerSection";
+import { useMacUpdates } from "../store/macUpdates";
 
 const LIVE: PeerStatus = { tone: "live", text: "Connected", detail: "" };
 const OFF: PeerStatus = { tone: "off", text: "Off", detail: "" };
@@ -70,6 +79,9 @@ function render(props: Record<string, unknown> = {}) {
         connected
         linuxHost={false}
         status={LIVE}
+        version="1.43.0"
+        selfUpdate
+        hostSettings
         projects={[project("glimpse2", true)]}
         strays={[]}
         selected={null}
@@ -92,6 +104,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
+  useMacUpdates.setState({}, true);
 });
 
 describe("SidebarPeerSection rows", () => {
@@ -286,6 +299,33 @@ describe("SidebarPeerSection header", () => {
     expect(disconnectDialogText({ noun: "computer" })).toContain("Disconnect computer");
   });
 
+  it("opens the machine's own settings from its menu", async () => {
+    render();
+    const more = container.querySelector(
+      '[aria-label="Options for GURGENS-MACBOOK-PRO"]',
+    ) as HTMLButtonElement;
+    act(() => more.click());
+    const settings = [...document.querySelectorAll("button")].find(
+      (b) => b.textContent?.trim() === "Settings on GURGENS-MACBOOK-PRO…",
+    );
+    expect(settings).toBeTruthy();
+    await act(async () => settings!.click());
+    expect(mocks.settingsGet).toHaveBeenCalledWith("aabbccdd");
+    expect(document.body.textContent).toContain("Settings on GURGENS-MACBOOK-PRO");
+  });
+
+  it("offers its settings only while the machine is reachable", () => {
+    render({ connected: false, status: OFF });
+    const more = container.querySelector(
+      '[aria-label="Options for GURGENS-MACBOOK-PRO"]',
+    ) as HTMLButtonElement;
+    act(() => more.click());
+    const settings = [...document.querySelectorAll("button")].find((b) =>
+      b.textContent?.trim().startsWith("Settings on"),
+    );
+    expect(settings).toBeUndefined();
+  });
+
   it("offers phone pairing only while the machine is reachable", () => {
     render({ connected: false, status: OFF });
     const more = container.querySelector(
@@ -296,5 +336,43 @@ describe("SidebarPeerSection header", () => {
       (b) => b.textContent?.trim() === "Pair a phone…",
     );
     expect(pair).toBeUndefined();
+  });
+});
+
+describe("SidebarPeerSection update", () => {
+  const buttonNamed = (name: string) =>
+    [...document.querySelectorAll("button")].find((b) => b.textContent?.trim() === name);
+
+  it("offers the release this Mac runs to a machine that is behind, and starts it in one click", async () => {
+    render({ version: "1.42.0" });
+    await act(async () => {});
+    expect(container.textContent).toContain("lpm 1.42.0 ·");
+
+    act(() => buttonNamed("Update to 1.43.0")!.click());
+    expect(mocks.updateMac).toHaveBeenCalledWith("aabbccdd");
+    expect(container.textContent).toContain("Updating to 1.43.0 ·");
+    expect(buttonNamed("Cancel")).toBeTruthy();
+  });
+
+  it("offers the update from the machine's menu too", async () => {
+    render({ version: "1.42.0" });
+    await act(async () => {});
+    const more = container.querySelector(
+      '[aria-label="Options for GURGENS-MACBOOK-PRO"]',
+    ) as HTMLButtonElement;
+    act(() => more.click());
+    expect(buttonNamed("Update to 1.43.0")).toBeTruthy();
+  });
+
+  it("offers nothing to a machine whose lpm can't be updated from here", async () => {
+    render({ version: "1.42.0", selfUpdate: false });
+    await act(async () => {});
+    expect(container.textContent).not.toContain("Update to");
+  });
+
+  it("offers nothing to a machine already on this release", async () => {
+    render();
+    await act(async () => {});
+    expect(container.textContent).not.toContain("Update to");
   });
 });

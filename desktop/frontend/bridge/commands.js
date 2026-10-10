@@ -1045,6 +1045,18 @@ export function PeerAddSshHost(target, alias, install) {
 export function PeerUpdateHost(slug) {
   return invoke("peer_update_host", { slug });
 }
+export function PeerUpdateMac(slug) {
+  return invoke("peer_update_mac", { slug });
+}
+export function PeerCancelMacUpdate(slug) {
+  return invoke("peer_cancel_mac_update", { slug });
+}
+export function PeerSettingsGet(slug) {
+  return invoke("peer_settings_get", { slug });
+}
+export function PeerSettingsSet(slug, patch) {
+  return invoke("peer_settings_set", { slug, patch });
+}
 export function PeerUninstallHost(slug, purgeData) {
   return invoke("peer_uninstall_host", { slug, purgeData });
 }

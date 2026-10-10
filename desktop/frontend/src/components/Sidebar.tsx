@@ -124,6 +124,7 @@ import {
 } from "./peerRowOrder";
 import { isPeerName, peerRawName, peerSlugOf, stripMarker } from "../peer/markers";
 import { peerAlias, usePeerState } from "../peer/usePeerState";
+import { useMacUpdateWatch } from "../peer/useMacUpdateWatch";
 import { SidebarSendLaterMark } from "./SidebarSendLaterMark";
 import { openReleasePage, UPDATES_INSTALL_IN_APP } from "../releasePage";
 
@@ -289,6 +290,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   // members or select-mode rows — but the section itself is a top-level slot the
   // user can drag, so a remote host can sit above the local projects.
   const { state: peerState, loaded: peersLoaded } = usePeerState();
+  useMacUpdateWatch(peerState.peers);
   // Followed projects, keyed by the local project the other Mac's work lands in.
   const { follows } = useFollowState();
   // Each Mac's section, and the synced copies those sections render instead of the
@@ -1318,6 +1320,9 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           linuxHost={section.linuxHost}
           noun={section.noun}
           status={section.status}
+          version={section.version}
+          selfUpdate={section.selfUpdate}
+          hostSettings={section.hostSettings}
           projects={section.projects}
           strays={section.strays}
           selected={selected}

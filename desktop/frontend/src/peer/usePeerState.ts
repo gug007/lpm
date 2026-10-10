@@ -52,6 +52,10 @@ export interface PeerClient {
   supportsFileUpload?: boolean;
   // The peer's build serves a video's byte ranges, so its videos preview here.
   supportsMediaRange?: boolean;
+  // The peer's lpm installs its own updates when this Mac asks (a Mac).
+  supportsSelfUpdate?: boolean;
+  // The peer's build shares its own settings, so they can be changed from here.
+  supportsHostSettings?: boolean;
   pinned?: boolean;
   lastSyncAt?: number;
   lastError?: string;

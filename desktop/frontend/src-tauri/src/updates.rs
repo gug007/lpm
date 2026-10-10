@@ -18,17 +18,22 @@
 
 use crate::updatejob::UpdateJob;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use std::time::SystemTime;
 use tauri::{AppHandle, State};
 use tauri::{Emitter, Manager};
 
 const RELEASES_URL: &str = "https://api.github.com/repos/gug007/lpm/releases/latest";
+
+/// Hears an install's `update-status` and `update-progress` steps besides this
+/// app's own windows: the paired Mac that asked for it (peerupdate.rs).
+pub(crate) type Observer = Arc<dyn Fn(&'static str, Value) + Send + Sync>;
 
 #[derive(Default)]
 pub struct UpdateState {
@@ -312,10 +317,42 @@ pub fn install_update(app: AppHandle, state: State<'_, UpdateState>) -> Result<(
         return Err("Updates aren't available in development builds.".into());
     }
     let mut job = state.job.begin()?;
-    match install(&app, &state, &mut job) {
+    match install(&app, &state, &mut job, &reporter(&app, None)) {
         Err(_) if job.cancelled() => Ok(()),
         result => result,
     }
+}
+
+/// The same install, asked for by a paired Mac. Its steps go to `observer` as
+/// well as this app's windows, so whoever sits here sees it happen too. Ok(true)
+/// when it was cancelled; a finished install restarts the app instead of
+/// returning. Either way of stopping short tells this app's windows it is over,
+/// since no install of theirs is waiting to say so.
+#[cfg(target_os = "macos")]
+pub(crate) fn install_for_peer(app: &AppHandle, observer: Observer) -> Result<bool, String> {
+    if current_version() == "dev" {
+        return Err("Updates aren't available in development builds.".into());
+    }
+    let state = app.state::<UpdateState>();
+    let mut job = state.job.begin()?;
+    let result = install(app, &state, &mut job, &reporter(app, Some(observer)));
+    let _ = app.emit("update-status", "idle");
+    match result {
+        Err(_) if job.cancelled() => Ok(true),
+        Err(e) => Err(e),
+        Ok(()) => Ok(false),
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn reporter(app: &AppHandle, observer: Option<Observer>) -> Observer {
+    let app = app.clone();
+    Arc::new(move |event, payload| {
+        let _ = app.emit(event, payload.clone());
+        if let Some(observer) = &observer {
+            observer(event, payload);
+        }
+    })
 }
 
 #[tauri::command]
@@ -328,8 +365,9 @@ fn install(
     app: &AppHandle,
     state: &UpdateState,
     job: &mut crate::updatejob::JobGuard,
+    report: &Observer,
 ) -> Result<(), String> {
-    let _ = app.emit("update-status", "checking");
+    report("update-status", Value::from("checking"));
 
     // Re-check so we install the actual latest release, not whatever was
     // stashed at the last check — a newer version may have shipped since.
@@ -356,7 +394,7 @@ fn install(
     ensure_app_dir_writable(&app_dir)?;
 
     job.check()?;
-    let _ = app.emit("update-status", "downloading");
+    report("update-status", Value::from("downloading"));
 
     // Download the DMG to a temp file, emitting integer percent progress.
     let tmp = tempfile::Builder::new()
@@ -364,7 +402,7 @@ fn install(
         .suffix(".dmg")
         .tempfile()
         .map_err(|e| format!("failed to create temp file: {e}"))?;
-    let app_progress = app.clone();
+    let report_progress = report.clone();
     let url_owned = url.clone();
     let cancel = job.flag();
     let mut out_file = tmp.as_file().try_clone().map_err(|e| e.to_string())?;
@@ -386,14 +424,14 @@ fn install(
         }
         let total = resp.content_length().unwrap_or(0);
         copy_with_progress(&mut resp, &mut out_file, total, &cancel, &|pct| {
-            let _ = app_progress.emit("update-progress", pct);
+            report_progress("update-progress", Value::from(pct));
         })
         .map_err(|e| format!("failed to save update: {e}"))
     })?;
     let dmg_path = tmp.into_temp_path();
 
     job.commit()?;
-    let _ = app.emit("update-status", "installing");
+    report("update-status", Value::from("installing"));
 
     let mount = tempfile::Builder::new()
         .prefix("lpm-mount-")

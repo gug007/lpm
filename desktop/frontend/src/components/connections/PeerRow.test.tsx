@@ -3,11 +3,13 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PeerClient } from "../../peer/usePeerState";
+import { useMacUpdates } from "../../store/macUpdates";
 
 const mocks = vi.hoisted(() => ({
   reconnect: vi.fn(() => Promise.resolve()),
   setEnabled: vi.fn(() => Promise.resolve()),
   updateHost: vi.fn(() => Promise.resolve()),
+  updateMac: vi.fn(() => new Promise(() => {})),
 }));
 
 vi.mock("../../../bridge/commands", () => ({
@@ -15,6 +17,9 @@ vi.mock("../../../bridge/commands", () => ({
   PeerSetAlias: vi.fn(() => Promise.resolve()),
   PeerSetEnabled: mocks.setEnabled,
   PeerUpdateHost: mocks.updateHost,
+  PeerUpdateMac: mocks.updateMac,
+  PeerCancelMacUpdate: vi.fn(() => Promise.resolve(true)),
+  GetVersion: vi.fn(() => Promise.resolve("1.43.0")),
 }));
 
 const { PeerRow } = await import("./PeerRow");
@@ -57,6 +62,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
+  useMacUpdates.setState({}, true);
 });
 
 describe("PeerRow", () => {
@@ -192,5 +198,21 @@ describe("PeerRow", () => {
     render(peer({ enabled: false, lastError: "Operation timed out (os error 60)" }));
     expect(container.textContent).toContain("Off");
     expect(button("Reconnect")).toBeUndefined();
+  });
+
+  it("updates a paired Mac in one click, right in its status line", async () => {
+    render(peer({ platform: "macos", version: "1.42.0", connected: true, supportsSelfUpdate: true }));
+    await act(async () => {});
+    expect(container.textContent).toContain("Connected · lpm 1.42.0 ·");
+    act(() => button("Update to 1.43.0")!.click());
+    expect(mocks.updateMac).toHaveBeenCalledWith("abcd1234");
+    expect(container.textContent).toContain("Updating to 1.43.0 ·");
+    expect(button("Cancel")).toBeDefined();
+  });
+
+  it("offers nothing to a Mac whose lpm predates being updated from here", async () => {
+    render(peer({ platform: "macos", version: "1.42.0", connected: true }));
+    await act(async () => {});
+    expect(button("Update to 1.43.0")).toBeUndefined();
   });
 });

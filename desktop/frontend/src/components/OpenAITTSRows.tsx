@@ -6,7 +6,7 @@ import {
   OpenAIVoices,
   SetOpenAIKey,
 } from "../../bridge/commands";
-import { SettingsRow } from "./Settings";
+import { SettingsRow } from "./SettingsRow";
 import { SettingsSelect } from "./SettingsSelect";
 import { BTN_SECONDARY } from "./ui/buttons";
 import { isMac } from "../platform";

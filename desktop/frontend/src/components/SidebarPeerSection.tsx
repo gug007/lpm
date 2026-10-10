@@ -4,6 +4,7 @@ import { LaptopIcon } from "./connections/LaptopIcon";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { RenameModal } from "./RenameModal";
 import { PairingModal, type Pairing } from "./PairingModal";
+import { PeerSettingsModal } from "./PeerSettingsModal";
 import { peerSlugOf } from "../peer/markers";
 import { SidebarHeaderShell } from "./SidebarHeaderShell";
 import { SidebarRollupLine } from "./SidebarRollupLine";
@@ -19,6 +20,7 @@ import { isPeerSectionCollapsed, setPeerSectionCollapsed } from "../peer/peerSec
 import { PeerReconnect, PeerRemotePair, PeerRemove, PeerSetAlias } from "../../bridge/commands";
 import { useAppStore } from "../store/app";
 import type { ProjectInfo } from "../types";
+import { useMacUpdateLine } from "../peer/useMacUpdateLine";
 
 // A machine's name is the one thing the header has to get across, and the width
 // it has is never generous. Both shapes a name comes in have a part that can go:
@@ -60,6 +62,9 @@ export function SidebarPeerSection({
   linuxHost,
   noun = linuxHost ? "server" : "Mac",
   status,
+  version,
+  selfUpdate,
+  hostSettings,
   projects,
   strays,
   selected,
@@ -79,6 +84,11 @@ export function SidebarPeerSection({
   noun?: PeerNoun;
   /// How it is doing, for the header's plate and its second line.
   status: PeerStatus;
+  /// The lpm it runs, and whether it can be updated from here.
+  version: string;
+  selfUpdate: boolean;
+  /// Whether its own settings can be changed from here.
+  hostSettings: boolean;
   projects: ProjectInfo[];
   /// Copies with no row of this Mac's own to mark.
   strays: MirrorRow[];
@@ -91,6 +101,7 @@ export function SidebarPeerSection({
   const [collapsed, setCollapsed] = useState(() => isPeerSectionCollapsed(slug));
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   // The QR minted by this machine for a phone to scan, and why one couldn't be.
   const [phonePairing, setPhonePairing] = useState<Pairing | null>(null);
@@ -139,6 +150,14 @@ export function SidebarPeerSection({
     [projects, strays],
   );
 
+  // Updating it is news at either height, and outranks what its projects are
+  // doing: the restart it ends in is what every one of them is about to do.
+  const { line: updateLine, act: onUpdateAction } = useMacUpdateLine(slug, alias, {
+    connected,
+    supportsSelfUpdate: selfUpdate,
+    version,
+  });
+
   const { head, tail, address } = splitAlias(alias);
   // Metrics only. The two halves wear different tones, and a span carrying two
   // colour utilities at once is settled by stylesheet order rather than intent —
@@ -183,6 +202,12 @@ export function SidebarPeerSection({
   // line of red under the name costs the count of what is hidden to repeat it.
   // What its projects are doing is only news while they are hidden.
   const line2 = (() => {
+    if (updateLine)
+      return updateLine.kind === "done" ? (
+        <span className="text-[var(--accent-green-text)]">{updateLine.text}</span>
+      ) : (
+        <span>{updateLine.text}</span>
+      );
     if (status.tone === "error" && !collapsed)
       return <span className="text-[var(--accent-red-text)]">{status.text}</span>;
     if (status.tone === "pending") return <span>{status.text}</span>;
@@ -211,6 +236,13 @@ export function SidebarPeerSection({
       expanded={!collapsed}
       line1={line1}
       line2={line2}
+      line2Action={
+        updateLine?.action && {
+          label: updateLine.action.label,
+          tone: updateLine.action.kind === "update" ? "accent" : "muted",
+          onClick: onUpdateAction,
+        }
+      }
       trailing={
         collapsed && rowCount > 0 ? (
           <span className="text-[11px] tabular-nums text-[var(--text-muted)]">{rowCount}</span>
@@ -242,6 +274,11 @@ export function SidebarPeerSection({
           canReconnect={status.tone === "error"}
           onAddProject={() => addProjectForPeer(slug, alias)}
           onPairPhone={() => void pairPhone()}
+          onSettings={() => setSettingsOpen(true)}
+          updateLabel={
+            updateLine?.action?.kind === "update" ? updateLine.action.label : undefined
+          }
+          onUpdate={onUpdateAction}
           onRename={() => setRenameOpen(true)}
           onReconnect={() => void PeerReconnect(slug)}
           onDisconnect={() => setConfirmOpen(true)}
@@ -273,6 +310,15 @@ export function SidebarPeerSection({
         initialValue={alias}
         onClose={() => setRenameOpen(false)}
         onSubmit={(value) => void PeerSetAlias(slug, value)}
+      />
+
+      <PeerSettingsModal
+        open={settingsOpen}
+        slug={slug}
+        alias={alias}
+        headless={linuxHost}
+        supported={hostSettings}
+        onClose={() => setSettingsOpen(false)}
       />
 
       <PairingModal

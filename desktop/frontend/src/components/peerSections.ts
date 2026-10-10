@@ -37,6 +37,11 @@ export interface PeerSection {
   noun: PeerNoun;
   /// How it is doing, resolved here so the header never reaches for the store.
   status: PeerStatus;
+  /// The lpm it runs, and whether it can be updated from here.
+  version: string;
+  selfUpdate: boolean;
+  /// Whether its own settings can be changed from here.
+  hostSettings: boolean;
   /// The Mac's own project rows; empty while it is away.
   projects: ProjectInfo[];
   /// The Mac's folder path over there → the local copy of it, for the row's mark.
@@ -75,6 +80,9 @@ export function buildPeerSections(
     linuxHost: isLinuxHost(peer),
     noun: peerNoun(peer),
     status: peerStatus(peer),
+    version: peer.version ?? "",
+    selfUpdate: Boolean(peer.supportsSelfUpdate),
+    hostSettings: Boolean(peer.supportsHostSettings),
     projects: peer.connected ? (byPeer.get(peer.slug) ?? []) : [],
     mirrors: new Map(),
     strays: [],
