@@ -298,11 +298,25 @@ pub(crate) fn snapshot_sync_backup() -> Result<String, String> {
 }
 
 fn backup_path() -> String {
-    format!(
+    unused_path(format!(
         "{}.backup-{}",
         config::lpm_dir().to_string_lossy(),
         chrono::Local::now().format("%Y%m%d-%H%M%S")
-    )
+    ))
+}
+
+/// `base`, or `base-1`, `base-2`, … when taken. A sync sent in batches backs up
+/// once per batch, often within one second, and a later batch's snapshot must not
+/// overwrite the copy an earlier one took before it changed anything. The suffix
+/// still sorts after `base` and before the next second, so pruning stays in order.
+fn unused_path(base: String) -> String {
+    if !Path::new(&base).exists() {
+        return base;
+    }
+    (1..)
+        .map(|n| format!("{base}-{n}"))
+        .find(|p| !Path::new(p).exists())
+        .unwrap_or(base)
 }
 
 fn snapshot_sync_surface(src: &Path, dst: &Path) -> Result<(), String> {
@@ -696,6 +710,32 @@ mod tests {
         for rel in ["sync", "message-history.db", "groups.json"] {
             assert!(!dst.join(rel).exists(), "{rel} copied");
         }
+    }
+
+    #[test]
+    fn a_second_backup_in_the_same_second_gets_its_own_dir() {
+        let tmp = tempfile::tempdir().unwrap();
+        let base = tmp.path().join(".lpm.backup-20261010-101500");
+        let base_str = base.to_string_lossy().into_owned();
+        assert_eq!(unused_path(base_str.clone()), base_str);
+        std::fs::create_dir_all(&base).unwrap();
+        assert_eq!(unused_path(base_str.clone()), format!("{base_str}-1"));
+        std::fs::create_dir_all(format!("{base_str}-1")).unwrap();
+        assert_eq!(unused_path(base_str.clone()), format!("{base_str}-2"));
+        let mut names = vec![
+            ".lpm.backup-20261010-101501".to_string(),
+            ".lpm.backup-20261010-101500-1".to_string(),
+            ".lpm.backup-20261010-101500".to_string(),
+        ];
+        names.sort();
+        assert_eq!(
+            names,
+            [
+                ".lpm.backup-20261010-101500",
+                ".lpm.backup-20261010-101500-1",
+                ".lpm.backup-20261010-101501",
+            ]
+        );
     }
 
     #[test]

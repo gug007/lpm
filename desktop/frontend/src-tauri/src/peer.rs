@@ -1439,22 +1439,13 @@ fn handle_sync(app: &AppHandle, out: &SyncSender<String>, t: &str, v: &Value) {
             let _ = out.try_send(result_frame(&req_id, true, value));
         }
         "syncFetch" => {
-            let mut fetched = Vec::new();
-            for it in v
+            let requested = v
                 .get("items")
                 .and_then(Value::as_array)
-                .cloned()
-                .unwrap_or_default()
-            {
-                let kind = it.get("kind").and_then(Value::as_str).unwrap_or_default();
-                let name = it.get("name").and_then(Value::as_str).unwrap_or_default();
-                if let Ok(w) = crate::peersync::read_item(kind, name) {
-                    if let Ok(val) = serde_json::to_value(w) {
-                        fetched.push(val);
-                    }
-                }
-            }
-            let _ = out.try_send(result_frame(&req_id, true, json!({ "items": fetched })));
+                .map(Vec::as_slice)
+                .unwrap_or_default();
+            let reply = crate::syncbatch::fetch_reply(requested);
+            let _ = out.try_send(result_frame(&req_id, true, reply));
         }
         "syncApply" => {
             let sender = v

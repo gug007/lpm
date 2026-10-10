@@ -1012,6 +1012,49 @@ impl PeerClientHub {
         serde_json::from_value(remote_v).map_err(|e| format!("bad digest reply: {e}"))
     }
 
+    /// Fetch the requested units' content. A host caps each reply to one message and
+    /// lists the rest under `more`, so keep asking until nothing is left; an older
+    /// host sends everything at once. Host-side errors (an item too large to send)
+    /// are added to `errors`.
+    fn fetch_items(
+        &self,
+        slug: &str,
+        mut want: Vec<Value>,
+        errors: &mut Vec<String>,
+    ) -> Result<Vec<crate::peersync::WireItem>, String> {
+        let mut fetched = Vec::new();
+        while !want.is_empty() {
+            let resp = self.request_blocking(
+                slug,
+                SYNC_TIMEOUT,
+                |req| json!({ "t": "syncFetch", "v": 1, "reqId": req, "items": want }),
+            )?;
+            let items: Vec<crate::peersync::WireItem> =
+                serde_json::from_value(resp.get("items").cloned().unwrap_or_else(|| json!([])))
+                    .map_err(|e| format!("bad fetch reply: {e}"))?;
+            for e in resp
+                .get("errors")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+            {
+                if let Some(s) = e.as_str() {
+                    errors.push(format!("other Mac: {s}"));
+                }
+            }
+            if items.is_empty() {
+                break;
+            }
+            fetched.extend(items);
+            want = resp
+                .get("more")
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default();
+        }
+        Ok(fetched)
+    }
+
     /// The plan against a peer: revision-based when both sides speak configSync2 and
     /// the host sent its sidecar id, else the legacy mtime plan.
     fn plan_for(
@@ -1085,21 +1128,11 @@ impl PeerClientHub {
         if !to_local.is_empty() {
             let live: Vec<&crate::peersync::SyncItem> =
                 to_local.iter().filter(|i| !i.deleted).collect();
-            let fetched: Vec<crate::peersync::WireItem> = if live.is_empty() {
-                Vec::new()
-            } else {
-                let req_items: Vec<Value> = live
-                    .iter()
-                    .map(|i| json!({ "kind": i.kind, "name": i.name }))
-                    .collect();
-                let resp = self.request_blocking(
-                    slug,
-                    SYNC_TIMEOUT,
-                    |req| json!({ "t": "syncFetch", "v": 1, "reqId": req, "items": req_items }),
-                )?;
-                serde_json::from_value(resp.get("items").cloned().unwrap_or_else(|| json!([])))
-                    .map_err(|e| format!("bad fetch reply: {e}"))?
-            };
+            let req_items: Vec<Value> = live
+                .iter()
+                .map(|i| json!({ "kind": i.kind, "name": i.name }))
+                .collect();
+            let fetched = self.fetch_items(slug, req_items, &mut errors)?;
             match crate::transfer::snapshot_sync_backup() {
                 Ok(path) => {
                     backup_path = path;
@@ -1167,8 +1200,8 @@ impl PeerClientHub {
         }
 
         if !to_remote.is_empty() {
-            let mut wire: Vec<Value> = Vec::new();
-            let mut push_bases: Vec<(String, crate::syncstate::BaseState)> = Vec::new();
+            // (sidecar key, wire item, base to record once the host has applied it)
+            let mut wire: Vec<(String, Value, Option<crate::syncstate::BaseState>)> = Vec::new();
             for i in &to_remote {
                 let key = crate::peersync::item_key(&i.kind, &i.name);
                 let ld = local.get(&i.kind, &i.name);
@@ -1187,17 +1220,12 @@ impl PeerClientHub {
                         device,
                     };
                     if let Ok(val) = serde_json::to_value(&w) {
-                        wire.push(val);
-                        if v2 {
-                            push_bases.push((
-                                key,
-                                crate::syncstate::BaseState {
-                                    rev,
-                                    digest: String::new(),
-                                    deleted: true,
-                                },
-                            ));
-                        }
+                        let base = v2.then(|| crate::syncstate::BaseState {
+                            rev,
+                            digest: String::new(),
+                            deleted: true,
+                        });
+                        wire.push((key, val, base));
                     }
                 } else {
                     match crate::peersync::read_item(&i.kind, &i.name) {
@@ -1207,31 +1235,33 @@ impl PeerClientHub {
                                 w.device = d.device.clone();
                             }
                             if let Ok(val) = serde_json::to_value(&w) {
-                                wire.push(val);
-                                if v2 {
-                                    if let Some(d) = ld {
-                                        push_bases.push((
-                                            key,
-                                            crate::syncstate::BaseState {
-                                                rev: d.rev,
-                                                digest: d.hash.clone(),
-                                                deleted: false,
-                                            },
-                                        ));
-                                    }
-                                }
+                                let base = ld.filter(|_| v2).map(|d| crate::syncstate::BaseState {
+                                    rev: d.rev,
+                                    digest: d.hash.clone(),
+                                    deleted: false,
+                                });
+                                wire.push((key, val, base));
                             }
                         }
                         Err(e) => errors.push(format!("read {}/{}: {e}", i.kind, i.name)),
                     }
                 }
             }
-            if !wire.is_empty() {
-                let ver = if v2 { 2 } else { 1 };
+            let sizes: Vec<usize> = wire
+                .iter()
+                .map(|(_, val, _)| val.to_string().len())
+                .collect();
+            let (batches, too_large) = crate::syncbatch::group(&sizes);
+            for i in too_large {
+                errors.push(crate::syncbatch::too_large_error(&wire[i].0, sizes[i]));
+            }
+            let ver = if v2 { 2 } else { 1 };
+            for batch in batches {
+                let items: Vec<&Value> = batch.iter().map(|&i| &wire[i].1).collect();
+                let sent = items.len();
                 let dev = self_id.clone();
-                let sent = wire.len();
                 let resp = self.request_blocking(slug, SYNC_APPLY_TIMEOUT, |req| {
-                    json!({ "t": "syncApply", "v": ver, "reqId": req, "device": dev, "items": wire })
+                    json!({ "t": "syncApply", "v": ver, "reqId": req, "device": dev, "items": items })
                 })?;
                 let host_applied = resp.get("applied").and_then(Value::as_u64).unwrap_or(0);
                 pushed += host_applied;
@@ -1244,13 +1274,17 @@ impl PeerClientHub {
                         }
                     }
                 }
-                // Record the pushed units' bases only when the host applied ALL of
-                // them cleanly. On any partial failure skip every one, so the next
-                // run re-plans them as local-moved fast-forwards and cleanly retries
-                // the push rather than inferring the wrong direction from a stale
-                // host copy.
+                // Record a batch's bases only when the host applied ALL of it
+                // cleanly. On any partial failure skip every one, so the next run
+                // re-plans them as local-moved fast-forwards and cleanly retries the
+                // push rather than inferring the wrong direction from a stale host
+                // copy.
                 if v2 && push_fully_applied(sent, host_applied, host_error_count) {
-                    commit_sidecar(&remote_id, &[], &push_bases);
+                    let bases: Vec<(String, crate::syncstate::BaseState)> = batch
+                        .iter()
+                        .filter_map(|&i| wire[i].2.clone().map(|b| (wire[i].0.clone(), b)))
+                        .collect();
+                    commit_sidecar(&remote_id, &[], &bases);
                 }
             }
         }

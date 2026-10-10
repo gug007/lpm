@@ -323,11 +323,19 @@ revision-aware (configSync2). A client sends `v:2` only to a host that advertise
   host → `result` whose value is the host's **digest map**. `device` (the client's
   sidecar id) is sent only at `v:2`.
 - **Fetch** — client → `{ "t": "syncFetch", "v":1, "reqId", "items":[{kind,name}] }`
-  host → `result` `{ "items": [wire item…] }`. Read-only; used to pull content the
-  client will apply. Unchanged between versions.
+  host → `result` `{ "items": [wire item…], "more"?: [{kind,name}], "errors"?: […] }`.
+  Read-only; used to pull content the client will apply. Unchanged between
+  versions. A host packs at most ~4 MiB of items into one reply and lists the rest,
+  in request order, under `more`; the client sends `more` back as the next fetch
+  until it comes back empty. An item over 12 MiB is never sent and is named in
+  `errors` instead. An older host sends everything in one reply.
 - **Apply** — client → `{ "t": "syncApply", "v", "reqId", "device"?, "items":[wire item…] }`
   host → `result` `{ "applied", "errors":[…] }`. The host snapshots, applies each
   item with the portable-merge rules, and (at `v:2`) records the sender's revisions.
+  The client splits a push into requests of at most ~4 MiB of items each and
+  leaves out (with an error) any single item over 12 MiB, so no message nears
+  tungstenite's 16 MiB frame limit. Each request is backed up and recorded on its
+  own; a client records the bases of a batch only once the host applied all of it.
 
 ### Digest map
 

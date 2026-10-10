@@ -169,6 +169,7 @@ mod statusfwd;
 mod statusnotify;
 #[cfg(any(windows, test))]
 mod statusrelay;
+mod syncbatch;
 mod syncstate;
 mod syncsurface;
 mod sys;
