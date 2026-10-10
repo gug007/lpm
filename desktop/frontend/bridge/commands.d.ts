@@ -114,6 +114,7 @@ export function InstallUpdate(...args: any[]): Promise<any>;
 export function CancelUpdate(...args: any[]): Promise<boolean>;
 export function IsTerminalRemote(...args: any[]): Promise<any>;
 export function TerminalExists(...args: any[]): Promise<boolean>;
+export function ListProjectTerminals(...args: any[]): Promise<any>;
 export function ListBranches(...args: any[]): Promise<any>;
 export function ListDetachedProjects(...args: any[]): Promise<any>;
 export function ListOpenInTargets(...args: any[]): Promise<any>;

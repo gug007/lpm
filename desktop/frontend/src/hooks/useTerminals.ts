@@ -8,6 +8,7 @@ import { useTreeCore } from "./terminals/useTreeCore";
 import { useCmdInject } from "./terminals/useCmdInject";
 import { useSshReconnect } from "./terminals/useSshReconnect";
 import { useSessionRestore } from "./terminals/useSessionRestore";
+import { usePeerTerminalSync } from "./terminals/usePeerTerminalSync";
 import { useTabCreation } from "./terminals/useTabCreation";
 import { usePaneOps } from "./terminals/usePaneOps";
 import { useTabClose } from "./terminals/useTabClose";
@@ -74,6 +75,14 @@ export function useTerminals(
     persist,
     holdPersistedPanes,
     scheduleCmdInject,
+  });
+
+  usePeerTerminalSync({
+    projectName,
+    treeRef,
+    focusedRef,
+    restoreSettled,
+    applyTree,
   });
 
   useAgentSessionEvents({

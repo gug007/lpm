@@ -361,6 +361,9 @@ export function IsTerminalRemote(id) {
 export function TerminalExists(id) {
   return invoke("terminal_exists", { id });
 }
+export function ListProjectTerminals(projectName) {
+  return invoke("list_project_terminals", { projectName });
+}
 export function ListBranches(cwd) {
   return invoke("list_branches", { cwd });
 }

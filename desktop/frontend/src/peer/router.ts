@@ -99,6 +99,7 @@ export const GLOBAL_PEER_EVENTS = new Set<string>([
   "clone-done",
   "duplicate-done",
   "agent-session",
+  "terminals-changed",
 ]);
 
 // Scan a command's arguments (top level + one array level deep) for peer
@@ -167,6 +168,14 @@ export function translateResult(cmd: string, slug: string, result: unknown): unk
   if (cmd === "get_project" && result && typeof result === "object") {
     return translateProject(slug, result as ProjectInfo);
   }
+  // The host's live terminals in a project, named by its own pty ids.
+  if (cmd === "list_project_terminals" && Array.isArray(result)) {
+    return result.map((t) =>
+      t && typeof t === "object" && typeof (t as { id?: unknown }).id === "string"
+        ? { ...t, id: prefixName(slug, (t as { id: string }).id) }
+        : t,
+    );
+  }
   // Duplicate commands return freshly created host project name(s); prefix them
   // so the client selects / marks / spawns against the id it can actually see.
   if (
@@ -210,6 +219,7 @@ export function translatePeerEventPayload(
   switch (name) {
     case "status-changed":
     case "ports-changed":
+    case "terminals-changed":
       // Payload is the bare project name.
       return typeof payload === "string" ? prefixName(slug, payload) : payload;
     case "git-changed":

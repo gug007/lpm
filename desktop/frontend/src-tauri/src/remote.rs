@@ -2336,57 +2336,7 @@ fn handle_msg(
         }
         "terminals" => {
             let project = str_field("project").unwrap_or_default();
-            let terms = pty::remote_terminals(&app.state::<pty::PtyState>(), &project);
-            // Emit in the desktop's tab-tree order and scope to it, so the phone's
-            // list matches the desktop tabs (and reordering sticks) and orphaned/
-            // leaked PTYs — live sessions no longer in any tree — don't show. Fall
-            // back to all live sessions (id order) when the frontend hasn't
-            // registered a set yet (older client, or the project's window isn't open).
-            let terms: Vec<pty::RemoteTerminal> =
-                match hub.inner.tree_ids.lock().unwrap().get(&project) {
-                    Some(order) => {
-                        let live: HashMap<&str, &pty::RemoteTerminal> =
-                            terms.iter().map(|t| (t.id.as_str(), t)).collect();
-                        order
-                            .iter()
-                            .filter_map(|id| live.get(id.as_str()).map(|t| (*t).clone()))
-                            .collect()
-                    }
-                    None => terms,
-                };
-            // Attach the desktop's tab label to each terminal (falling back to the
-            // id when the frontend hasn't registered one, e.g. an unopened project).
-            let labels = hub.inner.labels.lock().unwrap();
-            let pinned = hub.inner.pinned.lock().unwrap();
-            let emojis = hub.inner.emojis.lock().unwrap();
-            let clis = hub.inner.clis.lock().unwrap();
-            let terms: Vec<Value> = terms
-                .iter()
-                .map(|t| {
-                    let mut o = serde_json::to_value(t).unwrap_or_else(|_| json!({}));
-                    let label = labels.get(&t.id).cloned().unwrap_or_else(|| t.id.clone());
-                    if let Some(m) = o.as_object_mut() {
-                        m.insert("label".into(), json!(label));
-                        m.insert(
-                            "pinned".into(),
-                            json!(pinned.get(&t.id).copied().unwrap_or(false)),
-                        );
-                        m.insert(
-                            "emoji".into(),
-                            json!(emojis.get(&t.id).cloned().unwrap_or_default()),
-                        );
-                        m.insert(
-                            "cli".into(),
-                            json!(clis.get(&t.id).cloned().unwrap_or_default()),
-                        );
-                    }
-                    o
-                })
-                .collect();
-            drop(labels);
-            drop(pinned);
-            drop(emojis);
-            drop(clis);
+            let terms = project_terminals(app, hub, &project);
             send(
                 ws,
                 json!({ "t": "terminals", "project": project, "terminals": terms }),
@@ -5660,8 +5610,76 @@ pub fn terminal_label(app: &AppHandle, pane_id: &str) -> Option<String> {
     label.filter(|l| !l.is_empty())
 }
 
+/// Every live terminal of `project` as the desktop shows it — what the phone
+/// lists, and what a paired Mac opens tabs for. Emitted in the desktop's tab-tree
+/// order and scoped to it, so the list matches the desktop tabs (and reordering
+/// sticks) and orphaned/leaked PTYs — live sessions no longer in any tree — don't
+/// show. Falls back to all live sessions (id order) when the frontend hasn't
+/// registered a set yet (older client, or the project's window isn't open).
+pub fn project_terminals(app: &AppHandle, hub: &RemoteHub, project: &str) -> Vec<Value> {
+    let terms = pty::remote_terminals(&app.state::<pty::PtyState>(), project);
+    let terms: Vec<pty::RemoteTerminal> = match hub.inner.tree_ids.lock().unwrap().get(project) {
+        Some(order) => {
+            let live: HashMap<&str, &pty::RemoteTerminal> =
+                terms.iter().map(|t| (t.id.as_str(), t)).collect();
+            order
+                .iter()
+                .filter_map(|id| live.get(id.as_str()).map(|t| (*t).clone()))
+                .collect()
+        }
+        None => terms,
+    };
+    // Attach the desktop's tab label to each terminal (falling back to the id
+    // when the frontend hasn't registered one, e.g. an unopened project).
+    let labels = hub.inner.labels.lock().unwrap();
+    let pinned = hub.inner.pinned.lock().unwrap();
+    let emojis = hub.inner.emojis.lock().unwrap();
+    let clis = hub.inner.clis.lock().unwrap();
+    terms
+        .iter()
+        .map(|t| {
+            let mut o = serde_json::to_value(t).unwrap_or_else(|_| json!({}));
+            let label = labels.get(&t.id).cloned().unwrap_or_else(|| t.id.clone());
+            if let Some(m) = o.as_object_mut() {
+                m.insert("label".into(), json!(label));
+                m.insert(
+                    "pinned".into(),
+                    json!(pinned.get(&t.id).copied().unwrap_or(false)),
+                );
+                m.insert(
+                    "emoji".into(),
+                    json!(emojis.get(&t.id).cloned().unwrap_or_default()),
+                );
+                m.insert(
+                    "cli".into(),
+                    json!(clis.get(&t.id).cloned().unwrap_or_default()),
+                );
+            }
+            o
+        })
+        .collect()
+}
+
 #[tauri::command]
-pub fn remote_set_terminal_labels(hub: State<'_, RemoteHub>, project: String, labels: Vec<Value>) {
+pub fn list_project_terminals(
+    app: AppHandle,
+    hub: State<'_, RemoteHub>,
+    project_name: String,
+) -> Vec<Value> {
+    project_terminals(&app, &hub, &project_name)
+}
+
+/// Tells paired Macs a project's set of tabs changed, so one showing it picks
+/// up a terminal opened here.
+pub const TERMINALS_CHANGED_EVENT: &str = "terminals-changed";
+
+#[tauri::command]
+pub fn remote_set_terminal_labels(
+    app: AppHandle,
+    hub: State<'_, RemoteHub>,
+    project: String,
+    labels: Vec<Value>,
+) {
     let mut label_map = hub.inner.labels.lock().unwrap();
     let mut cli_map = hub.inner.clis.lock().unwrap();
     let mut pin_map = hub.inner.pinned.lock().unwrap();
@@ -5693,8 +5711,13 @@ pub fn remote_set_terminal_labels(hub: State<'_, RemoteHub>, project: String, la
                 .to_string(),
         );
     }
-    if !project.is_empty() && !ids.is_empty() {
-        hub.inner.tree_ids.lock().unwrap().insert(project, ids);
+    drop((label_map, cli_map, pin_map, emoji_map));
+    if project.is_empty() || ids.is_empty() {
+        return;
+    }
+    let previous = hub.inner.tree_ids.lock().unwrap().insert(project.clone(), ids.clone());
+    if previous.as_ref() != Some(&ids) {
+        let _ = app.emit(TERMINALS_CHANGED_EVENT, &project);
     }
 }
 

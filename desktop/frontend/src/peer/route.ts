@@ -2,12 +2,13 @@
 // transport. The routing DECISIONS live in ./router (pure, unit-tested); this
 // module performs the side effects: forwarding invokes over the peer WS,
 // attaching to remote terminals, merging project lists, and demultiplexing the
-// per-peer event stream. Imports only the Tauri API + the pure router, so it
+// per-peer event stream. Imports only the Tauri API + pure peer modules, so it
 // never forms a cycle with bridge/commands.js or bridge/runtime.js.
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type { ProjectInfo } from "../types";
 import { prefixName } from "./markers";
+import { beginPeerStart, claimPeerTerminal, endPeerStart } from "./hostTerminals";
 import {
   GLOBAL_PEER_EVENTS,
   START_TERMINAL_CMDS,
@@ -144,14 +145,22 @@ async function dispatchToPeer(
   strippedArgs: Record<string, unknown>,
   originalArgs: unknown,
 ): Promise<unknown> {
-  const value = await invoke("peer_invoke", { slug, cmd, args: strippedArgs });
-  if (START_TERMINAL_CMDS.has(cmd)) {
+  const starting = START_TERMINAL_CMDS.has(cmd);
+  if (starting) beginPeerStart(slug);
+  let value: unknown;
+  try {
+    value = await invoke("peer_invoke", { slug, cmd, args: strippedArgs });
+  } finally {
+    if (starting) endPeerStart(slug);
+  }
+  if (starting) {
     // start_terminal_for_config returns a TerminalLaunch object; the other
     // start commands return the bare id. Prefix the id either way and keep
     // the surrounding shape intact.
     const launch =
       value !== null && typeof value === "object" ? (value as { id?: unknown }) : null;
     const prefixedId = prefixName(slug, String(launch ? (launch.id ?? "") : value));
+    claimPeerTerminal(prefixedId);
     // Deliberately no subscribe here. The pane that renders this terminal
     // subscribes when it mounts, and only it can say whether its emulator may
     // resume — subscribing from here would have to guess, and guessing wrong is

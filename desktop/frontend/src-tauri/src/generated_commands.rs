@@ -169,6 +169,7 @@ macro_rules! all_command_handlers {
             list_detached_projects,
             list_open_in_targets,
             list_port_forwards,
+            list_project_terminals,
             list_projects,
             list_ssh_hosts,
             list_monospace_fonts,

@@ -114,6 +114,7 @@ const FORWARDED_EVENTS: &[&str] = &[
     // The session an agent in a terminal reports, which is what lets a Mac's tab
     // resume that conversation after the host restarts and the terminal is gone.
     "agent-session",
+    crate::remote::TERMINALS_CHANGED_EVENT,
 ];
 
 // --- persisted config (~/.lpm/peer.json, shared with peerclient.rs) -----------
@@ -1724,6 +1725,12 @@ fn fast_path(app: &AppHandle, cmd: &str, args: &Value) -> Option<Result<Value, S
         // Answered here, not by the host's page: a Mac restoring its tabs asks
         // this first, often while a just-restarted host is still loading it.
         "terminal_exists" => Some(Ok(Value::Bool(pty::session_exists(&state, &s("id"))))),
+        // Also answered here: a headless host has no page to ask.
+        "list_project_terminals" => {
+            let hub = app.state::<crate::remote::RemoteHub>();
+            let terms = crate::remote::project_terminals(app, &hub, &s("projectName"));
+            Some(Ok(Value::Array(terms)))
+        }
         "stop_terminal" => {
             let id = s("id");
             Some(pty::stop_terminal(app.clone(), state, id.clone()).map(|_| {

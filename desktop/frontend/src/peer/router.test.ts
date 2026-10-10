@@ -71,6 +71,13 @@ describe("stripArgs", () => {
 });
 
 describe("translateResult", () => {
+  it("prefixes the host terminal ids a project lists", () => {
+    const out = translateResult("list_project_terminals", A, [
+      { id: "app-1", label: "Claude Code", pinned: false },
+    ]);
+    expect(out).toEqual([{ id: prefixName(A, "app-1"), label: "Claude Code", pinned: false }]);
+  });
+
   it("prefixes name, parentName, and root for list_projects", () => {
     const result = translateResult("list_projects", A, [
       proj({ name: "app", root: "/Users/dev/app" }),
@@ -152,9 +159,10 @@ describe("mergeProjectLists", () => {
 });
 
 describe("translatePeerEventPayload", () => {
-  it("prefixes the project name for status-changed and ports-changed", () => {
+  it("prefixes the project name for status-, ports- and terminals-changed", () => {
     expect(translatePeerEventPayload("status-changed", A, "app")).toBe(prefixName(A, "app"));
     expect(translatePeerEventPayload("ports-changed", A, "app")).toBe(prefixName(A, "app"));
+    expect(translatePeerEventPayload("terminals-changed", A, "app")).toBe(prefixName(A, "app"));
   });
 
   it("prefixes the project root for git-changed and keeps files", () => {
@@ -225,6 +233,10 @@ describe("translatePeerEventPayload", () => {
 describe("GLOBAL_PEER_EVENTS", () => {
   it("forwards agent-session so peer tabs keep their resume command", () => {
     expect(GLOBAL_PEER_EVENTS.has("agent-session")).toBe(true);
+  });
+
+  it("forwards terminals-changed so a host's new tab opens here", () => {
+    expect(GLOBAL_PEER_EVENTS.has("terminals-changed")).toBe(true);
   });
 });
 
