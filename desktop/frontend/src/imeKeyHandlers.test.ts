@@ -8,6 +8,7 @@ const INPUT_EVENT_READS: Record<string, number> = {
   "./components/InputComposer.tsx": 1,
   "./components/TerminalComposer.tsx": 1,
   "./hooks/useComposerUndo.ts": 1,
+  "./terminalImeShiftFix.ts": 1,
 };
 
 const SOURCES = import.meta.glob<string>(["./**/*.{ts,tsx}", "!./**/*.test.{ts,tsx}"], {

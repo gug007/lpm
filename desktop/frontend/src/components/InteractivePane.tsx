@@ -75,6 +75,7 @@ import {
 } from "../../bridge/commands";
 import { useEndedTerminals } from "../store/endedTerminals";
 import "@xterm/xterm/css/xterm.css";
+import { installImeShiftFix } from "../terminalImeShiftFix";
 
 // Cross-window flow-control ack authority (one window acks a PTY's output; two
 // desync the shared counter). Window-level state shared by every session.
@@ -771,6 +772,7 @@ function createInteractiveSession(
   });
 
   term.open(host);
+  installImeShiftFix(term);
 
   import("@xterm/addon-webgl")
     .then(({ WebglAddon }) => {
