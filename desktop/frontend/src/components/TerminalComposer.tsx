@@ -153,6 +153,7 @@ import { useComposerSendLater, type ComposerPrompt, type SendLaterPicker } from 
 import { limitAgentFor, type LimitAgent } from "../sendLater/limitReset";
 import { SendLaterPopover } from "./SendLaterPopover";
 import { SendLaterStrip } from "./SendLaterStrip";
+import { isImeComposing } from "../imeComposing";
 
 interface TerminalComposerProps {
   // Terminal whose draft this composer owns; its draft is persisted per id.
@@ -2011,7 +2012,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       // While an IME candidate is composing, Enter/Tab commits it — let the event
       // fall through untouched (the send path gates itself the same way) instead
       // of accepting a menu row and discarding the composition.
-      if ((e.key === "Enter" || e.key === "Tab") && !e.nativeEvent.isComposing) {
+      if ((e.key === "Enter" || e.key === "Tab") && !isImeComposing(e)) {
         e.preventDefault();
         e.stopPropagation();
         const cmd = slashItems[slashIndex];
@@ -2041,7 +2042,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
         return;
       }
       // See the slash menu above: don't hijack an IME-committing Enter/Tab.
-      if ((e.key === "Enter" || e.key === "Tab") && !e.nativeEvent.isComposing) {
+      if ((e.key === "Enter" || e.key === "Tab") && !isImeComposing(e)) {
         e.preventDefault();
         e.stopPropagation();
         const item = mentionItems[mentionIndex];
@@ -2130,7 +2131,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     if (e.key.startsWith("Arrow")) scheduleNormalize();
     // ⌘↵ saves the prompt as a draft instead of sending it (mirrors the send
     // button's split menu). Checked before plain ↵ so the modifier wins.
-    if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && !e.shiftKey && !e.nativeEvent.isComposing) {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && !e.shiftKey && !isImeComposing(e)) {
       e.preventDefault();
       e.stopPropagation();
       void saveCurrentDraft();
@@ -2138,19 +2139,19 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     }
     // ⌥↵ opens Send later for the prompt. Checked before plain ↵, which would
     // otherwise take the Option chord as a send.
-    if (e.key === "Enter" && e.altKey && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.nativeEvent.isComposing) {
+    if (e.key === "Enter" && e.altKey && !e.metaKey && !e.ctrlKey && !e.shiftKey && !isImeComposing(e)) {
       e.preventDefault();
       e.stopPropagation();
       if (!guest) sendLater.openForPrompt();
       return;
     }
-    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+    if (e.key === "Enter" && !e.shiftKey && !isImeComposing(e)) {
       e.preventDefault();
       e.stopPropagation();
       void send();
       return;
     }
-    if (e.key === "Enter" && e.shiftKey && !e.nativeEvent.isComposing) {
+    if (e.key === "Enter" && e.shiftKey && !isImeComposing(e)) {
       e.preventDefault();
       insertLineBreak(editor);
       return;

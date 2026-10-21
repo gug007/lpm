@@ -1,4 +1,5 @@
 import { useEffect, type RefObject } from "react";
+import { isImeComposing } from "../imeComposing";
 
 // Keys the menu owns while it is open. Anything else that carries text closes it
 // and is left to the composer, so typing a prompt is never swallowed.
@@ -50,7 +51,7 @@ export function useAgentModelMenuKeys({
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       // A composing IME owns Enter and the arrows for its candidate list.
-      if (e.isComposing || e.keyCode === 229) return;
+      if (isImeComposing(e)) return;
       const modified = e.metaKey || e.ctrlKey || e.altKey;
       if (e.key === "Escape" && !modified) {
         e.stopPropagation();

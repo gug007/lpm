@@ -52,6 +52,7 @@ import {
   type JobHistoryEntry,
   type JobInfo,
 } from "../../../jobsFormat";
+import { isImeComposing } from "../../../imeComposing";
 
 interface JobTaskViewProps {
   project: string;
@@ -369,7 +370,7 @@ export function JobTaskView({
             if (
               e.key !== "Enter" ||
               e.shiftKey ||
-              e.nativeEvent.isComposing ||
+              isImeComposing(e) ||
               !(e.target as HTMLElement).isContentEditable
             )
               return;

@@ -9,6 +9,7 @@ import { useAIPicker } from "../../hooks/useAIPicker";
 import { aiEffectiveFast } from "../../types";
 import { InputComposer } from "../InputComposer";
 import { AIPickerButton } from "../ui/AIPickerButton";
+import { isImeComposing } from "../../imeComposing";
 
 export interface SkillDraft {
   name: string;
@@ -131,7 +132,7 @@ export function ToolkitAiDraft({
         // The composer leaves plain Enter to its host and keeps Shift+Enter for
         // a newline. ⌘↩ is caught here too, or it would reach the form and try
         // to create a skill the user is still describing.
-        if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return;
+        if (e.key !== "Enter" || e.shiftKey || isImeComposing(e)) return;
         if (!(e.target as HTMLElement | null)?.isContentEditable) return;
         e.preventDefault();
         e.stopPropagation();

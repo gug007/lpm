@@ -52,6 +52,7 @@ import { useAppStore } from "../../../store/app";
 import { useSettingsStore } from "../../../store/settings";
 import { matchesChord } from "../../../keys";
 import { JOBS_VIDEO_LENGTH, JOBS_VIDEO_URL } from "../../../jobsVideo";
+import { isImeComposing } from "../../../imeComposing";
 
 interface JobEditorModalProps {
   open: boolean;
@@ -297,7 +298,7 @@ export function JobEditorModal({
 
   // A nested editor (an AI rewrite's variant) that claims ⌘↵ marks it handled.
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.defaultPrevented || e.nativeEvent.isComposing) return;
+    if (e.defaultPrevented || isImeComposing(e)) return;
     if (matchesChord(e, { key: "Enter", meta: true })) {
       e.preventDefault();
       void save();

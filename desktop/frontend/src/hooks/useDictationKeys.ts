@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useDictationStore, type DictationPhase } from "../store/dictation";
+import { isImeComposing } from "../imeComposing";
 
 // While dictating, Return finishes and inserts the text and Esc cancels —
 // taken ahead of the composer, whose own Return would send the half-spoken
@@ -8,7 +9,7 @@ export function useDictationKeys(phase: DictationPhase) {
   useEffect(() => {
     if (phase === "idle") return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.isComposing) return;
+      if (isImeComposing(e)) return;
       const { stop, cancel } = useDictationStore.getState();
       if (e.key === "Escape") {
         e.preventDefault();

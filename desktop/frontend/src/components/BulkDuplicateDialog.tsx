@@ -43,6 +43,7 @@ import type {
   SpawnTask,
 } from "../types";
 import { MACHINE } from "../machineWords";
+import { isImeComposing } from "../imeComposing";
 
 const MIN_COUNT = 1;
 const MAX_COUNT = 50;
@@ -598,7 +599,7 @@ export function BulkDuplicateDialog({
   useEventListener(
     "keydown",
     (e) => {
-      if (e.key !== "Enter" || e.isComposing) return;
+      if (e.key !== "Enter" || isImeComposing(e)) return;
       if (!contentRef.current?.contains(document.activeElement)) return;
       if (document.activeElement instanceof HTMLButtonElement) return;
       const active = document.activeElement as HTMLElement | null;

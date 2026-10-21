@@ -18,6 +18,7 @@ import {
   type SessionRow as Row,
 } from "../../agentSessions";
 import type { PersistedHistoryEntry } from "../../terminals";
+import { isImeComposing } from "../../imeComposing";
 
 interface ResumeSessionModalProps {
   projectName: string;
@@ -189,7 +190,7 @@ export function ResumeSessionModal({
   const canHide = activeRow !== null && activeRow.openInTerminalId === undefined;
 
   const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.nativeEvent.isComposing) return;
+    if (isImeComposing(e)) return;
     const step = STEP[e.key];
     if (step !== undefined) {
       e.preventDefault();

@@ -83,6 +83,7 @@ import {
 } from "./composerClipboard";
 import { composerChord, isFormatChord } from "./composerKeys";
 import { useComposerUndo } from "../hooks/useComposerUndo";
+import { isImeComposing } from "../imeComposing";
 
 export { EMPTY_COMPOSER };
 export type { ComposerImage, ComposerValue };
@@ -713,14 +714,14 @@ export function InputComposer({
       else edits.undo();
       return;
     }
-    if (onSubmit && e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+    if (onSubmit && e.key === "Enter" && !e.shiftKey && !isImeComposing(e)) {
       e.preventDefault();
       onSubmit();
       return;
     }
     // Shift+Enter inserts a newline; plain Enter bubbles so the host (e.g. a
     // dialog) can submit on it.
-    if (e.key === "Enter" && e.shiftKey && !e.nativeEvent.isComposing) {
+    if (e.key === "Enter" && e.shiftKey && !isImeComposing(e)) {
       e.preventDefault();
       e.stopPropagation();
       insertLineBreak(editor);
