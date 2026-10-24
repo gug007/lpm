@@ -6,7 +6,6 @@ import type { View } from "./app";
 const APP_VIEWS: Partial<Record<View, string>> = {
   projects: "Projects",
   terminals: "Terminals",
-  fleet: "Activity",
   stats: "Stats",
   scheduled: "Automations",
   shared: "Shared tab",

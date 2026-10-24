@@ -3,7 +3,6 @@ import {
   STATUS_ERROR,
   STATUS_RUNNING,
   STATUS_WAITING,
-  type ProjectInfo,
   type StatusEntry,
 } from "./types";
 
@@ -96,26 +95,6 @@ export function computeProjectStatus(
 export function rowNameClass(status: ProjectStatus, tasksListed: boolean): string | null {
   if (!tasksListed) return status.className;
   return status.isError ? ERROR_NAME_CLASS : null;
-}
-
-export interface AgentAmbient {
-  needsYou: number;
-  hasError: boolean;
-}
-
-/** The whole app's agents rolled up, for the sidebar's ambient badge. */
-export function agentAmbient(projects: Pick<ProjectInfo, "statusEntries">[]): AgentAmbient {
-  let needsYou = 0;
-  let hasError = false;
-  for (const project of projects) {
-    if (!project.statusEntries) continue;
-    for (const entry of project.statusEntries) {
-      const state = agentStateOf(entry.value);
-      if (state === "needs-you") needsYou++;
-      else if (state === "error") hasError = true;
-    }
-  }
-  return { needsYou, hasError };
 }
 
 // The agents whose hooks report status. Status entries carry no provider

@@ -127,7 +127,6 @@ export type RemoteTerminalOp =
 export type View =
   | "projects"
   | "terminals"
-  | "fleet"
   | "stats"
   | "scheduled"
   | "shared"
@@ -224,7 +223,6 @@ interface AppState {
 
   setView: (view: View) => void;
   navigateSettings: (view: View) => void;
-  toggleAgentOverview: () => void;
   setSettingsTab: (tab: SettingsTab) => void;
   setSettingsMachine: (slug: string | null) => void;
   openMachineSettings: (slug: string) => void;
@@ -849,11 +847,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   setView: (view) => set({ view, settingsMachine: null }),
   // Between Settings and the pages it opens, staying on the machine it shows.
   navigateSettings: (view) => set({ view }),
-  toggleAgentOverview: () =>
-    set((state) => ({
-      view: state.view === "fleet" ? "projects" : "fleet",
-    })),
-
   setSettingsTab: (settingsTab) => set({ settingsTab }),
 
   setSettingsMachine: (settingsMachine) => set({ settingsMachine }),

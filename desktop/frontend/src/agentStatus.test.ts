@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  agentAmbient,
   agentStateOf,
   computeProjectStatus,
   providerMeta,
@@ -12,7 +11,6 @@ import {
   STATUS_ERROR,
   STATUS_RUNNING,
   STATUS_WAITING,
-  type ProjectInfo,
   type StatusEntry,
 } from "./types";
 
@@ -23,22 +21,6 @@ const entry = (key: string, value: string, priority = 0): StatusEntry => ({
   timestamp: 1_700_000_000_000,
   paneID: "%1",
 });
-
-function project(name: string, statusEntries: StatusEntry[] = []): ProjectInfo {
-  return {
-    name,
-    session: name,
-    root: `/Users/dev/${name}`,
-    running: false,
-    services: [],
-    allServices: [],
-    actions: [],
-    profiles: [],
-    activeProfile: "",
-    statusEntries,
-    isRemote: false,
-  };
-}
 
 describe("agentStateOf", () => {
   it("maps every raw status value, and anything else to idle", () => {
@@ -176,31 +158,6 @@ describe("computeProjectStatus", () => {
     const claude = computeProjectStatus([entry("claude_code_abc123", STATUS_WAITING)]);
     const codex = computeProjectStatus([entry("codex_%3", STATUS_WAITING)]);
     expect(claude).toEqual(codex);
-  });
-});
-
-describe("agentAmbient", () => {
-  it("counts nothing across projects with no agents", () => {
-    expect(agentAmbient([project("app"), project("site", [])])).toEqual({
-      needsYou: 0,
-      hasError: false,
-    });
-  });
-
-  it("adds up the agents waiting across every project", () => {
-    const ambient = agentAmbient([
-      project("app", [
-        entry("claude_code_a", STATUS_WAITING),
-        entry("codex_%3", STATUS_RUNNING),
-      ]),
-      project("site", [entry("claude_code_b", STATUS_WAITING)]),
-    ]);
-    expect(ambient).toEqual({ needsYou: 2, hasError: false });
-  });
-
-  it("flags a problem without counting it as waiting", () => {
-    const ambient = agentAmbient([project("app", [entry("codex_%3", STATUS_ERROR)])]);
-    expect(ambient).toEqual({ needsYou: 0, hasError: true });
   });
 });
 

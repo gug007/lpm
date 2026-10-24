@@ -96,7 +96,6 @@ describe("built-in chords on macOS", () => {
 
   it("keep the macOS hotkey defaults", () => {
     expect(Object.fromEntries(hotkeyDefs(true).map((d) => [d.id, d.default]))).toEqual({
-      toggleAgentOverview: "cmd+shift+a",
       tabSwitchNext: "cmd+alt+arrowright",
       tabSwitchPrev: "cmd+alt+arrowleft",
       renameProject: "cmd+r",

@@ -118,7 +118,6 @@ export function DetachedApp({ projectName }: DetachedAppProps) {
           onToggle={toggleProjectRunning}
           onTerminals={() => FocusMainWindow(undefined, "terminals")}
           onTerminalTab={(id) => focusMainTerminal(GLOBAL_TERMINALS_KEY, id)}
-          onFleet={() => FocusMainWindow(undefined, "fleet")}
           onStats={() => FocusMainWindow(undefined, "stats")}
           onUsage={() => FocusMainWindow(undefined, "usage")}
           onScheduled={() => FocusMainWindow(undefined, "scheduled")}
@@ -147,7 +146,6 @@ export function DetachedApp({ projectName }: DetachedAppProps) {
           detached={detached}
           detachedSelf={projectName}
           showTerminals={false}
-          showFleet={false}
           showStats={false}
           showUsage={false}
           showMobile={false}

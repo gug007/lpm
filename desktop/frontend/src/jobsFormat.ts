@@ -134,9 +134,6 @@ export interface JobMachine {
   here?: boolean;
 }
 
-export const STANDALONE_PROJECT_LABEL = "No project";
-export const MULTI_PROJECT_LABEL = "Multiple projects";
-
 // The projects a job runs in — none for a standalone job. `targets` is absent
 // on project- and repo-layer jobs, which arrive stamped with `project` instead.
 export function jobTargets(job: JobInfo & { project?: string }): string[] {

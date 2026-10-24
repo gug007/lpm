@@ -2,7 +2,6 @@ import { canonicalShortcut, parseShortcut } from "./shortcutParse";
 import { isMac } from "./platform";
 
 export type HotkeyId =
-  | "toggleAgentOverview"
   | "tabSwitchNext"
   | "tabSwitchPrev"
   | "renameProject"
@@ -16,12 +15,6 @@ export interface HotkeyDef {
 }
 
 const MAC_HOTKEYS: HotkeyDef[] = [
-  {
-    id: "toggleAgentOverview",
-    label: "Activity",
-    description: "Open Activity or return to the selected project",
-    default: "cmd+shift+a",
-  },
   {
     id: "tabSwitchNext",
     label: "Next tab",

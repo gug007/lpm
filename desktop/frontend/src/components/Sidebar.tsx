@@ -21,7 +21,6 @@ import { useTabShares } from "../store/tabShares";
 import { openClaudeAccountSettings, setClaudeAccountChoice } from "../store/claudeAccountPin";
 import { useClaudePoolStore } from "../store/claudePool";
 import { useTerminalTitles } from "../store/terminalTitles";
-import { useGlobalAgentStatus } from "../store/globalAgentStatus";
 import { EventsOn } from "../../bridge/runtime";
 import { SetClipboardText } from "../../bridge/commands";
 import {
@@ -31,7 +30,7 @@ import {
   type ProjectGroup,
   type ProjectInfo,
 } from "../types";
-import { agentAmbient, computeProjectStatus, rowNameClass } from "../agentStatus";
+import { computeProjectStatus, rowNameClass } from "../agentStatus";
 import { projectAgentRows, sidebarProjectAlert, type SidebarAgentRow } from "../sidebarAgents";
 import { useCollapsedAgents, useCollapsedDecks } from "../sidebarCollapsed";
 import { SidebarAgentChevron } from "./SidebarAgentChevron";
@@ -180,7 +179,6 @@ interface SidebarProps {
   onTerminals: () => void;
   /** Opens one of the global Terminals' tabs. */
   onTerminalTab: (terminalId: string) => void;
-  onFleet: () => void;
   onStats: () => void;
   onUsage: () => void;
   onScheduled: () => void;
@@ -209,7 +207,6 @@ interface SidebarProps {
   detached: Set<string>;
   detachedSelf?: string;
   showTerminals: boolean;
-  showFleet: boolean;
   showStats: boolean;
   showUsage: boolean;
   showMobile: boolean;
@@ -254,7 +251,7 @@ interface PeerRowOptions {
   mark?: React.ReactNode;
 }
 
-export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, onCollapsedChange, onSelect, onOpenProjectView, onToggle, onTerminals, onTerminalTab, onFleet, onStats, onUsage, onScheduled, onMobile, onFeedback, onSettings, onAddProject, onBulkDuplicate, onRemoveProject, onRemoveProjectCascade, onRemoveProjectFromDisk, onRemoveProjectsBatch, onRenameProject, onSetWorkStatus, onMoveProjectRoot, onApplySidebarLayout, onReorderDuplicate, onCreateGroup, onRenameGroup, onDeleteGroup, onToggleGroupCollapsed, onMoveProjectToGroup, onMoveProjectsToGroup, onDetachProject, onAttachProject, detached, detachedSelf, showTerminals, showFleet, showStats, showUsage, showMobile, showScheduled, showSettings, duplicatingNames, pendingDuplicates, removingNames }: SidebarProps) {
+export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, onCollapsedChange, onSelect, onOpenProjectView, onToggle, onTerminals, onTerminalTab, onStats, onUsage, onScheduled, onMobile, onFeedback, onSettings, onAddProject, onBulkDuplicate, onRemoveProject, onRemoveProjectCascade, onRemoveProjectFromDisk, onRemoveProjectsBatch, onRenameProject, onSetWorkStatus, onMoveProjectRoot, onApplySidebarLayout, onReorderDuplicate, onCreateGroup, onRenameGroup, onDeleteGroup, onToggleGroupCollapsed, onMoveProjectToGroup, onMoveProjectsToGroup, onDetachProject, onAttachProject, detached, detachedSelf, showTerminals, showStats, showUsage, showMobile, showScheduled, showSettings, duplicatingNames, pendingDuplicates, removingNames }: SidebarProps) {
   const checkedUpdate = useUpdateCheck((s) => s.info);
   const updateInfo = checkedUpdate?.updateAvail ? checkedUpdate : null;
   const update = useUpdateInstall();
@@ -446,12 +443,6 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   // only local projects since it drives the reorderable tree; context-menu-driven
   // modals (rename / remove / duplicate) must resolve a peer row's target too.
   const allByName = useMemo(() => new Map(projects.map((p) => [p.name, p])), [projects]);
-
-  const terminalEntries = useGlobalAgentStatus((s) => s.entries);
-  const ambient = useMemo(
-    () => agentAmbient([...projects, { statusEntries: terminalEntries }]),
-    [projects, terminalEntries],
-  );
 
   // The clamp inside `projectAgentRows` only reads `now` against timestamps that
   // change with `projects`, so pinning it to this memo costs nothing.
@@ -762,7 +753,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     },
   });
 
-  // Selection moves without a click too (Ctrl+Tab, ⌘-number, Activity); keep
+  // Selection moves without a click too (Ctrl+Tab, ⌘-number); keep
   // the selected row visible. A row the sidebar doesn't render — one inside a
   // collapsed folder, deck or Mac's section — has no element and is left alone.
   useEffect(() => {
@@ -2086,10 +2077,6 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
         showTerminals={showTerminals}
         onTerminals={onTerminals}
         onOpenTerminalTab={onTerminalTab}
-        showActivity={showFleet}
-        onActivity={onFleet}
-        needsYou={ambient.needsYou}
-        hasError={ambient.hasError}
         showScheduled={showScheduled}
         onScheduled={onScheduled}
         showUsage={showUsage}

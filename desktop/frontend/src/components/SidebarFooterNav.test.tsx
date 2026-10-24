@@ -41,10 +41,6 @@ function renderNav(overrides: Partial<Parameters<typeof SidebarFooterNav>[0]> = 
         showTerminals={false}
         onTerminals={noop}
         onOpenTerminalTab={noop}
-        showActivity={false}
-        onActivity={noop}
-        needsYou={0}
-        hasError={false}
         showScheduled={false}
         onScheduled={noop}
         showUsage={false}
@@ -87,7 +83,6 @@ beforeEach(() => {
   useTerminalTitles.setState({ byProject: {}, focusedByProject: {} });
   useCollapsedAgents.setState({ collapsed: new Set() });
   useSettingsStore.setState({
-    hotkeys: undefined,
     sidebarNavInSidebar: undefined,
     // Persistence goes through the bridge; here it just has to round-trip.
     update: async (partial: Partial<Settings>) => {
@@ -106,46 +101,6 @@ afterEach(() => {
 });
 
 describe("SidebarFooterNav", () => {
-  it("opens Activity from the menu with its shortcut and status", () => {
-    const onActivity = vi.fn();
-    renderNav({ needsYou: 2, hasError: true, onActivity });
-
-    expect(container.textContent).not.toContain("Activity");
-
-    openMore();
-
-    const activity = buttonWithText("Activity");
-    expect(activity).toBeDefined();
-    expect(activity!.textContent).toContain("⌘⇧A");
-    expect(activity!.textContent).toContain("2");
-
-    act(() => activity!.click());
-    expect(onActivity).toHaveBeenCalledOnce();
-    expect(buttonWithText("Automations")).toBeUndefined();
-  });
-
-  it("surfaces waiting agents on the collapsed More button", () => {
-    renderNav({ needsYou: 3, hasError: true });
-
-    const more = moreButton()!;
-    expect(more.textContent).toContain("3");
-    expect(more.title).toContain("3 agents waiting on you");
-    expect(more.title).toContain("an agent hit an error");
-  });
-
-  it("fires the Activity shortcut while the menu is closed", () => {
-    const onActivity = vi.fn();
-    renderNav({ onActivity });
-
-    act(() => {
-      document.dispatchEvent(
-        new KeyboardEvent("keydown", { key: "A", code: "KeyA", metaKey: true, shiftKey: true, bubbles: true }),
-      );
-    });
-
-    expect(onActivity).toHaveBeenCalledOnce();
-  });
-
   it("opens the lesson playlist in the browser from the Tutorial row", () => {
     renderNav();
     openMore();
@@ -198,19 +153,22 @@ describe("SidebarFooterNav", () => {
     expect(buttonWithText("Terminals")).toBeDefined();
   });
 
-  it("hands a moved row's badge over to the sidebar so the More button stops counting it", () => {
-    renderNav({ needsYou: 4 });
+  it("hands a moved row's badge over to the sidebar so the More button stops counting it", async () => {
+    mocks.listAllJobs.mockResolvedValue([{ unread: 1 }, { unread: 2 }, { unread: 0 }]);
+    renderNav();
+    await act(async () => {});
 
-    expect(moreButton()!.textContent).toContain("4");
+    expect(moreButton()!.textContent).toContain("2");
+    expect(moreButton()!.title).toContain("2 automations with new messages");
 
     openMore();
-    openRowMenu("Activity");
+    openRowMenu("Automations");
     pick("Move to the sidebar");
 
     const more = moreButton()!;
-    expect(more.textContent).not.toContain("4");
-    expect(more.title).not.toContain("waiting on you");
-    expect(buttonWithText("Activity")!.textContent).toContain("4");
+    expect(more.textContent).not.toContain("2");
+    expect(more.title).not.toContain("new messages");
+    expect(buttonWithText("Automations")!.textContent).toContain("2");
   });
 
   it("resets the layout from the menu", () => {
@@ -235,7 +193,6 @@ describe("SidebarFooterNav", () => {
     useSettingsStore.setState({
       sidebarNavInSidebar: [
         "terminals",
-        "activity",
         "automations",
         "usage",
         "stats",

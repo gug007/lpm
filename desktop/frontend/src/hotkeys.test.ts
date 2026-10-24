@@ -9,7 +9,6 @@ import {
 describe("hotkeyDefs", () => {
   it("steps tabs with Ctrl+PageDown / PageUp off macOS, where Ctrl+Alt+arrows switch workspaces", () => {
     expect(Object.fromEntries(hotkeyDefs(false).map((d) => [d.id, d.default]))).toEqual({
-      toggleAgentOverview: "cmd+shift+a",
       tabSwitchNext: "cmd+pagedown",
       tabSwitchPrev: "cmd+pageup",
       renameProject: "cmd+r",
@@ -21,7 +20,6 @@ describe("hotkeyDefs", () => {
 describe("normalizeHotkeys", () => {
   it("returns a dense default map for missing/empty input", () => {
     expect(normalizeHotkeys(undefined)).toEqual({
-      toggleAgentOverview: "cmd+shift+a",
       tabSwitchNext: "cmd+alt+arrowright",
       tabSwitchPrev: "cmd+alt+arrowleft",
       renameProject: "cmd+r",
@@ -31,7 +29,6 @@ describe("normalizeHotkeys", () => {
 
   it("keeps valid entries and defaults invalid ones", () => {
     expect(normalizeHotkeys({ tabSwitchNext: "cmd+shift+]", tabSwitchPrev: "" })).toEqual({
-      toggleAgentOverview: "cmd+shift+a",
       tabSwitchNext: "cmd+shift+]",
       tabSwitchPrev: "cmd+alt+arrowleft",
       renameProject: "cmd+r",
@@ -42,7 +39,6 @@ describe("normalizeHotkeys", () => {
 
 describe("resolveHotkey", () => {
   it("falls back to the registry default when unset", () => {
-    expect(resolveHotkey(undefined, "toggleAgentOverview")).toBe("cmd+shift+a");
     expect(resolveHotkey(undefined, "tabSwitchNext")).toBe("cmd+alt+arrowright");
     expect(resolveHotkey({ tabSwitchNext: "" }, "tabSwitchNext")).toBe("cmd+alt+arrowright");
   });
@@ -55,16 +51,13 @@ describe("resolveHotkey", () => {
 describe("configuredHotkeyCombos", () => {
   it("collects the canonical combos of all configurable hotkeys", () => {
     expect(configuredHotkeyCombos(undefined)).toEqual(
-      new Set(["cmd+shift+a", "cmd+alt+arrowright", "cmd+alt+arrowleft", "cmd+r", "cmd+shift+backspace"]),
+      new Set(["cmd+alt+arrowright", "cmd+alt+arrowleft", "cmd+r", "cmd+shift+backspace"]),
     );
   });
 
   it("excludes the row being edited", () => {
-    expect(configuredHotkeyCombos(undefined, "toggleAgentOverview")).toEqual(
-      new Set(["cmd+alt+arrowright", "cmd+alt+arrowleft", "cmd+r", "cmd+shift+backspace"]),
-    );
     expect(configuredHotkeyCombos(undefined, "tabSwitchNext")).toEqual(
-      new Set(["cmd+shift+a", "cmd+alt+arrowleft", "cmd+r", "cmd+shift+backspace"]),
+      new Set(["cmd+alt+arrowleft", "cmd+r", "cmd+shift+backspace"]),
     );
   });
 });

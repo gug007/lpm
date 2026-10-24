@@ -1,8 +1,8 @@
 import { create } from "zustand";
 
-// What each mounted project's tab strip is showing, published for the views
-// outside it — Activity, the sidebar — that have no tree of their own to read:
-// the name of every tab, and which one the user is looking at.
+// What each mounted project's tab strip is showing, published for the sidebar,
+// which has no tree of its own to read: the name of every tab, and which one
+// the user is looking at.
 //
 // Names are the tab's agent session title once one lands, otherwise its label,
 // keyed in tab order: the sidebar lists a project's agents the way its tab strip

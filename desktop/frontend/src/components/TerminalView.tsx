@@ -467,8 +467,8 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
     );
   }, [projectName, allTerminals]);
 
-  // Same names, in-process: Activity lists agents from every open project and
-  // has no tree of its own to read a tab's title from.
+  // Same names, in-process: the sidebar lists agents from every open project
+  // and has no tree of its own to read a tab's title from.
   useEffect(() => {
     const titles: Record<string, string> = {};
     for (const t of allTerminals) titles[t.id] = t.label;

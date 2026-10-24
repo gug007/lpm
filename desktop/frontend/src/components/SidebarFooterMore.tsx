@@ -9,9 +9,8 @@ import { MENU_PANEL_CLASS } from "./ui/ContextMenuShell";
 
 interface SidebarFooterMoreProps {
   entries: SidebarNavEntry[];
-  // What the collapsed button carries for the rows folded inside it: agent
-  // signals on the left, a running dot or unread count on the right.
-  signals: ReactNode;
+  // What the collapsed button carries for the rows folded inside it: a running
+  // dot or unread count.
   badge: ReactNode;
   hints: string[];
   isDefault: boolean;
@@ -25,7 +24,7 @@ interface RowMenu {
   y: number;
 }
 
-export function SidebarFooterMore({ entries, signals, badge, hints, isDefault, onMove, onReset }: SidebarFooterMoreProps) {
+export function SidebarFooterMore({ entries, badge, hints, isDefault, onMove, onReset }: SidebarFooterMoreProps) {
   const [open, setOpen] = useState(false);
   const [rowMenu, setRowMenu] = useState<RowMenu | null>(null);
   // The row menu renders inside this boundary, so opening one is not an outside
@@ -55,16 +54,13 @@ export function SidebarFooterMore({ entries, signals, badge, hints, isDefault, o
             ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
             : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
         }`}
-        title={hints.length > 0 ? `More — ${hints.join(", ")}` : "Activity, settings, and more views"}
+        title={hints.length > 0 ? `More — ${hints.join(", ")}` : "Automations, settings, and more views"}
         aria-label="More"
         aria-expanded={open}
       >
         <MoreHorizontalIcon />
         More
-        <span className="ml-auto flex items-center gap-2">
-          {signals}
-          {badge}
-        </span>
+        <span className="ml-auto flex items-center">{badge}</span>
       </button>
       {open && (
         <div className={`absolute bottom-full left-0 z-[80] mb-1.5 w-full min-w-[12rem] px-1 ${MENU_PANEL_CLASS}`}>

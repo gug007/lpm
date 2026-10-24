@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { Sidebar } from "./components/Sidebar";
 import { ProjectColumns } from "./components/ProjectColumns";
 import { GlobalTerminalsView } from "./components/GlobalTerminalsView";
-import { FleetView } from "./components/FleetView";
 import { StatsView } from "./components/StatsView";
 import { UsageModal } from "./components/UsageModal";
 import { ScheduledView } from "./components/ScheduledView";
@@ -89,7 +88,6 @@ export default function App() {
   const navigateSettings = useAppStore((s) => s.navigateSettings);
   const backToSettings = () => navigateSettings("settings");
   const focusProjectTerminal = useAppStore((s) => s.focusProjectTerminal);
-  const toggleAgentOverview = useAppStore((s) => s.toggleAgentOverview);
   const settingsTab = useAppStore((s) => s.settingsTab);
   const setSettingsTab = useAppStore((s) => s.setSettingsTab);
   const setUsageOpen = useAppStore((s) => s.setUsageOpen);
@@ -133,7 +131,6 @@ export default function App() {
   };
 
   const isTerminalsView = view === "terminals";
-  const isFleetView = view === "fleet";
   const isStatsView = view === "stats";
   const isScheduledView = view === "scheduled";
   // Settings and the pages it opens take the project sidebar's place.
@@ -277,7 +274,6 @@ export default function App() {
           onToggle={toggleProjectRunning}
           onTerminals={() => setView("terminals")}
           onTerminalTab={(id) => focusProjectTerminal(GLOBAL_TERMINALS_KEY, id)}
-          onFleet={toggleAgentOverview}
           onStats={() => setView("stats")}
           onUsage={() => setUsageOpen(true)}
           onScheduled={() => setView("scheduled")}
@@ -308,7 +304,6 @@ export default function App() {
           onAttachProject={attachProject}
           detached={detached}
           showTerminals={isTerminalsView}
-          showFleet={isFleetView}
           showStats={isStatsView}
           showUsage={usageOpen}
           showMobile={isMobileSettings}
@@ -341,12 +336,6 @@ export default function App() {
             </div>
           )}
           {settingsLayoutShown && <Settings onNavigate={navigateSettings} />}
-          {isFleetView && (
-            <FleetView
-              onExit={() => setView("projects")}
-              onOpenAutomations={() => setView("scheduled")}
-            />
-          )}
           {isStatsView && <StatsView />}
           {isScheduledView && <ScheduledView />}
           {view === "shared" && <SharedTabView />}

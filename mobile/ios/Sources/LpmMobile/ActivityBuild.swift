@@ -1,8 +1,7 @@
 import Foundation
 
 /// Folds the projects list, its status entries, and the automations list into the
-/// Activity screen's rows and service groups. A port of the desktop's fleetRows.ts
-/// so both surfaces order and word the same things the same way.
+/// Activity screen's rows and service groups.
 
 // A paired Mac stamps its statuses with its own clock, which can run ahead of
 // ours; an unstamped entry would otherwise start in 1970.

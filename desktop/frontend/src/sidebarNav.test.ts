@@ -31,16 +31,16 @@ describe("normalizeSidebarNav", () => {
 
 describe("withSidebarNav", () => {
   it("moves an item into the sidebar at its canonical position", () => {
-    expect(withSidebarNav(["terminals", "stats"], "activity", true)).toEqual([
+    expect(withSidebarNav(["terminals", "stats"], "automations", true)).toEqual([
       "terminals",
-      "activity",
+      "automations",
       "stats",
     ]);
   });
 
   it("moves an item back into the menu", () => {
-    expect(withSidebarNav(["terminals", "activity"], "terminals", false)).toEqual([
-      "activity",
+    expect(withSidebarNav(["terminals", "automations"], "terminals", false)).toEqual([
+      "automations",
     ]);
   });
 
@@ -59,7 +59,6 @@ describe("withSidebarNav", () => {
 describe("menuNavItems", () => {
   it("is everything the sidebar does not hold", () => {
     expect(menuNavItems(DEFAULT_SIDEBAR_NAV)).toEqual([
-      "activity",
       "automations",
       "usage",
       "stats",

@@ -6,7 +6,6 @@
 // the footer exactly as it was.
 export const NAV_ITEM_IDS = [
   "terminals",
-  "activity",
   "automations",
   "usage",
   "stats",

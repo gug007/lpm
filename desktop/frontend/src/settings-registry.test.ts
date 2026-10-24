@@ -31,7 +31,7 @@ describe("buildSearchEntries", () => {
   it("indexes dynamic shortcut and sound rows from their source arrays", () => {
     expect(ids(withTTS)).toEqual(
       expect.arrayContaining([
-        "shortcut.toggleAgentOverview",
+        "shortcut.renameProject",
         "shortcut.tabSwitchNext",
         "sound.done",
       ]),
