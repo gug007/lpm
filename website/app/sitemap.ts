@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { getChangelogReleases } from "@/lib/changelog";
 import {
   CHANGELOG_PATH,
   PRIVACY_PATH,
@@ -28,8 +29,14 @@ const settingsFor = (path: string): Pick<Entry, "changeFrequency" | "priority"> 
     priority: path.startsWith(`${VS_BASE_PATH}/`) ? 0.7 : 0.8,
   };
 
-export default function sitemap(): MetadataRoute.Sitemap {
-  return Object.entries(sitemapDates as Record<string, string>)
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  // Releases change the changelog without touching the repo.
+  const [latest] = await getChangelogReleases();
+  const dates: Record<string, string> = {
+    ...sitemapDates,
+    [CHANGELOG_PATH]: latest.date,
+  };
+  return Object.entries(dates)
     .filter(([path]) => !NOINDEX.has(path))
     .sort(([a], [b]) => (a === "/" ? -1 : b === "/" ? 1 : a.localeCompare(b)))
     .map(([path, date]) => ({

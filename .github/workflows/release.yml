@@ -484,11 +484,12 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:
-      # `scripts/release.sh <bump> beta` tags with the message "beta". That
-      # release goes out as a pre-release, which only the app's Beta update
-      # channel installs and releases/latest never points at, until
-      # `release.sh promote` makes it stable. Read through the API because a
-      # checkout turns an annotated tag into a lightweight one.
+      # `scripts/release.sh` tags with the channel on the message's first line
+      # and Claude's release notes after it. A "beta" release goes out as a
+      # pre-release, which only the app's Beta update channel installs and
+      # releases/latest never points at, until `release.sh promote` makes it
+      # stable. Read through the API because a checkout turns an annotated tag
+      # into a lightweight one.
       - name: Resolve channel
         id: channel
         env:
@@ -503,6 +504,11 @@ jobs:
             beta*) echo "prerelease=true" >> "$GITHUB_OUTPUT" ;;
             *) echo "prerelease=false" >> "$GITHUB_OUTPUT" ;;
           esac
+          {
+            echo "notes<<RELEASE_NOTES_END"
+            printf '%s\n' "$message" | sed '1,/^$/d'
+            echo "RELEASE_NOTES_END"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Download build artifacts
         uses: actions/download-artifact@v4
@@ -518,6 +524,7 @@ jobs:
             dist/lpm-host-linux-amd64.tar.gz
           fail_on_unmatched_files: true
           prerelease: ${{ steps.channel.outputs.prerelease }}
+          body: ${{ steps.channel.outputs.notes }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

@@ -1,6 +1,7 @@
 #!/bin/sh
 # release.sh [patch|minor|major] [stable|beta]
 #   Tag the next version and push it; CI builds and publishes the release.
+#   Claude writes its notes from the commits since the last tag.
 #   A beta release goes out as a GitHub pre-release, which only the app's Beta
 #   update channel installs.
 # release.sh promote [vX.Y.Z]
@@ -74,11 +75,11 @@ case "$BUMP" in
 esac
 
 echo "$LATEST -> $NEXT ($BUMP, $CHANNEL)"
-# The release workflow reads the channel off the tag's message.
-if [ "$CHANNEL" = "beta" ]; then
-  git tag -a "$NEXT" -m beta
-else
-  git tag "$NEXT"
-fi
+NOTES=$("$(dirname "$0")/release-notes.sh" "$LATEST" "$NEXT") ||
+  echo "warning: Claude couldn't write the release notes; add them later with gh release edit $NEXT --notes" >&2
+echo "Notes: ${NOTES:-(none)}"
+# The release workflow reads the channel off the tag message's first line and
+# publishes the rest as the release notes, which the website's changelog shows.
+git tag -a "$NEXT" -m "$CHANNEL" -m "$NOTES"
 git push origin "$NEXT"
 echo "Released $NEXT"

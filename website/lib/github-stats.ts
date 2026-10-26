@@ -15,6 +15,8 @@ type RawRelease = {
   name: string | null;
   published_at: string | null;
   html_url: string;
+  body: string | null;
+  prerelease: boolean;
   assets: RawAsset[];
 };
 
@@ -78,7 +80,7 @@ async function fetchReleasePage(page: number): Promise<ReleasePage | null> {
 
 // Every page or nothing: a total missing its older releases would be an
 // undercount presented as the real figure.
-async function fetchAllReleases(): Promise<RawRelease[] | null> {
+export async function fetchAllReleases(): Promise<RawRelease[] | null> {
   const first = await fetchReleasePage(1);
   if (!first) return null;
   const last = Math.min(first.lastPage, MAX_PAGES);

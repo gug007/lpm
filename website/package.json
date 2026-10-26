@@ -8,8 +8,7 @@
     "demo-app": "node scripts/build-demo-app.mjs",
     "start": "next start",
     "lint": "eslint",
-    "sitemap:dates": "node scripts/generate-sitemap-dates.mjs",
-    "changelog:sync": "node scripts/changelog-sync.mjs"
+    "sitemap:dates": "node scripts/generate-sitemap-dates.mjs"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",

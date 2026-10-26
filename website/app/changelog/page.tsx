@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import { DownloadFooter } from "@/components/download-footer";
+import { changelogDays, getChangelogReleases } from "@/lib/changelog";
 import { CHANGELOG_PATH, REPO_URL } from "@/lib/links";
 import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
-import { CHANGELOG_DAYS, RELEASE_COUNT } from "./_components/changelog";
 import { ChangelogEntry } from "./_components/changelog-entry";
+
+export const revalidate = 3600;
 
 const TITLE = "Changelog";
 const DESCRIPTION =
@@ -29,18 +31,6 @@ export const metadata: Metadata = {
   },
 };
 
-const structuredData = [
-  webPageJsonLd({
-    title: TITLE,
-    description: DESCRIPTION,
-    path: CHANGELOG_PATH,
-  }),
-  breadcrumbJsonLd([
-    { name: "Home", path: "/" },
-    { name: "Changelog", path: CHANGELOG_PATH },
-  ]),
-];
-
 const monthFmt = new Intl.DateTimeFormat("en-US", {
   month: "long",
   year: "numeric",
@@ -54,10 +44,24 @@ const fullDateFmt = new Intl.DateTimeFormat("en-US", {
   timeZone: "UTC",
 });
 
-const MONTHS = [...Map.groupBy(CHANGELOG_DAYS, (day) => day.date.slice(0, 7))];
-const FIRST_DATE = CHANGELOG_DAYS[CHANGELOG_DAYS.length - 1].date;
+export default async function ChangelogPage() {
+  const releases = await getChangelogReleases();
+  const days = changelogDays(releases);
+  const months = [...Map.groupBy(days, (day) => day.date.slice(0, 7))];
+  const firstDate = days[days.length - 1].date;
+  const structuredData = [
+    webPageJsonLd({
+      title: TITLE,
+      description: DESCRIPTION,
+      path: CHANGELOG_PATH,
+      dateModified: days[0].date,
+    }),
+    breadcrumbJsonLd([
+      { name: "Home", path: "/" },
+      { name: "Changelog", path: CHANGELOG_PATH },
+    ]),
+  ];
 
-export default function ChangelogPage() {
   return (
     <article className="max-w-3xl mx-auto px-6 pt-28 pb-16 sm:pt-32 sm:pb-20">
       <script
@@ -73,12 +77,12 @@ export default function ChangelogPage() {
           shipped on the same day are listed together under the newest one.
         </p>
         <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-          {RELEASE_COUNT} releases since{" "}
-          {fullDateFmt.format(new Date(FIRST_DATE))}
+          {releases.length} releases since{" "}
+          {fullDateFmt.format(new Date(firstDate))}
         </p>
       </header>
 
-      {MONTHS.map(([month, days]) => (
+      {months.map(([month, monthDays]) => (
         <section key={month} aria-labelledby={`month-${month}`} className="mt-14">
           <h2
             id={`month-${month}`}
@@ -87,7 +91,7 @@ export default function ChangelogPage() {
             {monthFmt.format(new Date(month))}
           </h2>
           <ol className="mt-8 space-y-10">
-            {days.map((day) => (
+            {monthDays.map((day) => (
               <ChangelogEntry key={day.date} day={day} />
             ))}
           </ol>
