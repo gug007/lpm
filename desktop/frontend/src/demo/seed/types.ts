@@ -51,6 +51,7 @@ export interface SeedService {
   name: string;
   cmd: string;
   port?: number;
+  dependsOn?: string[];
   log: SeedLine[];
   // Printed again and again once the log has played, like a dev server's requests.
   loop?: { line: Omit<SeedLine, "at">; everyMs: number };
@@ -70,11 +71,23 @@ export interface SeedAction {
   emoji?: string;
   color?: string;
   cmd: string;
-  // "" is the header, "footer" the row by the branch switcher.
-  display: "" | "footer";
-  // "terminal" opens a tab running cmd; "" runs it and shows its output.
-  type: "terminal" | "";
+  // "" is the header, "footer" the row by the branch switcher, anything else
+  // the zone of that name.
+  display: string;
+  // "terminal" opens a tab running cmd, "background" runs it behind a progress
+  // card, "command" types it into the focused terminal; "" runs it and shows
+  // its output.
+  type: "terminal" | "background" | "command" | "";
   confirm?: boolean;
+  // As a config sets them; seeded buttons keep the order they're declared in.
+  position?: number;
+  layer?: string;
+  primary?: string;
+  reuse?: boolean;
+  prompt?: string;
+  cwd?: string;
+  env?: Record<string, string>;
+  children?: SeedAction[];
   output?: SeedLine[];
   durationMs?: number;
   // For an agent action: the task this project's tour types into it, and the

@@ -2,7 +2,9 @@ import {
   GLOBAL_CONFIG_EXAMPLE,
   GLOBAL_UTILITIES_EXAMPLE,
 } from "@/app/config/examples";
+import { AUTOMATIONS_PATH } from "@/lib/links";
 import { Callout } from "../callout";
+import { DocLink } from "../doc-link";
 import { Lede } from "../lede";
 import { ConfigPlayground } from "../playground";
 import { Section } from "../section";
@@ -53,14 +55,23 @@ export function GlobalSection() {
         initial={GLOBAL_UTILITIES_EXAMPLE}
       />
 
-      <Callout title="Only actions">
+      <Callout title="What global config can hold">
         <p>
-          Global config supports <code className="font-mono">actions</code> —
-          including <code className="font-mono">type: terminal</code>{" "}shells —
-          and nothing else. No <code className="font-mono">services</code>, no{" "}
-          <code className="font-mono">profiles</code>. Long-running processes
+          <code className="font-mono">actions</code>{" "}(including{" "}
+          <code className="font-mono">type: terminal</code>{" "}shells),{" "}
+          <DocLink href="#zones">zones</DocLink>, and{" "}
+          <DocLink href="#templates">extends</DocLink>. No{" "}
+          <code className="font-mono">services</code>{" "}or{" "}
+          <code className="font-mono">profiles</code>: long-running processes
           and profile groupings always belong to a specific project, so they
           live in a project file or its <code className="font-mono">.lpm.yml</code>.
+        </p>
+        <p>
+          You may also see a <code className="font-mono">jobs</code>{" "}section
+          here or in <code className="font-mono">.lpm.yml</code>. It holds{" "}
+          <DocLink href={AUTOMATIONS_PATH}>automations</DocLink>, which you
+          create and edit from the app&rsquo;s Automations view, so leave it
+          as it is.
         </p>
       </Callout>
     </Section>

@@ -1,6 +1,5 @@
 import { Code, ListChecks, Sparkles } from "lucide-react";
 import { FeatureCard } from "@/components/feature-card";
-import { SKILLS_PATH } from "@/lib/links";
 import { DocLink } from "../doc-link";
 import { Lede } from "../lede";
 import { Section } from "../section";
@@ -30,20 +29,17 @@ export function EditorSection() {
           Repo and Global always open here.
         </FeatureCard>
         <FeatureCard icon={Sparkles} title="Generate with AI">
-          Pick an installed AI CLI — Claude Code, Codex, Gemini, or OpenCode —
-          and it drafts a config from your project. The draft lands unsaved,
-          so you review it first.
+          Pick an installed AI CLI — Claude Code, Codex, Gemini CLI, or
+          OpenCode — and it drafts a config from your project. The draft lands
+          unsaved, so you review it first.
         </FeatureCard>
       </div>
 
-      <Lede title="From the terminal." className="mb-0">
-        <code className="font-mono">lpm config validate &lt;file&gt;</code>{" "}
-        checks a project, repo, global, or template file (see{" "}
-        <DocLink href="#validation">Validation</DocLink>). Turn on Agent tools
-        in Settings and coding agents like Claude Code and Codex can write
-        and apply configs for you — see{" "}
-        <DocLink href={SKILLS_PATH}>lpm skills for Claude Code and Codex</DocLink>
-        .
+      <Lede className="mb-0">
+        For anything bigger than one field, it&rsquo;s faster to{" "}
+        <DocLink href="#with-ai">ask your agent</DocLink>{" "}from a terminal in
+        the project. The rest of this page covers every key, for when
+        you&rsquo;d rather write it yourself or check what the agent wrote.
       </Lede>
     </Section>
   );

@@ -1,4 +1,5 @@
 import { basename } from "../../path";
+import type { ZoneInfo } from "../../types";
 import { uniqueKey } from "../../uniqueKey";
 import { parseLaunch } from "../agents/parse";
 import { emitEvent } from "../ipc";
@@ -31,6 +32,9 @@ export interface Project {
   services: SeedService[];
   actions: SeedAction[];
   profiles: SeedProfile[];
+  zones: ZoneInfo[];
+  // The config as last saved, kept as written; unset until the first save.
+  configText?: string;
   running: Set<string>;
   activeProfile: string;
   git: SeedGit;
@@ -95,6 +99,7 @@ function build(name: string, root: string, folder: SeedFolder | undefined, remot
     services: folder?.services.length ? folder.services : [PLACEHOLDER],
     actions: folder?.actions ?? [],
     profiles: folder?.profiles ?? [],
+    zones: [],
     running: new Set(),
     activeProfile: "",
     git: cloneGit(folder?.git ?? CLEAN_GIT),

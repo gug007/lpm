@@ -1,5 +1,6 @@
 import { ArrowDown } from "lucide-react";
 import { ConfigShowcase } from "@/components/config/config-showcase";
+import { SectionHeader } from "@/components/section-header";
 
 const CODE = "font-mono text-[12px] text-gray-700 dark:text-gray-300";
 
@@ -49,29 +50,29 @@ const PARTS: { id: string; title: string; body: React.ReactNode }[] = [
 
 export function ConfigIntro() {
   return (
-    <div className="mb-16 sm:mb-20">
-      <div className="mb-6 text-center lg:text-left">
-        <h2 className="text-balance text-xl font-bold tracking-tight sm:text-2xl">
-          <span className="md:hidden">What a project config looks like</span>
-          <span className="hidden md:inline">
-            Try it: edit a config, watch the app
-          </span>
-        </h2>
-        <p className="mt-2 text-pretty text-sm leading-relaxed text-gray-500 sm:text-base dark:text-gray-400">
-          Add or clone a folder and lpm fills in its dev servers.
-          <span className="hidden md:inline">
-            {" "}Change them here, add a profile or an action, and the preview
-            updates as you type.
-          </span>
-        </p>
-      </div>
+    <div
+      id="reference"
+      className="mb-16 scroll-mt-8 border-t border-gray-100 pt-14 sm:mb-20 sm:pt-16 dark:border-gray-800/70"
+    >
+      <SectionHeader
+        eyebrow="Reference"
+        title="Or write the config yourself"
+        description={
+          <>
+            Add or clone a folder and lpm fills in its dev servers.
+            <span className="hidden md:inline">
+              {" "}Change them here, add a profile or an action, and the
+              preview updates as you type.
+            </span>
+          </>
+        }
+        className="mb-10"
+      />
 
-      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_16rem] lg:gap-8">
-        <div className="min-w-0">
-          <ConfigShowcase />
-        </div>
+      <div>
+        <ConfigShowcase />
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 lg:content-start">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {PARTS.map((part) => (
             <a
               key={part.id}

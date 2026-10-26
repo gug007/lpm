@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { SectionHeader } from "@/components/section-header";
 import { RelatedPages, type RelatedLink } from "@/components/related-pages";
+import { AgentSection } from "@/components/config/ai/agent-section";
+import { ConfigPaths } from "@/components/config/ai/config-paths";
 import { ConfigIntro } from "@/components/config/config-intro";
 import { Cta } from "@/components/config/cta";
 import { MobileTableOfContents } from "@/components/config/mobile-toc";
@@ -14,12 +16,16 @@ import { ProfilesSection } from "@/components/config/sections/profiles-section";
 import { ProjectSection } from "@/components/config/sections/project-section";
 import { RecipesSection } from "@/components/config/sections/recipes-section";
 import { ServicesSection } from "@/components/config/sections/services-section";
+import { TemplatesSection } from "@/components/config/sections/templates-section";
 import { TerminalsSection } from "@/components/config/sections/terminals-section";
 import { ValidationSection } from "@/components/config/sections/validation-section";
+import { ZonesSection } from "@/components/config/sections/zones-section";
 import { TableOfContents } from "@/components/config/toc";
 import {
+  AUTOMATIONS_PATH,
   CLAUDE_ACCOUNTS_PATH,
   CONFIG_PATH,
+  CONNECT_AGENTS_PATH,
   SKILLS_PATH,
   SSH_TERMINAL_MAC_PATH,
   WORKTREE_AGENTS_PATH,
@@ -31,9 +37,9 @@ import {
   youtubeLessonJsonLd,
 } from "@/lib/structured-data";
 
-const TITLE = "lpm Config Reference — Services, Actions & Profiles";
+const TITLE = "lpm Config — Set Up Projects with AI Agents or YAML";
 const DESCRIPTION =
-  "Every key in an lpm project config: services, actions, terminals, profiles, the shared .lpm.yml and global layers, and how lpm detects your services.";
+  "Ask Claude Code or Codex to configure lpm for you, or edit it yourself: every key for services, actions, terminals, zones, profiles, and the shared layers.";
 
 export const metadata: Metadata = {
   title: { absolute: TITLE },
@@ -62,6 +68,7 @@ const structuredData = [
     path: CONFIG_PATH,
     about: [
       "lpm config",
+      "configure lpm with Claude Code and Codex",
       ".lpm.yml",
       "service detection",
       "dev server profiles",
@@ -77,6 +84,18 @@ const structuredData = [
 
 const RELATED: RelatedLink[] = [
   {
+    href: CONNECT_AGENTS_PATH,
+    title: "Let agents run your dev environment",
+    description:
+      "The same Agent tools let Claude Code and Codex start services, read logs, and duplicate projects.",
+  },
+  {
+    href: AUTOMATIONS_PATH,
+    title: "Scheduled automations",
+    description:
+      "Run an agent or a command on a schedule — the jobs you may see in a config file.",
+  },
+  {
     href: CLAUDE_ACCOUNTS_PATH,
     title: "Multiple Claude Code accounts",
     description:
@@ -89,16 +108,16 @@ const RELATED: RelatedLink[] = [
       "Run a remote machine's services, actions, and terminals from the same sidebar.",
   },
   {
-    href: SKILLS_PATH,
-    title: "Skills for Claude Code and Codex",
-    description:
-      "Let your coding agents write, validate, and apply lpm configs for you.",
-  },
-  {
     href: WORKTREE_AGENTS_PATH,
     title: "Git worktrees for AI agents",
     description:
       "Give each agent its own copy of a project that inherits this config.",
+  },
+  {
+    href: SKILLS_PATH,
+    title: "Your own Claude Code and Codex skills",
+    description:
+      "Create and edit agent skills in lpm, with AI drafting the SKILL.md for you.",
   },
 ];
 
@@ -113,10 +132,15 @@ export default function ConfigPage() {
         <div className="max-w-5xl mx-auto px-6">
           <SectionHeader
             eyebrow="Docs"
-            title="lpm config reference"
-            description="Every key in a project config file, how lpm writes the first one for you, and how the project, repo, and global layers fit together."
+            title="lpm config"
+            description="Ask your AI agent to set up a project for you, or edit the config yourself — every key is below."
             as="h1"
+            className="mb-10"
           />
+
+          <ConfigPaths />
+
+          <AgentSection />
 
           <ConfigIntro />
 
@@ -130,15 +154,17 @@ export default function ConfigPage() {
             </aside>
 
             <div className="lg:flex-1 lg:min-w-0 lg:max-w-3xl">
+              <EditorSection />
               <ProjectSection />
               <DetectionSection />
               <ServicesSection />
               <ActionsSection />
               <TerminalsSection />
+              <ZonesSection />
               <ProfilesSection />
               <LayersSection />
               <GlobalSection />
-              <EditorSection />
+              <TemplatesSection />
               <RecipesSection />
               <PathSection />
               <ValidationSection />

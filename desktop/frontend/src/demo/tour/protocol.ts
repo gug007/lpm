@@ -41,7 +41,9 @@ export type HostMessage =
   // A step pill was clicked: carry out every step up to and including it.
   | { source: typeof SOURCE; type: "run"; index: number }
   // The frame left the screen mid-tour: land the remaining steps quietly.
-  | { source: typeof SOURCE; type: "settle" };
+  | { source: typeof SOURCE; type: "settle" }
+  // A config preview's project is now this file, as if it had just been saved.
+  | { source: typeof SOURCE; type: "config"; yaml: string };
 
 export type AppMessage =
   // The app has booted and takes a tour.
@@ -51,5 +53,6 @@ export type AppMessage =
   | { source: typeof SOURCE; type: "state"; stage: number; playing: boolean };
 
 // The iframe's URL picks its data: `?seed=sample` for the sample workspace
-// (`&omit=a,b` leaves projects out so a tour can add them), anything else for
-// an empty workspace.
+// (`&omit=a,b` leaves projects out so a tour can add them), `?config=preview`
+// for one project the page's config editor drives, anything else for an empty
+// workspace.

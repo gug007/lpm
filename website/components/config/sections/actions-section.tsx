@@ -9,6 +9,7 @@ import {
 } from "@/app/config/examples";
 import { YouTubeVideo } from "@/components/youtube-video";
 import { actionFields } from "../action-fields-data";
+import { moreActionFields } from "../more-action-fields-data";
 import { Callout } from "../callout";
 import { FieldTable } from "../field-table";
 import { Lede } from "../lede";
@@ -34,47 +35,27 @@ export function ActionsSection() {
       }
     >
       <Lede className="mb-3">
-        Try it — click <Strong>test</Strong>{" "}or{" "}
-        <Strong>Deploy to Production</Strong>{" "}in the preview below. Actions
-        with <code className="font-mono">confirm: true</code>{" "}ask before
-        running; everything else just runs.
+        <span className="hidden md:inline">
+          Try it — click <Strong>test</Strong>{" "}or{" "}
+          <Strong>Deploy to Production</Strong>{" "}in the app below.{" "}
+        </span>
+        Actions with <code className="font-mono">confirm: true</code>{" "}ask
+        before running; everything else just runs.
       </Lede>
       <ConfigPlayground filename={FILE} initial={ACTIONS_EXAMPLE} />
       <FieldTable fields={actionFields} />
 
-      <Lede title="Other fields." className="mt-4">
-        The table covers what the examples on this page use. Actions also
-        accept <code className="font-mono">color</code>{" "}(an accent for the
-        button and the tab it opens),{" "}
-        <code className="font-mono">shortcut</code>{" "}(a key combo that runs the
-        action while the project is open),{" "}
-        <code className="font-mono">inputs</code>{" "}(values lpm asks for before
-        running and fills into the command),{" "}
-        <code className="font-mono">prompt</code>{" "}(text sent to the agent a
-        terminal action opens, once it&rsquo;s ready),{" "}
-        <code className="font-mono">reuse</code>{" "}(use the terminal that&rsquo;s
-        already open), <code className="font-mono">labelRefresh</code>{" "}(how
-        often commands in a label run: a{" "}
-        <code className="font-mono">label</code>{" "}or{" "}
-        <code className="font-mono">emoji</code>{" "}can show a command&rsquo;s
-        output with <code className="font-mono">$(…)</code>, the branch with{" "}
-        <code className="font-mono">{"{{git.branch}}"}</code>, or the last tag
-        and how long ago it was made with{" "}
-        <code className="font-mono">{"{{git.tag}}"}</code>{" "}and{" "}
-        <code className="font-mono">{"{{git.tagAge}}"}</code>),{" "}
-        <code className="font-mono">port</code>{" "}and{" "}
-        <code className="font-mono">portConflict</code>{" "}(ports that must be
-        free first, as a number, a range like{" "}
-        <code className="font-mono">&quot;3002-3010&quot;</code>, or a list),
-        and on SSH projects <code className="font-mono">mode</code>{" "}(
-        <code className="font-mono">remote</code>{" "}or{" "}
-        <code className="font-mono">sync</code>). The app&rsquo;s action
-        editor sets most of them for you.
+      <Lede title="More fields." className="mt-8 mb-3">
+        The table above covers what the examples on this page use. Actions
+        also take these, and the app&rsquo;s action editor sets most of them
+        for you:
       </Lede>
+      <FieldTable fields={moreActionFields} />
 
-      <Lede title="Dynamic labels." className="mt-4 mb-3">
-        A label can keep itself current: your last release and how long ago
-        it was with <code className="font-mono">{"{{git.tag}}"}</code>{" "}and{" "}
+      <Lede title="Dynamic labels." className="mt-8 mb-3">
+        A label can keep itself current: the branch with{" "}
+        <code className="font-mono">{"{{git.branch}}"}</code>, your last
+        release and how long ago it was with <code className="font-mono">{"{{git.tag}}"}</code>{" "}and{" "}
         <code className="font-mono">{"{{git.tagAge}}"}</code>, or whatever a
         command prints with <code className="font-mono">$(…)</code>, refreshed
         on a timer or the moment the code changes. The lesson below sets one

@@ -1,6 +1,7 @@
 import { joinPath } from "../../path";
 import type { ActionInfo, ProjectInfo } from "../../types";
 import type { CommandMap } from "../backend";
+import type { SeedAction, SeedService } from "../seed/types";
 import { stopServices } from "./services";
 import {
   GLOBAL,
@@ -21,21 +22,30 @@ import { wait } from "../wait";
 
 const CLONE_MS = 1200;
 
-function actionInfo(a: Project["actions"][number], position: number): ActionInfo {
+// A menu child is named by its path, as lpm names it: `deploy:production`.
+function actionInfo(a: SeedAction, position: number | undefined, path = a.name): ActionInfo {
   return {
-    name: a.name,
+    name: path,
     label: a.label,
     emoji: a.emoji,
     color: a.color,
     cmd: a.cmd,
+    cwd: a.cwd,
+    env: a.env,
     confirm: a.confirm ?? false,
     display: a.display,
+    layer: a.layer,
+    primary: a.primary,
+    prompt: a.prompt,
     type: a.type,
-    reuse: false,
+    reuse: a.reuse ?? false,
     position,
+    children: a.children?.map((c) => actionInfo(c, c.position, `${path}:${c.name}`)),
   };
 }
 
+// Seeded buttons keep the order they're declared in; a saved config's carry
+// the positions it sets.
 function info(p: Project): ProjectInfo {
   return {
     name: p.name,
@@ -45,8 +55,8 @@ function info(p: Project): ProjectInfo {
     running: p.running.size > 0,
     services: p.services.filter((s) => p.running.has(s.name)).map((s) => serviceInfo(p, s)),
     allServices: p.services.map((s) => serviceInfo(p, s)),
-    actions: p.actions.map(actionInfo),
-    zones: [],
+    actions: p.actions.map((a, i) => actionInfo(a, p.configText === undefined ? i : a.position)),
+    zones: p.zones,
     profiles: p.profiles,
     activeProfile: p.activeProfile,
     statusEntries: statusEntries(p.name),
@@ -56,8 +66,8 @@ function info(p: Project): ProjectInfo {
   };
 }
 
-function serviceInfo(p: Project, s: Project["services"][number]) {
-  return { name: s.name, cmd: s.cmd, cwd: p.root, port: s.port ?? 0 };
+function serviceInfo(p: Project, s: SeedService) {
+  return { name: s.name, cmd: s.cmd, cwd: p.root, port: s.port ?? 0, dependsOn: s.dependsOn };
 }
 
 function globalInfo(): ProjectInfo {

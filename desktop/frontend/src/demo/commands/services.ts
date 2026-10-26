@@ -87,6 +87,20 @@ function profileServices(p: Project, profile: string): string[] {
   return named ? named.services : p.services.map((s) => s.name);
 }
 
+// The services these need first, ahead of them, as lpm starts a dependsOn chain.
+function withDeps(p: Project, names: string[]): string[] {
+  const out: string[] = [];
+  const visit = (name: string, path: string[]) => {
+    if (out.includes(name) || path.includes(name)) return;
+    const svc = p.services.find((s) => s.name === name);
+    if (!svc) return;
+    for (const dep of svc.dependsOn ?? []) visit(dep, [...path, name]);
+    out.push(name);
+  };
+  for (const name of names) visit(name, []);
+  return out;
+}
+
 // Starts exactly these services, leaving any that keep running untouched.
 function runOnly(p: Project, names: string[], profile = ""): void {
   const next = new Set(names.filter((n) => p.services.some((s) => s.name === n)));
@@ -107,16 +121,18 @@ function withProject(name: unknown, act: (p: Project) => void): null {
 
 export const serviceCommands: CommandMap = {
   start_project: ({ name, profile }) =>
-    withProject(name, (p) => runOnly(p, profileServices(p, String(profile ?? "")), String(profile ?? ""))),
+    withProject(name, (p) =>
+      runOnly(p, withDeps(p, profileServices(p, String(profile ?? ""))), String(profile ?? "")),
+    ),
   start_project_with_services: ({ name, services }) =>
-    withProject(name, (p) => runOnly(p, services as string[])),
+    withProject(name, (p) => runOnly(p, withDeps(p, services as string[]))),
   stop_project: ({ name }) => withProject(name, (p) => runOnly(p, [])),
   stop_project_service: ({ name, serviceName }) =>
     withProject(name, (p) => runOnly(p, [...p.running].filter((s) => s !== serviceName))),
   toggle_project_service: ({ name, serviceName }) =>
     withProject(name, (p) => {
       const others = [...p.running].filter((s) => s !== serviceName);
-      runOnly(p, p.running.has(String(serviceName)) ? others : [...others, String(serviceName)]);
+      runOnly(p, p.running.has(String(serviceName)) ? others : withDeps(p, [...others, String(serviceName)]));
     }),
   start_service: ({ projectName, paneIndex }) =>
     withProject(projectName, (p) => {

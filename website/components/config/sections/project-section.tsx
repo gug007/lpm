@@ -27,7 +27,13 @@ export function ProjectSection() {
         </>
       }
     >
-      <Lede className="mb-3">Edit the YAML — the preview updates live.</Lede>
+      <Lede className="mb-3">
+        Edit the YAML
+        <span className="hidden md:inline">
+          {" "}and the app above it updates as you type
+        </span>
+        .
+      </Lede>
       <ConfigPlayground
         filename="~/.lpm/projects/myapp.yml"
         initial={PROJECT_EXAMPLE}

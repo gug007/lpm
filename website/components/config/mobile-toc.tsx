@@ -1,5 +1,5 @@
 import { ChevronDown } from "lucide-react";
-import { CONFIG_SECTIONS } from "@/lib/config-sections";
+import { CONFIG_SECTION_GROUPS } from "@/lib/config-sections";
 
 export function MobileTableOfContents() {
   return (
@@ -11,19 +11,29 @@ export function MobileTableOfContents() {
           aria-hidden
         />
       </summary>
-      <nav aria-label="Table of contents" className="px-5 pb-4">
-        <ul className="space-y-1 border-l border-gray-200 dark:border-gray-800">
-          {CONFIG_SECTIONS.map(({ id, title }) => (
-            <li key={id}>
-              <a
-                href={`#${id}`}
-                className="block -ml-px border-l border-transparent pl-4 py-1.5 text-sm text-gray-500 transition-colors hover:border-gray-900 hover:text-gray-900 dark:text-gray-400 dark:hover:border-white dark:hover:text-white"
-              >
-                {title}
-              </a>
-            </li>
-          ))}
-        </ul>
+      <nav
+        aria-label="Table of contents"
+        className="grid gap-x-6 gap-y-4 px-5 pb-4 sm:grid-cols-2"
+      >
+        {CONFIG_SECTION_GROUPS.map((group) => (
+          <div key={group.title}>
+            <p className="mb-1 text-[11px] font-semibold text-gray-900 dark:text-gray-100">
+              {group.title}
+            </p>
+            <ul className="space-y-1 border-l border-gray-200 dark:border-gray-800">
+              {group.sections.map(({ id, title }) => (
+                <li key={id}>
+                  <a
+                    href={`#${id}`}
+                    className="block -ml-px border-l border-transparent pl-4 py-1.5 text-sm text-gray-500 transition-colors hover:border-gray-900 hover:text-gray-900 dark:text-gray-400 dark:hover:border-white dark:hover:text-white"
+                  >
+                    {title}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
       </nav>
     </details>
   );

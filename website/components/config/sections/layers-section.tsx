@@ -1,6 +1,7 @@
 import { REPO_EXAMPLE, REPO_OVERRIDE_EXAMPLE } from "@/app/config/examples";
 import { Callout } from "../callout";
 import { CodeBlock } from "../code-block";
+import { DocLink } from "../doc-link";
 import { CONFIG_LAYERS } from "../layers-data";
 import { Lede } from "../lede";
 import { Section } from "../section";
@@ -87,7 +88,9 @@ export function LayersSection() {
           The repo layer applies to local projects only; SSH projects have no{" "}
           <code className="font-mono">.lpm.yml</code>. A duplicate also inherits
           from the project it was copied from, which sits between your file and
-          the repo layer.
+          the repo layer. Each layer can also pull in{" "}
+          <DocLink href="#templates">templates</DocLink>, which sit just below
+          the file that names them.
         </p>
       </Callout>
     </Section>

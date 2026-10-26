@@ -39,4 +39,4 @@ actions:
 const lines = CONFIG_EXAMPLE.replace(/\n+$/, "").split("\n").length;
 export const EDITOR_HEIGHT = Math.min(360, Math.max(120, lines * 18 + 28));
 export const TOOLBAR_HEIGHT = 46;
-export const PREVIEW_HEIGHT = 280;
+export const PREVIEW_HEIGHT = 440;

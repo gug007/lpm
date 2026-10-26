@@ -6,10 +6,17 @@ import { project, record } from "./state";
 
 const DEFAULT_MS = 900;
 
+// A menu child is found by its path, `deploy:production`.
+function find(actions: SeedAction[] | undefined, path: string): SeedAction | undefined {
+  const [head, ...rest] = path.split(":");
+  const hit = actions?.find((a) => a.name === head);
+  return rest.length ? find(hit?.children, rest.join(":")) : hit;
+}
+
 // Looks the action up and notes the run, which leaves no other trace.
 function start(projectName: unknown, actionName: unknown): SeedAction | undefined {
   record("action", String(projectName), String(actionName));
-  return project(String(projectName))?.actions.find((a) => a.name === actionName);
+  return find(project(String(projectName))?.actions, String(actionName));
 }
 
 // Plays the action's output on its own clock and settles when the last line

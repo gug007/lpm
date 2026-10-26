@@ -1,14 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import dynamic from "next/dynamic";
 import { load as parseYaml, YAMLException } from "js-yaml";
 import { RotateCcw, Check, Copy } from "lucide-react";
+import { PREVIEW_HEIGHT } from "../config-showcase-data";
+import { AppPreview } from "./app-preview";
 import { useDarkMode, useNearViewport } from "./hooks";
-import { PlaygroundPreview } from "./preview";
-import type { RawConfig } from "./types";
-
-export type { RawConfig };
 
 const MonacoEditor = dynamic(
   () => import("@monaco-editor/react").then((m) => m.default),
@@ -72,26 +70,34 @@ const MONACO_OPTIONS = {
   },
 };
 
-type ParseResult = { config: RawConfig | null; error: string | null };
+type ParseResult = { valid: boolean; error: string | null };
+
+const WIDE = "(min-width: 768px)";
+
+function subscribeWide(onChange: () => void) {
+  const mq = window.matchMedia(WIDE);
+  mq.addEventListener("change", onChange);
+  return () => mq.removeEventListener("change", onChange);
+}
 
 function parseConfig(source: string): ParseResult {
   try {
     const parsed = parseYaml(source);
-    if (parsed == null) return { config: null, error: null };
+    if (parsed == null) return { valid: true, error: null };
     if (typeof parsed !== "object" || Array.isArray(parsed)) {
-      return { config: null, error: "Config must be a map at the top level." };
+      return { valid: false, error: "Config must be a map at the top level." };
     }
-    return { config: parsed as RawConfig, error: null };
+    return { valid: true, error: null };
   } catch (e) {
     if (e instanceof YAMLException) {
       const line =
         e.mark && typeof e.mark.line === "number"
           ? ` (line ${e.mark.line + 1})`
           : "";
-      return { config: null, error: `${e.reason}${line}` };
+      return { valid: false, error: `${e.reason}${line}` };
     }
     return {
-      config: null,
+      valid: false,
       error: e instanceof Error ? e.message : String(e),
     };
   }
@@ -106,7 +112,7 @@ export function ConfigPlayground({
   initial,
   filename = "example.yml",
   editorHeight,
-  previewHeight = 280,
+  previewHeight = PREVIEW_HEIGHT,
 }: {
   initial?: string;
   filename?: string;
@@ -119,9 +125,19 @@ export function ConfigPlayground({
   const [editorReady, setEditorReady] = useState(false);
   const dark = useDarkMode();
   const { ref, near } = useNearViewport<HTMLDivElement>("1200px 0px");
+  const { ref: appRef, near: appNear } = useNearViewport<HTMLDivElement>("200px 0px");
+  // The app needs a window's width; a phone gets the file alone.
+  const wide = useSyncExternalStore(
+    subscribeWide,
+    () => window.matchMedia(WIDE).matches,
+    () => false,
+  );
   // A page of playgrounds is 20+ editors; only the ones near the viewport stay
-  // mounted, but an edited one keeps its editor so typing state survives.
-  const showEditor = near || code !== starter;
+  // mounted, but an edited one keeps its editor so typing state survives. Each
+  // preview boots the whole app, so it waits until it's nearly on screen.
+  const edited = code !== starter;
+  const showEditor = near || edited;
+  const showApp = wide && (appNear || edited);
 
   const [editorMounted, setEditorMounted] = useState(showEditor);
   if (editorMounted !== showEditor) {
@@ -129,12 +145,8 @@ export function ConfigPlayground({
     setEditorReady(false);
   }
 
-  const { config, error } = useMemo(() => parseConfig(code), [code]);
-  const [lastParsed, setLastParsed] = useState<RawConfig | null>(
-    () => parseConfig(starter).config,
-  );
-
-  const previewConfig = config ?? (error ? lastParsed : null);
+  const { error } = useMemo(() => parseConfig(code), [code]);
+  const [lastValid, setLastValid] = useState(starter);
   // Monaco wraps long lines (wordWrap: "on"), so once it mounts its own
   // content height replaces the newline-count estimate.
   const [contentHeight, setContentHeight] = useState<number | null>(null);
@@ -144,8 +156,7 @@ export function ConfigPlayground({
 
   const applyCode = (next: string) => {
     setCode(next);
-    const parsed = parseConfig(next).config;
-    if (parsed) setLastParsed(parsed);
+    if (parseConfig(next).valid) setLastValid(next);
   };
 
   const handleCopy = async () => {
@@ -171,15 +182,11 @@ export function ConfigPlayground({
         />
 
         <div className="flex flex-col">
-          <div style={{ height: previewHeight }}>
-            <PlaygroundPreview
-              config={previewConfig}
-              error={error}
-              stale={error !== null && previewConfig !== null}
-            />
+          <div ref={appRef} className="hidden md:block" style={{ height: previewHeight }}>
+            <AppPreview yaml={lastValid} error={error} active={showApp} />
           </div>
           <div
-            className="relative border-t border-gray-200 dark:border-gray-800"
+            className="relative md:border-t border-gray-200 dark:border-gray-800"
             style={{ height }}
           >
             {showEditor && (
