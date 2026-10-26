@@ -26,7 +26,18 @@ struct LogUpdate {
 // otherwise one window pausing (hidden/deselected) would freeze the other's logs.
 pub struct Stream {
     cancel: Arc<AtomicBool>,
+    // A window that joins a running poller starts with empty panes, and a pane
+    // that hasn't changed since the last emit would never reach it.
+    resend: Arc<AtomicBool>,
     viewers: HashSet<String>,
+}
+
+impl Stream {
+    fn join(&mut self, viewer: String) {
+        if self.viewers.insert(viewer) {
+            self.resend.store(true, Ordering::SeqCst);
+        }
+    }
 }
 
 pub struct LogState {
@@ -75,7 +86,7 @@ pub fn start_log_streaming(
         // respawn (that would double-emit); the existing thread already serves
         // every window listening on the global `log-update` event.
         if let Some(existing) = streams.get_mut(&project_name) {
-            existing.viewers.insert(viewer);
+            existing.join(viewer);
             return Ok(());
         }
     }
@@ -87,17 +98,19 @@ pub fn start_log_streaming(
     };
 
     let stop = Arc::new(AtomicBool::new(false));
+    let resend = Arc::new(AtomicBool::new(false));
     {
         let mut streams = state.streams.lock().unwrap();
         // Re-check under the lock: a concurrent start may have spawned first.
         if let Some(existing) = streams.get_mut(&project_name) {
-            existing.viewers.insert(viewer);
+            existing.join(viewer);
             return Ok(());
         }
         streams.insert(
             project_name.clone(),
             Stream {
                 cancel: stop.clone(),
+                resend: resend.clone(),
                 viewers: HashSet::from([viewer]),
             },
         );
@@ -110,6 +123,9 @@ pub fn start_log_streaming(
             std::thread::sleep(Duration::from_millis(POLL_MS));
             if stop.load(Ordering::SeqCst) {
                 break;
+            }
+            if resend.swap(false, Ordering::SeqCst) {
+                prev.clear();
             }
             emit_changed(&app, &project_name, &session, &mut prev);
         }

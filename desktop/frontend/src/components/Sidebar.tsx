@@ -44,7 +44,9 @@ import { deckKindLabel, deckLabel, deckRunDomId } from "./sidebarDeck";
 import { SidebarAgentRows } from "./SidebarAgentRows";
 import { SidebarAgentSummary } from "./SidebarAgentSummary";
 import { SidebarRollupLine } from "./SidebarRollupLine";
-import { SidebarIcon, MoreVerticalIcon, DetachIcon, PlusIcon, ServerIcon } from "./icons";
+import { SidebarIcon, MoreVerticalIcon, PlusIcon, ServerIcon } from "./icons";
+import { SidebarWindowMark } from "./SidebarWindowMark";
+import { focusDetachedTerminal, focusMainTerminal, projectWindow } from "../windowFocus";
 import { SidebarFooterNav } from "./SidebarFooterNav";
 import { AppMenuButton } from "./AppMenuButton";
 import { isMac, trashName } from "../platform";
@@ -303,6 +305,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     onOpen: onSelect,
   });
   const focusProjectTerminal = useAppStore((s) => s.focusProjectTerminal);
+  const focusDetachedProject = useAppStore((s) => s.focusDetachedProject);
   // Only a project this window has open publishes its tab names; the rest fall
   // back to naming their agent.
   const terminalTitles = useTerminalTitles((s) => s.byProject);
@@ -310,15 +313,22 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
-  // An agent row opens the terminal the agent is in; one whose pane the backend
-  // never named can still only take you to the project. Stable, so the agent
-  // list can skip re-rendering with the rest of the sidebar.
+  // An agent row opens the terminal the agent is in, in whichever window the
+  // project opens in; one whose pane the backend never named can still only take
+  // you to the project. Stable, so the agent list can skip re-rendering with the
+  // rest of the sidebar.
   const openAgent = useCallback(
-    (projectName: string, agent: SidebarAgentRow) => {
-      if (agent.terminalId) focusProjectTerminal(projectName, agent.terminalId);
-      else onSelect(projectName);
+    async (projectName: string, agent: SidebarAgentRow) => {
+      const id = agent.terminalId;
+      if (!id) return onSelect(projectName);
+      const where = projectWindow(projectName, detached, detachedSelf);
+      if (where === "main") return focusMainTerminal(projectName, id);
+      if (where === "own" && (await focusDetachedProject(projectName))) {
+        return focusDetachedTerminal(projectName, id);
+      }
+      focusProjectTerminal(projectName, id);
     },
-    [focusProjectTerminal, onSelect],
+    [focusProjectTerminal, focusDetachedProject, onSelect, detached, detachedSelf],
   );
   // The rest of a tab's menu, from its agent row: the same requests a phone or
   // another Mac sends by terminal id, which mount the project if it wasn't.
@@ -1029,8 +1039,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   const renderProjectRow = (project: ProjectInfo, indented: boolean, peerRow?: PeerRowOptions) => {
     const selecting = isSelecting(project.name, Boolean(peerRow));
     const status = computeProjectStatus(project.statusEntries);
-    const isDetached = detached.has(project.name);
-    const isSelf = project.name === detachedSelf;
+    const opensIn = projectWindow(project.name, detached, detachedSelf);
     // A detached project is now mirrored (live in both windows), so the main
     // window highlights it when selected like any other project.
     const isSelected = selected === project.name;
@@ -1101,14 +1110,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           {nameClass ? <span className={nameClass}>{name}</span> : name}
         </span>
         <SidebarSendLaterMark projectName={project.name} />
-        {isDetached && !isSelf && (
-          <span
-            className="shrink-0 text-[var(--text-muted)]"
-            title="Also open in a separate window"
-          >
-            <DetachIcon />
-          </span>
-        )}
+        {!selecting && opensIn !== "here" && <SidebarWindowMark opensIn={opensIn} />}
         {follow && (
           <FollowIndicator follow={follow} macName={peerAlias(peerState.peers, follow.slug)} />
         )}

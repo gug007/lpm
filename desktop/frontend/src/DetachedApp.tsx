@@ -21,7 +21,7 @@ import { useAppStore } from "./store/app";
 import { useFileViewerStore } from "./store/fileViewer";
 import { useResolvedTheme } from "./theme";
 import { FocusMainWindow } from "../bridge/commands";
-import { focusMainTerminal } from "./mainWindowFocus";
+import { focusMainTerminal, onFocusDetachedTerminal } from "./windowFocus";
 import { GLOBAL_TERMINALS_KEY } from "./terminals";
 
 interface DetachedAppProps {
@@ -65,11 +65,17 @@ export function DetachedApp({ projectName }: DetachedAppProps) {
   const detachProject = useAppStore((s) => s.detachProject);
   const attachProject = useAppStore((s) => s.attachProject);
   const focusDetachedProject = useAppStore((s) => s.focusDetachedProject);
+  const focusProjectTerminal = useAppStore((s) => s.focusProjectTerminal);
   const refreshAfterRename = useAppStore((s) => s.refreshAfterRename);
 
   useProjectsSync({ mode: "detached" });
   useGlobalAgentStatusSync();
   useAmbientAppEvents();
+
+  useEffect(
+    () => onFocusDetachedTerminal(projectName, (id) => focusProjectTerminal(projectName, id)),
+    [projectName, focusProjectTerminal],
+  );
 
   const project = projects.find((p) => p.name === projectName);
   useProjectWatcher(project?.root);

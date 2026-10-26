@@ -124,12 +124,13 @@ export default function App() {
   const moveProjectsToGroup = useAppStore((s) => s.moveProjectsToGroup);
   const detachProject = useAppStore((s) => s.detachProject);
   const attachProject = useAppStore((s) => s.attachProject);
+  const focusDetachedProject = useAppStore((s) => s.focusDetachedProject);
   const refreshAfterRename = useAppStore((s) => s.refreshAfterRename);
 
-  const handleSelect = (name: string) => {
-    // The main window owns every project's terminals, including detached ones
-    // (mirrored into their own window). Clicking a detached project shows it
-    // inline here rather than redirecting to its window — it's live in both.
+  // A detached project opens in its own window; it shows here only when that
+  // window can't be brought forward.
+  const handleSelect = async (name: string) => {
+    if (detached.has(name) && (await focusDetachedProject(name))) return;
     selectProject(name);
   };
 
@@ -203,7 +204,7 @@ export default function App() {
 
   useKeyboardShortcut(PROJECT_JUMP_SHORTCUTS, (_e, matched) => {
     const project = projects[Number(matched.key) - 1];
-    if (project) selectProject(project.name);
+    if (project) void handleSelect(project.name);
   });
 
   const projectNames = useMemo(() => projects.map((p) => p.name), [projects]);

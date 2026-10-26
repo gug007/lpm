@@ -11,7 +11,7 @@ import { agentOptionsForRemote, type RemoteTabRequest } from "../remoteAgentTabs
 import { type RemoteTerminalOp, useAppStore } from "../store/app";
 import { useAutomationOpen } from "../store/automationOpen";
 import { applyRemoteDraft } from "../store/composerDrafts";
-import { onFocusMainTerminal } from "../mainWindowFocus";
+import { onFocusMainTerminal } from "../windowFocus";
 import { getSettings, useSettingsStore } from "../store/settings";
 import { applySettingsOutsideStore } from "../settingsEffects";
 import type { SpawnTask } from "../types";

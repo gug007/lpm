@@ -150,6 +150,7 @@ interface InteractivePaneProps {
 
 // Flow control: ack in batches to reduce IPC calls (matches VS Code's approach)
 const ACK_SIZE = 5000;
+const HIDDEN_BACKLOG_CAP = 2 * 1024 * 1024;
 
 // A copy this soon after a selection gesture reported to a mouse-owning app
 // asks the app to copy its own selection (Ctrl+C — Claude Code's only copy
@@ -873,10 +874,11 @@ function createInteractiveSession(
   // behind a "take control" placeholder, other projects, and background tabs keep
   // being acked by the owner instead of starving while a mirror is focused. With
   // no mirror both flags stay false → owner acks everything, as before.
+  const mirrorAcksThis = () => mirrorIsAckAuthority && isOwnedByDetachedWindow(terminalId);
   const ackData = (charCount: number) => {
     if (IS_MIRROR_WINDOW) {
       if (!mirrorAmAckAuthority || !amControlOwner(terminalId)) return;
-    } else if (mirrorIsAckAuthority && isOwnedByDetachedWindow(terminalId)) {
+    } else if (mirrorAcksThis()) {
       return;
     }
     unsentAck += charCount;
@@ -897,6 +899,8 @@ function createInteractiveSession(
   // would grow unbounded (the owner's ack governs the PRODUCER, not the mirror).
   // So a hidden mirror drops output and re-seeds from a fresh snapshot on show.
   let droppedWhileHidden = false;
+  // Characters handed to xterm that it hasn't parsed yet.
+  let unparsed = 0;
 
   // Always write + ack in the owner, even when the pane is hidden. xterm.js
   // keeps its own bounded scrollback, so background terminals stay drained and
@@ -919,12 +923,17 @@ function createInteractiveSession(
       term.write(data);
       return;
     }
-    // Owner. When a mirror holds ack authority and this window is hidden, the
-    // producer is no longer paused on our behalf, so writing would grow xterm's
-    // parse queue unbounded (our parser is OS-throttled while hidden). Drop and
-    // reseed on show — exactly the mirror's memory bound — since the mirror is
-    // the live renderer meanwhile. Never triggers without a mirror (main-only).
-    if (mirrorIsAckAuthority && document.hidden) {
+    // Owner. A focused mirror acks the terminals it owns, so for those nothing
+    // paces this window's parser, which the OS throttles while hidden. Keep
+    // writing — the screen is what this window shows when it comes back — and
+    // only drop once the backlog passes the cap, resetting on show rather than
+    // queueing a flood without bound. Every other terminal is still acked here,
+    // which already bounds it.
+    if (
+      mirrorAcksThis() &&
+      document.hidden &&
+      (droppedWhileHidden || unparsed + data.length > HIDDEN_BACKLOG_CAP)
+    ) {
       droppedWhileHidden = true;
       return;
     }
@@ -932,7 +941,11 @@ function createInteractiveSession(
     // than measured: this runs per chunk, and asking the DOM would cost a forced
     // layout on every one.
     if (!session.fitted) session.blindOutput = true;
-    term.write(data, () => ackData(data.length));
+    unparsed += data.length;
+    term.write(data, () => {
+      unparsed -= data.length;
+      ackData(data.length);
+    });
   };
 
   const markDead = (msg: string, ansiColor: string) => {
