@@ -1,0 +1,2290 @@
+[
+  {
+    "version": "0.7.41",
+    "date": "2026-10-25",
+    "notes": "Weekly recap notifications, lessons in the feedback window, ideas and questions go to GitHub Discussions, and share QR codes that are easier to scan."
+  },
+  {
+    "version": "0.7.40",
+    "date": "2026-10-25",
+    "notes": "A weekly recap of your agents’ work that you can share, a Claude account for each automation, and message history merged across paired computers. The notification center is gone."
+  },
+  {
+    "version": "0.7.39",
+    "date": "2026-10-25",
+    "notes": "Choose how each kind of notification reaches you, and forwarded ports come back after a restart."
+  },
+  {
+    "version": "0.7.38",
+    "date": "2026-10-25",
+    "notes": "Fixed a Settings animation glitch."
+  },
+  {
+    "version": "0.7.37",
+    "date": "2026-10-24",
+    "notes": "Richer Stats with an activity calendar and per-project usage, search inside files, and links to a service’s ports. The Activity overview is gone."
+  },
+  {
+    "version": "0.7.36",
+    "date": "2026-10-24",
+    "notes": "Work through merge conflicts file by file, a searchable branch picker, and create, rename and delete files in the Files tree."
+  },
+  {
+    "version": "0.7.35",
+    "date": "2026-10-24",
+    "notes": "AI can fix problems in a config, edit a service’s command from its column, and action zones in the Terminals view."
+  },
+  {
+    "version": "0.7.34",
+    "date": "2026-10-23",
+    "notes": "Automations use the Claude account you chose."
+  },
+  {
+    "version": "0.7.33",
+    "date": "2026-10-23",
+    "notes": "Actions and terminal commands show whether they’re running, finished or failed, and updates can wait until lpm is idle, with `lpm update` in the CLI."
+  },
+  {
+    "version": "0.7.32",
+    "date": "2026-10-22",
+    "notes": "An automation can no longer answer its own question."
+  },
+  {
+    "version": "0.7.31",
+    "date": "2026-10-21",
+    "notes": "More automation commands in the CLI."
+  },
+  {
+    "version": "0.7.30",
+    "date": "2026-10-21",
+    "notes": "Automations can ask you a question and wait for the answer, and better input-method typing in the composer and terminal."
+  },
+  {
+    "version": "0.7.29",
+    "date": "2026-10-21",
+    "notes": "Paired computers reconnect over fallback addresses, pairing a computer opens in its own window, an easier Linux server setup, and fixes for Claude status."
+  },
+  {
+    "version": "0.7.28",
+    "date": "2026-10-20",
+    "notes": "Choose which guests can type, share tabs from paired hosts, agent icons, and server setup."
+  },
+  {
+    "version": "0.7.27",
+    "date": "2026-10-20",
+    "notes": "Hardened tab sharing, and an emoji check so you know the right guest joined."
+  },
+  {
+    "version": "0.7.26",
+    "date": "2026-10-19",
+    "notes": "Share a terminal tab with anyone in a browser, end-to-end encrypted."
+  },
+  {
+    "version": "0.7.25",
+    "date": "2026-10-19"
+  },
+  {
+    "version": "0.7.24",
+    "date": "2026-10-19",
+    "notes": "Agents keep running through app updates, plus terminal replay and layout fixes."
+  },
+  {
+    "version": "0.7.23",
+    "date": "2026-10-18",
+    "notes": "Pick an agent or a command for a new tab, and Stats across several computers."
+  },
+  {
+    "version": "0.7.22",
+    "date": "2026-10-18",
+    "notes": "Changed line counts in the Git UI."
+  },
+  {
+    "version": "0.7.21",
+    "date": "2026-10-18",
+    "notes": "Paired projects work like local ones, with port tunnels, the host’s Claude accounts and saving files back. lpm Link can start agents, resume sessions and browse files."
+  },
+  {
+    "version": "0.7.20",
+    "date": "2026-10-17",
+    "beta": true,
+    "notes": "Share settings, folders and automations with paired Macs, and dictate right in the app."
+  },
+  {
+    "version": "0.7.19",
+    "date": "2026-10-16",
+    "beta": true,
+    "notes": "Paired Macs follow the host’s tab names, order and pins, services that ended show their exit code, Claude usage limits are shared with paired Macs, and you can copy the last answer from a paired terminal."
+  },
+  {
+    "version": "0.7.18",
+    "date": "2026-10-15",
+    "notes": "Agent status for OpenCode 2."
+  },
+  {
+    "version": "0.7.17",
+    "date": "2026-10-15",
+    "notes": "A Beta update channel with rollback, two-lane usage bars, a file viewer you can minimize and dock, and agents you quit no longer come back."
+  },
+  {
+    "version": "0.7.16",
+    "date": "2026-10-14",
+    "notes": "Check for lpm updates from your phone."
+  },
+  {
+    "version": "0.7.15",
+    "date": "2026-10-13",
+    "notes": "Phone sessions reach your other Macs through this one, and branch status recounts when you come back to a project."
+  },
+  {
+    "version": "0.7.14",
+    "date": "2026-10-13",
+    "notes": "Action labels that update from a command’s output, and shared undo in the composer."
+  },
+  {
+    "version": "0.7.13",
+    "date": "2026-10-12",
+    "notes": "Host tabs and control stay in sync across Macs, and a Claude account menu on your phone."
+  },
+  {
+    "version": "0.7.12",
+    "date": "2026-10-12",
+    "notes": "An `lpm automations open` command."
+  },
+  {
+    "version": "0.7.11",
+    "date": "2026-10-12",
+    "notes": "Automatic pull choices sit inline in the Git menu."
+  },
+  {
+    "version": "0.7.10",
+    "date": "2026-10-12"
+  },
+  {
+    "version": "0.7.9",
+    "date": "2026-10-12",
+    "notes": "Automatic pulls from origin for each project, and alerts reach locked phones."
+  },
+  {
+    "version": "0.7.8",
+    "date": "2026-10-12",
+    "notes": "Agent status for Gemini, Cursor, OpenCode and omp, and ⌘⇧J opens Automations."
+  },
+  {
+    "version": "0.7.7",
+    "date": "2026-10-11",
+    "notes": "An Automations tab in each project, Telegram setup shared across Macs, action zones that fold into a hover popup, and pulls that wait while uncommitted changes are in the way."
+  },
+  {
+    "version": "0.7.6",
+    "date": "2026-10-11",
+    "notes": "Update lpm on your Mac from your phone, and memory for AI prompt automations."
+  },
+  {
+    "version": "0.7.5",
+    "date": "2026-10-11",
+    "notes": "Create, edit and remove automations from the CLI, and a video guide in the automation editor."
+  },
+  {
+    "version": "0.7.4",
+    "date": "2026-10-11",
+    "notes": "Automations as a messenger-style list, schedules written with AI, monthly, one-off and multi-time schedules, results sent to Telegram, and quiet runs."
+  },
+  {
+    "version": "0.7.3",
+    "date": "2026-10-10",
+    "notes": "Open a host’s terminals as tabs on your Mac, and agent status in the global Terminals view."
+  },
+  {
+    "version": "0.7.2",
+    "date": "2026-10-10",
+    "notes": "Update and configure Linux hosts from your Mac, and syncing handles big projects in batches."
+  },
+  {
+    "version": "0.7.1",
+    "date": "2026-10-10",
+    "notes": "A rows layout for side-by-side duplicates, and switch Claude accounts from the sidebar."
+  },
+  {
+    "version": "0.7.0",
+    "date": "2026-10-09",
+    "notes": "Give a project a pool of Claude accounts, with account switching built into Claude accounts."
+  },
+  {
+    "version": "0.6.17",
+    "date": "2026-10-09"
+  },
+  {
+    "version": "0.6.16",
+    "date": "2026-10-08",
+    "notes": "Linux hosts update themselves when idle."
+  },
+  {
+    "version": "0.6.15",
+    "date": "2026-10-08",
+    "notes": "The project name stops shimmering while its task rows are open."
+  },
+  {
+    "version": "0.6.14",
+    "date": "2026-10-08",
+    "notes": "Built-in Tailscale, so pairing works without the Tailscale app, and your Mac can stay awake while your phone is connected."
+  },
+  {
+    "version": "0.6.13",
+    "date": "2026-10-07",
+    "notes": "Paths cut off at the terminal’s right edge are still links, and decks pull in parallel."
+  },
+  {
+    "version": "0.6.12",
+    "date": "2026-10-06",
+    "notes": "Tooltips hide while menus are open."
+  },
+  {
+    "version": "0.6.11",
+    "date": "2026-10-06",
+    "notes": "lpm for Windows and Linux, in beta. Action zones in the header and footer, with layers."
+  },
+  {
+    "version": "0.6.9",
+    "date": "2026-10-03",
+    "notes": "Open a paired Mac’s files in your local apps."
+  },
+  {
+    "version": "0.6.8",
+    "date": "2026-10-02",
+    "notes": "Preview PDFs, file paths with spaces become links, and GPT-6.1 Sol support."
+  },
+  {
+    "version": "0.6.7",
+    "date": "2026-09-29",
+    "notes": "Preview videos from a paired Mac."
+  },
+  {
+    "version": "0.6.6",
+    "date": "2026-09-28",
+    "notes": "Decks and work status for another Mac’s projects, pull a whole deck at once, and detailed tab hover cards."
+  },
+  {
+    "version": "0.6.5",
+    "date": "2026-09-27",
+    "notes": "Automated Git workflows on your phone, and the file viewer protects unsaved edits."
+  },
+  {
+    "version": "0.6.4",
+    "date": "2026-09-26",
+    "notes": "Side-by-side runs with a model for each side, and rename and delete shortcuts in the sidebar."
+  },
+  {
+    "version": "0.6.3",
+    "date": "2026-09-26",
+    "notes": "GPT-6 Sol and Luna support, and origin status with sync actions in the sidebar."
+  },
+  {
+    "version": "0.6.2",
+    "date": "2026-09-26",
+    "notes": "Fixes for file paths on paired hosts, and corrected Codex commands."
+  },
+  {
+    "version": "0.6.1",
+    "date": "2026-09-25",
+    "notes": "Copy actions use the system clipboard."
+  },
+  {
+    "version": "0.6.0",
+    "date": "2026-09-25",
+    "notes": "Choose a Claude account for each project, and pair your phone with connected machines."
+  },
+  {
+    "version": "0.5.80",
+    "date": "2026-09-24",
+    "notes": "Reset a custom status line."
+  },
+  {
+    "version": "0.5.79",
+    "date": "2026-09-24",
+    "notes": "Schedule a prompt to send later, and rejected automatic pushes rebase and retry."
+  },
+  {
+    "version": "0.5.78",
+    "date": "2026-09-23",
+    "notes": "Fixed Claude usage meters right after Claude starts."
+  },
+  {
+    "version": "0.5.77",
+    "date": "2026-09-23",
+    "notes": "Usage pace markers in the sidebar."
+  },
+  {
+    "version": "0.5.76",
+    "date": "2026-09-23",
+    "notes": "Usage meters honor fresh Claude resets."
+  },
+  {
+    "version": "0.5.75",
+    "date": "2026-09-22",
+    "notes": "Automatic pull requests and branch publishing, with the branch’s PR linked in the footer."
+  },
+  {
+    "version": "0.5.74",
+    "date": "2026-09-22",
+    "notes": "The composer reads Claude’s current effort level."
+  },
+  {
+    "version": "0.5.73",
+    "date": "2026-09-19",
+    "notes": "Services are detected when you add or clone a project, @ finds memory sessions, and composer tools move into a toolbar."
+  },
+  {
+    "version": "0.5.72",
+    "date": "2026-09-18",
+    "notes": "Markdown preview, and ignored files are greyed out."
+  },
+  {
+    "version": "0.5.71",
+    "date": "2026-09-18",
+    "notes": "Diff review moves into the Files tab, with an all-changes view and discard for files and folders."
+  },
+  {
+    "version": "0.5.70",
+    "date": "2026-09-17",
+    "notes": "Files shows Git status, uncommitted files and editable diffs."
+  },
+  {
+    "version": "0.5.69",
+    "date": "2026-09-17",
+    "notes": "A file browser for each project, and pane toolbar actions you can customize."
+  },
+  {
+    "version": "0.5.68",
+    "date": "2026-09-16",
+    "notes": "Default global actions on first launch."
+  },
+  {
+    "version": "0.5.67",
+    "date": "2026-09-16"
+  },
+  {
+    "version": "0.5.66",
+    "date": "2026-09-16",
+    "notes": "Switch Claude and Codex models from the composer, send a prompt to another tab, and placeholder rows while copies are created."
+  },
+  {
+    "version": "0.5.65",
+    "date": "2026-09-14",
+    "notes": "Every local project can have a work status."
+  },
+  {
+    "version": "0.5.64",
+    "date": "2026-09-12",
+    "notes": "Agent turns finish correctly while background shells run, and stale Waiting statuses clear."
+  },
+  {
+    "version": "0.5.63",
+    "date": "2026-09-12",
+    "notes": "Fixed conflicts when adding a folder that’s already a project."
+  },
+  {
+    "version": "0.5.62",
+    "date": "2026-09-11",
+    "notes": "A reorganized project menu."
+  },
+  {
+    "version": "0.5.61",
+    "date": "2026-09-11",
+    "notes": "Work statuses for projects, copying background run output, and GPT-6 Astra support."
+  },
+  {
+    "version": "0.5.60",
+    "date": "2026-09-02",
+    "notes": "Large uploads to a connected Mac stream in chunks."
+  },
+  {
+    "version": "0.5.59",
+    "date": "2026-09-01",
+    "notes": "Copy an agent’s last answer, or a recent one, from the terminal."
+  },
+  {
+    "version": "0.5.58",
+    "date": "2026-09-01",
+    "notes": "Tooltips hide when a context menu opens."
+  },
+  {
+    "version": "0.5.56",
+    "date": "2026-08-31",
+    "notes": "Upload files to a connected Mac."
+  },
+  {
+    "version": "0.5.55",
+    "date": "2026-08-29",
+    "notes": "Edit skills or write them with AI, including Codex skills. The Toolkit is now Skills & Tools."
+  },
+  {
+    "version": "0.5.54",
+    "date": "2026-08-28",
+    "notes": "Collapsible decks of duplicates in the sidebar, and create and delete skills in the Toolkit."
+  },
+  {
+    "version": "0.5.53",
+    "date": "2026-08-27",
+    "notes": "Terminal font and line height settings, with previews."
+  },
+  {
+    "version": "0.5.52",
+    "date": "2026-08-26",
+    "notes": "Pair your phone with a headless host."
+  },
+  {
+    "version": "0.5.51",
+    "date": "2026-08-26",
+    "notes": "Drag to sort duplicates inside a folder, and move the sidebar’s footer rows."
+  },
+  {
+    "version": "0.5.50",
+    "date": "2026-08-25",
+    "notes": "Preview video files."
+  },
+  {
+    "version": "0.5.49",
+    "date": "2026-08-25",
+    "notes": "Rename connected machines, and undo in the composer keeps your drafts."
+  },
+  {
+    "version": "0.5.48",
+    "date": "2026-08-22",
+    "notes": "Nested agents no longer send notifications."
+  },
+  {
+    "version": "0.5.47",
+    "date": "2026-08-21",
+    "notes": "Folder tree lines up in the sidebar."
+  },
+  {
+    "version": "0.5.46",
+    "date": "2026-08-21",
+    "notes": "Terminals run in lpm’s own session service, so nothing extra needs installing."
+  },
+  {
+    "version": "0.5.45",
+    "date": "2026-08-21",
+    "notes": "More reliable commands and process cleanup."
+  },
+  {
+    "version": "0.5.44",
+    "date": "2026-08-19"
+  },
+  {
+    "version": "0.5.43",
+    "date": "2026-08-19",
+    "notes": "Sidebar alignment polish."
+  },
+  {
+    "version": "0.5.42",
+    "date": "2026-08-19",
+    "notes": "A weekly schedule view for automations, and sidebar headers that roll up their projects’ status."
+  },
+  {
+    "version": "0.5.41",
+    "date": "2026-08-17",
+    "notes": "Usage shows each Claude account separately."
+  },
+  {
+    "version": "0.5.40",
+    "date": "2026-08-16",
+    "notes": "Idle Claude teammates show as done, and sturdier pairing."
+  },
+  {
+    "version": "0.5.39",
+    "date": "2026-08-14",
+    "notes": "The sidebar marks the active agent terminal, and usage meters on your phone."
+  },
+  {
+    "version": "0.5.38",
+    "date": "2026-08-14",
+    "notes": "Fixes for UI states and navigation."
+  },
+  {
+    "version": "0.5.37",
+    "date": "2026-08-13",
+    "notes": "A clearer sidebar hierarchy and status indicators, and zoom and copy in automations."
+  },
+  {
+    "version": "0.5.36",
+    "date": "2026-08-12",
+    "notes": "Usage meters you can configure in the sidebar, and Activity moves into the More menu."
+  },
+  {
+    "version": "0.5.35",
+    "date": "2026-08-11",
+    "notes": "The Toolkit shows the context budget, and you can reorder another Mac’s projects."
+  },
+  {
+    "version": "0.5.34",
+    "date": "2026-08-11",
+    "notes": "Toolkit: see each agent’s skills, tools and capabilities. Read aloud gains a live speed control."
+  },
+  {
+    "version": "0.5.33",
+    "date": "2026-08-09",
+    "notes": "Agent task rows in project lists."
+  },
+  {
+    "version": "0.5.32",
+    "date": "2026-08-09",
+    "notes": "Expandable agent status rows in the sidebar."
+  },
+  {
+    "version": "0.5.31",
+    "date": "2026-08-09",
+    "notes": "Rename sessions, and open projects in Path Finder."
+  },
+  {
+    "version": "0.5.30",
+    "date": "2026-08-08",
+    "notes": "An agent turn timer, and agent status survives SSH reconnects."
+  },
+  {
+    "version": "0.5.29",
+    "date": "2026-08-08",
+    "notes": "Unread automation results and alerts, reorder paired Mac sections, and push settings shared across Macs."
+  },
+  {
+    "version": "0.5.28",
+    "date": "2026-08-08",
+    "notes": "Read aloud moves to ⌘⇧L."
+  },
+  {
+    "version": "0.5.27",
+    "date": "2026-08-07",
+    "notes": "Read replies aloud with OpenAI voices, highlighting each part as it’s spoken."
+  },
+  {
+    "version": "0.5.26",
+    "date": "2026-08-06",
+    "notes": "A better resume session picker, skills installed on SSH machines, and tabs show which action opened them."
+  },
+  {
+    "version": "0.5.25",
+    "date": "2026-08-04"
+  },
+  {
+    "version": "0.5.24",
+    "date": "2026-08-04",
+    "notes": "Linux hosts without systemd, and Claude stays Working during background work."
+  },
+  {
+    "version": "0.5.23",
+    "date": "2026-08-03",
+    "notes": "Random scheduling options for automations, and fixes for remote screens and image previews."
+  },
+  {
+    "version": "0.5.22",
+    "date": "2026-08-01",
+    "notes": "Settings shared with your phone stay in sync."
+  },
+  {
+    "version": "0.5.21",
+    "date": "2026-08-01",
+    "notes": "Manage agent skills on a host."
+  },
+  {
+    "version": "0.5.20",
+    "date": "2026-08-01",
+    "notes": "Remote terminals pick up where they left off after a reconnect."
+  },
+  {
+    "version": "0.5.19",
+    "date": "2026-07-31",
+    "notes": "Uninstall lpm from a Linux host remotely, and its requirements are checked first."
+  },
+  {
+    "version": "0.5.18",
+    "date": "2026-07-31",
+    "notes": "Clearer connection errors."
+  },
+  {
+    "version": "0.5.17",
+    "date": "2026-07-31",
+    "notes": "Edit which projects an automation covers, and sturdier Linux host setup."
+  },
+  {
+    "version": "0.5.16",
+    "date": "2026-07-31",
+    "notes": "Better controls for remote hosts."
+  },
+  {
+    "version": "0.5.15",
+    "date": "2026-07-31",
+    "notes": "Linux hosts: run lpm on a Linux server and drive it from your Mac over SSH. Activity gains status filters."
+  },
+  {
+    "version": "0.5.14",
+    "date": "2026-07-30",
+    "notes": "A shortcut to toggle Activity."
+  },
+  {
+    "version": "0.5.13",
+    "date": "2026-07-30",
+    "notes": "Image paths with spaces are quoted, and Settings moved into the More menu."
+  },
+  {
+    "version": "0.5.12",
+    "date": "2026-07-29",
+    "notes": "Lower energy use while idle."
+  },
+  {
+    "version": "0.5.11",
+    "date": "2026-07-29",
+    "notes": "Fleet: one view of every running agent and service across projects, and agent session titles on tabs."
+  },
+  {
+    "version": "0.5.10",
+    "date": "2026-07-28",
+    "notes": "Effort levels for each model, and corrected Codex usage and pricing."
+  },
+  {
+    "version": "0.5.9",
+    "date": "2026-07-28",
+    "notes": "Slash commands anywhere in a composer prompt."
+  },
+  {
+    "version": "0.5.8",
+    "date": "2026-07-28",
+    "notes": "Daily cost estimates in Stats, and memory and notes on your phone."
+  },
+  {
+    "version": "0.5.7",
+    "date": "2026-07-27",
+    "notes": "Search remembered sessions."
+  },
+  {
+    "version": "0.5.6",
+    "date": "2026-07-27",
+    "notes": "Dragging always selects terminal text, even inside Claude Code; hold ⌥ to hand the mouse to the app."
+  },
+  {
+    "version": "0.5.5",
+    "date": "2026-07-26",
+    "notes": "Remembered sessions are shared across duplicates."
+  },
+  {
+    "version": "0.5.4",
+    "date": "2026-07-26",
+    "notes": "A single sync status indicator."
+  },
+  {
+    "version": "0.5.3",
+    "date": "2026-07-26",
+    "notes": "The sync indicator stays up to date."
+  },
+  {
+    "version": "0.5.2",
+    "date": "2026-07-26"
+  },
+  {
+    "version": "0.5.1",
+    "date": "2026-07-26",
+    "notes": "Fixes for the first sync and for terminals after a sync."
+  },
+  {
+    "version": "0.5.0",
+    "date": "2026-07-26",
+    "notes": "Better management of synced copies."
+  },
+  {
+    "version": "0.4.122",
+    "date": "2026-07-26",
+    "notes": "The sidebar shows synced copies while the other Mac is away."
+  },
+  {
+    "version": "0.4.121",
+    "date": "2026-07-26",
+    "notes": "Syncing keeps a backup of anything it replaces."
+  },
+  {
+    "version": "0.4.120",
+    "date": "2026-07-26"
+  },
+  {
+    "version": "0.4.119",
+    "date": "2026-07-26",
+    "notes": "Synced copies follow pushes from the other Mac."
+  },
+  {
+    "version": "0.4.118",
+    "date": "2026-07-26",
+    "notes": "Keep a project in sync between Macs continuously."
+  },
+  {
+    "version": "0.4.117",
+    "date": "2026-07-26",
+    "notes": "Bring your uncommitted changes from one Mac to another."
+  },
+  {
+    "version": "0.4.116",
+    "date": "2026-07-25",
+    "notes": "Delete remembered sessions, and keep them in sync."
+  },
+  {
+    "version": "0.4.115",
+    "date": "2026-07-25",
+    "notes": "Session memory that agents share, saved AI prompts, and actions that ask questions before they run."
+  },
+  {
+    "version": "0.4.114",
+    "date": "2026-07-24",
+    "notes": "A guided, step-by-step action wizard, and richer action tooltips."
+  },
+  {
+    "version": "0.4.113",
+    "date": "2026-07-24"
+  },
+  {
+    "version": "0.4.112",
+    "date": "2026-07-24",
+    "notes": "A warning when an SSH machine’s environment doesn’t match yours."
+  },
+  {
+    "version": "0.4.111",
+    "date": "2026-07-24",
+    "notes": "An `lpm worktree` command."
+  },
+  {
+    "version": "0.4.110",
+    "date": "2026-07-24",
+    "notes": "Dropped SSH sessions reconnect on their own."
+  },
+  {
+    "version": "0.4.109",
+    "date": "2026-07-24",
+    "notes": "More action colors, and uninstall lpm from inside the app."
+  },
+  {
+    "version": "0.4.108",
+    "date": "2026-07-23",
+    "notes": "The composer and footer match the terminal theme."
+  },
+  {
+    "version": "0.4.107",
+    "date": "2026-07-23",
+    "notes": "Duplicates as Git worktrees, forking an agent session into a project copy, action colors, AI auto-commit and a recent-projects switcher. Also secure pairing between Macs on your network, usage limit meters, and a status line builder for Claude Code and Codex."
+  },
+  {
+    "version": "0.4.106",
+    "date": "2026-07-19",
+    "notes": "Write automations and control projects from your phone."
+  },
+  {
+    "version": "0.4.105",
+    "date": "2026-07-18",
+    "notes": "Collapsed panes no longer resize their terminal."
+  },
+  {
+    "version": "0.4.104",
+    "date": "2026-07-18",
+    "notes": "Run background actions from your phone."
+  },
+  {
+    "version": "0.4.103",
+    "date": "2026-07-18",
+    "notes": "Agent usage stats on your phone."
+  },
+  {
+    "version": "0.4.102",
+    "date": "2026-07-18"
+  },
+  {
+    "version": "0.4.101",
+    "date": "2026-07-18",
+    "notes": "Tool diagnostics and terminal preferences in Settings."
+  },
+  {
+    "version": "0.4.100",
+    "date": "2026-07-18",
+    "notes": "Manual and standalone automations, and choose which projects a manual run uses."
+  },
+  {
+    "version": "0.4.99",
+    "date": "2026-07-17",
+    "notes": "Automation notification preferences, more automation commands in the CLI, and automations on your phone."
+  },
+  {
+    "version": "0.4.98",
+    "date": "2026-07-17",
+    "notes": "Label duplicates from the CLI, and Git menus show the branch name."
+  },
+  {
+    "version": "0.4.97",
+    "date": "2026-07-17",
+    "notes": "A rich composer for writing automation prompts and replies."
+  },
+  {
+    "version": "0.4.96",
+    "date": "2026-07-17",
+    "notes": "Automations: schedule agent jobs for a project, with live output and follow-ups. Undo closing a tab, cancel AI generations, and a redesigned feedback flow."
+  },
+  {
+    "version": "0.4.95",
+    "date": "2026-07-15",
+    "notes": "Stats: your agents’ token usage and activity, and an `lpm` command to validate configs."
+  },
+  {
+    "version": "0.4.94",
+    "date": "2026-07-15"
+  },
+  {
+    "version": "0.4.93",
+    "date": "2026-07-15",
+    "notes": "Better action suggestions and previews."
+  },
+  {
+    "version": "0.4.92",
+    "date": "2026-07-15",
+    "notes": "A smarter action wizard with a placement picker, and it asks before discarding unsaved edits."
+  },
+  {
+    "version": "0.4.91",
+    "date": "2026-07-14",
+    "notes": "Copying from the terminal keeps non-English text intact."
+  },
+  {
+    "version": "0.4.90",
+    "date": "2026-07-13",
+    "notes": "Duplicate a project onto a connected Mac."
+  },
+  {
+    "version": "0.4.89",
+    "date": "2026-07-13",
+    "notes": "Service dependencies, and refreshed Settings with search."
+  },
+  {
+    "version": "0.4.88",
+    "date": "2026-07-13",
+    "notes": "Several connected Macs in the sidebar, Git and files for SSH projects, a Waiting status on permission requests, and Codex sessions that resume."
+  },
+  {
+    "version": "0.4.87",
+    "date": "2026-07-12"
+  },
+  {
+    "version": "0.4.86",
+    "date": "2026-07-12",
+    "notes": "Connect Macs: control another Mac’s projects and terminals from this one."
+  },
+  {
+    "version": "0.4.85",
+    "date": "2026-07-11",
+    "notes": "An /lpm shortcut skill."
+  },
+  {
+    "version": "0.4.84",
+    "date": "2026-07-11",
+    "notes": "CLI fixes for action names and nested actions."
+  },
+  {
+    "version": "0.4.83",
+    "date": "2026-07-11",
+    "notes": "The CLI can wait for an agent to finish, and Settings shows manual agent setup commands."
+  },
+  {
+    "version": "0.4.82",
+    "date": "2026-07-11",
+    "notes": "Queued project actions run, and mentions work after image chips."
+  },
+  {
+    "version": "0.4.81",
+    "date": "2026-07-10",
+    "notes": "Install lpm’s agent skills for Claude Code and other agents from Settings."
+  },
+  {
+    "version": "0.4.80",
+    "date": "2026-07-10",
+    "notes": "The lpm command-line tool is back, bundled with the app: list, logs, status, start, stop, duplicate and run."
+  },
+  {
+    "version": "0.4.79",
+    "date": "2026-07-10",
+    "notes": "The composer and message history on your phone."
+  },
+  {
+    "version": "0.4.78",
+    "date": "2026-07-10",
+    "notes": "Use several Claude Code accounts and pin one to a project."
+  },
+  {
+    "version": "0.4.77",
+    "date": "2026-07-09",
+    "notes": "Background actions stream their output, plus push notifications and Git review on your phone."
+  },
+  {
+    "version": "0.4.76",
+    "date": "2026-07-09",
+    "notes": "Cancel background actions, and duplicate projects from your phone."
+  },
+  {
+    "version": "0.4.75",
+    "date": "2026-07-08",
+    "notes": "Show or hide the Tailscale address in the pairing QR code."
+  },
+  {
+    "version": "0.4.74",
+    "date": "2026-07-07",
+    "notes": "lpm Link, the iPhone companion app."
+  },
+  {
+    "version": "0.4.73",
+    "date": "2026-07-07",
+    "notes": "Control lpm from your iPhone over Tailscale: terminals, actions, folders and the composer. Project windows mirror their terminals live."
+  },
+  {
+    "version": "0.4.72",
+    "date": "2026-07-05",
+    "notes": "Closing a terminal stops every process it started."
+  },
+  {
+    "version": "0.4.71",
+    "date": "2026-07-05"
+  },
+  {
+    "version": "0.4.70",
+    "date": "2026-07-05",
+    "notes": "Run in duplicates includes the current terminal."
+  },
+  {
+    "version": "0.4.69",
+    "date": "2026-07-05",
+    "notes": "Run in duplicates: send one prompt to several copies of a project."
+  },
+  {
+    "version": "0.4.68",
+    "date": "2026-07-04",
+    "notes": "Rewrite variants in the composer, and Close Other Tabs."
+  },
+  {
+    "version": "0.4.67",
+    "date": "2026-07-04",
+    "notes": "Custom shortcuts, composer drafts, sending a history message straight away, and your own composer actions."
+  },
+  {
+    "version": "0.4.66",
+    "date": "2026-07-04",
+    "notes": "Shortcuts to cycle between panes."
+  },
+  {
+    "version": "0.4.65",
+    "date": "2026-07-04",
+    "notes": "Reopen a closed composer from a bar, and Copy in the terminal menu copies what you selected."
+  },
+  {
+    "version": "0.4.64",
+    "date": "2026-07-02",
+    "notes": "Project generators: start a new project from a command or with AI, and remove a project from disk."
+  },
+  {
+    "version": "0.4.63",
+    "date": "2026-07-02",
+    "notes": "Copy, Save and Clear in the terminal respect the active filter, and pasting keeps attachment chips."
+  },
+  {
+    "version": "0.4.62",
+    "date": "2026-07-01",
+    "notes": "Terminal tabs with the same name are told apart."
+  },
+  {
+    "version": "0.4.61",
+    "date": "2026-07-01",
+    "notes": "Stale remote branches are pruned."
+  },
+  {
+    "version": "0.4.60",
+    "date": "2026-07-01",
+    "notes": "Actions run in a terminal by default, a new command action type, inputs that remember their value, and the agent skill is now called lpm."
+  },
+  {
+    "version": "0.4.59",
+    "date": "2026-06-30",
+    "notes": "Message text can be selected."
+  },
+  {
+    "version": "0.4.58",
+    "date": "2026-06-30",
+    "notes": "Sidebar folders show connecting lines and project counts."
+  },
+  {
+    "version": "0.4.57",
+    "date": "2026-06-29",
+    "notes": "Keyboard shortcuts for actions."
+  },
+  {
+    "version": "0.4.56",
+    "date": "2026-06-29",
+    "notes": "Rotating tips in empty terminals, and a Tips window."
+  },
+  {
+    "version": "0.4.55",
+    "date": "2026-06-29",
+    "notes": "Review staged and branch changes, edit right in the diff, and open a service’s port in the browser."
+  },
+  {
+    "version": "0.4.54",
+    "date": "2026-06-27",
+    "notes": "Dictation in the composer, and the pull request and branch windows can be dragged."
+  },
+  {
+    "version": "0.4.53",
+    "date": "2026-06-26",
+    "notes": "Nested action menus you can rearrange by dragging. Duplicates gain the composer, folder autocomplete, a pull latest option and remembered settings."
+  },
+  {
+    "version": "0.4.52",
+    "date": "2026-06-25",
+    "notes": "Mention Git changes and logs in the composer, and undo an AI rewrite."
+  },
+  {
+    "version": "0.4.51",
+    "date": "2026-06-24"
+  },
+  {
+    "version": "0.4.50",
+    "date": "2026-06-24"
+  },
+  {
+    "version": "0.4.49",
+    "date": "2026-06-24",
+    "notes": "Message history is kept per project."
+  },
+  {
+    "version": "0.4.48",
+    "date": "2026-06-23",
+    "notes": "Composer tabs you can drag, with ⌘T and ⌘W, and choose how pull, push and fetch behave."
+  },
+  {
+    "version": "0.4.46",
+    "date": "2026-06-22",
+    "notes": "Mentions, slash command autocomplete and image thumbnails in the composer."
+  },
+  {
+    "version": "0.4.45",
+    "date": "2026-06-22",
+    "notes": "AI actions in the composer that improve your prompt."
+  },
+  {
+    "version": "0.4.44",
+    "date": "2026-06-22",
+    "notes": "Pasted images keep their order."
+  },
+  {
+    "version": "0.4.43",
+    "date": "2026-06-21",
+    "notes": "Tabs in the composer for several prompts, and a default folder for new projects."
+  },
+  {
+    "version": "0.4.42",
+    "date": "2026-06-21",
+    "notes": "Message history is shared across terminals."
+  },
+  {
+    "version": "0.4.41",
+    "date": "2026-06-21",
+    "notes": "Composer image fixes."
+  },
+  {
+    "version": "0.4.40",
+    "date": "2026-06-20",
+    "notes": "The composer follows the focused pane, and image drops are more reliable."
+  },
+  {
+    "version": "0.4.39",
+    "date": "2026-06-20",
+    "notes": "Message history with folders, and run settings for each duplicate."
+  },
+  {
+    "version": "0.4.38",
+    "date": "2026-06-20"
+  },
+  {
+    "version": "0.4.37",
+    "date": "2026-06-20",
+    "notes": "The composer matches the terminal font size."
+  },
+  {
+    "version": "0.4.36",
+    "date": "2026-06-20",
+    "notes": "The composer: write prompts for terminal agents in a real text box, with image chips."
+  },
+  {
+    "version": "0.4.35",
+    "date": "2026-06-19",
+    "notes": "Move a project’s folder on disk."
+  },
+  {
+    "version": "0.4.34",
+    "date": "2026-06-19",
+    "notes": "Git actions in a project’s sidebar menu, which also shows uncommitted changes."
+  },
+  {
+    "version": "0.4.33",
+    "date": "2026-06-19",
+    "notes": "Give duplicates a label and a task prompt, with images."
+  },
+  {
+    "version": "0.4.32",
+    "date": "2026-06-18",
+    "notes": "Project folders in the sidebar, and bulk duplicates can go into a folder."
+  },
+  {
+    "version": "0.4.31",
+    "date": "2026-06-17",
+    "notes": "Name a duplicate when you create it."
+  },
+  {
+    "version": "0.4.30",
+    "date": "2026-06-16",
+    "notes": "The tab strip scrolls and shortens long tab names when space runs out."
+  },
+  {
+    "version": "0.4.29",
+    "date": "2026-06-15"
+  },
+  {
+    "version": "0.4.28",
+    "date": "2026-06-15",
+    "notes": "Duplicate or delete several projects at once."
+  },
+  {
+    "version": "0.4.27",
+    "date": "2026-06-14",
+    "notes": "Port lists accept ranges."
+  },
+  {
+    "version": "0.4.26",
+    "date": "2026-06-14",
+    "notes": "Policies for when several ports are in use, and remove a project together with its duplicates."
+  },
+  {
+    "version": "0.4.25",
+    "date": "2026-06-12",
+    "notes": "Fixed the header drop zone when buttons fit on one line."
+  },
+  {
+    "version": "0.4.24",
+    "date": "2026-06-11",
+    "notes": "Drag header and footer buttons into menus and back out."
+  },
+  {
+    "version": "0.4.23",
+    "date": "2026-06-11",
+    "notes": "Footer actions wrap like the header."
+  },
+  {
+    "version": "0.4.22",
+    "date": "2026-06-11",
+    "notes": "Better drag and move controls for actions."
+  },
+  {
+    "version": "0.4.21",
+    "date": "2026-06-11",
+    "notes": "Fixed drag overlays getting stuck and blocking clicks."
+  },
+  {
+    "version": "0.4.20",
+    "date": "2026-06-10",
+    "notes": "Checks where the app is installed before updating."
+  },
+  {
+    "version": "0.4.19",
+    "date": "2026-06-10",
+    "notes": "The window keeps its state through updates."
+  },
+  {
+    "version": "0.4.18",
+    "date": "2026-06-10",
+    "notes": "Failed update checks are retried, and duplicate labels are saved on their own."
+  },
+  {
+    "version": "0.4.17",
+    "date": "2026-06-10"
+  },
+  {
+    "version": "0.4.16",
+    "date": "2026-06-09",
+    "notes": "View the diff of a single file."
+  },
+  {
+    "version": "0.4.15",
+    "date": "2026-06-09",
+    "notes": "More duplicate options in the project menu."
+  },
+  {
+    "version": "0.4.14",
+    "date": "2026-06-09",
+    "notes": "Reinstall dependencies when you duplicate, and open a project in your main editor from its menu."
+  },
+  {
+    "version": "0.4.13",
+    "date": "2026-06-05",
+    "notes": "A right-click menu in the terminal."
+  },
+  {
+    "version": "0.4.12",
+    "date": "2026-06-05",
+    "notes": "Duplicates inherit their parent’s services, and caches are skipped when copying."
+  },
+  {
+    "version": "0.4.11",
+    "date": "2026-06-04",
+    "notes": "Fixed launching nested actions."
+  },
+  {
+    "version": "0.4.10",
+    "date": "2026-06-03",
+    "notes": "AI instructions for each project, and closing a tab clears its status."
+  },
+  {
+    "version": "0.4.9",
+    "date": "2026-06-03",
+    "notes": "Terminal search can filter output down to the matching lines."
+  },
+  {
+    "version": "0.4.8",
+    "date": "2026-06-02",
+    "notes": "Local actions run in your login shell."
+  },
+  {
+    "version": "0.4.7",
+    "date": "2026-06-02",
+    "notes": "The window remembers its size and position."
+  },
+  {
+    "version": "0.4.6",
+    "date": "2026-06-01",
+    "notes": "Pick an action’s shape from a menu in the action wizard."
+  },
+  {
+    "version": "0.4.5",
+    "date": "2026-05-31",
+    "notes": "Fixed freezes while a dialog is open."
+  },
+  {
+    "version": "0.4.4",
+    "date": "2026-05-31",
+    "notes": "Checks for updates daily."
+  },
+  {
+    "version": "0.4.3",
+    "date": "2026-05-31",
+    "notes": "A sound for each kind of notification, agent status tracked per pane, and nvm and pnpm tools are found."
+  },
+  {
+    "version": "0.4.2",
+    "date": "2026-05-30",
+    "notes": "Give a tab an emoji when you rename it."
+  },
+  {
+    "version": "0.4.1",
+    "date": "2026-05-30",
+    "notes": "Emoji icons on action tabs, a split button for new tabs, and fixes for finding your tools."
+  },
+  {
+    "version": "0.4.0",
+    "date": "2026-05-30",
+    "notes": "A rebuilt, faster app with a browser tab inside panes, tab icons and site favicons, a project menu in the Dock, and a sidebar in project windows. Closing the window keeps lpm running. The command-line tool is retired for now."
+  },
+  {
+    "version": "0.3.67",
+    "date": "2026-05-28",
+    "notes": "A Claude Ultracode action template."
+  },
+  {
+    "version": "0.3.66",
+    "date": "2026-05-27",
+    "notes": "Templates in the action wizard."
+  },
+  {
+    "version": "0.3.65",
+    "date": "2026-05-27",
+    "notes": "A Terminals view across all projects, Push in the branch menu, and a redesigned screen for when you have no projects."
+  },
+  {
+    "version": "0.3.64",
+    "date": "2026-05-26",
+    "notes": "Rename terminal tabs."
+  },
+  {
+    "version": "0.3.63",
+    "date": "2026-05-26",
+    "notes": "The sidebar toggle lines up in full screen."
+  },
+  {
+    "version": "0.3.62",
+    "date": "2026-05-25",
+    "notes": "A Codex fast mode toggle, and file drops work in project windows."
+  },
+  {
+    "version": "0.3.61",
+    "date": "2026-05-25",
+    "notes": "Pin terminal tabs, with a warning before ⌘W closes a pinned one, and a right-click menu on tabs."
+  },
+  {
+    "version": "0.3.60",
+    "date": "2026-05-24",
+    "notes": "Pick an emoji for an action in the action wizard."
+  },
+  {
+    "version": "0.3.59",
+    "date": "2026-05-22",
+    "notes": "Background terminals no longer pile up output."
+  },
+  {
+    "version": "0.3.58",
+    "date": "2026-05-22",
+    "notes": "GPT-5.5 models, and a reasoning effort setting for AI generation."
+  },
+  {
+    "version": "0.3.57",
+    "date": "2026-05-22",
+    "notes": "Generate actions with AI."
+  },
+  {
+    "version": "0.3.56",
+    "date": "2026-05-22",
+    "notes": "The action wizard remembers its mode, has a working directory field, and shows which config an action comes from."
+  },
+  {
+    "version": "0.3.55",
+    "date": "2026-05-22",
+    "notes": "Copying from the terminal handles indentation better."
+  },
+  {
+    "version": "0.3.54",
+    "date": "2026-05-22",
+    "notes": "Better copying from the terminal, and reset the Claude Code hooks from the app."
+  },
+  {
+    "version": "0.3.53",
+    "date": "2026-05-22",
+    "notes": "Open a project in its own window, and an options button in the sidebar."
+  },
+  {
+    "version": "0.3.52",
+    "date": "2026-05-21",
+    "notes": "An updated app icon."
+  },
+  {
+    "version": "0.3.51",
+    "date": "2026-05-21",
+    "notes": "A new macOS icon, and the action editor no longer keeps old values."
+  },
+  {
+    "version": "0.3.49",
+    "date": "2026-05-20",
+    "notes": "Suggested emoji stay visible."
+  },
+  {
+    "version": "0.3.48",
+    "date": "2026-05-20",
+    "notes": "Emoji picker alignment fix."
+  },
+  {
+    "version": "0.3.47",
+    "date": "2026-05-20",
+    "notes": "Rename a project and give it an emoji, with suggestions."
+  },
+  {
+    "version": "0.3.46",
+    "date": "2026-05-11",
+    "notes": "Smoother drag and drop for actions."
+  },
+  {
+    "version": "0.3.45",
+    "date": "2026-05-10",
+    "notes": "Edit the global config from the app."
+  },
+  {
+    "version": "0.3.44",
+    "date": "2026-05-10"
+  },
+  {
+    "version": "0.3.43",
+    "date": "2026-05-10",
+    "notes": "Manage config templates, and edit layered configs in place."
+  },
+  {
+    "version": "0.3.42",
+    "date": "2026-05-10",
+    "notes": "Layered configs: extend a project’s shared config with your own settings."
+  },
+  {
+    "version": "0.3.41",
+    "date": "2026-05-06",
+    "notes": "Open projects in WebStorm."
+  },
+  {
+    "version": "0.3.40",
+    "date": "2026-05-04",
+    "notes": "Split button menus open in the right place."
+  },
+  {
+    "version": "0.3.39",
+    "date": "2026-05-03",
+    "notes": "A simpler way to create actions, Typora as a place to open files, and terminal session history."
+  },
+  {
+    "version": "0.3.38",
+    "date": "2026-05-01",
+    "notes": "Clone a Git repository as a new project."
+  },
+  {
+    "version": "0.3.36",
+    "date": "2026-05-01"
+  },
+  {
+    "version": "0.3.35",
+    "date": "2026-05-01"
+  },
+  {
+    "version": "0.3.34",
+    "date": "2026-05-01",
+    "notes": "Action terminals come back after a relaunch."
+  },
+  {
+    "version": "0.3.33",
+    "date": "2026-05-01",
+    "notes": "Choose what happens when a port is already in use."
+  },
+  {
+    "version": "0.3.32",
+    "date": "2026-05-01",
+    "notes": "Port conflicts are detected before an action starts, diffs can zoom, and files dragged over a terminal show a drop target."
+  },
+  {
+    "version": "0.3.31",
+    "date": "2026-04-30"
+  },
+  {
+    "version": "0.3.30",
+    "date": "2026-04-30",
+    "notes": "A brighter terminal blue and a fixed background for the Claude Dark theme."
+  },
+  {
+    "version": "0.3.29",
+    "date": "2026-04-30",
+    "notes": "Open files in their default app, preview terminal themes, and terminal settings move into Settings."
+  },
+  {
+    "version": "0.3.28",
+    "date": "2026-04-29",
+    "notes": "View and edit files inside the app, and long diffs load faster."
+  },
+  {
+    "version": "0.3.27",
+    "date": "2026-04-29",
+    "notes": "Edit services and profiles in forms, and files pasted into a remote terminal are uploaded to that machine."
+  },
+  {
+    "version": "0.3.26",
+    "date": "2026-04-28",
+    "notes": "SSH sync can replace folders that aren’t empty."
+  },
+  {
+    "version": "0.3.25",
+    "date": "2026-04-28",
+    "notes": "SSH sync mode sends your local edits to the remote machine as you save them."
+  },
+  {
+    "version": "0.3.24",
+    "date": "2026-04-28"
+  },
+  {
+    "version": "0.3.23",
+    "date": "2026-04-28",
+    "notes": "Create and edit actions in a wizard with a live preview, and right-click an action for its options."
+  },
+  {
+    "version": "0.3.22",
+    "date": "2026-04-27",
+    "notes": "Reorder actions."
+  },
+  {
+    "version": "0.3.21",
+    "date": "2026-04-27",
+    "notes": "Actions keep the order you give them, and new buttons go in the header."
+  },
+  {
+    "version": "0.3.20",
+    "date": "2026-04-26",
+    "notes": "Merge branches from the app, with AI that resolves merge conflicts, and review changes as a file tree."
+  },
+  {
+    "version": "0.3.19",
+    "date": "2026-04-26",
+    "notes": "Terminal panel styling fixes."
+  },
+  {
+    "version": "0.3.18",
+    "date": "2026-04-26",
+    "notes": "Restyled menus and terminal controls."
+  },
+  {
+    "version": "0.3.17",
+    "date": "2026-04-25",
+    "notes": "Forward a remote project’s ports to your Mac."
+  },
+  {
+    "version": "0.3.16",
+    "date": "2026-04-25",
+    "notes": "Pick an SSH host from your SSH config."
+  },
+  {
+    "version": "0.3.15",
+    "date": "2026-04-25",
+    "notes": "SSH projects: run a project’s services and actions on another machine over SSH."
+  },
+  {
+    "version": "0.3.14",
+    "date": "2026-04-24",
+    "notes": "Rolled back terminals that keep running after you close the app."
+  },
+  {
+    "version": "0.3.13",
+    "date": "2026-04-24",
+    "notes": "Fixes for terminals that keep running."
+  },
+  {
+    "version": "0.3.12",
+    "date": "2026-04-24",
+    "notes": "Terminals that keep running after you close the app."
+  },
+  {
+    "version": "0.3.10",
+    "date": "2026-04-23",
+    "notes": "Branch actions in the branch switcher, and dark mode by default."
+  },
+  {
+    "version": "0.3.9",
+    "date": "2026-04-21",
+    "notes": "Ships notarized macOS binaries."
+  },
+  {
+    "version": "0.3.8",
+    "date": "2026-04-21"
+  },
+  {
+    "version": "0.3.7",
+    "date": "2026-04-21"
+  },
+  {
+    "version": "0.3.6",
+    "date": "2026-04-20",
+    "notes": "A terminal footer for action buttons, with split buttons, and links to the config docs."
+  },
+  {
+    "version": "0.3.5",
+    "date": "2026-04-18",
+    "notes": "Open note attachments in a full-size viewer."
+  },
+  {
+    "version": "0.3.4",
+    "date": "2026-04-18",
+    "notes": "Search your notes, and links open in your browser."
+  },
+  {
+    "version": "0.3.3",
+    "date": "2026-04-18",
+    "notes": "A better empty state for Notes, and a compact chat rail when its sidebar is collapsed."
+  },
+  {
+    "version": "0.3.2",
+    "date": "2026-04-18"
+  },
+  {
+    "version": "0.3.1",
+    "date": "2026-04-18",
+    "notes": "Fixed secure storage when iCloud Keychain sync isn’t available."
+  },
+  {
+    "version": "0.3.0",
+    "date": "2026-04-17"
+  },
+  {
+    "version": "0.2.20",
+    "date": "2026-04-17"
+  },
+  {
+    "version": "0.2.19",
+    "date": "2026-04-17",
+    "notes": "Notes gain chat threads, file attachments by drag and drop, and a collapsible sidebar."
+  },
+  {
+    "version": "0.2.18",
+    "date": "2026-04-17",
+    "notes": "Notes: keep notes for each project, with export and import."
+  },
+  {
+    "version": "0.2.17",
+    "date": "2026-04-17",
+    "notes": "The app counts restored terminal tabs correctly."
+  },
+  {
+    "version": "0.2.16",
+    "date": "2026-04-16"
+  },
+  {
+    "version": "0.2.15",
+    "date": "2026-04-16"
+  },
+  {
+    "version": "0.2.14",
+    "date": "2026-04-16"
+  },
+  {
+    "version": "0.2.13",
+    "date": "2026-04-16",
+    "notes": "An experimental text-to-speech tab, and About moved into General settings."
+  },
+  {
+    "version": "0.2.12",
+    "date": "2026-04-16",
+    "notes": "Cleans up stale Git worktree references."
+  },
+  {
+    "version": "0.2.11",
+    "date": "2026-04-15",
+    "notes": "Duplicates get a short random ID in their name, and renaming a tab no longer starts a drag."
+  },
+  {
+    "version": "0.2.10",
+    "date": "2026-04-15",
+    "notes": "Terminal panes skip redundant redraws."
+  },
+  {
+    "version": "0.2.9",
+    "date": "2026-04-15",
+    "notes": "Config paths expand `~`."
+  },
+  {
+    "version": "0.2.8",
+    "date": "2026-04-15",
+    "notes": "Choose the AI model for generating, including Codex models, and let AI name your branches."
+  },
+  {
+    "version": "0.2.7",
+    "date": "2026-04-15",
+    "notes": "Background actions that run without opening a terminal."
+  },
+  {
+    "version": "0.2.6",
+    "date": "2026-04-14"
+  },
+  {
+    "version": "0.2.5",
+    "date": "2026-04-14",
+    "notes": "Drag terminal tabs between panes, and a redesigned feedback window."
+  },
+  {
+    "version": "0.2.4",
+    "date": "2026-04-13",
+    "notes": "Terminals and actions are one thing in the config."
+  },
+  {
+    "version": "0.2.3",
+    "date": "2026-04-13",
+    "notes": "Pick how branches pull, export and import configs, duplicate without uncommitted changes, and zoom the config editor."
+  },
+  {
+    "version": "0.2.2",
+    "date": "2026-04-13"
+  },
+  {
+    "version": "0.2.1",
+    "date": "2026-04-13"
+  },
+  {
+    "version": "0.2.0",
+    "date": "2026-04-13",
+    "notes": "A new config editor with syntax highlighting and formatting."
+  },
+  {
+    "version": "0.1.121",
+    "date": "2026-04-13"
+  },
+  {
+    "version": "0.1.120",
+    "date": "2026-04-13",
+    "notes": "Removing a project cleans up everything it started."
+  },
+  {
+    "version": "0.1.119",
+    "date": "2026-04-12",
+    "notes": "Fixed header wrapping, and added icons to the project menu."
+  },
+  {
+    "version": "0.1.118",
+    "date": "2026-04-12",
+    "notes": "Nested actions, select and radio inputs, actions that reuse their terminal, an option to hide the project name, and a header that wraps in narrow windows."
+  },
+  {
+    "version": "0.1.117",
+    "date": "2026-04-11",
+    "notes": "Duplicate a project into a copy that sits under the original in the sidebar, rename projects, and copy a project’s path from its menu."
+  },
+  {
+    "version": "0.1.116",
+    "date": "2026-04-11",
+    "notes": "Start a single service or toggle services from the profile menu, configs are validated with clear errors, and the focused pane is restored."
+  },
+  {
+    "version": "0.1.115",
+    "date": "2026-04-10",
+    "notes": "Closing a pane focuses its neighbor, and a feedback form in the menu."
+  },
+  {
+    "version": "0.1.114",
+    "date": "2026-04-10",
+    "notes": "Branch switcher and empty terminal polish, with keyboard hints."
+  },
+  {
+    "version": "0.1.113",
+    "date": "2026-04-10"
+  },
+  {
+    "version": "0.1.112",
+    "date": "2026-04-10",
+    "notes": "Drag terminal tabs to reorder them, and search and browse remote branches in the branch switcher."
+  },
+  {
+    "version": "0.1.111",
+    "date": "2026-04-10",
+    "notes": "Split terminal panes."
+  },
+  {
+    "version": "0.1.110",
+    "date": "2026-04-10",
+    "notes": "Terminal sessions come back after a relaunch, and the last project you opened reopens."
+  },
+  {
+    "version": "0.1.109",
+    "date": "2026-04-10",
+    "notes": "⌘1–9 switch projects, the config editor remembers its mode, and the AI generate window is redesigned."
+  },
+  {
+    "version": "0.1.108",
+    "date": "2026-04-10",
+    "notes": "Git status refreshes as soon as files change."
+  },
+  {
+    "version": "0.1.107",
+    "date": "2026-04-09",
+    "notes": "Actions can ask for input before they run, and branch names turn spaces into hyphens."
+  },
+  {
+    "version": "0.1.106",
+    "date": "2026-04-09",
+    "notes": "A visual config editor alongside the text one, with ⌘E to switch between them."
+  },
+  {
+    "version": "0.1.105",
+    "date": "2026-04-09",
+    "notes": "⌘W closes a terminal tab."
+  },
+  {
+    "version": "0.1.104",
+    "date": "2026-04-09"
+  },
+  {
+    "version": "0.1.103",
+    "date": "2026-04-09",
+    "notes": "A redesigned confirmation after creating a pull request."
+  },
+  {
+    "version": "0.1.102",
+    "date": "2026-04-09",
+    "notes": "An Error status when an agent fails, and the Waiting indicator shows on the active tab too."
+  },
+  {
+    "version": "0.1.101",
+    "date": "2026-04-09",
+    "notes": "The Waiting status stays until you open the tab, and notification sounds are more reliable."
+  },
+  {
+    "version": "0.1.100",
+    "date": "2026-04-08",
+    "notes": "Settings save less often."
+  },
+  {
+    "version": "0.1.99",
+    "date": "2026-04-08",
+    "notes": "The sidebar resize handle is easier to grab."
+  },
+  {
+    "version": "0.1.98",
+    "date": "2026-04-08",
+    "notes": "Installing an update shows its progress."
+  },
+  {
+    "version": "0.1.97",
+    "date": "2026-04-08",
+    "notes": "Create pull requests with an AI-written title and description, and pick the base branch."
+  },
+  {
+    "version": "0.1.96",
+    "date": "2026-04-08",
+    "notes": "Terminal actions start in the project’s folder with its environment."
+  },
+  {
+    "version": "0.1.95",
+    "date": "2026-04-08",
+    "notes": "A project with a broken config shows an error instead of disappearing."
+  },
+  {
+    "version": "0.1.94",
+    "date": "2026-04-08",
+    "notes": "Action types are no longer limited to a fixed list."
+  },
+  {
+    "version": "0.1.93",
+    "date": "2026-04-08",
+    "notes": "Actions can run in a terminal tab."
+  },
+  {
+    "version": "0.1.92",
+    "date": "2026-04-08",
+    "notes": "Selecting terminal text no longer copies it automatically."
+  },
+  {
+    "version": "0.1.91",
+    "date": "2026-04-08",
+    "notes": "Paste files and images from the clipboard into the terminal, and ⌘ shortcuts work while a terminal has focus."
+  },
+  {
+    "version": "0.1.90",
+    "date": "2026-04-07"
+  },
+  {
+    "version": "0.1.89",
+    "date": "2026-04-07"
+  },
+  {
+    "version": "0.1.88",
+    "date": "2026-04-07",
+    "notes": "Better keyboard handling for agent CLIs in the terminal."
+  },
+  {
+    "version": "0.1.87",
+    "date": "2026-04-07"
+  },
+  {
+    "version": "0.1.86",
+    "date": "2026-04-07",
+    "notes": "The commit window can write the message for you as soon as it opens."
+  },
+  {
+    "version": "0.1.85",
+    "date": "2026-04-07",
+    "notes": "Terminal settings with font size controls."
+  },
+  {
+    "version": "0.1.84",
+    "date": "2026-04-07",
+    "notes": "Updated the terminal renderer."
+  },
+  {
+    "version": "0.1.83",
+    "date": "2026-04-07",
+    "notes": "Review changes side by side, with syntax highlighting, before you commit, and check or reset the Claude Code hooks in Settings."
+  },
+  {
+    "version": "0.1.82",
+    "date": "2026-04-07",
+    "notes": "A Waiting status when an agent needs you, and sound notifications."
+  },
+  {
+    "version": "0.1.81",
+    "date": "2026-04-06",
+    "notes": "Custom instructions for AI commit messages."
+  },
+  {
+    "version": "0.1.80",
+    "date": "2026-04-06",
+    "notes": "Commit and push from the app, with AI-written commit messages."
+  },
+  {
+    "version": "0.1.79",
+    "date": "2026-04-06",
+    "notes": "Agent status: the sidebar shows when Claude Code or Codex is working or done."
+  },
+  {
+    "version": "0.1.78",
+    "date": "2026-04-06"
+  },
+  {
+    "version": "0.1.77",
+    "date": "2026-04-06",
+    "notes": "Settings in the app menu."
+  },
+  {
+    "version": "0.1.76",
+    "date": "2026-04-05",
+    "notes": "An installing screen while an update installs, and an About window."
+  },
+  {
+    "version": "0.1.75",
+    "date": "2026-04-05"
+  },
+  {
+    "version": "0.1.74",
+    "date": "2026-04-05",
+    "notes": "Check for Updates in the app menu, and the header no longer overflows with many buttons."
+  },
+  {
+    "version": "0.1.73",
+    "date": "2026-04-05",
+    "notes": "Generate a project config with AI from the desktop app."
+  },
+  {
+    "version": "0.1.72",
+    "date": "2026-04-05",
+    "notes": "More fixes for non-ASCII terminal input."
+  },
+  {
+    "version": "0.1.71",
+    "date": "2026-04-05",
+    "notes": "Typing non-ASCII characters in the terminal works."
+  },
+  {
+    "version": "0.1.70",
+    "date": "2026-04-05",
+    "notes": "Start and stop single services from the terminal view."
+  },
+  {
+    "version": "0.1.69",
+    "date": "2026-04-05",
+    "notes": "The branch switcher opens and closes reliably."
+  },
+  {
+    "version": "0.1.68",
+    "date": "2026-04-05"
+  },
+  {
+    "version": "0.1.67",
+    "date": "2026-04-05",
+    "notes": "Toast notifications for errors, and a new app icon."
+  },
+  {
+    "version": "0.1.66",
+    "date": "2026-04-04"
+  },
+  {
+    "version": "0.1.65",
+    "date": "2026-04-04",
+    "notes": "A Git branch switcher with sync, an Open in menu for your editors, and update progress in the sidebar."
+  },
+  {
+    "version": "0.1.64",
+    "date": "2026-04-04",
+    "notes": "Reordered projects show up right away."
+  },
+  {
+    "version": "0.1.63",
+    "date": "2026-04-04"
+  },
+  {
+    "version": "0.1.62",
+    "date": "2026-04-04"
+  },
+  {
+    "version": "0.1.61",
+    "date": "2026-04-04",
+    "notes": "Fixed the app sometimes not quitting to install an update."
+  },
+  {
+    "version": "0.1.60",
+    "date": "2026-04-04",
+    "notes": "The app relaunches itself after installing an update."
+  },
+  {
+    "version": "0.1.59",
+    "date": "2026-04-04",
+    "notes": "More reliable relaunch after an update."
+  },
+  {
+    "version": "0.1.58",
+    "date": "2026-04-04",
+    "notes": "Fixed relaunching after an update."
+  },
+  {
+    "version": "0.1.57",
+    "date": "2026-04-04"
+  },
+  {
+    "version": "0.1.56",
+    "date": "2026-04-04"
+  },
+  {
+    "version": "0.1.55",
+    "date": "2026-04-04"
+  },
+  {
+    "version": "0.1.54",
+    "date": "2026-04-04",
+    "notes": "Fixed quitting from the Dock menu."
+  },
+  {
+    "version": "0.1.53",
+    "date": "2026-04-04",
+    "notes": "The Dock menu brings the main window back."
+  },
+  {
+    "version": "0.1.52",
+    "date": "2026-04-04",
+    "notes": "The Dock menu responds faster."
+  },
+  {
+    "version": "0.1.51",
+    "date": "2026-04-04",
+    "notes": "Choosing a project in the Dock menu opens the window."
+  },
+  {
+    "version": "0.1.50",
+    "date": "2026-04-04",
+    "notes": "The Dock menu is filled in at launch, and the empty state is redesigned."
+  },
+  {
+    "version": "0.1.49",
+    "date": "2026-04-04"
+  },
+  {
+    "version": "0.1.48",
+    "date": "2026-04-04",
+    "notes": "The Dock menu lists your projects, and Edit Config is in the quick menu."
+  },
+  {
+    "version": "0.1.47",
+    "date": "2026-04-04",
+    "notes": "Project page polish."
+  },
+  {
+    "version": "0.1.46",
+    "date": "2026-04-04",
+    "notes": "Restyled action buttons."
+  },
+  {
+    "version": "0.1.45",
+    "date": "2026-04-04",
+    "notes": "A profile menu to pick which services run."
+  },
+  {
+    "version": "0.1.44",
+    "date": "2026-04-03",
+    "notes": "Fixed the config editor losing track of unsaved changes while saving."
+  },
+  {
+    "version": "0.1.43",
+    "date": "2026-04-03",
+    "notes": "A global config shared by every project, and terminals defined in a project’s config."
+  },
+  {
+    "version": "0.1.42",
+    "date": "2026-04-03",
+    "notes": "Terminal sessions are more reliable and report their errors."
+  },
+  {
+    "version": "0.1.41",
+    "date": "2026-04-03",
+    "notes": "Smoother terminal resizing."
+  },
+  {
+    "version": "0.1.40",
+    "date": "2026-04-03",
+    "notes": "Window controls stay in place after resizing and full screen, and terminals resize more smoothly."
+  },
+  {
+    "version": "0.1.39",
+    "date": "2026-04-03",
+    "notes": "Window controls sit in line with the custom title bar."
+  },
+  {
+    "version": "0.1.38",
+    "date": "2026-04-03"
+  },
+  {
+    "version": "0.1.37",
+    "date": "2026-04-03"
+  },
+  {
+    "version": "0.1.36",
+    "date": "2026-04-03",
+    "notes": "Toolbar and sidebar layout polish."
+  },
+  {
+    "version": "0.1.35",
+    "date": "2026-04-02",
+    "notes": "Drop files onto a terminal to paste their paths."
+  },
+  {
+    "version": "0.1.34",
+    "date": "2026-04-02",
+    "notes": "The sidebar animates when it collapses, and button tooltips show their shortcuts."
+  },
+  {
+    "version": "0.1.33",
+    "date": "2026-04-02",
+    "notes": "Interactive terminals, and a sidebar you can resize and collapse with a shortcut."
+  },
+  {
+    "version": "0.1.32",
+    "date": "2026-04-01",
+    "notes": "Required tools install from inside the app."
+  },
+  {
+    "version": "0.1.31",
+    "date": "2026-04-01",
+    "notes": "Layout polish."
+  },
+  {
+    "version": "0.1.30",
+    "date": "2026-04-01",
+    "notes": "The app finds the tools on your shell’s PATH when opened from Finder."
+  },
+  {
+    "version": "0.1.29",
+    "date": "2026-04-01",
+    "notes": "Actions run in your own shell."
+  },
+  {
+    "version": "0.1.28",
+    "date": "2026-04-01",
+    "notes": "Action output opens in the terminal, and terminal theme settings are simpler."
+  },
+  {
+    "version": "0.1.27",
+    "date": "2026-04-01"
+  },
+  {
+    "version": "0.1.26",
+    "date": "2026-04-01",
+    "notes": "Actions: run a project’s commands from a button or with `lpm run`. A built-in terminal streams service logs, with theme and font size settings."
+  },
+  {
+    "version": "0.1.25",
+    "date": "2026-03-31"
+  },
+  {
+    "version": "0.1.24",
+    "date": "2026-03-31",
+    "notes": "Update checks run in the background."
+  },
+  {
+    "version": "0.1.23",
+    "date": "2026-03-31",
+    "notes": "The sidebar shows when an update is available."
+  },
+  {
+    "version": "0.1.22",
+    "date": "2026-03-31",
+    "notes": "Services keep a stable order in the terminal."
+  },
+  {
+    "version": "0.1.21",
+    "date": "2026-03-31",
+    "notes": "A Settings screen, plus checking for and installing app updates."
+  },
+  {
+    "version": "0.1.20",
+    "date": "2026-03-31"
+  },
+  {
+    "version": "0.1.19",
+    "date": "2026-03-31"
+  },
+  {
+    "version": "0.1.18",
+    "date": "2026-03-31",
+    "notes": "Clearer prompts when installing the tools lpm needs."
+  },
+  {
+    "version": "0.1.17",
+    "date": "2026-03-30",
+    "notes": "The desktop app checks for the tools it needs and offers to install them with Homebrew."
+  },
+  {
+    "version": "0.1.16",
+    "date": "2026-03-30",
+    "notes": "The macOS app is signed and notarized."
+  },
+  {
+    "version": "0.1.15",
+    "date": "2026-03-30"
+  },
+  {
+    "version": "0.1.14",
+    "date": "2026-03-30"
+  },
+  {
+    "version": "0.1.13",
+    "date": "2026-03-30",
+    "notes": "Builds for both Apple Silicon and Intel Macs."
+  },
+  {
+    "version": "0.1.12",
+    "date": "2026-03-30"
+  },
+  {
+    "version": "0.1.11",
+    "date": "2026-03-30",
+    "notes": "The desktop app ships as a macOS disk image."
+  },
+  {
+    "version": "0.1.10",
+    "date": "2026-03-30",
+    "notes": "The first desktop app: add a project from a folder, start and stop it from the sidebar, read service logs and edit its config."
+  },
+  {
+    "version": "0.1.9",
+    "date": "2026-03-30",
+    "notes": "Stopping a project is more reliable."
+  },
+  {
+    "version": "0.1.8",
+    "date": "2026-03-30",
+    "notes": "The project list shows each service’s port, and errors are clearer."
+  },
+  {
+    "version": "0.1.7",
+    "date": "2026-03-30",
+    "notes": "Cleaner service output when starting or switching projects."
+  },
+  {
+    "version": "0.1.6",
+    "date": "2026-03-29",
+    "notes": "Service working directories are expanded when a config loads."
+  },
+  {
+    "version": "0.1.5",
+    "date": "2026-03-29",
+    "notes": "Switching projects lists the services that started."
+  },
+  {
+    "version": "0.1.4",
+    "date": "2026-03-29",
+    "notes": "Clearer command descriptions and output."
+  },
+  {
+    "version": "0.1.3",
+    "date": "2026-03-29",
+    "notes": "Services can be a single command string, and the kill command can stop every project at once."
+  },
+  {
+    "version": "0.1.2",
+    "date": "2026-03-29",
+    "notes": "Security, error-handling and correctness fixes."
+  },
+  {
+    "version": "0.1.1",
+    "date": "2026-03-29",
+    "notes": "Commands to create, edit and remove project configs."
+  },
+  {
+    "version": "0.1.0",
+    "date": "2026-03-29",
+    "notes": "First release: a command-line tool that starts and stops your local dev projects."
+  }
+]

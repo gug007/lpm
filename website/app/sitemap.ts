@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import {
+  CHANGELOG_PATH,
   PRIVACY_PATH,
   SITE_URL,
   STATS_PATH,
@@ -16,6 +17,7 @@ const NOINDEX = new Set(["/demo", "/join"]);
 const OVERRIDES: Record<string, Pick<Entry, "changeFrequency" | "priority">> = {
   "/": { changeFrequency: "weekly", priority: 1 },
   [STATS_PATH]: { changeFrequency: "weekly", priority: 0.4 },
+  [CHANGELOG_PATH]: { changeFrequency: "daily", priority: 0.5 },
   [PRIVACY_PATH]: { changeFrequency: "yearly", priority: 0.3 },
   [TERMS_PATH]: { changeFrequency: "yearly", priority: 0.3 },
 };

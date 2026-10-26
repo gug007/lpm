@@ -1,23 +1,12 @@
 import { Fragment } from "react";
 import { ArrowUpRight } from "lucide-react";
+import { withCode } from "@/components/with-code";
 import {
   CHECK_ROWS,
   CHECK_TOOLS,
   type CheckCell,
 } from "./check-usage-data";
 import { INLINE_CODE, TEXT_LINK } from "./page-styles";
-
-function withCode(text: string) {
-  return text.split("`").map((part, i) =>
-    i % 2 ? (
-      <code key={i} className={INLINE_CODE}>
-        {part}
-      </code>
-    ) : (
-      part
-    ),
-  );
-}
 
 function breakAfterSlashes(text: string) {
   return text.split("/").map((part, i, parts) => (
@@ -56,7 +45,7 @@ function cellBody(cell: CheckCell) {
           {cell.code}
         </code>
       )}
-      <span className="block">{withCode(cell.text)}</span>
+      <span className="block">{withCode(cell.text, INLINE_CODE)}</span>
     </>
   );
 }

@@ -10,6 +10,7 @@ export const CONFIG_PATH = "/config";
 export const PRIVACY_PATH = "/privacy";
 export const TERMS_PATH = "/terms";
 export const STATS_PATH = "/stats";
+export const CHANGELOG_PATH = "/changelog";
 export const DEMO_ANCHOR = "#demo";
 export const LESSONS_ANCHOR = "#lessons";
 export const BEST_TERMINAL_MAC_PATH = "/best-terminal-for-mac";

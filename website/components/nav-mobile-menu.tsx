@@ -6,9 +6,9 @@ import { useEffect, useRef, useState } from "react";
 import {
   AI_AGENTS_PATH,
   AUTOMATIONS_PATH,
+  CHANGELOG_PATH,
   FEATURES_PATH,
   MOBILE_PATH,
-  VS_BASE_PATH,
 } from "@/lib/links";
 import { NavLink } from "./nav-link";
 
@@ -18,7 +18,7 @@ const MENU_LINKS = [
   { href: AI_AGENTS_PATH, label: "AI agents" },
   { href: AUTOMATIONS_PATH, label: "Automations" },
   { href: MOBILE_PATH, label: "iPhone app" },
-  { href: VS_BASE_PATH, label: "Compare" },
+  { href: CHANGELOG_PATH, label: "Changelog" },
 ];
 const linkClass =
   "inline-flex w-fit items-center min-h-11 text-sm transition-colors duration-200";

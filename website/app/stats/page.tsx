@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
+import { DownloadFooter } from "@/components/download-footer";
 import { DOWNLOAD_ENTRIES, DOWNLOADS_BY_OS } from "@/lib/downloads";
 import { getDownloadStats, type ReleaseStat } from "@/lib/github-stats";
-import { REPO_URL, STATS_PATH } from "@/lib/links";
+import { RELEASES_URL, REPO_URL, STATS_PATH } from "@/lib/links";
 import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
 import { ReleaseList } from "./_components/release-list";
 import { StatCard } from "./_components/stat-card";
-import { StatsFooter } from "./_components/stats-footer";
 import { StatsHeader, STATS_LINK } from "./_components/stats-header";
 
 export const revalidate = 3600;
@@ -140,7 +140,7 @@ export default async function StatsPage() {
         </p>
       )}
 
-      <StatsFooter />
+      <DownloadFooter href={RELEASES_URL} label="Latest release notes" />
     </article>
   );
 }

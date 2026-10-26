@@ -20,7 +20,9 @@ lpm starts, stops, duplicates, and switches between local dev projects, with a b
   desktop UI itself in an iframe: `desktop/frontend/src/demo` answers its commands
   from sample data in memory and plays each page's tour against the real UI
   (`npm run dev:demo` in `desktop/frontend`, `?seed=sample` for the sample
-  workspace), built into `website/public/demo-app`
+  workspace), built into `website/public/demo-app`. After a release, run
+  `pnpm changelog:sync` in `website/` and write the `notes` line it asks for in
+  `website/app/changelog/_components/releases.json` (the `/changelog` page)
 - `relay/` — Cloudflare Worker that lets a browser join a shared tab: a Durable
   Object room per share, forwarding Noise-encrypted messages, and the guest page
   (lpm-share-relay.lpm-share-relay.workers.dev). `npm run dev` / `npm test` / `npm run deploy`; see its README.
