@@ -18,6 +18,7 @@ import { FilesEditor } from "./FilesEditor";
 import { FilesHeader } from "./FilesHeader";
 import type { RowTarget } from "./FilesRow";
 import { FilesRowMenu } from "./FilesRowMenu";
+import { underIgnored } from "./gitDecorations";
 import { FilesTree, type ActivateOptions, type CursorRequest } from "./FilesTree";
 import { rankFiles, type IndexEntry } from "./filesFilter";
 import { FilesContentSearch } from "./FilesContentSearch";
@@ -452,6 +453,7 @@ export function FilesPane({
           onOpen={() => activate(menu)}
           edits={review ? undefined : edits}
           onDiscard={decorations.has(menu.path) ? () => git.discard.request(menu) : undefined}
+          ignored={underIgnored(menu.path, ignoredPaths)}
           onClose={() => setMenu(null)}
         />
       )}

@@ -97,6 +97,15 @@ mod gitconflict;
 mod gitfollow;
 mod gitfollowrun;
 mod gitfollowstore;
+mod ignoredhost;
+mod ignoredkeep;
+mod ignoredpath;
+mod ignoredrun;
+mod ignoredscan;
+mod ignoredset;
+mod ignoredstep;
+mod ignoredsync;
+mod ignoredwrite;
 mod gitpush;
 mod gitresolve;
 mod gitsync;
@@ -359,6 +368,11 @@ use gitresolve::{
     git_continue_merge, git_mark_conflict_resolved, git_merge_state, git_take_conflict_side,
 };
 use gitsync::{sync_project_cancel, sync_project_start};
+use ignoredset::ignored_sync_set;
+use ignoredsync::{
+    ignored_sync_cancel, ignored_sync_forget, ignored_sync_list, ignored_sync_read,
+    ignored_sync_save, ignored_sync_saved, ignored_sync_start, ignored_sync_undo,
+};
 use hooks::*;
 use jobs::*;
 use jobs::ask::*;
@@ -662,9 +676,13 @@ pub fn run() {
             app.manage(autosync);
             // Followed projects: polls each one's Mac for a cheap working-state
             // fingerprint and lands a transfer only when it changed.
-            let follow = gitfollow::Engine::new(handle.clone(), peer_client_hub);
+            let follow = gitfollow::Engine::new(handle.clone(), peer_client_hub.clone());
             follow.start();
             app.manage(follow);
+            // Files a project remembers to keep in step with another computer.
+            let kept = ignoredkeep::Engine::new(handle.clone(), peer_client_hub);
+            kept.start();
+            app.manage(kept);
 
             // A lesson recording runs on a throwaway data directory and has to
             // leave the rest of the machine alone: nothing below that writes into
@@ -747,6 +765,7 @@ pub fn run() {
                 remote::stop(&app.state::<remote::RemoteHub>()); // retire the mobile server threads
                 app.state::<autosync::Engine>().stop(); // retire the auto-sync scheduler
                 app.state::<gitfollow::Engine>().stop(); // retire the follow scheduler
+                app.state::<ignoredkeep::Engine>().stop(); // stop keeping files in step
                 peer::stop(&app.state::<peer::PeerHub>()); // retire the peer host threads
                 peerclient::stop(&app.state::<peerclient::PeerClientHub>()); // drop peer client conns
                 tailnet::stop(); // take the built-in Tailscale node offline

@@ -91,6 +91,8 @@ import { ProjectGitModals, type GitModalTarget } from "./ProjectGitModals";
 import { BulkDuplicateDialog, type BulkDuplicateOptions } from "./BulkDuplicateDialog";
 import { SyncSetupModal } from "./SyncSetupModal";
 import { syncSourceFor } from "./syncSource";
+import { useIgnoredSyncStore } from "./ignored/ignoredSyncStore";
+import { syncPairsFor } from "./ignored/syncPairs";
 import { buildPeerSections, followForRow, type PeerSection } from "./peerSections";
 import { RemoveSyncedCopyDialog } from "./RemoveSyncedCopyDialog";
 import { DeleteCopyBody } from "./DeleteCopyBody";
@@ -431,6 +433,10 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
         ? syncSourceFor(projects, peerState.peers, contextMenu.name)
         : null,
     [contextMenu, projects, peerState.peers, rowFollow],
+  );
+  const ignoredPairs = useMemo(
+    () => (contextMenu ? syncPairsFor(contextMenu.name, projects, peerState.peers) : []),
+    [contextMenu, projects, peerState.peers],
   );
 
   const contextFollow = useMemo((): FollowingMenuState | undefined => {
@@ -1842,6 +1848,9 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             onBulkDuplicate={() => setBulkDuplicate({ name: contextMenu.name, mode: "copy" })}
             onWorktree={() => setBulkDuplicate({ name: contextMenu.name, mode: "worktree" })}
             onSyncHere={syncSource ? () => setSyncing(syncSource) : undefined}
+            onSyncIgnored={
+              ignoredPairs.length ? () => useIgnoredSyncStore.getState().open({ pairs: ignoredPairs }) : undefined
+            }
             following={contextFollow}
             onCopyPath={async () => {
               // Copy the host-native path; the /@peer-… marker is a routing key,

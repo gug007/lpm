@@ -12,7 +12,8 @@ const NULL: string[] = [
   "copy_claude_session_for_fork", "copy_png_image", "create_branch", "create_template", "delete_agent_skill",
   "delete_branch", "delete_job_history", "delete_memory_session", "delete_remote_tracking_ref",
   "delete_template", "detach_project", "dismiss_port_suggestion", "drain_pending_job_tasks",
-  "focus_main_window", "follow_pause", "follow_resume", "follow_stop", "generate_agent_skill",
+  "focus_main_window", "follow_pause", "ignored_sync_cancel", "ignored_sync_forget",
+  "ignored_sync_save", "ignored_sync_saved", "ignored_sync_set", "follow_resume", "follow_stop", "generate_agent_skill",
   "get_claude_statusline_state", "get_codex_statusline_state", "get_msys_mounts",
   "git_abort_merge", "git_auto_pull", "git_auto_pull_last", "git_auto_pull_undo", "git_continue_merge",
   "git_mark_conflict_resolved", "git_take_conflict_side",
@@ -95,7 +96,7 @@ const EMPTY_STRING: string[] = [
   "read_commit_instructions", "read_file", "read_global_config",
   "read_pr_description_instructions", "read_pr_title_instructions", "read_project_instructions",
   "read_template", "resolve_merge_conflicts_with_ai", "save_clipboard_image", "save_png_image",
-  "save_generator_icon", "start_claude_login", "sync_project_start", "terminal_foreground_command",
+  "save_generator_icon", "start_claude_login", "sync_project_start", "ignored_sync_start", "terminal_foreground_command",
   "transform_text", "upload_and_quote_for_terminal", "upload_clipboard_image_for_terminal",
   "upload_file_for_terminal", "vault_export_key", "voice_to_text_start",
 ];
@@ -105,7 +106,7 @@ const ZERO: string[] = [
 ];
 
 const EMPTY_MAP: string[] = [
-  "services_build",
+  "ignored_sync_list", "ignored_sync_read", "ignored_sync_undo", "services_build",
 ];
 
 export const DEFAULTS: Record<string, unknown> = Object.fromEntries([

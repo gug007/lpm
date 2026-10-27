@@ -8,6 +8,7 @@ import { findParentProject, projectDisplayName } from "./components/ProjectNameD
 import { PortConflictDialog } from "./components/PortConflictDialog";
 import { FileViewerHost } from "./components/FileViewerHost";
 import { InstructionsDialogHost } from "./components/InstructionsDialogHost";
+import { IgnoredSyncHost } from "./components/ignored/IgnoredSyncHost";
 import { ShareTabPopover } from "./components/share/ShareTabPopover";
 import { TerminalDropOverlayHost } from "./components/terminal/TerminalDropOverlayHost";
 import { MainTopBar } from "./components/MainTopBar";
@@ -183,6 +184,7 @@ export function DetachedApp({ projectName }: DetachedAppProps) {
       <PortConflictDialog />
       <FileViewerHost />
       <InstructionsDialogHost />
+      <IgnoredSyncHost />
       <TerminalDropOverlayHost />
       <ShareTabPopover />
     </div>

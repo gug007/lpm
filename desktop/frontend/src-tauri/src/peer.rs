@@ -87,6 +87,7 @@ const HOST_FEATURES: &[&str] = &[
     crate::peersync::SYNC_FEATURE2,
     crate::gitbringhost::GIT_BRING_FEATURE,
     crate::gitbringhost::GIT_FOLLOW_FEATURE,
+    crate::ignoredhost::IGNORED_SYNC_FEATURE,
     crate::gitwatchhost::GIT_WATCH_FEATURE,
     crate::porttunnel::PORT_TUNNEL_FEATURE,
     crate::hostclaude::HOST_CLAUDE_FEATURE,
@@ -1760,6 +1761,11 @@ fn handle_msg(
         // gitBring feature so an older host simply ignores them.
         "gitBringPrepare" | "gitBringState" | "gitBringStates" | "gitBringChunk"
         | "gitBringDone" => crate::gitbringhost::handle_bring(out, t, &v),
+        // Files of a project here — what git ignores, or any file the asking
+        // Mac picked — listed, sent and taken in pieces (ignoredhost.rs). Same
+        // shape again, gated on the ignoredSync feature.
+        "ignoredList" | "ignoredManifest" | "ignoredRead" | "ignoredWrite" | "ignoredFinish"
+        | "ignoredUndo" | "ignoredOrigin" => crate::ignoredhost::handle(out, t, &v),
         // A web server here opened from the client's own localhost (porttunnel.rs).
         // Dedicated frames, gated on the portTunnel feature like the others.
         "tcpOpen" | "tcpData" | "tcpClose" => crate::porttunnel::handle_host(conn_id, out, t, &v),

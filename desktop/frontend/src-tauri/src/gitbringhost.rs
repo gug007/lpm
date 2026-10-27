@@ -70,7 +70,7 @@ pub fn handle_bring(out: &SyncSender<String>, t: &str, v: &Value) {
 /// The asking Mac chooses this path, so it is matched against the projects this
 /// Mac actually manages. Without it a paired Mac could pack the history and
 /// uncommitted work of any repository on disk, including ones lpm never knew of.
-fn is_known_project_root(cwd: &str) -> bool {
+pub(crate) fn is_known_project_root(cwd: &str) -> bool {
     let Ok(want) = std::fs::canonicalize(cwd) else {
         return false;
     };

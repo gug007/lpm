@@ -10,6 +10,7 @@ import { mentionInAgent, mentionTarget } from "./mentionInAgent";
 import { folderFor } from "./treeEdits";
 import type { TreeEdits } from "./useTreeEdits";
 import { revealLabel } from "../../machineWords";
+import { FilesSyncItems } from "../ignored/FilesSyncItems";
 
 const NO_TERMINAL = "Open a terminal in this project to mention files in it";
 
@@ -22,6 +23,8 @@ interface FilesRowMenuProps {
   edits?: TreeEdits;
   // Given only when the row holds uncommitted changes.
   onDiscard?: () => void;
+  // The row is ignored by git, or inside a folder that is.
+  ignored?: boolean;
   onClose: () => void;
 }
 
@@ -32,6 +35,7 @@ export function FilesRowMenu({
   onOpen,
   edits,
   onDiscard,
+  ignored = false,
   onClose,
 }: FilesRowMenuProps) {
   const run = (action: () => void) => () => {
@@ -81,6 +85,13 @@ export function FilesRowMenu({
           />
         </>
       )}
+      <FilesSyncItems
+        projectName={projectName}
+        path={target.path}
+        isDir={target.isDir}
+        ignored={ignored}
+        onClose={onClose}
+      />
       <ContextMenuSeparator />
       <ContextMenuItem
         label="Copy path"

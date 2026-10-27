@@ -82,6 +82,9 @@ export function isLocalOnlyCommand(cmd: string): boolean {
     cmd.startsWith("tailnet_") ||
     // What was typed is kept on the Mac it was typed on, a peer terminal's too.
     cmd.startsWith("message_history_") ||
+    // Syncing files with a paired computer runs here and reaches that computer
+    // itself; the project and the other side's folder are separate arguments.
+    cmd.startsWith("ignored_sync_") ||
     LOCAL_ONLY_EXACT.has(cmd)
   );
 }

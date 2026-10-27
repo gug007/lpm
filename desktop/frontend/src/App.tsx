@@ -67,6 +67,8 @@ import { ClaudePoolConsentDialog } from "./components/ClaudePoolConsentDialog";
 import { ClaudeAccountPoolDialog } from "./components/ClaudeAccountPoolDialog";
 import { SharedTabView } from "./components/share/SharedTabView";
 import { TabShareHosts } from "./components/share/TabShareHosts";
+import { IgnoredSyncHost } from "./components/ignored/IgnoredSyncHost";
+import { useIgnoredSyncConflicts } from "./components/ignored/useIgnoredSyncConflicts";
 
 export default function App() {
   const projects = useAppStore((s) => s.projects);
@@ -160,6 +162,7 @@ export default function App() {
   usePeerAutoSyncToasts(peerState.peers);
   usePeerFileSaveNotices();
   usePeerRemovedNotices();
+  useIgnoredSyncConflicts();
   useSshStatusWarnings();
   useUpdateNote();
   useActionErrorToasts();
@@ -405,6 +408,7 @@ export default function App() {
       <TabShareHosts />
       <FileViewerHost />
       <InstructionsDialogHost />
+      <IgnoredSyncHost />
       <TerminalDropOverlayHost />
       <ProjectSwitcher
         active={switcher.active}

@@ -206,6 +206,8 @@ the client can have the host install the latest lpm (see **Commands**);
 `hostClaudeAccounts` = the host answers `host_claude_accounts` (see **Commands**);
 `fileSave` = the host puts a client's save of one of its files in place (see
 **Commands**);
+`ignoredSync` = the host lists, sends and takes the files of its projects (see
+**File sync**);
 `agentLimits` = the host trades Claude usage limits (see **Usage
 limits**). A host
 missing a feature simply never receives frames that depend on it. The full list
@@ -468,6 +470,47 @@ without the feature and asks for an update instead.
 An SSH project of the host's forwards its server's ports to the host's loopback
 (`add_port_forward` runs there, like the rest of its Ports commands), so the
 client opens a forwarded port through this tunnel in turn.
+
+## File sync
+
+`ignoredSync` feature (`ignoredhost.rs`, driven from `ignoredrun.rs`). The client
+copies files between one of its projects and the same project on the host, in
+either direction: what git ignores (Sync Ignored Files) or any file or folder
+(the Files tab's Send / Get). Every frame names the host folder as `cwd`, which
+must be a project root the host manages; paths are project-relative, `/`-separated,
+and refused when they leave the project, enter `.git`, or pass through a link.
+Replies use `result`, like `invoke`.
+
+- `{ "t": "ignoredList", "cwd", "dir" }` → `{ entries: [{ path, dir, size, files,
+  mtime, digest }], more, origin? }` — `dir` empty lists what git ignores (an
+  ignored folder is one entry ending in `/`) and carries the project's git
+  `origin`; otherwise the children of that folder. `more` counts entries past the
+  2000 returned.
+- `{ "t": "ignoredManifest", "cwd", "paths" }` → `{ files: [{ path, size, mtime,
+  digest, exec, link? }] }` — every file the paths hold. `digest` is the SHA-256
+  of files up to 4 MB, otherwise size and modification time; a link carries its
+  target and is never followed.
+- `{ "t": "ignoredRead", "cwd", "pieces": [{ path, offset, len }] }` → `{ pieces:
+  [{ path, offset, data }] }` — `data` base64, at most 1 MiB raw per frame. A
+  short read fails: the file changed since it was described.
+- `{ "t": "ignoredWrite", "cwd", "batch", "pieces": [{ path, offset, size, mtime,
+  exec, link?, data }] }` → `{}` — pieces arrive in order into a hidden
+  temp beside each file, which replaces it only once whole. What it replaces, and
+  every folder it had to make, is recorded under `~/.lpm/ignored-sync/backups/
+  <batch>` on the host.
+- `{ "t": "ignoredFinish", "batch" }` → `{ added, replaced }` — throws away any
+  half-arrived file. A batch left unfinished is dropped after 10 minutes.
+- `{ "t": "ignoredUndo", "cwd", "batch" }` → `{ restored, paths }` — removes what
+  the batch added and puts back what it replaced. Backups are kept 7 days.
+- `{ "t": "ignoredOrigin", "cwd" }` → `{ origin }` — the project's git `origin`, so
+  two folders of the same name are synced only when they hold the same repository.
+
+A client remembers a list per project and per computer in
+`~/.lpm/ignored-sync/lists.json`, kept in sync by default; each kept list is
+compared every 30 s while its computer is connected, both ways, against the
+digests both sides last agreed on. An undo that puts back a kept file pauses that
+list and forgets what it agreed on. A file changed on both is left alone and
+reported as `ignored-sync-conflict` `{ project, slug, remoteRoot, machine, paths }`.
 
 ## Terminal streaming
 
@@ -955,6 +998,26 @@ Client role:
 - `peer_update_mac(slug) -> "cancelled" | "disconnected"` (blocks for the install;
   progress arrives as `peer-update-progress` `{ slug, phase, progress }`)
 - `peer_cancel_mac_update(slug) -> bool`
+- `ignored_sync_list(project, targets: [{ slug, remoteRoot }], dir) -> { here,
+  there: { <slug>: listing }, sameRepo: { <slug>: bool } }`,
+  `ignored_sync_start(id, project, slug, remoteRoot, direction, paths)` (a one-time
+  copy with one computer; the caller picks `id` and listens first; progress as
+  `ignored-sync-progress`, the outcome as `ignored-sync-done` with the `batch`),
+  `ignored_sync_set(id, project, targets, paths, prefer)` (remembers the list for
+  each target and brings them all in step now, this Mac in the middle: one round
+  per computer, then a second round for those before the last one that brought
+  files here. `prefer` is `newest`, `here` or a target's slug for files that
+  differ; same events, progress naming the `machine` being copied with, done with
+  `sent`, `sentTo: [{ machine, files }]`, `received` and `batches`),
+  `ignored_sync_cancel(id)`,
+  `ignored_sync_undo(project, batches: [{ batch, slug?, remoteRoot? }])` (no slug:
+  the batch landed on this Mac), `ignored_sync_read(project, targets, path) ->
+  { here, there: { <slug>: text } }`, `ignored_sync_saved(project, slug)`,
+  `ignored_sync_save(project, slug, remoteRoot, paths, keep)` (refused when the two
+  `origin`s differ), `ignored_sync_forget(project, slug)` — `project` is the local
+  one, so these never route to the host. Lists stay per computer; the background
+  engine settles a project's computers together the same way, so a change on one
+  reaches the others in one sweep while this Mac is on
 - `peer_settings_get(slug) -> { <shared setting>? … }`
 - `peer_settings_set(slug, patch) -> same shape` (both fail with an update hint on a
   host without `hostSettingsAll`)

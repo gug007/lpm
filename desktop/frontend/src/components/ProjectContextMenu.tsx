@@ -1,5 +1,5 @@
 import { BrainIcon, CheckSquareIcon, ClipboardIcon, CopyIcon, DetachIcon, DownloadIcon, FileIcon, HardDriveIcon, MessageIcon, PencilIcon, SettingsIcon, SparkleIcon, TrashIcon, WorktreeIcon } from "./icons";
-import { Columns2 } from "lucide-react";
+import { Columns2, FolderSync } from "lucide-react";
 import { ContextMenuItem } from "./ui/ContextMenuItem";
 import { ContextMenuSeparator } from "./ui/ContextMenuSeparator";
 import { ContextMenuShell } from "./ui/ContextMenuShell";
@@ -85,6 +85,8 @@ interface ProjectContextMenuProps {
   onWorktree: () => void;
   // Omitted unless this is a project on a paired Mac that can be synced here.
   onSyncHere?: () => void;
+  // Omitted unless another connected computer holds the same project.
+  onSyncIgnored?: () => void;
   // Set only while this project is following a Mac.
   following?: FollowingMenuState;
   onCopyPath: () => void;
@@ -143,6 +145,7 @@ export function ProjectContextMenu({
   onBulkDuplicate,
   onWorktree,
   onSyncHere,
+  onSyncIgnored,
   following,
   onCopyPath,
   onDetach,
@@ -262,6 +265,13 @@ export function ProjectContextMenu({
           label={`Sync to ${MACHINE.ThisMachineTitle}…`}
           icon={<DownloadIcon />}
           onClick={close(onSyncHere)}
+        />
+      )}
+      {onSyncIgnored && (
+        <ContextMenuItem
+          label="Sync Ignored Files…"
+          icon={<FolderSync size={14} />}
+          onClick={close(onSyncIgnored)}
         />
       )}
       {following && (

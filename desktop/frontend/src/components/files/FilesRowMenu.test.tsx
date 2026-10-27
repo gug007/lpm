@@ -14,6 +14,7 @@ vi.mock("../../../bridge/commands", () => ({
   SetClipboardText: vi.fn(),
 }));
 vi.mock("../../peer/uploadProgress", () => ({ trackPeerDownload: vi.fn() }));
+vi.mock("../ignored/FilesSyncItems", () => ({ FilesSyncItems: () => null }));
 vi.mock("../../store/app", () => ({
   useAppStore: { getState: () => ({ focusProjectTerminal: mocks.focusProjectTerminal }) },
 }));

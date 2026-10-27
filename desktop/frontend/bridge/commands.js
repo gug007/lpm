@@ -1313,6 +1313,33 @@ export function SyncProjectStart(slug, sourceRoot, remoteName) {
 export function SyncProjectCancel(id) {
   return invoke("sync_project_cancel", { id });
 }
+export function IgnoredSyncList(project, targets, dir) {
+  return invoke("ignored_sync_list", { project, targets, dir });
+}
+export function IgnoredSyncStart(id, project, slug, remoteRoot, direction, paths) {
+  return invoke("ignored_sync_start", { id, project, slug, remoteRoot, direction, paths });
+}
+export function IgnoredSyncCancel(id) {
+  return invoke("ignored_sync_cancel", { id });
+}
+export function IgnoredSyncUndo(project, batches) {
+  return invoke("ignored_sync_undo", { project, batches });
+}
+export function IgnoredSyncSet(id, project, targets, paths, prefer) {
+  return invoke("ignored_sync_set", { id, project, targets, paths, prefer });
+}
+export function IgnoredSyncRead(project, targets, path) {
+  return invoke("ignored_sync_read", { project, targets, path });
+}
+export function IgnoredSyncSaved(project, slug) {
+  return invoke("ignored_sync_saved", { project, slug });
+}
+export function IgnoredSyncSave(project, slug, remoteRoot, paths, keep) {
+  return invoke("ignored_sync_save", { project, slug, remoteRoot, paths, keep });
+}
+export function IgnoredSyncForget(project, slug) {
+  return invoke("ignored_sync_forget", { project, slug });
+}
 export function FollowList() {
   return invoke("follow_list");
 }

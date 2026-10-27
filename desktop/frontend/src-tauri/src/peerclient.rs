@@ -44,6 +44,7 @@ const SYNC_TIMEOUT: Duration = Duration::from_secs(60); // digest / fetch round-
 const SYNC_APPLY_TIMEOUT: Duration = Duration::from_secs(180); // an older host snapshots all of ~/.lpm first
 const SYNC_UNSUPPORTED: &str = "the other Mac needs to update lpm to sync config";
 const GIT_BRING_UNSUPPORTED: &str = "the other Mac needs to update lpm to send its changes";
+pub(crate) const IGNORED_SYNC_UNSUPPORTED: &str = "the other computer needs a newer lpm to sync files";
 const REMOTE_PAIR_TIMEOUT: Duration = Duration::from_secs(20); // arm a code + render its QR
 const REMOTE_PAIR_UNSUPPORTED: &str = "this host needs to update lpm to show its pairing code";
 /// A reachability failure rather than a refusal — a follower retries these with
@@ -110,6 +111,7 @@ struct PeerConn {
     supports_sync2: AtomicBool, // host also advertised configSync2 (revision-aware)
     supports_git_bring: AtomicBool, // host can hand over its working state as a packfile
     supports_git_follow: AtomicBool, // host can also answer the working-state fingerprint
+    supports_ignored_sync: AtomicBool, // host lists, sends and takes files of its projects (ignoredhost.rs)
     supports_git_watch: AtomicBool, // ...and push changes instead of waiting to be asked
     supports_remote_pair: AtomicBool, // host can arm its own phone pairing and hand back the QR
     supports_file_upload: AtomicBool, // host can take an attached file in chunks, not one frame
@@ -184,6 +186,7 @@ impl PeerConn {
             supports_sync2: AtomicBool::new(false),
             supports_git_bring: AtomicBool::new(false),
             supports_git_follow: AtomicBool::new(false),
+            supports_ignored_sync: AtomicBool::new(false),
             supports_git_watch: AtomicBool::new(false),
             supports_remote_pair: AtomicBool::new(false),
             supports_file_upload: AtomicBool::new(false),
@@ -442,6 +445,9 @@ impl PeerClientHub {
                 let supports_git_bring = conn
                     .map(|c| c.supports_git_bring.load(Ordering::Relaxed))
                     .unwrap_or(false);
+                let supports_ignored_sync = conn
+                    .map(|c| c.supports_ignored_sync.load(Ordering::Relaxed))
+                    .unwrap_or(false);
                 let supports_git_follow = conn
                     .map(|c| c.supports_git_follow.load(Ordering::Relaxed))
                     .unwrap_or(false);
@@ -511,6 +517,7 @@ impl PeerClientHub {
                     "supportsSync2": supports_sync2,
                     "supportsGitBring": supports_git_bring,
                     "supportsGitFollow": supports_git_follow,
+                    "supportsIgnoredSync": supports_ignored_sync,
                     "supportsFileUpload": supports_file_upload,
                     "supportsMediaRange": supports_media_range,
                     "supportsSelfUpdate": supports_self_update,
@@ -1144,13 +1151,31 @@ impl PeerClientHub {
 
     /// Guard: the peer must be connected and its host must speak "bring changes".
     pub(crate) fn require_git_bring(&self, slug: &str) -> Result<(), String> {
-        self.require_feature(slug, |c| c.supports_git_bring.load(Ordering::Relaxed))
+        self.require_feature(
+            slug,
+            |c| c.supports_git_bring.load(Ordering::Relaxed),
+            GIT_BRING_UNSUPPORTED,
+        )
     }
 
     /// Guard: the peer must also answer the working-state fingerprint a followed
     /// project polls for.
     pub(crate) fn require_git_follow(&self, slug: &str) -> Result<(), String> {
-        self.require_feature(slug, |c| c.supports_git_follow.load(Ordering::Relaxed))
+        self.require_feature(
+            slug,
+            |c| c.supports_git_follow.load(Ordering::Relaxed),
+            GIT_BRING_UNSUPPORTED,
+        )
+    }
+
+    /// Guard: the peer must be connected and list, send and take the files of
+    /// its projects (ignoredhost.rs).
+    pub(crate) fn require_ignored_sync(&self, slug: &str) -> Result<(), String> {
+        self.require_feature(
+            slug,
+            |c| c.supports_ignored_sync.load(Ordering::Relaxed),
+            IGNORED_SYNC_UNSUPPORTED,
+        )
     }
 
     /// The machines this one connects to, by hostId: slug, name, and whether it
@@ -1221,7 +1246,12 @@ impl PeerClientHub {
         }
     }
 
-    fn require_feature(&self, slug: &str, has: impl Fn(&PeerConn) -> bool) -> Result<(), String> {
+    fn require_feature(
+        &self,
+        slug: &str,
+        has: impl Fn(&PeerConn) -> bool,
+        unsupported: &str,
+    ) -> Result<(), String> {
         let conn = self
             .inner
             .conns
@@ -1234,7 +1264,7 @@ impl PeerClientHub {
             return Err(PEER_NOT_CONNECTED.to_string());
         }
         if !has(&conn) {
-            return Err(GIT_BRING_UNSUPPORTED.to_string());
+            return Err(unsupported.to_string());
         }
         Ok(())
     }
@@ -2354,6 +2384,10 @@ fn connect_session(
     );
     conn.supports_git_watch.store(
         has_feature(crate::gitwatchhost::GIT_WATCH_FEATURE),
+        Ordering::Relaxed,
+    );
+    conn.supports_ignored_sync.store(
+        has_feature(crate::ignoredhost::IGNORED_SYNC_FEATURE),
         Ordering::Relaxed,
     );
     conn.supports_remote_pair.store(

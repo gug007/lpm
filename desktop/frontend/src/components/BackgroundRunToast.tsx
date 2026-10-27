@@ -84,13 +84,15 @@ export function BackgroundRunToast({
   // stretches the toast to it on hover, so a card that grew or shrank since
   // (output opened or closed, lines streaming in, the width easing) would jump
   // out from under the pointer. Showing it again has sonner measure it anew.
+  // A closed toast's card leaves the page and measures 0 before this effect is
+  // cleaned up; showing it then would bring the toast straight back.
   const cardRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const card = cardRef.current;
     if (!card) return;
     let height = card.offsetHeight;
     const observer = new ResizeObserver(() => {
-      if (card.offsetHeight === height) return;
+      if (!card.isConnected || card.offsetHeight === height) return;
       height = card.offsetHeight;
       onResize();
     });
