@@ -60,7 +60,7 @@ console.log(`\nwebsite/lib/youtube-lessons.ts entry (add it to LESSONS, then lin
       ${JSON.stringify(summary)},
     uploadDate: "${today}T09:00:00+00:00",
   },`);
-console.log(`\ndesktop/frontend/src/lessons.ts entry (add it at the top of LESSONS; Send feedback shows the first four):
+console.log(`\ndesktop/frontend/src/lessons.ts entry (add it at the top of LESSONS; Send feedback lists every lesson):
   {
     id: "${id}",
     title: ${JSON.stringify(lesson.title)},

@@ -133,11 +133,11 @@ describe("FeedbackModal", () => {
     expect(question.searchParams.get("category")).toBe("q-a");
   });
 
-  it("lists the four newest lessons and opens one on YouTube", () => {
+  it("lists every lesson and opens one on YouTube", () => {
     const rail = document.querySelector("aside[aria-label='Lessons and news']")!;
     const lessons = [...rail.querySelectorAll("li button")];
     expect(lessons.map((b) => b.textContent)).toEqual(
-      LESSONS.slice(0, 4).map((l) => `${l.title}${lessonDate(l.published)}`),
+      LESSONS.map((l) => `${l.title}${lessonDate(l.published)}`),
     );
 
     act(() => (lessons[0] as HTMLButtonElement).click());
