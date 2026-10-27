@@ -8,6 +8,11 @@ export interface Lesson {
 // lesson-publish skill prints the entry to add at the top.
 export const LESSONS: readonly Lesson[] = [
   {
+    id: "S0NgdCHmof8",
+    title: "Sync Ignored Files in lpm: Keep Your .env the Same on Every Computer",
+    published: "2026-10-27",
+  },
+  {
     id: "iOJNlm2Y10Y",
     title: "Run Commands From Claude Code & Codex Output in One Click — No More Copy-Paste",
     published: "2026-10-25",

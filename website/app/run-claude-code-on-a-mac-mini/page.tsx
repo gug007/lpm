@@ -28,6 +28,7 @@ import Phone from "./_components/phone";
 import QuickAnswer from "./_components/quick-answer";
 import Sessions from "./_components/sessions";
 import Setup from "./_components/setup";
+import SyncLesson from "./_components/sync-lesson";
 
 const TITLE = "Run Claude Code & Codex on a Mac mini";
 const DESCRIPTION =
@@ -86,6 +87,7 @@ const structuredData = [
   ]),
   faqJsonLd(FAQ_ITEMS),
   youtubeLessonJsonLd("keep-agents-running-on-server"),
+  youtubeLessonJsonLd("sync-ignored-files"),
 ];
 
 export default function RunOnMacMiniPage() {
@@ -104,6 +106,7 @@ export default function RunOnMacMiniPage() {
       <Phone />
       <PairWays />
       <Setup />
+      <SyncLesson />
       <Compare />
       <Faq />
       <RelatedPages

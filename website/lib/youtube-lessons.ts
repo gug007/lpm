@@ -156,6 +156,13 @@ const LESSONS = {
       "Claude Code and Codex end their answers with commands to run: npm test, npm run dev, a clean reinstall. In lpm you don't copy them into another terminal: hover a command and click Run to see its output in a card, open a long-running one in a new tab, or ⌘-click it to run it straight away. Risky commands like rm -rf ask once more first.",
     uploadDate: "2026-10-25T09:00:00+00:00",
   },
+  "sync-ignored-files": {
+    id: "S0NgdCHmof8",
+    name: "Sync Ignored Files in lpm: Keep Your .env the Same on Every Computer",
+    description:
+      "Git leaves your .env files, local config and certificates behind, so a second computer can't run the project. Sync Ignored Files in lpm copies what git ignores between your computers, shows what differs key by key, and keeps the ticked files the same from then on.",
+    uploadDate: "2026-10-27T09:00:00+00:00",
+  },
   "sixty-seconds": {
     id: "H46vW5DPbZk",
     name: "lpm in 60 Seconds: Start, Stop, Switch Projects and Run AI Agents",

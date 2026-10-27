@@ -38,3 +38,4 @@ Manual order. Each published lesson is appended here and to the playlist in the 
 - Run Claude Code & Codex on a Server — Keep Agents Running When You Close Your Laptop — https://youtu.be/1an8djn43JU
 - Automations That Ask You First: Answer and the Agent Keeps Going — https://youtu.be/4ekpJw1KQAI
 - Run Commands From Claude Code & Codex Output in One Click — No More Copy-Paste — https://youtu.be/iOJNlm2Y10Y
+- Sync Ignored Files in lpm: Keep Your .env the Same on Every Computer — https://youtu.be/S0NgdCHmof8

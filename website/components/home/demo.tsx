@@ -124,6 +124,10 @@ const LESSON_CAPTION: Record<
     heading: "Run what your agent suggests in one click",
     blurb: "A short video: run the commands Claude Code and Codex suggest without copying them, and see risky ones ask first.",
   },
+  "sync-ignored-files": {
+    heading: "Your .env on every computer",
+    blurb: "A short video: sync the files git ignores to another computer, compare .env files key by key, and keep them the same.",
+  },
 };
 
 function DesktopOnlyPrompt({
