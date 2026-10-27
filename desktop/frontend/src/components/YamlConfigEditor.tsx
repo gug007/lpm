@@ -13,6 +13,8 @@ interface YamlConfigEditorProps {
   modelUri: string;
   load: () => Promise<string>;
   save: (content: string) => Promise<void>;
+  // Keeps unsaved edits for this file while the editor is closed.
+  draftKey: string;
   onBack?: () => void;
   docsUrl?: string;
 }
@@ -23,6 +25,7 @@ export function YamlConfigEditor({
   modelUri,
   load,
   save,
+  draftKey,
   onBack,
   docsUrl,
 }: YamlConfigEditorProps) {
@@ -34,12 +37,13 @@ export function YamlConfigEditor({
     error,
     validationError,
     handleSave,
-  } = useYamlEditor(load, save, validateYaml);
+    discard,
+  } = useYamlEditor(load, save, validateYaml, draftKey);
   const activeError = validationError ?? error;
   const problems = useMemo(() => configProblems(activeError), [activeError]);
 
   return (
-    <div className="flex flex-1 flex-col pt-6">
+    <div className="flex min-h-0 flex-1 flex-col pt-6">
       <div className="flex items-center gap-3">
         {onBack && (
           <button
@@ -80,6 +84,15 @@ export function YamlConfigEditor({
               <span className="flex-1 text-xs text-[var(--accent-red)]">{activeError}</span>
             )}
             <span className="text-[10px] text-[var(--text-muted)]">{primaryHint("s")}</span>
+            {dirty && (
+              <button
+                onClick={discard}
+                disabled={saving}
+                className="rounded-md px-3 py-1 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
+              >
+                Discard
+              </button>
+            )}
             <button
               onClick={handleSave}
               disabled={!dirty || saving || Boolean(validationError)}

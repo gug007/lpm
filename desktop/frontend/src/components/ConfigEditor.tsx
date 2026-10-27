@@ -113,9 +113,14 @@ export function ConfigEditor({
     [projectName],
   );
 
-  const userEditor = useYamlEditor(userLoad, userSave, validateYaml);
-  const repoEditor = useYamlEditor(repoLoad, repoSave, validateYaml);
-  const globalEditor = useYamlEditor(globalLoad, globalSave, validateYaml);
+  const userEditor = useYamlEditor(userLoad, userSave, validateYaml, `config:${projectName}`);
+  const repoEditor = useYamlEditor(repoLoad, repoSave, validateYaml, `repo-config:${projectName}`);
+  const globalEditor = useYamlEditor(
+    globalLoad,
+    globalSave,
+    validateYaml,
+    projectGlobalLayer(projectName).queueKey,
+  );
   const active =
     target === "user" ? userEditor : target === "repo" ? repoEditor : globalEditor;
   const modelUri =
@@ -263,6 +268,15 @@ export function ConfigEditor({
             />
           )}
           <span className="mb-2 text-[10px] text-[var(--text-muted)]">{primaryHint("s")}</span>
+          {active.dirty && (
+            <button
+              onClick={active.discard}
+              disabled={active.saving}
+              className="rounded-lg bg-[var(--bg-secondary)] px-3.5 py-1.5 text-xs font-medium text-[var(--text-secondary)] shadow-lg transition-all hover:text-[var(--text-primary)] disabled:opacity-40"
+            >
+              Discard
+            </button>
+          )}
           <button
             onClick={active.handleSave}
             disabled={!active.dirty || active.saving || Boolean(active.validationError)}

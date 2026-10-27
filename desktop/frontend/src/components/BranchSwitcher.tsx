@@ -53,7 +53,8 @@ import { toastPullError } from "../gitPullErrors";
 import { pulledText, pushedText, syncedText } from "../gitToastText";
 import { middleTruncate } from "../middleTruncate";
 
-// What fits the footer label (max-w-32) in the 11px monospace face.
+// What fits the footer label in the 11px monospace face; the label is never
+// clipped again, or the "…" glyph's extra width cuts off the branch's end.
 const BRANCH_LABEL_MAX = 19;
 
 export function BranchSwitcher({
@@ -419,7 +420,7 @@ export function BranchSwitcher({
         >
           <BranchIcon size={12} />
           <span
-            className="max-w-32 truncate font-mono"
+            className="whitespace-nowrap font-mono"
             title={status.branch.length > BRANCH_LABEL_MAX ? status.branch : undefined}
           >
             {status.branch ? middleTruncate(status.branch, BRANCH_LABEL_MAX) : "detached"}

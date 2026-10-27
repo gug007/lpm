@@ -34,6 +34,7 @@ import { ConsoleContextMenu } from "./terminal/ConsoleContextMenu";
 import { ArrowDownIcon } from "./terminal/icons";
 import { applyFilterQuery, FilterMirror } from "./terminal/FilterMirror";
 import {
+  clearFind,
   runFind,
   watchFindResults,
   type FindDirection,
@@ -1481,13 +1482,13 @@ export function InteractivePane({
       clearConsole();
     },
     find(query: string, direction: FindDirection, options: FindOptions) {
-      return runFind(sessionRef.current?.search, query, direction, options);
+      return runFind(sessionRef.current, query, direction, options);
     },
     watchFind(onResults: (results: FindResults) => void) {
-      return watchFindResults(sessionRef.current?.search, onResults);
+      return watchFindResults(sessionRef.current, onResults);
     },
     clearSearch() {
-      sessionRef.current?.search?.clearDecorations();
+      clearFind(sessionRef.current);
     },
     setFilter(query: string | null, onCount?: (count: number) => void) {
       const session = sessionRef.current;

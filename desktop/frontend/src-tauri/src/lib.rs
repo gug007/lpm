@@ -157,6 +157,7 @@ mod sleepwatch;
 mod netif;
 mod notes_blobs;
 mod notes_cmds;
+mod notes_plain;
 mod notes_store;
 mod notifychannels;
 mod openin;

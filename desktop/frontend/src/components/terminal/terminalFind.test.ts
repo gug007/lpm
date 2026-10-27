@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import type { SearchAddon } from "@xterm/addon-search";
-import { findResultsLabel, MATCH_DECORATIONS, runFind, watchFindResults } from "./terminalFind";
+import type { Terminal } from "@xterm/xterm";
+import { clearFind, findResultsLabel, MATCH_DECORATIONS, runFind, watchFindResults } from "./terminalFind";
+
+const term = { rows: 24, refresh: vi.fn() } as unknown as Terminal;
+const target = (search: SearchAddon) => ({ term, search });
 
 function fakeSearch(overrides: Partial<Record<keyof SearchAddon, unknown>> = {}) {
   return {
@@ -15,7 +19,7 @@ function fakeSearch(overrides: Partial<Record<keyof SearchAddon, unknown>> = {})
 describe("runFind", () => {
   it("searches with the options and match highlighting, so the add-on counts", () => {
     const search = fakeSearch();
-    expect(runFind(search, "error", "next", { caseSensitive: true, regex: false })).toBe("found");
+    expect(runFind(target(search), "error", "next", { caseSensitive: true, regex: false })).toBe("found");
     expect(search.findNext).toHaveBeenCalledWith("error", {
       caseSensitive: true,
       regex: false,
@@ -25,7 +29,7 @@ describe("runFind", () => {
 
   it("goes backwards for prev and reports a miss", () => {
     const search = fakeSearch();
-    expect(runFind(search, "error", "prev", { caseSensitive: false, regex: false })).toBe("none");
+    expect(runFind(target(search), "error", "prev", { caseSensitive: false, regex: false })).toBe("none");
     expect(search.findPrevious).toHaveBeenCalled();
   });
 
@@ -35,21 +39,30 @@ describe("runFind", () => {
         throw new SyntaxError("Invalid regular expression: /a(/: Unterminated group");
       }),
     });
-    expect(runFind(search, "a(", "next", { caseSensitive: false, regex: true })).toBe("invalid");
+    expect(runFind(target(search), "a(", "next", { caseSensitive: false, regex: true })).toBe("invalid");
     expect(search.clearDecorations).toHaveBeenCalled();
   });
 
   it("drops the old highlights when only the options change", () => {
     const search = fakeSearch();
-    runFind(search, "compiled", "next", { caseSensitive: false, regex: false });
-    runFind(search, "compiled", "next", { caseSensitive: false, regex: false });
+    runFind(target(search), "compiled", "next", { caseSensitive: false, regex: false });
+    runFind(target(search), "compiled", "next", { caseSensitive: false, regex: false });
     expect(search.clearDecorations).not.toHaveBeenCalled();
-    runFind(search, "compiled", "next", { caseSensitive: true, regex: false });
+    runFind(target(search), "compiled", "next", { caseSensitive: true, regex: false });
     expect(search.clearDecorations).toHaveBeenCalledTimes(1);
   });
 
   it("finds nothing before the terminal has a search add-on", () => {
     expect(runFind(null, "error", "next", { caseSensitive: false, regex: false })).toBe("none");
+  });
+});
+
+describe("clearFind", () => {
+  it("drops the highlights and does nothing without a search add-on", () => {
+    const search = fakeSearch();
+    clearFind(target(search));
+    clearFind(null);
+    expect(search.clearDecorations).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -64,7 +77,7 @@ describe("watchFindResults", () => {
       }),
     });
     const seen: unknown[] = [];
-    const stop = watchFindResults(search, (r) => seen.push(r));
+    const stop = watchFindResults(target(search), (r) => seen.push(r));
     fire({ resultIndex: 2, resultCount: 7 });
     expect(seen).toEqual([{ index: 2, count: 7 }]);
     stop();

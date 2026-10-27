@@ -22,6 +22,13 @@ export function chordLetter(e: Pick<KeyboardEvent, "key" | "code">): string | nu
   return null;
 }
 
+// macOS reports the character ⌥ composes ("®" for ⌥R, "Dead" for ⌥E) in `key`,
+// so an ⌥ letter chord is read from the physical key.
+export function optionLetter(e: Pick<KeyboardEvent, "altKey" | "code">): string | null {
+  const m = e.altKey ? /^Key([A-Z])$/.exec(e.code ?? "") : null;
+  return m ? m[1].toLowerCase() : null;
+}
+
 // Windows layouts type characters with AltGr, which arrives as Ctrl+Alt: "@",
 // "€", "ą"… must reach the field or terminal, never fire a Ctrl+Alt chord. A
 // plain Latin letter is still a chord: on an AltGr layout Windows flags every

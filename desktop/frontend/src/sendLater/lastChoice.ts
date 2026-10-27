@@ -5,17 +5,17 @@ import { addDays, atClock, startOfDay } from "./time";
 export type LastChoice = { kind: "delay"; ms: number } | { kind: "clock"; minutes: number };
 
 const KEY = "lpm:send-later:last-choice:v1";
-const DEFAULT_CHOICE: LastChoice = { kind: "delay", ms: 2 * 60 * 60 * 1000 };
+export const DEFAULT_CHOICE: LastChoice = { kind: "delay", ms: 2 * 60 * 60 * 1000 };
 
-export function loadLastChoice(): LastChoice {
+export function loadLastChoice(): LastChoice | null {
   try {
     const raw = JSON.parse(window.localStorage.getItem(KEY) ?? "null");
     if (raw?.kind === "delay" && Number.isFinite(raw.ms) && raw.ms > 0) return raw;
     if (raw?.kind === "clock" && Number.isFinite(raw.minutes)) return raw;
   } catch {
-    /* unreadable or blocked storage: fall back to the default */
+    /* unreadable or blocked storage: nothing remembered */
   }
-  return DEFAULT_CHOICE;
+  return null;
 }
 
 export function saveLastChoice(choice: LastChoice): void {

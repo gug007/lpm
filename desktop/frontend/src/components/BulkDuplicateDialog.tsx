@@ -32,6 +32,7 @@ import { detectAICLI } from "../slashCommands";
 import { findActionByPath, flattenRunnableActions } from "../actionTree";
 import { findParentProject, projectDisplayName } from "./ProjectNameDisplay";
 import { RunModelSelect } from "./RunModelSelect";
+import { useIsGitRepo } from "./useIsGitRepo";
 import { EMPTY_PICK, pickSummary, switchableCLI, type ModelPick } from "../agentModelSwitch";
 import type { SideBySideLayout } from "../sideBySide";
 import type {
@@ -182,16 +183,20 @@ export function BulkDuplicateDialog({
     ? projectDisplayName(project, findParentProject(project, projects))
     : "";
 
-  // Default each label to the copy's folder name (`<original>-<id>`), so the
-  // field shows the copy's name rather than the original's. Editing the label
-  // only renames it in lpm; the folder keeps the id. The focused field selects
-  // just the random suffix (focusLabelSuffix) so typing swaps it for a
+  // Default each label to the name the copy shows in the sidebar: the
+  // original's display name plus the copy's folder id (ProjectNameDisplay), so
+  // the field shows the copy's name rather than the original's. Editing the
+  // label only renames it in lpm; the folder keeps the id. The focused field
+  // selects just the random suffix (focusLabelSuffix) so typing swaps it for a
   // meaningful name while keeping the project prefix.
-  const base = stripMarker(project?.parentName || project?.name || "");
+  const baseName = project?.parentName || project?.name || "";
+  const baseProject = projects.find((p) => p.name === baseName);
+  const base = baseProject?.label || stripMarker(baseName);
+  const defaultLabel = (folderId: string) => (base ? `${base}-${folderId}` : "");
   const newCopy = (): CopyDraft => {
     const folderId = randomId6();
     return {
-      label: base ? `${base}-${folderId}` : "",
+      label: defaultLabel(folderId),
       folderId,
       override: null,
       target: project?.name ?? "",
@@ -384,6 +389,7 @@ export function BulkDuplicateDialog({
 
   const single = count === 1;
   const isWorktree = duplicateMode === "worktree";
+  const notGitRepo = useIsGitRepo(project?.root, isWorktree) === false;
   const item = isWorktree ? "worktree" : "copy";
   const noun = single ? item : isWorktree ? "worktrees" : "copies";
   const copyRef = single ? `the ${item}` : `each ${item}`;
@@ -555,7 +561,7 @@ export function BulkDuplicateDialog({
   };
 
   const handleConfirm = () => {
-    if (!project) return;
+    if (!project || notGitRepo) return;
     // A seeded (composer-triggered) run points at that terminal's agent command
     // for this one duplication — don't let it overwrite the user's remembered
     // "run on each copy" defaults for the normal Duplicate flow.
@@ -578,7 +584,12 @@ export function BulkDuplicateDialog({
       excludeUncommitted: isWorktree ? false : excludeUncommitted,
       reinstallDeps,
       pullLatest: isWorktree ? false : pullLatest,
-      labels: copies.map((c) => c.label.trim()),
+      // An untouched label is left unset, so the copy keeps following the
+      // original's name.
+      labels: copies.map((c) => {
+        const label = c.label.trim();
+        return label === defaultLabel(c.folderId) ? "" : label;
+      }),
       folderIds: copies.map((c) => c.folderId),
       tasksPerCopy: buildTasksPerCopy(),
       targetsPerCopy: copies.map((c) => {
@@ -672,11 +683,17 @@ export function BulkDuplicateDialog({
             </span>{" "}
             to run agents or services in parallel.
           </p>
-          {isWorktree && (
+          {isWorktree && !notGitRepo && (
             <p className="mt-1 text-[12px] leading-snug text-[var(--text-muted)]">
               Creates a branch from the current commit and shares Git history.
               Uncommitted and ignored files stay behind; the project root must be
               the Git root.
+            </p>
+          )}
+          {notGitRepo && (
+            <p className="mt-1 text-[12px] leading-snug text-[var(--accent-red)]">
+              {projectDisplay} isn't a Git repository, so it can't have worktrees.
+              Use Duplicate for a standalone copy instead.
             </p>
           )}
         </div>
@@ -752,8 +769,9 @@ export function BulkDuplicateDialog({
                   )}
                 </div>
                 <p className={`mt-2 ${HELPER_TEXT}`}>
-                  A label to recognize the {item} by. It starts as the folder
-                  name; type over it to call the {item} something else.
+                  A label to recognize the {item} by. It starts as the project's
+                  name and the {item}'s id; type over it to call the {item} something
+                  else.
                   {showTargets &&
                     anyRemoteCopy &&
                     ` The copy is created on the chosen ${MACHINE.noun}, from its own copy of the project.`}
@@ -1021,7 +1039,7 @@ export function BulkDuplicateDialog({
         <button
           type="button"
           onClick={handleConfirm}
-          disabled={!project || imagesPending}
+          disabled={!project || imagesPending || notGitRepo}
           className="rounded-lg bg-[var(--text-primary)] px-4 py-2 text-[13px] font-medium text-[var(--bg-primary)] shadow-sm transition-opacity hover:opacity-90 disabled:opacity-40"
         >
           {confirmLabel}

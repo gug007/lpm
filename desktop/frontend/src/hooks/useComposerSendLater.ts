@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "../notifications/toast";
 import { registerComposerHost, unschedule } from "../sendLater/actions";
-import { choiceAt, loadLastChoice, saveLastChoice, type LastChoice } from "../sendLater/lastChoice";
+import { choiceAt, DEFAULT_CHOICE, loadLastChoice, saveLastChoice, type LastChoice } from "../sendLater/lastChoice";
 import { whenDoneSubject } from "../sendLater/status";
 import { shortWhenLabel } from "../sendLater/time";
 import {
@@ -39,8 +39,15 @@ interface Options {
 
 // The picker is open for the prompt in the input, or to move a waiting one.
 export type SendLaterPicker =
-  | { mode: "new"; initialAt: number; lastUsedAt: number }
-  | { mode: "reschedule"; item: ScheduledPrompt; initialAt: number; lastUsedAt: number };
+  | { mode: "new"; initialAt: number; lastUsedAt: number | null }
+  | { mode: "reschedule"; item: ScheduledPrompt; initialAt: number; lastUsedAt: number | null };
+
+// The picker opens on the time last picked, or the default one; only a real
+// past pick is marked "last used".
+function rememberedTimes(now: number): { lastUsedAt: number | null; suggestedAt: number } {
+  const last = loadLastChoice();
+  return { lastUsedAt: last && choiceAt(last, now), suggestedAt: choiceAt(last ?? DEFAULT_CHOICE, now) };
+}
 
 export function useComposerSendLater({
   projectName,
@@ -66,15 +73,15 @@ export function useComposerSendLater({
   const openForPrompt = useCallback(() => {
     if (!readPrompt()) return;
     const now = Date.now();
-    const lastUsedAt = choiceAt(loadLastChoice(), now);
+    const { lastUsedAt, suggestedAt } = rememberedTimes(now);
     const edited = takeEditedTime(historyKey);
-    setPicker({ mode: "new", initialAt: edited && edited > now ? edited : lastUsedAt, lastUsedAt });
+    setPicker({ mode: "new", initialAt: edited && edited > now ? edited : suggestedAt, lastUsedAt });
   }, [readPrompt, historyKey]);
 
   const openForItem = useCallback((item: ScheduledPrompt) => {
     const now = Date.now();
-    const lastUsedAt = choiceAt(loadLastChoice(), now);
-    setPicker({ mode: "reschedule", item, initialAt: item.dueAt > now ? item.dueAt : lastUsedAt, lastUsedAt });
+    const { lastUsedAt, suggestedAt } = rememberedTimes(now);
+    setPicker({ mode: "reschedule", item, initialAt: item.dueAt > now ? item.dueAt : suggestedAt, lastUsedAt });
   }, []);
 
   useEffect(

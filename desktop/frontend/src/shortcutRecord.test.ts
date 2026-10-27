@@ -25,6 +25,14 @@ describe("captureShortcut on macOS", () => {
     expect(mac("ArrowRight", { alt: true })).toEqual({ kind: "capture", canonical: "alt+arrowright" });
   });
 
+  it("records an ⌥ letter chord by its physical key, not the character ⌥ types", () => {
+    const optionPress = (key: string, code: string) =>
+      captureShortcut(press(key, { meta: true, alt: true }, code), undefined, true);
+    expect(optionPress("∆", "KeyJ")).toEqual({ kind: "capture", canonical: "cmd+alt+j" });
+    expect(optionPress("Dead", "KeyE")).toEqual({ kind: "capture", canonical: "cmd+alt+e" });
+    expect(optionPress("®", "KeyR")).toEqual({ kind: "hint", text: "⌘⌥R is reserved by lpm" });
+  });
+
   it("explains missing modifiers and reserved combos in macOS glyphs", () => {
     expect(mac("j")).toEqual({ kind: "hint", text: "Add ⌘ or ⌥ to make a shortcut" });
     expect(mac("t", { meta: true })).toEqual({ kind: "hint", text: "⌘T is reserved by lpm" });

@@ -34,6 +34,7 @@ export function TemplateEditor({
       modelUri={TEMPLATE_MODEL_URI}
       load={load}
       save={save}
+      draftKey={`template:${machine.name ?? ""}:${name}`}
       onBack={onBack}
     />
   );

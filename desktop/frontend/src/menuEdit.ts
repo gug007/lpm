@@ -16,15 +16,18 @@ function onMenu(event: string, claimEvent: string, fallback: () => void) {
   });
 }
 
+// Select All covers the focused field only: with nothing editable focused it
+// would select the app's own labels and buttons across the whole window.
+export function selectAllInFocus(el: Element | null = document.activeElement) {
+  if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
+    el.select();
+  } else if (el instanceof HTMLElement && el.isContentEditable) {
+    document.execCommand("selectAll");
+  }
+}
+
 export function initMenuEditEvents() {
-  onMenu("menu-select-all", "lpm-menu-select-all", () => {
-    const el = document.activeElement;
-    if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
-      el.select();
-    } else {
-      document.execCommand("selectAll");
-    }
-  });
+  onMenu("menu-select-all", "lpm-menu-select-all", () => selectAllInFocus());
   onMenu("menu-undo", "lpm-menu-undo", () => document.execCommand("undo"));
   onMenu("menu-redo", "lpm-menu-redo", () => document.execCommand("redo"));
 }

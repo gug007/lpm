@@ -3,7 +3,7 @@ import { useEventListener } from "./useEventListener";
 import { firesForTarget } from "../shortcutScope";
 import { isMac } from "../platform";
 import { toPhysical } from "../keys";
-import { chordLetter, isAltGraphChar, isAsciiLetter, type KeyEventLike } from "../keyEvents";
+import { chordLetter, isAltGraphChar, isAsciiLetter, optionLetter, type KeyEventLike } from "../keyEvents";
 
 export interface KeyboardShortcut {
   /** The `KeyboardEvent.key` value to match (case-insensitive, e.g. "b", "Escape", "="). */
@@ -31,7 +31,8 @@ export interface KeyboardShortcut {
 }
 
 function matchesMac(event: KeyEventLike, shortcut: KeyboardShortcut): boolean {
-  if (event.key.toLowerCase() !== shortcut.key.toLowerCase()) return false;
+  const pressed = (isAsciiLetter(shortcut.key) && optionLetter(event)) || event.key;
+  if (pressed.toLowerCase() !== shortcut.key.toLowerCase()) return false;
   if (shortcut.meta !== undefined) {
     const mod = event.metaKey || event.ctrlKey;
     if (mod !== shortcut.meta) return false;

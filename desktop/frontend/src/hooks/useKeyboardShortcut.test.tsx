@@ -2,7 +2,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { useKeyboardShortcut } from "./useKeyboardShortcut";
+import { matchesShortcut, useKeyboardShortcut } from "./useKeyboardShortcut";
 
 let container: HTMLDivElement;
 let root: Root;
@@ -49,5 +49,18 @@ describe("useKeyboardShortcut whileTyping", () => {
     expect(onD).toHaveBeenCalledTimes(1);
 
     field.remove();
+  });
+});
+
+describe("matchesShortcut on macOS", () => {
+  const optionR = { key: "®", code: "KeyR", metaKey: true, altKey: true, ctrlKey: false, shiftKey: false };
+
+  it("matches an ⌥ letter chord by its physical key", () => {
+    expect(matchesShortcut(optionR, { key: "r", meta: true, alt: true }, true)).toBe(true);
+    expect(matchesShortcut(optionR, { key: "e", meta: true, alt: true }, true)).toBe(false);
+  });
+
+  it("still matches a chord saved with the ⌥ character", () => {
+    expect(matchesShortcut(optionR, { key: "®", meta: true, alt: true }, true)).toBe(true);
   });
 });

@@ -1457,6 +1457,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           ? "worktrees"
           : "copies";
     const label = displayNameForProjectName(name, get().projects);
+    const failedText = worktree ? `Couldn't create a worktree of ${label}` : `Failed to duplicate ${label}`;
     const title = `Creating ${count} ${noun(count)} of ${label}`;
     // The copy being made finishes; the ones not started yet are skipped.
     let stopRest = false;
@@ -1599,7 +1600,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
       if (folderName) await fileCopiesOnHosts(folderName, created, sources);
       if (created.length === 0) {
-        toast.error(`Failed to duplicate ${label}`, { id: toastId });
+        toast.error(failedText, { id: toastId });
       } else if (created.length < count) {
         const partial = `Created ${created.length} of ${count} ${noun(count)} of ${label}`;
         if (stopRest) toast.success(partial, { id: toastId, description: "The rest were canceled" });
@@ -1611,7 +1612,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         );
       }
     } catch (err) {
-      toast.error(`Failed to duplicate ${label}: ${err}`, { id: toastId });
+      toast.error(`${failedText}: ${err}`, { id: toastId });
     } finally {
       for (const collector of collectors.values()) collector.dispose();
       settlePending(new Set(pending.map((p) => p.id)));

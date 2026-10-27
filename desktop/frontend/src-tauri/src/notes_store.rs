@@ -629,6 +629,7 @@ fn escape_like(s: &str) -> String {
 }
 
 fn build_snippet(text: &str, term: &str) -> String {
+    let text = &crate::notes_plain::plain(text);
     const BEFORE: usize = 80;
     const AFTER: usize = 160;
     let lower_text = text.to_lowercase();

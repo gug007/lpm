@@ -137,7 +137,7 @@ export function SettingsLayout({
       />
 
       {onGlobalConfig ? (
-        <div className="settings-pane-in flex min-w-0 flex-1 flex-col px-8 pt-2 pb-6">
+        <div className="settings-pane-in flex min-h-0 min-w-0 flex-1 flex-col px-8 pt-2 pb-6">
           <GlobalConfigEditor machine={machine} />
         </div>
       ) : (

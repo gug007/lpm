@@ -1,4 +1,6 @@
 import type { SearchAddon } from "@xterm/addon-search";
+import type { Terminal } from "@xterm/xterm";
+import { dropStaleHighlights } from "./staleHighlights";
 
 export const MATCH_DECORATIONS = {
   matchBackground: "#5c4a00",
@@ -28,14 +30,34 @@ export type FindOutcome = "found" | "none" | "invalid";
 
 const lastOptions = new WeakMap<SearchAddon, string>();
 
+export interface FindTarget {
+  term: Terminal;
+  search: SearchAddon | null;
+}
+
 // Highlighting every match is what makes the add-on report how many there are.
 export function runFind(
-  search: SearchAddon | null | undefined,
+  target: FindTarget | null | undefined,
   query: string,
   direction: FindDirection,
   options: FindOptions,
 ): FindOutcome {
-  if (!search) return "none";
+  const search = target?.search;
+  if (!target || !search) return "none";
+  try {
+    return find(search, query, direction, options);
+  } finally {
+    dropStaleHighlights(target.term);
+  }
+}
+
+export function clearFind(target: FindTarget | null | undefined): void {
+  if (!target?.search) return;
+  target.search.clearDecorations();
+  dropStaleHighlights(target.term);
+}
+
+function find(search: SearchAddon, query: string, direction: FindDirection, options: FindOptions): FindOutcome {
   // The add-on records new options before comparing them with the last ones, so
   // turning on match case alone would keep the old highlights and count.
   const optionsKey = `${options.caseSensitive}:${options.regex}`;
@@ -55,14 +77,17 @@ export function runFind(
   }
 }
 
+// The add-on also re-highlights by itself as new output arrives.
 export function watchFindResults(
-  search: SearchAddon | null | undefined,
+  target: FindTarget | null | undefined,
   onResults: (results: FindResults) => void,
 ): () => void {
-  if (!search) return () => {};
-  const subscription = search.onDidChangeResults(({ resultIndex, resultCount }) =>
-    onResults({ index: resultIndex, count: resultCount }),
-  );
+  const search = target?.search;
+  if (!target || !search) return () => {};
+  const subscription = search.onDidChangeResults(({ resultIndex, resultCount }) => {
+    dropStaleHighlights(target.term);
+    onResults({ index: resultIndex, count: resultCount });
+  });
   return () => subscription.dispose();
 }
 

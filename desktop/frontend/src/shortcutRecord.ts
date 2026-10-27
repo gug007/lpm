@@ -1,6 +1,6 @@
 import type { KeyboardShortcut } from "./hooks/useKeyboardShortcut";
 import { keyName } from "./keys";
-import { chordLetter, isAltGraphChar, type KeyEventLike } from "./keyEvents";
+import { chordLetter, isAltGraphChar, optionLetter, type KeyEventLike } from "./keyEvents";
 import { isLinux, isMac, isWindows } from "./platform";
 import { canonicalShortcut, reservedShortcutMessage } from "./shortcutParse";
 
@@ -70,7 +70,7 @@ export function captureShortcut(
   if (MODIFIER_KEYS.includes(e.key)) return { kind: "ignore" };
   if (mac) {
     const shortcut: KeyboardShortcut = {
-      key: e.key.length === 1 ? e.key.toLowerCase() : e.key,
+      key: optionLetter(e) ?? (e.key.length === 1 ? e.key.toLowerCase() : e.key),
       meta: e.metaKey || e.ctrlKey,
       shift: e.shiftKey,
       alt: e.altKey,
