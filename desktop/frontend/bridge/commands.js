@@ -238,8 +238,17 @@ export function ListDirEntries(root, rel) {
 export function ListDirFiles(root) {
   return invoke("list_dir_files", { root });
 }
-export function SearchFileContents(root, query) {
-  return invoke("search_file_contents", { root, query });
+export function SearchFiles(root, query, options, filters, replacement, token) {
+  return invoke("search_files", { root, query, options, filters, replacement, token });
+}
+export function CancelFileSearch(root, token) {
+  return invoke("cancel_file_search", { root, token });
+}
+export function ReplaceInFiles(root, query, options, replacement, paths, at, token) {
+  return invoke("replace_in_files", { root, query, options, replacement, paths, at, token });
+}
+export function UndoReplace(root, token) {
+  return invoke("undo_replace", { root, token });
 }
 export function ListDirs(path) {
   return invoke("list_dirs", { path });

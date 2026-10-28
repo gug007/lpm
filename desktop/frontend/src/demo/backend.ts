@@ -1,6 +1,7 @@
 import { actionCommands } from "./commands/actions";
 import { copyCommands } from "./commands/copies";
 import { fileCommands } from "./commands/files";
+import { fileSearchCommands } from "./commands/fileSearch";
 import { gitCommands } from "./commands/git";
 import { jobCommands } from "./commands/jobs";
 import { projectCommands } from "./commands/projects";
@@ -22,6 +23,7 @@ export const HANDLERS: CommandMap = {
   ...statusCommands,
   ...gitCommands,
   ...fileCommands,
+  ...fileSearchCommands,
   ...copyCommands,
   ...actionCommands,
   ...usageCommands,

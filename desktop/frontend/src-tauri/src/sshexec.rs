@@ -90,6 +90,11 @@ pub fn remote_command(
     cmd
 }
 
+/// Where `program` is on the host's login PATH, or None when it has none.
+pub fn remote_program(ssh: &SshSettings, program: &str) -> Option<String> {
+    Some(resolve_program(ssh, program)).filter(|path| path.contains('/'))
+}
+
 /// Run `script` in the host's login bash (so its PATH and exports apply) with
 /// only the script's own output on stdout. Whatever the login profile prints, a
 /// banner or a `fortune`, goes to stderr instead of into the answer being read.

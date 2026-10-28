@@ -32,9 +32,12 @@ export function useFileView(
   focused: boolean,
 ) {
   const [preview, setPreview] = useState(() => localStorage.getItem(PREVIEW_KEY) !== "0");
+  // A file opened at a search hit shows its source, without changing the
+  // remembered choice.
+  const [sourceOf, setSourceOf] = useState<string | null>(null);
   const markdown = !!path && isMarkdownPath(path);
   const showingDiff = diff.diff !== null;
-  const previewing = markdown && preview && !showingDiff;
+  const previewing = markdown && preview && !showingDiff && sourceOf !== path;
   const view: FileView = showingDiff ? "diff" : previewing ? "preview" : "source";
   const zoom = useContentZoom(focused && previewing, PREVIEW_ZOOM_KEY);
 
@@ -48,6 +51,7 @@ export function useFileView(
   const select = useCallback(
     (next: FileView) => {
       setWanted(next === "diff");
+      setSourceOf(null);
       if (next === "diff") return;
       localStorage.setItem(PREVIEW_KEY, next === "preview" ? "1" : "0");
       setPreview(next === "preview");
@@ -59,5 +63,5 @@ export function useFileView(
     if (markdown) select(view === "preview" ? "source" : "preview");
   }, [markdown, select, view]);
 
-  return { view, options, previewing, select, togglePreview, zoom };
+  return { view, options, previewing, select, togglePreview, showSource: setSourceOf, zoom };
 }

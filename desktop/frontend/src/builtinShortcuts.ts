@@ -57,6 +57,7 @@ export const BUILTIN_SHORTCUT_GROUPS: BuiltinShortcutGroup[] = [
       { id: "review", label: "Review every change", description: "All uncommitted changes as one diff", keys: cmd("r", { shift: true }) },
       { id: "files", label: "Browse project files", description: "Opens or closes the Files tab", keys: cmd("e", { shift: true }) },
       { id: "go-to-file", label: "Jump to a file by name", description: "Opens the Files tab with its filter ready", keys: cmd("p") },
+      { id: "search-files", label: "Search in files", description: "Every occurrence in the project, in the Files tab", keys: cmd("f", { shift: true }) },
       { id: "save", label: "Save the file", description: "In the Files tab", keys: primaryHint("s") },
       { id: "preview", label: "Markdown preview or source", description: "In the Files tab", keys: cmd("v", { shift: true }) },
       { id: "step-files", label: "Next or previous file", description: "In the Files and review tabs", keys: isMac ? "⌃⌥↓  ⌃⌥↑" : "Ctrl+Alt+PgDn  Ctrl+Alt+PgUp" },

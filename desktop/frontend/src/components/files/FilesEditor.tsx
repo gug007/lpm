@@ -2,7 +2,7 @@ import { uriPath } from "../../path";
 import { formatBytes } from "../../syncApi";
 import { FolderIcon } from "../icons";
 import { ImageFileView } from "../ImageFileView";
-import { MonacoEditor } from "../MonacoEditor";
+import { MonacoEditor, type EditorTarget } from "../MonacoEditor";
 import { PdfFileView } from "../PdfFileView";
 import { VideoFileView } from "../VideoFileView";
 import { isSourceImage, mediaKind } from "../fileMedia";
@@ -27,6 +27,12 @@ interface FilesEditorProps {
   markdown: MarkdownPreviewOptions | null;
   onChange: (text: string) => void;
   onSave: () => void;
+  // A spot to put the cursor on, in the file at `path`.
+  jump?: FileJump | null;
+}
+
+export interface FileJump extends EditorTarget {
+  path: string;
 }
 
 const LOADING = (
@@ -48,6 +54,7 @@ export function FilesEditor({
   markdown,
   onChange,
   onSave,
+  jump = null,
 }: FilesEditorProps) {
   const media = mediaOf(file?.path ?? null);
   // A preview stays decoded while its tab is hidden; a tab comes back often.
@@ -110,6 +117,7 @@ export function FilesEditor({
   if (markdown) {
     return <FilesMarkdownPreview text={value} path={file.path} {...markdown} />;
   }
+  const at = jump?.path === file.path ? jump : undefined;
   return (
     <MonacoEditor
       key={file.path}
@@ -119,6 +127,8 @@ export function FilesEditor({
       perInstance
       onSave={onSave}
       readOnly={!file.writable}
+      reveal={at}
+      jumpTo={at}
     />
   );
 }

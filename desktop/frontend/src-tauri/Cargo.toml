@@ -85,6 +85,10 @@ rustls-pemfile = "2"
 rustls-platform-verifier = "0.7"
 snow = "0.10"
 time = "0.3"
+ignore = "0.4.34"
+grep-searcher = "0.1.17"
+grep-regex = "0.1.14"
+grep-matcher = "0.1.9"
 
 # objc2 for the in-pane browser's per-webview NSAppearance override (window theme
 # is app-wide on macOS). Versions match what Tauri already pulls in.

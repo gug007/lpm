@@ -4,7 +4,7 @@ import { isBinary } from "../seed/sample";
 import { demoDirsIn, fileEditCommands } from "./fileEdits";
 import { projectAt, project, type Project } from "./state";
 
-function tree(root: unknown): Record<string, string> {
+export function tree(root: unknown): Record<string, string> {
   return project(String(root))?.files ?? projectAt(String(root))?.files ?? {};
 }
 
@@ -38,23 +38,8 @@ function allPaths(files: Record<string, string>) {
   ].sort((a, b) => a.path.localeCompare(b.path));
 }
 
-// The backend's content search over the sample files: each file's first line
-// that mentions the query, ignoring case.
-function searchContents(files: Record<string, string>, query: string) {
-  const needle = query.trim().toLowerCase();
-  const matches: { path: string; line: number; text: string }[] = [];
-  if (!needle) return { matches, truncated: false };
-  for (const path of Object.keys(files).sort()) {
-    if (isBinary(path)) continue;
-    const lines = files[path].split("\n");
-    const at = lines.findIndex((line) => line.toLowerCase().includes(needle));
-    if (at >= 0) matches.push({ path, line: at + 1, text: lines[at].trim().slice(0, 200) });
-  }
-  return { matches: matches.slice(0, 50), truncated: matches.length > 50 };
-}
-
 // A save in the editor is an edit in the working tree, so Git sees it too.
-function write(absPath: string, content: string): void {
+export function write(absPath: string, content: string): void {
   const hit = locate(absPath);
   if (!hit) return;
   const { p, rel } = hit;
@@ -86,7 +71,6 @@ export const fileCommands: CommandMap = {
   ...fileEditCommands,
   list_dir_entries: ({ root, rel }) => listing(root, String(rel ?? "")),
   list_dir_files: ({ root }) => allPaths(tree(root)),
-  search_file_contents: ({ root, query }) => searchContents(tree(root), String(query ?? "")),
   read_project_file: ({ root, rel }) => {
     const content = tree(root)[String(rel)];
     if (content === undefined) throw new Error(`${rel}: No such file`);

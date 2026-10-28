@@ -14,7 +14,7 @@ import { DiffConflictBanner } from "../review/DiffConflictBanner";
 import { copyAbsolutePath, copyText, revealInFinder } from "./fileActions";
 import { FilesAllChanges } from "./FilesAllChanges";
 import { FilesDiscardDialog } from "./FilesDiscardDialog";
-import { FilesEditor } from "./FilesEditor";
+import { FilesEditor, type FileJump } from "./FilesEditor";
 import { FilesHeader } from "./FilesHeader";
 import type { RowTarget } from "./FilesRow";
 import { FilesRowMenu } from "./FilesRowMenu";
@@ -22,6 +22,9 @@ import { underIgnored } from "./gitDecorations";
 import { FilesTree, type ActivateOptions, type CursorRequest } from "./FilesTree";
 import { rankFiles, type IndexEntry } from "./filesFilter";
 import { FilesContentSearch } from "./FilesContentSearch";
+import { FilesSearch } from "./FilesSearch";
+import { selectedText } from "./editorSelection";
+import { matchKey, type LineMatch } from "./fileSearch";
 import {
   adjacentFile,
   ancestorsOf,
@@ -38,7 +41,9 @@ import { useFileIndex } from "./useFileIndex";
 import { useFileView } from "./useFileView";
 import { useFilesPaneRequests } from "./useFilesPaneRequests";
 import { useFilesChords } from "./useFilesChords";
+import { useFilesSearch } from "./useFilesSearch";
 import { useTreeEdits } from "./useTreeEdits";
+import { useTreeExpansion } from "./useTreeExpansion";
 import { FilesStart } from "./FilesStart";
 import { useSelectedLineCounts } from "../../hooks/useSelectedLineCounts";
 import type { ChangedFile } from "./useChangedFiles";
@@ -81,19 +86,34 @@ export function FilesPane({
   const { listings, load, ensure, forget } = useDirListings(projectRoot, active);
   const buffer = useFileBuffer(projectRoot, active);
   const { open: openBuffer } = buffer;
-  const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
   const [query, setQuery] = useState("");
   const filtering = query.trim() !== "";
   // Git status colours the tree; the git view swaps the folder tree for the
   // uncommitted files under their folders, and the filter then ranks those
   // instead of the project index.
-  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
   const selectedPath = buffer.file?.path ?? null;
   const git = useChangesView(projectRoot, selectedPath, active, !!review);
   const { changesOnly, decorations, showAllChanges } = git;
+  const { expanded, collapsed, expandDirs, uncollapse, toggleDir } = useTreeExpansion(changesOnly, {
+    load,
+    ensure,
+    forget,
+  });
   const fileView = useFileView(selectedPath, git.diff, active && focused);
+  const { showSource } = fileView;
   const commit = useCommitReview(git.files, buffer.dirtyPaths, review);
-  const { treeOpen, showTree, filterFocusRequest } = useFilesPaneRequests(tabId, paneId, git);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const search = useFilesSearch(projectRoot, active);
+  const { show: showSearch, hide: hideSearch } = search;
+  const searching = search.open && !review;
+  const seedSearch = useCallback(() => showSearch(selectedText(rootRef.current)), [showSearch]);
+  const { treeOpen, showTree, filterFocusRequest } = useFilesPaneRequests(tabId, paneId, git, {
+    open: searching,
+    onSearch: seedSearch,
+    onLeaveSearch: hideSearch,
+  });
+  // Where a search hit put the editor's cursor.
+  const [jump, setJump] = useState<FileJump | null>(null);
   const { setWanted: setDiffWanted } = git.diff;
   // The stack of diffs zooms on its own; the shortcuts are taken only while it
   // is the focused pane's view, so ⌘+ elsewhere still sizes the terminal.
@@ -116,7 +136,6 @@ export function FilesPane({
   const [cursorRequest, setCursorRequest] = useState<CursorRequest | null>(null);
   const [menu, setMenu] = useState<RowTarget | null>(null);
   const [splitFits, setSplitFits] = useState(true);
-  const rootRef = useRef<HTMLDivElement>(null);
   const shownRef = useRef(buffer.file);
   shownRef.current = buffer.file;
   const cursorRef = useRef<Item | null>(null);
@@ -133,63 +152,29 @@ export function FilesPane({
     storageKey: TREE_WIDTH_KEY,
   });
 
-  const expandDirs = useCallback(
-    (dirs: string[]) => {
-      setExpanded((prev) => {
-        if (dirs.every((dir) => prev.has(dir))) return prev;
-        const next = new Set(prev);
-        for (const dir of dirs) next.add(dir);
-        return next;
-      });
-      for (const dir of dirs) ensure(dir);
-    },
-    [ensure],
-  );
-
-  const uncollapse = useCallback((dirs: string[]) => {
-    setCollapsed((prev) => {
-      if (!dirs.some((dir) => prev.has(dir))) return prev;
-      const next = new Set(prev);
-      for (const dir of dirs) next.delete(dir);
-      return next;
-    });
-  }, []);
-
-  const toggleDir = useCallback(
-    (path: string) => {
-      if (changesOnly) {
-        setCollapsed((prev) => {
-          const next = new Set(prev);
-          if (!next.delete(path)) next.add(path);
-          return next;
-        });
-        return;
-      }
-      if (expanded.has(path)) {
-        setExpanded((prev) => {
-          const next = new Set(prev);
-          next.delete(path);
-          return next;
-        });
-        forget(path);
-        return;
-      }
-      setExpanded((prev) => new Set(prev).add(path));
-      void load(path);
-    },
-    [changesOnly, expanded, load, forget],
-  );
-
   // A file opened from the git view opens as its diff.
   const openFile = useCallback(
     (path: string) => {
       void openBuffer(path);
+      setJump(null);
       setDiffWanted(changesOnly);
       showAllChanges(false);
       expandDirs(ancestorsOf(path));
       uncollapse(ancestorsOf(path));
     },
     [openBuffer, changesOnly, setDiffWanted, showAllChanges, expandDirs, uncollapse],
+  );
+
+  // A search hit opens as source, the match selected; only Enter moves on to
+  // the editor.
+  const openMatch = useCallback(
+    (path: string, match: LineMatch, focus: boolean) => {
+      openFile(path);
+      setDiffWanted(false);
+      showSource(path);
+      setJump({ path, line: match.line, col: match.col, endCol: match.col + match.len, focus });
+    },
+    [openFile, setDiffWanted, showSource],
   );
 
   const openChange = useCallback(
@@ -219,11 +204,12 @@ export function FilesPane({
 
   const focusTree = useCallback(() => {
     showTree(true);
+    if (searching) return showSearch();
     setCursorRequest((prev) => ({
       path: shownRef.current?.path ?? "",
       seq: (prev?.seq ?? 0) + 1,
     }));
-  }, [showTree]);
+  }, [showTree, searching, showSearch]);
 
   // Esc with nothing left for Monaco to cancel hands focus back to the tree.
   const onRootKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
@@ -318,34 +304,49 @@ export function FilesPane({
       // A narrow (split) pane still leaves the editor most of the width.
       style={{ width: treeWidth, maxWidth: "45%" }}
     >
-      <FilesTree
-        rows={rows}
-        rootListing={listings.get("")}
-        changes={git.changes}
-        decorations={decorations}
-        ignoredPaths={ignoredPaths}
-        changesOnly={changesOnly}
-        onChangesOnlyChange={review ? undefined : git.showChangesOnly}
-        allChanges={git.allChanges}
-        onAllChangesChange={showAllChanges}
-        selectedPath={git.allChanges ? stackPath : selectedPath}
-        dirtyPaths={commit.dirtyPaths}
-        query={query}
-        onQueryChange={setQuery}
-        results={ranked?.entries ?? null}
-        resultsTotal={ranked?.total}
-        noMatches={<FilesContentSearch root={projectRoot} query={query} onOpen={openFile} />}
-        cursorRequest={cursorRequest}
-        filterFocusRequest={filterFocusRequest}
-        onActivate={activate}
-        onToggleDir={toggleDir}
-        onRowMenu={setMenu}
-        onDiscard={git.discard.request}
-        checks={commit.checks}
-        onCheck={commit.onCheck}
-        onCursorChange={onCursorChange}
-        edits={review ? undefined : edits}
-      />
+      {searching ? (
+        <FilesSearch
+          search={search}
+          changesCount={git.changes.status === "ready" ? git.changes.files.length : null}
+          onLeave={(changes) => {
+            hideSearch();
+            git.showChangesOnly(changes);
+          }}
+          openedKey={jump ? matchKey(jump.path, jump) : null}
+          onOpen={openMatch}
+          unsaved={buffer.dirtyPaths}
+        />
+      ) : (
+        <FilesTree
+          rows={rows}
+          rootListing={listings.get("")}
+          changes={git.changes}
+          decorations={decorations}
+          ignoredPaths={ignoredPaths}
+          changesOnly={changesOnly}
+          onChangesOnlyChange={review ? undefined : git.showChangesOnly}
+          onSearch={review ? undefined : () => showSearch()}
+          allChanges={git.allChanges}
+          onAllChangesChange={showAllChanges}
+          selectedPath={git.allChanges ? stackPath : selectedPath}
+          dirtyPaths={commit.dirtyPaths}
+          query={query}
+          onQueryChange={setQuery}
+          results={ranked?.entries ?? null}
+          resultsTotal={ranked?.total}
+          noMatches={review ? undefined : <FilesContentSearch query={query} onSearch={showSearch} />}
+          cursorRequest={cursorRequest}
+          filterFocusRequest={filterFocusRequest}
+          onActivate={activate}
+          onToggleDir={toggleDir}
+          onRowMenu={setMenu}
+          onDiscard={git.discard.request}
+          checks={commit.checks}
+          onCheck={commit.onCheck}
+          onCursorChange={onCursorChange}
+          edits={review ? undefined : edits}
+        />
+      )}
       <div
         onMouseDown={handleResizeStart}
         aria-hidden
@@ -440,6 +441,7 @@ export function FilesPane({
               }
               onChange={buffer.setDraft}
               onSave={() => void buffer.save()}
+              jump={jump}
             />
           )}
         </div>

@@ -33,19 +33,36 @@ interface MonacoEditorProps {
   readOnly?: boolean;
   // Opens scrolled to this line, cursor on it and the line marked, and takes
   // focus; read once, when the editor mounts.
-  reveal?: { line: number; col: number };
+  reveal?: EditorTarget;
   // Moves the cursor to this line of an open editor, each time a new object is
   // passed.
-  jumpTo?: { line: number; col: number };
+  jumpTo?: EditorTarget;
   problems?: ConfigProblem[];
 }
 
-function placeCursor(editor: monacoNs.editor.IStandaloneCodeEditor, line: number, col: number): number | null {
+// With `endCol` the text up to it is selected instead of the line marked;
+// `focus: false` leaves the keyboard where it is.
+export interface EditorTarget {
+  line: number;
+  col: number;
+  endCol?: number;
+  focus?: boolean;
+}
+
+function placeCursor(editor: monacoNs.editor.IStandaloneCodeEditor, at: EditorTarget): number | null {
   const model = editor.getModel();
-  if (!model || line < 1) return null;
-  const lineNumber = Math.min(line, model.getLineCount());
-  editor.setPosition({ lineNumber, column: Math.max(1, col) });
-  editor.revealLineInCenter(lineNumber);
+  if (!model || at.line < 1) return null;
+  const lineNumber = Math.min(at.line, model.getLineCount());
+  const column = Math.max(1, at.col);
+  if (at.endCol && at.endCol > column) {
+    const range = { startLineNumber: lineNumber, startColumn: column, endLineNumber: lineNumber, endColumn: at.endCol };
+    editor.setSelection(range);
+    editor.revealRangeInCenter(range);
+  } else {
+    editor.setPosition({ lineNumber, column });
+    editor.revealLineInCenter(lineNumber);
+  }
+  if (at.focus !== false) editor.focus();
   return lineNumber;
 }
 
@@ -135,8 +152,8 @@ export function MonacoEditor({
 
     const at = revealRef.current;
     if (at) {
-      const lineNumber = placeCursor(editor, at.line, at.col);
-      if (lineNumber !== null) {
+      const lineNumber = placeCursor(editor, at);
+      if (lineNumber !== null && !at.endCol) {
         editor.createDecorationsCollection([
           {
             range: new monaco.Range(lineNumber, 1, lineNumber, 1),
@@ -144,7 +161,6 @@ export function MonacoEditor({
           },
         ]);
       }
-      editor.focus();
     }
 
     const sub = model.onDidChangeContent(() => {
@@ -301,8 +317,7 @@ export function MonacoEditor({
     const editor = editorRef.current;
     if (!ready || !editor || !jumpTo || jumpTo === jumpedRef.current) return;
     jumpedRef.current = jumpTo;
-    placeCursor(editor, jumpTo.line, jumpTo.col);
-    editor.focus();
+    placeCursor(editor, jumpTo);
   }, [jumpTo, ready]);
 
   useEffect(() => {

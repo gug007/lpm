@@ -41,6 +41,8 @@ interface FilesTreeProps {
   changesOnly: boolean;
   // Without it the rail stays on the changes and has no view switch.
   onChangesOnlyChange?: (on: boolean) => void;
+  // Offers the Search view on the switch.
+  onSearch?: () => void;
   // The whole working tree as one diff stack, in place of a single file.
   allChanges: boolean;
   onAllChangesChange: (on: boolean) => void;
@@ -81,6 +83,7 @@ export function FilesTree({
   ignoredPaths,
   changesOnly,
   onChangesOnlyChange,
+  onSearch,
   allChanges,
   onAllChangesChange,
   selectedPath,
@@ -321,9 +324,10 @@ export function FilesTree({
     <div className="flex min-h-0 flex-1 flex-col">
       {onChangesOnlyChange && (
         <FilesViewSwitch
-          changesOnly={changesOnly}
+          view={changesOnly ? "changes" : "all"}
           count={changes.status === "ready" ? changes.files.length : null}
-          onChange={onChangesOnlyChange}
+          onChange={(view) => (view === "search" ? onSearch?.() : onChangesOnlyChange(view === "changes"))}
+          searchable={!!onSearch}
         />
       )}
       <FilesFilterBox

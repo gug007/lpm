@@ -6,6 +6,8 @@ interface SegmentedOption<T extends string> {
   label: ReactNode;
   tooltip?: ReactNode;
   disabled?: boolean;
+  // With `fullWidth`, false keeps this segment to its content's width.
+  grow?: boolean;
 }
 
 interface SegmentedControlProps<T extends string> {
@@ -39,13 +41,14 @@ export function SegmentedControl<T extends string>({
       className={`flex ${containerClass} ${fullWidthClass} ${className}`}
     >
       {options.map((opt) => {
+        const grows = fullWidth && opt.grow !== false;
         const button = (
           <button
             type="button"
             onClick={() => onChange(opt.value)}
             disabled={opt.disabled}
             aria-pressed={value === opt.value}
-            className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition-all ${fullWidthClass} ${
+            className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition-all ${grows ? "w-full" : ""} ${
               value === opt.value
                 ? variant === "subtle"
                   ? "bg-[var(--bg-primary)] text-[var(--text-primary)] shadow-[0_1px_2px_rgba(0,0,0,0.16)]"
@@ -57,7 +60,7 @@ export function SegmentedControl<T extends string>({
           </button>
         );
         return (
-          <span key={opt.value} className={fullWidth ? "flex-1" : ""}>
+          <span key={opt.value} className={grows ? "flex-1" : ""}>
             {opt.tooltip ? (
               <Tooltip content={opt.tooltip} side="bottom" wide>
                 {button}

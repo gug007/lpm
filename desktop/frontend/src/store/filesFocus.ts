@@ -1,11 +1,11 @@
 import { create } from "zustand";
 
 // ⌘P asks the focused pane's Files tab to put the cursor in its filter box,
-// ⌘⇧E asks for the file tree and ⌘⇧R for every change. The tab may not exist
-// yet when the key is pressed, so the request is a per-pane item the FilesPane
-// picks up on mount or on change, then clears.
+// ⌘⇧F in its Search view, ⌘⇧E asks for the file tree and ⌘⇧R for every
+// change. The tab may not exist yet when the key is pressed, so the request is
+// a per-pane item the FilesPane picks up on mount or on change, then clears.
 export type FilesView = "files" | "changes";
-export type FilesRequestKind = FilesView | "filter";
+export type FilesRequestKind = FilesView | "filter" | "search";
 
 export interface FilesRequest {
   kind: FilesRequestKind;

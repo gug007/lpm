@@ -718,8 +718,10 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
   // view it switches.
   const toggleFilesView = useCallback(
     (view: FilesView, paneId?: string) => {
-      const onView = (tab: TerminalInstance) =>
-        (useFilesView.getState().changesOnly[tab.id] ?? false) === (view === "changes");
+      const onView = (tab: TerminalInstance) => {
+        const { changesOnly, searching } = useFilesView.getState();
+        return !searching[tab.id] && (changesOnly[tab.id] ?? false) === (view === "changes");
+      };
       toggleUtilityTab("files", (id) => showFilesView(id, view), paneId, onView);
     },
     [toggleUtilityTab, showFilesView],
@@ -878,7 +880,8 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
       { key: "w", meta: true },
       { key: "d", meta: true, shift: false, whileTyping: false },
       { key: "d", meta: true, shift: true, whileTyping: false },
-      { key: "f", meta: true, whileTyping: false },
+      { key: "f", meta: true, shift: false, whileTyping: false },
+      { key: "f", meta: true, shift: true },
       { key: "i", meta: true },
       { key: "r", meta: true, shift: true },
       { key: "m", meta: true, shift: true },
@@ -901,12 +904,13 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
         if (hasAutomations) toggleUtilityTab("automations", openAutomationsInPane);
         return;
       }
-      if (matched.key === "p") {
-        // Go to file: never a toggle — a second press just lands in the filter.
+      if (matched.key === "p" || (matched.key === "f" && matched.shift)) {
+        // Go to file and search in files: never a toggle — a second press just
+        // lands in the field again.
         const paneId = getFocusedPane()?.id ?? (tree ? null : nextId("pane"));
         if (!paneId) return;
         openFilesInPane(paneId);
-        useFilesFocus.getState().request(paneId, "filter");
+        useFilesFocus.getState().request(paneId, matched.key === "p" ? "filter" : "search");
         return;
       }
       if (matched.key === "i") {
