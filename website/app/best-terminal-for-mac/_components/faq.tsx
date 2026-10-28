@@ -13,6 +13,16 @@ type QA = {
 
 const FAQS: QA[] = [
   {
+    question: "What is the best terminal for Mac in 2026?",
+    answer:
+      "It depends on what you do in it. For speed with a native feel, Ghostty. For a setting for everything, iTerm2. For AI inside the shell, Warp. For one config across Mac, Linux and Windows, WezTerm. For keyboard-driven setups, Kitty, and for minimalism with tmux, Alacritty. If your day is dev servers plus Claude Code or Codex across several projects, lpm runs all of it in one window, free and open source.",
+  },
+  {
+    question: "Is Ghostty better than iTerm2?",
+    answer:
+      "They suit different people. Ghostty needs almost no configuration and its macOS interface is written in Swift, so it feels like part of the system from the first launch. iTerm2 has the deeper feature set — profiles, triggers and tmux integration — if you want to tune everything. Neither starts your dev servers or tracks coding agents; lpm does, and it runs happily next to either.",
+  },
+  {
     question: "Does lpm run natively on Apple silicon Macs?",
     answer:
       "Yes. lpm provides separate native downloads for Apple silicon and Intel Macs, so the Apple silicon build does not require Rosetta. The app uses the macOS system webview rather than bundling Electron or Chromium.",

@@ -47,6 +47,15 @@ const ROWS: Row[] = [
       "lpm is built Mac-first, and its per-project setup is edited in the app rather than scripted in Lua — it starts your services, not just your shell.",
   },
   {
+    name: "Kitty",
+    whatItIs:
+      "OpenGL-rendered emulator for macOS and Linux, set up in a single kitty.conf file.",
+    whereItShines:
+      "Keyboard control: split layouts, tabs, and kittens — small programs that extend it, from remote file editing to Unicode input.",
+    howLpmDiffers:
+      "Kitty rewards you for scripting your setup; lpm keeps it in the app, where each project knows its own services and agents. If you live in config files, Kitty fits better.",
+  },
+  {
     name: "Alacritty",
     whatItIs:
       "Minimal GPU-accelerated emulator — deliberately no tabs or splits; most people pair it with tmux.",
@@ -55,16 +64,25 @@ const ROWS: Row[] = [
     howLpmDiffers:
       "The opposite philosophy: lpm puts services, project switching, and AI agents in one window. If minimalism is the point, Alacritty is the better pick.",
   },
+  {
+    name: "Terminal.app",
+    whatItIs:
+      "The terminal Apple ships with macOS, with tabs, window groups and profiles.",
+    whereItShines:
+      "Zero setup, and it is already there on every Mac you sit down at.",
+    howLpmDiffers:
+      "Terminal.app runs a shell; lpm runs the project around it, with every dev server in its own pane and Claude Code or Codex in the next tab.",
+  },
 ];
 
 export default function Landscape() {
   return (
-    <section className="py-20 sm:py-24">
+    <section id="terminal-landscape" className="scroll-mt-20 py-20 sm:py-24">
       <div className="max-w-5xl mx-auto px-6">
         <SectionHeader
           eyebrow="The 2026 field"
-          title="Ghostty, Warp, iTerm2, WezTerm, Alacritty — and lpm"
-          description="All five are good terminal emulators, and lpm is not trying to out-render them. Here is what each one is, where it wins, and where lpm sits."
+          title="Ghostty, Warp, iTerm2, WezTerm, Kitty, Alacritty, Terminal.app — and lpm"
+          description="All seven are good terminals, and lpm is not trying to out-render them. Here is what each one is, where it wins, and where lpm sits."
           className="mb-12"
         />
 

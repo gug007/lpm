@@ -19,14 +19,15 @@ import Faq from "./_components/faq";
 import Features from "./_components/features";
 import Hero from "./_components/hero";
 import Landscape from "./_components/landscape";
+import QuickPicks from "./_components/quick-picks";
 import TerminalBasics from "./_components/terminal-basics";
 import WhyMac from "./_components/why-mac";
 import Workflows from "./_components/workflows";
 import { MAC_TERMINAL_DEMO } from "./_components/demo-tour";
 
-const TITLE = "Best Terminal for Mac (2026): Free and Native";
+const TITLE = "Best Terminal for Mac (2026): 8 Free Apps Compared";
 const DESCRIPTION =
-  "The best free terminal for Mac: native Apple silicon builds, split panes, search, a pane per dev server, a project sidebar, and Claude Code or Codex beside it.";
+  "Ghostty, iTerm2, Warp, WezTerm, Kitty, Alacritty, Terminal.app and lpm compared: who each suits, what it costs, and the free Mac terminal that runs projects.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -34,9 +35,11 @@ export const metadata: Metadata = {
   keywords: [
     "best terminal for mac",
     "best terminal for macos",
-    "mac terminal app",
-    "best terminal for mac m1",
+    "best terminal app for mac",
+    "best mac terminal 2026",
     "best free terminal for mac",
+    "ghostty vs iterm2",
+    "iterm2 alternative",
     "native mac terminal",
   ],
   alternates: {
@@ -82,20 +85,37 @@ export default function BestTerminalForMacPage() {
         dangerouslySetInnerHTML={{ __html: jsonLdString(structuredData) }}
       />
       <Hero />
-      <DemoSection {...MAC_TERMINAL_DEMO} />
+      <QuickPicks />
       <ComparisonBasis
-        reviewed="August 13, 2026"
+        reviewed="October 28, 2026"
+        reviewedIso="2026-10-28"
         sources={[
+          { href: "https://ghostty.org/docs/about", label: "Ghostty" },
           {
             href: "https://iterm2.com/features.html",
-            label: "iTerm2's official feature list",
+            label: "iTerm2 features",
           },
+          { href: "https://www.warp.dev/pricing", label: "Warp pricing" },
           {
             href: "https://github.com/warpdotdev/warp/discussions/9240",
             label: "Warp's open-source announcement",
           },
+          { href: "https://wezterm.org/", label: "WezTerm" },
+          {
+            href: "https://sw.kovidgoyal.net/kitty/overview/",
+            label: "Kitty overview",
+          },
+          {
+            href: "https://github.com/alacritty/alacritty",
+            label: "Alacritty",
+          },
+          {
+            href: "https://support.apple.com/guide/terminal/welcome/mac",
+            label: "Terminal User Guide",
+          },
         ]}
       />
+      <DemoSection {...MAC_TERMINAL_DEMO} />
       <WhyMac />
       <Features />
       <TerminalBasics />

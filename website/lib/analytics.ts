@@ -90,8 +90,9 @@ export function trackDownload({
   href,
 }: TrackDownloadParams): void {
   if (typeof window === "undefined" || !window.gtag) return;
+  // Never send a param named `source`: GA4 reads it as the session's traffic
+  // source and splits the visit into an "Unassigned" session.
   window.gtag("event", "app_download", {
-    source,
     platform,
     download_placement: source,
     download_architecture: platform,
@@ -147,7 +148,7 @@ export function trackGithubVisit({
 }: TrackGithubVisitParams): void {
   if (typeof window === "undefined" || !window.gtag) return;
   window.gtag("event", "github_visit", {
-    source,
+    placement: source,
     link_url: href,
     // The releases page serves the same installers as the download buttons, so
     // this link is a real download path that never reaches trackDownload.
@@ -166,7 +167,7 @@ export type AppStoreSource =
 export function trackAppStoreVisit(source: AppStoreSource): void {
   if (typeof window === "undefined" || !window.gtag) return;
   window.gtag("event", "app_store_visit", {
-    source,
+    placement: source,
     link_url: APP_STORE_URL,
   });
 }
