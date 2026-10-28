@@ -73,11 +73,7 @@ lpm starts, stops, duplicates, and switches between local dev projects, with a b
 - Give every new Tauri command a demo answer: handle it in a `desktop/frontend/src/demo`
   module, or list the empty value of its return type in `src/demo/defaults.ts`
   (`defaults.test.ts` fails until you do)
-- Never commit or push any changes
-
-## Analytics
-- **Google Search Console**: https://search.google.com/search-console?resource_id=sc-domain%3Alpm.cx
-- **Google Analytics**: https://analytics.google.com/analytics/web/#/a389756177p531055430/reports/intelligenthome?params=_u..nav%3Dmaui
+- Don't commit or push unless asked
 
  
 

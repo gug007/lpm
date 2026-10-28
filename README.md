@@ -82,6 +82,14 @@ Then tell your agent "set up lpm for this project".
 - [`lpm-cli`](lpm-cli) starts and stops projects, reads logs, and makes copies (uses the `lpm` command, which you install from the app's Settings)
 - [`lpm-memory`](lpm-memory) saves work notes, so another agent can pick up where the last one left off
 
+## Feedback and contributing
+
+- Bugs: [open an issue](https://github.com/gug007/lpm/issues/new)
+- Ideas and questions: [start a discussion](https://github.com/gug007/lpm/discussions)
+- Code: see [CONTRIBUTING.md](CONTRIBUTING.md)
+
+In the app, **lpm menu → Help Improve lpm…** does this for you.
+
 ## License
 
 [MIT](LICENSE)
