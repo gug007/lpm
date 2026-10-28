@@ -163,12 +163,12 @@ const LESSONS = {
       "Git leaves your .env files, local config and certificates behind, so a second computer can't run the project. Sync Ignored Files in lpm copies what git ignores between your computers, shows what differs key by key, and keeps the ticked files the same from then on.",
     uploadDate: "2026-10-27T09:00:00+00:00",
   },
-  "sixty-seconds": {
-    id: "H46vW5DPbZk",
-    name: "lpm in 60 Seconds: Start, Stop, Switch Projects and Run AI Agents",
+  "lpm-in-3-minutes": {
+    id: "hM9ArXSLITo",
+    name: "lpm in 3 Minutes: Dev Servers, Claude Code and Codex in One Window",
     description:
-      "A one-minute tour of lpm: start and stop a project, switch to another, and hand it to Claude Code from the header.",
-    uploadDate: "2026-09-19T09:00:00+00:00",
+      "A three-minute tour of lpm, the desktop app that runs your local dev servers and AI coding agents like Claude Code and Codex in one window. Start a whole stack in one click, free a busy port, ask two agents side by side, run them in parallel copies of a project, then review and commit the best result.",
+    uploadDate: "2026-10-28T09:00:00+00:00",
   },
 } as const;
 

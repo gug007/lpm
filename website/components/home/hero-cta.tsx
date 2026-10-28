@@ -29,7 +29,7 @@ const SECONDARY =
   "items-center justify-center gap-2 rounded-full border border-gray-300 px-6 py-[13px] text-[15px] font-medium text-gray-700 transition-colors duration-200 hover:border-gray-400 hover:text-gray-900 dark:border-gray-700 dark:text-gray-300 dark:hover:border-gray-500 dark:hover:text-white";
 
 // From md up the interactive demo already sits under the hero, so the second
-// button offers what isn't on screen yet: the one-minute video. Narrower
+// button offers what isn't on screen yet: the three-minute video. Narrower
 // windows play that video in the demo's place.
 function TourLink() {
   return (
@@ -40,7 +40,7 @@ function TourLink() {
       </a>
       <a href={LESSONS_ANCHOR} className={`hidden md:inline-flex ${SECONDARY}`}>
         <Play className="h-3.5 w-3.5" aria-hidden />
-        Watch the 1-minute tour
+        Watch the 3-minute tour
         <span className="font-mono text-[13px] tabular-nums opacity-70">
           {formatLength(OVERVIEW_LESSON.seconds)}
         </span>

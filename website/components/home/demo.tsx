@@ -43,10 +43,10 @@ const LESSON_CAPTION: Record<
     heading: "Claude Code and Codex built in, any other agent one click away",
     blurb: "A short video: add Cursor and omp, then run them side by side.",
   },
-  "sixty-seconds": {
-    heading:
-      "Start a project, then hand it to Claude Code or Codex — one click each",
-    blurb: "A one-minute tour: start a project and hand it to Claude Code.",
+  "lpm-in-3-minutes": {
+    heading: "Your dev servers, Claude Code and Codex in one window",
+    blurb:
+      "A three-minute tour: start a stack, free a busy port, and run Claude Code and Codex side by side.",
   },
   "add-project": {
     heading: "Add a folder, and it becomes a project",
@@ -280,7 +280,7 @@ export function DemoSection({
   tour = HOME_TOUR,
   heading = "Start a project, then hand it to Claude Code or Codex — one click each",
   blurb = "Click a step to run it, or anything in the window. It all runs in your browser.",
-  lesson = "sixty-seconds",
+  lesson = "lpm-in-3-minutes",
   posterPriority = false,
 }: PageDemo & { posterPriority?: boolean }) {
   const headingId = useId();

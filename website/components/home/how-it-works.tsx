@@ -25,7 +25,7 @@ export function HowItWorks() {
           </h3>
           <p className="mt-1.5 text-pretty text-sm text-gray-500 dark:text-gray-400">
             Six lessons, {LESSONS_TOTAL_MINUTES} minutes in all. Start with
-            the one-minute overview.
+            the three-minute overview.
           </p>
         </div>
 

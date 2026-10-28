@@ -16,17 +16,18 @@ export type LessonStep = {
 // The overview leads: a newcomer wants the whole loop before the how-tos.
 export const LESSON_STEPS: LessonStep[] = [
   {
-    title: "lpm in 60 seconds",
-    blurb: "Start, stop and switch projects, then hand one to Claude Code.",
+    title: "lpm in 3 minutes",
+    blurb: "Your dev servers, Claude Code and Codex in one window.",
     body: (
       <>
-        The whole loop in one take: start a project, stop it, switch to
-        another, and open Claude Code from the project header with one click.
+        The whole tour in one take: start a stack in one click, free a busy
+        port, ask Claude Code and Codex side by side, run agents in parallel
+        copies, then review and commit the best result.
       </>
     ),
-    lesson: "sixty-seconds",
-    thumbnail: "/lessons/sixty-seconds.jpg",
-    seconds: 63,
+    lesson: "lpm-in-3-minutes",
+    thumbnail: "/lessons/lpm-in-3-minutes.jpg",
+    seconds: 199,
   },
   {
     title: "Add a project",
@@ -102,7 +103,7 @@ export const LESSON_STEPS: LessonStep[] = [
   },
 ];
 
-// The one-minute tour, which leads the series.
+// The three-minute tour, which leads the series.
 export const OVERVIEW_LESSON = LESSON_STEPS[0];
 
 export function formatLength(seconds: number): string {
@@ -118,7 +119,7 @@ export const LESSONS_TOTAL_MINUTES = Math.round(
 export function lessonPoster(lesson: YouTubeLessonId) {
   const step = LESSON_STEPS.find((s) => s.lesson === lesson);
   if (!step) return undefined;
-  const kind = step.seconds < 90 ? "One-minute tour" : "Lesson";
+  const kind = step === LESSON_STEPS[0] ? "Three-minute tour" : "Lesson";
   return {
     src: step.thumbnail,
     label: `${kind} · ${formatLength(step.seconds)}`,

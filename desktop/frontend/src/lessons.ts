@@ -8,6 +8,11 @@ export interface Lesson {
 // lists them. The lesson-publish skill prints the entry to add at the top.
 export const LESSONS: readonly Lesson[] = [
   {
+    id: "hM9ArXSLITo",
+    title: "lpm in 3 Minutes: Dev Servers, Claude Code and Codex in One Window",
+    published: "2026-10-28",
+  },
+  {
     id: "S0NgdCHmof8",
     title: "Sync Ignored Files in lpm: Keep Your .env the Same on Every Computer",
     published: "2026-10-27",
@@ -145,11 +150,6 @@ export const LESSONS: readonly Lesson[] = [
   {
     id: "kKQiNwU5j4c",
     title: "lpm Prompt Box Tour: @-Files, Voice, AI Rewrites, Drafts, History, Fork Sessions, Model Picker",
-    published: "2026-09-19",
-  },
-  {
-    id: "H46vW5DPbZk",
-    title: "lpm in 60 Seconds: Start, Stop, Switch Projects and Run AI Agents",
     published: "2026-09-19",
   },
   {

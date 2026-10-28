@@ -21,7 +21,7 @@ export const metadata: Metadata = {
 };
 
 const structuredData = [
-  youtubeLessonJsonLd("sixty-seconds"),
+  youtubeLessonJsonLd("lpm-in-3-minutes"),
   youtubeLessonJsonLd("add-project"),
   youtubeLessonJsonLd("start-project"),
   youtubeLessonJsonLd("add-action"),
