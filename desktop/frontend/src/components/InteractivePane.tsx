@@ -795,6 +795,10 @@ function createInteractiveSession(
         // one update behind; a preserved buffer is shown as drawn.
         const webgl = new WebglAddon(isLinux ? { preserveDrawingBuffer: true } : undefined);
         webgl.onContextLoss(() => webgl.dispose());
+        // A GPU process restart also wipes the glyph atlas canvases every
+        // terminal shares, and a restored context would re-upload them blank.
+        // Capture runs before the addon rebuilds, so it redraws from a clean atlas.
+        host.addEventListener("webglcontextrestored", () => webgl.clearTextureAtlas(), true);
         term.loadAddon(webgl);
       } catch {}
     })
