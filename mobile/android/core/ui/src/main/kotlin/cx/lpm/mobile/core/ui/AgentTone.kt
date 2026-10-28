@@ -38,19 +38,23 @@ val AgentState.tint: Color
 /**
  * A tab's name colored by what its agent is doing, as the desktop does: a sweep
  * through the working colors, an orange pulse while it needs you, red for a
- * problem, blue once done. Idle (or no agent) leaves the text alone.
+ * problem, blue once done. Idle (or no agent) leaves the text alone, and an agent
+ * already [seen] reads gray.
  */
 @Composable
 fun AgentToneText(
     text: String,
     state: AgentState?,
     modifier: Modifier = Modifier,
-    style: TextStyle = LocalTextStyle.current
+    style: TextStyle = LocalTextStyle.current,
+    seen: Boolean = false
 ) {
-    val tone = when (state) {
-        AgentState.Working -> modifier.workingSweep(sweepProgress())
+    val tone = when {
+        seen -> modifier
 
-        AgentState.NeedsYou -> {
+        state == AgentState.Working -> modifier.workingSweep(sweepProgress())
+
+        state == AgentState.NeedsYou -> {
             val alpha = pulseAlpha()
             modifier.graphicsLayer { this.alpha = alpha() }
         }
@@ -60,9 +64,13 @@ fun AgentToneText(
     Text(
         text = text,
         modifier = tone,
-        color = when (state) {
-            AgentState.NeedsYou, AgentState.Error, AgentState.Done -> state.tint
-            else -> Color.Unspecified
+        color = if (seen) {
+            LpmTheme.colors.secondaryLabel
+        } else {
+            when (state) {
+                AgentState.NeedsYou, AgentState.Error, AgentState.Done -> state.tint
+                else -> Color.Unspecified
+            }
         },
         style = style,
         maxLines = 1,

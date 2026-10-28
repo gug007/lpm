@@ -103,6 +103,16 @@ enum Wire {
     static func clearStatus(project: String, paneId: String, value: String) -> String {
         json(["t": "clearStatus", "project": project, "paneId": paneId, "value": value])
     }
+    /// Only for a Mac whose `features` has "agentArchive".
+    static func archiveStatus(project: String, keys: [String]) -> String {
+        json(["t": "archiveStatus", "project": project, "keys": keys])
+    }
+    static func markStatusSeen(project: String, keys: [String]) -> String {
+        json(["t": "markStatusSeen", "project": project, "keys": keys])
+    }
+    static func markStatusUnread(project: String, keys: [String]) -> String {
+        json(["t": "markStatusUnread", "project": project, "keys": keys])
+    }
     static func jobs() -> String { json(["t": "jobs"]) }
     static func jobHistory(project: String, jobId: String) -> String {
         json(["t": "jobHistory", "project": project, "jobId": jobId])
@@ -597,9 +607,11 @@ enum Wire {
         // The projects reply also brings the Mac's work-status palette (the
         // user's own statuses and the order they put the menu in), since the
         // menu is only ever opened against a project from this same list. So
-        // does the Mac's auto pull setting, which every project's choice follows.
+        // does the Mac's auto pull setting, which every project's choice follows,
+        // how many seen agents a project lists before folding the rest, and
+        // whether it keeps finished agents as seen once opened.
         case projects([Project], workStatuses: [CustomWorkStatus], workStatusOrder: [String],
-                      autoPullMode: AutoPullMode)
+                      autoPullMode: AutoPullMode, seenAgentsShown: Int, keepFinishedAgents: Bool)
         case sidebar(order: [String], groups: [ProjectFolder])
         // Local agent token-usage stats (the desktop Stats page). `stats` is nil on
         // a hard failure; the scan runs on the Mac and replies asynchronously.
@@ -619,7 +631,7 @@ enum Wire {
         case history(project: String, [HistoryRow])
         case upload(id: String, reqId: String, path: String)
         case uploadStep(UploadStep)
-        case status(project: String, [StatusEntry])
+        case status(project: String, [StatusEntry], seen: [StatusEntry])
         case jobs([AutomationJob], machines: [AutomationMachine], error: String?)
         case jobHistory(project: String, jobId: String, entries: [AutomationHistoryEntry], error: String?)
         case jobLiveOutput(project: String, jobId: String, live: AutomationLiveOutput?, error: String?)
@@ -832,7 +844,9 @@ enum Wire {
                     workStatuses: (obj["workStatuses"] as? [[String: Any]])
                         .map { $0.compactMap(CustomWorkStatus.init) } ?? defaultWorkStatusPalette,
                     workStatusOrder: obj["workStatusOrder"] as? [String] ?? [],
-                    autoPullMode: AutoPullMode(wire: obj["autoPullMode"])
+                    autoPullMode: AutoPullMode(wire: obj["autoPullMode"]),
+                    seenAgentsShown: min(max(obj["seenAgentsShown"] as? Int ?? 3, 1), 10),
+                    keepFinishedAgents: obj["keepFinishedAgents"] as? Bool ?? false
                 )
             case "sidebar":
                 return .sidebar(
@@ -884,7 +898,8 @@ enum Wire {
                 return .uploadStep(UploadStep(obj))
             case "status":
                 return .status(project: obj["project"] as? String ?? "",
-                               (obj["status"] as? [[String: Any]] ?? []).map(StatusEntry.init))
+                               (obj["status"] as? [[String: Any]] ?? []).map(StatusEntry.init),
+                               seen: (obj["seen"] as? [[String: Any]] ?? []).map(StatusEntry.init))
             case "jobs":
                 let ok = obj["ok"] as? Bool ?? false
                 return .jobs(ok ? (obj["jobs"] as? [[String: Any]] ?? []).map(AutomationJob.init) : [],
@@ -1593,6 +1608,9 @@ struct Project: Identifiable {
     // the main accounts.
     let claude: ClaudeOwnChoice
     let statusEntries: [StatusEntry]
+    // Finished agents already opened, kept until archived. Empty from a Mac
+    // without "agentArchive".
+    let seenEntries: [StatusEntry]
     let services: [Service]      // currently running
     let allServices: [Service]   // every configured service
     let profiles: [Profile]
@@ -1609,6 +1627,8 @@ struct Project: Identifiable {
     var isDuplicate: Bool { !parentName.isEmpty }
     /// The desktop offers the Status menu on every local project.
     var canHaveWorkStatus: Bool { !isRemote }
+    /// Some agent reports here, a seen one included.
+    var hasAgentStatus: Bool { !statusEntries.isEmpty || !seenEntries.isEmpty }
 
     init(_ o: [String: Any]) {
         name = o["name"] as? String ?? ""
@@ -1621,6 +1641,7 @@ struct Project: Identifiable {
         autoPull = o["autoPull"] as? Bool
         claude = ClaudeOwnChoice(o)
         statusEntries = (o["statusEntries"] as? [[String: Any]] ?? []).map(StatusEntry.init)
+        seenEntries = (o["seenEntries"] as? [[String: Any]] ?? []).map(StatusEntry.init)
         services = (o["services"] as? [[String: Any]] ?? []).map(Service.init)
         allServices = (o["allServices"] as? [[String: Any]] ?? []).map(Service.init)
         profiles = (o["profiles"] as? [[String: Any]] ?? []).map(Profile.init)
@@ -1633,13 +1654,14 @@ struct Project: Identifiable {
 
     private init(name: String, label: String, running: Bool, isRemote: Bool, parentName: String,
                  worktree: Bool, workStatus: WorkStatus?, autoPull: Bool?, claude: ClaudeOwnChoice,
-                 statusEntries: [StatusEntry], services: [Service], allServices: [Service],
-                 profiles: [Profile], activeProfile: String, actions: [Action], actionErrors: [String],
-                 zones: [Zone], configError: String?) {
+                 statusEntries: [StatusEntry], seenEntries: [StatusEntry], services: [Service],
+                 allServices: [Service], profiles: [Profile], activeProfile: String, actions: [Action],
+                 actionErrors: [String], zones: [Zone], configError: String?) {
         self.name = name; self.label = label; self.running = running; self.isRemote = isRemote
         self.parentName = parentName; self.worktree = worktree; self.workStatus = workStatus
         self.autoPull = autoPull; self.claude = claude
-        self.statusEntries = statusEntries; self.services = services; self.allServices = allServices
+        self.statusEntries = statusEntries; self.seenEntries = seenEntries
+        self.services = services; self.allServices = allServices
         self.profiles = profiles; self.activeProfile = activeProfile; self.actions = actions
         self.actionErrors = actionErrors; self.zones = zones
         self.configError = configError
@@ -1647,11 +1669,11 @@ struct Project: Identifiable {
 
     /// A copy with fresh status — used by the status-changed push, which must not
     /// erase the project's services/actions (a partial dict rebuild would).
-    func withStatus(_ entries: [StatusEntry]) -> Project {
+    func withStatus(_ entries: [StatusEntry], seen: [StatusEntry]) -> Project {
         Project(name: name, label: label, running: running, isRemote: isRemote, parentName: parentName,
                 worktree: worktree, workStatus: workStatus, autoPull: autoPull, claude: claude,
-                statusEntries: entries, services: services, allServices: allServices, profiles: profiles,
-                activeProfile: activeProfile, actions: actions, actionErrors: actionErrors, zones: zones,
+                statusEntries: entries, seenEntries: seen, services: services, allServices: allServices,
+                profiles: profiles, activeProfile: activeProfile, actions: actions, actionErrors: actionErrors, zones: zones,
                 configError: configError)
     }
 
@@ -1661,7 +1683,8 @@ struct Project: Identifiable {
     func withWorkStatus(_ status: WorkStatus?) -> Project {
         Project(name: name, label: label, running: running, isRemote: isRemote, parentName: parentName,
                 worktree: worktree, workStatus: status, autoPull: autoPull, claude: claude,
-                statusEntries: statusEntries, services: services, allServices: allServices, profiles: profiles,
+                statusEntries: statusEntries, seenEntries: seenEntries, services: services,
+                allServices: allServices, profiles: profiles,
                 activeProfile: activeProfile, actions: actions, actionErrors: actionErrors, zones: zones,
                 configError: configError)
     }
@@ -1671,8 +1694,8 @@ struct Project: Identifiable {
     func withAutoPull(_ value: Bool?) -> Project {
         Project(name: name, label: label, running: running, isRemote: isRemote, parentName: parentName,
                 worktree: worktree, workStatus: workStatus, autoPull: value, claude: claude,
-                statusEntries: statusEntries, services: services, allServices: allServices,
-                profiles: profiles, activeProfile: activeProfile, actions: actions, actionErrors: actionErrors, zones: zones,
+                statusEntries: statusEntries, seenEntries: seenEntries, services: services,
+                allServices: allServices, profiles: profiles, activeProfile: activeProfile, actions: actions, actionErrors: actionErrors, zones: zones,
                 configError: configError)
     }
 
@@ -1681,8 +1704,8 @@ struct Project: Identifiable {
     func withClaude(_ own: ClaudeOwnChoice) -> Project {
         Project(name: name, label: label, running: running, isRemote: isRemote, parentName: parentName,
                 worktree: worktree, workStatus: workStatus, autoPull: autoPull, claude: own,
-                statusEntries: statusEntries, services: services, allServices: allServices,
-                profiles: profiles, activeProfile: activeProfile, actions: actions, actionErrors: actionErrors, zones: zones,
+                statusEntries: statusEntries, seenEntries: seenEntries, services: services,
+                allServices: allServices, profiles: profiles, activeProfile: activeProfile, actions: actions, actionErrors: actionErrors, zones: zones,
                 configError: configError)
     }
 }
@@ -2012,6 +2035,8 @@ struct StatusEntry: Identifiable {
     let turnStart: Int
     // When the turn finished; 0 while it is still running.
     let endedAt: Int
+    // When it was last opened; set only on a project's `seenEntries`.
+    var seenAt: Int
 
     var id: String { key }
 
@@ -2023,6 +2048,7 @@ struct StatusEntry: Identifiable {
         paneID = o["paneID"] as? String ?? ""
         turnStart = o["turnStart"] as? Int ?? 0
         endedAt = o["endedAt"] as? Int ?? 0
+        seenAt = o["seenAt"] as? Int ?? 0
     }
 }
 

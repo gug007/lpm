@@ -8,11 +8,15 @@ use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 /// Overwrite a ProjectInfo's `statusEntries` ([] by default) with the live
-/// per-pane status rows so badges render. Keyed by the project file name.
-fn inject_status(p: &mut Value, status: &StatusStore) {
+/// per-pane status rows so badges render, and `seenEntries` with the finished
+/// agents already opened. Keyed by the project file name.
+pub(crate) fn inject_status(p: &mut Value, status: &StatusStore) {
     if let Some(name) = p.get("name").and_then(|n| n.as_str()).map(String::from) {
         if let Ok(v) = serde_json::to_value(status.list(&name)) {
             p["statusEntries"] = v;
+        }
+        if let Ok(v) = serde_json::to_value(status.seen_list(&name)) {
+            p["seenEntries"] = v;
         }
     }
 }
@@ -47,6 +51,7 @@ pub fn load_settings() -> Value {
 pub fn save_settings(s: Value) -> Result<(), String> {
     config::save_settings(&s)?;
     crate::hostautoupdate::nudge();
+    crate::status::seen::nudge();
     crate::updateidle::nudge();
     Ok(())
 }

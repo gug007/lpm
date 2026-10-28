@@ -72,7 +72,7 @@ fun ProjectListItem(
                 onOpen = { actions.open(project) },
                 pending = entry.pending,
                 stale = entry.stale,
-                agentCount = entry.agents.size,
+                agentCount = entry.agents.count { !it.seen },
                 indent = indent,
                 queued = entry.queued,
                 onCancelAction = actions.cancelQueued,
@@ -90,9 +90,28 @@ fun ProjectListItem(
             )
         }
         if (entry.agents.isNotEmpty()) {
+            val agentActions = remember(entry.archivable, entry.keepsFinished, project, actions) {
+                if (entry.archivable) {
+                    AgentRowActions(
+                        archive = { actions.archiveAgent(project, it) },
+                        markSeen = if (entry.keepsFinished) {
+                            { actions.markAgentSeen(project, it) }
+                        } else {
+                            null
+                        },
+                        markUnread = { actions.markAgentUnread(project, it) }
+                    )
+                } else {
+                    null
+                }
+            }
             ProjectTerminalDeck(
                 rows = entry.agents,
                 onOpen = { row -> row.terminalId?.let { actions.openTerminal(project, it) } },
+                folded = entry.foldedSeen,
+                expanded = entry.seenExpanded,
+                onToggleFold = { actions.toggleSeenAgents(project) },
+                actions = agentActions,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(

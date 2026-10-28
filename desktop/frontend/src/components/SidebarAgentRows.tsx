@@ -1,8 +1,11 @@
-import { memo, useState } from "react";
-import { AGENT_STATE_LABEL, AGENT_STATE_TONE } from "../agentStatus";
+import { memo, useRef, useState } from "react";
+import { archiveAgents, markAgentSeen, markAgentUnread } from "../agentArchive";
 import type { SidebarAgentRow } from "../sidebarAgents";
-import { AgentStateIcon, MARK_SLOT } from "./AgentStateIcon";
-import { SidebarAgentElapsed } from "./SidebarAgentElapsed";
+import { useExpandedSeenAgents } from "../sidebarCollapsed";
+import { canArchive, foldSeenRows } from "../sidebarSeenAgents";
+import { DEFAULT_SEEN_SHOWN, useSettingsStore } from "../store/settings";
+import { SidebarAgentFold } from "./SidebarAgentFold";
+import { SidebarAgentLine } from "./SidebarAgentLine";
 import { SidebarAgentMenu, type AgentTabAction } from "./SidebarAgentMenu";
 
 export interface SidebarAgentRowsProps {
@@ -30,23 +33,10 @@ export interface SidebarAgentRowsProps {
   ) => void;
 }
 
-// Where the user is, in the only currency the row has left: a wash under it and
-// its name at full strength. Every other part of the line is spoken for — the
-// name carries the agent's state (and while it works, a gradient the row can't
-// recolor), and the end of the line already holds a mark and a clock.
-//
-// The wash sits between the hover it has to outrank and the `--bg-active` the
-// selected project row above it wears, since the two rows touch: at that value
-// the pair would read as one block instead of a project and a task inside it.
-const ACTIVE_CLASS =
-  "bg-[var(--text-primary)]/8 text-[var(--text-primary)] hover:bg-[var(--text-primary)]/14";
-const RESTING_CLASS =
-  "text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]";
-
 /** What a project has agents on, under its row: one line per task, in the order
- *  their tabs sit in — the tab it runs in by name, colored by what it is doing,
- *  a check once it lands, and how long it took. Each line opens its terminal,
- *  and the one already on screen is marked. */
+ *  their tabs sit in. Each line opens its terminal, and the one already on
+ *  screen is marked. Finishes already seen stay until archived; past the number
+ *  Settings shows, the older of them fold into one line. */
 export const SidebarAgentRows = memo(function SidebarAgentRows({
   projectName,
   label,
@@ -59,64 +49,70 @@ export const SidebarAgentRows = memo(function SidebarAgentRows({
 }: SidebarAgentRowsProps) {
   const lead = indented ? "pl-[25px]" : underNav ? "pl-3" : "pl-2.5";
   const [menu, setMenu] = useState<{ agent: SidebarAgentRow; x: number; y: number } | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const limit = useSettingsStore((s) => s.seenAgentsShown ?? DEFAULT_SEEN_SHOWN);
+  const keepsSeen = useSettingsStore((s) => s.keepFinishedAgents ?? false);
+  const expanded = useExpandedSeenAgents((s) => s.collapsed.has(projectName));
+  const toggleExpanded = useExpandedSeenAgents((s) => s.toggle);
+  const onScreen = activeTerminalId ?? null;
+  const { shown, folded } = foldSeenRows(agents, limit, onScreen);
+  const visible = expanded ? agents : shown;
+
+  const open = (agent: SidebarAgentRow) => {
+    if (agent.seenAt !== undefined) markAgentSeen(projectName, agent);
+    onOpenAgent(projectName, agent);
+  };
+
+  const archive = (agent: SidebarAgentRow, viaKeyboard: boolean) => {
+    const lines = [...(listRef.current?.querySelectorAll<HTMLElement>("[data-agent-row]") ?? [])];
+    const at = lines.findIndex((el) => el.dataset.agentRow === agent.key);
+    const next = viaKeyboard ? lines[at + 1] ?? lines[at - 1] : undefined;
+    archiveAgents(projectName, [agent]);
+    next?.focus();
+  };
+
   return (
-    <div className="mb-0.5 flex flex-col">
-      {agents.map((agent) => (
-        <button
+    <div ref={listRef} className="mb-0.5 flex flex-col">
+      {visible.map((agent) => (
+        <SidebarAgentLine
           key={agent.key}
-          onClick={() => onOpenAgent(projectName, agent)}
-          onContextMenu={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setMenu({ agent, x: e.clientX, y: e.clientY });
-          }}
-          onPointerDown={(e) => e.stopPropagation()}
-          // Padding + mark + gap add up to the project row's own text offset,
-          // so a task's name sits directly under the project's.
-          className={`flex w-full select-none items-center gap-2 rounded-md py-1 pr-3 text-left text-[12px] outline-none transition-colors ${lead} ${
-            agent.terminalId !== null && agent.terminalId === activeTerminalId
-              ? ACTIVE_CLASS
-              : RESTING_CLASS
-          }`}
-          title={`${AGENT_STATE_LABEL[agent.state]} — ${agent.provider} in ${label ?? projectName}`}
-        >
-          <span className={MARK_SLOT} />
-          {/* The name is the state: it shimmers while the work runs, pulses
-              amber while it waits on the user and turns blue when it lands, the
-              same way the tab it runs in does. Only this row shimmers — the
-              project name above leaves the working state to it. */}
-          <span
-            className={`min-w-0 flex-1 truncate ${
-              agent.state === "idle" ? "" : AGENT_STATE_TONE[agent.state]
-            }`}
-          >
-            {agent.title}
-          </span>
-          {/* A tab running more than one agent says so rather than quietly
-              showing the loudest of them: the line is the tab, and this is how
-              many others are in there with it. */}
-          {agent.shared > 0 && (
-            <span
-              className="shrink-0 text-[10px] tabular-nums text-[var(--text-muted)]"
-              title={`${agent.shared + 1} agents in this tab`}
-            >
-              +{agent.shared}
-            </span>
-          )}
-          <AgentStateIcon state={agent.state} />
-          <SidebarAgentElapsed agent={agent} />
-        </button>
+          agent={agent}
+          where={label ?? projectName}
+          lead={lead}
+          active={agent.terminalId !== null && agent.terminalId === onScreen}
+          onOpen={() => open(agent)}
+          onMenu={(at) => setMenu({ agent, ...at })}
+          onArchive={canArchive(agent) ? (viaKeyboard) => archive(agent, viaKeyboard) : undefined}
+        />
       ))}
+      {folded.length > 0 && (
+        <SidebarAgentFold
+          count={folded.length}
+          expanded={expanded}
+          lead={lead}
+          onToggle={() => toggleExpanded(projectName)}
+          onArchive={() => archiveAgents(projectName, folded, label ?? projectName)}
+        />
+      )}
       {menu && (
         <SidebarAgentMenu
           x={menu.x}
           y={menu.y}
           projectName={projectName}
           agent={menu.agent}
-          onOpen={() => onOpenAgent(projectName, menu.agent)}
+          onOpen={() => open(menu.agent)}
           onAction={
             onAgentAction &&
             ((action) => onAgentAction(projectName, menu.agent, action, { x: menu.x, y: menu.y }))
+          }
+          onArchive={canArchive(menu.agent) ? () => archiveAgents(projectName, [menu.agent]) : undefined}
+          onMarkSeen={
+            keepsSeen && canArchive(menu.agent) && menu.agent.seenAt === undefined
+              ? () => markAgentSeen(projectName, menu.agent)
+              : undefined
+          }
+          onMarkUnread={
+            menu.agent.seenAt !== undefined ? () => markAgentUnread(projectName, menu.agent) : undefined
           }
           onClose={() => setMenu(null)}
         />

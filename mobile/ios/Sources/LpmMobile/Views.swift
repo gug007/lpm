@@ -142,6 +142,8 @@ struct ProjectsView: View {
     @State private var visiting: MachineVisit?
     @State private var screenWidth: CGFloat = 0
     @State private var usageRest = UsageRest()
+    // Projects whose folded seen agents are open.
+    @State private var seenExpanded: Set<String> = []
 
     private func isExpanded(_ g: ProjectFolder) -> Bool { expandedOverride[g.id] ?? !g.collapsed }
 
@@ -149,6 +151,14 @@ struct ProjectsView: View {
                            tabTitles: [String: String]? = nil) -> [ProjectAgentRow] {
         projectAgentRows(project, now: Int(Date().timeIntervalSince1970 * 1000),
                          tabTitles: tabTitles ?? model.activityTerminalTitles[project.name] ?? [:])
+    }
+
+    /// A project's agents, with its seen ones from a Mac that archives agents.
+    private func listedAgents(_ project: Project) -> [ProjectAgentRow] {
+        guard model.canArchiveAgents else { return agentRows(project) }
+        return projectAgentList(project, now: Int(Date().timeIntervalSince1970 * 1000),
+                                tabTitles: model.activityTerminalTitles[project.name] ?? [:],
+                                hiding: model.archivingAgentKeys(project.name))
     }
 
     private var listIsEmpty: Bool { model.projects.isEmpty && model.machineSections.isEmpty }
@@ -210,25 +220,25 @@ struct ProjectsView: View {
         .listRowSeparator(agents.isEmpty ? .automatic : .hidden, edges: .bottom)
 
         if !agents.isEmpty {
-            ProjectTerminalDeck(rows: agents) { agent in
+            ProjectTerminalDeck(project: row.project.name, rows: agents, indent: indent) { agent in
                 if let terminal = agent.terminalId {
                     visiting = model.beginVisit(section, project: row.project.name, terminal: terminal)
                 }
             }
             .disabled(!section.canOpen)
-            .listRowInsets(EdgeInsets(top: 0, leading: 16 + 22 + indent, bottom: 8, trailing: 16))
-            .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
         }
     }
 
     @ViewBuilder
     private func projectLink(_ row: SidebarRow, indented: Bool) -> some View {
-        let agents = agentRows(row.project)
+        let name = row.project.name
+        let agents = listedAgents(row.project)
+        let fold = foldSeenAgents(agents, shown: model.seenAgentsShown, expanded: seenExpanded.contains(name))
         let indent: CGFloat = indented ? 20 : 0
-        NavigationLink(value: row.project.name) {
+        NavigationLink(value: name) {
             ProjectRow(project: row.project,
-                       pending: model.pendingRun[row.project.name] != nil,
-                       agentCount: agents.count,
+                       pending: model.pendingRun[name] != nil,
+                       agentCount: agents.filter { !$0.seen }.count,
                        stale: isStale)
                 .padding(.leading, indent)
         }
@@ -239,17 +249,14 @@ struct ProjectsView: View {
         .listRowSeparator(agents.isEmpty ? .automatic : .hidden, edges: .bottom)
 
         if !agents.isEmpty {
-            ProjectTerminalDeck(rows: agents) { agent in
+            ProjectTerminalDeck(project: name, rows: fold.rows, folded: fold.folded,
+                                expanded: seenExpanded.contains(name),
+                                toggleFold: { seenExpanded.formSymmetricDifference([name]) },
+                                archivable: model.canArchiveAgents, indent: indent) { agent in
                 if let terminal = agent.terminalId {
-                    openTerminal = TerminalTarget(project: row.project.name, terminalId: terminal)
+                    openTerminal = TerminalTarget(project: name, terminalId: terminal)
                 }
             }
-            // The deck hangs flush under its project and starts beneath the project
-            // name — the dot's 14pt column plus the stack's spacing.
-            .listRowInsets(EdgeInsets(top: 0, leading: 16 + 22 + indent, bottom: 8, trailing: 16))
-            // Its separator closes the cell in line with every other row's, rather
-            // than starting at the deck's own left edge.
-            .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
         }
     }
 
@@ -292,6 +299,9 @@ struct ProjectsView: View {
         .restsAtBottom($usageRest, present: !listIsEmpty && !model.currentUsageRows(at: .now).isEmpty,
                        ready: model.projectsLoaded) { await model.refreshProjects() }
         .feedsUsageRows()
+        .safeAreaInset(edge: .bottom) {
+            UndoBar(message: model.pendingAgentArchive?.message) { model.undoAgentArchive() }
+        }
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { screenWidth = $0 }
         .task(id: model.macs.count) {
             while model.macs.count > 1 && !Task.isCancelled {
@@ -303,7 +313,7 @@ struct ProjectsView: View {
         // those names. Keyed on which projects have agents so the ask lands after
         // the project list itself has arrived, and again whenever an agent starts
         // somewhere new — a bare `.task` fires once, against an empty list.
-        .task(id: model.projects.filter { !$0.statusEntries.isEmpty }.map(\.name)) {
+        .task(id: model.projects.filter(\.hasAgentStatus).map(\.name)) {
             model.loadActivityTerminals()
         }
         .navigationDestination(item: $openTerminal) { target in

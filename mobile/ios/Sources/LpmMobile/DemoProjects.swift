@@ -18,15 +18,6 @@ extension DemoServer {
             guard let self, let project = o["project"] as? String else { return }
             self.push(self.world.statusPayload(project))
         }
-        register("clearStatus") { [weak self] o in
-            guard let self, let project = o["project"] as? String,
-                  let pane = o["paneId"] as? String, let value = o["value"] as? String,
-                  let idx = self.world.projectIndex(project) else { return }
-            let before = self.world.projects[idx].status.count
-            self.world.projects[idx].status.removeAll { $0.paneID == pane && $0.value == value }
-            guard self.world.projects[idx].status.count != before else { return }
-            self.push(["t": "status-changed", "project": project])
-        }
         register("duplicateDefaults") { [weak self] _ in
             guard let self else { return }
             self.push([
@@ -37,6 +28,7 @@ extension DemoServer {
             ])
         }
 
+        registerAgentArchiveHandlers()
         registerLifecycleHandlers()
         registerServiceHandlers()
         registerServiceLogHandlers()
@@ -621,6 +613,7 @@ extension DemoServer {
             p.activeProfile = ""
             for i in p.services.indices { p.services[i].running = false }
             p.status = []
+            p.seen = []
             p.workStatus = nil
             p.autoPull = nil
             p.claudeAccount = nil
@@ -650,6 +643,9 @@ extension DemoServer {
                              timestamp: e["timestamp"] as? Int ?? nowMs,
                              paneID: e["paneID"] as? String ?? "")
         }
+        // An agent's next report on a tab ends its seen agent there.
+        let reporting = Set(world.projects[idx].status.map(\.paneID))
+        world.projects[idx].seen.removeAll { reporting.contains($0.paneID) }
         push(["t": "status-changed", "project": project])
     }
 

@@ -14,6 +14,8 @@ internal fun LpmClientCallbacks.route(frame: Inbound) {
             onProjects?.invoke(frame.projects)
             onWorkStatusPalette?.invoke(frame.workStatuses, frame.workStatusOrder)
             onAutoPullMode?.invoke(frame.autoPullMode)
+            onSeenAgentsShown?.invoke(frame.seenAgentsShown)
+            onKeepFinishedAgents?.invoke(frame.keepFinishedAgents)
         }
 
         is Inbound.Sidebar -> onSidebar?.invoke(frame.order, frame.groups)
@@ -40,7 +42,7 @@ internal fun LpmClientCallbacks.route(frame: Inbound) {
 
         is Inbound.History -> onHistory?.invoke(frame.project, frame.rows)
 
-        is Inbound.Status -> onStatus?.invoke(frame.project, frame.entries)
+        is Inbound.Status -> onStatus?.invoke(frame.project, frame.entries, frame.seen)
 
         is Inbound.Jobs -> onJobs?.invoke(frame.jobs, frame.machines, frame.error)
 

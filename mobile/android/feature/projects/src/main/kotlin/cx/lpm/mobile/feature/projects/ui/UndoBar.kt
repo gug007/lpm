@@ -1,4 +1,4 @@
-package cx.lpm.mobile.feature.projects.detail
+package cx.lpm.mobile.feature.projects.ui
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -8,9 +8,10 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -23,27 +24,32 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import cx.lpm.mobile.core.data.terminals.PendingTabClose
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.feature.projects.R
 
 /**
- * The bar a closed tab leaves for a few seconds, as on the desktop: "<tab> closed"
- * and Undo, which puts the tab back as it was. It holds still — a countdown that
- * moves the whole time would keep UI tests from tapping Undo.
+ * The dark capsule an undoable change leaves at the bottom of the screen for a few
+ * seconds: what happened, and Undo. It slides up while there's a [message] and away
+ * once it's null. It holds still — a countdown that moves the whole time would keep
+ * UI tests from tapping Undo.
  */
 @Composable
-fun UndoCloseBar(pending: PendingTabClose?, onUndo: () -> Unit, modifier: Modifier = Modifier) {
+fun UndoBar(
+    message: String?,
+    onUndo: () -> Unit,
+    modifier: Modifier = Modifier,
+    windowInsets: WindowInsets = WindowInsets(0)
+) {
     AnimatedVisibility(
-        visible = pending != null,
+        visible = message != null,
         modifier = modifier,
         enter = slideInVertically { it } + fadeIn(),
         exit = slideOutVertically { it } + fadeOut()
     ) {
-        val tab = pending?.tab ?: return@AnimatedVisibility
+        val text = message ?: return@AnimatedVisibility
         Row(
             modifier = Modifier
-                .navigationBarsPadding()
+                .windowInsetsPadding(windowInsets)
                 .padding(horizontal = 20.dp, vertical = 8.dp)
                 .fillMaxWidth()
                 .shadow(12.dp, CircleShape)
@@ -53,7 +59,7 @@ fun UndoCloseBar(pending: PendingTabClose?, onUndo: () -> Unit, modifier: Modifi
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = stringResource(R.string.tab_closed, tab.title),
+                text = text,
                 style = LpmTheme.typography.subheadline.copy(fontWeight = FontWeight.Medium),
                 color = Color.White,
                 maxLines = 1,

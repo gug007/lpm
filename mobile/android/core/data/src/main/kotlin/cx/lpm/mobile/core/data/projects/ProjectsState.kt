@@ -26,6 +26,12 @@ data class ProjectsState(
     val workStatusOrder: List<String> = emptyList(),
     /** The Mac's Settings › General › Auto pull. */
     val autoPullMode: AutoPullMode = AutoPullMode.Off,
+    /** The Mac's Settings › General › Seen agents per project. */
+    val seenAgentsShown: Int = 3,
+    /** The Mac's Settings › General › Keep finished agents until archived. */
+    val keepFinishedAgents: Boolean = false,
+    /** Agents archived here that can still be undone; hidden, not yet sent. */
+    val pendingAgentArchive: PendingAgentArchive? = null,
     /** project → desired running state while a Start/Stop is in flight. */
     val pendingRun: Map<String, Boolean> = emptyMap(),
     /** project → service → desired running state while a toggle is in flight. */

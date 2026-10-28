@@ -11,7 +11,7 @@ extension AppModel {
     func restoreSnapshot() {
         guard !demoMode, projects.isEmpty, let id = activeMacId,
               let snapshot = link.snapshots.load(id) else { return }
-        projects = snapshot.projects.map { $0.withStatus([]) }
+        projects = snapshot.projects.map { $0.withStatus([], seen: []) }
         workStatuses = snapshot.workStatuses
         workStatusOrder = snapshot.workStatusOrder
         autoPullMode = snapshot.autoPullMode

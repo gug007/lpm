@@ -45,7 +45,7 @@ final class ProjectSnapshots {
 
     func load(_ mac: UUID) -> Snapshot? {
         guard let entry = self.entry(mac), let projectsText = entry.projects,
-              case .projects(let projects, let statuses, let order, let autoPullMode) = Wire.Inbound.parse(projectsText) else {
+              case .projects(let projects, let statuses, let order, let autoPullMode, _, _) = Wire.Inbound.parse(projectsText) else {
             return nil
         }
         var snapshot = Snapshot(projects: projects, workStatuses: statuses, workStatusOrder: order,

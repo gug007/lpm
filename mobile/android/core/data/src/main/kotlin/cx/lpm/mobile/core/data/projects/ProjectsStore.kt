@@ -31,6 +31,7 @@ import cx.lpm.mobile.core.model.WorkStatusInput
 import cx.lpm.mobile.core.model.liveServiceNames
 import cx.lpm.mobile.core.model.nextWorkStatus
 import cx.lpm.mobile.core.model.trimmingWhitespace
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -44,11 +45,14 @@ import kotlinx.coroutines.launch
  * projects push are shown at once (`pendingRun`, an optimistic status) and given
  * up on after a timeout so a lost request can't spin forever.
  */
-class ProjectsStore(private val session: MacSession) : SessionStore {
+class ProjectsStore(internal val session: MacSession) : SessionStore {
     private val mutable = MutableStateFlow(ProjectsState())
     val state: StateFlow<ProjectsState> = mutable.asStateFlow()
 
-    private val client: LpmClient? get() = session.client
+    internal val client: LpmClient? get() = session.client
+
+    // The undo window of [PendingAgentArchive], running out.
+    internal var pendingAgentArchiveJob: Job? = null
 
     override fun wire(client: LpmClient) {
         val c = client
@@ -77,6 +81,8 @@ class ProjectsStore(private val session: MacSession) : SessionStore {
             }
         }
         c.onAutoPullMode = { mode -> mutable.update { it.copy(autoPullMode = mode) } }
+        c.onSeenAgentsShown = { shown -> mutable.update { it.copy(seenAgentsShown = shown) } }
+        c.onKeepFinishedAgents = { keep -> mutable.update { it.copy(keepFinishedAgents = keep) } }
         // Same for a refused auto pull choice.
         c.onSetAutoPull = { _, error ->
             if (error != null) {
@@ -90,7 +96,9 @@ class ProjectsStore(private val session: MacSession) : SessionStore {
             c.requestJobs()
         }
         c.onStatusChanged = { project -> c.requestStatus(project) }
-        c.onStatus = { project, entries -> updateProject(project) { it.withStatus(entries) } }
+        c.onStatus = { project, entries, seen ->
+            updateProject(project) { it.withStatus(entries, seen) }
+        }
         c.onActionError = session.alerts::showError
         c.onSendQueueFull = { session.alerts.showError(SEND_QUEUE_FULL) }
         c.onDuplicateDefaults = { excludeUncommitted, reinstallDeps, pullLatest ->
@@ -131,8 +139,15 @@ class ProjectsStore(private val session: MacSession) : SessionStore {
     }
 
     override fun reset() {
+        pendingAgentArchiveJob?.cancel()
+        pendingAgentArchiveJob = null
         mutable.value = ProjectsState()
     }
+
+    override fun flushPending() = finishPendingAgentArchive()
+
+    internal fun setPendingAgentArchive(pending: PendingAgentArchive?) =
+        mutable.update { it.copy(pendingAgentArchive = pending) }
 
     private fun applyProjects(projects: List<Project>) {
         mutable.update { it.copy(projects = projects, projectsLoaded = true) }
@@ -158,7 +173,7 @@ class ProjectsStore(private val session: MacSession) : SessionStore {
     /** Show the saved list (without its agents' states) until a live one arrives. */
     fun restore(snapshot: ProjectSnapshots.Snapshot) = mutable.update {
         it.copy(
-            projects = snapshot.projects.map { p -> p.withStatus(emptyList()) },
+            projects = snapshot.projects.map { p -> p.withStatus(emptyList(), emptyList()) },
             workStatuses = snapshot.workStatuses,
             workStatusOrder = snapshot.workStatusOrder,
             autoPullMode = snapshot.autoPullMode,
@@ -364,9 +379,7 @@ class ProjectsStore(private val session: MacSession) : SessionStore {
     }
 
     private fun dropAgentStatus(project: String, paneId: String, values: Set<String>) {
-        updateProject(project) { p ->
-            p.withStatus(p.statusEntries.filterNot { it.paneID == paneId && it.value in values })
-        }
+        settleAgentStatus(project) { it.paneID == paneId && it.value in values }
         values.forEach { client?.clearStatus(project, paneId, it) }
     }
 

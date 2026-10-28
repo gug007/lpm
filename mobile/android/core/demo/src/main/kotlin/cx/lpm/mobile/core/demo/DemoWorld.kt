@@ -25,7 +25,13 @@ internal class DemoWorld(val clock: Clock) {
         // unix millis
         val timestamp: Long,
         // the terminal reporting it
-        val paneID: String
+        val paneID: String,
+        // unix millis; 0 when never seen starting
+        val turnStart: Long = 0,
+        // unix millis; 0 while it runs
+        val endedAt: Long = 0,
+        // unix millis; only on a seen agent
+        val seenAt: Long = 0
     )
 
     data class Project(
@@ -49,7 +55,9 @@ internal class DemoWorld(val clock: Clock) {
         var actions: List<Dict> = emptyList(),
         // Zones as the Mac sends them (ZoneInfo), sorted by position.
         var zones: List<Dict> = emptyList(),
-        var status: List<Status> = emptyList()
+        var status: List<Status> = emptyList(),
+        // Finished agents already opened, kept until archived.
+        var seen: List<Status> = emptyList()
     ) {
         fun deepCopy() = copy(
             services = services.map { it.copy() },
@@ -331,6 +339,7 @@ internal class DemoWorld(val clock: Clock) {
         seedJobs(nowS)
         seedConfig()
         seedHistory(nowMs)
+        seedSeenAgents(nowMs)
     }
 
     fun project(named: String): Project? = projects.firstOrNull { it.name == named }

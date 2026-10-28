@@ -10,6 +10,8 @@ import type { ProjectInfo, StatusEntry } from "../types";
 // paints its name.
 interface GlobalAgentStatusState {
   entries: StatusEntry[];
+  // Finished agents already opened, which only the sidebar lists.
+  seen: StatusEntry[];
   refresh: () => Promise<void>;
 }
 
@@ -17,12 +19,13 @@ let refreshSeq = 0;
 
 export const useGlobalAgentStatus = create<GlobalAgentStatusState>((set) => ({
   entries: [],
+  seen: [],
 
   refresh: async () => {
     const seq = ++refreshSeq;
     try {
       const info: ProjectInfo | null = await GetProject(GLOBAL_TERMINALS_KEY);
-      if (seq === refreshSeq) set({ entries: info?.statusEntries ?? [] });
+      if (seq === refreshSeq) set({ entries: info?.statusEntries ?? [], seen: info?.seenEntries ?? [] });
     } catch {
       /* the reserved project always resolves; a failed read keeps the last rows */
     }

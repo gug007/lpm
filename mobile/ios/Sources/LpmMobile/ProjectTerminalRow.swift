@@ -2,7 +2,8 @@ import SwiftUI
 
 /// One terminal inside a project's deck, read the way the project's own Tabs list
 /// and the desktop sidebar read it: the tab's name carries the agent's state, and
-/// the trailing edge holds the state's mark and how long it has been so.
+/// the trailing edge holds the state's mark and how long it has been so. A seen
+/// agent's row is gray.
 struct ProjectTerminalRow: View {
     let row: ProjectAgentRow
 
@@ -10,7 +11,7 @@ struct ProjectTerminalRow: View {
         HStack(spacing: 6) {
             Text(row.title)
                 .lineLimit(1)
-                .agentTone(row.state)
+                .agentTone(row.state, seen: row.seen)
             if row.shared > 0 {
                 Text("+\(row.shared)")
                     .font(.caption2)
@@ -35,7 +36,8 @@ struct ProjectTerminalRow: View {
 
     /// The agent is named when the tab was renamed away from it.
     private var accessibilityText: String {
-        [row.title, row.state.label, row.elapsed(now: Int(Date().timeIntervalSince1970 * 1000)), row.title == row.provider ? nil : row.provider]
+        [row.title, row.state.label, row.seen ? "Seen" : nil,
+         row.elapsed(now: Int(Date().timeIntervalSince1970 * 1000)), row.title == row.provider ? nil : row.provider]
             .compactMap { $0 }
             .joined(separator: ", ")
     }

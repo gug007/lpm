@@ -20,6 +20,14 @@ struct ProjectAgentRow: Identifiable, Equatable {
     var until: Int?
     /// How many further agents report on this row's tab, folded into it.
     var shared = 0
+    /// Every status key the row stands for — its own, the agents folded into it
+    /// and a seen agent on its tab — which archiving or marking it acts on.
+    var keys: [String] = []
+    /// Millis: when the row was last opened, for an agent kept after that as seen
+    /// (`seenEntries`) and listed muted until archived. Nil for the others.
+    var seenAt: Int?
+
+    var seen: Bool { seenAt != nil }
 
     func elapsed(now: Int) -> String? {
         since.map { shortDuration(millis: (until ?? now) - $0) }
@@ -45,15 +53,59 @@ private func precedes(_ a: StatusEntry, _ b: StatusEntry) -> Bool {
 /// its own row. `tabTitles` is that project's terminal id -> the name that tab is
 /// showing.
 func projectAgentRows(_ project: Project, now: Int, tabTitles: [String: String]) -> [ProjectAgentRow] {
+    foldByTerminal(agentRows(project.statusEntries, now: now, tabTitles: tabTitles))
+}
+
+/// What the projects list shows under a project from a Mac that archives agents:
+/// `projectAgentRows`, then the seen agents, most recently seen first and one row
+/// per tab like the rest. A seen agent on a tab that also reports a status adds no
+/// row, only its key to that tab's. A finished agent whose key is in `hiding` is
+/// being archived and left out.
+func projectAgentList(_ project: Project, now: Int, tabTitles: [String: String],
+                      hiding: Set<String> = []) -> [ProjectAgentRow] {
+    let listed = { (entry: StatusEntry) in
+        !(hiding.contains(entry.key) && AgentState.of(entry.value).isFinished)
+    }
+    var rows = foldByTerminal(agentRows(project.statusEntries.filter(listed), now: now, tabTitles: tabTitles))
+    var unlisted: [StatusEntry] = []
+    for entry in project.seenEntries where listed(entry) {
+        if let index = rows.firstIndex(where: { $0.terminalId == entry.paneID }) {
+            rows[index].keys.append(entry.key)
+        } else {
+            unlisted.append(entry)
+        }
+    }
+    let seen = foldByTerminal(agentRows(unlisted, now: now, tabTitles: tabTitles)).sorted { a, b in
+        a.seenAt == b.seenAt ? a.id < b.id : (a.seenAt ?? 0) > (b.seenAt ?? 0)
+    }
+    return rows + seen
+}
+
+/// The rows a project lists once its seen rows past `shown` fold into one line,
+/// and how many that line stands for — 0 when there are no more than `shown`.
+/// Expanded, every row lists and the line offers to fold them again. Seen rows
+/// trail the others, so only seen rows ever fold.
+func foldSeenAgents(_ rows: [ProjectAgentRow], shown: Int,
+                    expanded: Bool) -> (rows: [ProjectAgentRow], folded: Int) {
+    let extra = rows.filter(\.seen).count - max(shown, 0)
+    guard extra > 0 else { return (rows, 0) }
+    return (expanded ? rows : Array(rows.dropLast(extra)), extra)
+}
+
+/// One row per tab: the first agent on a tab speaks for it and the others are
+/// counted on it. An agent reporting against no tab keeps its own row.
+private func foldByTerminal(_ agents: [ProjectAgentRow]) -> [ProjectAgentRow] {
     var rows: [ProjectAgentRow] = []
     var rowForTerminal: [String: Int] = [:]
-    for row in agentRows(project, now: now, tabTitles: tabTitles) {
+    for row in agents {
         guard let terminal = row.terminalId else {
             rows.append(row)
             continue
         }
         if let index = rowForTerminal[terminal] {
             rows[index].shared += 1
+            rows[index].keys += row.keys
+            rows[index].seenAt = [rows[index].seenAt, row.seenAt].compactMap { $0 }.max()
         } else {
             rowForTerminal[terminal] = rows.count
             rows.append(row)
@@ -62,8 +114,8 @@ func projectAgentRows(_ project: Project, now: Int, tabTitles: [String: String])
     return rows
 }
 
-private func agentRows(_ project: Project, now: Int, tabTitles: [String: String]) -> [ProjectAgentRow] {
-    project.statusEntries.sorted(by: precedes).map { entry in
+private func agentRows(_ entries: [StatusEntry], now: Int, tabTitles: [String: String]) -> [ProjectAgentRow] {
+    entries.sorted(by: precedes).map { entry in
         let provider = agentProviderLabel(forStatusKey: entry.key)
         let state = AgentState.of(entry.value)
         let stateSince = stamp(entry.timestamp, now: now) ?? now
@@ -94,9 +146,16 @@ private func agentRows(_ project: Project, now: Int, tabTitles: [String: String]
             provider: provider,
             terminalId: entry.paneID.isEmpty ? nil : entry.paneID,
             since: since,
-            until: until
+            until: until,
+            keys: [entry.key],
+            seenAt: entry.seenAt > 0 ? entry.seenAt : nil
         )
     }
+}
+
+extension AgentState {
+    /// A turn that ended, well or not: what can be marked seen and archived.
+    var isFinished: Bool { self == .done || self == .error }
 }
 
 /// The agent each terminal reads as; `projectAgentRows` already holds one per tab.

@@ -26,10 +26,16 @@ import cx.lpm.mobile.core.ui.tint
 /**
  * The mark a tab's row ends with: a bell while the agent waits on you, an alert for
  * a problem, a check once the turn lands. Working and idle say so through the name
- * alone, and their slot keeps its width so the clocks line up.
+ * alone, and their slot keeps its width so the clocks line up. A [seen] agent keeps
+ * its mark, gray, so a finished turn still reads apart from a failed one.
  */
 @Composable
-fun AgentStateMark(state: AgentState, modifier: Modifier = Modifier, iconSize: Dp = 16.dp) {
+fun AgentStateMark(
+    state: AgentState,
+    modifier: Modifier = Modifier,
+    iconSize: Dp = 16.dp,
+    seen: Boolean = false
+) {
     Box(modifier.width(18.dp), contentAlignment = Alignment.Center) {
         val icon = when (state) {
             AgentState.NeedsYou -> R.drawable.ic_notifications_fill
@@ -38,11 +44,11 @@ fun AgentStateMark(state: AgentState, modifier: Modifier = Modifier, iconSize: D
             AgentState.Working, AgentState.Idle -> null
         }
         if (icon != null) {
-            val alpha = if (state == AgentState.NeedsYou) pulseAlpha() else null
+            val alpha = if (state == AgentState.NeedsYou && !seen) pulseAlpha() else null
             Icon(
                 painter = painterResource(icon),
                 contentDescription = null,
-                tint = state.tint,
+                tint = if (seen) LpmTheme.colors.secondaryLabel else state.tint,
                 modifier = Modifier
                     .size(iconSize)
                     .graphicsLayer { this.alpha = alpha?.invoke() ?: 1f }
@@ -68,7 +74,8 @@ fun AgentStatusTrail(
     ) {
         AgentStateMark(
             agent.state,
-            iconSize = if (style.fontSize.isSp) style.fontSize.value.dp else 16.dp
+            iconSize = if (style.fontSize.isSp) style.fontSize.value.dp else 16.dp,
+            seen = agent.seen
         )
         agent.since?.let { since ->
             ElapsedText(

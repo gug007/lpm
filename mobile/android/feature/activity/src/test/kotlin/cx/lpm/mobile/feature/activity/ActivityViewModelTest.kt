@@ -72,7 +72,10 @@ class ActivityViewModelTest {
 
     /** An agent that finished on storefront's first terminal, as the Mac would report it. */
     private fun TestSession.agentDone() = store<ProjectsStore>().updateProject("storefront") {
-        it.withStatus(listOf(status("claude_code_1", "Done", pane = "storefront-1", at = 1)))
+        it.withStatus(
+            listOf(status("claude_code_1", "Done", pane = "storefront-1", at = 1)),
+            it.seenEntries
+        )
     }
 
     @Test

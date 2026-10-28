@@ -22,6 +22,9 @@ data class Project(
     // the main accounts.
     val claude: ClaudeOwnChoice,
     val statusEntries: List<StatusEntry>,
+    // Finished agents already opened, kept until archived. Empty from a Mac
+    // without "agentArchive".
+    val seenEntries: List<StatusEntry> = emptyList(),
     val services: List<Service>,
     val allServices: List<Service>,
     val profiles: List<Profile>,
@@ -39,11 +42,15 @@ data class Project(
     /** The desktop offers the Status menu on every local project. */
     val canHaveWorkStatus: Boolean get() = !isRemote
 
+    /** Some agent reports here, a seen one included. */
+    val hasAgentStatus: Boolean get() = statusEntries.isNotEmpty() || seenEntries.isNotEmpty()
+
     /**
      * A copy with fresh status — used by the status-changed push, which must not
      * erase the project's services/actions.
      */
-    fun withStatus(entries: List<StatusEntry>): Project = copy(statusEntries = entries)
+    fun withStatus(entries: List<StatusEntry>, seen: List<StatusEntry>): Project =
+        copy(statusEntries = entries, seenEntries = seen)
 
     /**
      * A copy wearing a status the phone has asked for but the Mac hasn't confirmed
@@ -67,6 +74,7 @@ data class Project(
             autoPull = o.bool("autoPull"),
             claude = ClaudeOwnChoice.parse(o),
             statusEntries = o.list("statusEntries", StatusEntry::parse),
+            seenEntries = o.list("seenEntries", StatusEntry::parse),
             services = o.list("services", Service::parse),
             allServices = o.list("allServices", Service::parse),
             profiles = o.list("profiles", Profile::parse),

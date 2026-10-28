@@ -82,7 +82,8 @@ class DemoServerTest {
     }
 
     private val iosVerbs = setOf(
-        "projects", "sidebar", "status", "clearStatus", "duplicateDefaults", "start", "stop",
+        "projects", "sidebar", "status", "clearStatus", "archiveStatus", "markStatusSeen",
+        "markStatusUnread", "duplicateDefaults", "start", "stop",
         "toggleService", "services", "fileChunk", "serviceLogs", "serviceLogsWatch",
         "serviceLogsUnwatch", "renameProject", "setWorkStatus", "remove", "duplicate",
         "createProject", "createSshProject", "cloneProject", "listDirs", "listSshHosts",

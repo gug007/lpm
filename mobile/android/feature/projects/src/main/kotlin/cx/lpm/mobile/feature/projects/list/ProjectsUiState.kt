@@ -6,15 +6,20 @@ import cx.lpm.mobile.core.data.link.MacReach
 import cx.lpm.mobile.core.data.link.QueuedAction
 import cx.lpm.mobile.core.data.machines.MachineSection
 import cx.lpm.mobile.core.data.projects.DuplicateProgress
+import cx.lpm.mobile.core.data.projects.PendingAgentArchive
 import cx.lpm.mobile.core.data.projects.ProjectsState
 import cx.lpm.mobile.core.data.projects.SidebarItem
 import cx.lpm.mobile.core.data.projects.SidebarRow
+import cx.lpm.mobile.core.data.projects.archivingAgentKeys
 import cx.lpm.mobile.core.data.projects.sidebarItems
 import cx.lpm.mobile.core.model.DuplicateOptions
+import cx.lpm.mobile.core.model.FoldedAgents
 import cx.lpm.mobile.core.model.Project
 import cx.lpm.mobile.core.model.ProjectAgentRow
 import cx.lpm.mobile.core.model.ProjectFolder
 import cx.lpm.mobile.core.model.WorkStatusChoice
+import cx.lpm.mobile.core.model.foldSeenAgents
+import cx.lpm.mobile.core.model.projectAgentList
 import cx.lpm.mobile.core.model.projectAgentRows
 import java.time.Instant
 
@@ -41,7 +46,9 @@ data class ProjectsUiState(
     val duplicateProgress: DuplicateProgress? = null,
     val badge: MoreBadge = MoreBadge.None,
     val automationsUnread: Int = 0,
-    val workStatusMenu: List<WorkStatusChoice> = emptyList()
+    val workStatusMenu: List<WorkStatusChoice> = emptyList(),
+    /** Agents archived here, held back behind Undo for a few seconds. */
+    val pendingArchive: PendingAgentArchive? = null
 )
 
 data class RepairFooter(val device: String, val mac: String)
@@ -96,7 +103,14 @@ sealed interface ProjectsListRow {
         val queued: List<QueuedAction>,
         val agents: List<ProjectAgentRow>,
         /** The folder it sits in, so its menu can skip that one and offer "No folder". */
-        val folderId: String?
+        val folderId: String?,
+        /** How many seen agents fold into the line under [agents]; 0 for no line. */
+        val foldedSeen: Int = 0,
+        val seenExpanded: Boolean = false,
+        /** The Mac archives agents: a finished one swipes to archive and marks unread once seen. */
+        val archivable: Boolean = false,
+        /** The Mac keeps finished agents as seen once opened, so a new one can be marked seen. */
+        val keepsFinished: Boolean = false
     ) : ProjectsListRow {
         override val key: String get() = "p:" + project.name
     }
@@ -154,12 +168,17 @@ data class RowInputs(
     val terminalTitles: Map<String, Map<String, String>> = emptyMap(),
     val queued: List<QueuedAction> = emptyList(),
     val stale: Boolean = false,
-    /** Folder id (or `m:<slug>` for a machine) → open or shut, where toggled on this phone. */
+    /**
+     * Folder id (or `m:<slug>` for a machine, `s:<project>` for a project's folded seen
+     * agents) → open or shut, where toggled on this phone.
+     */
     val expanded: Map<String, Boolean> = emptyMap(),
     val now: Long = 0,
     /** The live Mac's connected machines, each at its `peer:` slot. */
     val machines: List<MachineSection> = emptyList(),
-    val activeMacId: String? = null
+    val activeMacId: String? = null,
+    /** The Mac archives agents and lists the seen ones it keeps. */
+    val archivable: Boolean = false
 )
 
 /**
@@ -169,19 +188,30 @@ data class RowInputs(
  */
 fun ProjectsState.listRows(inputs: RowInputs): List<ProjectsListRow> {
     val folderOf = groups.flatMap { g -> g.members.map { it to g.id } }.toMap()
-    fun entry(row: SidebarRow, indented: Boolean) = ProjectsListRow.ProjectEntry(
-        project = row.project,
-        indented = indented,
-        pending = row.project.name in pendingRun,
-        stale = inputs.stale,
-        queued = inputs.queued.filter { it.project == row.project.name },
-        agents = projectAgentRows(
-            row.project,
-            inputs.now,
-            inputs.terminalTitles[row.project.name].orEmpty()
-        ),
-        folderId = folderOf[row.project.name]
-    )
+    fun entry(row: SidebarRow, indented: Boolean): ProjectsListRow.ProjectEntry {
+        val name = row.project.name
+        val titles = inputs.terminalTitles[name].orEmpty()
+        val expanded = inputs.expanded["s:$name"] == true
+        val agents = if (inputs.archivable) {
+            val listed = projectAgentList(row.project, inputs.now, titles, archivingAgentKeys(name))
+            foldSeenAgents(listed, seenAgentsShown, expanded)
+        } else {
+            FoldedAgents(projectAgentRows(row.project, inputs.now, titles), 0)
+        }
+        return ProjectsListRow.ProjectEntry(
+            project = row.project,
+            indented = indented,
+            pending = name in pendingRun,
+            stale = inputs.stale,
+            queued = inputs.queued.filter { it.project == name },
+            agents = agents.rows,
+            folderId = folderOf[name],
+            foldedSeen = agents.folded,
+            seenExpanded = expanded,
+            archivable = inputs.archivable,
+            keepsFinished = inputs.archivable && keepFinishedAgents
+        )
+    }
     val machines = inputs.machines.associateBy { it.id }
     return sidebarItems(inputs.machines.map { it.id }).flatMap { item ->
         when (item) {

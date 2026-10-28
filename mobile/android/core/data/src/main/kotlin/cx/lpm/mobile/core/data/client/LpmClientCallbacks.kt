@@ -71,6 +71,13 @@ abstract class LpmClientCallbacks {
         ) -> Unit
     )? = null
     var onAutoPullMode: ((AutoPullMode) -> Unit)? = null
+
+    // How many seen agents a project lists before folding the rest, also with every
+    // projects reply.
+    var onSeenAgentsShown: ((Int) -> Unit)? = null
+
+    // Whether the Mac keeps finished agents as seen once opened, likewise.
+    var onKeepFinishedAgents: ((Boolean) -> Unit)? = null
     var onSidebar: ((order: List<String>, groups: List<ProjectFolder>) -> Unit)? = null
     var onStats: ((stats: AgentStats?, error: String?) -> Unit)? = null
     var onLimits: ((snapshot: LimitsSnapshot?, error: String?) -> Unit)? = null
@@ -83,7 +90,9 @@ abstract class LpmClientCallbacks {
     var onUploadStep: ((UploadStep) -> Unit)? = null
     var onMentions: ((project: String, entries: List<MentionEntry>) -> Unit)? = null
     var onHistory: ((project: String, rows: List<HistoryRow>) -> Unit)? = null
-    var onStatus: ((project: String, entries: List<StatusEntry>) -> Unit)? = null
+    var onStatus: (
+        (project: String, entries: List<StatusEntry>, seen: List<StatusEntry>) -> Unit
+    )? = null
     var onJobs: (
         (jobs: List<AutomationJob>, machines: List<AutomationMachine>, error: String?) -> Unit
     )? = null

@@ -1,4 +1,6 @@
 import { BrainIcon, CheckSquareIcon, ClipboardIcon, CopyIcon, DetachIcon, DownloadIcon, FileIcon, HardDriveIcon, MessageIcon, PencilIcon, SettingsIcon, SparkleIcon, TrashIcon, WorktreeIcon } from "./icons";
+import type { SidebarAgentRow } from "../sidebarAgents";
+import { ProjectArchiveMenuItems } from "./ProjectArchiveMenuItems";
 import { Columns2, FolderSync } from "lucide-react";
 import { ContextMenuItem } from "./ui/ContextMenuItem";
 import { ContextMenuSeparator } from "./ui/ContextMenuSeparator";
@@ -50,6 +52,9 @@ interface ProjectContextMenuProps {
   // that can open a remote folder (VS Code-family Remote-SSH).
   sshRemote: boolean;
   projectName: string;
+  projectLabel: string;
+  // What the project has agents on, as its sidebar rows list them.
+  agents: SidebarAgentRow[];
   running: boolean;
   services: { name: string; port: number }[];
   projectPath: string | null;
@@ -117,6 +122,8 @@ export function ProjectContextMenu({
   peerViaSsh,
   sshRemote,
   projectName,
+  projectLabel,
+  agents,
   running,
   services,
   projectPath,
@@ -174,6 +181,7 @@ export function ProjectContextMenu({
 
   return (
     <ContextMenuShell x={x} y={y} minWidth={180} onClose={onClose}>
+      <ProjectArchiveMenuItems projectName={projectName} label={projectLabel} agents={agents} onClose={onClose} />
       {projectPath && openInTargets.length > 0 && (
         <ContextMenuSubmenu
           label="Open with"

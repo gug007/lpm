@@ -156,6 +156,7 @@ const PHONE_FEATURES: &[&str] = &[
     answer::FEATURE,
     live::FEATURE,
     crate::weekly_recap::PHONE_FEATURE,
+    crate::remote_seen::FEATURE,
 ];
 
 /// The phone may send `restartService` / `stopService`.
@@ -2340,6 +2341,7 @@ fn handle_msg(
         // Mac. The wire names predate statuses.json and stay as they are.
         "projects" => {
             let statuses = config::load_work_statuses();
+            let settings = config::load_settings();
             let array = |k: &str| {
                 statuses
                     .get(k)
@@ -2355,6 +2357,8 @@ fn handle_msg(
                     "workStatuses": array("custom"),
                     "workStatusOrder": array("order"),
                     "autoPullMode": crate::gitautopull::auto_pull_mode(),
+                    "seenAgentsShown": crate::status::seen::seen_shown(&settings),
+                    "keepFinishedAgents": crate::status::seen::keeps_finished(&settings),
                 }),
             )?
         }
@@ -2908,29 +2912,34 @@ fn handle_msg(
         }
         "status" => {
             let project = str_field("project").unwrap_or_default();
-            let list = app.state::<Arc<StatusStore>>().list(&project);
+            let store = app.state::<Arc<StatusStore>>();
+            let (list, seen) = (store.list(&project), store.seen_list(&project));
             send(
                 ws,
-                json!({ "t": "status", "project": project, "status": list }),
+                json!({ "t": "status", "project": project, "status": list, "seen": seen }),
             )?;
         }
         // Dismiss a finished agent status from the phone's Activity list — the same
-        // clear the desktop does on a tab click, so it drops every entry on that
-        // pane holding this value. The `status-changed` emit is what refreshes the
-        // desktop and every other connected phone.
+        // as the desktop's tab click, so every entry on that pane holding this
+        // value turns seen, or goes. The `status-changed` emit is what refreshes
+        // the desktop and every other connected phone.
         "clearStatus" => {
             let project = str_field("project").unwrap_or_default();
             let pane_id = str_field("paneId").unwrap_or_default();
             let value = str_field("value").unwrap_or_default();
             if !pane_id.is_empty()
                 && !value.is_empty()
-                && app
-                    .state::<Arc<StatusStore>>()
-                    .clear_by_pane_value(&project, &pane_id, &value)
+                && crate::status::seen::retire_viewed(
+                    &app.state::<Arc<StatusStore>>(),
+                    &project,
+                    &pane_id,
+                    &value,
+                )
             {
                 let _ = app.emit("status-changed", &project);
             }
         }
+        "archiveStatus" | "markStatusSeen" | "markStatusUnread" => crate::remote_seen::handle(app, t, &v),
         // Register (or refresh) this device's push identity: its push token (APNs
         // from iOS's `apnsToken`, APNs or FCM from `pushToken`), the APNs
         // environment, and the phone's AES key the sealed payload is encrypted
@@ -4744,11 +4753,7 @@ fn list_projects_json(app: &AppHandle) -> Value {
     let status = app.state::<Arc<StatusStore>>();
     let mut projects = config::list_projects(&svc.snapshot()).unwrap_or_default();
     for p in &mut projects {
-        let name = p.get("name").and_then(Value::as_str).map(str::to_string);
-        if let (Some(name), Some(obj)) = (name, p.as_object_mut()) {
-            let entries = serde_json::to_value(status.list(&name)).unwrap_or_else(|_| json!([]));
-            obj.insert("statusEntries".to_string(), entries);
-        }
+        crate::commands_real::inject_status(p, &status);
     }
     Value::Array(projects)
 }
@@ -5729,10 +5734,11 @@ fn push_notifications(hub: &RemoteHub, app: &AppHandle, project: &str) {
         .list(project)
         .into_iter()
         .filter(|e| {
-            matches!(
-                e.value.as_str(),
-                STATUS_WAITING | STATUS_DONE | STATUS_ERROR
-            )
+            !e.revived
+                && matches!(
+                    e.value.as_str(),
+                    STATUS_WAITING | STATUS_DONE | STATUS_ERROR
+                )
         })
         .collect();
     let by_key: HashMap<&str, &StatusEntry> =
@@ -6435,6 +6441,17 @@ pub fn remote_set_terminal_labels(
     ));
     if project.is_empty() {
         return;
+    }
+    let tab_keys: Vec<(String, String)> = labels
+        .iter()
+        .filter_map(|item| {
+            let id = item.get("id").and_then(Value::as_str).filter(|s| !s.is_empty())?;
+            let key = item.get("historyKey").and_then(Value::as_str).filter(|s| !s.is_empty())?;
+            Some((id.to_string(), key.to_string()))
+        })
+        .collect();
+    if crate::status::saved::attach(&app.state::<Arc<StatusStore>>(), &project, &tab_keys) {
+        let _ = app.emit("status-changed", &project);
     }
     if tabs::note_tree(&hub, &project, ids, &labels) {
         let _ = app.emit(TERMINALS_CHANGED_EVENT, &project);

@@ -2,7 +2,9 @@ import { useMemo, useState } from "react";
 import { BrowserOpenURL } from "../../bridge/runtime";
 import { AGENT_STATE_LABEL, AGENT_STATE_TONE, computeProjectStatus } from "../agentStatus";
 import { useJobsAmbient } from "../hooks/useJobsAmbient";
-import { projectAgentRows, sidebarProjectAlert } from "../sidebarAgents";
+import { hiddenKeys, useArchivingAgents } from "../agentArchive";
+import { sidebarProjectAlert } from "../sidebarAgents";
+import { sidebarAgentRows } from "../sidebarSeenAgents";
 import { useCollapsedAgents } from "../sidebarCollapsed";
 import {
   DEFAULT_SIDEBAR_NAV,
@@ -88,6 +90,8 @@ export function SidebarFooterNav({
   // project row speaks for — so the Terminals row does, the way a project row
   // speaks for its own: its label wears their state and lists them underneath.
   const terminalEntries = useGlobalAgentStatus((s) => s.entries);
+  const terminalSeen = useGlobalAgentStatus((s) => s.seen);
+  const archiving = useArchivingAgents((s) => s.hidden);
   const terminalTitles = useTerminalTitles((s) => s.byProject[GLOBAL_TERMINALS_KEY]);
   const focusedTerminal = useTerminalTitles(
     (s) => s.focusedByProject[GLOBAL_TERMINALS_KEY] ?? null,
@@ -96,8 +100,14 @@ export function SidebarFooterNav({
   const toggleAgents = useCollapsedAgents((s) => s.toggle);
   const terminalStatus = useMemo(() => computeProjectStatus(terminalEntries), [terminalEntries]);
   const terminalAgents = useMemo(
-    () => projectAgentRows({ statusEntries: terminalEntries }, Date.now(), terminalTitles),
-    [terminalEntries, terminalTitles],
+    () =>
+      sidebarAgentRows(
+        { statusEntries: terminalEntries, seenEntries: terminalSeen },
+        Date.now(),
+        terminalTitles,
+        hiddenKeys(archiving, GLOBAL_TERMINALS_KEY),
+      ),
+    [terminalEntries, terminalSeen, terminalTitles, archiving],
   );
   const terminalAlert = sidebarProjectAlert(terminalAgents);
 

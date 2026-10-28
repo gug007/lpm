@@ -72,7 +72,9 @@ data class StatusEntry(
     // when the turn's start was never seen.
     val turnStart: Long,
     // When the turn finished; 0 while it is still running.
-    val endedAt: Long
+    val endedAt: Long,
+    // When it was last opened; set only on a project's `seenEntries`.
+    val seenAt: Long = 0
 ) {
     val id: String get() = key
 
@@ -84,7 +86,8 @@ data class StatusEntry(
             timestamp = o.long("timestamp") ?: 0,
             paneID = o.string("paneID").orEmpty(),
             turnStart = o.long("turnStart") ?: 0,
-            endedAt = o.long("endedAt") ?: 0
+            endedAt = o.long("endedAt") ?: 0,
+            seenAt = o.long("seenAt") ?: 0
         )
     }
 }

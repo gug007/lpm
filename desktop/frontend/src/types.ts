@@ -225,6 +225,8 @@ export interface ProjectInfo {
   profiles: ProfileInfo[];
   activeProfile: string;
   statusEntries: StatusEntry[];
+  // Finished agents already opened, kept until archived (status/seen.rs).
+  seenEntries?: StatusEntry[];
   configError?: string;
   // Actions left out because they don't parse, each naming where and why.
   actionErrors?: string[];
@@ -613,6 +615,8 @@ export interface StatusEntry {
   turnStart?: number;
   // When the turn finished; absent while it is still running.
   endedAt?: number;
+  // When the user opened this finished agent; only on `seenEntries`.
+  seenAt?: number;
 }
 
 export type GeneratorIcon =

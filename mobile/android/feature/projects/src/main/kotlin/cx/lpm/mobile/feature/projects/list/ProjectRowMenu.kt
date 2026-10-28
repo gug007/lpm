@@ -11,6 +11,7 @@ import cx.lpm.mobile.core.designsystem.component.ContextMenuDivider
 import cx.lpm.mobile.core.designsystem.component.ContextMenuItem
 import cx.lpm.mobile.core.designsystem.component.ContextMenuSubmenu
 import cx.lpm.mobile.core.model.Project
+import cx.lpm.mobile.core.model.ProjectAgentRow
 import cx.lpm.mobile.core.model.ProjectFolder
 import cx.lpm.mobile.core.model.WorkStatusChoice
 import cx.lpm.mobile.feature.projects.R as ProjectsR
@@ -27,6 +28,10 @@ class ProjectRowActions(
     val duplicate: (Project) -> Unit = {},
     val remove: (Project) -> Unit = {},
     val openTerminal: (Project, terminalId: String) -> Unit = { _, _ -> },
+    val toggleSeenAgents: (Project) -> Unit = {},
+    val archiveAgent: (Project, ProjectAgentRow) -> Unit = { _, _ -> },
+    val markAgentSeen: (Project, ProjectAgentRow) -> Unit = { _, _ -> },
+    val markAgentUnread: (Project, ProjectAgentRow) -> Unit = { _, _ -> },
     val cancelQueued: (id: String) -> Unit = {},
     val retryQueued: (id: String) -> Unit = {}
 )

@@ -22,6 +22,10 @@ export function seedSettings(selected?: string): void {
   };
 }
 
+export function keepsFinishedAgents(): boolean {
+  return settings.keepFinishedAgents === true;
+}
+
 export function selectedProject(): string | undefined {
   const name = settings.lastSelectedProject;
   return typeof name === "string" && name ? name : undefined;

@@ -6,6 +6,7 @@ interface SettingsSelectProps {
   children: React.ReactNode;
   className?: string;
   title?: string;
+  disabled?: boolean;
   "aria-label"?: string;
 }
 
@@ -15,6 +16,7 @@ export function SettingsSelect({
   children,
   className,
   title,
+  disabled,
   "aria-label": ariaLabel,
 }: SettingsSelectProps) {
   return (
@@ -23,6 +25,7 @@ export function SettingsSelect({
         value={value}
         onChange={onChange}
         title={title}
+        disabled={disabled}
         aria-label={ariaLabel}
         className={`appearance-none rounded-md border border-[var(--border)] bg-[var(--bg-primary)] py-1.5 pl-2.5 pr-7 text-xs text-[var(--text-primary)] outline-none transition-[border-color,box-shadow] duration-150 hover:border-[var(--text-muted)] focus-visible:border-[var(--accent-green)] focus-visible:ring-2 focus-visible:ring-[var(--accent-green)]/30 ${className ?? ""}`}
       >

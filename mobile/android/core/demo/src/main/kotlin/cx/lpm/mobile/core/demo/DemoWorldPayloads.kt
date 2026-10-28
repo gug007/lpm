@@ -6,13 +6,19 @@ package cx.lpm.mobile.core.demo
 internal fun serviceDict(s: DemoWorld.Svc): Dict =
     mapOf("name" to s.name, "cmd" to s.cmd, "port" to s.port)
 
-internal fun statusDict(s: DemoWorld.Status): Dict = mapOf(
-    "key" to s.key,
-    "value" to s.value,
-    "priority" to s.priority,
-    "timestamp" to s.timestamp,
-    "paneID" to s.paneID
-)
+internal fun statusDict(s: DemoWorld.Status): Dict {
+    val d = mutableMapOf<String, Any?>(
+        "key" to s.key,
+        "value" to s.value,
+        "priority" to s.priority,
+        "timestamp" to s.timestamp,
+        "paneID" to s.paneID
+    )
+    if (s.turnStart > 0) d["turnStart"] = s.turnStart
+    if (s.endedAt > 0) d["endedAt"] = s.endedAt
+    if (s.seenAt > 0) d["seenAt"] = s.seenAt
+    return d
+}
 
 internal fun projectDict(p: DemoWorld.Project): Dict {
     val d = mutableMapOf<String, Any?>(
@@ -23,6 +29,7 @@ internal fun projectDict(p: DemoWorld.Project): Dict {
         "parentName" to p.parentName,
         "worktree" to p.worktree,
         "statusEntries" to p.status.map(::statusDict),
+        "seenEntries" to p.seen.map(::statusDict),
         "services" to p.services.filter { it.running }.map(::serviceDict),
         "allServices" to p.services.map(::serviceDict),
         "profiles" to p.profiles.map { mapOf("name" to it.name, "services" to it.services) },
@@ -47,7 +54,9 @@ internal fun DemoWorld.projectsPayload(): Dict {
             mapOf("label" to it.label, "emoji" to it.emoji, "withNote" to it.withNote)
         },
         "workStatusOrder" to emptyList<String>(),
-        "autoPullMode" to "all"
+        "autoPullMode" to "all",
+        "seenAgentsShown" to 3,
+        "keepFinishedAgents" to true
     )
 }
 
@@ -65,8 +74,13 @@ internal fun DemoWorld.sidebarPayload(): Dict = mapOf(
 )
 
 internal fun DemoWorld.statusPayload(project: String): Dict {
-    val entries = project(project)?.status ?: emptyList()
-    return mapOf("t" to "status", "project" to project, "status" to entries.map(::statusDict))
+    val p = project(project)
+    return mapOf(
+        "t" to "status",
+        "project" to project,
+        "status" to p?.status.orEmpty().map(::statusDict),
+        "seen" to p?.seen.orEmpty().map(::statusDict)
+    )
 }
 
 internal fun terminalDict(t: DemoWorld.Terminal): Dict {

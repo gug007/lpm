@@ -14,6 +14,11 @@ import cx.lpm.mobile.core.data.machines.MachineImporter
 import cx.lpm.mobile.core.data.machines.MachineSection
 import cx.lpm.mobile.core.data.projects.ProjectsState
 import cx.lpm.mobile.core.data.projects.ProjectsStore
+import cx.lpm.mobile.core.data.projects.archiveAgent
+import cx.lpm.mobile.core.data.projects.canArchiveAgents
+import cx.lpm.mobile.core.data.projects.markAgentSeen
+import cx.lpm.mobile.core.data.projects.markAgentUnread
+import cx.lpm.mobile.core.data.projects.undoAgentArchive
 import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.data.session.MachineVisit
 import cx.lpm.mobile.core.data.session.SessionAlerts
@@ -21,6 +26,7 @@ import cx.lpm.mobile.core.data.session.SessionState
 import cx.lpm.mobile.core.data.terminals.TerminalsStore
 import cx.lpm.mobile.core.model.DuplicateOptions
 import cx.lpm.mobile.core.model.Project
+import cx.lpm.mobile.core.model.ProjectAgentRow
 import cx.lpm.mobile.core.model.ProjectFolder
 import cx.lpm.mobile.core.model.WorkStatusInput
 import cx.lpm.mobile.core.model.agentAmbient
@@ -78,7 +84,7 @@ class ProjectsViewModel @Inject constructor(
         // Terminal rows are named after their tabs, and only the Mac knows those
         // names: ask again whenever an agent starts somewhere new.
         projects.state
-            .map { s -> s.projects.filter { it.statusEntries.isNotEmpty() }.map { it.name } }
+            .map { s -> s.projects.filter { it.hasAgentStatus }.map { it.name } }
             .distinctUntilChanged()
             .onEach { names -> names.forEach(terminals::loadTerminals) }
             .launchIn(viewModelScope)
@@ -104,7 +110,8 @@ class ProjectsViewModel @Inject constructor(
                 expanded = open,
                 now = clock.millis(),
                 machines = sections,
-                activeMacId = s.activeMacId
+                activeMacId = s.activeMacId,
+                archivable = projects.canArchiveAgents
             )
         )
         // The badge counts the agents of the Mac's connected machines too.
@@ -145,7 +152,8 @@ class ProjectsViewModel @Inject constructor(
                 else -> MoreBadge.None
             },
             automationsUnread = jobs.unread,
-            workStatusMenu = p.workStatusMenu
+            workStatusMenu = p.workStatusMenu,
+            pendingArchive = p.pendingAgentArchive
         )
     }
 
@@ -174,6 +182,23 @@ class ProjectsViewModel @Inject constructor(
 
     fun toggleMachine(slug: String, expandedNow: Boolean) =
         expanded.update { it + ("m:$slug" to !expandedNow) }
+
+    /** Open or fold again the seen agents past the Mac's limit. */
+    fun toggleSeenAgents(project: Project) {
+        val key = "s:" + project.name
+        expanded.update { it + (key to (it[key] != true)) }
+    }
+
+    fun archiveAgent(project: Project, row: ProjectAgentRow) =
+        projects.archiveAgent(row, project.name)
+
+    fun undoArchive() = projects.undoAgentArchive()
+
+    fun markAgentSeen(project: Project, row: ProjectAgentRow) =
+        projects.markAgentSeen(row, project.name)
+
+    fun markAgentUnread(project: Project, row: ProjectAgentRow) =
+        projects.markAgentUnread(row, project.name)
 
     /** Open one of the Mac's machines in place of the live Mac. */
     fun switchToMachine(slug: String) {

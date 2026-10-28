@@ -24,7 +24,9 @@ internal val projectParsers = parsers {
             workStatuses = o.objects("workStatuses")?.mapNotNull(CustomWorkStatus::parse)
                 ?: defaultWorkStatusPalette,
             workStatusOrder = o.strings("workStatusOrder").orEmpty(),
-            autoPullMode = AutoPullMode.fromWire(o["autoPullMode"])
+            autoPullMode = AutoPullMode.fromWire(o["autoPullMode"]),
+            seenAgentsShown = (o.int("seenAgentsShown") ?: 3).coerceIn(1, 10),
+            keepFinishedAgents = o.bool("keepFinishedAgents") ?: false
         )
     }
     put("sidebar") { o ->
@@ -35,7 +37,11 @@ internal val projectParsers = parsers {
     }
     put("projects-changed") { Inbound.ProjectsChanged }
     put("status") { o ->
-        Inbound.Status(project = o.str("project"), entries = o.list("status", StatusEntry::parse))
+        Inbound.Status(
+            project = o.str("project"),
+            entries = o.list("status", StatusEntry::parse),
+            seen = o.list("seen", StatusEntry::parse)
+        )
     }
     put("status-changed") { o -> Inbound.StatusChanged(project = o.str("project")) }
     put("duplicateProgress") { o ->

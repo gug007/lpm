@@ -15,6 +15,9 @@ enum class AgentState(val label: String) {
     /** Attention order; lower is more urgent. */
     val rank: Int get() = ordinal
 
+    /** A turn that ended, well or not: what can be marked seen and archived. */
+    val isFinished: Boolean get() = this == Done || this == Error
+
     companion object {
         /** The four status strings the Mac reports; anything else is idle. */
         fun of(value: String): AgentState = when (value) {
@@ -92,8 +95,20 @@ data class ProjectAgentRow(
     /** Millis: set once the turn ended, freezing the reading at how long it took. */
     val until: Long?,
     /** How many further agents report on this row's tab, folded into it. */
-    val shared: Int = 0
+    val shared: Int = 0,
+    /**
+     * Every status key the row stands for — its own, the agents folded into it and a
+     * seen agent on its tab — which archiving or marking it acts on.
+     */
+    val keys: List<String> = emptyList(),
+    /**
+     * Millis: when the row was last opened, for an agent kept after that as seen
+     * (`seenEntries`) and listed muted until archived. Null for the others.
+     */
+    val seenAt: Long? = null
 ) {
+    val seen: Boolean get() = seenAt != null
+
     fun elapsed(now: Long): String? = since?.let { shortDuration((until ?: now) - it) }
 }
 
@@ -115,16 +130,77 @@ fun projectAgentRows(
     project: Project,
     now: Long,
     tabTitles: Map<String, String>
+): List<ProjectAgentRow> = foldByTerminal(agentRows(project.statusEntries, now, tabTitles))
+
+/**
+ * What the projects list shows under a project from a Mac that archives agents: [projectAgentRows], then the seen agents, most recently
+ * seen first and one row per tab like the rest. A seen agent on a tab that also
+ * reports a status adds no row, only its key to that tab's. A finished agent whose
+ * key is in [hiding] is being archived and left out.
+ */
+fun projectAgentList(
+    project: Project,
+    now: Long,
+    tabTitles: Map<String, String>,
+    hiding: Set<String> = emptySet()
 ): List<ProjectAgentRow> {
+    val listed = { entry: StatusEntry ->
+        !(entry.key in hiding && AgentState.of(entry.value).isFinished)
+    }
+    val rows = foldByTerminal(agentRows(project.statusEntries.filter(listed), now, tabTitles))
+        .toMutableList()
+    val unlisted = mutableListOf<StatusEntry>()
+    for (entry in project.seenEntries.filter(listed)) {
+        val index = rows.indexOfFirst { it.terminalId == entry.paneID }
+        if (index >= 0) {
+            rows[index] = rows[index].copy(keys = rows[index].keys + entry.key)
+        } else {
+            unlisted += entry
+        }
+    }
+    val seen = foldByTerminal(agentRows(unlisted, now, tabTitles))
+        .sortedWith(compareByDescending<ProjectAgentRow> { it.seenAt }.thenBy { it.id })
+    return rows + seen
+}
+
+/** A project's agent rows once its seen rows past the Mac's limit fold into one line. */
+data class FoldedAgents(
+    val rows: List<ProjectAgentRow>,
+    /** How many seen rows the line stands for; 0 when there is no line. */
+    val folded: Int
+)
+
+/**
+ * The rows a project lists once its seen rows past [shown] fold into one line.
+ * Expanded, every row lists and the line offers to fold them again. Seen rows trail
+ * the others, so only seen rows ever fold.
+ */
+fun foldSeenAgents(rows: List<ProjectAgentRow>, shown: Int, expanded: Boolean): FoldedAgents {
+    val extra = rows.count { it.seen } - maxOf(shown, 0)
+    if (extra <= 0) return FoldedAgents(rows, 0)
+    return FoldedAgents(if (expanded) rows else rows.dropLast(extra), extra)
+}
+
+/**
+ * One row per tab: the first agent on a tab speaks for it and the others are counted
+ * on it. An agent reporting against no tab keeps its own row.
+ */
+private fun foldByTerminal(agents: List<ProjectAgentRow>): List<ProjectAgentRow> {
     val rows = mutableListOf<ProjectAgentRow>()
     val rowForTerminal = mutableMapOf<String, Int>()
-    for (row in agentRows(project, now, tabTitles)) {
+    for (row in agents) {
         val terminal = row.terminalId
         val index = terminal?.let(rowForTerminal::get)
         when {
             terminal == null -> rows += row
 
-            index != null -> rows[index] = rows[index].copy(shared = rows[index].shared + 1)
+            index != null -> rows[index] = rows[index].let {
+                it.copy(
+                    shared = it.shared + 1,
+                    keys = it.keys + row.keys,
+                    seenAt = listOfNotNull(it.seenAt, row.seenAt).maxOrNull()
+                )
+            }
 
             else -> {
                 rowForTerminal[terminal] = rows.size
@@ -136,10 +212,10 @@ fun projectAgentRows(
 }
 
 private fun agentRows(
-    project: Project,
+    entries: List<StatusEntry>,
     now: Long,
     tabTitles: Map<String, String>
-): List<ProjectAgentRow> = project.statusEntries.sortedWith(urgency).map { entry ->
+): List<ProjectAgentRow> = entries.sortedWith(urgency).map { entry ->
     val provider = agentProviderLabel(entry.key)
     val state = AgentState.of(entry.value)
     val stateSince = stamp(entry.timestamp, now) ?: now
@@ -162,7 +238,9 @@ private fun agentRows(
         provider = provider,
         terminalId = entry.paneID.ifEmpty { null },
         since = since,
-        until = until
+        until = until,
+        keys = listOf(entry.key),
+        seenAt = entry.seenAt.takeIf { it > 0 }
     )
 }
 

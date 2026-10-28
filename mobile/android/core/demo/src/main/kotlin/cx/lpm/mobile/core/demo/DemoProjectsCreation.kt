@@ -208,6 +208,7 @@ internal fun DemoServer.demoAddProject(name: String, copyOf: String?) {
         p.activeProfile = ""
         for (s in p.services) s.running = false
         p.status = emptyList()
+        p.seen = emptyList()
         p.workStatus = null
         p.autoPull = null
         p.claudeAccount = null
@@ -247,6 +248,9 @@ internal fun DemoServer.demoSetAgentStatus(project: String, entries: List<Dict>)
             paneID = e.string("paneID") ?: ""
         )
     }
+    // An agent's next report on a tab ends its seen agent there.
+    val reporting = world.projects[idx].status.map { it.paneID }.toSet()
+    world.projects[idx].seen = world.projects[idx].seen.filterNot { it.paneID in reporting }
     push(mapOf("t" to "status-changed", "project" to project))
 }
 

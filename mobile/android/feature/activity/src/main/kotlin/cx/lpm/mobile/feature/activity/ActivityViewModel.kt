@@ -119,7 +119,7 @@ class ActivityViewModel @Inject constructor(
      */
     private fun loadActivityTerminals() {
         projects.state.value.projects
-            .filter { it.statusEntries.isNotEmpty() }
+            .filter { it.hasAgentStatus }
             .forEach { terminals.loadTerminals(it.name) }
     }
 

@@ -59,6 +59,15 @@ fun LpmClient.requestStatus(project: String) = send(Wire.status(project))
 fun LpmClient.clearStatus(project: String, paneId: String, value: String) =
     send(Wire.clearStatus(project, paneId, value))
 
+fun LpmClient.archiveStatus(project: String, keys: List<String>) =
+    send(Wire.archiveStatus(project, keys))
+
+fun LpmClient.markStatusSeen(project: String, keys: List<String>) =
+    send(Wire.markStatusSeen(project, keys))
+
+fun LpmClient.markStatusUnread(project: String, keys: List<String>) =
+    send(Wire.markStatusUnread(project, keys))
+
 fun LpmClient.runAction(
     project: String,
     action: String,

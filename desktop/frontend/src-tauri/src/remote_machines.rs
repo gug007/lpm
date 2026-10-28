@@ -158,6 +158,7 @@ fn last_known(projects: &[Value], age: Duration) -> Vec<Value> {
         .map(|p| {
             let mut p = p.clone();
             p["statusEntries"] = json!([]);
+            p["seenEntries"] = json!([]);
             p
         })
         .collect()

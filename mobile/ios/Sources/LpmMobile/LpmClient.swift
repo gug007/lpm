@@ -34,6 +34,11 @@ final class LpmClient: NSObject {
     var onWorkStatusPalette: ((_ statuses: [CustomWorkStatus], _ order: [String]) -> Void)?
     // The Mac's auto pull setting, also delivered with every projects reply.
     var onAutoPullMode: ((AutoPullMode) -> Void)?
+    // How many seen agents a project lists before folding the rest, also with
+    // every projects reply.
+    var onSeenAgentsShown: ((Int) -> Void)?
+    // Whether the Mac keeps finished agents as seen once opened, likewise.
+    var onKeepFinishedAgents: ((Bool) -> Void)?
     var onSidebar: ((_ order: [String], _ groups: [ProjectFolder]) -> Void)?
     var onStats: ((_ stats: AgentStats?, _ error: String?) -> Void)?
     var onLimits: ((_ snapshot: LimitsSnapshot?, _ error: String?) -> Void)?
@@ -47,7 +52,7 @@ final class LpmClient: NSObject {
     var onUploadStep: ((UploadStep) -> Void)?
     var onMentions: ((_ project: String, _ entries: [MentionEntry]) -> Void)?
     var onHistory: ((_ project: String, _ rows: [HistoryRow]) -> Void)?
-    var onStatus: ((_ project: String, _ entries: [StatusEntry]) -> Void)?
+    var onStatus: ((_ project: String, _ entries: [StatusEntry], _ seen: [StatusEntry]) -> Void)?
     var onJobs: ((_ jobs: [AutomationJob], _ machines: [AutomationMachine], _ error: String?) -> Void)?
     var onJobHistory: ((_ project: String, _ jobId: String, _ entries: [AutomationHistoryEntry], _ error: String?) -> Void)?
     var onJobLiveOutput: ((_ project: String, _ jobId: String, _ live: AutomationLiveOutput?, _ error: String?) -> Void)?
@@ -254,6 +259,7 @@ final class LpmClient: NSObject {
     static let answerAgentFeature = "answerAgent"
     static let liveActivityFeature = "liveActivity"
     static let weeklyRecapFeature = "weeklyRecap"
+    static let agentArchiveFeature = "agentArchive"
 
     // Requests made while the link is down or half-dead, delivered on the next
     // `ready`. iOS kills the socket seconds after backgrounding and the
@@ -493,7 +499,7 @@ final class LpmClient: NSObject {
                 "features": [ChunkedUpload.feature, Self.serviceLogsWatchFeature, Self.agentAnswersFeature,
                              Self.restartTerminalFeature, Self.agentLaunchFeature, Self.agentSessionsFeature,
                              Self.actionPromptFeature, Self.listDirFeature, Self.tabMenuFeature,
-                             Self.weeklyRecapFeature],
+                             Self.weeklyRecapFeature, Self.agentArchiveFeature],
             ]))
         }
     }
@@ -893,6 +899,15 @@ final class LpmClient: NSObject {
     func requestStatus(project: String) { send(Wire.status(project: project)) }
     func clearStatus(project: String, paneId: String, value: String) {
         send(Wire.clearStatus(project: project, paneId: paneId, value: value))
+    }
+    func archiveStatus(project: String, keys: [String]) {
+        send(Wire.archiveStatus(project: project, keys: keys))
+    }
+    func markStatusSeen(project: String, keys: [String]) {
+        send(Wire.markStatusSeen(project: project, keys: keys))
+    }
+    func markStatusUnread(project: String, keys: [String]) {
+        send(Wire.markStatusUnread(project: project, keys: keys))
     }
     func requestJobs() { send(Wire.jobs()) }
     func requestJobHistory(project: String, jobId: String) {
@@ -1382,10 +1397,13 @@ final class LpmClient: NSObject {
                 case "revoked": self.fatal(Self.revokedError)
                 default: self.fatal(e)
                 }
-            case .projects(let p, let statuses, let order, let autoPullMode):
+            case .projects(let p, let statuses, let order, let autoPullMode, let seenAgentsShown,
+                           let keepFinishedAgents):
                 self.onProjects?(p)
                 self.onWorkStatusPalette?(statuses, order)
                 self.onAutoPullMode?(autoPullMode)
+                self.onSeenAgentsShown?(seenAgentsShown)
+                self.onKeepFinishedAgents?(keepFinishedAgents)
             case .sidebar(let order, let groups): self.onSidebar?(order, groups)
             case .stats(let stats, let error): self.onStats?(stats, error)
             case .limits(let snapshot, let error): self.onLimits?(snapshot, error)
@@ -1399,7 +1417,7 @@ final class LpmClient: NSObject {
             case .uploadStep(let step): self.onUploadStep?(step)
             case .mentions(let proj, let entries): self.onMentions?(proj, entries)
             case .history(let proj, let rows): self.onHistory?(proj, rows)
-            case .status(let proj, let s): self.onStatus?(proj, s)
+            case .status(let proj, let s, let seen): self.onStatus?(proj, s, seen)
             case .jobs(let jobs, let machines, let error): self.onJobs?(jobs, machines, error)
             case .jobHistory(let project, let jobId, let entries, let error):
                 self.onJobHistory?(project, jobId, entries, error)

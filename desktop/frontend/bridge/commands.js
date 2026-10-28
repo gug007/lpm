@@ -156,6 +156,15 @@ export function HoldPaneStatus(project, paneID) {
 export function ReleasePaneStatus(project, paneID) {
   return invoke("release_pane_status", { project, paneId: paneID });
 }
+export function ArchiveAgentStatus(project, keys) {
+  return invoke("archive_agent_status", { project, keys });
+}
+export function MarkAgentStatusSeen(project, keys) {
+  return invoke("mark_agent_status_seen", { project, keys });
+}
+export function MarkAgentStatusUnread(project, keys) {
+  return invoke("mark_agent_status_unread", { project, keys });
+}
 export function MovePaneStatus(project, oldPaneID, newPaneID) {
   return invoke("move_pane_status", {
     project,

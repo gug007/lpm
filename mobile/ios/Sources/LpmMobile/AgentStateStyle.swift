@@ -13,6 +13,17 @@ extension View {
         case .idle, nil: self
         }
     }
+
+    /// `agentTone`, or gray once the agent has been seen: a seen row keeps its
+    /// mark, so a finished turn still reads apart from a failed one.
+    @ViewBuilder
+    func agentTone(_ state: AgentState?, seen: Bool) -> some View {
+        if seen {
+            foregroundStyle(.secondary)
+        } else {
+            agentTone(state)
+        }
+    }
 }
 
 /// The desktop's working shimmer: its five colors scroll through the view twice
@@ -85,12 +96,13 @@ private struct AgentPulse: ViewModifier {
 /// the name alone, and their slot keeps its width so the clocks line up.
 struct AgentStateMark: View {
     let state: AgentState
+    var seen = false
 
     var body: some View {
         switch state {
-        case .needsYou: symbol("bell.fill").agentTone(state)
-        case .error: symbol("exclamationmark.circle.fill").agentTone(state)
-        case .done: symbol("checkmark").agentTone(state)
+        case .needsYou: symbol("bell.fill").agentTone(state, seen: seen)
+        case .error: symbol("exclamationmark.circle.fill").agentTone(state, seen: seen)
+        case .done: symbol("checkmark").agentTone(state, seen: seen)
         case .working, .idle: symbol("checkmark").hidden()
         }
     }
@@ -109,7 +121,7 @@ struct AgentStatusTrail: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            AgentStateMark(state: agent.state)
+            AgentStateMark(state: agent.state, seen: agent.seen)
             if let since = agent.since {
                 ElapsedText(since: since, until: agent.until)
                     .foregroundStyle(.secondary)

@@ -6,9 +6,11 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -36,6 +38,7 @@ import cx.lpm.mobile.core.model.Service
 import cx.lpm.mobile.core.model.TerminalInfo
 import cx.lpm.mobile.feature.projects.R as ProjectsR
 import cx.lpm.mobile.feature.projects.list.QueuedActionLine
+import cx.lpm.mobile.feature.projects.ui.UndoBar
 
 /** What the project screen's rows do. */
 @Immutable
@@ -140,10 +143,13 @@ fun ProjectDetailScreen(
                     modifier = Modifier.background(LpmTheme.colors.systemGroupedBackground)
                 )
             }
-            UndoCloseBar(
-                pending = state.pendingClose,
+            UndoBar(
+                message = state.pendingClose?.let {
+                    stringResource(ProjectsR.string.tab_closed, it.tab.title)
+                },
                 onUndo = actions.undoClose,
-                modifier = Modifier.align(Alignment.BottomCenter)
+                modifier = Modifier.align(Alignment.BottomCenter),
+                windowInsets = WindowInsets.navigationBars
             )
         }
     }

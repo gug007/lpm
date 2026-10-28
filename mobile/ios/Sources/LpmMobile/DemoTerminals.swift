@@ -102,6 +102,7 @@ extension DemoServer {
             let wasAgent = self.demoTerminal(id)?.cli == "claude"
             self.world.terminals[project]?.removeAll { $0.id == id }
             self.world.composerDrafts[id] = nil
+            self.demoDropSeenAgents(project: project, pane: id)
             if wasAgent { self.demoSetAgentStatus(project: project, entries: []) }
             self.push(["t": "closeTerminal", "ok": true])
         }

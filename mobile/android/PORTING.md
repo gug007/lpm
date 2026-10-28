@@ -44,7 +44,8 @@ side by side (see `mobile/parity/README.md`).
   section is "Live updates" with "While agents work, an ongoing notification shows
   them." under it; that notification's text can't wear the widget's state colors and
   marks, so its accent color carries the state and a tab with a problem reads
-  "problem" before its time.
+  "problem" before its time; a finished agent under a project archives on a full swipe
+  (`SwipeToDismissBox`), where iOS can also stop halfway on an Archive button.
 - **Same persisted keys and semantics** as iOS (table below), so behavior and
   defaults match.
 - Desktop changes that touch the phone now update both apps (AGENTS.md).

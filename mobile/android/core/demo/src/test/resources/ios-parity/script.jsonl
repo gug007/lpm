@@ -433,6 +433,36 @@
 {"at": 71000, "frame": {"t": "renameProject", "project": "blog", "name": ""}}
 {"at": 71500, "frame": {"t": "projects"}}
 {"at": 73000, "frame": {"t": "limits"}}
+{"at": 74000, "frame": {"t": "status", "project": "mobile-app"}}
+{"at": 74000, "frame": {"t": "status", "project": "design-system"}}
+{"at": 74000, "frame": {"t": "terminals", "project": "mobile-app"}}
+{"at": 74000, "frame": {"t": "terminals", "project": "design-system"}}
+{"at": 74050, "frame": {"t": "sub", "id": "demo-mobile-app-claude"}}
+{"at": 74080, "frame": {"t": "unsub", "id": "demo-mobile-app-claude"}}
+{"at": 74100, "frame": {"t": "markStatusUnread", "project": "mobile-app", "keys": ["codex_demo-mobile-app-codex", "nope"]}}
+{"at": 74100, "frame": {"t": "markStatusUnread", "project": "mobile-app", "keys": ["nope"]}}
+{"at": 74100, "frame": {"t": "markStatusUnread", "project": "nope", "keys": ["codex_demo-mobile-app-codex"]}}
+{"at": 74100, "frame": {"t": "markStatusUnread", "project": "mobile-app", "keys": "claude_code_demo-mobile-app-claude"}}
+{"at": 74200, "frame": {"t": "status", "project": "mobile-app"}}
+{"at": 74300, "frame": {"t": "markStatusSeen", "project": "mobile-app", "keys": ["codex_demo-mobile-app-codex", "nope"]}}
+{"at": 74300, "frame": {"t": "markStatusSeen", "project": "mobile-app", "keys": ["codex_demo-mobile-app-codex"]}}
+{"at": 74300, "frame": {"t": "markStatusSeen", "project": "mobile-app", "keys": "codex_demo-mobile-app-codex"}}
+{"at": 74400, "frame": {"t": "status", "project": "mobile-app"}}
+{"at": 74500, "frame": {"t": "markStatusUnread", "project": "design-system", "keys": ["claude_code_demo-design-system-claude"]}}
+{"at": 74600, "frame": {"t": "clearStatus", "project": "design-system", "paneId": "demo-design-system-claude", "value": "Done"}}
+{"at": 74600, "frame": {"t": "clearStatus", "project": "design-system", "paneId": "demo-design-system-claude", "value": "Error"}}
+{"at": 74600, "frame": {"t": "clearStatus", "project": "design-system", "paneId": "demo-design-system-claude", "value": "Error"}}
+{"at": 74700, "frame": {"t": "status", "project": "design-system"}}
+{"at": 74800, "frame": {"t": "archiveStatus", "project": "mobile-app", "keys": ["claude_code_demo-mobile-app-claude"]}}
+{"at": 74800, "frame": {"t": "archiveStatus", "project": "mobile-app", "keys": ["nope"]}}
+{"at": 74800, "frame": {"t": "archiveStatus", "project": "nope", "keys": ["claude_code_demo-mobile-app-claude"]}}
+{"at": 74900, "frame": {"t": "status", "project": "mobile-app"}}
+{"at": 75000, "frame": {"t": "markStatusUnread", "project": "mobile-app", "keys": ["codex_demo-mobile-app-codex", "claude_code_demo-mobile-app-claude"]}}
+{"at": 75100, "frame": {"t": "archiveStatus", "project": "mobile-app", "keys": ["codex_demo-mobile-app-codex"]}}
+{"at": 75200, "frame": {"t": "closeTerminal", "project": "mobile-app", "id": "demo-mobile-app-claude"}}
+{"at": 75200, "frame": {"t": "closeTerminal", "project": "design-system", "id": "demo-design-system-claude"}}
+{"at": 75300, "frame": {"t": "projects"}}
+{"at": 75300, "frame": {"t": "terminals", "project": "mobile-app"}}
 {"at": 79500, "frame": {"t": "closeOtherTerminals", "project": "storefront", "id": "nope"}}
 {"at": 79500, "frame": {"t": "closeOtherTerminals", "project": "storefront", "id": "demo-storefront-1"}}
 {"at": 79600, "frame": {"t": "terminals", "project": "storefront"}}

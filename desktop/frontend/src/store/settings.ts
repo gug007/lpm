@@ -21,6 +21,7 @@ import { normalizeRecapTheme, type RecapTheme } from "../components/recap/recapC
 import { normalizeRecapRows, type RecapRow } from "../components/recap/weeklyRecapModel";
 import type { SideBySideLayout } from "../sideBySide";
 import { normalizeAutoPullMode, type AutoPullMode } from "../autoPull";
+import { isArchiveAfter } from "../archiveAfter";
 import type { NotificationChannelPrefs } from "../notifications/channels";
 
 export interface DetachedWindowState {
@@ -34,6 +35,10 @@ export interface DetachedWindowState {
 export type FilesTreeSide = "left" | "right";
 
 export type UpdateChannel = "stable" | "beta";
+
+export const DEFAULT_SEEN_SHOWN = 3;
+export const SEEN_SHOWN_MIN = 1;
+export const SEEN_SHOWN_MAX = 10;
 
 export interface Settings {
   theme: Theme;
@@ -103,6 +108,14 @@ export interface Settings {
   installUpdatesWhenIdle?: boolean;
   // Which releases this app updates to. Unset means stable.
   updateChannel?: UpdateChannel;
+  // Opening a finished agent keeps its sidebar row, muted, until it is
+  // archived (status/seen.rs). Unset means off.
+  keepFinishedAgents?: boolean;
+  // How long a seen agent stays before it archives itself: "never", or an
+  // amount and a unit such as "90m" (archiveAfter.ts). Unset means a day.
+  autoArchiveAgentsAfter?: string;
+  // How many seen agents a project lists before the rest fold. Unset means 3.
+  seenAgentsShown?: number;
   experimentalTTS?: boolean;
   ttsEnabled?: boolean;
   ttsEngine?: string;
@@ -224,6 +237,12 @@ function normalize(s: main.Settings): Settings {
     autoUpdateHosts: s.autoUpdateHosts,
     installUpdatesWhenIdle: s.installUpdatesWhenIdle || undefined,
     updateChannel: s.updateChannel === "beta" ? "beta" : undefined,
+    keepFinishedAgents: s.keepFinishedAgents,
+    autoArchiveAgentsAfter: isArchiveAfter(s.autoArchiveAgentsAfter) ? s.autoArchiveAgentsAfter : undefined,
+    seenAgentsShown:
+      typeof s.seenAgentsShown === "number"
+        ? Math.min(SEEN_SHOWN_MAX, Math.max(SEEN_SHOWN_MIN, Math.round(s.seenAgentsShown)))
+        : undefined,
     experimentalTTS: s.experimentalTTS,
     ttsEnabled: s.ttsEnabled,
     ttsEngine: s.ttsEngine || undefined,

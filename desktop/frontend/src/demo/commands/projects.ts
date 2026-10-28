@@ -16,7 +16,7 @@ import {
   seedData,
   type Project,
 } from "./state";
-import { dropProjectStatus, statusEntries } from "./status";
+import { dropProjectStatus, seenStatusEntries, statusEntries } from "./status";
 import { configYaml, applyConfigYaml } from "./config";
 import { wait } from "../wait";
 
@@ -60,6 +60,7 @@ function info(p: Project): ProjectInfo {
     profiles: p.profiles,
     activeProfile: p.activeProfile,
     statusEntries: statusEntries(p.name),
+    seenEntries: seenStatusEntries(p.name),
     parentName: p.parentName,
     worktree: p.worktree,
     isRemote: p.remote,
@@ -83,6 +84,7 @@ function globalInfo(): ProjectInfo {
     profiles: [],
     activeProfile: "",
     statusEntries: statusEntries(GLOBAL),
+    seenEntries: seenStatusEntries(GLOBAL),
     isRemote: false,
   };
 }

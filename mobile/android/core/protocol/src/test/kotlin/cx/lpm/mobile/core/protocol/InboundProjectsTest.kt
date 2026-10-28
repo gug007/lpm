@@ -27,6 +27,24 @@ class InboundProjectsTest {
         assertEquals(listOf(CustomWorkStatus("Ship", "🚢")), f.workStatuses)
         assertEquals(listOf("done", "custom:Ship"), f.workStatusOrder)
         assertEquals(AutoPullMode.Chosen, f.autoPullMode)
+        assertEquals(3, f.seenAgentsShown)
+        assertFalse(f.keepFinishedAgents)
+    }
+
+    @Test
+    fun keepFinishedAgentsComesWithTheProjects() {
+        val f = decode<Inbound.Projects>("""{ "t": "projects", "keepFinishedAgents": true }""")
+        assertTrue(f.keepFinishedAgents)
+    }
+
+    @Test
+    fun seenAgentsShownStaysWithinTheMacsRange() {
+        fun shown(value: Int) = decode<Inbound.Projects>(
+            """{ "t": "projects", "seenAgentsShown": $value }"""
+        ).seenAgentsShown
+        assertEquals(5, shown(5))
+        assertEquals(1, shown(0))
+        assertEquals(10, shown(40))
     }
 
     @Test
@@ -72,6 +90,18 @@ class InboundProjectsTest {
         assertEquals("Running", f.entries.single().value)
         assertEquals(1_759_999_990_000L, f.entries.single().turnStart)
         assertEquals(0L, f.entries.single().endedAt)
+        assertTrue(f.seen.isEmpty())
+    }
+
+    @Test
+    fun statusWithSeenAgents() {
+        val f = decode<Inbound.Status>(
+            """{ "t": "status", "project": "storefront", "status": [],
+                 "seen": [{ "key": "codex_1", "value": "Done", "priority": 20, "timestamp": 1760000000000,
+                            "paneID": "storefront-1", "endedAt": 1760000000000, "seenAt": 1760000060000 }] }"""
+        )
+        assertTrue(f.entries.isEmpty())
+        assertEquals(1_760_000_060_000L, f.seen.single().seenAt)
     }
 
     @Test

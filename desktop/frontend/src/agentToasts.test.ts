@@ -12,6 +12,7 @@ const row = (key: string, state: AgentState): SidebarAgentRow => ({
   since: null,
   shared: 0,
   holdsError: state === "error",
+  keys: [key],
 });
 
 const agents = (...rows: SidebarAgentRow[]): ProjectAgents[] => [{ project: "web", rows }];

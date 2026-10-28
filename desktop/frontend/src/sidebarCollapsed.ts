@@ -6,6 +6,7 @@ import { create } from "zustand";
 // on every machine the settings land on.
 const AGENTS_KEY = "lpm-sidebar-collapsed-projects";
 const DECKS_KEY = "lpm-sidebar-collapsed-decks";
+const SEEN_KEY = "lpm-sidebar-expanded-seen-agents";
 
 function parseCollapsed(raw: string | null): Set<string> {
   if (!raw) return new Set();
@@ -59,3 +60,6 @@ export const useCollapsedAgents = collapsedStore(AGENTS_KEY);
 
 /** Keyed on the parent's name — the key the tree memo groups children by. */
 export const useCollapsedDecks = collapsedStore(DECKS_KEY);
+
+/** Which projects show every seen agent instead of folding the older ones. */
+export const useExpandedSeenAgents = collapsedStore(SEEN_KEY);

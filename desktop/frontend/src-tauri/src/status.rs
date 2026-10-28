@@ -4,11 +4,14 @@
 // which lands here as StatusEntry rows keyed by (project, key). The store feeds
 // the `statusEntries` array of each ProjectInfo (so badges render) and the
 // pane-level ClearStatus command (tab-click dismiss of Done/Error).
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, State};
+
+pub mod saved;
+pub mod seen;
 
 #[allow(dead_code)] // agents send "Running"; kept for the full StatusKind set
 pub const STATUS_RUNNING: &str = "Running";
@@ -20,7 +23,8 @@ fn is_zero(v: &i64) -> bool {
     *v == 0
 }
 
-#[derive(Serialize, Clone, Default)]
+#[derive(Serialize, Deserialize, Clone, Default)]
+#[serde(default)]
 pub struct StatusEntry {
     pub key: String,
     pub value: String,
@@ -72,6 +76,14 @@ pub struct StatusEntry {
     /// A Running a manual /compact started, which its PostCompact takes back.
     #[serde(skip)]
     pub compact: bool,
+    /// When the user opened this finished agent, which made it seen (seen.rs).
+    /// Zero on every entry `list` gives.
+    #[serde(rename = "seenAt", skip_serializing_if = "is_zero")]
+    pub seen_at: i64,
+    /// A seen agent marked unread again: back in the list, but its finish was
+    /// already announced, so nothing announces it a second time.
+    #[serde(skip)]
+    pub revived: bool,
 }
 
 /// The `askers` entry of a question the main thread asked.
@@ -119,10 +131,42 @@ fn carry_turn(existing: Option<&StatusEntry>, incoming: &mut StatusEntry) {
     }
 }
 
+/// project -> (key -> entry)
+type Buckets = HashMap<String, HashMap<String, StatusEntry>>;
+
+/// Drop every entry of `project` in `map` for which `drop` returns true, removing
+/// the project bucket once it empties. Returns whether anything was removed.
+fn retain_in(map: &RwLock<Buckets>, project: &str, drop: impl Fn(&StatusEntry) -> bool) -> bool {
+    let mut m = map.write().unwrap();
+    let Some(bucket) = m.get_mut(project) else {
+        return false;
+    };
+    let before = bucket.len();
+    bucket.retain(|_, e| !drop(e));
+    let changed = bucket.len() != before;
+    if changed && bucket.is_empty() {
+        m.remove(project);
+    }
+    changed
+}
+
+/// Point every entry of `project` in `map` on `old_pane_id` at `new_pane_id`.
+fn repane_in(map: &RwLock<Buckets>, project: &str, old_pane_id: &str, new_pane_id: &str) -> bool {
+    let mut m = map.write().unwrap();
+    let Some(bucket) = m.get_mut(project) else {
+        return false;
+    };
+    let mut moved = false;
+    for e in bucket.values_mut().filter(|e| e.pane_id == old_pane_id) {
+        e.pane_id = new_pane_id.to_string();
+        moved = true;
+    }
+    moved
+}
+
 #[derive(Default)]
 pub struct StatusStore {
-    // project -> (key -> entry)
-    entries: RwLock<HashMap<String, HashMap<String, StatusEntry>>>,
+    entries: RwLock<Buckets>,
     // Tabs the user closed that can still be reopened: their agents keep
     // running and reporting, but nobody is shown or told about a tab that is gone.
     closing: RwLock<HashSet<String>>,
@@ -132,6 +176,10 @@ pub struct StatusStore {
     // back (donehold.rs) can tell whether the agent has spoken since. lpm's own
     // inferences (agentturn.rs) change entries without counting here.
     revs: RwLock<HashMap<(String, String), u64>>,
+    // project -> (key -> entry): finished agents the user has opened (seen.rs).
+    // Kept apart from `entries` so nothing that reads those — badges, chimes,
+    // notifications — hears of them again. Always locked after `entries`.
+    seen: RwLock<Buckets>,
 }
 
 /// How many reconnects the store remembers; past it, the oldest are forgotten.
@@ -203,6 +251,7 @@ impl StatusStore {
         entry.compact &= !existing.is_some_and(|e| is_live(&e.value));
         carry_turn(existing, &mut entry);
         bucket.insert(entry.key.clone(), entry.clone());
+        self.forget_seen(project, &entry);
         Some(entry)
     }
 
@@ -400,12 +449,13 @@ impl StatusStore {
     }
 
     pub fn clear(&self, project: &str, key: &str) -> bool {
+        let unseen = retain_in(&self.seen, project, |e| e.key == key);
         let mut m = self.entries.write().unwrap();
         let Some(bucket) = m.get_mut(project) else {
-            return false;
+            return unseen;
         };
         if bucket.remove(key).is_none() {
-            return false;
+            return unseen;
         }
         if bucket.is_empty() {
             m.remove(project);
@@ -413,20 +463,8 @@ impl StatusStore {
         true
     }
 
-    /// Drop every entry of `project` for which `drop` returns true, removing the
-    /// project bucket once it empties. Returns whether anything was removed.
     fn retain_where<F: Fn(&StatusEntry) -> bool>(&self, project: &str, drop: F) -> bool {
-        let mut m = self.entries.write().unwrap();
-        let Some(bucket) = m.get_mut(project) else {
-            return false;
-        };
-        let before = bucket.len();
-        bucket.retain(|_, e| !drop(e));
-        let changed = bucket.len() != before;
-        if changed && bucket.is_empty() {
-            m.remove(project);
-        }
-        changed
+        retain_in(&self.entries, project, drop)
     }
 
     /// Remove every entry of `project` whose value==value && pane_id==pane_id.
@@ -440,7 +478,8 @@ impl StatusStore {
     /// (a stale Waiting/Done would otherwise outrank a new pane's status).
     pub fn clear_pane(&self, project: &str, pane_id: &str) -> bool {
         self.release_pane(pane_id);
-        self.retain_where(project, |e| e.pane_id == pane_id)
+        let unseen = !pane_id.is_empty() && retain_in(&self.seen, project, |e| e.pane_id == pane_id);
+        self.retain_where(project, |e| e.pane_id == pane_id) || unseen
     }
 
     /// Keep a closing tab's statuses out of every list until the close is undone
@@ -474,16 +513,8 @@ impl StatusStore {
             return false;
         }
         self.remember_move(old_pane_id, new_pane_id);
-        let mut m = self.entries.write().unwrap();
-        let Some(bucket) = m.get_mut(project) else {
-            return false;
-        };
-        let mut moved = false;
-        for e in bucket.values_mut().filter(|e| e.pane_id == old_pane_id) {
-            e.pane_id = new_pane_id.to_string();
-            moved = true;
-        }
-        moved
+        let moved = repane_in(&self.entries, project, old_pane_id, new_pane_id);
+        repane_in(&self.seen, project, old_pane_id, new_pane_id) || moved
     }
 
     fn remember_move(&self, old_pane_id: &str, new_pane_id: &str) {
@@ -510,16 +541,7 @@ impl StatusStore {
     /// Entries for a project, sorted priority desc, timestamp desc, key asc.
     /// Missing project -> empty Vec (serializes to `[]`, never `null`).
     pub fn list(&self, project: &str) -> Vec<StatusEntry> {
-        let m = self.entries.read().unwrap();
-        let Some(bucket) = m.get(project) else {
-            return Vec::new();
-        };
-        let closing = self.closing.read().unwrap();
-        let mut out: Vec<StatusEntry> = bucket
-            .values()
-            .filter(|e| !closing.contains(&e.pane_id))
-            .cloned()
-            .collect();
+        let mut out = self.visible_in(&self.entries, project);
         out.sort_by(|a, b| {
             b.priority
                 .cmp(&a.priority)
@@ -527,6 +549,20 @@ impl StatusStore {
                 .then(a.key.cmp(&b.key))
         });
         out
+    }
+
+    /// `project`'s entries in `map`, but a closing tab's.
+    fn visible_in(&self, map: &RwLock<Buckets>, project: &str) -> Vec<StatusEntry> {
+        let m = map.read().unwrap();
+        let Some(bucket) = m.get(project) else {
+            return Vec::new();
+        };
+        let closing = self.closing.read().unwrap();
+        bucket
+            .values()
+            .filter(|e| !closing.contains(&e.pane_id))
+            .cloned()
+            .collect()
     }
 
     /// Every agent report on a terminal, whatever it says, with its project.
@@ -559,7 +595,8 @@ impl StatusStore {
     }
 }
 
-/// App-level ClearStatus: dismiss the status of `value` on pane `pane_id`.
+/// App-level ClearStatus: the user looked at the status of `value` on pane
+/// `pane_id` — a finish is kept as seen (seen.rs), anything else dismissed.
 /// Frontend sends {project, paneId, value}; paneId -> pane_id via Tauri camelCase.
 #[tauri::command]
 pub fn clear_status(
@@ -569,7 +606,7 @@ pub fn clear_status(
     pane_id: String,
     value: String,
 ) -> Result<(), String> {
-    if store.clear_by_pane_value(&project, &pane_id, &value) {
+    if seen::retire_viewed(&store, &project, &pane_id, &value) {
         let _ = app.emit("status-changed", &project);
     }
     Ok(())

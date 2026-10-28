@@ -215,6 +215,7 @@ mod remote_machines;
 mod remote_memory;
 mod remote_service_logs;
 mod remote_notes;
+mod remote_seen;
 mod remote_update;
 mod remote_upload;
 mod remotessh;
@@ -429,6 +430,7 @@ use skill_install::*;
 use sound::*;
 use sshconfig::*;
 use status::*;
+use status::seen::*;
 use statusnotify::notify_unattended;
 use tailnet_cmds::{tailnet_set_enabled, tailnet_sign_in, tailnet_sign_out, tailnet_state};
 use tauri::Manager;
@@ -623,6 +625,7 @@ pub fn run() {
                 .state::<std::sync::Arc<status::StatusStore>>()
                 .inner()
                 .clone();
+            status::saved::start(&handle);
             socketsrv::start(config::socket_path(), store.clone(), handle.clone(), false);
             // Second, restricted socket that SSH hosts reach over `ssh -R` — status
             // verbs only, so a remote host can never control the Mac.
@@ -633,6 +636,7 @@ pub fn run() {
                 true,
             );
             agentturn::start_sweep(handle.clone());
+            status::seen::start_sweep(handle.clone());
             bannerwithdraw::start(&handle);
             // Keep each SSH host's `ssh -R` status forward alive for as long as it
             // has a live pane — without it a dropped forward silently ends remote

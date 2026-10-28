@@ -191,3 +191,7 @@ the iPhone screenshots). An icon-only control keeps the accessible name iOS give
 | `folder.fill` / `doc` (Files rows) | `folder` (fill) / `description` | 24 dp | Files folder and file rows, Go to File results | |
 | `eye` / `doc.on.doc` (Files menu) | `visibility` / `content_copy` | 22 dp | a Files row's long-press Preview, Copy Path, Copy Relative Path | |
 | `calendar` | `calendar_month` | 24 dp row, 38 dp empty state | Stats "Weekly recap" row, "No agent work last week" | |
+| `archivebox` | `archive` | 24 dp swipe, 22 dp menu | an agent row's swipe and long-press Archive | "Archive" |
+| `envelope.open` / `envelope.badge` (agents) | `drafts` / `mark_email_unread` | 22 dp | an agent row's long-press Mark as Seen / Mark as Unread | |
+| `terminal` (agent menu) | `terminal` | 22 dp | an agent row's long-press Open | |
+| `chevron.down` / `chevron.up` (caption2) | `keyboard_arrow_down` / `keyboard_arrow_up` | 17 dp | "N more seen" / "Show fewer" under a project's agents | |

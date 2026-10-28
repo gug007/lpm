@@ -110,6 +110,7 @@ private fun DemoServer.registerTerminalLifecycleHandlers() {
         val wasAgent = demoTerminal(id)?.cli == "claude"
         world.terminals[project]?.removeAll { it.id == id }
         world.composerDrafts.remove(id)
+        demoDropSeenAgents(project = project, pane = id)
         if (wasAgent) demoSetAgentStatus(project = project, entries = emptyList())
         push(mapOf("t" to "closeTerminal", "ok" to true))
     }

@@ -41,6 +41,7 @@ export const BUILTIN_SHORTCUT_GROUPS: BuiltinShortcutGroup[] = [
     shortcuts: [
       { id: "new-tab", label: "New terminal tab", description: "Opens in the focused pane", keys: cmd("t") },
       { id: "close-tab", label: "Close tab", description: "A pinned tab stays open", keys: cmd("w") },
+      { id: "archive-agent", label: "Archive the agent on screen", description: "Takes its sidebar row away, the tab stays open", keys: cmd("a", { shift: true }) },
       { id: "split-right", label: "Split sideways", description: "A new pane to the right", keys: cmd("d") },
       { id: "split-down", label: "Split stacked", description: "A new pane below", keys: cmd("d", { shift: true }) },
       { id: "search", label: "Search the output", description: `${enterHint()} for the next match, ${enterHint({ shift: true })} for the previous`, keys: cmd("f") },

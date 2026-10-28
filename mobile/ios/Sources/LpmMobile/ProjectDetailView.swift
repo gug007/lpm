@@ -148,7 +148,12 @@ struct ProjectDetail: View {
         .navigationDestination(item: $openTerminal) { TerminalScreen(term: $0, project: live) }
         .tabRenameAlert($renaming)
         .tabMenuConfirmations(forkingIntoCopy: $forkingIntoCopy, closingOthers: $closingOthers)
-        .safeAreaInset(edge: .bottom) { UndoCloseToast() }
+        .safeAreaInset(edge: .bottom) {
+            let pending = model.pendingTabClose
+            UndoBar(message: pending.map { "\($0.tab.title) closed" }, id: pending?.tab.id) {
+                model.undoTabClose()
+            }
+        }
         .sheet(item: $activeBgRun) { run in
             BackgroundRunSheet(run: run).environment(model)
         }

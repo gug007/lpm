@@ -4,6 +4,7 @@ import { SettingsRow } from "../SettingsRow";
 import { SettingsSection } from "../SettingsSection";
 import { Toggle } from "../ui/Toggle";
 import { AboutSection } from "./AboutSection";
+import { AgentArchiveSettingsSection } from "./AgentArchiveSettingsSection";
 import { AutoPullSettingsRow } from "./AutoPullSettingsRow";
 import { DefaultDirectoryRow } from "./DefaultDirectoryRow";
 import { PeerAboutSection } from "./PeerAboutSection";
@@ -57,6 +58,8 @@ export function GeneralPane() {
         <AutoPullSettingsRow />
         <DefaultDirectoryRow />
       </SettingsSection>
+
+      <AgentArchiveSettingsSection />
 
       {machine.kind === "local" ? <AboutSection /> : <PeerAboutSection version={machine.version} />}
     </>

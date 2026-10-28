@@ -34,12 +34,16 @@ enum Kind {
     Shortcuts,
     /// Notification event to channel to on/off (notifychannels.rs).
     NotificationChannels,
+    /// "never", or an amount and a unit (status/seen.rs).
+    ArchiveAfter,
 }
 
 const SHARED: &[(&str, Kind)] = &[
     ("theme", Kind::OneOf(&["light", "dark", "system"])),
     ("doubleClickToToggle", Kind::Flag),
     ("checkOrigin", Kind::Flag),
+    ("keepFinishedAgents", Kind::Flag),
+    ("autoArchiveAgentsAfter", Kind::ArchiveAfter),
     ("autoPull", Kind::OneOf(&["off", "chosen", "all"])),
     ("updateChannel", Kind::OneOf(&["stable", "beta"])),
     ("defaultProjectDirectory", Kind::Path),
@@ -106,6 +110,7 @@ fn write(app: &AppHandle, patch: &Value) -> Result<Value, String> {
         )?;
     }
     crate::config::save_settings(&settings)?;
+    crate::status::seen::nudge();
     let _ = app.emit("peer-settings-changed", ());
     Ok(shared_view(&settings))
 }
@@ -173,6 +178,10 @@ fn checked(key: &str, value: &Value) -> Result<Option<Value>, String> {
         Kind::NotificationChannels => (
             crate::notifychannels::is_valid_choices(value),
             "a map of notification events to channels switched on or off".to_string(),
+        ),
+        Kind::ArchiveAfter => (
+            value.as_str().is_some_and(crate::status::seen::is_archive_after),
+            "never, or an amount and a unit such as 90m, 8h, 2d or 1w".to_string(),
         ),
     };
     if valid {

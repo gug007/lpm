@@ -26,6 +26,9 @@ struct DemoWorld {
         var priority: Int
         var timestamp: Int  // unix millis
         var paneID: String  // the terminal reporting it
+        var turnStart = 0   // unix millis; 0 when never seen starting
+        var endedAt = 0     // unix millis; 0 while it runs
+        var seenAt = 0      // unix millis; only on a seen agent
     }
 
     struct Project {
@@ -50,6 +53,8 @@ struct DemoWorld {
         // Zones as the Mac sends them (ZoneInfo), sorted by position.
         var zones: [[String: Any]] = []
         var status: [Status] = []
+        // Finished agents already opened, kept until archived.
+        var seen: [Status] = []
     }
 
     var projects: [Project] = []
@@ -345,6 +350,7 @@ struct DemoWorld {
         seedJobs(nowS: nowS)
         seedConfig()
         seedHistory(nowMs: nowMs)
+        seedSeenAgents(nowMs: nowMs)
     }
 
     private mutating func seedProjects() {
@@ -648,8 +654,12 @@ extension DemoWorld {
     }
 
     func statusDict(_ s: Status) -> [String: Any] {
-        ["key": s.key, "value": s.value, "priority": s.priority, "timestamp": s.timestamp,
-         "paneID": s.paneID]
+        var d: [String: Any] = ["key": s.key, "value": s.value, "priority": s.priority,
+                                "timestamp": s.timestamp, "paneID": s.paneID]
+        if s.turnStart > 0 { d["turnStart"] = s.turnStart }
+        if s.endedAt > 0 { d["endedAt"] = s.endedAt }
+        if s.seenAt > 0 { d["seenAt"] = s.seenAt }
+        return d
     }
 
     func projectDict(_ p: Project) -> [String: Any] {
@@ -661,6 +671,7 @@ extension DemoWorld {
             "parentName": p.parentName,
             "worktree": p.worktree,
             "statusEntries": p.status.map(statusDict),
+            "seenEntries": p.seen.map(statusDict),
             "services": p.services.filter(\.running).map(serviceDict),
             "allServices": p.services.map(serviceDict),
             "profiles": p.profiles.map { ["name": $0.name, "services": $0.services] },
@@ -684,6 +695,8 @@ extension DemoWorld {
             "workStatuses": palette.map { ["label": $0.label, "emoji": $0.emoji, "withNote": $0.withNote] },
             "workStatusOrder": [String](),
             "autoPullMode": "all",
+            "seenAgentsShown": 3,
+            "keepFinishedAgents": true,
         ]
     }
 
@@ -698,8 +711,9 @@ extension DemoWorld {
     }
 
     func statusPayload(_ project: String) -> [String: Any] {
-        let entries = self.project(named: project)?.status ?? []
-        return ["t": "status", "project": project, "status": entries.map(statusDict)]
+        let p = self.project(named: project)
+        return ["t": "status", "project": project, "status": (p?.status ?? []).map(statusDict),
+                "seen": (p?.seen ?? []).map(statusDict)]
     }
 
     func terminalDict(_ t: Terminal) -> [String: Any] {

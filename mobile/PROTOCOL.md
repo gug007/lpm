@@ -139,7 +139,9 @@ terminal again in its tab (`restartTerminal`); `"agentLaunch"` — `agentOptions
 `"listDir"` — browsing a project's folders (`listDir`); the last four under
 [Agent tabs and files](#agent-tabs-and-files); `"tabMenu"` — `forkTerminal`,
 `forkTerminalCopy`, `titleTerminal` and `closeOtherTerminals`; `"weeklyRecap"` — the
-desktop's weekly recap card (`weeklyRecap`). Rides `paired` **and** `ready`;
+desktop's weekly recap card (`weeklyRecap`); `"agentArchive"` — seen agents
+(`seenEntries`, `seen`, `seenAgentsShown`) and `archiveStatus`, `markStatusSeen` and
+`markStatusUnread` (see [Seen and archived agents](#seen-and-archived-agents)). Rides `paired` **and** `ready`;
 **absent** from a desktop that predates it, which means none.
 
 `hosts` (**optional**) is the Mac's current candidate address list, most-preferred
@@ -326,7 +328,7 @@ holds no credential of its own, so removing it sends nothing.
 
 | Request | Reply |
 |---|---|
-| `{ "t": "projects" }` | `{ "t": "projects", "projects": [ProjectInfo…], "workStatuses": [CustomWorkStatus…], "workStatusOrder": ["<status key>"…], "autoPullMode": "off"\|"chosen"\|"all" }` — `workStatuses` is the user's own work-status palette (`{ label, emoji, withNote? }` each), and `workStatusOrder` the order the Status menu was dragged into (each entry a status key: a built-in state, or `custom:<label>`). Both live in the Mac's `~/.lpm/statuses.json` (as `custom` and `order`; the wire names predate that file). `workStatuses` always starts with the five shipped statuses (Review, Ready, Waiting, Needs decision, Paused), then the user's own additions; `workStatusOrder` is `[]` until the user reorders the menu. The phone lists its three built-in states (In progress / Blocked / Done) plus that list, sorted by the order (its own default order when that is empty), and assumes the five shipped statuses when a Mac too old to send `workStatuses` omits the key. `autoPullMode` is the Mac's Settings › General › Auto pull: `off` (never), `chosen` (only projects set to On), `all` (every project not set to Off); a missing or unknown value reads as `off`. A project's effective auto pull is: off when the mode is `off`; else its own `autoPull` when set; else, for a duplicate or worktree, its parent's `autoPull` when set; else on only in `all`. |
+| `{ "t": "projects" }` | `{ "t": "projects", "projects": [ProjectInfo…], "workStatuses": [CustomWorkStatus…], "workStatusOrder": ["<status key>"…], "autoPullMode": "off"\|"chosen"\|"all", "seenAgentsShown": N, "keepFinishedAgents": bool }` — `seenAgentsShown` and `keepFinishedAgents` (only when `features` has `"agentArchive"`) are the Mac's Settings › General › Seen agents per project (1–10) and Keep finished agents until archived (off by default; see [Seen and archived agents](#seen-and-archived-agents)). `workStatuses` is the user's own work-status palette (`{ label, emoji, withNote? }` each), and `workStatusOrder` the order the Status menu was dragged into (each entry a status key: a built-in state, or `custom:<label>`). Both live in the Mac's `~/.lpm/statuses.json` (as `custom` and `order`; the wire names predate that file). `workStatuses` always starts with the five shipped statuses (Review, Ready, Waiting, Needs decision, Paused), then the user's own additions; `workStatusOrder` is `[]` until the user reorders the menu. The phone lists its three built-in states (In progress / Blocked / Done) plus that list, sorted by the order (its own default order when that is empty), and assumes the five shipped statuses when a Mac too old to send `workStatuses` omits the key. `autoPullMode` is the Mac's Settings › General › Auto pull: `off` (never), `chosen` (only projects set to On), `all` (every project not set to Off); a missing or unknown value reads as `off`. A project's effective auto pull is: off when the mode is `off`; else its own `autoPull` when set; else, for a duplicate or worktree, its parent's `autoPull` when set; else on only in `all`. |
 | `{ "t": "stats", "days": N, "machine": "all"\|"local"\|slug?, "fresh": bool? }` | `{ "t": "stats", "ok": true, "machine": "…", "stats": AgentUsageStats, "machines": [UsageMachine] }` / `{ "ok": false, "error": "…", "machine": "…" }` — agent token-usage stats for the last `N` days (`0` = all time), i.e. the desktop Stats page. `machine` picks whose: `"local"` (the default when absent, which is all an older Mac answers) this Mac's own, a paired computer's `slug` that computer's, read over the Mac's peer link, or `"all"` every connected computer's added together (a project, model or day they share is one row; `recentSessions` then carry `machine`). A computer that is offline or fails is left out of `"all"` and marked in `machines`; picking it alone fails the request. Each computer keeps a read for a minute, so switching computers after `"all"` answers at once; `fresh: true` (pull to refresh) scans again, as does any request without `machine`. The Mac scans Claude Code / Codex session-history files (usage metadata only — no prompts or responses), so it runs off this connection's read loop and the reply arrives **asynchronously** (later than a fast request sent after it). SSH projects are excluded. The usage rows under the projects list ask for `days: 1` with no `machine` (today's spend on this Mac, as the desktop sidebar does) while the list is showing — at most every 30 seconds and every 3 minutes at rest — and tell the two apart from the Stats screen's by the `days` and `machine` the reply echoes |
 | `{ "t": "weeklyRecap", "week": "last"\|"this", "fresh": bool? }` | `{ "t": "weeklyRecap", "ok": true, "week": "last"\|"this", "recap": WeeklyRecap }` / `{ "t": "weeklyRecap", "ok": false, "week": "…", "error": "…" }` — the desktop's weekly recap ("My week in lpm"): last week (the default) or this week so far, Monday to Sunday by the **Mac's** calendar, added up over this Mac and every connected computer as the desktop's own card is. Reads the agents' history and the user's commits, so it runs off the read loop and the reply arrives **asynchronously**; the Mac keeps a week's read for ten minutes, and `fresh: true` (pull to refresh) reads again. The phone draws the card itself from `recap` with the desktop's rules (see **WeeklyRecap**) and shares it as an image; no project name goes on the card. Only when `features` has `"weeklyRecap"` |
 | `{ "t": "limits" }` | `{ "t": "limits", "ok": true, "limits": AgentLimits, "claudeEnabled": bool, "now": unix MILLIS }` / `{ "ok": false, "error": "…" }` — the agent plan-usage meters (the desktop Usage page): how much of each tool's 5-hour and weekly window is used. Answered inline from an in-memory store, so it is fast and ordered. `claudeEnabled` is false when Claude reporting has not been switched on for this Mac — the phone must show "off on this Mac" rather than an empty spinner, because an off Mac never reports Claude windows at all. Codex needs no opt-in. `now` is the Mac's own clock when it built the frame; it anchors `updatedAt`, which the Mac stamps, and not `resetsAt`, which comes from the tool's own servers (see AgentLimits below) |
@@ -356,8 +358,11 @@ holds no credential of its own, so removing it sends nothing.
 | `{ "t": "mentions", "project": "<name>" }` | `{ "t": "mentions", "project": "<name>", "entries": [{ path, dir, changed }…] }` — @-mention targets: the project's files/dirs (relative paths), with git working-tree changes flagged. Fetched once, filtered client-side |
 | `{ "t": "history", "project": "<name>", "q": "<search>" }` | `{ "t": "history", "project": "<name>", "rows": [HistoryRow…] }` — recent sent prompts for the project (newest first), for recall |
 | `{ "t": "historyAdd", "project": "<name>", "id": "<termId>", "label": "<tab>", "text": "…" }` | — records a prompt the phone sent into the shared message history |
-| `{ "t": "status", "project": "<name>" }` | `{ "t": "status", "project": "<name>", "status": [StatusEntry…] }` |
-| `{ "t": "clearStatus", "project": "<name>", "paneId": "<terminal id>", "value": "Done"\|"Error" }` | — dismisses a finished agent status (the Activity screen's clear), removing **every** entry on `paneId` whose value is `value`; two agents sharing one terminal therefore clear together, which is why the phone only offers it when the row is the pane's only holder of that value. The terminal screen also sends it, once per value, for the `Done` and `Error` its terminal shows when it opens and on the next touch while it is on top — the desktop's tab click — and leaves `Waiting` alone. No reply: on a change the Mac emits `status-changed`, which refreshes the desktop and every connected phone. A no-op when nothing matches |
+| `{ "t": "status", "project": "<name>" }` | `{ "t": "status", "project": "<name>", "status": [StatusEntry…], "seen": [StatusEntry…] }` — `seen` (only when `features` has `"agentArchive"`) is the project's seen agents, the same list as its `seenEntries` (see [Seen and archived agents](#seen-and-archived-agents)) |
+| `{ "t": "clearStatus", "project": "<name>", "paneId": "<terminal id>", "value": "Done"\|"Error" }` | — dismisses a finished agent status (the Activity screen's clear), acting on **every** entry on `paneId` whose value is `value`; two agents sharing one terminal therefore clear together, which is why the phone only offers it when the row is the pane's only holder of that value. The terminal screen also sends it, once per value, for the `Done` and `Error` its terminal shows when it opens and on the next touch while it is on top — the desktop's tab click — and leaves `Waiting` alone. While the Mac's **Keep finished agents until archived** is on (`features` has `"agentArchive"`), those entries are marked **seen** — they move from `statusEntries` to `seenEntries` — instead of removed; with it off, or on an older Mac, they are removed. No reply: on a change the Mac emits `status-changed`, which refreshes the desktop and every connected phone. A no-op when nothing matches |
+| `{ "t": "archiveStatus", "project": "<name>", "keys": ["<status key>"…] }` | — archives agents: removes each key's `Done` or `Error` from `statusEntries`, or its entry from `seenEntries`. A `Running` or `Waiting` entry is left alone. No reply; `status-changed` follows a change. Only when `features` has `"agentArchive"` |
+| `{ "t": "markStatusSeen", "project": "<name>", "keys": ["<status key>"…] }` | — marks agents seen without opening them: each key's `Done` or `Error` moves from `statusEntries` to `seenEntries`. No reply; `status-changed` follows a change. Only when `features` has `"agentArchive"` |
+| `{ "t": "markStatusUnread", "project": "<name>", "keys": ["<status key>"…] }` | — takes seen agents back to new: each key's entry moves from `seenEntries` back to `statusEntries`, unchanged. No push notification is sent for them again. No reply; `status-changed` follows a change. Only when `features` has `"agentArchive"` |
 | `{ "t": "sub", "id": "<termId>", "from": <streamOffset>? }` | `{ "t": "seed", "id": "<termId>", "cols": N, "rows": N, "data": "<recent scrollback>", "off": <streamOffset>, "reset": bool, "owner": ControlOwner\|null, "draft": { "text": "…", "rev": N }? }`, then a live stream of `o` frames. A terminal the Mac no longer has gets `exit` with `gone: true` instead of a seed. Subscribing also *claims* the terminal (see control ownership below); `owner` tells the phone whether it may render live or must show a "take control" placeholder. `cols`/`rows` are the PTY's current size, which can still be the previous owner's — an owning phone whose fitted size differs sends `resize` right after the seed. The optional `draft` carries the terminal composer's mirrored active-input text (see composer draft sync below); it is **present only** when a non-empty draft is stored, so on (re)open/reconnect the phone restores it — but only into an empty input, never clobbering a prompt in progress. **Resuming:** a phone that still has the terminal on screen (reconnect, unlock, a gap in `o` frames) sends `from` = the offset it last applied; when the Mac still holds that point the reply is `reset: false` and `data` is **only the missed slice**, appended to the live emulator. Otherwise (`from` omitted, or scrolled out of the ring) it is `reset: true`: reset the emulator and replay `data` as the whole screen. Prefer resuming — a replay only approximates the screen a running full-screen program believes it is drawing on, so its next incremental update lands on stale cells |
 | `{ "t": "unsub", "id": "<termId>" }` | — (also stops presenting the terminal) |
 | `{ "t": "claim", "id": "<termId>" }` | — (the "Take control" action) takes ownership of the terminal; the previous owner is pushed a `control` frame and flips to its own placeholder |
@@ -683,6 +688,39 @@ the title. Closed tabs with no transcript behind them aren't listed.
 
 Go to file needs no request of its own: it filters the `mentions` index.
 
+### Seen and archived agents
+
+Only when `features` has `"agentArchive"`. A finished agent (`Done` or `Error`) has
+three states, the desktop sidebar's and the phone's alike:
+
+- **New** — in `statusEntries`, as before: drawn in its state's color, notifies.
+- **Seen** — in `seenEntries`, with `seenAt`: opened at least once. Drawn muted (gray
+  name, gray mark, time kept) in its place among the project's agents. It notifies
+  nothing and counts for nothing; only the agent list shows it.
+- **Archived** — in neither list. The tab stays open and the agent keeps running.
+
+Opening an agent's terminal sends `clearStatus` as before; the Mac turns that into
+*seen* while its **Keep finished agents until archived** setting is on
+(`keepFinishedAgents` in `projects`, off by default). While it's off, opening a
+finished agent removes it as before, `markStatusSeen` archives, and the phone offers
+no Mark as Seen. The agent's
+next report on that tab (a new turn) drops its seen entry, so a tab never holds both.
+Closing the tab drops it too. The Mac archives a seen entry by itself once it has
+been seen longer than its **Archive seen agents automatically** setting, and archives
+every seen entry when the setting is switched off.
+
+The phone lists a project's seen agents with its others, one row per terminal like
+the rest (a seen entry on a terminal that also has a `statusEntries` entry is not
+listed). When a project has more seen rows than `seenAgentsShown` (from `projects`,
+default 3), the most recently seen ones show and the rest fold into one
+“N more seen” line that expands in place.
+
+A row that is `Done` or `Error`, new or seen, can be archived (`archiveStatus`, with
+every key the row stands for); a `Running` or `Waiting` row can't. A new row can be
+marked seen without opening it (`markStatusSeen`) and a seen one marked unread
+(`markStatusUnread`). The phone holds an archive back for 5 seconds behind an Undo,
+hiding the row meanwhile, and sends `archiveStatus` only once that passes.
+
 ### Session memory
 
 Per-project work-session logs (`~/.lpm/memory/<owner>/<session>.md`), co-written
@@ -973,6 +1011,7 @@ allServices: [ … ]
 profiles: [ { name, services } ]
 activeProfile: string
 statusEntries: [StatusEntry]
+seenEntries?: [StatusEntry] // finished agents already seen, each with `seenAt`; absent from a Mac without "agentArchive"
 isRemote: bool
 parentName: string        // the project this is a duplicate of; empty for originals — the phone offers Remove only when set
 worktree: bool            // a duplicate made as a linked git worktree rather than a folder copy
@@ -1375,6 +1414,9 @@ priority: int
 timestamp: int   // unix millis
 agentPID?: int
 paneID?: string
+turnStart?: int  // unix millis the turn began; absent when never seen starting
+endedAt?: int    // unix millis the turn ended; absent while it runs
+seenAt?: int     // unix millis it was last opened; only on `seenEntries`
 ```
 
 ## Input hex framing

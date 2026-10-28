@@ -21,6 +21,9 @@ class ProjectTest {
           "workStatus": {"state": "custom", "label": " Review ", "emoji": "👀", "since": 1734567890123},
           "statusEntries": [{"key": "claude:1", "value": "Waiting", "priority": 2,
                              "timestamp": 1734567890000, "paneID": "storefront-1"}],
+          "seenEntries": [{"key": "codex_2", "value": "Done", "priority": 20, "timestamp": 1734567800000,
+                           "paneID": "storefront-2", "turnStart": 1734567700000,
+                           "endedAt": 1734567800000, "seenAt": 1734567850000}],
           "services": [{"name": "web", "cmd": "npm run dev", "port": 3000}],
           "allServices": [{"name": "web", "port": 3000}, {"name": "worker"}],
           "profiles": [{"name": "default", "services": ["web", "api"]}],
@@ -59,6 +62,19 @@ class ProjectTest {
         assertEquals(
             StatusEntry("claude:1", "Waiting", 2, 1_734_567_890_000, "storefront-1", 0, 0),
             p.statusEntries[0]
+        )
+        assertEquals(
+            StatusEntry(
+                "codex_2",
+                "Done",
+                20,
+                1_734_567_800_000,
+                "storefront-2",
+                1_734_567_700_000,
+                1_734_567_800_000,
+                1_734_567_850_000
+            ),
+            p.seenEntries.single()
         )
         assertEquals(listOf(Service("web", 3000)), p.services)
         assertEquals(Service("worker", 0), p.allServices[1])
@@ -113,6 +129,7 @@ class ProjectTest {
         assertNull(p.autoPull)
         assertTrue(p.claude.followsParent)
         assertTrue(p.actions.isEmpty())
+        assertTrue(p.seenEntries.isEmpty())
         assertNull(p.configError)
     }
 
@@ -120,7 +137,11 @@ class ProjectTest {
     fun copiesKeepEverythingElse() {
         val p = Project.parse(storefront)
         val entry = StatusEntry("k", "Done", 0, 1, "", 0, 0)
-        assertEquals(p.copy(statusEntries = listOf(entry)), p.withStatus(listOf(entry)))
+        val seen = entry.copy(key = "s", seenAt = 2)
+        assertEquals(
+            p.copy(statusEntries = listOf(entry), seenEntries = listOf(seen)),
+            p.withStatus(listOf(entry), listOf(seen))
+        )
         assertNull(p.withWorkStatus(null).workStatus)
         assertNull(p.withAutoPull(null).autoPull)
         assertEquals("x", p.withClaude(ClaudeOwnChoice(account = "x")).claude.account)

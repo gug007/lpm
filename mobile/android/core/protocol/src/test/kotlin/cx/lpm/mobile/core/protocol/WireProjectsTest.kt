@@ -37,6 +37,18 @@ class WireProjectsTest {
             """{ "t": "clearStatus", "project": "api", "paneId": "api-1", "value": "Done" }""",
             Wire.clearStatus("api", "api-1", "Done")
         )
+        assertFrame(
+            """{ "t": "archiveStatus", "project": "api", "keys": ["codex_api-1", "omp_api-1"] }""",
+            Wire.archiveStatus("api", listOf("codex_api-1", "omp_api-1"))
+        )
+        assertFrame(
+            """{ "t": "markStatusSeen", "project": "api", "keys": ["codex_api-1"] }""",
+            Wire.markStatusSeen("api", listOf("codex_api-1"))
+        )
+        assertFrame(
+            """{ "t": "markStatusUnread", "project": "api", "keys": ["codex_api-1", "omp_api-1"] }""",
+            Wire.markStatusUnread("api", listOf("codex_api-1", "omp_api-1"))
+        )
         assertFrame("""{ "t": "remove", "name": "api-2" }""", Wire.remove("api-2"))
         assertFrame(
             """{ "t": "renameProject", "project": "api", "name": "" }""",

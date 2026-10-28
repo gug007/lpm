@@ -31,7 +31,10 @@ import {
   type ProjectInfo,
 } from "../types";
 import { computeProjectStatus, rowNameClass } from "../agentStatus";
-import { projectAgentRows, sidebarProjectAlert, type SidebarAgentRow } from "../sidebarAgents";
+import { sidebarProjectAlert, type SidebarAgentRow } from "../sidebarAgents";
+import { sidebarAgentRows } from "../sidebarSeenAgents";
+import { hiddenKeys, useArchivingAgents } from "../agentArchive";
+import { useArchiveAgentShortcut } from "../hooks/useArchiveAgentShortcut";
 import { useCollapsedAgents, useCollapsedDecks } from "../sidebarCollapsed";
 import { SidebarAgentChevron } from "./SidebarAgentChevron";
 import { ChevronRightIcon } from "./icons";
@@ -462,12 +465,17 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
 
   // The clamp inside `projectAgentRows` only reads `now` against timestamps that
   // change with `projects`, so pinning it to this memo costs nothing.
+  const archiving = useArchivingAgents((s) => s.hidden);
   const agentsByProject = useMemo(() => {
     const now = Date.now();
     return new Map(
-      projects.map((p) => [p.name, projectAgentRows(p, now, terminalTitles[p.name])]),
+      projects.map((p) => [
+        p.name,
+        sidebarAgentRows(p, now, terminalTitles[p.name], hiddenKeys(archiving, p.name)),
+      ]),
     );
-  }, [projects, terminalTitles]);
+  }, [projects, terminalTitles, archiving]);
+  useArchiveAgentShortcut(agentsByProject, selected);
 
   const openGitModal = (kind: GitModalTarget["kind"]) => {
     if (contextProject?.root && contextMenu) {
@@ -1816,6 +1824,8 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             peerViaSsh={contextSlug !== null && peerState.peers.some((p) => p.slug === contextSlug && !!p.sshHost)}
             sshRemote={contextProject?.isRemote ?? false}
             projectName={contextMenu.name}
+            projectLabel={contextProject?.label || contextMenu.name}
+            agents={agentsByProject.get(contextMenu.name) ?? []}
             running={contextProject?.running ?? false}
             services={contextProject?.services ?? []}
             projectPath={contextProject?.root ?? null}

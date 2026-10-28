@@ -165,6 +165,30 @@ class ListRowsTest {
     }
 
     @Test
+    fun `seen agents list only from a Mac that keeps them, folding past its limit`() {
+        fun seen(key: String, at: Long) = StatusEntry(key, "Done", 20, at, key, 0, at, at)
+        val blog = project(
+            "blog"
+        ).copy(seenEntries = listOf(seen("a", 100), seen("b", 300), seen("c", 200)))
+        val state = ProjectsState(projects = listOf(blog), seenAgentsShown = 2)
+        fun entry(inputs: RowInputs) =
+            state.listRows(inputs).filterIsInstance<ProjectsListRow.ProjectEntry>().single()
+
+        assertTrue(entry(RowInputs()).agents.isEmpty())
+        val folded = entry(RowInputs(archivable = true))
+        assertEquals(listOf("b", "c"), folded.agents.map { it.id })
+        assertEquals(1, folded.foldedSeen)
+        assertTrue(folded.archivable)
+        assertFalse(folded.keepsFinished)
+        val keeping = state.copy(keepFinishedAgents = true).listRows(RowInputs(archivable = true))
+        assertTrue(keeping.filterIsInstance<ProjectsListRow.ProjectEntry>().single().keepsFinished)
+        val open = entry(RowInputs(archivable = true, expanded = mapOf("s:blog" to true)))
+        assertEquals(listOf("b", "c", "a"), open.agents.map { it.id })
+        assertEquals(1, open.foldedSeen)
+        assertTrue(open.seenExpanded)
+    }
+
+    @Test
     fun `an old Mac that lists no projects still opens the machine by switching`() {
         val rows = ProjectsState().listRows(
             RowInputs(machines = listOf(section(projects = null, record = saved)))

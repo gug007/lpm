@@ -269,6 +269,10 @@ final class AppModel {
     var workStatusOrder: [String] = []
     // The Mac's Settings › General › Auto pull, refreshed with every projects list.
     var autoPullMode: AutoPullMode = .off
+    // The Mac's Settings › General › Seen agents per project, likewise.
+    var seenAgentsShown = 3
+    // The Mac's Settings › General › Keep finished agents until archived, likewise.
+    var keepFinishedAgents = false
     // The Mac's Claude accounts and switching state, for the Claude Account menu.
     var claudeAccounts: ClaudeAccounts?
     // terminal id -> current owner. Absent = nobody/unknown (this phone may show
@@ -323,6 +327,10 @@ final class AppModel {
     // closed on the Mac. One at a time; the next close sends this one on.
     var pendingTabClose: PendingTabClose?
     @ObservationIgnored var pendingTabCloseWork: DispatchWorkItem?
+    // Agents archived on this phone that can still be undone: hidden here, not
+    // yet archived on the Mac.
+    var pendingAgentArchive: PendingAgentArchive?
+    @ObservationIgnored var pendingAgentArchiveWork: DispatchWorkItem?
 
     // Terminal streams go straight to the newest screen showing that terminal; the
     // emulator holds the buffer, not this model. Seed and live output are kept
@@ -830,8 +838,11 @@ final class AppModel {
     /// while it's away. Carried over to every new connection in `wire`.
     func setInForeground(_ active: Bool) {
         // iOS may end the app any time after it leaves the screen, so a close
-        // still waiting on its undo goes now.
-        if !active { finishPendingTabClose() }
+        // or an archive still waiting on its undo goes now.
+        if !active {
+            finishPendingTabClose()
+            finishPendingAgentArchive()
+        }
         inForeground = active
         client?.inForeground = active
         visitSession?.setInForeground(active)
@@ -1242,6 +1253,7 @@ final class AppModel {
     /// NOT touch the saved-Mac records or their Keychain credentials.
     func resetSessionState() {
         finishPendingTabClose()
+        finishPendingAgentArchive()
         endVisit()
         client?.disconnect()
         client = nil
@@ -1337,6 +1349,8 @@ final class AppModel {
         workStatuses = defaultWorkStatusPalette
         workStatusOrder = []
         autoPullMode = .off
+        seenAgentsShown = 3
+        keepFinishedAgents = false
         claudeAccounts = nil
         controlOwner = [:]
         endedTerminals = [:]
@@ -1762,7 +1776,7 @@ final class AppModel {
     /// Fetch the tab names behind the Activity rows: only projects that actually
     /// report an agent, so an idle Mac costs nothing.
     func loadActivityTerminals() {
-        for project in projects where !project.statusEntries.isEmpty {
+        for project in projects where project.hasAgentStatus {
             client?.requestTerminals(project: project.name)
         }
     }
@@ -1802,12 +1816,7 @@ final class AppModel {
     }
 
     private func dropAgentStatus(project: String, paneId: String, values: Set<String>) {
-        if let idx = projects.firstIndex(where: { $0.name == project }) {
-            let kept = projects[idx].statusEntries.filter {
-                !($0.paneID == paneId && values.contains($0.value))
-            }
-            projects[idx] = projects[idx].withStatus(kept)
-        }
+        settleAgentStatus(project) { $0.paneID == paneId && values.contains($0.value) }
         for value in values {
             client?.clearStatus(project: project, paneId: paneId, value: value)
         }
@@ -2618,6 +2627,7 @@ final class AppModel {
         wireMachines(c)
         wireMacUpdate(c)
         wireAutoPull(c)
+        wireAgentArchive(c)
         wireClaudeAccounts(c)
         wireAnswers(c)
         wireAgentLaunch(c)
@@ -2988,11 +2998,11 @@ final class AppModel {
                 self.notice = warning
             }
         }
-        c.onStatus = { [weak self] proj, entries in
+        c.onStatus = { [weak self] proj, entries, seen in
             guard let self else { return }
             if let idx = self.projects.firstIndex(where: { $0.name == proj }) {
                 // Copy with fresh status — preserves services/actions.
-                self.projects[idx] = self.projects[idx].withStatus(entries)
+                self.projects[idx] = self.projects[idx].withStatus(entries, seen: seen)
                 self.reconcileNotifications([self.projects[idx]])
             }
         }

@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SidebarAgentRows } from "./SidebarAgentRows";
 import { SidebarAgentSummary } from "./SidebarAgentSummary";
 import type { SidebarAgentRow } from "../sidebarAgents";
+import { useArchivingAgents } from "../agentArchive";
+import { useSettingsStore } from "../store/settings";
 
 let container: HTMLDivElement;
 let root: Root;
@@ -32,7 +34,10 @@ const agent = (over: Partial<SidebarAgentRow> = {}): SidebarAgentRow => ({
   terminalId: "%1",
   since: Date.now() - (4 * 60 + 5) * 1000,
   ...over,
+  keys: [over.key ?? "claude_code_a"],
 });
+
+const lines = () => [...container.querySelectorAll<HTMLButtonElement>("[data-agent-row]")];
 
 describe("SidebarAgentRows", () => {
   it("names each task after its tab and times it", () => {
@@ -57,7 +62,7 @@ describe("SidebarAgentRows", () => {
       );
     });
 
-    const rows = [...container.querySelectorAll("button")];
+    const rows = lines();
     expect(rows[0].textContent).toBe("Rebalance worker4m");
     expect(rows[1].textContent).toBe("Codex4m");
     // A finished turn reads as how long it took, held still.
@@ -92,9 +97,7 @@ describe("SidebarAgentRows", () => {
           />,
         );
       });
-      return [...container.querySelectorAll("button")].map((b) =>
-        b.className.includes("bg-[var(--text-primary)]/8"),
-      );
+      return lines().map((b) => b.className.includes("bg-[var(--text-primary)]/8"));
     };
 
     expect(rowsFor("%2")).toEqual([false, true, false]);
@@ -146,7 +149,14 @@ describe("SidebarAgentRows menu", () => {
   };
 
   it("offers the tab's actions and hands them back with the row", () => {
-    expect(openMenu()).toEqual(["Open", "Copy last answer", "Fork session", "Share tab…", "Close tab"]);
+    expect(openMenu()).toEqual([
+      "Open",
+      "Copy last answer",
+      "Fork session",
+      "Share tab…",
+      expect.stringContaining("Answer it first"),
+      "Close tab",
+    ]);
     expect(document.querySelector(".menu-pop")?.textContent).toContain("Claude Code · Needs you");
     act(() => {
       [...document.querySelectorAll<HTMLButtonElement>(".menu-pop button")]
@@ -163,9 +173,37 @@ describe("SidebarAgentRows menu", () => {
   });
 
   it("only opens a row that has no tab yet, or no one to act on it", () => {
-    expect(openMenu({ terminalId: null })).toEqual(["Open"]);
+    const archiveLater = expect.stringContaining("Answer it first");
+    expect(openMenu({ terminalId: null })).toEqual(["Open", archiveLater]);
     act(() => document.querySelector<HTMLButtonElement>(".menu-pop button")?.click());
-    expect(openMenu({}, false)).toEqual(["Open"]);
+    expect(openMenu({}, false)).toEqual(["Open", archiveLater]);
+  });
+
+  it("keeps Archive out of reach until the turn ends", () => {
+    openMenu({ state: "working" });
+    const archive = [...document.querySelectorAll<HTMLButtonElement>(".menu-pop button")].find((b) =>
+      b.textContent?.startsWith("Archive"),
+    );
+    expect(archive?.disabled).toBe(true);
+    expect(archive?.textContent).toContain("Available once the turn ends");
+  });
+
+  it("lets a seen finish go back to unread, or be archived", () => {
+    const labels = openMenu({ state: "done", seenAt: 1 });
+    expect(labels).toContain("Mark as unread");
+    expect(labels.find((l) => l?.startsWith("Archive"))).not.toContain("Answer it first");
+    expect(document.querySelector(".menu-pop")?.textContent).toContain("Done · Seen");
+  });
+
+  it("offers to mark a new finish seen only while finished agents are kept", () => {
+    expect(openMenu({ state: "error" })).not.toContain("Mark as seen");
+    act(() => document.querySelector<HTMLButtonElement>(".menu-pop button")?.click());
+    useSettingsStore.setState({ keepFinishedAgents: true });
+    try {
+      expect(openMenu({ state: "error" })).toContain("Mark as seen");
+    } finally {
+      useSettingsStore.setState({ keepFinishedAgents: undefined });
+    }
   });
 });
 
@@ -177,4 +215,38 @@ describe("SidebarAgentSummary", () => {
 
   // Which agent gets to speak on the project row is `sidebarProjectAlert`'s
   // call, and is covered there.
+});
+
+describe("SidebarAgentRows seen agents", () => {
+  const render = (agents: SidebarAgentRow[]) =>
+    act(() => {
+      root.render(<SidebarAgentRows projectName="crypto-portfolio" agents={agents} onOpenAgent={vi.fn()} />);
+    });
+
+  it("folds the older seen agents past the number Settings shows", () => {
+    render([
+      agent({ key: "a", state: "done", seenAt: 1 }),
+      agent({ key: "b", state: "done", seenAt: 2 }),
+      agent({ key: "c", state: "done", seenAt: 3 }),
+      agent({ key: "d", state: "done", seenAt: 4 }),
+      agent({ key: "e", state: "done" }),
+    ]);
+    expect(lines().map((b) => b.dataset.agentRow)).toEqual(["b", "c", "d", "e"]);
+    expect(container.textContent).toContain("1 more seen");
+  });
+
+  it("archives a finished row from the keyboard", () => {
+    render([agent({ key: "claude_code_z", state: "done", seenAt: 1 })]);
+    act(() => {
+      lines()[0].dispatchEvent(new KeyboardEvent("keydown", { key: "Delete", bubbles: true }));
+    });
+    expect(useArchivingAgents.getState().hidden["crypto-portfolio"]).toEqual(["claude_code_z"]);
+  });
+
+  it("offers Archive on hover only where the turn has ended", () => {
+    render([agent({ key: "w", state: "working" }), agent({ key: "d", state: "done" })]);
+    expect([...container.querySelectorAll("[aria-label^='Archive']")].map((b) => b.getAttribute("aria-label"))).toEqual([
+      "Archive Rebalance worker",
+    ]);
+  });
 });

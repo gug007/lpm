@@ -28,9 +28,11 @@ import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import cx.lpm.mobile.core.data.link.clockStamp
+import cx.lpm.mobile.core.data.projects.PendingAgentArchive
 import cx.lpm.mobile.core.designsystem.R
 import cx.lpm.mobile.core.designsystem.component.EmptyState
 import cx.lpm.mobile.core.designsystem.component.HeaderBanner
@@ -42,6 +44,7 @@ import cx.lpm.mobile.core.model.ProjectFolder
 import cx.lpm.mobile.core.model.SessionKey
 import cx.lpm.mobile.feature.projects.ProjectsSlots
 import cx.lpm.mobile.feature.projects.R as ProjectsR
+import cx.lpm.mobile.feature.projects.ui.UndoBar
 import java.time.Instant
 
 /** What a folder header does: open or shut it, and its long-press menu's rows. */
@@ -70,6 +73,7 @@ fun ProjectsScreen(
     rowActions: ProjectRowActions = ProjectRowActions(),
     folderActions: FolderActions = FolderActions(),
     machineActions: MachineActions = MachineActions(),
+    onUndoArchive: () -> Unit = {},
     slots: ProjectsSlots = ProjectsSlots()
 ) {
     Column(
@@ -110,6 +114,7 @@ fun ProjectsScreen(
                 }
             }
         }
+        UndoBar(message = state.pendingArchive?.let { archivedMessage(it) }, onUndo = onUndoArchive)
         AnimatedVisibility(
             visible = state.duplicateProgress != null,
             enter = slideInVertically { it } + fadeIn(),
@@ -118,6 +123,17 @@ fun ProjectsScreen(
             state.duplicateProgress?.let { DuplicateProgressBar(it) }
         }
         Box(Modifier.windowInsetsPadding(WindowInsets.navigationBars)) { slots.bottomBar() }
+    }
+}
+
+/** "Archived “<tab>”", or how many once several are waiting behind Undo. */
+@Composable
+private fun archivedMessage(pending: PendingAgentArchive): String {
+    val agents = pending.agents
+    return if (agents.size == 1) {
+        stringResource(ProjectsR.string.agent_archived, agents.single().title)
+    } else {
+        pluralStringResource(ProjectsR.plurals.agents_archived, agents.size, agents.size)
     }
 }
 

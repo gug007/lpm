@@ -1,0 +1,56 @@
+# Seen agents stay listed, gray, under their project until archived. Archiving
+# takes the row off at once and offers Undo for a few seconds.
+appId: cx.lpm.mobile
+name: 151-archive-agent
+tags: [demo, projects]
+---
+- runFlow: subflows/enter-demo.yaml
+- extendedWaitUntil:
+    visible: "Remove unused deps.*"
+    timeout: 5000
+- assertVisible: "Dark mode for settings.*"
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 1-seen-agents
+# A full swipe archives at once; a shorter one leaves the Archive button to tap.
+# Android archives on the swipe itself, with no button left to tap, and looking for
+# one would outlast the undo bar.
+- swipe:
+    from: "Remove unused deps.*"
+    direction: LEFT
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          text: "Archive"
+          optional: true
+- extendedWaitUntil:
+    visible: "Archived “Remove unused deps”"
+    timeout: 3000
+- assertNotVisible: "Remove unused deps.*"
+- takeScreenshot: 2-undo-archive
+- tapOn: "Undo"
+- extendedWaitUntil:
+    visible: "Remove unused deps.*"
+    timeout: 5000
+- assertNotVisible: "Archived “Remove unused deps”"
+# Left alone, the archive goes through.
+- swipe:
+    from: "Remove unused deps.*"
+    direction: LEFT
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          text: "Archive"
+          optional: true
+- extendedWaitUntil:
+    visible: "Archived “Remove unused deps”"
+    timeout: 3000
+- extendedWaitUntil:
+    notVisible: "Archived “Remove unused deps”"
+    timeout: 10000
+- assertNotVisible: "Remove unused deps.*"
+- assertVisible: "Dark mode for settings.*"

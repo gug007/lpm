@@ -370,6 +370,9 @@ class LpmClient internal constructor(
         // `weeklyRecap`: the desktop's weekly recap card.
         const val WEEKLY_RECAP_FEATURE = "weeklyRecap"
 
+        // Seen agents, `archiveStatus`, `markStatusSeen` and `markStatusUnread`.
+        const val AGENT_ARCHIVE_FEATURE = "agentArchive"
+
         const val OFFLINE_HINT =
             "Can't reach your Mac. On cellular, make sure Tailscale is connected on both devices."
 

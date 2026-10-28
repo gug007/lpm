@@ -54,6 +54,22 @@ sealed interface WireProjects {
         put("value", value)
     }
 
+    /** Only for a Mac whose `features` has "agentArchive". */
+    fun archiveStatus(project: String, keys: List<String>): String = frame("archiveStatus") {
+        put("project", project)
+        putStrings("keys", keys)
+    }
+
+    fun markStatusSeen(project: String, keys: List<String>): String = frame("markStatusSeen") {
+        put("project", project)
+        putStrings("keys", keys)
+    }
+
+    fun markStatusUnread(project: String, keys: List<String>): String = frame("markStatusUnread") {
+        put("project", project)
+        putStrings("keys", keys)
+    }
+
     fun duplicate(name: String, options: DuplicateOptions): String = frame("duplicate") {
         put("name", name)
         put("count", options.count)

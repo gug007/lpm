@@ -14,16 +14,6 @@ internal fun DemoServer.registerProjectsHandlers() {
         val project = o.string("project") ?: return@register
         push(world.statusPayload(project))
     }
-    register("clearStatus") { o ->
-        val project = o.string("project") ?: return@register
-        val pane = o.string("paneId") ?: return@register
-        val value = o.string("value") ?: return@register
-        val p = world.projectIndex(project)?.let { world.projects[it] } ?: return@register
-        val before = p.status.size
-        p.status = p.status.filterNot { it.paneID == pane && it.value == value }
-        if (p.status.size == before) return@register
-        push(mapOf("t" to "status-changed", "project" to project))
-    }
     register("duplicateDefaults") {
         push(
             mapOf(
@@ -35,6 +25,7 @@ internal fun DemoServer.registerProjectsHandlers() {
         )
     }
 
+    registerAgentArchiveHandlers()
     registerLifecycleHandlers()
     registerServiceHandlers()
     registerServiceLogHandlers()

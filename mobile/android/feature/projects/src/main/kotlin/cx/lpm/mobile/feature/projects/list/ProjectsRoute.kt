@@ -8,6 +8,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation3.runtime.NavKey
@@ -40,6 +42,8 @@ fun ProjectsRoute(
     var dialog by remember { mutableStateOf<ProjectsDialog?>(null) }
     var refreshing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val haptics = LocalHapticFeedback.current
+    fun tap() = haptics.performHapticFeedback(HapticFeedbackType.ContextClick)
 
     // Whatever was opened on another machine is off screen once the list is back.
     LaunchedEffect(Unit) { viewModel.leaveVisit() }
@@ -102,6 +106,19 @@ fun ProjectsRoute(
                 dialog = ProjectsDialog.RemoveDuplicate(it)
             },
             openTerminal = { project, id -> onNavigate(TerminalKey(project.name, id)) },
+            toggleSeenAgents = viewModel::toggleSeenAgents,
+            archiveAgent = { project, row ->
+                tap()
+                viewModel.archiveAgent(project, row)
+            },
+            markAgentSeen = { project, row ->
+                tap()
+                viewModel.markAgentSeen(project, row)
+            },
+            markAgentUnread = { project, row ->
+                tap()
+                viewModel.markAgentUnread(project, row)
+            },
             cancelQueued = viewModel::cancelQueued,
             retryQueued = viewModel::retryQueued
         ),
@@ -120,6 +137,10 @@ fun ProjectsRoute(
                 viewModel.visit(slug, project, terminal)?.let { onNavigate(it.destination) }
             }
         ),
+        onUndoArchive = {
+            tap()
+            viewModel.undoArchive()
+        },
         slots = slots
     )
 

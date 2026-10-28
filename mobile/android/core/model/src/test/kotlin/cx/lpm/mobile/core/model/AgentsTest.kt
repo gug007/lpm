@@ -18,6 +18,9 @@ class AgentsTest {
         endedAt: Long = 0
     ) = StatusEntry(key, value, 0, timestamp, pane, turnStart, endedAt)
 
+    private fun seen(key: String, value: String, pane: String, seenAt: Long) =
+        StatusEntry(key, value, 0, seenAt - 10_000, pane, seenAt - 70_000, seenAt - 10_000, seenAt)
+
     private fun project(vararg entries: StatusEntry) = Project(
         name = "storefront", label = "storefront", running = true, isRemote = false,
         parentName = "", worktree = false, workStatus = null, autoPull = null,
@@ -96,6 +99,96 @@ class AgentsTest {
         ).single()
         assertEquals(now, row.since)
         assertEquals("Agent", row.provider)
+    }
+
+    @Test
+    fun `seen agents follow the others, most recently seen first`() {
+        val p = project(entry("claude_code_a", "Running", 900_000, pane = "t1")).copy(
+            seenEntries = listOf(
+                seen("codex_b", "Done", pane = "t2", seenAt = 900_000),
+                seen("cursor_c", "Error", pane = "t3", seenAt = 950_000),
+                seen("gemini_d", "Done", pane = "t1", seenAt = 990_000)
+            )
+        )
+        val rows = projectAgentList(p, now, mapOf("t2" to "Fix tests"))
+        assertEquals(listOf("claude_code_a", "cursor_c", "codex_b"), rows.map { it.id })
+        assertEquals(listOf(false, true, true), rows.map { it.seen })
+        assertEquals(listOf("claude_code_a", "gemini_d"), rows.first().keys)
+        assertEquals(0, rows.first().shared)
+        val done = rows.last()
+        assertEquals("Fix tests", done.title)
+        assertEquals(listOf("codex_b"), done.keys)
+        assertEquals(900_000L, done.seenAt)
+        assertEquals(830_000L to 890_000L, done.since to done.until)
+        assertEquals(listOf("claude_code_a"), projectAgentRows(p, now, emptyMap()).map { it.id })
+    }
+
+    @Test
+    fun `seen agents on one tab are one row holding every key`() {
+        val p = project().copy(
+            seenEntries = listOf(
+                seen("codex_b", "Done", pane = "t2", seenAt = 900_000),
+                seen("claude_code_c", "Done", pane = "t2", seenAt = 950_000),
+                seen("omp_d", "Done", pane = "", seenAt = 920_000)
+            )
+        )
+        val rows = projectAgentList(p, now, emptyMap())
+        assertEquals(listOf("claude_code_c", "omp_d"), rows.map { it.id })
+        val tab = rows.first()
+        assertEquals(1, tab.shared)
+        assertEquals(setOf("claude_code_c", "codex_b"), tab.keys.toSet())
+        assertEquals(950_000L, tab.seenAt)
+        assertNull(rows.last().terminalId)
+    }
+
+    @Test
+    fun `an archive waiting on its undo hides finished agents, not a new turn`() {
+        val p = project(
+            entry("claude_code_a", "Running", 900_000, pane = "t1"),
+            entry("codex_b", "Done", 900_000, pane = "t2")
+        ).copy(seenEntries = listOf(seen("cursor_c", "Error", pane = "t3", seenAt = 950_000)))
+        val hiding = setOf("claude_code_a", "codex_b", "cursor_c")
+        assertEquals(
+            listOf("claude_code_a"),
+            projectAgentList(p, now, emptyMap(), hiding).map {
+                it.id
+            }
+        )
+    }
+
+    @Test
+    fun `seen rows past the limit fold into one line`() {
+        val p = project(entry("claude_code_a", "Waiting", 900_000, pane = "t1")).copy(
+            seenEntries = (1..4).map {
+                seen(
+                    "codex_$it",
+                    "Done",
+                    pane = "s$it",
+                    seenAt =
+                        900_000L + it
+                )
+            }
+        )
+        val rows = projectAgentList(p, now, emptyMap())
+        val folded = foldSeenAgents(rows, shown = 3, expanded = false)
+        assertEquals(
+            listOf("claude_code_a", "codex_4", "codex_3", "codex_2"),
+            folded.rows.map {
+                it.id
+            }
+        )
+        assertEquals(1, folded.folded)
+        assertEquals(FoldedAgents(rows, 1), foldSeenAgents(rows, shown = 3, expanded = true))
+        assertEquals(FoldedAgents(rows, 0), foldSeenAgents(rows, shown = 4, expanded = false))
+        assertEquals(4, foldSeenAgents(rows, shown = 0, expanded = false).folded)
+    }
+
+    @Test
+    fun `only a finished turn can be seen and archived`() {
+        assertEquals(
+            listOf(AgentState.Error, AgentState.Done),
+            AgentState.entries.filter { it.isFinished }
+        )
     }
 
     @Test

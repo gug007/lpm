@@ -29,6 +29,23 @@ export interface SidebarAgentRow {
    *  question outranks a problem, so `state` alone would lose an error sitting
    *  behind a wait — and the project row above speaks only for problems. */
   holdsError: boolean;
+  /** Every status the row stands for, its own and the ones folded into it —
+   *  what archiving the row takes away. */
+  keys: string[];
+  /** Millis: when the user last opened this finished agent, for a row kept
+   *  after that as seen (sidebarSeenAgents.ts). Absent on every other row. */
+  seenAt?: number;
+}
+
+/** Where a tab sits in its project's strip, for ordering rows the way it reads.
+ *  A tab this window can't name trails behind the rest. */
+export function tabRankIn(tabTitles: Record<string, string>): (paneID: string | null | undefined) => number {
+  // Keyed in tab order by whoever publishes them (see store/terminalTitles).
+  const tabOrder = Object.keys(tabTitles);
+  return (paneID) => {
+    const idx = tabOrder.indexOf(paneID ?? "");
+    return idx < 0 ? tabOrder.length : idx;
+  };
 }
 
 /** Every agent a project has going, in the order the sidebar lists them: the
@@ -48,12 +65,8 @@ export function projectAgentRows(
   now: number,
   tabTitles: Record<string, string> = {},
 ): SidebarAgentRow[] {
-  // Keyed in tab order by whoever publishes them (see store/terminalTitles).
-  const tabOrder = Object.keys(tabTitles);
-  const tabRank = (entry: StatusEntry) => {
-    const idx = tabOrder.indexOf(entry.paneID ?? "");
-    return idx < 0 ? tabOrder.length : idx;
-  };
+  const rank = tabRankIn(tabTitles);
+  const tabRank = (entry: StatusEntry) => rank(entry.paneID);
   // Sorted this way, one tab's agents are adjacent and its most urgent comes
   // first, which is what `foldByPane` folds the rest into.
   const sorted = [...(project.statusEntries ?? [])].sort(
@@ -74,6 +87,7 @@ export function projectAgentRows(
       until: turn?.until,
       shared: folded.length,
       holdsError: paneHoldsError(held),
+      keys: [entry.key, ...folded.map((e) => e.key)],
     };
   });
 }

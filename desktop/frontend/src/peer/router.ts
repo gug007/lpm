@@ -1,4 +1,4 @@
-import type { ProjectInfo } from "../types";
+import type { ProjectInfo, StatusEntry } from "../types";
 import { parsePeerMarker, prefixName, prefixRoot, stripMarker } from "./markers";
 
 // Commands that must always run against the LOCAL lpm even when an argument
@@ -183,10 +183,13 @@ function translateProject(slug: string, p: ProjectInfo): ProjectInfo {
     // every terminal here is peer-marked — so an untranslated paneID matches no
     // tab and the badge never appears. The sidebar lights anyway (it reads only
     // the value), which is exactly why this looked like a tab-only bug.
-    statusEntries: (p.statusEntries ?? []).map((e) =>
-      e.paneID ? { ...e, paneID: prefixName(slug, e.paneID) } : e,
-    ),
+    statusEntries: prefixPanes(slug, p.statusEntries),
+    seenEntries: prefixPanes(slug, p.seenEntries),
   };
+}
+
+function prefixPanes(slug: string, entries: StatusEntry[] | undefined): StatusEntry[] {
+  return (entries ?? []).map((e) => (e.paneID ? { ...e, paneID: prefixName(slug, e.paneID) } : e));
 }
 
 // A host's job row: stamped with the machine it lives on, its projects marked.

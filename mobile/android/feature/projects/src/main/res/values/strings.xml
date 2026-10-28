@@ -60,6 +60,23 @@
     <string name="queued_dismiss">Dismiss</string>
     <string name="dot_separator">·</string>
 
+    <!-- Agent rows (seen and archived agents) -->
+    <string name="agent_seen">Seen</string>
+    <string name="agent_open">Open</string>
+    <string name="agent_mark_seen">Mark as Seen</string>
+    <string name="agent_mark_unread">Mark as Unread</string>
+    <string name="agent_archive">Archive</string>
+    <plurals name="agents_more_seen">
+        <item quantity="one">%1$d more seen</item>
+        <item quantity="other">%1$d more seen</item>
+    </plurals>
+    <string name="agents_show_fewer">Show fewer</string>
+    <string name="agent_archived">Archived “%1$s”</string>
+    <plurals name="agents_archived">
+        <item quantity="one">Archived %1$d agent</item>
+        <item quantity="other">Archived %1$d agents</item>
+    </plurals>
+
     <!-- Row actions -->
     <string name="row_start_with_profile">Start with profile</string>
     <string name="row_move_to_folder">Move to folder</string>

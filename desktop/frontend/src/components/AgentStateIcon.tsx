@@ -9,8 +9,9 @@ export const MARK_SLOT = "h-3.5 w-3.5 shrink-0";
 /** The mark an agent row ends with, beside its clock: a pulsing amber bell
  *  while the agent waits on the user, a red mark for a problem, a blue check
  *  once the turn lands. Work in progress and idle say so through the name
- *  alone. */
-export function AgentStateIcon({ state }: { state: AgentState }) {
+ *  alone. A `muted` mark keeps its shape and drops the color, for a finish the
+ *  user has already seen. */
+export function AgentStateIcon({ state, muted = false }: { state: AgentState; muted?: boolean }) {
   const mark =
     state === "needs-you" ? (
       <BellIcon />
@@ -20,5 +21,6 @@ export function AgentStateIcon({ state }: { state: AgentState }) {
       <CheckIcon />
     ) : null;
   if (!mark) return <span className={MARK_SLOT} />;
-  return <span className={`${MARK_SLOT} ${AGENT_STATE_TONE[state]}`}>{mark}</span>;
+  const tone = muted ? "text-[var(--text-muted)] opacity-70" : AGENT_STATE_TONE[state];
+  return <span className={`${MARK_SLOT} ${tone}`}>{mark}</span>;
 }

@@ -90,7 +90,11 @@ sealed interface Inbound {
         val projects: List<Project>,
         val workStatuses: List<CustomWorkStatus>,
         val workStatusOrder: List<String>,
-        val autoPullMode: AutoPullMode
+        val autoPullMode: AutoPullMode,
+        /** How many seen agents a project lists before folding the rest, 1–10. */
+        val seenAgentsShown: Int = 3,
+        /** The Mac keeps finished agents as seen once opened, until they're archived. */
+        val keepFinishedAgents: Boolean = false
     ) : Inbound
 
     data class Sidebar(val order: List<String>, val groups: List<ProjectFolder>) : Inbound
@@ -107,7 +111,11 @@ sealed interface Inbound {
     data class History(val project: String, val rows: List<HistoryRow>) : Inbound
     data class Upload(val id: String, val reqId: String, val path: String) : Inbound
     data class UploadStep(val step: UploadReply) : Inbound
-    data class Status(val project: String, val entries: List<StatusEntry>) : Inbound
+    data class Status(
+        val project: String,
+        val entries: List<StatusEntry>,
+        val seen: List<StatusEntry> = emptyList()
+    ) : Inbound
     data class Jobs(
         val jobs: List<AutomationJob>,
         val error: String?,
