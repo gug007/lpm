@@ -1,10 +1,13 @@
+import Link from "next/link";
+import { MousePointerClick } from "lucide-react";
 import { HeroDownload } from "@/components/home/hero-download";
+import { DEMO_PATH } from "@/lib/links";
 import { AREAS } from "./areas";
 import { FEATURE_COUNT } from "./feature-areas";
 
 export default function Hero() {
   return (
-    <section className="relative pt-[clamp(4.5rem,9.5vh,6.5rem)] pb-[clamp(1.25rem,3vh,2rem)] text-center">
+    <section className="relative pt-[clamp(4.5rem,9.5vh,6.5rem)] pb-[clamp(2rem,5vh,3.5rem)] text-center">
       <div aria-hidden className="pointer-events-none absolute inset-0 bg-grid" />
       <div className="relative mx-auto max-w-4xl px-6">
         <p className="mb-5 text-xs font-medium uppercase tracking-[0.25em] text-gray-500 dark:text-gray-400">
@@ -15,12 +18,19 @@ export default function Hero() {
         </h1>
         <p className="mx-auto mt-5 max-w-2xl text-pretty text-base leading-relaxed text-gray-600 sm:text-[17px] dark:text-gray-400">
           lpm is a free, open-source desktop app for your local projects and the
-          AI agents working in them. This guide walks through {FEATURE_COUNT}{" "}
-          features in {AREAS.length} areas, with the fine print where it matters.
+          AI agents working in them. Here are all {FEATURE_COUNT} features in{" "}
+          {AREAS.length} areas, with the fine print where it matters.
         </p>
         <div className="mt-[clamp(1.25rem,3vh,1.75rem)] flex justify-center">
           <HeroDownload source="features-hero" />
         </div>
+        <Link
+          href={DEMO_PATH}
+          className="mt-1 hidden min-h-11 items-center gap-1.5 px-3 text-[13px] font-medium text-gray-700 underline decoration-gray-300 underline-offset-4 transition-colors duration-200 hover:text-gray-900 hover:decoration-gray-900 sm:inline-flex dark:text-gray-300 dark:decoration-gray-700 dark:hover:text-white dark:hover:decoration-gray-100"
+        >
+          <MousePointerClick className="h-3.5 w-3.5" aria-hidden />
+          Or try it in your browser first
+        </Link>
       </div>
     </section>
   );

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AREAS, REQUIREMENTS_AREA } from "./areas";
+import SearchTrigger from "./search-trigger";
 
 const ITEMS = [...AREAS, REQUIREMENTS_AREA];
 
@@ -48,32 +49,35 @@ export default function JumpNav() {
       aria-label="Feature areas"
       className="sticky top-14 z-40 border-y border-gray-200/70 bg-white/85 backdrop-blur-lg dark:border-gray-800/70 dark:bg-[#111]/85"
     >
-      <div
-        ref={scrollerRef}
-        className="relative overflow-x-auto scrollbar-none [mask-image:linear-gradient(to_right,transparent,#000_20px,#000_calc(100%_-_28px),transparent)]"
-      >
-        <ul className="mx-auto flex w-max gap-1 px-4 py-1.5 sm:px-6">
-          {ITEMS.map(({ id, label, icon: Icon }) => {
-            const current = id === active;
-            return (
-              <li key={id}>
-                <a
-                  href={`#${id}`}
-                  data-area={id}
-                  aria-current={current ? "location" : undefined}
-                  className={`inline-flex min-h-11 items-center gap-1.5 whitespace-nowrap rounded-full px-3 text-[13px] font-medium transition-colors duration-200 ${
-                    current
-                      ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
-                      : "text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/[0.06] dark:hover:text-white"
-                  }`}
-                >
-                  <Icon className="h-3.5 w-3.5" aria-hidden />
-                  {label}
-                </a>
-              </li>
-            );
-          })}
-        </ul>
+      <div className="mx-auto flex max-w-[90rem] items-center gap-1 pl-4 sm:pl-6">
+        <SearchTrigger />
+        <div
+          ref={scrollerRef}
+          className="relative min-w-0 flex-1 overflow-x-auto scrollbar-none [mask-image:linear-gradient(to_right,transparent,#000_20px,#000_calc(100%_-_28px),transparent)]"
+        >
+          <ul className="mx-auto flex w-max gap-1 px-4 py-1.5 sm:px-5">
+            {ITEMS.map(({ id, label, icon: Icon }) => {
+              const current = id === active;
+              return (
+                <li key={id}>
+                  <a
+                    href={`#${id}`}
+                    data-area={id}
+                    aria-current={current ? "location" : undefined}
+                    className={`inline-flex min-h-11 items-center gap-1.5 whitespace-nowrap rounded-full px-3 text-[13px] font-medium transition-colors duration-200 ${
+                      current
+                        ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
+                        : "text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/[0.06] dark:hover:text-white"
+                    }`}
+                  >
+                    <Icon className="h-3.5 w-3.5" aria-hidden />
+                    {label}
+                  </a>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       </div>
     </nav>
   );

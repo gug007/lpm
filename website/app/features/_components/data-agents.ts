@@ -44,12 +44,6 @@ export const AGENTS_AREA: FeatureArea = {
       keys: ["⌘D", "⌘⇧D"],
     },
     {
-      title: "Activity view",
-      body: "Agents, services, and automations across your projects on one screen, with whatever needs you on top. Filter, search, and move with j and k.",
-      keys: ["⌘⇧A"],
-      note: "Agent rows cover Claude Code and Codex in projects opened this session.",
-    },
-    {
       title: "Resume past sessions",
       body: "Browse every Claude Code and Codex conversation for a project, including ones started outside lpm, search them, and reopen one in a new tab.",
       scope: "claude-codex",

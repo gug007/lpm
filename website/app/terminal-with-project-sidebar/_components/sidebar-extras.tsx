@@ -1,7 +1,7 @@
 import Link from "next/link";
 import {
-  Activity,
   CalendarClock,
+  Flag,
   Gauge,
   Keyboard,
   MousePointerClick,
@@ -27,9 +27,9 @@ const EXTRAS: { icon: LucideIcon; title: string; body: React.ReactNode }[] = [
     body: "Right-click for git (pull, push, commit, create a PR), Duplicate, New worktree, Open with your editor, or Detach to new window.",
   },
   {
-    icon: Activity,
-    title: "Activity across projects",
-    body: "⌘⇧A lists your Claude Code, Codex, Gemini CLI and Cursor CLI agents, running services, and this Mac's automations, with whatever needs you at the top.",
+    icon: Flag,
+    title: "A work status on any row",
+    body: "Mark a project or copy In progress, Review, Blocked, or a status of your own, with an optional note under the name.",
   },
   {
     icon: Gauge,

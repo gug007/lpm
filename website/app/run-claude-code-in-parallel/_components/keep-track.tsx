@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { BellRing, Gauge, LayoutList, PanelTop } from "lucide-react";
+import { BellRing, Gauge, ListTree, PanelTop } from "lucide-react";
 import type { ReactNode } from "react";
 import { SectionHeader } from "@/components/section-header";
 import { MOBILE_PATH, TOKEN_USAGE_PATH } from "@/lib/links";
-import ActivityReplica from "./activity-replica";
+import AgentSidebarReplica from "./agent-sidebar-replica";
 
 const LINK =
   "font-medium text-gray-900 underline decoration-gray-300 underline-offset-4 hover:decoration-gray-900 dark:text-gray-100 dark:decoration-gray-700 dark:hover:decoration-gray-100";
@@ -22,17 +22,13 @@ const ITEMS: { icon: typeof BellRing; title: string; body: ReactNode }[] = [
     ),
   },
   {
-    icon: LayoutList,
-    title: "Activity: every agent session on one screen",
+    icon: ListTree,
+    title: "Every session under its project",
     body: (
       <>
-        Press{" "}
-        <kbd className="rounded border border-gray-200 px-1 font-sans text-[12px] dark:border-gray-700">
-          ⌘⇧A
-        </kbd>{" "}
-        (Ctrl+Alt+Shift+A on Windows and Linux) to list them all across your projects and copies, waiting ones first.
-        Filter to needs you, problems, working or done, move with j and k, and
-        press Enter to jump to the tab.
+        Each project lists its agents beneath it in the sidebar, one line per
+        tab, and every copy and worktree has its own row. Click a line to open
+        that tab.
       </>
     ),
   },
@@ -75,17 +71,17 @@ export default function KeepTrack() {
         <SectionHeader
           eyebrow="Keep track"
           title="Know which agent needs you without opening every tab"
-          description="Every Claude Code, Codex, Gemini CLI and Cursor CLI session reports its own state, so you see it in the tab, the sidebar and Activity."
+          description="Every Claude Code, Codex, Gemini CLI and Cursor CLI session reports its own state, so you see it on the tab and under its project in the sidebar."
         />
         <div className="grid items-center gap-12 lg:grid-cols-2">
           <figure className="min-w-0">
             <figcaption className="sr-only">
-              An illustration of the Activity view: five agents across a
-              project, its two copies and a worktree, sorted with the one that
-              needs you first, then a problem, two working and one done, each
-              with how long it has been in that state.
+              An illustration of the sidebar: agents listed under their
+              projects, one working, one waiting for approval with a
+              notification, one done and one with a problem, each with how
+              long it has been in that state.
             </figcaption>
-            <ActivityReplica />
+            <AgentSidebarReplica />
           </figure>
           <ul className="space-y-7">
             {ITEMS.map(({ icon: Icon, title, body }) => (

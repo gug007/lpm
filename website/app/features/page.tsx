@@ -20,6 +20,8 @@ import { AREAS } from "./_components/areas";
 import Cta from "./_components/cta";
 import Faq from "./_components/faq";
 import { FEATURE_AREAS } from "./_components/feature-areas";
+import FeatureMap from "./_components/feature-map";
+import FeatureSearch from "./_components/feature-search";
 import Hero from "./_components/hero";
 import IphoneCallout from "./_components/iphone-callout";
 import JumpNav from "./_components/jump-nav";
@@ -90,6 +92,8 @@ export default function FeaturesPage() {
         dangerouslySetInnerHTML={{ __html: jsonLdString(structuredData) }}
       />
       <Hero />
+      <FeatureMap />
+      <FeatureSearch />
       <div>
         <JumpNav />
         {FEATURE_AREAS.map((area, index) => {

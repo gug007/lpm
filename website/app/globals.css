@@ -447,3 +447,30 @@ html {
     transition: none;
   }
 }
+
+/* Features page: the feature a search jumps to rings briefly. */
+.feature-target {
+  position: relative;
+}
+.feature-target:focus {
+  outline: none;
+}
+.feature-target[data-flash]::after {
+  content: "";
+  position: absolute;
+  inset: -0.625rem;
+  border: 2px solid currentColor;
+  border-radius: 1.25rem;
+  background: color-mix(in srgb, currentColor 5%, transparent);
+  pointer-events: none;
+  animation: feature-flash 2.2s ease-out forwards;
+}
+@keyframes feature-flash {
+  0%,
+  45% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}

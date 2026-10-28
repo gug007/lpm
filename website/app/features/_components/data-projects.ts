@@ -62,7 +62,7 @@ export const PROJECTS_AREA: FeatureArea = {
     },
     {
       title: "Open in the browser",
-      body: "Open localhost on the port a running service is really listening on, from the sidebar, the service tab, or Activity.",
+      body: "Open localhost on the port a running service is really listening on, from the project's right-click menu or the service tab.",
     },
     {
       title: "Four ways to run an action",

@@ -129,8 +129,8 @@ export const PLATFORM_AREA: FeatureArea = {
     },
     {
       title: "Rebindable shortcuts",
-      body: "Rebind the Activity and tab-switching shortcuts. lpm refuses combinations that are already taken.",
-      keys: ["⌘⇧A", "⌘⌥←", "⌘⌥→"],
+      body: "Rebind the shortcuts for switching tabs, renaming a project, and removing one. lpm refuses combinations that are already taken.",
+      keys: ["⌘⌥←", "⌘⌥→"],
     },
     {
       title: "Zoom any viewer",

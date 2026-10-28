@@ -1,5 +1,4 @@
 import {
-  Activity,
   BellRing,
   Bot,
   Brain,
@@ -201,13 +200,6 @@ export const FEATURE_INDEX: IndexGroup[] = [
     title: "Automate and monitor",
     blurb: "See what your agents are doing and using.",
     items: [
-      {
-        icon: Activity,
-        title: "Activity view",
-        body: "Claude Code, Codex, Gemini CLI and Cursor CLI agents, services and automations, with what needs you on top.",
-        href: `${FEATURES_PATH}#agents`,
-        keys: "⌘⇧A",
-      },
       {
         icon: CalendarClock,
         title: "Automations",

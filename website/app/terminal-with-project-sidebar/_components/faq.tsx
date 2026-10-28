@@ -40,7 +40,7 @@ export const FAQ_ITEMS: { question: string; answer: string }[] = [
   {
     question: "Is there a search box or a command palette for the sidebar?",
     answer:
-      "There is no search box in the sidebar. Use ⌘1–⌘9 to jump to one of the first nine projects, hold Ctrl and tap Tab to flip between the ones you used last, or press ⌘⇧A for Activity, a searchable list of the Claude Code and Codex sessions, running services, and automations across your projects. Folders and the order you drag rows into keep the list itself scannable.",
+      "There is no search box in the sidebar. Use ⌘1–⌘9 to jump to one of the first nine projects, or hold Ctrl and tap Tab to flip between the ones you used last. Folders and the order you drag rows into keep the list itself scannable.",
   },
   {
     question: "Can I mark a project as blocked or done?",

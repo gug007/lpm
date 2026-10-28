@@ -1,9 +1,9 @@
 import Link from "next/link";
 import {
-  Activity,
   Bot,
   FolderKanban,
   GitCompare,
+  GitFork,
   LayoutGrid,
   MessageSquareText,
   MousePointerClick,
@@ -74,14 +74,12 @@ const FEATURES: Feature[] = [
     ),
   },
   {
-    icon: Activity,
-    title: "Everything running, on one screen",
+    icon: GitFork,
+    title: "Fork a conversation",
     body: (
       <>
-        ⌘⇧A (Ctrl+Alt+Shift+A on Windows and Linux) opens Activity: every
-        Claude Code and Codex session, running
-        service, and automation across your projects, with whatever needs you
-        at the top. Move through it with j and k.
+        Branch a Claude Code or Codex conversation into a new tab, or into a
+        fresh copy of the whole project, and keep the original as it was.
       </>
     ),
   },

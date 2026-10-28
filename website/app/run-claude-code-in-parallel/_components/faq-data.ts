@@ -22,7 +22,7 @@ export const FAQ_ITEMS: { question: string; answer: string }[] = [
   {
     question: "How do I know which agent needs me?",
     answer:
-      "Claude Code, Codex, Gemini CLI and Cursor CLI tabs show Working, Needs you, Done or Problem, and so do the rows under each project in the sidebar, with how long each state has lasted. Press ⌘⇧A (Ctrl+Alt+Shift+A on Windows and Linux) for Activity, every one of those sessions across your projects, waiting ones first. lpm also plays a sound, shows a system notification when it isn't in front, and can push to your iPhone through the lpm link app.",
+      "Claude Code, Codex, Gemini CLI and Cursor CLI tabs show Working, Needs you, Done or Problem, and so do the rows under each project in the sidebar, with how long each state has lasted. Click a row to open that tab. lpm also plays a sound, shows a system notification when it isn't in front, and can push to your iPhone through the lpm link app.",
   },
   {
     question: "Does running agents in parallel use more of my plan?",
