@@ -29,55 +29,58 @@ impl Invalid {
     }
 }
 
-impl SearchFilters {
-    fn is_empty(&self) -> bool {
-        self.include
-            .iter()
-            .chain(&self.exclude)
-            .all(|p| p.trim().is_empty())
-    }
+/// The filters made ready for one root: ripgrep's `--glob` list, excludes
+/// behind a `!`, and the matcher for paths under the root.
+pub struct PathFilter {
+    pub globs: Vec<String>,
+    pub matcher: Option<Override>,
+}
 
-    /// Every glob as ripgrep's `--glob` takes it, excludes behind a `!`.
-    pub fn globs(&self) -> Vec<String> {
-        let include = self.include.iter().flat_map(|p| expand(p));
-        let exclude = self
-            .exclude
-            .iter()
-            .flat_map(|p| expand(p))
-            .map(|g| format!("!{g}"));
-        include.chain(exclude).collect()
-    }
-
-    /// The matcher for paths under `root`, or None when nothing narrows the
-    /// search.
-    pub fn matcher(&self, root: &Path) -> Result<Option<Override>, Invalid> {
-        if self.is_empty() {
-            return Ok(None);
-        }
-        let mut builder = OverrideBuilder::new(root);
-        for (field, patterns, negate) in [
-            ("include", &self.include, ""),
-            ("exclude", &self.exclude, "!"),
-        ] {
-            for glob in patterns.iter().flat_map(|p| expand(p)) {
-                builder
-                    .add(&format!("{negate}{glob}"))
-                    .map_err(|e| Invalid {
-                        field,
-                        message: e.to_string(),
-                    })?;
-            }
-        }
-        builder.build().map(Some).map_err(|e| Invalid {
-            field: "include",
-            message: e.to_string(),
-        })
+impl PathFilter {
+    /// Whether `path` (relative to the root, or under it) passes the filters.
+    pub fn keeps(&self, path: impl AsRef<Path>) -> bool {
+        self.matcher
+            .as_ref()
+            .is_none_or(|m| !m.matched(path, false).is_ignore())
     }
 }
 
-/// Whether `path` (relative to the matcher's root) passes the filters.
-pub fn keeps(filter: Option<&Override>, path: &str) -> bool {
-    filter.is_none_or(|f| !f.matched(path, false).is_ignore())
+impl SearchFilters {
+    pub fn compile(&self, root: &Path) -> Result<PathFilter, Invalid> {
+        let globs: Vec<(&'static str, String)> = [
+            ("include", &self.include, ""),
+            ("exclude", &self.exclude, "!"),
+        ]
+        .into_iter()
+        .flat_map(|(field, patterns, negate)| {
+            patterns
+                .iter()
+                .flat_map(|p| expand(p))
+                .map(move |glob| (field, format!("{negate}{glob}")))
+        })
+        .collect();
+        if globs.is_empty() {
+            return Ok(PathFilter {
+                globs: Vec::new(),
+                matcher: None,
+            });
+        }
+        let mut builder = OverrideBuilder::new(root);
+        for (field, glob) in &globs {
+            builder.add(glob).map_err(|e| Invalid {
+                field,
+                message: e.to_string(),
+            })?;
+        }
+        let matcher = builder.build().map_err(|e| Invalid {
+            field: "include",
+            message: e.to_string(),
+        })?;
+        Ok(PathFilter {
+            globs: globs.into_iter().map(|(_, glob)| glob).collect(),
+            matcher: Some(matcher),
+        })
+    }
 }
 
 fn expand(pattern: &str) -> Vec<String> {
@@ -118,13 +121,13 @@ mod tests {
         }
     }
 
+    fn compiled(f: &SearchFilters) -> PathFilter {
+        f.compile(Path::new("")).ok().unwrap()
+    }
+
     fn kept(f: &SearchFilters, paths: &[&'static str]) -> Vec<&'static str> {
-        let matcher = f.matcher(Path::new("")).unwrap();
-        paths
-            .iter()
-            .copied()
-            .filter(|p| keeps(matcher.as_ref(), p))
-            .collect()
+        let filter = compiled(f);
+        paths.iter().copied().filter(|p| filter.keeps(p)).collect()
     }
 
     const PATHS: &[&str] = &[
@@ -177,18 +180,17 @@ mod tests {
 
     #[test]
     fn nothing_typed_filters_nothing() {
-        assert!(filters(&[" "], &[""])
-            .matcher(Path::new(""))
-            .unwrap()
-            .is_none());
+        let none = compiled(&filters(&[" "], &[""]));
+        assert!(none.matcher.is_none() && none.globs.is_empty());
         assert_eq!(kept(&filters(&[], &[]), PATHS).len(), PATHS.len());
     }
 
     #[test]
     fn names_the_field_of_a_bad_glob() {
         let err = filters(&["*.ts"], &["src/[a"])
-            .matcher(Path::new(""))
-            .unwrap_err();
+            .compile(Path::new(""))
+            .err()
+            .unwrap();
         assert_eq!(err.field, "exclude");
         assert!(err.message.contains("[a"), "{}", err.message);
     }
@@ -196,7 +198,7 @@ mod tests {
     #[test]
     fn hands_ripgrep_the_same_globs() {
         assert_eq!(
-            filters(&["src", "*.ts"], &["*.test.ts"]).globs(),
+            compiled(&filters(&["src", "*.ts"], &["*.test.ts"])).globs,
             ["src", "**/src/**", "*.ts", "!*.test.ts"]
         );
     }

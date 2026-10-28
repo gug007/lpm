@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { useFilesFocus, type FilesView } from "../../store/filesFocus";
-import { useFilesView } from "../../store/filesView";
+import { useFilesView, type RailView } from "../../store/filesView";
 import type { useChangesView } from "./useChangesView";
 
 const TREE_OPEN_KEY = "lpm:filesTreeOpen";
 
 type ChangesView = ReturnType<typeof useChangesView>;
 
-interface SearchView {
-  open: boolean;
+interface Rail {
+  view: RailView;
   // Opens the Search view with the field focused.
   onSearch: () => void;
   onLeaveSearch: () => void;
@@ -18,19 +18,15 @@ interface SearchView {
 // the Search view, ⌘⇧E and ⌘⇧R for a view — and what it tells back: which
 // view its tab strip should name. Every request opens the rail, since that is
 // where it lands.
-export function useFilesPaneRequests(tabId: string, paneId: string, git: ChangesView, search: SearchView) {
-  const { changesOnly, showChangesOnly, showAllChanges } = git;
-  const { open: searching, onSearch, onLeaveSearch } = search;
+export function useFilesPaneRequests(tabId: string, paneId: string, git: ChangesView, rail: Rail) {
+  const { showChangesOnly, showAllChanges } = git;
+  const { view, onSearch, onLeaveSearch } = rail;
   const [treeOpen, setTreeOpen] = useState(() => localStorage.getItem(TREE_OPEN_KEY) !== "0");
   const [filterFocusRequest, setFilterFocusRequest] = useState(0);
 
-  // The Search view is neither: the tab goes back to reading "Files".
   useEffect(() => {
-    useFilesView.getState().setChangesOnly(tabId, changesOnly && !searching);
-  }, [tabId, changesOnly, searching]);
-  useEffect(() => {
-    useFilesView.getState().setSearching(tabId, searching);
-  }, [tabId, searching]);
+    useFilesView.getState().setView(tabId, view);
+  }, [tabId, view]);
   useEffect(() => () => useFilesView.getState().clear(tabId), [tabId]);
 
   const showTree = useCallback((open: boolean) => {

@@ -1,3 +1,4 @@
+import { count } from "../../count";
 import { basename } from "../../path";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 
@@ -13,8 +14,6 @@ interface FilesReplaceDialogProps {
   onCancel: () => void;
   onConfirm: () => void;
 }
-
-const count = (n: number, one: string, many: string) => `${n.toLocaleString()} ${n === 1 ? one : many}`;
 
 export function FilesReplaceDialog({
   open,
@@ -46,17 +45,13 @@ export function FilesReplaceDialog({
               <>Delete {what}? The replacement is empty.</>
             )}
           </span>
-          {unsaved.length > 0 && (
+          {unsaved.length === 1 && (
             <span>
-              {unsaved.length === 1 ? (
-                <span className="font-mono text-[var(--text-primary)]">{basename(unsaved[0])}</span>
-              ) : (
-                `${unsaved.length} files`
-              )}{" "}
-              {unsaved.length === 1 ? "has" : "have"} unsaved edits and {unsaved.length === 1 ? "stays" : "stay"} as{" "}
-              {unsaved.length === 1 ? "it is" : "they are"}.
+              <span className="font-mono text-[var(--text-primary)]">{basename(unsaved[0])}</span> has unsaved edits
+              and stays as it is.
             </span>
           )}
+          {unsaved.length > 1 && <span>{unsaved.length} files have unsaved edits and stay as they are.</span>}
           {truncated && <span>The search stopped early, so only the files listed change.</span>}
           <span>You can undo it right after.</span>
         </span>

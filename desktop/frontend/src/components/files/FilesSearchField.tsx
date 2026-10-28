@@ -3,7 +3,7 @@ import { CaseSensitive, ChevronRight, ListFilter, Regex, WholeWord } from "lucid
 import { SearchIcon } from "../icons";
 import { Tooltip } from "../ui/Tooltip";
 import type { SearchOptions } from "./fileSearch";
-import { FIELD_ERROR, TEXT_INPUT, UNDER_QUERY, fieldInputClass, sideButtonClass } from "./searchFieldStyles";
+import { FIELD_ERROR, TEXT_INPUT, fieldInputClass, sideButtonClass } from "./searchFieldStyles";
 
 const TOGGLES: Array<{ key: keyof SearchOptions; label: string; icon: ReactNode }> = [
   { key: "matchCase", label: "Match case", icon: <CaseSensitive size={14} strokeWidth={1.8} /> },
@@ -113,7 +113,7 @@ export function FilesSearchField({
         </Tooltip>
       </div>
       {invalid !== null && (
-        <p role="alert" className={`${FIELD_ERROR} ${UNDER_QUERY}`}>
+        <p role="alert" className={`${FIELD_ERROR} pl-6 pr-6`}>
           Not a valid regular expression: {invalid}
         </p>
       )}

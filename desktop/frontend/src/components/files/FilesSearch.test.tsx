@@ -55,8 +55,6 @@ function Harness() {
   return (
     <FilesSearch
       search={search}
-      changesCount={null}
-      onLeave={() => {}}
       openedKey={null}
       onOpen={onOpen}
       unsaved={unsaved}
@@ -293,10 +291,22 @@ describe("FilesSearch replace", () => {
     await settle();
   }
 
-  it("previews each replacement beside the match it replaces", async () => {
+  it("previews a plain replacement on every match without searching again", async () => {
+    mocks.search.mockResolvedValue(REPLY);
+    type(input(), "foo");
+    await settle();
+    act(() => button("Replace").click());
+    type(field("Replace with"), "bar");
+    await settle();
+    expect(mocks.search).toHaveBeenCalledTimes(1);
+    expect([...container.querySelectorAll("del")].map((d) => d.textContent)).toEqual(["foo", "foo", "foo"]);
+    expect([...container.querySelectorAll("ins")].map((d) => d.textContent)).toEqual(["bar", "bar", "bar"]);
+  });
+
+  it("asks the search for each regex replacement, which can differ per match", async () => {
+    act(() => button("Use regular expression").click());
     await openReplace();
     expect(lastSearch()[4]).toBe("bar");
-    expect([...container.querySelectorAll("del")].map((d) => d.textContent)).toEqual(["foo", "foo", "foo"]);
     expect([...container.querySelectorAll("ins")].map((d) => d.textContent)).toEqual(["bar", "bar", "bar"]);
   });
 
@@ -305,7 +315,15 @@ describe("FilesSearch replace", () => {
     const searches = mocks.search.mock.calls.length;
     const row = rows().find((r) => r.textContent?.includes("const"))!;
     await act(async () => button("Replace", row).click());
-    expect(mocks.replace).toHaveBeenCalledWith("/proj", "foo", PLAIN, "bar", ["src/a.ts"], { line: 1, col: 7 }, expect.any(String));
+    expect(mocks.replace).toHaveBeenCalledWith(
+      "/proj",
+      "foo",
+      PLAIN,
+      "bar",
+      ["src/a.ts"],
+      expect.objectContaining({ line: 1, col: 7 }),
+      expect.any(String),
+    );
     expect(mocks.search.mock.calls.length).toBe(searches + 1);
     const [message, options] = mocks.toast.success.mock.calls[0];
     expect(message).toBe("Replaced 1 match in 1 file");

@@ -1,9 +1,7 @@
 import type { KeyboardEvent, RefObject } from "react";
 import { PlusIcon, SearchIcon, XIcon } from "../icons";
 import { Tooltip } from "../ui/Tooltip";
-
-const INPUT_CLASS =
-  "h-7 w-full rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] pl-7 pr-6 text-[12px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--accent-cyan)]";
+import { TEXT_INPUT, fieldInputClass } from "./searchFieldStyles";
 
 interface FilesFilterBoxProps {
   inputRef: RefObject<HTMLInputElement | null>;
@@ -30,18 +28,14 @@ export function FilesFilterBox({
           <SearchIcon />
         </span>
         <input
+          {...TEXT_INPUT}
           ref={inputRef}
-          type="text"
           value={query}
           onChange={(e) => onQueryChange(e.target.value)}
           onKeyDown={onKeyDown}
           placeholder={changesOnly ? "Filter changed files…" : "Filter files…"}
           aria-label="Filter files"
-          spellCheck={false}
-          autoCorrect="off"
-          autoCapitalize="off"
-          data-text-scope=""
-          className={INPUT_CLASS}
+          className={`${fieldInputClass(false)} pl-7 pr-6`}
         />
         {query && (
           <button

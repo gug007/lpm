@@ -1,5 +1,6 @@
 import { memo } from "react";
 import { Replace, ReplaceAll } from "lucide-react";
+import { basename } from "../../path";
 import { BASE_LEFT_PX, INDENT_PX, TreeChevron } from "../treeRow";
 import { FileTypeIcon } from "./FileTypeIcon";
 import type { SearchRow } from "./fileSearch";
@@ -21,6 +22,8 @@ interface FilesSearchRowProps {
   onClick: (row: SearchRow) => void;
   // Given while the replace field is open: the row's own Replace.
   onReplace?: (row: SearchRow) => void;
+  // A plain replacement, for matches that don't carry their own.
+  literalReplacement?: string;
   // The file has unsaved edits in the editor, so nothing in it is replaced.
   unsaved?: boolean;
 }
@@ -33,6 +36,7 @@ export const FilesSearchRow = memo(function FilesSearchRow({
   opened,
   onClick,
   onReplace,
+  literalReplacement,
   unsaved = false,
 }: FilesSearchRowProps) {
   const base = `group flex cursor-pointer select-none items-center gap-1.5 pr-2.5 transition-colors ${
@@ -64,7 +68,7 @@ export const FilesSearchRow = memo(function FilesSearchRow({
   );
 
   if (row.kind === "file") {
-    const name = row.path.slice(row.path.lastIndexOf("/") + 1);
+    const name = basename(row.path);
     const dir = parentPath(row.path);
     return (
       <div
@@ -93,7 +97,8 @@ export const FilesSearchRow = memo(function FilesSearchRow({
     );
   }
 
-  const { text, start, len, line, replacement } = row.match;
+  const { text, start, len, line } = row.match;
+  const replacement = row.match.replacement ?? literalReplacement;
   // Trailing spaces would jump to the left edge of the right-to-left lead, so
   // they open the part with the match instead.
   const lead = text.slice(0, start).trimEnd();

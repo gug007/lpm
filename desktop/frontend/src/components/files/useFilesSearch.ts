@@ -17,11 +17,11 @@ const DEBOUNCE_MS = 200;
 const REFRESH_MS = 500;
 const UPDATED_MS = 4000;
 
-export type SearchProblem =
+type SearchProblem =
   | { kind: "invalid"; field: SearchField; message: string }
   | { kind: "error"; message: string };
 
-export interface SearchState {
+interface SearchState {
   searching: boolean;
   result: SearchResult | null;
   problem: SearchProblem | null;
@@ -33,6 +33,8 @@ interface SearchSpec {
   query: string;
   options: SearchOptions;
   filters: SearchFilters;
+  // Sent only for a regex, whose `$1` each match fills in its own way; a plain
+  // replacement reads the same on every row.
   replacement: string | null;
 }
 
@@ -51,20 +53,12 @@ function readOptions(): SearchOptions {
   }
 }
 
-function saveOptions(options: SearchOptions) {
-  try {
-    localStorage.setItem(OPTIONS_KEY, JSON.stringify(options));
-  } catch {
-    // The toggles still apply; they just aren't remembered.
-  }
-}
-
 // What is searched, leaving out the replacement, which only changes previews.
 const searchedFor = ({ query, options, filters }: SearchSpec) => JSON.stringify([query, options, filters]);
 
-// Where each match is, to tell whether a refresh changed anything.
-const placesOf = (result: SearchResult | null) =>
-  result?.files.map((f) => `${f.path}:${f.matches.map((m) => `${m.line}.${m.col}`).join(",")}`).join("|") ?? "";
+// Where each match is, to tell whether a refresh moved anything.
+const placesOf = (result: SearchResult) =>
+  result.files.map((f) => `${f.path}:${f.matches.map((m) => `${m.line}.${m.col}`).join(",")}`).join("|");
 
 // The Files tab's Search view: the query, its toggles, file filters and
 // replacement, and the search they run as the user types. A newer search
@@ -86,24 +80,25 @@ export function useFilesSearch(root: string, active: boolean) {
   const running = useRef(false);
   const timer = useRef<number | undefined>(undefined);
   const refreshTimer = useRef<number | undefined>(undefined);
-  const updatedTimer = useRef<number | undefined>(undefined);
-  const shown = useRef<SearchResult | null>(null);
+  const refreshing = useRef(false);
+  const refreshAgain = useRef(false);
   const searched = useRef<string | null>(null);
 
+  const replacement = replaceOpen && options.regex ? replace : null;
   const spec = useMemo<SearchSpec>(
     () => ({
       query,
       options,
       filters: { include: globList(include), exclude: globList(exclude) },
-      replacement: replaceOpen ? replace : null,
+      replacement,
     }),
-    [query, options, include, exclude, replace, replaceOpen],
+    [query, options, include, exclude, replacement],
   );
   const specRef = useRef(spec);
   specRef.current = spec;
 
   const run = useCallback(
-    async (s: SearchSpec, quiet = false) => {
+    async (s: SearchSpec, quiet: boolean) => {
       window.clearTimeout(timer.current);
       const mine = ++seq.current;
       running.current = true;
@@ -112,25 +107,24 @@ export function useFilesSearch(root: string, active: boolean) {
         const reply = (await SearchFiles(root, s.query, s.options, s.filters, s.replacement, token)) as SearchReply;
         if (mine !== seq.current) return;
         if (reply.invalid) {
-          shown.current = null;
           setState({ ...IDLE, problem: { kind: "invalid", ...reply.invalid } });
           return;
         }
         const slash = windowsRules(root);
         const files = (reply.files ?? []).map((f) => (slash ? { ...f, path: toSlash(f.path, true) } : f));
         const result = { files, truncated: !!reply.truncated };
-        const updated = quiet && shown.current !== null && placesOf(shown.current) !== placesOf(result);
-        shown.current = result;
-        setState({ searching: false, result, problem: null, updated });
-        if (updated) {
-          window.clearTimeout(updatedTimer.current);
-          updatedTimer.current = window.setTimeout(() => setState((st) => ({ ...st, updated: false })), UPDATED_MS);
-        }
+        setState((prev) => {
+          // A refresh that finds what is shown leaves the rows be.
+          if (quiet && prev.result && JSON.stringify(prev.result) === JSON.stringify(result)) {
+            return prev.searching ? { ...prev, searching: false } : prev;
+          }
+          const updated = quiet && prev.result !== null && placesOf(prev.result) !== placesOf(result);
+          return { searching: false, result, problem: null, updated };
+        });
       } catch (err) {
         if (mine !== seq.current) return;
         // A refresh that fails leaves the results it would have replaced.
         if (quiet) return setState((st) => ({ ...st, searching: false }));
-        shown.current = null;
         setState({ ...IDLE, problem: { kind: "error", message: String(err) } });
       } finally {
         if (mine === seq.current) running.current = false;
@@ -149,13 +143,12 @@ export function useFilesSearch(root: string, active: boolean) {
   useEffect(() => {
     stop();
     if (!spec.query) {
-      shown.current = null;
       searched.current = null;
       setState(IDLE);
       return;
     }
-    // Typing a replacement keeps the results on screen while their previews
-    // catch up.
+    // A regex replacement being typed keeps the results on screen while
+    // their previews catch up.
     const quiet = searched.current === searchedFor(spec);
     searched.current = searchedFor(spec);
     if (!quiet) setState((s) => ({ ...s, searching: true }));
@@ -163,24 +156,52 @@ export function useFilesSearch(root: string, active: boolean) {
     return () => window.clearTimeout(timer.current);
   }, [spec, run, stop]);
 
+  useEffect(() => {
+    if (!state.updated) return;
+    const clear = window.setTimeout(() => setState((s) => ({ ...s, updated: false })), UPDATED_MS);
+    return () => window.clearTimeout(clear);
+  }, [state.updated, state.result]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(OPTIONS_KEY, JSON.stringify(options));
+    } catch {
+      // The toggles still apply; they just aren't remembered.
+    }
+  }, [options]);
+
   useEffect(
     () => () => {
       stop();
       window.clearTimeout(refreshTimer.current);
-      window.clearTimeout(updatedTimer.current);
     },
     [stop],
   );
 
-  const refresh = useCallback(() => {
-    if (specRef.current.query) void run(specRef.current, true);
-  }, [run]);
+  // Runs the search again; a quiet run keeps the results up while it does.
+  const rerun = useCallback((quiet = false) => run(specRef.current, quiet), [run]);
+
+  // One quiet refresh at a time: a change during one asks for one more, so a
+  // search slower than the changes still lands.
+  const refresh = useCallback(async () => {
+    if (!specRef.current.query) return;
+    if (refreshing.current) {
+      refreshAgain.current = true;
+      return;
+    }
+    refreshing.current = true;
+    do {
+      refreshAgain.current = false;
+      await rerun(true);
+    } while (refreshAgain.current);
+    refreshing.current = false;
+  }, [rerun]);
 
   const onDiskChange = useCallback(() => {
     if (refreshTimer.current !== undefined) return;
     refreshTimer.current = window.setTimeout(() => {
       refreshTimer.current = undefined;
-      refresh();
+      void refresh();
     }, REFRESH_MS);
   }, [refresh]);
   useGitChanged(root, onDiskChange, active && open && query !== "");
@@ -188,28 +209,33 @@ export function useFilesSearch(root: string, active: boolean) {
   const apply = useCallback((entry: SearchEntry) => {
     setQueryText(entry.query);
     setOptions(entry.options);
-    saveOptions(entry.options);
     setIncludeText(entry.include);
     setExcludeText(entry.exclude);
     if (entry.include || entry.exclude) setFiltersOpen(true);
   }, []);
   const history = useSearchHistory(root, { query, options, include, exclude }, apply);
-  const { stopBrowsing, remember: rememberEntry } = history;
+  const { stopBrowsing } = history;
 
-  const typed = useCallback(
-    (set: (text: string) => void) => (text: string) => {
+  const setQuery = useCallback(
+    (text: string) => {
       stopBrowsing();
-      set(text);
+      setQueryText(text);
     },
     [stopBrowsing],
   );
-  const setQuery = useMemo(() => typed(setQueryText), [typed]);
-  const setInclude = useMemo(() => typed(setIncludeText), [typed]);
-  const setExclude = useMemo(() => typed(setExcludeText), [typed]);
-
-  const remember = useCallback(
-    () => rememberEntry({ query, options, include, exclude }),
-    [rememberEntry, query, options, include, exclude],
+  const setInclude = useCallback(
+    (text: string) => {
+      stopBrowsing();
+      setIncludeText(text);
+    },
+    [stopBrowsing],
+  );
+  const setExclude = useCallback(
+    (text: string) => {
+      stopBrowsing();
+      setExcludeText(text);
+    },
+    [stopBrowsing],
   );
 
   const show = useCallback((seed?: string) => {
@@ -221,16 +247,11 @@ export function useFilesSearch(root: string, active: boolean) {
   const hide = useCallback(() => setOpen(false), []);
 
   const toggle = useCallback((key: keyof SearchOptions) => {
-    setOptions((prev) => {
-      const next = { ...prev, [key]: !prev[key] };
-      saveOptions(next);
-      return next;
-    });
+    setOptions((prev) => ({ ...prev, [key]: !prev[key] }));
   }, []);
 
-  const searchNow = useCallback(() => {
-    if (specRef.current.query) void run(specRef.current);
-  }, [run]);
+  const toggleFilters = useCallback(() => setFiltersOpen((v) => !v), []);
+  const toggleReplace = useCallback(() => setReplaceOpen((v) => !v), []);
 
   return {
     root,
@@ -247,16 +268,16 @@ export function useFilesSearch(root: string, active: boolean) {
     exclude,
     setExclude,
     filtersOpen,
-    toggleFilters: () => setFiltersOpen((v) => !v),
+    toggleFilters,
     replace,
     setReplace,
     replaceOpen,
-    toggleReplace: () => setReplaceOpen((v) => !v),
+    toggleReplace,
     state,
     focusRequest,
-    searchNow,
+    rerun,
     refresh,
-    history: { older: history.older, newer: history.newer, remember },
+    history,
   };
 }
 

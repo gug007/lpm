@@ -1,3 +1,5 @@
+import { count } from "../../count";
+
 export interface SearchOptions {
   matchCase: boolean;
   wholeWord: boolean;
@@ -63,11 +65,12 @@ export function searchRows(files: FileMatches[], collapsed: ReadonlySet<string>)
   return rows;
 }
 
-const plural = (n: number, one: string, many: string) => `${n.toLocaleString()} ${n === 1 ? one : many}`;
+export function matchCount(files: FileMatches[]): number {
+  return files.reduce((sum, f) => sum + f.matches.length, 0);
+}
 
 export function resultSummary({ files, truncated }: SearchResult): string {
   if (files.length === 0) return "No results";
-  const total = files.reduce((sum, f) => sum + f.matches.length, 0);
-  const text = `${plural(total, "result", "results")} in ${plural(files.length, "file", "files")}`;
+  const text = `${count(matchCount(files), "result", "results")} in ${count(files.length, "file", "files")}`;
   return truncated ? `${text} · the first ones found` : text;
 }

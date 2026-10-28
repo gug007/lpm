@@ -1,20 +1,15 @@
-import { useEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
 import { FilesReplaceDialog } from "./FilesReplaceDialog";
 import { FilesSearchField } from "./FilesSearchField";
 import { FilesSearchFilters } from "./FilesSearchFilters";
 import { FilesSearchReplace } from "./FilesSearchReplace";
 import { FilesSearchResults } from "./FilesSearchResults";
-import { FilesViewSwitch } from "./FilesViewSwitch";
-import { resultSummary, type LineMatch, type SearchRow } from "./fileSearch";
+import { matchCount, resultSummary, type LineMatch, type SearchRow } from "./fileSearch";
 import type { FilesSearchModel } from "./useFilesSearch";
 import { useSearchReplace } from "./useSearchReplace";
 
 interface FilesSearchProps {
   search: FilesSearchModel;
-  // How many files are uncommitted, for the view switch, or null while unknown.
-  changesCount: number | null;
-  // The switch picked the folder tree or the changes.
-  onLeave: (changesOnly: boolean) => void;
   openedKey: string | null;
   onOpen: (path: string, match: LineMatch, focusEditor: boolean) => void;
   // Files with unsaved edits in the editor.
@@ -24,16 +19,16 @@ interface FilesSearchProps {
 // The rail's Search view: a field with its toggles over every occurrence of
 // what is typed, grouped by file; with the replace field open, each shows what
 // it would become and can be replaced.
-export function FilesSearch({ search, changesCount, onLeave, openedKey, onOpen, unsaved }: FilesSearchProps) {
+export function FilesSearch({ search, openedKey, onOpen, unsaved }: FilesSearchProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
-  const { query, setQuery, state, focusRequest, searchNow, history } = search;
+  const { query, setQuery, state, focusRequest, history } = search;
+  const { remember } = history;
   const { result, problem, searching, updated } = state;
   const replacing = useSearchReplace(search, unsaved);
+  const { replaceFile, replaceMatch } = replacing;
   const files = result?.files ?? [];
-  const total = files.reduce((sum, f) => sum + f.matches.length, 0);
-  // What a Replace all changes: files with unsaved edits stay as they are.
-  const changing = files.filter((f) => !unsaved.has(f.path));
+  const toReplace = matchCount(replacing.changing);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -51,8 +46,8 @@ export function FilesSearch({ search, changesCount, onLeave, openedKey, onOpen, 
       }
     } else if (e.key === "Enter") {
       e.preventDefault();
-      history.remember();
-      searchNow();
+      remember();
+      void search.rerun();
     } else if (e.key === "Escape" && query) {
       e.preventDefault();
       e.stopPropagation();
@@ -60,15 +55,23 @@ export function FilesSearch({ search, changesCount, onLeave, openedKey, onOpen, 
     }
   };
 
-  const open = (path: string, match: LineMatch, focusEditor: boolean) => {
-    history.remember();
-    onOpen(path, match, focusEditor);
-  };
+  const open = useCallback(
+    (path: string, match: LineMatch, focusEditor: boolean) => {
+      remember();
+      onOpen(path, match, focusEditor);
+    },
+    [remember, onOpen],
+  );
 
-  const replaceRow = (row: SearchRow) => {
-    if (row.kind === "file") replacing.replaceFile(row.path);
-    else replacing.replaceMatch(row.path, row.match);
-  };
+  const replaceRow = useCallback(
+    (row: SearchRow) => {
+      if (row.kind === "file") replaceFile(row.path);
+      else replaceMatch(row.path, row.match);
+    },
+    [replaceFile, replaceMatch],
+  );
+
+  const toField = useCallback(() => inputRef.current?.focus(), []);
 
   let status: ReactNode = null;
   if (problem?.kind === "error") {
@@ -87,12 +90,6 @@ export function FilesSearch({ search, changesCount, onLeave, openedKey, onOpen, 
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <FilesViewSwitch
-        view="search"
-        count={changesCount}
-        onChange={(view) => view !== "search" && onLeave(view === "changes")}
-        searchable
-      />
       <FilesSearchField
         inputRef={inputRef}
         query={query}
@@ -111,7 +108,7 @@ export function FilesSearch({ search, changesCount, onLeave, openedKey, onOpen, 
         <FilesSearchReplace
           value={search.replace}
           onChange={search.setReplace}
-          total={problem ? 0 : total}
+          total={problem ? 0 : toReplace}
           busy={replacing.busy}
           onReplaceAll={replacing.requestAll}
           regex={search.options.regex}
@@ -119,11 +116,9 @@ export function FilesSearch({ search, changesCount, onLeave, openedKey, onOpen, 
       )}
       {search.filtersOpen && (
         <FilesSearchFilters
-          include={search.include}
-          onIncludeChange={search.setInclude}
-          exclude={search.exclude}
-          onExcludeChange={search.setExclude}
-          invalid={invalid && invalid.field !== "query" ? invalid : null}
+          values={{ include: search.include, exclude: search.exclude }}
+          onChange={(field, text) => (field === "include" ? search.setInclude : search.setExclude)(text)}
+          invalid={invalid}
         />
       )}
       {status && (
@@ -137,15 +132,16 @@ export function FilesSearch({ search, changesCount, onLeave, openedKey, onOpen, 
           files={files}
           openedKey={openedKey}
           onOpen={open}
-          onExitTop={() => inputRef.current?.focus()}
+          onExitTop={toField}
           onReplace={search.replaceOpen ? replaceRow : undefined}
+          literalReplacement={search.replaceOpen && !search.options.regex ? search.replace : undefined}
           unsaved={unsaved}
         />
       )}
       <FilesReplaceDialog
         open={replacing.confirming}
-        matches={changing.reduce((sum, f) => sum + f.matches.length, 0)}
-        files={changing.length}
+        matches={toReplace}
+        files={replacing.changing.length}
         replacement={search.replace}
         unsaved={replacing.unsaved}
         truncated={!!result?.truncated}

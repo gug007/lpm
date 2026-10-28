@@ -1,26 +1,17 @@
+import type { LineMatch, SearchFilters, SearchOptions } from "../../components/files/fileSearch";
 import type { CommandMap } from "../backend";
 import { isBinary } from "../seed/sample";
 import { tree, write } from "./files";
 import { project, projectAt } from "./state";
 
-interface Options {
-  matchCase?: boolean;
-  wholeWord?: boolean;
-  regex?: boolean;
-}
+type Options = Partial<SearchOptions>;
+type Filters = Partial<SearchFilters>;
 
-interface Filters {
-  include?: string[];
-  exclude?: string[];
-}
-
-interface Match {
-  line: number;
-  col: number;
-  len: number;
-  text: string;
-  start: number;
-  replacement?: string;
+interface UndoEntry {
+  abs: string;
+  rel: string;
+  before: string;
+  after: string;
 }
 
 const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -67,13 +58,13 @@ function replacementOf(found: string, re: RegExp, replacement: string, regex: bo
   return regex ? found.replace(new RegExp(re.source, re.flags.replace("g", "")), replacement) : replacement;
 }
 
-function lineMatches(text: string, re: RegExp, line: number, replacement: string | null, regex: boolean): Match[] {
-  const out: Match[] = [];
+function lineMatches(text: string, re: RegExp, line: number, replacement: string | null, regex: boolean): LineMatch[] {
+  const out: LineMatch[] = [];
   for (const m of text.matchAll(re)) {
     if (!m[0]) continue;
     const lead = text.slice(0, m.index).trimStart();
     const before = lead.length > 30 ? `…${lead.slice(-30)}` : lead;
-    const hit: Match = {
+    const hit: LineMatch = {
       line,
       col: m.index + 1,
       len: m[0].length,
@@ -87,7 +78,7 @@ function lineMatches(text: string, re: RegExp, line: number, replacement: string
 }
 
 function search(root: unknown, query: string, options: Options, filters: Filters, replacement: string | null) {
-  const files: { path: string; matches: Match[] }[] = [];
+  const files: { path: string; matches: LineMatch[] }[] = [];
   if (!query) return { files, truncated: false, invalid: null };
   let re: RegExp;
   try {
@@ -107,7 +98,8 @@ function search(root: unknown, query: string, options: Options, filters: Filters
 }
 
 // The last replace under each Search view, for its Undo.
-const undoable = new Map<string, { abs: string; rel: string; before: string; after: string }[]>();
+const undoable = new Map<string, UndoEntry[]>();
+const undoKey = (args: Record<string, unknown>) => `${args.root}\0${args.token}`;
 
 function rootOf(root: unknown): string {
   const name = String(root);
@@ -119,7 +111,7 @@ function replace(args: Record<string, unknown>) {
   const re = pattern(String(args.query ?? ""), options);
   const at = args.at as { line: number; col: number } | null;
   const all = tree(args.root);
-  const done: { abs: string; rel: string; before: string; after: string }[] = [];
+  const done: UndoEntry[] = [];
   let replaced = 0;
   for (const rel of (args.paths ?? []) as string[]) {
     const before = all[rel];
@@ -143,12 +135,12 @@ function replace(args: Record<string, unknown>) {
     replaced += count;
     done.push({ abs, rel, before, after });
   }
-  undoable.set(`${args.root}\0${args.token}`, done);
+  undoable.set(undoKey(args), done);
   return { replaced, files: done.length, skipped: [], undoable: done.length > 0 };
 }
 
 function undo(args: Record<string, unknown>) {
-  const key = `${args.root}\0${args.token}`;
+  const key = undoKey(args);
   const done = undoable.get(key);
   if (!done) throw new Error("This replace can no longer be undone");
   undoable.delete(key);

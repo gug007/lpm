@@ -1,5 +1,6 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { ReplaceInFiles, UndoReplace } from "../../../bridge/commands";
+import { count } from "../../count";
 import { toast } from "../../notifications/toast";
 import { basename } from "../../path";
 import type { LineMatch } from "./fileSearch";
@@ -24,7 +25,6 @@ interface UndoOutcome {
   skipped: Skipped[];
 }
 
-const count = (n: number, one: string, many: string) => `${n.toLocaleString()} ${n === 1 ? one : many}`;
 const skippedList = (skipped: Skipped[]) =>
   skipped.length ? skipped.map((s) => `${s.path}: ${s.reason}`).join("\n") : undefined;
 
@@ -35,7 +35,13 @@ export function useSearchReplace(search: FilesSearchModel, dirtyPaths: ReadonlyS
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const { root, token, query, options, replace, refresh, state, history } = search;
-  const files = state.result?.files ?? [];
+  const { remember } = history;
+  const files = state.result?.files;
+  // What a Replace all changes, and the files it leaves as they are.
+  const [changing, unsaved] = useMemo(() => {
+    const all = files ?? [];
+    return [all.filter((f) => !dirtyPaths.has(f.path)), all.filter((f) => dirtyPaths.has(f.path)).map((f) => f.path)];
+  }, [files, dirtyPaths]);
 
   const undo = useCallback(async () => {
     try {
@@ -46,17 +52,16 @@ export function useSearchReplace(search: FilesSearchModel, dirtyPaths: ReadonlyS
     } catch (err) {
       toast.error(String(err));
     }
-    refresh();
+    void refresh();
   }, [root, token, refresh]);
 
   const run = useCallback(
-    async (paths: string[], at?: Pick<LineMatch, "line" | "col">) => {
+    async (paths: string[], at?: LineMatch) => {
       if (paths.length === 0) return;
-      history.remember();
+      remember();
       setBusy(true);
       try {
-        const place = at ? { line: at.line, col: at.col } : null;
-        const out = (await ReplaceInFiles(root, query, options, replace, paths, place, token)) as ReplaceOutcome;
+        const out = (await ReplaceInFiles(root, query, options, replace, paths, at ?? null, token)) as ReplaceOutcome;
         const description = skippedList(out.skipped);
         if (out.replaced === 0) {
           toast.error(out.skipped.length ? "Nothing was replaced" : "No matches are left to replace", { description });
@@ -73,36 +78,50 @@ export function useSearchReplace(search: FilesSearchModel, dirtyPaths: ReadonlyS
         toast.error(`Couldn't replace: ${String(err)}`);
       } finally {
         setBusy(false);
-        refresh();
+        void refresh();
       }
     },
-    [history, root, query, options, replace, token, undo, refresh],
+    [remember, root, query, options, replace, token, undo, refresh],
   );
 
-  const unsavedFirst = (path: string) => {
-    if (!dirtyPaths.has(path)) return false;
-    toast.error(`Save ${basename(path)} first`, { description: "It has unsaved edits in the editor." });
-    return true;
-  };
+  // Whether the file has unsaved edits, said so when it does.
+  const unsavedFirst = useCallback(
+    (path: string) => {
+      if (!dirtyPaths.has(path)) return false;
+      toast.error(`Save ${basename(path)} first`, { description: "It has unsaved edits in the editor." });
+      return true;
+    },
+    [dirtyPaths],
+  );
+
+  const replaceMatch = useCallback(
+    (path: string, match: LineMatch) => {
+      if (!unsavedFirst(path)) void run([path], match);
+    },
+    [unsavedFirst, run],
+  );
+
+  const replaceFile = useCallback(
+    (path: string) => {
+      if (!unsavedFirst(path)) void run([path]);
+    },
+    [unsavedFirst, run],
+  );
 
   return {
     busy,
     confirming,
-    // Paths that stay as they are in a Replace all.
-    unsaved: files.filter((f) => dirtyPaths.has(f.path)).map((f) => f.path),
-    replaceMatch: (path: string, match: LineMatch) => {
-      if (!unsavedFirst(path)) void run([path], match);
-    },
-    replaceFile: (path: string) => {
-      if (!unsavedFirst(path)) void run([path]);
-    },
+    changing,
+    unsaved,
+    replaceMatch,
+    replaceFile,
     requestAll: () => {
-      if (files.length > 0) setConfirming(true);
+      if (changing.length > 0) setConfirming(true);
     },
     cancelAll: () => setConfirming(false),
     confirmAll: () => {
       setConfirming(false);
-      void run(files.map((f) => f.path).filter((path) => !dirtyPaths.has(path)));
+      void run(changing.map((f) => f.path));
     },
   };
 }

@@ -718,10 +718,7 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
   // view it switches.
   const toggleFilesView = useCallback(
     (view: FilesView, paneId?: string) => {
-      const onView = (tab: TerminalInstance) => {
-        const { changesOnly, searching } = useFilesView.getState();
-        return !searching[tab.id] && (changesOnly[tab.id] ?? false) === (view === "changes");
-      };
+      const onView = (tab: TerminalInstance) => (useFilesView.getState().views[tab.id] ?? "files") === view;
       toggleUtilityTab("files", (id) => showFilesView(id, view), paneId, onView);
     },
     [toggleUtilityTab, showFilesView],

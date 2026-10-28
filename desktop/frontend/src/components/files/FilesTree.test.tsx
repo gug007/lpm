@@ -29,7 +29,6 @@ const NO_CHANGES: Changes = { status: "ready", files: [] };
 function render(over: Partial<Parameters<typeof FilesTree>[0]> = {}) {
   const onActivate = vi.fn();
   const onCursorChange = vi.fn();
-  const onChangesOnlyChange = vi.fn();
   const props = {
     rows: ROWS,
     rootListing: ROOT,
@@ -37,7 +36,6 @@ function render(over: Partial<Parameters<typeof FilesTree>[0]> = {}) {
     decorations: new Map<string, string>(),
     ignoredPaths: new Set<string>(),
     changesOnly: false,
-    onChangesOnlyChange,
     allChanges: false,
     onAllChangesChange: vi.fn(),
     selectedPath: null,
@@ -62,7 +60,6 @@ function render(over: Partial<Parameters<typeof FilesTree>[0]> = {}) {
     input,
     onActivate,
     onCursorChange,
-    onChangesOnlyChange,
     rerender: (next: Partial<typeof props>) => act(() => root.render(<FilesTree {...props} {...next} />)),
   };
 }
@@ -123,38 +120,6 @@ describe("FilesTree keyboard", () => {
 });
 
 describe("FilesTree changes only", () => {
-  const view = (text: string) =>
-    [...container.querySelectorAll<HTMLButtonElement>('[aria-label="Files view"] button')].find(
-      (button) => button.textContent?.startsWith(text),
-    )!;
-
-  it("switches views from the segmented control above the filter", () => {
-    const { onChangesOnlyChange, rerender } = render();
-    expect(view("Files").getAttribute("aria-pressed")).toBe("true");
-    expect(view("Changes").getAttribute("aria-pressed")).toBe("false");
-    act(() => view("Changes").click());
-    expect(onChangesOnlyChange).toHaveBeenCalledWith(true);
-    rerender({ changesOnly: true });
-    expect(view("Changes").getAttribute("aria-pressed")).toBe("true");
-    act(() => view("Files").click());
-    expect(onChangesOnlyChange).toHaveBeenCalledWith(false);
-  });
-
-  it("counts the uncommitted files on the Changes segment", () => {
-    const { rerender } = render({
-      changes: {
-        status: "ready",
-        files: [
-          { path: "src/a.ts", status: "modified" },
-          { path: "src/b.ts", status: "untracked" },
-        ],
-      },
-    });
-    expect(view("Changes").textContent).toBe("Changes2");
-    rerender({ changes: NO_CHANGES });
-    expect(view("Changes").textContent).toBe("Changes");
-  });
-
   it("marks changed files with a letter and their folders with a dot", () => {
     render({
       decorations: new Map([

@@ -132,7 +132,7 @@ function BrowserTabIcon({ id }: { id: string }) {
 }
 
 function FilesTabIcon({ id }: { id: string }) {
-  const changesOnly = useFilesView((s) => s.changesOnly[id]);
+  const changesOnly = useFilesView((s) => s.views[id] === "changes");
   return changesOnly ? <SourceControlIcon /> : <FolderIcon />;
 }
 
@@ -457,7 +457,7 @@ function PaneViewImpl(props: PaneViewProps) {
 
   const tabIds = useMemo(() => pane.tabs.map((t) => t.id), [pane.tabs]);
   const tabCommands = useTerminalCommands(useShallow((s) => pickCommands(s.byId, tabIds)));
-  const filesChangesOnly = useFilesView((s) => s.changesOnly);
+  const filesViews = useFilesView((s) => s.views);
 
   const { ref: scrollRef, canScrollLeft, canScrollRight } = useScrollFade<HTMLDivElement>([
     pane.tabs,
@@ -497,7 +497,7 @@ function PaneViewImpl(props: PaneViewProps) {
     edges: { left: canScrollLeft, right: canScrollRight },
     services,
     tabs: pane.tabs,
-    filesChangesOnly,
+    filesViews,
     tabIcon: (t) => <TabIcon tab={t} />,
     onSelectService: (name) => onFocusService(pane.id, name),
     onSelectTab: activateTab,
@@ -624,7 +624,7 @@ function PaneViewImpl(props: PaneViewProps) {
                   <HeaderTab
                     label={
                       t.kind === "files"
-                        ? filesTabLabel(t, filesChangesOnly[t.id] ?? false)
+                        ? filesTabLabel(t, filesViews[t.id] === "changes")
                         : terminalStripLabel(t, tabCommands[t.id])
                     }
                     origin={terminalOriginLabel(t)}

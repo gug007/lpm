@@ -74,6 +74,7 @@ mod donehold;
 mod dirdelete;
 mod dockmenu;
 mod file_browser;
+mod file_match;
 mod file_ops;
 mod file_replace;
 mod file_search;

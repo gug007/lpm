@@ -40,23 +40,24 @@ export function useSearchHistory(root: string, current: SearchEntry, apply: (ent
   const [entries, setEntries] = useState(() => read(root));
   const [index, setIndex] = useState<number | null>(null);
   const draft = useRef<SearchEntry | null>(null);
+  const currentRef = useRef(current);
+  currentRef.current = current;
 
-  const remember = useCallback(
-    (entry: SearchEntry) => {
-      if (!entry.query) return;
-      setEntries((prev) => {
-        if (prev[0] && sameEntry(prev[0], entry)) return prev;
-        const next = [entry, ...prev.filter((e) => !sameEntry(e, entry))].slice(0, LIMIT);
-        try {
-          localStorage.setItem(historyKey(root), JSON.stringify(next));
-        } catch {
-          // History is a convenience; a full or blocked store just forgets.
-        }
-        return next;
-      });
-    },
-    [root],
-  );
+  // Saves the search as it stands.
+  const remember = useCallback(() => {
+    const entry = currentRef.current;
+    if (!entry.query) return;
+    setEntries((prev) => {
+      if (prev[0] && sameEntry(prev[0], entry)) return prev;
+      const next = [entry, ...prev.filter((e) => !sameEntry(e, entry))].slice(0, LIMIT);
+      try {
+        localStorage.setItem(historyKey(root), JSON.stringify(next));
+      } catch {
+        // History is a convenience; a full or blocked store just forgets.
+      }
+      return next;
+    });
+  }, [root]);
 
   // Whether ↑ found an older search to show.
   const older = (): boolean => {
@@ -84,5 +85,5 @@ export function useSearchHistory(root: string, current: SearchEntry, apply: (ent
 
   const stopBrowsing = useCallback(() => setIndex(null), []);
 
-  return { entries, remember, older, newer, stopBrowsing };
+  return { remember, older, newer, stopBrowsing };
 }

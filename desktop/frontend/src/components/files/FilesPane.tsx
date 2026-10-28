@@ -9,6 +9,7 @@ import {
 import { useContentZoom } from "../../hooks/useContentZoom";
 import { useResizableWidth } from "../../hooks/useResizableWidth";
 import { basename, joinAbs } from "../../path";
+import type { RailView } from "../../store/filesView";
 import { useSettingsStore } from "../../store/settings";
 import { DiffConflictBanner } from "../review/DiffConflictBanner";
 import { copyAbsolutePath, copyText, revealInFinder } from "./fileActions";
@@ -23,6 +24,7 @@ import { FilesTree, type ActivateOptions, type CursorRequest } from "./FilesTree
 import { rankFiles, type IndexEntry } from "./filesFilter";
 import { FilesContentSearch } from "./FilesContentSearch";
 import { FilesSearch } from "./FilesSearch";
+import { FilesViewSwitch } from "./FilesViewSwitch";
 import { selectedText } from "./editorSelection";
 import { matchKey, type LineMatch } from "./fileSearch";
 import {
@@ -106,9 +108,15 @@ export function FilesPane({
   const search = useFilesSearch(projectRoot, active);
   const { show: showSearch, hide: hideSearch } = search;
   const searching = search.open && !review;
+  const railView: RailView = searching ? "search" : changesOnly ? "changes" : "files";
+  const showRailView = (view: RailView) => {
+    if (view === "search") return showSearch();
+    hideSearch();
+    git.showChangesOnly(view === "changes");
+  };
   const seedSearch = useCallback(() => showSearch(selectedText(rootRef.current)), [showSearch]);
   const { treeOpen, showTree, filterFocusRequest } = useFilesPaneRequests(tabId, paneId, git, {
-    open: searching,
+    view: railView,
     onSearch: seedSearch,
     onLeaveSearch: hideSearch,
   });
@@ -152,29 +160,28 @@ export function FilesPane({
     storageKey: TREE_WIDTH_KEY,
   });
 
-  // A file opened from the git view opens as its diff.
+  // A file opened from the git view opens as its diff; one opened at a
+  // search hit, as its source.
   const openFile = useCallback(
-    (path: string) => {
+    (path: string, asSource = false) => {
       void openBuffer(path);
       setJump(null);
-      setDiffWanted(changesOnly);
+      setDiffWanted(changesOnly && !asSource);
+      showSource(asSource ? path : null);
       showAllChanges(false);
       expandDirs(ancestorsOf(path));
       uncollapse(ancestorsOf(path));
     },
-    [openBuffer, changesOnly, setDiffWanted, showAllChanges, expandDirs, uncollapse],
+    [openBuffer, changesOnly, setDiffWanted, showSource, showAllChanges, expandDirs, uncollapse],
   );
 
-  // A search hit opens as source, the match selected; only Enter moves on to
-  // the editor.
+  // The match comes selected; only Enter moves on to the editor.
   const openMatch = useCallback(
     (path: string, match: LineMatch, focus: boolean) => {
-      openFile(path);
-      setDiffWanted(false);
-      showSource(path);
+      openFile(path, true);
       setJump({ path, line: match.line, col: match.col, endCol: match.col + match.len, focus });
     },
-    [openFile, setDiffWanted, showSource],
+    [openFile],
   );
 
   const openChange = useCallback(
@@ -304,14 +311,16 @@ export function FilesPane({
       // A narrow (split) pane still leaves the editor most of the width.
       style={{ width: treeWidth, maxWidth: "45%" }}
     >
+      {!review && (
+        <FilesViewSwitch
+          view={railView}
+          count={git.changes.status === "ready" ? git.changes.files.length : null}
+          onChange={showRailView}
+        />
+      )}
       {searching ? (
         <FilesSearch
           search={search}
-          changesCount={git.changes.status === "ready" ? git.changes.files.length : null}
-          onLeave={(changes) => {
-            hideSearch();
-            git.showChangesOnly(changes);
-          }}
           openedKey={jump ? matchKey(jump.path, jump) : null}
           onOpen={openMatch}
           unsaved={buffer.dirtyPaths}
@@ -324,8 +333,6 @@ export function FilesPane({
           decorations={decorations}
           ignoredPaths={ignoredPaths}
           changesOnly={changesOnly}
-          onChangesOnlyChange={review ? undefined : git.showChangesOnly}
-          onSearch={review ? undefined : () => showSearch()}
           allChanges={git.allChanges}
           onAllChangesChange={showAllChanges}
           selectedPath={git.allChanges ? stackPath : selectedPath}

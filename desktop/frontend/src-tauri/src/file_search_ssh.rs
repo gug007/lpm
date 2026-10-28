@@ -3,13 +3,12 @@
 // it reports is filtered and matched again here, so paths, columns, highlights
 // and replacements come out as they do for a local project.
 use crate::config::SshSettings;
-use crate::file_replace::Pattern;
+use crate::file_match::{Pattern, SearchOptions};
 use crate::file_search::{
-    collect, line_matches, FileMatches, FileSearch, SearchOptions, MATCH_CAP, TIME_BUDGET,
+    collect, line_matches, FileMatches, FileSearch, FILE_BYTES_CAP, MATCH_CAP, TIME_BUDGET,
 };
-use crate::file_search_filter::{keeps, SearchFilters};
+use crate::file_search_filter::PathFilter;
 use crate::files::MENTION_SKIP_DIRS;
-use ignore::overrides::Override;
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read};
 use std::process::Stdio;
@@ -19,21 +18,19 @@ use std::time::{Duration, Instant};
 
 const POLL: Duration = Duration::from_millis(100);
 
-// `filter` holds the same globs as `filters`, rooted at the project, for the
-// paths the host prints.
-#[allow(clippy::too_many_arguments)]
+// `filter` is compiled for paths relative to the project, as the host prints
+// them.
 pub(crate) fn search(
     ssh: &SshSettings,
     root: &str,
     query: &str,
     options: SearchOptions,
-    filters: &SearchFilters,
-    filter: Option<&Override>,
+    filter: &PathFilter,
     pattern: &Pattern,
     stop: &AtomicBool,
 ) -> Result<FileSearch, String> {
     let (program, args) = match crate::sshexec::remote_program(ssh, "rg") {
-        Some(rg) => (rg, rg_args(query, options, filters)),
+        Some(rg) => (rg, rg_args(query, options, &filter.globs)),
         None => ("grep".to_string(), grep_args(query, options)),
     };
     let refs: Vec<&str> = args.iter().map(String::as_str).collect();
@@ -87,11 +84,11 @@ pub(crate) fn search(
         let Some((path, line, text)) = parse_record(&record) else {
             continue;
         };
-        if !keeps(filter, &path) {
+        if !filter.keeps(&path) {
             continue;
         }
         let mut matches = Vec::new();
-        line_matches(pattern, line, &text, &mut matches);
+        line_matches(pattern, line, &text, &mut matches, MATCH_CAP - count);
         if matches.is_empty() {
             continue;
         }
@@ -119,7 +116,7 @@ pub(crate) fn search(
     Ok(collect(files, truncated))
 }
 
-fn rg_args(query: &str, options: SearchOptions, filters: &SearchFilters) -> Vec<String> {
+fn rg_args(query: &str, options: SearchOptions, globs: &[String]) -> Vec<String> {
     let mut args: Vec<String> = [
         "--no-heading",
         "--null",
@@ -127,10 +124,10 @@ fn rg_args(query: &str, options: SearchOptions, filters: &SearchFilters) -> Vec<
         "--color=never",
         "--no-messages",
         "--hidden",
-        "--max-filesize=1M",
     ]
     .map(String::from)
     .to_vec();
+    args.push(format!("--max-filesize={FILE_BYTES_CAP}"));
     args.push(
         if options.match_case {
             "--case-sensitive"
@@ -146,12 +143,7 @@ fn rg_args(query: &str, options: SearchOptions, filters: &SearchFilters) -> Vec<
         args.push("--fixed-strings".into());
     }
     args.extend(MENTION_SKIP_DIRS.iter().map(|dir| format!("--glob=!{dir}")));
-    args.extend(
-        filters
-            .globs()
-            .into_iter()
-            .map(|glob| format!("--glob={glob}")),
-    );
+    args.extend(globs.iter().map(|glob| format!("--glob={glob}")));
     args.extend(["--regexp".into(), query.into(), ".".into()]);
     args
 }
@@ -216,8 +208,7 @@ mod tests {
     #[test]
     fn passes_the_options_to_both_tools() {
         let literal = SearchOptions::default();
-        let none = SearchFilters::default();
-        let rg = rg_args("a.b", literal, &none);
+        let rg = rg_args("a.b", literal, &[]);
         assert!(rg.contains(&"--ignore-case".into()) && rg.contains(&"--fixed-strings".into()));
         assert!(rg.ends_with(&["--regexp".into(), "a.b".into(), ".".into()]));
         let exact = SearchOptions {
@@ -225,7 +216,7 @@ mod tests {
             whole_word: true,
             regex: true,
         };
-        let rg = rg_args("a.b", exact, &none);
+        let rg = rg_args("a.b", exact, &[]);
         assert!(rg.contains(&"--case-sensitive".into()) && rg.contains(&"--word-regexp".into()));
         assert!(!rg.contains(&"--fixed-strings".into()));
         let grep = grep_args("-x", exact);
@@ -236,11 +227,7 @@ mod tests {
         );
         assert!(grep.ends_with(&["-e".into(), "-x".into(), ".".into()]));
         assert!(grep_args("x", literal).contains(&"-F".into()));
-        let narrowed = SearchFilters {
-            include: vec!["src".into()],
-            exclude: vec!["*.test.ts".into()],
-        };
-        let rg = rg_args("x", literal, &narrowed);
+        let rg = rg_args("x", literal, &["**/src/**".into(), "!*.test.ts".into()]);
         assert!(
             rg.contains(&"--glob=**/src/**".into()) && rg.contains(&"--glob=!*.test.ts".into())
         );

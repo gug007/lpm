@@ -6,7 +6,6 @@ import { FilesAllChangesRow } from "./FilesAllChangesRow";
 import { FilesFilterBox } from "./FilesFilterBox";
 import { FILES_ROW_PX, type RowTarget } from "./FilesRow";
 import { FilesRows } from "./FilesRows";
-import { FilesViewSwitch } from "./FilesViewSwitch";
 import type { IndexEntry } from "./filesFilter";
 import { createTreeCursorStore } from "./treeCursor";
 import { isUnder, withDraftRow, withoutPending } from "./treeEdits";
@@ -39,10 +38,6 @@ interface FilesTreeProps {
   // Every listed path git ignores; its rows grey out.
   ignoredPaths: ReadonlySet<string>;
   changesOnly: boolean;
-  // Without it the rail stays on the changes and has no view switch.
-  onChangesOnlyChange?: (on: boolean) => void;
-  // Offers the Search view on the switch.
-  onSearch?: () => void;
   // The whole working tree as one diff stack, in place of a single file.
   allChanges: boolean;
   onAllChangesChange: (on: boolean) => void;
@@ -82,8 +77,6 @@ export function FilesTree({
   decorations,
   ignoredPaths,
   changesOnly,
-  onChangesOnlyChange,
-  onSearch,
   allChanges,
   onAllChangesChange,
   selectedPath,
@@ -322,14 +315,6 @@ export function FilesTree({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {onChangesOnlyChange && (
-        <FilesViewSwitch
-          view={changesOnly ? "changes" : "all"}
-          count={changes.status === "ready" ? changes.files.length : null}
-          onChange={(view) => (view === "search" ? onSearch?.() : onChangesOnlyChange(view === "changes"))}
-          searchable={!!onSearch}
-        />
-      )}
       <FilesFilterBox
         inputRef={inputRef}
         query={query}

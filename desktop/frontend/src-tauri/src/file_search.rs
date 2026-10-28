@@ -3,14 +3,15 @@
 // become. The walk is ripgrep's, in parallel and honoring .gitignore, with the
 // tree's skip list on top for projects outside git.
 use crate::config::expand_home;
-use crate::file_replace::{for_each_match, Pattern, Replacer};
+use crate::file_match::{
+    build_matcher, for_each_match, utf16_len, Pattern, Replacer, SearchOptions,
+};
 use crate::file_search_filter::{Invalid, SearchFilters};
 use crate::files::MENTION_SKIP_DIRS;
-use grep_regex::{RegexMatcher, RegexMatcherBuilder};
 use grep_searcher::{sinks::Lossy, BinaryDetection, Searcher, SearcherBuilder};
 use ignore::overrides::Override;
 use ignore::{WalkBuilder, WalkState};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -23,15 +24,8 @@ pub(crate) const FILE_BYTES_CAP: u64 = 1024 * 1024;
 // Under the 30 s a connected computer waits for an answer.
 pub(crate) const TIME_BUDGET: Duration = Duration::from_secs(15);
 const CONTEXT_CHARS: usize = 30;
-const SNIPPET_CHARS: usize = 200;
-
-#[derive(Deserialize, Default, Clone, Copy)]
-#[serde(rename_all = "camelCase", default)]
-pub struct SearchOptions {
-    pub match_case: bool,
-    pub whole_word: bool,
-    pub regex: bool,
-}
+// More than the rail shows at its widest.
+const SNIPPET_CHARS: usize = 120;
 
 /// One occurrence. Columns and lengths count UTF-16 units, as the editor and
 /// JavaScript strings do.
@@ -82,7 +76,6 @@ pub fn search_files(
     if root.is_empty() || query.is_empty() {
         return Ok(FileSearch::default());
     }
-    let filters = filters.unwrap_or_default();
     let invalid = |invalid| {
         Ok(FileSearch {
             invalid: Some(invalid),
@@ -98,25 +91,25 @@ pub fn search_files(
     };
     let remote = crate::sshexec::remote_project_for_path(&root);
     let base = expand_home(&root);
+    // The host prints paths relative to the project; the walker hands over
+    // absolute ones.
     let filter_root = if remote.is_some() { "" } else { base.as_str() };
-    let filter = match filters.matcher(Path::new(filter_root)) {
+    let filter = match filters.unwrap_or_default().compile(Path::new(filter_root)) {
         Ok(filter) => filter,
         Err(e) => return invalid(e),
     };
     let key = search_key(&root, &token);
     let stop = begin(&key);
     let found = match remote {
-        Some(ssh) => crate::file_search_ssh::search(
-            &ssh,
-            &root,
-            &query,
-            options,
-            &filters,
-            filter.as_ref(),
+        Some(ssh) => {
+            crate::file_search_ssh::search(&ssh, &root, &query, options, &filter, &pattern, &stop)
+        }
+        None => Ok(search_local(
+            Path::new(&base),
             &pattern,
+            filter.matcher,
             &stop,
-        ),
-        None => Ok(search_local(Path::new(&base), &pattern, filter, &stop)),
+        )),
     };
     finish(&key, &stop);
     found
@@ -158,30 +151,6 @@ fn finish(key: &str, stop: &Arc<AtomicBool>) {
     }
 }
 
-/// ripgrep's settings: one line at a time, so `^`/`$` anchor to lines and no
-/// match runs past a line's end.
-pub(crate) fn build_matcher(query: &str, options: SearchOptions) -> Result<RegexMatcher, String> {
-    RegexMatcherBuilder::new()
-        .case_insensitive(!options.match_case)
-        .word(options.whole_word)
-        .fixed_strings(!options.regex)
-        .multi_line(true)
-        .line_terminator(Some(b'\n'))
-        .build(query)
-        .map_err(|e| regex_reason(&e.to_string()))
-}
-
-// A regex error comes over several lines, the pattern and a caret under it
-// first; the last line names the problem.
-fn regex_reason(message: &str) -> String {
-    let last = message
-        .lines()
-        .rev()
-        .find(|l| !l.trim().is_empty())
-        .unwrap_or(message);
-    last.trim().trim_start_matches("error:").trim().to_string()
-}
-
 fn search_local(
     base: &Path,
     pattern: &Pattern,
@@ -215,8 +184,8 @@ fn search_local(
                 if stop.load(Ordering::Relaxed) {
                     return WalkState::Quit;
                 }
-                if count_ref.load(Ordering::Relaxed) >= MATCH_CAP || started.elapsed() > TIME_BUDGET
-                {
+                let room = MATCH_CAP.saturating_sub(count_ref.load(Ordering::Relaxed));
+                if room == 0 || started.elapsed() > TIME_BUDGET {
                     truncated_ref.store(true, Ordering::Relaxed);
                     return WalkState::Quit;
                 }
@@ -226,7 +195,7 @@ fn search_local(
                 if !entry.file_type().is_some_and(|t| t.is_file()) {
                     return WalkState::Continue;
                 }
-                let matches = search_file(&mut searcher, pattern, entry.path());
+                let matches = search_file(&mut searcher, pattern, entry.path(), room);
                 if !matches.is_empty() {
                     count_ref.fetch_add(matches.len(), Ordering::Relaxed);
                     let path = entry.path().strip_prefix(base).unwrap_or(entry.path());
@@ -249,59 +218,72 @@ fn searcher() -> Searcher {
         .build()
 }
 
-fn search_file(searcher: &mut Searcher, pattern: &Pattern, path: &Path) -> Vec<LineMatch> {
+fn search_file(
+    searcher: &mut Searcher,
+    pattern: &Pattern,
+    path: &Path,
+    limit: usize,
+) -> Vec<LineMatch> {
     let mut out = Vec::new();
     let _ = searcher.search_path(
         &pattern.matcher,
         path,
         Lossy(|line, text| {
-            line_matches(pattern, line, text, &mut out);
-            Ok(out.len() < MATCH_CAP)
+            line_matches(pattern, line, text, &mut out, limit);
+            Ok(out.len() < limit)
         }),
     );
     out
 }
 
-/// Every occurrence on one line, `line` its 1-based number.
-pub(crate) fn line_matches(pattern: &Pattern, line: u64, text: &str, out: &mut Vec<LineMatch>) {
+/// Every occurrence on one line, `line` its 1-based number, until `out` holds
+/// `limit`. Each column carries on from the match before it, so a long line
+/// is read once however many times it matches.
+pub(crate) fn line_matches(
+    pattern: &Pattern,
+    line: u64,
+    text: &str,
+    out: &mut Vec<LineMatch>,
+    limit: usize,
+) {
     let text = text.trim_end_matches(['\n', '\r']);
+    let indent = text.len() - text.trim_start().len();
+    let (mut seen, mut col) = (0, 1);
     for_each_match(pattern, text, |start, end, replacement| {
-        out.push(line_match(line, text, start, end, replacement));
-        out.len() < MATCH_CAP
+        col += utf16_len(&text[seen..start]);
+        seen = start;
+        let (around, at) = snippet(text, indent.min(start), start);
+        out.push(LineMatch {
+            line,
+            col,
+            len: utf16_len(&text[start..end]),
+            text: around,
+            start: at,
+            replacement,
+        });
+        out.len() < limit
     });
 }
 
 // The line from a little before the occurrence, so a match far along a long
-// line still shows.
-fn line_match(
-    line: u64,
-    text: &str,
-    start: usize,
-    end: usize,
-    replacement: Option<String>,
-) -> LineMatch {
-    let before = text[..start].trim_start();
-    let skip = before.chars().count().saturating_sub(CONTEXT_CHARS);
+// line still shows; the walk back stops after CONTEXT_CHARS characters. Also
+// where the match starts in it, in UTF-16 units.
+fn snippet(text: &str, from: usize, start: usize) -> (String, usize) {
+    let lead = &text[from..start];
+    let cut = lead
+        .char_indices()
+        .rev()
+        .nth(CONTEXT_CHARS - 1)
+        .map_or(0, |(i, _)| i);
     let mut snippet = String::new();
-    if skip > 0 {
+    if cut > 0 {
         snippet.push('…');
     }
-    snippet.extend(before.chars().skip(skip));
+    snippet.push_str(&lead[cut..]);
     let at = utf16_len(&snippet);
     let room = SNIPPET_CHARS.saturating_sub(snippet.chars().count());
     snippet.extend(text[start..].chars().take(room));
-    LineMatch {
-        line,
-        col: utf16_len(&text[..start]) + 1,
-        len: utf16_len(&text[start..end]),
-        text: snippet,
-        start: at,
-        replacement,
-    }
-}
-
-pub(crate) fn utf16_len(s: &str) -> usize {
-    s.encode_utf16().count()
+    (snippet, at)
 }
 
 /// Files in path order, folder by folder, cut to the match cap.
@@ -474,7 +456,7 @@ mod tests {
     fn columns_count_utf16_units_and_long_lines_keep_the_match() {
         let pattern = plain("needle");
         let mut out = Vec::new();
-        line_matches(&pattern, 3, "  \"😀é\" needle\r\n", &mut out);
+        line_matches(&pattern, 3, "  \"😀é\" needle\r\n", &mut out, MATCH_CAP);
         assert_eq!(
             out,
             vec![LineMatch {
@@ -488,12 +470,16 @@ mod tests {
         );
         let long = format!("{}needle{}", "x".repeat(500), "y".repeat(500));
         let mut out = Vec::new();
-        line_matches(&pattern, 1, &long, &mut out);
+        line_matches(&pattern, 1, &long, &mut out, MATCH_CAP);
         let hit = &out[0];
         assert_eq!(hit.col, 501);
         assert_eq!(
             hit.text,
-            format!("…{}needle{}", "x".repeat(30), "y".repeat(163))
+            format!(
+                "…{}needle{}",
+                "x".repeat(30),
+                "y".repeat(SNIPPET_CHARS - 37)
+            )
         );
         assert_eq!(hit.start, 31);
     }

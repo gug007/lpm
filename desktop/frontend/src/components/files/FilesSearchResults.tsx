@@ -16,6 +16,8 @@ interface FilesSearchResultsProps {
   onExitTop: () => void;
   // Given while the replace field is open: each row's own Replace.
   onReplace?: (row: SearchRow) => void;
+  // A plain replacement, the same for every match.
+  literalReplacement?: string;
   // Files with unsaved edits in the editor, which can't be replaced in.
   unsaved: ReadonlySet<string>;
 }
@@ -29,6 +31,7 @@ export function FilesSearchResults({
   onOpen,
   onExitTop,
   onReplace,
+  literalReplacement,
   unsaved,
 }: FilesSearchResultsProps) {
   const [folded, setFolded] = useState<{ files: FileMatches[]; paths: ReadonlySet<string> }>({ files, paths: NONE });
@@ -129,6 +132,7 @@ export function FilesSearchResults({
             opened={row.key === openedKey}
             onClick={activate}
             onReplace={onReplace}
+            literalReplacement={literalReplacement}
             unsaved={unsaved.has(row.path)}
           />
         ))}

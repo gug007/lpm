@@ -2,6 +2,7 @@ import type { DependencyList, ReactNode, RefObject } from "react";
 import { Columns2 } from "lucide-react";
 import { ZapIcon } from "../icons";
 import { ALL_SERVICES, filesTabLabel, terminalDisplayLabel, type TerminalInstance } from "../../paneTree";
+import type { RailView } from "../../store/filesView";
 import { STRIP_TAB_ATTR, useHiddenTabs } from "../../hooks/useHiddenTabs";
 import type { StripEntry } from "./TabOverflowChip";
 
@@ -18,7 +19,7 @@ interface PaneStripOverflowOptions {
   edges: { left: boolean; right: boolean };
   services: { name: string; ports?: number[] }[];
   tabs: TerminalInstance[];
-  filesChangesOnly: Record<string, boolean>;
+  filesViews: Record<string, RailView>;
   tabIcon: (tab: TerminalInstance) => ReactNode;
   // Pass ALL_SERVICES for the All tab.
   onSelectService: (name: string) => void;
@@ -34,7 +35,7 @@ export function usePaneStripOverflow({
   edges,
   services,
   tabs,
-  filesChangesOnly,
+  filesViews,
   tabIcon,
   onSelectService,
   onSelectTab,
@@ -57,7 +58,7 @@ export function usePaneStripOverflow({
     }
     const tab = tabs.find((t) => terminalStripKey(t.id) === key);
     if (!tab) return null;
-    const label = tab.kind === "files" ? filesTabLabel(tab, filesChangesOnly[tab.id] ?? false) : terminalDisplayLabel(tab);
+    const label = tab.kind === "files" ? filesTabLabel(tab, filesViews[tab.id] === "changes") : terminalDisplayLabel(tab);
     return { key, label, icon: tabIcon(tab) };
   };
 

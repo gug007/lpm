@@ -1,95 +1,24 @@
 // Replace in files, from the Search view. Each file is read again and matched
-// line by line exactly as the search reads it, so the change is the preview
-// the user saw. A file that changes between that read and the write is left
+// line by line with the search's own matcher, so the change is the preview the
+// user saw. A file that changes between that read and the write is left
 // alone, and the last replace can be taken back while nothing has touched the
 // files since.
 use crate::config::expand_home;
-use crate::file_search::{build_matcher, search_key, utf16_len, SearchOptions, FILE_BYTES_CAP};
-use grep_matcher::{Captures, Matcher};
-use grep_regex::{RegexCaptures, RegexMatcher};
+use crate::file_browser::checked_rel;
+use crate::file_match::{
+    build_matcher, for_each_match, utf16_len, Pattern, Replacer, SearchOptions,
+};
+use crate::file_search::{search_key, FILE_BYTES_CAP};
+use crate::files::{refuse_remote_write, write_file_if_unchanged};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::{Component, Path, PathBuf};
+use std::path::Path;
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 // Past these, undo is left to Git.
 const UNDO_BYTES: usize = 32 * 1024 * 1024;
 const UNDO_WINDOW: Duration = Duration::from_secs(120);
-
-/// What a search looks for, and with a replacer, what each hit becomes.
-pub(crate) struct Pattern {
-    pub matcher: RegexMatcher,
-    pub replacer: Option<Replacer>,
-}
-
-/// A regex replacement takes `$1` and `${name}` from the match; a plain one
-/// is used as typed.
-pub(crate) enum Replacer {
-    Literal(String),
-    Template(String),
-}
-
-impl Replacer {
-    pub fn new(text: &str, regex: bool) -> Self {
-        if regex {
-            Replacer::Template(text.to_string())
-        } else {
-            Replacer::Literal(text.to_string())
-        }
-    }
-
-    fn expand(&self, matcher: &RegexMatcher, caps: &RegexCaptures, haystack: &[u8]) -> String {
-        match self {
-            Replacer::Literal(text) => text.clone(),
-            Replacer::Template(template) => {
-                let mut dst = Vec::new();
-                caps.interpolate(
-                    |name| matcher.capture_index(name),
-                    haystack,
-                    template.as_bytes(),
-                    &mut dst,
-                );
-                String::from_utf8_lossy(&dst).into_owned()
-            }
-        }
-    }
-}
-
-/// Calls `f(start, end, replacement)` for each match in one line, in byte
-/// offsets; `f` returns false to stop.
-pub(crate) fn for_each_match(
-    pattern: &Pattern,
-    text: &str,
-    mut f: impl FnMut(usize, usize, Option<String>) -> bool,
-) {
-    let bytes = text.as_bytes();
-    let whole = |start: usize, end: usize| {
-        start < end && text.is_char_boundary(start) && text.is_char_boundary(end)
-    };
-    let Some(replacer) = &pattern.replacer else {
-        let _ = pattern.matcher.find_iter(bytes, |m| {
-            !whole(m.start(), m.end()) || f(m.start(), m.end(), None)
-        });
-        return;
-    };
-    let Ok(mut caps) = pattern.matcher.new_captures() else {
-        return;
-    };
-    let _ = pattern.matcher.captures_iter(bytes, &mut caps, |caps| {
-        let Some(m) = caps.get(0) else {
-            return true;
-        };
-        if !whole(m.start(), m.end()) {
-            return true;
-        }
-        f(
-            m.start(),
-            m.end(),
-            Some(replacer.expand(&pattern.matcher, caps, bytes)),
-        )
-    });
-}
 
 /// The match a single Replace aims at: its line and UTF-16 column, as listed.
 #[derive(Deserialize, Clone, Copy)]
@@ -153,10 +82,10 @@ pub struct UndoOutcome {
 }
 
 struct Undo {
-    path: PathBuf,
+    path: String,
     rel: String,
-    before: Vec<u8>,
-    after: Vec<u8>,
+    before: String,
+    after: String,
 }
 
 /// Replaces the matches of `query` in `paths` (relative to `root`), or with
@@ -171,23 +100,21 @@ pub fn replace_in_files(
     at: Option<MatchAt>,
     token: String,
 ) -> Result<ReplaceOutcome, String> {
-    if crate::sshexec::remote_project_for_path(&root).is_some() {
-        return Err("Replacing in files on an SSH host isn't supported yet".into());
-    }
     if root.is_empty() || query.is_empty() {
         return Ok(ReplaceOutcome::default());
     }
+    refuse_remote_write(&root)?;
     let matcher = build_matcher(&query, options)
         .map_err(|reason| format!("Not a valid regular expression: {reason}"))?;
     let pattern = Pattern {
         matcher,
         replacer: Some(Replacer::new(&replacement, options.regex)),
     };
-    let base = PathBuf::from(expand_home(&root));
+    let base = expand_home(&root);
     let mut outcome = ReplaceOutcome::default();
     let mut undo = Vec::new();
     for rel in paths {
-        match replace_file(&base, &rel, &pattern, at) {
+        match replace_file(Path::new(&base), &rel, &pattern, at) {
             Ok(Some((count, done))) => {
                 outcome.replaced += count;
                 outcome.files += 1;
@@ -205,31 +132,35 @@ pub fn replace_in_files(
 /// while it still holds what the replace wrote.
 #[tauri::command(async)]
 pub fn undo_replace(root: String, token: String) -> Result<UndoOutcome, String> {
-    let entry = undo_stash()
-        .lock()
-        .unwrap()
-        .remove(&search_key(&root, &token));
-    let Some((_, undo)) = entry.filter(|(at, _)| at.elapsed() < UNDO_WINDOW) else {
+    let entry = {
+        let mut stash = undo_stash().lock().unwrap();
+        stash.retain(|_, (at, _)| at.elapsed() < UNDO_WINDOW);
+        stash.remove(&search_key(&root, &token))
+    };
+    let Some((_, undo)) = entry else {
         return Err("This replace can no longer be undone".into());
     };
     let mut outcome = UndoOutcome::default();
     for u in undo {
-        let skip = |reason: String| SkippedFile {
-            path: u.rel.clone(),
-            reason,
-        };
-        match std::fs::read(&u.path) {
-            Ok(now) if now == u.after => match std::fs::write(&u.path, &u.before) {
-                Ok(()) => outcome.restored += 1,
-                Err(e) => outcome.skipped.push(skip(e.to_string())),
-            },
-            Ok(_) => outcome
-                .skipped
-                .push(skip("Changed since the replace".into())),
-            Err(e) => outcome.skipped.push(skip(e.to_string())),
+        match swap(&u.path, &u.after, &u.before, "Changed since the replace") {
+            Ok(()) => outcome.restored += 1,
+            Err(reason) => outcome.skipped.push(SkippedFile {
+                path: u.rel,
+                reason,
+            }),
         }
     }
     Ok(outcome)
+}
+
+// Writes `to` over `path` only while it still holds `from`.
+fn swap(path: &str, from: &str, to: &str, changed: &str) -> Result<(), String> {
+    let result = write_file_if_unchanged(path.to_string(), from.to_string(), to.to_string())?;
+    if result.written {
+        Ok(())
+    } else {
+        Err(changed.to_string())
+    }
 }
 
 fn replace_file(
@@ -238,22 +169,20 @@ fn replace_file(
     pattern: &Pattern,
     at: Option<MatchAt>,
 ) -> Result<Option<(usize, Undo)>, String> {
-    let inside = Path::new(rel)
-        .components()
-        .all(|c| matches!(c, Component::Normal(_) | Component::CurDir));
-    if rel.is_empty() || !inside {
+    let rel = checked_rel(rel).map_err(|_| "Outside the project".to_string())?;
+    if rel.is_empty() {
         return Err("Outside the project".into());
     }
-    let path = base.join(rel);
-    let before = std::fs::read(&path).map_err(|e| e.to_string())?;
-    if before.len() as u64 > FILE_BYTES_CAP {
+    let path = base.join(&rel).to_string_lossy().into_owned();
+    let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
+    if bytes.len() as u64 > FILE_BYTES_CAP {
         return Err("Too large to change here".into());
     }
-    if before.contains(&0) {
+    if crate::git::is_binary(&bytes) {
         return Err("Binary file".into());
     }
-    let text = std::str::from_utf8(&before).map_err(|_| "Not UTF-8 text".to_string())?;
-    let (after, count) = replace_text(pattern, text, at);
+    let before = String::from_utf8(bytes).map_err(|_| "Not UTF-8 text".to_string())?;
+    let (after, count) = replace_text(pattern, &before, at);
     if count == 0 {
         return match at {
             Some(_) => Err("Changed since the search".into()),
@@ -261,15 +190,12 @@ fn replace_file(
         };
     }
     // An agent may have written it since the read above.
-    if std::fs::read(&path).map_err(|e| e.to_string())? != before {
-        return Err("Changed since the search".into());
-    }
-    std::fs::write(&path, &after).map_err(|e| e.to_string())?;
+    swap(&path, &before, &after, "Changed since the search")?;
     let undo = Undo {
         path,
-        rel: rel.to_string(),
+        rel,
         before,
-        after: after.into_bytes(),
+        after,
     };
     Ok(Some((count, undo)))
 }
