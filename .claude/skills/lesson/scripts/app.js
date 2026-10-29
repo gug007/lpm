@@ -177,7 +177,14 @@ async function launchApp({ lpmDir, env = {}, log = () => {} }) {
   fs.rmSync(sockPath, { force: true });
   const logFile = fs.openSync(path.join(lpmDir, "app.log"), "a");
   const proc = spawn(APP_BIN, [], {
-    env: { ...hostEnv(), ...env, LPM_DIR: lpmDir, LPM_LESSON_SOCKET: sockPath, HOME: os.homedir() },
+    env: {
+      ...hostEnv(),
+      ...(process.env.LESSON_CLAUDE_CONFIG_DIR ? { CLAUDE_CONFIG_DIR: process.env.LESSON_CLAUDE_CONFIG_DIR } : {}),
+      ...env,
+      LPM_DIR: lpmDir,
+      LPM_LESSON_SOCKET: sockPath,
+      HOME: os.homedir(),
+    },
     stdio: ["ignore", logFile, logFile],
   });
   const stopVite = () => {

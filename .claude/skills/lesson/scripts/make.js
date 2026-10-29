@@ -93,9 +93,11 @@ async function record(lines) {
   const P = paths();
   const common = { lines, beats, raw: take ? take.raw : P.raw, framesDir, voice: VOICE };
   const interrupted = take && onTeardown(() => failTake(take, new Error("interrupted (Ctrl-C or a kill signal)")));
-  // "limits": false keeps usage off screen, Claude's own status line included
-  // (take.sh's settings guard puts it back).
-  if (lesson.limits === false && source === "app" && hideClaudeStatusLine(path.join(CACHE, "agent-settings.backup.json"))) {
+  // "limits": false keeps usage off screen, Claude's own status line included;
+  // "claudeStatusLine": false hides only the status line (take.sh's settings
+  // guard puts it back).
+  const hideStatusLine = lesson.limits === false || lesson.claudeStatusLine === false;
+  if (hideStatusLine && source === "app" && hideClaudeStatusLine(path.join(CACHE, "agent-settings.backup.json"))) {
     console.log("Claude Code runs without your status line for this take");
   }
   let timeline;

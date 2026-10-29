@@ -13,7 +13,8 @@ A lesson lives in `~/Movies/lpm-lessons/<slug>/`. `scripts/new.js` writes a star
 | `voice`, `style` | override the TTS voice (`marin`) and style prompt (`DEFAULT_STYLE` in `scripts/make.js`) |
 | `env` | environment for the lesson app, applied after the scrub (lesson 14: `CLAUDE_SECURESTORAGE_CONFIG_DIR: ""`, `CLAUDE_CODE_HIDE_CWD: "1"`) |
 | `settings` | seeded into the app's `settings.json` before launch |
-| `limits` | `false` leaves the Claude/Codex usage meters out |
+| `limits` | `false` leaves the Claude/Codex usage meters out (and Claude's status line); keep them in: the user wants them on every lesson |
+| `claudeStatusLine` | `false` runs Claude Code without the user's status line while the sidebar meters stay (a lesson about setting the status line up, or one that stages its own readings) |
 | `power` | `true` makes the preflight refuse a take on battery (a lesson that shows Keep this Mac awake) |
 | `music` | `false`, or a file, instead of the default bed |
 | `zooms` | mux-time edits of the take's zooms by id, see below |
@@ -60,7 +61,7 @@ The runner waits for each line's clip plus a 450 ms gap before the next beat; a 
 | `s.control.evaluate(fn, ...args)` | runs `fn` in the app's page (JSON args); `s.control.call("window", { focus: true })` brings the window to the front |
 | `s.point(sel, at)`, `s.origin`, `s.realMove(x, y)`, `s.mouse`, `s.log(m)` | page coordinates, the window's screen rectangle, a bare pointer move, `"real"` or `"dom"`, the take log |
 
-In the page, `window.__lc` has `find(sel)` (true when visible), `rect(sel)`, `typeText(text)`, `hover`, `tap`, `pressKey`.
+In the page, `window.__lc` has `find(sel)` (true when visible), `el(sel)` (the matched element, or null), `rect(sel)`, `typeText(text)`, `hover`, `tap`, `pressKey`.
 
 Selectors: CSS, `text=<substring>`, `css:has-text("…")` and `a >> b` chains; the smallest visible match wins, so scope a name that appears in two places (`.switcher-in >> button:has-text("api")` for the services menu row, `.no-scrollbar.overflow-x-auto >> button:has-text("api")` for the tab).
 

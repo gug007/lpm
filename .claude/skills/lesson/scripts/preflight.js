@@ -120,15 +120,17 @@ function agents() {
 // covers every plain folder a lesson seeds; a git folder is trusted when the
 // kit's shell wrapper launches an agent in it.
 function trust() {
-  const file = path.join(os.homedir(), ".claude.json");
-  if (!fs.existsSync(file)) return;
-  const data = JSON.parse(fs.readFileSync(file, "utf8"));
-  if (data.projects?.[WORKSPACE]?.hasTrustDialogAccepted) return;
-  data.projects = data.projects || {};
-  data.projects[WORKSPACE] = { allowedTools: [], ...data.projects[WORKSPACE], hasTrustDialogAccepted: true };
-  fs.writeFileSync(`${file}.lesson`, JSON.stringify(data, null, 2));
-  fs.renameSync(`${file}.lesson`, file);
-  done.push(`trusted ${WORKSPACE} in Claude Code`);
+  for (const dir of [os.homedir(), process.env.LESSON_CLAUDE_CONFIG_DIR].filter(Boolean)) {
+    const file = path.join(dir, ".claude.json");
+    if (!fs.existsSync(file)) continue;
+    const data = JSON.parse(fs.readFileSync(file, "utf8"));
+    if (data.projects?.[WORKSPACE]?.hasTrustDialogAccepted) continue;
+    data.projects = data.projects || {};
+    data.projects[WORKSPACE] = { allowedTools: [], ...data.projects[WORKSPACE], hasTrustDialogAccepted: true };
+    fs.writeFileSync(`${file}.lesson`, JSON.stringify(data, null, 2));
+    fs.renameSync(`${file}.lesson`, file);
+    done.push(`trusted ${WORKSPACE} in Claude Code (${file})`);
+  }
 }
 
 function app() {

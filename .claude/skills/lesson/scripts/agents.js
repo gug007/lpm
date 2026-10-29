@@ -6,7 +6,9 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 
-const CLAUDE_HOME = path.join(os.homedir(), ".claude");
+// LESSON_CLAUDE_CONFIG_DIR records a take on another Claude account (one of
+// lpm's account folders); the lesson app hands it to Claude as CLAUDE_CONFIG_DIR.
+const CLAUDE_HOME = process.env.LESSON_CLAUDE_CONFIG_DIR || path.join(os.homedir(), ".claude");
 
 // `~/.claude/projects/<root with every non-alphanumeric character as '-'>`,
 // or the same under a lesson's own account `configDir`.

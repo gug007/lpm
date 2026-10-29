@@ -85,7 +85,12 @@ function prepareState({ lpmDir, lesson, keepState, workspace: withWorkspace = tr
     // meters look like a configured app. `"limits": false` leaves them out.
     const reading = path.join(os.homedir(), ".lpm", "agent-limits.json");
     if (lesson.limits !== false && fs.existsSync(reading)) {
-      fs.copyFileSync(reading, path.join(dir, "agent-limits.json"));
+      const readings = JSON.parse(fs.readFileSync(reading, "utf8"));
+      // A take on another account (LESSON_CLAUDE_CONFIG_DIR) shows that
+      // account's reading on the sidebar's Claude line.
+      const account = process.env.LESSON_CLAUDE_CONFIG_DIR && path.basename(process.env.LESSON_CLAUDE_CONFIG_DIR);
+      if (account && readings[`claude:${account}`]) readings["claude:default"] = { ...readings[`claude:${account}`], accountId: "default" };
+      fs.writeFileSync(path.join(dir, "agent-limits.json"), JSON.stringify(readings));
       settings({ claudeLimitsEnabled: true });
     }
     // Without the copy the app still reads the live usage (Codex sessions,

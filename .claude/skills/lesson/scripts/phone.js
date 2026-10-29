@@ -219,7 +219,21 @@ async function preparePhone({ device = "iPhone 17", env = {}, at, log = () => {}
     press: (x, y, deviceSize, label) => {
       if (!screen) throw new Error("the phone's screen has not been found yet");
       const at = [(screen.x + (x * screen.w) / deviceSize.w).toFixed(1), (screen.y + (y * screen.h) / deviceSize.h).toFixed(1)];
-      axpress(pid, "--at", ...at, ...(label ? [label] : []));
+      // Device Hub fills in a freshly launched app's accessibility tree only
+      // after it is first asked, so the first press can find nothing.
+      for (let tries = 1; ; tries++) {
+        try {
+          return axpress(pid, "--at", ...at, ...(label ? [label] : []));
+        } catch (e) {
+          // A list row can carry its label without a press action of its
+          // own: then whatever can be pressed at the point.
+          if (tries >= 8) {
+            if (!label) throw e;
+            return axpress(pid, "--at", ...at);
+          }
+          Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 400);
+        }
+      }
     },
     home: () => axpress(pid, "Home"),
     // iOS's back gesture, sent to an element with that label on screen.

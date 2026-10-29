@@ -101,7 +101,7 @@ fcntl.flock(lock, fcntl.LOCK_EX)
 ledger_file = ${JSON.stringify(LEDGER)}
 ledger = json.load(open(ledger_file)) if os.path.exists(ledger_file) else []
 
-claude = os.path.expanduser("~/.claude.json")
+claude = os.path.join(os.environ["CLAUDE_CONFIG_DIR"], ".claude.json") if os.environ.get("CLAUDE_CONFIG_DIR") else os.path.expanduser("~/.claude.json")
 data = json.load(open(claude))
 projects = data.setdefault("projects", {})
 if not projects.get(cwd, {}).get("hasTrustDialogAccepted"):
@@ -127,16 +127,24 @@ if cwd not in ledger:
         json.dump(ledger, f, indent=2)
 `;
 
+// The Claude configs a take's folder trust lands in: the user's own, and the
+// account a take records on (LESSON_CLAUDE_CONFIG_DIR).
+function claudeJsonFiles() {
+  const dirs = [os.homedir(), process.env.LESSON_CLAUDE_CONFIG_DIR].filter(Boolean);
+  return dirs.map((d) => path.join(d, ".claude.json")).filter((f) => fs.existsSync(f));
+}
+
 function pruneTrust() {
   if (!fs.existsSync(LEDGER)) return;
   const ledger = JSON.parse(fs.readFileSync(LEDGER, "utf8"));
   const gone = ledger.filter((p) => !fs.existsSync(p));
   if (gone.length === 0) return;
-  const claude = path.join(os.homedir(), ".claude.json");
-  const data = JSON.parse(fs.readFileSync(claude, "utf8"));
-  for (const p of gone) delete data.projects?.[p];
-  fs.writeFileSync(claude + ".lesson", JSON.stringify(data, null, 2));
-  fs.renameSync(claude + ".lesson", claude);
+  for (const claude of claudeJsonFiles()) {
+    const data = JSON.parse(fs.readFileSync(claude, "utf8"));
+    for (const p of gone) delete data.projects?.[p];
+    fs.writeFileSync(claude + ".lesson", JSON.stringify(data, null, 2));
+    fs.renameSync(claude + ".lesson", claude);
+  }
   const codex = path.join(os.homedir(), ".codex", "config.toml");
   if (fs.existsSync(codex)) {
     let text = fs.readFileSync(codex, "utf8");
@@ -144,6 +152,42 @@ function pruneTrust() {
     fs.writeFileSync(codex, text);
   }
   fs.writeFileSync(LEDGER, JSON.stringify(ledger.filter((p) => fs.existsSync(p)), null, 2));
+}
+
+// Codex puts "⚠ 1 warning" under its prompt on every start when an MCP server's
+// program is gone (a removed Codex.app leaves node_repl behind). Such servers
+// are turned off for the take with a marked line, taken out again on exit and
+// at the start of the next take.
+const CODEX_CONFIG = path.join(os.homedir(), ".codex", "config.toml");
+const MCP_OFF = "enabled = false # lpm-lesson";
+
+function restoreCodexMcp() {
+  if (!fs.existsSync(CODEX_CONFIG)) return;
+  const text = fs.readFileSync(CODEX_CONFIG, "utf8");
+  if (text.includes(MCP_OFF)) fs.writeFileSync(CODEX_CONFIG, text.split("\n").filter((l) => l.trim() !== MCP_OFF).join("\n"));
+}
+
+function quietCodexMcp() {
+  restoreCodexMcp();
+  if (!fs.existsSync(CODEX_CONFIG)) return [];
+  const lines = fs.readFileSync(CODEX_CONFIG, "utf8").split("\n");
+  const off = [];
+  for (let i = 0; i < lines.length; i++) {
+    const name = lines[i].match(/^\[mcp_servers\.([\w-]+)\]\s*$/)?.[1];
+    if (!name) continue;
+    let end = i + 1;
+    while (end < lines.length && !lines[end].startsWith("[")) end++;
+    const body = lines.slice(i + 1, end);
+    const command = body.map((l) => l.match(/^command\s*=\s*"(.*)"\s*$/)?.[1]).find(Boolean);
+    if (body.some((l) => /^enabled\s*=/.test(l)) || !command || !path.isAbsolute(command) || fs.existsSync(command)) continue;
+    lines.splice(i + 1, 0, MCP_OFF);
+    off.push(name);
+  }
+  if (off.length) {
+    fs.writeFileSync(CODEX_CONFIG, lines.join("\n"));
+    process.on("exit", restoreCodexMcp);
+  }
+  return off;
 }
 
 // A project pane runs the user's own shell, whose prompt carries their account
@@ -330,6 +374,8 @@ module.exports = {
   SEND,
   writeProject,
   neutralShell,
+  quietCodexMcp,
+  restoreCodexMcp,
   claudeDone,
   codexDone,
   until,

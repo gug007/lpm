@@ -177,6 +177,7 @@ function installStage({ cursorSvg, hotspot, hiddenText, scale }) {
   window.__lc = {
     place,
     find: (sel) => !!find(sel),
+    el: (sel) => find(sel),
     rect,
     hover,
     dispatchClick,
