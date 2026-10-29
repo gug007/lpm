@@ -178,7 +178,7 @@ export function BuiltInTailscaleRow({
       : `Sign in to Tailscale on ${words.thisMachine}. It's free for personal use.`,
     ...(forMachines
       ? [
-          `On your other ${MACHINE.plural}, turn it on in Settings → Connections with the same account.`,
+          `On your other ${MACHINE.plural}, turn it on with the same account: + above your projects → Another computer.`,
           `${MACHINE.Plural} paired before pick up the new address the next time they connect.`,
         ]
       : [

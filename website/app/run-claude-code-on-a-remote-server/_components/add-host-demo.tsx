@@ -241,7 +241,7 @@ export function AddHostCard({ active = true }: { active?: boolean }) {
       </div>
 
       {/* Outside the card on purpose: the pane above mirrors the real
-              Settings screen, and lpm does not report per-step progress. This
+              Server screen, and lpm does not report per-step progress. This
               is the page explaining the steps, not the app showing them. */}
       <div className={`mt-5 border-t ${BORDER} pt-4`}>
         <p className={`text-[11px] uppercase tracking-[0.15em] ${MUTED}`}>
@@ -268,8 +268,8 @@ export function AddHostCard({ active = true }: { active?: boolean }) {
         </ul>
         <p className={`mt-4 text-[12px] leading-relaxed ${MUTED}`}>
           {reduced
-            ? "Settings → Connections in lpm on your Mac: a Linux server added over SSH, connected and running the current release."
-            : "Settings → Connections in lpm on your Mac. One field, and lpm does the install, the pairing, and the tunnel."}
+            ? "In lpm on your Mac, + above your projects → Server: a Linux server added over SSH, connected and running the current release."
+            : "In lpm on your Mac, + above your projects → Server. One field, and lpm does the install, the pairing, and the tunnel."}
         </p>
       </div>
     </div>

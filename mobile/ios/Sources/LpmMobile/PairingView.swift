@@ -117,7 +117,7 @@ struct PairingView: View {
             }
             Button("Not now", role: .cancel) { heldScan = nil }
         } message: {
-            Text("Tailscale isn't set up on this Mac yet, so lpm Link can reach it only on its Wi-Fi. To use it from anywhere, set up Tailscale in lpm → Settings → Mobile devices and scan a new code — or add it later.")
+            Text("Tailscale isn't set up on this Mac yet, so lpm Link can reach it only on its Wi-Fi. To use it from anywhere, set up Tailscale in lpm (+ above your projects → Phone) and scan a new code — or add it later.")
         }
         .alert("Couldn't reach \(unreachableMac?.displayName ?? "this Mac")",
                isPresented: Binding(get: { unreachableMac != nil }, set: { if !$0 { unreachableMac = nil } }),
@@ -126,7 +126,7 @@ struct PairingView: View {
             Button("Enter Code") { codeTarget = CodeTarget() }
             Button("Cancel", role: .cancel) {}
         } message: { _ in
-            Text("It's listed on this Wi-Fi, but its address didn't answer. Make sure lpm is open on it, or pair with the code from lpm → Settings → Mobile devices.")
+            Text("It's listed on this Wi-Fi, but its address didn't answer. Make sure lpm is open on it, or pair with the code from lpm (+ above your projects → Phone).")
         }
     }
 

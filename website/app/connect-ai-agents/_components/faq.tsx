@@ -61,7 +61,7 @@ const FAQS: QA[] = [
   {
     question: "Does this run on Windows or Linux?",
     answer:
-      "Yes. Besides macOS, the desktop app is in beta for Windows 11 (x64) and for 64-bit x86 Linux (.deb, .rpm and AppImage). On Windows, install Git for Windows first, since lpm runs terminals, services and agents through Git Bash. The lpm command-line tool and the agent skills work the same on all three. A Linux server can also be an lpm host: the same lpm runs headless on an x86_64 server with Ubuntu 22.04 or newer (glibc 2.35+), and you add it from the desktop app by typing user@host in Settings → Connections. That server's projects, terminals and agents then appear in your sidebar, and the lpm command-line tool is installed there too.",
+      "Yes. Besides macOS, the desktop app is in beta for Windows 11 (x64) and for 64-bit x86 Linux (.deb, .rpm and AppImage). On Windows, install Git for Windows first, since lpm runs terminals, services and agents through Git Bash. The lpm command-line tool and the agent skills work the same on all three. A Linux server can also be an lpm host: the same lpm runs headless on an x86_64 server with Ubuntu 22.04 or newer (glibc 2.35+), and you add it from the desktop app by clicking + above your projects, choosing Server and typing user@host. That server's projects, terminals and agents then appear in your sidebar, and the lpm command-line tool is installed there too.",
   },
 ];
 

@@ -153,7 +153,7 @@ export function useAppEvents(): void {
       selectProject,
       setView,
       setUsageOpen,
-      setSettingsTab,
+      connectPhone,
       setFeedbackOpen,
       addProject,
       triggerRemoteAction,
@@ -264,10 +264,9 @@ export function useAppEvents(): void {
         setUsageOpen(true);
         return;
       }
-      // "mobile" is a Settings tab rather than a view of its own.
+      // "mobile" is the Add a project picker's Phone screen, not a view.
       if (view === "mobile") {
-        setSettingsTab("mobile");
-        setView("settings");
+        connectPhone();
         return;
       }
       setView(view as Parameters<typeof setView>[0]);

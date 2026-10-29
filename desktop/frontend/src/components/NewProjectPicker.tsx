@@ -10,6 +10,7 @@ import { InstallLpmScreen } from "./InstallLpmScreen";
 import { AnotherComputerScreen } from "./AnotherComputerScreen";
 import { PhoneScreen } from "./mobile/PhoneScreen";
 import { LaptopIcon } from "./connections/LaptopIcon";
+import { ServerHosts } from "./connections/ServerHosts";
 import type { IconListMenuItem } from "./ui/IconListMenu";
 
 export type NewProjectKind = "local" | "ssh" | "clone";
@@ -41,7 +42,7 @@ export function NewProjectPicker() {
   const target = useAppStore((s) => s.addProjectTarget);
   const start = useAppStore((s) => s.addProjectStart);
 
-  const { root, linuxHostStack, computerStack } = useMemo(() => {
+  const { root, linuxHostStack, computerStack, phoneStack } = useMemo(() => {
     const installScreen: DrillScreen = { title: "Linux host", width: WIDE_SCREEN, render: () => <InstallLpmScreen /> };
     const computerScreen: DrillScreen = {
       title: "Another computer",
@@ -55,9 +56,14 @@ export function NewProjectPicker() {
     };
     const serverScreen: DrillScreen = {
       title: "Server",
-      width: WIDE_SCREEN,
+      width: SETTINGS_SCREEN,
       render: (api) => (
-        <ServerModeScreen onInstall={() => api.push(installScreen)} onSsh={() => onPick("ssh")} />
+        <div className="max-h-[min(720px,80vh)] overflow-y-auto pb-1">
+          <ServerModeScreen onInstall={() => api.push(installScreen)} onSsh={() => onPick("ssh")} />
+          <div className="px-4 pb-4 empty:hidden">
+            <ServerHosts />
+          </div>
+        </div>
       ),
     };
     const sources = target ? remoteSources(target.alias) : NEW_PROJECT_SOURCES;
@@ -163,10 +169,18 @@ export function NewProjectPicker() {
         </div>
       ),
     };
-    return { root, linuxHostStack: [serverScreen, installScreen], computerStack: [computerScreen] };
+    return {
+      root,
+      linuxHostStack: [serverScreen, installScreen],
+      computerStack: [computerScreen],
+      phoneStack: [phoneScreen],
+    };
   }, [onPick, target]);
 
-  const startStack = target || !start ? undefined : { "linux-host": linuxHostStack, computer: computerStack }[start];
+  const startStack =
+    target || !start
+      ? undefined
+      : { "linux-host": linuxHostStack, computer: computerStack, phone: phoneStack }[start];
 
   // Keyed by target so pairing a server from the Linux host screen lands on
   // that server's own root, not the screen the pairing started from.

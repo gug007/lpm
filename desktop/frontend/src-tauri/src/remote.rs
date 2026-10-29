@@ -20,7 +20,7 @@
 //     with an explicit request/response pull as a fallback.
 //
 // Security posture: a per-device bearer token established by a single-use
-// pairing code (shown as a QR in Settings); token hashes are stored in
+// pairing code (shown as a QR on the Phone screen); token hashes are stored in
 // ~/.lpm/remote.json (0600). Current clients speak wss:// (see remotetls.rs):
 // each connection is wrapped in a rustls server session presenting a persisted,
 // self-signed leaf (ECDSA P-256, CN "lpm") before the WebSocket handshake. The
@@ -369,11 +369,11 @@ struct HubInner {
     last_failed_refresh: Mutex<Option<Instant>>,
     // Why the saved mobile settings can't be used, when the file is damaged or
     // unreadable. Nothing can be saved (pairing included) until the user replaces
-    // it, and lpm won't overwrite it for them — so the Settings pane has to say
+    // it, and lpm won't overwrite it for them — so the Phone screen has to say
     // so. None while the store is healthy.
     config_error: Mutex<Option<String>>,
     // Why the listener isn't up, when a bind genuinely failed — surfaced in the
-    // Settings pane instead of a permanent "Starting…". None once bound (or while
+    // Phone screen instead of a permanent "Starting…". None once bound (or while
     // the server is off).
     bind_error: Mutex<Option<String>>,
     // The one in-flight approve-on-Mac pairing request (a phone that discovered
@@ -402,7 +402,7 @@ pub struct RemoteHub {
     inner: Arc<HubInner>,
 }
 
-/// What the Settings pane shows when the saved mobile settings can't be read.
+/// What the Phone screen shows when the saved mobile settings can't be read.
 /// lpm deliberately leaves the file alone — the pairings in it may still be
 /// recoverable — so recovering is the user's call, and the copy names the file.
 fn config_unusable_message() -> String {
@@ -456,7 +456,7 @@ impl RemoteHub {
 
     /// Record what a store operation says about the saved settings file, then hand
     /// its result on. A file we can't read blocks every save, pairing included,
-    /// and only the Settings pane can tell the user — so it is remembered, not
+    /// and only the Phone screen can tell the user — so it is remembered, not
     /// just logged. Any operation that got as far as the file clears it.
     fn note_store<T>(&self, out: Result<T, StoreError>) -> Result<T, String> {
         self.set_config_error(match &out {
@@ -914,7 +914,7 @@ pub fn start(hub: RemoteHub, app: AppHandle) {
     apply(&hub, &app);
 }
 
-/// Tell an open Settings pane whether the listener is up, and why not when a bind
+/// Tell an open Phone screen whether the listener is up, and why not when a bind
 /// failed — the pane can't infer either from the command's immediate return,
 /// since binding happens on the thread below.
 fn emit_server_changed(hub: &RemoteHub, app: &AppHandle) {
@@ -927,7 +927,7 @@ fn emit_server_changed(hub: &RemoteHub, app: &AppHandle) {
     );
 }
 
-/// Why the server couldn't start on `port`, in the words the Settings pane shows.
+/// Why the server couldn't start on `port`, in the words the Phone screen shows.
 /// The cause has to come from the failure itself: a busy port and a port the
 /// system reserves fail for entirely different reasons and need different fixes.
 fn listen_failure_message(port: u16, err: Option<&std::io::Error>) -> String {
@@ -1180,7 +1180,7 @@ fn handle_conn(stream: TcpStream, hub: RemoteHub, app: AppHandle, generation: u6
     let device_id = match outcome {
         Some(outcome) => {
             if outcome.is_new_pairing() {
-                // A phone just paired — nudge any open Settings pane to refetch its
+                // A phone just paired — nudge any open Phone screen to refetch its
                 // device list instead of waiting for the pane to remount.
                 let _ = app.emit("remote-devices-changed", ());
             }
@@ -1355,8 +1355,8 @@ fn release_session(hub: &RemoteHub, app: &AppHandle, conn_id: u64, device_id: &s
     still_here
 }
 
-/// A phone connected or left: stamp when and how, and let an open Settings
-/// pane refresh its row.
+/// A phone connected or left: stamp when and how, and let an open Phone
+/// screen refresh its row.
 fn note_presence(hub: &RemoteHub, app: &AppHandle, device_id: &str, route: Route) {
     let now = crate::status::now_millis();
     hub.update_config_opt(|cfg| crate::remotepresence::note_seen(cfg, device_id, route, now));
@@ -1401,7 +1401,7 @@ enum FirstFrame {
         phone_id: String,
     },
     /// A paired phone that removed this machine from its own list. Its record is
-    /// already gone; only an open Settings pane is left to tell.
+    /// already gone; only an open Phone screen is left to tell.
     Unpaired,
 }
 
@@ -6254,7 +6254,7 @@ pub(crate) fn state_value(hub: &RemoteHub) -> Value {
     })
 }
 
-// --- frontend commands (Settings → Mobile devices pane) ----------------------
+// --- frontend commands (the Phone screen) ------------------------------------
 
 /// Async because it reads the settings file (see the note on `remote_set_config`):
 /// the pane asks for this on open and on every refresh, and it must report a
@@ -6595,10 +6595,10 @@ pub(crate) fn revoke_device(hub: &RemoteHub, id: &str, block: bool) -> Result<()
     Ok(())
 }
 
-/// A phone removing this machine from its list revokes itself, as Revoke in
-/// Settings would, so the record doesn't stay trusted (and pushed to) after the
-/// phone dropped its credential. Only the token it revokes can ask: `false` when
-/// it doesn't match.
+/// A phone removing this machine from its list revokes itself, as Revoke on
+/// the Phone screen would, so the record doesn't stay trusted (and pushed to)
+/// after the phone dropped its credential. Only the token it revokes can ask:
+/// `false` when it doesn't match.
 fn unpair_device(hub: &RemoteHub, id: &str, token: &str) -> Result<bool, String> {
     if !check_device(hub, id, token) {
         return Ok(false);
@@ -6623,7 +6623,8 @@ pub fn remote_rename_device(
 
 /// Keep this machine awake while remote control or Allow control is on. Saved
 /// without restarting the server, so connected phones stay connected. The Phone
-/// and Connections panes both show it, so each hears about a change in the other.
+/// and Another computer screens both show it, so each hears about a change in
+/// the other.
 #[tauri::command(async)]
 pub fn remote_set_keep_awake(
     app: AppHandle,

@@ -93,7 +93,7 @@ gitignored; regenerate them any time from `project.yml`.
 
 ### Pair
 
-On your Mac: lpm → Settings → Mobile devices → enable the server, turn on **LAN**
+On your Mac, in lpm: + above your projects → Phone → enable the server, turn on **LAN**
 exposure (else it only binds loopback and the phone can't reach it) → Add device.
 On the iPhone: tap "Scan QR code" and scan, or enter host/port (default 8765) +
 code manually. Sanity check the server from another machine: `nc -vz <mac-ip> 8765`.

@@ -3,7 +3,7 @@ import { LessonSection } from "@/components/lesson-section";
 const STEPS = [
   {
     title: "Pair the Mac mini",
-    body: "On the Mac mini, create an invite in Settings → Connections and copy it. On your laptop, click + above your projects, choose Another computer, paste it and click Connect. The Mac mini's projects appear in your sidebar.",
+    body: "On the Mac mini, click + above your projects, choose Another computer, then create an invite and copy it. On your laptop, click + above your projects, choose Another computer, paste it and click Connect. The Mac mini's projects appear in your sidebar.",
   },
   {
     title: "Start Claude Code and Codex there",

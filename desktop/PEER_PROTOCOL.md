@@ -167,7 +167,7 @@ rather than needing a re-pair.
 
 `hostHeadless` (bool) says nobody is at the host: lpm running under Xvfb as a
 Linux host (`LPM_HEADLESS=1`, or the binary under `/opt/lpm`), as opposed to
-someone's Mac, Linux or Windows desktop. It is what the Connections pane and the
+someone's Mac, Linux or Windows desktop. It is what the Server screen and the
 sidebar use to show a machine as a server, and the only kind of peer the client
 offers to update or remove lpm on over SSH. A build that predates it omits it,
 and the client stores it as unknown (`headless: null`) on every `ready` that

@@ -133,7 +133,7 @@ struct ConnectionSheet: View {
             if let via {
                 Text("Not on this \(ThisDevice.noun), so it opens through \(via.displayName) at these addresses.")
             } else if !hasAway {
-                Text("Only its home network address is saved, so it works on that Wi-Fi only. Set up Tailscale on the Mac in lpm → Settings → Mobile devices; lpm Link adds its new address the next time it connects.")
+                Text("Only its home network address is saved, so it works on that Wi-Fi only. Set up Tailscale on the Mac in lpm (+ above your projects → Phone); lpm Link adds its new address the next time it connects.")
             } else {
                 Text("A home network address not answering is normal while you're away.")
             }

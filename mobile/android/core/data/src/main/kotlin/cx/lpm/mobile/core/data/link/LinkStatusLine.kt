@@ -109,7 +109,7 @@ data class LinkStatusLine(val text: String, val tone: Tone, val pulse: Boolean =
 /**
  * The short code both screens show for a Mac's security identity: the start of its
  * certificate fingerprint, grouped for reading aloud. lpm on the Mac shows the same
- * code under Settings → Mobile devices.
+ * code under + above your projects → Phone.
  */
 object IdentityCode {
     fun of(fingerprint: String): String {

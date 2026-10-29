@@ -71,7 +71,7 @@ struct QRScannerView: View {
                 Spacer()
                 Text(denied
                      ? "Camera access is off. Enable it in Settings, or enter the code manually."
-                     : "Scan the QR from lpm → Settings → Mobile devices → Pair a device")
+                     : "Scan the QR from lpm: + above your projects → Phone → Pair a device")
                     .font(.footnote)
                     .multilineTextAlignment(.center)
                     .padding()

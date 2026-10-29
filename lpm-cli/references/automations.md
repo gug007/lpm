@@ -107,7 +107,7 @@ A headless run has no one to answer its questions, so write the prompt as a comp
 
 ## Which computer runs it
 
-Config sync copies an automation to every paired computer, but only one of them runs each scheduled run. `--machines` lists the ones that may, best first: `this` (the computer the app runs on), a paired computer's name as Settings → Connections shows it, or `any` for any other computer that has it and is on. The first one in the list that is on runs it; the next takes over a few minutes after it goes offline, and the first one pulls those runs into its own history when it's back.
+Config sync copies an automation to every paired computer, but only one of them runs each scheduled run. `--machines` lists the ones that may, best first: `this` (the computer the app runs on), a paired computer's name as + above your projects → Another computer shows it, or `any` for any other computer that has it and is on. The first one in the list that is on runs it; the next takes over a few minutes after it goes offline, and the first one pulls those runs into its own history when it's back.
 
 - A new automation runs only on the computer it was made on: `--machines this` is the default.
 - `--machines "this,Studio"`: this computer, or Studio while this one is off.

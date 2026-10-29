@@ -20,7 +20,7 @@ const POINTS = [
   {
     icon: Undo2,
     title: "Nothing you have to undo",
-    body: "No account, no relay in the middle, no service of ours holding your keys. Disconnect a host and it drops out of your sidebar, and whatever is running on it keeps running. To take lpm off the server entirely, choose Remove lpm from this host in Settings → Connections.",
+    body: "No account, no relay in the middle, no service of ours holding your keys. Disconnect a host and it drops out of your sidebar, and whatever is running on it keeps running. To take lpm off the server entirely, choose Remove lpm from this host in its ⋯ menu, under + above your projects → Server.",
   },
 ];
 

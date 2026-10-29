@@ -24,7 +24,7 @@ export const DEVICES_AREA: FeatureArea = {
       icon: Laptop,
       title: "Connect computers",
       body: "Pair two computers running lpm and the other one's projects appear in your sidebar under its name. Start its services, use its terminals and agents, review its changes, and run its actions.",
-      note: "The host turns on “Allow control” in its settings. On Windows, that asks for a firewall permission the first time.",
+      note: "The host turns on “Allow control” under + above your projects → Another computer. On Windows, that asks for a firewall permission the first time.",
       href: MAC_MINI_PATH,
       linkLabel: "Run Claude Code and Codex on a Mac mini",
     },

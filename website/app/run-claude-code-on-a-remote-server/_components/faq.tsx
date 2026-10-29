@@ -18,7 +18,7 @@ export const FAQ_ITEMS: FaqItem[] = [
   {
     question: "How do I keep Claude Code running when I close my MacBook?",
     answer:
-      "Move the run off the MacBook. Anything started on your laptop stops when the laptop sleeps, so the durable answer is to run the agent on a machine that stays awake and treat your Mac as the screen for it. In lpm you add a Linux server under Settings → Connections, start the agent in a terminal on that server, and close the lid — the connection drops, the agent does not. Reopen lpm and it reattaches to the same running session instead of starting a new one. The machine that stays awake can also be a Mac mini you already own, paired with your MacBook instead of reached over SSH, with Claude Code and Codex running there.",
+      "Move the run off the MacBook. Anything started on your laptop stops when the laptop sleeps, so the durable answer is to run the agent on a machine that stays awake and treat your Mac as the screen for it. In lpm you add a Linux server under + above your projects → Server, start the agent in a terminal on that server, and close the lid — the connection drops, the agent does not. Reopen lpm and it reattaches to the same running session instead of starting a new one. The machine that stays awake can also be a Mac mini you already own, paired with your MacBook instead of reached over SSH, with Claude Code and Codex running there.",
     link: { href: MAC_MINI_PATH, label: "Run Claude Code and Codex on a Mac mini" },
   },
   {

@@ -3,7 +3,7 @@ import { SectionHeader } from "@/components/section-header";
 const ROWS = [
   {
     label: "Plugged in and awake",
-    body: "In Settings → Connections, with Allow control on, open Port 8766 · keep awake and turn on Keep this Mac awake: lpm then keeps the Mac mini from sleeping while it's plugged in and Allow control stays on. Or stop it sleeping in macOS: in System Settings → Energy, turn on Prevent your Mac from automatically sleeping when the display is off.",
+    body: "In lpm, click + above your projects and choose Another computer. With Allow control on, open Port 8766 · keep awake and turn on Keep this Mac awake: lpm then keeps the Mac mini from sleeping while it's plugged in and Allow control stays on. Or stop it sleeping in macOS: in System Settings → Energy, turn on Prevent your Mac from automatically sleeping when the display is off.",
   },
   {
     label: "Open lpm at login",

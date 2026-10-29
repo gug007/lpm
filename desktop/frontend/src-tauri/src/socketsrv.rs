@@ -774,9 +774,9 @@ fn cmd_peer_pair(args: &[String], app: &AppHandle) -> String {
     }
 }
 
-/// `peer_state` → the same host+peers snapshot the Connections pane renders, so a
-/// headless box can be inspected over the socket instead of by reading peer.json
-/// (whose camelCase keys silently ignore a typo).
+/// `peer_state` → the same host+peers snapshot the Another computer and Server
+/// screens render, so a headless box can be inspected over the socket instead of
+/// by reading peer.json (whose camelCase keys silently ignore a typo).
 fn cmd_peer_state(app: &AppHandle) -> String {
     let hub = app.state::<crate::peer::PeerHub>();
     let client = app.state::<crate::peerclient::PeerClientHub>();
@@ -785,7 +785,7 @@ fn cmd_peer_state(app: &AppHandle) -> String {
 
 /// `remote_pair [--cancel]` → mint the single-use code the iOS companion scans,
 /// or withdraw the outstanding one. The phone-facing counterpart to `peer_pair`,
-/// and the same primitive Settings → Mobile devices calls, so a host with no
+/// and the same primitive the Phone screen calls, so a host with no
 /// window to click still mints a real invite rather than a hand-written one.
 fn cmd_remote_pair(args: &[String], app: &AppHandle) -> String {
     let (_, options) = parse_options(args);
@@ -825,7 +825,7 @@ fn pairing_reply(mut pairing: serde_json::Value) -> serde_json::Value {
     pairing
 }
 
-/// `remote_state` → the same snapshot the Mobile devices pane renders: whether
+/// `remote_state` → the same snapshot the Phone screen renders: whether
 /// the phone server is listening, on which address, and which phones are paired.
 fn cmd_remote_state(app: &AppHandle) -> String {
     let hub = app.state::<crate::remote::RemoteHub>();

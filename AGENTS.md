@@ -69,7 +69,7 @@ lpm starts, stops, duplicates, and switches between local dev projects, with a b
   as a desktop edit would. Once the Android app
   implements a feature, change it on both phones in the same change, and keep
   its parity flow in `mobile/parity/flows` passing on both
-- Keep connected computers (Settings → Connections) in step with the desktop app: a project on a paired machine must work the same as a local one
+- Keep connected computers (+ above your projects → Another computer or Server) in step with the desktop app: a project on a paired machine must work the same as a local one
 - Give every new Tauri command a demo answer: handle it in a `desktop/frontend/src/demo`
   module, or list the empty value of its return type in `src/demo/defaults.ts`
   (`defaults.test.ts` fails until you do)

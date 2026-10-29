@@ -58,6 +58,7 @@ import { usePeerRemovedNotices } from "./peer/usePeerRemovedNotices";
 import { usePeerState } from "./peer/usePeerState";
 import { useSettingsMachine } from "./components/settings/useSettingsMachine";
 import { isSettingsView, useTrackSettingsReturn } from "./store/settingsReturn";
+import { isLinuxHost } from "./peer/platform";
 import { peerStatus } from "./peer/peerStatus";
 import { isPeerName, peerSlugOf } from "./peer/markers";
 import { publishPeerSnapshot } from "./peer/retainedSessions";
@@ -93,8 +94,8 @@ export default function App() {
   const navigateSettings = useAppStore((s) => s.navigateSettings);
   const backToSettings = () => navigateSettings("settings");
   const focusProjectTerminal = useAppStore((s) => s.focusProjectTerminal);
-  const settingsTab = useAppStore((s) => s.settingsTab);
-  const setSettingsTab = useAppStore((s) => s.setSettingsTab);
+  const connectPhone = useAppStore((s) => s.connectPhone);
+  const phonePickerOpen = useAppStore((s) => s.addProjectPickerOpen && s.addProjectStart === "phone");
   const setUsageOpen = useAppStore((s) => s.setUsageOpen);
   const setFeedbackOpen = useAppStore((s) => s.setFeedbackOpen);
   const setSidebarCollapsed = useAppStore((s) => s.setSidebarCollapsed);
@@ -143,7 +144,6 @@ export default function App() {
   const settingsShown = isSettingsView(view);
   const settingsLayoutShown = view === "settings" || view === "global-config";
   useTrackSettingsReturn(view);
-  const isMobileSettings = view === "settings" && settingsTab === "mobile";
   const selectedProject = projects.find((p) => p.name === selected) || null;
 
   const [globalTerminalsVisited, setGlobalTerminalsVisited] = useState(false);
@@ -286,10 +286,7 @@ export default function App() {
           onStats={() => setView("stats")}
           onUsage={() => setUsageOpen(true)}
           onScheduled={() => setView("scheduled")}
-          onMobile={() => {
-            setSettingsTab("mobile");
-            setView("settings");
-          }}
+          onMobile={connectPhone}
           onFeedback={() => setFeedbackOpen(true)}
           onSettings={() => setView("settings")}
           onAddProject={addProject}
@@ -315,7 +312,7 @@ export default function App() {
           showTerminals={isTerminalsView}
           showStats={isStatsView}
           showUsage={usageOpen}
-          showMobile={isMobileSettings}
+          showMobile={phonePickerOpen}
           showScheduled={isScheduledView}
           showSettings={settingsShown}
           duplicatingNames={duplicatingNames}
@@ -385,6 +382,7 @@ export default function App() {
             <PeerDisconnectedBanner
               alias={selectedPeerAlias}
               status={selectedPeer ? peerStatus(selectedPeer) : null}
+              server={!!selectedPeer && isLinuxHost(selectedPeer)}
             />
           )}
           {view === "projects" && !selectedProject && !selectedPeerGone && projects.length === 0 && (

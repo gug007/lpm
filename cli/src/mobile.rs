@@ -1,7 +1,7 @@
 //! `lpm mobile` — pair the iOS companion with this machine, and manage the
 //! phones already paired.
 //!
-//! The headless counterpart to Settings → Mobile devices. Scanning is the only
+//! The headless counterpart to the Phone screen. Scanning is the only
 //! way a phone pairs — the app has no field to type a code into — so the invite
 //! has to reach a camera, and on a server the only screen in the room is the SSH
 //! session. That is why the QR is drawn here rather than described.
@@ -95,7 +95,7 @@ fn pair(ctx: &Ctx, cancel: bool, json: bool) -> Result<(), RunError> {
 }
 
 /// The phones paired with this machine, and whether anything is listening for
-/// them — the Mobile devices pane as text.
+/// them — the Phone screen as text.
 fn devices(ctx: &Ctx, json: bool) -> Result<(), RunError> {
     control::require_app(ctx)?;
     let value = control::parse_json(&control::send_command(ctx, "remote_state")?)?;

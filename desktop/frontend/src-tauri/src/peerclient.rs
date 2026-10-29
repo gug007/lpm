@@ -425,7 +425,8 @@ impl PeerClientHub {
             .cloned()
     }
 
-    /// Connection status rows for the Settings pane, one per persisted peer.
+    /// Connection status rows for the Another computer and Server screens, one
+    /// per persisted peer.
     pub fn peers_state(&self) -> Value {
         let peers = self.inner.config.lock().unwrap().peers.clone();
         let conns = self.inner.conns.lock().unwrap();

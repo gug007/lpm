@@ -19,7 +19,7 @@ struct IdentityCheckSheet: View {
                 Text("Check that it's \(model.link.macLabel)")
                     .font(.title2.weight(.bold))
                     .multilineTextAlignment(.center)
-                Text("It has a new security identity. That's normal after lpm is reinstalled. Compare this code with the one in lpm on the Mac, under Settings → Mobile devices.")
+                Text("It has a new security identity. That's normal after lpm is reinstalled. Compare this code with the one in lpm on the Mac, under + above your projects → Phone.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)

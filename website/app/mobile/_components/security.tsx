@@ -6,7 +6,7 @@ const CARDS: { icon: LucideIcon; title: string; body: string }[] = [
   {
     icon: KeyRound,
     title: "Per-device tokens, stored on the phone",
-    body: "Pairing issues a unique token that lives in your iPhone's Keychain. Your Mac only ever stores its hash — the raw token never leaves the device. Revoke a phone in Settings and its access is gone instantly, live connection dropped.",
+    body: "Pairing issues a unique token that lives in your iPhone's Keychain. Your Mac only ever stores its hash — the raw token never leaves the device. Revoke a phone under + above your projects → Phone and its access is gone instantly, live connection dropped.",
   },
   {
     icon: Laptop,
@@ -16,7 +16,7 @@ const CARDS: { icon: LucideIcon; title: string; body: string }[] = [
   {
     icon: ShieldCheck,
     title: "Off until you switch it on",
-    body: "Phone access stays off until you turn on Remote control in Settings. When it's on, your Mac accepts connections from your network, the app pins your Mac's certificate when you pair, and only paired devices get in. Add your tailnet address to the QR code to reach it from anywhere.",
+    body: "Phone access stays off until you turn on Remote control under + above your projects → Phone. When it's on, your Mac accepts connections from your network, the app pins your Mac's certificate when you pair, and only paired devices get in. Add your tailnet address to the QR code to reach it from anywhere.",
   },
 ];
 

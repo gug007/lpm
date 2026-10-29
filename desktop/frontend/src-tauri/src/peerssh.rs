@@ -462,8 +462,8 @@ fn explain_unreachable_desktop(target: &SshTarget, err: String) -> String {
     if no_cli {
         return format!(
             "lpm's desktop app is on {dest}, but its `lpm` command isn't, so it can't mint an \
-             invite over SSH. Create an invite in Settings → Connections on that machine and \
-             paste it here instead."
+             invite over SSH. On that machine, create an invite under + above your projects → \
+             Another computer, then paste it under Another computer here instead."
         );
     }
     err
@@ -506,7 +506,7 @@ pub fn parse_invite(raw: &str) -> Result<RemoteInvite, String> {
 }
 
 /// What the host says about its own peer server — the same snapshot the
-/// Connections pane renders, read back over SSH.
+/// Another computer and Server screens render, read back over SSH.
 #[derive(Debug, PartialEq)]
 struct Hosting {
     running: bool,
@@ -1012,7 +1012,7 @@ mod tests {
             "zsh:1: command not found: lpm",
         ] {
             let err = explain_unreachable_app(&target(), Installed::Desktop, shell_says.into());
-            assert!(err.contains("Settings → Connections"), "{err}");
+            assert!(err.contains("+ above your projects → Another computer"), "{err}");
             assert!(err.contains("root@example.test"), "{err}");
         }
         assert_eq!(

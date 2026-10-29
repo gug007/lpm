@@ -71,8 +71,8 @@ pub(crate) struct Device {
     // phone paired with only one flavor gets no phantom pushes from the other.
     #[serde(default)]
     pub(crate) paired_server_id: Option<String>,
-    // The name this machine shows for the phone, set in Settings. Empty means the
-    // phone's own `name`, which iOS reports as just "iPhone".
+    // The name this machine shows for the phone, set on the Phone screen. Empty
+    // means the phone's own `name`, which iOS reports as just "iPhone".
     pub(crate) alias: String,
     // When the phone last connected or disconnected (ms; 0 = not since pairing),
     // and how it came in then (remotepresence::Route).

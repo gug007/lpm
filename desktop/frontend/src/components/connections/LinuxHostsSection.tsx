@@ -9,15 +9,18 @@ import { PeerRow } from "./PeerRow";
 import { AddLinuxHost } from "./AddLinuxHost";
 import { HostAutoUpdateRow } from "./HostAutoUpdateRow";
 
-// Always shown, unlike the Macs list: a server has no lpm on it to discover and
-// no one sitting at it to approve a request, so the only way it can appear here
-// is if this is where you go to add it.
+// Always shown in Settings, unlike the Macs list: a server has no lpm on it to
+// discover and no one sitting at it to approve a request, so the only way it can
+// appear there is if that is where you go to add it. The Server screen adds hosts
+// through its own choices, so it leaves out the add row (`adding`).
 export function LinuxHostsSection({
   hosts,
   refresh,
+  adding = true,
 }: {
   hosts: PeerClient[];
   refresh: () => Promise<void>;
+  adding?: boolean;
 }) {
   const [removePeer, setRemovePeer] = useState<PeerClient | null>(null);
   const openSSHProject = useAppStore((s) => s.openSSHProject);
@@ -47,20 +50,22 @@ export function LinuxHostsSection({
             appVersion={appVersion}
           />
         ))}
-        <AddLinuxHost refresh={refresh} />
+        {adding && <AddLinuxHost refresh={refresh} />}
       </Group>
       {hosts.length > 0 && <HostAutoUpdateRow />}
-      <p className="mt-3 text-[12px] leading-relaxed text-[var(--text-muted)]">
-        Only need one folder, with nothing installed on the server?{" "}
-        <button
-          type="button"
-          onClick={openSSHProject}
-          className="font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:underline"
-        >
-          Add an SSH project
-        </button>{" "}
-        instead.
-      </p>
+      {adding && (
+        <p className="mt-3 text-[12px] leading-relaxed text-[var(--text-muted)]">
+          Only need one folder, with nothing installed on the server?{" "}
+          <button
+            type="button"
+            onClick={openSSHProject}
+            className="font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:underline"
+          >
+            Add an SSH project
+          </button>{" "}
+          instead.
+        </p>
+      )}
 
       <ConfirmDialog
         open={removePeer !== null}

@@ -46,7 +46,7 @@ const FAQS: QA[] = [
   {
     question: "Is it safe to control my dev machine from my phone?",
     answer:
-      "Phone access is off until you turn on Remote control in lpm Settings. Pairing issues a per-device token that lives in your iPhone's Keychain, and your Mac stores just its hash. When Remote control is on, your Mac accepts connections from your network, the app pins your Mac's certificate when you pair, and only paired devices get in. You can revoke any device at any time, which immediately drops its connection.",
+      "Phone access is off until you turn on Remote control in lpm, under + above your projects → Phone. Pairing issues a per-device token that lives in your iPhone's Keychain, and your Mac stores just its hash. When Remote control is on, your Mac accepts connections from your network, the app pins your Mac's certificate when you pair, and only paired devices get in. You can revoke any device at any time, which immediately drops its connection.",
   },
   {
     question: "Does it work on iPad?",
@@ -56,7 +56,7 @@ const FAQS: QA[] = [
   {
     question: "Do I need an account to use it?",
     answer:
-      "No. There is no account and no sign-in. You pair a device by scanning a QR code from lpm's Settings on your Mac, by tapping a nearby Mac and approving it there, or by entering the address and code by hand.",
+      "No. There is no account and no sign-in. You pair a device by scanning a QR code from + above your projects → Phone in lpm on your Mac, by tapping a nearby Mac and approving it there, or by entering the address and code by hand.",
   },
   {
     question: "Can I control a Linux server from my phone?",

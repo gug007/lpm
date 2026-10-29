@@ -9,7 +9,7 @@ is a WebSocket client. This document is the contract both sides implement.
   server session; see `desktop/frontend/src-tauri/src/remotetls.rs`). There is
   **no plaintext (`ws://`) fallback** — every accepted socket is wrapped in TLS
   before the WebSocket handshake.
-- Default port `8765` (configurable in Settings → Mobile devices).
+- Default port `8765` (configurable under + above your projects → Phone).
 - The server binds every interface (`0.0.0.0`) whenever remote control is on, so
   a paired phone reaches it over the LAN, and away from home over a **Tailscale**
   tailnet (connect to the Mac's tailnet IP); the tailnet and TLS layers simply
@@ -154,7 +154,7 @@ them to any other Mac — so a phone paired by approval (no QR) still learns the
 Tailscale address, and an address that changed after pairing reaches every phone
 on its next connect. Older apps ignore the unknown field.
 
-The code is **single use and expires 10 minutes** after Settings arms it; the
+The code is **single use and expires 10 minutes** after the Phone screen arms it; the
 desktop clears an expired code rather than leaving it redeemable in
 `remote.json`. On rejection:
 ```json
@@ -239,8 +239,8 @@ resume so a LAN or Tailscale address that changed since pairing propagates
 without re-pairing.
 
 The server stores only `sha256(token)`; the raw token never leaves the phone
-after pairing. Revoking a device in desktop Settings deletes its hash and drops
-any live connection.
+after pairing. Revoking a device on the desktop (+ above your projects → Phone)
+deletes its hash and drops any live connection.
 
 Before checking the token the Mac **re-reads the paired-device list from
 `remote.json`** (at most once a second, and only the device list — never the
@@ -266,7 +266,8 @@ succeed, so the phone stops reconnecting and offers to pair again (sending
 `replaces` with the dead `deviceId`, above) rather than looping.
 
 `{ "t": "error", "error": "revoked" }` instead means the Mac removed **this
-phone** (Revoke in desktop Settings or `lpm mobile revoke`, remembered by
+phone** (Revoke under the desktop's + above your projects → Phone, or
+`lpm mobile revoke`, remembered by
 `phoneId`). The Mac sends it at `auth`, and to a phone connected at that
 moment just before it closes the socket. The phone removes the Mac from its own
 list, as if the user had removed it there, but sends no `unpair`, and says once
@@ -308,9 +309,9 @@ the connection without a reply; the phone only relays to a machine marked
 { "t": "unpair", "deviceId": "<uuid>", "token": "<base64 bearer token>" }
 ```
 The credential is checked exactly as for `auth`. On a match the Mac deletes the
-device's record — as Revoke in desktop Settings does, dropping any live
+device's record — as Revoke on the desktop does, dropping any live
 connection for it and its push registration — replies `{ "t": "unpaired" }` and
-closes; an open Settings pane refreshes its device list. A credential with no
+closes; an open Phone screen refreshes its device list. A credential with no
 record gets `{ "t": "error", "error": "unauthorized" }`, and a Mac that can't
 save the removal (`remote.json` unreadable or held by another writer) answers
 `{ "t": "error", "error": "unpair unavailable" }` and keeps the record.
@@ -488,7 +489,7 @@ AI generators; the history ops are local SQLite and reply inline.
 | `{ "t": "serviceLogs", "project": "<name>", "paneIndex": N, "lines": N }` | `{ "t": "serviceLogs", "project": "<name>", "paneIndex": N, "ok": true, "text": "<recent pane output>" }` / `{ "ok": false, "error": "…" }` — captures a running service pane's recent output (tmux capture). `lines` is capped at 200. `project`/`paneIndex` are echoed for matching. Discover valid `paneIndex` values via `services` |
 | `{ "t": "serviceLogsWatch", "project": "<name>", "paneIndex": N }` | Pushes `serviceLogs` frames (the same shape as the reply above, 200 lines) for that pane: one at once, then one whenever its output changes, checked every 500 ms like the desktop's logs pane — nothing while it is quiet. A pane that can't be read pushes `ok: false` once, until it can again. Watching the same pane again restarts the watch (and its immediate push). The watch belongs to the connection: it ends on `serviceLogsUnwatch` or when the socket closes, so the phone sends it again after a reconnect. Only when `features` has `"serviceLogsWatch"`; otherwise poll `serviceLogs` |
 | `{ "t": "serviceLogsUnwatch", "project": "<name>", "paneIndex": N }` | — (no reply) stops that pane's `serviceLogsWatch` |
-| `{ "t": "historyQuery", "project": "<name>"?, "search": "…"?, "favoritesOnly": bool?, "folder": "<folderId>"?, "before": { "at": N, "seq": N, "machine": "<slug>"? }? }` | `{ "t": "historyQuery", "items": [{ id, text, images, timestamp, favorite, folder, kind, project, at, seq, machine?, machineName? }…], "hasMore": bool }` — keyset-paginated history (page size 60): the Mac's own merged with every connected paired computer's (Settings → Connections), newest first, so a prompt typed on one computer can be picked on another. `project` scopes to that project — under that name on any computer (omit/empty = all projects). `favoritesOnly` or `folder` selects a collection (favorites wins if both set); a folder is the Mac's own, so a folder's page lists only its rows. `before` is the previous page's **last item's** `{ at, seq, machine }` — pass it to fetch the next page; omit for the first page. `kind` is `"sent"` or `"draft"`; `folder` is the folder id or null; `project` is the project's name without any paired computer's marker; `timestamp`/`at` are unix millis (`at` + `seq` + `machine` form the cursor). `machine` (the paired computer's slug) and `machineName` (its name, for display) are set only on a row typed on another computer: its `id` is `peer-{slug}-{id}`, and `historyToggleFavorite`/`historyDelete` with it are carried out on that computer, while `historySetFolder` refuses it (`ok: false`). `hasMore` is true when more rows exist beyond this page |
+| `{ "t": "historyQuery", "project": "<name>"?, "search": "…"?, "favoritesOnly": bool?, "folder": "<folderId>"?, "before": { "at": N, "seq": N, "machine": "<slug>"? }? }` | `{ "t": "historyQuery", "items": [{ id, text, images, timestamp, favorite, folder, kind, project, at, seq, machine?, machineName? }…], "hasMore": bool }` — keyset-paginated history (page size 60): the Mac's own merged with every connected paired computer's (+ above your projects → Another computer or Server), newest first, so a prompt typed on one computer can be picked on another. `project` scopes to that project — under that name on any computer (omit/empty = all projects). `favoritesOnly` or `folder` selects a collection (favorites wins if both set); a folder is the Mac's own, so a folder's page lists only its rows. `before` is the previous page's **last item's** `{ at, seq, machine }` — pass it to fetch the next page; omit for the first page. `kind` is `"sent"` or `"draft"`; `folder` is the folder id or null; `project` is the project's name without any paired computer's marker; `timestamp`/`at` are unix millis (`at` + `seq` + `machine` form the cursor). `machine` (the paired computer's slug) and `machineName` (its name, for display) are set only on a row typed on another computer: its `id` is `peer-{slug}-{id}`, and `historyToggleFavorite`/`historyDelete` with it are carried out on that computer, while `historySetFolder` refuses it (`ok: false`). `hasMore` is true when more rows exist beyond this page |
 | `{ "t": "historySaveDraft", "message": "<text>", "project": "<name>"?, "id": "<termId>"?, "label": "<tab>"?, "images": { "<token>": "<path>" }? }` | `{ "t": "historySaveDraft", "ok": true }` — saves the composer text as an unsent draft in shared history (badged as a draft, spared by "clear history"). `message` is the draft text (an object with a `text` field is also accepted); the rest is optional context |
 | `{ "t": "historyToggleFavorite", "id": "<msgId>" }` | `{ "t": "historyToggleFavorite", "id": "<msgId>", "ok": true, "favorite": bool }` / `{ "ok": false, "error": "…" }` — flips a message's favorite flag and returns the new state |
 | `{ "t": "historySetFolder", "id": "<msgId>", "folder": "<folderId>"? }` | `{ "t": "historySetFolder", "ok": true }` / `{ "ok": false, "error": "…" }` — moves a message into a folder; omit `folder` to remove it from its folder |
@@ -604,9 +605,9 @@ project to a folder name that doesn't exist creates it.
 
 ### Machines this Mac connects to
 
-The Linux servers and other Macs this Mac is connected to (desktop Settings →
-Connections), so the phone can add them without a QR per machine. For each one
-the phone doesn't have, it asks for a pairing offer and redeems the code with a
+The Linux servers and other Macs this Mac is connected to (desktop: + above
+your projects → Server or Another computer), so the phone can add them without
+a QR per machine. For each one the phone doesn't have, it asks for a pairing offer and redeems the code with a
 normal [`pair`](#handshake-first-frame-required-within-20s) directly against that
 machine. The machine is then an ordinary saved machine that the phone reaches on
 its own, with this Mac asleep. A machine the phone hasn't added can still be

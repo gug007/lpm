@@ -3,9 +3,9 @@
 // The manual "Sync now" button drives one sync on demand (peerclient::sync_run).
 // This engine drives that same path unattended: when a peer has auto-sync on, a
 // change on either Mac — or a reconnect, or a periodic anti-entropy nudge —
-// schedules a run shortly after. It lives in Rust (not the Settings UI) because
-// the Settings pane is not always mounted, and unattended sync must keep running
-// regardless of what the user is looking at.
+// schedules a run shortly after. It lives in Rust (not the UI) because the
+// screens that show it are not always mounted, and unattended sync must keep
+// running regardless of what the user is looking at.
 //
 // The design splits cleanly into a pure scheduler and a thin I/O shell so the
 // scheduling can be table-tested without threads or sockets:

@@ -2,9 +2,9 @@
 //
 // A host never updates itself (updates.rs refuses there), so once this app moves
 // to a new release every host it manages is left a version behind until someone
-// opens Settings → Connections and presses Update. Here that happens on its own:
-// when a host reachable over SSH reports an older lpm than this app, the same
-// installer the row's Update button runs is run for it.
+// opens + above your projects → Server and presses Update. Here that happens on
+// its own: when a host reachable over SSH reports an older lpm than this app, the
+// same installer the row's Update button runs is run for it.
 //
 // Updating restarts lpm on the host, which ends every terminal there. So a host
 // whose agents are mid-turn is left alone and asked again later; services and

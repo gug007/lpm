@@ -61,7 +61,7 @@ focus to another granted app, and the click then lands in the wrong one.
 
 | # | mark | actions | must be on screen |
 |---|---|---|---|
-| 1 | Pair lpm Link with the Mac / Same Wi-Fi: pick the Mac on the iPhone, then approve it on the Mac | Mac: sidebar **More → Mobile app** (Mobile devices: Remote control On, Same network Ready). Phone: **Pair for this Wi-Fi only** → the row named MacBook Pro with "Tap, then approve on the Mac". Mac: "Allow this device to connect?" with a match code; rest the pointer on the Mac's code, then the phone's, then **Allow** | phone "Connected to MacBook Pro"; Mac "iPhone · Connected now" |
+| 1 | Pair lpm Link with the Mac / Same Wi-Fi: pick the Mac on the iPhone, then approve it on the Mac | Mac: sidebar **More → Mobile app** (the Phone screen: Remote control On, Same network Ready). Phone: **Pair for this Wi-Fi only** → the row named MacBook Pro with "Tap, then approve on the Mac". Mac: "Allow this device to connect?" with a match code; rest the pointer on the Mac's code, then the phone's, then **Allow** | phone "Connected to MacBook Pro"; Mac "iPhone · Connected now" |
 | 2 | The Mac's projects appear on the iPhone / The same list as the Mac's sidebar | phone **Done**; point at the Mac sidebar, then the phone list; Mac: click **storefront** | the same three projects on both |
 | 3 | Start a project from the iPhone / Its dev servers start on the Mac | phone: **storefront → ··· → Start**; Mac: click the **All** tab; phone: tap **api** (its output sheet), wait for the output | Mac Stop button + both servers listening; phone "Running" and the same output |
 | 4 | Stop it from the iPhone / The Mac stops the dev servers | phone: **Close**, **··· → Stop** | Mac back to Start; phone "Stopped" |

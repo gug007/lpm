@@ -159,7 +159,7 @@ fun ConnectionIssue.issueCopy(
         ConnectionIssue.CodeRejected -> IssueCopy(
             "That code didn't work",
             "Codes work once and expire after 10 minutes. " +
-                "Get a new one in lpm → Settings → Mobile devices.",
+                "Get a new one in lpm: click + above your projects, then Phone.",
             "key.slash",
             problem,
             listOf(IssueAction.EnterNewCode)
@@ -167,7 +167,8 @@ fun ConnectionIssue.issueCopy(
 
         ConnectionIssue.PairingUnavailable -> IssueCopy(
             "$capMac couldn't save this pairing",
-            "Its Mobile devices settings show what to fix. Then pair again.",
+            "lpm on the Mac shows what to fix under + above your projects → Phone. " +
+                "Then pair again.",
             "exclamationmark.triangle",
             problem,
             listOf(IssueAction.Retry)
@@ -175,7 +176,7 @@ fun ConnectionIssue.issueCopy(
 
         ConnectionIssue.QrMismatch -> IssueCopy(
             "This QR code doesn't match the Mac",
-            "Show a fresh code in lpm → Settings → Mobile devices, then scan again.",
+            "Show a fresh code in lpm (+ above your projects → Phone), then scan again.",
             "qrcode",
             problem,
             listOf(IssueAction.EnterNewCode)
@@ -281,7 +282,7 @@ private fun farewellCopy(
 
         MacFarewell.Reason.Off -> IssueCopy(
             "Remote control is off on $mac",
-            "Turn it on in lpm → Settings → Mobile devices.",
+            "Turn it on in lpm: click + above your projects, then Phone.",
             "iphone.slash",
             waiting,
             listOf(IssueAction.Retry)

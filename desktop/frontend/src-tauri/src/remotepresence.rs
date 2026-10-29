@@ -1,5 +1,5 @@
 // Which paired phones are connected right now, how each came in, and when each
-// was last seen: what a phone's row in Settings → Mobile devices says.
+// was last seen: what a phone's row on the Phone screen says.
 use crate::remotestore::{Device, RemoteConfig};
 use serde_json::{json, Value};
 use std::net::IpAddr;
@@ -113,7 +113,7 @@ pub(crate) fn rename(cfg: &mut RemoteConfig, device_id: &str, name: &str) -> Opt
     Some(())
 }
 
-/// A phone as the Settings pane lists it. `live` is the route of its open
+/// A phone as the Phone screen lists it. `live` is the route of its open
 /// connection, if it has one.
 pub(crate) fn device_json(d: &Device, live: Option<Route>) -> Value {
     json!({

@@ -70,9 +70,10 @@ export default function Requirements() {
             sudo -H lpm pair
           </CodeBlock>
           <p className="text-xs leading-relaxed text-gray-500 dark:text-gray-400">
-            That last command prints an invite to paste into Settings →
-            Connections on your Mac; logged in as root, plain lpm pair does the
-            same. It is the handshake the one-field flow performs for you.
+            That last command prints an invite to paste on your Mac, under +
+            above your projects → Another computer; logged in as root, plain
+            lpm pair does the same. It is the handshake the one-field flow
+            performs for you.
           </p>
         </div>
       </div>

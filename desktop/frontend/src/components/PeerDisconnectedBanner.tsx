@@ -4,7 +4,17 @@ import { type PeerStatus } from "../peer/peerStatus";
 // detail return automatically once the peer reconnects and its projects merge
 // back in — unless it was turned off here or stopped accepting this Mac, which
 // no retry fixes, so the copy says what will.
-export function PeerDisconnectedBanner({ alias, status }: { alias: string; status: PeerStatus | null }) {
+export function PeerDisconnectedBanner({
+  alias,
+  status,
+  server,
+}: {
+  alias: string;
+  status: PeerStatus | null;
+  // A Linux host, listed under Server rather than Another computer.
+  server: boolean;
+}) {
+  const where = `+ above your projects → ${server ? "Server" : "Another computer"}`;
   const unauthorized = status?.tone === "error" && /unauthorized|auth failed|401/i.test(status.detail);
   const title =
     status?.tone === "off"
@@ -14,9 +24,9 @@ export function PeerDisconnectedBanner({ alias, status }: { alias: string; statu
         : `${alias} disconnected`;
   const detail =
     status?.tone === "off"
-      ? "Turn it on in Settings → Connections."
+      ? `Turn it on from ${where}.`
       : unauthorized
-        ? "Its access was removed there. Pair again from Settings → Connections."
+        ? `Its access was removed there. Pair again from ${where}.`
         : status?.tone === "error"
           ? `${status.text}. Trying again…`
           : "Reconnecting…";

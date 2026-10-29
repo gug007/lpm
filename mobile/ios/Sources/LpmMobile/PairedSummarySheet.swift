@@ -100,7 +100,7 @@ struct PairedSummarySheet: View {
             }
         case .macNotSetUp:
             row(icon: "network", tint: .gray, title: "Away from home",
-                detail: "Works on this Wi-Fi only. Set up Tailscale on the Mac (lpm → Settings → Mobile devices) and on this \(ThisDevice.noun) to use lpm anywhere.") {
+                detail: "Works on this Wi-Fi only. Set up Tailscale on the Mac (in lpm, + above your projects → Phone) and on this \(ThisDevice.noun) to use lpm anywhere.") {
                 NavigationLink {
                     TailnetSettingsView()
                 } label: {

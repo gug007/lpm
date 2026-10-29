@@ -1,10 +1,11 @@
 //! `lpm pair` and `lpm connections` — bring a machine online as a host that
 //! another machine can drive, and inspect what it's connected to.
 //!
-//! This is the headless path. On a Mac you do it in Settings → Connections; a
-//! Linux host running under Xvfb has the same app and the same pane, just nobody
-//! to click it. Both routes call the app's one pairing primitive, so the invite,
-//! the single-use code, and the pinned TLS identity are minted identically.
+//! This is the headless path. On a Mac you do it under + above your projects →
+//! Another computer; a Linux host running under Xvfb has the same app and the
+//! same screen, just nobody to click it. Both routes call the app's one pairing
+//! primitive, so the invite, the single-use code, and the pinned TLS identity are
+//! minted identically.
 
 use crate::config::Ctx;
 use crate::control;
@@ -14,7 +15,8 @@ use serde_json::Value;
 
 /// Mint a single-use invite (or withdraw the outstanding one). Printing the
 /// invite string is the whole point: it carries address, port, code, and the TLS
-/// fingerprint as one token to paste into the other machine's Connections pane.
+/// fingerprint as one token to paste into the other machine's Another computer
+/// screen.
 pub fn run(
     ctx: &Ctx,
     cancel: bool,
@@ -55,7 +57,8 @@ pub fn run(
 
     println!("{invite}");
     println!();
-    println!("Paste that into Settings → Connections on the machine that will drive this one.");
+    println!("Paste that into lpm on the machine that will drive this one:");
+    println!("click + above your projects, then Another computer.");
     println!("It can only be used once.");
     match bind {
         Some(addr) => {
@@ -83,7 +86,8 @@ pub fn run(
     Ok(())
 }
 
-/// What this machine hosts and what it connects to — the Connections pane as text.
+/// What this machine hosts and what it connects to — the Another computer and
+/// Server screens as text.
 pub fn run_connections(ctx: &Ctx, json: bool) -> Result<(), RunError> {
     control::require_app(ctx)?;
     let value = control::parse_json(&control::send_command(ctx, "peer_state")?)?;

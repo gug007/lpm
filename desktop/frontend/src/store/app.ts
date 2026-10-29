@@ -222,8 +222,9 @@ interface AppState {
   addProjectTarget: { slug: string; alias: string; connected?: boolean } | null;
   // Where the picker opens: "linux-host" goes straight to setting up a server
   // as a Linux host (from the SSH project form's hint), "computer" to pairing
-  // another computer (from the first-launch screen), null to its first screen.
-  addProjectStart: "linux-host" | "computer" | null;
+  // another computer (from the first-launch screen), "phone" to lpm Link (from
+  // the sidebar's Mobile app), null to its first screen.
+  addProjectStart: "linux-host" | "computer" | "phone" | null;
   remoteFolderPickerOpen: boolean;
   sshModalOpen: boolean;
   addingSSHProject: boolean;
@@ -277,6 +278,7 @@ interface AppState {
   addProjectForPeer: (slug: string, alias: string, connected?: boolean) => void;
   setUpLinuxHost: () => void;
   connectComputer: () => void;
+  connectPhone: () => void;
   openSSHProject: () => void;
   closeAddProjectPicker: () => void;
   closeRemoteFolderPicker: () => void;
@@ -1131,6 +1133,9 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   connectComputer: () =>
     set({ addProjectTarget: null, addProjectStart: "computer", addProjectPickerOpen: true }),
+
+  connectPhone: () =>
+    set({ addProjectTarget: null, addProjectStart: "phone", addProjectPickerOpen: true }),
 
   openSSHProject: () =>
     set({ sshModalOpen: true, addProjectPickerOpen: false, addProjectTarget: null, addProjectStart: null }),

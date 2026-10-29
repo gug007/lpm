@@ -29,7 +29,7 @@ static MATERIAL: OnceLock<TlsMaterial> = OnceLock::new();
 
 // Set when stored TLS material existed but could not be loaded, forcing a fresh
 // identity. Every previously paired phone will now see an identity change and
-// must trust it again or re-pair — the Settings pane surfaces this so the user
+// must trust it again or re-pair — the Phone screen surfaces this so the user
 // learns it from us, not from every device going "unreachable".
 static ROTATED: AtomicBool = AtomicBool::new(false);
 
@@ -38,7 +38,7 @@ fn material() -> &'static TlsMaterial {
 }
 
 /// True when this run replaced an existing-but-unloadable identity. Forces the
-/// material to load first, so callers (the Settings pane) get a definite answer
+/// material to load first, so callers (the Phone screen) get a definite answer
 /// rather than "not rotated yet because no phone has connected".
 pub fn identity_rotated() -> bool {
     let _ = material();

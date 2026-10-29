@@ -79,7 +79,7 @@ struct EnterCodeView: View {
                 Text("Mac address")
             } footer: {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Shown under the code in lpm → Settings → Mobile devices.")
+                    Text("Shown under the code in lpm (+ above your projects → Phone).")
                     if !portIsValid {
                         Text("Port must be a number from 1 to 65535.").foregroundStyle(.red)
                     } else if let hint = addressHint {

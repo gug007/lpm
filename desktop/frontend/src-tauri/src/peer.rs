@@ -2370,8 +2370,8 @@ fn install_forwarders(hub: &PeerHub, app: &AppHandle) {
 
 // --- frontend commands --------------------------------------------------------
 
-/// Pairing state for the Settings pane: the outstanding code plus the addresses a
-/// client can reach this Mac at, or null when no code is pending.
+/// Pairing state for the Another computer screen: the outstanding code plus the
+/// addresses a client can reach this Mac at, or null when no code is pending.
 fn pairing_value(cfg: &HostConfig) -> Value {
     if cfg.pairing_code.is_empty() {
         return Value::Null;
@@ -2415,8 +2415,8 @@ fn host_state_value(hub: &PeerHub) -> Value {
     })
 }
 
-/// Combined host+client state for the Connections pane. Client peer rows carry
-/// their live connection status from peerclient.rs.
+/// Combined host+client state for the Another computer and Server screens.
+/// Client peer rows carry their live connection status from peerclient.rs.
 pub(crate) fn state_value(hub: &PeerHub, client: &crate::peerclient::PeerClientHub) -> Value {
     json!({ "host": host_state_value(hub), "peers": client.peers_state() })
 }
@@ -2452,9 +2452,9 @@ pub async fn peer_host_set_config(
 }
 
 /// Start (or refresh) a single-use pairing code and return it with the candidate
-/// addresses. Shared by the Connections pane and the `lpm pair` socket verb — a
-/// headless host has no UI to click, and a second bring-up path would be a second
-/// way to get the crypto wrong.
+/// addresses. Shared by the Another computer screen and the `lpm pair` socket
+/// verb — a headless host has no UI to click, and a second bring-up path would be
+/// a second way to get the crypto wrong.
 ///
 /// `bind` widens (or narrows) the listener so the pairing machine can reach us.
 /// The pane always passes every interface: two Macs find each other over the LAN.
@@ -3305,7 +3305,8 @@ mod tests {
     // sit on a public IP with no firewall, where binding every interface would put
     // the peer port on the open internet — and it is usually reached through a
     // tunnel to loopback anyway. Only an explicit `--lan` asks for that; the
-    // Connections pane passes true because two Macs need the LAN to find each other.
+    // Another computer screen passes true because two Macs need the LAN to find
+    // each other.
     #[test]
     fn arming_a_code_only_opens_the_listener_when_asked() {
         let mut cfg = PeerConfig::default();
@@ -3496,8 +3497,8 @@ mod tests {
         v["error"].as_str().unwrap_or_default().to_string()
     }
 
-    // Removed in Settings here, the other machine is told so when it next signs
-    // in, and drops this one from its own list.
+    // Removed on the Another computer screen here, the other machine is told so
+    // when it next signs in, and drops this one from its own list.
     #[test]
     fn a_machine_removed_here_hears_it_was_revoked() {
         with_test_config("revoked", |hub| {

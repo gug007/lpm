@@ -12,7 +12,7 @@
     <string name="cancel">Cancel</string>
     <string name="connection_address_in_use">Address in use</string>
     <string name="connection_away_footer">A home network address not answering is normal while you\'re away.</string>
-    <string name="connection_home_only_footer">Only its home network address is saved, so it works on that Wi-Fi only. Set up Tailscale on the Mac in lpm → Settings → Mobile devices; lpm Link adds its new address the next time it connects.</string>
+    <string name="connection_home_only_footer">Only its home network address is saved, so it works on that Wi-Fi only. Set up Tailscale on the Mac in lpm (+ above your projects → Phone); lpm Link adds its new address the next time it connects.</string>
     <string name="connection_last_connected">last connected %1$s</string>
     <string name="connection_last_error">Last error</string>
     <string name="connection_since">since %1$s</string>
@@ -37,7 +37,7 @@
     <string name="endpoint_ways">Ways to reach %1$s</string>
     <string name="identity_code_label">Code %1$s</string>
     <string name="identity_match">The codes match</string>
-    <string name="identity_message">It has a new security identity. That\'s normal after lpm is reinstalled. Compare this code with the one in lpm on the Mac, under Settings → Mobile devices.</string>
+    <string name="identity_message">It has a new security identity. That\'s normal after lpm is reinstalled. Compare this code with the one in lpm on the Mac, under + above your projects → Phone.</string>
     <string name="identity_mismatch">They don\'t match</string>
     <string name="identity_pair_again">Pair again instead</string>
     <string name="identity_title">Check that it\'s %1$s</string>
@@ -72,7 +72,7 @@
     <string name="summary_away">Away from home</string>
     <string name="summary_away_app">Works while the Tailscale app is connected on this phone.</string>
     <string name="summary_away_finish">Finish setting up Built-in Tailscale on this phone to use lpm on cellular.</string>
-    <string name="summary_away_mac">Works on this Wi-Fi only. Set up Tailscale on the Mac (lpm → Settings → Mobile devices) and on this phone to use lpm anywhere.</string>
+    <string name="summary_away_mac">Works on this Wi-Fi only. Set up Tailscale on the Mac (in lpm, + above your projects → Phone) and on this phone to use lpm anywhere.</string>
     <string name="summary_away_ready">Works on cellular and any Wi-Fi.</string>
     <string name="summary_away_turn_on">Turn on Built-in Tailscale on this phone to use lpm on cellular.</string>
     <string name="summary_finish">Finish</string>
@@ -102,7 +102,7 @@
     <string name="tailnet_status_needs_login">Sign in to finish setting up</string>
     <string name="tailnet_status_running">Connected</string>
     <string name="tailnet_status_stopped">Blocked by your tailnet\'s settings</string>
-    <string name="tailnet_step_1">On your Mac, open lpm → Settings → Mobile devices and set up Built-in Tailscale.</string>
+    <string name="tailnet_step_1">In lpm on your Mac, click + above your projects, then Phone, and set up Built-in Tailscale.</string>
     <string name="tailnet_step_2">Turn it on here and sign in with the same Tailscale account.</string>
     <string name="tailnet_step_3">Open lpm once on your home Wi-Fi so the app learns your Mac\'s tailnet address — or pair again.</string>
     <string name="tailnet_title">Built-in Tailscale</string>

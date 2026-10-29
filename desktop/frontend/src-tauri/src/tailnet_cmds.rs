@@ -1,5 +1,5 @@
-// Settings → Mobile devices → Built-in Tailscale: the saved switch and the
-// commands the pane calls. The node itself is run by tailnet.rs.
+// Built-in Tailscale on the Phone and Another computer screens: the saved
+// switch and the commands they call. The node itself is run by tailnet.rs.
 use crate::tailnet::{lock, send, spawn_node, state_value_of, stop_node, State, STATE_RUNNING};
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -115,7 +115,7 @@ fn state_value() -> Value {
     state_value_of(&lock())
 }
 
-// --- frontend commands (Settings → Mobile → Away from home) -----------------
+// --- frontend commands (Built-in Tailscale) ---------------------------------
 
 #[tauri::command(async)]
 pub fn tailnet_state() -> Value {

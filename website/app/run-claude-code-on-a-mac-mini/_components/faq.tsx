@@ -39,7 +39,7 @@ export const FAQ_ITEMS: FaqItem[] = [
   {
     question: "Does it work when I'm away from home?",
     answer:
-      "Yes, over Tailscale. Set up Built-in Tailscale in Settings → Connections on both Macs with the same Tailscale account, or use the Tailscale app. Invites carry the Mac mini's Tailscale address next to its home one, and a laptop that left home tries the address that worked last. Without Tailscale, your laptop reaches the Mac mini's sessions only on the same network.",
+      "Yes, over Tailscale. Set up Built-in Tailscale under + above your projects → Another computer on both Macs with the same Tailscale account, or use the Tailscale app. Invites carry the Mac mini's Tailscale address next to its home one, and a laptop that left home tries the address that worked last. Without Tailscale, your laptop reaches the Mac mini's sessions only on the same network.",
   },
   {
     question: "Can I use a Windows PC or my old MacBook instead of a Mac mini?",
@@ -49,7 +49,7 @@ export const FAQ_ITEMS: FaqItem[] = [
   {
     question: "Is the connection between my laptop and the Mac mini encrypted?",
     answer:
-      "Yes, when both run a current lpm. The link is TLS, pinned to the Mac mini's own certificate: an invite carries its fingerprint, so it is checked from the first connection, and a different machine at the same address is refused. The two talk directly rather than through a relay of ours, the Mac mini keeps only a hash of each device's token, and you can remove any device's access in Settings → Connections.",
+      "Yes, when both run a current lpm. The link is TLS, pinned to the Mac mini's own certificate: an invite carries its fingerprint, so it is checked from the first connection, and a different machine at the same address is refused. The two talk directly rather than through a relay of ours, the Mac mini keeps only a hash of each device's token, and you can remove any device's access under + above your projects → Another computer.",
   },
   {
     question: "Mac mini or a Linux VPS for Claude Code?",

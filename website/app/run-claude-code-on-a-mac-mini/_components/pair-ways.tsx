@@ -23,7 +23,7 @@ const NOTES = [
   {
     icon: Grip,
     title: "Away from home",
-    body: "Set up Built-in Tailscale in Settings → Connections on both Macs, with the same Tailscale account, and your laptop reaches the Mac mini's sessions from anywhere. No Tailscale app needed (macOS 12 or newer).",
+    body: "Set up Built-in Tailscale under + above your projects → Another computer on both Macs, with the same Tailscale account, and your laptop reaches the Mac mini's sessions from anywhere. No Tailscale app needed (macOS 12 or newer).",
   },
   {
     icon: Lock,
@@ -39,7 +39,7 @@ export default function PairWays() {
         <SectionHeader
           eyebrow="Pairing"
           title="Pair the Mac mini once"
-          description="Install lpm on both Macs and turn on Allow control of this Mac on the Mac mini, in Settings → Connections. Then, on your laptop, click + above your projects and choose Another computer."
+          description="Install lpm on both Macs. On the Mac mini, click + above your projects, choose Another computer and turn on Allow control of this Mac. Then, on your laptop, click + above your projects and choose Another computer."
         />
 
         <div className="grid gap-4 md:grid-cols-3">

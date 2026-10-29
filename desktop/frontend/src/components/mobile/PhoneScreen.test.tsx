@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
     closeAddProjectPicker: vi.fn(),
     pickAddProjectKind: vi.fn(),
     addProjectTarget: null,
-    addProjectStart: null,
+    addProjectStart: null as string | null,
     addProjectForPeer: vi.fn(),
     projects: [],
   },
@@ -72,6 +72,16 @@ async function openPhone(peers: unknown[] = []) {
   await flush();
 }
 
+async function pick(slug: string) {
+  const select = document.body.querySelector<HTMLSelectElement>('select[aria-label="Machine"]');
+  if (!select) throw new Error("no machine picker");
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")?.set?.call(select, slug);
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  await flush();
+}
+
 function escape() {
   act(() => {
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
@@ -88,6 +98,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
+  mocks.store.addProjectStart = null;
   for (const k of Object.keys(mocks.commands)) delete mocks.commands[k];
   vi.clearAllMocks();
 });
@@ -130,6 +141,45 @@ describe("Add a project → Phone", () => {
 
     expect(document.querySelector("[data-context-menu]")).toBeNull();
     expect(document.body.textContent).toContain("Remote control");
+  });
+
+  it("opens on Phone when asked to, as the sidebar's Mobile app does", async () => {
+    mocks.store.addProjectStart = "phone";
+    command("RemoteState").mockResolvedValue({ enabled: true, running: true, port: 8769, tailscale: true, devices: [PHONE] });
+    command("PeerState").mockResolvedValue({ host: {}, peers: [] });
+    command("TailnetState").mockResolvedValue({ state: "running", ips: [] });
+    act(() => root.render(<NewProjectPicker />));
+    await flush();
+
+    expect(document.body.textContent).toContain("Remote control");
+    expect(document.body.textContent).toContain("iPhone 18 Pro");
+  });
+
+  it("shows a connected computer's phones once it's picked", async () => {
+    await openPhone([{ ...STUDIO, supportsHostSettings: true }]);
+    command("PeerSettingsGet").mockResolvedValue({});
+    command("PeerInvoke").mockImplementation((_slug: string, cmd: string) =>
+      Promise.resolve(
+        cmd === "remote_state"
+          ? { enabled: true, running: true, port: 8765, devices: [{ ...PHONE, id: "p2", phoneName: "Pixel 11" }] }
+          : null,
+      ),
+    );
+
+    await pick(STUDIO.slug);
+
+    expect(command("PeerInvoke")).toHaveBeenCalledWith(STUDIO.slug, "remote_state", {});
+    expect(document.body.textContent).toContain("Pixel 11");
+    expect(document.body.textContent).not.toContain("iPhone 18 Pro");
+  });
+
+  it("says why a connected computer's phones can't show yet", async () => {
+    await openPhone([STUDIO]);
+
+    await pick(STUDIO.slug);
+
+    expect(document.body.textContent).toContain("runs an older lpm");
+    expect(document.body.textContent).not.toContain("iPhone 18 Pro");
   });
 
   it("goes back to the list on Escape when nothing is open over it", async () => {

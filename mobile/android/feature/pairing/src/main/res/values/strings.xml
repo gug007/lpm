@@ -37,7 +37,7 @@
     <string name="close">Close</string>
     <string name="enter_code_address">Mac address</string>
     <string name="enter_code_bad_port">Port must be a number from 1 to 65535.</string>
-    <string name="enter_code_footer">Shown under the code in lpm → Settings → Mobile devices.</string>
+    <string name="enter_code_footer">Shown under the code in lpm (+ above your projects → Phone).</string>
     <string name="enter_code_hint_home">Home network address — works on this Wi-Fi only.</string>
     <string name="enter_code_hint_tailscale">Tailscale address — works from anywhere.</string>
     <string name="enter_code_host_placeholder">192.168.1.20</string>
@@ -47,7 +47,7 @@
     <string name="enter_code_port_placeholder">8765</string>
     <string name="enter_code_section">Pairing code</string>
     <string name="enter_code_title">Enter a Code</string>
-    <string name="held_scan_message">Tailscale isn\'t set up on this Mac yet, so lpm Link can reach it only on its Wi-Fi. To use it from anywhere, set up Tailscale in lpm → Settings → Mobile devices and scan a new code — or add it later.</string>
+    <string name="held_scan_message">Tailscale isn\'t set up on this Mac yet, so lpm Link can reach it only on its Wi-Fi. To use it from anywhere, set up Tailscale in lpm (+ above your projects → Phone) and scan a new code — or add it later.</string>
     <string name="held_scan_pair">Pair for this Wi-Fi</string>
     <string name="held_scan_title">This code works on this Wi-Fi only</string>
     <string name="mac">Mac</string>
@@ -74,14 +74,14 @@
     <string name="pairing_title_repair">Pair “%1$s” again</string>
     <string name="port">Port</string>
     <string name="scanner_denied">Camera access is off. Enable it in Settings, or enter the code manually.</string>
-    <string name="scanner_hint">Scan the QR from lpm → Settings → Mobile devices → Pair a device</string>
+    <string name="scanner_hint">Scan the QR from lpm: + above your projects → Phone → Pair a device</string>
     <string name="scanner_unavailable">Camera unavailable</string>
     <string name="settings">Settings</string>
     <string name="this_mac">this Mac</string>
     <string name="try_again_title">Try Again</string>
     <string name="try_demo">No Mac nearby? Try the demo</string>
     <string name="unreachable_enter_code">Enter Code</string>
-    <string name="unreachable_message">It\'s listed on this Wi-Fi, but its address didn\'t answer. Make sure lpm is open on it, or pair with the code from lpm → Settings → Mobile devices.</string>
+    <string name="unreachable_message">It\'s listed on this Wi-Fi, but its address didn\'t answer. Make sure lpm is open on it, or pair with the code from lpm (+ above your projects → Phone).</string>
     <string name="unreachable_title">Couldn\'t reach %1$s</string>
     <string name="watch_video">Watch how to connect</string>
     <string name="watch_video_length">3:41</string>

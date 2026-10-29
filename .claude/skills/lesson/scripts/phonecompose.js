@@ -9,7 +9,7 @@ const path = require("path");
 
 // Canvas points (the output is ZOOM times this): the app window's box, the
 // gap, the phone's screen and the bezel drawn around it. The window itself is
-// `app` points, shown a little smaller, so the Mobile devices settings fit.
+// `app` points, shown a little smaller, so the Phone screen fits.
 const PHONE_LAYOUT = { window: { w: 860, h: 562 }, app: { w: 980, h: 640 }, gap: 40, screenH: 640, bezel: 7, radius: 46 };
 // lpm Link's screen in device points (iPhone 17).
 const DEVICE = { w: 402, h: 874 };

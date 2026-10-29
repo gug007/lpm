@@ -72,9 +72,9 @@ describe("BuiltInTailscaleRow", () => {
     render(tailnet({ enabled: false, state: "off" }), "machines");
     expect(container.textContent).toContain("Reach your other");
     act(() => [...container.querySelectorAll("button")].find((b) => b.textContent === "Set up")!.click());
-    expect(container.textContent).toContain("turn it on in Settings → Connections with the same account");
-    expect(container.textContent).not.toContain("lpm Link");
+    expect(container.textContent).toContain("turn it on with the same account: + above your projects → Another computer");
     expect(container.querySelector('[data-settings-row="connections.tailscale"]')).not.toBeNull();
+    expect(container.textContent).not.toContain("lpm Link");
 
     render(tailnet({ state: "running", account: "you@example.com", ip: "100.64.0.1" }), "machines");
     expect(container.textContent).toContain("picks up this address the next time it connects");

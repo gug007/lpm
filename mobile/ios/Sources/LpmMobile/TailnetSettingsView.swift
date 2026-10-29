@@ -32,7 +32,7 @@ struct TailnetSettingsView: View {
             }
 
             Section {
-                step(1, "On your Mac, open lpm → Settings → Mobile devices and set up Built-in Tailscale.")
+                step(1, "In lpm on your Mac, click + above your projects, then Phone, and set up Built-in Tailscale.")
                 step(2, "Turn it on here and sign in with the same Tailscale account.")
                 step(3, "Open lpm once on your home Wi-Fi so the app learns your Mac's tailnet address — or pair again.")
             } header: {

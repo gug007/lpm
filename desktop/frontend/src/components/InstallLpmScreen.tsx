@@ -10,6 +10,7 @@ import { modalErrorTextClass, modalInputClass, modalInputDefaults } from "../for
 export function InstallLpmScreen() {
   const addProjectForPeer = useAppStore((s) => s.addProjectForPeer);
   const [value, setValue] = useState("");
+  const [install, setInstall] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Backing out mid-install still pairs the server; it just shouldn't reopen
@@ -29,7 +30,7 @@ export function InstallLpmScreen() {
     setBusy(true);
     setError(null);
     try {
-      const { slug } = (await PeerAddSshHost(target, "", true)) as { slug: string };
+      const { slug } = (await PeerAddSshHost(target, "", install)) as { slug: string };
       const peer = ((await PeerState()) as PeerStateShape).peers.find((p) => p.slug === slug);
       if (mounted.current) addProjectForPeer(slug, peer?.alias || target.host, true);
     } catch (err) {
@@ -60,6 +61,16 @@ export function InstallLpmScreen() {
             ? `Setting up ${target?.host ?? "the server"}. Installing can take a few minutes.`
             : "What you'd type after ssh. lpm installs and pairs itself there."}
         </span>
+      </label>
+      <label className="flex items-center gap-2 text-[12px] text-[var(--text-muted)]">
+        <input
+          type="checkbox"
+          checked={install}
+          disabled={busy}
+          onChange={(e) => setInstall(e.target.checked)}
+          className="accent-[var(--accent-cyan)]"
+        />
+        Install lpm on the server if it isn't there yet
       </label>
       {error && <p className={modalErrorTextClass}>{error}</p>}
       <button

@@ -176,7 +176,7 @@ extension ConnectionIssue {
                                  icon: "app.dashed", tone: .waiting, actions: [.retry])
             case .off:
                 return IssueCopy(title: "Remote control is off on \(mac)",
-                                 message: "Turn it on in lpm → Settings → Mobile devices.",
+                                 message: "Turn it on in lpm: click + above your projects, then Phone.",
                                  icon: "iphone.slash", tone: .waiting, actions: [.retry])
             }
         case .pairUnreachable(let overTailscale):
@@ -187,15 +187,15 @@ extension ConnectionIssue {
                              icon: "wifi.exclamationmark", tone: .problem, actions: [.retry, .details])
         case .codeRejected:
             return IssueCopy(title: "That code didn't work",
-                             message: "Codes work once and expire after 10 minutes. Get a new one in lpm → Settings → Mobile devices.",
+                             message: "Codes work once and expire after 10 minutes. Get a new one in lpm: click + above your projects, then Phone.",
                              icon: "key.slash", tone: .problem, actions: [.enterNewCode])
         case .pairingUnavailable:
             return IssueCopy(title: "\(Mac) couldn't save this pairing",
-                             message: "Its Mobile devices settings show what to fix. Then pair again.",
+                             message: "lpm on the Mac shows what to fix under + above your projects → Phone. Then pair again.",
                              icon: "exclamationmark.triangle", tone: .problem, actions: [.retry])
         case .qrMismatch:
             return IssueCopy(title: "This QR code doesn't match the Mac",
-                             message: "Show a fresh code in lpm → Settings → Mobile devices, then scan again.",
+                             message: "Show a fresh code in lpm (+ above your projects → Phone), then scan again.",
                              icon: "qrcode", tone: .problem, actions: [.enterNewCode])
         case .relayOffline(let via):
             return IssueCopy(title: "\(via) isn't connected to \(mac)",
@@ -360,7 +360,7 @@ extension Date {
 
 /// The short code both screens show for a Mac's security identity: the start of
 /// its certificate fingerprint, grouped for reading aloud. lpm on the Mac shows
-/// the same code under Settings → Mobile devices.
+/// the same code under + above your projects → Phone.
 enum IdentityCode {
     static func of(fingerprint: String) -> String {
         let hex = fingerprint.filter(\.isHexDigit).uppercased()

@@ -14,7 +14,7 @@ tags: [pairing]
 - tapOn: "Pair for this Wi-Fi only"
 - tapOn: "Scan QR code"
 - extendedWaitUntil:
-    visible: "Scan the QR from lpm → Settings → Mobile devices → Pair a device"
+    visible: "Scan the QR from lpm: + above your projects → Phone → Pair a device"
     timeout: 5000
 - waitForAnimationToEnd
 - takeScreenshot: 1-scanner

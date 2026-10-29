@@ -123,7 +123,7 @@ class PairingScreenTest {
         }
         compose.onNodeWithText("Enter a Code").assertExists()
         compose.onNodeWithText(
-            "Shown under the code in lpm → Settings → Mobile devices."
+            "Shown under the code in lpm (+ above your projects → Phone)."
         ).assertExists()
         compose.onNodeWithText("Pair").assertIsNotEnabled()
         form = EnterCodeForm(code = "ab12cd34", host = "100.64.1.2")
@@ -172,7 +172,7 @@ class PairingScreenTest {
         var problem by mutableStateOf<CameraProblem?>(null)
         compose.setContent { LpmTheme { ScannerChrome(problem, onClose = { closes++ }) } }
         compose.onNodeWithText(
-            "Scan the QR from lpm → Settings → Mobile devices → Pair a device"
+            "Scan the QR from lpm: + above your projects → Phone → Pair a device"
         ).assertExists()
         problem = CameraProblem.Denied
         compose.onNodeWithText(

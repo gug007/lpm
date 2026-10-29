@@ -134,7 +134,7 @@ to be a host that could never be updated again:
 There is no UI to click here, so bring-up runs through the CLI:
 
 ```sh
-sudo -H lpm pair          # prints an invite to paste into Settings → Connections on the Mac
+sudo -H lpm pair          # prints an invite for the Mac: + above your projects → Another computer
 sudo -H lpm connections   # what this machine hosts, and what it is connected to
 ```
 
@@ -177,9 +177,9 @@ here. A machine that exists to run agents is the last place they should be
 missing.
 
 When that isn't enough — a start that failed to write them, or files removed by
-hand — the Mac's **Settings → Connections → the host's ⋯ menu** has *Reinstall
-skills there*, which asks the host to write its own copies again. It restarts
-nothing, so unlike *Update lpm there* it costs no running agents. The row says
+hand — the Mac's **+ above your projects → Server → the host's ⋯ menu** has
+*Reinstall skills there*, which asks the host to write its own copies again. It
+restarts nothing, so unlike *Update lpm there* it costs no running agents. The row says
 `skills out of date` when it already knows there is something to fix, and the
 entry is hidden while the host is a release behind — there the skills to install
 are the ones its next binary carries.
@@ -193,8 +193,8 @@ sudo -H touch /root/.lpm/no-agent-skills
 
 ## Removing lpm
 
-From the Mac: **Settings → Connections → the host's ⋯ menu → Remove lpm from this
-host**. On the machine itself:
+From the Mac: **+ above your projects → Server → the host's ⋯ menu → Remove lpm
+from this host**. On the machine itself:
 
 ```sh
 sudo ./uninstall.sh            # remove the install, keep ~/.lpm

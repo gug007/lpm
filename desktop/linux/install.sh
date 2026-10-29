@@ -4,8 +4,8 @@
 # Run from an unpacked release tarball:
 #     tar xzf lpm-host-linux-amd64.tar.gz && cd lpm-host && sudo ./install.sh
 #
-# Afterwards, `lpm pair` prints an invite to paste into Settings → Connections on
-# the Mac that will drive this machine.
+# Afterwards, `lpm pair` prints an invite to paste on the Mac that will drive
+# this machine, under + above your projects → Another computer.
 set -eu
 
 # git is what the app shells out to for diffs and syncing. Services need nothing
@@ -395,8 +395,8 @@ while [ "$i" -lt 90 ]; do
             echo "It is already hosting; run '$PAIR_CMD' for an invite to add another Mac."
         else
             echo
-            echo "Next: run '$PAIR_CMD' here, then paste the invite into"
-            echo "Settings → Connections on the Mac that will drive it."
+            echo "Next: run '$PAIR_CMD' here, then, in lpm on the Mac that will drive it,"
+            echo "click + above your projects, choose Another computer and paste the invite."
         fi
         if [ "$SUPERVISOR" != "systemd" ]; then
             echo

@@ -108,7 +108,7 @@ export default function QuickAnswer() {
                 <strong className="font-medium text-gray-900 dark:text-gray-100">
                   + → Server → Install lpm there
                 </strong>{" "}
-                (or open Settings → Connections) and type{" "}
+                and type{" "}
                 <code className="font-mono text-[0.9em]">user@host</code>
                 {" — "}lpm installs itself on that server over SSH, pairs the
                 two machines without you copying a secret anywhere, and
