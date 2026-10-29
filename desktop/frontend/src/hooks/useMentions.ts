@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { GitChangedFiles, ListBranches, ListDirFiles } from "../../bridge/commands";
+import { GitChangedFiles, GitRecentCommits, ListBranches, ListDirFiles } from "../../bridge/commands";
 import { useAppStore } from "../store/app";
+import { useBranchPr } from "../store/branchPr";
 import { isDuplicate } from "../types";
 import { mentionGroup, rankMentions, type MentionItem } from "../mentions";
 import { toSlash, windowsRules } from "../path";
 import { findParentProject, projectDisplayName } from "../components/ProjectNameDisplay";
+
+const RECENT_COMMITS = 20;
 
 interface DirFileEntry {
   path: string;
@@ -26,7 +29,8 @@ interface BranchEntry {
 // Sources the "@" autocomplete: the live project list (projects + duplicates),
 // the target project's running services, and the composer's own terminal — all
 // read from in-memory state — a listing of the terminal's working dir, and, when
-// the cwd is a git repo, its working-tree changes and branches. The backend-backed
+// the cwd is a git repo, its working-tree changes, branches, recent commits, the
+// whole uncommitted diff, and the branch's pull request. The backend-backed
 // sources are re-read each time the editor regains focus (via the returned
 // `refresh`), so files, branches, and working-tree changes edited outside the app
 // surface without remounting the tab; files and branches keep their previous list
@@ -57,8 +61,10 @@ export function useMentions(
   const [files, setFiles] = useState<MentionItem[]>([]);
   const [changed, setChanged] = useState<MentionItem[]>([]);
   const [branches, setBranches] = useState<MentionItem[]>([]);
+  const [commits, setCommits] = useState<MentionItem[]>([]);
   const fileCache = useRef(new Map<string, MentionItem[]>());
   const branchCache = useRef(new Map<string, MentionItem[]>());
+  const commitCache = useRef(new Map<string, MentionItem[]>());
   // Bumped on every cwd/active change; a fetch tags itself with the value live
   // when it started and drops its result once the stamp has moved on (the
   // successor to the old `cancelled` cleanup flag, but one that also invalidates
@@ -71,6 +77,7 @@ export function useMentions(
   const filesInFlight = useRef<number | null>(null);
   const branchesInFlight = useRef<number | null>(null);
   const changedInFlight = useRef<number | null>(null);
+  const commitsInFlight = useRef<number | null>(null);
 
   const loadFiles = useCallback((dir: string, gen: number) => {
     if (filesInFlight.current === gen) return;
@@ -118,6 +125,29 @@ export function useMentions(
     })();
   }, []);
 
+  const loadCommits = useCallback((dir: string, gen: number) => {
+    if (commitsInFlight.current === gen) return;
+    commitsInFlight.current = gen;
+    void (async () => {
+      try {
+        const list = await GitRecentCommits(dir, RECENT_COMMITS);
+        if (generation.current !== gen) return;
+        const items: MentionItem[] = list.map((c) => ({
+          kind: "commit",
+          label: `${c.hash} ${c.subject}`,
+          insert: c.hash,
+          detail: `${c.author} · ${c.date}`,
+        }));
+        commitCache.current.set(dir, items);
+        setCommits(items);
+      } catch {
+        // Keep the previous list rather than flickering the menu to empty.
+      } finally {
+        if (commitsInFlight.current === gen) commitsInFlight.current = null;
+      }
+    })();
+  }, []);
+
   const loadChanged = useCallback((dir: string, gen: number) => {
     if (changedInFlight.current === gen) return;
     changedInFlight.current = gen;
@@ -141,6 +171,7 @@ export function useMentions(
       setFiles([]);
       setChanged([]);
       setBranches([]);
+      setCommits([]);
       return;
     }
     const cachedFiles = fileCache.current.get(cwd);
@@ -149,13 +180,16 @@ export function useMentions(
     const cachedBranches = branchCache.current.get(cwd);
     if (cachedBranches) setBranches(cachedBranches);
     else loadBranches(cwd, gen);
+    const cachedCommits = commitCache.current.get(cwd);
+    if (cachedCommits) setCommits(cachedCommits);
+    else loadCommits(cwd, gen);
     loadChanged(cwd, gen);
     // Bump the stamp on unmount too, so a fetch still in flight then drops its
     // result instead of setting state on a gone component.
     return () => {
       generation.current += 1;
     };
-  }, [cwd, active, loadFiles, loadBranches, loadChanged]);
+  }, [cwd, active, loadFiles, loadBranches, loadCommits, loadChanged]);
 
   // Re-read the backend sources on demand (the editor regaining focus). Reuses
   // the current generation so a fetch already running for this cwd is not
@@ -166,7 +200,8 @@ export function useMentions(
     loadChanged(cwd, gen);
     loadFiles(cwd, gen);
     loadBranches(cwd, gen);
-  }, [active, cwd, loadChanged, loadFiles, loadBranches]);
+    loadCommits(cwd, gen);
+  }, [active, cwd, loadChanged, loadFiles, loadBranches, loadCommits]);
 
   const projectItems = useMemo<MentionItem[]>(() => {
     const present = new Set(projects.map((p) => p.name));
@@ -213,6 +248,29 @@ export function useMentions(
     [terminals, ownTerminalId],
   );
 
+  // The branch's pull request as the terminal footer last found it, so the menu
+  // adds no `gh` call of its own.
+  const pr = useBranchPr((s) => (active && project ? s.entries[project.root]?.pr : null)) ?? null;
+
+  // The working tree's changes as one diff, offered while there are any, and the
+  // branch's pull request with its review discussion.
+  const gitRows = useMemo<MentionItem[]>(() => {
+    const rows: MentionItem[] = [];
+    if (changed.length > 0) {
+      const n = changed.length;
+      rows.push({ kind: "diff", label: "Uncommitted changes", insert: "diff", detail: `${n} file${n === 1 ? "" : "s"}` });
+    }
+    if (pr) {
+      rows.push({
+        kind: "pr",
+        label: `#${pr.number} ${pr.title}`,
+        insert: "pr",
+        detail: `${pr.isDraft ? "draft" : pr.state.toLowerCase()} · review comments`,
+      });
+    }
+    return rows;
+  }, [changed, pr]);
+
   // A changed file is also in the plain file list; keep only the richer "changed"
   // entry so the path isn't offered twice.
   const plainFiles = useMemo(() => {
@@ -233,15 +291,17 @@ export function useMentions(
         mentionGroup("project", "Projects", "project", projectItems),
         mentionGroup("service-log", "Services", "service", serviceItems),
         mentionGroup("terminal-log", "Terminals", "terminal", terminalItems),
+        mentionGroup("commit", "Commits", "commit", commits),
       ].filter((g): g is MentionItem => g !== null),
-    [projectItems, terminalItems, serviceItems],
+    [projectItems, terminalItems, serviceItems, commits],
   );
   const barePool = useMemo(
-    () => [...changed, ...extraItems, ...groupRows, ...plainFiles],
-    [changed, extraItems, groupRows, plainFiles],
+    () => [...gitRows, ...changed, ...extraItems, ...groupRows, ...plainFiles],
+    [gitRows, changed, extraItems, groupRows, plainFiles],
   );
   const searchPool = useMemo(
     () => [
+      ...gitRows,
       ...changed,
       ...searchItems,
       ...projectItems,
@@ -249,8 +309,9 @@ export function useMentions(
       ...serviceItems,
       ...plainFiles,
       ...branches,
+      ...commits,
     ],
-    [changed, searchItems, projectItems, terminalItems, serviceItems, plainFiles, branches],
+    [gitRows, changed, searchItems, projectItems, terminalItems, serviceItems, plainFiles, branches, commits],
   );
 
   const filter = useCallback(

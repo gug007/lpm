@@ -6,7 +6,7 @@ import {
   RECAP_HOURS_LABEL,
   RECAP_LAYOUT as L,
   RECAP_THEMES,
-  RECAP_TITLE,
+  RECAP_TOKENS_LABEL,
   type RecapTheme,
 } from "./recapCardTheme";
 import { RecapMark } from "./RecapMark";
@@ -21,10 +21,12 @@ const TILES: { id: RecapRow; label: string }[] = [
 /** The card while its week is read: laid out as it will be, in its theme, so
  *  nothing moves when the numbers arrive. */
 export function RecapCardSkeleton({
+  title,
   range,
   theme,
   leftOut,
 }: {
+  title: string;
   range: string;
   theme: RecapTheme;
   leftOut: readonly RecapRow[];
@@ -39,6 +41,12 @@ export function RecapCardSkeleton({
     />
   );
   const tiles = TILES.filter((tile) => !leftOut.includes(tile.id));
+  const stacked = leftOut.includes("tokens")
+    ? []
+    : [
+        { label: RECAP_TOKENS_LABEL, size: L.heroSize, width: 150 },
+        { label: RECAP_HOURS_LABEL, size: L.hoursSize, width: 210 },
+      ];
 
   return (
     <div
@@ -58,16 +66,27 @@ export function RecapCardSkeleton({
       }}
     >
       <div className="flex items-center gap-2" style={{ lineHeight: `${L.headerLine}px` }}>
-        <span style={{ fontSize: L.titleSize, fontWeight: 700 }}>{RECAP_TITLE}</span>
+        <span style={{ fontSize: L.titleSize, fontWeight: 700 }}>{title}</span>
         <span className="ml-auto" style={{ color: C.muted }}>
           {range}
         </span>
       </div>
 
-      <div className="flex flex-wrap items-end gap-x-3" style={{ minHeight: L.heroSize }}>
-        {block(250, 52)}
-        <span style={{ color: C.soft }}>{RECAP_HOURS_LABEL}</span>
-      </div>
+      {stacked.length > 0 ? (
+        stacked.map((big) => (
+          <div key={big.label} className="flex flex-col" style={{ gap: L.stackGap }}>
+            <span className="flex items-end" style={{ height: big.size }}>
+              {block(big.width, Math.round(big.size * 0.8))}
+            </span>
+            <span style={{ lineHeight: `${L.labelLine}px`, color: C.soft }}>{big.label}</span>
+          </div>
+        ))
+      ) : (
+        <div className="flex flex-wrap items-end gap-x-3" style={{ minHeight: L.heroSize }}>
+          {block(250, 52)}
+          <span style={{ color: C.soft }}>{RECAP_HOURS_LABEL}</span>
+        </div>
+      )}
 
       {tiles.length > 0 && (
         <div

@@ -65,8 +65,10 @@ export const RECAP_THEMES: Record<RecapTheme, RecapPalette> = {
 
 // In the voice of whoever posts the card: to the people reading the post,
 // "your week" would be theirs.
-export const RECAP_TITLE = "My week in lpm";
+export const RECAP_TITLE = "My agents' week";
+export const RECAP_MONTH_TITLE = "My agents' month";
 export const RECAP_HOURS_LABEL = "of agents working for me";
+export const RECAP_TOKENS_LABEL = "tokens read and written by my agents";
 
 export const RECAP_FONT =
   '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, Roboto, "Helvetica Neue", sans-serif';
@@ -81,7 +83,12 @@ export const RECAP_LAYOUT = {
   titleSize: 17,
   headerLine: 22,
   heroSize: 64,
+  // The hours, under the tokens.
+  hoursSize: 52,
   heroTracking: -0.02,
+  // Between a big number and its label under it.
+  stackGap: 6,
+  labelLine: 18,
   bodySize: 15,
   tileGap: 10,
   tileRadius: 10,

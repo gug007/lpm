@@ -391,6 +391,8 @@ at(79500, 'closeOtherTerminals', project='storefront', id='demo-storefront-1')
 at(79600, 'terminals', project='storefront')
 at(2150, 'weeklyRecap', week='last'); at(2150, 'weeklyRecap', week='this', fresh=True)
 at(2150, 'weeklyRecap')
+at(2150, 'weeklyRecap', week='last', period='month')
+at(2150, 'weeklyRecap', week='this', period='month', fresh=True)
 # seen and archived agents
 at(74000, 'status', project='mobile-app'); at(74000, 'status', project='design-system')
 at(74000, 'terminals', project='mobile-app'); at(74000, 'terminals', project='design-system')

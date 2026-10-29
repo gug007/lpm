@@ -5,15 +5,16 @@ import {
   RECAP_HOURS_LABEL,
   RECAP_LAYOUT as L,
   RECAP_THEMES,
-  RECAP_TITLE,
+  RECAP_TOKENS_LABEL,
   type RecapTheme,
 } from "./recapCardTheme";
 import { RecapMark } from "./RecapMark";
 import { mixText, type RecapView } from "./weeklyRecapModel";
 
 const tileValue = { fontSize: 24, fontWeight: 800, lineHeight: `${L.tileValueLine}px` } as const;
+const bigNumber = { fontWeight: 800, lineHeight: 1, letterSpacing: `${L.heroTracking}em` } as const;
 
-/** "My week in lpm", sized to share: exactly the image it copies, with
+/** "My agents' week" or month, sized to share: exactly the image it copies, with
  *  nothing on it that names a project. */
 export function WeeklyRecapCard({
   view,
@@ -32,6 +33,13 @@ export function WeeklyRecapCard({
   };
   const tileLabel = { fontSize: 13, lineHeight: `${L.tileLabelLine}px`, color: C.muted };
   const columns = view.tiles.length + (view.lines ? 1 : 0);
+  // The tokens lead and the hours follow, each over its label.
+  const stacked = view.tokens
+    ? [
+        { value: view.tokens, label: RECAP_TOKENS_LABEL, size: L.heroSize },
+        { value: view.hours, label: RECAP_HOURS_LABEL, size: L.hoursSize },
+      ]
+    : [];
 
   return (
     <div
@@ -50,27 +58,25 @@ export function WeeklyRecapCard({
       }}
     >
       <div className="flex items-center gap-2" style={{ lineHeight: `${L.headerLine}px` }}>
-        <span style={{ fontSize: L.titleSize, fontWeight: 700 }}>{RECAP_TITLE}</span>
+        <span style={{ fontSize: L.titleSize, fontWeight: 700 }}>{view.title}</span>
         <span className="ml-auto" style={{ color: C.muted }}>
           {view.range}
         </span>
       </div>
 
-      <div className="flex flex-wrap items-baseline gap-x-3">
-        <span
-          style={{
-            fontSize: L.heroSize,
-            fontWeight: 800,
-            lineHeight: 1,
-            letterSpacing: `${L.heroTracking}em`,
-            color: C.strong,
-          }}
-        >
-          {view.hours}
-        </span>
-        <span style={{ color: C.soft }}>{RECAP_HOURS_LABEL}</span>
-        {view.gain && <span style={{ color: C.green, fontWeight: 600 }}>{view.gain}</span>}
-      </div>
+      {stacked.length > 0 ? (
+        stacked.map((big) => (
+          <div key={big.label} className="flex flex-col" style={{ gap: L.stackGap }}>
+            <span style={{ ...bigNumber, fontSize: big.size, color: C.strong }}>{big.value}</span>
+            <span style={{ lineHeight: `${L.labelLine}px`, color: C.soft }}>{big.label}</span>
+          </div>
+        ))
+      ) : (
+        <div className="flex flex-wrap items-baseline gap-x-3">
+          <span style={{ ...bigNumber, fontSize: L.heroSize, color: C.strong }}>{view.hours}</span>
+          <span style={{ color: C.soft }}>{RECAP_HOURS_LABEL}</span>
+        </div>
+      )}
 
       {columns > 0 && (
         <div

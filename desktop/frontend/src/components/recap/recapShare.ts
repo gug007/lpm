@@ -21,7 +21,7 @@ function base64(blob: Blob): Promise<string> {
   });
 }
 
-const fileName = (view: RecapView) => `My week in lpm ${view.range}`;
+const fileName = (view: RecapView) => `${view.title} ${view.range}`;
 
 /** Copies the card as a PNG. The clipboard write starts before the image is
  *  drawn so it stays tied to the click; a webview that refuses it hands the

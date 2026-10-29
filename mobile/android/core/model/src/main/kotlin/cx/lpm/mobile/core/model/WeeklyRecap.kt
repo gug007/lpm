@@ -15,13 +15,27 @@ enum class RecapWeek(val wire: String) {
     }
 }
 
-/** One day of the week: its agent time and the prompts sent. */
-data class RecapDay(val date: String, val agentMs: Long, val prompts: Long) {
+/** What a recap covers: a week, Monday to Sunday, or a calendar month. */
+enum class RecapPeriod(val wire: String) {
+    Week("week"),
+    Month("month");
+
+    companion object {
+        fun of(wire: String?): RecapPeriod? = entries.firstOrNull { it.wire == wire }
+    }
+}
+
+/** One recap the screen can show: last or this week or month. */
+data class RecapPick(val week: RecapWeek, val period: RecapPeriod)
+
+/** One day of the week: its agent time, the prompts sent and the tokens read and written. */
+data class RecapDay(val date: String, val agentMs: Long, val prompts: Long, val tokens: Long = 0) {
     companion object {
         fun parse(o: JsonObject): RecapDay = RecapDay(
             date = o.string("date").orEmpty(),
             agentMs = o.numberLong("agentMs") ?: 0,
-            prompts = o.numberLong("prompts") ?: 0
+            prompts = o.numberLong("prompts") ?: 0,
+            tokens = o.numberLong("tokens") ?: 0
         )
     }
 }
@@ -37,8 +51,8 @@ data class RecapTime(val name: String, val agentMs: Long) {
 }
 
 /**
- * One week of agent work on the Mac and every computer it connects to, Monday first.
- * [missing] names the paired computers that couldn't add their week.
+ * One week of agent work on the Mac and every computer it connects to, Monday first, or
+ * one month from its 1st. [missing] names the paired computers that couldn't add theirs.
  */
 data class WeeklyRecap(
     val week: String,
@@ -50,11 +64,13 @@ data class WeeklyRecap(
     val workedRepos: List<String>,
     val linesAdded: Long,
     val linesRemoved: Long,
-    val missing: List<String> = emptyList()
+    val missing: List<String> = emptyList(),
+    val period: RecapPeriod = RecapPeriod.Week
 ) {
     companion object {
         fun parse(o: JsonObject): WeeklyRecap = WeeklyRecap(
             week = o.string("week").orEmpty(),
+            period = RecapPeriod.of(o.string("period")) ?: RecapPeriod.Week,
             days = o.list("days", RecapDay::parse),
             previousAgentMs = o.numberLong("previousAgentMs") ?: 0,
             sessions = o.numberLong("sessions") ?: 0,

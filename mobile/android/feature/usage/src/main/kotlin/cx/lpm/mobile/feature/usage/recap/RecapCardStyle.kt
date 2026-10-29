@@ -37,8 +37,10 @@ internal object RecapColors {
 }
 
 internal const val RECAP_WIDTH = 600
-internal const val RECAP_TITLE = "My week in lpm"
+internal const val RECAP_TITLE = "My agents' week"
+internal const val RECAP_MONTH_TITLE = "My agents' month"
 internal const val RECAP_HOURS_LABEL = "of agents working for me"
+internal const val RECAP_TOKENS_LABEL = "tokens read and written by my agents"
 
 // The share image is the card at twice its size, as the desktop's.
 internal const val RECAP_IMAGE_SCALE = 2f

@@ -163,6 +163,31 @@ describe("insertComposerText", () => {
     expect(draft?.tabs.map((t) => t.text)).toEqual(["other", "look at @src/a.ts "]);
   });
 
+  it("tells a mounted composer when the text is a block", async () => {
+    const m = await import("./composerDrafts");
+    const seen: [string, boolean][] = [];
+    m.subscribeComposerInsert("term-1", (text, block) => seen.push([text, block]));
+
+    m.insertComposerText("term-1", "hk-1", "> hi\n\n", true);
+    m.insertComposerText("term-1", "hk-1", "@a.ts ");
+    expect(seen).toEqual([
+      ["> hi\n\n", true],
+      ["@a.ts ", false],
+    ]);
+  });
+
+  it("puts a block after the parked prompt's text, a blank line apart", async () => {
+    const m = await import("./composerDrafts");
+    const mine = m.createInputTab();
+    mine.text = "keep it in memory  ";
+    m.saveComposerDraft("term-1", { tabs: [mine], activeTabId: mine.id, history: [] }, "hk-1");
+
+    expect(m.insertComposerText("term-1", "hk-1", "> use Redis\n\n", true)).toBe(false);
+
+    const draft = m.loadComposerDraft("term-1", "hk-1");
+    expect(draft?.tabs.map((t) => t.text)).toEqual(["keep it in memory\n\n> use Redis\n\n"]);
+  });
+
   it("starts a prompt where there is none", async () => {
     const m = await import("./composerDrafts");
     m.insertComposerText("term-1", "hk-1", "@README.md ");

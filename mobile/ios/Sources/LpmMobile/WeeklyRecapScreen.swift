@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// The weekly recap, the desktop's "My week in lpm" card: last week or this one
-/// so far, ready to share as an image. Pushed from the Stats screen.
+/// The weekly recap, the desktop's "My agents' week" card: last week or this one
+/// so far, or a month, ready to share as an image. Pushed from the Stats screen.
 struct WeeklyRecapScreen: View {
     @Environment(AppModel.self) private var model
 
@@ -10,10 +10,10 @@ struct WeeklyRecapScreen: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                Text("Your agents' week, ready to share.")
+                Text("Your agents' \(store.pick.period.rawValue), ready to share.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                weekPicker
+                pickers
                 content
                 footnote
             }
@@ -25,34 +25,45 @@ struct WeeklyRecapScreen: View {
             .padding(.bottom, 28)
         }
         .background(Color(.systemGroupedBackground).ignoresSafeArea())
-        .navigationTitle("Weekly recap")
+        .navigationTitle(store.pick.period == .month ? "Monthly recap" : "Weekly recap")
         .navigationBarTitleDisplayMode(.inline)
         .refreshable { await store.refresh() }
         .task { store.screenDidOpen() }
         .onDisappear { store.screenDidClose() }
     }
 
-    private var weekPicker: some View {
-        Picker("Week", selection: Binding(get: { store.week }, set: { store.show($0) })) {
-            Text("Last week").tag(RecapWeek.last)
-            Text("This week").tag(RecapWeek.this)
+    /// Last or this, then week or month, read as one phrase: "Last week".
+    private var pickers: some View {
+        HStack(spacing: 8) {
+            Picker("Which", selection: Binding(get: { store.pick.week },
+                                               set: { store.show(RecapPick(week: $0, period: store.pick.period)) })) {
+                Text("Last").tag(RecapWeek.last)
+                Text("This").tag(RecapWeek.this)
+            }
+            if model.canShowRecapMonth {
+                Picker("Period", selection: Binding(get: { store.pick.period },
+                                                    set: { store.show(RecapPick(week: store.pick.week, period: $0)) })) {
+                    Text("Week").tag(RecapPeriod.week)
+                    Text("Month").tag(RecapPeriod.month)
+                }
+            }
         }
         .pickerStyle(.segmented)
     }
 
     @ViewBuilder
     private var content: some View {
-        let week = store.week
-        if let error = store.errors[week] {
-            RecapErrorCard(message: error) { store.load(week) }
-        } else if let recap = store.recaps[week] {
+        let pick = store.pick
+        if let error = store.errors[pick] {
+            RecapErrorCard(message: error, period: pick.period) { store.load(pick) }
+        } else if let recap = store.recaps[pick] {
             let card = RecapCardModel(recap)
             if card.empty {
-                RecapEmptyCard(week: week) { store.show(.this) }
+                RecapEmptyCard(pick: pick) { store.show(RecapPick(week: .this, period: pick.period)) }
             } else {
                 RecapCardShare(card: card)
-                    .opacity(store.loading.contains(week) ? 0.6 : 1)
-                    .animation(.easeOut(duration: 0.2), value: store.loading.contains(week))
+                    .opacity(store.loading.contains(pick) ? 0.6 : 1)
+                    .animation(.easeOut(duration: 0.2), value: store.loading.contains(pick))
             }
         } else {
             RecapLoadingCard()
@@ -62,8 +73,8 @@ struct WeeklyRecapScreen: View {
     private var footnote: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Names no projects, and nothing is uploaded: you add the card to the post yourself.")
-            if let missing = store.recaps[store.week]?.missing, !missing.isEmpty {
-                Text(Self.missingNote(missing))
+            if let missing = store.recaps[store.pick]?.missing, !missing.isEmpty {
+                Text(Self.missingNote(missing, period: store.pick.period))
             }
         }
         .font(.caption2)
@@ -71,9 +82,9 @@ struct WeeklyRecapScreen: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private static func missingNote(_ names: [String]) -> String {
+    private static func missingNote(_ names: [String], period: RecapPeriod) -> String {
         let list = names.formatted(.list(type: .and).locale(Locale(identifier: "en_US")))
-        return "Not counted: \(list), which couldn't send \(names.count == 1 ? "its" : "their") week."
+        return "Not counted: \(list), which couldn't send \(names.count == 1 ? "its" : "their") \(period.rawValue)."
     }
 }
 
@@ -88,7 +99,7 @@ private struct RecapCardShare: View {
             RecapCardFit(card: card)
             if let image {
                 ShareLink(item: image, message: Text(card.caption),
-                          preview: SharePreview(RecapCardStyle.title, image: image.preview)) {
+                          preview: SharePreview(card.title, image: image.preview)) {
                     shareLabel
                 }
                 .buttonStyle(.borderedProminent)
@@ -109,7 +120,7 @@ private struct RecapCardShare: View {
     }
 }
 
-/// A card-shaped placeholder while the Mac reads the week.
+/// A card-shaped placeholder while the Mac reads the week or month.
 private struct RecapLoadingCard: View {
     private typealias S = RecapCardStyle
 
@@ -125,7 +136,7 @@ private struct RecapLoadingCard: View {
                 .foregroundStyle(S.muted)
         }
         .frame(maxWidth: .infinity)
-        .aspectRatio(S.width / 322, contentMode: .fit)
+        .aspectRatio(S.width / 438, contentMode: .fit)
         .background(S.ground, in: shape)
         .overlay(shape.strokeBorder(S.border, lineWidth: 1))
         .transition(.opacity)
@@ -133,7 +144,7 @@ private struct RecapLoadingCard: View {
 }
 
 private struct RecapEmptyCard: View {
-    let week: RecapWeek
+    let pick: RecapPick
     let seeThisWeek: () -> Void
 
     var body: some View {
@@ -141,14 +152,15 @@ private struct RecapEmptyCard: View {
             Image(systemName: "calendar")
                 .font(.system(size: 32))
                 .foregroundStyle(.secondary)
-            Text(week == .last ? "No agent work last week" : "No agent work this week yet")
+            let period = pick.period.rawValue
+            Text(pick.week == .last ? "No agent work last \(period)" : "No agent work this \(period) yet")
                 .font(.headline)
             Text("The recap counts Claude Code and Codex sessions run in your projects.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-            if week == .last {
-                Button("See this week so far", action: seeThisWeek)
+            if pick.week == .last {
+                Button("See this \(period) so far", action: seeThisWeek)
                     .font(.subheadline.weight(.medium))
                     .padding(.top, 2)
             }
@@ -163,6 +175,7 @@ private struct RecapEmptyCard: View {
 
 private struct RecapErrorCard: View {
     let message: String
+    let period: RecapPeriod
     let retry: () -> Void
 
     var body: some View {
@@ -170,7 +183,7 @@ private struct RecapErrorCard: View {
             Image(systemName: "exclamationmark.triangle")
                 .font(.system(size: 32))
                 .foregroundStyle(.orange)
-            Text("Couldn't read the week: \(message)")
+            Text("Couldn't read the \(period.rawValue): \(message)")
                 .font(.subheadline)
                 .multilineTextAlignment(.center)
             Button("Try again", action: retry)

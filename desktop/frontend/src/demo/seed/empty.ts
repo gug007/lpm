@@ -1,4 +1,4 @@
-import { addDays } from "../../components/stats/statsDates";
+import { recapDates, type RecapPeriod } from "../../components/recap/weeklyRecapModel";
 
 const NO_TOKENS = {
   inputTokens: 0,
@@ -33,10 +33,11 @@ export const EMPTY_USAGE = {
   accountUsage: { usage: {} },
 };
 
-export function emptyRecap(week: string) {
+export function emptyRecap(week: string, period: RecapPeriod) {
   return {
     week,
-    days: [0, 1, 2, 3, 4, 5, 6].map((i) => ({ date: addDays(week, i), agentMs: 0, prompts: 0 })),
+    period,
+    days: recapDates(week, period).map((date) => ({ date, agentMs: 0, prompts: 0 })),
     previousAgentMs: 0,
     sessions: 0,
     projects: [],

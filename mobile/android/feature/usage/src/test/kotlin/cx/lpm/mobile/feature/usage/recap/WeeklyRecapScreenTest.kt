@@ -8,13 +8,14 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.core.model.RecapDay
+import cx.lpm.mobile.core.model.RecapPeriod
+import cx.lpm.mobile.core.model.RecapPick
 import cx.lpm.mobile.core.model.RecapTime
 import cx.lpm.mobile.core.model.RecapWeek
 import cx.lpm.mobile.core.model.WeeklyRecap
 import cx.lpm.mobile.feature.usage.stats.StatsBody
 import cx.lpm.mobile.feature.usage.stats.StatsScreen
 import cx.lpm.mobile.feature.usage.stats.StatsUiState
-import java.time.LocalDate
 import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -44,7 +45,6 @@ class WeeklyRecapScreenTest {
             linesAdded = 6_120,
             linesRemoved = 2_407
         ),
-        today = LocalDate.of(2026, 10, 15),
         locale = Locale.US
     )
 
@@ -54,7 +54,7 @@ class WeeklyRecapScreenTest {
                 state = state,
                 onBack = { events += "back" },
                 onRefresh = {},
-                onSelect = { events += "select ${it.wire}" },
+                onSelect = { events += "select ${it.week.wire} ${it.period.wire}" },
                 onRetry = { events += "retry" }
             )
         }
@@ -69,7 +69,7 @@ class WeeklyRecapScreenTest {
             )
         )
         compose.onNodeWithText("Your agents' week, ready to share.").assertExists()
-        listOf("My week in lpm", "31h 20m", "of agents working for me", "Claude 64%, Codex 36%")
+        listOf("My agents' week", "31h 20m", "of agents working for me", "Claude 64%, Codex 36%")
             .forEach { compose.onAllNodesWithText(it).assertCountEquals(1) }
         compose.onNodeWithText("lpm.cx").assertExists()
         compose.onNodeWithText("Share").performScrollTo().assertExists()
@@ -84,16 +84,45 @@ class WeeklyRecapScreenTest {
     fun picksAWeek() {
         show(WeeklyRecapUiState())
         compose.onNodeWithText("Reading your agents' history…").assertExists()
-        compose.onNodeWithText("This week").performClick()
-        assertEquals(listOf("select this"), events)
+        compose.onNodeWithText("Month").assertDoesNotExist()
+        compose.onNodeWithText("This").performClick()
+        assertEquals(listOf("select this week"), events)
+    }
+
+    @Test
+    fun picksAMonthWhereTheMacHasThem() {
+        show(WeeklyRecapUiState(months = true))
+        compose.onNodeWithText("Month").performClick()
+        assertEquals(listOf("select last month"), events)
+    }
+
+    @Test
+    fun aMonthIsNamedAsOne() {
+        show(
+            WeeklyRecapUiState(
+                pick = RecapPick(RecapWeek.Last, RecapPeriod.Month),
+                body = RecapBody.Empty(RecapPick(RecapWeek.Last, RecapPeriod.Month)),
+                missing = listOf("build-box"),
+                months = true
+            )
+        )
+        compose.onNodeWithText("Your agents' month, ready to share.").assertExists()
+        compose.onNodeWithText("No agent work last month").assertExists()
+        compose.onNodeWithText("Not counted: build-box, which couldn't send its month.")
+            .performScrollTo()
+            .assertExists()
+        compose.onNodeWithText("See this month so far").performClick()
+        assertEquals(listOf("select this month"), events)
     }
 
     @Test
     fun anEmptyLastWeekLeadsToThisWeek() {
-        show(WeeklyRecapUiState(body = RecapBody.Empty(RecapWeek.Last)))
+        show(
+            WeeklyRecapUiState(body = RecapBody.Empty(RecapPick(RecapWeek.Last, RecapPeriod.Week)))
+        )
         compose.onNodeWithText("No agent work last week").assertExists()
         compose.onNodeWithText("See this week so far").performClick()
-        assertEquals(listOf("select this"), events)
+        assertEquals(listOf("select this week"), events)
     }
 
     @Test

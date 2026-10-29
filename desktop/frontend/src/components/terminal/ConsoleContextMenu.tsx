@@ -20,6 +20,9 @@ interface ConsoleContextMenuProps {
   onAppCopy?: () => void;
   onClear: () => void;
   onPaste?: () => void;
+  // Puts the selection in the terminal's input as a quote; absent where the
+  // terminal has no input.
+  onQuote?: (term: Terminal) => void;
   onClose: () => void;
 }
 
@@ -34,6 +37,7 @@ export function ConsoleContextMenu({
   onAppCopy,
   onClear,
   onPaste,
+  onQuote,
   onClose,
 }: ConsoleContextMenuProps) {
   const hasSelection = term.hasSelection();
@@ -52,6 +56,7 @@ export function ConsoleContextMenu({
           else onAppCopy?.();
         })}
       />
+      {onQuote && <ContextMenuItem label="Quote in prompt" disabled={!hasSelection} onClick={run(() => onQuote(term))} />}
       {canPaste && onPaste && (
         <ContextMenuItem label="Paste" shortcut={chordLabel({ key: "v", meta: true })} onClick={run(onPaste)} />
       )}

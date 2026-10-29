@@ -5,7 +5,7 @@ import {
   RECAP_HOURS_LABEL,
   RECAP_LAYOUT as L,
   RECAP_THEMES,
-  RECAP_TITLE,
+  RECAP_TOKENS_LABEL,
   type RecapPalette,
   type RecapTheme,
 } from "./recapCardTheme";
@@ -22,8 +22,8 @@ type Ctx = CanvasRenderingContext2D;
 
 function font(ctx: Ctx, size: number, weight = 400) {
   ctx.font = `${weight} ${size}px ${RECAP_FONT}`;
-  // Only the hero number is tracked in, as on the card.
-  if ("letterSpacing" in ctx) ctx.letterSpacing = size === L.heroSize ? `${L.heroTracking * size}px` : "0px";
+  // Only the big numbers are tracked in, as on the card.
+  if ("letterSpacing" in ctx) ctx.letterSpacing = size >= L.hoursSize ? `${L.heroTracking * size}px` : "0px";
 }
 
 /** Where the baseline sits in a line box of `line` px, as CSS places it. */
@@ -93,6 +93,25 @@ function hero(ctx: Ctx, y: number, items: Item[], draw: boolean): number {
     first = false;
   }
   return lineTop - y + lineHeight;
+}
+
+/** A big number over its label; returns its height. */
+function stacked(
+  ctx: Ctx,
+  C: RecapPalette,
+  y: number,
+  value: string,
+  label: string,
+  size: number,
+  draw: boolean,
+): number {
+  if (draw) {
+    font(ctx, size, 800);
+    text(ctx, value, L.padX, y + baseline(ctx, size), C.strong);
+    font(ctx, L.bodySize);
+    text(ctx, label, L.padX, y + size + L.stackGap + baseline(ctx, L.labelLine), C.soft);
+  }
+  return size + L.stackGap + L.labelLine;
 }
 
 const TILES_HEIGHT = 2 + 2 * L.tilePadY + L.tileValueLine + L.tileLabelLine;
@@ -175,7 +194,6 @@ function heroItems(view: RecapView, C: RecapPalette): Item[] {
   return [
     { value: view.hours, size: L.heroSize, weight: 800, color: C.strong },
     { value: RECAP_HOURS_LABEL, size: L.bodySize, weight: 400, color: C.soft },
-    ...(view.gain ? [{ value: view.gain, size: L.bodySize, weight: 600, color: C.green }] : []),
   ];
 }
 
@@ -184,12 +202,17 @@ function paint(ctx: Ctx, C: RecapPalette, view: RecapView, draw: boolean): numbe
   let y = L.padTop;
   if (draw) {
     font(ctx, L.titleSize, 700);
-    text(ctx, RECAP_TITLE, L.padX, y + baseline(ctx, L.headerLine), C.text);
+    text(ctx, view.title, L.padX, y + baseline(ctx, L.headerLine), C.text);
     font(ctx, L.bodySize);
     text(ctx, view.range, L.width - L.padX, y + baseline(ctx, L.headerLine), C.muted, "right");
   }
   y += L.headerLine + L.gap;
-  y += hero(ctx, y, heroItems(view, C), draw) + L.gap;
+  if (view.tokens) {
+    y += stacked(ctx, C, y, view.tokens, RECAP_TOKENS_LABEL, L.heroSize, draw) + L.gap;
+    y += stacked(ctx, C, y, view.hours, RECAP_HOURS_LABEL, L.hoursSize, draw) + L.gap;
+  } else {
+    y += hero(ctx, y, heroItems(view, C), draw) + L.gap;
+  }
   if (view.tiles.length > 0 || view.lines) {
     y += (draw ? tiles(ctx, C, y, view) : TILES_HEIGHT) + L.gap;
   }

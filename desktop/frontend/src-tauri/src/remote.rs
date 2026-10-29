@@ -156,6 +156,7 @@ const PHONE_FEATURES: &[&str] = &[
     answer::FEATURE,
     live::FEATURE,
     crate::weekly_recap::PHONE_FEATURE,
+    crate::weekly_recap::PHONE_MONTH_FEATURE,
     crate::remote_seen::FEATURE,
 ];
 
@@ -2491,10 +2492,15 @@ fn handle_msg(
             });
         }
         "weeklyRecap" => {
-            // The desktop's weekly recap, last week or this one so far, on this
-            // Mac and every connected computer. Reading the agents' history is
-            // slow, so it runs off the read loop and answers through the out-queue.
+            // The desktop's weekly recap, last week or month or this one so far,
+            // on this Mac and every connected computer. Reading the agents'
+            // history is slow, so it runs off the read loop and answers through
+            // the out-queue.
             let last = v.get("week").and_then(Value::as_str) != Some("this");
+            let period: crate::weekly_recap::RecapPeriod = v
+                .get("period")
+                .and_then(|p| serde_json::from_value(p.clone()).ok())
+                .unwrap_or_default();
             let fresh = v.get("fresh").and_then(Value::as_bool).unwrap_or(false);
             let peers = app
                 .try_state::<crate::peerclient::PeerClientHub>()
@@ -2502,12 +2508,17 @@ fn handle_msg(
             let out = out.clone();
             std::thread::spawn(move || {
                 let which = if last { "last" } else { "this" };
-                let week = crate::weekly_recap::week_of(last, chrono::Local::now().date_naive());
-                let reply = match crate::weekly_recap::kept_week(peers.as_ref(), &week, fresh) {
+                let week = period.start(last, chrono::Local::now().date_naive());
+                let read = crate::weekly_recap::kept_week(peers.as_ref(), &week, period, fresh);
+                let reply = match read {
                     Ok(recap) => json!({
-                        "t": "weeklyRecap", "ok": true, "week": which, "recap": recap,
+                        "t": "weeklyRecap", "ok": true, "week": which, "period": period,
+                        "recap": recap,
                     }),
-                    Err(e) => json!({ "t": "weeklyRecap", "ok": false, "week": which, "error": e }),
+                    Err(e) => json!({
+                        "t": "weeklyRecap", "ok": false, "week": which, "period": period,
+                        "error": e,
+                    }),
                 };
                 let _ = out.try_send(reply.to_string());
             });

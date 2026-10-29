@@ -149,6 +149,9 @@ export interface Settings {
   // How the card is shared: its theme (dark when unset) and the rows left off.
   weeklyRecapTheme?: RecapTheme;
   weeklyRecapLeftOut?: RecapRow[];
+  // The day lpm first ran with the GitHub star ask, and whether it was asked.
+  githubStarSince?: string;
+  githubStarAsked?: boolean;
   // The last Codex status line arranged by hand (no layout matches), kept so
   // switching to a layout and back doesn't lose it.
   codexStatusLineCustomItems?: string[];
@@ -274,6 +277,8 @@ function normalize(s: main.Settings): Settings {
     weeklyRecapToasted: s.weeklyRecapToasted || undefined,
     weeklyRecapTheme: normalizeRecapTheme(s.weeklyRecapTheme),
     weeklyRecapLeftOut: normalizeRecapRows(s.weeklyRecapLeftOut),
+    githubStarSince: s.githubStarSince || undefined,
+    githubStarAsked: s.githubStarAsked || undefined,
     codexStatusLineCustomItems: Array.isArray(s.codexStatusLineCustomItems)
       ? s.codexStatusLineCustomItems.filter(
           (item: unknown): item is string => typeof item === "string",

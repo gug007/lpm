@@ -12,16 +12,16 @@ export const NAV_ITEM_IDS = [
   "recap",
   "mobile",
   "settings",
-  "tutorial",
+  "github",
 ] as const;
 
 export type NavItemId = (typeof NAV_ITEM_IDS)[number];
 
 // The items the menu keeps below its divider — the app itself rather than a
 // view of your work. They only get a divider while both sides still have rows.
-export const NAV_UTILITY_IDS: readonly NavItemId[] = ["settings", "tutorial"];
+export const NAV_UTILITY_IDS: readonly NavItemId[] = ["settings", "github"];
 
-// The lesson playlist the Tutorial row opens in the browser.
+// The lesson playlist the feedback lessons rail opens in the browser.
 export const TUTORIAL_PLAYLIST_URL = "https://www.youtube.com/playlist?list=PLGgzBw1aFVk8";
 
 // Terminals start out in the open: a shell for anything not tied to a project

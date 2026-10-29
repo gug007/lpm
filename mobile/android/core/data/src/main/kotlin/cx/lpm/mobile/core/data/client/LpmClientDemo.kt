@@ -35,6 +35,7 @@ internal fun LpmClient.connectDemo() {
                 add(LpmClient.RESTART_TERMINAL_FEATURE)
                 add(LpmClient.TAB_MENU_FEATURE)
                 add(LpmClient.WEEKLY_RECAP_FEATURE)
+                add(LpmClient.RECAP_MONTH_FEATURE)
                 add(LpmClient.AGENT_ARCHIVE_FEATURE)
             }
         }

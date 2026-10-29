@@ -5,6 +5,8 @@ import cx.lpm.mobile.core.data.client.requestWeeklyRecap
 import cx.lpm.mobile.core.data.session.GenerationTimeout
 import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.data.session.SessionStore
+import cx.lpm.mobile.core.model.RecapPeriod
+import cx.lpm.mobile.core.model.RecapPick
 import cx.lpm.mobile.core.model.RecapWeek
 import cx.lpm.mobile.core.model.WeeklyRecap
 import kotlinx.coroutines.delay
@@ -13,19 +15,22 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
+private val LastWeek = RecapPick(RecapWeek.Last, RecapPeriod.Week)
+
 data class WeeklyRecapState(
-    /** The week on screen. */
-    val week: RecapWeek = RecapWeek.Last,
-    /** Each week's last answer, kept while the other one shows. */
-    val recaps: Map<RecapWeek, WeeklyRecap> = emptyMap(),
-    val loading: Set<RecapWeek> = emptySet(),
-    /** Why a week without an answer couldn't be read. */
-    val errors: Map<RecapWeek, String> = emptyMap()
+    /** The week or month on screen. */
+    val pick: RecapPick = LastWeek,
+    /** Each week's and month's last answer, kept while another one shows. */
+    val recaps: Map<RecapPick, WeeklyRecap> = emptyMap(),
+    val loading: Set<RecapPick> = emptySet(),
+    /** Why a week or month without an answer couldn't be read. */
+    val errors: Map<RecapPick, String> = emptyMap()
 )
 
 /**
- * The desktop's weekly recap ("My week in lpm"), last week or this week so far. The
- * Mac reads it off its socket, so replies arrive seconds later and name their week.
+ * The desktop's weekly recap ("My agents' week", or month), last week or this week so
+ * far, or a month. The Mac reads it off its socket, so replies arrive seconds later and
+ * name their week or month.
  */
 class WeeklyRecapStore(private val session: MacSession) : SessionStore {
     private val mutable = MutableStateFlow(WeeklyRecapState())
@@ -34,11 +39,15 @@ class WeeklyRecapStore(private val session: MacSession) : SessionStore {
     // Asks again after a reconnect while the screen is open.
     private var active = false
 
-    private val timeout = GenerationTimeout<RecapWeek>(session.scope)
+    private val timeout = GenerationTimeout<RecapPick>(session.scope)
 
     /** The Mac answers `weeklyRecap`. */
     val available: Boolean
         get() = session.client?.hostFeatures?.contains(LpmClient.WEEKLY_RECAP_FEATURE) == true
+
+    /** The Mac answers `weeklyRecap` for a month. */
+    val monthAvailable: Boolean
+        get() = session.client?.hostFeatures?.contains(LpmClient.RECAP_MONTH_FEATURE) == true
 
     override fun wire(client: LpmClient) {
         client.onWeeklyRecap = ::receive
@@ -61,42 +70,42 @@ class WeeklyRecapStore(private val session: MacSession) : SessionStore {
     /** The screen opens on last week, the one that's over. */
     fun screenDidOpen() {
         active = true
-        select(RecapWeek.Last)
+        select(LastWeek)
     }
 
-    fun select(week: RecapWeek) {
-        mutable.update { it.copy(week = week) }
-        load(week)
+    fun select(pick: RecapPick) {
+        mutable.update { it.copy(pick = pick) }
+        load(pick)
     }
 
     /**
-     * Ask for [week]; [fresh] reads it again instead of the Mac's read from the last ten
-     * minutes. A week already on screen stays there while it reloads.
+     * Ask for [pick]; [fresh] reads it again instead of the Mac's read from the last ten
+     * minutes. A week or month already on screen stays there while it reloads.
      */
-    fun load(week: RecapWeek = state.value.week, fresh: Boolean = false) {
-        mutable.update { it.copy(loading = it.loading + week, errors = it.errors - week) }
-        session.client?.requestWeeklyRecap(week.wire, fresh)
-        timeout.arm(week, TIMEOUT_MS) {
-            if (week !in state.value.loading) return@arm
+    fun load(pick: RecapPick = state.value.pick, fresh: Boolean = false) {
+        mutable.update { it.copy(loading = it.loading + pick, errors = it.errors - pick) }
+        session.client?.requestWeeklyRecap(pick.week.wire, pick.period.wire, fresh)
+        timeout.arm(pick, TIMEOUT_MS) {
+            if (pick !in state.value.loading) return@arm
             mutable.update {
                 it.copy(
-                    loading = it.loading - week,
-                    errors = if (week in
+                    loading = it.loading - pick,
+                    errors = if (pick in
                         it.recaps
                     ) {
                         it.errors
                     } else {
-                        it.errors + (week to TIMEOUT_ERROR)
+                        it.errors + (pick to TIMEOUT_ERROR)
                     }
                 )
             }
         }
     }
 
-    /** Pull to refresh: read the week again when live, else reconnect. */
+    /** Pull to refresh: read the week or month again when live, else reconnect. */
     suspend fun refresh() {
         if (session.state.value.isReady) {
-            load(state.value.week, fresh = true)
+            load(state.value.pick, fresh = true)
         } else {
             session.reconnectIfNeeded()
         }
@@ -107,8 +116,11 @@ class WeeklyRecapStore(private val session: MacSession) : SessionStore {
         active = false
     }
 
-    private fun receive(week: String, recap: WeeklyRecap?, error: String?) {
-        val which = RecapWeek.of(week) ?: RecapWeek.Last
+    private fun receive(week: String, period: String, recap: WeeklyRecap?, error: String?) {
+        val which = RecapPick(
+            RecapWeek.of(week) ?: RecapWeek.Last,
+            RecapPeriod.of(period) ?: RecapPeriod.Week
+        )
         timeout.cancel(which)
         mutable.update {
             if (recap != null) {
@@ -120,7 +132,8 @@ class WeeklyRecapStore(private val session: MacSession) : SessionStore {
             } else {
                 it.copy(
                     loading = it.loading - which,
-                    errors = it.errors + (which to (error ?: "Couldn't read the week."))
+                    errors =
+                        it.errors + (which to (error ?: "Couldn't read the ${which.period.wire}."))
                 )
             }
         }

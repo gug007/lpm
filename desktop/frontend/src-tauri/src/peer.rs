@@ -2050,11 +2050,15 @@ fn dispatch_invoke(
     if cmd == "agent_usage_stats" || cmd == crate::weekly_recap::RECAP_CMD {
         let days = args.get("days").and_then(Value::as_i64).unwrap_or(30);
         let week = args.get("week").and_then(Value::as_str).unwrap_or_default().to_string();
+        let period = args
+            .get("period")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+            .unwrap_or_default();
         let recap = cmd == crate::weekly_recap::RECAP_CMD;
         let out = out.clone();
         std::thread::spawn(move || {
             let stats = if recap {
-                crate::weekly_recap::local_recap(&week)
+                crate::weekly_recap::local_recap(&week, period)
                     .and_then(|recap| serde_json::to_value(recap).map_err(|e| e.to_string()))
             } else {
                 crate::agent_usage::agent_usage_stats(days)

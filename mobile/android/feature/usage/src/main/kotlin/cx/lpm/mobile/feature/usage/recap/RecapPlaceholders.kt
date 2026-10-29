@@ -27,18 +27,20 @@ import cx.lpm.mobile.core.designsystem.component.CapsuleButton
 import cx.lpm.mobile.core.designsystem.component.LinkButton
 import cx.lpm.mobile.core.designsystem.component.Shimmer
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
+import cx.lpm.mobile.core.model.RecapPeriod
+import cx.lpm.mobile.core.model.RecapPick
 import cx.lpm.mobile.core.model.RecapWeek
 import cx.lpm.mobile.feature.usage.R
 import cx.lpm.mobile.feature.usage.ui.groupedCard
 
-/** A card-shaped stand-in, in the card's own colors, while the Mac reads the week. */
+/** A card-shaped stand-in, in the card's own colors, while the Mac reads the week or month. */
 @Composable
 internal fun RecapLoading(modifier: Modifier = Modifier) {
     val shape = RoundedCornerShape(10.dp)
     Column(
         modifier
             .fillMaxWidth()
-            .aspectRatio(RECAP_WIDTH / 322f)
+            .aspectRatio(RECAP_WIDTH / 438f)
             .background(RecapColors.ground, shape)
             .border(1.dp, RecapColors.border, shape),
         verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
@@ -59,9 +61,14 @@ internal fun RecapLoading(modifier: Modifier = Modifier) {
     }
 }
 
-/** The week couldn't be read: why, and "Try again". */
+/** The week or month couldn't be read: why, and "Try again". */
 @Composable
-internal fun RecapFailed(message: String, onRetry: () -> Unit, modifier: Modifier = Modifier) {
+internal fun RecapFailed(
+    message: String,
+    period: RecapPeriod,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     Column(
         modifier
             .fillMaxWidth()
@@ -77,7 +84,16 @@ internal fun RecapFailed(message: String, onRetry: () -> Unit, modifier: Modifie
             modifier = Modifier.size(37.dp)
         )
         Text(
-            stringResource(R.string.recap_error, message),
+            stringResource(
+                if (period ==
+                    RecapPeriod.Month
+                ) {
+                    R.string.recap_error_month
+                } else {
+                    R.string.recap_error
+                },
+                message
+            ),
             style = LpmTheme.typography.subheadline,
             textAlign = TextAlign.Center
         )
@@ -91,11 +107,12 @@ internal fun RecapFailed(message: String, onRetry: () -> Unit, modifier: Modifie
     }
 }
 
-/** No agent time in the week; from last week, a way to this week so far. */
+/** No agent time in the week or month; from last one, a way to this one so far. */
 @Composable
-internal fun RecapEmpty(week: RecapWeek, onSeeThisWeek: () -> Unit, modifier: Modifier = Modifier) {
+internal fun RecapEmpty(pick: RecapPick, onSeeThisWeek: () -> Unit, modifier: Modifier = Modifier) {
     val colors = LpmTheme.colors
-    val last = week == RecapWeek.Last
+    val last = pick.week == RecapWeek.Last
+    val month = pick.period == RecapPeriod.Month
     Column(
         modifier
             .fillMaxWidth()
@@ -111,7 +128,14 @@ internal fun RecapEmpty(week: RecapWeek, onSeeThisWeek: () -> Unit, modifier: Mo
             modifier = Modifier.size(38.dp)
         )
         Text(
-            stringResource(if (last) R.string.recap_empty_last else R.string.recap_empty_this),
+            stringResource(
+                when {
+                    month && last -> R.string.recap_empty_last_month
+                    month -> R.string.recap_empty_this_month
+                    last -> R.string.recap_empty_last
+                    else -> R.string.recap_empty_this
+                }
+            ),
             style = LpmTheme.typography.headline,
             textAlign = TextAlign.Center
         )
@@ -123,7 +147,9 @@ internal fun RecapEmpty(week: RecapWeek, onSeeThisWeek: () -> Unit, modifier: Mo
         )
         if (last) {
             LinkButton(
-                text = stringResource(R.string.recap_see_this_week),
+                text = stringResource(
+                    if (month) R.string.recap_see_this_month else R.string.recap_see_this_week
+                ),
                 onClick = onSeeThisWeek,
                 modifier = Modifier.padding(top = 2.dp),
                 textStyle = LpmTheme.typography.subheadline.copy(fontWeight = FontWeight.Medium)

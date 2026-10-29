@@ -1,7 +1,9 @@
 package cx.lpm.mobile.feature.usage.recap
 
+import cx.lpm.mobile.core.model.RecapPeriod
 import cx.lpm.mobile.core.model.RecapTime
 import cx.lpm.mobile.core.model.WeeklyRecap
+import cx.lpm.mobile.feature.usage.stats.formatTokenCount
 import cx.lpm.mobile.feature.usage.stats.parseUsageDate
 import java.math.BigDecimal
 import java.math.RoundingMode
@@ -23,10 +25,11 @@ data class RecapLines(val added: String, val removed: String)
 data class MixSlice(val label: String, val percent: Double)
 
 data class RecapView(
+    val title: String,
     val range: String,
     val hours: String,
-    /** "↑ 7h on last week", only once the week is over and beat the one before. */
-    val gain: String?,
+    /** Leads the card when the week has any. */
+    val tokens: String?,
     val tiles: List<RecapTile>,
     val lines: RecapLines,
     val mix: List<MixSlice>,
@@ -34,7 +37,6 @@ data class RecapView(
 )
 
 private const val MINUTE = 60_000L
-private const val HOUR = 60 * MINUTE
 
 private val AgentLabels = mapOf("claude" to "Claude", "codex" to "Codex")
 
@@ -51,12 +53,6 @@ fun formatAgentTime(ms: Long): String {
     val hours = minutes / 60
     val rest = minutes % 60
     return if (rest > 0) "${hours}h ${rest}m" else "${hours}h"
-}
-
-private fun formatGain(ms: Long): String = if (ms >= HOUR) {
-    "${jsRound(ms.toDouble() / HOUR)}h"
-} else {
-    "${jsRound(ms.toDouble() / MINUTE)}m"
 }
 
 // The en dash between thin spaces, as iOS's DateIntervalFormatter and the desktop's
@@ -78,6 +74,10 @@ fun weekRangeLabel(first: LocalDate, locale: Locale = Locale.getDefault()): Stri
         else -> first.format(monthDay) + RANGE_DASH + last.dayOfMonth
     }
 }
+
+/** The month's name and year: "October 2026". */
+fun monthLabel(first: LocalDate, locale: Locale = Locale.getDefault()): String =
+    first.format(DateTimeFormatter.ofPattern("MMMM yyyy", locale))
 
 /** Each agent's share of the agent time, Claude and Codex by name, busiest first. */
 fun agentMix(agents: List<RecapTime>): List<MixSlice> {
@@ -111,25 +111,19 @@ internal fun compactCount(count: Long, locale: Locale = Locale.getDefault()): St
 private fun tile(id: String, count: Long, one: String, many: String, locale: Locale) =
     RecapTile(id, grouped(count, locale), if (count == 1L) one else many)
 
-/** What the card shows. [today] cuts a week still going short: no gain until it's over. */
-fun recapView(
-    recap: WeeklyRecap,
-    today: LocalDate,
-    locale: Locale = Locale.getDefault()
-): RecapView {
+/** What the card shows. */
+fun recapView(recap: WeeklyRecap, locale: Locale = Locale.getDefault()): RecapView {
     val agentMs = recap.days.sumOf { it.agentMs }
     val prompts = recap.days.sumOf { it.prompts }
-    val first = parseUsageDate(recap.week)
-    val over = first != null && first.plusDays(6) < today
-    val gain = agentMs - recap.previousAgentMs
+    val tokens = recap.days.sumOf { it.tokens }
+    val month = recap.period == RecapPeriod.Month
     return RecapView(
-        range = first?.let { weekRangeLabel(it, locale) }.orEmpty(),
+        title = if (month) RECAP_MONTH_TITLE else RECAP_TITLE,
+        range = parseUsageDate(recap.week)
+            ?.let { if (month) monthLabel(it, locale) else weekRangeLabel(it, locale) }
+            .orEmpty(),
         hours = formatAgentTime(agentMs),
-        gain = if (over && recap.previousAgentMs > 0 && gain >= MINUTE) {
-            "↑ ${formatGain(gain)} on last week"
-        } else {
-            null
-        },
+        tokens = if (tokens > 0) formatTokenCount(tokens) else null,
         tiles = listOf(
             tile("prompts", prompts, "prompt", "prompts", locale),
             tile("sessions", recap.sessions, "agent session", "agent sessions", locale)
@@ -148,8 +142,9 @@ fun recapCaption(view: RecapView): String {
     val counts = view.tiles
         .filter { it.id == "prompts" }
         .map { "${it.value} ${it.label}" }
-    val parts = listOf("${view.hours} of agents working for me") + counts
-    return "My week in lpm: ${parts.joinToString(", ")}."
+    val tokens = listOfNotNull(view.tokens?.let { "$it $RECAP_TOKENS_LABEL" })
+    val parts = tokens + "${view.hours} $RECAP_HOURS_LABEL" + counts
+    return "${view.title} in lpm: ${parts.joinToString(", ")}."
 }
 
 /** English's list of names, as `Intl.ListFormat("en")` joins them: "A, B, and C". */

@@ -1,16 +1,20 @@
-import type { WeeklyRecap } from "../../../components/recap/weeklyRecapModel";
-import { addDays } from "../../../components/stats/statsDates";
+import {
+  recapDates,
+  type RecapPeriod,
+  type WeeklyRecap,
+} from "../../../components/recap/weeklyRecapModel";
+import { weekdayIndex } from "../../../components/stats/statsDates";
 import { HOUR, MINUTE } from "./clock";
 
-// Agent minutes and prompts per day, Monday first; Sunday off.
+// Agent minutes, prompts and millions of tokens per day, Monday first; Sunday off.
 const WEEK = [
-  { minutes: 352, prompts: 38 },
-  { minutes: 418, prompts: 41 },
-  { minutes: 296, prompts: 33 },
-  { minutes: 389, prompts: 36 },
-  { minutes: 241, prompts: 29 },
-  { minutes: 184, prompts: 37 },
-  { minutes: 0, prompts: 0 },
+  { minutes: 352, prompts: 38, tokens: 61 },
+  { minutes: 418, prompts: 41, tokens: 74 },
+  { minutes: 296, prompts: 33, tokens: 52 },
+  { minutes: 389, prompts: 36, tokens: 68 },
+  { minutes: 241, prompts: 29, tokens: 43 },
+  { minutes: 184, prompts: 37, tokens: 32 },
+  { minutes: 0, prompts: 0, tokens: 0 },
 ];
 
 const PROJECTS = [
@@ -21,17 +25,25 @@ const PROJECTS = [
   { name: "mobile-app", share: 0.07 },
 ];
 
-export function sampleRecap(week: string): WeeklyRecap {
-  const total = WEEK.reduce((sum, day) => sum + day.minutes, 0) * MINUTE;
-  return {
-    week,
-    days: WEEK.map((day, i) => ({
-      date: addDays(week, i),
+// A month is the sample week on repeat, each day by its weekday.
+export function sampleRecap(week: string, period: RecapPeriod = "week"): WeeklyRecap {
+  const days = recapDates(week, period).map((date) => {
+    const day = WEEK[weekdayIndex(date)];
+    return {
+      date,
       agentMs: day.minutes * MINUTE,
       prompts: day.prompts,
-    })),
+      tokens: day.tokens * 1_000_000,
+    };
+  });
+  const total = days.reduce((sum, day) => sum + day.agentMs, 0);
+  const weeks = days.length / 7;
+  return {
+    week,
+    period,
+    days,
     previousAgentMs: total - 7 * HOUR,
-    sessions: 58,
+    sessions: Math.round(58 * weeks),
     projects: PROJECTS.map(({ name, share }) => ({ name, agentMs: Math.round(total * share) })),
     agents: [
       { name: "claude", agentMs: Math.round(total * 0.64) },
@@ -43,7 +55,7 @@ export function sampleRecap(week: string): WeeklyRecap {
       "github.com/acme/mobile-app",
       "github.com/acme/saas-app",
     ],
-    linesAdded: 6_120,
-    linesRemoved: 2_407,
+    linesAdded: Math.round(6_120 * weeks),
+    linesRemoved: Math.round(2_407 * weeks),
   };
 }

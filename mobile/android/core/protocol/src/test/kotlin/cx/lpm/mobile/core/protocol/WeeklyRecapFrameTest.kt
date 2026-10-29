@@ -1,6 +1,7 @@
 package cx.lpm.mobile.core.protocol
 
 import cx.lpm.mobile.core.model.RecapDay
+import cx.lpm.mobile.core.model.RecapPeriod
 import cx.lpm.mobile.core.model.RecapTime
 import cx.lpm.mobile.core.model.WeeklyRecap
 import org.junit.Assert.assertEquals
@@ -14,6 +15,24 @@ class WeeklyRecapFrameTest {
         assertFrame(
             """{ "t": "weeklyRecap", "week": "this", "fresh": true }""",
             Wire.weeklyRecap("this", fresh = true)
+        )
+        assertFrame(
+            """{ "t": "weeklyRecap", "week": "last", "period": "month" }""",
+            Wire.weeklyRecap("last", "month")
+        )
+    }
+
+    @Test
+    fun decodesAMonth() {
+        val f = decode<Inbound.WeeklyRecap>(
+            """{ "t": "weeklyRecap", "ok": true, "week": "last", "period": "month",
+                 "recap": { "week": "2026-09-01", "period": "month" } }"""
+        )
+        assertEquals("month", f.period)
+        assertEquals(RecapPeriod.Month, f.recap?.period)
+        assertEquals(
+            "week",
+            decode<Inbound.WeeklyRecap>("""{ "t": "weeklyRecap", "ok": true }""").period
         )
     }
 
@@ -29,6 +48,7 @@ class WeeklyRecapFrameTest {
                  "linesAdded": 6120, "linesRemoved": 2407, "missing": ["build-box"] } }"""
         )
         assertEquals("last", f.week)
+        assertEquals(RecapPeriod.Week, f.recap?.period)
         assertNull(f.error)
         assertEquals(
             WeeklyRecap(
@@ -65,13 +85,13 @@ class WeeklyRecapFrameTest {
     @Test
     fun failureCarriesTheWeekAndWhy() {
         assertEquals(
-            Inbound.WeeklyRecap("this", null, "history unreadable"),
+            Inbound.WeeklyRecap("this", "week", null, "history unreadable"),
             decode<Inbound.WeeklyRecap>(
                 """{ "t": "weeklyRecap", "ok": false, "week": "this", "error": "history unreadable" }"""
             )
         )
         assertEquals(
-            Inbound.WeeklyRecap("", null, "Couldn't read the week."),
+            Inbound.WeeklyRecap("", "week", null, "Couldn't read the week."),
             decode<Inbound.WeeklyRecap>("""{ "t": "weeklyRecap" }""")
         )
     }

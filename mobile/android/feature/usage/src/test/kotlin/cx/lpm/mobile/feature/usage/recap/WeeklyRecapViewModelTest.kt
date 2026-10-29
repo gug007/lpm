@@ -1,5 +1,7 @@
 package cx.lpm.mobile.feature.usage.recap
 
+import cx.lpm.mobile.core.model.RecapPeriod
+import cx.lpm.mobile.core.model.RecapPick
 import cx.lpm.mobile.core.model.RecapWeek
 import cx.lpm.mobile.core.navigation.StatsKey
 import cx.lpm.mobile.core.navigation.WeeklyRecapKey
@@ -28,7 +30,7 @@ class WeeklyRecapViewModelTest {
     val main = MainDispatcherRule(StandardTestDispatcher())
 
     private fun TestScope.opened(t: TestSession): WeeklyRecapViewModel {
-        val vm = WeeklyRecapViewModel(WeeklyRecapKey(), t.sessions, t.clock)
+        val vm = WeeklyRecapViewModel(WeeklyRecapKey(), t.sessions)
         backgroundScope.launch { vm.uiState.collect() }
         vm.open()
         return vm
@@ -41,35 +43,50 @@ class WeeklyRecapViewModelTest {
         val t = demoSession()
         val vm = opened(t)
         t.settle(0)
-        assertEquals(RecapWeek.Last, vm.uiState.value.week)
+        assertEquals(RecapPick(RecapWeek.Last, RecapPeriod.Week), vm.uiState.value.pick)
+        assertTrue(vm.uiState.value.months)
         assertEquals(RecapBody.Loading, vm.uiState.value.body)
 
         t.settle()
         val card = vm.uiState.value.card
         assertEquals("31h 20m", card.view.hours)
-        assertEquals("↑ 7h on last week", card.view.gain)
+        assertEquals("330M", card.view.tokens)
         assertEquals("Claude 64%, Codex 36%", mixText(card.view.mix))
         assertEquals(
-            "My week in lpm: 31h 20m of agents working for me, 214 prompts.",
+            "My agents' week in lpm: 330M tokens read and written by my agents, " +
+                "31h 20m of agents working for me, 214 prompts.",
             card.caption
         )
         assertFalse(card.dimmed)
     }
 
     @Test
-    fun `this week counts the days so far and has no gain yet`() = runTest(main.dispatcher) {
+    fun `this week counts the days so far`() = runTest(main.dispatcher) {
         val t = demoSession()
         val vm = opened(t)
         t.settle()
 
-        vm.select(RecapWeek.This)
+        vm.select(RecapPick(RecapWeek.This, RecapPeriod.Week))
         t.settle(0)
         assertEquals(RecapBody.Loading, vm.uiState.value.body)
         t.settle()
         val view = vm.uiState.value.card.view
         assertEquals("24h 15m", view.hours)
-        assertEquals(null, view.gain)
+        assertEquals("255M", view.tokens)
         assertEquals("Oct 12\u2009–\u200918", view.range)
+    }
+
+    @Test
+    fun `last month is the sample week on repeat`() = runTest(main.dispatcher) {
+        val t = demoSession()
+        val vm = opened(t)
+        t.settle()
+
+        vm.select(RecapPick(RecapWeek.Last, RecapPeriod.Month))
+        t.settle()
+        val view = vm.uiState.value.card.view
+        assertEquals("My agents' month", view.title)
+        assertEquals("September 2026", view.range)
     }
 
     @Test
@@ -82,9 +99,13 @@ class WeeklyRecapViewModelTest {
                 """"days":[{"date":"2026-10-05","agentMs":0,"prompts":0}]}}"""
         )
         mac.settle()
-        assertEquals(RecapBody.Empty(RecapWeek.Last), vm.uiState.value.body)
+        assertEquals(
+            RecapBody.Empty(RecapPick(RecapWeek.Last, RecapPeriod.Week)),
+            vm.uiState.value.body
+        )
+        assertFalse(vm.uiState.value.months)
 
-        vm.select(RecapWeek.This)
+        vm.select(RecapPick(RecapWeek.This, RecapPeriod.Week))
         mac.socket.receive("""{"t":"weeklyRecap","ok":false,"week":"this","error":"No history"}""")
         mac.settle()
         assertEquals(RecapBody.Failed("No history"), vm.uiState.value.body)

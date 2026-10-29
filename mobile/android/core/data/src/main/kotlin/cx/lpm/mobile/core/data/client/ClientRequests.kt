@@ -22,8 +22,8 @@ fun LpmClient.requestStats(days: Int, machine: String? = null, fresh: Boolean = 
 
 fun LpmClient.requestLimits() = send(Wire.limits())
 
-fun LpmClient.requestWeeklyRecap(week: String, fresh: Boolean = false) =
-    send(Wire.weeklyRecap(week, fresh))
+fun LpmClient.requestWeeklyRecap(week: String, period: String, fresh: Boolean = false) =
+    send(Wire.weeklyRecap(week, period, fresh))
 
 fun LpmClient.requestSpeech(reqId: String, text: String) = send(Wire.ttsSpeak(reqId, text))
 

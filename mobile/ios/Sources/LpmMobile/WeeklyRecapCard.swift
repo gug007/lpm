@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// "My week in lpm", the desktop's WeeklyRecapCard in its default theme, laid
+/// "My agents' week" or month, the desktop's WeeklyRecapCard in its default theme, laid
 /// out 600 design units wide. Shown scaled to fit (`RecapCardFit`) and drawn into
 /// the shared image unscaled; nothing on it names a project.
 struct WeeklyRecapCard: View {
@@ -41,7 +41,7 @@ struct WeeklyRecapCard: View {
 
     private var header: some View {
         HStack(spacing: 8) {
-            Text(S.title)
+            Text(card.title)
                 .font(.system(size: S.titleSize, weight: .bold))
                 .foregroundStyle(S.text)
             Spacer(minLength: 0)
@@ -53,54 +53,48 @@ struct WeeklyRecapCard: View {
         .frame(height: S.headerLine)
     }
 
-    /// The hours, what they mean and the gain on one line; the gain wraps
-    /// under them when it doesn't fit.
+    /// The tokens lead and the hours follow, each over its label; without
+    /// tokens, the hours and what they mean share a line when they fit.
+    @ViewBuilder
     private var hero: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                hours
-                hoursLabel
-                gain
-            }
-            VStack(alignment: .leading, spacing: 0) {
+        if let tokens = card.tokens {
+            stacked(tokens, S.tokensLabel, size: S.heroSize)
+            stacked(card.hours, S.hoursLabel, size: S.hoursSize)
+        } else {
+            ViewThatFits(in: .horizontal) {
                 HStack(alignment: .firstTextBaseline, spacing: 12) {
-                    hours
-                    hoursLabel
+                    bigNumber(card.hours, size: S.heroSize)
+                    label(S.hoursLabel)
                 }
-                gain
-            }
-            VStack(alignment: .leading, spacing: 0) {
-                hours
-                hoursLabel
-                gain
+                VStack(alignment: .leading, spacing: 0) {
+                    bigNumber(card.hours, size: S.heroSize)
+                    label(S.hoursLabel)
+                }
             }
         }
     }
 
-    private var hours: some View {
-        Text(card.hours)
-            .font(.system(size: S.heroSize, weight: .heavy))
-            .tracking(S.heroSize * S.heroTracking)
-            .foregroundStyle(S.strong)
-            .fixedSize()
-            .frame(height: S.heroSize)
+    private func stacked(_ value: String, _ text: String, size: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: S.stackGap) {
+            bigNumber(value, size: size)
+            label(text).frame(height: S.labelLine)
+        }
     }
 
-    private var hoursLabel: some View {
-        Text(S.hoursLabel)
+    private func bigNumber(_ value: String, size: CGFloat) -> some View {
+        Text(value)
+            .font(.system(size: size, weight: .heavy))
+            .tracking(size * S.heroTracking)
+            .foregroundStyle(S.strong)
+            .fixedSize()
+            .frame(height: size)
+    }
+
+    private func label(_ text: String) -> some View {
+        Text(text)
             .font(.system(size: S.bodySize))
             .foregroundStyle(S.soft)
             .fixedSize()
-    }
-
-    @ViewBuilder
-    private var gain: some View {
-        if let gain = card.gain {
-            Text(gain)
-                .font(.system(size: S.bodySize, weight: .semibold))
-                .foregroundStyle(S.green)
-                .fixedSize()
-        }
     }
 
     private var tiles: some View {

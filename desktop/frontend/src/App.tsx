@@ -16,6 +16,7 @@ import { EmptyState, EmptyStateNoProjects } from "./components/EmptyState";
 import { FeedbackModal } from "./components/FeedbackModal";
 import { WeeklyRecapModal } from "./components/recap/WeeklyRecapModal";
 import { useWeeklyRecapToast } from "./components/recap/useWeeklyRecapToast";
+import { useGithubStarToast } from "./components/useGithubStarToast";
 import { NewProjectPicker } from "./components/NewProjectPicker";
 import { AddSSHProjectModal } from "./components/AddSSHProjectModal";
 import { AddCloneRepoModal } from "./components/AddCloneRepoModal";
@@ -167,6 +168,7 @@ export default function App() {
   useUpdateNote();
   useActionErrorToasts();
   useWeeklyRecapToast();
+  useGithubStarToast();
   const isFullscreen = useIsFullscreen();
 
   // Terminal sessions on a dropped peer are kept alive so the reconnect can resume

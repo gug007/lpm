@@ -1,68 +1,68 @@
 import Foundation
 
-/// The weekly recap ("My week in lpm"): last week's and this week's numbers from
-/// the Mac, which the phone draws into the desktop's card. Owned by `AppModel`
-/// and reached as `model.weeklyRecap`.
+/// The weekly recap ("My agents' week", or month): last and this week's or
+/// month's numbers from the Mac, which the phone draws into the desktop's card.
+/// Owned by `AppModel` and reached as `model.weeklyRecap`.
 ///
 /// The Mac reads the agents' history and asks GitHub off its socket, so a reply
-/// takes seconds and names the week it answers.
+/// takes seconds and names the week or month it answers.
 @Observable @MainActor
 final class WeeklyRecapStore {
     @ObservationIgnored weak var model: AppModel?
     private var client: LpmClient? { model?.client }
 
-    var week: RecapWeek = .last
-    private(set) var recaps: [RecapWeek: WeeklyRecap] = [:]
-    private(set) var loading: Set<RecapWeek> = []
-    private(set) var errors: [RecapWeek: String] = [:]
+    var pick = RecapPick(week: .last, period: .week)
+    private(set) var recaps: [RecapPick: WeeklyRecap] = [:]
+    private(set) var loading: Set<RecapPick> = []
+    private(set) var errors: [RecapPick: String] = [:]
 
     @ObservationIgnored private var active = false
-    @ObservationIgnored private let timeout = GenerationTimeout<RecapWeek>()
+    @ObservationIgnored private let timeout = GenerationTimeout<RecapPick>()
 
     static let noAnswerError = "The Mac didn't answer."
 
     /// The screen opens on last week, the one that's over.
     func screenDidOpen() {
         active = true
-        show(.last)
+        show(RecapPick(week: .last, period: .week))
     }
 
     func screenDidClose() { active = false }
 
-    func show(_ week: RecapWeek) {
-        self.week = week
-        load(week)
+    func show(_ pick: RecapPick) {
+        self.pick = pick
+        load(pick)
     }
 
     /// `fresh` reads the week again instead of taking the Mac's read from the
     /// last ten minutes.
-    func load(_ week: RecapWeek, fresh: Bool = false) {
-        loading.insert(week)
-        errors[week] = nil
-        client?.requestWeeklyRecap(week: week, fresh: fresh)
+    func load(_ pick: RecapPick, fresh: Bool = false) {
+        loading.insert(pick)
+        errors[pick] = nil
+        client?.requestWeeklyRecap(pick, fresh: fresh)
         // A reload that never answers keeps the card already on screen.
-        timeout.arm(week, seconds: 30) { [weak self] in
-            guard let self, self.loading.contains(week) else { return }
-            self.loading.remove(week)
-            if self.recaps[week] == nil { self.errors[week] = Self.noAnswerError }
+        timeout.arm(pick, seconds: 30) { [weak self] in
+            guard let self, self.loading.contains(pick) else { return }
+            self.loading.remove(pick)
+            if self.recaps[pick] == nil { self.errors[pick] = Self.noAnswerError }
         }
     }
 
     /// Pull to refresh: read the week again when live, else nudge the link back up.
     func refresh() async {
-        if case .ready = model?.connection { load(week, fresh: true) }
+        if case .ready = model?.connection { load(pick, fresh: true) }
         else { model?.reconnectIfNeeded() }
         try? await Task.sleep(nanoseconds: 500_000_000)
     }
 
-    func apply(week: RecapWeek, recap: WeeklyRecap?, error: String?) {
-        timeout.cancel(week)
-        loading.remove(week)
+    func apply(_ pick: RecapPick, recap: WeeklyRecap?, error: String?) {
+        timeout.cancel(pick)
+        loading.remove(pick)
         if let recap {
-            recaps[week] = recap
-            errors[week] = nil
+            recaps[pick] = recap
+            errors[pick] = nil
         } else {
-            errors[week] = error ?? "Couldn't read the week."
+            errors[pick] = error ?? "Couldn't read the \(pick.period.rawValue)."
         }
     }
 
@@ -71,6 +71,6 @@ final class WeeklyRecapStore {
     func handleConnectionReset() {
         timeout.cancelAll()
         loading = []
-        if active { load(week) }
+        if active { load(pick) }
     }
 }

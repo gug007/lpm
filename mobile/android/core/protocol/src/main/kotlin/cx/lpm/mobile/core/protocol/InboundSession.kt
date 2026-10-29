@@ -63,10 +63,12 @@ internal val sessionParsers = parsers {
         )
     }
     put("weeklyRecap") { o ->
+        val period = o.str("period").ifEmpty { "week" }
         Inbound.WeeklyRecap(
             week = o.str("week"),
+            period = period,
             recap = if (o.ok) WeeklyRecap.parse(o.obj("recap") ?: emptyObject) else null,
-            error = o.failure("Couldn't read the week.")
+            error = o.failure("Couldn't read the $period.")
         )
     }
     put("limits") { o ->

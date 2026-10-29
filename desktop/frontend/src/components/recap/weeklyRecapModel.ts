@@ -1,9 +1,12 @@
-import { addDays, localDate, rangeLabel, weekStart } from "../stats/statsDates";
+import { formatTokenCount } from "../../agentUsageFormat";
+import { addDays, localDate, monthKey, monthName, rangeLabel, weekStart } from "../stats/statsDates";
+import { RECAP_HOURS_LABEL, RECAP_MONTH_TITLE, RECAP_TITLE, RECAP_TOKENS_LABEL } from "./recapCardTheme";
 
 export interface RecapDay {
   date: string;
   agentMs: number;
   prompts: number;
+  tokens: number;
 }
 
 /** Agent time on one project, or by one agent. */
@@ -12,9 +15,14 @@ export interface RecapTime {
   agentMs: number;
 }
 
-/** One week of agent work on this computer and every connected one. */
+export type RecapPeriod = "week" | "month";
+
+/** One week or month of agent work on this computer and every connected one. */
 export interface WeeklyRecap {
+  // The first day: a Monday, or the 1st of the month.
   week: string;
+  // Missing from a computer older than months.
+  period?: RecapPeriod;
   days: RecapDay[];
   previousAgentMs: number;
   sessions: number;
@@ -40,6 +48,7 @@ export interface MixSlice {
 
 // What can be left off the card before it's shared; the hours always stay.
 export const RECAP_ROWS = [
+  "tokens",
   "prompts",
   "sessions",
   "lines",
@@ -60,9 +69,11 @@ export interface RecapTile {
 }
 
 export interface RecapView {
+  title: string;
   range: string;
   hours: string;
-  gain?: string;
+  // Leads the card when the week has any.
+  tokens?: string;
   tiles: RecapTile[];
   lines?: { added: string; removed: string };
   mix: MixSlice[];
@@ -72,7 +83,6 @@ export interface RecapView {
 }
 
 const MINUTE = 60_000;
-const HOUR = 60 * MINUTE;
 const AGENTS: Record<string, { label: string; color: string }> = {
   claude: { label: "Claude", color: "#de8a68" },
   codex: { label: "Codex", color: "#2dd4bf" },
@@ -83,6 +93,32 @@ const OTHER_COLORS = ["#c084fc", "#60a5fa", "#fbbf24"];
 export function recapWeekStart(which: RecapWeek, today = localDate()): string {
   const current = weekStart(today);
   return which === "this" ? current : addDays(current, -7);
+}
+
+const monthStart = (date: string) => `${date.slice(0, 8)}01`;
+
+/** The first day of the recap of `which` week or month. */
+export function recapStart(which: RecapWeek, period: RecapPeriod, today = localDate()): string {
+  if (period === "week") return recapWeekStart(which, today);
+  const current = monthStart(today);
+  return which === "this" ? current : monthStart(addDays(current, -1));
+}
+
+/** Every day of the week or month starting `first`. */
+export function recapDates(first: string, period: RecapPeriod): string[] {
+  const dates = [first];
+  for (let day = addDays(first, 1); ; day = addDays(day, 1)) {
+    if (period === "week" ? dates.length === 7 : monthKey(day) !== monthKey(first)) return dates;
+    dates.push(day);
+  }
+}
+
+export function recapRangeLabel(first: string, period: RecapPeriod): string {
+  return period === "month" ? monthName(first, true) : weekRangeLabel(first);
+}
+
+export function recapTitle(period: RecapPeriod): string {
+  return period === "month" ? RECAP_MONTH_TITLE : RECAP_TITLE;
 }
 
 export function weekRangeLabel(first: string): string {
@@ -100,10 +136,6 @@ export function formatAgentTime(ms: number): string {
   const hours = Math.floor(minutes / 60);
   const rest = minutes % 60;
   return rest ? `${hours}h ${rest}m` : `${hours}h`;
-}
-
-function formatGain(ms: number): string {
-  return ms >= HOUR ? `${Math.round(ms / HOUR)}h` : `${Math.round(ms / MINUTE)}m`;
 }
 
 /** Each agent's share of the agent time, Claude and Codex by name. */
@@ -143,22 +175,19 @@ function compactCount(count: number): string {
   return `${(count / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
 }
 
-/** What the card shows. `today` cuts a week still going short: no gain on a
- *  week that isn't over. */
-export function recapView(recap: WeeklyRecap, today = localDate()): RecapView {
+/** What the card shows. */
+export function recapView(recap: WeeklyRecap): RecapView {
   const agentMs = recap.days.reduce((sum, day) => sum + day.agentMs, 0);
   const prompts = recap.days.reduce((sum, day) => sum + day.prompts, 0);
-  const over = addDays(recap.week, 6) < today;
-  const gain = agentMs - recap.previousAgentMs;
+  const tokens = recap.days.reduce((sum, day) => sum + day.tokens, 0);
   const on = recap.days.map((day) => day.agentMs > 0);
   const busiest = Math.max(0, ...recap.days.map((day) => day.agentMs));
+  const period = recap.period ?? "week";
   return {
-    range: weekRangeLabel(recap.week),
+    title: recapTitle(period),
+    range: recapRangeLabel(recap.week, period),
     hours: formatAgentTime(agentMs),
-    gain:
-      over && recap.previousAgentMs > 0 && gain >= MINUTE
-        ? `↑ ${formatGain(gain)} on last week`
-        : undefined,
+    tokens: tokens > 0 ? formatTokenCount(tokens) : undefined,
     tiles: [
       tile("prompts", prompts, "prompt", "prompts"),
       tile("sessions", recap.sessions, "agent session", "agent sessions"),
@@ -183,6 +212,7 @@ export function withoutRows(view: RecapView, out: readonly RecapRow[]): RecapVie
   const hidden = new Set(out);
   return {
     ...view,
+    tokens: hidden.has("tokens") ? undefined : view.tokens,
     tiles: view.tiles.filter((tile) => !hidden.has(tile.id)),
     lines: hidden.has("lines") ? undefined : view.lines,
     mix: hidden.has("agents") ? [] : view.mix,
@@ -195,5 +225,6 @@ export function recapCaption(view: RecapView): string {
   const counts = view.tiles
     .filter((tile) => tile.id === "prompts")
     .map((tile) => `${tile.value} ${tile.label}`);
-  return `My week in lpm: ${[`${view.hours} of agents working for me`, ...counts].join(", ")}.`;
+  const tokens = view.tokens ? [`${view.tokens} ${RECAP_TOKENS_LABEL}`] : [];
+  return `${view.title} in lpm: ${[...tokens, `${view.hours} ${RECAP_HOURS_LABEL}`, ...counts].join(", ")}.`;
 }

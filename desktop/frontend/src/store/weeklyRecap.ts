@@ -1,16 +1,18 @@
 import { create } from "zustand";
-import type { RecapWeek } from "../components/recap/weeklyRecapModel";
+import type { RecapPeriod, RecapWeek } from "../components/recap/weeklyRecapModel";
 
 interface WeeklyRecapState {
   open: boolean;
   week: RecapWeek;
-  show: (week?: RecapWeek) => void;
+  period: RecapPeriod;
+  show: (week?: RecapWeek, period?: RecapPeriod) => void;
   close: () => void;
 }
 
 export const useWeeklyRecapStore = create<WeeklyRecapState>((set) => ({
   open: false,
   week: "last",
-  show: (week = "last") => set({ open: true, week }),
+  period: "week",
+  show: (week = "last", period = "week") => set({ open: true, week, period }),
   close: () => set({ open: false }),
 }));

@@ -5,6 +5,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -21,6 +22,8 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cx.lpm.mobile.core.designsystem.component.SegmentedControl
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
+import cx.lpm.mobile.core.model.RecapPeriod
+import cx.lpm.mobile.core.model.RecapPick
 import cx.lpm.mobile.core.model.RecapWeek
 import cx.lpm.mobile.core.navigation.WeeklyRecapKey
 import cx.lpm.mobile.feature.usage.R
@@ -54,51 +57,73 @@ fun WeeklyRecapRoute(
 }
 
 private val Weeks = listOf(RecapWeek.Last, RecapWeek.This)
+private val Periods = listOf(RecapPeriod.Week, RecapPeriod.Month)
 
 /**
- * The desktop's weekly recap on the phone: last week or this week so far as the card
- * "My week in lpm", shared as an image with its caption.
+ * The desktop's weekly recap on the phone: last week or this week so far, or a month, as
+ * the card "My agents' week", shared as an image with its caption.
  */
 @Composable
 fun WeeklyRecapScreen(
     state: WeeklyRecapUiState,
     onBack: () -> Unit,
     onRefresh: suspend () -> Unit,
-    onSelect: (RecapWeek) -> Unit,
+    onSelect: (RecapPick) -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val month = state.pick.period == RecapPeriod.Month
     UsageScaffold(
-        title = stringResource(R.string.recap_title),
+        title = stringResource(if (month) R.string.recap_title_month else R.string.recap_title),
         onBack = onBack,
         onRefresh = onRefresh,
         modifier = modifier
     ) {
         Text(
-            stringResource(R.string.recap_subtitle),
+            stringResource(if (month) R.string.recap_subtitle_month else R.string.recap_subtitle),
             style = LpmTheme.typography.subheadline,
             color = LpmTheme.colors.secondaryLabel
         )
-        SegmentedControl(
-            options = listOf(
-                stringResource(R.string.recap_last_week),
-                stringResource(R.string.recap_this_week)
-            ),
-            selectedIndex = Weeks.indexOf(state.week),
-            onSelect = { onSelect(Weeks[it]) }
-        )
+        RecapPickers(state.pick, state.months, onSelect)
         when (val body = state.body) {
             RecapBody.Loading -> RecapLoading()
 
-            is RecapBody.Failed -> RecapFailed(body.message, onRetry)
+            is RecapBody.Failed -> RecapFailed(body.message, state.pick.period, onRetry)
 
-            is RecapBody.Empty -> RecapEmpty(body.week, onSeeThisWeek = {
-                onSelect(RecapWeek.This)
+            is RecapBody.Empty -> RecapEmpty(body.pick, onSeeThisWeek = {
+                onSelect(body.pick.copy(week = RecapWeek.This))
             })
 
             is RecapBody.Card -> RecapCardShare(body)
         }
-        RecapFootnote(state.missing)
+        RecapFootnote(state.missing, state.pick.period)
+    }
+}
+
+/** Last or this, then week or month, read as one phrase: "Last week". */
+@Composable
+private fun RecapPickers(pick: RecapPick, months: Boolean, onSelect: (RecapPick) -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        SegmentedControl(
+            options = listOf(
+                stringResource(R.string.recap_last),
+                stringResource(R.string.recap_this)
+            ),
+            selectedIndex = Weeks.indexOf(pick.week),
+            onSelect = { onSelect(pick.copy(week = Weeks[it])) },
+            modifier = Modifier.weight(1f)
+        )
+        if (months) {
+            SegmentedControl(
+                options = listOf(
+                    stringResource(R.string.recap_week),
+                    stringResource(R.string.recap_month)
+                ),
+                selectedIndex = Periods.indexOf(pick.period),
+                onSelect = { onSelect(pick.copy(period = Periods[it])) },
+                modifier = Modifier.weight(1f)
+            )
+        }
     }
 }
 
@@ -117,7 +142,7 @@ private fun RecapCardShare(card: RecapBody.Card) {
         RecapShareButton(
             onClick = {
                 scope.launch {
-                    val name = "$RECAP_TITLE ${card.view.range}.png"
+                    val name = "${card.view.title} ${card.view.range}.png"
                     val file = RecapImageProvider.save(context, layer.toImageBitmap(), name)
                     RecapImageProvider.share(context, file, card.caption)
                 }
@@ -127,7 +152,7 @@ private fun RecapCardShare(card: RecapBody.Card) {
 }
 
 @Composable
-private fun RecapFootnote(missing: List<String>) {
+private fun RecapFootnote(missing: List<String>, period: RecapPeriod) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         val style = LpmTheme.typography.caption2
         val color = LpmTheme.colors.secondaryLabel
@@ -135,7 +160,11 @@ private fun RecapFootnote(missing: List<String>) {
         if (missing.isNotEmpty()) {
             Text(
                 pluralStringResource(
-                    R.plurals.recap_not_counted,
+                    if (period == RecapPeriod.Month) {
+                        R.plurals.recap_not_counted_month
+                    } else {
+                        R.plurals.recap_not_counted
+                    },
                     missing.size,
                     joinedNames(missing)
                 ),

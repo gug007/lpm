@@ -2,6 +2,7 @@ import { useSettingsStore } from "../../store/settings";
 import { RECAP_ROWS, type RecapRow, type RecapView } from "./weeklyRecapModel";
 
 const LABELS: Record<RecapRow, string> = {
+  tokens: "Tokens",
   prompts: "Prompts",
   sessions: "Sessions",
   lines: "Lines",
@@ -12,6 +13,7 @@ const LABELS: Record<RecapRow, string> = {
 function rowsOn(view: RecapView | null): readonly RecapRow[] {
   if (!view) return RECAP_ROWS;
   return [
+    ...(view.tokens ? (["tokens"] as const) : []),
     ...view.tiles.map((tile) => tile.id),
     ...(view.lines ? (["lines"] as const) : []),
     ...(view.mix.length > 0 ? (["agents"] as const) : []),

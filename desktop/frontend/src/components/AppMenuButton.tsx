@@ -1,8 +1,9 @@
 import { useState, type CSSProperties, type MouseEvent } from "react";
 import { toast } from "../notifications/toast";
 import { CheckForUpdate, QuitApp } from "../../bridge/commands";
-import { EventsEmit } from "../../bridge/runtime";
+import { BrowserOpenURL, EventsEmit } from "../../bridge/runtime";
 import { isQuitChord, QUIT_LABEL, SETTINGS_CHORD } from "../appMenuKeys";
+import { GITHUB_REPO_URL } from "../githubIssue";
 import { useEventListener } from "../hooks/useEventListener";
 import { chordLabel, matchesChord } from "../keys";
 import { AboutDialog } from "./AboutDialog";
@@ -99,6 +100,7 @@ export function AppMenuButton({ onSettings, onFeedback }: AppMenuButtonProps) {
         <ContextMenuShell x={menu.x} y={menu.y} minWidth={200} onClose={() => setMenu(null)}>
           <ContextMenuItem label="Settings…" shortcut={chordLabel(SETTINGS_CHORD)} onClick={pick(onSettings)} />
           <ContextMenuItem label="Help Improve lpm…" onClick={pick(onFeedback)} />
+          <ContextMenuItem label="Star lpm on GitHub" onClick={pick(() => BrowserOpenURL(GITHUB_REPO_URL))} />
           <ContextMenuItem label="Check for Updates…" onClick={pick(() => void checkForUpdates())} />
           <ContextMenuItem label="About lpm" onClick={pick(() => setAboutOpen(true))} />
           <ContextMenuSeparator />

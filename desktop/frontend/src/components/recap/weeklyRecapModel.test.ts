@@ -5,6 +5,8 @@ import {
   mixText,
   normalizeRecapRows,
   recapCaption,
+  recapDates,
+  recapStart,
   recapView,
   recapWeekStart,
   withoutRows,
@@ -16,7 +18,12 @@ const HOUR = 3_600_000;
 function recap(hours: number[], extra: Partial<WeeklyRecap> = {}): WeeklyRecap {
   return {
     week: "2026-10-19",
-    days: hours.map((h, i) => ({ date: `2026-10-${19 + i}`, agentMs: h * HOUR, prompts: h * 2 })),
+    days: hours.map((h, i) => ({
+      date: `2026-10-${19 + i}`,
+      agentMs: h * HOUR,
+      prompts: h * 2,
+      tokens: h * 400_000_000,
+    })),
     previousAgentMs: 0,
     sessions: 12,
     projects: [
@@ -36,6 +43,26 @@ describe("recapWeekStart", () => {
     expect(recapWeekStart("this", "2026-10-25")).toBe("2026-10-19");
     expect(recapWeekStart("last", "2026-10-26")).toBe("2026-10-19");
     expect(recapWeekStart("last", "2026-10-19")).toBe("2026-10-12");
+  });
+});
+
+describe("recapStart", () => {
+  it("starts months on their first day", () => {
+    expect(recapStart("this", "month", "2026-10-29")).toBe("2026-10-01");
+    expect(recapStart("last", "month", "2026-10-29")).toBe("2026-09-01");
+    expect(recapStart("last", "month", "2026-10-01")).toBe("2026-09-01");
+    expect(recapStart("last", "month", "2026-01-15")).toBe("2025-12-01");
+    expect(recapStart("last", "week", "2026-10-26")).toBe("2026-10-19");
+  });
+});
+
+describe("recapDates", () => {
+  it("lists every day of the week or month", () => {
+    expect(recapDates("2026-10-19", "week")).toEqual([
+      "2026-10-19", "2026-10-20", "2026-10-21", "2026-10-22", "2026-10-23", "2026-10-24", "2026-10-25",
+    ]);
+    expect(recapDates("2026-10-01", "month")).toHaveLength(31);
+    expect(recapDates("2028-02-01", "month").at(-1)).toBe("2028-02-29");
   });
 });
 
@@ -71,14 +98,17 @@ describe("agentMix", () => {
 
 describe("recapView", () => {
   it("shows the week's numbers", () => {
-    const view = recapView(recap([5, 0, 0, 0, 0, 0, 0]), "2026-10-27");
+    const view = recapView(recap([5, 0, 0, 0, 0, 0, 0]));
     expect(view.hours).toBe("5h");
+    expect(view.tokens).toBe("2.0B");
     expect(view.tiles).toEqual([
       { id: "prompts", value: "10", label: "prompts" },
       { id: "sessions", value: "12", label: "agent sessions" },
     ]);
     expect(view.lines).toEqual({ added: "+6,120", removed: "−2,407" });
-    expect(recapCaption(view)).toBe("My week in lpm: 5h of agents working for me, 10 prompts.");
+    expect(recapCaption(view)).toBe(
+      "My agents' week in lpm: 2.0B tokens read and written by my agents, 5h of agents working for me, 10 prompts.",
+    );
     expect(JSON.stringify(view)).not.toContain("saas-app");
     expect(JSON.stringify(view)).not.toContain("project");
     expect(view.empty).toBe(false);
@@ -93,11 +123,14 @@ describe("recapView", () => {
     expect(lines(999_600, 2_000_000)).toEqual(["+1M", "−2M"]);
   });
 
-  it("shows growth on last week only once the week is over", () => {
-    const week = recap([4, 4, 4, 4, 4, 4, 0], { previousAgentMs: 17 * HOUR });
-    expect(recapView(week, "2026-10-26").gain).toBe("↑ 7h on last week");
-    expect(recapView(week, "2026-10-24").gain).toBeUndefined();
-    expect(recapView({ ...week, previousAgentMs: 30 * HOUR }, "2026-10-26").gain).toBeUndefined();
+  it("adds up the week's tokens the way Stats writes them", () => {
+    const tokens = (perDay: number[]) =>
+      recapView(recap([1, 1, 1, 1, 1, 1, 1], {
+        days: perDay.map((t, i) => ({ date: `2026-10-${19 + i}`, agentMs: HOUR, prompts: 1, tokens: t })),
+      })).tokens;
+    expect(tokens([312e6, 401e6, 356e6, 388e6, 297e6, 214e6, 172e6])).toBe("2.1B");
+    expect(tokens([850_000, 0, 0, 0, 0, 0, 0])).toBe("850K");
+    expect(tokens([0, 0, 0, 0, 0, 0, 0])).toBeUndefined();
   });
 
   it("measures each day against the week's busiest", () => {
@@ -110,13 +143,14 @@ describe("recapView", () => {
   });
 
   it("leaves the rows picked off the card and its caption", () => {
-    const full = recapView(recap([5, 0, 0, 0, 0, 0, 0]), "2026-10-27");
-    const view = withoutRows(full, ["sessions", "lines", "agents"]);
+    const full = recapView(recap([5, 0, 0, 0, 0, 0, 0]));
+    const view = withoutRows(full, ["tokens", "sessions", "lines", "agents"]);
+    expect(view.tokens).toBeUndefined();
     expect(view.tiles.map((tile) => tile.id)).toEqual(["prompts"]);
     expect(view.lines).toBeUndefined();
     expect(view.mix).toEqual([]);
     expect(view.hours).toBe("5h");
-    expect(recapCaption(view)).toBe("My week in lpm: 5h of agents working for me, 10 prompts.");
+    expect(recapCaption(view)).toBe("My agents' week in lpm: 5h of agents working for me, 10 prompts.");
     expect(withoutRows(full, [])).toBe(full);
   });
 
@@ -128,5 +162,20 @@ describe("recapView", () => {
 
   it("is empty without agent time", () => {
     expect(recapView(recap([0, 0, 0, 0, 0, 0, 0])).empty).toBe(true);
+  });
+
+  it("titles a week, and a month by its name", () => {
+    expect(recapView(recap([1, 0, 0, 0, 0, 0, 0])).title).toBe("My agents' week");
+    const month = recapView(
+      recap([], {
+        week: "2026-10-01",
+        period: "month",
+        days: recapDates("2026-10-01", "month").map((date) => ({ date, agentMs: HOUR, prompts: 1, tokens: 0 })),
+      }),
+    );
+    expect(month.title).toBe("My agents' month");
+    expect(month.range).toMatch(/October.*2026/);
+    expect(month.hours).toBe("31h");
+    expect(recapCaption(month)).toBe("My agents' month in lpm: 31h of agents working for me, 31 prompts.");
   });
 });

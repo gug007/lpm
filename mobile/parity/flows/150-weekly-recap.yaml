@@ -1,5 +1,5 @@
-# The weekly recap from the top of Stats: the desktop's "My week in lpm" card
-# for Demo Mode's sample week, then this week so far.
+# The weekly recap from the top of Stats: the desktop's "My agents' week" card
+# for Demo Mode's sample week, then this week so far, then this month.
 appId: cx.lpm.mobile
 name: 150-weekly-recap
 tags: [demo, stats, recap]
@@ -15,15 +15,24 @@ tags: [demo, stats, recap]
           timeout: 5000
 - tapOn: "Weekly recap"
 - extendedWaitUntil:
-    visible: "My week in lpm"
+    visible: "My agents' week"
     timeout: 10000
+- assertVisible: "330M"
 - assertVisible: "31h 20m"
 - assertVisible: "of agents working for me"
 - assertVisible: "Claude 64%, Codex 36%"
 - waitForAnimationToEnd:
     timeout: 3000
 - takeScreenshot: 1-weekly-recap
-- tapOn: "This week"
+- tapOn: "This"
 - waitForAnimationToEnd:
     timeout: 3000
 - takeScreenshot: 2-this-week
+- tapOn: "Month"
+- extendedWaitUntil:
+    visible: "My agents' month"
+    timeout: 10000
+- assertVisible: "Monthly recap"
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 3-this-month

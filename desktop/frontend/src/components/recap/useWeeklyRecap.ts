@@ -1,23 +1,32 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { WeeklyRecap as LoadWeeklyRecap } from "../../../bridge/commands";
-import type { WeeklyRecap } from "./weeklyRecapModel";
+import type { RecapPeriod, WeeklyRecap } from "./weeklyRecapModel";
 
-// Weeks already read in this window, so Stats, the toast and the recap dialog
-// share one scan of the history files.
+// Weeks and months already read in this window, so Stats, the toast and the
+// recap dialog share one scan of the history files.
 const read = new Map<string, WeeklyRecap>();
 
-export function loadWeeklyRecap(week: string, fresh = false): Promise<WeeklyRecap> {
-  const held = read.get(week);
+const keyOf = (week: string, period: RecapPeriod) => `${period}:${week}`;
+
+export function loadWeeklyRecap(
+  week: string,
+  period: RecapPeriod = "week",
+  fresh = false,
+): Promise<WeeklyRecap> {
+  const key = keyOf(week, period);
+  const held = read.get(key);
   if (held && !fresh) return Promise.resolve(held);
-  return (LoadWeeklyRecap(week, fresh) as Promise<WeeklyRecap>).then((recap) => {
-    read.set(week, recap);
+  return (LoadWeeklyRecap(week, period, fresh) as Promise<WeeklyRecap>).then((recap) => {
+    read.set(key, recap);
     return recap;
   });
 }
 
-/** The recap of the week starting `week`, or null to read none. */
-export function useWeeklyRecap(week: string | null) {
-  const [recap, setRecap] = useState<WeeklyRecap | null>(() => (week ? read.get(week) ?? null : null));
+/** The recap of the week or month starting `week`, or null to read none. */
+export function useWeeklyRecap(week: string | null, period: RecapPeriod = "week") {
+  const [recap, setRecap] = useState<WeeklyRecap | null>(() =>
+    week ? read.get(keyOf(week, period)) ?? null : null,
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const latest = useRef(0);
@@ -29,7 +38,7 @@ export function useWeeklyRecap(week: string | null) {
       setLoading(true);
       setError("");
       try {
-        const next = await loadWeeklyRecap(week, fresh);
+        const next = await loadWeeklyRecap(week, period, fresh);
         if (mine === latest.current) setRecap(next);
       } catch (cause) {
         if (mine === latest.current) setError(String(cause));
@@ -37,13 +46,14 @@ export function useWeeklyRecap(week: string | null) {
         if (mine === latest.current) setLoading(false);
       }
     },
-    [week],
+    [week, period],
   );
 
   useEffect(() => {
-    setRecap(week ? read.get(week) ?? null : null);
+    setRecap(week ? read.get(keyOf(week, period)) ?? null : null);
     void load();
-  }, [week, load]);
+  }, [week, period, load]);
 
-  return { recap: recap?.week === week ? recap : null, loading, error, reload: () => load(true) };
+  const current = recap?.week === week && (recap.period ?? "week") === period;
+  return { recap: current ? recap : null, loading, error, reload: () => load(true) };
 }

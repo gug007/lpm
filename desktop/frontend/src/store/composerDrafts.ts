@@ -190,8 +190,9 @@ export function deliverPromptDraft(
 }
 
 // Text such as an "@path" mention handed to a terminal's input from elsewhere in
-// the window (the Files tab's "Mention in agent"). It joins what is typed there.
-type ComposerInsertCallback = (text: string) => void;
+// the window (the Files tab's "Mention in agent"). It joins what is typed there;
+// a block (a quote from the terminal) goes on lines of its own.
+type ComposerInsertCallback = (text: string, block: boolean) => void;
 const insertSubs = new Map<string, ComposerInsertCallback>();
 
 export function subscribeComposerInsert(terminalId: string, cb: ComposerInsertCallback): () => void {
@@ -203,10 +204,15 @@ export function subscribeComposerInsert(terminalId: string, cb: ComposerInsertCa
 
 // A mounted composer takes `text` at its caret; otherwise it goes on the end of
 // the parked prompt, there when that composer mounts. True when it went live.
-export function insertComposerText(terminalId: string, historyKey: string, text: string): boolean {
+export function insertComposerText(
+  terminalId: string,
+  historyKey: string,
+  text: string,
+  block = false,
+): boolean {
   const cb = insertSubs.get(terminalId);
   if (cb) {
-    cb(text);
+    cb(text, block);
     return true;
   }
   const durable = historyKey === terminalId ? undefined : historyKey;
@@ -218,7 +224,8 @@ export function insertComposerText(terminalId: string, historyKey: string, text:
     saveComposerDraft(terminalId, { tabs: [fresh], activeTabId: fresh.id, history: draft?.history ?? [] }, durable);
     return false;
   }
-  tab.text = tab.text === "" || /\s$/.test(tab.text) ? tab.text + text : `${tab.text} ${text}`;
+  if (block) tab.text = tab.text.trim() === "" ? text : `${tab.text.replace(/\s+$/, "")}\n\n${text}`;
+  else tab.text = tab.text === "" || /\s$/.test(tab.text) ? tab.text + text : `${tab.text} ${text}`;
   saveComposerDraft(terminalId, draft, durable);
   return false;
 }

@@ -135,7 +135,8 @@ export type GithubLinkSource =
   | "vs-hero"
   | "vs-cta"
   | "download-releases"
-  | "downloads-releases";
+  | "downloads-releases"
+  | "download-star";
 
 type TrackGithubVisitParams = {
   source: GithubLinkSource;

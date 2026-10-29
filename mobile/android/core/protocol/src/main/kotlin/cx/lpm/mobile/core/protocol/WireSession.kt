@@ -164,11 +164,16 @@ sealed interface WireSession {
         if (fresh) put("fresh", true)
     }
 
-    /** "last" or "this" week; [fresh] reads again instead of the Mac's last ten minutes. */
-    fun weeklyRecap(week: String, fresh: Boolean = false): String = frame("weeklyRecap") {
-        put("week", week)
-        if (fresh) put("fresh", true)
-    }
+    /**
+     * "last" or "this" [week], or month for [period] "month"; [fresh] reads again instead
+     * of the Mac's last ten minutes.
+     */
+    fun weeklyRecap(week: String, period: String = "week", fresh: Boolean = false): String =
+        frame("weeklyRecap") {
+            put("week", week)
+            if (period != "week") put("period", period)
+            if (fresh) put("fresh", true)
+        }
 
     fun limits(): String = frame("limits")
 

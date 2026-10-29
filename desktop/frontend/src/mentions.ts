@@ -6,7 +6,9 @@
 // backs the "/lpm-memory <session-id>" argument completion. Most kinds insert literal "@<insert>" text the AI agent
 // resolves itself; "service-log" and "terminal-log" are the exceptions — lpm
 // captures the live output at pick time and injects it inline, since the agent
-// can't read lpm's in-memory service pane buffer or xterm's scrollback.
+// can't read lpm's in-memory service pane buffer or xterm's scrollback. "diff",
+// "commit" and "pr" are injected the same way (see mentionGitCapture), so the
+// prompt carries the changes or the review discussion it is about.
 //
 // A bare "@" folds the bulkier sources (memory sessions, projects, terminals,
 // services) behind one group row each — an item carrying `children` — that
@@ -25,7 +27,10 @@ export type MentionKind =
   | "memory"
   | "memory-save"
   | "service-log"
-  | "terminal-log";
+  | "terminal-log"
+  | "diff"
+  | "commit"
+  | "pr";
 
 export interface MentionItem {
   kind: MentionKind;
@@ -87,12 +92,15 @@ const LIMIT = 50;
 const GROUP_ORDER: Record<MentionKind, number> = {
   memory: 0,
   "memory-save": 0,
+  diff: 1,
+  pr: 1,
   changed: 1,
   project: 2,
   duplicate: 2,
   "terminal-log": 3,
   "service-log": 4,
   branch: 5,
+  commit: 5,
   dir: 6,
   file: 6,
 };

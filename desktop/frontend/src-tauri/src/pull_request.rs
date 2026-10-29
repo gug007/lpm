@@ -20,22 +20,24 @@ const FIELDS: &str = "number,url,state,title,isDraft";
 /// remote is not GitHub, or `gh` is missing or signed out.
 #[tauri::command(async)]
 pub fn branch_pull_request(cwd: String) -> Option<PullRequestInfo> {
-    let local = crate::sshexec::remote_project_for_path(&cwd).is_none();
+    gh_out(&cwd, &["pr", "view", "--json", FIELDS])
+        .ok()
+        .and_then(|json| parse_pull_request(&json))
+}
+
+/// Run `gh` in `cwd` without prompts or update notices. A local checkout
+/// without `gh` installed fails before anything is spawned.
+pub(crate) fn gh_out(cwd: &str, args: &[&str]) -> Result<String, String> {
+    let local = crate::sshexec::remote_project_for_path(cwd).is_none();
     if local && !crate::git::check_ghcli() {
-        return None;
+        return Err("Install the GitHub CLI (gh) to read pull requests".into());
     }
-    let out = crate::git::tool_command(
-        &cwd,
+    crate::git::tool_out(
+        cwd,
         "gh",
-        &["pr", "view", "--json", FIELDS],
+        args,
         &[("GH_PROMPT_DISABLED", "1"), ("GH_NO_UPDATE_NOTIFIER", "1")],
     )
-    .output()
-    .ok()?;
-    if !out.status.success() {
-        return None;
-    }
-    parse_pull_request(&String::from_utf8_lossy(&out.stdout))
 }
 
 fn parse_pull_request(json: &str) -> Option<PullRequestInfo> {

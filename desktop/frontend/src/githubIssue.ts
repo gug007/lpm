@@ -4,6 +4,7 @@
 import { SEND_TO_OPTIONS } from "./sendTo";
 
 export const GITHUB_REPO = "gug007/lpm";
+export const GITHUB_REPO_URL = `https://github.com/${GITHUB_REPO}`;
 
 // encodeURIComponent leaves !'()*~ alone; GitHub's prefill is happier with
 // every one of them escaped.
@@ -25,7 +26,7 @@ export function newIssueUrl({
 }): string {
   const query = [`title=${strictEncode(title)}`, `body=${strictEncode(body)}`];
   if (labels.length > 0) query.push(`labels=${strictEncode(labels.join(","))}`);
-  return `https://github.com/${GITHUB_REPO}/issues/new?${query.join("&")}`;
+  return `${GITHUB_REPO_URL}/issues/new?${query.join("&")}`;
 }
 
 // Slugs of the repo's discussion categories.
@@ -45,7 +46,7 @@ export function newDiscussionUrl({
     `title=${strictEncode(title)}`,
     `body=${strictEncode(body)}`,
   ];
-  return `https://github.com/${GITHUB_REPO}/discussions/new?${query.join("&")}`;
+  return `${GITHUB_REPO_URL}/discussions/new?${query.join("&")}`;
 }
 
 // An issue asking for one more place automations can send their results.

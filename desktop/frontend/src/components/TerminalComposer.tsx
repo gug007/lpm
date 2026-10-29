@@ -61,6 +61,8 @@ import {
 import { stepRecall } from "./composerRecall";
 import { recordMessage, saveDraft } from "../store/messageHistory";
 import { buildTerminalPayload } from "../composerPayload";
+import { captureGitMention, fencedBlock } from "../mentionGitCapture";
+import { insertBlockAtCaret } from "./composerQuote";
 import { sendToTerminal } from "../store/terminalTargets";
 import { openFileViewer } from "../store/fileViewer";
 import type { SendTargetRow } from "../sendTargets";
@@ -713,11 +715,14 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   }, [terminalId, syncState, loadTab, refreshTabView]);
 
   // A file mentioned from the Files tab lands at the caret, spaced off the word
-  // before it, the way the footer's memory pick does.
+  // before it, the way the footer's memory pick does; a quote from the terminal
+  // goes on lines of its own.
   useEffect(() => {
-    return subscribeComposerInsert(terminalId, (text: string) => {
+    return subscribeComposerInsert(terminalId, (text: string, block: boolean) => {
       const editor = editorRef.current;
-      if (!editor || !insertSpacedAtCaret(editor, text)) return;
+      if (!editor) return;
+      if (block) insertBlockAtCaret(editor, text);
+      else if (!insertSpacedAtCaret(editor, text)) return;
       histIdx.current = -1;
       normalizeComposer(editor);
       syncState();
@@ -1719,6 +1724,10 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       injectLog(editor, item.label, "terminal output", body);
       return;
     }
+    if (item.kind === "diff" || item.kind === "commit" || item.kind === "pr") {
+      void insertGitMention(editor, item);
+      return;
+    }
     if (replaceMentionFragment(editor, item.insert)) {
       afterMentionEdit(editor);
       editor.focus();
@@ -1789,13 +1798,29 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     injectLog(editor, item.label, `${item.label} service logs`, body);
   };
 
+  // Read the diff, commit or review thread from the checkout and drop it where
+  // the "@<frag>" was; on failure the fragment goes and a toast says why.
+  const insertGitMention = async (editor: HTMLDivElement, item: MentionItem) => {
+    let text = "";
+    try {
+      text = await captureGitMention(item, cwd);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    }
+    if (!editor.isConnected) return;
+    injectCaptured(editor, text);
+  };
+
   // Drop captured output into the draft where the "@<frag>" was, as a labeled
   // fenced block — point-in-time, whatever the source shows now, not a live tail.
   // On an empty capture the typed "@<frag>" is removed and a toast explains why,
   // so nothing dangles. Shared by the service- and terminal-log mentions.
   const injectLog = (editor: HTMLDivElement, label: string, heading: string, body: string) => {
     if (!body) toast.error(`No logs for ${label}`);
-    const text = body ? formatLogBlock(heading, body) : "";
+    injectCaptured(editor, body ? fencedBlock(heading, body) : "");
+  };
+
+  const injectCaptured = (editor: HTMLDivElement, text: string) => {
     if (replaceMentionFragmentWith(editor, text)) afterMentionEdit(editor);
     editor.focus();
   };
@@ -2595,10 +2620,4 @@ function blobToBase64(blob: Blob): Promise<string | null> {
 // the bottom), leaving the meaningful run intact.
 function trimLogBody(raw: string): string {
   return raw.replace(/[ \t]+$/gm, "").replace(/^\n+/, "").replace(/\n+$/, "");
-}
-
-// Render captured output under a heading as a labeled, fenced block. A trailing
-// newline leaves the caret on a fresh line so the user keeps typing below it.
-function formatLogBlock(heading: string, body: string): string {
-  return `${heading}:\n\`\`\`\n${body}\n\`\`\`\n`;
 }

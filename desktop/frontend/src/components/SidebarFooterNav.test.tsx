@@ -101,15 +101,12 @@ afterEach(() => {
 });
 
 describe("SidebarFooterNav", () => {
-  it("opens the lesson playlist in the browser from the Tutorial row", () => {
+  it("opens lpm's GitHub repo from the Star on GitHub row", () => {
     renderNav();
     openMore();
-    pick("Tutorial (YouTube)");
+    pick("Star on GitHub");
 
-    expect(mocks.browserOpenURL).toHaveBeenCalledWith(
-      "https://www.youtube.com/playlist?list=PLGgzBw1aFVk8",
-    );
-    expect(moreButton()!.getAttribute("aria-expanded")).toBe("false");
+    expect(mocks.browserOpenURL).toHaveBeenCalledWith("https://github.com/gug007/lpm");
   });
 
   it("opens Support & Feedback from the icon beside More, not from the menu", () => {
@@ -214,7 +211,7 @@ describe("SidebarFooterNav", () => {
         "recap",
         "mobile",
         "settings",
-        "tutorial",
+        "github",
       ],
     });
     renderNav();

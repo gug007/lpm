@@ -77,21 +77,33 @@
 
     <!-- Weekly recap -->
     <string name="recap_title">Weekly recap</string>
+    <string name="recap_title_month">Monthly recap</string>
     <string name="recap_subtitle">Your agents\' week, ready to share.</string>
-    <string name="recap_last_week">Last week</string>
-    <string name="recap_this_week">This week</string>
+    <string name="recap_subtitle_month">Your agents\' month, ready to share.</string>
+    <string name="recap_last">Last</string>
+    <string name="recap_this">This</string>
+    <string name="recap_week">Week</string>
+    <string name="recap_month">Month</string>
     <string name="recap_loading">Reading your agents\' history…</string>
     <string name="recap_error">Couldn\'t read the week: %1$s</string>
+    <string name="recap_error_month">Couldn\'t read the month: %1$s</string>
     <string name="recap_try_again">Try again</string>
     <string name="recap_empty_last">No agent work last week</string>
     <string name="recap_empty_this">No agent work this week yet</string>
+    <string name="recap_empty_last_month">No agent work last month</string>
+    <string name="recap_empty_this_month">No agent work this month yet</string>
     <string name="recap_empty_text">The recap counts Claude Code and Codex sessions run in your projects.</string>
     <string name="recap_see_this_week">See this week so far</string>
+    <string name="recap_see_this_month">See this month so far</string>
     <string name="recap_share">Share</string>
     <string name="recap_names_no_projects">Names no projects, and nothing is uploaded: you add the card to the post yourself.</string>
     <plurals name="recap_not_counted">
         <item quantity="one">Not counted: %1$s, which couldn\'t send its week.</item>
         <item quantity="other">Not counted: %1$s, which couldn\'t send their week.</item>
+    </plurals>
+    <plurals name="recap_not_counted_month">
+        <item quantity="one">Not counted: %1$s, which couldn\'t send its month.</item>
+        <item quantity="other">Not counted: %1$s, which couldn\'t send their month.</item>
     </plurals>
 
     <!-- Usage -->

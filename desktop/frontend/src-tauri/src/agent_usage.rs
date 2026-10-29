@@ -491,10 +491,7 @@ fn load_agent_usage_stats(days: i64) -> Result<AgentUsageStats, String> {
     let cutoff = period_cutoff(days)?;
     let previous_from = previous_cutoff(days)?;
     let since = previous_from.or(cutoff);
-    let matcher = ProjectMatcher::load();
-    let (mut events, claude_files) = collect_claude_events(&matcher, since);
-    let (codex_events, codex_files) = collect_codex_events(&matcher, since);
-    events.extend(codex_events);
+    let (events, sources) = collect_usage_events(&ProjectMatcher::load(), since);
     let (events, earlier): (Vec<_>, Vec<_>) = events
         .into_iter()
         .partition(|event| cutoff.is_none_or(|cutoff| event.timestamp >= cutoff));
@@ -506,22 +503,30 @@ fn load_agent_usage_stats(days: i64) -> Result<AgentUsageStats, String> {
             projects: before.projects,
         }
     });
-    let mut stats = aggregate(
-        events,
-        days,
-        vec![
-            UsageSource {
-                provider: "claude".into(),
-                files: claude_files,
-            },
-            UsageSource {
-                provider: "codex".into(),
-                files: codex_files,
-            },
-        ],
-    );
+    let mut stats = aggregate(events, days, sources);
     stats.previous = previous;
     Ok(stats)
+}
+
+/// Every agent's usage events since `since`, and how many files each read.
+pub(crate) fn collect_usage_events(
+    matcher: &ProjectMatcher,
+    since: Option<i64>,
+) -> (Vec<UsageEvent>, Vec<UsageSource>) {
+    let (mut events, claude_files) = collect_claude_events(matcher, since);
+    let (codex_events, codex_files) = collect_codex_events(matcher, since);
+    events.extend(codex_events);
+    let sources = vec![
+        UsageSource {
+            provider: "claude".into(),
+            files: claude_files,
+        },
+        UsageSource {
+            provider: "codex".into(),
+            files: codex_files,
+        },
+    ];
+    (events, sources)
 }
 
 #[tauri::command(async)]

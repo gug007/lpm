@@ -102,7 +102,12 @@ sealed interface Inbound {
     data class Limits(val snapshot: LimitsSnapshot?, val error: String?) : Inbound
 
     // `week` is "last" or "this", echoed so a reply lands on the week it answers.
-    data class WeeklyRecap(val week: String, val recap: WeekRecap?, val error: String?) : Inbound
+    data class WeeklyRecap(
+        val week: String,
+        val period: String,
+        val recap: WeekRecap?,
+        val error: String?
+    ) : Inbound
     data class LimitsChanged(val snapshot: LimitsSnapshot) : Inbound
     data class TtsSpeak(val reqId: String, val audio: String?, val error: String?) : Inbound
     data class Terminals(val project: String, val terminals: List<TerminalInfo>) : Inbound

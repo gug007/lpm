@@ -21,6 +21,6 @@ struct RecapShareImage: Transferable {
         guard let image = renderer.uiImage, let png = image.pngData() else { return nil }
         self.png = png
         preview = Image(uiImage: image)
-        fileName = "My week in lpm \(card.range).png"
+        fileName = "\(card.title) \(card.range).png"
     }
 }

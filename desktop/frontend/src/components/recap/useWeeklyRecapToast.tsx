@@ -13,6 +13,8 @@ import { RECAP_NEWS_DAYS, recapView, recapWeekStart } from "./weeklyRecapModel";
 const FIRST_CHECK_MS = 20_000;
 // An app left open over the weekend still tells on Monday.
 const CHECK_EVERY_MS = 60 * 60_000;
+// Not in the small hours of Monday, while Sunday's work may still be going.
+const MONDAY_FROM_HOUR = 9;
 
 /** One toast early in the week when last week's recap is ready, up until it's
  *  answered. */
@@ -23,11 +25,13 @@ export function useWeeklyRecapToast(): void {
     let checking = false;
 
     const check = async () => {
-      const today = localDate();
+      const now = new Date();
+      const today = localDate(now);
       const week = recapWeekStart("last", today);
       const settings = useSettingsStore.getState();
       if (checking || settings.weeklyRecap === false || settings.weeklyRecapToasted === week) return;
-      if (daysBetween(weekStart(today), today) >= RECAP_NEWS_DAYS) return;
+      const day = daysBetween(weekStart(today), today);
+      if (day >= RECAP_NEWS_DAYS || (day === 0 && now.getHours() < MONDAY_FROM_HOUR)) return;
       checking = true;
       try {
         const view = recapView(await loadWeeklyRecap(week));

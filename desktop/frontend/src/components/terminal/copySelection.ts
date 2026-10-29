@@ -254,6 +254,12 @@ function buildClipboardPayload(
   return { plain, html };
 }
 
+// The selection as Copy puts it on the clipboard, plain text only; empty when
+// nothing but whitespace is selected.
+export function terminalSelectionText(term: Terminal): string {
+  return buildClipboardPayload(term, null)?.plain ?? "";
+}
+
 export function copyTerminalSelection(
   term: Terminal,
   serialize: SerializeAddon | null,

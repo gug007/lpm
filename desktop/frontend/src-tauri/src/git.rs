@@ -52,7 +52,17 @@ pub(crate) fn git_out_env(
     args: &[&str],
     envs: &[(&str, &str)],
 ) -> Result<String, String> {
-    let out = git_command(cwd, args, envs)
+    tool_out(cwd, "git", args, envs)
+}
+
+/// Run `program` in `cwd`, trimmed stdout on success; trimmed stderr (or status) on error.
+pub(crate) fn tool_out(
+    cwd: &str,
+    program: &str,
+    args: &[&str],
+    envs: &[(&str, &str)],
+) -> Result<String, String> {
+    let out = tool_command(cwd, program, args, envs)
         .output()
         .map_err(|e| e.to_string())?;
     if !out.status.success() {
@@ -60,7 +70,7 @@ pub(crate) fn git_out_env(
         if !stderr.is_empty() {
             return Err(stderr);
         }
-        return Err(format!("git exited with status {}", out.status));
+        return Err(format!("{program} exited with status {}", out.status));
     }
     Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
 }
@@ -207,6 +217,27 @@ pub struct BranchCommit {
     pub subject: String,
     pub author: String,
     pub date: String, // relative (%ar)
+}
+
+/// The `git log` format `parse_commits` reads.
+pub(crate) const COMMIT_LOG_FORMAT: &str = "--format=%h%x00%s%x00%an%x00%ar";
+
+/// `git log` output in `COMMIT_LOG_FORMAT`, one commit per line.
+pub(crate) fn parse_commits(out: &str) -> Vec<BranchCommit> {
+    out.lines()
+        .filter_map(|line| {
+            let parts: Vec<&str> = line.splitn(4, '\u{0}').collect();
+            if parts.len() < 4 {
+                return None;
+            }
+            Some(BranchCommit {
+                hash: parts[0].to_string(),
+                subject: parts[1].to_string(),
+                author: parts[2].to_string(),
+                date: parts[3].to_string(),
+            })
+        })
+        .collect()
 }
 
 // ---- status / changed files / diff ------------------------------------------
@@ -1240,32 +1271,8 @@ pub fn git_default_branch(cwd: String) -> String {
 #[tauri::command(async)]
 pub fn git_log_branch(cwd: String, base: String) -> Result<Vec<BranchCommit>, String> {
     let base = resolve_base(&cwd, &base)?;
-    let out = git_out(
-        &cwd,
-        &[
-            "log",
-            "--format=%h%x00%s%x00%an%x00%ar",
-            &format!("{base}..HEAD"),
-        ],
-    )?;
-    if out.is_empty() {
-        return Ok(vec![]);
-    }
-    Ok(out
-        .lines()
-        .filter_map(|line| {
-            let parts: Vec<&str> = line.splitn(4, '\u{0}').collect();
-            if parts.len() < 4 {
-                return None;
-            }
-            Some(BranchCommit {
-                hash: parts[0].to_string(),
-                subject: parts[1].to_string(),
-                author: parts[2].to_string(),
-                date: parts[3].to_string(),
-            })
-        })
-        .collect())
+    let out = git_out(&cwd, &["log", COMMIT_LOG_FORMAT, &format!("{base}..HEAD")])?;
+    Ok(parse_commits(&out))
 }
 
 #[tauri::command(async)]
@@ -1401,18 +1408,7 @@ pub fn create_pull_request(
     if draft.unwrap_or(false) {
         args.push("--draft");
     }
-    let out = tool_command(&cwd, "gh", &args, &[])
-        .output()
-        .map_err(|e| e.to_string())?;
-    if !out.status.success() {
-        let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
-        return Err(if stderr.is_empty() {
-            format!("gh exited with status {}", out.status)
-        } else {
-            stderr
-        });
-    }
-    Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
+    tool_out(&cwd, "gh", &args, &[])
 }
 
 // ---- file watcher (port of watcher.go) --------------------------------------

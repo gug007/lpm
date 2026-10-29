@@ -10,10 +10,10 @@ import {
   DEFAULT_SIDEBAR_NAV,
   isDefaultSidebarNav,
   menuNavItems,
-  TUTORIAL_PLAYLIST_URL,
   withSidebarNav,
   type NavItemId,
 } from "../sidebarNav";
+import { GITHUB_REPO_URL } from "../githubIssue";
 import { useGlobalAgentStatus } from "../store/globalAgentStatus";
 import { useSettingsStore } from "../store/settings";
 import { useWeeklyRecapStore } from "../store/weeklyRecap";
@@ -25,9 +25,9 @@ import {
   RecapIcon,
   SettingsIcon,
   SmartphoneIcon,
+  StarIcon,
   StatsIcon,
   TerminalIcon,
-  YoutubeIcon,
   ZapIcon,
 } from "./icons";
 import { SidebarAgentSummary } from "./SidebarAgentSummary";
@@ -207,13 +207,13 @@ export function SidebarFooterNav({
       active: showSettings,
       onSelect: onSettings,
     },
-    tutorial: {
-      id: "tutorial",
-      label: "Tutorial (YouTube)",
-      icon: <YoutubeIcon />,
+    github: {
+      id: "github",
+      label: "Star on GitHub",
+      icon: <StarIcon />,
       active: false,
-      onSelect: () => BrowserOpenURL(TUTORIAL_PLAYLIST_URL),
-      description: "Short video lessons on lpm, opened in your browser.",
+      onSelect: () => BrowserOpenURL(GITHUB_REPO_URL),
+      description: "lpm is free and open source. A star helps other developers find it.",
     },
   };
 

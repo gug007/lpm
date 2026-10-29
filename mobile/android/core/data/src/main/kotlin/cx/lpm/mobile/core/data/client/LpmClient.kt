@@ -370,6 +370,9 @@ class LpmClient internal constructor(
         // `weeklyRecap`: the desktop's weekly recap card.
         const val WEEKLY_RECAP_FEATURE = "weeklyRecap"
 
+        // `weeklyRecap` with `period: "month"`.
+        const val RECAP_MONTH_FEATURE = "recapMonth"
+
         // Seen agents, `archiveStatus`, `markStatusSeen` and `markStatusUnread`.
         const val AGENT_ARCHIVE_FEATURE = "agentArchive"
 

@@ -2,7 +2,8 @@
 //
 // Built with Tauri's cross-platform menu API (no objc2). The first submenu
 // becomes the macOS app menu: the standard About (with version/copyright),
-// Settings (Cmd+,), Help Improve lpm, Check for Updates, then Services/Hide/Quit.
+// Settings (Cmd+,), Help Improve lpm, Star lpm on GitHub, Check for Updates,
+// then Services/Hide/Quit.
 // Edit + Window submenus give copy/paste and window management. Menu clicks
 // show the main window and emit the events the frontend already listens for
 // (menu-open-settings / menu-open-feedback). Dock menu + traffic-light
@@ -14,6 +15,7 @@ use tauri::{AppHandle, Emitter, Manager};
 
 const ID_SETTINGS: &str = "lpm-menu-settings";
 const ID_FEEDBACK: &str = "lpm-menu-feedback";
+const ID_STAR: &str = "lpm-menu-star";
 const ID_CHECK_UPDATES: &str = "lpm-menu-check-updates";
 const ID_SELECT_ALL: &str = "lpm-menu-select-all";
 const ID_UNDO: &str = "lpm-menu-undo";
@@ -36,6 +38,7 @@ pub fn build_and_set(app: &AppHandle) -> tauri::Result<()> {
         .accelerator("CmdOrCtrl+,")
         .build(app)?;
     let feedback = MenuItemBuilder::with_id(ID_FEEDBACK, "Help Improve lpm…").build(app)?;
+    let star = MenuItemBuilder::with_id(ID_STAR, "Star lpm on GitHub").build(app)?;
     let check_updates =
         MenuItemBuilder::with_id(ID_CHECK_UPDATES, "Check for Updates…").build(app)?;
 
@@ -44,6 +47,7 @@ pub fn build_and_set(app: &AppHandle) -> tauri::Result<()> {
         .separator()
         .item(&settings)
         .item(&feedback)
+        .item(&star)
         .item(&check_updates)
         .separator()
         .services()
@@ -104,6 +108,12 @@ pub fn handle_event(app: &AppHandle, event: MenuEvent) {
     match event.id().as_ref() {
         ID_SETTINGS => show_and_emit(app, "menu-open-settings"),
         ID_FEEDBACK => show_and_emit(app, "menu-open-feedback"),
+        ID_STAR => {
+            use tauri_plugin_opener::OpenerExt;
+            let _ = app
+                .opener()
+                .open_url("https://github.com/gug007/lpm", None::<&str>);
+        }
         ID_SELECT_ALL => {
             let _ = app.emit("menu-select-all", ());
         }

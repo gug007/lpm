@@ -89,6 +89,8 @@
 {"at": 2150, "frame": {"t": "weeklyRecap", "week": "last"}}
 {"at": 2150, "frame": {"t": "weeklyRecap", "week": "this", "fresh": true}}
 {"at": 2150, "frame": {"t": "weeklyRecap"}}
+{"at": 2150, "frame": {"t": "weeklyRecap", "week": "last", "period": "month"}}
+{"at": 2150, "frame": {"t": "weeklyRecap", "week": "this", "period": "month", "fresh": true}}
 {"at": 2200, "frame": {"t": "limits"}}
 {"at": 2300, "frame": {"t": "claudeAccounts"}}
 {"at": 2300, "frame": {"t": "historyQuery"}}

@@ -31,6 +31,7 @@ import { terminalYieldsToApp } from "./terminal/terminalKeys";
 import { readBackendImage, readPasteContent } from "./terminal/clipboardRead";
 import { isLinux, isMac, isWindows } from "../platform";
 import { ConsoleContextMenu } from "./terminal/ConsoleContextMenu";
+import { quoteSelectionInPrompt, quoteTarget } from "./terminal/quoteInPrompt";
 import { ArrowDownIcon } from "./terminal/icons";
 import { applyFilterQuery, FilterMirror } from "./terminal/FilterMirror";
 import {
@@ -1701,6 +1702,8 @@ export function InteractivePane({
     if (session) resync(session, terminalId);
   });
 
+  const quoteTo = menu ? quoteTarget(terminalId) : null;
+
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <div
@@ -1733,6 +1736,7 @@ export function InteractivePane({
           appCopyAvailable={sessionRef.current.canAppCopy()}
           onAppCopy={() => sessionRef.current?.tryAppCopy()}
           onClear={clearConsole}
+          onQuote={quoteTo ? (term) => quoteSelectionInPrompt(term, quoteTo) : undefined}
           onPaste={() => {
             navigator.clipboard
               .readText()

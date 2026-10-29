@@ -5,13 +5,26 @@ enum RecapWeek: String, CaseIterable {
     case last, this
 }
 
-/// One week of agent work on the Mac and every computer it connects to (the
-/// `weeklyRecap` reply's `recap`). Every field may be missing from an older Mac.
+/// What the recap covers: a week, Monday to Sunday, or a calendar month.
+enum RecapPeriod: String, CaseIterable {
+    case week, month
+}
+
+/// One recap the screen can show: last or this week or month.
+struct RecapPick: Hashable {
+    var week: RecapWeek
+    var period: RecapPeriod
+}
+
+/// One week or month of agent work on the Mac and every computer it connects to
+/// (the `weeklyRecap` reply's `recap`). Every field may be missing from an older Mac.
 struct WeeklyRecap: Equatable {
     struct Day: Equatable {
         let date: String
         let agentMs: Int
         let prompts: Int
+        /// Tokens read and written, as Stats counts them.
+        let tokens: Int
     }
 
     /// Agent time on one project, or by one agent.
@@ -20,8 +33,9 @@ struct WeeklyRecap: Equatable {
         let agentMs: Int
     }
 
-    /// The Monday it starts, YYYY-MM-DD.
+    /// The Monday or the 1st it starts on, YYYY-MM-DD.
     let week: String
+    let period: RecapPeriod
     let days: [Day]
     let previousAgentMs: Int
     let sessions: Int
@@ -35,9 +49,10 @@ struct WeeklyRecap: Equatable {
 
     init(_ o: [String: Any]) {
         week = o["week"] as? String ?? ""
+        period = RecapPeriod(rawValue: o["period"] as? String ?? "") ?? .week
         days = (o["days"] as? [[String: Any]] ?? []).map {
             Day(date: $0["date"] as? String ?? "", agentMs: recapInt($0, "agentMs"),
-                prompts: recapInt($0, "prompts"))
+                prompts: recapInt($0, "prompts"), tokens: recapInt($0, "tokens"))
         }
         previousAgentMs = recapInt(o, "previousAgentMs")
         sessions = recapInt(o, "sessions")
@@ -98,5 +113,13 @@ enum RecapDates {
     static func weekStart(_ week: RecapWeek, today: String = today()) -> String {
         let monday = adding(-weekdayIndex(today), to: today)
         return week == .this ? monday : adding(-7, to: monday)
+    }
+
+    /// The day a recap of `pick` starts on: a Monday, or the 1st of the month.
+    static func start(_ pick: RecapPick, today: String = today()) -> String {
+        guard pick.period == .month else { return weekStart(pick.week, today: today) }
+        let first = { (day: String) -> String in day.prefix(8) + "01" }
+        let current = first(today)
+        return pick.week == .this ? current : first(adding(-1, to: current))
     }
 }

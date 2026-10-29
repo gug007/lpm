@@ -177,6 +177,6 @@ export interface Seed {
   usage: { limits: unknown; accountsStatus?: unknown; accountUsage: unknown };
   // `omit` leaves projects out of the breakdowns, as a tour leaves them out of the sidebar.
   stats: (days: number, omit?: readonly string[]) => unknown;
-  // The weekly recap of the week starting `week`, as `weekly_recap` returns it.
-  recap: (week: string) => unknown;
+  // The recap of the week or month starting `week`, as `weekly_recap` returns it.
+  recap: (week: string, period: "week" | "month") => unknown;
 }

@@ -14,26 +14,26 @@ struct RecapCardModel: Equatable {
         let percent: Double
     }
 
+    let title: String
     let range: String
     let hours: String
-    let gain: String?
+    /// Leads the card when the week has any.
+    let tokens: String?
     let tiles: [Tile]
     let linesAdded: String
     let linesRemoved: String
     let mix: [Slice]
     let empty: Bool
 
-    /// `today` cuts a week still going short: no gain on a week that isn't over.
-    init(_ recap: WeeklyRecap, today: String = RecapDates.today()) {
+    init(_ recap: WeeklyRecap) {
         let agentMs = recap.days.reduce(0) { $0 + $1.agentMs }
         let prompts = recap.days.reduce(0) { $0 + $1.prompts }
-        let over = RecapDates.adding(6, to: recap.week) < today
-        let gain = agentMs - recap.previousAgentMs
+        let tokenCount = recap.days.reduce(0) { $0 + $1.tokens }
 
-        range = Self.rangeLabel(recap.week)
+        title = recap.period == .month ? RecapCardStyle.monthTitle : RecapCardStyle.title
+        range = recap.period == .month ? Self.monthLabel(recap.week) : Self.rangeLabel(recap.week)
         hours = formatAgentTime(agentMs)
-        self.gain = over && recap.previousAgentMs > 0 && gain >= Self.minute
-            ? "↑ \(Self.formatGain(gain)) on last week" : nil
+        tokens = tokenCount > 0 ? formatTokenCount(tokenCount) : nil
         tiles = [
             Self.tile("prompts", prompts, "prompt", "prompts"),
             Self.tile("sessions", recap.sessions, "agent session", "agent sessions"),
@@ -53,11 +53,11 @@ struct RecapCardModel: Equatable {
     var caption: String {
         let counts = tiles.filter { $0.id == "prompts" }
             .map { "\($0.value) \($0.label)" }
-        return "My week in lpm: " + (["\(hours) of agents working for me"] + counts).joined(separator: ", ") + "."
+        let lead = tokens.map { ["\($0) \(RecapCardStyle.tokensLabel)"] } ?? []
+        return "\(title) in lpm: "
+            + (lead + ["\(hours) \(RecapCardStyle.hoursLabel)"] + counts).joined(separator: ", ") + "."
     }
 
-    private static let minute = 60_000
-    private static let hour = 60 * minute
     private static let knownAgents = ["claude": "Claude", "codex": "Codex"]
 
     private static let rangeFormatter: DateIntervalFormatter = {
@@ -72,8 +72,15 @@ struct RecapCardModel: Equatable {
         return rangeFormatter.string(from: start, to: end)
     }
 
-    private static func formatGain(_ ms: Int) -> String {
-        ms >= hour ? "\(rounded(ms, hour))h" : "\(rounded(ms, minute))m"
+    private static let monthFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.setLocalizedDateFormatFromTemplate("MMMMy")
+        return f
+    }()
+
+    /// The month's name and year: "October 2026".
+    static func monthLabel(_ first: String) -> String {
+        RecapDates.date(first).map(monthFormatter.string) ?? ""
     }
 
     /// Each agent's share of the agent time, Claude and Codex by name.

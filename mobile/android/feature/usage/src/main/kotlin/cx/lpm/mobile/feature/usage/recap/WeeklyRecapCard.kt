@@ -37,8 +37,15 @@ private val TileLabel = recapText(13, 16.sp, RecapColors.muted)
 private val TileValue = recapText(24, 28.sp, RecapColors.strong, FontWeight.ExtraBold)
     .copy(fontFeatureSettings = "tnum")
 
+private fun bigNumber(size: Int) = recapText(
+    size,
+    size.sp,
+    RecapColors.strong,
+    FontWeight.ExtraBold
+).copy(letterSpacing = (-0.02).em)
+
 /**
- * "My week in lpm" in design units, 600 wide: the card the desktop shares, with nothing
+ * "My agents' week" in design units, 600 wide: the card the desktop shares, with nothing
  * on it that names a project. Shown scaled to fit ([ScaledRecapCard]) and shared as an
  * image of the same layout, unframed: the card's rectangle without the rounded border,
  * as the desktop draws its image.
@@ -65,7 +72,7 @@ internal fun WeeklyRecapCard(
             .padding(start = 28.dp, top = 26.dp, end = 28.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Header(view.range)
+        Header(view.title, view.range)
         Hero(view)
         Tiles(view)
         if (view.mix.isNotEmpty()) AgentsLine(view.mix)
@@ -74,13 +81,13 @@ internal fun WeeklyRecapCard(
 }
 
 @Composable
-private fun Header(range: String) {
+private fun Header(title: String, range: String) {
     Row(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            RECAP_TITLE,
+            title,
             Modifier.weight(1f),
             style = recapText(17, 22.sp, RecapColors.text, FontWeight.Bold),
             maxLines = 1
@@ -89,35 +96,36 @@ private fun Header(range: String) {
     }
 }
 
+/**
+ * The tokens lead and the hours follow, each over its label; without tokens, the hours
+ * and what they mean share a line when they fit.
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun Hero(view: RecapView) {
+    val tokens = view.tokens
+    if (tokens != null) {
+        Stacked(tokens, RECAP_TOKENS_LABEL, 64)
+        Stacked(view.hours, RECAP_HOURS_LABEL, 52)
+        return
+    }
     FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(
-            view.hours,
-            Modifier.alignByBaseline(),
-            style = recapText(64, 64.sp, RecapColors.strong, FontWeight.ExtraBold)
-                .copy(letterSpacing = (-0.02).em),
-            maxLines = 1
-        )
+        Text(view.hours, Modifier.alignByBaseline(), style = bigNumber(64), maxLines = 1)
         Text(
             RECAP_HOURS_LABEL,
             Modifier.alignByBaseline(),
             style = TextStyle(fontSize = 15.sp, color = RecapColors.soft),
             maxLines = 1
         )
-        view.gain?.let {
-            Text(
-                it,
-                Modifier.alignByBaseline(),
-                style = TextStyle(
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = RecapColors.green
-                ),
-                maxLines = 1
-            )
-        }
+    }
+}
+
+/** A big number of [size] over its label. */
+@Composable
+private fun Stacked(value: String, label: String, size: Int) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(value, style = bigNumber(size), maxLines = 1)
+        Text(label, style = recapText(15, 18.sp, RecapColors.soft), maxLines = 1)
     }
 }
 

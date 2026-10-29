@@ -22,8 +22,8 @@ export function AgentUsageStats(days) {
 export function AgentUsageMachines(days, machine, fresh) {
   return invoke("agent_usage_machines", { days, machine, fresh });
 }
-export function WeeklyRecap(week, fresh) {
-  return invoke("weekly_recap", { week, fresh });
+export function WeeklyRecap(week, period, fresh) {
+  return invoke("weekly_recap", { week, period, fresh });
 }
 export function PushWeeklyRecap(week, title, body) {
   return invoke("push_weekly_recap", { week, title, body });
@@ -196,6 +196,9 @@ export function DuplicateStatus(name) {
 export function BranchPullRequest(cwd) {
   return invoke("branch_pull_request", { cwd });
 }
+export function PullRequestDiscussion(cwd) {
+  return invoke("pull_request_discussion", { cwd });
+}
 export function CreatePullRequest(cwd, title, body, base, draft) {
   return invoke("create_pull_request", { cwd, title, body, base, draft });
 }
@@ -357,6 +360,12 @@ export function GitFetchAll(cwd, flags) {
 }
 export function GitLogBranch(cwd, base) {
   return invoke("git_log_branch", { cwd, base });
+}
+export function GitRecentCommits(cwd, limit) {
+  return invoke("git_recent_commits", { cwd, limit });
+}
+export function GitShowCommit(cwd, hash) {
+  return invoke("git_show_commit", { cwd, hash });
 }
 export function GitMerge(cwd, branch) {
   return invoke("git_merge", { cwd, branch });

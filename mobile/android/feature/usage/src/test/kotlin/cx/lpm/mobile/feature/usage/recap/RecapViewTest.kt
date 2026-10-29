@@ -1,6 +1,7 @@
 package cx.lpm.mobile.feature.usage.recap
 
 import cx.lpm.mobile.core.model.RecapDay
+import cx.lpm.mobile.core.model.RecapPeriod
 import cx.lpm.mobile.core.model.RecapTime
 import cx.lpm.mobile.core.model.WeeklyRecap
 import java.time.LocalDate
@@ -19,6 +20,7 @@ class RecapViewTest {
     // The desktop demo's sample week (desktop/frontend/src/demo/seed/sample/recap.ts).
     private val minutes = listOf(352L, 418L, 296L, 389L, 241L, 184L, 0L)
     private val prompts = listOf(38L, 41L, 33L, 36L, 29L, 37L, 0L)
+    private val tokens = listOf(61L, 74L, 52L, 68L, 43L, 32L, 0L).map { it * 1_000_000 }
     private val total = minutes.sum() * minute
 
     private fun sample(
@@ -27,7 +29,8 @@ class RecapViewTest {
             RecapDay(
                 LocalDate.parse(week).plusDays(i.toLong()).toString(),
                 minutes[i] * minute,
-                prompts[i]
+                prompts[i],
+                tokens[i]
             )
         }
     ) = WeeklyRecap(
@@ -50,10 +53,10 @@ class RecapViewTest {
 
     @Test
     fun `the sample week reads like the desktop card`() {
-        val view = recapView(sample(), today = LocalDate.of(2026, 10, 15), locale = us)
+        val view = recapView(sample(), locale = us)
         assertEquals("Oct 5\u2009–\u200911", view.range)
         assertEquals("31h 20m", view.hours)
-        assertEquals("↑ 7h on last week", view.gain)
+        assertEquals("330M", view.tokens)
         assertEquals(
             listOf(
                 RecapTile("prompts", "214", "prompts"),
@@ -65,24 +68,47 @@ class RecapViewTest {
         assertEquals("Claude 64%, Codex 36%", mixText(view.mix))
         assertFalse(view.empty)
         assertEquals(
-            "My week in lpm: 31h 20m of agents working for me, 214 prompts.",
+            "My agents' week in lpm: 330M tokens read and written by my agents, " +
+                "31h 20m of agents working for me, 214 prompts.",
             recapCaption(view)
         )
     }
 
     @Test
-    fun `a week still going has no gain`() {
-        val view = recapView(
-            sample(week = "2026-10-12"),
-            today = LocalDate.of(2026, 10, 18),
-            locale = us
-        )
-        assertNull(view.gain)
+    fun `a week without tokens leads with the hours`() {
+        val week = sample()
+        val view = recapView(week.copy(days = week.days.map { it.copy(tokens = 0) }), us)
+        assertNull(view.tokens)
         assertEquals(listOf("prompts", "sessions"), view.tiles.map { it.id })
         assertEquals(
-            "My week in lpm: 31h 20m of agents working for me, 214 prompts.",
+            "My agents' week in lpm: 31h 20m of agents working for me, 214 prompts.",
             recapCaption(view)
         )
+    }
+
+    @Test
+    fun `tokens read the way Stats writes them`() {
+        val big = sample(days = listOf(RecapDay("2026-10-05", hour, 1, 2_140_318_904)))
+        assertEquals("2.1B", recapView(big, us).tokens)
+        val small = sample(days = listOf(RecapDay("2026-10-05", hour, 1, 850_000)))
+        assertEquals("850K", recapView(small, us).tokens)
+    }
+
+    @Test
+    fun `a month is titled as one and named with its year`() {
+        val days = (1..30).map { RecapDay("2026-09-%02d".format(it), hour, 1, 0) }
+        val view = recapView(
+            sample(week = "2026-09-01", days = days).copy(period = RecapPeriod.Month),
+            locale = us
+        )
+        assertEquals("My agents' month", view.title)
+        assertEquals("September 2026", view.range)
+        assertEquals("30h", view.hours)
+        assertEquals(
+            "My agents' month in lpm: 30h of agents working for me, 30 prompts.",
+            recapCaption(view)
+        )
+        assertEquals("My agents' week", recapView(sample(), locale = us).title)
     }
 
     @Test
@@ -101,18 +127,6 @@ class RecapViewTest {
         assertEquals("3h", formatAgentTime(3 * hour + 20_000))
         assertEquals("54h 1m", formatAgentTime(54 * hour + minute))
         assertEquals("1h", formatAgentTime(59 * minute + 30_000))
-    }
-
-    @Test
-    fun `a small gain counts in minutes and under a minute none at all`() {
-        val week = sample()
-        val today = LocalDate.of(2026, 10, 20)
-        assertEquals(
-            "↑ 25m on last week",
-            recapView(week.copy(previousAgentMs = total - 25 * minute), today, us).gain
-        )
-        assertNull(recapView(week.copy(previousAgentMs = total - 59_000), today, us).gain)
-        assertNull(recapView(week.copy(previousAgentMs = 0), today, us).gain)
     }
 
     @Test
@@ -154,7 +168,7 @@ class RecapViewTest {
     @Test
     fun `a week without agent time is empty`() {
         val idle = sample(days = listOf(RecapDay("2026-10-05", 0, 3)))
-        assertTrue(recapView(idle, LocalDate.of(2026, 10, 20), us).empty)
+        assertTrue(recapView(idle, us).empty)
     }
 
     @Test
@@ -163,13 +177,13 @@ class RecapViewTest {
             sessions = 1,
             days = listOf(RecapDay("2026-10-05", hour, 1))
         )
-        val view = recapView(one, LocalDate.of(2026, 10, 20), us)
+        val view = recapView(one, us)
         assertEquals(
             listOf("prompt", "agent session"),
             view.tiles.map { it.label }
         )
         assertEquals(
-            "My week in lpm: 1h of agents working for me, 1 prompt.",
+            "My agents' week in lpm: 1h of agents working for me, 1 prompt.",
             recapCaption(view)
         )
     }
