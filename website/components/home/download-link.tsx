@@ -16,7 +16,6 @@ export function DownloadLink({
   return (
     <a
       href={entry.href}
-      aria-label={entry.ariaLabel}
       onClick={() =>
         trackDownload({
           source: "downloads",
@@ -27,6 +26,7 @@ export function DownloadLink({
       className={className}
     >
       {children}
+      <span className="sr-only">, {entry.ariaLabel}</span>
     </a>
   );
 }

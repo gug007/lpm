@@ -66,7 +66,9 @@ data class LinkState(
     val tailscalePage: String? = null,
     val summary: PairedSummary? = null,
     val repairMacId: String? = null,
-    val repairReason: RepairReason? = null
+    val repairReason: RepairReason? = null,
+    /** When this phone last sent the active Mac a wake signal (millis). */
+    val wakeSentAt: Long? = null
 ) {
     val waitingCount: Int get() = queued.count { !it.expired }
 

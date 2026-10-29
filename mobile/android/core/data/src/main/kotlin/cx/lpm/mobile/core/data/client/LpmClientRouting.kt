@@ -29,6 +29,10 @@ internal fun LpmClientCallbacks.route(frame: Inbound) {
 
         is Inbound.LimitsChanged -> onLimitsChanged?.invoke(frame.snapshot)
 
+        is Inbound.LimitReminders -> onLimitReminders?.invoke(frame.reminders, frame.error)
+
+        is Inbound.Wake -> onWake?.invoke(frame.ok)
+
         is Inbound.TtsSpeak -> onSpeech?.invoke(frame.reqId, frame.audio, frame.error)
 
         is Inbound.Terminals -> onTerminals?.invoke(frame.project, frame.terminals)

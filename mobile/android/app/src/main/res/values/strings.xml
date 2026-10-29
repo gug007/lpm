@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">lpm</string>
+    <string name="lock_title">lpm Link is locked</string>
+    <string name="lock_message">Unlock to see your projects and terminals.</string>
+    <string name="lock_unlock">Unlock</string>
 </resources>

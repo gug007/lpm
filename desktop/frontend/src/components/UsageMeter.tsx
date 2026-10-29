@@ -1,3 +1,4 @@
+import { Bell, BellRing } from "lucide-react";
 import type { LimitWindow } from "../hooks/useAgentLimits";
 import {
   computePace,
@@ -18,6 +19,8 @@ interface UsageMeterProps {
   stale: boolean;
   /** Half-height bar, for the second meter of a stacked card — the sidebar's thin lower lane. */
   thin?: boolean;
+  /** The reset reminder's bell, where the window offers one (limitReminders.ts). */
+  reminder?: { set: boolean; onToggle: () => void };
 }
 
 function verdictColor(verdict: string | undefined): string {
@@ -27,7 +30,15 @@ function verdictColor(verdict: string | undefined): string {
   return "text-[var(--text-muted)]";
 }
 
-export function UsageMeter({ label, win, windowMs, now, stale, thin = false }: UsageMeterProps) {
+export function UsageMeter({
+  label,
+  win,
+  windowMs,
+  now,
+  stale,
+  thin = false,
+  reminder,
+}: UsageMeterProps) {
   const reducedMotion = usePrefersReducedMotion();
   const pace = computePace(win, windowMs, now);
   const expired = pace?.expired ?? false;
@@ -42,7 +53,9 @@ export function UsageMeter({ label, win, windowMs, now, stale, thin = false }: U
   const verdict = expired ? "window reset · awaiting new data" : paceLabel(pace);
   const resetLine =
     hasData && win.resetsAt > 0
-      ? `${resetText(win.resetsAt, now)} · ${resetAbsolute(win.resetsAt)}`
+      ? `${resetText(win.resetsAt, now)} · ${resetAbsolute(win.resetsAt)}${
+          reminder?.set ? " · reminder set" : ""
+        }`
       : "";
   const runsOut =
     hasData && pace?.verdict === "over" && pace.exhaustsInMs != null
@@ -67,9 +80,31 @@ export function UsageMeter({ label, win, windowMs, now, stale, thin = false }: U
 
   return (
     <div className="flex flex-col gap-2">
-      <span className="text-[10px] font-medium uppercase tracking-[0.13em] text-[var(--text-muted)]">
-        {label}
-      </span>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[10px] font-medium uppercase tracking-[0.13em] text-[var(--text-muted)]">
+          {label}
+        </span>
+        {reminder && hasData && (
+          <button
+            type="button"
+            onClick={reminder.onToggle}
+            aria-pressed={reminder.set}
+            aria-label={`Remind me when the ${label.toLowerCase()} limit resets`}
+            title={
+              reminder.set
+                ? `You'll get a reminder at ${resetAbsolute(win.resetsAt)}`
+                : "Remind me when this limit resets"
+            }
+            className={`-my-1 flex h-6 w-6 items-center justify-center rounded-md transition-colors duration-[120ms] hover:bg-[var(--bg-hover)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)] ${
+              reminder.set
+                ? "text-[var(--accent-amber-text)]"
+                : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+            }`}
+          >
+            {reminder.set ? <BellRing size={13} /> : <Bell size={13} />}
+          </button>
+        )}
+      </div>
 
       <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
         <span

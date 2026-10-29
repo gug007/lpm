@@ -1,6 +1,6 @@
 import { Fragment } from "react";
 import { withCode } from "@/components/with-code";
-import { releaseTagUrl, type ChangelogDay } from "@/lib/changelog";
+import { releaseTagUrl, type ChangelogDay } from "@/lib/changelog-days";
 import { formatReleaseDate } from "@/lib/downloads";
 
 const INLINE_CODE =

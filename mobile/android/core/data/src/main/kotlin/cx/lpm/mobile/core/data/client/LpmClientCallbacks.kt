@@ -24,6 +24,7 @@ import cx.lpm.mobile.core.model.GitSnapshot
 import cx.lpm.mobile.core.model.HistoryFolder
 import cx.lpm.mobile.core.model.HistoryItem
 import cx.lpm.mobile.core.model.HistoryRow
+import cx.lpm.mobile.core.model.LimitReminder
 import cx.lpm.mobile.core.model.LimitsSnapshot
 import cx.lpm.mobile.core.model.MacBuild
 import cx.lpm.mobile.core.model.MacUpdateCheck
@@ -45,6 +46,7 @@ import cx.lpm.mobile.core.model.SshHostInfo
 import cx.lpm.mobile.core.model.StatusEntry
 import cx.lpm.mobile.core.model.TerminalInfo
 import cx.lpm.mobile.core.model.UploadStep
+import cx.lpm.mobile.core.model.WakeTarget
 import cx.lpm.mobile.core.model.WeeklyRecap
 import java.time.Instant
 import kotlinx.serialization.json.JsonObject
@@ -85,6 +87,8 @@ abstract class LpmClientCallbacks {
         (week: String, period: String, recap: WeeklyRecap?, error: String?) -> Unit
     )? = null
     var onLimitsChanged: ((snapshot: LimitsSnapshot) -> Unit)? = null
+    var onLimitReminders: ((reminders: List<LimitReminder>, error: String?) -> Unit)? = null
+    var onWake: ((ok: Boolean) -> Unit)? = null
     var onSpeech: ((reqId: String, audio: String?, error: String?) -> Unit)? = null
     var onTerminals: ((project: String, terminals: List<TerminalInfo>) -> Unit)? = null
     var onSlash: ((id: String, commands: List<SlashCommand>) -> Unit)? = null
@@ -202,6 +206,7 @@ abstract class LpmClientCallbacks {
     // serverId — a pairing connection has no active record yet) / lpm build.
     var onIdentity: ((serverId: String?, serverName: String?, platform: String?) -> Unit)? = null
     var onAdvertisedHosts: ((serverId: String?, hosts: List<String>) -> Unit)? = null
+    var onWakeTargets: ((serverId: String?, targets: List<WakeTarget>) -> Unit)? = null
     var onBuild: ((build: MacBuild?) -> Unit)? = null
     var onUpdateCheck: ((check: MacUpdateCheck) -> Unit)? = null
     var onUpdateProgress: ((step: MacUpdateStep) -> Unit)? = null

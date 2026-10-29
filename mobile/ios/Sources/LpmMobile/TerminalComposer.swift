@@ -849,6 +849,13 @@ private struct SlashMenu: View {
                                     .lineLimit(1)
                                     .frame(maxWidth: 180, alignment: .trailing)
                             }
+                            if let source = cmd.sourceLabel {
+                                Text(source.uppercased())
+                                    .font(.system(size: 9, weight: .medium))
+                                    .kerning(0.6)
+                                    .foregroundStyle(.tertiary)
+                                    .fixedSize()
+                            }
                         }
                         .padding(.horizontal, 16)
                         .padding(.vertical, 10)

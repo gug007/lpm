@@ -29,6 +29,8 @@ struct MacRecord: Codable, Identifiable, Equatable {
     // pairing with it. It connects with that Mac's addresses, credential and
     // certificate, and the Mac carries it the rest of the way.
     var via: MacVia? = nil
+    // The network cards it can be woken through, as it last said in `ready`.
+    var wake: [WakeTarget]? = nil
 
     var id: UUID { localId }
 

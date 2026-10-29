@@ -23,6 +23,7 @@ import cx.lpm.mobile.core.model.GitSnapshot
 import cx.lpm.mobile.core.model.HistoryFolder
 import cx.lpm.mobile.core.model.HistoryItem
 import cx.lpm.mobile.core.model.HistoryRow
+import cx.lpm.mobile.core.model.LimitReminder
 import cx.lpm.mobile.core.model.LimitsSnapshot
 import cx.lpm.mobile.core.model.MacBuild
 import cx.lpm.mobile.core.model.MacUpdateCheck
@@ -44,6 +45,7 @@ import cx.lpm.mobile.core.model.SshHostInfo
 import cx.lpm.mobile.core.model.StatusEntry
 import cx.lpm.mobile.core.model.TerminalInfo
 import cx.lpm.mobile.core.model.UploadStep as UploadReply
+import cx.lpm.mobile.core.model.WakeTarget
 import cx.lpm.mobile.core.model.WeeklyRecap as WeekRecap
 import kotlinx.serialization.json.JsonObject
 
@@ -79,7 +81,8 @@ sealed interface Inbound {
         val hosts: List<String>,
         val platform: String?,
         val build: MacBuild?,
-        val features: Set<String>
+        val features: Set<String>,
+        val wake: List<WakeTarget> = emptyList()
     ) : Inbound
 
     // The Mac is about to close this connection on purpose: "sleep", "quit" or "off".
@@ -109,6 +112,11 @@ sealed interface Inbound {
         val error: String?
     ) : Inbound
     data class LimitsChanged(val snapshot: LimitsSnapshot) : Inbound
+
+    // The Mac's limit reminders, as a reply or after any change; `error` when a
+    // change was refused.
+    data class LimitReminders(val reminders: List<LimitReminder>, val error: String?) : Inbound
+    data class Wake(val ok: Boolean) : Inbound
     data class TtsSpeak(val reqId: String, val audio: String?, val error: String?) : Inbound
     data class Terminals(val project: String, val terminals: List<TerminalInfo>) : Inbound
     data class Slash(val id: String, val commands: List<SlashCommand>) : Inbound

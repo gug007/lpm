@@ -15,6 +15,10 @@ final class AgentAnswerSender {
 
     private static let errandTimeout: TimeInterval = 25
 
+    /// A finished turn's other two buttons, which open the app rather than answer.
+    static let reviewChangesAction = "lpm.open.changes"
+    static let openTabAction = "lpm.open.tab"
+
     /// The buttons each answering category shows. Every one needs the phone
     /// unlocked: they act on the Mac.
     static func registerCategories() {
@@ -28,11 +32,17 @@ final class AgentAnswerSender {
                                                   title: "Reply", options: [.authenticationRequired],
                                                   icon: UNNotificationActionIcon(systemImageName: "arrowshape.turn.up.left"),
                                                   textInputButtonTitle: "Send", textInputPlaceholder: "Reply…")
+        let review = UNNotificationAction(identifier: reviewChangesAction, title: "Review Changes",
+                                          options: [.foreground],
+                                          icon: UNNotificationActionIcon(systemImageName: "checklist"))
+        let openTab = UNNotificationAction(identifier: openTabAction, title: "Open Tab",
+                                           options: [.foreground],
+                                           icon: UNNotificationActionIcon(systemImageName: "terminal"))
         UNUserNotificationCenter.current().setNotificationCategories([
             UNNotificationCategory(identifier: AgentAnswerAction.permissionCategory,
                                    actions: [allow, deny], intentIdentifiers: []),
             UNNotificationCategory(identifier: AgentAnswerAction.replyCategory,
-                                   actions: [reply], intentIdentifiers: []),
+                                   actions: [reply, review, openTab], intentIdentifiers: []),
         ])
     }
 

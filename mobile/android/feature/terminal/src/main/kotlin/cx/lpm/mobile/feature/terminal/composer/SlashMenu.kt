@@ -69,6 +69,16 @@ internal fun SlashMenu(
                         modifier = Modifier.widthIn(max = 180.dp)
                     )
                 }
+                command.sourceLabel?.let { source ->
+                    Text(
+                        text = source.uppercase(),
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Medium,
+                        letterSpacing = 0.6.sp,
+                        color = colors.tertiaryLabel,
+                        maxLines = 1
+                    )
+                }
             }
             ComposerDivider(alpha = 0.4f)
         }

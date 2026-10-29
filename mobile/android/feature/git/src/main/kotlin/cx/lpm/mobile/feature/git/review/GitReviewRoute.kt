@@ -18,6 +18,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation3.runtime.NavKey
 import cx.lpm.mobile.core.designsystem.component.AlertButton
 import cx.lpm.mobile.core.designsystem.component.AlertRole
+import cx.lpm.mobile.core.designsystem.component.LocalConfirmRisky
 import cx.lpm.mobile.core.designsystem.component.LpmAlert
 import cx.lpm.mobile.core.navigation.GitPullRequestKey
 import cx.lpm.mobile.core.navigation.GitReviewKey
@@ -44,6 +45,7 @@ fun GitReviewRoute(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var asking by remember { mutableStateOf<AskContext?>(null) }
     var committing by remember { mutableStateOf(false) }
+    val confirmRisky = LocalConfirmRisky.current
     var refreshing by remember { mutableStateOf(false) }
     var backgrounded by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -105,7 +107,11 @@ fun GitReviewRoute(
                 toggleSelected = viewModel::toggleSelected,
                 selectAll = viewModel::selectAll,
                 commit = viewModel::commit,
-                commitAndPush = viewModel::commitAndPush
+                commitAndPush = {
+                    confirmRisky.confirm("Commit and push ${key.project}") {
+                        viewModel.commitAndPush()
+                    }
+                }
             ),
             onDismiss = { committing = false }
         )

@@ -1,7 +1,11 @@
 use super::*;
 use crate::agent_activity::DayActivity;
 use crate::agent_usage::TokenUsage;
+use crate::peer::PeerEntry;
+use crate::peerclient::PhoneMachine;
 use chrono::Duration;
+use computers::add_up;
+use serde_json::json;
 
 fn monday() -> NaiveDate {
     NaiveDate::from_ymd_opt(2026, 10, 19).unwrap()
@@ -199,7 +203,6 @@ fn starts_months_on_their_first_day() {
 #[test]
 fn sums_the_month_and_the_one_before_it() {
     let month = bounds("2026-02-01", RecapPeriod::Month).unwrap();
-    assert_eq!(month.days(), 28);
     let activity = Activity::from([
         ("2026-01-01".to_string(), day(4_000, 1, "old", "x")),
         ("2026-01-31".to_string(), day(1_000, 1, "old", "x")),
@@ -234,4 +237,55 @@ fn reads_the_period_a_computer_sends() {
     let sent = serde_json::to_value(&month).unwrap();
     assert_eq!(sent["period"], "month");
     assert_eq!(sent["days"].as_array().map(Vec::len), Some(31));
+}
+
+fn machine(slug: &str, name: &str, connected: bool) -> PhoneMachine {
+    PhoneMachine {
+        entry: PeerEntry {
+            slug: slug.into(),
+            alias: name.into(),
+            enabled: true,
+            ..Default::default()
+        },
+        connected,
+        supports_remote_pair: false,
+        supports_phone_relay: false,
+    }
+}
+
+#[test]
+fn names_every_computer_left_out_offline_ones_too() {
+    let month = bounds("2026-10-01", RecapPeriod::Month).unwrap();
+    let recap = |agent_ms| {
+        let day = day(agent_ms, 1, "app", "a");
+        summarize(
+            &month,
+            &Activity::from([("2026-10-02".to_string(), day)]),
+            &HashMap::new(),
+            Vec::new(),
+        )
+    };
+    let peers = [
+        machine("off", "build-box", false),
+        machine("new", "laptop", true),
+        machine("old", "old-mac", true),
+    ];
+    let old_week: WeeklyRecap = serde_json::from_value(
+        json!({ "week": "2026-10-01", "days": [{}, {}, {}, {}, {}, {}, {}] }),
+    )
+    .unwrap();
+    let reads = HashMap::from([
+        ("new".to_string(), Ok(recap(2_000))),
+        ("old".to_string(), Ok(old_week)),
+    ]);
+    let read = add_up(recap(1_000), &peers, reads);
+    assert_eq!(read.recap.missing, ["build-box", "old-mac"]);
+    assert_eq!(read.recap.days[1].agent_ms, 3_000);
+
+    assert!(!read.stale(&peers));
+    let back = [
+        machine("off", "build-box", true),
+        machine("old", "old-mac", true),
+    ];
+    assert!(read.stale(&back));
 }

@@ -57,8 +57,13 @@ struct NotificationSettingsView: View {
                     }
                 }
             }
-            .disabled(!model.notifyEnabled)
-            .opacity(model.notifyEnabled ? 1 : 0.4)
+            .dimmed(unless: model.notifyEnabled)
+
+            ProjectLevelsSection()
+                .dimmed(unless: model.notifyEnabled)
+
+            QuietHoursSection()
+                .dimmed(unless: model.notifyEnabled)
 
             Section {
                 Toggle("Started", isOn: $model.notifyAutomationStarted)
@@ -69,16 +74,14 @@ struct NotificationSettingsView: View {
             } footer: {
                 Text("Choose which automation outcomes send a notification when this app is closed.")
             }
-            .disabled(!model.notifyEnabled)
-            .opacity(model.notifyEnabled ? 1 : 0.4)
+            .dimmed(unless: model.notifyEnabled)
 
             Section {
                 Toggle("Weekly recap", isOn: $model.notifyWeeklyRecap)
             } footer: {
                 Text("Mondays, when your week in lpm is ready")
             }
-            .disabled(!model.notifyEnabled)
-            .opacity(model.notifyEnabled ? 1 : 0.4)
+            .dimmed(unless: model.notifyEnabled)
 
             Section {
                 Toggle("Show agents on the Lock Screen", isOn: $model.liveActivitiesEnabled)
@@ -100,5 +103,12 @@ struct NotificationSettingsView: View {
                 notAsked = settings.authorizationStatus == .notDetermined
             }
         }
+    }
+}
+
+private extension View {
+    /// Greyed out and inert while notifications are off.
+    func dimmed(unless on: Bool) -> some View {
+        disabled(!on).opacity(on ? 1 : 0.4)
     }
 }

@@ -93,6 +93,9 @@ import {
 } from "./terminal/usePaneStripOverflow";
 import { ServiceColumnActions } from "./terminal/ServiceColumnActions";
 import { ServiceStateDot } from "./terminal/ServiceStateDot";
+import { ServiceErrorBadge } from "./terminal/ServiceErrorBadge";
+import { ServiceLogFilterBar } from "./terminal/ServiceLogFilterBar";
+import { useServiceLogs } from "../store/serviceLogs";
 import { useShallow } from "zustand/react/shallow";
 import { pickCommands, useTerminalCommands } from "../store/terminalCommands";
 import { tabCommandDetails, tabCommandMark, terminalStripLabel } from "../tabCommand";
@@ -577,23 +580,32 @@ function PaneViewImpl(props: PaneViewProps) {
                 active={isActive}
                 stripKey={serviceStripKey(svc.name)}
                 trailing={
-                  svc.exited ? (
-                    <span
-                      className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                        serviceCrashed(svc) ? "bg-[var(--accent-red)]" : "bg-[var(--text-muted)]"
-                      }`}
+                  <>
+                    <ServiceErrorBadge
+                      sessionKey={svc.sessionKey}
+                      onShow={() => {
+                        onFocusService(pane.id, svc.name);
+                        useServiceLogs.getState().setFilter(svc.sessionKey, "error");
+                      }}
                     />
-                  ) : (
-                    ports.length > 0 && (
-                      <ServicePortLinks
-                        projectName={projectName}
-                        ports={ports}
-                        service={svc.name}
-                        paneId={pane.id}
-                        configuredPort={svc.configuredPort}
+                    {svc.exited ? (
+                      <span
+                        className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                          serviceCrashed(svc) ? "bg-[var(--accent-red)]" : "bg-[var(--text-muted)]"
+                        }`}
                       />
-                    )
-                  )
+                    ) : (
+                      ports.length > 0 && (
+                        <ServicePortLinks
+                          projectName={projectName}
+                          ports={ports}
+                          service={svc.name}
+                          paneId={pane.id}
+                          configuredPort={svc.configuredPort}
+                        />
+                      )
+                    )}
+                  </>
                 }
                 onClick={(e) => {
                   onFocusService(pane.id, svc.name);
@@ -787,6 +799,12 @@ function PaneViewImpl(props: PaneViewProps) {
                   : "hidden"
               }
             >
+              <ServiceLogFilterBar
+                projectName={projectName}
+                service={svc.name}
+                cmd={svc.cmd}
+                sessionKey={svc.sessionKey}
+              />
               <Pane
                 ref={(el) => onRegisterServiceHandle(svc.name, el)}
                 sessionKey={svc.sessionKey}

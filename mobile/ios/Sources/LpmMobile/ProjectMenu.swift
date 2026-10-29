@@ -142,7 +142,9 @@ struct ProjectRunControl: View {
         Menu {
             Button { model.git.pull(name) } label: { Label("Pull", systemImage: "arrow.down") }
                 .disabled(pulling)
-            Button { model.git.push(name) } label: { Label("Push", systemImage: "arrow.up") }
+            Button {
+                AppLock.shared.confirm("Push \(name)") { model.git.push(name) }
+            } label: { Label("Push", systemImage: "arrow.up") }
                 .disabled(pushing)
             Button { model.git.fetch(name) } label: { Label("Fetch", systemImage: "arrow.triangle.2.circlepath") }
                 .disabled(fetching)

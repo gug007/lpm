@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 import type { ProviderLimits } from "../hooks/useAgentLimits";
+import type { LimitRemindersState } from "../hooks/useLimitReminders";
+import { reminderFor, remindable, type ReminderWindow } from "../limitReminders";
 import {
   FIVE_HOUR_MS,
   STALE_MS,
@@ -21,6 +23,9 @@ interface UsageProviderCardProps {
   stacked?: boolean;
   /** Leads with the 5-hour meter, for a sidebar row whose own window is it. */
   fiveHourFirst?: boolean;
+  /** Offers reset reminders, for the card whose limits are `limitKey` in the snapshot. */
+  reminders?: LimitRemindersState;
+  limitKey?: string;
 }
 
 export function UsageProviderCard({
@@ -31,11 +36,30 @@ export function UsageProviderCard({
   footer,
   stacked = false,
   fiveHourFirst = false,
+  reminders,
+  limitKey,
 }: UsageProviderCardProps) {
   const meta = providerMeta(data.provider);
   const stale = now - data.updatedAt > STALE_MS;
-  const weekly = { label: "Weekly", win: data.weekly, windowMs: WEEKLY_MS };
-  const fiveHour = { label: "5-hour", win: data.fiveHour, windowMs: FIVE_HOUR_MS };
+  const weekly = {
+    label: "Weekly",
+    id: "weekly" as ReminderWindow,
+    win: data.weekly,
+    windowMs: WEEKLY_MS,
+  };
+  const fiveHour = {
+    label: "5-hour",
+    id: "fiveHour" as ReminderWindow,
+    win: data.fiveHour,
+    windowMs: FIVE_HOUR_MS,
+  };
+  const reminderOf = (meter: typeof weekly) => {
+    if (!reminders || !limitKey || !meter.win) return undefined;
+    const set = !!reminderFor(reminders.reminders, limitKey, meter.id);
+    if (!remindable(meter.win, now, set)) return undefined;
+    const resetsAt = meter.win.resetsAt;
+    return { set, onToggle: () => reminders.toggle(limitKey, meter.id, resetsAt, title) };
+  };
 
   return (
     <section className="rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
@@ -82,6 +106,7 @@ export function UsageProviderCard({
             now={now}
             stale={stale}
             thin={stacked && i === 1}
+            reminder={reminderOf(meter)}
           />
         ))}
       </div>

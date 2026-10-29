@@ -67,7 +67,10 @@ struct ProjectMenuHost: ViewModifier {
                 isPresented: $confirmingDiscard,
                 titleVisibility: .visible
             ) {
-                Button("Discard changes", role: .destructive) { Haptics.warning(); model.git.discardAll(project.name) }
+                Button("Discard changes", role: .destructive) {
+                    Haptics.warning()
+                    AppLock.shared.confirm("Discard every change in \(project.name)") { model.git.discardAll(project.name) }
+                }
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text("This permanently discards every uncommitted change in this project. This can't be undone.")
@@ -122,7 +125,7 @@ struct ProjectMenuHost: ViewModifier {
                                       pending: pending,
                                       changedCount: changedCount,
                                       onStart: { model.startProject(project, profile: $0) },
-                                      onStop: { model.stopProject(project) },
+                                      onStop: { model.confirmStop(project) },
                                       onReviewChanges: { showChanges = true },
                                       onFiles: model.canBrowseFiles(project) ? { showFiles = true } : nil,
                                       onResumeSession: model.canResumeSessions(project) ? { showResume = true } : nil,

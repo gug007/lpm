@@ -27,6 +27,8 @@ import cx.lpm.mobile.core.designsystem.component.ContextMenu
 import cx.lpm.mobile.core.designsystem.component.GlassButtonGroup
 import cx.lpm.mobile.core.designsystem.component.GlassGroupButton
 import cx.lpm.mobile.core.designsystem.component.GlassIconButton
+import cx.lpm.mobile.core.designsystem.component.LocalConfirmRisky
+import cx.lpm.mobile.core.designsystem.component.stopProject
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.core.model.Project
 import cx.lpm.mobile.core.model.SessionKey
@@ -76,9 +78,10 @@ fun ProjectMenuToolbar(
     var resumeOpen by remember { mutableStateOf(false) }
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
+    val confirmRisky = LocalConfirmRisky.current
     val actions = ProjectMenuActions(
         start = viewModel::start,
-        stop = viewModel::stop,
+        stop = { confirmRisky.stopProject(project) { viewModel.stop() } },
         reviewChanges = { onNavigate(GitReviewKey(project, session)) },
         files = if (state.canBrowseFiles) {
             { onNavigate(ProjectFilesKey(project, session = session)) }
@@ -105,7 +108,7 @@ fun ProjectMenuToolbar(
         terminalSettings = { dialog = MenuDialog.TerminalSettings },
         git = GitMenuActions(
             pull = viewModel::pull,
-            push = viewModel::push,
+            push = { confirmRisky.confirm("Push $project") { viewModel.push() } },
             fetch = viewModel::fetch,
             setAutoPull = viewModel::setAutoPull,
             undoAutoPull = viewModel::undoAutoPull,
@@ -140,7 +143,9 @@ fun ProjectMenuToolbar(
         project = live,
         onRename = viewModel::rename,
         onRenameTab = { term, name -> viewModel.renameTab(term.id, name) },
-        onDiscard = viewModel::discardAll,
+        onDiscard = {
+            confirmRisky.confirm("Discard every change in $project") { viewModel.discardAll() }
+        },
         onStatus = viewModel::setWorkStatus,
         onDismissOpError = viewModel::dismissOpError,
         terminalSettings = slots.terminalSettingsSheet,

@@ -393,6 +393,13 @@ at(2150, 'weeklyRecap', week='last'); at(2150, 'weeklyRecap', week='this', fresh
 at(2150, 'weeklyRecap')
 at(2150, 'weeklyRecap', week='last', period='month')
 at(2150, 'weeklyRecap', week='this', period='month', fresh=True)
+# limit reminders
+at(2300, 'limitReminders')
+at(2400, 'setLimitReminder', limit='codex', window='weekly', resetsAt=1792300000, name='Codex')
+at(2600, 'setLimitReminder', limit='claude:work', window='fiveHour', resetsAt=1792100000, name='Work')
+at(2800, 'setLimitReminder', limit='codex', window='weekly', resetsAt=1792400000, name='Codex')
+at(3000, 'clearLimitReminder', limit='claude:work', window='fiveHour')
+at(3200, 'clearLimitReminder', limit='nope', window='weekly')
 # seen and archived agents
 at(74000, 'status', project='mobile-app'); at(74000, 'status', project='design-system')
 at(74000, 'terminals', project='mobile-app'); at(74000, 'terminals', project='design-system')

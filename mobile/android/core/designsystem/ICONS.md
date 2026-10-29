@@ -104,6 +104,8 @@ the iPhone screenshots). An icon-only control keeps the accessible name iOS give
 | `pin` / `pin.slash` | `keep` / `keep_off` | 22–24 dp | Pin / Unpin a tab | |
 | `pin.fill` | `keep` (fill) | 13 dp | pinned tab mark | |
 | `bell.fill` | `notifications` (fill) | text size | agent needs you | |
+| `bell` / `bell.fill` (usage) | `notifications` / `notifications` (fill) | 18 dp | a usage meter's reset reminder | "Remind me when the <window> limit resets" |
+| `faceid` | `lock` | 52 dp | the app lock's cover | |
 | `exclamationmark.circle.fill` | `error` (fill) | text size | agent problem | |
 | `exclamationmark.circle` | `error` | 14 dp, 56 dp | queued action not sent, invalid configuration | |
 | `clock` | `schedule` | 14 dp | queued action waiting | |

@@ -15,6 +15,8 @@ private enum NotificationRoute: Hashable {
     case terminal(project: String, id: String)
     case automation(project: String, id: String)
     case weeklyRecap
+    case changes(project: String)
+    case usage
 }
 
 // Root view: show pairing until at least one Mac is saved, then the projects list.
@@ -42,6 +44,7 @@ struct ContentView: View {
         .onOpenURL { model.openAgentWidgetLink($0) }
         .onChange(of: BuiltInTailscale.shared.status.state) { _, state in model.tailnetChanged(state) }
         .onChange(of: scenePhase) { _, phase in
+            AppLock.shared.sceneChanged(phase)
             switch phase {
             case .active:
                 BuiltInTailscale.shared.foreground()
@@ -59,7 +62,10 @@ struct ContentView: View {
         .onChange(of: model.pendingNotificationTarget) { _, _ in consumePendingOpen() }
         .onChange(of: model.projectsLoaded) { _, _ in consumePendingOpen() }
         .onChange(of: model.activeMacId) { _, _ in consumePendingOpen() }
-        .onChange(of: model.projects.map(\.name)) { _, _ in consumePendingOpen() }
+        .onChange(of: model.projects.map(\.name)) { _, _ in
+            consumePendingOpen()
+            if !model.demoMode { FocusProjects.remember(model.projects) }
+        }
         // The list can trail a brand-new project (a duplicate or worktree made while
         // the phone was away), so give it a moment — then drop the target rather
         // than jump there at some unrelated later moment.
@@ -71,6 +77,7 @@ struct ContentView: View {
             awaitedProject = nil
         }
         .onAppear {
+            AppLock.shared.sceneChanged(scenePhase)
             BuiltInTailscale.shared.foreground()
             model.bootstrap()
             // Warm WebKit now so the first terminal opens without the ~2s cold start.
@@ -109,6 +116,12 @@ struct ContentView: View {
             next.append(NotificationRoute.automation(project: target.project, id: id))
         case .recap:
             next.append(NotificationRoute.weeklyRecap)
+        case .changes:
+            guard known else { awaitedProject = target; return }
+            next.append(target.project)
+            next.append(NotificationRoute.changes(project: target.project))
+        case .usage:
+            next.append(NotificationRoute.usage)
         }
         path = next
         model.notificationOpens += 1
@@ -424,6 +437,12 @@ struct ProjectsView: View {
                 AutomationDetailView(project: project, jobId: id)
             case .weeklyRecap:
                 WeeklyRecapScreen()
+            case .changes(let name):
+                if let p = model.projects.first(where: { $0.name == name }) {
+                    GitReviewView(project: p)
+                }
+            case .usage:
+                UsageScreen()
             }
         }
         // A bar above the list only for a problem with a fix on this iPhone. A

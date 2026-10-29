@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
 import { BranchPullRequest } from "../../bridge/commands";
+import { checksSummary } from "../prChecks";
 import { useBranchPr } from "../store/branchPr";
 import { useEventListener } from "./useEventListener";
 import { useGitChanged } from "./useGitChanged";
@@ -10,6 +11,8 @@ export const FRESH_MS = 30_000;
 // Background cadence while the pane is on screen: a PR the agent opens from
 // the terminal shows up within a minute without hammering the GitHub API.
 export const POLL_MS = 60_000;
+// While CI checks are running, so the footer turns red or green soon after.
+export const CHECKS_POLL_MS = 20_000;
 // `gh pr create` pushes first and opens the PR a moment later; asking the
 // instant the push lands finds nothing, so a git change waits this long.
 export const GIT_CHANGE_DELAY_MS = 5_000;
@@ -44,16 +47,19 @@ export function useBranchPullRequest(
     setEntry(projectPath, { branch, pr, checkedAt: Date.now() });
   }, [projectPath, branch, setEntry]);
 
+  const pollMs = known?.pr && checksSummary(known.pr)?.verdict === "pending" ? CHECKS_POLL_MS : POLL_MS;
+  const freshMs = Math.min(FRESH_MS, pollMs / 2);
+
   const lookupIfStale = useCallback(() => {
-    if (Date.now() - checkedAtRef.current >= FRESH_MS) void lookup();
-  }, [lookup]);
+    if (Date.now() - checkedAtRef.current >= freshMs) void lookup();
+  }, [lookup, freshMs]);
 
   useEffect(() => {
     if (!active) return;
     lookupIfStale();
-    const timer = setInterval(lookupIfStale, POLL_MS);
+    const timer = setInterval(lookupIfStale, pollMs);
     return () => clearInterval(timer);
-  }, [active, lookupIfStale]);
+  }, [active, lookupIfStale, pollMs]);
 
   useEventListener("focus", lookupIfStale, window, active);
 

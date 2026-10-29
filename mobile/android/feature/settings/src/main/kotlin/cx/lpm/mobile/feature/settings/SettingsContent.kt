@@ -29,7 +29,8 @@ fun SettingsContent(
     onOpen: (SettingsDestination) -> Unit,
     onPrivacyPolicy: () -> Unit,
     modifier: Modifier = Modifier,
-    terminalControls: @Composable () -> Unit = {}
+    terminalControls: @Composable () -> Unit = {},
+    security: @Composable () -> Unit = {}
 ) {
     Column(
         modifier
@@ -80,6 +81,7 @@ fun SettingsContent(
                 leading = { SettingsIcon(DesignR.drawable.ic_notifications_unread) }
             )
         }
+        security()
         ListSection {
             NavigationRow(
                 title = stringResource(R.string.settings_privacy_policy),

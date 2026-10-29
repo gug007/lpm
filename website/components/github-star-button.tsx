@@ -4,15 +4,12 @@ import { REPO_SLUG, REPO_URL } from "@/lib/links";
 
 export async function GitHubStarButton() {
   const stars = await fetchStarCount();
-  const baseLabel = `Star ${REPO_SLUG} on GitHub`;
-  const label = stars !== null ? `${baseLabel} (${stars} stars)` : baseLabel;
 
   return (
     <a
       href={REPO_URL}
       target="_blank"
       rel="noopener noreferrer"
-      aria-label={label}
       className="group inline-flex items-center rounded-md border border-gray-200 dark:border-gray-800 bg-white/60 dark:bg-white/5 text-[12px] text-gray-600 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-700 hover:text-gray-900 dark:hover:text-white transition-colors duration-200 overflow-hidden"
     >
       <span data-nosnippet className="inline-flex items-center gap-1 px-2 py-1">
@@ -30,6 +27,7 @@ export async function GitHubStarButton() {
           {formatCount(stars)}
         </span>
       )}
+      <span className="sr-only">, star {REPO_SLUG} on GitHub</span>
     </a>
   );
 }

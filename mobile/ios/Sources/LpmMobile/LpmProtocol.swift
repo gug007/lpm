@@ -53,6 +53,18 @@ enum Wire {
         return json(o)
     }
     static func limits() -> String { json(["t": "limits"]) }
+    /// Limit reminders, only for a Mac whose `features` has "limitReminders".
+    static func limitReminders() -> String { json(["t": "limitReminders"]) }
+    static func setLimitReminder(limit: String, window: String, resetsAt: Int, name: String) -> String {
+        json(["t": "setLimitReminder", "limit": limit, "window": window, "resetsAt": resetsAt, "name": name])
+    }
+    static func clearLimitReminder(limit: String, window: String) -> String {
+        json(["t": "clearLimitReminder", "limit": limit, "window": window])
+    }
+    /// Asks a machine to wake another one, only when its `features` has "wake".
+    static func wake(targets: [WakeTarget], port: Int) -> String {
+        json(["t": "wake", "port": port, "targets": targets.map(\.json)])
+    }
     static func weeklyRecap(_ pick: RecapPick, fresh: Bool) -> String {
         var o: [String: Any] = ["t": "weeklyRecap", "week": pick.week.rawValue]
         if pick.period == .month { o["period"] = pick.period.rawValue }
@@ -346,13 +358,16 @@ enum Wire {
     static func apnsToken(token: String, env: String, key: String,
                           notifyWaiting: Bool, notifyDone: Bool, notifyError: Bool,
                           notifyAutomationStarted: Bool, notifyAutomationDone: Bool,
-                          notifyAutomationError: Bool, notifyWeeklyRecap: Bool) -> String {
-        json(["t": "apnsToken", "token": token, "env": env, "key": key,
-              "notify": ["waiting": notifyWaiting, "done": notifyDone, "error": notifyError,
-                         "automationStarted": notifyAutomationStarted,
-                         "automationDone": notifyAutomationDone,
-                         "automationError": notifyAutomationError,
-                         "weeklyRecap": notifyWeeklyRecap]])
+                          notifyAutomationError: Bool, notifyWeeklyRecap: Bool,
+                          notifyProjects: [String: String] = [:]) -> String {
+        var notify: [String: Any] = ["waiting": notifyWaiting, "done": notifyDone, "error": notifyError,
+                                     "automationStarted": notifyAutomationStarted,
+                                     "automationDone": notifyAutomationDone,
+                                     "automationError": notifyAutomationError,
+                                     "weeklyRecap": notifyWeeklyRecap]
+        // Only the projects heard less about; the rest hear everything.
+        if !notifyProjects.isEmpty { notify["projects"] = notifyProjects }
+        return json(["t": "apnsToken", "token": token, "env": env, "key": key, "notify": notify])
     }
 
     /// Answer the agent a notification is about, naming the report it answers.
@@ -600,7 +615,7 @@ enum Wire {
         // that can't show the dialog at all), or "timeout" (no answer).
         case pairDenied(reason: String, message: String?)
         case ready(serverId: String?, serverName: String?, hosts: [String], platform: String?,
-                   build: MacBuild?, features: Set<String>)
+                   build: MacBuild?, features: Set<String>, wake: [WakeTarget])
         // The Mac is about to close this connection on purpose: "sleep", "quit" or
         // "off" (remote control turned off), with when it said so (ms).
         case bye(reason: String, at: Int?)
@@ -620,6 +635,10 @@ enum Wire {
         // Agent plan-usage meters (the desktop Usage page). `limitsChanged` is a
         // server push carrying the whole snapshot, not a hint to re-request.
         case limits(LimitsSnapshot?, error: String?)
+        // The Mac's limit reminders, as a reply or after any change; `error` when
+        // a change was refused.
+        case limitReminders([LimitReminder], error: String?)
+        case wake(ok: Bool)
         case weeklyRecap(RecapPick, recap: WeeklyRecap?, error: String?)
         case limitsChanged(LimitsSnapshot)
         /// Synthesized speech for a read-aloud request. `audio` is base64 AAC.
@@ -834,7 +853,8 @@ enum Wire {
                               hosts: obj["hosts"] as? [String] ?? [],
                               platform: obj["platform"] as? String,
                               build: MacBuild(obj),
-                              features: Set(obj["features"] as? [String] ?? []))
+                              features: Set(obj["features"] as? [String] ?? []),
+                              wake: (obj["wake"] as? [[String: Any]] ?? []).compactMap(WakeTarget.init))
             case "bye":
                 return .bye(reason: obj["reason"] as? String ?? "", at: obj["at"] as? Int)
             case "error": return .error(obj["error"] as? String ?? "error")
@@ -874,6 +894,12 @@ enum Wire {
                 let ok = obj["ok"] as? Bool ?? false
                 return .limits(ok ? LimitsSnapshot(obj) : nil,
                                error: ok ? nil : (obj["error"] as? String ?? usageGenericError))
+            case "limitReminders":
+                let refused = obj["ok"] as? Bool == false
+                return .limitReminders((obj["reminders"] as? [[String: Any]] ?? []).compactMap(LimitReminder.init),
+                                       error: refused ? (obj["error"] as? String ?? usageGenericError) : nil)
+            case "wake":
+                return .wake(ok: obj["ok"] as? Bool ?? false)
             case "terminals":
                 return .terminals(project: obj["project"] as? String ?? "",
                                   (obj["terminals"] as? [[String: Any]] ?? []).map(TerminalInfo.init))
@@ -2016,6 +2042,15 @@ struct SlashCommand: Identifiable {
     let source: String      // builtin | project | user
 
     var id: String { name }
+
+    /// Where it comes from, as the desktop's menu tags it.
+    var sourceLabel: String? {
+        switch source {
+        case "builtin": return "built-in"
+        case "project", "user": return source
+        default: return nil
+        }
+    }
 
     init(_ o: [String: Any]) {
         name = o["name"] as? String ?? ""

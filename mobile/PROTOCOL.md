@@ -142,7 +142,10 @@ terminal again in its tab (`restartTerminal`); `"agentLaunch"` — `agentOptions
 desktop's weekly recap card (`weeklyRecap`); `"recapMonth"` — `weeklyRecap` with
 `period: "month"`; `"agentArchive"` — seen agents
 (`seenEntries`, `seen`, `seenAgentsShown`) and `archiveStatus`, `markStatusSeen` and
-`markStatusUnread` (see [Seen and archived agents](#seen-and-archived-agents)). Rides `paired` **and** `ready`;
+`markStatusUnread` (see [Seen and archived agents](#seen-and-archived-agents)); `"limitReminders"` —
+`limitReminders`, `setLimitReminder` and `clearLimitReminder` (see
+[Limit reminders](#limit-reminders)); `"wake"` — waking another paired machine (`wake`, see
+[Waking a sleeping Mac](#waking-a-sleeping-mac)). Rides `paired` **and** `ready`;
 **absent** from a desktop that predates it, which means none.
 
 `hosts` (**optional**) is the Mac's current candidate address list, most-preferred
@@ -154,6 +157,14 @@ record for the frame's `serverId` — never replaces the list, and never applies
 them to any other Mac — so a phone paired by approval (no QR) still learns the
 Tailscale address, and an address that changed after pairing reaches every phone
 on its next connect. Older apps ignore the unknown field.
+
+`wake` (**optional**, `ready` only) lists the network cards the Mac can be woken
+through: `[{ "mac": "3a:07:2a:86:ff:1c", "ip": "192.168.1.23", "broadcast": "192.168.1.255" }…]`
+— the card's hardware address as its network knows it, its private IPv4 address and
+that network's broadcast address. Absent when the Mac knows none (Windows, or a Mac
+that hides its hardware addresses from lpm). The phone saves it on the record for the
+frame's `serverId`, replacing what it had, and uses it to wake the Mac later (see
+[Waking a sleeping Mac](#waking-a-sleeping-mac)).
 
 The code is **single use and expires 10 minutes** after the Phone screen arms it; the
 desktop clears an expired code rather than leaving it redeemable in
@@ -332,7 +343,7 @@ holds no credential of its own, so removing it sends nothing.
 |---|---|
 | `{ "t": "projects" }` | `{ "t": "projects", "projects": [ProjectInfo…], "workStatuses": [CustomWorkStatus…], "workStatusOrder": ["<status key>"…], "autoPullMode": "off"\|"chosen"\|"all", "seenAgentsShown": N, "keepFinishedAgents": bool }` — `seenAgentsShown` and `keepFinishedAgents` (only when `features` has `"agentArchive"`) are the Mac's Settings › Agents › In the sidebar › Seen agents per project (1–10) and Keep finished agents until archived (off by default; see [Seen and archived agents](#seen-and-archived-agents)). `workStatuses` is the user's own work-status palette (`{ label, emoji, withNote? }` each), and `workStatusOrder` the order the Status menu was dragged into (each entry a status key: a built-in state, or `custom:<label>`). Both live in the Mac's `~/.lpm/statuses.json` (as `custom` and `order`; the wire names predate that file). `workStatuses` always starts with the five shipped statuses (Review, Ready, Waiting, Needs decision, Paused), then the user's own additions; `workStatusOrder` is `[]` until the user reorders the menu. The phone lists its three built-in states (In progress / Blocked / Done) plus that list, sorted by the order (its own default order when that is empty), and assumes the five shipped statuses when a Mac too old to send `workStatuses` omits the key. `autoPullMode` is the Mac's Settings › Git › Auto pull: `off` (never), `chosen` (only projects set to On), `all` (every project not set to Off); a missing or unknown value reads as `off`. A project's effective auto pull is: off when the mode is `off`; else its own `autoPull` when set; else, for a duplicate or worktree, its parent's `autoPull` when set; else on only in `all`. |
 | `{ "t": "stats", "days": N, "machine": "all"\|"local"\|slug?, "fresh": bool? }` | `{ "t": "stats", "ok": true, "machine": "…", "stats": AgentUsageStats, "machines": [UsageMachine] }` / `{ "ok": false, "error": "…", "machine": "…" }` — agent token-usage stats for the last `N` days (`0` = all time), i.e. the desktop Stats page. `machine` picks whose: `"local"` (the default when absent, which is all an older Mac answers) this Mac's own, a paired computer's `slug` that computer's, read over the Mac's peer link, or `"all"` every connected computer's added together (a project, model or day they share is one row; `recentSessions` then carry `machine`). A computer that is offline or fails is left out of `"all"` and marked in `machines`; picking it alone fails the request. Each computer keeps a read for a minute, so switching computers after `"all"` answers at once; `fresh: true` (pull to refresh) scans again, as does any request without `machine`. The Mac scans Claude Code / Codex session-history files (usage metadata only — no prompts or responses), so it runs off this connection's read loop and the reply arrives **asynchronously** (later than a fast request sent after it). SSH projects are excluded. The usage rows under the projects list ask for `days: 1` with no `machine` (today's spend on this Mac, as the desktop sidebar does) while the list is showing — at most every 30 seconds and every 3 minutes at rest — and tell the two apart from the Stats screen's by the `days` and `machine` the reply echoes |
-| `{ "t": "weeklyRecap", "week": "last"\|"this", "period": "week"\|"month"?, "fresh": bool? }` | `{ "t": "weeklyRecap", "ok": true, "week": "last"\|"this", "period": "week"\|"month", "recap": WeeklyRecap }` / `{ "t": "weeklyRecap", "ok": false, "week": "…", "period": "…", "error": "…" }` — the desktop's weekly recap ("My agents' week", or "My agents' month"): last week (the default) or this week so far, Monday to Sunday by the **Mac's** calendar, or with `period: "month"` last or this calendar month, added up over this Mac and every connected computer as the desktop's own card is. `period` defaults to `"week"`; send `"month"` only when `features` has `"recapMonth"`, since an older Mac ignores it and answers with a week and no `period`. Reads the agents' history and the user's commits, so it runs off the read loop and the reply arrives **asynchronously**; the Mac keeps a week's read for ten minutes, and `fresh: true` (pull to refresh) reads again. The phone draws the card itself from `recap` with the desktop's rules (see **WeeklyRecap**) and shares it as an image; no project name goes on the card. Only when `features` has `"weeklyRecap"` |
+| `{ "t": "weeklyRecap", "week": "last"\|"this", "period": "week"\|"month"?, "fresh": bool? }` | `{ "t": "weeklyRecap", "ok": true, "week": "last"\|"this", "period": "week"\|"month", "recap": WeeklyRecap }` / `{ "t": "weeklyRecap", "ok": false, "week": "…", "period": "…", "error": "…" }` — the desktop's weekly recap ("My agents' week", or "My agents' month"): last week (the default) or this week so far, Monday to Sunday by the **Mac's** calendar, or with `period: "month"` last or this calendar month, added up over this Mac and every connected computer as the desktop's own card is. `period` defaults to `"week"`; send `"month"` only when `features` has `"recapMonth"`, since an older Mac ignores it and answers with a week and no `period`. Reads the agents' history and the user's commits, so it runs off the read loop and the reply arrives **asynchronously**; the Mac keeps a week's read for ten minutes, or until a paired computer that was offline for it connects, and `fresh: true` (pull to refresh) reads again. The phone draws the card itself from `recap` with the desktop's rules (see **WeeklyRecap**) and shares it as an image; no project name goes on the card. Only when `features` has `"weeklyRecap"` |
 | `{ "t": "limits" }` | `{ "t": "limits", "ok": true, "limits": AgentLimits, "claudeEnabled": bool, "now": unix MILLIS }` / `{ "ok": false, "error": "…" }` — the agent plan-usage meters (the desktop Usage page): how much of each tool's 5-hour and weekly window is used. Answered inline from an in-memory store, so it is fast and ordered. `claudeEnabled` is false when Claude reporting has not been switched on for this Mac — the phone must show "off on this Mac" rather than an empty spinner, because an off Mac never reports Claude windows at all. Codex needs no opt-in. `now` is the Mac's own clock when it built the frame; it anchors `updatedAt`, which the Mac stamps, and not `resetsAt`, which comes from the tool's own servers (see AgentLimits below) |
 | `{ "t": "ttsSpeak", "reqId": "<uuid>", "text": "…" }` | `{ "t": "ttsSpeak", "reqId": "<uuid>", "ok": true, "format": "aac", "audio": "<base64>" }` / `{ "ok": false, "error": "…" }` — synthesizes `text` with the Mac's configured OpenAI voice and returns the whole clip as base64 AAC. Slow (a network round trip per chunk, and long text is split across several), so the reply arrives on the out-queue rather than in order; `reqId` lets the phone drop the answer to a request it has already superseded. Requires an OpenAI key in the Mac's Keychain — without one the reply is `ok: false`. |
 | `{ "t": "jobs" }` | `{ "t": "jobs", "ok": true, "jobs": [JobInfo…] }` / `{ "ok": false, "error": "…" }` — every automation across local projects |
@@ -775,6 +786,45 @@ hold as `beforeId` (`""` for the first page). Chat and message timestamps are un
 | `{ "t": "notesSearch", "project": "<name>", "query": "…", "limit": N }` | `{ "t": "notesSearch", "project": "<name>", "query": "…", "ok": true, "hits": [NoteSearchHit…] }` / `{ "ok": false, "error": "…" }` — substring match across the project's messages, newest first, `limit` default 50. `query` is echoed so a stale reply from a superseded keystroke can be dropped. Async (worker) |
 | `{ "t": "notesAttachment", "project": "<name>", "hash": "<sha256 hex>", "reqId": <any>? }` | `{ "t": "notesAttachment", "project": "<name>", "hash": "<sha256 hex>", "ok": true, "data": "<base64>" }` / `{ "ok": false, "error": "…" }` — one attachment's bytes. Over 8MiB the reply is `"This attachment is too large to open on your phone. Open it on your Mac instead."`; the phone knows each attachment's `size` from its message, so it should not ask in the first place. Async (worker) |
 
+### Limit reminders
+
+A reminder that a usage limit has reset, set from the desktop's Usage page or a
+phone's Usage screen. The Mac keeps the list (`~/.lpm/limit-reminders.json`) and the
+clock: when the window's reset has passed (plus 30 seconds), it shows a banner on the
+Mac, pushes the `usage` notification to the phones (above), and drops the reminder.
+One reminder per limit and window; setting one again replaces it. Only when
+`features` has `"limitReminders"`.
+
+| Request | Reply |
+|---|---|
+| `{ "t": "limitReminders" }` | `{ "t": "limitReminders", "ok": true, "reminders": [LimitReminder…] }` |
+| `{ "t": "setLimitReminder", "limit": "claude:<account>"\|"codex", "window": "fiveHour"\|"weekly", "resetsAt": <unix SECONDS>, "name": "<what the row is called>" }` | the same frame with the new list, or `"ok": false, "error": "…"` and the unchanged list — a window that has already reset, or an unknown window. `limit` is the key of the `limits` map; `resetsAt` is the window's `resetsAt` as the `limits` frame gave it; `name` is the title the banner and notification show. |
+| `{ "t": "clearLimitReminder", "limit": "…", "window": "…" }` | the same frame with the new list (clearing one that isn't set is not an error) |
+
+**LimitReminder**: `{ "limit": "claude:work", "window": "fiveHour", "resetsAt": 1793300000, "name": "Work" }`.
+The Mac pushes the same `limitReminders` frame to every connected phone whenever the
+list changes (see Server-initiated pushes).
+
+### Waking a sleeping Mac
+
+When the active Mac stops answering (asleep, or not answering on the home network),
+the phone offers Wake. It uses what the Mac said in `ready`'s `wake`, and:
+
+1. sends a wake packet — six `0xFF` bytes then the card's 6-byte hardware address
+   sixteen times, UDP to ports 9 and 7 — straight to each card's `ip` (an iPhone may
+   not broadcast; Android also sends to `broadcast`);
+2. opens a TCP connection to each saved home-network address on the Mac's lpm port,
+   which a Bonjour Sleep Proxy (an Apple TV or HomePod) answers by waking the Mac;
+3. asks every other saved machine that answers and has `"wake"` in `features` to do
+   the same on its own network:
+
+| Request | Reply |
+|---|---|
+| `{ "t": "wake", "targets": [{ "mac", "ip", "broadcast" }…], "port": <lpm port> }` | `{ "t": "wake", "ok": true }` once the packets are on their way (they're sent off the read loop), or `"ok": false, "error": "Nothing to wake."` when no target parses. The machine broadcasts a wake packet to each `broadcast`, to 255.255.255.255 and to each `ip`, then connects to each `ip` on `port`. |
+
+Then the phone keeps reconnecting for a minute. Nothing here needs the sleeping Mac's
+cooperation beyond "Wake for network access" being on, which macOS has on by default.
+
 ### Push notifications (APNs and FCM)
 
 While the app is backgrounded its socket dies, so agent status changes reach the
@@ -785,7 +835,7 @@ end-to-end encrypted, so the relay sees only opaque blobs and device tokens.
 
 | Request | Reply |
 |---|---|
-| `{ "t": "apnsToken", "token": "<hex APNs device token>", "env": "production"\|"sandbox", "key": "<base64 32-byte push key>", "notify": { "waiting": bool, "done": bool, "error": bool, "automationStarted": bool, "automationDone": bool, "automationError": bool, "weeklyRecap": bool } }` | `{ "t": "apnsToken", "ok": true }` / `{ "t": "apnsToken", "ok": false, "error": "…" }` — registers (or refreshes) this device's push identity; sent after every successful `auth`, since the token can rotate, and re-sent immediately when the user changes notification preferences. A phone also sends `{ "t": "presence", "active": bool }` (no reply) when its app leaves or returns to the screen, and `active: false` right after `ready` if a connection comes up while it's away; every new connection starts out counted as on screen, and older phones that never send it keep today's behavior. `env` is the APNs environment the build's token belongs to (debug builds → `sandbox`, TestFlight/App Store → `production`). `key` is the phone-generated AES-256 push key; the phone keeps **one** push key (Keychain, shared with the notification extension) and registers the same key with every paired Mac, so the extension never has to guess which key decrypts. `notify` selects which agent and automation outcomes this device wants pushed; the desktop filters **before** sealing/sending, so a disabled kind never leaves the Mac. Missing agent fields default to enabled for older phones; missing automation and `weeklyRecap` fields default to disabled. All-false keeps the device registered with notifications off. Everything persists on the device record in `remote.json`. `ok` is **false** for three reasons: the payload failed validation (`error` says which field), the Mac holds no device record for this `deviceId`, or — since every write became a read-modify-write, below — the device is paired but the registration **could not be saved**, e.g. `remote.json` is unreadable or another writer holds the lock too long. In that last case the device stays paired and the socket stays up; only push registration is missing, and the phone's next `auth` re-sends it |
+| `{ "t": "apnsToken", "token": "<hex APNs device token>", "env": "production"\|"sandbox", "key": "<base64 32-byte push key>", "notify": { "waiting": bool, "done": bool, "error": bool, "automationStarted": bool, "automationDone": bool, "automationError": bool, "weeklyRecap": bool } }` | `{ "t": "apnsToken", "ok": true }` / `{ "t": "apnsToken", "ok": false, "error": "…" }` — registers (or refreshes) this device's push identity; sent after every successful `auth`, since the token can rotate, and re-sent immediately when the user changes notification preferences. A phone also sends `{ "t": "presence", "active": bool }` (no reply) when its app leaves or returns to the screen, and `active: false` right after `ready` if a connection comes up while it's away; every new connection starts out counted as on screen, and older phones that never send it keep today's behavior. `env` is the APNs environment the build's token belongs to (debug builds → `sandbox`, TestFlight/App Store → `production`). `key` is the phone-generated AES-256 push key; the phone keeps **one** push key (Keychain, shared with the notification extension) and registers the same key with every paired Mac, so the extension never has to guess which key decrypts. `notify` selects which agent and automation outcomes this device wants pushed; the desktop filters **before** sealing/sending, so a disabled kind never leaves the Mac. `notify.projects` (**optional**) is `{ "<project name>": "waiting"\|"off" }`: `"waiting"` lets only an agent waiting on the user (and an automation run asking a question) through for that project, `"off"` lets nothing through; a project it doesn't name gets everything the other fields allow, and a duplicate the map doesn't name follows the project it was made from. The phone sends one map to every Mac, so names another Mac doesn't have are ignored. Missing agent fields default to enabled for older phones; missing automation and `weeklyRecap` fields default to disabled. All-false keeps the device registered with notifications off. Everything persists on the device record in `remote.json`. `ok` is **false** for three reasons: the payload failed validation (`error` says which field), the Mac holds no device record for this `deviceId`, or — since every write became a read-modify-write, below — the device is paired but the registration **could not be saved**, e.g. `remote.json` is unreadable or another writer holds the lock too long. In that last case the device stays paired and the socket stays up; only push registration is missing, and the phone's next `auth` re-sends it |
 | `{ "t": "pushToken", "platform": "fcm"\|"apns", "token": "<push token>", "env": "production"\|"sandbox", "key": "<base64 32-byte push key>", "notify": { …as apnsToken… } }` | `{ "t": "pushToken", "ok": true }` / `{ "t": "pushToken", "ok": false, "error": "…" }` — the same registration for any push platform, with the same timing, `key`, `notify` defaults, persistence and `ok` semantics as `apnsToken`. Android phones send it with `platform: "fcm"`, their FCM installation ID as `token`, and no `env` (FCM has none; one sent anyway is ignored). `platform: "apns"` takes an APNs token and `env` exactly as `apnsToken` does; iOS keeps sending `apnsToken`, which stays supported. Validation: an `fcm` token is 1–4096 characters of `A–Z a–z 0–9 _ : -`; an `apns` token is ≤200 hex characters with `env` `production` or `sandbox`; `key` must decode to 32 bytes; any other `platform` (or none) fails with `error: "invalid platform"`. A desktop that predates `pushToken` ignores it and never replies, so the phone treats a missing ack as not registered and sends it again on its next `auth` |
 
 **When the desktop pushes.** On an agent status transition to `Waiting`, `Done`,
@@ -809,6 +859,22 @@ same delivery path and connection exclusion. Its plaintext is
 `{ "serverId", "target": "recap", "week": "<its Monday, YYYY-MM-DD>", "title", "body", "ts", "key": "recap:<week>" }`:
 show `title` and `body` as given, and open the weekly recap on last week when
 it's tapped. A phone paired with several Macs gets one from each.
+A limit reminder that fires (see [Limit reminders](#limit-reminders)) is pushed to
+every device with any notification on, through the same delivery path and
+connection exclusion, as
+`{ "serverId", "target": "usage", "title", "body", "ts", "key": "reminder:<limit>/<window>" }`:
+show `title` and `body` as given, and open the Usage screen when it's tapped.
+
+A `Done` alert also carries what the turn left behind, when the Mac knows it:
+`"changes": { "files": N, "added": N, "removed": N }` — the project's uncommitted
+changes, counted as the terminal header counts them (absent when there are none, or
+for an SSH project) — and `"summary": "…"`, the last paragraph of the answer a
+Claude session ended this turn with, as one line of at most 200 characters, which is
+most often the question the agent waits on (absent for other agents, and when no
+answer from this turn is found). Show the counts with the status and `summary` as the
+body. Older Macs send neither. A `Done` alert offering `reply` shows three buttons:
+Reply (typed, as today), Review Changes (opens the project's review screen) and Open
+Tab (opens the terminal, as a tap does).
 
 **Payload encryption.** The notification plaintext is JSON:
 ```
@@ -997,6 +1063,7 @@ retires the activity token (APNs) or the push token (FCM).
 | `{ "t": "control", "id": "<termId>", "owner": ControlOwner\|null }` | The terminal's control owner changed. If `owner` is not this phone, show the "take control" placeholder and stop driving size; if it is (or `null`), render live. |
 | `{ "t": "memory-changed", "project": "<owner name>" }` | A session-memory file changed on disk — usually an agent CLI writing through the lpm-memory skill while the Memory screen is open (FSEvents, ~500ms settle). `project` is the **owner** folder name, which for a duplicate is its original: refresh when it matches either the project you are showing or the owner you learned from that project's `dir`. Notes have no equivalent push. |
 | `{ "t": "limits-changed", "limits": AgentLimits, "claudeEnabled": bool, "now": unix MILLIS }` | A tool reported new plan usage. Carries the full snapshot — apply it directly, **do not re-request** `limits`. Sent only on a meaningful change (a re-report of identical numbers is suppressed on the Mac). `now` is the Mac's clock at send time, as on the `limits` reply: re-measure the offset from every push, since the phone may have been asleep — or the Mac's clock corrected — since the last one. |
+| `{ "t": "limitReminders", "reminders": [LimitReminder…] }` | A limit reminder was set, cleared or fired, from the desktop or any phone. Replace the list. Only from a Mac whose `features` has `"limitReminders"`. |
 | `{ "t": "composerDraft", "id": "<termId>", "text": "…", "rev": N, "origin": "mac"\|"<deviceId>" }` | The terminal composer's active-input text changed on another surface. Apply it to that terminal's composer input (see composer draft sync below). `origin` is `"mac"` for a desktop-typed draft, else the deviceId of the phone that sent it — drop the frame when `origin` is your own deviceId (your echo). `rev` is monotonic; drop a frame whose `rev` is ≤ the last one applied for this terminal. |
 | `{ "t": "updateProgress", "phase": "checking"\|"downloading"\|"installing"\|"idle", "progress": N }` | A step of an lpm install on the Mac, whoever started it. See [Updating lpm](#updating-lpm). |
 | `{ "t": "bye", "reason": "sleep"\|"quit"\|"off", "at": unix MILLIS }` | The desktop is about to close this connection on purpose: the machine is going to sleep (macOS and Windows), lpm is quitting, or remote control was turned off. Sent just before the socket closes — for `sleep`, just before the machine sleeps, so the socket may stay open until the phone notices it went quiet. Remember it per machine until the next `ready`, and say so ("asleep since 11:42 PM", "lpm was closed") instead of reporting the drop as a network problem; keep reconnecting as usual. Older desktops never send it. |
@@ -1261,7 +1328,7 @@ projects: [ { name, agentMs } ]   // busiest first
 agents:   [ { name, agentMs } ]   // "claude" | "codex" | other agent ids, busiest first
 workedRepos: [string]       // the repositories of the projects agents worked in this week
 linesAdded: N, linesRemoved: N    // the user's own commits; lockfiles and 5,000+ line file changes left out
-missing: [string]?          // paired computers that couldn't add their week
+missing: [string]?          // paired computers that couldn't add their week: offline, or no answer
 ```
 The card (desktop `weeklyRecapModel.ts` and `WeeklyRecapCard.tsx`, mirrored on both phones, light
 theme by default): title "My agents' week" and the week's range ("Oct 19 – 25"), or for a month

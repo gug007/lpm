@@ -1,11 +1,12 @@
 import { useState, type CSSProperties, type MouseEvent } from "react";
 import { toast } from "../notifications/toast";
-import { CheckForUpdate, QuitApp } from "../../bridge/commands";
+import { CheckForUpdate } from "../../bridge/commands";
 import { BrowserOpenURL, EventsEmit } from "../../bridge/runtime";
 import { isQuitChord, QUIT_LABEL, SETTINGS_CHORD } from "../appMenuKeys";
 import { GITHUB_REPO_URL } from "../githubIssue";
 import { useEventListener } from "../hooks/useEventListener";
 import { chordLabel, matchesChord } from "../keys";
+import { busyPlacesNow, requestQuit, useQuitGuard } from "../quitGuard";
 import { AboutDialog } from "./AboutDialog";
 import { MenuIcon } from "./icons";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
@@ -17,10 +18,6 @@ import { Tooltip } from "./ui/Tooltip";
 interface AppMenuButtonProps {
   onSettings: () => void;
   onFeedback: () => void;
-}
-
-function quit() {
-  QuitApp().catch((err: unknown) => toast.error(String(err)));
 }
 
 async function checkForUpdates() {
@@ -39,7 +36,8 @@ async function checkForUpdates() {
 
 /** Linux/Windows stand-in for the macOS app menu: Settings, About, updates and
  *  Quit, plus their Ctrl+, and Ctrl+Shift+Q keys. Quit by key asks first, since
- *  it stops every terminal and agent; a second deliberate press confirms. */
+ *  it stops every terminal and agent; a second deliberate press confirms. With
+ *  agents mid-task, the question lists them (QuitGuardHost). */
 export function AppMenuButton({ onSettings, onFeedback }: AppMenuButtonProps) {
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -53,7 +51,10 @@ export function AppMenuButton({ onSettings, onFeedback }: AppMenuButtonProps) {
         e.preventDefault();
         e.stopPropagation();
         if (e.repeat) return;
-        if (confirmQuit) quit();
+        if (confirmQuit) {
+          setConfirmQuit(false);
+          requestQuit();
+        } else if (useQuitGuard.getState().asking || busyPlacesNow().length > 0) requestQuit();
         else setConfirmQuit(true);
       } else if (matchesChord(e, SETTINGS_CHORD)) {
         e.preventDefault();
@@ -104,7 +105,7 @@ export function AppMenuButton({ onSettings, onFeedback }: AppMenuButtonProps) {
           <ContextMenuItem label="Check for Updates…" onClick={pick(() => void checkForUpdates())} />
           <ContextMenuItem label="About lpm" onClick={pick(() => setAboutOpen(true))} />
           <ContextMenuSeparator />
-          <ContextMenuItem label="Quit lpm" shortcut={QUIT_LABEL} onClick={pick(quit)} />
+          <ContextMenuItem label="Quit lpm" shortcut={QUIT_LABEL} onClick={pick(requestQuit)} />
         </ContextMenuShell>
       )}
       <AboutDialog open={aboutOpen} onClose={() => setAboutOpen(false)} />
@@ -116,7 +117,7 @@ export function AppMenuButton({ onSettings, onFeedback }: AppMenuButtonProps) {
         onCancel={() => setConfirmQuit(false)}
         onConfirm={() => {
           setConfirmQuit(false);
-          quit();
+          requestQuit();
         }}
       />
     </div>

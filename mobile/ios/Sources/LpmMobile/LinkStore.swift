@@ -78,6 +78,8 @@ final class LinkStore {
     @ObservationIgnored private var afterSheet: (() -> Void)?
     var reach: [UUID: MacReach] = [:]
     var tailscaleWorking = false
+    /// When this phone last sent the active Mac a wake signal.
+    var wakeSentAt: Date?
     var tailscaleFailure: String?
     var tailscalePage: TailscalePage?
     var summary: PairedSummary?

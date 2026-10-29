@@ -40,6 +40,15 @@ export function SharePngImage(b64Data, name, anchor) {
 export function AgentLimits() {
   return invoke("agent_limits");
 }
+export function LimitReminders() {
+  return invoke("limit_reminders");
+}
+export function SetLimitReminder(limit, window, resetsAt, name) {
+  return invoke("set_limit_reminder", { limit, window, resetsAt, name });
+}
+export function ClearLimitReminder(limit, window) {
+  return invoke("clear_limit_reminder", { limit, window });
+}
 export function ClaudeLimitsAccount(project) {
   return invoke("claude_limits_account", { project });
 }
@@ -279,6 +288,9 @@ export function GenerateBranchName(projectName, cwd, cli, model, effort, fast, g
 }
 export function GenerateCommitMessage(projectName, cwd, cli, model, effort, fast, files, taskDescription, genId = "") {
   return invoke("generate_commit_message", { projectName, cwd, cli, model, effort, fast, files, taskDescription, genId });
+}
+export function GenerateCommitSplit(projectName, cwd, cli, model, effort, fast, files, taskDescription, genId) {
+  return invoke("generate_commit_split", { projectName, cwd, cli, model, effort, fast, files, taskDescription, genId });
 }
 export function GeneratePRDescription(projectName, cwd, cli, model, effort, fast, base, genId = "") {
   return invoke("generate_pr_description", { projectName, cwd, cli, model, effort, fast, base, genId });
@@ -780,6 +792,9 @@ export function PullBranch(cwd, strategy, flags) {
 }
 export function QuitApp() {
   return invoke("quit_app");
+}
+export function QuitRequestHeard(seq) {
+  return invoke("quit_request_heard", { seq });
 }
 export function ReadBranchNameInstructions() {
   return invoke("read_branch_name_instructions");

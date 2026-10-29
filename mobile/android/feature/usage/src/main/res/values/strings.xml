@@ -177,4 +177,6 @@
         <item quantity="one">No tokens in the last %1$d day</item>
         <item quantity="other">No tokens in the last %1$d days</item>
     </plurals>
+    <string name="usage_remind_me">Remind me when the %1$s limit resets</string>
+    <string name="usage_reminder_set">" · reminder set"</string>
 </resources>

@@ -5,7 +5,6 @@ import cx.lpm.mobile.core.data.mac.Farewell
 import java.time.Instant
 import java.time.ZoneOffset
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -108,7 +107,10 @@ class ConnectionIssueTest {
         val copy = asleep!!.issueCopy("Studio", "phone", ZoneOffset.UTC)
         assertEquals("Studio is asleep", copy.title)
         assertEquals("Try now", IssueAction.Retry.label(asleep))
-        assertFalse(asleep.needsYou)
+        // Waking it is something this phone can do, so the notice earns a bar.
+        assertEquals(listOf(IssueAction.Wake, IssueAction.Retry), copy.actions)
+        assertEquals("Wake", IssueAction.Wake.label(asleep))
+        assertTrue(asleep.needsYou)
         assertTrue(ConnectionIssue.NotRecognized.needsYou)
         assertEquals(
             "This phone is offline",

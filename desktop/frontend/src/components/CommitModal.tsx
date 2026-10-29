@@ -38,6 +38,8 @@ import { SideBySideDiffModal } from "./SideBySideDiffModal";
 import { ConflictNotice } from "./ConflictNotice";
 import { Tooltip } from "./ui/Tooltip";
 import { InstructionsChip } from "./InstructionsChip";
+import { CommitSplitView } from "./CommitSplitView";
+import { useCommitSplit } from "../hooks/useCommitSplit";
 
 type ChangedFile = main.ChangedFile;
 
@@ -76,6 +78,7 @@ export function CommitModal({
   const gen = useAIGeneration(projectName);
   const generating = gen.generating;
   const ai = useAIPicker(open, projectName);
+  const split = useCommitSplit(projectName, projectPath, gen, ai);
   const [commitMenuOpen, setCommitMenuOpen] = useState(false);
   const [showContext, setShowContext] = useState(false);
   const [taskDescription, setTaskDescription] = useState("");
@@ -109,6 +112,7 @@ export function CommitModal({
     setCollapsed(new Set());
     setShowContext(false);
     setTaskDescription("");
+    split.setGroups(null);
     setLoading(true);
     GitChangedFiles(projectPath)
       .then((f) => {
@@ -293,6 +297,13 @@ export function CommitModal({
   const canAutoCommit =
     !busy && autoGenerate && ai.anyAvailable && selected.size > 0;
 
+  const canSplit = !busy && !generating && ai.anyAvailable && selected.size >= 2;
+
+  const splitIntoCommits = () => {
+    setCommitMenuOpen(false);
+    void split.plan(Array.from(selected), taskDescription.trim(), setMessage);
+  };
+
   const submit = async (andPush = false) => {
     if (!canCommit) return;
     setBusy("commit");
@@ -378,11 +389,11 @@ export function CommitModal({
         onClose={closeModal}
         backdrop={false}
         draggable
-        closeOnEscape={!busy}
+        closeOnEscape={!busy && split.busy === false}
         zIndexClassName="z-[60]"
         contentClassName="w-[640px] max-h-[80vh] flex flex-col rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
       >
-        <div className="flex flex-col gap-4 p-5">
+        <div className={`flex flex-col gap-4 p-5 ${split.groups ? "hidden" : ""}`}>
           <div
             data-modal-drag-handle
             className="-mx-5 -mt-5 flex items-center justify-between px-5 pb-1 pt-5"
@@ -586,7 +597,9 @@ export function CommitModal({
           </div>
         </div>
 
-        <div className="flex items-center justify-between border-t border-[var(--border)] px-5 py-3">
+        <div
+          className={`flex items-center justify-between border-t border-[var(--border)] px-5 py-3 ${split.groups ? "hidden" : ""}`}
+        >
           <span className="flex items-center gap-3 text-[11px] text-[var(--text-muted)]">
             {canCommit && (
               <kbd className="rounded bg-[var(--bg-hover)] px-1 py-0.5 text-[11px] font-medium text-[var(--text-secondary)]">
@@ -634,7 +647,7 @@ export function CommitModal({
               </button>
               <button
                 onClick={() => setCommitMenuOpen(!commitMenuOpen)}
-                disabled={!canCommit && !canAutoCommit}
+                disabled={!canCommit && !canAutoCommit && !canSplit}
                 className="rounded-r-lg border-l border-[var(--bg-primary)]/20 bg-[var(--text-primary)] px-1.5 py-1.5 text-[var(--bg-primary)]/70 transition-all hover:text-[var(--bg-primary)] hover:opacity-90 disabled:opacity-30"
               >
                 <ChevronDownIcon />
@@ -659,6 +672,19 @@ export function CommitModal({
                       {opt.label}
                     </button>
                   ))}
+                  {ai.anyAvailable && (
+                    <>
+                      <div className="my-1 border-t border-[var(--border)]" />
+                      <button
+                        onClick={splitIntoCommits}
+                        disabled={!canSplit}
+                        title="Group the selected changes into a few commits by topic"
+                        className="flex w-full items-center px-3 py-1.5 text-left text-xs text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        Split into Commits…
+                      </button>
+                    </>
+                  )}
                   {autoGenerate && ai.anyAvailable && (
                     <>
                       <div className="my-1 border-t border-[var(--border)]" />
@@ -684,6 +710,16 @@ export function CommitModal({
             </div>
           </div>
         </div>
+        {split.groups && (
+          <CommitSplitView
+            split={split}
+            onClose={closeModal}
+            onDone={() => {
+              onCommitted();
+              onClose();
+            }}
+          />
+        )}
       </Modal>
       {createPortal(
         <SideBySideDiffModal

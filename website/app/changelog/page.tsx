@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { DownloadFooter } from "@/components/download-footer";
-import { changelogDays, getChangelogReleases } from "@/lib/changelog";
+import { getChangelogReleases } from "@/lib/changelog";
+import { changelogDays, changelogMonths } from "@/lib/changelog-days";
 import { CHANGELOG_PATH, REPO_URL } from "@/lib/links";
 import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
-import { ChangelogEntry } from "./_components/changelog-entry";
+import { ChangelogBrowser } from "./_components/changelog-browser";
 
 export const revalidate = 3600;
 
@@ -31,12 +32,6 @@ export const metadata: Metadata = {
   },
 };
 
-const monthFmt = new Intl.DateTimeFormat("en-US", {
-  month: "long",
-  year: "numeric",
-  timeZone: "UTC",
-});
-
 const fullDateFmt = new Intl.DateTimeFormat("en-US", {
   month: "long",
   day: "numeric",
@@ -47,7 +42,7 @@ const fullDateFmt = new Intl.DateTimeFormat("en-US", {
 export default async function ChangelogPage() {
   const releases = await getChangelogReleases();
   const days = changelogDays(releases);
-  const months = [...Map.groupBy(days, (day) => day.date.slice(0, 7))];
+  const months = changelogMonths(days);
   const firstDate = days[days.length - 1].date;
   const structuredData = [
     webPageJsonLd({
@@ -63,12 +58,12 @@ export default async function ChangelogPage() {
   ];
 
   return (
-    <article className="max-w-3xl mx-auto px-6 pt-28 pb-16 sm:pt-32 sm:pb-20">
+    <article className="max-w-3xl mx-auto px-6 pt-28 pb-16 sm:pt-32 sm:pb-20 lg:max-w-5xl">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: jsonLdString(structuredData) }}
       />
-      <header>
+      <header className="max-w-3xl">
         <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">
           lpm changelog
         </h1>
@@ -82,21 +77,7 @@ export default async function ChangelogPage() {
         </p>
       </header>
 
-      {months.map(([month, monthDays]) => (
-        <section key={month} aria-labelledby={`month-${month}`} className="mt-14">
-          <h2
-            id={`month-${month}`}
-            className="border-b border-gray-200 pb-3 text-xs font-semibold uppercase tracking-widest text-gray-500 dark:border-gray-800 dark:text-gray-400"
-          >
-            {monthFmt.format(new Date(month))}
-          </h2>
-          <ol className="mt-8 space-y-10">
-            {monthDays.map((day) => (
-              <ChangelogEntry key={day.date} day={day} />
-            ))}
-          </ol>
-        </section>
-      ))}
+      <ChangelogBrowser months={months} total={releases.length} />
 
       <DownloadFooter href={`${REPO_URL}/releases`} label="All releases on GitHub" />
     </article>

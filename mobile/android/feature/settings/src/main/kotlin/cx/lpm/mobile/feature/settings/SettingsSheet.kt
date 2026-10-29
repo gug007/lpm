@@ -59,7 +59,8 @@ private fun SettingsRoute(
             onAppearanceChange = viewModel::setAppearance,
             onOpen = onOpen,
             onPrivacyPolicy = { context.openPrivacyPolicy() },
-            terminalControls = slots.terminalControls
+            terminalControls = slots.terminalControls,
+            security = { SecuritySection() }
         )
     }
 }

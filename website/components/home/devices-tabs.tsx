@@ -95,8 +95,6 @@ export function DevicesTabs({
             id={tid}
             aria-selected={selected}
             aria-controls={panelId}
-            aria-labelledby={`${tid}-label`}
-            aria-describedby={`${tid}-line`}
             tabIndex={selected ? 0 : -1}
             onClick={() => onChange(id)}
             className={`relative inline-flex h-9 cursor-pointer items-center gap-2 overflow-hidden rounded-full px-3.5 text-[13px] transition-[color,background-color,box-shadow] sm:px-4 sm:text-sm md:h-auto md:flex-col md:items-start md:gap-1 md:rounded-2xl md:px-4 md:pb-4 md:pt-3.5 md:text-left ${
@@ -108,12 +106,11 @@ export function DevicesTabs({
             <span className="inline-flex items-center gap-2">
               <Icon className="hidden h-4 w-4 sm:block" aria-hidden="true" />
               <span className="sm:hidden">{short}</span>
-              <span id={`${tid}-label`} className="hidden sm:inline">
+              <span className="hidden sm:inline">
                 {label}
               </span>
             </span>
             <span
-              id={`${tid}-line`}
               className="hidden text-[13px] font-normal leading-snug text-gray-500 md:block dark:text-gray-400"
             >
               {line}

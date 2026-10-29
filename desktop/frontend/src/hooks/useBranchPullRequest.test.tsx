@@ -20,7 +20,13 @@ vi.mock("../../bridge/runtime", () => ({
 }));
 
 import { useBranchPr } from "../store/branchPr";
-import { FRESH_MS, GIT_CHANGE_DELAY_MS, POLL_MS, useBranchPullRequest } from "./useBranchPullRequest";
+import {
+  CHECKS_POLL_MS,
+  FRESH_MS,
+  GIT_CHANGE_DELAY_MS,
+  POLL_MS,
+  useBranchPullRequest,
+} from "./useBranchPullRequest";
 
 const PR: PullRequestInfo = {
   number: 9,
@@ -135,6 +141,33 @@ describe("useBranchPullRequest", () => {
       vi.advanceTimersByTime(POLL_MS * 3);
     });
     expect(mocks.lookup).toHaveBeenCalledTimes(2);
+  });
+
+  it("polls faster while CI checks are still running, and slows down once they end", async () => {
+    mocks.lookup.mockResolvedValue({
+      ...PR,
+      checks: [{ name: "test", workflow: "CI", state: "pending", url: "" }],
+    });
+    render("feat");
+    await flush();
+    for (let i = 0; i < 3; i++) {
+      await act(async () => {
+        vi.advanceTimersByTime(CHECKS_POLL_MS);
+      });
+    }
+    expect(mocks.lookup).toHaveBeenCalledTimes(4);
+    mocks.lookup.mockResolvedValue({
+      ...PR,
+      checks: [{ name: "test", workflow: "CI", state: "pass", url: "" }],
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(CHECKS_POLL_MS);
+    });
+    expect(mocks.lookup).toHaveBeenCalledTimes(5);
+    await act(async () => {
+      vi.advanceTimersByTime(CHECKS_POLL_MS * 2);
+    });
+    expect(mocks.lookup).toHaveBeenCalledTimes(5);
   });
 
   it("shows nothing when the lookup fails", async () => {

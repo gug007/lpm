@@ -376,6 +376,12 @@ class LpmClient internal constructor(
         // Seen agents, `archiveStatus`, `markStatusSeen` and `markStatusUnread`.
         const val AGENT_ARCHIVE_FEATURE = "agentArchive"
 
+        // `limitReminders`, `setLimitReminder` and `clearLimitReminder`.
+        const val LIMIT_REMINDERS_FEATURE = "limitReminders"
+
+        // `wake`: waking another paired machine.
+        const val WAKE_FEATURE = "wake"
+
         const val OFFLINE_HINT =
             "Can't reach your Mac. On cellular, make sure Tailscale is connected on both devices."
 

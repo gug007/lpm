@@ -1181,6 +1181,16 @@ pub fn generate_claude_statusline(
     crate::claude_statusline::finalize_ai_statusline(&raw, &description, &selection)
 }
 
+/// The diff of the files a commit takes, cut to fit a prompt. Errs when there
+/// is none.
+pub(crate) fn commit_diff(cwd: &str, files: Vec<String>) -> Result<String, String> {
+    let diff = crate::git::git_diff(cwd.to_string(), files)?;
+    if diff.trim().is_empty() {
+        return Err("no diff to summarize".into());
+    }
+    Ok(truncate_diff(&diff, MAX_DIFF))
+}
+
 #[tauri::command(async)]
 pub fn generate_commit_message(
     app: AppHandle,
@@ -1194,11 +1204,7 @@ pub fn generate_commit_message(
     task_description: String,
     gen_id: String,
 ) -> Result<String, String> {
-    let diff = crate::git::git_diff(cwd.clone(), files)?;
-    if diff.trim().is_empty() {
-        return Err("no diff to summarize".into());
-    }
-    let diff = truncate_diff(&diff, MAX_DIFF);
+    let diff = commit_diff(&cwd, files)?;
     let instr = crate::templates::resolve_instructions(&project_name, "commit");
     let mut prompt = COMMIT_MSG_PROMPT.to_string();
     if !instr.is_empty() {

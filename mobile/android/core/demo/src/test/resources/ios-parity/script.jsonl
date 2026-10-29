@@ -99,6 +99,7 @@
 {"at": 2300, "frame": {"t": "history", "project": "storefront", "q": ""}}
 {"at": 2300, "frame": {"t": "history", "project": "storefront", "q": "CHECKOUT"}}
 {"at": 2300, "frame": {"t": "historyQuery", "before": {"at": 1790033400123, "seq": 4}}}
+{"at": 2300, "frame": {"t": "limitReminders"}}
 {"at": 2400, "frame": {"t": "composerActions"}}
 {"at": 2400, "frame": {"t": "slash", "id": "demo-storefront-claude", "project": "storefront"}}
 {"at": 2400, "frame": {"t": "slash", "id": "demo-storefront-1", "project": "storefront"}}
@@ -108,6 +109,7 @@
 {"at": 2400, "frame": {"t": "mentions", "project": "mobile-app"}}
 {"at": 2400, "frame": {"t": "mentions", "project": "design-system"}}
 {"at": 2400, "frame": {"t": "mentions", "project": "zzz"}}
+{"at": 2400, "frame": {"t": "setLimitReminder", "limit": "codex", "window": "weekly", "resetsAt": 1792300000, "name": "Codex"}}
 {"at": 2500, "frame": {"t": "transform", "reqId": "t1", "text": "can you please just fix the checkout   form. it is very slow", "instruction": "Make this text shorter and more concise.", "variants": 5}}
 {"at": 2500, "frame": {"t": "transform", "reqId": 9, "text": "hey i want you to add tests", "instruction": "Fix the grammar and spelling of this text.", "variants": 2}}
 {"at": 2500, "frame": {"t": "transform", "reqId": "t3", "text": "don't break it", "instruction": "Make this text more detailed and specific.", "variants": 7}}
@@ -126,11 +128,15 @@
 {"at": 2600, "frame": {"t": "actionBody", "project": "blog", "key": "nope"}}
 {"at": 2600, "frame": {"t": "serviceBody", "project": "storefront", "key": "web"}}
 {"at": 2600, "frame": {"t": "serviceBody", "project": "storefront", "key": "nope"}}
+{"at": 2600, "frame": {"t": "setLimitReminder", "limit": "claude:work", "window": "fiveHour", "resetsAt": 1792100000, "name": "Work"}}
+{"at": 2800, "frame": {"t": "setLimitReminder", "limit": "codex", "window": "weekly", "resetsAt": 1792400000, "name": "Codex"}}
 {"at": 3000, "frame": {"t": "sub", "id": "demo-storefront-1"}}
+{"at": 3000, "frame": {"t": "clearLimitReminder", "limit": "claude:work", "window": "fiveHour"}}
 {"at": 3050, "frame": {"t": "in", "id": "demo-storefront-1", "d": "ls\r"}}
 {"at": 3100, "frame": {"t": "in", "id": "demo-storefront-1", "d": "git status\r"}}
 {"at": 3150, "frame": {"t": "in", "id": "demo-storefront-1", "d": "npm test\r"}}
 {"at": 3200, "frame": {"t": "in", "id": "demo-storefront-1", "d": "echo hello world\r"}}
+{"at": 3200, "frame": {"t": "clearLimitReminder", "limit": "nope", "window": "weekly"}}
 {"at": 3250, "frame": {"t": "in", "id": "demo-storefront-1", "d": "foo bar\r"}}
 {"at": 3300, "frame": {"t": "in", "id": "demo-storefront-1", "d": "git log\r"}}
 {"at": 3350, "frame": {"t": "in", "id": "demo-storefront-1", "d": "git push\r"}}

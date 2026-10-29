@@ -1,6 +1,8 @@
 package cx.lpm.mobile.core.data.push
 
+import cx.lpm.mobile.core.model.int
 import cx.lpm.mobile.core.model.long
+import cx.lpm.mobile.core.model.obj
 import cx.lpm.mobile.core.model.objects
 import cx.lpm.mobile.core.model.string
 import cx.lpm.mobile.core.model.strings
@@ -78,7 +80,9 @@ data class PushAlert(
     /** The alert's own report time, which an answer names back. */
     val ts: Long? = null,
     /** The buttons it offers; only a terminal alert that names its terminal and report. */
-    val actions: List<AgentAnswerAction> = emptyList()
+    val actions: List<AgentAnswerAction> = emptyList(),
+    /** The words a finished agent ended its turn on, most often its question. */
+    val summary: String? = null
 ) {
     /** What the Mac needs to take an answer to this alert. */
     fun answer(action: AgentAnswerAction, text: String? = null): AgentAnswer? {
@@ -106,11 +110,12 @@ data class PushAlert(
             val ts = o.long("ts")
             val answerable = target != "automation" && terminalId != null && key.isNotEmpty() &&
                 ts != null
+            val changes = changesText(o.obj("changes"))
             return PushAlert(
                 serverId = o.string("serverId")?.takeIf { it.isNotEmpty() },
                 project = project,
                 title = label.ifEmpty { project },
-                body = body(terminal, status),
+                body = body(terminal, status) + changes?.let { " · $it" }.orEmpty(),
                 kind = kind(target, status),
                 target = target,
                 terminalId = terminalId,
@@ -122,8 +127,17 @@ data class PushAlert(
                     AgentAnswerAction.offered(o.strings("actions").orEmpty())
                 } else {
                     emptyList()
-                }
+                },
+                summary = o.string("summary")?.takeIf { it.isNotEmpty() }
             )
+        }
+
+        /** "4 files, +143 −21": what the project's uncommitted changes come to. */
+        fun changesText(changes: JsonObject?): String? {
+            val files = changes?.int("files")?.takeIf { it > 0 } ?: return null
+            val added = changes.int("added") ?: 0
+            val removed = changes.int("removed") ?: 0
+            return "$files ${if (files == 1) "file" else "files"}, +$added −$removed"
         }
 
         private fun body(terminal: String, status: String): String {

@@ -1,6 +1,7 @@
 package cx.lpm.mobile.core.protocol
 
 import cx.lpm.mobile.core.model.AgentStats
+import cx.lpm.mobile.core.model.LimitReminder
 import cx.lpm.mobile.core.model.LimitsSnapshot
 import cx.lpm.mobile.core.model.MacBuild
 import cx.lpm.mobile.core.model.MacUpdateCheck
@@ -8,11 +9,13 @@ import cx.lpm.mobile.core.model.MacUpdateStep
 import cx.lpm.mobile.core.model.MachinePairOffer
 import cx.lpm.mobile.core.model.RemoteMachine
 import cx.lpm.mobile.core.model.USAGE_GENERIC_ERROR
+import cx.lpm.mobile.core.model.WakeTarget
 import cx.lpm.mobile.core.model.WeeklyRecap
 import cx.lpm.mobile.core.model.bool
 import cx.lpm.mobile.core.model.list
 import cx.lpm.mobile.core.model.long
 import cx.lpm.mobile.core.model.obj
+import cx.lpm.mobile.core.model.objects
 import cx.lpm.mobile.core.model.reqIdString
 import cx.lpm.mobile.core.model.string
 import cx.lpm.mobile.core.model.strings
@@ -41,7 +44,8 @@ internal val sessionParsers = parsers {
             hosts = o.strings("hosts").orEmpty(),
             platform = o.string("platform"),
             build = MacBuild.parse(o),
-            features = o.strings("features").orEmpty().toSet()
+            features = o.strings("features").orEmpty().toSet(),
+            wake = o.objects("wake").orEmpty().mapNotNull(WakeTarget::parse)
         )
     }
     put("bye") { o -> Inbound.Bye(reason = o.str("reason"), at = o.long("at")) }
@@ -78,6 +82,13 @@ internal val sessionParsers = parsers {
         )
     }
     put("limits-changed") { o -> Inbound.LimitsChanged(LimitsSnapshot.parse(o)) }
+    put("limitReminders") { o ->
+        Inbound.LimitReminders(
+            reminders = o.objects("reminders").orEmpty().mapNotNull(LimitReminder::parse),
+            error = if (o.bool("ok") == false) o.string("error") ?: USAGE_GENERIC_ERROR else null
+        )
+    }
+    put("wake") { o -> Inbound.Wake(ok = o.ok) }
     put("ttsSpeak") { o ->
         Inbound.TtsSpeak(
             reqId = o.str("reqId"),

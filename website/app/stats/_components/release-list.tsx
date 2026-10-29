@@ -1,5 +1,6 @@
 import { ChevronDown } from "lucide-react";
 import type { ReleaseStat } from "@/lib/github-stats";
+import { OlderReleasesTable } from "./older-releases-table";
 import { ReleaseRow } from "./release-row";
 
 const SHOWN = 25;
@@ -30,11 +31,7 @@ export function ReleaseList({ releases }: { releases: ReleaseStat[] }) {
               Hide older releases
             </span>
           </summary>
-          <ul className={`mt-2 ${LIST}`}>
-            {older.map((r) => (
-              <ReleaseRow key={r.tag} release={r} />
-            ))}
-          </ul>
+          <OlderReleasesTable releases={older} />
         </details>
       )}
     </>

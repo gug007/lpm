@@ -75,7 +75,10 @@ struct UsageScreen: View {
                 now: now,
                 macNow: macNow,
                 title: card.title,
-                subtitle: card.subtitle
+                subtitle: card.subtitle,
+                reminder: { window, win in
+                    model.usage.reminder(limit: card.key, window: window, win: win, name: card.title, now: now)
+                }
             )
         }
 
@@ -98,7 +101,10 @@ struct UsageScreen: View {
         }
 
         if let codex = codexEntry(snapshot) {
-            UsageProviderCardView(data: codex, now: now, macNow: macNow, title: "Codex")
+            UsageProviderCardView(data: codex, now: now, macNow: macNow, title: "Codex",
+                                  reminder: { window, win in
+                                      model.usage.reminder(limit: "codex", window: window, win: win, name: "Codex", now: now)
+                                  })
         } else {
             UsageEmptyPanel(
                 provider: "codex",

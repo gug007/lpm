@@ -5,6 +5,7 @@ import { fileSearchCommands } from "./commands/fileSearch";
 import { gitCommands } from "./commands/git";
 import { jobCommands } from "./commands/jobs";
 import { projectCommands } from "./commands/projects";
+import { reminderCommands } from "./commands/reminders";
 import { serviceCommands } from "./commands/services";
 import { settingsCommands } from "./commands/settings";
 import { statusCommands } from "./commands/status";
@@ -27,6 +28,7 @@ export const HANDLERS: CommandMap = {
   ...copyCommands,
   ...actionCommands,
   ...usageCommands,
+  ...reminderCommands,
   ...jobCommands,
   ...toolCommands,
 };

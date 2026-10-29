@@ -114,6 +114,8 @@ final class AppModel {
     // scans history files off the socket), so a generation-guarded timeout keeps a
     // stale timeout from clearing a newer in-flight load.
     @ObservationIgnored private let statsTimeout = GenerationTimeout<String>()
+    // Reconnecting after a Wake tap; another tap starts it over.
+    @ObservationIgnored var wakeRetry: Task<Void, Never>?
 
     // Saved Macs and which one is live. The live session talks to one Mac at a
     // time; `activeMacId` names it. An empty `macs` list means "not paired with any
@@ -245,6 +247,15 @@ final class AppModel {
     }
     var notifyWeeklyRecap: Bool = AppModel.loadBoolPref(AppModel.notifyWeeklyRecapKey) {
         didSet { persistNotifyPrefs(); syncPushRegistration() }
+    }
+    // How much each project is heard about: "waiting" (only when it needs you) or
+    // "off". A project not named here gets everything the toggles above allow.
+    var notifyProjectLevels: [String: String] =
+        UserDefaults.standard.dictionary(forKey: AppModel.notifyProjectsKey) as? [String: String] ?? [:] {
+        didSet {
+            UserDefaults.standard.set(notifyProjectLevels, forKey: Self.notifyProjectsKey)
+            syncPushRegistration()
+        }
     }
     // The live Mac's agents on the Lock Screen while any is at work.
     var liveActivitiesEnabled: Bool = AppModel.loadBoolPref(AppModel.liveActivitiesKey) {
@@ -1450,7 +1461,8 @@ final class AppModel {
                              notifyAutomationStarted: payload.automationStarted,
                              notifyAutomationDone: payload.automationDone,
                              notifyAutomationError: payload.automationError,
-                             notifyWeeklyRecap: payload.weeklyRecap)
+                             notifyWeeklyRecap: payload.weeklyRecap,
+                             notifyProjects: payload.projects)
     }
 
     /// What every Mac is told: the APNs token, this build's APNs environment, the
@@ -1468,7 +1480,8 @@ final class AppModel {
             automationStarted: notifyEnabled && notifyAutomationStarted,
             automationDone: notifyEnabled && notifyAutomationDone,
             automationError: notifyEnabled && notifyAutomationError,
-            weeklyRecap: notifyEnabled && notifyWeeklyRecap)
+            weeklyRecap: notifyEnabled && notifyWeeklyRecap,
+            projects: notifyEnabled ? notifyProjectLevels : [:])
     }
 
     /// Register with every saved Mac the live session doesn't cover. Skipped in Demo
@@ -1522,6 +1535,7 @@ final class AppModel {
     static let notifyAutomationDoneKey = "lpm.notify.automation.done"
     static let notifyAutomationErrorKey = "lpm.notify.automation.error"
     static let notifyWeeklyRecapKey = "lpm.notify.weeklyRecap"
+    static let notifyProjectsKey = "lpm.notify.projects"
     static let liveActivitiesKey = "lpm.notify.liveActivity"
 
     // Absent keys default to enabled, so a fresh install opts in to every push type
@@ -2713,6 +2727,9 @@ final class AppModel {
         c.onAdvertisedHosts = { [weak self] serverId, hosts in
             self?.mergeAdvertisedHosts(serverId: serverId, hosts: hosts)
         }
+        c.onWakeTargets = { [weak self] serverId, targets in
+            self?.rememberWakeTargets(serverId: serverId, targets: targets)
+        }
         c.onFarewell = { [weak self, weak c] reason, at in
             guard let self, let c, c === self.client else { return }
             self.noteFarewell(reason, at: at)
@@ -2835,6 +2852,7 @@ final class AppModel {
     private func wireUsage(_ c: LpmClient) {
         c.onLimits = { [weak self] snapshot, error in self?.usage.apply(snapshot, error: error) }
         c.onLimitsChanged = { [weak self] snapshot in self?.usage.applyPush(snapshot) }
+        c.onLimitReminders = { [weak self] reminders, error in self?.usage.applyReminders(reminders, error: error) }
     }
 
     private func wireTerminals(_ c: LpmClient) {

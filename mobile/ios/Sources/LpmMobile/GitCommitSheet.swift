@@ -81,7 +81,10 @@ struct GitCommitSheet: View {
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 CommitButtons(busy: busy, enabled: canCommit) {
-                    model.git.commitAndPush(project, message: trimmedMessage, files: selectedPaths)
+                    let (message, files) = (trimmedMessage, selectedPaths)
+                    AppLock.shared.confirm("Commit and push \(project)") {
+                        model.git.commitAndPush(project, message: message, files: files)
+                    }
                 } commitOnly: {
                     model.git.commit(project, message: trimmedMessage, files: selectedPaths)
                 }

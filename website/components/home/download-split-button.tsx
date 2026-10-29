@@ -120,7 +120,6 @@ export function DownloadSplitButton({
                 <a
                   key={entry.platform}
                   href={entry.href}
-                  aria-label={entry.ariaLabel}
                   onClick={() =>
                     trackDownload({
                       source,

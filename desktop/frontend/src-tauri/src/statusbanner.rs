@@ -89,14 +89,18 @@ pub fn reads_answer(entry: &StatusEntry) -> bool {
 /// It waits for the transcript and reads it, so keep it off any thread someone
 /// is waiting on. An answer from before this turn is not this turn's news.
 pub fn last_answer(project: &str, entry: &StatusEntry) -> Option<String> {
-    let session = finished_claude_session(entry)?;
+    finished_claude_session(entry)?;
+    first_line(&turn_answer(project, &entry.key, entry.turn_start)?)
+}
+
+/// The answer the Claude session behind `key` ended its turn with, once the
+/// transcript has settled. Blocks like `last_answer`.
+pub fn turn_answer(project: &str, key: &str, turn_start: i64) -> Option<String> {
+    let session = key.strip_prefix(AgentKind::Claude.key_prefix())?;
     std::thread::sleep(TRANSCRIPT_SETTLE);
     let answer = newest_answer(project, AgentKind::Claude.id(), session).ok()??;
-    let this_turn = entry.turn_start <= 0 || answer.at.is_some_and(|at| at >= entry.turn_start);
-    if !this_turn {
-        return None;
-    }
-    first_line(&answer.text)
+    let this_turn = turn_start <= 0 || answer.at.is_some_and(|at| at >= turn_start);
+    this_turn.then_some(answer.text)
 }
 
 fn first_line(text: &str) -> Option<String> {

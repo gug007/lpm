@@ -200,6 +200,8 @@ internal class LinkUpkeep(private val s: MacSession) {
 
             IssueAction.Details -> s.link.update { it.copy(sheetOpen = true) }
 
+            IssueAction.Wake -> s.wake.wakeActive()
+
             IssueAction.OpenAdmin, IssueAction.PhoneSettings, IssueAction.EnterNewCode -> Unit
         }
     }

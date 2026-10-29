@@ -16,6 +16,28 @@ extension DemoServer {
                 self?.limitsPayload(t: "limits-changed", ok: nil, advanced: true)
             }
         }
+        register("limitReminders") { [weak self] _ in self?.pushReminders() }
+        register("setLimitReminder") { [weak self] o in
+            guard let self else { return }
+            let limit = o["limit"] as? String ?? "", window = o["window"] as? String ?? ""
+            self.world.limitReminders.removeAll { $0["limit"] as? String == limit && $0["window"] as? String == window }
+            self.world.limitReminders.append(["limit": limit, "window": window,
+                                              "resetsAt": o["resetsAt"] as? Int ?? 0,
+                                              "name": o["name"] as? String ?? ""])
+            self.pushReminders()
+        }
+        register("clearLimitReminder") { [weak self] o in
+            guard let self else { return }
+            let limit = o["limit"] as? String ?? "", window = o["window"] as? String ?? ""
+            self.world.limitReminders.removeAll { $0["limit"] as? String == limit && $0["window"] as? String == window }
+            self.pushReminders()
+        }
+    }
+
+    private func pushReminders() {
+        pushAfter(0.2) { [weak self] in
+            ["t": "limitReminders", "ok": true, "reminders": self?.world.limitReminders ?? []]
+        }
     }
 
     /// Built at fire time so every window — and the sender's clock stamp, which

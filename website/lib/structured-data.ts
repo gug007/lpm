@@ -1,5 +1,6 @@
 import { APP_STORE_URL, SITE_URL } from "@/lib/links";
 import sitemapDates from "@/lib/sitemap-dates.json";
+import { LESSON_CHAPTERS } from "@/lib/youtube-chapters";
 import {
   youtubeEmbedUrl,
   youtubeLesson,
@@ -142,17 +143,30 @@ export function screenRecordingJsonLd(id: ScreenRecordingId) {
   };
 }
 
+const isoDuration = (seconds: number): string =>
+  `PT${Math.floor(seconds / 60)}M${seconds % 60}S`;
+
 export function youtubeLessonJsonLd(lesson: YouTubeLessonId) {
   const { id, name, description, uploadDate } = youtubeLesson(lesson);
+  const { seconds, chapters } = LESSON_CHAPTERS[lesson];
+  const url = youtubeWatchUrl(id);
   return {
     "@context": "https://schema.org",
     "@type": "VideoObject",
     name,
     description,
-    url: youtubeWatchUrl(id),
+    url,
     embedUrl: youtubeEmbedUrl(id),
     thumbnailUrl: youtubeThumbnailUrl(id),
     uploadDate,
+    duration: isoDuration(seconds),
+    hasPart: chapters.map(([start, clipName], i) => ({
+      "@type": "Clip",
+      name: clipName,
+      startOffset: start,
+      endOffset: chapters[i + 1]?.[0] ?? seconds,
+      url: `${url}&t=${start}s`,
+    })),
   };
 }
 

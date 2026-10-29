@@ -55,6 +55,10 @@ pub(crate) struct Device {
     pub(crate) push_automation_done: bool,
     pub(crate) push_automation_error: bool,
     pub(crate) push_weekly_recap: bool,
+    // Projects the phone hears less about ("waiting" or "off"), by project name;
+    // any project not named hears everything (remote/notify_levels.rs).
+    #[serde(skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub(crate) push_projects: std::collections::BTreeMap<String, String>,
     // The phone shows this machine's agents live (`liveActivity`): an iPhone's
     // Live Activity, updated through its own APNs token (live_token, hex, in
     // live_env), or an Android phone's ongoing notification, sent to its push
@@ -108,6 +112,7 @@ impl Default for Device {
             push_automation_done: false,
             push_automation_error: false,
             push_weekly_recap: false,
+            push_projects: Default::default(),
             live_updates: false,
             live_token: String::new(),
             live_env: String::new(),

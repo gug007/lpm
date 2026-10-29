@@ -44,6 +44,8 @@ final class LpmClient: NSObject {
     var onLimits: ((_ snapshot: LimitsSnapshot?, _ error: String?) -> Void)?
     var onWeeklyRecap: ((_ pick: RecapPick, _ recap: WeeklyRecap?, _ error: String?) -> Void)?
     var onLimitsChanged: ((_ snapshot: LimitsSnapshot) -> Void)?
+    var onLimitReminders: ((_ reminders: [LimitReminder], _ error: String?) -> Void)?
+    var onWake: ((_ ok: Bool) -> Void)?
     var onSpeech: ((_ reqId: String, _ audio: String?, _ error: String?) -> Void)?
     var onTerminals: ((_ project: String, _ terminals: [TerminalInfo]) -> Void)?
     var onSlash: ((_ id: String, _ commands: [SlashCommand]) -> Void)?
@@ -121,6 +123,7 @@ final class LpmClient: NSObject {
     // the frame's serverId — never the active record, which a pairing connection
     // hasn't been assigned to yet when `ready` lands.
     var onAdvertisedHosts: ((_ serverId: String?, _ hosts: [String]) -> Void)?
+    var onWakeTargets: ((_ serverId: String?, _ targets: [WakeTarget]) -> Void)?
     // The lpm release the Mac runs, on every `paired` and `ready`. Nil from a
     // build too old to report it.
     var onBuild: ((_ build: MacBuild?) -> Void)?
@@ -260,6 +263,8 @@ final class LpmClient: NSObject {
     static let liveActivityFeature = "liveActivity"
     static let weeklyRecapFeature = "weeklyRecap"
     static let recapMonthFeature = "recapMonth"
+    static let limitRemindersFeature = "limitReminders"
+    static let wakeFeature = "wake"
     static let agentArchiveFeature = "agentArchive"
 
     // Requests made while the link is down or half-dead, delivered on the next
@@ -500,7 +505,8 @@ final class LpmClient: NSObject {
                 "features": [ChunkedUpload.feature, Self.serviceLogsWatchFeature, Self.agentAnswersFeature,
                              Self.restartTerminalFeature, Self.agentLaunchFeature, Self.agentSessionsFeature,
                              Self.actionPromptFeature, Self.listDirFeature, Self.tabMenuFeature,
-                             Self.weeklyRecapFeature, Self.recapMonthFeature, Self.agentArchiveFeature],
+                             Self.weeklyRecapFeature, Self.recapMonthFeature, Self.agentArchiveFeature,
+                             Self.limitRemindersFeature],
             ]))
         }
     }
@@ -867,6 +873,14 @@ final class LpmClient: NSObject {
         send(Wire.stats(days: days, machine: machine, fresh: fresh))
     }
     func requestLimits() { send(Wire.limits()) }
+    func requestLimitReminders() { send(Wire.limitReminders()) }
+    func setLimitReminder(limit: String, window: String, resetsAt: Int, name: String) {
+        send(Wire.setLimitReminder(limit: limit, window: window, resetsAt: resetsAt, name: name))
+    }
+    func clearLimitReminder(limit: String, window: String) {
+        send(Wire.clearLimitReminder(limit: limit, window: window))
+    }
+    func requestWake(targets: [WakeTarget], port: Int) { send(Wire.wake(targets: targets, port: port)) }
     func requestWeeklyRecap(_ pick: RecapPick, fresh: Bool) { send(Wire.weeklyRecap(pick, fresh: fresh)) }
     func requestSpeech(reqId: String, text: String) { send(Wire.ttsSpeak(reqId: reqId, text: text)) }
     func requestTerminals(project: String) { send(Wire.terminals(project: project)) }
@@ -1023,14 +1037,16 @@ final class LpmClient: NSObject {
     func sendApnsToken(token: String, env: String, key: String,
                        notifyWaiting: Bool, notifyDone: Bool, notifyError: Bool,
                        notifyAutomationStarted: Bool, notifyAutomationDone: Bool,
-                       notifyAutomationError: Bool, notifyWeeklyRecap: Bool) {
+                       notifyAutomationError: Bool, notifyWeeklyRecap: Bool,
+                       notifyProjects: [String: String] = [:]) {
         send(Wire.apnsToken(token: token, env: env, key: key,
                             notifyWaiting: notifyWaiting, notifyDone: notifyDone,
                             notifyError: notifyError,
                             notifyAutomationStarted: notifyAutomationStarted,
                             notifyAutomationDone: notifyAutomationDone,
                             notifyAutomationError: notifyAutomationError,
-                            notifyWeeklyRecap: notifyWeeklyRecap))
+                            notifyWeeklyRecap: notifyWeeklyRecap,
+                            notifyProjects: notifyProjects))
     }
     func answerAgent(_ answer: AgentAnswer, reqId: String) { send(Wire.answerAgent(answer, reqId: reqId)) }
     func sendLiveActivity(on: Bool, token: String?, env: String) {
@@ -1366,7 +1382,7 @@ final class LpmClient: NSObject {
                 self.onPairPending?(matchCode)
             case .pairDenied(let reason, let message):
                 self.failPair(reason, message: message)
-            case .ready(let serverId, let serverName, let hosts, let platform, let build, let features):
+            case .ready(let serverId, let serverName, let hosts, let platform, let build, let features, let wake):
                 self.hostFeatures = features
                 self.set(.ready)
                 self.onConnected()
@@ -1382,6 +1398,7 @@ final class LpmClient: NSObject {
                 self.flushPending()
                 self.onIdentity?(serverId, serverName, platform)
                 if !hosts.isEmpty { self.onAdvertisedHosts?(serverId, hosts) }
+                self.onWakeTargets?(serverId, wake)
                 self.onBuild?(build)
             case .bye(let reason, let at):
                 let when = at.map { Date(timeIntervalSince1970: Double($0) / 1000) } ?? Date()
@@ -1410,6 +1427,8 @@ final class LpmClient: NSObject {
             case .limits(let snapshot, let error): self.onLimits?(snapshot, error)
             case .weeklyRecap(let pick, let recap, let error): self.onWeeklyRecap?(pick, recap, error)
             case .limitsChanged(let snapshot): self.onLimitsChanged?(snapshot)
+            case .limitReminders(let reminders, let error): self.onLimitReminders?(reminders, error)
+            case .wake(let ok): self.onWake?(ok)
             case .ttsSpeak(let reqId, let audio, let error): self.onSpeech?(reqId, audio, error)
             case .terminals(let proj, let t): self.onTerminals?(proj, t)
             case .slash(let id, let cmds): self.onSlash?(id, cmds)

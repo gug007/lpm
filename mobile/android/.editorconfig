@@ -11,4 +11,4 @@ indent_size = 4
 [*.{kt,kts}]
 ktlint_code_style = android_studio
 ktlint_function_naming_ignore_when_annotated_with = Composable
-compose_allowed_composition_locals = LocalAppDarkTheme,LocalContextMenuController,LocalLpmColors,LocalLpmTypography,LocalSheetDismissal
+compose_allowed_composition_locals = LocalAppDarkTheme,LocalConfirmRisky,LocalContextMenuController,LocalLpmColors,LocalLpmTypography,LocalSheetDismissal

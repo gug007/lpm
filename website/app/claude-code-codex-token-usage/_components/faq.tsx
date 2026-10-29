@@ -43,16 +43,24 @@ function formatAnswer(text: string) {
   });
 }
 
-export default function Faq() {
+type Props = {
+  items?: typeof FAQ_ITEMS;
+  title?: string;
+};
+
+export default function Faq({
+  items = FAQ_ITEMS,
+  title = "Claude Code and Codex usage, answered",
+}: Props) {
   return (
     <section id="faq" className="py-20 sm:py-24">
       <div className="max-w-3xl mx-auto px-6">
         <SectionHeader
           eyebrow="FAQ"
-          title="Claude Code and Codex usage, answered"
+          title={title}
         />
         <ul className="space-y-3">
-          {FAQ_ITEMS.map(({ question, answer }) => (
+          {items.map(({ question, answer }) => (
             <li key={question}>
               <details className="group rounded-2xl border border-gray-200 transition-colors duration-200 open:border-gray-300 open:bg-gray-50/50 hover:border-gray-300 motion-reduce:transition-none dark:border-gray-800 dark:open:border-gray-700 dark:open:bg-white/[0.02] dark:hover:border-gray-700">
                 <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-4 rounded-2xl px-5 py-4 text-sm font-semibold text-gray-900 [&::-webkit-details-marker]:hidden dark:text-gray-100">

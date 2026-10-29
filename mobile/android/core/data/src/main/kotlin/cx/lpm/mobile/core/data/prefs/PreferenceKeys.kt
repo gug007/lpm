@@ -16,6 +16,15 @@ object PreferenceKeys {
     const val NOTIFY_AUTOMATION_ERROR = "lpm.notify.automation.error"
     const val NOTIFY_WEEKLY_RECAP = "lpm.notify.weeklyRecap"
     const val NOTIFY_LIVE_ACTIVITY = "lpm.notify.liveActivity"
+    const val NOTIFY_PROJECTS = "lpm.notify.projects"
+    const val NOTIFY_QUIET_ENABLED = "lpm.notify.quiet.enabled"
+    const val NOTIFY_QUIET_START = "lpm.notify.quiet.start"
+    const val NOTIFY_QUIET_END = "lpm.notify.quiet.end"
+    const val NOTIFY_QUIET_WAITING = "lpm.notify.quiet.waiting"
+
+    const val LOCK_ENABLED = "lpm.lock.enabled"
+    const val LOCK_AFTER = "lpm.lock.after"
+    const val LOCK_CONFIRM_RISKY = "lpm.lock.confirmRisky"
 
     /** Android only: the Macs whose agents-at-work card was swiped away until they're done. */
     const val LIVE_DISMISSED = "liveActivity.dismissed"

@@ -1,6 +1,7 @@
 package cx.lpm.mobile
 
 import cx.lpm.mobile.core.data.di.ApplicationScope
+import cx.lpm.mobile.core.data.lock.AppLock
 import cx.lpm.mobile.core.data.mac.CredentialStore
 import cx.lpm.mobile.core.data.prefs.AppPreferences
 import cx.lpm.mobile.core.data.session.MacSession
@@ -27,6 +28,7 @@ class AppStartup @Inject constructor(
     private val push: PushStartup,
     private val widgets: AgentWidgetPublisher,
     private val usageWidget: UsageWidgetPublisher,
+    private val lock: AppLock,
     @param:ApplicationScope private val scope: CoroutineScope
 ) {
     private val mutableReady = MutableStateFlow(false)
@@ -38,6 +40,7 @@ class AppStartup @Inject constructor(
         started = true
         scope.launch {
             preferences.load()
+            lock.load()
             credentials.load()
             session.bootstrap()
             push.start()

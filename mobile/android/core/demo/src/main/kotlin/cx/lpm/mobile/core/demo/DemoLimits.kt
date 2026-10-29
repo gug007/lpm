@@ -14,6 +14,37 @@ internal fun DemoServer.registerLimitsHandlers() {
         // first read.
         pushAfter(6.0) { limitsPayload(t = "limits-changed", ok = null, advanced = true) }
     }
+    register("limitReminders") { pushReminders() }
+    register("setLimitReminder") { o ->
+        val limit = o.string("limit").orEmpty()
+        val window = o.string("window").orEmpty()
+        world.limitReminders.removeAll {
+            it.string("limit") == limit &&
+                it.string("window") == window
+        }
+        world.limitReminders += mapOf(
+            "limit" to limit,
+            "window" to window,
+            "resetsAt" to (o.long("resetsAt") ?: 0L),
+            "name" to o.string("name").orEmpty()
+        )
+        pushReminders()
+    }
+    register("clearLimitReminder") { o ->
+        val limit = o.string("limit").orEmpty()
+        val window = o.string("window").orEmpty()
+        world.limitReminders.removeAll {
+            it.string("limit") == limit &&
+                it.string("window") == window
+        }
+        pushReminders()
+    }
+}
+
+private fun DemoServer.pushReminders() {
+    pushAfter(0.2) {
+        mapOf("t" to "limitReminders", "ok" to true, "reminders" to world.limitReminders.toList())
+    }
 }
 
 /**

@@ -51,3 +51,42 @@ describe("UsageMeter pace tick", () => {
     expect(container.textContent).toContain("will last");
   });
 });
+
+describe("UsageMeter reset reminder", () => {
+  function renderWithReminder(set: boolean, onToggle: () => void) {
+    act(() =>
+      root.render(
+        <UsageMeter
+          label="5-hour"
+          win={{ usedPercent: 100, resetsAt: Math.floor(NOW / 1000) + 2 * HOUR }}
+          windowMs={WEEKLY_MS}
+          now={NOW}
+          stale={false}
+          reminder={{ set, onToggle }}
+        />,
+      ),
+    );
+    return container.querySelector<HTMLButtonElement>('button[aria-label^="Remind me"]');
+  }
+
+  it("toggles the reminder from the bell", () => {
+    let toggled = 0;
+    const bell = renderWithReminder(false, () => toggled++);
+    expect(bell?.getAttribute("aria-pressed")).toBe("false");
+    expect(bell?.getAttribute("aria-label")).toBe("Remind me when the 5-hour limit resets");
+    act(() => bell!.click());
+    expect(toggled).toBe(1);
+    expect(container.textContent).not.toContain("reminder set");
+  });
+
+  it("says when a reminder is set", () => {
+    const bell = renderWithReminder(true, () => {});
+    expect(bell?.getAttribute("aria-pressed")).toBe("true");
+    expect(container.textContent).toContain("reminder set");
+  });
+
+  it("shows no bell without a reminder to offer", () => {
+    renderMeter(100, 2);
+    expect(container.querySelector('button[aria-label^="Remind me"]')).toBeNull();
+  });
+});

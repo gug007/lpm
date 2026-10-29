@@ -19,7 +19,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation3.runtime.NavKey
 import cx.lpm.mobile.core.designsystem.component.AlertButton
 import cx.lpm.mobile.core.designsystem.component.AlertRole
+import cx.lpm.mobile.core.designsystem.component.LocalConfirmRisky
 import cx.lpm.mobile.core.designsystem.component.LpmConfirmationDialog
+import cx.lpm.mobile.core.designsystem.component.stopProject
 import cx.lpm.mobile.core.model.Service
 import cx.lpm.mobile.core.model.TerminalInfo
 import cx.lpm.mobile.core.navigation.ProjectKey
@@ -56,6 +58,7 @@ fun ProjectDetailRoute(
     var newTabOpen by remember { mutableStateOf(false) }
     var refreshing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val confirmRisky = LocalConfirmRisky.current
     val haptics = LocalHapticFeedback.current
     LaunchedEffect(key) { viewModel.load() }
     DisposableEffect(viewModel) {
@@ -123,7 +126,9 @@ fun ProjectDetailRoute(
             openLogs = { logsFor = it },
             cancelQueued = viewModel::cancelQueued,
             retryQueued = viewModel::retryQueued,
-            stopAll = viewModel::stopAll,
+            stopAll = {
+                confirmRisky.stopProject(key.project) { viewModel.stopAll() }
+            },
             editConfig = { onNavigate(YamlConfigKey(key.project, key.session)) },
             retryConfig = { scope.launch { viewModel.refreshProjects() } }
         ),

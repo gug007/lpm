@@ -59,7 +59,6 @@ export function YouTubeVideo({
         <button
           type="button"
           onClick={() => setPlaying(true)}
-          aria-label={`Play video: ${name}`}
           className="group absolute inset-0 h-full w-full cursor-pointer"
         >
           <Image
@@ -90,6 +89,7 @@ export function YouTubeVideo({
               <path d="M8 5.5v13l11-6.5z" />
             </svg>
             Play
+            {!poster && <span className="sr-only"> video: {name}</span>}
           </span>
         </button>
       )}

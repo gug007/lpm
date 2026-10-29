@@ -10,12 +10,16 @@
     <string name="push_channel_automation_done">Finished</string>
     <string name="push_channel_automation_error">Error or timeout</string>
     <string name="push_channel_weekly_recap">Weekly recap</string>
+    <string name="push_channel_quiet">Quiet hours</string>
+    <string name="push_channel_reminders">Limit reminders</string>
     <string name="push_channel_live">Agents at work</string>
 
     <!-- Answering from a notification. -->
     <string name="answer_allow">Allow</string>
     <string name="answer_deny">Deny</string>
     <string name="answer_reply">Reply</string>
+    <string name="answer_review_changes">Review Changes</string>
+    <string name="answer_open_tab">Open Tab</string>
     <string name="answer_reply_hint">Reply…</string>
     <string name="answer_not_sent">Not sent: %1$s</string>
     <string name="answer_unreachable">couldn\'t reach %1$s.</string>

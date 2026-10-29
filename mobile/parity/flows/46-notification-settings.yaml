@@ -13,14 +13,24 @@ tags: [demo, settings]
     visible: "Push notifications"
     timeout: 5000
 - assertVisible: "Waiting for you"
-- assertVisible: "Error or timeout"
 - waitForAnimationToEnd:
     timeout: 3000
 - takeScreenshot: 1-notification-settings
+- scrollUntilVisible:
+    element: "Quiet hours"
+    direction: DOWN
+- assertVisible: "Only when it needs me: an agent waiting on you, or an automation asking a question."
+- assertVisible: "storefront"
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 2-projects-quiet-hours
+- scrollUntilVisible:
+    element: "Error or timeout"
+    direction: DOWN
 - scrollUntilVisible:
     element: "Mondays, when your week in lpm is ready"
     direction: DOWN
 - assertVisible: "Weekly recap"
 - waitForAnimationToEnd:
     timeout: 3000
-- takeScreenshot: 2-weekly-recap
+- takeScreenshot: 3-weekly-recap

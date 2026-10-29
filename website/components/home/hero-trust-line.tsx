@@ -5,7 +5,7 @@ import { REPO_URL } from "@/lib/links";
 import { DotRow } from "./dot-row";
 
 const ITEM =
-  "inline-flex items-center gap-1.5 text-gray-500 transition-colors hover:text-gray-900 dark:text-gray-400 dark:hover:text-white";
+  "inline-flex min-h-6 items-center gap-1.5 text-gray-500 transition-colors hover:text-gray-900 dark:text-gray-400 dark:hover:text-white";
 const ICON = "h-3.5 w-3.5 shrink-0";
 
 type Props = {

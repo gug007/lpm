@@ -13,9 +13,11 @@ import cx.lpm.mobile.core.data.push.NotificationOpens
 import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.navigation.AutomationKey
 import cx.lpm.mobile.core.navigation.AutomationsKey
+import cx.lpm.mobile.core.navigation.GitReviewKey
 import cx.lpm.mobile.core.navigation.Navigator
 import cx.lpm.mobile.core.navigation.ProjectKey
 import cx.lpm.mobile.core.navigation.TerminalKey
+import cx.lpm.mobile.core.navigation.UsageKey
 import cx.lpm.mobile.core.navigation.WeeklyRecapKey
 import kotlinx.coroutines.delay
 
@@ -68,6 +70,13 @@ internal fun NotificationOpenHost(
             }
 
             NotificationOpenTarget.Kind.Recap -> navigator.reset(WeeklyRecapKey())
+
+            NotificationOpenTarget.Kind.Usage -> navigator.reset(UsageKey())
+
+            NotificationOpenTarget.Kind.Changes -> {
+                if (!known) return@LaunchedEffect run { awaited = open }
+                navigator.reset(ProjectKey(open.project), GitReviewKey(open.project))
+            }
         }
         opens.clear(open)
     }

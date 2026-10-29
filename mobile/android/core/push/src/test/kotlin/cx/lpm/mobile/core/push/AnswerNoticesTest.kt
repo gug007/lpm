@@ -120,7 +120,12 @@ class AnswerNoticesTest {
         notices.restore(AnswerRequest(done, "c1", AgentAnswerAction.Reply, ""))
         val n = only()
         assertEquals("Claude — Agent is waiting for you", body(n))
-        assertEquals(listOf("Reply"), n.actions.map { it.title.toString() })
+        assertEquals(
+            listOf("Reply", "Review Changes", "Open Tab"),
+            n.actions.map {
+                it.title.toString()
+            }
+        )
     }
 
     @Test

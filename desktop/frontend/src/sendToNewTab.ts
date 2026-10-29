@@ -33,17 +33,17 @@ export function promptWithImagePaths(text: string, images: Record<string, string
     .trim();
 }
 
-// Opens the agent in a new tab of `row`'s project, behind whatever that
-// project shows, the way a phone's New Tab does; the project need not be open.
+// Opens the agent in a new tab of `projectName`, behind whatever that project
+// shows, the way a phone's New Tab does; the project need not be open.
 export function startPromptInNewTab(
-  row: SendTargetRow,
+  projectName: string,
   launch: RemoteAgentLaunch,
   text: string,
   images: Record<string, string>,
 ): void {
   useAppStore
     .getState()
-    .triggerRemoteAction(row.projectName, null, undefined, undefined, {
+    .triggerRemoteAction(projectName, null, undefined, undefined, {
       agent: { ...launch, prompt: promptWithImagePaths(text, images) },
     });
 }

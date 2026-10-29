@@ -62,7 +62,7 @@ export function TerminalFooter({
         onContextMenu={onActionContextMenu}
         onZoneContextMenu={onZoneContextMenu}
       >
-        {pullRequest && <BranchPrLink pr={pullRequest} />}
+        {pullRequest && <BranchPrLink pr={pullRequest} projectName={projectName} />}
         {isGitRepo && (
           <BranchSwitcher
             projectName={projectName}

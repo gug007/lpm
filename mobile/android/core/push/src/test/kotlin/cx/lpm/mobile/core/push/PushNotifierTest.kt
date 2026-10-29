@@ -63,7 +63,8 @@ class PushNotifierTest {
             t.credentials,
             t.session,
             AgentWidgetStore(app) {},
-            LiveNotifier(app, t.prefs, t.macStore)
+            LiveNotifier(app, t.prefs, t.macStore),
+            t.prefs
         )
         notifier.createChannels()
         return notifier to t
@@ -192,7 +193,17 @@ class PushNotifierTest {
         val done = alert("""["reply"]""").replace("Waiting", "Done")
         notifier.handle(mapOf("blob" to seal(done, t.credentials.loadPushKey()!!)))
 
-        val reply = manager.activeNotifications.single().notification.actions.single()
+        val actions = manager.activeNotifications.single().notification.actions
+        assertEquals(
+            listOf("Reply", "Review Changes", "Open Tab"),
+            actions.map {
+                it.title.toString()
+            }
+        )
+        val review = shadowOf(actions[1].actionIntent).savedIntent
+        assertEquals(PushNotifier.ACTION_OPEN, review.action)
+        assertEquals("changes", review.getStringExtra("target"))
+        val reply = actions.first()
         assertEquals("Reply", reply.title.toString())
         assertTrue(reply.isAuthenticationRequired)
         assertEquals("Reply…", reply.remoteInputs.single().label.toString())

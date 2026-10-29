@@ -1,6 +1,9 @@
 package cx.lpm.mobile.core.protocol
 
+import cx.lpm.mobile.core.model.WakeTarget
+import kotlinx.serialization.json.JsonObjectBuilder
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 
 /** Pairing, sign-in, presence, push registration, the Mac's machines and updating lpm. */
@@ -75,7 +78,8 @@ sealed interface WireSession {
         notifyAutomationStarted: Boolean,
         notifyAutomationDone: Boolean,
         notifyAutomationError: Boolean,
-        notifyWeeklyRecap: Boolean
+        notifyWeeklyRecap: Boolean,
+        notifyProjects: Map<String, String> = emptyMap()
     ): String = frame("apnsToken") {
         put("token", token)
         put("env", env)
@@ -88,7 +92,14 @@ sealed interface WireSession {
             put("automationDone", notifyAutomationDone)
             put("automationError", notifyAutomationError)
             put("weeklyRecap", notifyWeeklyRecap)
+            putProjects(notifyProjects)
         }
+    }
+
+    // Only the projects heard less about; the rest hear everything.
+    private fun JsonObjectBuilder.putProjects(levels: Map<String, String>) {
+        if (levels.isEmpty()) return
+        putJsonObject("projects") { levels.forEach { (project, level) -> put(project, level) } }
     }
 
     /**
@@ -106,7 +117,8 @@ sealed interface WireSession {
         notifyAutomationStarted: Boolean,
         notifyAutomationDone: Boolean,
         notifyAutomationError: Boolean,
-        notifyWeeklyRecap: Boolean
+        notifyWeeklyRecap: Boolean,
+        notifyProjects: Map<String, String> = emptyMap()
     ): String = frame("pushToken") {
         put("platform", platform)
         put("token", token)
@@ -120,6 +132,7 @@ sealed interface WireSession {
             put("automationDone", notifyAutomationDone)
             put("automationError", notifyAutomationError)
             put("weeklyRecap", notifyWeeklyRecap)
+            putProjects(notifyProjects)
         }
     }
 
@@ -176,6 +189,28 @@ sealed interface WireSession {
         }
 
     fun limits(): String = frame("limits")
+
+    /** Limit reminders, only for a Mac whose `features` has "limitReminders". */
+    fun limitReminders(): String = frame("limitReminders")
+
+    fun setLimitReminder(limit: String, window: String, resetsAt: Long, name: String): String =
+        frame("setLimitReminder") {
+            put("limit", limit)
+            put("window", window)
+            put("resetsAt", resetsAt)
+            put("name", name)
+        }
+
+    fun clearLimitReminder(limit: String, window: String): String = frame("clearLimitReminder") {
+        put("limit", limit)
+        put("window", window)
+    }
+
+    /** Asks a machine to wake another one, only when its `features` has "wake". */
+    fun wake(targets: List<WakeTarget>, port: Int): String = frame("wake") {
+        put("port", port)
+        putJsonArray("targets") { targets.forEach { add(it.toJson()) } }
+    }
 
     fun ttsSpeak(reqId: String, text: String): String = frame("ttsSpeak") {
         put("reqId", reqId)

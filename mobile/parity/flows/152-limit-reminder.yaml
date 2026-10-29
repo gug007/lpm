@@ -1,0 +1,21 @@
+appId: cx.lpm.mobile
+name: 152-limit-reminder
+tags: [demo, usage]
+---
+- runFlow: subflows/enter-demo.yaml
+- runFlow: subflows/open-more-menu.yaml
+- tapOn: "Usage.*"
+- scrollUntilVisible:
+    element: "Remind me when the weekly limit resets"
+    direction: DOWN
+- tapOn: "Remind me when the weekly limit resets"
+- extendedWaitUntil:
+    visible: ".*reminder set"
+    timeout: 5000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 1-reminder-set
+- tapOn: "Remind me when the weekly limit resets"
+- extendedWaitUntil:
+    notVisible: ".*reminder set"
+    timeout: 5000

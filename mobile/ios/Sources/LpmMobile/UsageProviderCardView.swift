@@ -17,6 +17,8 @@ struct UsageProviderCardView: View {
     var fill = Color(.secondarySystemGroupedBackground)
     /// Leads with the 5-hour meter, for a usage row whose own window is it.
     var fiveHourFirst = false
+    /// The bell for a window, by its reminder name (`fiveHour` or `weekly`).
+    var reminder: ((_ window: String, _ win: LimitWindow?) -> MeterReminder?)? = nil
 
     private var stale: Bool { macNow - Double(data.updatedAt) > staleMs }
 
@@ -54,11 +56,13 @@ struct UsageProviderCardView: View {
     }
 
     private var weeklyMeter: some View {
-        UsageMeterView(label: "Weekly", win: data.weekly, windowMs: weeklyMs, now: now, stale: stale)
+        UsageMeterView(label: "Weekly", win: data.weekly, windowMs: weeklyMs, now: now, stale: stale,
+                       reminder: reminder?(LimitReminder.weekly, data.weekly))
     }
 
     private var fiveHourMeter: some View {
-        UsageMeterView(label: "5-hour", win: data.fiveHour, windowMs: fiveHourMs, now: now, stale: stale)
+        UsageMeterView(label: "5-hour", win: data.fiveHour, windowMs: fiveHourMs, now: now, stale: stale,
+                       reminder: reminder?(LimitReminder.fiveHour, data.fiveHour))
     }
 
     /// One row while it fits; then the timestamp drops to its own line, then the

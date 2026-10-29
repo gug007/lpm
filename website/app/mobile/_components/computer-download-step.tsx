@@ -33,7 +33,6 @@ export default function ComputerDownloadStep() {
     <div className="flex flex-col items-start gap-1">
       <a
         href={entry.href}
-        aria-label={entry.ariaLabel}
         onClick={() =>
           trackDownload({
             source: "mobile-hero",

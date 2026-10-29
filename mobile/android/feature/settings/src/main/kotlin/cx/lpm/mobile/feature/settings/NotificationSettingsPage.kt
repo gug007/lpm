@@ -86,6 +86,8 @@ fun ColumnScope.NotificationSettingsContent(
         Toggle(R.string.notify_finished, prefs.done, on) { v -> onChange { it.copy(done = v) } }
         Toggle(R.string.notify_error, prefs.error, on) { v -> onChange { it.copy(error = v) } }
     }
+    ProjectLevelsSection(state.projects, prefs, onChange)
+    QuietHoursSection(prefs, onChange)
     FormSection(
         header = stringResource(R.string.notify_automations),
         dimmed = !on,

@@ -389,12 +389,23 @@ export const GIT_CHANGED_EVENT = "git-changed";
 
 export type PullRequestState = "OPEN" | "MERGED" | "CLOSED";
 
+export type PrCheckState = "pass" | "fail" | "pending" | "skipped";
+
+export interface PrCheck {
+  name: string;
+  workflow: string;
+  state: PrCheckState;
+  url: string;
+}
+
 export interface PullRequestInfo {
   number: number;
   url: string;
   state: PullRequestState;
   title: string;
   isDraft: boolean;
+  // Absent on a PR known only from creating it, before the first lookup.
+  checks?: PrCheck[];
 }
 
 export const MEMORY_CHANGED_EVENT = "memory-changed";

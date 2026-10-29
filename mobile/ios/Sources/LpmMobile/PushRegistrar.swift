@@ -30,6 +30,8 @@ final class PushRegistrar {
         let automationDone: Bool
         let automationError: Bool
         let weeklyRecap: Bool
+        /// Projects heard less about: "waiting" or "off", by project name.
+        let projects: [String: String]
     }
 
     /// The state a sweep runs against, read fresh when it starts rather than when
@@ -147,7 +149,8 @@ final class PushRegistrar {
                                  notifyAutomationStarted: p.automationStarted,
                                  notifyAutomationDone: p.automationDone,
                                  notifyAutomationError: p.automationError,
-                                 notifyWeeklyRecap: p.weeklyRecap)
+                                 notifyWeeklyRecap: p.weeklyRecap,
+                                 notifyProjects: p.projects)
         }
     }
 
@@ -165,7 +168,9 @@ final class PushRegistrar {
                     p.automationStarted, p.automationDone, p.automationError, p.weeklyRecap]
             .map { $0 ? "1" : "0" }
             .joined()
-        let material = "\(p.token)|\(p.env)|\(p.key)|\(bits)"
+        // Levels only when set, so a phone without any keeps the signature it had.
+        let levels = p.projects.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: ",")
+        let material = "\(p.token)|\(p.env)|\(p.key)|\(bits)" + (levels.isEmpty ? "" : "|\(levels)")
         return SHA256.hash(data: Data(material.utf8))
             .map { String(format: "%02x", $0) }
             .joined()

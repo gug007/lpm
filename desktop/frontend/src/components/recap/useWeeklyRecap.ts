@@ -2,8 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { WeeklyRecap as LoadWeeklyRecap } from "../../../bridge/commands";
 import type { RecapPeriod, WeeklyRecap } from "./weeklyRecapModel";
 
-// Weeks and months already read in this window, so Stats, the toast and the
-// recap dialog share one scan of the history files.
+// The last read of each week and month in this window, shown while the backend
+// answers again. The backend keeps its reads, so Stats, the toast and the recap
+// dialog share one scan, and reads again once a computer it left out connects.
 const read = new Map<string, WeeklyRecap>();
 
 const keyOf = (week: string, period: RecapPeriod) => `${period}:${week}`;
@@ -13,11 +14,8 @@ export function loadWeeklyRecap(
   period: RecapPeriod = "week",
   fresh = false,
 ): Promise<WeeklyRecap> {
-  const key = keyOf(week, period);
-  const held = read.get(key);
-  if (held && !fresh) return Promise.resolve(held);
   return (LoadWeeklyRecap(week, period, fresh) as Promise<WeeklyRecap>).then((recap) => {
-    read.set(key, recap);
+    read.set(keyOf(week, period), recap);
     return recap;
   });
 }

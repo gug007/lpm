@@ -7,6 +7,7 @@ import cx.lpm.mobile.core.model.AgentSession
 import cx.lpm.mobile.core.model.ClaudeAccountChoice
 import cx.lpm.mobile.core.model.DuplicateOptions
 import cx.lpm.mobile.core.model.HistoryCursor
+import cx.lpm.mobile.core.model.WakeTarget
 import cx.lpm.mobile.core.model.WorkStatusInput
 import cx.lpm.mobile.core.protocol.Wire
 
@@ -176,9 +177,20 @@ fun LpmClient.sendPushToken(p: PushRegistration) = send(
         notifyAutomationStarted = p.automationStarted,
         notifyAutomationDone = p.automationDone,
         notifyAutomationError = p.automationError,
-        notifyWeeklyRecap = p.weeklyRecap
+        notifyWeeklyRecap = p.weeklyRecap,
+        notifyProjects = p.projects
     )
 )
+
+fun LpmClient.requestLimitReminders() = send(Wire.limitReminders())
+
+fun LpmClient.setLimitReminder(limit: String, window: String, resetsAt: Long, name: String) =
+    send(Wire.setLimitReminder(limit, window, resetsAt, name))
+
+fun LpmClient.clearLimitReminder(limit: String, window: String) =
+    send(Wire.clearLimitReminder(limit, window))
+
+fun LpmClient.requestWake(targets: List<WakeTarget>, port: Int) = send(Wire.wake(targets, port))
 
 fun LpmClient.sendLiveActivity(on: Boolean) = send(Wire.liveActivity(on))
 

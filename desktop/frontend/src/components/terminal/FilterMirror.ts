@@ -5,6 +5,7 @@ import type { SerializeAddon } from "@xterm/addon-serialize";
 import { handleCopyShortcut, handleNativeCopy } from "./copySelection";
 import { readOnlyTerminalYields } from "./terminalKeys";
 import { filterLines, stripAnsi } from "./filterLines";
+import { severityLines, type LogSeverity } from "./logSeverity";
 import { MATCH_DECORATIONS } from "./terminalFind";
 
 
@@ -21,6 +22,18 @@ export interface FilterMirrorFont {
   lineHeight: number;
 }
 
+/** Text to look for, or the errors or warnings a service logged. */
+export type FilterSpec = string | { severity: LogSeverity };
+
+function matchLines(text: string, spec: FilterSpec): string[] {
+  return typeof spec === "string" ? filterLines(text, spec) : severityLines(text, spec.severity);
+}
+
+function emptyHintFor(spec: FilterSpec): string {
+  if (typeof spec === "string") return "No matches";
+  return spec.severity === "error" ? "No errors" : "No warnings";
+}
+
 // Read-only xterm overlay that mirrors only the lines of `source` matching the
 // query, preserving their ANSI colors. The live source keeps running beneath
 // it; the mirror re-derives from a fresh serialize on each (debounced) write.
@@ -34,7 +47,7 @@ export class FilterMirror {
   private writeSub: IDisposable | null = null;
   private resizeTimer = 0;
   private liveTimer = 0;
-  private query = "";
+  private query: FilterSpec = "";
   private active = false;
   private onCount: (count: number) => void = () => {};
 
@@ -46,7 +59,7 @@ export class FilterMirror {
     private readonly getFont: () => FilterMirrorFont,
   ) {}
 
-  setQuery(query: string | null, onCount?: (count: number) => void): void {
+  setQuery(query: FilterSpec | null, onCount?: (count: number) => void): void {
     if (onCount) this.onCount = onCount;
     this.query = query ?? "";
     if (!this.query) {
@@ -62,14 +75,19 @@ export class FilterMirror {
 
   // True while a query is actively filtering the overlay (what the user sees).
   isActive(): boolean {
-    return this.active && this.query.length > 0;
+    return this.active && this.query !== "";
+  }
+
+  /** The severity being shown, or null for a text query or none. */
+  severity(): LogSeverity | null {
+    return this.active && typeof this.query !== "string" ? this.query.severity : null;
   }
 
   // The matched lines as plain text, recomputed from the live source so it
   // reflects the full filtered set independent of the mirror's rendering.
   getFilteredText(): string {
     if (!this.query) return "";
-    return filterLines(this.readSourceText(), this.query)
+    return matchLines(this.readSourceText(), this.query)
       .map(stripAnsi)
       .join("\n");
   }
@@ -213,24 +231,27 @@ export class FilterMirror {
     const mirror = this.mirror;
     if (!mirror || !this.query) return;
 
-    const lines = filterLines(this.readSourceText(), this.query);
+    const query = this.query;
+    const lines = matchLines(this.readSourceText(), query);
 
     try {
       this.search?.clearDecorations();
     } catch {}
-    mirror.reset();
+    // Reset (ESC c) in the write itself: reset() runs at once, ahead of a write
+    // the previous run still has queued, which would then land before this one.
+    mirror.write(`\x1bc${lines.join("\r\n")}`, () => {
+      if (!lines.length) return;
+      try {
+        if (typeof query === "string") this.search?.findNext(query, { decorations: MATCH_DECORATIONS });
+      } catch {}
+      // Follow the newest matches, like `tail -f | grep`.
+      mirror.scrollToBottom();
+    });
 
-    if (lines.length) {
-      mirror.write(lines.join("\r\n"), () => {
-        try {
-          this.search?.findNext(this.query, { decorations: MATCH_DECORATIONS });
-        } catch {}
-        // Follow the newest matches, like `tail -f | grep`.
-        mirror.scrollToBottom();
-      });
+    if (this.emptyHint) {
+      this.emptyHint.textContent = emptyHintFor(query);
+      this.emptyHint.style.display = lines.length ? "none" : "flex";
     }
-
-    if (this.emptyHint) this.emptyHint.style.display = lines.length ? "none" : "flex";
     try {
       this.fit?.fit();
     } catch {}
@@ -258,7 +279,7 @@ export function applyFilterQuery(
   getTheme: () => ITheme,
   getFontSize: () => number,
   getFont: () => FilterMirrorFont,
-  query: string | null,
+  query: FilterSpec | null,
   onCount?: (count: number) => void,
 ): void {
   if (!query && !filterRef.current) return;

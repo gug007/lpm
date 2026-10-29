@@ -85,6 +85,9 @@ internal class DemoWorld(val clock: Clock) {
     // mirroring the desktop registry's retention).
     val backgroundRuns = mutableListOf<BgRun>()
 
+    // Limit reminders set from the Usage screen.
+    val limitReminders = mutableListOf<Dict>()
+
     // Poll counters ("project\nservice") so service logs grow between polls.
     val serviceLogTicks = mutableMapOf<String, Int>()
     val serviceLogWatches = mutableMapOf<String, Int>() // project + "\n" + pane -> watch token

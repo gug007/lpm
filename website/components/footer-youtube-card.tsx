@@ -12,7 +12,6 @@ export function FooterYouTubeCard() {
       href={youtubeWatchUrl(id)}
       target="_blank"
       rel="noopener noreferrer"
-      aria-label={`Watch ${OVERVIEW_LESSON.title} on YouTube`}
       className="group block max-w-60 rounded-lg focus-visible:outline-offset-4"
     >
       <div className="relative aspect-video overflow-hidden rounded-lg bg-[#1a1a1a] ring-1 ring-black/10 shadow-sm transition-shadow duration-300 group-hover:shadow-lg group-hover:shadow-gray-300/50 dark:ring-white/10 dark:group-hover:shadow-black/40">

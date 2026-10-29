@@ -135,6 +135,7 @@ extension AppModel {
             if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
         case .details: link.sheetOpen = true
         case .enterNewCode: break
+        case .wake: wakeActiveMac()
         }
     }
 

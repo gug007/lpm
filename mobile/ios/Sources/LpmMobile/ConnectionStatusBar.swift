@@ -67,6 +67,9 @@ struct IssueContent: View {
 
     private var message: String {
         if issue.isConnecting, let status = model.recoveryStatus { return status }
+        if copy.actions.contains(.wake), let sent = model.link.wakeSentAt, Date().timeIntervalSince(sent) < 60 {
+            return "Wake signal sent. lpm reconnects as soon as it's up."
+        }
         if model.link.tailscaleWorking { return "Turning on Built-in Tailscale… Sign in once with your Tailscale account." }
         return copy.message
     }

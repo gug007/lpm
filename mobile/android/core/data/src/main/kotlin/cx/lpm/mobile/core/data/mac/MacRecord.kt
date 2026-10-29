@@ -1,5 +1,6 @@
 package cx.lpm.mobile.core.data.mac
 
+import cx.lpm.mobile.core.model.WakeTarget
 import cx.lpm.mobile.core.model.trimmingWhitespace
 import java.time.Instant
 import java.util.UUID
@@ -25,7 +26,9 @@ data class MacRecord(
     val lastConnected: Instant? = null,
     val farewell: Farewell? = null,
     /** Set for a machine opened through another saved Mac instead of paired here. */
-    val via: MacVia? = null
+    val via: MacVia? = null,
+    /** The network cards it can be woken through, as it last said in `ready`. */
+    val wake: List<WakeTarget>? = null
 ) {
     val id: String get() = localId
 

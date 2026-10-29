@@ -23,6 +23,7 @@ import { AddCloneRepoModal } from "./components/AddCloneRepoModal";
 import { RemoteFolderPickerHost } from "./components/RemoteFolderPickerHost";
 import { PortConflictDialog } from "./components/PortConflictDialog";
 import { PairApprovalHost } from "./components/PairApprovalHost";
+import { QuitGuardHost } from "./components/QuitGuardHost";
 import { PairRequestDialog } from "./components/connections/PairRequestDialog";
 import { FileViewerHost } from "./components/FileViewerHost";
 import { InstructionsDialogHost } from "./components/InstructionsDialogHost";
@@ -404,6 +405,7 @@ export default function App() {
       <RemoteFolderPickerHost />
       <PortConflictDialog />
       <PairApprovalHost />
+      <QuitGuardHost />
       <PairRequestDialog />
       <TabShareHosts />
       <FileViewerHost />

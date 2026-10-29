@@ -1,13 +1,8 @@
 //! Monday's "Your week in lpm is ready", sent on to the phones that asked for
 //! it when the desktop shows its own toast. Tapping it opens the phone's
 //! weekly recap.
-use super::{
-    alert_recipients, on_screen_devices, push_collapse_id, scoped_devices, send_alerts, PushDevice,
-    RemoteHub,
-};
-use crate::remotestore::load_config;
+use super::{mac_alert, RemoteHub};
 use serde_json::json;
-use std::sync::atomic::Ordering;
 
 fn recap_alert_payload(server_id: &str, week: &str, title: &str, body: &str, ts: i64) -> String {
     json!({
@@ -24,31 +19,15 @@ fn recap_alert_payload(server_id: &str, week: &str, title: &str, body: &str, ts:
 
 /// One notification per week (`week` is its Monday): sending it again replaces it.
 pub(crate) fn send_weekly_recap(hub: &RemoteHub, week: &str, title: &str, body: &str) {
-    if !hub.inner.enabled.load(Ordering::Relaxed) || !hub.inner.running.load(Ordering::Relaxed) {
-        return;
-    }
     if week.is_empty() {
         return;
     }
-    let connected = on_screen_devices(hub);
-    let cfg = load_config();
-    let server_id = cfg.flavor_server_id();
-    let recipients: Vec<PushDevice> = alert_recipients(&scoped_devices(&cfg), &connected)
-        .into_iter()
-        .filter(|device| device.push_weekly_recap)
-        .collect();
-    if recipients.is_empty() {
-        return;
-    }
-    let plaintext = recap_alert_payload(
-        &server_id,
-        week,
-        title,
-        body,
-        crate::status::now_millis(),
+    mac_alert::send(
+        hub,
+        &format!("recap:{week}"),
+        |device| device.push_weekly_recap,
+        |server_id, ts| recap_alert_payload(server_id, week, title, body, ts),
     );
-    let collapse_id = push_collapse_id(&server_id, "", &format!("recap:{week}"));
-    send_alerts(hub, cfg.effective_relay(), recipients, plaintext, collapse_id);
 }
 
 #[cfg(test)]

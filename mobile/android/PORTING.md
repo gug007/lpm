@@ -45,7 +45,12 @@ side by side (see `mobile/parity/README.md`).
   them." under it; that notification's text can't wear the widget's state colors and
   marks, so its accent color carries the state and a tab with a problem reads
   "problem" before its time; a finished agent under a project archives on a full swipe
-  (`SwipeToDismissBox`), where iOS can also stop halfway on an Archive button.
+  (`SwipeToDismissBox`), where iOS can also stop halfway on an Archive button; Android has
+  no Focus filters, so the Quiet hours footer ends after its first sentence, and quiet
+  notifications go to a "Quiet hours" channel without sound or heads-up where iOS delivers
+  them passively; the app lock checks with the phone's screen lock (fingerprint, face or
+  PIN), so Settings › Security reads "Require screen lock" and the cover's button
+  "Unlock" where iOS names Face ID, and the lock also blanks the recent-apps preview.
 - **Same persisted keys and semantics** as iOS (table below), so behavior and
   defaults match.
 - Desktop changes that touch the phone now update both apps (AGENTS.md).

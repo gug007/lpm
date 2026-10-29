@@ -8,14 +8,14 @@ use crate::peerclient::PeerClientHub;
 use crate::weekly_recap_git::{repo_keys, user_commits, RecapCommit};
 use chrono::{DateTime, Local, NaiveDate, TimeZone};
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use std::collections::{HashMap, HashSet};
-use std::sync::{Mutex, OnceLock};
-use std::time::Instant;
 use tauri::{AppHandle, Manager};
 
+#[path = "weekly_recap_computers.rs"]
+mod computers;
 #[path = "weekly_recap_period.rs"]
 mod period;
+pub(crate) use computers::kept_week;
 pub(crate) use period::RecapPeriod;
 
 /// What a computer answers when another one asks for its week.
@@ -82,15 +82,6 @@ struct Bounds {
     from: DateTime<Local>,
     to: DateTime<Local>,
     previous: DateTime<Local>,
-}
-
-impl Bounds {
-    fn days(&self) -> usize {
-        (self.next - self.first)
-            .num_days()
-            .try_into()
-            .unwrap_or_default()
-    }
 }
 
 fn bounds(week: &str, period: RecapPeriod) -> Result<Bounds, String> {
@@ -282,91 +273,6 @@ pub(crate) fn merge(parts: Vec<WeeklyRecap>) -> WeeklyRecap {
     merged.worked_repos = sorted(worked_repos);
     count_lines(&mut merged);
     merged
-}
-
-type Kept = Mutex<HashMap<(RecapPeriod, String), (Instant, WeeklyRecap)>>;
-
-fn kept() -> &'static Kept {
-    static KEPT: OnceLock<Kept> = OnceLock::new();
-    KEPT.get_or_init(Default::default)
-}
-
-fn peer_name(peer: &crate::peerclient::PhoneMachine) -> String {
-    if peer.entry.alias.is_empty() {
-        peer.entry.host.clone()
-    } else {
-        peer.entry.alias.clone()
-    }
-}
-
-fn read_week(
-    hub: Option<&PeerClientHub>,
-    week: &str,
-    period: RecapPeriod,
-) -> Result<WeeklyRecap, String> {
-    let days = bounds(week, period)?.days();
-    let peers = hub.map(PeerClientHub::phone_machines).unwrap_or_default();
-    let connected: Vec<_> = peers.iter().filter(|peer| peer.connected).collect();
-    let (local, remote) = std::thread::scope(|scope| {
-        let remote: Vec<_> = connected
-            .iter()
-            .map(|peer| {
-                let slug = peer.entry.slug.clone();
-                scope.spawn(move || {
-                    let read = hub
-                        .ok_or_else(|| "not connected".to_string())
-                        .and_then(|hub| {
-                            let args = json!({ "week": week, "period": period });
-                            hub.invoke_blocking(&slug, RECAP_CMD, args)
-                        })
-                        .and_then(|value| {
-                            serde_json::from_value::<WeeklyRecap>(value).map_err(|e| e.to_string())
-                        });
-                    (peer_name(peer), read)
-                })
-            })
-            .collect();
-        let local = local_recap(week, period);
-        let remote: Vec<_> = remote.into_iter().filter_map(|h| h.join().ok()).collect();
-        (local, remote)
-    });
-    let mut parts = vec![local?];
-    let mut missing = Vec::new();
-    for (name, read) in remote {
-        // A computer too old to know months answers with a week.
-        match read {
-            Ok(part) if part.period == period && part.days.len() == days => parts.push(part),
-            _ => missing.push(name),
-        }
-    }
-    let mut recap = merge(parts);
-    recap.missing = missing;
-    recap.commits.clear();
-    Ok(recap)
-}
-
-/// The week or month starting `week` (YYYY-MM-DD) on this computer and every
-/// connected one. A read is kept for ten minutes unless `fresh`.
-pub(crate) fn kept_week(
-    hub: Option<&PeerClientHub>,
-    week: &str,
-    period: RecapPeriod,
-    fresh: bool,
-) -> Result<WeeklyRecap, String> {
-    let key = (period, week.to_string());
-    if !fresh {
-        let mut kept = kept().lock().unwrap();
-        kept.retain(|_, (at, _)| at.elapsed() < KEEP_FOR);
-        if let Some((_, recap)) = kept.get(&key) {
-            return Ok(recap.clone());
-        }
-    }
-    let recap = read_week(hub, week, period)?;
-    kept()
-        .lock()
-        .unwrap()
-        .insert(key, (Instant::now(), recap.clone()));
-    Ok(recap)
 }
 
 #[tauri::command(async)]

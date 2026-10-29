@@ -127,6 +127,7 @@ targets:
         # The share sheet's Save Image (the weekly recap card) saves nothing without it.
         NSPhotoLibraryAddUsageDescription: Save images you share from lpm, like your weekly recap, to Photos.
         NSLocalNetworkUsageDescription: Connect to lpm running on your Mac.
+        NSFaceIDUsageDescription: Unlock lpm Link and confirm actions that are hard to undo, when you turn that on in Settings.
         NSBonjourServices:
           - _lpm._tcp
         # ATS only implicitly exempts local/CGNAT addresses, so a Linux host on a

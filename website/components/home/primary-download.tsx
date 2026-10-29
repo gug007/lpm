@@ -34,7 +34,6 @@ export function PrimaryDownload({
   return (
     <a
       href={entry.href}
-      aria-label={details ? `${entry.ariaLabel} (${details})` : entry.ariaLabel}
       onClick={() =>
         trackDownload({ source, platform: entry.platform, href: entry.href })
       }

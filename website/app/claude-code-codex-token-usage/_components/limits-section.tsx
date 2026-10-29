@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { SectionHeader } from "@/components/section-header";
-import { CLAUDE_ACCOUNTS_PATH, MOBILE_PATH } from "@/lib/links";
+import { CLAUDE_ACCOUNTS_PATH, LIMIT_CALCULATOR_PATH, MOBILE_PATH } from "@/lib/links";
 import LimitsExplainer from "./limits-explainer";
 import LimitsLegend from "./limits-legend";
 import PaceSimulator from "./pace-simulator";
@@ -36,7 +36,11 @@ export default function LimitsSection() {
           <Link href={MOBILE_PATH} className={TEXT_LINK}>
             lpm iPhone app
           </Link>{" "}
-          shows the same meters.
+          shows the same meters. To check a number without the app, use the{" "}
+          <Link href={LIMIT_CALCULATOR_PATH} className={TEXT_LINK}>
+            Claude Code limit calculator
+          </Link>
+          .
         </p>
       </div>
     </section>

@@ -23,6 +23,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import cx.lpm.mobile.core.designsystem.component.StatusDot
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
+import cx.lpm.mobile.core.model.LimitReminder
+import cx.lpm.mobile.core.model.LimitWindow
 import cx.lpm.mobile.core.model.ProviderLimits
 import cx.lpm.mobile.core.ui.providerMeta
 import cx.lpm.mobile.core.ui.tint
@@ -48,7 +50,8 @@ internal fun UsageProviderCard(
     subtitle: String? = null,
     footer: List<String> = emptyList(),
     fill: Color = LpmTheme.colors.secondarySystemGroupedBackground,
-    fiveHourFirst: Boolean = false
+    fiveHourFirst: Boolean = false,
+    reminder: ((window: String, win: LimitWindow?) -> MeterReminder?)? = null
 ) {
     val stale = macNow - data.updatedAt > STALE_MS
     Column(
@@ -66,7 +69,8 @@ internal fun UsageProviderCard(
                     data.weekly,
                     WEEKLY_MS,
                     now,
-                    stale
+                    stale,
+                    reminder = reminder?.invoke(LimitReminder.WEEKLY, data.weekly)
                 )
             }
             val fiveHour = @Composable {
@@ -75,7 +79,8 @@ internal fun UsageProviderCard(
                     data.fiveHour,
                     FIVE_HOUR_MS,
                     now,
-                    stale
+                    stale,
+                    reminder = reminder?.invoke(LimitReminder.FIVE_HOUR, data.fiveHour)
                 )
             }
             if (fiveHourFirst) {

@@ -39,7 +39,7 @@ function Tab({
         {children}
       </span>
       {port && (
-        <span className="font-mono text-[0.9em] tabular-nums text-[#8e8e8e]">
+        <span className="font-mono text-[0.9em] tabular-nums text-[#9a9a9a]">
           {port}
         </span>
       )}

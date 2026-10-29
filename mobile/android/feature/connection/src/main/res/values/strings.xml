@@ -118,4 +118,5 @@
         <item quantity="one">1 action waiting for the Mac</item>
         <item quantity="other">%d actions waiting for the Mac</item>
     </plurals>
+    <string name="issue_wake_sent">Wake signal sent. lpm reconnects as soon as it\'s up.</string>
 </resources>

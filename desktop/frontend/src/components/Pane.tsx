@@ -8,7 +8,10 @@ import { SerializeAddon } from "@xterm/addon-serialize";
 import { canFitHost, getTerminalTheme, openTerminalLink } from "./terminal-utils";
 import { copyTerminalSelection, handleCopyShortcut, handleNativeCopy, handleSelectAllShortcut, handleClearShortcut } from "./terminal/copySelection";
 import { readOnlyTerminalYields } from "./terminal/terminalKeys";
-import { applyFilterQuery, FilterMirror } from "./terminal/FilterMirror";
+import { applyFilterQuery, FilterMirror, type FilterSpec } from "./terminal/FilterMirror";
+import { bufferToPlainText } from "./terminal/consoleActions";
+import { EMPTY_TALLY, tallyLines, type SeverityTally } from "./terminal/logSeverity";
+import { useServiceLogs } from "../store/serviceLogs";
 import { registerPathLinkProvider } from "./terminal/pathLinkProvider";
 import { installLinkHoverRefresh } from "./terminal/linkHoverRefresh";
 import { useTerminalFont } from "../hooks/useTerminalFont";
@@ -47,6 +50,9 @@ interface PaneSession {
   onScrollState?: (atBottom: boolean) => void;
   // Run after the pane is cleared so a live filter overlay refreshes too.
   onAfterClear?: () => void;
+  // Errors and warnings written since the session started or was cleared.
+  tally: SeverityTally;
+  onTally?: (tally: SeverityTally) => void;
 }
 
 const paneSessions = new Map<string, PaneSession>();
@@ -96,6 +102,7 @@ function createPaneSession(opts: {
     stickToBottom: true,
     cwd: opts.cwd,
     pathLinkDisposable: null,
+    tally: EMPTY_TALLY,
   };
 
   try {
@@ -140,7 +147,19 @@ function fitPaneSession(session: PaneSession): void {
 function clearPaneSession(session: PaneSession): void {
   session.term.reset();
   session.staleBuffer = false;
+  recountPaneSession(session, []);
   session.onAfterClear?.();
+}
+
+function recountPaneSession(session: PaneSession, lines: string[], from: SeverityTally = EMPTY_TALLY): void {
+  session.tally = tallyLines(lines, from);
+  session.onTally?.(session.tally);
+}
+
+/** Everything a service's pane holds, as plain text, or "" for no such pane. */
+export function paneSessionText(key: string): string {
+  const session = paneSessions.get(key);
+  return session ? bufferToPlainText(session.term) : "";
 }
 
 export function disposePaneSession(key: string): void {
@@ -150,6 +169,7 @@ export function disposePaneSession(key: string): void {
   session.term.dispose();
   session.host.remove();
   paneSessions.delete(key);
+  useServiceLogs.getState().forget(key);
 }
 
 export interface PaneHandle {
@@ -198,6 +218,23 @@ export function Pane({ label, labelLead, labelHint, labelDetail, onLabelClick, l
     scrollCallbackRef.current = onScrollStateChange;
     themeOverrideRef.current = themeOverride;
     const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+    const severityFilter = useServiceLogs((s) => (sessionKey ? s.filter[sessionKey] : undefined));
+
+    const applyFilter = (spec: FilterSpec | null, onCount?: (count: number) => void) => {
+      const session = sessionRef.current;
+      const el = containerRef.current;
+      if (!session || !el) return;
+      applyFilterQuery(
+        filterRef,
+        el,
+        session,
+        () => themeOverrideRef.current ?? getTerminalTheme(el),
+        () => fontSizeRef.current,
+        () => ({ fontFamily: fontFamilyRef.current, lineHeight: lineHeightRef.current }),
+        spec,
+        onCount,
+      );
+    };
 
     useImperativeHandle(ref, () => ({
       clear() {
@@ -215,22 +252,12 @@ export function Pane({ label, labelLead, labelHint, labelDetail, onLabelClick, l
         clearFind(sessionRef.current);
       },
       setFilter(query: string | null, onCount?: (count: number) => void) {
-        const session = sessionRef.current;
-        const el = containerRef.current;
-        if (!session || !el) return;
-        applyFilterQuery(
-          filterRef,
-          el,
-          session,
-          () => themeOverrideRef.current ?? getTerminalTheme(el),
-          () => fontSizeRef.current,
-          () => ({
-            fontFamily: fontFamilyRef.current,
-            lineHeight: lineHeightRef.current,
-          }),
-          query,
-          onCount,
-        );
+        if (!sessionRef.current || !containerRef.current) return;
+        const logs = useServiceLogs.getState();
+        if (query && sessionKey) logs.setFilter(sessionKey, null);
+        // With no text to filter by, the pane goes back to its Errors or Warnings view.
+        const severity = !query && sessionKey ? logs.filter[sessionKey] : undefined;
+        applyFilter(query || (severity ? { severity } : null), onCount);
       },
       scrollToBottom() {
         const session = sessionRef.current;
@@ -291,6 +318,10 @@ export function Pane({ label, labelLead, labelHint, labelDetail, onLabelClick, l
         scrollCallbackRef.current?.(atBottom);
       };
       session.onAfterClear = () => filterRef.current?.refresh();
+      session.onTally = sessionKey
+        ? ({ errors, warnings }) => useServiceLogs.getState().setCounts(sessionKey, { errors, warnings })
+        : undefined;
+      session.onTally?.(session.tally);
 
       fitPaneSession(session);
 
@@ -325,6 +356,7 @@ export function Pane({ label, labelLead, labelHint, labelDetail, onLabelClick, l
         ro.disconnect();
         session.onScrollState = undefined;
         session.onAfterClear = undefined;
+        session.onTally = undefined;
         filterRef.current?.dispose();
         filterRef.current = null;
 
@@ -376,6 +408,12 @@ export function Pane({ label, labelLead, labelHint, labelDetail, onLabelClick, l
     }, [cwd]);
 
     useEffect(() => {
+      const showing = filterRef.current?.severity() ?? null;
+      const wanted = visible ? (severityFilter ?? null) : null;
+      if (wanted !== showing) applyFilter(wanted ? { severity: wanted } : null);
+    }, [severityFilter, visible]);
+
+    useEffect(() => {
       if (!visible) {
         filterRef.current?.setQuery(null);
         return;
@@ -408,6 +446,7 @@ export function Pane({ label, labelLead, labelHint, labelDetail, onLabelClick, l
       if (prevLines.length === 0) {
         if (session.staleBuffer) term.reset();
         term.write(newLines.join("\n"));
+        recountPaneSession(session, newLines, session.staleBuffer ? EMPTY_TALLY : session.tally);
       } else {
         // The capture is trimmed as a whole, so its last line loses trailing
         // spaces it keeps once more output follows; compare without them or a
@@ -424,9 +463,11 @@ export function Pane({ label, labelLead, labelHint, labelDetail, onLabelClick, l
         if (overlapIdx >= 0 && overlapIdx < newLines.length - 1) {
           const added = newLines.slice(overlapIdx + 1);
           term.write("\n" + added.join("\n"));
+          recountPaneSession(session, added, session.tally);
         } else if (overlapIdx === -1) {
           term.reset();
           term.write(newLines.join("\n"));
+          recountPaneSession(session, newLines);
         }
       }
       session.staleBuffer = false;

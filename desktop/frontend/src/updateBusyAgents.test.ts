@@ -56,8 +56,8 @@ describe("busyAgentPlaces", () => {
       project("web", [entry("claude_code_d", STATUS_RUNNING)]),
     ];
     expect(busyAgentPlaces(projects, [], NOW)).toEqual([
-      { key: "api", name: "Backend", count: 2 },
-      { key: "web", name: "web", count: 1 },
+      { key: "api", name: "Backend", count: 2, asking: 1 },
+      { key: "web", name: "web", count: 1, asking: 0 },
     ]);
   });
 
@@ -68,15 +68,15 @@ describe("busyAgentPlaces", () => {
         entry("codex_b", STATUS_RUNNING, "%1"),
       ]),
     ];
-    expect(busyAgentPlaces(projects, [], NOW)).toEqual([{ key: "api", name: "api", count: 1 }]);
+    expect(busyAgentPlaces(projects, [], NOW)).toEqual([{ key: "api", name: "api", count: 1, asking: 0 }]);
   });
 
   it("includes the global Terminals first", () => {
     const projects = [project("api", [entry("claude_code_a", STATUS_RUNNING)])];
     const terminals = [entry("codex_t", STATUS_WAITING)];
     expect(busyAgentPlaces(projects, terminals, NOW)).toEqual([
-      { key: GLOBAL_TERMINALS_KEY, name: "Terminals", count: 1 },
-      { key: "api", name: "api", count: 1 },
+      { key: GLOBAL_TERMINALS_KEY, name: "Terminals", count: 1, asking: 1 },
+      { key: "api", name: "api", count: 1, asking: 0 },
     ]);
   });
 

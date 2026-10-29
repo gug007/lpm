@@ -34,23 +34,38 @@ fn unix_ipv4_addrs() -> Vec<Ipv4Addr> {
 /// Every IPv4 address with its interface's flags (`IFF_*`).
 #[cfg(unix)]
 fn unix_ipv4_ifaces() -> Vec<(Ipv4Addr, i32)> {
+    let mut out = Vec::new();
+    each_ifaddr(|entry| {
+        if !entry.ifa_addr.is_null()
+            && unsafe { (*entry.ifa_addr).sa_family } as i32 == libc::AF_INET
+        {
+            out.push((unsafe { sockaddr_ipv4(entry.ifa_addr) }, entry.ifa_flags as i32));
+        }
+    });
+    out
+}
+
+/// Calls `f` with every entry `getifaddrs` lists.
+#[cfg(unix)]
+pub fn each_ifaddr(mut f: impl FnMut(&libc::ifaddrs)) {
     let mut ifap: *mut libc::ifaddrs = std::ptr::null_mut();
     if unsafe { libc::getifaddrs(&mut ifap) } != 0 {
-        return Vec::new();
+        return;
     }
-    let mut out = Vec::new();
     let mut cur = ifap;
     while !cur.is_null() {
-        let addr = unsafe { (*cur).ifa_addr };
-        if !addr.is_null() && unsafe { (*addr).sa_family } as i32 == libc::AF_INET {
-            let sin = addr as *const libc::sockaddr_in;
-            let ip = Ipv4Addr::from(u32::from_be(unsafe { (*sin).sin_addr.s_addr }));
-            out.push((ip, unsafe { (*cur).ifa_flags } as i32));
-        }
-        cur = unsafe { (*cur).ifa_next };
+        let entry = unsafe { &*cur };
+        f(entry);
+        cur = entry.ifa_next;
     }
     unsafe { libc::freeifaddrs(ifap) };
-    out
+}
+
+/// The IPv4 address in `addr`, which must point to a `sockaddr_in`.
+#[cfg(unix)]
+pub unsafe fn sockaddr_ipv4(addr: *const libc::sockaddr) -> Ipv4Addr {
+    let sin = addr as *const libc::sockaddr_in;
+    Ipv4Addr::from(u32::from_be((*sin).sin_addr.s_addr))
 }
 
 /// The address devices on this machine's network reach it at, for the pairing

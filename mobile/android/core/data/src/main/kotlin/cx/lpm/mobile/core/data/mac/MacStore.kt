@@ -3,9 +3,11 @@ package cx.lpm.mobile.core.data.mac
 import cx.lpm.mobile.core.data.prefs.AppPreferences
 import cx.lpm.mobile.core.data.prefs.PreferenceKeys
 import cx.lpm.mobile.core.model.DEFAULT_MAC_PORT
+import cx.lpm.mobile.core.model.WakeTarget
 import cx.lpm.mobile.core.model.int
 import cx.lpm.mobile.core.model.long
 import cx.lpm.mobile.core.model.obj
+import cx.lpm.mobile.core.model.objects
 import cx.lpm.mobile.core.model.string
 import cx.lpm.mobile.core.model.strings
 import java.time.Instant
@@ -72,6 +74,7 @@ class MacStore @Inject constructor(private val prefs: AppPreferences) {
                 }
             )
         }
+        r.wake?.let { targets -> put("wake", JsonArray(targets.map(WakeTarget::toJson))) }
     }
 
     private fun decode(o: JsonObject): MacRecord? {
@@ -100,7 +103,8 @@ class MacStore @Inject constructor(private val prefs: AppPreferences) {
                 val macId = v.string("macId")
                 val slug = v.string("slug")
                 if (macId != null && slug != null) MacVia(macId, slug) else null
-            }
+            },
+            wake = o.objects("wake")?.mapNotNull(WakeTarget::parse)?.ifEmpty { null }
         )
     }
 }

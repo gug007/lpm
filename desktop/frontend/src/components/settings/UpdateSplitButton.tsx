@@ -4,10 +4,10 @@ import { createPortal } from "react-dom";
 import { useAnchoredPanel } from "../../hooks/useAnchoredPanel";
 import { useAppStore } from "../../store/app";
 import { useGlobalAgentStatus } from "../../store/globalAgentStatus";
-import { busyAgentPlaces, type BusyAgentPlace } from "../../updateBusyAgents";
+import { busyAgentPlaces, busyTotal, type BusyAgentPlace } from "../../updateBusyAgents";
 
 function waitHint(places: BusyAgentPlace[]): string {
-  const agents = places.reduce((sum, place) => sum + place.count, 0);
+  const agents = busyTotal(places);
   if (agents === 0) return "No agent is working, so it starts now";
   const noun = agents === 1 ? "agent" : "agents";
   const where = places.length === 1 ? places[0].name : `${places.length} projects`;

@@ -37,6 +37,7 @@ internal fun LpmClient.connectDemo() {
                 add(LpmClient.WEEKLY_RECAP_FEATURE)
                 add(LpmClient.RECAP_MONTH_FEATURE)
                 add(LpmClient.AGENT_ARCHIVE_FEATURE)
+                add(LpmClient.LIMIT_REMINDERS_FEATURE)
             }
         }
         injectInbound(Wire.json(ready))

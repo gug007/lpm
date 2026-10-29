@@ -2,6 +2,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { STATUS_RUNNING, type ProjectInfo } from "../types";
 
 vi.hoisted(() => {
   window.__LPM_PLATFORM__ = "linux";
@@ -11,6 +12,7 @@ const bridge = vi.hoisted(() => ({
   quit: vi.fn(() => Promise.resolve()),
   check: vi.fn(() => Promise.resolve({ updateAvail: false })),
   emit: vi.fn(),
+  projects: [] as ProjectInfo[],
 }));
 
 vi.mock("../../bridge/commands", () => ({
@@ -19,8 +21,17 @@ vi.mock("../../bridge/commands", () => ({
   GetVersion: () => Promise.resolve("1.2.3"),
 }));
 vi.mock("../../bridge/runtime", () => ({ EventsEmit: bridge.emit, EventsOn: () => () => {} }));
-vi.mock("../notifications/toast", () => ({ toast: Object.assign(vi.fn(), { error: vi.fn() }) }));
+vi.mock("../notifications/toast", () => ({
+  toast: Object.assign(vi.fn(), { error: vi.fn(), loading: vi.fn(), dismiss: vi.fn() }),
+}));
+vi.mock("../store/app", () => ({
+  useAppStore: { getState: () => ({ projects: bridge.projects }) },
+}));
+vi.mock("../store/globalAgentStatus", () => ({
+  useGlobalAgentStatus: { getState: () => ({ entries: [] }) },
+}));
 
+import { useQuitGuard } from "../quitGuard";
 import { AppMenuButton } from "./AppMenuButton";
 
 let host: HTMLDivElement;
@@ -36,6 +47,8 @@ beforeEach(() => {
   onSettings = vi.fn<() => void>();
   onFeedback = vi.fn<() => void>();
   bridge.quit.mockClear();
+  bridge.projects = [];
+  useQuitGuard.setState({ asking: null, waiting: false });
   act(() => root.render(<AppMenuButton onSettings={onSettings} onFeedback={onFeedback} />));
 });
 
@@ -62,6 +75,22 @@ function press(
     target.dispatchEvent(e);
   });
   return e;
+}
+
+function working(name: string): ProjectInfo {
+  return {
+    name,
+    session: name,
+    root: `/Users/dev/${name}`,
+    running: false,
+    services: [],
+    allServices: [],
+    actions: [],
+    profiles: [],
+    activeProfile: "",
+    statusEntries: [{ key: "claude_code_a", value: STATUS_RUNNING, priority: 0, timestamp: Date.now(), paneID: "%1" }],
+    isRemote: false,
+  };
 }
 
 const buttonByText = (text: string) =>
@@ -125,6 +154,24 @@ describe("AppMenuButton", () => {
     expect(quit!.textContent).toContain("Ctrl+Shift+Q");
     act(() => quit!.click());
     expect(bridge.quit).toHaveBeenCalledTimes(1);
+  });
+
+  it("lists agents mid-task instead of quitting, and a second Ctrl+Shift+Q quits anyway", () => {
+    bridge.projects = [working("api")];
+    press("Q", { ctrl: true, shift: true });
+    expect(useQuitGuard.getState().asking).toEqual([{ key: "api", name: "api", count: 1, asking: 0 }]);
+    expect(document.body.textContent).not.toContain("Quit lpm?");
+    expect(bridge.quit).not.toHaveBeenCalled();
+    press("Q", { ctrl: true, shift: true });
+    expect(bridge.quit).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks from the menu entry when agents are mid-task", () => {
+    bridge.projects = [working("api")];
+    act(() => document.querySelector<HTMLButtonElement>("button[aria-label='lpm menu']")?.click());
+    act(() => buttonByText("Quit lpm")!.click());
+    expect(useQuitGuard.getState().asking).not.toBeNull();
+    expect(bridge.quit).not.toHaveBeenCalled();
   });
 
   it("routes Settings and feedback from the menu", () => {

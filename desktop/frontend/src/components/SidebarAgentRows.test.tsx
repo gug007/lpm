@@ -2,6 +2,11 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("./SidebarAgentAsk", () => ({
+  SidebarAgentAsk: ({ terminalId }: { terminalId: string }) => <div data-ask={terminalId} />,
+}));
+
 import { SidebarAgentRows } from "./SidebarAgentRows";
 import { SidebarAgentSummary } from "./SidebarAgentSummary";
 import type { SidebarAgentRow } from "../sidebarAgents";
@@ -215,6 +220,42 @@ describe("SidebarAgentSummary", () => {
 
   // Which agent gets to speak on the project row is `sidebarProjectAlert`'s
   // call, and is covered there.
+});
+
+describe("SidebarAgentRows answers", () => {
+  const asks = () => [...container.querySelectorAll<HTMLElement>("[data-ask]")].map((el) => el.dataset.ask);
+
+  it("offers to answer a waiting agent whose terminal isn't on screen", () => {
+    act(() => {
+      root.render(
+        <SidebarAgentRows
+          projectName="api"
+          agents={[
+            agent({ key: "a", terminalId: "%1" }),
+            agent({ key: "b", terminalId: "%2", state: "working" }),
+            agent({ key: "c", terminalId: "%3" }),
+            agent({ key: "d", terminalId: null }),
+          ]}
+          activeTerminalId="%3"
+          onOpenAgent={vi.fn()}
+        />,
+      );
+    });
+    expect(asks()).toEqual(["%1"]);
+  });
+
+  it("leaves a paired machine's agents to be answered there", () => {
+    act(() => {
+      root.render(
+        <SidebarAgentRows
+          projectName="peer-0a1b2c3d-api"
+          agents={[agent({ key: "a", terminalId: "%1" })]}
+          onOpenAgent={vi.fn()}
+        />,
+      );
+    });
+    expect(asks()).toEqual([]);
+  });
 });
 
 describe("SidebarAgentRows seen agents", () => {

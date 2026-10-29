@@ -82,7 +82,9 @@ fun IssueContent(
             )
             Text(
                 text = state.recoveryStatus
-                    ?: if (state.tailscaleWorking) {
+                    ?: if (state.wakeSent) {
+                        stringResource(R.string.issue_wake_sent)
+                    } else if (state.tailscaleWorking) {
                         stringResource(
                             R.string.issue_tailscale_working
                         )

@@ -52,6 +52,14 @@ data class SlashCommand(
 ) {
     val id: String get() = name
 
+    /** Where it comes from, as the desktop's menu tags it. */
+    val sourceLabel: String?
+        get() = when (source) {
+            "builtin" -> "built-in"
+            "project", "user" -> source
+            else -> null
+        }
+
     companion object {
         fun parse(o: JsonObject): SlashCommand = SlashCommand(
             name = o.string("name").orEmpty(),

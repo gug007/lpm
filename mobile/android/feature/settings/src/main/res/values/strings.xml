@@ -41,7 +41,30 @@
     <string name="notify_live_header">Live updates</string>
     <string name="notify_live">Show agents on the Lock Screen</string>
     <string name="notify_live_footer">While agents work, an ongoing notification shows them.</string>
+    <string name="settings_security">Security</string>
+    <string name="settings_require_lock">Require screen lock</string>
+    <string name="settings_lock_after">Lock</string>
+    <string name="settings_lock_immediately">Immediately</string>
+    <string name="settings_confirm_risky">Confirm risky actions</string>
+    <string name="settings_security_footer">Confirm risky actions asks before Discard Changes, Push and Stop All.</string>
+    <string name="settings_security_no_lock">Set a screen lock on this phone to lock lpm Link.</string>
+    <string name="notify_projects">Projects</string>
+    <string name="notify_projects_footer">Only when it needs me: an agent waiting on you, or an automation asking a question.</string>
+    <string name="notify_level_all">All</string>
+    <string name="notify_level_waiting">Only when it needs me</string>
+    <string name="notify_level_off">Off</string>
+    <string name="notify_quiet">Quiet hours</string>
+    <string name="notify_quiet_from">From</string>
+    <string name="notify_quiet_to">To</string>
+    <string name="notify_quiet_waiting">Let “needs you” through</string>
+    <string name="notify_quiet_footer">Notifications still arrive, without a sound or a banner.</string>
+    <string name="notify_quiet_ok">OK</string>
+    <string name="notify_quiet_cancel">Cancel</string>
     <string name="notify_automations_footer">Choose which automation outcomes send a notification when this app is closed.</string>
     <string name="notify_weekly_recap">Weekly recap</string>
     <string name="notify_weekly_recap_footer">Mondays, when your week in lpm is ready</string>
+    <plurals name="settings_lock_minutes">
+        <item quantity="one">After %1$d minute</item>
+        <item quantity="other">After %1$d minutes</item>
+    </plurals>
 </resources>

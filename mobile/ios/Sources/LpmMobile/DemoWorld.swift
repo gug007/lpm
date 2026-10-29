@@ -79,6 +79,7 @@ struct DemoWorld {
     // In-flight + recently finished background action runs (reaped after ~5 min,
     // mirroring the desktop registry's retention).
     var backgroundRuns: [BgRun] = []
+    var limitReminders: [[String: Any]] = []
     // Poll counters ("project\nservice") so service logs grow between polls.
     var serviceLogTicks: [String: Int] = [:]
     var serviceLogWatches: [String: Int] = [:]   // project + "\n" + pane -> watch token

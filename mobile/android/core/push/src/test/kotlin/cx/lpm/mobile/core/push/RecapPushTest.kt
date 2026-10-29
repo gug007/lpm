@@ -59,7 +59,8 @@ class RecapPushTest {
             t.credentials,
             t.session,
             AgentWidgetStore(app) {},
-            LiveNotifier(app, t.prefs, t.macStore)
+            LiveNotifier(app, t.prefs, t.macStore),
+            t.prefs
         )
         notifier.createChannels()
         return notifier to t.credentials.loadPushKey()!!

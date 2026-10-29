@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { getChangelogReleases } from "@/lib/changelog";
+import { changelogDays, daysByMonth, monthPath } from "@/lib/changelog-days";
 import {
   CHANGELOG_PATH,
   PRIVACY_PATH,
@@ -31,12 +32,20 @@ const settingsFor = (path: string): Pick<Entry, "changeFrequency" | "priority"> 
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Releases change the changelog without touching the repo.
-  const [latest] = await getChangelogReleases();
+  const releases = await getChangelogReleases();
   const dates: Record<string, string> = {
     ...sitemapDates,
-    [CHANGELOG_PATH]: latest.date,
+    [CHANGELOG_PATH]: releases[0].date,
   };
-  return Object.entries(dates)
+  const months: Entry[] = [...daysByMonth(changelogDays(releases))].map(
+    ([month, [newest]]) => ({
+      url: `${SITE_URL}${monthPath(month)}`,
+      lastModified: new Date(newest.date),
+      changeFrequency: "monthly",
+      priority: 0.3,
+    }),
+  );
+  const pages = Object.entries(dates)
     .filter(([path]) => !NOINDEX.has(path))
     .sort(([a], [b]) => (a === "/" ? -1 : b === "/" ? 1 : a.localeCompare(b)))
     .map(([path, date]) => ({
@@ -44,4 +53,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: new Date(date),
       ...settingsFor(path),
     }));
+  return [...pages, ...months];
 }

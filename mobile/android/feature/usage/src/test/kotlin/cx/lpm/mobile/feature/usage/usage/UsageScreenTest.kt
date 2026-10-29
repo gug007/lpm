@@ -26,7 +26,7 @@ class UsageScreenTest {
     private fun show(body: UsageBody) = compose.setContent {
         LpmTheme {
             UsageScreen(
-                state = UsageUiState(body, now, now),
+                state = UsageUiState(body, now = now, macNow = now),
                 onBack = { events += "back" },
                 onRefresh = {},
                 onRetry = { events += "retry" }

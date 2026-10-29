@@ -8,6 +8,8 @@ import cx.lpm.mobile.core.data.session.MacSessions
 import cx.lpm.mobile.core.data.usage.UsageState
 import cx.lpm.mobile.core.data.usage.UsageStore
 import cx.lpm.mobile.core.model.ClaudeAccounts
+import cx.lpm.mobile.core.model.LimitReminder
+import cx.lpm.mobile.core.model.LimitWindow
 import cx.lpm.mobile.core.model.ProviderLimits
 import cx.lpm.mobile.core.model.UsageCard
 import cx.lpm.mobile.core.model.claudeCards
@@ -49,6 +51,9 @@ sealed interface UsageBody {
 
 data class UsageUiState(
     val body: UsageBody = UsageBody.Loading,
+    /** The Mac's limit reminders; empty from a Mac that keeps none. */
+    val reminders: List<LimitReminder> = emptyList(),
+    val remindersSupported: Boolean = false,
     /** Unix millis on the phone's clock, for the windows the tools stamped. */
     val now: Double = 0.0,
     /** The same moment on the Mac's clock, for the `updatedAt` it stamped. */
@@ -101,7 +106,13 @@ class UsageViewModel @AssistedInject constructor(
 
             else -> UsageBody.Loading
         }
-        return UsageUiState(body, now.toDouble(), s.macMillis(now))
+        return UsageUiState(
+            body = body,
+            reminders = s.reminders,
+            remindersSupported = s.remindersSupported,
+            now = now.toDouble(),
+            macNow = s.macMillis(now)
+        )
     }
 
     fun open() {
@@ -118,6 +129,10 @@ class UsageViewModel @AssistedInject constructor(
 
     fun retry() {
         viewModelScope.launch { refresh() }
+    }
+
+    fun toggleReminder(limit: String, window: String, win: LimitWindow, name: String) {
+        usage?.toggleReminder(limit, window, win, name)
     }
 
     @AssistedFactory

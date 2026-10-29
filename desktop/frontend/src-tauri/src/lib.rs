@@ -33,6 +33,7 @@ mod bannerwithdraw;
 mod approvalgrace;
 mod bgtasks;
 mod aigen;
+mod aigen_split;
 mod autosync;
 mod bounds;
 mod browser;
@@ -155,12 +156,14 @@ mod message_history;
 mod message_history_machines;
 mod msysmounts;
 mod keepawake;
+mod limit_reminders;
 mod sharelink;
 mod sharenoise;
 mod sharerelay;
 mod sharerelaydial;
 mod sleepwatch;
 mod netif;
+mod wakeonlan;
 mod notes_blobs;
 mod notes_cmds;
 mod notes_plain;
@@ -344,6 +347,7 @@ use agent_caps::{
     preview_agent_skill_delete, read_agent_capability, update_agent_skill, write_agent_capability,
 };
 use aigen::*;
+use aigen_split::generate_commit_split;
 use browser::*;
 use claude_account_pin::*;
 use claude_pool::{accept_claude_pool_pick, claude_pool_state, resume_claude_pool, set_claude_pool};
@@ -390,7 +394,7 @@ use htmlproto::html_preview_root;
 use jobs::*;
 use jobs::ask::*;
 use lesson::*;
-use lifecycle::quit_app;
+use lifecycle::{quit_app, quit_request_heard};
 use log_streaming::*;
 use mediahttp::media_http_base;
 use message_history::*;
@@ -427,6 +431,7 @@ use remote::tabs::{remote_take_restore_requests, terminal_tab_op};
 use remote_agents::remote_set_agent_options;
 use remote::*;
 use send_later::*;
+use limit_reminders::*;
 use services::*;
 use servicesbuild::{restart_services, services_build};
 use session_memory_files::{
@@ -748,6 +753,10 @@ pub fn run() {
             // Prompts scheduled to send later: owns the list and the clock that
             // marks each one due or missed; the main window does the sending.
             send_later::start(handle.clone());
+
+            // Reminders that a usage limit has reset: fired from here to this
+            // machine's banner and every paired phone.
+            limit_reminders::start(handle.clone());
 
             // Backgrounded startup chores: reap stale clipboard image temp files,
             // drop sync caches for deleted projects, and resume port pollers for

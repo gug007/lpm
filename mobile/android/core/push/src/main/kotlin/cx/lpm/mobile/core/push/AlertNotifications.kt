@@ -19,6 +19,7 @@ import cx.lpm.mobile.core.data.push.NotificationOpenTarget
 import cx.lpm.mobile.core.data.push.PushAlert
 import cx.lpm.mobile.core.data.push.PushKind
 import cx.lpm.mobile.core.data.push.PushRecap
+import cx.lpm.mobile.core.data.push.PushReminder
 
 /** What an alert's notification carries to be opened, answered and withdrawn later. */
 internal object AlertExtras {
@@ -91,39 +92,115 @@ internal fun Context.alertNotification(
     alert: PushAlert,
     tag: String,
     body: String = alert.body,
-    answers: Boolean = true
+    answers: Boolean = true,
+    quiet: Boolean = false
 ): NotificationCompat.Builder {
     val extras = alert.extras()
-    val builder = NotificationCompat.Builder(this, alert.kind.channelId)
+    // A finish carries the words the agent ended on under the line saying so.
+    val expanded = alert.summary?.let { "$body\n$it" } ?: body
+    val builder = NotificationCompat.Builder(
+        this,
+        if (quiet) QUIET_CHANNEL else alert.kind.channelId
+    )
         .setSmallIcon(R.drawable.ic_stat_lpm)
         .setContentTitle(alert.title)
         .setContentText(body)
-        .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+        .setStyle(NotificationCompat.BigTextStyle().bigText(expanded))
         .setPriority(
-            if (alert.kind.importance == NotificationManager.IMPORTANCE_HIGH) {
-                NotificationCompat.PRIORITY_HIGH
-            } else {
-                NotificationCompat.PRIORITY_DEFAULT
+            when {
+                quiet -> NotificationCompat.PRIORITY_LOW
+
+                alert.kind.importance == NotificationManager.IMPORTANCE_HIGH ->
+                    NotificationCompat.PRIORITY_HIGH
+
+                else -> NotificationCompat.PRIORITY_DEFAULT
             }
         )
+        .setSilent(quiet)
         .setAutoCancel(true)
         .setContentIntent(openIntent(tag.hashCode(), extras))
         .addExtras(extras)
-    if (answers) answerActions(alert, tag).forEach(builder::addAction)
+    if (answers) {
+        answerActions(alert, tag).forEach(builder::addAction)
+        // A finished turn that takes a reply also opens its review screen or its tab.
+        if (AgentAnswerAction.Reply in alert.actions) {
+            val changes = Bundle(extras).apply {
+                putString(NotificationOpenTarget.TARGET, NotificationOpenTarget.CHANGES)
+            }
+            builder.addAction(
+                NotificationCompat.Action.Builder(
+                    null,
+                    getString(R.string.answer_review_changes),
+                    openIntent("$tag|changes".hashCode(), changes)
+                ).build()
+            )
+            builder.addAction(
+                NotificationCompat.Action.Builder(
+                    null,
+                    getString(R.string.answer_open_tab),
+                    openIntent("$tag|open".hashCode(), extras)
+                ).build()
+            )
+        }
+    }
     return builder
 }
 
+/** A limit reminder as the Mac words it; a tap opens that Mac's Usage screen. */
+internal fun Context.reminderNotification(
+    reminder: PushReminder,
+    tag: String,
+    quiet: Boolean
+): NotificationCompat.Builder = macNotification(
+    reminder.serverId,
+    PushReminder.TARGET,
+    reminder.title,
+    reminder.body,
+    REMINDER_CHANNEL,
+    tag,
+    quiet
+)
+
 /** The weekly recap as the Mac words it; a tap opens that Mac's recap on last week. */
-internal fun Context.recapNotification(recap: PushRecap, tag: String): NotificationCompat.Builder {
+internal fun Context.recapNotification(
+    recap: PushRecap,
+    tag: String,
+    quiet: Boolean
+): NotificationCompat.Builder = macNotification(
+    recap.serverId,
+    PushRecap.TARGET,
+    recap.title,
+    recap.body,
+    PushKind.WeeklyRecap.channelId,
+    tag,
+    quiet
+)
+
+/** Where everything that arrives during quiet hours goes: no sound, no heads-up. */
+internal const val QUIET_CHANNEL = "quiet-hours"
+
+internal const val REMINDER_CHANNEL = "limit-reminders"
+
+/** A notification about a Mac rather than one of its projects; a tap opens `target` there. */
+private fun Context.macNotification(
+    serverId: String?,
+    target: String,
+    title: String,
+    body: String,
+    channel: String,
+    tag: String,
+    quiet: Boolean
+): NotificationCompat.Builder {
     val extras = Bundle().apply {
-        putString(NotificationOpenTarget.SERVER_ID, recap.serverId)
-        putString(NotificationOpenTarget.TARGET, PushRecap.TARGET)
+        putString(NotificationOpenTarget.SERVER_ID, serverId)
+        putString(NotificationOpenTarget.TARGET, target)
     }
-    return NotificationCompat.Builder(this, PushKind.WeeklyRecap.channelId)
+    return NotificationCompat.Builder(this, if (quiet) QUIET_CHANNEL else channel)
         .setSmallIcon(R.drawable.ic_stat_lpm)
-        .setContentTitle(recap.title)
-        .setContentText(recap.body)
-        .setStyle(NotificationCompat.BigTextStyle().bigText(recap.body))
+        .setContentTitle(title)
+        .setContentText(body)
+        .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+        .setSilent(quiet)
         .setAutoCancel(true)
         .setContentIntent(openIntent(tag.hashCode(), extras))
         .addExtras(extras)

@@ -11,6 +11,8 @@ struct UsageMeterView: View {
     let windowMs: Double
     let now: Double
     var stale: Bool = false
+    /// The reset reminder's bell, where the window offers one.
+    var reminder: MeterReminder? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -18,10 +20,25 @@ struct UsageMeterView: View {
         let meter = state
 
         VStack(alignment: .leading, spacing: 8) {
-            Text(label.uppercased())
-                .font(.caption2.weight(.semibold))
-                .kerning(0.6)
-                .foregroundStyle(.secondary)
+            HStack {
+                Text(label.uppercased())
+                    .font(.caption2.weight(.semibold))
+                    .kerning(0.6)
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 8)
+                if let reminder, meter.hasData {
+                    Button(action: reminder.toggle) {
+                        Image(systemName: reminder.set ? "bell.fill" : "bell")
+                            .font(.footnote)
+                            .foregroundStyle(reminder.set ? Color.orange : Color.secondary)
+                            .frame(width: 28, height: 22)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Remind me when the \(label.lowercased()) limit resets")
+                    .accessibilityAddTraits(reminder.set ? .isSelected : [])
+                }
+            }
 
             valueRow(meter)
 
@@ -42,7 +59,7 @@ struct UsageMeterView: View {
             .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityElement(children: .ignore)
+        .accessibilityElement(children: reminder == nil ? .ignore : .contain)
         .accessibilityLabel("\(label) window usage")
         .accessibilityValue(meter.accessibilityValue)
     }
@@ -145,7 +162,7 @@ struct UsageMeterView: View {
         let verdict = expired ? "window reset · awaiting new data" : paceLabel(pace)
         let resetSoon = resetsAt > 0 ? resetText(resetsAt, now: now) : ""
         let resetLine = hasData && resetsAt > 0
-            ? "\(resetSoon) · \(resetAbsolute(resetsAt))"
+            ? "\(resetSoon) · \(resetAbsolute(resetsAt))\(reminder?.set == true ? " · reminder set" : "")"
             : ""
 
         var spoken = "no data yet"

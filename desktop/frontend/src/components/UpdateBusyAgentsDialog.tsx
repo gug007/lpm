@@ -1,4 +1,5 @@
-import type { BusyAgentPlace } from "../updateBusyAgents";
+import { busyTotal, type BusyAgentPlace } from "../updateBusyAgents";
+import { BusyAgentPlaceList } from "./BusyAgentPlaceList";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 
 interface UpdateBusyAgentsDialogProps {
@@ -8,7 +9,7 @@ interface UpdateBusyAgentsDialogProps {
 }
 
 export function UpdateBusyAgentsDialog({ places, onCancel, onConfirm }: UpdateBusyAgentsDialogProps) {
-  const total = places?.reduce((sum, place) => sum + place.count, 0) ?? 0;
+  const total = places ? busyTotal(places) : 0;
   return (
     <ConfirmDialog
       open={places !== null}
@@ -18,18 +19,10 @@ export function UpdateBusyAgentsDialog({ places, onCancel, onConfirm }: UpdateBu
         <>
           Updating restarts lpm, which stops{" "}
           {total === 1 ? "this agent" : `these ${total} agents`} mid-task:
-          <ul className="mt-2 max-h-40 space-y-0.5 overflow-y-auto">
-            {places?.map((place) => (
-              <li key={place.key} className="flex items-baseline gap-2">
-                <span className="min-w-0 truncate text-[var(--text-primary)]">{place.name}</span>
-                {place.count > 1 && (
-                  <span className="shrink-0 text-xs text-[var(--text-muted)]">
-                    {place.count} agents
-                  </span>
-                )}
-              </li>
-            ))}
-          </ul>
+          <BusyAgentPlaceList
+            places={places}
+            detail={(place) => (place.count > 1 ? `${place.count} agents` : "")}
+          />
         </>
       }
       onCancel={onCancel}

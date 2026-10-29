@@ -6,6 +6,8 @@ import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationChannelGroupCompat
 import androidx.core.app.NotificationManagerCompat
 import cx.lpm.mobile.core.data.mac.CredentialStore
+import cx.lpm.mobile.core.data.prefs.AppPreferences
+import cx.lpm.mobile.core.data.prefs.notificationPrefs
 import cx.lpm.mobile.core.data.push.DeliveredNote
 import cx.lpm.mobile.core.data.push.DeliveredNotes
 import cx.lpm.mobile.core.data.push.LiveSnapshot
@@ -15,10 +17,12 @@ import cx.lpm.mobile.core.data.push.PushClear
 import cx.lpm.mobile.core.data.push.PushCrypto
 import cx.lpm.mobile.core.data.push.PushKind
 import cx.lpm.mobile.core.data.push.PushRecap
+import cx.lpm.mobile.core.data.push.PushReminder
 import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.data.widget.AgentWidgetStore
 import cx.lpm.mobile.core.model.Project
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.time.LocalTime
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.runBlocking
@@ -37,7 +41,8 @@ class PushNotifier @Inject constructor(
     private val credentials: CredentialStore,
     private val session: MacSession,
     private val widget: AgentWidgetStore,
-    private val live: LiveNotifier
+    private val live: LiveNotifier,
+    private val prefs: AppPreferences
 ) {
     private val manager = NotificationManagerCompat.from(context)
 
@@ -65,7 +70,19 @@ class PushNotifier @Inject constructor(
                 .setName(context.getString(R.string.push_channel_live))
                 .setGroup(GROUP_AGENTS)
                 .setShowBadge(false)
-                .build()
+                .build() +
+                NotificationChannelCompat.Builder(
+                    QUIET_CHANNEL,
+                    NotificationManager.IMPORTANCE_LOW
+                )
+                    .setName(context.getString(R.string.push_channel_quiet))
+                    .build() +
+                NotificationChannelCompat.Builder(
+                    REMINDER_CHANNEL,
+                    NotificationManager.IMPORTANCE_DEFAULT
+                )
+                    .setName(context.getString(R.string.push_channel_reminders))
+                    .build()
         )
     }
 
@@ -86,6 +103,7 @@ class PushNotifier @Inject constructor(
         }
         widget.apply(payload)
         PushRecap.parse(payload)?.let { return post(it, data[COLLAPSE_ID]) }
+        PushReminder.parse(payload)?.let { return post(it, data[COLLAPSE_ID]) }
         val alert = PushAlert.parse(payload) ?: return
         // The open app shows its live Mac's statuses itself; a push from another
         // Mac, or from this one while the link is down, is news only it carries.
@@ -115,16 +133,30 @@ class PushNotifier @Inject constructor(
     private fun post(alert: PushAlert, collapseId: String?) {
         // A later status of the same pane replaces this one, like `apns-collapse-id`.
         val tag = collapseId ?: "${alert.serverId.orEmpty()}|${alert.project}|${alert.statusKey}"
+        val quiet = quiets(alert.status)
         context.notifyIfAllowed(tag, AlertExtras.NOTIFICATION_ID) {
-            context.alertNotification(alert, tag).build()
+            context.alertNotification(alert, tag, quiet = quiet).build()
         }
+    }
+
+    private fun post(reminder: PushReminder, collapseId: String?) {
+        val tag = collapseId ?: "${reminder.serverId.orEmpty()}|${reminder.key}"
+        context.notifyIfAllowed(tag, AlertExtras.NOTIFICATION_ID) {
+            context.reminderNotification(reminder, tag, quiets("")).build()
+        }
+    }
+
+    /** In quiet hours a notification goes to the shade without a sound or heads-up. */
+    private fun quiets(status: String): Boolean {
+        if (!prefs.isLoaded) runBlocking { prefs.load() }
+        return prefs.notificationPrefs.quiet.quiets(status, LocalTime.now())
     }
 
     private fun post(recap: PushRecap, collapseId: String?) {
         // One a week from each Mac; a second send of the same week replaces the first.
         val tag = collapseId ?: "${recap.serverId.orEmpty()}|${recap.key}"
         context.notifyIfAllowed(tag, AlertExtras.NOTIFICATION_ID) {
-            context.recapNotification(recap, tag).build()
+            context.recapNotification(recap, tag, quiets("")).build()
         }
     }
 

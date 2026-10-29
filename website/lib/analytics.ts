@@ -49,6 +49,7 @@ export type DownloadSource =
   | "token-usage-hero"
   | "token-usage-mid"
   | "token-usage-cta"
+  | "limit-calculator-cta"
   | "features-hero"
   | "features-cta"
   | "automations-hero"

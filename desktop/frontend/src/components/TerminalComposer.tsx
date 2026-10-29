@@ -1410,7 +1410,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     setSendingAway(true);
     try {
       if (row.launch) {
-        startPromptInNewTab(row, row.launch, text, images);
+        startPromptInNewTab(row.projectName, row.launch, text, images);
         rememberSent(text, images);
       } else if (mode === "move") {
         deliverPromptDraft(row.terminalId, row.historyKey, text, images);

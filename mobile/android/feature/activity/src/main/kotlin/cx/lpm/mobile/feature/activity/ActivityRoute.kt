@@ -20,7 +20,9 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation3.runtime.NavKey
 import cx.lpm.mobile.core.designsystem.component.AlertButton
 import cx.lpm.mobile.core.designsystem.component.AlertRole
+import cx.lpm.mobile.core.designsystem.component.LocalConfirmRisky
 import cx.lpm.mobile.core.designsystem.component.LpmAlert
+import cx.lpm.mobile.core.designsystem.component.stopProject
 import cx.lpm.mobile.core.navigation.AutomationKey
 import cx.lpm.mobile.core.navigation.ProjectKey
 import cx.lpm.mobile.core.navigation.TerminalKey
@@ -45,6 +47,7 @@ fun ActivityRoute(
     var blockedReason by rememberSaveable { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val haptics = LocalHapticFeedback.current
+    val confirmRisky = LocalConfirmRisky.current
 
     LaunchedEffect(Unit) {
         viewModel.leaveVisit()
@@ -86,8 +89,15 @@ fun ActivityRoute(
                     viewModel.dismiss(row)
                 },
                 explain = { blockedReason = it },
-                runChip = viewModel::runChip,
-                stop = viewModel::stop,
+                runChip = { project, chip ->
+                    // A lit profile is the only thing running, so turning it off stops the project.
+                    if (chip.kind == ActivityChip.Kind.Profile && chip.running) {
+                        confirmRisky.stopProject(project) { viewModel.runChip(project, chip) }
+                    } else {
+                        viewModel.runChip(project, chip)
+                    }
+                },
+                stop = { project -> confirmRisky.stopProject(project) { viewModel.stop(project) } },
                 openProject = { onNavigate(ProjectKey(it)) }
             )
         )

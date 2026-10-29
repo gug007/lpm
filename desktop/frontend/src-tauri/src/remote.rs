@@ -55,13 +55,18 @@ use tungstenite::{accept, Error as WsError, Message, WebSocket};
 
 mod answer;
 mod live;
+mod mac_alert;
+mod notify_levels;
+mod push_detail;
 mod recap_push;
+mod reminders;
 mod relay;
 pub(crate) mod relayed;
 mod tab_menu;
 pub(crate) mod tabs;
 
 pub(crate) use recap_push::send_weekly_recap;
+pub(crate) use reminders::push_limit_reminder;
 
 // One phone connection's transport. The acceptor handles both this build's
 // TLS-wrapped clients (remotetls.rs) and, transitionally, the plaintext clients
@@ -158,6 +163,8 @@ const PHONE_FEATURES: &[&str] = &[
     crate::weekly_recap::PHONE_FEATURE,
     crate::weekly_recap::PHONE_MONTH_FEATURE,
     crate::remote_seen::FEATURE,
+    reminders::FEATURE,
+    crate::wakeonlan::FEATURE,
 ];
 
 /// The phone may send `restartService` / `stopService`.
@@ -1500,7 +1507,7 @@ fn authenticate(ws: &mut ClientWs, hub: &RemoteHub) -> FirstFrame {
             if check_device(hub, id, token) {
                 hub.note_phone_id(id, &phone_id_of(&v));
                 let _ = ws.send(Message::text(
-                    with_hosts(
+                    crate::wakeonlan::with_wake(with_hosts(
                         hub,
                         crate::remote_update::with_build(json!({
                             "t": "ready",
@@ -1509,7 +1516,7 @@ fn authenticate(ws: &mut ClientWs, hub: &RemoteHub) -> FirstFrame {
                             "platform": crate::peer::platform_id(),
                             "features": PHONE_FEATURES,
                         })),
-                    )
+                    ))
                     .to_string(),
                 ));
                 FirstFrame::Done(Some(AuthOutcome::Resumed(id.to_string())))
@@ -4692,6 +4699,10 @@ fn handle_msg(
             crate::remote_answers::handle(out, &v, session)
         }
         "answerAgent" => answer::handle(hub, app, out, &v),
+        "limitReminders" | "setLimitReminder" | "clearLimitReminder" => {
+            send(ws, reminders::handle(app, t, &v))?;
+        }
+        "wake" => send(ws, crate::wakeonlan::handle(&v))?,
         "liveActivity" => {
             let ok = live::register(hub, app, device_id, &v);
             send(ws, json!({ "t": "liveActivity", "ok": ok }))?;
@@ -5197,6 +5208,7 @@ struct PushRegistration {
     env: String,
     key: String,
     prefs: PushPreferences,
+    projects: notify_levels::ProjectLevels,
 }
 
 /// The registration an `apnsToken` or `pushToken` frame asks for, or why it is
@@ -5220,6 +5232,7 @@ fn push_registration(t: &str, v: &Value) -> Result<PushRegistration, String> {
         },
         key: key.to_string(),
         prefs: PushPreferences::from_notify(v.get("notify")),
+        projects: notify_levels::parse(v.get("notify")),
     })
 }
 
@@ -5247,6 +5260,7 @@ fn apply_push_token(devices: &mut [Device], device_id: &str, reg: &PushRegistrat
             d.push_automation_done = reg.prefs.automation_done;
             d.push_automation_error = reg.prefs.automation_error;
             d.push_weekly_recap = reg.prefs.weekly_recap;
+            d.push_projects = reg.projects.clone();
         } else if d.apns_token == reg.token && d.push_platform == reg.platform {
             d.apns_token.clear();
             d.apns_env.clear();
@@ -5347,9 +5361,20 @@ struct PushDevice {
     push_automation_done: bool,
     push_automation_error: bool,
     push_weekly_recap: bool,
+    projects: notify_levels::ProjectLevels,
 }
 
 impl PushDevice {
+    /// `wants`, for an alert about `project` at the level the phone set for it.
+    fn wants_in(&self, project: &str, status: &str) -> bool {
+        self.wants(status) && notify_levels::allows(&self.projects, project, status == STATUS_WAITING)
+    }
+
+    fn wants_automation_in(&self, project: &str, result: &str) -> bool {
+        self.wants_automation(result)
+            && notify_levels::allows(&self.projects, project, result == "asked")
+    }
+
     /// Whether this device opted in to notifications for the given status value.
     fn wants(&self, status: &str) -> bool {
         match status {
@@ -5395,14 +5420,23 @@ struct PushJob {
     collapse_id: String,
     /// The answers the phone may send back from the notification (answer.rs).
     actions: Vec<&'static str>,
+    /// When the turn began, so a finish only quotes this turn's answer.
+    turn_start: i64,
 }
 
 /// The sealed plaintext for an alert push: the status entry plus this Mac's
 /// `serverId`, which the phone uses to scope notification matching so a same-named
 /// project on another paired Mac isn't confused with this one. `project` stays
 /// the file name every match keys off; `projectLabel` is what the phone shows,
-/// since a duplicate's file name is an id.
-fn alert_payload(server_id: &str, project: &str, project_label: &str, job: &PushJob) -> String {
+/// since a duplicate's file name is an id. `detail` adds what a finish says
+/// (push_detail.rs).
+fn alert_payload(
+    server_id: &str,
+    project: &str,
+    project_label: &str,
+    job: &PushJob,
+    detail: &Value,
+) -> String {
     let mut payload = json!({
         "serverId": server_id,
         "project": project,
@@ -5416,6 +5450,11 @@ fn alert_payload(server_id: &str, project: &str, project_label: &str, job: &Push
     });
     if !job.actions.is_empty() {
         payload["actions"] = json!(job.actions);
+    }
+    if let Some(fields) = detail.as_object() {
+        for (field, value) in fields {
+            payload[field] = value.clone();
+        }
     }
     payload.to_string()
 }
@@ -5479,6 +5518,7 @@ fn make_push_device(d: &Device) -> Option<PushDevice> {
         push_automation_done: d.push_automation_done,
         push_automation_error: d.push_automation_error,
         push_weekly_recap: d.push_weekly_recap,
+        projects: d.push_projects.clone(),
     })
 }
 
@@ -5637,9 +5677,23 @@ fn send_alert_pushes(
     recipients: &[PushDevice],
     jobs: &[PushJob],
 ) {
+    let details: Vec<Value> = jobs
+        .iter()
+        .map(|j| {
+            if recipients.iter().any(|dev| dev.wants_in(project, &j.value)) {
+                push_detail::of(project, &j.key, &j.value, j.turn_start)
+            } else {
+                Value::Null
+            }
+        })
+        .collect();
     for dev in recipients {
-        for job in jobs.iter().filter(|j| dev.wants(&j.value)) {
-            let plaintext = alert_payload(server_id, project, project_label, job);
+        for (job, detail) in jobs
+            .iter()
+            .zip(&details)
+            .filter(|(j, _)| dev.wants_in(project, &j.value))
+        {
+            let plaintext = alert_payload(server_id, project, project_label, job, detail);
             let Some(blob) = seal_push(&dev.key, plaintext.as_bytes()) else {
                 continue;
             };
@@ -5693,7 +5747,7 @@ fn spawn_deferred_codex_pushes(
         let server_id = cfg.flavor_server_id();
         let recipients: Vec<PushDevice> = alert_recipients(&scoped_devices(&cfg), &connected)
             .into_iter()
-            .filter(|device| device.wants(STATUS_WAITING))
+            .filter(|device| device.wants_in(&project, STATUS_WAITING))
             .collect();
         if recipients.is_empty() {
             return;
@@ -5807,7 +5861,11 @@ fn push_notifications(hub: &RemoteHub, app: &AppHandle, project: &str) {
     let recipients: Vec<PushDevice> = if want_alert {
         alert_recipients(&scoped, &connected)
             .into_iter()
-            .filter(|device| deltas.iter().any(|(_, value, _)| device.wants(value)))
+            .filter(|device| {
+                deltas
+                    .iter()
+                    .any(|(_, value, _)| device.wants_in(project, value))
+            })
             .collect()
     } else {
         Vec::new()
@@ -5840,6 +5898,7 @@ fn push_notifications(hub: &RemoteHub, app: &AppHandle, project: &str) {
                     value,
                     ts,
                     actions: entry.map(|e| answer::actions(e)).unwrap_or_default(),
+                    turn_start: entry.map(|e| e.turn_start).unwrap_or_default(),
                     key,
                     collapse_id,
                 }
@@ -5936,7 +5995,7 @@ fn push_automation_notification(
     let server_id = cfg.flavor_server_id();
     let recipients: Vec<PushDevice> = alert_recipients(&scoped_devices(&cfg), &connected)
         .into_iter()
-        .filter(|device| device.wants_automation(result))
+        .filter(|device| device.wants_automation_in(project, result))
         .collect();
     if recipients.is_empty() {
         return;
@@ -6044,6 +6103,7 @@ fn post_push(
 
 fn install_forwarders(hub: &RemoteHub, app: &AppHandle) {
     tabs::install(hub, app);
+    reminders::install(hub, app);
     let h = hub.clone();
     app.listen("projects-changed", move |_| {
         broadcast(&h, json!({ "t": "projects-changed" }));
@@ -7844,6 +7904,7 @@ mod tests {
             env: "sandbox".into(),
             key: key.clone(),
             prefs,
+            projects: Default::default(),
         };
         assert!(apply_push_token(&mut devices, "new", &reg("deadbeef")));
 
@@ -7981,6 +8042,7 @@ mod tests {
                 push_automation_done: true,
                 push_automation_error: false,
                 push_weekly_recap: true,
+                push_projects: [("blog".to_string(), "off".to_string())].into(),
                 live_updates: true,
                 live_token: String::new(),
                 live_env: String::new(),
@@ -8013,6 +8075,7 @@ mod tests {
         assert_eq!(back.devices[0].last_seen, 43);
         assert_eq!(back.devices[0].last_route, "tailscale");
         assert_eq!(back.devices[0].phone_id, "phone-1");
+        assert_eq!(back.devices[0].push_projects["blog"], "off");
         assert_eq!(back.revoked_phones, ["phone-0"]);
         assert!(back.pairing_code_by_peer);
         assert_eq!(
@@ -8186,6 +8249,7 @@ mod tests {
             env: String::new(),
             key: b64([3u8; 32]),
             prefs,
+            projects: Default::default(),
         };
         assert!(apply_push_token(&mut devices, "android", &fcm));
 
@@ -8210,6 +8274,7 @@ mod tests {
             env: "sandbox".into(),
             key: b64([4u8; 32]),
             prefs,
+            projects: Default::default(),
         };
         assert!(apply_push_token(&mut devices, "android", &apns));
         let android = by_id(&devices, "android");
@@ -8420,15 +8485,30 @@ mod tests {
             key: "pane-1".into(),
             collapse_id: "ignored".into(),
             actions: Vec::new(),
+            turn_start: 0,
         };
         let v: Value = serde_json::from_str(&alert_payload(
             "srv-a",
             "web-app-a1b2c3",
             "Web App-a1b2c3",
             &job,
+            &Value::Null,
         ))
         .unwrap();
         assert!(v.get("actions").is_none(), "no answers offered, no key");
+        assert!(v.get("summary").is_none() && v.get("changes").is_none());
+        let detail = json!({ "summary": "Ship it?", "changes": { "files": 2, "added": 9, "removed": 1 } });
+        let done: Value = serde_json::from_str(&alert_payload(
+            "srv-a",
+            "web-app-a1b2c3",
+            "Web App-a1b2c3",
+            &job,
+            &detail,
+        ))
+        .unwrap();
+        assert_eq!(done["summary"], "Ship it?");
+        assert_eq!(done["changes"]["added"], 9);
+        assert_eq!(done["project"], "web-app-a1b2c3", "detail never replaces a field");
         assert_eq!(v["serverId"], "srv-a");
         // Matching keys off the file name; the phone shows the label.
         assert_eq!(v["project"], "web-app-a1b2c3");
@@ -8519,6 +8599,7 @@ mod tests {
             push_automation_done: false,
             push_automation_error: false,
             push_weekly_recap: false,
+            projects: Default::default(),
         };
         let jobs = [STATUS_WAITING, STATUS_DONE, STATUS_ERROR];
 
@@ -8552,6 +8633,7 @@ mod tests {
             push_automation_done: false,
             push_automation_error: true,
             push_weekly_recap: false,
+            projects: Default::default(),
         };
 
         assert!(dev.wants_automation("found-work"));

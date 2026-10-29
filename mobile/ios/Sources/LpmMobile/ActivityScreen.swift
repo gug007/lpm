@@ -215,7 +215,7 @@ struct ActivityScreen: View {
             pending: Set((model.pendingServiceToggle[name] ?? [:]).keys),
             stopping: model.pendingRun[name] == false,
             onChip: { runChip(name, $0) },
-            onStop: { if let p = model.projects.first(where: { $0.name == name }) { model.stopProject(p) } },
+            onStop: { if let p = model.projects.first(where: { $0.name == name }) { model.confirmStop(p) } },
             onOpenProject: { route = .project(name) }
         )
         .activityRowChrome()
@@ -306,7 +306,7 @@ struct ActivityScreen: View {
             return
         }
         guard let p = model.projects.first(where: { $0.name == project }) else { return }
-        if chip.running { model.stopProject(p) } else { model.startProject(p, profile: chip.name) }
+        if chip.running { model.confirmStop(p) } else { model.startProject(p, profile: chip.name) }
     }
 
     // MARK: Grouping

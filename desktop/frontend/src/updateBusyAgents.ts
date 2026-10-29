@@ -8,12 +8,18 @@ export interface BusyAgentPlace {
   key: string;
   name: string;
   count: number;
+  /** How many of `count` are stopped on a question rather than working. */
+  asking: number;
 }
 
-function busyCount(entries: StatusEntry[] | undefined, now: number): number {
-  return projectAgentRows({ statusEntries: entries ?? [] }, now).filter(
-    (row) => row.state === "working" || row.state === "needs-you",
-  ).length;
+function busyCounts(entries: StatusEntry[] | undefined, now: number): { count: number; asking: number } {
+  const states = projectAgentRows({ statusEntries: entries ?? [] }, now).map((row) => row.state);
+  const asking = states.filter((state) => state === "needs-you").length;
+  return { count: asking + states.filter((state) => state === "working").length, asking };
+}
+
+export function busyTotal(places: BusyAgentPlace[]): number {
+  return places.reduce((sum, place) => sum + place.count, 0);
 }
 
 /** Where agents are mid-task — working, or stopped on a question — which the
@@ -25,16 +31,16 @@ export function busyAgentPlaces(
   now = Date.now(),
 ): BusyAgentPlace[] {
   const places: BusyAgentPlace[] = [];
-  const terminals = busyCount(terminalEntries, now);
-  if (terminals > 0) places.push({ key: GLOBAL_TERMINALS_KEY, name: "Terminals", count: terminals });
+  const terminals = busyCounts(terminalEntries, now);
+  if (terminals.count > 0) places.push({ key: GLOBAL_TERMINALS_KEY, name: "Terminals", ...terminals });
   for (const project of projects) {
     if (isPeerName(project.name)) continue;
-    const count = busyCount(project.statusEntries, now);
-    if (count > 0) {
+    const counts = busyCounts(project.statusEntries, now);
+    if (counts.count > 0) {
       places.push({
         key: project.name,
         name: displayNameForProjectName(project.name, projects),
-        count,
+        ...counts,
       });
     }
   }

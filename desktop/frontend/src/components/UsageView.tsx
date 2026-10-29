@@ -3,6 +3,7 @@ import { LoaderCircle, RefreshCw, X } from "lucide-react";
 import { toast } from "../notifications/toast";
 import { setClaudeLimitsEnabled } from "../claudeLimits";
 import { useAgentLimits, pickProvider } from "../hooks/useAgentLimits";
+import { useLimitReminders } from "../hooks/useLimitReminders";
 import type { ProviderLimits } from "../hooks/useAgentLimits";
 import { useNow } from "../hooks/useNow";
 import { useTokensToday } from "../hooks/useTokensToday";
@@ -30,6 +31,7 @@ interface UsageViewProps {
 
 export function UsageView({ onClose }: UsageViewProps) {
   const { limits: map, loading, error, refresh } = useAgentLimits();
+  const reminders = useLimitReminders();
   const now = useNow(true, 30_000);
   const enabled = useSettingsStore((s) => s.claudeLimitsEnabled ?? false);
   const { stats: todayStats } = useTokensToday();
@@ -169,6 +171,8 @@ export function UsageView({ onClose }: UsageViewProps) {
                     now={now}
                     title={c.title}
                     subtitle={c.subtitle}
+                    reminders={reminders}
+                    limitKey={c.key}
                   />
                 ),
               )}
@@ -209,7 +213,13 @@ export function UsageView({ onClose }: UsageViewProps) {
               )}
 
               {codex ? (
-                <UsageProviderCard data={codex} now={now} title="Codex" />
+                <UsageProviderCard
+                  data={codex}
+                  now={now}
+                  title="Codex"
+                  reminders={reminders}
+                  limitKey="codex"
+                />
               ) : (
                 <UsageEmptyPanel dot={providerMeta("codex").dot} dim name="Codex">
                   <p className="text-[13px] leading-relaxed text-[var(--text-secondary)]">

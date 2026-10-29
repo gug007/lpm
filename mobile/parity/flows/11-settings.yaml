@@ -10,3 +10,8 @@ tags: [demo, settings]
 - assertVisible: "Theme"
 - assertVisible: "Done"
 - takeScreenshot: 1-settings
+- scrollUntilVisible:
+    element: "Confirm risky actions"
+    direction: DOWN
+- assertVisible: "Security"
+- takeScreenshot: 2-security

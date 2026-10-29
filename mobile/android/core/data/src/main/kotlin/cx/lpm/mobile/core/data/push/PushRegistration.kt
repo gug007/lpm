@@ -21,7 +21,9 @@ data class PushRegistration(
     val automationDone: Boolean,
     val automationError: Boolean,
     val weeklyRecap: Boolean,
-    val live: Boolean
+    val live: Boolean,
+    /** Projects heard less about: "waiting" or "off", by project name. */
+    val projects: Map<String, String> = emptyMap()
 ) {
     /**
      * A digest of everything a Mac holds, so a Mac is contacted again exactly when
@@ -41,8 +43,12 @@ data class PushRegistration(
                 live
             )
                 .joinToString("") { if (it) "1" else "0" }
-            val digest = MessageDigest.getInstance("SHA-256")
-                .digest("$token|$platform|$key|$bits".encodeToByteArray())
+            // Levels only when set, so a phone without any keeps the signature it had.
+            val levels = projects.toSortedMap().entries.joinToString(",") {
+                "${it.key}=${it.value}"
+            }
+            val material = "$token|$platform|$key|$bits" + if (levels.isEmpty()) "" else "|$levels"
+            val digest = MessageDigest.getInstance("SHA-256").digest(material.encodeToByteArray())
             return digest.joinToString("") { "%02x".format(it) }
         }
 
@@ -60,7 +66,8 @@ data class PushRegistration(
                 automationDone = prefs.enabled && prefs.automationDone,
                 automationError = prefs.enabled && prefs.automationError,
                 weeklyRecap = prefs.enabled && prefs.weeklyRecap,
-                live = prefs.liveActivity
+                live = prefs.liveActivity,
+                projects = if (prefs.enabled) prefs.projects else emptyMap()
             )
     }
 }

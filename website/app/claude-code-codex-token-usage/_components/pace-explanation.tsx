@@ -1,4 +1,5 @@
 import { ArrowRight } from "lucide-react";
+import { TOKEN_USAGE_PATH } from "@/lib/links";
 import { explainPace, type Pace } from "./pace-model";
 import { TEXT_LINK } from "./page-styles";
 import { trackOnce } from "./track-once";
@@ -13,7 +14,7 @@ export default function PaceExplanation({ pace, used }: { pace: Pace; used: numb
       {pace.verdict === "exhausted" && (
         <p>
           <a
-            href="#limit-reached"
+            href={`${TOKEN_USAGE_PATH}#limit-reached`}
             onClick={() => trackOnce("pace-reset-link")}
             className={TEXT_LINK}
           >

@@ -82,6 +82,7 @@ class MacSession internal constructor(
     internal val pairing = Pairing(this)
     internal val savedMacs = SavedMacs(this)
     internal val upkeep = LinkUpkeep(this)
+    internal val wake = MacWake(this)
     internal val recovery = EndpointRecovery(this)
     internal val visits = Visits(this, visitHost)
     private val wiring = ConnectionWiring(this)

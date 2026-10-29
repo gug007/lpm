@@ -25,7 +25,9 @@ final class NotificationService: UNNotificationServiceExtension {
               let payload = PushPayload.open(blob: blob),
               let mutable = original.mutableCopy() as? UNMutableNotificationContent
         else { return nil }
-        if payload["target"] as? String == "recap" { return recap(payload, into: mutable) }
+        if let target = payload["target"] as? String, target == "recap" || target == "usage" {
+            return quieted(macNotice(payload, target: target, into: mutable), status: "")
+        }
         guard let project = payload["project"] as? String, !project.isEmpty else { return nil }
         AgentWidgetStore.apply(push: payload)
 
@@ -37,9 +39,21 @@ final class NotificationService: UNNotificationServiceExtension {
         let label = payload["projectLabel"] as? String ?? ""
 
         mutable.title = label.isEmpty ? project : label
-        mutable.body = body(terminal: terminal, status: status)
-        // Group notifications per project in Notification Center.
+        var line = body(terminal: terminal, status: status)
+        if let changes = Self.changesText(payload["changes"] as? [String: Any]) {
+            line += " · " + changes
+        }
+        // A finish carries the words the agent ended on, most often its question.
+        if let summary = payload["summary"] as? String, !summary.isEmpty {
+            mutable.subtitle = line
+            mutable.body = summary
+        } else {
+            mutable.body = line
+        }
+        // Group notifications per project in Notification Center, and name the
+        // project for a Focus filter that lets only some projects through.
         mutable.threadIdentifier = project
+        mutable.filterCriteria = project
         var info = mutable.userInfo
         info["project"] = project
         for key in ["target", "terminalId", "automationId"] {
@@ -68,18 +82,37 @@ final class NotificationService: UNNotificationServiceExtension {
             info["terminal"] = terminal
         }
         mutable.userInfo = info
-        return mutable
+        return quieted(mutable, status: status)
     }
 
-    /// Monday's weekly recap: the Mac writes the words, and a tap opens the recap
-    /// of the week it names on that Mac.
-    private func recap(_ payload: [String: Any], into mutable: UNMutableNotificationContent) -> UNNotificationContent? {
+    /// In quiet hours a notification goes to the list without a sound or banner.
+    private func quieted(_ content: UNMutableNotificationContent?, status: String) -> UNNotificationContent? {
+        guard let content else { return nil }
+        if QuietHours.load().quiets(status: status, at: Date()) {
+            content.interruptionLevel = .passive
+            content.sound = nil
+        }
+        return content
+    }
+
+    /// "4 files, +143 −21": what the project's uncommitted changes come to.
+    static func changesText(_ changes: [String: Any]?) -> String? {
+        guard let changes, let files = changes["files"] as? Int, files > 0 else { return nil }
+        let added = changes["added"] as? Int ?? 0
+        let removed = changes["removed"] as? Int ?? 0
+        return "\(files) \(files == 1 ? "file" : "files"), +\(added) −\(removed)"
+    }
+
+    /// The Mac's own news rather than a project's: Monday's weekly recap or a
+    /// limit reminder. The Mac writes the words, and a tap opens `target` on that
+    /// Mac (the recap of the week it names, or Usage).
+    private func macNotice(_ payload: [String: Any], target: String, into mutable: UNMutableNotificationContent) -> UNMutableNotificationContent? {
         guard let title = payload["title"] as? String, !title.isEmpty else { return nil }
         mutable.title = title
         mutable.body = payload["body"] as? String ?? ""
-        mutable.threadIdentifier = "recap"
+        mutable.threadIdentifier = target
         var info = mutable.userInfo
-        info["target"] = "recap"
+        info["target"] = target
         for key in ["week", "serverId"] {
             if let value = payload[key] as? String, !value.isEmpty { info[key] = value }
         }

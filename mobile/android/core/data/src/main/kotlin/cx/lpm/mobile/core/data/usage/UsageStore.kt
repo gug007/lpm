@@ -2,13 +2,18 @@ package cx.lpm.mobile.core.data.usage
 
 import cx.lpm.mobile.core.data.claude.ClaudeAccountsStore
 import cx.lpm.mobile.core.data.client.LpmClient
+import cx.lpm.mobile.core.data.client.clearLimitReminder
 import cx.lpm.mobile.core.data.client.requestClaudeAccounts
+import cx.lpm.mobile.core.data.client.requestLimitReminders
 import cx.lpm.mobile.core.data.client.requestLimits
 import cx.lpm.mobile.core.data.client.requestStats
+import cx.lpm.mobile.core.data.client.setLimitReminder
 import cx.lpm.mobile.core.data.session.GenerationTimeout
 import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.data.session.SessionStore
 import cx.lpm.mobile.core.model.AgentStats
+import cx.lpm.mobile.core.model.LimitReminder
+import cx.lpm.mobile.core.model.LimitWindow
 import cx.lpm.mobile.core.model.LimitsSnapshot
 import cx.lpm.mobile.core.model.USAGE_GENERIC_ERROR
 import kotlinx.coroutines.delay
@@ -31,8 +36,14 @@ data class UsageState(
      * `updatedAt` belongs on that clock; a window's `resetsAt` is stamped by the tool's
      * own servers and stays on the phone's. Zero when the Mac didn't say what time it was.
      */
-    val clockOffsetMs: Double = 0.0
+    val clockOffsetMs: Double = 0.0,
+    /** The Mac's limit reminders, kept in step as the desktop or any phone changes them. */
+    val reminders: List<LimitReminder> = emptyList(),
+    val remindersSupported: Boolean = false
 ) {
+    fun reminderSet(limit: String, window: String): Boolean =
+        reminders.any { it.limit == limit && it.window == window }
+
     /**
      * A moment on this phone read as the Mac would have read it, unix millis — for
      * comparing against `updatedAt`, and nothing else.
@@ -65,7 +76,11 @@ class UsageStore(private val session: MacSession) : SessionStore {
     override fun wire(client: LpmClient) {
         client.onLimits = { snapshot, error -> apply(snapshot, error) }
         client.onLimitsChanged = ::applyPush
+        client.onLimitReminders = { reminders, error -> applyReminders(reminders, error) }
     }
+
+    private val remindersSupported: Boolean
+        get() = session.client?.hostFeatures?.contains(LpmClient.LIMIT_REMINDERS_FEATURE) == true
 
     override fun reset() {
         timeout.cancelAll()
@@ -82,7 +97,10 @@ class UsageStore(private val session: MacSession) : SessionStore {
     override fun onConnectionReset() {
         timeout.cancelAll()
         mutable.update { it.copy(loading = false) }
-        if (active) load()
+        if (active) {
+            load()
+            if (remindersSupported) session.client?.requestLimitReminders()
+        }
     }
 
     // MARK: usage rows (projects list, project screen)
@@ -129,6 +147,7 @@ class UsageStore(private val session: MacSession) : SessionStore {
      */
     fun screenDidOpen() {
         load()
+        if (remindersSupported) session.client?.requestLimitReminders()
         if (accounts.state.value.accounts == null) session.client?.requestClaudeAccounts()
     }
 
@@ -186,7 +205,39 @@ class UsageStore(private val session: MacSession) : SessionStore {
 
     private fun adopt(snapshot: LimitsSnapshot) {
         val offset = snapshot.nowMs?.let { it - session.env.clock.millis() } ?: 0.0
-        mutable.update { it.copy(snapshot = snapshot, error = null, clockOffsetMs = offset) }
+        mutable.update {
+            it.copy(
+                snapshot = snapshot,
+                error = null,
+                clockOffsetMs = offset,
+                remindersSupported = remindersSupported
+            )
+        }
+    }
+
+    // MARK: limit reminders
+
+    /** Sets or clears the reminder for one window of the card whose limits are `limit`. */
+    fun toggleReminder(limit: String, window: String, win: LimitWindow, name: String) {
+        if (state.value.reminderSet(limit, window)) {
+            mutable.update { s ->
+                s.copy(
+                    reminders = s.reminders.filterNot {
+                        it.limit == limit && it.window == window
+                    }
+                )
+            }
+            session.client?.clearLimitReminder(limit, window)
+        } else {
+            val added = LimitReminder(limit, window, win.resetsAt, name)
+            mutable.update { it.copy(reminders = it.reminders + added) }
+            session.client?.setLimitReminder(limit, window, win.resetsAt, name)
+        }
+    }
+
+    fun applyReminders(reminders: List<LimitReminder>, error: String?) {
+        mutable.update { it.copy(reminders = reminders, remindersSupported = remindersSupported) }
+        error?.let(session.alerts::showError)
     }
 
     private companion object {

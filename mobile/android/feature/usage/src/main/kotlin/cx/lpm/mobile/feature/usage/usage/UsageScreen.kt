@@ -18,6 +18,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
+import cx.lpm.mobile.core.model.LimitReminder
+import cx.lpm.mobile.core.model.LimitWindow
 import cx.lpm.mobile.core.model.USAGE_GENERIC_ERROR
 import cx.lpm.mobile.core.navigation.UsageKey
 import cx.lpm.mobile.feature.usage.R
@@ -44,6 +46,7 @@ fun UsageRoute(
         onBack = onBack,
         onRefresh = viewModel::refresh,
         onRetry = viewModel::retry,
+        onToggleReminder = viewModel::toggleReminder,
         modifier = modifier
     )
 }
@@ -59,7 +62,13 @@ fun UsageScreen(
     onBack: () -> Unit,
     onRefresh: suspend () -> Unit,
     onRetry: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onToggleReminder: (
+        limit: String,
+        window: String,
+        win: LimitWindow,
+        name: String
+    ) -> Unit = { _, _, _, _ -> }
 ) {
     UsageScaffold(
         title = stringResource(R.string.usage_title),
@@ -87,7 +96,7 @@ fun UsageScreen(
                     tween(200),
                     label = "dim"
                 )
-                UsageCards(body, state.now, state.macNow, Modifier.alpha(alpha))
+                UsageCards(body, state, onToggleReminder, Modifier.alpha(alpha))
             }
         }
     }
@@ -96,14 +105,36 @@ fun UsageScreen(
 @Composable
 private fun UsageCards(
     body: UsageBody.Loaded,
-    now: Double,
-    macNow: Double,
+    state: UsageUiState,
+    onToggleReminder: (limit: String, window: String, win: LimitWindow, name: String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val now = state.now
+    val macNow = state.macNow
+    // The bell for one window of the card whose limits are `limit`, where it offers one.
+    val reminderFor = { limit: String, name: String ->
+        { window: String, win: LimitWindow? ->
+            val set = state.reminders.any { it.limit == limit && it.window == window }
+            if (state.remindersSupported && win != null &&
+                LimitReminder.remindable(win, now, set)
+            ) {
+                MeterReminder(set) { onToggleReminder(limit, window, win, name) }
+            } else {
+                null
+            }
+        }
+    }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(16.dp)) {
         body.claude.forEach { card ->
             key(card.key) {
-                UsageProviderCard(card.data, now, macNow, card.title, subtitle = card.subtitle)
+                UsageProviderCard(
+                    card.data,
+                    now,
+                    macNow,
+                    card.title,
+                    subtitle = card.subtitle,
+                    reminder = reminderFor(card.key, card.title)
+                )
             }
         }
         if (body.claude.isEmpty()) {
@@ -122,7 +153,14 @@ private fun UsageCards(
         }
         val codex = body.codex
         if (codex != null) {
-            UsageProviderCard(codex, now, macNow, stringResource(R.string.usage_codex))
+            val codexName = stringResource(R.string.usage_codex)
+            UsageProviderCard(
+                codex,
+                now,
+                macNow,
+                codexName,
+                reminder = reminderFor("codex", codexName)
+            )
         } else {
             UsageEmptyPanel(
                 provider = "codex",

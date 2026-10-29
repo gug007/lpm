@@ -110,6 +110,20 @@ export const gitCommands: CommandMap = {
     const p = repo(cwd);
     return p ? commitMessage(p) : "Update files";
   },
+  generate_commit_split: ({ cwd, files }) => {
+    const p = repo(cwd);
+    const byFolder = new Map<string, string[]>();
+    for (const file of (files as string[] | undefined) ?? []) {
+      const folder = file.includes("/") ? file.split("/")[0] : "";
+      byFolder.set(folder, [...(byFolder.get(folder) ?? []), file]);
+    }
+    const groups = [...byFolder.entries()];
+    if (groups.length > 5) groups[4] = [groups[4][0], groups.slice(4).flatMap(([, paths]) => paths)];
+    return groups.slice(0, 5).map(([folder, paths], i) => ({
+      message: i === 0 && p ? commitMessage(p) : `chore(${folder || "repo"}): update ${paths.length} file${paths.length === 1 ? "" : "s"}`,
+      files: paths,
+    }));
+  },
   git_commit: ({ cwd, files }) => {
     const p = repo(cwd);
     if (!p) return null;

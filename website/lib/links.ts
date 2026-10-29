@@ -26,6 +26,7 @@ export const WORKTREE_AGENTS_PATH = "/git-worktree-for-ai-agents";
 export const LINUX_HOST_PATH = "/run-claude-code-on-a-remote-server";
 export const MAC_MINI_PATH = "/run-claude-code-on-a-mac-mini";
 export const TOKEN_USAGE_PATH = "/claude-code-codex-token-usage";
+export const LIMIT_CALCULATOR_PATH = "/claude-code-limit-calculator";
 export const STATUSLINE_PATH = "/claude-code-codex-statusline";
 export const SKILLS_PATH = "/claude-code-codex-skills";
 export const MOBILE_PATH = "/mobile";

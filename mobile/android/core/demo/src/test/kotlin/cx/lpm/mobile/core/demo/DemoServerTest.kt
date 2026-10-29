@@ -109,6 +109,6 @@ class DemoServerTest {
         "memoryDelete", "notesChats", "notesCreateChat", "notesRenameChat", "notesDeleteChat",
         "notesMessages", "notesAddMessage", "notesEditMessage", "notesDeleteMessage", "notesSearch",
         "notesAttachment", "limits", "uploadBegin", "uploadChunk", "uploadDone", "uploadAbort",
-        "weeklyRecap"
+        "weeklyRecap", "limitReminders", "setLimitReminder", "clearLimitReminder"
     )
 }

@@ -6,6 +6,7 @@ ksp = "2.3.12"
 hilt = "2.60.1"
 androidxHilt = "1.4.0"
 androidxActivity = "1.13.0"
+androidxBiometric = "1.1.0"
 androidxCore = "1.18.0"
 androidxCoreSplashscreen = "1.2.0"
 androidxLifecycle = "2.11.0"
@@ -33,6 +34,7 @@ composeRulesKtlint = "0.6.8"
 
 [libraries]
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "androidxActivity" }
+androidx-biometric = { group = "androidx.biometric", name = "biometric", version.ref = "androidxBiometric" }
 androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
 androidx-compose-animation = { group = "androidx.compose.animation", name = "animation" }
 androidx-compose-foundation = { group = "androidx.compose.foundation", name = "foundation" }

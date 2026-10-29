@@ -18,6 +18,13 @@ final class UsageStore {
     /// Today's spend per tool, for the usage rows' fallback when a tool has no
     /// window yet — the desktop sidebar's `useTokensToday`.
     var today: AgentStats?
+    /// The Mac's limit reminders, kept in step as the desktop or any phone
+    /// changes them.
+    var reminders: [LimitReminder] = []
+
+    var remindersSupported: Bool {
+        client?.hostFeatures.contains(LpmClient.limitRemindersFeature) == true
+    }
 
     /// Millis to ADD to this phone's `Date()` to land on the Mac's clock. Only the
     /// Mac-stamped `updatedAt` belongs on that clock; a window's `resetsAt` is
@@ -76,6 +83,7 @@ final class UsageStore {
     /// accounts are read too when nothing else has read them yet.
     func screenDidOpen() {
         load()
+        if remindersSupported { client?.requestLimitReminders() }
         if model?.claudeAccounts == nil { client?.requestClaudeAccounts() }
     }
     func screenDidClose() { active = false }
@@ -139,6 +147,35 @@ final class UsageStore {
     func handleConnectionReset() {
         timeout.cancelAll()
         loading = false
-        if active { load() }
+        if active {
+            load()
+            if remindersSupported { client?.requestLimitReminders() }
+        }
+    }
+
+    // MARK: limit reminders
+
+    /// The bell for one meter of the card whose limits are `limit` in the
+    /// snapshot, or nil where the window doesn't offer one.
+    func reminder(limit: String, window: String, win: LimitWindow?, name: String, now: Double) -> MeterReminder? {
+        guard remindersSupported, let win else { return nil }
+        let set = reminders.contains { $0.limit == limit && $0.window == window }
+        guard LimitReminder.remindable(win, now: now, set: set) else { return nil }
+        return MeterReminder(set: set) { [weak self] in
+            guard let self else { return }
+            Haptics.tap()
+            if set {
+                self.reminders.removeAll { $0.limit == limit && $0.window == window }
+                self.client?.clearLimitReminder(limit: limit, window: window)
+            } else {
+                self.reminders.append(LimitReminder(limit: limit, window: window, resetsAt: win.resetsAt, name: name))
+                self.client?.setLimitReminder(limit: limit, window: window, resetsAt: win.resetsAt, name: name)
+            }
+        }
+    }
+
+    func applyReminders(_ reminders: [LimitReminder], error: String?) {
+        self.reminders = reminders
+        if let error { model?.actionError = error }
     }
 }

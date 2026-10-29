@@ -1,9 +1,11 @@
-import { memo, useRef, useState } from "react";
+import { Fragment, memo, useRef, useState } from "react";
 import { archiveAgents, markAgentSeen, markAgentUnread } from "../agentArchive";
 import type { SidebarAgentRow } from "../sidebarAgents";
 import { useExpandedSeenAgents } from "../sidebarCollapsed";
+import { isPeerName } from "../peer/markers";
 import { canArchive, foldSeenRows } from "../sidebarSeenAgents";
 import { DEFAULT_SEEN_SHOWN, useSettingsStore } from "../store/settings";
+import { SidebarAgentAsk } from "./SidebarAgentAsk";
 import { SidebarAgentFold } from "./SidebarAgentFold";
 import { SidebarAgentLine } from "./SidebarAgentLine";
 import { SidebarAgentMenu, type AgentTabAction } from "./SidebarAgentMenu";
@@ -57,6 +59,8 @@ export const SidebarAgentRows = memo(function SidebarAgentRows({
   const onScreen = activeTerminalId ?? null;
   const { shown, folded } = foldSeenRows(agents, limit, onScreen);
   const visible = expanded ? agents : shown;
+  // A paired machine's terminals take input over its own link, not this one.
+  const canAnswer = !isPeerName(projectName);
 
   const open = (agent: SidebarAgentRow) => {
     if (agent.seenAt !== undefined) markAgentSeen(projectName, agent);
@@ -74,16 +78,20 @@ export const SidebarAgentRows = memo(function SidebarAgentRows({
   return (
     <div ref={listRef} className="mb-0.5 flex flex-col">
       {visible.map((agent) => (
-        <SidebarAgentLine
-          key={agent.key}
-          agent={agent}
-          where={label ?? projectName}
-          lead={lead}
-          active={agent.terminalId !== null && agent.terminalId === onScreen}
-          onOpen={() => open(agent)}
-          onMenu={(at) => setMenu({ agent, ...at })}
-          onArchive={canArchive(agent) ? (viaKeyboard) => archive(agent, viaKeyboard) : undefined}
-        />
+        <Fragment key={agent.key}>
+          <SidebarAgentLine
+            agent={agent}
+            where={label ?? projectName}
+            lead={lead}
+            active={agent.terminalId !== null && agent.terminalId === onScreen}
+            onOpen={() => open(agent)}
+            onMenu={(at) => setMenu({ agent, ...at })}
+            onArchive={canArchive(agent) ? (viaKeyboard) => archive(agent, viaKeyboard) : undefined}
+          />
+          {canAnswer && agent.state === "needs-you" && agent.terminalId && agent.terminalId !== onScreen && (
+            <SidebarAgentAsk terminalId={agent.terminalId} lead={lead} onOpen={() => open(agent)} />
+          )}
+        </Fragment>
       ))}
       {folded.length > 0 && (
         <SidebarAgentFold

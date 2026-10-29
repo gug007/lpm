@@ -1,18 +1,6 @@
+import type { Release } from "./changelog-days";
 import { fetchAllReleases } from "./github-stats";
-import { REPO_URL } from "./links";
 import history from "./changelog.json";
-
-export type Release = {
-  version: string;
-  date: string;
-  beta?: boolean;
-  notes?: string;
-};
-
-export type ChangelogDay = {
-  date: string;
-  releases: Release[];
-};
 
 const HISTORY = new Map<string, Release>(history.map((r) => [r.version, r]));
 
@@ -38,15 +26,4 @@ export async function getChangelogReleases(): Promise<Release[]> {
     });
   }
   return [...releases.values()].sort(newestFirst);
-}
-
-// Releases cut on the same day read as one entry under the newest of them.
-export function changelogDays(releases: Release[]): ChangelogDay[] {
-  return [...Map.groupBy(releases, (release) => release.date)].map(
-    ([date, dayReleases]) => ({ date, releases: dayReleases }),
-  );
-}
-
-export function releaseTagUrl(version: string): string {
-  return `${REPO_URL}/releases/tag/v${version}`;
 }

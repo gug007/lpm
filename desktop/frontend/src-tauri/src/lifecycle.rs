@@ -4,17 +4,46 @@
 // quitting is an explicit action (Ctrl+Shift+Q or the app menu). An instance a
 // second launch can't reach has no way back to a hidden window, so closing quits it.
 #[cfg(not(target_os = "macos"))]
-use std::sync::atomic::{AtomicBool, Ordering};
-use tauri::AppHandle;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::Duration;
+use tauri::{AppHandle, Emitter};
 
 #[cfg(not(target_os = "macos"))]
 static RELAUNCH_REOPENS: AtomicBool = AtomicBool::new(false);
 
-/// Quit for real: runs the RunEvent::Exit teardown in lib.rs, the same path as
-/// the macOS app menu's Quit.
+static QUIT_ASKED: AtomicU64 = AtomicU64::new(0);
+static QUIT_HEARD: AtomicU64 = AtomicU64::new(0);
+
+/// How long the window gets to take a quit request before lpm quits anyway, so
+/// a hung or still-loading window can never keep ⌘Q from working.
+const QUIT_HEARD_WITHIN: Duration = Duration::from_secs(2);
+
+/// Quit for real: runs the RunEvent::Exit teardown in lib.rs.
 #[tauri::command]
 pub fn quit_app(app: AppHandle) {
     app.exit(0);
+}
+
+/// The app menu's Quit: the window checks for agents still at work and asks
+/// before ending them (quitGuard.ts), then calls `quit_app`.
+pub fn request_quit(app: &AppHandle) {
+    let seq = QUIT_ASKED.fetch_add(1, Ordering::SeqCst) + 1;
+    show_main(app);
+    let _ = app.emit("menu-quit", seq);
+    let app = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(QUIT_HEARD_WITHIN);
+        if QUIT_HEARD.load(Ordering::SeqCst) < seq {
+            app.exit(0);
+        }
+    });
+}
+
+/// The window took quit request `seq` and decides from here.
+#[tauri::command]
+pub fn quit_request_heard(seq: u64) {
+    QUIT_HEARD.fetch_max(seq, Ordering::SeqCst);
 }
 
 pub fn show_main(app: &AppHandle) {
@@ -65,7 +94,6 @@ const HIDDEN_NOTICE_KEY: &str = "closeKeepsRunningNoticeShown";
 /// window would otherwise just vanish with lpm still running. Once per machine.
 #[cfg(not(target_os = "macos"))]
 pub fn explain_hidden_once(app: &AppHandle) {
-    use std::sync::atomic::{AtomicBool, Ordering};
     static SENT: AtomicBool = AtomicBool::new(false);
     if crate::sys::headless() || SENT.swap(true, Ordering::SeqCst) {
         return;

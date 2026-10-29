@@ -13,7 +13,7 @@ data class NotificationOpenTarget(
     val kind: Kind,
     val itemId: String?
 ) {
-    enum class Kind { Project, Terminal, Automation, Recap }
+    enum class Kind { Project, Terminal, Automation, Recap, Changes, Usage }
 
     companion object {
         const val PROJECT = "project"
@@ -22,21 +22,37 @@ data class NotificationOpenTarget(
         const val AUTOMATION_ID = "automationId"
         const val SERVER_ID = "serverId"
 
+        /** A finished turn's Review Changes button: the project's review screen. */
+        const val CHANGES = "changes"
+
         /**
          * Reads the extras a posted notification carries; null without a project,
-         * except for the weekly recap, which belongs to the Mac as a whole.
+         * except for the weekly recap and Usage, which belong to the Mac as a whole.
          */
         fun from(extra: (String) -> String?): NotificationOpenTarget? {
             val serverId = extra(SERVER_ID)?.takeIf { it.isNotEmpty() }
-            if (extra(TARGET) == PushRecap.TARGET) {
+            val whole = when (extra(TARGET)) {
+                PushRecap.TARGET -> Kind.Recap
+                PushReminder.TARGET -> Kind.Usage
+                else -> null
+            }
+            if (whole != null) {
                 return NotificationOpenTarget(
                     serverId = serverId,
                     project = "",
-                    kind = Kind.Recap,
+                    kind = whole,
                     itemId = null
                 )
             }
             val project = extra(PROJECT)?.takeIf { it.isNotEmpty() } ?: return null
+            if (extra(TARGET) == CHANGES) {
+                return NotificationOpenTarget(
+                    serverId = serverId,
+                    project = project,
+                    kind = Kind.Changes,
+                    itemId = null
+                )
+            }
             val itemId = when (extra(TARGET)) {
                 "terminal" -> extra(TERMINAL_ID)
                 "automation" -> extra(AUTOMATION_ID)

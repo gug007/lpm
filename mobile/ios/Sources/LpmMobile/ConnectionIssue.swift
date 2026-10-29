@@ -56,7 +56,7 @@ enum ConnectionIssue: Equatable {
 /// A button an issue offers. The view decides how each is carried out.
 enum IssueAction: Equatable {
     case retry, pairAgain, compareCode, turnOnTailscale, signInTailscale
-    case tailscaleSettings, openAdmin, phoneSettings, details, enterNewCode
+    case tailscaleSettings, openAdmin, phoneSettings, details, enterNewCode, wake
 
     func label(for issue: ConnectionIssue) -> String {
         switch self {
@@ -72,6 +72,7 @@ enum IssueAction: Equatable {
         case .phoneSettings: return "Open Settings"
         case .details: return "Details"
         case .enterNewCode: return "Enter a new code"
+        case .wake: return "Wake"
         }
     }
 }
@@ -110,7 +111,7 @@ extension ConnectionIssue {
             return IssueCopy(title: "\(Mac) isn't answering",
                              message: away ? "It may be asleep or off the internet. lpm keeps trying."
                                            : "It may be asleep, or lpm isn't open. lpm keeps trying.",
-                             icon: "moon.zzz", tone: .problem, actions: [.retry, .details])
+                             icon: "moon.zzz", tone: .problem, actions: [.retry, .wake, .details])
         case .awayNeedsTailscale(let setup):
             switch setup {
             case .turnOn:
@@ -169,7 +170,7 @@ extension ConnectionIssue {
             case .sleep:
                 return IssueCopy(title: "\(Mac) is asleep",
                                  message: "\(since) Wake it and lpm reconnects by itself.",
-                                 icon: "moon.fill", tone: .waiting, actions: [.retry])
+                                 icon: "moon.fill", tone: .waiting, actions: [.wake, .retry])
             case .quit:
                 return IssueCopy(title: "lpm was closed on \(mac)",
                                  message: "Open lpm on the Mac to keep going.",

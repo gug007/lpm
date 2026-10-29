@@ -64,6 +64,8 @@ struct SettingsSheet: View {
                     }
                 }
 
+                SecuritySection()
+
                 Section {
                     Link(destination: URL(string: "https://lpm.cx/privacy")!) {
                         Label("Privacy Policy", systemImage: "lock.shield")

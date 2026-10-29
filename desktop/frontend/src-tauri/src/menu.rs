@@ -20,6 +20,7 @@ const ID_CHECK_UPDATES: &str = "lpm-menu-check-updates";
 const ID_SELECT_ALL: &str = "lpm-menu-select-all";
 const ID_UNDO: &str = "lpm-menu-undo";
 const ID_REDO: &str = "lpm-menu-redo";
+const ID_QUIT: &str = "lpm-menu-quit";
 
 // Installed on macOS only. On Linux/Windows it would be an in-window menubar
 // whose Ctrl accelerators (Ctrl+A, Ctrl+,) take keys from the terminal; the app
@@ -41,6 +42,11 @@ pub fn build_and_set(app: &AppHandle) -> tauri::Result<()> {
     let star = MenuItemBuilder::with_id(ID_STAR, "Star lpm on GitHub").build(app)?;
     let check_updates =
         MenuItemBuilder::with_id(ID_CHECK_UPDATES, "Check for Updates…").build(app)?;
+    // Not the native Quit, which ends the app at once: agents may be mid-task,
+    // and the window asks first (lifecycle::request_quit).
+    let quit = MenuItemBuilder::with_id(ID_QUIT, "Quit lpm")
+        .accelerator("CmdOrCtrl+Q")
+        .build(app)?;
 
     let app_menu = SubmenuBuilder::new(app, "lpm")
         .about(Some(about))
@@ -56,7 +62,7 @@ pub fn build_and_set(app: &AppHandle) -> tauri::Result<()> {
         .hide_others()
         .show_all()
         .separator()
-        .quit()
+        .item(&quit)
         .build()?;
 
     // The native Select All action targets the focused DOM element, which in
@@ -123,6 +129,7 @@ pub fn handle_event(app: &AppHandle, event: MenuEvent) {
         ID_REDO => {
             let _ = app.emit("menu-redo", ());
         }
+        ID_QUIT => crate::lifecycle::request_quit(app),
         ID_CHECK_UPDATES => {
             show_main(app);
             let app2 = app.clone();

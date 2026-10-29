@@ -17,7 +17,8 @@ enum class IssueAction {
     OpenAdmin,
     PhoneSettings,
     Details,
-    EnterNewCode;
+    EnterNewCode,
+    Wake;
 
     fun label(issue: ConnectionIssue): String = when (this) {
         Retry -> if (issue is ConnectionIssue.Farewell) "Try now" else "Try again"
@@ -30,6 +31,7 @@ enum class IssueAction {
         PhoneSettings -> "Open Settings"
         Details -> "Details"
         EnterNewCode -> "Enter a new code"
+        Wake -> "Wake"
     }
 }
 
@@ -88,7 +90,7 @@ fun ConnectionIssue.issueCopy(
             },
             "moon.zzz",
             problem,
-            listOf(IssueAction.Retry, IssueAction.Details)
+            listOf(IssueAction.Retry, IssueAction.Wake, IssueAction.Details)
         )
 
         is ConnectionIssue.AwayNeedsTailscale -> awayCopy(setup, mac, capMac, device)
@@ -269,7 +271,7 @@ private fun farewellCopy(
             "Since $time. Wake it and lpm reconnects by itself.",
             "moon.fill",
             waiting,
-            listOf(IssueAction.Retry)
+            listOf(IssueAction.Wake, IssueAction.Retry)
         )
 
         MacFarewell.Reason.Quit -> IssueCopy(

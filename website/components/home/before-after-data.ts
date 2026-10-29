@@ -7,8 +7,8 @@ import { CLAUDE_SESSION, PROMPT_FROM, WINDOW_FROM } from "./before-after-session
 // whole argument the section makes. Do not add emerald here.
 const TEXT = "text-[#d4d4d4]";
 const LIGHT = "text-[#9a9a9a]";
-const DIM = "text-[#6b6b6b]";
-const FAINT = "text-[#5a5a5a]";
+const DIM = "text-[#8d8d8d]";
+const FAINT = "text-[#858585]";
 const BOLD = "font-semibold text-[#d4d4d4]";
 const CLAUDE_ORANGE = "text-[#d97757]";
 const PROMPT_CHAR = "text-[#707070]";

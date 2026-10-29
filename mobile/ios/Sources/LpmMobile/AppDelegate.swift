@@ -6,6 +6,8 @@ enum NotificationTargetKind: String {
     case terminal
     case automation
     case recap
+    case changes
+    case usage
 }
 
 struct NotificationOpenTarget: Equatable {
@@ -17,12 +19,12 @@ struct NotificationOpenTarget: Equatable {
     init?(userInfo: [AnyHashable: Any]) {
         let serverId = (userInfo["serverId"] as? String).flatMap { $0.isEmpty ? nil : $0 }
         let target = NotificationTargetKind(rawValue: userInfo["target"] as? String ?? "") ?? .project
-        // The weekly recap belongs to the Mac, not to one of its projects.
-        if target == .recap {
+        // The weekly recap and Usage belong to the Mac, not to one of its projects.
+        if target == .recap || target == .usage {
             self.serverId = serverId
             self.project = ""
-            self.kind = .recap
-            self.itemId = (userInfo["week"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+            self.kind = target
+            self.itemId = target == .recap ? (userInfo["week"] as? String).flatMap { $0.isEmpty ? nil : $0 } : nil
             return
         }
         guard let project = userInfo["project"] as? String, !project.isEmpty else { return nil }
@@ -32,13 +34,22 @@ struct NotificationOpenTarget: Equatable {
             itemId = (userInfo["terminalId"] as? String).flatMap { $0.isEmpty ? nil : $0 }
         case .automation:
             itemId = (userInfo["automationId"] as? String).flatMap { $0.isEmpty ? nil : $0 }
-        case .project, .recap:
+        case .project, .recap, .changes, .usage:
             itemId = nil
         }
         self.serverId = serverId
         self.project = project
         self.kind = itemId == nil ? .project : target
         self.itemId = itemId
+    }
+
+    /// The review screen of the project a notification is about.
+    init?(changesFor userInfo: [AnyHashable: Any]) {
+        guard let project = userInfo["project"] as? String, !project.isEmpty else { return nil }
+        self.serverId = (userInfo["serverId"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        self.project = project
+        self.kind = .changes
+        self.itemId = nil
     }
 
     init(serverId: String?, project: String, terminal: String?) {
@@ -160,7 +171,11 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
             }
             return
         }
-        if let target = NotificationOpenTarget(userInfo: response.notification.request.content.userInfo) {
+        let userInfo = response.notification.request.content.userInfo
+        let opening = response.actionIdentifier == AgentAnswerSender.reviewChangesAction
+            ? NotificationOpenTarget(changesFor: userInfo)
+            : NotificationOpenTarget(userInfo: userInfo)
+        if let target = opening {
             if model != nil {
                 MainActor.assumeIsolated { model?.pendingNotificationTarget = target }
             } else {

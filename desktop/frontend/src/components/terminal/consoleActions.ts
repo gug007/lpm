@@ -2,16 +2,22 @@ import type { Terminal } from "@xterm/xterm";
 import { toast } from "../../notifications/toast";
 import { SaveTextFile, SetClipboardText } from "../../../bridge/commands";
 
-// Lines the terminal only wrapped to fit are joined back into one.
-export function bufferToPlainText(term: Terminal): string {
+// Rows `from` to `to` of the buffer, with lines the terminal only wrapped to
+// fit joined back into one.
+export function bufferLines(term: Terminal, from = 0, to = term.buffer.active.length): string[] {
   const buf = term.buffer.active;
   const lines: string[] = [];
-  for (let i = 0; i < buf.length; i++) {
+  for (let i = from; i < to; i++) {
     const line = buf.getLine(i);
     const text = line?.translateToString(true) ?? "";
     if (line?.isWrapped && lines.length > 0) lines[lines.length - 1] += text;
     else lines.push(text);
   }
+  return lines;
+}
+
+export function bufferToPlainText(term: Terminal): string {
+  const lines = bufferLines(term);
   while (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
   return lines.join("\n");
 }

@@ -76,6 +76,7 @@ tasks.matching { it.name == "bundleRelease" }.configureEach {
 
 dependencies {
     implementation(projects.core.data)
+    implementation(libs.androidx.biometric)
     implementation(projects.core.push)
     implementation(projects.core.designsystem)
     implementation(projects.core.navigation)

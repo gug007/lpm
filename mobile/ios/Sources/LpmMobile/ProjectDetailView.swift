@@ -94,7 +94,9 @@ struct ProjectDetail: View {
                 } header: {
                     ServicesHeader(running: runningServices.count, total: live.allServices.count,
                                    stopping: model.pendingRun[project.name] != nil,
-                                   onStopAll: live.running ? { model.stopProject(live) } : nil)
+                                   onStopAll: live.running ? {
+                                       model.confirmStop(live)
+                                   } : nil)
                 } footer: {
                     Text("Tap a service for its logs.")
                 }
