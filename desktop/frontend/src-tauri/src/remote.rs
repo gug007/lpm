@@ -4732,7 +4732,7 @@ fn composer_actions_enabled() -> Vec<Value> {
 fn default_composer_actions() -> Vec<Value> {
     vec![
         json!({ "id": "improve", "icon": "sparkles", "label": "Improve prompt",
-            "instruction": "Rewrite this into a clearer, more specific, well-structured prompt for an AI coding agent. Resolve ambiguous pronouns and references, remove vagueness, and fill in obvious missing context that is already implied. Keep the original intent and do not add new requirements the user didn't imply." }),
+            "instruction": "Improve prompt" }),
         json!({ "id": "concise", "icon": "minimize", "label": "Make concise",
             "instruction": "Rewrite this to be as concise and direct as possible while preserving all meaning, intent, and every requirement or constraint. Cut filler and repetition but keep all specifics, file names, and acceptance criteria intact." }),
     ]

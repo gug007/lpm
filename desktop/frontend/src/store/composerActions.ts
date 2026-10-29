@@ -69,8 +69,7 @@ export const DEFAULT_COMPOSER_ACTIONS: ComposerAction[] = [
     id: "improve",
     icon: "sparkles",
     label: "Improve prompt",
-    instruction:
-      "Rewrite this into a clearer, more specific, well-structured prompt for an AI coding agent. Resolve ambiguous pronouns and references, remove vagueness, and fill in obvious missing context that is already implied. Keep the original intent and do not add new requirements the user didn't imply.",
+    instruction: "Improve prompt",
     enabled: true,
   },
   {
