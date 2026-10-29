@@ -47,6 +47,18 @@ pub(crate) fn resolve(root: &Path, rel: &str) -> Result<PathBuf, String> {
     Ok(at)
 }
 
+/// Whether `path` is one of the `chosen` paths or inside one of them, which is
+/// all another computer may answer with.
+pub(crate) fn within(chosen: &[String], path: &str) -> bool {
+    chosen.iter().any(|c| {
+        let c = c.trim_end_matches('/');
+        !c.is_empty()
+            && path
+                .strip_prefix(c)
+                .is_some_and(|rest| rest.is_empty() || rest.starts_with('/'))
+    })
+}
+
 pub(crate) fn skipped(name: &str) -> bool {
     SKIP.contains(&name)
 }
@@ -142,6 +154,21 @@ mod tests {
         }
         assert_eq!(clean_rel("public/uploads/").unwrap(), "public/uploads");
         assert_eq!(clean_rel(".env.local").unwrap(), ".env.local");
+    }
+
+    #[test]
+    fn only_the_chosen_files_and_what_their_folders_hold_are_within() {
+        let chosen = [".env".to_string(), "public/uploads/".to_string()];
+        for inside in [".env", "public/uploads", "public/uploads/a.png", "public/uploads/x/y"] {
+            assert!(within(&chosen, inside), "{inside:?} should be within");
+        }
+        for outside in [".envrc", "package.json", "public", "public/uploads-old/a", ".claude/settings.json"] {
+            assert!(
+                !within(&chosen, outside),
+                "{outside:?} should not be within"
+            );
+        }
+        assert!(!within(&["/".to_string()], "package.json"));
     }
 
     #[test]

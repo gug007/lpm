@@ -773,7 +773,7 @@ pub fn run() {
                 remote::farewell(&app.state::<remote::RemoteHub>(), "quit"); // tell phones lpm is closing, before its terminals end
                 pty::kill_all_trees(&app.state::<pty::PtyState>()); // reap in-app terminal trees (services stay up)
                 tts::stop_on_exit(app); // kill any suspended python TTS child
-                portforward::stop_all_forwards(app); // kill ssh -L tunnels + pollers
+                portforward::stop_on_exit(app); // kill ssh -L tunnels + pollers
                 statusfwd::stop_all(app); // kill ssh -R status forwards
                 sshsync::stop_all_sync_watchers(app); // drop rsync mirror watchers
                 remote::stop(&app.state::<remote::RemoteHub>()); // retire the mobile server threads

@@ -73,6 +73,7 @@ const AGENT_DISPATCH_TIMEOUT: Duration = Duration::from_secs(15 * 60); // ...for
 const TAILNET_DISPATCH_TIMEOUT: Duration = Duration::from_secs(90); // ...for a Tailscale sign-in
 const INSTALL_DISPATCH_TIMEOUT: Duration = Duration::from_secs(20 * 60); // ...for installing the voice engine
 const REPAINT_NUDGE: Duration = Duration::from_millis(80); // grace for a TUI to act on the nudge
+const REPAINT_NUDGE_GAP: Duration = Duration::from_secs(2); // a redraw this recent is still in the next replay
 
 /// Advertised in `ready`: this host answers `remotePair` with its own phone
 /// pairing payload. A host that predates it never sends the frame's reply, so the
@@ -394,13 +395,19 @@ struct PendingPair {
     decision: SyncSender<PairDecision>,
 }
 
+/// A terminal's latest repaint nudge.
+struct Nudge {
+    began: Instant,
+    pending: Option<u64>, // its token while it still owes the restore
+}
+
 struct HostInner {
     config: SharedConfig,
     clients: Mutex<HashMap<u64, Conn>>,
     rings: PtyRings,
-    // Terminals with a repaint nudge in flight, each holding that nudge's token
-    // — see `nudge_repaint`. At most one per terminal at a time.
-    nudges: Mutex<HashMap<String, u64>>,
+    // Each terminal's latest repaint nudge — see `nudge_repaint`. At most one in
+    // flight per terminal, and none again until that one is REPAINT_NUDGE_GAP old.
+    nudges: Mutex<HashMap<String, Nudge>>,
     pending: Mutex<HashMap<u64, PendingDispatch>>,
     pair_requests: Mutex<Vec<PendingPair>>,
     next_id: AtomicU64,
@@ -646,12 +653,13 @@ pub fn tee_output(app: &AppHandle, id: &str, _project: &str, text: &str) {
     }
 }
 
-/// Tell subscribed peers a terminal exited and free its ring.
+/// Tell subscribed peers a terminal exited and free its ring and nudge.
 pub fn tee_exit(app: &AppHandle, id: &str, code: i32) {
     crate::tabshare::terminal_ended(app, id);
     let Some(hub) = app.try_state::<PeerHub>() else {
         return;
     };
+    hub.inner.nudges.lock().unwrap().remove(id);
     if !hub.inner.listening.load(Ordering::Relaxed) {
         return;
     }
@@ -705,35 +713,49 @@ fn terminal_alive(app: &AppHandle, id: &str) -> bool {
 /// size and still owes its restore, which is itself a winsize change and so
 /// redraws for this peer too; starting a second one here would read the
 /// already-grown geometry as its baseline and leave the terminal a row taller
-/// than it began, for good.
+/// than it began, for good. For the same reason the restore lands before the
+/// nudge is let go, and the next one reads its baseline only once it is.
+///
+/// And none again within REPAINT_NUDGE_GAP: the redraw the last one prompted is
+/// still in the tail a seed replays, and a peer re-subscribing on a loop — a guest
+/// only allowed to watch, say — would otherwise keep the program redrawing.
 fn nudge_repaint(hub: &PeerHub, app: &AppHandle, id: &str) {
-    let Some((cols, rows)) = pty::remote_dims(&app.state::<pty::PtyState>(), id) else {
-        return;
-    };
-    let Some(grown) = rows.checked_add(1) else {
-        return;
-    };
-    if cols == 0 || rows == 0 {
-        return;
-    }
+    let state = app.state::<pty::PtyState>();
     // Registered before the resize, so a viewer resize racing it is never missed.
-    let token = {
-        let mut pending = hub.inner.nudges.lock().unwrap();
-        if pending.contains_key(id) {
+    let (cols, rows, grown, token) = {
+        let mut nudges = hub.inner.nudges.lock().unwrap();
+        if nudges
+            .get(id)
+            .is_some_and(|n| n.pending.is_some() || n.began.elapsed() < REPAINT_NUDGE_GAP)
+        {
+            return;
+        }
+        let Some((cols, rows)) = pty::remote_dims(&state, id) else {
+            return;
+        };
+        let Some(grown) = rows.checked_add(1) else {
+            return;
+        };
+        if cols == 0 || rows == 0 {
             return;
         }
         let token = hub.inner.next_nudge.fetch_add(1, Ordering::SeqCst) + 1;
-        pending.insert(id.to_string(), token);
-        token
+        let nudge = Nudge {
+            began: Instant::now(),
+            pending: Some(token),
+        };
+        nudges.insert(id.to_string(), nudge);
+        (cols, rows, grown, token)
     };
-    if pty::remote_resize(&app.state::<pty::PtyState>(), id, cols, grown).is_err() {
-        take_nudge(hub, id, token);
+    if pty::remote_resize(&state, id, cols, grown).is_err() {
+        take_nudge(&mut hub.inner.nudges.lock().unwrap(), id, token);
         return;
     }
     let (hub, app, id) = (hub.clone(), app.clone(), id.to_string());
     std::thread::spawn(move || {
         std::thread::sleep(REPAINT_NUDGE);
-        if !take_nudge(&hub, &id, token) {
+        let mut nudges = hub.inner.nudges.lock().unwrap();
+        if !take_nudge(&mut nudges, &id, token) {
             return;
         }
         // Restore only what this nudge actually set. The token is retired by the
@@ -751,20 +773,23 @@ fn nudge_repaint(hub: &PeerHub, app: &AppHandle, id: &str) {
 /// means a viewer asserted its own geometry in the meantime — retiring this nudge,
 /// and possibly leaving a later one in its place — so this one must leave the
 /// terminal alone.
-fn take_nudge(hub: &PeerHub, id: &str, token: u64) -> bool {
-    let mut pending = hub.inner.nudges.lock().unwrap();
-    if pending.get(id) == Some(&token) {
-        pending.remove(id);
-        return true;
+fn take_nudge(nudges: &mut HashMap<String, Nudge>, id: &str, token: u64) -> bool {
+    match nudges.get_mut(id) {
+        Some(nudge) if nudge.pending == Some(token) => {
+            nudge.pending = None;
+            true
+        }
+        _ => false,
     }
-    false
 }
 
 /// Retire any pending nudge for `id`: the viewer has stated the size it wants,
 /// which supersedes ours whatever it happens to be.
 fn cancel_nudge(app: &AppHandle, id: &str) {
     if let Some(hub) = app.try_state::<PeerHub>() {
-        hub.inner.nudges.lock().unwrap().remove(id);
+        if let Some(nudge) = hub.inner.nudges.lock().unwrap().get_mut(id) {
+            nudge.pending = None;
+        }
     }
 }
 

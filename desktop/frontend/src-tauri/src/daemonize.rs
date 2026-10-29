@@ -89,6 +89,16 @@ pub fn acquire(path: &std::path::Path) -> Option<Lock> {
     taken.then_some(Lock(file))
 }
 
+/// Whether someone holds the lock. A lock file that was never created has no
+/// holder; probing one that is free takes it for an instant, which a daemon
+/// waiting on it simply retries past.
+pub fn held(path: &std::path::Path) -> bool {
+    let Ok(file) = File::options().write(true).open(path) else {
+        return false;
+    };
+    matches!(crate::fsperm::try_lock_exclusive(&file), Ok(false))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -104,6 +114,23 @@ mod tests {
         // execs, so the release can trail the drop by a moment.
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
         while acquire(&path).is_none() {
+            assert!(std::time::Instant::now() < deadline, "lock never released");
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+    }
+
+    #[test]
+    fn the_lock_reads_held_only_while_someone_holds_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("sessions.lock");
+        assert!(!held(&path), "a lock file never created has no holder");
+        assert!(!path.exists(), "probing must not create the lock file");
+        let lock = acquire(&path).expect("lock");
+        assert!(held(&path));
+        assert!(held(&path), "probing a held lock must not release it");
+        drop(lock);
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+        while held(&path) {
             assert!(std::time::Instant::now() < deadline, "lock never released");
             std::thread::sleep(std::time::Duration::from_millis(10));
         }

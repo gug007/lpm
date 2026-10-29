@@ -172,8 +172,7 @@ pub(crate) fn conflicts_in_msg(msg: &str) -> Vec<String> {
     }
     lines
         .map(uncomment)
-        .take_while(|l| l.starts_with('\t'))
-        .map(|l| l.trim().to_string())
+        .map_while(|l| l.strip_prefix('\t').map(String::from))
         .filter(|l| !l.is_empty())
         .collect()
 }
@@ -197,6 +196,7 @@ fn marker_lines(cwd: &str, paths: &[String]) -> HashMap<String, Vec<u32>> {
     let mut args = vec![
         "grep",
         "-n",
+        "-z",
         "-I",
         "--full-name",
         "-E",
@@ -209,22 +209,20 @@ fn marker_lines(cwd: &str, paths: &[String]) -> HashMap<String, Vec<u32>> {
         Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).into_owned(),
         _ => return HashMap::new(),
     };
-    parse_marker_lines(&out, paths)
+    parse_marker_lines(&out)
 }
 
-pub(crate) fn parse_marker_lines(out: &str, paths: &[String]) -> HashMap<String, Vec<u32>> {
+/// `grep -n -z` output: `path\0line\0text\n` for each match.
+pub(crate) fn parse_marker_lines(out: &str) -> HashMap<String, Vec<u32>> {
     let mut found: HashMap<String, Vec<u32>> = HashMap::new();
-    for line in out.lines() {
-        let hit = paths
-            .iter()
-            .filter_map(|p| {
-                let rest = line.strip_prefix(p.as_str())?.strip_prefix(':')?;
-                let n = rest.split(':').next()?.parse::<u32>().ok()?;
-                Some((p, n))
-            })
-            .max_by_key(|(p, _)| p.len());
-        if let Some((p, n)) = hit {
-            found.entry(p.clone()).or_default().push(n);
+    let mut rest = out;
+    while let Some((path, after)) = rest.split_once('\0') {
+        let Some((n, text)) = after.split_once('\0') else {
+            break;
+        };
+        rest = text.split_once('\n').map_or("", |(_, next)| next);
+        if let Ok(n) = n.parse::<u32>() {
+            found.entry(path.to_string()).or_default().push(n);
         }
     }
     for lines in found.values_mut() {

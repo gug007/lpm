@@ -79,6 +79,9 @@ pub fn command(request: &Request) -> Result<Response, String> {
 fn start_daemon() -> Result<UnixStream, String> {
     #[cfg(not(target_os = "macos"))]
     check_socket_length(&crate::sessiond::socket_path())?;
+    if let Some(stream) = await_retiring_daemon()? {
+        return Ok(stream);
+    }
     let exe = crate::daemonlaunch::program()?;
     #[cfg(unix)]
     {
@@ -109,6 +112,27 @@ fn start_daemon() -> Result<UnixStream, String> {
         }
         std::thread::sleep(Duration::from_millis(25));
     }
+}
+
+/// A daemon told to shut down removes its socket first and holds its lock until
+/// its panes are torn down, and no new daemon can start before it lets go — so
+/// wait that out instead of spending the startup wait on a lock that isn't
+/// free. A daemon another client just started holds the lock too, and its
+/// socket appears moments later.
+#[cfg(not(test))]
+fn await_retiring_daemon() -> Result<Option<UnixStream>, String> {
+    let lock = crate::sessiond::lock_path();
+    let deadline = Instant::now() + crate::sessiond::RETIRE_WAIT;
+    while crate::daemonize::held(&lock) {
+        if let Some(stream) = connect() {
+            return Ok(Some(stream));
+        }
+        if Instant::now() >= deadline {
+            return Err("the session daemon is still shutting down".into());
+        }
+        std::thread::sleep(Duration::from_millis(25));
+    }
+    Ok(None)
 }
 
 /// A daemon whose socket path is too long fails to bind; say so up front rather

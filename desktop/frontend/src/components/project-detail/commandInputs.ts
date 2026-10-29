@@ -3,6 +3,10 @@
 // it always stays one piece of data: `echo "hi {{name}}"` with `Ana Smith`
 // runs `echo "hi "'Ana Smith'""`, and a `$(…)` answer is never expanded.
 // `{{key|raw}}` splices the answer verbatim. Mirrors cmd_inputs.rs.
+//
+// The shell reads `…` twice: it takes the backslash off \\, \`, \$ (and \"
+// inside "…"), then runs what's left as a command of its own. So the inside
+// is unescaped, substituted as that command, and escaped back.
 
 type Context = "bare" | "double" | "single" | "group";
 
@@ -25,6 +29,22 @@ function quoted(v: string, ctx: Context): string {
 
 const TOKEN_AT = /^\{\{([^}]*?)\}\}/;
 
+function backtickBody(raw: string, inDouble: boolean): string {
+  return raw.replace(inDouble ? /\\([\\`$"])/g : /\\([\\`$])/g, "$1");
+}
+
+function backtickRaw(body: string, inDouble: boolean): string {
+  return body.replace(inDouble ? /[\\`$"]/g : /[\\`$]/g, "\\$&");
+}
+
+function backtickEnd(cmd: string, open: number): number {
+  for (let j = open + 1; j < cmd.length; j++) {
+    if (cmd[j] === "\\") j++;
+    else if (cmd[j] === "`") return j;
+  }
+  return -1;
+}
+
 export function substituteCommand(
   cmd: string,
   values: Record<string, string>,
@@ -46,6 +66,17 @@ export function substituteCommand(
       }
     }
     const c = cmd[i];
+    const tickEnd = c === "`" && ctx !== "single" ? backtickEnd(cmd, i) : -1;
+    if (tickEnd >= 0) {
+      const inDouble = ctx === "double";
+      const body = substituteCommand(
+        backtickBody(cmd.slice(i + 1, tickEnd), inDouble),
+        values,
+      );
+      out += "`" + backtickRaw(body, inDouble) + "`";
+      i = tickEnd + 1;
+      continue;
+    }
     let len = 1;
     const closes =
       (ctx === "single" && c === "'") ||

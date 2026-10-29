@@ -187,6 +187,18 @@ fn remote_allowed(command: &str) -> bool {
     )
 }
 
+/// A duplicate that runs a task in its copies, which an automation run is
+/// refused like run_task (runguard.rs).
+fn duplicate_runs_task(verb: &str, line: &str) -> bool {
+    if !matches!(verb, "duplicate_project" | "duplicate_worktree") {
+        return false;
+    }
+    let (_, options) = parse_options(&shell_split(line)[1..]);
+    ["run-action", "run-command"]
+        .iter()
+        .any(|k| options.get(*k).is_some_and(|v| !v.is_empty()))
+}
+
 /// Messages an SSH host kept while the forward was down (fwdspool.rs), taken as
 /// if they had just come through it.
 pub(crate) fn replay_remote(app: &AppHandle, frames: &str) {
@@ -220,7 +232,9 @@ fn handle_client(stream: UnixStream, store: &StatusStore, app: &AppHandle, restr
             .to_lowercase();
         let write_result = if restricted && !remote_allowed(&first) {
             writeln!(writer, "ERROR: not allowed on remote socket")
-        } else if crate::runguard::refused(&first) && crate::runguard::from_run(peer) {
+        } else if (crate::runguard::refused(&first) || duplicate_runs_task(&first, &line))
+            && crate::runguard::from_run(peer)
+        {
             writeln!(writer, "{}", crate::runguard::refusal(&first))
         } else if first == "duplicate_project" || first == "duplicate_worktree" {
             cmd_duplicate_project(&line, app, &mut writer, first == "duplicate_worktree")
@@ -1396,6 +1410,21 @@ mod tests {
         );
         assert_eq!(shell_split(r#"x "y z" w"#), ["x", "y z", "w"]);
         assert_eq!(shell_split("   "), Vec::<String>::new());
+    }
+
+    #[test]
+    fn only_a_duplicate_that_runs_a_task_counts_as_one() {
+        let runs =
+            |verb: &str, rest: &str| duplicate_runs_task(verb, &format!("{verb} 'p' {rest}"));
+        assert!(runs("duplicate_project", "--run-action=claude"));
+        let answer = hex("lpm automations answer x --yes");
+        assert!(runs(
+            "duplicate_worktree",
+            &format!("--run-command-hex={answer}")
+        ));
+        assert!(!runs("duplicate_project", "--count=2 --prompt=hi"));
+        assert!(!runs("duplicate_project", "--run-action="));
+        assert!(!runs("run_task", "--run-action=claude"));
     }
 
     #[test]

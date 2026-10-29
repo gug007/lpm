@@ -46,6 +46,20 @@ describe("substituteCommand", () => {
     );
   });
 
+  it("quotes an answer inside backticks for the command they run", () => {
+    expect(substituteCommand('echo "`echo {{x}}`"', { x: "$(whoami)" })).toBe(
+      "echo \"`echo '\\$(whoami)'`\"",
+    );
+    expect(substituteCommand("echo `echo {{x}}`", { x: "a`b" })).toBe("echo `echo 'a\\`b'`");
+    expect(substituteCommand('echo "`echo \\"{{x}}\\"`"', { x: "$(whoami)" })).toBe(
+      "echo \"`echo \\\"\\\"'\\$(whoami)'\\\"\\\"`\"",
+    );
+    expect(substituteCommand('echo "`date \\"+%Y\\"` {{x}}"', { x: "a b" })).toBe(
+      "echo \"`date \\\"+%Y\\\"` \"'a b'\"\"",
+    );
+    expect(substituteCommand("echo '`{{x}}`'", { x: "a b" })).toBe("echo '`a b`'");
+  });
+
   it("does not open a string at an escaped quote", () => {
     expect(substituteCommand('echo \\"{{x}}', { x: "a b" })).toBe(`echo \\"'a b'`);
     expect(substituteCommand('echo "a\\"{{x}}"', { x: "a b" })).toBe(`echo "a\\""'a b'""`);

@@ -1346,15 +1346,7 @@ pub fn git_merge(cwd: String, branch: String) -> Result<(), String> {
 
 #[tauri::command(async)]
 pub fn git_merge_conflicts(cwd: String) -> Vec<String> {
-    git_out(&cwd, &["diff", "--name-only", "--diff-filter=U"])
-        .map(|o| {
-            o.lines()
-                .map(str::trim)
-                .filter(|l| !l.is_empty())
-                .map(String::from)
-                .collect()
-        })
-        .unwrap_or_default()
+    crate::gitconflict::unmerged_files(&cwd)
 }
 
 #[tauri::command(async)]

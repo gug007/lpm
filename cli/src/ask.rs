@@ -74,7 +74,7 @@ pub struct AskArgs {
     /// The user may leave it unanswered.
     #[arg(long)]
     optional: bool,
-    /// Stop waiting after this long, e.g. 30m, 4h, 2d (at least a minute).
+    /// Stop waiting after this long, e.g. 30m, 4h, 2d (a minute to a year).
     #[arg(long, value_name = "DURATION")]
     timeout: Option<String>,
     /// Several questions at once, as JSON ({"questions":[...]}); `-` reads it from stdin.
@@ -240,7 +240,7 @@ pub(crate) fn parse_duration(s: &str) -> Result<u64, String> {
         "d" => 86_400,
         _ => return Err(bad()),
     };
-    Ok(n * scale)
+    n.checked_mul(scale).ok_or_else(bad)
 }
 
 /// The answer as a script reads it, and the exit status that goes with it.
@@ -353,6 +353,7 @@ mod tests {
         assert_eq!(parse_duration("120").unwrap(), 120);
         assert!(parse_duration("soon").is_err());
         assert!(parse_duration("5w").is_err());
+        assert!(parse_duration("307445734561825862m").is_err());
     }
 
     #[test]

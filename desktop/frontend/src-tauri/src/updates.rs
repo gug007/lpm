@@ -557,7 +557,7 @@ fn install(
     // them, so stop watching first or they restore as shells.
     crate::agentexit::stop();
     crate::pty::kill_all_trees(&app.state::<crate::pty::PtyState>());
-    crate::portforward::stop_all_forwards(app);
+    crate::portforward::stop_on_exit(app);
     crate::socketsrv::release();
     std::thread::sleep(Duration::from_millis(300));
     std::process::exit(0);

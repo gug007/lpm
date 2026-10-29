@@ -30,13 +30,14 @@ fn gone(_: u32) -> bool {
 }
 
 #[test]
-fn only_answering_replying_and_pairing_are_refused() {
+fn only_answering_replying_pairing_and_starting_tasks_are_refused() {
     for verb in [
         "answer_job_question",
         "dismiss_job_question",
         "send_job_followup",
         "remote_pair",
         "peer_pair",
+        "run_task",
     ] {
         assert!(refused(verb), "{verb}");
     }
@@ -59,6 +60,10 @@ fn a_refusal_reads_as_an_error_to_each_verbs_cli() {
     let reply: serde_json::Value = serde_json::from_str(&refusal("answer_job_question")).unwrap();
     assert_eq!(reply["ok"], false);
     assert!(reply["error"].as_str().unwrap().contains("Answer in lpm"));
+    assert!(refusal("run_task").starts_with("ERROR: An automation run can't start tasks"));
+    let reply: serde_json::Value = serde_json::from_str(&refusal("duplicate_project")).unwrap();
+    assert_eq!(reply["ok"], false);
+    assert!(reply["error"].as_str().unwrap().contains("lpm duplicate"));
 }
 
 #[test]

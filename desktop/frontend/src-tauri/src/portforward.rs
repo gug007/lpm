@@ -77,6 +77,11 @@ pub struct PortFwdState {
     // project -> teardown generation; a stop bumps it so an in-flight
     // forward_impl aborts instead of registering a tunnel after teardown
     epochs: Mutex<HashMap<String, u64>>,
+    // ssh children spawned but not yet registered, so quitting kills them too
+    starting: Mutex<HashSet<u32>>,
+    // set once the app is quitting: no tunnel may outlive it, and nothing may
+    // rewrite the record the next launch restores from
+    quitting: AtomicBool,
 }
 
 /// `ssh -N -L 127.0.0.1:L:127.0.0.1:R <conn args, minus -t>` on a DEDICATED
@@ -197,6 +202,11 @@ fn forward_impl(
     #[cfg(windows)]
     crate::sshjob::tie_to_app(&child);
     let pid = child.id();
+    if !track_starting(state, pid) {
+        osproc::kill(pid);
+        let _ = child.wait();
+        return Err("lpm is quitting".into());
+    }
     let stderr = child.stderr.take();
 
     // Single reader thread: drains stderr (last ~512 bytes) + waits the child,
@@ -229,7 +239,9 @@ fn forward_impl(
     }
 
     if let Err(err) = wait_for_local_listen(local_port, &done) {
-        osproc::kill(pid);
+        if unstart(state, pid) {
+            osproc::kill(pid);
+        }
         wait_done(&done);
         let tail = config::trim_tail(&stderr_buf.lock().unwrap(), 200);
         return Err(if tail.is_empty() {
@@ -246,9 +258,12 @@ fn forward_impl(
         // bumped the epoch during the listener wait aborts here, and a stop
         // that lands after finds the pid in the map to kill.
         let epochs = state.epochs.lock().unwrap();
-        if epochs.get(project).copied().unwrap_or(0) != epoch {
+        let ours = unstart(state, pid);
+        if !ours || epochs.get(project).copied().unwrap_or(0) != epoch {
             drop(epochs);
-            osproc::kill(pid);
+            if ours {
+                osproc::kill(pid);
+            }
             wait_done(&done);
             // Retire the mark that armed this forward so a later observation
             // of a genuinely live listener can suggest/forward it again.
@@ -269,7 +284,7 @@ fn forward_impl(
             });
         mark_port_suggested(&state.suggestions, project, remote_port);
     }
-    remember(&state.forwards);
+    remember(state);
 
     // Lifecycle: when the ssh child dies, drop the entry and refetch the UI.
     {
@@ -302,7 +317,7 @@ fn forward_impl(
             // so the next poll can re-suggest / re-forward the port.
             if removed {
                 unmark_port_suggested(&suggestions, &project2, remote_port);
-                remember(&forwards);
+                remember(&app2.state::<PortFwdState>());
             }
             let _ = app2.emit("ports-changed", &project2);
         });
@@ -364,16 +379,20 @@ pub fn remove_port_forward(
     if let Some(pid) = killed {
         osproc::kill(pid);
     }
-    remember(&state.forwards);
+    remember(&state);
     let _ = app.emit("ports-changed", &project);
     Ok(())
 }
 
 /// Record the live tunnels for the next launch (portforwardstore). Every change
 /// writes it except the app's own exit, whose teardown must leave the record as
-/// it was. Written under the lock so concurrent changes land in order.
-fn remember(forwards: &Mutex<HashMap<String, Vec<Forward>>>) {
-    let forwards = forwards.lock().unwrap();
+/// it was. Written under the lock so concurrent changes land in order, and so a
+/// change racing the exit sees it quitting before the teardown empties the map.
+fn remember(state: &PortFwdState) {
+    let forwards = state.forwards.lock().unwrap();
+    if state.quitting.load(Ordering::SeqCst) {
+        return;
+    }
     let saved = forwards
         .iter()
         .map(|(project, v)| {
@@ -535,7 +554,7 @@ pub fn stop_project_forwards(app: &AppHandle, project: &str) {
     for pid in pids {
         osproc::kill(pid);
     }
-    remember(&state.forwards);
+    remember(&state);
     {
         let mut s = state.suggestions.lock().unwrap();
         s.suggested.remove(project);
@@ -562,6 +581,40 @@ pub fn stop_all_forwards(app: &AppHandle) {
             osproc::kill(e.pid);
         }
     }
+}
+
+/// The app is quitting: kill every tunnel, the ones still starting too, and
+/// refuse new ones, but keep the record so the next launch reopens them.
+pub fn stop_on_exit(app: &AppHandle) {
+    let starting = begin_quit(&app.state::<PortFwdState>());
+    stop_all_forwards(app);
+    for pid in starting {
+        osproc::kill(pid);
+    }
+}
+
+/// Mark the app quitting and hand over the tunnels still starting, to kill.
+fn begin_quit(state: &PortFwdState) -> HashSet<u32> {
+    let mut starting = state.starting.lock().unwrap();
+    state.quitting.store(true, Ordering::SeqCst);
+    std::mem::take(&mut *starting)
+}
+
+/// Put a spawned tunnel on the starting list, under the lock the quit takes the
+/// list with: either the quit sees it, or this sees the quit and says no.
+fn track_starting(state: &PortFwdState, pid: u32) -> bool {
+    let mut starting = state.starting.lock().unwrap();
+    if state.quitting.load(Ordering::SeqCst) {
+        return false;
+    }
+    starting.insert(pid);
+    true
+}
+
+/// Take a spawned tunnel off the starting list. False once the quit has taken
+/// it, and with it the kill.
+fn unstart(state: &PortFwdState, pid: u32) -> bool {
+    state.starting.lock().unwrap().remove(&pid)
 }
 
 // ---- port poller + PTY-output sniff + auto-forward -------------------------
@@ -958,5 +1011,40 @@ mod tests {
         let first = |key: &str| argv.iter().find(|a| a.starts_with(key)).cloned();
         assert_eq!(first("ControlMaster=").as_deref(), Some("ControlMaster=no"), "{argv:?}");
         assert_eq!(first("ControlPath=").as_deref(), Some("ControlPath=none"), "{argv:?}");
+    }
+
+    #[test]
+    fn quitting_takes_the_tunnels_still_starting_and_refuses_new_ones() {
+        let state = PortFwdState::default();
+        assert!(track_starting(&state, 101));
+        assert!(track_starting(&state, 102));
+        assert!(unstart(&state, 102), "a tunnel that finished starting is its own to kill");
+        assert_eq!(begin_quit(&state), HashSet::from([101]));
+        assert!(!unstart(&state, 101), "the quit took it, and the kill with it");
+        assert!(!track_starting(&state, 103), "nothing new starts once quitting");
+        assert!(state.starting.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn every_tunnel_racing_the_quit_is_taken_by_it_or_refused() {
+        for _ in 0..200 {
+            let state = Arc::new(PortFwdState::default());
+            let trackers: Vec<_> = (0..4u32)
+                .map(|t| {
+                    let state = state.clone();
+                    std::thread::spawn(move || {
+                        (0..50)
+                            .map(|i| t * 100 + i)
+                            .filter(|&pid| track_starting(&state, pid))
+                            .collect::<Vec<u32>>()
+                    })
+                })
+                .collect();
+            let taken = begin_quit(&state);
+            let tracked: HashSet<u32> =
+                trackers.into_iter().flat_map(|h| h.join().unwrap()).collect();
+            assert_eq!(tracked, taken);
+            assert!(state.starting.lock().unwrap().is_empty());
+        }
     }
 }

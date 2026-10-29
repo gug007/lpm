@@ -12,6 +12,7 @@ fn link() -> Link {
         name: "Me".into(),
         kind: "private".into(),
     });
+    link.owner = Some(OWNER);
     link
 }
 

@@ -1,9 +1,11 @@
 // Which processes belong to an automation run. A run's agent has a shell and
 // the user's account, so the local socket checks who is calling before the
 // verbs a run must never use on itself: answering or dismissing a question,
-// replying in its thread (which answers in words), and pairing a phone or a
-// computer. The app's own UI, phones and Telegram answer in-process and never
-// meet this check.
+// replying in its thread (which answers in words), pairing a phone or a
+// computer, and starting a task in the app's terminals (`lpm run`, or a
+// duplicate that runs one), whose processes would sit outside the run and so
+// could answer for it. The app's own UI, phones and Telegram answer in-process
+// and never meet this check.
 //
 // A run's first process leads its own session (osproc::detach). The run's
 // processes are known by that session, by their parent chain, and by sweeps
@@ -27,6 +29,7 @@ const KEEP_AFTER_END: Duration = Duration::from_secs(24 * 60 * 60);
 const MAX_DEPTH: usize = 64;
 
 const REFUSAL: &str = "An automation run can't answer, dismiss or reply to automation questions, or pair a device. Answer in lpm, lpm Link or Telegram.";
+const TASK_REFUSAL: &str = "An automation run can't start tasks in lpm's terminals (lpm run, or lpm duplicate or lpm worktree with --run or --command): they would run outside the automation.";
 
 struct Mark {
     id: u64,
@@ -52,16 +55,22 @@ pub fn refused(verb: &str) -> bool {
             | "send_job_followup"
             | "remote_pair"
             | "peer_pair"
+            | "run_task"
     )
 }
 
 /// The reply to a refused verb, in the shape its CLI reads as an error: the
-/// pairing verbs report failures as `ERROR:` lines, the job verbs as JSON.
+/// pairing verbs and run_task report failures as `ERROR:` lines, the job and
+/// duplicate verbs as JSON.
 pub fn refusal(verb: &str) -> String {
-    if verb.ends_with("_pair") {
-        format!("ERROR: {REFUSAL}")
+    let text = match verb {
+        "run_task" | "duplicate_project" | "duplicate_worktree" => TASK_REFUSAL,
+        _ => REFUSAL,
+    };
+    if verb.ends_with("_pair") || verb == "run_task" {
+        format!("ERROR: {text}")
     } else {
-        serde_json::json!({ "ok": false, "error": REFUSAL }).to_string()
+        serde_json::json!({ "ok": false, "error": text }).to_string()
     }
 }
 

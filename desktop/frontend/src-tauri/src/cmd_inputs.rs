@@ -4,6 +4,10 @@
 //! runs `echo "hi "'Ana Smith'""`, never `echo "hi 'Ana Smith'"`, and a `$(…)`
 //! answer is never expanded. `{{key|raw}}` splices the answer verbatim.
 //! Mirrors substituteCommand in commandInputs.ts.
+//!
+//! The shell reads `…` twice: it takes the backslash off \\, \`, \$ (and \"
+//! inside "…"), then runs what's left as a command of its own. So the inside
+//! is unescaped, substituted as that command, and escaped back.
 
 use std::collections::HashMap;
 
@@ -41,6 +45,51 @@ fn quoted(v: &str, ctx: Context) -> String {
     }
 }
 
+fn backtick_escaped(c: char, in_double: bool) -> bool {
+    matches!(c, '\\' | '`' | '$') || (in_double && c == '"')
+}
+
+fn backtick_body(raw: &str, in_double: bool) -> String {
+    let mut out = String::with_capacity(raw.len());
+    let mut chars = raw.chars().peekable();
+    while let Some(c) = chars.next() {
+        match chars.peek() {
+            Some(&next) if c == '\\' && backtick_escaped(next, in_double) => {
+                out.push(next);
+                chars.next();
+            }
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
+fn backtick_raw(body: &str, in_double: bool) -> String {
+    let mut out = String::with_capacity(body.len());
+    for c in body.chars() {
+        if backtick_escaped(c, in_double) {
+            out.push('\\');
+        }
+        out.push(c);
+    }
+    out
+}
+
+/// Where the `…` that `s` opens with closes.
+fn backtick_end(s: &str) -> Option<usize> {
+    let mut chars = s.char_indices().skip(1);
+    while let Some((i, c)) = chars.next() {
+        match c {
+            '\\' => {
+                chars.next();
+            }
+            '`' => return Some(i),
+            _ => {}
+        }
+    }
+    None
+}
+
 pub(crate) fn substitute_cmd(cmd: &str, values: &HashMap<String, String>) -> String {
     let mut out = String::with_capacity(cmd.len());
     let mut stack: Vec<Context> = Vec::new();
@@ -53,6 +102,18 @@ pub(crate) fn substitute_cmd(cmd: &str, values: &HashMap<String, String>) -> Str
                 Token::Quoted(v) => quoted(v, ctx),
             });
             rest = &rest[len..];
+            continue;
+        }
+        let tick_end = (c == '`' && !matches!(ctx, Context::Single))
+            .then(|| backtick_end(rest))
+            .flatten();
+        if let Some(end) = tick_end {
+            let in_double = matches!(ctx, Context::Double);
+            let body = substitute_cmd(&backtick_body(&rest[1..end], in_double), values);
+            out.push('`');
+            out.push_str(&backtick_raw(&body, in_double));
+            out.push('`');
+            rest = &rest[end + 1..];
             continue;
         }
         let mut len = c.len_utf8();
@@ -135,6 +196,27 @@ mod tests {
             sub("echo \"$(printf %s {{x}})\" {{y}}", &[("x", "a b"), ("y", "c d")]),
             "echo \"$(printf %s 'a b')\" 'c d'"
         );
+    }
+
+    #[test]
+    fn inside_backticks_the_answer_is_quoted_for_the_command_they_run() {
+        assert_eq!(
+            sub("echo \"`echo {{x}}`\"", &[("x", "$(whoami)")]),
+            "echo \"`echo '\\$(whoami)'`\""
+        );
+        assert_eq!(
+            sub("echo `echo {{x}}`", &[("x", "a`b")]),
+            "echo `echo 'a\\`b'`"
+        );
+        assert_eq!(
+            sub("echo \"`echo \\\"{{x}}\\\"`\"", &[("x", "$(whoami)")]),
+            "echo \"`echo \\\"\\\"'\\$(whoami)'\\\"\\\"`\""
+        );
+        assert_eq!(
+            sub("echo \"`date \\\"+%Y\\\"` {{x}}\"", &[("x", "a b")]),
+            "echo \"`date \\\"+%Y\\\"` \"'a b'\"\""
+        );
+        assert_eq!(sub("echo '`{{x}}`'", &[("x", "a b")]), "echo '`a b`'");
     }
 
     #[test]

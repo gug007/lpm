@@ -117,6 +117,15 @@ fn rejects_a_week_that_is_not_a_date() {
 }
 
 #[test]
+fn rejects_a_week_at_the_edge_of_the_calendar() {
+    for edge in [NaiveDate::MIN, NaiveDate::MAX] {
+        let week = edge.format("%Y-%m-%d").to_string();
+        assert!(bounds(&week).is_err(), "accepted {week}");
+        assert!(local_recap(&week).is_err(), "recapped {week}");
+    }
+}
+
+#[test]
 fn starts_weeks_on_monday() {
     let sunday = NaiveDate::from_ymd_opt(2026, 10, 25).unwrap();
     assert_eq!(week_of(false, sunday), "2026-10-19");

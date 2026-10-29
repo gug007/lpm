@@ -104,6 +104,9 @@ fn answer(hub: &RemoteHub, app: &AppHandle, r: &Request) -> Result<(), String> {
         REPLY => {
             let text = reply_text(&r.text)?;
             ready_for_reply(&entries, &r.terminal)?;
+            let session = crate::pty::session(&app.state::<crate::pty::PtyState>(), &r.terminal)
+                .ok_or_else(gone)?;
+            agent_still_there(session.shell_at_prompt(), &entries, r)?;
             type_reply(hub, app, &r.terminal, &text)?;
             remember(hub, app, r, text);
             Ok(())
@@ -154,6 +157,30 @@ fn ready_for_reply(entries: &[StatusEntry], terminal: &str) -> Result<(), String
         return Err("The agent is working again. Open the tab to reply.".into());
     }
     Ok(())
+}
+
+/// Once the agent quits, its tab is a plain shell that would run the reply as a
+/// command. Where the shell can't be watched (Windows, an SSH tab), the finish
+/// the notification reported must still stand, as the notification itself does.
+fn agent_still_there(
+    shell_at_prompt: Option<bool>,
+    entries: &[StatusEntry],
+    r: &Request,
+) -> Result<(), String> {
+    let reported = || {
+        entries.iter().any(|e| {
+            e.key == r.key
+                && e.pane_id == r.terminal
+                && e.value == STATUS_DONE
+                && e.timestamp == r.ts
+        })
+    };
+    match shell_at_prompt {
+        Some(true) => Err("The agent has exited. Open the tab to reply.".into()),
+        Some(false) => Ok(()),
+        None if reported() => Ok(()),
+        None => Err("This notification is out of date. Open the tab to reply.".into()),
+    }
 }
 
 fn type_reply(hub: &RemoteHub, app: &AppHandle, terminal: &str, text: &str) -> Result<(), String> {
@@ -290,6 +317,23 @@ mod tests {
         assert!(ready_for_reply(&[entry("claude_code_s1", STATUS_WAITING)], "term-1").is_err());
         assert!(ready_for_reply(&[entry("claude_code_s1", "Running")], "term-1").is_err());
         assert!(ready_for_reply(&[entry("claude_code_s1", "Running")], "term-2").is_ok());
+    }
+
+    #[test]
+    fn a_reply_needs_the_agent_still_in_the_tab() {
+        let done = [entry("claude_code_s1", STATUS_DONE)];
+        let reply = request(REPLY);
+        assert!(agent_still_there(Some(false), &[], &reply).is_ok());
+        assert!(agent_still_there(Some(true), &done, &reply).is_err());
+
+        assert!(agent_still_there(None, &done, &reply).is_ok());
+        assert!(agent_still_there(None, &[], &reply).is_err());
+        let mut later = entry("claude_code_s1", STATUS_DONE);
+        later.timestamp = 200;
+        assert!(agent_still_there(None, &[later], &reply).is_err());
+        let mut other_tab = entry("claude_code_s1", STATUS_DONE);
+        other_tab.pane_id = "term-2".into();
+        assert!(agent_still_there(None, &[other_tab], &reply).is_err());
     }
 
     #[test]

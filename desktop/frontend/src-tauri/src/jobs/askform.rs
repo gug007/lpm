@@ -24,6 +24,7 @@ const MAX_LABEL_CHARS: usize = 120;
 const MAX_ID_CHARS: usize = 40;
 const MAX_ANSWER_CHARS: usize = 8_000;
 const MIN_TIMEOUT_SECS: u64 = 60;
+const MAX_TIMEOUT_SECS: u64 = 365 * 86_400;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
 pub(crate) struct Choice {
@@ -241,6 +242,9 @@ pub(crate) fn parse_request(v: &Value) -> Result<Request, String> {
                 .ok_or("The timeout is a number of seconds.")?;
             if secs < MIN_TIMEOUT_SECS {
                 return Err("Wait at least a minute for an answer.".into());
+            }
+            if secs > MAX_TIMEOUT_SECS {
+                return Err("Wait at most a year for an answer.".into());
             }
             Some(secs)
         }

@@ -98,6 +98,8 @@ impl<'a> Side<'a> {
         }
     }
 
+    /// Every file `paths` hold. What the other computer lists outside them is
+    /// dropped, so a sync never writes a file the user didn't choose.
     pub(crate) fn manifest(&self, paths: &[String]) -> Result<Vec<FileRec>, String> {
         match self {
             Side::Here(root) => crate::ignoredscan::manifest(root, paths),
@@ -106,7 +108,12 @@ impl<'a> Side<'a> {
                     WALK_TIMEOUT,
                     json!({ "t": "ignoredManifest", "paths": paths }),
                 )?;
-                serde_json::from_value(reply["files"].take()).map_err(|e| e.to_string())
+                let files: Vec<FileRec> =
+                    serde_json::from_value(reply["files"].take()).map_err(|e| e.to_string())?;
+                Ok(files
+                    .into_iter()
+                    .filter(|f| crate::ignoredpath::within(paths, &f.path))
+                    .collect())
             }
         }
     }

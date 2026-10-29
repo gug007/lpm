@@ -13,6 +13,11 @@ fn the_conflicts_section_is_read_commented_or_not() {
     assert_eq!(conflicts_in_msg(old), files(&["a.txt", "b.txt"]));
     let other_char = "Merge branch 'x'\n\n; Conflicts:\n;\ta.txt\n";
     assert_eq!(conflicts_in_msg(other_char), files(&["a.txt"]));
+    let padded = "Merge branch 'x'\n\n# Conflicts:\n#\t lead.txt\n#\ttrail.txt \n#\t中文.txt\n";
+    assert_eq!(
+        conflicts_in_msg(padded),
+        files(&[" lead.txt", "trail.txt ", "中文.txt"])
+    );
     assert!(conflicts_in_msg("Merge branch 'feature'\n").is_empty());
     assert!(conflicts_in_msg("").is_empty());
 }
@@ -37,12 +42,13 @@ fn the_source_is_the_quoted_name_on_the_first_line() {
 
 #[test]
 fn marker_lines_are_grouped_per_file_and_sorted() {
-    let out = "a.txt:9:<<<<<<< HEAD\na.txt:2:<<<<<<< HEAD\nb:c.txt:4:<<<<<<< HEAD\nb:1:<<<<<<<\n";
-    let found = parse_marker_lines(out, &files(&["a.txt", "b", "b:c.txt"]));
+    let out = "a.txt\09\0<<<<<<< HEAD\na.txt\02\0<<<<<<< HEAD\nb:c.txt\04\0<<<<<<< HEAD\nb\01\0<<<<<<<\nnew\nline.txt\03\0<<<<<<<\n";
+    let found = parse_marker_lines(out);
     assert_eq!(found.get("a.txt"), Some(&vec![2, 9]));
     assert_eq!(found.get("b:c.txt"), Some(&vec![4]));
     assert_eq!(found.get("b"), Some(&vec![1]));
-    assert!(parse_marker_lines("other.txt:1:<<<<<<<\n", &files(&["a.txt"])).is_empty());
+    assert_eq!(found.get("new\nline.txt"), Some(&vec![3]));
+    assert!(parse_marker_lines("").is_empty());
 }
 
 fn git(dir: &Path, args: &[&str]) {
@@ -153,4 +159,79 @@ fn continuing_commits_the_merge_without_the_conflicts_comment() {
     let parents = git_out(&cwd, &["log", "-1", "--format=%P"]).unwrap();
     assert_eq!(parents.split_whitespace().count(), 2);
     assert!(git_continue_merge(cwd).unwrap_err().contains("No merge"));
+}
+
+/// Names git quotes in its listings, or that a `path:line:` reader could cut
+/// in the wrong place. Windows can't create the punctuated ones.
+fn quoted_names() -> Vec<&'static str> {
+    let mut names = vec!["中文.txt"];
+    if cfg!(unix) {
+        names.extend([
+            "say \"hi\".txt",
+            "back\\slash.txt",
+            "a:1:b.txt",
+            " pad.txt ",
+        ]);
+    }
+    names
+}
+
+/// `main` merging `feature`, stopped on one conflict in each of `names`.
+fn stopped_merge_on(names: &[&str]) -> (tempfile::TempDir, String) {
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
+    git(dir, &["init", "-q", "-b", "main"]);
+    git(dir, &["config", "user.email", "t@t"]);
+    git(dir, &["config", "user.name", "t"]);
+    let commit_all = |text: &str| {
+        for name in names {
+            write(dir, name, text);
+        }
+        git(dir, &["add", "-A"]);
+        git(dir, &["commit", "-qm", text.trim()]);
+    };
+    commit_all("base\n");
+    git(dir, &["checkout", "-qb", "feature"]);
+    commit_all("feature\n");
+    git(dir, &["checkout", "-q", "main"]);
+    commit_all("main\n");
+    git(dir, &["merge", "--no-edit", "feature"]);
+    let cwd = dir.to_str().unwrap().to_string();
+    (tmp, cwd)
+}
+
+#[test]
+fn names_git_quotes_are_listed_once_and_their_markers_never_committed() {
+    let names = quoted_names();
+    let (_tmp, cwd) = stopped_merge_on(&names);
+    let state = git_merge_state(cwd.clone());
+    assert_eq!(state.files.len(), names.len(), "{:?}", state.files);
+    for name in &names {
+        let f = file(&state, name);
+        assert_eq!(
+            (f.conflicts, f.first_line, f.resolved),
+            (1, 1, false),
+            "{name:?}"
+        );
+        assert!(git_mark_conflict_resolved(cwd.clone(), name.to_string()).is_err());
+    }
+    assert_eq!(
+        crate::git::git_merge_conflicts(cwd.clone()).len(),
+        names.len()
+    );
+    let refused = crate::gitconflict::check_commit(&cwd, &files(&names)).unwrap_err();
+    assert!(refused.contains("conflict markers"), "{refused}");
+    assert!(git_continue_merge(cwd.clone()).is_err());
+
+    let (by_hand, rest) = names.split_first().unwrap();
+    write(Path::new(&cwd), by_hand, "merged\n");
+    git_mark_conflict_resolved(cwd.clone(), by_hand.to_string()).unwrap();
+    for name in rest {
+        git_take_conflict_side(cwd.clone(), name.to_string(), "theirs".into()).unwrap();
+    }
+    let state = git_merge_state(cwd.clone());
+    assert_eq!(state.files.len(), names.len(), "{:?}", state.files);
+    assert!(state.files.iter().all(|f| f.resolved), "{:?}", state.files);
+    git_continue_merge(cwd.clone()).unwrap();
+    assert!(git_out(&cwd, &["grep", "-q", "-e", "<<<<<<<", "HEAD"]).is_err());
 }

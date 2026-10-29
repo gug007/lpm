@@ -10,15 +10,21 @@ pub(crate) fn is_unmerged(x: u8, y: u8) -> bool {
 
 /// Repo-root-relative paths git still holds as unmerged.
 pub(crate) fn unmerged_files(cwd: &str) -> Vec<String> {
-    git_out(cwd, &["diff", "--name-only", "--diff-filter=U"])
-        .map(|o| {
-            o.lines()
-                .map(str::trim)
-                .filter(|l| !l.is_empty())
-                .map(String::from)
-                .collect()
-        })
-        .unwrap_or_default()
+    match git_command(cwd, &["diff", "--name-only", "-z", "--diff-filter=U"], &[]).output() {
+        Ok(o) if o.status.success() => nul_separated(&o.stdout),
+        _ => Vec::new(),
+    }
+}
+
+/// The paths of a `-z` listing, verbatim. Without `-z` git C-quotes non-ASCII
+/// and special-character names (`"\344\270\255.txt"`), which no longer match
+/// the names in MERGE_MSG or the status list.
+fn nul_separated(out: &[u8]) -> Vec<String> {
+    String::from_utf8_lossy(out)
+        .split('\0')
+        .filter(|p| !p.is_empty())
+        .map(String::from)
+        .collect()
 }
 
 const MARKER_LINE: &str = "^(<{7}|>{7})( |$)";
@@ -33,14 +39,10 @@ fn unresolved(cwd: &str, files: &[String]) -> Vec<String> {
         return Vec::new();
     }
     let specs: Vec<String> = picked.iter().map(|f| format!(":(top){f}")).collect();
-    let mut args = vec!["grep", "-l", "-I", "--full-name", "-E", "-e", MARKER_LINE, "--"];
+    let mut args = vec!["grep", "-l", "-z", "-I", "--full-name", "-E", "-e", MARKER_LINE, "--"];
     args.extend(specs.iter().map(String::as_str));
     match git_command(cwd, &args, &[]).output() {
-        Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout)
-            .lines()
-            .filter(|l| !l.is_empty())
-            .map(String::from)
-            .collect(),
+        Ok(o) if o.status.success() => nul_separated(&o.stdout),
         Ok(o) if o.status.code() == Some(1) => Vec::new(),
         _ => picked.into_iter().cloned().collect(),
     }

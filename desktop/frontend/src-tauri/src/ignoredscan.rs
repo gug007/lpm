@@ -87,6 +87,12 @@ fn content_hash(path: &Path, meta: &Metadata) -> String {
     digest
 }
 
+/// A pipe, socket or device holds nothing to copy, and opening a pipe waits for
+/// a writer that may never come.
+fn copyable(meta: &Metadata) -> bool {
+    meta.is_dir() || meta.is_file() || meta.file_type().is_symlink()
+}
+
 fn file_digest(path: &Path, meta: &Metadata) -> String {
     if meta.len() <= HASH_MAX {
         return content_hash(path, meta);
@@ -108,7 +114,7 @@ fn walk_folder(dir: &Path, rel: &str, t: &mut Totals, hasher: &mut Sha256) {
         if t.over {
             return;
         }
-        let Ok(meta) = std::fs::symlink_metadata(&path) else {
+        let Some(meta) = std::fs::symlink_metadata(&path).ok().filter(copyable) else {
             continue;
         };
         let child = format!("{rel}{name}");
@@ -136,7 +142,7 @@ fn walk_folder(dir: &Path, rel: &str, t: &mut Totals, hasher: &mut Sha256) {
 /// One entry as the tree shows it: a file or link as itself, a folder with
 /// everything under it added up.
 fn entry(abs: &Path, rel: &str) -> Option<Entry> {
-    let meta = std::fs::symlink_metadata(abs).ok()?;
+    let meta = std::fs::symlink_metadata(abs).ok().filter(copyable)?;
     let rel = rel.trim_end_matches('/');
     if !meta.is_dir() {
         let rec = file_rec(abs, rel.to_string(), &meta);
@@ -268,7 +274,7 @@ fn file_rec(abs: &Path, rel: String, meta: &Metadata) -> FileRec {
 }
 
 fn collect(abs: &Path, rel: &str, out: &mut HashMap<String, FileRec>) -> Result<(), String> {
-    let Ok(meta) = std::fs::symlink_metadata(abs) else {
+    let Some(meta) = std::fs::symlink_metadata(abs).ok().filter(copyable) else {
         return Ok(());
     };
     if !meta.is_dir() || meta.file_type().is_symlink() {
@@ -398,6 +404,27 @@ mod tests {
             files[0].digest,
             crate::hostfilesave::sha256_file(&dir.path().join(".env")).unwrap()
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_pipe_is_skipped_without_waiting_on_it() {
+        let dir = repo();
+        let pipe = dir.path().join("node_modules/pipe");
+        let c = std::ffi::CString::new(pipe.to_string_lossy().as_bytes()).unwrap();
+        assert_eq!(unsafe { libc::mkfifo(c.as_ptr(), 0o600) }, 0);
+
+        let modules = list(dir.path(), "")
+            .unwrap()
+            .entries
+            .into_iter()
+            .find(|e| e.path == "node_modules/")
+            .unwrap();
+        assert_eq!(modules.files, 2);
+        let children = list(dir.path(), "node_modules/").unwrap();
+        assert!(children.entries.iter().all(|e| e.path != "node_modules/pipe"));
+        let files = manifest(dir.path(), &["node_modules/".into()]).unwrap();
+        assert!(files.iter().all(|f| f.path != "node_modules/pipe"));
     }
 
     #[cfg(unix)]

@@ -36,6 +36,8 @@ fn refuses_what_it_cannot_ask() {
         json!({ "questions": [{ "text": "A" }, { "text": "B" }, { "text": "C" }, { "text": "D" }, { "text": "E" }] }),
         json!({ "questions": [{ "id": "x", "text": "A" }, { "id": "x", "text": "B" }] }),
         json!({ "questions": [{ "text": "A" }], "timeout": 5 }),
+        json!({ "questions": [{ "text": "A" }], "timeout": 366 * 86_400 }),
+        json!({ "questions": [{ "text": "A" }], "timeout": u64::MAX }),
         json!({ "questions": [{ "type": "confirm", "text": "Ok?", "default": "maybe" }] }),
     ];
     for v in bad {

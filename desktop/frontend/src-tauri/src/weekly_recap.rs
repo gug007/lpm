@@ -73,11 +73,16 @@ struct Bounds {
 
 fn bounds(week: &str) -> Result<Bounds, String> {
     let first = NaiveDate::parse_from_str(week, "%Y-%m-%d").map_err(|e| format!("week: {e}"))?;
+    let shift = |days: i64| {
+        first
+            .checked_add_signed(Duration::days(days))
+            .ok_or_else(|| format!("week: {week} is out of range"))
+    };
     Ok(Bounds {
         first,
         from: midnight(first)?,
-        to: midnight(first + Duration::days(DAYS))?,
-        previous: midnight(first - Duration::days(DAYS))?,
+        to: midnight(shift(DAYS)?)?,
+        previous: midnight(shift(-DAYS)?)?,
     })
 }
 

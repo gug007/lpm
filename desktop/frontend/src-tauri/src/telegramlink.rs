@@ -3,10 +3,11 @@
 // secrets). Each chat keeps a short key, fixed when it's added, that jobs name
 // it by — "telegram:releases" — so renaming a group never breaks a job.
 //
-// A chat only joins through a link lpm handed out: tapping Start on the bot's
-// link carries a code only that link has, and a group or channel counts when
-// the person lpm already writes to added the bot there. Anyone else who finds
-// the bot and messages it is ignored.
+// A chat only joins through a link lpm handed out: the first chat is the one
+// that taps Start on the bot's link, which carries a code only that link has,
+// and whoever tapped it becomes the owner — the one person lpm answers to.
+// After that only the owner brings chats in, by adding the bot to a group or
+// channel. Anyone else who finds the bot or sees the code is ignored.
 
 use crate::config;
 use serde::{Deserialize, Serialize};
@@ -38,6 +39,9 @@ pub struct Link {
     /// one is known to be the user's.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub code: Option<String>,
+    /// The Telegram user who tapped Start on the first chat.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) owner: Option<i64>,
     // The one chat a link file from before several chats were possible held.
     #[serde(rename = "chatId", default, skip_serializing)]
     chat_id: Option<i64>,
@@ -86,6 +90,7 @@ impl Link {
     pub fn parse(bytes: &[u8]) -> Result<Link, String> {
         let mut link: Link = serde_json::from_slice(bytes).map_err(|e| format!("{FILE}: {e}"))?;
         link.adopt_single_chat();
+        link.adopt_owner();
         Ok(link)
     }
 
@@ -111,6 +116,18 @@ impl Link {
                 name,
                 kind: "private".into(),
             });
+        }
+    }
+
+    /// A link file from before the owner was kept: chats join in order, so the
+    /// first private one is the user's.
+    fn adopt_owner(&mut self) {
+        if self.owner.is_none() {
+            self.owner = self
+                .chats
+                .iter()
+                .find(|c| c.kind == "private")
+                .map(|c| c.chat_id);
         }
     }
 
@@ -154,6 +171,7 @@ impl Link {
                 name,
                 kind: chat["type"].as_str().unwrap_or_default().to_string(),
             };
+            self.owner.get_or_insert(chat_id);
             self.chats.push(new.clone());
             added.push(new);
         }
@@ -162,14 +180,14 @@ impl Link {
 }
 
 impl Link {
-    /// Whether `user` is someone lpm already writes to privately — the user.
     pub(crate) fn is_owner(&self, user: i64) -> bool {
-        self.chats.iter().any(|c| c.kind == "private" && c.chat_id == user)
+        self.owner == Some(user)
     }
 
-    /// The chat an update brings in, if it's one the user meant: a Start (or a
-    /// group's /start) carrying this link's code, or the bot being added to a
-    /// group or channel by the user. Being removed is never a reason to send.
+    /// The chat an update brings in, if it's one the user meant: the first
+    /// chat's Start carrying this link's code, the owner's own Start in a chat,
+    /// or the owner adding the bot to a group or channel. Being removed is
+    /// never a reason to send.
     fn joining_chat<'a>(&self, update: &'a Value) -> Option<&'a Value> {
         if let Some(member) = update.get("my_chat_member") {
             let status = member["new_chat_member"]["status"].as_str().unwrap_or_default();
@@ -178,10 +196,13 @@ impl Link {
                 .then(|| member.get("chat"))
                 .flatten();
         }
-        let message = ["message", "channel_post"].iter().find_map(|k| update.get(*k))?;
+        let message = update.get("message")?;
+        let sender_counts = match self.owner {
+            Some(owner) => message["from"]["id"].as_i64() == Some(owner),
+            None => self.chats.is_empty() && message["chat"]["type"] == "private",
+        };
         let code = self.code.as_deref()?;
-        start_payload(message["text"].as_str()?)
-            .is_some_and(|payload| payload == code)
+        (sender_counts && start_payload(message["text"].as_str()?) == Some(code))
             .then(|| message.get("chat"))
             .flatten()
     }
@@ -286,7 +307,7 @@ mod tests {
                 "new_chat_member": { "status": "member" } } },
             { "update_id": 9, "my_chat_member": { "from": { "id": 1 }, "chat": { "id": -4, "type": "group", "title": "Old" },
                 "new_chat_member": { "status": "left" } } },
-            { "update_id": 10, "message": { "text": "/start@lpm_bot c0de", "chat": { "id": -3, "type": "group", "title": "Ops" } } },
+            { "update_id": 10, "message": { "text": "/start@lpm_bot c0de", "from": { "id": 1 }, "chat": { "id": -3, "type": "group", "title": "Ops" } } },
         ]);
         let added = link.take_updates(&updates);
         assert_eq!(
@@ -296,6 +317,49 @@ mod tests {
         assert_eq!(link.chats[1].kind, "channel");
         assert_eq!(link.offset, Some(10));
         assert!(link.take_updates(&updates).is_empty());
+    }
+
+    #[test]
+    fn someone_else_holding_the_code_is_not_the_owner() {
+        let mut link = linked("c0de");
+        let added = link.take_updates(&json!([
+            { "update_id": 1, "message": { "text": "/start c0de", "from": { "id": 1 }, "chat": { "id": 1, "type": "private", "first_name": "Ada" } } },
+            { "update_id": 2, "message": { "text": "/start@lpm_bot c0de", "from": { "id": 1 }, "chat": { "id": -3, "type": "group", "title": "Team" } } },
+            { "update_id": 3, "message": { "text": "/start c0de", "from": { "id": 66 }, "chat": { "id": 66, "type": "private", "first_name": "Mallory" } } },
+            { "update_id": 4, "message": { "text": "/start@lpm_bot c0de", "from": { "id": 66 }, "chat": { "id": -6, "type": "group", "title": "Hers" } } },
+            { "update_id": 5, "channel_post": { "text": "/start c0de", "chat": { "id": -7, "type": "channel", "title": "Hers" } } },
+        ]));
+        assert_eq!(
+            added.iter().map(|c| c.key.as_str()).collect::<Vec<_>>(),
+            ["ada", "team"]
+        );
+        assert!(link.is_owner(1));
+        assert!(!link.is_owner(66));
+    }
+
+    #[test]
+    fn the_first_chat_must_be_a_private_start() {
+        let mut link = linked("c0de");
+        let group_first = json!([
+            { "update_id": 1, "message": { "text": "/start@lpm_bot c0de", "from": { "id": 66 }, "chat": { "id": -6, "type": "group", "title": "Hers" } } },
+        ]);
+        assert!(link.take_updates(&group_first).is_empty());
+        assert_eq!(link.owner, None);
+    }
+
+    #[test]
+    fn an_older_link_file_takes_its_first_private_chat_as_owner() {
+        let link = Link::parse(
+            br#"{ "chats": [
+                { "key": "ops", "chatId": -3, "name": "Ops", "kind": "group" },
+                { "key": "ada", "chatId": 1, "name": "Ada", "kind": "private" },
+                { "key": "eve", "chatId": 8, "name": "Eve", "kind": "private" }
+            ] }"#,
+        )
+        .unwrap();
+        assert!(link.is_owner(1));
+        assert!(!link.is_owner(8));
+        assert!(Link::parse(br#"{ "chatId": 42 }"#).unwrap().is_owner(42));
     }
 
     #[test]
@@ -312,7 +376,8 @@ mod tests {
         let mut link = linked("k");
         link.take_updates(&json!([
             { "update_id": 1, "message": { "text": "/start k", "chat": { "id": 1, "type": "private", "first_name": "Ada" } } },
-            { "update_id": 2, "channel_post": { "text": "/start k", "chat": { "id": -2, "type": "channel", "title": "Ops" } } },
+            { "update_id": 2, "my_chat_member": { "from": { "id": 1 }, "chat": { "id": -2, "type": "channel", "title": "Ops" },
+                "new_chat_member": { "status": "administrator" } } },
         ]));
         assert_eq!(link.chat(None).unwrap().chat_id, 1);
         assert_eq!(link.chat(Some("ops")).unwrap().chat_id, -2);

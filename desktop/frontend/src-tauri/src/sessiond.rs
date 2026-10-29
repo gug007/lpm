@@ -44,7 +44,7 @@ pub fn socket_path() -> PathBuf {
     }
 }
 
-fn lock_path() -> PathBuf {
+pub fn lock_path() -> PathBuf {
     socket_path().with_extension("lock")
 }
 
@@ -395,13 +395,22 @@ impl Drop for Busy {
 /// unreaped moments later, after it had already answered that they started.
 static RETIRING: AtomicBool = AtomicBool::new(false);
 
+/// How long a shutdown waits for the requests already being served.
+const DRAIN: Duration = Duration::from_secs(10);
+
+/// How long a daemon told to shut down can hold its lock after its socket is
+/// gone: the drain, then a teardown that gives jobs the SIGTERM grace period
+/// (^C's on Windows) before killing them.
+#[cfg(not(test))]
+pub const RETIRE_WAIT: Duration =
+    DRAIN.saturating_add(Duration::from_millis(2 * crate::proctree::TERM_TIMEOUT_MS));
+
 /// Stop taking work, then let the requests already being served finish so none
 /// of them opens panes after the shutdown's sweep. With the socket gone, a
-/// client that wants a daemon starts the next one, which waits for this one's
-/// lock; one already connected is hung up on, which reads as the daemon going
+/// client that wants a daemon waits for this one's lock and then starts the
+/// next; one already connected is hung up on, which reads as the daemon going
 /// away. `IN_FLIGHT` counts the shutdown request itself.
 fn retire() {
-    const DRAIN: Duration = Duration::from_secs(10);
     RETIRING.store(true, Ordering::SeqCst);
     let _ = std::fs::remove_file(socket_path());
     let deadline = Instant::now() + DRAIN;

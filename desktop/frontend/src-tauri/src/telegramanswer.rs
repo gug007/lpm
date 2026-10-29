@@ -1,6 +1,6 @@
 // Answers to automation questions from Telegram: a tap on the buttons lpm
-// posted under a question, or a reply to that message. Only the person lpm
-// writes to privately (the user) can answer, only on a message lpm posted, as
+// posted under a question, or a reply to that message. Only the link's owner
+// (the user, see telegramlink.rs) can answer, only on a message lpm posted, as
 // lpm posted it (its text and its buttons: anyone holding the bot's token
 // could edit either), and through the same calls the phone uses. Once a
 // question closes, wherever it was answered, its buttons give way to one that

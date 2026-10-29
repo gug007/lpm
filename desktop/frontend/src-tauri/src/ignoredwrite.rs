@@ -132,6 +132,17 @@ fn under(base: &Path, rel: &str) -> PathBuf {
         .fold(base.to_path_buf(), |p, part| p.join(part))
 }
 
+/// Bring back to `dest` what `item` replaced, from the backup of batch `dir`.
+fn put_back(item: &Landed, dir: &Path, dest: &Path) -> std::io::Result<()> {
+    if let Some(target) = &item.old_link {
+        make_link(target, dest)
+    } else if item.replaced {
+        move_or_copy(&under(&dir.join("old"), &item.path), dest)
+    } else {
+        Ok(())
+    }
+}
+
 impl Batch {
     pub(crate) fn new(id: &str, root: &Path) -> Result<Self, String> {
         Self::in_dir(&batches_dir(), id, root)
@@ -251,7 +262,15 @@ impl Batch {
             }
             landed.replaced = true;
         }
-        std::fs::rename(tmp, dest).map_err(|e| format!("{rel}: {e}"))?;
+        if let Err(e) = std::fs::rename(tmp, dest) {
+            let _ = std::fs::remove_file(tmp);
+            if put_back(&landed, &self.dir, dest).is_err() {
+                // Undo is the way back now, so the backup must outlive the batch.
+                self.log(&landed)?;
+                self.replaced += 1;
+            }
+            return Err(format!("{rel}: {e}"));
+        }
         self.log(&landed)?;
         if landed.replaced {
             self.replaced += 1;
@@ -316,12 +335,7 @@ fn undo_in(base: &Path, id: &str, root: &Path) -> Result<Vec<String>, String> {
             continue;
         }
         let _ = std::fs::remove_file(&dest);
-        if let Some(target) = &item.old_link {
-            make_link(target, &dest).map_err(|e| format!("{}: {e}", item.path))?;
-        } else if item.replaced {
-            move_or_copy(&under(&dir.join("old"), &item.path), &dest)
-                .map_err(|e| format!("{}: {e}", item.path))?;
-        }
+        put_back(item, &dir, &dest).map_err(|e| format!("{}: {e}", item.path))?;
         restored.push(item.path.clone());
     }
     let _ = std::fs::remove_dir_all(&dir);
@@ -404,6 +418,21 @@ mod tests {
                 .file_name()
                 .to_string_lossy()
                 .contains("lpm-sync")));
+        });
+    }
+
+    #[test]
+    fn a_swap_that_fails_leaves_the_old_file_in_place() {
+        with_lpm_dir(|base| {
+            let root = tempfile::tempdir().unwrap();
+            let dest = root.path().join(".env");
+            std::fs::write(&dest, "OLD=1\n").unwrap();
+            let mut batch =
+                Batch::in_dir(base, &uuid::Uuid::new_v4().to_string(), root.path()).unwrap();
+            let gone = root.path().join(".env.lpm-sync-missing");
+            assert!(batch.land(".env", &gone, &dest).is_err());
+            assert_eq!(std::fs::read_to_string(&dest).unwrap(), "OLD=1\n");
+            assert_eq!(batch.finish(), (0, 0));
         });
     }
 
