@@ -3,7 +3,7 @@ package cx.lpm.mobile.core.model
 import kotlinx.serialization.json.JsonElement
 
 /**
- * The Mac's Settings › General › Auto pull: off everywhere, only for the projects
+ * The Mac's Settings › Git › Auto pull: off everywhere, only for the projects
  * set to On, or for every project not set to Off.
  */
 enum class AutoPullMode(val rawValue: String) {

@@ -18,14 +18,22 @@ const DEFAULT_CLI: AICLI = "claude";
 // Which AI CLIs are installed where a generation runs: this Mac, or the paired
 // machine `scope` (a project name or folder) is on.
 export function checkAICLIs(scope?: string | null): Promise<main.AICLIAvailability> {
-  const slug = peerSlugOf(scope);
+  return checkMachineAICLIs(peerSlugOf(scope));
+}
+
+// Which AI CLIs are installed on this machine, or on the connected one `slug`.
+export function checkMachineAICLIs(slug: string | null): Promise<main.AICLIAvailability> {
   return slug ? PeerInvoke(slug, "check_aicl_is", {}) : CheckAICLIs();
+}
+
+export function aiAvailability(a: main.AICLIAvailability): Record<string, boolean> {
+  return { claude: a.claude, codex: a.codex, gemini: a.gemini, opencode: a.opencode };
 }
 
 // Switching model drops an effort the new one can't take — Codex's top levels
 // are model-bound. CLIs with no effort control at all keep it parked so hopping
 // through one doesn't lose the setting.
-function clampEffort(cli: AICLI, model: string, effort: string): string {
+export function clampEffort(cli: AICLI, model: string, effort: string): string {
   if (aiEfforts(cli, model).length === 0) return effort;
   return aiEffectiveEffort(cli, model, effort);
 }
@@ -61,25 +69,27 @@ export function useAIPicker(active: boolean, scope?: string | null): AIPicker {
     () => getSettings().aiFast ?? false,
   );
 
+  // A picker stays mounted while closed, and Settings › Git changes the same
+  // pick, so each opening starts from what is saved.
   useEffect(() => {
     if (!active) return;
+    const saved = getSettings();
+    setSelectedCLI((saved.aiCli as AICLI) || DEFAULT_CLI);
+    setSelectedModel(saved.aiModel ?? aiDefaultModel(DEFAULT_CLI));
+    setSelectedEffort(saved.aiEffort ?? "");
+    setSelectedFast(saved.aiFast ?? false);
     let cancelled = false;
     checkAICLIs(scope)
       .then((a) => {
         if (cancelled) return;
-        const avail: Record<string, boolean> = {
-          claude: a.claude,
-          codex: a.codex,
-          gemini: a.gemini,
-          opencode: a.opencode,
-        };
+        const avail = aiAvailability(a);
         setAiCLIs(avail);
         const s = getSettings();
         const pick = resolveAIPick(s.aiCli, s.aiModel, avail);
         if (pick) {
           setSelectedCLI(pick.cli);
           setSelectedModel(pick.model);
-          setSelectedEffort((prev) => clampEffort(pick.cli, pick.model, prev));
+          setSelectedEffort(clampEffort(pick.cli, pick.model, s.aiEffort ?? ""));
         }
       })
       .catch(() => {});

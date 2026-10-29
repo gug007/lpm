@@ -9,6 +9,7 @@ import {
   DEFAULT_PULL_CONFIG,
   DEFAULT_PUSH_CONFIG,
   DEFAULT_FETCH_CONFIG,
+  FETCH_OPTIONS,
 } from "./gitOptions";
 
 describe("pullFlags", () => {
@@ -93,6 +94,16 @@ describe("fetchFlags", () => {
   });
   it("emits nothing when everything is off", () => {
     expect(fetchFlags({ all: false, prune: false, pruneTags: false, tags: false })).toEqual([]);
+  });
+});
+
+describe("FETCH_OPTIONS", () => {
+  it("names each fetch flag once, by the flag it adds", () => {
+    const none = { all: false, prune: false, pruneTags: false, tags: false };
+    for (const option of FETCH_OPTIONS) {
+      expect(fetchFlags({ ...none, [option.key]: true })).toEqual([option.flag]);
+    }
+    expect(FETCH_OPTIONS.map((o) => o.key).sort()).toEqual(Object.keys(none).sort());
   });
 });
 

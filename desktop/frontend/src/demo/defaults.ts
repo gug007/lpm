@@ -18,7 +18,7 @@ const NULL: string[] = [
   "git_abort_merge", "git_auto_pull", "git_auto_pull_last", "git_auto_pull_undo", "git_continue_merge",
   "git_mark_conflict_resolved", "git_take_conflict_side",
   "git_discard_all", "git_discard_files", "git_fetch_all", "git_file_diff_ref",
-  "git_file_diff_staged", "git_merge", "git_prune_remotes", "hide_browser", "hold_pane_status",
+  "git_file_diff_staged", "git_merge", "git_prune_remotes", "hide_browser", "hold_pane_status", "html_preview_root",
   "import_config", "install_kokoro", "install_update", "job_live_output",
   "list_agent_capabilities", "list_agent_sessions", "list_dirs", "list_project_terminals",
   "load_claude_accounts", "load_composer_actions", "load_generators", "load_groups",

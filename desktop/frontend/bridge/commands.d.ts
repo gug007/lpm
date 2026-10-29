@@ -260,6 +260,7 @@ export function ReadCommitInstructions(...args: any[]): Promise<any>;
 export function ReadConfig(...args: any[]): Promise<any>;
 export function ReadFile(...args: any[]): Promise<any>;
 export function ReadProjectFile(...args: any[]): Promise<any>;
+export function HtmlPreviewRoot(path: string): Promise<string | null>;
 export function RevealInFinder(...args: any[]): Promise<any>;
 export function CreateProjectEntry(...args: any[]): Promise<any>;
 export function RenameProjectEntry(...args: any[]): Promise<any>;

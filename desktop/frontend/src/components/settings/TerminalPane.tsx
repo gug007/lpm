@@ -97,12 +97,6 @@ export function TerminalPane() {
           onChange={(v) => void update({ terminalOpenInDefaultApp: v })}
         />
       </SettingsRow>
-      <SettingsRow {...rowProps("terminal.input")}>
-        <Toggle
-          enabled={settings.composerOpen ?? true}
-          onChange={(v) => void update({ composerOpen: v })}
-        />
-      </SettingsRow>
       <SettingsRow {...rowProps("terminal.filesTreeSide")}>
         <SettingsSelect
           value={settings.filesTreeSide ?? "right"}
@@ -114,18 +108,6 @@ export function TerminalPane() {
           <option value="right">Right</option>
           <option value="left">Left</option>
         </SettingsSelect>
-      </SettingsRow>
-      <SettingsRow {...rowProps("terminal.pickAgentOnNewTab")}>
-        <Toggle
-          enabled={settings.pickAgentOnNewTab ?? false}
-          onChange={(v) => void update({ pickAgentOnNewTab: v })}
-        />
-      </SettingsRow>
-      <SettingsRow {...rowProps("terminal.autoCloseComposer")}>
-        <Toggle
-          enabled={settings.autoCloseComposerOnSend ?? true}
-          onChange={(v) => void update({ autoCloseComposerOnSend: v })}
-        />
       </SettingsRow>
       <SettingsRow {...rowProps("terminal.appTips")}>
         <Toggle

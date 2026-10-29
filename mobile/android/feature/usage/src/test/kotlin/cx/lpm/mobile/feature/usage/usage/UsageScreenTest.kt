@@ -76,7 +76,7 @@ class UsageScreenTest {
             )
         )
         compose.onNodeWithText(
-            "Claude usage is off on this Mac. Turn it on in lpm on your Mac and the meters appear here."
+            "Claude usage is off on this Mac. Turn on Read Claude usage in lpm → Settings → Accounts & usage and the meters appear here."
         ).assertExists()
     }
 

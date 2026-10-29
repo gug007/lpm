@@ -36,6 +36,16 @@ enum Kind {
     NotificationChannels,
     /// "never", or an amount and a unit (status/seen.rs).
     ArchiveAfter,
+    /// A list of distinct names, each one of these.
+    Ids(&'static [&'static str]),
+    /// An object with some of these fields.
+    Fields(&'static [(&'static str, Field)]),
+}
+
+/// One field of a `Kind::Fields` object.
+enum Field {
+    Flag,
+    OneOf(&'static [&'static str]),
 }
 
 const SHARED: &[(&str, Kind)] = &[
@@ -44,7 +54,39 @@ const SHARED: &[(&str, Kind)] = &[
     ("checkOrigin", Kind::Flag),
     ("keepFinishedAgents", Kind::Flag),
     ("autoArchiveAgentsAfter", Kind::ArchiveAfter),
+    ("seenAgentsShown", Kind::Number { min: 1.0, max: 10.0 }),
     ("autoPull", Kind::OneOf(&["off", "chosen", "all"])),
+    (
+        "gitPull",
+        Kind::Fields(&[
+            ("strategy", Field::OneOf(&["ff", "ff-only", "rebase"])),
+            ("autostash", Field::Flag),
+            ("noVerify", Field::Flag),
+        ]),
+    ),
+    (
+        "gitPush",
+        Kind::Fields(&[
+            ("mode", Field::OneOf(&["default", "force-with-lease"])),
+            ("noVerify", Field::Flag),
+            ("tags", Field::Flag),
+        ]),
+    ),
+    (
+        "gitFetch",
+        Kind::Fields(&[
+            ("all", Field::Flag),
+            ("prune", Field::Flag),
+            ("pruneTags", Field::Flag),
+            ("tags", Field::Flag),
+        ]),
+    ),
+    ("aiCli", Kind::Name),
+    ("aiModel", Kind::Name),
+    ("aiEffort", Kind::Name),
+    ("aiFast", Kind::Flag),
+    ("autoGenerateCommitMessage", Kind::Flag),
+    ("autoGeneratePRDescription", Kind::Flag),
     ("updateChannel", Kind::OneOf(&["stable", "beta"])),
     ("defaultProjectDirectory", Kind::Path),
     ("systemNotifications", Kind::Flag),
@@ -72,6 +114,9 @@ const SHARED: &[(&str, Kind)] = &[
     ("ttsOpenAiVoice", Kind::Name),
     ("ttsSpeed", Kind::Number { min: 0.5, max: 3.0 }),
     (CLAUDE_LIMITS, Kind::Flag),
+    ("usageInSidebar", Kind::Flag),
+    ("usageSidebarTools", Kind::Ids(&["claude", "codex"])),
+    ("usageSidebarWindow", Kind::OneOf(&["fiveHour", "weekly", "higher"])),
 ];
 
 /// Claude usage readings, which switching accounts needs. Its forwarder is
@@ -183,6 +228,17 @@ fn checked(key: &str, value: &Value) -> Result<Option<Value>, String> {
             value.as_str().is_some_and(crate::status::seen::is_archive_after),
             "never, or an amount and a unit such as 90m, 8h, 2d or 1w".to_string(),
         ),
+        Kind::Ids(choices) => (
+            is_ids(value, choices),
+            format!("a list of distinct names from {}", choices.join(", ")),
+        ),
+        Kind::Fields(fields) => (
+            is_fields(value, fields),
+            format!(
+                "an object with some of {}",
+                fields.iter().map(|(name, _)| *name).collect::<Vec<_>>().join(", ")
+            ),
+        ),
     };
     if valid {
         Ok(Some(value.clone()))
@@ -203,6 +259,29 @@ fn is_shortcuts(value: &Value) -> bool {
             && map
                 .iter()
                 .all(|(id, keys)| id.len() <= MAX_NAME_LEN && is_text(keys, MAX_NAME_LEN))
+    })
+}
+
+fn is_ids(value: &Value, choices: &[&str]) -> bool {
+    value.as_array().is_some_and(|items| {
+        items.iter().enumerate().all(|(i, item)| {
+            item.as_str().is_some_and(|s| choices.contains(&s))
+                && !items[..i].contains(item)
+        })
+    })
+}
+
+fn is_fields(value: &Value, fields: &[(&str, Field)]) -> bool {
+    value.as_object().is_some_and(|map| {
+        map.iter().all(|(name, v)| {
+            fields
+                .iter()
+                .find(|(field, _)| field == name)
+                .is_some_and(|(_, field)| match field {
+                    Field::Flag => v.is_boolean(),
+                    Field::OneOf(choices) => v.as_str().is_some_and(|s| choices.contains(&s)),
+                })
+        })
     })
 }
 
@@ -312,6 +391,11 @@ mod tests {
             "ttsSpeed": 1.5,
             "notificationChannels": { "agentDone": { "banner": false, "sound": true } },
             "holdToastsWhileTyping": false,
+            "seenAgentsShown": 5,
+            "usageSidebarTools": ["claude"],
+            "gitPull": { "strategy": "rebase", "autostash": true },
+            "gitFetch": { "prune": false },
+            "aiModel": "sonnet",
         });
         apply_patch(&mut settings, &patch).unwrap();
         assert_eq!(settings, patch);
@@ -343,6 +427,12 @@ mod tests {
             json!({ "notificationChannels": { "deploys": { "banner": false } } }),
             json!({ "notificationChannels": ["agentDone"] }),
             json!({ "holdToastsWhileTyping": 1 }),
+            json!({ "usageSidebarTools": ["claude", "claude"] }),
+            json!({ "usageSidebarTools": "claude" }),
+            json!({ "gitPull": { "strategy": "squash" } }),
+            json!({ "gitPush": { "force": true } }),
+            json!({ "gitFetch": ["prune"] }),
+            json!({ "seenAgentsShown": 0 }),
             json!(["checkOrigin"]),
         ] {
             assert!(apply_patch(&mut settings, &bad).is_err(), "{bad} was accepted");

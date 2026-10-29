@@ -30,7 +30,7 @@ const ALLOWED_EXT: &[&str] = &["mp4", "m4v", "mov", "webm", "mkv", "avi", "ogv"]
 /// Registered protocols attach to EVERY webview, including the in-pane browser
 /// that loads arbitrary remote pages — so the handler answers only the webviews
 /// that run our own frontend.
-fn is_app_webview(label: &str) -> bool {
+pub(crate) fn is_app_webview(label: &str) -> bool {
     label == "main" || label.starts_with("detached-")
 }
 

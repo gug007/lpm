@@ -44,11 +44,11 @@
     },
     "autoPull": {
       "type": "boolean",
-      "description": "Whether lpm fast-forwards this project by itself when origin has new commits, the branch has no uncommitted changes and nothing to push (Settings → General → Auto pull). Omit it to follow the parent project (for a duplicate or worktree), then the Settings default."
+      "description": "Whether lpm fast-forwards this project by itself when origin has new commits, the branch has no uncommitted changes and nothing to push (Settings → Git → Auto pull). Omit it to follow the parent project (for a duplicate or worktree), then the Settings default."
     },
     "claudeAccount": {
       "type": "string",
-      "description": "Id of the one Claude account (Settings → AI & Integrations) whose login this project's terminals, actions, and AI features always use, via CLAUDE_CONFIG_DIR. Set it to \"\" to always use the main login. Omit it (and claudeAccounts) to use the main accounts from Settings. Has no effect on SSH projects — the remote host has its own Claude login."
+      "description": "Id of the one Claude account (Settings → Accounts & usage) whose login this project's terminals, actions, and AI features always use, via CLAUDE_CONFIG_DIR. Set it to \"\" to always use the main login. Omit it (and claudeAccounts) to use the main accounts from Settings. Has no effect on SSH projects — the remote host has its own Claude login."
     },
     "claudeAccounts": {
       "type": "array",

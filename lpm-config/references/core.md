@@ -45,7 +45,7 @@ A project needs at least one service after layering (its own or from the repo `.
 
 ## Claude account
 
-`claudeAccount` pins the project to a Claude Code account added in lpm Settings → AI & Integrations. Processes the project starts get `CLAUDE_CONFIG_DIR` pointing at that account's own config directory, so its login stays separate while settings, memory, and skills stay shared.
+`claudeAccount` pins the project to a Claude Code account added in lpm Settings → Accounts & usage. Processes the project starts get `CLAUDE_CONFIG_DIR` pointing at that account's own config directory, so its login stays separate while settings, memory, and skills stay shared.
 
 ```yaml
 claudeAccount: work
@@ -68,7 +68,7 @@ Use short lowercase hyphenated keys such as `web`, `api-worker`, and `db-migrate
 
 ## Auto pull
 
-The app fetches every project's origin in the background. Settings › General › Auto pull picks the mode: Off, Chosen (only projects set to on), or All (every project not set to off). `autoPull` decides for one project:
+The app fetches every project's origin in the background. Settings › Git › Auto pull picks the mode: Off, Chosen (only projects set to on), or All (every project not set to off). `autoPull` decides for one project:
 
 ```yaml
 autoPull: true

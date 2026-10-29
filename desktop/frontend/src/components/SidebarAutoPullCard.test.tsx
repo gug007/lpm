@@ -104,7 +104,7 @@ describe("the auto pull card on Pull", () => {
     expect(card()?.textContent).toContain("Origin has 3 new commits on main");
     expect(button("Turn on for all projects")).toBeTruthy();
     expect(button("Only web")).toBeTruthy();
-    expect(card()?.textContent).toContain("Settings › General › Auto pull");
+    expect(card()?.textContent).toContain("Settings › Git › Auto pull");
   });
 
   it("turns it on for every project", () => {
@@ -142,7 +142,7 @@ describe("the auto pull card on Pull", () => {
 
   it("opens Settings › General from the card", () => {
     hoverPull();
-    act(() => button("Settings › General › Auto pull").click());
+    act(() => button("Settings › Git › Auto pull").click());
     expect(mocks.openAutoPullSettings).toHaveBeenCalledOnce();
   });
 

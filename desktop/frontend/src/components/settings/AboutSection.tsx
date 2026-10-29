@@ -5,15 +5,13 @@ import { MACHINE } from "../../machineWords";
 import { isMac } from "../../platform";
 import { removeAppConfirmText } from "../../removeAppCopy";
 import { rowProps } from "../../settings-registry";
-import { AgentToolsManualSetup } from "../AgentToolsManualSetup";
 import { SettingsRow } from "../SettingsRow";
 import { SettingsSection } from "../SettingsSection";
-import { SkillInstallControl } from "../SkillInstallControl";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { RemovingOverlay } from "./RemovingOverlay";
 import { UpdatesSection } from "./UpdatesSection";
 
-// This machine's lpm: its updates, its agent tools and removing it.
+// This machine's lpm: its updates and removing it.
 export function AboutSection() {
   const [version, setVersion] = useState("");
   const [showRemoveApp, setShowRemoveApp] = useState(false);
@@ -50,19 +48,6 @@ export function AboutSection() {
       <UpdatesSection version={version} />
 
       <SettingsSection title="About">
-        <SettingsRow
-          {...rowProps("general.agentTools")}
-          details={
-            <>
-              <p>Skills teach AI coding agents how lpm works. Claude Code, Codex, Gemini CLI, and OpenCode pick them up automatically.</p>
-              <p>Agents learn to create and edit project configurations and to start, stop, and duplicate projects on your behalf.</p>
-              <p>The lpm command line tool is also installed, so agents — and you — can control projects from any terminal.</p>
-              <AgentToolsManualSetup />
-            </>
-          }
-        >
-          <SkillInstallControl />
-        </SettingsRow>
         <SettingsRow {...rowProps("general.removeApp")}>
           <button
             onClick={() => setShowRemoveApp(true)}

@@ -1,6 +1,6 @@
 import Foundation
 
-/// The Mac's Settings › General › Auto pull: off everywhere, only for the
+/// The Mac's Settings › Git › Auto pull: off everywhere, only for the
 /// projects set to On, or for every project not set to Off.
 enum AutoPullMode: String {
     case off, chosen, all

@@ -41,7 +41,7 @@ export function AutoPullMenuItems({
           label={choice.label}
           icon={<span className="flex w-3.5 justify-center">{project.autoPull === choice.value && <CheckIcon />}</span>}
           disabled={off}
-          title={off ? "Auto pull is off for every project in Settings › General" : undefined}
+          title={off ? "Auto pull is off for every project in Settings › Git" : undefined}
           onClick={() => {
             onClose();
             if (project.autoPull !== choice.value) void setProjectAutoPull(project.name, choice.value ?? null);

@@ -26,7 +26,7 @@ import { useSelectedLineCounts } from "../hooks/useSelectedLineCounts";
 import { LineCounts } from "./LineCounts";
 import { isCanceledError, useAIGeneration } from "../hooks/useAIGeneration";
 import { aiEffectiveEffort, aiEffectiveFast } from "../types";
-import { getSettings, saveSettings } from "../store/settings";
+import { getSettings, saveSettings, useSettingsStore } from "../store/settings";
 import { DEFAULT_PUSH_CONFIG, pushFlags } from "../gitOptions";
 import { runAutoCommit } from "../autoCommit";
 import {
@@ -86,9 +86,7 @@ export function CommitModal({
     () => setCommitMenuOpen(false),
     commitMenuOpen,
   );
-  const [autoGenerate, setAutoGenerate] = useState(
-    () => getSettings().autoGenerateCommitMessage ?? false,
-  );
+  const autoGenerate = useSettingsStore((s) => s.autoGenerateCommitMessage ?? false);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [expandedFile, setExpandedFile] = useState<string | null>(null);
   const [diffContent, setDiffContent] = useState("");
@@ -275,9 +273,7 @@ export function CommitModal({
   };
 
   const toggleAutoGenerate = () => {
-    const next = !autoGenerate;
-    setAutoGenerate(next);
-    saveSettings({ autoGenerateCommitMessage: next });
+    void saveSettings({ autoGenerateCommitMessage: !autoGenerate });
   };
 
   const toggleContext = () => {

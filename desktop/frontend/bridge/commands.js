@@ -793,6 +793,9 @@ export function ReadConfig(name) {
 export function ReadProjectFile(root, rel) {
   return invoke("read_project_file", { root, rel });
 }
+export function HtmlPreviewRoot(path) {
+  return invoke("html_preview_root", { path });
+}
 export function CreateProjectEntry(root, rel, isDir) {
   return invoke("create_project_entry", { root, rel, isDir });
 }

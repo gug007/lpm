@@ -152,7 +152,7 @@ export default function LpmStatuslineDemo() {
           </div>
           <div className="flex items-center gap-2 text-[11px] font-medium text-gray-500 dark:text-gray-400">
             <Monitor className="h-3.5 w-3.5" aria-hidden />
-            lpm · Settings · AI &amp; Integrations
+            lpm · Settings · Agents
           </div>
           <span className="inline-flex items-center gap-1.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
             <Save className="h-3 w-3" aria-hidden />
@@ -176,7 +176,7 @@ export default function LpmStatuslineDemo() {
               <p className="mt-1 max-w-xl text-sm text-gray-500 dark:text-gray-400">
                 Pick a layout, arrange the signals, and tune the appearance just
                 as you would inside lpm. In the app, find this editor
-                under Settings → AI &amp; Integrations.
+                under Settings → Agents.
               </p>
             </div>
             <div

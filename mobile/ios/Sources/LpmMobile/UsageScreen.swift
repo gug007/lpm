@@ -92,7 +92,7 @@ struct UsageScreen: View {
                     provider: "claude",
                     name: "Claude",
                     dim: false,
-                    text: "Claude usage is off on this Mac. Turn it on in lpm on your Mac and the meters appear here."
+                    text: "Claude usage is off on this Mac. Turn on Read Claude usage in lpm → Settings → Accounts & usage and the meters appear here."
                 )
             }
         }

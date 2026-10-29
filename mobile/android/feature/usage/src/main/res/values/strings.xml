@@ -99,7 +99,7 @@
     <string name="usage_claude">Claude</string>
     <string name="usage_codex">Codex</string>
     <string name="usage_claude_waiting">Waiting for a Claude session. Your usage appears here as soon as you run Claude in a project.</string>
-    <string name="usage_claude_off">Claude usage is off on this Mac. Turn it on in lpm on your Mac and the meters appear here.</string>
+    <string name="usage_claude_off">Claude usage is off on this Mac. Turn on Read Claude usage in lpm → Settings → Accounts &amp; usage and the meters appear here.</string>
     <string name="usage_codex_waiting">Codex usage appears here automatically the first time you run Codex in a project.</string>
     <string name="usage_footer">Live plan usage for your AI coding tools</string>
     <string name="usage_refresh_failed">Couldn\'t refresh — these are the last numbers your Mac sent.</string>

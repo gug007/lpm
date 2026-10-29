@@ -4,7 +4,7 @@ import Foundation
 let claudeMainLogin = "default"
 
 /// One Claude login the Mac knows: the main login first, then each account
-/// added in the Mac's Settings › Claude accounts.
+/// added in the Mac's Settings › Accounts & usage › Claude.
 struct ClaudeAccountInfo: Identifiable {
     let id: String
     let label: String

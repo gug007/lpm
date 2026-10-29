@@ -172,7 +172,7 @@ the copies in the running binary rewrites them. Updating lpm on this machine
 therefore updates its skills — the new binary restarts into the same pass.
 
 This is the one thing a host does without being asked, and deliberately: on a Mac
-it is a button in Settings → Agent tools, and there is no pane in front of anyone
+it is a button in Settings → Agents › lpm skills and CLI, and there is no pane in front of anyone
 here. A machine that exists to run agents is the last place they should be
 missing.
 

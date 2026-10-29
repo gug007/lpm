@@ -23,7 +23,8 @@ pub(super) fn is_finished(value: &str) -> bool {
     value == STATUS_DONE || value == STATUS_ERROR
 }
 
-/// Settings › General › Keep finished agents until archived. Unset means off.
+/// Settings › Agents › In the sidebar › Keep finished agents until archived.
+/// Unset means off.
 pub fn keeps_finished(settings: &Value) -> bool {
     settings
         .get("keepFinishedAgents")
@@ -57,12 +58,13 @@ fn duration_ms(value: &str) -> Option<i64> {
     Some(amount * unit_ms)
 }
 
-/// What Settings › General › Archive seen agents automatically may hold.
+/// What Settings › Agents › In the sidebar › Archive seen agents after may hold.
 pub fn is_archive_after(value: &str) -> bool {
     value == "never" || duration_ms(value).is_some()
 }
 
-/// Settings › General › Seen agents per project, 1–10. Unset means 3.
+/// Settings › Agents › In the sidebar › Seen agents per project, 1–10. Unset
+/// means 3.
 pub fn seen_shown(settings: &Value) -> u64 {
     settings
         .get("seenAgentsShown")

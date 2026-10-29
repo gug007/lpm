@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { LoaderCircle, RefreshCw, X } from "lucide-react";
 import { toast } from "../notifications/toast";
-import { ApplyClaudeLimits } from "../../bridge/commands";
+import { setClaudeLimitsEnabled } from "../claudeLimits";
 import { useAgentLimits, pickProvider } from "../hooks/useAgentLimits";
 import type { ProviderLimits } from "../hooks/useAgentLimits";
 import { useNow } from "../hooks/useNow";
@@ -32,7 +32,6 @@ export function UsageView({ onClose }: UsageViewProps) {
   const { limits: map, loading, error, refresh } = useAgentLimits();
   const now = useNow(true, 30_000);
   const enabled = useSettingsStore((s) => s.claudeLimitsEnabled ?? false);
-  const update = useSettingsStore((s) => s.update);
   const { stats: todayStats } = useTokensToday();
   const accounts = useAccountsStore((s) => s.accounts);
   const statuses = useAccountsStore((s) => s.statuses);
@@ -82,14 +81,11 @@ export function UsageView({ onClose }: UsageViewProps) {
   const showClaudeWaiting = claudeCards.length === 0 && waitingAccounts.length === 0 && enabled;
   const hasSnapshot = Object.keys(map).length > 0;
 
-  // Persist only after the backend actually applied the change, so a failed
-  // install can never leave the setting on with nothing behind it.
   const setClaudeLimits = async (next: boolean) => {
     if (busy) return;
     setBusy(true);
     try {
-      await ApplyClaudeLimits(next);
-      await update({ claudeLimitsEnabled: next });
+      await setClaudeLimitsEnabled(next);
     } catch (err) {
       toast.error(String(err));
     } finally {

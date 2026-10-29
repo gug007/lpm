@@ -2,7 +2,7 @@ import type { OriginStatus } from "./originStatus";
 import { isPeerRoot } from "./peer/markers";
 import type { ProjectInfo } from "./types";
 
-// Settings › General › Auto pull: nothing, only projects set to On, or every
+// Settings › Git › Auto pull: nothing, only projects set to On, or every
 // project that isn't set to Off.
 export const AUTO_PULL_MODES = ["off", "chosen", "all"] as const;
 export type AutoPullMode = (typeof AUTO_PULL_MODES)[number];

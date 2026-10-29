@@ -6,7 +6,7 @@ const FAQS = [
   {
     question: "How do I customize a Claude Code statusline in lpm?",
     answer:
-      "Open Settings (⌘, on macOS, Ctrl+, on Windows and Linux, or the More menu at the bottom of the lpm sidebar), choose AI & Integrations, and click Customize beside Claude Code status line. Start with Clean, Minimalistic, Modern, or Custom, then arrange items and tune their appearance. lpm applies valid changes while you work, and the preview updates alongside.",
+      "Open Settings (⌘, on macOS, Ctrl+, on Windows and Linux, or the More menu at the bottom of the lpm sidebar), choose Agents, and click Customize beside Claude Code status line. Start with Clean, Minimalistic, Modern, or Custom, then arrange items and tune their appearance. lpm applies valid changes while you work, and the preview updates alongside.",
   },
   {
     question: "What can I change in the Claude Code statusline?",

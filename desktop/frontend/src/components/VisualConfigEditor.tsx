@@ -323,7 +323,7 @@ export function VisualConfigEditor({ content, onChange, onEditYaml, isRemote = f
   const setView = useAppStore((s) => s.setView);
   const setSettingsTab = useAppStore((s) => s.setSettingsTab);
   const openAccountSettings = () => {
-    setSettingsTab("ai");
+    setSettingsTab("accounts");
     setView("settings");
   };
   const [pickerOpen, setPickerOpen] = useState(false);

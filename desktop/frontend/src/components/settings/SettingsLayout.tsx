@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useEventListener } from "../../hooks/useEventListener";
 import { useSettingsEscape } from "../../hooks/useSettingsEscape";
 import {
@@ -18,6 +18,7 @@ import { useSettingsStore } from "../../store/settings";
 import { applyTheme } from "../../theme";
 import { GlobalConfigEditor } from "../GlobalConfigEditor";
 import { NAV_ICONS } from "./navIcons";
+import { revealSettingsRow } from "./revealSettingsRow";
 import { SettingsNav } from "./SettingsNav";
 import { SettingsPageHeader } from "./SettingsPageHeader";
 import { SettingsPanes } from "./SettingsPanes";
@@ -27,6 +28,9 @@ const darkModeQuery = window.matchMedia("(prefers-color-scheme: dark)");
 
 const PAGE_SUBTITLES: Partial<Record<SettingsTab, string>> = {
   shortcuts: `Click a shortcut, then press the keys you want. ${shortcutRequirementHint()}`,
+  agents: "Start agents, write to them, and keep the sidebar tidy",
+  accounts: "Your agent accounts and how much of each plan is left",
+  git: "Keep projects up to date, and set what AI writes for you",
 };
 
 // The page last open, unless the machine shown has no such page.
@@ -52,13 +56,11 @@ export function SettingsLayout({
   const localTheme = useSettingsStore((s) => s.theme);
   const activeTab = useAppStore((s) => s.settingsTab);
   const setActiveTab = useAppStore((s) => s.setSettingsTab);
-  const setUsageOpen = useAppStore((s) => s.setUsageOpen);
   const setView = useAppStore((s) => s.setView);
   const view = useAppStore((s) => s.view);
   const onGlobalConfig = view === "global-config";
   const returnView = useSettingsReturn((s) => s.from);
   const [query, setQuery] = useState("");
-  const [pendingRevealId, setPendingRevealId] = useState<string | null>(null);
 
   const experimentalTTS = Boolean(target?.settings.experimentalTTS);
   const navGroups = useMemo(
@@ -82,37 +84,11 @@ export function SettingsLayout({
     setQuery("");
     if (entry.kind === "view") {
       onNavigate(entry.view);
-    } else if (entry.kind === "modal") {
-      if (entry.modal === "usage") setUsageOpen(true);
     } else {
       selectTab(entry.tab);
-      setPendingRevealId(entry.id);
+      revealSettingsRow(entry.id);
     }
   };
-
-  useEffect(() => {
-    if (!pendingRevealId) return;
-    const id = pendingRevealId;
-    let raf2 = 0;
-    const raf1 = requestAnimationFrame(() => {
-      raf2 = requestAnimationFrame(() => {
-        const el = document.querySelector<HTMLElement>(`[data-settings-row="${id}"]`);
-        if (el) {
-          // A setting folded under a disclosure is shown before it is pointed at.
-          const fold = el.closest("details");
-          if (fold) fold.open = true;
-          el.scrollIntoView({ block: "center", behavior: "smooth" });
-          el.classList.add("settings-search-flash");
-          window.setTimeout(() => el.classList.remove("settings-search-flash"), 1500);
-        }
-        setPendingRevealId(null);
-      });
-    });
-    return () => {
-      cancelAnimationFrame(raf1);
-      if (raf2) cancelAnimationFrame(raf2);
-    };
-  }, [pendingRevealId]);
 
   useEventListener("change", () => applyTheme("system"), darkModeQuery, localTheme === "system");
   const leave = () => setView(returnView);

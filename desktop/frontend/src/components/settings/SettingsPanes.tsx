@@ -1,9 +1,11 @@
 import type { SettingsTab, View } from "../../store/app";
 import { ConnectionsPane } from "../ConnectionsPane";
 import { MobileSettingsPane } from "../MobileSettingsPane";
-import { AiPane } from "./AiPane";
+import { AccountsPane } from "./AccountsPane";
+import { AgentsPane } from "./AgentsPane";
 import { BackupPane } from "./BackupPane";
 import { GeneralPane } from "./GeneralPane";
+import { GitPane } from "./GitPane";
 import { NotificationsPane } from "./NotificationsPane";
 import { ShortcutsPane } from "./ShortcutsPane";
 import { TemplatesPane } from "./TemplatesPane";
@@ -22,8 +24,12 @@ export function SettingsPanes({ tab, onNavigate }: { tab: SettingsTab; onNavigat
       return <ShortcutsPane />;
     case "tts":
       return <TtsPane />;
-    case "ai":
-      return <AiPane onNavigate={onNavigate} />;
+    case "agents":
+      return <AgentsPane onNavigate={onNavigate} />;
+    case "accounts":
+      return <AccountsPane />;
+    case "git":
+      return <GitPane onNavigate={onNavigate} />;
     case "templates":
       return <TemplatesPane />;
     case "backup":

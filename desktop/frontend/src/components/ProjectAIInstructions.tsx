@@ -100,7 +100,7 @@ export function ProjectAIInstructions({
                 {state && !state.custom && (
                   <span
                     className="text-[11px] text-[var(--text-muted)]"
-                    title="Settings › AI & Integrations"
+                    title="Settings › Git"
                   >
                     Using your default
                   </span>

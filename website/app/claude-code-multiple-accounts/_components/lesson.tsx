@@ -3,7 +3,7 @@ import { LessonSection } from "@/components/lesson-section";
 const STEPS = [
   {
     title: "Add an account and sign in once",
-    body: "Settings, AI & Integrations, Claude accounts. Click Add account, name it, then Add and sign in, and finish Claude's own login in the browser.",
+    body: "Settings, Accounts & usage, Claude accounts. Click Add account, name it, then Add and sign in, and finish Claude's own login in the browser.",
   },
   {
     title: "Give a project its own account",

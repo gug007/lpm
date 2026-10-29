@@ -241,7 +241,7 @@ pub fn git_auto_pull_undo(cwd: String) -> Result<AutoPulled, String> {
     Ok(record.public())
 }
 
-/// The app-wide mode from Settings › General: "off", "chosen" or "all".
+/// The app-wide mode from Settings › Git: "off", "chosen" or "all".
 pub(crate) fn auto_pull_mode() -> &'static str {
     match config::load_settings().get(KEY).and_then(|v| v.as_str()) {
         Some("chosen") => "chosen",

@@ -128,7 +128,7 @@ function announce(item: Announced): void {
 
 export function openAutoPullSettings(): void {
   const { setSettingsTab, setView } = useAppStore.getState();
-  setSettingsTab("general");
+  setSettingsTab("git");
   setView("settings");
 }
 

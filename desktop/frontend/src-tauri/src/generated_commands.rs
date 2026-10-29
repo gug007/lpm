@@ -63,6 +63,7 @@ macro_rules! all_command_handlers {
             terminal_claude_account,
             set_claude_account_choice,
             hide_browser,
+            html_preview_root,
             navigate_browser,
             open_browser,
             set_browser_bounds,

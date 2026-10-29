@@ -14,7 +14,7 @@ const FILE: FileViewerViewOption = { value: "source", label: "File" };
 
 interface ViewInputs {
   line: number;
-  // Markdown and SVG render; their text is a click away.
+  // Markdown, HTML and SVG render; their text is a click away.
   renders: boolean;
   // There is text on disk to show as source.
   hasText: boolean;

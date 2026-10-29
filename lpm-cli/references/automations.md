@@ -91,7 +91,7 @@ Exactly one of these:
   - `--access full|read`. `full` (the default) lets the agent edit files and run commands. `read` makes it read and report only. OpenCode always runs with full access.
   - `--quiet`: if the agent finds nothing worth reporting, the run leaves no entry and sends no notification.
   - `--memory`: each run reads what earlier runs did and found, and adds its own notes, through the lpm-memory skill (session `job-<id>`). Needs `--access full`. Jobs made in the app have it on.
-  - `--claude-account ID`: the Claude account Claude Code runs on, by the id the project's `claudeAccount` uses (Settings → AI → Claude accounts). Use `default` for the main login and `--claude-account ""` to go back to the project's account. Without it, runs use the project's account, or the main login when the automation runs standalone. On a computer that doesn't have that account, runs use the project's account instead.
+  - `--claude-account ID`: the Claude account Claude Code runs on, by the id the project's `claudeAccount` uses (Settings → Accounts & usage → Claude accounts). Use `default` for the main login and `--claude-account ""` to go back to the project's account. Without it, runs use the project's account, or the main login when the automation runs standalone. On a computer that doesn't have that account, runs use the project's account instead.
 
 A headless run has no one to answer its questions, so write the prompt as a complete task: what to inspect, what to change, and what to report.
 

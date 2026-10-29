@@ -55,6 +55,26 @@ export const PUSH_MODE_LABELS: Record<PushMode, string> = {
   "force-with-lease": "Push (force-with-lease)",
 };
 
+// Settings › Git names each default by what it does; the menus above name the
+// command a click runs.
+export const PULL_STRATEGY_SETTING_LABELS: Record<PullStrategy, string> = {
+  ff: "Fast-forward or merge",
+  "ff-only": "Fast-forward only",
+  rebase: "Rebase",
+};
+
+export const PUSH_MODE_SETTING_LABELS: Record<PushMode, string> = {
+  default: "Normal",
+  "force-with-lease": "Force with lease",
+};
+
+export const FETCH_OPTIONS: { key: keyof GitFetchConfig; label: string; flag: string }[] = [
+  { key: "all", label: "Every remote", flag: "--all" },
+  { key: "prune", label: "Remove deleted branches", flag: "--prune" },
+  { key: "pruneTags", label: "Remove deleted tags", flag: "--prune-tags" },
+  { key: "tags", label: "Get tags", flag: "--tags" },
+];
+
 function isPullStrategy(v: unknown): v is PullStrategy {
   return typeof v === "string" && (PULL_STRATEGIES as readonly string[]).includes(v);
 }

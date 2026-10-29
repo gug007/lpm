@@ -13,7 +13,7 @@ const STEPS: Step[] = [
   {
     title: "Add your accounts",
     body: "Name them anything: Work, Client A. Your current login stays the main one; you only add the extra ones.",
-    path: ["Settings", "AI & Integrations", "Claude accounts", "Add account"],
+    path: ["Settings", "Accounts & usage", "Claude accounts", "Add account"],
   },
   {
     title: "Sign in once",

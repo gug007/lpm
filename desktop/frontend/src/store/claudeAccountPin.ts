@@ -51,5 +51,5 @@ export function openClaudeAccountSettings(machine: string | null = null): void {
   const { setSettingsTab, setView, openMachineSettings } = useAppStore.getState();
   if (machine) openMachineSettings(machine);
   else setView("settings");
-  setSettingsTab("ai");
+  setSettingsTab("accounts");
 }

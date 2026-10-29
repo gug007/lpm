@@ -1,12 +1,14 @@
 import type { ClaudeAccount } from "../types";
 import type { ClaudeAccountStatus } from "../store/accounts";
+import type { ClaudePool } from "../store/claudePool";
 import { deriveClaudeSetupSteps } from "../claudeSetupSteps";
-import { useClaudePoolStore } from "../store/claudePool";
 
 interface ClaudeAccountsSetupGuideProps {
   accounts: ClaudeAccount[];
   statuses: Record<string, ClaudeAccountStatus>;
   usage: Record<string, string[]>;
+  // The switching pool of the machine whose accounts these are.
+  pool: ClaudePool | null;
 }
 
 const NONE: string[] = [];
@@ -16,7 +18,7 @@ const STEPS = [
   { title: "Sign in", hint: "Opens a terminal running claude /login." },
   {
     title: "Put it to work",
-    hint: "Project menu → Claude account, or put it in rotation below.",
+    hint: "Project menu → Claude account, or turn it on in Turn order below.",
   },
 ] as const;
 
@@ -24,8 +26,9 @@ export function ClaudeAccountsSetupGuide({
   accounts,
   statuses,
   usage,
+  pool,
 }: ClaudeAccountsSetupGuideProps) {
-  const switching = useClaudePoolStore((s) => (s.pool?.enabled ? s.pool.main : NONE));
+  const switching = pool?.enabled ? pool.main : NONE;
   const { completion, currentStep, allComplete } = deriveClaudeSetupSteps(
     accounts,
     statuses,

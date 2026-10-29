@@ -17,14 +17,19 @@ type HooksStatus =
   | "disabled"
   | "no-helper";
 
-const HOOKS_DESCRIPTION: Record<HooksStatus, string> = {
-  idle: "Display Claude Code running progress in sidebar",
-  checking: "Checking...",
-  installed: "Hooks installed correctly",
-  missing: "Hooks not configured",
-  "no-settings": "Claude Code settings not found",
-  disabled: "Claude Code's settings turn its hooks off, so its progress can't show",
-  "no-helper": "Part of lpm is missing, so Claude Code's progress can't show. Reinstall lpm",
+const HOOKS_STATUS: Record<Exclude<HooksStatus, "idle">, { text: string; tone: string }> = {
+  checking: { text: "Checking…", tone: "text-[var(--text-muted)]" },
+  installed: { text: "Hooks installed correctly", tone: "text-[var(--accent-green-text)]" },
+  missing: { text: "Hooks not configured", tone: "text-[var(--accent-amber-text)]" },
+  "no-settings": { text: "Claude Code settings not found", tone: "text-[var(--accent-amber-text)]" },
+  disabled: {
+    text: "Claude Code's settings turn its hooks off, so its progress can't show",
+    tone: "text-[var(--accent-amber-text)]",
+  },
+  "no-helper": {
+    text: "Part of lpm is missing, so Claude Code's progress can't show. Reinstall lpm",
+    tone: "text-[var(--accent-amber-text)]",
+  },
 };
 
 function hooksStatus(check: ClaudeHooksCheck): HooksStatus {
@@ -69,7 +74,16 @@ export function ClaudeHooksRow() {
 
   return (
     <>
-      <SettingsRow {...rowProps("ai.claudeHooks", { description: HOOKS_DESCRIPTION[status] })}>
+      <SettingsRow
+        {...rowProps("ai.claudeHooks")}
+        below={
+          status !== "idle" && (
+            <p role="status" className={`mt-1 text-[11px] ${HOOKS_STATUS[status].tone}`}>
+              {HOOKS_STATUS[status].text}
+            </p>
+          )
+        }
+      >
         <div className="flex items-center gap-2">
           <button onClick={check} disabled={status === "checking" || resetting} className={BTN_SECONDARY}>
             {status === "checking" ? <Spinner /> : "Check"}

@@ -74,7 +74,7 @@ export const projectFields: Field[] = [
       <>
         Id of the Claude account this project&rsquo;s terminals, actions, and
         AI features always use. Accounts are managed in the desktop app under
-        Settings &rarr; AI &amp; Integrations, which also writes this field for
+        Settings &rarr; Accounts &amp; usage, which also writes this field for
         you via the project menu. Set it to an empty string to always use your
         main Claude login; leave it out to use your main accounts. Not applied
         to SSH projects — the remote host has its own Claude login. See{" "}
@@ -113,7 +113,7 @@ export const projectFields: Field[] = [
         no commits of yours to push, and waits while an agent is working. The
         desktop app writes this field from the project&rsquo;s Git menu &rarr;
         Auto pull. Leave it out to follow the parent project (for a duplicate
-        or worktree), then Settings &rarr; General &rarr; Auto pull.
+        or worktree), then Settings &rarr; Git &rarr; Auto pull.
       </>
     ),
   },

@@ -1,49 +1,16 @@
-import { providerMeta } from "../agentStatus";
 import { formatTokenCount } from "../agentUsageFormat";
-import { USAGE_TOOLS, type UsageWindowChoice } from "../sidebarUsage";
+import { USAGE_TOOLS } from "../sidebarUsage";
 import { useSettingsStore } from "../store/settings";
-import { usageSidebarTools, usageSidebarWindow } from "./usageSidebarSettings";
+import {
+  toggledUsageTool,
+  USAGE_WINDOW_OPTIONS,
+  usageSidebarTools,
+  usageSidebarWindow,
+} from "./usageSidebarSettings";
 import { SwitchRow } from "./SwitchRow";
 import { SidebarIcon } from "./icons";
 import { SegmentedControl } from "./ui/SegmentedControl";
-
-const WINDOWS: readonly { value: UsageWindowChoice; label: string }[] = [
-  { value: "fiveHour", label: "5-hour" },
-  { value: "weekly", label: "Weekly" },
-  { value: "higher", label: "Whichever is higher" },
-];
-
-function ToolChip({
-  provider,
-  on,
-  onToggle,
-}: {
-  provider: string;
-  on: boolean;
-  onToggle: () => void;
-}) {
-  const meta = providerMeta(provider);
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      onClick={onToggle}
-      className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs transition-colors ${
-        on
-          ? "border-[var(--accent-blue)] bg-[var(--accent-blue)]/10 text-[var(--text-primary)]"
-          : "border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--bg-hover)]"
-      }`}
-    >
-      <span
-        aria-hidden="true"
-        className="h-1.5 w-1.5 rounded-full"
-        style={{ backgroundColor: meta.color, opacity: on ? 1 : 0.5 }}
-      />
-      {meta.short}
-    </button>
-  );
-}
+import { UsageToolChip } from "./UsageToolChip";
 
 function OptionRow({
   title,
@@ -82,12 +49,7 @@ export function UsageSidebarSection({ tokensToday }: { tokensToday: number }) {
   const choice = useSettingsStore(usageSidebarWindow);
   const update = useSettingsStore((s) => s.update);
 
-  const toggleTool = (provider: string) => {
-    const next = tools.includes(provider)
-      ? tools.filter((tool) => tool !== provider)
-      : USAGE_TOOLS.filter((tool) => tool === provider || tools.includes(tool));
-    void update({ usageSidebarTools: next });
-  };
+  const toggleTool = (provider: string) => void update({ usageSidebarTools: toggledUsageTool(tools, provider) });
 
   return (
     <div className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)]">
@@ -109,7 +71,7 @@ export function UsageSidebarSection({ tokensToday }: { tokensToday: number }) {
       >
         <div className="flex gap-2">
           {USAGE_TOOLS.map((provider) => (
-            <ToolChip
+            <UsageToolChip
               key={provider}
               provider={provider}
               on={tools.includes(provider)}
@@ -125,7 +87,7 @@ export function UsageSidebarSection({ tokensToday }: { tokensToday: number }) {
       >
         <SegmentedControl
           value={choice}
-          options={WINDOWS}
+          options={USAGE_WINDOW_OPTIONS}
           ariaLabel="Sidebar usage window"
           onChange={(value) => void update({ usageSidebarWindow: value })}
         />

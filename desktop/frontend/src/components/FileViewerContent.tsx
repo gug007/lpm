@@ -1,6 +1,7 @@
 import type { ContentZoom } from "../hooks/useContentZoom";
 import { uriPath } from "../path";
 import { formatBytes } from "../syncApi";
+import { FileViewerHtml } from "./FileViewerHtml";
 import { FileViewerMarkdown } from "./FileViewerMarkdown";
 import { ImageFileView } from "./ImageFileView";
 import { MonacoEditor } from "./MonacoEditor";
@@ -8,6 +9,7 @@ import { PdfFileView } from "./PdfFileView";
 import { VideoFileView } from "./VideoFileView";
 import { FilesDiffEditor } from "./files/FilesDiffEditor";
 import type { OpenFile } from "./files/useFileBuffer";
+import { isHtmlPath } from "./htmlPreview";
 import type { ImagePreview } from "./imagePreview";
 import type { PdfPreview } from "./pdfPreview";
 import { BinaryFilePlaceholder } from "./review/BinaryFilePlaceholder";
@@ -92,6 +94,7 @@ export function FileViewerContent({
     );
   }
   if (view === "preview") {
+    if (isHtmlPath(absPath)) return <FileViewerHtml text={value} absPath={absPath} />;
     return (
       <FileViewerMarkdown text={value} absPath={absPath} projectRoot={projectRoot} zoom={textZoom} />
     );

@@ -39,21 +39,7 @@ export type SettingsViewEntry = {
   reach?: SettingsReach;
 };
 
-// A dashboard overlay (opened over the app, not a main-area view) that settings
-// search can jump to.
-export type SettingsModalEntry = {
-  kind: "modal";
-  modal: "usage";
-  id: string;
-  label: string;
-  description: string;
-  keywords?: string[];
-};
-
-export type SettingsSearchEntry =
-  | SettingsRowEntry
-  | SettingsViewEntry
-  | SettingsModalEntry;
+export type SettingsSearchEntry = SettingsRowEntry | SettingsViewEntry;
 
 export type SettingsNavItem =
   | { kind: "tab"; tab: SettingsTab; label: string; flag?: SettingsFlag }
@@ -70,7 +56,9 @@ export const TAB_TITLES: Record<SettingsTab, string> = {
   terminal: "Terminal",
   shortcuts: "Shortcuts",
   tts: "Text to Speech",
-  ai: "AI & Integrations",
+  agents: "Agents",
+  accounts: "Accounts & usage",
+  git: "Git",
   templates: "Templates",
   backup: "Backup & transfer",
   mobile: "Mobile devices",
@@ -90,13 +78,15 @@ export const NAV_GROUPS: SettingsNavGroup[] = [
   {
     title: "AI",
     items: [
-      { kind: "tab", tab: "ai", label: "AI & Integrations" },
+      { kind: "tab", tab: "agents", label: "Agents" },
+      { kind: "tab", tab: "accounts", label: "Accounts & usage" },
       { kind: "tab", tab: "tts", label: "Text to Speech", flag: "experimentalTTS" },
     ],
   },
   {
-    title: "Configuration",
+    title: "Projects & data",
     items: [
+      { kind: "tab", tab: "git", label: "Git" },
       { kind: "tab", tab: "templates", label: "Templates" },
       { kind: "tab", tab: "backup", label: "Backup & transfer" },
       { kind: "view", view: "global-config", label: "Global config", reach: "any" },
@@ -153,24 +143,6 @@ export const ROWS = {
     description: "Double-click a project in sidebar to toggle it",
     keywords: ["toggle", "run"],
   },
-  "general.checkOrigin": {
-    kind: "row",
-    tab: "general",
-    id: "general.checkOrigin",
-    reach: "any",
-    label: "Check for new commits",
-    description: "Show in the sidebar when a project’s branch on origin is ahead",
-    keywords: ["git", "fetch", "pull", "behind", "origin", "remote", "sync"],
-  },
-  "general.autoPull": {
-    kind: "row",
-    tab: "general",
-    id: "general.autoPull",
-    reach: "any",
-    label: "Auto pull",
-    description: "Fast-forward when the branch is clean and has nothing to push",
-    keywords: ["git", "pull", "automatic", "fast-forward", "origin", "update", "sync", "duplicates"],
-  },
   "general.defaultDir": {
     kind: "row",
     tab: "general",
@@ -179,32 +151,6 @@ export const ROWS = {
     label: "Default project directory",
     description: "Add project, clone destination, and global terminals open here",
     keywords: ["folder", "location", "path"],
-  },
-  "general.keepFinishedAgents": {
-    kind: "row",
-    tab: "general",
-    id: "general.keepFinishedAgents",
-    reach: "any",
-    label: "Keep finished agents until archived",
-    description: "Opening a finished agent marks it seen instead of removing its row",
-    keywords: ["archive", "sidebar", "agent", "finished", "seen", "done", "read", "dismiss"],
-  },
-  "general.autoArchiveAgents": {
-    kind: "row",
-    tab: "general",
-    id: "general.autoArchiveAgents",
-    reach: "any",
-    label: "Archive seen agents automatically",
-    description: "Counted from when you last opened the agent",
-    keywords: ["archive", "sidebar", "agent", "seen", "expire", "clean up", "automatic", "never", "minutes", "hours", "days"],
-  },
-  "general.seenAgentsShown": {
-    kind: "row",
-    tab: "general",
-    id: "general.seenAgentsShown",
-    label: "Seen agents per project",
-    description: "Any more fold into a “more seen” line",
-    keywords: ["archive", "sidebar", "agent", "seen", "fold", "limit"],
   },
   "general.version": {
     kind: "row",
@@ -247,15 +193,6 @@ export const ROWS = {
     label: "Restart services",
     description: "Services still running on the version from before an update",
     keywords: ["services", "old version", "outdated", "daemon", "update"],
-  },
-  "general.agentTools": {
-    kind: "row",
-    tab: "general",
-    id: "general.agentTools",
-    label: "Agent tools",
-    description:
-      "Teach AI coding agents to author configs and drive lpm from the command line.",
-    keywords: ["skill", "cli", "claude code", "codex", "gemini"],
   },
   "general.removeApp": {
     kind: "row",
@@ -309,15 +246,6 @@ export const ROWS = {
     description: "Slack, Discord, email… ask for the one you'd use",
     keywords: ["slack", "discord", "email", "webhook", "request", "github", "send to", "automation"],
   },
-  "ai.claudeHooks": {
-    kind: "row",
-    tab: "ai",
-    id: "ai.claudeHooks",
-    reach: "any",
-    label: "Claude Code hooks",
-    description: "Display Claude Code running progress in sidebar",
-    keywords: ["progress", "sidebar", "claude"],
-  },
   "terminal.fontFamily": {
     kind: "row",
     tab: "terminal",
@@ -364,15 +292,6 @@ export const ROWS = {
       "Click a file path in the terminal to open it in the OS default app instead of the in-app preview",
     keywords: ["file", "preview", "editor"],
   },
-  "terminal.input": {
-    kind: "row",
-    tab: "terminal",
-    id: "terminal.input",
-    reach: "attended",
-    label: "Terminal input",
-    description: `Show the message input below each terminal. Toggle anytime with ${chordLabel({ key: "i", meta: true })}`,
-    keywords: ["composer", "message", "prompt"],
-  },
   "terminal.filesTreeSide": {
     kind: "row",
     tab: "terminal",
@@ -381,25 +300,6 @@ export const ROWS = {
     label: "Files tree position",
     description: "Which side of the Files tab holds the folder tree",
     keywords: ["files", "tree", "sidebar", "left", "right", "browser"],
-  },
-  "terminal.pickAgentOnNewTab": {
-    kind: "row",
-    tab: "terminal",
-    id: "terminal.pickAgentOnNewTab",
-    reach: "attended",
-    label: "Pick agent and model on +",
-    description: `A tab's + and ${chordLabel({ key: "t", meta: true })} ask which agent, model and level to open, with a first prompt, instead of opening a terminal`,
-    keywords: ["new tab", "new terminal", "agent", "model", "effort", "level", "claude", "codex", "plus"],
-  },
-  "terminal.autoCloseComposer": {
-    kind: "row",
-    tab: "terminal",
-    id: "terminal.autoCloseComposer",
-    reach: "attended",
-    label: "Auto close composer on send",
-    description:
-      "Sending a prepared input clears it and closes its tab when more than one is open, instead of keeping the tab",
-    keywords: ["composer", "send"],
   },
   "terminal.appTips": {
     kind: "row",
@@ -475,78 +375,299 @@ export const ROWS = {
     description: "Kokoro TTS engine",
     keywords: ["speech", "install", "engine"],
   },
-  "ai.commitInstructions": {
+  "terminal.pickAgentOnNewTab": {
     kind: "row",
-    tab: "ai",
-    id: "ai.commitInstructions",
-    reach: "any",
-    label: "Commit instructions",
-    description: "Custom instructions for AI commit messages",
-    keywords: ["git", "message"],
+    tab: "agents",
+    id: "terminal.pickAgentOnNewTab",
+    reach: "attended",
+    label: "Pick an agent for new tabs",
+    description: `+ and ${chordLabel({ key: "t", meta: true })} ask for an agent, model, level and first prompt instead of opening a plain terminal`,
+    keywords: ["pick agent and model on +", "new tab", "new terminal", "agent", "model", "effort", "level", "claude", "codex", "plus"],
   },
-  "ai.prInstructions": {
+  "terminal.input": {
     kind: "row",
-    tab: "ai",
-    id: "ai.prInstructions",
-    reach: "any",
-    label: "PR instructions",
-    description: "Custom instructions for AI-generated PR titles and descriptions",
-    keywords: ["pull request", "git"],
+    tab: "agents",
+    id: "terminal.input",
+    reach: "attended",
+    label: "Show the message input",
+    description: `A box under each terminal for writing to agents. ${chordLabel({ key: "i", meta: true })} shows or hides it`,
+    keywords: ["terminal input", "composer", "message", "prompt"],
   },
-  "ai.branchInstructions": {
+  "terminal.autoCloseComposer": {
     kind: "row",
-    tab: "ai",
-    id: "ai.branchInstructions",
-    reach: "any",
-    label: "Branch name instructions",
-    description: "Custom instructions for AI-generated branch names",
-    keywords: ["git", "branch"],
+    tab: "agents",
+    id: "terminal.autoCloseComposer",
+    reach: "attended",
+    label: "Close a draft once it's sent",
+    description: "With several drafts open, sending one closes its tab",
+    keywords: ["auto close composer on send", "composer", "send", "draft"],
+  },
+  "agents.quickActions": {
+    kind: "row",
+    tab: "agents",
+    id: "agents.quickActions",
+    label: "Quick actions",
+    description: "Saved instructions in the input's Actions menu. lpm Link shows them too",
+    keywords: ["composer actions", "actions", "prompt", "instruction", "snippet", "template"],
   },
   "ai.voiceToText": {
     kind: "row",
-    tab: "ai",
+    tab: "agents",
     id: "ai.voiceToText",
-    label: "VoiceToText",
-    description:
-      "Free offline dictation — Claude Code, Codex, Cursor, Slack, or any text field",
-    keywords: ["dictation", "speech", "voice"],
+    label: "Dictation",
+    description: "Speak your prompts with VoiceToText, a separate Mac app",
+    keywords: ["voicetotext", "dictation", "speech", "voice"],
     macOnly: true,
   },
-  "ai.accounts": {
+  "general.keepFinishedAgents": {
     kind: "row",
-    tab: "ai",
-    id: "ai.accounts",
+    tab: "agents",
+    id: "general.keepFinishedAgents",
     reach: "any",
-    label: "Claude accounts",
-    description: "Sign in to more Claude accounts and keep each project on the right one.",
-    keywords: ["login", "sign in", "account", "accounts", "multiple", "switch", "claude"],
+    label: "Keep finished agents until archived",
+    description: "Opening a finished agent marks it seen instead of removing its row",
+    keywords: ["archive", "sidebar", "agent", "finished", "seen", "done", "read", "dismiss"],
   },
-  "ai.accountSwitching": {
+  "general.autoArchiveAgents": {
     kind: "row",
-    tab: "ai",
-    id: "ai.accountSwitching",
+    tab: "agents",
+    id: "general.autoArchiveAgents",
     reach: "any",
-    label: "Switch accounts automatically",
-    description: "Let new Claude sessions take turns on your accounts as each nears its usage limits.",
-    keywords: ["switch", "rotate", "limit", "usage", "pool", "accounts", "claude", "5-hour", "weekly"],
+    label: "Archive seen agents after",
+    description: "Counted from when you last opened the agent",
+    keywords: ["archive seen agents automatically", "archive", "sidebar", "agent", "seen", "expire", "clean up", "automatic", "never", "minutes", "hours", "days"],
+  },
+  "general.seenAgentsShown": {
+    kind: "row",
+    tab: "agents",
+    id: "general.seenAgentsShown",
+    reach: "any",
+    label: "Seen agents per project",
+    description: "Any more fold into a “more seen” line",
+    keywords: ["archive", "sidebar", "agent", "seen", "fold", "limit"],
   },
   "ai.statusLine": {
     kind: "row",
-    tab: "ai",
+    tab: "agents",
     id: "ai.statusLine",
     reach: "any",
     label: "Claude Code status line",
-    description: "Choose what the status line under Claude Code shows",
+    description: "What shows under every Claude Code prompt",
     keywords: ["statusline", "status line", "claude", "template", "meter", "custom", "segments", "separator", "ai", "generate", "preview"],
+  },
+  "ai.claudeHooks": {
+    kind: "row",
+    tab: "agents",
+    id: "ai.claudeHooks",
+    reach: "any",
+    label: "Claude Code progress",
+    description: "Hooks that show what each Claude agent is doing in the sidebar. Check finds and fixes problems",
+    keywords: ["claude code hooks", "hooks", "progress", "sidebar", "claude", "repair"],
   },
   "ai.codexStatusLine": {
     kind: "row",
-    tab: "ai",
+    tab: "agents",
     id: "ai.codexStatusLine",
     reach: "any",
-    label: "Codex CLI status line",
-    description: "Choose what the status line under Codex shows",
-    keywords: ["statusline", "status line", "codex", "footer", "fields", "items", "preview"],
+    label: "Codex status line",
+    description: "What shows at the bottom of Codex",
+    keywords: ["codex cli status line", "statusline", "status line", "codex", "footer", "fields", "items", "preview"],
+  },
+  "general.agentTools": {
+    kind: "row",
+    tab: "agents",
+    id: "general.agentTools",
+    label: "lpm skills and CLI",
+    description: "Teach Claude Code, Codex, Gemini and OpenCode to run lpm for you. Shows the installed versions",
+    keywords: ["agent tools", "skill", "skills", "cli", "command line", "claude code", "codex", "gemini", "opencode"],
+  },
+  "ai.accounts": {
+    kind: "row",
+    tab: "accounts",
+    id: "ai.accounts",
+    reach: "any",
+    label: "Claude accounts",
+    description: "Every Claude login lpm knows here. Sign in, rename or remove each one",
+    keywords: ["login", "sign in", "account", "accounts", "multiple", "switch", "claude", "ai & integrations"],
+  },
+  "ai.accountSwitching": {
+    kind: "row",
+    tab: "accounts",
+    id: "ai.accountSwitching",
+    reach: "any",
+    label: "Switch accounts automatically",
+    description: "New Claude sessions move to the next account as one nears its 5-hour or weekly limit",
+    keywords: ["switch", "rotate", "rotation", "turn order", "limit", "usage", "pool", "accounts", "claude", "5-hour", "weekly"],
+  },
+  "accounts.readClaudeUsage": {
+    kind: "row",
+    tab: "accounts",
+    id: "accounts.readClaudeUsage",
+    reach: "any",
+    label: "Read Claude usage",
+    description: "Adds lpm to Claude Code's status line so it can see your 5-hour and weekly limits. Switching accounts needs it",
+    keywords: ["usage meters", "claude usage meters", "limits", "rate limit", "quota", "5-hour", "weekly", "status line"],
+  },
+  "accounts.sidebarUsage": {
+    kind: "row",
+    tab: "accounts",
+    id: "accounts.sidebarUsage",
+    reach: "attended",
+    label: "Show usage in the sidebar",
+    description: "A small meter just above the sidebar footer",
+    keywords: ["usage", "meter", "sidebar", "limits", "quota"],
+  },
+  "accounts.sidebarUsageTools": {
+    kind: "row",
+    tab: "accounts",
+    id: "accounts.sidebarUsageTools",
+    reach: "attended",
+    label: "Tools in the meter",
+    description: "Claude, Codex, or both",
+    keywords: ["usage", "meter", "sidebar", "claude", "codex"],
+  },
+  "accounts.sidebarUsageWindow": {
+    kind: "row",
+    tab: "accounts",
+    id: "accounts.sidebarUsageWindow",
+    reach: "attended",
+    label: "Limit in the meter",
+    description: "5-hour, weekly, or whichever is higher",
+    keywords: ["usage", "meter", "sidebar", "5-hour", "weekly", "window"],
+  },
+  usage: {
+    kind: "row",
+    tab: "accounts",
+    id: "usage",
+    label: "Open usage",
+    description: "See how much of each Claude and Codex plan you've used",
+    keywords: ["usage limits", "rate limit", "quota", "claude", "codex", "plan", "meter"],
+  },
+  "general.checkOrigin": {
+    kind: "row",
+    tab: "git",
+    id: "general.checkOrigin",
+    reach: "any",
+    label: "Check for new commits",
+    description: "Fetches in the background and marks projects whose branch on origin is ahead",
+    keywords: ["git", "fetch", "pull", "behind", "origin", "remote", "sync"],
+  },
+  "general.autoPull": {
+    kind: "row",
+    tab: "git",
+    id: "general.autoPull",
+    reach: "any",
+    label: "Auto pull",
+    description: "Fast-forward a clean branch on its own: off, chosen projects, or all. A project's Git menu can set its own",
+    keywords: ["git", "pull", "automatic", "fast-forward", "origin", "update", "sync", "duplicates"],
+  },
+  "git.pullStrategy": {
+    kind: "row",
+    tab: "git",
+    id: "git.pullStrategy",
+    reach: "any",
+    label: "When pulling",
+    description: "Fast-forward or merge, fast-forward only, or rebase. The Pull menu uses this too",
+    keywords: ["pull", "rebase", "merge", "ff-only", "fast-forward", "strategy"],
+  },
+  "git.pullAutostash": {
+    kind: "row",
+    tab: "git",
+    id: "git.pullAutostash",
+    reach: "any",
+    label: "Stash my changes before pulling",
+    description: "Pull with uncommitted changes, then put them back",
+    keywords: ["autostash", "stash", "pull", "uncommitted"],
+  },
+  "git.pushMode": {
+    kind: "row",
+    tab: "git",
+    id: "git.pushMode",
+    reach: "any",
+    label: "When pushing",
+    description: "Normal, or force with lease. The Push menu uses this too",
+    keywords: ["push", "force", "force-with-lease", "mode"],
+  },
+  "git.pushTags": {
+    kind: "row",
+    tab: "git",
+    id: "git.pushTags",
+    reach: "any",
+    label: "Push tags too",
+    description: "Send local tags with each push",
+    keywords: ["push", "tags", "follow-tags"],
+  },
+  "git.skipHooks": {
+    kind: "row",
+    tab: "git",
+    id: "git.skipHooks",
+    reach: "any",
+    label: "Skip Git hooks",
+    description: "When pushing, when pulling, or both",
+    keywords: ["no-verify", "hooks", "pre-push", "husky", "push", "pull"],
+  },
+  "git.fetchOptions": {
+    kind: "row",
+    tab: "git",
+    id: "git.fetchOptions",
+    reach: "any",
+    label: "When fetching",
+    description: "Every remote, remove deleted branches, remove deleted tags, get tags",
+    keywords: ["fetch", "prune", "prune tags", "all remotes", "tags"],
+  },
+  "git.aiModel": {
+    kind: "row",
+    tab: "git",
+    id: "git.aiModel",
+    reach: "any",
+    label: "AI model",
+    description: "The agent and model lpm writes commit messages, PR text and branch names with. It also improves your prompts",
+    keywords: ["model", "agent", "effort", "lpm's ai", "claude", "codex", "generate", "commit message"],
+  },
+  "git.autoCommitMessage": {
+    kind: "row",
+    tab: "git",
+    id: "git.autoCommitMessage",
+    reach: "attended",
+    label: "Write commit messages on open",
+    description: "The Commit window opens with a message ready",
+    keywords: ["auto-generate", "commit", "message", "ai"],
+  },
+  "git.autoPrDescription": {
+    kind: "row",
+    tab: "git",
+    id: "git.autoPrDescription",
+    reach: "attended",
+    label: "Write PR descriptions on open",
+    description: "The pull request window opens with a title and description ready",
+    keywords: ["auto-generate", "pull request", "pr", "description", "ai"],
+  },
+  "ai.commitInstructions": {
+    kind: "row",
+    tab: "git",
+    id: "ai.commitInstructions",
+    reach: "any",
+    label: "Commit message instructions",
+    description: "What AI follows when it writes a commit message. Projects can set their own",
+    keywords: ["commit instructions", "git", "message", "prompt", "ai & integrations"],
+  },
+  "ai.prInstructions": {
+    kind: "row",
+    tab: "git",
+    id: "ai.prInstructions",
+    reach: "any",
+    label: "Pull request instructions",
+    description: "What AI follows when it writes a PR title and description. Projects can set their own",
+    keywords: ["pr instructions", "pull request", "git", "prompt"],
+  },
+  "ai.branchInstructions": {
+    kind: "row",
+    tab: "git",
+    id: "ai.branchInstructions",
+    reach: "any",
+    label: "Branch name instructions",
+    description: "What AI follows when it names a new branch. Projects can set their own",
+    keywords: ["git", "branch", "prompt"],
   },
   "templates.list": {
     kind: "row",
@@ -683,18 +804,6 @@ const VIEW_ENTRIES: SettingsViewEntry[] = [
   },
 ];
 
-const MODAL_ENTRIES: SettingsModalEntry[] = [
-  {
-    kind: "modal",
-    modal: "usage",
-    id: "usage",
-    label: "Usage limits",
-    description:
-      "See how much of your Claude and Codex plans you've used, and turn on Claude usage meters.",
-    keywords: ["rate limit", "quota", "claude", "codex", "plan", "meter"],
-  },
-];
-
 // Dynamically-generated rows are indexed straight from their source arrays so
 // adding a shortcut or sound event automatically makes it searchable.
 export const SOUND_EVENTS: {
@@ -785,14 +894,13 @@ export function buildSearchEntries(ctx: {
     ...rowEntries(),
     ...builtinShortcutEntries(ctx.experimentalTTS),
     ...VIEW_ENTRIES,
-    ...MODAL_ENTRIES,
   ];
   return entries.filter((e) =>
     e.kind === "row"
       ? (e.tab !== "tts" || ctx.experimentalTTS) &&
         (mac || !e.macOnly) &&
         reaches(machine, e.reach, mac)
-      : reaches(machine, e.kind === "view" ? e.reach : undefined, mac),
+      : reaches(machine, e.reach, mac),
   );
 }
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo } from "react";
 import { toast } from "../../notifications/toast";
-import { ApplyClaudeLimits, PeerSettingsSet, StartClaudeLogin } from "../../../bridge/commands";
+import { StartClaudeLogin } from "../../../bridge/commands";
 import {
   removeHostAccount,
   resumeHostPool,
@@ -12,7 +12,6 @@ import {
 import { useAccountsStore } from "../../store/accounts";
 import { useClaudePoolStore, type ConsentRequest, type PoolPatch } from "../../store/claudePool";
 import { useMachineClaudeStore } from "../../store/machineClaude";
-import { useSettingsStore } from "../../store/settings";
 import type { ClaudeAccount } from "../../types";
 
 // The Claude accounts Settings shows and changes: this Mac's, kept in its
@@ -31,8 +30,6 @@ export interface ClaudeAccountsSource extends MachineClaudeAccounts {
   askConsent: (request: ConsentRequest) => void;
   // Starts `claude /login` for an account and answers with its terminal.
   startLogin: (id: string) => Promise<string>;
-  // Turns on the usage readings switching needs.
-  turnOnReadings: () => Promise<void>;
 }
 
 const NOTHING_DISMISSED: Record<string, string> = {};
@@ -50,7 +47,6 @@ function useLocalSource(): ClaudeAccountsSource {
   const updatePool = useClaudePoolStore((s) => s.update);
   const resumePool = useClaudePoolStore((s) => s.resume);
   const askConsent = useClaudePoolStore((s) => s.askConsent);
-  const updateSettings = useSettingsStore((s) => s.update);
 
   return useMemo(
     () => ({
@@ -68,17 +64,8 @@ function useLocalSource(): ClaudeAccountsSource {
       resumePool,
       askConsent,
       startLogin: (id: string) => StartClaudeLogin(id),
-      turnOnReadings: async () => {
-        try {
-          await ApplyClaudeLimits(true);
-          await updateSettings({ claudeLimitsEnabled: true });
-        } catch (err) {
-          toast.error(String(err));
-        }
-        await refresh();
-      },
     }),
-    [accounts, statuses, usage, pool, dismissed, refresh, add, rename, remove, updatePool, resumePool, askConsent, updateSettings],
+    [accounts, statuses, usage, pool, dismissed, refresh, add, rename, remove, updatePool, resumePool, askConsent],
   );
 }
 
@@ -141,14 +128,6 @@ function useHostSource(slug: string | null): ClaudeAccountsSource | null {
         });
       },
       startLogin: (id) => startHostClaudeLogin(slug, id),
-      turnOnReadings: async () => {
-        try {
-          await PeerSettingsSet(slug, { claudeLimitsEnabled: true });
-        } catch (err) {
-          toast.error(String(err));
-        }
-        await refresh();
-      },
     };
   }, [slug, found, dismissed, refresh, setPool, askConsent]);
 }

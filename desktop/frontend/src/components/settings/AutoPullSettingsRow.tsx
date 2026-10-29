@@ -21,7 +21,7 @@ function exceptionsLine(mode: AutoPullMode, on: string[], off: string[]): string
   return off.length > 0 ? `Off for ${off.join(", ")}` : "";
 }
 
-// Settings › General: which projects fast-forward on their own after the check
+// Settings › Git: which projects fast-forward on their own after the check
 // for new commits, and which of the machine's projects or copies differ from that.
 export function AutoPullSettingsRow() {
   const { machine, settings, update } = useSettingsTarget();

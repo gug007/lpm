@@ -267,11 +267,11 @@ final class AppModel {
     // user's own statuses, and the order they put the Status menu in.
     var workStatuses: [CustomWorkStatus] = defaultWorkStatusPalette
     var workStatusOrder: [String] = []
-    // The Mac's Settings › General › Auto pull, refreshed with every projects list.
+    // The Mac's Settings › Git › Auto pull, refreshed with every projects list.
     var autoPullMode: AutoPullMode = .off
-    // The Mac's Settings › General › Seen agents per project, likewise.
+    // The Mac's Settings › Agents › In the sidebar › Seen agents per project, likewise.
     var seenAgentsShown = 3
-    // The Mac's Settings › General › Keep finished agents until archived, likewise.
+    // The Mac's Settings › Agents › In the sidebar › Keep finished agents until archived, likewise.
     var keepFinishedAgents = false
     // The Mac's Claude accounts and switching state, for the Claude Account menu.
     var claudeAccounts: ClaudeAccounts?

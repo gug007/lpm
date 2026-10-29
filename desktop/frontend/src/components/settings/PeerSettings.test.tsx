@@ -76,8 +76,14 @@ describe("PeerSettings", () => {
     expect(document.body.textContent).toContain("Studio");
     expect(document.body.textContent).toContain("/Users/me/Code");
     expect(document.body.textContent).toContain("0.7.20");
-    expect(toggle("Check for new commits")?.getAttribute("aria-checked")).toBe("true");
     expect(toggle("Double-click to start/stop")?.getAttribute("aria-checked")).toBe("false");
+  });
+
+  it("shows its Git defaults on the Git page", async () => {
+    mocks.app.settingsTab = "git";
+    mocks.settingsGet.mockResolvedValue({});
+    await render();
+    expect(toggle("Check for new commits")?.getAttribute("aria-checked")).toBe("true");
   });
 
   it("offers the pages a Mac someone uses has, and none of this one's own", async () => {
@@ -88,7 +94,9 @@ describe("PeerSettings", () => {
       "Notifications",
       "Terminal",
       "Shortcuts",
-      "AI & Integrations",
+      "Agents",
+      "Accounts & usage",
+      "Git",
       "Templates",
       "Global config",
       "Mobile devices",
@@ -97,6 +105,7 @@ describe("PeerSettings", () => {
   });
 
   it("saves a change on the machine and shows what it stored", async () => {
+    mocks.app.settingsTab = "git";
     mocks.settingsGet.mockResolvedValue({});
     mocks.settingsSet.mockResolvedValue({ checkOrigin: false });
     await render();
@@ -106,6 +115,7 @@ describe("PeerSettings", () => {
   });
 
   it("puts a change back when the machine refuses it", async () => {
+    mocks.app.settingsTab = "git";
     mocks.settingsGet.mockResolvedValue({ checkOrigin: true });
     mocks.settingsSet.mockRejectedValue("peer disconnected");
     await render();
@@ -140,12 +150,14 @@ describe("PeerSettings", () => {
     expect(navTabs()).toEqual([
       "General",
       "Notifications",
-      "AI & Integrations",
+      "Agents",
+      "Accounts & usage",
+      "Git",
       "Templates",
       "Global config",
       "Mobile devices",
     ]);
-    expect(toggle("Check for new commits")).toBeTruthy();
+    expect(buttonNamed("Choose…")).toBeTruthy();
     expect(toggle("Double-click to start/stop")).toBeNull();
     expect(buttonNamed("Light")).toBeUndefined();
   });
@@ -168,6 +180,6 @@ describe("PeerSettings", () => {
     expect(document.body.textContent).toContain("peer request timed out");
     await act(async () => buttonNamed("Try Again")!.click());
     expect(mocks.settingsGet).toHaveBeenCalledTimes(2);
-    expect(toggle("Check for new commits")).toBeTruthy();
+    expect(toggle("Double-click to start/stop")).toBeTruthy();
   });
 });

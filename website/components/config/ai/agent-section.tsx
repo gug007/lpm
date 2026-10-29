@@ -11,12 +11,13 @@ const CODE = "font-mono text-[12px] text-gray-700 dark:text-gray-300";
 
 const STEPS: { title: string; body: React.ReactNode }[] = [
   {
-    title: "Install Agent tools",
+    title: "Install the lpm skills and CLI",
     body: (
       <>
-        In lpm, open Settings &rarr; General and click Install next to Agent
-        tools, or use the Agent tools button in the sidebar. It adds the lpm
-        skills for Claude Code, Codex, Gemini CLI, and OpenCode, plus the{" "}
+        In lpm, open Settings &rarr; Agents and click Install next to lpm
+        skills and CLI, or use the Agent tools button in the sidebar. It adds
+        the lpm skills for Claude Code, Codex, Gemini CLI, and OpenCode, plus
+        the{" "}
         <code className={CODE}>lpm</code>{" "}command.
       </>
     ),
@@ -106,7 +107,7 @@ export function AgentSection() {
       </div>
 
       <p className="mt-6 text-sm leading-relaxed text-gray-500 dark:text-gray-400">
-        The same Agent tools let agents start and stop services, read logs, and
+        The same skills and CLI let agents start and stop services, read logs, and
         duplicate projects:{" "}
         <DocLink href={CONNECT_AGENTS_PATH}>
           let Claude Code and Codex run your dev environment

@@ -1,11 +1,4 @@
-import {
-  matchSettings,
-  TAB_TITLES,
-  type SettingsModalEntry,
-  type SettingsSearchEntry,
-} from "./settings-registry";
-
-const MODAL_PAGES: Record<SettingsModalEntry["modal"], string> = { usage: "Usage" };
+import { matchSettings, TAB_TITLES, type SettingsSearchEntry } from "./settings-registry";
 
 const HINT_CANDIDATES = ["sound", "port", "font", "theme"];
 const MAX_HINTS = 3;
@@ -27,14 +20,7 @@ export interface HighlightPart {
 }
 
 export function pageOf(entry: SettingsSearchEntry): string {
-  if (entry.kind === "row") return TAB_TITLES[entry.tab];
-  if (entry.kind === "view") return entry.label;
-  return MODAL_PAGES[entry.modal];
-}
-
-// Where a result lives: a Settings page, or an overlay it opens.
-export function trailOf(entry: SettingsSearchEntry): string {
-  return entry.kind === "modal" ? "Opens" : "Settings ›";
+  return entry.kind === "row" ? TAB_TITLES[entry.tab] : entry.label;
 }
 
 function keywordsOnly(entry: SettingsSearchEntry, q: string): string[] {

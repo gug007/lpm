@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { ChevronRight } from "lucide-react";
-import { pageOf, trailOf, type SearchHit } from "../settingsSearchHits";
+import { pageOf, type SearchHit } from "../settingsSearchHits";
 import { SearchHighlight } from "./SearchHighlight";
 
 interface SettingsSearchResultProps {
@@ -45,10 +45,10 @@ export function SettingsSearchResult({ hit, query, active, onActivate, onHover }
           )}
         </span>
         <span className="mt-1 block truncate text-[10px] text-[var(--text-muted)] opacity-80">
-          {trailOf(entry)} <SearchHighlight text={pageOf(entry)} query={query} />
+          Settings › <SearchHighlight text={pageOf(entry)} query={query} />
         </span>
       </span>
-      {(entry.kind === "view" || entry.kind === "modal") && (
+      {entry.kind === "view" && (
         <ChevronRight size={14} className="mt-0.5 shrink-0 text-[var(--text-muted)]" />
       )}
     </button>

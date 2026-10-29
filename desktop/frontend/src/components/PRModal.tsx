@@ -17,7 +17,7 @@ import { main } from "../../bridge/models";
 import { useAIPicker } from "../hooks/useAIPicker";
 import { isCanceledError, useAIGeneration } from "../hooks/useAIGeneration";
 import { aiEffectiveFast } from "../types";
-import { getSettings, saveSettings } from "../store/settings";
+import { saveSettings, useSettingsStore } from "../store/settings";
 import { rememberCreatedPr } from "../store/branchPr";
 import { prefersDraftPr, rememberDraftPr } from "../store/prDraft";
 import { Tooltip } from "./ui/Tooltip";
@@ -64,9 +64,7 @@ export function PRModal({
     (b: Branch) => b.name !== currentBranch,
     [currentBranch],
   );
-  const [autoGenerate, setAutoGenerate] = useState(
-    () => getSettings().autoGeneratePRDescription ?? false,
-  );
+  const autoGenerate = useSettingsStore((s) => s.autoGeneratePRDescription ?? false);
   const [draft, setDraft] = useState(false);
   const [prURL, setPrURL] = useState("");
 
@@ -211,9 +209,7 @@ export function PRModal({
   };
 
   const toggleAutoGenerate = () => {
-    const next = !autoGenerate;
-    setAutoGenerate(next);
-    saveSettings({ autoGeneratePRDescription: next });
+    void saveSettings({ autoGeneratePRDescription: !autoGenerate });
   };
 
   const canCreate =

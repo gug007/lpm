@@ -11,7 +11,7 @@ const STEPS = [
   },
   {
     title: "Choose which projects pull",
-    body: "Set Off, Chosen or All in Settings › General › Auto pull, or turn it off for one project or duplicate from its Git menu.",
+    body: "Set Off, Chosen or All in Settings › Git › Auto pull, or turn it off for one project or duplicate from its Git menu.",
   },
 ];
 

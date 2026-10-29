@@ -17,7 +17,7 @@ function projectList(projects: string[]): string {
 
 function waitingText({ signedIn, projects }: UsageAccountWaitingProps): string {
   if (!signedIn) {
-    return "This account isn't signed in yet. Sign in under Settings → AI & Integrations, and its usage appears here once Claude replies in a project that uses it.";
+    return "This account isn't signed in yet. Sign in under Settings → Accounts & usage, and its usage appears here once Claude replies in a project that uses it.";
   }
   if (projects.length === 0) {
     return "No project uses this account yet. Choose it as the Claude account in a project's settings, and its usage appears here once Claude replies there.";

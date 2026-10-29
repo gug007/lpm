@@ -79,7 +79,7 @@ export function SidebarAutoPullCard({
 
   const done = (text: string) => {
     onClose();
-    toast.success(text, { description: "Change it any time in Settings › General › Auto pull." });
+    toast.success(text, { description: "Change it any time in Settings › Git › Auto pull." });
   };
   const turnOnAll = () => {
     void update({ autoPull: "all" });
@@ -166,7 +166,7 @@ export function SidebarAutoPullCard({
           onClick={openSettings}
           className="text-[var(--accent-sky-text)] hover:underline focus-visible:underline focus-visible:outline-none"
         >
-          Settings › General › Auto pull
+          Settings › Git › Auto pull
         </button>
         , or for one project in its Git menu.
       </p>

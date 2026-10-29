@@ -1,4 +1,4 @@
-// Settings › General › Archive seen agents automatically: "never", or an amount
+// Settings › Agents › Archive seen agents after: "never", or an amount
 // from 1 to 999 and a unit, as in "90m" or "2d" — the form status/seen.rs reads.
 
 export const ARCHIVE_UNITS = ["m", "h", "d", "w"] as const;

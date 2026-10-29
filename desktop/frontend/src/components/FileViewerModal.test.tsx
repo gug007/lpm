@@ -42,6 +42,7 @@ vi.mock("../../bridge/commands", () => ({
     return Promise.resolve({ written: true });
   }),
   NotesReadFileAsInput: vi.fn(() => Promise.reject(new Error("no image"))),
+  HtmlPreviewRoot: vi.fn(() => Promise.resolve("tok")),
 }));
 vi.mock("../../bridge/runtime", () => ({
   BrowserOpenURL: vi.fn(),
@@ -219,6 +220,16 @@ describe("FileViewerModal Markdown", () => {
     await open(DOC);
     await act(async () => document.querySelector<HTMLAnchorElement>("a[href='guide.md']")?.click());
     expect(useFileViewerStore.getState().current?.absPath).toBe("/proj/docs/guide.md");
+  });
+
+  it("opens an HTML file rendered, with its source a click away", async () => {
+    mocks.files["/proj/index.html"] = "<h1>Page</h1>\n";
+    await open("/proj/index.html");
+    expect(document.querySelector("iframe")?.getAttribute("src")).toBe("lpm-preview://localhost/tok/index.html");
+
+    await act(async () => viewButton("Source")?.click());
+    expect(document.querySelector("iframe")).toBeNull();
+    expect(sourceShows("<h1>Page</h1>")).toBe(true);
   });
 
   it("leaves an unchanged file as source with no view switch", async () => {

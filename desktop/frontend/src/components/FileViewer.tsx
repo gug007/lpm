@@ -7,6 +7,7 @@ import { FileViewerHeader } from "./FileViewerHeader";
 import { miniSize, type FileViewerLayout } from "./fileViewerLayout";
 import { isSourceImage } from "./fileMedia";
 import { isMarkdownPath } from "./files/useFileView";
+import { isHtmlPath } from "./htmlPreview";
 import { useImagePreview } from "./imagePreview";
 import { usePdfPreview } from "./pdfPreview";
 import { DiffConflictBanner } from "./review/DiffConflictBanner";
@@ -49,9 +50,10 @@ export function FileViewer({
   const file = useFileViewerFile(absPath, projectRoot);
   const { buffer } = file;
   const svg = file.kind === "image" && isSourceImage(absPath);
+  const html = isHtmlPath(absPath);
   const textView = useFileViewerView({
     line,
-    renders: svg || isMarkdownPath(absPath),
+    renders: svg || html || isMarkdownPath(absPath),
     hasText: file.text,
     hasDiff: file.original !== null,
     deleted: file.deleted,
@@ -68,12 +70,14 @@ export function FileViewer({
   const zoomed = showImage ? image : showPdf ? pdf : null;
   const media = !!zoomed || showVideo;
   const previewing = !editing && !media && textView.view === "preview";
+  // A page sizes its own text, and keys pressed in it stay in its frame.
+  const zoomsText = previewing && !html;
   const inEditor =
     !file.loading &&
     !media &&
     !previewing &&
     (textView.view === "diff" ? file.original !== null : file.text);
-  const textZoom = useContentZoom(previewing);
+  const textZoom = useContentZoom(zoomsText);
   const editorZoom = useEditorZoom(inEditor);
 
   const meta = zoomed?.meta ?? (showVideo ? video.meta : null);
@@ -161,7 +165,7 @@ export function FileViewer({
               ? { value: textView.view, options: textView.options, onChange: textView.select }
               : null
           }
-          zoom={zoomed?.zoom ?? (previewing ? textZoom : inEditor ? editorZoom : null)}
+          zoom={zoomed?.zoom ?? (zoomsText ? textZoom : inEditor ? editorZoom : null)}
           edit={{
             editing,
             canEdit,

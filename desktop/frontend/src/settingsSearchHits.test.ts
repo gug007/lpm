@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildSearchEntries, matchSettings } from "./settings-registry";
-import { groupSearchResults, highlightParts, pageOf, searchHints, trailOf } from "./settingsSearchHits";
+import { groupSearchResults, highlightParts, pageOf, searchHints } from "./settingsSearchHits";
 import type { PeerMachine } from "./settingsMachine";
 
 const entries = buildSearchEntries({ experimentalTTS: true, mac: true });
@@ -39,13 +39,10 @@ describe("groupSearchResults", () => {
     expect(general.find((h) => h.entry.id === "general.theme")?.keywords).toEqual([]);
   });
 
-  it("names pages of their own and overlays", () => {
-    const view = entries.find((e) => e.id === "global-config")!;
-    const modal = entries.find((e) => e.id === "usage")!;
-    expect(pageOf(view)).toBe("Global config");
-    expect(trailOf(view)).toBe("Settings ›");
-    expect(pageOf(modal)).toBe("Usage");
-    expect(trailOf(modal)).toBe("Opens");
+  it("names the page a result lives on", () => {
+    expect(pageOf(entries.find((e) => e.id === "global-config")!)).toBe("Global config");
+    expect(pageOf(entries.find((e) => e.id === "usage")!)).toBe("Accounts & usage");
+    expect(pageOf(entries.find((e) => e.id === "general.autoPull")!)).toBe("Git");
   });
 });
 

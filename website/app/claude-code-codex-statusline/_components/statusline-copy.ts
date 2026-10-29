@@ -51,7 +51,7 @@ export const STATUSLINE_LESSONS: {
     title: "Claude Code",
     length: "1:43",
     steps: [
-      "Open Settings, choose AI & Integrations, and click Customize beside Claude Code status line.",
+      "Open Settings, choose Agents, and click Customize beside Claude Code status line.",
       "Pick Clean: folder, model, context left, 5-hour and weekly limits, and cost. Remove whatever you don't need.",
       "Go back to the project. The Claude session already running shows the new line, no restart needed.",
     ],
@@ -66,7 +66,7 @@ export const STATUSLINE_LESSONS: {
     title: "Codex",
     length: "1:28",
     steps: [
-      "Open Settings, choose AI & Integrations, and click Customize beside Codex CLI status line.",
+      "Open Settings, choose Agents, and click Customize beside Codex status line.",
       "Pick Usage: model, context left, and 5-hour and weekly limits. Remove Fast mode if you don't use it.",
       "Open Codex again. The new session shows the line right under the prompt.",
     ],

@@ -24,11 +24,11 @@ data class ProjectsState(
     /** The Mac's work-status palette and the order the user put the Status menu in. */
     val workStatuses: List<CustomWorkStatus> = defaultWorkStatusPalette,
     val workStatusOrder: List<String> = emptyList(),
-    /** The Mac's Settings › General › Auto pull. */
+    /** The Mac's Settings › Git › Auto pull. */
     val autoPullMode: AutoPullMode = AutoPullMode.Off,
-    /** The Mac's Settings › General › Seen agents per project. */
+    /** The Mac's Settings › Agents › In the sidebar › Seen agents per project. */
     val seenAgentsShown: Int = 3,
-    /** The Mac's Settings › General › Keep finished agents until archived. */
+    /** The Mac's Settings › Agents › In the sidebar › Keep finished agents until archived. */
     val keepFinishedAgents: Boolean = false,
     /** Agents archived here that can still be undone; hidden, not yet sent. */
     val pendingAgentArchive: PendingAgentArchive? = null,

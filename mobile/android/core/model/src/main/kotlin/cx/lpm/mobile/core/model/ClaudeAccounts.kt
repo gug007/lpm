@@ -11,7 +11,7 @@ const val CLAUDE_MAIN_LOGIN = "default"
 
 /**
  * One Claude login the Mac knows: the main login first, then each account added in
- * the Mac's Settings › Claude accounts.
+ * the Mac's Settings › Accounts & usage › Claude.
  */
 data class ClaudeAccountInfo(
     val id: String,

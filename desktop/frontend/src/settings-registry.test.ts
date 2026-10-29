@@ -105,7 +105,9 @@ describe("a connected machine's settings", () => {
       "notifications",
       "terminal",
       "shortcuts",
-      "ai",
+      "agents",
+      "accounts",
+      "git",
       "templates",
       "backup",
       "global-config",
@@ -115,12 +117,32 @@ describe("a connected machine's settings", () => {
   });
 
   it("lists only the pages with something to change on a Mac someone uses", () => {
-    expect(tabs(studio)).toEqual(["general", "notifications", "terminal", "shortcuts", "ai", "templates", "global-config", "mobile"]);
+    expect(tabs(studio)).toEqual([
+      "general",
+      "notifications",
+      "terminal",
+      "shortcuts",
+      "agents",
+      "accounts",
+      "git",
+      "templates",
+      "global-config",
+      "mobile",
+    ]);
     expect(tabs(studio, true)).toContain("tts");
   });
 
   it("lists only what a machine nobody sits at runs by", () => {
-    expect(tabs(server, true)).toEqual(["general", "notifications", "ai", "templates", "global-config", "mobile"]);
+    expect(tabs(server, true)).toEqual([
+      "general",
+      "notifications",
+      "agents",
+      "accounts",
+      "git",
+      "templates",
+      "global-config",
+      "mobile",
+    ]);
   });
 
   it("searches only the rows the machine has", () => {

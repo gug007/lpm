@@ -114,6 +114,7 @@ mod gitpush;
 mod gitresolve;
 mod gitsync;
 mod gitwatch;
+mod htmlproto;
 mod gitmoved;
 mod gitwatchhost;
 mod gitworkstate;
@@ -381,6 +382,7 @@ use ignoredsync::{
     ignored_sync_save, ignored_sync_saved, ignored_sync_start, ignored_sync_undo,
 };
 use hooks::*;
+use htmlproto::html_preview_root;
 use jobs::*;
 use jobs::ask::*;
 use lesson::*;
@@ -555,6 +557,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .register_asynchronous_uri_scheme_protocol(mediaproto::SCHEME, mediaproto::handle)
+        .register_asynchronous_uri_scheme_protocol(htmlproto::SCHEME, htmlproto::handle)
         .manage(pty::PtyState::default())
         .manage(services::ServiceState::default())
         .manage(log_streaming::LogState::default())
@@ -572,6 +575,7 @@ pub fn run() {
         .manage(statusfwd::StatusFwdState::default())
         .manage(sshsync::SyncState::default())
         .manage(browser::BrowserState::default())
+        .manage(htmlproto::PreviewRoots::default())
         .manage(remote::RemoteHub::default())
         .manage(lesson::LessonState::default())
         .manage(peer_hub.clone())
