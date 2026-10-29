@@ -275,7 +275,8 @@ unsafe fn link_mac(addr: *const libc::sockaddr, family: i32) -> Option<[u8; 6]> 
         if (*sll).sll_halen != 6 {
             return None;
         }
-        usable((*sll).sll_addr[..6].try_into().ok()?)
+        let sll_addr = (*sll).sll_addr;
+        usable(sll_addr[..6].try_into().ok()?)
     }
     #[cfg(not(target_os = "linux"))]
     {
