@@ -127,10 +127,8 @@ export function UpdateStatusRow({ version, update }: { version: string; update: 
   }
 
   return (
-    <div data-settings-row="general.version">
-      <SettingsRow {...rowProps("general.updates")} label={`lpm ${version || "..."}`} description={description} below={below}>
-        <div className="flex items-center gap-1">{control}</div>
-      </SettingsRow>
-    </div>
+    <SettingsRow {...rowProps("general.updates")} description={description} below={below}>
+      <div className="flex items-center gap-1">{control}</div>
+    </SettingsRow>
   );
 }

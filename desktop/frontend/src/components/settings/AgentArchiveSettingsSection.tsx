@@ -7,14 +7,11 @@ import { ArchiveAfterControl } from "./ArchiveAfterControl";
 import { StepperControl } from "./StepperControl";
 import { useRowReach, useSettingsTarget } from "./settingsTarget";
 
-const KEEP_OFF = { description: "Turn on Keep finished agents to use this" };
-
 export function AgentArchiveSettingsSection() {
   const { settings, update } = useSettingsTarget();
   const shows = useRowReach();
   const keep = settings.keepFinishedAgents ?? false;
   const shown = settings.seenAgentsShown ?? DEFAULT_SEEN_SHOWN;
-  const keepOff = keep ? undefined : KEEP_OFF;
 
   if (!shows("general.keepFinishedAgents") && !shows("general.autoArchiveAgents") && !shows("general.seenAgentsShown")) {
     return null;
@@ -45,22 +42,21 @@ export function AgentArchiveSettingsSection() {
           />
         </SettingsRow>
       )}
-      {shows("general.autoArchiveAgents") && (
-        <SettingsRow {...rowProps("general.autoArchiveAgents", keepOff)}>
+      {keep && shows("general.autoArchiveAgents") && (
+        <SettingsRow {...rowProps("general.autoArchiveAgents")} nested>
           <ArchiveAfterControl
             value={settings.autoArchiveAgentsAfter}
-            disabled={!keep}
             onChange={(value) => void update({ autoArchiveAgentsAfter: value })}
           />
         </SettingsRow>
       )}
-      {shows("general.seenAgentsShown") && (
-        <SettingsRow {...rowProps("general.seenAgentsShown", keepOff)}>
+      {keep && shows("general.seenAgentsShown") && (
+        <SettingsRow {...rowProps("general.seenAgentsShown")} nested>
           <StepperControl
             value={String(shown)}
             label="seen agents per project"
-            canDecrease={keep && shown > SEEN_SHOWN_MIN}
-            canIncrease={keep && shown < SEEN_SHOWN_MAX}
+            canDecrease={shown > SEEN_SHOWN_MIN}
+            canIncrease={shown < SEEN_SHOWN_MAX}
             onDecrease={() => void update({ seenAgentsShown: shown - 1 })}
             onIncrease={() => void update({ seenAgentsShown: shown + 1 })}
           />

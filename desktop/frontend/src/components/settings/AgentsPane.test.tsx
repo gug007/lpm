@@ -74,27 +74,30 @@ afterEach(() => {
 describe("AgentsPane", () => {
   it("shows a machine nobody sits at its sidebar and agent CLI rows, and nothing of this one's", async () => {
     await render(STUDIO);
-    expect(sections()).toEqual(["In the sidebar", "Claude Code", "Codex"]);
+    expect(sections()).toEqual(["lpm's AI", "In the sidebar", "Claude Code", "Codex"]);
     expect(row("agents.quickActions")).toBeNull();
     expect(row("general.agentTools")).toBeNull();
   });
 
-  it("holds the archive rows, saying why, while finished agents aren't kept", async () => {
+  it("shows the archive rows under Keep finished agents only while it's on", async () => {
     await render(STUDIO, { keepFinishedAgents: false });
-    for (const id of ["general.autoArchiveAgents", "general.seenAgentsShown"]) {
-      expect(row(id)).not.toBeNull();
-      expect(description(id)).toBe("Turn on Keep finished agents to use this");
-    }
-    expect(row("general.autoArchiveAgents")?.querySelector("select")?.disabled).toBe(true);
-    expect([...row("general.seenAgentsShown")!.querySelectorAll("button")].every((b) => b.disabled)).toBe(true);
+    expect(row("general.autoArchiveAgents")).toBeNull();
+    expect(row("general.seenAgentsShown")).toBeNull();
 
     await render(STUDIO, { keepFinishedAgents: true });
+    expect(row("general.autoArchiveAgents")?.querySelector("select")?.disabled).toBe(false);
     expect(description("general.seenAgentsShown")).toBe("Any more fold into a “more seen” line");
   });
 
   it("keeps the hooks' description when their status shows", async () => {
     await render(STUDIO);
-    expect(description("ai.claudeHooks")).toContain("Hooks that show what each Claude agent is doing");
+    expect(description("ai.claudeHooks")).toContain("Shows what each Claude agent is doing");
+  });
+
+  it("picks the model lpm writes with here, not in Git", async () => {
+    await render(STUDIO);
+    expect(row("git.aiModel")?.querySelector('select[aria-label="Agent"]')).not.toBeNull();
+    expect(container.textContent).not.toContain("Git ›");
   });
 
   it("opens each status line's page, and links to Read Claude usage", async () => {
@@ -109,7 +112,7 @@ describe("AgentsPane", () => {
 
   it("writes the message input's settings on the machine shown", async () => {
     await render({ ...STUDIO, attended: true });
-    expect(sections().slice(0, 3)).toEqual(["Starting agents", "Message input", "In the sidebar"]);
+    expect(sections().slice(0, 4)).toEqual(["Starting agents", "lpm's AI", "Message input", "In the sidebar"]);
     await act(async () => row("terminal.input")?.querySelector<HTMLButtonElement>("[role=switch]")?.click());
     expect(update).toHaveBeenCalledWith({ composerOpen: false });
   });

@@ -11,6 +11,7 @@ import { useRowReach, useSettingsTarget } from "./settingsTarget";
 export function GitPane({ onNavigate }: { onNavigate: (view: View) => void }) {
   const { settings, update } = useSettingsTarget();
   const shows = useRowReach();
+  const checkOrigin = settings.checkOrigin ?? true;
 
   return (
     <>
@@ -19,12 +20,12 @@ export function GitPane({ onNavigate }: { onNavigate: (view: View) => void }) {
           <SettingsRow {...rowProps("general.checkOrigin")}>
             <Toggle
               aria-label="Check for new commits"
-              enabled={settings.checkOrigin ?? true}
+              enabled={checkOrigin}
               onChange={(v) => void update({ checkOrigin: v })}
             />
           </SettingsRow>
         )}
-        {shows("general.autoPull") && <AutoPullSettingsRow />}
+        {checkOrigin && shows("general.autoPull") && <AutoPullSettingsRow />}
       </SettingsSection>
 
       <GitCommandsSection />

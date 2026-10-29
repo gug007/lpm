@@ -19,16 +19,13 @@ const UNIT_LABEL: Record<ArchiveUnit, [one: string, many: string]> = {
 
 const NEVER = "never";
 
-const DISABLED_CLASS = "disabled:cursor-not-allowed disabled:opacity-50";
-
 interface ArchiveAfterControlProps {
   value: string | undefined;
-  disabled: boolean;
   onChange: (value: string) => void;
 }
 
 /** "After [3] [days]", or "Never": how long a seen agent stays in the sidebar. */
-export function ArchiveAfterControl({ value, disabled, onChange }: ArchiveAfterControlProps) {
+export function ArchiveAfterControl({ value, onChange }: ArchiveAfterControlProps) {
   const parsed = parseArchiveAfter(value ?? DEFAULT_ARCHIVE_AFTER) ?? parseArchiveAfter(DEFAULT_ARCHIVE_AFTER);
   const after: ArchiveAfter | null = parsed === "never" ? null : parsed;
   const [draft, setDraft] = useState(String(after?.amount ?? 1));
@@ -58,21 +55,18 @@ export function ArchiveAfterControl({ value, disabled, onChange }: ArchiveAfterC
           min={1}
           max={ARCHIVE_AMOUNT_MAX}
           value={draft}
-          disabled={disabled}
           aria-label="Archive after how many"
           onChange={(e) => setDraft(e.target.value)}
           onBlur={commitAmount}
           onKeyDown={(e) => {
             if (e.key === "Enter") e.currentTarget.blur();
           }}
-          className={`w-14 rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1.5 text-right text-xs tabular-nums text-[var(--text-primary)] outline-none transition-[border-color,box-shadow] duration-150 hover:border-[var(--text-muted)] focus-visible:border-[var(--accent-green)] focus-visible:ring-2 focus-visible:ring-[var(--accent-green)]/30 ${DISABLED_CLASS}`}
+          className="w-14 rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1.5 text-right text-xs tabular-nums text-[var(--text-primary)] outline-none transition-[border-color,box-shadow] duration-150 hover:border-[var(--text-muted)] focus-visible:border-[var(--accent-green)] focus-visible:ring-2 focus-visible:ring-[var(--accent-green)]/30"
         />
       )}
       <SettingsSelect
         aria-label="Archive seen agents automatically"
         value={after ? after.unit : NEVER}
-        disabled={disabled}
-        className={DISABLED_CLASS}
         onChange={(e) => pickUnit(e.target.value)}
       >
         {ARCHIVE_UNITS.map((unit) => (

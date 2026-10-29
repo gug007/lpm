@@ -152,6 +152,15 @@ export function StatusLineRowPreview({ agent, statusLine }: { agent: Agent; stat
     );
   }
 
+  if (line.status === "off" || line.status === "unavailable") {
+    return (
+      <p className="mt-1.5 flex items-center gap-1.5 text-[11px] text-[var(--text-secondary)]">
+        <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--bg-active)]" />
+        {line.status === "off" ? "Nothing shows under the prompt yet" : "Preview unavailable"}
+      </p>
+    );
+  }
+
   return (
     <div
       ref={stripRef}
@@ -167,13 +176,7 @@ export function StatusLineRowPreview({ agent, statusLine }: { agent: Agent; stat
           WebkitMaskImage: FADE,
         }}
       >
-        {line.status === "off" || line.status === "unavailable" ? (
-          <span style={{ opacity: 0.5 }}>
-            {line.status === "off"
-              ? "Nothing shows under the prompt"
-              : "Preview unavailable"}
-          </span>
-        ) : line.status === "ansi" ? (
+        {line.status === "ansi" ? (
           <AnsiLine text={line.text} />
         ) : (
           line.items.map((item, index) => {

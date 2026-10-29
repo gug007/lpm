@@ -36,48 +36,51 @@ export function NotificationsPane() {
   const sounds = useMachineList(shows("notifications.channels") ? commands.listSystemSounds : null);
   const audible = SOUND_EVENTS.filter((r) => channelEnabled(settings, SOUND_SETTINGS[r.event].event, "sound"));
 
-  const alerts = shows("notifications.channels") || shows("notifications.holdWhileTyping");
   const sendsResults = shows("notifications.telegram") || shows("notifications.sendToRequest");
 
   return (
     <>
-      {alerts && (
-        <SettingsSection title="Alerts and sounds">
-          {shows("notifications.channels") && (
-            <SettingsRow
-              {...rowProps("notifications.channels")}
-              footer={
-                <>
-                  <NotificationChannelsTable settings={settings} update={update} />
-                  <p className="mt-2 text-[11px] text-[var(--text-muted)]">
-                    Phones choose their own in lpm Link, under Settings › Notifications.
-                  </p>
-                </>
-              }
-            >
-              {null}
-            </SettingsRow>
+      {shows("notifications.channels") && (
+        <SettingsSection title="Alerts">
+          <SettingsRow
+            {...rowProps("notifications.channels")}
+            footer={
+              <>
+                <NotificationChannelsTable settings={settings} update={update} />
+                <p className="mt-2 text-[11px] text-[var(--text-muted)]">
+                  Phones choose their own in lpm Link, under Settings › Notifications.
+                </p>
+              </>
+            }
+          >
+            {null}
+          </SettingsRow>
+          {audible.length > 0 && (
+            <p className="bg-[var(--bg-primary)] px-4 pt-2.5 pb-2 text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--text-muted)]">
+              Sounds
+            </p>
           )}
-          {shows("notifications.holdWhileTyping") && (
-            <SettingsRow {...rowProps("notifications.holdWhileTyping")}>
-              <Toggle
-                enabled={settings.holdToastsWhileTyping === true}
-                onChange={(v) => void update({ holdToastsWhileTyping: v })}
+          {audible.map((r) => (
+            <SettingsRow key={r.event} id={`sound.${r.event}`} label={r.label} description={r.description}>
+              <SoundPicker
+                event={r.event}
+                value={SOUND_SETTINGS[r.event].value(settings) ?? "chime"}
+                sounds={sounds}
+                local={machine.kind === "local"}
+                onChange={(v) => void update(SOUND_SETTINGS[r.event].patch(v))}
               />
             </SettingsRow>
-          )}
-          {shows("notifications.channels") &&
-            audible.map((r) => (
-              <SettingsRow key={r.event} id={`sound.${r.event}`} label={r.label} description={r.description}>
-                <SoundPicker
-                  event={r.event}
-                  value={SOUND_SETTINGS[r.event].value(settings) ?? "chime"}
-                  sounds={sounds}
-                  local={machine.kind === "local"}
-                  onChange={(v) => void update(SOUND_SETTINGS[r.event].patch(v))}
-                />
-              </SettingsRow>
-            ))}
+          ))}
+        </SettingsSection>
+      )}
+      {shows("notifications.holdWhileTyping") && (
+        <SettingsSection title="While you type">
+          <SettingsRow {...rowProps("notifications.holdWhileTyping")}>
+            <Toggle
+              enabled={settings.holdToastsWhileTyping === true}
+              onChange={(v) => void update({ holdToastsWhileTyping: v })}
+            />
+          </SettingsRow>
         </SettingsSection>
       )}
       {shows("notifications.weeklyRecap") && (

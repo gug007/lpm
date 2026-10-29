@@ -27,10 +27,13 @@ import { SettingsTargetContext, type SettingsTarget } from "./settingsTarget";
 const darkModeQuery = window.matchMedia("(prefers-color-scheme: dark)");
 
 const PAGE_SUBTITLES: Partial<Record<SettingsTab, string>> = {
+  general: "How lpm looks, where new projects go, and how it stays up to date",
+  notifications: "How lpm gets your attention when an agent or automation needs you",
+  terminal: "How the built-in terminal looks, and what clicking a file path does",
   shortcuts: `Click a shortcut, then press the keys you want. ${shortcutRequirementHint()}`,
-  agents: "Start agents, write to them, and keep the sidebar tidy",
+  agents: "Start agents, choose the model lpm writes with, and keep the sidebar tidy",
   accounts: "Your agent accounts and how much of each plan is left",
-  git: "Keep projects up to date, and set what AI writes for you",
+  git: "Keep projects up to date, and choose how pull, push and fetch behave",
 };
 
 // The page last open, unless the machine shown has no such page.

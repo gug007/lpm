@@ -48,73 +48,81 @@ export function TerminalPane() {
   };
 
   return (
-    <SettingsSection>
-      <div className="p-3">
-        <TerminalThemePreview
-          theme={themePreview ?? theme}
-          fontSize={fontSize}
-          fontFamily={font.fontFamily}
-          lineHeight={font.lineHeight}
-        />
-      </div>
-      <SettingsRow {...rowProps("terminal.fontFamily")}>
-        <TerminalFontSelect
-          value={font.family}
-          options={fontOptions}
-          onChange={(family) => void update({ terminalFontFamily: family })}
-        />
-      </SettingsRow>
-      <SettingsRow {...rowProps("terminal.fontSize")}>
-        <StepperControl
-          value={String(fontSize)}
-          label="terminal font size"
-          canDecrease={fontSize > MIN_TERMINAL_FONT_SIZE}
-          canIncrease={fontSize < MAX_TERMINAL_FONT_SIZE}
-          onDecrease={() => stepFontSize(-1)}
-          onIncrease={() => stepFontSize(1)}
-        />
-      </SettingsRow>
-      <SettingsRow {...rowProps("terminal.lineHeight")}>
-        <StepperControl
-          value={font.lineHeight.toFixed(1)}
-          label="terminal line height"
-          canDecrease={font.lineHeight > MIN_TERMINAL_LINE_HEIGHT}
-          canIncrease={font.lineHeight < MAX_TERMINAL_LINE_HEIGHT}
-          onDecrease={() => stepLineHeight(-0.1)}
-          onIncrease={() => stepLineHeight(0.1)}
-        />
-      </SettingsRow>
-      <SettingsRow {...rowProps("terminal.theme")}>
-        <TerminalThemeSelect
-          value={theme}
-          onChange={(next) => void update({ terminalTheme: next })}
-          onHighlightChange={setThemePreview}
-        />
-      </SettingsRow>
-      <SettingsRow {...rowProps("terminal.openInDefaultApp")}>
-        <Toggle
-          enabled={settings.terminalOpenInDefaultApp ?? false}
-          onChange={(v) => void update({ terminalOpenInDefaultApp: v })}
-        />
-      </SettingsRow>
-      <SettingsRow {...rowProps("terminal.filesTreeSide")}>
-        <SettingsSelect
-          value={settings.filesTreeSide ?? "right"}
-          onChange={(e) =>
-            void update({ filesTreeSide: e.target.value === "left" ? "left" : "right" })
-          }
-          aria-label="Files tree position"
-        >
-          <option value="right">Right</option>
-          <option value="left">Left</option>
-        </SettingsSelect>
-      </SettingsRow>
-      <SettingsRow {...rowProps("terminal.appTips")}>
-        <Toggle
-          enabled={!(settings.appTipsDismissed ?? false)}
-          onChange={(v) => void update({ appTipsDismissed: !v })}
-        />
-      </SettingsRow>
-    </SettingsSection>
+    <>
+      <SettingsSection title="Appearance">
+        <div className="p-3">
+          <TerminalThemePreview
+            theme={themePreview ?? theme}
+            fontSize={fontSize}
+            fontFamily={font.fontFamily}
+            lineHeight={font.lineHeight}
+          />
+        </div>
+        <SettingsRow {...rowProps("terminal.fontFamily")}>
+          <TerminalFontSelect
+            value={font.family}
+            options={fontOptions}
+            onChange={(family) => void update({ terminalFontFamily: family })}
+          />
+        </SettingsRow>
+        <SettingsRow {...rowProps("terminal.fontSize")}>
+          <StepperControl
+            value={String(fontSize)}
+            label="terminal font size"
+            canDecrease={fontSize > MIN_TERMINAL_FONT_SIZE}
+            canIncrease={fontSize < MAX_TERMINAL_FONT_SIZE}
+            onDecrease={() => stepFontSize(-1)}
+            onIncrease={() => stepFontSize(1)}
+          />
+        </SettingsRow>
+        <SettingsRow {...rowProps("terminal.lineHeight")}>
+          <StepperControl
+            value={font.lineHeight.toFixed(1)}
+            label="terminal line height"
+            canDecrease={font.lineHeight > MIN_TERMINAL_LINE_HEIGHT}
+            canIncrease={font.lineHeight < MAX_TERMINAL_LINE_HEIGHT}
+            onDecrease={() => stepLineHeight(-0.1)}
+            onIncrease={() => stepLineHeight(0.1)}
+          />
+        </SettingsRow>
+        <SettingsRow {...rowProps("terminal.theme")}>
+          <TerminalThemeSelect
+            value={theme}
+            onChange={(next) => void update({ terminalTheme: next })}
+            onHighlightChange={setThemePreview}
+          />
+        </SettingsRow>
+      </SettingsSection>
+
+      <SettingsSection title="Files">
+        <SettingsRow {...rowProps("terminal.openInDefaultApp")}>
+          <Toggle
+            enabled={settings.terminalOpenInDefaultApp ?? false}
+            onChange={(v) => void update({ terminalOpenInDefaultApp: v })}
+          />
+        </SettingsRow>
+        <SettingsRow {...rowProps("terminal.filesTreeSide")}>
+          <SettingsSelect
+            value={settings.filesTreeSide ?? "right"}
+            onChange={(e) =>
+              void update({ filesTreeSide: e.target.value === "left" ? "left" : "right" })
+            }
+            aria-label="Files tree position"
+          >
+            <option value="right">Right</option>
+            <option value="left">Left</option>
+          </SettingsSelect>
+        </SettingsRow>
+      </SettingsSection>
+
+      <SettingsSection title="Footer">
+        <SettingsRow {...rowProps("terminal.appTips")}>
+          <Toggle
+            enabled={!(settings.appTipsDismissed ?? false)}
+            onChange={(v) => void update({ appTipsDismissed: !v })}
+          />
+        </SettingsRow>
+      </SettingsSection>
+    </>
   );
 }

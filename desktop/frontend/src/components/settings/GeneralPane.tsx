@@ -21,8 +21,8 @@ export function GeneralPane() {
 
   return (
     <>
-      <SettingsSection>
-        {shows("general.theme") && (
+      {shows("general.theme") && (
+        <SettingsSection title="Look and feel">
           <SettingsRow {...rowProps("general.theme")}>
             <div className="flex rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] p-0.5">
               {THEMES.map(({ theme, label, Icon }) => (
@@ -36,7 +36,10 @@ export function GeneralPane() {
               ))}
             </div>
           </SettingsRow>
-        )}
+        </SettingsSection>
+      )}
+
+      <SettingsSection title="Projects">
         {shows("general.doubleClick") && (
           <SettingsRow {...rowProps("general.doubleClick")}>
             <Toggle

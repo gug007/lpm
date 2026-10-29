@@ -19,11 +19,14 @@ export type SettingsRowEntry = {
   tab: SettingsTab;
   id: string;
   label: string;
-  description: string;
+  // Unset where the label and what the page shows already say it all.
+  description?: string;
   keywords?: string[];
   // Backed by something only macOS has; the row and its search entry are
   // hidden elsewhere.
   macOnly?: boolean;
+  // The switch this row is nested under; it shows only while that is on.
+  parent?: string;
   // Which connected machines it can be changed on; unset, only this one.
   reach?: SettingsReach;
 };
@@ -131,7 +134,7 @@ export const ROWS = {
     id: "general.theme",
     reach: "attended",
     label: "Theme",
-    description: "Choose your preferred look",
+    description: `System follows ${MACHINE.thisMachine}'s light or dark mode`,
     keywords: ["appearance", "dark", "light", "mode", "color"],
   },
   "general.doubleClick": {
@@ -140,7 +143,7 @@ export const ROWS = {
     id: "general.doubleClick",
     reach: "attended",
     label: "Double-click to start/stop",
-    description: "Double-click a project in sidebar to toggle it",
+    description: "Double-click a project in the sidebar to start it, or stop it if it's running",
     keywords: ["toggle", "run"],
   },
   "general.defaultDir": {
@@ -149,7 +152,7 @@ export const ROWS = {
     id: "general.defaultDir",
     reach: "any",
     label: "Default project directory",
-    description: "Add project, clone destination, and global terminals open here",
+    description: "Where Add project and Clone look first, and where global terminals open",
     keywords: ["folder", "location", "path"],
   },
   "general.version": {
@@ -158,7 +161,7 @@ export const ROWS = {
     id: "general.version",
     reach: "any",
     label: "Version",
-    description: "lpm desktop",
+    description: "The lpm running here, and what changed in it",
     keywords: ["build", "about"],
   },
   "general.updates": {
@@ -217,7 +220,7 @@ export const ROWS = {
     id: "notifications.holdWhileTyping",
     reach: "attended",
     label: "Hold toasts while I type",
-    description: "They wait until the composer goes quiet, then show",
+    description: "They wait until you stop typing in the message input, then show",
     keywords: ["toast", "composer", "typing", "quiet", "focus", "interrupt"],
   },
   "notifications.weeklyRecap": {
@@ -252,7 +255,6 @@ export const ROWS = {
     id: "terminal.fontFamily",
     reach: "attended",
     label: "Font",
-    description: "Font family for the built-in terminal",
     keywords: ["font", "typeface", "monospace", "font family"],
   },
   "terminal.fontSize": {
@@ -261,7 +263,6 @@ export const ROWS = {
     id: "terminal.fontSize",
     reach: "attended",
     label: "Font size",
-    description: "Used by the built-in terminal",
     keywords: ["zoom", "text size"],
   },
   "terminal.lineHeight": {
@@ -270,7 +271,6 @@ export const ROWS = {
     id: "terminal.lineHeight",
     reach: "attended",
     label: "Line height",
-    description: "Vertical spacing between terminal lines",
     keywords: ["spacing", "leading"],
   },
   "terminal.theme": {
@@ -279,7 +279,6 @@ export const ROWS = {
     id: "terminal.theme",
     reach: "attended",
     label: "Theme",
-    description: "Color scheme for the built-in terminal",
     keywords: ["color", "appearance"],
   },
   "terminal.openInDefaultApp": {
@@ -288,8 +287,7 @@ export const ROWS = {
     id: "terminal.openInDefaultApp",
     reach: "attended",
     label: "Open files in default app",
-    description:
-      "Click a file path in the terminal to open it in the OS default app instead of the in-app preview",
+    description: `Clicking a file path opens it in the app ${MACHINE.thisMachine} normally uses, instead of lpm's preview`,
     keywords: ["file", "preview", "editor"],
   },
   "terminal.filesTreeSide": {
@@ -298,7 +296,7 @@ export const ROWS = {
     id: "terminal.filesTreeSide",
     reach: "attended",
     label: "Files tree position",
-    description: "Which side of the Files tab holds the folder tree",
+    description: "Which side of the Files tab the folder tree sits on",
     keywords: ["files", "tree", "sidebar", "left", "right", "browser"],
   },
   "terminal.appTips": {
@@ -307,7 +305,7 @@ export const ROWS = {
     id: "terminal.appTips",
     reach: "attended",
     label: "App tips",
-    description: "Show a rotating tip with shortcuts in the terminal footer",
+    description: "A rotating shortcut tip under each terminal",
     keywords: ["hints", "tips"],
   },
   "tts.enable": {
@@ -435,6 +433,7 @@ export const ROWS = {
     reach: "any",
     label: "Archive seen agents after",
     description: "Counted from when you last opened the agent",
+    parent: "general.keepFinishedAgents",
     keywords: ["archive seen agents automatically", "archive", "sidebar", "agent", "seen", "expire", "clean up", "automatic", "never", "minutes", "hours", "days"],
   },
   "general.seenAgentsShown": {
@@ -444,6 +443,7 @@ export const ROWS = {
     reach: "any",
     label: "Seen agents per project",
     description: "Any more fold into a “more seen” line",
+    parent: "general.keepFinishedAgents",
     keywords: ["archive", "sidebar", "agent", "seen", "fold", "limit"],
   },
   "ai.statusLine": {
@@ -461,7 +461,7 @@ export const ROWS = {
     id: "ai.claudeHooks",
     reach: "any",
     label: "Claude Code progress",
-    description: "Hooks that show what each Claude agent is doing in the sidebar. Check finds and fixes problems",
+    description: "Shows what each Claude agent is doing, live in the sidebar. If it stops updating, Check repairs it",
     keywords: ["claude code hooks", "hooks", "progress", "sidebar", "claude", "repair"],
   },
   "ai.codexStatusLine": {
@@ -523,7 +523,8 @@ export const ROWS = {
     id: "accounts.sidebarUsageTools",
     reach: "attended",
     label: "Tools in the meter",
-    description: "Claude, Codex, or both",
+    description: "Which plans the meter follows",
+    parent: "accounts.sidebarUsage",
     keywords: ["usage", "meter", "sidebar", "claude", "codex"],
   },
   "accounts.sidebarUsageWindow": {
@@ -532,7 +533,8 @@ export const ROWS = {
     id: "accounts.sidebarUsageWindow",
     reach: "attended",
     label: "Limit in the meter",
-    description: "5-hour, weekly, or whichever is higher",
+    description: "“Whichever is higher” shows the limit you're closer to hitting",
+    parent: "accounts.sidebarUsage",
     keywords: ["usage", "meter", "sidebar", "5-hour", "weekly", "window"],
   },
   usage: {
@@ -549,7 +551,7 @@ export const ROWS = {
     id: "general.checkOrigin",
     reach: "any",
     label: "Check for new commits",
-    description: "Fetches in the background and marks projects whose branch on origin is ahead",
+    description: "Marks projects that have new commits to pull, checking in the background",
     keywords: ["git", "fetch", "pull", "behind", "origin", "remote", "sync"],
   },
   "general.autoPull": {
@@ -558,7 +560,8 @@ export const ROWS = {
     id: "general.autoPull",
     reach: "any",
     label: "Auto pull",
-    description: "Fast-forward a clean branch on its own: off, chosen projects, or all. A project's Git menu can set its own",
+    description: "Pulls new commits for you when the branch has no local changes. A project's Git menu can set its own",
+    parent: "general.checkOrigin",
     keywords: ["git", "pull", "automatic", "fast-forward", "origin", "update", "sync", "duplicates"],
   },
   "git.pullStrategy": {
@@ -567,7 +570,7 @@ export const ROWS = {
     id: "git.pullStrategy",
     reach: "any",
     label: "When pulling",
-    description: "Fast-forward or merge, fast-forward only, or rebase. The Pull menu uses this too",
+    description: "What happens when your branch and the remote have both changed. The Pull menu uses this too",
     keywords: ["pull", "rebase", "merge", "ff-only", "fast-forward", "strategy"],
   },
   "git.pullAutostash": {
@@ -585,7 +588,7 @@ export const ROWS = {
     id: "git.pushMode",
     reach: "any",
     label: "When pushing",
-    description: "Normal, or force with lease. The Push menu uses this too",
+    description: "Force with lease rewrites the remote branch only if nobody pushed to it since your last fetch. The Push menu uses this too",
     keywords: ["push", "force", "force-with-lease", "mode"],
   },
   "git.pushTags": {
@@ -603,7 +606,7 @@ export const ROWS = {
     id: "git.skipHooks",
     reach: "any",
     label: "Skip Git hooks",
-    description: "When pushing, when pulling, or both",
+    description: "Push or pull without running hooks such as pre-push",
     keywords: ["no-verify", "hooks", "pre-push", "husky", "push", "pull"],
   },
   "git.fetchOptions": {
@@ -612,16 +615,16 @@ export const ROWS = {
     id: "git.fetchOptions",
     reach: "any",
     label: "When fetching",
-    description: "Every remote, remove deleted branches, remove deleted tags, get tags",
+    description: "Removing deleted branches keeps your branch list in step with the remote",
     keywords: ["fetch", "prune", "prune tags", "all remotes", "tags"],
   },
   "git.aiModel": {
     kind: "row",
-    tab: "git",
+    tab: "agents",
     id: "git.aiModel",
     reach: "any",
     label: "AI model",
-    description: "The agent and model lpm writes commit messages, PR text and branch names with. It also improves your prompts",
+    description: "Writes commit messages, PR descriptions and branch names, and improves your prompts",
     keywords: ["model", "agent", "effort", "lpm's ai", "claude", "codex", "generate", "commit message"],
   },
   "git.autoCommitMessage": {
@@ -874,8 +877,8 @@ export function rowReaches(id: SettingsRowId, machine: SettingsMachine): boolean
 export function rowProps(
   id: SettingsRowId,
   overrides?: { description?: string },
-): { id: string; label: string; description: string } {
-  const row = ROWS[id];
+): { id: string; label: string; description?: string } {
+  const row: SettingsRowEntry = ROWS[id];
   return {
     id: row.id,
     label: row.label,

@@ -56,6 +56,7 @@ export function ClaudeAccountsSection({ source }: { source: ClaudeAccountsSource
   };
 
   const switching = pool && (accounts.length > 0 || pool.enabled) ? pool : null;
+  const configDirSet = pool?.unavailable === "profile" || pool?.unavailable === "ambient";
   const logins = [MAIN_LOGIN, ...accounts.map((a) => a.id)];
 
   const poolAccount = (id: string) => pool?.accounts.find((a) => a.id === id);
@@ -140,7 +141,10 @@ export function ClaudeAccountsSection({ source }: { source: ClaudeAccountsSource
             <ClaudeAccountListRow key={id} {...accountProps(id)} chips={[]} actions={signInButton(id)} />
           ))}
         </div>
-        <SettingsRow label="Add account" description="Name it, then sign in to Claude">
+        <SettingsRow
+          label="Add account"
+          description="Another Claude login, like Work or Personal, for some projects or for switching near a limit"
+        >
           <button onClick={() => setAdding(true)} className={`${BTN_SECONDARY} flex items-center gap-1.5`}>
             <PlusIcon />
             Add…
@@ -160,15 +164,17 @@ export function ClaudeAccountsSection({ source }: { source: ClaudeAccountsSource
           </>
         )}
       </SettingsSection>
-      <div className="mt-3 flex items-start gap-2 px-1 text-[10px] leading-relaxed text-[var(--text-muted)]">
-        <span className="mt-px shrink-0 rounded border border-[var(--border)] px-1.5 py-px font-medium uppercase tracking-wide">
-          Note
-        </span>
-        <p>
-          Remove a manually set <code className="text-[var(--text-secondary)]">CLAUDE_CONFIG_DIR</code> from your
-          shell profile. Login shells re-source it and override project accounts.
-        </p>
-      </div>
+      {configDirSet && (
+        <div className="mt-3 flex items-start gap-2 px-1 text-[10px] leading-relaxed text-[var(--text-muted)]">
+          <span className="mt-px shrink-0 rounded border border-[var(--border)] px-1.5 py-px font-medium uppercase tracking-wide">
+            Note
+          </span>
+          <p>
+            Remove a manually set <code className="text-[var(--text-secondary)]">CLAUDE_CONFIG_DIR</code> from your
+            shell profile. Login shells re-source it and override project accounts.
+          </p>
+        </div>
+      )}
 
       <ConfirmDialog
         open={confirmDelete !== null}

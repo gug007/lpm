@@ -6,29 +6,21 @@ import {
   aiEffectiveEffort,
   aiEfforts,
   aiSupportsFast,
-  resolveAIPick,
   type AICLI,
 } from "../../types";
 import { SettingsRow } from "../SettingsRow";
 import { SettingsSelect } from "../SettingsSelect";
 import { SettingsCheckbox } from "./SettingsCheckbox";
 import { useSettingsTarget } from "./settingsTarget";
-import { useMachineAICLIs } from "./useMachineAICLIs";
+import { useAIModelPick } from "./useAIModelPick";
 import { useMachineWords } from "./useMachineWords";
 
-const EVERY_CLI: Record<string, boolean> = Object.fromEntries(AI_CLI_OPTIONS.map((o) => [o.value, true]));
-
-// The pick the Commit, PR and branch windows open with: the saved one when its
-// CLI is installed, else the first installed CLI, as useAIPicker resolves it.
+// Settings › Agents › lpm's AI: the agent, model and effort the Commit, PR and
+// branch windows open with, and prompt improvement uses.
 export function AIModelSettingsRow() {
-  const { machine, settings, update } = useSettingsTarget();
+  const { settings, update } = useSettingsTarget();
   const { thisMachine } = useMachineWords();
-  const available = useMachineAICLIs(machine);
-  const pick = resolveAIPick(settings.aiCli, settings.aiModel, available ?? EVERY_CLI) ?? {
-    cli: (settings.aiCli as AICLI) || "claude",
-    model: settings.aiModel ?? "",
-  };
-  const { cli, model } = pick;
+  const { cli, model, available } = useAIModelPick();
   const savedEffort = settings.aiEffort ?? "";
   const models = AI_CLI_OPTIONS.find((o) => o.value === cli)?.models ?? [];
   const efforts = aiEfforts(cli, model);

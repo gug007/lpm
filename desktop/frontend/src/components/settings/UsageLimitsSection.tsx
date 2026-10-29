@@ -17,8 +17,6 @@ import { UsageToolChip } from "../UsageToolChip";
 import { useRowReach, useSettingsTarget } from "./settingsTarget";
 import { useClaudeReadings } from "./useClaudeReadings";
 
-const METER_OFF = { description: "Turn on Show usage in the sidebar to use this" };
-
 const ROW_IDS: SettingsRowId[] = [
   "accounts.readClaudeUsage",
   "accounts.sidebarUsage",
@@ -38,7 +36,6 @@ export function UsageLimitsSection() {
   const [savingReadings, setSavingReadings] = useState(false);
   const meter = settings.usageInSidebar ?? true;
   const tools = usageSidebarTools(settings);
-  const meterOff = meter ? undefined : METER_OFF;
 
   if (!ROW_IDS.some(shows)) return null;
 
@@ -72,26 +69,25 @@ export function UsageLimitsSection() {
           />
         </SettingsRow>
       )}
-      {shows("accounts.sidebarUsageTools") && (
-        <SettingsRow {...rowProps("accounts.sidebarUsageTools", meterOff)}>
+      {meter && shows("accounts.sidebarUsageTools") && (
+        <SettingsRow {...rowProps("accounts.sidebarUsageTools")} nested>
           <div role="group" aria-label="Tools in the meter" className="flex gap-2">
             {USAGE_TOOLS.map((provider) => (
               <UsageToolChip
                 key={provider}
                 provider={provider}
                 on={tools.includes(provider)}
-                disabled={!meter}
                 onToggle={() => void update({ usageSidebarTools: toggledUsageTool(tools, provider) })}
               />
             ))}
           </div>
         </SettingsRow>
       )}
-      {shows("accounts.sidebarUsageWindow") && (
-        <SettingsRow {...rowProps("accounts.sidebarUsageWindow", meterOff)}>
+      {meter && shows("accounts.sidebarUsageWindow") && (
+        <SettingsRow {...rowProps("accounts.sidebarUsageWindow")} nested>
           <SegmentedControl
             value={usageSidebarWindow(settings)}
-            options={USAGE_WINDOW_OPTIONS.map((o) => ({ ...o, disabled: !meter }))}
+            options={USAGE_WINDOW_OPTIONS}
             ariaLabel="Limit in the meter"
             onChange={(value) => void update({ usageSidebarWindow: value })}
           />

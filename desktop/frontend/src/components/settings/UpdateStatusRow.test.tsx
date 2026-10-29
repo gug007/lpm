@@ -101,10 +101,11 @@ afterEach(() => {
 });
 
 describe("UpdateStatusRow", () => {
-  it("names the running version and offers the new one with What's new", async () => {
+  it("offers the new version with What's new", async () => {
     useUpdateCheck.setState({ info: info(true), checkedAt: Math.floor(Date.now() / 1000) });
     await render();
-    expect(text()).toContain("lpm 0.7.31");
+    expect(text()).toContain("Updates");
+    expect(text()).not.toContain("lpm 0.7.31");
     expect(text()).toContain("0.7.32 is available");
     expect(button("What's new")).toBeDefined();
   });

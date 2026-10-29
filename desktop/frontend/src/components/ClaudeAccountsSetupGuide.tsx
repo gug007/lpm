@@ -35,7 +35,8 @@ export function ClaudeAccountsSetupGuide({
     usage,
     switching,
   );
-  if (allComplete) return null;
+  // The main login needs no setup; the guide walks through an added account.
+  if (allComplete || accounts.length === 0) return null;
 
   const step = STEPS[currentStep];
   const completedCount = completion.filter(Boolean).length;

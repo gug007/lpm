@@ -41,7 +41,7 @@ export function SettingsSearchResult({ hit, query, active, onActivate, onHover }
               Matched “{query.trim()}” in: <SearchHighlight text={keywords.join(", ")} query={query} />
             </>
           ) : (
-            <SearchHighlight text={entry.description} query={query} />
+            entry.description && <SearchHighlight text={entry.description} query={query} />
           )}
         </span>
         <span className="mt-1 block truncate text-[10px] text-[var(--text-muted)] opacity-80">

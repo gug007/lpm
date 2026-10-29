@@ -9,22 +9,28 @@ export function SettingsRow({
   details,
   below,
   footer,
+  nested = false,
 }: {
   id?: string;
   label: string;
-  description: ReactNode;
+  description?: ReactNode;
   children: ReactNode;
   details?: ReactNode;
   below?: ReactNode;
   footer?: ReactNode;
+  // Shown only while the row above it is on, indented under it.
+  nested?: boolean;
 }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
   return (
-    <div className="px-4 py-3" data-settings-row={id}>
+    <div className={nested ? "relative py-3 pr-4 pl-10" : "px-4 py-3"} data-settings-row={id}>
+      {nested && (
+        <span aria-hidden className="absolute inset-y-0 left-6 w-0.5 rounded-full bg-[var(--bg-active)]" />
+      )}
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="min-w-0 flex-[1_1_12rem]">
           <p className="text-sm font-medium text-[var(--text-primary)]">{label}</p>
-          <p className="text-[11px] text-[var(--text-muted)]">{description}</p>
+          {description && <p className="text-[11px] text-[var(--text-muted)]">{description}</p>}
           {below}
           {details && (
             <button

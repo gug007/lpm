@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ArrowUpRight } from "lucide-react";
 import { BrowserOpenURL } from "../../../bridge/runtime";
 import { isMac } from "../../platform";
-import { ROWS, rowProps, TAB_TITLES } from "../../settings-registry";
+import { rowProps, TAB_TITLES } from "../../settings-registry";
 import type { View } from "../../store/app";
 import { ComposerActionsModal } from "../ComposerActionsModal";
 import { SettingsRow } from "../SettingsRow";
@@ -12,14 +12,16 @@ import { BTN_SECONDARY } from "../ui/buttons";
 import { Toggle } from "../ui/Toggle";
 import { AgentArchiveSettingsSection } from "./AgentArchiveSettingsSection";
 import { AgentToolsRow } from "./AgentToolsRow";
+import { AIModelSettingsRow } from "./AIModelSettingsRow";
 import { ClaudeHooksRow } from "./ClaudeHooksRow";
 import { SettingsLink } from "./SettingsLink";
 import { useRowReach, useSettingsTarget } from "./settingsTarget";
 
 const NOTE = "mt-1 text-[11px] text-[var(--text-muted)]";
 
-// Settings › Agents: how agents start, how you write to them, how they sit in
-// the sidebar, and what lpm adds to each agent CLI.
+// Settings › Agents: how agents start, the model lpm itself writes with, how
+// you write to them, how they sit in the sidebar, and what lpm adds to each
+// agent CLI.
 export function AgentsPane({ onNavigate }: { onNavigate: (view: View) => void }) {
   const shows = useRowReach();
   const { settings, update, commands } = useSettingsTarget();
@@ -39,6 +41,12 @@ export function AgentsPane({ onNavigate }: { onNavigate: (view: View) => void })
               onChange={(v) => void update({ pickAgentOnNewTab: v })}
             />
           </SettingsRow>
+        </SettingsSection>
+      )}
+
+      {shows("git.aiModel") && (
+        <SettingsSection title="lpm's AI">
+          <AIModelSettingsRow />
         </SettingsSection>
       )}
 
@@ -136,26 +144,13 @@ export function AgentsPane({ onNavigate }: { onNavigate: (view: View) => void })
         </SettingsSection>
       )}
 
-      {(shows("ai.accounts") || shows("git.aiModel")) && (
+      {shows("ai.accounts") && (
         <p className="mt-6 px-0.5 text-[11px] leading-relaxed text-[var(--text-muted)]">
-          {shows("ai.accounts") && (
-            <>
-              Claude accounts and plan limits are in{" "}
-              <SettingsLink tab="accounts" row="ai.accounts">
-                {TAB_TITLES.accounts}
-              </SettingsLink>
-              .{" "}
-            </>
-          )}
-          {shows("git.aiModel") && (
-            <>
-              The agent and model lpm writes with are in{" "}
-              <SettingsLink tab="git" row="git.aiModel">
-                {TAB_TITLES.git} › {ROWS["git.aiModel"].label}
-              </SettingsLink>
-              .
-            </>
-          )}
+          Claude accounts and plan limits are in{" "}
+          <SettingsLink tab="accounts" row="ai.accounts">
+            {TAB_TITLES.accounts}
+          </SettingsLink>
+          .
         </p>
       )}
 

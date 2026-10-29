@@ -21,18 +21,18 @@ function exceptionsLine(mode: AutoPullMode, on: string[], off: string[]): string
   return off.length > 0 ? `Off for ${off.join(", ")}` : "";
 }
 
-// Settings › Git: which projects fast-forward on their own after the check
-// for new commits, and which of the machine's projects or copies differ from that.
+// Settings › Git, under Check for new commits: which projects fast-forward on
+// their own after each check, and which of the machine's projects or copies
+// differ from that.
 export function AutoPullSettingsRow() {
   const { machine, settings, update } = useSettingsTarget();
-  const checkOrigin = settings.checkOrigin ?? true;
   const mode = normalizeAutoPullMode(settings.autoPull);
   const projects = useAppStore((s) => s.projects);
 
   const own = projects.filter((p) => isOnMachine(p.name, machine) && !p.isRemote && !p.configError);
   const names = (list: string[]) => list.map((name) => displayNameForProjectName(name, projects));
   const exceptions = autoPullExceptions(own, mode);
-  const line = checkOrigin && mode !== "off" ? exceptionsLine(mode, names(exceptions.on), names(exceptions.off)) : "";
+  const line = mode !== "off" ? exceptionsLine(mode, names(exceptions.on), names(exceptions.off)) : "";
 
   // A connected machine runs its own pulls, on its own schedule.
   const choose = (next: AutoPullMode) => {
@@ -42,7 +42,8 @@ export function AutoPullSettingsRow() {
 
   return (
     <SettingsRow
-      {...rowProps("general.autoPull", checkOrigin ? undefined : { description: "Turn on Check for new commits to use this" })}
+      {...rowProps("general.autoPull")}
+      nested
       below={line ? <p className="mt-1 truncate text-[11px] text-[var(--text-secondary)]" title={line}>{line}</p> : undefined}
       details={
         <>
@@ -52,12 +53,7 @@ export function AutoPullSettingsRow() {
         </>
       }
     >
-      <SegmentedControl
-        value={mode}
-        onChange={choose}
-        ariaLabel="Auto pull"
-        options={OPTIONS.map((o) => ({ ...o, disabled: !checkOrigin }))}
-      />
+      <SegmentedControl value={mode} onChange={choose} ariaLabel="Auto pull" options={OPTIONS} />
     </SettingsRow>
   );
 }

@@ -69,7 +69,7 @@ export function useAIPicker(active: boolean, scope?: string | null): AIPicker {
     () => getSettings().aiFast ?? false,
   );
 
-  // A picker stays mounted while closed, and Settings › Git changes the same
+  // A picker stays mounted while closed, and Settings › Agents changes the same
   // pick, so each opening starts from what is saved.
   useEffect(() => {
     if (!active) return;

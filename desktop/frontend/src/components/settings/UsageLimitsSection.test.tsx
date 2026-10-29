@@ -88,14 +88,16 @@ describe("UsageLimitsSection", () => {
     expect(row("usage")).toBeNull();
   });
 
-  it("holds the meter's tools and limit, saying why, while the meter is off", async () => {
+  it("shows the meter's tools and limit under it only while the meter is on", async () => {
     await render(peer(true), { usageInSidebar: false });
-    for (const id of ["accounts.sidebarUsageTools", "accounts.sidebarUsageWindow"]) {
-      expect(description(id)).toBe("Turn on Show usage in the sidebar to use this");
-      expect([...row(id)!.querySelectorAll("button")].every((b) => b.disabled)).toBe(true);
-    }
+    expect(row("accounts.sidebarUsageTools")).toBeNull();
+    expect(row("accounts.sidebarUsageWindow")).toBeNull();
     await act(async () => row("accounts.sidebarUsage")?.querySelector<HTMLButtonElement>("[role=switch]")?.click());
     expect(update).toHaveBeenCalledWith({ usageInSidebar: true });
+
+    await render(peer(true), { usageInSidebar: true });
+    expect(description("accounts.sidebarUsageTools")).toBe("Which plans the meter follows");
+    expect([...row("accounts.sidebarUsageWindow")!.querySelectorAll("button")].some((b) => b.disabled)).toBe(false);
   });
 
   it("changes the meter's tools on the machine shown", async () => {

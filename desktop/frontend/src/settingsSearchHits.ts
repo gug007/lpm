@@ -24,7 +24,7 @@ export function pageOf(entry: SettingsSearchEntry): string {
 }
 
 function keywordsOnly(entry: SettingsSearchEntry, q: string): string[] {
-  const shown = [entry.label, entry.description, pageOf(entry)];
+  const shown = [entry.label, entry.description ?? "", pageOf(entry)];
   if (shown.some((text) => text.toLowerCase().includes(q))) return [];
   return (entry.keywords ?? []).filter((k) => k.toLowerCase().includes(q));
 }

@@ -3,10 +3,12 @@ import { toast } from "../../notifications/toast";
 import { GetVersion, UninstallApp } from "../../../bridge/commands";
 import { MACHINE } from "../../machineWords";
 import { isMac } from "../../platform";
+import { openReleasePage } from "../../releasePage";
 import { removeAppConfirmText } from "../../removeAppCopy";
 import { rowProps } from "../../settings-registry";
 import { SettingsRow } from "../SettingsRow";
 import { SettingsSection } from "../SettingsSection";
+import { BTN_SECONDARY } from "../ui/buttons";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { RemovingOverlay } from "./RemovingOverlay";
 import { UpdatesSection } from "./UpdatesSection";
@@ -47,7 +49,22 @@ export function AboutSection() {
 
       <UpdatesSection version={version} />
 
-      <SettingsSection title="About">
+      {version && (
+        <SettingsSection title="About">
+          <SettingsRow {...rowProps("general.version")}>
+            <div className="flex items-center gap-3">
+              <span className="font-mono text-xs text-[var(--text-secondary)]">{version}</span>
+              {version !== "dev" && (
+                <button onClick={() => openReleasePage(version)} className={BTN_SECONDARY}>
+                  Release notes
+                </button>
+              )}
+            </div>
+          </SettingsRow>
+        </SettingsSection>
+      )}
+
+      <SettingsSection title="Uninstall">
         <SettingsRow {...rowProps("general.removeApp")}>
           <button
             onClick={() => setShowRemoveApp(true)}

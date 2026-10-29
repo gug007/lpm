@@ -4,7 +4,7 @@ import { SettingsRow } from "../SettingsRow";
 import { SettingsSection } from "../SettingsSection";
 import { BTN_SECONDARY } from "../ui/buttons";
 import { Toggle } from "../ui/Toggle";
-import { AIModelSettingsRow } from "./AIModelSettingsRow";
+import { AIModelSummaryRow } from "./AIModelSummaryRow";
 import { useRowReach, useSettingsTarget } from "./settingsTarget";
 
 export function GitAISection({ onNavigate }: { onNavigate: (view: View) => void }) {
@@ -13,7 +13,7 @@ export function GitAISection({ onNavigate }: { onNavigate: (view: View) => void 
 
   return (
     <SettingsSection title="Written by AI">
-      {shows("git.aiModel") && <AIModelSettingsRow />}
+      {shows("git.aiModel") && <AIModelSummaryRow />}
       {shows("git.autoCommitMessage") && (
         <SettingsRow {...rowProps("git.autoCommitMessage")}>
           <Toggle

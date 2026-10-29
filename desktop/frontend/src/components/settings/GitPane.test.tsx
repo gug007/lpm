@@ -60,6 +60,7 @@ async function render(stored: Record<string, unknown> = {}) {
   });
 }
 
+const row = (id: string) => document.querySelector(`[data-settings-row="${id}"]`);
 const select = (label: string) => document.querySelector(`select[aria-label="${label}"]`) as HTMLSelectElement;
 const checkbox = (label: string) =>
   [...document.querySelectorAll("label")].find((l) => l.textContent?.trim() === label)?.querySelector("input") ?? null;
@@ -98,9 +99,20 @@ describe("GitPane", () => {
     expect(checkbox("Get tags")?.checked).toBe(false);
     expect(checkbox("When pushing")?.checked).toBe(false);
     expect(checkbox("When pulling")?.checked).toBe(false);
-    expect(select("Agent").value).toBe("claude");
-    expect(select("Model").value).toBe("");
-    expect(select("Effort").value).toBe("");
+  });
+
+  it("names the model AI writes with, and leaves choosing it to Agents", async () => {
+    await render({ aiCli: "claude", aiModel: "opus", aiEffort: "high" });
+    expect(select("Agent")).toBeNull();
+    expect(document.body.textContent).toContain("Claude Code · Opus · High effort");
+    expect(document.body.textContent).toContain("Change in Agents");
+  });
+
+  it("shows Auto pull under Check for new commits only while it's on", async () => {
+    await render({ checkOrigin: false });
+    expect(row("general.autoPull")).toBeNull();
+    await render({ checkOrigin: true });
+    expect(row("general.autoPull")).not.toBeNull();
   });
 
   it("writes whole Git objects, the way the menus store them", async () => {
@@ -111,23 +123,6 @@ describe("GitPane", () => {
     expect(update).toHaveBeenLastCalledWith({ gitFetch: { all: true, prune: false, pruneTags: false, tags: true } });
     await act(async () => checkbox("When pushing")!.click());
     expect(update).toHaveBeenLastCalledWith({ gitPush: { mode: "default", noVerify: true, tags: false } });
-  });
-
-  it("offers the CLIs installed on the machine it configures", async () => {
-    await render({ aiCli: "claude", aiModel: "opus", aiEffort: "max" });
-    expect(mocks.peerInvoke).toHaveBeenCalledWith("aabbccdd", "check_aicl_is", {});
-    expect(mocks.checkLocal).not.toHaveBeenCalled();
-    const gemini = [...select("Agent").options].find((o) => o.value === "gemini")!;
-    expect(gemini.disabled).toBe(true);
-    await choose("Agent", "codex");
-    expect(update).toHaveBeenLastCalledWith({ aiCli: "codex", aiModel: undefined, aiEffort: undefined });
-  });
-
-  it("keeps the saved effort when a model can take it", async () => {
-    await render({ aiCli: "claude", aiModel: "opus", aiEffort: "high" });
-    expect(select("Effort").value).toBe("high");
-    await choose("Model", "sonnet");
-    expect(update).toHaveBeenLastCalledWith({ aiCli: "claude", aiModel: "sonnet", aiEffort: "high" });
   });
 
   it("opens each instructions page", async () => {
