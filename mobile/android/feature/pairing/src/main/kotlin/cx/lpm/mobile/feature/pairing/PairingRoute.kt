@@ -146,4 +146,4 @@ fun PairingRoute(
     }
 }
 
-private const val SETUP_VIDEO_URL = "https://www.youtube.com/watch?v=OGttu6tgb0I"
+private const val SETUP_VIDEO_URL = "https://www.youtube.com/watch?v=6tiTDB6XynM"

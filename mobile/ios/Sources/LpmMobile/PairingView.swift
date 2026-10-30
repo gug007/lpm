@@ -146,7 +146,7 @@ struct PairingView: View {
         .padding(.top, onCancel == nil ? 28 : 8)
     }
 
-    private static let setupVideoURL = URL(string: "https://www.youtube.com/watch?v=OGttu6tgb0I")!
+    private static let setupVideoURL = URL(string: "https://www.youtube.com/watch?v=6tiTDB6XynM")!
 
     private var setupVideoLink: some View {
         Link(destination: Self.setupVideoURL) {
