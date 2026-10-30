@@ -56,3 +56,4 @@ Vertical lessons posted to TikTok and YouTube Shorts, oldest first. The short-pu
 - Claude vs ChatGPT: Sonnet 5.5 high vs GPT-6.1 Sol high, the giraffe test
 - Claude Opus vs Sonnet: Opus 5.5 high vs Sonnet 5.5 high build a website
 - Claude vs ChatGPT: Opus 5.5 high vs GPT-6.1 Terra high, the giraffe test
+- Claude vs ChatGPT: Opus 5.5 high vs GPT-6.1 Sol high, the hexagon test
