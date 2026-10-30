@@ -1,5 +1,4 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { useEventListener } from "../../hooks/useEventListener";
 import { useSettingsEscape } from "../../hooks/useSettingsEscape";
 import {
   buildSearchEntries,
@@ -14,8 +13,6 @@ import { searchHints } from "../../settingsSearchHits";
 import { shortcutRequirementHint } from "../../shortcutRecord";
 import { useAppStore, type SettingsTab, type View } from "../../store/app";
 import { settingsReturnLabel, useSettingsReturn } from "../../store/settingsReturn";
-import { useSettingsStore } from "../../store/settings";
-import { applyTheme } from "../../theme";
 import { GlobalConfigEditor } from "../GlobalConfigEditor";
 import { NAV_ICONS } from "./navIcons";
 import { revealSettingsRow } from "./revealSettingsRow";
@@ -23,8 +20,6 @@ import { SettingsNav } from "./SettingsNav";
 import { SettingsPageHeader } from "./SettingsPageHeader";
 import { SettingsPanes } from "./SettingsPanes";
 import { SettingsTargetContext, type SettingsTarget } from "./settingsTarget";
-
-const darkModeQuery = window.matchMedia("(prefers-color-scheme: dark)");
 
 const PAGE_SUBTITLES: Partial<Record<SettingsTab, string>> = {
   general: "How lpm looks, where new projects go, and how it stays up to date",
@@ -56,7 +51,6 @@ export function SettingsLayout({
   picker: ReactNode;
   onNavigate: (view: View) => void;
 }) {
-  const localTheme = useSettingsStore((s) => s.theme);
   const activeTab = useAppStore((s) => s.settingsTab);
   const setActiveTab = useAppStore((s) => s.setSettingsTab);
   const setView = useAppStore((s) => s.setView);
@@ -93,7 +87,6 @@ export function SettingsLayout({
     }
   };
 
-  useEventListener("change", () => applyTheme("system"), darkModeQuery, localTheme === "system");
   const leave = () => setView(returnView);
   useSettingsEscape(leave);
 

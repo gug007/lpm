@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { useEventListener } from "./hooks/useEventListener";
 import { useSettingsStore } from "./store/settings";
 
 export type Theme = "light" | "dark" | "system";
@@ -30,4 +31,11 @@ export function applyTheme(theme: Theme): boolean {
   const dark = isDarkTheme(theme);
   document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
   return dark;
+}
+
+/// Keeps the page on the OS appearance while the theme is "system", wherever
+/// the app is, not only while Settings is open.
+export function useSystemThemeSync(): void {
+  const theme = useSettingsStore((s) => s.theme);
+  useEventListener("change", () => applyTheme("system"), darkModeQuery, theme === "system");
 }

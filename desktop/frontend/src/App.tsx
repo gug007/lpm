@@ -49,7 +49,7 @@ import { useOriginStatusPoller } from "./hooks/useOriginStatusPoller";
 import { getSettings, saveSettings, useSettingsStore } from "./store/settings";
 import { useAppStore } from "./store/app";
 import { useFileViewerStore } from "./store/fileViewer";
-import { useResolvedTheme } from "./theme";
+import { useResolvedTheme, useSystemThemeSync } from "./theme";
 import { onRunInDuplicates } from "./mirror";
 import { duplicateBeside } from "./store/sideBySide";
 import type { BulkDuplicateOptions } from "./components/BulkDuplicateDialog";
@@ -90,6 +90,7 @@ export default function App() {
   const removingNames = useAppStore((s) => s.removingNames);
   const selectedTemplate = useAppStore((s) => s.selectedTemplate);
   const theme = useResolvedTheme();
+  useSystemThemeSync();
   const checkOrigin = useSettingsStore((s) => s.checkOrigin ?? true);
 
   const setView = useAppStore((s) => s.setView);
