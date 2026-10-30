@@ -221,18 +221,27 @@ async function preparePhone({ device = "iPhone 17", env = {}, at, log = () => {}
       const at = [(screen.x + (x * screen.w) / deviceSize.w).toFixed(1), (screen.y + (y * screen.h) / deviceSize.h).toFixed(1)];
       // Device Hub fills in a freshly launched app's accessibility tree only
       // after it is first asked, so the first press can find nothing.
-      for (let tries = 1; ; tries++) {
+      const pause = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+      for (let tries = 1; tries < 8; tries++) {
         try {
           return axpress(pid, "--at", ...at, ...(label ? [label] : []));
-        } catch (e) {
-          // A list row can carry its label without a press action of its
-          // own: then whatever can be pressed at the point.
-          if (tries >= 8) {
-            if (!label) throw e;
-            return axpress(pid, "--at", ...at);
-          }
-          Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 400);
+        } catch {
+          pause(400);
         }
+      }
+      // A list row can carry its label without a press action of its own:
+      // then whatever can be pressed at the point.
+      try {
+        return axpress(pid, "--at", ...at);
+      } catch {
+        // Nothing the accessibility bridge can press there (an unlabelled
+        // row it never hit-tests): a real click, which the simulator takes as
+        // a touch once Device Hub is in front. The caller puts the lesson
+        // window back in front.
+        execFileSync("open", ["-a", DEVICE_HUB]);
+        pause(400);
+        execFileSync("cliclick", [`c:${Math.round(Number(at[0]))},${Math.round(Number(at[1]))}`]);
+        return "click";
       }
     },
     home: () => axpress(pid, "Home"),

@@ -98,7 +98,9 @@ class PhoneStage extends AppStage {
       return { x: e.frame.x + e.frame.width * at[0], y: e.frame.y + e.frame.height * at[1], label: e.AXLabel };
     };
     const press = async (p) => {
-      this.phone.press(p.x, p.y, this.phone.layout.device, p.label);
+      if (this.phone.press(p.x, p.y, this.phone.layout.device, p.label) === "click") {
+        await this.control.call("window", { focus: true }).catch(() => {});
+      }
       this.taps.push({ atMs: Date.now() - this.t0, ...this.phoneOut(p.x, p.y) });
       this.log(`tap ${describeSel(sel)} at ${Math.round(p.x)},${Math.round(p.y)}`);
     };

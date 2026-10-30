@@ -85,14 +85,27 @@ if args[2] == "--at" {
         exit(AXUIElementPerformAction(best, kAXPressAction as CFString) == .success ? 0 : 1)
     }
     var hit: AXUIElement?
-    guard AXUIElementCopyElementAtPosition(app, x, y, &hit) == .success, var element = hit else {
-        fail("no element of pid \(pid) at \(x),\(y)")
+    if AXUIElementCopyElementAtPosition(app, x, y, &hit) == .success, var element = hit {
+        for _ in 0..<8 where !pressable(element) {
+            guard let parent = attr(element, kAXParentAttribute) else { break }
+            element = parent as! AXUIElement
+        }
+        if pressable(element) { exit(AXUIElementPerformAction(element, kAXPressAction as CFString) == .success ? 0 : 1) }
     }
-    for _ in 0..<8 where !pressable(element) {
-        guard let parent = attr(element, kAXParentAttribute) else { break }
-        element = parent as! AXUIElement
+    // The hit test misses some of the simulated iPhone's elements (an
+    // unlabelled list row): the smallest pressable element whose frame holds
+    // the point, from the whole tree.
+    let point = CGPoint(x: CGFloat(x), y: CGFloat(y))
+    var smallest: (AXUIElement, CGFloat)?
+    func holding(_ e: AXUIElement, _ depth: Int) {
+        if pressable(e), let f = frame(e), f.width > 0, f.height > 0, f.contains(point), f.width * f.height < (smallest?.1 ?? .greatestFiniteMagnitude) {
+            smallest = (e, f.width * f.height)
+        }
+        guard depth < 24 else { return }
+        for child in (attr(e, kAXChildrenAttribute) as? [AXUIElement]) ?? [] { holding(child, depth + 1) }
     }
-    if !pressable(element) { fail("nothing to press at \(x),\(y)") }
+    for window in (attr(app, kAXWindowsAttribute) as? [AXUIElement]) ?? [] { holding(window, 0) }
+    guard let (element, _) = smallest else { fail("nothing to press at \(x),\(y)") }
     exit(AXUIElementPerformAction(element, kAXPressAction as CFString) == .success ? 0 : 1)
 }
 
