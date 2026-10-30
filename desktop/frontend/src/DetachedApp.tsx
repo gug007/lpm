@@ -20,7 +20,7 @@ import { useKeyboardShortcut } from "./hooks/useKeyboardShortcut";
 import { useIsFullscreen } from "./hooks/useIsFullscreen";
 import { useAppStore } from "./store/app";
 import { useFileViewerStore } from "./store/fileViewer";
-import { useResolvedTheme } from "./theme";
+import { useResolvedTheme, useSystemThemeSync } from "./theme";
 import { FocusMainWindow } from "../bridge/commands";
 import { focusMainTerminal, onFocusDetachedTerminal } from "./windowFocus";
 import { GLOBAL_TERMINALS_KEY } from "./terminals";
@@ -40,6 +40,7 @@ export function DetachedApp({ projectName }: DetachedAppProps) {
   const pendingDuplicates = useAppStore((s) => s.pendingDuplicates);
   const removingNames = useAppStore((s) => s.removingNames);
   const theme = useResolvedTheme();
+  useSystemThemeSync();
 
   const setSidebarCollapsed = useAppStore((s) => s.setSidebarCollapsed);
   const setFeedbackOpen = useAppStore((s) => s.setFeedbackOpen);
