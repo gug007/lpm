@@ -1,7 +1,7 @@
 import {
   TERMINALS_AGENTS_EXAMPLE,
   TERMINALS_EXAMPLE,
-} from "@/app/config/examples";
+} from "../examples";
 import { Callout } from "../callout";
 import { FieldTable } from "../field-table";
 import { Lede } from "../lede";
@@ -13,7 +13,6 @@ import { terminalFields } from "../terminal-fields-data";
 export function TerminalsSection() {
   return (
     <Section
-      id="terminals"
       title="Terminals"
       description={
         <>

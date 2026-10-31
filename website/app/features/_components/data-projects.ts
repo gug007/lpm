@@ -1,5 +1,5 @@
 import { MousePointerClick, Play, ScanSearch } from "lucide-react";
-import { CONFIG_PATH, PROJECT_SIDEBAR_PATH } from "@/lib/links";
+import { DOCS_PATH, PROJECT_SIDEBAR_PATH } from "@/lib/links";
 import type { FeatureArea } from "./feature-types";
 
 export const PROJECTS_AREA: FeatureArea = {
@@ -25,7 +25,7 @@ export const PROJECTS_AREA: FeatureArea = {
       icon: MousePointerClick,
       title: "Action buttons",
       body: "Turn tests, builds, deploys, migrations, and log tails into one-click buttons in the project header or terminal footer. A three-step wizard covers what it does, how it looks, and how it runs.",
-      href: CONFIG_PATH,
+      href: DOCS_PATH,
       linkLabel: "Configuration docs",
     },
   ],

@@ -28,7 +28,7 @@ type Props = {
 
 export function HeroDownload({ source = "hero", macFocus = false }: Props) {
   const platform = usePlatform();
-  const { release, downloads } = useRelease();
+  const { release } = useRelease();
 
   if (
     platform === "ipad" ||
@@ -55,7 +55,7 @@ export function HeroDownload({ source = "hero", macFocus = false }: Props) {
         source={source}
         className="px-6 py-2 text-[15px] sm:px-7 sm:text-[16px]"
       />
-      <HeroTrustLine os={primary.os} downloads={downloads} />
+      <HeroTrustLine os={primary.os} />
     </div>
   );
 }

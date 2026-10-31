@@ -76,6 +76,7 @@ import { useHostFollows } from "../peer/useHostFollows";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { blockingDialogOpen } from "./ui/blockingDialog";
 import { isPendingClose } from "../pendingClose";
+import type { SavedLayoutNode } from "../savedLayouts";
 
 // Everything a terminal leaves behind in this window once it's really gone.
 function dropTerminalSession(id: string) {
@@ -120,6 +121,8 @@ export interface TerminalViewHandle {
   openNewTab(): boolean;
   // An agent picked from an empty state's popup, in the focused pane.
   openAgent(launch: RemoteAgentLaunch): void;
+  // A saved layout picked from an empty state.
+  openLayout(root: SavedLayoutNode): void;
   // A command typed into an empty state's popup, run in a new terminal.
   runCommand(command: string): void;
   createTerminalWithCmd(label: string, cmd: string, opts?: TerminalStartOpts): void;
@@ -265,6 +268,8 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
     remoteReorderTerminals,
     moveTerminal,
     splitPane,
+    applyLayout,
+    captureLayout,
     closePane,
     setRatio,
     focusPane,
@@ -282,6 +287,10 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
   noteMemoryRef.current = noteTerminalMemory;
 
   const newTab = useNewTabRequest({ tree, focusedPaneId, visible, onScreen, createTerminal });
+  const paneLayouts = useMemo(
+    () => ({ capture: captureLayout, open: applyLayout }),
+    [captureLayout, applyLayout],
+  );
   const launchAgentInPane = useCallback(
     (paneId: string | undefined, launch: RemoteAgentLaunch) => {
       const tab = agentTabCommand(actions ?? [], launch);
@@ -1173,6 +1182,7 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
       createTerminal,
       openNewTab: newTab.openNewTab,
       openAgent,
+      openLayout: paneLayouts.open,
       runCommand,
       createTerminalWithCmd,
       adoptTerminal,
@@ -1199,6 +1209,7 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
       createTerminal,
       newTab.openNewTab,
       openAgent,
+      paneLayouts.open,
       runCommand,
       createTerminalWithCmd,
       adoptTerminal,
@@ -1280,6 +1291,7 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
             onRestoreSessionTitle={restoreSessionTitle}
             onTogglePinTab={toggleTabPinned}
             onSplit={splitPane}
+            layouts={paneLayouts}
             onClosePane={closePane}
             onToggleUtility={toggleUtilityInPane}
             onToggleFullscreen={handleToggleFullscreen}

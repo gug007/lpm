@@ -45,7 +45,8 @@ import { AutoPRModal, type AutoPRAIParams } from "./AutoPRModal";
 import { MergeBranchDialog } from "./MergeBranchDialog";
 import { PRModal } from "./PRModal";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
-import { BranchIcon, ChevronDownIcon, SparkleIcon, UndoIcon, UploadIcon } from "./icons";
+import { BranchIcon, ChevronDownIcon, HistoryIcon, SparkleIcon, UndoIcon, UploadIcon } from "./icons";
+import { CommitHistoryModal } from "./history/CommitHistoryModal";
 import { BranchSearchMenu } from "./BranchSearchMenu";
 import { isUnpublished } from "./branchUtils";
 import { shouldFetch, recordFetch } from "../gitFetchThrottle";
@@ -78,6 +79,7 @@ export function BranchSwitcher({
   const [creatingPR, setCreatingPR] = useState(false);
   const [autoPR, setAutoPR] = useState<AutoPRAIParams | null>(null);
   const [merging, setMerging] = useState(false);
+  const [showingHistory, setShowingHistory] = useState(false);
   const [commitMenuOpen, setCommitMenuOpen] = useState(false);
   const [confirmDiscardAllOpen, setConfirmDiscardAllOpen] = useState(false);
   const [discarding, setDiscarding] = useState(false);
@@ -543,6 +545,16 @@ export function BranchSwitcher({
                       <MergeMenuIcon />
                       Merge
                     </button>
+                    <button
+                      onClick={() => {
+                        setCommitMenuOpen(false);
+                        setShowingHistory(true);
+                      }}
+                      className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] [&>svg]:h-3.5 [&>svg]:w-3.5"
+                    >
+                      <HistoryIcon />
+                      History
+                    </button>
                     {ai.anyAvailable && (
                       <>
                         <div className="my-1.5 border-t border-[var(--border)]" />
@@ -658,6 +670,12 @@ export function BranchSwitcher({
         ai={autoPR}
         onClose={() => setAutoPR(null)}
         onChanged={refresh}
+      />
+      <CommitHistoryModal
+        open={showingHistory}
+        projectPath={projectPath}
+        branch={status.branch}
+        onClose={() => setShowingHistory(false)}
       />
       <MergeBranchDialog
         open={merging}

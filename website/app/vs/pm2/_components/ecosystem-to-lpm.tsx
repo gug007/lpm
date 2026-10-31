@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { CodeBlock } from "@/components/config/code-block";
 import { SectionHeader } from "@/components/section-header";
-import { CONFIG_PATH } from "@/lib/links";
+import { DOCS_PATH } from "@/lib/links";
 
 const ECOSYSTEM = `module.exports = {
   apps: [
@@ -79,7 +79,7 @@ export function EcosystemToLpm() {
           <code className="font-mono">dependsOn</code> and{" "}
           <code className="font-mono">profiles</code> — has its own entry in the{" "}
           <Link
-            href={CONFIG_PATH}
+            href={DOCS_PATH}
             className="font-medium underline underline-offset-2 hover:text-gray-900 dark:hover:text-white"
           >
             config reference

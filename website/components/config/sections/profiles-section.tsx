@@ -1,7 +1,7 @@
 import {
   PROFILES_EXAMPLE,
   PROFILES_MULTI_EXAMPLE,
-} from "@/app/config/examples";
+} from "../examples";
 import { Callout } from "../callout";
 import { Lede } from "../lede";
 import { ConfigPlayground } from "../playground";
@@ -11,7 +11,6 @@ import { Strong } from "../strong";
 export function ProfilesSection() {
   return (
     <Section
-      id="profiles"
       title="Profiles"
       description={
         <>

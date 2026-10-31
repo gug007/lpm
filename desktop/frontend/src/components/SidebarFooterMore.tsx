@@ -63,7 +63,7 @@ export function SidebarFooterMore({ entries, badge, hints, isDefault, onMove, on
         <span className="flex items-center">{badge}</span>
       </button>
       {open && (
-        <div className={`absolute bottom-full left-0 z-[80] mb-1.5 w-full min-w-[12rem] px-1 ${MENU_PANEL_CLASS}`}>
+        <div className={`absolute bottom-full left-0 z-[80] mb-1.5 w-max min-w-[max(100%,12rem)] px-1 ${MENU_PANEL_CLASS}`}>
           {entries.map((entry, i) => (
             <div key={entry.id}>
               {i === dividerAt && i > 0 && <div className="my-1 h-px bg-[var(--border)]" />}
@@ -78,6 +78,7 @@ export function SidebarFooterMore({ entries, badge, hints, isDefault, onMove, on
                 }}
                 menuOpen={rowMenu?.entry.id === entry.id}
                 onOpenMenu={(anchor: RowMenuAnchor) => setRowMenu({ entry, ...anchor })}
+                inMenu
               />
             </div>
           ))}

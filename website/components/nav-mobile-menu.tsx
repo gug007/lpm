@@ -2,30 +2,66 @@
 
 import { Menu, X } from "lucide-react";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import {
   AI_AGENTS_PATH,
   AUTOMATIONS_PATH,
   CHANGELOG_PATH,
+  DOCS_PATH,
   FEATURES_PATH,
   MOBILE_PATH,
+  PARALLEL_PATH,
+  VS_BASE_PATH,
+  WORKTREE_AGENTS_PATH,
+  vsPath,
 } from "@/lib/links";
-import { NavLink } from "./nav-link";
+import { NavMobileGet } from "./nav-mobile-get";
+import { NavMobileGroup, type NavMobileGroupSpec } from "./nav-mobile-group";
 
 const PANEL_ID = "nav-mobile-panel";
-const MENU_LINKS = [
+
+type MenuLink = NavMobileGroupSpec["links"][number];
+
+const PRODUCT: MenuLink[] = [
   { href: FEATURES_PATH, label: "Features" },
-  { href: AI_AGENTS_PATH, label: "AI agents" },
-  { href: AUTOMATIONS_PATH, label: "Automations" },
+  { href: DOCS_PATH, label: "Docs" },
   { href: MOBILE_PATH, label: "iPhone app" },
   { href: CHANGELOG_PATH, label: "Changelog" },
 ];
-const linkClass =
-  "inline-flex w-fit items-center min-h-11 text-sm transition-colors duration-200";
 
-export function NavMobileMenu() {
+const GUIDES: MenuLink[] = [
+  { href: AI_AGENTS_PATH, label: "Claude Code and Codex" },
+  { href: PARALLEL_PATH, label: "Run Claude Code in parallel" },
+  { href: AUTOMATIONS_PATH, label: "Schedule agent tasks" },
+  { href: WORKTREE_AGENTS_PATH, label: "Git worktrees for agents" },
+];
+
+const COMPARE: MenuLink[] = [
+  { href: vsPath("tmux"), label: "tmux" },
+  { href: vsPath("iterm2"), label: "iTerm2" },
+  { href: vsPath("pm2"), label: "PM2" },
+  { href: vsPath("cmux"), label: "cmux" },
+  { href: VS_BASE_PATH, label: "All" },
+];
+
+const LINK =
+  "inline-flex w-fit items-center min-h-11 text-[15px] transition-colors duration-200";
+const CHIP =
+  "inline-flex min-h-9 items-center rounded-full border border-gray-200 px-3.5 text-[14px] transition-colors duration-200 dark:border-gray-800";
+
+const GROUPS: NavMobileGroupSpec[] = [
+  { title: "Product", links: PRODUCT, listClassName: "grid grid-cols-2 gap-x-6", linkClassName: LINK },
+  { title: "Guides", links: GUIDES, listClassName: "flex flex-col", linkClassName: LINK },
+  {
+    title: "Compare lpm with",
+    links: COMPARE,
+    listClassName: "mt-1.5 flex flex-wrap gap-2",
+    linkClassName: CHIP,
+  },
+];
+
+export function NavMobileMenu({ github }: { github: ReactNode }) {
   const [open, setOpen] = useState(false);
-  const close = () => setOpen(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const toggleRef = useRef<HTMLButtonElement>(null);
   const pathname = usePathname();
@@ -55,6 +91,12 @@ export function NavMobileMenu() {
     };
   }, [open]);
 
+  // Any link closes the menu, including ones that stay on this page (the
+  // download section, another site) where the path never changes.
+  const closeOnLink = (e: MouseEvent<HTMLDivElement>) => {
+    if ((e.target as Element).closest("a")) setOpen(false);
+  };
+
   return (
     <div ref={containerRef} className="contents">
       <button
@@ -75,13 +117,13 @@ export function NavMobileMenu() {
       {open && (
         <div
           id={PANEL_ID}
-          className="md:hidden absolute top-14 left-0 right-0 border-t border-gray-200/70 dark:border-gray-800/70 bg-white/90 dark:bg-[#111]/90 backdrop-blur-lg px-6 py-2 flex flex-col"
+          onClick={closeOnLink}
+          className="md:hidden absolute top-14 left-0 right-0 max-h-[calc(100dvh-3.5rem)] overflow-y-auto overscroll-contain border-t border-b border-gray-200/70 dark:border-gray-800/70 bg-white dark:bg-[#111] px-6 pb-[env(safe-area-inset-bottom)]"
         >
-          {MENU_LINKS.map(({ href, label }) => (
-            <NavLink key={href} href={href} onClick={close} className={linkClass}>
-              {label}
-            </NavLink>
+          {GROUPS.map((group) => (
+            <NavMobileGroup key={group.title} {...group} />
           ))}
+          <NavMobileGet github={github} />
         </div>
       )}
     </div>

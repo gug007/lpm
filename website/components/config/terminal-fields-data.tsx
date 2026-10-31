@@ -1,5 +1,6 @@
 import { DocLink } from "./doc-link";
 import type { Field } from "./field-table";
+import { docsPath } from "@/lib/docs-pages";
 
 export const terminalFields: Field[] = [
   {
@@ -66,7 +67,7 @@ export const terminalFields: Field[] = [
         package. Relative paths resolve from{" "}
         <code className="font-mono">root</code>; absolute paths are used
         as-is (see{" "}
-        <DocLink href="#path-resolution">Path resolution</DocLink>).
+        <DocLink href={docsPath("path-resolution")}>Path resolution</DocLink>).
       </>
     ),
   },

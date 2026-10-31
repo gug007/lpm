@@ -1,8 +1,9 @@
-import { Columns2, Zap } from "lucide-react";
+import { Columns2 } from "lucide-react";
 import { TerminalLine, type Line } from "@/components/terminal-line";
 import { ClaudeBanner } from "./before-after-claude-banner";
 import { CLAUDE_SESSION, PROMPT_FROM } from "./before-after-session";
 import { ReplicaSidebar } from "./before-after-sidebar";
+import { RUNNING_ZAP, Tab } from "./before-after-tab";
 
 // The same window every lpm user works in, placed on the stage where the pile it
 // replaces lies. Palette and structure are lifted from desktop/frontend/src.
@@ -11,49 +12,6 @@ const TEXT = "text-[#d4d4d4]";
 // The app tints a tab's label with its agent's state: amber, pulsing, while it
 // waits on you.
 const NEEDS_YOU = "sidebar-waiting";
-
-function Tab({
-  children,
-  active,
-  icon,
-  port,
-  tone,
-  compact,
-}: {
-  children: React.ReactNode;
-  active?: boolean;
-  icon: React.ReactNode;
-  port?: string;
-  /** Status tint, on the label only — the app leaves the pill itself neutral. */
-  tone?: string;
-  compact?: boolean;
-}) {
-  return (
-    <div
-      className={`flex shrink-0 items-center gap-[0.45em] rounded-[0.4em] py-[0.15em] ${
-        compact ? "px-[0.5em]" : "px-[0.6em]"
-      } ${active ? "bg-white/[0.1] text-[#d4d4d4]" : "text-[#a0a0a0]"}`}
-    >
-      {icon}
-      <span className={`font-mono text-[0.95em] font-medium ${tone ?? ""}`}>
-        {children}
-      </span>
-      {port && (
-        <span className="font-mono text-[0.9em] tabular-nums text-[#9a9a9a]">
-          {port}
-        </span>
-      )}
-    </div>
-  );
-}
-
-const RUNNING_ZAP = (
-  <Zap
-    className="h-[0.85em] w-[0.85em] shrink-0 text-emerald-400"
-    strokeWidth={2}
-    fill="currentColor"
-  />
-);
 
 function SessionLine({ line }: { line: Line }) {
   return (

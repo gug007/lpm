@@ -1,6 +1,7 @@
 import { DocLink } from "./doc-link";
 import type { Field } from "./field-table";
 import { Strong } from "./strong";
+import { docsPath } from "@/lib/docs-pages";
 
 export const serviceFields: Field[] = [
   {
@@ -29,7 +30,7 @@ export const serviceFields: Field[] = [
         for monorepos where each app lives in its own subfolder like{" "}
         <code className="font-mono">./apps/web</code>. Relative paths resolve
         from <code className="font-mono">root</code>; absolute paths are used
-        as-is. See <DocLink href="#path-resolution">Path resolution</DocLink>{" "}
+        as-is. See <DocLink href={docsPath("path-resolution")}>Path resolution</DocLink>{" "}
         for <code className="font-mono">~</code>{" "}and SSH projects.
       </>
     ),

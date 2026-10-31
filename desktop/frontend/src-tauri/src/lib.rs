@@ -94,6 +94,7 @@ mod gitautopull;
 mod gitignore;
 mod gitlines;
 mod git_mentions;
+mod git_history;
 mod gitorigin;
 mod gitbring;
 mod gitbringapply;
@@ -378,6 +379,7 @@ use gitfollow::{follow_list, follow_pause, follow_resume, follow_stop};
 use gitautopull::{git_auto_pull, git_auto_pull_last, git_auto_pull_undo, set_auto_pull};
 use gitlines::{git_diff_stat, git_file_line_counts};
 use git_mentions::{git_recent_commits, git_show_commit};
+use git_history::{git_commit_file_patch, git_commit_files, git_history};
 use gitorigin::git_origin_status;
 use gitpush::git_push_rebasing;
 use gitresolve::{

@@ -19,7 +19,7 @@ export function GlobalConfigEditor({ machine }: { machine: SettingsMachine }) {
       load={layer.read}
       save={save}
       draftKey={layer.queueKey}
-      docsUrl="https://lpm.cx/config#global-config"
+      docsUrl="https://lpm.cx/docs/global-config"
     />
   );
 }

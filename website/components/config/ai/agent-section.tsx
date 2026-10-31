@@ -1,8 +1,8 @@
 import { MousePointerClick, Sparkles, Wrench } from "lucide-react";
 import { FeatureCard } from "@/components/feature-card";
-import { SectionHeader } from "@/components/section-header";
 import { CONNECT_AGENTS_PATH } from "@/lib/links";
 import { DocLink } from "../doc-link";
+import { Section } from "../section";
 import { AgentTranscript } from "./agent-transcript";
 import { PromptExampleCard } from "./prompt-example-card";
 import { PROMPT_EXAMPLES } from "./prompt-examples-data";
@@ -48,15 +48,11 @@ const STEPS: { title: string; body: React.ReactNode }[] = [
 
 export function AgentSection() {
   return (
-    <section id="with-ai" className="mb-14 scroll-mt-24 sm:mb-16">
-      <SectionHeader
-        eyebrow="With AI agents"
-        title="Configure lpm by asking your agent"
-        description="lpm comes with skills that teach coding agents its config. Say what you want, and the project updates in place — no keys to learn."
-        className="mb-10"
-      />
-
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] lg:items-center">
+    <Section
+      title="Configure lpm by asking your agent"
+      description="lpm comes with skills that teach coding agents its config. Say what you want, and the project updates in place — no keys to learn."
+    >
+      <div className="grid gap-8">
         <ol className="space-y-6">
           {STEPS.map((step, i) => (
             <li key={step.title} className="flex gap-4">
@@ -80,16 +76,16 @@ export function AgentSection() {
         <AgentTranscript />
       </div>
 
-      <h3 className="mt-14 mb-4 text-lg font-semibold">Things you can ask</h3>
-      <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <h2 className="mt-14 mb-4 text-lg font-semibold">Things you can ask</h2>
+      <ul className="grid gap-3 sm:grid-cols-2">
         {PROMPT_EXAMPLES.map((example) => (
           <PromptExampleCard key={example.prompt} {...example} />
         ))}
       </ul>
 
-      <h3 className="mt-14 mb-4 text-lg font-semibold">
+      <h2 className="mt-14 mb-4 text-lg font-semibold">
         AI inside the app, too
-      </h3>
+      </h2>
       <div className="grid gap-3 sm:grid-cols-3">
         <FeatureCard icon={Sparkles} title="Generate a config">
           In a project&rsquo;s config editor, click Generate with AI and pick
@@ -114,6 +110,6 @@ export function AgentSection() {
         </DocLink>
         .
       </p>
-    </section>
+    </Section>
   );
 }

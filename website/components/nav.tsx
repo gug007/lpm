@@ -1,6 +1,11 @@
 import Image from "next/image";
 import Link from "next/link";
-import { AI_AGENTS_PATH, CHANGELOG_PATH, FEATURES_PATH } from "@/lib/links";
+import {
+  AI_AGENTS_PATH,
+  CHANGELOG_PATH,
+  DOCS_PATH,
+  FEATURES_PATH,
+} from "@/lib/links";
 import { DownloadLink } from "./download-link";
 import { GitHubStarButton } from "./github-star-button";
 import { NavLink } from "./nav-link";
@@ -43,7 +48,7 @@ export function Nav() {
           >
             Features
           </NavLink>
-          <NavLink href="/config" className={`inline-flex ${linkClass}`}>
+          <NavLink href={DOCS_PATH} className={`inline-flex ${linkClass}`}>
             Docs
           </NavLink>
           <NavLink
@@ -59,7 +64,7 @@ export function Nav() {
             Download
           </DownloadLink>
           <ThemeToggle />
-          <NavMobileMenu />
+          <NavMobileMenu github={<GitHubStarButton />} />
         </div>
       </div>
     </nav>

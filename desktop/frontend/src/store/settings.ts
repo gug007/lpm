@@ -20,6 +20,7 @@ import type { PeerRowOrder } from "../components/peerRowOrder";
 import { normalizeRecapTheme, type RecapTheme } from "../components/recap/recapCardTheme";
 import { normalizeRecapRows, type RecapRow } from "../components/recap/weeklyRecapModel";
 import type { SideBySideLayout } from "../sideBySide";
+import { normalizeSavedLayouts, type SavedLayoutsConfig } from "../savedLayouts";
 import { normalizeAutoPullMode, type AutoPullMode } from "../autoPull";
 import { isArchiveAfter } from "../archiveAfter";
 import type { NotificationChannelPrefs } from "../notifications/channels";
@@ -58,6 +59,9 @@ export interface Settings {
   errorSound?: string;
   projectOrder?: string[];
   sidebarOrder?: string[];
+  // Projects kept at the top of the sidebar, in their pinned order; ⌘1–⌘9
+  // reach these first.
+  pinnedProjects?: string[];
   peerProjectOrder?: PeerRowOrder;
   terminalTheme?: string;
   terminalFontSize?: number;
@@ -77,6 +81,9 @@ export interface Settings {
   // Which terminal-input tools have a button under the field; the rest are in
   // its More menu. Unset means the default layout.
   composerToolbar?: ComposerToolId[];
+  // Named pane arrangements per project (savedLayouts.ts), and which one opens
+  // by itself.
+  savedLayouts?: SavedLayoutsConfig;
   // Which side of the Files tab holds the folder tree. Unset means the right.
   filesTreeSide?: FilesTreeSide;
   autoGenerateCommitMessage?: boolean;
@@ -195,6 +202,9 @@ function normalize(s: main.Settings): Settings {
     errorSound: s.errorSound || undefined,
     projectOrder: s.projectOrder,
     sidebarOrder: s.sidebarOrder,
+    pinnedProjects: Array.isArray(s.pinnedProjects)
+      ? s.pinnedProjects.filter((name: unknown): name is string => typeof name === "string")
+      : undefined,
     peerProjectOrder: s.peerProjectOrder,
     terminalTheme: s.terminalTheme,
     terminalFontSize: s.terminalFontSize,
@@ -208,6 +218,7 @@ function normalize(s: main.Settings): Settings {
     sidebarNavInSidebar: normalizeSidebarNav(s.sidebarNavInSidebar),
     paneToolbar: normalizePaneToolbar(s.paneToolbar),
     composerToolbar: normalizeComposerToolbar(s.composerToolbar),
+    savedLayouts: normalizeSavedLayouts(s.savedLayouts),
     filesTreeSide: s.filesTreeSide === "left" || s.filesTreeSide === "right" ? s.filesTreeSide : undefined,
     autoGenerateCommitMessage: s.autoGenerateCommitMessage,
     autoGeneratePRDescription: s.autoGeneratePRDescription,

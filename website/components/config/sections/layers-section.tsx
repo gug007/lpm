@@ -1,4 +1,4 @@
-import { REPO_EXAMPLE, REPO_OVERRIDE_EXAMPLE } from "@/app/config/examples";
+import { REPO_EXAMPLE, REPO_OVERRIDE_EXAMPLE } from "../examples";
 import { Callout } from "../callout";
 import { CodeBlock } from "../code-block";
 import { DocLink } from "../doc-link";
@@ -6,11 +6,11 @@ import { CONFIG_LAYERS } from "../layers-data";
 import { Lede } from "../lede";
 import { Section } from "../section";
 import { Strong } from "../strong";
+import { docsPath } from "@/lib/docs-pages";
 
 export function LayersSection() {
   return (
     <Section
-      id="layers"
       title="Config layers"
       description={
         <>
@@ -89,7 +89,7 @@ export function LayersSection() {
           <code className="font-mono">.lpm.yml</code>. A duplicate also inherits
           from the project it was copied from, which sits between your file and
           the repo layer. Each layer can also pull in{" "}
-          <DocLink href="#templates">templates</DocLink>, which sit just below
+          <DocLink href={docsPath("templates")}>templates</DocLink>, which sit just below
           the file that names them.
         </p>
       </Callout>

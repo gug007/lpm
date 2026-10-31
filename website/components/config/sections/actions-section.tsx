@@ -6,7 +6,7 @@ import {
   ACTIONS_NESTED_EXAMPLE,
   ACTIONS_PRIMARY_EXAMPLE,
   ACTIONS_SHORTHAND_EXAMPLE,
-} from "@/app/config/examples";
+} from "../examples";
 import { YouTubeVideo } from "@/components/youtube-video";
 import { actionFields } from "../action-fields-data";
 import { moreActionFields } from "../more-action-fields-data";
@@ -22,7 +22,6 @@ const FILE = "~/.lpm/projects/myapp.yml";
 export function ActionsSection() {
   return (
     <Section
-      id="actions"
       title="Actions"
       description={
         <>

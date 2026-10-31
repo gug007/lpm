@@ -58,6 +58,7 @@ function render(history: PersistedHistoryEntry[] = [], handlers: Handlers = {}) 
         onRunAction={handlers.onRunAction ?? (() => {})}
         onResumeRow={() => {}}
         onResumeSession={() => {}}
+        onOpenLayout={() => {}}
         newTabAsked={false}
         onNewTabHandled={() => {}}
       />,

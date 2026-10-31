@@ -4,7 +4,7 @@ import { ArrowRight } from "lucide-react";
 import { HeroDownload } from "@/components/home/hero-download";
 import {
   AI_AGENTS_PATH,
-  CONFIG_PATH,
+  DOCS_PATH,
   FEATURES_PATH,
   MOBILE_PATH,
 } from "@/lib/links";
@@ -18,7 +18,7 @@ const LINKS = [
   { href: "/", label: "Home" },
   { href: FEATURES_PATH, label: "Everything lpm does" },
   { href: AI_AGENTS_PATH, label: "lpm for Claude Code & Codex" },
-  { href: CONFIG_PATH, label: "Docs and config reference" },
+  { href: DOCS_PATH, label: "Docs and config reference" },
   { href: MOBILE_PATH, label: "The iPhone companion" },
 ];
 

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import {
   FlaskConical,
   LockKeyhole,
@@ -7,13 +8,13 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { getLatestReleaseVerification } from "@/lib/release-verification";
-import { PRIVACY_PATH, RELEASES_URL } from "@/lib/links";
+import { PRIVACY_PATH, RELEASES_URL, SECURITY_PATH } from "@/lib/links";
+import { RemoveLpm } from "@/components/remove-lpm";
 import { ReleaseChecksums } from "./release-checksums";
 import { SafetyDisclosure } from "./safety-disclosure";
 
 const LINK =
   "font-medium underline decoration-gray-300 underline-offset-4 hover:text-gray-900 dark:decoration-gray-600 dark:hover:text-white";
-const CODE = "font-mono";
 
 type SafetyItem = {
   icon: LucideIcon;
@@ -82,7 +83,10 @@ export async function DownloadSafety() {
         </h3>
         <p className="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
           Open source, shipped from public GitHub releases. The Mac builds are
-          signed under Developer ID N7S7ZCZ5P7.
+          signed under Developer ID N7S7ZCZ5P7.{" "}
+          <Link href={SECURITY_PATH} className={LINK}>
+            Security details
+          </Link>
         </p>
         <ul className="mt-5 grid gap-x-8 gap-y-3 sm:grid-cols-2">
           {items.map(({ icon: Icon, title, body }) => (
@@ -115,25 +119,7 @@ export async function DownloadSafety() {
       )}
 
       <SafetyDisclosure title="How to remove lpm">
-        <p>
-          Choose Remove app in lpm&apos;s settings: it stops your projects and
-          removes the <code className={CODE}>lpm</code>{" "}command, its agent
-          skills, its Claude Code and Codex hooks and its Claude Code status
-          line. On macOS it also moves the app to the Trash and can erase
-          settings, project config and notes. On Windows, finish in Settings →
-          Apps → Installed apps; on Linux, remove the package or delete the
-          AppImage. Both keep your settings in{" "}
-          <code className={CODE}>~/.lpm</code>.
-        </p>
-        <p className="mt-2">
-          By hand on macOS: quit lpm, trash <code className={CODE}>lpm.app</code>,
-          delete <code className={CODE}>/usr/local/bin/lpm</code>{" "}and{" "}
-          <code className={CODE}>~/.lpm</code>, then remove the lpm hooks in{" "}
-          <code className={CODE}>~/.claude</code>{" "}and{" "}
-          <code className={CODE}>~/.codex</code>{" "}and the lpm skills in{" "}
-          <code className={CODE}>~/.claude/skills</code>{" "}and{" "}
-          <code className={CODE}>~/.agents/skills</code>.
-        </p>
+        <RemoveLpm />
       </SafetyDisclosure>
     </div>
   );

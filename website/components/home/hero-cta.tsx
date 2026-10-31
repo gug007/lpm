@@ -62,9 +62,9 @@ export function HeroCta({
   appStoreSource?: AppStoreSource;
 }) {
   const platform = usePlatform();
-  const { release, downloads } = useRelease();
+  const { release } = useRelease();
   const onMobile = isMobilePlatform(platform);
-  const trust = <HeroTrustLine os={null} downloads={downloads} />;
+  const trust = <HeroTrustLine os={null} />;
 
   if (onMobile && appStoreSource) {
     return (
@@ -105,7 +105,7 @@ export function HeroCta({
         {secondary ?? <TourLink />}
       </div>
       <HeroPlatforms primary={primary} />
-      <HeroTrustLine os={primary.os} downloads={downloads} />
+      <HeroTrustLine os={primary.os} />
     </div>
   );
 }

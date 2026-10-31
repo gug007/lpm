@@ -35,6 +35,7 @@ import { ProjectSwitcher } from "./components/ProjectSwitcher";
 import { useIsFullscreen } from "./hooks/useIsFullscreen";
 import { useKeyboardShortcut } from "./hooks/useKeyboardShortcut";
 import { PROJECT_JUMP_SHORTCUTS } from "./projectJumpShortcuts";
+import { jumpTargets, shownPins } from "./pinnedProjects";
 import { useProjectSwitcher } from "./hooks/useProjectSwitcher";
 import { useProjectsSync } from "./hooks/useProjectsSync";
 import { useGlobalAgentStatusSync } from "./hooks/useGlobalTerminalStatus";
@@ -209,12 +210,12 @@ export default function App() {
     setSidebarCollapsed((v) => !v);
   }, !settingsShown);
 
-  useKeyboardShortcut(PROJECT_JUMP_SHORTCUTS, (_e, matched) => {
-    const project = projects[Number(matched.key) - 1];
-    if (project) void handleSelect(project.name);
-  });
-
   const projectNames = useMemo(() => projects.map((p) => p.name), [projects]);
+  useKeyboardShortcut(PROJECT_JUMP_SHORTCUTS, (_e, matched) => {
+    const pins = shownPins(useSettingsStore.getState().pinnedProjects, new Set(projectNames));
+    const name = jumpTargets(pins, projectNames)[Number(matched.key) - 1];
+    if (name) void handleSelect(name);
+  });
   const switcher = useProjectSwitcher({
     projectNames,
     mru: mruProjects,

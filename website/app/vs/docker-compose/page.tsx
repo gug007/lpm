@@ -14,7 +14,7 @@ import type { VerdictCard } from "@/components/vs/verdict-cards";
 import { WhenToPick } from "@/components/vs/when-to-pick";
 import {
   AI_AGENTS_PATH,
-  CONFIG_PATH,
+  DOCS_PATH,
   LINUX_HOST_PATH,
   PROJECT_SIDEBAR_PATH,
   VS_BASE_PATH,
@@ -280,7 +280,7 @@ export default function LpmVsDockerComposePage() {
           <code className={`${CODE} whitespace-nowrap`}>-d</code>{" "}
           — if you want the container output in an lpm pane. The config reference
           documents{" "}
-          <Link href={CONFIG_PATH} className={LINK}>
+          <Link href={DOCS_PATH} className={LINK}>
             every field
           </Link>
           .
@@ -343,7 +343,7 @@ export default function LpmVsDockerComposePage() {
       <RelatedPages
         links={[
           {
-            href: CONFIG_PATH,
+            href: DOCS_PATH,
             title: "The config file, field by field",
             description:
               "What port, portConflict, env, dependsOn and profiles each do inside a project file.",

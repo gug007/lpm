@@ -4,7 +4,7 @@ import Script from "next/script";
 import "./globals.css";
 import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
-import { DownloadStarNote } from "@/components/download-star-note";
+import { DownloadInstallNote } from "@/components/download-install-note";
 import { ReleaseProvider } from "@/components/release-context";
 import { getReleaseInfo } from "@/lib/release-info";
 import {
@@ -203,7 +203,7 @@ export default async function RootLayout({
           </main>
           <Footer />
         </ReleaseProvider>
-        <DownloadStarNote />
+        <DownloadInstallNote />
         {/* /join holds a shared tab's invite in its address, so nobody else's
             script runs there. */}
         <Script id="ga-init" strategy="afterInteractive">

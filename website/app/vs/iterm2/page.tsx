@@ -13,7 +13,7 @@ import { SectionVideo } from "@/components/vs/section-video";
 import type { VerdictCard } from "@/components/vs/verdict-cards";
 import { WhenToPick } from "@/components/vs/when-to-pick";
 import {
-  CONFIG_PATH,
+  DOCS_PATH,
   MOBILE_PATH,
   PROJECT_SIDEBAR_PATH,
   REPO_URL,
@@ -275,7 +275,7 @@ export default function LpmVsIterm2Page() {
           equivalent object — its profiles set the shell and the appearance, not
           which services a project runs.{" "}
           <Link
-            href={CONFIG_PATH}
+            href={DOCS_PATH}
             className="underline underline-offset-2 hover:text-gray-900 dark:hover:text-white"
           >
             Every field
@@ -357,7 +357,7 @@ export default function LpmVsIterm2Page() {
               "How many checkouts you can run at once, and what each one quietly leaves behind.",
           },
           {
-            href: CONFIG_PATH,
+            href: DOCS_PATH,
             title: "Project config reference",
             description:
               "Every key a project file takes: services, dependsOn, profiles, actions, and declared ports.",

@@ -1,21 +1,16 @@
+import { StateGlyph } from "./StateGlyph";
+
 export type DotKind = "project" | "copy" | "worktree";
 
-const DOT_CLASS = "inline-block h-2 w-2 shrink-0 rounded-full";
 const MUTED = "var(--text-muted)";
-
-function toneClass(running: boolean, crashed: boolean): string {
-  if (crashed) return "bg-[var(--accent-red)]";
-  return running
-    ? "bg-[var(--accent-green)]"
-    : "border border-[var(--text-muted)] bg-[var(--bg-primary)]";
-}
 
 export function dotKind(project: { parentName?: string; worktree?: boolean }): DotKind {
   if (!project.parentName) return "project";
   return project.worktree ? "worktree" : "copy";
 }
 
-/** The row's status light: filled for running, a ring for stopped.
+/** The row's status light: filled for running, a ring for stopped, a cross
+ *  once a service crashed (see StateGlyph).
  *
  *  `kind` says what the row is, without spending the fill — which is already
  *  taken by running vs stopped:
@@ -29,8 +24,8 @@ export function dotKind(project: { parentName?: string; worktree?: boolean }): D
  *  straight line down the sidebar and no name moves. Neither mark carries state
  *  of its own: the twin tints with the dot because it stands for another
  *  instance, and the branch stays muted because it stands for the link. */
-/** `crashed` names the services that crashed; it turns the dot red and is its
- *  tooltip. */
+/** `crashed` names the services that crashed; it turns the dot into a red
+ *  cross and is its tooltip. */
 export function StatusDot({
   running,
   kind = "project",
@@ -40,9 +35,9 @@ export function StatusDot({
   kind?: DotKind;
   crashed?: string | null;
 }) {
-  const tone = toneClass(running, !!crashed);
-  const title = crashed ?? undefined;
-  if (kind === "project") return <span className={`${DOT_CLASS} ${tone}`} title={title} />;
+  const state = crashed ? "crashed" : running ? "running" : "stopped";
+  const title = crashed ? `Crashed: ${crashed}` : undefined;
+  if (kind === "project") return <StateGlyph state={state} title={title} />;
 
   return (
     <span className="relative inline-flex h-2 w-2 shrink-0">
@@ -73,7 +68,7 @@ export function StatusDot({
           <circle cx="1.6" cy="1.4" r="1.4" fill={MUTED} opacity="0.6" />
         </svg>
       )}
-      <span className={`relative ${DOT_CLASS} ${tone}`} title={title} />
+      <StateGlyph state={state} title={title} className="relative" />
     </span>
   );
 }

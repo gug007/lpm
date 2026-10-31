@@ -14,7 +14,7 @@ import type { VerdictCard } from "@/components/vs/verdict-cards";
 import { WhenToPick } from "@/components/vs/when-to-pick";
 import {
   AI_AGENTS_PATH,
-  CONFIG_PATH,
+  DOCS_PATH,
   LINUX_HOST_PATH,
   VS_BASE_PATH,
   WORKTREE_AGENTS_PATH,
@@ -285,7 +285,7 @@ export default function LpmVsForemanPage() {
               "When the services in your stack are images rather than Procfile lines, and what you give up either way.",
           },
           {
-            href: CONFIG_PATH,
+            href: DOCS_PATH,
             title: "Every field in the config",
             description:
               "services, port, env, dependsOn, profiles and actions — the reference for the file you just converted into.",

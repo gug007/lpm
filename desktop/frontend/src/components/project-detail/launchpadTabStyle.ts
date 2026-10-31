@@ -9,3 +9,6 @@ export const LAUNCHPAD_TAB_HOVER = "hover:bg-[var(--bg-hover)] hover:text-[var(-
 export function launchpadTabTone(checked: boolean): string {
   return checked ? "bg-[var(--composer-active-bg)] text-[var(--text-primary)]" : "text-[var(--text-secondary)]";
 }
+
+// A heading over one of the launchpad's lists.
+export const LAUNCHPAD_CAPTION = "text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]";

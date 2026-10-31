@@ -1,4 +1,4 @@
-import { EXTENDS_EXAMPLE, TEMPLATE_EXAMPLE } from "@/app/config/template-examples";
+import { EXTENDS_EXAMPLE, TEMPLATE_EXAMPLE } from "../template-examples";
 import { Callout } from "../callout";
 import { CodeBlock } from "../code-block";
 import { Lede } from "../lede";
@@ -7,7 +7,6 @@ import { Section } from "../section";
 export function TemplatesSection() {
   return (
     <Section
-      id="templates"
       title="Templates"
       description={
         <>

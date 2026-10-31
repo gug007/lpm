@@ -5,7 +5,7 @@ import { SectionHeader } from "@/components/section-header";
 import {
   AI_AGENTS_PATH,
   BEST_TERMINAL_MAC_PATH,
-  CONFIG_PATH,
+  DOCS_PATH,
   SSH_TERMINAL_MAC_PATH,
   vsPath,
   type VsSlug,
@@ -135,7 +135,7 @@ const GROUPS: Group[] = [
             production parity matters, the team needs one identical stack on
             every OS, or a dependency nobody wants to install natively. Add the
             folder and lpm already lists <code>docker compose up</code>{" "}
-            <Link href={CONFIG_PATH} className={LINK}>
+            <Link href={DOCS_PATH} className={LINK}>
               as one of its services
             </Link>
             , beside any native ones it found.

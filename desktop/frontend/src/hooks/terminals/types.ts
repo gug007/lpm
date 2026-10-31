@@ -3,6 +3,7 @@ import { type AdoptedTabOpts, type PaneNode, type PaneLeaf, type SplitDirection 
 import { type PersistedHistoryEntry } from "../../terminals";
 import { type TerminalMemoryRef } from "../../terminalMemory";
 import type { ModelPick } from "../../agentModelSwitch";
+import type { SavedLayoutNode } from "../../savedLayouts";
 
 export interface TerminalStartOpts {
   configName?: string;
@@ -86,6 +87,10 @@ export interface UseTerminalsResult {
   remoteReorderTerminals: (order: string[]) => void;
   moveTerminal: (fromPaneId: string, termId: string, toPaneId: string, toIdx?: number) => void;
   splitPane: (paneId: string, direction: SplitDirection) => Promise<void>;
+  // Opens a saved layout's panes; what is already open moves into its first.
+  applyLayout: (root: SavedLayoutNode) => Promise<void>;
+  // The panes on screen as a layout to save; null with nothing open.
+  captureLayout: () => SavedLayoutNode | null;
   closePane: (paneId: string) => void;
   setRatio: (path: number[], ratio: number) => void;
   focusPane: (paneId: string) => void;

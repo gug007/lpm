@@ -1,5 +1,6 @@
 import { DocLink } from "./doc-link";
 import type { Field } from "./field-table";
+import { docsPath } from "@/lib/docs-pages";
 
 const C = "font-mono";
 
@@ -82,7 +83,7 @@ export const moreActionFields: Field[] = [
     description: (
       <>
         Order among the buttons of its bar, or inside its{" "}
-        <DocLink href="#zones">zone</DocLink>. Lower comes first.
+        <DocLink href={docsPath("zones")}>zone</DocLink>. Lower comes first.
       </>
     ),
   },

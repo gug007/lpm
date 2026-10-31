@@ -11,7 +11,7 @@ import { SectionVideo } from "@/components/vs/section-video";
 import {
   AI_AGENTS_PATH,
   BEST_TERMINAL_MAC_PATH,
-  CONFIG_PATH,
+  DOCS_PATH,
   LINUX_HOST_PATH,
   SSH_TERMINAL_MAC_PATH,
   VS_BASE_PATH,
@@ -202,7 +202,7 @@ export default function ComparisonsHubPage() {
           The shapes barely differ — a name and a command. What differs is what
           happens after they are running. For the lpm side of it, see{" "}
           <Link
-            href={CONFIG_PATH}
+            href={DOCS_PATH}
             className="underline underline-offset-2 hover:text-gray-900 dark:hover:text-white"
           >
             the full field list
@@ -295,7 +295,7 @@ export default function ComparisonsHubPage() {
               "Reach a machine over SSH and keep it in the sidebar beside your local projects.",
           },
           {
-            href: CONFIG_PATH,
+            href: DOCS_PATH,
             title: "Configuration reference",
             description:
               "Every key a service, profile or action accepts, and which file each one belongs in.",

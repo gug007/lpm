@@ -1,8 +1,10 @@
 import type { MetadataRoute } from "next";
 import { getChangelogReleases } from "@/lib/changelog";
 import { changelogDays, daysByMonth, monthPath } from "@/lib/changelog-days";
+import { DOCS_PAGES, docsPath } from "@/lib/docs-pages";
 import {
   CHANGELOG_PATH,
+  DOCS_PATH,
   PRIVACY_PATH,
   SITE_URL,
   STATS_PATH,
@@ -33,8 +35,12 @@ const settingsFor = (path: string): Pick<Entry, "changeFrequency" | "priority"> 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Releases change the changelog without touching the repo.
   const releases = await getChangelogReleases();
+  const docsDates = Object.fromEntries(
+    DOCS_PAGES.map(({ slug }) => [docsPath(slug), sitemapDates[DOCS_PATH]]),
+  );
   const dates: Record<string, string> = {
     ...sitemapDates,
+    ...docsDates,
     [CHANGELOG_PATH]: releases[0].date,
   };
   const months: Entry[] = [...daysByMonth(changelogDays(releases))].map(

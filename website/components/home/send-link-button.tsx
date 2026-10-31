@@ -37,6 +37,7 @@ const VARIANT = {
     "min-h-11 border border-gray-300 bg-white px-4 text-sm font-medium text-gray-800 hover:border-gray-400 hover:text-gray-900 dark:border-gray-700 dark:bg-transparent dark:text-gray-200 dark:hover:border-gray-500 dark:hover:text-white",
   primary:
     "min-h-14 w-full max-w-xs justify-center gap-2.5 bg-gray-900 px-6 text-[17px] font-semibold text-white shadow-sm hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100",
+  menu: "min-h-11 w-full justify-center bg-gray-900 px-5 text-[15px] font-semibold text-white hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100",
 };
 
 export function SendLinkFailed() {

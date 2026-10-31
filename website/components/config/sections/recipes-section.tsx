@@ -4,7 +4,7 @@ import {
   RECIPE_MONOREPO,
   RECIPE_NEXT_NODE,
   RECIPE_TESTS,
-} from "@/app/config/examples";
+} from "../examples";
 import { Callout } from "../callout";
 import { Lede } from "../lede";
 import { ConfigPlayground } from "../playground";
@@ -14,12 +14,11 @@ import { Strong } from "../strong";
 export function RecipesSection() {
   return (
     <Section
-      id="recipes"
       title="Recipes"
       description={
         <>
-          Full working configs you can copy and adapt. The sections above each
-          show <Strong>one concept in isolation</Strong>; the recipes here
+          Full working configs you can copy and adapt. The reference pages
+          each show <Strong>one concept in isolation</Strong>; the recipes here
           stitch services and actions together into configs that mirror how a
           real project looks on day one. Find the one closest to your stack,
           paste it into a new project, and tweak from there.
@@ -85,9 +84,8 @@ export function RecipesSection() {
           Copy the one closest to your stack, change{" "}
           <code className="font-mono">name</code>{" "}and{" "}
           <code className="font-mono">root</code>{" "}to match your project, then
-          swap in your own commands. If a piece looks unfamiliar, jump back to
-          the matching section above and tinker with its playground — your
-          edits stay live until you reload.
+          swap in your own commands. If a piece looks unfamiliar, open its
+          reference page in the sidebar and tinker with the playground there.
         </p>
       </Callout>
     </Section>

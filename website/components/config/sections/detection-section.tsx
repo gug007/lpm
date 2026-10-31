@@ -1,15 +1,15 @@
-import { DETECTED_EXAMPLE } from "@/app/config/examples";
+import { DETECTED_EXAMPLE } from "../examples";
 import { Callout } from "../callout";
 import { CodeBlock } from "../code-block";
 import { DetectionTable } from "../detection-table";
 import { DocLink } from "../doc-link";
 import { Lede } from "../lede";
 import { Section } from "../section";
+import { docsPath } from "@/lib/docs-pages";
 
 export function DetectionSection() {
   return (
     <Section
-      id="detection"
       title="Automatic service detection"
       description={
         <>
@@ -79,7 +79,7 @@ export function DetectionSection() {
           lpm writes one placeholder service,{" "}
           <code className="font-mono">dev: echo &apos;configure me&apos;</code>,
           for you to replace — or let an agent draft the whole file with{" "}
-          <DocLink href="#editor">Generate with AI</DocLink>. SSH projects are
+          <DocLink href={docsPath("editor")}>Generate with AI</DocLink>. SSH projects are
           never scanned: a new one gets a{" "}
           <code className="font-mono">shell</code>{" "}service that opens a login
           shell on the host. Adding a folder that&rsquo;s already a project

@@ -13,8 +13,8 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy, type SortingStrategy } from "@dnd-kit/sortable";
-import { StatusDot, dotKind } from "./StatusDot";
-import { crashSummary, projectUp } from "../serviceExit";
+import { ProjectStatusLight } from "./ProjectStatusLight";
+import { RowMenuButton } from "./RowMenuButton";
 import { getSettings, saveSettings, useSettingsStore } from "../store/settings";
 import { useAppStore } from "../store/app";
 import { useTabShares } from "../store/tabShares";
@@ -41,13 +41,13 @@ import { ChevronRightIcon } from "./icons";
 import { SidebarDeckRun } from "./SidebarDeckRun";
 import { SidebarDeckPullRow } from "./SidebarDeckPullRow";
 import { SidebarDuplicateSkeletonRow } from "./SidebarDuplicateSkeletonRow";
-import { ROW_BASE_CLASS, ROW_INDENT_CLASS, ROW_TWO_LINE_CLASS, rowTrailing } from "./sidebarRowClass";
+import { DONE_STYLE, ROW_BASE_CLASS, ROW_INDENT_CLASS, ROW_TWO_LINE_CLASS, rowTrailing } from "./sidebarRowClass";
 import { peerSectionRows, visiblePeerRowNames, type PeerRowItem } from "./peerSectionRows";
 import { deckKindLabel, deckLabel, deckRunDomId } from "./sidebarDeck";
 import { SidebarAgentRows } from "./SidebarAgentRows";
 import { SidebarAgentSummary } from "./SidebarAgentSummary";
 import { SidebarRollupLine } from "./SidebarRollupLine";
-import { SidebarIcon, MoreVerticalIcon, PlusIcon, ServerIcon } from "./icons";
+import { SidebarIcon, PlusIcon, ServerIcon } from "./icons";
 import { SidebarWindowMark } from "./SidebarWindowMark";
 import { focusDetachedTerminal, focusMainTerminal, projectWindow } from "../windowFocus";
 import { SidebarFooterNav } from "./SidebarFooterNav";
@@ -152,6 +152,8 @@ import { isPeerName, peerRawName, peerSlugOf, stripMarker } from "../peer/marker
 import { peerAlias, usePeerState } from "../peer/usePeerState";
 import { useMacUpdateWatch } from "../peer/useMacUpdateWatch";
 import { SidebarSendLaterMark } from "./SidebarSendLaterMark";
+import { SidebarPinned } from "./SidebarPinned";
+import { reorderPinned, togglePinned, usePinnedProjects } from "../hooks/usePinnedProjects";
 import { openReleasePage, UPDATES_INSTALL_IN_APP } from "../releasePage";
 import { checkForUpdate, noteUpdateCheck, useUpdateCheck } from "../store/updateCheck";
 
@@ -163,7 +165,6 @@ const ROW_HALF = "18px";
 const ROW_TWO_LINE_HALF = "14px";
 const MUTED_STYLE = { color: "var(--text-muted)" } as const;
 const EMPTY_FOLDER_CLASS = `mb-0.5 rounded-md px-3 py-1.5 text-[11px] italic text-[var(--text-muted)] ${ROW_INDENT_CLASS}`;
-const DONE_STYLE = { color: "var(--accent-blue)" } as const;
 // Select mode deals every deck out, a paired Mac's as well as this one's.
 const NO_DECKS: ReadonlySet<string> = new Set();
 
@@ -462,6 +463,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   // only local projects since it drives the reorderable tree; context-menu-driven
   // modals (rename / remove / duplicate) must resolve a peer row's target too.
   const allByName = useMemo(() => new Map(projects.map((p) => [p.name, p])), [projects]);
+  const pinned = usePinnedProjects(allByName);
 
   // The clamp inside `projectAgentRows` only reads `now` against timestamps that
   // change with `projects`, so pinning it to this memo costs nothing.
@@ -1193,14 +1195,8 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
                   <span className="text-[var(--text-muted)]">
                     <SpinnerIcon />
                   </span>
-                ) : project.configError ? (
-                  <span className="h-2 w-2 rounded-full bg-[var(--accent-red)]" title={`Config error: ${project.configError}`} />
                 ) : (
-                  <StatusDot
-                    running={projectUp(project)}
-                    crashed={crashSummary(project)}
-                    kind={dotKind(project)}
-                  />
+                  <ProjectStatusLight project={project} />
                 )}
               </span>
             )}
@@ -1265,25 +1261,12 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             />
           )}
           {!selecting && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                // useOutsideClick's mousedown already closed the menu — skip the reopen so the second click toggles off.
-                if (isContextTarget) return;
-                const rect = e.currentTarget.getBoundingClientRect();
-                setContextMenu({ name: project.name, x: rect.left, y: rect.bottom + 4 });
-              }}
-              onPointerDown={(e) => e.stopPropagation()}
-              className={`absolute right-1.5 ${controlTop} flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-[var(--text-muted)] transition-opacity hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] ${
-                isContextTarget
-                  ? "opacity-100"
-                  : "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100"
-              }`}
-              title="More options"
-              aria-label={`More options for ${displayName}`}
-            >
-              <MoreVerticalIcon />
-            </button>
+            <RowMenuButton
+              open={isContextTarget}
+              label={displayName}
+              placement={controlTop}
+              onOpen={(x, y) => setContextMenu({ name: project.name, x, y })}
+            />
           )}
         </div>
         {isExpanded && (
@@ -1719,6 +1702,19 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           </button>
         </div>
       </div>
+      {!selectMode && pinned.length > 0 && (
+        <SidebarPinned
+          projects={pinned}
+          byName={allByName}
+          agentsByProject={agentsByProject}
+          selected={selected}
+          menuFor={contextMenu?.name ?? null}
+          width={width}
+          onSelect={onSelect}
+          onOpenMenu={(name, x, y) => setContextMenu({ name, x, y })}
+          onReorder={reorderPinned}
+        />
+      )}
       <div className="flex items-center justify-between px-4 pb-2" style={{ minWidth: width }}>
         <h2 className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">
           Projects
@@ -1835,6 +1831,8 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
                 ? ((contextHostFolders && groupOf(contextHostFolders, contextMenu.name)?.id) ?? null)
                 : (memberOf.get(contextMenu.name) ?? null)
             }
+            pinned={pinned.some((p) => p.name === contextMenu.name)}
+            onTogglePin={(pin) => togglePinned(contextMenu.name, pin)}
             onRename={() => setRenamingName(contextMenu.name)}
             renameShortcut={renameShortcut}
             deleteShortcut={deleteShortcut}
@@ -1880,6 +1878,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             onGitCommit={() => openGitModal("commit")}
             onGitCreatePR={() => openGitModal("pr")}
             onGitSwitchBranch={() => openGitModal("switch")}
+            onGitHistory={() => openGitModal("history")}
             onGitDiscardAll={() => openGitModal("discard")}
             onMoveToGroup={(groupId) =>
               contextSlug

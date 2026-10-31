@@ -81,6 +81,12 @@ export const DOWNLOAD_ENTRIES: Record<DownloadPlatform, DownloadEntry> = {
   ),
 };
 
+export function entryForFilename(filename: string): DownloadEntry | undefined {
+  return Object.values(DOWNLOAD_ENTRIES).find(
+    (entry) => entry.filename === filename,
+  );
+}
+
 export const DOWNLOAD_OS_ORDER: DesktopOs[] = ["macos", "windows", "linux"];
 
 export const OS_NAMES: Record<DesktopOs, string> = {
@@ -155,3 +161,17 @@ export function formatReleaseDate(value: string | null): string | null {
 }
 
 export const GIT_FOR_WINDOWS_URL = "https://git-scm.com/downloads/win";
+
+export const CHECKSUM_COMMANDS: {
+  os: DesktopOs;
+  label: string;
+  command: string;
+}[] = [
+  { os: "macos", label: "macOS", command: "shasum -a 256 <file>" },
+  {
+    os: "windows",
+    label: "Windows (PowerShell)",
+    command: "Get-FileHash <file> -Algorithm SHA256",
+  },
+  { os: "linux", label: "Linux", command: "sha256sum <file>" },
+];

@@ -12,7 +12,7 @@ import type { VerdictCard } from "@/components/vs/verdict-cards";
 import { WhenToPick } from "@/components/vs/when-to-pick";
 import {
   AI_AGENTS_PATH,
-  CONFIG_PATH,
+  DOCS_PATH,
   PROJECT_SIDEBAR_PATH,
   SSH_TERMINAL_MAC_PATH,
   VS_BASE_PATH,
@@ -282,7 +282,7 @@ export default function VsTmuxPage() {
               "Every repo you work in, in folders, in the order you left them.",
           },
           {
-            href: CONFIG_PATH,
+            href: DOCS_PATH,
             title: "The config reference",
             description:
               "What a project file takes: services, dependsOn, profiles, declared ports, actions.",

@@ -130,6 +130,7 @@ export function TerminalPane({
           onNewTerminal={onNewTerminal}
           onRunCommand={(command) => terminalRef.current?.runCommand(command)}
           onOpenAgent={(launch) => terminalRef.current?.openAgent(launch)}
+          onOpenLayout={(root) => terminalRef.current?.openLayout(root)}
           onRunAction={onRunAction}
           onResumeSession={onResumeSession}
           newTabAsked={newTabAsked}

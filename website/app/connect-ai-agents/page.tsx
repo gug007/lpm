@@ -3,8 +3,8 @@ import { RelatedPages } from "@/components/related-pages";
 import {
   AI_AGENTS_PATH,
   AUTOMATIONS_PATH,
-  CONFIG_PATH,
   CONNECT_AGENTS_PATH,
+  DOCS_PATH,
   LINUX_HOST_PATH,
   PARALLEL_PATH,
   SKILLS_PATH,
@@ -132,7 +132,7 @@ export default function ConnectAiAgentsPage() {
               "Put agent prompts on a timer, working in place or in a separate copy you review afterwards.",
           },
           {
-            href: CONFIG_PATH,
+            href: DOCS_PATH,
             title: "Configuration reference",
             description:
               "Every project config field agents can write: services, actions, terminals, and profiles.",

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { BookOpen, MessagesSquare } from "lucide-react";
 import { TelegramIcon } from "@/components/telegram-icon";
-import { CONFIG_PATH, DISCUSSIONS_URL, TELEGRAM_URL } from "@/lib/links";
+import { DISCUSSIONS_URL, DOCS_PATH, TELEGRAM_URL } from "@/lib/links";
 
 const BUTTON =
   "inline-flex min-h-10 items-center gap-2 rounded-full px-4 text-sm font-medium transition-colors";
@@ -39,7 +39,7 @@ export function FaqAsk() {
           <MessagesSquare className="h-4 w-4" aria-hidden="true" />
           GitHub Discussions
         </a>
-        <Link href={CONFIG_PATH} className={OUTLINE}>
+        <Link href={DOCS_PATH} className={OUTLINE}>
           <BookOpen className="h-4 w-4" aria-hidden="true" />
           Docs
         </Link>

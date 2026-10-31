@@ -1,4 +1,6 @@
-import { ArrowDown, FileCode2, Sparkles, type LucideIcon } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, FileCode2, Sparkles, type LucideIcon } from "lucide-react";
+import { docsPath } from "@/lib/docs-pages";
 
 type Path = {
   href: string;
@@ -11,7 +13,7 @@ type Path = {
 
 const PATHS: Path[] = [
   {
-    href: "#with-ai",
+    href: docsPath("ask-your-agent"),
     icon: Sparkles,
     title: "Ask your AI agent",
     body: "Tell Claude Code, Codex, Gemini CLI, or OpenCode what you want in plain words. It writes the change, and lpm checks it before the project updates.",
@@ -19,7 +21,7 @@ const PATHS: Path[] = [
     recommended: true,
   },
   {
-    href: "#reference",
+    href: docsPath("project"),
     icon: FileCode2,
     title: "Edit it yourself",
     body: "Every key with a live preview, copy-ready recipes, and the form and source editors built into the app.",
@@ -29,9 +31,9 @@ const PATHS: Path[] = [
 
 export function ConfigPaths() {
   return (
-    <div className="mx-auto mb-20 grid max-w-3xl gap-4 sm:mb-24 sm:grid-cols-2">
+    <div className="grid gap-4 sm:grid-cols-2">
       {PATHS.map(({ href, icon: Icon, title, body, link, recommended }) => (
-        <a
+        <Link
           key={href}
           href={href}
           className={`group flex flex-col rounded-2xl border p-5 transition-colors duration-200 sm:p-6 ${
@@ -58,12 +60,12 @@ export function ConfigPaths() {
           </span>
           <span className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-gray-900 dark:text-gray-100">
             {link}
-            <ArrowDown
-              className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-y-0.5"
+            <ArrowRight
+              className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5"
               aria-hidden
             />
           </span>
-        </a>
+        </Link>
       ))}
     </div>
   );

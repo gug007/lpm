@@ -15,18 +15,16 @@ export function disambiguateLabelAgainst(
   return `${base} ${n}`;
 }
 
-// Picks the smallest positive integer not already used so labels don't
-// collide after terminals are closed and re-created in different order.
-export function pickTerminalLabel(node: PaneNode | null): string {
-  if (!node) return "Terminal 1";
-  const used = new Set<number>();
-  for (const t of collectTerminals(node)) {
-    const match = /^Terminal (\d+)$/.exec(terminalDisplayLabel(t));
-    if (match) used.add(parseInt(match[1], 10));
-  }
+// The smallest "Terminal N" not already used, so labels don't collide after
+// terminals are closed and re-created in different order.
+export function nextTerminalLabel(used: ReadonlySet<string>): string {
   let n = 1;
-  while (used.has(n)) n++;
+  while (used.has(`Terminal ${n}`)) n++;
   return `Terminal ${n}`;
+}
+
+export function pickTerminalLabel(node: PaneNode | null): string {
+  return nextTerminalLabel(new Set(node ? collectTerminals(node).map(terminalDisplayLabel) : []));
 }
 
 // Terminals launched from the same action share the action's label. When one is

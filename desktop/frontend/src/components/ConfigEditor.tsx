@@ -190,7 +190,7 @@ export function ConfigEditor({
             </button>
             <span className="text-sm font-medium text-[var(--text-primary)]">Config</span>
             <button
-              onClick={() => BrowserOpenURL("https://lpm.cx/config")}
+              onClick={() => BrowserOpenURL("https://lpm.cx/docs")}
               className="flex h-6 w-6 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
               title="Open configuration reference"
             >

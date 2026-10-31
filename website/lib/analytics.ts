@@ -13,6 +13,7 @@ export type DownloadSource =
   | "demo-done"
   | "home-cta"
   | "config-cta"
+  | "docs-install"
   | "downloads"
   | "checksums"
   | "best-mac-hero"

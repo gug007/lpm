@@ -379,6 +379,15 @@ export function GitRecentCommits(cwd, limit) {
 export function GitShowCommit(cwd, hash) {
   return invoke("git_show_commit", { cwd, hash });
 }
+export function GitHistory(cwd, skip, limit) {
+  return invoke("git_history", { cwd, skip, limit });
+}
+export function GitCommitFiles(cwd, hash) {
+  return invoke("git_commit_files", { cwd, hash });
+}
+export function GitCommitFilePatch(cwd, hash, path, oldPath) {
+  return invoke("git_commit_file_patch", { cwd, hash, path, oldPath: oldPath ?? null });
+}
 export function GitMerge(cwd, branch) {
   return invoke("git_merge", { cwd, branch });
 }

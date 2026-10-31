@@ -31,7 +31,7 @@ pub fn git_show_commit(cwd: String, hash: String) -> Result<String, String> {
 }
 
 // A hex object name only, so the argument can never be read as an option.
-fn is_commit_hash(s: &str) -> bool {
+pub(crate) fn is_commit_hash(s: &str) -> bool {
     (4..=40).contains(&s.len()) && s.bytes().all(|b| b.is_ascii_hexdigit())
 }
 

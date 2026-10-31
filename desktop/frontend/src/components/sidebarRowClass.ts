@@ -23,3 +23,5 @@ const ROW_TRAILING = {
 export function rowTrailing(chevron: boolean, mark: boolean) {
   return ROW_TRAILING[chevron ? (mark ? "both" : "chevron") : mark ? "mark" : "none"];
 }
+
+export const DONE_STYLE = { color: "var(--accent-blue)" } as const;

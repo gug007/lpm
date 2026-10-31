@@ -1,7 +1,7 @@
 import { BrainIcon, CheckSquareIcon, ClipboardIcon, CopyIcon, DetachIcon, DownloadIcon, FileIcon, HardDriveIcon, MessageIcon, PencilIcon, SettingsIcon, SparkleIcon, TrashIcon, WorktreeIcon } from "./icons";
 import type { SidebarAgentRow } from "../sidebarAgents";
 import { ProjectArchiveMenuItems } from "./ProjectArchiveMenuItems";
-import { Columns2, FolderSync } from "lucide-react";
+import { Columns2, FolderSync, Pin, PinOff } from "lucide-react";
 import { ContextMenuItem } from "./ui/ContextMenuItem";
 import { ContextMenuSeparator } from "./ui/ContextMenuSeparator";
 import { ContextMenuShell } from "./ui/ContextMenuShell";
@@ -79,6 +79,9 @@ interface ProjectContextMenuProps {
   onPickClaudeAccount: (choice: ClaudeAccountChoice) => void;
   onChooseClaudeAccounts: () => void;
   onManageClaudeAccounts: () => void;
+  // Kept at the top of the sidebar.
+  pinned: boolean;
+  onTogglePin: (pin: boolean) => void;
   onRename: () => void;
   renameShortcut?: string;
   deleteShortcut?: string;
@@ -102,6 +105,7 @@ interface ProjectContextMenuProps {
   onGitCommit: () => void;
   onGitCreatePR: () => void;
   onGitSwitchBranch: () => void;
+  onGitHistory: () => void;
   onGitDiscardAll: () => void;
   onMoveToGroup: (groupId: string | null) => void;
   onCreateGroupWith: () => void;
@@ -142,6 +146,8 @@ export function ProjectContextMenu({
   onPickClaudeAccount,
   onChooseClaudeAccounts,
   onManageClaudeAccounts,
+  pinned,
+  onTogglePin,
   onRename,
   renameShortcut,
   deleteShortcut,
@@ -162,6 +168,7 @@ export function ProjectContextMenu({
   onGitCommit,
   onGitCreatePR,
   onGitSwitchBranch,
+  onGitHistory,
   onGitDiscardAll,
   onMoveToGroup,
   onCreateGroupWith,
@@ -221,6 +228,7 @@ export function ProjectContextMenu({
         onCommit={onGitCommit}
         onCreatePR={onGitCreatePR}
         onSwitchBranch={onGitSwitchBranch}
+        onHistory={onGitHistory}
         onDiscardAll={onGitDiscardAll}
         onClose={onClose}
       />
@@ -318,6 +326,11 @@ export function ProjectContextMenu({
         </>
       )}
       <ContextMenuSeparator />
+      <ContextMenuItem
+        label={pinned ? "Unpin" : "Pin to top"}
+        icon={pinned ? <PinOff size={14} /> : <Pin size={14} />}
+        onClick={close(() => onTogglePin(!pinned))}
+      />
       <ContextMenuItem
         label="Rename"
         icon={<PencilIcon />}

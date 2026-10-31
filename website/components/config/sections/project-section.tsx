@@ -1,4 +1,4 @@
-import { PROJECT_EXAMPLE, SSH_EXAMPLE } from "@/app/config/examples";
+import { PROJECT_EXAMPLE, SSH_EXAMPLE } from "../examples";
 import { Callout } from "../callout";
 import { CodeBlock } from "../code-block";
 import { DocLink } from "../doc-link";
@@ -8,11 +8,11 @@ import { ConfigPlayground } from "../playground";
 import { projectFields } from "../project-fields-data";
 import { Section } from "../section";
 import { Strong } from "../strong";
+import { docsPath } from "@/lib/docs-pages";
 
 export function ProjectSection() {
   return (
     <Section
-      id="project"
       title="Project"
       description={
         <>
@@ -47,7 +47,7 @@ export function ProjectSection() {
           Click <Strong>+</Strong>{" "}in the sidebar and pick a folder, or clone a
           repository. lpm creates this file for you and fills in the services
           it finds in the project&rsquo;s own files — see{" "}
-          <DocLink href="#detection">automatic service detection</DocLink>.
+          <DocLink href={docsPath("detection")}>automatic service detection</DocLink>.
           Edit it later in the app, as a form or as YAML.
         </p>
       </Callout>

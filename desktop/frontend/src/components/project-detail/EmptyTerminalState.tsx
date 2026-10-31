@@ -9,11 +9,13 @@ import { composerFontSize } from "../terminal-utils";
 import { EmptyTabStrip } from "./EmptyTabStrip";
 import { LaunchpadPrompt } from "./LaunchpadPrompt";
 import { LaunchpadSessionRow } from "./LaunchpadSessionRow";
+import { LaunchpadLayouts } from "./LaunchpadLayouts";
+import type { SavedLayoutNode } from "../../savedLayouts";
+import { LAUNCHPAD_CAPTION } from "./launchpadTabStyle";
 
 // Three recent sessions always, up to five when the window has the room.
 const MIN_RECENT = 3;
 const MAX_RECENT = 5;
-const CAPTION = "text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]";
 
 interface EmptyTerminalStateProps extends LaunchpadTargets {
   projectName: string;
@@ -26,6 +28,7 @@ interface EmptyTerminalStateProps extends LaunchpadTargets {
   hiddenSessions: ReadonlySet<string>;
   onResumeRow: (row: SessionRow) => void;
   onResumeSession?: () => void;
+  onOpenLayout: (root: SavedLayoutNode) => void;
   newTabAsked: boolean;
   onNewTabHandled: () => void;
 }
@@ -42,6 +45,7 @@ export function EmptyTerminalState({
   hiddenSessions,
   onResumeRow,
   onResumeSession,
+  onOpenLayout,
   newTabAsked,
   onNewTabHandled,
   ...targets
@@ -86,9 +90,10 @@ export function EmptyTerminalState({
             />
           </div>
           <div ref={contentRef} className="mx-auto flex w-full max-w-3xl flex-col gap-5 self-start pb-10 pt-5">
+            <LaunchpadLayouts projectName={projectName} onOpen={onOpenLayout} />
             {recent && recent.length > 0 && (
               <div className="flex flex-col gap-1">
-                <span className={`${CAPTION} px-2.5`}>Pick up where you left off</span>
+                <span className={`${LAUNCHPAD_CAPTION} px-2.5`}>Pick up where you left off</span>
                 <div ref={listRef} className="flex flex-col gap-1">
                   {recent.slice(0, count).map((row) => (
                     <LaunchpadSessionRow key={row.key} row={row} onResume={onResumeRow} />

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { CommandMap, type CommandMapRow } from "@/components/vs/command-map";
-import { CONFIG_PATH } from "@/lib/links";
+import { DOCS_PATH } from "@/lib/links";
 
 const ROWS: CommandMapRow[] = [
   {
@@ -97,7 +97,7 @@ export function ComposeMap() {
           <code className="font-mono text-xs">portConflict</code>{" "}
           — is in the{" "}
           <Link
-            href={CONFIG_PATH}
+            href={DOCS_PATH}
             className="font-medium underline underline-offset-2 hover:text-gray-900 dark:hover:text-white"
           >
             config reference

@@ -11,6 +11,7 @@ import {
   CopyIcon,
   DownloadIcon,
   GitCommitIcon,
+  HistoryIcon,
   PRIcon,
   RefreshIcon,
   UndoIcon,
@@ -52,6 +53,7 @@ interface ProjectGitSubmenuProps {
   onCommit: () => void;
   onCreatePR: () => void;
   onSwitchBranch: () => void;
+  onHistory: () => void;
   onDiscardAll: () => void;
   onClose: () => void;
 }
@@ -134,6 +136,7 @@ function GitSubmenuItems({
   onCommit,
   onCreatePR,
   onSwitchBranch,
+  onHistory,
   onDiscardAll,
   onClose,
   status,
@@ -243,6 +246,7 @@ function GitSubmenuItems({
         title={noChanges ? "No changes to commit" : undefined}
       />
       <ContextMenuItem label="Create PR…" icon={<PRIcon />} onClick={close(onCreatePR)} />
+      <ContextMenuItem label="History" icon={<HistoryIcon />} onClick={close(onHistory)} />
       <ContextMenuSeparator />
       <Tooltip content={status.branch || "Detached HEAD"} align="start" triggerClassName="flex w-full">
         <ContextMenuItem

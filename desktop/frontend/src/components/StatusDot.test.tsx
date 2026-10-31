@@ -64,12 +64,20 @@ describe("StatusDot", () => {
     }
   });
 
-  it("turns red and names what crashed when a service crashed", () => {
+  it("turns into a red cross and names what crashed when a service crashed", () => {
     for (const kind of ["project", "copy", "worktree"] as const) {
-      const light = dot(render(<StatusDot running kind={kind} crashed="web exited with code 1" />));
-      expect(light.className).toContain("bg-[var(--accent-red)]");
-      expect(light.title).toBe("web exited with code 1");
+      const container = render(<StatusDot running kind={kind} crashed="web exited with code 1" />);
+      const light = container.querySelector('[role="img"]')!;
+      // A cross, not a dot: the shape still says "crashed" without its color.
+      expect(light.tagName.toLowerCase()).toBe("svg");
+      expect(light.getAttribute("class")).toContain("text-[var(--accent-red)]");
+      expect(light.getAttribute("aria-label")).toBe("Crashed: web exited with code 1");
     }
+  });
+
+  it("names running and stopped in words", () => {
+    expect(dot(render(<StatusDot running />)).getAttribute("aria-label")).toBe("Running");
+    expect(dot(render(<StatusDot running={false} />)).getAttribute("aria-label")).toBe("Stopped");
   });
 
   it("takes no layout width for either mark, so the dots stay in one column", () => {

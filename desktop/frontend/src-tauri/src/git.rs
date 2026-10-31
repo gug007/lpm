@@ -144,7 +144,7 @@ fn resolve_base(cwd: &str, base: &str) -> Result<String, String> {
 const STATUS_PORCELAIN: &[&str] = &["--no-optional-locks", "status", "--porcelain=v1", "-z"];
 
 /// Map a porcelain/diff status code byte to its display status.
-fn status_label(code: u8) -> &'static str {
+pub(crate) fn status_label(code: u8) -> &'static str {
     match code {
         b'A' => "added",
         b'D' => "deleted",
@@ -793,11 +793,11 @@ pub fn git_file_diff(
     Ok(file_diff_from_blobs(orig_bytes, mod_bytes))
 }
 
-/// Parse `git diff --name-status -z` output into changed files. A rename/copy
-/// emits `<code>\0<old>\0<new>\0`; the new path is the one shown.
-fn parse_name_status_z(raw: &str, staged: bool) -> Vec<ChangedFile> {
+/// Walk `--name-status -z` output as (status code, old path, path). A
+/// rename/copy emits `<code>\0<old>\0<new>\0`; the new path is the one shown.
+pub(crate) fn name_status_entries_z(raw: &str) -> Vec<(u8, Option<&str>, &str)> {
     let parts: Vec<&str> = raw.split('\u{0}').filter(|e| !e.is_empty()).collect();
-    let mut files = Vec::new();
+    let mut entries = Vec::new();
     let mut i = 0;
     while i < parts.len() {
         let code = parts[i].as_bytes().first().copied().unwrap_or(b'M');
@@ -806,14 +806,21 @@ fn parse_name_status_z(raw: &str, staged: bool) -> Vec<ChangedFile> {
         let Some(path) = parts.get(path_idx) else {
             break;
         };
-        files.push(ChangedFile {
-            path: (*path).to_string(),
-            status: status_label(code).into(),
-            staged,
-        });
+        entries.push((code, is_rename.then(|| parts[i + 1]), *path));
         i = path_idx + 1;
     }
-    files
+    entries
+}
+
+fn parse_name_status_z(raw: &str, staged: bool) -> Vec<ChangedFile> {
+    name_status_entries_z(raw)
+        .into_iter()
+        .map(|(code, _, path)| ChangedFile {
+            path: path.to_string(),
+            status: status_label(code).into(),
+            staged,
+        })
+        .collect()
 }
 
 fn file_diff_from_blobs(orig: Vec<u8>, modi: Vec<u8>) -> FileDiff {

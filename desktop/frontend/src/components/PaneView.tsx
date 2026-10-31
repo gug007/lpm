@@ -22,7 +22,6 @@ import { ServicePortLinks } from "./terminal/ServicePortLinks";
 import { ServiceCommand } from "./terminal/ServiceCommand";
 import { TerminalEndedBar } from "./terminal/TerminalEndedBar";
 import { useEndedTerminals } from "../store/endedTerminals";
-import { serviceCrashed } from "../serviceExit";
 import { IconBtn } from "./terminal/IconBtn";
 import {
   SplitRightIcon,
@@ -93,6 +92,8 @@ import {
 } from "./terminal/usePaneStripOverflow";
 import { ServiceColumnActions } from "./terminal/ServiceColumnActions";
 import { ServiceStateDot } from "./terminal/ServiceStateDot";
+import { PaneLayoutsButton } from "./terminal/PaneLayoutsButton";
+import type { SavedLayoutNode } from "../savedLayouts";
 import { ServiceErrorBadge } from "./terminal/ServiceErrorBadge";
 import { ServiceLogFilterBar } from "./terminal/ServiceLogFilterBar";
 import { useServiceLogs } from "../store/serviceLogs";
@@ -240,6 +241,8 @@ export interface PaneViewProps {
   onRestoreSessionTitle: (paneId: string, tabIdx: number) => void;
   onTogglePinTab: (paneId: string, tabIdx: number) => void;
   onSplit: (paneId: string, direction: SplitDirection) => void;
+  // Saved arrangements of panes: the ones on screen as a layout, and opening one.
+  layouts: { capture: () => SavedLayoutNode | null; open: (root: SavedLayoutNode) => void };
   onClosePane: (paneId: string) => void;
   onToggleUtility: (paneId: string, kind: UtilityTabKind) => void;
   onToggleFullscreen: (paneId: string) => void;
@@ -328,6 +331,7 @@ function PaneViewImpl(props: PaneViewProps) {
     onRestoreSessionTitle,
     onTogglePinTab,
     onSplit,
+    layouts,
     onClosePane,
     onToggleUtility,
     onToggleFullscreen,
@@ -589,11 +593,7 @@ function PaneViewImpl(props: PaneViewProps) {
                       }}
                     />
                     {svc.exited ? (
-                      <span
-                        className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                          serviceCrashed(svc) ? "bg-[var(--accent-red)]" : "bg-[var(--text-muted)]"
-                        }`}
-                      />
+                      <ServiceStateDot exited exitCode={svc.exitCode} />
                     ) : (
                       ports.length > 0 && (
                         <ServicePortLinks
@@ -739,6 +739,7 @@ function PaneViewImpl(props: PaneViewProps) {
               <SplitDownIcon />
             </IconBtn>
           </Tooltip>
+          <PaneLayoutsButton projectName={projectName} capture={layouts.capture} onOpen={layouts.open} />
           <PaneToolbar
             actions={paneActions.toolbar}
             activeTab={activeUtilityTab}

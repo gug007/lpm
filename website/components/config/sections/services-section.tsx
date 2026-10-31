@@ -1,7 +1,7 @@
 import {
   SERVICES_DEPENDS_EXAMPLE,
   SERVICES_EXAMPLE,
-} from "@/app/config/examples";
+} from "../examples";
 import { Callout } from "../callout";
 import { DocLink } from "../doc-link";
 import { FieldTable } from "../field-table";
@@ -10,11 +10,11 @@ import { ConfigPlayground } from "../playground";
 import { Section } from "../section";
 import { serviceFields } from "../service-fields-data";
 import { Strong } from "../strong";
+import { docsPath } from "@/lib/docs-pages";
 
 export function ServicesSection() {
   return (
     <Section
-      id="services"
       title="Services"
       description={
         <>
@@ -30,7 +30,7 @@ export function ServicesSection() {
       <Lede className="mb-3">
         If a command runs continuously, it&rsquo;s a service. If it finishes
         and exits — tests, a build, a migration — it belongs in{" "}
-        <DocLink href="#actions">Actions</DocLink>{" "}instead. Each service can be
+        <DocLink href={docsPath("actions")}>Actions</DocLink>{" "}instead. Each service can be
         written as a one-line shorthand (just the command) or as the full form
         when you need <code className="font-mono">cwd</code>,{" "}
         <code className="font-mono">port</code>, or{" "}
@@ -72,7 +72,7 @@ export function ServicesSection() {
         </p>
         <p>
           If you usually want a subset — say, the web app without the worker —
-          define a <DocLink href="#profiles">profile</DocLink>{" "}and pick it from
+          define a <DocLink href={docsPath("profiles")}>profile</DocLink>{" "}and pick it from
           the same dropdown.
         </p>
       </Callout>

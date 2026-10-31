@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Fragment } from "react";
 import { SectionHeader } from "@/components/section-header";
-import { CONFIG_PATH } from "@/lib/links";
+import { DOCS_PATH } from "@/lib/links";
 
 type Step = {
   title: string;
@@ -83,7 +83,7 @@ export default function Setup() {
           Prefer text? The pin is one line in the project&rsquo;s config file,
           and the{" "}
           <Link
-            href={CONFIG_PATH}
+            href={DOCS_PATH}
             className="font-medium text-gray-700 underline decoration-gray-300 underline-offset-2 hover:text-gray-900 dark:text-gray-300 dark:decoration-gray-600 dark:hover:text-white"
           >
             config reference

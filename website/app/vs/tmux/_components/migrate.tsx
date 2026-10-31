@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { CodeBlock } from "@/components/config/code-block";
 import { SectionHeader } from "@/components/section-header";
-import { CONFIG_PATH } from "@/lib/links";
+import { DOCS_PATH } from "@/lib/links";
 
 const TMUXINATOR_YAML = `name: myapp
 root: ~/Projects/myapp
@@ -52,7 +52,7 @@ export default function Migrate() {
           on clone, next to anything lpm picks up from the repo on their machine.
           The reference documents{" "}
           <Link
-            href={CONFIG_PATH}
+            href={DOCS_PATH}
             className="underline underline-offset-2 hover:text-gray-900 dark:hover:text-white"
           >
             every field

@@ -2,6 +2,7 @@ import type { MouseEvent } from "react";
 import { PencilIcon, PlayIcon, PlusIcon, RefreshIcon, StopIcon } from "../icons";
 import { serviceCrashed, serviceExitText } from "../../serviceExit";
 import type { ProfileInfo, ServiceInfo } from "../../types";
+import { StateGlyph } from "../StateGlyph";
 
 interface StartMenuProps {
   profiles: ProfileInfo[];
@@ -136,9 +137,9 @@ function ServiceMenuItem({ service, running, exitCode, onClick, onEdit, onContex
       >
         <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
           {running ? (
-            <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent-green)]" />
+            <StateGlyph state="running" size="sm" />
           ) : crashed ? (
-            <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent-red)]" />
+            <StateGlyph state="crashed" size="sm" />
           ) : null}
         </span>
         <span className="flex-1 truncate font-mono">{service.name}</span>
@@ -179,9 +180,7 @@ function ProfileMenuItem({ profile, running, onClick, onEdit, onContextMenu }: P
         className="flex flex-1 items-start gap-2.5 text-left"
       >
         <span className="mt-[6px] flex h-3.5 w-3.5 shrink-0 items-center justify-center">
-          {running ? (
-            <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent-green)]" />
-          ) : null}
+          {running ? <StateGlyph state="running" size="sm" /> : null}
         </span>
         <span className="flex min-w-0 flex-1 flex-col">
           <span className={`truncate text-[13px] ${running ? "font-medium" : ""}`}>

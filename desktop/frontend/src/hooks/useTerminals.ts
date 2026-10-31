@@ -1,6 +1,7 @@
 import { useRef, useEffect, useCallback } from "react";
 import { StopTerminal } from "../../bridge/commands";
 import { collectTerminals } from "../paneTree";
+import { captureLayout as captureTreeLayout } from "../savedLayouts";
 import { IS_MIRROR_WINDOW, requestMirrorAction } from "../mirror";
 import { isPeerName } from "../peer/markers";
 import { type UseTerminalsResult } from "./terminals/types";
@@ -20,6 +21,8 @@ import { useAgentSessionEvents } from "./terminals/useAgentSessionEvents";
 import { useTerminalMemory } from "./terminals/useTerminalMemory";
 import { useOpenAutomationsTab } from "./terminals/useOpenAutomationsTab";
 import { useOpenBrowserTab } from "./terminals/useOpenBrowserTab";
+import { useApplyLayout } from "./terminals/useApplyLayout";
+import { useDefaultLayout } from "./terminals/useDefaultLayout";
 
 export { type TerminalStartOpts, type UseTerminalsResult } from "./terminals/types";
 
@@ -176,6 +179,20 @@ export function useTerminals(
     forward,
   });
 
+  const applyLayout = useApplyLayout({
+    projectName,
+    treeRef,
+    restoreSettled,
+    applyTree,
+    forward,
+    scheduleCmdInject,
+  });
+  useDefaultLayout(projectName, treeRef, restoreSettled, applyLayout);
+  const captureLayout = useCallback(
+    () => (treeRef.current ? captureTreeLayout(treeRef.current) : null),
+    [treeRef],
+  );
+
   const openAutomationsTab = useOpenAutomationsTab(
     treeRef,
     restoreSettled,
@@ -257,6 +274,8 @@ export function useTerminals(
     reorderTerminals,
     moveTerminal,
     splitPane,
+    applyLayout,
+    captureLayout,
     closePane,
     setRatio,
     focusPane,
@@ -348,6 +367,8 @@ export function useTerminals(
     remoteReorderTerminals,
     moveTerminal,
     splitPane,
+    applyLayout,
+    captureLayout,
     closePane,
     setRatio,
     focusPane,

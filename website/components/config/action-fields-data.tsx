@@ -1,5 +1,6 @@
 import { DocLink } from "./doc-link";
 import type { Field } from "./field-table";
+import { docsPath } from "@/lib/docs-pages";
 
 export const actionFields: Field[] = [
   {
@@ -51,7 +52,7 @@ export const actionFields: Field[] = [
         for monorepos or when the action lives in a subfolder. Relative paths
         resolve from <code className="font-mono">root</code>; absolute paths
         are used as-is (see{" "}
-        <DocLink href="#path-resolution">Path resolution</DocLink>). Nested
+        <DocLink href={docsPath("path-resolution")}>Path resolution</DocLink>). Nested
         actions inherit this from their parent.
       </>
     ),
@@ -93,7 +94,7 @@ export const actionFields: Field[] = [
         <code className="font-mono">display</code>{" "}entirely to get the same
         result. <code className="font-mono">footer</code>{" "}tucks it into the
         status bar below the terminal — handy for tight, always-visible
-        controls. Or name a <DocLink href="#zones">zone</DocLink>{" "}to put the
+        controls. Or name a <DocLink href={docsPath("zones")}>zone</DocLink>{" "}to put the
         button in it. <code className="font-mono">menu</code>{" "}still works as
         a legacy value (overflow menu) but is no longer suggested by the
         editor.

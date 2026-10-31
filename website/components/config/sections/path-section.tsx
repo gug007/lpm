@@ -5,7 +5,7 @@ const CODE = "font-mono text-gray-600 dark:text-gray-300";
 
 export function PathSection() {
   return (
-    <Section id="path-resolution" title="Path resolution">
+    <Section title="Path resolution">
       <ul className="space-y-2 text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
         <Bullet>
           <code className={CODE}>~</code>{" "}expands to your home directory in{" "}

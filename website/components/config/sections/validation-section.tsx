@@ -7,7 +7,6 @@ const CODE = "font-mono text-gray-600 dark:text-gray-300";
 export function ValidationSection() {
   return (
     <Section
-      id="validation"
       title="Validation"
       description={
         <>
@@ -20,7 +19,6 @@ export function ValidationSection() {
           that:
         </>
       }
-      last
     >
       <ul className="space-y-2 text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
         <Bullet>

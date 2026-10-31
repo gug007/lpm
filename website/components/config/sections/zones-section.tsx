@@ -1,14 +1,14 @@
-import { ZONES_EXAMPLE, ZONES_LAYERS_EXAMPLE } from "@/app/config/zone-examples";
+import { ZONES_EXAMPLE, ZONES_LAYERS_EXAMPLE } from "../zone-examples";
 import { Callout } from "../callout";
 import { DocLink } from "../doc-link";
 import { Lede } from "../lede";
 import { ConfigPlayground } from "../playground";
 import { Section } from "../section";
+import { docsPath } from "@/lib/docs-pages";
 
 export function ZonesSection() {
   return (
     <Section
-      id="zones"
       title="Zones"
       description={
         <>
@@ -57,7 +57,7 @@ export function ZonesSection() {
         </p>
         <p>
           The quickest way to build one is to{" "}
-          <DocLink href="#with-ai">ask your agent</DocLink>: &ldquo;Put the iOS
+          <DocLink href={docsPath("ask-your-agent")}>ask your agent</DocLink>: &ldquo;Put the iOS
           and Android builds in a two-row zone in the footer.&rdquo;
         </p>
       </Callout>

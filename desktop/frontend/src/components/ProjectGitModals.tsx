@@ -7,8 +7,9 @@ import { MergeBranchDialog } from "./MergeBranchDialog";
 import { PRModal } from "./PRModal";
 import { SwitchBranchModal } from "./SwitchBranchModal";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
+import { CommitHistoryModal } from "./history/CommitHistoryModal";
 
-export type GitModalKind = "commit" | "pr" | "switch" | "discard" | "merge";
+export type GitModalKind = "commit" | "pr" | "switch" | "discard" | "merge" | "history";
 
 export interface GitModalTarget {
   name: string;
@@ -68,6 +69,12 @@ export function ProjectGitModals({ target, onClose }: ProjectGitModalsProps) {
         branches={gitState.branches}
         onClose={onClose}
         onMerged={gitState.refresh}
+      />
+      <CommitHistoryModal
+        open={target?.kind === "history"}
+        projectPath={path}
+        branch={currentBranch}
+        onClose={onClose}
       />
       <SwitchBranchModal
         open={target?.kind === "switch"}

@@ -3,11 +3,11 @@ import { rowNameClass, type ProjectStatus } from "../agentStatus";
 import type { SidebarAgentRow } from "../sidebarAgents";
 import type { NavItemId } from "../sidebarNav";
 import { MoreVerticalIcon } from "./icons";
+import { DONE_STYLE } from "./sidebarRowClass";
 import { SidebarAgentChevron } from "./SidebarAgentChevron";
 import { SidebarAgentRows } from "./SidebarAgentRows";
 import { Tooltip } from "./ui/Tooltip";
 
-const DONE_STYLE = { color: "var(--accent-blue)" } as const;
 
 /** The agents a nav row has going, listed under it the way a project row lists
  *  its own: the row that owns them decides what opens on a click. */
@@ -50,9 +50,12 @@ interface SidebarNavRowProps {
   // This row's options menu is the one currently open.
   menuOpen: boolean;
   onOpenMenu: (anchor: RowMenuAnchor) => void;
+  // In the More menu, which sizes itself to its rows: a row whose padding grew
+  // on hover would widen the whole menu under the pointer.
+  inMenu?: boolean;
 }
 
-export function SidebarNavRow({ entry, menuOpen, onOpenMenu }: SidebarNavRowProps) {
+export function SidebarNavRow({ entry, menuOpen, onOpenMenu, inMenu = false }: SidebarNavRowProps) {
   const { status, agents } = entry;
   const canExpand = agents !== undefined && agents.rows.length > 0;
   const isExpanded = canExpand && agents.expanded;
@@ -60,7 +63,11 @@ export function SidebarNavRow({ entry, menuOpen, onOpenMenu }: SidebarNavRowProp
   // rather than letting it cover them; the button only shows on hover, so the
   // row is never padded for something the user cannot see. A chevron parks at
   // the row's end all the time and steps aside for that button on hover.
-  const trailingPad = canExpand ? "pr-8 group-hover:pr-14" : "group-hover:pr-9";
+  const trailingPad = canExpand
+    ? "pr-8 group-hover:pr-14"
+    : inMenu && entry.trailing
+      ? "pr-9"
+      : "group-hover:pr-9";
   const nameClass = status ? rowNameClass(status, isExpanded) : null;
   const label = nameClass ? <span className={nameClass}>{entry.label}</span> : entry.label;
 
@@ -84,7 +91,9 @@ export function SidebarNavRow({ entry, menuOpen, onOpenMenu }: SidebarNavRowProp
           {label}
         </span>
         {entry.trailing && (
-          <span className="ml-auto flex items-center gap-2 pl-2">{entry.trailing}</span>
+          <span className="ml-auto flex shrink-0 items-center gap-2 whitespace-nowrap pl-2">
+            {entry.trailing}
+          </span>
         )}
       </button>
       {canExpand && (

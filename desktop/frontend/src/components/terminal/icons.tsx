@@ -25,6 +25,15 @@ export function SplitRightIcon() {
     </svg>
   );
 }
+export function LayoutsIcon() {
+  return (
+    <svg {...iconProps}>
+      <rect x="3" y="4" width="18" height="16" rx="1" />
+      <line x1="11" y1="4" x2="11" y2="20" />
+      <line x1="11" y1="12" x2="21" y2="12" />
+    </svg>
+  );
+}
 export function SplitDownIcon() {
   return (
     <svg {...iconProps}>

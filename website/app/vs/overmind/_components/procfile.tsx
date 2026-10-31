@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { CodeBlock } from "@/components/config/code-block";
 import { SectionHeader } from "@/components/section-header";
-import { CONFIG_PATH } from "@/lib/links";
+import { DOCS_PATH } from "@/lib/links";
 
 const PROCFILE = `web: bundle exec puma -C config/puma.rb
 worker: bundle exec sidekiq
@@ -67,7 +67,7 @@ export function Procfile() {
           <code className={CODE}>port</code>, <code className={CODE}>env</code>,{" "}
           <code className={CODE}>dependsOn</code> — is in the{" "}
           <Link
-            href={CONFIG_PATH}
+            href={DOCS_PATH}
             className="underline underline-offset-2 hover:text-gray-900 dark:hover:text-white"
           >
             config reference

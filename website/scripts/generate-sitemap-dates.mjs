@@ -10,10 +10,17 @@ const outFile = join(websiteDir, "lib", "sitemap-dates.json");
 const git = (args) =>
   execFileSync("git", args, { cwd: websiteDir, encoding: "utf8" }).trim();
 
+// Dynamic routes like /docs/[slug] have no single URL; app/sitemap.ts lists
+// their pages from the data behind them.
+const isDynamic = (dir) => relative(appDir, dir).includes("[");
+
 const routeDirs = [];
 const walk = (dir) => {
   const entries = readdirSync(dir, { withFileTypes: true });
-  if (entries.some((entry) => entry.isFile() && entry.name === "page.tsx")) {
+  if (
+    !isDynamic(dir) &&
+    entries.some((entry) => entry.isFile() && entry.name === "page.tsx")
+  ) {
     routeDirs.push(dir);
   }
   for (const entry of entries) {
@@ -41,7 +48,17 @@ const isContent = (name) =>
   name !== "_research";
 
 // Shared components whose copy renders on a route as if it were its own.
-const SHARED = [{ prefix: "/vs/", paths: [join(websiteDir, "components", "vs")] }];
+const SHARED = [
+  { prefix: "/vs/", paths: [join(websiteDir, "components", "vs")] },
+  {
+    prefix: "/docs",
+    paths: [
+      join(appDir, "docs", "[slug]"),
+      join(websiteDir, "components", "config"),
+      join(websiteDir, "components", "docs"),
+    ],
+  },
+];
 
 // Nested route dirs are excluded so e.g. /vs/* edits don't restamp /vs.
 const contentPathsFor = (dir) => {

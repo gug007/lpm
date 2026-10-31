@@ -1,5 +1,5 @@
 import { ArrowUpRight } from "lucide-react";
-import { formatSize, type DesktopOs } from "@/lib/downloads";
+import { CHECKSUM_COMMANDS, formatSize } from "@/lib/downloads";
 import type { ReleaseVerification } from "@/lib/release-verification";
 import { SafetyDisclosure } from "./safety-disclosure";
 import { TrackedAssetLink } from "./tracked-asset-link";
@@ -12,16 +12,6 @@ function formatDate(value: string | null): string | null {
   }).format(new Date(value));
 }
 
-const VERIFY_COMMANDS: { os: DesktopOs; label: string; command: string }[] = [
-  { os: "macos", label: "macOS", command: "shasum -a 256 <file>" },
-  {
-    os: "windows",
-    label: "Windows (PowerShell)",
-    command: "Get-FileHash <file> -Algorithm SHA256",
-  },
-  { os: "linux", label: "Linux", command: "sha256sum <file>" },
-];
-
 const CODE = "font-mono text-[11px]";
 
 export function ReleaseChecksums({
@@ -30,7 +20,7 @@ export function ReleaseChecksums({
   release: ReleaseVerification;
 }) {
   const publishedAt = formatDate(release.publishedAt);
-  const commands = VERIFY_COMMANDS.filter(({ os }) =>
+  const commands = CHECKSUM_COMMANDS.filter(({ os }) =>
     release.assets.some((asset) => asset.os === os),
   );
   const hasUnsigned = release.assets.some((asset) => asset.os !== "macos");

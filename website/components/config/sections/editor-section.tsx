@@ -3,11 +3,11 @@ import { FeatureCard } from "@/components/feature-card";
 import { DocLink } from "../doc-link";
 import { Lede } from "../lede";
 import { Section } from "../section";
+import { docsPath } from "@/lib/docs-pages";
 
 export function EditorSection() {
   return (
     <Section
-      id="editor"
       title="Editing in the app"
       description={
         <>
@@ -37,9 +37,11 @@ export function EditorSection() {
 
       <Lede className="mb-0">
         For anything bigger than one field, it&rsquo;s faster to{" "}
-        <DocLink href="#with-ai">ask your agent</DocLink>{" "}from a terminal in
-        the project. The rest of this page covers every key, for when
-        you&rsquo;d rather write it yourself or check what the agent wrote.
+        <DocLink href={docsPath("ask-your-agent")}>ask your agent</DocLink>{" "}
+        from a terminal in the project. The reference, starting with{" "}
+        <DocLink href={docsPath("project")}>Project</DocLink>, covers every
+        key, for when you&rsquo;d rather write it yourself or check what the
+        agent wrote.
       </Lede>
     </Section>
   );

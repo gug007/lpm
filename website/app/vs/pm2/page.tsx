@@ -13,8 +13,8 @@ import type { VerdictCard } from "@/components/vs/verdict-cards";
 import { WhenToPick } from "@/components/vs/when-to-pick";
 import {
   AI_AGENTS_PATH,
-  CONFIG_PATH,
   CONNECT_AGENTS_PATH,
+  DOCS_PATH,
   VS_BASE_PATH,
   WORKTREE_AGENTS_PATH,
   vsPath,
@@ -296,7 +296,7 @@ export default function LpmVsPm2Page() {
               "When the things you are starting are images rather than npm scripts, and what a container stack costs on a laptop.",
           },
           {
-            href: CONFIG_PATH,
+            href: DOCS_PATH,
             title: "The lpm config reference",
             description:
               "services, port, env, dependsOn and profiles — every field a service can take, with worked examples.",
@@ -332,7 +332,7 @@ export default function LpmVsPm2Page() {
             <span className="mt-4 block">
               Not installing today? Drop the{" "}
               <Link
-                href={CONFIG_PATH}
+                href={DOCS_PATH}
                 className="underline underline-offset-2 hover:text-gray-900 dark:hover:text-white"
               >
                 <code className="font-mono">.lpm.yml</code>

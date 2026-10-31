@@ -15,7 +15,7 @@ import { CommandTranslation } from "./_components/command-translation";
 import { Differences } from "./_components/differences";
 import { Procfile } from "./_components/procfile";
 import {
-  CONFIG_PATH,
+  DOCS_PATH,
   LINUX_HOST_PATH,
   REPO_URL,
   SSH_TERMINAL_MAC_PATH,
@@ -96,7 +96,7 @@ const FAQS: FaqItem[] = [
         No. lpm imports it when the project is added — one service per line,
         same names — and leaves the file as it was for Heroku or Foreman. From
         then on lpm starts from{" "}
-        <Link href={CONFIG_PATH} className={LINK}>
+        <Link href={DOCS_PATH} className={LINK}>
           its own service list
         </Link>
         , so a Procfile change made later does not carry over by itself.
@@ -302,7 +302,7 @@ export default function OvermindVsPage() {
               "The original Procfile runner: one interleaved stream, its -m formation flag, and what changes when each process gets a pane.",
           },
           {
-            href: CONFIG_PATH,
+            href: DOCS_PATH,
             title: "Config reference",
             description:
               "Every key a service takes — cmd, cwd, port, env, dependsOn — and the profiles that start a subset.",
