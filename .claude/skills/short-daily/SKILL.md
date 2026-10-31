@@ -298,6 +298,7 @@ A format is what both models are asked to build, with the copy around it. The fo
 | Giraffe, Sonnet 5.5 high vs GPT-6.1 Sol high | 4:50 (Sol 1:42), 2026-10-22 |
 | Giraffe, Opus 5.5 high vs GPT-6.1 Terra high | 7:35 (Terra 0:35), 2026-10-29 |
 | Hexagon, Opus 5.5 high vs GPT-6.1 Sol high | 1:54 (Sol 1:22), 2026-10-30 |
+| Hexagon, Opus 5.5 high vs Gemini 4 Argon high | Argon 3:43 (Opus 2:16), 2026-10-31 |
 | Website, high | 8 min; Opus 5.5 high 2:52 vs Sonnet 5.5 high 1:25, 2026-10-28 |
 | 3D runner, Opus high | 12–18 min |
 | Giraffe, Opus xhigh | 21 min; xhigh vs xhigh 23 min |
