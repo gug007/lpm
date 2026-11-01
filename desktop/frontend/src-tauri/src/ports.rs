@@ -81,7 +81,7 @@ fn probe(port: i64) -> (Holder, bool) {
 pub(crate) fn sessions_of(names: impl IntoIterator<Item = String>) -> HashMap<String, String> {
     names
         .into_iter()
-        .filter_map(|name| config::spawn_info(&name).ok().map(|info| (info.session, name)))
+        .filter_map(|name| Some((config::session_name(&name).ok()?, name)))
         .collect()
 }
 

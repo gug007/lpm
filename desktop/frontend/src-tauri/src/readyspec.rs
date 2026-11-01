@@ -1,5 +1,6 @@
 // A service's `ready` check as the config spells it, and what it resolves to.
-// Mirrored by cli/src/ready.rs; the two must accept the same YAML.
+// The CLI compiles this same file (cli/src/ready.rs), so `lpm wait` accepts
+// exactly the YAML the app does; keep it free of anything app-only.
 //
 //   ready: port                      # the service's own `port` accepts connections
 //   ready: 4001                      # that port accepts connections
@@ -168,6 +169,17 @@ fn key_text(key: &Yaml) -> String {
         .unwrap_or_else(|| "(not a string)".into())
 }
 
+/// Whether a line of a pane's output contains a `log` check's `text`. The line
+/// lpm typed to start the service is skipped, since a command that mentions its
+/// own ready text would otherwise pass before it has printed anything.
+pub fn output_has(output: &str, text: &str, cmd: &str) -> bool {
+    let cmd = cmd.trim();
+    output
+        .lines()
+        .filter(|line| cmd.is_empty() || !line.contains(cmd))
+        .any(|line| line.contains(text))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -258,5 +270,21 @@ mod tests {
             json!({"kind": "log", "log": "up", "timeout": 5})
         );
         assert_eq!(parse("soon").to_json(0)["kind"], "invalid");
+    }
+
+    #[test]
+    fn the_typed_command_never_counts_as_its_log_line() {
+        let output = "$ cd /app && echo listening && npm run dev\nlistening\n";
+        assert!(output_has(
+            output,
+            "listening",
+            "echo listening && npm run dev"
+        ));
+        let typed_only = "$ cd /app && echo listening && npm run dev\n";
+        assert!(!output_has(
+            typed_only,
+            "listening",
+            "echo listening && npm run dev"
+        ));
     }
 }

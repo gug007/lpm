@@ -8,7 +8,7 @@ extension AppModel {
     /// live Mac, and not already one of the live Mac's own sections.
     var otherSavedMachines: [MacRecord] {
         guard !demoMode, !isVisit else { return [] }
-        let shownByLiveMac = Set(machineSections.compactMap(\.machine.serverId))
+        let shownByLiveMac = Set(machineImporter.machines.filter(\.isConnected).compactMap(\.serverId))
         return macs.filter { mac in
             mac.localId != activeMacId && mac.via == nil
                 && !(mac.serverId.map(shownByLiveMac.contains) ?? false)

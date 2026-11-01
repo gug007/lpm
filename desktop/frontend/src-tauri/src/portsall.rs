@@ -20,9 +20,8 @@ const PEER_WAIT: Duration = Duration::from_secs(6);
 const LPM_PROCESSES: [&str; 2] = ["lpm-desktop", "lpm-tailnet"];
 
 fn is_lpm_process(name: &str) -> bool {
-    let lower = name.to_ascii_lowercase();
-    let stem = lower.strip_suffix(".exe").unwrap_or(&lower);
-    LPM_PROCESSES.contains(&stem)
+    let stem = crate::procwin::exe_stem(name).to_ascii_lowercase();
+    LPM_PROCESSES.contains(&stem.as_str())
 }
 
 #[derive(Serialize, Deserialize, Clone, Default, Debug, PartialEq)]
@@ -178,7 +177,7 @@ pub(crate) fn local_ports(machine_name: &str) -> Vec<ListeningPort> {
         pairs,
         |pid| walk_to_owner(pid, &owners, &parents),
         &names,
-        |pid| started_unix(pid).unwrap_or(0),
+        |pid| crate::osproc::started_unix(pid).unwrap_or(0),
         project_facts,
     );
     for row in &mut rows {
@@ -186,42 +185,6 @@ pub(crate) fn local_ports(machine_name: &str) -> Vec<ListeningPort> {
         row.machine_name = machine_name.to_string();
     }
     rows
-}
-
-/// When `pid` started, in Unix seconds.
-fn started_unix(pid: i64) -> Option<i64> {
-    let start = crate::osproc::start_of(u32::try_from(pid).ok()?)?;
-    #[cfg(target_os = "macos")]
-    return Some((start / 1_000_000) as i64);
-    #[cfg(target_os = "linux")]
-    return linux_start(start);
-    #[cfg(windows)]
-    return Some(unix_from_filetime(start));
-}
-
-/// /proc/<pid>/stat counts a start in clock ticks since boot.
-/// Boot time and tick rate never change, so they're read once.
-#[cfg(target_os = "linux")]
-fn linux_start(ticks: u64) -> Option<i64> {
-    static BOOT: std::sync::OnceLock<Option<(i64, u64)>> = std::sync::OnceLock::new();
-    let (boot, hz) = (*BOOT.get_or_init(|| {
-        let stat = std::fs::read_to_string("/proc/stat").ok()?;
-        let boot: i64 = stat
-            .lines()
-            .find_map(|line| line.strip_prefix("btime "))?
-            .trim()
-            .parse()
-            .ok()?;
-        let hz = unsafe { libc::sysconf(libc::_SC_CLK_TCK) };
-        (hz > 0).then_some((boot, hz as u64))
-    }))?;
-    Some(boot + (ticks / hz) as i64)
-}
-
-/// A FILETIME counts 100 ns intervals since 1601-01-01.
-#[cfg(any(windows, test))]
-fn unix_from_filetime(ft: u64) -> i64 {
-    (ft / 10_000_000) as i64 - 11_644_473_600
 }
 
 /// A paired computer's rows, renamed so the bridge routes Stop, Open and Copy

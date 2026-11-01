@@ -1,4 +1,4 @@
-import type { PhysicalChord } from "./keys";
+import { keyName, type PhysicalChord } from "./keys";
 import type { KeyEventLike } from "./keyEvents";
 import { isAltGraphChar } from "./keyEvents";
 import { isMac, isWindows } from "./platform";
@@ -54,35 +54,22 @@ export function formatGlobalKey(k: GlobalKey): string {
   return [...mods.filter(Boolean), k.code].join("+");
 }
 
-const NAMED: Record<string, [mac: string, pc: string]> = {
-  Space: ["Space", "Space"],
-  Backquote: ["`", "`"],
-  Minus: ["-", "-"],
-  Equal: ["=", "="],
-  BracketLeft: ["[", "["],
-  BracketRight: ["]", "]"],
-  Backslash: ["\\", "\\"],
-  Semicolon: [";", ";"],
-  Quote: ["'", "'"],
-  Comma: [",", ","],
-  Period: [".", "."],
-  Slash: ["/", "/"],
-  ArrowUp: ["↑", "Up"],
-  ArrowDown: ["↓", "Down"],
-  ArrowLeft: ["←", "Left"],
-  ArrowRight: ["→", "Right"],
-  Enter: ["↩", "Enter"],
-  Tab: ["⇥", "Tab"],
-  Backspace: ["⌫", "Backspace"],
-  Delete: ["⌦", "Delete"],
-  PageUp: ["⇞", "PageUp"],
-  PageDown: ["⇟", "PageDown"],
+const PUNCTUATION: Record<string, string> = {
+  Backquote: "`",
+  Minus: "-",
+  Equal: "=",
+  BracketLeft: "[",
+  BracketRight: "]",
+  Backslash: "\\",
+  Semicolon: ";",
+  Quote: "'",
+  Comma: ",",
+  Period: ".",
+  Slash: "/",
 };
 
 function keyLabel(code: string, mac: boolean): string {
-  const named = NAMED[code];
-  if (named) return named[mac ? 0 : 1];
-  return code.replace(/^Key|^Digit/, "");
+  return keyName(PUNCTUATION[code] ?? code.replace(/^Key|^Digit/, ""), mac);
 }
 
 export function globalKeyLabel(raw: string, mac: boolean = isMac, windows: boolean = isWindows): string {

@@ -13,6 +13,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import cx.lpm.mobile.core.designsystem.component.PlainListDefaults
+import cx.lpm.mobile.core.designsystem.component.plainListSeparator
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.feature.git.R
 
@@ -22,7 +23,7 @@ internal fun LoadOlderRow(loading: Boolean, onClick: () -> Unit, modifier: Modif
     val colors = LpmTheme.colors
     Box(
         modifier
-            .rowSeparators(colors.listSeparator)
+            .plainListSeparator(colors.listSeparator)
             .fillMaxWidth()
             .heightIn(min = 44.dp)
             .clickable(enabled = !loading, role = Role.Button, onClick = onClick)

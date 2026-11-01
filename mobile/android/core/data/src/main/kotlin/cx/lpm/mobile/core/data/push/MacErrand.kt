@@ -66,17 +66,9 @@ internal class MacErrand(
         }
     }
 
-    private suspend fun reach(mac: MacRecord): String? {
-        val identity = HostProber.Identity(pin = credentials.loadPin(mac.localId))
-        val hosts = mac.hosts.filter { it.isNotEmpty() }
-        return if (hosts.size == 1) {
-            hosts.single().takeIf { prober.open(it, mac.port, identity, PROBE_MS).reachable }
-        } else {
-            prober.race(hosts, mac.port, identity, PROBE_MS).winner
-        }
-    }
-
-    private companion object {
-        const val PROBE_MS = 6_000L
-    }
+    private suspend fun reach(mac: MacRecord): String? = prober.firstReachable(
+        mac.hosts,
+        mac.port,
+        HostProber.Identity(pin = credentials.loadPin(mac.localId))
+    )
 }

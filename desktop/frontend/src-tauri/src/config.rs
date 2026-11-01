@@ -2887,6 +2887,27 @@ pub struct SpawnInfo {
     pub claude_account: Option<String>,
 }
 
+/// The session a project's panes run in: its YAML `name`, else its file name.
+/// Reads only that field, for callers that need nothing else from the project.
+pub fn session_name(name: &str) -> Result<String, String> {
+    if name == RESERVED_PROJECT_NAME {
+        return Ok(name.to_string());
+    }
+    #[derive(Deserialize)]
+    struct Named {
+        #[serde(default)]
+        name: String,
+    }
+    let bytes =
+        std::fs::read(projects_dir().join(format!("{name}.yml"))).map_err(|e| e.to_string())?;
+    let y: Named = serde_norway::from_slice(&bytes).map_err(|e| e.to_string())?;
+    Ok(if y.name.is_empty() {
+        name.to_string()
+    } else {
+        y.name
+    })
+}
+
 pub fn spawn_info(name: &str) -> Result<SpawnInfo, String> {
     if name == RESERVED_PROJECT_NAME {
         return Ok(SpawnInfo {

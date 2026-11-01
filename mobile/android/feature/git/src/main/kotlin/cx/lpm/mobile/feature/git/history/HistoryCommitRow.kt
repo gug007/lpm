@@ -30,6 +30,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import cx.lpm.mobile.core.designsystem.component.DisclosureChevron
 import cx.lpm.mobile.core.designsystem.component.PlainListDefaults
+import cx.lpm.mobile.core.designsystem.component.plainListSeparator
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.core.model.HistoryCommit
 import cx.lpm.mobile.core.model.relativeAgo
@@ -58,11 +59,11 @@ internal fun HistoryCommitRow(
     val markLift = with(LocalDensity.current) { MarkLift.roundToPx() }
     Row(
         modifier
-            .rowSeparators(
+            .plainListSeparator(
                 colors.listSeparator,
+                startInset = TextInset,
                 top = first,
-                bottom = separator,
-                startInset = TextInset
+                bottom = separator
             )
             .fillMaxWidth()
             .clickable(interaction, indication = null, role = Role.Button, onClick = onOpen)

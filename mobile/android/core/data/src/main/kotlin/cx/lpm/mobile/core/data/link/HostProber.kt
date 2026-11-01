@@ -66,17 +66,27 @@ interface HostProber {
         }
     }
 
-    /** Whether any address answers — probing even a lone one, which [race] doesn't. */
+    /** The first address that answers — probing even a lone one, which [race] doesn't. */
+    suspend fun firstReachable(
+        hosts: List<String>,
+        port: Int,
+        identity: Identity,
+        timeoutMs: Long = DEFAULT_TIMEOUT_MS
+    ): String? {
+        val candidates = hosts.filter { it.isNotEmpty() }
+        if (candidates.size == 1) {
+            return candidates[0].takeIf { open(it, port, identity, timeoutMs).reachable }
+        }
+        return race(candidates, port, identity, timeoutMs).winner
+    }
+
+    /** Whether any address answers, as [firstReachable] finds it. */
     suspend fun anyReachable(
         hosts: List<String>,
         port: Int,
         identity: Identity,
         timeoutMs: Long = DEFAULT_TIMEOUT_MS
-    ): Boolean {
-        val candidates = hosts.filter { it.isNotEmpty() }
-        if (candidates.size == 1) return open(candidates[0], port, identity, timeoutMs).reachable
-        return race(candidates, port, identity, timeoutMs).winner != null
-    }
+    ): Boolean = firstReachable(hosts, port, identity, timeoutMs) != null
 
     /** Check every address and report each one, for the address list. */
     suspend fun checkAll(

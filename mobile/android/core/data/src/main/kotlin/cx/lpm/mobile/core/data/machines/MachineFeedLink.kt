@@ -72,17 +72,11 @@ internal class MachineFeedLink(
         teardown()
     }
 
-    private suspend fun reach(): String? {
-        val identity = HostProber.Identity(pin = env.credentials.loadPin(record.localId))
-        val hosts = record.hosts.filter { it.isNotEmpty() }
-        return if (hosts.size == 1) {
-            hosts.single().takeIf {
-                env.prober.open(it, record.port, identity, PROBE_TIMEOUT_MS).reachable
-            }
-        } else {
-            env.prober.race(hosts, record.port, identity, PROBE_TIMEOUT_MS).winner
-        }
-    }
+    private suspend fun reach(): String? = env.prober.firstReachable(
+        record.hosts,
+        record.port,
+        HostProber.Identity(pin = env.credentials.loadPin(record.localId))
+    )
 
     private fun connect(host: String) {
         val localId = record.localId
@@ -151,7 +145,6 @@ internal class MachineFeedLink(
     }
 
     private companion object {
-        const val PROBE_TIMEOUT_MS = 6_000L
         const val REFRESH_DELAY_MS = 400L
         val RETRY_DELAYS_MS = listOf(5_000L, 15_000L, 30_000L, 60_000L)
     }

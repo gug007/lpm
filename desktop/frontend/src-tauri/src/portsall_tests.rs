@@ -87,12 +87,6 @@ fn lpm_is_known_by_its_binaries_on_every_platform() {
 }
 
 #[test]
-fn a_filetime_converts_to_unix_seconds() {
-    assert_eq!(unix_from_filetime(116_444_736_000_000_000), 0);
-    assert_eq!(unix_from_filetime(116_444_736_000_000_000 + 10_000_000 * 60), 60);
-}
-
-#[test]
 fn rows_read_back_from_a_peer_answer() {
     let value = json!([{ "port": 3000, "pid": 7, "process": "node", "project": "shop" }]);
     let rows: Vec<ListeningPort> = serde_json::from_value(value).unwrap();

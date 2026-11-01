@@ -1,144 +1,17 @@
-//! A service's `ready` check: the config shape (the app's readyspec.rs accepts
-//! the same YAML) and the probe `lpm wait` runs.
-//!
-//! `ready: port` waits for the service's own `port`, `ready: 4001` for that
-//! port, `ready: http://…` for a 2xx answer, and the mapping form adds
-//! `log: <text>` (a line of the service's output contains it) and `timeout`.
+//! A service's `ready` check: the config shape, parsed by the app's own
+//! readyspec.rs so both accept the same YAML, and the probe `lpm wait` runs.
 
-use serde::Deserialize;
-use serde_norway::{Mapping, Value as Yaml};
 use std::io::{Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
 use std::time::Duration;
 
-pub const DEFAULT_TIMEOUT_SECS: u64 = 30;
-pub const MAX_TIMEOUT_SECS: u64 = 3600;
+// The service editor's `to_json` is the app's alone.
+#[path = "../../desktop/frontend/src-tauri/src/readyspec.rs"]
+#[allow(dead_code)]
+mod spec;
 
-#[derive(Deserialize, Clone, Debug, PartialEq)]
-#[serde(untagged)]
-pub enum ReadySpec {
-    Port(i64),
-    Text(String),
-    Full(Mapping),
-    // Anything else still loads the project; it resolves to an error instead.
-    Invalid(serde::de::IgnoredAny),
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum Probe {
-    Port(u16),
-    Url(String),
-    Log(String),
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct ReadyCheck {
-    pub probe: Probe,
-    pub timeout: Duration,
-}
-
-const SHAPE: &str =
-    "expected port, a port number, an http(s) URL, or a mapping with one of port, url or log";
-const KEYS: [&str; 4] = ["port", "url", "log", "timeout"];
-
-fn port_probe(port: i64) -> Result<Probe, String> {
-    u16::try_from(port)
-        .ok()
-        .filter(|p| *p > 0)
-        .map(Probe::Port)
-        .ok_or_else(|| "port must be from 1 to 65535".to_string())
-}
-
-fn own_port(service_port: i64) -> Result<Probe, String> {
-    if service_port <= 0 {
-        return Err("checking the service's port needs the service to set `port`".into());
-    }
-    port_probe(service_port)
-}
-
-fn is_url(text: &str) -> bool {
-    let lower = text.to_ascii_lowercase();
-    ["http://", "https://"]
-        .iter()
-        .any(|scheme| lower.starts_with(scheme) && lower.len() > scheme.len())
-}
-
-fn url_probe(url: &str) -> Result<Probe, String> {
-    let url = url.trim();
-    if is_url(url) {
-        Ok(Probe::Url(url.to_string()))
-    } else {
-        Err("url must start with http:// or https://".into())
-    }
-}
-
-impl ReadySpec {
-    pub fn resolve(&self, service_port: i64) -> Result<ReadyCheck, String> {
-        let probe = match self {
-            ReadySpec::Port(port) => port_probe(*port)?,
-            ReadySpec::Text(text) if text.trim() == "port" => own_port(service_port)?,
-            ReadySpec::Text(text) if is_url(text.trim()) => url_probe(text)?,
-            ReadySpec::Text(_) | ReadySpec::Invalid(_) => return Err(SHAPE.into()),
-            ReadySpec::Full(map) => return resolve_map(map, service_port),
-        };
-        Ok(ReadyCheck {
-            probe,
-            timeout: Duration::from_secs(DEFAULT_TIMEOUT_SECS),
-        })
-    }
-}
-
-fn resolve_map(map: &Mapping, service_port: i64) -> Result<ReadyCheck, String> {
-    if let Some(key) = map
-        .keys()
-        .find(|k| !k.as_str().is_some_and(|k| KEYS.contains(&k)))
-    {
-        let key = key
-            .as_str()
-            .map(|k| format!("{k:?}"))
-            .unwrap_or_else(|| "(not a string)".into());
-        return Err(format!(
-            "unknown key {key}; expected port, url, log or timeout"
-        ));
-    }
-    let set = ["port", "url", "log"]
-        .iter()
-        .filter(|k| map.contains_key(**k))
-        .count();
-    if set != 1 {
-        return Err("set exactly one of port, url or log".into());
-    }
-    let probe = if let Some(port) = map.get("port") {
-        match port {
-            Yaml::Bool(true) => own_port(service_port)?,
-            Yaml::Number(n) => port_probe(n.as_i64().unwrap_or(0))?,
-            _ => return Err("port must be true or a port number".into()),
-        }
-    } else if let Some(url) = map.get("url") {
-        url_probe(url.as_str().ok_or("url must be a string")?)?
-    } else {
-        let text = map
-            .get("log")
-            .and_then(Yaml::as_str)
-            .ok_or("log must be a string")?;
-        if text.trim().is_empty() {
-            return Err("log must not be empty".into());
-        }
-        Probe::Log(text.to_string())
-    };
-    let secs = match map.get("timeout") {
-        None => DEFAULT_TIMEOUT_SECS,
-        Some(t) => t
-            .as_i64()
-            .filter(|t| (1..=MAX_TIMEOUT_SECS as i64).contains(t))
-            .map(|t| t as u64)
-            .ok_or_else(|| format!("timeout must be from 1 to {MAX_TIMEOUT_SECS} seconds"))?,
-    };
-    Ok(ReadyCheck {
-        probe,
-        timeout: Duration::from_secs(secs),
-    })
-}
+use spec::output_has;
+pub use spec::{Probe, ReadyCheck, ReadySpec};
 
 /// Whether the check passes now. A log line is read from the service's pane
 /// in `session`; the line lpm typed to start it never counts.
@@ -152,14 +25,6 @@ pub fn passes(probe: &Probe, session: &str, service: &str, cmd: &str) -> bool {
             .and_then(|pane| crate::sessions::capture_pane(&pane.id, 3000).ok())
             .is_some_and(|output| output_has(&output, text, cmd)),
     }
-}
-
-fn output_has(output: &str, text: &str, cmd: &str) -> bool {
-    let cmd = cmd.trim();
-    output
-        .lines()
-        .filter(|line| cmd.is_empty() || !line.contains(cmd))
-        .any(|line| line.contains(text))
 }
 
 const CONNECT_TIMEOUT: Duration = Duration::from_millis(300);
@@ -260,38 +125,6 @@ mod tests {
     use super::*;
     use std::net::{Ipv4Addr, TcpListener};
 
-    fn parse(yaml: &str) -> ReadySpec {
-        serde_norway::from_str(yaml).unwrap()
-    }
-
-    #[test]
-    fn same_shapes_as_the_app() {
-        assert_eq!(
-            parse("port").resolve(4000).unwrap().probe,
-            Probe::Port(4000)
-        );
-        assert_eq!(parse("4001").resolve(0).unwrap().probe, Probe::Port(4001));
-        assert_eq!(
-            parse("http://localhost:3000/up").resolve(0).unwrap().probe,
-            Probe::Url("http://localhost:3000/up".into())
-        );
-        let log = parse("log: ready in\ntimeout: 60").resolve(0).unwrap();
-        assert_eq!(log.probe, Probe::Log("ready in".into()));
-        assert_eq!(log.timeout, Duration::from_secs(60));
-        for bad in [
-            "soon",
-            "[1]",
-            "{}",
-            "prot: 1",
-            "port: false",
-            "url: x",
-            "log: up\ntimeout: 0",
-        ] {
-            assert!(parse(bad).resolve(3000).is_err(), "{bad}");
-        }
-        assert!(parse("port").resolve(0).is_err());
-    }
-
     #[test]
     fn http_targets_parse() {
         let t = http_target("http://localhost:3000/health?x=1").unwrap();
@@ -333,19 +166,5 @@ mod tests {
         assert!(url_answers(&url));
         assert!(!url_answers(&url));
         server.join().unwrap();
-    }
-
-    #[test]
-    fn the_typed_command_never_counts_as_its_log_line() {
-        assert!(!output_has(
-            "$ echo up && serve\n",
-            "up",
-            "echo up && serve"
-        ));
-        assert!(output_has(
-            "$ echo up && serve\nup\n",
-            "up",
-            "echo up && serve"
-        ));
     }
 }

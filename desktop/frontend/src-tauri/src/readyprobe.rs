@@ -3,11 +3,11 @@
 // one. A log line is read from the service's pane either way, since a remote
 // service's output comes back through its local ssh pane.
 use crate::config::SshSettings;
-use crate::readyspec::Probe;
+use crate::readyspec::{output_has, Probe};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, TcpStream};
 use std::process::Command;
 use std::sync::OnceLock;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 const CONNECT_TIMEOUT: Duration = Duration::from_millis(300);
 const HTTP_TIMEOUT: Duration = Duration::from_secs(2);
@@ -19,8 +19,13 @@ pub fn passes(probe: &Probe, ssh: Option<&SshSettings>, pane: Option<&str>, cmd:
         (Probe::Log(text), _) => pane.is_some_and(|pane| log_has(pane, text, cmd)),
         (Probe::Port(port), None) => port_accepts(*port),
         (Probe::Url(url), None) => url_answers(url),
-        (Probe::Port(port), Some(ssh)) => remote_passes(ssh, &remote_port_script(*port)),
-        (Probe::Url(url), Some(ssh)) => remote_passes(ssh, &remote_url_script(url)),
+        (Probe::Port(port), Some(ssh)) => {
+            remote_passes(|s| remote_bash(ssh, s), &remote_port_script(*port))
+        }
+        (Probe::Url(url), Some(ssh)) => remote_passes(
+            |s| crate::sshexec::remote_login_script(ssh, s),
+            &remote_url_script(url),
+        ),
     }
 }
 
@@ -56,21 +61,10 @@ fn url_answers(url: &str) -> bool {
         .is_some_and(|response| response.status().is_success())
 }
 
-/// Whether a line of the pane's output contains `text`. The line lpm typed to
-/// start the service is skipped, since a command that mentions its own ready
-/// text would otherwise pass before it has printed anything.
 fn log_has(pane: &str, text: &str, cmd: &str) -> bool {
     crate::sessions::capture_pane(pane, LOG_HISTORY)
         .map(|output| output_has(&output, text, cmd))
         .unwrap_or(false)
-}
-
-pub(crate) fn output_has(output: &str, text: &str, cmd: &str) -> bool {
-    let cmd = cmd.trim();
-    output
-        .lines()
-        .filter(|line| cmd.is_empty() || !line.contains(cmd))
-        .any(|line| line.contains(text))
 }
 
 fn remote_port_script(port: u16) -> String {
@@ -84,32 +78,23 @@ fn remote_url_script(url: &str) -> String {
     )
 }
 
-fn remote_passes(ssh: &SshSettings, script: &str) -> bool {
-    succeeds_within(
-        crate::sshexec::remote_login_script(ssh, script),
-        REMOTE_TIMEOUT,
-    )
+/// A port check needs bash's /dev/tcp but nothing from the login profile,
+/// which a check repeated every second shouldn't load each time.
+fn remote_bash(ssh: &SshSettings, script: &str) -> Command {
+    let mut cmd = crate::osproc::command("ssh");
+    cmd.args(crate::config::ssh_exec_args(ssh));
+    cmd.arg(format!(
+        "exec bash -c {}",
+        crate::config::shell_quote(script)
+    ));
+    cmd
 }
 
-fn succeeds_within(mut cmd: Command, limit: Duration) -> bool {
-    cmd.stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null());
-    let Ok(mut child) = cmd.spawn() else {
-        return false;
-    };
-    let start = Instant::now();
-    loop {
-        match child.try_wait() {
-            Ok(Some(status)) => return status.success(),
-            Ok(None) if start.elapsed() < limit => std::thread::sleep(Duration::from_millis(50)),
-            _ => {
-                let _ = child.kill();
-                let _ = child.wait();
-                return false;
-            }
-        }
-    }
+fn remote_passes(on_host: impl FnOnce(&str) -> Command, script: &str) -> bool {
+    const PASSED: &str = "lpm-ready";
+    let cmd = on_host(&format!("{{ {script}; }} && echo {PASSED}"));
+    crate::statusfwd::run_with_timeout(cmd, REMOTE_TIMEOUT)
+        .is_some_and(|out| String::from_utf8_lossy(&out).contains(PASSED))
 }
 
 #[cfg(test)]
@@ -124,22 +109,6 @@ mod tests {
         assert!(passes(&Probe::Port(port), None, None, ""));
         drop(listener);
         assert!(!passes(&Probe::Port(port), None, None, ""));
-    }
-
-    #[test]
-    fn the_typed_command_never_counts_as_its_log_line() {
-        let output = "$ cd /app && echo listening && npm run dev\nlistening\n";
-        assert!(output_has(
-            output,
-            "listening",
-            "echo listening && npm run dev"
-        ));
-        let typed_only = "$ cd /app && echo listening && npm run dev\n";
-        assert!(!output_has(
-            typed_only,
-            "listening",
-            "echo listening && npm run dev"
-        ));
     }
 
     #[test]

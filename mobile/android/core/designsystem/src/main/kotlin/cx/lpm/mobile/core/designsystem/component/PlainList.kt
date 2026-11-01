@@ -23,13 +23,14 @@ object PlainListDefaults {
 /**
  * A plain list's separator over a row's bottom edge, inset from both sides of the
  * screen; [top] draws one over its top edge too, as iOS 26 does above a list's first
- * row.
+ * row, and [bottom] off leaves the bottom one out (a row SwiftUI hides it beside).
  */
 fun Modifier.plainListSeparator(
     color: Color,
     startInset: Dp = PlainListDefaults.RowPadding,
     endInset: Dp = PlainListDefaults.RowPadding,
-    top: Boolean = false
+    top: Boolean = false,
+    bottom: Boolean = true
 ): Modifier = drawWithContent {
     drawContent()
     val thickness = ListDefaults.SeparatorThickness.toPx()
@@ -38,7 +39,9 @@ fun Modifier.plainListSeparator(
     } else {
         startInset.toPx() to size.width - endInset.toPx()
     }
-    val bottom = size.height - thickness / 2
-    drawLine(color, Offset(left, bottom), Offset(right, bottom), thickness)
+    if (bottom) {
+        val y = size.height - thickness / 2
+        drawLine(color, Offset(left, y), Offset(right, y), thickness)
+    }
     if (top) drawLine(color, Offset(left, thickness / 2), Offset(right, thickness / 2), thickness)
 }

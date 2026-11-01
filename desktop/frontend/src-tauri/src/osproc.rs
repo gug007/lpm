@@ -231,6 +231,42 @@ pub fn start_of(pid: u32) -> Option<u64> {
     return crate::procwin::created(pid);
 }
 
+/// When `pid` started, in Unix seconds.
+pub fn started_unix(pid: i64) -> Option<i64> {
+    let start = start_of(u32::try_from(pid).ok()?)?;
+    #[cfg(target_os = "macos")]
+    return Some((start / 1_000_000) as i64);
+    #[cfg(target_os = "linux")]
+    return linux_start(start);
+    #[cfg(windows)]
+    return Some(unix_from_filetime(start));
+}
+
+/// /proc/<pid>/stat counts a start in clock ticks since boot.
+/// Boot time and tick rate never change, so they're read once.
+#[cfg(target_os = "linux")]
+fn linux_start(ticks: u64) -> Option<i64> {
+    static BOOT: std::sync::OnceLock<Option<(i64, u64)>> = std::sync::OnceLock::new();
+    let (boot, hz) = (*BOOT.get_or_init(|| {
+        let stat = std::fs::read_to_string("/proc/stat").ok()?;
+        let boot: i64 = stat
+            .lines()
+            .find_map(|line| line.strip_prefix("btime "))?
+            .trim()
+            .parse()
+            .ok()?;
+        let hz = unsafe { libc::sysconf(libc::_SC_CLK_TCK) };
+        (hz > 0).then_some((boot, hz as u64))
+    }))?;
+    Some(boot + (ticks / hz) as i64)
+}
+
+/// A FILETIME counts 100 ns intervals since 1601-01-01.
+#[cfg(any(windows, test))]
+fn unix_from_filetime(ft: u64) -> i64 {
+    (ft / 10_000_000) as i64 - 11_644_473_600
+}
+
 #[cfg(target_os = "macos")]
 fn parent_and_start(pid: u32) -> Option<(u32, u64)> {
     let mut info: libc::proc_bsdinfo = unsafe { std::mem::zeroed() };
@@ -279,6 +315,15 @@ pub fn session_of(pid: u32) -> Option<u32> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_filetime_converts_to_unix_seconds() {
+        assert_eq!(unix_from_filetime(116_444_736_000_000_000), 0);
+        assert_eq!(
+            unix_from_filetime(116_444_736_000_000_000 + 10_000_000 * 60),
+            60
+        );
+    }
 
     #[test]
     fn a_process_has_one_start_time() {

@@ -2381,7 +2381,8 @@ fn handle_msg(
         // and replies the fresh sidebar so the requesting phone re-renders. Local
         // config ops — no main window needed.
         // `sidebarCreateFolder`/`RenameFolder`/`DeleteFolder`/`MoveProject`, and
-        // `sidebarPin`, the desktop's Pin to top / Unpin (settings.json only).
+        // `sidebarPin`, the desktop's Pin to top / Unpin (settings.json only, so
+        // `sidebar-changed` alone: pins ride on the sidebar, not the project list).
         "sidebarCreateFolder"
         | "sidebarRenameFolder"
         | "sidebarDeleteFolder"
@@ -2409,7 +2410,9 @@ fn handle_msg(
             };
             match r {
                 Ok(()) => {
-                    let _ = app.emit("projects-changed", ());
+                    if t != "sidebarPin" {
+                        let _ = app.emit("projects-changed", ());
+                    }
                     let _ = app.emit("sidebar-changed", ());
                     send(ws, sidebar_reply(json!({ "t": t, "ok": true })))?;
                 }

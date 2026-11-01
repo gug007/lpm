@@ -19,6 +19,7 @@ import cx.lpm.mobile.core.designsystem.R as DesignR
 import cx.lpm.mobile.core.designsystem.component.GlassIconButton
 import cx.lpm.mobile.core.designsystem.component.LpmTopBar
 import cx.lpm.mobile.core.designsystem.component.PlainListDefaults
+import cx.lpm.mobile.core.designsystem.component.plainListSeparator
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.core.model.HistoryCommit
 import cx.lpm.mobile.feature.git.R
@@ -106,7 +107,7 @@ private fun LazyListScope.commitRows(state: CommitHistoryUiState, onOpen: (Histo
 private fun LazyListScope.emptyState(state: CommitHistoryUiState, onRetry: () -> Unit) {
     item(key = "empty") {
         val error = state.error
-        val separated = Modifier.rowSeparators(LpmTheme.colors.listSeparator, top = true)
+        val separated = Modifier.plainListSeparator(LpmTheme.colors.listSeparator, top = true)
         when {
             error != null -> FileNoteRow(FileNote.Failed(error), onRetry, separated)
 
