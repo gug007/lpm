@@ -93,6 +93,8 @@ const RESERVED_SHARED = [
   // App.tsx — sidebar + new terminal (Cmd+1..9 added below)
   "cmd+b",
   "cmd+t",
+  // App.tsx — the Ports view
+  "cmd+alt+p",
   // TerminalView.tsx — tabs, panes, search, composer, utility tabs, zoom
   "cmd+w",
   "cmd+d",
@@ -186,6 +188,10 @@ export function physicalChordId(p: PhysicalChord): string {
 
 export function isSystemShortcut(s: KeyboardShortcut, mac: boolean = isMac): boolean {
   return !mac && SYSTEM_CHORDS.has(physicalChordId(toPhysical(s, false)));
+}
+
+export function isSystemChord(p: PhysicalChord): boolean {
+  return SYSTEM_CHORDS.has(physicalChordId(p));
 }
 
 // What two shortcuts collide on: the stored combo on macOS, the physical chord

@@ -44,7 +44,7 @@ When the app is not running or the installed CLI does not provide `config get` a
 9. `type` is `terminal`, `command`, or `background` when set.
 10. `mode` is `remote` or `sync`; `sync` requires SSH.
 11. Input fields are only `label`, `type` (`text`, `password`, `radio`), `required`, `placeholder`, `default`, `persist`, `options`, and `position`. Radio inputs have options and a matching default; option mappings have both `label` and `value`.
-12. Profiles and `dependsOn` reference defined services; dependency graphs are acyclic. A service sets `dependsOn` or `depends_on`, not both.
+12. Profiles and `dependsOn` reference defined services; dependency graphs are acyclic. A service sets `dependsOn` or `depends_on`, not both. `ready` is `port` (with the service's `port` set), a port from 1 to 65535, an `http(s)://` URL, or a mapping with exactly one of `port` (`true` or a port), `url`, `log` (non-empty text), plus an optional `timeout` from 1 to 3600 seconds. An invalid `ready` doesn't stop the project loading; the app ignores it.
 13. `parent_name` references an existing project.
 14. `worktree`, when present, is a boolean; `true` requires `parent_name`. `autoPull`, when present, is a boolean.
 15. `.lpm.yml` holds only `extends`, `services`, `actions`, `terminals`, `profiles`, `zones`, and `jobs`; `global.yml` only `extends`, `actions`, `terminals`, `zones`, and `jobs`; a template only `actions` and `terminals`. `jobs` holds automations, which `lpm automations` manages; leave the section as it is.

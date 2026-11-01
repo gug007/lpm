@@ -1,15 +1,24 @@
 import { parseShortcut, formatShortcut } from "../../shortcutParse";
 import { useShortcutCapture } from "../../hooks/useShortcutCapture";
+import type { CaptureResult } from "../../shortcutRecord";
 
 interface ShortcutRecorderProps {
   value: string;
   onChange: (next: string) => void;
   reserved?: ReadonlySet<string>;
+  // Reads a key press while recording; lpm's own shortcuts by default.
+  capture?: (event: KeyboardEvent) => CaptureResult;
+  // What the button says for `value`.
+  label?: (value: string) => string;
 }
 
-export function ShortcutRecorder({ value, onChange, reserved }: ShortcutRecorderProps) {
+function shortcutLabel(value: string): string {
   const parsed = value ? parseShortcut(value) : null;
-  const { recording, hint, toggle } = useShortcutCapture({ reserved, onCapture: onChange });
+  return parsed ? formatShortcut(parsed) : "Set shortcut";
+}
+
+export function ShortcutRecorder({ value, onChange, reserved, capture, label = shortcutLabel }: ShortcutRecorderProps) {
+  const { recording, hint, toggle } = useShortcutCapture({ reserved, capture, onCapture: onChange });
 
   return (
     <div className="flex flex-col items-end gap-1">
@@ -22,7 +31,7 @@ export function ShortcutRecorder({ value, onChange, reserved }: ShortcutRecorder
             : "border-[var(--border)] bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:border-[var(--text-muted)]"
         }`}
       >
-        {recording ? "Press keys…" : parsed ? formatShortcut(parsed) : "Set shortcut"}
+        {recording ? "Press keys…" : label(value)}
       </button>
       {hint && <span className="text-[11px] text-[var(--text-error,#e15252)]">{hint}</span>}
     </div>

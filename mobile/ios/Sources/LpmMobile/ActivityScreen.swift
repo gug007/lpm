@@ -279,7 +279,7 @@ struct ActivityScreen: View {
             let project = row.project.name
             guard !project.isEmpty else { return }
             if let slug = row.project.machine {
-                guard let section = model.machineSections.first(where: { $0.machine.slug == slug }),
+                guard let section = model.listedMachineSections.first(where: { $0.machine.slug == slug }),
                       let visit = model.beginVisit(section, project: project, terminal: row.terminalId) else { return }
                 route = .machine(visit)
                 return

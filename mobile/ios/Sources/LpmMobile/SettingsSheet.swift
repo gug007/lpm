@@ -67,6 +67,15 @@ struct SettingsSheet: View {
                 SecuritySection()
 
                 Section {
+                    Button("Show Tips Again") { TipsStore.shared.reset() }
+                        .disabled(!TipsStore.shared.anyClosed)
+                } header: {
+                    Text("Tips")
+                } footer: {
+                    Text("Tips you closed come back where they apply.")
+                }
+
+                Section {
                     Link(destination: URL(string: "https://lpm.cx/privacy")!) {
                         Label("Privacy Policy", systemImage: "lock.shield")
                     }

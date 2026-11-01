@@ -1,0 +1,28 @@
+appId: cx.lpm.mobile
+name: 38-pin-project
+tags: [demo, projects]
+---
+- runFlow: subflows/enter-demo.yaml
+# A project's long-press menu pins it: the Mac's own Pin to top.
+- longPressOn: "api-gateway"
+- extendedWaitUntil:
+    visible: "Pin to top"
+    timeout: 5000
+- takeScreenshot: 1-row-menu
+- tapOn: "Pin to top"
+# A Pinned section above the list, and a "Projects" header over the list itself.
+- extendedWaitUntil:
+    visible: "Pinned"
+    timeout: 5000
+- assertVisible: "Projects"
+- takeScreenshot: 2-pinned
+# Either row's menu takes the pin off.
+- longPressOn: "api-gateway"
+- extendedWaitUntil:
+    visible: "Unpin"
+    timeout: 5000
+- tapOn: "Unpin"
+- extendedWaitUntil:
+    notVisible: "Pinned"
+    timeout: 5000
+- takeScreenshot: 3-unpinned

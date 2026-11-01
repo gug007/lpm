@@ -57,14 +57,16 @@ class ProjectsStore(internal val session: MacSession) : SessionStore {
     override fun wire(client: LpmClient) {
         val c = client
         c.onProjects = ::applyProjects
-        c.onSidebar =
-            { order, groups -> mutable.update { it.copy(sidebarOrder = order, groups = groups) } }
-        // A folder mutation reply carries the updated layout; a failure surfaces once.
-        c.onSidebarMutation = { order, groups, error ->
+        c.onSidebar = { order, groups, pins -> applySidebar(order, groups, pins) }
+        c.onSidebarChanged = { c.requestSidebar() }
+        // A folder or pin reply carries the updated layout; a failure surfaces once, and
+        // an optimistic pin the Mac refused comes back off.
+        c.onSidebarMutation = { order, groups, pins, error ->
             if (error != null) {
                 session.alerts.showError(error)
+                c.requestSidebar()
             } else {
-                mutable.update { it.copy(sidebarOrder = order, groups = groups) }
+                applySidebar(order, groups, pins)
             }
         }
         // A rename succeeds silently (the projects push refreshes the label).
@@ -149,6 +151,14 @@ class ProjectsStore(internal val session: MacSession) : SessionStore {
     internal fun setPendingAgentArchive(pending: PendingAgentArchive?) =
         mutable.update { it.copy(pendingAgentArchive = pending) }
 
+    internal fun setPins(pins: List<String>) = mutable.update { it.copy(pins = pins) }
+
+    private fun applySidebar(
+        order: List<String>,
+        groups: List<ProjectFolder>,
+        pins: List<String>?
+    ) = mutable.update { it.copy(sidebarOrder = order, groups = groups, pins = pins.orEmpty()) }
+
     private fun applyProjects(projects: List<Project>) {
         mutable.update { it.copy(projects = projects, projectsLoaded = true) }
         session.link.update { it.copy(listAsOf = null) }
@@ -178,7 +188,8 @@ class ProjectsStore(internal val session: MacSession) : SessionStore {
             workStatusOrder = snapshot.workStatusOrder,
             autoPullMode = snapshot.autoPullMode,
             sidebarOrder = snapshot.sidebarOrder,
-            groups = snapshot.groups
+            groups = snapshot.groups,
+            pins = snapshot.pins
         )
     }
 

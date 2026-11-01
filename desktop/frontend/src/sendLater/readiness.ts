@@ -1,5 +1,6 @@
 import type { AgentState } from "../agentStatus";
 import type { PaneAgentStatus } from "../hooks/usePaneStatus";
+import { isShellAtPrompt } from "../shellCommand";
 import { isWhenDone, type ScheduledPrompt, type SendLaterHold } from "../store/sendLater";
 
 // How long a terminal that just took a prompt is left alone: its agent reports
@@ -72,10 +73,7 @@ export function stoppedOnProblem(item: Pick<ScheduledPrompt, "kind" | "createdAt
   return isWhenDone(item) && agent?.state === "error" && (agent.since ?? 0) > item.createdAt;
 }
 
-const SHELLS = new Set(["zsh", "bash", "sh", "fish", "dash", "ksh", "tcsh", "csh", "nu", "login"]);
-
 export function foregroundKind(command: string | null | undefined): Foreground {
-  const name = (command ?? "").trim().replace(/^-/, "");
-  if (!name) return "unknown";
-  return SHELLS.has(name) ? "shell" : "program";
+  if (!command?.trim()) return "unknown";
+  return isShellAtPrompt(command) ? "shell" : "program";
 }

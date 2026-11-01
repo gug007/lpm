@@ -170,6 +170,18 @@ class WireProjectsTest {
     }
 
     @Test
+    fun sidebarPin() {
+        assertFrame(
+            """{ "t": "sidebarPin", "project": "api", "pinned": true }""",
+            Wire.sidebarPin("api", true)
+        )
+        assertFrame(
+            """{ "t": "sidebarPin", "project": "api", "pinned": false }""",
+            Wire.sidebarPin("api", false)
+        )
+    }
+
+    @Test
     fun sidebarFolders() {
         assertFrame(
             """{ "t": "sidebarCreateFolder", "name": "Client Work" }""",

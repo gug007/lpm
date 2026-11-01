@@ -181,6 +181,15 @@ fun LpmClient.gitAutoPullUndo(project: String) = send(Wire.gitAutoPullUndo(proje
 
 fun LpmClient.requestGitBranches(project: String) = send(Wire.gitBranches(project))
 
+fun LpmClient.requestGitHistory(project: String, skip: Int, limit: Int) =
+    send(Wire.gitHistory(project, skip, limit))
+
+fun LpmClient.requestGitCommitFiles(project: String, hash: String) =
+    send(Wire.gitCommitFiles(project, hash))
+
+fun LpmClient.requestGitCommitPatch(project: String, hash: String, path: String, oldPath: String?) =
+    send(Wire.gitCommitPatch(project, hash, path, oldPath))
+
 fun LpmClient.gitCheckout(project: String, branch: String, remote: String) =
     send(Wire.gitCheckout(project, branch, remote))
 

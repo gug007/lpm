@@ -520,6 +520,7 @@ mod tests {
                 .into_iter()
                 .collect(),
             depends_on: Vec::new(),
+            ready: None,
         }];
         p.actions = vec![sample_action()];
         p

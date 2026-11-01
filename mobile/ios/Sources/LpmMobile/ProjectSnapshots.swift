@@ -13,6 +13,7 @@ final class ProjectSnapshots {
         var autoPullMode: AutoPullMode = .off
         var sidebarOrder: [String] = []
         var groups: [ProjectFolder] = []
+        var pins: [String] = []
         var at: Date
     }
 
@@ -50,9 +51,10 @@ final class ProjectSnapshots {
         }
         var snapshot = Snapshot(projects: projects, workStatuses: statuses, workStatusOrder: order,
                                 autoPullMode: autoPullMode, at: entry.at)
-        if let sidebar = entry.sidebar, case .sidebar(let order, let groups) = Wire.Inbound.parse(sidebar) {
+        if let sidebar = entry.sidebar, case .sidebar(let order, let groups, let pins) = Wire.Inbound.parse(sidebar) {
             snapshot.sidebarOrder = order
             snapshot.groups = groups
+            snapshot.pins = pins ?? []
         }
         return snapshot
     }

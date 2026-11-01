@@ -41,6 +41,33 @@
 {"at": 600, "frame": {"t": "gitBranches", "project": "storefront"}}
 {"at": 600, "frame": {"t": "gitBranches", "project": "nope"}}
 {"at": 600, "frame": {"t": "gitWatch", "project": "storefront"}}
+{"at": 650, "frame": {"t": "gitHistory", "project": "storefront", "skip": 0, "limit": 3}}
+{"at": 650, "frame": {"t": "gitHistory", "project": "storefront", "skip": 3, "limit": 3}}
+{"at": 650, "frame": {"t": "gitHistory", "project": "storefront", "skip": 6, "limit": 100}}
+{"at": 650, "frame": {"t": "gitHistory", "project": "storefront", "skip": 20, "limit": 100}}
+{"at": 650, "frame": {"t": "gitHistory", "project": "storefront"}}
+{"at": 650, "frame": {"t": "gitHistory", "project": "storefront", "limit": 0}}
+{"at": 650, "frame": {"t": "gitHistory", "project": "blog", "skip": 0, "limit": 100}}
+{"at": 650, "frame": {"t": "gitHistory", "project": "nope", "skip": 0, "limit": 100}}
+{"at": 650, "frame": {"t": "gitHistory", "skip": 0}}
+{"at": 650, "frame": {"t": "gitCommitFiles", "project": "storefront", "hash": "a1f3c9e5b2d84f6a9c0e1b7d3f5a8c2e4b6d9f01"}}
+{"at": 650, "frame": {"t": "gitCommitFiles", "project": "storefront", "hash": "e5a8b2c4d6f0a1b3c5d7e9f2a4b6c8d0e1f3a167"}}
+{"at": 650, "frame": {"t": "gitCommitFiles", "project": "storefront", "hash": "c02f6e84a9b1d3f5e7c0a2b4d6f8e1a3c5b7d056"}}
+{"at": 650, "frame": {"t": "gitCommitFiles", "project": "storefront", "hash": "deadbeef"}}
+{"at": 650, "frame": {"t": "gitCommitFiles", "project": "storefront", "hash": "8a2c4e6f0b1d3f5a7c9e2b4d6f8a0c1e3b5d7f90"}}
+{"at": 650, "frame": {"t": "gitCommitFiles", "project": "blog", "hash": "8a2c4e6f0b1d3f5a7c9e2b4d6f8a0c1e3b5d7f90"}}
+{"at": 650, "frame": {"t": "gitCommitFiles", "project": "nope", "hash": "8a2c4e6f0b1d3f5a7c9e2b4d6f8a0c1e3b5d7f90"}}
+{"at": 650, "frame": {"t": "gitCommitFiles", "project": "storefront"}}
+{"at": 650, "frame": {"t": "gitCommitPatch", "project": "storefront", "hash": "a1f3c9e5b2d84f6a9c0e1b7d3f5a8c2e4b6d9f01", "path": "components/CheckoutForm.tsx"}}
+{"at": 650, "frame": {"t": "gitCommitPatch", "project": "storefront", "hash": "a1f3c9e5b2d84f6a9c0e1b7d3f5a8c2e4b6d9f01", "path": "components/StepIndicator.tsx"}}
+{"at": 650, "frame": {"t": "gitCommitPatch", "project": "storefront", "hash": "e5a8b2c4d6f0a1b3c5d7e9f2a4b6c8d0e1f3a167", "path": "app/cart/page.tsx", "oldPath": "app/cart.tsx"}}
+{"at": 650, "frame": {"t": "gitCommitPatch", "project": "storefront", "hash": "c02f6e84a9b1d3f5e7c0a2b4d6f8e1a3c5b7d056", "path": "public/cart-icon.png"}}
+{"at": 650, "frame": {"t": "gitCommitPatch", "project": "storefront", "hash": "51c7d3a8f0e2b4c6d9a1e3f5b7c0d2e4f6a8b945", "path": "package-lock.json"}}
+{"at": 650, "frame": {"t": "gitCommitPatch", "project": "storefront", "hash": "0d4f6a8c1e3b5d7f9a2c4e6b8d0f1a3c5e7b9d78", "path": "README.md"}}
+{"at": 650, "frame": {"t": "gitCommitPatch", "project": "storefront", "hash": "a1f3c9e5b2d84f6a9c0e1b7d3f5a8c2e4b6d9f01", "path": "nope.ts"}}
+{"at": 650, "frame": {"t": "gitCommitPatch", "project": "storefront", "hash": "deadbeef", "path": "README.md"}}
+{"at": 650, "frame": {"t": "gitCommitPatch", "project": "blog", "hash": "8a2c4e6f0b1d3f5a7c9e2b4d6f8a0c1e3b5d7f90", "path": "README.md"}}
+{"at": 650, "frame": {"t": "gitCommitPatch", "project": "storefront", "hash": "a1f3c9e5b2d84f6a9c0e1b7d3f5a8c2e4b6d9f01"}}
 {"at": 700, "frame": {"t": "gitGenMessage", "project": "storefront", "files": ["lib/payments.ts"]}}
 {"at": 700, "frame": {"t": "gitGenMessage", "project": "blog", "files": ["README.md", "docs/a.md"]}}
 {"at": 700, "frame": {"t": "gitGenMessage", "project": "blog", "files": ["app/page.tsx"]}}
@@ -297,6 +324,19 @@
 {"at": 56500, "frame": {"t": "sidebarRenameFolder", "name": "side PROJECTS", "newName": "Side Stuff"}}
 {"at": 56500, "frame": {"t": "sidebarDeleteFolder", "name": "Client Work"}}
 {"at": 56500, "frame": {"t": "sidebarMoveProject", "project": "my-app", "folder": ""}}
+{"at": 56600, "frame": {"t": "sidebarPin", "project": "storefront", "pinned": true}}
+{"at": 56600, "frame": {"t": "sidebarPin", "project": "blog"}}
+{"at": 56600, "frame": {"t": "sidebarPin", "project": "api-gateway", "pinned": true}}
+{"at": 56600, "frame": {"t": "sidebarPin", "project": "storefront", "pinned": false}}
+{"at": 56600, "frame": {"t": "sidebarPin", "project": "storefront", "pinned": true}}
+{"at": 56600, "frame": {"t": "sidebarPin", "project": "api-gateway", "pinned": 0}}
+{"at": 56600, "frame": {"t": "sidebarPin", "project": "gone", "pinned": true}}
+{"at": 56600, "frame": {"t": "sidebarPin", "pinned": true}}
+{"at": 56700, "frame": {"t": "sidebar"}}
+{"at": 56700, "frame": {"t": "projects"}}
+{"at": 56800, "frame": {"t": "gitHistory", "project": "my-app", "skip": 0, "limit": 100}}
+{"at": 56800, "frame": {"t": "gitHistory", "project": "storefront-2", "skip": 0, "limit": 100}}
+{"at": 56800, "frame": {"t": "gitHistory", "project": "remote-box", "skip": 0, "limit": 100}}
 {"at": 57000, "frame": {"t": "saveService", "project": "storefront", "key": "web", "previousKey": "", "payload": {"cmd": "npm run dev -- -p 3001", "port": 3001, "cwd": "apps/web", "dependsOn": ["api"], "env": {"NODE_ENV": "development", "A": "b: c"}}}}
 {"at": 57000, "frame": {"t": "saveService", "project": "storefront", "key": "api2", "previousKey": "api", "payload": {"cmd": "npm run api", "port": 4001}}}
 {"at": 57000, "frame": {"t": "saveService", "project": "nope", "key": "x", "payload": {}}}
@@ -437,6 +477,7 @@
 {"at": 69000, "frame": {"t": "gitCommit", "project": "nope", "files": []}}
 {"at": 71000, "frame": {"t": "gitUnwatch", "project": "storefront"}}
 {"at": 71000, "frame": {"t": "git", "project": "storefront"}}
+{"at": 71000, "frame": {"t": "gitHistory", "project": "storefront", "skip": 0, "limit": 100}}
 {"at": 71000, "frame": {"t": "renameProject", "project": "storefront", "name": "Store"}}
 {"at": 71000, "frame": {"t": "renameProject", "project": "blog", "name": ""}}
 {"at": 71500, "frame": {"t": "projects"}}

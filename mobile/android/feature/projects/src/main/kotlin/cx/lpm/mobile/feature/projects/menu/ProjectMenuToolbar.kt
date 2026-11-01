@@ -36,6 +36,7 @@ import cx.lpm.mobile.core.model.TerminalInfo
 import cx.lpm.mobile.core.navigation.AutomationsKey
 import cx.lpm.mobile.core.navigation.GitAutoKey
 import cx.lpm.mobile.core.navigation.GitBranchKey
+import cx.lpm.mobile.core.navigation.GitHistoryKey
 import cx.lpm.mobile.core.navigation.GitPullRequestKey
 import cx.lpm.mobile.core.navigation.GitReviewKey
 import cx.lpm.mobile.core.navigation.MemoryKey
@@ -114,6 +115,7 @@ fun ProjectMenuToolbar(
             undoAutoPull = viewModel::undoAutoPull,
             switchBranch = { onNavigate(GitBranchKey(project, session)) },
             createPullRequest = { onNavigate(GitPullRequestKey(project, session)) },
+            history = { onNavigate(GitHistoryKey(project, session)) },
             auto = { onNavigate(GitAutoKey(project, it.rawValue, session)) },
             copyBranch = {
                 val branch = state.branch

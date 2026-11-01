@@ -7,6 +7,7 @@ import cx.lpm.mobile.core.data.automations.AutomationsStore
 import cx.lpm.mobile.core.data.claude.ClaudeAccountsStore
 import cx.lpm.mobile.core.data.files.ProjectFilesStore
 import cx.lpm.mobile.core.data.git.GitAutoStore
+import cx.lpm.mobile.core.data.git.GitHistoryStore
 import cx.lpm.mobile.core.data.git.GitNotice
 import cx.lpm.mobile.core.data.git.GitOpError
 import cx.lpm.mobile.core.data.git.GitStore
@@ -58,7 +59,9 @@ data class ProjectMenuUiState(
     val autoRunning: GitAutoKind? = null,
     /** The Mac lists the project's folders (Files) and past conversations (Resume Session). */
     val canBrowseFiles: Boolean = false,
-    val canResumeSessions: Boolean = false
+    val canResumeSessions: Boolean = false,
+    /** The Mac lists the branch's commits (History), and the project isn't on SSH. */
+    val canShowHistory: Boolean = false
 )
 
 /**
@@ -107,7 +110,8 @@ class ProjectMenuViewModel @AssistedInject constructor(
             notice = git.notice[project],
             autoRunning = auto.runs[project]?.takeIf { it.running }?.kind,
             canBrowseFiles = live != null && s.store<ProjectFilesStore>().canBrowseFiles(live),
-            canResumeSessions = live != null && s.store<AgentLaunchStore>().canResumeSessions(live)
+            canResumeSessions = live != null && s.store<AgentLaunchStore>().canResumeSessions(live),
+            canShowHistory = live != null && s.store<GitHistoryStore>().canShowHistory(live)
         )
     }
 

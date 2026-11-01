@@ -8,6 +8,12 @@ use std::time::Duration;
 
 const CONNECT_TIMEOUT: Duration = Duration::from_millis(250);
 
+/// Whether a loopback connect to `port` succeeds, over IPv4 or IPv6.
+pub fn port_accepts(port: u16) -> bool {
+    let accepts = |ip: IpAddr| TcpStream::connect_timeout(&SocketAddr::new(ip, port), CONNECT_TIMEOUT).is_ok();
+    accepts(Ipv4Addr::LOCALHOST.into()) || accepts(Ipv6Addr::LOCALHOST.into())
+}
+
 /// Whether something is currently listening on a local TCP port. A loopback
 /// connect comes first: a bind probe alone misses the usual dev server, which
 /// listens on `[::]:port` — std sets SO_REUSEADDR, so a 127.0.0.1 bind beside it
@@ -20,8 +26,7 @@ pub fn port_listening(port: i64) -> Option<bool> {
         return None;
     }
     let port = port as u16;
-    let accepts = |ip: IpAddr| TcpStream::connect_timeout(&SocketAddr::new(ip, port), CONNECT_TIMEOUT).is_ok();
-    if accepts(Ipv4Addr::LOCALHOST.into()) || accepts(Ipv6Addr::LOCALHOST.into()) {
+    if port_accepts(port) {
         return Some(true);
     }
     match TcpListener::bind((Ipv4Addr::LOCALHOST, port)) {

@@ -10,6 +10,9 @@ export interface HistoryCommit {
   // Unix seconds, author time.
   time: number;
   parents: number;
+  parentHashes: string[];
+  // Branches and tags pointing at the commit: "main", "origin/main", "v1.2".
+  refs: string[];
   // "Name <email>" from each Co-authored-by trailer.
   coAuthors: string[];
   // On no remote branch yet. False for every commit when there is no remote.

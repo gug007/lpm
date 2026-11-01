@@ -146,6 +146,12 @@ sealed interface WireProjects {
         putNonEmpty("folder", folder)
     }
 
+    /** The desktop's Pin to top (appended after the other pins) and Unpin. */
+    fun sidebarPin(project: String, pinned: Boolean): String = frame("sidebarPin") {
+        put("project", project)
+        put("pinned", pinned)
+    }
+
     /**
      * List the folders under `path` for the Mac folder browser. An empty/`~` path
      * resolves to $HOME on the Mac; else an absolute path.

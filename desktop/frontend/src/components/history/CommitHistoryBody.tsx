@@ -1,8 +1,11 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { buildGraph } from "../../gitGraph";
 import { remoteBoundary } from "../../gitHistory";
 import { SourceControlIcon, XIcon } from "../icons";
+import { GAP_H, MAX_LANES } from "./graphGeometry";
 import { HistoryCommitDetail } from "./HistoryCommitDetail";
 import { HistoryCommitRow } from "./HistoryCommitRow";
+import { HistoryGraphGap } from "./HistoryGraphGap";
 import { useCommitHistory } from "./useCommitHistory";
 
 interface CommitHistoryBodyProps {
@@ -16,6 +19,9 @@ export function CommitHistoryBody({ projectPath, branch, onClose }: CommitHistor
   const history = useCommitHistory(projectPath);
   const { commits } = history;
   const [selectedHash, setSelectedHash] = useState<string | null>(null);
+  const [hoverBranch, setHoverBranch] = useState<number | null>(null);
+  const graph = useMemo(() => buildGraph(commits), [commits]);
+  const lanes = Math.min(graph.width, MAX_LANES);
 
   const selected = commits.find((c) => c.hash === selectedHash) ?? commits[0] ?? null;
   const boundary = remoteBoundary(commits);
@@ -57,18 +63,23 @@ export function CommitHistoryBody({ projectPath, branch, onClose }: CommitHistor
           {commits.map((commit, i) => (
             <div key={commit.hash}>
               {i === boundary && (
-                <div className="flex items-center gap-2 px-2 py-1 text-[10px] uppercase tracking-wider text-[var(--text-muted)]">
-                  <span className="h-px flex-1 bg-[var(--border)]" />
-                  Pushed
-                  <span className="h-px flex-1 bg-[var(--border)]" />
+                <div className="flex items-stretch gap-2.5 pl-2 pr-2.5" style={{ height: GAP_H }}>
+                  <HistoryGraphGap lines={graph.rows[i - 1].bottom} lanes={lanes} hover={hoverBranch} />
+                  <div className="flex flex-1 items-center gap-2 text-[10px] uppercase tracking-wider text-[var(--text-muted)]">
+                    <span className="h-px flex-1 bg-[var(--border)]" />
+                    Pushed
+                    <span className="h-px flex-1 bg-[var(--border)]" />
+                  </div>
                 </div>
               )}
               <HistoryCommitRow
                 commit={commit}
+                graph={graph.rows[i]}
+                lanes={lanes}
+                hover={hoverBranch}
                 selected={commit.hash === selected?.hash}
-                first={i === 0}
-                last={i === commits.length - 1 && !history.hasMore}
                 onSelect={setSelectedHash}
+                onHover={setHoverBranch}
               />
             </div>
           ))}

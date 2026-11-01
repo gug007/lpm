@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("../../bridge/commands", () => ({
   ListAllJobs: mocks.listAllJobs,
   GetProject: vi.fn(),
+  ListPortsOverview: vi.fn(),
 }));
 vi.mock("../../bridge/runtime", () => ({
   EventsOn: vi.fn(() => () => {}),
@@ -47,6 +48,8 @@ function renderNav(overrides: Partial<Parameters<typeof SidebarFooterNav>[0]> = 
         onUsage={noop}
         showStats={false}
         onStats={noop}
+        showPorts={false}
+        onPorts={noop}
         showMobile={false}
         onMobile={noop}
         showSettings={false}
@@ -208,6 +211,7 @@ describe("SidebarFooterNav", () => {
         "automations",
         "usage",
         "stats",
+        "ports",
         "recap",
         "mobile",
         "settings",

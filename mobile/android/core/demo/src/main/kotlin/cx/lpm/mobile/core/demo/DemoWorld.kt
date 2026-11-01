@@ -104,6 +104,7 @@ internal class DemoWorld(val clock: Clock) {
 
     var sidebarOrder = mutableListOf<String>()
     var folders = mutableListOf<Folder>()
+    var pins = mutableListOf<String>()
 
     // The desktop's persisted duplicate-modal toggle defaults.
     var duplicateExcludeUncommitted = false

@@ -32,9 +32,11 @@ internal val projectParsers = parsers {
     put("sidebar") { o ->
         Inbound.Sidebar(
             order = o.strings("order").orEmpty(),
-            groups = o.list("groups", ProjectFolder::parse)
+            groups = o.list("groups", ProjectFolder::parse),
+            pins = o.strings("pins")
         )
     }
+    put("sidebar-changed") { Inbound.SidebarChanged }
     put("projects-changed") { Inbound.ProjectsChanged }
     put("status") { o ->
         Inbound.Status(
@@ -97,13 +99,22 @@ internal val projectParsers = parsers {
         "sidebarCreateFolder",
         "sidebarRenameFolder",
         "sidebarDeleteFolder",
-        "sidebarMoveProject"
+        "sidebarMoveProject",
+        "sidebarPin"
     )) {
+        val failed = if (t ==
+            "sidebarPin"
+        ) {
+            "Couldn't change the pin."
+        } else {
+            "Couldn't update folders."
+        }
         put(t) { o ->
             Inbound.SidebarMutation(
                 order = o.strings("order").orEmpty(),
                 groups = o.list("groups", ProjectFolder::parse),
-                error = o.failure("Couldn't update folders.")
+                pins = o.strings("pins"),
+                error = o.failure(failed)
             )
         }
     }

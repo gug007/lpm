@@ -12,18 +12,25 @@ import cx.lpm.mobile.core.data.mac.MacRecord
 import cx.lpm.mobile.core.data.mac.ThisDevice
 import cx.lpm.mobile.core.data.machines.MachineImporter
 import cx.lpm.mobile.core.data.machines.MachineSection
+import cx.lpm.mobile.core.data.machines.PairedMachineFeeds
+import cx.lpm.mobile.core.data.machines.canShowAllMachines
 import cx.lpm.mobile.core.data.projects.ProjectsState
 import cx.lpm.mobile.core.data.projects.ProjectsStore
 import cx.lpm.mobile.core.data.projects.archiveAgent
 import cx.lpm.mobile.core.data.projects.canArchiveAgents
+import cx.lpm.mobile.core.data.projects.canPinProjects
 import cx.lpm.mobile.core.data.projects.markAgentSeen
 import cx.lpm.mobile.core.data.projects.markAgentUnread
+import cx.lpm.mobile.core.data.projects.setPinned
 import cx.lpm.mobile.core.data.projects.undoAgentArchive
 import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.data.session.MachineVisit
 import cx.lpm.mobile.core.data.session.SessionAlerts
 import cx.lpm.mobile.core.data.session.SessionState
 import cx.lpm.mobile.core.data.terminals.TerminalsStore
+import cx.lpm.mobile.core.data.tips.TipsStore
+import cx.lpm.mobile.core.data.tips.firstOpen
+import cx.lpm.mobile.core.model.AppTip
 import cx.lpm.mobile.core.model.DuplicateOptions
 import cx.lpm.mobile.core.model.Project
 import cx.lpm.mobile.core.model.ProjectAgentRow
@@ -50,7 +57,9 @@ import kotlinx.coroutines.flow.update
 class ProjectsViewModel @Inject constructor(
     private val session: MacSession,
     private val clock: Clock,
-    private val device: ThisDevice
+    private val device: ThisDevice,
+    private val feeds: PairedMachineFeeds,
+    private val tips: TipsStore
 ) : ViewModel() {
     private val projects: ProjectsStore = session.store()
     private val terminals: TerminalsStore = session.store()
@@ -65,14 +74,24 @@ class ProjectsViewModel @Inject constructor(
     private val link: Flow<Pair<LinkState, LinkView>> =
         combine(session.link.state, session.link.views, ::Pair)
 
+    private val extras: Flow<ListExtras> = combine(
+        terminals.state,
+        automations.state,
+        expanded,
+        feeds.enabled,
+        tips.closed
+    ) { t, jobs, open, allMachines, closed ->
+        ListExtras(t.terminalTitles, jobs, open, allMachines, closed)
+    }
+
     val uiState: StateFlow<ProjectsUiState> = combine(
         session.state,
         link,
         projects.state,
-        machines.sections,
-        combine(terminals.state, automations.state, expanded, ::Triple)
-    ) { s, (linkState, view), p, sections, (t, jobs, open) ->
-        buildState(s, linkState, view, p, sections, t.terminalTitles, jobs, open)
+        feeds.listedSections,
+        extras
+    ) { s, (linkState, view), p, sections, extras ->
+        buildState(s, linkState, view, p, sections, extras)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ProjectsUiState())
 
     /** The copy whose Remove is being confirmed: its git status, for the work only it has. */
@@ -90,30 +109,38 @@ class ProjectsViewModel @Inject constructor(
             .launchIn(viewModelScope)
     }
 
+    /** What the list reads besides the session, the link and the projects. */
+    private data class ListExtras(
+        val titles: Map<String, Map<String, String>>,
+        val jobs: AutomationsState,
+        val open: Map<String, Boolean>,
+        val allMachines: Boolean,
+        val closedTips: Set<String>
+    )
+
     private fun buildState(
         s: SessionState,
         link: LinkState,
         view: LinkView,
         p: ProjectsState,
         sections: List<MachineSection>,
-        titles: Map<String, Map<String, String>>,
-        jobs: AutomationsState,
-        open: Map<String, Boolean>
+        extras: ListExtras
     ): ProjectsUiState {
         val ready = s.isReady
         val stale = link.listAsOf != null && !ready
-        val rows = p.listRows(
-            RowInputs(
-                terminalTitles = titles,
-                queued = link.queued,
-                stale = stale,
-                expanded = open,
-                now = clock.millis(),
-                machines = sections,
-                activeMacId = s.activeMacId,
-                archivable = projects.canArchiveAgents
-            )
+        val jobs = extras.jobs
+        val inputs = RowInputs(
+            terminalTitles = extras.titles,
+            queued = link.queued,
+            stale = stale,
+            expanded = extras.open,
+            now = clock.millis(),
+            machines = sections,
+            activeMacId = s.activeMacId,
+            archivable = projects.canArchiveAgents,
+            canPin = projects.canPinProjects
         )
+        val rows = p.listRows(inputs)
         // The badge counts the agents of the Mac's connected machines too.
         val ambient = agentAmbient(p.projects + sections.flatMap { it.machine.projects.orEmpty() })
         val waiting = link.waitingCount
@@ -130,11 +157,15 @@ class ProjectsViewModel @Inject constructor(
 
                     else -> null
                 },
-                opensDetails = !s.demoMode
+                opensDetails = !s.demoMode,
+                showAllMachines = extras.allMachines.takeIf { s.canShowAllMachines() }
             ),
             macs = s.macs.map { macChoice(it, s, link, view) },
             demoMode = s.demoMode,
             rows = rows,
+            pinned = p.pinnedRows(inputs),
+            tip = extras.closedTips.firstOpen(listOf(AppTip.ProjectMenu))
+                .takeIf { p.projects.isNotEmpty() },
             listIsEmpty = p.projects.isEmpty() && sections.isEmpty(),
             loaded = p.projectsLoaded,
             issue = view.visibleIssue?.takeUnless { it.isConnecting },
@@ -200,9 +231,9 @@ class ProjectsViewModel @Inject constructor(
     fun markAgentUnread(project: Project, row: ProjectAgentRow) =
         projects.markAgentUnread(row, project.name)
 
-    /** Open one of the Mac's machines in place of the live Mac. */
+    /** Open one of the Mac's machines, or another saved here, in place of the live Mac. */
     fun switchToMachine(slug: String) {
-        machines.section(slug)?.let(machines::switchTo)
+        feeds.section(slug)?.let(machines::switchTo)
     }
 
     /**
@@ -210,7 +241,7 @@ class ProjectsViewModel @Inject constructor(
      * this Mac stays connected; null when it can't be opened from here.
      */
     fun visit(slug: String, project: String, terminal: String? = null): MachineVisit? {
-        val section = machines.section(slug) ?: return null
+        val section = feeds.section(slug) ?: return null
         return session.beginVisit(section.machine, section.record, project, terminal)
     }
 
@@ -238,6 +269,12 @@ class ProjectsViewModel @Inject constructor(
     }
 
     fun moveToFolder(project: Project, folder: String?) = projects.moveProject(project, folder)
+
+    fun setPinned(project: Project, pinned: Boolean) = projects.setPinned(project, pinned)
+
+    fun setShowAllMachines(on: Boolean) = feeds.setEnabled(on)
+
+    fun closeTip(tip: AppTip) = tips.close(tip)
 
     fun createFolder(name: String) = projects.createFolder(name)
 

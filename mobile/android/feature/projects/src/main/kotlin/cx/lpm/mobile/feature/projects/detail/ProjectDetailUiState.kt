@@ -4,6 +4,8 @@ import cx.lpm.mobile.core.data.link.LinkStatusLine
 import cx.lpm.mobile.core.data.link.QueuedAction
 import cx.lpm.mobile.core.data.projects.ProjectsState
 import cx.lpm.mobile.core.data.terminals.PendingTabClose
+import cx.lpm.mobile.core.data.tips.firstOpen
+import cx.lpm.mobile.core.model.AppTip
 import cx.lpm.mobile.core.model.GitSnapshot
 import cx.lpm.mobile.core.model.Project
 import cx.lpm.mobile.core.model.ProjectAgentRow
@@ -73,7 +75,9 @@ data class ProjectDetailUiState(
     /** The Mac takes the tab menu's fork / title / close-others (`tabMenu`). */
     val canUseTabMenu: Boolean = false,
     /** A tab closed here that Undo can still bring back. */
-    val pendingClose: PendingTabClose? = null
+    val pendingClose: PendingTabClose? = null,
+    /** The first tip this screen has something to point at, at the top of the list. */
+    val tip: AppTip? = null
 ) {
     val runningServices: Int get() = services.count { it.running }
 
@@ -104,7 +108,9 @@ data class DetailInputs(
     val canLaunchAgents: Boolean = false,
     val canUseTabMenu: Boolean = false,
     val pendingClose: PendingTabClose? = null,
-    val now: Long = 0
+    val now: Long = 0,
+    /** The ids of the tips closed on this phone. */
+    val closedTips: Set<String> = emptySet()
 )
 
 /**
@@ -165,6 +171,16 @@ fun ProjectsState.detail(
         hasBackgroundRuns = inputs.hasBackgroundRuns,
         canLaunchAgents = inputs.canLaunchAgents,
         canUseTabMenu = inputs.canUseTabMenu,
-        pendingClose = inputs.pendingClose
+        pendingClose = inputs.pendingClose,
+        // None until the tabs have loaded, so the actions tip doesn't flash before the tab tip.
+        tip = terminals?.let { tabs ->
+            inputs.closedTips.firstOpen(
+                listOfNotNull(
+                    AppTip.TabMenu.takeIf { tabs.isNotEmpty() },
+                    AppTip.Actions.takeIf { project.actions.isNotEmpty() },
+                    AppTip.Review.takeIf { inputs.git?.files.orEmpty().isNotEmpty() }
+                )
+            )
+        }
     )
 }

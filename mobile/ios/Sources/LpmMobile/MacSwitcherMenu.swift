@@ -37,6 +37,12 @@ struct MacSwitcherMenu: View {
                     }
                 }
                 Divider()
+                if model.canShowAllMachines {
+                    Toggle(isOn: Binding(get: { model.machineFeeds.enabled },
+                                         set: { model.setShowAllMachines($0) })) {
+                        Label("Show All Machines", systemImage: "square.stack")
+                    }
+                }
                 Button {
                     model.beginAddMac()
                 } label: {

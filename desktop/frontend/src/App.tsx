@@ -3,6 +3,8 @@ import { Sidebar } from "./components/Sidebar";
 import { ProjectColumns } from "./components/ProjectColumns";
 import { GlobalTerminalsView } from "./components/GlobalTerminalsView";
 import { StatsView } from "./components/StatsView";
+import { PortsView } from "./components/ports/PortsView";
+import { usePortsWiring } from "./components/ports/usePortsWiring";
 import { UsageModal } from "./components/UsageModal";
 import { ScheduledView } from "./components/ScheduledView";
 import { Settings } from "./components/Settings";
@@ -143,6 +145,7 @@ export default function App() {
 
   const isTerminalsView = view === "terminals";
   const isStatsView = view === "stats";
+  const isPortsView = view === "ports";
   const isScheduledView = view === "scheduled";
   // Settings and the pages it opens take the project sidebar's place.
   const settingsShown = isSettingsView(view);
@@ -209,6 +212,7 @@ export default function App() {
   useKeyboardShortcut({ key: "b", meta: true }, () => {
     setSidebarCollapsed((v) => !v);
   }, !settingsShown);
+  usePortsWiring();
 
   const projectNames = useMemo(() => projects.map((p) => p.name), [projects]);
   useKeyboardShortcut(PROJECT_JUMP_SHORTCUTS, (_e, matched) => {
@@ -289,6 +293,7 @@ export default function App() {
           onTerminals={() => setView("terminals")}
           onTerminalTab={(id) => focusProjectTerminal(GLOBAL_TERMINALS_KEY, id)}
           onStats={() => setView("stats")}
+          onPorts={() => setView("ports")}
           onUsage={() => setUsageOpen(true)}
           onScheduled={() => setView("scheduled")}
           onMobile={connectPhone}
@@ -316,6 +321,7 @@ export default function App() {
           detached={detached}
           showTerminals={isTerminalsView}
           showStats={isStatsView}
+          showPorts={isPortsView}
           showUsage={usageOpen}
           showMobile={phonePickerOpen}
           showScheduled={isScheduledView}
@@ -348,6 +354,7 @@ export default function App() {
           )}
           {settingsLayoutShown && <Settings onNavigate={navigateSettings} />}
           {isStatsView && <StatsView />}
+          {isPortsView && <PortsView />}
           {isScheduledView && <ScheduledView />}
           {view === "shared" && <SharedTabView />}
           {view === "claude-statusline" && (

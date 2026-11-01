@@ -24,7 +24,7 @@ class ProjectDetailViewModelTest {
         t: TestSession,
         project: String = "storefront"
     ): ProjectDetailViewModel {
-        val vm = ProjectDetailViewModel(ProjectKey(project), t.sessions, t.clock)
+        val vm = ProjectDetailViewModel(ProjectKey(project), t.sessions, t.clock, t.feeds, t.tips)
         backgroundScope.launch { vm.uiState.collect() }
         t.settle()
         return vm

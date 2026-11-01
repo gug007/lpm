@@ -29,6 +29,17 @@ struct RemoteMachine: Identifiable {
     var isLinuxHost: Bool { platform == "linux" }
     var isConnected: Bool { state != .offline }
 
+    /// A machine saved on this phone, listed beside the live Mac's own.
+    init(record: MacRecord, projects: [Project]?, connected: Bool) {
+        slug = "saved:" + record.localId.uuidString
+        name = record.displayName
+        platform = record.platform
+        serverId = record.serverId
+        state = connected ? .ready : .offline
+        self.projects = projects
+        relay = false
+    }
+
     init(_ o: [String: Any]) {
         slug = o["slug"] as? String ?? ""
         name = o["name"] as? String ?? ""

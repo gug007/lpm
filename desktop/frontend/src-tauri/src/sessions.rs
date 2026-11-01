@@ -261,29 +261,66 @@ fn pane_spawn_dir(root: &str, cwd_raw: &str, ssh: Option<&config::SshSettings>) 
     }
 }
 
+/// Pane specs for `services`. A `deferred` one opens on an idle shell; its line
+/// is typed in later (`run_service_line`) once what it depends on is ready.
 fn specs_for(
     root: &str,
     services: &[ServiceTuple],
     ssh: Option<&config::SshSettings>,
+    deferred: &HashSet<String>,
 ) -> Vec<PaneSpec> {
     services
         .iter()
         .map(|(name, cmd, cwd, env)| PaneSpec {
             service: name.clone(),
-            command: build_command(root, cwd, env, cmd, ssh),
+            command: if deferred.contains(name) {
+                String::new()
+            } else {
+                build_command(root, cwd, env, cmd, ssh)
+            },
             dir: pane_spawn_dir(root, cwd, ssh),
         })
         .collect()
 }
 
-/// Create a session with one pane per service, replacing any session of the
-/// same name. The daemon tears the old one down and reaps it before opening the
-/// new panes, and rolls the whole batch back if any pane fails to open.
+/// Type a service's line into its labelled pane: the start of a service whose
+/// pane opened idle to wait for its dependencies.
+pub fn run_service_line(
+    session: &str,
+    service: &str,
+    root: &str,
+    cwd: &str,
+    env: &BTreeMap<String, String>,
+    cmd: &str,
+    ssh: Option<&config::SshSettings>,
+) -> Result<(), String> {
+    let pane = panes_of(session)
+        .into_iter()
+        .find(|pane| pane.service == service)
+        .ok_or_else(|| format!("service {service:?} has no pane"))?;
+    send_keys(&pane.id, &build_command(root, cwd, env, cmd, ssh))
+}
+
+#[cfg(test)]
 pub fn start_project_services(
     session: &str,
     root: &str,
     services: &[ServiceTuple],
     ssh: Option<&config::SshSettings>,
+) -> Result<(), String> {
+    start_project_services_gated(session, root, services, ssh, &HashSet::new())
+}
+
+/// Create a session with one pane per service, replacing any session of the
+/// same name. The daemon tears the old one down and reaps it before opening the
+/// new panes, and rolls the whole batch back if any pane fails to open.
+/// `deferred` panes open idle, their command sent once a ready check passes.
+pub fn start_project_services_gated(
+    session: &str,
+    root: &str,
+    services: &[ServiceTuple],
+    ssh: Option<&config::SshSettings>,
+    deferred: &HashSet<String>,
 ) -> Result<(), String> {
     if services.is_empty() {
         return Err("no services to start".into());
@@ -293,7 +330,7 @@ pub fn start_project_services(
     }
     client::command(&Request::Start {
         session: session.to_string(),
-        panes: specs_for(root, services, ssh),
+        panes: specs_for(root, services, ssh, deferred),
     })
     .map(|_| ())
 }
@@ -305,6 +342,7 @@ pub fn split_session_services(
     root: &str,
     services: &[ServiceTuple],
     ssh: Option<&config::SshSettings>,
+    deferred: &HashSet<String>,
 ) -> Result<(), String> {
     if services.is_empty() {
         return Ok(());
@@ -314,7 +352,7 @@ pub fn split_session_services(
     }
     client::command(&Request::Split {
         session: session.to_string(),
-        panes: specs_for(root, services, ssh),
+        panes: specs_for(root, services, ssh, deferred),
     })
     .map(|_| ())
 }
@@ -561,6 +599,50 @@ mod tests {
     }
 
     #[test]
+    fn a_held_back_service_opens_idle_and_runs_when_told() {
+        let session = SessionGuard::new("held");
+        let deferred: HashSet<String> = ["web".to_string()].into_iter().collect();
+        start_project_services_gated(
+            &session.0,
+            ".",
+            &[
+                service("db", "echo db-up; sleep 30"),
+                service("web", "echo web-up; sleep 30"),
+            ],
+            None,
+            &deferred,
+        )
+        .unwrap();
+        let web_pane = || {
+            panes_of(&session.0)
+                .into_iter()
+                .find(|p| p.service == "web")
+                .unwrap()
+        };
+        let printed = |pane: &str, word: &str| {
+            capture_pane(pane, 50).is_ok_and(|t| t.lines().any(|l| l.trim() == word))
+        };
+        eventually("db to run", || {
+            printed(&panes_of(&session.0)[0].id, "db-up")
+        });
+        assert!(!capture_pane(&web_pane().id, 50).unwrap().contains("web-up"));
+        run_service_line(
+            &session.0,
+            "web",
+            ".",
+            "",
+            &BTreeMap::new(),
+            "echo web-up; sleep 30",
+            None,
+        )
+        .unwrap();
+        eventually("web to run", || printed(&web_pane().id, "web-up"));
+        assert!(
+            run_service_line(&session.0, "ghost", ".", "", &BTreeMap::new(), "true", None).is_err()
+        );
+    }
+
+    #[test]
     fn a_service_that_fails_is_reported_ended_with_its_status() {
         if !shell_reports_prompts() {
             return;
@@ -660,7 +742,14 @@ mod tests {
     fn splitting_adds_panes_without_disturbing_the_existing_ones() {
         let session = SessionGuard::new("split");
         start_project_services(&session.0, ".", &[service("db", "sleep 30")], None).unwrap();
-        split_session_services(&session.0, ".", &[service("web", "sleep 30")], None).unwrap();
+        split_session_services(
+            &session.0,
+            ".",
+            &[service("web", "sleep 30")],
+            None,
+            &HashSet::new(),
+        )
+        .unwrap();
 
         let names: Vec<String> = list_service_panes(&session.0)
             .unwrap()
@@ -695,7 +784,9 @@ mod tests {
             service("cache", "sleep 30"),
             service("web", &"x".repeat(4 * 1024 * 1024)),
         ];
-        assert!(split_session_services(&session.0, ".", &additions, None).is_err());
+        assert!(
+            split_session_services(&session.0, ".", &additions, None, &HashSet::new()).is_err()
+        );
 
         let names: Vec<String> = list_service_panes(&session.0)
             .unwrap()

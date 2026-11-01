@@ -123,6 +123,8 @@ private fun machineDetailText(detail: MachineDetail): String = when (detail) {
     MachineDetail.NotOnPhone -> stringResource(ProjectsR.string.machine_section_not_on_phone)
     MachineDetail.Revoked -> stringResource(ProjectsR.string.machine_section_revoked)
     MachineDetail.NeedsUpdate -> stringResource(ProjectsR.string.machine_section_needs_update)
+    MachineDetail.Connecting -> stringResource(ProjectsR.string.machine_section_connecting)
+    MachineDetail.NotAnswering -> stringResource(ProjectsR.string.mac_not_answering)
 }
 
 private val ChevronSlot = ListLeadingSlot(width = 12.dp, spacing = 8.dp)

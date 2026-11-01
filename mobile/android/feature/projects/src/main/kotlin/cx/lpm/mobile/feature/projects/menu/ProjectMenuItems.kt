@@ -186,6 +186,7 @@ class GitMenuActions(
     val undoAutoPull: () -> Unit = {},
     val switchBranch: () -> Unit = {},
     val createPullRequest: () -> Unit = {},
+    val history: () -> Unit = {},
     val auto: (GitAutoKind) -> Unit = {},
     val copyBranch: () -> Unit = {},
     val discard: () -> Unit = {}

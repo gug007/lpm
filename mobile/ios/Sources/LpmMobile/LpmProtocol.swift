@@ -330,6 +330,9 @@ enum Wire {
         if let folder, !folder.isEmpty { obj["folder"] = folder }
         return json(obj)
     }
+    static func sidebarPin(project: String, pinned: Bool) -> String {
+        json(["t": "sidebarPin", "project": project, "pinned": pinned])
+    }
     /// One byte range of any file for the preview sheet. A relative `path`
     /// resolves against `project`'s root; `reqId` routes the reply to its fetch.
     static func fileChunk(reqId: String, project: String, path: String, offset: Int64, length: Int64) -> String {
@@ -411,6 +414,17 @@ enum Wire {
     static func gitFetch(project: String) -> String { json(["t": "gitFetch", "project": project]) }
     static func gitAutoPullUndo(project: String) -> String { json(["t": "gitAutoPullUndo", "project": project]) }
     static func gitBranches(project: String) -> String { json(["t": "gitBranches", "project": project]) }
+    static func gitHistory(project: String, skip: Int, limit: Int) -> String {
+        json(["t": "gitHistory", "project": project, "skip": skip, "limit": limit])
+    }
+    static func gitCommitFiles(project: String, hash: String) -> String {
+        json(["t": "gitCommitFiles", "project": project, "hash": hash])
+    }
+    static func gitCommitPatch(project: String, hash: String, path: String, oldPath: String?) -> String {
+        var obj: [String: Any] = ["t": "gitCommitPatch", "project": project, "hash": hash, "path": path]
+        if let oldPath, !oldPath.isEmpty { obj["oldPath"] = oldPath }
+        return json(obj)
+    }
     static func gitCheckout(project: String, branch: String, remote: String) -> String {
         json(["t": "gitCheckout", "project": project, "branch": branch, "remote": remote])
     }
@@ -628,7 +642,10 @@ enum Wire {
         // whether it keeps finished agents as seen once opened.
         case projects([Project], workStatuses: [CustomWorkStatus], workStatusOrder: [String],
                       autoPullMode: AutoPullMode, seenAgentsShown: Int, keepFinishedAgents: Bool)
-        case sidebar(order: [String], groups: [ProjectFolder])
+        // `pins` is nil from a Mac without "projectPins".
+        case sidebar(order: [String], groups: [ProjectFolder], pins: [String]?)
+        // Server push: the Mac's folders, order or pins changed.
+        case sidebarChanged
         // Local agent token-usage stats (the desktop Stats page). `stats` is nil on
         // a hard failure; the scan runs on the Mac and replies asynchronously.
         case stats(AgentStats?, error: String?)
@@ -699,7 +716,7 @@ enum Wire {
         // A sidebar folder mutation reply (create/rename/delete/move). On success it
         // carries the updated sidebar so the phone re-renders in place; `error` is
         // the failure to surface.
-        case sidebarMutation(order: [String], groups: [ProjectFolder], error: String?)
+        case sidebarMutation(order: [String], groups: [ProjectFolder], pins: [String]?, error: String?)
         // One byte range of a previewed file (or why it couldn't be read).
         case fileChunk(FileChunk)
         // A runAction/newTerminal request the Mac couldn't execute (e.g. the
@@ -733,6 +750,11 @@ enum Wire {
         case gitDiscardAll(project: String, error: String?)
         // Server push: watched files changed for this project (already debounced).
         case gitChanged(project: String)
+        // Commit history: a page of the branch's commits, one commit's files and
+        // one file's patch in it. `error` is nil on success.
+        case gitHistory(project: String, skip: Int, page: HistoryPage?, error: String?)
+        case gitCommitFiles(project: String, hash: String, files: [CommitFile]?, error: String?)
+        case gitCommitPatch(project: String, hash: String, path: String, result: GitDiffResult?, error: String?)
         // An Auto Commit / Auto Create PR run's whole state, pushed on every
         // change. `run` is nil when the Mac holds none for the project.
         case gitAuto(project: String, run: GitAutoRun?, error: String?)
@@ -872,8 +894,10 @@ enum Wire {
             case "sidebar":
                 return .sidebar(
                     order: obj["order"] as? [String] ?? [],
-                    groups: (obj["groups"] as? [[String: Any]] ?? []).map(ProjectFolder.init)
+                    groups: (obj["groups"] as? [[String: Any]] ?? []).map(ProjectFolder.init),
+                    pins: obj["pins"] as? [String]
                 )
+            case "sidebar-changed": return .sidebarChanged
             case "ttsSpeak":
                 let ok = obj["ok"] as? Bool ?? false
                 return .ttsSpeak(reqId: obj["reqId"] as? String ?? "",
@@ -1033,12 +1057,15 @@ enum Wire {
                 let ok = obj["ok"] as? Bool ?? false
                 return .setClaudeAccount(project: obj["project"] as? String ?? "",
                                          error: ok ? nil : (obj["error"] as? String ?? "Couldn't change the Claude account."))
-            case "sidebarCreateFolder", "sidebarRenameFolder", "sidebarDeleteFolder", "sidebarMoveProject":
+            case "sidebarCreateFolder", "sidebarRenameFolder", "sidebarDeleteFolder", "sidebarMoveProject",
+                 "sidebarPin":
                 let ok = obj["ok"] as? Bool ?? false
+                let failed = t == "sidebarPin" ? "Couldn't change the pin." : "Couldn't update folders."
                 return .sidebarMutation(
                     order: obj["order"] as? [String] ?? [],
                     groups: (obj["groups"] as? [[String: Any]] ?? []).map(ProjectFolder.init),
-                    error: ok ? nil : (obj["error"] as? String ?? "Couldn't update folders."))
+                    pins: obj["pins"] as? [String],
+                    error: ok ? nil : (obj["error"] as? String ?? failed))
             case "fileChunk":
                 return .fileChunk(FileChunk(obj))
             case "restartService", "stopService":
@@ -1128,6 +1155,26 @@ enum Wire {
                 return .gitDiscardAll(project: obj["project"] as? String ?? "",
                                       error: ok ? nil : (obj["error"] as? String ?? "Couldn't discard changes."))
             case "git-changed": return .gitChanged(project: obj["project"] as? String ?? "")
+            case "gitHistory":
+                let ok = obj["ok"] as? Bool ?? false
+                return .gitHistory(project: obj["project"] as? String ?? "",
+                                   skip: obj["skip"] as? Int ?? 0,
+                                   page: ok ? HistoryPage(obj) : nil,
+                                   error: ok ? nil : (obj["error"] as? String ?? "Couldn't load the history."))
+            case "gitCommitFiles":
+                let ok = obj["ok"] as? Bool ?? false
+                return .gitCommitFiles(project: obj["project"] as? String ?? "",
+                                       hash: obj["hash"] as? String ?? "",
+                                       files: ok ? (obj["files"] as? [[String: Any]] ?? []).map(CommitFile.init) : nil,
+                                       error: ok ? nil : (obj["error"] as? String ?? "Couldn't load the commit."))
+            case "gitCommitPatch":
+                let ok = obj["ok"] as? Bool ?? false
+                return .gitCommitPatch(project: obj["project"] as? String ?? "",
+                                       hash: obj["hash"] as? String ?? "",
+                                       path: obj["path"] as? String ?? "",
+                                       result: ok ? GitDiffResult(diff: obj["diff"] as? String ?? "", binary: false,
+                                                                  truncated: obj["truncated"] as? Bool ?? false) : nil,
+                                       error: ok ? nil : (obj["error"] as? String ?? "Couldn't load the diff."))
             case "gitAuto":
                 let ok = obj["ok"] as? Bool ?? false
                 return .gitAuto(project: obj["project"] as? String ?? "",

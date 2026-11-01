@@ -4,7 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation3.runtime.NavKey
 import cx.lpm.mobile.core.data.actions.ActionsStore
-import cx.lpm.mobile.core.data.machines.MachineImporter
+import cx.lpm.mobile.core.data.machines.PairedMachineFeeds
 import cx.lpm.mobile.core.data.projects.ProjectsStore
 import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.data.session.MacSessions
@@ -46,7 +46,8 @@ data class MachineVisitUiState(
 @HiltViewModel(assistedFactory = MachineVisitViewModel.Factory::class)
 class MachineVisitViewModel @AssistedInject constructor(
     @Assisted val key: ProjectKey,
-    private val sessions: MacSessions
+    private val sessions: MacSessions,
+    private val feeds: PairedMachineFeeds
 ) : ViewModel() {
     private val session: MacSession? get() = sessions[key.session]
 
@@ -59,7 +60,7 @@ class MachineVisitViewModel @AssistedInject constructor(
     private fun stateOf(s: MacSession) = combine(
         s.state,
         s.store<ProjectsStore>().state,
-        sessions.listedProject(key)
+        sessions.listedProject(key, feeds)
     ) { session, projects, listed ->
         val content = when {
             projects.project(key.project) != null || listed != null -> MachineVisitContent.Detail
@@ -82,10 +83,17 @@ class MachineVisitViewModel @AssistedInject constructor(
     }
 }
 
-/** A visited machine's project as the live Mac lists it; null for the live Mac's own. */
-internal fun MacSessions.listedProject(key: ProjectKey): Flow<Project?> {
+/**
+ * A visited machine's project as the projects list shows it — the live Mac's own
+ * machines, then the others saved here — null for the live Mac's own.
+ */
+internal fun MacSessions.listedProject(key: ProjectKey, feeds: PairedMachineFeeds): Flow<Project?> {
     val visit = key.session as? SessionKey.Visit ?: return flowOf(null)
-    return live.store<MachineImporter>().state.map { it.listedProject(visit.id, key.project) }
+    return feeds.listedSections.map { sections ->
+        sections.firstOrNull { it.id == visit.id }?.machine?.projects?.firstOrNull {
+            it.name == key.project
+        }
+    }
 }
 
 /** The screen a visit opens: its terminal, or its project. */

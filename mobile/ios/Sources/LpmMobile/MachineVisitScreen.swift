@@ -8,7 +8,7 @@ struct MachineVisitScreen: View {
 
     /// The project as the live Mac lists it, shown until the machine answers.
     private var listed: Project? {
-        model.machineSections.first { $0.id == visit.slug }?
+        model.listedMachineSections.first { $0.id == visit.slug }?
             .machine.projects?.first { $0.name == visit.project }
     }
 

@@ -67,6 +67,12 @@ class MacSession internal constructor(
     val preferences: AppPreferences get() = env.prefs
 
     internal var inForeground = true
+        private set
+
+    private val foregroundFlow = MutableStateFlow(true)
+
+    /** Whether the app is on screen, as [setInForeground] last said. */
+    val foreground: StateFlow<Boolean> = foregroundFlow.asStateFlow()
 
     // The address the live client was built for, so migration only rebuilds when a
     // different one becomes reachable.
@@ -223,6 +229,7 @@ class MacSession internal constructor(
     fun setInForeground(active: Boolean) {
         if (!active) stores.forEach { it.flushPending() }
         inForeground = active
+        foregroundFlow.value = active
         client?.inForeground = active
         visitSession.value?.setInForeground(active)
     }

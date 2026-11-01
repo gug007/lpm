@@ -10,6 +10,8 @@ const commit = (over: Partial<HistoryCommit>): HistoryCommit => ({
   email: "ann@example.com",
   time: 0,
   parents: 1,
+  parentHashes: ["b".repeat(40)],
+  refs: [],
   coAuthors: [],
   unpushed: false,
   ...over,

@@ -17,6 +17,7 @@ struct ProjectMenuHost: ViewModifier {
     @State private var showMemory = false
     @State private var showNotes = false
     @State private var showAutomations = false
+    @State private var showHistory = false
     @State private var showBranchSheet = false
     @State private var showPrSheet = false
     @State private var showAutoSheet = false
@@ -50,6 +51,7 @@ struct ProjectMenuHost: ViewModifier {
             .navigationDestination(isPresented: $showMemory) { MemoryScreen(project: project) }
             .navigationDestination(isPresented: $showNotes) { NotesScreen(project: project.name) }
             .navigationDestination(isPresented: $showAutomations) { AutomationsView(project: project.name) }
+            .navigationDestination(isPresented: $showHistory) { CommitHistoryScreen(project: project) }
             .sheet(isPresented: $showBranchSheet) {
                 GitBranchSheet(project: project).environment(model)
             }
@@ -134,6 +136,7 @@ struct ProjectMenuHost: ViewModifier {
                                       onAutomations: { showAutomations = true },
                                       onSwitchBranch: { showBranchSheet = true },
                                       onCreatePr: { showPrSheet = true },
+                                      onHistory: model.canShowHistory(project) ? { showHistory = true } : nil,
                                       onAuto: { kind in
                                           model.gitAuto.start(project.name, kind: kind)
                                           showAutoSheet = true

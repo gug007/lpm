@@ -10,6 +10,8 @@ import cx.lpm.mobile.core.data.mac.MacStore
 import cx.lpm.mobile.core.data.mac.MacUnpair
 import cx.lpm.mobile.core.data.mac.ProjectSnapshots
 import cx.lpm.mobile.core.data.mac.ThisDevice
+import cx.lpm.mobile.core.data.machines.MachineImporter
+import cx.lpm.mobile.core.data.machines.PairedMachineFeeds
 import cx.lpm.mobile.core.data.prefs.AppPreferences
 import cx.lpm.mobile.core.data.projects.ProjectsStore
 import cx.lpm.mobile.core.data.session.MacSession
@@ -17,6 +19,7 @@ import cx.lpm.mobile.core.data.session.MacSessions
 import cx.lpm.mobile.core.data.session.SessionEnvironment
 import cx.lpm.mobile.core.data.session.SessionStore
 import cx.lpm.mobile.core.data.terminals.TerminalsStore
+import cx.lpm.mobile.core.data.tips.TipsStore
 import java.io.File
 import java.nio.file.Files
 import kotlin.random.Random
@@ -70,6 +73,12 @@ class TestSession(test: TestScope, stores: Set<SessionStore.Factory> = emptySet(
     )
     val session: MacSession = DataModule.macSession(env)
     val sessions = MacSessions(session)
+    val tips = TipsStore(prefs)
+
+    /** Show All Machines; needs a [MachineImporter] among the session's stores. */
+    val feeds: PairedMachineFeeds by lazy {
+        PairedMachineFeeds(session, prefs, credentials, clients, prober, device, scope)
+    }
 
     inline fun <reified T : SessionStore> store(): T = session.store()
 

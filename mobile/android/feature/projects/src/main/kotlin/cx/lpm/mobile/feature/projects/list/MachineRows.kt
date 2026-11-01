@@ -1,5 +1,6 @@
 package cx.lpm.mobile.feature.projects.list
 
+import cx.lpm.mobile.core.data.machines.MachineFeedNote
 import cx.lpm.mobile.core.data.machines.MachineImportStatus
 import cx.lpm.mobile.core.data.machines.MachineSection
 import cx.lpm.mobile.core.model.projectAgentRows
@@ -35,6 +36,12 @@ internal fun machineListRows(section: MachineSection, inputs: RowInputs): List<P
 }
 
 private fun MachineSection.detail(activeMacId: String?): MachineDetail? {
+    note?.let {
+        return when (it) {
+            MachineFeedNote.Connecting -> MachineDetail.Connecting
+            MachineFeedNote.NotAnswering -> MachineDetail.NotAnswering
+        }
+    }
     val via = record?.via
     if (via != null && via.macId == activeMacId) return MachineDetail.OpensThroughMac
     return when (val status = pending) {

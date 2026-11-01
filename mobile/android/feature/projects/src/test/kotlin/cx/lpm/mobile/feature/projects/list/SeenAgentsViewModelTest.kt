@@ -22,7 +22,7 @@ class SeenAgentsViewModelTest {
     val main = MainDispatcherRule()
 
     private fun TestScope.subscribed(t: TestSession): ProjectsViewModel {
-        val vm = ProjectsViewModel(t.session, t.clock, t.device)
+        val vm = ProjectsViewModel(t.session, t.clock, t.device, t.feeds, t.tips)
         backgroundScope.launch { vm.uiState.collect() }
         t.settle()
         return vm

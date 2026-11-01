@@ -33,7 +33,7 @@ impl ServiceState {
     /// starts kill each other's half-built session, concurrent toggles
     /// double-spawn panes). The internal `do_*` helpers assume the caller
     /// already holds it — std Mutex is not reentrant.
-    fn op_lock(&self, name: &str) -> Arc<Mutex<()>> {
+    pub(crate) fn op_lock(&self, name: &str) -> Arc<Mutex<()>> {
         self.ops
             .lock()
             .unwrap()
@@ -68,6 +68,7 @@ impl ServiceState {
     }
     fn clear(&self, name: &str) {
         self.running.lock().unwrap().remove(name);
+        crate::readiness::clear(name);
     }
     pub fn snapshot(&self) -> HashMap<String, RunState> {
         self.running.lock().unwrap().clone()
@@ -196,18 +197,7 @@ fn do_start_with_services(
     }
     let services = config::expand_service_deps(&info.services, &services)?;
     crate::ports::ensure_own_ports(&info.services, &services)?;
-    if let Err(e) = sessions::start_project_services(
-        &info.session,
-        &info.root,
-        &tuples_for(&info, &services),
-        ssh_of(&info),
-    ) {
-        // The failed start already tore down any pre-existing session, so
-        // keeping the old run state would show a dead project as running.
-        state.clear(name);
-        let _ = app.emit("projects-changed", ());
-        return Err(e);
-    }
+    start_session(app, state, name, &info, &services)?;
     state.set(
         name,
         RunState {
@@ -217,6 +207,37 @@ fn do_start_with_services(
     );
     crate::portforward::start_port_poller(app, name); // remote-only, idempotent
     let _ = app.emit("projects-changed", ());
+    Ok(())
+}
+
+/// Open the project's session with a pane per service. Services that wait on a
+/// dependency's ready check open idle, and readiness.rs starts them later.
+fn start_session(
+    app: &AppHandle,
+    state: &State<'_, ServiceState>,
+    name: &str,
+    info: &config::SpawnInfo,
+    services: &[String],
+) -> Result<(), String> {
+    crate::readiness::clear(name);
+    let gate = crate::readiness::gate(&info.services, services, &[]);
+    let deferred = gate.as_ref().map(|g| g.deferred()).unwrap_or_default();
+    if let Err(e) = sessions::start_project_services_gated(
+        &info.session,
+        &info.root,
+        &tuples_for(info, services),
+        ssh_of(info),
+        &deferred,
+    ) {
+        // The failed start already tore down any pre-existing session, so
+        // keeping the old run state would show a dead project as running.
+        state.clear(name);
+        let _ = app.emit("projects-changed", ());
+        return Err(e);
+    }
+    if let Some(gate) = gate {
+        crate::readiness::begin(app, info.clone(), gate, true);
+    }
     Ok(())
 }
 
@@ -284,18 +305,7 @@ pub fn start_project(
     }
     let services = config::expand_service_deps(&info.services, &services)?;
     crate::ports::ensure_own_ports(&info.services, &services)?;
-    if let Err(e) = sessions::start_project_services(
-        &info.session,
-        &info.root,
-        &tuples_for(&info, &services),
-        ssh_of(&info),
-    ) {
-        // The failed start already tore down any pre-existing session, so
-        // keeping the old run state would show a dead project as running.
-        state.clear(&name);
-        let _ = app.emit("projects-changed", ());
-        return Err(e);
-    }
+    start_session(&app, &state, &name, &info, &services)?;
     state.set(
         &name,
         RunState {
@@ -413,7 +423,7 @@ fn do_set_service_running(
     if let Some(idx) = slot.filter(|_| on) {
         // Its pane is still there, but the line in it may have ended: run it again.
         if sessions::ended_services(&info.session).contains_key(service_name) {
-            restart_service_at(&info, &running, idx)?;
+            restart_service_at(app, &info, &running, idx)?;
             let _ = app.emit("projects-changed", ());
         }
         return Ok(());
@@ -428,12 +438,17 @@ fn do_set_service_running(
         // splitting a pane for each in dependency order (the target last).
         let want = config::expand_service_deps(&info.services, &[service_name.to_string()])?;
         let missing: Vec<String> = want.into_iter().filter(|s| !running.contains(s)).collect();
+        let gate = crate::readiness::gate(&info.services, &missing, &running);
         sessions::split_session_services(
             &info.session,
             &info.root,
             &tuples_for(&info, &missing),
             ssh_of(&info),
+            &gate.as_ref().map(|g| g.deferred()).unwrap_or_default(),
         )?;
+        if let Some(gate) = gate {
+            crate::readiness::begin(app, info.clone(), gate, false);
+        }
         let mut next = running.clone();
         next.extend(missing);
         next
@@ -441,6 +456,7 @@ fn do_set_service_running(
         // turning off the only running service stops the whole project
         return do_stop_project(app, state, name);
     } else {
+        crate::readiness::forget(name, service_name);
         stop_running_service(&info.session, running, service_name)?
     };
 
@@ -500,7 +516,7 @@ pub fn restart_project_service(
     let running = config::resolve_running_services(&info, &state.get_for_project(&name, &info));
     let result = match running.iter().position(|s| s == &service_name) {
         Some(idx) if sessions::session_exists(&info.session) => {
-            restart_service_at(&info, &running, idx)
+            restart_service_at(&app, &info, &running, idx)
         }
         _ => do_set_service_running(&app, &state, &name, &service_name, true),
     };
@@ -512,6 +528,7 @@ pub fn restart_project_service(
 /// whatever still runs there first. `running` is the resolved running-service
 /// list; `idx` indexes into it.
 fn restart_service_at(
+    app: &AppHandle,
     info: &config::SpawnInfo,
     running: &[String],
     idx: usize,
@@ -532,11 +549,22 @@ fn restart_service_at(
         &svc.env,
         &svc.cmd,
         ssh_of(info),
-    )
+    )?;
+    watch_restart(app, info, svc_name);
+    Ok(())
+}
+
+/// A restarted service with a ready check shows Starting again until it passes.
+fn watch_restart(app: &AppHandle, info: &config::SpawnInfo, service: &str) {
+    crate::readiness::forget(&info.file_name, service);
+    if let Some(gate) = crate::readiness::gate(&info.services, &[service.to_string()], &[]) {
+        crate::readiness::begin(app, info.clone(), gate, false);
+    }
 }
 
 #[tauri::command(async)]
 pub fn start_service(
+    app: AppHandle,
     state: State<'_, ServiceState>,
     project_name: String,
     pane_index: i64,
@@ -547,12 +575,13 @@ pub fn start_service(
     let running =
         config::resolve_running_services(&info, &state.get_for_project(&project_name, &info));
     let idx = usize::try_from(pane_index).map_err(|_| "invalid pane index".to_string())?;
-    restart_service_at(&info, &running, idx)
+    restart_service_at(&app, &info, &running, idx)
 }
 
 /// Restart a running service by NAME (socket `restart_service`). Errors when the
 /// service is unknown or not currently running.
 pub fn restart_service_by_name(
+    app: &AppHandle,
     state: &State<'_, ServiceState>,
     project_name: &str,
     service_name: &str,
@@ -571,7 +600,7 @@ pub fn restart_service_by_name(
         .iter()
         .position(|s| s == service_name)
         .ok_or_else(|| format!("service {service_name:?} is not running"))?;
-    restart_service_at(&info, &running, idx)
+    restart_service_at(app, &info, &running, idx)
 }
 
 #[tauri::command(async)]
@@ -590,6 +619,7 @@ pub fn stop_service(
     let Some(service) = running.get(idx).cloned() else {
         return Ok(()); // nothing recorded at that slot — already stopped
     };
+    crate::readiness::forget(&project_name, &service);
     match service_pane_id(&info.session, &service, idx, running.len()) {
         PaneLookup::Found(pane_id) => sessions::stop_service_pane(&pane_id),
         PaneLookup::Gone => {

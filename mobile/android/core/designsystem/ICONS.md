@@ -197,3 +197,10 @@ the iPhone screenshots). An icon-only control keeps the accessible name iOS give
 | `envelope.open` / `envelope.badge` (agents) | `drafts` / `mark_email_unread` | 22 dp | an agent row's long-press Mark as Seen / Mark as Unread | |
 | `terminal` (agent menu) | `terminal` | 22 dp | an agent row's long-press Open | |
 | `chevron.down` / `chevron.up` (caption2) | `keyboard_arrow_down` / `keyboard_arrow_up` | 17 dp | "N more seen" / "Show fewer" under a project's agents | |
+| `clock` (Git menu) | `schedule` | 22 dp | the project Git submenu's History | |
+| `doc.on.doc` / `text.quote` (commit) | `content_copy` / `format_quote` | 22 dp menu, 13 dp after the hash | a commit's Copy Hash / Copy Message, the hash's copy button | "More" (menu) |
+| `scissors` | `content_cut` | 18 dp | "This diff is too long to show in full." under a commit's file | |
+| `pin` / `pin.slash` (project) | `keep` / `keep_off` | 22 dp | a project row's Pin to top / Unpin | |
+| `square.stack` | `stacks` | 22 dp | Show All Machines (Mac switcher) | |
+| `hand.tap` / `bolt` / `checklist` (tips) | `touch_app` / `bolt` / `checklist` | 22 dp | a tip card's mark | |
+| `xmark` (tip) | `close` | 15 dp | a tip card's close button | "Close tip" |

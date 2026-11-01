@@ -17,7 +17,8 @@ const FIELD: char = '\u{0}';
 const RECORD: char = '\u{1e}';
 const TRAILER_SEP: char = '\u{1f}';
 const LOG_FORMAT: &str =
-    "--format=%H%x00%h%x00%s%x00%an%x00%ae%x00%at%x00%P%x00%(trailers:key=Co-authored-by,valueonly,separator=%x1f)%x00%b%x1e";
+    "--format=%H%x00%h%x00%s%x00%an%x00%ae%x00%at%x00%P%x00%D%x00%(trailers:key=Co-authored-by,valueonly,separator=%x1f)%x00%b%x1e";
+const FIELDS: usize = 10;
 
 #[derive(Debug, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -30,6 +31,9 @@ pub struct HistoryCommit {
     pub email: String,
     pub time: i64,
     pub parents: usize,
+    pub parent_hashes: Vec<String>,
+    // Branches and tags pointing at the commit: "main", "origin/main", "v1.2".
+    pub refs: Vec<String>,
     pub co_authors: Vec<String>,
     // On no remote branch yet. False everywhere when there is no remote.
     pub unpushed: bool,
@@ -53,14 +57,27 @@ pub struct CommitFile {
     pub removed: Option<u64>,
 }
 
+// `%D`: "HEAD -> main, origin/main, origin/HEAD, tag: v1.2". The bare and
+// remote HEADs only repeat a branch already in the list.
+fn parse_refs(raw: &str) -> Vec<String> {
+    raw.split(", ")
+        .map(|r| r.trim())
+        .map(|r| r.strip_prefix("HEAD -> ").unwrap_or(r))
+        .map(|r| r.strip_prefix("tag: ").unwrap_or(r))
+        .filter(|r| !r.is_empty() && *r != "HEAD" && !r.ends_with("/HEAD"))
+        .map(str::to_string)
+        .collect()
+}
+
 fn parse_log(raw: &str, unpushed: &HashSet<String>) -> Vec<HistoryCommit> {
     raw.split(RECORD)
         .filter_map(|record| {
             let record = record.trim_start_matches('\n');
-            let f: Vec<&str> = record.splitn(9, FIELD).collect();
-            if f.len() < 9 || f[0].is_empty() {
+            let f: Vec<&str> = record.splitn(FIELDS, FIELD).collect();
+            if f.len() < FIELDS || f[0].is_empty() {
                 return None;
             }
+            let parent_hashes: Vec<String> = f[6].split_whitespace().map(str::to_string).collect();
             Some(HistoryCommit {
                 hash: f[0].to_string(),
                 short: f[1].to_string(),
@@ -68,14 +85,16 @@ fn parse_log(raw: &str, unpushed: &HashSet<String>) -> Vec<HistoryCommit> {
                 author: f[3].to_string(),
                 email: f[4].to_string(),
                 time: f[5].parse().unwrap_or(0),
-                parents: f[6].split_whitespace().count(),
-                co_authors: f[7]
+                parents: parent_hashes.len(),
+                parent_hashes,
+                refs: parse_refs(f[7]),
+                co_authors: f[8]
                     .split(TRAILER_SEP)
                     .map(str::trim)
                     .filter(|s| !s.is_empty())
                     .map(str::to_string)
                     .collect(),
-                body: f[8].trim().to_string(),
+                body: f[9].trim().to_string(),
                 unpushed: unpushed.contains(f[0]),
             })
         })
@@ -94,9 +113,19 @@ pub fn git_history(cwd: String, skip: usize, limit: usize) -> Result<GitHistory,
     let limit = limit.clamp(1, MAX_PAGE);
     let count = (limit + 1).to_string();
     let skip = skip.to_string();
+    // Children before parents, which the History graph's lanes are drawn from.
     let raw = git_out(
         &cwd,
-        &["log", "-n", &count, "--skip", &skip, LOG_FORMAT, "HEAD"],
+        &[
+            "log",
+            "--date-order",
+            "-n",
+            &count,
+            "--skip",
+            &skip,
+            LOG_FORMAT,
+            "HEAD",
+        ],
     )?;
     let has_remote = git_out(&cwd, &["remote"]).is_ok_and(|r| !r.is_empty());
     let unpushed: HashSet<String> = if has_remote {
@@ -202,8 +231,19 @@ mod tests {
     use super::*;
 
     fn record(hash: &str, subject: &str, parents: &str, trailers: &str, body: &str) -> String {
+        record_with_refs(hash, subject, parents, "", trailers, body)
+    }
+
+    fn record_with_refs(
+        hash: &str,
+        subject: &str,
+        parents: &str,
+        refs: &str,
+        trailers: &str,
+        body: &str,
+    ) -> String {
         format!(
-            "{hash}\u{0}{}\u{0}{subject}\u{0}Ann\u{0}ann@example.com\u{0}1761900000\u{0}{parents}\u{0}{trailers}\u{0}{body}\u{1e}\n",
+            "{hash}\u{0}{}\u{0}{subject}\u{0}Ann\u{0}ann@example.com\u{0}1761900000\u{0}{parents}\u{0}{refs}\u{0}{trailers}\u{0}{body}\u{1e}\n",
             &hash[..7]
         )
     }
@@ -232,7 +272,24 @@ mod tests {
         );
         assert!(commits[0].unpushed);
         assert_eq!(commits[1].parents, 2);
+        assert_eq!(commits[1].parent_hashes, vec!["ccc", "ddd"]);
         assert!(!commits[1].unpushed);
+    }
+
+    #[test]
+    fn lists_branches_and_tags_without_the_heads() {
+        let raw = record_with_refs(
+            "aaaaaaa1111",
+            "Ship",
+            "bbbbbbb2222",
+            "HEAD -> main, origin/main, origin/HEAD, tag: v1.2",
+            "",
+            "",
+        );
+        let commits = parse_log(&raw, &HashSet::new());
+        assert_eq!(commits[0].refs, vec!["main", "origin/main", "v1.2"]);
+        assert_eq!(commits[0].parent_hashes, vec!["bbbbbbb2222"]);
+        assert_eq!(parse_refs("HEAD"), Vec::<String>::new());
     }
 
     #[test]

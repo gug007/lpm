@@ -4,6 +4,7 @@ import { SettingsRow } from "../SettingsRow";
 import { SettingsSection } from "../SettingsSection";
 import { BTN_SECONDARY } from "../ui/buttons";
 import { ShortcutRecorder } from "../ui/ShortcutRecorder";
+import { QuickTerminalSection } from "./QuickTerminalSection";
 import { useSettingsTarget } from "./settingsTarget";
 
 export function ShortcutsPane() {
@@ -12,6 +13,7 @@ export function ShortcutsPane() {
 
   return (
     <>
+      <QuickTerminalSection />
       <SettingsSection title="You can change these">
         {HOTKEYS.map((def) => {
           const value = resolveHotkey(hotkeys, def.id);

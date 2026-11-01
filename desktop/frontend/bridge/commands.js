@@ -235,6 +235,12 @@ export function DetachProject(projectName) {
 export function DetectServicePorts(name) {
   return invoke("detect_service_ports", { name });
 }
+export function ListPortsOverview(computers) {
+  return invoke("list_ports_overview", { computers });
+}
+export function KillPortHolder(machine, pid, port) {
+  return invoke("kill_port_holder", { machine, pid, port });
+}
 export function DismissPortSuggestion(project, port) {
   return invoke("dismiss_port_suggestion", { project, port });
 }
@@ -276,6 +282,18 @@ export function ListDirs(path) {
 }
 export function FocusDetachedWindow(projectName) {
   return invoke("focus_detached_window", { projectName });
+}
+export function SetQuickTerminal(enabled, key) {
+  return invoke("set_quick_terminal", { enabled, key });
+}
+export function QuickTerminalStatus() {
+  return invoke("quick_terminal_status");
+}
+export function QuickTerminalCwd() {
+  return invoke("quick_terminal_cwd");
+}
+export function HideQuickTerminal() {
+  return invoke("hide_quick_terminal");
 }
 export function FocusMainWindow(project, view, addProject) {
   return invoke("focus_main_window", { project, view, addProject });
@@ -336,6 +354,9 @@ export function GitChangedFilesStaged(cwd) {
 }
 export function GitCommit(cwd, message, files) {
   return invoke("git_commit", { cwd, message, files });
+}
+export function GitScanSecrets(cwd, files) {
+  return invoke("git_scan_secrets", { cwd, files });
 }
 export function GitCommitCount(cwd, from, to) {
   return invoke("git_commit_count", { cwd, from, to });

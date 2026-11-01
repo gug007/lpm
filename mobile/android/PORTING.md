@@ -50,7 +50,12 @@ side by side (see `mobile/parity/README.md`).
   notifications go to a "Quiet hours" channel without sound or heads-up where iOS delivers
   them passively; the app lock checks with the phone's screen lock (fingerprint, face or
   PIN), so Settings › Security reads "Require screen lock" and the cover's button
-  "Unlock" where iOS names Face ID, and the lock also blanks the recent-apps preview.
+  "Unlock" where iOS names Face ID, and the lock also blanks the recent-apps preview;
+  Show All Machines in the Mac menu is a plain row whose icon turns into a checkmark
+  while on (Android menus have no toggle row); a commit's line under its subject (hash ·
+  author · date · Merge) is one text that shrinks before it cuts off, the date the
+  platform's medium date and short time joined by "at", and Copy Hash confirms with
+  Android's Confirm haptic.
 - **Same persisted keys and semantics** as iOS (table below), so behavior and
   defaults match.
 - Desktop changes that touch the phone now update both apps (AGENTS.md).
@@ -279,6 +284,7 @@ intents beyond the Token activity widget's pills, speech recognition, biometrics
 | UserDefaults | `speech.engine`, `speech.voiceId`, `speech.rate` | read aloud |
 | UserDefaults | `builtInTailscale.enabled`, `pairing.usesTailscaleApp` | Tailscale |
 | UserDefaults | `activity.groupByProject`, `automation.scheduleOpen`, `automation.setupOpen`, `filePreviewMarkdownSource`, `actionPrimaryLastUsed`, `zoneOpenLayers`, `newTab.lastPick`, `gitReview.wrap` (missing = on), `macUpdate.dismissed.<id>` | UI memory |
+| UserDefaults | `lpm.allMachines` (missing = off), `lpm.tips.closed` (a string array; Android keeps it as a JSON array string, like the other lists) | Show All Machines; the tips closed, which Settings › Tips brings back |
 | Files | `Caches/project-lists/<localId>.json`; `ApplicationSupport/tailnet/` (no backup) | offline project list; tailnet state (`noBackupFilesDir`) |
 | App group `group.cx.lpm.mobile` | `token-activity.json` (Android: `filesDir`); UserDefaults `tokenActivity.range` (7, 14 or 30; missing = 7) | the Token activity widget's last 30-day read and the range its pills picked |
 | App group `group.cx.lpm.mobile` | `usage-widget.json` (Android: `filesDir`) | the Usage widget's rows from the Mac last live, and when the phone last had them |
@@ -334,7 +340,7 @@ build Android until the same flows pass there.
 2. **Play: App Bundle, Play App Signing**, with a separate upload key kept outside the
    repo. Package `cx.lpm.mobile`, the iOS bundle id; it can't change after the first upload.
 3. **Demo seed: kept identical by a test, not shared.** `:core:demo` is a line-by-line
-   port of `Demo*.swift`, and `IosParityTest` replays a fixed script of 415 frames into it
+   port of `Demo*.swift`, and `IosParityTest` replays a fixed script of 517 frames into it
    and compares every reply with goldens recorded from the iOS demo code itself, compiled
    on a Mac (`core/demo/ios-parity/generate.sh`, needs `swiftc`). A change to
    `Demo*.swift` is ported to `:core:demo` and the goldens regenerated in the same change;

@@ -11,12 +11,29 @@ export interface ServiceInfo {
   portConflict?: ActionPortConflict;
   env?: Record<string, string>;
   dependsOn?: string[];
+  ready?: ServiceReady;
   // Set on a started service whose command has ended (crashed, exited, or was
   // stopped in its pane) while its tab stays. `exitCode` is null when the shell
   // gave none.
   exited?: boolean;
   exitCode?: number | null;
+  // Set on a started service its ready checks still hold: "waiting" for the
+  // services in `waitingFor`, "starting" until its own check passes, or
+  // "notReady" once that check timed out (`readyError` says how).
+  readiness?: ServiceReadiness;
+  waitingFor?: string[];
+  readyError?: string;
 }
+
+export type ServiceReadiness = "waiting" | "starting" | "notReady";
+
+// A service's `ready` check as the app read it. `port: 0` is the service's
+// own port; "invalid" is a check the app couldn't use (`error` says why).
+export type ServiceReady =
+  | { kind: "port"; port: number; timeout: number }
+  | { kind: "url"; url: string; timeout: number }
+  | { kind: "log"; log: string; timeout: number }
+  | { kind: "invalid"; error: string };
 
 export interface ProfileInfo {
   name: string;

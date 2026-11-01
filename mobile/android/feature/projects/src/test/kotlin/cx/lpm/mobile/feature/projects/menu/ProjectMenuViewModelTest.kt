@@ -46,6 +46,12 @@ class ProjectMenuViewModelTest {
     }
 
     @Test
+    fun `History shows for a project the Mac lists commits for`() = runTest {
+        val t = demoSession()
+        assertTrue(subscribed(t).uiState.value.canShowHistory)
+    }
+
+    @Test
     fun `the menu reads the Claude accounts its Claude Account menu lists`() = runTest {
         val t = demoSession()
         val vm = subscribed(t)

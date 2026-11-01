@@ -36,7 +36,7 @@ class ActivityViewModelTest {
         val t = TestSession(this, Stores)
         t.enterDemo()
         t.settle()
-        val vm = ActivityViewModel(t.session, t.prefs, t.clock)
+        val vm = ActivityViewModel(t.session, t.prefs, t.clock, t.feeds)
         backgroundScope.launch { vm.uiState.collect() }
         t.settle()
         return t to vm
@@ -58,7 +58,7 @@ class ActivityViewModelTest {
                 """{"key":"claude_code_1","value":"Waiting","paneID":"t1"}]}]}]}"""
         )
         t.settle()
-        val vm = ActivityViewModel(t.session, t.prefs, t.clock)
+        val vm = ActivityViewModel(t.session, t.prefs, t.clock, t.feeds)
         backgroundScope.launch { vm.uiState.collect() }
         t.settle()
 

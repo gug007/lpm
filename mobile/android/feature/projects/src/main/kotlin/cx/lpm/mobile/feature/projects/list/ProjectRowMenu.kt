@@ -29,6 +29,7 @@ class ProjectRowActions(
     val remove: (Project) -> Unit = {},
     val openTerminal: (Project, terminalId: String) -> Unit = { _, _ -> },
     val toggleSeenAgents: (Project) -> Unit = {},
+    val setPinned: (Project, pinned: Boolean) -> Unit = { _, _ -> },
     val archiveAgent: (Project, ProjectAgentRow) -> Unit = { _, _ -> },
     val markAgentSeen: (Project, ProjectAgentRow) -> Unit = { _, _ -> },
     val markAgentUnread: (Project, ProjectAgentRow) -> Unit = { _, _ -> },
@@ -36,14 +37,16 @@ class ProjectRowActions(
     val retryQueued: (id: String) -> Unit = {}
 )
 
-/** Whether a long press on the row has anything to offer. */
-fun Project.hasRowMenu(): Boolean =
-    (!running && profiles.isNotEmpty()) || canHaveWorkStatus || !isRemote || isDuplicate
+/** Whether a long press on the row has anything to offer; [pinned] null hides Pin to top. */
+fun Project.hasRowMenu(pinned: Boolean? = null): Boolean =
+    (!running && profiles.isNotEmpty()) || canHaveWorkStatus || pinned != null || !isRemote ||
+        isDuplicate
 
 /**
  * The project row's long-press menu, matching the desktop's but scoped to what's
- * safe from a phone: start with a profile, its status, its folder, Duplicate, and
- * Remove for a duplicate (which deletes its folder, so it's confirmed first).
+ * safe from a phone: start with a profile, its status, Pin to top or Unpin (when the
+ * Mac pins projects, [pinned] not null), its folder, Duplicate, and Remove for a
+ * duplicate (which deletes its folder, so it's confirmed first).
  */
 @Composable
 fun ProjectRowMenu(
@@ -54,7 +57,8 @@ fun ProjectRowMenu(
     folders: List<ProjectFolder>,
     statusChoices: List<WorkStatusChoice>,
     actions: ProjectRowActions,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    pinned: Boolean? = null
 ) {
     ContextMenu(expanded = expanded, onDismissRequest = onDismiss, modifier = modifier) {
         if (!project.running && project.profiles.isNotEmpty()) {
@@ -72,6 +76,15 @@ fun ProjectRowMenu(
         }
         if (project.canHaveWorkStatus) {
             WorkStatusSubmenu(project.workStatus, statusChoices) { actions.pickStatus(project, it) }
+        }
+        if (pinned != null) {
+            ContextMenuItem(
+                title = stringResource(
+                    if (pinned) ProjectsR.string.row_unpin else ProjectsR.string.row_pin
+                ),
+                onClick = { actions.setPinned(project, !pinned) },
+                icon = painterResource(if (pinned) R.drawable.ic_keep_off else R.drawable.ic_keep)
+            )
         }
         if (!project.isRemote) {
             ContextMenuSubmenu(

@@ -48,6 +48,26 @@ sealed interface WireGit {
 
     fun gitBranches(project: String): String = frame("gitBranches") { put("project", project) }
 
+    fun gitHistory(project: String, skip: Int, limit: Int): String = frame("gitHistory") {
+        put("project", project)
+        put("skip", skip)
+        put("limit", limit)
+    }
+
+    fun gitCommitFiles(project: String, hash: String): String = frame("gitCommitFiles") {
+        put("project", project)
+        put("hash", hash)
+    }
+
+    /** One file's patch in a commit; a renamed file passes where it came from. */
+    fun gitCommitPatch(project: String, hash: String, path: String, oldPath: String?): String =
+        frame("gitCommitPatch") {
+            put("project", project)
+            put("hash", hash)
+            put("path", path)
+            putNonEmpty("oldPath", oldPath)
+        }
+
     fun gitCheckout(project: String, branch: String, remote: String): String =
         frame("gitCheckout") {
             put("project", project)

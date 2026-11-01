@@ -177,6 +177,8 @@ pub struct ServiceFull {
     pub env: BTreeMap<String, String>,
     #[serde(rename = "dependsOn", alias = "depends_on", default)]
     pub depends_on: Vec<String>,
+    #[serde(default)]
+    pub ready: Option<crate::ready::ReadySpec>,
 }
 
 impl ServiceDef {
@@ -719,6 +721,9 @@ fn merge_service(dst: &mut ServiceFull, src: &ServiceFull) {
     if dst.env.is_empty() {
         dst.env = src.env.clone();
     }
+    if dst.ready.is_none() {
+        dst.ready = src.ready.clone();
+    }
 }
 
 /// Merge `src` services UNDER `dst` (dst wins; new keys added; shared keys get
@@ -879,6 +884,7 @@ pub struct ResolvedService {
     pub port_conflict: String,
     pub env: BTreeMap<String, String>,
     pub depends_on: Vec<String>,
+    pub ready: Option<crate::ready::ReadySpec>,
 }
 
 pub struct ResolvedAction {
@@ -1050,6 +1056,7 @@ fn resolve_project_with_source(
             port_conflict: s.port_conflict,
             env: s.env,
             depends_on: s.depends_on,
+            ready: s.ready,
         })
         .collect();
 

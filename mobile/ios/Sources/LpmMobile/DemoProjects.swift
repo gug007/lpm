@@ -414,6 +414,12 @@ extension DemoServer {
             self.moveProjectToFolder(project, folder: o["folder"] as? String)
             self.sidebarMutationReply("sidebarMoveProject")
         }
+        register("sidebarPin") { [weak self] o in
+            guard let self, let project = o["project"] as? String else { return }
+            self.world.pins.removeAll { $0 == project }
+            if o["pinned"] as? Bool ?? true { self.world.pins.append(project) }
+            self.sidebarMutationReply("sidebarPin")
+        }
     }
 
     // MARK: actions (terminal relay + background runs)

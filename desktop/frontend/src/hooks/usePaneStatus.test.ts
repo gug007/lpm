@@ -112,6 +112,21 @@ describe("derivePaneStatus", () => {
     );
     expect(s.agents.get("%1")).toEqual({ state: "needs-you", since: NOW - 10_000 });
   });
+
+  it("lists each tab's seen finishes, unless the tab has something newer", () => {
+    const s = derivePaneStatus(
+      [entry("claude_code_b", STATUS_RUNNING, "%2")],
+      NOW,
+      [
+        entry("claude_code_a", STATUS_DONE, "%1"),
+        entry("codex_a", STATUS_ERROR, "%1"),
+        entry("claude_code_old", STATUS_DONE, "%2"),
+        entry("no_pane", STATUS_DONE, ""),
+      ],
+    );
+    expect([...s.seen]).toEqual([["%1", ["claude_code_a", "codex_a"]]]);
+    expect(s.done.size).toBe(0);
+  });
 });
 
 describe("paneAgentStatus", () => {

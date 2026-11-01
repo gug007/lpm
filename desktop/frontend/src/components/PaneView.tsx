@@ -67,6 +67,8 @@ import { agentSessionOf } from "../agentSession";
 import { peerSlugOf } from "../peer/markers";
 import { TerminalCopyAnswerOverlay } from "./TerminalCopyAnswerOverlay";
 import { useClearStatusOnInteraction } from "../hooks/useClearStatusOnInteraction";
+import { useUnreadHold } from "../hooks/useUnreadHold";
+import { markAgentUnread } from "../agentArchive";
 import { paneAgentStatus, type PaneStatus } from "../hooks/usePaneStatus";
 import { closePaneTooltip, runningAgentCount } from "../paneCloseSummary";
 import { useBrowserUrls } from "../store/browserUrls";
@@ -92,6 +94,8 @@ import {
 } from "./terminal/usePaneStripOverflow";
 import { ServiceColumnActions } from "./terminal/ServiceColumnActions";
 import { ServiceStateDot } from "./terminal/ServiceStateDot";
+import { ServiceReadyBadge } from "./terminal/ServiceReadyBadge";
+import type { ServiceReadyState } from "../serviceReadyState";
 import { PaneLayoutsButton } from "./terminal/PaneLayoutsButton";
 import type { SavedLayoutNode } from "../savedLayouts";
 import { ServiceErrorBadge } from "./terminal/ServiceErrorBadge";
@@ -159,7 +163,7 @@ function TabIcon({ tab }: { tab: TerminalInstance }) {
 }
 
 /** A running service that the primary pane renders as an additional tab. */
-export interface ServiceTabInfo {
+export interface ServiceTabInfo extends ServiceReadyState {
   name: string;
   output: string;
   sessionKey: string;
@@ -451,8 +455,10 @@ function PaneViewImpl(props: PaneViewProps) {
   // it arrives while the user is somewhere else entirely. So the badge stays put
   // on the active tab and is retired by the first deliberate input instead of by
   // the tab merely being selected.
+  const inFront = visible && focused && activeServiceName === null && activeTerm ? activeTerm.id : null;
+  const unreadHold = useUnreadHold(inFront);
   const attentionKinds: StatusKind[] = [];
-  if (visible && focused && activeServiceName === null && activeTerm) {
+  if (activeTerm && inFront === activeTerm.id && unreadHold.held !== activeTerm.id) {
     if (paneStatus?.done.has(activeTerm.id)) attentionKinds.push("Done");
     if (paneStatus?.error.has(activeTerm.id)) attentionKinds.push("Error");
   }
@@ -591,6 +597,11 @@ function PaneViewImpl(props: PaneViewProps) {
                         onFocusService(pane.id, svc.name);
                         useServiceLogs.getState().setFilter(svc.sessionKey, "error");
                       }}
+                    />
+                    <ServiceReadyBadge
+                      readiness={svc.readiness}
+                      waitingFor={svc.waitingFor}
+                      readyError={svc.readyError}
                     />
                     {svc.exited ? (
                       <ServiceStateDot exited exitCode={svc.exitCode} />
@@ -815,7 +826,16 @@ function PaneViewImpl(props: PaneViewProps) {
                 themeOverride={themeOverride}
                 cwd={svc.cwd}
                 label={svc.name}
-                labelLead={<ServiceStateDot exited={svc.exited} exitCode={svc.exitCode} />}
+                labelLead={
+                  <>
+                    <ServiceStateDot exited={svc.exited} exitCode={svc.exitCode} readiness={svc.readiness} />
+                    <ServiceReadyBadge
+                      readiness={svc.readiness}
+                      waitingFor={svc.waitingFor}
+                      readyError={svc.readyError}
+                    />
+                  </>
+                }
                 labelHint={svc.cmd}
                 labelDetail={svc.cmd ? <ServiceCommand cmd={svc.cmd} /> : undefined}
                 labelActions={
@@ -996,6 +1016,7 @@ function PaneViewImpl(props: PaneViewProps) {
           (t, i) => i !== tabMenu.tabIdx && t.pinned !== true,
         );
         const forkable = isTerminalTab(tab) && canForkSession(tab.resumeCmd);
+        const seenKeys = paneStatus?.seen.get(tab.id);
         return (
           <TabContextMenu
             x={tabMenu.x}
@@ -1023,6 +1044,14 @@ function PaneViewImpl(props: PaneViewProps) {
               onRestoreSessionTitle(tabMenu.paneId, tabMenu.tabIdx)
             }
             onTogglePin={() => onTogglePinTab(tabMenu.paneId, tabMenu.tabIdx)}
+            onMarkUnread={
+              seenKeys
+                ? () => {
+                    unreadHold.hold(tab.id);
+                    markAgentUnread(projectName, { keys: seenKeys });
+                  }
+                : undefined
+            }
             onFork={() => onForkTerminal(tabMenu.paneId, tab.id)}
             onForkCopy={() =>
               onForkTerminalIntoCopy(

@@ -15,6 +15,7 @@ use std::path::{Path, PathBuf};
 mod jobs;
 mod labels;
 mod project_fields;
+mod service_ready;
 mod zones;
 
 pub(crate) use jobs::validate_entry as validate_job_entry;
@@ -912,10 +913,12 @@ fn validate_services(
                 "env",
                 "dependsOn",
                 "depends_on",
+                "ready",
             ],
             &path,
             report,
         );
+        service_ready::validate_ready(map, &path, report);
         match string_at(map, "cmd") {
             Some(cmd) if !cmd.trim().is_empty() => {}
             _ => report.error(&format!("{path}.cmd"), "must not be empty"),
@@ -2124,6 +2127,23 @@ mod tests {
         assert!(repo
             .errors
             .contains(&"config.work_status: unknown field".to_string()));
+    }
+
+    #[test]
+    fn validator_checks_a_services_ready_shape() {
+        let (_dir, ctx) = context();
+        let ok = project_report(
+            &ctx,
+            "root: /tmp\nservices:\n  api:\n    cmd: run-api\n    port: 4000\n    ready: port\n  web:\n    cmd: npm start\n    dependsOn: [api]\n    ready:\n      log: ready in\n      timeout: 60\n",
+        );
+        assert!(ok.errors.is_empty(), "{:?}", ok.errors);
+        let bad = project_report(
+            &ctx,
+            "root: /tmp\nservices:\n  api:\n    cmd: run-api\n    ready: port\n  web:\n    cmd: npm start\n    ready:\n      url: localhost:3000\n",
+        );
+        let errors = bad.errors.join("\n");
+        assert!(errors.contains("config.services.api.ready: checking the service's port needs"), "{errors}");
+        assert!(errors.contains("config.services.web.ready: url must start with http://"), "{errors}");
     }
 
     #[test]

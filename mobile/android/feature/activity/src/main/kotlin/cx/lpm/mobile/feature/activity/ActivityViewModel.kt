@@ -6,8 +6,8 @@ import androidx.navigation3.runtime.NavKey
 import cx.lpm.mobile.core.data.automations.AutomationsStore
 import cx.lpm.mobile.core.data.link.LinkState
 import cx.lpm.mobile.core.data.link.LinkView
-import cx.lpm.mobile.core.data.machines.MachineImporter
 import cx.lpm.mobile.core.data.machines.MachineSection
+import cx.lpm.mobile.core.data.machines.PairedMachineFeeds
 import cx.lpm.mobile.core.data.prefs.AppPreferences
 import cx.lpm.mobile.core.data.prefs.PreferenceKeys
 import cx.lpm.mobile.core.data.projects.ProjectsState
@@ -51,7 +51,8 @@ data class ActivityUiState(
 class ActivityViewModel @Inject constructor(
     private val session: MacSession,
     private val prefs: AppPreferences,
-    private val clock: Clock
+    private val clock: Clock,
+    private val feeds: PairedMachineFeeds
 ) : ViewModel() {
     private val projects: ProjectsStore = session.store()
     private val terminals: TerminalsStore = session.store()
@@ -64,13 +65,11 @@ class ActivityViewModel @Inject constructor(
         .map { prefs.bool(PreferenceKeys.ACTIVITY_GROUP_BY_PROJECT) ?: false }
         .distinctUntilChanged()
 
-    private val machines: MachineImporter = session.store()
-
     private val activity: Flow<Activity> = combine(
         projects.state,
         terminals.state,
         automations.state,
-        machines.sections
+        feeds.listedSections
     ) { p, t, jobs, sections -> build(p, sections, jobs.jobs, t.terminalTitles) }
 
     val uiState: StateFlow<ActivityUiState> = combine(
@@ -168,7 +167,7 @@ class ActivityViewModel @Inject constructor(
     fun visit(row: ActivityRow): NavKey? {
         val slug = row.project.machine ?: return null
         val project = row.project.name.ifEmpty { return null }
-        val section = machines.section(slug) ?: return null
+        val section = feeds.section(slug) ?: return null
         val visit = session.beginVisit(section.machine, section.record, project, row.terminalId)
             ?: return null
         return visit.terminal?.let { TerminalKey(project, it, visit.session) }

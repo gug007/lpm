@@ -3,6 +3,9 @@ package cx.lpm.mobile.feature.projects.detail
 import cx.lpm.mobile.core.data.link.LinkStatusLine
 import cx.lpm.mobile.core.data.link.QueuedAction
 import cx.lpm.mobile.core.data.projects.ProjectsState
+import cx.lpm.mobile.core.model.AppTip
+import cx.lpm.mobile.core.model.GitFile
+import cx.lpm.mobile.core.model.GitSnapshot
 import cx.lpm.mobile.core.model.Service
 import cx.lpm.mobile.core.model.TerminalInfo
 import cx.lpm.mobile.feature.projects.project
@@ -66,5 +69,38 @@ class DetailStateTest {
         assertNull(tabRenameResult(tab, "  "))
         assertNull(tabRenameResult(tab, " Terminal 1 "))
         assertEquals("build", tabRenameResult(tab, " build "))
+    }
+
+    @Test
+    fun `the screen shows the first open tip it has something to point at`() {
+        val files = listOf(GitFile("a.ts", "modified", staged = false, stamp = ""))
+        val git = GitSnapshot(
+            isRepo = true,
+            branch = "main",
+            detached = false,
+            hasUpstream = true,
+            ahead = 0,
+            behind = 0,
+            defaultBranch = "main",
+            ghCli = false,
+            files = files,
+            autoPulled = null
+        )
+        assertEquals(
+            AppTip.TabMenu,
+            detail(inputs = DetailInputs(terminals = listOf(tab), git = git)).tip
+        )
+        val closed = setOf(AppTip.TabMenu.id)
+        assertEquals(
+            AppTip.Review,
+            detail(
+                inputs = DetailInputs(terminals = listOf(tab), git = git, closedTips = closed)
+            ).tip
+        )
+        assertNull(detail(inputs = DetailInputs(terminals = emptyList(), closedTips = closed)).tip)
+        // Nothing until the tabs have loaded, so a later tip doesn't flash first.
+        assertNull(
+            detail(inputs = DetailInputs(terminals = null, git = git, closedTips = closed)).tip
+        )
     }
 }

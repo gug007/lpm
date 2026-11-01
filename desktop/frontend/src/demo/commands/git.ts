@@ -124,6 +124,7 @@ export const gitCommands: CommandMap = {
       files: paths,
     }));
   },
+  git_scan_secrets: () => [],
   git_commit: ({ cwd, files }) => {
     const p = repo(cwd);
     if (!p) return null;

@@ -161,6 +161,8 @@ fun LpmClient.sidebarDeleteFolder(name: String) = send(Wire.sidebarDeleteFolder(
 fun LpmClient.sidebarMoveProject(project: String, folder: String?) =
     send(Wire.sidebarMoveProject(project, folder))
 
+fun LpmClient.sidebarPin(project: String, pinned: Boolean) = send(Wire.sidebarPin(project, pinned))
+
 fun LpmClient.fileChunk(reqId: String, project: String, path: String, offset: Long, length: Long) =
     send(Wire.fileChunk(reqId, project, path, offset, length))
 

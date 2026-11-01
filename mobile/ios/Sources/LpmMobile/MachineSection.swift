@@ -11,6 +11,8 @@ struct MachineSection: Identifiable {
     let pending: MachineImporter.Status?
     /// Not on this phone, but the live Mac can carry the phone to it.
     let throughMac: Bool
+    /// How a machine saved here is doing, while it isn't answering.
+    var note: String? = nil
 
     var id: String { machine.slug }
     var projectCount: Int { rows.filter { !$0.isChild }.count }
@@ -59,7 +61,7 @@ extension AppModel {
     /// The live Mac's connected machines with their projects, as Activity and the
     /// ambient badge count them.
     var activityMachines: [ActivityMachine] {
-        machineSections.map {
+        listedMachineSections.map {
             ActivityMachine(slug: $0.machine.slug, name: $0.machine.name, projects: $0.machine.projects ?? [])
         }
     }

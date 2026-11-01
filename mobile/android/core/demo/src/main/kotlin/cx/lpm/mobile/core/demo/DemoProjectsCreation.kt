@@ -1,6 +1,6 @@
 package cx.lpm.mobile.core.demo
 
-// Project creation (add / import / clone / discovery), sidebar folder ops, and the
+// Project creation (add / import / clone / discovery), sidebar folder and pin ops, and the
 // project domain's cross-domain hooks and helpers.
 
 internal fun DemoServer.registerCreationHandlers() {
@@ -187,6 +187,12 @@ internal fun DemoServer.registerSidebarHandlers() {
         val project = o.string("project") ?: return@register
         moveProjectToFolder(project, o.string("folder"))
         sidebarMutationReply("sidebarMoveProject")
+    }
+    register("sidebarPin") { o ->
+        val project = o.string("project") ?: return@register
+        world.pins.removeAll { it == project }
+        if (o.bool("pinned") ?: true) world.pins.add(project)
+        sidebarMutationReply("sidebarPin")
     }
 }
 

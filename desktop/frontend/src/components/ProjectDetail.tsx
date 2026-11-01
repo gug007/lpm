@@ -185,7 +185,7 @@ export function ProjectDetail({
 
   const { theme: terminalTheme, themeStyle } = useTerminalTheme();
   const { fontSize, zoomIn, zoomOut } = useTerminalFontSize();
-  const paneStatus = usePaneStatus(project.statusEntries);
+  const paneStatus = usePaneStatus(project.statusEntries, project.seenEntries);
   const actionsModel = useActionsByDisplay(project.actions, project.zones);
   const { layout: actionsLayout } = actionsModel;
 

@@ -12,6 +12,8 @@ import type { PaneNode } from "./paneTree";
 const detachedParam = new URLSearchParams(window.location.search).get("detached");
 export const IS_MIRROR_WINDOW = detachedParam !== null;
 export const MIRROR_PROJECT = detachedParam;
+// The quick terminal's window owns the one shell it shows; it mirrors nothing.
+export const IS_QUICK_TERMINAL_WINDOW = new URLSearchParams(window.location.search).has("quickterm");
 
 // This webview's identity for terminal control ownership (see
 // `store/terminalControl`). A terminal is shown live in exactly one surface;
@@ -29,7 +31,9 @@ export interface Realm {
 // detached window is recognized and never strands ownership. Keep in lockstep.
 export const REALM: Realm = IS_MIRROR_WINDOW
   ? { kind: "window", id: `detached:${MIRROR_PROJECT}`, label: "Detached window" }
-  : { kind: "window", id: "main", label: "Main window" };
+  : IS_QUICK_TERMINAL_WINDOW
+    ? { kind: "window", id: "quick-terminal", label: "Quick terminal" }
+    : { kind: "window", id: "main", label: "Main window" };
 
 // Cross-window transport is Tauri's global event bus (EventsEmit/EventsOn): an
 // emit from either window is delivered to listeners in every window, the same

@@ -33,6 +33,7 @@ export const BUILTIN_SHORTCUT_GROUPS: BuiltinShortcutGroup[] = [
       { id: "sidebar", label: "Show or hide the sidebar", description: "Gives the terminals the whole window", keys: cmd("b") },
       { id: "config", label: "Edit the project's config", description: "Press again to go back to its terminals", keys: cmd("e") },
       { id: "notes", label: "Project notes", description: "Press again to go back to its terminals", keys: cmd("n", { shift: true }) },
+      { id: "ports", label: "Every listening port", description: "Press again to go back to your projects", keys: cmd("p", { alt: true }) },
     ],
   },
   {

@@ -15,7 +15,8 @@ import { useWorkStatusesStore } from "./store/workStatuses";
 import { useAccountsStore } from "./store/accounts";
 import { useClaudePoolStore } from "./store/claudePool";
 import { queryClient } from "./queryClient";
-import { MIRROR_PROJECT } from "./mirror";
+import { IS_QUICK_TERMINAL_WINDOW, MIRROR_PROJECT } from "./mirror";
+import { QuickTerminalApp } from "./components/quick-terminal/QuickTerminalApp";
 import { initMenuEditEvents } from "./menuEdit";
 import { initScrollbarFade } from "./scrollbarFade";
 import { applyPlatformClass } from "./platform";
@@ -31,7 +32,7 @@ import "./styles/globals.css";
 import { initSendLater } from "./store/sendLater";
 
 const detachedProject = MIRROR_PROJECT;
-const surface = detachedProject ? "detached" : "main";
+const surface = detachedProject ? "detached" : IS_QUICK_TERMINAL_WINDOW ? "quick-terminal" : "main";
 const root = createRoot(document.getElementById("root")!);
 
 applyPlatformClass();
@@ -60,6 +61,8 @@ function renderApplication() {
         <QueryClientProvider client={queryClient}>
           {detachedProject ? (
             <DetachedApp projectName={detachedProject} />
+          ) : IS_QUICK_TERMINAL_WINDOW ? (
+            <QuickTerminalApp />
           ) : (
             <App />
           )}

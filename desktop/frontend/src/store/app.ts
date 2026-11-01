@@ -128,6 +128,7 @@ export type View =
   | "projects"
   | "terminals"
   | "stats"
+  | "ports"
   | "scheduled"
   | "shared"
   | "settings"

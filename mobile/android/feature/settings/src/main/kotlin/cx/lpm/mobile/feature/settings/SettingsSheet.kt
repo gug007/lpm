@@ -60,7 +60,8 @@ private fun SettingsRoute(
             onOpen = onOpen,
             onPrivacyPolicy = { context.openPrivacyPolicy() },
             terminalControls = slots.terminalControls,
-            security = { SecuritySection() }
+            security = { SecuritySection() },
+            tips = { TipsSection() }
         )
     }
 }

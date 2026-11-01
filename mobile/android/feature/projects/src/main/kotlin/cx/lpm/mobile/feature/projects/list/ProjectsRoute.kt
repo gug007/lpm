@@ -86,6 +86,7 @@ fun ProjectsRoute(
             addMachine = viewModel::addMachine,
             manageMachines = viewModel::manageMachines,
             showDetails = viewModel::showConnectionDetails,
+            setShowAllMachines = viewModel::setShowAllMachines,
             pendingMachines = slots.pendingMachines
         ),
         rowActions = ProjectRowActions(
@@ -107,6 +108,10 @@ fun ProjectsRoute(
             },
             openTerminal = { project, id -> onNavigate(TerminalKey(project.name, id)) },
             toggleSeenAgents = viewModel::toggleSeenAgents,
+            setPinned = { project, pinned ->
+                tap()
+                viewModel.setPinned(project, pinned)
+            },
             archiveAgent = { project, row ->
                 tap()
                 viewModel.archiveAgent(project, row)
@@ -141,6 +146,7 @@ fun ProjectsRoute(
             tap()
             viewModel.undoArchive()
         },
+        onCloseTip = viewModel::closeTip,
         slots = slots
     )
 

@@ -103,6 +103,6 @@ export function markAgentSeen(project: string, row: SidebarAgentRow): void {
   MarkAgentStatusSeen(project, row.keys).catch(() => {});
 }
 
-export function markAgentUnread(project: string, row: SidebarAgentRow): void {
+export function markAgentUnread(project: string, row: Pick<SidebarAgentRow, "keys">): void {
   MarkAgentStatusUnread(project, row.keys).catch(() => {});
 }

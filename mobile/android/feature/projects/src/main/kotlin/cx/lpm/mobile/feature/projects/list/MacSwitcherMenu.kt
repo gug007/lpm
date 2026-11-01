@@ -22,12 +22,14 @@ class MacSwitcherActions(
     val addMachine: () -> Unit = {},
     val manageMachines: () -> Unit = {},
     val showDetails: () -> Unit = {},
+    val setShowAllMachines: (Boolean) -> Unit = {},
     val pendingMachines: @Composable ColumnScope.() -> Unit = {}
 )
 
 /**
  * The title's menu for choosing which saved Mac is live: every saved Mac with
- * whether it answers right now (a check on the active one), then "Add a machine…"
+ * whether it answers right now (a check on the active one), then "Show All Machines"
+ * once another machine is paired here ([showAllMachines] not null), "Add a machine…"
  * and "Manage machines…". In Demo Mode it only offers the way out.
  */
 @Composable
@@ -37,7 +39,8 @@ fun MacSwitcherMenu(
     macs: List<MacChoice>,
     demoMode: Boolean,
     actions: MacSwitcherActions,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    showAllMachines: Boolean? = null
 ) {
     ContextMenu(expanded = expanded, onDismissRequest = onDismiss, modifier = modifier) {
         if (demoMode) {
@@ -63,6 +66,17 @@ fun MacSwitcherMenu(
             }
             actions.pendingMachines(this)
             ContextMenuDivider()
+            if (showAllMachines != null) {
+                ContextMenuItem(
+                    title = stringResource(ProjectsR.string.mac_show_all),
+                    onClick = { actions.setShowAllMachines(!showAllMachines) },
+                    icon = painterResource(
+                        if (showAllMachines) R.drawable.ic_check else R.drawable.ic_stacks
+                    ),
+                    iconDescription = stringResource(ProjectsR.string.auto_pull_selected)
+                        .takeIf { showAllMachines }
+                )
+            }
             ContextMenuItem(
                 title = stringResource(ProjectsR.string.mac_add),
                 onClick = actions.addMachine,

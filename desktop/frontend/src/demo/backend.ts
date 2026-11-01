@@ -4,6 +4,7 @@ import { fileCommands } from "./commands/files";
 import { fileSearchCommands } from "./commands/fileSearch";
 import { gitCommands } from "./commands/git";
 import { historyCommands } from "./commands/history";
+import { portCommands } from "./commands/ports";
 import { jobCommands } from "./commands/jobs";
 import { projectCommands } from "./commands/projects";
 import { reminderCommands } from "./commands/reminders";
@@ -25,6 +26,7 @@ export const HANDLERS: CommandMap = {
   ...statusCommands,
   ...gitCommands,
   ...historyCommands,
+  ...portCommands,
   ...fileCommands,
   ...fileSearchCommands,
   ...copyCommands,

@@ -1,4 +1,4 @@
-import { Copy, GitFork, Pin, PinOff, Sparkles, Users } from "lucide-react";
+import { CircleDot, Copy, GitFork, Pin, PinOff, Sparkles, Users } from "lucide-react";
 import { PencilIcon, XIcon } from "../icons";
 import { ContextMenuItem } from "../ui/ContextMenuItem";
 import { ContextMenuShell } from "../ui/ContextMenuShell";
@@ -17,6 +17,8 @@ interface TabContextMenuProps {
   onRename: () => void;
   onRestoreSessionTitle: () => void;
   onTogglePin: () => void;
+  // Absent unless the tab's agent finished and was already seen.
+  onMarkUnread?: () => void;
   onFork: () => void;
   onForkCopy: () => void;
   onCloseTab: () => void;
@@ -37,6 +39,7 @@ export function TabContextMenu({
   onRename,
   onRestoreSessionTitle,
   onTogglePin,
+  onMarkUnread,
   onFork,
   onForkCopy,
   onCloseTab,
@@ -66,6 +69,13 @@ export function TabContextMenu({
         icon={pinned ? <PinOff size={12} /> : <Pin size={12} />}
         onClick={close(onTogglePin)}
       />
+      {onMarkUnread && (
+        <ContextMenuItem
+          label="Mark as unread"
+          icon={<CircleDot size={12} />}
+          onClick={close(onMarkUnread)}
+        />
+      )}
       {canFork && (
         <ContextMenuItem
           label="Fork session"

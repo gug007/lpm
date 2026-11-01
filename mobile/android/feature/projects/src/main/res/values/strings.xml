@@ -3,6 +3,9 @@
     <!-- Projects list -->
     <string name="projects_title">Projects</string>
     <string name="projects_updated">Updated %1$s</string>
+    <string name="projects_pinned">Pinned</string>
+    <string name="projects_section">Projects</string>
+    <string name="projects_section_updated">Projects · Updated %1$s</string>
     <string name="projects_stale_footer">Projects open read-only until your Mac is back. Start and Stop wait for it, for up to 2 minutes.</string>
     <string name="projects_unpaired_footer">Projects open read-only until this %1$s is paired with %2$s again.</string>
     <string name="projects_none">No projects</string>
@@ -85,6 +88,8 @@
     <string name="row_duplicate">Duplicate</string>
     <string name="row_remove">Remove</string>
     <string name="row_remove_duplicate">Remove duplicate</string>
+    <string name="row_pin">Pin to top</string>
+    <string name="row_unpin">Unpin</string>
     <string name="folder_rename">Rename folder</string>
     <string name="folder_delete">Delete folder</string>
 
@@ -196,6 +201,7 @@
     <string name="git_fetch">Fetch</string>
     <string name="git_switch_branch">Switch Branch…</string>
     <string name="git_create_pr">Create Pull Request…</string>
+    <string name="git_history">History</string>
     <string name="git_auto_running">Running… tap to view</string>
     <string name="git_copy_branch">Copy Branch Name</string>
     <string name="git_discard">Discard All Changes…</string>
@@ -345,4 +351,19 @@
     <string name="resume_empty_message">Claude Code and Codex conversations in this project show up here.</string>
     <string name="resume_no_results">No Results for “%1$s”</string>
     <string name="resume_no_results_message">Check the spelling or try a new search.</string>
+
+    <!-- Tips -->
+    <string name="tip_close">Close tip</string>
+    <string name="tip_project_menu_title">Hold a project for more</string>
+    <string name="tip_project_menu_message">Pin it to the top, start it with a profile, set its status or move it into a folder.</string>
+    <string name="tip_tab_menu_title">Hold a tab for more</string>
+    <string name="tip_tab_menu_message">Pin or rename it, fork its session here or into a copy, or close the other tabs.</string>
+    <string name="tip_actions_title">Run the project\'s actions</string>
+    <string name="tip_actions_message">Tap the bolt in the bar for the buttons this project has on your Mac.</string>
+    <string name="tip_review_title">Review what changed</string>
+    <string name="tip_review_message">Review Changes in the ••• menu shows every diff, then commits, pushes or opens a pull request.</string>
+
+    <!-- Show All Machines -->
+    <string name="mac_show_all">Show All Machines</string>
+    <string name="machine_section_connecting">Connecting…</string>
 </resources>

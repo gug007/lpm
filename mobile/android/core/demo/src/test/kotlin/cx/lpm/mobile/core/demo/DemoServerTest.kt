@@ -109,6 +109,7 @@ class DemoServerTest {
         "memoryDelete", "notesChats", "notesCreateChat", "notesRenameChat", "notesDeleteChat",
         "notesMessages", "notesAddMessage", "notesEditMessage", "notesDeleteMessage", "notesSearch",
         "notesAttachment", "limits", "uploadBegin", "uploadChunk", "uploadDone", "uploadAbort",
-        "weeklyRecap", "limitReminders", "setLimitReminder", "clearLimitReminder"
+        "weeklyRecap", "limitReminders", "setLimitReminder", "clearLimitReminder", "sidebarPin",
+        "gitHistory", "gitCommitFiles", "gitCommitPatch"
     )
 }

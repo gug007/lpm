@@ -26,7 +26,8 @@ private val FolderIndent = 20.dp
 /**
  * A project of the list as one cell of the card: its row (open on tap, a menu on
  * long press, Duplicate and Remove on a swipe) and, flush under it, the deck of
- * terminals it has going.
+ * terminals it has going — except in the Pinned section, which leaves those to the
+ * project's place below.
  */
 @Composable
 fun ProjectListItem(
@@ -77,7 +78,7 @@ fun ProjectListItem(
                 queued = entry.queued,
                 onCancelAction = actions.cancelQueued,
                 onRetryAction = actions.retryQueued,
-                onLongPress = if (project.hasRowMenu()) ({ menuOpen = true }) else null
+                onLongPress = if (project.hasRowMenu(entry.pinned)) ({ menuOpen = true }) else null
             )
             ProjectRowMenu(
                 expanded = menuOpen,
@@ -86,10 +87,11 @@ fun ProjectListItem(
                 folderId = entry.folderId,
                 folders = folders,
                 statusChoices = statusChoices,
-                actions = actions
+                actions = actions,
+                pinned = entry.pinned
             )
         }
-        if (entry.agents.isNotEmpty()) {
+        if (entry.agents.isNotEmpty() && !entry.pinLink) {
             val agentActions = remember(entry.archivable, entry.keepsFinished, project, actions) {
                 if (entry.archivable) {
                     AgentRowActions(

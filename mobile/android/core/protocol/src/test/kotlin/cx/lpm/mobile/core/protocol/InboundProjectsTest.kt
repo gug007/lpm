@@ -70,6 +70,12 @@ class InboundProjectsTest {
         )
         assertEquals(listOf("storefront", "g-1"), f.order)
         assertEquals(ProjectFolder("g-1", "Client Work", true, listOf("blog")), f.groups.single())
+        assertNull(f.pins)
+        val pinned = decode<Inbound.Sidebar>(
+            """{ "t": "sidebar", "order": [], "groups": [], "pins": ["api", "gone"] }"""
+        )
+        assertEquals(listOf("api", "gone"), pinned.pins)
+        assertSame(Inbound.SidebarChanged, Inbound.parse("""{ "t": "sidebar-changed" }"""))
     }
 
     @Test
@@ -215,6 +221,18 @@ class InboundProjectsTest {
             val failed = decode<Inbound.SidebarMutation>("""{ "t": "$t", "ok": false }""")
             assertEquals("Couldn't update folders.", failed.error)
         }
+    }
+
+    @Test
+    fun pinReplyCarriesThePins() {
+        val ok = decode<Inbound.SidebarMutation>(
+            """{ "t": "sidebarPin", "ok": true, "order": ["api"], "groups": [], "pins": ["api"] }"""
+        )
+        assertEquals(listOf("api"), ok.pins)
+        assertNull(ok.error)
+        val failed = decode<Inbound.SidebarMutation>("""{ "t": "sidebarPin", "ok": false }""")
+        assertEquals("Couldn't change the pin.", failed.error)
+        assertNull(failed.pins)
     }
 
     @Test

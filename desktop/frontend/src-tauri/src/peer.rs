@@ -2044,6 +2044,21 @@ fn dispatch_invoke(
         });
         return;
     }
+    // A paired computer's Ports view listing this machine's ports, or ending a
+    // process holding one. Off the socket thread (lsof and ps take a moment),
+    // and answered here so a headless host can.
+    if cmd == crate::portsall::LIST_CMD || cmd == crate::portsall::KILL_CMD {
+        let kill = cmd == crate::portsall::KILL_CMD;
+        let out = out.clone();
+        std::thread::spawn(move || {
+            let frame = match crate::portsall::serve_host(kill, &args) {
+                Ok(value) => result_frame(&req_id, true, value),
+                Err(e) => result_frame(&req_id, false, Value::String(e)),
+            };
+            let _ = out.try_send(frame);
+        });
+        return;
+    }
     // A Mac's Stats page or weekly recap counting this machine in. The scan of its history files
     // takes seconds, so it runs off the socket thread, and here rather than on a
     // page a headless host has none of.

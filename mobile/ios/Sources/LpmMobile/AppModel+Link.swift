@@ -17,6 +17,7 @@ extension AppModel {
         autoPullMode = snapshot.autoPullMode
         sidebarOrder = snapshot.sidebarOrder
         groups = snapshot.groups
+        pins = snapshot.pins
         link.listAsOf = snapshot.at
     }
 

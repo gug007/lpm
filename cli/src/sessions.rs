@@ -71,6 +71,12 @@ pub fn list_panes(session: &str) -> Vec<Pane> {
     panes_field(session, true)
 }
 
+/// The panes' ids and services alone, without the foreground-process lookups
+/// that fork; for callers that poll.
+pub fn list_panes_brief(session: &str) -> Vec<Pane> {
+    panes_field(session, false)
+}
+
 fn panes_field(session: &str, detail: bool) -> Vec<Pane> {
     ask(json!({"op": "panes", "session": session, "detail": detail}))
         .and_then(|r| r.get("panes").cloned())

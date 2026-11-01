@@ -49,6 +49,8 @@ object PreferenceKeys {
     const val NEW_TAB_LAST_PICK = "newTab.lastPick"
     const val NEW_TAB_LAST_OPTION = "newTab.lastOption"
     const val GIT_REVIEW_WRAP = "gitReview.wrap"
+    const val TIPS_CLOSED = "lpm.tips.closed"
+    const val ALL_MACHINES = "lpm.allMachines"
 
     const val TOKEN_ACTIVITY_RANGE = "tokenActivity.range"
 

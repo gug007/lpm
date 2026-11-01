@@ -99,6 +99,7 @@ services:
     port: 8080
     portConflict: ask
     dependsOn: [db]
+    ready: port
     env:
       DATABASE_URL: postgres://localhost/myapp
 ```
@@ -111,10 +112,23 @@ services:
 | `portConflict` | string | `ask`, `free`, or `fail`; defaults to `ask`. |
 | `env` | string map | Environment variables. |
 | `dependsOn` | string list | Services that start first. `depends_on` is also accepted, but never both on one service. In a project file the app then fails to load the project; in a repo `.lpm.yml` it silently drops every service and profile from that file. |
+| `ready` | see below | When the service counts as ready. Services that depend on it start once it is. |
 
-Dependencies are transitive and determine start order. They do not wait for readiness and do not affect stop order. Reject unknown dependencies and cycles.
+Dependencies are transitive and determine start order. They do not affect stop order. Reject unknown dependencies and cycles.
 
-A project-file service with the same key as a repo `.lpm.yml` service wins field by field: an empty `cwd`, zero `port`, empty `portConflict`, or empty `env` falls back to the lower file, and a non-empty `env` replaces it whole. Repeat `dependsOn` in the overriding entry when the service needs dependencies. `global.yml` and templates hold no services.
+A service starts once every service in its `dependsOn` is ready. A dependency without `ready` counts as ready as soon as it starts, so without any `ready` checks services start one after another without waiting. `ready` takes one check:
+
+| Form | Ready when |
+|---|---|
+| `ready: port` | the service's own `port` accepts connections (the service must set `port`) |
+| `ready: 4001` | that port accepts connections |
+| `ready: http://localhost:4000/health` | the URL answers with a 2xx status (`https://` too; certificates aren't checked) |
+| `ready: { log: "ready in" }` | a line of the service's output contains that text (plain, case-sensitive) |
+| `ready: { port: true \| <n>, url: …, log: …, timeout: 60 }` | the mapping form: exactly one of `port`, `url` or `log`, plus `timeout` |
+
+`timeout` is in seconds (1 to 3600, default 30). While a check hasn't passed, the service's tab shows Starting and its dependents' tabs show Waiting. When it times out, its tab shows Not ready and its dependents start anyway, so a start never hangs. Checks on an SSH project run on the host. `lpm wait --service <name>` waits for the same check.
+
+A project-file service with the same key as a repo `.lpm.yml` service wins field by field: an empty `cwd`, zero `port`, empty `portConflict`, empty `env`, or no `ready` falls back to the lower file, and a non-empty `env` replaces it whole. Repeat `dependsOn` in the overriding entry when the service needs dependencies. `global.yml` and templates hold no services.
 
 ## Profiles
 

@@ -7,7 +7,7 @@
 // events; listeners are read-only refreshers, so self-echo from our own writes is
 // harmless.
 use crate::config;
-use crate::configclassify::{fold_event, portable_settings_digest, settings_changed, Dirty};
+use crate::configclassify::{fold_event, settings_changed, settings_digests, Dirty};
 use crate::syncsurface::sync_global_dirs;
 use std::path::PathBuf;
 use std::sync::mpsc::{sync_channel, RecvTimeoutError};
@@ -46,7 +46,7 @@ pub fn start(app: AppHandle) {
     // Seeded before any watch is armed, so this read cannot produce an event. From
     // here on the digest belongs to the debounce thread alone.
     let settings_path = root.join("settings.json");
-    let mut settings_cache = portable_settings_digest(&settings_path);
+    let (mut settings_cache, mut sidebar_cache) = settings_digests(&settings_path);
     let mut watcher =
         match notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
             let Ok(ev) = res else { return };
@@ -96,17 +96,20 @@ pub fn start(app: AppHandle) {
                     Err(RecvTimeoutError::Disconnected) => break true,
                 }
             };
-            let d = std::mem::take(&mut *dirty.lock().unwrap());
+            let mut d = std::mem::take(&mut *dirty.lock().unwrap());
             // One read per quiet window at most, off the event thread, and still
             // gated so the constant window-bounds rewrites don't emit. Any event
             // this read generates is an open, which fold_event drops.
             let mut projects = d.projects;
             if d.settings {
-                let new = portable_settings_digest(&settings_path);
-                if settings_changed(settings_cache.as_deref(), new.as_deref()) {
+                let (portable, sidebar) = settings_digests(&settings_path);
+                if settings_changed(settings_cache.as_deref(), portable.as_deref()) {
                     projects = true;
                 }
-                settings_cache = new;
+                if settings_changed(sidebar_cache.as_deref(), sidebar.as_deref()) {
+                    d.sidebar = true;
+                }
+                (settings_cache, sidebar_cache) = (portable, sidebar);
             }
             if projects {
                 let _ = app.emit("projects-changed", ());

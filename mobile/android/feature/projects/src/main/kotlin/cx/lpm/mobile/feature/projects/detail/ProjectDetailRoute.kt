@@ -130,7 +130,8 @@ fun ProjectDetailRoute(
                 confirmRisky.stopProject(key.project) { viewModel.stopAll() }
             },
             editConfig = { onNavigate(YamlConfigKey(key.project, key.session)) },
-            retryConfig = { scope.launch { viewModel.refreshProjects() } }
+            retryConfig = { scope.launch { viewModel.refreshProjects() } },
+            closeTip = viewModel::closeTip
         ),
         menu = {
             ProjectMenuToolbar(

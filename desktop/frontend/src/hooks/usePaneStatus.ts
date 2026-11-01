@@ -27,6 +27,9 @@ export interface PaneStatus {
   // Which agent reported each pane's status, so a tab whose agent was started
   // by hand in a plain shell still knows who it is talking to.
   providers: Map<string, StatusProvider>;
+  // The status keys of each tab's finished agents the user already opened, so
+  // the tab can be marked unread. A tab with something newer to show has none.
+  seen: Map<string, string[]>;
 }
 
 // Precedence when one pane carries several statuses: the most urgent one wins,
@@ -75,6 +78,7 @@ export function agentStatusOf(entry: StatusEntry, now: number): PaneAgentStatus 
 export function derivePaneStatus(
   entries: StatusEntry[] | undefined,
   now: number,
+  seenEntries: StatusEntry[] = [],
 ): PaneStatus {
   const running = new Set<string>();
   const done = new Set<string>();
@@ -97,7 +101,13 @@ export function derivePaneStatus(
     agents.set(e.paneID, status);
     providers.set(e.paneID, statusProvider(e.key));
   }
-  return { running, done, waiting, error, agents, providers };
+  const livePanes = new Set((entries ?? []).map((e) => e.paneID).filter(Boolean));
+  const seen = new Map<string, string[]>();
+  for (const e of seenEntries) {
+    if (!e.paneID || livePanes.has(e.paneID)) continue;
+    seen.set(e.paneID, [...(seen.get(e.paneID) ?? []), e.key]);
+  }
+  return { running, done, waiting, error, agents, providers, seen };
 }
 
 /** The one status a terminal shows — null when the agent reports nothing (no
@@ -110,6 +120,9 @@ export function paneAgentStatus(
   return status.agents.get(terminalId) ?? null;
 }
 
-export function usePaneStatus(entries: StatusEntry[] | undefined): PaneStatus {
-  return useMemo(() => derivePaneStatus(entries, Date.now()), [entries]);
+export function usePaneStatus(
+  entries: StatusEntry[] | undefined,
+  seenEntries?: StatusEntry[],
+): PaneStatus {
+  return useMemo(() => derivePaneStatus(entries, Date.now(), seenEntries), [entries, seenEntries]);
 }

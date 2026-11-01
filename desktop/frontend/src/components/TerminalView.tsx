@@ -32,6 +32,7 @@ import { PaneLayout } from "./PaneLayout";
 import { TerminalTabDnd } from "./TerminalTabDnd";
 import { BulkDuplicateDialog, type DuplicatePromptSeed } from "./BulkDuplicateDialog";
 import type { ServiceTabInfo, StatusKind } from "./PaneView";
+import { readyStateKey, readyStateOf, type ServiceReadyState } from "../serviceReadyState";
 import type { PaneStatus } from "../hooks/usePaneStatus";
 import { type TerminalThemeName, getTerminalThemeColors, terminalThemeCssVars } from "../terminal-themes";
 import { ansiColors } from "./terminal-utils";
@@ -89,7 +90,7 @@ interface TerminalViewProps {
   // What the user calls the project, for the + popup's prompt history.
   projectLabel: string;
   projectRoot: string;
-  services: { name: string; cmd?: string; cwd?: string; port?: number; exited?: boolean; exitCode?: number | null }[];
+  services: ({ name: string; cmd?: string; cwd?: string; port?: number; exited?: boolean; exitCode?: number | null } & ServiceReadyState)[];
   terminalTheme: TerminalThemeName;
   onTerminalCountChange?: (count: number) => void;
   fontSize: number;
@@ -333,6 +334,11 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
     () => new Map(services.filter((s) => s.exited).map((s) => [s.name, s.exitCode ?? null] as const)),
     [serviceExitsKey],
   );
+  const serviceReadyKey = readyStateKey(services);
+  const serviceReady = useMemo(
+    () => new Map(services.map((s) => [s.name, readyStateOf(s)] as const)),
+    [serviceReadyKey],
+  );
   // Only the owner runs the 3s system-wide lsof port scan. A detached project is
   // mounted in both windows, so gating the mirror off avoids doubling a load the
   // freeze audit already flagged; the mirror's service tabs simply omit port
@@ -390,9 +396,10 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
         configuredPort: movedFromPort(servicePorts[svc.name] ?? [], svc.port ?? 0),
         exited: serviceExits.has(svc.name),
         exitCode: serviceExits.get(svc.name) ?? null,
+        ...serviceReady.get(svc.name),
         cmd: svc.cmd,
       })),
-    [stableServices, outputs, projectName, projectRoot, servicePorts, serviceExits, sessionsReachable],
+    [stableServices, outputs, projectName, projectRoot, servicePorts, serviceExits, serviceReady, sessionsReachable],
   );
 
   // Session keys for all service Panes owned by this TerminalView.

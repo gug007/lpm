@@ -7,6 +7,7 @@ import cx.lpm.mobile.core.data.claude.ClaudeAccountsStore
 import cx.lpm.mobile.core.data.config.ProjectConfigStore
 import cx.lpm.mobile.core.data.files.ProjectFilesStore
 import cx.lpm.mobile.core.data.git.GitAutoStore
+import cx.lpm.mobile.core.data.git.GitHistoryStore
 import cx.lpm.mobile.core.data.git.GitStore
 import cx.lpm.mobile.core.data.machines.MachineImporter
 import cx.lpm.mobile.core.data.services.ServiceLogsStore
@@ -20,6 +21,7 @@ import kotlinx.coroutines.test.TestScope
 val ScreenStores: Set<SessionStore.Factory> = setOf(
     SessionStore.Factory(::AutomationsStore),
     SessionStore.Factory(::GitStore),
+    SessionStore.Factory(::GitHistoryStore),
     SessionStore.Factory(::GitAutoStore),
     SessionStore.Factory(::ServiceLogsStore),
     SessionStore.Factory(::ProjectConfigStore),

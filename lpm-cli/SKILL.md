@@ -1,6 +1,6 @@
 ---
 name: lpm-cli
-version: 1.10.0
+version: 1.11.0
 description: "Operate lpm-managed projects through the `lpm` CLI: start or stop projects and services, inspect logs and agent status, wait for readiness, run actions, create, edit, run, pause, and read scheduled automations, and duplicate projects into standalone copies or create linked Git worktrees. Use when the user asks to operate or inspect lpm runtime state or manage lpm automations. `LPM_PROJECT_NAME` selects the default project after the skill triggers; it is not a trigger by itself. For editing YAML configuration, use `lpm-config`."
 ---
 
@@ -24,9 +24,10 @@ description: "Operate lpm-managed projects through the `lpm` CLI: start or stop 
 - `lpm config apply --layer project|repo|global|template [--project NAME | --template NAME] [--create] --if-revision HASH (--stdin | --file PATH) [--json]` — validate a candidate and atomically apply it through the running app. Never edit a live config file directly.
 - `lpm logs [service] [-n 30] [-p proj]` — service scrollback, exactly N lines.
 - `lpm status [project]` — live agent statuses (Running/Waiting/Done/Error).
+- `lpm ports [--computers] [--json]` — every TCP port this machine listens on, with the project and service holding it, or the process name and PID when nothing of lpm's does (empty `project` in `--json`). `--computers` adds each connected paired computer's ports. Check it before freeing a port by hand: a port held by an lpm service is freed with `lpm service <name> stop`, not by killing its process.
 - `lpm start [project] [--profile X]` / `lpm stop [project]` — start / stop a project's services.
 - `lpm service <name> start|stop|restart [-p proj]` — one service. `restart` stops the run still going first, then runs the command again in the same pane.
-- `lpm wait [project | -p proj] [--service X | --port N | --agent] [--timeout 60]` — block until ready; `--agent` waits until an agent reports after the wait starts and none is still working (your own tab is ignored).
+- `lpm wait [project | -p proj] [--service X | --port N | --agent] [--timeout 60]` — block until ready: a service with a `ready` check when that check passes, otherwise when its port listens; `--agent` waits until an agent reports after the wait starts and none is still working (your own tab is ignored).
 - `lpm duplicate [project] [-n N] [--label TEXT]... [--group X] [--run ACTION | --command CMD] [--prompt TEXT] [--include-uncommitted | --exclude-uncommitted]` — create parallel working directories. Always pass a `--label` describing the copy's purpose so it's identifiable in the app — one repeated `--label` per copy in creation order, `<project-name>-<short-description>` style such as `lpm-fix-auth`. Only omit it when you genuinely can't infer a purpose. Output lists each copy's path.
 - `lpm worktree [project] [-n N] [--label TEXT]... [--group X] [--run ACTION | --command CMD] [--prompt TEXT] [--reinstall-deps]` — create linked Git worktrees instead of standalone copies. The same labeling guidance applies. Output lists each worktree's path.
 - `lpm remove <copy-name>` — remove a duplicate. For a linked worktree, this also removes its Git worktree registration and lpm-created branch. Originals and SSH projects (SSH duplicates too) need `--force`, and their folder is kept; don't use `--force` unless the user explicitly asks.

@@ -1,0 +1,45 @@
+appId: cx.lpm.mobile
+name: 56-git-history
+tags: [demo, git]
+---
+- runFlow: subflows/enter-demo.yaml
+- tapOn: "storefront"
+- extendedWaitUntil:
+    visible: "Tabs"
+    timeout: 5000
+- tapOn: "More"
+- extendedWaitUntil:
+    visible: "Git"
+    timeout: 5000
+- waitForAnimationToEnd:
+    timeout: 3000
+# On iOS a tap while the menu is still settling can miss: tap again if nothing changed.
+- tapOn:
+    text: "Git"
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible: "History"
+    timeout: 5000
+- tapOn: "History"
+# The branch's commits, newest first; a line marks where the pushed ones start.
+- extendedWaitUntil:
+    visible: ".*Two-step checkout flow.*"
+    timeout: 10000
+- assertVisible: ".*Add payment intent API.*"
+- assertVisible: "Pushed"
+- takeScreenshot: 1-history
+# A commit: its message, who wrote it and the files it changed.
+- tapOn: ".*Two-step checkout flow.*"
+- extendedWaitUntil:
+    visible: ".*CheckoutForm\\.tsx.*"
+    timeout: 10000
+- assertVisible: ".*StepIndicator\\.tsx.*"
+- takeScreenshot: 2-commit
+# A file's patch, drawn the way Review Changes draws a diff.
+- tapOn: ".*CheckoutForm\\.tsx.*"
+- extendedWaitUntil:
+    visible: "Wrap"
+    timeout: 10000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 3-file

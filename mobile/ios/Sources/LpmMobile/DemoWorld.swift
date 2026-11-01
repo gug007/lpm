@@ -96,6 +96,7 @@ struct DemoWorld {
 
     var sidebarOrder: [String] = []
     var folders: [Folder] = []
+    var pins: [String] = []
 
     // The desktop's persisted duplicate-modal toggle defaults.
     var duplicateExcludeUncommitted = false
@@ -708,6 +709,7 @@ extension DemoWorld {
             "groups": folders.map {
                 ["id": $0.id, "name": $0.name, "collapsed": $0.collapsed, "members": $0.members]
             },
+            "pins": pins,
         ]
     }
 

@@ -1,10 +1,13 @@
 //! `lpm wait [project] [--service <name>] [--port <n>] [--agent] [--timeout <secs>]` —
 //! block until a project / service / port is ready, or (with `--agent`, see
 //! `waitagent`) until the project's AI agents settle. These modes poll
-//! client-side (250ms) and never touch the app.
+//! client-side (250ms) and never touch the app. A service with a `ready` check
+//! is ready when that check passes, the same check the app gates its
+//! dependents on; without one, its port listening (or its session) decides.
 
 use crate::config::{self, Ctx};
 use crate::error::{resolve_or_infer, RunError};
+use crate::ready::{self, ReadyCheck};
 use crate::service::{port_listening, service_status};
 use crate::sessions;
 use serde_json::json;
@@ -13,27 +16,50 @@ use std::time::{Duration, Instant};
 const POLL_INTERVAL: Duration = Duration::from_millis(250);
 const MAX_TIMEOUT: i64 = 3600;
 
+/// A declared service as `wait` sees it.
+#[derive(Clone, Debug, PartialEq)]
+struct WaitService {
+    name: String,
+    port: i64,
+    cmd: String,
+    ready: Option<ReadyCheck>,
+}
+
+impl WaitService {
+    /// `alive`: whether the project's session exists, asked once per tick.
+    fn satisfied(&self, session: &str, alive: bool) -> bool {
+        match &self.ready {
+            Some(check) => alive && ready::passes(&check.probe, session, &self.name, &self.cmd),
+            None => service_status(self.port, alive).running,
+        }
+    }
+}
+
 /// What the poll loop watches. Built once, then probed each tick.
 #[derive(Debug, PartialEq)]
 enum Target {
     /// A specific TCP port must be listening.
     Port(i64),
-    /// The session must exist and — if the service has a port — that port must
-    /// listen (portless services follow the session, per `service_status`).
+    /// The session must exist and the service be ready: its `ready` check
+    /// passes, or — without one — its port listens (portless services follow
+    /// the session, per `service_status`).
     Service {
-        name: String,
         session: String,
-        port: i64,
+        service: WaitService,
     },
-    /// The session must exist and every declared port must be listening.
-    Ready { session: String, ports: Vec<i64> },
+    /// The session must exist and every declared service with a `ready` check
+    /// or a port be ready.
+    Ready {
+        session: String,
+        services: Vec<WaitService>,
+    },
 }
 
 impl Target {
     fn describe(&self) -> String {
         match self {
             Target::Port(p) => format!("port {p} to listen"),
-            Target::Service { name, .. } => format!("service {name:?} to be running"),
+            Target::Service { service, .. } => format!("service {:?} to be ready", service.name),
             Target::Ready { session, .. } => format!("project {session:?} to be ready"),
         }
     }
@@ -41,12 +67,11 @@ impl Target {
     fn satisfied(&self) -> bool {
         match self {
             Target::Port(p) => port_listening(*p).unwrap_or(false),
-            Target::Service { session, port, .. } => {
-                service_status(*port, sessions::session_exists(session)).running
+            Target::Service { session, service } => {
+                service.satisfied(session, sessions::session_exists(session))
             }
-            Target::Ready { session, ports } => {
-                sessions::session_exists(session)
-                    && ports.iter().all(|p| port_listening(*p).unwrap_or(false))
+            Target::Ready { session, services } => {
+                sessions::session_exists(session) && services.iter().all(|s| s.satisfied(session, true))
             }
         }
     }
@@ -54,25 +79,24 @@ impl Target {
 
 /// Decide what to wait on from the flags + the resolved project. Pure: takes
 /// already-resolved data so it is unit-testable without a session daemon or a socket.
-/// `services` is the declared (name, port) list in declaration order.
+/// `services` is the declared list in declaration order.
 fn select_target(
     port: Option<i64>,
     service: Option<&str>,
     session: &str,
-    services: &[(String, i64)],
+    services: &[WaitService],
 ) -> Result<Target, String> {
     if let Some(p) = port {
         return Ok(Target::Port(p));
     }
     if let Some(name) = service {
-        return match services.iter().find(|(n, _)| n == name) {
-            Some((n, p)) => Ok(Target::Service {
-                name: n.clone(),
+        return match services.iter().find(|s| s.name == name) {
+            Some(s) => Ok(Target::Service {
                 session: session.to_string(),
-                port: *p,
+                service: s.clone(),
             }),
             None => {
-                let names: Vec<&str> = services.iter().map(|(n, _)| n.as_str()).collect();
+                let names: Vec<&str> = services.iter().map(|s| s.name.as_str()).collect();
                 Err(format!(
                     "no service {name:?} in this project\ndeclared services: {}",
                     if names.is_empty() {
@@ -84,14 +108,13 @@ fn select_target(
             }
         };
     }
-    let ports: Vec<i64> = services
-        .iter()
-        .filter(|(_, p)| *p > 0)
-        .map(|(_, p)| *p)
-        .collect();
     Ok(Target::Ready {
         session: session.to_string(),
-        ports,
+        services: services
+            .iter()
+            .filter(|s| s.ready.is_some() || s.port > 0)
+            .cloned()
+            .collect(),
     })
 }
 
@@ -111,7 +134,7 @@ pub fn run(
     }
 
     // A bare `--port` wait needs no project; other modes resolve one.
-    let (session, services): (String, Vec<(String, i64)>) = if port.is_some() {
+    let (session, services): (String, Vec<WaitService>) = if port.is_some() {
         (String::new(), Vec::new())
     } else {
         let file_name = resolve_or_infer(ctx, project)?;
@@ -120,7 +143,12 @@ pub fn run(
         let services = p
             .services
             .iter()
-            .map(|s| (s.name.clone(), s.port))
+            .map(|s| WaitService {
+                name: s.name.clone(),
+                port: s.port,
+                cmd: s.cmd.clone(),
+                ready: s.ready.as_ref().and_then(|r| r.resolve(s.port).ok()),
+            })
             .collect();
         (session, services)
     };
@@ -158,12 +186,26 @@ pub fn run(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ready::Probe;
 
-    fn svcs() -> Vec<(String, i64)> {
+    fn svc(name: &str, port: i64, ready: Option<Probe>) -> WaitService {
+        WaitService {
+            name: name.to_string(),
+            port,
+            cmd: String::new(),
+            ready: ready.map(|probe| ReadyCheck {
+                probe,
+                timeout: Duration::from_secs(30),
+            }),
+        }
+    }
+
+    fn svcs() -> Vec<WaitService> {
         vec![
-            ("web".to_string(), 3000),
-            ("worker".to_string(), 0),
-            ("db".to_string(), 5432),
+            svc("web", 3000, None),
+            svc("worker", 0, None),
+            svc("db", 5432, None),
+            svc("queue", 0, Some(Probe::Log("ready".into()))),
         ]
     }
 
@@ -174,16 +216,17 @@ mod tests {
     }
 
     #[test]
-    fn service_flag_selects_that_service_port() {
+    fn service_flag_selects_that_service_with_its_check() {
         let t = select_target(None, Some("db"), "sess", &svcs()).unwrap();
         assert_eq!(
             t,
             Target::Service {
-                name: "db".to_string(),
                 session: "sess".to_string(),
-                port: 5432,
+                service: svc("db", 5432, None),
             }
         );
+        let t = select_target(None, Some("queue"), "sess", &svcs()).unwrap();
+        assert!(matches!(t, Target::Service { service, .. } if service.ready.is_some()));
     }
 
     #[test]
@@ -193,14 +236,13 @@ mod tests {
     }
 
     #[test]
-    fn default_waits_on_session_and_ported_services_only() {
+    fn default_waits_on_ported_and_checked_services_only() {
         let t = select_target(None, None, "sess", &svcs()).unwrap();
-        assert_eq!(
-            t,
-            Target::Ready {
-                session: "sess".to_string(),
-                ports: vec![3000, 5432],
-            }
-        );
+        let Target::Ready { session, services } = t else {
+            panic!("expected a project wait");
+        };
+        assert_eq!(session, "sess");
+        let names: Vec<&str> = services.iter().map(|s| s.name.as_str()).collect();
+        assert_eq!(names, ["web", "db", "queue"]);
     }
 }

@@ -122,4 +122,35 @@
     <string name="git_ask_no_terminals_message">Open a terminal for this project first, then ask the agent about these changes.</string>
     <string name="git_ask_more_lines" tools:ignore="PluralsCandidate">… (%1$d more lines)</string>
     <string name="git_ask_no_diff">(no diff available)</string>
+
+    <!-- History -->
+    <string name="git_history_title">History</string>
+    <string name="git_history_separator">·</string>
+    <string name="git_history_not_pushed" tools:ignore="PluralsCandidate">%1$d%2$s not pushed</string>
+    <string name="git_history_more">+</string>
+    <string name="git_history_load_older">Load older commits</string>
+    <string name="git_history_loading_more">Loading…</string>
+    <string name="git_history_empty">No commits on this branch yet.</string>
+    <string name="git_history_loading">Loading history…</string>
+    <string name="git_history_with">With %1$s</string>
+    <string name="git_history_unpushed_mark">↑</string>
+    <string name="git_history_unpushed">Not pushed yet</string>
+    <string name="git_history_pushed_line">PUSHED</string>
+    <string name="git_history_pushed">Pushed</string>
+    <string name="git_history_copy_full_hash">Copy the full hash</string>
+    <string name="git_history_date">%1$s at %2$s</string>
+    <string name="git_history_merge">Merge</string>
+    <string name="git_history_co_authors">with %1$s</string>
+    <string name="git_history_files">Files</string>
+    <plurals name="git_history_file_count">
+        <item quantity="one">%1$d file</item>
+        <item quantity="other">%1$d files</item>
+    </plurals>
+    <string name="git_history_no_files">This commit changes no files.</string>
+    <string name="git_history_loading_files">Loading files…</string>
+    <string name="git_history_copy_hash">Copy Hash</string>
+    <string name="git_history_copy_message">Copy Message</string>
+    <string name="git_history_from">from %1$s</string>
+    <string name="git_history_binary">binary</string>
+    <string name="git_history_truncated">This diff is too long to show in full.</string>
 </resources>

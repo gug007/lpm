@@ -11,7 +11,9 @@ import cx.lpm.mobile.core.data.projects.ProjectsState
 import cx.lpm.mobile.core.data.projects.SidebarItem
 import cx.lpm.mobile.core.data.projects.SidebarRow
 import cx.lpm.mobile.core.data.projects.archivingAgentKeys
+import cx.lpm.mobile.core.data.projects.pinnedProjects
 import cx.lpm.mobile.core.data.projects.sidebarItems
+import cx.lpm.mobile.core.model.AppTip
 import cx.lpm.mobile.core.model.DuplicateOptions
 import cx.lpm.mobile.core.model.FoldedAgents
 import cx.lpm.mobile.core.model.Project
@@ -28,6 +30,10 @@ data class ProjectsUiState(
     val macs: List<MacChoice> = emptyList(),
     val demoMode: Boolean = false,
     val rows: List<ProjectsListRow> = emptyList(),
+    /** The Mac's pins there is a project for, above the list as a way back to each. */
+    val pinned: List<ProjectsListRow.ProjectEntry> = emptyList(),
+    /** The tip at the top of the list, while there is one to show. */
+    val tip: AppTip? = null,
     /** No projects at all: something takes the list's place. */
     val listIsEmpty: Boolean = true,
     /** False until the first list arrives: a skeleton, not "No projects". */
@@ -60,7 +66,9 @@ data class MacTitleState(
     /** "2 waiting" or "Details" after the status words. */
     val detail: MacTitleDetail? = null,
     /** The status line opens the connection details, except in Demo Mode. */
-    val opensDetails: Boolean = true
+    val opensDetails: Boolean = true,
+    /** Show All Machines in the menu, on or off; null while no other machine is paired here. */
+    val showAllMachines: Boolean? = null
 )
 
 sealed interface MacTitleDetail {
@@ -110,9 +118,13 @@ sealed interface ProjectsListRow {
         /** The Mac archives agents: a finished one swipes to archive and marks unread once seen. */
         val archivable: Boolean = false,
         /** The Mac keeps finished agents as seen once opened, so a new one can be marked seen. */
-        val keepsFinished: Boolean = false
+        val keepsFinished: Boolean = false,
+        /** Pinned on the Mac; null when the Mac doesn't pin projects (no menu row). */
+        val pinned: Boolean? = null,
+        /** A row of the Pinned section: a way back, so its agents stay in its place below. */
+        val pinLink: Boolean = false
     ) : ProjectsListRow {
-        override val key: String get() = "p:" + project.name
+        override val key: String get() = (if (pinLink) "pin:" else "p:") + project.name
     }
 
     data class FolderEntry(val folder: ProjectFolder, val count: Int, val expanded: Boolean) :
@@ -161,6 +173,11 @@ sealed interface MachineDetail {
     data object Revoked : MachineDetail
 
     data object NeedsUpdate : MachineDetail
+
+    /** A machine saved here, still finding it (Show All Machines). */
+    data object Connecting : MachineDetail
+
+    data object NotAnswering : MachineDetail
 }
 
 /** What the list rows are built from besides the projects themselves. */
@@ -178,7 +195,9 @@ data class RowInputs(
     val machines: List<MachineSection> = emptyList(),
     val activeMacId: String? = null,
     /** The Mac archives agents and lists the seen ones it keeps. */
-    val archivable: Boolean = false
+    val archivable: Boolean = false,
+    /** The Mac pins projects: rows offer Pin to top / Unpin. */
+    val canPin: Boolean = false
 )
 
 /**
@@ -187,35 +206,10 @@ data class RowInputs(
  * each project followed by the agents it has going.
  */
 fun ProjectsState.listRows(inputs: RowInputs): List<ProjectsListRow> {
-    val folderOf = groups.flatMap { g -> g.members.map { it to g.id } }.toMap()
-    fun entry(row: SidebarRow, indented: Boolean): ProjectsListRow.ProjectEntry {
-        val name = row.project.name
-        val titles = inputs.terminalTitles[name].orEmpty()
-        val expanded = inputs.expanded["s:$name"] == true
-        val agents = if (inputs.archivable) {
-            val listed = projectAgentList(row.project, inputs.now, titles, archivingAgentKeys(name))
-            foldSeenAgents(listed, seenAgentsShown, expanded)
-        } else {
-            FoldedAgents(projectAgentRows(row.project, inputs.now, titles), 0)
-        }
-        return ProjectsListRow.ProjectEntry(
-            project = row.project,
-            indented = indented,
-            pending = name in pendingRun,
-            stale = inputs.stale,
-            queued = inputs.queued.filter { it.project == name },
-            agents = agents.rows,
-            folderId = folderOf[name],
-            foldedSeen = agents.folded,
-            seenExpanded = expanded,
-            archivable = inputs.archivable,
-            keepsFinished = inputs.archivable && keepFinishedAgents
-        )
-    }
     val machines = inputs.machines.associateBy { it.id }
     return sidebarItems(inputs.machines.map { it.id }).flatMap { item ->
         when (item) {
-            is SidebarItem.ProjectItem -> listOf(entry(item.row, indented = false))
+            is SidebarItem.ProjectItem -> listOf(projectEntry(item.row, indented = false, inputs))
 
             is SidebarItem.Folder -> {
                 val open = inputs.expanded[item.folder.id] ?: !item.folder.collapsed
@@ -224,8 +218,11 @@ fun ProjectsState.listRows(inputs: RowInputs): List<ProjectsListRow> {
                     count = item.rows.count { !it.isChild },
                     expanded = open
                 )
-                listOf(header) +
-                    if (open) item.rows.map { entry(it, indented = true) } else emptyList()
+                listOf(header) + if (open) {
+                    item.rows.map { projectEntry(it, indented = true, inputs) }
+                } else {
+                    emptyList()
+                }
             }
 
             is SidebarItem.Machine -> machines[item.slug]?.let {
@@ -233,4 +230,40 @@ fun ProjectsState.listRows(inputs: RowInputs): List<ProjectsListRow> {
             }.orEmpty()
         }
     }
+}
+
+/** The Pinned section: each pinned project there is, in pinned order. */
+fun ProjectsState.pinnedRows(inputs: RowInputs): List<ProjectsListRow.ProjectEntry> =
+    pinnedProjects.map {
+        projectEntry(SidebarRow(it, isChild = false), indented = false, inputs).copy(pinLink = true)
+    }
+
+private fun ProjectsState.projectEntry(
+    row: SidebarRow,
+    indented: Boolean,
+    inputs: RowInputs
+): ProjectsListRow.ProjectEntry {
+    val name = row.project.name
+    val titles = inputs.terminalTitles[name].orEmpty()
+    val expanded = inputs.expanded["s:$name"] == true
+    val agents = if (inputs.archivable) {
+        val listed = projectAgentList(row.project, inputs.now, titles, archivingAgentKeys(name))
+        foldSeenAgents(listed, seenAgentsShown, expanded)
+    } else {
+        FoldedAgents(projectAgentRows(row.project, inputs.now, titles), 0)
+    }
+    return ProjectsListRow.ProjectEntry(
+        project = row.project,
+        indented = indented,
+        pending = name in pendingRun,
+        stale = inputs.stale,
+        queued = inputs.queued.filter { it.project == name },
+        agents = agents.rows,
+        folderId = groups.firstOrNull { name in it.members }?.id,
+        foldedSeen = agents.folded,
+        seenExpanded = expanded,
+        archivable = inputs.archivable,
+        keepsFinished = inputs.archivable && keepFinishedAgents,
+        pinned = if (inputs.canPin) name in pins else null
+    )
 }

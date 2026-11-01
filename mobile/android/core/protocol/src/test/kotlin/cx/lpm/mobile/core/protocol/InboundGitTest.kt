@@ -256,4 +256,64 @@ class InboundGitTest {
             Inbound.parse("""{ "t": "gitAutoSwitchBase", "project": "a", "ok": false }""")
         )
     }
+
+    @Test
+    fun gitHistory() {
+        val f = decode<Inbound.GitHistory>(
+            """{ "t": "gitHistory", "project": "a", "skip": 100, "ok": true, "hasMore": true,
+                 "commits": [{ "hash": "a1f3c9e5b2", "subject": "Two-step checkout", "author": "Alex Kim",
+                   "time": 1760000000, "parents": 2, "unpushed": true,
+                   "body": "Split it.\n\nCo-authored-by: Claude Opus 5.5 <noreply@anthropic.com>",
+                   "coAuthors": ["Claude Opus 5.5 <noreply@anthropic.com>"] }] }"""
+        )
+        assertEquals(100, f.skip)
+        val page = f.page!!
+        assertTrue(page.hasMore)
+        val commit = page.commits.single()
+        assertEquals("a1f3c9e", commit.short)
+        assertEquals(1_760_000_000L, commit.time)
+        assertTrue(commit.isMerge)
+        assertEquals("claude", commit.agent)
+        assertEquals(listOf("Claude Opus 5.5"), commit.coAuthorNames)
+        assertEquals("Split it.", commit.message)
+        assertEquals(
+            "Two-step checkout\n\nSplit it.\n\nCo-authored-by: Claude Opus 5.5 <noreply@anthropic.com>",
+            commit.fullMessage
+        )
+        assertEquals("Two-step checkout", commit.copy(body = "").fullMessage)
+        assertEquals(
+            Inbound.GitHistory("a", 0, null, "Couldn't load the history."),
+            Inbound.parse("""{ "t": "gitHistory", "project": "a", "ok": false }""")
+        )
+    }
+
+    @Test
+    fun gitCommitFilesAndPatch() {
+        val files = decode<Inbound.GitCommitFiles>(
+            """{ "t": "gitCommitFiles", "project": "a", "hash": "abc", "ok": true, "files": [
+                 { "path": "app/cart/page.tsx", "oldPath": "app/cart.tsx", "status": "renamed", "added": 3, "removed": 1 },
+                 { "path": "icon.png", "oldPath": null, "status": "added", "added": null, "removed": null }] }"""
+        ).files!!
+        assertEquals("app/cart.tsx", files[0].oldPath)
+        assertEquals("page.tsx", files[0].name)
+        assertEquals("app/cart", files[0].directory)
+        assertTrue(files[1].isBinary)
+        assertEquals("", files[1].directory)
+        assertEquals(
+            Inbound.GitCommitFiles("a", "x", null, "x is not a commit"),
+            Inbound.parse(
+                """{ "t": "gitCommitFiles", "project": "a", "hash": "x", "ok": false, "error": "x is not a commit" }"""
+            )
+        )
+        assertEquals(
+            Inbound.GitCommitPatch("a", "abc", "b.ts", GitDiffResult("@@", false, true), null),
+            Inbound.parse(
+                """{ "t": "gitCommitPatch", "project": "a", "hash": "abc", "path": "b.ts", "ok": true, "diff": "@@", "truncated": true }"""
+            )
+        )
+        assertEquals(
+            "Couldn't load the diff.",
+            decode<Inbound.GitCommitPatch>("""{ "t": "gitCommitPatch", "ok": false }""").error
+        )
+    }
 }

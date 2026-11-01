@@ -174,7 +174,7 @@ struct ProjectsView: View {
                                 hiding: model.archivingAgentKeys(project.name))
     }
 
-    private var listIsEmpty: Bool { model.projects.isEmpty && model.machineSections.isEmpty }
+    private var listIsEmpty: Bool { model.projects.isEmpty && model.listedMachineSections.isEmpty }
 
     @ViewBuilder
     private func sidebarRow(_ item: SidebarItem) -> some View {
@@ -283,16 +283,38 @@ struct ProjectsView: View {
         return model.link.listAsOf
     }
 
+    /// A pinned project above the list: a way back to it, so it carries its light
+    /// and how many agents it has, and leaves their rows to its place below.
+    private func pinnedLink(_ project: Project) -> some View {
+        NavigationLink(value: project.name) {
+            ProjectRow(project: project,
+                       pending: model.pendingRun[project.name] != nil,
+                       agentCount: listedAgents(project).filter { !$0.seen }.count,
+                       stale: isStale)
+        }
+        .projectRowActions(project, removing: $removing, duplicating: $duplicating,
+                           newFolderForProject: $newFolderForProject)
+    }
+
     var body: some View {
+        let pinned = model.pinnedProjects
         List {
+            TipSection(tip: model.projects.isEmpty ? nil : TipsStore.shared.first([.projectMenu]))
+            if !pinned.isEmpty {
+                Section("Pinned") {
+                    ForEach(pinned) { pinnedLink($0) }
+                }
+            }
             Section {
                 ForEach(model.sidebarItems) { item in
                     sidebarRow(item)
                 }
             } header: {
                 if let asOf = listAge {
-                    Text("Updated \(asOf.clockStamp)")
+                    Text(pinned.isEmpty ? "Updated \(asOf.clockStamp)" : "Projects · Updated \(asOf.clockStamp)")
                         .textCase(nil)
+                } else if !pinned.isEmpty {
+                    Text("Projects")
                 }
             } footer: {
                 if listAge != nil {
@@ -316,6 +338,7 @@ struct ProjectsView: View {
             UndoBar(message: model.pendingAgentArchive?.message) { model.undoAgentArchive() }
         }
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { screenWidth = $0 }
+        .task(id: model.machineFeedsKey) { model.syncMachineFeeds() }
         .task(id: model.macs.count) {
             while model.macs.count > 1 && !Task.isCancelled {
                 model.link.refreshReach()
@@ -714,6 +737,12 @@ private struct ProjectRowActions: ViewModifier {
                 }
                 if project.canHaveWorkStatus {
                     WorkStatusMenu(project: project, noteFor: $noteFor)
+                }
+                if model.canPinProjects {
+                    let pinned = model.isPinned(project)
+                    Button { model.setPinned(project, !pinned) } label: {
+                        Label(pinned ? "Unpin" : "Pin to top", systemImage: pinned ? "pin.slash" : "pin")
+                    }
                 }
                 if !project.isRemote {
                     moveToFolderMenu

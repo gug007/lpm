@@ -39,7 +39,8 @@ final class LpmClient: NSObject {
     var onSeenAgentsShown: ((Int) -> Void)?
     // Whether the Mac keeps finished agents as seen once opened, likewise.
     var onKeepFinishedAgents: ((Bool) -> Void)?
-    var onSidebar: ((_ order: [String], _ groups: [ProjectFolder]) -> Void)?
+    var onSidebar: ((_ order: [String], _ groups: [ProjectFolder], _ pins: [String]?) -> Void)?
+    var onSidebarChanged: (() -> Void)?
     var onStats: ((_ stats: AgentStats?, _ error: String?) -> Void)?
     var onLimits: ((_ snapshot: LimitsSnapshot?, _ error: String?) -> Void)?
     var onWeeklyRecap: ((_ pick: RecapPick, _ recap: WeeklyRecap?, _ error: String?) -> Void)?
@@ -99,6 +100,10 @@ final class LpmClient: NSObject {
     var onGitCheckout: ((_ project: String, _ error: String?) -> Void)?
     var onGitDiscardAll: ((_ project: String, _ error: String?) -> Void)?
     var onGitChanged: ((_ project: String) -> Void)?
+    var onGitHistory: ((_ project: String, _ skip: Int, _ page: HistoryPage?, _ error: String?) -> Void)?
+    var onGitCommitFiles: ((_ project: String, _ hash: String, _ files: [CommitFile]?, _ error: String?) -> Void)?
+    var onGitCommitPatch: ((_ project: String, _ hash: String, _ path: String, _ result: GitDiffResult?,
+                            _ error: String?) -> Void)?
     // A fresh pairing succeeded: the new credential plus the Mac's advertised
     // identity. The model persists the credential (per-Mac Keychain) and creates
     // or dedupes the saved-Mac record. serverId/serverName are absent on older
@@ -171,7 +176,8 @@ final class LpmClient: NSObject {
     // A sidebar folder mutation settled: the updated layout (on success) plus any
     // error to surface. The reply carries the fresh order/groups so no follow-up
     // `sidebar` is needed.
-    var onSidebarMutation: ((_ order: [String], _ groups: [ProjectFolder], _ error: String?) -> Void)?
+    var onSidebarMutation: ((_ order: [String], _ groups: [ProjectFolder], _ pins: [String]?,
+                             _ error: String?) -> Void)?
     var onFileChunk: ((_ chunk: FileChunk) -> Void)?
     // Project creation / discovery + config editing replies. Reads carry a decoded
     // payload (nil on failure); writes carry only the error to surface (nil = ok).
@@ -266,6 +272,8 @@ final class LpmClient: NSObject {
     static let limitRemindersFeature = "limitReminders"
     static let wakeFeature = "wake"
     static let agentArchiveFeature = "agentArchive"
+    static let projectPinsFeature = "projectPins"
+    static let gitHistoryFeature = "gitHistory"
 
     // Requests made while the link is down or half-dead, delivered on the next
     // `ready`. iOS kills the socket seconds after backgrounding and the
@@ -506,7 +514,7 @@ final class LpmClient: NSObject {
                              Self.restartTerminalFeature, Self.agentLaunchFeature, Self.agentSessionsFeature,
                              Self.actionPromptFeature, Self.listDirFeature, Self.tabMenuFeature,
                              Self.weeklyRecapFeature, Self.recapMonthFeature, Self.agentArchiveFeature,
-                             Self.limitRemindersFeature],
+                             Self.limitRemindersFeature, Self.projectPinsFeature, Self.gitHistoryFeature],
             ]))
         }
     }
@@ -1031,6 +1039,7 @@ final class LpmClient: NSObject {
     func sidebarMoveProject(project: String, folder: String?) {
         send(Wire.sidebarMoveProject(project: project, folder: folder))
     }
+    func sidebarPin(project: String, pinned: Bool) { send(Wire.sidebarPin(project: project, pinned: pinned)) }
     func fileChunk(reqId: String, project: String, path: String, offset: Int64, length: Int64) {
         send(Wire.fileChunk(reqId: reqId, project: project, path: path, offset: offset, length: length))
     }
@@ -1156,6 +1165,15 @@ final class LpmClient: NSObject {
     func gitFetch(project: String) { send(Wire.gitFetch(project: project)) }
     func gitAutoPullUndo(project: String) { send(Wire.gitAutoPullUndo(project: project)) }
     func requestGitBranches(project: String) { send(Wire.gitBranches(project: project)) }
+    func requestGitHistory(project: String, skip: Int, limit: Int) {
+        send(Wire.gitHistory(project: project, skip: skip, limit: limit))
+    }
+    func requestGitCommitFiles(project: String, hash: String) {
+        send(Wire.gitCommitFiles(project: project, hash: hash))
+    }
+    func requestGitCommitPatch(project: String, hash: String, path: String, oldPath: String?) {
+        send(Wire.gitCommitPatch(project: project, hash: hash, path: path, oldPath: oldPath))
+    }
     func gitCheckout(project: String, branch: String, remote: String) {
         send(Wire.gitCheckout(project: project, branch: branch, remote: remote))
     }
@@ -1422,7 +1440,8 @@ final class LpmClient: NSObject {
                 self.onAutoPullMode?(autoPullMode)
                 self.onSeenAgentsShown?(seenAgentsShown)
                 self.onKeepFinishedAgents?(keepFinishedAgents)
-            case .sidebar(let order, let groups): self.onSidebar?(order, groups)
+            case .sidebar(let order, let groups, let pins): self.onSidebar?(order, groups, pins)
+            case .sidebarChanged: self.onSidebarChanged?()
             case .stats(let stats, let error): self.onStats?(stats, error)
             case .limits(let snapshot, let error): self.onLimits?(snapshot, error)
             case .weeklyRecap(let pick, let recap, let error): self.onWeeklyRecap?(pick, recap, error)
@@ -1485,8 +1504,8 @@ final class LpmClient: NSObject {
             case .setAutoPull(let proj, let error): self.onSetAutoPull?(proj, error)
             case .claudeAccounts(let accounts): self.onClaudeAccounts?(accounts)
             case .setClaudeAccount(let proj, let error): self.onSetClaudeAccount?(proj, error)
-            case .sidebarMutation(let order, let groups, let error):
-                self.onSidebarMutation?(order, groups, error)
+            case .sidebarMutation(let order, let groups, let pins, let error):
+                self.onSidebarMutation?(order, groups, pins, error)
             case .fileChunk(let chunk): self.onFileChunk?(chunk)
             case .actionFailed(let project, let error):
                 self.onActionFailed?(project, error)
@@ -1518,6 +1537,11 @@ final class LpmClient: NSObject {
             case .gitCreateBranch(let proj, let error): self.onGitCreateBranch?(proj, error)
             case .gitDiscardAll(let proj, let error): self.onGitDiscardAll?(proj, error)
             case .gitChanged(let proj): self.onGitChanged?(proj)
+            case .gitHistory(let proj, let skip, let page, let error): self.onGitHistory?(proj, skip, page, error)
+            case .gitCommitFiles(let proj, let hash, let files, let error):
+                self.onGitCommitFiles?(proj, hash, files, error)
+            case .gitCommitPatch(let proj, let hash, let path, let result, let error):
+                self.onGitCommitPatch?(proj, hash, path, result, error)
             case .gitAuto(let proj, let run, let error): self.onGitAuto?(proj, run, error)
             case .updateCheck(let check): self.onUpdateCheck?(check)
             case .updateProgress(let step): self.onUpdateProgress?(step)

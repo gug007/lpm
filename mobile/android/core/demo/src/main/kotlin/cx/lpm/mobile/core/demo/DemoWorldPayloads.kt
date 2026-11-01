@@ -70,7 +70,8 @@ internal fun DemoWorld.sidebarPayload(): Dict = mapOf(
             "collapsed" to it.collapsed,
             "members" to it.members
         )
-    }
+    },
+    "pins" to pins.toList()
 )
 
 internal fun DemoWorld.statusPayload(project: String): Dict {

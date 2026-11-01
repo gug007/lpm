@@ -54,6 +54,17 @@ struct ProjectDetail: View {
         terminalsLoaded && terminals.isEmpty && !creating && live.allServices.isEmpty && bgRuns.isEmpty
     }
 
+    /// The tips this screen has something to point at, the first one shown. None
+    /// until the tabs are in, so the tip doesn't change under the reader.
+    private var tips: [AppTip] {
+        guard terminalsLoaded else { return [] }
+        var tips: [AppTip] = []
+        if !terminals.isEmpty { tips.append(.tabMenu) }
+        if !live.actions.isEmpty { tips.append(.actions) }
+        if model.git.snapshots[project.name]?.files.isEmpty == false { tips.append(.review) }
+        return tips
+    }
+
     // Behind the "No Terminals" prompt and the config error there is no list
     // for the usage rows to follow.
     private var showsUsage: Bool { !isEmpty && live.configError == nil }
@@ -62,6 +73,7 @@ struct ProjectDetail: View {
         // One inset-grouped list, so tabs, services and runs read alike and keep
         // native drag-to-reorder via `.onMove`.
         List {
+            TipSection(tip: TipsStore.shared.first(tips))
             if !queued.isEmpty {
                 Section {
                     ForEach(queued) { QueuedActionLine(action: $0) }

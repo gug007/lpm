@@ -135,7 +135,7 @@ export default function ClaudeCodeCodexSkillsPage() {
               Context cost, visible
             </span>
           </div>
-          <div className="mx-auto mt-[clamp(1.25rem,3vh,1.75rem)] max-w-3xl">
+          <div className="mx-auto mt-[clamp(1.25rem,3vh,1.75rem)] max-w-4xl">
             <HeroCta
               source="skills-hero"
               secondary={

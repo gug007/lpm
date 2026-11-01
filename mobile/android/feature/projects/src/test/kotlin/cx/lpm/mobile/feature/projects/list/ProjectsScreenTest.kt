@@ -2,12 +2,14 @@ package cx.lpm.mobile.feature.projects.list
 
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.longClick
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
+import cx.lpm.mobile.core.model.AppTip
 import cx.lpm.mobile.core.model.ProjectFolder
 import cx.lpm.mobile.feature.projects.project
 import org.junit.Assert.assertEquals
@@ -65,11 +67,13 @@ class ProjectsScreenTest {
                 rowActions = ProjectRowActions(
                     open = { events += "open ${it.name}" },
                     duplicate = { events += "duplicate ${it.name}" },
-                    move = { p, f -> events += "move ${p.name} to $f" }
+                    move = { p, f -> events += "move ${p.name} to $f" },
+                    setPinned = { p, on -> events += "pin ${p.name} $on" }
                 ),
                 folderActions = FolderActions(
                     toggle = { f, open -> events += "toggle ${f.name} $open" }
-                )
+                ),
+                onCloseTip = { events += "close ${it.name}" }
             )
         }
     }
@@ -117,5 +121,40 @@ class ProjectsScreenTest {
     fun anEmptyLoadedListSaysSo() {
         show(ProjectsUiState(loaded = true, listIsEmpty = true))
         compose.onNodeWithText("No projects").assertExists()
+    }
+
+    @Test
+    fun pinnedProjectsShowAboveTheListWithTheirMenu() {
+        val pinned = entry("blog", folderId = "g1").copy(pinned = true, pinLink = true)
+        show(
+            state.copy(
+                pinned = listOf(pinned),
+                rows = state.rows.map {
+                    if (it is ProjectsListRow.ProjectEntry) {
+                        it.copy(
+                            pinned =
+                                it.project.name == "blog"
+                        )
+                    } else {
+                        it
+                    }
+                }
+            )
+        )
+        compose.onNodeWithText("Pinned").assertExists()
+        compose.onNodeWithText("Projects").assertExists()
+        compose.onAllNodesWithText("blog")[0].performTouchInput { longClick() }
+        compose.onNodeWithText("Unpin").performClick()
+        compose.onNodeWithText("storefront").performTouchInput { longClick() }
+        compose.onNodeWithText("Pin to top").performClick()
+        assertEquals(listOf("pin blog false", "pin storefront true"), events)
+    }
+
+    @Test
+    fun aTipShowsAtTheTopUntilItsClosed() {
+        show(state.copy(tip = AppTip.ProjectMenu))
+        compose.onNodeWithText("Hold a project for more").assertExists()
+        compose.onNodeWithContentDescription("Close tip").performClick()
+        assertEquals(listOf("close ProjectMenu"), events)
     }
 }

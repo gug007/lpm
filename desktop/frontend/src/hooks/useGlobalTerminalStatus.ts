@@ -47,5 +47,8 @@ export function useGlobalAgentStatusSync(): void {
 
 /** The global Terminals' statuses folded per tab, for painting the tab strip. */
 export function useGlobalTerminalStatus(): PaneStatus {
-  return usePaneStatus(useGlobalAgentStatus((s) => s.entries));
+  return usePaneStatus(
+    useGlobalAgentStatus((s) => s.entries),
+    useGlobalAgentStatus((s) => s.seen),
+  );
 }

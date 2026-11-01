@@ -18,7 +18,9 @@ data class MachineSection(
     /** Where adding it to this phone stands, while it isn't on it. */
     val pending: MachineImportStatus?,
     /** Not on this phone, but the live Mac can carry the phone to it. */
-    val throughMac: Boolean
+    val throughMac: Boolean,
+    /** How a machine saved here is doing, while it isn't answering (Show All Machines). */
+    val note: MachineFeedNote? = null
 ) {
     val id: String get() = machine.slug
     val projectCount: Int get() = rows.count { !it.isChild }

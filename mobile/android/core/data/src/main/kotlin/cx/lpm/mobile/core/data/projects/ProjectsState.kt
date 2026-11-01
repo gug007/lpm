@@ -21,6 +21,8 @@ data class ProjectsState(
     /** Interleaves project names and "group:<id>" / "peer:<slug>" tokens, like the desktop. */
     val sidebarOrder: List<String> = emptyList(),
     val groups: List<ProjectFolder> = emptyList(),
+    /** The Mac's pinned projects in pinned order (ProjectPins.kt). */
+    val pins: List<String> = emptyList(),
     /** The Mac's work-status palette and the order the user put the Status menu in. */
     val workStatuses: List<CustomWorkStatus> = defaultWorkStatusPalette,
     val workStatusOrder: List<String> = emptyList(),

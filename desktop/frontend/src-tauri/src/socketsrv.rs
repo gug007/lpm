@@ -297,6 +297,7 @@ fn process_command(line: &str, store: &StatusStore, app: &AppHandle) -> String {
         "open_job" => crate::jobopen::cmd_open_job(args, app),
         "peer_pair" => cmd_peer_pair(args, app),
         "peer_state" => cmd_peer_state(app),
+        "list_ports" => crate::portsall::cmd_list_ports(args, app),
         "remote_pair" => cmd_remote_pair(args, app),
         "remote_state" => cmd_remote_state(app),
         "remote_revoke" => cmd_remote_revoke(args, app),
@@ -457,6 +458,7 @@ fn cmd_restart_service(args: &[String], app: &AppHandle) -> String {
         return "ERROR: usage: restart_service <project> <service>".into();
     }
     reply(crate::services::restart_service_by_name(
+        app,
         &app.state::<crate::services::ServiceState>(),
         &positional[0],
         &positional[1],

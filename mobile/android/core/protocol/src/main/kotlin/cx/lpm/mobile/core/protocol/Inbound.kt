@@ -11,6 +11,7 @@ import cx.lpm.mobile.core.model.AutomationLiveOutput
 import cx.lpm.mobile.core.model.AutomationMachine
 import cx.lpm.mobile.core.model.BackgroundRunSummary
 import cx.lpm.mobile.core.model.ClaudeAccounts as ClaudeAccountsReply
+import cx.lpm.mobile.core.model.CommitFile
 import cx.lpm.mobile.core.model.ComposerAction
 import cx.lpm.mobile.core.model.ControlOwner
 import cx.lpm.mobile.core.model.CustomWorkStatus
@@ -19,9 +20,11 @@ import cx.lpm.mobile.core.model.FileChunk as FileRange
 import cx.lpm.mobile.core.model.GitAutoRun
 import cx.lpm.mobile.core.model.GitBranch
 import cx.lpm.mobile.core.model.GitDiffEntry
+import cx.lpm.mobile.core.model.GitDiffResult
 import cx.lpm.mobile.core.model.GitSnapshot
 import cx.lpm.mobile.core.model.HistoryFolder
 import cx.lpm.mobile.core.model.HistoryItem
+import cx.lpm.mobile.core.model.HistoryPage
 import cx.lpm.mobile.core.model.HistoryRow
 import cx.lpm.mobile.core.model.LimitReminder
 import cx.lpm.mobile.core.model.LimitsSnapshot
@@ -100,7 +103,15 @@ sealed interface Inbound {
         val keepFinishedAgents: Boolean = false
     ) : Inbound
 
-    data class Sidebar(val order: List<String>, val groups: List<ProjectFolder>) : Inbound
+    // `pins` is null from a Mac without "projectPins".
+    data class Sidebar(
+        val order: List<String>,
+        val groups: List<ProjectFolder>,
+        val pins: List<String>? = null
+    ) : Inbound
+
+    // Server push: the Mac's folders, order or pins changed.
+    data object SidebarChanged : Inbound
     data class Stats(val stats: AgentStats?, val error: String?) : Inbound
     data class Limits(val snapshot: LimitsSnapshot?, val error: String?) : Inbound
 
@@ -209,10 +220,11 @@ sealed interface Inbound {
     data class ClaudeAccounts(val accounts: ClaudeAccountsReply?) : Inbound
     data class SetClaudeAccount(val project: String, val error: String?) : Inbound
 
-    // A folder create/rename/delete/move reply, carrying the updated sidebar on success.
+    // A folder create/rename/delete/move or pin reply, carrying the updated sidebar on success.
     data class SidebarMutation(
         val order: List<String>,
         val groups: List<ProjectFolder>,
+        val pins: List<String>?,
         val error: String?
     ) : Inbound
 
@@ -271,6 +283,30 @@ sealed interface Inbound {
     data class GitCreateBranch(val project: String, val error: String?) : Inbound
     data class GitDiscardAll(val project: String, val error: String?) : Inbound
     data class GitChanged(val project: String) : Inbound
+
+    // Commit history: a page of the branch's commits, one commit's files and one
+    // file's patch in it. `error` is null on success.
+    data class GitHistory(
+        val project: String,
+        val skip: Int,
+        val page: HistoryPage?,
+        val error: String?
+    ) : Inbound
+
+    data class GitCommitFiles(
+        val project: String,
+        val hash: String,
+        val files: List<CommitFile>?,
+        val error: String?
+    ) : Inbound
+
+    data class GitCommitPatch(
+        val project: String,
+        val hash: String,
+        val path: String,
+        val result: GitDiffResult?,
+        val error: String?
+    ) : Inbound
     data class GitAuto(val project: String, val run: GitAutoRun?, val error: String?) : Inbound
 
     data class GitAutoSwitchBase(

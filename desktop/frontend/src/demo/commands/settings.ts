@@ -31,10 +31,19 @@ export function selectedProject(): string | undefined {
   return typeof name === "string" && name ? name : undefined;
 }
 
+let quickTerminalOn = false;
+
 export const settingsCommands: CommandMap = {
   load_settings: () => ({ ...settings }),
   save_settings: ({ s }) => {
     settings = { ...(s as Record<string, unknown>) };
     return null;
   },
+  set_quick_terminal: ({ enabled }) => {
+    quickTerminalOn = enabled === true;
+    return { registered: quickTerminalOn, problem: null };
+  },
+  quick_terminal_status: () => ({ registered: quickTerminalOn, problem: null }),
+  quick_terminal_cwd: () => "~",
+  hide_quick_terminal: () => null,
 };

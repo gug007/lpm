@@ -18,7 +18,9 @@ internal fun LpmClientCallbacks.route(frame: Inbound) {
             onKeepFinishedAgents?.invoke(frame.keepFinishedAgents)
         }
 
-        is Inbound.Sidebar -> onSidebar?.invoke(frame.order, frame.groups)
+        is Inbound.Sidebar -> onSidebar?.invoke(frame.order, frame.groups, frame.pins)
+
+        Inbound.SidebarChanged -> onSidebarChanged?.invoke()
 
         is Inbound.Stats -> onStats?.invoke(frame.stats, frame.error)
 
@@ -121,6 +123,7 @@ internal fun LpmClientCallbacks.route(frame: Inbound) {
         is Inbound.SidebarMutation -> onSidebarMutation?.invoke(
             frame.order,
             frame.groups,
+            frame.pins,
             frame.error
         )
 
@@ -192,6 +195,21 @@ private fun LpmClientCallbacks.routeGitAndMore(frame: Inbound) {
         is Inbound.GitDiscardAll -> onGitDiscardAll?.invoke(frame.project, frame.error)
 
         is Inbound.GitChanged -> onGitChanged?.invoke(frame.project)
+
+        is Inbound.GitHistory ->
+            onGitHistory?.invoke(frame.project, frame.skip, frame.page, frame.error)
+
+        is Inbound.GitCommitFiles ->
+            onGitCommitFiles?.invoke(frame.project, frame.hash, frame.files, frame.error)
+
+        is Inbound.GitCommitPatch ->
+            onGitCommitPatch?.invoke(
+                frame.project,
+                frame.hash,
+                frame.path,
+                frame.result,
+                frame.error
+            )
 
         is Inbound.GitAuto -> onGitAuto?.invoke(frame.project, frame.run, frame.error)
 

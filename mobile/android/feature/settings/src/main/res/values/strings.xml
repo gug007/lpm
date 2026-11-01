@@ -67,4 +67,7 @@
         <item quantity="one">After %1$d minute</item>
         <item quantity="other">After %1$d minutes</item>
     </plurals>
+    <string name="settings_tips">Tips</string>
+    <string name="settings_tips_show_again">Show Tips Again</string>
+    <string name="settings_tips_footer">Tips you closed come back where they apply.</string>
 </resources>

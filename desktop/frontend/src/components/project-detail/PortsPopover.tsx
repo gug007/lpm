@@ -9,6 +9,7 @@ import {
 import type { main } from "../../../bridge/models";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
 import { openPortInLpm } from "../../portLinks";
+import { openPortsView } from "../ports/portsActions";
 import { PlusIcon, XIcon } from "../icons";
 import { forwardPortAndOpen } from "./forwardPort";
 import { LocalPortField } from "./LocalPortField";
@@ -276,6 +277,16 @@ export function PortsPopover({ projectName, forwards, suggestions, onClose }: Po
           Forward
         </button>
       </form>
+      <button
+        onClick={() => {
+          onClose();
+          openPortsView();
+        }}
+        className="flex w-full items-center justify-between border-t border-[var(--border)] px-3 py-2 text-xs text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+      >
+        All ports
+        <span aria-hidden>→</span>
+      </button>
     </div>
   );
 }

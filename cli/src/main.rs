@@ -25,12 +25,14 @@ mod list;
 mod logs;
 mod mobile;
 mod project;
+mod ready;
 mod refreshlabel;
 mod remove;
 mod run;
 mod service;
 mod service_cmd;
 mod pair;
+mod ports;
 mod setstatus;
 mod start;
 mod status;
@@ -242,6 +244,20 @@ automation reports to, and the first answer from any of them wins."
         /// server, which would also expose the port to the public internet.
         #[arg(long, value_name = "ADDRESS", conflicts_with = "lan")]
         bind: Option<String>,
+        /// Emit a single machine-readable JSON object.
+        #[arg(long)]
+        json: bool,
+    },
+    /// List every listening TCP port with the project and service holding it.
+    #[command(
+        long_about = "List every TCP port this machine listens on, with the lpm project and \
+service whose process holds it, or the process name and PID when nothing of lpm's does. \
+--computers adds each connected paired computer's ports."
+    )]
+    Ports {
+        /// Include each connected paired computer's ports.
+        #[arg(long)]
+        computers: bool,
         /// Emit a single machine-readable JSON object.
         #[arg(long)]
         json: bool,
@@ -518,6 +534,7 @@ fn main() -> ExitCode {
         Commands::Pair { cancel, lan, bind, json } => {
             pair::run(&ctx, cancel, lan, bind.as_deref(), json)
         }
+        Commands::Ports { computers, json } => ports::run(&ctx, computers, json),
         Commands::Connections { json } => pair::run_connections(&ctx, json),
         Commands::Mobile { command } => mobile::run(&ctx, command),
         Commands::ClearStatus { key, project } => {

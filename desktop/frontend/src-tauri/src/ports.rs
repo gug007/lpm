@@ -77,16 +77,19 @@ fn probe(port: i64) -> (Holder, bool) {
 
 // ---- classify a holder pid -> lpm project (via pane ancestry) --------------
 
+/// Session name -> project, for the projects `names`.
+pub(crate) fn sessions_of(names: impl IntoIterator<Item = String>) -> HashMap<String, String> {
+    names
+        .into_iter()
+        .filter_map(|name| config::spawn_info(&name).ok().map(|info| (info.session, name)))
+        .collect()
+}
+
 /// pane shell pid -> owning project, across every session the daemon holds.
 /// Only lpm's own panes are in there, so a project can no longer be blamed for
 /// a port held by a session that merely shares its name.
 fn lpm_pane_index() -> HashMap<i64, String> {
-    let mut session_to_project = HashMap::new();
-    for name in config::project_names() {
-        if let Ok(info) = config::spawn_info(&name) {
-            session_to_project.insert(info.session, name);
-        }
-    }
+    let session_to_project = sessions_of(config::project_names());
     crate::sessions::all_panes()
         .into_iter()
         .filter_map(|pane| {
@@ -98,7 +101,7 @@ fn lpm_pane_index() -> HashMap<i64, String> {
 }
 
 #[cfg(windows)]
-fn process_parents() -> HashMap<i64, i64> {
+pub(crate) fn process_parents() -> HashMap<i64, i64> {
     crate::osproc::process_table()
         .into_iter()
         .map(|(pid, ppid)| (pid as i64, ppid as i64))
@@ -106,7 +109,7 @@ fn process_parents() -> HashMap<i64, i64> {
 }
 
 #[cfg(unix)]
-fn process_parents() -> HashMap<i64, i64> {
+pub(crate) fn process_parents() -> HashMap<i64, i64> {
     let mut parents = HashMap::new();
     if let Ok(o) = Command::new("ps").args(["-e", "-o", "pid=,ppid="]).output() {
         for line in String::from_utf8_lossy(&o.stdout).split('\n') {
@@ -124,7 +127,7 @@ fn process_parents() -> HashMap<i64, i64> {
 /// Walk a holder pid up its ancestry until it lands on a known pane pid, and
 /// return that pane's mapped value (a project name or a service name, depending
 /// on the index passed). Bounded to 32 hops to stay cheap and loop-proof.
-fn walk_to_owner<T: Clone>(
+pub(crate) fn walk_to_owner<T: Clone>(
     pid: i64,
     pane_map: &HashMap<i64, T>,
     parents: &HashMap<i64, i64>,

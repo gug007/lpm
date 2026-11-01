@@ -43,6 +43,7 @@ class ProjectSnapshots(
         val autoPullMode: AutoPullMode = AutoPullMode.Off,
         val sidebarOrder: List<String> = emptyList(),
         val groups: List<ProjectFolder> = emptyList(),
+        val pins: List<String> = emptyList(),
         val at: Instant
     )
 
@@ -80,6 +81,7 @@ class ProjectSnapshots(
             autoPullMode = list.autoPullMode,
             sidebarOrder = sidebar?.order.orEmpty(),
             groups = sidebar?.groups.orEmpty(),
+            pins = sidebar?.pins.orEmpty(),
             at = entry.at
         )
     }

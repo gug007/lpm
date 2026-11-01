@@ -1000,6 +1000,8 @@ pub struct ServiceFull {
     pub env: BTreeMap<String, String>,
     #[serde(rename = "dependsOn", alias = "depends_on", default)]
     pub depends_on: Vec<String>,
+    #[serde(default)]
+    pub ready: Option<crate::readyspec::ReadySpec>,
 }
 
 impl ServiceDef {
@@ -2089,6 +2091,9 @@ fn merge_service(dst: &mut ServiceFull, src: &ServiceFull) {
     if dst.env.is_empty() {
         dst.env = src.env.clone();
     }
+    if dst.ready.is_none() {
+        dst.ready = src.ready.clone();
+    }
 }
 
 /// Parse <root>/.lpm.yml as a project-shaped doc for its `services`/`profiles`
@@ -2501,6 +2506,7 @@ fn to_project_info(
             "portConflict": svc.port_conflict,
             "env": svc.env,
             "dependsOn": svc.depends_on,
+            "ready": svc.ready.as_ref().map(|r| r.to_json(svc.port)),
         })
     };
     let all_services: Vec<Value> = all_names.iter().map(|n| service_info(n)).collect();
@@ -2514,14 +2520,16 @@ fn to_project_info(
     } else {
         Default::default()
     };
+    let phases = if running {
+        crate::readiness::phases(file_name)
+    } else {
+        Default::default()
+    };
     let running_services: Vec<Value> = running_names
         .iter()
         .map(|n| {
             let mut info = service_info(n);
-            if let Some(code) = ended.get(n) {
-                info["exited"] = json!(true);
-                info["exitCode"] = json!(code);
-            }
+            crate::readiness::annotate(&mut info, phases.get(n), ended.get(n));
             info
         })
         .collect();
@@ -2863,6 +2871,7 @@ fn global_project_info() -> Value {
 // ---- spawn info (for service start/stop) ------------------------------------
 
 /// Everything the service commands need from a project's YAML, parsed once.
+#[derive(Clone)]
 pub struct SpawnInfo {
     pub file_name: String,
     pub session: String,
@@ -3049,6 +3058,21 @@ mod service_deps_tests {
     fn unknown_requested_service_is_an_error() {
         let svcs = services(&[("web", &[])]);
         assert!(expand_service_deps(&svcs, &req(&["ghost"])).is_err());
+    }
+
+    #[test]
+    fn ready_parses_and_falls_back_from_a_lower_layer() {
+        let repo: ServiceFull =
+            serde_norway::from_str("cmd: api\nport: 4000\nready: port\n").unwrap();
+        assert!(repo.ready.as_ref().unwrap().resolve(repo.port).is_ok());
+        let bad: ServiceFull = serde_norway::from_str("cmd: api\nready: [1]\n").unwrap();
+        assert!(
+            bad.ready.unwrap().resolve(0).is_err(),
+            "a bad check still loads the service"
+        );
+        let mut project = ServiceFull::default();
+        merge_service(&mut project, &repo);
+        assert_eq!(project.ready, repo.ready);
     }
 
     #[test]

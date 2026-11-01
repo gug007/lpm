@@ -9,6 +9,7 @@ export const NAV_ITEM_IDS = [
   "automations",
   "usage",
   "stats",
+  "ports",
   "recap",
   "mobile",
   "settings",

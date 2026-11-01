@@ -40,7 +40,7 @@ class MachineVisitViewModelTest {
     }
 
     private fun TestScope.subscribed(t: TestSession, key: ProjectKey = api): MachineVisitViewModel {
-        val vm = MachineVisitViewModel(key, t.sessions)
+        val vm = MachineVisitViewModel(key, t.sessions, t.feeds)
         backgroundScope.launch { vm.uiState.collect() }
         t.settle()
         return vm
@@ -52,7 +52,7 @@ class MachineVisitViewModelTest {
         val vm = subscribed(t)
         assertEquals(MachineVisitContent.Detail, vm.uiState.value.content)
         assertFalse(vm.uiState.value.ready)
-        val detail = ProjectDetailViewModel(api, t.sessions, t.clock)
+        val detail = ProjectDetailViewModel(api, t.sessions, t.clock, t.feeds, t.tips)
         backgroundScope.launch { detail.uiState.collect() }
         t.settle()
         assertEquals("api", detail.uiState.value.title)

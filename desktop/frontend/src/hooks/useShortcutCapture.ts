@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { useEventListener } from "./useEventListener";
-import { captureShortcut } from "../shortcutRecord";
+import { captureShortcut, type CaptureResult } from "../shortcutRecord";
 
 interface Options {
   reserved?: ReadonlySet<string>;
+  // Reads a key press while recording; lpm's own shortcuts by default.
+  capture?: (event: KeyboardEvent) => CaptureResult;
   onCapture: (canonical: string) => void;
 }
 
@@ -16,7 +18,7 @@ interface ShortcutCapture {
 // Records a keyboard combo. WKWebView doesn't focus a <button> on click, so a
 // button-level onKeyDown never fires — we listen on window in the capture phase
 // while recording, which also blocks the combo from reaching lpm's own shortcuts.
-export function useShortcutCapture({ reserved, onCapture }: Options): ShortcutCapture {
+export function useShortcutCapture({ reserved, capture, onCapture }: Options): ShortcutCapture {
   const [recording, setRecording] = useState(false);
   const [hint, setHint] = useState<string | null>(null);
 
@@ -30,7 +32,7 @@ export function useShortcutCapture({ reserved, onCapture }: Options): ShortcutCa
         setHint(null);
         return;
       }
-      const result = captureShortcut(event, reserved);
+      const result = capture ? capture(event) : captureShortcut(event, reserved);
       if (result.kind === "ignore") return;
       if (result.kind === "hint") {
         setHint(result.text);

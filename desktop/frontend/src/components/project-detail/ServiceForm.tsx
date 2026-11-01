@@ -22,6 +22,14 @@ import {
   toPickerValue,
 } from "./PortConflictPicker";
 import { DependsOnPicker } from "./DependsOnPicker";
+import { ReadyPicker } from "./ReadyPicker";
+import {
+  EMPTY_READY,
+  readyDraftError,
+  readyDraftFrom,
+  readyPayload,
+  type ReadyDraft,
+} from "../../serviceReady";
 import { StartMenuPreview } from "./StartMenuPreview";
 
 const FALLBACK_KEY = "new-service";
@@ -90,6 +98,7 @@ interface ServiceDraft {
   portConflict: string;
   envObj: Record<string, string>;
   dependsOn: string[];
+  ready: unknown;
 }
 
 interface EnvDraft {
@@ -105,6 +114,7 @@ interface FormValues {
   portConflict: string;
   env: EnvDraft[];
   dependsOn: string[];
+  ready: ReadyDraft;
 }
 
 const DEFAULT_VALUES: FormValues = {
@@ -115,6 +125,7 @@ const DEFAULT_VALUES: FormValues = {
   portConflict: "",
   env: [],
   dependsOn: [],
+  ready: EMPTY_READY,
 };
 
 function buildPayload(draft: ServiceDraft): Record<string, unknown> {
@@ -126,15 +137,18 @@ function buildPayload(draft: ServiceDraft): Record<string, unknown> {
   }
   if (Object.keys(draft.envObj).length > 0) payload.env = draft.envObj;
   if (draft.dependsOn.length > 0) payload.dependsOn = draft.dependsOn;
+  if (draft.ready !== undefined) payload.ready = draft.ready;
   return payload;
 }
 
-function buildPatch(payload: Record<string, unknown>): ServicePatch {
+// `keepReady` leaves a `ready:` the app couldn't read alone while the form
+// shows none, rather than deleting what the user wrote by hand.
+function buildPatch(payload: Record<string, unknown>, keepReady: boolean): ServicePatch {
   // Explicitly remove fields the user cleared so stale values don't linger
   // from the previous YAML.
   const remove: string[] = [];
-  for (const field of ["cwd", "port", "portConflict", "env", "dependsOn", "depends_on"] as const) {
-    if (payload[field] === undefined) remove.push(field);
+  for (const field of ["cwd", "port", "portConflict", "env", "dependsOn", "depends_on", "ready"] as const) {
+    if (payload[field] === undefined && !(field === "ready" && keepReady)) remove.push(field);
   }
   return { set: payload, remove };
 }
@@ -172,6 +186,15 @@ export function ServiceForm({
       portConflict: z.string(),
       env: z.array(envEntrySchema),
       dependsOn: z.array(z.string()),
+      ready: z.object({
+        kind: z.enum(["", "port", "url", "log"]),
+        value: z.string(),
+        timeout: z.string(),
+      }),
+    }).superRefine((values, ctx) => {
+      const port = parsePort(values.port);
+      const error = readyDraftError(values.ready, port.valid ? port.value : 0);
+      if (error) ctx.addIssue({ code: "custom", path: ["ready"], message: error });
     });
   }, [services, editing]);
 
@@ -209,6 +232,7 @@ export function ServiceForm({
         portConflict,
         env: envFromRecord(editing.env),
         dependsOn: editing.dependsOn ?? [],
+        ready: readyDraftFrom(editing.ready),
       });
       // Auto-expand Advanced when any optional field is already set, so the
       // user can see existing values without hunting for the disclosure.
@@ -217,7 +241,8 @@ export function ServiceForm({
           editing.port > 0 ||
           Boolean(portConflict) ||
           Object.keys(editing.env ?? {}).length > 0 ||
-          (editing.dependsOn ?? []).length > 0,
+          (editing.dependsOn ?? []).length > 0 ||
+          Boolean(editing.ready),
       );
     } else {
       reset(DEFAULT_VALUES);
@@ -238,9 +263,18 @@ export function ServiceForm({
   const watchedPortConflict = watch("portConflict");
   const watchedEnv = watch("env");
   const watchedDependsOn = watch("dependsOn");
+  const watchedReady = watch("ready");
 
   const otherServiceNames = useMemo(
     () => services.filter((s) => !editing || s.name !== editing.name).map((s) => s.name),
+    [services, editing],
+  );
+
+  const dependents = useMemo(
+    () =>
+      editing
+        ? services.filter((s) => s.dependsOn?.includes(editing.name)).map((s) => s.name)
+        : [],
     [services, editing],
   );
 
@@ -269,8 +303,9 @@ export function ServiceForm({
       portConflict: watchedPortConflict,
       envObj: envToRecord(watchedEnv),
       dependsOn: watchedDependsOn,
+      ready: readyPayload(watchedReady),
     }),
-    [trimmedName, trimmedCmd, trimmedCwd, portValid, portValue, watchedPortConflict, watchedEnv, watchedDependsOn],
+    [trimmedName, trimmedCmd, trimmedCwd, portValid, portValue, watchedPortConflict, watchedEnv, watchedDependsOn, watchedReady],
   );
 
   const previewServiceEntries = useMemo(() => {
@@ -295,6 +330,7 @@ export function ServiceForm({
     errors.name?.message ||
     errors.cmd?.message ||
     errors.port?.message ||
+    errors.ready?.message ||
     "";
 
   const canSave = isValid && !saving;
@@ -311,6 +347,7 @@ export function ServiceForm({
         portConflict: values.portConflict,
         envObj: envToRecord(values.env),
         dependsOn: values.dependsOn.filter((n) => otherServiceNames.includes(n)),
+        ready: readyPayload(values.ready),
       };
       const targetKey = computeDesiredKey({
         rawName: submitDraft.trimmedName,
@@ -321,7 +358,8 @@ export function ServiceForm({
       const payload = buildPayload(submitDraft);
       if (editing) {
         await renameService(projectName, editing.name, targetKey);
-        await replaceService(projectName, targetKey, buildPatch(payload));
+        const keepReady = editing.ready?.kind === "invalid" && values.ready.kind === "";
+        await replaceService(projectName, targetKey, buildPatch(payload, keepReady));
         toast.success("Service updated");
       } else {
         await appendService(projectName, targetKey, payload);
@@ -458,6 +496,15 @@ export function ServiceForm({
                         }
                       />
                     </Field>
+
+                    <ReadyPicker
+                      value={watchedReady}
+                      onChange={(next) =>
+                        setValue("ready", next, { shouldDirty: true, shouldValidate: true })
+                      }
+                      servicePort={portValid ? portValue : 0}
+                      dependents={dependents}
+                    />
 
                     <div>
                       <div className="mb-2 flex items-center justify-between">

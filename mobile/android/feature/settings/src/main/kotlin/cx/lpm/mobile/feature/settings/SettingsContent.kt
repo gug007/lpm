@@ -21,7 +21,10 @@ import cx.lpm.mobile.core.designsystem.component.PickerRow
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.core.model.AppearanceMode
 
-/** The Settings sheet's sections: away from home, appearance, terminal, the pages, privacy. */
+/**
+ * The Settings sheet's sections: away from home, appearance, terminal, the pages,
+ * security, tips, privacy.
+ */
 @Composable
 fun SettingsContent(
     state: SettingsUiState,
@@ -30,7 +33,8 @@ fun SettingsContent(
     onPrivacyPolicy: () -> Unit,
     modifier: Modifier = Modifier,
     terminalControls: @Composable () -> Unit = {},
-    security: @Composable () -> Unit = {}
+    security: @Composable () -> Unit = {},
+    tips: @Composable () -> Unit = {}
 ) {
     Column(
         modifier
@@ -82,6 +86,7 @@ fun SettingsContent(
             )
         }
         security()
+        tips()
         ListSection {
             NavigationRow(
                 title = stringResource(R.string.settings_privacy_policy),

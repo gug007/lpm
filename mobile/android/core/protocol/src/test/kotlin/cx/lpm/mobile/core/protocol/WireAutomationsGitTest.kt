@@ -96,6 +96,26 @@ class WireAutomationsGitTest {
     }
 
     @Test
+    fun gitHistory() {
+        assertFrame(
+            """{ "t": "gitHistory", "project": "a", "skip": 100, "limit": 100 }""",
+            Wire.gitHistory("a", skip = 100, limit = 100)
+        )
+        assertFrame(
+            """{ "t": "gitCommitFiles", "project": "a", "hash": "abc" }""",
+            Wire.gitCommitFiles("a", "abc")
+        )
+        assertFrame(
+            """{ "t": "gitCommitPatch", "project": "a", "hash": "abc", "path": "b.ts", "oldPath": "a.ts" }""",
+            Wire.gitCommitPatch("a", "abc", "b.ts", "a.ts")
+        )
+        assertFrame(
+            """{ "t": "gitCommitPatch", "project": "a", "hash": "abc", "path": "b.ts" }""",
+            Wire.gitCommitPatch("a", "abc", "b.ts", "")
+        )
+    }
+
+    @Test
     fun gitBranchesAndAutoRuns() {
         assertFrame("""{ "t": "gitBranches", "project": "a" }""", Wire.gitBranches("a"))
         assertFrame(

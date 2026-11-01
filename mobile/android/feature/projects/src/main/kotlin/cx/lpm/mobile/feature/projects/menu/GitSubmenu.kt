@@ -16,7 +16,7 @@ import cx.lpm.mobile.feature.projects.R as ProjectsR
 
 /**
  * The desktop's project Git submenu, adapted to a phone: sync ops that fire at once
- * (off while in flight) and auto pull, then branch and pull request screens, the AI
+ * (off while in flight) and auto pull, then branch, pull request and History screens, the AI
  * commit shortcuts, then copying the branch and the destructive discard.
  */
 @Composable
@@ -56,6 +56,13 @@ fun ColumnScope.GitSubmenu(state: ProjectMenuUiState, project: Project, actions:
                 title = stringResource(ProjectsR.string.git_create_pr),
                 onClick = actions.createPullRequest,
                 icon = painterResource(R.drawable.ic_merge)
+            )
+        }
+        if (state.canShowHistory) {
+            ContextMenuItem(
+                title = stringResource(ProjectsR.string.git_history),
+                onClick = actions.history,
+                icon = painterResource(R.drawable.ic_schedule)
             )
         }
         ContextMenuDivider()

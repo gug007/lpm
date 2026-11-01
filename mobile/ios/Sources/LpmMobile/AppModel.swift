@@ -274,6 +274,8 @@ final class AppModel {
     // "group:<id>" tokens; `groups` are the folder defs.
     var sidebarOrder: [String] = []
     var groups: [ProjectFolder] = []
+    // The Mac's pinned projects in pinned order (see AppModel+Pins).
+    var pins: [String] = []
     // The Mac's work-status palette, refreshed with every projects list: the
     // user's own statuses, and the order they put the Status menu in.
     var workStatuses: [CustomWorkStatus] = defaultWorkStatusPalette
@@ -385,6 +387,10 @@ final class AppModel {
     // (`model.agentLaunch`), and the Files browser (`model.projectFiles`), same split.
     var agentLaunch = AgentLaunchStore()
     var projectFiles = ProjectFilesStore()
+    // The project's commit history (`model.gitHistory`), same split.
+    var gitHistory = GitHistoryStore()
+    // The other machines saved here, while the list shows them all.
+    let machineFeeds = PairedMachineFeeds()
 
     // Adds the live Mac's own servers and Macs to this phone.
     let machineImporter = MachineImporter()
@@ -455,6 +461,7 @@ final class AppModel {
         weeklyRecap.model = self
         agentLaunch.model = self
         projectFiles.model = self
+        gitHistory.model = self
         pushRegistrar.onIdentity = { [weak self] localId, serverId, serverName, platform in
             self?.learnIdentity(of: localId, serverId: serverId, serverName: serverName,
                                 platform: platform)
@@ -513,6 +520,7 @@ final class AppModel {
         guard !demoMode, !isVisit else { return } // demo state is in-memory only
         MacStore.saveRecords(macs)
         MacStore.saveActiveId(activeMacId)
+        syncMachineFeeds()
     }
 
     /// Probe the remembered addresses and connect to whichever the phone can
@@ -857,6 +865,8 @@ final class AppModel {
         inForeground = active
         client?.inForeground = active
         visitSession?.setInForeground(active)
+        syncMachineFeeds()
+        if active { machineFeeds.retryNow() }
     }
 
     func reconnectIfNeeded() {
@@ -902,6 +912,7 @@ final class AppModel {
         resetSessionState()
         activeMacId = record.localId
         MacStore.saveActiveId(activeMacId)
+        syncMachineFeeds()
         restoreSnapshot()
         link.reach[record.localId] = nil
         link.refreshReach(force: true)
@@ -1357,6 +1368,7 @@ final class AppModel {
         transformRoutes = [:]
         sidebarOrder = []
         groups = []
+        pins = []
         workStatuses = defaultWorkStatusPalette
         workStatusOrder = []
         autoPullMode = .off
@@ -1399,6 +1411,8 @@ final class AppModel {
         agentLaunch.model = self
         projectFiles = ProjectFilesStore()
         projectFiles.model = self
+        gitHistory = GitHistoryStore()
+        gitHistory.model = self
         fileFetches.cancelAll()
         answerRequests.failAll()
         pendingAgentPrompt = [:]
@@ -2440,6 +2454,7 @@ final class AppModel {
         macUpdate.handleConnectionReset()
         agentLaunch.handleConnectionReset()
         projectFiles.handleConnectionReset()
+        gitHistory.handleConnectionReset()
         fileFetches.handleConnectionReset()
         answerRequests.failAll()
         historyPending = []
@@ -2563,6 +2578,7 @@ final class AppModel {
         for section in sections where machines[section.id] != nil {
             out.append(.machine(section))
         }
+        out.append(contentsOf: pairedMachineSections.map(SidebarItem.machine))
         return out
     }
 
@@ -2646,6 +2662,7 @@ final class AppModel {
         wireAnswers(c)
         wireAgentLaunch(c)
         wireProjectFiles(c)
+        wireGitHistory(c)
     }
 
     private func wireConnection(_ c: LpmClient) {
@@ -2783,16 +2800,25 @@ final class AppModel {
             }
             self.reconcileNotifications(p)
         }
-        c.onSidebar = { [weak self] order, groups in
+        c.onSidebar = { [weak self] order, groups, pins in
             self?.sidebarOrder = order
             self?.groups = groups
+            self?.pins = pins ?? []
         }
+        c.onSidebarChanged = { c.requestSidebar() }
         // A sidebar folder mutation reply carries the updated layout so the phone
         // re-renders in place; a failure surfaces once.
-        c.onSidebarMutation = { [weak self] order, groups, error in
+        c.onSidebarMutation = { [weak self] order, groups, pins, error in
             guard let self else { return }
-            if let error { self.actionError = error }
-            else { self.sidebarOrder = order; self.groups = groups }
+            if let error {
+                self.actionError = error
+                // An optimistic pin the Mac refused comes back off.
+                c.requestSidebar()
+            } else {
+                self.sidebarOrder = order
+                self.groups = groups
+                self.pins = pins ?? []
+            }
         }
         // Rename succeeded silently (the projects-changed push refreshes the label);
         // only a failure needs surfacing.

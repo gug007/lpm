@@ -40,10 +40,12 @@ import cx.lpm.mobile.core.designsystem.component.ListHeaderStyle
 import cx.lpm.mobile.core.designsystem.component.ListSection
 import cx.lpm.mobile.core.designsystem.component.LpmTopBar
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
+import cx.lpm.mobile.core.model.AppTip
 import cx.lpm.mobile.core.model.ProjectFolder
 import cx.lpm.mobile.core.model.SessionKey
 import cx.lpm.mobile.feature.projects.ProjectsSlots
 import cx.lpm.mobile.feature.projects.R as ProjectsR
+import cx.lpm.mobile.feature.projects.ui.TipCard
 import cx.lpm.mobile.feature.projects.ui.UndoBar
 import java.time.Instant
 
@@ -74,6 +76,7 @@ fun ProjectsScreen(
     folderActions: FolderActions = FolderActions(),
     machineActions: MachineActions = MachineActions(),
     onUndoArchive: () -> Unit = {},
+    onCloseTip: (AppTip) -> Unit = {},
     slots: ProjectsSlots = ProjectsSlots()
 ) {
     Column(
@@ -92,7 +95,7 @@ fun ProjectsScreen(
                 state = state,
                 refreshing = refreshing,
                 onRefresh = onRefresh,
-                actions = ListActions(rowActions, folderActions, machineActions),
+                actions = ListActions(rowActions, folderActions, machineActions, onCloseTip),
                 slots = slots
             )
             if (state.listIsEmpty) {
@@ -183,7 +186,8 @@ private fun ProjectsHeader(
 private class ListActions(
     val rows: ProjectRowActions,
     val folders: FolderActions,
-    val machines: MachineActions
+    val machines: MachineActions,
+    val closeTip: (AppTip) -> Unit
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -209,14 +213,22 @@ private fun ProjectsList(
                     .heightIn(min = maxHeight)
                     .padding(top = ListTopPadding)
             ) {
+                state.tip?.let { tip ->
+                    ListSection { TipCard(tip, onClose = { actions.closeTip(tip) }) }
+                }
+                if (state.pinned.isNotEmpty()) {
+                    ListSection(
+                        header = stringResource(ProjectsR.string.projects_pinned),
+                        headerStyle = ListHeaderStyle.Title
+                    ) {
+                        state.pinned.forEach { row ->
+                            key(row.key) { ProjectEntryItem(row, state, actions) }
+                        }
+                    }
+                }
                 if (state.rows.isNotEmpty()) {
                     ListSection(
-                        header = state.listAge?.let {
-                            stringResource(
-                                ProjectsR.string.projects_updated,
-                                it.clockStamp(Instant.now())
-                            )
-                        },
+                        header = mainHeader(state.listAge, pinned = state.pinned.isNotEmpty()),
                         headerStyle = ListHeaderStyle.Title,
                         footer = state.listAge?.let {
                             val repair = state.repairFooter
@@ -243,17 +255,41 @@ private fun ProjectsList(
     }
 }
 
+/** "Updated 9:41" on a saved list; "Projects" over it once the Pinned section is up. */
+@Composable
+private fun mainHeader(listAge: Instant?, pinned: Boolean): String? = when {
+    listAge != null -> {
+        val stamp = listAge.clockStamp(Instant.now())
+        if (pinned) {
+            stringResource(ProjectsR.string.projects_section_updated, stamp)
+        } else {
+            stringResource(ProjectsR.string.projects_updated, stamp)
+        }
+    }
+
+    pinned -> stringResource(ProjectsR.string.projects_section)
+
+    else -> null
+}
+
+@Composable
+private fun ProjectEntryItem(
+    row: ProjectsListRow.ProjectEntry,
+    state: ProjectsUiState,
+    actions: ListActions
+) = ProjectListItem(
+    entry = row,
+    folders = state.folders,
+    statusChoices = state.workStatusMenu,
+    actions = actions.rows
+)
+
 @Composable
 private fun ProjectsCardRows(state: ProjectsUiState, actions: ListActions) {
     state.rows.forEach { row ->
         key(row.key) {
             when (row) {
-                is ProjectsListRow.ProjectEntry -> ProjectListItem(
-                    entry = row,
-                    folders = state.folders,
-                    statusChoices = state.workStatusMenu,
-                    actions = actions.rows
-                )
+                is ProjectsListRow.ProjectEntry -> ProjectEntryItem(row, state, actions)
 
                 is ProjectsListRow.FolderEntry -> FolderListItem(
                     entry = row,

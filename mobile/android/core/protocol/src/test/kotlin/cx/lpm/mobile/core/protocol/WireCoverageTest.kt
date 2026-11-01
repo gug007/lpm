@@ -34,12 +34,13 @@ class WireCoverageTest {
         "notesEditMessage", "notesDeleteMessage", "notesSearch", "notesAttachment",
         "restartService", "stopService", "restartTerminal", "agentOptions", "agentSessions",
         "resumeSession", "listDir", "answerAgent", "liveActivity", "weeklyRecap", "archiveStatus",
-        "markStatusSeen", "markStatusUnread"
+        "markStatusSeen", "markStatusUnread", "sidebarPin", "gitHistory", "gitCommitFiles",
+        "gitCommitPatch"
     )
 
     @Test
     fun everyIosBuilderHasAKotlinCounterpart() {
-        assertEquals(157, iosBuilders.toSet().size)
+        assertEquals(161, iosBuilders.toSet().size)
         val kotlin = Wire::class.java.methods.map { it.name }.toSet()
         assertEquals(emptyList<String>(), iosBuilders.filterNot { it in kotlin })
     }

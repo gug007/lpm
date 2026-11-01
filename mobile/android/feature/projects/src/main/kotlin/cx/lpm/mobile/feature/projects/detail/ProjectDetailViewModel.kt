@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import cx.lpm.mobile.core.data.actions.ActionsStore
 import cx.lpm.mobile.core.data.agents.AgentLaunchStore
 import cx.lpm.mobile.core.data.git.GitStore
+import cx.lpm.mobile.core.data.machines.PairedMachineFeeds
 import cx.lpm.mobile.core.data.projects.ProjectsStore
 import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.data.session.MacSessions
@@ -18,6 +19,8 @@ import cx.lpm.mobile.core.data.terminals.forkTerminalIntoCopy
 import cx.lpm.mobile.core.data.terminals.otherClosableTerminals
 import cx.lpm.mobile.core.data.terminals.undoTabClose
 import cx.lpm.mobile.core.data.terminals.useConversationTitle
+import cx.lpm.mobile.core.data.tips.TipsStore
+import cx.lpm.mobile.core.model.AppTip
 import cx.lpm.mobile.core.model.TerminalInfo
 import cx.lpm.mobile.core.navigation.ProjectKey
 import cx.lpm.mobile.feature.projects.visit.listedProject
@@ -40,7 +43,9 @@ import kotlinx.coroutines.flow.stateIn
 class ProjectDetailViewModel @AssistedInject constructor(
     @Assisted val key: ProjectKey,
     private val sessions: MacSessions,
-    private val clock: Clock
+    private val clock: Clock,
+    private val feeds: PairedMachineFeeds,
+    private val tips: TipsStore
 ) : ViewModel() {
     private val session: MacSession? get() = sessions[key.session]
     private val projects: ProjectsStore? get() = session?.store()
@@ -59,8 +64,8 @@ class ProjectDetailViewModel @AssistedInject constructor(
         s.store<ProjectsStore>().state,
         combine(s.store<TerminalsStore>().state, s.store<GitStore>().state, ::Pair),
         s.store<ActionsStore>().state,
-        sessions.listedProject(key)
-    ) { (session, view, link), p, (t, g), a, listed ->
+        combine(sessions.listedProject(key, feeds), tips.closed, ::Pair)
+    ) { (session, view, link), p, (t, g), a, (listed, closedTips) ->
         val inputs = DetailInputs(
             terminals = t.terminals[key.project],
             creating = key.project in t.creatingTerminals,
@@ -74,7 +79,8 @@ class ProjectDetailViewModel @AssistedInject constructor(
             canLaunchAgents = s.store<AgentLaunchStore>().canLaunchAgents,
             canUseTabMenu = s.store<TerminalsStore>().canUseTabMenu,
             pendingClose = t.pendingTabClose,
-            now = clock.millis()
+            now = clock.millis(),
+            closedTips = closedTips
         )
         p.detail(key.project, inputs, listed)
     }
@@ -106,6 +112,8 @@ class ProjectDetailViewModel @AssistedInject constructor(
     fun resume() {
         git?.load(key.project)
     }
+
+    fun closeTip(tip: AppTip) = tips.close(tip)
 
     fun newTerminal() {
         terminals?.newTerminal(key.project)

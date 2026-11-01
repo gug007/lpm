@@ -20,7 +20,9 @@ interface SampleCommit {
   author: string;
   coAuthor?: string;
   hoursAgo: number;
-  merge?: boolean;
+  // Indexes into SAMPLES, first parent first; the next sample when unset.
+  parents?: number[];
+  tag?: string;
   files: SampleFile[];
 }
 
@@ -55,10 +57,10 @@ const SAMPLES: SampleCommit[] = [
     ],
   },
   {
-    subject: "Merge pull request #142 from fix/login-redirect",
+    subject: "Merge pull request #142 from priya/fix-login-redirect",
     author: "Sam Okafor",
     hoursAgo: 50,
-    merge: true,
+    parents: [5, 4],
     files: [
       { path: "src/auth/redirect.ts", status: "M", before: ["  return \"/\";"], after: ["  return next && next.startsWith(\"/\") ? next : \"/\";"] },
     ],
@@ -68,6 +70,7 @@ const SAMPLES: SampleCommit[] = [
     author: "Priya Nair",
     coAuthor: CODEX,
     hoursAgo: 52,
+    parents: [5],
     files: [
       { path: "src/auth/redirect.ts", status: "M", before: ["  return \"/\";"], after: ["  return next && next.startsWith(\"/\") ? next : \"/\";"] },
       { path: "src/auth/redirect.test.ts", status: "A", before: [], after: ["it(\"refuses another site\", () => {", "  expect(redirectTo(\"https://evil.dev\")).toBe(\"/\");", "});"] },
@@ -85,6 +88,7 @@ const SAMPLES: SampleCommit[] = [
     subject: "Remove the old pricing page",
     author: "Dana Reyes",
     hoursAgo: 120,
+    tag: "v2.3.0",
     files: [
       { path: "src/pages/pricing-old.tsx", status: "D", before: ["export default function OldPricing() {", "  return null;", "}"], after: [] },
     ],
@@ -106,11 +110,25 @@ function hashOf(project: string, i: number): string {
   return (h.toString(16).padStart(8, "0") + "c0ffee1234567890abcdef1234567890").slice(0, 40);
 }
 
+function sampleParents(i: number): number[] {
+  return SAMPLES[i].parents ?? (i + 1 < SAMPLES.length ? [i + 1] : []);
+}
+
+function sampleRefs(p: Project, i: number, ahead: number): string[] {
+  const branch = p.git.branch || "main";
+  const refs: string[] = [];
+  if (i === 0) refs.push(branch);
+  if (p.git.upstream && i === Math.min(ahead, SAMPLES.length - 1)) refs.push(`origin/${branch}`);
+  if (SAMPLES[i].tag) refs.push(SAMPLES[i].tag!);
+  return refs;
+}
+
 function commitsOf(p: Project) {
   const now = Math.floor(Date.now() / 1000);
   const ahead = Math.min(p.git.ahead, SAMPLES.length);
   return SAMPLES.map((c, i) => {
     const hash = hashOf(p.name, i);
+    const parentHashes = sampleParents(i).map((n) => hashOf(p.name, n));
     return {
       hash,
       short: hash.slice(0, 7),
@@ -119,7 +137,9 @@ function commitsOf(p: Project) {
       author: c.author,
       email: `${c.author.split(" ")[0].toLowerCase()}@example.com`,
       time: now - c.hoursAgo * HOUR,
-      parents: c.merge ? 2 : 1,
+      parents: parentHashes.length,
+      parentHashes,
+      refs: sampleRefs(p, i, ahead),
       coAuthors: c.coAuthor ? [c.coAuthor] : [],
       unpushed: i < ahead,
     };

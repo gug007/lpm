@@ -177,6 +177,28 @@
         "collapsed": { "type": "boolean", "description": "Folds the zone into one button; hovering it shows the zone's buttons in a popup." }
       }
     },
+    "serviceReady": {
+      "description": "When the service counts as ready. Services that list it in dependsOn start once it is, and its tab shows Starting until then. If it isn't ready within timeout, its tab says so and its dependents start anyway.",
+      "oneOf": [
+        { "type": "string", "const": "port", "description": "The service's own port accepts connections." },
+        { "type": "integer", "minimum": 1, "maximum": 65535, "description": "This port accepts connections." },
+        { "type": "string", "pattern": "^[hH][tT][tT][pP][sS]?://.+", "description": "This URL answers with a 2xx status." },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "port": {
+              "oneOf": [{ "const": true }, { "type": "integer", "minimum": 1, "maximum": 65535 }],
+              "description": "true for the service's own port, or another port. Ready when it accepts connections."
+            },
+            "url": { "type": "string", "pattern": "^[hH][tT][tT][pP][sS]?://.+", "description": "Ready when this URL answers with a 2xx status." },
+            "log": { "type": "string", "minLength": 1, "description": "Ready when a line of the service's output contains this text (plain, case-sensitive)." },
+            "timeout": { "type": "integer", "minimum": 1, "maximum": 3600, "default": 30, "description": "Seconds to wait before showing the service as not ready and starting its dependents anyway." }
+          },
+          "oneOf": [{ "required": ["port"] }, { "required": ["url"] }, { "required": ["log"] }]
+        }
+      ]
+    },
     "service": {
       "oneOf": [
         { "type": "string", "description": "Shorthand for { cmd: ... }." },
@@ -198,13 +220,14 @@
             "dependsOn": {
               "type": "array",
               "items": { "type": "string" },
-              "description": "Other services this one needs. They start first (in dependency order) and are pulled in automatically whenever this service starts. No readiness wait; unknown names or cycles are errors."
+              "description": "Other services this one needs. They start first (in dependency order) and are pulled in automatically whenever this service starts. This service starts once each of them is ready (see ready); one without a ready check counts as ready as soon as it starts. Unknown names or cycles are errors."
             },
             "depends_on": {
               "type": "array",
               "items": { "type": "string" },
               "description": "Alias of dependsOn."
-            }
+            },
+            "ready": { "$ref": "#/definitions/serviceReady" }
           }
         }
       ]

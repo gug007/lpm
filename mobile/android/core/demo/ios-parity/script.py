@@ -34,6 +34,32 @@ at(500, 'gitDiffs', project='storefront', paths=['lib/payments.ts', 'x.md'])
 at(500, 'gitDiffs', project='blog', paths=['added.ts'])
 at(600, 'gitBranches', project='storefront'); at(600, 'gitBranches', project='nope')
 at(600, 'gitWatch', project='storefront')
+# commit history
+at(650, 'gitHistory', project='storefront', skip=0, limit=3)
+at(650, 'gitHistory', project='storefront', skip=3, limit=3)
+at(650, 'gitHistory', project='storefront', skip=6, limit=100)
+at(650, 'gitHistory', project='storefront', skip=20, limit=100)
+at(650, 'gitHistory', project='storefront'); at(650, 'gitHistory', project='storefront', limit=0)
+at(650, 'gitHistory', project='blog', skip=0, limit=100); at(650, 'gitHistory', project='nope', skip=0, limit=100)
+at(650, 'gitHistory', skip=0)
+for h in ['a1f3c9e5b2d84f6a9c0e1b7d3f5a8c2e4b6d9f01', 'e5a8b2c4d6f0a1b3c5d7e9f2a4b6c8d0e1f3a167',
+          'c02f6e84a9b1d3f5e7c0a2b4d6f8e1a3c5b7d056', 'deadbeef', '8a2c4e6f0b1d3f5a7c9e2b4d6f8a0c1e3b5d7f90']:
+    at(650, 'gitCommitFiles', project='storefront', hash=h)
+at(650, 'gitCommitFiles', project='blog', hash='8a2c4e6f0b1d3f5a7c9e2b4d6f8a0c1e3b5d7f90')
+at(650, 'gitCommitFiles', project='nope', hash='8a2c4e6f0b1d3f5a7c9e2b4d6f8a0c1e3b5d7f90')
+at(650, 'gitCommitFiles', project='storefront')
+for h, p, old in [('a1f3c9e5b2d84f6a9c0e1b7d3f5a8c2e4b6d9f01', 'components/CheckoutForm.tsx', None),
+                  ('a1f3c9e5b2d84f6a9c0e1b7d3f5a8c2e4b6d9f01', 'components/StepIndicator.tsx', None),
+                  ('e5a8b2c4d6f0a1b3c5d7e9f2a4b6c8d0e1f3a167', 'app/cart/page.tsx', 'app/cart.tsx'),
+                  ('c02f6e84a9b1d3f5e7c0a2b4d6f8e1a3c5b7d056', 'public/cart-icon.png', None),
+                  ('51c7d3a8f0e2b4c6d9a1e3f5b7c0d2e4f6a8b945', 'package-lock.json', None),
+                  ('0d4f6a8c1e3b5d7f9a2c4e6b8d0f1a3c5e7b9d78', 'README.md', None),
+                  ('a1f3c9e5b2d84f6a9c0e1b7d3f5a8c2e4b6d9f01', 'nope.ts', None),
+                  ('deadbeef', 'README.md', None)]:
+    kw = {'oldPath': old} if old else {}
+    at(650, 'gitCommitPatch', project='storefront', hash=h, path=p, **kw)
+at(650, 'gitCommitPatch', project='blog', hash='8a2c4e6f0b1d3f5a7c9e2b4d6f8a0c1e3b5d7f90', path='README.md')
+at(650, 'gitCommitPatch', project='storefront', hash='a1f3c9e5b2d84f6a9c0e1b7d3f5a8c2e4b6d9f01')
 at(700, 'gitGenMessage', project='storefront', files=['lib/payments.ts'])
 at(700, 'gitGenMessage', project='blog', files=['README.md', 'docs/a.md'])
 at(700, 'gitGenMessage', project='blog', files=['app/page.tsx'])
@@ -214,6 +240,13 @@ at(56500, 'sidebarMoveProject', project='remote-box', folder='New Folder!')
 at(56500, 'sidebarRenameFolder', name='side PROJECTS', newName='Side Stuff')
 at(56500, 'sidebarDeleteFolder', name='Client Work')
 at(56500, 'sidebarMoveProject', project='my-app', folder='')
+at(56600, 'sidebarPin', project='storefront', pinned=True); at(56600, 'sidebarPin', project='blog')
+at(56600, 'sidebarPin', project='api-gateway', pinned=True); at(56600, 'sidebarPin', project='storefront', pinned=False)
+at(56600, 'sidebarPin', project='storefront', pinned=True); at(56600, 'sidebarPin', project='api-gateway', pinned=0)
+at(56600, 'sidebarPin', project='gone', pinned=True); at(56600, 'sidebarPin', pinned=True)
+at(56700, 'sidebar'); at(56700, 'projects')
+at(56800, 'gitHistory', project='my-app', skip=0, limit=100); at(56800, 'gitHistory', project='storefront-2', skip=0, limit=100)
+at(56800, 'gitHistory', project='remote-box', skip=0, limit=100)
 
 # config edits
 at(57000, 'saveService', project='storefront', key='web', previousKey='', payload={'cmd': 'npm run dev -- -p 3001', 'port': 3001, 'cwd': 'apps/web', 'dependsOn': ['api'], 'env': {'NODE_ENV': 'development', 'A': 'b: c'}})
@@ -340,6 +373,7 @@ at(69000, 'gitDiscardAll', project='feature-x'); at(69000, 'gitCreatePr', projec
 at(69000, 'gitAutoSwitchBase', project='storefront', base='main')
 at(69000, 'gitCommit', project='nope', files=[])
 at(71000, 'gitUnwatch', project='storefront'); at(71000, 'git', project='storefront')
+at(71000, 'gitHistory', project='storefront', skip=0, limit=100)
 at(71000, 'renameProject', project='storefront', name='Store'); at(71000, 'renameProject', project='blog', name='')
 at(71500, 'projects')
 

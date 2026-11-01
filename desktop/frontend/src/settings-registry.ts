@@ -249,6 +249,14 @@ export const ROWS = {
     description: "Slack, Discord, email… ask for the one you'd use",
     keywords: ["slack", "discord", "email", "webhook", "request", "github", "send to", "automation"],
   },
+  "shortcut.quickTerminal": {
+    kind: "row",
+    tab: "shortcuts",
+    id: "shortcut.quickTerminal",
+    label: "Quick terminal",
+    description: "A key that drops a terminal over whatever app is in front, in the project last open in lpm",
+    keywords: ["keyboard", "hotkey", "shortcut", "global", "quake", "dropdown", "terminal", "any app"],
+  },
   "terminal.fontFamily": {
     kind: "row",
     tab: "terminal",

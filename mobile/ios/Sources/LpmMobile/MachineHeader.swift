@@ -46,6 +46,7 @@ struct MachineHeader: View {
     }
 
     private var detail: String? {
+        if let note = section.note { return note }
         if section.record?.via?.macId == model.activeMacId { return "Opens through this Mac" }
         switch section.pending {
         case .adding?: return "Adding to this \(ThisDevice.noun)…"

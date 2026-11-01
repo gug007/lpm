@@ -163,6 +163,8 @@ const PHONE_FEATURES: &[&str] = &[
     crate::weekly_recap::PHONE_FEATURE,
     crate::weekly_recap::PHONE_MONTH_FEATURE,
     crate::remote_seen::FEATURE,
+    crate::remote_pins::FEATURE,
+    crate::remote_history::FEATURE,
     reminders::FEATURE,
     crate::wakeonlan::FEATURE,
 ];
@@ -2026,7 +2028,7 @@ const GIT_DIFF_CAP: usize = 400 * 1024; // per-file diff byte cap sent to the ph
 
 /// Cap a diff at ~400 KB, truncating at a line boundary so the phone never
 /// receives a half-line. Returns (text, truncated).
-fn cap_git_diff(diff: &str) -> (String, bool) {
+pub(crate) fn cap_git_diff(diff: &str) -> (String, bool) {
     if diff.len() <= GIT_DIFF_CAP {
         return (diff.to_string(), false);
     }
@@ -2370,10 +2372,7 @@ fn handle_msg(
                 }),
             )?
         }
-        "sidebar" => {
-            let sb = sidebar_json();
-            send(ws, json!({ "t": "sidebar", "order": sb.0, "groups": sb.1 }))?;
-        }
+        "sidebar" => send(ws, sidebar_reply(json!({ "t": "sidebar" })))?,
         // Sidebar folder management, mirroring the desktop's applySidebarLayout
         // (groups.json + settings.json sidebarOrder/projectOrder). Each op writes
         // both files, emits `projects-changed` plus `sidebar-changed` so the
@@ -2381,12 +2380,18 @@ fn handle_msg(
         // desktop's next save overwrites the phone's change from a stale copy),
         // and replies the fresh sidebar so the requesting phone re-renders. Local
         // config ops — no main window needed.
-        // `sidebarCreateFolder`/`RenameFolder`/`DeleteFolder`/`MoveProject`.
+        // `sidebarCreateFolder`/`RenameFolder`/`DeleteFolder`/`MoveProject`, and
+        // `sidebarPin`, the desktop's Pin to top / Unpin (settings.json only).
         "sidebarCreateFolder"
         | "sidebarRenameFolder"
         | "sidebarDeleteFolder"
-        | "sidebarMoveProject" => {
+        | "sidebarMoveProject"
+        | "sidebarPin" => {
             let r = match t {
+                "sidebarPin" => crate::remote_pins::set_pinned(
+                    &str_field("project").unwrap_or_default(),
+                    v.get("pinned").and_then(Value::as_bool) != Some(false),
+                ),
                 "sidebarCreateFolder" => {
                     sidebar_create_folder(&str_field("name").unwrap_or_default())
                 }
@@ -2406,11 +2411,7 @@ fn handle_msg(
                 Ok(()) => {
                     let _ = app.emit("projects-changed", ());
                     let _ = app.emit("sidebar-changed", ());
-                    let sb = sidebar_json();
-                    send(
-                        ws,
-                        json!({ "t": t, "ok": true, "order": sb.0, "groups": sb.1 }),
-                    )?;
+                    send(ws, sidebar_reply(json!({ "t": t, "ok": true })))?;
                 }
                 Err(e) => send(ws, json!({ "t": t, "ok": false, "error": e }))?,
             }
@@ -4683,6 +4684,9 @@ fn handle_msg(
             crate::remote_memory::handle(out, t, &v)
         }
         "machines" | "machinePair" => crate::remote_machines::handle(app, out, t, &v),
+        "gitHistory" | "gitCommitFiles" | "gitCommitPatch" => {
+            crate::remote_history::handle(out, t, &v)
+        }
         "gitAuto" | "gitAutoState" | "gitAutoCancel" | "gitAutoSwitchBase" => {
             crate::remote_git_auto::handle(app, out, t, &v)
         }
@@ -4795,6 +4799,15 @@ pub(crate) fn sidebar_json() -> (Value, Value) {
         .and_then(|v| v.get("groups").cloned())
         .unwrap_or_else(|| json!([]));
     (order, groups)
+}
+
+/// `head` with the phone's sidebar added: folder order, folders and pins.
+fn sidebar_reply(mut head: Value) -> Value {
+    let (order, groups) = sidebar_json();
+    head["order"] = order;
+    head["groups"] = groups;
+    head["pins"] = json!(crate::remote_pins::pins());
+    head
 }
 
 /// Group freshly-created duplicate copies under a sidebar folder, replicating the
@@ -6107,6 +6120,11 @@ fn install_forwarders(hub: &RemoteHub, app: &AppHandle) {
     let h = hub.clone();
     app.listen("projects-changed", move |_| {
         broadcast(&h, json!({ "t": "projects-changed" }));
+    });
+    // Folders, order and pins changed on the Mac or another phone.
+    let h = hub.clone();
+    app.listen("sidebar-changed", move |_| {
+        broadcast(&h, json!({ "t": "sidebar-changed" }));
     });
     let h = hub.clone();
     let a = app.clone();

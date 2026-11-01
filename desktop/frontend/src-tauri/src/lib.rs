@@ -69,6 +69,8 @@ mod control;
 mod daemonize;
 mod daemonlaunch;
 mod detached;
+mod quickterm;
+mod quicktermwin;
 mod detect;
 mod donehold;
 #[cfg(any(windows, test))]
@@ -95,6 +97,8 @@ mod gitignore;
 mod gitlines;
 mod git_mentions;
 mod git_history;
+mod gitsecrets;
+mod secretscan;
 mod gitorigin;
 mod gitbring;
 mod gitbringapply;
@@ -198,6 +202,7 @@ mod phonefile;
 mod portforward;
 mod portforwardstore;
 mod ports;
+mod portsall;
 mod portsprobe;
 #[cfg(any(windows, test))]
 mod portsprobe_windows;
@@ -218,10 +223,12 @@ mod remote_git_auto;
 mod remote_agents;
 mod remote_answers;
 mod remote_files;
+mod remote_history;
 mod remote_machines;
 mod remote_memory;
 mod remote_service_logs;
 mod remote_notes;
+mod remote_pins;
 mod remote_seen;
 mod remote_update;
 mod remote_upload;
@@ -233,6 +240,10 @@ mod runguard;
 mod runjob;
 mod send_later;
 mod send_later_model;
+mod readiness;
+mod readyplan;
+mod readyprobe;
+mod readyspec;
 mod services;
 mod servicesbuild;
 mod sessionclient;
@@ -362,6 +373,7 @@ use commands_real::*;
 use config_cmds::*;
 use control::*;
 use detached::*;
+use quickterm::{hide_quick_terminal, quick_terminal_cwd, quick_terminal_status, set_quick_terminal};
 use file_browser::*;
 use file_ops::*;
 use file_replace::*;
@@ -380,6 +392,7 @@ use gitautopull::{git_auto_pull, git_auto_pull_last, git_auto_pull_undo, set_aut
 use gitlines::{git_diff_stat, git_file_line_counts};
 use git_mentions::{git_recent_commits, git_show_commit};
 use git_history::{git_commit_file_patch, git_commit_files, git_history};
+use gitsecrets::git_scan_secrets;
 use gitorigin::git_origin_status;
 use gitpush::git_push_rebasing;
 use gitresolve::{
@@ -427,6 +440,7 @@ use peeruploadrun::peer_upload_file;
 use porttunnel::peer_port_forward;
 use portforward::*;
 use ports::*;
+use portsall::{kill_port_holder, list_ports_overview};
 use projects_crud::*;
 use pty::*;
 use remote::tabs::{remote_take_restore_requests, terminal_tab_op};
@@ -633,6 +647,7 @@ pub fn run() {
             // Reopen any windows that were detached when the app last closed.
             let state = app.state::<detached::DetachedState>();
             detached::restore_impl(&handle, &state);
+            quickterm::init(&handle);
 
             // Status socket server (agents in panes report status here) + the
             // dead-PID sweep. Both run on background threads.

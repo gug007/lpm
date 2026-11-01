@@ -25,6 +25,7 @@ describe("config schemas", () => {
       expect(schema.definitions.actionInput).toEqual(projectSchema.definitions.actionInput);
     }
     expect(repoSchema.definitions.service).toEqual(projectSchema.definitions.service);
+    expect(repoSchema.definitions.serviceReady).toEqual(projectSchema.definitions.serviceReady);
   });
 
   for (const [name, schema] of Object.entries(schemas)) {
@@ -51,7 +52,7 @@ describe("config schemas", () => {
 
   it("list only the fields a service has", () => {
     expect(fieldsOf(projectSchema.definitions.service)).toEqual(
-      ["cmd", "cwd", "dependsOn", "depends_on", "env", "port", "portConflict"],
+      ["cmd", "cwd", "dependsOn", "depends_on", "env", "port", "portConflict", "ready"],
     );
   });
 

@@ -14,7 +14,6 @@ import {
 } from "@/lib/use-platform";
 import { DownloadSplitButton } from "./download-split-button";
 import { HeroTrustLine } from "./hero-trust-line";
-import { HeroPlatforms } from "./hero-platforms";
 import { formatLength, OVERVIEW_LESSON } from "./lesson-data";
 import { NoDownloadCard } from "./no-download-card";
 import { SendLinkButton } from "./send-link-button";
@@ -23,7 +22,7 @@ import { SendLinkButton } from "./send-link-button";
 // its height: platform detection only runs after hydration and must not shove
 // the frame down mid-load.
 const SHELL =
-  "flex w-full flex-col items-center gap-4 min-h-[208px] sm:min-h-[122px]";
+  "flex w-full flex-col items-center gap-4 min-h-[208px] sm:min-h-[91px]";
 
 const SECONDARY =
   "items-center justify-center gap-2 rounded-full border border-gray-300 px-6 py-[13px] text-[15px] font-medium text-gray-700 transition-colors duration-200 hover:border-gray-400 hover:text-gray-900 dark:border-gray-700 dark:text-gray-300 dark:hover:border-gray-500 dark:hover:text-white";
@@ -104,8 +103,7 @@ export function HeroCta({
         />
         {secondary ?? <TourLink />}
       </div>
-      <HeroPlatforms primary={primary} />
-      <HeroTrustLine os={primary.os} />
+      <HeroTrustLine os={primary.os} withPlatforms />
     </div>
   );
 }

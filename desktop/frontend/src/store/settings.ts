@@ -12,6 +12,7 @@ import {
   type GitFetchConfig,
 } from "../gitOptions";
 import { normalizeHotkeys, type HotkeysConfig } from "../hotkeys";
+import { normalizeQuickTerminal, type QuickTerminalSetting } from "../quickTerminalKeys";
 import { USAGE_TOOLS, type UsageWindowChoice } from "../sidebarUsage";
 import { normalizeSidebarNav, type NavItemId } from "../sidebarNav";
 import { normalizePaneToolbar, type PaneActionId } from "../paneActions";
@@ -163,6 +164,8 @@ export interface Settings {
   // switching to a layout and back doesn't lose it.
   codexStatusLineCustomItems?: string[];
   hotkeys?: HotkeysConfig;
+  // The key that drops a terminal over any app. Unset means off.
+  quickTerminal?: QuickTerminalSetting;
 }
 
 const defaults: Settings = {
@@ -296,6 +299,7 @@ function normalize(s: main.Settings): Settings {
         )
       : undefined,
     hotkeys: normalizeHotkeys(s.hotkeys),
+    quickTerminal: normalizeQuickTerminal(s.quickTerminal),
     detachedWindows: s.detachedWindows
       ? Object.fromEntries(
           Object.entries(s.detachedWindows).map(([name, raw]) => {

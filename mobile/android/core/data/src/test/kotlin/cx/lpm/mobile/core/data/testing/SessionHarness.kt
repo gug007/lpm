@@ -11,6 +11,7 @@ import cx.lpm.mobile.core.data.client.NoTailnet
 import cx.lpm.mobile.core.data.config.ProjectConfigStore
 import cx.lpm.mobile.core.data.files.ProjectFilesStore
 import cx.lpm.mobile.core.data.git.GitAutoStore
+import cx.lpm.mobile.core.data.git.GitHistoryStore
 import cx.lpm.mobile.core.data.git.GitStore
 import cx.lpm.mobile.core.data.mac.CredentialStore
 import cx.lpm.mobile.core.data.mac.MacRecord
@@ -92,6 +93,7 @@ class SessionHarness(test: TestScope) {
             SessionStore.Factory(::TerminalsStore),
             SessionStore.Factory(::AutomationsStore),
             SessionStore.Factory(::GitStore),
+            SessionStore.Factory(::GitHistoryStore),
             SessionStore.Factory(::GitAutoStore),
             SessionStore.Factory(::ServiceLogsStore),
             SessionStore.Factory(::ProjectConfigStore),

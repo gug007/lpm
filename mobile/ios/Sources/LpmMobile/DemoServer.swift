@@ -29,6 +29,7 @@ final class DemoServer {
         registerTabMenuHandlers()
         registerAnswersHandlers()
         registerGitHandlers()
+        registerGitHistoryHandlers()
         registerGitAutoHandlers()
         registerAutoPullHandlers()
         registerClaudeAccountHandlers()

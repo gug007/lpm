@@ -145,7 +145,10 @@ desktop's weekly recap card (`weeklyRecap`); `"recapMonth"` — `weeklyRecap` wi
 `markStatusUnread` (see [Seen and archived agents](#seen-and-archived-agents)); `"limitReminders"` —
 `limitReminders`, `setLimitReminder` and `clearLimitReminder` (see
 [Limit reminders](#limit-reminders)); `"wake"` — waking another paired machine (`wake`, see
-[Waking a sleeping Mac](#waking-a-sleeping-mac)). Rides `paired` **and** `ready`;
+[Waking a sleeping Mac](#waking-a-sleeping-mac)); `"projectPins"` — `pins` on every sidebar
+reply and `sidebarPin` (see [Sidebar folder ops](#sidebar-folder-ops)); `"gitHistory"` —
+`gitHistory`, `gitCommitFiles` and `gitCommitPatch` (see [Commit history](#commit-history)).
+Rides `paired` **and** `ready`;
 **absent** from a desktop that predates it, which means none.
 
 `hosts` (**optional**) is the Mac's current candidate address list, most-preferred
@@ -407,6 +410,7 @@ holds no credential of its own, so removing it sends nothing.
 | `{ "t": "sidebarRenameFolder", "name": "<folder>", "newName": "<new>" }` | `{ "t": "sidebarRenameFolder", "ok": true, "order": […], "groups": [ProjectFolder…] }` / `{ "ok": false, "error": "…" }` — renames the folder matched by `name` (exact, then case-insensitive) |
 | `{ "t": "sidebarDeleteFolder", "name": "<folder>" }` | `{ "t": "sidebarDeleteFolder", "ok": true, "order": […], "groups": [ProjectFolder…] }` / `{ "ok": false, "error": "…" }` — deletes the folder; its member projects spill back into the top-level order at the folder's former slot (they are **not** removed) |
 | `{ "t": "sidebarMoveProject", "project": "<name>", "folder": "<folder>"\|null }` | `{ "t": "sidebarMoveProject", "ok": true, "order": […], "groups": [ProjectFolder…] }` / `{ "ok": false, "error": "…" }` — moves a project into the folder named `folder` (matched by name, **created** if it doesn't exist — the "New folder…" affordance), detaching it from wherever it currently sits; a `null`/absent `folder` moves it back out to the top level (ungrouped) |
+| `{ "t": "sidebarPin", "project": "<name>", "pinned": bool }` | `{ "t": "sidebarPin", "ok": true, "order": […], "groups": [ProjectFolder…], "pins": ["<name>"…] }` / `{ "ok": false, "error": "…" }` — the desktop's **Pin to top** (`pinned: true`, appended after the other pins) and **Unpin** (`pinned: false`). Writes the Mac's settings `pinnedProjects` exactly as the desktop does, so its sidebar shows the change at once. Only when `features` has `"projectPins"` |
 | `{ "t": "readFile", "project": "<name>", "path": "<relative path>" }` | `{ "t": "file", "project": "<name>", "path": "<path>", "ok": true, "content": "<utf-8 text>", "truncated": bool }` / `{ "ok": false, "error": "…" }` — reads a project file for the phone's file viewer. The path is resolved through symlinks and **confined to the project root** (a `..` or symlink escaping the root is rejected), the read is capped at ~1 MB (`truncated: true` when the file is longer), and **non-UTF-8 (binary) content is refused** with an error. fs work runs on a worker thread, so the reply arrives **asynchronously** via the out-queue |
 | `{ "t": "fileChunk", "project": "<name>", "path": "<abs \| ~/… \| relative path>", "offset": N, "length": N, "reqId": <any> }` | `{ "t": "fileChunk", "ok": true, "reqId": <any>, "path": "<resolved abs path>", "size": N, "mtime": <ms since epoch>, "offset": N, "data": "<base64>" }` / `{ "t": "fileChunk", "ok": false, "reqId": <any>, "missing": bool, "error": "…" }` — one byte range of **any** file, for the phone's file preview (a path tapped in a terminal, or the eye button in the @-mention list). `~/…` and absolute paths resolve on their own; a relative path resolves against `project`'s root. **Not** confined to the project (unlike `readFile`) — a paired phone already drives a shell on this machine. `length` is capped at 1 MiB; a range past the end returns empty `data`. Every reply carries the file's current `size` + `mtime`, so the phone can tell the file changed between ranges and start over. `missing: true` marks a path that doesn't exist: a path read off the terminal can be a guess (a long path the agent CLI line-wrapped, rejoined), so the phone then tries its next reading. SSH projects are refused (their files are on another machine). Each range reads on its own worker thread, so replies arrive **out of order** — the phone keeps several ranges in flight, matches them by `reqId`, and re-asks a range whose reply was lost |
 | `{ "t": "start", "name": "<name>", "profile": "" }` | `{ "t": "start", "ok": true }` / `{ "ok": false, "error": "…" }`. The optional `profile` starts exactly that profile's services (empty = the project's active/default set); the phone offers a "Start with profile" variant when `ProjectInfo.profiles` is non-empty |
@@ -454,6 +458,29 @@ identical to the desktop submenu, so behavior stays consistent across surfaces.
 | `{ "t": "gitGenMessage", "project": "<name>", "files": ["<path>"…] }` | `{ "t": "gitGenMessage", "project": "<name>", "ok": true, "message": "…" }` / `{ "ok": false, "error": "…" }` — AI-drafts a commit message from the diff of the given files. Async (AI). Uses the desktop's persisted AI settings (`aiCli` default `claude`, `aiModel`, `aiEffort`, `aiFast`) |
 | `{ "t": "gitGenPr", "project": "<name>" }` | `{ "t": "gitGenPr", "project": "<name>", "ok": true, "title": "…", "body": "…" }` / `{ "ok": false, "error": "…" }` — AI-drafts a PR title and description for the current branch vs the default branch. Async (AI); same AI settings as above |
 | `{ "t": "gitCreatePr", "project": "<name>", "title": "…", "body": "…", "draft"?: bool }` | `{ "t": "gitCreatePr", "project": "<name>", "ok": true, "url": "<pr url>" }` / `{ "ok": false, "error": "…" }` — pushes the current branch and opens a PR via the `gh` CLI against the default branch, returning its URL. Optional `draft: true` opens it as a draft (`gh pr create --draft`); omitted means ready for review, and older Macs ignore it. Async (network) |
+
+#### Commit history
+
+The desktop's **History** (the project Git submenu): the current branch's commits,
+newest first, each one's changed files, and one file's patch. Each runs on a worker
+thread on the Mac, so the reply arrives asynchronously. Only when `features` has
+`"gitHistory"`.
+
+| Request | Reply |
+|---|---|
+| `{ "t": "gitHistory", "project": "<name>", "skip": N, "limit": N }` | `{ "t": "gitHistory", "project": "<name>", "skip": N, "ok": true, "commits": [HistoryCommit…], "hasMore": bool }` / `{ …, "ok": false, "error": "…" }` — a page of `HEAD`'s log: `limit` commits (default 100, at most 1000) after skipping `skip`. `hasMore` says an older page exists. A repository without commits yet answers an empty list |
+| `{ "t": "gitCommitFiles", "project": "<name>", "hash": "<sha>" }` | `{ "t": "gitCommitFiles", "project": "<name>", "hash": "<sha>", "ok": true, "files": [CommitFile…] }` / `{ …, "ok": false, "error": "…" }` — what the commit changed against its first parent, so a merge shows what it brought in and a root commit shows everything |
+| `{ "t": "gitCommitPatch", "project": "<name>", "hash": "<sha>", "path": "<file>", "oldPath"?: "<file>" }` | `{ "t": "gitCommitPatch", "project": "<name>", "hash": "<sha>", "path": "<file>", "ok": true, "diff": "<unified diff>", "truncated": bool }` / `{ …, "ok": false, "error": "…" }` — one file's patch in the commit; pass a renamed file's `oldPath`. Capped at ~400 KB like `gitDiff` |
+
+**HistoryCommit** — `{ hash, short, subject, body, author, email, time, parents, coAuthors, unpushed }`:
+`time` is the author time in unix **seconds**; `parents` counts them (2+ is a merge);
+`coAuthors` holds each `Co-authored-by` trailer as `"Name <email>"`, which is how the
+desktop marks a commit an agent made (Claude, Codex, Gemini, OpenCode); `unpushed` is
+true for a commit no remote branch has yet (false everywhere when there is no remote).
+
+**CommitFile** — `{ path, oldPath, status, added, removed }`: `status` is `added`,
+`modified`, `deleted` or `renamed`; `oldPath` is set for a rename; `added`/`removed`
+are line counts, both `null` for a binary file.
 
 #### Auto Commit, Auto Commit and Push, Auto Create PR
 
@@ -603,7 +630,13 @@ file does not).
 
 ### Sidebar folder ops
 
-The read-only `sidebar` message returns `{ order, groups }` (see above). The four
+The read-only `sidebar` message returns `{ order, groups, pins }`. `pins` (only when
+`features` has `"projectPins"`) is the Mac's pinned projects in pinned order — the
+desktop's settings `pinnedProjects`, kept per machine. A pin can name a project that
+isn't listed (removed, or on a machine that is away); it keeps its place and shows
+again when the project does, so the phone shows only the pins it has a project for,
+as a **Pinned** section above the list. A pinned project stays in its place below as
+well: a pin is a way back, not a move. The four folder
 `sidebar*` mutations write both `~/.lpm/groups.json` (the folder defs) and the
 settings `sidebarOrder` + flattened `projectOrder`, replicating the desktop's
 `applySidebarLayout` — the exact same helpers the duplicate flow's
@@ -1056,6 +1089,7 @@ retires the activity token (APNs) or the push token (FCM).
 | `{ "t": "o", "id": "<termId>", "d": "<utf-8 chunk>", "off": <streamOffset> }` | Terminal output. Feed straight into the terminal emulator. `off` is the terminal's byte-stream position **after** this chunk: drop a chunk whose `off` a seed already covered (seed and output share one socket, so they overlap), and when `off` minus the chunk's UTF-8 length runs past the offset already applied, output was dropped in transit — re-`sub` with `from` to fetch the gap instead of applying the chunk. |
 | `{ "t": "exit", "id": "<termId>", "code": N, "gone": true? }` | The terminal's process exited. Also the reply to a `sub` for a terminal the Mac no longer has — it exited (a dropped `exit` frame) or lpm restarted since — with `code: -1, gone: true` and no seed. Keep the last output on screen but stop sending input; opening the terminal again re-asks. |
 | `{ "t": "projects-changed" }` | A project started/stopped/renamed. Re-request `projects`. |
+| `{ "t": "sidebar-changed" }` | The sidebar's folders, order or pins changed — on the Mac, from another phone, or in its files. Re-request `sidebar`. Older desktops never push it. |
 | `{ "t": "terminals", "project": "<name>", "terminals": [Terminal…] }` | The project's tabs changed on the Mac — one opened, closed, finished, renamed, pinned, given an icon or moved, from the Mac, this phone or a paired Mac. The same frame as the `terminals` reply: replace the project's list. Sent to every phone, whether or not it is showing the project. Older desktops never push it, so keep re-requesting after your own tab ops. |
 | `{ "t": "status-changed", "project": "<name>" }` | A status badge changed (e.g. an agent is now Waiting). Re-request `status`. |
 | `{ "t": "jobs-changed" }` | An automation started, stopped, or completed — or its read watermark moved, from this phone or the desktop. Re-request `jobs` and any open history/live output. |

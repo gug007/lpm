@@ -34,10 +34,12 @@ import cx.lpm.mobile.core.designsystem.component.ListSection
 import cx.lpm.mobile.core.designsystem.component.ListSectionSpacing
 import cx.lpm.mobile.core.designsystem.component.LpmTopBar
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
+import cx.lpm.mobile.core.model.AppTip
 import cx.lpm.mobile.core.model.Service
 import cx.lpm.mobile.core.model.TerminalInfo
 import cx.lpm.mobile.feature.projects.R as ProjectsR
 import cx.lpm.mobile.feature.projects.list.QueuedActionLine
+import cx.lpm.mobile.feature.projects.ui.TipCard
 import cx.lpm.mobile.feature.projects.ui.UndoBar
 
 /** What the project screen's rows do. */
@@ -62,7 +64,8 @@ class ProjectDetailActions(
     val retryQueued: (String) -> Unit = {},
     val stopAll: () -> Unit = {},
     val editConfig: () -> Unit = {},
-    val retryConfig: () -> Unit = {}
+    val retryConfig: () -> Unit = {},
+    val closeTip: (AppTip) -> Unit = {}
 )
 
 /**
@@ -119,6 +122,11 @@ fun ProjectDetailScreen(
                             .heightIn(min = maxHeight)
                             .padding(top = ListDefaults.ContentTopPadding)
                     ) {
+                        state.tip?.let { tip ->
+                            ListSection(spacing = ListSectionSpacing.Compact) {
+                                TipCard(tip, onClose = { actions.closeTip(tip) })
+                            }
+                        }
                         QueuedSection(state, actions)
                         TabsSection(state, actions)
                         ServicesSection(state, actions)

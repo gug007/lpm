@@ -81,7 +81,8 @@ fun MacTitle(
                 onDismiss = { menuOpen = false },
                 macs = macs,
                 demoMode = demoMode,
-                actions = actions
+                actions = actions,
+                showAllMachines = state.showAllMachines
             )
         }
         val text = when (val detail = state.detail) {

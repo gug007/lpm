@@ -11,6 +11,7 @@ import cx.lpm.mobile.core.model.AutomationLiveOutput
 import cx.lpm.mobile.core.model.AutomationMachine
 import cx.lpm.mobile.core.model.BackgroundRunSummary
 import cx.lpm.mobile.core.model.ClaudeAccounts
+import cx.lpm.mobile.core.model.CommitFile
 import cx.lpm.mobile.core.model.ComposerAction
 import cx.lpm.mobile.core.model.ControlOwner
 import cx.lpm.mobile.core.model.CustomWorkStatus
@@ -23,6 +24,7 @@ import cx.lpm.mobile.core.model.GitDiffResult
 import cx.lpm.mobile.core.model.GitSnapshot
 import cx.lpm.mobile.core.model.HistoryFolder
 import cx.lpm.mobile.core.model.HistoryItem
+import cx.lpm.mobile.core.model.HistoryPage
 import cx.lpm.mobile.core.model.HistoryRow
 import cx.lpm.mobile.core.model.LimitReminder
 import cx.lpm.mobile.core.model.LimitsSnapshot
@@ -80,7 +82,13 @@ abstract class LpmClientCallbacks {
 
     // Whether the Mac keeps finished agents as seen once opened, likewise.
     var onKeepFinishedAgents: ((Boolean) -> Unit)? = null
-    var onSidebar: ((order: List<String>, groups: List<ProjectFolder>) -> Unit)? = null
+    var onSidebar: (
+        (order: List<String>, groups: List<ProjectFolder>, pins: List<String>?) -> Unit
+    )? =
+        null
+
+    // The Mac's folders, order or pins changed.
+    var onSidebarChanged: (() -> Unit)? = null
     var onStats: ((stats: AgentStats?, error: String?) -> Unit)? = null
     var onLimits: ((snapshot: LimitsSnapshot?, error: String?) -> Unit)? = null
     var onWeeklyRecap: (
@@ -177,6 +185,22 @@ abstract class LpmClientCallbacks {
     var onGitDiscardAll: ((project: String, error: String?) -> Unit)? = null
     var onGitChanged: ((project: String) -> Unit)? = null
 
+    // Commit history: a page of commits, one commit's files, one file's patch in it.
+    var onGitHistory: ((project: String, skip: Int, page: HistoryPage?, error: String?) -> Unit)? =
+        null
+    var onGitCommitFiles: (
+        (project: String, hash: String, files: List<CommitFile>?, error: String?) -> Unit
+    )? = null
+    var onGitCommitPatch: (
+        (
+            project: String,
+            hash: String,
+            path: String,
+            result: GitDiffResult?,
+            error: String?
+        ) -> Unit
+    )? = null
+
     // A fresh pairing succeeded: the credential plus the Mac's advertised identity and
     // its current candidate addresses (empty on older Macs).
     var onPaired: (
@@ -262,9 +286,14 @@ abstract class LpmClientCallbacks {
         (project: String, base: String, error: String?, pullError: String?) -> Unit
     )? = null
 
-    // A folder mutation settled, carrying the fresh layout on success.
+    // A folder or pin mutation settled, carrying the fresh layout on success.
     var onSidebarMutation: (
-        (order: List<String>, groups: List<ProjectFolder>, error: String?) -> Unit
+        (
+            order: List<String>,
+            groups: List<ProjectFolder>,
+            pins: List<String>?,
+            error: String?
+        ) -> Unit
     )? = null
     var onFileChunk: ((chunk: FileChunk) -> Unit)? = null
     var onListDirs: ((listing: DirListing?, error: String?) -> Unit)? = null

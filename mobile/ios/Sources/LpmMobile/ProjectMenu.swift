@@ -21,6 +21,8 @@ struct ProjectRunControl: View {
     let onAutomations: () -> Void
     let onSwitchBranch: () -> Void
     let onCreatePr: () -> Void
+    // nil hides History: the Mac can't answer it, or the project is on SSH.
+    let onHistory: (() -> Void)?
     let onAuto: (_ kind: GitAutoKind) -> Void
     let onDiscard: () -> Void
     // On a terminal's screen Rename names that tab, not the project.
@@ -158,6 +160,11 @@ struct ProjectRunControl: View {
             if ghCli {
                 Button(action: onCreatePr) {
                     Label("Create Pull Request…", systemImage: "arrow.triangle.pull")
+                }
+            }
+            if let onHistory {
+                Button(action: onHistory) {
+                    Label("History", systemImage: "clock")
                 }
             }
 

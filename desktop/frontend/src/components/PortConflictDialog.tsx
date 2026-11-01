@@ -1,4 +1,5 @@
 import { useAppStore } from "../store/app";
+import { openPortsView } from "./ports/portsActions";
 import { Modal } from "./ui/Modal";
 
 export function PortConflictDialog() {
@@ -57,6 +58,16 @@ export function PortConflictDialog() {
       </div>
 
       <div className="flex justify-end gap-2 border-t border-[var(--border)] bg-[var(--bg-secondary)] px-5 py-3">
+        <button
+          onClick={() => {
+            onCancel();
+            openPortsView();
+          }}
+          disabled={busy}
+          className="mr-auto rounded-lg px-2 py-1.5 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
+        >
+          See all ports
+        </button>
         <button
           onClick={onCancel}
           disabled={busy}

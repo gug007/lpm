@@ -382,6 +382,12 @@ class LpmClient internal constructor(
         // `wake`: waking another paired machine.
         const val WAKE_FEATURE = "wake"
 
+        // `pins` on every sidebar reply, and `sidebarPin`.
+        const val PROJECT_PINS_FEATURE = "projectPins"
+
+        // `gitHistory`, `gitCommitFiles` and `gitCommitPatch`.
+        const val GIT_HISTORY_FEATURE = "gitHistory"
+
         const val OFFLINE_HINT =
             "Can't reach your Mac. On cellular, make sure Tailscale is connected on both devices."
 

@@ -1,10 +1,14 @@
 package cx.lpm.mobile.core.protocol
 
+import cx.lpm.mobile.core.model.CommitFile
 import cx.lpm.mobile.core.model.GitAutoRun
 import cx.lpm.mobile.core.model.GitBranch
 import cx.lpm.mobile.core.model.GitDiffEntry
+import cx.lpm.mobile.core.model.GitDiffResult
 import cx.lpm.mobile.core.model.GitSnapshot
+import cx.lpm.mobile.core.model.HistoryPage
 import cx.lpm.mobile.core.model.bool
+import cx.lpm.mobile.core.model.int
 import cx.lpm.mobile.core.model.list
 import cx.lpm.mobile.core.model.obj
 import cx.lpm.mobile.core.model.string
@@ -81,6 +85,40 @@ internal val gitParsers = parsers {
         Inbound.GitDiscardAll(o.str("project"), o.failure("Couldn't discard changes."))
     }
     put("git-changed") { o -> Inbound.GitChanged(o.str("project")) }
+    put("gitHistory") { o ->
+        Inbound.GitHistory(
+            project = o.str("project"),
+            skip = o.int("skip") ?: 0,
+            page = if (o.ok) HistoryPage.parse(o) else null,
+            error = o.failure("Couldn't load the history.")
+        )
+    }
+    put("gitCommitFiles") { o ->
+        Inbound.GitCommitFiles(
+            project = o.str("project"),
+            hash = o.str("hash"),
+            files = if (o.ok) o.list("files", CommitFile::parse) else null,
+            error = o.failure("Couldn't load the commit.")
+        )
+    }
+    put("gitCommitPatch") { o ->
+        Inbound.GitCommitPatch(
+            project = o.str("project"),
+            hash = o.str("hash"),
+            path = o.str("path"),
+            result = if (o.ok) {
+                GitDiffResult(
+                    o.str("diff"),
+                    binary = false,
+                    truncated =
+                        o.bool("truncated") ?: false
+                )
+            } else {
+                null
+            },
+            error = o.failure("Couldn't load the diff.")
+        )
+    }
     put("gitAuto") { o ->
         Inbound.GitAuto(
             project = o.str("project"),

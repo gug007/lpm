@@ -40,6 +40,8 @@ import { Tooltip } from "./ui/Tooltip";
 import { InstructionsChip } from "./InstructionsChip";
 import { CommitSplitView } from "./CommitSplitView";
 import { useCommitSplit } from "../hooks/useCommitSplit";
+import { useSecretCheck } from "../hooks/useSecretCheck";
+import { SecretFindingsPanel } from "./SecretFindingsPanel";
 
 type ChangedFile = main.ChangedFile;
 
@@ -99,6 +101,7 @@ export function CommitModal({
   const genPromise = useRef<Promise<string> | null>(null);
   const lineCounts = useSelectedLineCounts(projectPath, files, selected);
   const selectedLines = lineCounts.selected;
+  const secrets = useSecretCheck(projectPath, open, selected);
 
   useEffect(() => {
     if (!open) return;
@@ -292,23 +295,27 @@ export function CommitModal({
   const allState = checkState(selected.size, files.length);
 
   const canCommit =
-    !busy && !generating && message.trim().length > 0 && selected.size > 0;
+    !busy && !secrets.checking && !generating && message.trim().length > 0 && selected.size > 0;
 
   const canAutoCommit =
-    !busy && autoGenerate && ai.anyAvailable && selected.size > 0;
+    !busy && !secrets.checking && autoGenerate && ai.anyAvailable && selected.size > 0;
 
-  const canSplit = !busy && !generating && ai.anyAvailable && selected.size >= 2;
+  const canSplit = !busy && !secrets.checking && !generating && ai.anyAvailable && selected.size >= 2;
 
-  const splitIntoCommits = () => {
+  const splitIntoCommits = async (checked = false) => {
     setCommitMenuOpen(false);
-    void split.plan(Array.from(selected), taskDescription.trim(), setMessage);
+    const paths = Array.from(selected);
+    if (!checked && !(await secrets.guard(paths, () => latest.current.splitIntoCommits(true)))) return;
+    void split.plan(paths, taskDescription.trim(), setMessage);
   };
 
-  const submit = async (andPush = false) => {
+  const submit = async (andPush = false, checked = false) => {
     if (!canCommit) return;
+    const paths = Array.from(selected);
+    if (!checked && !(await secrets.guard(paths, () => latest.current.submit(andPush, true)))) return;
     setBusy("commit");
     try {
-      await GitCommit(projectPath, message.trim(), Array.from(selected));
+      await GitCommit(projectPath, message.trim(), paths);
       if (andPush) {
         setBusy("push");
         const pushCfg = getSettings().gitPush ?? DEFAULT_PUSH_CONFIG;
@@ -326,9 +333,13 @@ export function CommitModal({
     }
   };
 
-  const submitAuto = async (andPush: boolean) => {
+  const submitAuto = async (andPush: boolean, checked = false) => {
     if (!canAutoCommit) return;
     const paths = Array.from(selected);
+    if (!checked && !(await secrets.guard(paths, () => latest.current.submitAuto(andPush, true)))) {
+      setCommitMenuOpen(false);
+      return;
+    }
     const task = taskDescription.trim();
     const existing = message.trim();
     const pending = genPromise.current;
@@ -381,6 +392,11 @@ export function CommitModal({
     });
     onCommitted();
   };
+
+  // "Commit anyway" runs the commit as the dialog is then, not as it was
+  // when the check began: a file left out since stays out.
+  const latest = useRef({ submit, submitAuto, splitIntoCommits });
+  latest.current = { submit, submitAuto, splitIntoCommits };
 
   return (
     <>
@@ -595,6 +611,15 @@ export function CommitModal({
               )}
             </div>
           </div>
+
+          <SecretFindingsPanel
+            findings={secrets.findings}
+            busy={!!busy}
+            onLeaveOut={(path) => setSelection([path], false)}
+            onIgnore={secrets.ignore}
+            onCommitAnyway={secrets.commitAnyway}
+            onDismiss={secrets.dismiss}
+          />
         </div>
 
         <div
@@ -643,7 +668,9 @@ export function CommitModal({
                   ? "Pushing..."
                   : busy === "commit"
                     ? "Committing..."
-                    : "Commit"}
+                    : secrets.checking
+                      ? "Checking..."
+                      : "Commit"}
               </button>
               <button
                 onClick={() => setCommitMenuOpen(!commitMenuOpen)}
@@ -676,7 +703,7 @@ export function CommitModal({
                     <>
                       <div className="my-1 border-t border-[var(--border)]" />
                       <button
-                        onClick={splitIntoCommits}
+                        onClick={() => void splitIntoCommits()}
                         disabled={!canSplit}
                         title="Group the selected changes into a few commits by topic"
                         className="flex w-full items-center px-3 py-1.5 text-left text-xs text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40 disabled:cursor-not-allowed"
