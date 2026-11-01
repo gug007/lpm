@@ -232,12 +232,11 @@ fn http_status(url: &str) -> Option<u16> {
     } else {
         target.host.clone()
     };
-    write!(
-        stream,
+    let request = format!(
         "GET {} HTTP/1.1\r\nHost: {host}:{}\r\nUser-Agent: lpm\r\nAccept: */*\r\nConnection: close\r\n\r\n",
         target.path, target.port
-    )
-    .ok()?;
+    );
+    stream.write_all(request.as_bytes()).ok()?;
     let mut head = Vec::new();
     let mut chunk = [0u8; 128];
     while !head.windows(2).any(|w| w == b"\r\n") && head.len() < 512 {
@@ -318,9 +317,16 @@ mod tests {
         let server = std::thread::spawn(move || {
             for code in ["200 OK", "503 Service Unavailable"] {
                 let (mut conn, _) = listener.accept().unwrap();
+                let mut request = Vec::new();
                 let mut buf = [0u8; 512];
-                let _ = conn.read(&mut buf);
-                let _ = write!(conn, "HTTP/1.1 {code}\r\nContent-Length: 0\r\n\r\n");
+                while !request.ends_with(b"\r\n\r\n") {
+                    match conn.read(&mut buf) {
+                        Ok(0) | Err(_) => break,
+                        Ok(n) => request.extend_from_slice(&buf[..n]),
+                    }
+                }
+                let _ = conn
+                    .write_all(format!("HTTP/1.1 {code}\r\nContent-Length: 0\r\n\r\n").as_bytes());
             }
         });
         let url = format!("http://127.0.0.1:{port}/health");
