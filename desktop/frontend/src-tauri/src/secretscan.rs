@@ -252,8 +252,9 @@ mod tests {
 
     #[test]
     fn ignores_look_alikes() {
+        let stripe_test = format!("const testKey = \"{}\";", fake("sk_test_", 24));
         for line in [
-            "const testKey = \"sk_test_abcdefghijklmnopqrstuvwx\";",
+            stripe_test.as_str(),
             "className=\"sk-something-really-long-name\"",
             "-----BEGIN PUBLIC KEY-----",
             "AKIA_NOT_A_KEY",
