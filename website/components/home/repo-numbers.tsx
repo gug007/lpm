@@ -52,11 +52,9 @@ function tilesFor(
 export function RepoNumbers({
   stats,
   lastCommit,
-  children,
 }: {
   stats: DownloadStats | null;
   lastCommit: LastCommit | null;
-  children?: ReactNode;
 }) {
   const tiles = tilesFor(stats, lastCommit);
   return (
@@ -93,7 +91,6 @@ export function RepoNumbers({
           );
         })}
       </ul>
-      {children}
       <p className="mt-3 text-center text-[11px] text-gray-500 dark:text-gray-400">
         From GitHub, refreshed hourly.
       </p>

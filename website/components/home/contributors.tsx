@@ -9,11 +9,8 @@ import {
   getDownloadStats,
   type Contributor,
 } from "@/lib/github-stats";
-import { monthOf } from "@/lib/changelog-days";
 import { REPO_URL } from "@/lib/links";
-import { releasesPerMonth } from "@/lib/release-months";
 import { RecentFixes } from "./recent-fixes";
-import { ReleaseChart } from "./release-chart";
 import { RepoNumbers } from "./repo-numbers";
 
 const CARD =
@@ -103,14 +100,7 @@ export async function Contributors() {
           description="lpm is free and open source. Thanks to everyone who has landed a commit."
           className="mb-10"
         />
-        <RepoNumbers stats={stats} lastCommit={lastCommit}>
-          {stats && (
-            <ReleaseChart
-              months={releasesPerMonth(stats.releases)}
-              currentMonth={monthOf(stats.fetchedAt)}
-            />
-          )}
-        </RepoNumbers>
+        <RepoNumbers stats={stats} lastCommit={lastCommit} />
         <ul className="flex flex-wrap justify-center gap-3">
           {contributors.map((c) => (
             <ContributorCard key={c.login} contributor={c} />
