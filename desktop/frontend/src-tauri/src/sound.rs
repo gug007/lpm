@@ -181,7 +181,11 @@ fn play_spec(spec: &str, event: &str) {
 
 #[cfg(target_os = "macos")]
 fn play_file(path: &std::path::Path) {
-    let _ = std::process::Command::new("afplay").arg(path).spawn();
+    if let Ok(mut child) = std::process::Command::new("afplay").arg(path).spawn() {
+        std::thread::spawn(move || {
+            let _ = child.wait();
+        });
+    }
 }
 
 /// Chimes are for the machine a person is sitting at: a headless host's go to
