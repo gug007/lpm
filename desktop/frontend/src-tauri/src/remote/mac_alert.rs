@@ -1,5 +1,5 @@
 //! A notification about this Mac rather than one of its projects: the weekly
-//! recap, a limit reminder.
+//! recap, a limit reminder, Keep awake about to let go.
 use super::{
     alert_recipients, on_screen_devices, push_collapse_id, scoped_devices, send_alerts, PushDevice,
     RemoteHub,
@@ -31,5 +31,16 @@ pub(super) fn send(
     }
     let plaintext = build(&server_id, crate::status::now_millis());
     let collapse_id = push_collapse_id(&server_id, "", key);
-    send_alerts(hub, cfg.effective_relay(), recipients, plaintext, collapse_id);
+    send_alerts(
+        hub,
+        cfg.effective_relay(),
+        recipients,
+        plaintext,
+        collapse_id,
+    );
+}
+
+/// The same, to every phone that isn't showing the app right now.
+pub(crate) fn send_all(hub: &RemoteHub, key: &str, build: impl FnOnce(&str, i64) -> String) {
+    send(hub, key, |_| true, build);
 }

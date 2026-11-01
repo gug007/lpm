@@ -55,6 +55,10 @@ class ProjectsSlots(
     val pairDirectlyMenuItems: @Composable ColumnScope.() -> Unit = {},
     /** Machines still being added through the live Mac, in the Mac switcher. */
     val pendingMachines: @Composable ColumnScope.() -> Unit = {},
+    /** Keep Awake in the Mac switcher (`:feature:mac`). */
+    val keepAwakeMenu: @Composable ColumnScope.() -> Unit = {},
+    /** The cup beside the live Mac's name while it is kept awake (`:feature:mac`). */
+    val keepAwakeIndicator: @Composable () -> Unit = {},
     /** "Terminal Settings": the phone's terminal font and theme (`:feature:terminal`). */
     val terminalSettingsSheet: @Composable (onDismiss: () -> Unit) -> Unit = {},
     /** The bar along the bottom of the projects list (the lpm update bar, `:feature:mac`). */

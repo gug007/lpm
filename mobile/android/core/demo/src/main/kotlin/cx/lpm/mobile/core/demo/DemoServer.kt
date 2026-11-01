@@ -49,6 +49,7 @@ class DemoServer(
         registerMemoryHandlers()
         registerNotesHandlers()
         registerLimitsHandlers()
+        registerKeepAwakeHandlers()
         registerUploadHandlers()
     }
 

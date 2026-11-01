@@ -388,6 +388,9 @@ class LpmClient internal constructor(
         // `gitHistory`, `gitCommitFiles` and `gitCommitPatch`.
         const val GIT_HISTORY_FEATURE = "gitHistory"
 
+        // `keepAwake` and `keepAwakeSet`, and the `keepAwake` push.
+        const val KEEP_AWAKE_FEATURE = "keepAwake"
+
         const val OFFLINE_HINT =
             "Can't reach your Mac. On cellular, make sure Tailscale is connected on both devices."
 

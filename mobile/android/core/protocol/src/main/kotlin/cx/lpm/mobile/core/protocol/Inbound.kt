@@ -29,6 +29,7 @@ import cx.lpm.mobile.core.model.HistoryRow
 import cx.lpm.mobile.core.model.LimitReminder
 import cx.lpm.mobile.core.model.LimitsSnapshot
 import cx.lpm.mobile.core.model.MacBuild
+import cx.lpm.mobile.core.model.MacKeepAwake
 import cx.lpm.mobile.core.model.MacUpdateCheck
 import cx.lpm.mobile.core.model.MacUpdateStep
 import cx.lpm.mobile.core.model.MachinePairOffer
@@ -475,6 +476,11 @@ sealed interface Inbound {
     // Only answers an install that stopped short; one that finished restarts lpm instead.
     data class UpdateInstall(val cancelled: Boolean, val error: String?) : Inbound
     data class UpdateCancel(val stopping: Boolean) : Inbound
+
+    // Keep awake on the Mac: its whole state, as a reply or after any change, and the
+    // answer to a change asked for here (`state` rides a refusal too).
+    data class KeepAwake(val state: MacKeepAwake?) : Inbound
+    data class KeepAwakeSet(val state: MacKeepAwake?, val error: String?) : Inbound
     data object Pong : Inbound
 
     companion object {

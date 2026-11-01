@@ -16,8 +16,8 @@ import cx.lpm.mobile.core.data.push.PushAlert
 import cx.lpm.mobile.core.data.push.PushClear
 import cx.lpm.mobile.core.data.push.PushCrypto
 import cx.lpm.mobile.core.data.push.PushKind
+import cx.lpm.mobile.core.data.push.PushMacNotice
 import cx.lpm.mobile.core.data.push.PushRecap
-import cx.lpm.mobile.core.data.push.PushReminder
 import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.data.widget.AgentWidgetStore
 import cx.lpm.mobile.core.model.Project
@@ -82,6 +82,12 @@ class PushNotifier @Inject constructor(
                     NotificationManager.IMPORTANCE_DEFAULT
                 )
                     .setName(context.getString(R.string.push_channel_reminders))
+                    .build() +
+                NotificationChannelCompat.Builder(
+                    KEEP_AWAKE_CHANNEL,
+                    NotificationManager.IMPORTANCE_DEFAULT
+                )
+                    .setName(context.getString(R.string.push_channel_keep_awake))
                     .build()
         )
     }
@@ -103,7 +109,7 @@ class PushNotifier @Inject constructor(
         }
         widget.apply(payload)
         PushRecap.parse(payload)?.let { return post(it, data[COLLAPSE_ID]) }
-        PushReminder.parse(payload)?.let { return post(it, data[COLLAPSE_ID]) }
+        PushMacNotice.parse(payload)?.let { return post(it, data[COLLAPSE_ID]) }
         val alert = PushAlert.parse(payload) ?: return
         // The open app shows its live Mac's statuses itself; a push from another
         // Mac, or from this one while the link is down, is news only it carries.
@@ -139,10 +145,10 @@ class PushNotifier @Inject constructor(
         }
     }
 
-    private fun post(reminder: PushReminder, collapseId: String?) {
-        val tag = collapseId ?: "${reminder.serverId.orEmpty()}|${reminder.key}"
+    private fun post(notice: PushMacNotice, collapseId: String?) {
+        val tag = collapseId ?: "${notice.serverId.orEmpty()}|${notice.key}"
         context.notifyIfAllowed(tag, AlertExtras.NOTIFICATION_ID) {
-            context.reminderNotification(reminder, tag, quiets("")).build()
+            context.macNoticeNotification(notice, tag, quiets("")).build()
         }
     }
 

@@ -5,6 +5,7 @@ import { SettingsSection } from "../SettingsSection";
 import { Toggle } from "../ui/Toggle";
 import { AboutSection } from "./AboutSection";
 import { DefaultDirectoryRow } from "./DefaultDirectoryRow";
+import { KeepAwakeSection } from "./KeepAwakeSection";
 import { PeerAboutSection } from "./PeerAboutSection";
 import { SegmentButton } from "./SegmentButton";
 import { useRowReach, useSettingsTarget } from "./settingsTarget";
@@ -51,6 +52,8 @@ export function GeneralPane() {
         )}
         <DefaultDirectoryRow />
       </SettingsSection>
+
+      <KeepAwakeSection />
 
       {machine.kind === "local" ? <AboutSection /> : <PeerAboutSection version={machine.version} />}
     </>

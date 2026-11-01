@@ -11,6 +11,8 @@ import cx.lpm.mobile.core.navigation.Navigator
 import cx.lpm.mobile.core.navigation.ProjectKey
 import cx.lpm.mobile.core.navigation.TerminalKey
 import cx.lpm.mobile.feature.connection.ConnectionSheets
+import cx.lpm.mobile.feature.mac.keepawake.KeepAwakeCustomTimeRoute
+import cx.lpm.mobile.feature.mac.keepawake.KeepAwakeSectionRoute
 import cx.lpm.mobile.feature.mac.update.MacUpdateSectionRoute
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
@@ -25,7 +27,12 @@ import kotlinx.coroutines.flow.map
 internal fun VisitHost(session: MacSession, navigator: Navigator) {
     val visit by session.visitSession.collectAsStateWithLifecycle()
     visit?.key?.let { key ->
-        ConnectionSheets(key, macUpdateSection = { MacUpdateSectionRoute(key) })
+        ConnectionSheets(
+            key,
+            macUpdateSection = { MacUpdateSectionRoute(key) },
+            keepAwakeSection = { open -> KeepAwakeSectionRoute(key, onCustomTime = open) },
+            keepAwakeCustomTime = { onDone -> KeepAwakeCustomTimeRoute(key, onDone = onDone) }
+        )
     }
     LaunchedEffect(session, navigator) {
         session.visitSession

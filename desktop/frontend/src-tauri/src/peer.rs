@@ -148,6 +148,10 @@ const FORWARDED_EVENTS: &[&str] = &[
     // ...and that it was quit, so that tab stops resuming it.
     crate::agentexit::ENDED_EVENT,
     crate::remote::TERMINALS_CHANGED_EVENT,
+    // Keep awake changed here, so a Mac showing this machine's says so.
+    crate::keepawake_session::CHANGED_EVENT,
+    // Shown on the Mac as that computer's own heads-up, never forwarded again.
+    crate::keepawake_headsup::HEADS_UP_EVENT,
     // The command a terminal here runs and how it ended, for its tab on a Mac.
     crate::cmdmarks::EVENT,
     // What a coding agent prints while it generates something a paired Mac asked
@@ -2277,6 +2281,7 @@ fn fast_path(app: &AppHandle, cmd: &str, args: &Value) -> Option<Result<Value, S
             }))
         }
         cmd if cmd.starts_with("peer_share") => crate::tabshare::answer_machine(app, cmd, args),
+        cmd if cmd.starts_with("keep_awake_") => crate::keepawake_cmds::answer_peer(cmd, args),
         // This machine's message history, which a headless host keeps too.
         cmd if cmd.starts_with("message_history_") => {
             crate::message_history_machines::serve_peer(app, cmd, args)

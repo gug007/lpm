@@ -98,6 +98,13 @@ struct ContentView: View {
             model.switchTo(mac)
             return
         }
+        // Keep awake about to let go: the Mac's own sheet, over whatever is open.
+        if target.kind == .keepAwake {
+            model.link.sheetOpen = true
+            model.notificationOpens += 1
+            model.pendingNotificationTarget = nil
+            return
+        }
         guard model.projectsLoaded else { return }
 
         let known = model.projects.contains(where: { $0.name == target.project })
@@ -122,6 +129,8 @@ struct ContentView: View {
             next.append(NotificationRoute.changes(project: target.project))
         case .usage:
             next.append(NotificationRoute.usage)
+        case .keepAwake:
+            return
         }
         path = next
         model.notificationOpens += 1

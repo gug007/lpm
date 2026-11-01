@@ -298,6 +298,7 @@ fn process_command(line: &str, store: &StatusStore, app: &AppHandle) -> String {
         "peer_pair" => cmd_peer_pair(args, app),
         "peer_state" => cmd_peer_state(app),
         "list_ports" => crate::portsall::cmd_list_ports(args, app),
+        "keep_awake" => crate::keepawake_cmds::cmd_keep_awake(args),
         "remote_pair" => cmd_remote_pair(args, app),
         "remote_state" => cmd_remote_state(app),
         "remote_revoke" => cmd_remote_revoke(args, app),

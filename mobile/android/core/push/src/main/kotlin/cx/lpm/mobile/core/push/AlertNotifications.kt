@@ -18,8 +18,8 @@ import cx.lpm.mobile.core.data.push.AgentAnswerAction
 import cx.lpm.mobile.core.data.push.NotificationOpenTarget
 import cx.lpm.mobile.core.data.push.PushAlert
 import cx.lpm.mobile.core.data.push.PushKind
+import cx.lpm.mobile.core.data.push.PushMacNotice
 import cx.lpm.mobile.core.data.push.PushRecap
-import cx.lpm.mobile.core.data.push.PushReminder
 
 /** What an alert's notification carries to be opened, answered and withdrawn later. */
 internal object AlertExtras {
@@ -146,17 +146,20 @@ internal fun Context.alertNotification(
     return builder
 }
 
-/** A limit reminder as the Mac words it; a tap opens that Mac's Usage screen. */
-internal fun Context.reminderNotification(
-    reminder: PushReminder,
+/**
+ * A limit reminder or Keep awake about to let go, as the Mac words it; a tap opens that
+ * Mac's Usage screen or its connection page.
+ */
+internal fun Context.macNoticeNotification(
+    notice: PushMacNotice,
     tag: String,
     quiet: Boolean
 ): NotificationCompat.Builder = macNotification(
-    reminder.serverId,
-    PushReminder.TARGET,
-    reminder.title,
-    reminder.body,
-    REMINDER_CHANNEL,
+    notice.serverId,
+    notice.target,
+    notice.title,
+    notice.body,
+    if (notice.target == PushMacNotice.KEEP_AWAKE) KEEP_AWAKE_CHANNEL else REMINDER_CHANNEL,
     tag,
     quiet
 )
@@ -180,6 +183,8 @@ internal fun Context.recapNotification(
 internal const val QUIET_CHANNEL = "quiet-hours"
 
 internal const val REMINDER_CHANNEL = "limit-reminders"
+
+internal const val KEEP_AWAKE_CHANNEL = "keep-awake"
 
 /** A notification about a Mac rather than one of its projects; a tap opens `target` there. */
 private fun Context.macNotification(

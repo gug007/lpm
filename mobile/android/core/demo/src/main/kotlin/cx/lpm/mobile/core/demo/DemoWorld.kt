@@ -88,6 +88,10 @@ internal class DemoWorld(val clock: Clock) {
     // Limit reminders set from the Usage screen.
     val limitReminders = mutableListOf<Dict>()
 
+    // Keep awake: the demo Mac starts kept awake while its agents work.
+    var keepAwakeMode = "agents"
+    var keepAwakeEndsAt: Long? = null
+
     // Poll counters ("project\nservice") so service logs grow between polls.
     val serviceLogTicks = mutableMapOf<String, Int>()
     val serviceLogWatches = mutableMapOf<String, Int>() // project + "\n" + pane -> watch token

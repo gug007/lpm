@@ -23,14 +23,16 @@ class MacSwitcherActions(
     val manageMachines: () -> Unit = {},
     val showDetails: () -> Unit = {},
     val setShowAllMachines: (Boolean) -> Unit = {},
-    val pendingMachines: @Composable ColumnScope.() -> Unit = {}
+    val pendingMachines: @Composable ColumnScope.() -> Unit = {},
+    val keepAwake: @Composable ColumnScope.() -> Unit = {},
+    val keepAwakeIndicator: @Composable () -> Unit = {}
 )
 
 /**
  * The title's menu for choosing which saved Mac is live: every saved Mac with
- * whether it answers right now (a check on the active one), then "Show All Machines"
- * once another machine is paired here ([showAllMachines] not null), "Add a machine…"
- * and "Manage machines…". In Demo Mode it only offers the way out.
+ * whether it answers right now (a check on the active one), Keep Awake, then "Show All
+ * Machines" once another machine is paired here ([showAllMachines] not null), "Add a
+ * machine…" and "Manage machines…". In Demo Mode it only offers Keep Awake and the way out.
  */
 @Composable
 fun MacSwitcherMenu(
@@ -44,6 +46,7 @@ fun MacSwitcherMenu(
 ) {
     ContextMenu(expanded = expanded, onDismissRequest = onDismiss, modifier = modifier) {
         if (demoMode) {
+            actions.keepAwake(this)
             ContextMenuItem(
                 title = stringResource(ProjectsR.string.mac_exit_demo),
                 onClick = actions.exitDemo,
@@ -65,6 +68,7 @@ fun MacSwitcherMenu(
                 )
             }
             actions.pendingMachines(this)
+            actions.keepAwake(this)
             ContextMenuDivider()
             if (showAllMachines != null) {
                 ContextMenuItem(

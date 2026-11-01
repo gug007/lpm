@@ -110,6 +110,7 @@ class DemoServerTest {
         "notesMessages", "notesAddMessage", "notesEditMessage", "notesDeleteMessage", "notesSearch",
         "notesAttachment", "limits", "uploadBegin", "uploadChunk", "uploadDone", "uploadAbort",
         "weeklyRecap", "limitReminders", "setLimitReminder", "clearLimitReminder", "sidebarPin",
+        "keepAwake", "keepAwakeSet",
         "gitHistory", "gitCommitFiles", "gitCommitPatch"
     )
 }

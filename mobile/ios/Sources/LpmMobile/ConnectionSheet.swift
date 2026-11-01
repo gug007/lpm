@@ -40,6 +40,7 @@ struct ConnectionSheet: View {
                     if !model.isVisit {
                         machine(record)
                     }
+                    KeepAwakeSection()
                     MacUpdateSection()
                     details(record)
                 }

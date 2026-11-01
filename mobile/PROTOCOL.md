@@ -147,7 +147,9 @@ desktop's weekly recap card (`weeklyRecap`); `"recapMonth"` — `weeklyRecap` wi
 [Limit reminders](#limit-reminders)); `"wake"` — waking another paired machine (`wake`, see
 [Waking a sleeping Mac](#waking-a-sleeping-mac)); `"projectPins"` — `pins` on every sidebar
 reply and `sidebarPin` (see [Sidebar folder ops](#sidebar-folder-ops)); `"gitHistory"` —
-`gitHistory`, `gitCommitFiles` and `gitCommitPatch` (see [Commit history](#commit-history)).
+`gitHistory`, `gitCommitFiles` and `gitCommitPatch` (see [Commit history](#commit-history));
+`"keepAwake"` — `keepAwake` and `keepAwakeSet`, and the `keepAwake` push (see
+[Keep awake](#keep-awake)).
 Rides `paired` **and** `ready`;
 **absent** from a desktop that predates it, which means none.
 
@@ -685,6 +687,23 @@ Always the whole state, never a delta. `progress` is the download's whole percen
 instead. Once `installing` arrives the Mac can't stop it, and the connection
 dropping after it is that restart.
 
+### Keep awake
+
+Keeps the Mac from sleeping, the same as its Keep awake menu: while agents work
+(any agent on the Mac working or waiting for an answer, then `tailMinutes` more
+after the last one finishes), for a set time, or until turned off. Only sent to a
+Mac whose `features` has `"keepAwake"`.
+
+| Request | Reply |
+|---|---|
+| `{ "t": "keepAwake" }` | `{ "t": "keepAwake", "state": KeepAwake }` |
+| `{ "t": "keepAwakeSet", "mode": "off"\|"agents"\|"timed"\|"always"\|"extend", "minutes": N? }` | `{ "t": "keepAwakeSet", "ok": true, "state": KeepAwake }` / `{ "t": "keepAwakeSet", "ok": false, "error": "…", "state": KeepAwake }`. `minutes` (1–5999) goes with `timed`, and with `"extend"`, which adds them to the set time or the after-agents countdown that is running (an error when neither is) and keeps the mode. The phone picks the mode; how it holds (`tailMinutes`, `screen`, `battery`, `floor`) stays with the Mac's Settings |
+
+**`keepAwake`** (pushed to **every** phone whenever it changes — from the Mac, a
+phone, a paired Mac, `lpm awake`, or by itself as a set time or the countdown runs
+out, the Mac is unplugged or its battery runs low): `{ "t": "keepAwake", "state": KeepAwake }`.
+Always the whole state.
+
 ### Agent tabs and files
 
 What the phone's New Tab sheet, Resume Session list and Files screen read. Each
@@ -897,6 +916,12 @@ every device with any notification on, through the same delivery path and
 connection exclusion, as
 `{ "serverId", "target": "usage", "title", "body", "ts", "key": "reminder:<limit>/<window>" }`:
 show `title` and `body` as given, and open the Usage screen when it's tapped.
+Five minutes before Keep awake lets go by itself (a set time ending, or the
+countdown after the last agent, when either was set for longer than that), the
+Mac pushes the same way to every device with any notification on:
+`{ "serverId", "target": "keepAwake", "title", "body", "ts", "key": "keepAwake" }`
+(`title` like "Studio can sleep in 5 min"). Show `title` and `body` as given, and
+open that Mac's connection page, where Keep awake is, when it's tapped.
 
 A `Done` alert also carries what the turn left behind, when the Mac knows it:
 `"changes": { "files": N, "added": N, "removed": N }` — the project's uncommitted
@@ -1100,6 +1125,7 @@ retires the activity token (APNs) or the push token (FCM).
 | `{ "t": "limitReminders", "reminders": [LimitReminder…] }` | A limit reminder was set, cleared or fired, from the desktop or any phone. Replace the list. Only from a Mac whose `features` has `"limitReminders"`. |
 | `{ "t": "composerDraft", "id": "<termId>", "text": "…", "rev": N, "origin": "mac"\|"<deviceId>" }` | The terminal composer's active-input text changed on another surface. Apply it to that terminal's composer input (see composer draft sync below). `origin` is `"mac"` for a desktop-typed draft, else the deviceId of the phone that sent it — drop the frame when `origin` is your own deviceId (your echo). `rev` is monotonic; drop a frame whose `rev` is ≤ the last one applied for this terminal. |
 | `{ "t": "updateProgress", "phase": "checking"\|"downloading"\|"installing"\|"idle", "progress": N }` | A step of an lpm install on the Mac, whoever started it. See [Updating lpm](#updating-lpm). |
+| `{ "t": "keepAwake", "state": KeepAwake }` | Keep awake changed on the Mac. See [Keep awake](#keep-awake). Only from a Mac whose `features` has `"keepAwake"`. |
 | `{ "t": "bye", "reason": "sleep"\|"quit"\|"off", "at": unix MILLIS }` | The desktop is about to close this connection on purpose: the machine is going to sleep (macOS and Windows), lpm is quitting, or remote control was turned off. Sent just before the socket closes — for `sleep`, just before the machine sleeps, so the socket may stay open until the phone notices it went quiet. Remember it per machine until the next `ready`, and say so ("asleep since 11:42 PM", "lpm was closed") instead of reporting the drop as a network problem; keep reconnecting as usual. Older desktops never send it. |
 
 ## Data shapes
@@ -1524,6 +1550,27 @@ turnStart?: int  // unix millis the turn began; absent when never seen starting
 endedAt?: int    // unix millis the turn ended; absent while it runs
 seenAt?: int     // unix millis it was last opened; only on `seenEntries`
 ```
+
+### KeepAwake
+
+```jsonc
+{
+  "supported": true,          // false: this machine can't be kept awake; offer no control
+  "screenSupported": true,    // whether `screen` can keep the display on too
+  "mode": "agents",           // "off" | "agents" | "timed" | "always"
+  "active": true,             // held now: agents working, the countdown, a set time, or always
+  "agents": 2,                // terminals on the Mac with an agent working or waiting
+  "endsIn": null,             // ms until the set time or the after-agents countdown ends, as of sending; null when neither runs
+  "tailMinutes": 5,           // after the last agent finishes, stay awake this long
+  "screen": true,             // keep the display on too (on unless turned off)
+  "battery": true,            // hold on battery too, down to `floor`
+  "floor": 20,                // battery percent at which it lets go
+  "power": "awake"            // "unsupported" | "idle" (nothing held) | "failed" | "awake" | "battery" (on battery, not held there) | "low" (at or below `floor`)
+}
+```
+
+Count `endsIn` down from when the frame arrived; the phone's and the Mac's clocks
+may differ.
 
 ## Input hex framing
 

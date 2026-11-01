@@ -380,6 +380,8 @@ final class AppModel {
 
     // lpm on the live Mac and updating it (`model.macUpdate`), same split.
     var macUpdate = MacUpdateStore()
+    // Keep awake on the live Mac (`model.keepAwake`), same split.
+    var keepAwake = KeepAwakeStore()
     // The weekly recap card (`model.weeklyRecap`), same split.
     var weeklyRecap = WeeklyRecapStore()
 
@@ -458,6 +460,7 @@ final class AppModel {
         usage.model = self
         tokenActivity.model = self
         macUpdate.model = self
+        keepAwake.model = self
         weeklyRecap.model = self
         agentLaunch.model = self
         projectFiles.model = self
@@ -1405,6 +1408,8 @@ final class AppModel {
         usage.model = self
         macUpdate = MacUpdateStore()
         macUpdate.model = self
+        keepAwake = KeepAwakeStore()
+        keepAwake.model = self
         weeklyRecap = WeeklyRecapStore()
         weeklyRecap.model = self
         agentLaunch = AgentLaunchStore()
@@ -2452,6 +2457,7 @@ final class AppModel {
         notes.handleConnectionReset()
         usage.handleConnectionReset()
         macUpdate.handleConnectionReset()
+        keepAwake.handleConnectionReset()
         agentLaunch.handleConnectionReset()
         projectFiles.handleConnectionReset()
         gitHistory.handleConnectionReset()
@@ -2656,6 +2662,7 @@ final class AppModel {
         wireConfig(c)
         wireMachines(c)
         wireMacUpdate(c)
+        wireKeepAwake(c)
         wireAutoPull(c)
         wireAgentArchive(c)
         wireClaudeAccounts(c)
@@ -2712,6 +2719,7 @@ final class AppModel {
                 c.requestSidebar()
                 c.requestDuplicateDefaults()
                 c.requestJobs()
+                self.keepAwake.noteReady(features: c.hostFeatures)
                 // Demo Mode has no APNs identity and no relay — skip push registration.
                 if !self.demoMode && !self.isVisit {
                     self.requestPushRegistration()

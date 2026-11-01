@@ -4,6 +4,7 @@ import cx.lpm.mobile.core.model.AgentStats
 import cx.lpm.mobile.core.model.LimitReminder
 import cx.lpm.mobile.core.model.LimitsSnapshot
 import cx.lpm.mobile.core.model.MacBuild
+import cx.lpm.mobile.core.model.MacKeepAwake
 import cx.lpm.mobile.core.model.MacUpdateCheck
 import cx.lpm.mobile.core.model.MacUpdateStep
 import cx.lpm.mobile.core.model.MachinePairOffer
@@ -113,4 +114,11 @@ internal val sessionParsers = parsers {
         )
     }
     put("updateCancel") { o -> Inbound.UpdateCancel(stopping = o.bool("stopping") ?: false) }
+    put("keepAwake") { o -> Inbound.KeepAwake(o.obj("state")?.let(MacKeepAwake::parse)) }
+    put("keepAwakeSet") { o ->
+        Inbound.KeepAwakeSet(
+            state = o.obj("state")?.let(MacKeepAwake::parse),
+            error = o.failure("That change didn't go through.")
+        )
+    }
 }

@@ -70,6 +70,7 @@ fun MacTitle(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f, fill = false)
             )
+            actions.keepAwakeIndicator()
             SymbolGlyph(
                 painter = painterResource(R.drawable.ic_keyboard_arrow_down),
                 size = 22.dp,

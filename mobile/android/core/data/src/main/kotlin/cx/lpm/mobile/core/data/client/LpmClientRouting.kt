@@ -224,6 +224,10 @@ private fun LpmClientCallbacks.routeGitAndMore(frame: Inbound) {
 
         is Inbound.UpdateCancel -> onUpdateCancel?.invoke(frame.stopping)
 
+        is Inbound.KeepAwake -> frame.state?.let { onKeepAwake?.invoke(it) }
+
+        is Inbound.KeepAwakeSet -> onKeepAwakeSet?.invoke(frame.state, frame.error)
+
         is Inbound.ApnsToken -> onApnsToken?.invoke(frame.ok)
 
         is Inbound.PushToken -> onPushToken?.invoke(frame.ok)

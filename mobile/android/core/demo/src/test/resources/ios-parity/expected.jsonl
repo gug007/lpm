@@ -179,19 +179,31 @@
 {"at":3450,"frame":{"id":"demo-storefront-1","t":"o","d":"demo\r\n\u001b[1;36m~\/dev\/storefront\u001b[0m \u001b[2m$\u001b[0m "}}
 {"at":3450,"frame":{"id":"demo-storefront-1","t":"o","d":"\r\n"}}
 {"at":3450,"frame":{"id":"demo-storefront-1","t":"o","d":"\u001b[1;36m~\/dev\/storefront\u001b[0m \u001b[2m$\u001b[0m "}}
+{"at":3500,"frame":{"state":{"endsIn":5399900,"screen":true,"floor":20,"screenSupported":true,"agents":0,"power":"awake","active":true,"supported":true,"mode":"timed","battery":true,"tailMinutes":5},"t":"keepAwake"}}
 {"at":3500,"frame":{"d":"npm run dev\r\n","id":"demo-storefront-1","t":"o"}}
 {"at":3500,"frame":{"d":"\r\n> storefront@0.4.2 dev\r\n> next dev\r\n\r\n","id":"demo-storefront-1","t":"o"}}
 {"at":3500,"frame":{"d":"npm run lint\r\n","id":"demo-storefront-1","t":"o"}}
 {"at":3500,"frame":{"d":"\r\n> storefront@0.4.2 lint\r\n> next lint\r\n\r\n","id":"demo-storefront-1","t":"o"}}
 {"at":3550,"frame":{"id":"demo-storefront-1","t":"o","d":"café 😀\b \b\r\n"}}
 {"at":3550,"frame":{"id":"demo-storefront-1","t":"o","d":"zsh: command not found: café\r\n\u001b[1;36m~\/dev\/storefront\u001b[0m \u001b[2m$\u001b[0m "}}
+{"at":3600,"frame":{"state":{"endsIn":5399800,"screen":true,"floor":20,"screenSupported":true,"agents":0,"power":"awake","active":true,"supported":true,"mode":"timed","battery":true,"tailMinutes":5},"ok":true,"t":"keepAwakeSet"}}
+{"at":3600,"frame":{"state":{"endsIn":5399800,"screen":true,"floor":20,"screenSupported":true,"agents":0,"power":"awake","active":true,"supported":true,"mode":"timed","battery":true,"tailMinutes":5},"t":"keepAwake"}}
+{"at":3700,"frame":{"state":{"endsIn":5399700,"screen":true,"floor":20,"screenSupported":true,"agents":0,"power":"awake","active":true,"supported":true,"mode":"timed","battery":true,"tailMinutes":5},"t":"keepAwake"}}
 {"at":3800,"frame":{"t":"transformDone","reqId":"t4","ok":true}}
+{"at":3800,"frame":{"ok":false,"error":"Pick a time between 1 minute and 99 hours 59 minutes.","state":{"endsIn":5399600,"screen":true,"floor":20,"screenSupported":true,"agents":0,"power":"awake","active":true,"supported":true,"mode":"timed","battery":true,"tailMinutes":5},"t":"keepAwakeSet"}}
 {"at":3800,"frame":{"owner":{"kind":"mobile","label":"This device","id":"demo-device"},"id":"demo-storefront-1","t":"control"}}
+{"at":3900,"frame":{"ok":false,"error":"Unknown Keep awake mode \"forever\".","state":{"endsIn":null,"screen":true,"floor":20,"screenSupported":true,"agents":0,"power":"awake","active":true,"supported":true,"mode":"always","battery":true,"tailMinutes":5},"t":"keepAwakeSet"}}
+{"at":4000,"frame":{"t":"keepAwakeSet","ok":true,"state":{"endsIn":null,"screen":true,"floor":20,"screenSupported":true,"agents":0,"power":"idle","active":false,"supported":true,"mode":"off","battery":true,"tailMinutes":5}}}
+{"at":4000,"frame":{"t":"keepAwake","state":{"endsIn":null,"screen":true,"floor":20,"screenSupported":true,"agents":0,"power":"idle","active":false,"supported":true,"mode":"off","battery":true,"tailMinutes":5}}}
 {"at":4000,"frame":{"t":"seed","id":"demo-storefront-claude","draft":{"rev":1,"text":"Add Apple Pay as a payment option in the new checkout flow"},"owner":{"kind":"mobile","label":"This device","id":"demo-device"},"data":"\u001b[38;5;208m✻\u001b[0m \u001b[1mWelcome to Claude Code\u001b[0m\r\n\r\n\u001b[2m  \/help for help, \/status for your current setup\r\n\r\n  cwd: \/Users\/demo\/dev\/storefront\u001b[0m\r\n\r\n","cols":80,"rows":24}}
 {"at":4000,"frame":{"t":"status-changed","project":"storefront"}}
+{"at":4100,"frame":{"t":"keepAwakeSet","ok":true,"state":{"endsIn":null,"screen":true,"floor":20,"screenSupported":true,"agents":2,"power":"awake","active":true,"supported":true,"mode":"agents","battery":true,"tailMinutes":5}}}
+{"at":4100,"frame":{"t":"keepAwake","state":{"endsIn":null,"screen":true,"floor":20,"screenSupported":true,"agents":2,"power":"awake","active":true,"supported":true,"mode":"agents","battery":true,"tailMinutes":5}}}
 {"at":4200,"frame":{"t":"transform","reqId":"t1","text":"fix the checkout form. it is slow.","ok":true,"idx":1}}
 {"at":4200,"frame":{"text":"Add tests.","reqId":9,"idx":1,"t":"transform","ok":true}}
 {"at":4200,"frame":{"idx":1,"text":"Don't break it. Outline the approach first, then implement it step by step.","ok":true,"t":"transform","reqId":"t3"}}
+{"at":4200,"frame":{"t":"keepAwakeSet","ok":true,"state":{"endsIn":null,"screen":true,"floor":20,"screenSupported":true,"agents":2,"power":"awake","active":true,"supported":true,"mode":"agents","battery":true,"tailMinutes":5}}}
+{"at":4200,"frame":{"t":"keepAwake","state":{"endsIn":null,"screen":true,"floor":20,"screenSupported":true,"agents":2,"power":"awake","active":true,"supported":true,"mode":"agents","battery":true,"tailMinutes":5}}}
 {"at":4400,"frame":{"d":" \u001b[31m⨯\u001b[0m Port 3000 is already in use\r\n\u001b[1;36m~\/dev\/storefront\u001b[0m \u001b[2m$\u001b[0m ","id":"demo-storefront-1","t":"o"}}
 {"at":4450,"frame":{"d":" \u001b[32m✓\u001b[0m lib\/cart.test.ts \u001b[2m(8 tests) 42ms\u001b[0m\r\n \u001b[32m✓\u001b[0m lib\/payments.test.ts \u001b[2m(6 tests) 38ms\u001b[0m\r\n \u001b[32m✓\u001b[0m components\/CheckoutForm.test.tsx \u001b[2m(9 tests) 87ms\u001b[0m\r\n\r\n \u001b[2mTest Files\u001b[0m  \u001b[32m3 passed\u001b[0m (3)\r\n \u001b[2m     Tests\u001b[0m  \u001b[32m23 passed\u001b[0m (23)\r\n \u001b[2m  Duration\u001b[0m  1.24s\r\n\r\n\u001b[1;36m~\/dev\/storefront\u001b[0m \u001b[2m$\u001b[0m ","id":"demo-storefront-1","t":"o"}}
 {"at":4600,"frame":{"reqId":9,"t":"transformDone","ok":true}}

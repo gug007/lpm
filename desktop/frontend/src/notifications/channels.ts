@@ -32,6 +32,12 @@ export const NOTIFICATION_EVENTS: NotificationEventSpec[] = [
   { id: "autoPull", label: "Auto pull", defaults: { inApp: true } },
   { id: "peers", label: "Peers & sync", defaults: { inApp: true } },
   { id: "sendLater", label: "Scheduled prompts", hint: "Sent, or missed while away", defaults: { inApp: true, banner: true } },
+  {
+    id: "keepAwake",
+    label: "Keep awake ending",
+    hint: "Five minutes before it lets go",
+    defaults: { inApp: true, banner: true },
+  },
 ];
 
 export const NOTIFICATION_CHANNELS: { id: NotificationChannel; label: string }[] = [

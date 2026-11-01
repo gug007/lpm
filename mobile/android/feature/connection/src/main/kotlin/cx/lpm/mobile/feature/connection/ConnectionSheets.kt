@@ -22,7 +22,9 @@ import cx.lpm.mobile.core.navigation.PresentationScope
 @Composable
 fun ConnectionSheets(
     session: SessionKey = SessionKey.Live,
-    macUpdateSection: @Composable () -> Unit = {}
+    macUpdateSection: @Composable () -> Unit = {},
+    keepAwakeSection: @Composable (openCustomTime: () -> Unit) -> Unit = {},
+    keepAwakeCustomTime: @Composable (onDone: () -> Unit) -> Unit = {}
 ) {
     val viewModel = hiltViewModel<ConnectionSheetsViewModel, ConnectionSheetsViewModel.Factory>(
         key = "sheets-$session"
@@ -31,9 +33,13 @@ fun ConnectionSheets(
     val context = LocalContext.current
     if (state.details) {
         PresentationScope {
-            ConnectionSheet(session, onDismiss = {
-                viewModel.closed { it.copy(sheetOpen = false) }
-            }, macUpdateSection)
+            ConnectionSheet(
+                session,
+                onDismiss = { viewModel.closed { it.copy(sheetOpen = false) } },
+                macUpdateSection = macUpdateSection,
+                keepAwakeSection = keepAwakeSection,
+                keepAwakeCustomTime = keepAwakeCustomTime
+            )
         }
     }
     if (state.identityCheck) {

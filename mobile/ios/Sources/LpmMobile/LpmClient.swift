@@ -132,6 +132,8 @@ final class LpmClient: NSObject {
     // The lpm release the Mac runs, on every `paired` and `ready`. Nil from a
     // build too old to report it.
     var onBuild: ((_ build: MacBuild?) -> Void)?
+    var onKeepAwake: ((_ state: MacKeepAwake) -> Void)?
+    var onKeepAwakeSet: ((_ state: MacKeepAwake?, _ error: String?) -> Void)?
     var onUpdateCheck: ((_ check: MacUpdateCheck) -> Void)?
     var onUpdateProgress: ((_ step: MacUpdateStep) -> Void)?
     var onUpdateInstall: ((_ cancelled: Bool, _ error: String?) -> Void)?
@@ -274,6 +276,7 @@ final class LpmClient: NSObject {
     static let agentArchiveFeature = "agentArchive"
     static let projectPinsFeature = "projectPins"
     static let gitHistoryFeature = "gitHistory"
+    static let keepAwakeFeature = "keepAwake"
 
     // Requests made while the link is down or half-dead, delivered on the next
     // `ready`. iOS kills the socket seconds after backgrounding and the
@@ -514,7 +517,8 @@ final class LpmClient: NSObject {
                              Self.restartTerminalFeature, Self.agentLaunchFeature, Self.agentSessionsFeature,
                              Self.actionPromptFeature, Self.listDirFeature, Self.tabMenuFeature,
                              Self.weeklyRecapFeature, Self.recapMonthFeature, Self.agentArchiveFeature,
-                             Self.limitRemindersFeature, Self.projectPinsFeature, Self.gitHistoryFeature],
+                             Self.limitRemindersFeature, Self.projectPinsFeature, Self.gitHistoryFeature,
+                             Self.keepAwakeFeature],
             ]))
         }
     }
@@ -1189,6 +1193,8 @@ final class LpmClient: NSObject {
     func updateCheck(force: Bool = false) { send(Wire.updateCheck(force: force)) }
     func updateInstall() { send(Wire.updateInstall()) }
     func updateCancel() { send(Wire.updateCancel()) }
+    func keepAwake() { send(Wire.keepAwake()) }
+    func keepAwakeSet(mode: String, minutes: Int?) { send(Wire.keepAwakeSet(mode: mode, minutes: minutes)) }
     func gitAutoCancel(project: String) { send(Wire.gitAutoCancel(project: project)) }
     func gitAutoSwitchBase(project: String, base: String) {
         send(Wire.gitAutoSwitchBase(project: project, base: base))
@@ -1547,6 +1553,8 @@ final class LpmClient: NSObject {
             case .updateProgress(let step): self.onUpdateProgress?(step)
             case .updateInstall(let cancelled, let error): self.onUpdateInstall?(cancelled, error)
             case .updateCancel(let stopping): self.onUpdateCancel?(stopping)
+            case .keepAwake(let state): self.onKeepAwake?(state)
+            case .keepAwakeSet(let state, let error): self.onKeepAwakeSet?(state, error)
             case .gitAutoSwitchBase(let proj, let base, let error, let pullError):
                 self.onGitAutoSwitchBase?(proj, base, error, pullError)
             case .apnsToken(let ok): self.onApnsToken?(ok)

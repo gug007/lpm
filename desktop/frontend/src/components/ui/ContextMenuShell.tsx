@@ -9,6 +9,9 @@ type ContextMenuShellProps = {
   // its container.
   align?: "start" | "end";
   minWidth?: number;
+  // The control that opened the menu (the anchor, unless given). Pressing it is
+  // not an outside click, so its own click can close the menu again.
+  trigger?: HTMLElement | null;
   onClose: () => void;
   children: ReactNode;
 } & (
@@ -41,10 +44,13 @@ export function ContextMenuShell({
   align = "start",
   anchor,
   minWidth = 160,
+  trigger,
   onClose,
   children,
 }: ContextMenuShellProps) {
-  const ref = useOutsideClick<HTMLDivElement>(onClose);
+  const ref = useOutsideClick<HTMLDivElement>((e) => {
+    if (!(trigger ?? anchor)?.contains(e.target as Node)) onClose();
+  });
   useEventListener("keydown", (e) => {
     if (e.key === "Escape") {
       // Marks the key as spent, so a page that also leaves on Escape stays put.
@@ -53,6 +59,8 @@ export function ContextMenuShell({
       return;
     }
     if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+    // A field in the menu keeps its own arrow keys.
+    if ((e.target as Element | null)?.closest?.("input, select, textarea, [contenteditable]")) return;
     const items = Array.from(
       ref.current?.querySelectorAll<HTMLButtonElement>("button:not(:disabled):not([data-menu-aux])") ?? [],
     );

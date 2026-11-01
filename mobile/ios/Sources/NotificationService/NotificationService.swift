@@ -25,7 +25,7 @@ final class NotificationService: UNNotificationServiceExtension {
               let payload = PushPayload.open(blob: blob),
               let mutable = original.mutableCopy() as? UNMutableNotificationContent
         else { return nil }
-        if let target = payload["target"] as? String, target == "recap" || target == "usage" {
+        if let target = payload["target"] as? String, ["recap", "usage", "keepAwake"].contains(target) {
             return quieted(macNotice(payload, target: target, into: mutable), status: "")
         }
         guard let project = payload["project"] as? String, !project.isEmpty else { return nil }

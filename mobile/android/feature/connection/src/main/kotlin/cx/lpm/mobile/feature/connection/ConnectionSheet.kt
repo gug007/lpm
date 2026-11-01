@@ -27,6 +27,8 @@ internal sealed interface ConnectionPage {
     data object Tailscale : ConnectionPage
 
     data class Addresses(val macId: String) : ConnectionPage
+
+    data object KeepAwakeTime : ConnectionPage
 }
 
 /**
@@ -38,7 +40,9 @@ internal sealed interface ConnectionPage {
 internal fun ConnectionSheet(
     session: SessionKey,
     onDismiss: () -> Unit,
-    macUpdateSection: @Composable () -> Unit
+    macUpdateSection: @Composable () -> Unit,
+    keepAwakeSection: @Composable (openCustomTime: () -> Unit) -> Unit = {},
+    keepAwakeCustomTime: @Composable (onDone: () -> Unit) -> Unit = {}
 ) {
     val sheet = rememberModalSheetState()
     val close = { sheet.dismiss(onDismiss) }
@@ -51,10 +55,20 @@ internal fun ConnectionSheet(
                     onDone = close,
                     onDismiss = onDismiss,
                     onOpen = navigator::push,
-                    macUpdateSection = macUpdateSection
+                    macUpdateSection = macUpdateSection,
+                    keepAwakeSection = {
+                        keepAwakeSection { navigator.push(ConnectionPage.KeepAwakeTime) }
+                    }
                 )
 
                 ConnectionPage.Tailscale -> TailnetSettingsPage(onBack = navigator::back)
+
+                ConnectionPage.KeepAwakeTime -> SheetPage(
+                    title = stringResource(R.string.keep_awake_custom_title),
+                    onBack = navigator::back
+                ) {
+                    SheetForm { keepAwakeCustomTime(navigator::back) }
+                }
 
                 is ConnectionPage.Addresses -> EditEndpointPage(
                     macId = page.macId,
@@ -73,6 +87,7 @@ private fun ConnectionRoot(
     onDismiss: () -> Unit,
     onOpen: (ConnectionPage) -> Unit,
     macUpdateSection: @Composable () -> Unit,
+    keepAwakeSection: @Composable () -> Unit,
     viewModel: ConnectionSheetViewModel =
         hiltViewModel<ConnectionSheetViewModel, ConnectionSheetViewModel.Factory>(
             key = "connection-$session"
@@ -106,7 +121,8 @@ private fun ConnectionRoot(
                 onDone()
             },
             onRemove = { removing = true },
-            macUpdateSection = macUpdateSection
+            macUpdateSection = macUpdateSection,
+            keepAwakeSection = keepAwakeSection
         )
     }
     renaming?.let { text ->

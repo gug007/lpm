@@ -161,6 +161,11 @@ mod message_history;
 mod message_history_machines;
 mod msysmounts;
 mod keepawake;
+mod keepawake_cmds;
+mod keepawake_headsup;
+mod keepawake_hold;
+mod keepawake_model;
+mod keepawake_session;
 mod limit_reminders;
 mod sharelink;
 mod sharenoise;
@@ -460,6 +465,7 @@ use status::*;
 use status::seen::*;
 use statusnotify::notify_unattended;
 use tailnet_cmds::{tailnet_set_enabled, tailnet_sign_in, tailnet_sign_out, tailnet_state};
+use keepawake_cmds::{keep_awake_set, keep_awake_set_prefs, keep_awake_state};
 use tauri::Manager;
 use templates::*;
 use transfer::*;
@@ -698,6 +704,8 @@ pub fn run() {
             let hub = app.state::<remote::RemoteHub>().inner().clone();
             remote::start(hub.clone(), handle.clone());
             sleepwatch::start(move || remote::farewell(&hub, "sleep"));
+            // Keep awake while agents work, for a set time, or until turned off.
+            keepawake_session::start(&handle);
 
             // Peer host + client servers (Mac-to-Mac control). Load the shared
             // ~/.lpm/peer.json once into the lock both roles hold, then start the

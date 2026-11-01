@@ -26,6 +26,7 @@ import cx.lpm.mobile.core.designsystem.component.stopProject
 import cx.lpm.mobile.core.navigation.AutomationKey
 import cx.lpm.mobile.core.navigation.ProjectKey
 import cx.lpm.mobile.core.navigation.TerminalKey
+import cx.lpm.mobile.core.ui.tickingNow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -114,24 +115,6 @@ fun ActivityRoute(
 }
 
 /**
- * Unix millis, ticked once a second so the elapsed labels stay live — only while
- * someone can read them: not behind a pushed screen, nor with the app in the background.
- */
-@Composable
-private fun tickingNow(): Long {
-    val lifecycle = LocalLifecycleOwner.current.lifecycle
-    val now by produceState(System.currentTimeMillis(), lifecycle) {
-        lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-            while (true) {
-                value = System.currentTimeMillis()
-                delay(TICK_MS)
-            }
-        }
-    }
-    return now
-}
-
-/**
  * Where a tapped row goes: the automation's page, an agent's
  * terminal, or its project when it reports against no terminal. A row on one of the
  * Mac's other machines opens there, in a visit ([ActivityViewModel.visit]).
@@ -151,5 +134,3 @@ fun activityDestination(row: ActivityRow): NavKey? = when (row.kind) {
         }
     }
 }
-
-private const val TICK_MS = 1_000L

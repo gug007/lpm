@@ -65,6 +65,7 @@ pub(crate) mod relayed;
 mod tab_menu;
 pub(crate) mod tabs;
 
+pub(crate) use mac_alert::send_all as send_mac_alert;
 pub(crate) use recap_push::send_weekly_recap;
 pub(crate) use reminders::push_limit_reminder;
 
@@ -167,6 +168,7 @@ const PHONE_FEATURES: &[&str] = &[
     crate::remote_history::FEATURE,
     reminders::FEATURE,
     crate::wakeonlan::FEATURE,
+    crate::keepawake_cmds::PHONE_FEATURE,
 ];
 
 /// The phone may send `restartService` / `stopService`.
@@ -4698,6 +4700,10 @@ fn handle_msg(
         | "notesSearch" | "notesAttachment" => crate::remote_notes::handle(app, out, t, &v),
         "updateCheck" | "updateInstall" | "updateCancel" => {
             crate::remote_update::handle(app, out, t, &v)
+        }
+        "keepAwake" | "keepAwakeSet" => {
+            let reply = crate::keepawake_cmds::answer_phone(t, &v);
+            let _ = out.try_send(reply.to_string());
         }
         "claudeAccounts" | "setClaudeAccount" => crate::remote_claude::handle(app, out, t, &v),
         "answers" => {

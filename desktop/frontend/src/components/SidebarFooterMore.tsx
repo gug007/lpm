@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { useEventListener } from "../hooks/useEventListener";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { NAV_UTILITY_IDS, type NavItemId } from "../sidebarNav";
@@ -9,10 +9,6 @@ import { MENU_PANEL_CLASS } from "./ui/ContextMenuShell";
 
 interface SidebarFooterMoreProps {
   entries: SidebarNavEntry[];
-  // What the collapsed button carries for the rows folded inside it: a running
-  // dot or unread count.
-  badge: ReactNode;
-  hints: string[];
   isDefault: boolean;
   onMove: (id: NavItemId) => void;
   onReset: () => void;
@@ -24,7 +20,7 @@ interface RowMenu {
   y: number;
 }
 
-export function SidebarFooterMore({ entries, badge, hints, isDefault, onMove, onReset }: SidebarFooterMoreProps) {
+export function SidebarFooterMore({ entries, isDefault, onMove, onReset }: SidebarFooterMoreProps) {
   const [open, setOpen] = useState(false);
   const [rowMenu, setRowMenu] = useState<RowMenu | null>(null);
   // The row menu renders inside this boundary, so opening one is not an outside
@@ -43,6 +39,8 @@ export function SidebarFooterMore({ entries, badge, hints, isDefault, onMove, on
   };
 
   const anyActive = entries.some((entry) => entry.active);
+  // The collapsed button speaks for the rows folded inside it.
+  const hints = entries.flatMap((entry) => entry.menuHints ?? []);
   const dividerAt = entries.findIndex((entry) => NAV_UTILITY_IDS.includes(entry.id));
 
   return (
@@ -60,7 +58,9 @@ export function SidebarFooterMore({ entries, badge, hints, isDefault, onMove, on
       >
         <MoreHorizontalIcon />
         More
-        <span className="flex items-center">{badge}</span>
+        <span className="flex items-center gap-1">
+          {entries.map((entry) => entry.menuBadge && <span key={entry.id} className="flex">{entry.menuBadge}</span>)}
+        </span>
       </button>
       {open && (
         <div className={`absolute bottom-full left-0 z-[80] mb-1.5 w-max min-w-[max(100%,12rem)] px-1 ${MENU_PANEL_CLASS}`}>

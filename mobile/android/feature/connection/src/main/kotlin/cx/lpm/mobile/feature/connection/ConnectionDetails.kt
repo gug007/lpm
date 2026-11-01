@@ -43,7 +43,8 @@ internal fun ConnectionDetails(
     onPairAgain: () -> Unit,
     onRemove: () -> Unit,
     macUpdateSection: @Composable () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    keepAwakeSection: @Composable () -> Unit = {}
 ) {
     val record = state.record ?: return
     val link = state.link
@@ -98,6 +99,7 @@ internal fun ConnectionDetails(
                 )
             }
         }
+        keepAwakeSection()
         macUpdateSection()
         DetailsSection(state)
     }

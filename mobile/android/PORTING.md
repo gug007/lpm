@@ -55,7 +55,8 @@ side by side (see `mobile/parity/README.md`).
   while on (Android menus have no toggle row); a commit's line under its subject (hash ·
   author · date · Merge) is one text that shrinks before it cuts off, the date the
   platform's medium date and short time joined by "at", and Copy Hash confirms with
-  Android's Confirm haptic.
+  Android's Confirm haptic; Keep awake's Custom Time sets hours and minutes with
+  steppers where iOS shows wheel pickers (Compose has no wheel).
 - **Same persisted keys and semantics** as iOS (table below), so behavior and
   defaults match.
 - Desktop changes that touch the phone now update both apps (AGENTS.md).

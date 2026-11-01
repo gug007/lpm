@@ -7,6 +7,7 @@ import cx.lpm.mobile.core.model.AgentSession
 import cx.lpm.mobile.core.model.ClaudeAccountChoice
 import cx.lpm.mobile.core.model.DuplicateOptions
 import cx.lpm.mobile.core.model.HistoryCursor
+import cx.lpm.mobile.core.model.MacKeepAwake
 import cx.lpm.mobile.core.model.WakeTarget
 import cx.lpm.mobile.core.model.WorkStatusInput
 import cx.lpm.mobile.core.protocol.Wire
@@ -216,6 +217,11 @@ fun LpmClient.updateCheck(force: Boolean = false) = send(Wire.updateCheck(force)
 fun LpmClient.updateInstall() = send(Wire.updateInstall())
 
 fun LpmClient.updateCancel() = send(Wire.updateCancel())
+
+fun LpmClient.keepAwake() = send(Wire.keepAwake())
+
+fun LpmClient.keepAwakeSet(mode: MacKeepAwake.Mode, minutes: Int? = null) =
+    send(Wire.keepAwakeSet(mode.rawValue, minutes))
 
 fun LpmClient.claim(id: String) = send(Wire.claim(id))
 

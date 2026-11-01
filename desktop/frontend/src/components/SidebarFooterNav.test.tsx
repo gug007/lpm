@@ -6,12 +6,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   listAllJobs: vi.fn(),
   browserOpenURL: vi.fn(),
+  keepAwakeState: vi.fn(),
+  keepAwakeSet: vi.fn(),
+  keepAwakeSetPrefs: vi.fn(),
 }));
 
 vi.mock("../../bridge/commands", () => ({
   ListAllJobs: mocks.listAllJobs,
   GetProject: vi.fn(),
   ListPortsOverview: vi.fn(),
+  KeepAwakeState: mocks.keepAwakeState,
+  KeepAwakeSet: mocks.keepAwakeSet,
+  KeepAwakeSetPrefs: mocks.keepAwakeSetPrefs,
+  PeerInvoke: vi.fn(),
 }));
 vi.mock("../../bridge/runtime", () => ({
   EventsOn: vi.fn(() => () => {}),
@@ -80,8 +87,25 @@ const openRowMenu = (label: string) =>
   act(() => byLabel(`More options for ${label}`)!.click());
 const pick = (text: string) => act(() => buttonWithText(text)!.click());
 
+const KEEP_AWAKE = {
+  supported: true,
+  screenSupported: true,
+  mode: "off",
+  active: false,
+  agents: 0,
+  endsIn: null,
+  tailMinutes: 5,
+  screen: false,
+  battery: true,
+  floor: 20,
+  power: "idle",
+};
+
 beforeEach(() => {
   mocks.listAllJobs.mockResolvedValue([]);
+  mocks.keepAwakeState.mockResolvedValue(KEEP_AWAKE);
+  mocks.keepAwakeSet.mockResolvedValue(KEEP_AWAKE);
+  mocks.keepAwakeSetPrefs.mockResolvedValue(KEEP_AWAKE);
   useGlobalAgentStatus.setState({ entries: [] });
   useTerminalTitles.setState({ byProject: {}, focusedByProject: {} });
   useCollapsedAgents.setState({ collapsed: new Set() });
@@ -123,10 +147,11 @@ describe("SidebarFooterNav", () => {
     expect(buttonWithText("Support & Feedback")).toBeUndefined();
   });
 
-  it("starts with Terminals as the only row outside the menu", () => {
+  it("starts with Terminals and Keep awake as the only rows outside the menu", () => {
     renderNav();
 
     expect(buttonWithText("Terminals")).toBeDefined();
+    expect(buttonWithText("Keep awake")).toBeDefined();
     expect(buttonWithText("Stats")).toBeUndefined();
     expect(buttonWithText("Reset to default")).toBeUndefined();
   });
@@ -139,7 +164,7 @@ describe("SidebarFooterNav", () => {
     openRowMenu("Stats");
     pick("Move to the sidebar");
 
-    expect(useSettingsStore.getState().sidebarNavInSidebar).toEqual(["terminals", "stats"]);
+    expect(useSettingsStore.getState().sidebarNavInSidebar).toEqual(["terminals", "awake", "stats"]);
 
     // Now a sidebar row: reachable with the menu shut, and gone from it.
     act(() => moreButton()!.click());
@@ -157,7 +182,7 @@ describe("SidebarFooterNav", () => {
 
     openRowMenu("Terminals");
     pick("Move to the More menu");
-    expect(useSettingsStore.getState().sidebarNavInSidebar).toEqual([]);
+    expect(useSettingsStore.getState().sidebarNavInSidebar).toEqual(["awake"]);
     expect(buttonWithText("Terminals")).toBeUndefined();
 
     openMore();
@@ -192,6 +217,7 @@ describe("SidebarFooterNav", () => {
     pick("Move to the sidebar");
     expect(useSettingsStore.getState().sidebarNavInSidebar).toEqual([
       "terminals",
+      "awake",
       "usage",
       "stats",
     ]);
@@ -208,6 +234,7 @@ describe("SidebarFooterNav", () => {
     useSettingsStore.setState({
       sidebarNavInSidebar: [
         "terminals",
+        "awake",
         "automations",
         "usage",
         "stats",
@@ -232,6 +259,174 @@ describe("SidebarFooterNav", () => {
 
     expect(useSettingsStore.getState().sidebarNavInSidebar).toBeUndefined();
     expect(moreButton()).toBeDefined();
+  });
+});
+
+describe("SidebarFooterNav Keep awake", () => {
+  it("shows how many agents keep the machine awake", async () => {
+    mocks.keepAwakeState.mockResolvedValue({ ...KEEP_AWAKE, mode: "agents", active: true, agents: 2 });
+    renderNav();
+    await act(async () => {});
+
+    expect(buttonWithText("Keep awake")!.textContent).toContain("2 agents");
+  });
+
+  it("counts down a set time on the row", async () => {
+    mocks.keepAwakeState.mockResolvedValue({ ...KEEP_AWAKE, mode: "timed", active: true, endsIn: 90 * 60_000 });
+    renderNav();
+    await act(async () => {});
+
+    expect(buttonWithText("Keep awake")!.textContent).toMatch(/1:(30|29):\d\d/);
+  });
+
+  it("opens its menu from the row and turns it on until turned off", async () => {
+    renderNav();
+    await act(async () => {});
+
+    act(() => buttonWithText("Keep awake")!.click());
+    const always = [...document.querySelectorAll("button")].find((b) =>
+      b.textContent?.includes("Until I turn it off"),
+    )!;
+    expect(always).toBeDefined();
+    await act(async () => always.click());
+
+    expect(mocks.keepAwakeSet).toHaveBeenCalledWith("always", undefined);
+  });
+
+  it("starts a set time from a preset", async () => {
+    renderNav();
+    await act(async () => {});
+
+    act(() => buttonWithText("Keep awake")!.click());
+    const twoHours = [...document.querySelectorAll("button")].find((b) => b.textContent === "2h")!;
+    await act(async () => twoHours.click());
+
+    expect(mocks.keepAwakeSet).toHaveBeenCalledWith("timed", 120);
+  });
+
+  const menuButton = (text: string) =>
+    [...document.querySelectorAll("[data-context-menu] button")].find((b) => b.textContent === text) as
+      | HTMLButtonElement
+      | undefined;
+
+  it("starts nothing from the For a set time heading, and opens Custom… on demand", async () => {
+    renderNav();
+    await act(async () => {});
+    act(() => buttonWithText("Keep awake")!.click());
+
+    expect(menuButton("For a set time")).toBeUndefined();
+    expect(document.querySelector('[data-context-menu] input[aria-label="Hours"]')).toBeNull();
+    act(() => menuButton("Custom…")!.click());
+    expect(document.querySelector('[data-context-menu] input[aria-label="Hours"]')).not.toBeNull();
+    expect(mocks.keepAwakeSet).not.toHaveBeenCalled();
+  });
+
+  it("offers the extra time after agents as chips, only while waiting on agents", async () => {
+    renderNav();
+    await act(async () => {});
+    act(() => buttonWithText("Keep awake")!.click());
+    expect(menuButton("15m")).toBeUndefined();
+    act(() => root.unmount());
+
+    mocks.keepAwakeState.mockResolvedValue({ ...KEEP_AWAKE, mode: "agents", active: true, agents: 1 });
+    root = createRoot(container);
+    renderNav();
+    await act(async () => {});
+    act(() => buttonWithText("Keep awake")!.click());
+    await act(async () => menuButton("15m")!.click());
+
+    expect(mocks.keepAwakeSetPrefs).toHaveBeenCalledWith({ tailMinutes: 15 });
+  });
+
+  it("closes its menu when the row is clicked again", async () => {
+    renderNav();
+    await act(async () => {});
+    const row = buttonWithText("Keep awake")!;
+    act(() => row.click());
+    expect(document.querySelector("[data-context-menu]")).not.toBeNull();
+
+    act(() => {
+      row.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+      row.click();
+    });
+    expect(document.querySelector("[data-context-menu]")).toBeNull();
+  });
+
+  it("has no row on a machine that can't be kept awake", async () => {
+    mocks.keepAwakeState.mockResolvedValue({ ...KEEP_AWAKE, supported: false, power: "unsupported" });
+    renderNav();
+    await act(async () => {});
+
+    expect(buttonWithText("Keep awake")).toBeUndefined();
+    openMore();
+    expect(buttonWithText("Keep awake")).toBeUndefined();
+  });
+
+  const hoverRow = async () => {
+    act(() => {
+      buttonWithText("Keep awake")!.dispatchEvent(
+        new MouseEvent("mouseover", { bubbles: true, relatedTarget: document.body }),
+      );
+    });
+    await act(async () => vi.advanceTimersByTime(600));
+  };
+  const cardButton = (text: string) =>
+    [...document.querySelectorAll("button")].find((b) => b.textContent === text && !b.closest("[data-context-menu]"));
+
+  it("rests on the row to add an hour without the menu", async () => {
+    vi.useFakeTimers();
+    try {
+      mocks.keepAwakeState.mockResolvedValue({ ...KEEP_AWAKE, mode: "timed", active: true, endsIn: 20 * 60_000 });
+      renderNav();
+      await act(async () => {});
+      await hoverRow();
+
+      expect(document.body.textContent).toContain("Kept awake");
+      await act(async () => cardButton("+1 h")!.click());
+      expect(mocks.keepAwakeSet).toHaveBeenCalledWith("extend", 60);
+      expect(document.querySelector("[data-context-menu]")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("turns off from the card, which has no hour to add while agents work", async () => {
+    vi.useFakeTimers();
+    try {
+      mocks.keepAwakeState.mockResolvedValue({ ...KEEP_AWAKE, mode: "agents", active: true, agents: 1 });
+      renderNav();
+      await act(async () => {});
+      await hoverRow();
+
+      expect(cardButton("+1 h")).toBeUndefined();
+      await act(async () => cardButton("Turn off")!.click());
+      expect(mocks.keepAwakeSet).toHaveBeenCalledWith("off", undefined);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("explains itself on hover while off", async () => {
+    vi.useFakeTimers();
+    try {
+      renderNav();
+      await act(async () => {});
+      await hoverRow();
+
+      expect(document.querySelector('[role="tooltip"]')?.textContent).toContain("while agents work");
+      expect(cardButton("Turn off")).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("marks the More button while a row in it keeps the machine awake", async () => {
+    useSettingsStore.setState({ sidebarNavInSidebar: ["terminals"] });
+    mocks.keepAwakeState.mockResolvedValue({ ...KEEP_AWAKE, mode: "always", active: true, power: "awake" });
+    renderNav();
+    await act(async () => {});
+
+    expect(moreButton()!.title).toContain("kept awake");
   });
 });
 

@@ -20,6 +20,7 @@ import cx.lpm.mobile.core.navigation.TerminalKey
 import cx.lpm.mobile.core.navigation.UsageKey
 import cx.lpm.mobile.core.navigation.WeeklyRecapKey
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.update
 
 /**
  * Opens a tapped notification's destination (iOS `ContentView.consumePendingOpen`):
@@ -50,6 +51,11 @@ internal fun NotificationOpenHost(
             session.switchTo(mac)
             return@LaunchedEffect
         }
+        // Keep awake about to let go: the Mac's own connection page, over whatever is open.
+        if (open.kind == NotificationOpenTarget.Kind.KeepAwake) {
+            session.link.update { it.copy(sheetOpen = true) }
+            return@LaunchedEffect opens.clear(open)
+        }
         if (!projects.projectsLoaded) return@LaunchedEffect
         val known = open.project in names
         val item = open.itemId
@@ -72,6 +78,8 @@ internal fun NotificationOpenHost(
             NotificationOpenTarget.Kind.Recap -> navigator.reset(WeeklyRecapKey())
 
             NotificationOpenTarget.Kind.Usage -> navigator.reset(UsageKey())
+
+            NotificationOpenTarget.Kind.KeepAwake -> Unit
 
             NotificationOpenTarget.Kind.Changes -> {
                 if (!known) return@LaunchedEffect run { awaited = open }

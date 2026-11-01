@@ -3,7 +3,8 @@ import SwiftUI
 /// The navigation-bar title menu for choosing which saved Mac is live. Shows the
 /// active Mac's name; tapping opens a menu of all saved Macs with whether each
 /// answers right now (checkmark on the active one), the live Mac's own servers
-/// and Macs still being added here, "Add a machine…" and "Manage machines…".
+/// and Macs still being added here, Keep Awake, "Add a machine…" and "Manage
+/// machines…". A cup beside the name says the live Mac is kept awake.
 struct MacSwitcherMenu: View {
     @Environment(AppModel.self) private var model
     var maxWidth: CGFloat? = nil
@@ -11,6 +12,7 @@ struct MacSwitcherMenu: View {
     var body: some View {
         Menu {
             if model.demoMode {
+                KeepAwakeMenu()
                 Button {
                     model.exitDemo()
                 } label: {
@@ -36,6 +38,7 @@ struct MacSwitcherMenu: View {
                         }
                     }
                 }
+                KeepAwakeMenu()
                 Divider()
                 if model.canShowAllMachines {
                     Toggle(isOn: Binding(get: { model.machineFeeds.enabled },
@@ -62,6 +65,12 @@ struct MacSwitcherMenu: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
                         .foregroundStyle(.primary)
+                    if model.keepAwake.state?.isOn == true {
+                        Image(systemName: "cup.and.saucer.fill")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.orange)
+                            .accessibilityLabel("Kept awake")
+                    }
                     Image(systemName: "chevron.down")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(.secondary)

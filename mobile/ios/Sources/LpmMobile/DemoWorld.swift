@@ -80,6 +80,9 @@ struct DemoWorld {
     // mirroring the desktop registry's retention).
     var backgroundRuns: [BgRun] = []
     var limitReminders: [[String: Any]] = []
+    // Keep awake: the demo Mac starts kept awake while its agents work.
+    var keepAwakeMode = "agents"
+    var keepAwakeEndsAt: Date?
     // Poll counters ("project\nservice") so service logs grow between polls.
     var serviceLogTicks: [String: Int] = [:]
     var serviceLogWatches: [String: Int] = [:]   // project + "\n" + pane -> watch token

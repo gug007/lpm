@@ -21,6 +21,7 @@
     <string name="connection_this_phone_footer">Reaches your Mac from cellular or any Wi-Fi, no Tailscale app needed.</string>
     <string name="connection_through">Through %1$s</string>
     <string name="connection_title">Connection</string>
+    <string name="keep_awake_custom_title">Custom Time</string>
     <string name="connection_via_footer">Not on this phone, so it opens through %1$s at these addresses.</string>
     <string name="connection_ways">Ways to reach it</string>
     <string name="delete">Delete</string>

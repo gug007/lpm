@@ -724,6 +724,15 @@ export function RemoteRenameDevice(id, name) {
 export function RemoteSetKeepAwake(enabled) {
   return invoke("remote_set_keep_awake", { enabled });
 }
+export function KeepAwakeState() {
+  return invoke("keep_awake_state");
+}
+export function KeepAwakeSet(mode, minutes) {
+  return invoke("keep_awake_set", { mode, minutes });
+}
+export function KeepAwakeSetPrefs(prefs) {
+  return invoke("keep_awake_set_prefs", { prefs });
+}
 export function RemoteRespondPairRequest(requestId, allow) {
   return invoke("remote_respond_pair_request", { requestId, allow });
 }

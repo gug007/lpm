@@ -449,6 +449,15 @@ enum Wire {
     }
     static func updateInstall() -> String { json(["t": "updateInstall"]) }
     static func updateCancel() -> String { json(["t": "updateCancel"]) }
+
+    // MARK: keep awake (a Mac whose `features` has "keepAwake")
+
+    static func keepAwake() -> String { json(["t": "keepAwake"]) }
+    static func keepAwakeSet(mode: String, minutes: Int?) -> String {
+        var o: [String: Any] = ["t": "keepAwakeSet", "mode": mode]
+        if let minutes { o["minutes"] = minutes }
+        return json(o)
+    }
     static func gitUnwatch(project: String) -> String { json(["t": "gitUnwatch", "project": project]) }
 
     // MARK: composer parity (AI actions, transform, service logs, rich history)
@@ -845,6 +854,10 @@ enum Wire {
         case updateProgress(MacUpdateStep)
         case updateInstall(cancelled: Bool, error: String?)
         case updateCancel(stopping: Bool)
+        // Keep awake on the Mac: its whole state, as a reply or after any change,
+        // and the answer to a change asked for here (`state` rides a refusal too).
+        case keepAwake(MacKeepAwake)
+        case keepAwakeSet(MacKeepAwake?, error: String?)
         case pong
         case unknown
 
@@ -1422,6 +1435,13 @@ enum Wire {
                 return .updateInstall(cancelled: obj["cancelled"] as? Bool ?? false,
                                       error: ok ? nil : (obj["error"] as? String ?? "The update didn't start."))
             case "updateCancel": return .updateCancel(stopping: obj["stopping"] as? Bool ?? false)
+            case "keepAwake":
+                guard let state = MacKeepAwake(obj["state"] as? [String: Any] ?? [:]) else { return .unknown }
+                return .keepAwake(state)
+            case "keepAwakeSet":
+                let ok = obj["ok"] as? Bool ?? false
+                return .keepAwakeSet(MacKeepAwake(obj["state"] as? [String: Any] ?? [:]),
+                                     error: ok ? nil : (obj["error"] as? String ?? "That change didn't go through."))
             case "pong": return .pong
             default: return .unknown
             }

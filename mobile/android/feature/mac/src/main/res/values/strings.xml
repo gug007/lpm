@@ -58,4 +58,22 @@
     <string name="mac_machines_needs_update">Update lpm on it to add it here</string>
     <string name="mac_machines_pair_directly">Pair Directly with %1$s</string>
     <string name="mac_machines_pair_directly_detail">Get its notifications and open it while this Mac sleeps</string>
+    <!-- Keep awake -->
+    <string name="keep_awake_section">Keep awake</string>
+    <string name="keep_awake_off">Off</string>
+    <string name="keep_awake_agents">While agents work</string>
+    <string name="keep_awake_timed">For a set time</string>
+    <string name="keep_awake_custom">Custom time…</string>
+    <string name="keep_awake_always">Until I turn it off</string>
+    <string name="keep_awake_lid">Closing a laptop\'s lid still puts it to sleep.</string>
+    <string name="keep_awake_counts">Counts every agent on %1$s that is working or waiting for an answer.</string>
+    <string name="keep_awake_custom_footer">Stays awake for %1$s, then sleeps on its usual schedule.</string>
+    <string name="keep_awake_hours">Hours</string>
+    <string name="keep_awake_minutes">Minutes</string>
+    <string name="keep_awake_menu">Keep Awake</string>
+    <string name="keep_awake_menu_agents">While Agents Work</string>
+    <string name="keep_awake_menu_always">Until Turned Off</string>
+    <string name="keep_awake_selected">Selected</string>
+    <string name="keep_awake_kept">Kept awake</string>
+    <string name="keep_awake_your_mac">your Mac</string>
 </resources>

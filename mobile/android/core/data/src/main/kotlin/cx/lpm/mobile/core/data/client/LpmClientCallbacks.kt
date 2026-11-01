@@ -29,6 +29,7 @@ import cx.lpm.mobile.core.model.HistoryRow
 import cx.lpm.mobile.core.model.LimitReminder
 import cx.lpm.mobile.core.model.LimitsSnapshot
 import cx.lpm.mobile.core.model.MacBuild
+import cx.lpm.mobile.core.model.MacKeepAwake
 import cx.lpm.mobile.core.model.MacUpdateCheck
 import cx.lpm.mobile.core.model.MacUpdateStep
 import cx.lpm.mobile.core.model.MachinePairOffer
@@ -236,6 +237,9 @@ abstract class LpmClientCallbacks {
     var onUpdateProgress: ((step: MacUpdateStep) -> Unit)? = null
     var onUpdateInstall: ((cancelled: Boolean, error: String?) -> Unit)? = null
     var onUpdateCancel: ((stopping: Boolean) -> Unit)? = null
+
+    var onKeepAwake: ((state: MacKeepAwake) -> Unit)? = null
+    var onKeepAwakeSet: ((state: MacKeepAwake?, error: String?) -> Unit)? = null
     var onApnsToken: ((ok: Boolean) -> Unit)? = null
     var onPushToken: ((ok: Boolean) -> Unit)? = null
     var onAnswerAgent: ((reqId: String, error: String?) -> Unit)? = null

@@ -4,6 +4,7 @@ import type { SyncDiff } from "../../peer/usePeerSync";
 import { usePeerRowActions } from "./usePeerRowActions";
 import { MachineRowShell } from "./MachineRowShell";
 import { DetailLine } from "./DetailLine";
+import { KeepAwakeLine } from "./KeepAwakeLine";
 import { AccessLine } from "./AccessLine";
 import { PeerSyncLines } from "./PeerSyncLines";
 import { Toggle } from "./Toggle";
@@ -72,6 +73,7 @@ export function PeerMachineRow({
             onChange={(v) => void PeerSetEnabled(peer.slug, v).then(refresh)}
           />
         </DetailLine>
+        {peer.enabled && live && <KeepAwakeLine slug={peer.slug} name={name} />}
         <AccessLine
           device={device}
           hostEnabled={hostEnabled}

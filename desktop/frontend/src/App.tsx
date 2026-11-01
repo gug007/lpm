@@ -60,6 +60,7 @@ import { usePeerDispatcher } from "./peer/usePeerDispatcher";
 import { usePeerAutoSyncToasts } from "./peer/usePeerAutoSyncToasts";
 import { usePeerFileSaveNotices } from "./peer/usePeerFileSaveNotices";
 import { usePeerRemovedNotices } from "./peer/usePeerRemovedNotices";
+import { useKeepAwakeHeadsUp } from "./hooks/useKeepAwakeHeadsUp";
 import { usePeerState } from "./peer/usePeerState";
 import { useSettingsMachine } from "./components/settings/useSettingsMachine";
 import { isSettingsView, useTrackSettingsReturn } from "./store/settingsReturn";
@@ -169,6 +170,7 @@ export default function App() {
   usePeerAutoSyncToasts(peerState.peers);
   usePeerFileSaveNotices();
   usePeerRemovedNotices();
+  useKeepAwakeHeadsUp();
   useIgnoredSyncConflicts();
   useSshStatusWarnings();
   useUpdateNote();

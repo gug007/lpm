@@ -15,6 +15,8 @@ import cx.lpm.mobile.feature.connection.ConnectionStatusBarRoute
 import cx.lpm.mobile.feature.connection.IssueCardRoute
 import cx.lpm.mobile.feature.connection.TailnetSettingsPage
 import cx.lpm.mobile.feature.connection.TerminalConnectionBannerRoute
+import cx.lpm.mobile.feature.mac.keepawake.KeepAwakeIndicatorRoute
+import cx.lpm.mobile.feature.mac.keepawake.KeepAwakeMenuRoute
 import cx.lpm.mobile.feature.mac.machines.PairDirectlyRoute
 import cx.lpm.mobile.feature.mac.machines.PendingMachinesRoute
 import cx.lpm.mobile.feature.mac.update.MacUpdateBarRoute
@@ -64,6 +66,8 @@ internal fun projectsSlots(navigator: Navigator) = ProjectsSlots(
     macUpdateMenuItem = { MacUpdateMenuItemRoute() },
     pairDirectlyMenuItems = { PairDirectlyRoute() },
     pendingMachines = { PendingMachinesRoute() },
+    keepAwakeMenu = { KeepAwakeMenuRoute() },
+    keepAwakeIndicator = { KeepAwakeIndicatorRoute() },
     terminalSettingsSheet = { onDismiss -> TerminalSettingsSheet(onDismiss) },
     bottomBar = { MacUpdateBarRoute() }
 )

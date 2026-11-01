@@ -13,6 +13,7 @@ mod imp {
     extern "C" {
         fn setupDockMenu();
         fn updateDockMenuProjects(names: *const *const c_char, running: *const c_int, count: c_int);
+        fn updateDockMenuKeepAwake(mode: *const c_char, supported: c_int);
     }
 
     static APP: OnceLock<AppHandle> = OnceLock::new();
@@ -22,6 +23,7 @@ mod imp {
         let _ = APP.set(app.clone());
         // Reference the callback so the linker keeps it for the ObjC object file.
         std::hint::black_box(dockMenuItemClicked as extern "C" fn(*const c_char));
+        std::hint::black_box(dockKeepAwakeClicked as extern "C" fn(*const c_char));
         unsafe { setupDockMenu() };
     }
 
@@ -60,6 +62,24 @@ mod imp {
         }
     }
 
+    /// The Keep Awake submenu's checkmark: the mode now on, and whether to show
+    /// the submenu at all.
+    pub fn set_keep_awake(mode: &str, supported: bool) {
+        let Ok(mode) = CString::new(mode) else { return };
+        unsafe { updateDockMenuKeepAwake(mode.as_ptr(), supported as c_int) };
+    }
+
+    #[no_mangle]
+    pub extern "C" fn dockKeepAwakeClicked(choice: *const c_char) {
+        if choice.is_null() {
+            return;
+        }
+        let choice = unsafe { CStr::from_ptr(choice) }
+            .to_string_lossy()
+            .into_owned();
+        std::thread::spawn(move || crate::keepawake_cmds::choose_from_dock(&choice));
+    }
+
     #[no_mangle]
     pub extern "C" fn dockMenuItemClicked(name: *const c_char) {
         if name.is_null() {
@@ -78,9 +98,11 @@ mod imp {
 }
 
 #[cfg(target_os = "macos")]
-pub use imp::{install, refresh};
+pub use imp::{install, refresh, set_keep_awake};
 
 #[cfg(not(target_os = "macos"))]
 pub fn install(_app: &tauri::AppHandle) {}
 #[cfg(not(target_os = "macos"))]
 pub fn refresh(_projects: &[(String, bool)]) {}
+#[cfg(not(target_os = "macos"))]
+pub fn set_keep_awake(_mode: &str, _supported: bool) {}

@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { act, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Tooltip } from "./Tooltip";
 
 function PopoverButton() {
@@ -83,5 +83,66 @@ describe("Tooltip over a button that opens a popover", () => {
     leave();
     hover();
     expect(tooltip()?.textContent).toBe("Memory");
+  });
+});
+
+describe("Tooltip with buttons of its own", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  const pressed = vi.fn();
+  const extend = () => [...document.querySelectorAll("button")].find((b) => b.textContent === "+1 h");
+  const pointer = (type: "mouseover" | "mouseout", el: Element) =>
+    act(() => {
+      el.dispatchEvent(new MouseEvent(type, { bubbles: true, relatedTarget: document.body }));
+    });
+
+  beforeEach(() => {
+    act(() =>
+      root.render(
+        <Tooltip
+          interactive
+          content={
+            <button type="button" onClick={pressed}>
+              +1 h
+            </button>
+          }
+        >
+          <button type="button">row</button>
+        </Tooltip>,
+      ),
+    );
+  });
+
+  it("stays up while the pointer crosses onto it, and its buttons work", () => {
+    hover();
+    expect(extend()).toBeDefined();
+    expect(tooltip()).toBeNull();
+
+    leave();
+    act(() => vi.advanceTimersByTime(100));
+    pointer("mouseover", extend()!);
+    act(() => vi.advanceTimersByTime(1_000));
+    act(() => extend()!.click());
+
+    expect(pressed).toHaveBeenCalled();
+    expect(extend()).toBeDefined();
+  });
+
+  it("goes a moment after the pointer leaves it", () => {
+    hover();
+    leave();
+    act(() => vi.advanceTimersByTime(250));
+
+    expect(extend()).toBeUndefined();
+  });
+
+  it("goes a moment after the pointer leaves the card itself", () => {
+    hover();
+    pointer("mouseover", extend()!);
+    pointer("mouseout", extend()!);
+    act(() => vi.advanceTimersByTime(250));
+
+    expect(extend()).toBeUndefined();
   });
 });

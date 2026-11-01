@@ -224,4 +224,11 @@ sealed interface WireSession {
     fun updateInstall(): String = frame("updateInstall")
 
     fun updateCancel(): String = frame("updateCancel")
+
+    fun keepAwake(): String = frame("keepAwake")
+
+    fun keepAwakeSet(mode: String, minutes: Int?): String = frame("keepAwakeSet") {
+        put("mode", mode)
+        if (minutes != null) put("minutes", minutes)
+    }
 }

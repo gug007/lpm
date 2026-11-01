@@ -1,7 +1,9 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { BrowserOpenURL } from "../../bridge/runtime";
 import { AGENT_STATE_LABEL, AGENT_STATE_TONE, computeProjectStatus } from "../agentStatus";
 import { useJobsAmbient } from "../hooks/useJobsAmbient";
+import { useKeepAwakeSession } from "../hooks/useKeepAwakeSession";
+import { MACHINE } from "../machineWords";
 import { hiddenKeys, useArchivingAgents } from "../agentArchive";
 import { sidebarProjectAlert } from "../sidebarAgents";
 import { sidebarAgentRows } from "../sidebarSeenAgents";
@@ -22,6 +24,7 @@ import { projectPortCount } from "./ports/portsModel";
 import { useTerminalTitles } from "../store/terminalTitles";
 import { GLOBAL_TERMINALS_KEY } from "../terminals";
 import {
+  CoffeeIcon,
   HistoryIcon,
   MessageIcon,
   RecapIcon,
@@ -33,6 +36,9 @@ import {
   TerminalIcon,
   ZapIcon,
 } from "./icons";
+import { KeepAwakeBadge } from "./KeepAwakeBadge";
+import { KeepAwakeHoverCard } from "./KeepAwakeHoverCard";
+import { KeepAwakeMenu } from "./KeepAwakeMenu";
 import { SidebarAgentSummary } from "./SidebarAgentSummary";
 import { SidebarFooterMore } from "./SidebarFooterMore";
 import { SidebarNavRowMenu } from "./SidebarNavRowMenu";
@@ -67,7 +73,8 @@ interface RowMenu {
 }
 
 /** The sidebar's footer navigation. Every row lives either here or in the More
- *  menu, and the user moves it across; only Terminals starts out in the open. */
+ *  menu, and the user moves it across; Terminals and Keep awake start out in the
+ *  open. */
 export function SidebarFooterNav({
   showTerminals,
   onTerminals,
@@ -93,6 +100,17 @@ export function SidebarFooterNav({
   const { running, unread, waiting } = useJobsAmbient();
   const projectPorts = useListeningPorts((s) => projectPortCount(s.overview?.ports ?? []));
   const [rowMenu, setRowMenu] = useState<RowMenu | null>(null);
+  const footerRef = useRef<HTMLDivElement>(null);
+  const keepAwake = useKeepAwakeSession(null);
+  const awakeMode = keepAwake.state?.mode ?? "off";
+  const awake = keepAwake.state?.active === true;
+  // Beside the footer, not the row: a row picked from More is gone once More
+  // closes.
+  const [awakeMenu, setAwakeMenu] = useState<{ x: number; y: number; trigger?: HTMLElement } | null>(null);
+  const toggleAwakeMenu = (trigger?: HTMLElement) => {
+    const rect = footerRef.current?.getBoundingClientRect();
+    setAwakeMenu((open) => (open || !rect ? null : { x: rect.right + 6, y: rect.bottom, trigger }));
+  };
 
   // Agents in the global Terminals report under the reserved key, which no
   // project row speaks for — so the Terminals row does, the way a project row
@@ -171,6 +189,27 @@ export function SidebarFooterNav({
           agent.terminalId ? onOpenTerminalTab(agent.terminalId) : onTerminals(),
       },
     },
+    awake: {
+      id: "awake",
+      label: "Keep awake",
+      icon: (
+        <span className={awakeMode !== "off" ? "text-[var(--accent-amber-text)]" : undefined}>
+          <CoffeeIcon awake={awake} />
+        </span>
+      ),
+      active: awakeMenu !== null,
+      onSelect: toggleAwakeMenu,
+      description: `Keep ${MACHINE.thisMachine} awake while agents work, for a set time, or until you turn it off.`,
+      hoverCard: awakeMode !== "off" ? <KeepAwakeHoverCard session={keepAwake} /> : undefined,
+      popupOpen: awakeMenu !== null,
+      trailing: <KeepAwakeBadge session={keepAwake} />,
+      menuBadge: awake && (
+        <span className="flex text-[var(--accent-amber-text)]" aria-label={`${MACHINE.ThisMachine} is kept awake`}>
+          <CoffeeIcon awake />
+        </span>
+      ),
+      menuHints: awake ? [`${MACHINE.thisMachine} is kept awake`] : [],
+    },
     automations: {
       id: "automations",
       label: "Automations",
@@ -178,6 +217,19 @@ export function SidebarFooterNav({
       active: showScheduled,
       onSelect: onScheduled,
       trailing: automationsTrailing,
+      menuBadge:
+        waiting > 0 ? (
+          <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent-amber)]" />
+        ) : running > 0 ? (
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--accent-cyan)]" />
+        ) : (
+          <CountBadge count={unread} label="unread automations" />
+        ),
+      menuHints: [
+        waiting > 0 ? `${waiting} automation${waiting === 1 ? "" : "s"} waiting for your answer` : "",
+        running > 0 ? "an automation is running" : "",
+        unread > 0 ? `${unread} automation${unread === 1 ? "" : "s"} with new messages` : "",
+      ].filter(Boolean),
     },
     usage: {
       id: "usage",
@@ -242,23 +294,14 @@ export function SidebarFooterNav({
     },
   };
 
-  const menuIds = menuNavItems(inSidebar);
-  // The button only speaks for what it is still hiding — a row moved out to the
-  // sidebar carries its own badge and must not be counted twice.
-  const automationsInMenu = menuIds.includes("automations");
-  const hints = automationsInMenu
-    ? [
-        waiting > 0
-          ? `${waiting} automation${waiting === 1 ? "" : "s"} waiting for your answer`
-          : "",
-        running > 0 ? "an automation is running" : "",
-        unread > 0 ? `${unread} automation${unread === 1 ? "" : "s"} with new messages` : "",
-      ].filter(Boolean)
-    : [];
+  // A machine that can't be kept awake has no row for it.
+  const shown = (id: NavItemId) => id !== "awake" || keepAwake.state?.supported !== false;
+  const sidebarIds = inSidebar.filter(shown);
+  const menuIds = menuNavItems(inSidebar).filter(shown);
 
   return (
-    <div className="flex flex-col p-2">
-      {inSidebar.map((id) => (
+    <div ref={footerRef} className="flex flex-col p-2">
+      {sidebarIds.map((id) => (
         <SidebarNavRow
           key={id}
           entry={entries[id]}
@@ -270,18 +313,6 @@ export function SidebarFooterNav({
         {menuIds.length > 0 && (
           <SidebarFooterMore
             entries={menuIds.map((id) => entries[id])}
-            badge={
-              automationsInMenu ? (
-                waiting > 0 ? (
-                  <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent-amber)]" />
-                ) : running > 0 ? (
-                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--accent-cyan)]" />
-                ) : (
-                  <CountBadge count={unread} label="unread automations" />
-                )
-              ) : null
-            }
-            hints={hints}
             isDefault={isDefault}
             onMove={(id) => move(id, true)}
             onReset={reset}
@@ -298,6 +329,16 @@ export function SidebarFooterNav({
           </button>
         </Tooltip>
       </div>
+      {awakeMenu && (
+        <KeepAwakeMenu
+          session={keepAwake}
+          title={`Keep ${MACHINE.thisMachine} awake`}
+          machine={MACHINE.thisMachine}
+          place={{ x: awakeMenu.x, y: awakeMenu.y }}
+          trigger={awakeMenu.trigger}
+          onClose={() => setAwakeMenu(null)}
+        />
+      )}
       {rowMenu && (
         <SidebarNavRowMenu
           x={rowMenu.x}

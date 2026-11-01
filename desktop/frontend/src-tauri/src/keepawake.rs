@@ -1,9 +1,15 @@
-// Keeps this machine from idle-sleeping while Keep awake is on and something may
-// reach it from elsewhere: phones while remote control is on, other computers
-// while Allow control is on, so either still finds it away from home. It holds
-// only while the machine runs on power: on battery it sleeps as usual, and
-// closing a laptop's lid still sleeps it.
-use std::sync::{LazyLock, Mutex, OnceLock};
+// Keeps this machine from idle-sleeping, for either of two reasons:
+//
+// - Keep awake while reachable: the switch is on and something may reach it from
+//   elsewhere (phones while remote control is on, other computers while Allow
+//   control is on), so either still finds it away from home. Only on power.
+// - A Keep awake session (keepawake_session.rs): while agents work, for a set
+//   time, or until turned off. On battery too when the session allows it, down
+//   to its battery floor.
+//
+// Closing a laptop's lid still sleeps it either way.
+use crate::keepawake_hold::{self as platform, Flags, Hold};
+use std::sync::{Arc, LazyLock, Mutex};
 use std::time::Duration;
 
 const POLL: Duration = Duration::from_secs(30);
@@ -11,12 +17,43 @@ const POLL: Duration = Duration::from_secs(30);
 // the system refuses isn't started every 30 seconds.
 const RETRY_POLLS: u32 = 10;
 
+/// What a running Keep awake session asks of the hold.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct SessionHold {
+    pub(crate) screen: bool,
+    /// Hold on battery while it is above this charge; `None` holds on power only.
+    pub(crate) battery_floor: Option<u8>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Power {
+    on_power: bool,
+    level: Option<u8>,
+}
+
+impl Power {
+    fn read(session: Option<SessionHold>) -> Self {
+        let on_power = platform::on_power();
+        let wants_level = session.is_some_and(|s| s.battery_floor.is_some());
+        Power {
+            on_power,
+            level: (!on_power && wants_level)
+                .then(platform::battery_level)
+                .flatten(),
+        }
+    }
+}
+
 #[derive(Default)]
 struct State {
     switch_on: bool,
     phones: bool,
     computers: bool,
+    session: Option<SessionHold>,
     want: bool,
+    // The flags the running watch holds with, while it wants a hold. A change
+    // starts a new watch; a new battery floor alone doesn't, the watch reads it.
+    held: Option<Flags>,
     generation: u64,
     hold: Option<Hold>,
     failed: bool,
@@ -28,8 +65,40 @@ impl State {
         self.phones || self.computers
     }
 
-    fn wants(&self) -> bool {
+    fn reach_wants(&self) -> bool {
         self.switch_on && self.reachable()
+    }
+
+    fn wants(&self) -> bool {
+        self.reach_wants() || self.session.is_some()
+    }
+
+    fn flags(&self) -> Flags {
+        self.session
+            .map(|s| Flags {
+                screen: s.screen,
+                battery: s.battery_floor.is_some(),
+            })
+            .unwrap_or_default()
+    }
+
+    /// Whether to hold right now, given the power source.
+    fn holds_now(&self, power: Power) -> bool {
+        let session = self.session.is_some_and(|s| {
+            power.on_power
+                || s.battery_floor
+                    .is_some_and(|floor| power.level.is_none_or(|level| level > floor))
+        });
+        session || (self.reach_wants() && power.on_power)
+    }
+
+    fn low_battery(&self, power: Power) -> bool {
+        !power.on_power
+            && self.session.is_some_and(|s| {
+                s.battery_floor
+                    .zip(power.level)
+                    .is_some_and(|(floor, level)| level <= floor)
+            })
     }
 
     fn report(&self, on_power: impl FnOnce() -> bool) -> &'static str {
@@ -46,38 +115,62 @@ impl State {
         }
     }
 
-    /// Applies `change`, dropping the hold when what it wants changes. Returns
-    /// whether that changed, and whether what `status` reports changed; the
-    /// power source is the same throughout.
+    /// How the session's hold is doing: "idle" without a session, "failed",
+    /// "awake", "battery" (on battery, which the session doesn't hold on) or
+    /// "low" (below its battery floor).
+    fn session_report(&self, power: Power) -> &'static str {
+        let Some(session) = self.session else {
+            return "idle";
+        };
+        if self.failed {
+            "failed"
+        } else if power.on_power {
+            "awake"
+        } else if session.battery_floor.is_none() {
+            "battery"
+        } else if self.low_battery(power) {
+            "low"
+        } else {
+            "awake"
+        }
+    }
+
+    /// Applies `change`, dropping the hold when what it holds for changes.
+    /// Returns whether that changed, and whether what `status` reports changed;
+    /// the power source is the same throughout.
     fn apply(&mut self, change: impl FnOnce(&mut Self)) -> (bool, bool) {
         let before = self.report(|| true);
         change(self);
         let want = self.wants();
-        let want_changed = self.want != want;
-        if want_changed {
+        let held = want.then(|| self.flags());
+        let changed = self.held != held;
+        if changed {
+            self.held = held;
             self.want = want;
             self.generation += 1;
             self.hold = None;
             self.failed = false;
             self.cooldown = 0;
         }
-        (want_changed, self.report(|| true) != before)
+        (changed, self.report(|| true) != before)
     }
 }
 
 static STATE: LazyLock<Mutex<State>> = LazyLock::new(Mutex::default);
-static ON_CHANGE: OnceLock<Box<dyn Fn() + Send + Sync>> = OnceLock::new();
+type Listener = Arc<dyn Fn() + Send + Sync>;
+static LISTENERS: Mutex<Vec<Listener>> = Mutex::new(Vec::new());
 
-/// Called when what `status` reports changes without the phone settings
-/// changing: the machine was plugged in or unplugged, the hold failed, or Allow
-/// control was turned on or off.
+/// Called when what `status` or `session_power` reports changes by itself: the
+/// machine was plugged in or unplugged, the battery ran low, the hold failed,
+/// or Allow control was turned on or off.
 pub(crate) fn on_change(f: impl Fn() + Send + Sync + 'static) {
-    let _ = ON_CHANGE.set(Box::new(f));
+    LISTENERS.lock().unwrap().push(Arc::new(f));
 }
 
 fn notify() {
-    if let Some(notify) = ON_CHANGE.get() {
-        notify();
+    let listeners = LISTENERS.lock().unwrap().clone();
+    for listener in listeners {
+        listener();
     }
 }
 
@@ -98,19 +191,28 @@ pub(crate) fn set_for_computers(allow_control: bool) {
     }
 }
 
+/// What a Keep awake session needs held now, or `None` when it needs nothing.
+pub(crate) fn set_session(session: Option<SessionHold>) {
+    update(|st| st.session = session);
+}
+
 /// Let this machine sleep again, whatever the settings say.
 pub(crate) fn release() {
-    update(|st| st.switch_on = false);
+    update(|st| {
+        st.switch_on = false;
+        st.session = None;
+    });
 }
 
 /// Applies `change`, then takes or drops the hold to match. Returns whether
 /// that changed what `status` reports.
 fn update(change: impl FnOnce(&mut State)) -> bool {
     let mut st = STATE.lock().unwrap();
-    let (want_changed, status_changed) = st.apply(change);
-    if want_changed && st.want && supported() {
+    let (changed, status_changed) = st.apply(change);
+    if changed && st.want && platform::supported() {
         let generation = st.generation;
-        std::thread::spawn(move || watch(generation));
+        let flags = st.flags();
+        std::thread::spawn(move || watch(generation, flags));
     }
     status_changed
 }
@@ -120,18 +222,18 @@ pub(crate) fn allows_computers() -> bool {
     STATE.lock().unwrap().computers
 }
 
-/// Re-checks the power source now and then: the hold is taken on power and
-/// dropped on battery.
-fn watch(generation: u64) {
-    // Settings last read the hold as not failed, before the first try to take it.
-    let mut reported = (on_power(), false);
+/// Re-checks the power source now and then: the hold is taken while
+/// `holds_now` says so and dropped otherwise.
+fn watch(generation: u64, flags: Flags) {
+    let mut reported: Option<(bool, bool, bool)> = None;
     loop {
-        let acquire_now = {
+        let (acquire_now, power) = {
             let mut st = STATE.lock().unwrap();
             if st.generation != generation {
                 return;
             }
-            if !on_power() {
+            let power = Power::read(st.session);
+            let acquire_now = if !st.holds_now(power) {
                 st.hold = None;
                 false
             } else if st.hold.as_mut().is_some_and(Hold::refresh) {
@@ -147,10 +249,11 @@ fn watch(generation: u64) {
                 } else {
                     true
                 }
-            }
+            };
+            (acquire_now, power)
         };
         if acquire_now {
-            let hold = acquire();
+            let hold = platform::acquire(flags);
             let mut st = STATE.lock().unwrap();
             if st.generation != generation {
                 return;
@@ -161,187 +264,40 @@ fn watch(generation: u64) {
             }
             st.hold = hold;
         }
-        let now = (on_power(), STATE.lock().unwrap().failed);
-        if now != reported {
+        let now = {
+            let st = STATE.lock().unwrap();
+            (power.on_power, st.failed, st.low_battery(power))
+        };
+        // Readers last saw the hold as not failed, before the first try to take it.
+        if now != reported.unwrap_or((now.0, false, now.2)) {
             notify();
         }
-        reported = now;
+        reported = Some(now);
         std::thread::sleep(POLL);
     }
 }
 
-/// What Settings says about it: "unsupported", "off" (switch off), "paused"
-/// (neither remote control nor Allow control on), "failed", "awake" or
-/// "battery".
+/// What Settings says about Keep awake while reachable: "unsupported", "off"
+/// (switch off), "paused" (neither remote control nor Allow control on),
+/// "failed", "awake" or "battery".
 pub(crate) fn status() -> &'static str {
-    if !supported() {
+    if !platform::supported() {
         return "unsupported";
     }
-    STATE.lock().unwrap().report(on_power)
+    STATE.lock().unwrap().report(platform::on_power)
 }
 
-fn supported() -> bool {
-    #[cfg(any(target_os = "macos", windows))]
-    {
-        true
+/// How a Keep awake session's hold is doing: "unsupported", "idle" (no session
+/// holding), "failed", "awake", "battery" or "low".
+pub(crate) fn session_power() -> &'static str {
+    if !platform::supported() {
+        return "unsupported";
     }
-    #[cfg(target_os = "linux")]
-    {
-        static INHIBIT: LazyLock<bool> =
-            LazyLock::new(|| !crate::sys::headless() && crate::sys::which("systemd-inhibit"));
-        *INHIBIT
+    let st = STATE.lock().unwrap();
+    if st.session.is_none() {
+        return "idle";
     }
-    #[cfg(all(unix, not(any(target_os = "macos", target_os = "linux"))))]
-    {
-        false
-    }
-}
-
-// --- macOS: `caffeinate -s` holds a power assertion that the system honours
-// only on power, and `-w` ends it with this process.
-
-#[cfg(target_os = "macos")]
-struct Hold(std::process::Child);
-
-#[cfg(target_os = "macos")]
-fn acquire() -> Option<Hold> {
-    crate::osproc::command("/usr/bin/caffeinate")
-        .arg("-s")
-        .arg("-w")
-        .arg(std::process::id().to_string())
-        .spawn()
-        .ok()
-        .map(Hold)
-}
-
-#[cfg(target_os = "macos")]
-fn on_power() -> bool {
-    use core_foundation::base::{CFRelease, CFTypeRef, TCFType};
-    use core_foundation::string::{CFString, CFStringRef};
-
-    #[link(name = "IOKit", kind = "framework")]
-    extern "C" {
-        fn IOPSCopyPowerSourcesInfo() -> CFTypeRef;
-        fn IOPSGetProvidingPowerSourceType(snapshot: CFTypeRef) -> CFStringRef;
-    }
-    unsafe {
-        let snapshot = IOPSCopyPowerSourcesInfo();
-        if snapshot.is_null() {
-            return true;
-        }
-        let source = IOPSGetProvidingPowerSourceType(snapshot);
-        let battery = !source.is_null()
-            && CFString::wrap_under_get_rule(source).to_string() == "Battery Power";
-        CFRelease(snapshot);
-        !battery
-    }
-}
-
-// --- Linux desktop: a logind inhibitor, held by `systemd-inhibit` around a
-// command that ends with this process.
-
-#[cfg(target_os = "linux")]
-struct Hold(std::process::Child);
-
-#[cfg(target_os = "linux")]
-fn acquire() -> Option<Hold> {
-    crate::osproc::command("systemd-inhibit")
-        .args([
-            "--no-ask-password",
-            "--what=idle:sleep",
-            "--who=lpm",
-            "--why=Remote control or Allow control is on",
-            "--mode=block",
-            "tail",
-        ])
-        .arg(format!("--pid={}", std::process::id()))
-        .args(["-f", "/dev/null"])
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .spawn()
-        .ok()
-        .map(Hold)
-        .and_then(|mut hold| {
-            // logind or polkit can refuse the inhibitor; the helper then exits
-            // straight away instead of failing to start.
-            std::thread::sleep(Duration::from_millis(300));
-            hold.refresh().then_some(hold)
-        })
-}
-
-#[cfg(target_os = "linux")]
-fn on_power() -> bool {
-    let Ok(supplies) = std::fs::read_dir("/sys/class/power_supply") else {
-        return true;
-    };
-    let mut mains = false;
-    for supply in supplies.flatten() {
-        let read =
-            |name: &str| std::fs::read_to_string(supply.path().join(name)).unwrap_or_default();
-        if read("type").trim() == "Mains" {
-            mains = true;
-            if read("online").trim() == "1" {
-                return true;
-            }
-        }
-    }
-    !mains
-}
-
-#[cfg(unix)]
-impl Hold {
-    /// Whether the hold is still in force: the helper may have been refused.
-    fn refresh(&mut self) -> bool {
-        matches!(self.0.try_wait(), Ok(None))
-    }
-}
-
-#[cfg(unix)]
-impl Drop for Hold {
-    fn drop(&mut self) {
-        let _ = self.0.kill();
-        let _ = self.0.wait();
-    }
-}
-
-#[cfg(all(unix, not(any(target_os = "macos", target_os = "linux"))))]
-fn acquire() -> Option<Hold> {
-    None
-}
-
-#[cfg(all(unix, not(any(target_os = "macos", target_os = "linux"))))]
-fn on_power() -> bool {
-    true
-}
-
-// --- Windows: resetting the system idle timer on every check keeps it from
-// sleeping, without holding anything that could outlive the app.
-
-#[cfg(windows)]
-struct Hold;
-
-#[cfg(windows)]
-fn acquire() -> Option<Hold> {
-    let mut hold = Hold;
-    hold.refresh().then_some(hold)
-}
-
-#[cfg(windows)]
-impl Hold {
-    fn refresh(&mut self) -> bool {
-        use windows_sys::Win32::System::Power::{SetThreadExecutionState, ES_SYSTEM_REQUIRED};
-        unsafe { SetThreadExecutionState(ES_SYSTEM_REQUIRED) != 0 }
-    }
-}
-
-#[cfg(windows)]
-fn on_power() -> bool {
-    use windows_sys::Win32::System::Power::{GetSystemPowerStatus, SYSTEM_POWER_STATUS};
-    let mut s: SYSTEM_POWER_STATUS = unsafe { std::mem::zeroed() };
-    if unsafe { GetSystemPowerStatus(&mut s) } == 0 {
-        return true;
-    }
-    s.ACLineStatus != 0
+    st.session_report(Power::read(st.session))
 }
 
 #[cfg(test)]

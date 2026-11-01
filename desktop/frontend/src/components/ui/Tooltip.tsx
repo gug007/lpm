@@ -18,15 +18,21 @@ interface TooltipProps {
   triggerClassName?: string;
   // Keeps the tooltip down, e.g. while the trigger's own menu is open under it.
   disabled?: boolean;
+  // A card with its own buttons: it takes the pointer, and stays up while the
+  // pointer moves from the trigger onto it.
+  interactive?: boolean;
 }
 
 const GAP = 8;
 const EDGE_MARGIN = 8;
+// How long an interactive card waits for the pointer to cross the gap to it.
+const LEAVE_GRACE_MS = 200;
 
-export function Tooltip({ content, children, side = "top", align = "center", wide = false, maxLines, delay = 0, triggerClassName = "inline-flex", disabled = false }: TooltipProps) {
+export function Tooltip({ content, children, side = "top", align = "center", wide = false, maxLines, delay = 0, triggerClassName = "inline-flex", disabled = false, interactive = false }: TooltipProps) {
   const triggerRef = useRef<HTMLSpanElement>(null);
   const tooltipRef = useRef<HTMLSpanElement>(null);
   const showTimer = useRef<number | null>(null);
+  const hideTimer = useRef<number | null>(null);
   const [visible, setVisible] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   // A trigger whose own popover or menu is open (aria-expanded) keeps its
@@ -51,9 +57,17 @@ export function Tooltip({ content, children, side = "top", align = "center", wid
     }
   }, []);
 
+  const clearHideTimer = useCallback(() => {
+    if (hideTimer.current !== null) {
+      clearTimeout(hideTimer.current);
+      hideTimer.current = null;
+    }
+  }, []);
+
   // Reveal after the dwell delay (or immediately when delay is 0); leaving the
   // trigger before it elapses cancels the pending show.
   const show = useCallback(() => {
+    clearHideTimer();
     if (suppressed) return;
     if (delay <= 0) {
       setVisible(true);
@@ -64,15 +78,31 @@ export function Tooltip({ content, children, side = "top", align = "center", wid
       showTimer.current = null;
       setVisible(true);
     }, delay);
-  }, [delay, clearShowTimer, suppressed]);
+  }, [delay, clearShowTimer, clearHideTimer, suppressed]);
 
   const hide = useCallback(() => {
     clearShowTimer();
+    clearHideTimer();
     setVisible(false);
-  }, [clearShowTimer]);
+  }, [clearShowTimer, clearHideTimer]);
 
-  // Drop a pending show if the trigger unmounts mid-dwell.
-  useEffect(() => clearShowTimer, [clearShowTimer]);
+  // Leaving the trigger (or an interactive card) hides it, after a moment for
+  // an interactive card so the pointer can reach it.
+  const leave = useCallback(() => {
+    if (!interactive) return hide();
+    clearShowTimer();
+    clearHideTimer();
+    hideTimer.current = window.setTimeout(() => {
+      hideTimer.current = null;
+      setVisible(false);
+    }, LEAVE_GRACE_MS);
+  }, [interactive, hide, clearShowTimer, clearHideTimer]);
+
+  // Drop pending timers if the trigger unmounts.
+  useEffect(() => () => {
+    clearShowTimer();
+    clearHideTimer();
+  }, [clearShowTimer, clearHideTimer]);
 
   useEffect(() => {
     if (suppressed) hide();
@@ -122,7 +152,7 @@ export function Tooltip({ content, children, side = "top", align = "center", wid
         ref={triggerRef}
         className={triggerClassName}
         onMouseEnter={show}
-        onMouseLeave={hide}
+        onMouseLeave={leave}
         // A right-click opens a context menu without moving the pointer off the
         // trigger, so the hover tooltip would otherwise stay up behind the menu.
         onContextMenu={hide}
@@ -132,6 +162,8 @@ export function Tooltip({ content, children, side = "top", align = "center", wid
           if (!suppressed && e.target.matches(":focus-visible")) setVisible(true);
         }}
         onBlur={(e) => {
+          // Pressing a button on an interactive card moves focus off the trigger.
+          if (interactive && tooltipRef.current?.matches(":hover")) return;
           if (!e.currentTarget.contains(e.relatedTarget)) hide();
         }}
       >
@@ -140,7 +172,9 @@ export function Tooltip({ content, children, side = "top", align = "center", wid
       {visible && createPortal(
         <span
           ref={tooltipRef}
-          role="tooltip"
+          role={interactive ? undefined : "tooltip"}
+          onMouseEnter={interactive ? clearHideTimer : undefined}
+          onMouseLeave={interactive ? leave : undefined}
           style={{
             top: pos?.top ?? 0,
             left: pos?.left ?? 0,
@@ -154,7 +188,7 @@ export function Tooltip({ content, children, side = "top", align = "center", wid
                 }
               : {}),
           }}
-          className={`tooltip-in pointer-events-none fixed z-[9999] border border-[var(--border)] bg-[var(--bg-secondary)] text-[var(--text-primary)] shadow-[0_1px_3px_rgba(0,0,0,0.12),0_12px_32px_rgba(0,0,0,0.22)] ${
+          className={`tooltip-in ${interactive ? "pointer-events-auto" : "pointer-events-none"} fixed z-[9999] border border-[var(--border)] bg-[var(--bg-secondary)] text-[var(--text-primary)] shadow-[0_1px_3px_rgba(0,0,0,0.12),0_12px_32px_rgba(0,0,0,0.22)] ${
             wide
               ? "max-w-[340px] whitespace-normal rounded-xl px-3.5 py-3 text-[12px] leading-relaxed"
               : maxLines

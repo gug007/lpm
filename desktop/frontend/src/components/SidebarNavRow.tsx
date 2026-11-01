@@ -28,10 +28,20 @@ export interface SidebarNavEntry {
   label: string;
   icon: ReactNode;
   active: boolean;
-  onSelect: () => void;
+  // `trigger` is the row that was clicked, while it sits in the sidebar.
+  onSelect: (trigger?: HTMLElement) => void;
   // Badges and counts that ride on the right of the row.
   trailing?: ReactNode;
+  // The row's own popup is open over it, so its tooltip stays away.
+  popupOpen?: boolean;
+  // What the More menu shows for this row while it is folded inside it: a badge
+  // on the button, and words for its tooltip.
+  menuBadge?: ReactNode;
+  menuHints?: string[];
   description?: string;
+  // Shown instead of the description while the row sits in the sidebar: a card
+  // with buttons of its own, which the pointer can move onto.
+  hoverCard?: ReactNode;
   // What the row's agents are doing, worn by the label the way a project row's
   // name wears it: amber while one waits on you, and a shimmer while one works
   // with its rows folded away.
@@ -75,7 +85,7 @@ export function SidebarNavRow({ entry, menuOpen, onOpenMenu, inMenu = false }: S
     <div className="group relative flex w-full items-center">
       <button
         type="button"
-        onClick={entry.onSelect}
+        onClick={(e) => entry.onSelect(e.currentTarget)}
         onContextMenu={(e) => {
           e.preventDefault();
           onOpenMenu({ x: e.clientX, y: e.clientY });
@@ -130,13 +140,16 @@ export function SidebarNavRow({ entry, menuOpen, onOpenMenu, inMenu = false }: S
     </div>
   );
 
-  const withTooltip = entry.description ? (
+  const card = inMenu ? undefined : entry.hoverCard;
+  const tip = card ?? entry.description;
+  const withTooltip = tip ? (
     <Tooltip
-      content={entry.description}
+      content={tip}
       side="right"
       wide
       delay={500}
-      disabled={menuOpen}
+      interactive={card !== undefined}
+      disabled={menuOpen || entry.popupOpen}
       triggerClassName="flex w-full"
     >
       {row}

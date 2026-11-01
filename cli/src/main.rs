@@ -7,6 +7,7 @@
 
 mod ask;
 mod auto_pull;
+mod awake;
 mod config;
 mod config_cmd;
 mod control;
@@ -75,7 +76,7 @@ through the running app. \
 Inside an automation run, `ask` puts a question to the user and waits for the answer. \
 Connection commands (for a machine with no UI in front of it): `pair`, `connections`, \
 and `mobile` for the iOS companion app. `update` checks for and installs lpm updates \
-through the running app. \
+through the running app. `awake` keeps this machine from sleeping while agents work. \
 `wait` polls client-side, except its `--agent` mode which queries the app. Inside an lpm \
 terminal or a project directory the project name \
 may be omitted — it is inferred from LPM_PROJECT_NAME or the current directory.\n\n\
@@ -244,6 +245,24 @@ automation reports to, and the first answer from any of them wins."
         /// server, which would also expose the port to the public internet.
         #[arg(long, value_name = "ADDRESS", conflicts_with = "lan")]
         bind: Option<String>,
+        /// Emit a single machine-readable JSON object.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Keep this machine awake while agents work, for a set time, or until turned off.
+    #[command(
+        long_about = "Keep this machine from sleeping, as the app's Keep awake menu does. \
+`agents` keeps it awake while any agent on it is working or waiting for an answer, and for a \
+few minutes after the last one finishes (`--then` sets how long; 5 min by default). A time \
+such as 45m, 2h or 1h30m keeps it awake that long; `on` until `off`. With no argument it \
+says what is on now. Closing a laptop's lid still puts it to sleep."
+    )]
+    Awake {
+        /// agents, on, off, a time such as 45m, 2h or 1h30m, or +1h to add an hour to the time left.
+        what: Option<String>,
+        /// After the last agent finishes, stay awake this long (e.g. 10m; 0 to let it sleep).
+        #[arg(long, value_name = "TIME")]
+        then: Option<String>,
         /// Emit a single machine-readable JSON object.
         #[arg(long)]
         json: bool,
@@ -535,6 +554,9 @@ fn main() -> ExitCode {
             pair::run(&ctx, cancel, lan, bind.as_deref(), json)
         }
         Commands::Ports { computers, json } => ports::run(&ctx, computers, json),
+        Commands::Awake { what, then, json } => {
+            awake::run(&ctx, what.as_deref(), then.as_deref(), json)
+        }
         Commands::Connections { json } => pair::run_connections(&ctx, json),
         Commands::Mobile { command } => mobile::run(&ctx, command),
         Commands::ClearStatus { key, project } => {

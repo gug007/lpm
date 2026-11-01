@@ -434,6 +434,15 @@ at(2600, 'setLimitReminder', limit='claude:work', window='fiveHour', resetsAt=17
 at(2800, 'setLimitReminder', limit='codex', window='weekly', resetsAt=1792400000, name='Codex')
 at(3000, 'clearLimitReminder', limit='claude:work', window='fiveHour')
 at(3200, 'clearLimitReminder', limit='nope', window='weekly')
+# keep awake
+at(3300, 'keepAwake')
+at(3400, 'keepAwakeSet', mode='timed', minutes=90)
+at(3500, 'keepAwake')
+at(3600, 'keepAwakeSet', mode='timed')
+at(3700, 'keepAwakeSet', mode='forever')
+at(3800, 'keepAwakeSet', mode='always')
+at(3900, 'keepAwakeSet', mode='off')
+at(4000, 'keepAwakeSet', mode='agents')
 # seen and archived agents
 at(74000, 'status', project='mobile-app'); at(74000, 'status', project='design-system')
 at(74000, 'terminals', project='mobile-app'); at(74000, 'terminals', project='design-system')
