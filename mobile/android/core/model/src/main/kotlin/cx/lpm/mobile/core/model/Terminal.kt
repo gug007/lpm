@@ -19,7 +19,18 @@ data class TerminalInfo(
     // What the desktop's tab menu offers for this tab; false from an older server.
     val canFork: Boolean = false,
     val canForkCopy: Boolean = false,
-    val canTitle: Boolean = false
+    val canTitle: Boolean = false,
+    // The tab menu's Claude Account, for a Claude tab on a Mac with "tabAccount": the
+    // account the tab runs as.
+    val canSwitchAccount: Boolean = false,
+    val claudeAccount: String? = null,
+    // While the tab moves to another account: that account's name, and the terminal
+    // the tab ran before, which a screen showing it follows here.
+    val switchingTo: String? = null,
+    val switchedFrom: String? = null,
+    // The desktop tab's own identity, the same across the new ids a restart or a move
+    // to another Claude account gives it; the id from an older server.
+    val tabKey: String = id
 ) {
     companion object {
         fun parse(o: JsonObject): TerminalInfo = TerminalInfo(
@@ -34,7 +45,12 @@ data class TerminalInfo(
             cli = o.string("cli").orEmpty(),
             canFork = o.bool("canFork") ?: false,
             canForkCopy = o.bool("canForkCopy") ?: false,
-            canTitle = o.bool("canTitle") ?: false
+            canTitle = o.bool("canTitle") ?: false,
+            canSwitchAccount = o.bool("canSwitchAccount") ?: false,
+            claudeAccount = o.string("claudeAccount"),
+            switchingTo = o.string("switchingTo"),
+            switchedFrom = o.string("switchedFrom"),
+            tabKey = o.string("tabKey")?.takeIf { it.isNotEmpty() } ?: o.string("id").orEmpty()
         )
     }
 }

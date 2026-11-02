@@ -368,6 +368,18 @@ class TerminalsStore(internal val session: MacSession) : SessionStore {
         mutable.update { it.copy(pendingTabClose = pending) }
     }
 
+    internal fun setAccountMove(id: String, account: String?) {
+        mutable.update {
+            it.copy(
+                accountMoves = if (account == null) {
+                    it.accountMoves - id
+                } else {
+                    it.accountMoves + (id to account)
+                }
+            )
+        }
+    }
+
     override fun flushPending() = finishPendingTabClose()
 
     fun renameTerminal(project: String, id: String, label: String) {

@@ -1,0 +1,49 @@
+# A Claude tab's menu offers Claude Account, as the desktop's tab menu does: the
+# Mac's accounts with the one the tab runs as checked. Picking another continues the
+# conversation there, in the same tab.
+appId: cx.lpm.mobile
+name: 154-tab-claude-account
+tags: [demo, projects, terminal, claude]
+---
+- runFlow: subflows/enter-demo.yaml
+- tapOn: "storefront"
+- extendedWaitUntil:
+    visible: ".*Claude"
+    timeout: 5000
+- longPressOn: ".*Claude"
+- waitForAnimationToEnd:
+    timeout: 3000
+- retry:
+    maxRetries: 2
+    commands:
+      - tapOn: "Claude Account.*"
+      - extendedWaitUntil:
+          visible: "Continue this conversation on"
+          timeout: 5000
+- assertVisible:
+    text: "selected"
+    below: "Continue this conversation on"
+    above: "Work.*"
+- takeScreenshot: 1-accounts
+- tapOn: "Work.*"
+# The tab carries on under its name, now on Work.
+- extendedWaitUntil:
+    visible: ".*Claude"
+    timeout: 5000
+- waitForAnimationToEnd:
+    timeout: 3000
+- longPressOn: ".*Claude"
+- waitForAnimationToEnd:
+    timeout: 3000
+- retry:
+    maxRetries: 2
+    commands:
+      - tapOn: "Claude Account.*"
+      - extendedWaitUntil:
+          visible: "Continue this conversation on"
+          timeout: 5000
+- assertVisible:
+    text: "selected"
+    below: "Main login.*"
+    above: "Personal.*"
+- takeScreenshot: 2-moved

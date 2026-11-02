@@ -34,6 +34,40 @@ extension DemoServer {
             self.world.terminals[project]?[index].label = DemoWorld.conversationTitle
             self.push(self.world.terminalsPayload(project))
         }
+        // The conversation carries on in the same tab under a new id, covered
+        // while it moves, as the Mac moves it.
+        register("switchTerminalAccount") { [weak self] o in
+            guard let self, let project = o["project"] as? String, let id = o["id"] as? String,
+                  let account = o["account"] as? String else { return }
+            self.push(["t": "switchTerminalAccount", "ok": true])
+            guard let index = self.world.terminals[project]?.firstIndex(where: { $0.id == id }),
+                  let old = self.world.terminals[project]?[index], old.cli == "claude",
+                  let name = self.world.claude.accounts.first(where: { $0.id == account && $0.signedIn })
+                      .map({ $0.id == claudeMainLogin ? "Main login" : $0.label })
+            else { return }
+            var moved = old
+            moved.tabKey = old.tabKey ?? old.id
+            moved.id = self.nextTerminalId(project).id
+            moved.subscribed = false
+            moved.claudeAccount = account
+            moved.switchingTo = name
+            moved.switchedFrom = id
+            self.world.terminals[project]?[index] = moved
+            self.push(self.world.terminalsPayload(project))
+            if let p = self.world.projectIndex(project), self.world.projects[p].status.contains(where: { $0.paneID == id }) {
+                for s in self.world.projects[p].status.indices where self.world.projects[p].status[s].paneID == id {
+                    self.world.projects[p].status[s].paneID = moved.id
+                }
+                self.push(["t": "status-changed", "project": project])
+            }
+            self.pushAfter(1.2) { [weak self] in
+                guard let self, let i = self.world.terminals[project]?.firstIndex(where: { $0.id == moved.id })
+                else { return nil }
+                self.world.terminals[project]?[i].switchingTo = nil
+                self.world.terminals[project]?[i].switchedFrom = nil
+                return self.world.terminalsPayload(project)
+            }
+        }
         register("closeOtherTerminals") { [weak self] o in
             guard let self, let project = o["project"] as? String, let id = o["id"] as? String else { return }
             self.push(["t": "closeOtherTerminals", "ok": true])

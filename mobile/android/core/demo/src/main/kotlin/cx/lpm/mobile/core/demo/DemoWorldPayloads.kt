@@ -86,20 +86,25 @@ internal fun DemoWorld.statusPayload(project: String): Dict {
 
 internal fun terminalDict(t: DemoWorld.Terminal): Dict {
     val agent = t.cli == "claude"
-    return mapOf(
-        "id" to t.id,
-        "label" to t.label,
-        "project" to t.project,
-        "cols" to t.cols,
-        "rows" to t.rows,
-        "remote" to t.remote,
-        "pinned" to t.pinned,
-        "emoji" to t.emoji,
-        "cli" to t.cli,
-        "canFork" to agent,
-        "canForkCopy" to (agent && !t.remote),
-        "canTitle" to (agent && t.label != DemoWorld.CONVERSATION_TITLE)
-    )
+    return buildMap {
+        put("id", t.id)
+        put("tabKey", t.tabKey ?: t.id)
+        put("label", t.label)
+        put("project", t.project)
+        put("cols", t.cols)
+        put("rows", t.rows)
+        put("remote", t.remote)
+        put("pinned", t.pinned)
+        put("emoji", t.emoji)
+        put("cli", t.cli)
+        put("canFork", agent)
+        put("canForkCopy", agent && !t.remote)
+        put("canTitle", agent && t.label != DemoWorld.CONVERSATION_TITLE)
+        put("canSwitchAccount", agent && !t.remote)
+        if (agent && !t.remote) put("claudeAccount", t.claudeAccount)
+        t.switchingTo?.let { put("switchingTo", it) }
+        t.switchedFrom?.let { put("switchedFrom", it) }
+    }
 }
 
 internal fun DemoWorld.terminalsPayload(project: String): Dict = mapOf(

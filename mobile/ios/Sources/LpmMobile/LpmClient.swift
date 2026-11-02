@@ -267,6 +267,7 @@ final class LpmClient: NSObject {
     static let actionPromptFeature = "actionPrompt"
     static let listDirFeature = "listDir"
     static let tabMenuFeature = "tabMenu"
+    static let tabAccountFeature = "tabAccount"
     static let answerAgentFeature = "answerAgent"
     static let liveActivityFeature = "liveActivity"
     static let weeklyRecapFeature = "weeklyRecap"
@@ -516,6 +517,7 @@ final class LpmClient: NSObject {
                 "features": [ChunkedUpload.feature, Self.serviceLogsWatchFeature, Self.agentAnswersFeature,
                              Self.restartTerminalFeature, Self.agentLaunchFeature, Self.agentSessionsFeature,
                              Self.actionPromptFeature, Self.listDirFeature, Self.tabMenuFeature,
+                             Self.tabAccountFeature,
                              Self.weeklyRecapFeature, Self.recapMonthFeature, Self.agentArchiveFeature,
                              Self.limitRemindersFeature, Self.projectPinsFeature, Self.gitHistoryFeature,
                              Self.keepAwakeFeature],
@@ -1006,6 +1008,9 @@ final class LpmClient: NSObject {
     func pinTerminal(project: String, id: String) { send(Wire.pinTerminal(project: project, id: id)) }
     func restartTerminal(project: String, id: String) { send(Wire.restartTerminal(project: project, id: id)) }
     func forkTerminal(project: String, id: String) { send(Wire.forkTerminal(project: project, id: id)) }
+    func switchTerminalAccount(project: String, id: String, account: String) {
+        send(Wire.switchTerminalAccount(project: project, id: id, account: account))
+    }
     func forkTerminalCopy(project: String, id: String) { send(Wire.forkTerminalCopy(project: project, id: id)) }
     func titleTerminal(project: String, id: String) { send(Wire.titleTerminal(project: project, id: id)) }
     func closeOtherTerminals(project: String, id: String) {

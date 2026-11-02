@@ -124,6 +124,9 @@ fun LpmClient.titleTerminal(project: String, id: String) = send(Wire.titleTermin
 fun LpmClient.closeOtherTerminals(project: String, id: String) =
     send(Wire.closeOtherTerminals(project, id))
 
+fun LpmClient.switchTerminalAccount(project: String, id: String, account: String) =
+    send(Wire.switchTerminalAccount(project, id, account))
+
 fun LpmClient.reorderTerminals(project: String, order: List<String>) =
     send(Wire.reorderTerminals(project, order))
 

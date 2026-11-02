@@ -1,17 +1,23 @@
 import { create } from "zustand";
 
-// Claude tabs on their way to another account, by the tab's historyKey, which
-// outlives the move to a new terminal: the name of the account each is moving
-// to, shown over the tab until Claude is back there.
+// A Claude tab on its way to another account: the account's name, and the
+// terminal the tab ran before the move.
+export interface ClaudeSwitch {
+  to: string;
+  from: string;
+}
+
+// Claude tabs moving to another account, by the tab's historyKey, which
+// outlives the move to a new terminal. Shown over the tab until Claude is back.
 interface ClaudeSwitchesState {
-  switches: Record<string, string>;
-  begin: (tabKey: string, accountLabel: string) => void;
+  switches: Record<string, ClaudeSwitch>;
+  begin: (tabKey: string, move: ClaudeSwitch) => void;
   end: (tabKey: string) => void;
 }
 
 export const useClaudeSwitches = create<ClaudeSwitchesState>((set) => ({
   switches: {},
-  begin: (tabKey, accountLabel) => set((s) => ({ switches: { ...s.switches, [tabKey]: accountLabel } })),
+  begin: (tabKey, move) => set((s) => ({ switches: { ...s.switches, [tabKey]: move } })),
   end: (tabKey) =>
     set((s) => {
       if (!(tabKey in s.switches)) return s;

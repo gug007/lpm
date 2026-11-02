@@ -52,10 +52,11 @@ struct TerminalScreen: View {
         let term = current
         let controlled = model.isControlled(term.id)
         let ended = model.endedTerminals[term.id]
-        let restored = model.restoredTab(for: term)
+        let restored = model.movedTab(for: term) ?? model.restoredTab(for: term)
+        let accountMove = model.accountMove(for: term)
         // The Mac still has the tab, so it can be run again or closed from here.
         let listed = model.terminals[term.project]?.contains { $0.id == term.id } == true
-        let endedHere = ended.flatMap { !$0.restarted && listed ? $0 : nil }
+        let endedHere = ended.flatMap { !$0.restarted && listed && accountMove == nil ? $0 : nil }
         // The terminal sits WITHIN the safe area (below the nav bar), so its top
         // rows aren't hidden under the title; the composer sits below it and rides
         // above the keyboard when it opens.
@@ -101,6 +102,10 @@ struct TerminalScreen: View {
                     .padding(.top, 8)
                     .transition(.move(edge: .top).combined(with: .opacity))
                 }
+                if let accountMove {
+                    TerminalAccountMoveView(account: accountMove, background: theme.backgroundColor)
+                        .transition(.opacity)
+                }
             }
             .overlay(alignment: .top) {
                 if find.isOpen {
@@ -112,6 +117,7 @@ struct TerminalScreen: View {
             .animation(.easeOut(duration: 0.2), value: model.connection == .ready)
             .animation(.easeOut(duration: 0.2), value: ended)
             .animation(.easeOut(duration: 0.2), value: reopened)
+            .animation(.easeOut(duration: 0.2), value: accountMove)
             if controlled && ended == nil {
                 TerminalComposer(store: model.composerStore(for: term.id, project: term.project, label: term.label),
                                  terminalBackground: theme.backgroundColor, onFind: { find.open() })
@@ -193,11 +199,13 @@ struct TerminalScreen: View {
     /// word that it happened.
     private func follow(_ next: TerminalInfo) {
         let old = current
-        let restartedHere = model.endedTerminals[old.id]?.restarting == true
+        // Run again or moved to another account on request, rather than reopened
+        // by lpm starting up.
+        let replacedHere = model.endedTerminals[old.id]?.restarting == true || next.switchedFrom == old.id
         if model.isControlled(old.id) { model.claimControl(next.id) }
         model.carryComposerDraft(from: old.id, to: next)
         hasContent = false
         successor = next
-        reopened = !restartedHere
+        reopened = !replacedHere
     }
 }

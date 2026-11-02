@@ -144,7 +144,10 @@ fun ProjectDetailRoute(
         },
         connectionStatusBar = { slots.connectionStatusBar(key.session) },
         belowServices = { slots.backgroundRuns(key.session, key.project) },
-        usage = { slots.projectUsage(key.session, key.project) }
+        usage = { slots.projectUsage(key.session, key.project) },
+        tabClaudeAccountMenu = { term, working ->
+            slots.tabClaudeAccountMenu(this, key.session, term, working)
+        }
     )
 
     renaming?.let { term ->

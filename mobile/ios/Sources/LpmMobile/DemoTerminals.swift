@@ -89,9 +89,10 @@ extension DemoServer {
             self.push(["t": "restartTerminal", "ok": true])
             guard let index = self.world.terminals[project]?.firstIndex(where: { $0.id == id }),
                   let old = self.world.terminals[project]?[index], old.exited else { return }
-            let fresh = DemoWorld.Terminal(id: self.nextTerminalId(project).id, label: old.label,
+            var fresh = DemoWorld.Terminal(id: self.nextTerminalId(project).id, label: old.label,
                                            project: project, remote: old.remote, pinned: old.pinned,
                                            emoji: old.emoji, buffer: self.shellPrompt(project))
+            fresh.tabKey = old.tabKey ?? old.id
             self.world.terminals[project]?[index] = fresh
             self.world.composerDrafts[id] = nil
             self.push(self.world.terminalsPayload(project))

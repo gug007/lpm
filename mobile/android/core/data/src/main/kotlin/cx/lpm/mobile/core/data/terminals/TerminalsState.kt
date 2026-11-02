@@ -70,7 +70,12 @@ data class TerminalsState(
      * A tab closed on this phone that can still be undone: hidden here, not yet
      * closed on the Mac. One at a time; the next close sends this one on.
      */
-    val pendingTabClose: PendingTabClose? = null
+    val pendingTabClose: PendingTabClose? = null,
+    /**
+     * terminal id → the Claude account name this phone asked it to move to, until the
+     * Mac lists the move.
+     */
+    val accountMoves: Map<String, String> = emptyMap()
 ) {
     /** project → terminal id → tab name, for naming agent rows on Activity. */
     val terminalTitles: Map<String, Map<String, String>>

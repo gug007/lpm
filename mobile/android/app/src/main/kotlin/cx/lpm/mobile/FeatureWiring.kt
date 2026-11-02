@@ -10,6 +10,7 @@ import cx.lpm.mobile.feature.actions.run.BackgroundRunsSection
 import cx.lpm.mobile.feature.automations.AutomationsSlots
 import cx.lpm.mobile.feature.claudeaccount.ClaudeAccountMenuRoute
 import cx.lpm.mobile.feature.claudeaccount.ClaudeConsentPromptRoute
+import cx.lpm.mobile.feature.claudeaccount.TabClaudeAccountMenuRoute
 import cx.lpm.mobile.feature.config.ConfigSlots
 import cx.lpm.mobile.feature.connection.ConnectionStatusBarRoute
 import cx.lpm.mobile.feature.connection.IssueCardRoute
@@ -62,6 +63,9 @@ internal fun projectsSlots(navigator: Navigator) = ProjectsSlots(
         ActionInputsSheet(action, onSubmit, onDismiss)
     },
     claudeAccountMenu = { session, project -> ClaudeAccountMenuRoute(session, project.name) },
+    tabClaudeAccountMenu = { session, term, working ->
+        TabClaudeAccountMenuRoute(session, term, working)
+    },
     claudeConsentPrompt = { session, project -> ClaudeConsentPromptRoute(session, project) },
     macUpdateMenuItem = { MacUpdateMenuItemRoute() },
     pairDirectlyMenuItems = { PairDirectlyRoute() },

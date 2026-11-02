@@ -139,6 +139,13 @@ struct DemoWorld {
         var ackCount = 0
         // Its shell ran `exit`: the tab stays, as on the Mac, until it is restarted.
         var exited = false
+        // The Claude account a Claude tab runs as, and while it moves to another:
+        // that account's name and the terminal it ran before.
+        var claudeAccount = claudeMainLogin
+        var switchingTo: String?
+        var switchedFrom: String?
+        // The tab's own identity, kept when it moves to a new terminal; its id until then.
+        var tabKey: String?
     }
 
     var terminals: [String: [Terminal]] = [:] // project -> terminals
@@ -724,13 +731,18 @@ extension DemoWorld {
 
     func terminalDict(_ t: Terminal) -> [String: Any] {
         let agent = t.cli == "claude"
-        return [
-            "id": t.id, "label": t.label, "project": t.project,
+        var d: [String: Any] = [
+            "id": t.id, "tabKey": t.tabKey ?? t.id, "label": t.label, "project": t.project,
             "cols": t.cols, "rows": t.rows, "remote": t.remote,
             "pinned": t.pinned, "emoji": t.emoji, "cli": t.cli,
             "canFork": agent, "canForkCopy": agent && !t.remote,
             "canTitle": agent && t.label != Self.conversationTitle,
+            "canSwitchAccount": agent && !t.remote,
         ]
+        if agent && !t.remote { d["claudeAccount"] = t.claudeAccount }
+        if let to = t.switchingTo { d["switchingTo"] = to }
+        if let from = t.switchedFrom { d["switchedFrom"] = from }
+        return d
     }
 
     func terminalsPayload(_ project: String) -> [String: Any] {

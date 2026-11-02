@@ -363,6 +363,9 @@ class LpmClient internal constructor(
         // `closeOtherTerminals`.
         const val TAB_MENU_FEATURE = "tabMenu"
 
+        // `switchTerminalAccount`, and each terminal's Claude account fields.
+        const val TAB_ACCOUNT_FEATURE = "tabAccount"
+
         // `answerAgent` from a notification's buttons, and `liveActivity` updates.
         const val ANSWER_AGENT_FEATURE = "answerAgent"
         const val LIVE_ACTIVITY_FEATURE = "liveActivity"

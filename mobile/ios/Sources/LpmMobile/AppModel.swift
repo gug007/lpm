@@ -295,6 +295,9 @@ final class AppModel {
     // terminal id -> how it ended, for screens still showing it: the last output
     // stays readable, but the composer goes away.
     var endedTerminals: [String: TerminalEnding] = [:]
+    // terminal id -> the Claude account name this phone asked it to move to,
+    // until the Mac lists the move.
+    var accountMoves: [String: String] = [:]
     // A failed duplicate/remove message to show once (e.g. "cannot duplicate an
     // SSH project"). The list itself refreshes off the projects-changed push.
     var actionError: String? {

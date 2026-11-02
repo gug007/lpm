@@ -6,7 +6,7 @@ import { Spinner } from "../settings/Spinner";
  *  account, so the stopped session and the new shell starting up underneath
  *  never show: only Claude, back on the account picked. */
 export function ClaudeSwitchOverlay({ tabKey }: { tabKey: string }) {
-  const accountLabel = useClaudeSwitches((s) => s.switches[tabKey]);
+  const accountLabel = useClaudeSwitches((s) => s.switches[tabKey]?.to);
   if (accountLabel === undefined) return null;
   return (
     <div className="absolute inset-0 z-10 flex items-center justify-center bg-[var(--terminal-bg)]">

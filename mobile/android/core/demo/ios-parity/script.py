@@ -337,7 +337,16 @@ at(65100, 'newTerminal', project='storefront'); at(65100, 'newTerminal', project
 at(65100, 'renameTerminal', id='demo-storefront-3', label='Logs'); at(65100, 'pinTerminal', id='demo-storefront-3')
 at(65100, 'reorderTerminals', project='storefront', order=['demo-storefront-claude', 'demo-storefront-3'])
 at(65200, 'terminals', project='storefront')
+# the tab menu's Claude Account: the Claude tab moves to Work under a new id, listed as
+# moving; a signed-out account, an unknown tab and a shell move nothing. The moved tab
+# is the one closed below, so its move is never listed done.
+at(65210, 'switchTerminalAccount', project='storefront', id='demo-storefront-claude', account='work')
+at(65220, 'switchTerminalAccount', project='storefront', id='demo-storefront-7', account='laptop')
+at(65220, 'switchTerminalAccount', project='storefront', id='nope', account='work')
+at(65220, 'switchTerminalAccount', project='storefront', id='demo-storefront-1', account='work')
+at(65250, 'terminals', project='storefront')
 at(65300, 'closeTerminal', project='storefront', id='demo-storefront-claude')
+at(65300, 'closeTerminal', project='storefront', id='demo-storefront-7')
 at(65400, 'terminals', project='storefront')
 at(65500, 'restartTerminal', project='storefront', id='demo-storefront-5')
 at(65500, 'in', id='demo-storefront-5', d='exit\r')

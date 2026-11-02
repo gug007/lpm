@@ -442,7 +442,13 @@
 {"at": 65100, "frame": {"t": "pinTerminal", "id": "demo-storefront-3"}}
 {"at": 65100, "frame": {"t": "reorderTerminals", "project": "storefront", "order": ["demo-storefront-claude", "demo-storefront-3"]}}
 {"at": 65200, "frame": {"t": "terminals", "project": "storefront"}}
+{"at": 65210, "frame": {"t": "switchTerminalAccount", "project": "storefront", "id": "demo-storefront-claude", "account": "work"}}
+{"at": 65220, "frame": {"t": "switchTerminalAccount", "project": "storefront", "id": "demo-storefront-7", "account": "laptop"}}
+{"at": 65220, "frame": {"t": "switchTerminalAccount", "project": "storefront", "id": "nope", "account": "work"}}
+{"at": 65220, "frame": {"t": "switchTerminalAccount", "project": "storefront", "id": "demo-storefront-1", "account": "work"}}
+{"at": 65250, "frame": {"t": "terminals", "project": "storefront"}}
 {"at": 65300, "frame": {"t": "closeTerminal", "project": "storefront", "id": "demo-storefront-claude"}}
+{"at": 65300, "frame": {"t": "closeTerminal", "project": "storefront", "id": "demo-storefront-7"}}
 {"at": 65400, "frame": {"t": "terminals", "project": "storefront"}}
 {"at": 65500, "frame": {"t": "restartTerminal", "project": "storefront", "id": "demo-storefront-5"}}
 {"at": 65500, "frame": {"t": "in", "id": "demo-storefront-5", "d": "exit\r"}}

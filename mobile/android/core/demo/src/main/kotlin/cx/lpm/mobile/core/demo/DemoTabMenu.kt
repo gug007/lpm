@@ -44,6 +44,42 @@ internal fun DemoServer.registerTabMenuHandlers() {
         tab.label = DemoWorld.CONVERSATION_TITLE
         push(world.terminalsPayload(project))
     }
+    // The conversation carries on in the same tab under a new id, covered while it
+    // moves, as the Mac moves it.
+    register("switchTerminalAccount") { o ->
+        val project = o.string("project") ?: return@register
+        val id = o.string("id") ?: return@register
+        val account = o.string("account") ?: return@register
+        push(mapOf("t" to "switchTerminalAccount", "ok" to true))
+        val list = world.terminals[project] ?: return@register
+        val index = list.indexOfFirst { it.id == id }
+        val old = list.getOrNull(index)?.takeIf { it.cli == "claude" } ?: return@register
+        val name = world.claude.accounts.firstOrNull { it.id == account && it.signedIn }
+            ?.let { if (it.id == CLAUDE_MAIN_LOGIN) "Main login" else it.label }
+            ?: return@register
+        val moved = old.copy(
+            tabKey = old.tabKey ?: old.id,
+            id = nextTerminalId(project).second,
+            subscribed = false,
+            claudeAccount = account,
+            switchingTo = name,
+            switchedFrom = id
+        )
+        list[index] = moved
+        push(world.terminalsPayload(project))
+        val reporting = world.projectIndex(project)?.let { world.projects[it] }
+        if (reporting != null && reporting.status.any { it.paneID == id }) {
+            reporting.status =
+                reporting.status.map { if (it.paneID == id) it.copy(paneID = moved.id) else it }
+            push(mapOf("t" to "status-changed", "project" to project))
+        }
+        after(ACCOUNT_MOVE_SECONDS) {
+            val tab = world.terminals[project]?.firstOrNull { it.id == moved.id } ?: return@after
+            tab.switchingTo = null
+            tab.switchedFrom = null
+            push(world.terminalsPayload(project))
+        }
+    }
     register("closeOtherTerminals") { o ->
         val project = o.string("project") ?: return@register
         val id = o.string("id") ?: return@register
@@ -81,3 +117,4 @@ private fun DemoServer.fork(source: DemoWorld.Terminal, project: String) = DemoW
 )
 
 private const val FORK_COPY_SECONDS = 0.7
+private const val ACCOUNT_MOVE_SECONDS = 1.2

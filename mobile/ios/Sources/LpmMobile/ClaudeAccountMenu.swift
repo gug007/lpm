@@ -96,19 +96,8 @@ struct ClaudeAccountMenu: View {
         }
     }
 
-    @ViewBuilder
     private func row(_ title: String, _ subtitle: String?, on: Bool) -> some View {
-        if on {
-            Label {
-                Text(title)
-                if let subtitle { Text(subtitle) }
-            } icon: {
-                Image(systemName: "checkmark")
-            }
-        } else {
-            Text(title)
-            if let subtitle { Text(subtitle) }
-        }
+        ClaudeChoiceLabel(title: title, subtitle: subtitle, on: on)
     }
 
     private func usage(_ account: String) -> String? {

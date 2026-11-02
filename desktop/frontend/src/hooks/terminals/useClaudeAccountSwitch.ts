@@ -97,7 +97,7 @@ export function useClaudeAccountSwitch({
       // session stopping and the shell starting underneath.
       const switches = useClaudeSwitches.getState();
       const tabKey = tab.historyKey ?? oldId;
-      switches.begin(tabKey, label);
+      switches.begin(tabKey, { to: label, from: oldId });
       try {
         await (isPeerName(oldId) ? onHost() : here());
       } catch (err) {

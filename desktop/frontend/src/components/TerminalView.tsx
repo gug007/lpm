@@ -78,6 +78,7 @@ import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { blockingDialogOpen } from "./ui/blockingDialog";
 import { isPendingClose } from "../pendingClose";
 import type { SavedLayoutNode } from "../savedLayouts";
+import { useClaudeSwitches } from "../store/claudeSwitches";
 
 // Everything a terminal leaves behind in this window once it's really gone.
 function dropTerminalSession(id: string) {
@@ -473,14 +474,20 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
   // (the tree gets a fresh reference each drag frame) so consumers/effects don't
   // churn.
   const allTerminalsRef = useRef<RemoteTab[]>([]);
+  const claudeSwitches = useClaudeSwitches((s) => s.switches);
   const allTerminals = useMemo(() => {
     const next = terminalTabs.map((t, i) =>
-      remoteTabOf(t, { localSessions, sessionsReachable, label: stripLabels[i] }),
+      remoteTabOf(t, {
+        localSessions,
+        sessionsReachable,
+        label: stripLabels[i],
+        move: t.historyKey ? claudeSwitches[t.historyKey] : undefined,
+      }),
     );
     if (sameRemoteTabs(allTerminalsRef.current, next)) return allTerminalsRef.current;
     allTerminalsRef.current = next;
     return next;
-  }, [terminalTabs, localSessions, sessionsReachable, stripLabels]);
+  }, [terminalTabs, localSessions, sessionsReachable, stripLabels, claudeSwitches]);
 
   // Mirror the live id -> {label, cli} mapping to the remote server so paired
   // phones show the same terminal names and offer the same slash commands. It is

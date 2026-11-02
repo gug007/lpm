@@ -138,7 +138,9 @@ terminal again in its tab (`restartTerminal`); `"agentLaunch"` — `agentOptions
 `"actionPrompt"` — `runAction` with a `prompt`;
 `"listDir"` — browsing a project's folders (`listDir`); the last four under
 [Agent tabs and files](#agent-tabs-and-files); `"tabMenu"` — `forkTerminal`,
-`forkTerminalCopy`, `titleTerminal` and `closeOtherTerminals`; `"weeklyRecap"` — the
+`forkTerminalCopy`, `titleTerminal` and `closeOtherTerminals`; `"tabAccount"` —
+`switchTerminalAccount`, and each Terminal's `canSwitchAccount`, `claudeAccount`,
+`switchingTo` and `switchedFrom`; `"weeklyRecap"` — the
 desktop's weekly recap card (`weeklyRecap`); `"recapMonth"` — `weeklyRecap` with
 `period: "month"`; `"agentArchive"` — seen agents
 (`seenEntries`, `seen`, `seenAgentsShown`) and `archiveStatus`, `markStatusSeen` and
@@ -399,6 +401,7 @@ holds no credential of its own, so removing it sends nothing.
 | `{ "t": "forkTerminal", "project": "<name>", "id": "<termId>" }` | `{ "t": "forkTerminal", "ok": true }` — relay; the desktop's **Fork session**: a new tab beside this one continues its agent conversation while the original keeps running. The fork arrives on a later `terminals` push. Only for a terminal listed with `canFork`, and only when `features` has `"tabMenu"` |
 | `{ "t": "forkTerminalCopy", "project": "<name>", "id": "<termId>" }` | `{ "t": "forkTerminalCopy", "ok": true }` — relay; the desktop's **Fork into copy**: makes one copy of the project (working tree as it is, nothing pulled) and continues the conversation in a tab there. The copy arrives on the projects list. Ask before sending it, as the desktop does — the Mac doesn't. Only for a terminal listed with `canForkCopy`, and only when `features` has `"tabMenu"` |
 | `{ "t": "titleTerminal", "project": "<name>", "id": "<termId>" }` | `{ "t": "titleTerminal", "ok": true }` — relay; the desktop's **Use conversation title**: the tab drops its manual name and follows its agent conversation's title again. Only for a terminal listed with `canTitle`, and only when `features` has `"tabMenu"` |
+| `{ "t": "switchTerminalAccount", "project": "<name>", "id": "<termId>", "account": "<id>" }` | `{ "t": "switchTerminalAccount", "ok": true }` — relay; the desktop's tab menu › **Claude account**: continues the tab's Claude conversation on another of the Mac's accounts (`id` from `claudeAccounts`, `"default"` for the main login). The Mac interrupts a turn in progress as Esc does, moves the conversation's own files to that account, and resumes it in the same tab under a **new** id, sending "Continue where you left off." when it interrupted a turn. While it does, the `terminals` push lists the new terminal with `switchingTo` and `switchedFrom` (see Terminal). Only for a terminal listed with `canSwitchAccount`, never to an account that isn't signed in, and only when `features` has `"tabAccount"` |
 | `{ "t": "closeOtherTerminals", "project": "<name>", "id": "<termId>" }` | `{ "t": "closeOtherTerminals", "ok": true }` — relay; closes every other **unpinned** terminal of the project, in any of the desktop's panes, at once, and keeps `id`. Pinned tabs and the desktop's browser, files and other non-terminal tabs stay. Ask before sending it. Only when `features` has `"tabMenu"` |
 | `{ "t": "duplicate", "name": "<name>", "count": N, "labels": ["<per-copy>"…], "groupName": "<folder>", "excludeUncommitted": bool, "reinstallDeps": bool, "pullLatest": bool, "runMode": "none"\|"action"\|"command", "action": "<actionName>", "command": "<cmd>", "prompt": "<text>" }` | Streams `{ "t": "duplicateProgress", "done": i, "total": N, "name": "<copy>" }` per copy as they're created, then a final `{ "t": "duplicate", "ok": true, "name": "<first>", "names": [...], "warning": "…"? }` / `{ "ok": false, "error": "…" }` — clones the project, mirroring the desktop modal. Rust creates each copy directly (works with no main window) with `labels[i]` as copy i's display label (blank → auto-named); `groupName` groups them under a sidebar folder (replicating the desktop's applySidebarLayout — writes groups.json + settings.json). The three git toggles default false (phone seeds `pullLatest` true from settings). **runMode** `action`/`command`: after creation, each copy's task is relayed to the main window (`remote-run-task`) which runs it in the copy's terminal (types the command, seeds the AI `prompt`) — **that step needs the desktop main window open**; if it's closed, copies are still made and the reply carries a `warning`. Copies also reach the phone via `projects-changed`. `name` = first copy; `names` = all created |
 | `{ "t": "duplicateDefaults" }` | `{ "t": "duplicateDefaults", "excludeUncommitted": bool, "reinstallDeps": bool, "pullLatest": bool }` — the desktop's persisted duplicate-modal toggle defaults (from `settings.json`), so the phone's duplicate modal opens with the same initial state. Fallbacks mirror the desktop: `excludeUncommitted`/`reinstallDeps` default false, `pullLatest` defaults true |
@@ -1518,6 +1521,8 @@ changed?: N           // a folder's count of changed files anywhere below it
 **Terminal**:
 ```
 id: string       // e.g. "MyProject-3" — use as <termId> in sub/in/resize
+tabKey?: string  // the desktop tab's own identity: the same across the new ids a restart or a
+                 // move to another Claude account gives the tab, so key rows by it (else id)
 label: string    // the desktop tab name (e.g. "Ultracode"); falls back to id
 project: string
 cols: uint16
@@ -1528,9 +1533,16 @@ emoji: string    // the tab's emoji icon (empty if unset) — mirrors the deskto
 canFork: bool    // the desktop's tab menu offers Fork session (an agent tab with a conversation to fork)
 canForkCopy: bool // … and Fork into copy (not for a project that runs over SSH)
 canTitle: bool   // … and Use conversation title (a renamed agent tab with a conversation)
+canSwitchAccount: bool // … and Claude account (a Claude tab on this Mac, not over SSH)
+claudeAccount?: string // with canSwitchAccount: the account the tab runs as ("default" is the main login)
+switchingTo?: string   // while the tab moves to another account: that account's name
+switchedFrom?: string  // … and the terminal id the tab ran before, which a phone showing it follows here
 ```
 The three `can*` flags come from a desktop with `"tabMenu"` in `features`; older ones omit
-them, which means false.
+them, which means false. The account fields come from one with `"tabAccount"`. The phone
+shows its tab menu's Claude Account submenu only once `claudeAccounts` lists an account
+beyond the main login, and covers the terminal with "Continuing on <switchingTo>…" for as
+long as the Mac lists `switchingTo`, as the desktop covers its tab.
 The `label` and `pinned` state come from the desktop's tab tree, which the
 frontend registers with the server (`remote_set_terminal_labels`). terminals.json
 persists labels but not the ephemeral pty id, so the running frontend is the only

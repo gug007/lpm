@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -34,6 +35,7 @@ import cx.lpm.mobile.core.designsystem.component.ListSection
 import cx.lpm.mobile.core.designsystem.component.ListSectionSpacing
 import cx.lpm.mobile.core.designsystem.component.LpmTopBar
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
+import cx.lpm.mobile.core.model.AgentState
 import cx.lpm.mobile.core.model.AppTip
 import cx.lpm.mobile.core.model.Service
 import cx.lpm.mobile.core.model.TerminalInfo
@@ -84,7 +86,11 @@ fun ProjectDetailScreen(
     menu: @Composable RowScope.() -> Unit = {},
     connectionStatusBar: @Composable () -> Unit = {},
     belowServices: @Composable () -> Unit = {},
-    usage: @Composable () -> Unit = {}
+    usage: @Composable () -> Unit = {},
+    tabClaudeAccountMenu: @Composable ColumnScope.(
+        TerminalInfo,
+        working: Boolean
+    ) -> Unit = { _, _ -> }
 ) {
     Column(
         modifier
@@ -128,7 +134,7 @@ fun ProjectDetailScreen(
                             }
                         }
                         QueuedSection(state, actions)
-                        TabsSection(state, actions)
+                        TabsSection(state, actions, tabClaudeAccountMenu)
                         ServicesSection(state, actions)
                         belowServices()
                         if (state.showsUsage) {
@@ -183,7 +189,11 @@ private fun QueuedSection(state: ProjectDetailUiState, actions: ProjectDetailAct
 }
 
 @Composable
-private fun TabsSection(state: ProjectDetailUiState, actions: ProjectDetailActions) {
+private fun TabsSection(
+    state: ProjectDetailUiState,
+    actions: ProjectDetailActions,
+    claudeAccountMenu: @Composable ColumnScope.(TerminalInfo, working: Boolean) -> Unit
+) {
     val tabs = state.tabs
     if (tabs != null && state.isEmpty) return
     ListSection(
@@ -194,15 +204,17 @@ private fun TabsSection(state: ProjectDetailUiState, actions: ProjectDetailActio
             repeat(SKELETON_ROWS) { TerminalRowSkeleton() }
             return@ListSection
         }
+        // Keyed by the tab, not its terminal, so a tab that moves to a new one keeps
+        // its row.
         tabs.forEach { tab ->
-            key(tab.terminal.id) {
+            key(tab.terminal.tabKey) {
                 TabRow(
                     tab = tab,
                     onOpen = { actions.openTerminal(tab.terminal) },
                     onPin = { actions.pin(tab.terminal) },
                     onRename = { actions.rename(tab.terminal) },
                     onClose = { actions.close(tab.terminal) },
-                    extras = tabMenuExtras(state, tabs, tab.terminal, actions)
+                    extras = tabMenuExtras(state, tabs, tab, actions, claudeAccountMenu)
                 )
             }
         }
@@ -261,16 +273,22 @@ private fun ServicesSection(state: ProjectDetailUiState, actions: ProjectDetailA
 private fun tabMenuExtras(
     state: ProjectDetailUiState,
     tabs: List<TabEntry>,
-    term: TerminalInfo,
-    actions: ProjectDetailActions
+    tab: TabEntry,
+    actions: ProjectDetailActions,
+    claudeAccountMenu: @Composable ColumnScope.(TerminalInfo, working: Boolean) -> Unit
 ): TabMenuExtras {
-    if (!state.canUseTabMenu) return TabMenuExtras()
+    val term = tab.terminal
+    val claudeAccount: @Composable ColumnScope.() -> Unit = {
+        claudeAccountMenu(term, tab.agent?.state == AgentState.Working)
+    }
+    if (!state.canUseTabMenu) return TabMenuExtras(claudeAccount = claudeAccount)
     val others = tabs.any { it.terminal.id != term.id && !it.terminal.pinned }
     return TabMenuExtras(
         useTitle = { actions.useTitle(term) }.takeIf { term.canTitle },
         fork = { actions.fork(term) }.takeIf { term.canFork },
         forkCopy = { actions.forkCopy(term) }.takeIf { term.canForkCopy },
-        closeOthers = { actions.closeOthers(term) }.takeIf { others }
+        closeOthers = { actions.closeOthers(term) }.takeIf { others },
+        claudeAccount = claudeAccount
     )
 }
 

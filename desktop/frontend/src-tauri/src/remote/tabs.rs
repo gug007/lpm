@@ -60,7 +60,8 @@ pub(super) fn with_agent_sessions(hub: &RemoteHub, terminals: &mut [Value]) {
 }
 
 /// Records the tab list the frontend just reported and says whether anything a
-/// remote shows — which tabs, their order, names, pins, icons or menu — changed.
+/// remote shows — which tabs, their order, names, pins, icons, menu or a move to
+/// another Claude account — changed.
 pub(super) fn note_tree(
     hub: &RemoteHub,
     project: &str,
@@ -82,7 +83,10 @@ pub(super) fn note_tree(
                 item.get("emoji"),
                 item.get("canFork"),
                 item.get("canForkCopy"),
-                item.get("canTitle")
+                item.get("canTitle"),
+                item.get("canSwitchAccount"),
+                item.get("switchingTo"),
+                item.get("switchedFrom")
             ])
         })
         .collect();

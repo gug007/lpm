@@ -1,14 +1,18 @@
 import { agentSessionOf, type AgentSessionRef } from "./agentSession";
+import { isClaudeTab } from "./claudeTab";
 import { canForkSession } from "./forkSession";
 import { followsAgentTitle, terminalDisplayLabel, type TerminalInstance } from "./paneTree";
 import { peerSlugOf } from "./peer/markers";
+import type { ClaudeSwitch } from "./store/claudeSwitches";
 import { detectAICLI } from "./slashCommands";
 
 // One terminal tab as phones and paired Macs see it. `cli` is detected from the
 // launch command (empty for plain shells). `agentSession` is the conversation
 // whose transcript the phone's copy key reads, so only for tabs whose
 // transcripts are on this Mac. The `can*` flags gate the phone's tab menu the
-// way the desktop's own tab menu is gated.
+// way the desktop's own tab menu is gated. While the tab moves to another
+// Claude account, `switchingTo` names it and `switchedFrom` is the terminal the
+// tab ran before.
 export interface RemoteTab {
   id: string;
   label: string;
@@ -20,6 +24,9 @@ export interface RemoteTab {
   canFork: boolean;
   canForkCopy: boolean;
   canTitle: boolean;
+  canSwitchAccount: boolean;
+  switchingTo: string | null;
+  switchedFrom: string | null;
 }
 
 export function remoteTabOf(
@@ -28,7 +35,8 @@ export function remoteTabOf(
     localSessions,
     sessionsReachable,
     label,
-  }: { localSessions: boolean; sessionsReachable: boolean; label?: string },
+    move,
+  }: { localSessions: boolean; sessionsReachable: boolean; label?: string; move?: ClaudeSwitch },
 ): RemoteTab {
   const canFork = canForkSession(t.resumeCmd);
   return {
@@ -45,6 +53,9 @@ export function remoteTabOf(
     canFork,
     canForkCopy: canFork && sessionsReachable,
     canTitle: !followsAgentTitle(t) && !!agentSessionOf(t),
+    canSwitchAccount: localSessions && peerSlugOf(t.id) === null && isClaudeTab(t),
+    switchingTo: move?.to ?? null,
+    switchedFrom: move && move.from !== t.id ? move.from : null,
   };
 }
 
@@ -63,7 +74,10 @@ export function sameRemoteTabs(a: RemoteTab[], b: RemoteTab[]): boolean {
         p.agentSession?.sessionId === b[i].agentSession?.sessionId &&
         p.canFork === b[i].canFork &&
         p.canForkCopy === b[i].canForkCopy &&
-        p.canTitle === b[i].canTitle,
+        p.canTitle === b[i].canTitle &&
+        p.canSwitchAccount === b[i].canSwitchAccount &&
+        p.switchingTo === b[i].switchingTo &&
+        p.switchedFrom === b[i].switchedFrom,
     )
   );
 }

@@ -1137,6 +1137,10 @@ pub struct RemoteTerminal {
     pub cols: u16,
     pub rows: u16,
     pub remote: bool,
+    /// The Claude account its shell was started for; listed only for a tab
+    /// that offers moving to another (remote/tab_account.rs).
+    #[serde(skip)]
+    pub claude_account: Option<String>,
 }
 
 pub(crate) fn session(state: &PtyState, id: &str) -> Option<Arc<PtySession>> {
@@ -1189,6 +1193,7 @@ pub fn remote_terminals(state: &PtyState, project: &str) -> Vec<RemoteTerminal> 
             cols: s.cols.load(Ordering::Relaxed),
             rows: s.rows.load(Ordering::Relaxed),
             remote: s.remote,
+            claude_account: s.claude_account.clone(),
         })
         .collect();
     out.sort_by(|a, b| a.id.cmp(&b.id));

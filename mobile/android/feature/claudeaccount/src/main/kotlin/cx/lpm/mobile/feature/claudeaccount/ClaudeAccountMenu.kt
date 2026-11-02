@@ -191,7 +191,7 @@ private fun ColumnScope.ListChoices(
  * choice's title alone, without the line under it.
  */
 @Composable
-private fun ColumnScope.Choice(
+internal fun ColumnScope.Choice(
     title: String,
     subtitle: String?,
     on: Boolean,

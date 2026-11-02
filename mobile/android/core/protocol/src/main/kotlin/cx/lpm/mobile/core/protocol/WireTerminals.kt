@@ -114,6 +114,14 @@ sealed interface WireTerminals {
         put("id", id)
     }
 
+    /** Continue a Claude tab's conversation on another account; only when `features` has "tabAccount". */
+    fun switchTerminalAccount(project: String, id: String, account: String): String =
+        frame("switchTerminalAccount") {
+            put("project", project)
+            put("id", id)
+            put("account", account)
+        }
+
     fun reorderTerminals(project: String, order: List<String>): String = frame("reorderTerminals") {
         put("project", project)
         putStrings("order", order)

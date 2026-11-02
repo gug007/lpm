@@ -6,6 +6,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
@@ -54,7 +55,8 @@ class TabMenuExtras(
     val useTitle: (() -> Unit)? = null,
     val fork: (() -> Unit)? = null,
     val forkCopy: (() -> Unit)? = null,
-    val closeOthers: (() -> Unit)? = null
+    val closeOthers: (() -> Unit)? = null,
+    val claudeAccount: (@Composable ColumnScope.() -> Unit)? = null
 )
 
 /**
@@ -185,6 +187,7 @@ fun TabRow(
                         icon = painterResource(R.drawable.ic_library_add)
                     )
                 }
+                extras.claudeAccount?.invoke(this)
                 ContextMenuItem(
                     title = closeLabel,
                     onClick = onClose,

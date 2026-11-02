@@ -152,6 +152,7 @@ internal fun TerminalScreen(
                     connectionBanner = connectionBanner,
                     modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp)
                 )
+                AccountMoveOverlay(move = state.accountMove, background = ground)
                 Box(Modifier.align(Alignment.TopCenter)) { findBar() }
             }
             val endedHere = state.endedHere
@@ -167,6 +168,19 @@ internal fun TerminalScreen(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun AccountMoveOverlay(move: String?, background: Color) {
+    AnimatedVisibility(
+        visible = move != null,
+        enter = fadeIn(tween(BANNER_ANIMATION_MS)),
+        exit = fadeOut(tween(BANNER_ANIMATION_MS))
+    ) {
+        // Keeps the account's name while the cover fades out.
+        val shown = remember { move.orEmpty() }
+        TerminalAccountMoveView(account = shown, background = background)
     }
 }
 

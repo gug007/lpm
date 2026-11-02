@@ -19,12 +19,15 @@ struct ProjectTabsSection: View {
 
     var body: some View {
         Section {
-            ForEach(terminals) { t in
+            // Keyed by the tab, not its terminal, so a tab that moves to a new one
+            // keeps its row.
+            ForEach(terminals, id: \.tabKey) { t in
                 TabRow(term: t, agent: agents[t.id], onOpen: { onOpen(t) })
                     .tabMenu(term: t, agent: agents[t.id]) {
                         pinButton(t)
                         renameButton(t)
                         TabMenuExtras(term: t, onSpawned: onSpawned, forkingIntoCopy: $forkingIntoCopy)
+                        TabClaudeAccountMenu(term: t, working: agents[t.id]?.state == .working)
                         closeButton(t)
                         CloseOtherTabsButton(term: t, closingOthers: $closingOthers)
                     }

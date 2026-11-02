@@ -99,7 +99,8 @@ private fun DemoServer.registerTerminalLifecycleHandlers() {
             remote = old.remote,
             pinned = old.pinned,
             emoji = old.emoji,
-            buffer = shellPrompt(project)
+            buffer = shellPrompt(project),
+            tabKey = old.tabKey ?: old.id
         )
         world.composerDrafts.remove(id)
         push(world.terminalsPayload(project))

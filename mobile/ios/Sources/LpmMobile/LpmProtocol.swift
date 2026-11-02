@@ -265,6 +265,11 @@ enum Wire {
     static func closeOtherTerminals(project: String, id: String) -> String {
         json(["t": "closeOtherTerminals", "project": project, "id": id])
     }
+    /// Continue a Claude tab's conversation on another account; only when
+    /// `features` has "tabAccount".
+    static func switchTerminalAccount(project: String, id: String, account: String) -> String {
+        json(["t": "switchTerminalAccount", "project": project, "id": id, "account": account])
+    }
     static func reorderTerminals(project: String, order: [String]) -> String {
         json(["t": "reorderTerminals", "project": project, "order": order])
     }
@@ -2036,6 +2041,9 @@ struct SshHostInfo: Identifiable {
 
 struct TerminalInfo: Identifiable, Hashable {
     let id: String
+    // The desktop tab's own identity, the same across the new ids a restart or a
+    // move to another Claude account gives it; the id from an older server.
+    let tabKey: String
     let label: String
     let project: String
     let cols: Int
@@ -2050,9 +2058,18 @@ struct TerminalInfo: Identifiable, Hashable {
     let canFork: Bool
     let canForkCopy: Bool
     let canTitle: Bool
+    // The tab menu's Claude Account, for a Claude tab on a Mac with "tabAccount":
+    // the account the tab runs as.
+    let canSwitchAccount: Bool
+    let claudeAccount: String?
+    // While the tab moves to another account: that account's name, and the
+    // terminal the tab ran before, which a screen showing it follows here.
+    let switchingTo: String?
+    let switchedFrom: String?
 
     init(_ o: [String: Any]) {
         id = o["id"] as? String ?? ""
+        tabKey = (o["tabKey"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? id
         // The desktop tab name; falls back to the id for older servers.
         label = Wire.label(o, fallback: "id")
         project = o["project"] as? String ?? ""
@@ -2065,6 +2082,10 @@ struct TerminalInfo: Identifiable, Hashable {
         canFork = o["canFork"] as? Bool ?? false
         canForkCopy = o["canForkCopy"] as? Bool ?? false
         canTitle = o["canTitle"] as? Bool ?? false
+        canSwitchAccount = o["canSwitchAccount"] as? Bool ?? false
+        claudeAccount = o["claudeAccount"] as? String
+        switchingTo = o["switchingTo"] as? String
+        switchedFrom = o["switchedFrom"] as? String
     }
 }
 

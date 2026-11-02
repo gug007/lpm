@@ -81,7 +81,7 @@ describe("useClaudeAccountSwitch", () => {
     let coveredWhileMoving: unknown;
     bridge.MoveClaudeTabToAccount.mockImplementation(async () => {
       shownWhileMoving = collectTerminals(treeRef.current!)[0].id;
-      coveredWhileMoving = useClaudeSwitches.getState().switches.h1;
+      coveredWhileMoving = useClaudeSwitches.getState().switches.h1?.to;
       return { moved: true, interrupted: false };
     });
     await switchAccount("pty-1", "work");
@@ -142,7 +142,7 @@ describe("useClaudeAccountSwitch", () => {
     const done = switchAccount(peerTab, "work", "Their work");
     await act(async () => {});
     expect(bridge.TerminalTabOp).toHaveBeenCalledWith("web", "account", peerTab, null, null, null, "work");
-    expect(useClaudeSwitches.getState().switches).toEqual({ h9: "Their work" });
+    expect(useClaudeSwitches.getState().switches).toEqual({ h9: { to: "Their work", from: peerTab } });
 
     const moved = prefixName("aaaaaaaa", "pty-10");
     settleHostSwap(peerTab, moved);

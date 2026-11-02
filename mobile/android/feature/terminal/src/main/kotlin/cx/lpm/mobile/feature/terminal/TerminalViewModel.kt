@@ -15,7 +15,9 @@ import cx.lpm.mobile.core.data.session.SessionState
 import cx.lpm.mobile.core.data.terminals.TerminalHooks
 import cx.lpm.mobile.core.data.terminals.TerminalsState
 import cx.lpm.mobile.core.data.terminals.TerminalsStore
+import cx.lpm.mobile.core.data.terminals.accountMove
 import cx.lpm.mobile.core.data.terminals.closeTerminal
+import cx.lpm.mobile.core.data.terminals.movedTab
 import cx.lpm.mobile.core.data.terminals.restoredTab
 import cx.lpm.mobile.core.model.AgentState
 import cx.lpm.mobile.core.model.Project
@@ -169,22 +171,23 @@ class TerminalViewModel @AssistedInject constructor(
         val id = next?.id ?: key.terminalId
         t.terminals[key.project]?.firstOrNull { it.id == id }?.let { lastSeen.value = it }
         val shown = lastSeen.value?.takeIf { it.id == id } ?: next ?: return
-        t.restoredTab(shown)?.let(::follow)
+        (t.movedTab(shown) ?: t.restoredTab(shown))?.let(::follow)
     }
 
     /**
      * Carry on with the tab lpm reopened: what was typed here goes with it, and so
-     * does control if this phone had it. A restart asked for here needs no word that
-     * it happened.
+     * does control if this phone had it. A restart or a move to another account asked
+     * for needs no word that it happened.
      */
     private fun follow(next: TerminalInfo) {
         val store = terminals ?: return
         val old = currentId
-        val restartedHere = store.state.value.endedTerminals[old]?.restarting == true
+        val replacedHere =
+            store.state.value.endedTerminals[old]?.restarting == true || next.switchedFrom == old
         if (store.isControlled(old)) store.claimControl(next.id)
         session?.store<ComposerSessions>()?.carryDraft(from = old, to = next)
         successor.value = next
-        if (restartedHere) return
+        if (replacedHere) return
         reopened.value = true
         reopenedTimer?.cancel()
         reopenedTimer = viewModelScope.launch {
@@ -217,6 +220,7 @@ class TerminalViewModel @AssistedInject constructor(
             listed = list?.any { it.id == id } == true,
             canRestart = terminals?.canRestartTerminals == true,
             reopened = reopen,
+            accountMove = terminal?.let(t::accountMove),
             connectionReady = s.isReady,
             statusLine = link.statusLine.takeUnless { s.demoMode || s.isReady },
             look = look,

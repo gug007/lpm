@@ -143,7 +143,14 @@ internal class DemoWorld(val clock: Clock) {
         var responding: Boolean = false,
         var ackCount: Int = 0,
         // Its shell ran `exit`: the tab stays, as on the Mac, until it is restarted.
-        var exited: Boolean = false
+        var exited: Boolean = false,
+        // The Claude account a Claude tab runs as, and while it moves to another: that
+        // account's name and the terminal it ran before.
+        var claudeAccount: String = CLAUDE_MAIN_LOGIN,
+        var switchingTo: String? = null,
+        var switchedFrom: String? = null,
+        // The tab's own identity, kept when it moves to a new terminal; its id until then.
+        var tabKey: String? = null
     )
 
     val terminals = mutableMapOf<String, MutableList<Terminal>>() // project -> terminals

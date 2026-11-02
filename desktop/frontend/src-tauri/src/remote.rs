@@ -63,6 +63,7 @@ mod recap_push;
 mod reminders;
 mod relay;
 pub(crate) mod relayed;
+mod tab_account;
 mod tab_menu;
 pub(crate) mod tabs;
 
@@ -156,6 +157,7 @@ const PHONE_FEATURES: &[&str] = &[
     crate::remote_answers::FEATURE,
     RESTART_TERMINAL_FEATURE,
     tab_menu::FEATURE,
+    tab_account::FEATURE,
     crate::remote_agents::LAUNCH_FEATURE,
     crate::remote_agents::SESSIONS_FEATURE,
     crate::remote_agents::ACTION_PROMPT_FEATURE,
@@ -328,6 +330,13 @@ struct HubInner {
     // Live terminal id -> which of fork / fork into copy / conversation title the
     // desktop's tab menu offers for it, so the phone's offers the same.
     tab_caps: Mutex<HashMap<String, tab_menu::TabCaps>>,
+    // Live terminal id -> whether the desktop's tab menu offers Claude account
+    // for it, and the account it's moving to while it moves.
+    tab_accounts: Mutex<HashMap<String, tab_account::TabAccount>>,
+    // Live terminal id -> the desktop tab's own identity (its historyKey), the same
+    // across the new terminals a restart or a move to another account gives it, so
+    // a phone keeps the tab's row in place.
+    tab_keys: Mutex<HashMap<String, String>>,
     // Live terminal id -> tab emoji (from the frontend tab tree), so the phone can
     // show the same per-terminal tab icon the desktop does. Empty when unset.
     emojis: Mutex<HashMap<String, String>>,
@@ -3459,7 +3468,8 @@ fn handle_msg(
         | "forkTerminal"
         | "forkTerminalCopy"
         | "titleTerminal"
-        | "closeOtherTerminals" => {
+        | "closeOtherTerminals"
+        | "switchTerminalAccount" => {
             let project = str_field("project").unwrap_or_default();
             let id = str_field("id").unwrap_or_default();
             let op = match t {
@@ -3467,6 +3477,7 @@ fn handle_msg(
                 "renameTerminal" => "rename",
                 "restartTerminal" => "restart",
                 "pinTerminal" => "pin",
+                "switchTerminalAccount" => "account",
                 _ => tab_menu::op(t).unwrap_or_default(),
             };
             if !project.is_empty() && !id.is_empty() {
@@ -3477,6 +3488,7 @@ fn handle_msg(
                         "op": op,
                         "id": id,
                         "label": str_field("label").unwrap_or_default(),
+                        "account": str_field("account"),
                     }),
                 );
             }
@@ -6420,6 +6432,8 @@ pub fn project_terminals(app: &AppHandle, hub: &RemoteHub, project: &str) -> Vec
     let emojis = hub.inner.emojis.lock().unwrap();
     let clis = hub.inner.clis.lock().unwrap();
     let caps = hub.inner.tab_caps.lock().unwrap();
+    let accounts = hub.inner.tab_accounts.lock().unwrap();
+    let tab_keys = hub.inner.tab_keys.lock().unwrap();
     terms
         .iter()
         .map(|t| {
@@ -6440,6 +6454,14 @@ pub fn project_terminals(app: &AppHandle, hub: &RemoteHub, project: &str) -> Vec
                     json!(clis.get(&t.id).cloned().unwrap_or_default()),
                 );
                 caps.get(&t.id).copied().unwrap_or_default().write(m);
+                accounts
+                    .get(&t.id)
+                    .cloned()
+                    .unwrap_or_default()
+                    .write(m, t.claude_account.as_deref());
+                if let Some(key) = tab_keys.get(&t.id) {
+                    m.insert("tabKey".into(), json!(key));
+                }
             }
             o
         })
@@ -6496,6 +6518,7 @@ pub fn remote_set_terminal_labels(
     let mut emoji_map = hub.inner.emojis.lock().unwrap();
     let mut session_map = hub.inner.agent_sessions.lock().unwrap();
     let mut caps_map = hub.inner.tab_caps.lock().unwrap();
+    let mut account_map = hub.inner.tab_accounts.lock().unwrap();
     let mut ids: Vec<String> = Vec::new();
     for item in &labels {
         let id = item.get("id").and_then(Value::as_str).unwrap_or("");
@@ -6523,6 +6546,7 @@ pub fn remote_set_terminal_labels(
                 .to_string(),
         );
         caps_map.insert(id.to_string(), tab_menu::TabCaps::from_value(item));
+        account_map.insert(id.to_string(), tab_account::TabAccount::from_value(item));
         match item
             .get("agentSession")
             .and_then(crate::remote_answers::AgentSession::from_value)
@@ -6538,6 +6562,7 @@ pub fn remote_set_terminal_labels(
         emoji_map,
         session_map,
         caps_map,
+        account_map,
     ));
     if project.is_empty() {
         return;
@@ -6550,6 +6575,11 @@ pub fn remote_set_terminal_labels(
             Some((id.to_string(), key.to_string()))
         })
         .collect();
+    hub.inner
+        .tab_keys
+        .lock()
+        .unwrap()
+        .extend(tab_keys.iter().cloned());
     if crate::status::saved::attach(&app.state::<Arc<StatusStore>>(), &project, &tab_keys) {
         let _ = app.emit("status-changed", &project);
     }

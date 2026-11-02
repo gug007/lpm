@@ -11,6 +11,8 @@
     <string name="claudeaccount_turns">Take turns, in this order</string>
     <string name="claudeaccount_switching_off">Switching is off: new sessions use the first</string>
     <string name="claudeaccount_new_sessions">New sessions</string>
+    <string name="claudeaccount_tab_continue">Continue this conversation on</string>
+    <string name="claudeaccount_tab_interrupt">Interrupt this turn and continue it on</string>
     <plurals name="claudeaccount_full">
         <item quantity="one">Up to %1$d take turns</item>
         <item quantity="other">Up to %1$d take turns</item>

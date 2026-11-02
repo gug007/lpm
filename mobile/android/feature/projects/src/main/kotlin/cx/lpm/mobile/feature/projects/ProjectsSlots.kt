@@ -44,6 +44,15 @@ class ProjectsSlots(
     val claudeAccountMenu: @Composable ColumnScope.(session: SessionKey, project: Project) -> Unit =
         { _, _ -> },
     /**
+     * "Claude Account ▸" in a Claude tab's long press, to continue its conversation on
+     * another account (`:feature:claudeaccount`); `working` while its turn runs.
+     */
+    val tabClaudeAccountMenu: @Composable ColumnScope.(
+        session: SessionKey,
+        terminal: TerminalInfo,
+        working: Boolean
+    ) -> Unit = { _, _, _ -> },
+    /**
      * Beside a project's menu: asks before accounts the Claude Account menu adds to a
      * list take turns, since picking one closes the menu.
      */

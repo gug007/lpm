@@ -7,6 +7,7 @@
     <string name="terminal_unavailable">Terminal unavailable</string>
     <string name="terminal_reopened">Reopened after lpm restarted</string>
     <string name="terminal_loading">Loading terminal…</string>
+    <string name="terminal_account_move">Continuing on %1$s…</string>
     <string name="terminal_active_on">Active on %1$s</string>
     <string name="terminal_controlled_elsewhere">This terminal is shown and controlled elsewhere.</string>
     <string name="terminal_take_control">Take control</string>

@@ -23,6 +23,8 @@ data class TerminalUiState(
     val canRestart: Boolean = false,
     /** lpm restarted and this is the tab it reopened in the old one's place: say so for a moment. */
     val reopened: Boolean = false,
+    /** The Claude account the tab's conversation is moving to, while it moves: covers the terminal. */
+    val accountMove: String? = null,
     val connectionReady: Boolean = true,
     /** Replaces the agent's timing under the title while the Mac isn't connected. */
     val statusLine: LinkStatusLine? = null,
@@ -40,7 +42,10 @@ data class TerminalUiState(
     val showsComposer: Boolean get() = controlled && ended == null
 
     /** How it ended, while the Mac still has its tab to run again or close from here. */
-    val endedHere: TerminalEnding? get() = ended?.takeIf { !it.restarted && listed }
+    val endedHere: TerminalEnding? get() = ended?.takeIf {
+        !it.restarted && listed &&
+            accountMove == null
+    }
 }
 
 /**
