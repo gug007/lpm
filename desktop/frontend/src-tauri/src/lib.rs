@@ -641,7 +641,7 @@ pub fn run() {
             }
         })
         .setup(|app| {
-            firstlaunch::seed_global_actions();
+            firstlaunch::seed_defaults();
             let handle = app.handle().clone();
             lesson::start(handle.clone());
             sharelink::init(&handle);

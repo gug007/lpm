@@ -7,7 +7,7 @@ const ROWS = [
   },
   {
     label: "Open lpm at login",
-    body: "lpm doesn't launch itself at login. Add it in System Settings → General → Login Items & Extensions, under Open at Login, so it opens again after a restart. Login items open once someone logs in, so a Mac mini that restarted waits at the login window until you sign in, unless automatic login is on (automatic login needs FileVault off).",
+    body: "lpm opens at login, so it's back after a restart. If it doesn't, turn on Open at login in lpm's Settings → General. Login items open once someone logs in, so a Mac mini that restarted waits at the login window until you sign in, unless automatic login is on (automatic login needs FileVault off).",
   },
   {
     label: "Back after a power cut",

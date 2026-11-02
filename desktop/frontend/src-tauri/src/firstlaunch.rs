@@ -1,4 +1,4 @@
-// First-launch seeding of ~/.lpm/global.yml.
+// First-launch defaults: seeds ~/.lpm/global.yml and turns on open at login.
 //
 // A fresh install has no actions anywhere, so the header of every project
 // starts empty. Seeding a Claude Code and a Codex terminal action into the
@@ -35,9 +35,12 @@ pub const DEFAULT_GLOBAL_YML: &str = "actions:
     color: cyan-deep
 ";
 
-pub fn seed_global_actions() {
-    if let Err(e) = seed_at(&crate::config::lpm_dir(), crate::lesson::active()) {
-        eprintln!("warning: failed to seed default global actions: {e}");
+pub fn seed_defaults() {
+    let lesson = crate::lesson::active();
+    match seed_at(&crate::config::lpm_dir(), lesson) {
+        Ok(true) if !lesson => crate::loginitem::enable_by_default(),
+        Ok(_) => {}
+        Err(e) => eprintln!("warning: failed to seed default global actions: {e}"),
     }
 }
 

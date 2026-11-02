@@ -32,7 +32,7 @@ export function selectedProject(): string | undefined {
 }
 
 let quickTerminalOn = false;
-let openAtLogin = false;
+let openAtLogin = true;
 
 const loginItem = () => ({ supported: true, enabled: openAtLogin, needsApproval: false });
 

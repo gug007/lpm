@@ -29,7 +29,7 @@ export const FAQ_ITEMS: FaqItem[] = [
   {
     question: "What happens to a Codex session if the Mac mini sleeps or restarts?",
     answer:
-      "If the Mac mini sleeps, Codex pauses with everything else on it until it wakes, and your laptop shows the Mac mini as not responding. If it restarts, or lpm quits or updates there, Codex stops mid-task; when you open the project again, its tab resumes the conversation, so you can ask it to carry on. lpm doesn't relaunch on its own, so keep the Mac mini plugged in with Keep this Mac awake on, add lpm to Login Items, and turn on Start up automatically after a power failure.",
+      "If the Mac mini sleeps, Codex pauses with everything else on it until it wakes, and your laptop shows the Mac mini as not responding. If it restarts, or lpm quits or updates there, Codex stops mid-task; when you open the project again, its tab resumes the conversation, so you can ask it to carry on. Keep the Mac mini plugged in with Keep this Mac awake on, leave Open at login on in lpm's settings, and turn on Start up automatically after a power failure.",
   },
   {
     question: "Can I run several Claude Code sessions on the Mac mini?",
@@ -54,7 +54,7 @@ export const FAQ_ITEMS: FaqItem[] = [
   {
     question: "Mac mini or a Linux VPS for Claude Code?",
     answer:
-      "Use the machine you have. A Mac mini you own costs nothing more and is also a desktop you can sit at, but it has to stay awake with lpm open, and you add lpm to Login Items yourself. A Linux VPS never sleeps and lpm starts there on boot, but it is one more machine to rent, and it has to be x86_64. Either way, you start and answer Claude Code and Codex from your laptop's sidebar.",
+      "Use the machine you have. A Mac mini you own costs nothing more and is also a desktop you can sit at, but it has to stay awake with lpm open, and after a restart lpm opens only once someone logs in. A Linux VPS never sleeps and lpm starts there on boot, but it is one more machine to rent, and it has to be x86_64. Either way, you start and answer Claude Code and Codex from your laptop's sidebar.",
     link: { href: LINUX_HOST_PATH, label: "Run Claude Code on a Linux server" },
   },
 ];

@@ -44,6 +44,24 @@ pub fn login_item_set(enabled: bool) -> Result<LoginItem, String> {
     Ok(os_state())
 }
 
+// A fresh install opens at login. Release builds on the user's own data dir
+// only: a dev build has no app bundle to register, and a second data dir is a
+// throwaway copy of lpm.
+pub fn enable_by_default() {
+    if cfg!(debug_assertions) || crate::config::own_data_dir() || !available() {
+        return;
+    }
+    std::thread::spawn(|| {
+        let state = os_state();
+        if !state.supported || state.enabled || state.needs_approval {
+            return;
+        }
+        if let Err(e) = os_enable_by_default() {
+            eprintln!("warning: couldn't turn on open at login: {e}");
+        }
+    });
+}
+
 // A headless host is started by its own service, never by a desktop login.
 fn available() -> bool {
     cfg!(any(target_os = "macos", windows, target_os = "linux")) && !crate::sys::headless()
@@ -57,6 +75,16 @@ fn os_state() -> LoginItem {
 #[cfg(any(target_os = "macos", windows, target_os = "linux"))]
 fn os_set(enabled: bool) -> Result<(), String> {
     os::set(enabled)
+}
+
+#[cfg(target_os = "macos")]
+fn os_enable_by_default() -> Result<(), String> {
+    os::enable_by_default()
+}
+
+#[cfg(not(target_os = "macos"))]
+fn os_enable_by_default() -> Result<(), String> {
+    os_set(true)
 }
 
 #[cfg(not(any(target_os = "macos", windows, target_os = "linux")))]

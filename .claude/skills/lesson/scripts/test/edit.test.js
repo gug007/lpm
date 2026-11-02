@@ -93,16 +93,16 @@ test("a cold open plays its shots, the opening card, then the lesson from its se
 test("a hook longer than its shots stretches the last shot", () => {
   const lesson = { narration, speedUpWaits: false, coldOpen: { text: "A long hook.", shots: [{ line: "review", from: 1, to: 2 }] } };
   const plan = planEdit({ timeline: take, lesson, hookMs: 4000 });
-  near(plan.cuts[0].toMs - plan.cuts[0].fromMs, 300 + 4000 + 450);
+  near(plan.cuts[0].toMs - plan.cuts[0].fromMs, 800 + 4000 + 450);
 });
 
 test("the edited timeline starts on the hook and keeps what survived at its new time", () => {
   const lesson = { narration, coldOpen: { text: "Hook.", shots: [{ line: "review", from: 1, to: 5 }] } };
-  const plan = planEdit({ timeline: take, lesson, hookMs: 3000 });
+  const plan = planEdit({ timeline: take, lesson, hookMs: 2500 });
   const placed = rendered(plan);
-  const edited = editTimeline(take, plan, placed, { ms: 3000 });
+  const edited = editTimeline(take, plan, placed, { ms: 2500 });
   assert.deepStrictEqual(edited.lines.map((l) => l.id), ["coldOpen", "open", "works", "review", "outro"]);
-  assert.strictEqual(edited.lines[0].startMs, 300);
+  assert.strictEqual(edited.lines[0].startMs, 800);
   const open = edited.lines.find((l) => l.id === "open");
   near(open.startMs, 4000 + (1250 + HANDOVER - 150) + 300);
   assert.strictEqual(edited.cards[0].title, "A lesson", "the opening card survives the frame snap");

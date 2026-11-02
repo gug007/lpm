@@ -20,7 +20,8 @@ const WAIT_MIN_MS = 2500;
 const WAIT_HEAD_MS = 400;
 const WAIT_TAIL_MS = 300;
 const WAIT_SHORTEST_MS = 1500;
-const HOOK_LEAD_MS = 300;
+// A player still starting up swallows the first half second of sound.
+const HOOK_LEAD_MS = 800;
 const HOOK_TAIL_MS = 450;
 // The opening card's hand-over (the window gliding into place) ends this long
 // after the card does.
