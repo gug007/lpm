@@ -128,6 +128,10 @@ const LESSON_CAPTION: Record<
     heading: "Your .env on every computer",
     blurb: "A short video: sync the files git ignores to another computer, compare .env files key by key, and keep them the same.",
   },
+  "stop-mac-sleeping-while-agents-run": {
+    heading: "Your Mac stays awake while agents work",
+    blurb: "A short video: keep your Mac awake while an agent runs, for a set time, or until you turn it off.",
+  },
 };
 
 function DesktopOnlyPrompt({

@@ -281,4 +281,14 @@ export const LESSON_CHAPTERS: Record<YouTubeLessonId, LessonChapters> = {
       [169, "Automations, servers and your phone"],
     ],
   },
+  "stop-mac-sleeping-while-agents-run": {
+    seconds: 126,
+    chapters: [
+      [0, "Intro"],
+      [13, "The Keep awake menu"],
+      [50, "While an agent works"],
+      [85, "For a set time"],
+      [105, "Until you turn it off"],
+    ],
+  },
 };
