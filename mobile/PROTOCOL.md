@@ -930,7 +930,16 @@ for an SSH project) — and `"summary": "…"`, the last paragraph of the answer
 Claude session ended this turn with, as one line of at most 200 characters, which is
 most often the question the agent waits on (absent for other agents, and when no
 answer from this turn is found). Show the counts with the status and `summary` as the
-body. Older Macs send neither. A `Done` alert offering `reply` shows three buttons:
+body. Older Macs send neither. With `changes` comes `"files": [{ "path", "added",
+"removed" }…]`, the six files changed most (most first; `changes.files` says how many
+there are in all), and with `summary` comes `"answer": "…"`, the whole answer as
+Markdown. A push holds 4 KB, so the Mac keeps the plaintext under 2,700 bytes by cutting
+`answer`: its start, cut at a line or a word (closing a code block it leaves open),
+then `…` on a paragraph of its own, then the closing paragraph when that's short; an
+answer that can't keep 160 bytes is left out, and then `files` if still too big. A
+notification pulled open shows `answer` and `files` (on iOS a notification content
+extension for the `reply` category; on Android the expanded text), and `summary` when
+there's no `answer`. A `Done` alert offering `reply` shows three buttons:
 Reply (typed, as today), Review Changes (opens the project's review screen) and Open
 Tab (opens the terminal, as a tap does).
 

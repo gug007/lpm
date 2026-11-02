@@ -2,6 +2,7 @@
 LpmMobile.xcodeproj/
 Info.plist
 NotificationService-Info.plist
+NotificationContent-Info.plist
 Widgets-Info.plist
 # Entitlements are generated from project.yml (source of truth), like Info.plist.
 LpmMobile.entitlements

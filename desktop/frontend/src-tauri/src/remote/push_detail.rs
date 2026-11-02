@@ -1,46 +1,64 @@
 //! What a finished turn's notification carries besides "finished": how much the
-//! project's uncommitted changes add and remove, and the words the agent ended
-//! its turn with, which most often are the question it waits on. Both are disk
-//! reads and the transcript settles a moment after the finish is reported, so
-//! this runs on the thread that sends the push, never on the event listener.
+//! project's uncommitted changes add and remove and the files most changed, and
+//! the answer the agent ended its turn with — whole, for the phone's expanded
+//! notification, and its last paragraph, which most often is the question it
+//! waits on. Both are disk reads and the transcript settles a moment after the
+//! finish is reported, so this runs on the thread that sends the push, never on
+//! the event listener.
+use crate::gitlines::FileLines;
 use crate::status::STATUS_DONE;
 use serde_json::{json, Value};
 
 const CLOSING_CHARS: usize = 200;
 
+/// How many changed files a finish names, the most changed first.
+const LISTED_FILES: usize = 6;
+
 /// The fields an alert about `key` reaching `status` adds to its payload:
-/// `changes` (`{files, added, removed}`) while the project has uncommitted
-/// changes, and `summary`, the end of this turn's answer. Empty for anything but
-/// a finish.
+/// `changes` (`{files, added, removed}`) and `files` (`[{path, added, removed}]`)
+/// while the project has uncommitted changes, and `answer`, this turn's answer,
+/// with `summary`, its end. Empty for anything but a finish.
 pub(super) fn of(project: &str, key: &str, status: &str, turn_start: i64) -> Value {
     let mut detail = json!({});
     if status != STATUS_DONE {
         return detail;
     }
-    if let Some(changes) = changes(project) {
-        detail["changes"] = changes;
+    if let Some(files) = changed_files(project) {
+        detail["changes"] = totals(&files);
+        detail["files"] = json!(most_changed(files, LISTED_FILES));
     }
-    if let Some(summary) = crate::statusbanner::turn_answer(project, key, turn_start)
-        .and_then(|answer| closing_paragraph(&answer, CLOSING_CHARS))
-    {
-        detail["summary"] = json!(summary);
+    if let Some(answer) = crate::statusbanner::turn_answer(project, key, turn_start) {
+        if let Some(summary) = closing_paragraph(&answer, CLOSING_CHARS) {
+            detail["summary"] = json!(summary);
+        }
+        let answer = answer.replace("\r\n", "\n");
+        if !answer.trim().is_empty() {
+            detail["answer"] = json!(answer.trim());
+        }
     }
     detail
 }
 
-fn changes(project: &str) -> Option<Value> {
+fn changed_files(project: &str) -> Option<Vec<FileLines>> {
     let (root, is_remote) = crate::config::project_root(project).ok()?;
     if is_remote || root.is_empty() {
         return None;
     }
-    let stat = crate::gitlines::git_diff_stat(root);
-    (stat.files > 0).then(|| {
-        json!({
-            "files": stat.files,
-            "added": stat.lines_added,
-            "removed": stat.lines_removed,
-        })
-    })
+    let files = crate::gitlines::git_file_line_counts(root);
+    (!files.is_empty()).then_some(files)
+}
+
+fn totals(files: &[FileLines]) -> Value {
+    let (added, removed) = files
+        .iter()
+        .fold((0, 0), |(a, r), f| (a + f.added, r + f.removed));
+    json!({ "files": files.len(), "added": added, "removed": removed })
+}
+
+fn most_changed(mut files: Vec<FileLines>, max: usize) -> Vec<FileLines> {
+    files.sort_by_key(|f| std::cmp::Reverse(f.added + f.removed));
+    files.truncate(max);
+    files
 }
 
 /// The last paragraph of prose in `text` as one line, its markdown emphasis
@@ -111,6 +129,35 @@ mod tests {
         assert!(cut.ends_with('…'));
         assert!(cut.chars().count() <= 40);
         assert!(!cut.contains("wor…"), "cut at a word, not inside one: {cut}");
+    }
+
+    fn lines(path: &str, added: u64, removed: u64) -> FileLines {
+        FileLines {
+            path: path.into(),
+            added,
+            removed,
+        }
+    }
+
+    #[test]
+    fn totals_count_every_file() {
+        let files = [lines("a.ts", 3, 1), lines("b.ts", 0, 4)];
+        assert_eq!(
+            totals(&files),
+            json!({ "files": 2, "added": 3, "removed": 5 })
+        );
+    }
+
+    #[test]
+    fn the_most_changed_files_come_first() {
+        let files = vec![
+            lines("small.ts", 1, 0),
+            lines("big.ts", 40, 3),
+            lines("mid.ts", 5, 5),
+            lines("tie.ts", 1, 0),
+        ];
+        let listed: Vec<String> = most_changed(files, 3).into_iter().map(|f| f.path).collect();
+        assert_eq!(listed, ["big.ts", "mid.ts", "small.ts"]);
     }
 
     #[test]

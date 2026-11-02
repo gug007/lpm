@@ -73,6 +73,7 @@ final class NotificationService: UNNotificationServiceExtension {
         if let serverId = payload["serverId"] as? String, !serverId.isEmpty {
             info["serverId"] = serverId
         }
+        AgentAnswerContent.carry(payload, into: &info)
         // The answers the Mac takes back from here, and the report they answer:
         // it types one in only while that same report still stands.
         if let category = AgentAnswerAction.category(for: payload["actions"] as? [String] ?? []) {

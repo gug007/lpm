@@ -17,6 +17,7 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import cx.lpm.mobile.core.data.push.AgentAnswerAction
 import cx.lpm.mobile.core.data.push.NotificationOpenTarget
 import cx.lpm.mobile.core.data.push.PushAlert
+import cx.lpm.mobile.core.data.push.PushChangedFile
 import cx.lpm.mobile.core.data.push.PushKind
 import cx.lpm.mobile.core.data.push.PushMacNotice
 import cx.lpm.mobile.core.data.push.PushRecap
@@ -30,6 +31,12 @@ internal object AlertExtras {
     const val KIND = "alert.kind"
     const val TS = "alert.ts"
     const val ACTIONS = "alert.actions"
+    const val SUMMARY = "alert.summary"
+    const val ANSWER = "alert.answer"
+    const val FILE_PATHS = "alert.files.path"
+    const val FILE_ADDED = "alert.files.added"
+    const val FILE_REMOVED = "alert.files.removed"
+    const val CHANGED_FILES = "alert.changedFiles"
 
     /** Alerts share one id; the tag tells them apart. */
     const val NOTIFICATION_ID = 1
@@ -48,6 +55,12 @@ internal fun PushAlert.extras(): Bundle = Bundle().apply {
     putString(AlertExtras.KIND, kind.name)
     ts?.let { putLong(AlertExtras.TS, it) }
     putStringArrayList(AlertExtras.ACTIONS, ArrayList(actions.map { it.wire }))
+    putString(AlertExtras.SUMMARY, summary)
+    putString(AlertExtras.ANSWER, answer)
+    putStringArrayList(AlertExtras.FILE_PATHS, ArrayList(files.map { it.path }))
+    putIntArray(AlertExtras.FILE_ADDED, files.map { it.added }.toIntArray())
+    putIntArray(AlertExtras.FILE_REMOVED, files.map { it.removed }.toIntArray())
+    putInt(AlertExtras.CHANGED_FILES, changedFiles)
 }
 
 internal fun Bundle.toAlert(): PushAlert? = PushAlert(
@@ -62,8 +75,21 @@ internal fun Bundle.toAlert(): PushAlert? = PushAlert(
     statusKey = getString(AlertExtras.STATUS_KEY).orEmpty(),
     status = getString(AlertExtras.STATUS).orEmpty(),
     ts = if (containsKey(AlertExtras.TS)) getLong(AlertExtras.TS) else null,
-    actions = getStringArrayList(AlertExtras.ACTIONS).orEmpty().mapNotNull(AgentAnswerAction::of)
+    actions = getStringArrayList(AlertExtras.ACTIONS).orEmpty().mapNotNull(AgentAnswerAction::of),
+    summary = getString(AlertExtras.SUMMARY),
+    answer = getString(AlertExtras.ANSWER),
+    files = changedFiles(),
+    changedFiles = getInt(AlertExtras.CHANGED_FILES)
 )
+
+private fun Bundle.changedFiles(): List<PushChangedFile> {
+    val paths = getStringArrayList(AlertExtras.FILE_PATHS).orEmpty()
+    val added = getIntArray(AlertExtras.FILE_ADDED) ?: IntArray(0)
+    val removed = getIntArray(AlertExtras.FILE_REMOVED) ?: IntArray(0)
+    return paths.mapIndexed { i, path ->
+        PushChangedFile(path, added.getOrElse(i) { 0 }, removed.getOrElse(i) { 0 })
+    }
+}
 
 /** Opens the app's launcher activity, which reads `extras` to know where to go. */
 internal fun Context.openIntent(requestCode: Int, extras: Bundle): PendingIntent {
@@ -96,8 +122,6 @@ internal fun Context.alertNotification(
     quiet: Boolean = false
 ): NotificationCompat.Builder {
     val extras = alert.extras()
-    // A finish carries the words the agent ended on under the line saying so.
-    val expanded = alert.summary?.let { "$body\n$it" } ?: body
     val builder = NotificationCompat.Builder(
         this,
         if (quiet) QUIET_CHANNEL else alert.kind.channelId
@@ -105,7 +129,7 @@ internal fun Context.alertNotification(
         .setSmallIcon(R.drawable.ic_stat_lpm)
         .setContentTitle(alert.title)
         .setContentText(body)
-        .setStyle(NotificationCompat.BigTextStyle().bigText(expanded))
+        .setStyle(NotificationCompat.BigTextStyle().bigText(expandedText(alert, body)))
         .setPriority(
             when {
                 quiet -> NotificationCompat.PRIORITY_LOW

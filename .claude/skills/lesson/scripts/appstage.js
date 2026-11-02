@@ -250,18 +250,27 @@ class AppStage extends Timing {
   }
 
   // The window under a real press must be the lesson's: another app's panel,
-  // dialog or banner there would take the click. It gets a few seconds to go.
+  // dialog or banner there would take the click. Another app can order a
+  // window above the lesson's without taking focus, so the lesson window is
+  // raised once; what still covers the point gets a few seconds to go.
   async clearAt(p) {
     const bin = helper("winat");
     const end = Date.now() + 8000;
-    for (let waited = false; ; waited = true) {
+    let cover = null;
+    for (let tries = 0; ; tries++) {
       const [pid, owner] = execFileSync(bin, [String(p.x), String(p.y)], { encoding: "utf8" }).trim().split("\t");
       if (Number(pid) === this.app.proc.pid) {
-        if (waited) this.warn("click", `${owner} had covered the click at ${p.x},${p.y}; it moved away`);
+        if (cover) this.warn("click", `${cover} had covered the click at ${p.x},${p.y}; ${tries === 1 ? "raised the lesson window above it" : "it moved away"}`);
         return;
       }
+      cover = cover || owner || "another window";
       if (Date.now() > end) throw new Error(`${pid ? `a window of ${owner}` : "no lesson window"} is under the click at ${p.x},${p.y}; stopped before clicking it`);
-      await sleep(400);
+      if (tries === 0) {
+        await this.control.call("window", { focus: true }).catch(() => {});
+        await sleep(150);
+      } else {
+        await sleep(400);
+      }
     }
   }
 

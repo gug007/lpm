@@ -82,7 +82,13 @@ data class PushAlert(
     /** The buttons it offers; only a terminal alert that names its terminal and report. */
     val actions: List<AgentAnswerAction> = emptyList(),
     /** The words a finished agent ended its turn on, most often its question. */
-    val summary: String? = null
+    val summary: String? = null,
+    /** A finished turn's whole answer, as Markdown, cut to fit one push. */
+    val answer: String? = null,
+    /** The files the turn left changed, the most changed first. */
+    val files: List<PushChangedFile> = emptyList(),
+    /** How many files changed in all; [files] names at most a few. */
+    val changedFiles: Int = 0
 ) {
     /** What the Mac needs to take an answer to this alert. */
     fun answer(action: AgentAnswerAction, text: String? = null): AgentAnswer? {
@@ -128,7 +134,10 @@ data class PushAlert(
                 } else {
                     emptyList()
                 },
-                summary = o.string("summary")?.takeIf { it.isNotEmpty() }
+                summary = o.string("summary")?.takeIf { it.isNotEmpty() },
+                answer = o.string("answer")?.takeIf { it.isNotBlank() },
+                files = o.objects("files").orEmpty().mapNotNull(PushChangedFile::parse),
+                changedFiles = o.obj("changes")?.int("files") ?: 0
             )
         }
 
@@ -164,6 +173,19 @@ data class PushAlert(
             status.startsWith("Automation finished") -> PushKind.AutomationDone
 
             else -> PushKind.AutomationError
+        }
+    }
+}
+
+/** A file a finished turn left changed, with the lines it adds and removes. */
+data class PushChangedFile(val path: String, val added: Int, val removed: Int) {
+    val name: String get() = path.substringAfterLast('/')
+    val directory: String get() = path.substringBeforeLast('/', "")
+
+    companion object {
+        fun parse(o: JsonObject): PushChangedFile? {
+            val path = o.string("path")?.takeIf { it.isNotEmpty() } ?: return null
+            return PushChangedFile(path, o.int("added") ?: 0, o.int("removed") ?: 0)
         }
     }
 }

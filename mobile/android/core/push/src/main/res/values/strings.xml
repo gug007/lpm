@@ -27,6 +27,12 @@
     <string name="answer_your_mac">your Mac</string>
     <string name="answer_unknown_mac">This Mac isn\'t on this phone any more.</string>
 
+    <!-- A finished turn's notification, pulled open: the files its list leaves out. -->
+    <plurals name="alert_more_files">
+        <item quantity="one">%d more file</item>
+        <item quantity="other">%d more files</item>
+    </plurals>
+
     <!-- The agents-at-work card. -->
     <string name="live_open">Open</string>
     <string name="live_at_work">Agents at work</string>

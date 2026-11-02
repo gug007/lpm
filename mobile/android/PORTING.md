@@ -39,7 +39,10 @@ side by side (see `mobile/parity/README.md`).
   for it ("nearby devices") when the pairing screen opens, or at launch with a Mac saved,
   where iOS shows Local Network on first use by itself — a refusal shows iOS's "Allow Local
   Network access" row; a notification's Deny button isn't red (Android has no
-  destructive notification action), and the agents-at-work card is an ongoing
+  destructive notification action), a finished turn's notification pulled open shows
+  its answer and changed files as the notification's own expanded text (bold, monospace
+  and bullets; no code block background or green and red counts) where iOS draws them in
+  a notification content extension, and the agents-at-work card is an ongoing
   notification where iOS shows a Live Activity, so its Settings → Notifications
   section is "Live updates" with "While agents work, an ongoing notification shows
   them." under it; that notification's text can't wear the widget's state colors and
@@ -247,6 +250,7 @@ Port order is top to bottom within each milestone below. Lines are iOS sizes.
 |---|---|
 | APNs + Notification Service Extension (decrypts AES-GCM payload, rewrites text) | FCM **data** messages decrypted in `FirebaseMessagingService`, notification posted by the app; `POST_NOTIFICATIONS` on 13+ |
 | Notification categories (Allow / Deny / Reply, `authenticationRequired`) | notification actions to `AnswerReceiver` (`goAsync`, `RemoteInput` for Reply, `setAuthenticationRequired`); the answer goes over the live link or a short-lived connection (`AgentAnswers`, `MacErrand`) |
+| Notification content extension (`NotificationContent`: a finished turn's answer as Markdown and its changed files) | `BigTextStyle` text drawn from the same fields (`AnswerText`) |
 | ActivityKit Live Activity (Lock Screen, Dynamic Island), updated by `liveactivity` pushes | one ongoing notification per Mac on the "Agents at work" channel (`LiveNotifier`), requesting promotion to a Live Update (Android 16, `POST_PROMOTED_NOTIFICATIONS`); fed by the live link (`LivePublisher`) and FCM `liveactivity` data messages alike |
 | `NWBrowser` Bonjour `_lpm._tcp` (TXT `id`, `name`, `v`, `rp`, `dev`) | `NsdManager` + `MulticastLock` |
 | `NWPathMonitor` | `ConnectivityManager.NetworkCallback` |

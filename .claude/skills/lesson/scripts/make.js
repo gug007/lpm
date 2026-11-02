@@ -155,15 +155,17 @@ async function ensureCards(P) {
 }
 
 // The straight render of the take into `file`: every line where it was
-// recorded. Without `audio` it is picture only, for the edit to cut.
-async function mux(lines, P, { file, crf = 18, audio = true }) {
+// recorded. Without `audio` it is picture only, for the edit to cut. `wide`
+// leaves out the push-ins (the cold open shows the whole window), and `untilMs`
+// ends the render early.
+async function mux(lines, P, { file, crf = 18, audio = true, wide = false, untilMs }) {
   const timeline = JSON.parse(fs.readFileSync(P.timeline, "utf8"));
   const fit = fitLines(timeline, lines);
   for (const n of fit.notes) console.log(n);
   if (fit.errors.length) throw new Error(fit.errors.join("\n"));
   const { totalMs } = timeline;
   const spoken = timeline.lines.map((t) => ({ ...t, line: lines.find((l) => l.id === t.id) })).filter((t) => !t.line.silent);
-  const edited = editZooms(timeline.zooms || [], lesson.zooms, (m) => console.log(m));
+  const edited = wide ? [] : editZooms(timeline.zooms || [], lesson.zooms, (m) => console.log(m));
   const zooms = timeline.phone ? clearOfPhone(edited, phoneLayout(OUT, ZOOM), OUT) : edited;
   if (zooms.some((z) => z.id)) console.log(`zooms: ${zooms.map((z) => z.id).join(" ")} (lesson.json "zooms" adjusts one by id)`);
   const inputs = ["-i", P.raw];
@@ -226,7 +228,7 @@ async function mux(lines, P, { file, crf = 18, audio = true }) {
     ...maps,
     "-c:v", "libx264", "-preset", "medium", "-crf", String(crf), "-pix_fmt", "yuv420p", "-r", "30", ...video.tags,
     ...(audio ? ["-c:a", "aac", "-b:a", "192k", "-ar", String(RATE)] : ["-an"]),
-    "-t", (totalMs / 1000).toFixed(3),
+    "-t", (Math.min(totalMs, untilMs ?? totalMs) / 1000).toFixed(3),
     "-movflags", "+faststart",
     "-f", "mp4", file,
   ];
@@ -288,8 +290,12 @@ async function render(lines, P, hook) {
   try {
     // Nearly lossless, since the edit encodes it once more.
     await mux(lines, P, { file: straight, crf: 12, audio: false });
+    const shots = plan.cuts.filter((c) => c.kind === "shot");
+    const wide = shots.length ? path.join(work, "wide.mp4") : null;
+    if (wide) await mux(lines, P, { file: wide, crf: 12, audio: false, wide: true, untilMs: Math.max(...shots.map((c) => c.toMs)) });
     const edited = await renderEdit({
       src: straight,
+      shotSrc: wide,
       out: part,
       plan,
       timeline: taken,

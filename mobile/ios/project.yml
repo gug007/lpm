@@ -82,6 +82,8 @@ targets:
       # and rewritten on-device.
       - target: LpmMobileNotificationService
         embed: true
+      - target: LpmMobileNotificationContent
+        embed: true
       - target: LpmMobileWidgets
         embed: true
     info:
@@ -172,6 +174,43 @@ targets:
         NSExtension:
           NSExtensionPointIdentifier: com.apple.usernotifications.service
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).NotificationService
+
+  # Notification content extension: a finished turn's notification, pressed open,
+  # shows the agent's whole answer as Markdown and the files it changed. It reads
+  # what the service extension put in the notification, so it needs no keys.
+  LpmMobileNotificationContent:
+    type: app-extension
+    platform: iOS
+    sources:
+      - Sources/NotificationContent
+      - Sources/Shared/AgentAnswerContent.swift
+      - Sources/LpmMobile/MarkdownText.swift
+    # Linked by name: the extension point's context class lives here, and an
+    # import alone leaves it out of the binary.
+    dependencies:
+      - sdk: UserNotificationsUI.framework
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: cx.lpm.mobile.notificationcontent
+        MARKETING_VERSION: "1.73"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "5.9"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_STYLE: Automatic
+    info:
+      path: NotificationContent-Info.plist
+      properties:
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleDisplayName: lpm
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.usernotifications.content-extension
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).NotificationViewController
+          NSExtensionAttributes:
+            # AgentAnswerAction.replyCategory: an agent's finish that takes a reply.
+            UNNotificationExtensionCategory: lpm.agent.reply
+            UNNotificationExtensionInitialContentSizeRatio: 0.6
+            UNNotificationExtensionDefaultContentHidden: true
 
   # Home Screen widgets: Agents, Usage and Token activity, read from the app group
   # the app and the notification extension write — and the agents' Live Activity,

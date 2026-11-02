@@ -59,6 +59,35 @@ class PushMessageTest {
     }
 
     @Test
+    fun aFinishCarriesItsAnswerAndTheFilesItChanged() {
+        val done = PushAlert.parse(
+            json(
+                """{"project":"api","status":"Done","summary":"Ship it?",""" +
+                    """"answer":"Done.\n\n- **a.ts** fixed\n\nShip it?",""" +
+                    """"changes":{"files":4,"added":52,"removed":5},""" +
+                    """"files":[{"path":"lib/a.ts","added":40,"removed":3},{"path":""},""" +
+                    """{"path":"README.md","added":2}]}"""
+            )
+        )!!
+        assertEquals("Agent finished · 4 files, +52 −5", done.body)
+        assertEquals("Ship it?", done.summary)
+        assertEquals("Done.\n\n- **a.ts** fixed\n\nShip it?", done.answer)
+        assertEquals(
+            listOf(PushChangedFile("lib/a.ts", 40, 3), PushChangedFile("README.md", 2, 0)),
+            done.files
+        )
+        assertEquals(4, done.changedFiles)
+        assertEquals("a.ts", done.files[0].name)
+        assertEquals("lib", done.files[0].directory)
+        assertEquals("", done.files[1].directory)
+
+        val older = PushAlert.parse(json("""{"project":"api","status":"Done","answer":" "}"""))!!
+        assertNull(older.answer)
+        assertEquals(emptyList<PushChangedFile>(), older.files)
+        assertEquals(0, older.changedFiles)
+    }
+
+    @Test
     fun anAutomationAlertFallsInTheKindOfItsOutcome() {
         fun kind(status: String) = PushAlert.parse(
             json(

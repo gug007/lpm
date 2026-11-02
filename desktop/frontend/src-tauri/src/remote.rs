@@ -58,6 +58,7 @@ mod live;
 mod mac_alert;
 mod notify_levels;
 mod push_detail;
+mod push_fit;
 mod recap_push;
 mod reminders;
 mod relay;
@@ -5451,7 +5452,7 @@ struct PushJob {
 /// project on another paired Mac isn't confused with this one. `project` stays
 /// the file name every match keys off; `projectLabel` is what the phone shows,
 /// since a duplicate's file name is an id. `detail` adds what a finish says
-/// (push_detail.rs).
+/// (push_detail.rs), its answer cut to fit one push (push_fit.rs).
 fn alert_payload(
     server_id: &str,
     project: &str,
@@ -5478,6 +5479,7 @@ fn alert_payload(
             payload[field] = value.clone();
         }
     }
+    push_fit::fit(&mut payload);
     payload.to_string()
 }
 

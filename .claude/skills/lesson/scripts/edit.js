@@ -184,12 +184,14 @@ async function badge(dir, speed) {
 // lines ({ id, wav }) by id, `hook` the hook's clip. `badgeAt` ({ x, y, scale })
 // places the speed pill, by default in the pane's empty rows. Returns the
 // edited timeline.
-async function renderEdit({ src, out, plan, timeline, clips, hook, mix, badgeDir, workDir, size, badgeAt, log = console.log }) {
+// `shotSrc`, when given, is the render the cold open's shots are cut from (the
+// take without its push-ins, so the video opens on the whole window).
+async function renderEdit({ src, shotSrc, out, plan, timeline, clips, hook, mix, badgeDir, workDir, size, badgeAt, log = console.log }) {
   fs.mkdirSync(workDir, { recursive: true });
   const segments = [];
   for (const [i, c] of plan.cuts.entries()) {
     const file = path.join(workDir, `${String(i).padStart(2, "0")}-${c.kind}.mp4`);
-    const args = ["-ss", (c.fromMs / 1000).toFixed(6), "-to", (c.toMs / 1000).toFixed(6), "-i", src];
+    const args = ["-ss", (c.fromMs / 1000).toFixed(6), "-to", (c.toMs / 1000).toFixed(6), "-i", c.kind === "shot" && shotSrc ? shotSrc : src];
     let graph = `[0:v]setpts=(PTS-STARTPTS)/${c.speed}${c.speed > 1 ? `,fps=${FPS}` : ""}`;
     if (c.speed > 1) {
       args.push("-loop", "1", "-i", await badge(badgeDir, c.speed));
