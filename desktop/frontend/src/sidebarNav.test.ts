@@ -59,6 +59,7 @@ describe("withSidebarNav", () => {
 describe("menuNavItems", () => {
   it("is everything the sidebar does not hold", () => {
     expect(menuNavItems(DEFAULT_SIDEBAR_NAV)).toEqual([
+      "awake",
       "automations",
       "usage",
       "stats",
@@ -74,8 +75,8 @@ describe("menuNavItems", () => {
 
 describe("isDefaultSidebarNav", () => {
   it("recognizes the default and rejects any change to it", () => {
-    expect(isDefaultSidebarNav(["terminals", "awake"])).toBe(true);
-    expect(isDefaultSidebarNav(["terminals"])).toBe(false);
+    expect(isDefaultSidebarNav(["terminals"])).toBe(true);
+    expect(isDefaultSidebarNav(["terminals", "awake"])).toBe(false);
     expect(isDefaultSidebarNav([])).toBe(false);
     expect(isDefaultSidebarNav(["terminals", "stats"])).toBe(false);
     expect(isDefaultSidebarNav(["stats"])).toBe(false);

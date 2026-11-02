@@ -147,12 +147,15 @@ describe("SidebarFooterNav", () => {
     expect(buttonWithText("Support & Feedback")).toBeUndefined();
   });
 
-  it("starts with Terminals and Keep awake as the only rows outside the menu", () => {
+  it("starts with Terminals as the only row outside the menu", () => {
     renderNav();
 
     expect(buttonWithText("Terminals")).toBeDefined();
-    expect(buttonWithText("Keep awake")).toBeDefined();
+    expect(buttonWithText("Keep awake")).toBeUndefined();
     expect(buttonWithText("Stats")).toBeUndefined();
+
+    openMore();
+    expect(buttonWithText("Keep awake")).toBeDefined();
     expect(buttonWithText("Reset to default")).toBeUndefined();
   });
 
@@ -164,7 +167,7 @@ describe("SidebarFooterNav", () => {
     openRowMenu("Stats");
     pick("Move to the sidebar");
 
-    expect(useSettingsStore.getState().sidebarNavInSidebar).toEqual(["terminals", "awake", "stats"]);
+    expect(useSettingsStore.getState().sidebarNavInSidebar).toEqual(["terminals", "stats"]);
 
     // Now a sidebar row: reachable with the menu shut, and gone from it.
     act(() => moreButton()!.click());
@@ -182,7 +185,7 @@ describe("SidebarFooterNav", () => {
 
     openRowMenu("Terminals");
     pick("Move to the More menu");
-    expect(useSettingsStore.getState().sidebarNavInSidebar).toEqual(["awake"]);
+    expect(useSettingsStore.getState().sidebarNavInSidebar).toEqual([]);
     expect(buttonWithText("Terminals")).toBeUndefined();
 
     openMore();
@@ -215,12 +218,7 @@ describe("SidebarFooterNav", () => {
     pick("Move to the sidebar");
     openRowMenu("Usage");
     pick("Move to the sidebar");
-    expect(useSettingsStore.getState().sidebarNavInSidebar).toEqual([
-      "terminals",
-      "awake",
-      "usage",
-      "stats",
-    ]);
+    expect(useSettingsStore.getState().sidebarNavInSidebar).toEqual(["terminals", "usage", "stats"]);
 
     // The menu stays open across moves, so Reset is right there.
     pick("Reset to default");
@@ -262,7 +260,36 @@ describe("SidebarFooterNav", () => {
   });
 });
 
-describe("SidebarFooterNav Keep awake", () => {
+describe("SidebarFooterNav Keep awake in the More menu", () => {
+  it("marks the More button while it keeps the machine awake", async () => {
+    mocks.keepAwakeState.mockResolvedValue({ ...KEEP_AWAKE, mode: "always", active: true, power: "awake" });
+    renderNav();
+    await act(async () => {});
+
+    expect(buttonWithText("Keep awake")).toBeUndefined();
+    expect(moreButton()!.title).toContain("kept awake");
+  });
+
+  it("opens its menu from its row in More, and closes More", async () => {
+    mocks.keepAwakeState.mockResolvedValue({ ...KEEP_AWAKE, mode: "agents", active: true, agents: 1 });
+    renderNav();
+    await act(async () => {});
+
+    openMore();
+    const row = buttonWithText("Keep awake")!;
+    expect(row.textContent).toContain("1 agent");
+    act(() => row.click());
+
+    expect(moreButton()!.getAttribute("aria-expanded")).toBe("false");
+    expect(document.querySelector("[data-context-menu]")?.textContent).toContain("1 agent working.");
+  });
+});
+
+describe("SidebarFooterNav Keep awake in the sidebar", () => {
+  beforeEach(() => {
+    useSettingsStore.setState({ sidebarNavInSidebar: ["terminals", "awake"] });
+  });
+
   it("shows how many agents keep the machine awake", async () => {
     mocks.keepAwakeState.mockResolvedValue({ ...KEEP_AWAKE, mode: "agents", active: true, agents: 2 });
     renderNav();
@@ -418,15 +445,6 @@ describe("SidebarFooterNav Keep awake", () => {
     } finally {
       vi.useRealTimers();
     }
-  });
-
-  it("marks the More button while a row in it keeps the machine awake", async () => {
-    useSettingsStore.setState({ sidebarNavInSidebar: ["terminals"] });
-    mocks.keepAwakeState.mockResolvedValue({ ...KEEP_AWAKE, mode: "always", active: true, power: "awake" });
-    renderNav();
-    await act(async () => {});
-
-    expect(moreButton()!.title).toContain("kept awake");
   });
 });
 

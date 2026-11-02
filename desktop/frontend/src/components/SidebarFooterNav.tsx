@@ -73,8 +73,7 @@ interface RowMenu {
 }
 
 /** The sidebar's footer navigation. Every row lives either here or in the More
- *  menu, and the user moves it across; Terminals and Keep awake start out in the
- *  open. */
+ *  menu, and the user moves it across; only Terminals starts out in the open. */
 export function SidebarFooterNav({
   showTerminals,
   onTerminals,
