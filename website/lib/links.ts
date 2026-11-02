@@ -5,6 +5,7 @@ export const REPO_API_URL = `https://api.github.com/repos/${REPO_SLUG}`;
 export const RELEASES_URL = `${REPO_URL}/releases/latest`;
 export const DISCUSSIONS_URL = `${REPO_URL}/discussions`;
 export const SPONSORS_URL = "https://github.com/sponsors/gug007";
+export const SPONSORS_ENABLED = false;
 export const SECURITY_REPORT_URL = `${REPO_URL}/security/advisories/new`;
 export const AI_AGENTS_PATH = "/best-terminal-for-claude-code-and-codex";
 export const CLAUDE_ACCOUNTS_PATH = "/claude-code-multiple-accounts";
