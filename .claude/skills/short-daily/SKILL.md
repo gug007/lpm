@@ -277,7 +277,7 @@ A format is what both models are asked to build, with the copy around it. The fo
 | Hexagon, Opus 5.5 high vs GPT-6.1 Sol high | 1:54 (Sol 1:22), 2026-10-30 |
 | Hexagon, Opus 5.5 high vs Gemini 4 Argon high | Argon 3:43 (Opus 2:16), 2026-10-31 |
 | Octopus DJ, Opus 5.5 high vs GPT-6 Astra high | 11:55 (Astra 2:44), 2026-11-01 |
-| Website, high | 8 min; Opus 5.5 high 2:52 vs Sonnet 5.5 high 1:25, 2026-10-28 |
+| Website, high | 8 min; Opus 5.5 high 2:52 vs Sonnet 5.5 high 1:25, 2026-10-28; Gemini 4 Argon high 3:53 vs Opus 2:34, 2026-11-02 |
 | 3D runner, Opus high | 12–18 min |
 | Giraffe, Opus xhigh | 21 min; xhigh vs xhigh 23 min: out |
 | GTA, Opus high | 30–37 min: out |

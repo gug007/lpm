@@ -59,3 +59,4 @@ Vertical lessons posted to TikTok and YouTube Shorts, oldest first. The short-pu
 - Claude vs ChatGPT: Opus 5.5 high vs GPT-6.1 Sol high, the hexagon test
 - Claude vs Gemini: Opus 5.5 high vs Gemini 4 Argon high, the hexagon test
 - Claude vs ChatGPT: Opus 5.5 high vs GPT-6 Astra high, the octopus test
+- Claude vs Gemini: Opus 5.5 high vs Gemini 4 Argon high build a website
