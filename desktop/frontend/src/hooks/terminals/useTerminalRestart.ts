@@ -3,21 +3,14 @@ import { toast } from "../../notifications/toast";
 import {
   StartTerminal,
   StartTerminalForRestore,
-  StopTerminal,
   TerminalExists,
   TerminalTabOp,
 } from "../../../bridge/commands";
-import { disposeInteractivePaneSession } from "../../components/InteractivePane";
+import { claudeResumeSessionId } from "../../agentSession";
 import { isPeerName } from "../../peer/markers";
-import { collectPanes, isTerminalTab, type PaneNode } from "../../paneTree";
-import { swapTerminal } from "./swapTerminal";
-
-// An older host doesn't know the restart op; say what fixes it.
-function restartRefusal(err: unknown): string {
-  return String(err).includes("unknown tab op")
-    ? "update lpm on that machine to restart its terminals from here"
-    : String(err);
-}
+import { tabOpRefusal } from "../../peer/tabOpRefusal";
+import { type PaneNode } from "../../paneTree";
+import { replaceTabTerminal, terminalTabOf } from "./replaceTabTerminal";
 
 interface UseTerminalRestartProps {
   projectName: string;
@@ -43,37 +36,28 @@ export function useTerminalRestart({
       if (await TerminalExists(oldId).catch(() => false)) return;
       if (isPeerName(oldId)) {
         await TerminalTabOp(projectName, "restart", oldId, null, null, null).catch((err) =>
-          toast.error(`Couldn't restart the terminal: ${restartRefusal(err)}`),
+          toast.error(`Couldn't restart the terminal: ${tabOpRefusal(err, "restart its terminals")}`),
         );
         return;
       }
-      const hostOf = () =>
-        treeRef.current
-          ? collectPanes(treeRef.current).find((p) =>
-              p.tabs.some((t) => t.id === oldId && isTerminalTab(t)),
-            )
-          : undefined;
-      const tab = hostOf()?.tabs.find((t) => t.id === oldId);
+      const tab = terminalTabOf(treeRef.current, oldId)?.tab;
       if (!tab) return;
-      let newId: string;
+      const cmd = tab.resumeCmd ?? tab.startCmd;
+      // A Claude conversation comes back on the account holding it, which may
+      // not be the one the project's new sessions use.
+      const sessionId = claudeResumeSessionId(cmd);
+      let newId: string | null;
       try {
-        newId = tab.actionName
-          ? await StartTerminalForRestore(projectName, tab.actionName)
-          : await StartTerminal(projectName);
+        newId = await replaceTabTerminal({ treeRef, applyTree }, oldId, () =>
+          tab.actionName
+            ? StartTerminalForRestore(projectName, tab.actionName, sessionId)
+            : StartTerminal(projectName, sessionId),
+        );
       } catch (err) {
         toast.error(`Couldn't restart the terminal: ${err}`);
         return;
       }
-      const host = hostOf();
-      if (!host || !treeRef.current) {
-        StopTerminal(newId).catch(() => {});
-        return;
-      }
-      applyTree(swapTerminal(treeRef.current, host.id, oldId, newId));
-      // The pane still mounted on oldId must unmount before its session goes.
-      setTimeout(() => disposeInteractivePaneSession(oldId), 0);
-      const cmd = tab.resumeCmd ?? tab.startCmd;
-      if (cmd) scheduleCmdInject(newId, cmd);
+      if (newId && cmd) scheduleCmdInject(newId, cmd);
     },
     [projectName, treeRef, applyTree, scheduleCmdInject],
   );

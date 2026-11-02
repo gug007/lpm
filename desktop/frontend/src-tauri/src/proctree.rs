@@ -150,6 +150,24 @@ pub(crate) fn kill_pids(pids: &[i32]) {
     }
 }
 
+/// End a terminal's tree and wait until it is gone: what runs in the shell gets
+/// the TERM grace to save its work, then the shell, which ignores SIGTERM while
+/// interactive and would hold the wait for the whole timeout, is killed.
+#[cfg(unix)]
+pub(crate) fn end_shell_tree(shell: i32) {
+    let children: Vec<i32> = trees(&[shell])
+        .into_iter()
+        .filter(|&p| p != shell)
+        .collect();
+    kill_pids(&children);
+    signal_all(&[shell], libc::SIGKILL);
+}
+
+#[cfg(windows)]
+pub(crate) fn end_shell_tree(shell: i32) {
+    kill_pids(&trees(&[shell]));
+}
+
 /// Reap an already-snapshotted set of pids on a background thread. Callers that
 /// must snapshot before an external teardown (a session kill reparents the
 /// children synchronously) capture `trees(..)` first, then hand it here.

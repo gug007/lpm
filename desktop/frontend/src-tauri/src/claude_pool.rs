@@ -243,6 +243,18 @@ pub fn job_spawn_env(project: &str, resume: Option<(&str, &str)>, account: Optio
     }
 }
 
+/// Spawn-time decision for a tab the user moved to account `id` by hand: the
+/// main login or one of this machine's accounts.
+pub fn chosen_spawn_env(project: &str, id: &str) -> Result<Spawn, String> {
+    if matches!(claude_choice(project), AccountChoice::Remote) {
+        return Err("this project's sessions run under the remote host's login".into());
+    }
+    if known(&[id.to_string()]).is_empty() {
+        return Err(format!("unknown Claude account: {id}"));
+    }
+    Ok(on(id))
+}
+
 /// Spawn-time decision for one project. `resume` is (project root, session id)
 /// when the session continues an existing conversation. `switching` is false
 /// for scheduled jobs, which never switch accounts.

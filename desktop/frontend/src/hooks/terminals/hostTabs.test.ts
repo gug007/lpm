@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { followHostTabs, withHostTabs, withoutHostTabs } from "./hostTabs";
+import { followHostTabs, withHostTabs, withReplacedHostTabs, withoutHostTabs } from "./hostTabs";
 import { type PaneLeaf, type PaneNode, makePaneLeaf, makeTerminal } from "../../paneTree";
 
 const leaf = (node: PaneNode) => node as PaneLeaf;
@@ -173,5 +173,40 @@ describe("followHostTabs", () => {
       { id: a, label: "Claude", pinned: false, agentSession: { provider: "claude" as const, sessionId: "old" } },
     ];
     expect(followHostTabs(start, host, [a])).toBe(start);
+  });
+});
+
+describe("withReplacedHostTabs", () => {
+  const peer = (n: number) => `peer-aaaaaaaa-lpm-${n}`;
+  const session = { provider: "claude" as const, sessionId: "abc" };
+  const moved = { id: peer(9), pinned: false, agentSession: session };
+  const start = () =>
+    makePaneLeaf(
+      "p",
+      [
+        makeTerminal(peer(1), "Shell"),
+        { ...makeTerminal(peer(2), "Claude", { resumeCmd: "claude --resume abc", historyKey: "h2" }), fromHost: true },
+        makeTerminal(peer(3), "Shell"),
+      ],
+      1,
+    );
+
+  it("puts the host's new terminal in the place of the tab it moved", () => {
+    const { tree, replaced } = withReplacedHostTabs(start(), [moved], [peer(1), peer(9), peer(3)]);
+    const pane = leaf(tree);
+    expect(replaced).toEqual([{ from: peer(2), to: peer(9) }]);
+    expect(pane.tabs.map((t) => t.id)).toEqual([peer(1), peer(9), peer(3)]);
+    expect(pane.activeTabIdx).toBe(1);
+    expect(pane.tabs[1]).toMatchObject({ label: "Claude", historyKey: "h2", fromHost: true });
+  });
+
+  it("leaves a tab the host still lists, and hosts that don't list their tabs", () => {
+    expect(withReplacedHostTabs(start(), [moved], [peer(1), peer(2), peer(3), peer(9)]).replaced).toEqual([]);
+    expect(withReplacedHostTabs(start(), [moved], null).replaced).toEqual([]);
+  });
+
+  it("matches only the same conversation", () => {
+    const other = { ...moved, agentSession: { provider: "claude" as const, sessionId: "xyz" } };
+    expect(withReplacedHostTabs(start(), [other, { ...moved, agentSession: undefined }], []).replaced).toEqual([]);
   });
 });

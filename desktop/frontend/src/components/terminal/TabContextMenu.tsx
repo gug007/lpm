@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { CircleDot, Copy, GitFork, Pin, PinOff, Sparkles, Users } from "lucide-react";
 import { PencilIcon, XIcon } from "../icons";
 import { ContextMenuItem } from "../ui/ContextMenuItem";
@@ -21,6 +22,8 @@ interface TabContextMenuProps {
   onMarkUnread?: () => void;
   onFork: () => void;
   onForkCopy: () => void;
+  // The Claude account submenu, on a Claude tab when there's more than one.
+  accountMenu?: ReactNode;
   onCloseTab: () => void;
   onCloseOthers: () => void;
   onClose: () => void;
@@ -42,6 +45,7 @@ export function TabContextMenu({
   onMarkUnread,
   onFork,
   onForkCopy,
+  accountMenu,
   onCloseTab,
   onCloseOthers,
   onClose,
@@ -90,6 +94,7 @@ export function TabContextMenu({
           onClick={close(onForkCopy)}
         />
       )}
+      {accountMenu}
       {canShare && (
         <ContextMenuItem
           label="Share tab…"

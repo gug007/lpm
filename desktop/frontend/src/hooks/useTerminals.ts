@@ -9,6 +9,7 @@ import { useTreeCore } from "./terminals/useTreeCore";
 import { useCmdInject } from "./terminals/useCmdInject";
 import { useSshReconnect } from "./terminals/useSshReconnect";
 import { useTerminalRestart } from "./terminals/useTerminalRestart";
+import { useClaudeAccountSwitch } from "./terminals/useClaudeAccountSwitch";
 import { useSessionRestore } from "./terminals/useSessionRestore";
 import { usePeerTerminalSync } from "./terminals/usePeerTerminalSync";
 import { useTabCreation } from "./terminals/useTabCreation";
@@ -118,6 +119,15 @@ export function useTerminals(
     },
     [projectName],
   );
+
+  const switchClaudeAccount = useClaudeAccountSwitch({
+    projectName,
+    treeRef,
+    applyTree,
+    scheduleCmdInject,
+    forward,
+    restartTerminal,
+  });
 
   const { noteTerminalMemory, detachTerminalMemory } = useTerminalMemory({
     projectName,
@@ -258,6 +268,7 @@ export function useTerminals(
     resumeFromHistory,
     forkTerminal,
     forkTerminalIntoCopy,
+    switchClaudeAccount,
     addTerminalToPane,
     addBrowserToPane,
     addMemoryToPane,
@@ -349,6 +360,7 @@ export function useTerminals(
     closeTerminal,
     closeOtherTerminals,
     restartTerminal,
+    switchClaudeAccount,
     focusTerminal,
     focusAdjacentPaneItem,
     focusService,

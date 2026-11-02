@@ -174,9 +174,10 @@ fn leaf_has_tabs(node: &Value) -> bool {
 
 /// A tab op another Mac asks this one to run on its own tab tree — the relay a
 /// phone's rename, pin or reorder takes, and a paired Mac's restart of an ended
-/// terminal — so the host stays the one place a project's tabs are named,
-/// ordered and run.
+/// terminal or move of a Claude tab to another `account` of this machine's —
+/// so the host stays the one place a project's tabs are named, ordered and run.
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub fn terminal_tab_op(
     app: AppHandle,
     project_name: String,
@@ -185,12 +186,16 @@ pub fn terminal_tab_op(
     label: Option<String>,
     emoji: Option<String>,
     order: Option<Vec<String>>,
+    account: Option<String>,
 ) -> Result<(), String> {
     if !matches!(
         op.as_str(),
-        "rename" | "pin" | "reorder" | "title" | "restart"
+        "rename" | "pin" | "reorder" | "title" | "restart" | "account"
     ) {
         return Err(format!("unknown tab op {op:?}"));
+    }
+    if op == "account" && account.as_deref().unwrap_or("").is_empty() {
+        return Err("no Claude account given".into());
     }
     app.emit(
         "remote-terminal-op",
@@ -201,6 +206,7 @@ pub fn terminal_tab_op(
             "label": label.unwrap_or_default(),
             "emoji": emoji,
             "order": order.unwrap_or_default(),
+            "account": account,
         }),
     )
     .map_err(|e| e.to_string())

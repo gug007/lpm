@@ -224,6 +224,7 @@ export function useAppEvents(): void {
         label?: string;
         emoji?: string | null;
         order?: string[];
+        account?: string | null;
       }) => {
         const ok = payload?.op === "reorder" ? !!payload.order?.length : !!payload?.id;
         if (payload?.project && payload?.op && ok) {
@@ -234,6 +235,7 @@ export function useAppEvents(): void {
             payload.label ?? "",
             payload.order ?? [],
             payload.emoji ?? undefined,
+            payload.account ?? undefined,
           );
         }
       },

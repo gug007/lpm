@@ -59,6 +59,7 @@ macro_rules! all_command_handlers {
             browser_reload,
             close_browser,
             copy_claude_session_for_fork,
+            move_claude_tab_to_account,
             claude_pool_state,
             set_claude_pool,
             accept_claude_pool_pick,

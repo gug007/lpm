@@ -106,7 +106,8 @@ const ZERO: string[] = [
 ];
 
 const EMPTY_MAP: string[] = [
-  "ignored_sync_list", "ignored_sync_read", "ignored_sync_undo", "services_build",
+  "ignored_sync_list", "ignored_sync_read", "ignored_sync_undo", "move_claude_tab_to_account",
+  "services_build",
 ];
 
 export const DEFAULTS: Record<string, unknown> = Object.fromEntries([

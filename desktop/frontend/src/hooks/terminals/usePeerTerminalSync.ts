@@ -6,6 +6,7 @@ import { isPeerName, peerSlugOf } from "../../peer/markers";
 import {
   type HostListing,
   type HostTabsSeen,
+  type HostTerminal,
   claimPeerTerminal,
   hostClosedTabs,
   hostTerminalsOf,
@@ -16,11 +17,12 @@ import {
   unclaimedHostTerminals,
 } from "../../peer/hostTerminals";
 import { noteHostFollows } from "../../peer/hostFollows";
+import { settleHostSwap } from "../../peer/hostSwaps";
 import { noteOpenedByOtherMac } from "../../peer/openedByOtherMac";
 import { pendingClosesForProject } from "../../pendingClose";
 import { type PaneNode, collectTerminals } from "../../paneTree";
 import { onTerminalsClosed } from "../../sendLater/closeout";
-import { followHostTabs, withHostTabs, withoutHostTabs } from "./hostTabs";
+import { followHostTabs, withHostTabs, withReplacedHostTabs, withoutHostTabs } from "./hostTabs";
 
 // A start still waiting on its reply holds a sync back; this is how soon it
 // tries again.
@@ -57,14 +59,31 @@ export function usePeerTerminalSync({
     let retry: ReturnType<typeof setTimeout> | null = null;
     const seen: HostTabsSeen = { run: null, ids: new Set() };
 
-    const adopt = (listed: unknown) => {
+    // A tab the host moved to a new terminal takes it in place.
+    const replace = (listing: HostListing, fresh: HostTerminal[]): HostTerminal[] => {
       const tree = treeRef.current;
+      if (!tree) return fresh;
+      const swapped = withReplacedHostTabs(tree, fresh, listing.tabs);
+      if (swapped.replaced.length === 0) return fresh;
+      applyTree(swapped.tree);
+      treeRef.current = swapped.tree;
+      const taken = new Set<string>();
+      for (const { from, to } of swapped.replaced) {
+        claimPeerTerminal(to);
+        taken.add(to);
+        settleHostSwap(from, to);
+      }
+      return fresh.filter((t) => !taken.has(t.id));
+    };
+
+    const adopt = (listing: HostListing) => {
       const openIds = [
-        ...(tree ? collectTerminals(tree).map((t) => t.id) : []),
+        ...(treeRef.current ? collectTerminals(treeRef.current).map((t) => t.id) : []),
         ...pendingClosesForProject(projectName).map((p) => p.tab.id),
       ];
-      const fresh = unclaimedHostTerminals(listed, openIds);
+      const fresh = replace(listing, unclaimedHostTerminals(listing.terminals, openIds));
       if (fresh.length === 0) return;
+      const tree = treeRef.current;
       for (const t of fresh) {
         claimPeerTerminal(t.id);
         noteOpenedByOtherMac(t.id);
@@ -140,7 +159,7 @@ export function usePeerTerminalSync({
         const listing = parseHostListing(listed);
         noteHostFollows(projectName, listing.follow);
         const previousRun = seen.run;
-        adopt(listing.terminals);
+        adopt(listing);
         dropClosed(listing);
         await dropEnded(previousRun, listing);
         if (disposed) return;

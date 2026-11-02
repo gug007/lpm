@@ -517,8 +517,9 @@ export function TerminalExists(id) {
 export function ListProjectTerminals(projectName, withTabs) {
   return invoke("list_project_terminals", { projectName, withTabs });
 }
-export function TerminalTabOp(projectName, op, id, label, emoji, order) {
-  return invoke("terminal_tab_op", { projectName, op, id, label, emoji, order });
+// `account`: the Claude account the "account" op moves a tab to.
+export function TerminalTabOp(projectName, op, id, label, emoji, order, account) {
+  return invoke("terminal_tab_op", { projectName, op, id, label, emoji, order, account });
 }
 export function ListBranches(cwd) {
   return invoke("list_branches", { cwd });
@@ -1067,6 +1068,9 @@ export function ResumeClaudePool() {
 export function TerminalClaudeAccount(id) {
   return invoke("terminal_claude_account", { id });
 }
+export function MoveClaudeTabToAccount(projectName, terminalId, sessionId, account) {
+  return invoke("move_claude_tab_to_account", { projectName, terminalId, sessionId, account });
+}
 export function MoveProjectRoot(name, newRoot) {
   return invoke("move_project_root", { name, newRoot });
 }
@@ -1084,14 +1088,15 @@ export function StartService(projectName, paneIndex) {
 }
 // `tab` ({ label, emoji, color, actionName }) names the tab for another Mac that
 // runs the terminal, which adopts it as a tab of its own; locally it's unused.
-export function StartTerminal(projectName, sessionId, fixedAccount, tab) {
-  return invoke("start_terminal", { projectName, sessionId, fixedAccount, tab });
+// `account`: the Claude account the user moved the tab to.
+export function StartTerminal(projectName, sessionId, fixedAccount, tab, account) {
+  return invoke("start_terminal", { projectName, sessionId, fixedAccount, tab, account });
 }
 export function StartTerminalForConfig(projectName, terminalName, fixedAccount, tab) {
   return invoke("start_terminal_for_config", { projectName, terminalName, fixedAccount, tab });
 }
-export function StartTerminalForRestore(projectName, terminalName, sessionId) {
-  return invoke("start_terminal_for_restore", { projectName, terminalName, sessionId });
+export function StartTerminalForRestore(projectName, terminalName, sessionId, account) {
+  return invoke("start_terminal_for_restore", { projectName, terminalName, sessionId, account });
 }
 export function StartTerminalWithCwdEnv(projectName, cwd, env, sessionId, fixedAccount, tab) {
   return invoke("start_terminal_with_cwd_env", { projectName, cwd, env, sessionId, fixedAccount, tab });

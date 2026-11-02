@@ -8,18 +8,20 @@ interface ClaudeAccountMenuRowProps {
   signedIn: boolean;
   meters: UsageMeter[];
   current: boolean;
+  disabled?: boolean;
   onClick: () => void;
 }
 
 /** One account in the Claude account menu: its name, then a bar per usage
  *  window drawn the way the sidebar draws it, so the account with room left
  *  can be picked at a glance. */
-export function ClaudeAccountMenuRow({ label, signedIn, meters, current, onClick }: ClaudeAccountMenuRowProps) {
+export function ClaudeAccountMenuRow({ label, signedIn, meters, current, disabled, onClick }: ClaudeAccountMenuRowProps) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full flex-col gap-1 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] outline-none transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] focus-visible:bg-[var(--bg-hover)] focus-visible:text-[var(--text-primary)]"
+      disabled={disabled}
+      className="flex w-full flex-col gap-1 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] outline-none transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] focus-visible:bg-[var(--bg-hover)] focus-visible:text-[var(--text-primary)] disabled:pointer-events-none disabled:opacity-50"
     >
       <span className="flex w-full items-center gap-2">
         <span

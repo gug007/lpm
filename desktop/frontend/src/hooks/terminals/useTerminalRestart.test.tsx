@@ -55,6 +55,11 @@ describe("useTerminalRestart", () => {
     expect(scheduleCmdInject).toHaveBeenCalledWith("pty-2", "claude --resume abc");
   });
 
+  it("starts a Claude tab on the account holding its conversation", async () => {
+    await restart("pty-1");
+    expect(bridge.StartTerminal).toHaveBeenCalledWith("web", "abc");
+  });
+
   it("leaves a terminal that is still running alone", async () => {
     bridge.TerminalExists.mockResolvedValue(true);
     await restart("pty-1");

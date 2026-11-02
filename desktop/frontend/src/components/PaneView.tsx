@@ -16,6 +16,12 @@ import { HeaderTab } from "./terminal/HeaderTab";
 import { RenameModal } from "./RenameModal";
 import { EmojiMark } from "./EmojiMark";
 import { TabContextMenu } from "./terminal/TabContextMenu";
+import { TabClaudeAccountRow } from "./terminal/TabClaudeAccountRow";
+import { TabClaudeAccountSubmenu } from "./terminal/TabClaudeAccountSubmenu";
+import { ClaudeSwitchOverlay } from "./terminal/ClaudeSwitchOverlay";
+import { useClaudeSwitches } from "../store/claudeSwitches";
+import { isClaudeTab } from "../claudeTab";
+import { useHasClaudeAccounts } from "../hooks/useHasClaudeAccounts";
 import { ServiceTabContextMenu } from "./terminal/ServiceTabContextMenu";
 import { ServiceExitBar } from "./terminal/ServiceExitBar";
 import { ServicePortLinks } from "./terminal/ServicePortLinks";
@@ -236,6 +242,9 @@ export interface PaneViewProps {
   // this Mac can't duplicate.
   canForkIntoCopy: boolean;
   onForkTerminalIntoCopy: (paneId: string, termId: string, label: string) => void;
+  // Moves a Claude tab to another Claude account of the machine the project is
+  // on. Absent for SSH projects, whose agents use the server's own login.
+  onSwitchClaudeAccount?: (terminalId: string, account: string, accountLabel: string) => void;
   onRenameTerminal: (
     paneId: string,
     tabIdx: number,
@@ -331,6 +340,7 @@ function PaneViewImpl(props: PaneViewProps) {
     onForkTerminal,
     canForkIntoCopy,
     onForkTerminalIntoCopy,
+    onSwitchClaudeAccount,
     onRenameTerminal,
     onRestoreSessionTitle,
     onTogglePinTab,
@@ -370,6 +380,8 @@ function PaneViewImpl(props: PaneViewProps) {
     y: number;
   } | null>(null);
   const [renamingTabIdx, setRenamingTabIdx] = useState<number | null>(null);
+  const switchAccount = useHasClaudeAccounts(projectName) ? onSwitchClaudeAccount : undefined;
+  const claudeSwitches = useClaudeSwitches((s) => s.switches);
 
   const hasMultipleServices = services.length > 1;
   const browserServices = useMemo(
@@ -657,11 +669,19 @@ function PaneViewImpl(props: PaneViewProps) {
                     active={isActive}
                     stripKey={terminalStripKey(t.id)}
                     pinned={t.pinned}
-                    shimmer={paneStatus?.running.has(t.id) ?? false}
+                    shimmer={
+                      (paneStatus?.running.has(t.id) ?? false) ||
+                      (!!t.historyKey && t.historyKey in claudeSwitches)
+                    }
                     done={isDone}
                     waiting={isWaiting}
                     error={isError}
                     agentStatus={paneAgentStatus(paneStatus, t.id)}
+                    account={
+                      switchAccount && isClaudeTab(t) ? (
+                        <TabClaudeAccountRow projectName={projectName} terminalId={t.id} />
+                      ) : undefined
+                    }
                     color={t.color}
                     trailing={
                       <>
@@ -874,7 +894,7 @@ function PaneViewImpl(props: PaneViewProps) {
               key={t.id}
               className={
                 isActive
-                  ? "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+                  ? "relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
                   : "hidden"
               }
             >
@@ -928,14 +948,17 @@ function PaneViewImpl(props: PaneViewProps) {
                   </div>
                 </ErrorBoundary>
               ) : (
-                <InteractiveTab
-                  terminalId={t.id}
-                  visible={visible && isActive}
-                  fontSize={fontSize}
-                  themeOverride={themeOverride}
-                  cwd={interactiveCwd}
-                  paneRef={(el) => onRegisterTerminalHandle(t.id, el)}
-                />
+                <>
+                  <InteractiveTab
+                    terminalId={t.id}
+                    visible={visible && isActive}
+                    fontSize={fontSize}
+                    themeOverride={themeOverride}
+                    cwd={interactiveCwd}
+                    paneRef={(el) => onRegisterTerminalHandle(t.id, el)}
+                  />
+                  {t.historyKey && <ClaudeSwitchOverlay tabKey={t.historyKey} />}
+                </>
               )}
             </div>
           );
@@ -1059,6 +1082,17 @@ function PaneViewImpl(props: PaneViewProps) {
                 tab.id,
                 terminalDisplayLabel(tab),
               )
+            }
+            accountMenu={
+              switchAccount && isClaudeTab(tab) ? (
+                <TabClaudeAccountSubmenu
+                  projectName={projectName}
+                  terminalId={tab.id}
+                  working={paneStatus?.running.has(tab.id) ?? false}
+                  onPick={(account, label) => switchAccount(tab.id, account, label)}
+                  onClose={() => setTabMenu(null)}
+                />
+              ) : undefined
             }
             onCloseTab={() => onCloseTerminal(tabMenu.paneId, tabMenu.tabIdx)}
             onCloseOthers={() => onCloseOtherTerminals(tabMenu.paneId, tabMenu.tabIdx)}

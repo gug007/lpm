@@ -385,7 +385,7 @@ export function ProjectDetail({
       return;
     }
     remoteTerminalOpConsumed.current = pendingRemoteTerminalOp.nonce;
-    const { op, id, label, emoji, order } = pendingRemoteTerminalOp;
+    const { op, id, label, emoji, order, account } = pendingRemoteTerminalOp;
     clearPendingRemoteTerminalOp();
     if (op === "close") terminalRef.current?.remoteCloseTerminal(id);
     else if (op === "rename") terminalRef.current?.remoteRenameTerminal(id, label, emoji);
@@ -397,6 +397,7 @@ export function ProjectDetail({
     else if (op === "forkCopy") terminalRef.current?.remoteForkIntoCopy(id);
     else if (op === "closeOthers") terminalRef.current?.remoteCloseOthers(id);
     else if (op === "copyAnswer") terminalRef.current?.copyLastAnswer(id);
+    else if (op === "account" && account) terminalRef.current?.remoteSwitchClaudeAccount(id, account);
   }, [pendingRemoteTerminalOp, project.name, clearPendingRemoteTerminalOp]);
 
   // A cross-project view asked to put one of our terminals on screen. The store

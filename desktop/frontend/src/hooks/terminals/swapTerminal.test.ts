@@ -9,6 +9,8 @@ describe("swapTerminal", () => {
       actionName: "claude",
       pinned: true,
       color: "blue",
+      memory: { session: "auth-refactor" },
+      forkOf: { label: "Main", at: 1 },
     });
     const other = makeTerminal("t-other", "Shell");
     const tree = makePaneLeaf("p1", [other, old], 1);
@@ -23,6 +25,8 @@ describe("swapTerminal", () => {
       actionName: "claude",
       pinned: true,
       color: "blue",
+      memory: { session: "auth-refactor" },
+      forkOf: { label: "Main", at: 1 },
     });
     expect(next.tabs[0]).toBe(other);
   });

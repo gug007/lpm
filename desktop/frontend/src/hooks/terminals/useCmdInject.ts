@@ -1,5 +1,6 @@
 import { useRef, useCallback, type RefObject } from "react";
 import { EventsOn } from "../../../bridge/runtime";
+import { interactivePaneOutputAt } from "../../components/InteractivePane";
 import { sendTerminalInput } from "../../terminal-io";
 
 // Injection waits for pty output to go quiet for PROMPT_IDLE_MS before
@@ -22,8 +23,10 @@ export function useCmdInject({ submitPromptRef }: UseCmdInjectProps) {
   // Run `action` once the pty goes quiet (or PROMPT_MAX_WAIT_MS elapses). Each
   // call registers a cleanup in pendingInjectCleanups so the unmount effect can
   // tear down in-flight injections — otherwise the pty-output subscription would
-  // outlive the component and fire into a dead session.
-  const runWhenIdle = useCallback((id: string, action: () => void) => {
+  // outlive the component and fire into a dead session. `settled`: output the
+  // pane already drew counts toward the quiet, as a shell sitting at its prompt
+  // won't draw again to say so.
+  const runWhenIdle = useCallback((id: string, action: () => void, settled = false) => {
     let idleTimer: ReturnType<typeof setTimeout> | null = null;
     let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
     let fired = false;
@@ -48,6 +51,10 @@ export function useCmdInject({ submitPromptRef }: UseCmdInjectProps) {
       action();
     }
 
+    const drewAt = settled ? interactivePaneOutputAt(id) : 0;
+    if (drewAt > 0) {
+      idleTimer = setTimeout(fire, Math.max(0, PROMPT_IDLE_MS - (performance.now() - drewAt)));
+    }
     fallbackTimer = setTimeout(fire, PROMPT_MAX_WAIT_MS);
     pendingInjectCleanups.current.add(cleanup);
   }, []);
@@ -55,10 +62,14 @@ export function useCmdInject({ submitPromptRef }: UseCmdInjectProps) {
   // Type `text` + newline once the shell prompt settles, then run `onSent`.
   const scheduleInputInject = useCallback(
     (id: string, text: string, onSent?: () => void) => {
-      runWhenIdle(id, () => {
-        sendTerminalInput(id, text + "\n").catch(() => {});
-        onSent?.();
-      });
+      runWhenIdle(
+        id,
+        () => {
+          sendTerminalInput(id, text + "\n").catch(() => {});
+          onSent?.();
+        },
+        true,
+      );
     },
     [runWhenIdle],
   );

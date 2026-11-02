@@ -122,7 +122,8 @@ export type RemoteTerminalOp =
   | "fork"
   | "forkCopy"
   | "closeOthers"
-  | "copyAnswer";
+  | "copyAnswer"
+  | "account";
 
 export type View =
   | "projects"
@@ -343,6 +344,8 @@ interface AppState {
     label: string;
     emoji?: string;
     order: string[];
+    // The Claude account an "account" op moves the tab to.
+    account?: string;
     nonce: number;
   } | null;
   // Mounts the project if it wasn't, without putting it on screen.
@@ -353,6 +356,7 @@ interface AppState {
     label: string,
     order: string[],
     emoji?: string,
+    account?: string,
   ) => void;
   clearPendingRemoteTerminalOp: () => void;
   // A "put this terminal on screen" request from a cross-project view. Selects+
@@ -1270,7 +1274,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   pendingRemoteTerminalOp: null,
 
-  triggerRemoteTerminalOp: (projectName, op, id, label, order, emoji) =>
+  triggerRemoteTerminalOp: (projectName, op, id, label, order, emoji, account) =>
     set((s) => ({
       visited: s.visited.has(projectName) ? s.visited : new Set([...s.visited, projectName]),
       pendingRemoteTerminalOp: {
@@ -1280,6 +1284,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         label,
         emoji,
         order,
+        account,
         nonce: ++remoteRequestNonce,
       },
     })),

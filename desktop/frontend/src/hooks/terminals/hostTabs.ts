@@ -5,7 +5,9 @@ import {
   type TerminalInstance,
   clampIdx,
   collectPanes,
+  collectTerminals,
   findPane,
+  findTerminalLocation,
   firstPaneId,
   makePaneLeaf,
   makeTerminal,
@@ -13,8 +15,10 @@ import {
   removePane,
   terminalDisplayLabel,
 } from "../../paneTree";
+import { isPeerName } from "../../peer/markers";
 import { disambiguateLabel, pickTerminalLabel } from "../../terminalLabels";
 import { withAgentSession } from "./agentSessionTab";
+import { swapTerminal } from "./swapTerminal";
 import { nextId } from "./util";
 
 // Appends the host's terminals behind the tab in view, so one opening on the
@@ -40,6 +44,41 @@ export function withHostTabs(
     next = mapPane(next, paneId, (p) => ({ ...p, tabs: [...p.tabs, tab] }));
   }
   return tree ? { tree: next } : { tree: next, focus: paneId };
+}
+
+// The host moved a tab to a new terminal (a Claude account switch): one new
+// here that carries the conversation of a tab the host no longer lists. That
+// tab takes the new terminal in place, keeping its spot, focus and name, rather
+// than closing while a new tab opens at the end. Only a host that lists its
+// tabs can say one is gone.
+export function withReplacedHostTabs(
+  tree: PaneNode,
+  fresh: HostTerminal[],
+  hostTabs: string[] | null,
+): { tree: PaneNode; replaced: { from: string; to: string }[] } {
+  const replaced: { from: string; to: string }[] = [];
+  if (!hostTabs) return { tree, replaced };
+  const listed = new Set(hostTabs);
+  let next = tree;
+  for (const t of fresh) {
+    const session = t.agentSession;
+    if (!session) continue;
+    const holds = (tab: TerminalInstance) => {
+      const own = agentSessionOf(tab);
+      return (
+        isPeerName(tab.id) &&
+        !listed.has(tab.id) &&
+        own?.provider === session.provider &&
+        own.sessionId === session.sessionId
+      );
+    };
+    const old = collectTerminals(next).find(holds);
+    const at = old && findTerminalLocation(next, old.id);
+    if (!old || !at) continue;
+    next = swapTerminal(next, at.paneId, old.id, t.id);
+    replaced.push({ from: old.id, to: t.id });
+  }
+  return { tree: next, replaced };
 }
 
 // Drops the tabs the host closed. A pane left with nothing collapses, as a close

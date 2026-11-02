@@ -50,6 +50,7 @@ mod cli_install;
 mod cli_install_linux;
 #[cfg(any(windows, test))]
 mod cli_install_windows;
+mod claude_session_move;
 mod claude_session_state;
 mod claude_statusline;
 mod claude_transcripts;
@@ -372,6 +373,7 @@ use claude_account_pin::*;
 use claude_pool::{accept_claude_pool_pick, claude_pool_state, resume_claude_pool, set_claude_pool};
 use claude_session_state::*;
 use claude_statusline::*;
+use claude_session_move::*;
 use claude_transcripts::*;
 use cli_install::*;
 use clipboard::*;

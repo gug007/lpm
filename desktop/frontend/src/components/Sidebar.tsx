@@ -1709,12 +1709,16 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           projects={pinned}
           byName={allByName}
           agentsByProject={agentsByProject}
+          focusedTerminals={focusedTerminals}
           selected={selected}
           menuFor={contextMenu?.name ?? null}
           width={width}
+          windowOf={(name) => projectWindow(name, detached, detachedSelf)}
           onSelect={onSelect}
           onOpenMenu={(name, x, y) => setContextMenu({ name, x, y })}
           onReorder={reorderPinned}
+          onOpenAgent={openAgent}
+          onAgentAction={agentAction}
         />
       )}
       <div className="flex items-center justify-between px-4 pb-2" style={{ minWidth: width }}>

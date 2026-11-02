@@ -147,6 +147,8 @@ export interface TerminalViewHandle {
   remoteTogglePin(id: string): void;
   remoteReorderTerminals(order: string[]): void;
   remoteRestartTerminal(id: string): void;
+  // Continue a Claude tab's conversation on another of this machine's accounts.
+  remoteSwitchClaudeAccount(id: string, account: string): void;
   // Bring one of this project's terminals on screen, addressed by terminal id.
   focusTerminalById(id: string): void;
   // Copy the last answer of the agent in this tab, from the sidebar's agent row.
@@ -251,6 +253,7 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
     closeTerminal,
     closeOtherTerminals,
     restartTerminal,
+    switchClaudeAccount,
     focusTerminal,
     focusAdjacentPaneItem,
     focusService,
@@ -1205,6 +1208,7 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
       remoteTogglePin,
       remoteReorderTerminals,
       remoteRestartTerminal: restartTerminal,
+      remoteSwitchClaudeAccount: switchClaudeAccount,
       focusTerminalById,
       copyLastAnswer: setCopyRequest,
       liveAgentSessions,
@@ -1232,6 +1236,7 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
       remoteTogglePin,
       remoteReorderTerminals,
       restartTerminal,
+      switchClaudeAccount,
       focusTerminalById,
       liveAgentSessions,
       openMemory,
@@ -1294,6 +1299,7 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
             onForkTerminal={forkTerminal}
             canForkIntoCopy={canForkIntoCopy}
             onForkTerminalIntoCopy={requestForkIntoCopy}
+            onSwitchClaudeAccount={sessionsReachable ? switchClaudeAccount : undefined}
             onRenameTerminal={renameTerminal}
             onRestoreSessionTitle={restoreSessionTitle}
             onTogglePinTab={toggleTabPinned}

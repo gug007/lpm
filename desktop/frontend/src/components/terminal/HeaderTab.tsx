@@ -29,6 +29,7 @@ export function HeaderTab({
   color,
   trailing,
   stripKey,
+  account,
 }: {
   label: string;
   icon?: ReactNode;
@@ -57,6 +58,8 @@ export function HeaderTab({
   trailing?: ReactNode;
   // Names the tab to its strip's overflow count (useHiddenTabs).
   stripKey?: string;
+  // The card row naming the Claude account a Claude tab runs as.
+  account?: ReactNode;
 }) {
   const closable = !!onClose && !pinned;
   const hasHoverIcon = closable || !!pinned;
@@ -105,7 +108,7 @@ export function HeaderTab({
   // A tab with an agent in it, or one renamed away from the action that
   // launched it, gets a card lined up under the tab. Everything else keeps the
   // plain one-line tooltip, shown only when the strip clips the label.
-  const card = tabCardHasDetails(agentStatus, origin, fork, command);
+  const card = tabCardHasDetails(agentStatus, origin, fork, command, !!account);
   const tooltip = card ? (
     <TabTooltipCard
       label={label}
@@ -115,6 +118,7 @@ export function HeaderTab({
       agentStatus={agentStatus}
       fork={fork}
       command={command}
+      account={account}
     />
   ) : (
     label

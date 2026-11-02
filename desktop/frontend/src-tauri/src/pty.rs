@@ -760,10 +760,12 @@ fn resolve_restore_cmds(cmd: &str) -> (String, String) {
 /// `session_id` is set when the terminal continues an existing Claude
 /// conversation, which then starts on the account that holds it.
 /// `fixed_account` is set for a scheduled job's terminal: it never switches.
+/// `account` is the one the user moved this tab to, which wins over both.
 fn resolve_spawn(
     project_name: &str,
     session_id: Option<&str>,
     fixed_account: Option<bool>,
+    account: Option<&str>,
 ) -> Result<SpawnTarget, String> {
     let info = config::spawn_info(project_name)?;
     // Resolve the env decision here at spawn time — this is where the accounts
@@ -771,7 +773,10 @@ fn resolve_spawn(
     // that also call spawn_info.
     let resume = session_id.map(|sid| (info.root.as_str(), sid));
     let switching = fixed_account != Some(true);
-    let spawn = crate::claude_pool::spawn_env(project_name, resume, switching);
+    let spawn = match account {
+        Some(id) => crate::claude_pool::chosen_spawn_env(project_name, id)?,
+        None => crate::claude_pool::spawn_env(project_name, resume, switching),
+    };
     let ssh = if info.is_remote { Some(info.ssh) } else { None };
     Ok(SpawnTarget {
         root: info.root,
@@ -801,8 +806,14 @@ pub fn start_terminal(
     project_name: String,
     session_id: Option<String>,
     fixed_account: Option<bool>,
+    account: Option<String>,
 ) -> Result<String, String> {
-    let target = resolve_spawn(&project_name, session_id.as_deref(), fixed_account)?;
+    let target = resolve_spawn(
+        &project_name,
+        session_id.as_deref(),
+        fixed_account,
+        account.as_deref(),
+    )?;
     start_internal(&app, &state, &project_name, &target, "", &BTreeMap::new())
 }
 
@@ -816,7 +827,7 @@ pub fn start_terminal_with_cwd_env(
     session_id: Option<String>,
     fixed_account: Option<bool>,
 ) -> Result<String, String> {
-    let target = resolve_spawn(&project_name, session_id.as_deref(), fixed_account)?;
+    let target = resolve_spawn(&project_name, session_id.as_deref(), fixed_account, None)?;
     let env: BTreeMap<String, String> = env.into_iter().collect();
     start_internal(&app, &state, &project_name, &target, &cwd, &env)
 }
@@ -828,8 +839,14 @@ pub fn start_terminal_for_restore(
     project_name: String,
     terminal_name: String,
     session_id: Option<String>,
+    account: Option<String>,
 ) -> Result<String, String> {
-    let target = resolve_spawn(&project_name, session_id.as_deref(), None)?;
+    let target = resolve_spawn(
+        &project_name,
+        session_id.as_deref(),
+        None,
+        account.as_deref(),
+    )?;
     let (cwd, env, _) = resolve_terminal_spawn(&project_name, &terminal_name)?;
     start_internal(&app, &state, &project_name, &target, &cwd, &env)
 }
@@ -843,7 +860,7 @@ pub fn start_terminal_for_config(
     session_id: Option<String>,
     fixed_account: Option<bool>,
 ) -> Result<TerminalLaunch, String> {
-    let target = resolve_spawn(&project_name, session_id.as_deref(), fixed_account)?;
+    let target = resolve_spawn(&project_name, session_id.as_deref(), fixed_account, None)?;
     // On the plain-shell fallback `cmd` is empty, so startCmd is empty and the
     // frontend injects nothing.
     let (cwd, env, cmd) = resolve_terminal_spawn(&project_name, &terminal_name)?;
@@ -1012,6 +1029,14 @@ fn close_session(app: &AppHandle, state: &PtyState, id: &str) -> Option<i32> {
     *sess.closed.write().unwrap() = true;
     let child = sess.child.lock().unwrap();
     child.process_id().map(|p| p as i32)
+}
+
+/// Close a terminal and wait until its process tree has exited, for callers
+/// that go on to move files those processes write.
+pub(crate) fn stop_terminal_and_wait(app: &AppHandle, state: &PtyState, id: &str) {
+    if let Some(pid) = close_session(app, state, id) {
+        crate::proctree::end_shell_tree(pid);
+    }
 }
 
 #[tauri::command]

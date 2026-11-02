@@ -1157,7 +1157,7 @@ pub fn duplicate_projects(
 /// can't span volumes (EXDEV; ERROR_NOT_SAME_DEVICE on Windows). Unlike
 /// `cp_clone`, this prunes nothing — a move must be byte-faithful. Leaves the
 /// source untouched when the copy fails.
-fn move_dir(from: &Path, to: &Path) -> Result<(), String> {
+pub(crate) fn move_dir(from: &Path, to: &Path) -> Result<(), String> {
     match std::fs::rename(from, to) {
         Ok(()) => Ok(()),
         Err(e) if crosses_volumes(&e) => {
@@ -1171,7 +1171,7 @@ fn move_dir(from: &Path, to: &Path) -> Result<(), String> {
     }
 }
 
-fn crosses_volumes(err: &std::io::Error) -> bool {
+pub(crate) fn crosses_volumes(err: &std::io::Error) -> bool {
     const ERROR_NOT_SAME_DEVICE: i32 = 17;
     err.kind() == std::io::ErrorKind::CrossesDevices
         || (cfg!(windows) && err.raw_os_error() == Some(ERROR_NOT_SAME_DEVICE))

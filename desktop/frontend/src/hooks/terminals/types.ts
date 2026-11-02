@@ -63,6 +63,8 @@ export interface UseTerminalsResult {
   closeTerminal: (paneId: string, tabIdx: number) => void;
   // Start a terminal whose process has ended again in its own tab.
   restartTerminal: (terminalId: string) => Promise<void>;
+  // Continue a Claude tab's conversation on another Claude account.
+  switchClaudeAccount: (terminalId: string, account: string, accountLabel?: string) => Promise<void>;
   closeOtherTerminals: (paneId: string, tabIdx: number) => void;
   focusTerminal: (paneId: string, tabIdx: number) => void;
   focusAdjacentPaneItem: (paneId: string, delta: 1 | -1, serviceNames: string[]) => void;

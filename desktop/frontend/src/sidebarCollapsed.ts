@@ -5,6 +5,7 @@ import { create } from "zustand";
 // the exceptions — what was collapsed — so a fresh project behaves the same way
 // on every machine the settings land on.
 const AGENTS_KEY = "lpm-sidebar-collapsed-projects";
+const PINNED_AGENTS_KEY = "lpm-sidebar-collapsed-pinned-projects";
 const DECKS_KEY = "lpm-sidebar-collapsed-decks";
 const SEEN_KEY = "lpm-sidebar-expanded-seen-agents";
 
@@ -57,6 +58,9 @@ function collapsedStore(key: string) {
 
 /** Which project rows are holding their agents closed. */
 export const useCollapsedAgents = collapsedStore(AGENTS_KEY);
+
+/** The same, for a project's pinned row: closing one leaves the other open. */
+export const useCollapsedPinnedAgents = collapsedStore(PINNED_AGENTS_KEY);
 
 /** Keyed on the parent's name — the key the tree memo groups children by. */
 export const useCollapsedDecks = collapsedStore(DECKS_KEY);

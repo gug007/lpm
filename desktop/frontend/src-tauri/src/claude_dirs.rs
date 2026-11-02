@@ -84,6 +84,8 @@ pub fn sessions_dir(config_dir: &Path, project_root: &str) -> PathBuf {
 /// Which account holds `session_id`, and the file. The project root's dir is
 /// checked first; a session started in a subfolder sits under that folder's
 /// name instead, and ids are unique, so every project dir is searched next.
+/// When more than one account has the file, the one written last is the
+/// conversation: a fork leaves a copy behind on the account it started on.
 pub fn find_transcript(project_root: &str, session_id: &str) -> Option<(AccountDir, PathBuf)> {
     find_in(&account_dirs(), project_root, session_id)
 }
@@ -97,20 +99,32 @@ fn find_in(
         return None;
     }
     let file = format!("{session_id}.jsonl");
-    let direct = dirs.iter().find_map(|a| {
+    let direct = latest(dirs.iter().filter_map(|a| {
         let path = sessions_dir(&a.dir, project_root).join(&file);
         path.is_file().then(|| (a.clone(), path))
-    });
+    }));
     direct.or_else(|| {
-        dirs.iter().find_map(|a| {
+        latest(dirs.iter().filter_map(|a| {
             std::fs::read_dir(a.dir.join("projects"))
                 .ok()?
                 .flatten()
                 .map(|e| e.path().join(&file))
                 .find(|p| p.is_file())
                 .map(|p| (a.clone(), p))
-        })
+        }))
     })
+}
+
+pub(crate) fn modified(path: &Path) -> Option<std::time::SystemTime> {
+    std::fs::metadata(path).and_then(|m| m.modified()).ok()
+}
+
+/// The most recently modified file; the earliest listed on a tie.
+fn latest(found: impl Iterator<Item = (AccountDir, PathBuf)>) -> Option<(AccountDir, PathBuf)> {
+    found
+        .map(|(a, p)| (modified(&p), a, p))
+        .reduce(|best, next| if next.0 > best.0 { next } else { best })
+        .map(|(_, a, p)| (a, p))
 }
 
 /// The transcript to read for a session: wherever it actually is, else where
@@ -156,6 +170,35 @@ mod tests {
         let (found, path) = find_in(&dirs, root, sid).unwrap();
         assert_eq!(found.id, "work");
         assert!(path.ends_with(format!("{sid}.jsonl")));
+    }
+
+    #[test]
+    fn the_copy_written_last_wins_when_two_accounts_hold_a_session() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = "/Users/me/Projects/app";
+        let sid = "0f8c2a51-6a8e-4c43-9a1e-2b7f3f5d9c10";
+        let write = |base: &Path, age: u64| {
+            let sessions = sessions_dir(base, root);
+            std::fs::create_dir_all(&sessions).unwrap();
+            let path = sessions.join(format!("{sid}.jsonl"));
+            std::fs::write(&path, "{}\n").unwrap();
+            let at = std::time::SystemTime::now() - std::time::Duration::from_secs(age);
+            std::fs::File::options()
+                .write(true)
+                .open(&path)
+                .unwrap()
+                .set_modified(at)
+                .unwrap();
+        };
+        let main = tmp.path().join("main");
+        let work = tmp.path().join("work");
+        write(&main, 3600);
+        write(&work, 0);
+        let dirs = vec![
+            dir("default", main, DirKind::Home),
+            dir("work", work, DirKind::Account("work".into())),
+        ];
+        assert_eq!(find_in(&dirs, root, sid).unwrap().0.id, "work");
     }
 
     #[test]

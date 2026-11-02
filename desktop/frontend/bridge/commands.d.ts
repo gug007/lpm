@@ -349,6 +349,7 @@ export function SetClaudePool(...args: any[]): Promise<any>;
 export function AcceptClaudePoolPick(...args: any[]): Promise<any>;
 export function ResumeClaudePool(...args: any[]): Promise<any>;
 export function TerminalClaudeAccount(...args: any[]): Promise<string | null>;
+export function MoveClaudeTabToAccount(...args: any[]): Promise<{ moved: boolean; interrupted: boolean }>;
 export function StartLogStreaming(...args: any[]): Promise<any>;
 export function StartProject(...args: any[]): Promise<any>;
 export function StartProjectWithServices(...args: any[]): Promise<any>;
