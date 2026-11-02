@@ -138,6 +138,9 @@ export function CheckForUpdate() {
 export function CheckGHCLI() {
   return invoke("check_ghcli");
 }
+export function GithubStarred() {
+  return invoke("github_starred");
+}
 export function CheckKokoroInstalled() {
   return invoke("check_kokoro_installed");
 }
@@ -732,6 +735,12 @@ export function KeepAwakeSet(mode, minutes) {
 }
 export function KeepAwakeSetPrefs(prefs) {
   return invoke("keep_awake_set_prefs", { prefs });
+}
+export function LoginItemState() {
+  return invoke("login_item_state");
+}
+export function LoginItemSet(enabled) {
+  return invoke("login_item_set", { enabled });
 }
 export function RemoteRespondPairRequest(requestId, allow) {
   return invoke("remote_respond_pair_request", { requestId, allow });

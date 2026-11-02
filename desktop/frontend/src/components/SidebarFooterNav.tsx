@@ -1,5 +1,4 @@
 import { useMemo, useRef, useState } from "react";
-import { BrowserOpenURL } from "../../bridge/runtime";
 import { AGENT_STATE_LABEL, AGENT_STATE_TONE, computeProjectStatus } from "../agentStatus";
 import { useJobsAmbient } from "../hooks/useJobsAmbient";
 import { useKeepAwakeSession } from "../hooks/useKeepAwakeSession";
@@ -15,7 +14,7 @@ import {
   withSidebarNav,
   type NavItemId,
 } from "../sidebarNav";
-import { GITHUB_REPO_URL } from "../githubIssue";
+import { openGithubStarPage } from "../githubStarred";
 import { useGlobalAgentStatus } from "../store/globalAgentStatus";
 import { useSettingsStore } from "../store/settings";
 import { useWeeklyRecapStore } from "../store/weeklyRecap";
@@ -93,6 +92,7 @@ export function SidebarFooterNav({
   onFeedback,
 }: SidebarFooterNavProps) {
   const inSidebar = useSettingsStore((s) => s.sidebarNavInSidebar ?? DEFAULT_SIDEBAR_NAV);
+  const githubStarred = useSettingsStore((s) => s.githubStarred === true);
   const update = useSettingsStore((s) => s.update);
   const recapOpen = useWeeklyRecapStore((s) => s.open);
   const showRecap = useWeeklyRecapStore((s) => s.show);
@@ -288,13 +288,16 @@ export function SidebarFooterNav({
       label: "Star on GitHub",
       icon: <StarIcon />,
       active: false,
-      onSelect: () => BrowserOpenURL(GITHUB_REPO_URL),
+      onSelect: openGithubStarPage,
       description: "lpm is free and open source. A star helps other developers find it.",
     },
   };
 
-  // A machine that can't be kept awake has no row for it.
-  const shown = (id: NavItemId) => id !== "awake" || keepAwake.state?.supported !== false;
+  // A machine that can't be kept awake has no row for it, and someone who
+  // starred lpm isn't asked to again.
+  const shown = (id: NavItemId) =>
+    (id !== "awake" || keepAwake.state?.supported !== false) &&
+    (id !== "github" || !githubStarred);
   const sidebarIds = inSidebar.filter(shown);
   const menuIds = menuNavItems(inSidebar).filter(shown);
 

@@ -170,6 +170,13 @@ const LESSONS = {
       "A three-minute tour of lpm, the desktop app that runs your local dev servers and AI coding agents like Claude Code and Codex in one window. Start a whole stack in one click, free a busy port, ask two agents side by side, run them in parallel copies of a project, then review and commit the best result.",
     uploadDate: "2026-10-28T09:00:00+00:00",
   },
+  "stop-mac-sleeping-while-agents-run": {
+    id: "a24mYAVAZQU",
+    name: "Stop Your Mac Sleeping While Coding Agents Run",
+    description:
+      "Stop your Mac sleeping while coding agents run: lpm's Keep awake keeps your Mac awake while Claude Code, Codex or any other agent is working, then lets it sleep a few minutes after the last one finishes, so a long task never stops halfway because the Mac went to sleep.",
+    uploadDate: "2026-11-02T09:00:00+00:00",
+  },
 } as const;
 
 export type YouTubeLessonId = keyof typeof LESSONS;

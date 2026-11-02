@@ -32,6 +32,9 @@ export function selectedProject(): string | undefined {
 }
 
 let quickTerminalOn = false;
+let openAtLogin = false;
+
+const loginItem = () => ({ supported: true, enabled: openAtLogin, needsApproval: false });
 
 export const settingsCommands: CommandMap = {
   load_settings: () => ({ ...settings }),
@@ -46,4 +49,9 @@ export const settingsCommands: CommandMap = {
   quick_terminal_status: () => ({ registered: quickTerminalOn, problem: null }),
   quick_terminal_cwd: () => "~",
   hide_quick_terminal: () => null,
+  login_item_state: () => loginItem(),
+  login_item_set: ({ enabled }) => {
+    openAtLogin = enabled === true;
+    return loginItem();
+  },
 };

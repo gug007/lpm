@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   keepAwakeState: vi.fn(),
   keepAwakeSet: vi.fn(),
   keepAwakeSetPrefs: vi.fn(),
+  githubStarred: vi.fn(),
 }));
 
 vi.mock("../../bridge/commands", () => ({
@@ -18,6 +19,7 @@ vi.mock("../../bridge/commands", () => ({
   KeepAwakeState: mocks.keepAwakeState,
   KeepAwakeSet: mocks.keepAwakeSet,
   KeepAwakeSetPrefs: mocks.keepAwakeSetPrefs,
+  GithubStarred: mocks.githubStarred,
   PeerInvoke: vi.fn(),
 }));
 vi.mock("../../bridge/runtime", () => ({
@@ -111,6 +113,7 @@ beforeEach(() => {
   useCollapsedAgents.setState({ collapsed: new Set() });
   useSettingsStore.setState({
     sidebarNavInSidebar: undefined,
+    githubStarred: undefined,
     // Persistence goes through the bridge; here it just has to round-trip.
     update: async (partial: Partial<Settings>) => {
       useSettingsStore.setState(partial);
@@ -134,6 +137,24 @@ describe("SidebarFooterNav", () => {
     pick("Star on GitHub");
 
     expect(mocks.browserOpenURL).toHaveBeenCalledWith("https://github.com/gug007/lpm");
+  });
+
+  it("drops the Star on GitHub row once lpm is back in front and the star is there", async () => {
+    mocks.githubStarred.mockResolvedValue(true);
+    renderNav();
+    openMore();
+    pick("Star on GitHub");
+    expect(mocks.githubStarred).not.toHaveBeenCalled();
+
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+    });
+
+    expect(mocks.githubStarred).toHaveBeenCalledTimes(1);
+    expect(useSettingsStore.getState().githubStarred).toBe(true);
+    openMore();
+    expect(buttonWithText("Settings")).toBeDefined();
+    expect(buttonWithText("Star on GitHub")).toBeUndefined();
   });
 
   it("opens Support & Feedback from the icon beside More, not from the menu", () => {

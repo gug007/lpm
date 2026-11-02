@@ -39,3 +39,4 @@ Manual order. Each published lesson is appended here and to the playlist in the 
 - Automations That Ask You First: Answer and the Agent Keeps Going — https://youtu.be/NREK5dZTpj4
 - Run Commands From Claude Code & Codex Output in One Click — No More Copy-Paste — https://youtu.be/Kyrp0XHf_70
 - Sync Ignored Files in lpm: Keep Your .env the Same on Every Computer — https://youtu.be/S0NgdCHmof8
+- Stop Your Mac Sleeping While Coding Agents Run — https://youtu.be/a24mYAVAZQU

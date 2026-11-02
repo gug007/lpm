@@ -160,6 +160,8 @@ export interface Settings {
   // The day lpm first ran with the GitHub star ask, and whether it was asked.
   githubStarSince?: string;
   githubStarAsked?: boolean;
+  // The account signed in to `gh` has starred lpm: no more asking.
+  githubStarred?: boolean;
   // The last Codex status line arranged by hand (no layout matches), kept so
   // switching to a layout and back doesn't lose it.
   codexStatusLineCustomItems?: string[];
@@ -293,6 +295,7 @@ function normalize(s: main.Settings): Settings {
     weeklyRecapLeftOut: normalizeRecapRows(s.weeklyRecapLeftOut),
     githubStarSince: s.githubStarSince || undefined,
     githubStarAsked: s.githubStarAsked || undefined,
+    githubStarred: s.githubStarred || undefined,
     codexStatusLineCustomItems: Array.isArray(s.codexStatusLineCustomItems)
       ? s.codexStatusLineCustomItems.filter(
           (item: unknown): item is string => typeof item === "string",

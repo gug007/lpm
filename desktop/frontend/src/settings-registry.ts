@@ -137,6 +137,14 @@ export const ROWS = {
     description: `System follows ${MACHINE.thisMachine}'s light or dark mode`,
     keywords: ["appearance", "dark", "light", "mode", "color"],
   },
+  "general.openAtLogin": {
+    kind: "row",
+    tab: "general",
+    id: "general.openAtLogin",
+    label: "Open at login",
+    description: `Start lpm when you log in to ${MACHINE.thisMachine}, so it's back after a restart`,
+    keywords: ["launch", "startup", "start", "restart", "reboot", "boot", "login items", "autostart", "sign in", "automatically"],
+  },
   "general.doubleClick": {
     kind: "row",
     tab: "general",
