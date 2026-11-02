@@ -71,6 +71,7 @@ import { publishPeerSnapshot } from "./peer/retainedSessions";
 import { PeerDisconnectedBanner } from "./components/PeerDisconnectedBanner";
 import { startSendLaterRunner } from "./sendLater/runner";
 import { ClaudePoolConsentDialog } from "./components/ClaudePoolConsentDialog";
+import { ClaudeTabAccountQuestion } from "./components/ClaudeTabAccountQuestion";
 import { ClaudeAccountPoolDialog } from "./components/ClaudeAccountPoolDialog";
 import { SharedTabView } from "./components/share/SharedTabView";
 import { TabShareHosts } from "./components/share/TabShareHosts";
@@ -281,6 +282,7 @@ export default function App() {
       <ClaudeAccountPoolDialog />
       <DictationOverlay />
       <ClaudePoolConsentDialog />
+      <ClaudeTabAccountQuestion />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar
           projects={projects}

@@ -11,11 +11,15 @@ interface ConfirmDialogProps {
   confirmLabel?: string;
   variant?: ConfirmVariant;
   disabled?: boolean;
+  // Holds back the confirm action alone, leaving the secondary one usable.
+  confirmDisabled?: boolean;
   // A single string requires one typed confirmation; an array requires a
   // separate input matching each entry (e.g. one per project in a batch).
   confirmText?: string | string[];
   // Raise above a taller host modal (default sits above the standard z-50).
   zIndexClassName?: string;
+  // Room for longer button labels than the default width fits on one line.
+  widthClassName?: string;
   // A milder alternative to the confirm action, offered beside it; never gated
   // by the typed confirmation.
   secondaryLabel?: string;
@@ -32,8 +36,10 @@ export function ConfirmDialog({
   confirmLabel = "Confirm",
   variant = "default",
   disabled = false,
+  confirmDisabled = false,
   confirmText,
   zIndexClassName = "z-[60]",
+  widthClassName,
   secondaryLabel,
   onSecondary,
   onCancel,
@@ -47,13 +53,13 @@ export function ConfirmDialog({
   const mustType = required.length > 0;
   const typedOk =
     !mustType || required.every((t, i) => (typed[i] ?? "").trim() === t);
-  const confirmBlocked = disabled || !typedOk;
+  const confirmBlocked = disabled || confirmDisabled || !typedOk;
   const confirmClass =
     variant === "destructive"
       ? "rounded-lg bg-[var(--accent-red)] px-4 py-2 text-sm font-medium text-white transition-all hover:opacity-85 disabled:opacity-40"
       : "rounded-lg bg-[var(--text-primary)] px-4 py-2 text-sm font-medium text-[var(--bg-primary)] transition-all hover:opacity-90 disabled:opacity-40";
 
-  const width = title ? (secondaryLabel ? "w-[400px]" : "w-80") : "w-72";
+  const width = widthClassName ?? (title ? (secondaryLabel ? "w-[400px]" : "w-80") : "w-72");
   const padding = title ? "p-6" : "p-5";
 
   return (

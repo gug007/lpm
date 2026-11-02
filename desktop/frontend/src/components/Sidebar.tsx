@@ -18,7 +18,8 @@ import { RowMenuButton } from "./RowMenuButton";
 import { getSettings, saveSettings, useSettingsStore } from "../store/settings";
 import { useAppStore } from "../store/app";
 import { useTabShares } from "../store/tabShares";
-import { openClaudeAccountSettings, setClaudeAccountChoice } from "../store/claudeAccountPin";
+import { pickClaudeAccount } from "../store/claudeAccountPick";
+import { openClaudeAccountSettings } from "../store/claudeAccountPin";
 import { useClaudePoolStore } from "../store/claudePool";
 import { useTerminalTitles } from "../store/terminalTitles";
 import { EventsOn } from "../../bridge/runtime";
@@ -1852,7 +1853,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             onReorderWorkStatuses={workStatusDialogs.reorder}
             claudeChoice={contextProject ?? undefined}
             parentClaudeChoice={projects.find((p) => p.name === contextProject?.parentName)}
-            onPickClaudeAccount={(choice) => void setClaudeAccountChoice(contextMenu.name, choice)}
+            onPickClaudeAccount={(choice) => void pickClaudeAccount(contextMenu.name, choice)}
             onChooseClaudeAccounts={() => useClaudePoolStore.getState().openListDialog(contextMenu.name)}
             onManageClaudeAccounts={() => openClaudeAccountSettings(peerSlugOf(contextMenu.name))}
             onEditConfig={() => onOpenProjectView(contextMenu.name, "config")}

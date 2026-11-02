@@ -61,6 +61,9 @@ import { useFilesFocus, type FilesView } from "../store/filesFocus";
 import { useFilesView } from "../store/filesView";
 import { forgetComposerDraft } from "../store/composerDrafts";
 import { useTerminalTitles } from "../store/terminalTitles";
+import { isClaudeTab } from "../claudeTab";
+import { useClaudeTabMoveRequests } from "../store/claudeTabMoves";
+import { usePublishProjectClaudeTabs } from "../store/projectClaudeTabs";
 import { registerProjectSubmit, useTerminalTargets } from "../store/terminalTargets";
 import { useTTSHotkeys } from "../hooks/useTTSHotkeys";
 import { TTSControls } from "./TTSControls";
@@ -1022,6 +1025,13 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
   }, [focusedPane]);
 
   const activeTerminalId = activeTab?.id ?? null;
+  const claudeTabIds = sessionsReachable ? terminalTabs.filter(isClaudeTab).map((t) => t.id) : [];
+  usePublishProjectClaudeTabs(projectName, {
+    ids: claudeTabIds,
+    selected: activeTab && claudeTabIds.includes(activeTab.id) ? activeTab.id : null,
+    working: claudeTabIds.filter((id) => paneStatus?.running.has(id)),
+  });
+  useClaudeTabMoveRequests(projectName, switchClaudeAccount);
 
   useTTSHotkeys(activeTerminalId);
 

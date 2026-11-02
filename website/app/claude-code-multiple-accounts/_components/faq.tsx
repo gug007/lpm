@@ -22,7 +22,7 @@ const FAQS: QA[] = [
   {
     question: "What do I do when one account hits its limit?",
     answer:
-      "Three ways. To keep going in the conversation you're in, right-click its Claude tab and pick another account under Claude account: the conversation moves there and carries on, even mid-turn. Turn on Switch accounts automatically in Settings, and new Claude sessions move to the next account in your list once one is close to its 5-hour or weekly limit: lpm either asks in the sidebar first or moves them on its own and tells you. Or open the project's menu in the sidebar and pick another account under Claude account, which shows each account's usage and when it resets. The last two leave sessions that are already open on the account they started with.",
+      "Three ways. To keep going in the conversation you're in, right-click its Claude tab and pick another account under Claude account: the conversation moves there and carries on, even mid-turn. Turn on Switch accounts automatically in Settings, and new Claude sessions move to the next account in your list once one is close to its 5-hour or weekly limit: lpm either asks in the sidebar first or moves them on its own and tells you. Or open the project's menu in the sidebar and pick another account under Claude account, which shows each account's usage and when it resets; if Claude tabs are open in the project, lpm lists them, the selected one ticked, and moves the ones you tick, or none if the account is only for new sessions. Automatic switching leaves sessions that are already open on the account they started with.",
   },
   {
     question: "Can I switch accounts in the middle of a Claude Code session?",
@@ -77,7 +77,7 @@ const FAQS: QA[] = [
   {
     question: "Any limitations I should know about?",
     answer:
-      "Per-project accounts apply to projects that run on your computer; SSH projects use whatever Claude login exists on the remote host. Scheduled automations run on the project's own account and never switch. Automatic switching needs Claude usage turned on in lpm, since it decides by each account's usage. Changing a project's account applies to terminals you open afterwards; to move one that's already open, use its tab's Claude account menu. Keep Claude Code reasonably up to date, since pinning relies on it keeping each account's login separate. One gotcha: if you set CLAUDE_CONFIG_DIR by hand in your shell profile (such as ~/.zprofile, ~/.zshrc or ~/.bashrc), remove it, because a login shell re-sources it and overrides the per-project account.",
+      "Per-project accounts apply to projects that run on your computer; SSH projects use whatever Claude login exists on the remote host. Scheduled automations run on the project's own account and never switch. Automatic switching needs Claude usage turned on in lpm, since it decides by each account's usage. Changing a project's account applies to terminals you open afterwards, plus any open Claude tabs you tick when lpm asks; a tab can also move on its own from its Claude account menu. Keep Claude Code reasonably up to date, since pinning relies on it keeping each account's login separate. One gotcha: if you set CLAUDE_CONFIG_DIR by hand in your shell profile (such as ~/.zprofile, ~/.zshrc or ~/.bashrc), remove it, because a login shell re-sources it and overrides the per-project account.",
   },
 ];
 

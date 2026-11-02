@@ -5,7 +5,8 @@ import { useNow } from "../hooks/useNow";
 import type { ProjectClaudeAccounts } from "../hooks/useProjectClaudeAccounts";
 import { accountMeters } from "../sidebarUsage";
 import { useAppStore } from "../store/app";
-import { openClaudeAccountSettings, setClaudeAccountChoice } from "../store/claudeAccountPin";
+import { pickClaudeAccount } from "../store/claudeAccountPick";
+import { openClaudeAccountSettings } from "../store/claudeAccountPin";
 import { CheckIcon, SettingsIcon, StatsIcon, UserIcon } from "./icons";
 import { displayNameForProjectName } from "./ProjectNameDisplay";
 import { ContextMenuItem } from "./ui/ContextMenuItem";
@@ -28,7 +29,8 @@ interface SidebarUsageAccountMenuProps {
 }
 
 /** Right-click on a Claude account's usage row: pin the selected project's
- *  new sessions to that account, on the machine the project is on. */
+ *  new sessions to that account, on the machine the project is on, and offer
+ *  to move its selected Claude tab there too. */
 export function SidebarUsageAccountMenu({
   account,
   label,
@@ -72,7 +74,7 @@ export function SidebarUsageAccountMenu({
         disabled={!project || pinnedHere}
         onClick={then(() => {
           if (project)
-            void setClaudeAccountChoice(project.name, { kind: "pin", id: account === MAIN_LOGIN ? "" : account });
+            void pickClaudeAccount(project.name, { kind: "pin", id: account === MAIN_LOGIN ? "" : account });
         })}
       />
       <ContextMenuSeparator />

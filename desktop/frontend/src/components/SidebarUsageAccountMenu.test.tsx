@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
     projects: [{ name: "lpm", isRemote: false }] as unknown[],
   },
   inUse: { current: "work", standby: [] as string[] } as { current: string; standby: string[] } | null,
-  setClaudeAccountChoice: vi.fn(),
+  pickClaudeAccount: vi.fn(),
 }));
 
 vi.mock("../../bridge/commands", () => ({}));
@@ -17,8 +17,10 @@ vi.mock("../../bridge/runtime", () => ({ EventsOn: () => () => {} }));
 vi.mock("../store/app", () => ({
   useAppStore: (select: (state: unknown) => unknown) => select(mocks.app),
 }));
+vi.mock("../store/claudeAccountPick", () => ({
+  pickClaudeAccount: mocks.pickClaudeAccount,
+}));
 vi.mock("../store/claudeAccountPin", () => ({
-  setClaudeAccountChoice: mocks.setClaudeAccountChoice,
   openClaudeAccountSettings: vi.fn(),
 }));
 
@@ -72,14 +74,14 @@ describe("SidebarUsageAccountMenu", () => {
     const { item, onClose } = open();
     expect(item.textContent).toContain("New sessions in lpm");
     act(() => item.click());
-    expect(mocks.setClaudeAccountChoice).toHaveBeenCalledWith("lpm", { kind: "pin", id: "side" });
+    expect(mocks.pickClaudeAccount).toHaveBeenCalledWith("lpm", { kind: "pin", id: "side" });
     expect(onClose).toHaveBeenCalled();
   });
 
   it("pins the main login by its empty id", () => {
     const { item } = open("default", "Claude");
     act(() => item.click());
-    expect(mocks.setClaudeAccountChoice).toHaveBeenCalledWith("lpm", { kind: "pin", id: "" });
+    expect(mocks.pickClaudeAccount).toHaveBeenCalledWith("lpm", { kind: "pin", id: "" });
   });
 
   it("can't switch a project to the account it is already pinned to", () => {
@@ -104,7 +106,7 @@ describe("SidebarUsageAccountMenu", () => {
     expect(item.disabled).toBe(false);
     expect(item.textContent).toContain("New sessions in lpm");
     act(() => item.click());
-    expect(mocks.setClaudeAccountChoice).toHaveBeenCalledWith("peer-abcdef12-lpm", { kind: "pin", id: "side" });
+    expect(mocks.pickClaudeAccount).toHaveBeenCalledWith("peer-abcdef12-lpm", { kind: "pin", id: "side" });
   });
 
   it("does nothing without a local project", () => {
