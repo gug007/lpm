@@ -4,7 +4,7 @@ import {
   KeyRound,
   Layers,
   ListOrdered,
-  MessageCircleQuestion,
+  MessagesSquare,
   ShieldCheck,
   Users,
   Wand2,
@@ -53,12 +53,12 @@ const FEATURES: Feature[] = [
   {
     icon: ArrowLeftRight,
     title: "Switch when one runs low",
-    body: "Turn on Switch accounts automatically and new Claude sessions start on the first account in your list that is under 90% of its 5-hour and weekly limits. Up to three accounts take turns, in the order you drag them. Sessions already running stay on their account.",
+    body: "Turn on Switch accounts automatically and new Claude sessions start on the first account in your list that is under 90% of its 5-hour and weekly limits. Up to three accounts take turns, in the order you drag them. With Ask me first, lpm asks in the sidebar before moving them; with Switch on its own, it moves them and tells you why.",
   },
   {
-    icon: MessageCircleQuestion,
-    title: "Ask first, or switch on its own",
-    body: "With Ask me first, lpm asks in the sidebar before new sessions move to the next account, and Use or Not now is your call. With Switch on its own, it moves them and tells you why.",
+    icon: MessagesSquare,
+    title: "Move a running conversation",
+    body: "Right-click a Claude tab and pick another account under Claude account. The conversation carries on there in the same tab, and if Claude is still working, lpm interrupts the turn and continues it on the new account. Hover a tab to see which account it runs on.",
   },
   {
     icon: ListOrdered,

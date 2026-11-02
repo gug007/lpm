@@ -291,4 +291,13 @@ export const LESSON_CHAPTERS: Record<YouTubeLessonId, LessonChapters> = {
       [105, "Until you turn it off"],
     ],
   },
+  "switch-claude-account-mid-session": {
+    seconds: 70,
+    chapters: [
+      [0, "Intro"],
+      [11, "Start on one account"],
+      [30, "Switch mid-turn"],
+      [46, "Keep the conversation"],
+    ],
+  },
 };

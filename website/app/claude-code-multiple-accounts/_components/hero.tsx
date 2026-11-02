@@ -16,8 +16,9 @@ export default function Hero() {
           lpm pins a Claude Code account to each project. Work repos run on the
           company seat, side projects stay personal — at the same time, in one
           window. Sign in to each account once; after that, opening a project
-          just uses the right one. And when an account nears its limit, new
-          sessions can move to one with room.
+          just uses the right one. And when an account runs low mid-task, move
+          the conversation to one with room, or let new sessions switch on
+          their own.
         </p>
 
         <div className="mt-[clamp(1rem,2vh,1.5rem)] flex flex-wrap justify-center gap-3 text-xs font-medium text-gray-600 dark:text-gray-300">

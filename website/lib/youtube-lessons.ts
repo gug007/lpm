@@ -177,6 +177,13 @@ const LESSONS = {
       "Stop your Mac sleeping while coding agents run: lpm's Keep awake keeps your Mac awake while Claude Code, Codex or any other agent is working, then lets it sleep a few minutes after the last one finishes, so a long task never stops halfway because the Mac went to sleep.",
     uploadDate: "2026-11-02T09:00:00+00:00",
   },
+  "switch-claude-account-mid-session": {
+    id: "W0bAReCOh1Y",
+    name: "Switch Claude Code Account Mid-Session Without Losing Your Conversation",
+    description:
+      "Move a running Claude Code session to another of your Claude accounts, without losing the conversation. Right-click a Claude tab in lpm, open Claude account and pick one with usage left; if Claude is still working, lpm interrupts the turn and carries it on there, in the same tab.",
+    uploadDate: "2026-11-02T09:00:00+00:00",
+  },
 } as const;
 
 export type YouTubeLessonId = keyof typeof LESSONS;

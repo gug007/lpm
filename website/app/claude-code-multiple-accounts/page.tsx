@@ -24,11 +24,12 @@ import Hero from "./_components/hero";
 import Lesson from "./_components/lesson";
 import Problem from "./_components/problem";
 import Setup from "./_components/setup";
+import SwitchTabLesson from "./_components/switch-tab-lesson";
 import Workflows from "./_components/workflows";
 
 const TITLE = "Multiple Claude Code Accounts — No Logging Out";
 const DESCRIPTION =
-  "Pin a Claude Code account to each project, or let new sessions move to an account with room when one nears its limit. Every account stays signed in — no logout.";
+  "Pin a Claude Code account to each project, move a running conversation to another account mid-task, or let new sessions switch when one runs low. No logout.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -43,6 +44,8 @@ export const metadata: Metadata = {
     "claude code usage limit switch account",
     "claude code auto switch account",
     "claude code switch account when limit reached",
+    "claude code switch account mid session",
+    "continue claude code conversation on another account",
     "CLAUDE_CONFIG_DIR per project",
   ],
   alternates: {
@@ -72,6 +75,7 @@ const structuredData = [
       "per-project Claude account",
       "Claude Code account switching",
       "automatic Claude account switching",
+      "moving a Claude Code conversation to another account",
       "parallel AI coding agents",
     ],
   }),
@@ -83,6 +87,7 @@ const structuredData = [
     },
   ]),
   youtubeLessonJsonLd("accounts-switching"),
+  youtubeLessonJsonLd("switch-claude-account-mid-session"),
 ];
 
 export default function ClaudeCodeMultipleAccountsPage() {
@@ -96,6 +101,7 @@ export default function ClaudeCodeMultipleAccountsPage() {
       <AccountsVisual />
       <Problem />
       <Lesson />
+      <SwitchTabLesson />
       <Features />
       <Comparison />
       <Setup />

@@ -132,6 +132,10 @@ const LESSON_CAPTION: Record<
     heading: "Your Mac stays awake while agents work",
     blurb: "A short video: keep your Mac awake while an agent runs, for a set time, or until you turn it off.",
   },
+  "switch-claude-account-mid-session": {
+    heading: "Move a Claude tab to another account mid-task",
+    blurb: "A short video: switch a running Claude Code tab to an account with usage left, and keep the conversation.",
+  },
 };
 
 function DesktopOnlyPrompt({

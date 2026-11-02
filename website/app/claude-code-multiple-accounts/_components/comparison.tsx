@@ -53,6 +53,13 @@ const ROWS: Row[] = [
     users: true,
   },
   {
+    label: "Moves one running conversation to another account, mid-task",
+    lpm: true,
+    switchers: false,
+    manual: false,
+    users: false,
+  },
+  {
     label: "Moves only new sessions, per project, when an account runs low",
     lpm: true,
     switchers: false,
@@ -95,7 +102,7 @@ export default function Comparison() {
         <SectionHeader
           eyebrow="How it compares"
           title="Pinning vs. switching"
-          description="Other setups can hold more than one Claude account — but each asks you to swap credentials, remember an env var, or leave the window. lpm points each project at its own account, and when switching is on, only new sessions move."
+          description="Other setups can hold more than one Claude account — but each asks you to swap credentials, remember an env var, or leave the window. lpm points each project at its own account, switches only new sessions on its own, and moves a running conversation when you ask."
         />
 
         <div className="hidden sm:block rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden">

@@ -16,7 +16,7 @@ export const AGENT_SETUP_AREA: FeatureArea = {
     {
       icon: Users,
       title: "Multiple Claude Code accounts",
-      body: "Add work, personal, or client Claude accounts, sign each in, and pin one per project so its sessions use the right subscription.",
+      body: "Add work, personal, or client Claude accounts, sign each in, and pin one per project so its sessions use the right subscription. When one runs low, move a running conversation to another from its tab.",
       note: "Automations use your default Claude login.",
       scope: "claude",
       href: CLAUDE_ACCOUNTS_PATH,
