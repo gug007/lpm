@@ -10,7 +10,7 @@ import { Hero } from "@/components/home/hero";
 import { HomeFaq } from "@/components/home/home-faq";
 import { HowItWorks } from "@/components/home/how-it-works";
 import { PairedDevices } from "@/components/home/paired-devices";
-import { PhoneSendBar } from "@/components/home/phone-send-bar";
+import { Personas } from "@/components/home/personas";
 import { getReleaseSummary } from "@/lib/release-verification";
 import { jsonLdString, youtubeLessonJsonLd } from "@/lib/structured-data";
 
@@ -39,6 +39,7 @@ export default async function HomePage() {
       />
       <Hero />
       <DemoSection posterPriority blurb="It all runs in your browser." />
+      <Personas />
       <BeforeAfter />
       <CtaBand />
       <HowItWorks />
@@ -49,7 +50,6 @@ export default async function HomePage() {
       <Downloads release={release}>
         <DownloadSafety />
       </Downloads>
-      <PhoneSendBar />
     </>
   );
 }

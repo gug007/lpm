@@ -3,6 +3,7 @@ import { COMPARE_LABELS, FOOTER_GROUPS } from "@/lib/footer-links";
 import { REPO_URL, TELEGRAM_URL, VS_SLUGS, vsPath } from "@/lib/links";
 import { FooterFollow } from "./footer-follow";
 import { FooterRelease } from "./footer-release";
+import { FooterSponsor } from "./footer-sponsor";
 import { FooterYouTubeCard } from "./footer-youtube-card";
 import { TelegramIcon } from "./telegram-icon";
 
@@ -55,6 +56,8 @@ export function Footer() {
             ))}
           </ul>
         </nav>
+
+        <FooterSponsor />
 
         <FooterFollow />
 

@@ -1,3 +1,4 @@
+import { APP_WINDOW } from "@/lib/og-app-window";
 import { OG_CONTENT_TYPE, OG_SIZE, ogImage } from "@/lib/og-template";
 
 export const alt = "Try the lpm interactive demo in your browser.";
@@ -10,5 +11,6 @@ export default function Image() {
     subline:
       "Sample projects with services and agents, or an empty workspace like a fresh install.",
     eyebrow: "Interactive demo",
+    image: APP_WINDOW,
   });
 }

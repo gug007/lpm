@@ -28,6 +28,12 @@ let cached: Platform | undefined;
 const RPM_DISTRO_MARKERS = /fedora/;
 const ARM_MARKERS = /aarch64|arm64|armv\d/;
 
+// Chrome and Edge name the GPU, e.g. "ANGLE Metal Renderer: Apple M2 Pro",
+// which on Apple Silicon is the chip itself; Safari only says "Apple GPU".
+let cachedChip: string | null = null;
+
+const APPLE_CHIP = /\bApple M\d+(?: (?:Pro|Max|Ultra))?\b/;
+
 function getMacArchitecture(): MacDownloadPlatform | "mac-unknown" {
   const intelRendererMarkers = ["intel", "amd", "ati", "radeon", "nvidia"];
 
@@ -38,15 +44,14 @@ function getMacArchitecture(): MacDownloadPlatform | "mac-unknown" {
     if (gl) {
       const dbg = gl.getExtension("WEBGL_debug_renderer_info");
       const renderer = dbg
-        ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)).toLowerCase()
+        ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL))
         : "";
-      if (intelRendererMarkers.some((marker) => renderer.includes(marker))) {
+      const lower = renderer.toLowerCase();
+      if (intelRendererMarkers.some((marker) => lower.includes(marker))) {
         return "mac-intel";
       }
-      if (
-        renderer.includes("apple silicon") ||
-        /\bapple m\d+\b/.test(renderer)
-      ) {
+      if (lower.includes("apple silicon") || /\bapple m\d+\b/.test(lower)) {
+        cachedChip = renderer.match(APPLE_CHIP)?.[0] ?? null;
         return "mac-arm";
       }
     }
@@ -106,6 +111,21 @@ function getServerSnapshot(): Platform {
 
 export function usePlatform(): Platform {
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+}
+
+function getChipSnapshot(): string | null {
+  getSnapshot();
+  return cachedChip;
+}
+
+function getServerChipSnapshot(): string | null {
+  return null;
+}
+
+// The Apple Silicon chip by name ("Apple M2 Pro"), or null when the browser
+// doesn't say.
+export function useMacChip(): string | null {
+  return useSyncExternalStore(subscribe, getChipSnapshot, getServerChipSnapshot);
 }
 
 export function isMacDownloadPlatform(

@@ -6,8 +6,8 @@ import {
   DOCS_PATH,
   FEATURES_PATH,
 } from "@/lib/links";
-import { DownloadLink } from "./download-link";
 import { GitHubStarButton } from "./github-star-button";
+import { NavGet } from "./nav-get";
 import { NavLink } from "./nav-link";
 import { NavMobileMenu } from "./nav-mobile-menu";
 import { ThemeToggle } from "./theme-toggle";
@@ -60,9 +60,7 @@ export function Nav() {
           <NavLink href={CHANGELOG_PATH} className={`hidden md:inline-flex ${linkClass}`}>
             Changelog
           </NavLink>
-          <DownloadLink className="relative inline-flex items-center rounded-full after:absolute after:inset-x-0 after:-inset-y-[7px] after:content-[''] bg-gray-900 dark:bg-white px-3.5 py-1.5 text-[12px] font-medium text-white dark:text-gray-900 hover:bg-gray-700 dark:hover:bg-gray-200 transition-colors duration-200">
-            Download
-          </DownloadLink>
+          <NavGet />
           <ThemeToggle />
           <NavMobileMenu github={<GitHubStarButton />} />
         </div>

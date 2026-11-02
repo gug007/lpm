@@ -19,6 +19,6 @@ export default function Image() {
       "Prompt agents, review the diff, and get an alert the moment one is waiting.",
     eyebrow: "The lpm companion for iPhone & iPad",
     platform: "Free on the App Store",
-    image: `data:image/jpeg;base64,${phone}`,
+    image: { src: `data:image/jpeg;base64,${phone}`, frame: "phone" },
   });
 }

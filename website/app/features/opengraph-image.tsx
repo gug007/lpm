@@ -1,3 +1,4 @@
+import { APP_WINDOW } from "@/lib/og-app-window";
 import { OG_CONTENT_TYPE, OG_SIZE, ogImage } from "@/lib/og-template";
 
 export const alt =
@@ -11,5 +12,6 @@ export default function Image() {
     subline:
       "Dev servers, Claude Code and Codex terminals, parallel copies, Git review, automations, and control from your iPhone.",
     eyebrow: "Feature guide",
+    image: APP_WINDOW,
   });
 }

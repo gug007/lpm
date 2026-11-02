@@ -4,7 +4,12 @@ export const OG_SIZE = { width: 1200, height: 630 };
 export const OG_CONTENT_TYPE = "image/png";
 
 const PADDING = 80;
-const IMAGE_COLUMN = 400;
+const PHONE_COLUMN = 400;
+const WINDOW_LEFT = 680;
+const WINDOW_WIDTH = 760;
+const WINDOW_GAP = 48;
+// public/og/lpm-app-window.jpg is 1100 × 700.
+const WINDOW_HEIGHT = Math.round((WINDOW_WIDTH * 700) / 1100);
 // The bundled face averages about 0.48em per character; the margin covers lines
 // heavy with wide letters, so a headline line is sized to fit rather than left
 // to wrap mid-phrase.
@@ -18,8 +23,9 @@ type OgImageInput = {
   subline: string;
   eyebrow?: string;
   platform?: string;
-  // A product screen beside the text, as a data URL.
-  image?: string;
+  // A product screen beside the text, as a data URL: a phone screenshot in a
+  // device frame, or the desktop app's window running off the right edge.
+  image?: { src: string; frame: "phone" | "window" };
 };
 
 export function ogImage({
@@ -30,7 +36,11 @@ export function ogImage({
   image,
 }: OgImageInput): ImageResponse {
   const lines = Array.isArray(headline) ? headline : [headline];
-  const textWidth = OG_SIZE.width - PADDING * 2 - (image ? IMAGE_COLUMN : 0);
+  const textWidth = !image
+    ? OG_SIZE.width - PADDING * 2
+    : image.frame === "phone"
+      ? OG_SIZE.width - PADDING * 2 - PHONE_COLUMN
+      : WINDOW_LEFT - PADDING - WINDOW_GAP;
   const longest = Math.max(...lines.map((line) => line.length));
   // A third line leaves the subline too little room at full size.
   const largest = lines.length > 2 ? 76 : 84;
@@ -152,7 +162,7 @@ export function ogImage({
         </div>
       </div>
 
-      {image && (
+      {image?.frame === "phone" && (
         <div
           style={{
             position: "absolute",
@@ -168,11 +178,33 @@ export function ogImage({
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={image}
+            src={image.src}
             width={278}
             height={604}
             alt=""
             style={{ borderRadius: 42 }}
+          />
+        </div>
+      )}
+
+      {image?.frame === "window" && (
+        <div
+          style={{
+            position: "absolute",
+            left: WINDOW_LEFT,
+            top: 72,
+            display: "flex",
+            borderRadius: 14,
+            overflow: "hidden",
+            boxShadow: "0 0 0 1px #3a3a3c, 0 40px 90px rgba(0,0,0,0.7)",
+          }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={image.src}
+            width={WINDOW_WIDTH}
+            height={WINDOW_HEIGHT}
+            alt=""
           />
         </div>
       )}

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { DownloadFooter } from "@/components/download-footer";
 import { DOWNLOAD_ENTRIES, DOWNLOADS_BY_OS } from "@/lib/downloads";
 import { getDownloadStats, type ReleaseStat } from "@/lib/github-stats";
-import { RELEASES_URL, REPO_URL, STATS_PATH } from "@/lib/links";
+import { RELEASES_URL, REPO_URL, SPONSORS_URL, STATS_PATH } from "@/lib/links";
 import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
 import { ReleaseList } from "./_components/release-list";
 import { StatCard } from "./_components/stat-card";
@@ -115,6 +115,18 @@ export default async function StatsPage() {
               <StatCard key={card.label} {...card} />
             ))}
           </section>
+          <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
+            Every one of these was free. If lpm saves you time,{" "}
+            <a
+              href={SPONSORS_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={STATS_LINK}
+            >
+              sponsor it on GitHub
+            </a>
+            .
+          </p>
 
           <section className="mt-12">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">

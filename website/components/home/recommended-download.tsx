@@ -13,7 +13,7 @@ import {
   type DownloadPlatform,
   type ReleaseSummary,
 } from "@/lib/downloads";
-import type { Platform } from "@/lib/use-platform";
+import { useMacChip, type Platform } from "@/lib/use-platform";
 import { BetaTag } from "./beta-tag";
 import { DownloadLink } from "./download-link";
 import { OsIcon } from "./os-icon";
@@ -36,6 +36,15 @@ function BuildLink({
   );
 }
 
+// A Mac build is only ever picked from the chip the browser named, so the
+// label says what was found; Safari names none, and that case falls through
+// to the generic label.
+function eyebrow(platform: Platform, chip: string | null, onMac: boolean) {
+  if (platform === "mac-arm") return `Detected: ${chip ?? "Apple Silicon"}`;
+  if (platform === "mac-intel") return "Detected: Intel Mac";
+  return `Recommended for this ${onMac ? "Mac" : "PC"}`;
+}
+
 // Why this build, and the way out when the guess is wrong. Safari doesn't
 // say which chip a Mac has, so that case (and the server render) says so
 // instead of claiming a detection.
@@ -44,14 +53,14 @@ function note(platform: Platform): ReactNode {
     case "mac-arm":
       return (
         <>
-          Picked from your browser. Mac with an Intel chip?{" "}
+          Downloading for a Mac with an Intel chip?{" "}
           <BuildLink platform="mac-intel">Get the Intel build</BuildLink>.
         </>
       );
     case "mac-intel":
       return (
         <>
-          Picked from your browser. Mac with an Apple M-series chip?{" "}
+          Downloading for a Mac with an Apple M-series chip?{" "}
           <BuildLink platform="mac-arm">Get the Apple Silicon build</BuildLink>.
         </>
       );
@@ -94,6 +103,7 @@ type Props = {
 };
 
 export function RecommendedDownload({ entry, platform, release }: Props) {
+  const chip = useMacChip();
   const size = release?.sizes[entry.platform];
   const onMac = entry.os === "macos";
   const details = [
@@ -114,7 +124,7 @@ export function RecommendedDownload({ entry, platform, release }: Props) {
               aria-hidden="true"
               className="h-1.5 w-1.5 rounded-full bg-emerald-500"
             />
-            Recommended for this {onMac ? "Mac" : "PC"}
+            {eyebrow(platform, chip, onMac)}
           </p>
           <h3 className="mt-1 flex flex-wrap items-center gap-x-2 text-lg font-bold tracking-tight text-gray-900 dark:text-white">
             {OS_NAMES[entry.os]} · {entry.choiceLabel}
