@@ -62,6 +62,26 @@ fn saving_writes_a_markdown_file_in_its_folder() {
 }
 
 #[test]
+fn a_prompt_too_long_to_read_back_is_refused() {
+    let l = lists();
+    let cmd = input(Scope::Global, None, "huge", &"x".repeat(MAX_FILE_BYTES));
+    assert!(ops::save(&l.stores, cmd, None).unwrap_err().contains("too long"));
+    assert!(!l.global.join("huge.md").exists());
+}
+
+#[test]
+fn the_frontmatter_an_edit_keeps_counts_toward_the_limit() {
+    let l = lists();
+    std::fs::create_dir_all(&l.global).unwrap();
+    let padding = "x".repeat(MAX_FILE_BYTES - 64);
+    std::fs::write(l.global.join("big.md"), format!("---\nmodel: {padding}\n---\n\nShort.\n")).unwrap();
+    let edit = input(Scope::Global, None, "moved", &"y".repeat(128));
+    let err = ops::save(&l.stores, edit, Some(reference(Scope::Global, None, "big"))).unwrap_err();
+    assert!(err.contains("too long"));
+    assert!(l.global.join("big.md").exists(), "a refused edit moves nothing");
+}
+
+#[test]
 fn a_command_without_a_description_is_just_its_prompt() {
     let l = lists();
     ops::save(&l.stores, input(Scope::Global, None, "explain", "Explain it."), None).unwrap();

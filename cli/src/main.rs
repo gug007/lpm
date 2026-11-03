@@ -26,6 +26,8 @@ mod job_runtime;
 mod job_fields;
 mod list;
 mod logs;
+mod lpm_commands;
+mod lpm_commands_lists;
 mod mobile;
 mod project;
 mod ready;
@@ -72,7 +74,7 @@ control projects — start, stop, restart services, set agent status — by aski
 app over that socket (so the app stays the single owner of run-state).\n\n\
 Inspection commands: `list`, `project`, `logs`, `status`, `config resolve`, `config validate`. \
 Config transactions (need the app running): `config get`, `config apply`. Control commands: \
-`start`, `stop`, `service`, `set-status`, `clear-status`, `duplicate`, `worktree`, `remove`, `run`, `refresh-label`, `automations`. \
+`start`, `stop`, `service`, `set-status`, `clear-status`, `duplicate`, `worktree`, `remove`, `run`, `refresh-label`, `automations`, `commands`. \
 `auto-pull` shows whether the app pulls a project by itself; `auto-pull --set` changes it \
 through the running app. \
 Inside an automation run, `ask` puts a question to the user and waits for the answer. \
@@ -107,6 +109,15 @@ enum Commands {
     Automations {
         #[command(subcommand)]
         command: job::Command,
+    },
+    #[command(
+        name = "commands",
+        visible_alias = "command",
+        about = "List, show, add, edit, and remove saved /name commands"
+    )]
+    Saved {
+        #[command(subcommand)]
+        command: lpm_commands::Command,
     },
     /// Ask the user a question from inside an automation run.
     #[command(
@@ -458,7 +469,8 @@ of the tab. Exits with the command's exit code; stopping lpm exec stops the comm
         /// Shell command to run instead of a declared action.
         #[arg(long, conflicts_with = "action")]
         command: Option<String>,
-        /// Prompt to send to the action/command.
+        /// Prompt to send to the action/command; `/name args` sends that saved
+        /// command's prompt with the arguments filled in.
         #[arg(long)]
         prompt: Option<String>,
         /// Project to run in; omit to infer from the environment / cwd.
@@ -539,6 +551,7 @@ fn main() -> ExitCode {
         Commands::Ask(args) => return ask::run(&ctx, args),
         Commands::Config { command } => config_cmd::run(&ctx, command),
         Commands::Automations { command } => job::run(&ctx, command),
+        Commands::Saved { command } => lpm_commands::run(&ctx, command),
         Commands::List { json } => list::run(&ctx, json),
         Commands::Project { name, json, full } => project::run(&ctx, name.as_deref(), json, full),
         Commands::Logs {

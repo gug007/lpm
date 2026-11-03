@@ -5,7 +5,9 @@
 // `{{branch}}` and `{{project}}` fill themselves in. Any other `{{name}}` takes
 // a word of the arguments, in order, the last one taking the rest; `$ARGUMENTS`
 // (Claude Code's own form) takes all of them.
-use crate::lpm_commands::{effective, list_stores, LpmCommand, LpmCommands, ProjectPlace, Stores};
+use crate::lpm_commands::{
+    effective, list_stores, project_place, stores_at, LpmCommand, LpmCommands, ProjectPlace, Stores,
+};
 use serde::Serialize;
 
 pub(crate) const AUTO_VARS: [&str; 2] = ["branch", "project"];
@@ -136,6 +138,10 @@ pub(crate) fn expand_at(
     let list = list_stores(stores)?;
     let command = find(&list, name.trim_start_matches('/'))
         .ok_or_else(|| format!("/{name} isn't one of your commands."))?;
+    Ok(fill(project, place, command, args))
+}
+
+fn fill(project: &str, place: Option<&ProjectPlace>, command: &LpmCommand, args: &str) -> Expanded {
     let mut auto = |var: &str| match var {
         "project" => place.map(|_| crate::config::project_display_name(project)),
         "branch" => place
@@ -143,7 +149,46 @@ pub(crate) fn expand_at(
             .filter(|b| !b.is_empty()),
         _ => None,
     };
-    Ok(expand_body(&command.body, args, &mut auto))
+    expand_body(&command.body, args, &mut auto)
+}
+
+/// The name and arguments of a message that is `/name args` as a whole, the way
+/// the composer reads one. Whether the name is a command is the list's to say.
+fn parse_run(text: &str) -> Option<(&str, &str)> {
+    let rest = text.trim_start().strip_prefix('/')?;
+    let end = rest.find(char::is_whitespace).unwrap_or(rest.len());
+    (end > 0).then(|| (&rest[..end], rest[end..].trim()))
+}
+
+/// Why a run with no one to ask can't start: the composer leaves these for the
+/// user to fill in by hand.
+fn missing_error(command: &LpmCommand, missing: &[String]) -> String {
+    let names: Vec<String> = missing.iter().map(|m| format!("{{{{{m}}}}}")).collect();
+    let usage = match command.argument_hint.as_str() {
+        "" => String::new(),
+        hint => format!(" Run it as /{} {hint}.", command.name),
+    };
+    format!("/{} is missing {}.{usage}", command.name, names.join(", "))
+}
+
+/// What a prompt from outside the composer sends: the saved prompt when it is
+/// `/name args` for one of the user's commands, otherwise the prompt itself,
+/// so the agent's own `/compact` still reaches the agent.
+pub(crate) fn expand_prompt(project: &str, prompt: &str) -> Result<String, String> {
+    let Some((name, args)) = parse_run(prompt) else {
+        return Ok(prompt.to_string());
+    };
+    let place = project_place(project)?;
+    let list = list_stores(&stores_at(place.as_ref()))?;
+    let Some(command) = find(&list, name) else {
+        return Ok(prompt.to_string());
+    };
+    let expanded = fill(project, place.as_ref(), command, args);
+    if expanded.missing.is_empty() {
+        Ok(expanded.text)
+    } else {
+        Err(missing_error(command, &expanded.missing))
+    }
 }
 
 #[cfg(test)]

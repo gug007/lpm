@@ -383,7 +383,7 @@ fn get(
     Ok(())
 }
 
-fn read_candidate(from_stdin: bool, file: Option<&Path>) -> Result<String, RunError> {
+pub(crate) fn read_input(from_stdin: bool, file: Option<&Path>) -> Result<String, RunError> {
     if let Some(path) = file {
         return std::fs::read_to_string(path)
             .map_err(|e| RunError::NotFound(format!("{}: {e}", path.display())));
@@ -396,7 +396,7 @@ fn read_candidate(from_stdin: bool, file: Option<&Path>) -> Result<String, RunEr
     let mut source = String::new();
     std::io::stdin()
         .read_to_string(&mut source)
-        .map_err(|e| RunError::Internal(format!("cannot read candidate YAML: {e}")))?;
+        .map_err(|e| RunError::Internal(format!("cannot read standard input: {e}")))?;
     Ok(source)
 }
 
@@ -430,7 +430,7 @@ fn apply(
         )));
     }
 
-    let source = read_candidate(from_stdin, file)?;
+    let source = read_input(from_stdin, file)?;
     let report = validate_candidate(ctx, &target, &before.path, &source);
     if !report.errors.is_empty() {
         if as_json {

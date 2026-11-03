@@ -20,6 +20,7 @@
 //   remove_project <project>
 //   run_task <project> [--action=X | --command=X] [--prompt=TEXT]
 //   refresh_label <project> [action]
+//   lpm_commands <kind> --payload-hex=JSON   (lpm_commands_cmds.rs)
 //   set_resume <project> <pane_id> <session_id> [--provider=codex|claude] [--reporter-pid=N]
 //   list_jobs <project>
 //   run_job <project> <job_id>
@@ -277,6 +278,7 @@ fn process_command(line: &str, store: &StatusStore, app: &AppHandle) -> String {
         "refresh_label" => crate::label_probes::cmd_refresh_label(args),
         "remove_project" => cmd_remove_project(args, app),
         "run_task" => cmd_run_task(args, app),
+        "lpm_commands" => crate::lpm_commands_cmds::cmd_lpm_commands(args, app),
         "set_resume" => cmd_set_resume(args, store, app),
         "agent_limits" => cmd_agent_limits(args, app),
         "list_jobs" => cmd_list_jobs(args),
@@ -346,7 +348,7 @@ struct ConfigApplyPayload {
     content: String,
 }
 
-fn decode_config_payload<T: serde::de::DeserializeOwned>(args: &[String]) -> Result<T, String> {
+pub(crate) fn decode_payload<T: serde::de::DeserializeOwned>(args: &[String]) -> Result<T, String> {
     let (_, options) = parse_options(args);
     // The generic hex layer already decoded --payload-hex into "payload"; a
     // leftover "payload-hex" key means the hex itself was malformed.
@@ -357,7 +359,7 @@ fn decode_config_payload<T: serde::de::DeserializeOwned>(args: &[String]) -> Res
         }
         None => return Err("missing --payload-hex".to_string()),
     };
-    serde_json::from_str(payload).map_err(|e| format!("invalid config payload: {e}"))
+    serde_json::from_str(payload).map_err(|e| format!("invalid payload: {e}"))
 }
 
 fn config_error(error: String) -> String {
@@ -372,7 +374,7 @@ fn config_error(error: String) -> String {
 }
 
 fn cmd_config_get(args: &[String]) -> String {
-    let payload = match decode_config_payload::<ConfigGetPayload>(args) {
+    let payload = match decode_payload::<ConfigGetPayload>(args) {
         Ok(payload) => payload,
         Err(error) => return config_error(error),
     };
@@ -383,7 +385,7 @@ fn cmd_config_get(args: &[String]) -> String {
 }
 
 fn cmd_config_apply(args: &[String], app: &AppHandle) -> String {
-    let payload = match decode_config_payload::<ConfigApplyPayload>(args) {
+    let payload = match decode_payload::<ConfigApplyPayload>(args) {
         Ok(payload) => payload,
         Err(error) => return config_error(error),
     };
@@ -649,10 +651,18 @@ fn cmd_run_task(args: &[String], app: &AppHandle) -> String {
     }
     let action = options.get("action").cloned().filter(|s| !s.is_empty());
     let command = options.get("command").cloned().filter(|s| !s.is_empty());
+    if app.get_webview_window("main").is_none() {
+        return "ERROR: open the lpm app to run actions".into();
+    }
     let prompt = options
         .get("prompt")
-        .cloned()
-        .filter(|p| !p.trim().is_empty());
+        .filter(|p| !p.trim().is_empty())
+        .map(|p| crate::lpm_commands_expand::expand_prompt(&positional[0], p))
+        .transpose();
+    let prompt = match prompt {
+        Ok(prompt) => prompt,
+        Err(e) => return format!("ERROR: {e}"),
+    };
     let task = match (action, command) {
         (Some(_), Some(_)) => {
             return "ERROR: run_task takes exactly one of --action / --command".into()
@@ -663,9 +673,6 @@ fn cmd_run_task(args: &[String], app: &AppHandle) -> String {
         }
         (None, Some(c)) => serde_json::json!({ "kind": "command", "command": c, "prompt": prompt }),
     };
-    if app.get_webview_window("main").is_none() {
-        return "ERROR: open the lpm app to run actions".into();
-    }
     let _ = app.emit(
         "remote-run-task",
         serde_json::json!({ "project": positional[0], "task": task }),
@@ -1509,6 +1516,7 @@ mod tests {
             "set_auto_pull",
             "remove_project",
             "run_task",
+            "lpm_commands",
             "duplicate_project",
             "duplicate_worktree",
             "list_jobs",
@@ -1734,7 +1742,7 @@ mod tests {
             .map(|byte| format!("{byte:02x}"))
             .collect::<String>();
         let parsed =
-            decode_config_payload::<ConfigApplyPayload>(&[format!("--payload-hex={encoded}")])
+            decode_payload::<ConfigApplyPayload>(&[format!("--payload-hex={encoded}")])
                 .unwrap();
         assert_eq!(parsed.layer, "repo");
         assert_eq!(parsed.project, "web");

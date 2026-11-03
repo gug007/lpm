@@ -176,7 +176,7 @@ pub fn run(
         line.push_str(&text_opt("prompt", pr));
     }
 
-    control::send_command(ctx, &line)?;
+    control::send_within(ctx, &line, control::SSH_REPLY)?;
 
     if as_json {
         crate::util::print_json(&json!({

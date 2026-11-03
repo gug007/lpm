@@ -46,9 +46,7 @@ pub fn run(ctx: &Ctx, args: Args) -> Result<(), RunError> {
 }
 
 fn slow_json(ctx: &Ctx, line: &str) -> Result<Value, RunError> {
-    let reply = statussock::request_within(&ctx.socket_path(), line, SLOW_REPLY)
-        .map_err(RunError::Internal)?;
-    control::parse_json(&control::app_reply(reply)?)
+    control::parse_json(&control::send_within(ctx, line, SLOW_REPLY)?)
 }
 
 fn print_waiting(scheduled: &Value) {

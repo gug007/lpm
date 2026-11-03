@@ -6,6 +6,11 @@ use crate::config::Ctx;
 use crate::error::RunError;
 use crate::statussock;
 use serde_json::Value;
+use std::time::Duration;
+
+/// How long a verb that reads an SSH project's files can take: each read is a
+/// login-shell round trip to its host.
+pub const SSH_REPLY: Duration = Duration::from_secs(60);
 
 /// Require the app to be reachable. A control verb is a no-op without it, so a
 /// missing app is a usage error (exit 2) rather than an internal failure.
@@ -25,6 +30,13 @@ pub fn require_app(ctx: &Ctx) -> Result<(), RunError> {
 /// means the running app predates this verb.
 pub fn send_command(ctx: &Ctx, line: &str) -> Result<String, RunError> {
     let reply = statussock::request(&ctx.socket_path(), line).map_err(RunError::Internal)?;
+    app_reply(reply)
+}
+
+/// [`send_command`] for a verb that can take longer than a control round trip.
+pub fn send_within(ctx: &Ctx, line: &str, timeout: Duration) -> Result<String, RunError> {
+    let reply = statussock::request_within(&ctx.socket_path(), line, timeout)
+        .map_err(RunError::Internal)?;
     app_reply(reply)
 }
 

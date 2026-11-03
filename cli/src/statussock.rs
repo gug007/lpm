@@ -188,6 +188,24 @@ pub fn list_status(socket_path: &Path, project: &str) -> Option<Vec<StatusEntry>
     serde_json::from_str::<Vec<StatusEntry>>(line).ok()
 }
 
+/// Mirrors the server's `hex_decode` for `--<name>-hex` round-trip tests.
+#[cfg(test)]
+pub(crate) fn hex_decode(value: &str) -> Option<String> {
+    if value.len() % 2 != 0 {
+        return None;
+    }
+    let bytes: Option<Vec<_>> = value
+        .as_bytes()
+        .chunks_exact(2)
+        .map(|pair| {
+            std::str::from_utf8(pair)
+                .ok()
+                .and_then(|pair| u8::from_str_radix(pair, 16).ok())
+        })
+        .collect();
+    String::from_utf8(bytes?).ok()
+}
+
 #[cfg(test)]
 mod tests {
     use super::net::UnixListener;
@@ -217,23 +235,6 @@ mod tests {
             parts.push(current);
         }
         parts
-    }
-
-    /// Mirrors the server's `hex_decode` for `--<name>-hex` round-trip tests.
-    fn hex_decode(value: &str) -> Option<String> {
-        if value.len() % 2 != 0 {
-            return None;
-        }
-        let bytes: Option<Vec<_>> = value
-            .as_bytes()
-            .chunks_exact(2)
-            .map(|pair| {
-                std::str::from_utf8(pair)
-                    .ok()
-                    .and_then(|pair| u8::from_str_radix(pair, 16).ok())
-            })
-            .collect();
-        String::from_utf8(bytes?).ok()
     }
 
     #[test]

@@ -87,3 +87,30 @@ fn the_project_command_wins_over_a_global_one() {
     assert_eq!(find(&list, "SHIP").unwrap().body, "project");
     assert!(find(&list, "nope").is_none());
 }
+
+#[test]
+fn a_run_is_a_whole_message_starting_with_a_slash() {
+    assert_eq!(parse_run("/review"), Some(("review", "")));
+    assert_eq!(parse_run("  /review LPM-1  now \n"), Some(("review", "LPM-1  now")));
+    assert_eq!(parse_run("/review line one\nline two"), Some(("review", "line one\nline two")));
+    assert_eq!(parse_run("please /review"), None);
+    assert_eq!(parse_run("/ review"), None);
+    assert_eq!(parse_run(""), None);
+}
+
+#[test]
+fn a_missing_value_names_what_to_pass() {
+    let mut c = command("review", Scope::Project, "Fix {{ticket}} for {{who}}");
+    c.argument_hint = argument_hint(&c.body);
+    let missing = vec!["ticket".to_string(), "who".to_string()];
+    assert_eq!(
+        missing_error(&c, &missing),
+        "/review is missing {{ticket}}, {{who}}. Run it as /review <ticket> <who>."
+    );
+}
+
+#[test]
+fn a_missing_automatic_value_has_nothing_to_pass() {
+    let c = command("ship", Scope::Project, "Ship {{branch}}");
+    assert_eq!(missing_error(&c, &["branch".to_string()]), "/ship is missing {{branch}}.");
+}

@@ -4,7 +4,7 @@
 // one list never share a name, whatever case the filesystem keeps.
 use crate::lpm_commands::{
     check_name, clean_folder, clean_folder_opt, parse_doc, place_label, rel_path, serialize_doc,
-    CommandFile, CommandInput, CommandRef, Scope, Snapshot, Stores,
+    CommandFile, CommandInput, CommandRef, Scope, Snapshot, Stores, MAX_FILE_BYTES,
 };
 
 fn existing_folder(snap: &Snapshot, folder: &str) -> Option<String> {
@@ -51,22 +51,31 @@ pub(crate) fn save(stores: &Stores, input: CommandInput, previous: Option<Comman
             .find(|f| is_at(f, p.folder.as_deref(), &p.name))
             .map(|f| parse_doc(&f.content).extra)
     };
+    // A list reads MAX_FILE_BYTES of a file, so a longer one would come back cut.
+    let document = |extra: &[String]| {
+        let content = serialize_doc(&input.description, &input.body, extra);
+        if content.len() > MAX_FILE_BYTES {
+            return Err("That prompt is too long to save.".to_string());
+        }
+        Ok(content)
+    };
     match previous {
         Some(p) if p.scope == input.scope => {
             let extra = previous_file(&snap.files, &p);
+            let content = document(extra.as_deref().unwrap_or_default())?;
             let from = rel_path(p.folder.as_deref(), &p.name);
             if from != target && extra.is_some() {
                 fs.rename(&from, &target)?;
             }
-            fs.write(&target, &serialize_doc(&input.description, &input.body, &extra.unwrap_or_default()))
+            fs.write(&target, &content)
         }
         Some(p) => {
             let other = stores.get(p.scope)?;
             let extra = previous_file(&other.snapshot()?.files, &p).unwrap_or_default();
-            fs.write(&target, &serialize_doc(&input.description, &input.body, &extra))?;
+            fs.write(&target, &document(&extra)?)?;
             other.remove_file(&rel_path(p.folder.as_deref(), &p.name))
         }
-        None => fs.write(&target, &serialize_doc(&input.description, &input.body, &[])),
+        None => fs.write(&target, &document(&[])?),
     }
 }
 

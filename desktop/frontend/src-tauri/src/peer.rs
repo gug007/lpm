@@ -2065,7 +2065,7 @@ fn dispatch_invoke(
         let app = app.clone();
         let out = out.clone();
         std::thread::spawn(move || {
-            let frame = match crate::lpm_commands_cmds::answer_peer(&app, kind, &args) {
+            let frame = match crate::lpm_commands_cmds::answer(&app, kind, &args) {
                 Ok(value) => result_frame(&req_id, true, value),
                 Err(e) => result_frame(&req_id, false, Value::String(e)),
             };

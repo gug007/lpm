@@ -1,8 +1,8 @@
 // lpm commands' requests and their one dispatcher, used by the Tauri commands,
-// by lpm Link (remote_lpm_commands) and by a Mac that drives this one's
-// projects (the peer connection, so a headless host answers too). Every change
-// hands back the whole updated list and announces itself, so other windows,
-// phones and paired Macs refresh.
+// by lpm Link (remote_lpm_commands), by a Mac that drives this one's projects
+// (the peer connection, so a headless host answers too) and by `lpm commands`
+// (the socket verb). Every change hands back the whole updated list and
+// announces itself, so other windows, phones and paired Macs refresh.
 use crate::lpm_commands::{
     list_stores, project_place, stores_at, CommandInput, CommandRef, LpmCommands, Scope, Stores,
 };
@@ -209,7 +209,7 @@ pub fn expand_lpm_command(app: AppHandle, project: String, name: String, args: S
     }
 }
 
-// ---- a paired Mac's calls ------------------------------------------------------------
+// ---- calls from outside the app ------------------------------------------------------
 
 /// The request a peer's Tauri command name asks for, if it is one of these.
 pub(crate) fn peer_kind(cmd: &str) -> Option<&'static str> {
@@ -226,8 +226,21 @@ pub(crate) fn peer_kind(cmd: &str) -> Option<&'static str> {
     })
 }
 
-/// A peer's call, answered from Rust: args arrive with the frontend's camelCase keys.
-pub(crate) fn answer_peer(app: &AppHandle, kind: &str, args: &Value) -> Result<Value, String> {
+/// A paired Mac's or the CLI's call, answered from Rust: args arrive with the
+/// frontend's camelCase keys.
+pub(crate) fn answer(app: &AppHandle, kind: &str, args: &Value) -> Result<Value, String> {
     let project = field::<Option<String>>(args, "project")?.unwrap_or_default();
     dispatch(app, &project, Request::parse(kind, args)?)?.to_value()
+}
+
+/// `lpm_commands <kind> --payload-hex=JSON`: [`answer`] as a socket verb, its
+/// reply as JSON or `ERROR: <msg>`.
+pub(crate) fn cmd_lpm_commands(args: &[String], app: &AppHandle) -> String {
+    let Some(kind) = args.first() else {
+        return "ERROR: usage: lpm_commands <kind> --payload-hex=JSON".into();
+    };
+    match crate::socketsrv::decode_payload(args).and_then(|fields| answer(app, kind, &fields)) {
+        Ok(value) => value.to_string(),
+        Err(e) => format!("ERROR: {e}"),
+    }
 }
