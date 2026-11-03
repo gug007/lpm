@@ -1,7 +1,6 @@
-import { useState } from "react";
 import type { AgentFilesAccess, AgentFilesScope } from "../../peer/usePeerState";
-import { toast } from "../../notifications/toast";
 import { SettingsSelect } from "../SettingsSelect";
+import { useSaving } from "./useSaving";
 
 // What a computer's agents may copy, and in which folders, saved through `save`.
 export function AgentFilesSelects({
@@ -17,18 +16,8 @@ export function AgentFilesSelects({
   errorTitle: string;
   save: (access: AgentFilesAccess, scope: AgentFilesScope) => Promise<unknown>;
 }) {
-  const [busy, setBusy] = useState(false);
-
-  const change = async (next: AgentFilesAccess, nextScope: AgentFilesScope) => {
-    setBusy(true);
-    try {
-      await save(next, nextScope);
-    } catch (err) {
-      toast.error(errorTitle, { description: err instanceof Error ? err.message : String(err) });
-    } finally {
-      setBusy(false);
-    }
-  };
+  const { busy, run } = useSaving(errorTitle);
+  const change = (next: AgentFilesAccess, nextScope: AgentFilesScope) => run(() => save(next, nextScope));
 
   return (
     <>

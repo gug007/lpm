@@ -50,6 +50,40 @@ fn app_error(msg: &str) -> RunError {
 /// Read the reply of a verb that answers in JSON. Such a verb has no `OK` form,
 /// so anything unparseable means the app answered with something this build
 /// doesn't understand — an internal failure, not a usage error.
+/// Send an agent's request (`lpm cp`, `lpm exec`) as `<verb> --request-hex=`,
+/// with the tab it runs in, passing on each `PROGRESS` line, and read the JSON
+/// reply. A refusal comes back as `{ ok: false, error }`: see [`agent_ok`].
+pub fn agent_request(
+    ctx: &Ctx,
+    verb: &str,
+    mut request: Value,
+    on_progress: impl FnMut(&str),
+) -> Result<Value, RunError> {
+    require_app(ctx)?;
+    let env = |k: &str| std::env::var(k).unwrap_or_default();
+    request["pane"] = env("LPM_PANE_ID").into();
+    request["project"] = env("LPM_PROJECT_NAME").into();
+    let line = format!(
+        "{verb} --request-hex={}",
+        statussock::hex_encode(&request.to_string())
+    );
+    let reply = statussock::request_lines(&ctx.socket_path(), &line, on_progress)
+        .map_err(RunError::Internal)?;
+    parse_json(&app_reply(reply)?)
+}
+
+/// An agent request's reply, as an error unless it says `ok`.
+pub fn agent_ok(reply: &Value, fallback: &str) -> Result<(), RunError> {
+    if reply.get("ok").and_then(Value::as_bool) == Some(true) {
+        return Ok(());
+    }
+    let error = reply
+        .get("error")
+        .and_then(Value::as_str)
+        .unwrap_or(fallback);
+    Err(RunError::Internal(error.to_string()))
+}
+
 pub fn parse_json(reply: &str) -> Result<Value, RunError> {
     serde_json::from_str(reply)
         .map_err(|e| RunError::Internal(format!("could not read the app's reply: {e}")))

@@ -29,6 +29,7 @@ const KEEP_AFTER_END: Duration = Duration::from_secs(24 * 60 * 60);
 const MAX_DEPTH: usize = 64;
 
 const REFUSAL: &str = "An automation run can't answer, dismiss or reply to automation questions, or pair a device. Answer in lpm, lpm Link or Telegram.";
+const AGENT_REFUSAL: &str = "An automation run can't copy files to or run commands on another computer. Run it from a terminal in lpm.";
 const TASK_REFUSAL: &str = "An automation run can't start tasks in lpm's terminals (lpm run, or lpm duplicate or lpm worktree with --run or --command): they would run outside the automation.";
 
 struct Mark {
@@ -57,6 +58,7 @@ pub fn refused(verb: &str) -> bool {
             | "peer_pair"
             | "run_task"
             | "agent_cp"
+            | "agent_exec"
     )
 }
 
@@ -66,6 +68,7 @@ pub fn refused(verb: &str) -> bool {
 pub fn refusal(verb: &str) -> String {
     let text = match verb {
         "run_task" | "duplicate_project" | "duplicate_worktree" => TASK_REFUSAL,
+        "agent_cp" | "agent_exec" => AGENT_REFUSAL,
         _ => REFUSAL,
     };
     if verb.ends_with("_pair") || verb == "run_task" {

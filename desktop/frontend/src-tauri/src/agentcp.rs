@@ -6,11 +6,11 @@
 // person allows the copy in lpm before a byte moves — once, or for the rest of
 // that tab's life. Keys, credentials and files that run on their own there
 // always ask again. Runs of automations can't copy at all (runguard.rs).
-use crate::agentapprove::{self, Decision, Request};
+use crate::agentapprove::{self, Caller, Decision, Kind, Request, What};
 use crate::agentfiles;
 use crate::ignoredrun::{self, AgentCopy, Remote, Side};
 use crate::ignoredscan::FileRec;
-use crate::peerclient::{Computer, PeerClientHub};
+use crate::peerclient::{take_computer, Computer, PeerClientHub};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::cell::Cell;
@@ -58,42 +58,6 @@ impl End {
     }
 }
 
-fn normalized(name: &str) -> String {
-    name.chars()
-        .filter(char::is_ascii_alphanumeric)
-        .collect::<String>()
-        .to_ascii_lowercase()
-}
-
-/// The computer `query` names: its whole name or slug, or a part of its name
-/// only it has. Punctuation and case don't count, so a name with a curly
-/// apostrophe can be typed.
-fn find_computer(query: &str, computers: &[Computer]) -> Result<Option<usize>, String> {
-    let want = normalized(query);
-    if want.is_empty() {
-        return Ok(None);
-    }
-    if let Some(i) = computers
-        .iter()
-        .position(|c| normalized(&c.name) == want || c.slug == query)
-    {
-        return Ok(Some(i));
-    }
-    let hits: Vec<usize> = computers
-        .iter()
-        .enumerate()
-        .filter(|(_, c)| want.len() >= 3 && normalized(&c.name).contains(&want))
-        .map(|(i, _)| i)
-        .collect();
-    match hits.as_slice() {
-        [one] => Ok(Some(*one)),
-        [] => Ok(None),
-        _ => Err(format!(
-            "\"{query}\" matches more than one computer; use more of its name"
-        )),
-    }
-}
-
 /// `NAME:PATH` on another computer, or a path here. A one-letter prefix is a
 /// Windows drive, not a computer.
 fn parse_end(raw: &str, computers: &mut Vec<Computer>) -> Result<End, String> {
@@ -104,12 +68,8 @@ fn parse_end(raw: &str, computers: &mut Vec<Computer>) -> Result<End, String> {
     if drive || prefix.contains('/') || prefix.contains('\\') {
         return Ok(End::Here(raw.to_string()));
     }
-    match find_computer(prefix, computers)? {
-        Some(i) => Ok(End::There(computers.swap_remove(i), path.to_string())),
-        None => Err(format!(
-            "no computer called \"{prefix}\" is connected to this one. `lpm connections` lists them"
-        )),
-    }
+    let computer = take_computer(prefix, computers)?;
+    Ok(End::There(computer, path.to_string()))
 }
 
 /// One end of a copy: the folder its frames name, the path under it, and what
@@ -247,42 +207,6 @@ fn join(root: &str, rel: &str) -> String {
         rel.to_string()
     };
     format!("{}{sep}{rel}", root.trim_end_matches(['/', '\\']))
-}
-
-/// Who asks, when lpm can tell: the tab the caller runs in, its shell, and the
-/// agent above it.
-struct Caller {
-    tab: Option<(String, i32)>,
-    agent: String,
-}
-
-fn caller(app: &AppHandle, peer: Option<u32>, pane: &str) -> Caller {
-    let unknown = Caller {
-        tab: None,
-        agent: String::new(),
-    };
-    let (Some(pid), false) = (peer, pane.is_empty()) else {
-        return unknown;
-    };
-    let state = app.state::<crate::pty::PtyState>();
-    let Some(shell) = crate::pty::local_session_pid(&state, pane) else {
-        return unknown;
-    };
-    match crate::agentnest::pane_caller(pid as i32, shell) {
-        Some(agent) => Caller {
-            tab: Some((pane.to_string(), shell)),
-            agent: agent.map(|a| capitalized(&a)).unwrap_or_default(),
-        },
-        None => unknown,
-    }
-}
-
-fn capitalized(s: &str) -> String {
-    let mut chars = s.chars();
-    chars
-        .next()
-        .map(|c| c.to_uppercase().collect::<String>() + chars.as_str())
-        .unwrap_or_default()
 }
 
 /// A copy worked out before anyone allowed it: both ends, where the source
@@ -453,16 +377,10 @@ fn approve(
     who: &Caller,
     project: &str,
 ) -> Result<(), String> {
-    let granted = who
-        .tab
-        .as_ref()
-        .is_some_and(|(pane, shell)| agentapprove::granted(pane, &plan.slug, *shell));
-    if granted && plan.sensitive.is_empty() {
+    if who.granted(Kind::Copy, &plan.slug) && plan.sensitive.is_empty() {
         return Ok(());
     }
-    let req = Request {
-        id: uuid::Uuid::new_v4().to_string(),
-        machine: plan.machine.clone(),
+    let copy = What::Copy {
         pulling: plan.pulling,
         from: plan.from(),
         to: plan.to(),
@@ -475,25 +393,15 @@ fn approve(
             .cloned()
             .collect(),
         replaces: plan.existing > 0,
-        agent: who.agent.clone(),
-        project: if who.tab.is_some() {
-            project.to_string()
-        } else {
-            String::new()
-        },
-        tab_grant: who.tab.is_some() && plan.sensitive.is_empty(),
     };
+    let req = Request::new(who, project, &plan.machine, copy, plan.sensitive.is_empty());
     let _ = writeln!(w, "PROGRESS waiting");
-    match agentapprove::ask(app, req)? {
-        Decision::Deny => Err("the copy was denied in lpm".into()),
-        Decision::Tab => {
-            if let Some((pane, shell)) = &who.tab {
-                agentapprove::grant(pane, &plan.slug, *shell);
-            }
-            Ok(())
-        }
-        Decision::Once => Ok(()),
+    let decision = agentapprove::ask(app, req)?;
+    if decision == Decision::Deny {
+        return Err("the copy was denied in lpm".into());
     }
+    who.keep(decision, Kind::Copy, &plan.slug);
+    Ok(())
 }
 
 /// Send the files, noting the copy on both computers.
@@ -585,7 +493,7 @@ fn run(
         .ok_or("usage: agent_cp --request-hex=<JSON>")?;
     let state = app.state::<PeerClientHub>();
     let plan = Plan::new(state.inner(), &ask)?;
-    let who = caller(app, peer, &ask.pane);
+    let who = agentapprove::caller(app, peer, &ask.pane);
     approve(app, w, &plan, &who, &ask.project)?;
     copy(&plan, w, &who, &ask.project)
 }
@@ -600,26 +508,9 @@ mod tests {
             name: name.into(),
             connected: true,
             supported: true,
+            runs: true,
             policy: Default::default(),
         }
-    }
-
-    #[test]
-    fn a_computer_is_found_by_any_part_of_its_name_only_it_has() {
-        let list = vec![
-            computer("a1", "Gurgen’s MacBook Pro 2021"),
-            computer("b2", "build-server"),
-        ];
-        assert_eq!(
-            find_computer("gurgens macbook pro 2021", &list),
-            Ok(Some(0))
-        );
-        assert_eq!(find_computer("2021", &list), Ok(Some(0)));
-        assert_eq!(find_computer("b2", &list), Ok(Some(1)));
-        assert_eq!(find_computer("server", &list), Ok(Some(1)));
-        assert_eq!(find_computer("nas", &list), Ok(None));
-        let twins = vec![computer("a", "mac mini 1"), computer("b", "mac mini 2")];
-        assert!(find_computer("mini", &twins).is_err());
     }
 
     #[test]

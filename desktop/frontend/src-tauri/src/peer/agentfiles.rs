@@ -58,23 +58,19 @@ fn set_policy(hub: &PeerHub, device_id: &str, policy: Policy) -> Result<(), Stri
     Ok(())
 }
 
-/// This machine's own settings for what `id`'s agents may copy, set here.
+/// This machine's own settings for what `id`'s agents may copy, and whether
+/// they may run commands, set here. What is left out stays as it is.
 #[tauri::command(async)]
 pub fn peer_host_set_agent_files(
     app: AppHandle,
     hub: State<'_, PeerHub>,
     id: String,
-    files: Access,
-    scope: Scope,
+    files: Option<Access>,
+    scope: Option<Scope>,
+    run: Option<bool>,
 ) -> Result<Value, String> {
-    set_policy(
-        &hub,
-        &id,
-        Policy {
-            access: files,
-            scope,
-        },
-    )?;
+    let policy = policy_of(&hub, &id).merged(&agentfiles::changes(files, scope, run))?;
+    set_policy(&hub, &id, policy)?;
     let _ = app.emit("peer-state-changed", ());
     Ok(host_state_value(&hub))
 }
@@ -93,13 +89,11 @@ pub(super) fn handle(
     std::thread::spawn(move || {
         let policy = policy_of(&hub, &device);
         let res = match verb.as_str() {
-            "agentPolicySet" => serde_json::from_value::<Policy>(v["policy"].clone())
-                .map_err(|e| e.to_string())
-                .and_then(|p| {
-                    set_policy(&hub, &device, p)?;
-                    let _ = app.emit("peer-state-changed", ());
-                    Ok(json!(p))
-                }),
+            "agentPolicySet" => policy.merged(&v["policy"]).and_then(|p| {
+                set_policy(&hub, &device, p)?;
+                let _ = app.emit("peer-state-changed", ());
+                Ok(json!(p))
+            }),
             "agentResolve" => resolve(policy, &v),
             "agentManifest" => manifest(policy, &v),
             "agentRead" => read(policy, &v),
@@ -425,6 +419,7 @@ mod tests {
         let read_only = Policy {
             access: Access::Read,
             scope: Scope::Home,
+            run: false,
         };
         let v = json!({ "cwd": "/tmp", "batch": "0123456789abcdef", "pieces": [] });
         let err = write(read_only, &v).unwrap_err();

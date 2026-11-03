@@ -37,6 +37,7 @@ use tauri::{AppHandle, Emitter, Listener, Manager, State};
 use tungstenite::handshake::server::{ErrorResponse, Request, Response};
 use tungstenite::{accept_hdr, Error as WsError, Message, WebSocket};
 
+mod agentexec;
 mod agentfiles;
 mod guest;
 mod guestlink;
@@ -112,6 +113,7 @@ const HOST_FEATURES: &[&str] = &[
     crate::agent_limits_share::LIMITS_FEATURE,
     crate::tabshare::TAB_SHARE_FEATURE,
     crate::agentfiles::FEATURE,
+    crate::agentexec::FEATURE,
 ];
 
 /// HOST_FEATURES plus those this build offers only on some platforms.
@@ -1215,6 +1217,7 @@ fn handle_conn(stream: TcpStream, hub: PeerHub, app: AppHandle, generation: u64)
     hub.inner.clients.lock().unwrap().remove(&conn_id);
     crate::tabshare::machine_left(&app); // what it shared here ends if no Mac comes back
     crate::agent_limits_share::drop_conn(conn_id); // stop sending it usage limits
+    agentexec::drop_conn(conn_id); // stop the commands its agents were running here
     crate::gitwatchhost::drop_conn(conn_id); // stop watching folders for a gone follower
     crate::gitwatch::drop_conn(&app, conn_id); // and the projects its review panes watched
     crate::porttunnel::drop_host_conn(conn_id); // close the streams it had open here
@@ -1814,6 +1817,10 @@ fn handle_msg(
         // to what this machine allows that Mac (peer/agentfiles.rs).
         "agentPolicySet" | "agentResolve" | "agentManifest" | "agentRead" | "agentWrite"
         | "agentFinish" | "agentDone" => agentfiles::handle(app, hub, out, device_id, t, &v),
+        // ...or running a command here, once this machine lets it (peer/agentexec.rs).
+        "agentExec" | "agentExecKill" => {
+            agentexec::handle(app, hub, out, device_id, conn_id, t, &v)
+        }
         // A client's Claude usage limits, and from its first one on, this
         // machine's own in return (agent_limits_share.rs).
         "limits" => crate::agent_limits_share::from_client(app, conn_id, out, &v),
@@ -2451,7 +2458,8 @@ fn host_state_value(hub: &PeerHub) -> Value {
         .iter()
         .map(|d| {
             json!({ "id": d.id, "name": d.name, "platform": d.platform, "hostId": d.host_id,
-                "agentFiles": d.agent_files.access, "agentScope": d.agent_files.scope })
+                "agentFiles": d.agent_files.access, "agentScope": d.agent_files.scope,
+                "agentRun": d.agent_files.run })
         })
         .collect();
     let pair_requests: Vec<Value> = hub

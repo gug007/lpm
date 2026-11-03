@@ -3,6 +3,7 @@ import { MachineRowShell } from "./MachineRowShell";
 import { DetailLine } from "./DetailLine";
 import { AccessLine } from "./AccessLine";
 import { AgentFilesHereLine } from "./AgentFilesHereLine";
+import { AgentRunHereLine } from "./AgentRunHereLine";
 import { SECONDARY_BUTTON } from "../mobile/styles";
 import { MACHINE as M } from "../../machineWords";
 
@@ -50,6 +51,7 @@ export function DeviceMachineRow({
       </DetailLine>
       <AccessLine device={device} hostEnabled={hostEnabled} pairing={false} onRemoveAccess={onRemoveAccess} />
       <AgentFilesHereLine device={device} refresh={refresh} />
+      <AgentRunHereLine device={device} refresh={refresh} />
     </MachineRowShell>
   );
 }

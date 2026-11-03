@@ -1314,11 +1314,11 @@ export function PeerHostStartPairing() {
 export function PeerHostCancelPairing() {
   return invoke("peer_host_cancel_pairing");
 }
-export function PeerHostSetAgentFiles(id, files, scope) {
-  return invoke("peer_host_set_agent_files", { id, files, scope });
+export function PeerHostSetAgentFiles(id, files, scope, run) {
+  return invoke("peer_host_set_agent_files", { id, files, scope, run });
 }
-export function PeerAgentFilesSet(slug, files, scope) {
-  return invoke("peer_agent_files_set", { slug, files, scope });
+export function PeerAgentFilesSet(slug, files, scope, run) {
+  return invoke("peer_agent_files_set", { slug, files, scope, run });
 }
 export function PeerAgentRequests() {
   return invoke("peer_agent_requests");

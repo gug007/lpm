@@ -45,6 +45,25 @@ pub fn shell_script(flag: &str, script: &str) -> Command {
     cmd
 }
 
+/// `line` run from `cwd` through the interactive login shell, the way actions,
+/// automations and agents' commands run: the `cd` is explicit so the user's rc
+/// can't move it, and the process starts there too.
+pub fn login_line(cwd: &Path, line: &str) -> Command {
+    let script = format!(
+        "cd {} && {line}",
+        crate::config::shell_quote(&shell_path(cwd))
+    );
+    let mut cmd = shell_script("-ilc", &script);
+    cmd.current_dir(cwd);
+    cmd
+}
+
+/// The lines an interactive shell prints first when it has no terminal.
+pub fn is_job_control_notice(line: &str) -> bool {
+    line.ends_with(": no job control in this shell")
+        || line.contains(": cannot set terminal process group (")
+}
+
 /// A plain POSIX `sh -c <script>`, for lines that need no login environment
 /// (an ssh command line resolves its own on the far side). Windows has no
 /// /bin/sh, so it gets the same bash every other line runs through.

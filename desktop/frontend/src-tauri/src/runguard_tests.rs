@@ -30,7 +30,7 @@ fn gone(_: u32) -> bool {
 }
 
 #[test]
-fn only_answering_replying_pairing_and_starting_tasks_are_refused() {
+fn only_answering_replying_pairing_starting_tasks_and_reaching_other_computers_are_refused() {
     for verb in [
         "answer_job_question",
         "dismiss_job_question",
@@ -38,6 +38,8 @@ fn only_answering_replying_pairing_and_starting_tasks_are_refused() {
         "remote_pair",
         "peer_pair",
         "run_task",
+        "agent_cp",
+        "agent_exec",
     ] {
         assert!(refused(verb), "{verb}");
     }
@@ -64,6 +66,12 @@ fn a_refusal_reads_as_an_error_to_each_verbs_cli() {
     let reply: serde_json::Value = serde_json::from_str(&refusal("duplicate_project")).unwrap();
     assert_eq!(reply["ok"], false);
     assert!(reply["error"].as_str().unwrap().contains("lpm duplicate"));
+    let reply: serde_json::Value = serde_json::from_str(&refusal("agent_exec")).unwrap();
+    assert_eq!(reply["ok"], false);
+    assert!(reply["error"]
+        .as_str()
+        .unwrap()
+        .contains("run commands on another computer"));
 }
 
 #[test]
@@ -86,7 +94,9 @@ fn a_session_led_by_someone_elses_live_process_is_not_the_runs() {
     // The leader's pid is alive but can't be read: a terminal's root-owned
     // login that happens to hold the pid an old run's leader had.
     let t = table(&[(300, 1, 7)]);
-    assert!(!belongs(300, &t, &[ended((100, 5), 9)], Some(100), |_| true));
+    assert!(!belongs(300, &t, &[ended((100, 5), 9)], Some(100), |_| {
+        true
+    }));
 }
 
 #[test]
@@ -98,7 +108,13 @@ fn a_session_started_after_the_run_ended_is_not_the_runs() {
 #[test]
 fn a_process_seen_by_a_sweep_belongs_after_its_parents_are_gone() {
     let t = table(&[(300, 1, 7)]);
-    assert!(belongs(300, &t, &[mark((100, 5), &[(300, 7)])], Some(300), gone));
+    assert!(belongs(
+        300,
+        &t,
+        &[mark((100, 5), &[(300, 7)])],
+        Some(300),
+        gone
+    ));
 }
 
 #[test]

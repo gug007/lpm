@@ -211,7 +211,9 @@ the client can have the host install the latest lpm (see **Commands**);
 `agentLimits` = the host trades Claude usage limits (see **Usage
 limits**);
 `agentFiles` = the client's agents may copy files there with `lpm cp`, as far as
-the host allows (see **Agent copies**). A host
+the host allows (see **Agent copies**);
+`agentExec` = the client's agents may run commands there with `lpm exec --on`,
+when the host allows (see **Agent commands**). A host
 missing a feature simply never receives frames that depend on it. The full list
 is `host_features()` in `peer.rs`.
 
@@ -526,9 +528,9 @@ is ever reachable. `ready` carries the device's policy as `agentFiles: { files,
 scope }`, and the host pushes `{ "t": "agentPolicy", "policy": { files, scope } }`
 when it changes.
 
-- `{ "t": "agentPolicySet", "policy": { files, scope } }` → `{ files, scope }` —
-  sent only from the client app's own Connections screen, never from the `lpm`
-  socket. A paired client may already run anything on the host, so this widens
+- `{ "t": "agentPolicySet", "policy": { files?, scope?, run? } }` → the whole
+  policy — sent only from the client app's own Connections screen, never from
+  the `lpm` socket. A paired client may already run anything on the host, so this widens
   nothing; the host's Connections screen sets the same value
   (`peer_host_set_agent_files`).
 - `{ "t": "agentResolve", "path", "write" }` → `{ root, rel, path, exists, dir,
@@ -553,6 +555,46 @@ lpm (`peer_agent_answer`: `deny` / `once` / `tab`). "For this tab" lasts as long
 as the tab's shell, and never covers keys, credentials or files that run on
 their own on the host (`agentfiles::sensitive`), which always ask. The client
 logs to the same file.
+
+## Agent commands
+
+`agentExec` feature (host `peer/agentexec.rs`, client `agentexec.rs` behind
+`lpm exec --on NAME[:PATH] -- COMMAND`). An agent on the client runs a command
+on the host, as the host's account. The policy gains `run` (bool, absent =
+false): `agentFiles: { files, scope, run }` in peer.json, `ready` and
+`agentPolicy`. `agentPolicySet` is a partial update: a field it leaves out keeps
+its value, so each screen sends only what it changed, and an lpm from before
+commands, which sends `{ files, scope }`, leaves `run` alone. `run` is its own permission: copies on or off
+say nothing about commands.
+
+- `{ "t": "agentExec", "reqId", "id", "command", "cwd" }` → `{ code, signal,
+  cwd }` once the command exits. `id` is the client's name for the run; `cwd`
+  may start with `~` and must be a folder there (empty = the home folder).
+  `command` is one shell line, run as `cd <cwd> && <command>` through the
+  host's interactive login shell (actions' wrapper, Git Bash on Windows) in its
+  own session, nothing on stdin. `code` is null when a signal ended it.
+- host → `{ "t": "agentExecOut", "id", "s": "o"|"e", "d" }` — what it printed on
+  stdout / stderr, base64, before the `result`. An interactive shell's opening
+  "no job control" lines are dropped. Output a background process keeps
+  printing after the command exits may arrive after the `result`, and is
+  dropped.
+- `{ "t": "agentExecKill", "id" }` — stop it: SIGHUP to its process tree, as a
+  closed terminal would, then SIGTERM, then SIGKILL 3 s later for whatever still
+  runs (`proctree::hang_up_tree_async`; the tree is ended outright on Windows).
+  SIGTERM alone isn't enough: the interactive shell ignores it and goes on to the
+  next command of the line. The host also stops
+  every command a connection started when that connection goes.
+
+The host emits `agent-files-served` `{ machine, op: "run", command, cwd }` as a
+command starts and logs `{ side: "host", op: "run", command, cwd, code }` to
+`~/.lpm/agent-files.jsonl` when it ends. The client asks first, as for a copy
+(same caller check, runs refused, `agent-files-request` with `kind: "run"`,
+`command`, `cwd`); "for this tab" covers every command that tab runs on that
+host, and a tab allowed to copy is not allowed to run. On the socket,
+`agent_exec --request-hex=<JSON>` answers `PROGRESS waiting`, then `PROGRESS
+out|err <hex>` as the command prints and `PROGRESS tick` every 2 s while it is
+quiet, then `{ ok, machine, cwd, code, signal }`; a write that fails (the CLI
+went away) sends `agentExecKill`.
 
 ## Terminal streaming
 
@@ -1134,8 +1176,8 @@ most every 2 s per guest), `peer-joined-changed`, `peer-share-join-pending` and
   depth, but is not a sandbox.
 - **Agents are not the client.** What a person at the client may do through the
   app is not open to processes on it. The `lpm` socket reaches a paired host only
-  through `lpm cp` (**Agent copies**), held to the host's per-device policy and to
-  a person's yes on the client.
+  through `lpm cp` (**Agent copies**) and `lpm exec --on` (**Agent commands**),
+  held to the host's per-device policy and to a person's yes on the client.
 
 ### Threat model — why the channel is pinned
 

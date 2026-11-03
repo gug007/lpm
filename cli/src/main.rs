@@ -12,6 +12,7 @@ mod config;
 mod config_cmd;
 mod control;
 mod cp;
+mod exec;
 mod duplicate;
 mod error;
 mod hook;
@@ -317,6 +318,28 @@ under its own name; existing files are only replaced with --force."
         #[arg(long)]
         json: bool,
     },
+    /// Run a command on a computer this one connects to.
+    #[command(
+        long_about = "Run a command on a computer this one connects to, and print what it prints \
+as it prints it. Write the computer as NAME, NAME being any part of its name only it has, as \
+`lpm connections` lists it, and NAME:PATH to start in a folder there (its home folder \
+otherwise; PATH may start with ~). One quoted command is run by the shell there as written, so \
+it may hold && or a pipe; several words are run as one command, each word kept whole. Nothing \
+is passed on stdin. That computer decides whether this one's agents may run commands there \
+(nothing, until someone allows it), and lpm asks you before each one runs, or once for the rest \
+of the tab. Exits with the command's exit code; stopping lpm exec stops the command there."
+    )]
+    Exec {
+        /// The computer, and optionally the folder there: NAME or NAME:PATH.
+        #[arg(long, value_name = "NAME[:PATH]")]
+        on: String,
+        /// Print one JSON object with the exit code and everything printed, at the end.
+        #[arg(long)]
+        json: bool,
+        /// The command to run there, after --.
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true, required = true)]
+        command: Vec<String>,
+    },
     /// Pair a phone with this machine, and manage the phones already paired.
     Mobile {
         #[command(subcommand)]
@@ -595,6 +618,7 @@ fn main() -> ExitCode {
             force,
             json,
         } => cp::run(&ctx, &src, &dst, force, json),
+        Commands::Exec { on, json, command } => exec::run(&ctx, &on, &command, json),
         Commands::Mobile { command } => mobile::run(&ctx, command),
         Commands::ClearStatus { key, project } => {
             setstatus::run_clear(&ctx, &key, project.as_deref())

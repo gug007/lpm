@@ -23,6 +23,7 @@ mod agent_usage_merge;
 mod agent_caps;
 mod agentexit;
 mod agentapprove;
+mod agentexec;
 mod agentcp;
 mod agentfiles;
 mod agentnest;

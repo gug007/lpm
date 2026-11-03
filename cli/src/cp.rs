@@ -6,7 +6,6 @@
 use crate::config::Ctx;
 use crate::control;
 use crate::error::RunError;
-use crate::statussock;
 use crate::util::{files_count, print_json};
 use serde_json::{json, Value};
 
@@ -39,7 +38,9 @@ impl Progress {
             eprintln!("Waiting for you to allow the copy in lpm…");
             return;
         }
-        let mut words = payload.split_whitespace().map(|w| w.parse::<u64>().unwrap_or(0));
+        let mut words = payload
+            .split_whitespace()
+            .map(|w| w.parse::<u64>().unwrap_or(0));
         let (sent, total) = (words.next().unwrap_or(0), words.next().unwrap_or(0));
         if total < 8 * 1024 * 1024 {
             return;
@@ -53,38 +54,17 @@ impl Progress {
 }
 
 pub fn run(ctx: &Ctx, src: &str, dst: &str, force: bool, as_json: bool) -> Result<(), RunError> {
-    control::require_app(ctx)?;
     let cwd = std::env::current_dir().map_err(|e| RunError::Internal(e.to_string()))?;
-    let env = |k: &str| std::env::var(k).unwrap_or_default();
-    let request = json!({
-        "src": src,
-        "dst": dst,
-        "force": force,
-        "cwd": cwd,
-        "pane": env("LPM_PANE_ID"),
-        "project": env("LPM_PROJECT_NAME"),
-    });
-    let line = format!(
-        "agent_cp --request-hex={}",
-        statussock::hex_encode(&request.to_string())
-    );
+    let request = json!({ "src": src, "dst": dst, "force": force, "cwd": cwd });
     let mut progress = Progress {
         quiet: as_json,
         shown_pct: None,
     };
-    let reply = statussock::request_lines(&ctx.socket_path(), &line, |p| progress.line(p))
-        .map_err(RunError::Internal)?;
-    let value = control::parse_json(&control::app_reply(reply)?)?;
+    let value = control::agent_request(ctx, "agent_cp", request, |p| progress.line(p))?;
     if as_json {
         print_json(&value);
     }
-    if value.get("ok").and_then(Value::as_bool) != Some(true) {
-        let error = value
-            .get("error")
-            .and_then(Value::as_str)
-            .unwrap_or("the copy failed");
-        return Err(RunError::Internal(error.to_string()));
-    }
+    control::agent_ok(&value, "the copy failed")?;
     if !as_json {
         println!("{}", summary(&value));
     }
@@ -120,7 +100,10 @@ mod tests {
             "Copied 1 file (2.1 KB) from mini:/k/a.jks to /Users/me/keys/a.jks."
         );
         let v = json!({ "files": 3, "bytes": 10, "from": "a", "to": "b", "replaced": 2 });
-        assert_eq!(summary(&v), "Copied 3 files (10 B) from a to b, replacing 2 files.");
+        assert_eq!(
+            summary(&v),
+            "Copied 3 files (10 B) from a to b, replacing 2 files."
+        );
     }
 
     #[test]

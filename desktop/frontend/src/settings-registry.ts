@@ -807,7 +807,7 @@ export const ROWS = {
     id: "connections.peers",
     label: "Connections",
     description: "Control another machine's projects from this one",
-    keywords: ["peer", "remote", "mac", "linux", "server", "host", "nearby", "discover", "agent", "copy files", "lpm cp"],
+    keywords: ["peer", "remote", "mac", "linux", "server", "host", "nearby", "discover", "agent", "copy files", "lpm cp", "run commands", "lpm exec"],
   },
   "connections.tailscale": {
     kind: "row",

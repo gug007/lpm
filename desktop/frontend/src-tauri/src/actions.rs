@@ -315,14 +315,9 @@ pub(crate) fn output_lines(
 ) -> impl Iterator<Item = std::io::Result<String>> {
     let mut leading = cfg!(windows) && login_shell;
     std::io::BufReader::new(stdout).lines().filter(move |line| {
-        leading = leading && matches!(line, Ok(l) if is_job_control_notice(l));
+        leading = leading && matches!(line, Ok(l) if crate::shellpath::is_job_control_notice(l));
         !leading
     })
-}
-
-fn is_job_control_notice(line: &str) -> bool {
-    line.ends_with(": no job control in this shell")
-        || line.contains(": cannot set terminal process group (")
 }
 
 /// Build the child process for an action. Local actions run through the user's
@@ -332,9 +327,7 @@ fn is_job_control_notice(line: &str) -> bool {
 /// environment on the far side.
 pub(crate) fn action_command(plan: &ActionPlan) -> Command {
     let mut cmd = if plan.login_shell {
-        let cwd = crate::shellpath::shell_path(Path::new(&plan.cwd));
-        let script = format!("cd {} && {}", config::shell_quote(&cwd), plan.cmd_str);
-        crate::shellpath::shell_script("-ilc", &script)
+        crate::shellpath::login_line(Path::new(&plan.cwd), &plan.cmd_str)
     } else {
         crate::shellpath::sh_script(&plan.cmd_str)
     };

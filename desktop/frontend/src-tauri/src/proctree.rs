@@ -178,6 +178,21 @@ pub(crate) fn kill_pids_async(pids: Vec<i32>) {
     thread::spawn(move || kill_pids(&pids));
 }
 
+/// Hang up `pid`'s tree as a closed terminal would, then reap what is left, on
+/// a background thread. An interactive shell ignores SIGTERM and goes on to the
+/// next command of its line once the current one dies; a hangup ends it.
+pub(crate) fn hang_up_tree_async(pid: i32) {
+    if pid <= 1 {
+        return;
+    }
+    thread::spawn(move || {
+        let pids = trees(&[pid]);
+        #[cfg(unix)]
+        signal_all(&pids, libc::SIGHUP);
+        kill_pids(&pids);
+    });
+}
+
 /// Snapshot `pid`'s tree and reap it, all on a background thread. For callers
 /// that own the only kill of `pid` (a pty child nothing else touches), so the
 /// snapshot is race-free without blocking the caller.

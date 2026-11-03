@@ -12,6 +12,8 @@ export interface PeerHostDevice {
   // What its agents may copy on this machine (`lpm cp` over there).
   agentFiles?: AgentFilesAccess;
   agentScope?: AgentFilesScope;
+  // ...and whether they may run commands here (`lpm exec --on` over there).
+  agentRun?: boolean;
   // "macos" / "linux" / "windows". Empty for a device paired before platforms
   // were reported.
   platform?: string;
@@ -100,6 +102,9 @@ export interface PeerClient {
   supportsAgentFiles?: boolean;
   agentFiles?: AgentFilesAccess | null;
   agentScope?: AgentFilesScope | null;
+  // ...and runs this Mac's agents' commands (`lpm exec --on`), when it allows.
+  supportsAgentExec?: boolean;
+  agentRun?: boolean | null;
   pinned?: boolean;
   lastSyncAt?: number;
   lastError?: string;

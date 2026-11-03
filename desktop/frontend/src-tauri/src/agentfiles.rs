@@ -1,5 +1,6 @@
-// What agents on a paired computer may do with this one's files, the paths that
-// always need a person's yes, and the log both computers keep of every copy.
+// What agents on a paired computer may do here: copy files, run commands. The
+// paths that always need a person's yes, and the log both computers keep of
+// every copy and command.
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::io::Write;
@@ -30,18 +31,42 @@ pub(crate) enum Scope {
 }
 
 /// On the wire and in peer.json: `{ "files": "off"|"read"|"write", "scope":
-/// "projects"|"home" }`, each defaulting to the narrowest.
+/// "projects"|"home", "run": bool }`, each defaulting to the narrowest.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub(crate) struct Policy {
     #[serde(rename = "files")]
     pub access: Access,
     pub scope: Scope,
+    /// Its agents may run commands here (`lpm exec --on`), as this account.
+    pub run: bool,
 }
 
 impl Policy {
     pub(crate) fn is_off(&self) -> bool {
-        self.access == Access::Off
+        self.access == Access::Off && !self.run
+    }
+
+    /// `incoming` laid over this policy: what it leaves out stays as it is, so
+    /// a screen sends only what it changed, and an lpm from before commands,
+    /// which sends only what agents may copy, leaves `run` alone.
+    pub(crate) fn merged(self, incoming: &Value) -> Result<Policy, String> {
+        let mut next = json!(self);
+        if let (Some(next), Some(incoming)) = (next.as_object_mut(), incoming.as_object()) {
+            next.extend(incoming.clone());
+        }
+        serde_json::from_value(next).map_err(|e| e.to_string())
+    }
+
+    pub(crate) fn allows_run(self) -> Result<(), String> {
+        if self.run {
+            return Ok(());
+        }
+        Err(
+            "agents from that computer can't run commands here. Turn it on in lpm: Settings → \
+             Connections, on the computer the agent runs on"
+                .into(),
+        )
     }
 
     pub(crate) fn allows(self, write: bool) -> Result<(), String> {
@@ -57,6 +82,21 @@ impl Policy {
             _ => Ok(()),
         }
     }
+}
+
+/// The settings a screen changed, in the shape `Policy::merged` takes.
+pub(crate) fn changes(files: Option<Access>, scope: Option<Scope>, run: Option<bool>) -> Value {
+    let mut v = json!({});
+    if let Some(files) = files {
+        v["files"] = json!(files);
+    }
+    if let Some(scope) = scope {
+        v["scope"] = json!(scope);
+    }
+    if let Some(run) = run {
+        v["run"] = json!(run);
+    }
+    v
 }
 
 const SECRET_DIRS: &[&str] = &[
@@ -248,14 +288,56 @@ mod tests {
             read(json!({ "files": "write", "scope": "home" })).unwrap(),
             Policy {
                 access: Access::Write,
-                scope: Scope::Home
+                scope: Scope::Home,
+                run: false,
             }
         );
         assert!(read(json!({ "files": "everything" })).is_err());
         assert_eq!(
             json!(Policy::default()),
-            json!({ "files": "off", "scope": "projects" })
+            json!({ "files": "off", "scope": "projects", "run": false })
         );
+    }
+
+    #[test]
+    fn running_commands_is_its_own_permission() {
+        let runs = Policy {
+            run: true,
+            ..Default::default()
+        };
+        assert!(!runs.is_off(), "kept in peer.json though copies are off");
+        assert!(runs.allows_run().is_ok());
+        assert!(runs.allows(false).is_err());
+        assert!(Policy::default().allows_run().is_err());
+    }
+
+    #[test]
+    fn an_older_lpm_setting_copies_leaves_commands_as_they_were() {
+        let runs = Policy {
+            run: true,
+            ..Default::default()
+        };
+        let old = runs
+            .merged(&json!({ "files": "read", "scope": "home" }))
+            .unwrap();
+        assert!(old.run);
+        assert_eq!(old.access, Access::Read);
+        let off = runs
+            .merged(&json!({ "files": "read", "run": false }))
+            .unwrap();
+        assert!(!off.run);
+    }
+
+    #[test]
+    fn a_change_to_one_setting_leaves_the_others() {
+        let set = Policy {
+            access: Access::Write,
+            scope: Scope::Home,
+            run: false,
+        };
+        let next = set.merged(&changes(None, None, Some(true))).unwrap();
+        assert_eq!(next, Policy { run: true, ..set });
+        assert!(set.merged(&json!({ "files": "everything" })).is_err());
     }
 
     #[test]
@@ -263,6 +345,7 @@ mod tests {
         let policy = |access| Policy {
             access,
             scope: Scope::Projects,
+            run: false,
         };
         assert!(policy(Access::Read).allows(false).is_ok());
         assert!(policy(Access::Read).allows(true).is_err());

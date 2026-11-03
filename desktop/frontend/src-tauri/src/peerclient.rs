@@ -27,7 +27,7 @@ mod agentfiles;
 mod phone;
 mod removal;
 mod share;
-pub(crate) use agentfiles::{computers, peer_agent_files_set, Computer};
+pub(crate) use agentfiles::{computers, peer_agent_files_set, take_computer, Computer};
 pub(crate) use phone::PhoneChannelError;
 pub(crate) use removal::PendingForget;
 use removal::Tell;
@@ -131,6 +131,7 @@ struct PeerConn {
     supports_limits: AtomicBool, // host trades Claude usage limits (agent_limits_share.rs)
     supports_tab_share: AtomicBool, // this Mac may share the host's tabs (tabshare/machines.rs)
     supports_agent_files: AtomicBool, // agents here may copy files there, as far as it allows (agentcp.rs)
+    supports_agent_exec: AtomicBool, // ...and run commands there, when it allows (agentexec.rs)
     agent_policy: Mutex<crate::agentfiles::Policy>, // ...what it allows them, as it last said
     // The phones this Mac is relaying to the host, by channel: where the frames
     // the host sends each one go.
@@ -209,6 +210,7 @@ impl PeerConn {
             supports_limits: AtomicBool::new(false),
             supports_tab_share: AtomicBool::new(false),
             supports_agent_files: AtomicBool::new(false),
+            supports_agent_exec: AtomicBool::new(false),
             agent_policy: Mutex::new(Default::default()),
             phones: Mutex::new(HashMap::new()),
             in_run: AtomicBool::new(false),
@@ -493,6 +495,9 @@ impl PeerClientHub {
                 let supports_agent_files = conn
                     .map(|c| c.supports_agent_files.load(Ordering::Relaxed))
                     .unwrap_or(false);
+                let supports_agent_exec = conn
+                    .map(|c| c.supports_agent_exec.load(Ordering::Relaxed))
+                    .unwrap_or(false);
                 let agent_policy = conn
                     .map(|c| *c.agent_policy.lock().unwrap())
                     .unwrap_or_default();
@@ -546,6 +551,8 @@ impl PeerClientHub {
                     "supportsAgentFiles": supports_agent_files,
                     "agentFiles": agent_policy.access,
                     "agentScope": agent_policy.scope,
+                    "supportsAgentExec": supports_agent_exec,
+                    "agentRun": agent_policy.run,
                     "updateChannel": if beta_updates { "beta" } else { "stable" },
                     // Whether the peer's identity is pinned (verified-encrypted). An
                     // auto run refuses an unpinned channel, so the UI hints on it.
@@ -2472,6 +2479,8 @@ fn connect_session(
     );
     conn.supports_agent_files
         .store(has_feature(crate::agentfiles::FEATURE), Ordering::Relaxed);
+    conn.supports_agent_exec
+        .store(has_feature(crate::agentexec::FEATURE), Ordering::Relaxed);
     *conn.agent_policy.lock().unwrap() = rv
         .get("agentFiles")
         .filter(|_| !guest)
@@ -2677,6 +2686,8 @@ fn handle_frame(conn: &Arc<PeerConn>, app: Option<&AppHandle>, txt: &str) {
         }
         // The host changed what this Mac's agents may copy there.
         "agentPolicy" => agentfiles::note_policy(conn, app, &v["policy"]),
+        // What a command an agent here runs there printed.
+        "agentExecOut" => crate::agentexec::route_output(&v),
         "result" => {
             let Some(req) = v.get("reqId").and_then(Value::as_u64) else {
                 return;

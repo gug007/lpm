@@ -141,7 +141,10 @@ pub fn run_connections(ctx: &Ctx, json: bool) -> Result<(), RunError> {
                 println!("    {err}");
             }
         }
-        if let Some(line) = agent_files_line(p) {
+        for line in [agent_files_line(p), agent_run_line(p)]
+            .into_iter()
+            .flatten()
+        {
             println!("    {line}");
         }
     }
@@ -168,7 +171,21 @@ fn agent_files_line(row: &Value) -> Option<String> {
     Some(format!("agents here may {what}, in {place} (lpm cp)"))
 }
 
-/// `lpm connections --activity`: the latest copies agents made between computers.
+/// Whether a connected computer lets this one's agents run commands there.
+fn agent_run_line(row: &Value) -> Option<String> {
+    let flag = |k: &str| row.get(k).and_then(Value::as_bool).unwrap_or(false);
+    if !flag("connected") || !flag("supportsAgentExec") {
+        return None;
+    }
+    Some(if flag("agentRun") {
+        "agents here may run commands there, after you allow them (lpm exec --on)".to_string()
+    } else {
+        "agents here can't run commands there".to_string()
+    })
+}
+
+/// `lpm connections --activity`: the latest copies and commands agents made
+/// between computers.
 pub fn run_activity(ctx: &Ctx, json: bool) -> Result<(), RunError> {
     control::require_app(ctx)?;
     let value = control::parse_json(&control::send_command(ctx, "agent_files_log --count=20")?)?;
@@ -178,7 +195,7 @@ pub fn run_activity(ctx: &Ctx, json: bool) -> Result<(), RunError> {
     }
     let rows = value.as_array().cloned().unwrap_or_default();
     if rows.is_empty() {
-        println!("No agent has copied files between computers yet.");
+        println!("No agent has copied files or run commands between computers yet.");
         return Ok(());
     }
     for row in &rows {
@@ -196,18 +213,32 @@ fn activity_line(row: &Value) -> String {
         .map(|ms| crate::util::relative(ms, crate::util::now_millis()))
         .unwrap_or_default();
     let machine = text("machine");
+    let exited = match row.get("code").and_then(Value::as_i64) {
+        Some(0) | None => String::new(),
+        Some(code) => format!(", exit {code}"),
+    };
+    let run = text("op") == "run";
+    let who = || match (text("agent"), text("project")) {
+        ("", "") => "A program outside lpm's terminals".to_string(),
+        ("", p) if run => format!("A program in {p}"),
+        ("", p) => format!("A command in {p}"),
+        (a, "") => a.to_string(),
+        (a, p) => format!("{a} in {p}"),
+    };
     let what = match (text("side"), text("op")) {
-        ("host", "read") => format!("{machine}'s agent copied {count} from here: {}", text("path")),
+        ("host", "run") => format!("{machine}'s agent ran here: {}{exited}", text("command")),
+        ("host", "read") => format!(
+            "{machine}'s agent copied {count} from here: {}",
+            text("path")
+        ),
         ("host", _) => format!("{machine}'s agent copied {count} here: {}", text("path")),
-        _ => {
-            let who = match (text("agent"), text("project")) {
-                ("", "") => "A program outside lpm's terminals".to_string(),
-                ("", p) => format!("A command in {p}"),
-                (a, "") => a.to_string(),
-                (a, p) => format!("{a} in {p}"),
-            };
-            format!("{who} copied {count} from {} to {}", text("from"), text("to"))
-        }
+        (_, "run") => format!("{} ran on {machine}: {}{exited}", who(), text("command")),
+        _ => format!(
+            "{} copied {count} from {} to {}",
+            who(),
+            text("from"),
+            text("to")
+        ),
     };
     let failed = match row.get("error").and_then(Value::as_str) {
         Some(e) if !e.is_empty() => format!(" — stopped: {e}"),
@@ -280,18 +311,49 @@ mod tests {
     fn activity_names_who_copied_what() {
         let asked = serde_json::json!({ "side": "asked", "agent": "Claude", "project": "lpm",
             "files": 1, "from": "mini:/k/a.jks", "to": "/Users/me/keys/a.jks" });
-        assert!(activity_line(&asked).ends_with("Claude in lpm copied 1 file from mini:/k/a.jks to /Users/me/keys/a.jks"));
+        assert!(activity_line(&asked)
+            .ends_with("Claude in lpm copied 1 file from mini:/k/a.jks to /Users/me/keys/a.jks"));
         let outside = serde_json::json!({ "side": "asked", "files": 1, "from": "a", "to": "b" });
-        assert!(activity_line(&outside).ends_with("A program outside lpm's terminals copied 1 file from a to b"));
+        assert!(activity_line(&outside)
+            .ends_with("A program outside lpm's terminals copied 1 file from a to b"));
         let served = serde_json::json!({ "side": "host", "op": "write", "machine": "Studio",
             "files": 2, "path": "/x" });
         assert!(activity_line(&served).ends_with("Studio's agent copied 2 files here: /x"));
+        let ran = serde_json::json!({ "side": "asked", "op": "run", "agent": "Codex",
+            "project": "app", "machine": "Studio", "command": "npm test", "code": 1 });
+        assert!(activity_line(&ran).ends_with("Codex in app ran on Studio: npm test, exit 1"));
+        let ran_here = serde_json::json!({ "side": "host", "op": "run", "machine": "Laptop",
+            "command": "ls", "code": 0 });
+        assert!(activity_line(&ran_here).ends_with("Laptop's agent ran here: ls"));
+        let plain = serde_json::json!({ "side": "asked", "op": "run", "project": "app",
+            "machine": "Studio", "command": "ls" });
+        assert!(activity_line(&plain).ends_with("A program in app ran on Studio: ls"));
+    }
+
+    #[test]
+    fn a_connected_computer_says_whether_agents_may_run_commands() {
+        let row = |run: bool| serde_json::json!({ "connected": true, "supportsAgentExec": true, "agentRun": run });
+        assert_eq!(
+            agent_run_line(&row(true)).unwrap(),
+            "agents here may run commands there, after you allow them (lpm exec --on)"
+        );
+        assert_eq!(
+            agent_run_line(&row(false)).unwrap(),
+            "agents here can't run commands there"
+        );
+        assert!(agent_run_line(&serde_json::json!({ "connected": true })).is_none());
     }
 
     #[test]
     fn linux_rows_are_marked_and_macs_are_not() {
-        assert_eq!(platform_suffix(&serde_json::json!({"platform": "linux"})), " (Linux)");
-        assert_eq!(platform_suffix(&serde_json::json!({"platform": "macos"})), "");
+        assert_eq!(
+            platform_suffix(&serde_json::json!({"platform": "linux"})),
+            " (Linux)"
+        );
+        assert_eq!(
+            platform_suffix(&serde_json::json!({"platform": "macos"})),
+            ""
+        );
         // Paired before hosts reported a platform: say nothing rather than guess.
         assert_eq!(platform_suffix(&serde_json::json!({})), "");
     }
@@ -317,6 +379,9 @@ mod tests {
 
     #[test]
     fn windows_rows_are_marked() {
-        assert_eq!(platform_suffix(&serde_json::json!({"platform": "windows"})), " (Windows)");
+        assert_eq!(
+            platform_suffix(&serde_json::json!({"platform": "windows"})),
+            " (Windows)"
+        );
     }
 }

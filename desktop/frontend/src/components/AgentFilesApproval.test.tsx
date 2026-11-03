@@ -2,7 +2,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AgentFilesRequest } from "../peer/agentFilesWords";
+import type { AgentCopyRequest, AgentFilesRequest, AgentRunRequest } from "../peer/agentFilesWords";
 
 const mocks = vi.hoisted(() => ({
   requests: [] as AgentFilesRequest[],
@@ -17,8 +17,9 @@ vi.mock("../../bridge/runtime", () => ({ EventsOn: () => () => {} }));
 
 import { AgentFilesApproval } from "./AgentFilesApproval";
 
-const request = (over: Partial<AgentFilesRequest> = {}): AgentFilesRequest => ({
+const request = (over: Partial<AgentCopyRequest> = {}): AgentCopyRequest => ({
   id: "r1",
+  kind: "copy",
   machine: "Studio",
   pulling: true,
   from: "Studio:/Users/me/keys/upload.jks",
@@ -27,6 +28,18 @@ const request = (over: Partial<AgentFilesRequest> = {}): AgentFilesRequest => ({
   bytes: 2048,
   sensitive: [],
   replaces: false,
+  agent: "Claude",
+  project: "lpm",
+  tabGrant: true,
+  ...over,
+});
+
+const runRequest = (over: Partial<AgentRunRequest> = {}): AgentRunRequest => ({
+  id: "r1",
+  kind: "run",
+  machine: "Studio",
+  command: "npm test -- --watch=false",
+  cwd: "Studio:~/Projects/app",
   agent: "Claude",
   project: "lpm",
   tabGrant: true,
@@ -76,6 +89,18 @@ describe("AgentFilesApproval", () => {
     expect(button("Allow for this tab")).toBeUndefined();
     act(() => button("Deny")?.click());
     expect(mocks.answer).toHaveBeenCalledWith("r1", "deny");
+  });
+
+  it("shows the command, where it runs, and what a yes for the tab covers", async () => {
+    await show(runRequest());
+    const text = document.body.textContent ?? "";
+    expect(text).toContain("Let Claude in lpm run a command on Studio?");
+    expect(text).toContain("npm test -- --watch=false");
+    expect(text).toContain("Studio:~/Projects/app");
+    expect(text).toContain("any command on Studio until the tab closes");
+    expect(text).not.toContain("copy");
+    act(() => button("Allow for this tab")?.click());
+    expect(mocks.answer).toHaveBeenCalledWith("r1", "tab");
   });
 
   it("says when a program outside lpm's terminals asks", async () => {

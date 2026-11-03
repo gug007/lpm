@@ -242,6 +242,8 @@ fn handle_client(stream: UnixStream, store: &StatusStore, app: &AppHandle, restr
             crate::updatesocket::cmd_update_install(&shell_split(&line)[1..], app, &mut writer)
         } else if first == "agent_cp" {
             crate::agentcp::cmd_agent_cp(&shell_split(&line)[1..], app, peer, &mut writer)
+        } else if first == "agent_exec" {
+            crate::agentexec::cmd_agent_exec(&shell_split(&line)[1..], app, peer, &mut writer)
         } else {
             writeln!(writer, "{}", process_command(&line, store, app))
         };

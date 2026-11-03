@@ -1606,13 +1606,7 @@ fn shell_command(
     env: &[(String, String)],
     claude: &config::ClaudeEnv,
 ) -> Command {
-    let script = format!(
-        "cd {} && {}",
-        config::shell_quote(&crate::shellpath::shell_path(Path::new(cwd))),
-        cmd
-    );
-    let mut c = crate::shellpath::shell_script("-ilc", &script);
-    c.current_dir(cwd);
+    let mut c = crate::shellpath::login_line(Path::new(cwd), cmd);
     for (k, v) in env {
         c.env(k, v);
     }

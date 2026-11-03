@@ -273,10 +273,8 @@ fn run(ssh: Option<&SshSettings>, dir: &str, script: &str) -> Option<String> {
 /// The user's interactive login shell, as background actions use, so a label
 /// command finds the same PATH and version managers the action itself does.
 fn local_command(dir: &str, script: &str) -> Command {
-    let cwd = crate::shellpath::shell_path(Path::new(dir));
-    let line = format!("cd {} && {script}", config::shell_quote(&cwd));
-    let mut cmd = crate::shellpath::shell_script("-ilc", &line);
-    cmd.current_dir(dir);
+    #[cfg_attr(windows, allow(unused_mut))]
+    let mut cmd = crate::shellpath::login_line(Path::new(dir), script);
     #[cfg(unix)]
     crate::osproc::detach(&mut cmd);
     cmd
