@@ -51,6 +51,7 @@ import cx.lpm.mobile.core.model.TerminalInfo
 import cx.lpm.mobile.core.model.UploadStep
 import cx.lpm.mobile.core.model.WakeTarget
 import cx.lpm.mobile.core.model.WeeklyRecap
+import cx.lpm.mobile.core.protocol.LpmCommandsInbound
 import java.time.Instant
 import kotlinx.serialization.json.JsonObject
 
@@ -353,6 +354,9 @@ abstract class LpmClientCallbacks {
     var onMemorySave: ((project: String, name: String, error: String?) -> Unit)? = null
     var onMemoryDelete: ((project: String, name: String, error: String?) -> Unit)? = null
     var onMemoryChanged: ((project: String) -> Unit)? = null
+
+    // lpm commands: every reply and the `lpmCommandsChanged` push.
+    var onLpmCommands: ((frame: LpmCommandsInbound) -> Unit)? = null
 
     // Notes replies, each carrying the keys its request was addressed by (out of order).
     var onNotesChats: ((project: String, chats: List<NoteChat>, error: String?) -> Unit)? = null

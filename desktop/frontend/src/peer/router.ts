@@ -122,6 +122,8 @@ export const GLOBAL_PEER_EVENTS = new Set<string>([
   "job-status",
   "job-seen",
   "memory-changed",
+  // A command saved on the host, so a Mac showing its project lists it again.
+  "lpm-commands-changed",
   // A coding agent's progress on a generation run on the host.
   "commit-msg-progress",
   "pr-title-progress",
@@ -333,6 +335,7 @@ export function translatePeerEventPayload(
     case "ports-changed":
     case "terminals-changed":
     case "memory-changed":
+    case "lpm-commands-changed":
       // Payload is the bare project name.
       return typeof payload === "string" ? prefixName(slug, payload) : payload;
     case "git-changed":

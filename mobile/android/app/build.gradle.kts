@@ -87,6 +87,7 @@ dependencies {
     implementation(projects.feature.activity)
     implementation(projects.feature.automations)
     implementation(projects.feature.claudeaccount)
+    implementation(projects.feature.commands)
     implementation(projects.feature.config)
     implementation(projects.feature.connection)
     implementation(projects.feature.files)

@@ -1,0 +1,35 @@
+package cx.lpm.mobile.core.data.client
+
+import cx.lpm.mobile.core.model.CommandRef
+import cx.lpm.mobile.core.model.CommandScope
+import cx.lpm.mobile.core.protocol.CommandFolderOp
+import cx.lpm.mobile.core.protocol.Wire
+
+// lpm commands. Every verb runs on a Mac worker and echoes `reqId`.
+
+fun LpmClient.requestLpmCommands(project: String, reqId: String) =
+    send(Wire.lpmCommands(project, reqId))
+
+fun LpmClient.saveLpmCommand(
+    project: String,
+    reqId: String,
+    command: CommandRef,
+    description: String,
+    body: String,
+    previous: CommandRef?
+) = send(Wire.lpmCommandSave(project, reqId, command, description, body, previous))
+
+fun LpmClient.deleteLpmCommand(project: String, reqId: String, target: CommandRef) =
+    send(Wire.lpmCommandDelete(project, reqId, target))
+
+fun LpmClient.changeLpmCommandFolder(
+    project: String,
+    reqId: String,
+    op: CommandFolderOp,
+    scope: CommandScope,
+    name: String,
+    newName: String?
+) = send(Wire.lpmCommandFolder(project, reqId, op, scope, name, newName))
+
+fun LpmClient.expandLpmCommand(project: String, reqId: String, name: String, args: String) =
+    send(Wire.lpmCommandExpand(project, reqId, name, args))

@@ -136,16 +136,20 @@ private fun DemoServer.registerTerminalLifecycleHandlers() {
 }
 
 private fun DemoServer.registerComposerHandlers() {
+    // The user's lpm commands lead, and hide an agent command of the same name, since
+    // `/name` runs theirs.
     register("slash") { o ->
         val id = o.string("id") ?: return@register
-        val isAgent = demoTerminal(id)?.cli == "claude"
-        push(
-            mapOf(
-                "t" to "slash",
-                "id" to id,
-                "commands" to if (isAgent) claudeSlashCommands else emptyList()
-            )
-        )
+        val term = demoTerminal(id)
+        if (term == null || term.cli.isEmpty()) {
+            push(mapOf("t" to "slash", "id" to id, "commands" to emptyList<Dict>()))
+            return@register
+        }
+        val lpm = demoCommandSlashRows(term.project)
+        val taken = lpm.mapNotNull { it.string("name")?.lowercase() }.toSet()
+        val agent = (if (term.cli == "claude") claudeSlashCommands else emptyList())
+            .filter { (it.string("name") ?: "").lowercase() !in taken }
+        push(mapOf("t" to "slash", "id" to id, "commands" to lpm + agent))
     }
     register("mentions") { o ->
         val project = o.string("project") ?: return@register

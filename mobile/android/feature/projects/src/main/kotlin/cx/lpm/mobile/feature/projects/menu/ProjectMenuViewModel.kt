@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import cx.lpm.mobile.core.data.agents.AgentLaunchStore
 import cx.lpm.mobile.core.data.automations.AutomationsStore
 import cx.lpm.mobile.core.data.claude.ClaudeAccountsStore
+import cx.lpm.mobile.core.data.commands.LpmCommandsStore
 import cx.lpm.mobile.core.data.files.ProjectFilesStore
 import cx.lpm.mobile.core.data.git.GitAutoStore
 import cx.lpm.mobile.core.data.git.GitHistoryStore
@@ -61,7 +62,9 @@ data class ProjectMenuUiState(
     val canBrowseFiles: Boolean = false,
     val canResumeSessions: Boolean = false,
     /** The Mac lists the branch's commits (History), and the project isn't on SSH. */
-    val canShowHistory: Boolean = false
+    val canShowHistory: Boolean = false,
+    /** The Mac keeps lpm commands (Commands). */
+    val canManageCommands: Boolean = false
 )
 
 /**
@@ -111,7 +114,8 @@ class ProjectMenuViewModel @AssistedInject constructor(
             autoRunning = auto.runs[project]?.takeIf { it.running }?.kind,
             canBrowseFiles = live != null && s.store<ProjectFilesStore>().canBrowseFiles(live),
             canResumeSessions = live != null && s.store<AgentLaunchStore>().canResumeSessions(live),
-            canShowHistory = live != null && s.store<GitHistoryStore>().canShowHistory(live)
+            canShowHistory = live != null && s.store<GitHistoryStore>().canShowHistory(live),
+            canManageCommands = s.store<LpmCommandsStore>().available
         )
     }
 

@@ -172,6 +172,7 @@ const PHONE_FEATURES: &[&str] = &[
     reminders::FEATURE,
     crate::wakeonlan::FEATURE,
     crate::keepawake_cmds::PHONE_FEATURE,
+    crate::remote_lpm_commands::FEATURE,
 ];
 
 /// The phone may send `restartService` / `stopService`.
@@ -2800,7 +2801,9 @@ fn handle_msg(
         "slash" => {
             // Slash-command autocomplete for a terminal: the frontend registered
             // which AI CLI the terminal runs (detected from its launch command);
-            // scan that CLI's built-ins + the project's custom commands.
+            // the user's lpm commands lead, then that CLI's built-ins and the
+            // project's custom commands. Listing may be an SSH round trip, so
+            // it runs off this connection's thread.
             let id = str_field("id").unwrap_or_default();
             let project = str_field("project").unwrap_or_default();
             let cli = hub
@@ -2811,18 +2814,19 @@ fn handle_msg(
                 .get(&id)
                 .cloned()
                 .unwrap_or_default();
-            let commands = if cli.is_empty() {
-                json!([])
+            if cli.is_empty() {
+                send(ws, json!({ "t": "slash", "id": id, "commands": [] }))?;
             } else {
-                let cwd = config::project_root(&project)
-                    .map(|(r, _)| r)
-                    .unwrap_or_default();
-                match crate::aigen::list_agent_commands(cli, cwd) {
-                    Ok(cmds) => serde_json::to_value(cmds).unwrap_or_else(|_| json!([])),
-                    Err(_) => json!([]),
-                }
-            };
-            send(ws, json!({ "t": "slash", "id": id, "commands": commands }))?;
+                let out = out.clone();
+                std::thread::spawn(move || {
+                    let cwd = config::project_root(&project)
+                        .map(|(r, _)| r)
+                        .unwrap_or_default();
+                    let agent = crate::aigen::list_agent_commands(cli, cwd).unwrap_or_default();
+                    let commands = crate::remote_lpm_commands::slash_rows(&project, agent);
+                    let _ = out.try_send(json!({ "t": "slash", "id": id, "commands": commands }).to_string());
+                });
+            }
         }
         "mentions" => {
             // @-mention autocomplete: the project's files/dirs (relative paths the
@@ -4730,6 +4734,8 @@ fn handle_msg(
         "memory" | "memorySession" | "memorySave" | "memoryDelete" => {
             crate::remote_memory::handle(out, t, &v)
         }
+        "lpmCommands" | "lpmCommandSave" | "lpmCommandDelete" | "lpmCommandFolder"
+        | "lpmCommandExpand" => crate::remote_lpm_commands::handle(app, out, t, &v),
         "machines" | "machinePair" => crate::remote_machines::handle(app, out, t, &v),
         "gitHistory" | "gitCommitFiles" | "gitCommitPatch" => {
             crate::remote_history::handle(out, t, &v)
@@ -6194,6 +6200,13 @@ fn install_forwarders(hub: &RemoteHub, app: &AppHandle) {
     app.listen("memory-changed", move |e| {
         let project = serde_json::from_str::<String>(e.payload()).unwrap_or_default();
         broadcast(&h, json!({ "t": "memory-changed", "project": project }));
+    });
+    // A command saved on the desktop, another phone or a paired Mac: the phone
+    // refetches its Commands screen and `/` menu. "" names the global list.
+    let h = hub.clone();
+    app.listen(crate::lpm_commands_cmds::CHANGED_EVENT, move |e| {
+        let project = serde_json::from_str::<String>(e.payload()).unwrap_or_default();
+        broadcast(&h, json!({ "t": "lpmCommandsChanged", "project": project }));
     });
     let a = app.clone();
     app.listen("peer-state-changed", move |_| {

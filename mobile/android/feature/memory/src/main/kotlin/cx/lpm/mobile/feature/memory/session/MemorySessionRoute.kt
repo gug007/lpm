@@ -21,9 +21,9 @@ import cx.lpm.mobile.core.designsystem.component.AlertRole
 import cx.lpm.mobile.core.designsystem.component.LpmAlert
 import cx.lpm.mobile.core.designsystem.component.LpmConfirmationDialog
 import cx.lpm.mobile.core.navigation.MemorySessionKey
+import cx.lpm.mobile.core.ui.HapticEffect
 import cx.lpm.mobile.feature.memory.R
 import cx.lpm.mobile.feature.memory.editor.MemoryEditorSheet
-import cx.lpm.mobile.feature.memory.ui.MemoryHaptics
 import kotlinx.coroutines.launch
 
 /**
@@ -53,7 +53,7 @@ fun MemorySessionRoute(
         onDispose { viewModel.close() }
     }
     LaunchedEffect(state.deleted) { if (state.deleted) back() }
-    MemoryHaptics(state.feedback)
+    HapticEffect(state.feedback)
 
     MemorySessionScreen(
         state = state,

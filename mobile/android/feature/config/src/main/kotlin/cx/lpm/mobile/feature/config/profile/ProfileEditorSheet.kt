@@ -27,8 +27,8 @@ import cx.lpm.mobile.core.designsystem.component.ModalSheet
 import cx.lpm.mobile.core.designsystem.component.rememberModalSheetState
 import cx.lpm.mobile.core.model.SessionKey
 import cx.lpm.mobile.core.navigation.PresentationScope
+import cx.lpm.mobile.core.ui.EditorTopBar
 import cx.lpm.mobile.feature.config.R
-import cx.lpm.mobile.feature.config.ui.EditorTopBar
 import cx.lpm.mobile.feature.config.ui.HeaderlessTopPadding
 
 /**

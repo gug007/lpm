@@ -50,6 +50,7 @@ export const BUILTIN_SHORTCUT_GROUPS: BuiltinShortcutGroup[] = [
       { id: "skills", label: "Skills and tools", description: "Opens or closes the tab", keys: cmd("k", { shift: true }) },
       { id: "memory", label: "Memory", description: "Opens or closes the tab", keys: cmd("m", { shift: true }) },
       { id: "automations", label: "Automations", description: "Opens or closes the tab", keys: cmd("j", { shift: true }) },
+      { id: "commands", label: "Commands", description: "Opens or closes the tab", keys: cmd("o", { shift: true }) },
     ],
   },
   {

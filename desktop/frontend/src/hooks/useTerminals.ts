@@ -20,7 +20,7 @@ import { useMirrorOwner } from "./terminals/useMirrorOwner";
 import { useAgentSessionTitles } from "./terminals/useAgentSessionTitles";
 import { useAgentSessionEvents } from "./terminals/useAgentSessionEvents";
 import { useTerminalMemory } from "./terminals/useTerminalMemory";
-import { useOpenAutomationsTab } from "./terminals/useOpenAutomationsTab";
+import { useOpenUtilityTab } from "./terminals/useOpenUtilityTab";
 import { useOpenBrowserTab } from "./terminals/useOpenBrowserTab";
 import { useApplyLayout } from "./terminals/useApplyLayout";
 import { useDefaultLayout } from "./terminals/useDefaultLayout";
@@ -150,6 +150,7 @@ export function useTerminals(
     addToolkitToPane,
     addFilesToPane,
     addAutomationsToPane,
+    addCommandsToPane,
   } = useTabCreation({
     projectName,
     treeRef,
@@ -203,11 +204,14 @@ export function useTerminals(
     [treeRef],
   );
 
-  const openAutomationsTab = useOpenAutomationsTab(
-    treeRef,
-    restoreSettled,
-    focusTerminal,
-    addAutomationsToPane,
+  const openUtilityTab = useOpenUtilityTab(treeRef, restoreSettled, focusTerminal);
+  const openAutomationsTab = useCallback(
+    () => openUtilityTab("automations", addAutomationsToPane),
+    [openUtilityTab, addAutomationsToPane],
+  );
+  const openCommandsTab = useCallback(
+    () => openUtilityTab("commands", addCommandsToPane),
+    [openUtilityTab, addCommandsToPane],
   );
   const openBrowserTab = useOpenBrowserTab(
     projectName,
@@ -275,6 +279,7 @@ export function useTerminals(
     addToolkitToPane,
     addFilesToPane,
     addAutomationsToPane,
+    addCommandsToPane,
     closeTerminalById,
     closeOthersById,
     focusTerminal,
@@ -355,7 +360,9 @@ export function useTerminals(
     addToolkitToPane,
     addFilesToPane,
     addAutomationsToPane,
+    addCommandsToPane,
     openAutomationsTab,
+    openCommandsTab,
     openBrowserTab,
     closeTerminal,
     closeOtherTerminals,

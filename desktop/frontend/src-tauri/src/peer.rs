@@ -136,6 +136,8 @@ const FORWARDED_EVENTS: &[&str] = &[
     "action-bg-output",
     "templates-changed",
     "memory-changed",
+    // A command saved here, so a Mac showing one of these projects lists it again.
+    "lpm-commands-changed",
     "clone-done",
     "duplicate-done",
     // The host's folders changed, so a Mac showing them reads them again.
@@ -2030,6 +2032,20 @@ fn dispatch_invoke(
         let out = out.clone();
         std::thread::spawn(move || {
             let frame = match crate::portsall::serve_host(kill, &args) {
+                Ok(value) => result_frame(&req_id, true, value),
+                Err(e) => result_frame(&req_id, false, Value::String(e)),
+            };
+            let _ = out.try_send(frame);
+        });
+        return;
+    }
+    // lpm commands: files, so a headless host has them too, and read off the
+    // socket thread since an SSH project's list is a round trip to its host.
+    if let Some(kind) = crate::lpm_commands_cmds::peer_kind(cmd) {
+        let app = app.clone();
+        let out = out.clone();
+        std::thread::spawn(move || {
+            let frame = match crate::lpm_commands_cmds::answer_peer(&app, kind, &args) {
                 Ok(value) => result_frame(&req_id, true, value),
                 Err(e) => result_frame(&req_id, false, Value::String(e)),
             };

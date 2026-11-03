@@ -848,6 +848,10 @@ enum Wire {
         // Server push: a session-memory file changed on disk. `project` is the
         // OWNER folder name, which for a duplicate is its original's.
         case memoryChanged(project: String)
+        // Any `lpmCommand*` reply, matched to its request by reqId; and the push
+        // when a command or folder changed ("" = the global list only).
+        case lpmCommandReply(LpmCommandReply)
+        case lpmCommandsChanged(project: String)
         // Notes replies. Each echoes the keys it was addressed by (chatId, message
         // id, hash, query, beforeId) so an out-of-order reply is matchable.
         case notesChats(project: String, chats: [NoteChat], error: String?)
@@ -1392,6 +1396,9 @@ enum Wire {
                                      name: obj["name"] as? String ?? "",
                                      error: ok ? nil : (obj["error"] as? String ?? "Couldn't delete the session."))
             case "memory-changed": return .memoryChanged(project: obj["project"] as? String ?? "")
+            case "lpmCommands", "lpmCommandSave", "lpmCommandDelete", "lpmCommandFolder", "lpmCommandExpand":
+                return .lpmCommandReply(LpmCommandReply(obj))
+            case "lpmCommandsChanged": return .lpmCommandsChanged(project: obj["project"] as? String ?? "")
             case "notesChats":
                 let ok = obj["ok"] as? Bool ?? false
                 return .notesChats(project: obj["project"] as? String ?? "",
@@ -2145,14 +2152,18 @@ struct MentionEntry: Identifiable {
 }
 
 /// One slash-command autocomplete entry (mirrors the Rust AgentCommand): a CLI
-/// built-in or a project/user command discovered on disk.
+/// built-in, a project/user command discovered on disk, or one of the user's lpm
+/// commands, which carries its folder and list.
 struct SlashCommand: Identifiable {
     let name: String        // no leading "/", e.g. "review" or "prompts:draftpr"
     let description: String
     let argumentHint: String
-    let source: String      // builtin | project | user
+    let source: String      // builtin | project | user | lpm
+    let folder: String?
+    let scope: LpmCommandScope?
 
-    var id: String { name }
+    var id: String { "\(source):\(scope?.rawValue ?? ""):\(name)" }
+    var isLpm: Bool { source == "lpm" }
 
     /// Where it comes from, as the desktop's menu tags it.
     var sourceLabel: String? {
@@ -2168,6 +2179,8 @@ struct SlashCommand: Identifiable {
         description = o["description"] as? String ?? ""
         argumentHint = o["argumentHint"] as? String ?? ""
         source = o["source"] as? String ?? ""
+        folder = o["folder"] as? String
+        scope = (o["scope"] as? String).flatMap(LpmCommandScope.init(rawValue:))
     }
 }
 

@@ -2,6 +2,7 @@ package cx.lpm.mobile.feature.terminal.composer
 
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.snapshots.Snapshot
+import cx.lpm.mobile.core.data.commands.LpmCommandsStore
 import cx.lpm.mobile.core.data.git.GitStore
 import cx.lpm.mobile.core.data.services.ServiceLogsStore
 import cx.lpm.mobile.core.data.session.SessionStore
@@ -52,7 +53,8 @@ class ComposerViewModelTest {
                 },
                 SessionStore.Factory(::HistoryStore),
                 SessionStore.Factory(::ServiceLogsStore),
-                SessionStore.Factory(::GitStore)
+                SessionStore.Factory(::GitStore),
+                SessionStore.Factory(::LpmCommandsStore)
             )
         )
         val socket = t.connectReady()

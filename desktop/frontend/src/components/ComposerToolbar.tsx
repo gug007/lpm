@@ -9,6 +9,7 @@ import { ComposerMicButton } from "./ComposerMicButton";
 import { ComposerModelButton, type ComposerModelButtonProps } from "./ComposerModelButton";
 import { ComposerMoreButton, type ComposerMenuHost } from "./ComposerMoreButton";
 import { ComposerNewInputButton } from "./ComposerNewInputButton";
+import { ComposerSaveCommandButton } from "./ComposerSaveCommandButton";
 import { ComposerToolbarSlot } from "./ComposerToolbarSlot";
 import { SquarePenIcon } from "./icons";
 import { SendSplitButton, type SendSplitButtonProps } from "./SendSplitButton";
@@ -43,6 +44,8 @@ interface ComposerToolbarProps {
   memory: ComposerMemoryButtonProps | null;
   model: ComposerModelButtonProps | null;
   fork: ComposerForkProps;
+  // Saving the prompt as an lpm command; null where the terminal runs no agent.
+  saveCommand: { disabled: boolean; onSave: () => void } | null;
   send: SendSplitButtonProps;
   // History › Drafts asked for from outside the row (a toast's Open Drafts),
   // wherever the Drafts tool sits.
@@ -62,6 +65,7 @@ export function ComposerToolbar({
   memory,
   model,
   fork,
+  saveCommand,
   send,
   draftsOpen,
   onDraftsClose,
@@ -79,6 +83,7 @@ export function ComposerToolbar({
     model: model !== null,
     fork: fork.canFork,
     forkCopy: fork.canForkCopy,
+    saveCommand: saveCommand !== null,
   });
 
   const renderTool = (id: ComposerToolId, variant: ComposerToolVariant, host?: ComposerMenuHost) => {
@@ -157,6 +162,19 @@ export function ComposerToolbar({
               fork.onForkCopy();
             }}
           />
+        );
+      case "saveCommand":
+        return (
+          saveCommand && (
+            <ComposerSaveCommandButton
+              variant={variant}
+              disabled={saveCommand.disabled}
+              onClick={() => {
+                host?.close();
+                saveCommand.onSave();
+              }}
+            />
+          )
         );
     }
   };

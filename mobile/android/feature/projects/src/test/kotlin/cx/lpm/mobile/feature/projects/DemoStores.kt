@@ -4,6 +4,7 @@ import cx.lpm.mobile.core.data.actions.ActionsStore
 import cx.lpm.mobile.core.data.agents.AgentLaunchStore
 import cx.lpm.mobile.core.data.automations.AutomationsStore
 import cx.lpm.mobile.core.data.claude.ClaudeAccountsStore
+import cx.lpm.mobile.core.data.commands.LpmCommandsStore
 import cx.lpm.mobile.core.data.config.ProjectConfigStore
 import cx.lpm.mobile.core.data.files.ProjectFilesStore
 import cx.lpm.mobile.core.data.git.GitAutoStore
@@ -30,7 +31,8 @@ val ScreenStores: Set<SessionStore.Factory> = setOf(
     SessionStore.Factory(::UsageStore),
     SessionStore.Factory(::MachineImporter),
     SessionStore.Factory(::AgentLaunchStore),
-    SessionStore.Factory(::ProjectFilesStore)
+    SessionStore.Factory(::ProjectFilesStore),
+    SessionStore.Factory(::LpmCommandsStore)
 )
 
 /** A session in Demo Mode with the sample Mac's first answers in. */

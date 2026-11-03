@@ -52,7 +52,7 @@ describe("withComposerToolbar", () => {
 
 describe("composerMenuTools", () => {
   it("is everything the row does not hold", () => {
-    expect(composerMenuTools(DEFAULT_COMPOSER_TOOLBAR)).toEqual(["forkCopy"]);
+    expect(composerMenuTools(DEFAULT_COMPOSER_TOOLBAR)).toEqual(["forkCopy", "saveCommand"]);
     expect(composerMenuTools(COMPOSER_TOOL_IDS)).toEqual([]);
   });
 });

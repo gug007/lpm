@@ -83,6 +83,9 @@ struct DemoWorld {
     // Keep awake: the demo Mac starts kept awake while its agents work.
     var keepAwakeMode = "agents"
     var keepAwakeEndsAt: Date?
+    // lpm commands: the global list, and each project's own once it's asked for.
+    var commandsGlobal = DemoWorld.globalCommandsSeed
+    var commandsByProject: [String: CommandList] = [:]
     // Poll counters ("project\nservice") so service logs grow between polls.
     var serviceLogTicks: [String: Int] = [:]
     var serviceLogWatches: [String: Int] = [:]   // project + "\n" + pane -> watch token

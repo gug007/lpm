@@ -561,6 +561,12 @@ export function graphemeCount(s: string): number {
 // execCommand("insertText") so the result flows through the same normalize path
 // as ordinary typing. Returns false when no "/" fragment is found.
 export function replaceSlashFragment(root: HTMLElement, name: string): boolean {
+  return replaceSlashFragmentWith(root, `/${name} `);
+}
+
+// The same swap with arbitrary `text`: an lpm command's whole prompt, which may
+// run over several lines (inserted as "\n" characters, like a mention's logs).
+export function replaceSlashFragmentWith(root: HTMLElement, text: string): boolean {
   const line = lineBeforeCaret(root);
   if (line === null) return false;
   const slash = line.lastIndexOf("/");
@@ -570,7 +576,8 @@ export function replaceSlashFragment(root: HTMLElement, name: string): boolean {
   const fragLen = graphemeCount(line.slice(slash)); // "/" plus the typed fragment
   for (let i = 0; i < fragLen; i++)
     sel.modify("extend", "backward", "character");
-  document.execCommand("insertText", false, `/${name} `);
+  if (text.includes("\n")) insertPlainText(root, text);
+  else document.execCommand("insertText", false, text);
   return true;
 }
 

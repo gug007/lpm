@@ -1,7 +1,7 @@
 package cx.lpm.mobile.feature.memory.session
 
 import androidx.compose.runtime.Immutable
-import cx.lpm.mobile.feature.memory.data.MemoryFeedback
+import cx.lpm.mobile.core.model.HapticCue
 import cx.lpm.mobile.feature.memory.data.MemoryState
 import cx.lpm.mobile.feature.memory.data.memoryKey
 import cx.lpm.mobile.feature.memory.format.memoryLastAgent
@@ -26,7 +26,7 @@ data class MemorySessionUiState(
     val deleteError: String? = null,
     /** The session was deleted while this page showed: it closes. */
     val deleted: Boolean = false,
-    val feedback: MemoryFeedback? = null
+    val feedback: HapticCue? = null
 ) {
     val canEdit: Boolean get() = content != null && !deleting
 }

@@ -15,6 +15,7 @@ struct ProjectMenuHost: ViewModifier {
     @State private var showFiles = false
     @State private var showResume = false
     @State private var showMemory = false
+    @State private var showCommands = false
     @State private var showNotes = false
     @State private var showAutomations = false
     @State private var showHistory = false
@@ -49,6 +50,7 @@ struct ProjectMenuHost: ViewModifier {
             .navigationDestination(isPresented: $showChanges) { GitReviewView(project: project) }
             .navigationDestination(isPresented: $showFiles) { ProjectFilesScreen(project: project) }
             .navigationDestination(isPresented: $showMemory) { MemoryScreen(project: project) }
+            .navigationDestination(isPresented: $showCommands) { CommandsScreen(project: project.name) }
             .navigationDestination(isPresented: $showNotes) { NotesScreen(project: project.name) }
             .navigationDestination(isPresented: $showAutomations) { AutomationsView(project: project.name) }
             .navigationDestination(isPresented: $showHistory) { CommitHistoryScreen(project: project) }
@@ -132,6 +134,7 @@ struct ProjectMenuHost: ViewModifier {
                                       onFiles: model.canBrowseFiles(project) ? { showFiles = true } : nil,
                                       onResumeSession: model.canResumeSessions(project) ? { showResume = true } : nil,
                                       onMemory: { showMemory = true },
+                                      onCommands: model.lpmCommandsAvailable ? { showCommands = true } : nil,
                                       onNotes: { showNotes = true },
                                       onAutomations: { showAutomations = true },
                                       onSwitchBranch: { showBranchSheet = true },

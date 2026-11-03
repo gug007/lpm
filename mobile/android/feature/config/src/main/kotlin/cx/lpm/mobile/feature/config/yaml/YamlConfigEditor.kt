@@ -32,10 +32,10 @@ import cx.lpm.mobile.core.designsystem.component.CapsuleButton
 import cx.lpm.mobile.core.designsystem.component.LpmAlert
 import cx.lpm.mobile.core.designsystem.component.SegmentedControl
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
+import cx.lpm.mobile.core.ui.EditorTopBar
 import cx.lpm.mobile.feature.config.R
 import cx.lpm.mobile.feature.config.ui.BarBottomGap
 import cx.lpm.mobile.feature.config.ui.CodeEditor
-import cx.lpm.mobile.feature.config.ui.EditorTopBar
 
 /**
  * The raw file editor: the layer picker, then the layer's text — or why it can't be

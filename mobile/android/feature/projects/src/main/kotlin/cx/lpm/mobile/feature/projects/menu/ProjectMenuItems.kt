@@ -31,6 +31,8 @@ class ProjectMenuActions(
     val files: (() -> Unit)? = null,
     val resumeSession: (() -> Unit)? = null,
     val memory: () -> Unit = {},
+    /** Null leaves Commands out: the Mac doesn't keep lpm commands. */
+    val commands: (() -> Unit)? = null,
     val notes: () -> Unit = {},
     val automations: () -> Unit = {},
     val pickStatus: (WorkStatusChoice?) -> Unit = {},
@@ -43,9 +45,8 @@ class ProjectMenuActions(
 
 /**
  * The project's "More" menu: Start/Stop, Review Changes, Files, Resume Session, Git,
- * Memory, Notes,
- * Automations, Claude Account, Status, its profiles, then Rename, Configure and
- * Terminal Settings.
+ * Memory, Commands, Notes, Automations, Claude Account, Status, its profiles, then
+ * Rename, Configure and Terminal Settings.
  */
 @Composable
 fun ColumnScope.ProjectMenuItems(
@@ -100,6 +101,13 @@ fun ColumnScope.ProjectMenuItems(
             title = stringResource(ProjectsR.string.menu_memory),
             onClick = actions.memory,
             icon = painterResource(R.drawable.ic_psychology)
+        )
+    }
+    actions.commands?.let {
+        ContextMenuItem(
+            title = stringResource(ProjectsR.string.menu_commands),
+            onClick = it,
+            icon = painterResource(R.drawable.ic_slash_circle)
         )
     }
     ContextMenuItem(

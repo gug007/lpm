@@ -24,6 +24,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import cx.lpm.mobile.core.designsystem.R as DesignR
 import cx.lpm.mobile.core.designsystem.component.ActivityIndicator
+import cx.lpm.mobile.core.designsystem.component.EmptyState
 import cx.lpm.mobile.core.designsystem.component.GlassButtonGroup
 import cx.lpm.mobile.core.designsystem.component.GlassGroupButton
 import cx.lpm.mobile.core.designsystem.component.GlassIconButton
@@ -32,7 +33,6 @@ import cx.lpm.mobile.core.designsystem.component.MarkdownText
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.feature.memory.R
 import cx.lpm.mobile.feature.memory.ui.GlassGroupTextButton
-import cx.lpm.mobile.feature.memory.ui.MemoryUnavailable
 
 /** What the session page's bar and overlay do. */
 @Immutable
@@ -148,7 +148,7 @@ private fun SessionOverlay(state: MemorySessionUiState, onRetry: () -> Unit) {
         when {
             state.loading -> ActivityIndicator()
 
-            error != null -> MemoryUnavailable(
+            error != null -> EmptyState(
                 title = stringResource(R.string.memory_session_open_failed),
                 icon = painterResource(DesignR.drawable.ic_unknown_document),
                 description = error,

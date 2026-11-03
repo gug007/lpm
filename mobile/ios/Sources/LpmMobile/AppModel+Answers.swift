@@ -36,7 +36,7 @@ extension AppModel {
 
     func wireAnswers(_ c: LpmClient) {
         c.onAnswers = { [weak self] reqId, answers, error in
-            self?.answerRequests.deliver(reqId: reqId, answers: answers, error: error)
+            self?.answerRequests.deliver(reqId: reqId, answers, error: error)
         }
     }
 }

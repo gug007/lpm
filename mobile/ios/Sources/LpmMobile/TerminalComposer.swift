@@ -46,6 +46,9 @@ struct TerminalComposer: View {
     @State private var showHistory = false
     @State private var showMemory = false
     @State private var showActions = false
+    @State private var showCommands = false
+    @State private var commandDraft: LpmCommandDraft?
+    @State private var expandingCommand = false
     @State private var showRewriteHint = false
     @State private var dupSeed: DupSeed?
     @State private var sendWarning: String?
@@ -73,6 +76,10 @@ struct TerminalComposer: View {
     }
     private var memoryAvailable: Bool {
         terminalTools && !(model.projects.first { $0.name == project }?.isRemote ?? false)
+    }
+    /// The user's lpm commands run here: an agent terminal on a Mac that keeps them.
+    private var lpmCommandsOn: Bool {
+        terminalTools && !terminalCli.isEmpty && model.lpmCommandsAvailable
     }
 
     /// Park the invocation at the end of whatever is already typed rather than
@@ -112,9 +119,7 @@ struct TerminalComposer: View {
     }
     private var slashMatches: [SlashCommand] {
         guard let q = slashQuery else { return [] }
-        let all = model.slashCommands[termId] ?? []
-        guard !q.isEmpty else { return all }
-        return all.filter { $0.name.localizedCaseInsensitiveContains(q) }
+        return (model.slashCommands[termId] ?? []).matching(q)
     }
     /// After a fully-typed "/command " (single trailing space), the ghost hint to
     /// draw dimmed after the caret.
@@ -247,6 +252,9 @@ struct TerminalComposer: View {
                 ComposerVariantsSheet(store: store)
             }
             .sheet(item: $dupSeed) { seed in dupSheet(seed) }
+            .modifier(ComposerLpmCommands(project: project, menuOpen: lpmCommandsOn && slashQuery != nil,
+                                          showCommands: $showCommands, draft: $commandDraft,
+                                          reloadMenu: { model.loadSlash(termId, project: project) }))
             .modifier(ComposerAlerts(sendWarning: $sendWarning, transformError: $store.transformError,
                                      uploadError: $store.uploadError))
     }
@@ -268,7 +276,9 @@ struct TerminalComposer: View {
                 transformLockBar
                 Divider().opacity(0.5)
             } else if !slashMatches.isEmpty {
-                SlashMenu(commands: slashMatches, pick: pick)
+                SlashMenu(commands: slashMatches, agentLabel: agentCommandsLabel(terminalCli), pick: pick,
+                          onManage: lpmCommandsOn ? { showCommands = true } : nil,
+                          maxHeight: verticalSizeClass == .compact ? 110 : 220)
                 Divider().opacity(0.5)
             } else if mentionActive && hasMentionContent {
                 ComposerMentionMenu(
@@ -482,6 +492,10 @@ struct TerminalComposer: View {
             if memoryAvailable {
                 Button { showMemory = true } label: { Label("Memory", systemImage: "brain") }
             }
+            if lpmCommandsOn {
+                Button { saveAsCommand() } label: { Label("Save as command", systemImage: "text.badge.plus") }
+                    .disabled(store.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
             Button { store.newTab() } label: { Label("New prompt", systemImage: "plus.bubble") }
             Button { showHistory = true } label: { Label("History", systemImage: "clock.arrow.circlepath") }
             if terminalTools, let onFind {
@@ -598,7 +612,18 @@ struct TerminalComposer: View {
 
     // MARK: actions
 
+    /// Sending `/name args` for one of the user's lpm commands sends its prompt
+    /// instead, filled in by the Mac.
     private func send() {
+        guard !expandingCommand else { return }
+        if lpmCommandsOn, let run = LpmCommandRules.parseRun(store.text), let cmd = lpmCommand(run.name) {
+            runLpmCommand(cmd.name, args: run.args)
+            return
+        }
+        sendComposed()
+    }
+
+    private func sendComposed() {
         switch sendState {
         case .empty:
             return
@@ -641,11 +666,68 @@ struct TerminalComposer: View {
     private static let notSentWarning = "Not sent — lpm isn't connected to your Mac right now. Your message is still here."
 
     private func pick(_ cmd: SlashCommand) {
+        if cmd.isLpm { return pickLpmCommand(cmd) }
+        insertSlashCommand(cmd)
+    }
+    private func insertSlashCommand(_ cmd: SlashCommand) {
+        replaceSlashFragment(with: "/\(cmd.name) ")
+    }
+    private func replaceSlashFragment(with replacement: String) {
         let text = store.text
-        let head = text.lastIndex(of: "/").map { String(text[..<$0]) } ?? ""
-        store.text = head + "/\(cmd.name) "
+        let head = text.lastIndex(of: "/").map { String(text[..<$0]) } ?? text
+        store.text = head + replacement
         focused = true
     }
+
+    // MARK: lpm commands
+
+    private func lpmCommand(_ name: String) -> SlashCommand? {
+        (model.slashCommands[termId] ?? []).first { $0.isLpm && $0.name.caseInsensitiveCompare(name) == .orderedSame }
+    }
+
+    /// Picked on a message that is just the command, it runs, or leaves `/name `
+    /// when it asks for arguments; picked mid-message, its prompt takes the
+    /// fragment's place to edit.
+    private func pickLpmCommand(_ cmd: SlashCommand) {
+        let text = store.text
+        let whole = text.lastIndex(of: "/").map { text[..<$0].allSatisfy(\.isWhitespace) } ?? false
+        if whole && !cmd.argumentHint.isEmpty { return insertSlashCommand(cmd) }
+        if whole { return runLpmCommand(cmd.name, args: "") }
+        expandLpmCommand(cmd.name, args: "") { replaceSlashFragment(with: $0.text) }
+    }
+
+    /// A run with every variable given sends its prompt like a typed message; one
+    /// still unfilled leaves the prompt in the input to finish by hand.
+    private func runLpmCommand(_ name: String, args: String) {
+        expandLpmCommand(name, args: args) { expanded in
+            store.text = expanded.text
+            if expanded.missing.isEmpty {
+                sendComposed()
+            } else {
+                sendWarning = LpmCommandRules.missingNote(expanded.missing)
+                focused = true
+            }
+        }
+    }
+
+    private func expandLpmCommand(_ name: String, args: String, then use: @escaping (LpmCommandExpansion) -> Void) {
+        expandingCommand = true
+        Task {
+            defer { expandingCommand = false }
+            do {
+                use(try await model.lpmCommands.expand(project, name: name, args: args))
+            } catch {
+                sendWarning = error.localizedDescription
+            }
+        }
+    }
+
+    /// A new command holding the typed prompt, in this project's list; the editor
+    /// moves it to the global one when the Mac says the project has none.
+    private func saveAsCommand() {
+        commandDraft = .new(scope: .project, body: store.text.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
     private func pickPath(_ path: String) {
         replaceMention(with: "@\(path) ")
     }
@@ -818,194 +900,6 @@ private struct CameraPicker: UIViewControllerRepresentable {
             parent.dismiss()
         }
         func imagePickerControllerDidCancel(_ picker: UIImagePickerController) { parent.dismiss() }
-    }
-}
-
-/// Slash-command autocomplete list, shown above the input while the user is typing
-/// a "/command". Tapping a row fills the command into the field.
-private struct SlashMenu: View {
-    let commands: [SlashCommand]
-    let pick: (SlashCommand) -> Void
-
-    var body: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                ForEach(commands) { cmd in
-                    Button { pick(cmd) } label: {
-                        HStack(alignment: .firstTextBaseline, spacing: 8) {
-                            Text("/\(cmd.name)")
-                                .font(.system(size: 14, weight: .semibold, design: .monospaced))
-                                .foregroundStyle(.primary)
-                            if !cmd.argumentHint.isEmpty {
-                                Text(cmd.argumentHint)
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(.tertiary)
-                            }
-                            Spacer(minLength: 8)
-                            if !cmd.description.isEmpty {
-                                Text(cmd.description)
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
-                                    .frame(maxWidth: 180, alignment: .trailing)
-                            }
-                            if let source = cmd.sourceLabel {
-                                Text(source.uppercased())
-                                    .font(.system(size: 9, weight: .medium))
-                                    .kerning(0.6)
-                                    .foregroundStyle(.tertiary)
-                                    .fixedSize()
-                            }
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    Divider().opacity(0.4)
-                }
-            }
-        }
-        .frame(maxHeight: 220)
-    }
-}
-
-/// Grouped @-mention autocomplete, ordered like the desktop: working-tree changes,
-/// then files/dirs, then git branches (once a fragment is typed), then context
-/// sources — this terminal's output and per-service logs, which inject inline.
-private struct ComposerMentionMenu: View {
-    @Environment(AppModel.self) private var model
-    let project: String
-    let changed: [MentionEntry]
-    let files: [MentionEntry]
-    let branches: [GitBranch]
-    let services: [ServiceInfo]
-    let pickPath: (String) -> Void
-    let pickBranch: (String) -> Void
-    let includeTerminalOutput: Bool
-    let pickTerminalOutput: () -> Void
-    let pickServiceLog: (ServiceInfo) -> Void
-    // The composer forces dark for the terminal; the preview sheet follows the system.
-    let previewColorScheme: ColorScheme
-    // The file to preview (tapped via the eye button, distinct from the row's
-    // primary insert-mention tap).
-    @State private var previewTarget: FilePreviewTarget?
-
-    var body: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                if !changed.isEmpty {
-                    header("Changes")
-                    ForEach(changed) { e in pathRow(e) }
-                }
-                if !files.isEmpty {
-                    header("Files")
-                    ForEach(files) { e in pathRow(e) }
-                }
-                if !branches.isEmpty {
-                    header("Branches")
-                    ForEach(branches) { b in branchRow(b) }
-                }
-                if includeTerminalOutput || !services.isEmpty {
-                    header("Context")
-                    if includeTerminalOutput {
-                        contextRow(icon: "terminal", title: "This terminal's output",
-                                   subtitle: "Insert recent output", action: pickTerminalOutput)
-                    }
-                    ForEach(services) { s in
-                        contextRow(icon: "square.stack.3d.up", title: "\(s.name) logs",
-                                   subtitle: "Insert recent logs", action: { pickServiceLog(s) })
-                    }
-                }
-            }
-        }
-        .frame(maxHeight: 260)
-        .sheet(item: $previewTarget) { target in
-            FilePreviewSheet(target: target).environment(model)
-                .environment(\.colorScheme, previewColorScheme)
-        }
-    }
-
-    private func header(_ text: String) -> some View {
-        HStack {
-            Text(text.uppercased())
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.tertiary)
-            Spacer()
-        }
-        .padding(.horizontal, 16)
-        .padding(.top, 8)
-        .padding(.bottom, 4)
-    }
-
-    @ViewBuilder private func pathRow(_ e: MentionEntry) -> some View {
-        HStack(spacing: 0) {
-            Button { pickPath(e.path) } label: {
-                HStack(spacing: 10) {
-                    Image(systemName: e.dir ? "folder" : "doc.text")
-                        .font(.system(size: 13)).foregroundStyle(.secondary).frame(width: 18)
-                    Text(e.path)
-                        .font(.system(size: 14, design: .monospaced))
-                        .foregroundStyle(.primary).lineLimit(1).truncationMode(.head)
-                    Spacer(minLength: 8)
-                    if e.changed {
-                        Text("changed").font(.system(size: 11, weight: .semibold)).foregroundStyle(.orange)
-                    }
-                }
-                .padding(.leading, 16).padding(.vertical, 9).contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            // A separate preview tap (files only) that opens the viewer instead of
-            // inserting the @-mention.
-            if !e.dir {
-                Button { previewTarget = FilePreviewTarget(project: project, path: e.path) } label: {
-                    Image(systemName: "eye")
-                        .font(.system(size: 13)).foregroundStyle(.secondary)
-                        .frame(width: 44).padding(.vertical, 9).contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Preview")
-            } else {
-                Spacer().frame(width: 16)
-            }
-        }
-        Divider().opacity(0.4)
-    }
-
-    @ViewBuilder private func branchRow(_ b: GitBranch) -> some View {
-        Button { pickBranch(b.name) } label: {
-            HStack(spacing: 10) {
-                Image(systemName: b.isRemote ? "arrow.triangle.branch" : "arrow.branch")
-                    .font(.system(size: 13)).foregroundStyle(.secondary).frame(width: 18)
-                Text(b.name)
-                    .font(.system(size: 14, design: .monospaced))
-                    .foregroundStyle(.primary).lineLimit(1).truncationMode(.head)
-                Spacer(minLength: 8)
-                if b.isRemote {
-                    Text(b.remote).font(.system(size: 11)).foregroundStyle(.tertiary)
-                }
-            }
-            .padding(.horizontal, 16).padding(.vertical, 9).contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        Divider().opacity(0.4)
-    }
-
-    @ViewBuilder private func contextRow(icon: String, title: String, subtitle: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 10) {
-                Image(systemName: icon)
-                    .font(.system(size: 13)).foregroundStyle(SwiftUI.Color.accentColor).frame(width: 18)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(title).font(.system(size: 14)).foregroundStyle(.primary).lineLimit(1)
-                    Text(subtitle).font(.system(size: 11)).foregroundStyle(.secondary)
-                }
-                Spacer(minLength: 8)
-            }
-            .padding(.horizontal, 16).padding(.vertical, 8).contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        Divider().opacity(0.4)
     }
 }
 

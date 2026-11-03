@@ -8,8 +8,10 @@ import cx.lpm.mobile.core.data.client.saveMemorySession
 import cx.lpm.mobile.core.data.session.GenerationTimeout
 import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.data.session.SessionStore
+import cx.lpm.mobile.core.model.Haptic
 import cx.lpm.mobile.core.model.MemoryList
 import cx.lpm.mobile.core.model.MemorySession
+import cx.lpm.mobile.core.model.next
 import java.time.Clock
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -279,7 +281,7 @@ class MemoryStore(private val session: MacSession, private val clock: Clock = Cl
             mutable.update {
                 it.copy(
                     conflictNotice = it.conflictNotice + (k to CONFLICT),
-                    feedback = it.next(MemoryHaptic.Error)
+                    feedback = it.feedback.next(Haptic.Error)
                 )
             }
             openSession(project, name)
@@ -297,7 +299,7 @@ class MemoryStore(private val session: MacSession, private val clock: Clock = Cl
                 savedTick = s.savedTick + (k to s.savedTick.bump(k)),
                 documents = if (updated != null) s.documents + (k to updated) else s.documents,
                 createdName = if (wasCreate) s.createdName + (project to name) else s.createdName,
-                feedback = s.next(MemoryHaptic.Success)
+                feedback = s.feedback.next(Haptic.Success)
             )
         }
         load(project)
@@ -311,7 +313,7 @@ class MemoryStore(private val session: MacSession, private val clock: Clock = Cl
                 it.copy(
                     deleting = it.deleting - k,
                     deleteError = it.deleteError + (k to error),
-                    feedback = it.next(MemoryHaptic.Error)
+                    feedback = it.feedback.next(Haptic.Error)
                 )
             }
             return
@@ -322,7 +324,7 @@ class MemoryStore(private val session: MacSession, private val clock: Clock = Cl
                 deletedTick = it.deletedTick + (k to it.deletedTick.bump(k)),
                 documents = it.documents - k,
                 documentError = it.documentError - k,
-                feedback = it.next(MemoryHaptic.Success)
+                feedback = it.feedback.next(Haptic.Success)
             )
         }
         sessionDidClose(project, name)
@@ -361,7 +363,7 @@ class MemoryStore(private val session: MacSession, private val clock: Clock = Cl
         val changed = it.saveError[k] != message
         it.copy(
             saveError = it.saveError + (k to message),
-            feedback = if (changed) it.next(MemoryHaptic.Error) else it.feedback
+            feedback = if (changed) it.feedback.next(Haptic.Error) else it.feedback
         )
     }
 

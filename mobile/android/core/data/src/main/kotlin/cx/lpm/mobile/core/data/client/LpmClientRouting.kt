@@ -2,6 +2,7 @@ package cx.lpm.mobile.core.data.client
 
 import cx.lpm.mobile.core.model.GitDiffResult
 import cx.lpm.mobile.core.protocol.Inbound
+import cx.lpm.mobile.core.protocol.LpmCommandsInbound
 
 /**
  * Hands a reply or push to its callback. The frames that drive the connection
@@ -343,6 +344,8 @@ private fun LpmClientCallbacks.routeConfigAndNotes(frame: Inbound) {
         is Inbound.MemoryDelete -> onMemoryDelete?.invoke(frame.project, frame.name, frame.error)
 
         is Inbound.MemoryChanged -> onMemoryChanged?.invoke(frame.project)
+
+        is LpmCommandsInbound -> onLpmCommands?.invoke(frame)
 
         is Inbound.NotesChats -> onNotesChats?.invoke(frame.project, frame.chats, frame.error)
 

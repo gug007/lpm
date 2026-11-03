@@ -78,6 +78,7 @@ import { isPeerName } from "../peer/markers";
 import { retainPeerSession } from "../peer/retainedSessions";
 import { useHostFollows } from "../peer/useHostFollows";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
+import { useCommandsOpen } from "../store/commandsOpen";
 import { blockingDialogOpen } from "./ui/blockingDialog";
 import { isPendingClose } from "../pendingClose";
 import type { SavedLayoutNode } from "../savedLayouts";
@@ -252,7 +253,9 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
     addToolkitToPane,
     addFilesToPane,
     addAutomationsToPane,
+    addCommandsToPane,
     openAutomationsTab,
+    openCommandsTab,
     openBrowserTab,
     closeTerminal,
     closeOtherTerminals,
@@ -630,6 +633,10 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
     (paneId: string) => focusOrAddUtility(paneId, "automations", addAutomationsToPane),
     [focusOrAddUtility, addAutomationsToPane],
   );
+  const openCommandsInPane = useCallback(
+    (paneId: string) => focusOrAddUtility(paneId, "commands", addCommandsToPane),
+    [focusOrAddUtility, addCommandsToPane],
+  );
   // The Files tab has two views; ⌘⇧E asks for the tree and ⌘⇧R for the changes.
   const showFilesView = useCallback(
     (paneId: string, view: FilesView) => {
@@ -660,6 +667,15 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
     },
     [openMemory],
   );
+
+  // Manage commands in the `/` menu, or Save as command: bring up this
+  // project's Commands tab wherever it is, else add one to the focused pane.
+  const commandsRequest = useCommandsOpen((s) => (s.open?.project === projectName ? s.open.seq : null));
+  useEffect(() => {
+    if (commandsRequest === null || !visible) return;
+    useCommandsOpen.getState().clearOpen();
+    void openCommandsTab();
+  }, [commandsRequest, visible, openCommandsTab]);
 
   // The layout restore is async, so a request that lands on a freshly mounted
   // view waits for a tree to search before it resolves (or is dropped).
@@ -762,10 +778,11 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
         memory: openMemoryInPane,
         toolkit: openToolkitInPane,
         automations: openAutomationsInPane,
+        commands: openCommandsInPane,
       }[kind];
       toggleUtilityTab(kind, open, paneId);
     },
-    [toggleUtilityTab, toggleFilesView, openMemoryInPane, openToolkitInPane, openAutomationsInPane],
+    [toggleUtilityTab, toggleFilesView, openMemoryInPane, openToolkitInPane, openAutomationsInPane, openCommandsInPane],
   );
 
   const findInPane = useCallback(
@@ -914,6 +931,7 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
       { key: "k", meta: true, shift: true },
       { key: "e", meta: true, shift: true },
       { key: "j", meta: true, shift: true },
+      { key: "o", meta: true, shift: true },
       { key: "p", meta: true, shift: false, alt: false },
       { key: "Escape", preventDefault: false },
     ],
@@ -926,6 +944,7 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
       if (matched.key === "m") return toggleUtilityTab("memory", openMemoryInPane);
       if (matched.key === "k") return toggleUtilityTab("toolkit", openToolkitInPane);
       if (matched.key === "e") return toggleFilesView("files");
+      if (matched.key === "o") return toggleUtilityTab("commands", openCommandsInPane);
       if (matched.key === "j") {
         if (hasAutomations) toggleUtilityTab("automations", openAutomationsInPane);
         return;
@@ -1308,6 +1327,7 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
             onReviewChanges={(paneId) => showFilesView(paneId, "changes")}
             onAddToolkit={openToolkitInPane}
             onAddAutomations={hasAutomations ? openAutomationsInPane : undefined}
+            onAddCommands={openCommandsInPane}
             onAddFiles={(paneId) => showFilesView(paneId, "files")}
             onResumeSession={onResumeSession}
             onCloseTerminal={closeTerminal}

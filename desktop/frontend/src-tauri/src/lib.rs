@@ -156,6 +156,14 @@ mod label_watch;
 mod lesson;
 mod lifecycle;
 mod log_streaming;
+mod lpm_commands;
+mod lpm_commands_cmds;
+mod lpm_commands_doc;
+mod lpm_commands_expand;
+mod lpm_commands_import;
+mod lpm_commands_local;
+mod lpm_commands_ops;
+mod lpm_commands_remote;
 mod mainwindow;
 mod mdns;
 mod mediacache;
@@ -239,6 +247,7 @@ mod remote_files;
 mod remote_history;
 mod remote_machines;
 mod remote_memory;
+mod remote_lpm_commands;
 mod remote_service_logs;
 mod remote_notes;
 mod remote_pins;
@@ -372,6 +381,10 @@ use agent_caps::{
     preview_agent_skill_delete, read_agent_capability, update_agent_skill, write_agent_capability,
 };
 use aigen::*;
+use lpm_commands_cmds::{
+    create_lpm_command_folder, delete_lpm_command, delete_lpm_command_folder, expand_lpm_command,
+    import_lpm_commands, list_lpm_commands, rename_lpm_command_folder, save_lpm_command,
+};
 use aigen_split::generate_commit_split;
 use browser::*;
 use claude_account_pin::*;

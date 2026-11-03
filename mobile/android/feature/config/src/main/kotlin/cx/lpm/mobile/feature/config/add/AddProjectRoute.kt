@@ -26,9 +26,9 @@ import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.core.navigation.InteractiveDismissDisabled
 import cx.lpm.mobile.core.navigation.SheetStack
 import cx.lpm.mobile.core.navigation.rememberSheetNavigator
+import cx.lpm.mobile.core.ui.EditorTopBar
 import cx.lpm.mobile.feature.config.R
 import cx.lpm.mobile.feature.config.dirs.DirBrowserPage
-import cx.lpm.mobile.feature.config.ui.EditorTopBar
 import cx.lpm.mobile.feature.config.ui.HeaderlessTopPadding
 
 /** A page of the add-project sheet: the form, or the folder browser pushed over it. */

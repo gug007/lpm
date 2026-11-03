@@ -26,6 +26,12 @@ pub fn is_portable(name: &str) -> bool {
     portable(name) == name
 }
 
+/// Whether `name` works as a file name on every platform, for files that
+/// travel between machines, such as ones committed to a repository.
+pub fn is_portable_everywhere(name: &str) -> bool {
+    windows_safe(name) == name
+}
+
 fn windows_safe(name: &str) -> String {
     let mut out: String = name
         .chars()

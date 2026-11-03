@@ -1,5 +1,6 @@
 import { AI_CLI_OPTIONS, type AICLI } from "./types";
 import { commandName } from "./path";
+import type { CommandScope } from "./lpmCommands";
 
 // One slash command surfaced by the composer's autocomplete, mirroring the Rust
 // AgentCommand returned by ListAgentCommands.
@@ -7,7 +8,10 @@ export interface SlashCommand {
   name: string; // no leading "/", e.g. "review" or "plugin:command"
   description: string;
   argumentHint: string;
-  source: "builtin" | "project" | "user";
+  source: "builtin" | "project" | "user" | "lpm";
+  // An lpm command's folder and list; absent for the agent's own commands.
+  folder?: string | null;
+  scope?: CommandScope;
 }
 
 // A "/<frag>" run ending at the caret opens the command menu. The "/" may sit

@@ -15,6 +15,7 @@ export const COMPOSER_TOOL_IDS = [
   "memory",
   "fork",
   "forkCopy",
+  "saveCommand",
   "model",
 ] as const;
 
@@ -29,11 +30,13 @@ export const COMPOSER_TOOL_LABEL: Record<ComposerToolId, string> = {
   memory: "Memory",
   fork: "Fork session",
   forkCopy: "Fork into copy",
+  saveCommand: "Save as command",
   model: "Model",
 };
 
-// Forking into a copy is a once-in-a-while move, so it starts in the menu;
-// everything else is reached often enough that a menu hop would be a tax.
+// Forking into a copy and saving a prompt as a command are once-in-a-while
+// moves, so they start in the menu; everything else is reached often enough
+// that a menu hop would be a tax.
 export const DEFAULT_COMPOSER_TOOLBAR: readonly ComposerToolId[] = [
   "mic",
   "actions",

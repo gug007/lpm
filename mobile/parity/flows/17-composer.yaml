@@ -60,12 +60,12 @@ tags: [demo, terminal, composer]
     visible: "Message"
     timeout: 5000
 - tapOn: "Message"
-- inputText: "/re"
+- inputText: "/comp"
 - extendedWaitUntil:
-    visible: "/review"
+    visible: "/compact"
     timeout: 5000
 - takeScreenshot: 5-slash
-- tapOn: "/review"
+- tapOn: "/compact"
 - inputText: "@"
 - extendedWaitUntil:
     visible: "app/checkout/page.tsx"

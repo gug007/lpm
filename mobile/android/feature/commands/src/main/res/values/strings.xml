@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="back">Back</string>
+    <string name="cancel">Cancel</string>
+    <string name="ok">OK</string>
+    <string name="done">Done</string>
+    <string name="delete">Delete</string>
+    <string name="try_again">Try Again</string>
+
+    <!-- CommandsScreen -->
+    <string name="commands_title">Commands</string>
+    <string name="commands_this_project">This project</string>
+    <string name="commands_global">Global</string>
+    <string name="commands_no_folder">No folder</string>
+    <string name="commands_new_folder">New folder</string>
+    <string name="commands_new_command">New command</string>
+    <string name="commands_folder_name">Folder name</string>
+    <string name="commands_create">Create</string>
+    <string name="commands_rename">Rename</string>
+    <string name="commands_rename_folder">Rename folder</string>
+    <string name="commands_delete_folder">Delete folder</string>
+    <string name="commands_delete_folder_title">Delete the %1$s folder?</string>
+    <string name="commands_delete_folder_message">Its commands move to No folder.</string>
+    <string name="commands_change_failed">Couldn\'t change commands</string>
+    <string name="commands_load_failed">Couldn\'t load commands</string>
+
+    <!-- CommandFolderScreen -->
+    <string name="commands_empty">No commands</string>
+    <string name="commands_empty_description">Save a prompt here, then run it by typing /name in a terminal.</string>
+
+    <!-- CommandEditorSheet -->
+    <string name="command_editor_new_title">New command</string>
+    <string name="command_editor_edit_title">Edit command</string>
+    <string name="command_editor_save">Save</string>
+    <string name="command_editor_name">Name</string>
+    <string name="command_editor_name_placeholder">fix-ticket</string>
+    <string name="command_editor_folder">Folder</string>
+    <string name="command_editor_description">Description</string>
+    <string name="command_editor_description_placeholder">Shown next to the name in the / menu</string>
+    <string name="command_editor_prompt">Prompt</string>
+    <string name="command_editor_delete">Delete command</string>
+    <string name="command_editor_delete_title">Delete /%1$s?</string>
+    <string name="command_editor_delete_message">Its file is deleted.</string>
+
+    <!-- CommandVariablesHint: %1$s and the like are monospaced tokens. -->
+    <string name="command_hint_none">Add %1$s to ask for a value when it runs; %2$s and %3$s fill themselves in.</string>
+    <string name="command_hint_asks">"Asks for %1$sfrom the words after %2$s, in order. "</string>
+    <string name="command_hint_auto">Fills in %1$sby itself.</string>
+</resources>

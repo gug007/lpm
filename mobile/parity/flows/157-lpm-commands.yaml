@@ -1,0 +1,72 @@
+# lpm commands: a project's Commands screen (this project's folders, a new
+# folder), the command editor, then the composer's "/" menu with the user's
+# commands grouped by folder ahead of the agent's own.
+appId: cx.lpm.mobile
+name: 157-lpm-commands
+tags: [demo, commands, composer]
+---
+- runFlow: subflows/enter-demo.yaml
+- tapOn: "storefront"
+- extendedWaitUntil:
+    visible: "Tabs"
+    timeout: 5000
+- tapOn: "More"
+- extendedWaitUntil:
+    visible: "Commands"
+    timeout: 5000
+- retry:
+    maxRetries: 2
+    commands:
+      - tapOn: "Commands"
+      - extendedWaitUntil:
+          visible: "Review"
+          timeout: 5000
+- assertVisible: "This project"
+- assertVisible: "Bugs"
+- assertVisible: "No folder"
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 1-commands
+- tapOn: "New folder"
+- extendedWaitUntil:
+    visible: "Create"
+    timeout: 5000
+- inputText: "Docs"
+- tapOn: "Create"
+- extendedWaitUntil:
+    visible: "Docs"
+    timeout: 5000
+- tapOn: "New command"
+- extendedWaitUntil:
+    visible: "Save"
+    timeout: 5000
+- assertVisible: "Cancel"
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 2-editor
+- tapOn: "Cancel"
+- extendedWaitUntil:
+    notVisible: "Save"
+    timeout: 5000
+- runFlow: subflows/enter-demo.yaml
+- tapOn: "storefront"
+- extendedWaitUntil:
+    visible: "Claude"
+    timeout: 5000
+- tapOn: "Claude"
+- extendedWaitUntil:
+    visible: "Add Apple Pay as a payment option in the new checkout flow"
+    timeout: 10000
+- tapOn: "Send"
+- extendedWaitUntil:
+    visible: "Message"
+    timeout: 5000
+- tapOn: "Message"
+- inputText: "/"
+- extendedWaitUntil:
+    visible: "/review-changes"
+    timeout: 5000
+- assertVisible: "Manage commands"
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 3-slash-menu

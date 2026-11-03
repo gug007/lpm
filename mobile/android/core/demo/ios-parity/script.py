@@ -492,6 +492,63 @@ at(75100, 'archiveStatus', project='mobile-app', keys=['codex_demo-mobile-app-co
 at(75200, 'closeTerminal', project='mobile-app', id='demo-mobile-app-claude')
 at(75200, 'closeTerminal', project='design-system', id='demo-design-system-claude')
 at(75300, 'projects'); at(75300, 'terminals', project='mobile-app')
+# lpm commands
+def cmd(scope, folder, name, description='', body='Do it.'):
+    return {'scope': scope, 'folder': folder, 'name': name, 'description': description, 'body': body}
+def ref(scope, folder, name):
+    return {'scope': scope, 'folder': folder, 'name': name}
+at(76000, 'lpmCommands', project='storefront', reqId='c1'); at(76000, 'lpmCommands', project='', reqId=2)
+at(76000, 'lpmCommands', project='nope'); at(76000, 'lpmCommands', project='blog', reqId=None)
+at(76000, 'slash', id='demo-storefront-claude', project='storefront')
+at(76100, 'lpmCommandExpand', project='storefront', name='fix-ticket', args='', reqId='e1')
+at(76100, 'lpmCommandExpand', project='storefront', name='fix-ticket', args='  LPM-12  now please ', reqId='e2')
+at(76100, 'lpmCommandExpand', project='storefront', name='/EXPLAIN', args='parseConfig', reqId='e3')
+at(76100, 'lpmCommandExpand', project='storefront', name='commit-parts', args='only the docs', reqId='e4')
+at(76100, 'lpmCommandExpand', project='storefront', name='nope', args='', reqId='e5')
+at(76100, 'lpmCommandExpand', project='', name='fix-ticket', args='x', reqId='e6')
+at(76100, 'lpmCommandExpand', project='', name='explain', args='', reqId='e7')
+at(76100, 'lpmCommandExpand', project='blog', name='fix-ticket', args='T-1', reqId='e8')
+at(76200, 'lpmCommandSave', project='storefront', reqId='s1',
+   command=cmd('project', None, 'ship-it', ' Ships it ', '  Ship {{what}} for {{project}} on {{ branch }} {{who}}  '),
+   previous=None)
+at(76200, 'lpmCommandSave', project='storefront', reqId='s2', command=cmd('project', 'Bugs', 'SHIP-IT'), previous=None)
+at(76200, 'lpmCommandSave', project='storefront', reqId='s3', command=cmd('project', None, '-bad'), previous=None)
+at(76200, 'lpmCommandSave', project='storefront', reqId='s4', command=cmd('project', None, 'empty', body='  \n '))
+at(76200, 'lpmCommandSave', project='storefront', reqId='s5', command=cmd('project', ' .hidden ', 'dotted'))
+at(76200, 'lpmCommandSave', project='', reqId='s6', command=cmd('project', None, 'outside'), previous=None)
+at(76200, 'lpmCommandSave', project='storefront', reqId='s7', command=cmd('global', 'git', 'tidy', 'Tidy'), previous=None)
+at(76200, 'lpmCommandSave', project='storefront', reqId='s8', command=cmd('global', 'Release', 'review-changes'))
+at(76300, 'lpmCommandSave', project='storefront', reqId='s9',
+   command=cmd('global', 'Ops', 'ship', 'Moved', 'Ship it now'), previous=ref('project', None, 'ship-it'))
+at(76300, 'lpmCommandSave', project='storefront', reqId='s10',
+   command=cmd('project', 'Review', 'review-changes', 'Renamed nothing', 'New body'),
+   previous=ref('project', 'Review', 'review-changes'))
+at(76400, 'lpmCommandFolder', project='storefront', reqId='f1', op='create', scope='project', name=' Drafts ')
+at(76400, 'lpmCommandFolder', project='storefront', reqId='f2', op='create', scope='project', name='drafts')
+at(76400, 'lpmCommandFolder', project='storefront', reqId='f3', op='create', scope='global', name='a/b')
+at(76400, 'lpmCommandFolder', project='storefront', reqId='f4', op='create', scope='global', name='  ')
+at(76400, 'lpmCommandFolder', project='storefront', reqId='f5', op='rename', scope='project', name='Bugs', newName='Fixes')
+at(76400, 'lpmCommandFolder', project='storefront', reqId='f6', op='rename', scope='project', name='Fixes', newName='DRAFTS')
+at(76400, 'lpmCommandFolder', project='storefront', reqId='f7', op='rename', scope='project', name='Gone', newName='Here')
+at(76400, 'lpmCommandFolder', project='storefront', reqId='f8', op='rename', scope='project', name='Drafts', newName='drafts')
+at(76400, 'lpmCommandFolder', project='storefront', reqId='f9', op='rename', scope='project', name='Same', newName='Same')
+at(76500, 'lpmCommandSave', project='storefront', reqId='s11', command=cmd('project', None, 'FIX-ticket'))
+at(76500, 'lpmCommandFolder', project='storefront', reqId='f10', op='delete', scope='project', name='fixes')
+at(76500, 'lpmCommandFolder', project='storefront', reqId='f11', op='delete', scope='project', name='drafts')
+at(76500, 'lpmCommandFolder', project='storefront', reqId='f12', op='delete', scope='project', name='never')
+at(76500, 'lpmCommandFolder', project='storefront', reqId='f13', op='explode', scope='project', name='Review')
+at(76600, 'lpmCommandDelete', project='storefront', reqId='d1', target=ref('project', 'Fixes', 'fix-ticket'))
+at(76600, 'lpmCommandFolder', project='storefront', reqId='f14', op='delete', scope='project', name='Fixes')
+at(76600, 'lpmCommandDelete', project='storefront', reqId='d2', target=ref('global', None, 'gone'))
+at(76600, 'lpmCommandDelete', project='', reqId='d3', target=ref('project', None, 'x'))
+at(76700, 'lpmCommandExpand', project='storefront', name='fix-ticket', args='LPM-7', reqId='e9')
+at(76700, 'lpmCommandExpand', project='storefront', name='review-changes', args='', reqId='e10')
+at(76700, 'lpmCommandExpand', project='storefront-2', name='ship', args='', reqId='e11')
+at(76800, 'lpmCommands', project='storefront', reqId='c3'); at(76800, 'lpmCommands', project='api-gateway', reqId='c4')
+at(76800, 'slash', id='demo-storefront-claude', project='storefront')
+at(76800, 'slash', id='demo-storefront-1', project='storefront')
+at(76800, 'terminals', project='mobile-app')
+at(76900, 'slash', id='demo-mobile-app-codex', project='mobile-app')
 steps.append({'at': 80000})
 steps.sort(key=lambda s: s['at'])
 for s in steps:

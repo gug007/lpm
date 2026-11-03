@@ -19,9 +19,13 @@ func paceLabel(_ pace: Pace?) -> String {
     }
 }
 
+/// lpm's own accent, the desktop's `--accent-cyan` in each appearance. lpm
+/// commands read in it.
+let accentCyan = Color(light: "#06B6D4", dark: "#22D3EE")
+
 /// The one tint usage bars are drawn in, however full they get — the desktop's
-/// `USAGE_FILL` (`--accent-cyan`) in each appearance.
-let usageTint = Color(light: "#06B6D4", dark: "#22D3EE")
+/// `USAGE_FILL`.
+let usageTint = accentCyan
 
 /// The use past a bar's pace tick — the desktop's `--accent-red`.
 let usageAheadTint = Color(light: "#EF4444", dark: "#F87171")

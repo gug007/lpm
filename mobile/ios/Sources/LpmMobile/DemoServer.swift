@@ -39,6 +39,7 @@ final class DemoServer {
         registerJobsHandlers()
         registerConfigHandlers()
         registerMemoryHandlers()
+        registerCommandsHandlers()
         registerNotesHandlers()
         registerLimitsHandlers()
         registerKeepAwakeHandlers()

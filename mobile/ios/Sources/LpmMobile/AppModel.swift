@@ -379,6 +379,8 @@ final class AppModel {
     // (`model.notes`), each split into its own store for the same reason as `git`.
     var memory = MemoryStore()
     var notes = NotesStore()
+    // The user's lpm commands (`model.lpmCommands`), same split.
+    var lpmCommands = LpmCommandsStore()
 
     // The agent plan-usage meters (`model.usage`), same split.
     var usage = UsageStore()
@@ -406,7 +408,7 @@ final class AppModel {
     // Routes byte ranges to the file preview that asked for them.
     @ObservationIgnored let fileFetches = FileFetchRouter()
     // Hands each terminal agent's answers back to the copy that asked for them.
-    @ObservationIgnored let answerRequests = AnswerRequests()
+    @ObservationIgnored let answerRequests = MacRequests<[RecentAnswer]>(timeout: .seconds(10))
 
     @ObservationIgnored private(set) var client: LpmClient?
     // The hex APNs device token (once registration succeeds). The token and a live
@@ -463,6 +465,7 @@ final class AppModel {
         gitAuto.model = self
         memory.model = self
         notes.model = self
+        lpmCommands.model = self
         usage.model = self
         tokenActivity.model = self
         macUpdate.model = self
@@ -1408,6 +1411,9 @@ final class AppModel {
         memory.model = self
         notes = NotesStore()
         notes.model = self
+        lpmCommands.failAll()
+        lpmCommands = LpmCommandsStore()
+        lpmCommands.model = self
         // And for the usage meters — their keys name the tool, not the Mac, so
         // carrying the old map over would show one Mac's numbers under another.
         usage = UsageStore()
@@ -2461,6 +2467,7 @@ final class AppModel {
         gitAuto.handleConnectionReset()
         memory.handleConnectionReset()
         notes.handleConnectionReset()
+        lpmCommands.handleConnectionReset()
         usage.handleConnectionReset()
         macUpdate.handleConnectionReset()
         keepAwake.handleConnectionReset()
@@ -2662,6 +2669,7 @@ final class AppModel {
         wireGit(c)
         wireMemory(c)
         wireNotes(c)
+        wireLpmCommands(c)
         wireComposer(c)
         wireBackground(c)
         wireHistory(c)

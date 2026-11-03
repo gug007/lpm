@@ -1,4 +1,4 @@
-package cx.lpm.mobile.feature.config.ui
+package cx.lpm.mobile.core.ui
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
@@ -12,10 +12,8 @@ import androidx.compose.ui.unit.dp
 import cx.lpm.mobile.core.designsystem.component.ActivityIndicator
 import cx.lpm.mobile.core.designsystem.component.ActivityIndicatorSize
 import cx.lpm.mobile.core.designsystem.component.GlassCapsuleButton
-import cx.lpm.mobile.core.designsystem.component.ListDefaults
 import cx.lpm.mobile.core.designsystem.component.LpmTopBar
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
-import cx.lpm.mobile.feature.config.R
 
 /**
  * An editor sheet's bar: "Cancel", the title, and the bold confirm button — a spinner
@@ -36,7 +34,7 @@ fun EditorTopBar(
         modifier = modifier.padding(top = 16.dp),
         windowInsets = WindowInsets(0),
         leading = {
-            GlassCapsuleButton(text = stringResource(R.string.cancel), onClick = onCancel)
+            GlassCapsuleButton(text = stringResource(R.string.ui_cancel), onClick = onCancel)
         },
         trailing = {
             if (busy) {
@@ -54,9 +52,3 @@ fun EditorTopBar(
         }
     )
 }
-
-/** A form whose first section has no header keeps the room iOS leaves for one. */
-val HeaderlessTopPadding = ListDefaults.ContentTopPadding + 18.dp
-
-/** iOS's inline navigation bar ends this far below [EditorTopBar]'s buttons. */
-val BarBottomGap = 10.dp

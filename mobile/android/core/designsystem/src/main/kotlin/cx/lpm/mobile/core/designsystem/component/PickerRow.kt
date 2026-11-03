@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -19,6 +20,10 @@ import androidx.compose.ui.unit.dp
 import cx.lpm.mobile.core.designsystem.R
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 
+/** One group of a [PickerRow]'s options, under its [title] when it has one. */
+@Immutable
+data class PickerSection<T>(val title: String?, val options: List<T>)
+
 /**
  * A menu-style `Picker` row: the title, then the selected option in gray with the
  * up-down chevrons. Tapping it opens a [ContextMenu] over the value with a check
@@ -28,6 +33,29 @@ import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 fun <T> PickerRow(
     title: String,
     options: List<T>,
+    selected: T,
+    onSelect: (T) -> Unit,
+    optionLabel: (T) -> String,
+    modifier: Modifier = Modifier,
+    optionIcon: ((T) -> Int)? = null
+) {
+    PickerRow(
+        title = title,
+        sections = listOf(PickerSection(null, options)),
+        selected = selected,
+        onSelect = onSelect,
+        optionLabel = optionLabel,
+        modifier = modifier,
+        optionIcon = optionIcon
+    )
+}
+
+/** A [PickerRow] whose menu groups its options in [sections] (`Section("…")` in a `Picker`). */
+@JvmName("SectionedPickerRow")
+@Composable
+fun <T> PickerRow(
+    title: String,
+    sections: List<PickerSection<T>>,
     selected: T,
     onSelect: (T) -> Unit,
     optionLabel: (T) -> String,
@@ -68,19 +96,23 @@ fun <T> PickerRow(
                     )
                 }
                 ContextMenu(expanded = open, onDismissRequest = { open = false }) {
-                    options.forEach { option ->
-                        ContextMenuItem(
-                            title = optionLabel(option),
-                            onClick = { onSelect(option) },
-                            icon = if (option ==
-                                selected
-                            ) {
-                                painterResource(R.drawable.ic_check)
-                            } else {
-                                null
-                            },
-                            trailingIcon = optionIcon?.let { painterResource(it(option)) }
-                        )
+                    sections.forEachIndexed { index, section ->
+                        if (index > 0) ContextMenuDivider()
+                        section.title?.let { ContextMenuSectionHeader(it) }
+                        section.options.forEach { option ->
+                            ContextMenuItem(
+                                title = optionLabel(option),
+                                onClick = { onSelect(option) },
+                                icon = if (option ==
+                                    selected
+                                ) {
+                                    painterResource(R.drawable.ic_check)
+                                } else {
+                                    null
+                                },
+                                trailingIcon = optionIcon?.let { painterResource(it(option)) }
+                            )
+                        }
                     }
                 }
             }

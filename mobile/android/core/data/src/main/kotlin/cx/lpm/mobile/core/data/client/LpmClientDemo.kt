@@ -42,6 +42,7 @@ internal fun LpmClient.connectDemo() {
                 add(LpmClient.PROJECT_PINS_FEATURE)
                 add(LpmClient.GIT_HISTORY_FEATURE)
                 add(LpmClient.KEEP_AWAKE_FEATURE)
+                add(LpmClient.LPM_COMMANDS_FEATURE)
             }
         }
         injectInbound(Wire.json(ready))

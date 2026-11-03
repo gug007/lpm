@@ -34,6 +34,7 @@ import cx.lpm.mobile.core.model.Project
 import cx.lpm.mobile.core.model.SessionKey
 import cx.lpm.mobile.core.model.TerminalInfo
 import cx.lpm.mobile.core.navigation.AutomationsKey
+import cx.lpm.mobile.core.navigation.CommandsKey
 import cx.lpm.mobile.core.navigation.GitAutoKey
 import cx.lpm.mobile.core.navigation.GitBranchKey
 import cx.lpm.mobile.core.navigation.GitHistoryKey
@@ -95,6 +96,11 @@ fun ProjectMenuToolbar(
             null
         },
         memory = { onNavigate(MemoryKey(project, session)) },
+        commands = if (state.canManageCommands) {
+            { onNavigate(CommandsKey(project, session)) }
+        } else {
+            null
+        },
         notes = { onNavigate(NotesKey(project, session)) },
         automations = { onNavigate(AutomationsKey(project, session)) },
         pickStatus = { choice ->

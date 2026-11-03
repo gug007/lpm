@@ -35,6 +35,10 @@ internal class ComposerMode(
     val onHideTerminalKeyboard: () -> Unit = {},
     /** Find in the terminal above, offered in the "+" menu. */
     val onFind: (() -> Unit)? = null,
+    /** The project's Commands screen, from the `/` menu's "Manage commands". */
+    val onManageCommands: (() -> Unit)? = null,
+    /** The command editor seeded with the field's text, from Send's "Save as command". */
+    val onSaveAsCommand: ((String) -> Unit)? = null,
     val memorySheet: (
         @Composable (
             project: String,
@@ -143,7 +147,8 @@ internal fun ComposerHost(
                     focusField = true
                 },
                 pickServiceLog = viewModel::pickServiceLog
-            )
+            ),
+            onManageCommands = mode.onManageCommands
         ),
         plusMenu = {
             ComposerPlusMenu(
@@ -166,12 +171,18 @@ internal fun ComposerHost(
                     } else {
                         null
                     },
+                    onSaveAsCommand = mode.onSaveAsCommand?.takeIf {
+                        state.lpmCommands
+                    }?.let { save ->
+                        { save(viewModel.draftText) }
+                    },
                     onNewPrompt = viewModel::newTab,
                     onHistory = { showHistory = true },
                     onFind = mode.onFind
                 ),
                 canRewrite = state.canRewrite,
                 enabled = mode.look.enabled && !state.composer.transforming,
+                hasText = state.composer.text.isNotBlank(),
                 hasClipboardImage = context::clipboardHasImage
             )
         },
@@ -249,6 +260,8 @@ internal fun ComposerHost(
     }
     ComposerAlerts(
         sendWarning = state.sendWarning,
+        commandNotice = state.commandNotice,
+        onDismissCommandNotice = viewModel::dismissCommandNotice,
         rewriteError = state.composer.transformError,
         uploadError = state.composer.uploadError,
         onDismissWarning = viewModel::dismissWarning,

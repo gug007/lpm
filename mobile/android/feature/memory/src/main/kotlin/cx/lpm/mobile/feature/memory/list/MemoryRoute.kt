@@ -19,9 +19,9 @@ import cx.lpm.mobile.core.designsystem.component.LpmAlert
 import cx.lpm.mobile.core.designsystem.component.LpmConfirmationDialog
 import cx.lpm.mobile.core.navigation.MemoryKey
 import cx.lpm.mobile.core.navigation.MemorySessionKey
+import cx.lpm.mobile.core.ui.HapticEffect
 import cx.lpm.mobile.feature.memory.R
 import cx.lpm.mobile.feature.memory.create.MemoryCreateSheet
-import cx.lpm.mobile.feature.memory.ui.MemoryHaptics
 import kotlinx.coroutines.launch
 
 /** The session memory list wired to its ViewModel, the create sheet and navigation. */
@@ -44,7 +44,7 @@ fun MemoryRoute(
         viewModel.open()
         onDispose { viewModel.close() }
     }
-    MemoryHaptics(state.feedback)
+    HapticEffect(state.feedback)
 
     fun open(name: String, title: String) =
         onNavigate(MemorySessionKey(key.project, name, title, key.session))

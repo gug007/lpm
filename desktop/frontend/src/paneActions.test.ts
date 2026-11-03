@@ -10,14 +10,21 @@ import {
 describe("pane toolbar layout", () => {
   it("ships with Files on the toolbar and the rest in the menu", () => {
     expect(DEFAULT_PANE_TOOLBAR).toEqual(["files"]);
-    expect(paneMenuActions(DEFAULT_PANE_TOOLBAR)).toEqual(["review", "toolkit", "automations", "browser", "resume"]);
+    expect(paneMenuActions(DEFAULT_PANE_TOOLBAR)).toEqual([
+      "review",
+      "toolkit",
+      "commands",
+      "automations",
+      "browser",
+      "resume",
+    ]);
     expect(isDefaultPaneToolbar(DEFAULT_PANE_TOOLBAR)).toBe(true);
   });
 
   it("moves an item out and back without disturbing the order", () => {
     const withReview = withPaneToolbar(DEFAULT_PANE_TOOLBAR, "review", true);
     expect(withReview).toEqual(["review", "files"]);
-    expect(paneMenuActions(withReview)).toEqual(["toolkit", "automations", "browser", "resume"]);
+    expect(paneMenuActions(withReview)).toEqual(["toolkit", "commands", "automations", "browser", "resume"]);
     expect(withPaneToolbar(withReview, "review", false)).toEqual(["files"]);
     expect(withPaneToolbar(withReview, "files", false)).toEqual(["review"]);
     expect(isDefaultPaneToolbar(withReview)).toBe(false);

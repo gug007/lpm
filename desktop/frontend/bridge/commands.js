@@ -129,6 +129,30 @@ export function CheckAICLIs() {
 export function ListAgentCommands(cli, cwd) {
   return invoke("list_agent_commands", { cli, cwd });
 }
+export function ListLpmCommands(project) {
+  return invoke("list_lpm_commands", { project });
+}
+export function SaveLpmCommand(project, command, previous) {
+  return invoke("save_lpm_command", { project, command, previous });
+}
+export function DeleteLpmCommand(project, target) {
+  return invoke("delete_lpm_command", { project, target });
+}
+export function CreateLpmCommandFolder(project, scope, name) {
+  return invoke("create_lpm_command_folder", { project, scope, name });
+}
+export function RenameLpmCommandFolder(project, scope, name, newName) {
+  return invoke("rename_lpm_command_folder", { project, scope, name, newName });
+}
+export function DeleteLpmCommandFolder(project, scope, name) {
+  return invoke("delete_lpm_command_folder", { project, scope, name });
+}
+export function ImportLpmCommands(project, scope) {
+  return invoke("import_lpm_commands", { project, scope });
+}
+export function ExpandLpmCommand(project, name, args) {
+  return invoke("expand_lpm_command", { project, name, args });
+}
 export function CheckClaudeHooks() {
   return invoke("check_claude_hooks");
 }

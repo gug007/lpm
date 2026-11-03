@@ -28,6 +28,7 @@ import cx.lpm.mobile.core.web.TerminalWebPool
 import cx.lpm.mobile.feature.actions.actionsEntries
 import cx.lpm.mobile.feature.activity.activityEntries
 import cx.lpm.mobile.feature.automations.automationsEntries
+import cx.lpm.mobile.feature.commands.commandsEntries
 import cx.lpm.mobile.feature.config.configEntries
 import cx.lpm.mobile.feature.connection.ConnectionSheets
 import cx.lpm.mobile.feature.connection.ConnectionStatusBarRoute
@@ -115,6 +116,7 @@ fun LpmApp(
             settingsEntries(navigator, settingsSlots)
             notesEntries(navigator)
             memoryEntries(navigator)
+            commandsEntries(navigator)
             configEntries(navigator, configSlots)
         }
         AddMacSheetHost(pairingIssueCard)

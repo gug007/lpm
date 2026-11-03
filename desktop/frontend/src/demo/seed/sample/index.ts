@@ -4,6 +4,7 @@ import { AUTH_SERVICE_FOLDER } from "./auth-service-folder";
 import { DOCS_SITE } from "./docs-site";
 import { NEW_FOLDERS } from "./folders";
 import { SAMPLE_JOB_HISTORY, SAMPLE_JOBS } from "./jobs";
+import { SAMPLE_LPM_COMMANDS } from "./lpm-commands";
 import { ML_PIPELINE } from "./ml-pipeline";
 import { MOBILE_APP } from "./mobile-app";
 import { SAAS_APP } from "./saas-app";
@@ -23,6 +24,7 @@ export const SAMPLE: Seed = {
   ],
   jobs: SAMPLE_JOBS,
   jobHistory: SAMPLE_JOB_HISTORY,
+  lpmCommands: SAMPLE_LPM_COMMANDS,
   usage: {
     limits: sampleLimits(),
     accountsStatus: SAMPLE_ACCOUNTS_STATUS,

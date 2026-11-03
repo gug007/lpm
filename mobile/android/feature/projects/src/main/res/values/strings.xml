@@ -186,6 +186,7 @@
     </plurals>
     <string name="menu_git">Git</string>
     <string name="menu_memory">Memory</string>
+    <string name="menu_commands">Commands</string>
     <string name="menu_notes">Notes</string>
     <plurals name="menu_new_runs">
         <item quantity="one">%1$d with new runs</item>

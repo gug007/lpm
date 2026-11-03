@@ -21,7 +21,9 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cx.lpm.mobile.core.data.terminals.TerminalHooks
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
+import cx.lpm.mobile.core.navigation.CommandEditorKey
 import cx.lpm.mobile.core.navigation.FilePreviewKey
+import cx.lpm.mobile.core.navigation.ManageCommandsKey
 import cx.lpm.mobile.core.navigation.Navigator
 import cx.lpm.mobile.core.navigation.TerminalKey
 import cx.lpm.mobile.core.web.TerminalWebController
@@ -173,6 +175,14 @@ internal fun TerminalRoute(
                         slots = slots,
                         onHideTerminalKeyboard = controller::hideKeyboard,
                         onFind = { findOpen = true },
+                        onManageCommands = {
+                            navigator.navigate(ManageCommandsKey(key.project, key.session))
+                        },
+                        onSaveAsCommand = { text ->
+                            navigator.navigate(
+                                CommandEditorKey(key.project, body = text, session = key.session)
+                            )
+                        },
                         onPreviewFile = { path ->
                             navigator.navigate(
                                 FilePreviewKey(key.project, listOf(path), session = key.session)

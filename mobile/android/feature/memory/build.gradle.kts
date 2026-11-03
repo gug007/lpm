@@ -3,5 +3,7 @@ plugins {
 }
 
 dependencies {
+    implementation(projects.core.ui)
+
     testImplementation(projects.core.testing)
 }

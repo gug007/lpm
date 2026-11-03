@@ -17,6 +17,7 @@ import cx.lpm.mobile.core.data.client.NoTailnet
 import cx.lpm.mobile.core.data.client.OkHttpTransport
 import cx.lpm.mobile.core.data.client.SocketTransport
 import cx.lpm.mobile.core.data.client.TailnetRouter
+import cx.lpm.mobile.core.data.commands.LpmCommandsStore
 import cx.lpm.mobile.core.data.config.ProjectConfigStore
 import cx.lpm.mobile.core.data.files.ProjectFilesStore
 import cx.lpm.mobile.core.data.git.GitAutoStore
@@ -229,6 +230,10 @@ object DataModule {
     @Provides
     @IntoSet
     fun gitAutoStoreFactory(): SessionStore.Factory = SessionStore.Factory(::GitAutoStore)
+
+    @Provides
+    @IntoSet
+    fun lpmCommandsStoreFactory(): SessionStore.Factory = SessionStore.Factory(::LpmCommandsStore)
 
     @Provides
     @IntoSet

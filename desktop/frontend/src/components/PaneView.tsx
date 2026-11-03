@@ -1,3 +1,4 @@
+import { CommandsView } from "./commands/CommandsView";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import type { ITheme } from "@xterm/xterm";
 import { type InteractivePaneHandle } from "./InteractivePane";
@@ -49,7 +50,7 @@ import type { UtilityTabKind } from "./terminal/utilityTabToggle";
 import { TerminalSearchBar } from "./terminal/TerminalSearchBar";
 import type { FindDirection, FindOptions, FindOutcome, FindResults } from "./terminal/terminalFind";
 import { XIcon, GlobeIcon, TerminalIcon, ZapIcon, BrainIcon, LayersIcon, FolderIcon, SourceControlIcon, ClockIcon } from "./icons";
-import { Columns2 } from "lucide-react";
+import { Columns2, SquareSlash } from "lucide-react";
 import { Tooltip } from "./ui/Tooltip";
 import { SortableTab, TabStrip } from "./TerminalTabDnd";
 import { TerminalComposer } from "./TerminalComposer";
@@ -157,6 +158,7 @@ function TabIcon({ tab }: { tab: TerminalInstance }) {
   if (tab.kind === "toolkit") return <LayersIcon />;
   if (tab.kind === "files") return <FilesTabIcon id={tab.id} />;
   if (tab.kind === "automations") return <ClockIcon size={14} />;
+  if (tab.kind === "commands") return <SquareSlash size={14} strokeWidth={1.75} />;
   if (tab.emoji)
     return (
       <span
@@ -233,6 +235,7 @@ export interface PaneViewProps {
   onAddFiles: (paneId: string) => void;
   // Absent outside a local project, which takes the action off the header.
   onAddAutomations?: (paneId: string) => void;
+  onAddCommands: (paneId: string) => void;
   onResumeSession?: () => void;
   onCloseTerminal: (paneId: string, tabIdx: number) => void;
   onCloseOtherTerminals: (paneId: string, tabIdx: number) => void;
@@ -334,6 +337,7 @@ function PaneViewImpl(props: PaneViewProps) {
     onAddToolkit,
     onAddFiles,
     onAddAutomations,
+    onAddCommands,
     onResumeSession,
     onCloseTerminal,
     onCloseOtherTerminals,
@@ -409,7 +413,8 @@ function PaneViewImpl(props: PaneViewProps) {
     (activeTerm?.kind === "memory" ||
       activeTerm?.kind === "toolkit" ||
       activeTerm?.kind === "files" ||
-      activeTerm?.kind === "automations")
+      activeTerm?.kind === "automations" ||
+      activeTerm?.kind === "commands")
       ? activeTerm.kind
       : null;
   const paneActions = usePaneToolbar({
@@ -429,13 +434,15 @@ function PaneViewImpl(props: PaneViewProps) {
           return fromToolbar ? onToggleUtility(pane.id, "toolkit") : onAddToolkit(pane.id);
         case "automations":
           return fromToolbar ? onToggleUtility(pane.id, "automations") : onAddAutomations?.(pane.id);
+        case "commands":
+          return fromToolbar ? onToggleUtility(pane.id, "commands") : onAddCommands(pane.id);
         case "browser":
           return onAddBrowser(pane.id);
         case "resume":
           return onResumeSession?.();
       }
     },
-    [pane.id, onToggleUtility, onReviewChanges, onAddFiles, onAddToolkit, onAddAutomations, onAddBrowser, onResumeSession],
+    [pane.id, onToggleUtility, onReviewChanges, onAddFiles, onAddToolkit, onAddAutomations, onAddCommands, onAddBrowser, onResumeSession],
   );
   const composerTab =
     activeServiceName === null && activeTerm && isTerminalTab(activeTerm)
@@ -937,6 +944,10 @@ function PaneViewImpl(props: PaneViewProps) {
                     active={visible && isActive}
                     focused={focused}
                   />
+                </ErrorBoundary>
+              ) : t.kind === "commands" ? (
+                <ErrorBoundary resetKey={t.id} scope="commands">
+                  <CommandsView projectName={projectName} projectLabel={projectLabel} visible={visible && isActive} />
                 </ErrorBoundary>
               ) : t.kind === "automations" ? (
                 <ErrorBoundary resetKey={t.id} scope="automations">

@@ -17,6 +17,8 @@ struct ProjectRunControl: View {
     let onFiles: (() -> Void)?
     let onResumeSession: (() -> Void)?
     let onMemory: () -> Void
+    // nil hides Commands: the Mac doesn't keep lpm commands.
+    let onCommands: (() -> Void)?
     let onNotes: () -> Void
     let onAutomations: () -> Void
     let onSwitchBranch: () -> Void
@@ -86,6 +88,11 @@ struct ProjectRunControl: View {
             if !project.isRemote {
                 Button(action: onMemory) {
                     Label("Memory", systemImage: "brain")
+                }
+            }
+            if let onCommands {
+                Button(action: onCommands) {
+                    Label("Commands", systemImage: "slash.circle")
                 }
             }
             Button(action: onNotes) {

@@ -2,6 +2,7 @@ package cx.lpm.mobile.core.designsystem.component
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
@@ -27,13 +28,14 @@ import cx.lpm.mobile.core.designsystem.theme.LpmTheme
  * A row of an inset-grouped list: iOS 26's 52 dp minimum height and 16 dp insets, an
  * optional [leading] icon or dot in a fixed column ([leadingSlot]) so titles line up,
  * the [content], and [trailing] at the far edge. With [onClick] the row highlights
- * while pressed. [indent] nests it (a project inside a folder). The separator under
- * it starts at the content.
+ * while pressed, and [onLongClick] adds a long press. [indent] nests it (a project
+ * inside a folder). The separator under it starts at the content.
  */
 @Composable
 fun ListRow(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
+    onLongClick: (() -> Unit)? = null,
     enabled: Boolean = true,
     leading: (@Composable () -> Unit)? = null,
     leadingSlot: ListLeadingSlot = ListDefaults.IconSlot,
@@ -54,16 +56,25 @@ fun ListRow(
             .listSeparator(startInset = separatorInset)
             .fillMaxWidth()
             .then(
-                if (onClick != null) {
-                    Modifier.clickable(
+                when {
+                    onClick == null -> Modifier
+
+                    onLongClick != null -> Modifier.combinedClickable(
+                        interactionSource = interaction,
+                        indication = null,
+                        enabled = enabled,
+                        role = Role.Button,
+                        onLongClick = onLongClick,
+                        onClick = onClick
+                    )
+
+                    else -> Modifier.clickable(
                         interactionSource = interaction,
                         indication = null,
                         enabled = enabled,
                         role = Role.Button,
                         onClick = onClick
                     )
-                } else {
-                    Modifier
                 }
             )
             .background(if (pressed) LpmTheme.colors.gray4 else Color.Transparent)

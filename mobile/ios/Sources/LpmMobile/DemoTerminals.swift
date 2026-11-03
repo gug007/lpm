@@ -126,11 +126,19 @@ extension DemoServer {
             }
         }
 
+        // The user's lpm commands lead, and hide an agent command of the same
+        // name, since `/name` runs theirs.
         register("slash") { [weak self] o in
             guard let self, let id = o["id"] as? String else { return }
-            let isAgent = self.demoTerminal(id)?.cli == "claude"
-            self.push(["t": "slash", "id": id,
-                       "commands": isAgent ? self.claudeSlashCommands : []])
+            guard let term = self.demoTerminal(id), !term.cli.isEmpty else {
+                self.push(["t": "slash", "id": id, "commands": []])
+                return
+            }
+            let lpm = self.demoCommandSlashRows(term.project)
+            let taken = Set(lpm.compactMap { ($0["name"] as? String)?.lowercased() })
+            let agent = (term.cli == "claude" ? self.claudeSlashCommands : [])
+                .filter { !taken.contains(($0["name"] as? String ?? "").lowercased()) }
+            self.push(["t": "slash", "id": id, "commands": lpm + agent])
         }
         register("mentions") { [weak self] o in
             guard let self, let project = o["project"] as? String else { return }

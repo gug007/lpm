@@ -40,7 +40,8 @@ import { MessageFileChip } from "./MessageFileChip";
 import { MessageImageChip } from "./MessageImageChip";
 import { NewFolderInput } from "./NewFolderInput";
 import { ScheduledPromptList } from "./ScheduledPromptList";
-import { AlarmClock } from "lucide-react";
+import { AlarmClock, BookmarkPlus } from "lucide-react";
+import { useCommandsOpen } from "../store/commandsOpen";
 import { useSendLater } from "../store/sendLater";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { Kbd } from "./ui/Kbd";
@@ -146,6 +147,16 @@ export function TerminalHistoryPopover({
   const openFolderMenu = useCallback(
     (message: HistoryMessage, anchor: DOMRect) => setFolderMenu({ message, anchor }),
     [],
+  );
+
+  // A message worth keeping becomes an lpm command: the Commands tab opens on
+  // a new command holding it.
+  const saveAsCommand = useCallback(
+    (text: string) => {
+      onClose?.();
+      useCommandsOpen.getState().request(projectName, text);
+    },
+    [onClose, projectName],
   );
 
   // Clear only removes transient history — favorited and foldered messages are
@@ -292,6 +303,7 @@ export function TerminalHistoryPopover({
                     onPick={onPick}
                     onSend={onSend}
                     onOpenFolderMenu={openFolderMenu}
+                    onSaveAsCommand={saveAsCommand}
                   />
                 </div>
               );
@@ -579,12 +591,14 @@ const HistoryRow = memo(function HistoryRow({
   onPick,
   onSend,
   onOpenFolderMenu,
+  onSaveAsCommand,
 }: {
   message: HistoryMessage;
   source: "terminal" | "full";
   onPick: (text: string, images: Record<string, string>) => void;
   onSend?: (text: string, images: Record<string, string>) => void;
   onOpenFolderMenu: (message: HistoryMessage, anchor: DOMRect) => void;
+  onSaveAsCommand: (text: string) => void;
 }) {
   return (
     <div className="group relative flex items-start gap-2 rounded-lg pl-2.5 pr-2 transition-colors hover:bg-[var(--bg-hover)]">
@@ -674,6 +688,18 @@ const HistoryRow = memo(function HistoryRow({
               <FolderIcon />
             </button>
           )}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onSaveAsCommand(message.text);
+            }}
+            title="Save as command"
+            aria-label="Save as command"
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-active)] hover:text-[var(--accent-cyan)] group-hover:pointer-events-auto"
+          >
+            <BookmarkPlus size={13} />
+          </button>
           <button
             type="button"
             onClick={(e) => {

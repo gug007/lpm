@@ -70,7 +70,7 @@ export interface TerminalInstance {
   // the agent's conversation title, which the fork shares, takes over the label.
   forkOf?: TabFork;
   // Absent == terminal; the other kinds render in-pane views without a PTY.
-  kind?: "terminal" | "browser" | "memory" | "toolkit" | "files" | "automations";
+  kind?: "terminal" | "browser" | "memory" | "toolkit" | "files" | "automations" | "commands";
 }
 
 // What another Mac says about a tab it opened on this one, which adopts it.
@@ -245,6 +245,10 @@ export function makeFiles(id: string, label = "Files"): TerminalInstance {
 
 export function makeAutomations(id: string, label = "Automations"): TerminalInstance {
   return { id, label, kind: "automations" };
+}
+
+export function makeCommands(id: string, label = "Commands"): TerminalInstance {
+  return { id, label, kind: "commands" };
 }
 
 // A Files tab is named after its view unless the user named it themselves.

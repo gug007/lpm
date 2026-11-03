@@ -4,9 +4,9 @@ import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import cx.lpm.mobile.core.data.session.MacSessions
+import cx.lpm.mobile.core.model.HapticCue
 import cx.lpm.mobile.core.model.SessionKey
 import cx.lpm.mobile.core.model.trimmingWhitespace
-import cx.lpm.mobile.feature.memory.data.MemoryFeedback
 import cx.lpm.mobile.feature.memory.data.MemoryState
 import cx.lpm.mobile.feature.memory.data.MemoryStore
 import cx.lpm.mobile.feature.memory.format.memoryInvocation
@@ -36,7 +36,7 @@ data class ComposerMemoryUiState(
     val visible: List<PickerRowUi> = emptyList(),
     val query: String = "",
     val loading: Boolean = true,
-    val feedback: MemoryFeedback? = null
+    val feedback: HapticCue? = null
 ) {
     /** Below this a search field is more furniture than help (the desktop draws the line here). */
     val searchable: Boolean get() = sessions.size >= SEARCH_FROM

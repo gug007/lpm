@@ -6,6 +6,7 @@ import cx.lpm.mobile.core.model.WorkState
 import cx.lpm.mobile.core.model.WorkStatusInput
 import cx.lpm.mobile.core.testing.MainDispatcherRule
 import cx.lpm.mobile.core.testing.TestSession
+import cx.lpm.mobile.feature.projects.ScreenStores
 import cx.lpm.mobile.feature.projects.demoSession
 import cx.lpm.mobile.feature.projects.settle
 import kotlinx.coroutines.flow.collect
@@ -113,5 +114,19 @@ class ProjectMenuViewModelTest {
         assertTrue(vm.uiState.value.pending)
         t.settle(5_000)
         assertEquals(false, vm.uiState.value.project?.running)
+    }
+
+    @Test
+    fun `Commands shows on a Mac that keeps lpm commands`() = runTest {
+        val vm = subscribed(demoSession())
+        assertTrue(vm.uiState.value.canManageCommands)
+    }
+
+    @Test
+    fun `Commands stays out on a Mac without lpm commands`() = runTest {
+        val t = TestSession(this, ScreenStores)
+        t.connectReady()
+        val vm = subscribed(t)
+        assertEquals(false, vm.uiState.value.canManageCommands)
     }
 }

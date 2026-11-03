@@ -5,12 +5,14 @@ import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.snapshotFlow
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import cx.lpm.mobile.core.data.commands.LpmCommandsStore
 import cx.lpm.mobile.core.data.git.GitStore
 import cx.lpm.mobile.core.data.projects.ProjectsStore
 import cx.lpm.mobile.core.data.services.ServiceLogsState
 import cx.lpm.mobile.core.data.services.ServiceLogsStore
 import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.data.session.MacSessions
+import cx.lpm.mobile.core.data.terminals.TerminalsState
 import cx.lpm.mobile.core.data.terminals.TerminalsStore
 import cx.lpm.mobile.core.model.ServiceInfo
 import cx.lpm.mobile.core.model.SlashCommand
@@ -73,6 +75,22 @@ class ComposerViewModel @AssistedInject constructor(
 
     private val warning = MutableStateFlow<Int?>(null)
 
+    private val lpmCommands = ComposerLpmCommands(
+        session?.store<LpmCommandsStore>(),
+        target.project,
+        viewModelScope,
+        reloadMenu = { terminals?.loadSlash(target.termId, target.project) },
+        field = object : CommandField {
+            override val text: String get() = currentText
+
+            override fun replace(text: String) = replaceText(text)
+
+            override fun send() {
+                sendComposed(onSend = null)
+            }
+        }
+    )
+
     // The terminals and the project's git branches, the @-mention menu's sources.
     private val mentionSources = combine(
         terminals?.state ?: flowOf(null),
@@ -96,11 +114,14 @@ class ComposerViewModel @AssistedInject constructor(
             emptyList()
         }
         val mention = mentionQuery(composer.text)
+        val cli = terms.cli()
         ComposerUiState(
             composer = composer,
             terminalTools = tools,
             slashMatches = if (tools) slashMatches(composer.text, commands) else emptyList(),
             slashArgumentHint = if (tools) slashArgumentHint(composer.text, commands) else null,
+            agentLabel = agentCommandsLabel(cli),
+            lpmCommands = lpmCommands.runHere(tools, cli),
             mentionActive = mention != null,
             mentions = mention?.let {
                 mentionResults(
@@ -111,14 +132,12 @@ class ComposerViewModel @AssistedInject constructor(
                 )
             } ?: MentionResults(),
             memoryAvailable = tools && projectsState?.project(target.project)?.isRemote != true,
-            terminalCli = terms?.terminals?.get(target.project)?.firstOrNull {
-                it.id ==
-                    target.termId
-            }?.cli.orEmpty(),
+            terminalCli = cli,
             composerActions = actions,
             variantCounts = counts
         )
     }.combine(warning) { state, sendWarning -> state.copy(sendWarning = sendWarning) }
+        .combine(lpmCommands.notice) { state, notice -> state.copy(commandNotice = notice) }
         .stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5_000),
@@ -130,6 +149,11 @@ class ComposerViewModel @AssistedInject constructor(
             snapshotFlow { input.text.toString() }.collect { pushInput(it) }
         }
         serviceLogs?.let { logs -> viewModelScope.launch { logs.state.collect(::flushPendingLog) } }
+        viewModelScope.launch {
+            snapshotFlow { slashQuery(input.text.toString()) != null }
+                .distinctUntilChanged()
+                .collect { open -> if (open && lpmCommandsHere()) lpmCommands.menuOpened() }
+        }
         store?.let { store ->
             viewModelScope.launch {
                 store.state.map { it.text }.distinctUntilChanged().collect { text ->
@@ -180,6 +204,13 @@ class ComposerViewModel @AssistedInject constructor(
      * (an automation's reply), else into the terminal. True when it went out.
      */
     fun send(onSend: ((String) -> Unit)? = null): Boolean {
+        if (lpmCommands.expanding) return false
+        pushInput(input.text.toString())
+        if (lpmCommandsHere() && lpmCommands.runTyped(slashRows())) return true
+        return sendComposed(onSend)
+    }
+
+    private fun sendComposed(onSend: ((String) -> Unit)?): Boolean {
         pushInput(input.text.toString())
         return when (val state = store?.current?.sendState ?: SendState.Empty) {
             SendState.Empty -> false
@@ -197,6 +228,15 @@ class ComposerViewModel @AssistedInject constructor(
             }
         }
     }
+
+    private fun lpmCommandsHere(): Boolean =
+        lpmCommands.runHere(target.terminalTools, terminals?.state?.value.cli())
+
+    /** The agent CLI running in this terminal, "" when none is known. */
+    private fun TerminalsState?.cli(): String =
+        this?.terminals?.get(target.project)?.firstOrNull { it.id == target.termId }?.cli.orEmpty()
+
+    private fun slashRows() = terminals?.state?.value?.slashCommands?.get(target.termId).orEmpty()
 
     private fun deliver(body: String, onSend: ((String) -> Unit)?): Boolean {
         if (!submit(body, onSend)) return false
@@ -241,8 +281,15 @@ class ComposerViewModel @AssistedInject constructor(
 
     // MARK: autocomplete
 
-    fun pickSlash(command: SlashCommand) =
+    fun pickSlash(command: SlashCommand) {
+        if (command.isLpm) return lpmCommands.pick(command)
         replaceText(replacingFragment(currentText, '/', "/${command.name} "))
+    }
+
+    fun dismissCommandNotice() = lpmCommands.dismissNotice()
+
+    /** The field's text, for "Save as command". */
+    val draftText: String get() = currentText.trim()
 
     fun pickPath(path: String) = replaceMention("@$path ")
 

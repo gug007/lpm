@@ -11,6 +11,8 @@ import cx.lpm.mobile.feature.terminal.R
 @Composable
 internal fun ComposerAlerts(
     sendWarning: Int?,
+    commandNotice: CommandNotice?,
+    onDismissCommandNotice: () -> Unit,
     rewriteError: String?,
     uploadError: String?,
     onDismissWarning: () -> Unit,
@@ -24,6 +26,20 @@ internal fun ComposerAlerts(
                 stringResource(R.string.composer_heads_up),
                 stringResource(sendWarning),
                 onDismissWarning
+            )
+
+        commandNotice is CommandNotice.FillIn ->
+            Triple(
+                stringResource(R.string.composer_heads_up),
+                stringResource(R.string.composer_fill_in, commandNotice.variables),
+                onDismissCommandNotice
+            )
+
+        commandNotice is CommandNotice.Failed ->
+            Triple(
+                stringResource(R.string.composer_heads_up),
+                commandNotice.error,
+                onDismissCommandNotice
             )
 
         rewriteError != null ->

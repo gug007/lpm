@@ -27,9 +27,9 @@ import cx.lpm.mobile.core.navigation.MemorySessionKey
 import cx.lpm.mobile.core.navigation.PresentationScope
 import cx.lpm.mobile.core.navigation.SheetStack
 import cx.lpm.mobile.core.navigation.rememberSheetNavigator
+import cx.lpm.mobile.core.ui.HapticEffect
 import cx.lpm.mobile.feature.memory.R
 import cx.lpm.mobile.feature.memory.session.MemorySessionRoute
-import cx.lpm.mobile.feature.memory.ui.MemoryHaptics
 
 /** A page of the picker's sheet: the list, or a session previewed from it. */
 private sealed interface PickerPage {
@@ -102,7 +102,7 @@ private fun PickerPageContent(
     val haptics = LocalHapticFeedback.current
     var deleting by remember { mutableStateOf<PickerRowUi?>(null) }
     LaunchedEffect(viewModel) { viewModel.load() }
-    MemoryHaptics(state.feedback)
+    HapticEffect(state.feedback)
 
     fun pick(name: String) {
         haptics.performHapticFeedback(HapticFeedbackType.ContextClick)

@@ -234,6 +234,7 @@ Port order is top to bottom within each milestone below. Lines are iOS sizes.
 | Git → `:feature:git` | GitReviewView, GitFileSection, GitReviewParts, GitCommitSheet, GitCommitFilesPage, CommitDraftRow, CommitButtons, GitPrSheet, GitReviewStore, GitBranchSheet, GitAutoSheet, GitAutoStore, GitNotice, GitOpError, DiffHighlighter, DiffRendering, AgentAskSheet | 3,359 |
 | Notes → `:feature:notes` | NotesScreen, NotesChatView, NotesComposer, NotesMessageRow, NotesAttachmentView, NotesSearchStore, NotesStore, NotesTypes, NoteAttachmentStore | 1,736 |
 | Memory → `:feature:memory` | MemoryScreen, MemorySessionView, MemoryCreateSheet, MemoryEditorSheet, MemoryStore, MemoryTypes, ComposerMemorySheet | 1,167 |
+| lpm commands → `:feature:commands`, `:core:data` (`LpmCommandsStore`), `:feature:terminal` (`/` menu, runs), `:core:demo` | CommandsScreen, CommandFolderScreen, CommandFolderRow, CommandRow, CommandEditorSheet, CommandVariablesHint, ComposerLpmCommands, SlashMenu, LpmCommandTypes, LpmCommandsStore, AppModel+LpmCommands, DemoCommands | 1,378 |
 | Files / preview → `:feature:files`, `:core:web` | FileFetch, FilePreviewContent, FilePreviewKind, FilePreviewPlatformViews, FilePreviewSheet, MarkdownWebView, MarkdownImageLoader, MarkdownLink | 854 |
 | Usage / stats, Usage and Token activity widgets → `:feature:usage` | Usage*, StatsFormat, StatsScreen, TokenActivityFeed, Shared/TokenActivityStore, Shared/UsageNumbers, Shared/UsageWindows, Shared/UsageWidgetStore, Widgets/TokenActivityWidget, Widgets/TokenActivityView, Widgets/UsageWidget, Widgets/UsageWidgetView | 3,090 |
 | Claude accounts → `:feature:claudeaccount` | ClaudeAccountConsent, ClaudeAccountMenu, ClaudeAccountModel, ClaudeInUse, AppModel+ClaudeAccount | 493 |
@@ -345,7 +346,7 @@ build Android until the same flows pass there.
 2. **Play: App Bundle, Play App Signing**, with a separate upload key kept outside the
    repo. Package `cx.lpm.mobile`, the iOS bundle id; it can't change after the first upload.
 3. **Demo seed: kept identical by a test, not shared.** `:core:demo` is a line-by-line
-   port of `Demo*.swift`, and `IosParityTest` replays a fixed script of 517 frames into it
+   port of `Demo*.swift`, and `IosParityTest` replays a fixed script of 592 frames into it
    and compares every reply with goldens recorded from the iOS demo code itself, compiled
    on a Mac (`core/demo/ios-parity/generate.sh`, needs `swiftc`). A change to
    `Demo*.swift` is ported to `:core:demo` and the goldens regenerated in the same change;
@@ -402,6 +403,7 @@ prompt tab "Close", mention "Preview", history "New folder", the Git review jump
 menu ("Jump to file"), per-file "Viewed" (valued On/Off) / "More", the commit
 sheet's file rows (named by path, valued Included/Excluded) and the branch sheet's
 "New branch", Notes "New Chat", error-banner "Close",
-"Attach", "Send", "Remove", "Download" and the memory picker's "Preview" eye. Still
+"Attach", "Send", "Remove", "Download", the memory picker's "Preview" eye and the
+Commands bar's "New command". Still
 unlabeled: composer rewrite run and variant steppers; QR scanner close. The project
 "…" menu already reads "More" through SwiftUI's default symbol label.

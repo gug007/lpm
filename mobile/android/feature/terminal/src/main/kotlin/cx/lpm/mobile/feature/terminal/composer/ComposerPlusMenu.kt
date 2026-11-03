@@ -30,6 +30,8 @@ internal class PlusMenuActions(
     val onChooseFiles: () -> Unit,
     val onPasteImage: (() -> Unit)?,
     val onMemory: (() -> Unit)?,
+    /** The command editor seeded with what's typed; disabled while nothing is. */
+    val onSaveAsCommand: (() -> Unit)? = null,
     val onNewPrompt: () -> Unit,
     val onHistory: () -> Unit,
     val onFind: (() -> Unit)? = null
@@ -37,14 +39,15 @@ internal class PlusMenuActions(
 
 /**
  * The "+" menu: rewrite with AI; photos, camera, files and a copied image; then
- * session memory, a new prompt tab, the message history and find in the terminal
- * above. Rewriting with nothing typed explains itself instead.
+ * session memory, save as an lpm command, a new prompt tab, the message history and
+ * find in the terminal above. Rewriting with nothing typed explains itself instead.
  */
 @Composable
 internal fun ComposerPlusMenu(
     actions: PlusMenuActions,
     canRewrite: Boolean,
     enabled: Boolean,
+    hasText: Boolean,
     hasClipboardImage: () -> Boolean,
     modifier: Modifier = Modifier
 ) {
@@ -106,6 +109,14 @@ internal fun ComposerPlusMenu(
                     title = stringResource(R.string.composer_memory),
                     icon = painterResource(DesignR.drawable.ic_psychology),
                     onClick = it
+                )
+            }
+            actions.onSaveAsCommand?.let {
+                ContextMenuItem(
+                    title = stringResource(R.string.composer_save_as_command),
+                    icon = painterResource(DesignR.drawable.ic_post_add),
+                    onClick = it,
+                    enabled = hasText
                 )
             }
             ContextMenuItem(

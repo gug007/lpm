@@ -1,5 +1,6 @@
 package cx.lpm.mobile.feature.memory.data
 
+import cx.lpm.mobile.core.model.Haptic
 import cx.lpm.mobile.core.model.string
 import cx.lpm.mobile.feature.memory.liveSession
 import cx.lpm.mobile.feature.memory.memory
@@ -86,7 +87,7 @@ class MemoryStoreTest {
             s.saveError[memoryKey("storefront", "b")]
         )
         assertEquals("Deleting timed out. Try again.", s.deleteError[memoryKey("storefront", "c")])
-        assertEquals(MemoryHaptic.Error, s.feedback?.haptic)
+        assertEquals(Haptic.Error, s.feedback?.haptic)
         assertTrue(s.saving.isEmpty() && s.deleting.isEmpty() && s.listLoading.isEmpty())
     }
 

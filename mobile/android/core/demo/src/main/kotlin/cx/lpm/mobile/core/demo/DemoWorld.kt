@@ -92,6 +92,10 @@ internal class DemoWorld(val clock: Clock) {
     var keepAwakeMode = "agents"
     var keepAwakeEndsAt: Long? = null
 
+    // lpm commands: the global list, and each project's own once it's asked for.
+    var commandsGlobal = globalCommandsSeed()
+    val commandsByProject = mutableMapOf<String, DemoCommandList>()
+
     // Poll counters ("project\nservice") so service logs grow between polls.
     val serviceLogTicks = mutableMapOf<String, Int>()
     val serviceLogWatches = mutableMapOf<String, Int>() // project + "\n" + pane -> watch token

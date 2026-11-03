@@ -4,7 +4,7 @@
 
 // Canonical order, used by both places, so moving an item out and back leaves
 // the header exactly as it was.
-export const PANE_ACTION_IDS = ["review", "files", "toolkit", "automations", "browser", "resume"] as const;
+export const PANE_ACTION_IDS = ["review", "files", "toolkit", "commands", "automations", "browser", "resume"] as const;
 
 export type PaneActionId = (typeof PANE_ACTION_IDS)[number];
 

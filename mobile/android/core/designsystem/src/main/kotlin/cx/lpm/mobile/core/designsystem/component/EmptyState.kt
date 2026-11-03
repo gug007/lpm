@@ -60,3 +60,38 @@ fun EmptyState(
         }
     }
 }
+
+/** [EmptyState] with a [description] and, optionally, a `.borderedProminent` [action] button. */
+@Composable
+fun EmptyState(
+    title: String,
+    icon: Painter,
+    description: String,
+    modifier: Modifier = Modifier,
+    action: String? = null,
+    onAction: () -> Unit = {}
+) {
+    EmptyState(
+        title = title,
+        icon = icon,
+        modifier = modifier,
+        description = {
+            Text(
+                text = description,
+                style = LpmTheme.typography.body,
+                color = LpmTheme.colors.secondaryLabel,
+                textAlign = TextAlign.Center
+            )
+        },
+        actions = action?.let {
+            {
+                CapsuleButton(
+                    text = it,
+                    onClick = onAction,
+                    prominent = true,
+                    textStyle = LpmTheme.typography.headline
+                )
+            }
+        }
+    )
+}

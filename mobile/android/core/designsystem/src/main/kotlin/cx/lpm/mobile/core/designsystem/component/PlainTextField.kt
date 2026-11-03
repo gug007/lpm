@@ -8,6 +8,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
@@ -29,10 +30,11 @@ fun PlainTextField(
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     keyboardActions: KeyboardActions = KeyboardActions.Default,
     maxLines: Int = 1,
-    minLines: Int = 1
+    minLines: Int = 1,
+    textColor: Color = LpmTheme.colors.label
 ) {
     val colors = LpmTheme.colors
-    val style = textStyle.copy(color = colors.label, textAlign = textAlign)
+    val style = textStyle.copy(color = textColor, textAlign = textAlign)
     BasicTextField(
         value = value,
         onValueChange = onValueChange,

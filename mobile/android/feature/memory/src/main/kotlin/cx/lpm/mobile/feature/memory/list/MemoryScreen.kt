@@ -25,12 +25,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import cx.lpm.mobile.core.designsystem.R as DesignR
 import cx.lpm.mobile.core.designsystem.component.ActivityIndicator
+import cx.lpm.mobile.core.designsystem.component.EmptyState
 import cx.lpm.mobile.core.designsystem.component.GlassIconButton
 import cx.lpm.mobile.core.designsystem.component.LpmTopBar
 import cx.lpm.mobile.core.designsystem.component.PlainListDefaults
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.feature.memory.R
-import cx.lpm.mobile.feature.memory.ui.MemoryUnavailable
 
 /** What the list's rows and bar do. */
 @Immutable
@@ -143,7 +143,7 @@ private fun MemoryOverlay(state: MemoryUiState, actions: MemoryActions) {
         when {
             state.loading -> ActivityIndicator()
 
-            state.error != null -> MemoryUnavailable(
+            state.error != null -> EmptyState(
                 title = stringResource(R.string.memory_load_failed),
                 icon = painterResource(DesignR.drawable.ic_warning),
                 description = state.error,
@@ -151,7 +151,7 @@ private fun MemoryOverlay(state: MemoryUiState, actions: MemoryActions) {
                 onAction = actions.retry
             )
 
-            else -> MemoryUnavailable(
+            else -> EmptyState(
                 title = stringResource(R.string.memory_empty),
                 icon = painterResource(DesignR.drawable.ic_psychology),
                 description = stringResource(R.string.memory_empty_description),

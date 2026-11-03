@@ -23,8 +23,7 @@ internal fun slashQuery(text: String): String? {
 
 internal fun slashMatches(text: String, commands: List<SlashCommand>): List<SlashCommand> {
     val query = slashQuery(text) ?: return emptyList()
-    if (query.isEmpty()) return commands
-    return commands.filter { it.name.contains(query, ignoreCase = true) }
+    return commands.matching(query)
 }
 
 /** After a fully typed "/command " (one trailing space), the hint drawn dimmed after the caret. */

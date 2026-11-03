@@ -40,17 +40,22 @@ data class MentionEntry(val path: String, val dir: Boolean, val changed: Boolean
 
 /**
  * One slash-command autocomplete entry (mirrors the Rust AgentCommand): a CLI
- * built-in or a project/user command discovered on disk.
+ * built-in, a project/user command discovered on disk, or one of the user's lpm
+ * commands, which carries its [folder] and [scope].
  */
 data class SlashCommand(
     // No leading "/", e.g. "review" or "prompts:draftpr".
     val name: String,
     val description: String,
     val argumentHint: String,
-    // builtin | project | user
-    val source: String
+    // builtin | project | user | lpm
+    val source: String,
+    val folder: String? = null,
+    val scope: CommandScope? = null
 ) {
     val id: String get() = name
+
+    val isLpm: Boolean get() = source == LPM_SOURCE
 
     /** Where it comes from, as the desktop's menu tags it. */
     val sourceLabel: String?
@@ -61,11 +66,15 @@ data class SlashCommand(
         }
 
     companion object {
+        const val LPM_SOURCE = "lpm"
+
         fun parse(o: JsonObject): SlashCommand = SlashCommand(
             name = o.string("name").orEmpty(),
             description = o.string("description").orEmpty(),
             argumentHint = o.string("argumentHint").orEmpty(),
-            source = o.string("source").orEmpty()
+            source = o.string("source").orEmpty(),
+            folder = o.string("folder"),
+            scope = CommandScope.parse(o.string("scope"))
         )
     }
 }

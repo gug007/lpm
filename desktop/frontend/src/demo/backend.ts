@@ -7,6 +7,7 @@ import { historyCommands } from "./commands/history";
 import { portCommands } from "./commands/ports";
 import { jobCommands } from "./commands/jobs";
 import { keepAwakeCommands } from "./commands/keepAwake";
+import { lpmCommandCommands } from "./commands/lpmCommands";
 import { projectCommands } from "./commands/projects";
 import { reminderCommands } from "./commands/reminders";
 import { serviceCommands } from "./commands/services";
@@ -37,6 +38,7 @@ export const HANDLERS: CommandMap = {
   ...jobCommands,
   ...toolCommands,
   ...keepAwakeCommands,
+  ...lpmCommandCommands,
 };
 
 const warned = new Set<string>();

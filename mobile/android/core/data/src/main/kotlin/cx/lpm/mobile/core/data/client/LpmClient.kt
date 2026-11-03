@@ -394,6 +394,9 @@ class LpmClient internal constructor(
         // `keepAwake` and `keepAwakeSet`, and the `keepAwake` push.
         const val KEEP_AWAKE_FEATURE = "keepAwake"
 
+        // The `lpmCommand*` verbs, and lpm commands in the `slash` reply.
+        const val LPM_COMMANDS_FEATURE = "lpmCommands"
+
         const val OFFLINE_HINT =
             "Can't reach your Mac. On cellular, make sure Tailscale is connected on both devices."
 

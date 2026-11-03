@@ -31,6 +31,7 @@ import {
   makeToolkit,
   makeFiles,
   makeAutomations,
+  makeCommands,
   isTerminalTab,
   collectPanes,
   collectTerminals,
@@ -459,6 +460,15 @@ export function useTabCreation({
     [addTerminal, forward],
   );
 
+  // Commands tabs have no PTY either — they render the lpm commands lists.
+  const addCommandsToPane = useCallback(
+    (paneId?: string) => {
+      if (IS_MIRROR_WINDOW) return forward("addCommandsToPane", paneId);
+      addTerminal(makeCommands(nextId("commands")), paneId);
+    },
+    [addTerminal, forward],
+  );
+
   return {
     createTerminal,
     adoptTerminal,
@@ -472,5 +482,6 @@ export function useTabCreation({
     addToolkitToPane,
     addFilesToPane,
     addAutomationsToPane,
+    addCommandsToPane,
   };
 }

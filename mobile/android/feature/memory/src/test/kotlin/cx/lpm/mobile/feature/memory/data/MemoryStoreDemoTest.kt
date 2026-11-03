@@ -1,5 +1,6 @@
 package cx.lpm.mobile.feature.memory.data
 
+import cx.lpm.mobile.core.model.Haptic
 import cx.lpm.mobile.feature.memory.demoSession
 import cx.lpm.mobile.feature.memory.memory
 import cx.lpm.mobile.feature.memory.settle
@@ -67,7 +68,7 @@ class MemoryStoreDemoTest {
         val s = t.memory.state.value
         assertEquals(1, s.savedTick[k])
         assertEquals("$loaded- More\n", s.document("storefront", "checkout-redesign")!!.content)
-        assertEquals(MemoryHaptic.Success, s.feedback?.haptic)
+        assertEquals(Haptic.Success, s.feedback?.haptic)
         assertTrue(s.saving.isEmpty())
         assertNull(s.conflictNotice[k])
     }
@@ -88,7 +89,7 @@ class MemoryStoreDemoTest {
         assertNull(s.saveError[k])
         assertNull(s.savedTick[k])
         assertEquals(2, s.documentRevision[k])
-        assertEquals(MemoryHaptic.Error, s.feedback?.haptic)
+        assertEquals(Haptic.Error, s.feedback?.haptic)
         assertTrue(s.document("storefront", "checkout-redesign")!!.content.startsWith("# Checkout"))
 
         t.memory.consumeConflict("storefront", "checkout-redesign")

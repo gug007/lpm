@@ -2,8 +2,8 @@ package cx.lpm.mobile.feature.memory.list
 
 import androidx.compose.runtime.Immutable
 import cx.lpm.mobile.core.data.projects.ProjectsState
+import cx.lpm.mobile.core.model.HapticCue
 import cx.lpm.mobile.core.model.MemorySession
-import cx.lpm.mobile.feature.memory.data.MemoryFeedback
 import cx.lpm.mobile.feature.memory.data.MemoryState
 import cx.lpm.mobile.feature.memory.data.memoryKey
 import cx.lpm.mobile.feature.memory.format.memoryGoalLine
@@ -33,7 +33,7 @@ data class MemoryUiState(
     val loading: Boolean = true,
     val error: String? = null,
     val deleteError: String? = null,
-    val feedback: MemoryFeedback? = null
+    val feedback: HapticCue? = null
 ) {
     fun titleOf(name: String): String = rows.firstOrNull { it.name == name }?.title ?: name
 }

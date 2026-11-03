@@ -208,6 +208,8 @@ final class LpmClient: NSObject {
     var onMemorySave: ((_ project: String, _ name: String, _ error: String?) -> Void)?
     var onMemoryDelete: ((_ project: String, _ name: String, _ error: String?) -> Void)?
     var onMemoryChanged: ((_ project: String) -> Void)?
+    var onLpmCommandReply: ((_ reply: LpmCommandReply) -> Void)?
+    var onLpmCommandsChanged: ((_ project: String) -> Void)?
     // Notes replies, one per request kind. Each carries the keys its request was
     // addressed by, since the Mac answers these off worker threads (out of order).
     var onNotesChats: ((_ project: String, _ chats: [NoteChat], _ error: String?) -> Void)?
@@ -279,6 +281,7 @@ final class LpmClient: NSObject {
     static let projectPinsFeature = "projectPins"
     static let gitHistoryFeature = "gitHistory"
     static let keepAwakeFeature = "keepAwake"
+    static let lpmCommandsFeature = "lpmCommands"
 
     // Requests made while the link is down or half-dead, delivered on the next
     // `ready`. iOS kills the socket seconds after backgrounding and the
@@ -521,7 +524,7 @@ final class LpmClient: NSObject {
                              Self.tabAccountFeature,
                              Self.weeklyRecapFeature, Self.recapMonthFeature, Self.agentArchiveFeature,
                              Self.limitRemindersFeature, Self.projectPinsFeature, Self.gitHistoryFeature,
-                             Self.keepAwakeFeature],
+                             Self.keepAwakeFeature, Self.lpmCommandsFeature],
             ]))
         }
     }
@@ -1130,6 +1133,9 @@ final class LpmClient: NSObject {
     func deleteMemorySession(project: String, name: String) {
         send(Wire.memoryDelete(project: project, name: name))
     }
+    /// Any `lpmCommand*` request (built by the `Wire.lpmCommand…` helpers). Each
+    /// carries a reqId, which its reply echoes.
+    func sendLpmCommandRequest(_ frame: String) { send(frame) }
     func requestNotesChats(project: String) { send(Wire.notesChats(project: project)) }
     func notesCreateChat(project: String, title: String) {
         send(Wire.notesCreateChat(project: project, title: title))
@@ -1623,6 +1629,8 @@ final class LpmClient: NSObject {
             case .memorySave(let project, let name, let error): self.onMemorySave?(project, name, error)
             case .memoryDelete(let project, let name, let error): self.onMemoryDelete?(project, name, error)
             case .memoryChanged(let project): self.onMemoryChanged?(project)
+            case .lpmCommandReply(let reply): self.onLpmCommandReply?(reply)
+            case .lpmCommandsChanged(let project): self.onLpmCommandsChanged?(project)
             case .notesChats(let project, let chats, let error): self.onNotesChats?(project, chats, error)
             case .notesCreateChat(let project, let chat, let error):
                 self.onNotesCreateChat?(project, chat, error)

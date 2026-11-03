@@ -108,6 +108,7 @@ import {
   replaceMentionFragment,
   replaceMentionFragmentWith,
   replaceSlashFragment,
+  replaceSlashFragmentWith,
   selectChip,
   selectedChip,
   selectionClipboardPayload,
@@ -141,6 +142,9 @@ import { composerChord, composerKeepsCtrlChord, isFormatInput, runComposerEdit }
 import { isLinux, isMac } from "../platform";
 import { SlashCommandMenu } from "./SlashCommandMenu";
 import { useSlashCommands } from "../hooks/useSlashCommands";
+import { missingNote, useLpmCommandRun } from "../hooks/useLpmCommandRun";
+import { useCommandsOpen } from "../store/commandsOpen";
+import { aiPickLabel } from "../types";
 import {
   detectAICLI,
   hintCommandAt,
@@ -349,7 +353,15 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   const slashCli = detectAICLI(launchCmd);
   const agentName = session?.provider ?? slashCli ?? "";
   const projectIsRemote = useAppStore((s) => s.projects.find((p) => p.name === projectName)?.isRemote ?? false);
-  const { filter: filterSlash, isCommand: isSlashCommand, argumentHintFor } = useSlashCommands(slashCli, cwd, focused);
+  // lpm commands are the user's own: a guest at a shared tab doesn't get them.
+  const lpmProject = guest ? null : projectName;
+  const {
+    filter: filterSlash,
+    isCommand: isSlashCommand,
+    argumentHintFor,
+    lpmLists,
+  } = useSlashCommands(slashCli, cwd, focused, lpmProject);
+  const lpmRun = useLpmCommandRun(lpmProject, lpmLists);
   // Only Claude Code and Codex can be re-pointed at another model mid-session,
   // so only their terminals get the model switcher in the button row.
   const switchCli = switchableCLI(slashCli);
@@ -1236,7 +1248,24 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     if (!value.trim()) return;
     // Snapshot the token→local-path map now (before it's cleared) — a plain-object
     // copy, so a concurrent send clearing the live map can't strip paths mid-upload.
-    await deliverPrompt(value, Object.fromEntries(imagePaths.current));
+    const images = Object.fromEntries(imagePaths.current);
+    const run = slashCli ? lpmRun.match(value) : null;
+    if (run) return runLpmCommand(run.name, run.args, images);
+    await deliverPrompt(value, images);
+  };
+
+  // `/name args` for one of the user's lpm commands: the agent gets the
+  // command's prompt with the arguments filled in. One still unfilled puts the
+  // prompt in the input instead, to finish by hand.
+  const runLpmCommand = async (name: string, args: string, images: Record<string, string>) => {
+    const expanded = await lpmRun.expand(name, args);
+    if (!expanded) return;
+    if (expanded.missing.length > 0) {
+      loadFromHistory(expanded.text, images);
+      toast.info(missingNote(expanded.missing));
+      return;
+    }
+    await deliverPrompt(expanded.text, images);
   };
 
   // Fire a message chosen from the history popover straight at the terminal,
@@ -1667,19 +1696,53 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
 
   // Swap the typed "/<frag>" for the chosen "/<command> " and keep editing so the
   // user can add arguments before sending.
-  const insertSlashCommand = (cmd: SlashCommand) => {
+  const insertSlashCommand = (cmd: SlashCommand, mode: "run" | "edit" = "run") => {
     const editor = editorRef.current;
     setSlashOpen(false);
     if (!editor) return;
-    if (replaceSlashFragment(editor, cmd.name)) {
-      histIdx.current = -1;
-      normalizeComposer(editor);
-      syncState();
-      highlightCommand(editor, isSlashCommand, memorySessionIds);
-      editor.focus();
-      updateHint();
-      updateMentionMenu();
+    if (cmd.source === "lpm") {
+      void pickLpmCommand(editor, cmd, mode);
+      return;
     }
+    if (replaceSlashFragment(editor, cmd.name)) afterSlashEdit(editor);
+  };
+
+  // An lpm command picked from the menu. ↵ on a message that is just the
+  // command runs it, or leaves "/name " for its arguments when it asks for
+  // some; ⇥, or a pick mid-message, puts its prompt in place to edit.
+  const pickLpmCommand = async (editor: HTMLElement, cmd: SlashCommand, mode: "run" | "edit") => {
+    const whole = /^\s*\/[A-Za-z0-9:_-]*\s*$/.test(serializeEditor(editor));
+    if (mode === "run" && whole && cmd.argumentHint) {
+      if (replaceSlashFragment(editor, cmd.name)) afterSlashEdit(editor);
+      return;
+    }
+    if (mode === "run" && whole) {
+      await runLpmCommand(cmd.name, "", {});
+      return;
+    }
+    const expanded = await lpmRun.expand(cmd.name, "");
+    if (expanded && replaceSlashFragmentWith(editor, expanded.text)) afterSlashEdit(editor);
+  };
+
+  const afterSlashEdit = (editor: HTMLElement) => {
+    histIdx.current = -1;
+    normalizeComposer(editor);
+    syncState();
+    highlightCommand(editor, isSlashCommand, memorySessionIds);
+    editor.focus();
+    updateHint();
+    updateMentionMenu();
+  };
+
+  const manageCommands = () => {
+    setSlashOpen(false);
+    useCommandsOpen.getState().request(projectName);
+  };
+
+  const saveAsCommand = () => {
+    const editor = editorRef.current;
+    const text = editor ? serializeEditor(editor).trim() : "";
+    if (text) useCommandsOpen.getState().request(projectName, text);
   };
 
   // Swap the typed "@<frag>" for the chosen "@<insert> " and keep editing so the
@@ -2060,7 +2123,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
         e.preventDefault();
         e.stopPropagation();
         const cmd = slashItems[slashIndex];
-        if (cmd) insertSlashCommand(cmd);
+        if (cmd) insertSlashCommand(cmd, e.key === "Tab" ? "edit" : "run");
         return;
       }
       if (e.key === "Escape") {
@@ -2490,6 +2553,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
               : null
           }
           fork={{ canFork, onFork, canForkCopy, onForkCopy }}
+          saveCommand={slashCli && lpmProject !== null ? { disabled, onSave: saveAsCommand } : null}
           send={{
             disabled,
             busy,
@@ -2551,8 +2615,10 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
           commands={slashItems}
           selectedIndex={slashIndex}
           anchorRect={slashRect}
-          onSelect={insertSlashCommand}
+          onSelect={(cmd) => insertSlashCommand(cmd)}
           onHoverIndex={setSlashIndex}
+          agentLabel={slashCli ? aiPickLabel(slashCli, "") : undefined}
+          onManage={lpmProject !== null ? manageCommands : undefined}
         />
       )}
       {mentionOpen && (

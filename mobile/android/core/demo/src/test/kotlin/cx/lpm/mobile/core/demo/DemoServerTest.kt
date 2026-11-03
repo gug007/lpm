@@ -113,6 +113,7 @@ class DemoServerTest {
         "notesAttachment", "limits", "uploadBegin", "uploadChunk", "uploadDone", "uploadAbort",
         "weeklyRecap", "limitReminders", "setLimitReminder", "clearLimitReminder", "sidebarPin",
         "keepAwake", "keepAwakeSet",
-        "gitHistory", "gitCommitFiles", "gitCommitPatch"
+        "gitHistory", "gitCommitFiles", "gitCommitPatch",
+        "lpmCommands", "lpmCommandSave", "lpmCommandDelete", "lpmCommandFolder", "lpmCommandExpand"
     )
 }

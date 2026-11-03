@@ -47,7 +47,9 @@ internal class ComposerCallbacks(
     val onRemoveAttachment: (String) -> Unit,
     val onCancelRewrite: () -> Unit,
     val onPickSlash: (SlashCommand) -> Unit,
-    val mentions: MentionActions
+    val mentions: MentionActions,
+    /** Opens the Commands screen from the `/` menu; null leaves the row out. */
+    val onManageCommands: (() -> Unit)? = null
 )
 
 /**
@@ -69,6 +71,9 @@ internal fun TerminalComposer(
     modifier: Modifier = Modifier
 ) {
     val composer = state.composer
+    val compact = with(LocalDensity.current) {
+        LocalWindowInfo.current.containerSize.height.toDp()
+    } < CompactHeight
     Column(modifier.background(look.background).animateContentSize(tween(MENU_ANIMATION_MS))) {
         when {
             composer.transforming -> {
@@ -77,7 +82,13 @@ internal fun TerminalComposer(
             }
 
             state.slashMatches.isNotEmpty() -> {
-                SlashMenu(state.slashMatches, onPick = callbacks.onPickSlash)
+                SlashMenu(
+                    commands = state.slashMatches,
+                    agentLabel = state.agentLabel,
+                    onPick = callbacks.onPickSlash,
+                    onManage = callbacks.onManageCommands.takeIf { state.lpmCommands },
+                    maxHeight = if (compact) 110.dp else 220.dp
+                )
                 ComposerDivider()
             }
 

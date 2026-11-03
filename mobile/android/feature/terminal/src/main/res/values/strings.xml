@@ -64,6 +64,13 @@
     <string name="composer_rewrite_hint">Type a message first — then tap to rewrite it with AI.</string>
     <string name="composer_save_draft">Save as draft</string>
     <string name="composer_run_in_duplicates">Run in duplicates</string>
+    <string name="composer_save_as_command">Save as command</string>
+    <string name="composer_slash_no_folder">No folder</string>
+    <string name="composer_slash_this_project">this project</string>
+    <string name="composer_slash_global">global</string>
+    <string name="composer_slash_agent_commands">Agent commands</string>
+    <string name="composer_slash_manage">Manage commands</string>
+    <string name="composer_fill_in">Fill in %1$s, then send.</string>
     <plurals name="composer_copies">
         <item quantity="one">%1$d copy</item>
         <item quantity="other">%1$d copies</item>

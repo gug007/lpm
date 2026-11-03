@@ -16,6 +16,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
+import cx.lpm.mobile.core.model.CommandScope
 import cx.lpm.mobile.core.model.ServiceInfo
 import cx.lpm.mobile.core.model.SlashCommand
 import cx.lpm.mobile.feature.terminal.composer.ComposerCallbacks
@@ -56,20 +57,23 @@ class ComposerUiTest {
         mentions = MentionActions({}, {}, {}, {}, {})
     )
 
-    private fun show(state: ComposerUiState, look: ComposerLook = terminalLook) =
-        compose.setContent {
-            LpmTheme(darkTheme = true) {
-                TerminalComposer(
-                    state = state,
-                    input = remember { TextFieldState(state.composer.text) },
-                    look = look,
-                    focusRequester = remember { FocusRequester() },
-                    callbacks = callbacks,
-                    plusMenu = {},
-                    sendButton = {}
-                )
-            }
+    private fun show(
+        state: ComposerUiState,
+        look: ComposerLook = terminalLook,
+        callbacks: ComposerCallbacks = this.callbacks
+    ) = compose.setContent {
+        LpmTheme(darkTheme = true) {
+            TerminalComposer(
+                state = state,
+                input = remember { TextFieldState(state.composer.text) },
+                look = look,
+                focusRequester = remember { FocusRequester() },
+                callbacks = callbacks,
+                plusMenu = {},
+                sendButton = {}
+            )
         }
+    }
 
     private val terminalLook = ComposerLook(Color.Black, Color.White.copy(alpha = 0.08f), "Message")
 
@@ -146,6 +150,43 @@ class ComposerUiTest {
         compose.onNodeWithText("Review a pull request").assertExists()
         compose.onNodeWithText("/review").performClick()
         assertEquals(listOf("slash:review"), events)
+    }
+
+    @Test
+    fun `lpm commands lead the slash menu under their folder and list`() {
+        val withManage = callbacks.run {
+            ComposerCallbacks(
+                onFocusChanged, onSend, onHideKeyboard, onKey, onSwitchTab, onCloseTab,
+                onRetryUpload, onRemoveAttachment, onCancelRewrite, onPickSlash, mentions,
+                onManageCommands = { events += "manage" }
+            )
+        }
+        show(
+            ComposerUiState(
+                composer = ComposerState(tabs = listOf(ComposerTab(text = "/"))),
+                slashMatches = listOf(
+                    SlashCommand(
+                        "fix-ticket",
+                        "Fix",
+                        "<ticket>",
+                        "lpm",
+                        "Bugs",
+                        CommandScope.Project
+                    ),
+                    SlashCommand("explain", "", "", "lpm", null, CommandScope.Global),
+                    SlashCommand("review", "", "", "builtin")
+                ),
+                agentLabel = "Claude Code",
+                lpmCommands = true
+            ),
+            callbacks = withManage
+        )
+        compose.onNodeWithText("BUGS · THIS PROJECT").assertExists()
+        compose.onNodeWithText("NO FOLDER · GLOBAL").assertExists()
+        compose.onNodeWithText("CLAUDE CODE").assertExists()
+        compose.onNodeWithText("/explain").performClick()
+        compose.onNodeWithText("Manage commands").performClick()
+        assertEquals(listOf("slash:explain", "manage"), events)
     }
 
     @Test

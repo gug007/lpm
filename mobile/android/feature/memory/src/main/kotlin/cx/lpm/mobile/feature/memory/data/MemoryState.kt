@@ -1,16 +1,11 @@
 package cx.lpm.mobile.feature.memory.data
 
+import cx.lpm.mobile.core.model.HapticCue
 import cx.lpm.mobile.core.model.MemoryList
 import cx.lpm.mobile.core.model.MemorySession
 
 /** Keys a session within a project: `project + "\n" + name`. */
 fun memoryKey(project: String, name: String): String = project + "\n" + name
-
-/** What the store asks the screens to make the phone feel (iOS `Haptics`). */
-enum class MemoryHaptic { Success, Error }
-
-/** One haptic to play; [seq] tells a new one from the last. */
-data class MemoryFeedback(val haptic: MemoryHaptic, val seq: Int)
 
 /**
  * Session memory for every project. Per-session maps are keyed by [memoryKey]; the
@@ -37,7 +32,7 @@ data class MemoryState(
     val conflictNotice: Map<String, String> = emptyMap(),
     /** project → the session name a create just produced, for the list to open. */
     val createdName: Map<String, String> = emptyMap(),
-    val feedback: MemoryFeedback? = null
+    val feedback: HapticCue? = null
 ) {
     fun sessions(project: String): List<MemorySession> = lists[project]?.sessions.orEmpty()
 
@@ -59,12 +54,6 @@ data class MemoryState(
     /** False when the folder doesn't exist yet (the empty state) or nothing has loaded. */
     fun folderExists(project: String): Boolean = lists[project]?.exists ?: false
 }
-
-/** The next haptic to play, told apart from the last by its sequence number. */
-internal fun MemoryState.next(haptic: MemoryHaptic) = MemoryFeedback(
-    haptic,
-    (feedback?.seq ?: 0) + 1
-)
 
 /** A tick's next value. */
 internal fun Map<String, Int>.bump(key: String): Int = (this[key] ?: 0) + 1
