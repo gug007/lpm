@@ -84,7 +84,15 @@ extension DemoServer {
         if let reqId = o["reqId"] { reply["reqId"] = reqId }
         pushAfter(0.2, reply)
         let changed = reply["ok"] as? Bool == true && verb != "lpmCommands" && verb != "lpmCommandExpand"
-        if changed { pushAfter(0.2, ["t": "lpmCommandsChanged", "project": project]) }
+        if changed { pushAfter(0.2, ["t": "lpmCommandsChanged", "project": Self.touchesGlobal(o) ? "" : project]) }
+    }
+
+    /// Like the Mac, a change that reaches the global list (by its scope, a save's
+    /// previous place or a delete's target) pushes no project: every project's
+    /// lists hold the global one.
+    private static func touchesGlobal(_ o: [String: Any]) -> Bool {
+        let places: [Any?] = [o, o["command"], o["previous"], o["target"]]
+        return places.contains { ($0 as? [String: Any])?["scope"] as? String == "global" }
     }
 
     private func commandsReply(_ verb: String, _ project: String, _ o: [String: Any]) throws -> [String: Any] {

@@ -50,8 +50,18 @@ private fun DemoServer.answerCommands(verb: String, o: Dict) {
     if (o.containsKey("reqId")) reply["reqId"] = o["reqId"]
     pushAfter(0.2, reply)
     val changed = reply["ok"] == true && verb != "lpmCommands" && verb != "lpmCommandExpand"
-    if (changed) pushAfter(0.2, mapOf("t" to "lpmCommandsChanged", "project" to project))
+    if (changed) {
+        pushAfter(
+            0.2,
+            mapOf("t" to "lpmCommandsChanged", "project" to if (touchesGlobal(o)) "" else project)
+        )
+    }
 }
+
+/** A change to the global list, which every project shows, names no project in its push. */
+private fun touchesGlobal(o: Dict): Boolean =
+    listOf(o, o.dict("command"), o.dict("previous"), o.dict("target"))
+        .any { it?.string("scope") == "global" }
 
 private fun DemoServer.commandsReply(verb: String, project: String, o: Dict): Dict {
     when (verb) {
