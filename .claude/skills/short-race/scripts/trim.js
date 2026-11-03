@@ -1,10 +1,13 @@
 // The payoff with only the colour bars (compare.json "payoff": "bars"): once
 // both pages are open, each row's project header, browser address bar and git
 // bar go, with the sidebar's expand button by the traffic lights, so the games
-// get the rows' full height. A strip stays at the top for
-// the traffic lights macOS draws over the window, and the pages reload so each
-// game starts at its final size rather than refitting mid-play.
-const TRAFFIC_LIGHTS_PT = 28;
+// get the rows' full height. An empty strip stays at the top, under the
+// traffic lights macOS draws over the window, tall enough that the top colour
+// bar shows below the phone's status bar and TikTok's tabs (y 0–253 of 1920 on
+// a 6.3" iPhone, measured 2026-11-03; a 28 pt strip put the bar at y 154–209,
+// under them). The pages reload so each game starts at its final size rather
+// than refitting mid-play.
+const TOP_STRIP_PT = 96;
 
 const hideChrome = (s) =>
   s.control.evaluate((strip) => {
@@ -25,7 +28,7 @@ const hideChrome = (s) =>
     const top = Math.min(...heads.map((h) => h.getBoundingClientRect().top));
     grid.style.paddingTop = `${Math.max(0, strip - top)}px`;
     return columns.length;
-  }, TRAFFIC_LIGHTS_PT);
+  }, TOP_STRIP_PT);
 
 const reloadPages = (s) =>
   s.control.evaluate(() => {

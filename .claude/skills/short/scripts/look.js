@@ -67,6 +67,7 @@ function paintScene(scene) {
     a.style.color = sl.colors[0];
     b.style.color = sl.colors[1];
     slam.style.display = "flex";
+    slam.style.top = sl.top == null ? "" : `${sl.top}px`;
     a.style.fontSize = b.style.fontSize = "150px";
     const fit = Math.min(1, 820 / Math.max(a.offsetWidth, b.offsetWidth));
     a.style.fontSize = b.style.fontSize = `${Math.floor(150 * fit)}px`;
@@ -140,15 +141,16 @@ html, body { margin: 0; width: ${g.win.w}px; height: ${g.win.h}px; overflow: hid
 </style></head><body><div id="box"></div></body></html>`;
 }
 
-// Where TikTok's own interface covers a 1080x1920 video on a phone: the tabs
-// at the top, the action column on the right, the caption and sound at the
-// bottom. Review only; never in the video.
+// Where TikTok's own interface covers a 1080x1920 video on a phone: the status
+// bar and tabs at the top (y 0–253 on a 6.3" iPhone, which shows the video
+// 1.233x with 51 px cropped off each side), the action column on the right,
+// the caption and sound at the bottom. Review only; never in the video.
 const GUIDES_HTML = `<!doctype html><html><head><style>
 html, body { margin: 0; width: ${OUT.width}px; height: ${OUT.height}px; background: transparent; overflow: hidden; font: 700 34px ${FONT}; color: #fff; }
 .z { position: absolute; background: rgba(255,40,70,.34); outline: 3px dashed rgba(255,255,255,.7); outline-offset: -3px; display: flex; align-items: center; justify-content: center; }
 </style></head><body>
-<div class="z" style="left:0;top:0;width:1080px;height:150px">tabs</div>
-<div class="z" style="left:950px;top:700px;width:130px;height:800px">icons</div>
+<div class="z" style="left:0;top:0;width:1080px;height:255px">tabs</div>
+<div class="z" style="left:900px;top:700px;width:180px;height:800px">icons</div>
 <div class="z" style="left:0;top:1500px;width:1080px;height:420px">caption · sound</div>
 </body></html>`;
 

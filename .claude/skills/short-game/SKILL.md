@@ -31,7 +31,7 @@ short-race runs every race in rows: Run in duplicates with **Open side by side**
 
 As in every race, the games play with nothing written over them once the slammed names and the headline go at 1.8 s, and lpm's terminals get one captioned line of about 3 s (short-race's What the video shows).
 
-short-race records every race, real or dry, in a narrow, tall 570x1000 window with the payoff trimmed to the colour bars (see its Traps), so each row's page is about 570x448 pt, the 900x700 stage's shape, and each game takes about half the frame. TikTok's caption and sound text cover the lower part of the bottom game, a trade taken for the size.
+short-race records every race, real or dry, in a narrow, tall 570x1000 window with the payoff trimmed to the colour bars (see its Traps), so each row's page is about 570x420 pt, a little wider than the 900x700 stage, and each game takes about half the frame. TikTok's caption and sound text cover the lower part of the bottom game, a trade taken for the size.
 
 ## Make one
 

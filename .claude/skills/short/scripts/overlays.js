@@ -45,7 +45,12 @@ async function renderBackdrop(dir, g, radius) {
 async function renderGuides(dir) {
   fs.mkdirSync(dir, { recursive: true });
   const file = path.join(dir, "safe-zones.png");
-  if (!fs.existsSync(file)) await shoot(OUT, GUIDES_HTML, file, true);
+  const source = path.join(dir, "safe-zones.html");
+  const stale = !fs.existsSync(file) || !fs.existsSync(source) || fs.readFileSync(source, "utf8") !== GUIDES_HTML;
+  if (stale) {
+    await shoot(OUT, GUIDES_HTML, file, true);
+    fs.writeFileSync(source, GUIDES_HTML);
+  }
   return file;
 }
 
@@ -59,7 +64,15 @@ function sceneAt(t, track) {
   let active = 0;
   if (pg) pg.words.forEach((w, i) => t >= w.ms && (active = i));
   return {
-    ...(sl && { slam: { a: sl.a, b: sl.b, colors: sl.colors, t: Math.round(Math.round((t - sl.startMs) / FRAME_MS) * FRAME_MS) } }),
+    ...(sl && {
+      slam: {
+        a: sl.a,
+        b: sl.b,
+        colors: sl.colors,
+        t: Math.round(Math.round((t - sl.startMs) / FRAME_MS) * FRAME_MS),
+        ...(track.slamTop != null && { top: track.slamTop }),
+      },
+    }),
     sticker: st && {
       kind: st.kind,
       text: st.text,

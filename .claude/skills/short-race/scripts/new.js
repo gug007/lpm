@@ -14,12 +14,14 @@ const MAKER = path.resolve(SKILL, "..", "short");
 const ROOT = process.env.LPM_TIKTOK_DIR || path.join(process.env.LPM_LESSONS_DIR || path.join(os.homedir(), "Movies/lpm-lessons"), "tiktok");
 // A narrow, tall window, so each row takes about half the frame. The wide shot
 // scales it to 982x1723 px and sits 6 px below centre, so at the payoff,
-// trimmed to the colour bars, the top bar clears TikTok's tabs (y 150) and the
-// opening's headline sits just under it. Each row's page is then about 570x448 pt, the
+// trimmed to the colour bars (trim.js), the top bar sits at y 270, below the
+// phone's status bar and TikTok's tabs (y 0–253). The opening's headline goes
+// under that bar and the slammed names under the headline, all over the top
+// page. Each row's page is then about 570x420 pt, a little wider than the
 // 900x700 stage's shape, and TikTok's caption covers the bottom row's lower
-// 40%, so the giraffe sits high on the stage. A 16" MacBook Pro screen with
+// part, so the giraffe sits high on the stage. A 16" MacBook Pro screen with
 // the Dock showing holds a window up to 1009 pt tall.
-const TALL = { window: { w: 570, h: 1000 }, windowShiftY: 6, stickerTop: 230 };
+const TALL = { window: { w: 570, h: 1000 }, windowShiftY: 6, stickerTop: 345, slamTop: 575 };
 const CLI_NAME = { claude: "Claude Code", codex: "Codex", cursor: "Cursor", muse: "Muse Code" };
 // Cursor and Muse Code take the prompt as their launch argument, read from a
 // file: lpm folds a prompt into the launch line only for Claude Code and Codex.

@@ -158,6 +158,7 @@ async function compose(lines) {
       slam: lesson.slam,
     }),
     stickerTop: lesson.stickerTop,
+    slamTop: lesson.slamTop,
   };
   const look = await renderBackdrop(path.join(path.dirname(DIR), "_look"), g, WINDOW_RADIUS_PT * t.box.scale);
   const overlay = await renderTrack(path.join(DIR, "overlay"), track, edit.outMs);
