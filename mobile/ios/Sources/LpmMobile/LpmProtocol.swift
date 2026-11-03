@@ -369,13 +369,14 @@ enum Wire {
     static func apnsToken(token: String, env: String, key: String,
                           notifyWaiting: Bool, notifyDone: Bool, notifyError: Bool,
                           notifyAutomationStarted: Bool, notifyAutomationDone: Bool,
-                          notifyAutomationError: Bool, notifyWeeklyRecap: Bool,
+                          notifyAutomationError: Bool, notifyWeeklyRecap: Bool, notifyCi: Bool,
                           notifyProjects: [String: String] = [:]) -> String {
         var notify: [String: Any] = ["waiting": notifyWaiting, "done": notifyDone, "error": notifyError,
                                      "automationStarted": notifyAutomationStarted,
                                      "automationDone": notifyAutomationDone,
                                      "automationError": notifyAutomationError,
-                                     "weeklyRecap": notifyWeeklyRecap]
+                                     "weeklyRecap": notifyWeeklyRecap,
+                                     "ci": notifyCi]
         // Only the projects heard less about; the rest hear everything.
         if !notifyProjects.isEmpty { notify["projects"] = notifyProjects }
         return json(["t": "apnsToken", "token": token, "env": env, "key": key, "notify": notify])
@@ -424,6 +425,11 @@ enum Wire {
     static func gitBranches(project: String) -> String { json(["t": "gitBranches", "project": project]) }
     static func gitHistory(project: String, skip: Int, limit: Int) -> String {
         json(["t": "gitHistory", "project": project, "skip": skip, "limit": limit])
+    }
+    // MARK: CI (a Mac whose `features` has "gitChecks")
+    static func gitChecks(project: String) -> String { json(["t": "gitChecks", "project": project]) }
+    static func gitChecksRerun(project: String, runIds: [String]) -> String {
+        json(["t": "gitChecksRerun", "project": project, "runIds": runIds])
     }
     static func gitCommitFiles(project: String, hash: String) -> String {
         json(["t": "gitCommitFiles", "project": project, "hash": hash])
@@ -776,6 +782,10 @@ enum Wire {
         // Commit history: a page of the branch's commits, one commit's files and
         // one file's patch in it. `error` is nil on success.
         case gitHistory(project: String, skip: Int, page: HistoryPage?, error: String?)
+        // How the branch stands on CI (nil when it has none to show), and the
+        // failed jobs run again. `error` is nil on success.
+        case gitChecks(project: String, checks: GitChecks?, error: String?)
+        case gitChecksRerun(project: String, error: String?)
         case gitCommitFiles(project: String, hash: String, files: [CommitFile]?, error: String?)
         case gitCommitPatch(project: String, hash: String, path: String, result: GitDiffResult?, error: String?)
         // An Auto Commit / Auto Create PR run's whole state, pushed on every
@@ -1191,6 +1201,15 @@ enum Wire {
                 return .gitRestoreDiscarded(project: obj["project"] as? String ?? "",
                                             error: ok ? nil : (obj["error"] as? String ?? "Couldn't restore the changes."))
             case "git-changed": return .gitChanged(project: obj["project"] as? String ?? "")
+            case "gitChecks":
+                let ok = obj["ok"] as? Bool ?? false
+                return .gitChecks(project: obj["project"] as? String ?? "",
+                                  checks: ok ? GitChecks(obj) : nil,
+                                  error: ok ? nil : (obj["error"] as? String ?? "Couldn't read CI."))
+            case "gitChecksRerun":
+                let ok = obj["ok"] as? Bool ?? false
+                return .gitChecksRerun(project: obj["project"] as? String ?? "",
+                                       error: ok ? nil : (obj["error"] as? String ?? "Couldn't run the failed jobs again."))
             case "gitHistory":
                 let ok = obj["ok"] as? Bool ?? false
                 return .gitHistory(project: obj["project"] as? String ?? "",
@@ -1861,6 +1880,8 @@ struct Action: Identifiable {
     let confirm: Bool
     // User-supplied values substituted into the command as {{key}} before running.
     let inputs: [ActionInput]
+    // The task for the agent `cmd` opens, submitted once it's ready.
+    let prompt: String
     let children: [Action]
 
     var id: String { name }
@@ -1880,6 +1901,7 @@ struct Action: Identifiable {
         cmd = o["cmd"] as? String ?? ""
         confirm = o["confirm"] as? Bool ?? false
         inputs = (o["inputs"] as? [[String: Any]] ?? []).map(ActionInput.init)
+        prompt = o["prompt"] as? String ?? ""
         children = (o["children"] as? [[String: Any]] ?? []).map(Action.init)
     }
 

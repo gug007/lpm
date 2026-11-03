@@ -8,9 +8,10 @@ import { buildActionsModel } from "../actionsLayoutModel";
 
 vi.mock("../zoneActions", () => ({ setZoneCollapsed: vi.fn() }));
 vi.mock("../hooks/useGitStatus", () => ({ useGitStatus: () => ({ status: null }) }));
-vi.mock("../hooks/useBranchPullRequest", () => ({ useBranchPullRequest: () => null }));
+vi.mock("../hooks/useBranchPullRequest", () => ({ useBranchPullRequest: () => ({ pr: null, commit: null }) }));
 vi.mock("./BranchSwitcher", () => ({ BranchSwitcher: () => null }));
 vi.mock("./BranchPrLink", () => ({ BranchPrLink: () => null }));
+vi.mock("./BranchCiPill", () => ({ BranchCiPill: () => null }));
 vi.mock("./AppTip", () => ({
   AppTip: ({ rowHeight }: { rowHeight?: number }) => <div data-tip={rowHeight ?? "auto"} />,
 }));

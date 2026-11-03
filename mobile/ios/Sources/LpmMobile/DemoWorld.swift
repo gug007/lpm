@@ -216,6 +216,7 @@ struct DemoWorld {
     var git: [String: GitRepo] = [:] // project -> repo
     var gitAutoRuns: [String: GitAutoRun] = [:] // project -> last Auto Commit / PR run
     var gitAutoNextId = 1
+    var ciRerunAt: [String: Date] = [:] // project -> when its failed CI jobs were run again
     var gitDiscardNextId = 1
 
     // MARK: Jobs (automations)

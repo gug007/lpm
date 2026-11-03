@@ -187,6 +187,7 @@ fun LpmClient.sendPushToken(p: PushRegistration) = send(
         notifyAutomationDone = p.automationDone,
         notifyAutomationError = p.automationError,
         notifyWeeklyRecap = p.weeklyRecap,
+        notifyCi = p.ci,
         notifyProjects = p.projects
     )
 )

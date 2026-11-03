@@ -11,11 +11,10 @@ export interface ChecksSummary {
 
 const ORDER: Record<PrCheckState, number> = { fail: 0, pending: 1, pass: 2, skipped: 3 };
 
-/** What the checks add up to, or null when the PR has none worth showing: a
- *  merged or closed PR, or checks that were all skipped. */
-export function checksSummary(pr: PullRequestInfo): ChecksSummary | null {
-  if (pr.state !== "OPEN") return null;
-  const counted = (pr.checks ?? []).filter((check) => check.state !== "skipped");
+/** What the checks add up to, or null when there's none worth showing: none at
+ *  all, or only skipped ones. */
+export function summarizeChecks(checks: PrCheck[]): ChecksSummary | null {
+  const counted = checks.filter((check) => check.state !== "skipped");
   if (counted.length === 0) return null;
   const count = (state: PrCheckState) => counted.filter((check) => check.state === state).length;
   const failed = count("fail");
@@ -26,6 +25,12 @@ export function checksSummary(pr: PullRequestInfo): ChecksSummary | null {
     pending,
     passed: count("pass"),
   };
+}
+
+/** A PR's checks, which a merged or closed PR no longer shows. */
+export function checksSummary(pr: PullRequestInfo): ChecksSummary | null {
+  if (pr.state !== "OPEN") return null;
+  return summarizeChecks(pr.checks ?? []);
 }
 
 export function checksLabel(summary: ChecksSummary): string {
@@ -43,17 +48,15 @@ export function actionsRunId(url: string): string | null {
   return /\/actions\/runs\/(\d+)/.exec(url)?.[1] ?? null;
 }
 
-/** What an agent asked to fix the failing checks is told: which ones fail and
- *  where, and the `gh` commands that print why. */
-export function fixChecksPrompt(pr: PullRequestInfo): string {
-  const failing = sortedChecks(pr.checks ?? []).filter((check) => check.state === "fail");
-  const lines = failing.map((check) => `- ${check.name}${check.url ? ` — ${check.url}` : ""}`);
-  const runs = [...new Set(failing.map((check) => actionsRunId(check.url)).filter((id) => id !== null))];
-  const howToRead = [`\`gh pr checks ${pr.number}\``, ...runs.map((id) => `\`gh run view ${id} --log-failed\``)];
-  return [
-    `CI checks are failing on pull request #${pr.number} (${pr.url}):`,
-    ...lines,
-    "",
-    `Find out why with ${howToRead.join(" and ")}, fix the cause, and run the same checks locally where you can to confirm the fix.`,
-  ].join("\n");
+/** The GitHub Actions runs the failing checks belong to, each once. */
+export function failingRunIds(checks: PrCheck[]): string[] {
+  const ids = checks.filter((check) => check.state === "fail").map((check) => actionsRunId(check.url));
+  return [...new Set(ids.filter((id) => id !== null))];
+}
+
+/** The checks with the failed ones of `runIds` running again. */
+export function markRerunning(checks: PrCheck[], runIds: string[]): PrCheck[] {
+  return checks.map((check) =>
+    check.state === "fail" && runIds.includes(actionsRunId(check.url) ?? "") ? { ...check, state: "pending" } : check,
+  );
 }

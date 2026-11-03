@@ -57,7 +57,8 @@ class WireSessionTest {
         assertFrame(
             """{ "t": "apnsToken", "token": "ab", "env": "production", "key": "a2V5",
                  "notify": { "waiting": true, "done": false, "error": true, "automationStarted": false,
-                             "automationDone": true, "automationError": true, "weeklyRecap": false } }""",
+                             "automationDone": true, "automationError": true, "weeklyRecap": false,
+                             "ci": true } }""",
             Wire.apnsToken(
                 token = "ab",
                 env = "production",
@@ -68,7 +69,8 @@ class WireSessionTest {
                 notifyAutomationStarted = false,
                 notifyAutomationDone = true,
                 notifyAutomationError = true,
-                notifyWeeklyRecap = false
+                notifyWeeklyRecap = false,
+                notifyCi = true
             )
         )
     }
@@ -78,7 +80,8 @@ class WireSessionTest {
         assertFrame(
             """{ "t": "pushToken", "platform": "fcm", "token": "f:A-b_1", "key": "a2V5",
                  "notify": { "waiting": true, "done": true, "error": false, "automationStarted": false,
-                             "automationDone": true, "automationError": false, "weeklyRecap": true } }""",
+                             "automationDone": true, "automationError": false, "weeklyRecap": true,
+                             "ci": false } }""",
             Wire.pushToken(
                 platform = "fcm",
                 token = "f:A-b_1",
@@ -90,7 +93,8 @@ class WireSessionTest {
                 notifyAutomationStarted = false,
                 notifyAutomationDone = true,
                 notifyAutomationError = false,
-                notifyWeeklyRecap = true
+                notifyWeeklyRecap = true,
+                notifyCi = false
             )
         )
     }

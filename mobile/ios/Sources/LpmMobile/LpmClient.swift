@@ -102,6 +102,8 @@ final class LpmClient: NSObject {
     var onGitRestoreDiscarded: ((_ project: String, _ error: String?) -> Void)?
     var onGitChanged: ((_ project: String) -> Void)?
     var onGitHistory: ((_ project: String, _ skip: Int, _ page: HistoryPage?, _ error: String?) -> Void)?
+    var onGitChecks: ((_ project: String, _ checks: GitChecks?, _ error: String?) -> Void)?
+    var onGitChecksRerun: ((_ project: String, _ error: String?) -> Void)?
     var onGitCommitFiles: ((_ project: String, _ hash: String, _ files: [CommitFile]?, _ error: String?) -> Void)?
     var onGitCommitPatch: ((_ project: String, _ hash: String, _ path: String, _ result: GitDiffResult?,
                             _ error: String?) -> Void)?
@@ -280,6 +282,7 @@ final class LpmClient: NSObject {
     static let agentArchiveFeature = "agentArchive"
     static let projectPinsFeature = "projectPins"
     static let gitHistoryFeature = "gitHistory"
+    static let gitChecksFeature = "gitChecks"
     static let keepAwakeFeature = "keepAwake"
     static let lpmCommandsFeature = "lpmCommands"
 
@@ -524,7 +527,7 @@ final class LpmClient: NSObject {
                              Self.tabAccountFeature,
                              Self.weeklyRecapFeature, Self.recapMonthFeature, Self.agentArchiveFeature,
                              Self.limitRemindersFeature, Self.projectPinsFeature, Self.gitHistoryFeature,
-                             Self.keepAwakeFeature, Self.lpmCommandsFeature],
+                             Self.keepAwakeFeature, Self.lpmCommandsFeature, Self.gitChecksFeature],
             ]))
         }
     }
@@ -1062,7 +1065,7 @@ final class LpmClient: NSObject {
     func sendApnsToken(token: String, env: String, key: String,
                        notifyWaiting: Bool, notifyDone: Bool, notifyError: Bool,
                        notifyAutomationStarted: Bool, notifyAutomationDone: Bool,
-                       notifyAutomationError: Bool, notifyWeeklyRecap: Bool,
+                       notifyAutomationError: Bool, notifyWeeklyRecap: Bool, notifyCi: Bool,
                        notifyProjects: [String: String] = [:]) {
         send(Wire.apnsToken(token: token, env: env, key: key,
                             notifyWaiting: notifyWaiting, notifyDone: notifyDone,
@@ -1071,6 +1074,7 @@ final class LpmClient: NSObject {
                             notifyAutomationDone: notifyAutomationDone,
                             notifyAutomationError: notifyAutomationError,
                             notifyWeeklyRecap: notifyWeeklyRecap,
+                            notifyCi: notifyCi,
                             notifyProjects: notifyProjects))
     }
     func answerAgent(_ answer: AgentAnswer, reqId: String) { send(Wire.answerAgent(answer, reqId: reqId)) }
@@ -1186,6 +1190,10 @@ final class LpmClient: NSObject {
     func requestGitBranches(project: String) { send(Wire.gitBranches(project: project)) }
     func requestGitHistory(project: String, skip: Int, limit: Int) {
         send(Wire.gitHistory(project: project, skip: skip, limit: limit))
+    }
+    func requestGitChecks(project: String) { send(Wire.gitChecks(project: project)) }
+    func requestGitChecksRerun(project: String, runIds: [String]) {
+        send(Wire.gitChecksRerun(project: project, runIds: runIds))
     }
     func requestGitCommitFiles(project: String, hash: String) {
         send(Wire.gitCommitFiles(project: project, hash: hash))
@@ -1563,6 +1571,8 @@ final class LpmClient: NSObject {
             case .gitRestoreDiscarded(let proj, let error): self.onGitRestoreDiscarded?(proj, error)
             case .gitChanged(let proj): self.onGitChanged?(proj)
             case .gitHistory(let proj, let skip, let page, let error): self.onGitHistory?(proj, skip, page, error)
+            case .gitChecks(let proj, let checks, let error): self.onGitChecks?(proj, checks, error)
+            case .gitChecksRerun(let proj, let error): self.onGitChecksRerun?(proj, error)
             case .gitCommitFiles(let proj, let hash, let files, let error):
                 self.onGitCommitFiles?(proj, hash, files, error)
             case .gitCommitPatch(let proj, let hash, let path, let result, let error):

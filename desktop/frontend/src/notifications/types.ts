@@ -24,7 +24,8 @@ export type NotificationEvent =
   | "autoPull"
   | "peers"
   | "sendLater"
-  | "keepAwake";
+  | "keepAwake"
+  | "ci";
 
 export interface ToastOptions {
   id?: ToastId;

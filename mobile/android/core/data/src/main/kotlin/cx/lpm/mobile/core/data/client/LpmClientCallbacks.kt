@@ -19,6 +19,7 @@ import cx.lpm.mobile.core.model.DirListing
 import cx.lpm.mobile.core.model.FileChunk
 import cx.lpm.mobile.core.model.GitAutoRun
 import cx.lpm.mobile.core.model.GitBranch
+import cx.lpm.mobile.core.model.GitChecks
 import cx.lpm.mobile.core.model.GitDiffEntry
 import cx.lpm.mobile.core.model.GitDiffResult
 import cx.lpm.mobile.core.model.GitSnapshot
@@ -191,6 +192,11 @@ abstract class LpmClientCallbacks {
     // Commit history: a page of commits, one commit's files, one file's patch in it.
     var onGitHistory: ((project: String, skip: Int, page: HistoryPage?, error: String?) -> Unit)? =
         null
+
+    // CI: how the branch stands (null when it has none to show), and the failed jobs
+    // run again.
+    var onGitChecks: ((project: String, checks: GitChecks?, error: String?) -> Unit)? = null
+    var onGitChecksRerun: ((project: String, error: String?) -> Unit)? = null
     var onGitCommitFiles: (
         (project: String, hash: String, files: List<CommitFile>?, error: String?) -> Unit
     )? = null

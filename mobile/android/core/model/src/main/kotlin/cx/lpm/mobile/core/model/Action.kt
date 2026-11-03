@@ -27,7 +27,9 @@ data class Action(
     val confirm: Boolean,
     // User-supplied values substituted into the command as {{key}} before running.
     val inputs: List<ActionInput>,
-    val children: List<Action>
+    val children: List<Action>,
+    // The task for the agent `cmd` opens, submitted once it's ready.
+    val prompt: String = ""
 ) {
     val id: String get() = name
     val isRunnable: Boolean get() = children.isEmpty()
@@ -88,7 +90,8 @@ data class Action(
                 cmd = o.string("cmd").orEmpty(),
                 confirm = o.bool("confirm") ?: false,
                 inputs = o.list("inputs", ActionInput::parse),
-                children = o.list("children", Action::parse)
+                children = o.list("children", Action::parse),
+                prompt = o.string("prompt").orEmpty()
             )
         }
     }

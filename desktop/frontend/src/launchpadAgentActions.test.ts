@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { beforeEach, describe, expect, it } from "vitest";
 import { rememberChild } from "./components/splitPrimary";
-import { launchpadTabs } from "./launchpadAgentActions";
+import { launchpadTabs, startsOwnTask } from "./launchpadAgentActions";
 import type { ActionInfo } from "./types";
 
 const action = (name: string, cmd: string, extra: Partial<ActionInfo> = {}): ActionInfo =>
@@ -49,5 +49,37 @@ describe("launchpadTabs", () => {
   it("gives a plain menu no main part", () => {
     const [tab] = launchpadTabs([{ ...claudeMax, primary: undefined }], "web");
     expect(tab.primary).toBeNull();
+  });
+});
+
+describe("startsOwnTask", () => {
+  const own = (cmd: string, prompt?: string) => startsOwnTask({ cmd, prompt });
+
+  it("sees a task in the agent's own words or in a saved prompt", () => {
+    expect(own(`claude "Review my changes"`)).toBe(true);
+    expect(own(`claude --model opus 'Fix the failing tests'`)).toBe(true);
+    expect(own("claude", "Write the release notes")).toBe(true);
+  });
+
+  it("leaves flags, their values and other commands alone", () => {
+    expect(own("claude --permission-mode auto")).toBe(false);
+    expect(own(`codex -c 'model_reasoning_effort="ultra"'`)).toBe(false);
+    expect(own(`claude --append-system-prompt "Be brief"`)).toBe(false);
+    expect(own(`codex -c model="gpt 6"`)).toBe(false);
+    expect(own(`claude && echo "all done now"`)).toBe(false);
+    expect(own(`cd "my project" && claude`)).toBe(false);
+    expect(own("claude", "  ")).toBe(false);
+  });
+
+  it("keeps such actions off a list for a prompt that is the task", () => {
+    const review = action("review", `claude "Review my changes"`);
+    const tabs = launchpadTabs([claudeMax, review, codex], "web", { skipOwnTasks: true });
+    expect(tabs.map((t) => t.key)).toEqual(["claude-max", "codex"]);
+    expect(launchpadTabs([review], "web", { skipOwnTasks: true }).map((t) => t.key)).toEqual([
+      "claude",
+      "codex",
+      "gemini",
+      "opencode",
+    ]);
   });
 });

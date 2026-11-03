@@ -71,6 +71,8 @@ export function StartDuplicateProject(...args: any[]): Promise<any>;
 export function StartDuplicateWorktreeProject(...args: any[]): Promise<any>;
 export function DuplicateStatus(...args: any[]): Promise<any>;
 export function BranchPullRequest(cwd: string): Promise<{ number: number; url: string; state: string; title: string; isDraft: boolean } | null>;
+export function BranchCommitChecks(cwd: string): Promise<import("../src/types").CommitChecksInfo | null>;
+export function RerunFailedChecks(cwd: string, runIds: string[]): Promise<void>;
 export function PullRequestDiscussion(cwd: string): Promise<{ number: number; title: string; url: string; body: string; notes: { kind: "review" | "line" | "comment"; author: string; body: string; state: string; path: string; line: number | null; createdAt: string }[] } | null>;
 export function CreatePullRequest(...args: any[]): Promise<any>;
 export function CreateSSHProject(...args: any[]): Promise<any>;

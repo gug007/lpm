@@ -84,6 +84,13 @@ struct NotificationSettingsView: View {
             .dimmed(unless: model.notifyEnabled)
 
             Section {
+                Toggle("CI results", isOn: $model.notifyCi)
+            } footer: {
+                Text("When a commit pushed from your Mac fails CI, or passes again")
+            }
+            .dimmed(unless: model.notifyEnabled)
+
+            Section {
                 Toggle("Show agents on the Lock Screen", isOn: $model.liveActivitiesEnabled)
             } header: {
                 Text("Live Activity")

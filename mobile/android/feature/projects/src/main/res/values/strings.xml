@@ -95,6 +95,14 @@
 
     <!-- Dialogs -->
     <string name="cancel">Cancel</string>
+    <string name="ci_title">CI</string>
+    <string name="ci_status">CI on %1$s: %2$s</string>
+    <string name="ci_none_title">No checks</string>
+    <string name="ci_none_description">GitHub has no checks for this branch.</string>
+    <string name="ci_fix">Fix with %1$s</string>
+    <string name="ci_fix_description">Opens a new tab with the failing checks</string>
+    <string name="ci_rerun">Re-run failed jobs</string>
+    <string name="ci_open_github">Open checks on GitHub</string>
     <string name="ok">OK</string>
     <string name="save">Save</string>
     <string name="remove_title">Remove duplicate?</string>

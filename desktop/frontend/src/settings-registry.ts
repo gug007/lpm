@@ -256,7 +256,7 @@ export const ROWS = {
     reach: "attended",
     label: "Where notifications reach you",
     description: "For each kind of news: a toast in the app, a sound, or a system banner",
-    keywords: ["sound", "banner", "toast", "alert", "chime", "system", "desktop", "away", "agent", "automation"],
+    keywords: ["sound", "banner", "toast", "alert", "chime", "system", "desktop", "away", "agent", "automation", "ci", "checks", "github actions", "build failed"],
   },
   "notifications.holdWhileTyping": {
     kind: "row",

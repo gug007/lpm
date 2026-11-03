@@ -30,6 +30,7 @@ final class PushRegistrar {
         let automationDone: Bool
         let automationError: Bool
         let weeklyRecap: Bool
+        let ci: Bool
         /// Projects heard less about: "waiting" or "off", by project name.
         let projects: [String: String]
     }
@@ -150,6 +151,7 @@ final class PushRegistrar {
                                  notifyAutomationDone: p.automationDone,
                                  notifyAutomationError: p.automationError,
                                  notifyWeeklyRecap: p.weeklyRecap,
+                                 notifyCi: p.ci,
                                  notifyProjects: p.projects)
         }
     }
@@ -165,7 +167,7 @@ final class PushRegistrar {
     /// key is a secret and UserDefaults is not a secret store.
     private static func signature(_ p: Payload) -> String {
         let bits = [p.waiting, p.done, p.error,
-                    p.automationStarted, p.automationDone, p.automationError, p.weeklyRecap]
+                    p.automationStarted, p.automationDone, p.automationError, p.weeklyRecap, p.ci]
             .map { $0 ? "1" : "0" }
             .joined()
         // Levels only when set, so a phone without any keeps the signature it had.

@@ -117,6 +117,13 @@ struct ProjectMenuHost: ViewModifier {
             .workStatusNotePrompt(project: project, noteFor: $noteFor)
             .claudeConsentPrompt($claudeConsent)
             .toolbar {
+                if model.gitChecks.available, let checks = model.gitChecks.checks(project.name),
+                   checks.verdict != nil {
+                    // Beside Back: on the right it would leave the title no room.
+                    ToolbarItem(placement: .topBarLeading) {
+                        CiStatusButton(project: project, checks: checks, onSpawnedTerminal: onSpawnedTerminal)
+                    }
+                }
                 if !project.actions.isEmpty {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button { showActions = true } label: {
@@ -160,6 +167,7 @@ struct ProjectMenuHost: ViewModifier {
                 if !project.isRemote { model.loadClaudeAccounts() }
             }
             .onDisappear { isVisible = false }
+            .modifier(GitChecksFollower(project: project.name))
     }
 
     private func rename() {

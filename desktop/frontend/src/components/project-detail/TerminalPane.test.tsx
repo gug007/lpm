@@ -12,9 +12,10 @@ vi.mock("../../zoneActions", () => ({ setZoneCollapsed: vi.fn() }));
 vi.mock("../TerminalView", () => ({ TerminalView: () => <div data-testid="terminal" /> }));
 vi.mock("./EmptyTerminalState", () => ({ EmptyTerminalState: () => null }));
 vi.mock("../../hooks/useGitStatus", () => ({ useGitStatus: () => ({ status: null }) }));
-vi.mock("../../hooks/useBranchPullRequest", () => ({ useBranchPullRequest: () => null }));
+vi.mock("../../hooks/useBranchPullRequest", () => ({ useBranchPullRequest: () => ({ pr: null, commit: null }) }));
 vi.mock("../BranchSwitcher", () => ({ BranchSwitcher: () => null }));
 vi.mock("../BranchPrLink", () => ({ BranchPrLink: () => null }));
+vi.mock("../BranchCiPill", () => ({ BranchCiPill: () => null }));
 vi.mock("../AppTip", () => ({ AppTip: () => <div data-testid="tip" /> }));
 
 import { TerminalPane } from "./TerminalPane";

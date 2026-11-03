@@ -1,39 +1,55 @@
 import { GitMerge, GitPullRequest, GitPullRequestClosed, GitPullRequestDraft } from "lucide-react";
 import { BrowserOpenURL } from "../../bridge/runtime";
-import { checksSummary } from "../prChecks";
+import { checksLabel, checksSummary } from "../prChecks";
+import { useBranchPr } from "../store/branchPr";
 import type { PullRequestInfo } from "../types";
-import { BranchPrChecks } from "./BranchPrChecks";
+import { ChecksButton, checkStateIcon } from "./ChecksButton";
+import { FOOTER_PILL_CLASS } from "./footerPill";
 
-const PILL_CLASS =
-  "flex items-center gap-1.5 border border-[var(--composer-border)] bg-[var(--composer-surface)] px-2.5 py-1 text-[11px] font-medium text-[var(--composer-fg-secondary)] transition-all duration-100 hover:bg-[var(--composer-hover-bg)] hover:text-[var(--composer-fg)] active:scale-[0.97]";
+interface BranchPrLinkProps {
+  pr: PullRequestInfo;
+  projectName: string;
+  projectPath: string;
+}
 
 // The current branch's pull request as a footer pill: number, state colour,
 // title on hover, click to open on GitHub. An open PR with CI checks gets a
 // second half saying how they stand.
-export function BranchPrLink({ pr, projectName }: { pr: PullRequestInfo; projectName: string }) {
+export function BranchPrLink({ pr, projectName, projectPath }: BranchPrLinkProps) {
   const look = prLook(pr);
   const summary = checksSummary(pr);
+  const markRerun = useBranchPr((s) => s.markRerun);
   const link = (
     <button
       type="button"
       onClick={() => BrowserOpenURL(pr.url)}
       title={`${look.label} pull request #${pr.number}: ${pr.title}`}
-      className={`${PILL_CLASS} ${summary ? "rounded-l-md" : "rounded-md"}`}
+      className={`${FOOTER_PILL_CLASS} ${summary ? "rounded-l-md" : "rounded-md"}`}
     >
       <look.Icon size={12} style={{ color: look.color }} />
       <span className="tabular-nums">PR #{pr.number}</span>
     </button>
   );
   if (!summary) return link;
+  const label = checksLabel(summary);
   return (
     <div className="flex">
       {link}
-      <BranchPrChecks
+      <ChecksButton
         projectName={projectName}
-        pr={pr}
+        projectPath={projectPath}
+        checks={pr.checks ?? []}
         summary={summary}
-        className={`${PILL_CLASS} -ml-px rounded-r-md px-2`}
-      />
+        heading={`Checks on #${pr.number}`}
+        title={`Checks on #${pr.number}: ${label}`}
+        githubUrl={`${pr.url}/checks`}
+        fixPrompt={pr.fixPrompt}
+        onRerun={(runIds) => markRerun(projectPath, runIds)}
+        className={`${FOOTER_PILL_CLASS} -ml-px rounded-r-md px-2`}
+      >
+        {checkStateIcon(summary.verdict)}
+        {summary.verdict !== "pass" && <span className="tabular-nums">{label}</span>}
+      </ChecksButton>
     </div>
   );
 }

@@ -25,7 +25,7 @@ final class NotificationService: UNNotificationServiceExtension {
               let payload = PushPayload.open(blob: blob),
               let mutable = original.mutableCopy() as? UNMutableNotificationContent
         else { return nil }
-        if let target = payload["target"] as? String, ["recap", "usage", "keepAwake"].contains(target) {
+        if let target = payload["target"] as? String, ["recap", "usage", "keepAwake", "ci"].contains(target) {
             return quieted(macNotice(payload, target: target, into: mutable), status: "")
         }
         guard let project = payload["project"] as? String, !project.isEmpty else { return nil }
@@ -104,17 +104,21 @@ final class NotificationService: UNNotificationServiceExtension {
         return "\(files) \(files == 1 ? "file" : "files"), +\(added) −\(removed)"
     }
 
-    /// The Mac's own news rather than a project's: Monday's weekly recap or a
-    /// limit reminder. The Mac writes the words, and a tap opens `target` on that
-    /// Mac (the recap of the week it names, or Usage).
+    /// News in the Mac's own words: Monday's weekly recap, a limit reminder, Keep
+    /// awake letting go, or CI on a commit pushed from it. A tap opens `target` on
+    /// that Mac (the recap of the week it names, or Usage), or the project CI is
+    /// about, with whose other notifications it's grouped.
     private func macNotice(_ payload: [String: Any], target: String, into mutable: UNMutableNotificationContent) -> UNMutableNotificationContent? {
         guard let title = payload["title"] as? String, !title.isEmpty else { return nil }
+        let project = payload["project"] as? String ?? ""
+        if target == "ci" && project.isEmpty { return nil }
         mutable.title = title
         mutable.body = payload["body"] as? String ?? ""
-        mutable.threadIdentifier = target
+        mutable.threadIdentifier = project.isEmpty ? target : project
+        if !project.isEmpty { mutable.filterCriteria = project }
         var info = mutable.userInfo
         info["target"] = target
-        for key in ["week", "serverId"] {
+        for key in ["week", "serverId", "project"] {
             if let value = payload[key] as? String, !value.isEmpty { info[key] = value }
         }
         mutable.userInfo = info

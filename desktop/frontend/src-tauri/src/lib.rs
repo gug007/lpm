@@ -41,6 +41,9 @@ mod aigen_split;
 mod autosync;
 mod bounds;
 mod browser;
+mod ci_checks;
+mod ci_prompt;
+mod ci_watch;
 mod claude_account_pin;
 mod claude_choice;
 mod claude_dirs;
@@ -243,6 +246,7 @@ mod ptyring;
 mod releasenotes;
 mod remote;
 mod remotepresence;
+mod remote_ci;
 mod remote_claude;
 mod remote_git_auto;
 mod remote_agents;
@@ -418,6 +422,7 @@ use git::*;
 use github_star::github_starred;
 use gitwatch::{start_watching_project, stop_watching_project};
 use label_probes::refresh_action_label;
+use ci_checks::*;
 use pull_request::*;
 use pull_request_review::pull_request_discussion;
 use gitfollow::{follow_list, follow_pause, follow_resume, follow_stop};
@@ -741,6 +746,8 @@ pub fn run() {
             sleepwatch::start(move || remote::farewell(&hub, "sleep"));
             // Keep awake while agents work, for a set time, or until turned off.
             keepawake_session::start(&handle);
+            // Following each push from this computer until its CI finishes.
+            ci_watch::start(handle.clone());
 
             // Peer host + client servers (Mac-to-Mac control). Load the shared
             // ~/.lpm/peer.json once into the lock both roles hold, then start the

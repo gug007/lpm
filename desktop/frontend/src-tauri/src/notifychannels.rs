@@ -17,6 +17,7 @@ pub enum NotificationEvent {
     Peers,
     SendLater,
     KeepAwake,
+    Ci,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -51,6 +52,7 @@ const NOTIFICATION_EVENTS: &[(NotificationEvent, &[(NotificationChannel, bool)])
     (NotificationEvent::Peers, &[(InApp, true)]),
     (NotificationEvent::SendLater, &[(InApp, true), (Banner, true)]),
     (NotificationEvent::KeepAwake, &[(InApp, true), (Banner, true)]),
+    (NotificationEvent::Ci, &[(InApp, true), (Banner, true)]),
 ];
 
 impl NotificationEvent {
@@ -64,6 +66,7 @@ impl NotificationEvent {
             Self::Peers => "peers",
             Self::SendLater => "sendLater",
             Self::KeepAwake => "keepAwake",
+            Self::Ci => "ci",
         }
     }
 
@@ -168,7 +171,7 @@ mod tests {
     use serde_json::json;
     use NotificationEvent::*;
 
-    const EVENTS: [NotificationEvent; 8] = [
+    const EVENTS: [NotificationEvent; 9] = [
         AgentWaiting,
         AgentDone,
         AgentError,
@@ -177,6 +180,7 @@ mod tests {
         Peers,
         SendLater,
         KeepAwake,
+        Ci,
     ];
 
     #[test]

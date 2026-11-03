@@ -88,6 +88,12 @@ class PushNotifier @Inject constructor(
                     NotificationManager.IMPORTANCE_DEFAULT
                 )
                     .setName(context.getString(R.string.push_channel_keep_awake))
+                    .build() +
+                NotificationChannelCompat.Builder(
+                    CI_CHANNEL,
+                    NotificationManager.IMPORTANCE_DEFAULT
+                )
+                    .setName(context.getString(R.string.push_channel_ci))
                     .build()
         )
     }

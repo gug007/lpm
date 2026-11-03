@@ -184,6 +184,11 @@ fun LpmClient.requestGitBranches(project: String) = send(Wire.gitBranches(projec
 fun LpmClient.requestGitHistory(project: String, skip: Int, limit: Int) =
     send(Wire.gitHistory(project, skip, limit))
 
+fun LpmClient.requestGitChecks(project: String) = send(Wire.gitChecks(project))
+
+fun LpmClient.requestGitChecksRerun(project: String, runIds: List<String>) =
+    send(Wire.gitChecksRerun(project, runIds))
+
 fun LpmClient.requestGitCommitFiles(project: String, hash: String) =
     send(Wire.gitCommitFiles(project, hash))
 

@@ -15,6 +15,7 @@ object PreferenceKeys {
     const val NOTIFY_AUTOMATION_DONE = "lpm.notify.automation.done"
     const val NOTIFY_AUTOMATION_ERROR = "lpm.notify.automation.error"
     const val NOTIFY_WEEKLY_RECAP = "lpm.notify.weeklyRecap"
+    const val NOTIFY_CI = "lpm.notify.ci"
     const val NOTIFY_LIVE_ACTIVITY = "lpm.notify.liveActivity"
     const val NOTIFY_PROJECTS = "lpm.notify.projects"
     const val NOTIFY_QUIET_ENABLED = "lpm.notify.quiet.enabled"

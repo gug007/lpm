@@ -55,6 +55,10 @@ pub(crate) struct Device {
     pub(crate) push_automation_done: bool,
     pub(crate) push_automation_error: bool,
     pub(crate) push_weekly_recap: bool,
+    // CI results for commits pushed from this Mac (ci_watch.rs); off for a phone
+    // from before CI alerts, which couldn't show them.
+    #[serde(default)]
+    pub(crate) push_ci: bool,
     // Projects the phone hears less about ("waiting" or "off"), by project name;
     // any project not named hears everything (remote/notify_levels.rs).
     #[serde(skip_serializing_if = "std::collections::BTreeMap::is_empty")]
@@ -112,6 +116,7 @@ impl Default for Device {
             push_automation_done: false,
             push_automation_error: false,
             push_weekly_recap: false,
+            push_ci: false,
             push_projects: Default::default(),
             live_updates: false,
             live_token: String::new(),

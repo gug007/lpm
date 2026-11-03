@@ -38,6 +38,12 @@ export const NOTIFICATION_EVENTS: NotificationEventSpec[] = [
     hint: "Five minutes before it lets go",
     defaults: { inApp: true, banner: true },
   },
+  {
+    id: "ci",
+    label: "CI results",
+    hint: "A commit you pushed fails, or passes again",
+    defaults: { inApp: true, banner: true },
+  },
 ];
 
 export const NOTIFICATION_CHANNELS: { id: NotificationChannel; label: string }[] = [

@@ -413,6 +413,19 @@ export interface PrCheck {
   workflow: string;
   state: PrCheckState;
   url: string;
+  // The earlier push this result is from, when the branch's newest push didn't
+  // run the check. Never set on a pull request's checks.
+  commit?: string;
+}
+
+// The checks on the commit a branch with no open pull request last pushed.
+export interface CommitChecksInfo {
+  sha: string;
+  title: string;
+  url: string;
+  checks: PrCheck[];
+  // What a Fix with … agent is told while something fails.
+  fixPrompt?: string;
 }
 
 export interface PullRequestInfo {
@@ -423,6 +436,8 @@ export interface PullRequestInfo {
   isDraft: boolean;
   // Absent on a PR known only from creating it, before the first lookup.
   checks?: PrCheck[];
+  // What a Fix with … agent is told while an open PR's checks fail.
+  fixPrompt?: string;
 }
 
 export const MEMORY_CHANGED_EVENT = "memory-changed";

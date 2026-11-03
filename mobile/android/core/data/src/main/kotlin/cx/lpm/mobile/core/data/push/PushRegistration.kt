@@ -21,6 +21,7 @@ data class PushRegistration(
     val automationDone: Boolean,
     val automationError: Boolean,
     val weeklyRecap: Boolean,
+    val ci: Boolean,
     val live: Boolean,
     /** Projects heard less about: "waiting" or "off", by project name. */
     val projects: Map<String, String> = emptyMap()
@@ -40,6 +41,7 @@ data class PushRegistration(
                 automationDone,
                 automationError,
                 weeklyRecap,
+                ci,
                 live
             )
                 .joinToString("") { if (it) "1" else "0" }
@@ -66,6 +68,7 @@ data class PushRegistration(
                 automationDone = prefs.enabled && prefs.automationDone,
                 automationError = prefs.enabled && prefs.automationError,
                 weeklyRecap = prefs.enabled && prefs.weeklyRecap,
+                ci = prefs.enabled && prefs.ci,
                 live = prefs.liveActivity,
                 projects = if (prefs.enabled) prefs.projects else emptyMap()
             )

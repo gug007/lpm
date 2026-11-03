@@ -62,6 +62,7 @@ import { usePeerAutoSyncToasts } from "./peer/usePeerAutoSyncToasts";
 import { usePeerFileSaveNotices } from "./peer/usePeerFileSaveNotices";
 import { usePeerRemovedNotices } from "./peer/usePeerRemovedNotices";
 import { useAgentFilesServedNotices } from "./peer/useAgentFilesServedNotices";
+import { useCiResultToasts } from "./hooks/useCiResultToasts";
 import { useKeepAwakeHeadsUp } from "./hooks/useKeepAwakeHeadsUp";
 import { usePeerState } from "./peer/usePeerState";
 import { useSettingsMachine } from "./components/settings/useSettingsMachine";
@@ -176,6 +177,7 @@ export default function App() {
   usePeerRemovedNotices();
   useAgentFilesServedNotices();
   useKeepAwakeHeadsUp();
+  useCiResultToasts();
   useIgnoredSyncConflicts();
   useSshStatusWarnings();
   useUpdateNote();

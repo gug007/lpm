@@ -112,6 +112,14 @@ fun ColumnScope.NotificationSettingsContent(
         }
     }
     FormSection(
+        dimmed = !on,
+        footer = { FooterText(stringResource(R.string.notify_ci_footer)) }
+    ) {
+        Toggle(R.string.notify_ci, prefs.ci, on) { v ->
+            onChange { it.copy(ci = v) }
+        }
+    }
+    FormSection(
         header = stringResource(R.string.notify_live_header),
         footer = { FooterText(stringResource(R.string.notify_live_footer)) }
     ) {

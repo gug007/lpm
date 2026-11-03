@@ -171,8 +171,8 @@ internal fun Context.alertNotification(
 }
 
 /**
- * A limit reminder or Keep awake about to let go, as the Mac words it; a tap opens that
- * Mac's Usage screen or its connection page.
+ * A limit reminder, Keep awake about to let go or a CI result, as the Mac words it; a tap
+ * opens that Mac's Usage screen, its connection page or the project.
  */
 internal fun Context.macNoticeNotification(
     notice: PushMacNotice,
@@ -183,9 +183,14 @@ internal fun Context.macNoticeNotification(
     notice.target,
     notice.title,
     notice.body,
-    if (notice.target == PushMacNotice.KEEP_AWAKE) KEEP_AWAKE_CHANNEL else REMINDER_CHANNEL,
+    when (notice.target) {
+        PushMacNotice.KEEP_AWAKE -> KEEP_AWAKE_CHANNEL
+        PushMacNotice.CI -> CI_CHANNEL
+        else -> REMINDER_CHANNEL
+    },
     tag,
-    quiet
+    quiet,
+    notice.project
 )
 
 /** The weekly recap as the Mac words it; a tap opens that Mac's recap on last week. */
@@ -210,7 +215,9 @@ internal const val REMINDER_CHANNEL = "limit-reminders"
 
 internal const val KEEP_AWAKE_CHANNEL = "keep-awake"
 
-/** A notification about a Mac rather than one of its projects; a tap opens `target` there. */
+internal const val CI_CHANNEL = "ci-results"
+
+/** A notification in the Mac's words; a tap opens `target` there, or [project]. */
 private fun Context.macNotification(
     serverId: String?,
     target: String,
@@ -218,11 +225,13 @@ private fun Context.macNotification(
     body: String,
     channel: String,
     tag: String,
-    quiet: Boolean
+    quiet: Boolean,
+    project: String? = null
 ): NotificationCompat.Builder {
     val extras = Bundle().apply {
         putString(NotificationOpenTarget.SERVER_ID, serverId)
         putString(NotificationOpenTarget.TARGET, target)
+        project?.let { putString(NotificationOpenTarget.PROJECT, it) }
     }
     return NotificationCompat.Builder(this, if (quiet) QUIET_CHANNEL else channel)
         .setSmallIcon(R.drawable.ic_stat_lpm)

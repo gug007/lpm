@@ -1,0 +1,38 @@
+# CI in the project's bar: storefront's pull request has a failing test, so the
+# button is red with 1; its sheet lists the checks failing first, and running the
+# failed jobs again shows them running, then passing.
+appId: cx.lpm.mobile
+name: 158-ci-checks
+tags: [demo, projects, git]
+---
+- runFlow: subflows/enter-demo.yaml
+- tapOn: "storefront"
+- extendedWaitUntil:
+    visible: "Tabs"
+    timeout: 5000
+- extendedWaitUntil:
+    visible: "CI on feat/checkout-redesign: 1 failing"
+    timeout: 10000
+- takeScreenshot: 1-bar
+- tapOn: "CI on feat/checkout-redesign: 1 failing"
+- extendedWaitUntil:
+    visible: "test \\(ubuntu-latest\\)"
+    timeout: 5000
+- assertVisible: "Re-run failed jobs"
+- assertVisible: "Open checks on GitHub"
+- assertVisible: "Two-step checkout flow"
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 2-sheet
+- tapOn: "Re-run failed jobs"
+- extendedWaitUntil:
+    notVisible: "Re-run failed jobs"
+    timeout: 5000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 3-running
+- tapOn: "Done"
+- extendedWaitUntil:
+    visible: "CI on feat/checkout-redesign: Checks passed"
+    timeout: 70000
+- takeScreenshot: 4-passed

@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { actionsRunId, checksLabel, checksSummary, fixChecksPrompt, sortedChecks } from "./prChecks";
+import {
+  actionsRunId,
+  checksLabel,
+  checksSummary,
+  failingRunIds,
+  markRerunning,
+  sortedChecks,
+  summarizeChecks,
+} from "./prChecks";
 import type { PrCheck, PullRequestInfo } from "./types";
 
 const check = (name: string, state: PrCheck["state"], url = ""): PrCheck => ({ name, workflow: "CI", state, url });
@@ -54,30 +62,30 @@ describe("sortedChecks", () => {
   });
 });
 
-describe("fixChecksPrompt", () => {
-  it("names each failing check and the gh commands that print why, once per run", () => {
-    const prompt = fixChecksPrompt(
-      pr([
-        check("test (ubuntu)", "fail", "https://github.com/o/r/actions/runs/11/job/21"),
-        check("test (macos)", "fail", "https://github.com/o/r/actions/runs/11/job/22"),
-        check("Vercel", "fail"),
-        check("lint", "pass", "https://github.com/o/r/actions/runs/11/job/23"),
-      ]),
-    );
-    expect(prompt).toBe(
-      [
-        "CI checks are failing on pull request #142 (https://github.com/o/r/pull/142):",
-        "- test (macos) — https://github.com/o/r/actions/runs/11/job/22",
-        "- test (ubuntu) — https://github.com/o/r/actions/runs/11/job/21",
-        "- Vercel",
-        "",
-        "Find out why with `gh pr checks 142` and `gh run view 11 --log-failed`, fix the cause, and run the same checks locally where you can to confirm the fix.",
-      ].join("\n"),
-    );
-  });
-
+describe("actionsRunId", () => {
   it("reads the run id from a job URL only", () => {
     expect(actionsRunId("https://github.com/o/r/actions/runs/40115672821/job/120936319373")).toBe("40115672821");
     expect(actionsRunId("https://vercel.com/x")).toBeNull();
+  });
+});
+
+describe("branch checks", () => {
+  const job = (name: string, state: PrCheck["state"], run: number, extra: Partial<PrCheck> = {}): PrCheck => ({
+    name,
+    workflow: "Linux host",
+    state,
+    url: `https://github.com/o/r/actions/runs/${run}/job/1`,
+    ...extra,
+  });
+
+  it("summarizes any list of checks, skipped ones aside", () => {
+    expect(summarizeChecks([job("a", "pass", 1), job("b", "skipped", 1)])?.verdict).toBe("pass");
+    expect(summarizeChecks([job("b", "skipped", 1)])).toBeNull();
+  });
+
+  it("names each failing run once, and marks only its failed checks running again", () => {
+    const checks = [job("a", "fail", 7), job("b", "fail", 7), job("c", "fail", 8), job("d", "pass", 7)];
+    expect(failingRunIds(checks)).toEqual(["7", "8"]);
+    expect(markRerunning(checks, ["7"]).map((c) => c.state)).toEqual(["pending", "pending", "fail", "pass"]);
   });
 });

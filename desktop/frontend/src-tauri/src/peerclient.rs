@@ -2820,6 +2820,9 @@ fn handle_frame(conn: &Arc<PeerConn>, app: Option<&AppHandle>, txt: &str) {
                 if name == crate::keepawake_headsup::HEADS_UP_EVENT {
                     crate::keepawake_headsup::from_peer(app, slug, &payload);
                 }
+                if name == crate::ci_watch::RESULT_EVENT {
+                    crate::ci_watch::from_peer(app, slug, &payload);
+                }
                 // Someone asks to join a tab a paired Mac shared on the host, which
                 // brings this window up as asking would on a machine of its own.
                 if name == crate::tabshare::KNOCK_EVENT {

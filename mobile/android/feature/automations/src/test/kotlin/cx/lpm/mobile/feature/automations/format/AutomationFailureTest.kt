@@ -59,6 +59,7 @@ class AutomationFailureTest {
             )
         )
         assertEquals("Done ok", automationNoteLine("Done \uE200cite\uE202turn0\uE201 ok"))
+        assertEquals("a b c", automationNoteLine("a  b　c"))
         assertEquals("a b…", automationNoteLine("a b c", max = 3))
         assertEquals("abc", automationNoteLine("abc", max = 3))
         assertEquals(

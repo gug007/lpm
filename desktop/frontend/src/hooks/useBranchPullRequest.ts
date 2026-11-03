@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef } from "react";
-import { BranchPullRequest } from "../../bridge/commands";
-import { checksSummary } from "../prChecks";
+import { BranchCommitChecks, BranchPullRequest } from "../../bridge/commands";
+import { checksSummary, summarizeChecks } from "../prChecks";
 import { useBranchPr } from "../store/branchPr";
 import { useEventListener } from "./useEventListener";
 import { useGitChanged } from "./useGitChanged";
-import type { PullRequestInfo } from "../types";
+import type { CommitChecksInfo, PrCheck, PullRequestInfo } from "../types";
 
 // A lookup younger than this is reused by focus and poll triggers.
 export const FRESH_MS = 30_000;
@@ -13,18 +13,24 @@ export const FRESH_MS = 30_000;
 export const POLL_MS = 60_000;
 // While CI checks are running, so the footer turns red or green soon after.
 export const CHECKS_POLL_MS = 20_000;
-// `gh pr create` pushes first and opens the PR a moment later; asking the
-// instant the push lands finds nothing, so a git change waits this long.
+// `gh pr create` pushes first and opens the PR a moment later, and GitHub
+// queues a push's checks a moment after it lands; asking the instant the push
+// lands finds neither, so a git change waits this long.
 export const GIT_CHANGE_DELAY_MS = 5_000;
 
-// The pull request for `branch` in the project at `projectPath`, refreshed on
-// branch change, window focus, git metadata changes and a slow poll while
-// `active`. Null until known, or when the branch has none.
-export function useBranchPullRequest(
-  projectPath: string,
-  branch: string,
-  active = true,
-): PullRequestInfo | null {
+export interface BranchCi {
+  pr: PullRequestInfo | null;
+  /** The last pushed commit's checks, while the branch has no open PR. */
+  commit: CommitChecksInfo | null;
+}
+
+const running = (checks: PrCheck[] | undefined) => summarizeChecks(checks ?? [])?.verdict === "pending";
+
+// The pull request for `branch` in the project at `projectPath`, and while it
+// has none open, the checks on the commit it last pushed; refreshed on branch
+// change, window focus, git metadata changes and a slow poll while `active` and
+// on screen. Null until known, or when there is none.
+export function useBranchPullRequest(projectPath: string, branch: string, active = true): BranchCi {
   const entry = useBranchPr((s) => s.entries[projectPath]);
   const setEntry = useBranchPr((s) => s.setEntry);
   const known = entry && entry.branch === branch ? entry : undefined;
@@ -37,20 +43,30 @@ export function useBranchPullRequest(
     if (!projectPath || !branch || inFlight.current) return;
     inFlight.current = true;
     let pr: PullRequestInfo | null = null;
+    let commit: CommitChecksInfo | null = null;
     try {
       pr = ((await BranchPullRequest(projectPath)) as PullRequestInfo | null) ?? null;
     } catch {
       pr = null;
-    } finally {
-      inFlight.current = false;
     }
-    setEntry(projectPath, { branch, pr, checkedAt: Date.now() });
+    if (pr?.state !== "OPEN") {
+      try {
+        commit = (await BranchCommitChecks(projectPath)) ?? null;
+      } catch {
+        commit = null;
+      }
+    }
+    inFlight.current = false;
+    setEntry(projectPath, { branch, pr, commit, checkedAt: Date.now() });
   }, [projectPath, branch, setEntry]);
 
-  const pollMs = known?.pr && checksSummary(known.pr)?.verdict === "pending" ? CHECKS_POLL_MS : POLL_MS;
+  const pending = (known?.pr && checksSummary(known.pr)?.verdict === "pending") || running(known?.commit?.checks);
+  const pollMs = pending ? CHECKS_POLL_MS : POLL_MS;
   const freshMs = Math.min(FRESH_MS, pollMs / 2);
 
+  // A hidden window skips its polls and asks again once it shows.
   const lookupIfStale = useCallback(() => {
+    if (document.hidden) return;
     if (Date.now() - checkedAtRef.current >= freshMs) void lookup();
   }, [lookup, freshMs]);
 
@@ -62,6 +78,7 @@ export function useBranchPullRequest(
   }, [active, lookupIfStale, pollMs]);
 
   useEventListener("focus", lookupIfStale, window, active);
+  useEventListener("visibilitychange", lookupIfStale, document, active);
 
   // Working-tree edits arrive with a file list and say nothing about PRs; a
   // null list is `.git` metadata (commit, push, checkout), which is when one
@@ -86,5 +103,5 @@ export function useBranchPullRequest(
     [],
   );
 
-  return known?.pr ?? null;
+  return { pr: known?.pr ?? null, commit: known?.commit ?? null };
 }

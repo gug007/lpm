@@ -27,6 +27,8 @@ data class NotificationPrefs(
     val automationError: Boolean = true,
     /** Monday's "Your week in lpm is ready", from each Mac. */
     val weeklyRecap: Boolean = true,
+    /** CI on a commit pushed from a Mac: failed, or passing again. */
+    val ci: Boolean = true,
     val liveActivity: Boolean = true,
     /** Projects heard less about: "waiting" (only when it needs you) or "off", by name. */
     val projects: Map<String, String> = emptyMap(),
@@ -47,6 +49,7 @@ val AppPreferences.notificationPrefs: NotificationPrefs
             automationError = bool(PreferenceKeys.NOTIFY_AUTOMATION_ERROR)
                 ?: defaults.automationError,
             weeklyRecap = bool(PreferenceKeys.NOTIFY_WEEKLY_RECAP) ?: defaults.weeklyRecap,
+            ci = bool(PreferenceKeys.NOTIFY_CI) ?: defaults.ci,
             liveActivity = bool(PreferenceKeys.NOTIFY_LIVE_ACTIVITY) ?: defaults.liveActivity,
             projects = projectLevels(string(PreferenceKeys.NOTIFY_PROJECTS)),
             quiet = QuietHours(
@@ -85,6 +88,7 @@ fun AppPreferences.setNotificationPrefs(prefs: NotificationPrefs) {
     setBool(PreferenceKeys.NOTIFY_AUTOMATION_DONE, prefs.automationDone)
     setBool(PreferenceKeys.NOTIFY_AUTOMATION_ERROR, prefs.automationError)
     setBool(PreferenceKeys.NOTIFY_WEEKLY_RECAP, prefs.weeklyRecap)
+    setBool(PreferenceKeys.NOTIFY_CI, prefs.ci)
     setBool(PreferenceKeys.NOTIFY_LIVE_ACTIVITY, prefs.liveActivity)
     setString(
         PreferenceKeys.NOTIFY_PROJECTS,

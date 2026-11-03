@@ -40,7 +40,7 @@ let container: HTMLDivElement;
 let root: Root;
 
 function Probe({ branch, active = true }: { branch: string; active?: boolean }) {
-  const pr = useBranchPullRequest("/p", branch, active);
+  const { pr } = useBranchPullRequest("/p", branch, active);
   return <div id="out">{pr ? `#${pr.number}` : "none"}</div>;
 }
 

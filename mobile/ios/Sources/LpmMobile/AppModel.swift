@@ -248,6 +248,9 @@ final class AppModel {
     var notifyWeeklyRecap: Bool = AppModel.loadBoolPref(AppModel.notifyWeeklyRecapKey) {
         didSet { persistNotifyPrefs(); syncPushRegistration() }
     }
+    var notifyCi: Bool = AppModel.loadBoolPref(AppModel.notifyCiKey) {
+        didSet { persistNotifyPrefs(); syncPushRegistration() }
+    }
     // How much each project is heard about: "waiting" (only when it needs you) or
     // "off". A project not named here gets everything the toggles above allow.
     var notifyProjectLevels: [String: String] =
@@ -399,6 +402,8 @@ final class AppModel {
     var projectFiles = ProjectFilesStore()
     // The project's commit history (`model.gitHistory`), same split.
     var gitHistory = GitHistoryStore()
+    // CI on each project's branch (`model.gitChecks`), same split.
+    var gitChecks = GitChecksStore()
     // The other machines saved here, while the list shows them all.
     let machineFeeds = PairedMachineFeeds()
 
@@ -474,6 +479,7 @@ final class AppModel {
         agentLaunch.model = self
         projectFiles.model = self
         gitHistory.model = self
+        gitChecks.model = self
         pushRegistrar.onIdentity = { [weak self] localId, serverId, serverName, platform in
             self?.learnIdentity(of: localId, serverId: serverId, serverName: serverName,
                                 platform: platform)
@@ -1430,6 +1436,8 @@ final class AppModel {
         projectFiles.model = self
         gitHistory = GitHistoryStore()
         gitHistory.model = self
+        gitChecks = GitChecksStore()
+        gitChecks.model = self
         fileFetches.cancelAll()
         answerRequests.failAll()
         pendingAgentPrompt = [:]
@@ -1493,6 +1501,7 @@ final class AppModel {
                              notifyAutomationDone: payload.automationDone,
                              notifyAutomationError: payload.automationError,
                              notifyWeeklyRecap: payload.weeklyRecap,
+                             notifyCi: payload.ci,
                              notifyProjects: payload.projects)
     }
 
@@ -1512,6 +1521,7 @@ final class AppModel {
             automationDone: notifyEnabled && notifyAutomationDone,
             automationError: notifyEnabled && notifyAutomationError,
             weeklyRecap: notifyEnabled && notifyWeeklyRecap,
+            ci: notifyEnabled && notifyCi,
             projects: notifyEnabled ? notifyProjectLevels : [:])
     }
 
@@ -1566,6 +1576,7 @@ final class AppModel {
     static let notifyAutomationDoneKey = "lpm.notify.automation.done"
     static let notifyAutomationErrorKey = "lpm.notify.automation.error"
     static let notifyWeeklyRecapKey = "lpm.notify.weeklyRecap"
+    static let notifyCiKey = "lpm.notify.ci"
     static let notifyProjectsKey = "lpm.notify.projects"
     static let liveActivitiesKey = "lpm.notify.liveActivity"
 
@@ -1587,6 +1598,7 @@ final class AppModel {
         d.set(notifyAutomationDone, forKey: Self.notifyAutomationDoneKey)
         d.set(notifyAutomationError, forKey: Self.notifyAutomationErrorKey)
         d.set(notifyWeeklyRecap, forKey: Self.notifyWeeklyRecapKey)
+        d.set(notifyCi, forKey: Self.notifyCiKey)
     }
 
     // Terminal wiring used by TerminalScreen. Every screen subscribes on open, so
@@ -2474,6 +2486,7 @@ final class AppModel {
         agentLaunch.handleConnectionReset()
         projectFiles.handleConnectionReset()
         gitHistory.handleConnectionReset()
+        gitChecks.handleConnectionReset()
         fileFetches.handleConnectionReset()
         answerRequests.failAll()
         historyPending = []
@@ -2684,6 +2697,7 @@ final class AppModel {
         wireAgentLaunch(c)
         wireProjectFiles(c)
         wireGitHistory(c)
+        wireGitChecks(c)
     }
 
     private func wireConnection(_ c: LpmClient) {

@@ -84,6 +84,8 @@ fun ProjectDetailScreen(
     modifier: Modifier = Modifier,
     actions: ProjectDetailActions = ProjectDetailActions(),
     menu: @Composable RowScope.() -> Unit = {},
+    /** Beside Back: the project's CI. */
+    ci: @Composable RowScope.() -> Unit = {},
     connectionStatusBar: @Composable () -> Unit = {},
     belowServices: @Composable () -> Unit = {},
     usage: @Composable () -> Unit = {},
@@ -104,6 +106,7 @@ fun ProjectDetailScreen(
                     contentDescription = stringResource(ProjectsR.string.back),
                     onClick = actions.back
                 )
+                ci()
             },
             trailing = menu,
             keepTitleCentered = true

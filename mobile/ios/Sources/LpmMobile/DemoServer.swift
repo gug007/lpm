@@ -32,6 +32,7 @@ final class DemoServer {
         registerGitDiscardHandlers()
         registerGitHistoryHandlers()
         registerGitAutoHandlers()
+        registerGitChecksHandlers()
         registerAutoPullHandlers()
         registerClaudeAccountHandlers()
         registerStatsHandlers()

@@ -54,6 +54,7 @@ use tauri::{AppHandle, Emitter, Listener, Manager, State};
 use tungstenite::{accept, Error as WsError, Message, WebSocket};
 
 mod answer;
+mod ci_push;
 mod live;
 mod mac_alert;
 mod notify_levels;
@@ -67,6 +68,7 @@ mod tab_account;
 mod tab_menu;
 pub(crate) mod tabs;
 
+pub(crate) use ci_push::push_ci_result;
 pub(crate) use mac_alert::send_all as send_mac_alert;
 pub(crate) use recap_push::send_weekly_recap;
 pub(crate) use reminders::push_limit_reminder;
@@ -173,6 +175,7 @@ const PHONE_FEATURES: &[&str] = &[
     crate::wakeonlan::FEATURE,
     crate::keepawake_cmds::PHONE_FEATURE,
     crate::remote_lpm_commands::FEATURE,
+    crate::remote_ci::FEATURE,
 ];
 
 /// The phone may send `restartService` / `stopService`.
@@ -203,11 +206,12 @@ struct PushPreferences {
     automation_done: bool,
     automation_error: bool,
     weekly_recap: bool,
+    ci: bool,
 }
 
 impl PushPreferences {
     /// A registration's `notify` object: a missing object or any missing field
-    /// keeps agent alerts on and automation and weekly recap alerts off.
+    /// keeps agent alerts on and automation, weekly recap and CI alerts off.
     fn from_notify(notify: Option<&Value>) -> Self {
         let pref = |name: &str, fallback: bool| {
             notify
@@ -223,6 +227,7 @@ impl PushPreferences {
             automation_done: pref("automationDone", false),
             automation_error: pref("automationError", false),
             weekly_recap: pref("weeklyRecap", false),
+            ci: pref("ci", false),
         }
     }
 }
@@ -2030,7 +2035,7 @@ pub fn set_claude_limits_enabled(app: &AppHandle, enabled: bool) {
 
 /// Like `result_reply` but echoes the `project` the phone addressed, so a reply
 /// can be matched to its request even with several projects in flight.
-fn git_result_reply(kind: &str, project: &str, r: Result<(), String>) -> Value {
+pub(crate) fn git_result_reply(kind: &str, project: &str, r: Result<(), String>) -> Value {
     match r {
         Ok(()) => json!({ "t": kind, "project": project, "ok": true }),
         Err(e) => json!({ "t": kind, "project": project, "ok": false, "error": e }),
@@ -4754,6 +4759,7 @@ fn handle_msg(
             let _ = out.try_send(reply.to_string());
         }
         "claudeAccounts" | "setClaudeAccount" => crate::remote_claude::handle(app, out, t, &v),
+        "gitChecks" | "gitChecksRerun" => crate::remote_ci::handle(out, t, &v),
         "answers" => {
             let id = str_field("id").unwrap_or_default();
             let session = hub.inner.agent_sessions.lock().unwrap().get(&id).cloned();
@@ -5330,6 +5336,7 @@ fn apply_push_token(devices: &mut [Device], device_id: &str, reg: &PushRegistrat
             d.push_automation_done = reg.prefs.automation_done;
             d.push_automation_error = reg.prefs.automation_error;
             d.push_weekly_recap = reg.prefs.weekly_recap;
+            d.push_ci = reg.prefs.ci;
             d.push_projects = reg.projects.clone();
         } else if d.apns_token == reg.token && d.push_platform == reg.platform {
             d.apns_token.clear();
@@ -5431,6 +5438,7 @@ struct PushDevice {
     push_automation_done: bool,
     push_automation_error: bool,
     push_weekly_recap: bool,
+    push_ci: bool,
     projects: notify_levels::ProjectLevels,
 }
 
@@ -5475,6 +5483,7 @@ impl PushDevice {
             || self.push_automation_done
             || self.push_automation_error
             || self.push_weekly_recap
+            || self.push_ci
     }
 }
 
@@ -5589,6 +5598,7 @@ fn make_push_device(d: &Device) -> Option<PushDevice> {
         push_automation_done: d.push_automation_done,
         push_automation_error: d.push_automation_error,
         push_weekly_recap: d.push_weekly_recap,
+        push_ci: d.push_ci,
         projects: d.push_projects.clone(),
     })
 }
@@ -8006,6 +8016,7 @@ mod tests {
             automation_done: false,
             automation_error: true,
             weekly_recap: true,
+            ci: true,
         };
         let reg = |token: &str| PushRegistration {
             platform: "",
@@ -8151,6 +8162,7 @@ mod tests {
                 push_automation_done: true,
                 push_automation_error: false,
                 push_weekly_recap: true,
+                push_ci: true,
                 push_projects: [("blog".to_string(), "off".to_string())].into(),
                 live_updates: true,
                 live_token: String::new(),
@@ -8197,6 +8209,7 @@ mod tests {
         assert!(!back.devices[0].push_automation_started);
         assert!(back.devices[0].push_automation_done);
         assert!(back.devices[0].push_weekly_recap);
+        assert!(back.devices[0].push_ci);
         assert!(!back.devices[0].push_automation_error);
     }
 
@@ -8287,6 +8300,7 @@ mod tests {
         assert!(apns.prefs.waiting && apns.prefs.done && apns.prefs.error);
         assert!(!apns.prefs.automation_started);
         assert!(!apns.prefs.weekly_recap, "older phones can't show the recap");
+        assert!(!apns.prefs.ci, "older phones can't show CI results");
 
         // `apnsToken` stays APNs even if it names another platform.
         assert!(push_registration(
@@ -8300,11 +8314,12 @@ mod tests {
             &json!({
                 "t": "pushToken", "platform": "fcm", "token": "cZ1:APA91b-x_y",
                 "env": "production", "key": key,
-                "notify": { "waiting": false, "automationDone": true, "weeklyRecap": true },
+                "notify": { "waiting": false, "automationDone": true, "weeklyRecap": true, "ci": true },
             }),
         )
         .unwrap();
         assert!(fcm.prefs.weekly_recap);
+        assert!(fcm.prefs.ci);
         assert_eq!(fcm.platform, PUSH_PLATFORM_FCM);
         assert_eq!(fcm.token, "cZ1:APA91b-x_y");
         assert_eq!(fcm.env, "", "FCM has no environment");
@@ -8708,6 +8723,7 @@ mod tests {
             push_automation_done: false,
             push_automation_error: false,
             push_weekly_recap: false,
+            push_ci: false,
             projects: Default::default(),
         };
         let jobs = [STATUS_WAITING, STATUS_DONE, STATUS_ERROR];
@@ -8742,6 +8758,7 @@ mod tests {
             push_automation_done: false,
             push_automation_error: true,
             push_weekly_recap: false,
+            push_ci: false,
             projects: Default::default(),
         };
 

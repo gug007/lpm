@@ -19,6 +19,7 @@ import cx.lpm.mobile.core.model.SessionKey
 import cx.lpm.mobile.core.model.TerminalInfo
 import cx.lpm.mobile.core.model.launchpadTabs
 import cx.lpm.mobile.core.model.trimmingWhitespace
+import cx.lpm.mobile.feature.projects.ActionRunStep
 import cx.lpm.mobile.feature.projects.newtab.NewTabPickMemory.Companion.TERMINAL
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
@@ -35,13 +36,6 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
-/** Where opening the picked action stands: its inputs, then its confirmation. */
-sealed interface NewTabStep {
-    data class Inputs(val action: Action) : NewTabStep
-
-    data class Confirm(val action: Action, val values: Map<String, String>) : NewTabStep
-}
-
 data class NewTabUiState(
     /** What the Mac can start; null until it answers. */
     val options: List<AgentOption>? = null,
@@ -54,7 +48,7 @@ data class NewTabUiState(
     val prompt: String = "",
     /** "Resume a Past Session…" shows: the Mac lists them and the project isn't on SSH. */
     val canResume: Boolean = false,
-    val step: NewTabStep? = null
+    val step: ActionRunStep? = null
 ) {
     val option: LaunchpadOption? = tabs?.flatMap { it.options }?.firstOrNull { it.id == picked }
 
@@ -81,7 +75,7 @@ private data class Picks(
     val picked: String,
     val pick: NewTabPick,
     val prompt: String,
-    val step: NewTabStep?
+    val step: ActionRunStep?
 )
 
 /**
@@ -102,7 +96,7 @@ class NewTabViewModel @AssistedInject constructor(
     private val picked = MutableStateFlow(memory.loadOption())
     private val pick = MutableStateFlow(memory.load())
     private val prompt = MutableStateFlow("")
-    private val step = MutableStateFlow<NewTabStep?>(null)
+    private val step = MutableStateFlow<ActionRunStep?>(null)
     private val picks = combine(picked, pick, prompt, step, ::Picks)
     private val session: MacSession? get() = sessions[sessionKey]
 
@@ -196,9 +190,9 @@ class NewTabViewModel @AssistedInject constructor(
                 )
             }
 
-            action.inputs.isNotEmpty() -> step.value = NewTabStep.Inputs(action)
+            action.inputs.isNotEmpty() -> step.value = ActionRunStep.Inputs(action)
 
-            action.confirm -> step.value = NewTabStep.Confirm(action, emptyMap())
+            action.confirm -> step.value = ActionRunStep.Confirm(action, emptyMap())
 
             else -> run(option, action, emptyMap(), onSpawn)
         }
@@ -207,9 +201,9 @@ class NewTabViewModel @AssistedInject constructor(
 
     /** The action's inputs are in: its confirmation, or it opens (true). */
     fun submitInputs(values: Map<String, String>, onSpawn: (TerminalInfo) -> Unit): Boolean {
-        val inputs = step.value as? NewTabStep.Inputs ?: return false
+        val inputs = step.value as? ActionRunStep.Inputs ?: return false
         if (inputs.action.confirm) {
-            step.value = NewTabStep.Confirm(inputs.action, values)
+            step.value = ActionRunStep.Confirm(inputs.action, values)
             return false
         }
         step.value = null
@@ -218,13 +212,13 @@ class NewTabViewModel @AssistedInject constructor(
     }
 
     fun confirm(onSpawn: (TerminalInfo) -> Unit) {
-        val confirm = step.value as? NewTabStep.Confirm ?: return
+        val confirm = step.value as? ActionRunStep.Confirm ?: return
         step.value = null
         uiState.value.option?.let { run(it, confirm.action, confirm.values, onSpawn) }
     }
 
     /** Cancel the inputs or the confirmation, if still showing. */
-    fun dismiss(shown: NewTabStep) {
+    fun dismiss(shown: ActionRunStep) {
         step.compareAndSet(shown, null)
     }
 

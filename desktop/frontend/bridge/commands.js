@@ -232,6 +232,12 @@ export function DuplicateStatus(name) {
 export function BranchPullRequest(cwd) {
   return invoke("branch_pull_request", { cwd });
 }
+export function BranchCommitChecks(cwd) {
+  return invoke("branch_commit_checks", { cwd });
+}
+export function RerunFailedChecks(cwd, runIds) {
+  return invoke("rerun_failed_checks", { cwd, runIds });
+}
 export function PullRequestDiscussion(cwd) {
   return invoke("pull_request_discussion", { cwd });
 }

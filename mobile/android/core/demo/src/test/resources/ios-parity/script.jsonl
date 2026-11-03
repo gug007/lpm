@@ -68,6 +68,11 @@
 {"at": 650, "frame": {"t": "gitCommitPatch", "project": "storefront", "hash": "deadbeef", "path": "README.md"}}
 {"at": 650, "frame": {"t": "gitCommitPatch", "project": "blog", "hash": "8a2c4e6f0b1d3f5a7c9e2b4d6f8a0c1e3b5d7f90", "path": "README.md"}}
 {"at": 650, "frame": {"t": "gitCommitPatch", "project": "storefront", "hash": "a1f3c9e5b2d84f6a9c0e1b7d3f5a8c2e4b6d9f01"}}
+{"at": 660, "frame": {"t": "gitChecks", "project": "storefront"}}
+{"at": 660, "frame": {"t": "gitChecks", "project": "api-gateway"}}
+{"at": 660, "frame": {"t": "gitChecks", "project": "blog"}}
+{"at": 660, "frame": {"t": "gitChecks", "project": "nope"}}
+{"at": 700, "frame": {"t": "gitChecksRerun", "project": "storefront", "runIds": ["7001"]}}
 {"at": 700, "frame": {"t": "gitGenMessage", "project": "storefront", "files": ["lib/payments.ts"]}}
 {"at": 700, "frame": {"t": "gitGenMessage", "project": "blog", "files": ["README.md", "docs/a.md"]}}
 {"at": 700, "frame": {"t": "gitGenMessage", "project": "blog", "files": ["app/page.tsx"]}}
@@ -96,6 +101,7 @@
 {"at": 1000, "frame": {"t": "notesChats", "project": "storefront"}}
 {"at": 1000, "frame": {"t": "notesChats", "project": "blog"}}
 {"at": 1000, "frame": {"t": "notesChats", "project": "api-gateway"}}
+{"at": 1500, "frame": {"t": "gitChecks", "project": "storefront"}}
 {"at": 1500, "frame": {"t": "notesMessages", "project": "storefront", "chatId": "chat-1", "limit": 50}}
 {"at": 2000, "frame": {"t": "notesMessages", "project": "storefront", "chatId": "chat-1", "limit": 50, "beforeId": "note-6"}}
 {"at": 2000, "frame": {"t": "notesMessages", "project": "storefront", "chatId": "chat-56"}}
@@ -193,6 +199,7 @@
 {"at": 6000, "frame": {"t": "jobs"}}
 {"at": 7000, "frame": {"t": "runActionBackground", "project": "api-gateway", "action": "test", "inputValues": {}, "runId": "run-1"}}
 {"at": 7000, "frame": {"t": "actionBgOutput", "project": "api-gateway", "runId": "run-1"}}
+{"at": 8000, "frame": {"t": "gitChecks", "project": "storefront"}}
 {"at": 9000, "frame": {"t": "git", "project": "work-copy"}}
 {"at": 9000, "frame": {"t": "terminals", "project": "work-copy"}}
 {"at": 9100, "frame": {"t": "sub", "id": "demo-work-copy-2"}}

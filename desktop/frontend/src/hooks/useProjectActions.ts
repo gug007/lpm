@@ -88,6 +88,9 @@ export function useProjectActions({
   const [confirmAction, setConfirmAction] = useState<ActionInfo | null>(null);
   const [inputsAction, setInputsAction] = useState<ActionInfo | null>(null);
   const [pendingInputValues, setPendingInputValues] = useState<Record<string, string> | null>(null);
+  // What the run was asked with (its prompt above all), kept while its inputs
+  // or confirmation are up.
+  const pendingOptsRef = useRef<RunActionOpts>({});
 
   const mountedRef = useRef(true);
 
@@ -256,6 +259,7 @@ export function useProjectActions({
       executeAction(action, opts.inputValues ?? {}, opts);
       return;
     }
+    pendingOptsRef.current = opts ?? {};
     if (action.inputs && action.inputs.length > 0) {
       setInputsAction(action);
       return;
@@ -276,7 +280,7 @@ export function useProjectActions({
       setConfirmAction(action);
       return;
     }
-    executeAction(action, values);
+    executeAction(action, values, pendingOptsRef.current);
   };
 
   return {
@@ -290,7 +294,7 @@ export function useProjectActions({
           setPendingInputValues(null);
         },
         onConfirm: () => {
-          if (confirmAction) executeAction(confirmAction, pendingInputValues ?? undefined);
+          if (confirmAction) executeAction(confirmAction, pendingInputValues ?? undefined, pendingOptsRef.current);
         },
       },
       inputs: {

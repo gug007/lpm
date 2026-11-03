@@ -23,12 +23,15 @@ struct LaunchpadTab: Identifiable {
 
 /// The project's actions that open one of `agents`, split buttons and menus kept
 /// whole with only their agent items, each split led by the item its button runs.
-/// The bare agents when the project has none. Mirrors the desktop's launchpadTabs.
+/// The bare agents when the project has none. `skipOwnTasks` leaves out the actions
+/// that start their agent on a task of their own, for a prompt that is the task.
+/// Mirrors the desktop's launchpadTabs.
 func launchpadTabs(_ actions: [Action], project: String, agents: [AgentOption],
-                   memory: ActionPrimaryMemory = .shared) -> [LaunchpadTab] {
+                   memory: ActionPrimaryMemory = .shared, skipOwnTasks: Bool = false) -> [LaunchpadTab] {
     let ids = agents.map(\.id)
     func option(_ action: Action, in group: Action? = nil) -> LaunchpadOption? {
-        guard action.type == "terminal", let agent = agentCLI(in: action.cmd, among: ids) else { return nil }
+        guard action.type == "terminal", let agent = agentCLI(in: action.cmd, among: ids),
+              !(skipOwnTasks && action.startsOwnTask(agent: agent)) else { return nil }
         return LaunchpadOption(id: action.name, label: action.label, agent: agent, action: action, group: group)
     }
     func descendants(_ actions: [Action]) -> [Action] {

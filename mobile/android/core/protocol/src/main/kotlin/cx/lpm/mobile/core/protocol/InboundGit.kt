@@ -3,6 +3,7 @@ package cx.lpm.mobile.core.protocol
 import cx.lpm.mobile.core.model.CommitFile
 import cx.lpm.mobile.core.model.GitAutoRun
 import cx.lpm.mobile.core.model.GitBranch
+import cx.lpm.mobile.core.model.GitChecks
 import cx.lpm.mobile.core.model.GitDiffEntry
 import cx.lpm.mobile.core.model.GitDiffResult
 import cx.lpm.mobile.core.model.GitSnapshot
@@ -99,6 +100,16 @@ internal val gitParsers = parsers {
             page = if (o.ok) HistoryPage.parse(o) else null,
             error = o.failure("Couldn't load the history.")
         )
+    }
+    put("gitChecks") { o ->
+        Inbound.GitChecks(
+            project = o.str("project"),
+            checks = if (o.ok) GitChecks.parse(o) else null,
+            error = o.failure("Couldn't read CI.")
+        )
+    }
+    put("gitChecksRerun") { o ->
+        Inbound.GitChecksRerun(o.str("project"), o.failure("Couldn't run the failed jobs again."))
     }
     put("gitCommitFiles") { o ->
         Inbound.GitCommitFiles(

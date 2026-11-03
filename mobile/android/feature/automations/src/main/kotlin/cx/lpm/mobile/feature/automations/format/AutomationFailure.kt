@@ -59,7 +59,7 @@ private val noteRules = listOf(
     Regex("```[\\s\\S]*?(```|$)") to " ",
     Regex("\\[([^\\]]*)\\]\\([^)]*\\)") to "$1",
     Regex("[#*_>`|]") to "",
-    Regex("(?U)\\s+") to " "
+    Regex("[\\s\\p{Z}\\u0085]+") to " "
 )
 
 /** Swift's `.whitespaces`: tab and Unicode space separators. */

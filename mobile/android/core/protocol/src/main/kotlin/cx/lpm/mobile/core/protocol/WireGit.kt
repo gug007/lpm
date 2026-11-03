@@ -1,6 +1,8 @@
 package cx.lpm.mobile.core.protocol
 
+import kotlinx.serialization.json.add
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
 
 /** Git review & ship, and the Auto Commit / Auto Create PR runs. */
 sealed interface WireGit {
@@ -52,6 +54,14 @@ sealed interface WireGit {
         put("project", project)
         put("skip", skip)
         put("limit", limit)
+    }
+
+    // CI (a Mac whose `features` has "gitChecks").
+    fun gitChecks(project: String): String = frame("gitChecks") { put("project", project) }
+
+    fun gitChecksRerun(project: String, runIds: List<String>): String = frame("gitChecksRerun") {
+        put("project", project)
+        putJsonArray("runIds") { runIds.forEach { add(it) } }
     }
 
     fun gitCommitFiles(project: String, hash: String): String = frame("gitCommitFiles") {

@@ -12,6 +12,7 @@ import cx.lpm.mobile.core.model.TerminalInfo
 import cx.lpm.mobile.core.testing.FakeSocket
 import cx.lpm.mobile.core.testing.MainDispatcherRule
 import cx.lpm.mobile.core.testing.TestSession
+import cx.lpm.mobile.feature.projects.ActionRunStep
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
@@ -227,12 +228,12 @@ class NewTabViewModelTest {
         testScheduler.runCurrent()
         assertFalse(vm.open {})
         testScheduler.runCurrent()
-        val inputs = vm.uiState.value.step as NewTabStep.Inputs
+        val inputs = vm.uiState.value.step as ActionRunStep.Inputs
         assertEquals("claude:review", inputs.action.name)
 
         assertFalse(vm.submitInputs(mapOf("branch" to "main")) {})
         testScheduler.runCurrent()
-        assertTrue(vm.uiState.value.step is NewTabStep.Confirm)
+        assertTrue(vm.uiState.value.step is ActionRunStep.Confirm)
         assertTrue(socket.runs().isEmpty())
 
         vm.confirm {}

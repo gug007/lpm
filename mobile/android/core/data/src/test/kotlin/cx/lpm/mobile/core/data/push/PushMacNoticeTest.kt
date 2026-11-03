@@ -52,4 +52,40 @@ class PushMacNoticeTest {
             NotificationOpenTarget.from(extras::get)
         )
     }
+
+    private val ci =
+        """{"serverId":"srv-1","target":"ci","project":"lpm","projectLabel":"lpm",""" +
+            """"title":"lpm · main",""" +
+            """"body":"CI failed: Linux host\nfcb454f feat(cli): add remote command execution",""" +
+            """"ts":7,"key":"ci:lpm/main"}"""
+
+    @Test
+    fun `a CI result is shown in the Mac's words, and only with its project`() {
+        assertEquals(
+            PushMacNotice(
+                serverId = "srv-1",
+                target = PushMacNotice.CI,
+                title = "lpm · main",
+                body = "CI failed: Linux host\nfcb454f feat(cli): add remote command execution",
+                key = "ci:lpm/main",
+                project = "lpm"
+            ),
+            PushMacNotice.parse(obj(ci))
+        )
+        assertNull(PushMacNotice.parse(obj("""{"target":"ci","title":"lpm · main"}""")))
+    }
+
+    @Test
+    fun `a tap on a CI result opens its project`() {
+        val extras = mapOf("serverId" to "srv-1", "target" to "ci", "project" to "lpm")
+        assertEquals(
+            NotificationOpenTarget(
+                serverId = "srv-1",
+                project = "lpm",
+                kind = NotificationOpenTarget.Kind.Project,
+                itemId = null
+            ),
+            NotificationOpenTarget.from(extras::get)
+        )
+    }
 }

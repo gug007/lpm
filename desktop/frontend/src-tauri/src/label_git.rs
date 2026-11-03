@@ -10,13 +10,13 @@ use std::time::{Duration, Instant, SystemTime};
 const STALE: Duration = Duration::from_secs(600);
 const GIT_TIMEOUT: Duration = Duration::from_secs(5);
 
-struct Repo {
-    git_dir: PathBuf,
-    common_dir: PathBuf,
+pub(crate) struct Repo {
+    pub(crate) git_dir: PathBuf,
+    pub(crate) common_dir: PathBuf,
 }
 
 /// The repository holding `root`, which may sit below its top level.
-fn locate(root: &str) -> Option<Repo> {
+pub(crate) fn locate(root: &str) -> Option<Repo> {
     if root.is_empty() {
         return None;
     }
@@ -53,7 +53,8 @@ fn linked(dot: &Path) -> Option<Repo> {
     })
 }
 
-fn read_branch(root: &str) -> Option<String> {
+/// The checked-out branch, or the short commit when HEAD is detached, read now.
+pub(crate) fn read_branch(root: &str) -> Option<String> {
     let repo = locate(root)?;
     let head = std::fs::read_to_string(repo.git_dir.join("HEAD")).ok()?;
     let head = head.trim();

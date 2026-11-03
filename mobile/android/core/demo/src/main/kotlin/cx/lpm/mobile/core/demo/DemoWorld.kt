@@ -205,6 +205,7 @@ internal class DemoWorld(val clock: Clock) {
     val git = mutableMapOf<String, GitRepo>() // project -> repo
     val gitAutoRuns = mutableMapOf<String, GitAutoRun>() // project -> last Auto Commit / PR run
     var gitAutoNextId = 1
+    val ciRerunAt = mutableMapOf<String, Long>() // project -> when its failed CI ran again, millis
     var gitDiscardNextId = 1
 
     // Jobs (automations)

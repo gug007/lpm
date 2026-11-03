@@ -63,6 +63,8 @@
     <string name="notify_automations_footer">Choose which automation outcomes send a notification when this app is closed.</string>
     <string name="notify_weekly_recap">Weekly recap</string>
     <string name="notify_weekly_recap_footer">Mondays, when your week in lpm is ready</string>
+    <string name="notify_ci">CI results</string>
+    <string name="notify_ci_footer">When a commit pushed from your Mac fails CI, or passes again</string>
     <plurals name="settings_lock_minutes">
         <item quantity="one">After %1$d minute</item>
         <item quantity="other">After %1$d minutes</item>

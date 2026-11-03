@@ -24,6 +24,7 @@ import cx.lpm.mobile.core.model.TerminalInfo
 import cx.lpm.mobile.core.navigation.PresentationScope
 import cx.lpm.mobile.core.navigation.SheetStack
 import cx.lpm.mobile.core.navigation.rememberSheetNavigator
+import cx.lpm.mobile.feature.projects.ActionRunStep
 import cx.lpm.mobile.feature.projects.R
 import cx.lpm.mobile.feature.projects.resume.ResumeSessionPage
 
@@ -117,13 +118,13 @@ private fun NewTabContent(
         }
     }
     when (val step = state.step) {
-        is NewTabStep.Inputs -> actionInputs(
+        is ActionRunStep.Inputs -> actionInputs(
             step.action,
             { values -> if (viewModel.submitInputs(values, onOpen)) opening() },
             { viewModel.dismiss(step) }
         )
 
-        is NewTabStep.Confirm -> LpmAlert(
+        is ActionRunStep.Confirm -> LpmAlert(
             title = stringResource(R.string.new_tab_run_confirm, step.action.label),
             buttons = listOf(
                 AlertButton(stringResource(R.string.new_tab_run)) {

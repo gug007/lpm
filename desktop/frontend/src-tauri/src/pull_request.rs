@@ -13,6 +13,9 @@ pub struct PullRequestInfo {
     pub title: String,
     pub is_draft: bool,
     pub checks: Vec<PrCheck>,
+    /// What a Fix with … agent is told while an open PR's checks fail.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fix_prompt: Option<String>,
 }
 
 #[derive(Serialize, Debug, PartialEq, Clone)]
@@ -23,6 +26,10 @@ pub struct PrCheck {
     /// "pass", "fail", "pending" or "skipped" (neutral, skipped or cancelled).
     pub state: &'static str,
     pub url: String,
+    /// The older commit this result comes from, when a branch's newest push
+    /// didn't run the check (ci_checks.rs). Never set for a pull request.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub commit: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -70,19 +77,24 @@ fn parse_pull_request(json: &str) -> Option<PullRequestInfo> {
     if pr.number == 0 || pr.url.is_empty() {
         return None;
     }
+    let checks = checks_from_rollup(&pr.status_check_rollup);
+    let fix_prompt = (pr.state == "OPEN")
+        .then(|| crate::ci_prompt::for_pull_request(pr.number, &pr.url, &checks))
+        .flatten();
     Some(PullRequestInfo {
         number: pr.number,
         url: pr.url,
         state: pr.state,
         title: pr.title,
         is_draft: pr.is_draft,
-        checks: checks_from_rollup(&pr.status_check_rollup),
+        checks,
+        fix_prompt,
     })
 }
 
 /// One row per check, the newest run of each: a re-run or a second trigger
 /// (push and pull_request) lists the same check again.
-fn checks_from_rollup(rollup: &[Value]) -> Vec<PrCheck> {
+pub(crate) fn checks_from_rollup(rollup: &[Value]) -> Vec<PrCheck> {
     let mut newest: Vec<(String, PrCheck)> = Vec::new();
     for item in rollup {
         let Some((started, check)) = rollup_check(item) else {
@@ -125,6 +137,7 @@ fn rollup_check(item: &Value) -> Option<(String, PrCheck)> {
             workflow: text("workflowName").to_string(),
             state,
             url: url.to_string(),
+            commit: None,
         },
     ))
 }
@@ -165,6 +178,7 @@ mod tests {
                 title: "Add footer link".into(),
                 is_draft: false,
                 checks: vec![],
+                fix_prompt: None,
             })
         );
     }
@@ -198,6 +212,7 @@ mod tests {
             workflow: workflow.into(),
             state,
             url: url.into(),
+            commit: None,
         }
     }
 

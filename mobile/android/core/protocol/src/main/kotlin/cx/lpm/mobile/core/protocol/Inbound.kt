@@ -299,6 +299,16 @@ sealed interface Inbound {
         val error: String?
     ) : Inbound
 
+    // How the branch stands on CI (null when it has none to show), and the failed
+    // jobs run again. `error` is null on success.
+    data class GitChecks(
+        val project: String,
+        val checks: cx.lpm.mobile.core.model.GitChecks?,
+        val error: String?
+    ) : Inbound
+
+    data class GitChecksRerun(val project: String, val error: String?) : Inbound
+
     data class GitCommitFiles(
         val project: String,
         val hash: String,

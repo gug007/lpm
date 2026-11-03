@@ -42,6 +42,10 @@ at(650, 'gitHistory', project='storefront', skip=20, limit=100)
 at(650, 'gitHistory', project='storefront'); at(650, 'gitHistory', project='storefront', limit=0)
 at(650, 'gitHistory', project='blog', skip=0, limit=100); at(650, 'gitHistory', project='nope', skip=0, limit=100)
 at(650, 'gitHistory', skip=0)
+at(660, 'gitChecks', project='storefront'); at(660, 'gitChecks', project='api-gateway')
+at(660, 'gitChecks', project='blog'); at(660, 'gitChecks', project='nope')
+at(700, 'gitChecksRerun', project='storefront', runIds=['7001'])
+at(1500, 'gitChecks', project='storefront'); at(8000, 'gitChecks', project='storefront')
 for h in ['a1f3c9e5b2d84f6a9c0e1b7d3f5a8c2e4b6d9f01', 'e5a8b2c4d6f0a1b3c5d7e9f2a4b6c8d0e1f3a167',
           'c02f6e84a9b1d3f5e7c0a2b4d6f8e1a3c5b7d056', 'deadbeef', '8a2c4e6f0b1d3f5a7c9e2b4d6f8a0c1e3b5d7f90']:
     at(650, 'gitCommitFiles', project='storefront', hash=h)

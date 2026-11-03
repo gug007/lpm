@@ -163,6 +163,8 @@ const FORWARDED_EVENTS: &[&str] = &[
     crate::keepawake_session::CHANGED_EVENT,
     // Shown on the Mac as that computer's own heads-up, never forwarded again.
     crate::keepawake_headsup::HEADS_UP_EVENT,
+    // CI on a commit pushed here, shown on the Mac as this computer's.
+    crate::ci_watch::RESULT_EVENT,
     // The command a terminal here runs and how it ended, for its tab on a Mac.
     crate::cmdmarks::EVENT,
     // What a coding agent prints while it generates something a paired Mac asked

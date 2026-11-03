@@ -109,6 +109,8 @@ macro_rules! all_command_handlers {
             duplicate_status,
             create_pull_request,
             branch_pull_request,
+            branch_commit_checks,
+            rerun_failed_checks,
             pull_request_discussion,
             create_ssh_project,
             create_template,

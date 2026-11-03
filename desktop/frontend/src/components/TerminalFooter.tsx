@@ -1,6 +1,7 @@
 import type { MouseEvent } from "react";
 import { useGitStatus } from "../hooks/useGitStatus";
 import { useBranchPullRequest } from "../hooks/useBranchPullRequest";
+import { BranchCiPill } from "./BranchCiPill";
 import { BranchPrLink } from "./BranchPrLink";
 import { BranchSwitcher } from "./BranchSwitcher";
 import { AppTip } from "./AppTip";
@@ -39,7 +40,7 @@ export function TerminalFooter({
   const gitState = useGitStatus(projectPath, active);
   const isGitRepo = !!gitState.status?.isGitRepo;
   const branch = gitState.status?.detached ? "" : (gitState.status?.branch ?? "");
-  const pullRequest = useBranchPullRequest(projectPath, branch, active && isGitRepo);
+  const { pr: pullRequest, commit } = useBranchPullRequest(projectPath, branch, active && isGitRepo);
   // A zone can make the row taller than one button; everything then lines up
   // with the first row, the tip included.
   const alignTop = items.some((item) => item.kind === "zone");
@@ -62,7 +63,16 @@ export function TerminalFooter({
         onContextMenu={onActionContextMenu}
         onZoneContextMenu={onZoneContextMenu}
       >
-        {pullRequest && <BranchPrLink pr={pullRequest} projectName={projectName} />}
+        {pullRequest && <BranchPrLink pr={pullRequest} projectName={projectName} projectPath={projectPath} />}
+        {isGitRepo && commit && (
+          <BranchCiPill
+            projectName={projectName}
+            projectPath={projectPath}
+            branch={branch}
+            commit={commit}
+            ahead={gitState.status?.ahead ?? 0}
+          />
+        )}
         {isGitRepo && (
           <BranchSwitcher
             projectName={projectName}

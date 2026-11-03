@@ -1,7 +1,7 @@
 import { forEachAction } from "./actionTree";
 import { providerMeta } from "./agentStatus";
 import { isSplitButton, loadRememberedChild, resolvePrimaryChild } from "./components/splitPrimary";
-import { detectAICLI } from "./slashCommands";
+import { detectAICLI, findAICLI } from "./slashCommands";
 import { AI_CLI_OPTIONS, type ActionInfo, type AICLI } from "./types";
 
 // Something the launchpad can start with its prompt: a project action that
@@ -25,9 +25,28 @@ export interface LaunchpadTab {
   primary: LaunchpadOption | null;
 }
 
-function agentOption(action: ActionInfo, group?: ActionInfo): LaunchpadOption | null {
+const SHELL_WORD = /(?:[^\s;&|"'\\]|\\.|"(?:[^"\\]|\\.)*"|'[^']*')+|[;&|]+/g;
+const QUOTED_TASK = /^(["']).*\s.*\1$/s;
+
+// Whether the agent an action opens starts on a task of its own: a saved
+// prompt, or a quoted multi-word argument after the agent's command word that
+// isn't a flag's value (`claude "Review my changes"`).
+export function startsOwnTask(action: Pick<ActionInfo, "cmd" | "prompt">): boolean {
+  if (action.prompt?.trim()) return true;
+  const found = findAICLI(action.cmd);
+  if (!found) return false;
+  const words = action.cmd.slice(found.end).match(SHELL_WORD) ?? [];
+  for (const [i, word] of words.entries()) {
+    if (/^[;&|]/.test(word)) return false;
+    if (QUOTED_TASK.test(word) && !words[i - 1]?.startsWith("-")) return true;
+  }
+  return false;
+}
+
+function agentOption(action: ActionInfo, group: ActionInfo | undefined, skipOwnTasks: boolean): LaunchpadOption | null {
   const agent = action.type === "terminal" ? detectAICLI(action.cmd) : null;
-  return agent ? { id: action.name, label: action.label || action.name, agent, action, group } : null;
+  if (!agent || (skipOwnTasks && startsOwnTask(action))) return null;
+  return { id: action.name, label: action.label || action.name, agent, action, group };
 }
 
 function singleTab(option: LaunchpadOption): LaunchpadTab {
@@ -37,14 +56,19 @@ function singleTab(option: LaunchpadOption): LaunchpadTab {
 // The project's header actions that open an agent CLI, split buttons and menus
 // kept whole with only their agent items, each split led by the item the
 // header's button would run (its last used one, when it remembers that). The
-// bare CLIs when the project has none.
-export function launchpadTabs(actions: ActionInfo[], scope: string): LaunchpadTab[] {
+// bare CLIs when the project has none. `skipOwnTasks` leaves out the actions
+// that start their agent on a task of their own, for a prompt that is the task.
+export function launchpadTabs(
+  actions: ActionInfo[],
+  scope: string,
+  { skipOwnTasks = false }: { skipOwnTasks?: boolean } = {},
+): LaunchpadTab[] {
   const tabs: LaunchpadTab[] = [];
   for (const action of actions) {
-    const own = agentOption(action);
+    const own = agentOption(action, undefined, skipOwnTasks);
     const children: LaunchpadOption[] = [];
     forEachAction(action.children ?? [], (child) => {
-      const option = agentOption(child, action);
+      const option = agentOption(child, action, skipOwnTasks);
       if (option) children.push(option);
     });
     if (children.length === 0) {

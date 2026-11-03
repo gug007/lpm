@@ -29,6 +29,7 @@ import cx.lpm.mobile.core.navigation.TerminalKey
 import cx.lpm.mobile.core.navigation.YamlConfigKey
 import cx.lpm.mobile.feature.projects.ProjectsSlots
 import cx.lpm.mobile.feature.projects.R
+import cx.lpm.mobile.feature.projects.ci.ProjectCiButton
 import cx.lpm.mobile.feature.projects.menu.ProjectMenuToolbar
 import cx.lpm.mobile.feature.projects.newtab.NewTabSheet
 import cx.lpm.mobile.feature.projects.services.ServiceLogsSheet
@@ -140,6 +141,14 @@ fun ProjectDetailRoute(
                 onNavigate = onNavigate,
                 onSpawnedTerminal = openSpawned,
                 slots = slots
+            )
+        },
+        ci = {
+            ProjectCiButton(
+                key.project,
+                key.session,
+                openSpawned,
+                actionInputs = slots.actionInputs
             )
         },
         connectionStatusBar = { slots.connectionStatusBar(key.session) },
