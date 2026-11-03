@@ -56,6 +56,7 @@ pub fn refused(verb: &str) -> bool {
             | "remote_pair"
             | "peer_pair"
             | "run_task"
+            | "agent_cp"
     )
 }
 

@@ -6,6 +6,8 @@ import { MachineRowShell } from "./MachineRowShell";
 import { DetailLine } from "./DetailLine";
 import { KeepAwakeLine } from "./KeepAwakeLine";
 import { AccessLine } from "./AccessLine";
+import { AgentFilesLine } from "./AgentFilesLine";
+import { AgentFilesHereLine } from "./AgentFilesHereLine";
 import { PeerSyncLines } from "./PeerSyncLines";
 import { Toggle } from "./Toggle";
 
@@ -74,6 +76,7 @@ export function PeerMachineRow({
           />
         </DetailLine>
         {peer.enabled && live && <KeepAwakeLine slug={peer.slug} name={name} />}
+        {peer.enabled && live && peer.supportsAgentFiles && <AgentFilesLine peer={peer} refresh={refresh} />}
         <AccessLine
           device={device}
           hostEnabled={hostEnabled}
@@ -81,6 +84,7 @@ export function PeerMachineRow({
           onRemoveAccess={onRemoveAccess}
           onAllow={onAllow}
         />
+        {device && <AgentFilesHereLine device={device} refresh={refresh} />}
         <PeerSyncLines peer={peer} diff={syncDiff} busy={syncBusy} onSyncNow={onSyncNow} />
         <div className="flex flex-wrap gap-x-4 gap-y-1 py-2.5">
           {menu.map((item) => (

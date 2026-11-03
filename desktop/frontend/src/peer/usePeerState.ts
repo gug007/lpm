@@ -3,9 +3,15 @@ import { PeerState } from "../../bridge/commands";
 import { EventsOn } from "../../bridge/runtime";
 import type { UpdateChannel } from "../store/settings";
 
+export type AgentFilesAccess = "off" | "read" | "write";
+export type AgentFilesScope = "projects" | "home";
+
 export interface PeerHostDevice {
   id: string;
   name: string;
+  // What its agents may copy on this machine (`lpm cp` over there).
+  agentFiles?: AgentFilesAccess;
+  agentScope?: AgentFilesScope;
   // "macos" / "linux" / "windows". Empty for a device paired before platforms
   // were reported.
   platform?: string;
@@ -90,6 +96,10 @@ export interface PeerClient {
   supportsPortTunnel?: boolean;
   // ...and lets this Mac share its tabs and let their guests in (tabshare/machines.rs).
   supportsTabShare?: boolean;
+  // ...and lets this Mac's agents copy files there (`lpm cp`), as far as it allows.
+  supportsAgentFiles?: boolean;
+  agentFiles?: AgentFilesAccess | null;
+  agentScope?: AgentFilesScope | null;
   pinned?: boolean;
   lastSyncAt?: number;
   lastError?: string;

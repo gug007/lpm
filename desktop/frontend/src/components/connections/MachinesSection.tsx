@@ -117,6 +117,7 @@ export function MachinesSection({
                 hostEnabled={host.enabled}
                 onRemoveAccess={setRevoking}
                 onPasteInvite={pasteInvite}
+                refresh={refresh}
               />
             )
           ),

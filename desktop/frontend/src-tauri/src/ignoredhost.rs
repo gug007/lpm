@@ -59,7 +59,7 @@ pub fn handle(out: &SyncSender<String>, t: &str, v: &Value) {
     });
 }
 
-fn str_arg<'v>(v: &'v Value, key: &str) -> &'v str {
+pub(crate) fn str_arg<'v>(v: &'v Value, key: &str) -> &'v str {
     v[key].as_str().unwrap_or_default()
 }
 
@@ -126,7 +126,7 @@ pub(crate) fn read_piece(
     Ok(data)
 }
 
-fn pieces_of(v: &Value) -> &[Value] {
+pub(crate) fn pieces_of(v: &Value) -> &[Value] {
     v["pieces"]
         .as_array()
         .map(Vec::as_slice)
@@ -134,14 +134,18 @@ fn pieces_of(v: &Value) -> &[Value] {
 }
 
 fn read(v: &Value) -> Result<Value, String> {
-    let root = checked_root(v)?;
+    read_pieces(&checked_root(v)?, v)
+}
+
+/// The pieces `v` asks for, read from under `root`, at most a frame's worth.
+pub(crate) fn read_pieces(root: &Path, v: &Value) -> Result<Value, String> {
     let mut budget = FRAME_BYTES;
     let mut pieces = Vec::new();
     for p in pieces_of(v) {
         let (path, offset) = (str_arg(p, "path"), p["offset"].as_u64().unwrap_or(0));
         let len = p["len"].as_u64().unwrap_or(0).min(budget);
         budget -= len;
-        let data = read_piece(&root, path, offset, len)?;
+        let data = read_piece(root, path, offset, len)?;
         pieces.push(json!({ "path": path, "offset": offset, "data": B64.encode(data) }));
     }
     Ok(json!({ "pieces": pieces }))
@@ -179,20 +183,28 @@ fn reap_expired() {
 /// A batch's frames come one at a time, so it is taken out of the registry
 /// while its pieces are written: other batches never wait on its disk.
 fn write(v: &Value) -> Result<Value, String> {
+    write_pieces(v, || checked_root(v))
+}
+
+/// Land the pieces `v` carries in batch `v.batch`, which starts under `root`.
+pub(crate) fn write_pieces(
+    v: &Value,
+    root: impl FnOnce() -> Result<PathBuf, String>,
+) -> Result<Value, String> {
     reap_expired();
     let id = str_arg(v, "batch");
     let pieces = decode_pieces(v)?;
     let taken = batches().lock().unwrap().remove(id);
     let mut batch = match taken {
         Some(batch) => batch,
-        None => Batch::new(id, &checked_root(v)?)?,
+        None => Batch::new(id, &root()?)?,
     };
     let written = pieces.iter().try_for_each(|p| batch.write(p));
     batches().lock().unwrap().insert(id.to_string(), batch);
     written.map(|_| json!({}))
 }
 
-fn finish(v: &Value) -> Result<Value, String> {
+pub(crate) fn finish(v: &Value) -> Result<Value, String> {
     let Some(batch) = batches().lock().unwrap().remove(str_arg(v, "batch")) else {
         return Ok(json!({ "added": 0, "replaced": 0 }));
     };

@@ -141,8 +141,79 @@ pub fn run_connections(ctx: &Ctx, json: bool) -> Result<(), RunError> {
                 println!("    {err}");
             }
         }
+        if let Some(line) = agent_files_line(p) {
+            println!("    {line}");
+        }
     }
     Ok(())
+}
+
+/// What a connected computer lets this one's agents copy there (`lpm cp`).
+fn agent_files_line(row: &Value) -> Option<String> {
+    let flag = |k: &str| row.get(k).and_then(Value::as_bool).unwrap_or(false);
+    if !flag("connected") || !flag("supportsAgentFiles") {
+        return None;
+    }
+    let text = |k: &str| row.get(k).and_then(Value::as_str).unwrap_or("");
+    let what = match text("agentFiles") {
+        "read" => "copy files from it",
+        "write" => "copy files to and from it",
+        _ => return Some("agents here can't copy files there".to_string()),
+    };
+    let place = if text("agentScope") == "home" {
+        "its home folder and lpm projects"
+    } else {
+        "its lpm projects"
+    };
+    Some(format!("agents here may {what}, in {place} (lpm cp)"))
+}
+
+/// `lpm connections --activity`: the latest copies agents made between computers.
+pub fn run_activity(ctx: &Ctx, json: bool) -> Result<(), RunError> {
+    control::require_app(ctx)?;
+    let value = control::parse_json(&control::send_command(ctx, "agent_files_log --count=20")?)?;
+    if json {
+        println!("{value}");
+        return Ok(());
+    }
+    let rows = value.as_array().cloned().unwrap_or_default();
+    if rows.is_empty() {
+        println!("No agent has copied files between computers yet.");
+        return Ok(());
+    }
+    for row in &rows {
+        println!("{}", activity_line(row));
+    }
+    Ok(())
+}
+
+fn activity_line(row: &Value) -> String {
+    let text = |k: &str| row.get(k).and_then(Value::as_str).unwrap_or("");
+    let count = crate::util::files_count(row.get("files").and_then(Value::as_u64).unwrap_or(0));
+    let when = row
+        .get("at")
+        .and_then(Value::as_i64)
+        .map(|ms| crate::util::relative(ms, crate::util::now_millis()))
+        .unwrap_or_default();
+    let machine = text("machine");
+    let what = match (text("side"), text("op")) {
+        ("host", "read") => format!("{machine}'s agent copied {count} from here: {}", text("path")),
+        ("host", _) => format!("{machine}'s agent copied {count} here: {}", text("path")),
+        _ => {
+            let who = match (text("agent"), text("project")) {
+                ("", "") => "A program outside lpm's terminals".to_string(),
+                ("", p) => format!("A command in {p}"),
+                (a, "") => a.to_string(),
+                (a, p) => format!("{a} in {p}"),
+            };
+            format!("{who} copied {count} from {} to {}", text("from"), text("to"))
+        }
+    };
+    let failed = match row.get("error").and_then(Value::as_str) {
+        Some(e) if !e.is_empty() => format!(" — stopped: {e}"),
+        _ => String::new(),
+    };
+    format!("{when:>8}  {what}{failed}")
 }
 
 /// Spell out what a bind address means for who can reach this machine — the two
@@ -186,6 +257,36 @@ fn platform_suffix(row: &Value) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_connected_computer_says_what_agents_may_copy() {
+        let row = |files: &str, scope: &str| {
+            serde_json::json!({ "connected": true, "supportsAgentFiles": true,
+                "agentFiles": files, "agentScope": scope })
+        };
+        assert_eq!(
+            agent_files_line(&row("off", "projects")).unwrap(),
+            "agents here can't copy files there"
+        );
+        assert_eq!(
+            agent_files_line(&row("write", "home")).unwrap(),
+            "agents here may copy files to and from it, in its home folder and lpm projects (lpm cp)"
+        );
+        let old = serde_json::json!({ "connected": true });
+        assert!(agent_files_line(&old).is_none());
+    }
+
+    #[test]
+    fn activity_names_who_copied_what() {
+        let asked = serde_json::json!({ "side": "asked", "agent": "Claude", "project": "lpm",
+            "files": 1, "from": "mini:/k/a.jks", "to": "/Users/me/keys/a.jks" });
+        assert!(activity_line(&asked).ends_with("Claude in lpm copied 1 file from mini:/k/a.jks to /Users/me/keys/a.jks"));
+        let outside = serde_json::json!({ "side": "asked", "files": 1, "from": "a", "to": "b" });
+        assert!(activity_line(&outside).ends_with("A program outside lpm's terminals copied 1 file from a to b"));
+        let served = serde_json::json!({ "side": "host", "op": "write", "machine": "Studio",
+            "files": 2, "path": "/x" });
+        assert!(activity_line(&served).ends_with("Studio's agent copied 2 files here: /x"));
+    }
 
     #[test]
     fn linux_rows_are_marked_and_macs_are_not() {

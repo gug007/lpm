@@ -37,10 +37,13 @@ use tauri::{AppHandle, Emitter, Listener, Manager, State};
 use tungstenite::handshake::server::{ErrorResponse, Request, Response};
 use tungstenite::{accept_hdr, Error as WsError, Message, WebSocket};
 
+mod agentfiles;
 mod guest;
 mod guestlink;
 mod listen;
 mod ownership;
+
+pub(crate) use agentfiles::peer_host_set_agent_files;
 
 pub(crate) use ownership::push_control;
 
@@ -108,6 +111,7 @@ const HOST_FEATURES: &[&str] = &[
     crate::remote::relayed::PHONE_RELAY_FEATURE,
     crate::agent_limits_share::LIMITS_FEATURE,
     crate::tabshare::TAB_SHARE_FEATURE,
+    crate::agentfiles::FEATURE,
 ];
 
 /// HOST_FEATURES plus those this build offers only on some platforms.
@@ -204,6 +208,8 @@ pub(crate) struct PeerDevice {
     pub platform: String, // "macos" / "linux"; empty for devices paired before this was sent
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub host_id: String, // the device's own hostId, so a machine paired both ways lists once; empty until a build that sends it pairs or connects
+    #[serde(default, skip_serializing_if = "crate::agentfiles::Policy::is_off")]
+    pub agent_files: crate::agentfiles::Policy, // what its agents may copy here, and where (agentfiles.rs); absent = nothing
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -1314,6 +1320,7 @@ fn authenticate(ws: &mut ConnWs, hub: &PeerHub, app: &AppHandle) -> Option<Sessi
                         "hostUpdateChannel": crate::updatechannel::Channel::current().as_str(),
                         "phoneServerId": crate::remote::phone_server_id(app),
                         "hostAddrs": invite_hosts(&hub.host_config()),
+                        "agentFiles": agentfiles::policy_of(hub, id),
                         "features": host_features() })
                     .to_string(),
                 ));
@@ -1385,7 +1392,7 @@ fn mint_device(
         slug_assigned: slug.clone(),
         created_at: crate::status::now_millis(),
         platform: platform.chars().take(16).collect(),
-        host_id: String::new(),
+        ..Default::default()
     };
     let id = device.id.clone();
     cfg.host.devices.push(device);
@@ -1803,6 +1810,10 @@ fn handle_msg(
         // on the invoke denylist; these frames reach only the fields its Settings
         // view shows for this machine (peersettings.rs).
         "settingsGet" | "settingsSet" => crate::peersettings::handle(app, out, t, &v),
+        // An agent on the paired Mac copying files from or to this machine, held
+        // to what this machine allows that Mac (peer/agentfiles.rs).
+        "agentPolicySet" | "agentResolve" | "agentManifest" | "agentRead" | "agentWrite"
+        | "agentFinish" | "agentDone" => agentfiles::handle(app, hub, out, device_id, t, &v),
         // A client's Claude usage limits, and from its first one on, this
         // machine's own in return (agent_limits_share.rs).
         "limits" => crate::agent_limits_share::from_client(app, conn_id, out, &v),
@@ -2438,7 +2449,10 @@ fn host_state_value(hub: &PeerHub) -> Value {
     let devices: Vec<Value> = cfg
         .devices
         .iter()
-        .map(|d| json!({ "id": d.id, "name": d.name, "platform": d.platform, "hostId": d.host_id }))
+        .map(|d| {
+            json!({ "id": d.id, "name": d.name, "platform": d.platform, "hostId": d.host_id,
+                "agentFiles": d.agent_files.access, "agentScope": d.agent_files.scope })
+        })
         .collect();
     let pair_requests: Vec<Value> = hub
         .inner
@@ -2928,7 +2942,7 @@ mod tests {
                     slug_assigned: "abcd1234".into(),
                     created_at: 7,
                     platform: "macos".into(),
-                    host_id: String::new(),
+                    ..Default::default()
                 }],
                 revoked: vec!["d0".into()],
             },

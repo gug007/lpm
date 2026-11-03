@@ -24,11 +24,41 @@ pub(crate) struct Remote<'a> {
     pub hub: &'a PeerClientHub,
     pub slug: String,
     pub cwd: String,
+    /// An agent's copy (agentcp.rs) asks the host's agent* verbs instead, which
+    /// hold it to what that computer allows.
+    pub agent: Option<AgentCopy>,
+}
+
+/// What an agent's copy says on every frame.
+pub(crate) struct AgentCopy {
+    /// Files already there may be replaced.
+    pub force: bool,
 }
 
 impl Remote<'_> {
-    fn ask(&self, timeout: Duration, mut frame: Value) -> Result<Value, String> {
+    /// Every file `paths` hold there, as its host lists them.
+    fn manifest(&self, paths: &[String]) -> Result<Vec<FileRec>, String> {
+        let mut reply = self.ask(WALK_TIMEOUT, "Manifest", json!({ "paths": paths }))?;
+        let files: Vec<FileRec> =
+            serde_json::from_value(reply["files"].take()).map_err(|e| e.to_string())?;
+        Ok(files
+            .into_iter()
+            .filter(|f| crate::ignoredpath::within(paths, &f.path))
+            .collect())
+    }
+
+    /// Ask the host's `verb` ("Manifest", "Read", …) of this remote's family.
+    fn ask(&self, timeout: Duration, verb: &str, mut frame: Value) -> Result<Value, String> {
+        let family = if self.agent.is_some() {
+            "agent"
+        } else {
+            "ignored"
+        };
+        frame["t"] = json!(format!("{family}{verb}"));
         frame["cwd"] = json!(self.cwd);
+        if let Some(agent) = &self.agent {
+            frame["force"] = json!(agent.force);
+        }
         self.hub.peer_request(&self.slug, timeout, frame)
     }
 }
@@ -92,7 +122,7 @@ impl<'a> Side<'a> {
         match self {
             Side::Here(root) => crate::ignoredscan::list(root, dir),
             Side::There(remote) => {
-                let reply = remote.ask(WALK_TIMEOUT, json!({ "t": "ignoredList", "dir": dir }))?;
+                let reply = remote.ask(WALK_TIMEOUT, "List", json!({ "dir": dir }))?;
                 serde_json::from_value(reply).map_err(|e| e.to_string())
             }
         }
@@ -103,18 +133,16 @@ impl<'a> Side<'a> {
     pub(crate) fn manifest(&self, paths: &[String]) -> Result<Vec<FileRec>, String> {
         match self {
             Side::Here(root) => crate::ignoredscan::manifest(root, paths),
-            Side::There(remote) => {
-                let mut reply = remote.ask(
-                    WALK_TIMEOUT,
-                    json!({ "t": "ignoredManifest", "paths": paths }),
-                )?;
-                let files: Vec<FileRec> =
-                    serde_json::from_value(reply["files"].take()).map_err(|e| e.to_string())?;
-                Ok(files
-                    .into_iter()
-                    .filter(|f| crate::ignoredpath::within(paths, &f.path))
-                    .collect())
-            }
+            Side::There(remote) => remote.manifest(paths),
+        }
+    }
+
+    /// [`Side::manifest`] for a copy that sends every file regardless: digests
+    /// may be left out, so nothing here is read but the folders.
+    pub(crate) fn files(&self, paths: &[String]) -> Result<Vec<FileRec>, String> {
+        match self {
+            Side::Here(root) => crate::ignoredscan::files(root, paths),
+            Side::There(remote) => remote.manifest(paths),
         }
     }
 
@@ -133,10 +161,7 @@ impl<'a> Side<'a> {
             .iter()
             .map(|(p, o, l)| json!({ "path": p, "offset": o, "len": l }))
             .collect();
-        let reply = remote.ask(
-            PIECE_TIMEOUT,
-            json!({ "t": "ignoredRead", "pieces": pieces }),
-        )?;
+        let reply = remote.ask(PIECE_TIMEOUT, "Read", json!({ "pieces": pieces }))?;
         let got = reply["pieces"]
             .as_array()
             .map(Vec::as_slice)
@@ -174,7 +199,7 @@ impl<'a> Side<'a> {
             Side::Here(root) => crate::ignoredwrite::undo(batch, root),
             Side::There(remote) => {
                 let mut reply =
-                    remote.ask(WALK_TIMEOUT, json!({ "t": "ignoredUndo", "batch": batch }))?;
+                    remote.ask(WALK_TIMEOUT, "Undo", json!({ "batch": batch }))?;
                 serde_json::from_value(reply["paths"].take()).map_err(|e| e.to_string())
             }
         }
@@ -185,7 +210,7 @@ impl<'a> Side<'a> {
         match self {
             Side::Here(root) => Ok(crate::ignoredpath::origin_of(root)),
             Side::There(remote) => {
-                let mut reply = remote.ask(PIECE_TIMEOUT, json!({ "t": "ignoredOrigin" }))?;
+                let mut reply = remote.ask(PIECE_TIMEOUT, "Origin", json!({}))?;
                 serde_json::from_value(reply["origin"].take()).map_err(|e| e.to_string())
             }
         }
@@ -205,8 +230,8 @@ impl Writer<'_> {
                         v
                     })
                     .collect();
-                let frame = json!({ "t": "ignoredWrite", "batch": id, "pieces": encoded });
-                remote.ask(PIECE_TIMEOUT, frame).map(|_| ())
+                let frame = json!({ "batch": id, "pieces": encoded });
+                remote.ask(PIECE_TIMEOUT, "Write", frame).map(|_| ())
             }
         }
     }
@@ -215,7 +240,7 @@ impl Writer<'_> {
         match self {
             Writer::Here(batch) => batch.finish(),
             Writer::There { remote, id } => remote
-                .ask(PIECE_TIMEOUT, json!({ "t": "ignoredFinish", "batch": id }))
+                .ask(PIECE_TIMEOUT, "Finish", json!({ "batch": id }))
                 .map(|r| {
                     let n = |k: &str| r[k].as_u64().unwrap_or(0);
                     (n("added"), n("replaced"))
@@ -245,6 +270,19 @@ pub(crate) fn copy(
     dst: &Side,
     files: &[FileRec],
     stop: &dyn Fn() -> Result<(), String>,
+    progress: impl FnMut(u64, u64, u64),
+) -> Outcome {
+    copy_to(src, dst, files, &|path| path.to_string(), stop, progress)
+}
+
+/// [`copy`], landing each file at `place(its path)` on `dst` rather than at the
+/// same path.
+pub(crate) fn copy_to(
+    src: &Side,
+    dst: &Side,
+    files: &[FileRec],
+    place: &dyn Fn(&str) -> String,
+    stop: &dyn Fn() -> Result<(), String>,
     mut progress: impl FnMut(u64, u64, u64),
 ) -> Outcome {
     let id = uuid::Uuid::new_v4().to_string();
@@ -262,6 +300,7 @@ pub(crate) fn copy(
     let mut run = Run {
         src,
         writer: &mut writer,
+        place,
         stop,
         total: files.iter().map(|f| f.size).sum(),
         out: &mut out,
@@ -278,6 +317,7 @@ pub(crate) fn copy(
 struct Run<'r, 'w, P: FnMut(u64, u64, u64)> {
     src: &'r Side<'r>,
     writer: &'r mut Writer<'w>,
+    place: &'r dyn Fn(&str) -> String,
     stop: &'r dyn Fn() -> Result<(), String>,
     total: u64,
     out: &'r mut Outcome,
@@ -336,6 +376,7 @@ impl<P: FnMut(u64, u64, u64)> Run<'_, '_, P> {
                 if needs_bytes(&p, len) {
                     p.data = data.next().unwrap_or_default();
                 }
+                p.path = (self.place)(&p.path);
                 p
             })
             .collect();

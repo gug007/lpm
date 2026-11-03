@@ -29,8 +29,10 @@ const NULL: string[] = [
   "notes_delete_chat", "notes_delete_message", "notes_edit_message", "notes_read_file_as_input",
   "notes_rename_chat", "notify_unattended", "open_browser", "open_file_in_editor", "open_in",
   "open_path_in_default_app", "pause_tts", "peer_add", "peer_add_ssh_host", "peer_discovery_start",
-  "peer_discovery_stop", "peer_dispatch_reply", "peer_host_cancel_pairing",
-  "peer_host_respond_pairing", "peer_host_revoke_device", "peer_host_set_config",
+  "peer_agent_answer", "peer_agent_files_set", "peer_discovery_stop", "peer_dispatch_reply",
+  "peer_host_cancel_pairing",
+  "peer_host_respond_pairing", "peer_host_revoke_device", "peer_host_set_agent_files",
+  "peer_host_set_config",
   "peer_host_start_pairing", "peer_invoke", "peer_joined_shares", "peer_pair_cancel",
   "peer_pair_request", "peer_reconnect", "peer_remote_pair", "peer_remove", "peer_set_alias",
   "peer_set_auto_sync", "peer_set_enabled", "peer_settings_get", "peer_settings_set",
@@ -75,7 +77,7 @@ const EMPTY_LIST: string[] = [
   "list_agent_commands", "list_detached_projects", "list_monospace_fonts", "list_open_in_targets",
   "list_port_forwards", "list_system_sounds", "list_templates", "message_history_folders",
   "message_history_query", "notes_list_chats", "notes_list_messages", "notes_search",
-  "openai_voices", "read_clipboard_files", "remote_take_restore_requests",
+  "openai_voices", "peer_agent_requests", "read_clipboard_files", "remote_take_restore_requests",
   "remote_take_run_actions", "search_branches", "telegram_find_chats",
 ];
 

@@ -250,6 +250,7 @@ impl Engine {
                     hub: &self.0.hub,
                     slug: slug.clone(),
                     cwd: list.remote_root.clone(),
+                    agent: None,
                 }),
             })
             .collect();

@@ -51,6 +51,7 @@ pub(crate) fn there<'a>(
         hub,
         slug: slug.to_string(),
         cwd: crate::gitbring::unmark(remote_root).to_string(),
+        agent: None,
     }))
 }
 

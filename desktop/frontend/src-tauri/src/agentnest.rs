@@ -239,31 +239,52 @@ pub fn is_nested_agent(reporter: i32, pane_shell: i32) -> bool {
 /// the shell, when no agent is on it, or when the pane's root is the agent
 /// itself (`exec claude`), whose exit ends the pane too.
 pub fn pane_agent_pid(reporter: i32, pane_shell: i32) -> Option<i32> {
-    if reporter <= 1 || pane_shell <= 1 || reporter == pane_shell {
+    if reporter == pane_shell {
         return None;
     }
-    let held = process_table(false);
-    if held.contains_key(&reporter) {
-        return agent_in_table(&held, reporter, pane_shell);
-    }
-    agent_in_table(&process_table(true), reporter, pane_shell)
+    up_to_shell(&table_with(reporter), reporter, pane_shell).flatten()
 }
 
-fn agent_in_table(table: &Table, reporter: i32, pane_shell: i32) -> Option<i32> {
-    let mut pid = reporter;
+/// Whether `pid` runs inside the pane whose shell is `pane_shell`, and if so the
+/// agent on the way up, if one is: who to name when that pane asks for
+/// something. Unlike the reports above, an unknown path fails closed.
+pub fn pane_caller(pid: i32, pane_shell: i32) -> Option<Option<String>> {
+    let table = table_with(pid);
+    let agent = up_to_shell(&table, pid, pane_shell)?;
+    Some(agent.and_then(|a| agent_name(&table.get(&a)?.comm).map(str::to_string)))
+}
+
+/// The process table, scanned again when it doesn't know `pid` yet: a process
+/// younger than the last scan.
+fn table_with(pid: i32) -> Arc<Table> {
+    let held = process_table(false);
+    if held.contains_key(&pid) {
+        held
+    } else {
+        process_table(true)
+    }
+}
+
+/// The walk from `pid` up to `pane_shell`: the outermost agent on it (None when
+/// there is none), or None when the walk never reaches the shell.
+fn up_to_shell(table: &Table, pid: i32, pane_shell: i32) -> Option<Option<i32>> {
+    if pid <= 1 || pane_shell <= 1 {
+        return None;
+    }
+    let mut at = pid;
     let mut outermost = None;
     for _ in 0..MAX_DEPTH {
-        if pid == pane_shell {
-            return outermost;
+        if at == pane_shell {
+            return Some(outermost);
         }
-        let proc = table.get(&pid)?;
+        let proc = table.get(&at)?;
         if agent_name(&proc.comm).is_some() {
-            outermost = Some(pid);
+            outermost = Some(at);
         }
         if proc.ppid <= 1 {
             return None;
         }
-        pid = proc.ppid;
+        at = proc.ppid;
     }
     None
 }
@@ -271,6 +292,22 @@ fn agent_in_table(table: &Table, reporter: i32, pane_shell: i32) -> Option<i32> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_caller_is_placed_in_its_pane_with_the_agent_above_it() {
+        let t = table(&[
+            (10, 1, "/bin/zsh"),
+            (20, 10, "claude"),
+            (30, 20, "/bin/zsh"),
+            (40, 30, "lpm"),
+            (50, 1, "/bin/zsh"),
+            (60, 50, "lpm"),
+        ]);
+        assert_eq!(up_to_shell(&t, 40, 10), Some(Some(20)));
+        assert_eq!(up_to_shell(&t, 60, 50), Some(None));
+        assert_eq!(up_to_shell(&t, 60, 10), None, "another pane's process");
+        assert_eq!(up_to_shell(&t, 99, 10), None, "an unknown process");
+    }
 
     fn table(rows: &[(i32, i32, &str)]) -> Table {
         rows.iter()
@@ -493,22 +530,22 @@ mod tests {
     #[test]
     fn pane_agent_is_found_through_a_wrapper_shell() {
         let t = table(&[(10, 1, "-zsh"), (20, 10, "claude"), (30, 20, "/bin/sh")]);
-        assert_eq!(agent_in_table(&t, 30, 10), Some(20));
-        assert_eq!(agent_in_table(&t, 20, 10), Some(20));
+        assert_eq!(up_to_shell(&t, 30, 10).flatten(), Some(20));
+        assert_eq!(up_to_shell(&t, 20, 10).flatten(), Some(20));
     }
 
     /// shell(10) -> shim claude(20) -> real claude(21): the shim is what ends.
     #[test]
     fn pane_agent_is_the_outermost_of_a_chain() {
         let t = table(&[(10, 1, "zsh"), (20, 10, "claude"), (21, 20, "claude")]);
-        assert_eq!(agent_in_table(&t, 21, 10), Some(20));
+        assert_eq!(up_to_shell(&t, 21, 10).flatten(), Some(20));
     }
 
     #[test]
     fn no_pane_agent_outside_the_pane_or_without_one() {
         let t = table(&[(10, 1, "zsh"), (20, 1, "claude"), (30, 10, "bash")]);
-        assert_eq!(agent_in_table(&t, 20, 10), None);
-        assert_eq!(agent_in_table(&t, 30, 10), None);
-        assert_eq!(agent_in_table(&t, 99, 10), None);
+        assert_eq!(up_to_shell(&t, 20, 10).flatten(), None);
+        assert_eq!(up_to_shell(&t, 30, 10).flatten(), None);
+        assert_eq!(up_to_shell(&t, 99, 10).flatten(), None);
     }
 }

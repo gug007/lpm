@@ -25,6 +25,7 @@ import { AddCloneRepoModal } from "./components/AddCloneRepoModal";
 import { RemoteFolderPickerHost } from "./components/RemoteFolderPickerHost";
 import { PortConflictDialog } from "./components/PortConflictDialog";
 import { PairApprovalHost } from "./components/PairApprovalHost";
+import { AgentFilesApproval } from "./components/AgentFilesApproval";
 import { QuitGuardHost } from "./components/QuitGuardHost";
 import { PairRequestDialog } from "./components/connections/PairRequestDialog";
 import { FileViewerHost } from "./components/FileViewerHost";
@@ -60,6 +61,7 @@ import { usePeerDispatcher } from "./peer/usePeerDispatcher";
 import { usePeerAutoSyncToasts } from "./peer/usePeerAutoSyncToasts";
 import { usePeerFileSaveNotices } from "./peer/usePeerFileSaveNotices";
 import { usePeerRemovedNotices } from "./peer/usePeerRemovedNotices";
+import { useAgentFilesServedNotices } from "./peer/useAgentFilesServedNotices";
 import { useKeepAwakeHeadsUp } from "./hooks/useKeepAwakeHeadsUp";
 import { usePeerState } from "./peer/usePeerState";
 import { useSettingsMachine } from "./components/settings/useSettingsMachine";
@@ -172,6 +174,7 @@ export default function App() {
   usePeerAutoSyncToasts(peerState.peers);
   usePeerFileSaveNotices();
   usePeerRemovedNotices();
+  useAgentFilesServedNotices();
   useKeepAwakeHeadsUp();
   useIgnoredSyncConflicts();
   useSshStatusWarnings();
@@ -421,6 +424,7 @@ export default function App() {
       <RemoteFolderPickerHost />
       <PortConflictDialog />
       <PairApprovalHost />
+      <AgentFilesApproval />
       <QuitGuardHost />
       <PairRequestDialog />
       <TabShareHosts />

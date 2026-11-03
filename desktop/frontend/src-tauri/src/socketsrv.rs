@@ -240,6 +240,8 @@ fn handle_client(stream: UnixStream, store: &StatusStore, app: &AppHandle, restr
             cmd_duplicate_project(&line, app, &mut writer, first == "duplicate_worktree")
         } else if first == "update_install" {
             crate::updatesocket::cmd_update_install(&shell_split(&line)[1..], app, &mut writer)
+        } else if first == "agent_cp" {
+            crate::agentcp::cmd_agent_cp(&shell_split(&line)[1..], app, peer, &mut writer)
         } else {
             writeln!(writer, "{}", process_command(&line, store, app))
         };
@@ -298,6 +300,7 @@ fn process_command(line: &str, store: &StatusStore, app: &AppHandle) -> String {
         "peer_pair" => cmd_peer_pair(args, app),
         "peer_state" => cmd_peer_state(app),
         "list_ports" => crate::portsall::cmd_list_ports(args, app),
+        "agent_files_log" => crate::agentcp::cmd_agent_files_log(args),
         "keep_awake" => crate::keepawake_cmds::cmd_keep_awake(args),
         "remote_pair" => cmd_remote_pair(args, app),
         "remote_state" => cmd_remote_state(app),

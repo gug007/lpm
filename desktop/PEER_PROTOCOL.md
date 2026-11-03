@@ -44,7 +44,7 @@ Holds both roles behind one shared in-memory lock:
     "pairingCode": "",
     "devices": [
       { "id": "uuid", "name": "Laptop", "tokenSha256": "…", "slugAssigned": "abcd1234",
-        "createdAt": 0, "platform": "macos" }
+        "createdAt": 0, "platform": "macos", "agentFiles": { "files": "read", "scope": "home" } }
     ]
   },
   "peers": [
@@ -209,7 +209,9 @@ the client can have the host install the latest lpm (see **Commands**);
 `ignoredSync` = the host lists, sends and takes the files of its projects (see
 **File sync**);
 `agentLimits` = the host trades Claude usage limits (see **Usage
-limits**). A host
+limits**);
+`agentFiles` = the client's agents may copy files there with `lpm cp`, as far as
+the host allows (see **Agent copies**). A host
 missing a feature simply never receives frames that depend on it. The full list
 is `host_features()` in `peer.rs`.
 
@@ -511,6 +513,46 @@ compared every 30 s while its computer is connected, both ways, against the
 digests both sides last agreed on. An undo that puts back a kept file pauses that
 list and forgets what it agreed on. A file changed on both is left alone and
 reported as `ignored-sync-conflict` `{ project, slug, remoteRoot, machine, paths }`.
+
+## Agent copies
+
+`agentFiles` feature (host `peer/agentfiles.rs`, client `agentcp.rs` behind
+`lpm cp`). An agent on the client copies a file or folder from or to the host.
+The host keeps, per paired device, what that device's agents may do —
+`agentFiles: { files, scope }`, `files` `"off"` / `"read"` / `"write"` and
+`scope` `"projects"` (its lpm projects) / `"home"` (its home folder too); absent
+= off — and enforces it on every frame. Pairing again starts from nothing. Nothing inside the host's own `~/.lpm`
+is ever reachable. `ready` carries the device's policy as `agentFiles: { files,
+scope }`, and the host pushes `{ "t": "agentPolicy", "policy": { files, scope } }`
+when it changes.
+
+- `{ "t": "agentPolicySet", "policy": { files, scope } }` → `{ files, scope }` —
+  sent only from the client app's own Connections screen, never from the `lpm`
+  socket. A paired client may already run anything on the host, so this widens
+  nothing; the host's Connections screen sets the same value
+  (`peer_host_set_agent_files`).
+- `{ "t": "agentResolve", "path", "write" }` → `{ root, rel, path, exists, dir,
+  home, children }` — `path` may start with `~`; it is resolved through
+  every link, and its folder must exist. `root` is the deepest open folder holding
+  it (a project root, or the home folder), `rel` the `/`-separated path inside it
+  (empty when `path` is that folder, with `children` its entries).
+- `agentManifest`, `agentRead`, `agentWrite`, `agentFinish` — the **File sync**
+  frames under these names, each with `force` and with `cwd` one of the folders
+  the device's policy opens. The manifest leaves `digest` empty (a copy sends
+  every file). A write refuses a file already there unless `force`, and every
+  frame of a batch must name the root its first one did.
+- `{ "t": "agentDone", "op": "read", "files", "path" }` → `{}` — the client's lpm
+  (not its agent) reports a finished read, so the host notes it.
+
+The host logs every copy it served to `~/.lpm/agent-files.jsonl` and emits
+`agent-files-served` `{ machine, op, files, path }` (a toast). The client decides
+who is asking: the socket's peer pid must run inside the lpm tab whose
+`LPM_PANE_ID` it claims (`agentnest::pane_caller`), runs of automations are
+refused, and the copy waits on `agent-files-request` until someone answers in
+lpm (`peer_agent_answer`: `deny` / `once` / `tab`). "For this tab" lasts as long
+as the tab's shell, and never covers keys, credentials or files that run on
+their own on the host (`agentfiles::sensitive`), which always ask. The client
+logs to the same file.
 
 ## Terminal streaming
 
@@ -1090,6 +1132,10 @@ most every 2 s per guest), `peer-joined-changed`, `peer-share-join-pending` and
   host Mac*. Pair only Macs you control. The denylist (`is_denied` in `peer.rs`)
   blocks app-meta, control-ownership, and global-mutator commands as defense in
   depth, but is not a sandbox.
+- **Agents are not the client.** What a person at the client may do through the
+  app is not open to processes on it. The `lpm` socket reaches a paired host only
+  through `lpm cp` (**Agent copies**), held to the host's per-device policy and to
+  a person's yes on the client.
 
 ### Threat model — why the channel is pinned
 

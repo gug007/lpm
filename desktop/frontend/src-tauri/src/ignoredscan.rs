@@ -145,7 +145,7 @@ fn entry(abs: &Path, rel: &str) -> Option<Entry> {
     let meta = std::fs::symlink_metadata(abs).ok().filter(copyable)?;
     let rel = rel.trim_end_matches('/');
     if !meta.is_dir() {
-        let rec = file_rec(abs, rel.to_string(), &meta);
+        let rec = file_rec(abs, rel.to_string(), &meta, true);
         return Some(Entry {
             path: rec.path,
             dir: false,
@@ -251,7 +251,7 @@ pub(crate) fn list(root: &Path, dir: &str) -> Result<Listing, String> {
     })
 }
 
-fn file_rec(abs: &Path, rel: String, meta: &Metadata) -> FileRec {
+fn file_rec(abs: &Path, rel: String, meta: &Metadata, hash: bool) -> FileRec {
     if meta.file_type().is_symlink() {
         let target = link_target(abs);
         return FileRec {
@@ -267,21 +267,30 @@ fn file_rec(abs: &Path, rel: String, meta: &Metadata) -> FileRec {
         path: rel,
         size: meta.len(),
         mtime: mtime_ms(meta),
-        digest: file_digest(abs, meta),
+        digest: if hash {
+            file_digest(abs, meta)
+        } else {
+            String::new()
+        },
         exec: is_exec(meta),
         link: None,
     }
 }
 
-fn collect(abs: &Path, rel: &str, out: &mut HashMap<String, FileRec>) -> Result<(), String> {
+fn collect(
+    abs: &Path,
+    rel: &str,
+    hash: bool,
+    out: &mut HashMap<String, FileRec>,
+) -> Result<(), String> {
     let Some(meta) = std::fs::symlink_metadata(abs).ok().filter(copyable) else {
         return Ok(());
     };
     if !meta.is_dir() || meta.file_type().is_symlink() {
-        out.insert(rel.to_string(), file_rec(abs, rel.to_string(), &meta));
+        out.insert(rel.to_string(), file_rec(abs, rel.to_string(), &meta, hash));
     } else {
         for (name, path) in sorted_children(abs) {
-            collect(&path, &format!("{rel}/{name}"), out)?;
+            collect(&path, &format!("{rel}/{name}"), hash, out)?;
         }
     }
     if out.len() as u64 > WALK_MAX {
@@ -293,10 +302,20 @@ fn collect(abs: &Path, rel: &str, out: &mut HashMap<String, FileRec>) -> Result<
 /// Every file the given paths hold, each with what it compares by. A path this
 /// computer doesn't have is simply absent from the answer.
 pub(crate) fn manifest(root: &Path, paths: &[String]) -> Result<Vec<FileRec>, String> {
+    walk(root, paths, true)
+}
+
+/// [`manifest`] without the digests, for a copy that sends every file anyway:
+/// nothing is read but the folders.
+pub(crate) fn files(root: &Path, paths: &[String]) -> Result<Vec<FileRec>, String> {
+    walk(root, paths, false)
+}
+
+fn walk(root: &Path, paths: &[String], hash: bool) -> Result<Vec<FileRec>, String> {
     let mut out = HashMap::new();
     for path in paths {
         let rel = clean_rel(path)?;
-        collect(&resolve(root, &rel)?, &rel, &mut out)?;
+        collect(&resolve(root, &rel)?, &rel, hash, &mut out)?;
     }
     let mut files: Vec<FileRec> = out.into_values().collect();
     files.sort_by(|a, b| a.path.cmp(&b.path));

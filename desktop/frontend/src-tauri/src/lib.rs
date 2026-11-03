@@ -22,6 +22,9 @@ mod agent_usage_machines;
 mod agent_usage_merge;
 mod agent_caps;
 mod agentexit;
+mod agentapprove;
+mod agentcp;
+mod agentfiles;
 mod agentnest;
 mod agentchildren;
 mod agentdirs;
@@ -447,9 +450,11 @@ use message_history::*;
 use msysmounts::get_msys_mounts;
 use notes_cmds::*;
 use openin::*;
+use agentapprove::{peer_agent_answer, peer_agent_requests};
 use peer::{
     peer_dispatch_reply, peer_host_cancel_pairing, peer_host_respond_pairing,
-    peer_host_revoke_device, peer_host_set_config, peer_host_start_pairing, peer_state,
+    peer_host_revoke_device, peer_host_set_agent_files, peer_host_set_config,
+    peer_host_start_pairing, peer_state,
 };
 use sharelink::take_share_join_link;
 use tabshare::{
@@ -458,7 +463,7 @@ use tabshare::{
     peer_share_take_keyboards, peer_shares,
 };
 use peerclient::{
-    peer_add, peer_add_ssh_host, peer_invoke, peer_joined_shares, peer_pair_cancel,
+    peer_add, peer_agent_files_set, peer_add_ssh_host, peer_invoke, peer_joined_shares, peer_pair_cancel,
     peer_pair_request, peer_reconnect, peer_remote_pair, peer_remove, peer_set_alias,
     peer_set_auto_sync, peer_set_enabled, peer_share_ask_type, peer_share_join,
     peer_share_join_cancel, peer_share_leave, peer_sync_run, peer_sync_status, peer_term_attach,

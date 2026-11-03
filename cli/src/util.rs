@@ -22,6 +22,15 @@ pub fn print_json(value: &Value) {
 }
 
 /// Current unix time in milliseconds (0 if the clock is before the epoch).
+/// "1 file", "3 files".
+pub fn files_count(n: u64) -> String {
+    if n == 1 {
+        "1 file".into()
+    } else {
+        format!("{n} files")
+    }
+}
+
 pub fn now_millis() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)

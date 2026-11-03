@@ -2,6 +2,7 @@ import type { PeerHostDevice } from "../../peer/usePeerState";
 import { MachineRowShell } from "./MachineRowShell";
 import { DetailLine } from "./DetailLine";
 import { AccessLine } from "./AccessLine";
+import { AgentFilesHereLine } from "./AgentFilesHereLine";
 import { SECONDARY_BUTTON } from "../mobile/styles";
 import { MACHINE as M } from "../../machineWords";
 
@@ -13,6 +14,7 @@ export function DeviceMachineRow({
   hostEnabled,
   onRemoveAccess,
   onPasteInvite,
+  refresh,
 }: {
   device: PeerHostDevice;
   open: boolean;
@@ -20,6 +22,7 @@ export function DeviceMachineRow({
   hostEnabled: boolean;
   onRemoveAccess: (device: PeerHostDevice) => void;
   onPasteInvite: () => void;
+  refresh: () => Promise<void>;
 }) {
   const name = device.name || M.Noun;
 
@@ -46,6 +49,7 @@ export function DeviceMachineRow({
         </button>
       </DetailLine>
       <AccessLine device={device} hostEnabled={hostEnabled} pairing={false} onRemoveAccess={onRemoveAccess} />
+      <AgentFilesHereLine device={device} refresh={refresh} />
     </MachineRowShell>
   );
 }

@@ -11,6 +11,7 @@ mod awake;
 mod config;
 mod config_cmd;
 mod control;
+mod cp;
 mod duplicate;
 mod error;
 mod hook;
@@ -282,7 +283,36 @@ service whose process holds it, or the process name and PID when nothing of lpm'
         json: bool,
     },
     /// Show what this machine hosts and what it's connected to.
+    #[command(
+        long_about = "Show what this machine hosts and what it's connected to, with what each \
+connected computer lets this one's agents copy there. --activity lists the latest copies agents \
+made from here or into here."
+    )]
     Connections {
+        /// List the latest copies agents made between computers instead.
+        #[arg(long)]
+        activity: bool,
+        /// Emit a single machine-readable JSON object.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Copy files between this computer and one it connects to.
+    #[command(
+        long_about = "Copy a file or folder between this computer and one it connects to. \
+Write the other computer's side as NAME:PATH, NAME being any part of its name only it has, as \
+`lpm connections` lists it. That computer decides what this one's agents may copy there \
+(nothing, until someone allows it), and lpm asks you before anything moves. Keys, credentials \
+and files that run on their own always ask again. A folder lands inside an existing folder \
+under its own name; existing files are only replaced with --force."
+    )]
+    Cp {
+        /// What to copy: a path here, or NAME:PATH on the other computer.
+        src: String,
+        /// Where to put it: a path here, or NAME:PATH on the other computer.
+        dst: String,
+        /// Replace files that are already there.
+        #[arg(long)]
+        force: bool,
         /// Emit a single machine-readable JSON object.
         #[arg(long)]
         json: bool,
@@ -557,7 +587,14 @@ fn main() -> ExitCode {
         Commands::Awake { what, then, json } => {
             awake::run(&ctx, what.as_deref(), then.as_deref(), json)
         }
-        Commands::Connections { json } => pair::run_connections(&ctx, json),
+        Commands::Connections { activity: true, json } => pair::run_activity(&ctx, json),
+        Commands::Connections { activity: false, json } => pair::run_connections(&ctx, json),
+        Commands::Cp {
+            src,
+            dst,
+            force,
+            json,
+        } => cp::run(&ctx, &src, &dst, force, json),
         Commands::Mobile { command } => mobile::run(&ctx, command),
         Commands::ClearStatus { key, project } => {
             setstatus::run_clear(&ctx, &key, project.as_deref())

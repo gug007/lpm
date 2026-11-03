@@ -1314,6 +1314,18 @@ export function PeerHostStartPairing() {
 export function PeerHostCancelPairing() {
   return invoke("peer_host_cancel_pairing");
 }
+export function PeerHostSetAgentFiles(id, files, scope) {
+  return invoke("peer_host_set_agent_files", { id, files, scope });
+}
+export function PeerAgentFilesSet(slug, files, scope) {
+  return invoke("peer_agent_files_set", { slug, files, scope });
+}
+export function PeerAgentRequests() {
+  return invoke("peer_agent_requests");
+}
+export function PeerAgentAnswer(id, decision) {
+  return invoke("peer_agent_answer", { id, decision });
+}
 export function PeerHostRevokeDevice(id) {
   return invoke("peer_host_revoke_device", { id });
 }
