@@ -52,3 +52,12 @@ actions:
     labelRefresh: 10m
     display: footer
     position: 1
+
+  first-commit-age:
+    label: $(./scripts/first-commit-age.sh) ago
+    emoji: 🌱
+    cmd: open "https://github.com/gug007/lpm/commit/$(git rev-list --max-parents=0 HEAD | tail -1)"
+    type: background
+    labelRefresh: 24h
+    display: footer
+    position: 4
