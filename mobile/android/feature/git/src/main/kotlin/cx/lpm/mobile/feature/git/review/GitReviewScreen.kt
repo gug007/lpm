@@ -55,7 +55,8 @@ class ReviewActions(
     val toggleWrap: () -> Unit = {},
     val ask: (String) -> Unit = {},
     val openCommit: () -> Unit = {},
-    val createPullRequest: () -> Unit = {}
+    val createPullRequest: () -> Unit = {},
+    val undoDiscard: (id: String) -> Unit = {}
 )
 
 /**
@@ -124,7 +125,11 @@ fun GitReviewScreen(
                 )
                 ReviewOverlayContent(state, actions.retry, actions.createPullRequest)
             }
-            GitNoticeBanner(state.notice, Modifier.align(Alignment.TopCenter))
+            GitNoticeBanner(
+                notice = state.notice,
+                modifier = Modifier.align(Alignment.TopCenter),
+                onUndo = actions.undoDiscard
+            )
         }
         if (headers.isNotEmpty()) {
             CommitBar(

@@ -8,8 +8,10 @@ import {
   DOCS_PATH,
   FEATURES_PATH,
   GIT_TERMINAL_MAC_PATH,
+  LESSONS_PATH,
   LIMIT_CALCULATOR_PATH,
   LINUX_HOST_PATH,
+  LINUX_TERMINAL_DEVELOPERS_PATH,
   MAC_MINI_PATH,
   MAC_TERMINAL_DEVELOPERS_PATH,
   MOBILE_PATH,
@@ -25,6 +27,7 @@ import {
   STATUSLINE_PATH,
   TERMS_PATH,
   TOKEN_USAGE_PATH,
+  WINDOWS_TERMINAL_DEVELOPERS_PATH,
   WORKTREE_AGENTS_PATH,
   WORKTREE_ALTERNATIVE_PATH,
   type VsSlug,
@@ -59,6 +62,14 @@ export const FOOTER_GROUPS: FooterGroup[] = [
       {
         href: MAC_TERMINAL_DEVELOPERS_PATH,
         label: "Mac terminal for developers",
+      },
+      {
+        href: WINDOWS_TERMINAL_DEVELOPERS_PATH,
+        label: "Terminal for Windows developers",
+      },
+      {
+        href: LINUX_TERMINAL_DEVELOPERS_PATH,
+        label: "Terminal for Linux developers",
       },
       { href: PROJECT_SIDEBAR_PATH, label: "Terminal with a project sidebar" },
       { href: GIT_TERMINAL_MAC_PATH, label: "Git terminal for Mac" },
@@ -98,6 +109,7 @@ export const FOOTER_GROUPS: FooterGroup[] = [
     links: [
       { href: FEATURES_PATH, label: "All features" },
       { href: DOCS_PATH, label: "Docs" },
+      { href: LESSONS_PATH, label: "Lessons" },
       { href: MOBILE_PATH, label: "iPhone companion" },
       { href: CHANGELOG_PATH, label: "Changelog" },
       { href: STATS_PATH, label: "Download stats" },

@@ -133,6 +133,7 @@ struct PeerConn {
     phones: Mutex<HashMap<u64, SyncSender<String>>>,
     in_run: AtomicBool,        // a request just queued is one of a run (see invoke_in_run)
     generation: AtomicU64,     // bump to retire the current connection thread
+    health: crate::peerhealth::LinkHealth,
     // The address that answered last, dialled first next time.
     last_host: Mutex<Option<String>>,
     // Present only for a peer reached over SSH. Owned here so the forward is torn
@@ -205,6 +206,7 @@ impl PeerConn {
             supports_tab_share: AtomicBool::new(false),
             phones: Mutex::new(HashMap::new()),
             in_run: AtomicBool::new(false),
+            health: Default::default(),
             generation: AtomicU64::new(0),
             last_host: Mutex::new(None),
         }
@@ -513,6 +515,7 @@ impl PeerClientHub {
                     "port": p.port,
                     "enabled": p.enabled,
                     "connected": connected,
+                    "link": conn.filter(|_| connected).map(|c| c.health.json()),
                     "overTailscale": over_tailscale,
                     "supportsSync": supports_sync,
                     "supportsSync2": supports_sync2,
@@ -2507,6 +2510,7 @@ fn connect_session(
     {
         engine.nudge();
     }
+    conn.health.reset();
     let mut last_ping = Instant::now();
     let mut last_heard = Instant::now();
     let mut quick_until: Option<Instant> = None;
@@ -2543,7 +2547,11 @@ fn connect_session(
             {
                 break;
             }
+            conn.health.pinged();
             last_ping = Instant::now();
+        }
+        if conn.health.changed() {
+            emit_state_changed(hub);
         }
         let _ = ws.flush();
         // Quick for a moment after a request of a run goes out, so the next one
@@ -2618,7 +2626,7 @@ fn handle_frame(conn: &Arc<PeerConn>, app: Option<&AppHandle>, txt: &str) {
         return;
     }
     match t {
-        "pong" => {}
+        "pong" => conn.health.ponged(),
         // The host says a followed folder moved. It is only a wake-up: the
         // scheduler still asks what the state is before acting on it.
         "gitFollowChanged" => {

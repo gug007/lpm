@@ -206,7 +206,7 @@ export default function LpmVsIterm2Page() {
         jumpHref="#matrix"
         jumpLabel="Jump to the iTerm2 rows"
         downloadSource="vs-iterm2-hero"
-        macFocus
+        focus="macos"
         verdict={VERDICT_CARDS}
       />
 
@@ -389,7 +389,7 @@ export default function LpmVsIterm2Page() {
           </>
         }
         downloadSource="vs-iterm2-cta"
-        macFocus
+        focus="macos"
       />
     </>
   );

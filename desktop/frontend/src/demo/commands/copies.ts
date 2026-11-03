@@ -57,7 +57,33 @@ function atHead(p: Project): void {
   p.git = { ...p.git, changes: [] };
 }
 
+// The git-ignored files a sample worktree can bring, and what each project
+// chose, kept for the visit like every other demo edit.
+const IGNORED = [
+  { path: ".env", size: 1214, suggested: true },
+  { path: ".env.local", size: 340, suggested: true },
+  { path: "log/development.log", size: 48_210, suggested: false },
+];
+const chosenFiles = new Map<string, { copy: string[]; link: string[] }>();
+
+function ownerOf(name: unknown): string {
+  const p = project(String(name));
+  return p?.parentName ?? String(name);
+}
+
+function worktreeFiles({ name }: Record<string, unknown>) {
+  const suggested = { copy: IGNORED.filter((f) => f.suggested).map((f) => f.path), link: [] };
+  return { candidates: IGNORED, ...(chosenFiles.get(ownerOf(name)) ?? suggested) };
+}
+
+function setWorktreeFiles({ name, copy, link }: Record<string, unknown>): null {
+  chosenFiles.set(ownerOf(name), { copy: [...(copy as string[])], link: [...(link as string[])] });
+  return null;
+}
+
 export const copyCommands: CommandMap = {
+  worktree_files: worktreeFiles,
+  set_worktree_files: setWorktreeFiles,
   duplicate_project: duplicate,
   start_duplicate_project: duplicate,
   duplicate_worktree_project: worktree,

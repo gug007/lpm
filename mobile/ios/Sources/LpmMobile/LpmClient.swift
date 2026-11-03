@@ -98,7 +98,8 @@ final class LpmClient: NSObject {
     var onGitAutoPullUndo: ((_ project: String, _ error: String?) -> Void)?
     var onGitBranches: ((_ project: String, _ current: String, _ branches: [GitBranch], _ error: String?) -> Void)?
     var onGitCheckout: ((_ project: String, _ error: String?) -> Void)?
-    var onGitDiscardAll: ((_ project: String, _ error: String?) -> Void)?
+    var onGitDiscardAll: ((_ project: String, _ undo: String?, _ error: String?) -> Void)?
+    var onGitRestoreDiscarded: ((_ project: String, _ error: String?) -> Void)?
     var onGitChanged: ((_ project: String) -> Void)?
     var onGitHistory: ((_ project: String, _ skip: Int, _ page: HistoryPage?, _ error: String?) -> Void)?
     var onGitCommitFiles: ((_ project: String, _ hash: String, _ files: [CommitFile]?, _ error: String?) -> Void)?
@@ -1193,6 +1194,9 @@ final class LpmClient: NSObject {
         send(Wire.gitCreateBranch(project: project, name: name))
     }
     func gitDiscardAll(project: String) { send(Wire.gitDiscardAll(project: project)) }
+    func gitRestoreDiscarded(project: String, id: String) {
+        send(Wire.gitRestoreDiscarded(project: project, id: id))
+    }
     func gitAuto(project: String, kind: String, nonce: String) {
         send(Wire.gitAuto(project: project, kind: kind, nonce: nonce))
     }
@@ -1549,7 +1553,8 @@ final class LpmClient: NSObject {
                 self.onGitBranches?(proj, current, branches, error)
             case .gitCheckout(let proj, let error): self.onGitCheckout?(proj, error)
             case .gitCreateBranch(let proj, let error): self.onGitCreateBranch?(proj, error)
-            case .gitDiscardAll(let proj, let error): self.onGitDiscardAll?(proj, error)
+            case .gitDiscardAll(let proj, let undo, let error): self.onGitDiscardAll?(proj, undo, error)
+            case .gitRestoreDiscarded(let proj, let error): self.onGitRestoreDiscarded?(proj, error)
             case .gitChanged(let proj): self.onGitChanged?(proj)
             case .gitHistory(let proj, let skip, let page, let error): self.onGitHistory?(proj, skip, page, error)
             case .gitCommitFiles(let proj, let hash, let files, let error):

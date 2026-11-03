@@ -157,15 +157,6 @@ private fun DemoServer.registerGitBranchHandlers() {
             mapOf("t" to "gitCreateBranch", "project" to project, "ok" to true)
         }
     }
-    register("gitDiscardAll") { o ->
-        val project = o.string("project") ?: return@register
-        pushAfter(0.4) {
-            val repo = world.git[project] ?: return@pushAfter notARepo("gitDiscardAll", project)
-            repo.files = emptyList()
-            pushGitChanged(project)
-            mapOf("t" to "gitDiscardAll", "project" to project, "ok" to true)
-        }
-    }
     register("gitWatch") { o ->
         val project = o.string("project") ?: return@register
         world.git[project]?.watched = true
@@ -234,7 +225,7 @@ private fun notARepo(t: String, project: String): Dict =
 /** Copy a project's git state onto a duplicate. Called by demoAddProject. */
 internal fun DemoServer.demoCloneGitState(from: String, to: String) {
     val repo = world.git[from] ?: return
-    world.git[to] = repo.copy(watched = false, autoPulled = null)
+    world.git[to] = repo.copy(watched = false, autoPulled = null, discarded = emptyMap())
 }
 
 // helpers

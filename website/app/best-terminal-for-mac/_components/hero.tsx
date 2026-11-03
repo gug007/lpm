@@ -19,7 +19,7 @@ export default function Hero() {
         </p>
 
         <div className="mt-[clamp(1.25rem,3vh,1.75rem)] flex justify-center">
-          <HeroDownload source="best-mac-hero" macFocus />
+          <HeroDownload source="best-mac-hero" focus="macos" />
         </div>
 
         <div className="mt-[clamp(1rem,2vh,1.5rem)]">

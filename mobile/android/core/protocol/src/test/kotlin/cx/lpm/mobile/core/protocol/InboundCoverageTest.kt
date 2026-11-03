@@ -20,7 +20,8 @@ class InboundCoverageTest {
         "runAction", "newTerminal", "projects-changed", "status-changed", "git", "gitDiff",
         "gitDiffs", "gitCommit", "gitPush", "gitGenMessage", "gitGenPr", "gitCreatePr", "gitPull",
         "gitFetch", "gitAutoPullUndo", "gitBranches", "gitCheckout", "gitCreateBranch",
-        "gitDiscardAll", "git-changed", "gitAuto", "gitAutoSwitchBase", "apnsToken",
+        "gitDiscardAll", "gitRestoreDiscarded", "git-changed", "gitAuto", "gitAutoSwitchBase",
+        "apnsToken",
         "composerActions", "transform", "transformDone", "composerDraft", "services", "serviceLogs",
         "actionBgOutput", "runActionBackground", "backgroundRuns", "historyQuery",
         "historySaveDraft", "historyToggleFavorite", "historySetFolder", "historyDelete",
@@ -42,7 +43,7 @@ class InboundCoverageTest {
 
     @Test
     fun decodesExactlyTheTypesIosDoesPlusAndroidsOwn() {
-        assertEquals(147, iosTypes.size)
+        assertEquals(148, iosTypes.size)
         assertEquals(iosTypes + androidOnlyTypes, inboundParsers.keys)
     }
 

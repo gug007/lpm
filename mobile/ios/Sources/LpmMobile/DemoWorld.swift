@@ -206,11 +206,14 @@ struct DemoWorld {
         var aheadByBranch: [String: Int] = [:]
         // The last auto pull, as the raw wire dict, while it can be undone.
         var autoPulled: [String: Any]? = nil
+        // The copies Discard all kept, by the id its reply named for Undo.
+        var discarded: [String: [GitFile]] = [:]
     }
 
     var git: [String: GitRepo] = [:] // project -> repo
     var gitAutoRuns: [String: GitAutoRun] = [:] // project -> last Auto Commit / PR run
     var gitAutoNextId = 1
+    var gitDiscardNextId = 1
 
     // MARK: Jobs (automations)
 
@@ -795,6 +798,11 @@ extension DemoWorld {
             "agent": j.agent, "model": j.model, "effort": j.effort,
         ]
         if let v = j.lastRunAt { o["lastRunAt"] = v }
+        if let last = j.history.last {
+            let note = last.output.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !note.isEmpty { o["lastNote"] = String(note.prefix(400)) }
+            if let v = last.durationSecs { o["lastDurationSecs"] = v }
+        }
         if let v = j.nextFireAt { o["nextFireAt"] = v }
         if let v = j.runningSince { o["runningSince"] = v }
         o["unread"] = jobUnreadCount(j)

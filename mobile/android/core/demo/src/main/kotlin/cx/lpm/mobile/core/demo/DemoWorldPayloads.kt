@@ -180,6 +180,11 @@ internal fun jobDict(j: DemoWorld.Job): Dict {
         "effort" to j.effort
     )
     j.lastRunAt?.let { o["lastRunAt"] = it }
+    j.history.lastOrNull()?.let { last ->
+        val note = last.output.trimmingWhitespacesAndNewlines()
+        if (note.isNotEmpty()) o["lastNote"] = note.graphemePrefix(LAST_NOTE_MAX)
+        last.durationSecs?.let { o["lastDurationSecs"] = it }
+    }
     j.nextFireAt?.let { o["nextFireAt"] = it }
     j.runningSince?.let { o["runningSince"] = it }
     o["unread"] = jobUnreadCount(j)
@@ -225,3 +230,6 @@ internal fun jobRunDict(r: DemoWorld.JobRun, seenAt: Long = 0): Dict {
     if (r.answerTo.isNotEmpty()) o["answerTo"] = r.answerTo
     return o
 }
+
+/** The Mac caps what a run says about itself at 400 characters. */
+private const val LAST_NOTE_MAX = 400

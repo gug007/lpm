@@ -1,4 +1,7 @@
-use super::{string_at, validate_keys, validate_string_field, Mapping, Report, Value};
+use super::{
+    string_at, validate_keys, validate_string_field, validate_string_list, Mapping, Report, Value,
+};
+use std::path::{Component, Path};
 
 const WORK_STATES: [&str; 4] = ["in_progress", "blocked", "done", "custom"];
 
@@ -104,6 +107,36 @@ pub(super) fn validate_work_status(root: &Mapping, report: &mut Report) {
     if let Some(since) = map.get(Value::String("since".into())) {
         if since.as_u64().is_none() {
             report.error(&format!("{path}.since"), "expected a non-negative integer");
+        }
+    }
+}
+
+// The git-ignored files new worktrees copy or link from the project. The app
+// refuses a path that would reach outside the project, so the check does too.
+pub(super) fn validate_worktree_files(root: &Mapping, report: &mut Report) {
+    let Some(value) = root.get(Value::String("worktreeFiles".into())) else {
+        return;
+    };
+    let path = "config.worktreeFiles";
+    let Some(map) = value.as_mapping() else {
+        report.error(path, "expected a mapping with copy and link lists");
+        return;
+    };
+    validate_keys(map, &["copy", "link"], path, report);
+    for key in ["copy", "link"] {
+        let at = format!("{path}.{key}");
+        let files = validate_string_list(map.get(Value::String(key.into())), &at, report);
+        for (index, file) in files.iter().enumerate() {
+            let inside = !file.trim().is_empty()
+                && Path::new(file)
+                    .components()
+                    .all(|c| matches!(c, Component::Normal(_)));
+            if !inside {
+                report.error(
+                    &format!("{at}[{index}]"),
+                    "expected a path inside the project",
+                );
+            }
         }
     }
 }

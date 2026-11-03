@@ -17,9 +17,9 @@ export function Hero() {
       <div className="relative mx-auto max-w-5xl px-6">
         <HeroAgents />
         <h1 className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-600 bg-clip-text text-[2.25rem] font-extrabold leading-[1.06] tracking-tight text-transparent sm:text-5xl md:text-[clamp(2.75rem,6.2vh,3.75rem)] dark:from-white dark:via-gray-100 dark:to-gray-400">
-          Every project. Every agent.
-          <br />
-          One window.
+          <span className="block sm:inline">Every project.</span>{" "}
+          <span className="block sm:inline">Every agent.</span>{" "}
+          <span className="block">One window.</span>
         </h1>
         <p className="mx-auto mt-5 max-w-3xl text-balance text-base leading-relaxed text-gray-600 sm:text-[17px] dark:text-gray-400">
           lpm runs your dev servers and AI coding agents side by side, so you

@@ -1,5 +1,6 @@
 import { askSummary, isOpenAsk, WAITING_LABEL } from "../../../jobAsk";
 import {
+  formatDuration,
   isBlockedResult,
   jobOutputSnippet,
   jobResultLabel,
@@ -13,6 +14,29 @@ export interface JobPreview {
   prefix: string;
   text: string;
   tone: JobPreviewTone;
+}
+
+const FAILURE_NOTE_CHARS = 240;
+
+// A failed last run is news on an automation that is on and not doing anything
+// else right now; one that's off waits for whoever turns it back on.
+export function lastRunFailed(job: JobInfo): boolean {
+  return (
+    job.valid && job.enabled && !job.running && !isOpenAsk(job.ask) && jobResultTone(job.lastResult) === "error"
+  );
+}
+
+// A failed run says how long it ran and why it failed, when its machine
+// recorded a reason; older machines only send the result.
+function failedPreview(job: JobInfo): JobPreview {
+  const label = jobResultLabel(job.lastResult);
+  const ran = job.lastDurationSecs ? ` after ${formatDuration(job.lastDurationSecs)}` : "";
+  const note = jobOutputSnippet(job.lastNote, FAILURE_NOTE_CHARS);
+  return {
+    prefix: "",
+    text: note ? `${label}${ran} · ${note}` : `${label}${ran}. Open it to see what happened.`,
+    tone: "error",
+  };
 }
 
 // The second line of a job row: what the job last said, unless something about
@@ -33,13 +57,7 @@ export function jobRowPreview(job: JobInfo, runningText: string): JobPreview {
     return { prefix: "", text: jobResultLabel(job.lastResult), tone: "warning" };
   }
   const resultTone = jobResultTone(job.lastResult);
-  if (resultTone === "error") {
-    return {
-      prefix: "",
-      text: `${jobResultLabel(job.lastResult)}. Open it to see what happened.`,
-      tone: "error",
-    };
-  }
+  if (resultTone === "error") return failedPreview(job);
   if (resultTone === "warning") {
     return { prefix: "", text: jobResultLabel(job.lastResult), tone: "warning" };
   }

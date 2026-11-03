@@ -193,12 +193,15 @@ internal class DemoWorld(val clock: Clock) {
         // Per-branch ahead counts so a checkout restores the branch it left.
         var aheadByBranch: Map<String, Int> = emptyMap(),
         // The last auto pull, as the raw wire dict, while it can be undone.
-        var autoPulled: Dict? = null
+        var autoPulled: Dict? = null,
+        // The copies Discard all kept, by the id its reply named for Undo.
+        var discarded: Map<String, List<GitFile>> = emptyMap()
     )
 
     val git = mutableMapOf<String, GitRepo>() // project -> repo
     val gitAutoRuns = mutableMapOf<String, GitAutoRun>() // project -> last Auto Commit / PR run
     var gitAutoNextId = 1
+    var gitDiscardNextId = 1
 
     // Jobs (automations)
 

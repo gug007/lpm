@@ -16,6 +16,7 @@ import { useJobScopeLabel } from "../hooks/useJobScopeLabel";
 import { ClockIcon, PlusIcon } from "./icons";
 import { EmptyState } from "./ui/EmptyState";
 import { AutomationsHeader, type AutomationsViewMode } from "./AutomationsHeader";
+import { useFailedFilter } from "./project-detail/jobs/useFailedFilter";
 import { clearJobStateGlobal, deleteJob, deleteJobGlobal } from "../jobsConfig";
 import { peerAlias, usePeerState } from "../peer/usePeerState";
 import type { JobInfo } from "../jobsFormat";
@@ -153,7 +154,7 @@ export function ScheduledView({ project, visible = true, focused = true }: Sched
     : rows ?? [];
   const sorted = sortJobsForList(shown);
   const unreadRows = sorted.filter(isUnread);
-  const readRows = sorted.filter((row) => !isUnread(row));
+  const failed = useFailedFilter(sorted);
   const unreadCount = unreadRows.length;
   const projectLabel = useCallback(
     (name: string) => displayNameForProjectName(name, projects),
@@ -328,6 +329,9 @@ export function ScheduledView({ project, visible = true, focused = true }: Sched
         unreadCount={unreadCount}
         view={view}
         onViewChange={selectView}
+        failedCount={failed.count}
+        failedOnly={failed.active}
+        onToggleFailed={failed.toggle}
         zoom={zoom}
         onMarkAllSeen={() => void markAllSeen()}
         onNewJob={newJob}
@@ -391,8 +395,8 @@ export function ScheduledView({ project, visible = true, focused = true }: Sched
               </div>
             ) : (
               <JobListSections
-                unreadRows={unreadRows}
-                readRows={readRows}
+                unreadRows={failed.rows.filter(isUnread)}
+                readRows={failed.rows.filter((row) => !isUnread(row))}
                 zoom={zoom.zoom}
                 scopeLabelFor={scopeLabelFor}
                 rowKeyOf={rowKeyOf}

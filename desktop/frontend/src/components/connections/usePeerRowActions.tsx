@@ -188,7 +188,8 @@ export function usePeerRowActions({
   // Only offer a retry once a dial has actually failed — while it's still
   // "Connecting…" the button would just interrupt the attempt in flight — and
   // not to a machine that no longer accepts this Mac: only pairing again helps.
-  const canRetry = status.tone === "error" && !/unauthorized|auth failed|401/i.test(status.detail);
+  const canRetry =
+    (status.tone === "error" && !/unauthorized|auth failed|401/i.test(status.detail)) || !!status.reconnect;
 
   const statusLine = removing ? (
     <StatusLine tone="pending" text="Removing lpm over SSH…" />

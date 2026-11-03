@@ -42,6 +42,23 @@
       "type": "boolean",
       "description": "Whether this duplicate is managed as a linked Git worktree."
     },
+    "worktreeFiles": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "copy": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Ignored files each new worktree gets its own copy of, as paths inside the project (e.g. .env)."
+        },
+        "link": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Ignored files each new worktree links to, so an edit in the project reaches every worktree. Windows copies them when it can't make the link."
+        }
+      },
+      "description": "The git-ignored files (.env, local keys) a new worktree of this project brings, since Git leaves them out of a fresh checkout. Omit it to copy the ignored files that look like local configuration; {} brings none. Set it from the New worktree dialog's Options."
+    },
     "autoPull": {
       "type": "boolean",
       "description": "Whether lpm fast-forwards this project by itself when origin has new commits, the branch has no uncommitted changes and nothing to push (Settings → Git → Auto pull). Omit it to follow the parent project (for a duplicate or worktree), then the Settings default."

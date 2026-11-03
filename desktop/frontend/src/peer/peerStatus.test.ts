@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { humanizeError, peerStatus } from "./peerStatus";
+import { humanizeError, peerStatus, rttText } from "./peerStatus";
 import type { PeerClient } from "./usePeerState";
 
 const peer = (over: Partial<PeerClient> = {}): PeerClient => ({
@@ -29,6 +29,20 @@ describe("peerStatus", () => {
     expect(peerStatus(peer({ enabled: false })).text).toBe("Off");
     expect(peerStatus(peer({ connected: true })).tone).toBe("live");
     expect(peerStatus(peer()).tone).toBe("pending");
+  });
+
+  it("says how fast a live link is, and when it slows or stops answering", () => {
+    const link = (health: "ok" | "slow" | "silent", rttMs: number | null) => ({ health, rttMs, waitingSecs: null });
+    expect(peerStatus(peer({ connected: true, link: link("ok", 38) })).text).toBe("Connected · 38 ms");
+    expect(peerStatus(peer({ connected: true, link: link("slow", 1400) }))).toEqual({
+      tone: "pending",
+      text: "Slow · 1.4 s round trip",
+      detail: "",
+    });
+    const silent = peerStatus(peer({ connected: true, link: link("silent", 40) }));
+    expect(silent).toMatchObject({ tone: "pending", text: "Not responding", reconnect: true });
+    expect(peerStatus(peer({ connected: false, link: link("silent", 40) })).reconnect).toBeUndefined();
+    expect(rttText(999)).toBe("999 ms");
   });
 
   it("says when the connection runs over Tailscale", () => {

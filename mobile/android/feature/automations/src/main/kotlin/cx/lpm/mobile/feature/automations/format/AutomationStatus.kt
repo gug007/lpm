@@ -7,12 +7,16 @@ import cx.lpm.mobile.core.model.AutomationJob
 /** The colors a job's state and a run's result are drawn in. */
 enum class AutomationTone { Green, Red, Orange, Blue, Secondary }
 
-/** What a job's row says under its name: broken, running, off, or when it runs next. */
+/**
+ * What a job's row says under its name: broken, running, off, why its last run
+ * failed, or when it runs next.
+ */
 fun automationStatusText(job: AutomationJob, now: AutomationClock): String {
     if (!job.valid) return job.error.ifEmpty { "Invalid automation" }
     job.ask?.let { return "$AUTOMATION_WAITING_LABEL · ${it.summary}" }
     if (job.running) return "Running"
     if (!job.enabled) return "Off · ${automationScheduleText(job)}"
+    if (automationLastRunFailed(job)) return automationFailureText(job)
     val next = job.nextFireAt ?: return automationScheduleText(job)
     return "${automationScheduleText(job)} · ${now.relative(next)}"
 }
@@ -28,7 +32,7 @@ fun automationStatusTone(job: AutomationJob): AutomationTone = when {
 fun automationResultTone(result: String): AutomationTone = when (result) {
     "completed", "found-work" -> AutomationTone.Green
 
-    "error", "timed-out", "context-full" -> AutomationTone.Red
+    in automationFailedResults -> AutomationTone.Red
 
     "skipped-overlap", "skipped-pending-copy", "skipped-capacity", "pending-window" ->
         AutomationTone.Orange

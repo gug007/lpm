@@ -2,7 +2,8 @@ import { ClockIcon, PencilIcon, StopIcon, TrashIcon } from "../../icons";
 import { PlayIcon } from "../icons";
 import { Switch } from "../../ui/Switch";
 import { HoverActionButton } from "./HoverActionButton";
-import { jobRowPreview, type JobPreviewTone } from "./jobRowPreview";
+import { JobRowRetry } from "./JobRowRetry";
+import { jobRowPreview, lastRunFailed, type JobPreviewTone } from "./jobRowPreview";
 import { relativeAgo } from "../../../relativeTime";
 import { nextRunLabel } from "../../../jobNextRun";
 import { useNow } from "../../../hooks/useNow";
@@ -80,36 +81,41 @@ export function JobRow({ job, scopeLabel, onRunNow, onStop, onToggleEnabled, onO
         </span>
       </span>
 
-      <button
-        type="button"
-        onClick={() => (job.valid ? onOpen(job) : onEdit(job))}
-        className="min-w-0 flex-1 pt-0.5 text-left"
-      >
-        <span className="flex min-w-0 items-baseline gap-2">
-          <span
-            className={`min-w-0 max-w-[70%] shrink-0 truncate text-[14.5px] ${
-              enabled || !job.valid ? "text-[var(--text-primary)]" : "text-[var(--text-muted)]"
-            } ${unread > 0 ? "font-semibold" : "font-medium"}`}
-          >
-            {job.label || job.id}
-          </span>
-          {meta && (
-            <span className="min-w-0 shrink-[4] truncate text-[12px] text-[var(--text-muted)]">
-              {meta}
-            </span>
-          )}
-        </span>
-        <span
-          className={`mt-1 line-clamp-2 break-words text-[13.5px] leading-[1.45] [overflow-wrap:anywhere] ${
-            TONE_CLASS[off ? "muted" : preview.tone]
-          }`}
+      <span className="min-w-0 flex-1">
+        <button
+          type="button"
+          onClick={() => (job.valid ? onOpen(job) : onEdit(job))}
+          className="block w-full min-w-0 pt-0.5 text-left"
         >
-          {preview.prefix && (
-            <span className="font-medium text-[var(--text-primary)]">{preview.prefix}</span>
-          )}
-          {preview.text}
-        </span>
-      </button>
+          <span className="flex min-w-0 items-baseline gap-2">
+            <span
+              className={`min-w-0 max-w-[70%] shrink-0 truncate text-[14.5px] ${
+                enabled || !job.valid ? "text-[var(--text-primary)]" : "text-[var(--text-muted)]"
+              } ${unread > 0 ? "font-semibold" : "font-medium"}`}
+            >
+              {job.label || job.id}
+            </span>
+            {meta && (
+              <span className="min-w-0 shrink-[4] truncate text-[12px] text-[var(--text-muted)]">
+                {meta}
+              </span>
+            )}
+          </span>
+          <span
+            className={`mt-1 line-clamp-2 break-words text-[13.5px] leading-[1.45] [overflow-wrap:anywhere] ${
+              TONE_CLASS[off ? "muted" : preview.tone]
+            }`}
+          >
+            {preview.prefix && (
+              <span className="font-medium text-[var(--text-primary)]">{preview.prefix}</span>
+            )}
+            {preview.text}
+          </span>
+        </button>
+        {lastRunFailed(job) && (
+          <JobRowRetry onRetry={() => onRunNow(job.id)} onOpen={() => onOpen(job)} />
+        )}
+      </span>
 
       <span className="flex shrink-0 items-center gap-3 self-center">
         <span className="flex h-[30px] items-center">

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { toast } from "../notifications/toast";
 import { GitDiscardAll } from "../../bridge/commands";
+import { DISCARD_KEPT_TEXT, announceDiscard } from "../gitDiscardUndo";
 import { useGitStatus } from "../hooks/useGitStatus";
 import { CommitModal } from "./CommitModal";
 import { MergeBranchDialog } from "./MergeBranchDialog";
@@ -33,8 +34,8 @@ export function ProjectGitModals({ target, onClose }: ProjectGitModalsProps) {
     if (!path) return;
     setDiscarding(true);
     try {
-      await GitDiscardAll(path);
-      toast.success("Discarded all changes");
+      const kept = await GitDiscardAll(path);
+      announceDiscard(path, kept, "Discarded all changes", gitState.refresh);
       gitState.refresh();
       onClose();
     } catch (err) {
@@ -91,7 +92,7 @@ export function ProjectGitModals({ target, onClose }: ProjectGitModalsProps) {
         body={
           <>
             Reset the working tree to HEAD, discarding every uncommitted change
-            (staged, unstaged, and untracked). This cannot be undone.
+            (staged, unstaged, and untracked). {DISCARD_KEPT_TEXT}
           </>
         }
         onCancel={onClose}

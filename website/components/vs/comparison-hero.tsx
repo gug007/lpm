@@ -4,6 +4,7 @@ import { ArrowDown, ArrowLeft } from "lucide-react";
 import { GithubLink } from "@/components/github-link";
 import { HeroDownload } from "@/components/home/hero-download";
 import type { DownloadSource } from "@/lib/analytics";
+import type { DesktopOs } from "@/lib/downloads";
 import { VS_BASE_PATH } from "@/lib/links";
 import { VerdictCards, type VerdictCard } from "./verdict-cards";
 
@@ -15,7 +16,7 @@ type Props = {
   jumpHref?: string;
   jumpLabel?: string;
   downloadSource?: DownloadSource;
-  macFocus?: boolean;
+  focus?: DesktopOs;
   // The answer a comparison search is after, so it sits in the first screen;
   // the verdict line then reads as its conclusion.
   verdict?: [VerdictCard, VerdictCard, VerdictCard];
@@ -29,7 +30,7 @@ export function ComparisonHero({
   jumpHref,
   jumpLabel,
   downloadSource,
-  macFocus,
+  focus,
   verdict,
 }: Props) {
   const verdictText = verdictLine && (
@@ -62,7 +63,7 @@ export function ComparisonHero({
         {!verdict && verdictText}
 
         <div className="mt-[clamp(1.25rem,3vh,1.75rem)] flex justify-center">
-          <HeroDownload source={downloadSource} macFocus={macFocus} />
+          <HeroDownload source={downloadSource} focus={focus} />
         </div>
 
         {verdict && (

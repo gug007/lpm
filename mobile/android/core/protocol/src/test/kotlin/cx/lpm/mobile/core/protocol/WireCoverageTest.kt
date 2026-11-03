@@ -20,7 +20,8 @@ class WireCoverageTest {
         "sidebarDeleteFolder", "sidebarMoveProject", "fileChunk", "start", "stop", "toggleService",
         "ping", "apnsToken", "git", "gitDiff", "gitDiffs", "gitCommit", "gitPush", "gitGenMessage",
         "gitGenPr", "gitCreatePr", "gitPull", "gitFetch", "gitAutoPullUndo", "gitBranches",
-        "gitCheckout", "gitCreateBranch", "gitDiscardAll", "gitAuto", "gitAutoState",
+        "gitCheckout", "gitCreateBranch", "gitDiscardAll", "gitRestoreDiscarded", "gitAuto",
+        "gitAutoState",
         "gitAutoCancel", "gitAutoSwitchBase", "gitWatch", "updateCheck", "updateInstall",
         "updateCancel", "gitUnwatch", "composerActions", "composerDraft", "transform", "services",
         "serviceLogs", "serviceLogsWatch", "historyQuery", "historySaveDraft",
@@ -40,7 +41,7 @@ class WireCoverageTest {
 
     @Test
     fun everyIosBuilderHasAKotlinCounterpart() {
-        assertEquals(161, iosBuilders.toSet().size)
+        assertEquals(162, iosBuilders.toSet().size)
         val kotlin = Wire::class.java.methods.map { it.name }.toSet()
         assertEquals(emptyList<String>(), iosBuilders.filterNot { it in kotlin })
     }

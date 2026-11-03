@@ -18,12 +18,17 @@ interface AutomationsHeaderProps {
   unreadCount: number;
   view: AutomationsViewMode;
   onViewChange: (view: AutomationsViewMode) => void;
+  // Automations whose last run failed, and whether the list shows only those.
+  failedCount: number;
+  failedOnly: boolean;
+  onToggleFailed: () => void;
   zoom: ContentZoom;
   onMarkAllSeen: () => void;
   onNewJob: () => void;
 }
 
-function summary(scoped: boolean, unreadCount: number, view: AutomationsViewMode): string {
+function summary(scoped: boolean, unreadCount: number, view: AutomationsViewMode, failedOnly: boolean): string {
+  if (failedOnly && view === "list") return "The automations whose last run failed.";
   if (unreadCount > 0) {
     return `${unreadCount} ${unreadCount === 1 ? "automation has" : "automations have"} new messages since you last looked.`;
   }
@@ -43,6 +48,9 @@ export function AutomationsHeader({
   unreadCount,
   view,
   onViewChange,
+  failedCount,
+  failedOnly,
+  onToggleFailed,
   zoom,
   onMarkAllSeen,
   onNewJob,
@@ -55,7 +63,7 @@ export function AutomationsHeader({
           <CountBadge count={unreadCount} label="unread automations" size="md" />
         </h1>
         <p className="mt-1 text-[11px] text-[var(--text-muted)]">
-          {summary(scoped, unreadCount, view)}
+          {summary(scoped, unreadCount, view, failedOnly)}
         </p>
       </div>
       <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-x-3 gap-y-2">
@@ -66,6 +74,22 @@ export function AutomationsHeader({
             onChange={onViewChange}
             ariaLabel="Automations view"
           />
+        )}
+        {view === "list" && failedCount > 0 && (
+          <button
+            type="button"
+            aria-pressed={failedOnly}
+            onClick={onToggleFailed}
+            title={failedOnly ? "Show every automation" : "Show only the automations whose last run failed"}
+            className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[12px] font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent-cyan)] ${
+              failedOnly
+                ? "border-[var(--accent-red)]/40 bg-[var(--accent-red)]/10 text-[var(--text-primary)]"
+                : "border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            }`}
+          >
+            Failed
+            <span className="tabular-nums text-[var(--accent-red-text)]">{failedCount}</span>
+          </button>
         )}
         {hasJobs && (
           <ZoomControl

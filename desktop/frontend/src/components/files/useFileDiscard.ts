@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import { toast } from "../../notifications/toast";
 import { GitDiscardFiles } from "../../../bridge/commands";
+import { announceDiscard } from "../../gitDiscardUndo";
 import type { Item } from "./treeModel";
 import type { Changes } from "./useChangedFiles";
 
@@ -41,8 +42,10 @@ export function useFileDiscard(root: string, changes: Changes) {
     if (!target) return;
     setBusy(true);
     try {
-      await GitDiscardFiles(root, target.paths);
-      toast.success(
+      const kept = await GitDiscardFiles(root, target.paths);
+      announceDiscard(
+        root,
+        kept,
         target.paths.length === 1
           ? `Discarded changes to ${target.path}`
           : `Discarded changes to ${target.paths.length} files in ${target.path}`,

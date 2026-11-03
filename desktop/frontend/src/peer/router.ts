@@ -25,6 +25,7 @@ const LOCAL_ONLY_EXACT = new Set<string>([
   "schedule_update",
   "cancel_scheduled_update",
   "take_update_note",
+  "release_notes",
   "services_build",
   "restart_services",
   "load_claude_accounts",

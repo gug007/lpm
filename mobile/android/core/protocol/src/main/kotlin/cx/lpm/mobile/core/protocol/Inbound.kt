@@ -282,7 +282,12 @@ sealed interface Inbound {
 
     data class GitCheckout(val project: String, val error: String?) : Inbound
     data class GitCreateBranch(val project: String, val error: String?) : Inbound
-    data class GitDiscardAll(val project: String, val error: String?) : Inbound
+
+    /** [undo] names the copy the Mac kept, for [GitRestoreDiscarded]; null when none was. */
+    data class GitDiscardAll(val project: String, val error: String?, val undo: String? = null) :
+        Inbound
+
+    data class GitRestoreDiscarded(val project: String, val error: String?) : Inbound
     data class GitChanged(val project: String) : Inbound
 
     // Commit history: a page of the branch's commits, one commit's files and one

@@ -51,6 +51,10 @@ const isContent = (name) =>
 const SHARED = [
   { prefix: "/vs/", paths: [join(websiteDir, "components", "vs")] },
   {
+    prefix: "/terminal-for-",
+    paths: [join(websiteDir, "components", "os-terminal")],
+  },
+  {
     prefix: "/docs",
     paths: [
       join(appDir, "docs", "[slug]"),

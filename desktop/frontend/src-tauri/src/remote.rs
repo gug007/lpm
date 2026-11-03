@@ -3858,12 +3858,34 @@ fn handle_msg(
             let project = str_field("project").unwrap_or_default();
             match config::project_root(&project) {
                 Ok((cwd, _)) => {
-                    let r = crate::git::git_discard_all(cwd);
-                    send(ws, git_result_reply("gitDiscardAll", &project, r))?;
+                    let reply = match crate::git::git_discard_all(cwd) {
+                        Ok(undo) => {
+                            json!({ "t": "gitDiscardAll", "project": project, "ok": true, "undo": undo })
+                        }
+                        Err(e) => {
+                            json!({ "t": "gitDiscardAll", "project": project, "ok": false, "error": e })
+                        }
+                    };
+                    send(ws, reply)?;
                 }
                 Err(e) => send(
                     ws,
                     json!({ "t": "gitDiscardAll", "project": project, "ok": false, "error": e }),
+                )?,
+            }
+        }
+        // Undo for a phone's Discard all: puts back the copy its reply named.
+        "gitRestoreDiscarded" => {
+            let project = str_field("project").unwrap_or_default();
+            let id = str_field("id").unwrap_or_default();
+            match config::project_root(&project) {
+                Ok((cwd, _)) => {
+                    let r = crate::gitdiscards::git_restore_discarded(cwd, id);
+                    send(ws, git_result_reply("gitRestoreDiscarded", &project, r))?;
+                }
+                Err(e) => send(
+                    ws,
+                    json!({ "t": "gitRestoreDiscarded", "project": project, "ok": false, "error": e }),
                 )?,
             }
         }

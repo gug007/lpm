@@ -277,7 +277,7 @@ export function SidebarPeerSection({
           y={menu.y}
           alias={alias}
           connected={connected}
-          canReconnect={status.tone === "error"}
+          canReconnect={status.tone === "error" || !!status.reconnect}
           onAddProject={() => addProjectForPeer(slug, alias)}
           onPairPhone={() => void pairPhone()}
           onSettings={() => openMachineSettings(slug)}

@@ -14,6 +14,7 @@ import { CopyRow, focusLabelSuffix } from "./CopyRow";
 import { CopyMacSelect, type CopyTargetOption } from "./CopyMacSelect";
 import { ShellCommandInput } from "./ShellCommandInput";
 import { SwitchRow } from "./SwitchRow";
+import { WorktreeFilesRow } from "./WorktreeFilesRow";
 import { SideBySideOption } from "./SideBySideOption";
 import { CollapsibleSection } from "./CollapsibleSection";
 import { SegmentedControl } from "./ui/SegmentedControl";
@@ -686,8 +687,8 @@ export function BulkDuplicateDialog({
           {isWorktree && !notGitRepo && (
             <p className="mt-1 text-[12px] leading-snug text-[var(--text-muted)]">
               Creates a branch from the current commit and shares Git history.
-              Uncommitted and ignored files stay behind; the project root must be
-              the Git root.
+              Uncommitted files stay behind, and ignored ones only come along when
+              ticked under Options; the project root must be the Git root.
             </p>
           )}
           {notGitRepo && (
@@ -1024,6 +1025,7 @@ export function BulkDuplicateDialog({
                   : `Copy without dependencies, then install them fresh in ${copyRef}.`
               }
             />
+            {isWorktree && !notGitRepo && sourceName && <WorktreeFilesRow projectName={sourceName} />}
           </div>
         </CollapsibleSection>
       </div>

@@ -9,6 +9,7 @@ import {
   CHANGELOG_PATH,
   DOCS_PATH,
   FEATURES_PATH,
+  LESSONS_PATH,
   MOBILE_PATH,
   PARALLEL_PATH,
   VS_BASE_PATH,
@@ -25,6 +26,7 @@ type MenuLink = NavMobileGroupSpec["links"][number];
 const PRODUCT: MenuLink[] = [
   { href: FEATURES_PATH, label: "Features" },
   { href: DOCS_PATH, label: "Docs" },
+  { href: LESSONS_PATH, label: "Lessons" },
   { href: MOBILE_PATH, label: "iPhone app" },
   { href: CHANGELOG_PATH, label: "Changelog" },
 ];

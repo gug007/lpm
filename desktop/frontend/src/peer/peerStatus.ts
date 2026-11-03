@@ -8,6 +8,9 @@ export interface PeerStatus {
   // The original message behind a rewritten one, for the row's tooltip. Empty
   // when the text already is the whole story.
   detail: string;
+  // Still connected but not answering, so a Reconnect is worth offering even
+  // though nothing has failed yet.
+  reconnect?: boolean;
 }
 
 const TONE_COLORS: Record<StatusTone, string> = {
@@ -62,8 +65,7 @@ export function humanizeError(raw: string): string {
 // while it is actually the thing that's wrong.
 export function peerStatus(peer: PeerClient): PeerStatus {
   if (!peer.enabled) return { tone: "off", text: "Off", detail: "" };
-  if (peer.connected)
-    return { tone: "live", text: peer.overTailscale ? "Connected over Tailscale" : "Connected", detail: "" };
+  if (peer.connected) return connectedStatus(peer);
   if (peer.sshHost) {
     if (peer.tunnel === "connecting")
       return { tone: "pending", text: `Connecting over SSH to ${peer.sshHost}…`, detail: "" };
@@ -75,4 +77,24 @@ export function peerStatus(peer: PeerClient): PeerStatus {
   if (peer.lastError)
     return { tone: "error", text: humanizeError(peer.lastError), detail: peer.lastError };
   return { tone: "pending", text: "Connecting…", detail: "" };
+}
+
+// "38 ms", "1.4 s": a ping's round trip.
+export function rttText(ms: number): string {
+  return ms >= 1000 ? `${(ms / 1000).toFixed(1)} s` : `${Math.round(ms)} ms`;
+}
+
+function connectedStatus(peer: PeerClient): PeerStatus {
+  const link = peer.link;
+  if (link?.health === "silent")
+    return {
+      tone: "pending",
+      text: "Not responding",
+      detail: "Still connected, but it hasn't answered for a few seconds. lpm reconnects after a minute of silence.",
+      reconnect: true,
+    };
+  if (link?.health === "slow" && link.rttMs)
+    return { tone: "pending", text: `Slow · ${rttText(link.rttMs)} round trip`, detail: "" };
+  const base = peer.overTailscale ? "Connected over Tailscale" : "Connected";
+  return { tone: "live", text: link?.rttMs ? `${base} · ${rttText(link.rttMs)}` : base, detail: "" };
 }

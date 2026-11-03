@@ -11,6 +11,10 @@
     <string name="automations_earlier_section">Earlier</string>
     <string name="automations_add">New automation</string>
     <string name="automations_mark_all_read">Mark all read</string>
+    <string name="automations_failed">Failed</string>
+    <string name="automations_failed_label">Failed, %1$d</string>
+    <string name="automations_failed_hint_on">Shows every automation</string>
+    <string name="automations_failed_hint_off">Shows only the automations whose last run failed</string>
     <string name="automations_loading">Loading automations…</string>
     <string name="automations_empty">No automations</string>
     <string name="automations_empty_all">Scheduled tasks that check, duplicate, and run agents on their own.</string>
@@ -22,6 +26,7 @@
     <string name="row_turn_off">Turn off</string>
     <string name="row_turn_on">Turn on</string>
     <string name="row_run">Run</string>
+    <string name="row_retry">Retry</string>
     <string name="row_stop">Stop</string>
 
     <!-- Automation page -->

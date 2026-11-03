@@ -47,6 +47,27 @@ class AutomationTest {
         assertEquals(2, job.unread)
         assertEquals("Nightly tests", job.displayName)
         assertEquals("storefront\nnightly-tests", job.key)
+        assertEquals("", job.lastNote)
+        assertNull(job.lastDurationSecs)
+    }
+
+    @Test
+    fun parsesWhatTheLastRunSaid() {
+        val job = AutomationJob.parse(
+            obj(
+                """
+                {"id": "nightly-tests", "valid": true, "lastResult": "error",
+                 "lastNote": "The check couldn't run: npm not found", "lastDurationSecs": 270}
+                """
+            )
+        )
+        assertEquals("The check couldn't run: npm not found", job.lastNote)
+        assertEquals(270, job.lastDurationSecs)
+        val cleared = AutomationJob.parse(
+            obj("""{"id": "a", "lastNote": null, "lastDurationSecs": null}""")
+        )
+        assertEquals("", cleared.lastNote)
+        assertNull(cleared.lastDurationSecs)
     }
 
     @Test

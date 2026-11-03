@@ -30,6 +30,7 @@ services:
 | `label` | Optional display name. |
 | `parent_name` | Existing project inherited by a duplicate. |
 | `worktree` | Set to `true` only for a linked Git worktree duplicate created by lpm; requires `parent_name`. |
+| `worktreeFiles` | `copy` and `link` lists of git-ignored files (`.env`, local keys) that each new worktree of this project brings; see [Duplicate projects](#duplicate-projects). |
 | `claudeAccount` | Claude account id that this project's terminals, actions, and AI features always run as; see [Claude account](#claude-account). |
 | `claudeAccounts` | Ordered Claude account ids that new sessions take turns on; see [Claude account](#claude-account). |
 | `autoPull` | `true` or `false`: whether the app fast-forwards this project from origin by itself; omit to follow the parent or the Settings mode. See [Auto pull](#auto-pull). |
@@ -164,6 +165,18 @@ worktree: true
 Create it with `lpm duplicate myapp --worktree --label myapp-feature`. Do not add or remove `worktree: true` manually to convert an existing project: lpm must create the Git worktree registration and its `lpm/<copy-name>` branch.
 
 The source must be a local Git repository whose lpm root equals the repository root, with at least one commit. The worktree starts at the source’s current `HEAD` and does not include uncommitted changes. Remove it with `lpm remove <copy-name>` so lpm also removes the worktree registration and generated branch; do not move, trash, or delete its folder directly.
+
+Git leaves ignored files out of a worktree, so the original project's file can name the ones each new worktree brings. Paths are inside the project; `copy` gives each worktree its own copy, `link` a symlink to the project's file (a copy on Windows when the link can't be made). A file the worktree already has is left alone.
+
+```yaml
+name: myapp
+root: ~/Projects/myapp
+worktreeFiles:
+  copy: [.env, .env.local]
+  link: [config/master.key]
+```
+
+Without `worktreeFiles`, worktrees copy the ignored files that look like local configuration (`.env*` other than templates, `*.local`, keys); `worktreeFiles: {}` brings none. The New worktree dialog's Options write this key, and a worktree of a worktree uses the original project's choice.
 
 The parent must exist and load successfully. Every duplicate inherits the parent’s services, actions, zones, profiles, and Claude account choice (`claudeAccount` or `claudeAccounts`) without per-entry overrides, and follows the parent's `autoPull` unless it sets its own. A duplicate's own file may hold only `name`, `root`, `label`, `parent_name`, `worktree`, `claudeAccount`, `claudeAccounts`, `autoPull`, and `work_status`; the validator rejects `extends`, `ssh`, `services`, `actions`, `terminals`, `profiles`, and `zones` there.
 

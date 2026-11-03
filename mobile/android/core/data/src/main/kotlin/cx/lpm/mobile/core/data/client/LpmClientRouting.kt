@@ -192,7 +192,9 @@ private fun LpmClientCallbacks.routeGitAndMore(frame: Inbound) {
 
         is Inbound.GitCreateBranch -> onGitCreateBranch?.invoke(frame.project, frame.error)
 
-        is Inbound.GitDiscardAll -> onGitDiscardAll?.invoke(frame.project, frame.error)
+        is Inbound.GitDiscardAll -> onGitDiscardAll?.invoke(frame.project, frame.undo, frame.error)
+
+        is Inbound.GitRestoreDiscarded -> onGitRestoreDiscarded?.invoke(frame.project, frame.error)
 
         is Inbound.GitChanged -> onGitChanged?.invoke(frame.project)
 

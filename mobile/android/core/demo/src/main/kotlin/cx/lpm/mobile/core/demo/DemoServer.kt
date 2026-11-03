@@ -38,6 +38,7 @@ class DemoServer(
         registerTerminalsHandlers()
         registerTabMenuHandlers()
         registerGitHandlers()
+        registerGitDiscardHandlers()
         registerGitHistoryHandlers()
         registerGitAutoHandlers()
         registerAutoPullHandlers()

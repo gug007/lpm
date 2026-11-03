@@ -94,7 +94,8 @@ fun GitReviewRoute(
                 committing = true
                 viewModel.commitOpened()
             },
-            createPullRequest = { onNavigate(GitPullRequestKey(key.project, key.session)) }
+            createPullRequest = { onNavigate(GitPullRequestKey(key.project, key.session)) },
+            undoDiscard = viewModel::restoreDiscarded
         )
     )
 

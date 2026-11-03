@@ -51,6 +51,7 @@ import { BranchSearchMenu } from "./BranchSearchMenu";
 import { isUnpublished } from "./branchUtils";
 import { shouldFetch, recordFetch } from "../gitFetchThrottle";
 import { toastPullError } from "../gitPullErrors";
+import { DISCARD_KEPT_TEXT, announceDiscard } from "../gitDiscardUndo";
 import { pulledText, pushedText, syncedText } from "../gitToastText";
 import { middleTruncate } from "../middleTruncate";
 
@@ -309,8 +310,8 @@ export function BranchSwitcher({
   const handleDiscardAll = async () => {
     setDiscarding(true);
     try {
-      await GitDiscardAll(projectPath);
-      toast.success("Discarded all changes");
+      const kept = await GitDiscardAll(projectPath);
+      announceDiscard(projectPath, kept, "Discarded all changes", refresh);
       refresh();
     } catch (err) {
       toast.error(`Discard failed: ${err}`);
@@ -695,7 +696,7 @@ export function BranchSwitcher({
         body={
           <>
             Reset the working tree to HEAD, discarding every uncommitted change
-            (staged, unstaged, and untracked). This cannot be undone.
+            (staged, unstaged, and untracked). {DISCARD_KEPT_TEXT}
           </>
         }
         onCancel={() => setConfirmDiscardAllOpen(false)}

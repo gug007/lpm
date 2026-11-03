@@ -1,5 +1,8 @@
 package cx.lpm.mobile.feature.automations.list
 
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -49,7 +52,9 @@ class AutomationsScreenTest {
                     edit = { events += "edit ${it.id}" },
                     markAllRead = { events += "mark all" },
                     markRead = { events += "read ${it.id}" },
-                    toggleEnabled = { events += "toggle ${it.id}" }
+                    toggleEnabled = { events += "toggle ${it.id}" },
+                    toggleFailedOnly = { events += "failed only" },
+                    run = { events += "run ${it.id}" }
                 )
             )
         }
@@ -103,8 +108,37 @@ class AutomationsScreenTest {
     }
 
     @Test
+    fun aFailedRunOffersTheFilterAndRetry() {
+        val failed = AutomationRowUi(
+            job = job(""""lastResult":"error""""),
+            scope = "storefront",
+            status = "Problem during the run after 4m 30s · npm not found",
+            statusTone = AutomationTone.Red,
+            failed = true
+        )
+        show(AutomationsUiState(loaded = true, read = listOf(failed), failedCount = 1))
+        compose.onNodeWithContentDescription("Failed, 1").assertIsNotSelected().performClick()
+        val row = compose.onNode(hasCustomAction("Retry")).fetchSemanticsNode()
+        compose.runOnIdle {
+            row.config[SemanticsActions.CustomActions].first { it.label == "Retry" }.action()
+        }
+        assertEquals(listOf("failed only", "run nightly"), events)
+    }
+
+    @Test
+    fun noFailedRunNoFilter() {
+        show(AutomationsUiState(loaded = true, read = listOf(weekly)))
+        compose.onNodeWithText("Failed").assertDoesNotExist()
+    }
+
+    @Test
     fun theFirstListIsAwaited() {
         show(AutomationsUiState())
         compose.onNodeWithText("Loading automations…").assertExists()
+    }
+
+    private fun hasCustomAction(label: String) = SemanticsMatcher("has the $label action") { node ->
+        SemanticsActions.CustomActions in node.config &&
+            node.config[SemanticsActions.CustomActions].any { it.label == label }
     }
 }

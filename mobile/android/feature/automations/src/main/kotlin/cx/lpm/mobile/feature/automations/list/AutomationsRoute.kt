@@ -63,6 +63,10 @@ fun AutomationsRoute(
                 viewModel.markAllRead()
             },
             markRead = viewModel::markRead,
+            toggleFailedOnly = {
+                haptics.performHapticFeedback(HapticFeedbackType.ContextClick)
+                viewModel.toggleFailedOnly()
+            },
             toggleEnabled = viewModel::toggleEnabled,
             run = viewModel::run,
             stop = viewModel::stop

@@ -240,6 +240,7 @@ func automationStatusText(_ job: AutomationJob) -> String {
     if let ask = job.ask { return "\(automationWaitingLabel) · \(ask.summary)" }
     if job.running { return "Running" }
     if !job.enabled { return "Off · \(automationScheduleText(job))" }
+    if automationLastRunFailed(job) { return automationFailureText(job) }
     if let next = job.nextFireAt { return "\(automationScheduleText(job)) · \(automationDateText(next))" }
     return automationScheduleText(job)
 }
@@ -260,9 +261,9 @@ func automationEntryColor(_ entry: AutomationHistoryEntry) -> Color {
 }
 
 func automationResultColor(_ result: String) -> Color {
+    if automationFailedResults.contains(result) { return .red }
     switch result {
     case "completed", "found-work": return .green
-    case "error", "timed-out", "context-full": return .red
     case "skipped-overlap", "skipped-pending-copy", "skipped-capacity", "pending-window": return .orange
     default: return .secondary
     }

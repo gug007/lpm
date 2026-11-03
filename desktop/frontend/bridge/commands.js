@@ -391,6 +391,18 @@ export function GitDiscardAll(cwd) {
 export function GitDiscardFiles(cwd, files) {
   return invoke("git_discard_files", { cwd, files });
 }
+export function GitDiscarded(cwd) {
+  return invoke("git_discarded", { cwd });
+}
+export function GitRestoreDiscarded(cwd, id) {
+  return invoke("git_restore_discarded", { cwd, id });
+}
+export function WorktreeFiles(name) {
+  return invoke("worktree_files", { name });
+}
+export function SetWorktreeFiles(name, copy, link) {
+  return invoke("set_worktree_files", { name, copy, link });
+}
 export function GitFetchAll(cwd, flags) {
   return invoke("git_fetch_all", { cwd, flags });
 }
@@ -501,6 +513,9 @@ export function ScheduleUpdate() {
 }
 export function TakeUpdateNote() {
   return invoke("take_update_note");
+}
+export function ReleaseNotes(since, until) {
+  return invoke("release_notes", { since, until });
 }
 export function ServicesBuild() {
   return invoke("services_build");

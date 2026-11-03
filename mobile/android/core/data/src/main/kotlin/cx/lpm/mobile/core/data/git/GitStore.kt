@@ -4,7 +4,6 @@ import cx.lpm.mobile.core.data.client.LpmClient
 import cx.lpm.mobile.core.data.client.gitAutoPullUndo
 import cx.lpm.mobile.core.data.client.gitCommit
 import cx.lpm.mobile.core.data.client.gitCreatePr
-import cx.lpm.mobile.core.data.client.gitDiscardAll
 import cx.lpm.mobile.core.data.client.gitFetch
 import cx.lpm.mobile.core.data.client.gitGenMessage
 import cx.lpm.mobile.core.data.client.gitGenPr
@@ -35,7 +34,8 @@ class GitStore(private val session: MacSession) : SessionStore {
     private val timeout = GenerationTimeout<String>(session.scope)
     private val diffs = GitDiffs(session, mutable, timeout)
     private val branches = GitBranches(session, mutable, timeout) { load(it) }
-    private val noticeExpiry = mutableMapOf<String, Job>()
+    private val notices = GitNotices(session.scope, mutable)
+    private val discards = GitDiscards(session, mutable, timeout, notices) { load(it) }
     private val changedWork = mutableMapOf<String, Job>()
 
     // Review screens open: only they prefetch every file's diff with the snapshot.
@@ -65,20 +65,19 @@ class GitStore(private val session: MacSession) : SessionStore {
         c.onGitPush = { project, error -> finish(GitOpCopy.Push, project, error) }
         c.onGitPull = { project, error -> finish(GitOpCopy.Pull, project, error) }
         c.onGitFetch = { project, error -> finish(GitOpCopy.Fetch, project, error) }
-        c.onGitDiscardAll = { project, error -> finish(GitOpCopy.Discard, project, error) }
         c.onGitAutoPullUndo = { project, error -> finish(GitOpCopy.UndoAutoPull, project, error) }
         c.onGitGenMessage = ::finishGenMessage
         c.onGitGenPr = ::finishGenPr
         c.onGitCreatePr = ::finishCreatePr
         c.onGitChanged = ::changed
         branches.wire(c)
+        discards.wire(c)
     }
 
     override fun reset() {
         timeout.cancelAll()
         diffs.reset()
-        noticeExpiry.values.forEach { it.cancel() }
-        noticeExpiry.clear()
+        notices.reset()
         changedWork.values.forEach { it.cancel() }
         changedWork.clear()
         watching.clear()
@@ -189,9 +188,10 @@ class GitStore(private val session: MacSession) : SessionStore {
         it.gitAutoPullUndo(project)
     }
 
-    fun discardAll(project: String) = start(GitOpCopy.Discard, project) {
-        it.gitDiscardAll(project)
-    }
+    fun discardAll(project: String) = discards.discardAll(project)
+
+    /** Undo for a discard: put back the copy the Mac kept ([GitNotice.undo]). */
+    fun restoreDiscarded(project: String, id: String) = discards.restore(project, id)
 
     fun genPr(project: String) =
         startPr(GitOp.GenPr, project, "Draft generation timed out. Try again.") {
@@ -377,15 +377,7 @@ class GitStore(private val session: MacSession) : SessionStore {
         }
     }
 
-    private fun announce(project: String, text: String) {
-        mutable.update { it.copy(notice = it.notice + (project to GitNotice(text))) }
-        noticeExpiry.remove(project)?.cancel()
-        noticeExpiry[project] = session.scope.launch {
-            delay(NOTICE_MS)
-            noticeExpiry.remove(project)
-            mutable.update { it.copy(notice = it.notice - project) }
-        }
-    }
+    private fun announce(project: String, text: String) = notices.show(project, GitNotice(text))
 
     private fun arm(op: String, project: String, millis: Long, fire: () -> Unit) =
         timeout.arm(gitTimeoutKey(op, project), millis, fire)
@@ -393,7 +385,6 @@ class GitStore(private val session: MacSession) : SessionStore {
     private companion object {
         const val LOAD_TIMEOUT_MS = 25_000L
         const val CHANGED_COALESCE_MS = 500L
-        const val NOTICE_MS = 2_000L
     }
 }
 

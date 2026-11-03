@@ -45,6 +45,12 @@ data class AutomationJob(
     val fromMinutes: Int?,
     val lastRunAt: Long?,
     val lastResult: String,
+    /**
+     * What the last run said about itself: a failed run's reason or the head of its
+     * output. Older Macs omit it, as they do [lastDurationSecs].
+     */
+    val lastNote: String = "",
+    val lastDurationSecs: Int? = null,
     val nextFireAt: Long?,
     val running: Boolean,
     val runningSince: Long?,
@@ -130,6 +136,8 @@ data class AutomationJob(
                 fromMinutes = schedule.int("fromMinutes"),
                 lastRunAt = o.long("lastRunAt"),
                 lastResult = o.string("lastResult").orEmpty(),
+                lastNote = o.string("lastNote").orEmpty(),
+                lastDurationSecs = o.int("lastDurationSecs"),
                 nextFireAt = o.long("nextFireAt"),
                 running = o.bool("running") ?: false,
                 runningSince = o.long("runningSince"),

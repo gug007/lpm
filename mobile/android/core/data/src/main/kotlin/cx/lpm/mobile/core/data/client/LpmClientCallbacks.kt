@@ -183,7 +183,8 @@ abstract class LpmClientCallbacks {
         (project: String, current: String, branches: List<GitBranch>, error: String?) -> Unit
     )? = null
     var onGitCheckout: ((project: String, error: String?) -> Unit)? = null
-    var onGitDiscardAll: ((project: String, error: String?) -> Unit)? = null
+    var onGitDiscardAll: ((project: String, undo: String?, error: String?) -> Unit)? = null
+    var onGitRestoreDiscarded: ((project: String, error: String?) -> Unit)? = null
     var onGitChanged: ((project: String) -> Unit)? = null
 
     // Commit history: a page of commits, one commit's files, one file's patch in it.

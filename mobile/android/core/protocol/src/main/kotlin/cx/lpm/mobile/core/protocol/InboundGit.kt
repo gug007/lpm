@@ -82,7 +82,14 @@ internal val gitParsers = parsers {
         Inbound.GitCreateBranch(o.str("project"), o.failure("Couldn't create the branch."))
     }
     put("gitDiscardAll") { o ->
-        Inbound.GitDiscardAll(o.str("project"), o.failure("Couldn't discard changes."))
+        Inbound.GitDiscardAll(
+            project = o.str("project"),
+            error = o.failure("Couldn't discard changes."),
+            undo = if (o.ok) o.string("undo")?.takeIf { it.isNotEmpty() } else null
+        )
+    }
+    put("gitRestoreDiscarded") { o ->
+        Inbound.GitRestoreDiscarded(o.str("project"), o.failure("Couldn't restore the changes."))
     }
     put("git-changed") { o -> Inbound.GitChanged(o.str("project")) }
     put("gitHistory") { o ->

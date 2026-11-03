@@ -82,6 +82,11 @@ sealed interface WireGit {
 
     fun gitDiscardAll(project: String): String = frame("gitDiscardAll") { put("project", project) }
 
+    fun gitRestoreDiscarded(project: String, id: String): String = frame("gitRestoreDiscarded") {
+        put("project", project)
+        put("id", id)
+    }
+
     fun gitAuto(project: String, kind: String, nonce: String): String = frame("gitAuto") {
         put("project", project)
         put("kind", kind)

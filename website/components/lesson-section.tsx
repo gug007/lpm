@@ -1,7 +1,12 @@
-import { ArrowUpRight } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 import { SectionHeader } from "@/components/section-header";
 import { YouTubeVideo } from "@/components/youtube-video";
-import { YOUTUBE_PLAYLIST_URL, type YouTubeLessonId } from "@/lib/youtube-lessons";
+import { LESSONS_PATH } from "@/lib/links";
+import {
+  YOUTUBE_LESSON_COUNT,
+  type YouTubeLessonId,
+} from "@/lib/youtube-lessons";
 
 type Step = {
   title: string;
@@ -18,7 +23,7 @@ type Props = {
 };
 
 /** A page's "Watch it" section: one lesson from the series beside the steps it
- *  walks through, with a link to the rest of the playlist. */
+ *  walks through, with a link to every other lesson. */
 export function LessonSection({ lesson, title, description, steps, id = "watch" }: Props) {
   return (
     <section id={id} className="scroll-mt-20 py-16 sm:py-20">
@@ -51,15 +56,13 @@ export function LessonSection({ lesson, title, description, steps, id = "watch" 
                 </li>
               ))}
             </ol>
-            <a
-              href={YOUTUBE_PLAYLIST_URL}
-              target="_blank"
-              rel="noopener noreferrer"
+            <Link
+              href={LESSONS_PATH}
               className="mt-6 inline-flex min-h-11 items-center gap-1.5 text-sm font-medium text-gray-500 transition-colors hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
             >
-              Every lpm lesson on YouTube
-              <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
-            </a>
+              All {YOUTUBE_LESSON_COUNT} lpm lessons
+              <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+            </Link>
           </div>
         </div>
       </div>

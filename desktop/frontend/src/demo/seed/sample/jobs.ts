@@ -100,6 +100,8 @@ function row(job: JobSpec) {
     schedule: job.schedule,
     lastRunAt: last ? secs(last.at) : null,
     lastResult: last?.result ?? null,
+    lastNote: last?.output ?? null,
+    lastDurationSecs: last?.durationSecs ?? null,
     nextFireAt: job.enabled && job.next ? secs(job.next) : null,
     running: false,
     runningSince: null,

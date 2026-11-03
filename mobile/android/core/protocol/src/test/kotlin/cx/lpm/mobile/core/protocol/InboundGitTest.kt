@@ -93,7 +93,8 @@ class InboundGitTest {
             "gitAutoPullUndo" to "Couldn't undo the auto pull.",
             "gitCheckout" to "Couldn't switch branch.",
             "gitCreateBranch" to "Couldn't create the branch.",
-            "gitDiscardAll" to "Couldn't discard changes."
+            "gitDiscardAll" to "Couldn't discard changes.",
+            "gitRestoreDiscarded" to "Couldn't restore the changes."
         )
         for ((t, fallback) in replies) {
             val ok = Inbound.parse("""{ "t": "$t", "project": "a", "ok": true }""")
@@ -150,7 +151,30 @@ class InboundGitTest {
         is Inbound.GitCheckout -> frame.error
         is Inbound.GitCreateBranch -> frame.error
         is Inbound.GitDiscardAll -> frame.error
+        is Inbound.GitRestoreDiscarded -> frame.error
         else -> "unexpected $frame"
+    }
+
+    @Test
+    fun discardNamesTheCopyItKept() {
+        assertEquals(
+            Inbound.GitDiscardAll("a", null, undo = "1792089000"),
+            Inbound.parse(
+                """{ "t": "gitDiscardAll", "project": "a", "ok": true, "undo": "1792089000" }"""
+            )
+        )
+        for (undo in listOf("null", "\"\"")) {
+            assertEquals(
+                Inbound.GitDiscardAll("a", null),
+                Inbound.parse(
+                    """{ "t": "gitDiscardAll", "project": "a", "ok": true, "undo": $undo }"""
+                )
+            )
+        }
+        assertEquals(
+            Inbound.GitRestoreDiscarded("a", null),
+            Inbound.parse("""{ "t": "gitRestoreDiscarded", "project": "a", "ok": true }""")
+        )
     }
 
     @Test

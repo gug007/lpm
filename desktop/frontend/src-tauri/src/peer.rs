@@ -2329,6 +2329,7 @@ fn is_denied(cmd: &str) -> bool {
             | "export_config"
             // updater / installers
             | "check_for_update"
+            | "release_notes"
             | "install_update"
             | "cancel_update"
             // The CLI asks for an administrator's password on this machine's

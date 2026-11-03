@@ -1,6 +1,7 @@
+import type { DownloadSource } from "@/lib/analytics";
 import { HeroDownload } from "./hero-download";
 
-export function CtaBand() {
+export function CtaBand({ source = "home-cta" }: { source?: DownloadSource }) {
   return (
     <section className="pt-6 pb-14 sm:pt-8 sm:pb-16">
       <div className="mx-auto max-w-5xl px-6">
@@ -15,7 +16,7 @@ export function CtaBand() {
             </p>
           </div>
           <div className="shrink-0 lg:[&>div]:min-h-0">
-            <HeroDownload source="home-cta" />
+            <HeroDownload source={source} />
           </div>
         </div>
       </div>

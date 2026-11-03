@@ -6,6 +6,7 @@ import cx.lpm.mobile.core.model.AutomationJob
 import cx.lpm.mobile.feature.automations.format.AutomationClock
 import cx.lpm.mobile.feature.automations.format.AutomationMachines
 import cx.lpm.mobile.feature.automations.format.AutomationTone
+import cx.lpm.mobile.feature.automations.format.automationLastRunFailed
 import cx.lpm.mobile.feature.automations.format.automationRowStatusText
 import cx.lpm.mobile.feature.automations.format.automationScopeLabel
 import cx.lpm.mobile.feature.automations.format.automationStatusTone
@@ -21,7 +22,9 @@ data class AutomationRowUi(
      */
     val scope: String,
     val status: String,
-    val statusTone: AutomationTone
+    val statusTone: AutomationTone,
+    /** Its last run failed: Run reads "Retry", and the Failed filter keeps it. */
+    val failed: Boolean = false
 ) {
     val unread: Boolean get() = job.unread > 0
     val emoji: String get() = job.emoji.ifEmpty { "⏱️" }
@@ -35,22 +38,33 @@ data class AutomationsUiState(
     /** Everything unread first, newest activity first inside each half. */
     val unread: List<AutomationRowUi> = emptyList(),
     val read: List<AutomationRowUi> = emptyList(),
+    /** Rows whose last run failed, counted before [failedOnly] narrows the list. */
+    val failedCount: Int = 0,
+    val failedOnly: Boolean = false,
+    /** Unread jobs [failedOnly] hides: "Mark all read" still shows for them and reads them. */
+    val hiddenUnread: List<AutomationJob> = emptyList(),
     val error: String? = null
 ) {
     val isEmpty: Boolean get() = unread.isEmpty() && read.isEmpty()
+    val anyUnread: Boolean get() = unread.isNotEmpty() || hiddenUnread.isNotEmpty()
 }
 
 /**
  * One flat feed rather than a directory. A project's page lists only the jobs that
  * run in it, and a job that runs only there needs no scope tag. The computers a job
- * runs on follow, once there's more than one to name.
+ * runs on follow, once there's more than one to name. [failedOnly] keeps only the rows
+ * whose last run failed, and lets go once none are left.
  */
 internal fun AutomationsState.listState(
     project: String?,
     projectCount: Int,
-    clock: AutomationClock
+    clock: AutomationClock,
+    failedOnly: Boolean = false
 ): AutomationsUiState {
-    val shown = if (project == null) jobs else jobs.filter { project in it.runTargets }
+    val inProject = if (project == null) jobs else jobs.filter { project in it.runTargets }
+    val failedCount = inProject.count(::automationLastRunFailed)
+    val filtering = failedOnly && failedCount > 0
+    val shown = if (filtering) inProject.filter(::automationLastRunFailed) else inProject
     val rows = automationsSortedForList(shown).map { job ->
         AutomationRowUi(
             job = job,
@@ -61,7 +75,8 @@ internal fun AutomationsState.listState(
                 AutomationMachines.label(job, machines)
             ).joinToString(" · "),
             status = automationRowStatusText(job, clock),
-            statusTone = automationStatusTone(job)
+            statusTone = automationStatusTone(job),
+            failed = automationLastRunFailed(job)
         )
     }
     return AutomationsUiState(
@@ -69,6 +84,13 @@ internal fun AutomationsState.listState(
         project = project,
         unread = rows.filter { it.unread },
         read = rows.filterNot { it.unread },
+        failedCount = failedCount,
+        failedOnly = filtering,
+        hiddenUnread = if (filtering) {
+            inProject.filter { it.unread > 0 && !automationLastRunFailed(it) }
+        } else {
+            emptyList()
+        },
         error = error
     )
 }

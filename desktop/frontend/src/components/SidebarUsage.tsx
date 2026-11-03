@@ -13,12 +13,13 @@ import { useSettingsStore } from "../store/settings";
 import { usageSidebarTools, usageSidebarWindow } from "./usageSidebarSettings";
 import { displayNameForProjectName } from "./ProjectNameDisplay";
 import { SidebarUsageAccountMenu } from "./SidebarUsageAccountMenu";
-import { SidebarUsagePopover } from "./SidebarUsagePopover";
+import { SidebarRowPopover } from "./SidebarRowPopover";
 import { UsageLanes } from "./UsageLanes";
 import { UsageProviderCard } from "./UsageProviderCard";
 import { Tooltip } from "./ui/Tooltip";
 
 const HOVER_DELAY_MS = 250;
+const USAGE_POPOVER_WIDTH = 360;
 const CLAUDE_ACCOUNT_ROW = "claude:";
 
 function spentLine(row: UsageRow): string {
@@ -235,7 +236,7 @@ export function SidebarUsage({ onOpen }: { onOpen: () => void }) {
           <div key={row.id} className="contents">
             {button}
             {hovered?.id === row.id && (
-              <SidebarUsagePopover anchor={hovered.anchor}>
+              <SidebarRowPopover anchor={hovered.anchor} width={USAGE_POPOVER_WIDTH}>
                 <UsageProviderCard
                   data={row.data}
                   now={now}
@@ -252,7 +253,7 @@ export function SidebarUsage({ onOpen }: { onOpen: () => void }) {
                     ) : undefined
                   }
                 />
-              </SidebarUsagePopover>
+              </SidebarRowPopover>
             )}
           </div>
         );

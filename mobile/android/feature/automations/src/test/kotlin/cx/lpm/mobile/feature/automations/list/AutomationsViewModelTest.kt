@@ -72,6 +72,17 @@ class AutomationsViewModelTest {
     }
 
     @Test
+    fun `with nothing failed the Failed filter stays off`() = runTest {
+        val t = demoSession()
+        val vm = list(t)
+        assertEquals(0, vm.uiState.value.failedCount)
+        vm.toggleFailedOnly()
+        t.settle()
+        assertEquals(false, vm.uiState.value.failedOnly)
+        assertEquals(3, (vm.uiState.value.unread + vm.uiState.value.read).size)
+    }
+
+    @Test
     fun `turning a job on, running and stopping it`() = runTest {
         val t = demoSession()
         val vm = list(t)

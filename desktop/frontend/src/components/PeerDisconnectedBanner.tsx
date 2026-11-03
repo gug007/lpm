@@ -1,3 +1,5 @@
+import { PeerReconnect } from "../../bridge/commands";
+import { MACHINE } from "../machineWords";
 import { type PeerStatus } from "../peer/peerStatus";
 
 // Shown in place of a remote project whose peer dropped. The project's row and
@@ -5,10 +7,13 @@ import { type PeerStatus } from "../peer/peerStatus";
 // back in — unless it was turned off here or stopped accepting this Mac, which
 // no retry fixes, so the copy says what will.
 export function PeerDisconnectedBanner({
+  slug,
   alias,
   status,
   server,
 }: {
+  // The peer to reconnect to; absent once it is no longer paired here.
+  slug?: string;
   alias: string;
   status: PeerStatus | null;
   // A Linux host, listed under Server rather than Another computer.
@@ -18,9 +23,9 @@ export function PeerDisconnectedBanner({
   const unauthorized = status?.tone === "error" && /unauthorized|auth failed|401/i.test(status.detail);
   const title =
     status?.tone === "off"
-      ? `${alias} is turned off on this Mac`
+      ? `${alias} is turned off on ${MACHINE.thisMachine}`
       : unauthorized
-        ? `${alias} no longer accepts this Mac`
+        ? `${alias} no longer accepts ${MACHINE.thisMachine}`
         : `${alias} disconnected`;
   const detail =
     status?.tone === "off"
@@ -31,7 +36,7 @@ export function PeerDisconnectedBanner({
           ? `${status.text}. Trying again…`
           : "Reconnecting…";
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
+    <div role="status" className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
       <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--bg-active)] text-[var(--text-muted)]">
         <svg
           width="22"
@@ -51,6 +56,15 @@ export function PeerDisconnectedBanner({
         <p className="text-sm font-medium text-[var(--text-primary)]">{title}</p>
         <p className="mt-0.5 text-xs text-[var(--text-muted)]">{detail}</p>
       </div>
+      {slug && status?.tone !== "off" && !unauthorized && (
+        <button
+          type="button"
+          onClick={() => void PeerReconnect(slug)}
+          className="rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-1.5 text-[12px] font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent-cyan)]"
+        >
+          Reconnect now
+        </button>
+      )}
     </div>
   );
 }

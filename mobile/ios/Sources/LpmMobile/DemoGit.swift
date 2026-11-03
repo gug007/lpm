@@ -144,20 +144,6 @@ extension DemoServer {
                 return ["t": "gitCreateBranch", "project": project, "ok": true]
             }
         }
-        register("gitDiscardAll") { [weak self] o in
-            guard let self, let project = o["project"] as? String else { return }
-            self.pushAfter(0.4) { [weak self] in
-                guard let self else { return nil }
-                guard var repo = self.world.git[project] else {
-                    return ["t": "gitDiscardAll", "project": project, "ok": false,
-                            "error": "Not a git repository."]
-                }
-                repo.files = []
-                self.world.git[project] = repo
-                self.pushGitChanged(project)
-                return ["t": "gitDiscardAll", "project": project, "ok": true]
-            }
-        }
         register("gitGenMessage") { [weak self] o in
             guard let self, let project = o["project"] as? String else { return }
             let files = o["files"] as? [String] ?? []
@@ -219,6 +205,7 @@ extension DemoServer {
         guard var repo = world.git[from] else { return }
         repo.watched = false
         repo.autoPulled = nil
+        repo.discarded = [:]
         world.git[to] = repo
     }
 

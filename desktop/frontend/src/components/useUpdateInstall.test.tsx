@@ -9,6 +9,7 @@ const bridge = vi.hoisted(() => ({
   cancel: vi.fn<() => Promise<boolean>>(),
   scheduled: vi.fn<() => Promise<unknown>>(),
   cancelScheduled: vi.fn<() => Promise<boolean>>(),
+  notes: vi.fn<() => Promise<unknown>>(),
   listeners: new Map<string, (payload: unknown) => void>(),
   projects: [] as ProjectInfo[],
 }));
@@ -18,6 +19,7 @@ vi.mock("../../bridge/commands", () => ({
   CancelUpdate: bridge.cancel,
   ScheduledUpdate: bridge.scheduled,
   CancelScheduledUpdate: bridge.cancelScheduled,
+  ReleaseNotes: bridge.notes,
 }));
 vi.mock("../../bridge/runtime", () => ({
   EventsOn: (name: string, cb: (payload: unknown) => void) => {
@@ -55,7 +57,7 @@ const button = (label: string) =>
   [...document.querySelectorAll("button")].find(
     (b) => b.textContent === label || b.getAttribute("aria-label") === label,
   );
-const row = () => document.querySelector<HTMLButtonElement>('button[title="Update to 0.6.16"]');
+const row = () => document.querySelector<HTMLButtonElement>('button[aria-label="Update to 0.6.16"]');
 const text = () => document.body.textContent ?? "";
 
 const click = async (target: HTMLButtonElement | null | undefined) => {
@@ -91,6 +93,7 @@ beforeEach(() => {
   bridge.cancel.mockReset().mockResolvedValue(true);
   bridge.scheduled.mockReset().mockResolvedValue(null);
   bridge.cancelScheduled.mockReset().mockResolvedValue(true);
+  bridge.notes.mockReset().mockResolvedValue({ releases: [], complete: true });
   host = document.createElement("div");
   document.body.appendChild(host);
   root = createRoot(host);

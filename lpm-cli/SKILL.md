@@ -85,6 +85,7 @@ An automation in `global.yml` that runs in several projects runs once per projec
 - `lpm duplicate` makes a standalone APFS copy. The app's duplicate setting decides whether uncommitted changes are copied; `--include-uncommitted` and `--exclude-uncommitted` override it.
 - `lpm worktree` makes a linked Git checkout with its own branch and shared repository data. The source must be a local Git repository, its lpm root must equal the repository root, and it must have at least one commit.
 - A worktree starts at the source's current `HEAD` on an lpm-created `lpm/<copy-name>` branch. It does not include uncommitted changes.
+- Git leaves ignored files out, so a worktree brings the ones the source project's `worktreeFiles` names (by default its `.env`-style local files); edit that key with `lpm-config` when the user wants a different set.
 - Remove worktrees with `lpm remove`; do not move, trash, or delete their folders directly.
 - If a standalone duplicate reports that the source is a linked Git checkout, retry with `lpm worktree`.
 

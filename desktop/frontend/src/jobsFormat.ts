@@ -98,6 +98,10 @@ export interface JobInfo {
   schedule?: JobSchedule;
   lastRunAt?: number;
   lastResult?: string;
+  // What the last run said about itself (a failure's reason, or the head of its
+  // output), and how long it ran. Absent from older machines.
+  lastNote?: string;
+  lastDurationSecs?: number;
   nextFireAt?: number;
   running?: boolean;
   runningSince?: number;

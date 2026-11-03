@@ -291,7 +291,13 @@ describe("SidebarFooterNav Keep awake in the More menu", () => {
     expect(moreButton()!.title).toContain("kept awake");
   });
 
-  it("opens its menu from its row in More, and closes More", async () => {
+  const hover = (el: Element) =>
+    act(() => {
+      el.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, relatedTarget: document.body }));
+    });
+  const panelText = () => container.querySelector('[role="radiogroup"]')?.closest(".menu-pop")?.textContent;
+
+  it("opens its menu beside its row on hover, and keeps More open", async () => {
     mocks.keepAwakeState.mockResolvedValue({ ...KEEP_AWAKE, mode: "agents", active: true, agents: 1 });
     renderNav();
     await act(async () => {});
@@ -299,10 +305,46 @@ describe("SidebarFooterNav Keep awake in the More menu", () => {
     openMore();
     const row = buttonWithText("Keep awake")!;
     expect(row.textContent).toContain("1 agent");
-    act(() => row.click());
+    expect(panelText()).toBeUndefined();
+    hover(row);
 
-    expect(moreButton()!.getAttribute("aria-expanded")).toBe("false");
-    expect(document.querySelector("[data-context-menu]")?.textContent).toContain("1 agent working.");
+    expect(panelText()).toContain("1 agent working.");
+    expect(moreButton()!.getAttribute("aria-expanded")).toBe("true");
+    const always = [...container.querySelectorAll("button")].find((b) => b.textContent?.includes("Until I turn it off"))!;
+    await act(async () => always.click());
+    expect(mocks.keepAwakeSet).toHaveBeenCalledWith("always", undefined);
+    expect(moreButton()!.getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("opens its menu from a click on its row too", async () => {
+    renderNav();
+    await act(async () => {});
+
+    openMore();
+    act(() => buttonWithText("Keep awake")!.click());
+
+    expect(panelText()).toContain("For a set time");
+    expect(moreButton()!.getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("closes its menu once the pointer rests on another row, not when it leaves the menus", async () => {
+    vi.useFakeTimers();
+    try {
+      renderNav();
+      await act(async () => {});
+      openMore();
+      hover(buttonWithText("Keep awake")!);
+
+      hover(document.body);
+      await act(async () => vi.advanceTimersByTime(300));
+      expect(panelText()).toBeDefined();
+
+      hover(buttonWithText("Usage")!);
+      await act(async () => vi.advanceTimersByTime(300));
+      expect(panelText()).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

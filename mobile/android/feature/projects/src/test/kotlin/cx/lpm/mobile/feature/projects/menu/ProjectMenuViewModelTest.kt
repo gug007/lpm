@@ -86,6 +86,25 @@ class ProjectMenuViewModelTest {
     }
 
     @Test
+    fun `a discard offers Undo, which brings the changes back`() = runTest {
+        val t = demoSession()
+        val vm = subscribed(t)
+        vm.onAppear()
+        t.settle()
+        vm.discardAll()
+        t.settle()
+        val notice = vm.uiState.value.notice
+        assertEquals("Discarded all changes", notice?.text)
+        assertEquals(0, vm.uiState.value.changedCount)
+
+        vm.restoreDiscarded(notice!!.undo!!)
+        t.settle()
+        assertEquals("Restored the discarded changes", vm.uiState.value.notice?.text)
+        assertNull(vm.uiState.value.notice?.undo)
+        assertEquals(4, vm.uiState.value.changedCount)
+    }
+
+    @Test
     fun `stop puts the menu button in its spinner until the Mac answers`() = runTest {
         val t = demoSession()
         val vm = subscribed(t)

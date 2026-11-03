@@ -3105,7 +3105,12 @@ final class AppModel {
         }
         c.onGitPull = { [weak self] project, error in self?.git.finishPull(project, error: error) }
         c.onGitFetch = { [weak self] project, error in self?.git.finishFetch(project, error: error) }
-        c.onGitDiscardAll = { [weak self] project, error in self?.git.finishDiscard(project, error: error) }
+        c.onGitDiscardAll = { [weak self] project, undo, error in
+            self?.git.finishDiscard(project, undo: undo, error: error)
+        }
+        c.onGitRestoreDiscarded = { [weak self] project, error in
+            self?.git.finishRestoreDiscarded(project, error: error)
+        }
         c.onGitChanged = { [weak self] project in self?.git.changed(project) }
         c.onGitBranches = { [weak self] project, current, branches, error in
             self?.git.applyBranches(project, current: current, branches: branches, error: error)

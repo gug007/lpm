@@ -325,6 +325,11 @@ class GitReviewViewModel @AssistedInject constructor(
         git?.dismissOpError(project)
     }
 
+    /** Undo on a discard's notice: [id] names the copy the Mac kept. */
+    fun restoreDiscarded(id: String) {
+        git?.restoreDiscarded(project, id)
+    }
+
     /** "Ask agent…" about one file: its diff without the file-header noise. */
     fun askContext(path: String): AskContext {
         val result = git?.state?.value?.diffs?.get(GitDiffKey(project, path))

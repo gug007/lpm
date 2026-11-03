@@ -432,7 +432,7 @@ Review a project's working-tree changes and ship them (pull, push, fetch, switch
 branch, commit, open a PR, discard) from the phone — mirroring the desktop's
 project Git submenu. Every reply echoes the `project` it was addressed to, so a
 reply can be matched to its request even with several in flight. The **local**
-ops (`gitDiff`, `gitCommit`, `gitBranches`, `gitCheckout`, `gitDiscardAll`) reply
+ops (`gitDiff`, `gitCommit`, `gitBranches`, `gitCheckout`, `gitDiscardAll`, `gitRestoreDiscarded`) reply
 inline; the **worker** ops — the `git` snapshot and `gitDiffs` batch (a status
 scan / many-file diff can be slow on a big repo), the **network / AI** ops
 (`gitPull`, `gitPush`, `gitFetch`, `gitAutoPullUndo`, `gitCreatePr`, and the AI generators) — run on
@@ -458,7 +458,8 @@ identical to the desktop submenu, so behavior stays consistent across surfaces.
 | `{ "t": "gitBranches", "project": "<name>" }` | `{ "t": "gitBranches", "project": "<name>", "ok": true, "current": "<branch>", "branches": [{ name, committerDate, remote? }…] }` / `{ "ok": false, "error": "…" }` — the branch list for the "Switch branch" picker (local + remote, newest first). `remote` is **omitted** for a local branch (present only for a remote-tracking one). `current` is the checked-out branch. Inline |
 | `{ "t": "gitCheckout", "project": "<name>", "branch": "<name>", "remote": "<remote>" }` | `{ "t": "gitCheckout", "project": "<name>", "ok": true }` / `{ "ok": false, "error": "…" }` — checks out `branch`; pass the `remote` from a `gitBranches` entry to create a local tracking branch (empty `remote` for a plain local checkout). Inline |
 | `{ "t": "gitCreateBranch", "project": "<name>", "name": "<branch>", "from"?: "<branch>" }` | `{ "t": "gitCreateBranch", "project": "<name>", "ok": true }` / `{ "ok": false, "error": "…" }` — creates a new branch off HEAD and checks it out (reuses the desktop's `create_branch`: `git branch` + checkout, falling back to `git switch -c`). Optional `from` starts it at that branch instead (a `gitBranches` name, or `<remote>/<name>` for a remote one; the new branch tracks nothing); older Macs ignore it and branch off HEAD. Rejects an empty or already-existing name. Inline; on success the phone re-requests `gitBranches` + `git` so the new current branch shows |
-| `{ "t": "gitDiscardAll", "project": "<name>" }` | `{ "t": "gitDiscardAll", "project": "<name>", "ok": true }` / `{ "ok": false, "error": "…" }` — discards all working-tree changes (reset + clean). Inline |
+| `{ "t": "gitDiscardAll", "project": "<name>" }` | `{ "t": "gitDiscardAll", "project": "<name>", "ok": true, "undo"?: "<id>" }` / `{ "ok": false, "error": "…" }` — discards all working-tree changes (reset + clean), keeping a copy first for 7 days. `undo` names that copy, for `gitRestoreDiscarded`; it is absent (or null) when there was nothing to keep, and older Macs never send it, so the phone shows Undo only when it's there. When the copy can't be made nothing is discarded and the reply is an error. Inline |
+| `{ "t": "gitRestoreDiscarded", "project": "<name>", "id": "<id>" }` | `{ "t": "gitRestoreDiscarded", "project": "<name>", "ok": true }` / `{ "ok": false, "error": "…" }` — Undo for a discard: puts the copy `gitDiscardAll` named back (`git stash apply`, merging with anything changed since), then forgets it. When a file it holds exists again nothing is restored and the copy is kept; with conflicts the files are restored with conflict markers and the error says so. The phone reloads the `git` snapshot either way. Inline; older Macs never answer it |
 | `{ "t": "gitWatch", "project": "<name>" }` | `{ "t": "gitWatch", "project": "<name>", "ok": true }` / `{ "ok": false, "error": "…" }` — starts watching the project's working tree **for this connection**; while watched, the desktop sends a debounced `git-changed` push (below) on each burst of file changes so the review screen self-refreshes. Watching an already-watched project is a no-op (still `ok:true`). The watch is scoped to the connection and is dropped on `gitUnwatch`, disconnect, and device revocation. Inline |
 | `{ "t": "gitUnwatch", "project": "<name>" }` | `{ "t": "gitUnwatch", "project": "<name>", "ok": true }` — stops watching the project for this connection (no-op if it wasn't watched). Inline |
 | `{ "t": "gitGenMessage", "project": "<name>", "files": ["<path>"…] }` | `{ "t": "gitGenMessage", "project": "<name>", "ok": true, "message": "…" }` / `{ "ok": false, "error": "…" }` — AI-drafts a commit message from the diff of the given files. Async (AI). Uses the desktop's persisted AI settings (`aiCli` default `claude`, `aiModel`, `aiEffort`, `aiFast`) |
@@ -1279,6 +1280,11 @@ schedule: { mode: "interval", everySecs: N, everyMaxSecs?, fromMinutes?, untilMi
         | { mode: "manual" }
 lastRunAt: unix seconds | null
 lastResult: string | null
+lastNote: string | null   // what the last run said about itself, ≤400 chars: a failed
+                          // run's reason ("The check couldn't run: …") or the head of
+                          // its output. Shown after the result on a failed row. Older
+                          // Macs omit it
+lastDurationSecs: N | null // how long the last run ran, when it was timed
 nextFireAt: unix seconds | null
 running: bool
 runningSince: unix seconds | null

@@ -38,6 +38,7 @@ import {
 import { KeepAwakeBadge } from "./KeepAwakeBadge";
 import { KeepAwakeHoverCard } from "./KeepAwakeHoverCard";
 import { KeepAwakeMenu } from "./KeepAwakeMenu";
+import { KeepAwakePanel } from "./KeepAwakePanel";
 import { SidebarAgentSummary } from "./SidebarAgentSummary";
 import { SidebarFooterMore } from "./SidebarFooterMore";
 import { SidebarNavRowMenu } from "./SidebarNavRowMenu";
@@ -103,8 +104,7 @@ export function SidebarFooterNav({
   const keepAwake = useKeepAwakeSession(null);
   const awakeMode = keepAwake.state?.mode ?? "off";
   const awake = keepAwake.state?.active === true;
-  // Beside the footer, not the row: a row picked from More is gone once More
-  // closes.
+  // The sidebar row's popup; in More, the row opens the same panel beside it.
   const [awakeMenu, setAwakeMenu] = useState<{ x: number; y: number; trigger?: HTMLElement } | null>(null);
   const toggleAwakeMenu = (trigger?: HTMLElement) => {
     const rect = footerRef.current?.getBoundingClientRect();
@@ -201,6 +201,13 @@ export function SidebarFooterNav({
       description: `Keep ${MACHINE.thisMachine} awake while agents work, for a set time, or until you turn it off.`,
       hoverCard: awakeMode !== "off" ? <KeepAwakeHoverCard session={keepAwake} /> : undefined,
       popupOpen: awakeMenu !== null,
+      submenu: (
+        <KeepAwakePanel
+          session={keepAwake}
+          title={`Keep ${MACHINE.thisMachine} awake`}
+          machine={MACHINE.thisMachine}
+        />
+      ),
       trailing: <KeepAwakeBadge session={keepAwake} />,
       menuBadge: awake && (
         <span className="flex text-[var(--accent-amber-text)]" aria-label={`${MACHINE.ThisMachine} is kept awake`}>

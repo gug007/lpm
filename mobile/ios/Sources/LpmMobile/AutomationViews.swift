@@ -6,6 +6,7 @@ struct AutomationsView: View {
     /// it, and a new job starts in it. nil = every job.
     var project: String? = nil
     @State private var editor: AutomationEditorContext?
+    @State private var failedOnly = false
 
     private var shown: [AutomationJob] {
         guard let project else { return model.automations }
@@ -18,21 +19,29 @@ struct AutomationsView: View {
     /// project.
     private var sorted: [AutomationJob] { automationsSortedForList(shown) }
     private var unread: [AutomationJob] { sorted.filter { $0.unread > 0 } }
-    private var read: [AutomationJob] { sorted.filter { $0.unread == 0 } }
+    /// The Failed filter narrows the list to the rows whose last run failed,
+    /// and lets go once none are left.
+    private var failed: [AutomationJob] { sorted.filter(automationLastRunFailed) }
+    private var filtering: Bool { failedOnly && !failed.isEmpty }
+    private var listed: [AutomationJob] { filtering ? failed : sorted }
+    private var listedUnread: [AutomationJob] { listed.filter { $0.unread > 0 } }
+    private var listedRead: [AutomationJob] { listed.filter { $0.unread == 0 } }
 
     var body: some View {
         List {
-            if !unread.isEmpty {
+            if !listedUnread.isEmpty {
                 Section("New") {
-                    ForEach(unread, id: \.key) { row($0) }
+                    ForEach(listedUnread, id: \.key) { row($0) }
                 }
             }
             Section {
-                ForEach(read, id: \.key) { row($0) }
+                ForEach(listedRead, id: \.key) { row($0) }
             } header: {
-                if !unread.isEmpty && !read.isEmpty { Text("Earlier") }
+                if !listedUnread.isEmpty && !listedRead.isEmpty { Text("Earlier") }
             }
         }
+        .animation(.default, value: filtering)
+        .onChange(of: failed.isEmpty) { _, none in if none { failedOnly = false } }
         .navigationTitle("Automations")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -43,6 +52,13 @@ struct AutomationsView: View {
                     Image(systemName: "plus")
                 }
                 .accessibilityLabel("New automation")
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                if !failed.isEmpty {
+                    AutomationFailedToggle(count: failed.count, isOn: filtering) {
+                        failedOnly = !filtering
+                    }
+                }
             }
             ToolbarItem(placement: .topBarLeading) {
                 if !unread.isEmpty {
@@ -126,10 +142,11 @@ struct AutomationsView: View {
                     Label("Stop", systemImage: "stop.fill")
                 }
             } else if job.enabled {
+                let retry = automationLastRunFailed(job)
                 Button {
                     model.runAutomation(job)
                 } label: {
-                    Label("Run", systemImage: "play.fill")
+                    Label(retry ? "Retry" : "Run", systemImage: retry ? "arrow.clockwise" : "play.fill")
                 }
                 .tint(.blue)
             }
@@ -210,14 +227,15 @@ private struct AutomationRow: View {
                     }
                 }
 
-                HStack(spacing: 5) {
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
                     Circle()
                         .fill(automationStatusColor(job))
                         .frame(width: 6, height: 6)
+                        .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 4 }
                     Text(statusText)
                         .font(.caption)
                         .foregroundStyle(job.valid ? Color.secondary : Color.red)
-                        .lineLimit(1)
+                        .lineLimit(automationLastRunFailed(job) ? 2 : 1)
                 }
             }
 

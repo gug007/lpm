@@ -697,6 +697,7 @@ fn validate_value(ctx: &Ctx, path: &Path, kind: ConfigKind, value: &Value) -> Re
             "label",
             "parent_name",
             "worktree",
+            "worktreeFiles",
             "autoPull",
             "ssh",
             "claudeAccount",
@@ -736,6 +737,7 @@ fn validate_value(ctx: &Ctx, path: &Path, kind: ConfigKind, value: &Value) -> Re
     project_fields::validate_claude_account(root, &mut report);
     project_fields::validate_claude_accounts(root, &mut report);
     project_fields::validate_work_status(root, &mut report);
+    project_fields::validate_worktree_files(root, &mut report);
 
     let local_root = local_root(path, kind, root);
     let is_remote = root.get(Value::String("ssh".into())).is_some();
@@ -1801,6 +1803,38 @@ mod tests {
             .errors
             .iter()
             .any(|error| error.contains("must set parent_name")));
+    }
+
+    #[test]
+    fn worktree_files_name_paths_inside_the_project() {
+        let (_dir, ctx) = context();
+        let path = ctx.project_path("app");
+        let valid: Value = serde_norway::from_str(
+            "root: /tmp/app\nworktreeFiles:\n  copy: [.env, config/master.key]\n  link: []\n",
+        )
+        .unwrap();
+        let report = validate_value(&ctx, &path, ConfigKind::Project, &valid);
+        assert!(report.errors.is_empty(), "{:?}", report.errors);
+        let none: Value = serde_norway::from_str("root: /tmp/app\nworktreeFiles: {}\n").unwrap();
+        assert!(validate_value(&ctx, &path, ConfigKind::Project, &none)
+            .errors
+            .is_empty());
+
+        let invalid: Value = serde_norway::from_str(
+            "root: /tmp/app\nworktreeFiles:\n  copy: [../secrets/.env, /etc/hosts]\n  move: [.env]\n",
+        )
+        .unwrap();
+        let errors = validate_value(&ctx, &path, ConfigKind::Project, &invalid).errors;
+        for field in [
+            "worktreeFiles.copy[0]",
+            "worktreeFiles.copy[1]",
+            "worktreeFiles.move",
+        ] {
+            assert!(
+                errors.iter().any(|e| e.contains(field)),
+                "{field}: {errors:?}"
+            );
+        }
     }
 
     #[test]

@@ -16,7 +16,7 @@ import { DownloadSplitButton } from "./download-split-button";
 import { HeroTrustLine } from "./hero-trust-line";
 import { formatLength, OVERVIEW_LESSON } from "./lesson-data";
 import { NoDownloadCard } from "./no-download-card";
-import { SendLinkButton } from "./send-link-button";
+import { SendLinkCta } from "./send-link-cta";
 
 // The homepage keeps the demo frame in the first viewport, so this row reserves
 // its height: platform detection only runs after hydration and must not shove
@@ -48,9 +48,9 @@ function TourLink() {
   );
 }
 
-// Pages that pass an App Store source turn the phone and tablet branch into a
-// way to get the desktop app onto the visitor's computer, with the iPhone
-// companion second, instead of a no-download dead end.
+// Phones and tablets can't install lpm, so they send the link on to a
+// computer; pages that pass an App Store source offer the iPhone companion
+// second.
 export function HeroCta({
   source = "hero",
   secondary,
@@ -65,25 +65,22 @@ export function HeroCta({
   const onMobile = isMobilePlatform(platform);
   const trust = <HeroTrustLine os={null} />;
 
-  if (onMobile && appStoreSource) {
+  if (onMobile) {
     return (
       <div className={SHELL}>
-        <div className="flex w-full flex-col items-center gap-2">
-          <SendLinkButton variant="primary" label="Send lpm to my computer" />
-          <p className="text-pretty text-center text-[13px] text-gray-500 dark:text-gray-400">
-            AirDrop it to your Mac, or message the link to yourself.
-          </p>
-        </div>
-        <AppStoreButton source={appStoreSource} variant="outline" />
+        <SendLinkCta />
+        {appStoreSource && (
+          <AppStoreButton source={appStoreSource} variant="outline" />
+        )}
         {trust}
       </div>
     );
   }
 
-  if (onMobile || platform === "linux-arm") {
+  if (platform === "linux-arm") {
     return (
       <div className={SHELL}>
-        <NoDownloadCard linuxArm={platform === "linux-arm"} />
+        <NoDownloadCard />
         {trust}
       </div>
     );

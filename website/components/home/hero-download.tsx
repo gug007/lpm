@@ -2,49 +2,58 @@
 
 import { useRelease } from "@/components/release-context";
 import type { DownloadSource } from "@/lib/analytics";
+import { DOWNLOADS_BY_OS, type DesktopOs } from "@/lib/downloads";
 import {
   detectedOs,
   isDownloadPlatform,
+  isMobilePlatform,
   primaryDownload,
   usePlatform,
 } from "@/lib/use-platform";
 import { DownloadSplitButton } from "./download-split-button";
 import { HeroTrustLine } from "./hero-trust-line";
 import { NoDownloadCard } from "./no-download-card";
+import { SendLinkCta } from "./send-link-cta";
 
-// Detection only exists after hydration. The Apple Silicon button is both the
-// server markup and the most-likely detected branch, so the swap after
-// detection almost never changes the box; the min-height only has to absorb
-// the no-download card phones and tablets get.
+// Detection only exists after hydration, so the server markup is the
+// focused system's button (Apple Silicon by default). On a phone the swap to
+// the send-link prompt keeps about the same height, and the min-height covers
+// the shorter ARM Linux card.
 const SHELL =
   "flex w-full flex-col items-center justify-center gap-4 min-h-[144px] sm:min-h-[97px]";
 
 type Props = {
   source?: DownloadSource;
-  // Mac-targeted pages keep the Mac download on the button for every visitor;
-  // Windows and Linux builds stay in its menu.
-  macFocus?: boolean;
+  // A page about one system keeps that system's download on the button for
+  // every visitor; the other builds stay in its menu.
+  focus?: DesktopOs;
 };
 
-export function HeroDownload({ source = "hero", macFocus = false }: Props) {
+export function HeroDownload({ source = "hero", focus }: Props) {
   const platform = usePlatform();
   const { release } = useRelease();
 
-  if (
-    platform === "ipad" ||
-    platform === "unsupported" ||
-    platform === "linux-arm"
-  ) {
+  if (isMobilePlatform(platform)) {
     return (
       <div className={SHELL}>
-        <NoDownloadCard linuxArm={platform === "linux-arm"} />
+        <SendLinkCta />
+        <HeroTrustLine os={null} />
       </div>
     );
   }
 
-  const os = detectedOs(platform);
-  const offMac = os === "windows" || os === "linux";
-  const primary = primaryDownload(macFocus && offMac ? null : platform);
+  if (platform === "linux-arm") {
+    return (
+      <div className={SHELL}>
+        <NoDownloadCard />
+      </div>
+    );
+  }
+
+  const primary =
+    focus && detectedOs(platform) !== focus
+      ? DOWNLOADS_BY_OS[focus][0]
+      : primaryDownload(platform);
 
   return (
     <div className={SHELL}>

@@ -9,7 +9,7 @@ use serde::Deserialize;
 use serde_json::Value;
 use std::time::Duration;
 
-const API: &str = "https://api.github.com/repos/gug007/lpm/releases";
+pub(crate) const API: &str = "https://api.github.com/repos/gug007/lpm/releases";
 /// Enough to reach past a run of Beta builds to the newest stable one;
 /// when it doesn't, that release is asked for on its own.
 const LIST_LEN: usize = 20;
@@ -95,7 +95,7 @@ pub(crate) fn fetch(
     Ok(choice)
 }
 
-fn parse<T: serde::de::DeserializeOwned>(body: &str) -> Result<T, String> {
+pub(crate) fn parse<T: serde::de::DeserializeOwned>(body: &str) -> Result<T, String> {
     serde_json::from_str(body).map_err(|e| format!("failed to parse response: {e}"))
 }
 
@@ -135,7 +135,7 @@ fn keep_newer(slot: &mut Option<Found>, found: Found) {
     }
 }
 
-fn get(url: &str) -> Result<String, String> {
+pub(crate) fn get(url: &str) -> Result<String, String> {
     let url = url.to_string();
     crate::updates::run_off_worker(move || {
         let client = reqwest::blocking::Client::builder()

@@ -6,6 +6,7 @@
     <string name="ok">OK</string>
     <string name="git_retry">Retry</string>
     <string name="git_more">More</string>
+    <string name="git_notice_undo">Undo</string>
 
     <!-- Review -->
     <string name="git_review_title">Changes</string>

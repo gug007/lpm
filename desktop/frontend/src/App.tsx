@@ -67,6 +67,7 @@ import { isSettingsView, useTrackSettingsReturn } from "./store/settingsReturn";
 import { isLinuxHost } from "./peer/platform";
 import { peerStatus } from "./peer/peerStatus";
 import { isPeerName, peerSlugOf } from "./peer/markers";
+import { PeerLinkStrip } from "./components/PeerLinkStrip";
 import { publishPeerSnapshot } from "./peer/retainedSessions";
 import { PeerDisconnectedBanner } from "./components/PeerDisconnectedBanner";
 import { startSendLaterRunner } from "./sendLater/runner";
@@ -384,6 +385,7 @@ export default function App() {
               onBack={backToSettings}
             />
           )}
+          {view === "projects" && selectedProject && <PeerLinkStrip project={selected} peers={peerState.peers} />}
           <ProjectColumns
             mounted={visitedProjects}
             showing={view === "projects"}
@@ -396,6 +398,7 @@ export default function App() {
           />
           {view === "projects" && selectedPeerGone && (
             <PeerDisconnectedBanner
+              slug={selectedPeer?.slug}
               alias={selectedPeerAlias}
               status={selectedPeer ? peerStatus(selectedPeer) : null}
               server={!!selectedPeer && isLinuxHost(selectedPeer)}

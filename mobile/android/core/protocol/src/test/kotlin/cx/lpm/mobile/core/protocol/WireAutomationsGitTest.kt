@@ -91,6 +91,10 @@ class WireAutomationsGitTest {
         assertFrame("""{ "t": "gitFetch", "project": "a" }""", Wire.gitFetch("a"))
         assertFrame("""{ "t": "gitAutoPullUndo", "project": "a" }""", Wire.gitAutoPullUndo("a"))
         assertFrame("""{ "t": "gitDiscardAll", "project": "a" }""", Wire.gitDiscardAll("a"))
+        assertFrame(
+            """{ "t": "gitRestoreDiscarded", "project": "a", "id": "7" }""",
+            Wire.gitRestoreDiscarded("a", "7")
+        )
         assertFrame("""{ "t": "gitWatch", "project": "a" }""", Wire.gitWatch("a"))
         assertFrame("""{ "t": "gitUnwatch", "project": "a" }""", Wire.gitUnwatch("a"))
     }

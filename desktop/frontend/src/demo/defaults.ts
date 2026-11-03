@@ -17,7 +17,7 @@ const NULL: string[] = [
   "get_claude_statusline_state", "get_codex_statusline_state", "get_msys_mounts",
   "git_abort_merge", "git_auto_pull", "git_auto_pull_last", "git_auto_pull_undo", "git_continue_merge",
   "git_mark_conflict_resolved", "git_take_conflict_side",
-  "git_discard_all", "git_discard_files", "git_fetch_all", "git_file_diff_ref",
+  "git_discard_all", "git_discard_files", "git_restore_discarded", "git_fetch_all", "git_file_diff_ref",
   "git_file_diff_staged", "git_merge", "git_prune_remotes", "hide_browser", "hold_pane_status", "html_preview_root",
   "import_config", "install_kokoro", "install_update", "job_live_output",
   "list_agent_capabilities", "list_agent_sessions", "list_dirs", "list_project_terminals",
@@ -71,7 +71,7 @@ const NULL: string[] = [
 const EMPTY_LIST: string[] = [
   "agent_recent_answers", "check_action_port_conflict", "check_port_conflicts",
   "check_port_conflicts_for_services", "duplicate_projects", "follow_list", "get_suggested_ports",
-  "git_changed_files_ref", "git_changed_files_staged", "git_log_branch", "git_recent_commits", "git_merge_conflicts",
+  "git_changed_files_ref", "git_changed_files_staged", "git_discarded", "git_log_branch", "git_recent_commits", "git_merge_conflicts",
   "list_agent_commands", "list_detached_projects", "list_monospace_fonts", "list_open_in_targets",
   "list_port_forwards", "list_system_sounds", "list_templates", "message_history_folders",
   "message_history_query", "notes_list_chats", "notes_list_messages", "notes_search",
@@ -107,7 +107,7 @@ const ZERO: string[] = [
 
 const EMPTY_MAP: string[] = [
   "ignored_sync_list", "ignored_sync_read", "ignored_sync_undo", "move_claude_tab_to_account",
-  "services_build",
+  "release_notes", "services_build",
 ];
 
 export const DEFAULTS: Record<string, unknown> = Object.fromEntries([

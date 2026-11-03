@@ -21,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -46,7 +47,8 @@ import cx.lpm.mobile.feature.automations.ui.color
 
 /**
  * One automation in the list: open on tap, Edit / Mark read / Turn off on a long
- * press, Run or Stop swiped from the right, Read or Turn off from the left.
+ * press, Run (Retry after a failed run) or Stop swiped from the right, Read or Turn
+ * off from the left.
  */
 @Composable
 fun AutomationRow(
@@ -85,6 +87,12 @@ fun AutomationRow(
             R.drawable.ic_stop_fill,
             colors.red
         ) { actions.stop(job) }
+
+        job.enabled && row.failed -> SwipeAction(
+            stringResource(AutomationsR.string.row_retry),
+            R.drawable.ic_refresh,
+            colors.blue
+        ) { actions.run(job) }
 
         job.enabled -> SwipeAction(
             stringResource(AutomationsR.string.row_run),
@@ -138,6 +146,7 @@ private fun AutomationRowContent(
     val colors = LpmTheme.colors
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
+    val dotLift = with(LocalDensity.current) { 4.dp.roundToPx() }
     ListRow(
         modifier = modifier
             .combinedClickable(
@@ -172,17 +181,20 @@ private fun AutomationRowContent(
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 TitleLine(row)
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(5.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    StatusDot(color = row.statusTone.color(), size = 6.dp)
+                // A failed run's reason gets a second line; the dot stays on the first.
+                Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                    StatusDot(
+                        color = row.statusTone.color(),
+                        size = 6.dp,
+                        modifier = Modifier.alignBy { it.measuredHeight / 2 + dotLift }
+                    )
                     Text(
                         text = row.status,
                         style = LpmTheme.typography.caption1,
                         color = if (job.valid) colors.secondaryLabel else colors.red,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        maxLines = if (row.failed) 2 else 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.alignByBaseline()
                     )
                 }
             }

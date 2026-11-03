@@ -42,6 +42,7 @@ import { CommitSplitView } from "./CommitSplitView";
 import { useCommitSplit } from "../hooks/useCommitSplit";
 import { useSecretCheck } from "../hooks/useSecretCheck";
 import { SecretFindingsPanel } from "./SecretFindingsPanel";
+import { DISCARD_KEPT_TEXT, announceDiscard } from "../gitDiscardUndo";
 
 type ChangedFile = main.ChangedFile;
 
@@ -223,14 +224,17 @@ export function CommitModal({
     setExpandedFile((prev) => (prev && valid.has(prev) ? prev : null));
   };
 
-  const runDiscard = async (op: () => Promise<void>, successMsg: string) => {
+  const runDiscard = async (op: () => Promise<unknown>, successMsg: string) => {
     if (busy) return;
     setBusy("discard");
     try {
-      await op();
+      const kept = await op();
       await reloadFiles();
       onCommitted();
-      toast.success(successMsg);
+      announceDiscard(projectPath, kept, successMsg, () => {
+        void reloadFiles();
+        onCommitted();
+      });
     } catch (err) {
       toast.error(`Discard failed: ${err}`);
     } finally {
@@ -774,7 +778,7 @@ export function CommitModal({
             <span className="font-medium text-[var(--text-primary)]">
               {confirmDiscardPath}
             </span>
-            ? This cannot be undone.
+            ? {DISCARD_KEPT_TEXT}
           </>
         }
         onCancel={() => setConfirmDiscardPath(null)}
@@ -801,7 +805,7 @@ export function CommitModal({
             <span className="font-medium text-[var(--text-primary)]">
               {confirmDiscardFolder?.name}
             </span>
-            ? This cannot be undone.
+            ? {DISCARD_KEPT_TEXT}
           </>
         }
         onCancel={() => setConfirmDiscardFolder(null)}

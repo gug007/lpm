@@ -13,6 +13,7 @@ internal enum class GitOp(val timeoutMs: Long) {
     GenPr(LONG_MS),
     CreatePr(LONG_MS),
     Discard(SHORT_MS),
+    RestoreDiscarded(SHORT_MS),
     UndoAutoPull(SHORT_MS),
     Branches(30_000),
     CreateBranch(30_000)
@@ -27,6 +28,7 @@ internal enum class GitOp(val timeoutMs: Long) {
         GenPr -> s.generatingPr
         CreatePr -> s.creatingPr
         Discard -> s.discarding
+        RestoreDiscarded -> s.restoringDiscard
         UndoAutoPull -> s.undoingAutoPull
         Branches -> s.branchesLoading
         CreateBranch -> s.creatingBranch
@@ -43,6 +45,7 @@ internal enum class GitOp(val timeoutMs: Long) {
             GenPr -> s.copy(generatingPr = next)
             CreatePr -> s.copy(creatingPr = next)
             Discard -> s.copy(discarding = next)
+            RestoreDiscarded -> s.copy(restoringDiscard = next)
             UndoAutoPull -> s.copy(undoingAutoPull = next)
             Branches -> s.copy(branchesLoading = next)
             CreateBranch -> s.copy(creatingBranch = next)
@@ -82,6 +85,12 @@ internal enum class GitOpCopy(
         "Couldn't discard changes",
         "Discarding changes timed out. Try again.",
         null
+    ),
+    RestoreDiscarded(
+        GitOp.RestoreDiscarded,
+        "Couldn't restore the changes",
+        "Restoring the changes timed out. Check your Mac and try again.",
+        "Restored the discarded changes"
     ),
     UndoAutoPull(
         GitOp.UndoAutoPull,

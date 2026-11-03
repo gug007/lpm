@@ -5,6 +5,7 @@ import { NAV_UTILITY_IDS, type NavItemId } from "../sidebarNav";
 import { MoreHorizontalIcon, UndoIcon } from "./icons";
 import { SidebarNavRowMenu } from "./SidebarNavRowMenu";
 import { SidebarNavRow, type RowMenuAnchor, type SidebarNavEntry } from "./SidebarNavRow";
+import { SidebarNavSubmenuRow } from "./SidebarNavSubmenuRow";
 import { MENU_PANEL_CLASS } from "./ui/ContextMenuShell";
 
 interface SidebarFooterMoreProps {
@@ -67,19 +68,29 @@ export function SidebarFooterMore({ entries, isDefault, onMove, onReset }: Sideb
           {entries.map((entry, i) => (
             <div key={entry.id}>
               {i === dividerAt && i > 0 && <div className="my-1 h-px bg-[var(--border)]" />}
-              <SidebarNavRow
-                entry={{
-                  ...entry,
-                  agents: undefined,
-                  onSelect: () => {
-                    close();
-                    entry.onSelect();
-                  },
-                }}
-                menuOpen={rowMenu?.entry.id === entry.id}
-                onOpenMenu={(anchor: RowMenuAnchor) => setRowMenu({ entry, ...anchor })}
-                inMenu
-              />
+              {entry.submenu ? (
+                <SidebarNavSubmenuRow
+                  entry={{ ...entry, agents: undefined }}
+                  panel={entry.submenu}
+                  menu={ref}
+                  menuOpen={rowMenu?.entry.id === entry.id}
+                  onOpenMenu={(anchor: RowMenuAnchor) => setRowMenu({ entry, ...anchor })}
+                />
+              ) : (
+                <SidebarNavRow
+                  entry={{
+                    ...entry,
+                    agents: undefined,
+                    onSelect: () => {
+                      close();
+                      entry.onSelect();
+                    },
+                  }}
+                  menuOpen={rowMenu?.entry.id === entry.id}
+                  onOpenMenu={(anchor: RowMenuAnchor) => setRowMenu({ entry, ...anchor })}
+                  inMenu
+                />
+              )}
             </div>
           ))}
           {!isDefault && (

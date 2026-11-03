@@ -1,5 +1,5 @@
-import { ArrowRight, Clock, ExternalLink, LoaderCircle, X } from "lucide-react";
-import { UPDATES_INSTALL_IN_APP } from "../releasePage";
+import { Clock, LoaderCircle, X } from "lucide-react";
+import { SidebarUpdateOffer } from "./SidebarUpdateOffer";
 import type { UpdateInstall } from "./useUpdateInstall";
 
 interface SidebarUpdateRowProps {
@@ -21,8 +21,8 @@ function progressLabel(update: UpdateInstall, target: string): { label: string; 
   return { label: `Downloading ${target}`, detail: known ? `${update.progress}%` : "" };
 }
 
-// The running version sits beside the new one so the row can't be read as the
-// version you have; the row itself fills up while the update downloads.
+// The row offers the update (SidebarUpdateOffer), then fills up while it
+// downloads.
 export function SidebarUpdateRow({ currentVersion, latestVersion, update, onUpdate }: SidebarUpdateRowProps) {
   const target = latestVersion || "update";
 
@@ -114,26 +114,12 @@ export function SidebarUpdateRow({ currentVersion, latestVersion, update, onUpda
     );
   }
 
-  const action = UPDATES_INSTALL_IN_APP ? "Update" : "Download";
   return (
-    <button
-      onClick={onUpdate}
-      title={`${UPDATES_INSTALL_IN_APP ? "Update to" : "Download"} ${target}`}
+    <SidebarUpdateOffer
+      currentVersion={currentVersion}
+      latestVersion={latestVersion}
+      onUpdate={onUpdate}
       className={`flex items-center gap-2 ${ROW} ${TINT} text-left transition-colors hover:bg-[var(--accent-green)]/15`}
-    >
-      {currentVersion && (
-        <>
-          <span className="shrink-0 text-xs tabular-nums text-[var(--text-muted)]">{currentVersion}</span>
-          <ArrowRight size={11} className="shrink-0 text-[var(--text-muted)]" />
-        </>
-      )}
-      <span className="min-w-0 truncate text-xs font-medium tabular-nums text-[var(--text-primary)]">
-        {latestVersion}
-      </span>
-      <span className="ml-auto flex shrink-0 items-center gap-1 text-[10px] font-medium text-[var(--accent-green-text)]">
-        {action}
-        {!UPDATES_INSTALL_IN_APP && <ExternalLink size={10} />}
-      </span>
-    </button>
+    />
   );
 }

@@ -137,7 +137,11 @@ fun ProjectMenuToolbar(
         ContextMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
             ProjectMenuItems(state, live, actions, renamesTab = terminal != null)
         }
-        GitNoticeBanner(state.notice, Modifier.align(Alignment.BottomCenter))
+        GitNoticeBanner(
+            notice = state.notice,
+            modifier = Modifier.align(Alignment.BottomCenter),
+            onUndo = viewModel::restoreDiscarded
+        )
     }
     ProjectMenuDialogs(
         dialog = dialog,

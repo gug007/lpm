@@ -899,6 +899,9 @@ fn run_worktree_duplicate(
         }
         return Err(error);
     }
+    for failure in crate::worktree_files::bring(&plan.original, source_root, &plan.new_root) {
+        eprintln!("worktree {}: couldn't bring {failure}", plan.new_name);
+    }
     let _ = app.emit("projects-changed", ());
 
     if reinstall_deps {

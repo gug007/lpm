@@ -63,6 +63,7 @@ final class GitReviewStore {
     var pulling: Set<String> = []
     var fetching: Set<String> = []
     var discarding: Set<String> = []
+    var restoringDiscard: Set<String> = []
     var undoingAutoPull: Set<String> = []
     // Switch-branch sheet state: the loaded branch list + current branch, load/
     // checkout errors (kept separate so they show inside the sheet), the branch
@@ -422,17 +423,6 @@ final class GitReviewStore {
         }
     }
 
-    func discardAll(_ project: String) {
-        guard !discarding.contains(project) else { return }
-        discarding.insert(project)
-        opError[project] = nil
-        client?.gitDiscardAll(project: project)
-        armTimeout("discard", project, seconds: 60) { [weak self] in
-            guard let self, self.discarding.remove(project) != nil else { return }
-            self.opError[project] = GitOpError(title: "Couldn't discard changes", message: "Discarding changes timed out. Try again.")
-        }
-    }
-
     func loadBranches(_ project: String) {
         guard !branchesLoading.contains(project) else { return }
         branchesLoading.insert(project)
@@ -577,26 +567,28 @@ final class GitReviewStore {
         }
     }
 
-    private func announce(_ project: String, _ text: String) {
+    /// Show a finished op's notice. One that offers Undo stays up for 10s, as
+    /// the desktop's toast does, so there's time to reach it.
+    func announce(_ project: String, _ text: String, discardedCopy: String? = nil) {
         Haptics.success()
         AccessibilityNotification.Announcement(text).post()
-        notice[project] = GitNotice(text: text)
+        notice[project] = GitNotice(text: text, discardedCopy: discardedCopy)
         noticeExpiry[project]?.cancel()
         let expiry = DispatchWorkItem { [weak self] in self?.notice[project] = nil }
         noticeExpiry[project] = expiry
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: expiry)
+        DispatchQueue.main.asyncAfter(deadline: .now() + (discardedCopy == nil ? 2 : 10), execute: expiry)
+    }
+
+    func dismissNotice(_ project: String) {
+        noticeExpiry[project]?.cancel()
+        noticeExpiry[project] = nil
+        notice[project] = nil
     }
 
     func finishAutoPullUndo(_ project: String, error: String?) {
         clearTimeout("autoPullUndo", project)
         undoingAutoPull.remove(project)
         if let error { opError[project] = GitOpError(title: "Couldn't undo the auto pull", message: error) } else { load(project) }
-    }
-
-    func finishDiscard(_ project: String, error: String?) {
-        clearTimeout("discard", project)
-        discarding.remove(project)
-        if let error { opError[project] = GitOpError(title: "Couldn't discard changes", message: error) } else { load(project) }
     }
 
     func applyBranches(_ project: String, current: String, branches: [GitBranch], error: String?) {
@@ -651,11 +643,11 @@ final class GitReviewStore {
         currentBranch[project] = nil
     }
 
-    private func armTimeout(_ op: String, _ project: String, seconds: Double, _ fire: @escaping () -> Void) {
+    func armTimeout(_ op: String, _ project: String, seconds: Double, _ fire: @escaping () -> Void) {
         timeout.arm(op + "\u{0}" + project, seconds: seconds, fire)
     }
 
-    private func clearTimeout(_ op: String, _ project: String) {
+    func clearTimeout(_ op: String, _ project: String) {
         timeout.cancel(op + "\u{0}" + project)
     }
 }

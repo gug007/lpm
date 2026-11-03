@@ -19,6 +19,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
+import cx.lpm.mobile.core.data.git.GitNotice
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.core.model.GitDiffResult
 import cx.lpm.mobile.core.model.GitFile
@@ -56,7 +57,8 @@ class GitReviewScreenTest {
                     toggleWrap = { events += "wrap" },
                     ask = { events += "ask $it" },
                     openCommit = { events += "open commit" },
-                    createPullRequest = { events += "pr" }
+                    createPullRequest = { events += "pr" },
+                    undoDiscard = { events += "undo $it" }
                 )
             )
         }
@@ -113,6 +115,21 @@ class GitReviewScreenTest {
         compose.onNode(hasText("logo.png") and menu).performClick()
         compose.onNodeWithContentDescription("Back").performClick()
         assertEquals(listOf("back"), events)
+    }
+
+    @Test
+    fun aDiscardsNoticeOffersUndo() {
+        show(loaded().copy(notice = GitNotice("Discarded all changes", undo = "discard-1")))
+        compose.onNodeWithText("Discarded all changes").assertExists()
+        compose.onNode(hasText("Undo") and hasClickAction()).performClick()
+        assertEquals(listOf("undo discard-1"), events)
+    }
+
+    @Test
+    fun otherNoticesHaveNoUndo() {
+        show(loaded().copy(notice = GitNotice("Pushed")))
+        compose.onNodeWithText("Pushed").assertExists()
+        compose.onNodeWithText("Undo").assertDoesNotExist()
     }
 
     @Test

@@ -75,7 +75,7 @@ struct ProjectMenuHost: ViewModifier {
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("This permanently discards every uncommitted change in this project. This can't be undone.")
+                Text("This discards every uncommitted change in this project. lpm keeps a copy on the Mac for 7 days, so you can undo it.")
             }
             // Gated on isVisible because several screens in one navigation stack
             // host this modifier — without it a single gitOpError would try to

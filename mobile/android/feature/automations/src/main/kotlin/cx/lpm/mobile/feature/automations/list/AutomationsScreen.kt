@@ -46,6 +46,7 @@ class AutomationsActions(
     val edit: (AutomationJob) -> Unit = {},
     val markAllRead: () -> Unit = {},
     val markRead: (AutomationJob) -> Unit = {},
+    val toggleFailedOnly: () -> Unit = {},
     val toggleEnabled: (AutomationJob) -> Unit = {},
     val run: (AutomationJob) -> Unit = {},
     val stop: (AutomationJob) -> Unit = {}
@@ -53,7 +54,8 @@ class AutomationsActions(
 
 /**
  * The automations feed (iOS `AutomationsView`): what's unread under "New", the rest
- * under "Earlier", "Mark all read" while anything is unread, and "+" for a new job.
+ * under "Earlier", "Mark all read" while anything is unread, "Failed" to keep only the
+ * jobs whose last run failed while any did, and "+" for a new job.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -77,7 +79,7 @@ fun AutomationsScreen(
                     contentDescription = stringResource(AutomationsR.string.back),
                     onClick = actions.back
                 )
-                if (state.unread.isNotEmpty()) {
+                if (state.anyUnread) {
                     GlassCapsuleButton(
                         text = stringResource(AutomationsR.string.automations_mark_all_read),
                         onClick = actions.markAllRead,
@@ -86,6 +88,13 @@ fun AutomationsScreen(
                 }
             },
             trailing = {
+                if (state.failedCount > 0) {
+                    AutomationFailedToggle(
+                        count = state.failedCount,
+                        isOn = state.failedOnly,
+                        onToggle = actions.toggleFailedOnly
+                    )
+                }
                 GlassIconButton(
                     icon = painterResource(R.drawable.ic_add),
                     contentDescription = stringResource(AutomationsR.string.automations_add),

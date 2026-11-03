@@ -1563,6 +1563,18 @@ struct Outcome {
     record: bool,
 }
 
+const LAST_NOTE_CHARS: usize = 400;
+
+/// What the last run said about itself, kept short enough for a list row: the
+/// reason a failed run gives, or the opening of a run's output.
+fn last_note(entry: &HistoryEntry) -> Option<String> {
+    let text = entry.output.as_deref()?.trim();
+    if text.is_empty() {
+        return None;
+    }
+    Some(text.chars().take(LAST_NOTE_CHARS).collect())
+}
+
 fn err_outcome(note: impl Into<String>) -> Outcome {
     Outcome {
         result: ERROR,
@@ -3841,6 +3853,7 @@ fn global_job_row(
     let mut earliest_since: Option<u64> = None;
     let mut max_last: Option<u64> = None;
     let mut last_result: Option<String> = None;
+    let mut last_entry: Option<HistoryEntry> = None;
     let mut next: Option<i64> = None;
     let mut unread: u32 = 0;
     let mut latest: Option<(u64, String)> = None;
@@ -3870,6 +3883,7 @@ fn global_job_row(
             if max_last.map_or(true, |m| lr >= m) {
                 max_last = Some(lr);
                 last_result = st.history.last().map(|h| h.result.clone());
+                last_entry = st.history.last().cloned();
             }
         }
         if let Ok(job) = &resolved {
@@ -3901,6 +3915,8 @@ fn global_job_row(
                 "schedule": schedule_json(&job.schedule),
                 "lastRunAt": max_last,
                 "lastResult": last_result,
+                "lastNote": last_entry.as_ref().and_then(last_note),
+                "lastDurationSecs": last_entry.as_ref().and_then(|h| h.duration_secs),
                 "nextFireAt": next,
                 "running": running_count > 0,
                 "runningSince": earliest_since,
@@ -4019,6 +4035,8 @@ fn project_job_rows(project: &str, names: &machines::Names) -> Vec<Value> {
                         "schedule": schedule_json(&job.schedule),
                         "lastRunAt": st.last_run_at,
                         "lastResult": st.history.last().map(|h| h.result.clone()),
+                        "lastNote": st.history.last().and_then(last_note),
+                        "lastDurationSecs": st.history.last().and_then(|h| h.duration_secs),
                         "nextFireAt": next,
                         "running": since.is_some(),
                         "runningSince": since,
@@ -6455,6 +6473,28 @@ mod tests {
             ..Default::default()
         })
         .is_ok());
+    }
+
+    #[test]
+    fn last_note_is_the_runs_own_words_cut_to_a_row() {
+        let entry = |output: Option<&str>| HistoryEntry {
+            output: output.map(String::from),
+            ..HistoryEntry::default()
+        };
+        assert_eq!(last_note(&entry(None)), None);
+        assert_eq!(last_note(&entry(Some("  \n "))), None);
+        let failed = entry(Some(
+            "  The check couldn't run: bin/test: command not found.\n",
+        ));
+        assert_eq!(
+            last_note(&failed).as_deref(),
+            Some("The check couldn't run: bin/test: command not found.")
+        );
+        let long = "x".repeat(LAST_NOTE_CHARS + 50);
+        assert_eq!(
+            last_note(&entry(Some(&long))).map(|n| n.chars().count()),
+            Some(LAST_NOTE_CHARS)
+        );
     }
 
     #[test]

@@ -2,10 +2,12 @@ import SwiftUI
 
 /// A finished Git op's short confirmation — the desktop's "Pulled", "Pushed",
 /// "Fetched" and "Committed successfully" toasts. Every notice is distinct, so
-/// the same op finishing twice in a row shows again.
+/// the same op finishing twice in a row shows again. A discard's notice carries
+/// the copy the Mac kept, and offers Undo while it's up.
 struct GitNotice: Equatable {
     let id = UUID()
     let text: String
+    var discardedCopy: String? = nil
 }
 
 /// The project's current Git notice, at the top of the screen like the terminal
@@ -25,11 +27,15 @@ private struct GitNoticeBanner: ViewModifier {
                     HStack(spacing: 8) {
                         Image(systemName: "checkmark.circle.fill")
                         Text(notice.text).lineLimit(1)
+                        if let copy = notice.discardedCopy {
+                            undoButton(copy)
+                        }
                     }
                     .font(.footnote)
                     .foregroundStyle(.white)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
+                    .padding(.leading, 14)
+                    .padding(.trailing, notice.discardedCopy == nil ? 14 : 5)
+                    .padding(.vertical, notice.discardedCopy == nil ? 8 : 5)
                     .background(.black.opacity(0.6), in: Capsule())
                     .overlay(Capsule().strokeBorder(.white.opacity(0.15)))
                     .environment(\.colorScheme, .dark)
@@ -37,10 +43,25 @@ private struct GitNoticeBanner: ViewModifier {
                     .padding(.top, 8)
                     .id(notice.id)
                     .transition(.move(edge: .top).combined(with: .opacity))
-                    .allowsHitTesting(false)
+                    .allowsHitTesting(notice.discardedCopy != nil)
                 }
             }
             .animation(.easeOut(duration: 0.2), value: notice)
+    }
+
+    private func undoButton(_ copy: String) -> some View {
+        Button {
+            Haptics.tap()
+            model.git.restoreDiscarded(project, id: copy)
+        } label: {
+            Text("Undo")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.black)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 4)
+                .background(.white, in: Capsule())
+        }
+        .buttonStyle(.plain)
     }
 }
 

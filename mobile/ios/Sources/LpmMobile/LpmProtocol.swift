@@ -440,6 +440,9 @@ enum Wire {
         json(["t": "gitCreateBranch", "project": project, "name": name])
     }
     static func gitDiscardAll(project: String) -> String { json(["t": "gitDiscardAll", "project": project]) }
+    static func gitRestoreDiscarded(project: String, id: String) -> String {
+        json(["t": "gitRestoreDiscarded", "project": project, "id": id])
+    }
     static func gitAuto(project: String, kind: String, nonce: String) -> String {
         json(["t": "gitAuto", "project": project, "kind": kind, "nonce": nonce])
     }
@@ -764,7 +767,10 @@ enum Wire {
         case gitBranches(project: String, current: String, branches: [GitBranch], error: String?)
         case gitCheckout(project: String, error: String?)
         case gitCreateBranch(project: String, error: String?)
-        case gitDiscardAll(project: String, error: String?)
+        // `undo` names the copy the Mac kept, for gitRestoreDiscarded; older Macs
+        // keep none.
+        case gitDiscardAll(project: String, undo: String?, error: String?)
+        case gitRestoreDiscarded(project: String, error: String?)
         // Server push: watched files changed for this project (already debounced).
         case gitChanged(project: String)
         // Commit history: a page of the branch's commits, one commit's files and
@@ -1174,7 +1180,12 @@ enum Wire {
             case "gitDiscardAll":
                 let ok = obj["ok"] as? Bool ?? false
                 return .gitDiscardAll(project: obj["project"] as? String ?? "",
+                                      undo: (obj["undo"] as? String).flatMap { $0.isEmpty ? nil : $0 },
                                       error: ok ? nil : (obj["error"] as? String ?? "Couldn't discard changes."))
+            case "gitRestoreDiscarded":
+                let ok = obj["ok"] as? Bool ?? false
+                return .gitRestoreDiscarded(project: obj["project"] as? String ?? "",
+                                            error: ok ? nil : (obj["error"] as? String ?? "Couldn't restore the changes."))
             case "git-changed": return .gitChanged(project: obj["project"] as? String ?? "")
             case "gitHistory":
                 let ok = obj["ok"] as? Bool ?? false
@@ -1499,6 +1510,10 @@ struct AutomationJob: Identifiable {
     let fromMinutes: Int?
     let lastRunAt: Int?
     let lastResult: String
+    /// What the last run said about itself (a failure's reason, or the head of
+    /// its output) and how long it ran. Older Macs omit both.
+    let lastNote: String?
+    let lastDurationSecs: Int?
     let nextFireAt: Int?
     let running: Bool
     let runningSince: Int?
@@ -1555,6 +1570,8 @@ struct AutomationJob: Identifiable {
         fromMinutes = schedule["fromMinutes"] as? Int
         lastRunAt = o["lastRunAt"] as? Int
         lastResult = o["lastResult"] as? String ?? ""
+        lastNote = (o["lastNote"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        lastDurationSecs = o["lastDurationSecs"] as? Int
         nextFireAt = o["nextFireAt"] as? Int
         running = o["running"] as? Bool ?? false
         runningSince = o["runningSince"] as? Int

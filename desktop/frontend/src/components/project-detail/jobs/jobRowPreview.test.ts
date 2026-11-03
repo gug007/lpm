@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { jobRowPreview } from "./jobRowPreview";
+import { jobRowPreview, lastRunFailed } from "./jobRowPreview";
 import type { JobInfo } from "../../../jobsFormat";
 
 const job = (over: Partial<JobInfo>): JobInfo => ({
@@ -67,5 +67,30 @@ describe("jobRowPreview", () => {
       text: "Problem during the run. Open it to see what happened.",
       tone: "error",
     });
+  });
+
+  it("says how long a failed run ran and why it failed", () => {
+    const failed = job({
+      lastResult: "error",
+      lastDurationSecs: 192,
+      lastNote: "The check couldn't run: `bin/test`: command not found.\n",
+      lastMessage: "An older answer",
+    });
+    expect(jobRowPreview(failed, "")).toEqual({
+      prefix: "",
+      text: "Problem during the run after 3m 12s · The check couldn't run: bin/test: command not found.",
+      tone: "error",
+    });
+    expect(jobRowPreview(job({ lastResult: "timed-out", lastDurationSecs: 3600 }), "").text).toBe(
+      "Stopped — ran too long after 1h. Open it to see what happened.",
+    );
+  });
+
+  it("offers a retry only for a failed run that isn't running or asking", () => {
+    expect(lastRunFailed(job({ lastResult: "error" }))).toBe(true);
+    expect(lastRunFailed(job({ lastResult: "error", running: true }))).toBe(false);
+    expect(lastRunFailed(job({ lastResult: "completed" }))).toBe(false);
+    expect(lastRunFailed(job({ lastResult: "error", valid: false }))).toBe(false);
+    expect(lastRunFailed(job({ lastResult: "error", enabled: false }))).toBe(false);
   });
 });

@@ -166,6 +166,9 @@ class ProjectMenuViewModel @AssistedInject constructor(
 
     fun discardAll() = git?.discardAll(project)
 
+    /** Undo on the discard's notice: [id] names the copy the Mac kept. */
+    fun restoreDiscarded(id: String) = git?.restoreDiscarded(project, id)
+
     fun dismissOpError() = git?.dismissOpError(project)
 
     @AssistedFactory

@@ -1,8 +1,10 @@
+import Link from "next/link";
 import { HowItWorksSteps } from "@/components/home/how-it-works-steps";
 import { LESSONS_TOTAL_MINUTES } from "@/components/home/lesson-data";
 import { LessonPlayer } from "@/components/home/lesson-player";
 import { SectionHeader } from "@/components/section-header";
-import { YOUTUBE_PLAYLIST_URL } from "@/lib/youtube-lessons";
+import { LESSONS_PATH } from "@/lib/links";
+import { YOUTUBE_LESSON_COUNT } from "@/lib/youtube-lessons";
 
 export function HowItWorks() {
   return (
@@ -33,14 +35,12 @@ export function HowItWorks() {
 
         <p className="mt-8 text-center text-sm text-gray-500 dark:text-gray-400">
           Want the full series?{" "}
-          <a
-            href={YOUTUBE_PLAYLIST_URL}
-            target="_blank"
-            rel="noopener noreferrer"
+          <Link
+            href={LESSONS_PATH}
             className="underline decoration-gray-300 underline-offset-4 transition-colors hover:text-gray-900 hover:decoration-current dark:decoration-gray-600 dark:hover:text-white"
           >
-            Watch every lesson on YouTube
-          </a>
+            See all {YOUTUBE_LESSON_COUNT} lessons
+          </Link>
           .
         </p>
       </div>

@@ -20,11 +20,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
@@ -35,14 +39,21 @@ import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import cx.lpm.mobile.core.data.git.GitNotice
 import cx.lpm.mobile.core.designsystem.R
+import cx.lpm.mobile.core.designsystem.component.LinkButton
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
+import cx.lpm.mobile.feature.projects.R as ProjectsR
 
 /**
  * A finished Git op's short confirmation ("Pulled"), centered just under the bar
- * like the terminal banners, until the store lets it go.
+ * like the terminal banners, until the store lets it go. A discard the Mac kept a
+ * copy of ends in Undo, which hands [onUndo] that copy's id.
  */
 @Composable
-fun GitNoticeBanner(notice: GitNotice?, modifier: Modifier = Modifier) {
+fun GitNoticeBanner(
+    notice: GitNotice?,
+    modifier: Modifier = Modifier,
+    onUndo: (id: String) -> Unit = {}
+) {
     if (notice == null) return
     val gap = with(LocalDensity.current) { 8.dp.roundToPx() }
     Popup(
@@ -61,7 +72,12 @@ fun GitNoticeBanner(notice: GitNotice?, modifier: Modifier = Modifier) {
                 modifier = modifier
                     .background(Color.Black.copy(alpha = 0.6f), CircleShape)
                     .border(1.dp, Color.White.copy(alpha = 0.15f), CircleShape)
-                    .padding(horizontal = 14.dp, vertical = 8.dp)
+                    .padding(
+                        start = 14.dp,
+                        end = if (shown.undo == null) 14.dp else 5.dp,
+                        top = if (shown.undo == null) 8.dp else 5.dp,
+                        bottom = if (shown.undo == null) 8.dp else 5.dp
+                    )
                     .semantics { liveRegion = LiveRegionMode.Polite },
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -78,9 +94,28 @@ fun GitNoticeBanner(notice: GitNotice?, modifier: Modifier = Modifier) {
                     color = Color.White,
                     maxLines = 1
                 )
+                shown.undo?.let { id -> UndoButton { onUndo(id) } }
             }
         }
     }
+}
+
+/** The discard notice's Undo: a white capsule at the banner's end. */
+@Composable
+private fun UndoButton(onClick: () -> Unit) {
+    val haptics = LocalHapticFeedback.current
+    LinkButton(
+        text = stringResource(ProjectsR.string.notice_undo),
+        onClick = {
+            haptics.performHapticFeedback(HapticFeedbackType.ContextClick)
+            onClick()
+        },
+        modifier = Modifier
+            .background(Color.White, CircleShape)
+            .padding(horizontal = 12.dp, vertical = 4.dp),
+        color = Color.Black,
+        textStyle = LpmTheme.typography.footnote.copy(fontWeight = FontWeight.SemiBold)
+    )
 }
 
 /** Centered in the window, [gap] below the bar its anchor sits in. */

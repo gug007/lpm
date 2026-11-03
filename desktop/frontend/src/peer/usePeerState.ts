@@ -41,6 +41,12 @@ export interface PeerHostState {
   pairRequests: PeerPairRequest[];
 }
 
+export interface PeerLink {
+  health: "ok" | "slow" | "silent";
+  rttMs: number | null;
+  waitingSecs: number | null;
+}
+
 export interface PeerClient {
   slug: string;
   alias: string;
@@ -51,6 +57,9 @@ export interface PeerClient {
   connected: boolean;
   // The live connection runs over Tailscale (built-in or the app).
   overTailscale?: boolean;
+  // How the live connection is doing: its last ping's round trip, and how long a
+  // ping has gone unanswered. Absent while disconnected and from older builds.
+  link?: PeerLink | null;
   supportsSync?: boolean;
   supportsSync2?: boolean;
   // The peer's build can hand its working state over ("Bring changes").

@@ -1,3 +1,4 @@
+import { DISCARD_KEPT_TEXT } from "../../gitDiscardUndo";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import type { DiscardTarget } from "./useFileDiscard";
 
@@ -38,7 +39,7 @@ export function FilesDiscardDialog({
               <span className="font-mono text-[var(--text-primary)]">{target?.path}</span>?
             </>
           )}{" "}
-          This cannot be undone.
+          {DISCARD_KEPT_TEXT}
         </span>
       }
       onCancel={onCancel}

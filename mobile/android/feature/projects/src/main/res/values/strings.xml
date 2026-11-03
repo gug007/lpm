@@ -216,8 +216,9 @@
     <string name="rename_project_message">Set a display name for this project. Leave it blank to use the project id.</string>
     <string name="rename_project_field">Project name</string>
     <string name="discard_title">Discard all changes?</string>
-    <string name="discard_message">This permanently discards every uncommitted change in this project. This can\'t be undone.</string>
+    <string name="discard_message">This discards every uncommitted change in this project. lpm keeps a copy on the Mac for 7 days, so you can undo it.</string>
     <string name="discard_confirm">Discard changes</string>
+    <string name="notice_undo">Undo</string>
 
     <!-- Project detail -->
     <string name="back">Back</string>

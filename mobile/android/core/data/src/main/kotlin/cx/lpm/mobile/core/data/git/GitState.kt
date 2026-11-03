@@ -10,9 +10,14 @@ data class GitOpError(val title: String, val message: String)
 
 /**
  * A finished Git op's short confirmation ("Pulled", "Pushed", "Fetched"). Every
- * notice is distinct, so the same op finishing twice in a row shows again.
+ * notice is distinct, so the same op finishing twice in a row shows again. A discard
+ * the Mac kept a copy of carries that copy's id in [undo], and the notice offers Undo.
  */
-data class GitNotice(val text: String, val id: String = UUID.randomUUID().toString())
+data class GitNotice(
+    val text: String,
+    val undo: String? = null,
+    val id: String = UUID.randomUUID().toString()
+)
 
 /** A pull request title and body the Mac drafted. */
 data class GitPrDraft(val title: String, val body: String)
@@ -36,6 +41,7 @@ data class GitState(
     val pushing: Set<String> = emptySet(),
     val fetching: Set<String> = emptySet(),
     val discarding: Set<String> = emptySet(),
+    val restoringDiscard: Set<String> = emptySet(),
     val undoingAutoPull: Set<String> = emptySet(),
     val committing: Set<String> = emptySet(),
     /**

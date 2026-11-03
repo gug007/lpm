@@ -188,6 +188,8 @@ const LESSONS = {
 
 export type YouTubeLessonId = keyof typeof LESSONS;
 
+export const YOUTUBE_LESSON_COUNT = Object.keys(LESSONS).length;
+
 export type YouTubeLesson = (typeof LESSONS)[YouTubeLessonId];
 
 export const youtubeLesson = (id: YouTubeLessonId): YouTubeLesson =>

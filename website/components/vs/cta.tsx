@@ -2,15 +2,16 @@ import type { ReactNode } from "react";
 import { GithubLink } from "@/components/github-link";
 import { HeroDownload } from "@/components/home/hero-download";
 import type { DownloadSource } from "@/lib/analytics";
+import type { DesktopOs } from "@/lib/downloads";
 
 type Props = {
   title: ReactNode;
   description: ReactNode;
   downloadSource?: DownloadSource;
-  macFocus?: boolean;
+  focus?: DesktopOs;
 };
 
-export function Cta({ title, description, downloadSource, macFocus }: Props) {
+export function Cta({ title, description, downloadSource, focus }: Props) {
   return (
     <section id="download" className="scroll-mt-20 py-20 sm:py-24 text-center">
       <div className="max-w-3xl mx-auto px-6">
@@ -22,7 +23,7 @@ export function Cta({ title, description, downloadSource, macFocus }: Props) {
         </p>
 
         <div className="mt-10 flex justify-center">
-          <HeroDownload source={downloadSource} macFocus={macFocus} />
+          <HeroDownload source={downloadSource} focus={focus} />
         </div>
 
         <div className="mt-6">

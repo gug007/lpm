@@ -200,6 +200,11 @@
 {"at": 9200, "frame": {"t": "unsub", "id": "demo-work-copy-1"}}
 {"at": 9300, "frame": {"t": "readConfig", "project": "work-copy", "layer": "repo"}}
 {"at": 9500, "frame": {"t": "actionBgOutput", "project": "api-gateway", "runId": "run-1"}}
+{"at": 10000, "frame": {"t": "gitDiscardAll", "project": "work-copy"}}
+{"at": 10500, "frame": {"t": "git", "project": "work-copy"}}
+{"at": 10600, "frame": {"t": "gitRestoreDiscarded", "project": "work-copy", "id": "discard-1"}}
+{"at": 11100, "frame": {"t": "gitRestoreDiscarded", "project": "work-copy", "id": "discard-1"}}
+{"at": 11100, "frame": {"t": "git", "project": "work-copy"}}
 {"at": 13500, "frame": {"t": "actionBgOutput", "project": "api-gateway", "runId": "run-1"}}
 {"at": 13500, "frame": {"t": "backgroundRuns", "project": "api-gateway"}}
 {"at": 14000, "frame": {"t": "runActionBackground", "project": "blog", "action": "new-post", "inputValues": {"title": "Hello World!"}, "runId": "run-2"}}
@@ -493,6 +498,8 @@
 {"at": 69000, "frame": {"t": "gitCreatePr", "project": "storefront"}}
 {"at": 69000, "frame": {"t": "gitAutoSwitchBase", "project": "storefront", "base": "main"}}
 {"at": 69000, "frame": {"t": "gitCommit", "project": "nope", "files": []}}
+{"at": 69500, "frame": {"t": "gitRestoreDiscarded", "project": "feature-x", "id": "discard-1"}}
+{"at": 69500, "frame": {"t": "gitRestoreDiscarded", "project": "nope", "id": "discard-1"}}
 {"at": 71000, "frame": {"t": "gitUnwatch", "project": "storefront"}}
 {"at": 71000, "frame": {"t": "git", "project": "storefront"}}
 {"at": 71000, "frame": {"t": "gitHistory", "project": "storefront", "skip": 0, "limit": 100}}

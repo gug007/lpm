@@ -42,6 +42,9 @@ export interface SidebarNavEntry {
   // Shown instead of the description while the row sits in the sidebar: a card
   // with buttons of its own, which the pointer can move onto.
   hoverCard?: ReactNode;
+  // Only in the More menu: a panel that opens beside the row on hover, in place
+  // of what the row opens when clicked in the sidebar.
+  submenu?: ReactNode;
   // What the row's agents are doing, worn by the label the way a project row's
   // name wears it: amber while one waits on you, and a shimmer while one works
   // with its rows folded away.

@@ -1013,10 +1013,12 @@ pub fn git_file_diffs(
     Ok(out)
 }
 
+/// Discards changes to `files`, keeping a copy first. Returns the copy's id
+/// for Undo, or None when there was nothing to keep.
 #[tauri::command(async)]
-pub fn git_discard_files(cwd: String, files: Vec<String>) -> Result<(), String> {
+pub fn git_discard_files(cwd: String, files: Vec<String>) -> Result<Option<String>, String> {
     if files.is_empty() {
-        return Ok(());
+        return Ok(None);
     }
     let mut largs: Vec<&str> = vec!["ls-files", "--"];
     largs.extend(files.iter().map(String::as_str));
@@ -1038,6 +1040,8 @@ pub fn git_discard_files(cwd: String, files: Vec<String>) -> Result<(), String> 
         .filter(|f| !tracked_set.contains(f))
         .collect();
 
+    let saved = crate::gitdiscards::save_paths(&cwd, &tracked, &untracked)
+        .map_err(|e| format!("Couldn't keep a copy, so nothing was discarded: {e}"))?;
     if !tracked.is_empty() {
         let mut a: Vec<&str> = vec!["checkout", "HEAD", "--"];
         a.extend(&tracked);
@@ -1048,14 +1052,18 @@ pub fn git_discard_files(cwd: String, files: Vec<String>) -> Result<(), String> 
         a.extend(&untracked);
         git_out(&cwd, &a).map_err(|e| format!("clean: {e}"))?;
     }
-    Ok(())
+    Ok(saved)
 }
 
+/// Resets the working tree to HEAD, keeping a copy first. Returns the copy's id
+/// for Undo, or None when there was nothing to keep.
 #[tauri::command(async)]
-pub fn git_discard_all(cwd: String) -> Result<(), String> {
+pub fn git_discard_all(cwd: String) -> Result<Option<String>, String> {
+    let saved = crate::gitdiscards::save_all(&cwd)
+        .map_err(|e| format!("Couldn't keep a copy, so nothing was discarded: {e}"))?;
     git_out(&cwd, &["reset", "--hard", "HEAD"]).map_err(|e| format!("reset: {e}"))?;
     git_out(&cwd, &["clean", "-fd"]).map_err(|e| format!("clean: {e}"))?;
-    Ok(())
+    Ok(saved)
 }
 
 // ---- branches ---------------------------------------------------------------

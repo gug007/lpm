@@ -69,7 +69,7 @@ the iPhone screenshots). An icon-only control keeps the accessible name iOS give
 | `bell.badge.fill` | `notifications_unread` (fill) | 18 dp | paired summary Notifications | |
 | `exclamationmark.shield` | `gpp_maybe` | 46 dp sheet, 18 dp issue | identity check | |
 | `xmark.shield` | `gpp_bad` | 18 dp | "Identity check failed" | |
-| `arrow.clockwise` | `refresh` | 22 dp | "Test again" | |
+| `arrow.clockwise` | `refresh` | 22 dp | "Test again", an automation row's Retry swipe | |
 | `point.3.connected.trianglepath.dotted` | `device_hub` | 22 dp | "Addresses", relay issues | |
 | `macbook.and.iphone` | `devices` | 22 dp | "Pair again" | |
 | `trash` | `delete` | 22–24 dp | "Remove from this phone", Remove, Delete folder, Discard All Changes…, config list swipe "Delete" | |
