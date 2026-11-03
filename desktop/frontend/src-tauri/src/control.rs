@@ -26,7 +26,7 @@ use serde::Serialize;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Mutex;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 pub const EVENT_CHANGED: &str = "terminal-control-changed";
 
@@ -60,13 +60,30 @@ pub fn detached_window_id(project: &str) -> String {
     format!("detached:{project}")
 }
 
+/// The surfaces showing one terminal here.
+#[derive(Default)]
+struct Shown {
+    // Ordered with the OWNER at the front. So the owner is derivable
+    // (`.first()`), and the ordering encodes the handoff: a leaving owner hands
+    // off to the next presenter, and `claim` moves a surface to the front.
+    presenters: Vec<Owner>,
+    // For a terminal a paired machine hosts: the surface holding it there, or
+    // on a phone or another Mac, while that isn't this Mac. It outranks every
+    // presenter here until one of them claims.
+    away: Option<Owner>,
+}
+
+impl Shown {
+    fn owner(&self) -> Option<Owner> {
+        let local = self.presenters.first()?;
+        Some(self.away.as_ref().unwrap_or(local).clone())
+    }
+}
+
 #[derive(Default)]
 pub struct ControlState {
-    // terminal id -> presenters, ordered with the OWNER at the front. So the
-    // owner is derivable (`.first()`), and the ordering encodes the handoff: a
-    // leaving owner hands off to the next presenter, and `claim` moves a surface
-    // to the front. One map, one lock — nothing to keep in sync.
-    presenters: Mutex<HashMap<String, Vec<Owner>>>,
+    // One map, one lock — nothing to keep in sync.
+    terminals: Mutex<HashMap<String, Shown>>,
 }
 
 fn owners_eq(a: &Option<Owner>, b: &Option<Owner>) -> bool {
@@ -79,11 +96,21 @@ fn owners_eq(a: &Option<Owner>, b: &Option<Owner>) -> bool {
 
 impl ControlState {
     pub fn owner_of(&self, id: &str) -> Option<Owner> {
-        self.presenters
+        self.terminals
             .lock()
             .unwrap()
             .get(id)
-            .and_then(|l| l.first().cloned())
+            .and_then(Shown::owner)
+    }
+
+    /// The surfaces showing a terminal, owner first.
+    pub fn presenters_of(&self, id: &str) -> Vec<Owner> {
+        self.terminals
+            .lock()
+            .unwrap()
+            .get(id)
+            .map(|t| t.presenters.clone())
+            .unwrap_or_default()
     }
 
     // Every mutator returns `(new owner, owner_changed)` so callers broadcast the
@@ -93,40 +120,56 @@ impl ControlState {
     /// Mark a surface as presenting a terminal. First presenter wins (goes to the
     /// front); a later presenter joins at the back and the owner is unchanged.
     pub fn present(&self, id: &str, who: Owner) -> (Owner, bool) {
-        let mut p = self.presenters.lock().unwrap();
-        let list = p.entry(id.to_string()).or_default();
-        let old = list.first().cloned();
-        if !list.iter().any(|o| o.same(&who)) {
-            list.push(who.clone());
+        let mut terminals = self.terminals.lock().unwrap();
+        let shown = terminals.entry(id.to_string()).or_default();
+        let old = shown.owner();
+        if !shown.presenters.iter().any(|o| o.same(&who)) {
+            shown.presenters.push(who.clone());
         }
-        let new = list.first().cloned().unwrap_or(who);
+        let new = shown.owner().unwrap_or(who);
         let changed = !owners_eq(&old, &Some(new.clone()));
         (new, changed)
     }
 
     /// Explicit takeover ("Take control"): move the surface to the front.
     pub fn claim(&self, id: &str, who: Owner) -> (Owner, bool) {
-        let mut p = self.presenters.lock().unwrap();
-        let list = p.entry(id.to_string()).or_default();
-        let changed = !list.first().is_some_and(|o| o.same(&who));
-        list.retain(|o| !o.same(&who));
-        list.insert(0, who.clone());
+        let mut terminals = self.terminals.lock().unwrap();
+        let shown = terminals.entry(id.to_string()).or_default();
+        let changed = !shown.owner().is_some_and(|o| o.same(&who));
+        shown.presenters.retain(|o| !o.same(&who));
+        shown.presenters.insert(0, who.clone());
+        shown.away = None;
         (who, changed)
     }
 
     /// Stop presenting a terminal. If the leaving surface was the owner (front),
     /// the next presenter inherits; otherwise the owner is unchanged.
     pub fn unpresent(&self, id: &str, who: &Owner) -> (Option<Owner>, bool) {
-        let mut p = self.presenters.lock().unwrap();
-        let Some(list) = p.get_mut(id) else {
+        let mut terminals = self.terminals.lock().unwrap();
+        let Some(shown) = terminals.get_mut(id) else {
             return (None, false);
         };
-        let old = list.first().cloned();
-        list.retain(|o| !o.same(who));
-        let new = list.first().cloned();
-        if list.is_empty() {
-            p.remove(id);
+        let old = shown.owner();
+        shown.presenters.retain(|o| !o.same(who));
+        let new = shown.owner();
+        if shown.presenters.is_empty() {
+            terminals.remove(id);
         }
+        let changed = !owners_eq(&old, &new);
+        (new, changed)
+    }
+
+    /// The paired machine hosting a terminal says which surface holds it: one
+    /// that isn't this Mac (`Some`), or this Mac (`None`). A terminal no window
+    /// here shows any more is left alone; presenting it again asks anew.
+    pub fn hold_away(&self, id: &str, away: Option<Owner>) -> (Option<Owner>, bool) {
+        let mut terminals = self.terminals.lock().unwrap();
+        let Some(shown) = terminals.get_mut(id) else {
+            return (None, false);
+        };
+        let old = shown.owner();
+        shown.away = away;
+        let new = shown.owner();
         let changed = !owners_eq(&old, &new);
         (new, changed)
     }
@@ -135,7 +178,7 @@ impl ControlState {
     /// ids whose owner changed, with the new owner, so the caller broadcasts just
     /// those.
     pub fn drop_surface(&self, who: &Owner) -> Vec<(String, Option<Owner>)> {
-        let ids: Vec<String> = self.presenters.lock().unwrap().keys().cloned().collect();
+        let ids: Vec<String> = self.terminals.lock().unwrap().keys().cloned().collect();
         let mut changed = Vec::new();
         for id in ids {
             let (new, did_change) = self.unpresent(&id, who);
@@ -159,12 +202,24 @@ pub fn owner_json(owner: &Option<Owner>) -> Value {
 }
 
 /// Publish a terminal's new owner to every surface: an `app.emit` reaches all
-/// desktop webviews, and `remote::push_control` fans out to any paired phones
-/// (a no-op when the mobile server is disabled / has no clients).
+/// desktop webviews, `remote::push_control` fans out to any paired phones (a
+/// no-op when the mobile server is disabled / has no clients), and
+/// `peer::push_control` tells the paired Macs showing it.
 pub fn broadcast(app: &AppHandle, id: &str, owner: &Option<Owner>) {
     let payload = serde_json::json!({ "id": id, "owner": owner_json(owner) });
     let _ = app.emit(EVENT_CHANGED, payload);
     crate::remote::push_control(app, id, owner);
+    crate::peer::push_control(app, id, owner);
+}
+
+/// Apply what the paired machine hosting terminal `id` says about who holds it,
+/// named `elsewhere` when that isn't this Mac.
+pub fn note_away(app: &AppHandle, id: &str, elsewhere: Option<&str>) {
+    let away = elsewhere.map(|name| Owner::new("away", name, name));
+    let (owner, changed) = app.state::<ControlState>().hold_away(id, away);
+    if changed {
+        broadcast(app, id, &owner);
+    }
 }
 
 // --- commands (desktop windows) ----------------------------------------------
@@ -309,5 +364,54 @@ mod tests {
         assert_eq!(changed[0].0, "b");
         assert!(changed[0].1.is_none());
         assert!(owns(&s, "a", &w("main")));
+    }
+
+    fn away(name: &str) -> Owner {
+        Owner::new("away", name, name)
+    }
+
+    #[test]
+    fn a_holder_on_the_host_outranks_every_window_here() {
+        let s = ControlState::default();
+        s.present("t1", w("main"));
+        s.present("t1", w("detached"));
+        let (owner, changed) = s.hold_away("t1", Some(away("Mac mini")));
+        assert!(owner.unwrap().same(&away("Mac mini")) && changed);
+        let (owner, changed) = s.present("t1", w("quick"));
+        assert!(owner.same(&away("Mac mini")) && !changed);
+    }
+
+    #[test]
+    fn claiming_here_takes_a_terminal_back_from_the_host() {
+        let s = ControlState::default();
+        s.present("t1", w("main"));
+        s.hold_away("t1", Some(away("Mac mini")));
+        let (owner, changed) = s.claim("t1", w("main"));
+        assert!(owner.same(&w("main")) && changed);
+        assert!(owns(&s, "t1", &w("main")));
+    }
+
+    #[test]
+    fn the_host_handing_control_back_restores_the_window_here() {
+        let s = ControlState::default();
+        s.present("t1", w("main"));
+        s.hold_away("t1", Some(away("Mac mini")));
+        let (owner, changed) = s.hold_away("t1", None);
+        assert!(owner.unwrap().same(&w("main")) && changed);
+    }
+
+    #[test]
+    fn a_holder_is_forgotten_once_nothing_here_shows_the_terminal() {
+        let s = ControlState::default();
+        assert!(matches!(
+            s.hold_away("t1", Some(away("Mac mini"))),
+            (None, false)
+        ));
+        s.present("t1", w("main"));
+        s.hold_away("t1", Some(away("Mac mini")));
+        let (owner, changed) = s.unpresent("t1", &w("main"));
+        assert!(owner.is_none() && changed);
+        let (owner, _) = s.present("t1", w("main"));
+        assert!(owner.same(&w("main")));
     }
 }

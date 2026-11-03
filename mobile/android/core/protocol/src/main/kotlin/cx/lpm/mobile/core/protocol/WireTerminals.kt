@@ -122,6 +122,12 @@ sealed interface WireTerminals {
             put("account", account)
         }
 
+    /** Put away a Claude tab's limit bar, on the Mac and every phone; only for a terminal listed with `limitStop`. */
+    fun dismissLimitStop(project: String, id: String): String = frame("dismissLimitStop") {
+        put("project", project)
+        put("id", id)
+    }
+
     fun reorderTerminals(project: String, order: List<String>): String = frame("reorderTerminals") {
         put("project", project)
         putStrings("order", order)

@@ -1134,15 +1134,21 @@ fn cmd_set_status(args: &[String], store: &StatusStore, app: &AppHandle) -> Stri
     {
         return "OK".into();
     }
-    if value == "Error" {
-        crate::claude_limit_hits::on_error_status(project, &entry.key);
-    }
     // An agent the tab's agent launched borrows the tab's pane id but is nobody's
     // tab: its own row would wear this tab's name, ring its own chime and push its
     // own "done". Retire anything it managed to store before its process tree was
     // visible, so a dropped frame can't leave a row nothing will ever clear —
     // unless the key is the tab's own, in which case that entry is the tab's.
-    if crate::status::is_agent_key(&entry.key) && nested_agent_report(app, &entry.pane_id, &options) {
+    let nested = crate::status::is_agent_key(&entry.key)
+        && nested_agent_report(app, &entry.pane_id, &options);
+    // A limit is its account's whoever hit it; only the tab's own agent stops the tab.
+    if value == crate::status::STATUS_ERROR {
+        let tab = if nested { "" } else { entry.pane_id.as_str() };
+        crate::claude_limit_hits::on_error_status(project, &entry.key, tab);
+    } else if value == crate::status::STATUS_RUNNING && !nested {
+        crate::claude_limit_stops::on_running(&entry.key);
+    }
+    if nested {
         if !key_names_the_pane(&entry.key, &entry.pane_id) && store.clear(project, &entry.key) {
             let _ = app.emit("status-changed", project);
         }

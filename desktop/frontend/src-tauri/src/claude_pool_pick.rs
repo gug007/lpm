@@ -99,7 +99,7 @@ pub struct Pick {
     pub skipped: Vec<Skipped>,
 }
 
-fn live(w: &Option<Window>, now: i64) -> Option<&Window> {
+pub(crate) fn live(w: &Option<Window>, now: i64) -> Option<&Window> {
     w.as_ref().filter(|w| w.resets_at == 0 || w.resets_at > now)
 }
 

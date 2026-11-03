@@ -1,5 +1,6 @@
 package cx.lpm.mobile.feature.terminal
 
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.runtime.Composable
 import cx.lpm.mobile.core.model.Project
@@ -22,6 +23,13 @@ class TerminalSlots(
         session: SessionKey,
         onSpawnedTerminal: (TerminalInfo) -> Unit
     ) -> Unit = { _, _, _, _ -> },
+    /**
+     * The Mac's Claude accounts a tab can continue its conversation on, for the limit
+     * bar's Other account menu; picking one moves the tab.
+     */
+    val tabAccountChoices: (
+        @Composable ColumnScope.(session: SessionKey, term: TerminalInfo) -> Unit
+    )? = null,
     /** The connection banner over the terminal while the session's link isn't ready. */
     val connectionBanner: @Composable (session: SessionKey) -> Unit = {},
     /** The composer's session-memory picker; `onInvocation` parks its pick in the field. */

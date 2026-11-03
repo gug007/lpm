@@ -41,6 +41,7 @@ mod claude_account_pin;
 mod claude_choice;
 mod claude_dirs;
 mod claude_limit_hits;
+mod claude_limit_stops;
 mod claude_pool;
 mod claude_pool_members;
 mod claude_pool_pick;
@@ -370,6 +371,7 @@ use aigen::*;
 use aigen_split::generate_commit_split;
 use browser::*;
 use claude_account_pin::*;
+use claude_limit_stops::{claude_limit_stop, dismiss_claude_limit_stop};
 use claude_pool::{accept_claude_pool_pick, claude_pool_state, resume_claude_pool, set_claude_pool};
 use claude_session_state::*;
 use claude_statusline::*;
@@ -700,6 +702,7 @@ pub fn run() {
             agent_limits::start(handle.clone());
             agent_limits_share::start(&handle);
             claude_pool::init(&handle);
+            claude_limit_stops::init(&handle);
 
             // Built-in Tailscale node, when it is switched on: the mobile and
             // peer servers below point their ports at it as they start.

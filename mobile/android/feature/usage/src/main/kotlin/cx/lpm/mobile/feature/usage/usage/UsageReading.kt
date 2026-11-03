@@ -1,6 +1,7 @@
 package cx.lpm.mobile.feature.usage.usage
 
 import cx.lpm.mobile.core.model.LimitWindow
+import cx.lpm.mobile.core.model.resetShort
 import kotlin.math.roundToLong
 
 data class PickedWindow(

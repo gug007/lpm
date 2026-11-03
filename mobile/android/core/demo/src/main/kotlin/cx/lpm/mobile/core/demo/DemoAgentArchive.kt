@@ -60,8 +60,27 @@ private fun DemoServer.markSeen(project: String, matches: (DemoWorld.Status) -> 
 private val DemoWorld.Status.finished: Boolean get() = value == "Done" || value == "Error"
 
 /**
+ * The main login's weekly limit, which stopped design-system's Claude tab; Work has room
+ * to carry the conversation on.
+ */
+internal fun weeklyLimitStop(nowS: Long): Dict = mapOf(
+    "kind" to "limit",
+    "account" to CLAUDE_MAIN_LOGIN,
+    "accountLabel" to "Main login",
+    "window" to "weekly",
+    "resetsAt" to nowS + 62 * 3600,
+    "offer" to mapOf(
+        "account" to "work",
+        "label" to "Work",
+        "fiveHour" to 18,
+        "weekly" to 41,
+        "near" to false
+    )
+)
+
+/**
  * Agents opened earlier and kept, muted, under their projects: two finished turns in
- * mobile-app and a problem in design-system, each in a tab of its own.
+ * mobile-app and a weekly limit in design-system, each in a tab of its own.
  */
 internal fun DemoWorld.seedSeenAgents(nowMs: Long) {
     val minute = 60_000L
@@ -119,7 +138,7 @@ internal fun DemoWorld.seedSeenAgents(nowMs: Long) {
             "Fix flaky snapshot test",
             prompt = "Fix the flaky Button snapshot test",
             reply = "The snapshot still differs on CI: fonts render differently there."
-        )
+        ).apply { limitStop = weeklyLimitStop(nowMs / 1000) }
     )
     project("mobile-app")?.seen = listOf(
         seen(

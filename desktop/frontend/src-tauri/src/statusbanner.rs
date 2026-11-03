@@ -6,7 +6,7 @@ use crate::agent_last_answer::newest_answer;
 use crate::agentkind::AgentKind;
 use crate::notifychannels::NotificationEvent;
 use crate::sound::StatusSound;
-use crate::status::{StatusEntry, STATUS_DONE};
+use crate::status::{StatusEntry, STATUS_DONE, STATUS_ERROR};
 use std::time::Duration;
 
 const ANSWER_CHARS: usize = 140;
@@ -83,6 +83,26 @@ fn finished_claude_session(entry: &StatusEntry) -> Option<&str> {
 /// Whether the banner for this transition may quote the session's answer.
 pub fn reads_answer(entry: &StatusEntry) -> bool {
     finished_claude_session(entry).is_some()
+}
+
+fn reads_stop(entry: &StatusEntry) -> bool {
+    entry.value == STATUS_ERROR && entry.key.starts_with(AgentKind::Claude.key_prefix())
+}
+
+/// Whether the banner for this transition reads the session's transcript: a
+/// finish quotes its answer, a failed Claude turn says which limit it stopped at.
+pub fn reads_transcript(entry: &StatusEntry) -> bool {
+    reads_answer(entry) || reads_stop(entry)
+}
+
+/// The line the banner adds under what happened, read from the transcript:
+/// the answer a turn finished with, or the limit a failed turn stopped at and
+/// what its tab offers. Blocks like `last_answer`.
+pub fn detail_line(project: &str, entry: &StatusEntry) -> Option<String> {
+    if reads_stop(entry) {
+        return crate::claude_limit_stops::notice(&entry.key, "Open the tab");
+    }
+    last_answer(project, entry)
 }
 
 /// The first line of the answer a finished Claude session ended its turn with.

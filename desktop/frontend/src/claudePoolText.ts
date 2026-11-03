@@ -16,7 +16,7 @@ export function accountLabel(
   return pool?.accounts.find((a) => a.id === id)?.email || "Removed account";
 }
 
-function windowName(window: "fiveHour" | "weekly" | null): string {
+export function windowName(window: "fiveHour" | "weekly" | null): string {
   if (window === "fiveHour") return "5-hour limit";
   if (window === "weekly") return "weekly limit";
   return "usage limit";

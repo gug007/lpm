@@ -6,7 +6,7 @@
 //! finish is reported, so this runs on the thread that sends the push, never on
 //! the event listener.
 use crate::gitlines::FileLines;
-use crate::status::STATUS_DONE;
+use crate::status::{STATUS_DONE, STATUS_ERROR};
 use serde_json::{json, Value};
 
 const CLOSING_CHARS: usize = 200;
@@ -17,9 +17,16 @@ const LISTED_FILES: usize = 6;
 /// The fields an alert about `key` reaching `status` adds to its payload:
 /// `changes` (`{files, added, removed}`) and `files` (`[{path, added, removed}]`)
 /// while the project has uncommitted changes, and `answer`, this turn's answer,
-/// with `summary`, its end. Empty for anything but a finish.
+/// with `summary`, its end. A Claude turn that stopped at a usage limit says
+/// which, and what its tab offers, as `summary`. Empty for anything else.
 pub(super) fn of(project: &str, key: &str, status: &str, turn_start: i64) -> Value {
     let mut detail = json!({});
+    if status == STATUS_ERROR {
+        if let Some(line) = crate::claude_limit_stops::notice(key, "Tap") {
+            detail["summary"] = json!(line);
+        }
+        return detail;
+    }
     if status != STATUS_DONE {
         return detail;
     }

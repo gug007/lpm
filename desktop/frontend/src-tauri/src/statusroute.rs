@@ -50,7 +50,7 @@ fn used_last(a: &Activity) -> Option<&str> {
 /// reading that answer waits on the transcript, and the caller is answering
 /// the hook that reported the finish.
 pub fn announce(app: &AppHandle, project: &str, entry: &StatusEntry) {
-    if !crate::statusbanner::reads_answer(entry) {
+    if !crate::statusbanner::reads_transcript(entry) {
         return tell(app, project, entry);
     }
     let (app, project, entry) = (app.clone(), project.to_string(), entry.clone());
@@ -65,7 +65,7 @@ fn tell(app: &AppHandle, project: &str, entry: &StatusEntry) {
     let told = OnceCell::new();
     let news = || {
         told.get_or_init(|| StatusSound {
-            answer: crate::statusbanner::last_answer(project, entry),
+            answer: crate::statusbanner::detail_line(project, entry),
             ..StatusSound::of(app, project, entry)
         })
         .clone()

@@ -118,6 +118,10 @@ struct TerminalScreen: View {
             .animation(.easeOut(duration: 0.2), value: ended)
             .animation(.easeOut(duration: 0.2), value: reopened)
             .animation(.easeOut(duration: 0.2), value: accountMove)
+            if ended == nil, accountMove == nil, let stop = model.limitStop(for: term) {
+                TerminalLimitStopBar(term: term, stop: stop)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
             if controlled && ended == nil {
                 TerminalComposer(store: model.composerStore(for: term.id, project: term.project, label: term.label),
                                  terminalBackground: theme.backgroundColor, onFind: { find.open() })

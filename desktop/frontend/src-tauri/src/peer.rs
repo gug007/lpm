@@ -40,6 +40,9 @@ use tungstenite::{accept_hdr, Error as WsError, Message, WebSocket};
 mod guest;
 mod guestlink;
 mod listen;
+mod ownership;
+
+pub(crate) use ownership::push_control;
 
 pub(crate) use guest::serve_relayed;
 pub(crate) use guestlink::{drain, GuestLink, Incoming};
@@ -853,36 +856,6 @@ fn missed_events_frame() -> String {
     json!({ "t": "evt", "name": "projects-changed", "payload": Value::Null }).to_string()
 }
 
-/// The control surface a peer connection presents on the host, so host windows
-/// show the "Take control" placeholder while the peer drives. A distinct owner
-/// kind ("peer") that never collides with "window"/"mobile".
-fn peer_owner(hub: &PeerHub, device_id: &str) -> crate::control::Owner {
-    crate::control::Owner::new("peer", device_id, hub.device_name(device_id))
-}
-
-/// Apply a peer's `ctl` frame: the Mac reporting that one of its windows started
-/// or stopped showing a terminal of ours, or took control of it.
-fn apply_peer_control(hub: &PeerHub, app: &AppHandle, device_id: &str, id: &str, op: &str) {
-    let state = app.state::<crate::control::ControlState>();
-    let who = peer_owner(hub, device_id);
-    let (owner, changed) = match op {
-        "claim" if terminal_alive(app, id) => {
-            crate::statusroute::used_from(device_id);
-            let (owner, changed) = state.claim(id, who);
-            (Some(owner), changed)
-        }
-        "present" if terminal_alive(app, id) => {
-            let (owner, changed) = state.present(id, who);
-            (Some(owner), changed)
-        }
-        "unpresent" => state.unpresent(id, &who),
-        _ => return,
-    };
-    if changed {
-        crate::control::broadcast(app, id, &owner);
-    }
-}
-
 // --- lifecycle ----------------------------------------------------------------
 
 /// Install event forwarders and start the server if enabled. The shared config is
@@ -1240,7 +1213,7 @@ fn handle_conn(stream: TcpStream, hub: PeerHub, app: AppHandle, generation: u64)
     crate::remote::relayed::drop_conn(conn_id); // end the phones it was carrying here
                                              // Release any terminal control this peer held so ownership transfers back to a
                                              // host window (or another presenter) instead of stranding on a gone client.
-    let owner = peer_owner(&hub, &device_id);
+    let owner = ownership::owner(&hub, &device_id);
     for (id, new_owner) in app
         .state::<crate::control::ControlState>()
         .drop_surface(&owner)
@@ -1719,7 +1692,7 @@ fn handle_msg(
                 if v.get("claim").and_then(Value::as_bool) != Some(false) {
                     let (owner, changed) = app
                         .state::<crate::control::ControlState>()
-                        .claim(&id, peer_owner(hub, device_id));
+                        .claim(&id, ownership::owner(hub, device_id));
                     if changed {
                         crate::control::broadcast(app, &id, &Some(owner));
                     }
@@ -1752,7 +1725,7 @@ fn handle_msg(
                 subs.lock().unwrap().remove(&id);
                 let (owner, changed) = app
                     .state::<crate::control::ControlState>()
-                    .unpresent(&id, &peer_owner(hub, device_id));
+                    .unpresent(&id, &ownership::owner(hub, device_id));
                 if changed {
                     crate::control::broadcast(app, &id, &owner);
                 }
@@ -1760,7 +1733,7 @@ fn handle_msg(
         }
         "ctl" => {
             if let (Some(id), Some(op)) = (str_field("id"), str_field("op")) {
-                apply_peer_control(hub, app, device_id, &id, &op);
+                ownership::apply(hub, app, out, device_id, &id, &op);
             }
         }
         "invoke" => {
@@ -1778,7 +1751,7 @@ fn handle_msg(
                     let _ = out.try_send(frame);
                 });
             } else {
-                dispatch_invoke(hub, app, out, req_id, &cmd, args);
+                dispatch_invoke(hub, app, out, device_id, req_id, &cmd, args);
             }
         }
         // Config sync — dedicated frames that never touch the generic invoke
@@ -1982,6 +1955,7 @@ fn dispatch_invoke(
     hub: &PeerHub,
     app: &AppHandle,
     out: &SyncSender<String>,
+    device_id: &str,
     req_id: Value,
     cmd: &str,
     args: Value,
@@ -2091,7 +2065,7 @@ fn dispatch_invoke(
         });
         return;
     }
-    if let Some(r) = fast_path(app, cmd, &args) {
+    if let Some(r) = fast_path(app, device_id, cmd, &args) {
         let frame = match r {
             Ok(value) => result_frame(&req_id, true, value),
             Err(e) => result_frame(&req_id, false, Value::String(e)),
@@ -2216,7 +2190,12 @@ fn spawn_dispatch_reaper(hub: PeerHub) {
 /// Terminal I/O commands executed directly in Rust (no webview round-trip),
 /// mirroring the mobile server's use of the pty::remote_* accessors. Returns None
 /// for any other command so dispatch falls through to the webview path.
-fn fast_path(app: &AppHandle, cmd: &str, args: &Value) -> Option<Result<Value, String>> {
+fn fast_path(
+    app: &AppHandle,
+    device_id: &str,
+    cmd: &str,
+    args: &Value,
+) -> Option<Result<Value, String>> {
     let state = app.state::<pty::PtyState>();
     let s = |k: &str| {
         args.get(k)
@@ -2233,6 +2212,10 @@ fn fast_path(app: &AppHandle, cmd: &str, args: &Value) -> Option<Result<Value, S
         }
         "resize_terminal" => {
             let id = s("id");
+            // Something else holds it, and renders at the size it set.
+            if !ownership::may_resize(app, device_id, &id) {
+                return Some(Ok(Value::Null));
+            }
             cancel_nudge(app, &id);
             Some(pty::remote_resize(&state, &id, u16f("cols"), u16f("rows")).map(|_| Value::Null))
         }

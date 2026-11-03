@@ -28,6 +28,8 @@ data class TerminalInfo(
     // the tab ran before, which a screen showing it follows here.
     val switchingTo: String? = null,
     val switchedFrom: String? = null,
+    // A Claude tab whose turn stopped at a usage limit, while that still holds.
+    val limitStop: LimitStop? = null,
     // The desktop tab's own identity, the same across the new ids a restart or a move
     // to another Claude account gives it; the id from an older server.
     val tabKey: String = id
@@ -50,6 +52,7 @@ data class TerminalInfo(
             claudeAccount = o.string("claudeAccount"),
             switchingTo = o.string("switchingTo"),
             switchedFrom = o.string("switchedFrom"),
+            limitStop = LimitStop.parse(o.obj("limitStop")),
             tabKey = o.string("tabKey")?.takeIf { it.isNotEmpty() } ?: o.string("id").orEmpty()
         )
     }

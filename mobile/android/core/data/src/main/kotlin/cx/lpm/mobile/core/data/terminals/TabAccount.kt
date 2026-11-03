@@ -1,8 +1,10 @@
 package cx.lpm.mobile.core.data.terminals
 
 import cx.lpm.mobile.core.data.client.LpmClient
+import cx.lpm.mobile.core.data.client.dismissLimitStop
 import cx.lpm.mobile.core.data.client.switchTerminalAccount
 import cx.lpm.mobile.core.model.ClaudeAccountInfo
+import cx.lpm.mobile.core.model.LimitStop
 import cx.lpm.mobile.core.model.TerminalInfo
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -23,12 +25,19 @@ val TerminalsStore.canSwitchTabAccounts: Boolean
  * Continue the tab's conversation on [account]. The tab is covered at once, and for as
  * long as the Mac lists it moving. False when nothing was sent.
  */
-fun TerminalsStore.switchTerminalAccount(term: TerminalInfo, account: ClaudeAccountInfo): Boolean {
-    if (!canSwitchTabAccounts || !term.canSwitchAccount || account.id == term.claudeAccount) {
+fun TerminalsStore.switchTerminalAccount(term: TerminalInfo, account: ClaudeAccountInfo): Boolean =
+    switchTerminalAccount(term, account.id, account.label)
+
+fun TerminalsStore.switchTerminalAccount(
+    term: TerminalInfo,
+    account: String,
+    label: String
+): Boolean {
+    if (!canSwitchTabAccounts || !term.canSwitchAccount || account == term.claudeAccount) {
         return false
     }
-    setAccountMove(term.id, account.label)
-    client?.switchTerminalAccount(term.project, term.id, account.id)
+    setAccountMove(term.id, label)
+    client?.switchTerminalAccount(term.project, term.id, account)
     reloadTerminalsSoon(term.project)
     session.scope.launch {
         delay(ACCOUNT_MOVE_WAIT_MS)
@@ -44,3 +53,14 @@ fun TerminalsState.movedTab(term: TerminalInfo): TerminalInfo? =
 /** The account a tab is moving to while it moves: as the Mac lists it, or as this phone just asked. */
 fun TerminalsState.accountMove(term: TerminalInfo): String? =
     term.switchingTo ?: accountMoves[term.id]
+
+/** The stop a terminal's bar shows: as the Mac lists it, unless put away here. */
+fun TerminalsState.limitStop(term: TerminalInfo): LimitStop? =
+    term.limitStop?.takeIf { it != dismissedLimitStops[term.id] }
+
+/** Put the bar away here at once; the Mac drops the stop and lists the tab again. */
+fun TerminalsStore.dismissLimitStop(term: TerminalInfo) {
+    val stop = term.limitStop ?: return
+    setLimitStopDismissed(term.id, stop)
+    client?.dismissLimitStop(term.project, term.id)
+}

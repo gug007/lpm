@@ -4,7 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const bridge = vi.hoisted(() => ({
-  MoveClaudeTabToAccount: vi.fn(async () => ({ moved: true, interrupted: false })),
+  MoveClaudeTabToAccount: vi.fn(async () => ({ moved: true, carriesOn: false })),
   StartTerminal: vi.fn(async () => "pty-2"),
   StartTerminalForRestore: vi.fn(async () => "pty-2"),
   StopTerminal: vi.fn(async () => {}),
@@ -56,7 +56,7 @@ function Harness() {
 beforeEach(() => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   vi.clearAllMocks();
-  bridge.MoveClaudeTabToAccount.mockResolvedValue({ moved: true, interrupted: false });
+  bridge.MoveClaudeTabToAccount.mockResolvedValue({ moved: true, carriesOn: false });
   useClaudeSwitches.setState({ switches: {} });
   useAccountsStore.setState({ accounts: [{ id: "work", label: "Work" }] });
   treeRef.current = makePaneLeaf("p1", [
@@ -82,7 +82,7 @@ describe("useClaudeAccountSwitch", () => {
     bridge.MoveClaudeTabToAccount.mockImplementation(async () => {
       shownWhileMoving = collectTerminals(treeRef.current!)[0].id;
       coveredWhileMoving = useClaudeSwitches.getState().switches.h1?.to;
-      return { moved: true, interrupted: false };
+      return { moved: true, carriesOn: false };
     });
     await switchAccount("pty-1", "work");
     expect(bridge.StartTerminal).toHaveBeenCalledWith("web", undefined, undefined, undefined, "work");
@@ -95,8 +95,8 @@ describe("useClaudeAccountSwitch", () => {
     expect(scheduleCmdInject).toHaveBeenCalledWith("pty-2", "claude --resume abc", undefined);
   });
 
-  it("carries on a turn the move interrupted", async () => {
-    bridge.MoveClaudeTabToAccount.mockResolvedValue({ moved: true, interrupted: true });
+  it("carries on a turn cut short by the move or by its account's limit", async () => {
+    bridge.MoveClaudeTabToAccount.mockResolvedValue({ moved: true, carriesOn: true });
     await switchAccount("pty-1", "work");
     expect(scheduleCmdInject).toHaveBeenCalledWith(
       "pty-2",
@@ -107,7 +107,7 @@ describe("useClaudeAccountSwitch", () => {
   });
 
   it("starts the session afresh when nothing was saved yet", async () => {
-    bridge.MoveClaudeTabToAccount.mockResolvedValue({ moved: false, interrupted: false });
+    bridge.MoveClaudeTabToAccount.mockResolvedValue({ moved: false, carriesOn: false });
     await switchAccount("pty-1", "work");
     expect(scheduleCmdInject).toHaveBeenCalledWith("pty-2", "claude --session-id abc", undefined);
   });

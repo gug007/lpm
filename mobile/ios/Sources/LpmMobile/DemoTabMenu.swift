@@ -52,6 +52,7 @@ extension DemoServer {
             moved.claudeAccount = account
             moved.switchingTo = name
             moved.switchedFrom = id
+            moved.limitStop = nil
             self.world.terminals[project]?[index] = moved
             self.push(self.world.terminalsPayload(project))
             if let p = self.world.projectIndex(project), self.world.projects[p].status.contains(where: { $0.paneID == id }) {
@@ -67,6 +68,15 @@ extension DemoServer {
                 self.world.terminals[project]?[i].switchedFrom = nil
                 return self.world.terminalsPayload(project)
             }
+        }
+        // The limit bar put away, as its × does on the Mac.
+        register("dismissLimitStop") { [weak self] o in
+            guard let self, let project = o["project"] as? String, let id = o["id"] as? String else { return }
+            self.push(["t": "dismissLimitStop", "ok": true])
+            guard let index = self.world.terminals[project]?.firstIndex(where: { $0.id == id }),
+                  self.world.terminals[project]?[index].limitStop != nil else { return }
+            self.world.terminals[project]?[index].limitStop = nil
+            self.push(self.world.terminalsPayload(project))
         }
         register("closeOtherTerminals") { [weak self] o in
             guard let self, let project = o["project"] as? String, let id = o["id"] as? String else { return }

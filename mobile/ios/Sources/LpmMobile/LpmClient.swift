@@ -1011,6 +1011,9 @@ final class LpmClient: NSObject {
     func switchTerminalAccount(project: String, id: String, account: String) {
         send(Wire.switchTerminalAccount(project: project, id: id, account: account))
     }
+    func dismissLimitStop(project: String, id: String) {
+        send(Wire.dismissLimitStop(project: project, id: id))
+    }
     func forkTerminalCopy(project: String, id: String) { send(Wire.forkTerminalCopy(project: project, id: id)) }
     func titleTerminal(project: String, id: String) { send(Wire.titleTerminal(project: project, id: id)) }
     func closeOtherTerminals(project: String, id: String) {

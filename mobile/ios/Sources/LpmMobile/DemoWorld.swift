@@ -146,6 +146,8 @@ struct DemoWorld {
         var switchedFrom: String?
         // The tab's own identity, kept when it moves to a new terminal; its id until then.
         var tabKey: String?
+        // A Claude tab whose turn stopped at a usage limit, as the Mac lists it.
+        var limitStop: [String: Any]?
     }
 
     var terminals: [String: [Terminal]] = [:] // project -> terminals
@@ -742,6 +744,7 @@ extension DemoWorld {
         if agent && !t.remote { d["claudeAccount"] = t.claudeAccount }
         if let to = t.switchingTo { d["switchingTo"] = to }
         if let from = t.switchedFrom { d["switchedFrom"] = from }
+        if let stop = t.limitStop { d["limitStop"] = stop }
         return d
     }
 

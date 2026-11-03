@@ -26,6 +26,7 @@ import { ServiceTabContextMenu } from "./terminal/ServiceTabContextMenu";
 import { ServiceExitBar } from "./terminal/ServiceExitBar";
 import { ServicePortLinks } from "./terminal/ServicePortLinks";
 import { ServiceCommand } from "./terminal/ServiceCommand";
+import { LimitStopBar } from "./terminal/LimitStopBar";
 import { TerminalEndedBar } from "./terminal/TerminalEndedBar";
 import { useEndedTerminals } from "../store/endedTerminals";
 import { IconBtn } from "./terminal/IconBtn";
@@ -977,6 +978,13 @@ function PaneViewImpl(props: PaneViewProps) {
             show={composerStatus?.state !== "working"}
           />
         </div>
+      )}
+      {composerTab && composerEnded === undefined && isClaudeTab(composerTab) && (
+        <LimitStopBar
+          projectName={projectName}
+          terminalId={composerTab.id}
+          onContinue={switchAccount ? (account, label) => switchAccount(composerTab.id, account, label) : undefined}
+        />
       )}
       {composerTab && composerEnded !== undefined ? (
         <TerminalEndedBar

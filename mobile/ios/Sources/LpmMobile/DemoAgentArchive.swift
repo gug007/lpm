@@ -67,8 +67,16 @@ extension DemoServer {
 }
 
 extension DemoWorld {
+    /// The main login's weekly limit, which stopped design-system's Claude tab;
+    /// Work has room to carry the conversation on.
+    static func weeklyLimitStop(nowS: Int) -> [String: Any] {
+        ["kind": "limit", "account": claudeMainLogin, "accountLabel": "Main login", "window": "weekly",
+         "resetsAt": nowS + 62 * 3600,
+         "offer": ["account": "work", "label": "Work", "fiveHour": 18, "weekly": 41, "near": false]]
+    }
+
     /// Agents opened earlier and kept, muted, under their projects: two finished
-    /// turns in mobile-app and a problem in design-system, each in a tab of its own.
+    /// turns in mobile-app and a weekly limit in design-system, each in a tab of its own.
     mutating func seedSeenAgents(nowMs: Int) {
         let minute = 60_000
         func tab(_ project: String, _ cli: String, _ label: String, prompt: String, reply: String) -> Terminal {
@@ -91,10 +99,11 @@ extension DemoWorld {
             tab("mobile-app", "codex", "Remove unused deps", prompt: "Remove dependencies nothing imports",
                 reply: "Removed 4 unused packages from package.json."),
         ]
-        terminals["design-system"] = [
-            tab("design-system", "claude", "Fix flaky snapshot test", prompt: "Fix the flaky Button snapshot test",
-                reply: "The snapshot still differs on CI: fonts render differently there."),
-        ]
+        var stopped = tab("design-system", "claude", "Fix flaky snapshot test",
+                          prompt: "Fix the flaky Button snapshot test",
+                          reply: "The snapshot still differs on CI: fonts render differently there.")
+        stopped.limitStop = Self.weeklyLimitStop(nowS: nowMs / 1000)
+        terminals["design-system"] = [stopped]
         if let idx = projectIndex("mobile-app") {
             projects[idx].seen = [
                 seen("claude_code_demo-mobile-app-claude", "Done", pane: "demo-mobile-app-claude",

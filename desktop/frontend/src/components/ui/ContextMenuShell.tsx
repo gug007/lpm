@@ -8,6 +8,9 @@ type ContextMenuShellProps = {
   // (default) or its right, for a menu hanging from a control at the right of
   // its container.
   align?: "start" | "end";
+  // Which side of the anchor the menu opens on: below it (default), or above,
+  // for a control at the bottom of the window.
+  side?: "bottom" | "top";
   minWidth?: number;
   // The control that opened the menu (the anchor, unless given). Pressing it is
   // not an outside click, so its own click can close the menu again.
@@ -42,6 +45,7 @@ export function ContextMenuShell({
   x,
   y,
   align = "start",
+  side = "bottom",
   anchor,
   minWidth = 160,
   trigger,
@@ -83,22 +87,22 @@ export function ContextMenuShell({
   const place = () => {
     const el = ref.current;
     if (!el) return;
+    const { width, height } = el.getBoundingClientRect();
     let px: number, py: number;
     if (anchor) {
       const r = anchor.getBoundingClientRect();
       px = align === "end" ? r.right : r.left;
-      py = r.bottom + ANCHOR_GAP;
+      py = side === "top" ? r.top - ANCHOR_GAP - height : r.bottom + ANCHOR_GAP;
     } else {
       px = x;
       py = y;
     }
-    const { width, height } = el.getBoundingClientRect();
     const anchored = align === "end" ? px - width : px;
     const left = Math.max(VIEWPORT_MARGIN, Math.min(anchored, window.innerWidth - width - VIEWPORT_MARGIN));
     const top = Math.max(VIEWPORT_MARGIN, Math.min(py, window.innerHeight - height - VIEWPORT_MARGIN));
     setPos((prev) => (prev.left === left && prev.top === top ? prev : { left, top }));
   };
-  useLayoutEffect(place, [x, y, align, anchor]);
+  useLayoutEffect(place, [x, y, align, side, anchor]);
 
   // Capture-phase: scrolls inside a container don't bubble to the window.
   useEventListener(

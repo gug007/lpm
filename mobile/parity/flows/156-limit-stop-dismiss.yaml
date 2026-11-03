@@ -1,0 +1,21 @@
+# The limit bar's × puts it away, on the Mac and here.
+appId: cx.lpm.mobile
+name: 156-limit-stop-dismiss
+tags: [demo, terminal, claude]
+---
+- runFlow: subflows/enter-demo.yaml
+- tapOn: "design-system"
+# The home list names the tab too, as a seen agent: wait for the project's own tabs.
+- extendedWaitUntil:
+    visible: "New tab"
+    timeout: 5000
+- tapOn: "Fix flaky snapshot test.*"
+- extendedWaitUntil:
+    visible: "Main login hit its weekly limit.*"
+    timeout: 5000
+- tapOn: "Dismiss"
+- extendedWaitUntil:
+    notVisible: "Main login hit its weekly limit.*"
+    timeout: 5000
+- assertNotVisible: "Continue on Work"
+- takeScreenshot: 1-dismissed

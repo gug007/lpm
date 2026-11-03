@@ -2709,6 +2709,14 @@ fn handle_frame(conn: &Arc<PeerConn>, app: Option<&AppHandle>, txt: &str) {
                 note_size(conn, app, id, &v);
             }
         }
+        // Who holds a terminal a window here shows: a window on the host, a
+        // phone or another Mac, named by `elsewhere`, or this Mac when it's null.
+        "owner" => {
+            if let (Some(app), Some(id)) = (app, v.get("id").and_then(Value::as_str)) {
+                let elsewhere = v.get("elsewhere").and_then(Value::as_str);
+                crate::control::note_away(app, &format!("peer-{slug}-{id}"), elsewhere);
+            }
+        }
         "shareInfo" => {
             if let Some(hub) = app.and_then(|a| a.try_state::<PeerClientHub>()) {
                 hub.note_share_info(slug, &v);

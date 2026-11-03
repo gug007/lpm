@@ -104,6 +104,7 @@ internal fun terminalDict(t: DemoWorld.Terminal): Dict {
         if (agent && !t.remote) put("claudeAccount", t.claudeAccount)
         t.switchingTo?.let { put("switchingTo", it) }
         t.switchedFrom?.let { put("switchedFrom", it) }
+        t.limitStop?.let { put("limitStop", it) }
     }
 }
 

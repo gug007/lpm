@@ -17,6 +17,7 @@ import cx.lpm.mobile.core.data.client.sendInput
 import cx.lpm.mobile.core.data.session.GenerationTimeout
 import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.data.session.SessionStore
+import cx.lpm.mobile.core.model.LimitStop
 import cx.lpm.mobile.core.model.TerminalInfo
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -378,6 +379,10 @@ class TerminalsStore(internal val session: MacSession) : SessionStore {
                 }
             )
         }
+    }
+
+    internal fun setLimitStopDismissed(id: String, stop: LimitStop) {
+        mutable.update { it.copy(dismissedLimitStops = it.dismissedLimitStops + (id to stop)) }
     }
 
     override fun flushPending() = finishPendingTabClose()

@@ -1327,9 +1327,10 @@ function getOrCreateInteractiveSession(
 // whole point — could never claim. No-op when it's a background tab, the window
 // isn't focused, or this window already owns it (so re-focusing doesn't re-claim).
 //
-// A peer terminal is claimed on every focus: its host may have handed it to one
-// of its own windows since, which this Mac can't see, and a repeat claim is a
-// no-op there. The claim also takes back the size the host may have set.
+// A peer terminal is claimed on every focus: a host from before the `owner`
+// frame never says it handed the terminal to one of its own windows, and a
+// repeat claim is a no-op there. The claim also takes back the size the host may
+// have set.
 function claimIfActive(session: InteractiveSession, terminalId: string): void {
   if (!session.presenting) return;
   if (!document.hasFocus()) return;

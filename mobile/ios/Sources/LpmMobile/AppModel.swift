@@ -298,6 +298,9 @@ final class AppModel {
     // terminal id -> the Claude account name this phone asked it to move to,
     // until the Mac lists the move.
     var accountMoves: [String: String] = [:]
+    // terminal id -> the limit stop its bar showed when put away here; a later
+    // stop on the same tab shows again.
+    var dismissedLimitStops: [String: LimitStop] = [:]
     // A failed duplicate/remove message to show once (e.g. "cannot duplicate an
     // SSH project"). The list itself refreshes off the projects-changed push.
     var actionError: String? {

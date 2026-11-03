@@ -1,0 +1,32 @@
+# A Claude tab that stopped at its account's usage limit says so above the composer,
+# as the desktop's bar does: the account that ran out, when it resets, and the
+# account with room. Continue moves the conversation there, in the same tab.
+appId: cx.lpm.mobile
+name: 155-limit-stop
+tags: [demo, terminal, claude]
+---
+- runFlow: subflows/enter-demo.yaml
+- tapOn: "design-system"
+# The home list names the tab too, as a seen agent: wait for the project's own tabs.
+- extendedWaitUntil:
+    visible: "New tab"
+    timeout: 5000
+- tapOn: "Fix flaky snapshot test.*"
+- extendedWaitUntil:
+    visible: "Main login hit its weekly limit.*"
+    timeout: 5000
+- assertVisible: "Work has room · 5-hour 18% · weekly 41%"
+- assertVisible: "Other account"
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 1-limit-bar
+- tapOn: "Continue on Work"
+# The tab carries on under its name, on Work, and the bar is gone.
+- extendedWaitUntil:
+    notVisible: "Main login hit its weekly limit.*"
+    timeout: 8000
+- assertVisible: "Fix flaky snapshot test"
+- assertNotVisible: "Continue on Work"
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 2-moved

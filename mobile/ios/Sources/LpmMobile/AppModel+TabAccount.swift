@@ -15,10 +15,14 @@ extension AppModel {
     /// Continue the tab's conversation on `account`. The tab is covered at once,
     /// and for as long as the Mac lists it moving.
     func switchTerminalAccount(_ term: TerminalInfo, to account: ClaudeAccountInfo) {
-        guard canSwitchTabAccounts, term.canSwitchAccount, account.id != term.claudeAccount else { return }
+        switchTerminalAccount(term, to: account.id, label: account.label)
+    }
+
+    func switchTerminalAccount(_ term: TerminalInfo, to account: String, label: String) {
+        guard canSwitchTabAccounts, term.canSwitchAccount, account != term.claudeAccount else { return }
         Haptics.tap()
-        accountMoves[term.id] = account.label
-        client?.switchTerminalAccount(project: term.project, id: term.id, account: account.id)
+        accountMoves[term.id] = label
+        client?.switchTerminalAccount(project: term.project, id: term.id, account: account)
         reloadTerminalsSoon(term.project)
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.accountMoveWait) { [weak self] in
             self?.accountMoves[term.id] = nil
@@ -35,5 +39,21 @@ extension AppModel {
     /// this phone just asked.
     func accountMove(for term: TerminalInfo) -> String? {
         term.switchingTo ?? accountMoves[term.id]
+    }
+}
+
+/// A Claude tab stopped at a usage limit: its bar, and the move it offers.
+extension AppModel {
+    /// The stop a terminal's bar shows: as the Mac lists it, unless put away here.
+    func limitStop(for term: TerminalInfo) -> LimitStop? {
+        guard let stop = term.limitStop, dismissedLimitStops[term.id] != stop else { return nil }
+        return stop
+    }
+
+    /// Put the bar away here at once; the Mac drops the stop and lists the tab again.
+    func dismissLimitStop(_ term: TerminalInfo) {
+        Haptics.tap()
+        dismissedLimitStops[term.id] = term.limitStop
+        client?.dismissLimitStop(project: term.project, id: term.id)
     }
 }

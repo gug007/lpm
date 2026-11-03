@@ -3494,6 +3494,13 @@ fn handle_msg(
             }
             send(ws, json!({ "t": t, "ok": true }))?;
         }
+        // A Claude tab's limit bar put away on the phone, as its × does on the Mac.
+        "dismissLimitStop" => {
+            if let Some(id) = str_field("id") {
+                crate::claude_limit_stops::take(&id);
+            }
+            send(ws, json!({ "t": t, "ok": true }))?;
+        }
         // Reorder a project's terminal tabs — same owner-window relay, but carries
         // the full new id order instead of a single id.
         "reorderTerminals" => {
@@ -6425,6 +6432,11 @@ pub fn project_terminals(app: &AppHandle, hub: &RemoteHub, project: &str) -> Vec
         None if tabs::restoring(hub, project) => Vec::new(),
         None => terms,
     };
+    // Read before the hub's maps are locked: a stop's offer reads account files.
+    let stops: HashMap<String, Value> = terms
+        .iter()
+        .filter_map(|t| Some((t.id.clone(), json!(crate::claude_limit_stops::view(&t.id)?))))
+        .collect();
     // Attach the desktop's tab label to each terminal (falling back to the id
     // when the frontend hasn't registered one, e.g. an unopened project).
     let labels = hub.inner.labels.lock().unwrap();
@@ -6461,6 +6473,9 @@ pub fn project_terminals(app: &AppHandle, hub: &RemoteHub, project: &str) -> Vec
                     .write(m, t.claude_account.as_deref());
                 if let Some(key) = tab_keys.get(&t.id) {
                     m.insert("tabKey".into(), json!(key));
+                }
+                if let Some(stop) = stops.get(&t.id) {
+                    m.insert("limitStop".into(), stop.clone());
                 }
             }
             o

@@ -12,17 +12,7 @@ struct TabClaudeAccountMenu: View {
         if model.canSwitchTabAccounts, term.canSwitchAccount,
            let accounts = model.claudeAccounts, accounts.hasAdded {
             Menu {
-                Section(working ? "Interrupt this turn and continue it on" : "Continue this conversation on") {
-                    ForEach(accounts.accounts) { a in
-                        let current = a.id == term.claudeAccount
-                        Button { model.switchTerminalAccount(term, to: a) } label: {
-                            ClaudeChoiceLabel(title: a.label,
-                                              subtitle: a.signedIn ? usage(a.id) : "Not signed in",
-                                              on: current)
-                        }
-                        .disabled(!a.signedIn && !current)
-                    }
-                }
+                TabClaudeAccountChoices(term: term, working: working, accounts: accounts)
             } label: {
                 Label {
                     Text("Claude Account")
@@ -30,6 +20,29 @@ struct TabClaudeAccountMenu: View {
                 } icon: {
                     Image(systemName: "person.crop.circle")
                 }
+            }
+        }
+    }
+}
+
+/// The Mac's accounts a Claude tab can continue its conversation on, the one it
+/// runs as checked: the tab menu's Claude Account, and a limit bar's Other account.
+struct TabClaudeAccountChoices: View {
+    @Environment(AppModel.self) private var model
+    let term: TerminalInfo
+    let working: Bool
+    let accounts: ClaudeAccounts
+
+    var body: some View {
+        Section(working ? "Interrupt this turn and continue it on" : "Continue this conversation on") {
+            ForEach(accounts.accounts) { a in
+                let current = a.id == term.claudeAccount
+                Button { model.switchTerminalAccount(term, to: a) } label: {
+                    ClaudeChoiceLabel(title: a.label,
+                                      subtitle: a.signedIn ? usage(a.id) : "Not signed in",
+                                      on: current)
+                }
+                .disabled(!a.signedIn && !current)
             }
         }
     }

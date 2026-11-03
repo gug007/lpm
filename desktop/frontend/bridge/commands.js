@@ -1071,6 +1071,12 @@ export function TerminalClaudeAccount(id) {
 export function MoveClaudeTabToAccount(projectName, terminalId, sessionId, account) {
   return invoke("move_claude_tab_to_account", { projectName, terminalId, sessionId, account });
 }
+export function ClaudeLimitStop(terminalId) {
+  return invoke("claude_limit_stop", { terminalId });
+}
+export function DismissClaudeLimitStop(terminalId) {
+  return invoke("dismiss_claude_limit_stop", { terminalId });
+}
 export function MoveProjectRoot(name, newRoot) {
   return invoke("move_project_root", { name, newRoot });
 }

@@ -16,10 +16,15 @@ import cx.lpm.mobile.core.data.terminals.TerminalHooks
 import cx.lpm.mobile.core.data.terminals.TerminalsState
 import cx.lpm.mobile.core.data.terminals.TerminalsStore
 import cx.lpm.mobile.core.data.terminals.accountMove
+import cx.lpm.mobile.core.data.terminals.canSwitchTabAccounts
 import cx.lpm.mobile.core.data.terminals.closeTerminal
+import cx.lpm.mobile.core.data.terminals.dismissLimitStop
+import cx.lpm.mobile.core.data.terminals.limitStop
 import cx.lpm.mobile.core.data.terminals.movedTab
 import cx.lpm.mobile.core.data.terminals.restoredTab
+import cx.lpm.mobile.core.data.terminals.switchTerminalAccount
 import cx.lpm.mobile.core.model.AgentState
+import cx.lpm.mobile.core.model.LimitStop
 import cx.lpm.mobile.core.model.Project
 import cx.lpm.mobile.core.model.TerminalInfo
 import cx.lpm.mobile.core.model.agentRowsByTerminal
@@ -221,6 +226,9 @@ class TerminalViewModel @AssistedInject constructor(
             canRestart = terminals?.canRestartTerminals == true,
             reopened = reopen,
             accountMove = terminal?.let(t::accountMove),
+            limitStop = terminal?.let(t::limitStop),
+            canSwitchAccount =
+                terminals?.canSwitchTabAccounts == true && terminal?.canSwitchAccount == true,
             connectionReady = s.isReady,
             statusLine = link.statusLine.takeUnless { s.demoMode || s.isReady },
             look = look,
@@ -283,6 +291,19 @@ class TerminalViewModel @AssistedInject constructor(
         val store = terminals ?: return
         val terminal = uiState.value.terminal ?: return
         store.restartTerminal(terminal)
+    }
+
+    /** Carry the stopped conversation on with the account the Mac offers. False when nothing was sent. */
+    fun continueAfterLimit(offer: LimitStop.Offer): Boolean {
+        val store = terminals ?: return false
+        val terminal = uiState.value.terminal ?: return false
+        return store.switchTerminalAccount(terminal, offer.account, offer.label)
+    }
+
+    fun dismissLimitStop() {
+        val store = terminals ?: return
+        val terminal = uiState.value.terminal ?: return
+        store.dismissLimitStop(terminal)
     }
 
     fun closeTab() {

@@ -270,6 +270,9 @@ enum Wire {
     static func switchTerminalAccount(project: String, id: String, account: String) -> String {
         json(["t": "switchTerminalAccount", "project": project, "id": id, "account": account])
     }
+    static func dismissLimitStop(project: String, id: String) -> String {
+        json(["t": "dismissLimitStop", "project": project, "id": id])
+    }
     static func reorderTerminals(project: String, order: [String]) -> String {
         json(["t": "reorderTerminals", "project": project, "order": order])
     }
@@ -2066,6 +2069,8 @@ struct TerminalInfo: Identifiable, Hashable {
     // terminal the tab ran before, which a screen showing it follows here.
     let switchingTo: String?
     let switchedFrom: String?
+    // A Claude tab whose turn stopped at a usage limit, while that still holds.
+    let limitStop: LimitStop?
 
     init(_ o: [String: Any]) {
         id = o["id"] as? String ?? ""
@@ -2086,6 +2091,7 @@ struct TerminalInfo: Identifiable, Hashable {
         claudeAccount = o["claudeAccount"] as? String
         switchingTo = o["switchingTo"] as? String
         switchedFrom = o["switchedFrom"] as? String
+        limitStop = LimitStop(o["limitStop"] as? [String: Any])
     }
 }
 

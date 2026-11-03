@@ -20,7 +20,8 @@ import { whenClaudeBack } from "./claudeBack";
 import { replaceTabTerminal, terminalTabOf } from "./replaceTabTerminal";
 import { foldAgentPrompt } from "./util";
 
-// Sent to a conversation whose turn the move interrupted, so the work goes on.
+// Sent to a conversation whose turn was cut short, by the move or by its
+// account's limit, so the work goes on.
 const CONTINUE_PROMPT = "Continue where you left off.";
 
 interface UseClaudeAccountSwitchProps {
@@ -72,7 +73,7 @@ export function useClaudeAccountSwitch({
             : StartTerminal(projectName, undefined, undefined, undefined, account),
         );
         if (!newId) return;
-        const { moved, interrupted } = await MoveClaudeTabToAccount(
+        const { moved, carriesOn: cutShort } = await MoveClaudeTabToAccount(
           projectName,
           oldId,
           sessionId,
@@ -86,7 +87,7 @@ export function useClaudeAccountSwitch({
         // Nothing saved yet means nothing to resume: start the session afresh.
         const cmd = moved ? tab.resumeCmd : tab.startCmd;
         if (!cmd) return;
-        const carriesOn = moved && interrupted;
+        const carriesOn = moved && cutShort;
         const launch = carriesOn ? foldAgentPrompt(cmd, CONTINUE_PROMPT) : { cmd };
         const back = whenClaudeBack(projectName, newId, carriesOn ? "working" : "settled");
         scheduleCmdInject(newId, launch.cmd, launch.prompt);

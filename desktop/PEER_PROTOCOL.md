@@ -893,8 +893,20 @@ follows the same rules as a host window, reported by the client:
   `claim` and `present` are ignored for a terminal the host doesn't have. A tab
   that opened only because the other Mac opened its terminal presents for its
   first moments instead of claiming, so control stays with the Mac that opened
-  it. A focused client window re-sends `claim` on every focus, since it can't see
-  a host window taking control in between.
+  it. A focused client window re-sends `claim` on every focus, so a host that
+  predates `owner` still hands it back.
+
+- host → client `{ "t": "owner", "id", "elsewhere" }` — who holds a terminal the
+  client shows: `elsewhere` names the machine (for a host window) or the phone or
+  other Mac that does, and is `null` when the client holds it or nobody does. Sent
+  to every paired Mac presenting the terminal whenever its owner changes, and in
+  answer to a `claim` or `present` that changed nothing. While `elsewhere` is set,
+  the client's windows show "Active in <elsewhere>" with Take control; a `claim`
+  from one of them clears it there at once.
+
+`resize_terminal` from a client is applied only while that client holds the
+terminal or nobody does; otherwise it is answered `null` and dropped, so a host
+window, phone or other Mac that holds it keeps rendering at the size it set.
 
 `unsub` releases control like `unpresent`. On disconnect the host drops that
 surface from every terminal, so control transfers back to a host window instead
@@ -902,7 +914,9 @@ of stranding on a gone client.
 
 **Compatibility.** A host that predates `ctl` ignores the frame and the `claim`
 field, and claims on every `sub` as before. A client that predates `ctl` sends
-`sub` without `claim`, so a current host still claims for it.
+`sub` without `claim`, so a current host still claims for it. A client that
+predates `owner` ignores the frame and keeps rendering a terminal it doesn't
+hold; its resizes are dropped until it claims again on focus.
 
 ## Tab sharing (guests)
 
@@ -1076,9 +1090,6 @@ most every 2 s per guest), `peer-joined-changed`, `peer-share-join-pending` and
   host Mac*. Pair only Macs you control. The denylist (`is_denied` in `peer.rs`)
   blocks app-meta, control-ownership, and global-mutator commands as defense in
   depth, but is not a sandbox.
-- **The client never shows a "Take control" placeholder.** The host doesn't
-  push ownership changes to the client, so a client window keeps rendering a
-  terminal a host window has taken, until it is focused again and re-claims.
 
 ### Threat model — why the channel is pinned
 

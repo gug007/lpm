@@ -16,6 +16,9 @@
     <string name="terminal_has_ended">%1$s has ended — it no longer takes input.</string>
     <string name="terminal_restart">Restart</string>
     <string name="terminal_close_tab">Close tab</string>
+    <string name="terminal_limit_continue">Continue on %1$s</string>
+    <string name="terminal_limit_other_account">Other account</string>
+    <string name="terminal_limit_dismiss">Dismiss</string>
 
     <!-- Terminal settings -->
     <string name="terminal_settings_title">Terminal</string>

@@ -2,6 +2,7 @@ package cx.lpm.mobile.core.data.terminals
 
 import cx.lpm.mobile.core.model.ControlOwner
 import cx.lpm.mobile.core.model.HistoryRow
+import cx.lpm.mobile.core.model.LimitStop
 import cx.lpm.mobile.core.model.MentionEntry
 import cx.lpm.mobile.core.model.SlashCommand
 import cx.lpm.mobile.core.model.TerminalInfo
@@ -75,7 +76,12 @@ data class TerminalsState(
      * terminal id → the Claude account name this phone asked it to move to, until the
      * Mac lists the move.
      */
-    val accountMoves: Map<String, String> = emptyMap()
+    val accountMoves: Map<String, String> = emptyMap(),
+    /**
+     * terminal id → the limit stop its bar showed when put away here; a later stop on the
+     * same tab shows again.
+     */
+    val dismissedLimitStops: Map<String, LimitStop> = emptyMap()
 ) {
     /** project → terminal id → tab name, for naming agent rows on Activity. */
     val terminalTitles: Map<String, Map<String, String>>

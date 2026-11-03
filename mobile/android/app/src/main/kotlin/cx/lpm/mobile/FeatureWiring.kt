@@ -10,6 +10,7 @@ import cx.lpm.mobile.feature.actions.run.BackgroundRunsSection
 import cx.lpm.mobile.feature.automations.AutomationsSlots
 import cx.lpm.mobile.feature.claudeaccount.ClaudeAccountMenuRoute
 import cx.lpm.mobile.feature.claudeaccount.ClaudeConsentPromptRoute
+import cx.lpm.mobile.feature.claudeaccount.TabClaudeAccountChoicesRoute
 import cx.lpm.mobile.feature.claudeaccount.TabClaudeAccountMenuRoute
 import cx.lpm.mobile.feature.config.ConfigSlots
 import cx.lpm.mobile.feature.connection.ConnectionStatusBarRoute
@@ -87,6 +88,7 @@ internal fun terminalSlots(navigator: Navigator, projects: ProjectsSlots) = Term
             slots = projects
         )
     },
+    tabAccountChoices = { session, term -> TabClaudeAccountChoicesRoute(session, term) },
     connectionBanner = { session -> TerminalConnectionBannerRoute(session = session) },
     memorySheet = { project, cli, onInvocation, onDismiss ->
         ComposerMemorySheet(

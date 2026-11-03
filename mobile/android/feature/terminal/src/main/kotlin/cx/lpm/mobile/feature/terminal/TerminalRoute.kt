@@ -140,6 +140,26 @@ internal fun TerminalRoute(
                         )
                     }
                 },
+                limitBar = {
+                    state.shownLimitStop?.let { stop ->
+                        TerminalLimitStopBar(
+                            stop = stop,
+                            canContinue = state.canSwitchAccount,
+                            onContinue = { offer ->
+                                if (viewModel.continueAfterLimit(offer)) {
+                                    haptics.performHapticFeedback(HapticFeedbackType.ContextClick)
+                                }
+                            },
+                            onDismiss = {
+                                haptics.performHapticFeedback(HapticFeedbackType.ContextClick)
+                                viewModel.dismissLimitStop()
+                            },
+                            otherAccounts = slots.tabAccountChoices?.let { choices ->
+                                { choices(this, key.session, terminal) }
+                            }
+                        )
+                    }
+                },
                 composer = {
                     ComposerRoute(
                         target = ComposerTarget(

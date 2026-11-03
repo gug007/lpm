@@ -401,7 +401,8 @@ holds no credential of its own, so removing it sends nothing.
 | `{ "t": "forkTerminal", "project": "<name>", "id": "<termId>" }` | `{ "t": "forkTerminal", "ok": true }` — relay; the desktop's **Fork session**: a new tab beside this one continues its agent conversation while the original keeps running. The fork arrives on a later `terminals` push. Only for a terminal listed with `canFork`, and only when `features` has `"tabMenu"` |
 | `{ "t": "forkTerminalCopy", "project": "<name>", "id": "<termId>" }` | `{ "t": "forkTerminalCopy", "ok": true }` — relay; the desktop's **Fork into copy**: makes one copy of the project (working tree as it is, nothing pulled) and continues the conversation in a tab there. The copy arrives on the projects list. Ask before sending it, as the desktop does — the Mac doesn't. Only for a terminal listed with `canForkCopy`, and only when `features` has `"tabMenu"` |
 | `{ "t": "titleTerminal", "project": "<name>", "id": "<termId>" }` | `{ "t": "titleTerminal", "ok": true }` — relay; the desktop's **Use conversation title**: the tab drops its manual name and follows its agent conversation's title again. Only for a terminal listed with `canTitle`, and only when `features` has `"tabMenu"` |
-| `{ "t": "switchTerminalAccount", "project": "<name>", "id": "<termId>", "account": "<id>" }` | `{ "t": "switchTerminalAccount", "ok": true }` — relay; the desktop's tab menu › **Claude account**: continues the tab's Claude conversation on another of the Mac's accounts (`id` from `claudeAccounts`, `"default"` for the main login). The Mac interrupts a turn in progress as Esc does, moves the conversation's own files to that account, and resumes it in the same tab under a **new** id, sending "Continue where you left off." when it interrupted a turn. While it does, the `terminals` push lists the new terminal with `switchingTo` and `switchedFrom` (see Terminal). Only for a terminal listed with `canSwitchAccount`, never to an account that isn't signed in, and only when `features` has `"tabAccount"` |
+| `{ "t": "switchTerminalAccount", "project": "<name>", "id": "<termId>", "account": "<id>" }` | `{ "t": "switchTerminalAccount", "ok": true }` — relay; the desktop's tab menu › **Claude account**: continues the tab's Claude conversation on another of the Mac's accounts (`id` from `claudeAccounts`, `"default"` for the main login). The Mac interrupts a turn in progress as Esc does, moves the conversation's own files to that account, and resumes it in the same tab under a **new** id, sending "Continue where you left off." when it interrupted a turn or the tab had stopped at a limit (`limitStop`). While it does, the `terminals` push lists the new terminal with `switchingTo` and `switchedFrom` (see Terminal). Only for a terminal listed with `canSwitchAccount`, never to an account that isn't signed in, and only when `features` has `"tabAccount"` |
+| `{ "t": "dismissLimitStop", "project": "<name>", "id": "<termId>" }` | `{ "t": "dismissLimitStop", "ok": true }` — puts away the tab's limit bar on the Mac and every phone, as its × does on the desktop; the next `terminals` push lists it without `limitStop`. Sent only for a terminal listed with `limitStop` |
 | `{ "t": "closeOtherTerminals", "project": "<name>", "id": "<termId>" }` | `{ "t": "closeOtherTerminals", "ok": true }` — relay; closes every other **unpinned** terminal of the project, in any of the desktop's panes, at once, and keeps `id`. Pinned tabs and the desktop's browser, files and other non-terminal tabs stay. Ask before sending it. Only when `features` has `"tabMenu"` |
 | `{ "t": "duplicate", "name": "<name>", "count": N, "labels": ["<per-copy>"…], "groupName": "<folder>", "excludeUncommitted": bool, "reinstallDeps": bool, "pullLatest": bool, "runMode": "none"\|"action"\|"command", "action": "<actionName>", "command": "<cmd>", "prompt": "<text>" }` | Streams `{ "t": "duplicateProgress", "done": i, "total": N, "name": "<copy>" }` per copy as they're created, then a final `{ "t": "duplicate", "ok": true, "name": "<first>", "names": [...], "warning": "…"? }` / `{ "ok": false, "error": "…" }` — clones the project, mirroring the desktop modal. Rust creates each copy directly (works with no main window) with `labels[i]` as copy i's display label (blank → auto-named); `groupName` groups them under a sidebar folder (replicating the desktop's applySidebarLayout — writes groups.json + settings.json). The three git toggles default false (phone seeds `pullLatest` true from settings). **runMode** `action`/`command`: after creation, each copy's task is relayed to the main window (`remote-run-task`) which runs it in the copy's terminal (types the command, seeds the AI `prompt`) — **that step needs the desktop main window open**; if it's closed, copies are still made and the reply carries a `warning`. Copies also reach the phone via `projects-changed`. `name` = first copy; `names` = all created |
 | `{ "t": "duplicateDefaults" }` | `{ "t": "duplicateDefaults", "excludeUncommitted": bool, "reinstallDeps": bool, "pullLatest": bool }` — the desktop's persisted duplicate-modal toggle defaults (from `settings.json`), so the phone's duplicate modal opens with the same initial state. Fallbacks mirror the desktop: `excludeUncommitted`/`reinstallDeps` default false, `pullLatest` defaults true |
@@ -925,6 +926,11 @@ Mac pushes the same way to every device with any notification on:
 `{ "serverId", "target": "keepAwake", "title", "body", "ts", "key": "keepAwake" }`
 (`title` like "Studio can sleep in 5 min"). Show `title` and `body` as given, and
 open that Mac's connection page, where Keep awake is, when it's tapped.
+
+An `Error` alert for a Claude tab that stopped at a usage limit (see LimitStop) carries
+`"summary"`: what stopped and where the conversation can go on, e.g. "Main login hit its
+weekly limit. Tap to continue on Claude 2." Show it as the body, as for a finish; tapping
+opens the terminal, whose bar does the moving.
 
 A `Done` alert also carries what the turn left behind, when the Mac knows it:
 `"changes": { "files": N, "added": N, "removed": N }` — the project's uncommitted
@@ -1537,7 +1543,32 @@ canSwitchAccount: bool // … and Claude account (a Claude tab on this Mac, not 
 claudeAccount?: string // with canSwitchAccount: the account the tab runs as ("default" is the main login)
 switchingTo?: string   // while the tab moves to another account: that account's name
 switchedFrom?: string  // … and the terminal id the tab ran before, which a phone showing it follows here
+limitStop?: LimitStop  // a Claude tab whose turn stopped at a usage limit, while that still holds
 ```
+**LimitStop** — why a Claude tab stopped, and where its conversation can go on:
+```
+kind: "limit" | "hold" | "model" // the account's 5-hour/weekly limit, the account put on hold,
+                                 // or one model's weekly limit (the account still works with others)
+account: string        // the account that stopped ("default" is the main login)
+accountLabel: string   // its name as the Mac shows it
+window?: "fiveHour" | "weekly" // with "limit"
+model?: string         // with "model", e.g. "Opus"
+resetsAt: int          // unix seconds the limit resets; 0 when unknown or for a hold
+offer?: { account, label: string, fiveHour?, weekly?: number, near: bool }
+                       // with "limit": the account lpm would continue on (the one it starts new
+                       // sessions on), its 5-hour/weekly use in percent; near: every account with
+                       // room is close to a limit and this one has the most
+firstFree?: { account, label: string, resetsAt: int } // with "limit" and no offer: the account
+                       // that resets first
+```
+The Mac lists `limitStop` only while account switching is on, the limit hasn't reset and a
+hold hasn't been lifted, and drops it once a new turn starts or the tab moves. The phone
+shows it above the composer as the desktop does: "<accountLabel> hit its weekly limit ·
+resets in 2d 14h" and "<label> has room · 5-hour 18% · weekly 41%", with **Continue on
+<label>** sending `switchTerminalAccount` for `offer.account` (the Mac then sends "Continue
+where you left off." itself) and **Other account** opening the tab's Claude Account menu. A
+hold says switching is paused and a model limit says to type /model; neither offers an
+account. Its × sends `dismissLimitStop`.
 The three `can*` flags come from a desktop with `"tabMenu"` in `features`; older ones omit
 them, which means false. The account fields come from one with `"tabAccount"`. The phone
 shows its tab menu's Claude Account submenu only once `claudeAccounts` lists an account

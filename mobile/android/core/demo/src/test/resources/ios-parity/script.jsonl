@@ -447,6 +447,10 @@
 {"at": 65220, "frame": {"t": "switchTerminalAccount", "project": "storefront", "id": "nope", "account": "work"}}
 {"at": 65220, "frame": {"t": "switchTerminalAccount", "project": "storefront", "id": "demo-storefront-1", "account": "work"}}
 {"at": 65250, "frame": {"t": "terminals", "project": "storefront"}}
+{"at": 65260, "frame": {"t": "terminals", "project": "design-system"}}
+{"at": 65270, "frame": {"t": "dismissLimitStop", "project": "design-system", "id": "demo-design-system-claude"}}
+{"at": 65270, "frame": {"t": "dismissLimitStop", "project": "design-system", "id": "nope"}}
+{"at": 65280, "frame": {"t": "terminals", "project": "design-system"}}
 {"at": 65300, "frame": {"t": "closeTerminal", "project": "storefront", "id": "demo-storefront-claude"}}
 {"at": 65300, "frame": {"t": "closeTerminal", "project": "storefront", "id": "demo-storefront-7"}}
 {"at": 65400, "frame": {"t": "terminals", "project": "storefront"}}

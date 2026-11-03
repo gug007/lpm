@@ -345,6 +345,12 @@ at(65220, 'switchTerminalAccount', project='storefront', id='demo-storefront-7',
 at(65220, 'switchTerminalAccount', project='storefront', id='nope', account='work')
 at(65220, 'switchTerminalAccount', project='storefront', id='demo-storefront-1', account='work')
 at(65250, 'terminals', project='storefront')
+# a Claude tab that stopped at the main login's weekly limit lists the stop, offering
+# Work; its × puts the bar away, and an unknown tab gets only the ack.
+at(65260, 'terminals', project='design-system')
+at(65270, 'dismissLimitStop', project='design-system', id='demo-design-system-claude')
+at(65270, 'dismissLimitStop', project='design-system', id='nope')
+at(65280, 'terminals', project='design-system')
 at(65300, 'closeTerminal', project='storefront', id='demo-storefront-claude')
 at(65300, 'closeTerminal', project='storefront', id='demo-storefront-7')
 at(65400, 'terminals', project='storefront')

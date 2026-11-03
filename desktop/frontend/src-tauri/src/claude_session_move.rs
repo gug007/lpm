@@ -22,8 +22,9 @@ pub struct TabMove {
     /// A saved conversation moved: Claude Code saves one only after the first
     /// message.
     moved: bool,
-    /// A turn was running and was interrupted, for the tab to carry it on.
-    interrupted: bool,
+    /// The turn was cut short, interrupted by the move or stopped at its
+    /// account's limit, for the tab to carry it on.
+    carries_on: bool,
 }
 
 /// Stop a Claude tab's terminal and move its conversation to `account`, so the
@@ -53,6 +54,9 @@ pub fn move_claude_tab_to_account(
             .and_then(|sid| find_transcript(&root, sid))
     };
     let found = find();
+    let stopped = found
+        .as_ref()
+        .is_some_and(|(_, path)| crate::claude_limit_hits::stopped_at_limit(path));
     let interrupted = interrupt_turn(
         &app,
         &project_name,
@@ -66,7 +70,11 @@ pub fn move_claude_tab_to_account(
         (Some(found), Some(sid)) => move_found(found, sid, &dest)?,
         _ => false,
     };
-    Ok(TabMove { moved, interrupted })
+    crate::claude_limit_stops::take(&terminal_id);
+    Ok(TabMove {
+        moved,
+        carries_on: interrupted || stopped,
+    })
 }
 
 /// Interrupt a turn in progress the way Esc does, so Claude Code ends it itself

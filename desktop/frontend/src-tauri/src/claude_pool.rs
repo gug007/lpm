@@ -13,7 +13,7 @@ use crate::agent_limits::{AgentLimitsStore, ProviderLimits};
 use crate::claude_choice::{claude_choice, AccountChoice};
 use crate::claude_dirs::MAIN_LOGIN;
 use crate::claude_pool_members::{ident_of, members, Ident};
-use crate::claude_pool_pick::{pick, Pick, SWITCH_AT};
+use crate::claude_pool_pick::{pick, Member, Pick, SWITCH_AT};
 use crate::claude_pool_store::{self as store, Mode, PoolFile, MAIN_KEY, MAX_MEMBERS};
 use crate::config::{self, ClaudeEnv};
 use serde::Serialize;
@@ -286,6 +286,28 @@ pub fn spawn_env(project: &str, resume: Option<(&str, &str)>, switching: bool) -
         refresh();
     }
     on(&id)
+}
+
+/// Where a tab of `project` that stopped on `walled` could carry its
+/// conversation on: the pick its pool would make for a new session with that
+/// account left out, and the picked account's readings. None while switching
+/// is paused, which never takes a fresh pick, or for a remote project.
+pub(crate) fn pick_without(project: &str, walled: &str, file: &PoolFile) -> Option<(Pick, Member)> {
+    if paused(file).is_some() {
+        return None;
+    }
+    let ids: Vec<String> = match source(project, file) {
+        Source::Remote => return None,
+        Source::Pinned(_) => known(&file.main_list()),
+        Source::Pool { ids, .. } => ids,
+    }
+    .into_iter()
+    .filter(|id| id != walled)
+    .collect();
+    let all = members(&ids, file, &limits());
+    let picked = pick(&all, now(), None)?;
+    let member = all.into_iter().find(|m| m.id == picked.id)?;
+    Some((picked, member))
 }
 
 /// The account a project's new sessions would use, for usage lookups.

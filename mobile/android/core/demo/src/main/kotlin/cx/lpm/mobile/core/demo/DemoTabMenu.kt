@@ -63,7 +63,8 @@ internal fun DemoServer.registerTabMenuHandlers() {
             subscribed = false,
             claudeAccount = account,
             switchingTo = name,
-            switchedFrom = id
+            switchedFrom = id,
+            limitStop = null
         )
         list[index] = moved
         push(world.terminalsPayload(project))
@@ -79,6 +80,16 @@ internal fun DemoServer.registerTabMenuHandlers() {
             tab.switchedFrom = null
             push(world.terminalsPayload(project))
         }
+    }
+    // The limit bar put away, as its × does on the Mac.
+    register("dismissLimitStop") { o ->
+        val project = o.string("project") ?: return@register
+        val id = o.string("id") ?: return@register
+        push(mapOf("t" to "dismissLimitStop", "ok" to true))
+        val tab = world.terminals[project]?.firstOrNull { it.id == id && it.limitStop != null }
+            ?: return@register
+        tab.limitStop = null
+        push(world.terminalsPayload(project))
     }
     register("closeOtherTerminals") { o ->
         val project = o.string("project") ?: return@register
