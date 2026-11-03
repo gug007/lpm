@@ -39,7 +39,7 @@ import {
 } from "./_components/skills-data";
 import ToolkitOverview from "./_components/toolkit-overview";
 
-const TITLE = "Create & Edit Claude Code and Codex Skills";
+const TITLE = "How to Create Codex & Claude Code Skills (SKILL.md)";
 const DESCRIPTION =
   "Create and edit Claude Code and Codex skills in lpm: AI drafts the SKILL.md, you pick who runs it, and every skill shows its per-turn context cost.";
 
@@ -52,6 +52,8 @@ export const metadata: Metadata = {
     "Claude Code skill editor",
     "SKILL.md",
     "Codex skills",
+    "how to create codex skills",
+    "codex skills folder",
     "Codex custom prompts",
     "agent skills manager",
     "Claude Code slash command",

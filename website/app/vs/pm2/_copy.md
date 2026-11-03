@@ -21,18 +21,19 @@ the code or the ledger, the code wins and the deviation is recorded in §7.
 ## 1. Metadata
 
 ```ts
-title: "PM2 Alternative for Local Dev: Panes, Not a Daemon"
-// 50 chars (renders 56 with the layout's appended " — lpm")
+title: "PM2 Alternative for Local Dev: Node, Python & More"
+// 50 chars (renders 56 with the layout's appended " — lpm"). "Python" is backed by the
+// matrix row "Runs Node, Python, shell commands and binaries".
 description:
   "PM2 supervises production. Locally you want a live pane per service you can read and search, not a daemon — plus the six things PM2 does that lpm does not."
 // 155 chars. "six" is the number of rows the matrix concedes — see §4.
 keywords: [
-  "pm2 alternative dev", "pm2 for local development", "pm2 vs tmux", "pm2 vs lpm",
+  "pm2 alternative", "pm2 alternative dev", "pm2 alternative for python", "pm2 for local development", "pm2 vs tmux", "pm2 vs lpm",
   "pm2 local dev", "ecosystem.config.js alternative", "pm2 dev mode",
   "run multiple dev servers mac", "start all services one command mac",
   "claude code parallel sessions", "codex parallel agents",
 ]
-// 11 entries. Both "process manager" phrasings removed (§6.4 of the spec).
+// 13 entries. Both "process manager" phrasings removed (§6.4 of the spec).
 alternates.canonical: "/vs/pm2"
 openGraph.title / twitter.title: TITLE            // same const, four uses
 openGraph.description / twitter.description: DESCRIPTION

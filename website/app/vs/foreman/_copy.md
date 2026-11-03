@@ -13,17 +13,18 @@ Source of truth, in this order: the app source under `/Users/gug007/Projects/lpm
 ## 1. Metadata
 
 ```ts
-title: "Foreman vs Overmind: Procfile Dev for Rails on Mac"
-// 50 chars (renders 56 with the layout's " — lpm")
+title: "Foreman vs Overmind: Procfile, .env & Logs Compared"
+// 51 chars (renders 57 with the layout's " — lpm"). Retitled 2026-11-03: "foreman env" is the
+// page's top query, answered by the procfile matrix's .env row.
 description:
-  "Foreman interleaves one log stream; Overmind needs tmux. Both read your Procfile. lpm converts the lines into live panes on macOS — all three compared."
-// 151 chars
+  "Foreman loads .env and interleaves one log stream; Overmind loads .overmind.env and needs tmux. lpm turns the Procfile into live panes — all three compared."
+// 156 chars
 keywords: [
-  "foreman vs overmind", "foreman alternative rails", "run procfile locally",
+  "foreman vs overmind", "foreman env", "overmind procfile", "foreman alternative rails", "run procfile locally",
   "procfile.dev", "bin/dev rails", "foreman ruby gem", "foreman start",
   "heroku local alternative", "restart one process foreman",
   "rails procfile setup mac", "procfile runner mac", "foreman vs overmind vs lpm",
-] // 12
+] // 14
 alternates.canonical: "/vs/foreman"
 openGraph.title / twitter.title: TITLE          // same const, four uses
 openGraph.description / twitter.description: DESCRIPTION

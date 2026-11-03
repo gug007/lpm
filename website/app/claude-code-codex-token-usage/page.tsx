@@ -28,7 +28,7 @@ import NumbersFlow from "./_components/numbers-flow";
 import ResetSection from "./_components/reset-section";
 import StatsSection from "./_components/stats-section";
 
-const TITLE = "Claude Code & Codex Usage Tracker: Tokens & Limits";
+const TITLE = "Free Claude Code & Codex Usage Tracker: Tokens & Limits";
 const DESCRIPTION =
   "Track Claude Code and Codex usage in a free desktop app: tokens by project, estimated cost, 5-hour and weekly limits with pace, and a prompt sent at reset.";
 const SHARE_TITLE = "Where did your Claude Code and Codex tokens go?";
@@ -39,6 +39,8 @@ export const metadata: Metadata = {
   keywords: [
     "Claude Code usage tracker",
     "Codex usage tracker",
+    "Claude and Codex usage tracker",
+    "Claude Code Codex usage monitor",
     "Claude Code token usage",
     "Codex token usage",
     "check Claude Code usage",

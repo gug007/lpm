@@ -12,7 +12,7 @@ export default function Image() {
       "Codex, and any coding agent.",
     ],
     subline:
-      "What a worktree does not carry, what the agents create natively, and when a standalone copy is the better boundary.",
+      "What a worktree does not carry, what .worktreeinclude copies in, and when a standalone copy is the better boundary.",
     eyebrow: "Parallel agents in lpm",
   });
 }

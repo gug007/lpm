@@ -30,7 +30,7 @@ import QuickAnswer from "./_components/quick-answer";
 import Requirements from "./_components/requirements";
 import Security from "./_components/security";
 
-const TITLE = "Run Claude Code & Codex on a Remote Linux Server";
+const TITLE = "Claude Code & Codex on a Linux Server That Keeps Running";
 const DESCRIPTION =
   "Run Claude Code and Codex on a Linux box you own: add it by typing user@host, lpm pairs itself over SSH, and the server keeps working with your lid closed.";
 
@@ -40,6 +40,8 @@ export const metadata: Metadata = {
   keywords: [
     "run claude code on a remote server",
     "claude code remote server",
+    "claude code on linux server",
+    "claude code stops when ssh disconnects",
     "run claude code 24/7",
     "keep claude code running when laptop sleeps",
     "claude code on a vps",

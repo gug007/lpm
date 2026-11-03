@@ -65,8 +65,8 @@ function pages(line, outStartMs) {
 // `lines` are the timeline's lines with their clip (`line`) and `outMs`, the
 // line's start in the finished video; `labels` come from the stage, already
 // on the finished clock. `slam` ({ a, b }) opens with the two names slammed in
-// big, and the headline pops in as they shrink away. `headlineMs` caps how long
-// the headline stays up.
+// big over the dimmed payoff, and the headline comes and goes with them.
+// Without a slam, `headlineMs` caps how long the headline stays up.
 function textTrack({ lines, labels = [], outMs, headline, headlineMs, cta, open = 1, slam }) {
   const captioned = lines.filter((l) => !l.line.silent && l.line.caption !== false);
   const captionPages = captioned.flatMap((l) => pages(l.line, l.outMs));
@@ -78,7 +78,7 @@ function textTrack({ lines, labels = [], outMs, headline, headlineMs, cta, open 
     .filter((m) => m.startMs >= hookEnd)
     .sort((a, b) => a.startMs - b.startMs);
   const stickers = [];
-  const hookStart = slam ? SLAM.handoffMs : 0;
+  const hookStart = slam ? SLAM.headlineAtMs : 0;
   // After a slam, a headline with under MIN_HOOK_MS left would only flash.
   if (headline && (!slam || hookEnd - hookStart >= MIN_HOOK_MS)) stickers.push({ kind: "hook", text: headline, startMs: hookStart });
   let n = 0;
@@ -91,7 +91,7 @@ function textTrack({ lines, labels = [], outMs, headline, headlineMs, cta, open 
   if (cta) stickers.push({ kind: "cta", text: cta, startMs: lines.at(-1).outMs });
   stickers.forEach((s, i) => {
     s.endMs = i + 1 < stickers.length ? stickers[i + 1].startMs : outMs;
-    if (s.kind === "hook") s.endMs = Math.min(s.endMs, hookEnd, headlineMs ? s.startMs + headlineMs : Infinity);
+    if (s.kind === "hook") s.endMs = Math.min(s.endMs, hookEnd, slam ? SLAM.ms : headlineMs ? s.startMs + headlineMs : Infinity);
   });
   return {
     stickers: stickers.filter((s) => s.kind !== "none" && s.endMs > s.startMs),

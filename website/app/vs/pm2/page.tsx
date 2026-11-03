@@ -35,7 +35,7 @@ import { PM2_DEMO } from "./_components/demo-tour";
 const PATH = vsPath("pm2");
 const TMUX_PATH = vsPath("tmux");
 
-const TITLE = "PM2 Alternative for Local Dev: Panes, Not a Daemon";
+const TITLE = "PM2 Alternative for Local Dev: Node, Python & More";
 const DESCRIPTION =
   "PM2 supervises production. Locally you want a live pane per service you can read and search, not a daemon — plus the six things PM2 does that lpm does not.";
 
@@ -45,7 +45,9 @@ export const metadata: Metadata = {
   title: TITLE,
   description: DESCRIPTION,
   keywords: [
+    "pm2 alternative",
     "pm2 alternative dev",
+    "pm2 alternative for python",
     "pm2 for local development",
     "pm2 vs tmux",
     "pm2 vs lpm",

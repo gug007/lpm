@@ -35,9 +35,9 @@ import { FOREMAN_DEMO } from "./_components/demo-tour";
 const PATH = vsPath("foreman");
 const OVERMIND_PATH = vsPath("overmind");
 
-const TITLE = "Foreman vs Overmind: Procfile Dev for Rails on Mac";
+const TITLE = "Foreman vs Overmind: Procfile, .env & Logs Compared";
 const DESCRIPTION =
-  "Foreman interleaves one log stream; Overmind needs tmux. Both read your Procfile. lpm converts the lines into live panes on macOS — all three compared.";
+  "Foreman loads .env and interleaves one log stream; Overmind loads .overmind.env and needs tmux. lpm turns the Procfile into live panes — all three compared.";
 
 const QUESTION = "Foreman or Overmind for a Rails Procfile?";
 
@@ -46,6 +46,8 @@ export const metadata: Metadata = {
   description: DESCRIPTION,
   keywords: [
     "foreman vs overmind",
+    "foreman env",
+    "overmind procfile",
     "foreman alternative rails",
     "run procfile locally",
     "procfile.dev",

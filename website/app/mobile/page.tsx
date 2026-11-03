@@ -31,14 +31,14 @@ import ReviewShip from "./_components/review-ship";
 import Security from "./_components/security";
 import VsRemoteControl from "./_components/vs-remote-control";
 
-const TITLE = "Control Claude Code on Your Mac From Your iPhone";
+const TITLE = "lpm Link: Claude Code on Your Mac From iPhone & iPad";
 const DESCRIPTION =
   "Pair your iPhone with lpm on your Mac to drive Claude Code and Codex in a live terminal, review diffs, commit and push, and get encrypted alerts.";
 const APP_DESCRIPTION =
   "The lpm companion for iPhone and iPad: live terminals from your Mac or Linux server, a prompt composer, git review and commits, automations, usage limits, and encrypted agent alerts.";
 
 export const metadata: Metadata = {
-  title: TITLE,
+  title: { absolute: TITLE },
   description: DESCRIPTION,
   keywords: [
     "claude code iphone",
@@ -59,6 +59,7 @@ export const metadata: Metadata = {
     "claude code usage limit iphone",
     "schedule claude code from iphone",
     "lpm link",
+    "lpm iphone",
   ],
   alternates: {
     canonical: MOBILE_PATH,

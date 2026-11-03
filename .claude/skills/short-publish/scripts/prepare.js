@@ -28,6 +28,8 @@ const MAX_HASHTAGS = 5;
 const LEDGERS = { TikTok: path.join(ROOT, "POSTED.md"), "YouTube Shorts": path.join(ROOT, "SHORTS_POSTED.md") };
 const LPM_LINE =
   "lpm starts, stops, duplicates and switches between local dev projects on a Mac, with a built-in terminal for AI coding agents such as Claude Code and Codex.";
+// A bare "lpm" search lands on LPM Restaurants; "lpm.cx" lands on us.
+const SITE_MENTION = "lpm is free at lpm.cx.";
 
 const lesson = JSON.parse(fs.readFileSync(path.join(dir, "lesson.json"), "utf8"));
 const mp4 = path.join(dir, `${slug}.mp4`);
@@ -78,7 +80,10 @@ const [text, tagLine] = fs.existsSync(postFile)
   : [post.caption || lesson.title, (post.hashtags || []).map((t) => `#${t.replace(/^#/, "")}`).join(" ")];
 const caption = text.trim();
 const hashtags = (tagLine || "").trim().split(/\s+/).filter(Boolean);
-const tiktokText = `${caption}\n\n${hashtags.join(" ")}`;
+const tiktokCaption = /lpm\.cx/i.test(caption)
+  ? caption
+  : `${caption}${/[.!?…]$/.test(caption) ? "" : "."} ${SITE_MENTION}`;
+const tiktokText = `${tiktokCaption}\n\n${hashtags.join(" ")}`;
 const youtubeText = [caption, `${LPM_LINE}\nhttps://lpm.cx`, fullLesson && `Full lesson: ${fullLesson}`, hashtags.join(" ")]
   .filter(Boolean)
   .join("\n\n");

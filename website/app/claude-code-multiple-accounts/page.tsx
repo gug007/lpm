@@ -27,15 +27,18 @@ import Setup from "./_components/setup";
 import SwitchTabLesson from "./_components/switch-tab-lesson";
 import Workflows from "./_components/workflows";
 
-const TITLE = "Multiple Claude Code Accounts — No Logging Out";
+const TITLE = "Use Multiple Claude Code Accounts at Once, No Logout";
 const DESCRIPTION =
-  "Pin a Claude Code account to each project, move a running conversation to another account mid-task, or let new sessions switch when one runs low. No logout.";
+  "Run several Claude Code accounts on one computer at once: one per project, move a running chat to another account, or let new sessions switch when one runs low.";
 
 export const metadata: Metadata = {
   title: TITLE,
   description: DESCRIPTION,
   keywords: [
     "claude code multiple accounts",
+    "multiple claude code accounts on one computer",
+    "use two claude code accounts at the same time",
+    "claude code second account",
     "switch claude code accounts",
     "claude code account per project",
     "run two claude code accounts",

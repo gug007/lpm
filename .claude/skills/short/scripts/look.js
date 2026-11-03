@@ -7,9 +7,11 @@ const FONT = `"SF Pro Display", -apple-system, BlinkMacSystemFont, "Helvetica Ne
 const ACCENT = "#25F4EE";
 const LIT = "#FFE14D";
 // The opening slam of two names (lesson.json `slam`): paintScene's
-// choreography ends at `ms`, the headline pops in at `handoffMs` as the names
-// shrink away, and the cover is taken at `coverMs`, with all three lines on.
-const SLAM = { ms: 1800, handoffMs: 1650, coverMs: 1200, colors: [ACCENT, "#FE2C55"] };
+// choreography ends at `ms`, the headline pops in at `headlineAtMs` once both
+// names have landed and fades with them, so nothing is written over the lit
+// payoff, and the cover is taken at `coverMs`, with the headline and all three
+// lines on.
+const SLAM = { ms: 1800, headlineAtMs: 600, coverMs: 1200, colors: [ACCENT, "#FE2C55"] };
 
 const OVERLAY_HTML = `<!doctype html><html><head><meta charset="utf-8"><style>
 html, body { margin: 0; width: ${OUT.width}px; height: ${OUT.height}px; background: transparent; overflow: hidden; }
@@ -50,7 +52,7 @@ function paintScene(scene) {
   const sl = scene.slam;
   if (sl) {
     // Model A slams in from the left, VS pops, model B slams in from the
-    // right; after a beat the stack shrinks up and fades as the headline pops.
+    // right; after a beat the stack shrinks up and fades with the headline.
     const t = sl.t;
     const span = (a, b) => Math.min(1, Math.max(0, (t - a) / (b - a)));
     const outCubic = (p) => 1 - Math.pow(1 - p, 3);
@@ -97,7 +99,8 @@ function paintScene(scene) {
     }
     sticker.append(box);
     sticker.style.top = st.top == null ? "" : `${st.top}px`;
-    sticker.style.opacity = String(Math.min(1, st.p / 0.4));
+    const slamExit = sl && st.kind === "hook" ? Math.min(1, Math.max(0, (sl.t - 1650) / 150)) : 0;
+    sticker.style.opacity = String(Math.min(1, st.p / 0.4) * (1 - slamExit));
     sticker.style.transform = `scale(${0.72 + 0.28 * backOut(st.p)})${st.kind === "hook" ? " rotate(-1.5deg)" : ""}`;
   }
   const cap = scene.caption;

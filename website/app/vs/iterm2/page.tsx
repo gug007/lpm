@@ -34,7 +34,7 @@ import { ITERM2_DEMO } from "./_components/demo-tour";
 
 const PATH = vsPath("iterm2");
 
-const TITLE = "iTerm2 Alternative for Mac: Projects, Not Just Panes";
+const TITLE = "iTerm2 Alternative on Mac (2026): Claude Code & Codex";
 const DESCRIPTION =
   "iTerm2 is the better emulator. lpm runs the project instead: one click brings up every service, with Claude Code and Codex in the next tab. Keep both.";
 
@@ -57,6 +57,7 @@ export const metadata: Metadata = {
     "iterm2 vs lpm",
     "free iterm2 alternative",
     "iterm2 alternative for claude code",
+    "iterm2 claude code integration",
     "iterm2 vs warp",
     "iterm2 project management",
     "run multiple services in iterm2",

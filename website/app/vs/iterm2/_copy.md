@@ -13,17 +13,18 @@ Source of truth: **the app source and the fact-check ledger first, spec part 4.3
 ## 1. Metadata
 
 ```ts
-title: "iTerm2 Alternative for Mac: Projects, Not Just Panes"
-// 52 chars; renders 58 with the layout's " — lpm"
+title: "iTerm2 Alternative on Mac (2026): Claude Code & Codex"
+// 53 chars; renders 59 with the layout's " — lpm". Retitled 2026-11-03: the SERP is year-stamped lists, and "Projects, Not Just Panes" named nothing people search for.
 description: "iTerm2 is the better emulator. lpm runs the project instead: one click brings up every service, with Claude Code and Codex in the next tab. Keep both."
 // 150 chars. Rewritten: part 4.3's "lpm is the project layer above it" is banned by ledger §5.3 row 1.
 keywords: [
   "iterm2 alternative", "iterm alternative", "iterm2 alternative mac",
   "iterm2 vs lpm", "free iterm2 alternative", "iterm2 alternative for claude code",
+  "iterm2 claude code integration",
   "iterm2 vs warp", "iterm2 project management", "run multiple services in iterm2",
   "mac terminal for multiple projects", "iterm2 vs ghostty",
 ]
-// 11 entries. `best terminal for mac` and `mac terminal alternative` are removed
+// 12 entries. `best terminal for mac` and `mac terminal alternative` are removed
 // per spec §6.4 — /best-terminal-for-mac owns them.
 alternates.canonical: "/vs/iterm2"
 openGraph: { title: TITLE, description: DESCRIPTION, type: "website", url: PATH, siteName: "lpm" }

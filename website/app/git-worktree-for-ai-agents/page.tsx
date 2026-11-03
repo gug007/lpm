@@ -26,9 +26,9 @@ import NativeSupport from "./_components/native-support";
 import QuickAnswer from "./_components/quick-answer";
 import WhatBreaks from "./_components/what-breaks";
 
-const TITLE = "Git Worktrees for Claude Code, Codex & AI Agents";
+const TITLE = ".worktreeinclude for Claude Code & Codex Worktrees";
 const DESCRIPTION =
-  "Git worktrees for Claude Code and Codex: what a worktree does not carry, what each CLI creates natively, and when a full project copy fits better.";
+  "What a new worktree leaves out (.env, node_modules), what .worktreeinclude copies in for Claude Code and Codex, and when a full project copy fits better.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -47,6 +47,11 @@ export const metadata: Metadata = {
     "run multiple claude code instances",
     "git worktree node_modules",
     "git worktree env file",
+    ".worktreeinclude",
+    "worktreeinclude claude code",
+    "worktreeinclude codex",
+    "codex worktrees",
+    "chatgpt codex worktrees",
   ],
   alternates: {
     canonical: WORKTREE_AGENTS_PATH,

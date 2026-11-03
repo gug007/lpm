@@ -8,6 +8,7 @@ import { DownloadInstallNote } from "@/components/download-install-note";
 import { ReleaseProvider } from "@/components/release-context";
 import { getReleaseInfo } from "@/lib/release-info";
 import {
+  APP_STORE_URL,
   RELEASES_URL,
   REPO_URL,
   SITE_URL,
@@ -97,7 +98,13 @@ const buildStructuredData = (softwareVersion: string | null) => ({
       name: "lpm",
       url: SITE_URL,
       logo: `${SITE_URL}/icon.png`,
-      sameAs: [REPO_URL, TELEGRAM_URL, YOUTUBE_CHANNEL_URL, TIKTOK_URL],
+      sameAs: [
+        REPO_URL,
+        APP_STORE_URL,
+        TELEGRAM_URL,
+        YOUTUBE_CHANNEL_URL,
+        TIKTOK_URL,
+      ],
       contactPoint: {
         "@type": "ContactPoint",
         contactType: "customer support",

@@ -29,7 +29,7 @@ Creator Search Insights (global, last 7 days, 2026-10-07): "Using AI to build a 
 
 short-race runs every race in rows: Run in duplicates with **Open side by side** split into **Rows**, run #1 on top and the copy below, from the start of the race to the reveal. Model A's cyan bar sits over the top row and model B's pink one over the bottom, with the clocks and then the finish times, and each row opens its own `index.html` in lpm's browser.
 
-As in every race, the games play with nothing written over them once the headline goes at 2.5 s, and lpm's terminals get one captioned line of about 3 s (short-race's What the video shows).
+As in every race, the games play with nothing written over them once the slammed names and the headline go at 1.8 s, and lpm's terminals get one captioned line of about 3 s (short-race's What the video shows).
 
 short-race records every race, real or dry, in a narrow, tall 570x1000 window with the payoff trimmed to the colour bars (see its Traps), so each row's page is about 570x448 pt, the 900x700 stage's shape, and each game takes about half the frame. TikTok's caption and sound text cover the lower part of the bottom game, a trade taken for the size.
 

@@ -33,9 +33,9 @@ import { CMUX_DEMO } from "./_components/demo-tour";
 
 const PATH = vsPath("cmux");
 
-const TITLE = "cmux Alternative for Claude Code & Codex";
+const TITLE = "cmux Alternative for Windows, Linux & Mac (Free)";
 const DESCRIPTION =
-  "cmux gives Claude Code and Codex a scriptable Mac terminal. lpm adds the project around them: services, per-tab agent status, and 1–50 parallel copies.";
+  "cmux runs only on macOS; lpm also has Windows 11 and Linux builds. It adds the project around Claude Code and Codex: services, agent status, 1–50 copies.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -43,6 +43,8 @@ export const metadata: Metadata = {
   keywords: [
     "cmux alternative",
     "cmux alternative mac",
+    "cmux alternative windows",
+    "cmux alternative linux",
     "cmux vs lpm",
     "manaflow cmux",
     "is cmux open source",

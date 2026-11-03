@@ -72,24 +72,26 @@ function sceneAt(t, track) {
 }
 
 // Every moment the picture changes: sticker and page edges, each spoken
-// word, and the frames of every pop-in and of the opening slam.
+// word, and the frames of every pop-in and of the opening slam. An end is
+// rounded up: rounded down, it lands while the text is still on, and the last
+// caption of a line then stays on screen to the end of the video.
 function sampleTimes(track, outMs) {
   const times = new Set([0]);
   const pop = (start, ms) => {
-    for (let k = 0; k * FRAME_MS <= ms + FRAME_MS; k++) times.add(start + k * FRAME_MS);
+    for (let k = 0; k * FRAME_MS <= ms + FRAME_MS; k++) times.add(Math.round(start + k * FRAME_MS));
   };
   if (track.slam) pop(track.slam.startMs, track.slam.endMs - track.slam.startMs);
   for (const s of track.stickers) {
-    if (s.pop === false) times.add(s.startMs);
+    if (s.pop === false) times.add(Math.round(s.startMs));
     else pop(s.startMs, POP_MS.sticker);
-    times.add(s.endMs);
+    times.add(Math.ceil(s.endMs));
   }
   for (const p of track.pages) {
     pop(p.startMs, POP_MS.page);
-    times.add(p.endMs);
-    for (const w of p.words) times.add(w.ms);
+    times.add(Math.ceil(p.endMs));
+    for (const w of p.words) times.add(Math.round(w.ms));
   }
-  return [...times].map((t) => Math.round(t)).filter((t) => t >= 0 && t < outMs).sort((a, b) => a - b);
+  return [...times].filter((t) => t >= 0 && t < outMs).sort((a, b) => a - b);
 }
 
 async function renderTrack(dir, track, outMs) {

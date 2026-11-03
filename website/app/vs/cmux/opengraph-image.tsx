@@ -13,7 +13,7 @@ export default function Image() {
       "on projects.",
     ],
     subline:
-      "Services, per-tab agent status, and one prompt fanned out to 50 project copies. Both free, both native on macOS.",
-    eyebrow: "cmux alternative · macOS",
+      "Services, per-tab agent status, and one prompt fanned out to 50 project copies. Free, on macOS, Windows and Linux.",
+    eyebrow: "cmux alternative · Mac, Windows, Linux",
   });
 }

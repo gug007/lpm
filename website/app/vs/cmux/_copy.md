@@ -23,14 +23,16 @@ lists that too.
 ## 1. Metadata
 
 ```ts
-title: "cmux Alternative for Claude Code & Codex"
-// 40 chars — renders as "cmux Alternative for Claude Code & Codex — lpm" (46) via
+title: "cmux Alternative for Windows, Linux & Mac (Free)"
+// 48 chars — renders as "cmux Alternative for Windows, Linux & Mac (Free) — lpm" (54) via
 // app/layout.tsx's `template: "%s — lpm"`. No `title: { absolute: … }`.
-description: "cmux gives Claude Code and Codex a scriptable Mac terminal. lpm adds the project around them: services, per-tab agent status, and 1–50 parallel copies."
-// 151 chars
+description: "cmux runs only on macOS; lpm also has Windows 11 and Linux builds. It adds the project around Claude Code and Codex: services, agent status, 1–50 copies."
+// 153 chars. Retitled 2026-11-03: "cmux alternative for windows/linux" was a fifth of the page's query impressions.
 keywords: [
   "cmux alternative",
   "cmux alternative mac",
+  "cmux alternative windows",
+  "cmux alternative linux",
   "cmux vs lpm",
   "manaflow cmux",
   "is cmux open source",
@@ -42,7 +44,7 @@ keywords: [
   "claude code multiple projects",
   "does cmux use tmux",
 ]
-// 12 entries. `terminal for claude code` and `terminal for codex` are deliberately
+// 14 entries. `terminal for claude code` and `terminal for codex` are deliberately
 // REMOVED (§6.4): /best-terminal-for-claude-code-and-codex owns both and is nav-linked.
 alternates.canonical: "/vs/cmux"
 openGraph.title: TITLE            // same const
@@ -60,7 +62,7 @@ twitter.description: DESCRIPTION
 and `webPageJsonLd({ title, description })` — six uses, one string each.
 
 `opengraph-image.tsx`: `headline: ["A cmux alternative that runs", "Claude Code and Codex on projects."]`,
-`subline: "Services, per-tab agent status, and one prompt fanned out to 50 project copies. Both free, both macOS."`,
+`subline: "Services, per-tab agent status, and one prompt fanned out to 50 project copies. Free, on macOS, Windows and Linux."`,
 `alt` = the H1 verbatim.
 
 **Structured data** — exactly three entries: `webPageJsonLd` (with `about[]` and
