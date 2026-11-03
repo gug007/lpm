@@ -41,8 +41,8 @@ android {
     defaultConfig {
         applicationId = "cx.lpm.mobile"
         // Bumped for every Play upload; the name follows iOS's MARKETING_VERSION.
-        versionCode = 1
-        versionName = "1.57"
+        versionCode = 2
+        versionName = "1.74"
         // The values the google-services plugin would generate, read by Firebase at launch.
         firebase.forEach { (name, value) -> resValue("string", name, value) }
     }

@@ -26,8 +26,14 @@ const ANY_RULE = /^\s*[─━═╌┄┈┅╍-]{8,}\s*$/;
 const TRANSCRIPT_LINE = /^\s*[•⏺✔✓✗✻✶]\s/;
 const TYPED = /^(?:type something\.?|chat about this)$/i;
 const KEY_HINT = /\s\((?:[a-z]|esc|shift\+tab|tab)\)$/i;
+// Claude draws a question longer than one row beside a │ gutter, with a lone │
+// between its paragraphs.
+const GUTTER = /^\s*│ ?/;
+// A question form's tabs: "☐ Color", or "← ☐ Color  ☐ Size  ✔ Submit →".
+const FORM_TABS = /^\s*(?:←\s*)?[☐☒✔]\s/;
+const TIP = /^\s*Tip:/i;
 const MAX_FOOTER_LINES = 3;
-const MAX_BODY_LINES = 12;
+const MAX_BODY_LINES = 24;
 const MAX_DETAILS = 3;
 // A row this close to the screen's width was wrapped by the CLI itself, so the
 // indented row under it carries on the same label rather than describing it.
@@ -93,17 +99,65 @@ function readOptions(lines: string[], first: number, last: number, cols: number)
   });
 }
 
-/** The rows above the options that say what is being asked, up to where the
- *  dialog starts: a full-width rule, or the transcript's last entry. */
+/** The rows above the options that say what is being asked, top first, up to
+ *  where the dialog starts: a full-width rule, or the transcript's last entry.
+ *  Blank rows and rules come back as "", so paragraphs stay apart. */
 function readBody(lines: string[], first: number): string[] {
   const body: string[] = [];
-  for (let i = first - 1; i >= 0 && body.length < MAX_BODY_LINES; i--) {
+  let filled = 0;
+  for (let i = first - 1; i >= 0 && filled < MAX_BODY_LINES; i--) {
     const line = lines[i];
     if (SOLID_RULE.test(line) || TRANSCRIPT_LINE.test(line)) break;
-    if (isBlank(line) || ANY_RULE.test(line)) continue;
-    body.unshift(line.trim());
+    if (isBlank(line) || ANY_RULE.test(line)) body.unshift("");
+    else if (!TIP.test(line) && !FORM_TABS.test(line)) {
+      body.unshift(line.trimEnd());
+      filled++;
+    }
   }
   return body;
+}
+
+/** Rows of one question back into its text: a paragraph's rows joined by
+ *  spaces, its paragraphs by newlines. */
+function joinRows(rows: string[]): string {
+  const paragraphs: string[][] = [[]];
+  for (const row of rows) {
+    if (row) paragraphs[paragraphs.length - 1].push(row);
+    else if (paragraphs[paragraphs.length - 1].length) paragraphs.push([]);
+  }
+  return paragraphs
+    .filter((paragraph) => paragraph.length)
+    .map((paragraph) => paragraph.join(" "))
+    .join("\n");
+}
+
+/** Where the question sits in the body: the gutter's rows, or else the first
+ *  row ending in "?" and the rows above it the CLI wrapped at the edge. */
+function questionRows(body: string[], cols: number): [number, number] | null {
+  const gutter = body.findIndex((row) => GUTTER.test(row));
+  if (gutter >= 0) {
+    let end = gutter;
+    while (end + 1 < body.length && GUTTER.test(body[end + 1])) end++;
+    return [gutter, end];
+  }
+  const end = body.findIndex((row) => row.endsWith("?"));
+  if (end < 0) return null;
+  let start = end;
+  while (start > 0 && body[start - 1].length >= cols - WRAP_MARGIN) start--;
+  return [start, end];
+}
+
+function splitBody(body: string[], cols: number): Pick<AgentDialog, "question" | "details"> {
+  const span = questionRows(body, cols);
+  const inQuestion = (i: number) => !!span && i >= span[0] && i <= span[1];
+  const question = span
+    ? joinRows(body.slice(span[0], span[1] + 1).map((row) => row.replace(GUTTER, "").trim()))
+    : "";
+  const details = body
+    .filter((row, i) => row && !inQuestion(i))
+    .map((row) => row.trim())
+    .slice(0, MAX_DETAILS);
+  return { question, details };
 }
 
 /** The dialog at the bottom of `lines` (the screen's rows, top first), or null
@@ -115,10 +169,7 @@ export function parseAgentDialog(lines: string[], cols: number): AgentDialog | n
   if (first < 0) return null;
   const options = readOptions(lines, first, last, cols).filter((option) => option.key.length === 1);
   if (options.length < 2 || !options.some((option) => option.selected)) return null;
-  const body = readBody(lines, first).filter((line) => !/^Tip:/i.test(line));
-  const question = body.find((line) => line.endsWith("?")) ?? "";
-  const details = body.filter((line) => line !== question).slice(0, MAX_DETAILS);
-  return { question, details, options };
+  return { ...splitBody(readBody(lines, first), cols), options };
 }
 
 /** Whether two reads show the same dialog: same question and choices. */

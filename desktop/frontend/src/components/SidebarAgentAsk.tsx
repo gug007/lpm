@@ -52,7 +52,9 @@ export function SidebarAgentAsk({ terminalId, lead, onOpen }: SidebarAgentAskPro
     <div className={`${lead} pb-1.5 pr-2`}>
       <div className="ml-4 flex flex-col gap-1.5 rounded-md border border-[var(--accent-amber)]/30 bg-[var(--accent-amber)]/[0.06] px-2 py-1.5">
         {dialog.question && (
-          <div className="text-[11.5px] font-medium leading-snug text-[var(--text-primary)]">{dialog.question}</div>
+          <div className="whitespace-pre-line text-[11.5px] font-medium leading-snug text-[var(--text-primary)]">
+            {dialog.question}
+          </div>
         )}
         {dialog.details.map((detail) => (
           <div

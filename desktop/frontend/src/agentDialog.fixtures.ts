@@ -137,3 +137,72 @@ export const CODEX_COMMAND = [
   "",
   "  Press enter to confirm or esc to cancel"
 ];
+
+// Captured from Claude Code 2.1.317 in a 70-column tmux pane (2026-11-03): a question
+// longer than a row gets a │ gutter.
+export const CLAUDE_ASK_LONG = [
+  "❯ Call your AskUserQuestion tool exactly once with this single",
+  "  question (single-choice, header \"Upload key\"). Question text,",
+  "  verbatim: \"To ship the latest lpm Link Android code, the build",
+  "  needs the Play upload keystore (plus its 4 passwords in",
+  "  ~/.gradle/gradle.properties) and app/google-services.json from",
+  "  Firebase. Neither is on this Mac. The Oct 17 build was signed with",
+  "  them somewhere else. How do you want to get them?\" Options: \"I'll",
+  "  put them back\" (description: \"You restore the keystore,",
+  "  gradle.properties entries and google-services.json, then tell me",
+  "  and I build and upload.\"), \"Reset the upload key\" (description: \"I",
+  "  make a new upload key here and you request an upload key reset in",
+  "  Play Console.\"), \"Built on another computer\" (description: \"Tell me",
+  "  which one and I'll build from there.\"). Do nothing else.",
+  "──────────────────────────────────────────────────────────────────────",
+  " ☐ Upload key",
+  "",
+  "│ To ship the latest lpm Link Android code, the build needs the Play",
+  "│ upload keystore (plus its 4 passwords in",
+  "│ ~/.gradle/gradle.properties) and app/google-services.json from",
+  "│ Firebase. Neither is on this Mac. The Oct 17 build was signed with",
+  "│ them somewhere else. How do you want to get them?",
+  "",
+  "❯ 1. I'll put them back",
+  "     You restore the keystore, gradle.properties entries and",
+  "     google-services.json, then tell me and I build and upload.",
+  "  2. Reset the upload key",
+  "     I make a new upload key here and you request an upload key reset",
+  "     in Play Console.",
+  "  3. Built on another computer",
+  "     Tell me which one and I'll build from there.",
+  "  4. Type something.",
+  "──────────────────────────────────────────────────────────────────────",
+  "  5. Chat about this",
+  "",
+  "Enter to select · ↑/↓ to navigate · Esc to cancel"
+];
+
+// Captured from Claude Code 2.1.317 in a 70-column tmux pane (2026-11-03): a lone │
+// between the question's paragraphs.
+export const CLAUDE_ASK_PARAGRAPHS = [
+  "❯ Call AskUserQuestion once: header \"Deploy\", single choice. The",
+  "  question text must contain two paragraphs separated by a blank line",
+  "  (a real newline character pair): first paragraph \"The staging",
+  "  deploy failed twice on the same migration step and the logs point",
+  "  at a lock held by the nightly backup job.\" second paragraph \"Which",
+  "  do you want me to try next?\". Options: Retry, Skip migration. Do",
+  "  nothing else.",
+  "──────────────────────────────────────────────────────────────────────",
+  " ☐ Deploy",
+  "",
+  "│ The staging deploy failed twice on the same migration step and the",
+  "│ logs point at a lock held by the nightly backup job.",
+  "│",
+  "│ Which do you want me to try next?",
+  "",
+  "❯ 1. Retry",
+  "     Run the staging deploy again as-is.",
+  "  2. Skip migration",
+  "     Deploy without running the failing migration step.",
+  "  3. Type something.",
+  "──────────────────────────────────────────────────────────────────────",
+  "  4. Chat about this",
+  "",
+  "Enter to select · ↑/↓ to navigate · Esc to cancel"
+];
