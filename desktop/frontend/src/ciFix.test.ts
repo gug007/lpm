@@ -6,7 +6,6 @@ const app = vi.hoisted(() => ({
   projects: [] as ProjectInfo[],
   trigger: vi.fn(),
   start: vi.fn(),
-  success: vi.fn(),
 }));
 
 vi.mock("./store/app", () => ({
@@ -16,7 +15,6 @@ vi.mock("./sendToNewTab", () => ({
   newTabAgent: (agent: string) => ({ launch: { agent, model: "", effort: "" } }),
   startPromptInNewTab: app.start,
 }));
-vi.mock("./notifications/toast", () => ({ toast: { success: app.success } }));
 
 import { fixTabs, preferredFixOption, startFix } from "./ciFix";
 import { loadRememberedChild } from "./components/splitPrimary";
@@ -41,7 +39,6 @@ beforeEach(() => {
   app.projects = [];
   app.trigger.mockReset();
   app.start.mockReset();
-  app.success.mockReset();
 });
 
 describe("fixTabs", () => {
@@ -83,32 +80,35 @@ describe("preferredFixOption", () => {
 });
 
 describe("startFix", () => {
-  it("starts a bare agent in a new tab with the prompt", () => {
+  it("starts a bare agent in a new tab with the prompt and shows it", () => {
     const [claude] = fixTabs("web")[0].options;
     startFix("web", claude, "CI checks are failing");
-    expect(app.start).toHaveBeenCalledWith("web", { agent: "claude", model: "", effort: "" }, "CI checks are failing", {});
-    expect(app.success).toHaveBeenCalledWith("Started Claude in a new tab to fix the checks");
+    expect(app.start).toHaveBeenCalledWith(
+      "web",
+      { agent: "claude", model: "", effort: "" },
+      "CI checks are failing",
+      {},
+      true,
+    );
   });
 
-  it("runs an agent action behind the project with the prompt", () => {
+  it("runs an agent action with the prompt and shows its tab", () => {
     withActions([claudeMax, codex]);
     startFix("web", fixTabs("web")[1].options[0], "fix it");
-    expect(app.trigger).toHaveBeenCalledWith("web", "codex", {}, true, { prompt: "fix it" });
-    expect(app.success).toHaveBeenCalledWith("Started codex in a new tab to fix the checks");
+    expect(app.trigger).toHaveBeenCalledWith("web", "codex", {}, true, { prompt: "fix it", focus: true });
   });
 
   it("makes a split's item the one its button leads with", () => {
     withActions([claudeMax]);
     const ultracode = fixTabs("web")[0].options[1];
     startFix("web", ultracode, "fix it");
-    expect(app.trigger).toHaveBeenCalledWith("web", "claude-max:ultracode", {}, true, { prompt: "fix it" });
+    expect(app.trigger).toHaveBeenCalledWith("web", "claude-max:ultracode", {}, true, { prompt: "fix it", focus: true });
     expect(loadRememberedChild("web", "claude-max")).toBe("ultracode");
   });
 
-  it("brings the project forward for an action that asks first", () => {
+  it("asks first for an action that asks", () => {
     withActions([worktree]);
     startFix("web", fixTabs("web")[0].options[0], "fix it");
-    expect(app.trigger).toHaveBeenCalledWith("web", "worktree", undefined, false, { prompt: "fix it" });
-    expect(app.success).not.toHaveBeenCalled();
+    expect(app.trigger).toHaveBeenCalledWith("web", "worktree", undefined, false, { prompt: "fix it", focus: true });
   });
 });

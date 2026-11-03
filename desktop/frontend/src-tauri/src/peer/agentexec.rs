@@ -95,8 +95,10 @@ fn folder(raw: &str) -> Result<PathBuf, String> {
     }
 }
 
+/// The command runs in a subshell so an `exit` in it ends only the subshell:
+/// exiting the interactive login shell itself makes bash print "logout".
 fn spawn(command: &str, cwd: &Path) -> std::io::Result<Child> {
-    let mut cmd = crate::shellpath::login_line(cwd, command);
+    let mut cmd = crate::shellpath::login_line(cwd, &format!("( {command}\n)"));
     cmd.stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());

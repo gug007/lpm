@@ -1240,7 +1240,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   // runs where the project is.
   triggerRemoteAction: (projectName, action, inputValues, confirmed, tab) =>
     set((s) => {
-      const background = !action || confirmed === true;
+      const background = !tab?.focus && (!action || confirmed === true);
       return {
         ...(background ? {} : { selected: projectName, view: "projects" as const }),
         visited: s.visited.has(projectName) ? s.visited : new Set([...s.visited, projectName]),

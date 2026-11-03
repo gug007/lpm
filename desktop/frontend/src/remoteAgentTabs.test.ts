@@ -109,6 +109,14 @@ describe("launchRemoteAgent", () => {
     launchRemoteAgent(asHandle(view), [], { agent: "someday" });
     expect(view.createTerminal).toHaveBeenCalledWith(true);
   });
+
+  it("opens the tab in front when asked for at this Mac", () => {
+    const view = fakeView();
+    launchRemoteAgent(asHandle(view), [], { agent: "gemini" }, false);
+    expect(view.createTerminalWithCmd).toHaveBeenCalledWith("Gemini", "gemini", expect.objectContaining({ background: false }));
+    launchRemoteAgent(asHandle(view), [], { agent: "someday" }, false);
+    expect(view.createTerminal).toHaveBeenCalledWith(false);
+  });
 });
 
 describe("agentTabCommand", () => {

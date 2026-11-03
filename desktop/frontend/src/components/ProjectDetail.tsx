@@ -324,7 +324,7 @@ export function ProjectDetail({
           `Couldn't run "${action}" in ${project.name} — no matching action.`,
         );
     } else if (tab?.agent) {
-      launchRemoteAgent(terminalRef.current, project.actions ?? [], tab.agent);
+      launchRemoteAgent(terminalRef.current, project.actions ?? [], tab.agent, background);
     } else if (tab?.resume) {
       resumeRemoteSession(terminalRef.current, project.name, tab.resume);
     } else {

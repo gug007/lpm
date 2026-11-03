@@ -28,6 +28,8 @@ export interface RemoteTabRequest {
   resume?: RemoteResume;
   // The first prompt for the agent a phone's action run opens.
   prompt?: string;
+  // Asked for at this Mac: put the project and its new tab on screen.
+  focus?: boolean;
 }
 
 // What the phone's New Tab sheet offers: the agents and models the desktop's
@@ -90,14 +92,15 @@ export function launchRemoteAgent(
   view: TerminalViewHandle | null,
   actions: ActionInfo[],
   launch: RemoteAgentLaunch,
+  background = true,
 ): void {
   if (!view) return;
   const tab = agentTabCommand(actions, launch);
   if (!tab) {
-    view.createTerminal(true);
+    view.createTerminal(background);
     return;
   }
-  view.createTerminalWithCmd(tab.label, tab.cmd, { ...tab.opts, background: true });
+  view.createTerminalWithCmd(tab.label, tab.cmd, { ...tab.opts, background });
 }
 
 function isProvider(value: string): value is AgentSessionProvider {

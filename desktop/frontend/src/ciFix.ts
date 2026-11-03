@@ -5,7 +5,6 @@ import {
   type LaunchpadOption,
   type LaunchpadTab,
 } from "./launchpadAgentActions";
-import { toast } from "./notifications/toast";
 import { newTabAgent, startPromptInNewTab } from "./sendToNewTab";
 import { useAppStore } from "./store/app";
 
@@ -59,19 +58,18 @@ export function preferredFixOption(tabs: LaunchpadTab[]): LaunchpadOption | null
 }
 
 /** Starts `option` in a new tab of `projectName` with `prompt` as its first
- *  message, behind what the project shows. An action that asks for inputs or a
- *  confirmation brings the project forward to ask them first. */
+ *  message, and brings the project and that tab on screen. An action that asks
+ *  for inputs or a confirmation asks them first. */
 export function startFix(projectName: string, option: LaunchpadOption, prompt: string): void {
   saveFixPick(option);
   const { action, group } = option;
-  const started = () => toast.success(`Started ${option.label} in a new tab to fix the checks`);
   if (!action) {
-    startPromptInNewTab(projectName, newTabAgent(option.agent).launch, prompt, {});
-    started();
+    startPromptInNewTab(projectName, newTabAgent(option.agent).launch, prompt, {}, true);
     return;
   }
   if (group) noteChildRun(projectName, group, action);
   const asks = !!action.inputs?.length || !!action.confirm;
-  useAppStore.getState().triggerRemoteAction(projectName, action.name, asks ? undefined : {}, !asks, { prompt });
-  if (!asks) started();
+  useAppStore
+    .getState()
+    .triggerRemoteAction(projectName, action.name, asks ? undefined : {}, !asks, { prompt, focus: true });
 }
