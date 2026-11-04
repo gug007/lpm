@@ -13,15 +13,18 @@ import kotlinx.coroutines.flow.asStateFlow
 // under the same thumb, so a double tap would otherwise start a take.
 private const val SEND_HOLD_OFF_MS = 600L
 
-/** The take's engine: Demo Mode's sample, or the phone's recognizer. */
+/** The take's engine: Demo Mode's sample, the Mac's VoiceToText, or the phone's recognizer. */
 class DictationEngines @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val live: MacSession
 ) {
     val needsMicrophone: Boolean get() = !live.state.value.demoMode
 
-    fun make(): DictationEngine =
-        if (needsMicrophone) SpeechDictationEngine(context) else DemoDictationEngine()
+    fun make(): DictationEngine {
+        if (!needsMicrophone) return DemoDictationEngine()
+        val session = live.visitSession.value ?: live
+        return session.store<DictationLink>().newTake() ?: SpeechDictationEngine(context)
+    }
 }
 
 /**

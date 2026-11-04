@@ -121,9 +121,10 @@ fn repo_commits(root: &Path, from: DateTime<Local>, to: DateTime<Local>) -> Vec<
 }
 
 /// An origin URL as `host/path`, lowercased, without scheme, credentials or
-/// `.git`, so the SSH and HTTPS forms of one repository match.
+/// `.git`, so the SSH and HTTPS forms of one repository match, as do a local
+/// Windows path's two spellings.
 pub(crate) fn origin_key(url: &str) -> String {
-    let url = url.trim();
+    let url = url.trim().replace('\\', "/");
     let rest = match url.split_once("://") {
         Some((_, rest)) => rest.to_string(),
         None => url.replacen(':', "/", 1),

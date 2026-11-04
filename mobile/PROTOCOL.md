@@ -152,7 +152,10 @@ desktop's weekly recap card (`weeklyRecap`); `"recapMonth"` — `weeklyRecap` wi
 reply and `sidebarPin` (see [Sidebar folder ops](#sidebar-folder-ops)); `"gitHistory"` —
 `gitHistory`, `gitCommitFiles` and `gitCommitPatch` (see [Commit history](#commit-history));
 `"keepAwake"` — `keepAwake` and `keepAwakeSet`, and the `keepAwake` push (see
-[Keep awake](#keep-awake)).
+[Keep awake](#keep-awake)); `"dictation"` — `dictateStart`, `dictateAudio`, `dictateStop`
+and `dictateCancel` (see [Dictation](#dictation)), offered only while an installed
+VoiceToText takes audio from other apps, so unlike the rest it depends on the machine
+as well as the build.
 Rides `paired` **and** `ready`;
 **absent** from a desktop that predates it, which means none.
 
@@ -657,6 +660,45 @@ re-renders without a follow-up `sidebar` round-trip. All four are local config o
 and work with the Mac's main window closed. Folders are matched by **name** (exact,
 then case-insensitive), consistent across create/rename/delete/move; moving a
 project to a folder name that doesn't exist creates it.
+
+### Dictation
+
+The composer's mic on a machine whose `features` has `"dictation"`: the phone records
+and this machine's VoiceToText transcribes, with the model picked there, as it does
+for the desktop's mic. It works the same relayed, on the machine the phone is talking
+to. Without the feature (Linux, Windows, no VoiceToText, an older copy of it, an older
+lpm) the phone uses its own recognizer and sends nothing.
+
+```json
+{ "t": "dictateStart", "id": "<uuid>" }
+{ "t": "dictateAudio", "id": "<uuid>", "pcm": "<base64>" }
+{ "t": "dictateStop", "id": "<uuid>" }
+{ "t": "dictateCancel", "id": "<uuid>" }
+```
+
+`id` names the take and is minted by the phone. `pcm` is base64 of 16-bit little-endian
+mono samples at 16 kHz, a tenth of a second to a frame. The phone starts sending as soon
+as the mic opens: the machine holds the audio while it launches VoiceToText and loads
+its model, which can take a minute or more the first time. All four are live-only,
+never queued for a reconnect: one take at a time per connection, and it ends with the
+connection, which cancels it.
+
+The take's progress comes back as VoiceToText's own events, with `t` and `id` added:
+
+```json
+{ "t": "dictation", "id": "<uuid>", "event": "state", "state": "preparing", "progress": 0.4, "message": "…" }
+{ "t": "dictation", "id": "<uuid>", "event": "started", "model": { "name": "Parakeet TDT v3", "live": false } }
+{ "t": "dictation", "id": "<uuid>", "event": "partial", "text": "run the" }
+{ "t": "dictation", "id": "<uuid>", "event": "transcript", "text": "Run the tests.", "duration": 2.4 }
+{ "t": "dictation", "id": "<uuid>", "event": "error", "code": "busy", "message": "VoiceToText is already recording." }
+```
+
+`partial` comes from live models only and replaces the last one. A take ends with one
+`transcript` or `error`. `message` is a sentence to show as is. `code` is one of
+VoiceToText's (`too_short` and `no_speech` mean nothing was said), or `unavailable`
+(VoiceToText can't be reached, or needs updating) or `disconnected` (it quit mid-take).
+Past `dictateStop` the machine is silent while it transcribes, which takes minutes for a
+long take on a slow model, so the phone should wait that long before giving up.
 
 ### Machines this Mac connects to
 

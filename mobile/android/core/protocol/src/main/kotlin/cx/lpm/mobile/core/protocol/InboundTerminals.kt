@@ -5,6 +5,7 @@ import cx.lpm.mobile.core.model.AgentOption
 import cx.lpm.mobile.core.model.AgentSessionsPage
 import cx.lpm.mobile.core.model.BackgroundRunSummary
 import cx.lpm.mobile.core.model.ControlOwner
+import cx.lpm.mobile.core.model.DictationEvent
 import cx.lpm.mobile.core.model.FileChunk
 import cx.lpm.mobile.core.model.ProjectDirContents
 import cx.lpm.mobile.core.model.TerminalInfo
@@ -94,5 +95,6 @@ internal val terminalParsers = parsers {
     for (t in listOf("uploadBegin", "uploadChunk", "uploadDone")) {
         put(t) { o -> Inbound.UploadStep(UploadStep.parse(o)) }
     }
+    put("dictation") { o -> Inbound.Dictation(DictationEvent.parse(o)) }
     put("fileChunk") { o -> Inbound.FileChunk(FileChunk.parse(o)) }
 }

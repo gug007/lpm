@@ -1,12 +1,17 @@
 package cx.lpm.mobile.core.data.dictation
 
 /** Why a take gave no words. */
-enum class DictationFailure {
-    NoSpeech,
-    Denied,
-    Unavailable;
+sealed interface DictationFailure {
+    data object NoSpeech : DictationFailure
 
-    val canRetry: Boolean get() = this == NoSpeech
+    data object Denied : DictationFailure
+
+    data object Unavailable : DictationFailure
+
+    /** The Mac transcribing the take said why it couldn't, in words worth showing. */
+    data class Computer(val message: String) : DictationFailure
+
+    val canRetry: Boolean get() = this == NoSpeech || this is Computer
 }
 
 sealed interface DictationPhase {

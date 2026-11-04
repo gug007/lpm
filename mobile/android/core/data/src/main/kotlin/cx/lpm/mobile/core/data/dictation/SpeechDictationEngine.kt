@@ -17,7 +17,7 @@ private const val QUIET_DB = -2f
 private const val LOUD_DB = 10f
 
 /**
- * The phone's speech recognizer, so the mic works with every computer. It stops by
+ * The phone's speech recognizer, for a computer without VoiceToText. It stops by
  * itself at a pause, so listening restarts until the take is stopped.
  */
 internal class SpeechDictationEngine(private val context: Context) : DictationEngine {

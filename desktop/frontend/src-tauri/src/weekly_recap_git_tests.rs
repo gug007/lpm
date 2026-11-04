@@ -34,6 +34,26 @@ fn names_one_repository_the_same_in_every_remote_form() {
 }
 
 #[test]
+fn names_a_local_windows_remote_the_same_with_either_slash() {
+    assert_eq!(
+        origin_key(r"C:\Repos\App.git"),
+        origin_key("C:/Repos/App.git")
+    );
+    assert_eq!(
+        origin_key(r"C:\Repos/App.git"),
+        origin_key("C:/Repos/App.git")
+    );
+    assert_eq!(
+        origin_key(r"\\nas\Repos\App.git"),
+        origin_key("//nas/Repos/App.git")
+    );
+    assert_ne!(
+        origin_key(r"C:\Repos\App.git"),
+        origin_key(r"C:\Repos\Web.git")
+    );
+}
+
+#[test]
 fn counts_copies_and_worktrees_of_a_repository_once() {
     let dir = tempfile::tempdir().unwrap();
     let app = dir.path().join("app");

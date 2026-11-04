@@ -24,6 +24,8 @@ const SOCKETS: [&str; 2] = ["api.sock", "api-dev.sock"];
 // Info.plist key a copy that speaks the API carries. A byte search finds it in
 // both XML and binary plists, without launching anything.
 const API_MARKER: &[u8] = b"VoiceToTextAPIVersion";
+// And the one a copy carries that transcribes audio sent to it (`startStream`).
+const AUDIO_MARKER: &[u8] = b"VoiceToTextAudioInput";
 const LAUNCH_TIMEOUT: Duration = Duration::from_secs(15);
 const STARTING_GRACE: Duration = Duration::from_secs(2);
 
@@ -74,11 +76,21 @@ pub fn send_if_connected(method: &'static str) -> bool {
     writeln!(conn.stream, "{}", json!({ "id": id, "method": method })).is_ok()
 }
 
+/// A socket of the caller's own, launching VoiceToText if it has to.
+pub fn open() -> Result<UnixStream, Unavailable> {
+    dial().map_or_else(launch_and_dial, Ok)
+}
+
+/// Whether an installed copy can transcribe audio from somewhere other than this
+/// Mac's microphone.
+pub fn takes_audio() -> bool {
+    APPS.iter()
+        .filter_map(|app| installed(app))
+        .any(|bundle| declares(&bundle, AUDIO_MARKER))
+}
+
 fn connect(app: &AppHandle) -> Result<Connection, Unavailable> {
-    let stream = match dial() {
-        Some(stream) => stream,
-        None => launch_and_dial()?,
-    };
+    let stream = open()?;
     let _ = stream.set_write_timeout(Some(Duration::from_secs(2)));
     let reader = stream
         .try_clone()
@@ -122,7 +134,7 @@ fn spawn_reader(
 // Events pass through as VoiceToText sent them. A response becomes an event
 // only when it says something the recorder shows: `start` succeeding, or any
 // request failing — except a `cancelled` start, which the user asked for.
-fn translate(msg: &Value, method: Option<&'static str>) -> Option<Value> {
+pub fn translate(msg: &Value, method: Option<&'static str>) -> Option<Value> {
     if msg.get("event").is_some() {
         return Some(msg.clone());
     }
@@ -160,8 +172,12 @@ fn installed(app: &str) -> Option<String> {
 }
 
 fn speaks_api(bundle: &str) -> bool {
+    declares(bundle, API_MARKER)
+}
+
+fn declares(bundle: &str, marker: &[u8]) -> bool {
     std::fs::read(format!("{bundle}/Contents/Info.plist"))
-        .is_ok_and(|plist| plist.windows(API_MARKER.len()).any(|w| w == API_MARKER))
+        .is_ok_and(|plist| plist.windows(marker.len()).any(|w| w == marker))
 }
 
 fn is_running(bundle: &str) -> bool {
@@ -265,5 +281,6 @@ mod tests {
         std::fs::write(old.join("Info.plist"), "<dict></dict>").unwrap();
         assert!(speaks_api(&dir.path().join("New.app").to_string_lossy()));
         assert!(!speaks_api(&dir.path().join("Old.app").to_string_lossy()));
+        assert!(!declares(&dir.path().join("New.app").to_string_lossy(), AUDIO_MARKER));
     }
 }

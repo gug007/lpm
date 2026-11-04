@@ -55,6 +55,7 @@ use tungstenite::{accept, Error as WsError, Message, WebSocket};
 
 mod answer;
 mod ci_push;
+mod dictation;
 mod live;
 mod mac_alert;
 mod mentions;
@@ -178,6 +179,15 @@ const PHONE_FEATURES: &[&str] = &[
     crate::remote_lpm_commands::FEATURE,
     crate::remote_ci::FEATURE,
 ];
+
+/// `PHONE_FEATURES`, and what depends on this machine as well as this build.
+pub(crate) fn phone_features() -> Vec<&'static str> {
+    let mut features = PHONE_FEATURES.to_vec();
+    if dictation::available() {
+        features.push(dictation::FEATURE);
+    }
+    features
+}
 
 /// The phone may send `restartService` / `stopService`.
 const SERVICE_RESTART_FEATURE: &str = "serviceRestart";
@@ -1496,7 +1506,7 @@ fn authenticate(ws: &mut ClientWs, hub: &RemoteHub) -> FirstFrame {
                                 "serverId": hub.server_id(),
                                 "serverName": server_name(),
                                 "platform": crate::peer::platform_id(),
-                                "features": PHONE_FEATURES,
+                                "features": phone_features(),
                             })),
                         )
                         .to_string(),
@@ -1535,7 +1545,7 @@ fn authenticate(ws: &mut ClientWs, hub: &RemoteHub) -> FirstFrame {
                             "serverId": hub.server_id(),
                             "serverName": server_name(),
                             "platform": crate::peer::platform_id(),
-                            "features": PHONE_FEATURES,
+                            "features": phone_features(),
                         })),
                     ))
                     .to_string(),
@@ -1717,7 +1727,7 @@ fn handle_pair_request(
                         "serverId": hub.server_id(),
                         "serverName": server_name(),
                         "platform": crate::peer::platform_id(),
-                        "features": PHONE_FEATURES,
+                        "features": phone_features(),
                     })),
                 )
                 .to_string(),
@@ -2187,6 +2197,7 @@ fn file_stamp(cwd: &str, path: &str) -> String {
 struct RemoteWatch {
     stop: Arc<AtomicBool>,
     _watcher: Option<notify::RecommendedWatcher>,
+    take: Option<dictation::Take>,
 }
 
 /// Watch a project's working tree for this connection and push a debounced
@@ -2256,6 +2267,7 @@ fn start_git_watch(
     Ok(RemoteWatch {
         stop,
         _watcher: Some(watcher),
+        take: None,
     })
 }
 
@@ -4222,8 +4234,13 @@ fn handle_msg(
             }
             if t == "serviceLogsWatch" {
                 let stop = crate::remote_service_logs::start(project, pane_index, out.clone());
-                watches.insert(key, RemoteWatch { stop, _watcher: None });
+                watches.insert(key, RemoteWatch { stop, _watcher: None, take: None });
             }
+        }
+        // A take recorded on the phone and transcribed here (see remote/dictation).
+        // Kept in `watches` too, so a phone that goes away ends it.
+        "dictateStart" | "dictateAudio" | "dictateStop" | "dictateCancel" => {
+            dictation::handle(out, watches, t, &v)
         }
         // Paginated history query (keyset, page 60), mirroring the desktop popover:
         // this Mac's history merged with every connected paired computer's.
