@@ -345,6 +345,7 @@ class LpmClient internal constructor(
     companion object {
         const val SERVICE_LOGS_WATCH_FEATURE = "serviceLogsWatch"
         const val FILE_UPLOAD_FEATURE = "fileUpload"
+        const val DICTATION_FEATURE = "dictation"
 
         // `restartService` / `stopService`, and ended services reported as `exited`.
         const val SERVICE_RESTART_FEATURE = "serviceRestart"

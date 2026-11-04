@@ -103,6 +103,14 @@ enum Wire {
     static func uploadAbort(id: String, uploadId: String) -> String {
         json(["t": "uploadAbort", "id": id, "uploadId": uploadId])
     }
+    /// A take the Mac transcribes, for one whose `features` has "dictation". `pcm` is
+    /// base64 of 16-bit little-endian mono samples at 16 kHz.
+    static func dictateStart(id: String) -> String { json(["t": "dictateStart", "id": id]) }
+    static func dictateAudio(id: String, pcm: String) -> String {
+        json(["t": "dictateAudio", "id": id, "pcm": pcm])
+    }
+    static func dictateStop(id: String) -> String { json(["t": "dictateStop", "id": id]) }
+    static func dictateCancel(id: String) -> String { json(["t": "dictateCancel", "id": id]) }
     static func mentions(project: String) -> String { json(["t": "mentions", "project": project]) }
     static func history(project: String, q: String) -> String {
         json(["t": "history", "project": project, "q": q])
@@ -694,6 +702,7 @@ enum Wire {
         case history(project: String, [HistoryRow])
         case upload(id: String, reqId: String, path: String)
         case uploadStep(UploadStep)
+        case dictation(DictationEvent)
         case status(project: String, [StatusEntry], seen: [StatusEntry])
         case jobs([AutomationJob], machines: [AutomationMachine], error: String?)
         case jobHistory(project: String, jobId: String, entries: [AutomationHistoryEntry], error: String?)
@@ -991,6 +1000,8 @@ enum Wire {
                                path: ok ? (obj["path"] as? String ?? "") : "")
             case "uploadBegin", "uploadChunk", "uploadDone":
                 return .uploadStep(UploadStep(obj))
+            case "dictation":
+                return .dictation(DictationEvent(obj))
             case "status":
                 return .status(project: obj["project"] as? String ?? "",
                                (obj["status"] as? [[String: Any]] ?? []).map(StatusEntry.init),

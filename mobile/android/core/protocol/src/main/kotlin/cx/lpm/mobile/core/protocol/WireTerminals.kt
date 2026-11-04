@@ -188,6 +188,21 @@ sealed interface WireTerminals {
         }
 
     /**
+     * A take the Mac transcribes, for one whose `features` has "dictation". `pcm` is
+     * base64 of 16-bit little-endian mono samples at 16 kHz.
+     */
+    fun dictateStart(id: String): String = frame("dictateStart") { put("id", id) }
+
+    fun dictateAudio(id: String, pcm: String): String = frame("dictateAudio") {
+        put("id", id)
+        put("pcm", pcm)
+    }
+
+    fun dictateStop(id: String): String = frame("dictateStop") { put("id", id) }
+
+    fun dictateCancel(id: String): String = frame("dictateCancel") { put("id", id) }
+
+    /**
      * The chunked attach, for a Mac whose `features` has "fileUpload": begin with the
      * name and size, send each piece at its offset after the last one is
      * acknowledged, then `uploadDone` answers with the path to paste.

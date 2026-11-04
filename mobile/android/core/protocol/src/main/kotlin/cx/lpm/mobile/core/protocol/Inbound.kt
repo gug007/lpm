@@ -15,6 +15,7 @@ import cx.lpm.mobile.core.model.CommitFile
 import cx.lpm.mobile.core.model.ComposerAction
 import cx.lpm.mobile.core.model.ControlOwner
 import cx.lpm.mobile.core.model.CustomWorkStatus
+import cx.lpm.mobile.core.model.DictationEvent
 import cx.lpm.mobile.core.model.DirListing
 import cx.lpm.mobile.core.model.FileChunk as FileRange
 import cx.lpm.mobile.core.model.GitAutoRun
@@ -142,6 +143,8 @@ sealed interface Inbound {
     data class History(val project: String, val rows: List<HistoryRow>) : Inbound
     data class Upload(val id: String, val reqId: String, val path: String) : Inbound
     data class UploadStep(val step: UploadReply) : Inbound
+
+    data class Dictation(val event: DictationEvent) : Inbound
     data class Status(
         val project: String,
         val entries: List<StatusEntry>,

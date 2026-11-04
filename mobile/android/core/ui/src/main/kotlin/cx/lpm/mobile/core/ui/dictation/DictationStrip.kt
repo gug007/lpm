@@ -128,7 +128,7 @@ private fun DictationNotice(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = stringResource(failure.message),
+            text = failure.text(),
             color = ink,
             fontSize = 12.sp,
             lineHeight = 15.sp,
@@ -155,12 +155,13 @@ private fun NoticeAction(title: Int, ink: Color, onClick: () -> Unit) {
     )
 }
 
-private val DictationFailure.message: Int
-    get() = when (this) {
-        DictationFailure.NoSpeech -> R.string.ui_dictation_no_speech
-        DictationFailure.Denied -> R.string.ui_dictation_denied
-        DictationFailure.Unavailable -> R.string.ui_dictation_unavailable
-    }
+@Composable
+private fun DictationFailure.text(): String = when (this) {
+    DictationFailure.NoSpeech -> stringResource(R.string.ui_dictation_no_speech)
+    DictationFailure.Denied -> stringResource(R.string.ui_dictation_denied)
+    DictationFailure.Unavailable -> stringResource(R.string.ui_dictation_unavailable)
+    is DictationFailure.Computer -> message
+}
 
 private fun Context.openAppSettings() {
     startActivity(

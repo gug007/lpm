@@ -220,6 +220,8 @@ final class AppModel {
     // The composers' recorder, held here so a take's words still reach a draft whose
     // screen has gone.
     @ObservationIgnored let dictation = DictationStore()
+    /// The take this phone is streaming to its Mac, for that Mac's answers to reach.
+    @ObservationIgnored private weak var computerDictation: ComputerDictationEngine?
     // reqId -> terminal id, routing streamed transform replies to the right store.
     @ObservationIgnored private var transformRoutes: [String: String] = [:]
 
@@ -471,7 +473,13 @@ final class AppModel {
         link.model = self
         dictation.makeEngine = { [weak self] in
             if self?.demoMode == true { return DemoDictationEngine() }
-            return SpeechDictationEngine()
+            guard let self, let client, connection == .ready,
+                  client.hostFeatures.contains(LpmClient.dictationFeature) else {
+                return SpeechDictationEngine()
+            }
+            let engine = ComputerDictationEngine(client: client)
+            computerDictation = engine
+            return engine
         }
         dictation.willRecord = { [weak self] in self?.speech.stop() }
         link.network.onChange = { [weak self] from, to in self?.networkChanged(from: from, to: to) }
@@ -2743,6 +2751,7 @@ final class AppModel {
             if self.wasReady && !nowReady {
                 self.noteTerminalsLostWithLink()
                 self.handleConnectionReset()
+                self.computerDictation?.linkLost()
                 self.noteLeavingActiveMac(asOf: c.lastHeard ?? Date())
             }
             self.wasReady = nowReady
@@ -2955,6 +2964,7 @@ final class AppModel {
             self?.composerStores[id]?.resolveUpload(reqId: reqId, path: path)
         }
         c.onUploadStep = { [weak self] step in self?.composerStores[step.termId]?.applyUploadStep(step) }
+        c.onDictation = { [weak self] event in self?.computerDictation?.apply(event) }
         c.onMentions = { [weak self] proj, entries, computers in
             self?.mentions[proj] = entries
             self?.mentionComputers[proj] = computers

@@ -9,8 +9,8 @@
 // Each session is a channel of the peer connection it came in on, and ends with
 // that connection.
 use super::{
-    handle_msg, release_session, server_name, Client, PhoneSink, RemoteHub, RemoteWatch, OUT_QUEUE,
-    PHONE_FEATURES,
+    handle_msg, phone_features, release_session, server_name, Client, PhoneSink, RemoteHub,
+    RemoteWatch, OUT_QUEUE,
 };
 use crate::remotepresence::Route;
 use serde_json::{json, Value};
@@ -166,7 +166,7 @@ impl Session {
             "serverId": hub.server_id(),
             "serverName": server_name(),
             "platform": crate::peer::platform_id(),
-            "features": PHONE_FEATURES,
+            "features": phone_features(),
         }));
         let _ = out.try_send(ready.to_string());
         hub.inner

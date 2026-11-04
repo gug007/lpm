@@ -19,6 +19,7 @@ import cx.lpm.mobile.core.data.client.SocketTransport
 import cx.lpm.mobile.core.data.client.TailnetRouter
 import cx.lpm.mobile.core.data.commands.LpmCommandsStore
 import cx.lpm.mobile.core.data.config.ProjectConfigStore
+import cx.lpm.mobile.core.data.dictation.DictationLink
 import cx.lpm.mobile.core.data.files.ProjectFilesStore
 import cx.lpm.mobile.core.data.git.GitAutoStore
 import cx.lpm.mobile.core.data.git.GitChecksStore
@@ -227,6 +228,10 @@ object DataModule {
     @Provides
     @IntoSet
     fun terminalsStoreFactory(): SessionStore.Factory = SessionStore.Factory(::TerminalsStore)
+
+    @Provides
+    @IntoSet
+    fun dictationLinkFactory(): SessionStore.Factory = SessionStore.Factory(::DictationLink)
 
     @Provides
     @IntoSet

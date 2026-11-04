@@ -15,6 +15,7 @@ import cx.lpm.mobile.core.model.CommitFile
 import cx.lpm.mobile.core.model.ComposerAction
 import cx.lpm.mobile.core.model.ControlOwner
 import cx.lpm.mobile.core.model.CustomWorkStatus
+import cx.lpm.mobile.core.model.DictationEvent
 import cx.lpm.mobile.core.model.DirListing
 import cx.lpm.mobile.core.model.FileChunk
 import cx.lpm.mobile.core.model.GitAutoRun
@@ -106,6 +107,7 @@ abstract class LpmClientCallbacks {
     var onSlash: ((id: String, commands: List<SlashCommand>) -> Unit)? = null
     var onUpload: ((id: String, reqId: String, path: String) -> Unit)? = null
     var onUploadStep: ((UploadStep) -> Unit)? = null
+    var onDictation: ((DictationEvent) -> Unit)? = null
     var onMentions: (
         (project: String, entries: List<MentionEntry>, computers: List<MentionComputer>) -> Unit
     )? = null

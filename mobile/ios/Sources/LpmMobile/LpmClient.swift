@@ -53,6 +53,7 @@ final class LpmClient: NSObject {
     var onAnswers: ((_ reqId: String, _ answers: [RecentAnswer]?, _ error: String?) -> Void)?
     var onUpload: ((_ id: String, _ reqId: String, _ path: String) -> Void)?
     var onUploadStep: ((UploadStep) -> Void)?
+    var onDictation: ((DictationEvent) -> Void)?
     var onMentions: ((_ project: String, _ entries: [MentionEntry], _ computers: [MentionComputer]) -> Void)?
     var onHistory: ((_ project: String, _ rows: [HistoryRow]) -> Void)?
     var onStatus: ((_ project: String, _ entries: [StatusEntry], _ seen: [StatusEntry]) -> Void)?
@@ -285,6 +286,7 @@ final class LpmClient: NSObject {
     static let gitChecksFeature = "gitChecks"
     static let keepAwakeFeature = "keepAwake"
     static let lpmCommandsFeature = "lpmCommands"
+    static let dictationFeature = "dictation"
 
     // Requests made while the link is down or half-dead, delivered on the next
     // `ready`. iOS kills the socket seconds after backgrounding and the
@@ -927,6 +929,11 @@ final class LpmClient: NSObject {
     func uploadAbort(_ id: String, uploadId: String) {
         send(Wire.uploadAbort(id: id, uploadId: uploadId))
     }
+    // A take ends with the link it ran on, so none of it is worth replaying.
+    func dictateStart(_ id: String) { sendLive(Wire.dictateStart(id: id)) }
+    func dictateAudio(_ id: String, pcm: String) { sendLive(Wire.dictateAudio(id: id, pcm: pcm)) }
+    func dictateStop(_ id: String) { sendLive(Wire.dictateStop(id: id)) }
+    func dictateCancel(_ id: String) { sendLive(Wire.dictateCancel(id: id)) }
     func requestMentions(project: String) { send(Wire.mentions(project: project)) }
     func requestHistory(project: String, q: String) { send(Wire.history(project: project, q: q)) }
     func recordHistory(project: String, id: String, label: String, text: String) {
@@ -1486,6 +1493,7 @@ final class LpmClient: NSObject {
             case .answers(_, let reqId, let answers, let error): self.onAnswers?(reqId, answers, error)
             case .upload(let id, let reqId, let path): self.onUpload?(id, reqId, path)
             case .uploadStep(let step): self.onUploadStep?(step)
+            case .dictation(let event): self.onDictation?(event)
             case .mentions(let proj, let entries, let computers): self.onMentions?(proj, entries, computers)
             case .history(let proj, let rows): self.onHistory?(proj, rows)
             case .status(let proj, let s, let seen): self.onStatus?(proj, s, seen)
