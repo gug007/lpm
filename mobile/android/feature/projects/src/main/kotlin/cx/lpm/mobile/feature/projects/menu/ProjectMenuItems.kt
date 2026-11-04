@@ -42,12 +42,13 @@ class ProjectMenuActions(
     val configure: () -> Unit = {},
     val terminalSettings: () -> Unit = {},
     val git: GitMenuActions = GitMenuActions(),
+    val ci: @Composable ColumnScope.() -> Unit = {},
     val claudeAccount: @Composable ColumnScope.() -> Unit = {}
 )
 
 /**
  * The project's "More" menu: Find in Terminal over a terminal, then Start/Stop, Review
- * Changes, Files, Resume Session, Git, Memory, Commands, Notes, Automations, Claude
+ * Changes, Files, Resume Session, Git, CI, Memory, Commands, Notes, Automations, Claude
  * Account, Status, its profiles, then Rename, Configure and Terminal Settings.
  */
 @Composable
@@ -104,6 +105,7 @@ fun ColumnScope.ProjectMenuItems(
         )
     }
     GitSubmenu(state, project, actions.git)
+    actions.ci(this)
     // Memory is Mac-local: an SSH project's agents run on the other host. Notes are
     // stored per project on the Mac either way.
     if (!project.isRemote) {

@@ -73,8 +73,6 @@ internal fun TerminalScreen(
     onRestart: () -> Unit,
     onCloseTab: () -> Unit,
     modifier: Modifier = Modifier,
-    /** After Back. */
-    leading: @Composable RowScope.() -> Unit = {},
     trailing: @Composable RowScope.() -> Unit = {},
     connectionBanner: @Composable () -> Unit = {},
     findBar: @Composable () -> Unit = {},
@@ -98,7 +96,6 @@ internal fun TerminalScreen(
                     contentDescription = stringResource(R.string.terminal_back),
                     onClick = onBack
                 )
-                leading()
             },
             trailing = trailing,
             keepTitleCentered = true

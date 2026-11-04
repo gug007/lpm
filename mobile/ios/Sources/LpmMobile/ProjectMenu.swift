@@ -27,6 +27,7 @@ struct ProjectRunControl: View {
     let onHistory: (() -> Void)?
     let onAuto: (_ kind: GitAutoKind) -> Void
     let onDiscard: () -> Void
+    let onChecks: () -> Void
     /// Find in the terminal this menu sits over; nil leaves the row out.
     let onFind: (() -> Void)?
     // On a terminal's screen Rename names that tab, not the project.
@@ -48,6 +49,7 @@ struct ProjectRunControl: View {
     private var branch: String { model.git.snapshots[name]?.branch ?? "" }
     private var ghCli: Bool { model.git.snapshots[name]?.ghCli ?? false }
     private var autoRun: GitAutoRun? { model.gitAuto.runs[name] }
+    private var checks: GitChecks? { model.gitChecks.available ? model.gitChecks.checks(name) : nil }
     private var unreadAutomations: Int {
         model.automations.filter { $0.unread > 0 && $0.runTargets.contains(name) }.count
     }
@@ -87,6 +89,13 @@ struct ProjectRunControl: View {
             }
 
             gitMenu
+
+            if let checks, let verdict = checks.verdict {
+                Button(action: onChecks) {
+                    Label { Text("CI") } icon: { verdict.menuIcon }
+                    Text(checks.label)
+                }
+            }
 
             // Memory is Mac-local: an SSH project's agents run on the other host,
             // where this Mac's session files mean nothing. Notes are stored per

@@ -382,6 +382,7 @@ struct TerminalComposer: View {
     // inline (plus · field · send); once it soft-wraps or contains a newline the
     // field spans the pill's full width with the controls dropped to a bottom row.
     private let composerCorner: CGFloat = 24
+    private let micRoom: CGFloat = 36 + DictationGhostMic.gapToSend
 
     private var inputRow: some View {
         unifiedField
@@ -405,7 +406,7 @@ struct TerminalComposer: View {
         fieldStack
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.leading, isExpanded ? 6 : 44)
-            .padding(.trailing, isExpanded ? 6 + fullToggleSpace : micBesideSend ? 80 : 44)
+            .padding(.trailing, isExpanded ? 6 + fullToggleSpace : micBesideSend ? 44 + micRoom : 44)
             .padding(.top, isExpanded ? 4 : 0)
             .padding(.bottom, isExpanded ? 40 : 0)
             .overlay(alignment: .bottomLeading) {
@@ -456,10 +457,10 @@ struct TerminalComposer: View {
     }
 
     // Pill width minus the compact side gutters (44 each: edge inset + a 36pt
-    // control + gap, plus the mic's 36 beside Send) and the field's own text insets —
+    // control + gap, plus the mic's room beside Send) and the field's own text insets —
     // the width the field's text actually gets in the compact layout.
     private var compactTextWidth: CGFloat {
-        max(1, containerWidth - 88 - 16 - (micBesideSend ? 36 : 0))
+        max(1, containerWidth - 88 - 16 - (micBesideSend ? micRoom : 0))
     }
 
     // Pill width minus the expanded horizontal padding (6 each side) and the
@@ -577,7 +578,7 @@ struct TerminalComposer: View {
                     .foregroundStyle(liveSendForeground)
             }
         } else {
-            HStack(spacing: 0) {
+            HStack(spacing: DictationGhostMic.gapToSend) {
                 if micBesideSend {
                     DictationGhostMic(color: composerControlColor, action: startDictation)
                         .disabled(store.transforming)

@@ -10,10 +10,9 @@ tags: [demo, config, services]
 # The project's "…" menu; tap Configure… once it has settled.
 - tapOn: "More"
 - extendedWaitUntil:
-    visible: "Configure…"
+    visible: "Review Changes.*"
     timeout: 5000
-- waitForAnimationToEnd:
-    timeout: 3000
+- runFlow: subflows/scroll-project-menu.yaml
 - retry:
     maxRetries: 2
     commands:

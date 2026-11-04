@@ -26,7 +26,6 @@ import cx.lpm.mobile.feature.mac.update.MacUpdateMenuItemRoute
 import cx.lpm.mobile.feature.memory.composer.ComposerMemorySheet
 import cx.lpm.mobile.feature.pairing.IssueCardSlot
 import cx.lpm.mobile.feature.projects.ProjectsSlots
-import cx.lpm.mobile.feature.projects.ci.ProjectCiButton
 import cx.lpm.mobile.feature.projects.duplicate.DuplicateProjectSheet
 import cx.lpm.mobile.feature.projects.menu.ProjectMenuToolbar
 import cx.lpm.mobile.feature.projects.services.ServiceEditorSheet
@@ -89,9 +88,6 @@ internal fun terminalSlots(navigator: Navigator, projects: ProjectsSlots) = Term
             onSpawnedTerminal = onSpawned,
             slots = projects
         )
-    },
-    projectCi = { project, session, onSpawned ->
-        ProjectCiButton(project.name, session, onSpawned, actionInputs = projects.actionInputs)
     },
     tabAccountChoices = { session, term -> TabClaudeAccountChoicesRoute(session, term) },
     connectionBanner = { session -> TerminalConnectionBannerRoute(session = session) },

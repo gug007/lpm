@@ -9,8 +9,9 @@ tags: [demo, projects]
     timeout: 5000
 - tapOn: "More"
 - extendedWaitUntil:
-    visible: "Rename…"
+    visible: "Review Changes.*"
     timeout: 5000
+- runFlow: subflows/scroll-project-menu.yaml
 - retry:
     maxRetries: 2
     commands:

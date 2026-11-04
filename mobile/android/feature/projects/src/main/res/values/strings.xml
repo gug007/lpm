@@ -96,7 +96,6 @@
     <!-- Dialogs -->
     <string name="cancel">Cancel</string>
     <string name="ci_title">CI</string>
-    <string name="ci_status">CI on %1$s: %2$s</string>
     <string name="ci_none_title">No checks</string>
     <string name="ci_none_description">GitHub has no checks for this branch.</string>
     <string name="ci_fix">Fix with %1$s</string>

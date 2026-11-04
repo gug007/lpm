@@ -1,0 +1,16 @@
+# The open project "…" menu, settled, then scrolled to its last rows, which sit below
+# the panel's fold. Android only: Maestro's swipes don't reach the iOS menu.
+appId: cx.lpm.mobile
+---
+- waitForAnimationToEnd:
+    timeout: 3000
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - swipe:
+          start: 75%, 50%
+          end: 75%, 15%
+          duration: 500
+      - waitForAnimationToEnd:
+          timeout: 3000

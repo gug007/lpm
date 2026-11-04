@@ -24,12 +24,6 @@ class TerminalSlots(
         onFind: (() -> Unit)?,
         onSpawnedTerminal: (TerminalInfo) -> Unit
     ) -> Unit = { _, _, _, _, _ -> },
-    /** The project's CI beside Back; `onSpawnedTerminal` opens the tab a Fix with … row starts. */
-    val projectCi: @Composable RowScope.(
-        project: Project,
-        session: SessionKey,
-        onSpawnedTerminal: (TerminalInfo) -> Unit
-    ) -> Unit = { _, _, _ -> },
     /**
      * The Mac's Claude accounts a tab can continue its conversation on, for the limit
      * bar's Other account menu; picking one moves the tab.

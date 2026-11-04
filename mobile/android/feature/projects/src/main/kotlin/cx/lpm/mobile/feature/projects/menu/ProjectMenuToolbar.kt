@@ -47,6 +47,11 @@ import cx.lpm.mobile.core.navigation.ProjectConfigKey
 import cx.lpm.mobile.core.navigation.ProjectFilesKey
 import cx.lpm.mobile.feature.projects.ProjectsSlots
 import cx.lpm.mobile.feature.projects.R as ProjectsR
+import cx.lpm.mobile.feature.projects.ci.CiFixActions
+import cx.lpm.mobile.feature.projects.ci.CiMenuItem
+import cx.lpm.mobile.feature.projects.ci.FollowChecks
+import cx.lpm.mobile.feature.projects.ci.GitChecksSheet
+import cx.lpm.mobile.feature.projects.ci.GitChecksViewModel
 import cx.lpm.mobile.feature.projects.resume.ResumeSessionSheet
 import kotlinx.coroutines.launch
 
@@ -72,14 +77,22 @@ fun ProjectMenuToolbar(
         hiltViewModel<ProjectMenuViewModel, ProjectMenuViewModel.Factory>(
             key = "project-menu:$session:$project",
             creationCallback = { it.create(project, session) }
+        ),
+    checksViewModel: GitChecksViewModel =
+        hiltViewModel<GitChecksViewModel, GitChecksViewModel.Factory>(
+            key = "git-checks:$session:$project",
+            creationCallback = { it.create(project, session) }
         )
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val checks by checksViewModel.uiState.collectAsStateWithLifecycle()
     LaunchedEffect(project) { viewModel.onAppear() }
+    FollowChecks(checks, checksViewModel::load)
     val live = state.project ?: return
     var menuOpen by remember { mutableStateOf(false) }
     var dialog by remember { mutableStateOf<MenuDialog?>(null) }
     var resumeOpen by remember { mutableStateOf(false) }
+    var checksOpen by remember { mutableStateOf(false) }
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
     val confirmRisky = LocalConfirmRisky.current
@@ -134,6 +147,7 @@ fun ProjectMenuToolbar(
             },
             discard = { dialog = MenuDialog.Discard }
         ),
+        ci = { CiMenuItem(checks, onClick = { checksOpen = true }) },
         claudeAccount = { slots.claudeAccountMenu(this, session, live) }
     )
     Box(modifier) {
@@ -172,6 +186,21 @@ fun ProjectMenuToolbar(
             session = session,
             onOpen = onSpawnedTerminal,
             onDismiss = { resumeOpen = false }
+        )
+    }
+    if (checksOpen) {
+        LaunchedEffect(checksViewModel) { checksViewModel.loadAgents() }
+        GitChecksSheet(
+            state = checks,
+            fix = CiFixActions(
+                start = { checksViewModel.fix(it, onSpawnedTerminal) },
+                submitInputs = { checksViewModel.submitInputs(it, onSpawnedTerminal) },
+                confirm = { checksViewModel.confirm(onSpawnedTerminal) },
+                dismissStep = checksViewModel::dismissStep
+            ),
+            onRerun = checksViewModel::rerun,
+            onDismiss = { checksOpen = false },
+            actionInputs = slots.actionInputs
         )
     }
     slots.claudeConsentPrompt(session, project)

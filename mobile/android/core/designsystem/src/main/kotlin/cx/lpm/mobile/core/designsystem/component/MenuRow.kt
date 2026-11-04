@@ -22,6 +22,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -34,7 +35,7 @@ import cx.lpm.mobile.core.designsystem.theme.LpmTheme
  * panel's edge and the title (and subtitle) from 65 dp — or, as on iOS, from the
  * icon's place when there is none — a trailing slot, and a rounded highlight while
  * pressed. An [iconDescription] names the icon as iOS names the row's symbol
- * ("selected" for a checkmark).
+ * ("selected" for a checkmark); [iconTint] colors the icon alone.
  */
 @Composable
 internal fun MenuRow(
@@ -43,6 +44,7 @@ internal fun MenuRow(
     modifier: Modifier = Modifier,
     icon: Painter? = null,
     iconDescription: String? = null,
+    iconTint: Color? = null,
     subtitle: String? = null,
     destructive: Boolean = false,
     enabled: Boolean = true,
@@ -90,7 +92,7 @@ internal fun MenuRow(
                 Icon(
                     painter = icon,
                     contentDescription = iconDescription,
-                    tint = tint,
+                    tint = iconTint ?: tint,
                     modifier = Modifier.size(22.dp)
                 )
             }

@@ -3,7 +3,8 @@ name: 31-project-status
 tags: [demo, projects]
 ---
 - runFlow: subflows/enter-demo.yaml
-- tapOn: "storefront"
+# blog has no CI row, which would push Status below the fold on iOS, where Maestro can't scroll.
+- tapOn: "blog"
 - extendedWaitUntil:
     visible: "Tabs"
     timeout: 5000
@@ -22,7 +23,7 @@ tags: [demo, projects]
 # Blocked asks for a line before it applies.
 - tapOn: ".*Blocked"
 - extendedWaitUntil:
-    visible: "What is blocking storefront? It shows under the name in the projects list."
+    visible: "What is blocking blog? It shows under the name in the projects list."
     timeout: 5000
 - takeScreenshot: 2-blocked-note
 - tapOn: "Waiting on…"
@@ -30,6 +31,6 @@ tags: [demo, projects]
 - tapOn: "Save"
 # The project's title now leads with the status's mark.
 - extendedWaitUntil:
-    visible: ".*storefront"
+    visible: ".*blog"
     timeout: 5000
 - takeScreenshot: 3-blocked

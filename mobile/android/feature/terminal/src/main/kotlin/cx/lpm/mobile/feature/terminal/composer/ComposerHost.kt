@@ -6,6 +6,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.runtime.Composable
@@ -32,6 +33,7 @@ import cx.lpm.mobile.core.navigation.PresentationScope
 import cx.lpm.mobile.core.ui.dictation.DictationCancelButton
 import cx.lpm.mobile.core.ui.dictation.DictationGhostMic
 import cx.lpm.mobile.core.ui.dictation.DictationMicDisc
+import cx.lpm.mobile.core.ui.dictation.DictationMicGap
 import cx.lpm.mobile.core.ui.dictation.DictationStopButton
 import cx.lpm.mobile.core.ui.dictation.DictationStrip
 import cx.lpm.mobile.core.ui.dictation.rememberDictationStart
@@ -252,7 +254,7 @@ internal fun ComposerHost(
                         onClick = dictate
                     )
 
-                    else -> Row {
+                    else -> Row(horizontalArrangement = Arrangement.spacedBy(DictationMicGap)) {
                         if (state.micBesideSend(mode.look.enabled)) {
                             DictationGhostMic(
                                 color = controlColor,

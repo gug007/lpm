@@ -10,10 +10,9 @@ tags: [demo, config]
 # The project's "…" menu; tap Configure… once it has settled.
 - tapOn: "More"
 - extendedWaitUntil:
-    visible: "Configure…"
+    visible: "Review Changes.*"
     timeout: 5000
-- waitForAnimationToEnd:
-    timeout: 3000
+- runFlow: subflows/scroll-project-menu.yaml
 # Under load iOS can drop a tap on a menu that's still settling; tap again if so.
 - retry:
     maxRetries: 2

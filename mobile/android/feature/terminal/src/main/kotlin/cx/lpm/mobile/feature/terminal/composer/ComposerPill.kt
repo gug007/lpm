@@ -29,16 +29,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.max
 import cx.lpm.mobile.core.data.dictation.plusDictated
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
+import cx.lpm.mobile.core.ui.dictation.DictationMicGap
 import cx.lpm.mobile.core.ui.dictation.DictationPreview
 
 private val Corner = 24.dp
 private const val EXPAND_MS = 150
 
 // The compact side gutters (44 each: edge inset + a 36 dp control + gap) and the
-// field's own text insets; the mic beside Send takes 36 more.
+// field's own text insets; the mic beside Send takes its seat and the gap to Send.
 private val CompactChrome = 88.dp + 16.dp
 private val ExpandedChrome = 12.dp + 16.dp
-private val MicSeat = 36.dp
+private val MicRoom = 36.dp + DictationMicGap
 private val SideGutter = 44.dp
 private val StripInset = 46.dp
 private val StripHeight = 36.dp
@@ -98,7 +99,7 @@ internal fun ComposerPill(
         ).lineCount
     }
     val micBeside = state.micBesideSend(look.enabled)
-    val compactChrome = if (micBeside) CompactChrome + MicSeat else CompactChrome
+    val compactChrome = if (micBeside) CompactChrome + MicRoom else CompactChrome
     val stripOverText = state.stripShown && shown.isNotBlank()
     val expanded = full || stripOverText || '\n' in shown || lines(compactChrome) > 1
     val showsToggle = full || (expanded && lines(ExpandedChrome) >= TOGGLE_LINES)
@@ -110,7 +111,7 @@ internal fun ComposerPill(
     val end by animateDpAsState(
         when {
             expanded -> 6.dp + toggleSpace
-            micBeside -> SideGutter + MicSeat
+            micBeside -> SideGutter + MicRoom
             else -> SideGutter
         },
         tween(EXPAND_MS),

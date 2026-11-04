@@ -121,12 +121,6 @@ internal fun TerminalRoute(
                     navigator.back()
                 },
                 modifier = modifier.observeTouches(seenOnTouch),
-                leading = {
-                    slots.projectCi(this, project, key.session) { spawned ->
-                        viewModel.claimSpawned(spawned)
-                        navigator.navigate(TerminalKey(spawned.project, spawned.id, key.session))
-                    }
-                },
                 trailing = {
                     val onFind = { findOpen = true }
                     slots.projectMenu(

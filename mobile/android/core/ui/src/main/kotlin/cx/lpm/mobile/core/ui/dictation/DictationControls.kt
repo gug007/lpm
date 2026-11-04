@@ -33,6 +33,9 @@ import cx.lpm.mobile.core.ui.R
 private val Seat = 36.dp
 private val DiscSize = 32.dp
 
+/** Keeps the mic and Send apart, so a thumb aiming for one doesn't land on the other. */
+val DictationMicGap = 12.dp
+
 /**
  * What a mic does when tapped: starts the take, asking for the microphone first when
  * the phone still has to grant it. A refusal goes to [onRefuse].

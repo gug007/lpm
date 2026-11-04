@@ -52,6 +52,7 @@ import cx.lpm.mobile.core.ui.ComposerToast
 import cx.lpm.mobile.core.ui.dictation.DictationCancelButton
 import cx.lpm.mobile.core.ui.dictation.DictationGhostMic
 import cx.lpm.mobile.core.ui.dictation.DictationMicDisc
+import cx.lpm.mobile.core.ui.dictation.DictationMicGap
 import cx.lpm.mobile.core.ui.dictation.DictationPreview
 import cx.lpm.mobile.core.ui.dictation.DictationStopButton
 import cx.lpm.mobile.core.ui.dictation.DictationStrip
@@ -205,7 +206,7 @@ internal fun NotesComposer(
                         disc = 27.dp
                     )
 
-                    else -> {
+                    else -> Row(horizontalArrangement = Arrangement.spacedBy(DictationMicGap)) {
                         if (dictation != null && !stripShown && !sending) {
                             DictationGhostMic(
                                 color = colors.secondaryLabel,

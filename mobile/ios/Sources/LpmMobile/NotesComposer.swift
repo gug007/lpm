@@ -101,11 +101,13 @@ struct NotesComposer: View {
         } else if !hasContent && !isSending {
             micCircle
         } else {
-            if !stripShown && !isSending {
-                DictationGhostMic(color: .secondary, action: startDictation)
-                    .frame(width: 34, height: 34)
+            HStack(spacing: DictationGhostMic.gapToSend) {
+                if !stripShown && !isSending {
+                    DictationGhostMic(color: .secondary, action: startDictation)
+                        .frame(width: 34, height: 34)
+                }
+                sendButton
             }
-            sendButton
         }
     }
 

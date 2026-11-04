@@ -17,7 +17,8 @@ tags: [demo, projects, git]
 - assertVisible: "Memory"
 - assertVisible: "Notes"
 - assertVisible: "Automations.*"
+- takeScreenshot: 1-project-menu
+- runFlow: subflows/scroll-project-menu.yaml
 - assertVisible: "Rename…"
 - assertVisible: "Configure…"
 - assertVisible: "Terminal Settings"
-- takeScreenshot: 1-project-menu

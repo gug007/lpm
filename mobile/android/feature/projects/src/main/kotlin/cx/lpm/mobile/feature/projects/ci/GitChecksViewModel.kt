@@ -33,7 +33,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 
-/** The project's CI in the bar and its sheet (iOS `CiStatusButton` + `GitChecksSheet`). */
+/** The project's CI in its menu and its sheet (iOS `ProjectRunControl` + `GitChecksSheet`). */
 data class GitChecksUiState(
     /** The Mac answers `gitChecks`. */
     val available: Boolean = false,

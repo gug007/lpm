@@ -166,6 +166,9 @@ struct DictationDisc<Glyph: View>: View {
 
 /// The plain mic beside Send, for adding to what's in the field.
 struct DictationGhostMic: View {
+    /// Keeps the two apart, so a thumb aiming for one doesn't land on the other.
+    static let gapToSend: CGFloat = 12
+
     let color: Color
     let action: () -> Void
 

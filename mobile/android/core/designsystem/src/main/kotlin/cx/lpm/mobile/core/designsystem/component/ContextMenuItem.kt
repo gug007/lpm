@@ -4,14 +4,16 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.unit.dp
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 
 /**
  * An action in a [ContextMenu]: leading [icon] (named [iconDescription] when it
- * says something, like a checkmark), [title], optional gray [subtitle] ("4 changed
- * files"), optional [trailingIcon]. [destructive] draws it red.
+ * says something, like a checkmark, and colored apart from the row by [iconTint]),
+ * [title], optional gray [subtitle] ("4 changed files"), optional [trailingIcon].
+ * [destructive] draws it red.
  * Picking it closes the menu, then runs [onClick].
  */
 @Composable
@@ -21,6 +23,7 @@ fun ContextMenuItem(
     modifier: Modifier = Modifier,
     icon: Painter? = null,
     iconDescription: String? = null,
+    iconTint: Color? = null,
     subtitle: String? = null,
     trailingIcon: Painter? = null,
     destructive: Boolean = false,
@@ -37,6 +40,7 @@ fun ContextMenuItem(
         modifier = modifier,
         icon = icon,
         iconDescription = iconDescription,
+        iconTint = iconTint,
         subtitle = subtitle,
         destructive = destructive,
         enabled = enabled,
