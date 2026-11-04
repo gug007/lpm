@@ -61,6 +61,10 @@ import cx.lpm.mobile.feature.projects.agents.AgentStatusTrail
 @Composable
 fun ProjectTerminalDeck(
     rows: List<ProjectAgentRow>,
+    /** What tracks the list's agents for its end lines. */
+    edgeRows: AgentEdgeRows,
+    /** Sets this deck's rows apart there; its project's row key. */
+    edgeKey: String,
     onOpen: (ProjectAgentRow) -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
@@ -79,12 +83,14 @@ fun ProjectTerminalDeck(
         rows.forEachIndexed { index, row ->
             key(row.id, row.seen) {
                 if (index > 0) DeckRule()
-                DeckAgentRow(
-                    row = row,
-                    onOpen = { onOpen(row) },
-                    enabled = enabled && row.terminalId != null,
-                    actions = actions
-                )
+                AgentEdgeRow(edgeRows, "$edgeKey/${row.id}", row.edgeState) {
+                    DeckAgentRow(
+                        row = row,
+                        onOpen = { onOpen(row) },
+                        enabled = enabled && row.terminalId != null,
+                        actions = actions
+                    )
+                }
             }
         }
         if (folded > 0) {

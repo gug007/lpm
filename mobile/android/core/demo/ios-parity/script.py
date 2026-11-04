@@ -44,6 +44,8 @@ at(650, 'gitHistory', project='blog', skip=0, limit=100); at(650, 'gitHistory', 
 at(650, 'gitHistory', skip=0)
 at(660, 'gitChecks', project='storefront'); at(660, 'gitChecks', project='api-gateway')
 at(660, 'gitChecks', project='blog'); at(660, 'gitChecks', project='nope')
+at(660, 'gitCommitChecks', project='storefront'); at(660, 'gitCommitChecks', project='api-gateway')
+at(660, 'gitCommitChecks', project='blog')
 at(700, 'gitChecksRerun', project='storefront', runIds=['7001'])
 at(1500, 'gitChecks', project='storefront'); at(8000, 'gitChecks', project='storefront')
 for h in ['a1f3c9e5b2d84f6a9c0e1b7d3f5a8c2e4b6d9f01', 'e5a8b2c4d6f0a1b3c5d7e9f2a4b6c8d0e1f3a167',

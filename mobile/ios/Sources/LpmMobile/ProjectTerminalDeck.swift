@@ -14,6 +14,8 @@ struct ProjectTerminalDeck: View {
     @Environment(AppModel.self) private var model
     let project: String
     let rows: [ProjectAgentRow]
+    /// The machine the project lives on, when it isn't the live Mac.
+    var machine: String?
     var folded = 0
     var expanded = false
     var toggleFold: () -> Void = {}
@@ -25,6 +27,7 @@ struct ProjectTerminalDeck: View {
         ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
             agentRow(row)
                 .deckPiece(first: index == 0, last: index == rows.count - 1 && folded == 0, indent: indent)
+                .tracksListRow(ListEdgeRow.agentID(row.id, project: project, machine: machine))
         }
         if folded > 0 {
             SeenAgentsFoldLine(folded: folded, expanded: expanded, toggle: toggleFold)

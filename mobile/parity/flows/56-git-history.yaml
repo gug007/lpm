@@ -27,6 +27,11 @@ tags: [demo, git]
     timeout: 10000
 - assertVisible: ".*Add payment intent API.*"
 - assertVisible: "Pushed"
+# Pushed commits show how they did on CI, an icon on the right of the row.
+- extendedWaitUntil:
+    visible: "CI failed"
+    timeout: 5000
+- assertVisible: "CI passed"
 - takeScreenshot: 1-history
 # A commit: its message, who wrote it and the files it changed.
 - tapOn: ".*Two-step checkout flow.*"

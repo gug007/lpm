@@ -8,6 +8,7 @@ import { HistoryCommitRow } from "./HistoryCommitRow";
 import { HistoryGraphGap } from "./HistoryGraphGap";
 import { HistoryDiscardedList } from "./HistoryDiscardedList";
 import { useCommitHistory } from "./useCommitHistory";
+import { useCommitCi } from "../../hooks/useCommitCi";
 import { useDiscardedCopies } from "./useDiscardedCopies";
 
 interface CommitHistoryBodyProps {
@@ -19,6 +20,7 @@ interface CommitHistoryBodyProps {
 /** What the History modal holds, mounted only while it is open. */
 export function CommitHistoryBody({ projectPath, branch, onClose }: CommitHistoryBodyProps) {
   const history = useCommitHistory(projectPath);
+  const ci = useCommitCi(projectPath);
   const discarded = useDiscardedCopies(projectPath);
   const { commits } = history;
   const [selectedHash, setSelectedHash] = useState<string | null>(null);
@@ -82,6 +84,7 @@ export function CommitHistoryBody({ projectPath, branch, onClose }: CommitHistor
               )}
               <HistoryCommitRow
                 commit={commit}
+                ci={ci}
                 graph={graph.rows[i]}
                 lanes={lanes}
                 hover={hoverBranch}

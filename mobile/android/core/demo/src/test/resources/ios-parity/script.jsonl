@@ -72,6 +72,9 @@
 {"at": 660, "frame": {"t": "gitChecks", "project": "api-gateway"}}
 {"at": 660, "frame": {"t": "gitChecks", "project": "blog"}}
 {"at": 660, "frame": {"t": "gitChecks", "project": "nope"}}
+{"at": 660, "frame": {"t": "gitCommitChecks", "project": "storefront"}}
+{"at": 660, "frame": {"t": "gitCommitChecks", "project": "api-gateway"}}
+{"at": 660, "frame": {"t": "gitCommitChecks", "project": "blog"}}
 {"at": 700, "frame": {"t": "gitChecksRerun", "project": "storefront", "runIds": ["7001"]}}
 {"at": 700, "frame": {"t": "gitGenMessage", "project": "storefront", "files": ["lib/payments.ts"]}}
 {"at": 700, "frame": {"t": "gitGenMessage", "project": "blog", "files": ["README.md", "docs/a.md"]}}

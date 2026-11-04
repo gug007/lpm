@@ -20,3 +20,5 @@ lpm.cx-Performance-*
 .playwright-cli/
 
 CLAUDE.local.md
+
+x265_2pass.log*

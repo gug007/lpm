@@ -45,8 +45,8 @@
     <string name="command_editor_description_placeholder">Shown next to the name in the / menu</string>
     <string name="command_editor_prompt">Prompt</string>
     <string name="command_editor_keep_out_of_git">Keep out of Git</string>
-    <string name="command_editor_keep_out_of_git_hint">Stays in the project folder and is never committed.</string>
-    <string name="command_editor_keep_out_of_git_committed">Already committed. After saving, commit to remove it from the repo. Past commits keep a copy, and other computers lose it when they pull.</string>
+    <string name="command_editor_keep_out_of_git_hint">Never committed. Syncs to your connected computers.</string>
+    <string name="command_editor_keep_out_of_git_committed">Already committed. After saving, commit to remove it from the repo. Past commits keep a copy, and computers that aren\'t connected lose it when they pull.</string>
     <string name="command_editor_delete">Delete skill</string>
     <string name="command_editor_convert">Convert to other skill</string>
     <string name="command_editor_delete_title">Delete /%1$s?</string>

@@ -84,6 +84,43 @@ describe("SidebarAgentRows", () => {
     expect(rows[3].querySelector("svg")).toBeNull();
   });
 
+  it("lights the end of the list only for agents still in play", () => {
+    act(() => {
+      root.render(
+        <SidebarAgentRows
+          projectName="crypto-portfolio"
+          signalsEdge
+          agents={[
+            agent({ key: "a", state: "working" }),
+            agent({ key: "b", state: "needs-you" }),
+            agent({ key: "c", state: "error" }),
+            agent({ key: "d", state: "done" }),
+            agent({ key: "e", state: "idle" }),
+            agent({ key: "f", state: "error", seenAt: 1 }),
+          ]}
+          onOpenAgent={vi.fn()}
+        />,
+      );
+    });
+
+    expect(lines().map((row) => row.dataset.edgeAgent)).toEqual([
+      "working",
+      "needs-you",
+      "error",
+      undefined,
+      undefined,
+      // Already looked at, however it ended: it waits on nobody.
+      undefined,
+    ]);
+  });
+
+  it("leaves the end of the list alone where nothing can scroll away", () => {
+    act(() => {
+      root.render(<SidebarAgentRows projectName="crypto-portfolio" agents={[agent()]} onOpenAgent={vi.fn()} />);
+    });
+    expect(lines()[0].dataset.edgeAgent).toBeUndefined();
+  });
+
   it("marks only the row whose terminal is on screen", () => {
     const rowsFor = (activeTerminalId: string | null) => {
       act(() => {

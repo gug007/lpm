@@ -1878,15 +1878,20 @@ fn handle_sync(app: &AppHandle, out: &SyncSender<String>, t: &str, v: &Value) {
     let req_id = v.get("reqId").cloned().unwrap_or(Value::Null);
     let v2 = v.get("v").and_then(Value::as_u64).unwrap_or(1) >= 2;
     match t {
+        // Reading every project's skills takes a while, and this thread also carries
+        // the connection's terminals.
         "syncDigest" => {
-            let dm = crate::peersync::local_digest_map();
-            let dm = if v2 {
-                dm
-            } else {
-                crate::peersync::legacy_view(dm)
-            };
-            let value = serde_json::to_value(dm).unwrap_or(Value::Null);
-            let _ = out.try_send(result_frame(&req_id, true, value));
+            let out = out.clone();
+            std::thread::spawn(move || {
+                let dm = crate::peersync::local_digest_map();
+                let dm = if v2 {
+                    dm
+                } else {
+                    crate::peersync::legacy_view(dm)
+                };
+                let value = serde_json::to_value(dm).unwrap_or(Value::Null);
+                let _ = out.try_send(result_frame(&req_id, true, value));
+            });
         }
         "syncFetch" => {
             let requested = v
@@ -1954,6 +1959,8 @@ fn handle_sync(app: &AppHandle, out: &SyncSender<String>, t: &str, v: &Value) {
                     }
                     let _ = app.emit("projects-changed", ());
                     let _ = app.emit("templates-changed", ());
+                    let landed = items.iter().map(|i| (i.kind.as_str(), i.name.as_str()));
+                    crate::skillsync_kept::announce(app, landed);
                 }
                 Err(e) => errors.push(format!("backup failed: {e}")),
             }

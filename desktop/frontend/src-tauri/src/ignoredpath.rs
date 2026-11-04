@@ -104,7 +104,7 @@ pub(crate) fn origin_of(root: &Path) -> Option<String> {
 
 /// An `origin` written one way or another (ssh or https, with or without
 /// `.git` or a port) reduced to host and path.
-fn repo_key(url: &str) -> String {
+pub(crate) fn repo_key(url: &str) -> String {
     let url = url.trim().trim_end_matches('/');
     let url = url.strip_suffix(".git").unwrap_or(url);
     let (host, path) = match url.split_once("://") {

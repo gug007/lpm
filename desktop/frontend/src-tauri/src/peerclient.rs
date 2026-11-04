@@ -1546,6 +1546,8 @@ impl PeerClientHub {
                     if let Some(app) = self.app() {
                         let _ = app.emit("projects-changed", ());
                         let _ = app.emit("templates-changed", ());
+                        let landed = to_local.iter().map(|i| (i.kind.as_str(), i.name.as_str()));
+                        crate::skillsync_kept::announce(&app, landed);
                     }
                 }
                 Err(e) => errors.push(format!("local backup failed: {e}")),

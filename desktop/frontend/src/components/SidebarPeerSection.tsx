@@ -14,6 +14,7 @@ import { PeerContextMenu } from "./PeerContextMenu";
 import { peerPlateClass } from "./peerPlate";
 import { ROLLUP_SEPARATOR_CLASS, rollupSegments } from "./sidebarRollup";
 import { SortableItem } from "./ui/SortableList";
+import type { EdgeAgentState } from "../sidebarAgentEdges";
 import type { MirrorRow } from "./peerSections";
 import type { PeerStatus } from "../peer/peerStatus";
 import type { PeerNoun } from "../peer/platform";
@@ -74,6 +75,7 @@ export function SidebarPeerSection({
   projects,
   strays,
   selected,
+  edgeAgent,
   children,
 }: {
   /// The section's slot in the sidebar order, making its header draggable.
@@ -98,6 +100,9 @@ export function SidebarPeerSection({
   /// Copies with no row of this Mac's own to mark.
   strays: MirrorRow[];
   selected: string | null;
+  /// The agents its projects hold, for the line at the end of the list once
+  /// folding the section leaves the header to speak for them.
+  edgeAgent?: EdgeAgentState;
   /// The section's rows, shown while it is open.
   children: ReactNode;
 }) {
@@ -253,6 +258,7 @@ export function SidebarPeerSection({
           <span className="text-[11px] tabular-nums text-[var(--text-muted)]">{rowCount}</span>
         ) : undefined
       }
+      edgeAgent={collapsed ? edgeAgent : undefined}
       active={holdsSelection}
       isContextTarget={menu !== null}
       showMore

@@ -94,6 +94,10 @@ const LESSONS: Record<YouTubeLessonId, { topic: TopicId; title: string }> = {
     topic: "devices",
     title: "Hand work to your other computer",
   },
+  "manage-claude-code-codex-skills": {
+    topic: "agents",
+    title: "Manage skills in one place",
+  },
 };
 
 export type LessonCardData = { lesson: YouTubeLessonId; title: string };

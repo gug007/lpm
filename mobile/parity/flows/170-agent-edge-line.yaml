@@ -1,0 +1,36 @@
+# An agent scrolled out of the projects list lights the end it went past, in its
+# state's tone. The line says nothing to a screen reader, so the screenshots show it.
+appId: cx.lpm.mobile
+name: 170-agent-edge-line
+tags: [demo, projects, agents]
+---
+- runFlow: subflows/enter-demo.yaml
+- tapOn: "storefront"
+- extendedWaitUntil:
+    visible: "Claude"
+    timeout: 8000
+- tapOn: "Claude"
+- waitForAnimationToEnd:
+    timeout: 2500
+- runFlow: subflows/back.yaml
+- extendedWaitUntil:
+    visible: "New tab"
+    timeout: 8000
+- runFlow: subflows/back.yaml
+- extendedWaitUntil:
+    visible: "storefront"
+    timeout: 8000
+- assertVisible: "Claude.*"
+- takeScreenshot: 1-agent-in-view
+- swipe:
+    start: 50%, 85%
+    end: 50%, 20%
+    duration: 500
+- swipe:
+    start: 50%, 85%
+    end: 50%, 20%
+    duration: 500
+- assertNotVisible: "storefront"
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: 2-agent-above

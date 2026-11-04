@@ -166,6 +166,7 @@ struct ProjectsView: View {
     @State private var usageRest = UsageRest()
     // Projects whose folded seen agents are open.
     @State private var seenExpanded: Set<String> = []
+    @State private var rowsInView = ListRowsInView()
 
     private func isExpanded(_ g: ProjectFolder) -> Bool { expandedOverride[g.id] ?? !g.collapsed }
 
@@ -202,6 +203,7 @@ struct ProjectsView: View {
                     Label("Delete folder", systemImage: "trash")
                 }
             }
+            .tracksListRow(ListEdgeRow.folderID(g.id))
             if isExpanded(g) {
                 ForEach(members) { row in
                     projectLink(row, indented: true)
@@ -211,6 +213,7 @@ struct ProjectsView: View {
             let key = "m:" + section.id
             let open = expandedOverride[key] ?? true
             MachineHeader(section: section, expanded: open) { expandedOverride[key] = !open }
+                .tracksListRow(ListEdgeRow.machineID(section.id))
             if open {
                 ForEach(section.rows) { row in
                     machineProjectLink(row, in: section)
@@ -240,9 +243,11 @@ struct ProjectsView: View {
         }
         .disabled(!section.canOpen)
         .listRowSeparator(agents.isEmpty ? .automatic : .hidden, edges: .bottom)
+        .tracksListRow(ListEdgeRow.projectID(row.project.name, machine: section.id))
 
         if !agents.isEmpty {
-            ProjectTerminalDeck(project: row.project.name, rows: agents, indent: indent) { agent in
+            ProjectTerminalDeck(project: row.project.name, rows: agents, machine: section.id,
+                                indent: indent) { agent in
                 if let terminal = agent.terminalId {
                     visiting = model.beginVisit(section, project: row.project.name, terminal: terminal)
                 }
@@ -269,6 +274,7 @@ struct ProjectsView: View {
         // A project holding a deck runs into it with no rule between them: the two
         // rows are one cell, and the deck's own separator closes it.
         .listRowSeparator(agents.isEmpty ? .automatic : .hidden, edges: .bottom)
+        .tracksListRow(ListEdgeRow.projectID(name))
 
         if !agents.isEmpty {
             ProjectTerminalDeck(project: name, rows: fold.rows, folded: fold.folded,
@@ -277,6 +283,34 @@ struct ProjectsView: View {
                                 archivable: model.canArchiveAgents, indent: indent) { agent in
                 if let terminal = agent.terminalId {
                     openTerminal = TerminalTarget(project: name, terminalId: terminal)
+                }
+            }
+        }
+    }
+
+    /// Every row under Projects, top to bottom, the way the list draws them. A
+    /// row folded away has no line to measure, so its header speaks for it.
+    private var edgeRows: [ListEdgeRow] {
+        model.sidebarItems.flatMap { item -> [ListEdgeRow] in
+            switch item {
+            case .project(let row):
+                return ListEdgeRow.project(row.project.name, agents: listedAgents(row.project))
+            case .folder(let g, let members):
+                guard isExpanded(g) else {
+                    let agents = members.flatMap { listedAgents($0.project) }
+                    return [ListEdgeRow(id: ListEdgeRow.folderID(g.id), state: agents.edgeState)]
+                }
+                return [ListEdgeRow(id: ListEdgeRow.folderID(g.id), state: nil)] + members.flatMap {
+                    ListEdgeRow.project($0.project.name, agents: listedAgents($0.project))
+                }
+            case .machine(let section):
+                guard expandedOverride["m:" + section.id] ?? true else {
+                    let agents = section.rows.flatMap { agentRows($0.project, tabTitles: [:]) }
+                    return [ListEdgeRow(id: ListEdgeRow.machineID(section.id), state: agents.edgeState)]
+                }
+                return [ListEdgeRow(id: ListEdgeRow.machineID(section.id), state: nil)] + section.rows.flatMap {
+                    ListEdgeRow.project($0.project.name, machine: section.id,
+                                        agents: agentRows($0.project, tabTitles: [:]))
                 }
             }
         }
@@ -303,6 +337,7 @@ struct ProjectsView: View {
         }
         .projectRowActions(project, removing: $removing, duplicating: $duplicating,
                            newFolderForProject: $newFolderForProject)
+        .tracksListRow(ListEdgeRow.pinnedID(project.name))
     }
 
     var body: some View {
@@ -343,6 +378,7 @@ struct ProjectsView: View {
         .restsAtBottom($usageRest, present: !listIsEmpty && !model.currentUsageRows(at: .now).isEmpty,
                        ready: model.projectsLoaded) { await model.refreshProjects() }
         .feedsUsageRows()
+        .showsAgentEdges(rows: edgeRows, inView: rowsInView)
         .safeAreaInset(edge: .bottom) {
             UndoBar(message: model.pendingAgentArchive?.message) { model.undoAgentArchive() }
         }

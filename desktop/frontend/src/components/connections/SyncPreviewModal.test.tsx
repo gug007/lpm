@@ -51,6 +51,15 @@ describe("SyncPreviewModal", () => {
     expect(document.querySelector('[title*="This skill was deleted"]')).not.toBeNull();
   });
 
+  it("shows a skill kept out of Git with its project, apart from global skills", () => {
+    show([item({ name: "web/lint", kind: "kept-skill" }), item({ name: "api/old", kind: "kept-skill", deleted: true })]);
+    const text = document.body.textContent ?? "";
+    expect(text).toContain("Skills kept out of Git");
+    expect(text).toContain("/lint in web");
+    expect(text).toContain("/old in api");
+    expect(document.querySelector('[title*="This skill was deleted"]')).not.toBeNull();
+  });
+
   it("names the skills that stay on one computer", () => {
     expect(skippedSkillsText(undefined)).toBeNull();
     expect(skippedSkillsText([])).toBeNull();

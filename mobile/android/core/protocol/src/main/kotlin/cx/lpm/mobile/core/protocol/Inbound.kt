@@ -10,6 +10,7 @@ import cx.lpm.mobile.core.model.AutomationJob
 import cx.lpm.mobile.core.model.AutomationLiveOutput
 import cx.lpm.mobile.core.model.AutomationMachine
 import cx.lpm.mobile.core.model.BackgroundRunSummary
+import cx.lpm.mobile.core.model.CiCheck
 import cx.lpm.mobile.core.model.ClaudeAccounts as ClaudeAccountsReply
 import cx.lpm.mobile.core.model.CommitFile
 import cx.lpm.mobile.core.model.ComposerAction
@@ -315,6 +316,9 @@ sealed interface Inbound {
         val checks: cx.lpm.mobile.core.model.GitChecks?,
         val error: String?
     ) : Inbound
+
+    data class GitCommitChecks(val project: String, val states: Map<String, CiCheck.State>) :
+        Inbound
 
     data class GitChecksRerun(val project: String, val error: String?) : Inbound
 

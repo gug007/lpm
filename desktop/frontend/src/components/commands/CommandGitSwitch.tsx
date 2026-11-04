@@ -8,8 +8,8 @@ interface CommandGitSwitchProps {
   onChange: (checked: boolean) => void;
 }
 
-// A project skill normally travels with its code; this one stays put. Sits above
-// the prompt, which takes up the slack, so it's in view at any window height.
+// A project skill normally travels with its code; this one travels by sync. Sits
+// above the prompt, which takes up the slack, so it's in view at any window height.
 export function CommandGitSwitch({ checked, note, onChange }: CommandGitSwitchProps) {
   return (
     <div className="flex shrink-0 flex-col gap-1.5">
@@ -23,7 +23,7 @@ export function CommandGitSwitch({ checked, note, onChange }: CommandGitSwitchPr
         <EyeOff size={14} className={checked ? "text-[var(--accent-cyan)]" : "text-[var(--text-muted)]"} />
         <span className="min-w-0 flex-1 truncate">
           Keep out of Git
-          <span className="ml-2 text-[var(--text-muted)]">Stays in the project folder and is never committed.</span>
+          <span className="ml-2 text-[var(--text-muted)]">Never committed. Syncs to your connected computers.</span>
         </span>
         <Switch checked={checked} />
       </button>

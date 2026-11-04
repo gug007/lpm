@@ -43,6 +43,7 @@ struct UsageRowsSection: View {
                     .listRowBackground(rest.shown ? nil : Color.clear)
                     .listRowSeparator(rest.shown ? .automatic : .hidden)
                     .accessibilityHidden(!rest.shown)
+                    .tracksListRow(ListEdgeRow.usageID(row.id))
                 }
             } header: {
                 header

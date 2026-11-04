@@ -11,10 +11,15 @@ struct CommitHistoryScreen: View {
 
     private var log: GitHistoryStore.Log { model.gitHistory.log(project.name) }
     private var branch: String { model.git.snapshots[project.name]?.branch ?? "" }
+    private var running: Bool { model.gitHistory.checks(project.name).values.contains(.pending) }
+
+    /// While a commit's checks run, as the desktop's History asks.
+    private static let checksPollSeconds: UInt64 = 20
 
     var body: some View {
         let log = log
         let boundary = log.commits.remoteBoundary
+        let checks = model.gitHistory.checks(project.name)
         List {
             if log.commits.isEmpty {
                 emptyState(log)
@@ -26,7 +31,7 @@ struct CommitHistoryScreen: View {
                 NavigationLink {
                     CommitDetailScreen(project: project.name, commit: commit)
                 } label: {
-                    HistoryCommitRow(commit: commit)
+                    HistoryCommitRow(commit: commit, ci: checks[commit.hash])
                 }
             }
             if log.hasMore {
@@ -51,6 +56,13 @@ struct CommitHistoryScreen: View {
             guard model.connection == .ready, !asked else { return }
             asked = true
             model.gitHistory.load(project.name)
+        }
+        .task(id: running) {
+            while running, !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: Self.checksPollSeconds * 1_000_000_000)
+                guard !Task.isCancelled else { return }
+                model.gitHistory.loadCommitChecks(project.name)
+            }
         }
     }
 
@@ -102,6 +114,7 @@ struct CommitHistoryScreen: View {
 /// One commit: its mark, what it says, who wrote it and when.
 struct HistoryCommitRow: View {
     let commit: HistoryCommit
+    var ci: CiCheck.State?
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
@@ -136,6 +149,10 @@ struct HistoryCommitRow: View {
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.cyan)
                         .accessibilityLabel("Not pushed yet")
+                } else if let ci {
+                    CiStateIcon(state: ci)
+                        .font(.caption)
+                        .accessibilityLabel(ci.commitLabel)
                 }
             }
         }

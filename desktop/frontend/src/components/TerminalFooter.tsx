@@ -79,6 +79,7 @@ export function TerminalFooter({
             projectPath={projectPath}
             gitState={gitState}
             pullRequest={pullRequest}
+            active={active}
           />
         )}
       </ActionsRow>

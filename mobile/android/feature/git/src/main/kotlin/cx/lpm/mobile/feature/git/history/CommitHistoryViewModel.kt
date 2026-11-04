@@ -8,6 +8,7 @@ import cx.lpm.mobile.core.data.git.GitState
 import cx.lpm.mobile.core.data.git.GitStore
 import cx.lpm.mobile.core.data.session.MacSessions
 import cx.lpm.mobile.core.data.session.SessionState
+import cx.lpm.mobile.core.model.CiCheck
 import cx.lpm.mobile.core.model.HistoryCommit
 import cx.lpm.mobile.core.model.remoteBoundary
 import cx.lpm.mobile.core.navigation.GitHistoryKey
@@ -25,6 +26,8 @@ import kotlinx.coroutines.flow.stateIn
 /** The History screen: the branch's commits as far as they're loaded, and how it's going. */
 data class CommitHistoryUiState(
     val commits: List<HistoryCommit> = emptyList(),
+    /** How recent pushed commits did on CI, by full hash. */
+    val checks: Map<String, CiCheck.State> = emptyMap(),
     /** The row the "Pushed" line goes above; null when there's no line. */
     val boundary: Int? = null,
     val hasMore: Boolean = false,
@@ -39,7 +42,10 @@ data class CommitHistoryUiState(
     val ready: Boolean = false,
     /** Unix seconds the relative times count from. */
     val now: Long = 0
-)
+) {
+    /** A commit's checks are still going, so History asks again every so often. */
+    val checksRunning: Boolean get() = CiCheck.State.PENDING in checks.values
+}
 
 /** A project's commit history (iOS `CommitHistoryScreen`), from [GitHistoryStore]. */
 @HiltViewModel(assistedFactory = CommitHistoryViewModel.Factory::class)
@@ -70,6 +76,7 @@ class CommitHistoryViewModel @AssistedInject constructor(
         val unpushed = log.commits.count { it.unpushed }
         return CommitHistoryUiState(
             commits = log.commits,
+            checks = h.checks(project),
             boundary = log.commits.remoteBoundary,
             hasMore = log.hasMore,
             loading = log.loading,
@@ -101,6 +108,10 @@ class CommitHistoryViewModel @AssistedInject constructor(
 
     fun loadMore() {
         history?.loadMore(project)
+    }
+
+    fun loadCommitChecks() {
+        history?.loadCommitChecks(project)
     }
 
     /** Pull to refresh: held until the answer lands. */

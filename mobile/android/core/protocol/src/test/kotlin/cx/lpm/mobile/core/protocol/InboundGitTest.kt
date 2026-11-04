@@ -1,5 +1,6 @@
 package cx.lpm.mobile.core.protocol
 
+import cx.lpm.mobile.core.model.CiCheck
 import cx.lpm.mobile.core.model.GitAutoKind
 import cx.lpm.mobile.core.model.GitAutoRun
 import cx.lpm.mobile.core.model.GitAutoStep
@@ -278,6 +279,34 @@ class InboundGitTest {
         assertEquals(
             Inbound.GitAutoSwitchBase("a", "", "Couldn't switch branch.", null),
             Inbound.parse("""{ "t": "gitAutoSwitchBase", "project": "a", "ok": false }""")
+        )
+    }
+
+    @Test
+    fun gitCommitChecks() {
+        val frame = Inbound.parse(
+            """{ "t": "gitCommitChecks", "project": "a", "ok": true, "commits": [
+                { "sha": "aaa", "state": "pass" },
+                { "sha": "bbb", "state": "fail" },
+                { "sha": "ccc", "state": "pending" },
+                { "sha": "ddd", "state": "something new" },
+                { "state": "pass" }
+            ] }"""
+        )
+        assertEquals(
+            Inbound.GitCommitChecks(
+                "a",
+                mapOf(
+                    "aaa" to CiCheck.State.PASS,
+                    "bbb" to CiCheck.State.FAIL,
+                    "ccc" to CiCheck.State.PENDING
+                )
+            ),
+            frame
+        )
+        assertEquals(
+            Inbound.GitCommitChecks("a", emptyMap()),
+            Inbound.parse("""{ "t": "gitCommitChecks", "project": "a", "ok": false }""")
         )
     }
 

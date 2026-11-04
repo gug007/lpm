@@ -5,7 +5,8 @@ import { PeerSyncRun } from "../../../bridge/commands";
 import { MACHINE as M } from "../../machineWords";
 
 export interface SyncItem {
-  kind: "project" | "global" | "template" | "skill";
+  kind: "project" | "global" | "template" | "skill" | "kept-skill";
+  // A kept-skill names its project too, as `<project>/<skill>`.
   name: string;
   direction: "toLocal" | "toRemote";
   localMtime: number;
@@ -29,7 +30,15 @@ const KIND_ORDER: { kind: SyncItem["kind"]; label: string }[] = [
   { kind: "global", label: "Global" },
   { kind: "template", label: "Templates" },
   { kind: "skill", label: "Skills" },
+  { kind: "kept-skill", label: "Skills kept out of Git" },
 ];
+
+function itemLabel(item: SyncItem): string {
+  if (item.kind === "skill") return `/${item.name}`;
+  if (item.kind !== "kept-skill") return item.name;
+  const cut = item.name.lastIndexOf("/");
+  return `/${item.name.slice(cut + 1)} in ${item.name.slice(0, cut)}`;
+}
 
 function DirectionArrow({
   direction,
@@ -59,7 +68,7 @@ function RemoveLabel({
   peerName: string;
 }) {
   const where = direction === "toRemote" ? peerName : M.ThisMachine;
-  const what = kind === "skill" ? "skill" : "file";
+  const what = kind === "skill" || kind === "kept-skill" ? "skill" : "file";
   return (
     <span
       className="flex shrink-0 items-center gap-1 text-[11px] text-[var(--accent-red)]"
@@ -217,7 +226,7 @@ export function SyncPreviewModal({
                   >
                     <div className="flex min-w-0 items-center gap-2">
                       <span className="min-w-0 truncate text-[13px] text-[var(--text-primary)]">
-                        {it.kind === "skill" ? `/${it.name}` : it.name}
+                        {itemLabel(it)}
                       </span>
                       {it.conflict && <ConflictBadge />}
                     </div>

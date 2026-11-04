@@ -39,6 +39,15 @@ data class CiCheck(
         }
 
     companion object {
+        /** How each recent commit did by itself (`gitCommitChecks`), by full hash. */
+        fun commitStates(o: JsonObject): Map<String, State> = o.objects("commits").orEmpty()
+            .mapNotNull { commit ->
+                val sha = commit.string("sha") ?: return@mapNotNull null
+                val state = State.entries.firstOrNull { it.wire == commit.string("state") }
+                state?.let { sha to it }
+            }
+            .toMap()
+
         fun parse(o: JsonObject): CiCheck? {
             val name = o.string("name").orEmpty()
             if (name.isEmpty()) return null

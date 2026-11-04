@@ -439,6 +439,8 @@ enum Wire {
     static func gitChecksRerun(project: String, runIds: [String]) -> String {
         json(["t": "gitChecksRerun", "project": project, "runIds": runIds])
     }
+    /// A Mac whose `features` has "gitCommitChecks".
+    static func gitCommitChecks(project: String) -> String { json(["t": "gitCommitChecks", "project": project]) }
     static func gitCommitFiles(project: String, hash: String) -> String {
         json(["t": "gitCommitFiles", "project": project, "hash": hash])
     }
@@ -794,6 +796,7 @@ enum Wire {
         // How the branch stands on CI (nil when it has none to show), and the
         // failed jobs run again. `error` is nil on success.
         case gitChecks(project: String, checks: GitChecks?, error: String?)
+        case gitCommitChecks(project: String, states: [String: CiCheck.State])
         case gitChecksRerun(project: String, error: String?)
         case gitCommitFiles(project: String, hash: String, files: [CommitFile]?, error: String?)
         case gitCommitPatch(project: String, hash: String, path: String, result: GitDiffResult?, error: String?)
@@ -1218,6 +1221,9 @@ enum Wire {
                 return .gitChecks(project: obj["project"] as? String ?? "",
                                   checks: ok ? GitChecks(obj) : nil,
                                   error: ok ? nil : (obj["error"] as? String ?? "Couldn't read CI."))
+            case "gitCommitChecks":
+                return .gitCommitChecks(project: obj["project"] as? String ?? "",
+                                        states: CiCheck.commitStates(obj["commits"] as? [[String: Any]] ?? []))
             case "gitChecksRerun":
                 let ok = obj["ok"] as? Bool ?? false
                 return .gitChecksRerun(project: obj["project"] as? String ?? "",

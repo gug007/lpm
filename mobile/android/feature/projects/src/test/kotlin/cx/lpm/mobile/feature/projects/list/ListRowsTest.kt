@@ -7,6 +7,7 @@ import cx.lpm.mobile.core.data.machines.MachineImportStatus
 import cx.lpm.mobile.core.data.machines.MachineSection
 import cx.lpm.mobile.core.data.machines.machineRows
 import cx.lpm.mobile.core.data.projects.ProjectsState
+import cx.lpm.mobile.core.model.AgentState
 import cx.lpm.mobile.core.model.Project
 import cx.lpm.mobile.core.model.ProjectFolder
 import cx.lpm.mobile.core.model.RemoteMachine
@@ -61,6 +62,20 @@ class ListRowsTest {
             listOf("[Client Work 1]", "  blog"),
             state.names(RowInputs(expanded = mapOf("g1" to true)))
         )
+    }
+
+    @Test
+    fun `a shut folder speaks for its agents, an open one leaves that to their rows`() {
+        val running = StatusEntry("claude_code_1", "Running", 0, 500, "t1", 0, 0)
+        val waiting = StatusEntry("claude_code_2", "Waiting", 0, 500, "t2", 0, 0)
+        val state = ProjectsState(
+            projects = listOf(project("blog", statusEntries = listOf(running, waiting))),
+            groups = listOf(folder.copy(collapsed = true))
+        )
+        fun header(inputs: RowInputs) =
+            state.listRows(inputs).filterIsInstance<ProjectsListRow.FolderEntry>().single()
+        assertEquals(AgentState.NeedsYou, header(RowInputs()).foldedAgent)
+        assertEquals(null, header(RowInputs(expanded = mapOf("g1" to true))).foldedAgent)
     }
 
     @Test

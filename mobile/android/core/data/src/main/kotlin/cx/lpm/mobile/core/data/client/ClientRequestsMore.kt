@@ -186,6 +186,8 @@ fun LpmClient.requestGitHistory(project: String, skip: Int, limit: Int) =
 
 fun LpmClient.requestGitChecks(project: String) = send(Wire.gitChecks(project))
 
+fun LpmClient.requestGitCommitChecks(project: String) = send(Wire.gitCommitChecks(project))
+
 fun LpmClient.requestGitChecksRerun(project: String, runIds: List<String>) =
     send(Wire.gitChecksRerun(project, runIds))
 

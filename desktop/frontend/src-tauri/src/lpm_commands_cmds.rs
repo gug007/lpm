@@ -13,7 +13,7 @@ use crate::lpm_commands_usage as usage;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use serde_json::Value;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 pub(crate) const CHANGED_EVENT: &str = "lpm-commands-changed";
 
@@ -146,11 +146,17 @@ pub(crate) fn dispatch(app: &AppHandle, project: &str, request: Request) -> Resu
             ops::save(&stores, command, previous)?;
             if let Some(((from_scope, from), (to_scope, to))) = renamed {
                 usage::rename(project, (from_scope, &from), (to_scope, &to));
+                if from_scope == Scope::Project && (from_scope, &from) != (to_scope, &to) {
+                    crate::skillsync_kept::note_removed(project, &from);
+                }
             }
         }
         Request::Delete { target } => {
             ops::delete(&stores, &target)?;
             usage::forget(project, target.scope, &target.name);
+            if target.scope == Scope::Project {
+                crate::skillsync_kept::note_removed(project, &target.name);
+            }
         }
         Request::CreateFolder { scope, name } => ops::create_folder(&stores, scope, &name)?,
         Request::RenameFolder { scope, name, new_name } => ops::rename_folder(&stores, scope, &name, &new_name)?,
@@ -165,6 +171,12 @@ pub(crate) fn dispatch(app: &AppHandle, project: &str, request: Request) -> Resu
         Request::Import { scope } => imported = Some(import(&stores, place.as_ref(), scope)?),
     }
     announce(app, project, &touches);
+    // Nothing watches a project's skills, so a kept-out one's change is told here.
+    if touches.contains(&Scope::Project) {
+        if let Some(engine) = app.try_state::<crate::autosync::Engine>() {
+            engine.notify_local_change();
+        }
+    }
     let list = listed(project, &stores)?;
     Ok(match imported {
         Some(imported) => Reply::Imported(ImportResult { imported, list }),

@@ -395,6 +395,9 @@ class LpmClient internal constructor(
         // `gitChecks` and `gitChecksRerun`, and the `ci` notify switch.
         const val GIT_CHECKS_FEATURE = "gitChecks"
 
+        // `gitCommitChecks`: how each recent commit did on CI, for History's rows.
+        const val GIT_COMMIT_CHECKS_FEATURE = "gitCommitChecks"
+
         // `keepAwake` and `keepAwakeSet`, and the `keepAwake` push.
         const val KEEP_AWAKE_FEATURE = "keepAwake"
 

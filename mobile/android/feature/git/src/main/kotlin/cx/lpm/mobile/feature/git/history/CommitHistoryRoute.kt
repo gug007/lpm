@@ -13,7 +13,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation3.runtime.NavKey
 import cx.lpm.mobile.core.navigation.GitCommitKey
 import cx.lpm.mobile.core.navigation.GitHistoryKey
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+/** While a commit's checks run, as the desktop's History asks. */
+private const val CHECKS_POLL_MS = 20_000L
 
 /**
  * History wired to its ViewModel: the newest page is asked for once the link is ready,
@@ -35,6 +39,12 @@ fun CommitHistoryRoute(
     val scope = rememberCoroutineScope()
     LaunchedEffect(state.ready) {
         if (state.ready) viewModel.loadOnce()
+    }
+    LaunchedEffect(state.checksRunning) {
+        while (state.checksRunning) {
+            delay(CHECKS_POLL_MS)
+            viewModel.loadCommitChecks()
+        }
     }
     CommitHistoryScreen(
         state = state,

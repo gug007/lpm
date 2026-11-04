@@ -100,6 +100,11 @@ class WireAutomationsGitTest {
     }
 
     @Test
+    fun gitCommitChecks() {
+        assertFrame("""{ "t": "gitCommitChecks", "project": "a" }""", Wire.gitCommitChecks("a"))
+    }
+
+    @Test
     fun gitHistory() {
         assertFrame(
             """{ "t": "gitHistory", "project": "a", "skip": 100, "limit": 100 }""",

@@ -142,6 +142,17 @@ internal fun DemoServer.registerGitHistoryHandlers() {
             )
         }
     }
+    register("gitCommitChecks") { o ->
+        val project = o.string("project") ?: return@register
+        pushAfter(0.3) {
+            mapOf(
+                "t" to "gitCommitChecks",
+                "project" to project,
+                "ok" to true,
+                "commits" to demoCommitChecks(project)
+            )
+        }
+    }
     register("gitCommitFiles") { o ->
         val project = o.string("project") ?: return@register
         val hash = o.string("hash") ?: return@register
@@ -195,6 +206,17 @@ internal fun DemoServer.registerGitHistoryHandlers() {
                 "truncated" to false
             )
         }
+    }
+}
+
+/** How the pushed commits of the projects with CI did, newest first. */
+private val commitCi = listOf("pass", "fail", "pass")
+
+private fun DemoServer.demoCommitChecks(project: String): List<Dict> {
+    if (project != "storefront" && project != "api-gateway") return emptyList()
+    val log = demoLog(project) ?: return emptyList()
+    return log.drop(world.git[project]?.ahead ?: 0).zip(commitCi) { commit, state ->
+        mapOf("sha" to commit.hash, "state" to state)
     }
 }
 

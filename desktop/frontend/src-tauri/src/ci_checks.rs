@@ -39,8 +39,20 @@ pub struct CommitChecksInfo {
 /// has no upstream, the remote isn't on GitHub, or `gh` is missing or signed out.
 #[tauri::command(async)]
 pub fn branch_commit_checks(cwd: String) -> Option<CommitChecksInfo> {
+    let (sha, branch) = upstream_head(&cwd)?;
+    commit_checks(&cwd, &sha, &branch).ok().flatten()
+}
+
+/// The last pushes of `cwd`'s branch, newest first, each with the checks GitHub
+/// ran on it for that branch. None when `branch_commit_checks` would be.
+pub(crate) fn upstream_rollups(cwd: &str) -> Option<Vec<CommitChecksInfo>> {
+    let (sha, branch) = upstream_head(cwd)?;
+    rollups(cwd, &sha, &branch).ok()
+}
+
+fn upstream_head(cwd: &str) -> Option<(String, String)> {
     let out = crate::git::git_out(
-        &cwd,
+        cwd,
         &[
             "rev-parse",
             "@{upstream}",
@@ -49,12 +61,11 @@ pub fn branch_commit_checks(cwd: String) -> Option<CommitChecksInfo> {
         ],
     )
     .ok()?;
-    let (sha, branch) = upstream(&out)?;
-    commit_checks(&cwd, sha, &branch).ok().flatten()
+    upstream(&out).map(|(sha, branch)| (sha.to_string(), branch))
 }
 
 struct Cached {
-    info: Option<CommitChecksInfo>,
+    commits: Vec<CommitChecksInfo>,
     at: Instant,
 }
 
@@ -65,34 +76,40 @@ fn cache() -> &'static Mutex<HashMap<(String, String), Cached>> {
 
 fn fresh(cached: &Cached) -> bool {
     let running = cached
-        .info
-        .as_ref()
-        .is_some_and(|i| i.checks.iter().any(|c| c.state == "pending"));
+        .commits
+        .iter()
+        .flat_map(|commit| &commit.checks)
+        .any(|check| check.state == "pending");
     cached.at.elapsed() < if running { RUNNING_FOR } else { FINISHED_FOR }
 }
 
-/// `branch`'s checks as of commit `sha` (`branch_checks`), from the cache while
+/// `sha` and the commits before it (`commit_rollups`), from the cache while
 /// it's fresh.
-pub(crate) fn commit_checks(
-    cwd: &str,
-    sha: &str,
-    branch: &str,
-) -> Result<Option<CommitChecksInfo>, String> {
+fn rollups(cwd: &str, sha: &str, branch: &str) -> Result<Vec<CommitChecksInfo>, String> {
     let key = (cwd.to_string(), sha.to_string());
     if let Some(cached) = cache().lock().unwrap().get(&key).filter(|c| fresh(c)) {
-        return Ok(cached.info.clone());
+        return Ok(cached.commits.clone());
     }
-    let info = branch_checks(&commit_rollups(cwd, sha, branch)?, branch);
+    let commits = commit_rollups(cwd, sha, branch)?;
     let mut cache = cache().lock().unwrap();
     cache.retain(|_, c| fresh(c));
     cache.insert(
         key,
         Cached {
-            info: info.clone(),
+            commits: commits.clone(),
             at: Instant::now(),
         },
     );
-    Ok(info)
+    Ok(commits)
+}
+
+/// `branch`'s checks as of commit `sha` (`branch_checks`).
+pub(crate) fn commit_checks(
+    cwd: &str,
+    sha: &str,
+    branch: &str,
+) -> Result<Option<CommitChecksInfo>, String> {
+    Ok(branch_checks(&rollups(cwd, sha, branch)?, branch))
 }
 
 /// The commit and remote branch `git rev-parse @{upstream} --symbolic-full-name

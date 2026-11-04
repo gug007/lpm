@@ -140,6 +140,10 @@ const LESSON_CAPTION: Record<
     heading: "Hand slow work to your other computer",
     blurb: "A short video: mid-session, an agent pushes a branch, your Mac mini runs the tests on it, and the agent keeps working here.",
   },
+  "manage-claude-code-codex-skills": {
+    heading: "One list for your Claude Code and Codex skills",
+    blurb: "A short video: write a skill once, run it in both agents, and keep every skill you have in one place.",
+  },
 };
 
 function DesktopOnlyPrompt({

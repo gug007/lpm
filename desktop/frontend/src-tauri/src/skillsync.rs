@@ -3,11 +3,13 @@
 // marked as lpm's take part, and a name something else holds stays out of the plan on
 // both sides. A skill lands by the same rules as one saved here: in the skills root
 // with a link for Claude, or where this computer already keeps it. A project's skills
-// are committed with its code, so they travel with git instead.
+// are committed with its code, so they travel with git instead, unless they're kept
+// out of it (skillsync_kept.rs).
 use crate::fsperm;
 use crate::lpm_commands::{
     check_name, copy_tree, current, global_store, parse_doc, valid_name, CommandFs, LocalFs,
 };
+use crate::lpm_commands_snapshot::{CommandFile, Snapshot};
 use crate::peersync::{
     base64_decode, base64_encode, mtime_millis, sha256_hex, ItemDigest, WireItem,
 };
@@ -146,11 +148,21 @@ fn list_of(fs: &LocalFs) -> Option<LocalSkills> {
         return None;
     }
     let snap = current(fs).ok()?;
+    Some(sorted_out(fs, &snap, |_| true))
+}
+
+/// A list's skills that cross, by `takes_part` and what `read_folder` can send, with
+/// every other name in it held.
+pub(crate) fn sorted_out(
+    fs: &LocalFs,
+    snap: &Snapshot,
+    takes_part: impl Fn(&CommandFile) -> bool,
+) -> LocalSkills {
     let mut skills = BTreeMap::new();
     let mut held = snap.others.clone();
     for file in &snap.files {
         let folder = Some(&file.name)
-            .filter(|name| valid_name(name))
+            .filter(|name| valid_name(name) && takes_part(file))
             .and_then(|name| read_folder(Path::new(&fs.location(name))));
         match folder {
             Some(folder) => {
@@ -163,10 +175,10 @@ fn list_of(fs: &LocalFs) -> Option<LocalSkills> {
     }
     held.sort();
     held.dedup();
-    Some(LocalSkills { skills, held })
+    LocalSkills { skills, held }
 }
 
-fn item_from(fs: &LocalFs, name: &str) -> Result<WireItem, String> {
+pub(crate) fn item_from(fs: &LocalFs, name: &str) -> Result<WireItem, String> {
     check_name(name)?;
     let folder = read_folder(Path::new(&fs.location(name)))
         .filter(|f| made_by_lpm(&f.files))
@@ -230,9 +242,20 @@ fn swap_in(staged: &Path, target: &Path, retired: &Path) -> Result<(), String> {
 /// Replaces the folder in one move, so an agent reading it, or a sync of another
 /// computer, never sees half of it. The names start with a dot, which no list reads.
 fn apply_to(fs: &LocalFs, name: &str, json: &[u8]) -> Result<String, String> {
+    apply_after(fs, name, json, || Ok(()))
+}
+
+/// `prepare` runs once the bundle is known to be good, before the folder is touched.
+pub(crate) fn apply_after(
+    fs: &LocalFs,
+    name: &str,
+    json: &[u8],
+    prepare: impl FnOnce() -> Result<(), String>,
+) -> Result<String, String> {
     check_name(name)?;
     let files = decode(json)?;
     ensure_not_held(fs, name)?;
+    prepare()?;
     let target = PathBuf::from(fs.location(name));
     if is_link(&target) {
         return Err(format!("/{name} is a link on this computer"));
@@ -263,7 +286,15 @@ fn delete_from(fs: &LocalFs, name: &str) -> Result<(), String> {
 }
 
 fn back_up_from(fs: &LocalFs, dst: &Path) -> Result<(), String> {
-    for file in fs.snapshot()?.files {
+    back_up_where(fs, dst, |_| true)
+}
+
+pub(crate) fn back_up_where(
+    fs: &LocalFs,
+    dst: &Path,
+    takes_part: impl Fn(&CommandFile) -> bool,
+) -> Result<(), String> {
+    for file in fs.snapshot()?.files.iter().filter(|f| takes_part(f)) {
         let from = PathBuf::from(fs.location(&file.name));
         if from.is_dir() {
             std::fs::create_dir_all(dst).map_err(|e| e.to_string())?;

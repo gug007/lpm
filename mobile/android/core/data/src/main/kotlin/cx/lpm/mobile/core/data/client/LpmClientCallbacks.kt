@@ -10,6 +10,7 @@ import cx.lpm.mobile.core.model.AutomationJob
 import cx.lpm.mobile.core.model.AutomationLiveOutput
 import cx.lpm.mobile.core.model.AutomationMachine
 import cx.lpm.mobile.core.model.BackgroundRunSummary
+import cx.lpm.mobile.core.model.CiCheck
 import cx.lpm.mobile.core.model.ClaudeAccounts
 import cx.lpm.mobile.core.model.CommitFile
 import cx.lpm.mobile.core.model.ComposerAction
@@ -201,6 +202,7 @@ abstract class LpmClientCallbacks {
     // CI: how the branch stands (null when it has none to show), and the failed jobs
     // run again.
     var onGitChecks: ((project: String, checks: GitChecks?, error: String?) -> Unit)? = null
+    var onGitCommitChecks: ((project: String, states: Map<String, CiCheck.State>) -> Unit)? = null
     var onGitChecksRerun: ((project: String, error: String?) -> Unit)? = null
     var onGitCommitFiles: (
         (project: String, hash: String, files: List<CommitFile>?, error: String?) -> Unit

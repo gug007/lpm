@@ -766,8 +766,8 @@ announces it itself.
 
 Mirrors the portable subset of `~/.lpm` between two paired Macs: projects (present
 on both — intersection only), synced global files + dirs (union — created when
-one-sided), templates referenced by a matched project, and global lpm skills (union,
-at `v:2` only). Machine-local parts
+one-sided), templates referenced by a matched project, and global lpm skills and
+project skills kept out of Git (union, at `v:2` only). Machine-local parts
 (project `root`/`ssh`/`claudeAccount`/`claudeAccounts`/`parent_name`, settings.json window/geometry
 keys) are stripped from the compared **portable digest** and preserved locally on
 apply, so two Macs that differ only in local paths compare as in sync. The client
@@ -775,7 +775,8 @@ drives every sync; the host answers. Each side that receives changes first copie
 what a sync can overwrite (projects, templates, the synced global files and dirs) to
 `~/.lpm.backup-<ts>`. File-browser metadata (`.DS_Store`, `Thumbs.db`,
 `desktop.ini`) in a synced dir is never synced. Rust: `peersync.rs` (shared digest / plan /
-apply), `skillsync.rs` (skills), `syncstate.rs` (the revision sidecar), driven from
+apply), `skillsync.rs` (skills), `skillsync_kept.rs` (kept-out skills), `syncstate.rs`
+(the revision sidecar), driven from
 `peerclient.rs` (client) and answered in `peer.rs` (host).
 
 Three request frames, each a generic correlated request (`reqId`, answered by a
@@ -810,6 +811,11 @@ revision-aware (configSync2). A client sends `v:2` only to a host that advertise
   "templates": { "<name>": { "hash", "mtime", "rev"?, "device"?, "deleted"? } },
   "skills":    { "<name>": { "hash", "mtime", "rev"?, "device"?, "deleted"? } },
   "heldSkills": ["<name>"],
+  "keptSkills": {
+    "repos":  { "<project>": "<host/path>" },
+    "skills": { "<project>/<skill>": { "hash", "mtime", "rev"?, "device"?, "deleted"? } },
+    "held":   ["<project>/<skill>"]
+  },
   "projectExtends": { "<name>": ["<template>"] },
   "device": "<sidecar uuid>"
 }
@@ -835,6 +841,21 @@ the other side has that skill. `skill-folders`, the list of empty folders, joins
 global files only between two such maps, because an older build refuses it as a
 global it doesn't sync.
 
+`keptSkills` does the same for project skills kept out of Git, which Git can't carry.
+`repos` holds each project this computer read and its repository, the `origin` reduced
+to host and path so credentials stay off the wire. A unit is `<project>/<skill>`, and
+it crosses only between two projects with the same name and the same repository, so a
+project without an `origin` keeps its skills. `held` is every other name in the
+project: skills lpm didn't create, skills in Git, and kept-out ones that can't cross. A
+held name stays out of the plan both ways. That is what keeps a sync away from a skill
+one computer still has in Git, until it pulls the commit that removes it.
+
+Absence is not a deletion here, unlike a global skill. `git clean -X` or a fresh clone
+removes every kept-out skill at once, so a tombstone is written only when the user
+deletes or renames one in lpm or moves it to the global list. A skill that is merely
+gone comes back from the other computer. A skill turned back to Git is held, not
+deleted.
+
 ### Wire item
 
 ```json
@@ -854,6 +875,12 @@ leaves the folder, and a name that isn't an lpm skill there. It builds the folde
 beside the old one and swaps it in with one rename, keeping the skill in the root that
 computer already holds it in, then refreshes the Claude link. A deletion removes the
 skill as Delete in the app does, and the backup copies each lpm skill to `skills/`.
+
+A `kept-skill` item carries the same bundle. The receiver also refuses one that is in
+Git there, and writes the `info/exclude` rules before the folder lands, so it never
+shows up as a file to commit. A deletion takes the rules too and leaves a skill that is
+in Git there alone. The backup copies kept-out skills to `kept-skills/<project>/`, since
+Git has no copy of them.
 
 `secret` rides only with `telegram.json` (bot + chats): the bot token, which the
 file leaves out. The receiver stores it in its own secret store (Keychain on

@@ -258,7 +258,7 @@ export function keptOutNote(draft: Draft, lists: LpmCommandLists): string | null
   if (!draft.keepOutOfGit || !draft.original) return null;
   const saved = allCommands(lists).find((c) => sameCommand(c, draft.original));
   if (!saved?.tracked) return null;
-  return "Already committed. After saving, commit to remove it from the repo. Past commits keep a copy, and other computers lose it when they pull.";
+  return "Already committed. After saving, commit to remove it from the repo. Past commits keep a copy, and computers that aren't connected lose it when they pull.";
 }
 
 // Why the draft can't be saved yet, the field that's wrong, and a name that

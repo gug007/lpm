@@ -47,6 +47,7 @@ import { peerSectionRows, visiblePeerRowNames, type PeerRowItem } from "./peerSe
 import { deckKindLabel, deckLabel, deckRunDomId } from "./sidebarDeck";
 import { SidebarAgentRows } from "./SidebarAgentRows";
 import { SidebarAgentSummary } from "./SidebarAgentSummary";
+import { SidebarAgentEdges } from "./SidebarAgentEdges";
 import { SidebarRollupLine } from "./SidebarRollupLine";
 import { SidebarIcon, PlusIcon, ServerIcon } from "./icons";
 import { SidebarWindowMark } from "./SidebarWindowMark";
@@ -80,6 +81,7 @@ import {
 import { SidebarGroupRow } from "./SidebarGroupRow";
 import { HEADER_PLATE_CLASS } from "./SidebarHeaderShell";
 import { rollupSegments, type RollupSegment } from "./sidebarRollup";
+import { edgeAgentState } from "../sidebarAgentEdges";
 import { peerPlateClass } from "./peerPlate";
 import { LaptopIcon } from "./connections/LaptopIcon";
 import { GroupContextMenu } from "./GroupContextMenu";
@@ -241,6 +243,8 @@ type TreeItem =
       // What a collapsed folder is hiding, said in words. Rolled up here so the
       // members are scanned once per render rather than once per header.
       segments: RollupSegment[];
+      // The projects behind that rollup; empty while the folder is open.
+      folded: ProjectInfo[];
     }
   | { kind: "project"; project: ProjectInfo; isChild: boolean; folderId?: string }
   | {
@@ -467,6 +471,11 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   // modals (rename / remove / duplicate) must resolve a peer row's target too.
   const allByName = useMemo(() => new Map(projects.map((p) => [p.name, p])), [projects]);
   const pinned = usePinnedProjects(allByName);
+  const pinnedNames = useMemo(() => new Set(pinned.map((p) => p.name)), [pinned]);
+  // A pinned project stays on screen above the list, so its agents can't get lost
+  // when its place in the list scrolls away.
+  const edgeAgentOf = (projects: ProjectInfo[]) =>
+    edgeAgentState(projects.filter((p) => !pinnedNames.has(p.name)));
 
   // The clamp inside `projectAgentRows` only reads `now` against timestamps that
   // change with `projects`, so pinning it to this memo costs nothing.
@@ -548,10 +557,11 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       const members = g.members
         .map((n) => byName.get(n))
         .filter((p): p is ProjectInfo => !!p);
-      const segments = g.collapsed
-        ? rollupSegments(members.flatMap((m) => [m, ...(childrenByParent.get(m.name) ?? [])]))
+      const folded = g.collapsed
+        ? members.flatMap((m) => [m, ...(childrenByParent.get(m.name) ?? [])])
         : [];
-      out.push({ kind: "group", group: g, count: members.length, segments });
+      const segments = g.collapsed ? rollupSegments(folded) : [];
+      out.push({ kind: "group", group: g, count: members.length, segments, folded });
       ids.push(groupToken(g.id));
       if (!g.collapsed) {
         if (members.length === 0) out.push({ kind: "empty", group: g });
@@ -1095,6 +1105,10 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     const deckHoldsSelected =
       deckCollapsed && selected !== null && deckChildren.some((c) => c.name === selected);
     const controlTop = twoLine ? "top-[14px]" : "top-1/2";
+    const edgeAgent = edgeAgentOf([
+      ...(isExpanded ? [] : [project]),
+      ...(deckCollapsed ? deckChildren : []),
+    ]);
 
     const rowShape = twoLine ? ROW_TWO_LINE_CLASS : ROW_BASE_CLASS;
 
@@ -1160,6 +1174,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           <button
             id={projectRowDomId(project.name)}
             data-project-row={project.name}
+            data-edge-agent={edgeAgent}
             onClick={(e) =>
               (selectMode ? selecting : inOwnList(project.name, Boolean(peerRow)))
                 ? handleRowClick(project.name, e)
@@ -1281,6 +1296,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             // Only the project being looked at has a tab on screen; the rest
             // keep publishing whichever tab they were left on.
             activeTerminalId={isSelected ? focusedTerminals[project.name] ?? null : null}
+            signalsEdge={!pinnedNames.has(project.name)}
             onOpenAgent={openAgent}
             onAgentAction={agentAction}
           />
@@ -1394,6 +1410,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           collapsed={!!item.group.collapsed}
           count={item.count}
           segments={item.segments}
+          edgeAgent={edgeAgentOf(item.folded)}
           containsSelected={containsSelected}
           selectMode={selectMode}
           isContextTarget={groupMenu?.id === item.group.id}
@@ -1452,6 +1469,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           projects={section.projects}
           strays={section.strays}
           selected={selected}
+          edgeAgent={edgeAgentOf([...section.projects, ...section.strays.map((stray) => stray.project)])}
         >
           {item.rows.map((row) => {
             if (row.kind === "folder") return renderPeerFolder(section.slug, row, peerRowFor);
@@ -1636,6 +1654,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             collapsed={collapsed}
             count={folder.count}
             segments={folder.segments}
+            edgeAgent={edgeAgentOf(folder.folded)}
             containsSelected={containsSelected}
             selectMode={selectMode}
             isContextTarget={hostFolderMenu?.slug === slug && hostFolderMenu.id === group.id}
@@ -1755,30 +1774,33 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           `px-2` here left 16px on the right against 8 on the left. `scroll` rather
           than `auto` keeps that gutter reserved even when the list fits, so the
           rows don't change width as projects come and go. */}
-      <nav ref={listRef} className="flex-1 overflow-y-scroll pl-2">
-        {selectMode ? (
-          navItems
-        ) : (
-          <DndContext
-            sensors={sensors}
-            collisionDetection={collisionDetection}
-            onDragStart={onDragStart}
-            onDragEnd={onDragEnd}
-            onDragCancel={onDragCancel}
-          >
-            <SortableContext items={sortableIds} strategy={sortingStrategy}>
-              {navItems}
-            </SortableContext>
-            <DragOverlay className="pointer-events-none">
-              {overlayContent ? (
-                <div className="rounded-md bg-[var(--bg-active)] px-3 py-2 text-sm text-[var(--text-primary)] shadow-lg ring-1 ring-[var(--accent-cyan)]/40">
-                  {overlayContent}
-                </div>
-              ) : null}
-            </DragOverlay>
-          </DndContext>
-        )}
-      </nav>
+      <div className="relative min-h-0 flex-1">
+        <nav ref={listRef} className="h-full overflow-y-scroll pl-2">
+          {selectMode ? (
+            navItems
+          ) : (
+            <DndContext
+              sensors={sensors}
+              collisionDetection={collisionDetection}
+              onDragStart={onDragStart}
+              onDragEnd={onDragEnd}
+              onDragCancel={onDragCancel}
+            >
+              <SortableContext items={sortableIds} strategy={sortingStrategy}>
+                {navItems}
+              </SortableContext>
+              <DragOverlay className="pointer-events-none">
+                {overlayContent ? (
+                  <div className="rounded-md bg-[var(--bg-active)] px-3 py-2 text-sm text-[var(--text-primary)] shadow-lg ring-1 ring-[var(--accent-cyan)]/40">
+                    {overlayContent}
+                  </div>
+                ) : null}
+              </DragOverlay>
+            </DndContext>
+          )}
+        </nav>
+        {!selectMode && !activeId && <SidebarAgentEdges listRef={listRef} />}
+      </div>
       <SidebarFolderDropOverlay hover={folderDrop} />
       {selectMode && (
         <SidebarSelectionBar

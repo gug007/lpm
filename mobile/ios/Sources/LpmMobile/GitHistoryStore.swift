@@ -53,6 +53,8 @@ final class GitHistoryStore {
     }
 
     var logs: [String: Log] = [:]
+    /// How each project's recent pushed commits did on CI, by full hash.
+    var commitChecks: [String: [String: CiCheck.State]] = [:]
     var files: [CommitKey: Files] = [:]
     var patches: [PatchKey: Patch] = [:]
 
@@ -62,6 +64,13 @@ final class GitHistoryStore {
     private static let lateAnswer = "The Mac didn't answer in time."
 
     func log(_ project: String) -> Log { logs[project] ?? Log() }
+
+    func checks(_ project: String) -> [String: CiCheck.State] { commitChecks[project] ?? [:] }
+
+    func loadCommitChecks(_ project: String) {
+        guard client?.hostFeatures.contains(LpmClient.gitCommitChecksFeature) == true else { return }
+        client?.requestGitCommitChecks(project: project)
+    }
 
     /// The newest page again; what's listed stays until it lands.
     func load(_ project: String) { request(project, skip: 0) }
@@ -87,6 +96,7 @@ final class GitHistoryStore {
         log.asking = skip
         logs[project] = log
         client?.requestGitHistory(project: project, skip: skip, limit: Self.pageSize)
+        if skip == 0 { loadCommitChecks(project) }
         timeout.arm(.log(project), seconds: 30) { [weak self] in
             guard let self, var log = self.logs[project], log.loading else { return }
             log.loading = false
@@ -191,6 +201,9 @@ extension AppModel {
     func wireGitHistory(_ c: LpmClient) {
         c.onGitHistory = { [weak self] project, skip, page, error in
             self?.gitHistory.applyHistory(project, skip: skip, page: page, error: error)
+        }
+        c.onGitCommitChecks = { [weak self] project, states in
+            self?.gitHistory.commitChecks[project] = states
         }
         c.onGitCommitFiles = { [weak self] project, hash, files, error in
             self?.gitHistory.applyFiles(project, hash: hash, files: files, error: error)

@@ -206,6 +206,8 @@ private fun LpmClientCallbacks.routeGitAndMore(frame: Inbound) {
 
         is Inbound.GitChecks -> onGitChecks?.invoke(frame.project, frame.checks, frame.error)
 
+        is Inbound.GitCommitChecks -> onGitCommitChecks?.invoke(frame.project, frame.states)
+
         is Inbound.GitChecksRerun -> onGitChecksRerun?.invoke(frame.project, frame.error)
 
         is Inbound.GitCommitFiles ->

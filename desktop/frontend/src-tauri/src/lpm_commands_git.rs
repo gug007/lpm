@@ -145,6 +145,12 @@ fn keep_out(fs: &dyn CommandFs, name: &str) -> Result<(), String> {
     edit_exclude(fs, |text, prefix| with_rules(text, &rules(prefix, name)))
 }
 
+/// A skill arriving from another computer stays out of Git here too. Called before
+/// it lands, so it never shows up as a file to commit.
+pub(crate) fn keep_landing(fs: &dyn CommandFs, name: &str) -> Result<(), String> {
+    edit_exclude(fs, |text, prefix| with_rules(text, &rules(prefix, name)))
+}
+
 /// Undoes a removal not committed yet, so the skill goes back to how git had it.
 fn let_in(fs: &dyn CommandFs, name: &str) -> Result<(), String> {
     edit_exclude(fs, |text, prefix| without_rules(text, &rules(prefix, name)))?;

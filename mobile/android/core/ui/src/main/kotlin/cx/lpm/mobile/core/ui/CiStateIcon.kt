@@ -1,4 +1,4 @@
-package cx.lpm.mobile.feature.projects.ci
+package cx.lpm.mobile.core.ui
 
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
@@ -15,7 +15,7 @@ import cx.lpm.mobile.core.model.CiCheck
 
 /** A check's state as the desktop draws it: a red cross, an orange spinner, a green check, a grey dash. */
 @Composable
-internal fun CiStateIcon(state: CiCheck.State, modifier: Modifier = Modifier, size: Dp = 18.dp) {
+fun CiStateIcon(state: CiCheck.State, modifier: Modifier = Modifier, size: Dp = 18.dp) {
     val colors = LpmTheme.colors
     when (state) {
         CiCheck.State.PENDING ->

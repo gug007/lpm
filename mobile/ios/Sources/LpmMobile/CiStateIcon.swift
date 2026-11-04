@@ -17,6 +17,16 @@ struct CiStateIcon: View {
 }
 
 extension CiCheck.State {
+    /// What a commit's icon says when read aloud.
+    var commitLabel: String {
+        switch self {
+        case .fail: "CI failed"
+        case .pending: "CI running"
+        case .pass: "CI passed"
+        case .skipped: "CI skipped"
+        }
+    }
+
     /// The same on a menu row: a menu draws plain images in its own tint, so the
     /// color goes into the image and a clock stands in for the spinner.
     var menuIcon: Image {

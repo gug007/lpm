@@ -48,7 +48,7 @@ tags: [demo, commands, composer]
 - scrollUntilVisible:
     element: "Keep out of Git"
     direction: DOWN
-- assertVisible: "Stays in the project folder and is never committed."
+- assertVisible: "Never committed. Syncs to your connected computers."
 - tapOn: "Cancel"
 - extendedWaitUntil:
     notVisible: "Save"

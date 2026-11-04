@@ -2,14 +2,13 @@ import { SetClipboardText } from "../../../bridge/commands";
 import { count } from "../../count";
 import { coAuthorName, commitAgent, commitBody, lineTotals, type HistoryCommit } from "../../gitHistory";
 import { toast } from "../../notifications/toast";
+import { fullStamp } from "../../relativeTime";
 import { DiffViewer } from "../DiffViewer";
 import { ClipboardIcon } from "../icons";
 import { LineCounts } from "../LineCounts";
 import { AgentGlyph } from "../terminal/AgentGlyph";
 import { HistoryFileRow } from "./HistoryFileRow";
 import { useCommitFiles } from "./useCommitFiles";
-
-const STAMP = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
 
 /** One commit: its message, who wrote it, the files it changed and the
  *  picked file's patch. */
@@ -45,7 +44,7 @@ export function HistoryCommitDetail({ projectPath, commit }: { projectPath: stri
           <span>·</span>
           <span title={commit.email}>{commit.author}</span>
           <span>·</span>
-          <span>{STAMP.format(new Date(commit.time * 1000))}</span>
+          <span>{fullStamp(commit.time)}</span>
           {commit.parents > 1 && (
             <>
               <span>·</span>

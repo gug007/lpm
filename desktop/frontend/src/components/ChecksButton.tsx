@@ -19,9 +19,9 @@ const STATE_ICON: Record<PrCheckState, { Icon: typeof CircleX; color: string; sp
   skipped: { Icon: CircleMinus, color: "var(--text-muted)" },
 };
 
-export function checkStateIcon(state: PrCheckState) {
+export function checkStateIcon(state: PrCheckState, size = 12) {
   const look = STATE_ICON[state];
-  return <look.Icon size={12} style={{ color: look.color }} className={look.spin ? "animate-spin" : undefined} />;
+  return <look.Icon size={size} style={{ color: look.color }} className={look.spin ? "animate-spin" : undefined} />;
 }
 
 interface ChecksButtonProps {

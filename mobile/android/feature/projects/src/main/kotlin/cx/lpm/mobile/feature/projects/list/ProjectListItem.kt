@@ -35,6 +35,7 @@ fun ProjectListItem(
     folders: List<ProjectFolder>,
     statusChoices: List<WorkStatusChoice>,
     actions: ProjectRowActions,
+    edgeRows: AgentEdgeRows,
     modifier: Modifier = Modifier
 ) {
     val project = entry.project
@@ -109,6 +110,8 @@ fun ProjectListItem(
             }
             ProjectTerminalDeck(
                 rows = entry.agents,
+                edgeRows = edgeRows,
+                edgeKey = entry.key,
                 onOpen = { row -> row.terminalId?.let { actions.openTerminal(project, it) } },
                 folded = entry.foldedSeen,
                 expanded = entry.seenExpanded,

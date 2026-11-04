@@ -241,6 +241,10 @@ export function BranchPullRequest(cwd) {
 export function BranchCommitChecks(cwd) {
   return invoke("branch_commit_checks", { cwd });
 }
+
+export function RecentCommitChecks(cwd) {
+  return invoke("recent_commit_checks", { cwd });
+}
 export function RerunFailedChecks(cwd, runIds) {
   return invoke("rerun_failed_checks", { cwd, runIds });
 }

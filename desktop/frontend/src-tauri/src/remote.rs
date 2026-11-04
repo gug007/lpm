@@ -180,6 +180,7 @@ const PHONE_FEATURES: &[&str] = &[
     crate::remote_lpm_commands::OTHER_SKILLS_FEATURE,
     crate::remote_lpm_commands::NESTED_FOLDERS_FEATURE,
     crate::remote_ci::FEATURE,
+    crate::remote_ci::COMMITS_FEATURE,
 ];
 
 /// `PHONE_FEATURES`, and what depends on this machine as well as this build.
@@ -4750,7 +4751,7 @@ fn handle_msg(
             let _ = out.try_send(reply.to_string());
         }
         "claudeAccounts" | "setClaudeAccount" => crate::remote_claude::handle(app, out, t, &v),
-        "gitChecks" | "gitChecksRerun" => crate::remote_ci::handle(out, t, &v),
+        "gitChecks" | "gitChecksRerun" | "gitCommitChecks" => crate::remote_ci::handle(out, t, &v),
         "answers" => {
             let id = str_field("id").unwrap_or_default();
             let session = hub.inner.agent_sessions.lock().unwrap().get(&id).cloned();

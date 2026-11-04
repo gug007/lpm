@@ -104,6 +104,7 @@ final class LpmClient: NSObject {
     var onGitChanged: ((_ project: String) -> Void)?
     var onGitHistory: ((_ project: String, _ skip: Int, _ page: HistoryPage?, _ error: String?) -> Void)?
     var onGitChecks: ((_ project: String, _ checks: GitChecks?, _ error: String?) -> Void)?
+    var onGitCommitChecks: ((_ project: String, _ states: [String: CiCheck.State]) -> Void)?
     var onGitChecksRerun: ((_ project: String, _ error: String?) -> Void)?
     var onGitCommitFiles: ((_ project: String, _ hash: String, _ files: [CommitFile]?, _ error: String?) -> Void)?
     var onGitCommitPatch: ((_ project: String, _ hash: String, _ path: String, _ result: GitDiffResult?,
@@ -284,6 +285,7 @@ final class LpmClient: NSObject {
     static let projectPinsFeature = "projectPins"
     static let gitHistoryFeature = "gitHistory"
     static let gitChecksFeature = "gitChecks"
+    static let gitCommitChecksFeature = "gitCommitChecks"
     static let keepAwakeFeature = "keepAwake"
     static let lpmCommandsFeature = "lpmCommands"
     static let lpmOtherSkillsFeature = "lpmOtherSkills"
@@ -532,7 +534,7 @@ final class LpmClient: NSObject {
                              Self.weeklyRecapFeature, Self.recapMonthFeature, Self.agentArchiveFeature,
                              Self.limitRemindersFeature, Self.projectPinsFeature, Self.gitHistoryFeature,
                              Self.keepAwakeFeature, Self.lpmCommandsFeature, Self.lpmOtherSkillsFeature, Self.lpmNestedFoldersFeature,
-                             Self.gitChecksFeature],
+                             Self.gitChecksFeature, Self.gitCommitChecksFeature],
             ]))
         }
     }
@@ -1202,6 +1204,7 @@ final class LpmClient: NSObject {
         send(Wire.gitHistory(project: project, skip: skip, limit: limit))
     }
     func requestGitChecks(project: String) { send(Wire.gitChecks(project: project)) }
+    func requestGitCommitChecks(project: String) { send(Wire.gitCommitChecks(project: project)) }
     func requestGitChecksRerun(project: String, runIds: [String]) {
         send(Wire.gitChecksRerun(project: project, runIds: runIds))
     }
@@ -1583,6 +1586,7 @@ final class LpmClient: NSObject {
             case .gitChanged(let proj): self.onGitChanged?(proj)
             case .gitHistory(let proj, let skip, let page, let error): self.onGitHistory?(proj, skip, page, error)
             case .gitChecks(let proj, let checks, let error): self.onGitChecks?(proj, checks, error)
+            case .gitCommitChecks(let proj, let states): self.onGitCommitChecks?(proj, states)
             case .gitChecksRerun(let proj, let error): self.onGitChecksRerun?(proj, error)
             case .gitCommitFiles(let proj, let hash, let files, let error):
                 self.onGitCommitFiles?(proj, hash, files, error)

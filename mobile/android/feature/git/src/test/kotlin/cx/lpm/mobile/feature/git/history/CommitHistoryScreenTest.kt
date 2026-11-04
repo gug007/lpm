@@ -6,6 +6,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
+import cx.lpm.mobile.core.model.CiCheck
 import cx.lpm.mobile.core.model.CommitFile
 import cx.lpm.mobile.core.model.HistoryCommit
 import org.junit.Assert.assertEquals
@@ -45,6 +46,23 @@ class CommitHistoryScreenTest {
                 )
             )
         }
+    }
+
+    @Test
+    fun `a pushed commit shows how it did on CI, a commit no remote has keeps its arrow`() {
+        showHistory(
+            CommitHistoryUiState(
+                commits = listOf(ahead, pushed),
+                checks = mapOf(ahead.hash to CiCheck.State.PASS, pushed.hash to CiCheck.State.FAIL),
+                boundary = 1,
+                loaded = true,
+                unpushed = 1,
+                now = now
+            )
+        )
+        compose.onNodeWithContentDescription("CI failed").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Not pushed yet").assertIsDisplayed()
+        compose.onNodeWithContentDescription("CI passed").assertDoesNotExist()
     }
 
     @Test

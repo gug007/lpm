@@ -18,6 +18,7 @@ import cx.lpm.mobile.core.designsystem.component.listSeparator
 fun MachineProjectListItem(
     entry: ProjectsListRow.MachineProjectEntry,
     actions: MachineActions,
+    edgeRows: AgentEdgeRows,
     modifier: Modifier = Modifier
 ) {
     val project = entry.project
@@ -38,6 +39,8 @@ fun MachineProjectListItem(
         if (entry.agents.isNotEmpty()) {
             ProjectTerminalDeck(
                 rows = entry.agents,
+                edgeRows = edgeRows,
+                edgeKey = entry.key,
                 onOpen = { row ->
                     row.terminalId?.let { actions.openTerminal(entry.slug, project.name, it) }
                 },

@@ -45,33 +45,33 @@ import { AutoPRModal, type AutoPRAIParams } from "./AutoPRModal";
 import { MergeBranchDialog } from "./MergeBranchDialog";
 import { PRModal } from "./PRModal";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
-import { BranchIcon, ChevronDownIcon, HistoryIcon, SparkleIcon, UndoIcon, UploadIcon } from "./icons";
+import { ChevronDownIcon, HistoryIcon, SparkleIcon, UndoIcon, UploadIcon } from "./icons";
 import { CommitHistoryModal } from "./history/CommitHistoryModal";
+import { BranchButton } from "./BranchButton";
+import { useRecentCommits } from "../hooks/useRecentCommits";
 import { BranchSearchMenu } from "./BranchSearchMenu";
 import { isUnpublished } from "./branchUtils";
 import { shouldFetch, recordFetch } from "../gitFetchThrottle";
 import { toastPullError } from "../gitPullErrors";
 import { DISCARD_KEPT_TEXT, announceDiscard } from "../gitDiscardUndo";
 import { pulledText, pushedText, syncedText } from "../gitToastText";
-import { middleTruncate } from "../middleTruncate";
-
-// What fits the footer label in the 11px monospace face; the label is never
-// clipped again, or the "…" glyph's extra width cuts off the branch's end.
-const BRANCH_LABEL_MAX = 19;
 
 export function BranchSwitcher({
   projectName,
   projectPath,
   gitState,
   pullRequest = null,
+  active = true,
 }: {
   projectName: string;
   projectPath: string;
   gitState: ReturnType<typeof useGitStatus>;
   pullRequest?: PullRequestInfo | null;
+  active?: boolean;
 }) {
   const openPr = pullRequest?.state === "OPEN" ? pullRequest : null;
   const { status, branches, diffStat, refresh } = gitState;
+  const recentCommits = useRecentCommits(projectPath, active);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -411,25 +411,13 @@ export function BranchSwitcher({
         </button>
       )}
       <div ref={ref} className="relative">
-        <button
-          onClick={toggleOpen}
-          title={busy ? "Switching branch…" : "Switch branch"}
-          disabled={busy}
-          className={`flex items-center gap-1.5 rounded-md border border-[var(--composer-border)] px-2.5 py-1 text-[11px] font-medium transition-all duration-100 active:scale-[0.97] disabled:opacity-40 ${
-            open
-              ? "bg-[var(--composer-hover-bg)] text-[var(--composer-fg)]"
-              : "bg-[var(--composer-surface)] text-[var(--composer-fg-secondary)] hover:bg-[var(--composer-hover-bg)] hover:text-[var(--composer-fg)]"
-          }`}
-        >
-          <BranchIcon size={12} />
-          <span
-            className="whitespace-nowrap font-mono"
-            title={status.branch.length > BRANCH_LABEL_MAX ? status.branch : undefined}
-          >
-            {status.branch ? middleTruncate(status.branch, BRANCH_LABEL_MAX) : "detached"}
-          </span>
-          <ChevronDownIcon />
-        </button>
+        <BranchButton
+          branch={status.branch}
+          open={open}
+          busy={busy}
+          onToggle={toggleOpen}
+          commits={recentCommits}
+        />
 
         {open && (
           <BranchSearchMenu

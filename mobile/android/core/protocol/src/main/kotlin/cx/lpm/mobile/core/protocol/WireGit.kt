@@ -59,6 +59,10 @@ sealed interface WireGit {
     // CI (a Mac whose `features` has "gitChecks").
     fun gitChecks(project: String): String = frame("gitChecks") { put("project", project) }
 
+    // A Mac whose `features` has "gitCommitChecks".
+    fun gitCommitChecks(project: String): String =
+        frame("gitCommitChecks") { put("project", project) }
+
     fun gitChecksRerun(project: String, runIds: List<String>): String = frame("gitChecksRerun") {
         put("project", project)
         putJsonArray("runIds") { runIds.forEach { add(it) } }

@@ -46,6 +46,7 @@ internal fun LpmClient.connectDemo() {
                 add(LpmClient.LPM_OTHER_SKILLS_FEATURE)
                 add(LpmClient.LPM_NESTED_FOLDERS_FEATURE)
                 add(LpmClient.GIT_CHECKS_FEATURE)
+                add(LpmClient.GIT_COMMIT_CHECKS_FEATURE)
             }
         }
         injectInbound(Wire.json(ready))

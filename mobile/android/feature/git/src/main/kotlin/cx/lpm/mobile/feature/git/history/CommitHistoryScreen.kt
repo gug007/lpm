@@ -94,6 +94,7 @@ private fun LazyListScope.commitRows(state: CommitHistoryUiState, onOpen: (Histo
         item(key = commit.id) {
             HistoryCommitRow(
                 commit = commit,
+                ci = state.checks[commit.hash],
                 now = state.now,
                 first = index == 0,
                 // The "Pushed" line hides the separators beside it.

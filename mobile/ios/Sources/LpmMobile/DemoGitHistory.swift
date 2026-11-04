@@ -82,6 +82,15 @@ extension DemoServer {
                    files: [DemoCommitFile(path: "README.md", status: "added", added: 6, removed: 0)]),
     ]
 
+    /// How the pushed commits of the projects with CI did, newest first.
+    private static let commitCi = ["pass", "fail", "pass"]
+
+    private func demoCommitChecks(_ project: String) -> [[String: Any]] {
+        guard ["storefront", "api-gateway"].contains(project), let log = demoLog(project) else { return [] }
+        let pushed = log.dropFirst(world.git[project]?.ahead ?? 0)
+        return zip(pushed, Self.commitCi).map { commit, state in ["sha": commit.hash, "state": state] }
+    }
+
     func registerGitHistoryHandlers() {
         register("gitHistory") { [weak self] o in
             guard let self, let project = o["project"] as? String else { return }
@@ -102,6 +111,14 @@ extension DemoServer {
                 }
                 return ["t": "gitHistory", "project": project, "skip": skip, "ok": true,
                         "commits": page, "hasMore": skip + page.count < log.count]
+            }
+        }
+        register("gitCommitChecks") { [weak self] o in
+            guard let self, let project = o["project"] as? String else { return }
+            self.pushAfter(0.3) { [weak self] in
+                guard let self else { return nil }
+                return ["t": "gitCommitChecks", "project": project, "ok": true,
+                        "commits": self.demoCommitChecks(project)]
             }
         }
         register("gitCommitFiles") { [weak self] o in

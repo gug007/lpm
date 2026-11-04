@@ -40,6 +40,7 @@ import cx.lpm.mobile.core.model.CiCheck
 import cx.lpm.mobile.core.model.GitChecks
 import cx.lpm.mobile.core.model.LaunchpadOption
 import cx.lpm.mobile.core.navigation.PresentationScope
+import cx.lpm.mobile.core.ui.CiStateIcon
 import cx.lpm.mobile.feature.projects.ActionRunStep
 import cx.lpm.mobile.feature.projects.R
 import cx.lpm.mobile.feature.projects.detail.TerminalRowSkeleton

@@ -2,6 +2,7 @@ import { FolderIcon } from "./icons";
 import { SidebarHeaderShell } from "./SidebarHeaderShell";
 import { SidebarRollupLine } from "./SidebarRollupLine";
 import type { RollupSegment } from "./sidebarRollup";
+import type { EdgeAgentState } from "../sidebarAgentEdges";
 import type { ProjectGroup } from "../types";
 
 interface SidebarGroupRowProps {
@@ -10,6 +11,7 @@ interface SidebarGroupRowProps {
   count: number;
   /** What the fold is hiding, already rolled up by the sidebar. */
   segments: RollupSegment[];
+  edgeAgent?: EdgeAgentState;
   containsSelected: boolean;
   selectMode: boolean;
   isContextTarget: boolean;
@@ -22,6 +24,7 @@ export function SidebarGroupRow({
   collapsed,
   count,
   segments,
+  edgeAgent,
   containsSelected,
   selectMode,
   isContextTarget,
@@ -57,6 +60,7 @@ export function SidebarGroupRow({
           <span className="text-[11px] tabular-nums text-[var(--text-muted)]">{count}</span>
         ) : undefined
       }
+      edgeAgent={edgeAgent}
       active={containsSelected}
       isContextTarget={isContextTarget}
       showMore={!selectMode}

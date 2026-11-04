@@ -136,6 +136,10 @@
     <string name="git_history_with">With %1$s</string>
     <string name="git_history_unpushed_mark">↑</string>
     <string name="git_history_unpushed">Not pushed yet</string>
+    <string name="git_history_ci_failed">CI failed</string>
+    <string name="git_history_ci_running">CI running</string>
+    <string name="git_history_ci_passed">CI passed</string>
+    <string name="git_history_ci_skipped">CI skipped</string>
     <string name="git_history_pushed_line">PUSHED</string>
     <string name="git_history_pushed">Pushed</string>
     <string name="git_history_copy_full_hash">Copy the full hash</string>

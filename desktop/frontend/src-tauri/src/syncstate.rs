@@ -39,6 +39,15 @@ pub struct ItemState {
     pub deleted: bool,
 }
 
+impl ItemState {
+    fn bury(&mut self, device: &str) {
+        self.digest.clear();
+        self.rev += 1;
+        self.device = device.to_string();
+        self.deleted = true;
+    }
+}
+
 /// The common base two Macs last agreed on for one unit (per remote device id).
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
 pub struct BaseState {
@@ -129,14 +138,25 @@ impl SyncState {
                 continue;
             }
             if tombstones_for(key) {
-                entry.digest.clear();
-                entry.rev += 1;
-                entry.device = me.clone();
-                entry.deleted = true;
+                entry.bury(&me);
                 changed = true;
             }
         }
         changed
+    }
+
+    /// Tombstone a unit on the user's word, for a kind whose absence alone says
+    /// nothing. One no sync ever saw has no copy elsewhere to remove, so nothing is
+    /// recorded for it. Returns whether anything changed.
+    pub fn tombstone(&mut self, key: &str) -> bool {
+        let me = self.device.clone();
+        match self.items.get_mut(key) {
+            Some(entry) if !entry.deleted => {
+                entry.bury(&me);
+                true
+            }
+            _ => false,
+        }
     }
 
     pub fn set_item(&mut self, key: &str, state: ItemState) {
@@ -287,6 +307,25 @@ mod tests {
     // Only files under a synced global dir may tombstone.
     fn eligible(key: &str) -> bool {
         key.starts_with("global/generator-icons/") || key.starts_with("global/zdotdir/")
+    }
+
+    #[test]
+    fn a_tombstone_on_the_users_word_needs_a_unit_a_sync_saw() {
+        let mut s = state("A");
+        assert!(!s.tombstone("kept-skill/web/lint"), "nothing saw it");
+        assert!(s.reconcile(&present(&[("kept-skill/web/lint", "d0")]), eligible));
+        assert!(s.tombstone("kept-skill/web/lint"));
+        let it = &s.items["kept-skill/web/lint"];
+        assert_eq!((it.rev, it.deleted, it.digest.as_str()), (2, true, ""));
+        assert!(!s.tombstone("kept-skill/web/lint"), "already gone");
+    }
+
+    #[test]
+    fn a_unit_only_its_kind_can_tombstone_stays_live_while_missing() {
+        let mut s = state("A");
+        s.reconcile(&present(&[("kept-skill/web/lint", "d0")]), eligible);
+        assert!(!s.reconcile(&BTreeMap::new(), eligible));
+        assert!(!s.items["kept-skill/web/lint"].deleted);
     }
 
     #[test]

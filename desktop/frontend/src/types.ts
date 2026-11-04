@@ -428,6 +428,12 @@ export interface CommitChecksInfo {
   fixPrompt?: string;
 }
 
+// How one pushed commit did on CI by itself.
+export interface CommitCi {
+  sha: string;
+  state: "fail" | "pending" | "pass";
+}
+
 export interface PullRequestInfo {
   number: number;
   url: string;

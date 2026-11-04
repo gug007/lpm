@@ -13,6 +13,7 @@ import cx.lpm.mobile.core.data.projects.SidebarRow
 import cx.lpm.mobile.core.data.projects.archivingAgentKeys
 import cx.lpm.mobile.core.data.projects.pinnedProjects
 import cx.lpm.mobile.core.data.projects.sidebarItems
+import cx.lpm.mobile.core.model.AgentState
 import cx.lpm.mobile.core.model.AppTip
 import cx.lpm.mobile.core.model.DuplicateOptions
 import cx.lpm.mobile.core.model.FoldedAgents
@@ -127,8 +128,13 @@ sealed interface ProjectsListRow {
         override val key: String get() = (if (pinLink) "pin:" else "p:") + project.name
     }
 
-    data class FolderEntry(val folder: ProjectFolder, val count: Int, val expanded: Boolean) :
-        ProjectsListRow {
+    data class FolderEntry(
+        val folder: ProjectFolder,
+        val count: Int,
+        val expanded: Boolean,
+        /** The agents its members hold while it is shut, for the list's end lines. */
+        val foldedAgent: AgentState? = null
+    ) : ProjectsListRow {
         override val key: String get() = "g:" + folder.id
     }
 
@@ -143,7 +149,9 @@ sealed interface ProjectsListRow {
         /** A Mac too old to list a machine's projects still gets you there: "Open". */
         val opensOnlyBySwitching: Boolean,
         val canOpen: Boolean,
-        val expanded: Boolean
+        val expanded: Boolean,
+        /** The agents its projects hold while it is shut, for the list's end lines. */
+        val foldedAgent: AgentState? = null
     ) : ProjectsListRow {
         override val key: String get() = "m:$slug"
     }
@@ -216,7 +224,8 @@ fun ProjectsState.listRows(inputs: RowInputs): List<ProjectsListRow> {
                 val header = ProjectsListRow.FolderEntry(
                     folder = item.folder,
                     count = item.rows.count { !it.isChild },
-                    expanded = open
+                    expanded = open,
+                    foldedAgent = if (open) null else item.rows.foldedAgent(inputs)
                 )
                 listOf(header) + if (open) {
                     item.rows.map { projectEntry(it, indented = true, inputs) }
@@ -231,6 +240,11 @@ fun ProjectsState.listRows(inputs: RowInputs): List<ProjectsListRow> {
         }
     }
 }
+
+/** The agent a shut folder or machine speaks for at the ends of the list. */
+internal fun List<SidebarRow>.foldedAgent(inputs: RowInputs): AgentState? = edgeState(
+    flatMap { row -> projectAgentRows(row.project, inputs.now, emptyMap()).map { it.state } }
+)
 
 /** The Pinned section: each pinned project there is, in pinned order. */
 fun ProjectsState.pinnedRows(inputs: RowInputs): List<ProjectsListRow.ProjectEntry> =

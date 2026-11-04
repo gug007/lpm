@@ -9,6 +9,8 @@ interface TooltipProps {
   side?: Side;
   align?: "start" | "center" | "end";
   wide?: boolean;
+  // A wide card's limit, for one that needs more than the default 340px.
+  maxWidth?: number;
   // Wrap long content instead of keeping one nowrap line, clamped to this many
   // lines (overflow ellipsized).
   maxLines?: number;
@@ -28,7 +30,7 @@ const EDGE_MARGIN = 8;
 // How long an interactive card waits for the pointer to cross the gap to it.
 const LEAVE_GRACE_MS = 200;
 
-export function Tooltip({ content, children, side = "top", align = "center", wide = false, maxLines, delay = 0, triggerClassName = "inline-flex", disabled = false, interactive = false }: TooltipProps) {
+export function Tooltip({ content, children, side = "top", align = "center", wide = false, maxWidth, maxLines, delay = 0, triggerClassName = "inline-flex", disabled = false, interactive = false }: TooltipProps) {
   const triggerRef = useRef<HTMLSpanElement>(null);
   const tooltipRef = useRef<HTMLSpanElement>(null);
   const showTimer = useRef<number | null>(null);
@@ -179,6 +181,7 @@ export function Tooltip({ content, children, side = "top", align = "center", wid
             top: pos?.top ?? 0,
             left: pos?.left ?? 0,
             visibility: pos ? "visible" : "hidden",
+            ...(maxWidth ? { maxWidth } : {}),
             ...(maxLines && !wide
               ? {
                   display: "-webkit-box",

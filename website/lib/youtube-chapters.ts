@@ -311,4 +311,22 @@ export const LESSON_CHAPTERS: Record<YouTubeLessonId, LessonChapters> = {
       [94, "Keep going there"],
     ],
   },
+  "manage-claude-code-codex-skills": {
+    seconds: 421,
+    chapters: [
+      [0, "Intro"],
+      [15, "Open Skills"],
+      [40, "Write a skill"],
+      [86, "Run it in Claude Code"],
+      [111, "The same skill in Codex"],
+      [160, "Save a prompt as a skill"],
+      [198, "Global skills"],
+      [221, "Folders"],
+      [251, "Skills made somewhere else"],
+      [298, "Import old commands"],
+      [314, "Find and pick skills"],
+      [343, "Right-click a skill"],
+      [384, "On your other devices"],
+    ],
+  },
 };

@@ -25,8 +25,10 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.key
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -200,6 +202,8 @@ private fun ProjectsList(
     slots: ProjectsSlots,
     modifier: Modifier = Modifier
 ) {
+    val scroll = rememberScrollState()
+    val edgeRows = remember { AgentEdgeRows() }
     PullToRefreshBox(
         isRefreshing = refreshing,
         onRefresh = onRefresh,
@@ -209,7 +213,8 @@ private fun ProjectsList(
             // The usage rows rest on the bottom edge of a short list and follow a long one.
             Column(
                 Modifier
-                    .verticalScroll(rememberScrollState())
+                    .verticalScroll(scroll)
+                    .onPlaced { edgeRows.content = it }
                     .heightIn(min = maxHeight)
                     .padding(top = ListTopPadding)
             ) {
@@ -222,7 +227,7 @@ private fun ProjectsList(
                         headerStyle = ListHeaderStyle.Title
                     ) {
                         state.pinned.forEach { row ->
-                            key(row.key) { ProjectEntryItem(row, state, actions) }
+                            key(row.key) { ProjectEntryItem(row, state, actions, edgeRows) }
                         }
                     }
                 }
@@ -243,7 +248,7 @@ private fun ProjectsList(
                             }
                         }
                     ) {
-                        ProjectsCardRows(state, actions)
+                        ProjectsCardRows(state, actions, edgeRows)
                     }
                 }
                 if (!state.listIsEmpty) {
@@ -251,6 +256,7 @@ private fun ProjectsList(
                     slots.usage()
                 }
             }
+            AgentEdgeLines(edgeRows, scroll)
         }
     }
 }
@@ -276,33 +282,48 @@ private fun mainHeader(listAge: Instant?, pinned: Boolean): String? = when {
 private fun ProjectEntryItem(
     row: ProjectsListRow.ProjectEntry,
     state: ProjectsUiState,
-    actions: ListActions
+    actions: ListActions,
+    edgeRows: AgentEdgeRows
 ) = ProjectListItem(
     entry = row,
     folders = state.folders,
     statusChoices = state.workStatusMenu,
-    actions = actions.rows
+    actions = actions.rows,
+    edgeRows = edgeRows
 )
 
 @Composable
-private fun ProjectsCardRows(state: ProjectsUiState, actions: ListActions) {
+private fun ProjectsCardRows(
+    state: ProjectsUiState,
+    actions: ListActions,
+    edgeRows: AgentEdgeRows
+) {
     state.rows.forEach { row ->
         key(row.key) {
             when (row) {
-                is ProjectsListRow.ProjectEntry -> ProjectEntryItem(row, state, actions)
+                is ProjectsListRow.ProjectEntry -> ProjectEntryItem(row, state, actions, edgeRows)
 
-                is ProjectsListRow.FolderEntry -> FolderListItem(
-                    entry = row,
-                    onToggle = { actions.folders.toggle(row.folder, row.expanded) },
-                    onRename = { actions.folders.rename(row.folder) },
-                    onDelete = { actions.folders.delete(row.folder) }
-                )
+                is ProjectsListRow.FolderEntry -> AgentEdgeRow(edgeRows, row.key, row.foldedAgent) {
+                    FolderListItem(
+                        entry = row,
+                        onToggle = { actions.folders.toggle(row.folder, row.expanded) },
+                        onRename = { actions.folders.rename(row.folder) },
+                        onDelete = { actions.folders.delete(row.folder) }
+                    )
+                }
 
-                is ProjectsListRow.MachineEntry -> MachineListItem(row, actions.machines)
+                is ProjectsListRow.MachineEntry -> AgentEdgeRow(
+                    edgeRows,
+                    row.key,
+                    row.foldedAgent
+                ) {
+                    MachineListItem(row, actions.machines)
+                }
 
                 is ProjectsListRow.MachineProjectEntry -> MachineProjectListItem(
                     row,
-                    actions.machines
+                    actions.machines,
+                    edgeRows
                 )
             }
         }

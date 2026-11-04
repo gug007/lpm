@@ -49,7 +49,7 @@ struct CommandEditorSheet: View {
         guard draft.keepOutOfGit, let original = draft.original,
               lists?.list(original.scope)?.commands.first(where: { $0.ref == original })?.tracked == true
         else { return nil }
-        return "Already committed. After saving, commit to remove it from the repo. Past commits keep a copy, and other computers lose it when they pull."
+        return "Already committed. After saving, commit to remove it from the repo. Past commits keep a copy, and computers that aren't connected lose it when they pull."
     }
 
     private var place: Binding<Place> {
@@ -102,7 +102,7 @@ struct CommandEditorSheet: View {
                         Toggle("Keep out of Git", isOn: $draft.keepOutOfGit)
                     } footer: {
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("Stays in the project folder and is never committed.")
+                            Text("Never committed. Syncs to your connected computers.")
                             if let keptOutNote {
                                 Text(keptOutNote).foregroundStyle(.orange)
                             }

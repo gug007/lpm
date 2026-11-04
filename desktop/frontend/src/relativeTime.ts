@@ -27,3 +27,10 @@ const STAMP = new Intl.DateTimeFormat(undefined, {
 export function shortStamp(ms: number): string {
   return ms > 0 ? STAMP.format(new Date(ms)) : "";
 }
+
+const FULL_STAMP = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
+
+// "Nov 4, 2026, 9:21 PM" from unix seconds.
+export function fullStamp(unix: number): string {
+  return FULL_STAMP.format(new Date(unix * 1000));
+}

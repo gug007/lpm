@@ -191,6 +191,13 @@ const LESSONS = {
       "In the middle of a Claude Code session, hand the slow part to your other Mac: Claude commits on a new branch and pushes it, and with the computer picked by an at sign in lpm's prompt box, the Mac mini fetches that branch and runs the full test suite in the background with lpm exec while Claude keeps working on your laptop. You allow each step.",
     uploadDate: "2026-11-04T09:00:00+00:00",
   },
+  "manage-claude-code-codex-skills": {
+    id: "GY0USUZz2ZM",
+    name: "Manage Claude Code and Codex Skills in One Place",
+    description:
+      "Claude Code reads skills from one folder and Codex from another. In lpm you write a skill once, run it in both agents as a real skill, and manage every skill you have in one list: create and run skills, save a prompt as a skill, project and global lists, folders, skills made somewhere else, import, search and Keep out of Git.",
+    uploadDate: "2026-11-04T09:00:00+00:00",
+  },
 } as const;
 
 export type YouTubeLessonId = keyof typeof LESSONS;

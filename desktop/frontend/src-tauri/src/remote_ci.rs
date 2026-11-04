@@ -1,8 +1,10 @@
 // CI on the phone, as the desktop footer shows it: the checks of the branch's
 // open pull request, else of the commit the branch last pushed, with what
-// Claude is told to fix them and a way to run the failed jobs again. Both ask
-// GitHub, so they answer through the out-queue.
+// Claude is told to fix them and a way to run the failed jobs again, and how
+// each recent commit did for History's rows. All ask GitHub, so they answer
+// through the out-queue.
 use crate::ci_checks::{branch_commit_checks, rerun_failed_checks};
+use crate::ci_commits::recent_commit_checks;
 use crate::pull_request::branch_pull_request;
 use crate::remote::git_result_reply;
 use serde_json::{json, Value};
@@ -10,6 +12,8 @@ use std::sync::mpsc::SyncSender;
 
 /// The phone may send `gitChecks` and `gitChecksRerun`.
 pub const FEATURE: &str = "gitChecks";
+/// The phone may send `gitCommitChecks`.
+pub const COMMITS_FEATURE: &str = "gitCommitChecks";
 
 pub fn handle(out: &SyncSender<String>, t: &str, v: &Value) {
     let out = out.clone();
@@ -30,6 +34,12 @@ pub fn handle(out: &SyncSender<String>, t: &str, v: &Value) {
                     .unwrap_or_default();
                 git_result_reply(&verb, &project, rerun_failed_checks(root, ids))
             }
+            Ok((root, _)) if verb == "gitCommitChecks" => json!({
+                "t": verb,
+                "project": project,
+                "ok": true,
+                "commits": recent_commit_checks(root),
+            }),
             Ok((root, _)) => checks_reply(&project, root),
         };
         let _ = out.try_send(reply.to_string());

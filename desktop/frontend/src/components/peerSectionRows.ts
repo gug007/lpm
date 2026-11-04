@@ -27,6 +27,8 @@ export type PeerRowItem =
       count: number;
       /// What a folded folder's projects are up to; empty while open.
       segments: RollupSegment[];
+      /// The projects a folded folder is hiding, copies included; empty while open.
+      folded: ProjectInfo[];
       rows: PeerMemberRow[];
     };
 
@@ -94,14 +96,14 @@ export function peerSectionRows(
       .map((name) => byName.get(name))
       .filter((p): p is ProjectInfo => p !== undefined && !placed.has(p.name));
     const inside = members.flatMap((member) => place(member, !collapsed));
+    const folded = collapsed ? members.flatMap((m) => [m, ...(decks.get(m.name) ?? [])]) : [];
     rows.push({
       kind: "folder",
       group,
       collapsed,
       count: members.length,
-      segments: collapsed
-        ? rollupSegments(members.flatMap((m) => [m, ...(decks.get(m.name) ?? [])]))
-        : [],
+      segments: collapsed ? rollupSegments(folded) : [],
+      folded,
       rows: inside,
     });
   };

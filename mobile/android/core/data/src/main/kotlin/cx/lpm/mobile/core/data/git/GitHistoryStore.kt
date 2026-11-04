@@ -1,12 +1,14 @@
 package cx.lpm.mobile.core.data.git
 
 import cx.lpm.mobile.core.data.client.LpmClient
+import cx.lpm.mobile.core.data.client.requestGitCommitChecks
 import cx.lpm.mobile.core.data.client.requestGitCommitFiles
 import cx.lpm.mobile.core.data.client.requestGitCommitPatch
 import cx.lpm.mobile.core.data.client.requestGitHistory
 import cx.lpm.mobile.core.data.session.GenerationTimeout
 import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.data.session.SessionStore
+import cx.lpm.mobile.core.model.CiCheck
 import cx.lpm.mobile.core.model.CommitFile
 import cx.lpm.mobile.core.model.GitDiffResult
 import cx.lpm.mobile.core.model.HistoryCommit
@@ -42,10 +44,14 @@ data class PatchKey(val project: String, val hash: String, val path: String)
 
 data class GitHistoryState(
     val logs: Map<String, HistoryLog> = emptyMap(),
+    /** How each project's recent pushed commits did on CI, by full hash. */
+    val commitChecks: Map<String, Map<String, CiCheck.State>> = emptyMap(),
     val files: Map<CommitKey, HistoryFiles> = emptyMap(),
     val patches: Map<PatchKey, HistoryPatch> = emptyMap()
 ) {
     fun log(project: String): HistoryLog = logs[project] ?: HistoryLog()
+
+    fun checks(project: String): Map<String, CiCheck.State> = commitChecks[project].orEmpty()
 
     fun files(project: String, hash: String): HistoryFiles =
         files[CommitKey(project, hash)] ?: HistoryFiles()
@@ -68,6 +74,7 @@ class GitHistoryStore(private val session: MacSession) : SessionStore {
 
     override fun wire(client: LpmClient) {
         client.onGitHistory = ::applyHistory
+        client.onGitCommitChecks = ::applyCommitChecks
         client.onGitCommitFiles = ::applyFiles
         client.onGitCommitPatch = ::applyPatch
     }
@@ -95,6 +102,11 @@ class GitHistoryStore(private val session: MacSession) : SessionStore {
     /** The newest page again; what's listed stays until it lands. */
     fun load(project: String) = request(project, skip = 0)
 
+    fun loadCommitChecks(project: String) {
+        if (client?.hostFeatures?.contains(LpmClient.GIT_COMMIT_CHECKS_FEATURE) != true) return
+        client?.requestGitCommitChecks(project)
+    }
+
     fun loadMore(project: String) {
         val log = state.value.log(project)
         if (!log.hasMore || log.loading) return
@@ -110,6 +122,7 @@ class GitHistoryStore(private val session: MacSession) : SessionStore {
     private fun request(project: String, skip: Int) {
         updateLog(project) { it.copy(loading = true, asking = skip) }
         client?.requestGitHistory(project, skip, PAGE_SIZE)
+        if (skip == 0) loadCommitChecks(project)
         timeout.arm("log\n$project", TIMEOUT_MS) {
             updateLog(project) {
                 if (it.loading) it.copy(loading = false, error = LATE_ANSWER) else it
@@ -130,6 +143,9 @@ class GitHistoryStore(private val session: MacSession) : SessionStore {
             }
         }
     }
+
+    private fun applyCommitChecks(project: String, states: Map<String, CiCheck.State>) =
+        mutable.update { it.copy(commitChecks = it.commitChecks + (project to states)) }
 
     private fun updateLog(project: String, change: (HistoryLog) -> HistoryLog) =
         mutable.update { it.copy(logs = it.logs + (project to change(it.log(project)))) }

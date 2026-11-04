@@ -1,13 +1,16 @@
 import { memo } from "react";
 import { branchTextColor, type GraphRow } from "../../gitGraph";
+import { commitCiMark, type CommitCiStates } from "../../commitCi";
 import { commitAgent, coAuthorName, type HistoryCommit } from "../../gitHistory";
 import { relativeAgo } from "../../relativeTime";
+import { CommitCiIcon } from "../CommitCiIcon";
 import { AgentGlyph } from "../terminal/AgentGlyph";
 import { HistoryGraphCell } from "./HistoryGraphCell";
 import { DIM_OPACITY, ROW_H, isDimmed } from "./graphGeometry";
 
 interface HistoryCommitRowProps {
   commit: HistoryCommit;
+  ci: CommitCiStates;
   graph: GraphRow;
   lanes: number;
   // The branch whose line is hovered; every other commit fades.
@@ -27,6 +30,7 @@ function rowLabels(commit: HistoryCommit, graph: GraphRow): string[] {
 
 export const HistoryCommitRow = memo(function HistoryCommitRow({
   commit,
+  ci,
   graph,
   lanes,
   hover,
@@ -81,11 +85,7 @@ export const HistoryCommitRow = memo(function HistoryCommitRow({
             <AgentGlyph agent={agent} size={12} />
           </span>
         )}
-        {commit.unpushed && (
-          <span title="Not pushed yet" className="shrink-0 text-[11px] text-[var(--accent-cyan)]">
-            ↑
-          </span>
-        )}
+        <CommitCiIcon mark={commitCiMark(commit, ci)} />
         <span className="w-14 shrink-0 text-right text-[11px] tabular-nums text-[var(--text-muted)]">
           {relativeAgo(commit.time)}
         </span>

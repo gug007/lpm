@@ -117,7 +117,7 @@ struct TipSection: View {
 
     var body: some View {
         if let tip {
-            Section { TipCard(tip: tip) }
+            Section { TipCard(tip: tip).tracksListRow(ListEdgeRow.tipID) }
         }
     }
 }

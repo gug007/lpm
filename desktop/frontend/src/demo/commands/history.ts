@@ -167,7 +167,16 @@ function patch(f: SampleFile): string {
   ].join("\n");
 }
 
+// What the sample's pushed commits did on CI, newest first.
+const SAMPLE_CI = ["pass", "pass", "fail", "pass", "pass"] as const;
+
 export const historyCommands: CommandMap = {
+  recent_commit_checks: ({ cwd }) => {
+    const p = projectAt(String(cwd));
+    if (!p?.git.upstream) return [];
+    const pushed = commitsOf(p).filter((c) => !c.unpushed);
+    return SAMPLE_CI.flatMap((state, i) => (pushed[i] ? [{ sha: pushed[i].hash, state }] : []));
+  },
   git_history: ({ cwd, skip, limit }) => {
     const p = projectAt(String(cwd));
     if (!p) return { commits: [], hasMore: false };

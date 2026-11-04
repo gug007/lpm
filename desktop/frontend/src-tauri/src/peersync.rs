@@ -17,11 +17,13 @@
 // tracks a per-unit revision + author and the agreed base with each Mac, so
 // `compute_plan_v2` tells a fast-forward from a real conflict and lets a deletion
 // of a synced-dir file cross to the other Mac. Global lpm skills are units of their
-// own (skillsync.rs), in configSync2 only and only with a peer whose map lists them.
+// own (skillsync.rs), in configSync2 only and only with a peer whose map lists them,
+// and so are project skills kept out of Git (skillsync_kept.rs).
 // See PEER_PROTOCOL.md.
 use crate::config;
 use crate::lpm_commands_local::FOLDERS_FILE;
 use crate::skillsync;
+use crate::skillsync_kept::{self, KeptSkills};
 use crate::syncstate::{BaseState, TOMBSTONE};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as Json;
@@ -88,6 +90,9 @@ pub struct DigestMap {
     /// Skill names that must stay as they are here, kept out of the plan both ways.
     #[serde(rename = "heldSkills", default, skip_serializing_if = "Vec::is_empty")]
     pub held_skills: Vec<String>,
+    /// Project skills kept out of Git. None from a peer too old to sync them.
+    #[serde(rename = "keptSkills", default, skip_serializing_if = "Option::is_none")]
+    pub kept_skills: Option<KeptSkills>,
     /// Direct `extends:` refs per project, so the client can compute which
     /// templates a matched project references on either side.
     #[serde(rename = "projectExtends", default)]
@@ -105,6 +110,7 @@ impl DigestMap {
             "global" => self.globals.get(name),
             "template" => self.templates.get(name),
             skillsync::KIND => self.skills.as_ref()?.get(name),
+            skillsync_kept::KIND => self.kept_skills.as_ref()?.skills.get(name),
             _ => None,
         }
     }
@@ -113,8 +119,8 @@ impl DigestMap {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct SyncItem {
-    pub kind: String,      // "project" | "global" | "template" | "skill"
-    pub name: String,      // project/template/skill name, or global relative path
+    pub kind: String,      // "project" | "global" | "template" | "skill" | "kept-skill"
+    pub name: String,      // project/template/skill name, global relative path, or <project>/<skill>
     pub direction: String, // "toLocal" | "toRemote"
     pub local_mtime: i64,
     pub remote_mtime: i64,
@@ -229,6 +235,7 @@ pub fn local_digest_map() -> DigestMap {
         dm.skills = Some(list.skills);
         dm.held_skills = list.held;
     }
+    dm.kept_skills = Some(skillsync_kept::local_list(dm.projects.keys()));
 
     reconcile_and_attach(&mut dm);
     dm
@@ -251,6 +258,9 @@ fn reconcile_and_attach(dm: &mut DigestMap) {
     }
     for (n, d) in dm.skills.iter().flatten() {
         present.insert(item_key(skillsync::KIND, n), d.hash.clone());
+    }
+    for (n, d) in dm.kept_skills.iter().flat_map(|kept| &kept.skills) {
+        present.insert(item_key(skillsync_kept::KIND, n), d.hash.clone());
     }
     let skills_read = dm.skills.is_some();
     let held = &dm.held_skills;
@@ -286,9 +296,26 @@ fn reconcile_and_attach(dm: &mut DigestMap) {
             d.device = it.device.clone();
         }
     }
+    for (n, d) in dm.kept_skills.iter_mut().flat_map(|kept| &mut kept.skills) {
+        if let Some(it) = state.items.get(&item_key(skillsync_kept::KIND, n)) {
+            d.rev = it.rev;
+            d.device = it.device.clone();
+        }
+    }
     for (key, it) in &state.items {
         if !it.deleted {
             continue;
+        }
+        if let (Some(unit), Some(kept)) = (kept_unit_of(key), dm.kept_skills.as_mut()) {
+            kept.skills.insert(
+                unit.to_string(),
+                ItemDigest {
+                    rev: it.rev,
+                    device: it.device.clone(),
+                    deleted: true,
+                    ..Default::default()
+                },
+            );
         }
         if let (Some(name), Some(skills)) = (skill_of(key), dm.skills.as_mut()) {
             skills.insert(
@@ -322,6 +349,11 @@ fn reconcile_and_attach(dm: &mut DigestMap) {
 /// The skill a sidecar key names.
 fn skill_of(key: &str) -> Option<&str> {
     key.strip_prefix(skillsync::KIND)?.strip_prefix('/')
+}
+
+/// The `<project>/<skill>` a sidecar key names.
+fn kept_unit_of(key: &str) -> Option<&str> {
+    key.strip_prefix(skillsync_kept::KIND)?.strip_prefix('/')
 }
 
 /// Whether an absent sidecar entry keyed `key` should become a tombstone: files
@@ -360,6 +392,7 @@ pub fn legacy_view(mut dm: DigestMap) -> DigestMap {
     dm.device.clear();
     dm.skills = None;
     dm.held_skills.clear();
+    dm.kept_skills = None;
     dm.globals.retain(|_, d| !d.deleted);
     for d in dm
         .projects
@@ -569,21 +602,33 @@ fn plan_core(
             }
         }
     }
+    let kept = local.kept_skills.as_ref().zip(remote.kept_skills.as_ref()).filter(|_| !legacy);
+    if let Some((l, r)) = kept {
+        for unit in skillsync_kept::shared_units(l, r) {
+            let (kind, ld, rd) = (skillsync_kept::KIND, l.skills.get(unit), r.skills.get(unit));
+            if let Some(it) = resolve_pair(kind, unit, ld, rd, bases, legacy) {
+                items.push(it);
+            }
+        }
+    }
     items
 }
 
 /// Skills that stay on one computer because the other keeps something else under
 /// that name, to say so rather than leave them missing without a word.
 pub fn skipped_skills(local: &DigestMap, remote: &DigestMap) -> Vec<String> {
-    let (Some(l), Some(r)) = (&local.skills, &remote.skills) else {
-        return Vec::new();
-    };
     let blocked = |skills: &BTreeMap<String, ItemDigest>, held: &[String]| {
         let live = |n: &&String| skills.get(*n).is_some_and(|d| !d.deleted);
         held.iter().filter(live).cloned().collect::<Vec<_>>()
     };
-    let mut names = blocked(l, &remote.held_skills);
-    names.extend(blocked(r, &local.held_skills));
+    let mut names = Vec::new();
+    if let (Some(l), Some(r)) = (&local.skills, &remote.skills) {
+        names.extend(blocked(l, &remote.held_skills));
+        names.extend(blocked(r, &local.held_skills));
+    }
+    if let (Some(l), Some(r)) = (&local.kept_skills, &remote.kept_skills) {
+        names.extend(skillsync_kept::skipped(l, r));
+    }
     names.sort();
     names.dedup();
     names
@@ -720,7 +765,7 @@ fn resolve_no_base(kind: &str, name: &str, l: &SideInfo, r: &SideInfo, legacy: b
     match (l.deleted, r.deleted) {
         (false, true) => item(kind, name, "toRemote", l.mtime, r.mtime, false, false),
         (true, false) => item(kind, name, "toLocal", l.mtime, r.mtime, false, false),
-        _ if (kind == "project" || kind == skillsync::KIND) && !legacy => {
+        _ if matches!(kind, "project" | skillsync::KIND | skillsync_kept::KIND) && !legacy => {
             let (dir, conflict) = match (l.scaffold, r.scaffold) {
                 (true, false) => ("toLocal", false),
                 (false, true) => ("toRemote", false),
@@ -799,6 +844,13 @@ pub fn converged_bases(local: &DigestMap, remote: &DigestMap) -> Vec<(String, Ba
             push_if_equal(skillsync::KIND, name, l, r, &mut out);
         }
     }
+    if let (Some(l), Some(r)) = (&local.kept_skills, &remote.kept_skills) {
+        for unit in skillsync_kept::shared_units(l, r) {
+            if let (Some(ld), Some(rd)) = (l.skills.get(unit), r.skills.get(unit)) {
+                push_if_equal(skillsync_kept::KIND, unit, ld, rd, &mut out);
+            }
+        }
+    }
     out
 }
 
@@ -860,6 +912,9 @@ fn referenced_templates(local: &DigestMap, remote: &DigestMap) -> BTreeSet<Strin
 pub fn read_item(kind: &str, name: &str) -> Result<WireItem, String> {
     if kind == skillsync::KIND {
         return skillsync::read_item(name);
+    }
+    if kind == skillsync_kept::KIND {
+        return skillsync_kept::read_item(name);
     }
     let path = read_path(kind, name)?;
     let mut bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
@@ -962,6 +1017,7 @@ pub fn apply_item(item: &WireItem) -> Result<Applied, String> {
         "project" => apply_project(&item.name, &bytes)?,
         "template" => apply_template(&item.name, &bytes)?,
         skillsync::KIND => skillsync::apply(&item.name, &bytes)?,
+        skillsync_kept::KIND => skillsync_kept::apply(&item.name, &bytes)?,
         "global" => {
             if item.name == crate::telegramlink::FILE {
                 crate::telegramsync::adopt(&bytes, item.secret.as_deref())?;
@@ -984,7 +1040,7 @@ pub fn portable_digest(kind: &str, name: &str, bytes: &[u8]) -> Result<String, S
     match kind {
         "project" => project_digest(bytes),
         "template" => Ok(sha256_hex(bytes)),
-        skillsync::KIND => skillsync::wire_digest(bytes),
+        skillsync::KIND | skillsync_kept::KIND => skillsync::wire_digest(bytes),
         "global" => global_digest(name, bytes),
         other => Err(format!("unknown item kind: {other}")),
     }
@@ -995,6 +1051,7 @@ pub fn delete_item(kind: &str, name: &str) -> Result<(), String> {
     match kind {
         "global" => delete_global(name),
         skillsync::KIND => skillsync::delete(name),
+        skillsync_kept::KIND => skillsync_kept::delete(name),
         other => Err(format!("cannot delete {other}: only global files and skills")),
     }
 }

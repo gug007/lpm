@@ -32,19 +32,23 @@ import cx.lpm.mobile.core.designsystem.component.DisclosureChevron
 import cx.lpm.mobile.core.designsystem.component.PlainListDefaults
 import cx.lpm.mobile.core.designsystem.component.plainListSeparator
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
+import cx.lpm.mobile.core.model.CiCheck
 import cx.lpm.mobile.core.model.HistoryCommit
 import cx.lpm.mobile.core.model.relativeAgo
 import cx.lpm.mobile.core.ui.AgentMark
 import cx.lpm.mobile.core.ui.AgentMarkIcon
+import cx.lpm.mobile.core.ui.CiStateIcon
 import cx.lpm.mobile.feature.git.R
 
 /**
  * One commit: its mark, what it says, who wrote it (and with which agent) and when,
- * "↑" while no remote has it. The [first] row carries the list's top separator.
+ * "↑" while no remote has it, else how it did on CI. The [first] row carries the list's
+ * top separator.
  */
 @Composable
 internal fun HistoryCommitRow(
     commit: HistoryCommit,
+    ci: CiCheck.State?,
     now: Long,
     first: Boolean,
     separator: Boolean,
@@ -109,6 +113,13 @@ internal fun HistoryCommitRow(
                     color = colors.cyan,
                     modifier = Modifier.clearAndSetSemantics { contentDescription = spoken }
                 )
+            } else if (ci != null) {
+                val spoken = stringResource(ci.label)
+                CiStateIcon(
+                    ci,
+                    Modifier.clearAndSetSemantics { contentDescription = spoken },
+                    size = CiIconSize
+                )
             }
         }
         DisclosureChevron(Modifier.align(Alignment.CenterVertically))
@@ -160,7 +171,17 @@ private fun Byline(commit: HistoryCommit) {
     }
 }
 
+private val CiCheck.State.label: Int
+    get() = when (this) {
+        CiCheck.State.FAIL -> R.string.git_history_ci_failed
+        CiCheck.State.PENDING -> R.string.git_history_ci_running
+        CiCheck.State.PASS -> R.string.git_history_ci_passed
+        CiCheck.State.SKIPPED -> R.string.git_history_ci_skipped
+    }
+
 private val MarkLift = 4.dp
+
+private val CiIconSize = 14.dp
 
 /** Where the separator starts: at the subject, past the mark's column. */
 private val TextInset = PlainListDefaults.RowPadding + 12.dp + 10.dp

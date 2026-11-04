@@ -24,6 +24,17 @@ struct CiCheck: Equatable, Identifiable {
 
     var id: String { "\(workflow)/\(name)" }
 
+    /// How each recent commit did by itself (`gitCommitChecks`), by full hash.
+    static func commitStates(_ commits: [[String: Any]]) -> [String: State] {
+        var states: [String: State] = [:]
+        for commit in commits {
+            guard let sha = commit["sha"] as? String,
+                  let state = State(rawValue: commit["state"] as? String ?? "") else { continue }
+            states[sha] = state
+        }
+        return states
+    }
+
     /// "Linux host · on fcb454f": what the menu shows after the name.
     var detail: String {
         [workflow, commit.map { "on \($0)" } ?? ""].filter { !$0.isEmpty }.joined(separator: " · ")

@@ -1,5 +1,6 @@
 import { Fragment, memo, useRef, useState } from "react";
 import { archiveAgents, markAgentSeen, markAgentUnread } from "../agentArchive";
+import { edgeAgentOfRow } from "../sidebarAgentEdges";
 import type { SidebarAgentRow } from "../sidebarAgents";
 import { useExpandedSeenAgents } from "../sidebarCollapsed";
 import { isPeerName } from "../peer/markers";
@@ -25,6 +26,8 @@ export interface SidebarAgentRowsProps {
   /** The terminal on screen right now, or null when this project isn't the one
    *  being looked at. The row that owns it is marked as where the user is. */
   activeTerminalId?: string | null;
+  /** Set where these lines can scroll away and nothing else shows the agents. */
+  signalsEdge?: boolean;
   onOpenAgent: (projectName: string, agent: SidebarAgentRow) => void;
   /** A right-click menu action on the row's tab, at the point it was asked. */
   onAgentAction?: (
@@ -46,6 +49,7 @@ export const SidebarAgentRows = memo(function SidebarAgentRows({
   indented,
   underNav,
   activeTerminalId,
+  signalsEdge,
   onOpenAgent,
   onAgentAction,
 }: SidebarAgentRowsProps) {
@@ -84,6 +88,7 @@ export const SidebarAgentRows = memo(function SidebarAgentRows({
             where={label ?? projectName}
             lead={lead}
             active={agent.terminalId !== null && agent.terminalId === onScreen}
+            edgeAgent={signalsEdge ? edgeAgentOfRow(agent) : undefined}
             onOpen={() => open(agent)}
             onMenu={(at) => setMenu({ agent, ...at })}
             onArchive={canArchive(agent) ? (viaKeyboard) => archive(agent, viaKeyboard) : undefined}
