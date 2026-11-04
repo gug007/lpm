@@ -4,6 +4,9 @@
 //! Read-first by design. lpm resolves and diagnoses; the vendor CLI owns
 //! mutation of its own JSON/TOML, so the only writes here are to the markdown
 //! files lpm can author safely (see `write`).
+//!
+//! Deprecated: this backs Agent setup, which is going away in a future release,
+//! so don't build on it.
 
 mod edit;
 pub(crate) mod generate;

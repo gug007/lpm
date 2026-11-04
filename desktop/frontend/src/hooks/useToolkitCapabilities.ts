@@ -5,6 +5,7 @@ import type { AgentCapabilities } from "../toolkit";
 // v0 refreshes when the pane becomes visible and on demand. No watcher yet:
 // Claude Code rewrites ~/.claude on nearly every turn, and a strobing list is
 // worse than a stale one you can refresh.
+/** @deprecated Agent setup is going away in a future release, so don't build on it. */
 export function useToolkitCapabilities(cwd: string, visible: boolean) {
   const [data, setData] = useState<AgentCapabilities | null>(null);
   const [error, setError] = useState("");

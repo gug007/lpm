@@ -13,6 +13,7 @@ interface ToolkitOpenState {
 
 let seq = 0;
 
+/** @deprecated Agent setup is going away in a future release, so don't build on it. */
 export const useToolkitOpen = create<ToolkitOpenState>((set, get) => ({
   open: null,
   target: null,

@@ -17,6 +17,7 @@ export interface PaneActionMeta {
 export const PANE_ACTION_META: Record<PaneActionId, PaneActionMeta> = {
   review: { label: "Review changes", icon: <SourceControlIcon />, shortcut: chordLabel({ key: "r", meta: true, shift: true }) },
   files: { label: "Files", icon: <FolderIcon />, shortcut: chordLabel({ key: "e", meta: true, shift: true }), tab: "files" },
+  /** @deprecated Agent setup is going away in a future release, so don't build on it. */
   toolkit: { label: "Agent setup", icon: <LayersIcon />, shortcut: chordLabel({ key: "k", meta: true, shift: true }), tab: "toolkit" },
   commands: { label: "Skills", icon: <SquareSlash size={14} strokeWidth={1.75} />, shortcut: chordLabel({ key: "o", meta: true, shift: true }), tab: "commands" },
   automations: { label: "Automations", icon: <ClockIcon size={14} />, shortcut: chordLabel({ key: "j", meta: true, shift: true }), tab: "automations" },

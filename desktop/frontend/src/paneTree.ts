@@ -235,6 +235,7 @@ export function makeMemory(id: string, label = "Memory"): TerminalInstance {
   return { id, label, kind: "memory" };
 }
 
+/** @deprecated Agent setup is going away in a future release, so don't build on it. */
 export function makeToolkit(id: string, label = "Agent setup"): TerminalInstance {
   return { id, label, kind: "toolkit" };
 }

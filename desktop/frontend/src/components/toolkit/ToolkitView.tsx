@@ -55,6 +55,7 @@ interface ToolkitViewProps {
 // the agent running in this directory will actually load, and which copy wins
 // when two definitions share a name. Read-first — lpm resolves and diagnoses,
 // and only edits the markdown files it can author safely.
+/** @deprecated Agent setup is going away in a future release, so don't build on it. */
 export function ToolkitView({ project, cwd, visible, focused }: ToolkitViewProps) {
   const { data, error, loading, scannedAt, refresh } = useToolkitCapabilities(cwd, visible);
   const [cli, setCli] = useState<CliFilter>("all");
