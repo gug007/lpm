@@ -94,10 +94,23 @@ function update({ state, cache, videos, deadline, writeAtomic }) {
   const requests = [...byKey.values()]
     .map(({ who, ...r }) => ({ ...r, mentions: who.size }))
     .sort((a, b) => b.mentions - a.mentions || b.likes - a.likes || String(b.latest).localeCompare(String(a.latest)));
+  const byIdea = new Map();
+  for (const c of comments) {
+    if (!c.idea || NOT_COUNTED.has(c.kind) || c.flags.includes("bot_like")) continue;
+    const r = byIdea.get(c.idea) || { idea: c.idea, who: new Set(), likes: 0, latest: null, refs: [] };
+    r.who.add(people.get(c.ref));
+    r.likes += c.likes;
+    if (c.at && (!r.latest || c.at > r.latest)) r.latest = c.at;
+    r.refs.push(c.ref);
+    byIdea.set(c.idea, r);
+  }
+  const ideas = [...byIdea.values()]
+    .map(({ who, ...r }) => ({ ...r, mentions: who.size }))
+    .sort((a, b) => b.mentions - a.mentions || b.likes - a.likes);
   const unresolved = [...new Set(comments.flatMap((c) => c.request?.unresolved || []))];
   const ambiguous = [...new Set(comments.flatMap((c) => c.request?.ambiguous || []))];
   const pending = all.length - comments.length;
-  writeAtomic(file, JSON.stringify({ at: new Date().toISOString(), comments, requests, unresolved, ambiguous, pending, labels }, null, 1));
+  writeAtomic(file, JSON.stringify({ at: new Date().toISOString(), comments, requests, ideas, unresolved, ambiguous, pending, labels }, null, 1));
 
   const topics = {};
   for (const c of comments) if (c.kind === "question") topics[c.topic] = (topics[c.topic] || 0) + 1;
@@ -107,6 +120,8 @@ function update({ state, cache, videos, deadline, writeAtomic }) {
     ...run.errors.map((e) => `  error: labelling: ${e}`),
     "Requests (matchup | people | likes | latest | replyable):",
     ...(requests.length ? requests.map((r) => `  ${r.key} | ${r.mentions} | ${r.likes} | ${r.latest || "?"} | ${r.open}`) : ["  none"]),
+    "Video ideas that aren't races (subject | people | likes | latest):",
+    ...(ideas.length ? ideas.map((r) => `  ${r.idea} | ${r.mentions} | ${r.likes} | ${r.latest || "?"}`) : ["  none"]),
     `Models viewers named that no CLI here runs: ${unresolved.length ? unresolved.join(", ") : "none"}`,
     `Names that fit several models here: ${ambiguous.length ? ambiguous.join(", ") : "none"}`,
     `Questions by topic: ${Object.entries(topics).map(([t, n]) => `${t} ${n}`).join(", ") || "none"}`,

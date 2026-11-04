@@ -620,7 +620,7 @@ fn each_list_shows_the_skills_lpm_did_not_create_with_who_reads_them() {
     let lint = out.global.others.iter().find(|o| o.name == "lint").unwrap();
     assert_eq!(lint.description, "About lint");
     assert_eq!(lint.preview, "Do lint.");
-    assert_eq!(lint.path, l.global.skills.join("lint/SKILL.md").to_string_lossy());
+    assert_eq!(lint.path, l.global.skills.join("lint").join("SKILL.md").to_string_lossy());
 }
 
 #[test]

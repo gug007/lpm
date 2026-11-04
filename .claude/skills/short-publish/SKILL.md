@@ -19,7 +19,7 @@ The two tracks use different tools that do not share state: YouTube goes through
 
 - both platforms publish as soon as their forms are done and checked; neither waits for the user's OK (user rule 2026-09-30: "post it without asking").
 - computer use "in use by another Claude session": end that session without asking (user rule 2026-09-30). `~/.claude/computer-use.lock` names its `pid`; `kill <pid>`, check the lock is gone, then `request_access` again.
-- a blocked track does not stop the other: when computer use is still unavailable (access denied) or the Chrome extension is not connected, finish the other platform and tell the user which one is left. Never move TikTok to the Chrome path on your own (the daily-short automation is the one exception: see below).
+- a blocked track does not stop the other: when computer use is still unavailable (access denied) or the Chrome extension is not connected, finish the other platform and tell the user which one is left. Never move TikTok to the Chrome path on your own (the daily short automations are the one exception: see below).
 - each track was verified on its own (2026-09-25: two Shorts, two TikTok posts). The first parallel run is new: write what broke into the `tiktok-upload` and `youtube-upload` memories.
 
 ## YouTube Shorts (Chrome)
@@ -35,7 +35,7 @@ The two tracks use different tools that do not share state: YouTube goes through
 
 ## TikTok (iPhone Mirroring)
 
-- path: always the iPhone, through iPhone Mirroring (user rule 2026-09-25). Use the Chrome path below only when the user asks for it, or when the `daily-short` automation posts (`short-daily` skill): a scheduled run has no computer use, and the user chose TikTok Studio in Chrome for it (2026-10-22).
+- path: always the iPhone, through iPhone Mirroring (user rule 2026-09-25). Use the Chrome path below only when the user asks for it, or when a daily short automation posts (`short-daily` skill): a scheduled run has no computer use, and the user chose TikTok Studio in Chrome for it (2026-10-22).
 - account: **@lpm06557** (display name "lpm"). Check it before posting: the TikTok app's Profile tab shows the handle under the name. Any other handle: stop and tell the user. Never log in, log out or switch accounts.
 - cover: the opening frame with the headline sticker. The sticker pops in over the first frames, so frame 0 has none: take the frame around 0.6 s (the one `cover.jpg` shows).
 - settings (user decisions 2026-09-25, AI label changed 2026-09-27): Everyone can view; comments and reuse (Duet, Stitch) allowed; **AI-generated content off**: never turn the label on and never mention AI-generated anywhere in the post (user 2026-09-27: "do not mention AI generated"); **Disclose commercial content on → Your brand** (the post is labeled "Promotional content", which cannot be changed once live); Ad authorization and Only show as ads off; no sound added (the video carries its own voice and music); no schedule unless asked.
@@ -53,7 +53,14 @@ Computer use: `request_access` for "iPhone Mirroring" and "Finder". The first la
 8. Post. The app shows "Video posted! Everyone can view. Share:" and the post with "Promotional content" (no AI-generated label).
 9. Delete the import from Photos: `cmd+1` → Photos → the Library grid. The Library can hold several similar-looking lpm lesson clips (this session's and past sessions'), so confirm before deleting — zoom on the candidate thumbnail and check it matches the payoff frame/headline of the video just posted, and that its duration badge matches the one `prepare.js` printed, the same check that catches the wrong-video mixup in step 4. Tap it open, then the trash icon, then confirm "Delete Video". It only leaves the phone's "Recently Deleted" after 30 days (or an immediate empty from there), which is fine — the goal is just to keep it out of the Library before the next take.
 
-TikTok from Chrome (only when the user asks for it or the `daily-short` automation posts; post form not yet verified): `navigate https://www.tiktok.com/tiktokstudio/upload` → check the account → `find` the "Select video to upload" file input → `file_upload` the scratchpad MP4 → the post form: replace the file-name caption, cover editor, visibility, the same labels, Post. Never press Escape in the form; leaving the page asks to discard the upload. Write the form's real layout into the `tiktok-upload` memory on its first use.
+TikTok from Chrome (only when the user asks for it or a daily short automation posts):
+
+1. `navigate https://www.tiktok.com/tiktokstudio/upload`, check the account is @lpm06557 (any other stops the TikTok half), `find` the "Select video to upload" file input and `file_upload` the scratchpad MP4. An "A video you were editing wasn't saved" banner can be ignored. Click Got it on tips, and Cancel on a "Turn on automatic content checks?" modal.
+2. Replace the file-name caption with the caption, a blank line and at most 5 hashtags.
+3. Cover: Edit cover → the Upload cover file input → `file_upload` the scratchpad `cover.jpg` → Save (top right).
+4. Settings: Everyone can view; comments, Duet and Stitch allowed; Disclose post content on (it starts off) with Your brand; AI-generated content off and never mentioned; Ad authorization and Only show as ads off; no sound added; no schedule.
+5. Read every one of those back from the form, then Post. If one can't be set, don't post this half; say why. Never press Escape in the form: leaving the page asks to discard the upload.
+6. The new row shows in `tiktokstudio/content` after a reload about 15 s later, "Content under review". Take the link from it.
 
 ## After posting
 

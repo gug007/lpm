@@ -149,8 +149,11 @@ fn preview_of(body: &str) -> String {
     }
 }
 
+/// Spelled as Agent setup's scan spells it, since that's how it finds the skill
+/// there. A root over SSH belongs to the other machine, so it keeps `/` on Windows.
 fn skill_path(root: &str, name: &str) -> String {
-    format!("{}/{name}/SKILL.md", root.trim_end_matches('/'))
+    let sep = if cfg!(windows) && root.contains('\\') { '\\' } else { '/' };
+    format!("{}{sep}{name}{sep}SKILL.md", root.trim_end_matches(sep))
 }
 
 impl RawList {
