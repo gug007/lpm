@@ -17,8 +17,9 @@ use std::sync::Arc;
 /// other apps; without one the phone uses its own recognizer.
 pub(super) const FEATURE: &str = "dictation";
 
-// One take per connection, under one key in the connection's `watches`.
-const WATCH: &str = "dictation";
+// One take per connection, under one key in the connection's `watches`, apart from
+// the project names its git watches are keyed by.
+const WATCH: &str = "dictation\u{0}";
 #[cfg(target_os = "macos")]
 const OUTDATED: &str = "Update VoiceToText to dictate from your phone.";
 #[cfg(target_os = "macos")]
@@ -63,8 +64,11 @@ pub(super) fn handle(
         end(watches);
         let (feed, steps) = mpsc::channel();
         let stop = Arc::new(AtomicBool::new(false));
-        let worker = (id.to_string(), feed.clone(), steps, stop.clone());
-        spawn_take(worker, out.clone());
+        let phone = Phone {
+            id: id.to_string(),
+            out: out.clone(),
+        };
+        spawn_take(phone, feed.clone(), steps, stop.clone());
         let take = Take {
             id: id.to_string(),
             feed,
@@ -104,59 +108,61 @@ fn end(watches: &mut HashMap<String, RemoteWatch>) {
     }
 }
 
-type Worker = (String, Sender<Step>, Receiver<Step>, Arc<AtomicBool>);
-
-// A worker's own thread holds the frame back rather than dropping it: a phone
-// that is still connected is waiting on this.
-fn report(out: &SyncSender<String>, id: &str, mut event: Value) {
-    event["t"] = json!("dictation");
-    event["id"] = json!(id);
-    let _ = out.send(event.to_string());
+struct Phone {
+    id: String,
+    out: SyncSender<String>,
 }
 
-fn refusal(code: &str, message: &str) -> Value {
-    json!({ "event": "error", "code": code, "message": message })
+impl Phone {
+    // A worker's own thread holds the frame back rather than dropping it: a phone
+    // that is still connected is waiting on this.
+    fn report(&self, mut event: Value) {
+        event["t"] = json!("dictation");
+        event["id"] = json!(self.id);
+        let _ = self.out.send(event.to_string());
+    }
+
+    fn refuse(&self, code: &str, message: &str) {
+        self.report(json!({ "event": "error", "code": code, "message": message }));
+    }
 }
 
 #[cfg(not(target_os = "macos"))]
-fn spawn_take((id, ..): Worker, out: SyncSender<String>) {
-    let refused = refusal(
+fn spawn_take(phone: Phone, _: Sender<Step>, _: Receiver<Step>, _: Arc<AtomicBool>) {
+    phone.refuse(
         "unavailable",
         "Voice dictation is not available on this platform",
     );
-    report(&out, &id, refused);
 }
 
 #[cfg(target_os = "macos")]
-fn spawn_take((id, feed, steps, stop): Worker, out: SyncSender<String>) {
+fn spawn_take(phone: Phone, feed: Sender<Step>, steps: Receiver<Step>, stop: Arc<AtomicBool>) {
     use crate::voicetotext_api::{self as api, Unavailable};
-    use std::net::Shutdown;
-    std::thread::spawn(move || {
-        let stream = match api::open() {
-            Ok(stream) => stream,
-            Err(why) => {
-                let refused = match why {
-                    Unavailable::NotInstalled => {
-                        refusal("unavailable", "VoiceToText is not installed.")
-                    }
-                    Unavailable::Legacy => refusal("unavailable", OUTDATED),
-                    Unavailable::Failed(message) => refusal("unavailable", &message),
-                };
-                return report(&out, &id, refused);
-            }
-        };
-        let Ok(events) = stream.try_clone() else {
-            return report(
-                &out,
-                &id,
-                refusal("unavailable", "Could not reach VoiceToText."),
-            );
-        };
-        let reader = (id.clone(), feed, stop.clone(), out);
-        std::thread::spawn(move || read_events(events, reader));
-        write_steps(&stream, &steps, &stop);
-        let _ = stream.shutdown(Shutdown::Both);
+    std::thread::spawn(move || match api::open() {
+        Ok(stream) => run_take(stream, phone, feed, steps, stop),
+        Err(Unavailable::NotInstalled) => {
+            phone.refuse("unavailable", "VoiceToText is not installed.")
+        }
+        Err(Unavailable::Legacy) => phone.refuse("unavailable", OUTDATED),
+        Err(Unavailable::Failed(message)) => phone.refuse("unavailable", &message),
     });
+}
+
+#[cfg(target_os = "macos")]
+fn run_take(
+    stream: crate::ipc::UnixStream,
+    phone: Phone,
+    feed: Sender<Step>,
+    steps: Receiver<Step>,
+    stop: Arc<AtomicBool>,
+) {
+    let Ok(events) = stream.try_clone() else {
+        return phone.refuse("unavailable", "Could not reach VoiceToText.");
+    };
+    let stopped = stop.clone();
+    std::thread::spawn(move || read_events(events, phone, feed, stopped));
+    write_steps(&stream, &steps, &stop);
+    let _ = stream.shutdown(std::net::Shutdown::Both);
 }
 
 // Audio waits here until VoiceToText says it is recording, which can take as long
@@ -181,29 +187,20 @@ fn write_steps(mut stream: &crate::ipc::UnixStream, steps: &Receiver<Step>, stop
     let mut started = false;
     let mut stopping = false;
     while !stop.load(Ordering::SeqCst) {
-        let lines = match steps.recv_timeout(POLL) {
-            Ok(Step::Audio(pcm)) if started => vec![audio(&pcm)],
-            Ok(Step::Audio(pcm)) => {
-                waiting.push(pcm);
-                continue;
-            }
-            Ok(Step::Stop) if started => vec![halt.clone()],
-            Ok(Step::Stop) => {
-                stopping = true;
-                continue;
-            }
-            Ok(Step::Started) => {
-                started = true;
-                let mut lines: Vec<String> = waiting.drain(..).map(|pcm| audio(&pcm)).collect();
-                if stopping {
-                    lines.push(halt.clone());
-                }
-                lines
-            }
+        match steps.recv_timeout(POLL) {
+            Ok(Step::Audio(pcm)) => waiting.push(audio(&pcm)),
+            Ok(Step::Stop) => stopping = true,
+            Ok(Step::Started) => started = true,
             Ok(Step::Over) | Err(RecvTimeoutError::Disconnected) => return,
             Err(RecvTimeoutError::Timeout) => continue,
-        };
-        for line in lines {
+        }
+        if !started {
+            continue;
+        }
+        if std::mem::take(&mut stopping) {
+            waiting.push(halt.clone());
+        }
+        for line in waiting.drain(..) {
             if writeln!(stream, "{line}").is_err() {
                 return;
             }
@@ -216,7 +213,9 @@ fn write_steps(mut stream: &crate::ipc::UnixStream, steps: &Receiver<Step>, stop
 #[cfg(target_os = "macos")]
 fn read_events(
     stream: crate::ipc::UnixStream,
-    (id, feed, stop, out): (String, Sender<Step>, Arc<AtomicBool>, SyncSender<String>),
+    phone: Phone,
+    feed: Sender<Step>,
+    stop: Arc<AtomicBool>,
 ) {
     use crate::voicetotext_api::translate;
     use std::io::{BufRead, BufReader};
@@ -240,17 +239,16 @@ fn read_events(
             break;
         }
         if kind == "error" && event["code"] == "unknown_method" {
-            report(&out, &id, refusal("unavailable", OUTDATED));
+            phone.refuse("unavailable", OUTDATED);
         } else {
-            report(&out, &id, event);
+            phone.report(event);
         }
     }
     if !ended && !stop.load(Ordering::SeqCst) {
-        let lost = refusal(
+        phone.refuse(
             "disconnected",
             "VoiceToText quit before the transcript was ready.",
         );
-        report(&out, &id, lost);
     }
     let _ = feed.send(Step::Over);
 }
@@ -278,14 +276,12 @@ mod tests {
         let (feed, steps) = mpsc::channel();
         let (out, phone) = mpsc::sync_channel(16);
         let stop = Arc::new(AtomicBool::new(false));
-        let events = ours.try_clone().unwrap();
-        let reader = ("take".to_string(), feed.clone(), stop.clone(), out);
-        std::thread::spawn(move || read_events(events, reader));
-        let stopped = stop.clone();
-        std::thread::spawn(move || {
-            write_steps(&ours, &steps, &stopped);
-            let _ = ours.shutdown(std::net::Shutdown::Both);
-        });
+        let caller = Phone {
+            id: "take".to_string(),
+            out,
+        };
+        let (events, stopped) = (feed.clone(), stop.clone());
+        std::thread::spawn(move || run_take(ours, caller, events, steps, stopped));
         Harness {
             voice: BufReader::new(voice),
             feed,

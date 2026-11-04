@@ -2,6 +2,7 @@ package cx.lpm.mobile.core.data.dictation
 
 import cx.lpm.mobile.core.model.DictationEvent
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
@@ -14,6 +15,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class ComputerDictationEngineTest {
     private class FakeMicrophone(val opens: Boolean = true) : DictationMicrophone {
         var onPiece: ((String) -> Unit)? = null

@@ -141,7 +141,7 @@ class NoteChatViewModel @AssistedInject constructor(
 
     fun setText(text: String) = draft.update { it.copy(text = text) }
 
-    fun startDictation() = dictation.start(dictationOwner) { words ->
+    fun startDictation() = dictation.start(dictationOwner, key.session) { words ->
         draft.update { it.copy(text = it.text.plusDictated(words)) }
     }
 

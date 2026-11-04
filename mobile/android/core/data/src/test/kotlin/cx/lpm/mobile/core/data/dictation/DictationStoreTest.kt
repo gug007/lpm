@@ -1,5 +1,6 @@
 package cx.lpm.mobile.core.data.dictation
 
+import cx.lpm.mobile.core.model.SessionKey
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -33,14 +34,26 @@ class DictationStoreTest {
 
     private var clock = 1_000L
     private val engines = mutableListOf<FakeEngine>()
+    private val sessions = mutableListOf<SessionKey>()
     private var refuse: DictationFailure? = null
     private val store = DictationStore(
-        makeEngine = { FakeEngine(refuse).also { engines += it } },
+        makeEngine = { session ->
+            sessions += session
+            FakeEngine(refuse).also { engines += it }
+        },
         now = { clock }
     )
     private val inserted = mutableListOf<String>()
 
-    private fun start(owner: String = "a") = store.start(owner) { inserted += it }
+    private fun start(owner: String = "a", session: SessionKey = SessionKey.Live) =
+        store.start(owner, session) { inserted += it }
+
+    @Test
+    fun `a take goes to the Mac of the screen that started it`() {
+        val visit = SessionKey.Visit("other-mac")
+        start(session = visit)
+        assertEquals(listOf<SessionKey>(visit), sessions)
+    }
 
     @Test
     fun `a take records, then its words go to the field that started it`() {

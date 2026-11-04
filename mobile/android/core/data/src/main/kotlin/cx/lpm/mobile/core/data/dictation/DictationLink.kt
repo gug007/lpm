@@ -20,7 +20,7 @@ class DictationLink(private val session: MacSession) : SessionStore {
     /** A take for this session's Mac, or null if it can't transcribe one. */
     internal fun newTake(): DictationEngine? {
         val client = session.client ?: return null
-        val offered = client.hostFeatures?.contains(LpmClient.DICTATION_FEATURE) == true
+        val offered = LpmClient.DICTATION_FEATURE in client.hostFeatures
         if (!session.state.value.isReady || !offered) return null
         return ComputerDictationEngine(
             send = client::sendLive,
