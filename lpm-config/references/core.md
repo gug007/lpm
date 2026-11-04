@@ -78,6 +78,7 @@ autoPull: true
 - Mode Off: nothing pulls, whatever the key says.
 - Otherwise the project's own `autoPull` wins; a duplicate or worktree without one follows its parent's; then Chosen means off and All means on.
 - The app only fast-forwards a branch that tracks origin and is behind it, with no unpushed commits, no uncommitted changes to tracked files, no merge or rebase in progress, and no agent working in the project. A pull can be undone from the app.
+- When origin moves in one project (a push from lpm or a terminal, or a fetch), the app fetches the other copies of that repository on that branch, here and on connected computers, so the ones set to auto pull catch up within seconds rather than at their next background check.
 - Set or clear it with `lpm auto-pull <project> --set on|off|default` (see `lpm-cli`; needs the app running). The app writes the project's own file, so it also works on a duplicate, where `--layer project` would write the parent's.
 
 ## Services

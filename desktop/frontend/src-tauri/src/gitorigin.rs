@@ -3,8 +3,11 @@
 // so a remote that wants a password or never answers costs one failed check
 // instead of a hung one.
 use crate::git::{git_command, git_default_branch, git_out, parse_ahead_behind};
+use crate::weekly_recap_git::origin_key;
 use serde::Serialize;
+use std::collections::HashMap;
 use std::process::Stdio;
+use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 const FETCH_TIMEOUT: Duration = Duration::from_secs(30);
@@ -28,6 +31,11 @@ pub struct OriginStatus {
     /// Whether a requested fetch landed. When it didn't, the counts are as old
     /// as the last fetch that did.
     pub fetched: bool,
+    /// Which repository and branch the upstream is, the same for every copy of
+    /// it on any machine, and the commit it was at when last fetched or pushed.
+    /// When the commit moves here, the other copies are behind too.
+    pub upstream_key: String,
+    pub upstream_sha: String,
 }
 
 #[tauri::command(async)]
@@ -71,15 +79,22 @@ fn origin_counts(cwd: String, fetch: bool) -> OriginStatus {
         &cwd,
         &[
             "for-each-ref",
-            "--format=%(upstream:short)%00%(upstream:track)",
+            "--format=%(upstream:short)%00%(upstream:track)%00%(upstream)%00%(upstream:remotename)%00%(upstream:remoteref)",
             &head,
         ],
     )
     .unwrap_or_default();
-    let (upstream, tail) = track.split_once('\0').unwrap_or(("", ""));
+    let mut fields = track.split('\0');
+    let mut field = || fields.next().unwrap_or("");
+    let (upstream, tail, full, remote, remote_ref) = (field(), field(), field(), field(), field());
     if !upstream.is_empty() && tail != "[gone]" {
         st.has_upstream = true;
         (st.ahead, st.behind) = parse_ahead_behind(tail);
+        st.upstream_key = upstream_key(&cwd, remote, remote_ref, fetch);
+        if !st.upstream_key.is_empty() {
+            st.upstream_sha =
+                git_out(&cwd, &["rev-parse", "-q", "--verify", full]).unwrap_or_default();
+        }
         return st;
     }
 
@@ -96,6 +111,43 @@ fn origin_counts(cwd: String, fetch: bool) -> OriginStatus {
         st.base = base;
     }
     st
+}
+
+/// `<repository>#<branch ref on the remote>`, alike for every copy on any
+/// computer, or empty when the remote has no URL (a branch tracking another
+/// local branch, say).
+fn upstream_key(cwd: &str, remote: &str, remote_ref: &str, refresh: bool) -> String {
+    if remote.is_empty() || remote == "." || remote_ref.is_empty() {
+        return String::new();
+    }
+    let repo = remote_repo(cwd, remote, refresh);
+    if repo.is_empty() {
+        return String::new();
+    }
+    format!("{repo}#{remote_ref}")
+}
+
+/// A remote's repository as `origin_key` names it. A remote's URL all but never
+/// changes, so git is asked again only by a check that fetches.
+fn remote_repo(cwd: &str, remote: &str, refresh: bool) -> String {
+    static REPOS: OnceLock<Mutex<HashMap<(String, String), String>>> = OnceLock::new();
+    let repos = REPOS.get_or_init(Mutex::default);
+    let id = (cwd.to_string(), remote.to_string());
+    if !refresh {
+        if let Some(repo) = repos.lock().unwrap_or_else(|e| e.into_inner()).get(&id) {
+            return repo.clone();
+        }
+    }
+    let repo = git_out(cwd, &["remote", "get-url", remote])
+        .ok()
+        .filter(|url| !url.is_empty())
+        .map(|url| origin_key(&url))
+        .unwrap_or_default();
+    repos
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .insert(id, repo.clone());
+    repo
 }
 
 /// `git fetch` that can't prompt and can't hang: no terminal or credential-manager
@@ -194,6 +246,61 @@ mod tests {
         assert_eq!(
             (after.branch.as_str(), after.ahead, after.behind),
             ("main", 0, 2)
+        );
+    }
+
+    #[test]
+    fn copies_of_one_repo_share_a_key_and_see_their_push_move_its_commit() {
+        let (d, mine, _theirs) = setup();
+        let copy = d.path().join("copy").to_string_lossy().to_string();
+        let origin = d.path().join("origin.git").to_string_lossy().to_string();
+        git_out(
+            &d.path().to_string_lossy(),
+            &["clone", "-q", &origin, &copy],
+        )
+        .unwrap();
+
+        let before = git_origin_status(mine.clone(), false);
+        assert!(before.upstream_key.ends_with("#refs/heads/main"));
+        assert_eq!(
+            git_origin_status(copy.clone(), false).upstream_key,
+            before.upstream_key
+        );
+        assert_eq!(
+            git_origin_status(copy.clone(), false).upstream_sha,
+            before.upstream_sha
+        );
+
+        commit(&copy, "b.txt", "news\n");
+        git_out(&copy, &["push", "-q"]).unwrap();
+        let pushed = git_origin_status(copy, false).upstream_sha;
+        assert_ne!(pushed, before.upstream_sha);
+        assert_eq!(
+            git_origin_status(mine.clone(), false).upstream_sha,
+            before.upstream_sha
+        );
+        assert_eq!(git_origin_status(mine, true).upstream_sha, pushed);
+    }
+
+    #[test]
+    fn a_new_remote_url_is_picked_up_by_the_next_fetch() {
+        let (d, mine, _theirs) = setup();
+        let before = git_origin_status(mine.clone(), false).upstream_key;
+        let moved = d.path().join("moved.git").to_string_lossy().to_string();
+        git_out(&mine, &["remote", "set-url", "origin", &moved]).unwrap();
+        assert_eq!(git_origin_status(mine.clone(), false).upstream_key, before);
+        let after = git_origin_status(mine, true).upstream_key;
+        assert!(after.contains("moved"), "{after}");
+    }
+
+    #[test]
+    fn a_branch_without_upstream_has_no_key() {
+        let (_d, mine, _theirs) = setup();
+        git_out(&mine, &["switch", "-q", "-c", "feature"]).unwrap();
+        let st = git_origin_status(mine, false);
+        assert_eq!(
+            (st.upstream_key.as_str(), st.upstream_sha.as_str()),
+            ("", "")
         );
     }
 

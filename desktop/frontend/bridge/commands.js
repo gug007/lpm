@@ -484,6 +484,9 @@ export function GitAutoPullUndo(cwd) {
 export function GitOriginStatus(cwd, fetch) {
   return invoke("git_origin_status", { cwd, fetch });
 }
+export function WatchOriginRefs(roots) {
+  return invoke("watch_origin_refs", { roots });
+}
 export function GitPruneRemotes(cwd) {
   return invoke("git_prune_remotes", { cwd });
 }
