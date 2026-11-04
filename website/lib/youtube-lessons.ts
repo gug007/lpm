@@ -184,6 +184,13 @@ const LESSONS = {
       "Move a running Claude Code session to another of your Claude accounts, without losing the conversation. Right-click a Claude tab in lpm, open Claude account and pick one with usage left; if Claude is still working, lpm interrupts the turn and carries it on there, in the same tab.",
     uploadDate: "2026-11-02T09:00:00+00:00",
   },
+  "agents-other-computer": {
+    id: "52ZBcHKb9AA",
+    name: "Let Claude Code or Codex Run Commands and Copy Files on Your Other Mac or Server",
+    description:
+      "In the middle of a Claude Code session, hand the slow part to your other Mac: Claude commits on a new branch and pushes it, and with the computer picked by an at sign in lpm's prompt box, the Mac mini fetches that branch and runs the full test suite in the background with lpm exec while Claude keeps working on your laptop. You allow each step.",
+    uploadDate: "2026-11-04T09:00:00+00:00",
+  },
 } as const;
 
 export type YouTubeLessonId = keyof typeof LESSONS;

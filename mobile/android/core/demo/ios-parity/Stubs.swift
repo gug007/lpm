@@ -1,7 +1,7 @@
 import Foundation
 
-// The few app types the Demo*.swift files use, copied from ClaudeAccountModel.swift and
-// LpmProtocol.swift so the demo compiles on its own.
+// The few app types the Demo*.swift files and the helpers copied with them use, from
+// ClaudeAccountModel.swift and LpmProtocol.swift, so the demo compiles on its own.
 
 let claudeMainLogin = "default"
 
@@ -38,6 +38,11 @@ enum ClaudeAccountChoice: Equatable {
         case .list(let ids): return ClaudeOwnChoice(accounts: ids)
         }
     }
+}
+
+struct Action {
+    let cmd: String
+    let prompt: String
 }
 
 enum Wire {

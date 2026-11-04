@@ -136,6 +136,10 @@ const LESSON_CAPTION: Record<
     heading: "Move a Claude tab to another account mid-task",
     blurb: "A short video: switch a running Claude Code tab to an account with usage left, and keep the conversation.",
   },
+  "agents-other-computer": {
+    heading: "Hand slow work to your other computer",
+    blurb: "A short video: mid-session, an agent pushes a branch, your Mac mini runs the tests on it, and the agent keeps working here.",
+  },
 };
 
 function DesktopOnlyPrompt({

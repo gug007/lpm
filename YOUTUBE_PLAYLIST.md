@@ -41,3 +41,4 @@ Manual order. Each published lesson is appended here and to the playlist in the 
 - Sync Ignored Files in lpm: Keep Your .env the Same on Every Computer — https://youtu.be/S0NgdCHmof8
 - Stop Your Mac Sleeping While Coding Agents Run — https://youtu.be/a24mYAVAZQU
 - Switch Claude Code Account Mid-Session Without Losing Your Conversation — https://youtu.be/W0bAReCOh1Y
+- Let Claude Code or Codex Run Commands and Copy Files on Your Other Mac or Server — https://youtu.be/52ZBcHKb9AA

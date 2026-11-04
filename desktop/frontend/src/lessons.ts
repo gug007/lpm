@@ -8,6 +8,11 @@ export interface Lesson {
 // lists them. The lesson-publish skill prints the entry to add at the top.
 export const LESSONS: readonly Lesson[] = [
   {
+    id: "52ZBcHKb9AA",
+    title: "Let Claude Code or Codex Run Commands and Copy Files on Your Other Mac or Server",
+    published: "2026-11-04",
+  },
+  {
     id: "W0bAReCOh1Y",
     title: "Switch Claude Code Account Mid-Session Without Losing Your Conversation",
     published: "2026-11-02",

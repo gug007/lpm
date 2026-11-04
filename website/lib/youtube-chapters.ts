@@ -300,4 +300,15 @@ export const LESSON_CHAPTERS: Record<YouTubeLessonId, LessonChapters> = {
       [46, "Keep the conversation"],
     ],
   },
+  "agents-other-computer": {
+    seconds: 112,
+    chapters: [
+      [0, "Intro"],
+      [10, "A session in progress"],
+      [34, "Hand it off"],
+      [62, "You approve each step"],
+      [77, "Both at once"],
+      [94, "Keep going there"],
+    ],
+  },
 };

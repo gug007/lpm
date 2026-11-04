@@ -90,6 +90,10 @@ const LESSONS: Record<YouTubeLessonId, { topic: TopicId; title: string }> = {
     topic: "devices",
     title: "Keep your Mac awake while agents run",
   },
+  "agents-other-computer": {
+    topic: "devices",
+    title: "Hand work to your other computer",
+  },
 };
 
 export type LessonCardData = { lesson: YouTubeLessonId; title: string };
