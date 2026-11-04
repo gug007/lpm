@@ -1,5 +1,6 @@
 package cx.lpm.mobile.feature.terminal.composer
 
+import cx.lpm.mobile.core.data.dictation.plusDictated
 import java.io.File
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -83,6 +84,19 @@ class ComposerStore internal constructor(
         var next = existing
         if (spaced && next.isNotEmpty() && !next.endsWith(" ") && !next.endsWith("\n")) next += " "
         writeActive(next + text)
+    }
+
+    /**
+     * Words from a take go to the prompt it started on, or the one on screen if that
+     * prompt has closed, so they're never lost.
+     */
+    fun appendDictated(words: String, tabId: String) {
+        val state = current
+        val index =
+            state.tabs.indexOfFirst { it.id == tabId }.takeIf { it >= 0 } ?: state.activeIndex
+        val text = state.tabs.getOrNull(index)?.text?.plusDictated(words) ?: return
+        update { s -> s.copy(tabs = s.tabs.replaced(index) { it.copy(text = text) }) }
+        if (index == current.activeIndex) noteLocalEdit(text)
     }
 
     private fun writeActive(text: String) = update { s ->

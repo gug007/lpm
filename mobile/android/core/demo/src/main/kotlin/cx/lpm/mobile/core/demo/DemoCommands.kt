@@ -285,15 +285,22 @@ private fun DemoServer.expandCommand(
     args: String
 ): Pair<String, List<String>> {
     val key = name.dropWhile { it == '/' }.lowercase()
-    val command = effectiveCommands(project).firstOrNull { it.first.name.lowercase() == key }?.first
+    val (command, scope) = effectiveCommands(project).firstOrNull {
+        it.first.name.lowercase() == key
+    }
         ?: throw DemoCommandError("/$name isn't one of your commands.")
     val known = world.projects.firstOrNull { it.name == project }
+    val list = if (scope == "project") {
+        "/Users/demo/dev/$project/.lpm/commands"
+    } else {
+        "/Users/demo/.lpm/commands"
+    }
     val auto: Map<String, String> = known?.let {
         mapOf(
             "branch" to (world.git[project]?.branch ?: "main"),
             "project" to it.label.ifEmpty { it.name }
         )
-    } ?: emptyMap()
+    }.orEmpty() + ("dir" to (command.folder?.let { "$list/$it" } ?: list))
     val given = args.trimmingWhitespacesAndNewlines()
     val asks = commandVariables(command.body).filter { it !in AUTO_VARIABLES }
     val values = positionalArguments(given, asks.size)

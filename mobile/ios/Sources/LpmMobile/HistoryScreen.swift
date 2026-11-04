@@ -16,11 +16,19 @@ struct HistoryScreen: View {
         case all, favorites, drafts, folder(String)
     }
 
-    @State private var filter: Filter = .all
+    @State private var filter: Filter
     @State private var search = ""
     @State private var creatingFolder = false
     @State private var newFolderName = ""
     @State private var movingItem: HistoryItem?
+
+    init(project: String, initialFilter: Filter = .all, onLoad: @escaping (String) -> Void,
+         onSendNow: @escaping (String) -> Void) {
+        self.project = project
+        self.onLoad = onLoad
+        self.onSendNow = onSendNow
+        _filter = State(initialValue: initialFilter)
+    }
 
     /// The "Drafts" chip has no server-side flag, so it filters the unscoped query
     /// client-side; every other filter is a server parameter.

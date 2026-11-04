@@ -14,15 +14,16 @@ import cx.lpm.mobile.core.model.TerminalInfo
 class TerminalSlots(
     /**
      * The project's ⚡ actions and "…" menu at the bar's trailing edge, its Rename naming
-     * `terminal`. `onSpawnedTerminal` opens a terminal an action started, claimed for
-     * this phone.
+     * `terminal`. `onFind` finds in the terminal, null while it isn't live here.
+     * `onSpawnedTerminal` opens a terminal an action started, claimed for this phone.
      */
     val projectMenu: @Composable RowScope.(
         project: Project,
         terminal: TerminalInfo,
         session: SessionKey,
+        onFind: (() -> Unit)?,
         onSpawnedTerminal: (TerminalInfo) -> Unit
-    ) -> Unit = { _, _, _, _ -> },
+    ) -> Unit = { _, _, _, _, _ -> },
     /** The project's CI beside Back; `onSpawnedTerminal` opens the tab a Fix with … row starts. */
     val projectCi: @Composable RowScope.(
         project: Project,

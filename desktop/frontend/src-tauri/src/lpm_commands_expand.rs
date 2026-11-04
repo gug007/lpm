@@ -2,15 +2,16 @@
 // each client so the desktop composer and both phones expand a command the
 // same way, against the machine that holds the project.
 //
-// `{{branch}}` and `{{project}}` fill themselves in. Any other `{{name}}` takes
-// a word of the arguments, in order, the last one taking the rest; `$ARGUMENTS`
-// (Claude Code's own form) takes all of them.
+// `{{branch}}`, `{{project}}` and `{{dir}}` (the command's own folder, so a prompt
+// can point at files kept beside it) fill themselves in. Any other `{{name}}`
+// takes a word of the arguments, in order, the last one taking the rest;
+// `$ARGUMENTS` (Claude Code's own form) takes all of them.
 use crate::lpm_commands::{
-    effective, list_stores, project_place, stores_at, LpmCommand, LpmCommands, ProjectPlace, Stores,
+    effective, list_stores, project_place, stores_at, LpmCommand, LpmCommands, ProjectPlace, Scope, Stores,
 };
 use serde::Serialize;
 
-pub(crate) const AUTO_VARS: [&str; 2] = ["branch", "project"];
+pub(crate) const AUTO_VARS: [&str; 3] = ["branch", "project", "dir"];
 
 #[derive(Serialize, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -138,15 +139,33 @@ pub(crate) fn expand_at(
     let list = list_stores(stores)?;
     let command = find(&list, name.trim_start_matches('/'))
         .ok_or_else(|| format!("/{name} isn't one of your commands."))?;
-    Ok(fill(project, place, command, args))
+    Ok(fill(project, place, stores, command, args))
 }
 
-fn fill(project: &str, place: Option<&ProjectPlace>, command: &LpmCommand, args: &str) -> Expanded {
+/// The command's folder as the agent's computer names it. An SSH project's agent
+/// works on its host, where a global command's files aren't, so it has none.
+fn command_dir(place: Option<&ProjectPlace>, stores: &Stores, command: &LpmCommand) -> Option<String> {
+    let agent_on_host = place.is_some_and(|p| p.ssh.is_some());
+    if agent_on_host && command.scope == Scope::Global {
+        return None;
+    }
+    let list = stores.get(command.scope).ok()?;
+    Some(list.location(command.folder.as_deref()))
+}
+
+fn fill(
+    project: &str,
+    place: Option<&ProjectPlace>,
+    stores: &Stores,
+    command: &LpmCommand,
+    args: &str,
+) -> Expanded {
     let mut auto = |var: &str| match var {
         "project" => place.map(|_| crate::config::project_display_name(project)),
         "branch" => place
             .and_then(|p| crate::git::git_out(&p.root, &["symbolic-ref", "--short", "-q", "HEAD"]).ok())
             .filter(|b| !b.is_empty()),
+        "dir" => command_dir(place, stores, command),
         _ => None,
     };
     expand_body(&command.body, args, &mut auto)
@@ -179,11 +198,12 @@ pub(crate) fn expand_prompt(project: &str, prompt: &str) -> Result<String, Strin
         return Ok(prompt.to_string());
     };
     let place = project_place(project)?;
-    let list = list_stores(&stores_at(place.as_ref()))?;
+    let stores = stores_at(place.as_ref());
+    let list = list_stores(&stores)?;
     let Some(command) = find(&list, name) else {
         return Ok(prompt.to_string());
     };
-    let expanded = fill(project, place.as_ref(), command, args);
+    let expanded = fill(project, place.as_ref(), &stores, command, args);
     if expanded.missing.is_empty() {
         Ok(expanded.text)
     } else {

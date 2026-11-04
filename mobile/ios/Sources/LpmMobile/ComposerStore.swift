@@ -163,6 +163,16 @@ final class ComposerStore: ObservableObject {
         tabs[activeIndex].text = t
     }
 
+    /// Words from a take go to the prompt it started on, or the one on screen if
+    /// that prompt has closed, so they're never lost.
+    func appendDictated(_ words: String, tabId: UUID) {
+        let index = tabs.firstIndex { $0.id == tabId } ?? activeIndex
+        guard tabs.indices.contains(index) else { return }
+        let text = tabs[index].text.addingDictated(words)
+        tabs[index].text = text
+        if index == activeIndex { noteLocalEdit(text) }
+    }
+
     // MARK: tabs
 
     func newTab() {

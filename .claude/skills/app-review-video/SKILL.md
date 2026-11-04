@@ -25,7 +25,8 @@ and every tap and click is a real one made with computer use.
   at once; the capture keeps running.
 - `mark "<caption>" "<subtitle>"` starts the next numbered step caption.
 - `checkpoint` before an uncertain action; `cut` if it went wrong drops everything since the
-  checkpoint from the video. Redo the action after the cut.
+  checkpoint from the video. It removes time, not what is on screen: undo the mistake first,
+  then `cut`, or the mistake shows in the footage after the cut. Then redo the action.
 - `stop`, then `render --device "<model>" [--build <n>] [--version <v>] [--cut a-b,…]
   [--redact <regex>] [--no-camera]` writes
   `~/Movies/lpm-app-review/<stamp>/lpm-link-<version>-app-review.mp4` and `steps.txt` (where
@@ -38,7 +39,12 @@ and every tap and click is a real one made with computer use.
     click is on the Mac; the header then names only the device in view (`camera.js`);
   - reads the kept frames twice a second with Vision and blurs any line in someone's
     possessive form ("Someone's MacBook Pro"), any email address and any `--redact` pattern,
-    for as long as it is on screen; the review Mac's own name stays readable (`redact.js`);
+    for as long as it is on screen; every frame is read where such a line appears, disappears
+    or is missed for a moment, so a line that moves stays blurred; the review Mac's own name
+    stays readable (`redact.js`);
+  - reads the recording in the finished video six times a second and prints a `WARNING` with
+    the times if such a line can still be read. It never prints the line, and skips the cards
+    and captions, which can say "The Mac's projects" on purpose;
   - with no `events.jsonl` (an older take) it cuts on screen changes alone.
 - `teardown` quits the review Mac (the phone hears it close), stops its servers and deletes
   its data and demo projects.
@@ -76,7 +82,8 @@ with a short hold and drops the waits between actions, so about 1:20 plus the ca
    "fps=1/3,scale=480:-2,tile=5x7" -frames:v 1 sheet.png` and read `steps.txt`. Check each
    step shows its result on both sides. To drop a fumble, find its raw seconds (frames of
    `raw.mov`) and render again with `--cut a-b`. Look at a frame of step 1 at full size: the
-   other Macs' names must be blurred.
+   other Macs' names must be blurred. Don't send a video the render gave a `WARNING` for: look
+   at those seconds at full size, then `--cut` them or add a `--redact` pattern.
 2. Clean up the phone (it would keep MacBook Pro as an offline Mac): back to the projects
    list, title **MacBook Pro ⌄ → Manage machines… → MacBook Pro → Remove from this iPhone →
    Remove → Done**; the app is on "Connect to your Mac" again. Then

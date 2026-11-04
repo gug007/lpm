@@ -89,5 +89,12 @@ impl CommandFs for LocalFs {
     fn remove_dir(&self, rel: &str) -> Result<(), String> {
         std::fs::remove_dir(self.path(rel)).map_err(|e| e.to_string())
     }
+
+    fn location(&self, folder: Option<&str>) -> String {
+        folder
+            .map_or_else(|| self.base.clone(), |f| self.base.join(f))
+            .to_string_lossy()
+            .into_owned()
+    }
 }
 

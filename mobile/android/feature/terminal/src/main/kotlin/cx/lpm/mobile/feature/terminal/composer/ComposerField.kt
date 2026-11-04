@@ -47,7 +47,8 @@ internal fun ComposerField(
     focusRequester: FocusRequester,
     onFocusChanged: (Boolean) -> Unit,
     onHardwareReturn: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    full: Boolean = false
 ) {
     val colors = LpmTheme.colors
     val style = LpmTheme.typography.body.copy(color = colors.label)
@@ -58,7 +59,7 @@ internal fun ComposerField(
         cursorBrush = SolidColor(colors.tint),
         lineLimits = TextFieldLineLimits.MultiLine(
             minHeightInLines = 1,
-            maxHeightInLines = MAX_LINES
+            maxHeightInLines = if (full) Int.MAX_VALUE else MAX_LINES
         ),
         keyboardOptions = KeyboardOptions(
             capitalization = KeyboardCapitalization.None,

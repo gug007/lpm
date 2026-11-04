@@ -52,7 +52,7 @@ private struct DemoCommandError: Error {
 extension DemoServer {
     private static let commandVerbs = ["lpmCommands", "lpmCommandSave", "lpmCommandDelete",
                                        "lpmCommandFolder", "lpmCommandExpand"]
-    private static let autoVariables = ["branch", "project"]
+    private static let autoVariables = ["branch", "project", "dir"]
     private static let forbiddenFolderChars = "/\\:*?\"<>|"
 
     func registerCommandsHandlers() {
@@ -278,13 +278,15 @@ extension DemoServer {
 
     private func expandCommand(_ project: String, name: String, args: String) throws -> (String, [String]) {
         let key = String(name.drop(while: { $0 == "/" })).lowercased()
-        guard let (command, _) = effectiveCommands(project).first(where: { $0.0.name.lowercased() == key }) else {
+        guard let (command, scope) = effectiveCommands(project).first(where: { $0.0.name.lowercased() == key }) else {
             throw DemoCommandError("/\(name) isn't one of your commands.")
         }
         let known = world.projects.first { $0.name == project }
-        let auto: [String: String] = known.map {
+        var auto: [String: String] = known.map {
             ["branch": world.git[project]?.branch ?? "main", "project": $0.label.isEmpty ? $0.name : $0.label]
         } ?? [:]
+        let list = scope == "project" ? "/Users/demo/dev/\(project)/.lpm/commands" : "/Users/demo/.lpm/commands"
+        auto["dir"] = command.folder.map { "\(list)/\($0)" } ?? list
         let args = args.trimmingCharacters(in: .whitespacesAndNewlines)
         let asks = Self.variables(command.body).filter { !Self.autoVariables.contains($0) }
         let values = Self.positional(args, asks.count)

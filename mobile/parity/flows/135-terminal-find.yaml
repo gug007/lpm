@@ -1,4 +1,4 @@
-# Find in a terminal's scrollback, from the composer's + menu: every match
+# Find in a terminal's scrollback, from the "…" menu above it: every match
 # marked, and which one is current out of how many.
 appId: cx.lpm.mobile
 name: 135-terminal-find
@@ -13,13 +13,13 @@ tags: [demo, terminal]
 - extendedWaitUntil:
     visible: "Message"
     timeout: 10000
-- tapOn: "Add"
+- tapOn: "More"
 - extendedWaitUntil:
     visible: "Find in Terminal"
     timeout: 5000
 - tapOn: "Find in Terminal"
 - extendedWaitUntil:
-    visible: "Find in terminal"
+    visible: "Next match"
     timeout: 5000
 - inputText: "dev/storefront"
 - extendedWaitUntil:
@@ -38,5 +38,5 @@ tags: [demo, terminal]
 - takeScreenshot: 1-find
 - tapOn: "Done"
 - extendedWaitUntil:
-    notVisible: "Find in terminal"
+    notVisible: "Next match"
     timeout: 5000

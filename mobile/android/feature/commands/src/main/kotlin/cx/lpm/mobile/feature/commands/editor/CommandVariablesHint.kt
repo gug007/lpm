@@ -28,8 +28,13 @@ internal fun CommandVariablesHint(prompt: String, name: String, modifier: Modifi
     val askTint = lpmCommandTint
     val autoTint = if (LpmTheme.colors.isDark) Color(0xFF4ADE80) else Color(0xFF16A34A)
     val text = if (asks.isEmpty() && auto.isEmpty()) {
-        stringResource(R.string.command_hint_none, PLACEHOLDER_1, PLACEHOLDER_2, PLACEHOLDER_3)
-            .styled(listOf("{{ticket}}", "{{branch}}", "{{project}}").map { Token(it) })
+        stringResource(
+            R.string.command_hint_none,
+            PLACEHOLDER_1,
+            PLACEHOLDER_2,
+            PLACEHOLDER_3,
+            PLACEHOLDER_4
+        ).styled(listOf("{{ticket}}", "{{branch}}", "{{project}}", "{{dir}}").map { Token(it) })
     } else {
         val asksLine = if (asks.isEmpty()) {
             AnnotatedString("")
@@ -69,10 +74,11 @@ private class Token(val words: List<String>, val tint: Color?, val spaced: Boole
 private const val PLACEHOLDER_1 = "\u0001"
 private const val PLACEHOLDER_2 = "\u0002"
 private const val PLACEHOLDER_3 = "\u0003"
+private const val PLACEHOLDER_4 = "\u0004"
 
 /** The resource sentence with its placeholders swapped for [parts]. */
 private fun String.styled(parts: List<Token>): AnnotatedString = buildAnnotatedString {
-    val marks = listOf(PLACEHOLDER_1, PLACEHOLDER_2, PLACEHOLDER_3)
+    val marks = listOf(PLACEHOLDER_1, PLACEHOLDER_2, PLACEHOLDER_3, PLACEHOLDER_4)
     var rest = this@styled
     while (rest.isNotEmpty()) {
         val hit = marks.withIndex()

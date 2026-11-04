@@ -43,7 +43,7 @@
     <string name="command_editor_delete_message">Its file is deleted.</string>
 
     <!-- CommandVariablesHint: %1$s and the like are monospaced tokens. -->
-    <string name="command_hint_none">Add %1$s to ask for a value when it runs; %2$s and %3$s fill themselves in.</string>
+    <string name="command_hint_none">Add %1$s to ask for a value when it runs; %2$s, %3$s and %4$s, the command\'s folder, fill themselves in.</string>
     <string name="command_hint_asks">"Asks for %1$sfrom the words after %2$s, in order. "</string>
     <string name="command_hint_auto">Fills in %1$sby itself.</string>
 </resources>

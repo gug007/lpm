@@ -12,7 +12,7 @@ struct CommandVariablesHint: View {
     var body: some View {
         let (asks, auto) = LpmCommandRules.variables(prompt)
         if asks.isEmpty && auto.isEmpty {
-            Text("Add \(mono("{{ticket}}")) to ask for a value when it runs; \(mono("{{branch}}")) and \(mono("{{project}}")) fill themselves in.")
+            Text("Add \(mono("{{ticket}}")) to ask for a value when it runs; \(mono("{{branch}}")), \(mono("{{project}}")) and \(mono("{{dir}}")), the command's folder, fill themselves in.")
         } else {
             Text("\(asksLine(asks))\(autoLine(auto))")
         }

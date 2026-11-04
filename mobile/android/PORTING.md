@@ -59,7 +59,10 @@ side by side (see `mobile/parity/README.md`).
   author · date · Merge) is one text that shrinks before it cuts off, the date the
   platform's medium date and short time joined by "at", and Copy Hash confirms with
   Android's Confirm haptic; Keep awake's Custom Time sets hours and minutes with
-  steppers where iOS shows wheel pickers (Compose has no wheel).
+  steppers where iOS shows wheel pickers (Compose has no wheel); dictation uses each
+  phone's own recognizer, so Android asks only for the microphone, and its "not allowed"
+  notice names just that, and because Android's recognizer ends at every pause a take
+  restarts it until Stop, which can make the system's listening sound each time.
 - **Same persisted keys and semantics** as iOS (table below), so behavior and
   defaults match.
 - Desktop changes that touch the phone now update both apps (AGENTS.md).

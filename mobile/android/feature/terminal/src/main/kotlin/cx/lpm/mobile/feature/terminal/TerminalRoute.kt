@@ -128,7 +128,14 @@ internal fun TerminalRoute(
                     }
                 },
                 trailing = {
-                    slots.projectMenu(this, project, terminal, key.session) { spawned ->
+                    val onFind = { findOpen = true }
+                    slots.projectMenu(
+                        this,
+                        project,
+                        terminal,
+                        key.session,
+                        onFind.takeIf { state.showsComposer }
+                    ) { spawned ->
                         viewModel.claimSpawned(spawned)
                         navigator.navigate(TerminalKey(spawned.project, spawned.id, key.session))
                     }
@@ -180,7 +187,6 @@ internal fun TerminalRoute(
                         background = state.look.theme.backgroundColor,
                         slots = slots,
                         onHideTerminalKeyboard = controller::hideKeyboard,
-                        onFind = { findOpen = true },
                         onManageCommands = {
                             navigator.navigate(ManageCommandsKey(key.project, key.session))
                         },

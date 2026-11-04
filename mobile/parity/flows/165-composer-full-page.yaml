@@ -1,0 +1,42 @@
+# The composer's full page: the expand button appears at the third row, the page
+# opens over the terminal on the same draft, and Send brings the composer back.
+appId: cx.lpm.mobile
+name: 165-composer-full-page
+tags: [demo, terminal, composer]
+---
+- runFlow: subflows/enter-demo.yaml
+- tapOn: "storefront"
+- extendedWaitUntil:
+    visible: "Terminal 1"
+    timeout: 5000
+- tapOn: "Terminal 1"
+- extendedWaitUntil:
+    visible: "Message"
+    timeout: 10000
+- tapOn: "Message"
+- inputText: "Run the tests"
+- assertNotVisible: "Expand"
+- inputText: " and fix anything that fails, then update the changelog with what changed and open a pull request for review."
+- extendedWaitUntil:
+    visible: "Expand"
+    timeout: 5000
+- takeScreenshot: 1-expand-at-third-row
+- tapOn: "Expand"
+- extendedWaitUntil:
+    visible: "Collapse"
+    timeout: 5000
+- takeScreenshot: 2-full-page
+- tapOn: "Collapse"
+- extendedWaitUntil:
+    visible: "Expand"
+    timeout: 5000
+- tapOn: "Expand"
+- extendedWaitUntil:
+    visible: "Collapse"
+    timeout: 5000
+- tapOn: "Send"
+- extendedWaitUntil:
+    visible: "Dictate"
+    timeout: 5000
+- assertNotVisible: "Collapse"
+- takeScreenshot: 3-back-after-send

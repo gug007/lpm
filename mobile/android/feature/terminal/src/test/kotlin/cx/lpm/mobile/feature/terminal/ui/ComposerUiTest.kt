@@ -1,21 +1,35 @@
 package cx.lpm.mobile.feature.terminal.ui
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
+import cx.lpm.mobile.core.data.dictation.DictationPhase
+import cx.lpm.mobile.core.data.dictation.DictationState
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.core.model.CommandScope
 import cx.lpm.mobile.core.model.MentionComputer
@@ -65,7 +79,8 @@ class ComposerUiTest {
     private fun show(
         state: ComposerUiState,
         look: ComposerLook = terminalLook,
-        callbacks: ComposerCallbacks = this.callbacks
+        callbacks: ComposerCallbacks = this.callbacks,
+        onToggleFull: () -> Unit = {}
     ) = compose.setContent {
         LpmTheme(darkTheme = true) {
             TerminalComposer(
@@ -75,7 +90,9 @@ class ComposerUiTest {
                 focusRequester = remember { FocusRequester() },
                 callbacks = callbacks,
                 plusMenu = {},
-                sendButton = {}
+                sendButton = {},
+                dictationStrip = {},
+                onToggleFull = onToggleFull
             )
         }
     }
@@ -152,6 +169,73 @@ class ComposerUiTest {
         )
         compose.onNodeWithText("Automation is running…").assertExists()
         compose.onAllNodes(hasSetTextAction()).assertCountEquals(0)
+    }
+
+    private fun draft(text: String) = ComposerUiState(
+        composer = ComposerState(tabs = listOf(ComposerTab(text = text)))
+    )
+
+    @Test
+    fun `the expand button waits for the third row`() {
+        show(draft("one\ntwo"))
+        compose.onNodeWithContentDescription("Expand").assertDoesNotExist()
+    }
+
+    @Test
+    fun `at the third row the expand button opens the full page`() {
+        var opened = false
+        show(draft("one\ntwo\nthree"), onToggleFull = { opened = true })
+        compose.onNodeWithContentDescription("Expand").performClick()
+        assertTrue(opened)
+    }
+
+    @Test
+    fun `the full page grows over the terminal without taking its rows`() {
+        var full by mutableStateOf(false)
+        compose.setContent {
+            LpmTheme(darkTheme = true) {
+                Column(Modifier.fillMaxSize()) {
+                    Box(Modifier.weight(1f).fillMaxWidth().testTag("terminal"))
+                    TerminalComposer(
+                        state = draft("one\ntwo\nthree"),
+                        input = remember { TextFieldState("one\ntwo\nthree") },
+                        look = terminalLook,
+                        focusRequester = remember { FocusRequester() },
+                        callbacks = callbacks,
+                        plusMenu = {},
+                        sendButton = {},
+                        dictationStrip = {},
+                        full = full,
+                        onToggleFull = { full = !full }
+                    )
+                }
+            }
+        }
+        val terminal = compose.onNodeWithTag("terminal").getBoundsInRoot()
+        compose.onNodeWithContentDescription("Expand").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithContentDescription("Collapse").assertIsDisplayed()
+        val field = compose.onNodeWithContentDescription("Collapse").getBoundsInRoot()
+        assertEquals(terminal, compose.onNodeWithTag("terminal").getBoundsInRoot())
+        assertTrue(field.top < terminal.bottom)
+        compose.onNodeWithContentDescription("Collapse").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithContentDescription("Expand").assertIsDisplayed()
+    }
+
+    @Test
+    fun `words appear after the draft while a take is heard`() {
+        show(
+            draft("fix it").copy(
+                dictation = DictationState(
+                    DictationPhase.Recording,
+                    owner = "composer:t1",
+                    heard = "run the tests"
+                ),
+                dictationOwner = "composer:t1"
+            )
+        )
+        compose.onNodeWithText("fix it run the tests").assertIsDisplayed()
     }
 
     @Test

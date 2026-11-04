@@ -128,6 +128,10 @@ impl CommandFs for RemoteFs {
     fn remove_dir(&self, rel: &str) -> Result<(), String> {
         self.run(&format!("rmdir {}", self.quoted(rel))).map(|_| ())
     }
+
+    fn location(&self, folder: Option<&str>) -> String {
+        folder.map_or_else(|| self.base.clone(), |f| format!("{}/{f}", self.base))
+    }
 }
 
 #[cfg(test)]

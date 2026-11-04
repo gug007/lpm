@@ -3,7 +3,7 @@ package cx.lpm.mobile.core.demo
 // How the demo Mac reads a command's prompt, as lpm_commands_expand.rs does:
 // `{{name}}` variables, the `<a> <b>` hint, and the words a run gives.
 
-internal val AUTO_VARIABLES = listOf("branch", "project")
+internal val AUTO_VARIABLES = listOf("branch", "project", "dir")
 
 /** The variables a run has to be given, as the `<a> <b>` hint after `/name `. */
 internal fun commandArgumentHint(body: String): String {

@@ -24,26 +24,30 @@ struct TerminalComposer: View {
     /// The terminal theme background, so the composer ground matches the terminal
     /// it sits under (used only in terminal-tools mode).
     private let terminalBackground: SwiftUI.Color
-    /// Find in the terminal above, offered with the composer's terminal tools.
-    private let onFind: (() -> Void)?
+    /// How tall the composer can grow over what's above it, for a long prompt.
+    private let fullHeight: CGFloat
 
     init(store: ComposerStore, onSend: ((String) -> Void)? = nil,
          terminalTools: Bool = true, disabled: Bool = false, placeholder: String = "Message",
-         terminalBackground: SwiftUI.Color = .black, onFind: (() -> Void)? = nil) {
+         terminalBackground: SwiftUI.Color = .black, fullHeight: CGFloat = 0) {
         _store = ObservedObject(wrappedValue: store)
         self.onSend = onSend
         self.terminalTools = terminalTools
         self.disabled = disabled
         self.placeholder = placeholder
         self.terminalBackground = terminalBackground
-        self.onFind = onFind
+        self.fullHeight = fullHeight
     }
 
+    @State private var isFull = false
+    @State private var restingHeight: CGFloat = 0
+    @State private var fullFieldHeight: CGFloat = 0
     @State private var showPhotoPicker = false
     @State private var photoItems: [PhotosPickerItem] = []
     @State private var showCamera = false
     @State private var showFiles = false
     @State private var showHistory = false
+    @State private var historyStart: HistoryScreen.Filter = .all
     @State private var showMemory = false
     @State private var showActions = false
     @State private var showCommands = false
@@ -51,7 +55,7 @@ struct TerminalComposer: View {
     @State private var expandingCommand = false
     @State private var showRewriteHint = false
     @State private var dupSeed: DupSeed?
-    @State private var sendWarning: String?
+    @State private var toast: ComposerToast?
     @State private var pendingLog: PendingLog?
     // Memoized @-mention results: the expensive filter over the (unbounded) source
     // arrays runs once per mention-fragment change into these, instead of ~6× per
@@ -202,11 +206,46 @@ struct TerminalComposer: View {
         }
     }
 
+    // MARK: dictation
+
+    private var dictation: DictationStore { model.dictation }
+    private var dictationOwner: String { "composer:" + termId }
+    private var takeActive: Bool { dictation.isActive(dictationOwner) }
+    private var stripShown: Bool { takeActive || dictation.failure(dictationOwner) != nil }
+    private var hasText: Bool { !store.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    private var heardWords: String { dictation.words(dictationOwner) }
+    /// What the field reads as: the draft, plus a take's words until Stop adds them to it.
+    private var shownText: String { heardWords.isEmpty ? store.text : store.text.addingDictated(heardWords) }
+    private var fieldHidden: Bool { stripShown && (!hasText || !heardWords.isEmpty) }
+    /// With nothing to send, the mic is the composer's main button, as on desktop.
+    /// Keyed off an empty draft, not a disabled Send: Send is also disabled during
+    /// an upload, when it has to stay.
+    private var micInSendSeat: Bool {
+        guard case .empty = sendState else { return false }
+        return !disabled && !store.transforming
+    }
+    private var micBesideSend: Bool { !stripShown && !micInSendSeat && !disabled }
+
+    private func startDictation() {
+        let tabId = store.activeTab.id
+        dictation.start(owner: dictationOwner) { [store] words in
+            store.appendDictated(words, tabId: tabId)
+        }
+    }
+
     private func key(_ seq: String) { model.input(termId, seq) }
 
     var body: some View {
         composerStack
+            .frame(height: isFull ? fullHeight : nil, alignment: .bottom)
             .background(ground)
+            // Drawn up over the terminal, not taking its rows: losing them would
+            // reflow it and resize it on the computer. Rotating can leave less room
+            // than it rested in, so the room is the limit.
+            .padding(.top, isFull ? min(restingHeight, fullHeight) - fullHeight : 0)
+            .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { height in
+                if !isFull { restingHeight = height }
+            }
             .environment(\.colorScheme, terminalTools ? .dark : systemColorScheme)
             .darkKeyboard(terminalTools)
             .animation(.easeOut(duration: 0.12), value: slashMatches.count)
@@ -219,6 +258,7 @@ struct TerminalComposer: View {
                 model.loadServices(project)
                 model.git.loadBranches(project)
             }
+            .onDisappear { dictation.leave(dictationOwner) }
             .onChange(of: photoItems) { _, items in if !items.isEmpty { loadPhotos(items) } }
             .onChange(of: model.serviceLogsResult) { _, _ in flushPendingLog() }
             // Recompute memoized mentions on fragment change or a source load.
@@ -237,7 +277,7 @@ struct TerminalComposer: View {
                 CameraPicker { image in store.addImage(image) }.ignoresSafeArea()
             }
             .sheet(isPresented: $showHistory) {
-                HistoryScreen(project: project,
+                HistoryScreen(project: project, initialFilter: historyStart,
                               onLoad: { text in store.text = text; focused = true },
                               onSendNow: { text in sendRaw(text) })
                     .environment(model)
@@ -259,8 +299,8 @@ struct TerminalComposer: View {
             .modifier(ComposerLpmCommands(project: project, menuOpen: lpmCommandsOn && slashQuery != nil,
                                           showCommands: $showCommands, draft: $commandDraft,
                                           reloadMenu: { model.loadSlash(termId, project: project) }))
-            .modifier(ComposerAlerts(sendWarning: $sendWarning, transformError: $store.transformError,
-                                     uploadError: $store.uploadError))
+            .modifier(ComposerNotices(toast: $toast, transformError: $store.transformError,
+                                      uploadError: $store.uploadError, onOpenDrafts: { openHistory(.drafts) }))
     }
 
     @ViewBuilder private func dupSheet(_ seed: DupSeed) -> some View {
@@ -326,7 +366,7 @@ struct TerminalComposer: View {
             }
             inputRow
         }
-        .fixedSize(horizontal: false, vertical: true)
+        .fixedSize(horizontal: false, vertical: !isFull)
     }
 
     // Cheap change-proxies for the observed source dicts, so the mention
@@ -364,18 +404,31 @@ struct TerminalComposer: View {
     private var unifiedField: some View {
         fieldStack
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, isExpanded ? 6 : 44)
+            .padding(.leading, isExpanded ? 6 : 44)
+            .padding(.trailing, isExpanded ? 6 + fullToggleSpace : micBesideSend ? 80 : 44)
             .padding(.top, isExpanded ? 4 : 0)
             .padding(.bottom, isExpanded ? 40 : 0)
             .overlay(alignment: .bottomLeading) {
-                plusMenu
+                leadingControl
                     .padding(.leading, 6)
                     .padding(.bottom, isExpanded ? 2 : 1)
             }
             .overlay(alignment: .bottomTrailing) {
-                sendButton
+                trailingControls
                     .padding(.trailing, 6)
                     .padding(.bottom, isExpanded ? 2 : 1)
+            }
+            .overlay(alignment: .topTrailing) {
+                if showsFullToggle { fullToggle }
+            }
+            .overlay(alignment: .bottom) {
+                if stripShown {
+                    DictationStrip(store: dictation, owner: dictationOwner, ink: composerControlColor,
+                                   onRetry: startDictation)
+                        .frame(height: 36)
+                        .padding(.horizontal, 46)
+                        .padding(.bottom, isExpanded ? 2 : 1)
+                }
             }
             .background(fieldGround)
             .clipShape(RoundedRectangle(cornerRadius: composerCorner, style: .continuous))
@@ -396,22 +449,53 @@ struct TerminalComposer: View {
     // is trivially multiline; otherwise the hidden probe reports the text height at
     // that fixed width and we compare it to a measured single-line height.
     private var isExpanded: Bool {
-        if store.text.contains("\n") { return true }
+        if isFull || (stripShown && (hasText || !heardWords.isEmpty)) { return true }
+        if shownText.contains("\n") { return true }
         guard containerWidth > 0, singleLineHeight > 0 else { return false }
         return measuredTextHeight > singleLineHeight + 1
     }
 
     // Pill width minus the compact side gutters (44 each: edge inset + a 36pt
-    // control + gap) and the field's own text insets — the width the field's text
-    // actually gets in the compact layout.
+    // control + gap, plus the mic's 36 beside Send) and the field's own text insets —
+    // the width the field's text actually gets in the compact layout.
     private var compactTextWidth: CGFloat {
-        max(1, containerWidth - 88 - 16)
+        max(1, containerWidth - 88 - 16 - (micBesideSend ? 36 : 0))
     }
 
     // Pill width minus the expanded horizontal padding (6 each side) and the
     // field's text insets — the text width in the expanded layout.
     private var expandedTextWidth: CGFloat {
-        max(1, containerWidth - 12 - 16)
+        max(1, containerWidth - 12 - 16 - fullToggleSpace)
+    }
+
+    // The expand button sits in the field's top corner once the text reaches a
+    // third row, and the text keeps clear of it.
+    private var showsFullToggle: Bool {
+        guard fullHeight > 0 else { return false }
+        return isFull || (isExpanded && singleLineHeight > 0 && expandedTextHeight > singleLineHeight * 2.5)
+    }
+
+    private var fullToggleSpace: CGFloat { showsFullToggle ? 30 : 0 }
+
+    private var fullLineLimit: Int {
+        let line = max(singleLineHeight, 20)
+        return max(1, Int((fullFieldHeight - 16) / line))
+    }
+
+    private var fullToggle: some View {
+        Button {
+            withAnimation(.easeOut(duration: 0.2)) { isFull.toggle() }
+        } label: {
+            Image(systemName: isFull ? "chevron.down" : "viewfinder")
+                .font(.system(size: 16, weight: .medium))
+                .foregroundStyle(composerControlColor.opacity(0.7))
+                .frame(width: 32, height: 32)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(isFull ? "Collapse" : "Expand")
+        .padding(.top, 4)
+        .padding(.trailing, 4)
     }
 
     // The vertical-axis TextField (UITextView-backed) doesn't re-measure its
@@ -429,9 +513,9 @@ struct TerminalComposer: View {
     // Probe stand-in for the field text: never empty, and a trailing newline gets
     // a trailing space so the caret's empty last line still counts toward height.
     private var probeString: String {
-        if store.text.isEmpty { return " " }
-        if store.text.hasSuffix("\n") { return store.text + " " }
-        return store.text
+        if shownText.isEmpty { return " " }
+        if shownText.hasSuffix("\n") { return shownText + " " }
+        return shownText
     }
 
     private var widthReader: some View {
@@ -473,25 +557,54 @@ struct TerminalComposer: View {
         .onPreferenceChange(ComposerLineHeightKey.self) { singleLineHeight = $0 }
     }
 
+    @ViewBuilder private var leadingControl: some View {
+        if stripShown {
+            DictationCancelButton(color: composerControlColor,
+                                  label: takeActive ? "Cancel dictation" : "Dismiss",
+                                  action: { dictation.cancel() })
+        } else {
+            plusMenu
+        }
+    }
+
+    @ViewBuilder private var trailingControls: some View {
+        if takeActive {
+            DictationStopButton(store: dictation, glyph: liveSendForeground)
+        } else if micInSendSeat {
+            DictationDisc(ground: liveSendGround, label: "Dictate", action: startDictation) {
+                Image(systemName: "mic")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(liveSendForeground)
+            }
+        } else {
+            HStack(spacing: 0) {
+                if micBesideSend {
+                    DictationGhostMic(color: composerControlColor, action: startDictation)
+                        .disabled(store.transforming)
+                }
+                sendButton
+            }
+        }
+    }
+
     private var plusMenu: some View {
         Menu {
-            Button {
-                if canRewrite { showActions = true } else { showRewriteHint = true }
-            } label: { Label("Rewrite with AI", systemImage: "sparkles") }
-            Divider()
-            Button { showPhotoPicker = true } label: {
-                Label("Photo Library", systemImage: "photo.on.rectangle")
+            ControlGroup {
+                Button { showPhotoPicker = true } label: { Label("Photos", systemImage: "photo.on.rectangle") }
+                if cameraAvailable {
+                    Button { showCamera = true } label: { Label("Camera", systemImage: "camera") }
+                }
+                Button { showFiles = true } label: { Label("Files", systemImage: "doc") }
             }
-            if cameraAvailable {
-                Button { showCamera = true } label: { Label("Take Photo", systemImage: "camera") }
-            }
-            Button { showFiles = true } label: { Label("Choose Files", systemImage: "doc") }
             if UIPasteboard.general.hasImages {
                 Button { if let img = UIPasteboard.general.image { store.addImage(img) } } label: {
                     Label("Paste Image", systemImage: "doc.on.clipboard")
                 }
             }
             Divider()
+            Button {
+                if canRewrite { showActions = true } else { showRewriteHint = true }
+            } label: { Label("Rewrite with AI", systemImage: "sparkles") }
             // Session memory is written on the Mac that runs the agent, so an SSH
             // project's terminals have nothing here to reach.
             if memoryAvailable {
@@ -502,10 +615,7 @@ struct TerminalComposer: View {
                     .disabled(store.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
             Button { store.newTab() } label: { Label("New prompt", systemImage: "plus.bubble") }
-            Button { showHistory = true } label: { Label("History", systemImage: "clock.arrow.circlepath") }
-            if terminalTools, let onFind {
-                Button(action: onFind) { Label("Find in Terminal", systemImage: "magnifyingglass") }
-            }
+            Button { openHistory(.all) } label: { Label("History", systemImage: "clock.arrow.circlepath") }
         } label: {
             Image(systemName: "plus")
                 .font(.system(size: 20, weight: .medium))
@@ -513,6 +623,7 @@ struct TerminalComposer: View {
                 .frame(width: 36, height: 36)
                 .contentShape(Rectangle())
         }
+        .menuOrder(.fixed)
         .disabled(store.transforming || disabled)
         .popover(isPresented: $showRewriteHint, arrowEdge: .bottom) {
             Text("Type a message first — then tap to rewrite it with AI.")
@@ -525,7 +636,17 @@ struct TerminalComposer: View {
 
     private var fieldStack: some View {
         ZStack(alignment: .topLeading) {
-            if let hint = slashArgumentHint {
+            if isFull {
+                SwiftUI.Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture { focused = true }
+            }
+            if !heardWords.isEmpty {
+                DictationPreview(text: shownText, maxHeight: max(1, (isFull ? fullFieldHeight : fieldHeight) - 16))
+                    .padding(8)
+                    .allowsHitTesting(false)
+            }
+            if let hint = slashArgumentHint, !fieldHidden {
                 (Text(store.text).foregroundColor(.clear) + Text(hint).foregroundColor(.secondary.opacity(0.7)))
                     .font(.body)
                     .padding(.horizontal, 8)
@@ -534,7 +655,8 @@ struct TerminalComposer: View {
             }
             TextField(placeholder, text: store.textBinding, axis: .vertical)
                 .font(.body)
-                .lineLimit(1...5)
+                .lineLimit(1...(isFull ? fullLineLimit : 5))
+                .opacity(fieldHidden ? 0 : 1)
                 .focused($focused)
                 .onChange(of: focused) { _, isFocused in store.isEditorFocused = isFocused }
                 .hardwareReturnSends(focus: $focused, send: send)
@@ -545,7 +667,9 @@ struct TerminalComposer: View {
                 .padding(.vertical, 8)
                 .disabled(store.transforming || disabled)
         }
-        .frame(height: fieldHeight, alignment: .topLeading)
+        .frame(height: isFull ? nil : fieldHeight, alignment: .topLeading)
+        .frame(minHeight: isFull ? 0 : nil, maxHeight: isFull ? .infinity : nil, alignment: .topLeading)
+        .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { fullFieldHeight = $0 }
     }
 
     private var sendButton: some View {
@@ -554,7 +678,7 @@ struct TerminalComposer: View {
                 let text = store.text.trimmingCharacters(in: .whitespacesAndNewlines)
                 if !text.isEmpty {
                     model.historySaveDraft(message: store.text, project: project, id: termId, label: label)
-                    sendWarning = "Saved to your drafts."
+                    toast = ComposerToast(text: "Saved to your drafts", action: "Open Drafts")
                 }
             } label: { Label("Save as draft", systemImage: "tray.and.arrow.down") }
 
@@ -581,14 +705,17 @@ struct TerminalComposer: View {
         .accessibilityLabel("Send")
     }
 
+    private var liveSendForeground: SwiftUI.Color { terminalTools ? .black : .white }
+    private var liveSendGround: SwiftUI.Color { terminalTools ? .white : .accentColor }
+
     private var sendForeground: SwiftUI.Color {
-        if terminalTools { return canSend ? SwiftUI.Color.black : SwiftUI.Color.white.opacity(0.35) }
-        return canSend ? SwiftUI.Color.white : SwiftUI.Color.secondary.opacity(0.55)
+        if canSend { return liveSendForeground }
+        return terminalTools ? SwiftUI.Color.white.opacity(0.35) : SwiftUI.Color.secondary.opacity(0.55)
     }
 
     private var sendGround: SwiftUI.Color {
-        if terminalTools { return canSend ? SwiftUI.Color.white : SwiftUI.Color.white.opacity(0.12) }
-        return canSend ? SwiftUI.Color.accentColor : SwiftUI.Color(.tertiarySystemFill)
+        if canSend { return liveSendGround }
+        return terminalTools ? SwiftUI.Color.white.opacity(0.12) : SwiftUI.Color(.tertiarySystemFill)
     }
 
     // The menu (save draft / duplicates) is still worth offering even when there's
@@ -620,7 +747,7 @@ struct TerminalComposer: View {
     /// Sending `/name args` for one of the user's lpm commands sends its prompt
     /// instead, filled in by the Mac.
     private func send() {
-        guard !expandingCommand else { return }
+        guard !expandingCommand, !takeActive else { return }
         if lpmCommandsOn, let run = LpmCommandRules.parseRun(store.text), let cmd = lpmCommand(run.name) {
             runLpmCommand(cmd.name, args: run.args)
             return
@@ -628,16 +755,21 @@ struct TerminalComposer: View {
         sendComposed()
     }
 
+    private func openHistory(_ filter: HistoryScreen.Filter) {
+        historyStart = filter
+        showHistory = true
+    }
+
     private func sendComposed() {
         switch sendState {
         case .empty:
             return
         case .pending:
-            sendWarning = "Still uploading an attachment — try again in a moment."
+            toast = ComposerToast(text: "Still uploading an attachment — try again in a moment.")
         case .ready(let body):
             deliver(body)
         case .droppedFailures(let body):
-            sendWarning = "Some attachments failed to upload and were left out."
+            toast = ComposerToast(text: "Some attachments failed to upload and were left out.")
             deliver(body)
         }
     }
@@ -646,7 +778,7 @@ struct TerminalComposer: View {
     private func deliver(_ body: String) {
         if let onSend { onSend(body) }
         else if !model.submit(termId, body) {
-            sendWarning = Self.notSentWarning
+            toast = ComposerToast(text: Self.notSentWarning)
             return
         }
         Haptics.tap()
@@ -654,6 +786,8 @@ struct TerminalComposer: View {
             model.recordHistory(project: project, id: termId, label: label, text: body)
         }
         store.afterSend()
+        dictation.noteSent()
+        withAnimation(.easeOut(duration: 0.2)) { isFull = false }
     }
 
     /// Send a piece of text straight into the terminal without touching the active
@@ -662,7 +796,7 @@ struct TerminalComposer: View {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         if let onSend { onSend(text) }
         else if !model.submit(termId, text) {
-            sendWarning = Self.notSentWarning
+            toast = ComposerToast(text: Self.notSentWarning)
             return
         }
         model.recordHistory(project: project, id: termId, label: label, text: text)
@@ -709,7 +843,7 @@ struct TerminalComposer: View {
             if expanded.missing.isEmpty {
                 sendComposed()
             } else {
-                sendWarning = LpmCommandRules.missingNote(expanded.missing)
+                toast = ComposerToast(text: LpmCommandRules.missingNote(expanded.missing))
                 focused = true
             }
         }
@@ -722,7 +856,7 @@ struct TerminalComposer: View {
             do {
                 use(try await model.lpmCommands.expand(project, name: name, args: args))
             } catch {
-                sendWarning = error.localizedDescription
+                toast = ComposerToast(text: error.localizedDescription)
             }
         }
     }
@@ -814,27 +948,28 @@ private struct DupSeed: Identifiable {
     let prompt: String
 }
 
-/// The composer's two one-shot alerts, factored out of the body to keep its
-/// modifier chain small enough for the Swift type-checker.
-private struct ComposerAlerts: ViewModifier {
-    @Binding var sendWarning: String?
+/// The composer's passing messages, factored out of the body to keep its modifier
+/// chain small enough for the Swift type-checker. A failed rewrite or attachment is
+/// reported by the store, however long ago, and shows once the composer is here.
+private struct ComposerNotices: ViewModifier {
+    @Binding var toast: ComposerToast?
     @Binding var transformError: String?
     @Binding var uploadError: String?
+    let onOpenDrafts: () -> Void
 
     func body(content: Content) -> some View {
         content
-            .alert("Heads up", isPresented: Binding(
-                get: { sendWarning != nil }, set: { if !$0 { sendWarning = nil } })) {
-                Button("OK", role: .cancel) { sendWarning = nil }
-            } message: { Text(sendWarning ?? "") }
-            .alert("Rewrite failed", isPresented: Binding(
-                get: { transformError != nil }, set: { if !$0 { transformError = nil } })) {
-                Button("OK", role: .cancel) { transformError = nil }
-            } message: { Text(transformError ?? "") }
-            .alert("Couldn’t attach", isPresented: Binding(
-                get: { uploadError != nil }, set: { if !$0 { uploadError = nil } })) {
-                Button("OK", role: .cancel) { uploadError = nil }
-            } message: { Text(uploadError ?? "") }
+            .composerToast($toast, onAction: onOpenDrafts)
+            .onChange(of: transformError, initial: true) { _, error in
+                guard let error else { return }
+                toast = ComposerToast(text: error)
+                transformError = nil
+            }
+            .onChange(of: uploadError, initial: true) { _, error in
+                guard let error else { return }
+                toast = ComposerToast(text: error)
+                uploadError = nil
+            }
     }
 }
 

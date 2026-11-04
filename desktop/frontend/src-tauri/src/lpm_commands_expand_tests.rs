@@ -1,5 +1,8 @@
 use super::*;
-use crate::lpm_commands::{LpmCommand, LpmCommands, Scope, ScopeList};
+use crate::config::SshSettings;
+use crate::lpm_commands::{LocalFs, LpmCommand, LpmCommands, Scope, ScopeList};
+use crate::lpm_commands_remote::RemoteFs;
+use std::path::{Path, PathBuf};
 
 fn auto(var: &str) -> Option<String> {
     match var {
@@ -113,4 +116,95 @@ fn a_missing_value_names_what_to_pass() {
 fn a_missing_automatic_value_has_nothing_to_pass() {
     let c = command("ship", Scope::Project, "Ship {{branch}}");
     assert_eq!(missing_error(&c, &["branch".to_string()]), "/ship is missing {{branch}}.");
+}
+
+fn in_folder(mut c: LpmCommand, folder: &str) -> LpmCommand {
+    c.folder = Some(folder.into());
+    c
+}
+
+fn local_stores() -> Stores {
+    Stores {
+        global: Box::new(LocalFs::new(PathBuf::from("/home/me/.lpm/commands"))),
+        project: Some(Box::new(LocalFs::new(PathBuf::from("/code/web/.lpm/commands")))),
+    }
+}
+
+fn local_place() -> ProjectPlace {
+    ProjectPlace { root: "/code/web".into(), ssh: None }
+}
+
+fn ssh_place() -> ProjectPlace {
+    ProjectPlace {
+        root: "/srv/web/".into(),
+        ssh: Some(SshSettings { host: "box".into(), ..Default::default() }),
+    }
+}
+
+fn ssh_stores(place: &ProjectPlace) -> Stores {
+    Stores {
+        global: Box::new(LocalFs::new(PathBuf::from("/home/me/.lpm/commands"))),
+        project: Some(Box::new(RemoteFs::new(place.ssh.clone().unwrap(), &place.root))),
+    }
+}
+
+fn joined(base: &str, folder: &str) -> Option<String> {
+    Some(Path::new(base).join(folder).to_string_lossy().into_owned())
+}
+
+#[test]
+fn dir_is_the_folder_the_command_sits_in() {
+    let stores = local_stores();
+    let place = local_place();
+    let global = command("walkthrough", Scope::Global, "");
+    assert_eq!(
+        command_dir(Some(&place), &stores, &in_folder(global.clone(), "walkthrough")),
+        joined("/home/me/.lpm/commands", "walkthrough"),
+    );
+    assert_eq!(
+        command_dir(Some(&place), &stores, &global).as_deref(),
+        Some("/home/me/.lpm/commands"),
+    );
+    let own = in_folder(command("ship", Scope::Project, ""), "Release");
+    assert_eq!(command_dir(Some(&place), &stores, &own), joined("/code/web/.lpm/commands", "Release"));
+}
+
+#[test]
+fn dir_works_with_no_project() {
+    let stores = Stores { project: None, ..local_stores() };
+    let c = command("walkthrough", Scope::Global, "");
+    assert_eq!(command_dir(None, &stores, &c).as_deref(), Some("/home/me/.lpm/commands"));
+}
+
+#[test]
+fn dir_in_an_ssh_project_is_a_path_on_its_host() {
+    let place = ssh_place();
+    let stores = ssh_stores(&place);
+    let own = in_folder(command("ship", Scope::Project, ""), "Release");
+    assert_eq!(
+        command_dir(Some(&place), &stores, &own).as_deref(),
+        Some("/srv/web/.lpm/commands/Release"),
+    );
+}
+
+#[test]
+fn a_global_command_has_no_dir_on_an_ssh_host() {
+    let place = ssh_place();
+    let stores = ssh_stores(&place);
+    let c = command("walkthrough", Scope::Global, "");
+    assert_eq!(command_dir(Some(&place), &stores, &c), None);
+    let out = fill("web", Some(&place), &stores, &LpmCommand { body: "Read {{dir}}/GUIDE.md".into(), ..c }, "");
+    assert_eq!(out.text, "Read {{dir}}/GUIDE.md");
+    assert_eq!(out.missing, ["dir"]);
+}
+
+#[test]
+fn dir_fills_in_without_taking_an_argument() {
+    let stores = Stores { project: None, ..local_stores() };
+    let c = in_folder(command("kit", Scope::Global, "About {{what}}: read {{dir}}/GUIDE.md"), "kit");
+    assert_eq!(argument_hint(&c.body), "<what>");
+    let out = fill("", None, &stores, &c, "a short demo");
+    let dir = stores.global.location(Some("kit"));
+    assert_eq!(out.text, format!("About a short demo: read {dir}/GUIDE.md"));
+    assert!(out.missing.is_empty());
 }

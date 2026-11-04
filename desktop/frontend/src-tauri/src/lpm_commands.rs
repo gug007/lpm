@@ -94,6 +94,9 @@ pub(crate) trait CommandFs {
     fn create_dir(&self, rel: &str) -> Result<(), String>;
     fn rename(&self, from: &str, to: &str) -> Result<(), String>;
     fn remove_dir(&self, rel: &str) -> Result<(), String>;
+    /// A folder of the list (its root with none) as the computer holding the
+    /// list names it.
+    fn location(&self, folder: Option<&str>) -> String;
 }
 
 pub(crate) struct Stores {

@@ -13,7 +13,7 @@ import { usePortsPolling } from "./usePortsPolling";
 
 const POLL_MS = 5_000;
 
-export function PortsView() {
+export function PortsView({ sidebarCollapsed = false }: { sidebarCollapsed?: boolean }) {
   const overview = useListeningPorts((s) => s.overview);
   const loading = useListeningPorts((s) => s.loading);
   const error = useListeningPorts((s) => s.error);
@@ -37,7 +37,11 @@ export function PortsView() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="app-drag -mx-6 flex items-center gap-3 px-6 py-1">
+      <div
+        className={`app-drag -mx-6 flex items-center gap-3 px-6 py-1 transition-[padding] duration-200 ${
+          sidebarCollapsed ? "pl-[112px] native-chrome:pl-11" : ""
+        }`}
+      >
         <div className="min-w-0 flex-1">
           <h1 className="text-xl font-semibold tracking-tight">Ports</h1>
           <p className="mt-0.5 text-xs text-[var(--text-muted)]">{subtitle}</p>

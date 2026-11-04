@@ -1,6 +1,7 @@
 package cx.lpm.mobile.feature.terminal.composer
 
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -12,6 +13,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -68,13 +71,24 @@ internal fun TerminalComposer(
     callbacks: ComposerCallbacks,
     plusMenu: @Composable () -> Unit,
     sendButton: @Composable () -> Unit,
-    modifier: Modifier = Modifier
+    dictationStrip: @Composable (Modifier) -> Unit,
+    modifier: Modifier = Modifier,
+    full: Boolean = false,
+    onToggleFull: () -> Unit = {}
 ) {
     val composer = state.composer
     val compact = with(LocalDensity.current) {
         LocalWindowInfo.current.containerSize.height.toDp()
     } < CompactHeight
-    Column(modifier.background(look.background).animateContentSize(tween(MENU_ANIMATION_MS))) {
+    val raise by animateFloatAsState(if (full) 1f else 0f, tween(FULL_MS), label = "full")
+    val resting = remember { RestingHeight() }
+    Column(
+        modifier
+            .raisedOverContent(resting) { raise }
+            .background(look.background)
+            .animateContentSize(tween(MENU_ANIMATION_MS)),
+        verticalArrangement = Arrangement.Bottom
+    ) {
         when {
             composer.transforming -> {
                 RewriteLockBar(onCancel = callbacks.onCancelRewrite)
@@ -112,7 +126,19 @@ internal fun TerminalComposer(
             onRetry = callbacks.onRetryUpload,
             onRemove = callbacks.onRemoveAttachment
         )
-        KeysAndInput(state, input, look, focusRequester, callbacks, plusMenu, sendButton)
+        KeysAndInput(
+            state,
+            input,
+            look,
+            focusRequester,
+            callbacks,
+            plusMenu,
+            sendButton,
+            dictationStrip,
+            full,
+            onToggleFull,
+            if (full) Modifier.weight(1f) else Modifier
+        )
     }
 }
 
@@ -124,19 +150,23 @@ private fun KeysAndInput(
     focusRequester: FocusRequester,
     callbacks: ComposerCallbacks,
     plusMenu: @Composable () -> Unit,
-    sendButton: @Composable () -> Unit
+    sendButton: @Composable () -> Unit,
+    dictationStrip: @Composable (Modifier) -> Unit,
+    full: Boolean,
+    onToggleFull: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val heightDp = with(LocalDensity.current) {
         LocalWindowInfo.current.containerSize.height.toDp()
     }
-    val keys = @Composable { modifier: Modifier ->
+    val keys = @Composable { slot: Modifier ->
         SpecialKeyBar(
             onKey = callbacks.onKey,
             onHideKeyboard = callbacks.onHideKeyboard,
-            modifier = modifier
+            modifier = slot
         )
     }
-    val pill = @Composable { modifier: Modifier ->
+    val pill = @Composable { slot: Modifier ->
         ComposerPill(
             input = input,
             state = state,
@@ -147,24 +177,27 @@ private fun KeysAndInput(
             onHideKeyboard = callbacks.onHideKeyboard,
             plusMenu = plusMenu,
             sendButton = sendButton,
-            modifier = modifier
+            dictationStrip = dictationStrip,
+            modifier = slot,
+            full = full,
+            onToggleFull = onToggleFull
         )
     }
     if (!state.terminalTools) {
-        Column {
+        Column(modifier) {
             ComposerDivider()
-            pill(Modifier)
+            pill(if (full) Modifier.weight(1f) else Modifier)
         }
     } else if (heightDp < CompactHeight) {
-        Row(verticalAlignment = Alignment.Bottom) {
+        Row(modifier, verticalAlignment = Alignment.Bottom) {
             keys(Modifier.weight(1f).padding(bottom = 8.dp))
             pill(Modifier.weight(1f))
         }
     } else {
-        Column {
+        Column(modifier) {
             keys(Modifier)
             ComposerDivider()
-            pill(Modifier)
+            pill(if (full) Modifier.weight(1f) else Modifier)
         }
     }
 }

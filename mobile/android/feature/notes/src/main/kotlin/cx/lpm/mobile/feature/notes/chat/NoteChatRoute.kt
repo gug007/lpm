@@ -24,16 +24,17 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cx.lpm.mobile.core.designsystem.component.AlertButton
 import cx.lpm.mobile.core.designsystem.component.AlertRole
-import cx.lpm.mobile.core.designsystem.component.LpmAlert
 import cx.lpm.mobile.core.designsystem.component.LpmConfirmationDialog
 import cx.lpm.mobile.core.model.NoteAttachment
 import cx.lpm.mobile.core.model.NoteMessage
 import cx.lpm.mobile.core.navigation.NoteChatKey
+import cx.lpm.mobile.core.ui.dictation.rememberDictationStart
 import cx.lpm.mobile.feature.notes.R
 import cx.lpm.mobile.feature.notes.attachment.NoteAttachmentActions
 import cx.lpm.mobile.feature.notes.attachment.NoteImageViewer
 import cx.lpm.mobile.feature.notes.attachment.shareNoteAttachment
 import cx.lpm.mobile.feature.notes.composer.NotesComposerActions
+import cx.lpm.mobile.feature.notes.composer.NotesDictation
 import cx.lpm.mobile.feature.notes.composer.rememberNoteCamera
 import kotlinx.coroutines.launch
 
@@ -48,6 +49,7 @@ fun NoteChatRoute(
     )
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val take by viewModel.dictationState.collectAsStateWithLifecycle()
     var editing by remember { mutableStateOf<NoteMessage?>(null) }
     var deleting by remember { mutableStateOf<NoteMessage?>(null) }
     var viewing by remember { mutableStateOf<NoteAttachment?>(null) }
@@ -58,8 +60,16 @@ fun NoteChatRoute(
     val context = LocalContext.current
     DisposableEffect(viewModel) {
         viewModel.open()
-        onDispose { viewModel.close() }
+        onDispose {
+            viewModel.abandonDictation()
+            viewModel.close()
+        }
     }
+    val dictate = rememberDictationStart(
+        needsMicrophone = viewModel.needsMicrophone,
+        onStart = viewModel::startDictation,
+        onRefuse = viewModel::refuseDictation
+    )
     var feltErrors by remember { mutableStateOf(state.errorTick) }
     LaunchedEffect(state.errorTick) {
         if (state.errorTick != feltErrors) haptics.performHapticFeedback(HapticFeedbackType.Reject)
@@ -125,7 +135,16 @@ fun NoteChatRoute(
             },
             takePhoto = camera,
             chooseFiles = { files.launch(arrayOf("*/*")) },
-            remove = viewModel::drop
+            remove = viewModel::drop,
+            dismissWarning = viewModel::dismissWarning
+        ),
+        dictation = NotesDictation(
+            state = take,
+            owner = viewModel.dictationOwner,
+            meter = viewModel.dictationMeter,
+            start = dictate,
+            stop = viewModel::stopDictation,
+            cancel = viewModel::cancelDictation
         )
     )
 
@@ -157,14 +176,6 @@ fun NoteChatRoute(
             bytes = bytes,
             onShare = bytes?.let { { share(attachment, it) } },
             onDismiss = { viewing = null }
-        )
-    }
-    state.draft.warning?.let { warning ->
-        LpmAlert(
-            title = stringResource(R.string.notes_composer_too_large),
-            message = warning,
-            buttons = listOf(AlertButton(stringResource(R.string.notes_ok), AlertRole.Cancel)),
-            onDismissRequest = viewModel::dismissWarning
         )
     }
 }

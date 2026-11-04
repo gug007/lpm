@@ -2,7 +2,6 @@
 <resources>
     <string name="notes_back">Back</string>
     <string name="notes_cancel">Cancel</string>
-    <string name="notes_ok">OK</string>
     <string name="notes_delete">Delete</string>
     <string name="notes_save">Save</string>
     <string name="notes_close">Close</string>
@@ -42,7 +41,6 @@
     <string name="notes_composer_photo_library">Photo Library</string>
     <string name="notes_composer_take_photo">Take Photo</string>
     <string name="notes_composer_choose_files">Choose Files</string>
-    <string name="notes_composer_too_large">Too large</string>
     <string name="notes_composer_preparing">Preparing…</string>
     <string name="notes_composer_remove">Remove</string>
 

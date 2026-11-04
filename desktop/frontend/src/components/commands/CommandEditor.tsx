@@ -150,8 +150,8 @@ export function CommandEditor({ draft, lists, projectLabel, saving, onChange, on
           ) : (
             <>
               Add <span className="font-mono">{"{{ticket}}"}</span> to ask for a value when it runs;{" "}
-              <span className="font-mono">{"{{branch}}"}</span> and <span className="font-mono">{"{{project}}"}</span>{" "}
-              fill themselves in.
+              <span className="font-mono">{"{{branch}}"}</span>, <span className="font-mono">{"{{project}}"}</span> and{" "}
+              <span className="font-mono">{"{{dir}}"}</span>, the command's folder, fill themselves in.
             </>
           )}
         </p>

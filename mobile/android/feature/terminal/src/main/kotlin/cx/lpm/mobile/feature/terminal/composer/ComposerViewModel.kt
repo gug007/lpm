@@ -6,6 +6,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import cx.lpm.mobile.core.data.commands.LpmCommandsStore
+import cx.lpm.mobile.core.data.dictation.DictationStore
 import cx.lpm.mobile.core.data.git.GitStore
 import cx.lpm.mobile.core.data.projects.ProjectsStore
 import cx.lpm.mobile.core.data.services.ServiceLogsState
@@ -43,7 +44,8 @@ import kotlinx.coroutines.launch
 @HiltViewModel(assistedFactory = ComposerViewModel.Factory::class)
 class ComposerViewModel @AssistedInject constructor(
     @Assisted private val target: ComposerTarget,
-    sessions: MacSessions
+    sessions: MacSessions,
+    private val dictation: DictationStore
 ) : ViewModel() {
     @AssistedFactory
     interface Factory {
@@ -75,6 +77,8 @@ class ComposerViewModel @AssistedInject constructor(
     private var synced = input.text.toString()
 
     private val warning = MutableStateFlow<Int?>(null)
+
+    private val dictationOwner = "composer:${target.termId}"
 
     private val lpmCommands = ComposerLpmCommands(
         session?.store<LpmCommandsStore>(),
@@ -140,11 +144,17 @@ class ComposerViewModel @AssistedInject constructor(
         )
     }.combine(warning) { state, sendWarning -> state.copy(sendWarning = sendWarning) }
         .combine(lpmCommands.notice) { state, notice -> state.copy(commandNotice = notice) }
+        .combine(dictation.state) { state, take ->
+            state.copy(dictation = take, dictationOwner = dictationOwner)
+        }
         .stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5_000),
             ComposerUiState(composer = store?.current ?: ComposerState())
         )
+
+    val dictationMeter get() = dictation.meter
+    val needsMicrophone: Boolean get() = dictation.needsMicrophone
 
     init {
         viewModelScope.launch {
@@ -206,7 +216,7 @@ class ComposerViewModel @AssistedInject constructor(
      * (an automation's reply), else into the terminal. True when it went out.
      */
     fun send(onSend: ((String) -> Unit)? = null): Boolean {
-        if (lpmCommands.expanding) return false
+        if (lpmCommands.expanding || dictation.state.value.isActive(dictationOwner)) return false
         pushInput(input.text.toString())
         if (lpmCommandsHere() && lpmCommands.runTyped(slashRows())) return true
         return sendComposed(onSend)
@@ -251,6 +261,7 @@ class ComposerViewModel @AssistedInject constructor(
             )
         }
         store?.afterSend()
+        dictation.noteSent()
         return true
     }
 
@@ -280,6 +291,23 @@ class ComposerViewModel @AssistedInject constructor(
     fun dismissWarning() {
         warning.value = null
     }
+
+    // MARK: dictation
+
+    fun startDictation() {
+        val composer = store ?: return
+        val tabId = composer.current.activeTab.id
+        dictation.start(dictationOwner) { words -> composer.appendDictated(words, tabId) }
+    }
+
+    fun stopDictation() = dictation.stop()
+
+    fun cancelDictation() = dictation.cancel()
+
+    fun refuseDictation() = dictation.refuse(dictationOwner)
+
+    /** The composer left the screen: its take ends, and the words stay in the draft. */
+    fun leaveDictation() = dictation.leave(dictationOwner)
 
     // MARK: autocomplete
 

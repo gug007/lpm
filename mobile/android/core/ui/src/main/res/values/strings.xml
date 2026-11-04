@@ -9,4 +9,15 @@
     <string name="ui_git_status_renamed">Renamed</string>
     <string name="ui_git_status_modified">Modified</string>
     <string name="ui_git_status_conflicted">Merge conflict</string>
+    <string name="ui_dictate">Dictate</string>
+    <string name="ui_dictation_stop">Stop and insert</string>
+    <string name="ui_dictation_transcribing">Transcribing…</string>
+    <string name="ui_dictation_recording">Recording</string>
+    <string name="ui_dictation_cancel">Cancel dictation</string>
+    <string name="ui_dictation_dismiss">Dismiss</string>
+    <string name="ui_dictation_record_again">Record again</string>
+    <string name="ui_dictation_open_settings">Open Settings</string>
+    <string name="ui_dictation_no_speech">No speech detected.</string>
+    <string name="ui_dictation_denied">Allow the microphone for lpm in Settings.</string>
+    <string name="ui_dictation_unavailable">Speech recognition isn\'t available right now.</string>
 </resources>

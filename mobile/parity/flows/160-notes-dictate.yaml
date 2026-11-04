@@ -1,0 +1,44 @@
+# The note composer's mic: in Send's seat with nothing written, then beside Send.
+appId: cx.lpm.mobile
+name: 160-notes-dictate
+tags: [demo, notes]
+---
+- runFlow: subflows/enter-demo.yaml
+- tapOn: "storefront"
+- extendedWaitUntil:
+    visible: "Tabs"
+    timeout: 5000
+- tapOn: "More"
+- extendedWaitUntil:
+    visible: "Notes"
+    timeout: 5000
+- retry:
+    maxRetries: 2
+    commands:
+      - tapOn: "Notes"
+      - extendedWaitUntil:
+          visible: "Ideas"
+          timeout: 5000
+- tapOn: "Ideas"
+- extendedWaitUntil:
+    visible: ".*keep the confirmation page calm for now."
+    timeout: 5000
+- takeScreenshot: 1-mic-in-send-seat
+- tapOn: "Dictate"
+- extendedWaitUntil:
+    visible: "Stop and insert"
+    timeout: 5000
+- extendedWaitUntil:
+    visible: "Run the tests.*"
+    timeout: 5000
+- takeScreenshot: 2-recording
+- tapOn: "Stop and insert"
+- extendedWaitUntil:
+    notVisible: "Stop and insert"
+    timeout: 5000
+- extendedWaitUntil:
+    visible: "Run the tests and fix anything that fails.*"
+    timeout: 5000
+- assertVisible: "Send"
+- assertVisible: "Dictate"
+- takeScreenshot: 3-words-in-field

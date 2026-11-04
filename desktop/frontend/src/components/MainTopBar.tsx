@@ -14,7 +14,7 @@ export function MainTopBar({
   return (
     <div className="app-drag flex h-2 shrink-0 items-center">
       <div
-        className={`absolute top-[16px] z-10 ${isFullscreen ? "left-3" : "left-[85px] native-chrome:left-3"} ${sidebarCollapsed ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+        className={`absolute top-[18px] native-chrome:top-[16px] z-10 ${isFullscreen ? "left-3" : "left-[85px] native-chrome:left-3"} ${sidebarCollapsed ? "opacity-100" : "opacity-0 pointer-events-none"}`}
       >
         <button
           onClick={onExpand}

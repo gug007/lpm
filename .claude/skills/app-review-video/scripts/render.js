@@ -9,7 +9,7 @@ const path = require("path");
 const { execFileSync } = require("child_process");
 const { activity } = require("./activity");
 const { readLog, readEvents, keepSpans, outTime } = require("./edit");
-const { redactions } = require("./redact");
+const { redactions, stillReadable } = require("./redact");
 const camera = require("./camera");
 const { cards, W, H, HEADER, FOOTER, RIPPLE } = require("./cards");
 const { track, toFrames } = require("../../lesson/scripts/keyframes");
@@ -82,7 +82,7 @@ async function render({ dir, version, build, device = "iPhone", cut, redact = []
   // frame request double per box and stalls ffmpeg past a dozen boxes.
   if (blurs.length) g.push(`[s0]split=${blurs.length + 1}[sb]${blurs.map((_, i) => `[c${i}]`).join("")}`);
   blurs.forEach((b, i) => {
-    g.push(`[c${i}]crop=${b.w}:${b.h}:${b.x}:${b.y},boxblur=luma_radius='min(12,min(w,h)/2-1)':chroma_radius='min(6,min(cw,ch)/2-1)':luma_power=2[b${i}]`);
+    g.push(`[c${i}]crop=${b.w}:${b.h}:${b.x}:${b.y},boxblur=luma_radius='min(12,min(w,h)/2-1)':chroma_radius='min(6,min(cw,ch)/2-1)':luma_power=2:enable='between(t,${b.from.toFixed(3)},${b.to.toFixed(3)})'[b${i}]`);
     g.push(`[${i ? `s${i}` : "sb"}][b${i}]overlay=${b.x}:${b.y}:enable='between(t,${b.from.toFixed(3)},${b.to.toFixed(3)})'[s${i + 1}]`);
   });
   g.push(`color=c=black:s=${layout.stageW}x${layout.stageH}:r=${FPS}:d=${main.toFixed(3)}[cv]`);
@@ -117,7 +117,9 @@ async function render({ dir, version, build, device = "iPhone", cut, redact = []
   const total = title + main + end;
   fs.writeFileSync(path.join(dir, "steps.txt"), marks.map((m, i) => `${fmt(title + at[i])}  ${i + 1}. ${m.text}${m.sub ? ` (${m.sub})` : ""}`).join("\n") + "\n");
   log(`${out}\n${fmt(total)} long, ${(fs.statSync(out).size / 1e6).toFixed(1)} MB; step times in ${path.join(dir, "steps.txt")}`);
-  return { out, duration: total };
+  const leaks = stillReadable({ video: out, from: title, seconds: main, stage: { w: layout.stageW, h: layout.stageH, y: HEADER }, keepName: rec.name, patterns: redact, work });
+  log(leaks.length ? `WARNING: a private line is still readable at ${leaks.map(fmt).join(", ")}` : "no private line readable in the finished video");
+  return { out, duration: total, leaks };
 }
 
 const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;

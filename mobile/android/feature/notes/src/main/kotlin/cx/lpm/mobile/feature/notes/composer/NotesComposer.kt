@@ -25,6 +25,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
@@ -36,6 +37,9 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
+import cx.lpm.mobile.core.data.dictation.DictationMeter
+import cx.lpm.mobile.core.data.dictation.DictationState
+import cx.lpm.mobile.core.data.dictation.plusDictated
 import cx.lpm.mobile.core.designsystem.R as DesignR
 import cx.lpm.mobile.core.designsystem.component.ActivityIndicator
 import cx.lpm.mobile.core.designsystem.component.ActivityIndicatorSize
@@ -44,6 +48,13 @@ import cx.lpm.mobile.core.designsystem.component.ContextMenuItem
 import cx.lpm.mobile.core.designsystem.component.PlainTextField
 import cx.lpm.mobile.core.designsystem.component.clickableNoIndication
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
+import cx.lpm.mobile.core.ui.ComposerToast
+import cx.lpm.mobile.core.ui.dictation.DictationCancelButton
+import cx.lpm.mobile.core.ui.dictation.DictationGhostMic
+import cx.lpm.mobile.core.ui.dictation.DictationMicDisc
+import cx.lpm.mobile.core.ui.dictation.DictationPreview
+import cx.lpm.mobile.core.ui.dictation.DictationStopButton
+import cx.lpm.mobile.core.ui.dictation.DictationStrip
 import cx.lpm.mobile.feature.notes.R
 import cx.lpm.mobile.feature.notes.chat.NoteDraft
 import cx.lpm.mobile.feature.notes.ui.barMaterial
@@ -56,13 +67,30 @@ class NotesComposerActions(
     val photoLibrary: () -> Unit = {},
     val takePhoto: (() -> Unit)? = null,
     val chooseFiles: () -> Unit = {},
-    val remove: (Long) -> Unit = {}
+    val remove: (Long) -> Unit = {},
+    val dismissWarning: () -> Unit = {}
 )
+
+/** The app's recorder as this composer sees it; `start` asks for the microphone if it must. */
+@Immutable
+class NotesDictation(
+    val state: DictationState,
+    val owner: String,
+    val meter: DictationMeter,
+    val start: () -> Unit,
+    val stop: () -> Unit,
+    val cancel: () -> Unit
+) {
+    val active: Boolean get() = state.isActive(owner)
+    val stripShown: Boolean get() = active || state.failure(owner) != null
+    val heard: String get() = state.words(owner)
+}
 
 /**
  * The note composer under a transcript (iOS `NotesComposer`): a growing field, the
  * attach menu (Photo Library / Take Photo / Choose Files), chips for what's queued,
- * and Send. A hardware Return sends; Shift-Return types a newline.
+ * and Send. With nothing to send the mic takes Send's seat, and beside it otherwise.
+ * A hardware Return sends; Shift-Return types a newline.
  */
 @Composable
 internal fun NotesComposer(
@@ -70,70 +98,136 @@ internal fun NotesComposer(
     sending: Boolean,
     canSend: Boolean,
     actions: NotesComposerActions,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    dictation: NotesDictation? = null
 ) {
     val colors = LpmTheme.colors
-    Column(
-        modifier
-            .fillMaxWidth()
-            .background(barMaterial())
-            .navigationBarsPadding()
-    ) {
-        Box(
+    val stripShown = dictation?.stripShown == true
+    val heard = dictation?.heard.orEmpty()
+    val hideField = stripShown && (draft.text.isBlank() || heard.isNotEmpty())
+    Box(modifier) {
+        Column(
             Modifier
                 .fillMaxWidth()
-                .height(with(LocalDensity.current) { 1.toDp() })
-                .background(colors.separator.dimmed(0.5f))
-        )
-        if (draft.pending.isNotEmpty()) {
-            Row(
+                .background(barMaterial())
+                .navigationBarsPadding()
+        ) {
+            Box(
                 Modifier
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    .fillMaxWidth()
+                    .height(with(LocalDensity.current) { 1.toDp() })
+                    .background(colors.separator.dimmed(0.5f))
+            )
+            if (draft.pending.isNotEmpty()) {
+                Row(
+                    Modifier
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    draft.pending.forEach { item ->
+                        NotePendingChip(item, onRemove = { actions.remove(item.id) })
+                    }
+                }
+            }
+            Row(
+                Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.Bottom
             ) {
-                draft.pending.forEach { item ->
-                    NotePendingChip(item, onRemove = { actions.remove(item.id) })
+                if (dictation != null && stripShown) {
+                    DictationCancelButton(
+                        active = dictation.active,
+                        color = colors.secondaryLabel,
+                        onClick = dictation.cancel,
+                        seat = 34.dp
+                    )
+                } else {
+                    AttachMenu(actions)
+                }
+                Column(
+                    Modifier
+                        .weight(1f)
+                        .background(colors.secondarySystemBackground, RoundedCornerShape(18.dp))
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(if (hideField) 0.dp else 4.dp)
+                ) {
+                    PlainTextField(
+                        value = draft.text,
+                        onValueChange = actions.setText,
+                        placeholder = stringResource(R.string.notes_composer_placeholder),
+                        keyboardOptions = KeyboardOptions(
+                            capitalization = KeyboardCapitalization.Sentences
+                        ),
+                        maxLines = MAX_LINES,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .then(if (hideField) Modifier.alpha(0f).height(0.dp) else Modifier)
+                            .onPreviewKeyEvent { event ->
+                                val sends = event.sendsNote
+                                val down = event.nativeKeyEvent.action == NativeKeyEvent.ACTION_DOWN
+                                if (sends && down && canSend) actions.send()
+                                sends
+                            }
+                    )
+                    if (heard.isNotEmpty()) {
+                        DictationPreview(
+                            text = draft.text.plusDictated(heard),
+                            style = LpmTheme.typography.body.copy(color = colors.label),
+                            maxHeight = 132.dp,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    if (dictation != null && stripShown) {
+                        DictationStrip(
+                            state = dictation.state,
+                            owner = dictation.owner,
+                            meter = dictation.meter,
+                            ink = colors.label,
+                            onRetry = dictation.start,
+                            modifier = Modifier.fillMaxWidth().height(22.dp)
+                        )
+                    }
+                }
+                when {
+                    dictation != null && dictation.active -> DictationStopButton(
+                        transcribing = dictation.state.isTranscribing,
+                        glyph = Color.White,
+                        onStop = dictation.stop,
+                        seat = 34.dp
+                    )
+
+                    dictation != null && !draft.hasContent && !sending -> DictationMicDisc(
+                        ground = colors.tint,
+                        glyph = Color.White,
+                        onClick = dictation.start,
+                        seat = 34.dp,
+                        disc = 27.dp
+                    )
+
+                    else -> {
+                        if (dictation != null && !stripShown && !sending) {
+                            DictationGhostMic(
+                                color = colors.secondaryLabel,
+                                onClick = dictation.start,
+                                seat = 34.dp
+                            )
+                        }
+                        SendButton(
+                            sending = sending,
+                            hasContent = draft.hasContent,
+                            enabled = canSend,
+                            onSend = actions.send
+                        )
+                    }
                 }
             }
         }
-        Row(
-            Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.Bottom
-        ) {
-            AttachMenu(actions)
-            Box(
-                Modifier
-                    .weight(1f)
-                    .background(colors.secondarySystemBackground, RoundedCornerShape(18.dp))
-                    .padding(horizontal = 12.dp, vertical = 8.dp)
-            ) {
-                PlainTextField(
-                    value = draft.text,
-                    onValueChange = actions.setText,
-                    placeholder = stringResource(R.string.notes_composer_placeholder),
-                    keyboardOptions = KeyboardOptions(
-                        capitalization = KeyboardCapitalization.Sentences
-                    ),
-                    maxLines = MAX_LINES,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .onPreviewKeyEvent { event ->
-                            val sends = event.sendsNote
-                            val down = event.nativeKeyEvent.action == NativeKeyEvent.ACTION_DOWN
-                            if (sends && down && canSend) actions.send()
-                            sends
-                        }
-                )
-            }
-            SendButton(
-                sending = sending,
-                hasContent = draft.hasContent,
-                enabled = canSend,
-                onSend = actions.send
-            )
-        }
+        ComposerToast(
+            text = draft.warning,
+            onDismiss = actions.dismissWarning,
+            modifier = Modifier.align(Alignment.TopCenter)
+        )
     }
 }
 

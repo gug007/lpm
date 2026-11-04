@@ -3,6 +3,7 @@ package cx.lpm.mobile.feature.terminal.composer
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.snapshots.Snapshot
 import cx.lpm.mobile.core.data.commands.LpmCommandsStore
+import cx.lpm.mobile.core.data.dictation.DictationStore
 import cx.lpm.mobile.core.data.git.GitStore
 import cx.lpm.mobile.core.data.services.ServiceLogsStore
 import cx.lpm.mobile.core.data.session.SessionStore
@@ -71,7 +72,8 @@ class ComposerLpmCommandsTest {
         )
         val vm = ComposerViewModel(
             ComposerTarget("t1", "storefront", "Claude", SessionKey.Live),
-            t.sessions
+            t.sessions,
+            DictationStore(makeEngine = { FakeDictationEngine() })
         )
         backgroundScope.launch { vm.uiState.collect {} }
         testScheduler.runCurrent()

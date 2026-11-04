@@ -183,6 +183,7 @@
 
     <!-- Project menu -->
     <string name="menu_actions">Actions</string>
+    <string name="menu_find_in_terminal">Find in Terminal</string>
     <string name="menu_stop">Stop</string>
     <string name="menu_start">Start</string>
     <string name="menu_review_changes">Review Changes</string>

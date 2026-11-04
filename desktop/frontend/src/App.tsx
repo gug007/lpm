@@ -363,8 +363,8 @@ export default function App() {
             </div>
           )}
           {settingsLayoutShown && <Settings onNavigate={navigateSettings} />}
-          {isStatsView && <StatsView />}
-          {isPortsView && <PortsView />}
+          {isStatsView && <StatsView sidebarCollapsed={sidebarCollapsed} />}
+          {isPortsView && <PortsView sidebarCollapsed={sidebarCollapsed} />}
           {isScheduledView && <ScheduledView />}
           {view === "shared" && <SharedTabView />}
           {view === "claude-statusline" && (
