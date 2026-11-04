@@ -228,6 +228,7 @@ mod tests {
                 run,
                 ..Default::default()
             },
+            home: String::new(),
         }
     }
 

@@ -325,6 +325,7 @@ macro_rules! all_command_handlers {
             peer_host_set_agent_files,
             peer_agent_files_set,
             peer_agent_requests,
+            agent_mention_computers,
             peer_agent_answer,
             peer_host_respond_pairing,
             peer_dispatch_reply,

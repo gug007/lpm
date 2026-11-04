@@ -1,11 +1,15 @@
 package cx.lpm.mobile.feature.terminal.composer
 
 import cx.lpm.mobile.core.model.GitBranch
+import cx.lpm.mobile.core.model.MentionComputer
 import cx.lpm.mobile.core.model.MentionEntry
+import cx.lpm.mobile.core.model.MentionPlace
 import cx.lpm.mobile.core.model.ServiceInfo
 import cx.lpm.mobile.core.model.SlashCommand
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ComposerTriggersTest {
@@ -61,6 +65,44 @@ class ComposerTriggersTest {
         val app = mentionResults("app", entries, branches, services)
         assertEquals(listOf("app-redesign"), app.branches.map { it.name })
         assertEquals(emptyList<ServiceInfo>(), app.services)
+    }
+
+    @Test
+    fun `places on other computers match by label, path or computer name`() {
+        fun place(label: String, path: String) = MentionPlace(label, path, "$path (elsewhere)")
+        val computers = listOf(
+            MentionComputer(
+                "Mac mini",
+                "commands",
+                listOf(
+                    place("storefront", "Mac mini:~/storefront"),
+                    place("Home folder", "Mac mini:~")
+                )
+            ),
+            MentionComputer(
+                "build-box",
+                "off · turn on in Connections",
+                listOf(place("api", "/srv/api"))
+            )
+        )
+        fun matches(query: String) =
+            mentionResults(query, emptyList(), emptyList(), emptyList(), computers)
+                .computers.map { c -> c.name to c.places.map { it.label } }
+
+        assertEquals(
+            listOf("Mac mini" to listOf("storefront", "Home folder"), "build-box" to listOf("api")),
+            matches("")
+        )
+        assertEquals(listOf("Mac mini" to listOf("storefront")), matches("STORE"))
+        assertEquals(listOf("build-box" to listOf("api")), matches("srv"))
+        assertEquals(listOf("Mac mini" to listOf("storefront", "Home folder")), matches("mini"))
+        assertEquals(emptyList<Pair<String, List<String>>>(), matches("nothing"))
+        assertTrue(
+            mentionResults("nothing", emptyList(), emptyList(), emptyList(), computers).isEmpty
+        )
+        assertFalse(
+            mentionResults("home", emptyList(), emptyList(), emptyList(), computers).isEmpty
+        )
     }
 
     @Test

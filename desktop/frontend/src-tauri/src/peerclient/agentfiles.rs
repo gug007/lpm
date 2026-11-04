@@ -25,6 +25,8 @@ pub(crate) struct Computer {
     /// Its lpm runs this one's agents' commands (`lpm exec --on`).
     pub runs: bool,
     pub policy: Policy,
+    /// Its home folder as it writes paths (`ready`'s `hostHome`); empty when unknown.
+    pub home: String,
 }
 
 pub(crate) fn computers(hub: &PeerClientHub) -> Vec<Computer> {
@@ -43,6 +45,9 @@ pub(crate) fn computers(hub: &PeerClientHub) -> Vec<Computer> {
                 supported: live.is_some_and(|c| c.supports_agent_files.load(Ordering::Relaxed)),
                 runs: live.is_some_and(|c| c.supports_agent_exec.load(Ordering::Relaxed)),
                 policy: conn.map_or_else(Policy::default, |c| *c.agent_policy.lock().unwrap()),
+                home: conn
+                    .map(|c| c.host_home.lock().unwrap().clone())
+                    .unwrap_or_default(),
             }
         })
         .collect()
@@ -91,6 +96,29 @@ pub(crate) fn take_computer(name: &str, computers: &mut Vec<Computer>) -> Result
         None => Err(format!(
             "no computer called \"{name}\" is connected to this one. `lpm connections` lists them"
         )),
+    }
+}
+
+/// Whether `prefix`, the part of `NAME:PATH` before the colon, names a
+/// computer: one letter is a Windows drive, and a `/` or `\` makes it a path here.
+pub(crate) fn names_computer(prefix: &str) -> bool {
+    let drive = prefix.len() == 1 && prefix.chars().all(|c| c.is_ascii_alphabetic());
+    !drive && !prefix.contains(['/', '\\'])
+}
+
+/// What an agent here names `c` by in `NAME:PATH` so `lpm exec --on` and
+/// `lpm cp` reach it and no other: its name, or its slug when another of `all`
+/// reads the same or the name can't stand before `:PATH`.
+pub(crate) fn reach_name<'a>(c: &'a Computer, all: &[Computer]) -> &'a str {
+    let name = c.name.trim();
+    let mine = normalized(name);
+    let shared = all
+        .iter()
+        .any(|o| o.slug != c.slug && (normalized(&o.name) == mine || o.slug == name));
+    if mine.is_empty() || shared || name.contains(':') || !names_computer(name) {
+        &c.slug
+    } else {
+        name
     }
 }
 
@@ -145,6 +173,7 @@ mod tests {
             supported: true,
             runs: true,
             policy: Default::default(),
+            home: String::new(),
         }
     }
 
@@ -164,6 +193,24 @@ mod tests {
         assert_eq!(find_computer("nas", &list), Ok(None));
         let twins = vec![computer("a", "mac mini 1"), computer("b", "mac mini 2")];
         assert!(find_computer("mini", &twins).is_err());
+    }
+
+    #[test]
+    fn a_computer_is_reached_by_a_name_only_it_has() {
+        let all = vec![
+            computer("a1", "MacBook Pro"),
+            computer("b2", "macbook-pro"),
+            computer("c3", "Mac mini"),
+            computer("d4", "box:2"),
+            computer("e5", "E"),
+            computer("f6", "build/box"),
+            computer("g7", "日本"),
+        ];
+        let reach: Vec<&str> = all.iter().map(|c| reach_name(c, &all)).collect();
+        assert_eq!(reach, ["a1", "b2", "Mac mini", "d4", "e5", "f6", "g7"]);
+        for (i, name) in reach.iter().enumerate() {
+            assert_eq!(find_computer(name, &all), Ok(Some(i)), "{name}");
+        }
     }
 
     #[test]

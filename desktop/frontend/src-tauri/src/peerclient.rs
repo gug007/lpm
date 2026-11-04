@@ -27,7 +27,9 @@ mod agentfiles;
 mod phone;
 mod removal;
 mod share;
-pub(crate) use agentfiles::{computers, peer_agent_files_set, take_computer, Computer};
+pub(crate) use agentfiles::{
+    computers, names_computer, peer_agent_files_set, reach_name, take_computer, Computer,
+};
 pub(crate) use phone::PhoneChannelError;
 pub(crate) use removal::PendingForget;
 use removal::Tell;
@@ -133,6 +135,7 @@ struct PeerConn {
     supports_agent_files: AtomicBool, // agents here may copy files there, as far as it allows (agentcp.rs)
     supports_agent_exec: AtomicBool, // ...and run commands there, when it allows (agentexec.rs)
     agent_policy: Mutex<crate::agentfiles::Policy>, // ...what it allows them, as it last said
+    host_home: Mutex<String>, // its home folder as it writes paths; empty when it didn't say
     // The phones this Mac is relaying to the host, by channel: where the frames
     // the host sends each one go.
     phones: Mutex<HashMap<u64, SyncSender<String>>>,
@@ -212,6 +215,7 @@ impl PeerConn {
             supports_agent_files: AtomicBool::new(false),
             supports_agent_exec: AtomicBool::new(false),
             agent_policy: Mutex::new(Default::default()),
+            host_home: Mutex::new(String::new()),
             phones: Mutex::new(HashMap::new()),
             in_run: AtomicBool::new(false),
             health: Default::default(),
@@ -2486,6 +2490,12 @@ fn connect_session(
         .filter(|_| !guest)
         .and_then(|p| serde_json::from_value(p.clone()).ok())
         .unwrap_or_default();
+    *conn.host_home.lock().unwrap() = rv
+        .get("hostHome")
+        .filter(|_| !guest)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
 
     let (tx, rx) = mpsc::sync_channel::<String>(OUT_QUEUE);
     *conn.out.lock().unwrap() = Some(tx);

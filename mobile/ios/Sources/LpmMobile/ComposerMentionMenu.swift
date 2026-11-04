@@ -1,16 +1,19 @@
 import SwiftUI
 
 /// Grouped @-mention autocomplete, ordered like the desktop: working-tree changes,
-/// then files/dirs, then git branches (once a fragment is typed), then context
-/// sources — this terminal's output and per-service logs, which inject inline.
+/// then other computers' places, files/dirs, git branches (once a fragment is
+/// typed), then context sources — this terminal's output and per-service logs,
+/// which inject inline.
 struct ComposerMentionMenu: View {
     @Environment(AppModel.self) private var model
     let project: String
     let changed: [MentionEntry]
+    let computers: [MentionComputer]
     let files: [MentionEntry]
     let branches: [GitBranch]
     let services: [ServiceInfo]
     let pickPath: (String) -> Void
+    let pickPlace: (MentionPlace) -> Void
     let pickBranch: (String) -> Void
     let includeTerminalOutput: Bool
     let pickTerminalOutput: () -> Void
@@ -27,6 +30,13 @@ struct ComposerMentionMenu: View {
                 if !changed.isEmpty {
                     MenuSectionHeading("Changes")
                     ForEach(changed) { e in pathRow(e) }
+                }
+                ForEach(computers) { c in
+                    MenuSectionHeading(c.heading)
+                    ForEach(c.places) { p in
+                        contextRow(icon: "desktopcomputer", title: p.label,
+                                   subtitle: p.path, action: { pickPlace(p) })
+                    }
                 }
                 if !files.isEmpty {
                     MenuSectionHeading("Files")
@@ -117,6 +127,7 @@ struct ComposerMentionMenu: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title).font(.system(size: 14)).foregroundStyle(.primary).lineLimit(1)
                     Text(subtitle).font(.system(size: 11)).foregroundStyle(.secondary)
+                        .lineLimit(1).truncationMode(.middle)
                 }
                 Spacer(minLength: 8)
             }

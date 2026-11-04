@@ -1,7 +1,7 @@
 package cx.lpm.mobile.core.demo
 
 // The terminal engine's fixtures: the seeded screens, prompts, slash commands, and each
-// demo project's file tree (for `ls` and @-mentions).
+// demo project's file tree (for `ls` and @-mentions), and the computer `storefront` reaches.
 
 internal const val RESET = "\u001B[0m"
 internal const val BOLD = "\u001B[1m"
@@ -155,6 +155,24 @@ internal fun DemoServer.mentionEntries(project: String): List<Dict> {
         entries.add(mapOf("path" to path, "dir" to false, "changed" to true))
     }
     return entries
+}
+
+/** The paired computer the demo's main project offers in the @ menu; null for the others. */
+internal fun mentionComputers(project: String): List<Dict>? {
+    if (project != "storefront") return null
+    fun place(label: String, path: String): Dict = mapOf(
+        "label" to label,
+        "path" to path,
+        "insert" to "$path (on another computer; reach it with lpm exec --on and lpm cp)"
+    )
+    return listOf(
+        mapOf(
+            "name" to "Mac mini",
+            "access" to "commands · copy from it",
+            "places" to
+                listOf(place(project, "Mac mini:~/$project"), place("Home folder", "Mac mini:~"))
+        )
+    )
 }
 
 internal fun DemoServer.lsOutput(project: String): String {

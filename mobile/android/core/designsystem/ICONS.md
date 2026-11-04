@@ -58,7 +58,7 @@ the iPhone screenshots). An icon-only control keeps the accessible name iOS give
 | `qrcode.viewfinder` | `qr_code_scanner` | 24 dp | "Scan QR code" | |
 | `keyboard` | `keyboard_alt` | 24 dp | "Enter a code" | |
 | `lock.shield` | `shield_lock` | 24 dp | Local Network access off | |
-| `desktopcomputer` | `desktop_mac` | 26 dp, 22 dp in menus and headers | nearby Mac, saved Mac, Mac switcher row, machine section header | |
+| `desktopcomputer` | `desktop_mac` | 26 dp, 22 dp in menus and headers, 17 dp in the @ menu | nearby Mac, saved Mac, Mac switcher row, machine section header, a place on another computer in the @ menu | |
 | `hourglass` | `hourglass` | 44 dp | "Mac is busy" | |
 | `exclamationmark.triangle` | `warning` | 44 dp | "Address not usable", fallback issue icon | |
 | `hand.raised.slash` | `do_not_touch` | 44 dp | "Pairing declined" | |

@@ -155,6 +155,23 @@ class ComposerViewModelTest {
     }
 
     @Test
+    fun `a place on another computer goes in verbatim without an at sign`() = runTest {
+        val s = setup()
+        s.socket.receive(
+            """{"t":"mentions","project":"storefront","entries":[],""" +
+                """"computers":[{"name":"Mac mini","access":"commands",""" +
+                """"places":[{"label":"Home folder","path":"Mac mini:~",""" +
+                """"insert":"Mac mini:~ (on another computer)"}]}]}"""
+        )
+        type(s.vm, "copy it to @hom")
+        val place = s.vm.uiState.value.mentions.computers.single().places.single()
+        assertTrue(s.vm.uiState.value.showsMentionMenu)
+        s.vm.pickPlace(place)
+        testScheduler.runCurrent()
+        assertEquals("copy it to Mac mini:~ (on another computer) ", s.vm.input.text.toString())
+    }
+
+    @Test
     fun `branches join the mentions once a fragment is typed`() = runTest {
         val s = setup()
         s.vm.onAppear()

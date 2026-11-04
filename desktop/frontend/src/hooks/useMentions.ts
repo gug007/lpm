@@ -2,10 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { GitChangedFiles, GitRecentCommits, ListBranches, ListDirFiles } from "../../bridge/commands";
 import { useAppStore } from "../store/app";
 import { useBranchPr } from "../store/branchPr";
-import { isDuplicate } from "../types";
+import { isDuplicate, type ProjectInfo } from "../types";
 import { mentionGroup, rankMentions, type MentionItem } from "../mentions";
 import { toSlash, windowsRules } from "../path";
 import { findParentProject, projectDisplayName } from "../components/ProjectNameDisplay";
+import { isPeerRoot } from "../peer/markers";
+import { useComputerMentions } from "./useComputerMentions";
+import { runsHere } from "../computerMentions";
 
 const RECENT_COMMITS = 20;
 
@@ -26,9 +29,25 @@ interface BranchEntry {
   remote?: string;
 }
 
+// The Projects group's rows: projects here only. Another computer's project
+// carries a peer-marked root an agent here can't use; its computer's row offers
+// it instead.
+export function projectMentionItems(projects: ProjectInfo[]): MentionItem[] {
+  const present = new Set(projects.map((p) => p.name));
+  return projects
+    .filter((p) => !isPeerRoot(p.root))
+    .map((p) => ({
+      kind: isDuplicate(p, present) ? "duplicate" : "project",
+      label: projectDisplayName(p, findParentProject(p, projects)),
+      insert: p.root,
+      detail: p.root,
+    }));
+}
+
 // Sources the "@" autocomplete: the live project list (projects + duplicates),
 // the target project's running services, and the composer's own terminal — all
-// read from in-memory state — a listing of the terminal's working dir, and, when
+// read from in-memory state — the other computers an agent in a project here
+// can reach (useComputerMentions), a listing of the terminal's working dir, and, when
 // the cwd is a git repo, its working-tree changes, branches, recent commits, the
 // whole uncommitted diff, and the branch's pull request. The backend-backed
 // sources are re-read each time the editor regains focus (via the returned
@@ -58,6 +77,8 @@ export function useMentions(
     () => projects.find((p) => p.name === projectName),
     [projects, projectName],
   );
+  const computers = useComputerMentions(active && runsHere(project));
+  const refreshComputers = computers.refresh;
   const [files, setFiles] = useState<MentionItem[]>([]);
   const [changed, setChanged] = useState<MentionItem[]>([]);
   const [branches, setBranches] = useState<MentionItem[]>([]);
@@ -195,23 +216,16 @@ export function useMentions(
   // the current generation so a fetch already running for this cwd is not
   // duplicated, and keeps the shown lists in place until fresh data replaces them.
   const refresh = useCallback(() => {
+    refreshComputers();
     if (!active || !cwd) return;
     const gen = generation.current;
     loadChanged(cwd, gen);
     loadFiles(cwd, gen);
     loadBranches(cwd, gen);
     loadCommits(cwd, gen);
-  }, [active, cwd, loadChanged, loadFiles, loadBranches, loadCommits]);
+  }, [active, cwd, loadChanged, loadFiles, loadBranches, loadCommits, refreshComputers]);
 
-  const projectItems = useMemo<MentionItem[]>(() => {
-    const present = new Set(projects.map((p) => p.name));
-    return projects.map((p) => ({
-      kind: isDuplicate(p, present) ? "duplicate" : "project",
-      label: projectDisplayName(p, findParentProject(p, projects)),
-      insert: p.root,
-      detail: p.root,
-    }));
-  }, [projects]);
+  const projectItems = useMemo(() => projectMentionItems(projects), [projects]);
 
   // One entry per running service. Only a running project has live panes,
   // and a service's index here is the pane index GetServiceLogs captures by — the
@@ -289,11 +303,12 @@ export function useMentions(
     () =>
       [
         mentionGroup("project", "Projects", "project", projectItems),
+        ...computers.groups,
         mentionGroup("service-log", "Services", "service", serviceItems),
         mentionGroup("terminal-log", "Terminals", "terminal", terminalItems),
         mentionGroup("commit", "Commits", "commit", commits),
       ].filter((g): g is MentionItem => g !== null),
-    [projectItems, terminalItems, serviceItems, commits],
+    [projectItems, computers.groups, terminalItems, serviceItems, commits],
   );
   const barePool = useMemo(
     () => [...gitRows, ...changed, ...extraItems, ...groupRows, ...plainFiles],
@@ -305,13 +320,25 @@ export function useMentions(
       ...changed,
       ...searchItems,
       ...projectItems,
+      ...computers.places,
       ...terminalItems,
       ...serviceItems,
       ...plainFiles,
       ...branches,
       ...commits,
     ],
-    [gitRows, changed, searchItems, projectItems, terminalItems, serviceItems, plainFiles, branches, commits],
+    [
+      gitRows,
+      changed,
+      searchItems,
+      projectItems,
+      computers.places,
+      terminalItems,
+      serviceItems,
+      plainFiles,
+      branches,
+      commits,
+    ],
   );
 
   const filter = useCallback(

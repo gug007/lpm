@@ -222,10 +222,9 @@ pub(crate) fn ask(app: &AppHandle, req: Request) -> Result<Decision, String> {
         let (title, body) = req.what.notice(&req.machine);
         crate::statusnotify::notify(app, title, &body);
     }
-    let answer = rx.recv_timeout(WAIT);
-    pending().lock().unwrap().retain(|p| p.req.id != id);
-    let _ = app.emit(REQUEST_EVENT, ());
-    answer.map_err(|_| {
+    rx.recv_timeout(WAIT).map_err(|_| {
+        pending().lock().unwrap().retain(|p| p.req.id != id);
+        let _ = app.emit(REQUEST_EVENT, ());
         format!(
             "nobody answered in lpm within 5 minutes, so {}",
             req.what.words().1
@@ -260,18 +259,26 @@ pub fn peer_agent_answer(app: AppHandle, id: String, decision: String) -> Result
         "tab" => Decision::Tab,
         _ => Decision::Deny,
     };
-    let list = pending().lock().unwrap();
-    let Some(p) = list.iter().find(|p| p.req.id == id) else {
+    take_answer(&id, decision)?;
+    let _ = app.emit(REQUEST_EVENT, ());
+    Ok(())
+}
+
+/// Hands `decision` to the request's waiting side and takes the request off the
+/// list in the same step, so the list the dialog reads on this answer's event no
+/// longer holds it, however long the waiting side takes to wake.
+fn take_answer(id: &str, decision: Decision) -> Result<(), String> {
+    let mut list = pending().lock().unwrap();
+    let Some(i) = list.iter().position(|p| p.req.id == id) else {
         return Err("that request is gone".into());
     };
+    let p = list.remove(i);
     let decision = if decision == Decision::Tab && !p.req.tab_grant {
         Decision::Once
     } else {
         decision
     };
     let _ = p.answer.try_send(decision);
-    drop(list);
-    let _ = app.emit(REQUEST_EVENT, ());
     Ok(())
 }
 
@@ -336,6 +343,29 @@ mod tests {
             (Some("copy"), Some(""))
         );
         assert_eq!(v["tabGrant"], false);
+    }
+
+    #[test]
+    fn an_answered_request_leaves_the_list_at_once() {
+        let who = Caller {
+            tab: Some(("tab-answer".into(), 11)),
+            agent: "Claude".into(),
+        };
+        let run = What::Run {
+            command: "npm test".into(),
+            cwd: "Studio:~".into(),
+        };
+        let req = Request::new(&who, "app", "Studio", run, false);
+        let id = req.id.clone();
+        let (tx, rx) = sync_channel(1);
+        pending().lock().unwrap().push(Pending { req, answer: tx });
+        take_answer(&id, Decision::Tab).unwrap();
+        assert!(
+            pending().lock().unwrap().iter().all(|p| p.req.id != id),
+            "still listed after its answer"
+        );
+        assert_eq!(rx.try_recv().unwrap(), Decision::Once, "no tab grant offered");
+        assert!(take_answer(&id, Decision::Once).is_err(), "answered twice");
     }
 
     #[test]

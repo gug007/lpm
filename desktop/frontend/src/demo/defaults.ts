@@ -71,7 +71,7 @@ const NULL: string[] = [
 ];
 
 const EMPTY_LIST: string[] = [
-  "agent_recent_answers", "check_action_port_conflict", "check_port_conflicts",
+  "agent_mention_computers", "agent_recent_answers", "check_action_port_conflict", "check_port_conflicts",
   "check_port_conflicts_for_services", "duplicate_projects", "follow_list", "get_suggested_ports",
   "git_changed_files_ref", "git_changed_files_staged", "git_discarded", "git_log_branch", "git_recent_commits", "git_merge_conflicts",
   "list_agent_commands", "list_detached_projects", "list_monospace_fonts", "list_open_in_targets",

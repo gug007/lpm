@@ -142,8 +142,11 @@ extension DemoServer {
         }
         register("mentions") { [weak self] o in
             guard let self, let project = o["project"] as? String else { return }
-            self.push(["t": "mentions", "project": project,
-                       "entries": self.mentionEntries(project)])
+            var reply: [String: Any] = ["t": "mentions", "project": project,
+                                        "entries": self.mentionEntries(project)]
+            let computers = self.mentionComputers(project)
+            if !computers.isEmpty { reply["computers"] = computers }
+            self.push(reply)
         }
         register("upload") { [weak self] o in
             guard let self, let id = o["id"] as? String else { return }

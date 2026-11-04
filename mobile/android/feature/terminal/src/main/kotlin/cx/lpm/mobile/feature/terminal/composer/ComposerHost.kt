@@ -141,6 +141,10 @@ internal fun ComposerHost(
                     viewModel.pickBranch(it)
                     focusField = true
                 },
+                pickPlace = {
+                    viewModel.pickPlace(it)
+                    focusField = true
+                },
                 previewFile = mode.onPreviewFile,
                 pickTerminalOutput = {
                     viewModel.pickTerminalOutput()

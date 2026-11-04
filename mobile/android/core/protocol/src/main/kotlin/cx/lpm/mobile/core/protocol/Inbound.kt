@@ -35,6 +35,7 @@ import cx.lpm.mobile.core.model.MacUpdateStep
 import cx.lpm.mobile.core.model.MachinePairOffer
 import cx.lpm.mobile.core.model.MemoryList
 import cx.lpm.mobile.core.model.MemorySession as MemoryDoc
+import cx.lpm.mobile.core.model.MentionComputer
 import cx.lpm.mobile.core.model.MentionEntry
 import cx.lpm.mobile.core.model.NoteChat
 import cx.lpm.mobile.core.model.NoteMessage
@@ -132,7 +133,12 @@ sealed interface Inbound {
     data class TtsSpeak(val reqId: String, val audio: String?, val error: String?) : Inbound
     data class Terminals(val project: String, val terminals: List<TerminalInfo>) : Inbound
     data class Slash(val id: String, val commands: List<SlashCommand>) : Inbound
-    data class Mentions(val project: String, val entries: List<MentionEntry>) : Inbound
+    data class Mentions(
+        val project: String,
+        val entries: List<MentionEntry>,
+        // Other computers an agent in this project can reach; only for a local project.
+        val computers: List<MentionComputer> = emptyList()
+    ) : Inbound
     data class History(val project: String, val rows: List<HistoryRow>) : Inbound
     data class Upload(val id: String, val reqId: String, val path: String) : Inbound
     data class UploadStep(val step: UploadReply) : Inbound

@@ -140,7 +140,7 @@ First client frame within 20s, or the host closes the socket.
   entry instead of listing the host twice. The client also drops any other entry
   with the same `hostId` once paired. An older host ignores the field.
 - **Resume** (already paired): client → `{ "t": "auth", "deviceId", "token" }`
-  host → `{ "t": "ready", "hostName", "hostPlatform", "hostHeadless", "hostVersion", "phoneServerId", "hostAddrs", "features": ["configSync", "configSync2"] }`
+  host → `{ "t": "ready", "hostName", "hostPlatform", "hostHeadless", "hostHome", "hostVersion", "phoneServerId", "hostAddrs", "features": ["configSync", "configSync2"] }`
 - On failure either returns `{ "t": "error", "error" }` and the host closes.
   `error` is `revoked` when the host removed this device itself (Remove access,
   remembered in `host.revoked`, newest 64): the client drops the host's entry
@@ -173,6 +173,12 @@ offers to update or remove lpm on over SSH. A build that predates it omits it,
 and the client stores it as unknown (`headless: null`) on every `ready` that
 lacks it: unknown on a `linux` peer means a host, since Linux only ran headless
 before desktops shipped. Older clients ignore the field.
+
+`hostHome` is the host account's home folder as the host writes paths
+(`/Users/me`, `C:\Users\me`; empty when unknown). The client keeps it on the
+connection and shows the host's projects inside it as `~/…` in the composer's
+"@" menu, the form `lpm exec --on` and `lpm cp` read there (`agentmentions.rs`).
+A build that predates it omits it, and the client shows absolute paths.
 
 `phoneServerId` is the `serverId` the host's mobile server gives phones (see
 `mobile/PROTOCOL.md`). The client stores it on the peer entry so a phone connected

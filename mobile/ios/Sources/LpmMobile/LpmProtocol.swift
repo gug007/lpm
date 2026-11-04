@@ -690,7 +690,7 @@ enum Wire {
         case slash(id: String, [SlashCommand])
         /// A terminal agent's recent answers, newest first; nil `answers` on failure.
         case answers(id: String, reqId: String, answers: [RecentAnswer]?, error: String?)
-        case mentions(project: String, [MentionEntry])
+        case mentions(project: String, [MentionEntry], computers: [MentionComputer])
         case history(project: String, [HistoryRow])
         case upload(id: String, reqId: String, path: String)
         case uploadStep(UploadStep)
@@ -979,7 +979,8 @@ enum Wire {
                                 error: ok ? nil : (obj["error"] as? String ?? "Couldn't read the agent's answers."))
             case "mentions":
                 return .mentions(project: obj["project"] as? String ?? "",
-                                 (obj["entries"] as? [[String: Any]] ?? []).map(MentionEntry.init))
+                                 (obj["entries"] as? [[String: Any]] ?? []).map(MentionEntry.init),
+                                 computers: (obj["computers"] as? [[String: Any]] ?? []).map(MentionComputer.init))
             case "history":
                 return .history(project: obj["project"] as? String ?? "",
                                 (obj["rows"] as? [[String: Any]] ?? []).map(HistoryRow.init))

@@ -96,26 +96,17 @@ pub(crate) fn notify_changed(app: &AppHandle) {
 
 fn machines_frame(hub: &PeerClientHub) -> Value {
     let machines = hub.phone_machines();
-    let projects: Vec<Option<Vec<Value>>> = std::thread::scope(|s| {
-        let asks: Vec<_> = machines
-            .iter()
-            .map(|m| s.spawn(|| machine_projects(hub, m)))
-            .collect();
-        asks.into_iter()
-            .map(|ask| ask.join().ok().flatten())
-            .collect()
-    });
-    let settings = crate::config::load_settings();
+    let slugs: Vec<Option<&str>> = machines
+        .iter()
+        .map(|m| m.connected.then_some(m.entry.slug.as_str()))
+        .collect();
     let list: Vec<Value> = machines
         .iter()
-        .zip(projects)
+        .zip(sidebar_projects(hub, &slugs, PROJECTS_TIMEOUT))
         .map(|(m, projects)| {
             let mut v = machine_json(m);
             if let Some(projects) = projects {
-                let order = settings
-                    .get("peerProjectOrder")
-                    .and_then(|o| o.get(&m.entry.slug));
-                v["projects"] = Value::Array(order_projects(projects, order));
+                v["projects"] = Value::Array(projects);
             }
             v
         })
@@ -123,20 +114,44 @@ fn machines_frame(hub: &PeerClientHub) -> Value {
     json!({ "t": "machines", "machines": list })
 }
 
-/// The machine's own project list, as it answers `list_projects` to this Mac's
-/// sidebar — or, while it doesn't answer, the last one it gave. None when it
-/// isn't connected or never answered.
-fn machine_projects(hub: &PeerClientHub, m: &PhoneMachine) -> Option<Vec<Value>> {
-    if !m.connected {
-        return None;
-    }
-    let slug = &m.entry.slug;
-    match hub.invoke_within(slug, "list_projects", json!({}), PROJECTS_TIMEOUT) {
+/// Each machine's project list (see [`projects_of`]), all asked at once, in the
+/// order this Mac's sidebar shows them. None for a slug left out (None) or a
+/// machine that never answered.
+pub(crate) fn sidebar_projects(
+    hub: &PeerClientHub,
+    slugs: &[Option<&str>],
+    timeout: Duration,
+) -> Vec<Option<Vec<Value>>> {
+    let lists: Vec<Option<Vec<Value>>> = std::thread::scope(|s| {
+        let asks: Vec<_> = slugs
+            .iter()
+            .map(|slug| s.spawn(move || slug.and_then(|slug| projects_of(hub, slug, timeout))))
+            .collect();
+        asks.into_iter()
+            .map(|ask| ask.join().ok().flatten())
+            .collect()
+    });
+    let settings = crate::config::load_settings();
+    slugs
+        .iter()
+        .zip(lists)
+        .map(|(slug, projects)| {
+            let order = slug.and_then(|slug| settings.get("peerProjectOrder")?.get(slug));
+            projects.map(|projects| order_projects(projects, order))
+        })
+        .collect()
+}
+
+/// Machine `slug`'s project list, as it answers `list_projects` to this Mac's
+/// sidebar — or, while it doesn't answer within `timeout`, the last one it
+/// gave. None when it never answered.
+fn projects_of(hub: &PeerClientHub, slug: &str, timeout: Duration) -> Option<Vec<Value>> {
+    match hub.invoke_within(slug, "list_projects", json!({}), timeout) {
         Ok(Value::Array(projects)) => {
             last_lists()
                 .lock()
                 .unwrap()
-                .insert(slug.clone(), (Instant::now(), projects.clone()));
+                .insert(slug.to_string(), (Instant::now(), projects.clone()));
             Some(projects)
         }
         _ => last_lists()

@@ -15,12 +15,10 @@ import {
   type LpmCommandLists,
 } from "../../lpmCommands";
 
-// What the Commands tab shows: the folder picked in its left column, the
-// commands in it, and the command being edited.
+// What the Commands tab shows: both lists as one tree of folders and
+// commands, and the command being edited.
 
-export const ALL_FOLDERS = "all";
-
-// "all", or "<scope>:<folder>" with an empty folder for No folder.
+// "<scope>:<folder>", with an empty folder for a command in no folder.
 export type FolderKey = string;
 
 export function folderKey(scope: CommandScope, folder: string | null): FolderKey {
@@ -36,37 +34,48 @@ export function parseFolderKey(key: FolderKey): { scope: CommandScope; folder: s
   return { scope, folder: folder || null };
 }
 
-export function inFolder(c: LpmCommand, key: FolderKey): boolean {
-  return key === ALL_FOLDERS || folderKey(c.scope, c.folder) === key;
+export interface TreeFolder {
+  name: string;
+  key: FolderKey;
+  commands: LpmCommand[];
 }
 
-// How many commands each folder holds, under its key and ALL_FOLDERS.
-export function folderCounts(lists: LpmCommandLists): Map<FolderKey, number> {
-  const counts = new Map<FolderKey, number>();
-  for (const c of allCommands(lists)) {
-    for (const key of [ALL_FOLDERS, folderKey(c.scope, c.folder)]) counts.set(key, (counts.get(key) ?? 0) + 1);
-  }
-  return counts;
+export interface TreeScope {
+  scope: CommandScope;
+  folders: TreeFolder[];
+  loose: LpmCommand[];
+  count: number;
 }
 
-export function visibleCommands(lists: LpmCommandLists, key: FolderKey, query: string): LpmCommand[] {
+function matches(c: LpmCommand, q: string): boolean {
+  return [c.name, c.description, c.body, c.folder ?? ""].some((s) => s.toLowerCase().includes(q));
+}
+
+// The tab's tree: each list with its folders and their commands, then the
+// commands in no folder. A search keeps only the commands it matches, the
+// folders holding them and the lists it found something in.
+export function commandTree(lists: LpmCommandLists, query: string): TreeScope[] {
   const q = query.trim().toLowerCase();
-  return allCommands(lists).filter(
-    (c) =>
-      inFolder(c, key) &&
-      (!q || [c.name, c.description, c.body, c.folder ?? ""].some((s) => s.toLowerCase().includes(q))),
-  );
+  return scopesOf(lists).flatMap((scope) => {
+    const list = scopeList(lists, scope)!;
+    const shown = q ? list.commands.filter((c) => matches(c, q)) : list.commands;
+    if (q && shown.length === 0) return [];
+    const folders = list.folders
+      .map((name) => ({ name, key: folderKey(scope, name), commands: shown.filter((c) => c.folder === name) }))
+      .filter((f) => !q || f.commands.length > 0);
+    return [
+      {
+        scope,
+        folders,
+        loose: shown.filter((c) => c.folder === null),
+        count: shown.length,
+      },
+    ];
+  });
 }
 
 export function scopeTitle(scope: CommandScope, projectLabel: string): string {
   return scope === "project" ? `This project · ${projectLabel}` : "Global";
-}
-
-export function folderTitle(key: FolderKey, projectLabel: string): string {
-  const parsed = parseFolderKey(key);
-  if (!parsed) return "All commands";
-  const where = parsed.scope === "project" ? projectLabel : "global";
-  return `${parsed.folder ?? "No folder"} · ${where}`;
 }
 
 // Where the file lives, as the user would find it.
@@ -80,6 +89,9 @@ export function commandPath(c: CommandRef): string {
 export function scopesOf(lists: LpmCommandLists): CommandScope[] {
   return SCOPES.filter((s) => s === "global" || lists.project !== null);
 }
+
+// A list and a folder in it (null for the top level).
+export type CommandPlace = Pick<CommandInput, "scope" | "folder">;
 
 export interface Draft extends CommandInput {
   // The saved command this edits; null for a new one.
@@ -97,10 +109,11 @@ export function draftOf(c: LpmCommand): Draft {
   };
 }
 
-export function newDraft(where: FolderKey, lists: LpmCommandLists, body = ""): Draft {
-  const parsed = parseFolderKey(where);
-  const scope: CommandScope = parsed?.scope ?? (lists.project ? "project" : "global");
-  return { original: null, scope, folder: parsed?.folder ?? null, name: "", description: "", body };
+// A new command in `where`, or at the top of the project's list (the global
+// one outside a project) when no place is given.
+export function newDraft(where: CommandPlace | null, lists: LpmCommandLists, body = ""): Draft {
+  const scope: CommandScope = where?.scope ?? (lists.project ? "project" : "global");
+  return { original: null, scope, folder: where?.folder ?? null, name: "", description: "", body };
 }
 
 export function isDirty(draft: Draft, lists: LpmCommandLists): boolean {

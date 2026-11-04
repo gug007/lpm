@@ -3,6 +3,7 @@ package cx.lpm.mobile.core.data.terminals
 import cx.lpm.mobile.core.model.ControlOwner
 import cx.lpm.mobile.core.model.HistoryRow
 import cx.lpm.mobile.core.model.LimitStop
+import cx.lpm.mobile.core.model.MentionComputer
 import cx.lpm.mobile.core.model.MentionEntry
 import cx.lpm.mobile.core.model.SlashCommand
 import cx.lpm.mobile.core.model.TerminalInfo
@@ -55,6 +56,8 @@ data class TerminalsState(
     val slashCommands: Map<String, List<SlashCommand>> = emptyMap(),
     /** project → @-mention targets. */
     val mentions: Map<String, List<MentionEntry>> = emptyMap(),
+    /** project → the other computers an agent there can reach, for the @-mention menu. */
+    val mentionComputers: Map<String, List<MentionComputer>> = emptyMap(),
     /** project → recently sent prompts (drafts left out). */
     val history: Map<String, List<HistoryRow>> = emptyMap(),
     /**

@@ -1,6 +1,7 @@
 package cx.lpm.mobile.feature.terminal.composer
 
 import cx.lpm.mobile.core.model.GitBranch
+import cx.lpm.mobile.core.model.MentionComputer
 import cx.lpm.mobile.core.model.MentionEntry
 import cx.lpm.mobile.core.model.ServiceInfo
 import cx.lpm.mobile.core.model.SlashCommand
@@ -47,15 +48,19 @@ internal fun mentionQuery(text: String): String? {
     return fragment.takeIf { f -> f.none { it.isWhitespace() || it == '@' } }
 }
 
-/** The @-mention menu's rows for a fragment: files (changes first), branches, running services. */
+/**
+ * The @-mention menu's rows for a fragment: files (changes first), places on other
+ * computers, branches, running services.
+ */
 data class MentionResults(
     val changed: List<MentionEntry> = emptyList(),
+    val computers: List<MentionComputer> = emptyList(),
     val files: List<MentionEntry> = emptyList(),
     val branches: List<GitBranch> = emptyList(),
     val services: List<ServiceInfo> = emptyList()
 ) {
-    val isEmpty: Boolean get() = changed.isEmpty() && files.isEmpty() && branches.isEmpty() &&
-        services.isEmpty()
+    val isEmpty: Boolean get() = changed.isEmpty() && computers.isEmpty() && files.isEmpty() &&
+        branches.isEmpty() && services.isEmpty()
 }
 
 private const val MENTION_FILES = 50
@@ -65,7 +70,8 @@ internal fun mentionResults(
     query: String,
     entries: List<MentionEntry>,
     branches: List<GitBranch>,
-    services: List<ServiceInfo>
+    services: List<ServiceInfo>,
+    computers: List<MentionComputer> = emptyList()
 ): MentionResults {
     val hits = if (query.isEmpty()) {
         entries
@@ -78,6 +84,7 @@ internal fun mentionResults(
     val running = services.filter { it.running && it.paneIndex != null }
     return MentionResults(
         changed = shown.filter { it.changed },
+        computers = computers.matching(query),
         files = shown.filterNot { it.changed },
         // Branches only surface once a fragment is typed, as on the desktop.
         branches = if (query.isEmpty()) {
@@ -93,6 +100,19 @@ internal fun mentionResults(
             }
         }
     )
+}
+
+/** Each computer with the places whose label, path or computer name hold [query]; empty ones go. */
+private fun List<MentionComputer>.matching(query: String): List<MentionComputer> {
+    if (query.isEmpty()) return filter { it.places.isNotEmpty() }
+    return mapNotNull { computer ->
+        val named = computer.name.contains(query, ignoreCase = true)
+        val places = computer.places.filter {
+            named || it.label.contains(query, ignoreCase = true) ||
+                it.path.contains(query, ignoreCase = true)
+        }
+        if (places.isEmpty()) null else computer.copy(places = places)
+    }
 }
 
 /** Text up to the last `marker`, then `replacement` — completing a "/" or "@" fragment. */

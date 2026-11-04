@@ -75,8 +75,13 @@ class TerminalsStore(internal val session: MacSession) : SessionStore {
         c.onSlash = { id, commands ->
             mutable.update { it.copy(slashCommands = it.slashCommands + (id to commands)) }
         }
-        c.onMentions = { project, entries ->
-            mutable.update { it.copy(mentions = it.mentions + (project to entries)) }
+        c.onMentions = { project, entries, computers ->
+            mutable.update {
+                it.copy(
+                    mentions = it.mentions + (project to entries),
+                    mentionComputers = it.mentionComputers + (project to computers)
+                )
+            }
         }
         c.onHistory = { project, rows ->
             mutable.update {

@@ -39,6 +39,34 @@ data class MentionEntry(val path: String, val dir: Boolean, val changed: Boolean
 }
 
 /**
+ * A paired computer an agent here can reach (`lpm exec --on`, `lpm cp`), with what
+ * its policy allows ([access]) and the places on it the @ menu offers.
+ */
+data class MentionComputer(val name: String, val access: String, val places: List<MentionPlace>) {
+    companion object {
+        fun parse(o: JsonObject): MentionComputer = MentionComputer(
+            name = o.string("name").orEmpty(),
+            access = o.string("access").orEmpty(),
+            places = o.list("places", MentionPlace::parse)
+        )
+    }
+}
+
+/**
+ * A project or the home folder on another computer: [path] is shown ("Mac mini:~/storefront")
+ * and [insert] goes into the prompt verbatim in place of the "@fragment".
+ */
+data class MentionPlace(val label: String, val path: String, val insert: String) {
+    companion object {
+        fun parse(o: JsonObject): MentionPlace = MentionPlace(
+            label = o.string("label").orEmpty(),
+            path = o.string("path").orEmpty(),
+            insert = o.string("insert").orEmpty()
+        )
+    }
+}
+
+/**
  * One slash-command autocomplete entry (mirrors the Rust AgentCommand): a CLI
  * built-in, a project/user command discovered on disk, or one of the user's lpm
  * commands, which carries its [folder] and [scope].

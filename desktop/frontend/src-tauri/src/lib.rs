@@ -26,6 +26,7 @@ mod agentapprove;
 mod agentexec;
 mod agentcp;
 mod agentfiles;
+mod agentmentions;
 mod agentnest;
 mod agentchildren;
 mod agentdirs;
@@ -457,6 +458,7 @@ use msysmounts::get_msys_mounts;
 use notes_cmds::*;
 use openin::*;
 use agentapprove::{peer_agent_answer, peer_agent_requests};
+use agentmentions::agent_mention_computers;
 use peer::{
     peer_dispatch_reply, peer_host_cancel_pairing, peer_host_respond_pairing,
     peer_host_revoke_device, peer_host_set_agent_files, peer_host_set_config,

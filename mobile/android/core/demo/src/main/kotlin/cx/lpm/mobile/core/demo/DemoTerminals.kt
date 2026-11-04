@@ -153,7 +153,13 @@ private fun DemoServer.registerComposerHandlers() {
     }
     register("mentions") { o ->
         val project = o.string("project") ?: return@register
-        push(mapOf("t" to "mentions", "project" to project, "entries" to mentionEntries(project)))
+        val reply = mutableMapOf<String, Any?>(
+            "t" to "mentions",
+            "project" to project,
+            "entries" to mentionEntries(project)
+        )
+        mentionComputers(project)?.let { reply["computers"] = it }
+        push(reply)
     }
     register("upload") { o ->
         val id = o.string("id") ?: return@register

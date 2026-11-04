@@ -3,7 +3,9 @@ package cx.lpm.mobile.core.protocol
 import cx.lpm.mobile.core.model.ComposerAction
 import cx.lpm.mobile.core.model.HistoryFolder
 import cx.lpm.mobile.core.model.HistoryRow
+import cx.lpm.mobile.core.model.MentionComputer
 import cx.lpm.mobile.core.model.MentionEntry
+import cx.lpm.mobile.core.model.MentionPlace
 import cx.lpm.mobile.core.model.SlashCommand
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -28,6 +30,33 @@ class InboundComposerTest {
             ),
             Inbound.parse(
                 """{ "t": "mentions", "project": "api", "entries": [{ "path": "src/main.rs", "changed": true }] }"""
+            )
+        )
+        assertEquals(
+            Inbound.Mentions(
+                "storefront",
+                emptyList(),
+                listOf(
+                    MentionComputer(
+                        "Mac mini",
+                        "commands · copy from it",
+                        listOf(
+                            MentionPlace(
+                                "storefront",
+                                "Mac mini:~/storefront",
+                                "Mac mini:~/storefront (on another computer; reach it with lpm exec --on and lpm cp)"
+                            ),
+                            MentionPlace("Home folder", "Mac mini:~", "")
+                        )
+                    )
+                )
+            ),
+            Inbound.parse(
+                """{ "t": "mentions", "project": "storefront", "computers": [{ "name": "Mac mini",
+                     "slug": "c2a0e3b1", "access": "commands · copy from it", "places": [
+                     { "label": "storefront", "path": "Mac mini:~/storefront",
+                       "insert": "Mac mini:~/storefront (on another computer; reach it with lpm exec --on and lpm cp)" },
+                     { "label": "Home folder", "path": "Mac mini:~" }] }] }"""
             )
         )
         assertEquals(

@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
-import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  pointerWithin,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
 import { SquareSlash } from "lucide-react";
 import { toast } from "../../notifications/toast";
 import {
@@ -7,6 +15,7 @@ import {
   commandKey,
   commandRef,
   sameCommand,
+  scopeList,
   type CommandScope,
   type LpmCommand,
 } from "../../lpmCommands";
@@ -23,14 +32,10 @@ import {
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { EmptyState } from "../ui/EmptyState";
 import { CommandEditor } from "./CommandEditor";
-import { CommandFolderColumn } from "./CommandFolderColumn";
 import { CommandImportButton } from "./CommandImportButton";
-import { CommandList } from "./CommandList";
+import { CommandTree } from "./CommandTree";
 import {
-  ALL_FOLDERS,
   draftOf,
-  folderCounts,
-  folderKey,
   isDirty,
   movedTo,
   newDraft,
@@ -50,11 +55,10 @@ type Confirm =
   | { kind: "folder"; scope: CommandScope; name: string; count: number };
 
 // The Commands tab (`kind: "commands"`, like the memory and automations tabs):
-// this project's lpm commands and the global ones, grouped in folders, with
-// an editor for the one picked. Typing `/name` in an agent's input runs one.
+// this project's lpm commands and the global ones as one tree of folders,
+// with an editor for the one picked. Typing `/name` in an agent's input runs one.
 export function CommandsView({ projectName, projectLabel, visible }: CommandsViewProps) {
   const lists = useLpmCommandLists(projectName, visible);
-  const [folder, setFolder] = useState<FolderKey>(ALL_FOLDERS);
   const [query, setQuery] = useState("");
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
@@ -63,12 +67,13 @@ export function CommandsView({ projectName, projectLabel, visible }: CommandsVie
   const pendingDraft = useCommandsOpen((s) => (s.draft?.project === projectName ? s.draft.seq : null));
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
-  // Save as command, from an input: a new command holding that prompt.
+  // Save as command, from an input: a new command holding that prompt, beside
+  // the one open.
   useEffect(() => {
     if (pendingDraft === null || !lists) return;
     const body = useCommandsOpen.getState().takeDraft(projectName);
-    if (body !== null) setDraft(newDraft(folder, lists, body));
-  }, [pendingDraft, lists, projectName, folder]);
+    if (body !== null) setDraft((open) => newDraft(open, lists, body));
+  }, [pendingDraft, lists, projectName]);
 
   // An untouched editor follows its file when the list is read again (a phone
   // or another window changed it), and closes once the file is gone.
@@ -152,57 +157,47 @@ export function CommandsView({ projectName, projectLabel, visible }: CommandsVie
               const n = await importLpmCommands(projectName, scope);
               if (n === 0) toast.info("Nothing new to import.");
               else toast.success(`Imported ${n} ${n === 1 ? "command" : "commands"}.`);
-              setFolder(folderKey(scope, "Imported"));
             })
           }
         />
       </div>
       <DndContext
         sensors={sensors}
+        collisionDetection={pointerWithin}
         onDragStart={({ active }) => setDragging((active.data.current?.command as LpmCommand | undefined) ?? null)}
         onDragCancel={() => setDragging(null)}
         onDragEnd={onDragEnd}
       >
-        <div className="grid min-h-0 flex-1 grid-cols-[210px_250px_minmax(0,1fr)]">
-          <div className="flex min-h-0 flex-col border-r border-[var(--border)] pt-2">
-            <CommandFolderColumn
-              lists={lists}
-              projectLabel={projectLabel}
-              selected={folder}
-              onSelect={setFolder}
-              onCreate={(scope, name) =>
-                void attempt(async () => {
-                  await createLpmCommandFolder(projectName, scope, name);
-                  setFolder(folderKey(scope, name));
-                })
-              }
-              onRename={(scope, name, newName) =>
-                void attempt(async () => {
-                  await renameLpmCommandFolder(projectName, scope, name, newName);
-                  if (folder === folderKey(scope, name)) setFolder(folderKey(scope, newName));
-                  if (draft?.scope === scope && draft.folder === name) {
-                    setDraft({
-                      ...draft,
-                      folder: newName,
-                      original: draft.original && { ...draft.original, folder: newName },
-                    });
-                  }
-                })
-              }
-              onDelete={(scope, name) =>
-                setConfirm({ kind: "folder", scope, name, count: folderCounts(lists).get(folderKey(scope, name)) ?? 0 })
-              }
-            />
-          </div>
-          <CommandList
+        <div className="grid min-h-0 flex-1 grid-cols-[300px_minmax(0,1fr)]">
+          <CommandTree
             lists={lists}
-            folder={folder}
             projectLabel={projectLabel}
             query={query}
             selectedKey={draft?.original ? commandKey(draft.original) : null}
             onQuery={setQuery}
             onSelect={(c) => guard(() => setDraft(draftOf(c)))}
-            onNew={() => guard(() => setDraft(newDraft(folder, lists)))}
+            onNew={(where) => guard(() => setDraft(newDraft(where ?? draft, lists)))}
+            onCreateFolder={(scope, name) => void attempt(() => createLpmCommandFolder(projectName, scope, name))}
+            onRenameFolder={(scope, name, newName) =>
+              void attempt(async () => {
+                await renameLpmCommandFolder(projectName, scope, name, newName);
+                if (draft?.scope === scope && draft.folder === name) {
+                  setDraft({
+                    ...draft,
+                    folder: newName,
+                    original: draft.original && { ...draft.original, folder: newName },
+                  });
+                }
+              })
+            }
+            onDeleteFolder={(scope, name) =>
+              setConfirm({
+                kind: "folder",
+                scope,
+                name,
+                count: scopeList(lists, scope)?.commands.filter((c) => c.folder === name).length ?? 0,
+              })
+            }
           />
           {draft ? (
             <CommandEditor
@@ -251,7 +246,7 @@ export function CommandsView({ projectName, projectLabel, visible }: CommandsVie
             ? "The command you're editing has changes that aren't saved."
             : confirm?.kind === "folder"
               ? confirm.count > 0
-                ? `Its ${confirm.count === 1 ? "command moves" : `${confirm.count} commands move`} to No folder.`
+                ? `Its ${confirm.count === 1 ? "command moves" : `${confirm.count} commands move`} to the top level.`
                 : "It's empty."
               : "Its file is deleted."
         }
@@ -264,10 +259,7 @@ export function CommandsView({ projectName, projectLabel, visible }: CommandsVie
           if (c?.kind === "discard") c.then();
           else if (c?.kind === "delete") void removeCommand();
           else if (c?.kind === "folder")
-            void attempt(async () => {
-              await deleteLpmCommandFolder(projectName, c.scope, c.name);
-              if (folder === folderKey(c.scope, c.name)) setFolder(ALL_FOLDERS);
-            });
+            void attempt(() => deleteLpmCommandFolder(projectName, c.scope, c.name));
         }}
       />
     </div>

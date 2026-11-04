@@ -14,6 +14,7 @@ import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.data.session.MacSessions
 import cx.lpm.mobile.core.data.terminals.TerminalsState
 import cx.lpm.mobile.core.data.terminals.TerminalsStore
+import cx.lpm.mobile.core.model.MentionPlace
 import cx.lpm.mobile.core.model.ServiceInfo
 import cx.lpm.mobile.core.model.SlashCommand
 import cx.lpm.mobile.feature.terminal.R
@@ -128,7 +129,8 @@ class ComposerViewModel @AssistedInject constructor(
                     it,
                     terms?.mentions?.get(target.project).orEmpty(),
                     branches = branches,
-                    services = projectsState?.services?.get(target.project).orEmpty()
+                    services = projectsState?.services?.get(target.project).orEmpty(),
+                    computers = terms?.mentionComputers?.get(target.project).orEmpty()
                 )
             } ?: MentionResults(),
             memoryAvailable = tools && projectsState?.project(target.project)?.isRemote != true,
@@ -294,6 +296,9 @@ class ComposerViewModel @AssistedInject constructor(
     fun pickPath(path: String) = replaceMention("@$path ")
 
     fun pickBranch(branch: String) = replaceMention("@$branch ")
+
+    /** A place on another computer goes in as the Mac wrote it, without an "@". */
+    fun pickPlace(place: MentionPlace) = replaceMention("${place.insert} ")
 
     private fun replaceMention(replacement: String) {
         val text = currentText

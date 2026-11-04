@@ -1321,6 +1321,7 @@ fn authenticate(ws: &mut ConnWs, hub: &PeerHub, app: &AppHandle) -> Option<Sessi
                 let _ = ws.send(Message::text(
                     json!({ "t": "ready", "hostName": machine_name(),
                         "hostPlatform": platform_id(), "hostHeadless": crate::sys::headless(),
+                        "hostHome": crate::config::expand_home("~"),
                         "hostVersion": crate::commands_real::get_version(),
                         "hostUpdateChannel": crate::updatechannel::Channel::current().as_str(),
                         "phoneServerId": crate::remote::phone_server_id(app),
@@ -2417,6 +2418,9 @@ fn is_denied(cmd: &str) -> bool {
             // vault key material
             | "vault_export_key"
             | "vault_import_key"
+            // this machine's own paired computers, with their projects and
+            // homes: the asking Mac's composer lists its own
+            | "agent_mention_computers"
     )
 }
 
@@ -3099,6 +3103,8 @@ mod tests {
         assert!(is_denied("save_work_statuses"));
         assert!(is_denied("save_terminals"));
         assert!(is_denied("stop_all"));
+        // This machine's other paired computers are never the asking Mac's to list.
+        assert!(is_denied("agent_mention_computers"));
         // The one installer a peer may run, and the status call that decides
         // whether to offer it. Every other installer stays blocked.
         assert!(!is_denied("install_agent_skill"));

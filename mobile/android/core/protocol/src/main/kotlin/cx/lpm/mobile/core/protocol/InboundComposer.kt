@@ -4,6 +4,7 @@ import cx.lpm.mobile.core.model.ComposerAction
 import cx.lpm.mobile.core.model.HistoryFolder
 import cx.lpm.mobile.core.model.HistoryItem
 import cx.lpm.mobile.core.model.HistoryRow
+import cx.lpm.mobile.core.model.MentionComputer
 import cx.lpm.mobile.core.model.MentionEntry
 import cx.lpm.mobile.core.model.SlashCommand
 import cx.lpm.mobile.core.model.bool
@@ -19,7 +20,8 @@ internal val composerParsers = parsers {
     put("mentions") { o ->
         Inbound.Mentions(
             project = o.str("project"),
-            entries = o.list("entries", MentionEntry::parse)
+            entries = o.list("entries", MentionEntry::parse),
+            computers = o.list("computers", MentionComputer::parse)
         )
     }
     put("history") { o ->

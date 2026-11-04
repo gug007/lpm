@@ -6,6 +6,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.longClick
@@ -17,6 +18,9 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.core.model.CommandScope
+import cx.lpm.mobile.core.model.MentionComputer
+import cx.lpm.mobile.core.model.MentionEntry
+import cx.lpm.mobile.core.model.MentionPlace
 import cx.lpm.mobile.core.model.ServiceInfo
 import cx.lpm.mobile.core.model.SlashCommand
 import cx.lpm.mobile.feature.terminal.composer.ComposerCallbacks
@@ -29,6 +33,7 @@ import cx.lpm.mobile.feature.terminal.composer.MentionActions
 import cx.lpm.mobile.feature.terminal.composer.MentionResults
 import cx.lpm.mobile.feature.terminal.composer.TerminalComposer
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -54,7 +59,7 @@ class ComposerUiTest {
         onRemoveAttachment = {},
         onCancelRewrite = { events += "cancel" },
         onPickSlash = { events += "slash:${it.name}" },
-        mentions = MentionActions({}, {}, {}, {}, {})
+        mentions = MentionActions({}, {}, { events += "place:${it.insert}" }, {}, {}, {})
     )
 
     private fun show(
@@ -96,6 +101,29 @@ class ComposerUiTest {
         compose.onNodeWithContentDescription("Up").assertDoesNotExist()
         compose.onNodeWithText("This terminal's output").assertDoesNotExist()
         compose.onNodeWithText("web logs").assertExists()
+    }
+
+    @Test
+    fun `each other computer is a section of its places between changes and files`() {
+        val home = MentionPlace("Home folder", "Mac mini:~", "Mac mini:~ (on another computer)")
+        show(
+            ComposerUiState(
+                composer = ComposerState(tabs = listOf(ComposerTab(text = "see @"))),
+                mentionActive = true,
+                mentions = MentionResults(
+                    changed = listOf(MentionEntry("app/page.tsx", dir = false, changed = true)),
+                    computers = listOf(MentionComputer("Mac mini", "commands", listOf(home))),
+                    files = listOf(MentionEntry("lib", dir = true, changed = false))
+                )
+            )
+        )
+        val top = { text: String -> compose.onNodeWithText(text).getUnclippedBoundsInRoot().top }
+        assertTrue(top("CHANGES") < top("MAC MINI · COMMANDS"))
+        assertTrue(top("MAC MINI · COMMANDS") < top("Home folder"))
+        assertTrue(top("Mac mini:~") < top("FILES"))
+        compose.onNodeWithContentDescription("Preview").assertExists()
+        compose.onNodeWithText("Home folder").performClick()
+        assertEquals(listOf("place:Mac mini:~ (on another computer)"), events)
     }
 
     @Test

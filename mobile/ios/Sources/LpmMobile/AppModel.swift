@@ -20,6 +20,7 @@ final class AppModel {
     var terminals: [String: [TerminalInfo]] = [:] // project -> terminals
     var slashCommands: [String: [SlashCommand]] = [:] // terminal id -> commands
     var mentions: [String: [MentionEntry]] = [:] // project -> @-mention targets
+    var mentionComputers: [String: [MentionComputer]] = [:] // project -> other computers' @ places
     var history: [String: [HistoryRow]] = [:] // project -> recent sent prompts
     var automations: [AutomationJob] = []
     /// This Mac and the computers paired with it: what the editor offers to run
@@ -1317,6 +1318,7 @@ final class AppModel {
         terminals = [:]
         slashCommands = [:]
         mentions = [:]
+        mentionComputers = [:]
         history = [:]
         automations = []
         automationMachines = []
@@ -2944,7 +2946,10 @@ final class AppModel {
             self?.composerStores[id]?.resolveUpload(reqId: reqId, path: path)
         }
         c.onUploadStep = { [weak self] step in self?.composerStores[step.termId]?.applyUploadStep(step) }
-        c.onMentions = { [weak self] proj, entries in self?.mentions[proj] = entries }
+        c.onMentions = { [weak self] proj, entries, computers in
+            self?.mentions[proj] = entries
+            self?.mentionComputers[proj] = computers
+        }
         c.onHistory = { [weak self] proj, rows in self?.history[proj] = rows.filter { !$0.isDraft } }
     }
 

@@ -8,7 +8,10 @@
 // captures the live output at pick time and injects it inline, since the agent
 // can't read lpm's in-memory service pane buffer or xterm's scrollback. "diff",
 // "commit" and "pr" are injected the same way (see mentionGitCapture), so the
-// prompt carries the changes or the review discussion it is about.
+// prompt carries the changes or the review discussion it is about. A
+// "computer" place (a folder on another computer this one connects to) inserts
+// its "NAME:PATH" reference with no "@", worded so the agent reaches it with
+// `lpm exec --on` and `lpm cp` (see computerMentions.ts).
 //
 // A bare "@" folds the bulkier sources (memory sessions, projects, terminals,
 // services) behind one group row each — an item carrying `children` — that
@@ -30,7 +33,8 @@ export type MentionKind =
   | "terminal-log"
   | "diff"
   | "commit"
-  | "pr";
+  | "pr"
+  | "computer";
 
 export interface MentionItem {
   kind: MentionKind;
@@ -43,6 +47,9 @@ export interface MentionItem {
   // Secondary, dimmed text (a project's root path, or a service's command);
   // omitted otherwise.
   detail?: string;
+  // What a typed fragment matches besides the label, when `insert` is not a
+  // fair stand-in for it (a computer place's insert carries a sentence).
+  search?: string;
   // For a "service-log", the index of the service's pane to capture
   // (its position in the project's running-services list).
   paneIndex?: number;
@@ -87,8 +94,8 @@ const LIMIT = 50;
 
 // Lower sorts first. Memory leads — one compact group row whose whole point is
 // picking up prior work — then working-tree changes (the most relevant files to
-// point an agent at), then projects, then the terminal's own output, then a
-// service's logs, then branches, then plain files.
+// point an agent at), then projects and other computers' places, then the
+// terminal's own output, then a service's logs, then branches, then plain files.
 const GROUP_ORDER: Record<MentionKind, number> = {
   memory: 0,
   "memory-save": 0,
@@ -97,6 +104,7 @@ const GROUP_ORDER: Record<MentionKind, number> = {
   changed: 1,
   project: 2,
   duplicate: 2,
+  computer: 2,
   "terminal-log": 3,
   "service-log": 4,
   branch: 5,
@@ -106,7 +114,7 @@ const GROUP_ORDER: Record<MentionKind, number> = {
 };
 
 // Group rows lead regardless of kind, so a bare "@" opens with the drill-ins
-// (Memory, Projects, Services, Terminals, in the caller's order) stacked
+// (Memory, Projects, other computers, Services, Terminals, in the caller's order) stacked
 // together above the working-tree changes.
 const order = (it: MentionItem): number => (it.children ? 0 : GROUP_ORDER[it.kind]);
 
@@ -123,7 +131,7 @@ export function rankMentions(pool: MentionItem[], frag: string): MentionItem[] {
   const buckets: MentionItem[][] = [[], [], [], []];
   for (const it of pool) {
     const name = basename(it.label).toLowerCase();
-    const full = it.insert.toLowerCase();
+    const full = (it.search ?? it.insert).toLowerCase();
     if (name.startsWith(q)) buckets[0].push(it);
     else if (full.startsWith(q)) buckets[1].push(it);
     else if (name.includes(q)) buckets[2].push(it);

@@ -36,6 +36,7 @@ import cx.lpm.mobile.core.model.MacUpdateStep
 import cx.lpm.mobile.core.model.MachinePairOffer
 import cx.lpm.mobile.core.model.MemoryList
 import cx.lpm.mobile.core.model.MemorySession
+import cx.lpm.mobile.core.model.MentionComputer
 import cx.lpm.mobile.core.model.MentionEntry
 import cx.lpm.mobile.core.model.NoteChat
 import cx.lpm.mobile.core.model.NoteMessage
@@ -105,7 +106,9 @@ abstract class LpmClientCallbacks {
     var onSlash: ((id: String, commands: List<SlashCommand>) -> Unit)? = null
     var onUpload: ((id: String, reqId: String, path: String) -> Unit)? = null
     var onUploadStep: ((UploadStep) -> Unit)? = null
-    var onMentions: ((project: String, entries: List<MentionEntry>) -> Unit)? = null
+    var onMentions: (
+        (project: String, entries: List<MentionEntry>, computers: List<MentionComputer>) -> Unit
+    )? = null
     var onHistory: ((project: String, rows: List<HistoryRow>) -> Unit)? = null
     var onStatus: (
         (project: String, entries: List<StatusEntry>, seen: List<StatusEntry>) -> Unit

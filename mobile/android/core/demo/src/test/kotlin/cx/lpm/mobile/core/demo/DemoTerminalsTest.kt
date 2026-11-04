@@ -3,6 +3,7 @@ package cx.lpm.mobile.core.demo
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -107,6 +108,35 @@ class DemoTerminalsTest {
         val ack = demo.pushed.filter { it.t == "o" }.map { it.frame.string("d")!! }
         assertEquals(listOf("ok", "\r\n"), ack.take(2))
         assertTrue(ack[2].contains("Noted — I'll fold that into the checkout work."))
+    }
+
+    @Test
+    fun storefrontMentionsOfferTheMacMini() = runTest {
+        val demo = DemoHarness(this)
+        val reply = demo.request("mentions", "project" to "storefront").single("mentions")
+        val mini = reply.dictList("computers").single()
+
+        assertEquals("Mac mini", mini.string("name"))
+        assertEquals("commands · copy from it", mini.string("access"))
+        assertEquals(
+            listOf(
+                mapOf(
+                    "label" to "storefront",
+                    "path" to "Mac mini:~/storefront",
+                    "insert" to "Mac mini:~/storefront (on another computer; reach it with " +
+                        "lpm exec --on and lpm cp)"
+                ),
+                mapOf(
+                    "label" to "Home folder",
+                    "path" to "Mac mini:~",
+                    "insert" to "Mac mini:~ (on another computer; reach it with " +
+                        "lpm exec --on and lpm cp)"
+                )
+            ),
+            mini.dictList("places")
+        )
+        val blog = demo.request("mentions", "project" to "blog").single("mentions")
+        assertNull(blog["computers"])
     }
 
     @Test

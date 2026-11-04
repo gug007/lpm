@@ -46,7 +46,7 @@ internal fun LpmClientCallbacks.route(frame: Inbound) {
 
         is Inbound.UploadStep -> onUploadStep?.invoke(frame.step)
 
-        is Inbound.Mentions -> onMentions?.invoke(frame.project, frame.entries)
+        is Inbound.Mentions -> onMentions?.invoke(frame.project, frame.entries, frame.computers)
 
         is Inbound.History -> onHistory?.invoke(frame.project, frame.rows)
 

@@ -10,7 +10,7 @@ use crate::agentapprove::{self, Caller, Decision, Kind, Request, What};
 use crate::agentfiles;
 use crate::ignoredrun::{self, AgentCopy, Remote, Side};
 use crate::ignoredscan::FileRec;
-use crate::peerclient::{take_computer, Computer, PeerClientHub};
+use crate::peerclient::{names_computer, take_computer, Computer, PeerClientHub};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::cell::Cell;
@@ -64,8 +64,7 @@ fn parse_end(raw: &str, computers: &mut Vec<Computer>) -> Result<End, String> {
     let Some((prefix, path)) = raw.split_once(':') else {
         return Ok(End::Here(raw.to_string()));
     };
-    let drive = prefix.len() == 1 && prefix.chars().all(|c| c.is_ascii_alphabetic());
-    if drive || prefix.contains('/') || prefix.contains('\\') {
+    if !names_computer(prefix) {
         return Ok(End::Here(raw.to_string()));
     }
     let computer = take_computer(prefix, computers)?;
@@ -510,6 +509,7 @@ mod tests {
             supported: true,
             runs: true,
             policy: Default::default(),
+            home: String::new(),
         }
     }
 

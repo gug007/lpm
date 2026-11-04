@@ -59,6 +59,7 @@ struct TerminalComposer: View {
     @State private var cachedMentionFiles: [MentionEntry] = []
     @State private var cachedBranches: [GitBranch] = []
     @State private var cachedServices: [ServiceInfo] = []
+    @State private var cachedComputers: [MentionComputer] = []
     // Pill wrap-detection and field sizing: measured pill width plus the probe's
     // text heights at both layout widths and the single-line reference.
     @State private var containerWidth: CGFloat = 0
@@ -156,19 +157,21 @@ struct TerminalComposer: View {
     private var changedMentions: [MentionEntry] { cachedMentionFiles.filter { $0.changed } }
     private var fileMentions: [MentionEntry] { cachedMentionFiles.filter { !$0.changed } }
     private var hasMentionContent: Bool {
-        !cachedMentionFiles.isEmpty || !cachedBranches.isEmpty || !cachedServices.isEmpty || (terminalTools && mentionActive)
+        !cachedMentionFiles.isEmpty || !cachedComputers.isEmpty || !cachedBranches.isEmpty || !cachedServices.isEmpty
+            || (terminalTools && mentionActive)
     }
 
     /// Recompute the memoized mention results from the current fragment + sources.
     /// Runs on fragment change and when a source array loads — not per keystroke.
     private func recomputeMentions() {
         guard let q = mentionQuery else {
-            cachedMentionFiles = []; cachedBranches = []; cachedServices = []
+            cachedMentionFiles = []; cachedComputers = []; cachedBranches = []; cachedServices = []
             return
         }
         let all = model.mentions[project] ?? []
         let hits = q.isEmpty ? all : all.filter { $0.path.localizedCaseInsensitiveContains(q) }
         cachedMentionFiles = Array(hits.prefix(50))
+        cachedComputers = mentionComputers.matching(q)
         // Branches only surface once a fragment is typed (desktop behavior).
         if q.isEmpty {
             cachedBranches = []
@@ -221,6 +224,7 @@ struct TerminalComposer: View {
             // Recompute memoized mentions on fragment change or a source load.
             .onChange(of: mentionQuery) { _, _ in recomputeMentions() }
             .onChange(of: mentionsCount) { _, _ in if mentionActive { recomputeMentions() } }
+            .onChange(of: mentionComputers) { _, _ in if mentionActive { recomputeMentions() } }
             .onChange(of: branchesCount) { _, _ in if mentionActive { recomputeMentions() } }
             .onChange(of: servicesCount) { _, _ in if mentionActive { recomputeMentions() } }
             .photosPicker(isPresented: $showPhotoPicker, selection: $photoItems,
@@ -283,9 +287,9 @@ struct TerminalComposer: View {
             } else if mentionActive && hasMentionContent {
                 ComposerMentionMenu(
                     project: project,
-                    changed: changedMentions, files: fileMentions,
+                    changed: changedMentions, computers: cachedComputers, files: fileMentions,
                     branches: cachedBranches, services: cachedServices,
-                    pickPath: pickPath, pickBranch: pickBranch,
+                    pickPath: pickPath, pickPlace: pickPlace, pickBranch: pickBranch,
                     includeTerminalOutput: terminalTools,
                     pickTerminalOutput: pickTerminalOutput, pickServiceLog: pickServiceLog,
                     previewColorScheme: systemColorScheme)
@@ -325,9 +329,10 @@ struct TerminalComposer: View {
         .fixedSize(horizontal: false, vertical: true)
     }
 
-    // Cheap Int change-proxies for the observed source dicts, so the mention
+    // Cheap change-proxies for the observed source dicts, so the mention
     // recompute hooks key off a simple property (not a subscript+coalesce expr).
     private var mentionsCount: Int { model.mentions[project]?.count ?? 0 }
+    private var mentionComputers: [MentionComputer] { model.mentionComputers[project] ?? [] }
     private var branchesCount: Int { model.git.branches[project]?.count ?? 0 }
     private var servicesCount: Int { model.services[project]?.count ?? 0 }
 
@@ -733,6 +738,9 @@ struct TerminalComposer: View {
     }
     private func pickBranch(_ branch: String) {
         replaceMention(with: "@\(branch) ")
+    }
+    private func pickPlace(_ place: MentionPlace) {
+        replaceMention(with: place.insert + " ")
     }
     private func replaceMention(with replacement: String) {
         guard let at = store.text.lastIndex(of: "@") else { return }

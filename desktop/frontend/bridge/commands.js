@@ -1329,6 +1329,9 @@ export function PeerAgentFilesSet(slug, files, scope, run) {
 export function PeerAgentRequests() {
   return invoke("peer_agent_requests");
 }
+export function AgentMentionComputers() {
+  return invoke("agent_mention_computers");
+}
 export function PeerAgentAnswer(id, decision) {
   return invoke("peer_agent_answer", { id, decision });
 }

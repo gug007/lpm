@@ -74,6 +74,8 @@ const LOCAL_ONLY_EXACT = new Set<string>([
   // Reads a paired machine's file from here, a chunk at a time, so its size
   // isn't held to one frame of the peer connection.
   "notes_read_file_as_input",
+  // The computers an agent here can reach are this Mac's own paired ones.
+  "agent_mention_computers",
 ]);
 
 export function isLocalOnlyCommand(cmd: string): boolean {

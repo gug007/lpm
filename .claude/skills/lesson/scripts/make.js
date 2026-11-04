@@ -23,6 +23,7 @@ const { chapters, chaptersText } = require("./chapters");
 const { runQa } = require("./qa");
 const { HOOK_ID, planEdit, renderEdit } = require("./edit");
 const { renderCover } = require("./cover");
+const { deglyph } = require("./deglyph");
 const { DEFAULT_LPM_DIR } = require("./state");
 const { PHONE_LAYOUT, phoneLayout, phoneAssets, clearOfPhone } = require("./phonecompose");
 const { TWO_MAC, twoMacLayout, labelsAsset } = require("./twomac");
@@ -360,6 +361,11 @@ async function finish(lines, P, timeline, taken) {
   if (!muxOnly) await record(lines);
   if (dry) return;
   const P = paths();
+  // Siri AI's glyph at the composer's caret, painted out of a one-window app take.
+  if (source === "app" && P.main && fs.existsSync(P.raw)) {
+    const recorded = JSON.parse(fs.readFileSync(P.timeline, "utf8"));
+    if (!recorded.phone && !recorded.guest) deglyph(P.raw);
+  }
   await ensureCards(P);
   // The cold open's hook is voiced like a line, the first time a render needs
   // it (--mux-only too: it is not part of the take's timing).

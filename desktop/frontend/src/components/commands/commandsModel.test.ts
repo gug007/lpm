@@ -1,18 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { commandKey, type LpmCommand, type LpmCommandLists } from "../../lpmCommands";
 import {
-  ALL_FOLDERS,
+  commandTree,
   draftOf,
   draftProblem,
-  folderCounts,
   folderKey,
-  folderTitle,
   isDirty,
   movedTo,
   newDraft,
   parseFolderKey,
   runningKeys,
-  visibleCommands,
 } from "./commandsModel";
 
 const cmd = (name: string, scope: "global" | "project", folder: string | null, body = "Do it."): LpmCommand => ({
@@ -34,28 +31,33 @@ describe("folder keys", () => {
   it("round-trip a folder and No folder", () => {
     expect(parseFolderKey(folderKey("project", "Bugs"))).toEqual({ scope: "project", folder: "Bugs" });
     expect(parseFolderKey(folderKey("global", null))).toEqual({ scope: "global", folder: null });
-    expect(parseFolderKey(ALL_FOLDERS)).toBeNull();
-  });
-
-  it("titles a folder with its list", () => {
-    expect(folderTitle(folderKey("project", "Bugs"), "web")).toBe("Bugs · web");
-    expect(folderTitle(folderKey("global", null), "web")).toBe("No folder · global");
+    expect(parseFolderKey("all")).toBeNull();
   });
 });
 
 describe("listing", () => {
-  it("counts and filters per folder, project commands first", () => {
-    const counts = folderCounts(lists);
-    expect(counts.get(ALL_FOLDERS)).toBe(4);
-    expect(counts.get(folderKey("global", null))).toBe(1);
-    expect(counts.get(folderKey("global", "Writing"))).toBeUndefined();
-    expect(visibleCommands(lists, ALL_FOLDERS, "").map((c) => c.name)).toEqual([
-      "fix-ticket",
-      "ship",
-      "commit",
-      "ship",
-    ]);
-    expect(visibleCommands(lists, ALL_FOLDERS, "git").map((c) => c.name)).toEqual(["commit"]);
+  const names = (cs: LpmCommand[]) => cs.map((c) => c.name);
+
+  it("builds a tree of both lists, project first, loose commands after the folders", () => {
+    const tree = commandTree({ ...lists, global: { ...lists.global, folders: ["Git", "Empty"] } }, "");
+    expect(tree.map((s) => s.scope)).toEqual(["project", "global"]);
+    expect(tree[0].folders.map((f) => [f.name, names(f.commands)])).toEqual([["Bugs", ["fix-ticket"]]]);
+    expect(names(tree[0].loose)).toEqual(["ship"]);
+    expect(tree[1].folders.map((f) => f.name)).toEqual(["Git", "Empty"]);
+    expect(tree[1].count).toBe(2);
+  });
+
+  it("leaves out the project list outside a project", () => {
+    expect(commandTree({ ...lists, project: null }, "").map((s) => s.scope)).toEqual(["global"]);
+  });
+
+  it("keeps only what a search matches", () => {
+    const tree = commandTree(lists, " GIT ");
+    expect(tree.map((s) => s.scope)).toEqual(["global"]);
+    expect(tree[0].folders.map((f) => [f.name, names(f.commands)])).toEqual([["Git", ["commit"]]]);
+    expect(tree[0].loose).toEqual([]);
+    expect(tree[0].count).toBe(1);
+    expect(commandTree(lists, "nothing like it")).toEqual([]);
   });
 
   it("knows which of two same-named commands runs", () => {
@@ -67,19 +69,20 @@ describe("listing", () => {
 
 describe("drafts", () => {
   it("start in the folder being looked at", () => {
-    expect(newDraft(folderKey("global", "Git"), lists)).toMatchObject({ scope: "global", folder: "Git" });
-    expect(newDraft(ALL_FOLDERS, lists, "Body")).toMatchObject({ scope: "project", folder: null, body: "Body" });
+    expect(newDraft({ scope: "global", folder: "Git" }, lists)).toMatchObject({ scope: "global", folder: "Git" });
+    expect(newDraft(null, lists, "Body")).toMatchObject({ scope: "project", folder: null, body: "Body" });
+    expect(newDraft(null, { ...lists, project: null })).toMatchObject({ scope: "global", folder: null });
   });
 
   it("are dirty only once changed", () => {
     const d = draftOf(lists.global.commands[0]);
     expect(isDirty(d, lists)).toBe(false);
     expect(isDirty({ ...d, body: "Else" }, lists)).toBe(true);
-    expect(isDirty(newDraft(ALL_FOLDERS, lists), lists)).toBe(false);
+    expect(isDirty(newDraft(null, lists), lists)).toBe(false);
   });
 
   it("explain what stops a save", () => {
-    const d = newDraft(folderKey("global", null), lists, "Body");
+    const d = newDraft({ scope: "global", folder: null }, lists, "Body");
     expect(draftProblem(d, lists)).toBe("Give it a name.");
     expect(draftProblem({ ...d, name: "two words" }, lists)).toMatch(/Letters/);
     expect(draftProblem({ ...d, name: "Commit" }, lists)).toBe("/commit already exists in the Git folder.");

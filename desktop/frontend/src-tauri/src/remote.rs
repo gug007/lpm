@@ -57,6 +57,7 @@ mod answer;
 mod ci_push;
 mod live;
 mod mac_alert;
+mod mentions;
 mod notify_levels;
 mod push_detail;
 mod push_fit;
@@ -2834,43 +2835,13 @@ fn handle_msg(
             }
         }
         "mentions" => {
-            // @-mention autocomplete: the project's files/dirs (relative paths the
-            // agent resolves), with git working-tree changes flagged and surfaced
-            // first. The phone fetches once and filters locally.
+            // @-mention autocomplete (remote/mentions.rs). It asks the other
+            // computers for their projects, so it runs off this connection's thread.
             let project = str_field("project").unwrap_or_default();
-            let cwd = config::project_root(&project)
-                .map(|(r, _)| r)
-                .unwrap_or_default();
-            let changed: HashSet<String> = if cwd.is_empty() {
-                HashSet::new()
-            } else {
-                crate::git::git_changed_files(cwd.clone())
-                    .into_iter()
-                    .map(|c| c.path)
-                    .collect()
-            };
-            let files = if cwd.is_empty() {
-                Vec::new()
-            } else {
-                crate::files::list_dir_files(cwd).unwrap_or_default()
-            };
-            let mut seen = HashSet::new();
-            let mut entries: Vec<Value> = Vec::new();
-            for f in &files {
-                seen.insert(f.path.clone());
-                let ch = changed.contains(&f.path);
-                entries.push(json!({ "path": f.path, "dir": f.is_dir, "changed": ch }));
-            }
-            // Changed files the walk skipped (e.g. inside an ignored dir) still count.
-            for p in &changed {
-                if !seen.contains(p) {
-                    entries.push(json!({ "path": p, "dir": false, "changed": true }));
-                }
-            }
-            send(
-                ws,
-                json!({ "t": "mentions", "project": project, "entries": entries }),
-            )?;
+            let (app, out) = (app.clone(), out.clone());
+            std::thread::spawn(move || {
+                let _ = out.try_send(mentions::frame(&app, &project).to_string());
+            });
         }
         "history" => {
             // Recall: recent sent prompts for this project (scoped by project, not

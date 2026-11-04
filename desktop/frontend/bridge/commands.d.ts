@@ -432,6 +432,7 @@ export function PeerHostCancelPairing(...args: any[]): Promise<any>;
 export function PeerHostSetAgentFiles(...args: any[]): Promise<any>;
 export function PeerAgentFilesSet(...args: any[]): Promise<any>;
 export function PeerAgentRequests(...args: any[]): Promise<any>;
+export function AgentMentionComputers(): Promise<import("../src/computerMentions").MentionComputer[]>;
 export function PeerAgentAnswer(...args: any[]): Promise<any>;
 export function PeerHostRevokeDevice(...args: any[]): Promise<any>;
 export function PeerHostRespondPairing(...args: any[]): Promise<any>;

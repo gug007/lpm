@@ -1791,6 +1791,10 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       void insertGitMention(editor, item);
       return;
     }
+    if (item.kind === "computer") {
+      injectCaptured(editor, `${item.insert} `);
+      return;
+    }
     if (replaceMentionFragment(editor, item.insert)) {
       afterMentionEdit(editor);
       editor.focus();
