@@ -523,6 +523,291 @@ fn a_shared_root_names_its_list() {
     assert!(store_of_shared_root(Path::new("/x/.codex/skills")).is_none());
 }
 
+// ---- running a skill in the agent itself -------------------------------------
+
+fn run_in(l: &Lists, cli: Option<&str>, name: &str, args: &str) -> crate::lpm_commands_expand::Expanded {
+    crate::lpm_commands_expand::expand_at("", None, &l.stores, name, args, cli).unwrap()
+}
+
+#[cfg(unix)]
+#[test]
+fn claude_and_codex_get_the_call_so_it_runs_as_a_skill() {
+    let l = lists();
+    ops::save(&l.stores, input(Scope::Global, None, "review", "Review {{what}}."), None).unwrap();
+    assert_eq!(run_in(&l, Some("claude"), "review", "the login flow").text, "/review the login flow");
+    assert_eq!(run_in(&l, Some("codex"), "review", " the login flow ").text, "$review the login flow");
+    let bare = run_in(&l, Some("claude"), "review", "");
+    assert_eq!(bare.text, "/review");
+    assert!(bare.missing.is_empty(), "the agent asks for it itself");
+}
+
+#[test]
+fn an_agent_that_cant_start_it_gets_the_prompt() {
+    let l = lists();
+    ops::save(&l.stores, input(Scope::Global, None, "review", "Review {{what}}."), None).unwrap();
+    for cli in [None, Some("gemini"), Some("opencode")] {
+        assert_eq!(run_in(&l, cli, "review", "it").text, "Review it.");
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn a_prompt_only_lpm_can_fill_stays_a_prompt() {
+    let l = lists();
+    ops::save(&l.stores, input(Scope::Global, None, "kit", "Read {{dir}}/GUIDE.md"), None).unwrap();
+    let out = run_in(&l, Some("claude"), "kit", "");
+    assert!(out.text.starts_with("Read ") && out.text.ends_with("kit/GUIDE.md"), "{}", out.text);
+}
+
+#[cfg(unix)]
+#[test]
+fn a_name_in_both_lists_stays_a_prompt_so_the_project_s_runs() {
+    let l = lists();
+    ops::save(&l.stores, input(Scope::Global, None, "ship", "Global ship."), None).unwrap();
+    ops::save(&l.stores, input(Scope::Project, None, "ship", "Project ship."), None).unwrap();
+    assert_eq!(run_in(&l, Some("claude"), "ship", "").text, "Project ship.");
+}
+
+#[test]
+fn a_skill_claude_cant_reach_or_finds_someone_elses_stays_a_prompt() {
+    let l = lists();
+    ops::save(&l.stores, input(Scope::Global, None, "ship", "Mine."), None).unwrap();
+    let link = l.global.claude.join("ship");
+    let _ = std::fs::remove_file(&link);
+    let _ = std::fs::remove_dir_all(&link);
+    assert_eq!(run_in(&l, Some("claude"), "ship", "").text, "Mine.", "no link");
+    std::fs::create_dir_all(&link).unwrap();
+    std::fs::write(link.join("SKILL.md"), "---\nname: ship\ndescription: Theirs\n---\n\nTheirs.\n").unwrap();
+    assert_eq!(run_in(&l, Some("claude"), "ship", "").text, "Mine.", "theirs");
+    assert_eq!(run_in(&l, Some("codex"), "ship", "").text, "$ship", "Codex reads the shared root");
+}
+
+#[test]
+fn a_skill_in_one_agent_s_own_folder_runs_only_in_that_agent() {
+    let l = lists();
+    made_in(&l.project.claude);
+    assert_eq!(run_in(&l, Some("claude"), "deploy", "").text, "/deploy");
+    assert_eq!(run_in(&l, Some("codex"), "deploy", "").text, "# Deploy\n\nRun it.");
+}
+
+// ---- other skills ------------------------------------------------------------
+
+fn others(list: &ScopeList) -> Vec<(&str, Vec<&str>)> {
+    list.others.iter().map(|o| (o.name.as_str(), o.agents.iter().map(String::as_str).collect())).collect()
+}
+
+fn theirs(root: &Path, name: &str) -> PathBuf {
+    let dir = root.join(name);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("SKILL.md"), format!("---\nname: {name}\ndescription: About {name}\n---\n\nDo {name}.\n")).unwrap();
+    dir
+}
+
+#[test]
+fn each_list_shows_the_skills_lpm_did_not_create_with_who_reads_them() {
+    let l = lists();
+    theirs(&l.project.claude, "android-cli");
+    theirs(&l.global.skills, "lint");
+    theirs(&l.global.claude, "find-docs");
+    ops::save(&l.stores, input(Scope::Global, None, "mine", "a"), None).unwrap();
+    let out = list_stores(&l.stores).unwrap();
+    assert_eq!(others(out.project.as_ref().unwrap()), [("android-cli", vec!["claude", "opencode"])]);
+    assert_eq!(
+        others(&out.global),
+        [("find-docs", vec!["claude", "opencode"]), ("lint", vec!["codex", "gemini", "opencode"])]
+    );
+    let lint = out.global.others.iter().find(|o| o.name == "lint").unwrap();
+    assert_eq!(lint.description, "About lint");
+    assert_eq!(lint.preview, "Do lint.");
+    assert_eq!(lint.path, l.global.skills.join("lint/SKILL.md").to_string_lossy());
+}
+
+#[test]
+fn a_skill_in_both_folders_is_one_row_every_agent_reads() {
+    let l = lists();
+    theirs(&l.global.skills, "lpm-cli");
+    theirs(&l.global.claude, "lpm-cli");
+    let out = list_stores(&l.stores).unwrap().global;
+    assert_eq!(others(&out), [("lpm-cli", vec!["claude", "codex", "gemini", "opencode"])]);
+}
+
+#[cfg(unix)]
+#[test]
+fn claude_reaching_a_shared_skill_by_a_link_counts_as_reading_it() {
+    let l = lists();
+    theirs(&l.global.skills, "shared");
+    std::fs::create_dir_all(&l.global.claude).unwrap();
+    std::os::unix::fs::symlink("../../.agents/skills/shared", l.global.claude.join("shared")).unwrap();
+    let out = list_stores(&l.stores).unwrap().global;
+    assert_eq!(others(&out), [("shared", vec!["claude", "codex", "gemini", "opencode"])]);
+}
+
+#[cfg(unix)]
+#[test]
+fn a_dotfile_link_shows_what_it_points_at_and_a_broken_one_only_holds_its_name() {
+    let l = lists();
+    let elsewhere = tempfile::tempdir().unwrap();
+    let real = theirs(elsewhere.path(), "dots");
+    std::fs::create_dir_all(&l.global.claude).unwrap();
+    std::os::unix::fs::symlink(&real, l.global.claude.join("dots")).unwrap();
+    std::os::unix::fs::symlink("/gone/nowhere", l.global.claude.join("broken")).unwrap();
+    let out = list_stores(&l.stores).unwrap().global;
+    assert_eq!(others(&out), [("dots", vec!["claude", "opencode"])]);
+    assert!(ops::save(&l.stores, input(Scope::Global, None, "broken", "a"), None).is_err());
+}
+
+#[test]
+fn a_skill_in_codex_s_own_folder_is_read_by_codex_alone() {
+    let home = place();
+    let codex = tempfile::tempdir().unwrap();
+    theirs(codex.path(), "testflight");
+    let store = LocalFs::new(home.skills.clone(), home.claude.clone(), home.lpm.clone())
+        .with_codex(codex.path().to_path_buf());
+    let stores = Stores { global: Box::new(store), project: None };
+    assert_eq!(others(&list_stores(&stores).unwrap().global), [("testflight", vec!["codex"])]);
+}
+
+#[test]
+fn skills_lpm_made_are_never_among_the_others() {
+    let l = lists();
+    ops::save(&l.stores, input(Scope::Project, None, "mine", "a"), None).unwrap();
+    made_in(&l.project.claude);
+    assert!(list_stores(&l.stores).unwrap().project.unwrap().others.is_empty());
+}
+
+#[test]
+fn a_long_skill_comes_as_its_start() {
+    let l = lists();
+    let dir = l.global.skills.join("long");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("SKILL.md"), format!("---\nname: long\ndescription: x\n---\n\n{}", "é".repeat(5000))).unwrap();
+    let out = list_stores(&l.stores).unwrap().global;
+    let preview = &out.others[0].preview;
+    assert_eq!(preview.chars().count(), 1501);
+    assert!(preview.ends_with('…'));
+}
+
+#[test]
+fn another_skill_moves_into_a_folder_without_its_file_changing() {
+    let l = lists();
+    let dir = theirs(&l.global.claude, "find-docs");
+    let before = std::fs::read_to_string(dir.join("SKILL.md")).unwrap();
+    ops::create_folder(&l.stores, Scope::Global, "Docs").unwrap();
+    ops::move_other(&l.stores, Scope::Global, "find-docs", Some("docs")).unwrap();
+    let out = list_stores(&l.stores).unwrap().global;
+    assert_eq!(out.others[0].folder.as_deref(), Some("Docs"), "the folder's own spelling");
+    assert_eq!(std::fs::read_to_string(dir.join("SKILL.md")).unwrap(), before);
+    ops::move_other(&l.stores, Scope::Global, "find-docs", None).unwrap();
+    let out = list_stores(&l.stores).unwrap().global;
+    assert_eq!(out.others[0].folder, None);
+    assert_eq!(out.folders, ["Docs"], "the emptied folder stays");
+}
+
+#[test]
+fn moving_another_skill_to_a_new_folder_makes_the_folder() {
+    let l = lists();
+    theirs(&l.project.skills, "lint");
+    ops::move_other(&l.stores, Scope::Project, "lint", Some("Tools")).unwrap();
+    let out = list_stores(&l.stores).unwrap().project.unwrap();
+    assert_eq!(out.folders, ["Tools"]);
+    assert_eq!(out.others[0].folder.as_deref(), Some("Tools"));
+}
+
+#[test]
+fn renaming_and_deleting_a_folder_carry_the_other_skills_in_it() {
+    let l = lists();
+    theirs(&l.global.skills, "lint");
+    ops::move_other(&l.stores, Scope::Global, "lint", Some("Tools")).unwrap();
+    ops::rename_folder(&l.stores, Scope::Global, "Tools", "Checks").unwrap();
+    let out = list_stores(&l.stores).unwrap().global;
+    assert_eq!(out.others[0].folder.as_deref(), Some("Checks"));
+    assert_eq!(out.folders, ["Checks"]);
+    ops::delete_folder(&l.stores, Scope::Global, "Checks").unwrap();
+    let out = list_stores(&l.stores).unwrap().global;
+    assert_eq!(out.others[0].folder, None);
+    assert!(out.folders.is_empty());
+}
+
+#[test]
+fn only_a_skill_the_list_holds_can_move() {
+    let l = lists();
+    theirs(&l.global.skills, "lint");
+    assert!(ops::move_other(&l.stores, Scope::Project, "lint", Some("Tools")).is_err());
+    assert!(ops::move_other(&l.stores, Scope::Global, "gone", Some("Tools")).is_err());
+    assert!(ops::move_other(&l.stores, Scope::Global, "lint", Some("a:b")).is_err());
+}
+
+#[test]
+fn another_skill_becomes_lpm_s_and_back_keeping_its_folder_and_text() {
+    let l = lists();
+    let dir = theirs(&l.global.skills, "lint");
+    let original = std::fs::read_to_string(dir.join("SKILL.md")).unwrap();
+    ops::move_other(&l.stores, Scope::Global, "lint", Some("Tools")).unwrap();
+
+    ops::convert(&l.stores, Scope::Global, "lint", true).unwrap();
+    let out = list_stores(&l.stores).unwrap().global;
+    assert!(out.others.is_empty());
+    assert_eq!(names(&out), [(Some("Tools".to_string()), "lint".to_string())]);
+    assert_eq!(out.commands[0].description, "About lint");
+    assert_eq!(out.commands[0].body, "Do lint.");
+    #[cfg(unix)]
+    assert!(l.global.claude.join("lint/SKILL.md").exists(), "Claude reaches it like any lpm skill");
+    let marked = l.global.skill("lint");
+    assert!(!marked.contains("disable-model-invocation"), "who may start it doesn't change: {marked}");
+
+    ops::convert(&l.stores, Scope::Global, "lint", false).unwrap();
+    let out = list_stores(&l.stores).unwrap().global;
+    assert!(out.commands.is_empty());
+    assert_eq!(out.others[0].folder.as_deref(), Some("Tools"));
+    assert_eq!(l.global.skill("lint"), original.replace("\n\nDo", "\n\nDo"));
+}
+
+#[test]
+fn a_converted_skill_can_be_edited_where_it_lives() {
+    let l = lists();
+    let dir = theirs(&l.project.claude, "deploy");
+    ops::convert(&l.stores, Scope::Project, "deploy", true).unwrap();
+    ops::save(&l.stores, input(Scope::Project, None, "deploy", "New."), Some(reference(Scope::Project, None, "deploy")))
+        .unwrap();
+    assert!(std::fs::read_to_string(dir.join("SKILL.md")).unwrap().ends_with("\nNew.\n"));
+    assert!(!dir.is_symlink());
+}
+
+#[test]
+fn every_copy_of_a_skill_converts_together() {
+    let l = lists();
+    theirs(&l.global.skills, "lpm-cli");
+    let copy = theirs(&l.global.claude, "lpm-cli");
+    ops::convert(&l.stores, Scope::Global, "lpm-cli", true).unwrap();
+    assert!(std::fs::read_to_string(copy.join("SKILL.md")).unwrap().contains("lpm-created"));
+    let out = list_stores(&l.stores).unwrap().global;
+    assert_eq!(names(&out), [(None, "lpm-cli".to_string())]);
+    ops::save(&l.stores, input(Scope::Global, None, "lpm-cli", "New."), Some(reference(Scope::Global, None, "lpm-cli")))
+        .unwrap();
+    assert!(std::fs::read_to_string(copy.join("SKILL.md")).unwrap().ends_with("\nNew.\n"), "the copy keeps up");
+}
+
+#[cfg(unix)]
+#[test]
+fn a_skill_behind_someone_s_link_stays_theirs() {
+    let l = lists();
+    let elsewhere = tempfile::tempdir().unwrap();
+    let real = theirs(elsewhere.path(), "dots");
+    std::fs::create_dir_all(&l.global.claude).unwrap();
+    std::os::unix::fs::symlink(&real, l.global.claude.join("dots")).unwrap();
+    let err = ops::convert(&l.stores, Scope::Global, "dots", true).unwrap_err();
+    assert!(err.contains("link"), "{err}");
+    assert!(!std::fs::read_to_string(real.join("SKILL.md")).unwrap().contains("lpm-created"));
+}
+
+#[test]
+fn a_name_lpm_could_not_list_is_refused_with_why() {
+    let l = lists();
+    theirs(&l.global.skills, "Skill_Creator");
+    let err = ops::convert(&l.stores, Scope::Global, "Skill_Creator", true).unwrap_err();
+    assert!(err.contains("lowercase"), "{err}");
+}
+
 // ---- moving an old list ------------------------------------------------------
 
 fn old_list(place: &Place) -> PathBuf {

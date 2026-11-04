@@ -1,7 +1,7 @@
 import type { CommandMap } from "../backend";
 import { emitEvent } from "../ipc";
 import { AUTO_VARIABLES, findCommand, isValidCommandName, promptVariables, sameCommand } from "../../lpmCommands";
-import type { CommandInput, CommandRef, CommandScope, LpmCommand, LpmCommandLists } from "../../lpmCommands";
+import type { CommandInput, CommandRef, CommandScope, LpmCommand, LpmCommandLists, OtherSkill } from "../../lpmCommands";
 import type { SeedLpmCommand } from "../seed/types";
 import { GLOBAL, projects, seedData } from "./state";
 
@@ -12,6 +12,7 @@ import { GLOBAL, projects, seedData } from "./state";
 interface List {
   folders: string[];
   commands: LpmCommand[];
+  others: OtherSkill[];
 }
 
 let global: List | null = null;
@@ -27,6 +28,7 @@ function fromSeed(seeded: SeedLpmCommand[], scope: CommandScope): List {
   return {
     folders: [...new Set(seeded.flatMap((c) => (c.folder ? [c.folder] : [])))],
     commands: seeded.map((c) => ({ ...c, scope, argumentHint: hint(c.body) })),
+    others: (seedData().lpmCommands?.others?.[scope] ?? []).map((o) => ({ ...o })),
   };
 }
 
@@ -56,6 +58,7 @@ const byName = (a: string, b: string) => a.toLowerCase().localeCompare(b.toLower
 function sorted(list: List) {
   return {
     folders: [...list.folders].sort(byName),
+    others: [...list.others].sort((a, b) => byName(a.name, b.name)),
     commands: [...list.commands].sort((a, b) =>
         a.folder === b.folder
           ? byName(a.name, b.name)
@@ -170,13 +173,50 @@ export const lpmCommandCommands: CommandMap = {
     const list = listOf(str(project), scope as CommandScope);
     const to = str(newName).trim();
     list.folders = list.folders.map((f) => (f === name ? to : f));
-    for (const c of list.commands) if (c.folder === name) c.folder = to;
+    for (const c of [...list.commands, ...list.others]) if (c.folder === name) c.folder = to;
     return changed(str(project), scope as CommandScope);
   },
   delete_lpm_command_folder: ({ project, scope, name }) => {
     const list = listOf(str(project), scope as CommandScope);
     list.folders = list.folders.filter((f) => f !== name);
-    for (const c of list.commands) if (c.folder === name) c.folder = null;
+    for (const c of [...list.commands, ...list.others]) if (c.folder === name) c.folder = null;
+    return changed(str(project), scope as CommandScope);
+  },
+  move_other_skill: ({ project, scope, name, folder }) => {
+    const list = listOf(str(project), scope as CommandScope);
+    const other = list.others.find((o) => o.name === name);
+    if (!other) throw new Error(`/${str(name)} isn't in this list any more.`);
+    other.folder = (folder as string | null) ?? null;
+    if (other.folder && !list.folders.includes(other.folder)) list.folders.push(other.folder);
+    return changed(str(project), scope as CommandScope);
+  },
+  convert_skill: ({ project, scope, name, toLpm }) => {
+    const list = listOf(str(project), scope as CommandScope);
+    if (toLpm) {
+      const other = list.others.find((o) => o.name === name);
+      if (!other) throw new Error(`/${str(name)} isn't in this list any more.`);
+      list.others = list.others.filter((o) => o !== other);
+      list.commands.push({
+        name: other.name,
+        folder: other.folder ?? null,
+        description: other.description,
+        body: other.preview,
+        scope: scope as CommandScope,
+        argumentHint: hint(other.preview),
+      });
+    } else {
+      const command = list.commands.find((c) => c.name === name);
+      if (!command) throw new Error(`/${str(name)} isn't in this list any more.`);
+      list.commands = list.commands.filter((c) => c !== command);
+      list.others.push({
+        name: command.name,
+        description: command.description,
+        preview: command.body,
+        agents: ["claude", "codex", "gemini", "opencode"],
+        path: `.agents/skills/${command.name}/SKILL.md`,
+        folder: command.folder,
+      });
+    }
     return changed(str(project), scope as CommandScope);
   },
   import_lpm_commands: ({ project }) => ({ imported: 0, list: lists(str(project)) }),

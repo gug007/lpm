@@ -28,7 +28,9 @@ private val listFailures = mapOf(
     "lpmCommands" to "Couldn't load your skills.",
     "lpmCommandSave" to "Couldn't save the skill.",
     "lpmCommandDelete" to "Couldn't delete the skill.",
-    "lpmCommandFolder" to "Couldn't change the folder."
+    "lpmCommandFolder" to "Couldn't change the folder.",
+    "lpmCommandOtherFolder" to "Couldn't change the folder.",
+    "lpmCommandConvert" to "Couldn't convert the skill."
 )
 
 internal val commandParsers = parsers {

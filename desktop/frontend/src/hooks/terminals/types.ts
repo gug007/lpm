@@ -60,6 +60,7 @@ export interface UseTerminalsResult {
   addCommandsToPane: (paneId?: string) => void;
   openAutomationsTab: () => Promise<void>;
   openCommandsTab: () => Promise<void>;
+  openToolkitTab: () => Promise<void>;
   // Show a page of one of the project's servers, in the tab already on it or a new one.
   openBrowserTab: (url: string, label?: string, paneId?: string) => Promise<void>;
   closeTerminal: (paneId: string, tabIdx: number) => void;

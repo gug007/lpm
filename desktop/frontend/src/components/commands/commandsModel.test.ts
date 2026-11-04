@@ -1,14 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { commandKey, type LpmCommand, type LpmCommandLists } from "../../lpmCommands";
 import {
+  agentReach,
   commandTree,
   draftOf,
   draftProblem,
+  findOther,
   folderKey,
   folderNamed,
   isDirty,
   movedTo,
   newDraft,
+  otherDropFolder,
+  otherKey,
   parseFolderKey,
   placeChoices,
   runningKeys,
@@ -136,5 +140,69 @@ describe("folderNamed", () => {
     expect(folderNamed("bugs", "project", lists)).toBe("Bugs");
     expect(folderNamed("Docs", "project", lists)).toBe("Docs");
     expect(folderNamed("bugs", "global", lists)).toBe("bugs");
+  });
+});
+
+describe("other skills", () => {
+  const skill = (name: string, description = "", folder: string | null = null) => ({
+    name,
+    description,
+    preview: "",
+    agents: ["claude"],
+    path: "",
+    folder,
+  });
+  const withOthers: LpmCommandLists = {
+    ...lists,
+    project: { ...lists.project!, others: [skill("android-cli", "Android tools")] },
+    global: { ...lists.global, others: [skill("find-docs")] },
+  };
+
+  it("keeps them with their list, out of its count", () => {
+    const [project, global] = commandTree(withOthers, "");
+    expect(project.others.map((o) => o.name)).toEqual(["android-cli"]);
+    expect(project.count).toBe(project.loose.length + project.folders.flatMap((f) => f.commands).length);
+    expect(global.others.map((o) => o.name)).toEqual(["find-docs"]);
+  });
+
+  it("finds them by name or description, and keeps a list that only they match", () => {
+    expect(commandTree(withOthers, "android tools").map((t) => t.scope)).toEqual(["project"]);
+    expect(commandTree(withOthers, "find-").map((t) => t.scope)).toEqual(["global"]);
+  });
+
+  it("treats a list from an older lpm as having none", () => {
+    expect(commandTree(lists, "").every((t) => t.others.length === 0)).toBe(true);
+    expect(findOther(lists, { scope: "global", name: "x" })).toBeNull();
+  });
+
+  it("finds one by its list, whose name can repeat in the other", () => {
+    expect(findOther(withOthers, { scope: "project", name: "android-cli" })?.description).toBe("Android tools");
+    expect(findOther(withOthers, { scope: "global", name: "android-cli" })).toBeNull();
+    expect(otherKey("project", "x")).not.toBe(otherKey("global", "x"));
+  });
+
+  it("shows one filed in a folder under that folder, not in the group", () => {
+    const filed: LpmCommandLists = {
+      ...lists,
+      project: { ...lists.project!, others: [skill("deploy", "", "Bugs"), skill("lint")] },
+    };
+    const [project] = commandTree(filed, "");
+    expect(project.folders.find((f) => f.name === "Bugs")?.others.map((o) => o.name)).toEqual(["deploy"]);
+    expect(project.others.map((o) => o.name)).toEqual(["lint"]);
+    expect(commandTree(filed, "deploy")[0].folders.map((f) => f.name)).toEqual(["Bugs"]);
+  });
+
+  it("files one only inside its own list", () => {
+    const o = skill("lint", "", "Bugs");
+    expect(otherDropFolder(o, "project", folderKey("project", "Docs"))).toBe("Docs");
+    expect(otherDropFolder(o, "project", folderKey("project", null))).toBeNull();
+    expect(otherDropFolder(o, "project", folderKey("project", "Bugs"))).toBeUndefined();
+    expect(otherDropFolder(o, "project", folderKey("global", "Git"))).toBeUndefined();
+  });
+
+  it("says which agents read it", () => {
+    const reach = agentReach(["claude", "opencode"]);
+    expect(reach.filter((a) => a.reads).map((a) => a.label)).toEqual(["Claude Code", "OpenCode"]);
+    expect(reach.filter((a) => !a.reads).map((a) => a.label)).toContain("Codex");
   });
 });

@@ -25,16 +25,16 @@ import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.feature.commands.R
 
 /**
- * A Commands page: the bar with [leading], [title] and "+" ([onNewCommand]), over
- * [content] that pulls to refresh. [inSheet] drops the status bar inset for the room
- * under a sheet's grabber.
+ * A Commands page: the bar with [leading], [title] and "+" ([onNewCommand], none on a
+ * page that only reads), over [content] that pulls to refresh. [inSheet] drops the
+ * status bar inset for the room under a sheet's grabber.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun CommandsScaffold(
     title: String,
     leading: @Composable RowScope.() -> Unit,
-    onNewCommand: () -> Unit,
+    onNewCommand: (() -> Unit)?,
     refreshing: Boolean,
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier,
@@ -53,13 +53,15 @@ internal fun CommandsScaffold(
             windowInsets = if (inSheet) WindowInsets(0) else WindowInsets.statusBars,
             leading = leading,
             trailing = {
-                GlassIconButton(
-                    icon = painterResource(DesignR.drawable.ic_add),
-                    contentDescription = stringResource(R.string.commands_new_command),
-                    onClick = onNewCommand,
-                    enabled = newCommandEnabled,
-                    iconSize = 30.dp
-                )
+                if (onNewCommand != null) {
+                    GlassIconButton(
+                        icon = painterResource(DesignR.drawable.ic_add),
+                        contentDescription = stringResource(R.string.commands_new_command),
+                        onClick = onNewCommand,
+                        enabled = newCommandEnabled,
+                        iconSize = 30.dp
+                    )
+                }
             }
         )
         PullToRefreshBox(

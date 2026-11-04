@@ -18,6 +18,7 @@ import cx.lpm.mobile.core.model.SessionKey
 import cx.lpm.mobile.core.navigation.CommandEditorKey
 import cx.lpm.mobile.core.navigation.CommandFolderKey
 import cx.lpm.mobile.core.navigation.CommandsKey
+import cx.lpm.mobile.core.navigation.OtherSkillsKey
 import cx.lpm.mobile.feature.commands.R
 import cx.lpm.mobile.feature.commands.editor.CommandEditorSheet
 import cx.lpm.mobile.feature.commands.ui.BackButton
@@ -28,6 +29,7 @@ import cx.lpm.mobile.feature.commands.ui.rememberCommandsPage
 fun CommandsRoute(
     key: CommandsKey,
     onOpenFolder: (CommandFolderKey) -> Unit,
+    onOpenOthers: (OtherSkillsKey) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -37,6 +39,7 @@ fun CommandsRoute(
         onOpenFolder = { scope, folder ->
             onOpenFolder(CommandFolderKey(key.project, scope, folder, key.session))
         },
+        onOpenOthers = { scope -> onOpenOthers(OtherSkillsKey(key.project, scope, key.session)) },
         modifier = modifier,
         leading = { BackButton(onBack) }
     )
@@ -44,13 +47,14 @@ fun CommandsRoute(
 
 /**
  * The Commands screen wired to its ViewModel, the folder dialogs and the editor
- * sheet; [onOpenFolder] shows a folder's commands.
+ * sheet; [onOpenFolder] shows a folder's commands, [onOpenOthers] a list's other skills.
  */
 @Composable
 internal fun CommandsHost(
     project: String,
     session: SessionKey,
     onOpenFolder: (scope: CommandScope, folder: String?) -> Unit,
+    onOpenOthers: (scope: CommandScope) -> Unit,
     leading: @Composable RowScope.() -> Unit,
     modifier: Modifier = Modifier,
     inSheet: Boolean = false,
@@ -76,6 +80,7 @@ internal fun CommandsHost(
             },
             openFolder = { onOpenFolder(state.scope, it.folder) },
             newFolder = { dialog = FolderDialog.Create },
+            openOthers = { onOpenOthers(state.scope) },
             renameFolder = { dialog = FolderDialog.Rename(it) },
             deleteFolder = { dialog = FolderDialog.Delete(it) },
             pickScope = viewModel::pick,

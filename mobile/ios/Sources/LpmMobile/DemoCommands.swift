@@ -8,12 +8,23 @@ extension DemoWorld {
         var body: String
     }
 
+    struct Other {
+        var name: String
+        var description: String
+        var preview: String
+        var agents: [String]
+        var path: String
+        var folder: String? = nil
+    }
+
     struct CommandList {
         var folders: [String]
         var commands: [Command]
+        var others: [Other]
 
-        init(_ commands: [Command]) {
+        init(_ commands: [Command], others: [Other] = []) {
             self.commands = commands
+            self.others = others
             folders = []
             for c in commands {
                 if let f = c.folder, !folders.contains(f) { folders.append(f) }
@@ -30,14 +41,37 @@ extension DemoWorld {
                 body: "Write focused tests for the code I just changed, run them, and fix anything that fails."),
         Command(name: "explain", folder: nil, description: "Explain a piece of code",
                 body: "Explain what $ARGUMENTS does, where it is called from, and what would break if it changed."),
-    ])
+    ], others: globalOthersSeed)
+
+    /// The desktop's sample of skills not made in lpm, by list. `{root}` is the project.
+    static let globalOthersSeed = [
+        Other(name: "find-docs", description: "Look up current docs for a library",
+              preview: "Find the official docs for the library in question and quote the relevant section.",
+              agents: ["claude", "codex", "gemini", "opencode"],
+              path: "/Users/demo/.agents/skills/find-docs/SKILL.md"),
+        Other(name: "playwright-cli", description: "Drive a browser to test a page",
+              preview: "Open the page in a browser, follow the steps and report what you see.",
+              agents: ["claude", "opencode"], path: "/Users/demo/.claude/skills/playwright-cli/SKILL.md"),
+        Other(name: "testflight-upload", description: "Upload a build to TestFlight",
+              preview: "Archive the app, upload it to TestFlight and report the build number.",
+              agents: ["codex"], path: "/Users/demo/.codex/skills/testflight-upload/SKILL.md"),
+    ]
+
+    static let projectOthersSeed = [
+        Other(name: "db-migrate", description: "Write and run a database migration",
+              preview: "Write a migration for the change, run it locally and show the schema diff.",
+              agents: ["codex", "gemini", "opencode"], path: "{root}/.agents/skills/db-migrate/SKILL.md"),
+        Other(name: "deploy-preview", description: "Deploy the current branch to a preview URL",
+              preview: "Build the app, deploy it to a preview URL and post the link.",
+              agents: ["claude", "opencode"], path: "{root}/.claude/skills/deploy-preview/SKILL.md"),
+    ]
 
     static let projectCommandsSeed = CommandList([
         Command(name: "review-changes", folder: "Review", description: "Bugs and gaps in my uncommitted changes",
                 body: "Review my uncommitted changes for bugs, missing edge cases and untested paths. List blocking issues first."),
         Command(name: "fix-ticket", folder: "Bugs", description: "Fix a ticket on the current branch",
                 body: "Fix {{ticket}} on branch {{branch}}. Read the issue first and tell me your plan before editing. Keep the diff small and add a test."),
-    ])
+    ], others: projectOthersSeed)
 }
 
 private struct DemoCommandError: Error {
@@ -51,7 +85,7 @@ private struct DemoCommandError: Error {
 /// global one of the same name.
 extension DemoServer {
     private static let commandVerbs = ["lpmCommands", "lpmCommandSave", "lpmCommandDelete",
-                                       "lpmCommandFolder", "lpmCommandExpand"]
+                                       "lpmCommandFolder", "lpmCommandExpand", "lpmCommandOtherFolder", "lpmCommandConvert"]
     private static let autoVariables = ["branch", "project", "dir"]
     private static let forbiddenFolderChars = "/\\:*?\"<>|"
 
@@ -105,6 +139,10 @@ extension DemoServer {
             return ["text": text, "missing": missing]
         case "lpmCommandSave":
             try saveCommand(project, o["command"] as? [String: Any] ?? [:], previous: o["previous"] as? [String: Any])
+        case "lpmCommandOtherFolder":
+            try moveOther(project, o)
+        case "lpmCommandConvert":
+            try convertSkill(project, o)
         case "lpmCommandDelete":
             let target = o["target"] as? [String: Any] ?? [:]
             let folder = target["folder"] as? String
@@ -142,8 +180,8 @@ extension DemoServer {
     }
 
     private func commandLists(_ project: String) -> [String: Any] {
-        ["global": Self.wire(world.commandsGlobal, scope: "global"),
-         "project": ownCommands(project).map { Self.wire($0, scope: "project") } ?? NSNull(),
+        ["global": Self.wire(world.commandsGlobal, scope: "global", project: project),
+         "project": ownCommands(project).map { Self.wire($0, scope: "project", project: project) } ?? NSNull(),
          "projectError": NSNull()]
     }
 
@@ -154,8 +192,13 @@ extension DemoServer {
         return (own + global).filter { seen.insert($0.0.name.lowercased()).inserted }
     }
 
-    private static func wire(_ list: DemoWorld.CommandList, scope: String) -> [String: Any] {
+    private static func wire(_ list: DemoWorld.CommandList, scope: String, project: String) -> [String: Any] {
         ["folders": list.folders.sorted(by: byName),
+         "others": list.others.sorted { byName($0.name, $1.name) }.map { o -> [String: Any] in
+             ["name": o.name, "description": o.description, "preview": o.preview, "agents": o.agents,
+              "path": o.path.replacingOccurrences(of: "{root}", with: "/Users/demo/dev/\(project)"),
+              "folder": o.folder ?? NSNull()]
+         },
          "commands": sorted(list.commands).map { c -> [String: Any] in
              ["name": c.name, "folder": c.folder ?? NSNull(), "description": c.description, "body": c.body,
               "scope": scope, "argumentHint": argumentHint(c.body)]
@@ -223,6 +266,43 @@ extension DemoServer {
         }
     }
 
+    private func moveOther(_ project: String, _ o: [String: Any]) throws {
+        let name = o["name"] as? String ?? ""
+        let folder = try Self.cleanFolder(o["folder"] as? String)
+        try updateCommands(project, Self.scope(o)) { list in
+            guard let i = list.others.firstIndex(where: { $0.name == name }) else {
+                throw DemoCommandError("/\(name) isn't in this list any more.")
+            }
+            let kept = folder.map { f in list.folders.first { $0.lowercased() == f.lowercased() } ?? f }
+            if let kept, !list.folders.contains(kept) { list.folders.append(kept) }
+            list.others[i].folder = kept
+        }
+    }
+
+    private func convertSkill(_ project: String, _ o: [String: Any]) throws {
+        let name = o["name"] as? String ?? ""
+        let scope = Self.scope(o)
+        let root = scope == "global" ? "/Users/demo" : "{root}"
+        try updateCommands(project, scope) { list in
+            if o["toLpm"] as? Bool == true {
+                guard let i = list.others.firstIndex(where: { $0.name == name }) else {
+                    throw DemoCommandError("/\(name) isn't in this list any more.")
+                }
+                let other = list.others.remove(at: i)
+                list.commands.append(DemoWorld.Command(name: other.name, folder: other.folder,
+                                                       description: other.description, body: other.preview))
+            } else {
+                guard let i = list.commands.firstIndex(where: { $0.name == name }) else {
+                    throw DemoCommandError("/\(name) isn't in this list any more.")
+                }
+                let c = list.commands.remove(at: i)
+                list.others.append(DemoWorld.Other(name: c.name, description: c.description, preview: c.body,
+                                                   agents: ["claude", "codex", "gemini", "opencode"],
+                                                   path: "\(root)/.agents/skills/\(c.name)/SKILL.md", folder: c.folder))
+            }
+        }
+    }
+
     private func changeFolder(_ project: String, _ o: [String: Any]) throws {
         let name = try Self.checkFolder(o["name"] as? String ?? "")
         let existing = { (list: DemoWorld.CommandList, folder: String) in
@@ -241,6 +321,7 @@ extension DemoServer {
                     throw DemoCommandError("A folder named \(to) already exists.")
                 }
                 list.folders = list.folders.map { $0 == current ? to : $0 }
+                for i in list.others.indices where list.others[i].folder == current { list.others[i].folder = to }
                 for i in list.commands.indices where list.commands[i].folder == current { list.commands[i].folder = to }
             case "delete":
                 guard let current = existing(list, name) else { return }
@@ -252,6 +333,7 @@ extension DemoServer {
                     }
                 }
                 list.folders.removeAll { $0 == current }
+                for i in list.others.indices where list.others[i].folder == current { list.others[i].folder = nil }
                 for i in list.commands.indices where list.commands[i].folder == current { list.commands[i].folder = nil }
             default:
                 throw DemoCommandError("unknown folder op")

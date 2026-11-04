@@ -79,6 +79,7 @@ import { retainPeerSession } from "../peer/retainedSessions";
 import { useHostFollows } from "../peer/useHostFollows";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { useCommandsOpen } from "../store/commandsOpen";
+import { useToolkitOpen } from "../store/toolkitOpen";
 import { blockingDialogOpen } from "./ui/blockingDialog";
 import { isPendingClose } from "../pendingClose";
 import type { SavedLayoutNode } from "../savedLayouts";
@@ -256,6 +257,7 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
     addCommandsToPane,
     openAutomationsTab,
     openCommandsTab,
+    openToolkitTab,
     openBrowserTab,
     closeTerminal,
     closeOtherTerminals,
@@ -676,6 +678,14 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
     useCommandsOpen.getState().clearOpen();
     void openCommandsTab();
   }, [commandsRequest, visible, openCommandsTab]);
+
+  // Open in Agent setup, from the Skills tab.
+  const toolkitRequest = useToolkitOpen((s) => (s.open?.project === projectName ? s.open.seq : null));
+  useEffect(() => {
+    if (toolkitRequest === null || !visible) return;
+    useToolkitOpen.getState().clearOpen();
+    void openToolkitTab();
+  }, [toolkitRequest, visible, openToolkitTab]);
 
   // The layout restore is async, so a request that lands on a freshly mounted
   // view waits for a tree to search before it resolves (or is dropped).

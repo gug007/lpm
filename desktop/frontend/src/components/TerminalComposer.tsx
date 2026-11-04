@@ -239,6 +239,9 @@ interface TerminalComposerProps {
   guest?: boolean;
 }
 
+// A message that is nothing but a "/fragment" being typed.
+const WHOLE_SLASH = /^\s*\/[A-Za-z0-9:_-]*\s*$/;
+
 const SHARED_TEXT_ONLY = "Only text can be sent to a shared tab.";
 
 // How many trailing lines of a service's pane to pull into the draft when its
@@ -1254,11 +1257,11 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     await deliverPrompt(value, images);
   };
 
-  // `/name args` for one of the user's lpm skills: the agent gets the
-  // command's prompt with the arguments filled in. One still unfilled puts the
-  // prompt in the input instead, to finish by hand.
+  // `/name args` for one of the user's lpm skills: the agent runs it as a skill
+  // when it can, else it gets the prompt with the arguments filled in. One still
+  // unfilled puts the prompt in the input instead, to finish by hand.
   const runLpmCommand = async (name: string, args: string, images: Record<string, string>) => {
-    const expanded = await lpmRun.expand(name, args);
+    const expanded = await lpmRun.expand(name, args, slashCli ?? undefined);
     if (!expanded) return;
     if (expanded.missing.length > 0) {
       loadFromHistory(expanded.text, images);
@@ -1695,33 +1698,27 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   };
 
   // Swap the typed "/<frag>" for the chosen "/<command> " and keep editing so the
-  // user can add arguments before sending.
-  const insertSlashCommand = (cmd: SlashCommand, mode: "run" | "edit" = "run") => {
+  // user can add arguments before sending. An lpm skill alone in the message goes
+  // in the same way; anywhere else, or on ⇥, it takes its own path.
+  const insertSlashCommand = (cmd: SlashCommand, mode: "insert" | "edit" = "insert") => {
     const editor = editorRef.current;
     setSlashOpen(false);
     if (!editor) return;
-    if (cmd.source === "lpm") {
-      void pickLpmCommand(editor, cmd, mode);
+    if (cmd.source === "lpm" && (mode === "edit" || !WHOLE_SLASH.test(serializeEditor(editor)))) {
+      void placeLpmCommand(editor, cmd, mode);
       return;
     }
     if (replaceSlashFragment(editor, cmd.name)) afterSlashEdit(editor);
   };
 
-  // An lpm command picked from the menu. ↵ on a message that is just the
-  // command runs it, or leaves "/name " for its arguments when it asks for
-  // some; ⇥, or a pick mid-message, puts its prompt in place to edit.
-  const pickLpmCommand = async (editor: HTMLElement, cmd: SlashCommand, mode: "run" | "edit") => {
-    const whole = /^\s*\/[A-Za-z0-9:_-]*\s*$/.test(serializeEditor(editor));
-    if (mode === "run" && whole && cmd.argumentHint) {
-      if (replaceSlashFragment(editor, cmd.name)) afterSlashEdit(editor);
-      return;
-    }
-    if (mode === "run" && whole) {
-      await runLpmCommand(cmd.name, "", {});
-      return;
-    }
-    const expanded = await lpmRun.expand(cmd.name, "");
-    if (expanded && replaceSlashFragmentWith(editor, expanded.text)) afterSlashEdit(editor);
+  // ⇥ puts an lpm skill's prompt in place to edit. Mid-message, what the agent
+  // reads there goes in: its own call for the skill when it can run it, else the
+  // prompt.
+  const placeLpmCommand = async (editor: HTMLElement, cmd: SlashCommand, mode: "insert" | "edit") => {
+    const editing = mode === "edit";
+    const expanded = await lpmRun.expand(cmd.name, "", editing ? undefined : (slashCli ?? undefined));
+    if (!expanded) return;
+    if (replaceSlashFragmentWith(editor, editing ? expanded.text : `${expanded.text} `)) afterSlashEdit(editor);
   };
 
   const afterSlashEdit = (editor: HTMLElement) => {
@@ -2127,7 +2124,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
         e.preventDefault();
         e.stopPropagation();
         const cmd = slashItems[slashIndex];
-        if (cmd) insertSlashCommand(cmd, e.key === "Tab" ? "edit" : "run");
+        if (cmd) insertSlashCommand(cmd, e.key === "Tab" ? "edit" : "insert");
         return;
       }
       if (e.key === "Escape") {

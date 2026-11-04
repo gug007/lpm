@@ -1,15 +1,18 @@
 import { useState } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import { ChevronDown, ChevronRight, FolderClosed, FolderOpen } from "lucide-react";
-import { commandKey, type LpmCommand } from "../../lpmCommands";
+import { commandKey, type CommandScope, type LpmCommand } from "../../lpmCommands";
 import { ContextMenuItem } from "../ui/ContextMenuItem";
 import { ContextMenuShell } from "../ui/ContextMenuShell";
 import { CommandFolderInput } from "./CommandFolderInput";
+import { CommandOtherRow } from "./CommandOtherRow";
 import { CommandRow } from "./CommandRow";
-import type { TreeFolder } from "./commandsModel";
+import { otherKey, type SkillRowActions, type TreeFolder } from "./commandsModel";
 
 interface CommandTreeFolderProps {
   folder: TreeFolder;
+  scope: CommandScope;
+  actions: SkillRowActions;
   open: boolean;
   selectedKey: string | null;
   running: ReadonlySet<string>;
@@ -25,6 +28,8 @@ interface CommandTreeFolderProps {
 // offers a new command here, renaming and removing it.
 export function CommandTreeFolder({
   folder,
+  scope,
+  actions,
   open,
   selectedKey,
   running,
@@ -76,7 +81,9 @@ export function CommandTreeFolder({
           <Chevron size={12} className="shrink-0 text-[var(--text-muted)]" />
           <Icon size={13} className="shrink-0 text-[var(--text-muted)]" />
           <span className="min-w-0 flex-1 truncate">{folder.name}</span>
-          <span className="shrink-0 text-[11px] tabular-nums text-[var(--text-muted)]">{folder.commands.length}</span>
+          <span className="shrink-0 text-[11px] tabular-nums text-[var(--text-muted)]">
+            {folder.commands.length + folder.others.length}
+          </span>
         </button>
       )}
       {open &&
@@ -88,6 +95,17 @@ export function CommandTreeFolder({
             selected={selectedKey === commandKey(c)}
             runs={running.has(commandKey(c))}
             onSelect={() => onSelect(c)}
+            onConvert={() => actions.onConvert(scope, c.name, false)}
+          />
+        ))}
+      {open &&
+        folder.others.map((skill) => (
+          <CommandOtherRow
+            key={skill.name}
+            scope={scope}
+            skill={skill}
+            selected={selectedKey === otherKey(scope, skill.name)}
+            actions={actions}
           />
         ))}
       {menu && (

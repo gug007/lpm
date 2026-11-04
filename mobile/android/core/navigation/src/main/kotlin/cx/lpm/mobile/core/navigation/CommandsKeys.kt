@@ -24,6 +24,23 @@ data class CommandFolderKey(
     val session: SessionKey = SessionKey.Live
 ) : NavKey
 
+/** The skills not made in lpm in one list's places. */
+@Serializable
+data class OtherSkillsKey(
+    val project: String,
+    val scope: CommandScope,
+    val session: SessionKey = SessionKey.Live
+) : NavKey
+
+/** One of those, to read. */
+@Serializable
+data class OtherSkillKey(
+    val project: String,
+    val scope: CommandScope,
+    val name: String,
+    val session: SessionKey = SessionKey.Live
+) : NavKey
+
 /**
  * The command editor in a sheet: `original` when editing one, else a new command. A
  * null `scope` puts a new one in the project's own list when it has one.

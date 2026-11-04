@@ -67,13 +67,47 @@ sealed interface WireCommands {
         if (newName != null) put("newName", newName)
     }
 
-    fun lpmCommandExpand(project: String, reqId: String, name: String, args: String): String =
-        frame("lpmCommandExpand") {
-            put("project", project)
-            put("reqId", reqId)
-            put("name", name)
-            put("args", args)
-        }
+    fun lpmCommandOtherFolder(
+        project: String,
+        reqId: String,
+        scope: CommandScope,
+        name: String,
+        folder: String?
+    ): String = frame("lpmCommandOtherFolder") {
+        put("project", project)
+        put("reqId", reqId)
+        put("scope", scope.wire)
+        put("name", name)
+        put("folder", folder)
+    }
+
+    fun lpmCommandConvert(
+        project: String,
+        reqId: String,
+        scope: CommandScope,
+        name: String,
+        toLpm: Boolean
+    ): String = frame("lpmCommandConvert") {
+        put("project", project)
+        put("reqId", reqId)
+        put("scope", scope.wire)
+        put("name", name)
+        put("toLpm", toLpm)
+    }
+
+    fun lpmCommandExpand(
+        project: String,
+        reqId: String,
+        name: String,
+        args: String,
+        cli: String
+    ): String = frame("lpmCommandExpand") {
+        put("project", project)
+        put("reqId", reqId)
+        put("name", name)
+        put("args", args)
+        put("cli", cli)
+    }
 }
 
 private fun JsonObjectBuilder.putRef(ref: CommandRef) {

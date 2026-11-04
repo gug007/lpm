@@ -825,19 +825,19 @@ struct TerminalComposer: View {
         (model.slashCommands[termId] ?? []).first { $0.isLpm && $0.name.caseInsensitiveCompare(name) == .orderedSame }
     }
 
-    /// Picked on a message that is just the command, it runs, or leaves `/name `
-    /// when it asks for arguments; picked mid-message, its prompt takes the
-    /// fragment's place to edit.
+    /// An lpm skill picked from the menu goes in like the agent's own, as `/name `
+    /// to send or add arguments to. Mid-message, what the agent reads there takes the
+    /// fragment's place: its own call for the skill when it can run it, else the prompt.
     private func pickLpmCommand(_ cmd: SlashCommand) {
         let text = store.text
         let whole = text.lastIndex(of: "/").map { text[..<$0].allSatisfy(\.isWhitespace) } ?? false
-        if whole && !cmd.argumentHint.isEmpty { return insertSlashCommand(cmd) }
-        if whole { return runLpmCommand(cmd.name, args: "") }
-        expandLpmCommand(cmd.name, args: "") { replaceSlashFragment(with: $0.text) }
+        if whole { return insertSlashCommand(cmd) }
+        expandLpmCommand(cmd.name, args: "") { replaceSlashFragment(with: $0.text + " ") }
     }
 
-    /// A run with every variable given sends its prompt like a typed message; one
-    /// still unfilled leaves the prompt in the input to finish by hand.
+    /// A run goes to the agent as a skill when it can start one, else as its
+    /// prompt with every variable given, like a typed message; one still unfilled
+    /// leaves the prompt in the input to finish by hand.
     private func runLpmCommand(_ name: String, args: String) {
         expandLpmCommand(name, args: args) { expanded in
             store.text = expanded.text
@@ -855,7 +855,7 @@ struct TerminalComposer: View {
         Task {
             defer { expandingCommand = false }
             do {
-                use(try await model.lpmCommands.expand(project, name: name, args: args))
+                use(try await model.lpmCommands.expand(project, name: name, args: args, cli: terminalCli))
             } catch {
                 toast = ComposerToast(text: error.localizedDescription)
             }

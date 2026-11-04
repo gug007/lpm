@@ -106,6 +106,7 @@ private fun CommandEditor(
                 setDescription = viewModel::setDescription,
                 setBody = viewModel::setBody,
                 place = viewModel::place,
+                convert = viewModel::convert.takeIf { viewModel.canConvert },
                 delete = { confirmingDelete = true }
             )
         )

@@ -7,7 +7,9 @@ private val COMMAND_VERBS = listOf(
     "lpmCommandSave",
     "lpmCommandDelete",
     "lpmCommandFolder",
-    "lpmCommandExpand"
+    "lpmCommandExpand",
+    "lpmCommandOtherFolder",
+    "lpmCommandConvert"
 )
 private const val FORBIDDEN_FOLDER_CHARS = "/\\:*?\"<>|"
 private val COMMAND_NAME = Regex("^(?=.{1,64}\$)[a-z0-9]+(-[a-z0-9]+)*\$")
@@ -88,6 +90,10 @@ private fun DemoServer.commandsReply(verb: String, project: String, o: Dict): Di
             }
         }
 
+        "lpmCommandOtherFolder" -> moveOther(project, o)
+
+        "lpmCommandConvert" -> convertSkill(project, o)
+
         else -> changeFolder(project, o)
     }
     return mapOf("lists" to commandLists(project))
@@ -118,8 +124,8 @@ private fun DemoServer.updateCommands(
 }
 
 private fun DemoServer.commandLists(project: String): Dict = mapOf(
-    "global" to wireCommands(world.commandsGlobal, "global"),
-    "project" to ownCommands(project)?.let { wireCommands(it, "project") },
+    "global" to wireCommands(world.commandsGlobal, "global", project),
+    "project" to ownCommands(project)?.let { wireCommands(it, "project", project) },
     "projectError" to null
 )
 
@@ -132,7 +138,17 @@ private fun DemoServer.effectiveCommands(project: String): List<Pair<DemoCommand
     return (own + global).filter { seen.add(it.first.name.lowercase()) }
 }
 
-private fun wireCommands(list: DemoCommandList, scope: String): Dict = mapOf(
+private fun wireCommands(list: DemoCommandList, scope: String, project: String): Dict = mapOf(
+    "others" to list.others.sortedBy { it.name.lowercase() }.map { o ->
+        mapOf(
+            "name" to o.name,
+            "description" to o.description,
+            "preview" to o.preview,
+            "agents" to o.agents,
+            "path" to o.path.replace("{root}", "/Users/demo/dev/$project"),
+            "folder" to o.folder
+        )
+    },
     "folders" to list.folders.sortedBy { it.lowercase() },
     "commands" to sortedCommands(list.commands).map { c ->
         mapOf(
@@ -200,6 +216,47 @@ private fun DemoServer.saveCommand(project: String, input: Dict, previous: Dict?
     }
 }
 
+private fun DemoServer.moveOther(project: String, o: Dict) {
+    val name = o.string("name") ?: ""
+    val folder = cleanFolder(o.string("folder"))
+    updateCommands(project, commandScope(o)) { list ->
+        val other = list.others.firstOrNull { it.name == name }
+            ?: throw DemoCommandError("/$name isn't in this list any more.")
+        val kept = folder?.let { f ->
+            list.folders.firstOrNull { it.lowercase() == f.lowercase() }
+                ?: f
+        }
+        if (kept != null && kept !in list.folders) list.folders += kept
+        other.folder = kept
+    }
+}
+
+private fun DemoServer.convertSkill(project: String, o: Dict) {
+    val name = o.string("name") ?: ""
+    val scope = commandScope(o)
+    val root = if (scope == "global") "/Users/demo" else "{root}"
+    updateCommands(project, scope) { list ->
+        if (o["toLpm"] == true) {
+            val other = list.others.firstOrNull { it.name == name }
+                ?: throw DemoCommandError("/$name isn't in this list any more.")
+            list.others -= other
+            list.commands += DemoCommand(other.name, other.folder, other.description, other.preview)
+        } else {
+            val c = list.commands.firstOrNull { it.name == name }
+                ?: throw DemoCommandError("/$name isn't in this list any more.")
+            list.commands -= c
+            list.others += DemoOther(
+                c.name,
+                c.description,
+                c.body,
+                listOf("claude", "codex", "gemini", "opencode"),
+                "$root/.agents/skills/${c.name}/SKILL.md",
+                c.folder
+            )
+        }
+    }
+}
+
 private fun DemoServer.changeFolder(project: String, o: Dict) {
     val name = checkFolder(o.string("name") ?: "")
     val existing = { list: DemoCommandList, folder: String ->
@@ -236,6 +293,7 @@ private fun renameFolder(
     }
     list.folders.replaceAll { if (it == current) to else it }
     list.commands.forEach { if (it.folder == current) it.folder = to }
+    list.others.forEach { if (it.folder == current) it.folder = to }
 }
 
 private fun deleteFolder(list: DemoCommandList, current: String) {
@@ -251,6 +309,7 @@ private fun deleteFolder(list: DemoCommandList, current: String) {
     }
     list.folders.removeAll { it == current }
     list.commands.forEach { if (it.folder == current) it.folder = null }
+    list.others.forEach { if (it.folder == current) it.folder = null }
 }
 
 private fun cleanFolder(raw: String?): String? {

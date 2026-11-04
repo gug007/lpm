@@ -89,6 +89,14 @@ class CommandEditorViewModel @AssistedInject constructor(
         }
     }
 
+    /** Whether the Mac can turn this skill into an other skill. */
+    val canConvert: Boolean get() = watch.store?.otherSkillsAvailable == true
+
+    fun convert() {
+        val target = draft.value.original ?: return
+        commit { it.convert(project, target.scope, target.name, toLpm = false) }
+    }
+
     fun delete() {
         val target = draft.value.original ?: return
         commit { it.delete(project, target) }

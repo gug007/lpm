@@ -23,8 +23,11 @@ pub(crate) enum Request {
     CreateFolder { scope: Scope, name: String },
     RenameFolder { scope: Scope, name: String, new_name: String },
     DeleteFolder { scope: Scope, name: String },
+    MoveOther { scope: Scope, name: String, folder: Option<String> },
+    Convert { scope: Scope, name: String, to_lpm: bool },
     Import { scope: Scope },
-    Expand { name: String, args: String },
+    /// `cli` is the agent the run goes to, None to get the prompt whatever it is.
+    Expand { name: String, args: String, cli: Option<String> },
 }
 
 #[derive(Serialize)]
@@ -64,8 +67,8 @@ fn field<T: DeserializeOwned>(args: &Value, key: &str) -> Result<T, String> {
 
 impl Request {
     /// The request named by `kind` (`list`, `save`, `delete`, `createFolder`,
-    /// `renameFolder`, `deleteFolder`, `import` or `expand`), its fields read
-    /// from `args` under their camelCase names.
+    /// `renameFolder`, `deleteFolder`, `moveOther`, `convert`, `import` or
+    /// `expand`), its fields read from `args` under their camelCase names.
     pub(crate) fn parse(kind: &str, args: &Value) -> Result<Self, String> {
         let text = |k: &str| field::<Option<String>>(args, k).map(Option::unwrap_or_default);
         Ok(match kind {
@@ -79,8 +82,18 @@ impl Request {
                 new_name: text("newName")?,
             },
             "deleteFolder" => Request::DeleteFolder { scope: field(args, "scope")?, name: text("name")? },
+            "moveOther" => Request::MoveOther {
+                scope: field(args, "scope")?,
+                name: text("name")?,
+                folder: field(args, "folder")?,
+            },
+            "convert" => Request::Convert {
+                scope: field(args, "scope")?,
+                name: text("name")?,
+                to_lpm: field(args, "toLpm")?,
+            },
             "import" => Request::Import { scope: field(args, "scope")? },
-            "expand" => Request::Expand { name: text("name")?, args: text("args")? },
+            "expand" => Request::Expand { name: text("name")?, args: text("args")?, cli: field(args, "cli")? },
             _ => return Err(format!("unknown commands request {kind}")),
         })
     }
@@ -97,6 +110,8 @@ impl Request {
             Request::CreateFolder { scope, .. }
             | Request::RenameFolder { scope, .. }
             | Request::DeleteFolder { scope, .. }
+            | Request::MoveOther { scope, .. }
+            | Request::Convert { scope, .. }
             | Request::Import { scope } => vec![*scope],
             Request::List | Request::Expand { .. } => Vec::new(),
         }
@@ -110,8 +125,8 @@ pub(crate) fn dispatch(app: &AppHandle, project: &str, request: Request) -> Resu
     let mut imported = None;
     match request {
         Request::List => return list_stores(&stores).map(Reply::Lists),
-        Request::Expand { name, args } => {
-            return crate::lpm_commands_expand::expand_at(project, place.as_ref(), &stores, &name, &args)
+        Request::Expand { name, args, cli } => {
+            return crate::lpm_commands_expand::expand_at(project, place.as_ref(), &stores, &name, &args, cli.as_deref())
                 .map(Reply::Expanded)
         }
         Request::Save { command, previous } => ops::save(&stores, command, previous)?,
@@ -119,6 +134,8 @@ pub(crate) fn dispatch(app: &AppHandle, project: &str, request: Request) -> Resu
         Request::CreateFolder { scope, name } => ops::create_folder(&stores, scope, &name)?,
         Request::RenameFolder { scope, name, new_name } => ops::rename_folder(&stores, scope, &name, &new_name)?,
         Request::DeleteFolder { scope, name } => ops::delete_folder(&stores, scope, &name)?,
+        Request::MoveOther { scope, name, folder } => ops::move_other(&stores, scope, &name, folder.as_deref())?,
+        Request::Convert { scope, name, to_lpm } => ops::convert(&stores, scope, &name, to_lpm)?,
         Request::Import { scope } => imported = Some(import(&stores, place.as_ref(), scope)?),
     }
     announce(app, project, &touches);
@@ -195,6 +212,28 @@ pub fn delete_lpm_command_folder(
 }
 
 #[tauri::command(async)]
+pub fn move_other_skill(
+    app: AppHandle,
+    project: String,
+    scope: Scope,
+    name: String,
+    folder: Option<String>,
+) -> Result<LpmCommands, String> {
+    dispatch(&app, &project, Request::MoveOther { scope, name, folder })?.lists()
+}
+
+#[tauri::command(async)]
+pub fn convert_skill(
+    app: AppHandle,
+    project: String,
+    scope: Scope,
+    name: String,
+    to_lpm: bool,
+) -> Result<LpmCommands, String> {
+    dispatch(&app, &project, Request::Convert { scope, name, to_lpm })?.lists()
+}
+
+#[tauri::command(async)]
 pub fn import_lpm_commands(app: AppHandle, project: String, scope: Scope) -> Result<ImportResult, String> {
     match dispatch(&app, &project, Request::Import { scope })? {
         Reply::Imported(result) => Ok(result),
@@ -203,8 +242,14 @@ pub fn import_lpm_commands(app: AppHandle, project: String, scope: Scope) -> Res
 }
 
 #[tauri::command(async)]
-pub fn expand_lpm_command(app: AppHandle, project: String, name: String, args: String) -> Result<Expanded, String> {
-    match dispatch(&app, &project, Request::Expand { name, args })? {
+pub fn expand_lpm_command(
+    app: AppHandle,
+    project: String,
+    name: String,
+    args: String,
+    cli: Option<String>,
+) -> Result<Expanded, String> {
+    match dispatch(&app, &project, Request::Expand { name, args, cli })? {
         Reply::Expanded(expanded) => Ok(expanded),
         _ => Err("unexpected reply".into()),
     }
@@ -221,6 +266,8 @@ pub(crate) fn peer_kind(cmd: &str) -> Option<&'static str> {
         "create_lpm_command_folder" => "createFolder",
         "rename_lpm_command_folder" => "renameFolder",
         "delete_lpm_command_folder" => "deleteFolder",
+        "move_other_skill" => "moveOther",
+        "convert_skill" => "convert",
         "import_lpm_commands" => "import",
         "expand_lpm_command" => "expand",
         _ => return None,

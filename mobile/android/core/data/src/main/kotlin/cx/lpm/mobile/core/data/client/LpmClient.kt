@@ -401,6 +401,9 @@ class LpmClient internal constructor(
         // The `lpmCommand*` verbs, and lpm commands in the `slash` reply.
         const val LPM_COMMANDS_FEATURE = "lpmCommands"
 
+        // `lpmCommandOtherFolder` and `lpmCommandConvert`.
+        const val LPM_OTHER_SKILLS_FEATURE = "lpmOtherSkills"
+
         const val OFFLINE_HINT =
             "Can't reach your Mac. On cellular, make sure Tailscale is connected on both devices."
 

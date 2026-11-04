@@ -3,6 +3,7 @@
 // from one SeedProject, so no two views of it can disagree.
 
 import type { AICLI, ProfileInfo } from "../../types";
+import type { OtherSkill } from "../../lpmCommands";
 
 export type AgentKind = AICLI;
 
@@ -180,7 +181,13 @@ export interface Seed {
   // The recap of the week or month starting `week`, as `weekly_recap` returns it.
   recap: (week: string, period: "week" | "month") => unknown;
   // lpm skills: the global list, and the list every seeded project starts with.
-  lpmCommands?: { global: SeedLpmCommand[]; project: SeedLpmCommand[] };
+  lpmCommands?: { global: SeedLpmCommand[]; project: SeedLpmCommand[]; others?: SeedOtherSkills };
+}
+
+// Skills not made in lpm, by list.
+export interface SeedOtherSkills {
+  global: OtherSkill[];
+  project: OtherSkill[];
 }
 
 export interface SeedLpmCommand {

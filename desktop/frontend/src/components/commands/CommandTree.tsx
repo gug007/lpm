@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Plus, Search } from "lucide-react";
 import type { CommandScope, LpmCommand, LpmCommandLists } from "../../lpmCommands";
 import { CommandTreeScope } from "./CommandTreeScope";
-import { commandTree, runningKeys, type CommandPlace, type FolderKey } from "./commandsModel";
+import { commandTree, runningKeys, type CommandPlace, type FolderKey, type SkillRowActions } from "./commandsModel";
 
 interface CommandTreeProps {
   lists: LpmCommandLists;
@@ -11,6 +11,7 @@ interface CommandTreeProps {
   selectedKey: string | null;
   onQuery: (q: string) => void;
   onSelect: (c: LpmCommand) => void;
+  actions: SkillRowActions;
   // A new command: in `where`, or where the open one is when null.
   onNew: (where: CommandPlace | null) => void;
   onCreateFolder: (scope: CommandScope, name: string) => void;
@@ -27,6 +28,7 @@ export function CommandTree({
   selectedKey,
   onQuery,
   onSelect,
+  actions,
   onNew,
   onCreateFolder,
   onRenameFolder,
@@ -35,12 +37,21 @@ export function CommandTree({
   const tree = useMemo(() => commandTree(lists, query), [lists, query]);
   const running = useMemo(() => runningKeys(lists), [lists]);
   const [collapsed, setCollapsed] = useState<ReadonlySet<FolderKey>>(() => new Set());
+  // The lists whose other skills are showing; they start closed, unlike folders.
+  const [othersOpen, setOthersOpen] = useState<ReadonlySet<CommandScope>>(() => new Set());
   const searching = query.trim() !== "";
 
   const toggle = (key: FolderKey) =>
     setCollapsed((prev) => {
       const next = new Set(prev);
       if (!next.delete(key)) next.add(key);
+      return next;
+    });
+
+  const toggleOthers = (scope: CommandScope) =>
+    setOthersOpen((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(scope)) next.add(scope);
       return next;
     });
 
@@ -84,8 +95,11 @@ export function CommandTree({
               running={running}
               collapsed={collapsed}
               searching={searching}
+              othersOpen={othersOpen.has(node.scope)}
               onToggle={toggle}
+              onToggleOthers={() => toggleOthers(node.scope)}
               onSelect={onSelect}
+              actions={actions}
               onNew={onNew}
               onCreateFolder={(name) => onCreateFolder(node.scope, name)}
               onRenameFolder={(name, newName) => onRenameFolder(node.scope, name, newName)}

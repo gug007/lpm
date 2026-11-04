@@ -42,6 +42,8 @@ export function DeleteLpmCommand(...args: any[]): Promise<any>;
 export function CreateLpmCommandFolder(...args: any[]): Promise<any>;
 export function RenameLpmCommandFolder(...args: any[]): Promise<any>;
 export function DeleteLpmCommandFolder(...args: any[]): Promise<any>;
+export function MoveOtherSkill(...args: any[]): Promise<any>;
+export function ConvertSkill(...args: any[]): Promise<any>;
 export function ImportLpmCommands(...args: any[]): Promise<any>;
 export function ExpandLpmCommand(...args: any[]): Promise<any>;
 export function RefreshActionLabel(...args: any[]): Promise<any>;

@@ -19,6 +19,8 @@ interface CommandPlaceSelectProps {
   place: CommandPlace;
   lists: LpmCommandLists;
   projectLabel: string;
+  // Keeps the choices to one list, for a skill that can't leave it.
+  onlyScope?: CommandScope;
   onChange: (place: CommandPlace) => void;
 }
 
@@ -30,8 +32,9 @@ type Row = { key: string; scope: CommandScope; label: string } & (
 const NO_FOLDER = "No folder";
 const MIN_PANEL_WIDTH = 260;
 
-function rowsOf(place: CommandPlace, lists: LpmCommandLists): Row[] {
-  return placeChoices(place, lists).flatMap(({ scope, folders }) => [
+function rowsOf(place: CommandPlace, lists: LpmCommandLists, onlyScope?: CommandScope): Row[] {
+  const choices = placeChoices(place, lists).filter((c) => !onlyScope || c.scope === onlyScope);
+  return choices.flatMap(({ scope, folders }) => [
     ...folders.map(
       (folder): Row => ({ kind: "place", key: folderKey(scope, folder), scope, folder, label: folder ?? NO_FOLDER }),
     ),
@@ -42,14 +45,22 @@ function rowsOf(place: CommandPlace, lists: LpmCommandLists): Row[] {
 // Where a skill is kept: which list and which folder in it. The field names
 // both, because the same "No folder" exists in each list and they aren't the
 // same place; a folder can be started here without leaving the editor.
-export function CommandPlaceSelect({ id, labelledBy, place, lists, projectLabel, onChange }: CommandPlaceSelectProps) {
+export function CommandPlaceSelect({
+  id,
+  labelledBy,
+  place,
+  lists,
+  projectLabel,
+  onlyScope,
+  onChange,
+}: CommandPlaceSelectProps) {
   const [open, setOpen] = useState(false);
   const [adding, setAdding] = useState<CommandScope | null>(null);
   const [width, setWidth] = useState(MIN_PANEL_WIDTH);
-  const rows = useMemo(() => rowsOf(place, lists), [place, lists]);
+  const rows = useMemo(() => rowsOf(place, lists, onlyScope), [place, lists, onlyScope]);
   const selected = rows.findIndex((r) => r.key === folderKey(place.scope, place.folder));
   const [highlighted, setHighlighted] = useState(selected);
-  const twoLists = lists.project !== null;
+  const twoLists = lists.project !== null && !onlyScope;
 
   const close = () => {
     setOpen(false);

@@ -17,11 +17,14 @@ import cx.lpm.mobile.core.designsystem.component.EmptyState
 import cx.lpm.mobile.core.designsystem.component.ListCard
 import cx.lpm.mobile.core.model.CommandScope
 import cx.lpm.mobile.core.model.LpmCommand
+import cx.lpm.mobile.core.model.OtherSkill
 import cx.lpm.mobile.core.model.SessionKey
 import cx.lpm.mobile.core.navigation.CommandEditorKey
 import cx.lpm.mobile.core.navigation.CommandFolderKey
+import cx.lpm.mobile.core.navigation.OtherSkillKey
 import cx.lpm.mobile.feature.commands.R
 import cx.lpm.mobile.feature.commands.editor.CommandEditorSheet
+import cx.lpm.mobile.feature.commands.other.SkillRow
 import cx.lpm.mobile.feature.commands.ui.BackButton
 import cx.lpm.mobile.feature.commands.ui.CommandsListPadding
 import cx.lpm.mobile.feature.commands.ui.CommandsScaffold
@@ -29,12 +32,18 @@ import cx.lpm.mobile.feature.commands.ui.rememberCommandsPage
 
 /** A folder's commands pushed over the Commands screen. */
 @Composable
-fun CommandFolderRoute(key: CommandFolderKey, onBack: () -> Unit, modifier: Modifier = Modifier) {
+fun CommandFolderRoute(
+    key: CommandFolderKey,
+    onOpenOther: (OtherSkillKey) -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     CommandFolderHost(
         project = key.project,
         scope = key.scope,
         folder = key.folder,
         session = key.session,
+        onOpenOther = { onOpenOther(OtherSkillKey(key.project, key.scope, it, key.session)) },
         modifier = modifier,
         leading = { BackButton(onBack) }
     )
@@ -50,6 +59,7 @@ internal fun CommandFolderHost(
     scope: CommandScope,
     folder: String?,
     session: SessionKey,
+    onOpenOther: (name: String) -> Unit,
     leading: @Composable RowScope.() -> Unit,
     modifier: Modifier = Modifier,
     inSheet: Boolean = false,
@@ -60,6 +70,7 @@ internal fun CommandFolderHost(
         )
 ) {
     val commands by viewModel.commands.collectAsStateWithLifecycle()
+    val others by viewModel.others.collectAsStateWithLifecycle()
     val page = rememberCommandsPage(viewModel.watch)
     CommandsScaffold(
         title = folder ?: stringResource(R.string.commands_no_folder),
@@ -73,20 +84,28 @@ internal fun CommandFolderHost(
         modifier = modifier,
         inSheet = inSheet
     ) {
-        CommandList(commands) { page.editing = it.editorKey(project, session) }
-        if (commands.isEmpty()) EmptyFolder()
+        CommandList(commands, others, onOpenOther) { page.editing = it.editorKey(project, session) }
+        if (commands.isEmpty() && others.isEmpty()) EmptyFolder()
     }
     page.editing?.let { CommandEditorSheet(it, onDismiss = { page.editing = null }) }
 }
 
 @Composable
-private fun CommandList(commands: List<LpmCommand>, onEdit: (LpmCommand) -> Unit) {
+private fun CommandList(
+    commands: List<LpmCommand>,
+    others: List<OtherSkill>,
+    onOpenOther: (String) -> Unit,
+    onEdit: (LpmCommand) -> Unit
+) {
     LazyColumn(Modifier.fillMaxSize(), contentPadding = CommandsListPadding) {
-        if (commands.isNotEmpty()) {
+        if (commands.isNotEmpty() || others.isNotEmpty()) {
             item(key = "commands") {
                 ListCard {
                     commands.forEach { command ->
                         CommandRow(command, onClick = { onEdit(command) })
+                    }
+                    others.forEach { skill ->
+                        SkillRow(skill, onClick = { onOpenOther(skill.name) })
                     }
                 }
             }

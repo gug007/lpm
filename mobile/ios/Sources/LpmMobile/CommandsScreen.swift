@@ -62,6 +62,21 @@ struct CommandsScreen: View {
                     .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 12, trailing: 0))
                 }
             }
+            if let others = list?.others(in: nil), !others.isEmpty {
+                Section {
+                    NavigationLink {
+                        OtherSkillsScreen(project: project, scope: scope)
+                    } label: {
+                        HStack {
+                            Label("Other skills", systemImage: "lock")
+                            Spacer()
+                            Text("\(others.count)")
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                        }
+                    }
+                }
+            }
         }
         .navigationTitle("Skills")
         .navigationBarTitleDisplayMode(.inline)

@@ -115,17 +115,14 @@ class ComposerLpmCommandsTest {
     }
 
     @Test
-    fun `picking a command that asks for nothing runs it at once`() = runTest {
+    fun `picking a skill puts it in the field and sends nothing`() = runTest {
         val s = setup()
         type(s.vm, "/ex")
         s.vm.pickSlash(s.vm.uiState.value.slashMatches.first { it.name == "explain" })
         testScheduler.runCurrent()
-        val ask = s.socket.sentOf("lpmCommandExpand").single()
-        assertEquals("explain", ask.string("name"))
-        assertEquals("", ask.string("args"))
-        expanded(s, "Explain it")
-        assertEquals(listOf("Explain it"), submitted)
-        assertEquals("", s.vm.input.text.toString())
+        assertEquals("/explain ", s.vm.input.text.toString())
+        assertTrue(s.socket.sentOf("lpmCommandExpand").isEmpty())
+        assertTrue(submitted.isEmpty())
     }
 
     @Test
@@ -140,14 +137,28 @@ class ComposerLpmCommandsTest {
     }
 
     @Test
-    fun `picked mid-message, its prompt takes the fragment's place`() = runTest {
+    fun `picked mid-message, what the Mac says the agent reads takes the fragment's place`() =
+        runTest {
+            val s = setup()
+            type(s.vm, "first this, then /ex")
+            s.vm.pickSlash(s.vm.uiState.value.slashMatches.single())
+            testScheduler.runCurrent()
+            assertEquals("claude", s.socket.sentOf("lpmCommandExpand").single().string("cli"))
+            expanded(s, "/explain")
+            assertEquals("first this, then /explain ", s.vm.input.text.toString())
+            assertTrue(submitted.isEmpty())
+        }
+
+    @Test
+    fun `a skill the agent starts itself goes out as its call, once`() = runTest {
         val s = setup()
-        type(s.vm, "first this, then /ex")
-        s.vm.pickSlash(s.vm.uiState.value.slashMatches.single())
+        type(s.vm, "/explain this")
+        assertTrue(s.vm.send())
         testScheduler.runCurrent()
-        expanded(s, "Explain it")
-        assertEquals("first this, then Explain it", s.vm.input.text.toString())
-        assertTrue(submitted.isEmpty())
+        assertEquals("claude", s.socket.sentOf("lpmCommandExpand").single().string("cli"))
+        expanded(s, "/explain this")
+        assertEquals(listOf("/explain this"), submitted)
+        assertEquals(1, s.socket.sentOf("lpmCommandExpand").size)
     }
 
     @Test

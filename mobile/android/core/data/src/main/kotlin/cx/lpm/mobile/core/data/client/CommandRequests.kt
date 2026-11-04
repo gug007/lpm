@@ -31,5 +31,26 @@ fun LpmClient.changeLpmCommandFolder(
     newName: String?
 ) = send(Wire.lpmCommandFolder(project, reqId, op, scope, name, newName))
 
-fun LpmClient.expandLpmCommand(project: String, reqId: String, name: String, args: String) =
-    send(Wire.lpmCommandExpand(project, reqId, name, args))
+fun LpmClient.expandLpmCommand(
+    project: String,
+    reqId: String,
+    name: String,
+    args: String,
+    cli: String
+) = send(Wire.lpmCommandExpand(project, reqId, name, args, cli))
+
+fun LpmClient.moveOtherSkill(
+    project: String,
+    reqId: String,
+    scope: CommandScope,
+    name: String,
+    folder: String?
+) = send(Wire.lpmCommandOtherFolder(project, reqId, scope, name, folder))
+
+fun LpmClient.convertSkill(
+    project: String,
+    reqId: String,
+    scope: CommandScope,
+    name: String,
+    toLpm: Boolean
+) = send(Wire.lpmCommandConvert(project, reqId, scope, name, toLpm))

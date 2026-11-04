@@ -37,4 +37,45 @@ export const SAMPLE_LPM_COMMANDS: NonNullable<Seed["lpmCommands"]> = {
       body: "Fix {{ticket}} on branch {{branch}}. Read the issue first and tell me your plan before editing. Keep the diff small and add a test.",
     },
   ],
+  others: {
+    global: [
+      {
+        name: "find-docs",
+        description: "Look up current docs for a library",
+        preview: "Find the official docs for the library in question and quote the relevant section.",
+        agents: ["claude", "codex", "gemini", "opencode"],
+        path: "~/.agents/skills/find-docs/SKILL.md",
+      },
+      {
+        name: "playwright-cli",
+        description: "Drive a browser to test a page",
+        preview: "Open the page in a browser, follow the steps and report what you see.",
+        agents: ["claude", "opencode"],
+        path: "~/.claude/skills/playwright-cli/SKILL.md",
+      },
+      {
+        name: "testflight-upload",
+        description: "Upload a build to TestFlight",
+        preview: "Archive the app, upload it to TestFlight and report the build number.",
+        agents: ["codex"],
+        path: "~/.codex/skills/testflight-upload/SKILL.md",
+      },
+    ],
+    project: [
+      {
+        name: "db-migrate",
+        description: "Write and run a database migration",
+        preview: "Write a migration for the change, run it locally and show the schema diff.",
+        agents: ["codex", "gemini", "opencode"],
+        path: ".agents/skills/db-migrate/SKILL.md",
+      },
+      {
+        name: "deploy-preview",
+        description: "Deploy the current branch to a preview URL",
+        preview: "Build the app, deploy it to a preview URL and post the link.",
+        agents: ["claude", "opencode"],
+        path: ".claude/skills/deploy-preview/SKILL.md",
+      },
+    ],
+  },
 };

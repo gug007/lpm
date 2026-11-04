@@ -110,7 +110,7 @@ class LpmCommandsStoreTest {
     @Test
     fun `a run comes back filled in, the project's command ahead of a global one`() = runTest {
         val t = demoSession()
-        val run = async { t.commands.expand("storefront", "fix-ticket", "LPM-12") }
+        val run = async { t.commands.expand("storefront", "fix-ticket", "LPM-12", "claude") }
         t.settle()
         val expanded = (run.await() as CommandOutcome.Done<ExpandedCommand>).value
         assertTrue(expanded.text.startsWith("Fix LPM-12 on branch "))
@@ -121,7 +121,7 @@ class LpmCommandsStoreTest {
     fun `a Mac that doesn't answer in time fails the request`() = runTest {
         val t = liveSession()
         val socket = t.connectReady(features = listOf("lpmCommands"))
-        val run = async { t.commands.expand("api", "explain", "") }
+        val run = async { t.commands.expand("api", "explain", "", "claude") }
         t.settle()
         assertEquals("lpmCommandExpand", socket.sentTypes.last())
         // The link itself stays up: its heartbeat is answered.

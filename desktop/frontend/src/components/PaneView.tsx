@@ -928,6 +928,7 @@ function PaneViewImpl(props: PaneViewProps) {
               ) : t.kind === "toolkit" ? (
                 <ErrorBoundary resetKey={t.id} scope="toolkit">
                   <ToolkitView
+                    project={projectName}
                     cwd={interactiveCwd}
                     visible={visible && isActive}
                     focused={focused}

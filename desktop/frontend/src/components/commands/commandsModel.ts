@@ -13,7 +13,9 @@ import {
   type CommandScope,
   type LpmCommand,
   type LpmCommandLists,
+  type OtherSkill,
 } from "../../lpmCommands";
+import { AI_CLI_OPTIONS } from "../../types";
 
 // What the Skills tab shows: both lists as one tree of folders and skills, and
 // the skill being edited.
@@ -38,13 +40,27 @@ export interface TreeFolder {
   name: string;
   key: FolderKey;
   commands: LpmCommand[];
+  others: OtherSkill[];
 }
 
 export interface TreeScope {
   scope: CommandScope;
   folders: TreeFolder[];
   loose: LpmCommand[];
+  // The other skills in no folder.
+  others: OtherSkill[];
   count: number;
+}
+
+// What a row in the tree can ask for, passed down unchanged.
+export interface SkillRowActions {
+  onSelectOther: (scope: CommandScope, skill: OtherSkill) => void;
+  onConvert: (scope: CommandScope, name: string, toLpm: boolean) => void;
+  onOpenInAgentSetup: (skill: OtherSkill) => void;
+}
+
+function matchesOther(o: OtherSkill, q: string): boolean {
+  return [o.name, o.description].some((s) => s.toLowerCase().includes(q));
 }
 
 function matches(c: LpmCommand, q: string): boolean {
@@ -59,19 +75,45 @@ export function commandTree(lists: LpmCommandLists, query: string): TreeScope[] 
   return scopesOf(lists).flatMap((scope) => {
     const list = scopeList(lists, scope)!;
     const shown = q ? list.commands.filter((c) => matches(c, q)) : list.commands;
-    if (q && shown.length === 0) return [];
+    const others = (list.others ?? []).filter((o) => !q || matchesOther(o, q));
+    if (q && shown.length === 0 && others.length === 0) return [];
     const folders = list.folders
-      .map((name) => ({ name, key: folderKey(scope, name), commands: shown.filter((c) => c.folder === name) }))
-      .filter((f) => !q || f.commands.length > 0);
+      .map((name) => ({
+        name,
+        key: folderKey(scope, name),
+        commands: shown.filter((c) => c.folder === name),
+        others: others.filter((o) => o.folder === name),
+      }))
+      .filter((f) => !q || f.commands.length + f.others.length > 0);
     return [
       {
         scope,
         folders,
         loose: shown.filter((c) => c.folder === null),
+        others: others.filter((o) => !o.folder),
         count: shown.length,
       },
     ];
   });
+}
+
+// One other skill, by the list that shows it.
+export interface OtherPlace {
+  scope: CommandScope;
+  name: string;
+}
+
+export function otherKey(scope: CommandScope, name: string): string {
+  return `other:${scope}:${name}`;
+}
+
+export function findOther(lists: LpmCommandLists, place: OtherPlace): OtherSkill | null {
+  return scopeList(lists, place.scope)?.others?.find((o) => o.name === place.name) ?? null;
+}
+
+// Every agent lpm knows, and whether it reads a skill that `agents` name.
+export function agentReach(agents: string[]): { label: string; reads: boolean }[] {
+  return AI_CLI_OPTIONS.map((o) => ({ label: o.label, reads: agents.includes(o.value) }));
 }
 
 export function scopeTitle(scope: CommandScope, projectLabel: string): string {
@@ -174,6 +216,14 @@ export function movedTo(c: LpmCommand, key: FolderKey, lists: LpmCommandLists): 
     if (!list || list.commands.some((o) => o.name.toLowerCase() === c.name.toLowerCase())) return null;
   }
   return { scope: target.scope, folder: target.folder, name: c.name, description: c.description, body: c.body };
+}
+
+// The folder a drop on `key` files another skill in; undefined when it's there
+// already. Its file stays where it is, so it can't change lists.
+export function otherDropFolder(o: OtherSkill, scope: CommandScope, key: FolderKey): string | null | undefined {
+  const target = parseFolderKey(key);
+  if (!target || target.scope !== scope || target.folder === (o.folder ?? null)) return undefined;
+  return target.folder;
 }
 
 // The commands `/name` runs here, by commandKey; one missing from it is hidden

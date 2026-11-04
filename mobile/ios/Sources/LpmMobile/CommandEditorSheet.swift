@@ -97,6 +97,10 @@ struct CommandEditorSheet: View {
                 }
                 if !isNew {
                     Section {
+                        if model.lpmOtherSkillsAvailable {
+                            Button("Convert to other skill") { convert() }
+                                .disabled(saving)
+                        }
                         Button("Delete skill", role: .destructive) { confirmingDelete = true }
                             .disabled(saving)
                     }
@@ -144,6 +148,11 @@ struct CommandEditorSheet: View {
                                  description: d.description.trimmingCharacters(in: .whitespacesAndNewlines),
                                  body: d.body, previous: d.original)
         }
+    }
+
+    private func convert() {
+        guard let target = draft.original else { return }
+        commit { try await store.convert(project, scope: target.scope, name: target.name, toLpm: false) }
     }
 
     private func delete() {

@@ -32,6 +32,7 @@ class CommandsScreenTest {
                     newCommand = { events += "new" },
                     openFolder = { events += "open ${it.folder}" },
                     newFolder = { events += "new folder" },
+                    openOthers = { events += "others" },
                     renameFolder = { events += "rename $it" },
                     deleteFolder = { events += "delete $it" },
                     pickScope = { events += "pick $it" },
@@ -95,5 +96,19 @@ class CommandsScreenTest {
         compose.onNodeWithText("Couldn't load skills").assertExists()
         compose.onNodeWithText("Try Again").performClick()
         assertEquals(listOf("retry"), events)
+    }
+
+    @Test
+    fun aListWithOtherSkillsOffersThem() {
+        show(loaded.copy(otherSkills = 3))
+        compose.onNodeWithText("3").assertExists()
+        compose.onNodeWithText("Other skills").performClick()
+        assertEquals(listOf("others"), events)
+    }
+
+    @Test
+    fun aListWithoutOtherSkillsLeavesTheRowOut() {
+        show(loaded)
+        compose.onNodeWithText("Other skills").assertDoesNotExist()
     }
 }

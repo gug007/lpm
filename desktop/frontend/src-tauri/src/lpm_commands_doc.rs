@@ -60,7 +60,9 @@ impl Doc {
             out.push_str(line);
             out.push('\n');
         }
-        out.push_str("metadata:\n");
+        if self.created_with_lpm || self.folder.is_some() || !self.metadata.is_empty() {
+            out.push_str("metadata:\n");
+        }
         for (key, value) in &self.metadata {
             out.push_str(&format!("  {key}: {}\n", quoted(value)));
         }

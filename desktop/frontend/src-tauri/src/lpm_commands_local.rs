@@ -8,6 +8,7 @@ use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
 pub(crate) const FOLDERS_FILE: &str = "skill-folders";
+pub(crate) const OTHER_FOLDERS_FILE: &str = "other-skill-folders";
 pub(crate) const LEGACY_DIR: &str = "commands";
 pub(crate) const LEGACY_DONE: &str = ".migrated";
 pub(crate) const LEGACY_DONE_NOTE: &str = "Moved to skills. lpm doesn't read this folder any more.\n";
@@ -152,6 +153,18 @@ impl LocalFs {
             .map_err(|e| e.to_string())
     }
 
+    /// One of lpm's small lists, gone once it has nothing to hold.
+    fn save_lines(&self, file: &str, lines: &[String]) -> Result<(), String> {
+        let path = self.lpm.join(file);
+        if lines.is_empty() {
+            return missing_is_fine(std::fs::remove_file(&path));
+        }
+        std::fs::create_dir_all(&self.lpm).map_err(|e| e.to_string())?;
+        let text = format!("{}\n", lines.join("\n"));
+        crate::fsatomic::write(&path, text.as_bytes(), crate::fsatomic::Mode::Preserve(0o644))
+            .map_err(|e| e.to_string())
+    }
+
     pub(crate) fn unlink_claude(&self, name: &str) -> Result<(), String> {
         let link = self.claude.join(name);
         let Ok(meta) = std::fs::symlink_metadata(&link) else {
@@ -179,10 +192,20 @@ impl CommandFs for LocalFs {
     fn snapshot(&self) -> Result<Snapshot, String> {
         let mut raw = RawList {
             legacy: self.legacy_dir().is_dir() && !self.legacy_dir().join(LEGACY_DONE).exists(),
+            skills_dir: self.skills.to_string_lossy().into_owned(),
+            claude_dir: self.claude.to_string_lossy().into_owned(),
+            codex_dir: self.codex.as_ref().map(|d| d.to_string_lossy().into_owned()).unwrap_or_default(),
             ..RawList::default()
         };
         if let Ok(text) = std::fs::read_to_string(self.lpm.join(FOLDERS_FILE)) {
             raw.saved_folders = text.lines().filter(|l| !l.is_empty()).map(str::to_string).collect();
+        }
+        if let Ok(text) = std::fs::read_to_string(self.lpm.join(OTHER_FOLDERS_FILE)) {
+            raw.other_folders = text
+                .lines()
+                .filter_map(|l| l.split_once('\t'))
+                .map(|(name, folder)| (name.to_string(), folder.to_string()))
+                .collect();
         }
         for (name, path) in visible_entries(&self.skills) {
             if let Some(content) = read_capped(&path.join("SKILL.md")) {
@@ -191,7 +214,8 @@ impl CommandFs for LocalFs {
         }
         for (name, path) in visible_entries(&self.claude) {
             if let Ok(target) = std::fs::read_link(&path) {
-                raw.claude.push((name, ClaudeEntry::Link(target.to_string_lossy().into_owned())));
+                let content = read_capped(&path.join("SKILL.md"));
+                raw.claude.push((name, ClaudeEntry::Link(target.to_string_lossy().into_owned(), content)));
             } else if let Some(content) = read_capped(&path.join("SKILL.md")) {
                 raw.claude.push((name, ClaudeEntry::Copy(content)));
             }
@@ -259,13 +283,31 @@ impl CommandFs for LocalFs {
     }
 
     fn save_folders(&self, folders: &[String]) -> Result<(), String> {
-        let path = self.lpm.join(FOLDERS_FILE);
-        if folders.is_empty() {
-            return missing_is_fine(std::fs::remove_file(&path));
-        }
-        std::fs::create_dir_all(&self.lpm).map_err(|e| e.to_string())?;
-        let text = format!("{}\n", folders.join("\n"));
-        crate::fsatomic::write(&path, text.as_bytes(), crate::fsatomic::Mode::Preserve(0o644))
+        self.save_lines(FOLDERS_FILE, folders)
+    }
+
+    fn save_other_folders(&self, filed: &[(String, String)]) -> Result<(), String> {
+        let lines: Vec<String> = filed.iter().map(|(name, folder)| format!("{name}\t{folder}")).collect();
+        self.save_lines(OTHER_FOLDERS_FILE, &lines)
+    }
+
+    fn skill_files(&self, name: &str) -> Result<Vec<(String, String)>, String> {
+        let roots = [Some(&self.skills), Some(&self.claude), self.codex.as_ref()];
+        Ok(roots
+            .into_iter()
+            .flatten()
+            .map(|root| root.join(name))
+            .filter(|dir| !std::fs::symlink_metadata(dir).is_ok_and(|m| m.file_type().is_symlink()))
+            .filter_map(|dir| {
+                let path = dir.join("SKILL.md");
+                let content = std::fs::read_to_string(&path).ok()?;
+                Some((path.to_string_lossy().into_owned(), content))
+            })
+            .collect())
+    }
+
+    fn rewrite(&self, path: &str, content: &str) -> Result<(), String> {
+        crate::fsatomic::write(Path::new(path), content.as_bytes(), crate::fsatomic::Mode::Preserve(0o644))
             .map_err(|e| e.to_string())
     }
 

@@ -3,9 +3,17 @@ import { useDroppable } from "@dnd-kit/core";
 import { FolderGit2, FolderPlus, Globe } from "lucide-react";
 import { commandKey, type LpmCommand } from "../../lpmCommands";
 import { CommandFolderInput } from "./CommandFolderInput";
+import { CommandOtherFolder } from "./CommandOtherFolder";
 import { CommandRow } from "./CommandRow";
 import { CommandTreeFolder } from "./CommandTreeFolder";
-import { folderKey, scopeTitle, type CommandPlace, type FolderKey, type TreeScope } from "./commandsModel";
+import {
+  folderKey,
+  scopeTitle,
+  type CommandPlace,
+  type FolderKey,
+  type SkillRowActions,
+  type TreeScope,
+} from "./commandsModel";
 
 interface CommandTreeScopeProps {
   node: TreeScope;
@@ -14,17 +22,20 @@ interface CommandTreeScopeProps {
   running: ReadonlySet<string>;
   collapsed: ReadonlySet<FolderKey>;
   searching: boolean;
+  othersOpen: boolean;
   onToggle: (key: FolderKey) => void;
+  onToggleOthers: () => void;
   onSelect: (c: LpmCommand) => void;
+  actions: SkillRowActions;
   onNew: (where: CommandPlace) => void;
   onCreateFolder: (name: string) => void;
   onRenameFolder: (name: string, newName: string) => void;
   onDeleteFolder: (name: string) => void;
 }
 
-// One list in the Commands tree (this project's or the global one): its
-// heading, its folders, then the commands in no folder. A command dropped on
-// the heading or among those loose commands leaves its folder.
+// One list in the Skills tree (this project's or the global one): its heading,
+// its folders, the skills in no folder, then the skills not made in lpm. A skill
+// dropped on the heading or among those loose skills leaves its folder.
 export function CommandTreeScope({
   node,
   projectLabel,
@@ -32,8 +43,11 @@ export function CommandTreeScope({
   running,
   collapsed,
   searching,
+  othersOpen,
   onToggle,
+  onToggleOthers,
   onSelect,
+  actions,
   onNew,
   onCreateFolder,
   onRenameFolder,
@@ -74,6 +88,8 @@ export function CommandTreeScope({
         <CommandTreeFolder
           key={f.key}
           folder={f}
+          scope={node.scope}
+          actions={actions}
           open={searching || !collapsed.has(f.key)}
           selectedKey={selectedKey}
           running={running}
@@ -103,10 +119,21 @@ export function CommandTreeScope({
             selected={selectedKey === commandKey(c)}
             runs={running.has(commandKey(c))}
             onSelect={() => onSelect(c)}
+            onConvert={() => actions.onConvert(node.scope, c.name, false)}
           />
         ))}
       </div>
       {empty && <p className="px-2 py-1 text-[11.5px] text-[var(--text-muted)]">No skills yet.</p>}
+      {node.others.length > 0 && (
+        <CommandOtherFolder
+          scope={node.scope}
+          skills={node.others}
+          open={searching || othersOpen}
+          selectedKey={selectedKey}
+          actions={actions}
+          onToggle={onToggleOthers}
+        />
+      )}
     </section>
   );
 }

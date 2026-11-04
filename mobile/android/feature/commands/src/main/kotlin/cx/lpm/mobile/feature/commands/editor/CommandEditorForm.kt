@@ -38,6 +38,8 @@ class EditorActions(
     val setDescription: (String) -> Unit = {},
     val setBody: (String) -> Unit = {},
     val place: (CommandScope, String?) -> Unit = { _, _ -> },
+    /** Null when the Mac can't. */
+    val convert: (() -> Unit)? = null,
     val delete: () -> Unit = {}
 )
 
@@ -89,6 +91,13 @@ internal fun CommandEditorForm(
         }
         if (!state.isNew) {
             ListSection {
+                if (actions.convert != null) {
+                    ButtonRow(
+                        text = stringResource(R.string.command_editor_convert),
+                        onClick = actions.convert,
+                        enabled = !state.saving
+                    )
+                }
                 ButtonRow(
                     text = stringResource(R.string.command_editor_delete),
                     onClick = actions.delete,

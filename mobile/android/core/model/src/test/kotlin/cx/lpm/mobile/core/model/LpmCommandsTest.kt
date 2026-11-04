@@ -53,4 +53,18 @@ class LpmCommandsTest {
             LpmCommandLists(project = LpmCommandList()).scopes
         )
     }
+
+    @Test
+    fun otherSkillsSayWhichAgentsReadThem() {
+        val skill = OtherSkill("lint", "", "", listOf("claude", "opencode"), "")
+        assertEquals(
+            listOf(
+                AgentReach("Claude Code", true),
+                AgentReach("Codex", false),
+                AgentReach("Gemini", false),
+                AgentReach("OpenCode", true)
+            ),
+            skill.reach
+        )
+    }
 }

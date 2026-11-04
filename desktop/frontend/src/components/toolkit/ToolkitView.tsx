@@ -22,6 +22,7 @@ import { ToolkitList } from "./ToolkitList";
 import { ToolkitRoots } from "./ToolkitRoots";
 import { SURFACE_TOKENS } from "./surfaces";
 import { reloadLpmCommands } from "../../store/lpmCommands";
+import { useToolkitOpen } from "../../store/toolkitOpen";
 
 // Sentinel for "every group open", used while a filter is live so a match can
 // never hide behind a folded heading.
@@ -44,6 +45,7 @@ function Notice({ tone, children }: { tone: "warn" | "bad"; children: React.Reac
 }
 
 interface ToolkitViewProps {
+  project: string;
   cwd: string;
   visible: boolean;
   focused: boolean;
@@ -53,7 +55,7 @@ interface ToolkitViewProps {
 // the agent running in this directory will actually load, and which copy wins
 // when two definitions share a name. Read-first — lpm resolves and diagnoses,
 // and only edits the markdown files it can author safely.
-export function ToolkitView({ cwd, visible, focused }: ToolkitViewProps) {
+export function ToolkitView({ project, cwd, visible, focused }: ToolkitViewProps) {
   const { data, error, loading, scannedAt, refresh } = useToolkitCapabilities(cwd, visible);
   const [cli, setCli] = useState<CliFilter>("all");
   const [kindFilter, setKindFilter] = useState<CapabilityKind | null>(null);
@@ -146,6 +148,14 @@ export function ToolkitView({ cwd, visible, focused }: ToolkitViewProps) {
     },
     [all, openDetail],
   );
+
+  // Open in Agent setup, from the Skills tab: that item, once a scan has it.
+  const wanted = useToolkitOpen((s) => (s.target?.project === project ? s.target.seq : null));
+  useEffect(() => {
+    if (wanted === null || all.length === 0) return;
+    const path = useToolkitOpen.getState().takeTarget(project);
+    if (path) openByPath(path);
+  }, [wanted, all, project, openByPath]);
 
   const handleCreated = useCallback(
     (path: string) => {

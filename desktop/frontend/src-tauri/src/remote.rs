@@ -177,6 +177,7 @@ const PHONE_FEATURES: &[&str] = &[
     crate::wakeonlan::FEATURE,
     crate::keepawake_cmds::PHONE_FEATURE,
     crate::remote_lpm_commands::FEATURE,
+    crate::remote_lpm_commands::OTHER_SKILLS_FEATURE,
     crate::remote_ci::FEATURE,
 ];
 
@@ -4729,7 +4730,7 @@ fn handle_msg(
             crate::remote_memory::handle(out, t, &v)
         }
         "lpmCommands" | "lpmCommandSave" | "lpmCommandDelete" | "lpmCommandFolder"
-        | "lpmCommandExpand" => crate::remote_lpm_commands::handle(app, out, t, &v),
+        | "lpmCommandExpand" | "lpmCommandOtherFolder" | "lpmCommandConvert" => crate::remote_lpm_commands::handle(app, out, t, &v),
         "machines" | "machinePair" => crate::remote_machines::handle(app, out, t, &v),
         "gitHistory" | "gitCommitFiles" | "gitCommitPatch" => {
             crate::remote_history::handle(out, t, &v)

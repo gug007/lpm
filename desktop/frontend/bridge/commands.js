@@ -144,14 +144,20 @@ export function CreateLpmCommandFolder(project, scope, name) {
 export function RenameLpmCommandFolder(project, scope, name, newName) {
   return invoke("rename_lpm_command_folder", { project, scope, name, newName });
 }
+export function MoveOtherSkill(project, scope, name, folder) {
+  return invoke("move_other_skill", { project, scope, name, folder });
+}
+export function ConvertSkill(project, scope, name, toLpm) {
+  return invoke("convert_skill", { project, scope, name, toLpm });
+}
 export function DeleteLpmCommandFolder(project, scope, name) {
   return invoke("delete_lpm_command_folder", { project, scope, name });
 }
 export function ImportLpmCommands(project, scope) {
   return invoke("import_lpm_commands", { project, scope });
 }
-export function ExpandLpmCommand(project, name, args) {
-  return invoke("expand_lpm_command", { project, name, args });
+export function ExpandLpmCommand(project, name, args, cli) {
+  return invoke("expand_lpm_command", { project, name, args, cli });
 }
 export function CheckClaudeHooks() {
   return invoke("check_claude_hooks");

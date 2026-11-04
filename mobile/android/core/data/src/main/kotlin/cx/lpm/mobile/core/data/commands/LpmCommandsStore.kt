@@ -2,8 +2,10 @@ package cx.lpm.mobile.core.data.commands
 
 import cx.lpm.mobile.core.data.client.LpmClient
 import cx.lpm.mobile.core.data.client.changeLpmCommandFolder
+import cx.lpm.mobile.core.data.client.convertSkill
 import cx.lpm.mobile.core.data.client.deleteLpmCommand
 import cx.lpm.mobile.core.data.client.expandLpmCommand
+import cx.lpm.mobile.core.data.client.moveOtherSkill
 import cx.lpm.mobile.core.data.client.requestLpmCommands
 import cx.lpm.mobile.core.data.client.saveLpmCommand
 import cx.lpm.mobile.core.data.session.MacSession
@@ -55,6 +57,10 @@ class LpmCommandsStore(private val session: MacSession) : SessionStore {
     // Projects a screen is showing (counted, as a screen and its editor overlap), so
     // a change push or a reconnect refreshes just those.
     private val watched = mutableMapOf<String, Int>()
+
+    /** The Mac can file other skills in folders and convert them. */
+    val otherSkillsAvailable: Boolean
+        get() = client?.hostFeatures?.contains(LpmClient.LPM_OTHER_SKILLS_FEATURE) == true
 
     /** The Mac keeps lpm commands: its `features` has "lpmCommands". */
     val available: Boolean
@@ -133,6 +139,26 @@ class LpmCommandsStore(private val session: MacSession) : SessionStore {
     suspend fun delete(project: String, target: CommandRef): CommandOutcome<Unit> =
         change(project) { c, reqId -> c.deleteLpmCommand(project, reqId, target) }
 
+    /** Files a skill not made in lpm in a folder, or back out of one with null. */
+    suspend fun moveOther(
+        project: String,
+        scope: CommandScope,
+        name: String,
+        folder: String?
+    ): CommandOutcome<Unit> = change(project) { c, reqId ->
+        c.moveOtherSkill(project, reqId, scope, name, folder)
+    }
+
+    /** Turns a skill not made in lpm into one of lpm's, or one of lpm's back. */
+    suspend fun convert(
+        project: String,
+        scope: CommandScope,
+        name: String,
+        toLpm: Boolean
+    ): CommandOutcome<Unit> = change(project) { c, reqId ->
+        c.convertSkill(project, reqId, scope, name, toLpm)
+    }
+
     suspend fun folder(
         project: String,
         op: CommandFolderOp,
@@ -143,14 +169,18 @@ class LpmCommandsStore(private val session: MacSession) : SessionStore {
         c.changeLpmCommandFolder(project, reqId, op, scope, name, newName)
     }
 
-    /** The prompt `/name args` sends, filled in by the Mac that holds the project. */
+    /**
+     * What `/name args` sends in [cli], worked out by the Mac that holds the project: the
+     * agent's own call for the skill when it can run it, else the prompt.
+     */
     suspend fun expand(
         project: String,
         name: String,
-        args: String
+        args: String,
+        cli: String
     ): CommandOutcome<ExpandedCommand> = when (
         val outcome = request { c, reqId ->
-            c.expandLpmCommand(project, reqId, name, args)
+            c.expandLpmCommand(project, reqId, name, args, cli)
         }
     ) {
         is CommandOutcome.Done ->

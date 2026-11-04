@@ -67,6 +67,20 @@ final class LpmCommandsStore {
         try await change(project) { Wire.lpmCommandDelete(project: project, target: target, reqId: $0) }
     }
 
+    /// Files a skill not made in lpm in a folder, or back out of one with nil.
+    func moveOther(_ project: String, scope: LpmCommandScope, name: String, folder: String?) async throws {
+        try await change(project) {
+            Wire.lpmCommandOtherFolder(project: project, scope: scope, name: name, folder: folder, reqId: $0)
+        }
+    }
+
+    /// Turns a skill not made in lpm into one of lpm's, or one of lpm's back.
+    func convert(_ project: String, scope: LpmCommandScope, name: String, toLpm: Bool) async throws {
+        try await change(project) {
+            Wire.lpmCommandConvert(project: project, scope: scope, name: name, toLpm: toLpm, reqId: $0)
+        }
+    }
+
     func folder(_ project: String, _ op: LpmFolderOp, scope: LpmCommandScope, name: String,
                 newName: String? = nil) async throws {
         try await change(project) {
@@ -74,9 +88,12 @@ final class LpmCommandsStore {
         }
     }
 
-    /// The prompt `/name args` sends, filled in by the Mac that holds the project.
-    func expand(_ project: String, name: String, args: String) async throws -> LpmCommandExpansion {
-        let reply = try await request { Wire.lpmCommandExpand(project: project, name: name, args: args, reqId: $0) }
+    /// What `/name args` sends in `cli`, worked out by the Mac that holds the project:
+    /// the agent's own call for the skill when it can run it, else the prompt.
+    func expand(_ project: String, name: String, args: String, cli: String) async throws -> LpmCommandExpansion {
+        let reply = try await request {
+            Wire.lpmCommandExpand(project: project, name: name, args: args, cli: cli, reqId: $0)
+        }
         return reply.expansion ?? LpmCommandExpansion(text: "", missing: [])
     }
 

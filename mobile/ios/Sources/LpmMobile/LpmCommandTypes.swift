@@ -40,15 +40,50 @@ struct LpmCommand: Identifiable, Equatable {
     }
 }
 
+/// A skill in a list's places that wasn't made in lpm: shown, never changed.
+struct OtherSkill: Identifiable, Equatable {
+    let name: String
+    let description: String
+    let preview: String
+    let agents: [String]
+    let path: String
+    let folder: String?
+
+    var id: String { name }
+
+    /// Every agent lpm knows, and whether it reads this skill.
+    var reach: [(label: String, reads: Bool)] {
+        ["claude", "codex", "gemini", "opencode"].map { (agentCommandsLabel($0), agents.contains($0)) }
+    }
+
+    init(_ o: [String: Any]) {
+        name = o["name"] as? String ?? ""
+        description = o["description"] as? String ?? ""
+        preview = o["preview"] as? String ?? ""
+        agents = o["agents"] as? [String] ?? []
+        path = o["path"] as? String ?? ""
+        folder = o["folder"] as? String
+    }
+}
+
 struct LpmCommandList: Equatable {
     let folders: [String]
     let commands: [LpmCommand]
+    /// Empty from a Mac on an older lpm.
+    let others: [OtherSkill]
 
-    func count(in folder: String?) -> Int { commands.filter { $0.folder == folder }.count }
+    /// The commands in a folder, and the other skills filed there. Other skills in
+    /// no folder have their own row, so No folder doesn't count them.
+    func count(in folder: String?) -> Int {
+        commands.filter { $0.folder == folder }.count + (folder == nil ? 0 : others(in: folder).count)
+    }
+
+    func others(in folder: String?) -> [OtherSkill] { others.filter { $0.folder == folder } }
 
     init(_ o: [String: Any]) {
         folders = o["folders"] as? [String] ?? []
         commands = (o["commands"] as? [[String: Any]] ?? []).map(LpmCommand.init)
+        others = (o["others"] as? [[String: Any]] ?? []).map(OtherSkill.init)
     }
 }
 
@@ -205,7 +240,19 @@ extension Wire {
         return json(o)
     }
 
-    static func lpmCommandExpand(project: String, name: String, args: String, reqId: String) -> String {
-        json(["t": "lpmCommandExpand", "project": project, "name": name, "args": args, "reqId": reqId])
+    static func lpmCommandOtherFolder(project: String, scope: LpmCommandScope, name: String, folder: String?,
+                                      reqId: String) -> String {
+        json(["t": "lpmCommandOtherFolder", "project": project, "scope": scope.rawValue, "name": name,
+              "folder": folder ?? NSNull(), "reqId": reqId])
+    }
+
+    static func lpmCommandConvert(project: String, scope: LpmCommandScope, name: String, toLpm: Bool,
+                                  reqId: String) -> String {
+        json(["t": "lpmCommandConvert", "project": project, "scope": scope.rawValue, "name": name,
+              "toLpm": toLpm, "reqId": reqId])
+    }
+
+    static func lpmCommandExpand(project: String, name: String, args: String, cli: String, reqId: String) -> String {
+        json(["t": "lpmCommandExpand", "project": project, "name": name, "args": args, "cli": cli, "reqId": reqId])
     }
 }

@@ -146,7 +146,7 @@ export function SlashCommandMenu({
         >
           <Settings2 size={13} strokeWidth={1.75} />
           Manage skills
-          <span className="ml-auto text-[10.5px]">↵ run · ⇥ edit first</span>
+          <span className="ml-auto text-[10.5px]">↵ insert · ⇥ edit prompt</span>
         </button>
       )}
     </div>,

@@ -218,7 +218,7 @@ class ComposerViewModel @AssistedInject constructor(
     fun send(onSend: ((String) -> Unit)? = null): Boolean {
         if (lpmCommands.expanding || dictation.state.value.isActive(dictationOwner)) return false
         pushInput(input.text.toString())
-        if (lpmCommandsHere() && lpmCommands.runTyped(slashRows())) return true
+        if (lpmCommandsHere() && lpmCommands.runTyped(slashRows(), terminalCli())) return true
         return sendComposed(onSend)
     }
 
@@ -242,7 +242,9 @@ class ComposerViewModel @AssistedInject constructor(
     }
 
     private fun lpmCommandsHere(): Boolean =
-        lpmCommands.runHere(target.terminalTools, terminals?.state?.value.cli())
+        lpmCommands.runHere(target.terminalTools, terminalCli())
+
+    private fun terminalCli(): String = terminals?.state?.value.cli()
 
     /** The agent CLI running in this terminal, "" when none is known. */
     private fun TerminalsState?.cli(): String =
@@ -314,7 +316,7 @@ class ComposerViewModel @AssistedInject constructor(
     // MARK: autocomplete
 
     fun pickSlash(command: SlashCommand) {
-        if (command.isLpm) return lpmCommands.pick(command)
+        if (command.isLpm && lpmCommands.pick(command, terminalCli())) return
         replaceText(replacingFragment(currentText, '/', "/${command.name} "))
     }
 

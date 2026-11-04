@@ -24,6 +24,7 @@ tags: [demo, commands, composer]
 - assertVisible: "This project"
 - assertVisible: "Bugs"
 - assertVisible: "No folder"
+- assertVisible: "Other skills"
 - waitForAnimationToEnd:
     timeout: 3000
 - takeScreenshot: 1-commands

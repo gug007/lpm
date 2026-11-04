@@ -16,6 +16,7 @@ use std::path::Path;
 pub(crate) use crate::lpm_commands_doc::{parse_doc, Doc};
 pub(crate) use crate::lpm_commands_local::LocalFs;
 pub(crate) use crate::lpm_commands_names::*;
+pub(crate) use crate::lpm_commands_snapshot::*;
 
 pub(crate) const MAX_FILE_BYTES: usize = 256 * 1024;
 
@@ -24,6 +25,13 @@ pub(crate) const MAX_FILE_BYTES: usize = 256 * 1024;
 pub enum Scope {
     Global,
     Project,
+}
+
+/// Which agents find a skill on their own.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Reach {
+    pub claude: bool,
+    pub codex: bool,
 }
 
 #[derive(Serialize, Clone, Debug, PartialEq)]
@@ -36,12 +44,30 @@ pub struct LpmCommand {
     pub scope: Scope,
     /// `<ticket>` for a prompt that asks for a ticket: shown after `/name `.
     pub argument_hint: String,
+    #[serde(skip)]
+    pub reach: Reach,
+}
+
+/// A skill in one of a list's places that lpm didn't create: listed so the user
+/// can see it, and never changed here.
+#[derive(Serialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct OtherSkill {
+    pub name: String,
+    pub description: String,
+    pub preview: String,
+    /// The agents that read it, as `AICLI` names them.
+    pub agents: Vec<String>,
+    pub path: String,
+    /// Kept by lpm beside the list: the skill's own file stays as it is.
+    pub folder: Option<String>,
 }
 
 #[derive(Serialize, Clone, Debug, Default)]
 pub struct ScopeList {
     pub folders: Vec<String>,
     pub commands: Vec<LpmCommand>,
+    pub others: Vec<OtherSkill>,
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -75,100 +101,6 @@ pub struct CommandRef {
     pub name: String,
 }
 
-pub(crate) struct CommandFile {
-    pub name: String,
-    pub doc: Doc,
-}
-
-/// One entry of a root's .claude/skills.
-pub(crate) enum ClaudeEntry {
-    Link(String),
-    Copy(String),
-}
-
-/// What a list's places hold, read but not yet sorted into lpm's and others'.
-#[derive(Default)]
-pub(crate) struct RawList {
-    /// Folder name and SKILL.md of everything in the skills root.
-    pub skills: Vec<(String, String)>,
-    pub claude: Vec<(String, ClaudeEntry)>,
-    /// Folder name and SKILL.md of everything in Codex's own skills folder.
-    pub codex: Vec<(String, String)>,
-    pub saved_folders: Vec<String>,
-    pub legacy: bool,
-}
-
-/// A list as it is on disk.
-#[derive(Default)]
-pub(crate) struct Snapshot {
-    /// Every folder: the labels in use and the ones kept while empty.
-    pub folders: Vec<String>,
-    pub saved_folders: Vec<String>,
-    pub files: Vec<CommandFile>,
-    /// Names of skills that aren't lpm's, which lpm must never take over.
-    pub others: Vec<String>,
-    /// An old .lpm/commands list is still waiting to be moved here.
-    pub legacy: bool,
-}
-
-impl Snapshot {
-    fn add(&mut self, name: String, mut doc: Doc) {
-        doc.folder = doc.folder.filter(|f| clean_folder(f).is_ok());
-        if let Some(folder) = &doc.folder {
-            if !self.folders.iter().any(|f| f.eq_ignore_ascii_case(folder)) {
-                self.folders.push(folder.clone());
-            }
-        }
-        self.files.push(CommandFile { name, doc });
-    }
-
-    /// A skill outside the skills root: lpm's unless it is a copy of one in
-    /// `shared`, which is how Claude gets a skill where links aren't allowed.
-    fn add_elsewhere(&mut self, name: String, content: &str, shared: &HashSet<String>) {
-        let doc = parse_doc(content);
-        if !doc.created_with_lpm {
-            self.others.push(name);
-        } else if valid_name(&name) && !shared.contains(&name) && !self.files.iter().any(|f| f.name == name) {
-            self.add(name, doc);
-        }
-    }
-}
-
-impl RawList {
-    pub(crate) fn sorted_out(self) -> Snapshot {
-        let mut snap = Snapshot {
-            folders: self.saved_folders.clone(),
-            saved_folders: self.saved_folders,
-            legacy: self.legacy,
-            ..Snapshot::default()
-        };
-        let shared: HashSet<String> = self.skills.iter().map(|(name, _)| name.clone()).collect();
-        for (name, content) in self.skills {
-            let doc = parse_doc(&content);
-            if doc.created_with_lpm && valid_name(&name) {
-                snap.add(name, doc);
-            } else {
-                snap.others.push(name);
-            }
-        }
-        for (name, entry) in self.claude {
-            match entry {
-                ClaudeEntry::Link(target) if is_link_to_skill(&target, &name) => {}
-                ClaudeEntry::Link(_) => snap.others.push(name),
-                ClaudeEntry::Copy(content) => snap.add_elsewhere(name, &content, &shared),
-            }
-        }
-        for (name, content) in self.codex {
-            snap.add_elsewhere(name, &content, &shared);
-        }
-        snap
-    }
-}
-
-pub(crate) fn is_link_to_skill(target: &str, name: &str) -> bool {
-    target.replace('\\', "/").ends_with(&format!(".agents/skills/{name}"))
-}
-
 /// The few filesystem moves a list needs. Paths for `write` are relative to the
 /// skills root and written with `/`.
 pub(crate) trait CommandFs {
@@ -181,6 +113,13 @@ pub(crate) trait CommandFs {
     /// Removes what lpm wrote; files someone added to the skill's folder stay.
     fn remove_skill(&self, name: &str) -> Result<(), String>;
     fn save_folders(&self, folders: &[String]) -> Result<(), String>;
+    /// Which other skills sit in which folder, as (skill, folder).
+    fn save_other_folders(&self, filed: &[(String, String)]) -> Result<(), String>;
+    /// Every real SKILL.md a skill has, as (path, content): a skill copied into
+    /// two roots has two, and one behind someone's link has none here.
+    fn skill_files(&self, name: &str) -> Result<Vec<(String, String)>, String>;
+    /// Writes over a file `skill_files` named.
+    fn rewrite(&self, path: &str, content: &str) -> Result<(), String>;
     /// The skill's folder as the computer holding the list names it.
     fn location(&self, name: &str) -> String;
 
@@ -337,7 +276,7 @@ fn current(fs: &dyn CommandFs) -> Result<Snapshot, String> {
 }
 
 fn read_scope(fs: &dyn CommandFs, scope: Scope) -> Result<ScopeList, String> {
-    let Snapshot { mut folders, files, .. } = current(fs)?;
+    let Snapshot { mut folders, files, listed_others: mut others, .. } = current(fs)?;
     let mut commands: Vec<LpmCommand> = files
         .into_iter()
         .map(|f| LpmCommand {
@@ -347,6 +286,7 @@ fn read_scope(fs: &dyn CommandFs, scope: Scope) -> Result<ScopeList, String> {
             body: f.doc.body,
             name: f.name,
             scope,
+            reach: f.reach,
         })
         .collect();
     folders.sort_by_key(|f| f.to_lowercase());
@@ -354,7 +294,8 @@ fn read_scope(fs: &dyn CommandFs, scope: Scope) -> Result<ScopeList, String> {
         let key = |c: &LpmCommand| (c.folder.is_none(), c.folder.as_deref().map(str::to_lowercase));
         key(a).cmp(&key(b)).then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
     });
-    Ok(ScopeList { folders, commands })
+    others.sort_by_key(|o| o.name.to_lowercase());
+    Ok(ScopeList { folders, commands, others })
 }
 
 /// What `/name` runs, in menu order: the project's commands, then the global

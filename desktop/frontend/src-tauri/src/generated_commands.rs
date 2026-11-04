@@ -146,6 +146,8 @@ macro_rules! all_command_handlers {
             create_lpm_command_folder,
             rename_lpm_command_folder,
             delete_lpm_command_folder,
+            move_other_skill,
+            convert_skill,
             import_lpm_commands,
             expand_lpm_command,
             generate_pr_title,

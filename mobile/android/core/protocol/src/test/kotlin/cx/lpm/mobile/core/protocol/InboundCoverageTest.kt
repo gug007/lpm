@@ -38,7 +38,8 @@ class InboundCoverageTest {
         "gitHistory", "gitChecks", "gitChecksRerun", "gitCommitFiles", "gitCommitPatch",
         "keepAwake", "keepAwakeSet",
         "lpmCommands", "lpmCommandSave", "lpmCommandDelete", "lpmCommandFolder",
-        "lpmCommandExpand", "lpmCommandsChanged", "dictation"
+        "lpmCommandExpand", "lpmCommandOtherFolder", "lpmCommandConvert",
+        "lpmCommandsChanged", "dictation"
     )
 
     // Replies only Android asks for: iOS registers for push with `apnsToken`.
@@ -46,7 +47,7 @@ class InboundCoverageTest {
 
     @Test
     fun decodesExactlyTheTypesIosDoesPlusAndroidsOwn() {
-        assertEquals(157, iosTypes.size)
+        assertEquals(159, iosTypes.size)
         assertEquals(iosTypes + androidOnlyTypes, inboundParsers.keys)
     }
 

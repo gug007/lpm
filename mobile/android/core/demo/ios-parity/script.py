@@ -552,6 +552,12 @@ at(76700, 'lpmCommandSave', project='storefront', reqId='s20', previous=None,
    command=cmd('project', 'Review', 'kit', body='Read {{dir}}/GUIDE.md about {{what}}'))
 at(76700, 'lpmCommandSave', project='storefront', reqId='s21', previous=None,
    command=cmd('global', None, 'kit-all', body='Read {{dir}}/GUIDE.md'))
+at(76700, 'lpmCommandOtherFolder', project='storefront', reqId='o1', scope='project', name='deploy-preview', folder='Review')
+at(76700, 'lpmCommandOtherFolder', project='storefront', reqId='o2', scope='project', name='nope', folder=None)
+at(76700, 'lpmCommandOtherFolder', project='storefront', reqId='o3', scope='global', name='find-docs', folder='Docs')
+at(76700, 'lpmCommandConvert', project='storefront', reqId='o4', scope='project', name='deploy-preview', toLpm=True)
+at(76700, 'lpmCommandConvert', project='storefront', reqId='o5', scope='project', name='deploy-preview', toLpm=False)
+at(76700, 'lpmCommandConvert', project='storefront', reqId='o6', scope='project', name='nope', toLpm=True)
 at(76700, 'lpmCommandExpand', project='storefront', name='kit', args='a demo', reqId='e12')
 at(76700, 'lpmCommandExpand', project='storefront', name='kit-all', args='', reqId='e13')
 at(76700, 'lpmCommandExpand', project='', name='kit-all', args='', reqId='e14')

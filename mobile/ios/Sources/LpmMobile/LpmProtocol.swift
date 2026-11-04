@@ -1427,7 +1427,8 @@ enum Wire {
                                      name: obj["name"] as? String ?? "",
                                      error: ok ? nil : (obj["error"] as? String ?? "Couldn't delete the session."))
             case "memory-changed": return .memoryChanged(project: obj["project"] as? String ?? "")
-            case "lpmCommands", "lpmCommandSave", "lpmCommandDelete", "lpmCommandFolder", "lpmCommandExpand":
+            case "lpmCommands", "lpmCommandSave", "lpmCommandDelete", "lpmCommandFolder",
+                 "lpmCommandOtherFolder", "lpmCommandConvert", "lpmCommandExpand":
                 return .lpmCommandReply(LpmCommandReply(obj))
             case "lpmCommandsChanged": return .lpmCommandsChanged(project: obj["project"] as? String ?? "")
             case "notesChats":

@@ -15,12 +15,17 @@ use tauri::AppHandle;
 /// lpm skills.
 pub const FEATURE: &str = "lpmCommands";
 
+/// The phone may send `lpmCommandOtherFolder` and `lpmCommandConvert`.
+pub const OTHER_SKILLS_FEATURE: &str = "lpmOtherSkills";
+
 fn kind(verb: &str, v: &Value) -> &'static str {
     match verb {
         "lpmCommands" => "list",
         "lpmCommandSave" => "save",
         "lpmCommandDelete" => "delete",
         "lpmCommandExpand" => "expand",
+        "lpmCommandOtherFolder" => "moveOther",
+        "lpmCommandConvert" => "convert",
         _ => match v.get("op").and_then(Value::as_str) {
             Some("create") => "createFolder",
             Some("rename") => "renameFolder",

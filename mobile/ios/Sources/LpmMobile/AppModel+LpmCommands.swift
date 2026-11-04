@@ -6,6 +6,11 @@ extension AppModel {
         client?.hostFeatures.contains(LpmClient.lpmCommandsFeature) == true
     }
 
+    /// The Mac can file other skills in folders and convert them.
+    var lpmOtherSkillsAvailable: Bool {
+        client?.hostFeatures.contains(LpmClient.lpmOtherSkillsFeature) == true
+    }
+
     func wireLpmCommands(_ c: LpmClient) {
         c.onLpmCommandReply = { [weak self, weak c] reply in
             guard let self, let c, c === self.client else { return }

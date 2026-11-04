@@ -114,6 +114,7 @@ class DemoServerTest {
         "weeklyRecap", "limitReminders", "setLimitReminder", "clearLimitReminder", "sidebarPin",
         "keepAwake", "keepAwakeSet",
         "gitHistory", "gitCommitFiles", "gitCommitPatch", "gitChecks", "gitChecksRerun",
-        "lpmCommands", "lpmCommandSave", "lpmCommandDelete", "lpmCommandFolder", "lpmCommandExpand"
+        "lpmCommands", "lpmCommandSave", "lpmCommandDelete", "lpmCommandFolder", "lpmCommandExpand",
+        "lpmCommandOtherFolder", "lpmCommandConvert"
     )
 }

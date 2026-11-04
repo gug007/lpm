@@ -3,8 +3,8 @@
 // Each one checks the list as it is on disk first, so two skills in one list
 // never share a name and a skill lpm didn't create is never written over.
 use crate::lpm_commands::{
-    check_name, clean_folder, clean_folder_opt, codex_policy_file, place_label, skill_file, CommandFile,
-    CommandFs, CommandInput, CommandRef, Doc, Scope, Snapshot, Stores, MAX_FILE_BYTES,
+    check_name, clean_folder, clean_folder_opt, codex_policy_file, parse_doc, place_label, skill_file,
+    CommandFile, CommandFs, CommandInput, CommandRef, Doc, MAX_FILE_BYTES, Scope, Snapshot, Stores,
 };
 use crate::lpm_commands_doc::MAX_DESCRIPTION_CHARS;
 
@@ -131,7 +131,83 @@ pub(crate) fn create_folder(stores: &Stores, scope: Scope, name: &str) -> Result
     keep_folders(fs, &snap, folders)
 }
 
+/// Files a skill lpm didn't create under a folder, or back out of one with None.
+/// Its own file isn't touched: the list keeps the label.
+pub(crate) fn move_other(stores: &Stores, scope: Scope, name: &str, folder: Option<&str>) -> Result<(), String> {
+    let fs = stores.get(scope)?;
+    let snap = fs.snapshot()?;
+    if !snap.listed_others.iter().any(|o| o.name == name) {
+        return Err(format!("/{name} isn't in this list any more."));
+    }
+    let folder = clean_folder_opt(folder)?.map(|f| existing_folder(&snap.folders, &f).unwrap_or(f));
+    let mut folders = snap.folders.clone();
+    let mut filed: Vec<(String, String)> = snap.other_folders.iter().filter(|(n, _)| n != name).cloned().collect();
+    if let Some(folder) = folder {
+        if !folders.contains(&folder) {
+            folders.push(folder.clone());
+        }
+        filed.push((name.to_string(), folder));
+    }
+    fs.save_other_folders(&filed)?;
+    keep_folders(fs, &snap, folders)
+}
+
+/// Turns another skill into one of lpm's, or one of lpm's back: the mark in its
+/// file, in every copy it has, decides. It keeps its folder and where it lives.
+pub(crate) fn convert(stores: &Stores, scope: Scope, name: &str, to_lpm: bool) -> Result<(), String> {
+    let fs = stores.get(scope)?;
+    let snap = fs.snapshot()?;
+    let folder = if to_lpm {
+        check_name(name)?;
+        if !snap.listed_others.iter().any(|o| o.name == name) {
+            return Err(format!("/{name} isn't in this list any more."));
+        }
+        snap.other_folders.iter().find(|(n, _)| n == name).map(|(_, f)| f.clone())
+    } else {
+        let file = find(&snap, name).ok_or_else(|| format!("/{name} isn't in this list any more."))?;
+        file.doc.folder.clone()
+    };
+    let files = fs.skill_files(name)?;
+    if files.is_empty() {
+        return Err("This skill is a link to a folder somewhere else. Change it where it lives.".into());
+    }
+    if files.iter().any(|(_, content)| content.len() > MAX_FILE_BYTES) {
+        return Err("That skill is too long to convert.".into());
+    }
+    for (path, content) in &files {
+        let doc = Doc {
+            created_with_lpm: to_lpm,
+            folder: folder.clone().filter(|_| to_lpm),
+            ..parse_doc(content)
+        };
+        fs.rewrite(path, &doc.to_skill(name))?;
+    }
+    let mut filed: Vec<(String, String)> = snap.other_folders.iter().filter(|(n, _)| n != name).cloned().collect();
+    if let Some(folder) = folder.filter(|_| !to_lpm) {
+        filed.push((name.to_string(), folder));
+    }
+    if filed != snap.other_folders {
+        fs.save_other_folders(&filed)?;
+    }
+    if to_lpm {
+        fs.link_claude(name)?;
+    }
+    keep_folders(fs, &snap, snap.folders.clone())
+}
+
 fn relabel(fs: &dyn CommandFs, snap: &Snapshot, from: &str, to: Option<&str>) -> Result<(), String> {
+    let filed: Vec<(String, String)> = snap
+        .other_folders
+        .iter()
+        .filter_map(|(name, folder)| match (folder == from, to) {
+            (false, _) => Some((name.clone(), folder.clone())),
+            (true, Some(to)) => Some((name.clone(), to.to_string())),
+            (true, None) => None,
+        })
+        .collect();
+    if filed != snap.other_folders {
+        fs.save_other_folders(&filed)?;
+    }
     for file in snap.files.iter().filter(|f| f.doc.folder.as_deref() == Some(from)) {
         let doc = Doc { folder: to.map(str::to_string), ..file.doc.clone() };
         fs.write(&skill_file(&file.name), &doc.to_skill(&file.name))?;

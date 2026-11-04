@@ -6,8 +6,12 @@
 // can point at files kept beside it) fill themselves in. Any other `{{name}}`
 // takes a word of the arguments, in order, the last one taking the rest;
 // `$ARGUMENTS` (Claude Code's own form) takes all of them.
+//
+// An agent that starts skills itself gets the call rather than the prompt, so it
+// runs as a skill: `native_call` says when it can.
 use crate::lpm_commands::{
-    effective, list_stores, project_place, stores_at, LpmCommand, LpmCommands, ProjectPlace, Scope, Stores,
+    effective, list_stores, project_place, stores_at, LpmCommand, LpmCommands, ProjectPlace, Scope, ScopeList,
+    Stores,
 };
 use serde::Serialize;
 
@@ -128,6 +132,35 @@ fn is_var_name(var: &str) -> bool {
     !var.is_empty() && var.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
 }
 
+/// An SSH project's agent works on its host, where a global skill's files aren't.
+fn out_of_agents_way(place: Option<&ProjectPlace>, command: &LpmCommand) -> bool {
+    command.scope == Scope::Global && place.is_some_and(|p| p.ssh.is_some())
+}
+
+/// What starts the skill in `cli` itself, when that does what lpm would. Not for
+/// a prompt with `{{branch}}`, `{{project}}` or `{{dir}}`, which only lpm fills
+/// in, or a name in both lists, where the agent's choice can differ from lpm's.
+fn native_call(
+    list: &LpmCommands,
+    place: Option<&ProjectPlace>,
+    command: &LpmCommand,
+    cli: &str,
+    args: &str,
+) -> Option<String> {
+    let (sigil, reached) = match cli {
+        "claude" => ('/', command.reach.claude),
+        "codex" => ('$', command.reach.codex),
+        _ => return None,
+    };
+    let needs_lpm = variables(&command.body).iter().any(|v| AUTO_VARS.contains(&v.as_str()));
+    let holds_it = |scope: &ScopeList| scope.commands.iter().any(|c| c.name == command.name);
+    let in_both = holds_it(&list.global) && list.project.as_ref().is_some_and(holds_it);
+    if !reached || needs_lpm || in_both || out_of_agents_way(place, command) {
+        return None;
+    }
+    Some(format!("{sigil}{} {}", command.name, args.trim()).trim_end().to_string())
+}
+
 /// `/name args` in `project`, whose place and lists `dispatch` already resolved.
 pub(crate) fn expand_at(
     project: &str,
@@ -135,18 +168,20 @@ pub(crate) fn expand_at(
     stores: &Stores,
     name: &str,
     args: &str,
+    cli: Option<&str>,
 ) -> Result<Expanded, String> {
     let list = list_stores(stores)?;
     let command = find(&list, name.trim_start_matches('/'))
         .ok_or_else(|| format!("/{name} isn't one of your skills."))?;
+    if let Some(text) = cli.and_then(|cli| native_call(&list, place, command, cli, args)) {
+        return Ok(Expanded { text, missing: Vec::new() });
+    }
     Ok(fill(project, place, stores, command, args))
 }
 
-/// The skill's folder as the agent's computer names it. An SSH project's agent
-/// works on its host, where a global skill's files aren't, so it has none.
+/// The skill's folder as the agent's computer names it.
 fn command_dir(place: Option<&ProjectPlace>, stores: &Stores, command: &LpmCommand) -> Option<String> {
-    let agent_on_host = place.is_some_and(|p| p.ssh.is_some());
-    if agent_on_host && command.scope == Scope::Global {
+    if out_of_agents_way(place, command) {
         return None;
     }
     let list = stores.get(command.scope).ok()?;

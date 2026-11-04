@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -20,6 +21,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import cx.lpm.mobile.core.designsystem.R as DesignR
 import cx.lpm.mobile.core.designsystem.component.ActivityIndicator
+import cx.lpm.mobile.core.designsystem.component.DisclosureChevron
 import cx.lpm.mobile.core.designsystem.component.EmptyState
 import cx.lpm.mobile.core.designsystem.component.ListCard
 import cx.lpm.mobile.core.designsystem.component.ListRow
@@ -37,6 +39,7 @@ class CommandsActions(
     val newCommand: () -> Unit = {},
     val openFolder: (FolderRowUi) -> Unit = {},
     val newFolder: () -> Unit = {},
+    val openOthers: () -> Unit = {},
     val renameFolder: (String) -> Unit = {},
     val deleteFolder: (String) -> Unit = {},
     val pickScope: (CommandScope) -> Unit = {},
@@ -76,6 +79,13 @@ fun CommandsScreen(
             }
             if (state.hasList || state.projectError != null) {
                 item(key = "folders") { Folders(state, actions) }
+            }
+            if (state.otherSkills > 0) {
+                item(key = "others") {
+                    ListCard(Modifier.padding(top = 20.dp)) {
+                        OtherSkillsRow(state.otherSkills, actions.openOthers)
+                    }
+                }
             }
         }
         if (!state.loaded) Overlay(state.loadError, actions.retry)
@@ -127,6 +137,37 @@ private fun Notice(text: String) {
             text = text,
             style = LpmTheme.typography.footnote,
             color = LpmTheme.colors.secondaryLabel
+        )
+    }
+}
+
+/** The skills not made in lpm in this list, and how many. */
+@Composable
+private fun OtherSkillsRow(count: Int, onClick: () -> Unit) {
+    val colors = LpmTheme.colors
+    ListRow(
+        onClick = onClick,
+        leading = {
+            Icon(
+                painterResource(DesignR.drawable.ic_folder_limited),
+                contentDescription = null,
+                tint = colors.tint
+            )
+        },
+        trailing = {
+            Text(
+                text = count.toString(),
+                style = LpmTheme.typography.body.copy(fontFeatureSettings = "tnum"),
+                color = colors.secondaryLabel,
+                maxLines = 1
+            )
+            Spacer(Modifier.width(13.dp))
+            DisclosureChevron()
+        }
+    ) {
+        Text(
+            text = stringResource(R.string.commands_other_skills),
+            style = LpmTheme.typography.body
         )
     }
 }

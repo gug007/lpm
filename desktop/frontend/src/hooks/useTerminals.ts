@@ -213,6 +213,10 @@ export function useTerminals(
     () => openUtilityTab("commands", addCommandsToPane),
     [openUtilityTab, addCommandsToPane],
   );
+  const openToolkitTab = useCallback(
+    () => openUtilityTab("toolkit", addToolkitToPane),
+    [openUtilityTab, addToolkitToPane],
+  );
   const openBrowserTab = useOpenBrowserTab(
     projectName,
     treeRef,
@@ -363,6 +367,7 @@ export function useTerminals(
     addCommandsToPane,
     openAutomationsTab,
     openCommandsTab,
+    openToolkitTab,
     openBrowserTab,
     closeTerminal,
     closeOtherTerminals,

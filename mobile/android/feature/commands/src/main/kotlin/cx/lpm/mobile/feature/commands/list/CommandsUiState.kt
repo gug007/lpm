@@ -21,6 +21,8 @@ data class CommandsUiState(
     val folders: List<FolderRowUi> = emptyList(),
     /** The list itself is there, so its folders and "New folder" show. */
     val hasList: Boolean = false,
+    /** How many skills not made in lpm the showing list has outside its folders. */
+    val otherSkills: Int = 0,
     /** Why the project's own list couldn't be read, shown over it. */
     val projectError: String? = null,
     val loadError: String? = null,
@@ -54,6 +56,7 @@ internal fun LpmCommandsState.commandsUiState(
         loaded = lists != null,
         folders = list?.folderRows().orEmpty(),
         hasList = list != null,
+        otherSkills = list?.othersIn(null)?.size ?: 0,
         projectError = lists?.projectError?.takeIf { scope == CommandScope.Project },
         loadError = loadError[project].takeIf { lists == null },
         changeError = changeError
@@ -61,4 +64,7 @@ internal fun LpmCommandsState.commandsUiState(
 }
 
 private fun LpmCommandList.folderRows(): List<FolderRowUi> =
-    (folders + listOf<String?>(null)).map { FolderRowUi(it, inFolder(it).size) }
+    (folders + listOf<String?>(null)).map { folder ->
+        val others = if (folder == null) 0 else othersIn(folder).size
+        FolderRowUi(folder, inFolder(folder).size + others)
+    }

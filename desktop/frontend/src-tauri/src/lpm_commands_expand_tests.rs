@@ -76,14 +76,15 @@ fn command(name: &str, scope: Scope, body: &str) -> LpmCommand {
         body: body.into(),
         scope,
         argument_hint: String::new(),
+        reach: Default::default(),
     }
 }
 
 #[test]
 fn the_project_command_wins_over_a_global_one() {
     let list = LpmCommands {
-        global: ScopeList { folders: vec![], commands: vec![command("ship", Scope::Global, "global")] },
-        project: Some(ScopeList { folders: vec![], commands: vec![command("Ship", Scope::Project, "project")] }),
+        global: ScopeList { commands: vec![command("ship", Scope::Global, "global")], ..Default::default() },
+        project: Some(ScopeList { commands: vec![command("Ship", Scope::Project, "project")], ..Default::default() }),
         project_error: None,
     };
     assert_eq!(find(&list, "ship").unwrap().body, "project");

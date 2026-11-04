@@ -48,17 +48,58 @@ data class LpmCommand(
     }
 }
 
-/** One list: every folder (empty ones too, sorted ignoring case) and its commands. */
+/** An agent lpm knows, and whether it reads a skill. */
+data class AgentReach(val label: String, val reads: Boolean)
+
+private val KNOWN_AGENTS = listOf(
+    "claude" to "Claude Code",
+    "codex" to "Codex",
+    "gemini" to "Gemini",
+    "opencode" to "OpenCode"
+)
+
+/** A skill in a list's places that wasn't made in lpm: shown, never changed. */
+data class OtherSkill(
+    val name: String,
+    val description: String,
+    val preview: String,
+    val agents: List<String>,
+    val path: String,
+    val folder: String? = null
+) {
+    val reach: List<AgentReach>
+        get() = KNOWN_AGENTS.map { (cli, label) -> AgentReach(label, cli in agents) }
+
+    companion object {
+        fun parse(o: JsonObject): OtherSkill = OtherSkill(
+            name = o.string("name").orEmpty(),
+            description = o.string("description").orEmpty(),
+            preview = o.string("preview").orEmpty(),
+            agents = o.strings("agents").orEmpty(),
+            path = o.string("path").orEmpty(),
+            folder = o.string("folder")
+        )
+    }
+}
+
+/**
+ * One list: every folder (empty ones too, sorted ignoring case), its commands, and
+ * the [others] in its places, which a Mac on an older lpm doesn't send.
+ */
 data class LpmCommandList(
     val folders: List<String> = emptyList(),
-    val commands: List<LpmCommand> = emptyList()
+    val commands: List<LpmCommand> = emptyList(),
+    val others: List<OtherSkill> = emptyList()
 ) {
     fun inFolder(folder: String?): List<LpmCommand> = commands.filter { it.folder == folder }
+
+    fun othersIn(folder: String?): List<OtherSkill> = others.filter { it.folder == folder }
 
     companion object {
         fun parse(o: JsonObject): LpmCommandList = LpmCommandList(
             folders = o.strings("folders").orEmpty(),
-            commands = o.list("commands", LpmCommand::parse)
+            commands = o.list("commands", LpmCommand::parse),
+            others = o.list("others", OtherSkill::parse)
         )
     }
 }

@@ -23,6 +23,12 @@
     <string name="commands_delete_folder_message">Its skills move to No folder.</string>
     <string name="commands_change_failed">Couldn\'t change skills</string>
     <string name="commands_load_failed">Couldn\'t load skills</string>
+    <string name="commands_other_skills">Other skills</string>
+    <string name="commands_other_works_in">Works in</string>
+    <string name="commands_other_works">Works</string>
+    <string name="commands_other_instructions">Instructions</string>
+    <string name="commands_other_convert">Convert to lpm skill</string>
+    <string name="commands_other_read_only">Not made in lpm, so it\'s read-only here.</string>
 
     <!-- CommandFolderScreen -->
     <string name="commands_empty">No skills</string>
@@ -39,6 +45,7 @@
     <string name="command_editor_description_placeholder">Shown next to the name in the / menu</string>
     <string name="command_editor_prompt">Prompt</string>
     <string name="command_editor_delete">Delete skill</string>
+    <string name="command_editor_convert">Convert to other skill</string>
     <string name="command_editor_delete_title">Delete /%1$s?</string>
     <string name="command_editor_delete_message">Its file is deleted.</string>
 

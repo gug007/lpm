@@ -31,10 +31,9 @@ internal interface CommandField {
 }
 
 /**
- * The user's lpm commands in the composer, like the desktop's: picked on a message
- * that is just the command, one runs (or leaves `/name ` when it asks for
- * arguments); picked mid-message, its prompt takes the fragment's place; and sending
- * `/name args` runs it. The Mac that holds the project fills the prompt in.
+ * The user's lpm skills in the composer, like the desktop's: picked, one goes in like
+ * the agent's own as `/name ` to send or add arguments to, and sending `/name args`
+ * runs it. The Mac that holds the project works out what to send.
  */
 internal class ComposerLpmCommands(
     private val store: LpmCommandsStore?,
@@ -69,32 +68,31 @@ internal class ComposerLpmCommands(
         reloadMenu()
     }
 
-    fun pick(command: SlashCommand) {
-        val text = field.text
-        val whole = WHOLE_COMMAND.matches(text)
-        when {
-            whole && command.argumentHint.isNotEmpty() ->
-                field.replace(replacingFragment(text, '/', "/${command.name} "))
-
-            whole -> run(command.name, args = "")
-
-            // The "/" may be gone by the time the prompt comes: it then goes after the text.
-            else -> expand(command.name, args = "") { expanded ->
-                field.replace(field.text.substringBeforeLast('/') + expanded.text)
-            }
+    /**
+     * A skill picked mid-message: what the agent reads there takes the fragment's place,
+     * its own call for the skill when it can run it, else the prompt. False for one alone
+     * in the message, which goes in like the agent's own commands.
+     */
+    fun pick(command: SlashCommand, cli: String): Boolean {
+        if (WHOLE_COMMAND.matches(field.text)) return false
+        // The "/" may be gone by the time the text comes: it then goes after the message.
+        expand(command.name, args = "", cli) { expanded ->
+            field.replace(field.text.substringBeforeLast('/') + expanded.text + " ")
         }
-    }
-
-    /** Runs the field's `/name args` when it names one of the user's [commands], else false. */
-    fun runTyped(commands: List<SlashCommand>): Boolean {
-        val run = lpmRunOf(field.text, commands) ?: return false
-        run(run.name, run.args)
         return true
     }
 
-    // Every variable given, the prompt goes like a typed message; one still unfilled
-    // leaves the prompt in the field to finish by hand.
-    private fun run(name: String, args: String) = expand(name, args) { expanded ->
+    /** Runs the field's `/name args` when it names one of the user's [commands], else false. */
+    fun runTyped(commands: List<SlashCommand>, cli: String): Boolean {
+        val run = lpmRunOf(field.text, commands) ?: return false
+        run(run.name, run.args, cli)
+        return true
+    }
+
+    // It goes to the agent as a skill when the agent can start one, else as its prompt
+    // like a typed message, every variable given; one still unfilled leaves the prompt
+    // in the field to finish by hand.
+    private fun run(name: String, args: String, cli: String) = expand(name, args, cli) { expanded ->
         field.replace(expanded.text)
         if (expanded.missing.isEmpty()) {
             field.send()
@@ -104,11 +102,11 @@ internal class ComposerLpmCommands(
         }
     }
 
-    private fun expand(name: String, args: String, then: (ExpandedCommand) -> Unit) {
+    private fun expand(name: String, args: String, cli: String, then: (ExpandedCommand) -> Unit) {
         val store = store ?: return
         expanding = true
         scope.launch {
-            val outcome = store.expand(project, name, args)
+            val outcome = store.expand(project, name, args, cli)
             expanding = false
             when (outcome) {
                 is CommandOutcome.Done -> then(outcome.value)

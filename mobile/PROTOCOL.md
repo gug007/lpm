@@ -880,14 +880,33 @@ letters, numbers and single hyphens, and unique within a list. When both lists
 have a name, `/name` runs the **project's**. Only when `features` has
 `"lpmCommands"`; every verb runs on a worker and echoes `reqId`.
 
+Each list also carries `others`: the skills in its places that weren't made in
+lpm, each `{ name, description, preview, agents, path }`, sorted by name.
+`preview` is the start of the instructions, `agents` the CLIs that read it
+(`claude`, `codex`, `gemini`, `opencode`), `folder` the folder of the list it is
+filed in, or null. Their files can't be edited through these verbs. A Mac on an
+older lpm sends no `others`.
+
+When `features` has `"lpmOtherSkills"`, `lpmCommandOtherFolder` files one in a
+folder (null takes it out, a new name creates the folder; the Mac keeps the label
+and its file stays as it was), and `lpmCommandConvert` with `toLpm: true` makes it
+an lpm skill, `false` makes an lpm skill an other skill, in its folder either way.
+It stays in its list; a skill behind someone's link can't be converted.
+
 The phone shows them in its `/` menu (they arrive in the `slash` reply, grouped
 by `folder` within `scope`, project first) and on a Skills screen per project
 with the same two lists and folders. Picking one in the menu works like the
-desktop: on a message that is just the command, it runs at once, or leaves
-`/name ` when `argumentHint` is not empty; sending `/name args` (the whole
-message) runs it. To run one, send `lpmCommandExpand` and submit the `text` it
-returns as the message, exactly like a typed prompt; with `missing` not empty,
-put `text` in the input instead so the user fills the `{{…}}` left in it.
+desktop: it goes in as `/name `, like the agent's own commands, to send or add
+arguments to; mid-message, the `text` of `lpmCommandExpand` with the terminal's
+`cli` takes the fragment's place. Sending `/name args` (the whole message) runs
+it. To run one, send `lpmCommandExpand` with the terminal's `cli`
+and submit the `text` it returns as the message, exactly like a typed prompt;
+with `missing` not empty, put `text` in the input instead so the user fills the
+`{{…}}` left in it. With `cli`, an agent that starts skills itself gets its own
+call in `text` (`/name args` for Claude Code, `$name args` for Codex), so it runs
+as a skill; a prompt with `{{branch}}`, `{{project}}` or `{{dir}}`, a name both
+lists hold, or a skill that agent can't reach comes back as the prompt. Without
+`cli` it is always the prompt, which is what an older phone gets.
 
 | Request | Reply |
 |---|---|
@@ -895,7 +914,9 @@ put `text` in the input instead so the user fills the `{{…}}` left in it.
 | `{ "t": "lpmCommandSave", "project": "<name>", "command": { "scope": "global"\|"project", "folder": "<folder>"\|null, "name": "…", "description": "…", "body": "…" }, "previous": { "scope", "folder", "name" }\|null }` | `{ "t": "lpmCommandSave", "project": "<name>", "ok": true, "lists": LpmCommandLists }` / `{ "ok": false, "error": "<sentence to show>" }` — creates the command, or with `previous` edits it: a new name, folder or list renames or moves its file. A folder that doesn't exist is created. Refused: a name not matching `^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$`, an empty body, a prompt too long to save, a name the list already has |
 | `{ "t": "lpmCommandDelete", "project": "<name>", "target": { "scope", "folder", "name" } }` | `{ "t": "lpmCommandDelete", "ok": true, "lists": LpmCommandLists }` / `{ "ok": false, "error": "…" }` — deletes the file; a file already gone is success |
 | `{ "t": "lpmCommandFolder", "project": "<name>", "op": "create"\|"rename"\|"delete", "scope": "global"\|"project", "name": "<folder>", "newName": "<folder>"? }` | `{ "t": "lpmCommandFolder", "ok": true, "lists": LpmCommandLists }` / `{ "ok": false, "error": "…" }` — a folder name is trimmed and may not start with a dot or hold any of `/\:*?"<>\|`. `delete` keeps the folder's commands: they move to No folder |
-| `{ "t": "lpmCommandExpand", "project": "<name>", "name": "<command>", "args": "<the words after it>" }` | `{ "t": "lpmCommandExpand", "ok": true, "text": "<prompt to send>", "missing": ["<variable>"…] }` / `{ "ok": false, "error": "…" }` — the prompt with `{{branch}}`, `{{project}}` and `{{dir}}` (the folder holding the command's file, on the computer its agent runs on; `missing` for a global command in an SSH project) filled in by the Mac, each other `{{name}}` taking a word of `args` in order (the last taking the rest), `$ARGUMENTS` taking all of them, and `args` appended on a new paragraph when the prompt has nowhere to put them. `missing` names the variables still left as `{{name}}` in `text` |
+| `{ "t": "lpmCommandOtherFolder", "project": "<name>", "scope": "global"\|"project", "name": "<skill>", "folder": "<folder>"\|null }` | `{ "t": "lpmCommandOtherFolder", "ok": true, "lists": LpmCommandLists }` / `{ "ok": false, "error": "…" }` |
+| `{ "t": "lpmCommandConvert", "project": "<name>", "scope": "global"\|"project", "name": "<skill>", "toLpm": true\|false }` | `{ "t": "lpmCommandConvert", "ok": true, "lists": LpmCommandLists }` / `{ "ok": false, "error": "…" }` |
+| `{ "t": "lpmCommandExpand", "project": "<name>", "name": "<command>", "args": "<the words after it>", "cli": "<the terminal's agent>"? }` | `{ "t": "lpmCommandExpand", "ok": true, "text": "<what to send>", "missing": ["<variable>"…] }` / `{ "ok": false, "error": "…" }` — the prompt with `{{branch}}`, `{{project}}` and `{{dir}}` (the folder holding the command's file, on the computer its agent runs on; `missing` for a global command in an SSH project) filled in by the Mac, each other `{{name}}` taking a word of `args` in order (the last taking the rest), `$ARGUMENTS` taking all of them, and `args` appended on a new paragraph when the prompt has nowhere to put them. `missing` names the variables still left as `{{name}}` in `text` |
 
 A change from the desktop, another phone or a paired Mac pushes
 `lpmCommandsChanged`; refetch `lpmCommands` (and the `slash` list next time

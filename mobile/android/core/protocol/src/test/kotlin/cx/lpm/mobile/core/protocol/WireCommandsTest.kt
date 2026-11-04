@@ -12,8 +12,8 @@ class WireCommandsTest {
             Wire.lpmCommands("api", "c1")
         )
         assertFrame(
-            """{ "t": "lpmCommandExpand", "project": "api", "reqId": "c2", "name": "fix-ticket", "args": "LPM-12" }""",
-            Wire.lpmCommandExpand("api", "c2", "fix-ticket", "LPM-12")
+            """{ "t": "lpmCommandExpand", "project": "api", "reqId": "c2", "name": "fix-ticket", "args": "LPM-12", "cli": "claude" }""",
+            Wire.lpmCommandExpand("api", "c2", "fix-ticket", "LPM-12", "claude")
         )
     }
 
@@ -73,6 +73,20 @@ class WireCommandsTest {
         assertFrame(
             """{ "t": "lpmCommandFolder", "project": "api", "reqId": "c8", "op": "delete", "scope": "project", "name": "Git" }""",
             Wire.lpmCommandFolder("api", "c8", CommandFolderOp.Delete, CommandScope.Project, "Git")
+        )
+    }
+
+    @Test
+    fun otherSkillsMoveAndConvertInTheirList() {
+        assertFrame(
+            """{ "t": "lpmCommandOtherFolder", "project": "api", "reqId": "c7",
+                 "scope": "global", "name": "lint", "folder": null }""",
+            Wire.lpmCommandOtherFolder("api", "c7", CommandScope.Global, "lint", null)
+        )
+        assertFrame(
+            """{ "t": "lpmCommandConvert", "project": "api", "reqId": "c8",
+                 "scope": "project", "name": "lint", "toLpm": true }""",
+            Wire.lpmCommandConvert("api", "c8", CommandScope.Project, "lint", true)
         )
     }
 }

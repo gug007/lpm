@@ -1,16 +1,19 @@
 import { useEffect } from "react";
 import { create } from "zustand";
 import {
+  ConvertSkill,
   CreateLpmCommandFolder,
   DeleteLpmCommand,
   DeleteLpmCommandFolder,
   ExpandLpmCommand,
   ImportLpmCommands,
   ListLpmCommands,
+  MoveOtherSkill,
   RenameLpmCommandFolder,
   SaveLpmCommand,
 } from "../../bridge/commands";
 import { EventsOn } from "../../bridge/runtime";
+import type { AICLI } from "../types";
 import type {
   CommandInput,
   CommandRef,
@@ -126,12 +129,25 @@ export function deleteLpmCommandFolder(project: string, scope: CommandScope, nam
   return apply(project, DeleteLpmCommandFolder(project, scope, name));
 }
 
+export function moveOtherSkill(project: string, scope: CommandScope, name: string, folder: string | null) {
+  return apply(project, MoveOtherSkill(project, scope, name, folder));
+}
+
+export function convertSkill(project: string, scope: CommandScope, name: string, toLpm: boolean) {
+  return apply(project, ConvertSkill(project, scope, name, toLpm));
+}
+
 export async function importLpmCommands(project: string, scope: CommandScope): Promise<number> {
   const result = (await ImportLpmCommands(project, scope)) as { imported: number; list: LpmCommandLists };
   useLpmCommandsStore.getState().put(project, result.list);
   return result.imported;
 }
 
-export function expandLpmCommand(project: string, name: string, args: string): Promise<ExpandedCommand> {
-  return ExpandLpmCommand(project, name, args) as Promise<ExpandedCommand>;
+export function expandLpmCommand(
+  project: string,
+  name: string,
+  args: string,
+  cli?: AICLI,
+): Promise<ExpandedCommand> {
+  return ExpandLpmCommand(project, name, args, cli) as Promise<ExpandedCommand>;
 }

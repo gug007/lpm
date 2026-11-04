@@ -2,10 +2,12 @@ import { useCallback } from "react";
 import { toast } from "../notifications/toast";
 import { findCommand, parseCommandRun, type ExpandedCommand, type LpmCommandLists } from "../lpmCommands";
 import { expandLpmCommand } from "../store/lpmCommands";
+import type { AICLI } from "../types";
 
-// Running an lpm command from the composer: whether a message is `/name args`
-// for one of the project's commands, and its prompt with the arguments filled
-// in, expanded by the machine that holds the project.
+// Running an lpm skill from the composer: whether a message is `/name args` for
+// one of the project's skills, and what to send, worked out by the machine that
+// holds the project. With `cli` that is the agent's own call for the skill when
+// it can run it, so it arrives as a skill; without, always the prompt itself.
 export function useLpmCommandRun(project: string | null, lists: LpmCommandLists | null) {
   const match = useCallback(
     (value: string): { name: string; args: string } | null => {
@@ -18,10 +20,10 @@ export function useLpmCommandRun(project: string | null, lists: LpmCommandLists 
   );
 
   const expand = useCallback(
-    async (name: string, args: string): Promise<ExpandedCommand | null> => {
+    async (name: string, args: string, cli?: AICLI): Promise<ExpandedCommand | null> => {
       if (project === null) return null;
       try {
-        return await expandLpmCommand(project, name, args);
+        return await expandLpmCommand(project, name, args, cli);
       } catch (err) {
         toast.error(String(err));
         return null;

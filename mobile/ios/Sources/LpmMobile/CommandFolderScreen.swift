@@ -15,6 +15,9 @@ struct CommandFolderScreen: View {
     private var commands: [LpmCommand] {
         store.lists[project]?.list(scope)?.commands.filter { $0.folder == folder } ?? []
     }
+    private var others: [OtherSkill] {
+        folder == nil ? [] : store.lists[project]?.list(scope)?.others(in: folder) ?? []
+    }
 
     var body: some View {
         List {
@@ -24,11 +27,18 @@ struct CommandFolderScreen: View {
                 }
                 .tint(.primary)
             }
+            ForEach(others) { skill in
+                NavigationLink {
+                    OtherSkillScreen(project: project, scope: scope, name: skill.name)
+                } label: {
+                    OtherSkillRow(skill: skill)
+                }
+            }
         }
         .navigationTitle(folder ?? "No folder")
         .navigationBarTitleDisplayMode(.inline)
         .overlay {
-            if commands.isEmpty {
+            if commands.isEmpty && others.isEmpty {
                 ContentUnavailableView {
                     Label("No skills", systemImage: "text.badge.plus")
                 } description: {

@@ -174,6 +174,7 @@ mod lpm_commands_migrate;
 mod lpm_commands_names;
 mod lpm_commands_ops;
 mod lpm_commands_remote;
+mod lpm_commands_snapshot;
 mod mainwindow;
 mod mdns;
 mod mediacache;
@@ -394,6 +395,7 @@ use agent_caps::{
 };
 use aigen::*;
 use lpm_commands_cmds::{
+    convert_skill, move_other_skill,
     create_lpm_command_folder, delete_lpm_command, delete_lpm_command_folder, expand_lpm_command,
     import_lpm_commands, list_lpm_commands, rename_lpm_command_folder, save_lpm_command,
 };

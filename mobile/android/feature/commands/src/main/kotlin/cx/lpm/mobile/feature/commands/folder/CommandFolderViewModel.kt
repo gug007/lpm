@@ -6,6 +6,7 @@ import cx.lpm.mobile.core.data.commands.LpmCommandsStore
 import cx.lpm.mobile.core.data.session.MacSessions
 import cx.lpm.mobile.core.model.CommandScope
 import cx.lpm.mobile.core.model.LpmCommand
+import cx.lpm.mobile.core.model.OtherSkill
 import cx.lpm.mobile.core.model.SessionKey
 import cx.lpm.mobile.feature.commands.CommandsWatch
 import dagger.assisted.Assisted
@@ -36,6 +37,19 @@ class CommandFolderViewModel @AssistedInject constructor(
         .flatMapLatest { s ->
             s?.store<LpmCommandsStore>()?.state?.map { state ->
                 state.lists[project]?.list(scope)?.inFolder(folder).orEmpty()
+            } ?: flowOf(emptyList())
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** The skills not made in lpm filed here; No folder has its own Other skills page. */
+    val others: StateFlow<List<OtherSkill>> = sessions.session(session)
+        .flatMapLatest { s ->
+            s?.store<LpmCommandsStore>()?.state?.map { state ->
+                if (folder == null) {
+                    emptyList()
+                } else {
+                    state.lists[project]?.list(scope)?.othersIn(folder).orEmpty()
+                }
             } ?: flowOf(emptyList())
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())

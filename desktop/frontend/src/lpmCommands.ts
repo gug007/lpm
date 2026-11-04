@@ -16,9 +16,23 @@ export interface LpmCommand {
   argumentHint: string;
 }
 
+// A skill in this list's places that wasn't made in lpm. Shown, never changed.
+export interface OtherSkill {
+  name: string;
+  description: string;
+  // The start of its instructions; Agent setup has the whole file.
+  preview: string;
+  agents: string[];
+  path: string;
+  // Absent from a computer on an older lpm.
+  folder?: string | null;
+}
+
 export interface CommandScopeList {
   folders: string[];
   commands: LpmCommand[];
+  // Absent from a computer on an older lpm.
+  others?: OtherSkill[];
 }
 
 export interface LpmCommandLists {

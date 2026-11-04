@@ -14,17 +14,21 @@ import {
   allCommands,
   commandKey,
   commandRef,
-  sameCommand,
-  scopeList,
   type CommandScope,
   type LpmCommand,
+  type OtherSkill,
+  sameCommand,
+  scopeList,
 } from "../../lpmCommands";
 import { useCommandsOpen } from "../../store/commandsOpen";
+import { useToolkitOpen } from "../../store/toolkitOpen";
 import {
+  convertSkill,
   createLpmCommandFolder,
   deleteLpmCommand,
   deleteLpmCommandFolder,
   importLpmCommands,
+  moveOtherSkill,
   renameLpmCommandFolder,
   saveLpmCommand,
   useLpmCommandLists,
@@ -33,14 +37,21 @@ import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { EmptyState } from "../ui/EmptyState";
 import { CommandEditor } from "./CommandEditor";
 import { CommandImportButton } from "./CommandImportButton";
+import { CommandOtherView } from "./CommandOtherView";
 import { CommandTree } from "./CommandTree";
 import {
+  type Draft,
   draftOf,
+  findOther,
+  type FolderKey,
   isDirty,
   movedTo,
   newDraft,
-  type Draft,
-  type FolderKey,
+  otherDropFolder,
+  otherKey,
+  type OtherPlace,
+  parseFolderKey,
+  type SkillRowActions,
 } from "./commandsModel";
 
 interface CommandsViewProps {
@@ -61,9 +72,10 @@ export function CommandsView({ projectName, projectLabel, visible }: CommandsVie
   const lists = useLpmCommandLists(projectName, visible);
   const [query, setQuery] = useState("");
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [viewing, setViewing] = useState<OtherPlace | null>(null);
   const [saving, setSaving] = useState(false);
   const [confirm, setConfirm] = useState<Confirm | null>(null);
-  const [dragging, setDragging] = useState<LpmCommand | null>(null);
+  const [dragging, setDragging] = useState<string | null>(null);
   const pendingDraft = useCommandsOpen((s) => (s.draft?.project === projectName ? s.draft.seq : null));
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
@@ -72,7 +84,9 @@ export function CommandsView({ projectName, projectLabel, visible }: CommandsVie
   useEffect(() => {
     if (pendingDraft === null || !lists) return;
     const body = useCommandsOpen.getState().takeDraft(projectName);
-    if (body !== null) setDraft((open) => newDraft(open, lists, body));
+    if (body === null) return;
+    setViewing(null);
+    setDraft((open) => newDraft(open, lists, body));
   }, [pendingDraft, lists, projectName]);
 
   // An untouched editor follows its file when the list is read again (a phone
@@ -106,6 +120,7 @@ export function CommandsView({ projectName, projectLabel, visible }: CommandsVie
   }
 
   const hasProject = lists.project !== null;
+  const other = viewing ? findOther(lists, viewing) : null;
   const empty = allCommands(lists).length === 0;
 
   const save = async () => {
@@ -126,11 +141,43 @@ export function CommandsView({ projectName, projectLabel, visible }: CommandsVie
     if (await attempt(() => deleteLpmCommand(projectName, target))) setDraft(null);
   };
 
+  const dropOther = (skill: OtherSkill, scope: CommandScope, key: FolderKey) => {
+    const folder = otherDropFolder(skill, scope, key);
+    if (folder !== undefined) void attempt(() => moveOtherSkill(projectName, scope, skill.name, folder));
+    else if (parseFolderKey(key)?.scope !== scope) toast.info("This skill stays in its own list.");
+  };
+
+  const convert = (scope: CommandScope, name: string, toLpm: boolean) =>
+    guard(() =>
+      void attempt(async () => {
+        const next = await convertSkill(projectName, scope, name, toLpm);
+        const made = toLpm ? scopeList(next, scope)?.commands.find((c) => c.name === name) : null;
+        setViewing(toLpm ? null : { scope, name });
+        setDraft(made ? draftOf(made) : null);
+      }),
+    );
+
+  const actions: SkillRowActions = {
+    onSelectOther: (scope, skill) =>
+      guard(() => {
+        setDraft(null);
+        setViewing({ scope, name: skill.name });
+      }),
+    onConvert: convert,
+    onOpenInAgentSetup: (skill) => useToolkitOpen.getState().request(projectName, skill.path),
+  };
+
   const onDragEnd = ({ active, over }: DragEndEvent) => {
     setDragging(null);
     const c = active.data.current?.command as LpmCommand | undefined;
     const key = over?.data.current?.folderKey as FolderKey | undefined;
-    if (!c || !key) return;
+    if (!key) return;
+    const other = active.data.current?.other as OtherSkill | undefined;
+    if (other) {
+      dropOther(other, active.data.current?.scope as CommandScope, key);
+      return;
+    }
+    if (!c) return;
     const moved = movedTo(c, key, lists);
     if (!moved) return;
     const editing = sameCommand(draft?.original ?? null, c) && draft && !isDirty(draft, lists);
@@ -164,7 +211,10 @@ export function CommandsView({ projectName, projectLabel, visible }: CommandsVie
       <DndContext
         sensors={sensors}
         collisionDetection={pointerWithin}
-        onDragStart={({ active }) => setDragging((active.data.current?.command as LpmCommand | undefined) ?? null)}
+        onDragStart={({ active }) => {
+          const { command, other } = active.data.current ?? {};
+          setDragging((command ?? other)?.name ?? null);
+        }}
         onDragCancel={() => setDragging(null)}
         onDragEnd={onDragEnd}
       >
@@ -173,10 +223,23 @@ export function CommandsView({ projectName, projectLabel, visible }: CommandsVie
             lists={lists}
             projectLabel={projectLabel}
             query={query}
-            selectedKey={draft?.original ? commandKey(draft.original) : null}
+            selectedKey={
+              draft?.original ? commandKey(draft.original) : other && viewing ? otherKey(viewing.scope, other.name) : null
+            }
             onQuery={setQuery}
-            onSelect={(c) => guard(() => setDraft(draftOf(c)))}
-            onNew={(where) => guard(() => setDraft(newDraft(where ?? draft, lists)))}
+            onSelect={(c) =>
+              guard(() => {
+                setViewing(null);
+                setDraft(draftOf(c));
+              })
+            }
+            actions={actions}
+            onNew={(where) =>
+              guard(() => {
+                setViewing(null);
+                setDraft(newDraft(where ?? draft, lists));
+              })
+            }
             onCreateFolder={(scope, name) => void attempt(() => createLpmCommandFolder(projectName, scope, name))}
             onRenameFolder={(scope, name, newName) =>
               void attempt(async () => {
@@ -195,7 +258,9 @@ export function CommandsView({ projectName, projectLabel, visible }: CommandsVie
                 kind: "folder",
                 scope,
                 name,
-                count: scopeList(lists, scope)?.commands.filter((c) => c.folder === name).length ?? 0,
+                count: [...(scopeList(lists, scope)?.commands ?? []), ...(scopeList(lists, scope)?.others ?? [])].filter(
+                  (c) => c.folder === name,
+                ).length,
               })
             }
           />
@@ -209,6 +274,16 @@ export function CommandsView({ projectName, projectLabel, visible }: CommandsVie
               onChange={setDraft}
               onSave={() => void save()}
               onDelete={() => setConfirm({ kind: "delete" })}
+            />
+          ) : other && viewing ? (
+            <CommandOtherView
+              skill={other}
+              scope={viewing.scope}
+              lists={lists}
+              projectLabel={projectLabel}
+              onMove={(folder) => void attempt(() => moveOtherSkill(projectName, viewing.scope, other.name, folder))}
+              onConvert={() => convert(viewing.scope, other.name, true)}
+              onOpenInAgentSetup={() => actions.onOpenInAgentSetup(other)}
             />
           ) : (
             <div className="flex min-h-0 items-start justify-center overflow-y-auto">
@@ -227,7 +302,7 @@ export function CommandsView({ projectName, projectLabel, visible }: CommandsVie
         <DragOverlay dropAnimation={null}>
           {dragging && (
             <span className="inline-flex rounded-md border border-[var(--accent-cyan)]/50 bg-[var(--bg-secondary)] px-2.5 py-1 font-mono text-[12.5px] text-[var(--accent-cyan)] shadow-lg">
-              /{dragging.name}
+              /{dragging}
             </span>
           )}
         </DragOverlay>
