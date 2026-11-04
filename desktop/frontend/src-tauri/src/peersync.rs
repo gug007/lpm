@@ -65,6 +65,11 @@ pub struct ItemDigest {
     pub device: String,
     #[serde(default, skip_serializing_if = "is_false")]
     pub deleted: bool,
+    /// A project file nobody has configured yet (see `project_is_scaffold`), which
+    /// must not replace a real config when no base says which side moved. Absent on
+    /// a legacy map and from an older peer, where it reads as false.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub scaffold: bool,
 }
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
@@ -101,8 +106,9 @@ pub struct SyncItem {
     pub direction: String, // "toLocal" | "toRemote"
     pub local_mtime: i64,
     pub remote_mtime: i64,
-    /// The unit changed on both Macs since their last agreed base; the newer
-    /// revision wins and the other is backed up. configSync2 only.
+    /// The unit changed on both Macs since their last agreed base, is a project that
+    /// differs with no base to compare against, or is a scaffold that moved against a
+    /// real config. One side wins and the other is backed up. configSync2 only.
     #[serde(default)]
     pub conflict: bool,
     /// This item removes the file on the destination side (a synced-dir file that
@@ -154,15 +160,8 @@ pub fn local_digest_map() -> DigestMap {
         let Ok(bytes) = std::fs::read(&path) else {
             continue;
         };
-        if let Ok(hash) = project_digest(&bytes) {
-            dm.projects.insert(
-                name.clone(),
-                ItemDigest {
-                    hash,
-                    mtime: mtime_millis(&path),
-                    ..Default::default()
-                },
-            );
+        if let Ok(item) = project_item(&bytes, mtime_millis(&path)) {
+            dm.projects.insert(name.clone(), item);
             dm.project_extends.insert(name.clone(), extends_of(&bytes));
         }
     }
@@ -270,6 +269,7 @@ fn reconcile_and_attach(dm: &mut DigestMap) {
                         rev: it.rev,
                         device: it.device.clone(),
                         deleted: true,
+                        ..Default::default()
                     },
                 );
             }
@@ -320,6 +320,7 @@ pub fn legacy_view(mut dm: DigestMap) -> DigestMap {
         d.rev = 0;
         d.device.clear();
         d.deleted = false;
+        d.scaffold = false;
     }
     dm
 }
@@ -383,6 +384,31 @@ fn project_digest(bytes: &[u8]) -> Result<String, String> {
     Ok(hash_canonical(&j))
 }
 
+fn project_item(bytes: &[u8], mtime: i64) -> Result<ItemDigest, String> {
+    Ok(ItemDigest {
+        hash: project_digest(bytes)?,
+        mtime,
+        scaffold: project_is_scaffold(bytes),
+        ..Default::default()
+    })
+}
+
+/// Every portable key `write_project_yaml`'s callers in projects_crud.rs can write.
+const SCAFFOLD_KEYS: [&str; 3] = ["name", "label", "services"];
+
+/// Whether a project file holds only what creating a project writes. This reads the
+/// shape rather than the text, since a new project's services may be detected from
+/// the folder's manifests instead of the `configure me` placeholder.
+fn project_is_scaffold(bytes: &[u8]) -> bool {
+    let Ok(serde_norway::Value::Mapping(map)) = serde_norway::from_slice(bytes) else {
+        return false;
+    };
+    map.keys().all(|k| {
+        k.as_str()
+            .is_some_and(|k| SCAFFOLD_KEYS.contains(&k) || PROJECT_LOCAL_KEYS.contains(&k))
+    })
+}
+
 /// settings.json digest with the per-machine keys removed, so window bounds /
 /// last-selected-project never make two Macs look out of sync.
 pub(crate) fn settings_digest(bytes: &[u8]) -> Result<String, String> {
@@ -421,8 +447,10 @@ pub fn compute_plan(local: &DigestMap, remote: &DigestMap) -> Vec<SyncItem> {
 /// Revision-aware (configSync2) plan. `bases` is the base agreed with this peer per
 /// item key. Each differing unit resolves to a fast-forward (one side moved off the
 /// base), a conflict (both moved — higher revision wins, backups cover the loser),
-/// or, when no base exists yet (first sync / Phase-1 upgrade), the legacy mtime
-/// direction with no conflict. Deletions of synced-dir files cross as delete items.
+/// or, when no base exists yet (first sync / Phase-1 upgrade), `resolve_no_base`:
+/// the mtime direction, except that a project scaffold always yields to a real
+/// config and any other differing project is flagged a conflict. Deletions of
+/// synced-dir files cross as delete items.
 pub fn compute_plan_v2(
     local: &DigestMap,
     remote: &DigestMap,
@@ -482,13 +510,14 @@ fn plan_core(
 /// One Mac's contribution to a decision. `ck` (content key) is None when the unit
 /// is absent, `Some(TOMBSTONE)` when deleted, `Some(digest)` when live. In legacy
 /// mode a tombstone folds to absent, reproducing the pre-Phase-2 behavior where a
-/// deletion simply resurrects.
+/// deletion simply resurrects, and `scaffold` folds to false.
 struct SideInfo {
     ck: Option<String>,
     rev: u64,
     device: String,
     mtime: i64,
     deleted: bool,
+    scaffold: bool,
 }
 
 fn side_info(d: Option<&ItemDigest>, legacy: bool) -> SideInfo {
@@ -499,6 +528,7 @@ fn side_info(d: Option<&ItemDigest>, legacy: bool) -> SideInfo {
             device: x.device.clone(),
             mtime: x.mtime,
             deleted: true,
+            scaffold: false,
         },
         Some(x) if !x.deleted => SideInfo {
             ck: Some(x.hash.clone()),
@@ -506,6 +536,7 @@ fn side_info(d: Option<&ItemDigest>, legacy: bool) -> SideInfo {
             device: x.device.clone(),
             mtime: x.mtime,
             deleted: false,
+            scaffold: x.scaffold && !legacy,
         },
         _ => SideInfo {
             ck: None,
@@ -513,6 +544,7 @@ fn side_info(d: Option<&ItemDigest>, legacy: bool) -> SideInfo {
             device: String::new(),
             mtime: 0,
             deleted: false,
+            scaffold: false,
         },
     }
 }
@@ -536,7 +568,7 @@ fn resolve_pair(
             } else {
                 bases.get(&item_key(kind, name))
             };
-            Some(decide_both(kind, name, &l, &r, base))
+            Some(decide_both(kind, name, &l, &r, base, legacy))
         }
         (Some(_), None) => one_sided(kind, name, &l, "toRemote"),
         (None, Some(_)) => one_sided(kind, name, &r, "toLocal"),
@@ -544,13 +576,19 @@ fn resolve_pair(
 }
 
 /// Both Macs have the unit and they differ. With a base, decide fast-forward vs
-/// conflict; without one, fall back to mtime (never a conflict).
+/// conflict; without one, `resolve_no_base` decides.
+///
+/// Deleting and re-adding a project on one Mac leaves a scaffold that reads as an
+/// edit off the base, so a scaffold that moved never replaces a real config: the
+/// config wins whatever the revisions, flagged because it may undo a deliberate
+/// edit. Configuring a scaffold moves the other way and stays a fast-forward.
 fn decide_both(
     kind: &str,
     name: &str,
     l: &SideInfo,
     r: &SideInfo,
     base: Option<&BaseState>,
+    legacy: bool,
 ) -> SyncItem {
     let lc = l.ck.as_deref().unwrap_or("");
     let rc = r.ck.as_deref().unwrap_or("");
@@ -559,7 +597,14 @@ fn decide_both(
             let bc = b.content_key();
             let local_moved = lc != bc;
             let remote_moved = rc != bc;
-            if local_moved && remote_moved {
+            let replaces_config = |moved: bool, new: &SideInfo, other: &SideInfo| {
+                kind == "project" && moved && new.scaffold && !other.scaffold
+            };
+            if replaces_config(remote_moved, r, l) {
+                item(kind, name, "toRemote", l.mtime, r.mtime, true, l.deleted)
+            } else if replaces_config(local_moved, l, r) {
+                item(kind, name, "toLocal", l.mtime, r.mtime, true, r.deleted)
+            } else if local_moved && remote_moved {
                 // Conflict: the higher (revision, device, content) wins. Both Macs
                 // compare the same pair, so each picks the same winner and only the
                 // direction (push vs pull) differs.
@@ -575,18 +620,33 @@ fn decide_both(
                 item(kind, name, "toRemote", l.mtime, r.mtime, false, l.deleted)
             }
         }
-        None => resolve_no_base(kind, name, l, r),
+        None => resolve_no_base(kind, name, l, r, legacy),
     }
 }
 
-/// No agreed base (first sync between these Macs, or a Phase-1 upgrade): mtime
-/// direction, never a conflict. A tombstone here does not propagate the deletion —
-/// the live side resurrects, matching legacy behavior — so a delete only crosses
-/// once a base has been established.
-fn resolve_no_base(kind: &str, name: &str, l: &SideInfo, r: &SideInfo) -> SyncItem {
+/// No agreed base (first sync between these Macs, or a Phase-1 upgrade). A tombstone
+/// does not propagate the deletion — the live side resurrects, matching legacy
+/// behavior — so a delete only crosses once a base has been established. Globals,
+/// templates and every legacy plan take the mtime direction, never a conflict.
+///
+/// mtime says nothing about a project here: one just created on this Mac is newer
+/// than the real config it shares a name with. So a scaffold always yields to the
+/// other side, and any other pair still follows mtime but is flagged, as nothing
+/// shows which side moved. Content settles an mtime tie so both Macs pick the same
+/// winner.
+fn resolve_no_base(kind: &str, name: &str, l: &SideInfo, r: &SideInfo, legacy: bool) -> SyncItem {
     match (l.deleted, r.deleted) {
         (false, true) => item(kind, name, "toRemote", l.mtime, r.mtime, false, false),
         (true, false) => item(kind, name, "toLocal", l.mtime, r.mtime, false, false),
+        _ if kind == "project" && !legacy => {
+            let (dir, conflict) = match (l.scaffold, r.scaffold) {
+                (true, false) => ("toLocal", false),
+                (false, true) => ("toRemote", false),
+                _ if (r.mtime, &r.ck) > (l.mtime, &l.ck) => ("toLocal", true),
+                _ => ("toRemote", true),
+            };
+            item(kind, name, dir, l.mtime, r.mtime, conflict, false)
+        }
         _ => {
             let dir = if r.mtime > l.mtime {
                 "toLocal"
@@ -1398,7 +1458,7 @@ mod tests {
             mtime: 0,
             rev,
             device: device.into(),
-            deleted: false,
+            ..Default::default()
         }
     }
 
@@ -1409,6 +1469,7 @@ mod tests {
             rev,
             device: device.into(),
             deleted: true,
+            ..Default::default()
         }
     }
 
@@ -1545,35 +1606,325 @@ mod tests {
         assert!(!it.deleted); // resurrect, not delete
     }
 
-    #[test]
-    fn v2_no_base_cold_start_uses_mtime_never_conflict() {
+    fn scaffold(hash: &str, mtime: i64) -> ItemDigest {
+        ItemDigest {
+            scaffold: true,
+            ..id(hash, mtime)
+        }
+    }
+
+    fn project_maps(local: ItemDigest, remote: ItemDigest) -> (DigestMap, DigestMap) {
         let mut l = DigestMap::default();
         let mut r = DigestMap::default();
+        l.projects.insert("web".into(), local);
+        r.projects.insert("web".into(), remote);
+        (l, r)
+    }
+
+    fn no_base_project(local: ItemDigest, remote: ItemDigest) -> SyncItem {
+        let (l, r) = project_maps(local, remote);
+        compute_plan_v2(&l, &r, &BTreeMap::new()).remove(0)
+    }
+
+    #[test]
+    fn v2_no_base_project_follows_mtime_and_flags_a_conflict() {
         // Remote has the far higher rev, but with no base rev is ignored: mtime wins.
-        l.projects.insert(
-            "web".into(),
-            ItemDigest {
-                hash: "LA".into(),
-                mtime: 200,
-                rev: 5,
-                device: "da".into(),
-                deleted: false,
-            },
-        );
-        r.projects.insert(
-            "web".into(),
-            ItemDigest {
-                hash: "RB".into(),
-                mtime: 100,
-                rev: 9,
-                device: "db".into(),
-                deleted: false,
-            },
-        );
-        let plan = compute_plan_v2(&l, &r, &BTreeMap::new());
-        let it = plan.iter().find(|i| i.name == "web").unwrap();
-        assert!(!it.conflict);
+        let local = ItemDigest {
+            rev: 5,
+            device: "da".into(),
+            ..id("LA", 200)
+        };
+        let remote = ItemDigest {
+            rev: 9,
+            device: "db".into(),
+            ..id("RB", 100)
+        };
+        let it = no_base_project(local, remote);
+        assert!(it.conflict);
         assert_eq!(it.direction, "toRemote"); // local mtime 200 > 100
+    }
+
+    #[test]
+    fn v2_no_base_scaffold_on_the_remote_never_replaces_local_config() {
+        let local = ItemDigest {
+            rev: 1,
+            device: "da".into(),
+            ..id("CONFIGURED", 100)
+        };
+        let remote = ItemDigest {
+            rev: 9,
+            device: "db".into(),
+            ..scaffold("STUB", 200)
+        };
+        let it = no_base_project(local, remote);
+        assert_eq!(it.direction, "toRemote");
+        assert!(!it.conflict);
+    }
+
+    #[test]
+    fn v2_no_base_scaffold_on_this_mac_takes_the_remote_config() {
+        let local = ItemDigest {
+            rev: 9,
+            device: "da".into(),
+            ..scaffold("STUB", 200)
+        };
+        let remote = ItemDigest {
+            rev: 1,
+            device: "db".into(),
+            ..id("CONFIGURED", 100)
+        };
+        let it = no_base_project(local, remote);
+        assert_eq!(it.direction, "toLocal");
+        assert!(!it.conflict);
+    }
+
+    #[test]
+    fn v2_no_base_two_scaffolds_follow_mtime_and_flag_a_conflict() {
+        let it = no_base_project(scaffold("A", 200), scaffold("B", 100));
+        assert_eq!(it.direction, "toRemote");
+        assert!(it.conflict);
+        let it = no_base_project(scaffold("A", 100), scaffold("B", 200));
+        assert_eq!(it.direction, "toLocal");
+        assert!(it.conflict);
+    }
+
+    #[test]
+    fn v2_no_base_project_winner_is_the_same_from_either_mac() {
+        let pairs = [
+            (scaffold("STUB", 200), id("CONFIGURED", 100)),
+            (scaffold("STUB", 100), id("CONFIGURED", 200)),
+            (scaffold("A", 200), scaffold("B", 100)),
+            (id("A", 200), id("B", 100)),
+            // An mtime tie must not leave each Mac pushing its own copy.
+            (id("A", 100), id("B", 100)),
+            (scaffold("A", 100), scaffold("B", 100)),
+            (scaffold("STUB", 100), id("CONFIGURED", 100)),
+        ];
+        for (a, b) in pairs {
+            let from_a = no_base_project(a.clone(), b.clone());
+            let from_b = no_base_project(b, a);
+            assert_ne!(from_a.direction, from_b.direction);
+            assert_eq!(from_a.conflict, from_b.conflict);
+        }
+    }
+
+    #[test]
+    fn v2_no_base_globals_and_templates_keep_mtime_without_a_conflict() {
+        let mut l = DigestMap::default();
+        let mut r = DigestMap::default();
+        l.projects.insert("web".into(), id("same", 1));
+        r.projects.insert("web".into(), id("same", 1));
+        l.project_extends.insert("web".into(), vec!["base".into()]);
+        l.globals.insert("global.yml".into(), id("LA", 100));
+        r.globals.insert("global.yml".into(), scaffold("RB", 200));
+        l.templates.insert("base".into(), scaffold("LA", 200));
+        r.templates.insert("base".into(), id("RB", 100));
+        let plan = compute_plan_v2(&l, &r, &BTreeMap::new());
+        let global = plan.iter().find(|i| i.kind == "global").unwrap();
+        assert_eq!(global.direction, "toLocal");
+        assert!(!global.conflict);
+        let template = plan.iter().find(|i| i.kind == "template").unwrap();
+        assert_eq!(template.direction, "toRemote");
+        assert!(!template.conflict);
+    }
+
+    #[test]
+    fn v2_no_base_tombstones_still_resurrect_before_any_scaffold_rule() {
+        let (mut l, mut r) = project_maps(scaffold("STUB", 1), tombstone(9, "db"));
+        l.globals.insert("zdotdir/x".into(), tombstone(9, "da"));
+        r.globals.insert("zdotdir/x".into(), id("LIVE", 1));
+        let plan = compute_plan_v2(&l, &r, &BTreeMap::new());
+        let project = plan.iter().find(|i| i.kind == "project").unwrap();
+        assert_eq!(project.direction, "toRemote");
+        assert!(!project.conflict && !project.deleted);
+        let global = plan.iter().find(|i| i.kind == "global").unwrap();
+        assert_eq!(global.direction, "toLocal");
+        assert!(!global.conflict && !global.deleted);
+    }
+
+    fn readded_scaffold() -> ItemDigest {
+        ItemDigest {
+            rev: 7,
+            device: "db".into(),
+            ..scaffold("STUB", 1)
+        }
+    }
+
+    #[test]
+    fn v2_a_project_readded_on_the_remote_never_replaces_local_config() {
+        let (l, r) = project_maps(idv("CONFIGURED", 1, "da"), readded_scaffold());
+        let b = bases(&[("project/web", live_base(1, "CONFIGURED"))]);
+        let plan = compute_plan_v2(&l, &r, &b);
+        assert_eq!(plan[0].direction, "toRemote");
+        assert!(plan[0].conflict);
+    }
+
+    #[test]
+    fn v2_a_project_readded_on_this_mac_takes_the_remote_config() {
+        let (l, r) = project_maps(readded_scaffold(), idv("CONFIGURED", 1, "da"));
+        let b = bases(&[("project/web", live_base(1, "CONFIGURED"))]);
+        let plan = compute_plan_v2(&l, &r, &b);
+        assert_eq!(plan[0].direction, "toLocal");
+        assert!(plan[0].conflict);
+    }
+
+    #[test]
+    fn v2_when_both_moved_a_scaffold_loses_despite_the_higher_revision() {
+        let (l, r) = project_maps(idv("CONFIGURED", 2, "da"), readded_scaffold());
+        let b = bases(&[("project/web", live_base(1, "OLD"))]);
+        let plan = compute_plan_v2(&l, &r, &b);
+        assert_eq!(plan[0].direction, "toRemote");
+        assert!(plan[0].conflict);
+    }
+
+    #[test]
+    fn v2_configuring_a_scaffold_is_a_plain_fast_forward() {
+        let b = bases(&[("project/web", live_base(1, "STUB"))]);
+
+        let (l, r) = project_maps(scaffold("STUB", 1), idv("CONFIGURED", 2, "db"));
+        let plan = compute_plan_v2(&l, &r, &b);
+        assert_eq!(plan[0].direction, "toLocal");
+        assert!(!plan[0].conflict);
+
+        let (l, r) = project_maps(idv("CONFIGURED", 2, "da"), scaffold("STUB", 1));
+        let plan = compute_plan_v2(&l, &r, &b);
+        assert_eq!(plan[0].direction, "toRemote");
+        assert!(!plan[0].conflict);
+    }
+
+    #[test]
+    fn v2_with_a_base_two_scaffolds_fast_forward_as_usual() {
+        let (l, r) = project_maps(scaffold("OLD", 1), scaffold("NEW", 1));
+        let b = bases(&[("project/web", live_base(1, "OLD"))]);
+        let plan = compute_plan_v2(&l, &r, &b);
+        assert_eq!(plan[0].direction, "toLocal");
+        assert!(!plan[0].conflict);
+    }
+
+    #[test]
+    fn v2_with_a_base_the_winner_is_the_same_from_either_mac() {
+        let configured = idv("CONFIGURED", 1, "da");
+        let b = bases(&[("project/web", live_base(1, "CONFIGURED"))]);
+        let (l, r) = project_maps(configured.clone(), readded_scaffold());
+        let from_a = compute_plan_v2(&l, &r, &b).remove(0);
+        let (l, r) = project_maps(readded_scaffold(), configured);
+        let from_b = compute_plan_v2(&l, &r, &b).remove(0);
+        assert_ne!(from_a.direction, from_b.direction);
+        assert_eq!(from_a.conflict, from_b.conflict);
+    }
+
+    #[test]
+    fn v2_with_a_base_only_projects_honour_the_scaffold_flag() {
+        let mut l = DigestMap::default();
+        let mut r = DigestMap::default();
+        l.globals.insert("global.yml".into(), id("BASE", 1));
+        r.globals.insert("global.yml".into(), scaffold("NEW", 1));
+        let b = bases(&[("global/global.yml", live_base(1, "BASE"))]);
+        let plan = compute_plan_v2(&l, &r, &b);
+        assert_eq!(plan[0].direction, "toLocal");
+        assert!(!plan[0].conflict);
+    }
+
+    #[test]
+    fn legacy_plan_ignores_the_scaffold_flag() {
+        let (l, r) = project_maps(id("CONFIGURED", 100), scaffold("STUB", 200));
+        let plan = compute_plan(&l, &r);
+        assert_eq!(plan[0].direction, "toLocal");
+        assert!(!plan[0].conflict);
+
+        let (l, r) = project_maps(id("A", 200), id("B", 100));
+        let plan = compute_plan(&l, &r);
+        assert_eq!(plan[0].direction, "toRemote");
+        assert!(!plan[0].conflict);
+    }
+
+    #[test]
+    fn scaffold_is_only_on_the_wire_when_set() {
+        let plain: ItemDigest = serde_json::from_str(r#"{"hash":"h","mtime":1}"#).unwrap();
+        assert!(!plain.scaffold);
+        assert!(serde_json::to_value(&plain)
+            .unwrap()
+            .get("scaffold")
+            .is_none());
+        let flagged = serde_json::to_value(scaffold("h", 1)).unwrap();
+        assert_eq!(flagged["scaffold"], true);
+        let back: ItemDigest = serde_json::from_value(flagged).unwrap();
+        assert!(back.scaffold);
+    }
+
+    #[test]
+    fn a_newly_created_project_file_never_replaces_a_configured_one() {
+        let stub = b"name: web\nroot: ~/web\nservices:\n  dev:\n    cmd: echo 'configure me'\nclaudeAccount: ''\n";
+        let configured = b"name: web\nroot: ~/web\nservices:\n  dev:\n    cmd: echo 'configure me'\nactions:\n  release:\n    cmd: ./scripts/release.sh\n";
+        let stub_item = project_item(stub, 200).unwrap();
+        let configured_item = project_item(configured, 100).unwrap();
+
+        let it = no_base_project(configured_item.clone(), stub_item.clone());
+        assert_eq!(it.direction, "toRemote");
+        assert!(!it.conflict);
+
+        let it = no_base_project(stub_item, configured_item);
+        assert_eq!(it.direction, "toLocal");
+        assert!(!it.conflict);
+    }
+
+    #[test]
+    fn a_new_project_with_the_placeholder_service_is_a_scaffold() {
+        let stub = "name: voice-to-text\nroot: ~/Projects/voice-to-text\nservices:\n  dev:\n    cmd: echo 'configure me'\nclaudeAccount: ''\n";
+        assert!(project_is_scaffold(stub.as_bytes()));
+    }
+
+    #[test]
+    fn every_shape_a_project_creator_writes_is_a_scaffold() {
+        let shapes = [
+            // create_project / run_clone with services detected from the folder.
+            "name: web\nroot: ~/web\nservices:\n  next:\n    cmd: npm run dev\n    cwd: frontend\n    port: 3000\n  api:\n    cmd: go run .\n",
+            // The folder's repo .lpm.yml declares the services.
+            "name: web\nroot: ~/web\n",
+            // register_synced_project, with and without a twin.
+            "name: web\nroot: ~/web\nparent_name: web-main\n",
+            // create_ssh_project.
+            "name: web\nssh:\n  host: h\n  user: u\nservices:\n  shell:\n    cmd: exec \"$SHELL\" -l\n",
+            // run_duplicate.
+            "name: web-1\nroot: ~/web-1\nparent_name: web\nlabel: Copy\n",
+            // run_worktree_duplicate.
+            "name: web-1\nroot: ~/web-1\nparent_name: web\nworktree: true\nlabel: Copy\n",
+        ];
+        for shape in shapes {
+            assert!(project_is_scaffold(shape.as_bytes()), "{shape}");
+        }
+    }
+
+    #[test]
+    fn any_key_beyond_the_scaffold_is_real_config() {
+        let base = "name: web\nroot: ~/web\nservices:\n  dev:\n    cmd: echo 'configure me'\n";
+        for extra in [
+            "actions:\n  build:\n    cmd: make\n",
+            "terminals:\n  claude:\n    cmd: claude\n",
+            "profiles:\n  default: [dev]\n",
+            "jobs:\n  nightly:\n    prompt: x\n",
+            "extends:\n  - base\n",
+            "work_status:\n  state: done\n",
+        ] {
+            let config = format!("{base}{extra}");
+            assert!(!project_is_scaffold(config.as_bytes()), "{extra}");
+        }
+        let full = "name: voice-to-text\nroot: ~/Projects/voice-to-text\nlabel: Voice\nservices:\n  dev:\n    cmd: make dev\nactions:\n  release:\n    cmd: ./release.sh\n  open:\n    cmd: open .\nterminals:\n  claude:\n    cmd: claude\nprofiles:\n  default: [dev]\n";
+        assert!(!project_is_scaffold(full.as_bytes()));
+    }
+
+    #[test]
+    fn unreadable_project_bytes_are_not_a_scaffold() {
+        for garbage in [
+            &b"\xff\xfe\x00\x01"[..],
+            b"name: [unterminated",
+            b"- a\n- b\n",
+            b"just text",
+            b"",
+            b"1: numeric key\n",
+        ] {
+            assert!(!project_is_scaffold(garbage));
+        }
     }
 
     #[test]
@@ -1608,8 +1959,10 @@ mod tests {
         dm.device = "da".into();
         dm.globals.insert("zdotdir/x".into(), idv("h", 3, "da"));
         dm.globals.insert("zdotdir/gone".into(), tombstone(4, "da"));
+        dm.projects.insert("web".into(), scaffold("h", 1));
         let lv = legacy_view(dm);
         assert!(!lv.globals.contains_key("zdotdir/gone")); // tombstone dropped
+        assert!(!lv.projects["web"].scaffold);
         assert_eq!(lv.globals["zdotdir/x"].rev, 0);
         assert!(lv.globals["zdotdir/x"].device.is_empty());
         assert!(lv.device.is_empty());

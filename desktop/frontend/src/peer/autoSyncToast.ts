@@ -26,9 +26,9 @@ export const ERROR_TOAST_GAP_MS = 3 * 60_000;
 
 function conflictMessage(conflicts: string[]): string {
   if (conflicts.length === 1) {
-    return `'${conflicts[0]}' changed on both Macs — kept the newer change. Backup saved.`;
+    return `'${conflicts[0]}' changed on both Macs — kept one version. Backup saved.`;
   }
-  return `${conflicts.length} items changed on both Macs — kept the newer changes. Backup saved.`;
+  return `${conflicts.length} items changed on both Macs — kept one version of each. Backup saved.`;
 }
 
 function errorMessage(peerName: string): string {

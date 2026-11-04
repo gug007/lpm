@@ -804,7 +804,7 @@ revision-aware (configSync2). A client sends `v:2` only to a host that advertise
 
 ```json
 {
-  "projects":  { "<name>": { "hash", "mtime", "rev"?, "device"?, "deleted"? } },
+  "projects":  { "<name>": { "hash", "mtime", "rev"?, "device"?, "deleted"?, "scaffold"? } },
   "globals":   { "<rel>":  { "hash", "mtime", "rev"?, "device"?, "deleted"? } },
   "templates": { "<name>": { "hash", "mtime", "rev"?, "device"?, "deleted"? } },
   "projectExtends": { "<name>": ["<template>"] },
@@ -813,10 +813,13 @@ revision-aware (configSync2). A client sends `v:2` only to a host that advertise
 ```
 
 `hash` is the portable digest; `mtime` the file mtime in millis. The `rev`/`device`
-/`deleted` fields and the top-level `device` appear only at `v:2` (a `v:1` request
-gets them stripped, and tombstone entries removed). `rev` is a per-unit revision
-counter, `device` the sidecar id of the Mac that authored that revision, `deleted`
-marks a **tombstone** (a synced-dir file known to be deleted; `hash` empty).
+/`deleted`/`scaffold` fields and the top-level `device` appear only at `v:2` (a `v:1`
+request gets them stripped, and tombstone entries removed). `rev` is a per-unit
+revision counter, `device` the sidecar id of the Mac that authored that revision,
+`deleted` marks a **tombstone** (a synced-dir file known to be deleted; `hash` empty).
+`scaffold` marks a project whose file has no portable keys beyond `name`, `label` and
+`services`, which is all that creating a project writes. It is sent only when true,
+so an older peer's projects read as false.
 
 ### Wire item
 
@@ -855,8 +858,21 @@ For a unit that differs on both Macs, with `base = the agreed base for this peer
 - both moved off base → **conflict**: the higher `(rev, device)` wins (ties by
   content), the loser is overwritten (both sides backed up). The winner is symmetric
   — each Mac picks the same one; only push-vs-pull differs.
-- no base (first sync / Phase-1 upgrade) → the legacy mtime direction, never a
-  conflict; the base is recorded afterward.
+- a project whose `scaffold` side moved off base while the other side is not
+  `scaffold` → the other side wins whatever the `rev`, flagged a **conflict**. This
+  rule goes first: deleting and re-adding a project on one Mac reads as an edit, and
+  it must not overwrite the other Mac's config. The cost is that stripping a project
+  back to a scaffold on purpose does not cross. Configuring a scaffold moves the
+  other way, so it stays a plain fast-forward.
+- no base (first sync / Phase-1 upgrade) → decided as below; the base is recorded
+  afterward. The winner is symmetric here too.
+  - global or template → the legacy mtime direction, never a conflict.
+  - project, exactly one side `scaffold` → the other side wins, whatever the mtime
+    or `rev`, and it is not a conflict: a new project must not overwrite a real
+    config it only shares a name with.
+  - any other project → the mtime direction (ties by content), flagged a
+    **conflict** so it shows in the preview and the auto-sync toast. The loser is
+    overwritten (both sides backed up).
 
 Deletions cross only with a base: a tombstone vs a live file fast-forwards (remove
 the file) or conflicts by the same rule (edit-wins resurrects, delete-wins removes).
