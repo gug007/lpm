@@ -155,6 +155,7 @@ export function GitAutoPull(...args: any[]): Promise<any>;
 export function GitAutoPullLast(...args: any[]): Promise<any>;
 export function GitAutoPullUndo(...args: any[]): Promise<any>;
 export function GitOriginStatus(...args: any[]): Promise<any>;
+export function WatchOriginRefs(...args: any[]): Promise<any>;
 export function GitPruneRemotes(...args: any[]): Promise<any>;
 export function GitPush(...args: any[]): Promise<any>;
 export function GitPushRebasing(...args: any[]): Promise<any>;

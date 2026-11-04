@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
+import { WatchOriginRefs } from "../../bridge/commands";
 import { EventsOn } from "../../bridge/runtime";
 import { maybeAutoPull } from "../autoPullRun";
 import { recheckOrigin } from "../originActions";
+import { followOriginMoves } from "../originSpread";
 import { originMark } from "../originStatus";
 import { isPeerRoot } from "../peer/markers";
 import { useOriginStatus } from "../store/originStatus";
@@ -30,9 +32,11 @@ export function originRoots(projects: ProjectInfo[]): string[] {
 
 // Keeps the origin store current for every project here and on connected Macs:
 // a quiet fetch per project every FETCH_EVERY_MS, a recount on window focus, and
-// a recount when the watched project's .git changes. One project at a time, so a
-// slow remote never stacks up git processes. Each check is followed by an auto
-// pull try, which does nothing unless the project is set to pull itself.
+// a recount when a project's .git changes, which for this Mac's own projects
+// includes origin moving under refs/remotes. One project at a time, so a slow
+// remote never stacks up git processes. Each check is followed by an auto pull
+// try, which does nothing unless the project is set to pull itself, and origin
+// moving in one copy of a repository fetches the copies behind it.
 export function useOriginStatusPoller(projects: ProjectInfo[], enabled: boolean): void {
   const roots = useMemo(() => originRoots(projects), [projects]);
   const rootsKey = roots.join("\n");
@@ -75,6 +79,12 @@ export function useOriginStatusPoller(projects: ProjectInfo[], enabled: boolean)
       clearInterval(timer);
     };
   }, [enabled, rootsKey, sweep]);
+
+  useEffect(() => {
+    void WatchOriginRefs(enabled ? rootsRef.current.filter((root) => !isPeerRoot(root)) : []).catch(() => {});
+  }, [enabled, rootsKey]);
+
+  useEffect(() => (enabled ? followOriginMoves() : undefined), [enabled]);
 
   useEventListener(
     "focus",

@@ -12,6 +12,10 @@ export interface OriginStatus {
   // Tracked files with uncommitted changes; counted only while origin has news.
   changes: number;
   fetched: boolean;
+  // The repository and branch the upstream is, alike for every copy of it on any
+  // Mac, and the commit it's at here. Missing from a Mac on an older lpm.
+  upstreamKey?: string;
+  upstreamSha?: string;
 }
 
 export type OriginMark =
@@ -125,6 +129,8 @@ export function sameOriginStatus(a: OriginStatus | undefined, b: OriginStatus): 
     a.base === b.base &&
     a.baseBehind === b.baseBehind &&
     a.conflicted === b.conflicted &&
-    a.changes === b.changes
+    a.changes === b.changes &&
+    a.upstreamKey === b.upstreamKey &&
+    a.upstreamSha === b.upstreamSha
   );
 }

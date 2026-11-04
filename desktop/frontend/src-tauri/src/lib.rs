@@ -203,6 +203,7 @@ mod notes_plain;
 mod notes_store;
 mod notifychannels;
 mod openin;
+mod originwatch;
 mod osproc;
 mod paneexit;
 mod panehook;
@@ -435,6 +436,7 @@ use gitdiscards::{git_discarded, git_restore_discarded};
 use worktree_files::{set_worktree_files, worktree_files};
 use gitsecrets::git_scan_secrets;
 use gitorigin::git_origin_status;
+use originwatch::watch_origin_refs;
 use gitpush::git_push_rebasing;
 use gitresolve::{
     git_continue_merge, git_mark_conflict_resolved, git_merge_state, git_take_conflict_side,

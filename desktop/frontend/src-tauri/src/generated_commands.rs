@@ -192,6 +192,7 @@ macro_rules! all_command_handlers {
             git_mark_conflict_resolved,
             git_continue_merge,
             git_origin_status,
+            watch_origin_refs,
             git_auto_pull,
             git_auto_pull_last,
             git_auto_pull_undo,

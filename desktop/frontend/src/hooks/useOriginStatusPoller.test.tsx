@@ -8,11 +8,15 @@ const mocks = vi.hoisted(() => ({
   status: vi.fn(),
   eventsOn: vi.fn(() => () => {}),
   autoPull: vi.fn(async () => {}),
+  watchRefs: vi.fn(async () => {}),
+  stopFollowing: vi.fn(),
+  follow: vi.fn(),
 }));
 
-vi.mock("../../bridge/commands", () => ({ GitOriginStatus: mocks.status }));
+vi.mock("../../bridge/commands", () => ({ GitOriginStatus: mocks.status, WatchOriginRefs: mocks.watchRefs }));
 vi.mock("../../bridge/runtime", () => ({ EventsOn: mocks.eventsOn }));
 vi.mock("../autoPullRun", () => ({ maybeAutoPull: mocks.autoPull }));
+vi.mock("../originSpread", () => ({ followOriginMoves: mocks.follow }));
 
 import { FETCH_EVERY_MS, originRoots, useOriginStatusPoller } from "./useOriginStatusPoller";
 import { useOriginStatus } from "../store/originStatus";
@@ -38,6 +42,7 @@ let root: Root;
 
 beforeEach(() => {
   vi.useFakeTimers();
+  mocks.follow.mockReturnValue(mocks.stopFollowing);
   useOriginStatus.getState().reset();
   mocks.status.mockImplementation(async () => ({
     branch: "main", hasUpstream: true, ahead: 0, behind: 2, base: "", baseBehind: 0, conflicted: false, changes: 0, fetched: true,
@@ -106,6 +111,21 @@ describe("useOriginStatusPoller", () => {
     await edit();
     expect(mocks.status).toHaveBeenCalledWith("/p/reader", false);
     expect(mocks.autoPull).toHaveBeenCalledWith("/p/reader");
+  });
+
+  it("watches the remote refs of this Mac's own projects, and follows origin moves, while on", () => {
+    const peer = project("peer-aabbccdd-api", "/@peer-aabbccdd/Users/g/api");
+    function WithPeer({ enabled }: { enabled: boolean }) {
+      useOriginStatusPoller([...PROJECTS, peer], enabled);
+      return null;
+    }
+    act(() => root.render(<WithPeer enabled />));
+    expect(mocks.watchRefs).toHaveBeenLastCalledWith(["/p/lpm", "/p/reader"]);
+    expect(mocks.follow).toHaveBeenCalledTimes(1);
+
+    act(() => root.render(<WithPeer enabled={false} />));
+    expect(mocks.watchRefs).toHaveBeenLastCalledWith([]);
+    expect(mocks.stopFollowing).toHaveBeenCalledTimes(1);
   });
 
   it("clears every mark when switched off", async () => {

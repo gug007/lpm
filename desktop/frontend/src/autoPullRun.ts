@@ -58,7 +58,7 @@ function agentBusy(project: ProjectInfo): boolean {
   );
 }
 
-function autoPullProject(root: string): ProjectInfo | undefined {
+export function autoPullProject(root: string): ProjectInfo | undefined {
   const mode = normalizeAutoPullMode(getSettings().autoPull);
   if (mode === "off") return undefined;
   const projects = useAppStore.getState().projects;
