@@ -2190,10 +2190,11 @@ fn file_stamp(cwd: &str, path: &str) -> String {
 
 // --- live working-tree watch (per connection) --------------------------------
 
-/// One watch for a single phone connection: a project's filesystem watcher, or
-/// a service pane's log poller (no watcher; `stop` alone ends it). Dropping a
-/// filesystem watch closes the notify channel, which ends the debounce thread;
-/// the `stop` flag is an explicit belt-and-suspenders for the mid-debounce window.
+/// One watch for a single phone connection: a project's filesystem watcher, a
+/// service pane's log poller, or a dictation take (no watcher; `stop` alone ends
+/// those two). Dropping a filesystem watch closes the notify channel, which ends
+/// the debounce thread; the `stop` flag is an explicit belt-and-suspenders for the
+/// mid-debounce window.
 struct RemoteWatch {
     stop: Arc<AtomicBool>,
     _watcher: Option<notify::RecommendedWatcher>,

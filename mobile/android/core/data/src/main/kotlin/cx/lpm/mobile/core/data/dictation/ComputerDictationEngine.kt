@@ -28,28 +28,27 @@ internal class ComputerDictationEngine(
     private var words = ""
     private var heard: ((String) -> Unit)? = null
     private var finished: ((DictationResult) -> Unit)? = null
-    private var stopping = false
     private var watchdog: Job? = null
+    private val stopping get() = watchdog != null
 
     override fun start(
         meter: DictationMeter,
         heard: (String) -> Unit,
         finished: (DictationResult) -> Unit
     ): DictationFailure? {
-        this.heard = heard
-        this.finished = finished
         send(Wire.dictateStart(id))
         val opened = microphone.open(meter) { pcm -> post { sendAudio(pcm) } }
-        if (opened) return null
-        send(Wire.dictateCancel(id))
-        this.heard = null
-        this.finished = null
-        return DictationFailure.Unavailable
+        if (!opened) {
+            send(Wire.dictateCancel(id))
+            return DictationFailure.Unavailable
+        }
+        this.heard = heard
+        this.finished = finished
+        return null
     }
 
     override fun stop() {
         if (finished == null || stopping) return
-        stopping = true
         microphone.close()
         post { if (finished != null) send(Wire.dictateStop(id)) }
         armWatchdog()

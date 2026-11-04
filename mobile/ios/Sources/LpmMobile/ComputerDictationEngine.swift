@@ -33,8 +33,8 @@ final class ComputerDictationEngine: DictationEngine {
     private var words = ""
     private var heard: (@MainActor (String) -> Void)?
     private var finished: (@MainActor (Result<String, DictationFailure>) -> Void)?
-    private var stopping = false
     private var watchdog: Task<Void, Never>?
+    private var stopping: Bool { watchdog != nil }
 
     init(client: LpmClient) {
         self.client = client
@@ -44,23 +44,25 @@ final class ComputerDictationEngine: DictationEngine {
                heard: @escaping @MainActor (String) -> Void,
                finished: @escaping @MainActor (Result<String, DictationFailure>) -> Void) async -> DictationFailure? {
         guard await AVAudioApplication.requestRecordPermission() else { return .denied }
-        self.heard = heard
-        self.finished = finished
         client?.dictateStart(id)
-        let opened = microphone.open(meter: meter, deliver: Self.sender(to: self, encoder: encoder),
-                                     lost: { [weak self] in self?.stop() })
+        let opened = microphone.open(meter: meter, deliver: { [weak self, encoder] buffer in
+            for piece in encoder.encode(buffer) {
+                DispatchQueue.main.async {
+                    MainActor.assumeIsolated { self?.send(piece) }
+                }
+            }
+        }, lost: { [weak self] in self?.stop() })
         guard opened else {
             client?.dictateCancel(id)
-            self.heard = nil
-            self.finished = nil
             return .unavailable
         }
+        self.heard = heard
+        self.finished = finished
         return nil
     }
 
     func stop() {
         guard finished != nil, !stopping else { return }
-        stopping = true
         microphone.close()
         let tail = encoder.drain()
         // Queued behind the pieces already on their way here, so Stop can't pass them.
@@ -134,16 +136,5 @@ final class ComputerDictationEngine: DictationEngine {
 
     private static func failure(for event: DictationEvent) -> DictationFailure {
         event.code == "too_short" || event.code == "no_speech" ? .noSpeech : .computer(event.message)
-    }
-
-    private nonisolated static func sender(to engine: ComputerDictationEngine,
-                                           encoder: DictationPCMEncoder) -> @Sendable (AVAudioPCMBuffer) -> Void {
-        { [weak engine] buffer in
-            for piece in encoder.encode(buffer) {
-                DispatchQueue.main.async {
-                    MainActor.assumeIsolated { engine?.send(piece) }
-                }
-            }
-        }
     }
 }

@@ -297,7 +297,9 @@ class ComposerViewModel @AssistedInject constructor(
     fun startDictation() {
         val composer = store ?: return
         val tabId = composer.current.activeTab.id
-        dictation.start(dictationOwner) { words -> composer.appendDictated(words, tabId) }
+        dictation.start(dictationOwner, target.session) { words ->
+            composer.appendDictated(words, tabId)
+        }
     }
 
     fun stopDictation() = dictation.stop()

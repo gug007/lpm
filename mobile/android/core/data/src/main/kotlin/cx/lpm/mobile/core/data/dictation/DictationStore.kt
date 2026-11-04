@@ -1,7 +1,8 @@
 package cx.lpm.mobile.core.data.dictation
 
 import android.content.Context
-import cx.lpm.mobile.core.data.session.MacSession
+import cx.lpm.mobile.core.data.session.MacSessions
+import cx.lpm.mobile.core.model.SessionKey
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -16,14 +17,14 @@ private const val SEND_HOLD_OFF_MS = 600L
 /** The take's engine: Demo Mode's sample, the Mac's VoiceToText, or the phone's recognizer. */
 class DictationEngines @Inject constructor(
     @param:ApplicationContext private val context: Context,
-    private val live: MacSession
+    private val sessions: MacSessions
 ) {
-    val needsMicrophone: Boolean get() = !live.state.value.demoMode
+    val needsMicrophone: Boolean get() = !sessions.live.state.value.demoMode
 
-    fun make(): DictationEngine {
+    fun make(session: SessionKey): DictationEngine {
         if (!needsMicrophone) return DemoDictationEngine()
-        val session = live.visitSession.value ?: live
-        return session.store<DictationLink>().newTake() ?: SpeechDictationEngine(context)
+        return sessions[session]?.store<DictationLink>()?.newTake()
+            ?: SpeechDictationEngine(context)
     }
 }
 
@@ -34,7 +35,7 @@ class DictationEngines @Inject constructor(
  */
 @Singleton
 class DictationStore(
-    private val makeEngine: () -> DictationEngine,
+    private val makeEngine: (SessionKey) -> DictationEngine,
     private val microphoneNeeded: () -> Boolean = { false },
     private val now: () -> Long = ::dictationNow
 ) {
@@ -59,13 +60,13 @@ class DictationStore(
     private val busy: Boolean
         get() = state.value.phase == DictationPhase.Recording || state.value.isTranscribing
 
-    /** Start a take for [owner]; [insert] receives its words. */
-    fun start(owner: String, insert: (String) -> Unit) {
+    /** Start a take for [owner], on [session]'s Mac; [insert] receives its words. */
+    fun start(owner: String, session: SessionKey, insert: (String) -> Unit) {
         if (now() < holdOffUntil || busy) return
         take += 1
         val current = take
         this.insert = insert
-        val engine = makeEngine()
+        val engine = makeEngine(session)
         this.engine = engine
         val failure = engine.start(
             meter,
