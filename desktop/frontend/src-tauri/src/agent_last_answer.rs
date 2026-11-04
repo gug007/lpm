@@ -247,7 +247,7 @@ fn claude_user_text(record: &Value) -> Option<&str> {
     }
 }
 
-fn is_injected(text: &str) -> bool {
+pub(crate) fn is_injected(text: &str) -> bool {
     let text = text.trim_start();
     text.is_empty()
         || text.starts_with("<command-")

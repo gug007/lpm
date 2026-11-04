@@ -18,8 +18,10 @@
 //   but slower, and a watch that sees neither leaves the entry alone.
 // - A sweep, running only while some agent is live, retires an entry whose
 //   terminal is gone or back at its shell prompt, a working one whose terminal
-//   has drawn nothing for SILENCE_MS since the agent last reported, and any
-//   entry whose reported pid is dead. A session whose finish is being held
+//   has drawn nothing for SILENCE_MS since the agent last reported — unless its
+//   transcript shows the turn still going, as it does while Claude's fullscreen
+//   view is scrolled away from its spinner (claude_turn.rs) — and any entry
+//   whose reported pid is dead. A session whose finish is being held
 //   (donehold.rs) or whose sub-agents still work draws nothing while it waits,
 //   and is left alone.
 //
@@ -53,8 +55,8 @@ const FOCUS_CLICK_MS: i64 = 300;
 /// an agent in a tmux window that isn't showing draws nothing either.
 const SILENCE_MS: i64 = 30_000;
 /// A tool call draws nothing of its own, and Claude's fullscreen view scrolled
-/// away from its spinner draws nothing at all: a call silent this long — Bash's
-/// own timeout — has stopped.
+/// away from its spinner draws nothing at all: a call, or a turn its transcript
+/// shows going on, silent this long — Bash's own timeout — has stopped.
 const TOOL_SILENCE_MS: i64 = 600_000;
 /// While any background agent or teammate works, Claude redraws its footer
 /// every second: a pane silent this long has none left, whatever their stops
@@ -146,6 +148,9 @@ pub fn on_input(app: &AppHandle, sess: &PtySession, input: &[u8]) {
     };
     if key == Key::Click && focusing_click(&sess.id, now) {
         return;
+    }
+    if matches!(key, Key::Interrupt | Key::CtrlC) {
+        crate::claude_turn::stop_key(&sess.id, now);
     }
     crate::approvalgrace::answered(&sess.id);
     let project = &sess.project_name;
@@ -370,7 +375,11 @@ fn sweep(app: &AppHandle) -> bool {
         }
         let waiting_on_work = crate::agentchildren::busy(&project, &entry.key)
             || crate::donehold::held(&project, &entry.key);
-        if is_stale(sess.as_deref(), &entry, waiting_on_work, now) {
+        let heard = entry.reported_at.max(entry.timestamp);
+        let account = sess.as_deref().and_then(|s| s.claude_account.as_deref());
+        let goes_on =
+            || crate::claude_turn::goes_on(&project, &entry.key, &entry.pane_id, account, heard);
+        if is_stale(sess.as_deref(), &entry, waiting_on_work, now, goes_on) {
             if store.clear_if_unchanged(&project, &entry.key, &entry) {
                 changed.insert(project);
             }
@@ -394,8 +403,15 @@ fn sweep(app: &AppHandle) -> bool {
 }
 
 /// `waiting_on_work`: sub-agents it spawned are still working, or it waits on a
-/// background shell, which draws nothing.
-fn is_stale(sess: Option<&PtySession>, entry: &StatusEntry, waiting_on_work: bool, now: i64) -> bool {
+/// background shell, which draws nothing. `goes_on` is asked only of a working
+/// entry gone quiet: whether its turn is still going, by more than the pane.
+fn is_stale(
+    sess: Option<&PtySession>,
+    entry: &StatusEntry,
+    waiting_on_work: bool,
+    now: i64,
+    goes_on: impl FnOnce() -> bool,
+) -> bool {
     let Some(sess) = sess else {
         return true;
     };
@@ -405,15 +421,17 @@ fn is_stale(sess: Option<&PtySession>, entry: &StatusEntry, waiting_on_work: boo
     entry.value == STATUS_RUNNING
         && !waiting_on_work
         && !sess.output_paused()
-        && silent(entry, sess.last_output(), now)
+        && silent(entry, sess.last_output(), now, goes_on)
 }
 
 /// Whether a working entry has gone quiet for longer than it can while at work:
 /// nothing drawn, and nothing reported, since.
-fn silent(entry: &StatusEntry, last_output: i64, now: i64) -> bool {
-    let heard = last_output.max(entry.timestamp).max(entry.reported_at);
-    let limit = if entry.tool { TOOL_SILENCE_MS } else { SILENCE_MS };
-    now - heard >= limit
+fn silent(entry: &StatusEntry, last_output: i64, now: i64, goes_on: impl FnOnce() -> bool) -> bool {
+    let quiet = now - last_output.max(entry.timestamp).max(entry.reported_at);
+    if entry.tool || quiet >= TOOL_SILENCE_MS {
+        return quiet >= TOOL_SILENCE_MS;
+    }
+    quiet >= SILENCE_MS && !goes_on()
 }
 
 #[cfg(test)]
@@ -486,14 +504,36 @@ mod tests {
             reported_at: 50_000,
             ..Default::default()
         };
-        assert!(!silent(&running, 10_000, 70_000), "it reported 20 s ago");
-        assert!(silent(&running, 10_000, 80_000));
+        assert!(!silent(&running, 10_000, 70_000, || false), "it reported 20 s ago");
+        assert!(silent(&running, 10_000, 80_000, || false));
         let tool = StatusEntry {
             tool: true,
             ..running
         };
-        assert!(!silent(&tool, 10_000, 80_000));
-        assert!(silent(&tool, 10_000, 50_000 + TOOL_SILENCE_MS));
+        assert!(!silent(&tool, 10_000, 80_000, || false));
+        assert!(silent(&tool, 10_000, 50_000 + TOOL_SILENCE_MS, || false));
+    }
+
+    // Issue #150: a fullscreen Claude scrolled away from its spinner, writing
+    // one long answer, drew nothing and reported nothing for 40 s; the sweep
+    // dropped its row until the next tool call brought it back.
+    #[test]
+    fn a_quiet_turn_its_transcript_shows_going_on_is_not_silent() {
+        let running = StatusEntry {
+            value: STATUS_RUNNING.into(),
+            reported_at: 50_000,
+            ..Default::default()
+        };
+        assert!(!silent(&running, 10_000, 90_000, || true));
+        assert!(!silent(&running, 10_000, 50_000 + TOOL_SILENCE_MS - 1, || true));
+        assert!(silent(&running, 10_000, 50_000 + TOOL_SILENCE_MS, || true), "capped like a tool call");
+        assert!(silent(&running, 10_000, 90_000, || false), "a turn that ended goes quiet");
+        let mut asked = false;
+        assert!(!silent(&running, 10_000, 60_000, || {
+            asked = true;
+            true
+        }));
+        assert!(!asked, "the transcript is read only once the pane has gone quiet");
     }
 
     #[test]

@@ -63,6 +63,7 @@ mod claude_session_move;
 mod claude_session_state;
 mod claude_statusline;
 mod claude_transcripts;
+mod claude_turn;
 mod clipboard;
 mod cmdmarks;
 mod codex_statusline;

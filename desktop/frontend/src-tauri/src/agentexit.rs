@@ -67,6 +67,13 @@ pub fn watch(app: &AppHandle, project: &str, pane_id: &str, session_id: &str, pi
     });
 }
 
+/// Whether the agent last reported from `pane_id` is still running. None when
+/// none is followed there.
+pub fn alive(pane_id: &str) -> Option<bool> {
+    let pid = watched().lock().unwrap().get(pane_id)?.pid;
+    Some(crate::osproc::is_alive(pid))
+}
+
 /// Whether the tab brings its agent back after a restart.
 pub fn resumes(pane_id: &str) -> bool {
     watched().lock().unwrap().contains_key(pane_id)
