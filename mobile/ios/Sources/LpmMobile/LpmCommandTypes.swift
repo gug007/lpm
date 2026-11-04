@@ -138,7 +138,7 @@ enum LpmFolderOp: String {
 }
 
 enum LpmCommandRules {
-    static let autoVariables = ["branch", "project"]
+    static let autoVariables = ["branch", "project", "dir"]
 
     static func isValidName(_ name: String) -> Bool {
         name.range(of: "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$", options: .regularExpression) != nil

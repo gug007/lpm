@@ -1,0 +1,34 @@
+# Saving a draft says so in a passing toast instead of a blocking alert, and
+# Open Drafts lands on the Drafts filter.
+appId: cx.lpm.mobile
+name: 161-composer-draft-toast
+tags: [demo, terminal, composer]
+---
+- runFlow: subflows/enter-demo.yaml
+- tapOn: "storefront"
+- extendedWaitUntil:
+    visible: "Terminal 1"
+    timeout: 5000
+- tapOn: "Terminal 1"
+- extendedWaitUntil:
+    visible: "Message"
+    timeout: 10000
+- tapOn: "Message"
+- inputText: "check the coupons"
+- tapOn: "Hide keyboard"
+- longPressOn: "Send"
+- extendedWaitUntil:
+    visible: "Save as draft"
+    timeout: 5000
+- tapOn: "Save as draft"
+- extendedWaitUntil:
+    visible: "Saved to your drafts"
+    timeout: 5000
+- assertNotVisible: "Heads up"
+- takeScreenshot: 1-toast
+- tapOn: "Open Drafts"
+- extendedWaitUntil:
+    visible: "check the coupons"
+    timeout: 5000
+- assertVisible: "Drafts"
+- takeScreenshot: 2-drafts

@@ -179,23 +179,25 @@ fn open_window(
     let encoded = urlencoding::encode(project_name);
     let url = WebviewUrl::App(format!("index.html?detached={encoded}").into());
 
-    // Match the main window's chrome (tauri.conf.json): an overlay title bar with
-    // a hidden title so the traffic lights sit inside the React header and content
-    // starts from the top, instead of a native title bar pushing it down.
-    let mut builder = WebviewWindowBuilder::new(app, &label, url)
-        .title(project_name)
+    // Inherit the main window's chrome (tauri.conf.json): an overlay title bar with
+    // a hidden title, so the traffic lights sit inside the React header and content
+    // starts from the top. The lights only hold their position through `from_config`;
+    // the builder's own `traffic_light_position` is undone by the next layout pass.
+    let mut config = app
+        .config()
+        .app
+        .windows
+        .iter()
+        .find(|w| w.label == "main")
+        .cloned()
+        .unwrap_or_default();
+    config.label = label.clone();
+    config.title = project_name.to_string();
+    config.url = url;
+    let mut builder = WebviewWindowBuilder::from_config(app, &config)
+        .map_err(|e| e.to_string())?
         .min_inner_size(bounds::MIN_W, bounds::MIN_H)
         .resizable(true);
-
-    // Both builder options are macOS-only in Tauri; elsewhere the window keeps
-    // the platform's normal chrome (moot on a headless host, which never opens
-    // a detached window at all).
-    #[cfg(target_os = "macos")]
-    {
-        builder = builder
-            .title_bar_style(tauri::TitleBarStyle::Overlay)
-            .hidden_title(true);
-    }
 
     builder = match bounds {
         Some((x, y, w, h)) => builder.position(x, y).inner_size(w, h),

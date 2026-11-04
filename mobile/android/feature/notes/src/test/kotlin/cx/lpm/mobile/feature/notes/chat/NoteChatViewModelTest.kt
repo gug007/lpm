@@ -1,5 +1,10 @@
 package cx.lpm.mobile.feature.notes.chat
 
+import cx.lpm.mobile.core.data.dictation.DictationEngine
+import cx.lpm.mobile.core.data.dictation.DictationFailure
+import cx.lpm.mobile.core.data.dictation.DictationMeter
+import cx.lpm.mobile.core.data.dictation.DictationResult
+import cx.lpm.mobile.core.data.dictation.DictationStore
 import cx.lpm.mobile.core.navigation.NoteChatKey
 import cx.lpm.mobile.core.testing.MainDispatcherRule
 import cx.lpm.mobile.core.testing.TestSession
@@ -19,6 +24,25 @@ import org.junit.Rule
 import org.junit.Test
 
 class NoteChatViewModelTest {
+    private class FakeEngine : DictationEngine {
+        var finished: ((DictationResult) -> Unit)? = null
+
+        override fun start(
+            meter: DictationMeter,
+            heard: (String) -> Unit,
+            finished: (DictationResult) -> Unit
+        ): DictationFailure? {
+            this.finished = finished
+            return null
+        }
+
+        override fun stop() = Unit
+
+        override fun cancel() = Unit
+    }
+
+    private val engine = FakeEngine()
+
     @get:Rule
     val main = MainDispatcherRule()
 
@@ -28,7 +52,13 @@ class NoteChatViewModelTest {
         t.notes.screenDidOpen("storefront")
         t.settle()
         val id = t.notes.state.value.chatList("storefront").first { it.title == title }.id
-        val vm = NoteChatViewModel(NoteChatKey("storefront", id, title), t.sessions, media, t.clock)
+        val vm = NoteChatViewModel(
+            NoteChatKey("storefront", id, title),
+            t.sessions,
+            media,
+            t.clock,
+            DictationStore(makeEngine = { engine })
+        )
         keepCollecting(vm.uiState)
         vm.open()
         return vm
@@ -142,5 +172,16 @@ class NoteChatViewModelTest {
         assertFalse(state.canLoadMore)
         assertEquals(54, state.items.count { it is NoteChatItem.Note })
         assertTrue(state.attachments.loading.isEmpty())
+    }
+
+    @Test
+    fun `dictated words join what's in the note`() = runTest {
+        val t = demoSession()
+        val vm = chat(t, "General")
+        vm.setText("Remember")
+        vm.startDictation()
+        engine.finished?.invoke(DictationResult.Words("the milk"))
+        testScheduler.runCurrent()
+        assertEquals("Remember the milk", vm.uiState.value.draft.text)
     }
 }

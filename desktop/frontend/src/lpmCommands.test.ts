@@ -72,6 +72,10 @@ describe("promptVariables", () => {
       auto: ["branch"],
     });
   });
+
+  it("fills in the command's folder rather than asking for it", () => {
+    expect(promptVariables("Read {{dir}}/GUIDE.md about {{what}}")).toEqual({ asks: ["what"], auto: ["dir"] });
+  });
 });
 
 describe("shadowNote", () => {

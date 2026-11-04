@@ -118,6 +118,11 @@ function positional(args: string, n: number): string[] {
   return out;
 }
 
+function commandDir(project: string, c: LpmCommand): string {
+  const root = c.scope === "project" ? `${projects.get(project)?.root}/.lpm/commands` : "~/.lpm/commands";
+  return c.folder ? `${root}/${c.folder}` : root;
+}
+
 function expand(project: string, name: string, args: string) {
   const command = findCommand(lists(project), name.replace(/^\//, ""));
   if (!command) throw new Error(`/${name} isn't one of your commands.`);
@@ -126,6 +131,7 @@ function expand(project: string, name: string, args: string) {
   const auto: Record<string, string | undefined> = {
     branch: projects.get(project)?.git.branch,
     project: projects.get(project)?.label ?? (projects.has(project) ? project : undefined),
+    dir: commandDir(project, command),
   };
   const missing: string[] = [];
   let text = command.body.replace(/\{\{\s*([A-Za-z0-9_-]+)\s*\}\}/g, (token, v: string) => {

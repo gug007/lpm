@@ -21,7 +21,7 @@ struct NotesComposer: View {
     @State private var showPhotos = false
     @State private var showCamera = false
     @State private var showFiles = false
-    @State private var warning: String?
+    @State private var toast: ComposerToast?
     @FocusState private var focused: Bool
 
     private var notes: NotesStore { model.notes }
@@ -33,19 +33,34 @@ struct NotesComposer: View {
     }
     private var cameraAvailable: Bool { UIImagePickerController.isSourceTypeAvailable(.camera) }
 
+    private var dictation: DictationStore { model.dictation }
+    private var dictationOwner: String { "note:" + chatKey }
+    private var takeActive: Bool { dictation.isActive(dictationOwner) }
+    private var stripShown: Bool { takeActive || dictation.failure(dictationOwner) != nil }
+    private var hasText: Bool { !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    private var heardWords: String { dictation.words(dictationOwner) }
+    private var fieldHidden: Bool { stripShown && (!hasText || !heardWords.isEmpty) }
+
+    private func startDictation() {
+        dictation.start(owner: dictationOwner) { [$text] words in
+            $text.wrappedValue = $text.wrappedValue.addingDictated(words)
+        }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             Divider().opacity(0.5)
             if !pending.isEmpty { chips }
             HStack(alignment: .bottom, spacing: 8) {
-                attachMenu
+                leadingControl
                 field
-                sendButton
+                trailingControls
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
         }
         .background(.bar)
+        .onDisappear { dictation.abandon(dictationOwner) }
         .onChange(of: photoItems) { _, items in if !items.isEmpty { loadPhotos(items) } }
         .onChange(of: isSending) { wasSending, sending in
             // Hold the text until the Mac accepts it, so a failed send doesn't
@@ -64,15 +79,46 @@ struct NotesComposer: View {
             NoteCameraPicker { image in encodeOffMain(reserve(name: "photo.jpg", mimeType: "image/jpeg"), image: image) }
                 .ignoresSafeArea()
         }
-        .alert("Too large", isPresented: Binding(
-            get: { warning != nil }, set: { if !$0 { warning = nil } })) {
-            Button("OK", role: .cancel) { warning = nil }
-        } message: {
-            Text(warning ?? "")
-        }
+        .composerToast($toast)
     }
 
     // MARK: pieces
+
+    @ViewBuilder private var leadingControl: some View {
+        if stripShown {
+            DictationCancelButton(color: .secondary, label: takeActive ? "Cancel dictation" : "Dismiss",
+                                  action: { dictation.cancel() })
+                .frame(width: 34, height: 34)
+        } else {
+            attachMenu
+        }
+    }
+
+    @ViewBuilder private var trailingControls: some View {
+        if takeActive {
+            DictationStopButton(store: dictation, glyph: .white)
+                .frame(width: 34, height: 34)
+        } else if !hasContent && !isSending {
+            micCircle
+        } else {
+            if !stripShown && !isSending {
+                DictationGhostMic(color: .secondary, action: startDictation)
+                    .frame(width: 34, height: 34)
+            }
+            sendButton
+        }
+    }
+
+    private var micCircle: some View {
+        Button(action: startDictation) {
+            Image(systemName: "mic.circle.fill")
+                .font(.system(size: 27))
+                .foregroundStyle(SwiftUI.Color.accentColor)
+                .frame(width: 34, height: 34)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Dictate")
+    }
 
     private var attachMenu: some View {
         Menu {
@@ -94,11 +140,22 @@ struct NotesComposer: View {
     }
 
     private var field: some View {
-        TextField("Write a note…", text: $text, axis: .vertical)
-            .font(.body)
-            .lineLimit(1...6)
-            .focused($focused)
-            .hardwareReturnSends(focus: $focused, send: send)
+        VStack(alignment: .leading, spacing: 4) {
+            TextField("Write a note…", text: $text, axis: .vertical)
+                .font(.body)
+                .lineLimit(1...6)
+                .focused($focused)
+                .hardwareReturnSends(focus: $focused, send: send)
+                .frame(height: fieldHidden ? 0 : nil)
+                .opacity(fieldHidden ? 0 : 1)
+            if !heardWords.isEmpty {
+                DictationPreview(text: text.addingDictated(heardWords), maxHeight: 132)
+            }
+            if stripShown {
+                DictationStrip(store: dictation, owner: dictationOwner, ink: .primary, onRetry: startDictation)
+                    .frame(height: 22)
+            }
+        }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .background(Color(.secondarySystemBackground))
@@ -140,9 +197,10 @@ struct NotesComposer: View {
             guard let data = item.data else { return nil }
             return NoteAttachmentDraft(name: item.name, mimeType: item.mimeType, data: data)
         }
-        guard hasContent else { return }
+        guard hasContent, !takeActive else { return }
         Haptics.tap()
         notes.addNote(project, chatId: chatId, text: text, attachments: drafts)
+        dictation.noteSent()
     }
 
     private func loadPhotos(_ items: [PhotosPickerItem]) {
@@ -212,7 +270,7 @@ struct NotesComposer: View {
     private func refuse(_ id: UUID) {
         drop(id)
         Haptics.error()
-        warning = "That file is too large to send from your phone. Add it from your Mac instead."
+        toast = ComposerToast(text: "That file is too large to send from your phone. Add it from your Mac instead.")
     }
 }
 

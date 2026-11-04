@@ -46,10 +46,12 @@ internal fun HistorySheet(
     onLoad: (String) -> Unit,
     onSendNow: (String) -> Unit,
     onDismiss: () -> Unit,
+    initialFilter: HistoryFilter = HistoryFilter.All,
     viewModel: HistoryViewModel = hiltViewModel<HistoryViewModel, HistoryViewModel.Factory>(
         creationCallback = { it.create(session) }
     )
 ) {
+    LaunchedEffect(viewModel) { viewModel.setFilter(initialFilter) }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var creatingFolder by remember { mutableStateOf(false) }
     var moving by remember { mutableStateOf<HistoryItem?>(null) }

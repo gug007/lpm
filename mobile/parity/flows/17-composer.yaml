@@ -25,7 +25,7 @@ tags: [demo, terminal, composer]
 - tapOn: "Hide keyboard"
 - tapOn: "Add"
 - extendedWaitUntil:
-    visible: "Photo Library"
+    visible: "Photos"
     timeout: 3000
 - takeScreenshot: 2-plus-menu
 - tapOn: "History"

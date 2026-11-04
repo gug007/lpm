@@ -19,6 +19,8 @@ import cx.lpm.mobile.core.designsystem.R as DesignR
 import cx.lpm.mobile.core.designsystem.component.ContextMenu
 import cx.lpm.mobile.core.designsystem.component.ContextMenuDivider
 import cx.lpm.mobile.core.designsystem.component.ContextMenuItem
+import cx.lpm.mobile.core.designsystem.component.ContextMenuTile
+import cx.lpm.mobile.core.designsystem.component.ContextMenuTiles
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.feature.terminal.R
 
@@ -33,14 +35,13 @@ internal class PlusMenuActions(
     /** The command editor seeded with what's typed; disabled while nothing is. */
     val onSaveAsCommand: (() -> Unit)? = null,
     val onNewPrompt: () -> Unit,
-    val onHistory: () -> Unit,
-    val onFind: (() -> Unit)? = null
+    val onHistory: () -> Unit
 )
 
 /**
- * The "+" menu: rewrite with AI; photos, camera, files and a copied image; then
- * session memory, save as an lpm command, a new prompt tab, the message history and
- * find in the terminal above. Rewriting with nothing typed explains itself instead.
+ * The "+" tray: tiles for photos, the camera and files, and a copied image when there
+ * is one; then rewrite with AI, session memory, save as an lpm command, a new prompt
+ * tab and the message history. Rewriting with nothing typed explains itself instead.
  */
 @Composable
 internal fun ComposerPlusMenu(
@@ -72,29 +73,25 @@ internal fun ComposerPlusMenu(
             )
         }
         ContextMenu(expanded = open, onDismissRequest = { open = false }) {
-            ContextMenuItem(
-                title = stringResource(R.string.composer_rewrite_with_ai),
-                icon = painterResource(DesignR.drawable.ic_auto_awesome),
-                onClick = { if (canRewrite) actions.onRewrite() else hint = true }
-            )
-            ContextMenuDivider()
-            ContextMenuItem(
-                title = stringResource(R.string.composer_photo_library),
-                icon = painterResource(DesignR.drawable.ic_photo_library),
-                onClick = actions.onPhotoLibrary
-            )
-            actions.onTakePhoto?.let {
-                ContextMenuItem(
-                    title = stringResource(R.string.composer_take_photo),
-                    icon = painterResource(DesignR.drawable.ic_photo_camera),
-                    onClick = it
+            ContextMenuTiles {
+                ContextMenuTile(
+                    title = stringResource(R.string.composer_photos),
+                    icon = painterResource(DesignR.drawable.ic_photo_library),
+                    onClick = actions.onPhotoLibrary
+                )
+                actions.onTakePhoto?.let {
+                    ContextMenuTile(
+                        title = stringResource(R.string.composer_camera),
+                        icon = painterResource(DesignR.drawable.ic_photo_camera),
+                        onClick = it
+                    )
+                }
+                ContextMenuTile(
+                    title = stringResource(R.string.composer_files),
+                    icon = painterResource(DesignR.drawable.ic_description),
+                    onClick = actions.onChooseFiles
                 )
             }
-            ContextMenuItem(
-                title = stringResource(R.string.composer_choose_files),
-                icon = painterResource(DesignR.drawable.ic_description),
-                onClick = actions.onChooseFiles
-            )
             val paste = actions.onPasteImage
             if (pasteImage && paste != null) {
                 ContextMenuItem(
@@ -104,6 +101,11 @@ internal fun ComposerPlusMenu(
                 )
             }
             ContextMenuDivider()
+            ContextMenuItem(
+                title = stringResource(R.string.composer_rewrite_with_ai),
+                icon = painterResource(DesignR.drawable.ic_auto_awesome),
+                onClick = { if (canRewrite) actions.onRewrite() else hint = true }
+            )
             actions.onMemory?.let {
                 ContextMenuItem(
                     title = stringResource(R.string.composer_memory),
@@ -129,13 +131,6 @@ internal fun ComposerPlusMenu(
                 icon = painterResource(DesignR.drawable.ic_history),
                 onClick = actions.onHistory
             )
-            actions.onFind?.let {
-                ContextMenuItem(
-                    title = stringResource(R.string.composer_find),
-                    icon = painterResource(DesignR.drawable.ic_search),
-                    onClick = it
-                )
-            }
         }
         if (hint) {
             RewriteHintPopover(

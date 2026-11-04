@@ -570,7 +570,7 @@ function PaneViewImpl(props: PaneViewProps) {
     fullscreen,
     isMac,
     windowFullscreen,
-  )} py-1 border-b-1 ${
+  )} border-b-1 ${
     focused && canClose
       ? "border-b-[var(--accent-cyan)]"
       : "border-b-[var(--terminal-header-hover)]"

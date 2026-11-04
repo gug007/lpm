@@ -3,6 +3,8 @@ package cx.lpm.mobile.feature.notes.chat
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import cx.lpm.mobile.core.data.dictation.DictationStore
+import cx.lpm.mobile.core.data.dictation.plusDictated
 import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.data.session.MacSessions
 import cx.lpm.mobile.core.model.NoteAttachment
@@ -45,12 +47,18 @@ class NoteChatViewModel @AssistedInject constructor(
     @Assisted val key: NoteChatKey,
     private val sessions: MacSessions,
     private val media: NoteMedia,
-    private val clock: Clock
+    private val clock: Clock,
+    private val dictation: DictationStore
 ) : ViewModel() {
     private val store: NotesStore? get() = sessions[key.session]?.store()
     private val chatKey = notesKey(key.project, key.chatId)
     private val draft = MutableStateFlow(NoteDraft())
     private var nextId = 0L
+
+    val dictationOwner = "note:$chatKey"
+    val dictationState get() = dictation.state
+    val dictationMeter get() = dictation.meter
+    val needsMicrophone: Boolean get() = dictation.needsMicrophone
 
     private val initial = NoteChatUiState(title = key.title)
 
@@ -133,13 +141,28 @@ class NoteChatViewModel @AssistedInject constructor(
 
     fun setText(text: String) = draft.update { it.copy(text = text) }
 
+    fun startDictation() = dictation.start(dictationOwner) { words ->
+        draft.update { it.copy(text = it.text.plusDictated(words)) }
+    }
+
+    fun stopDictation() = dictation.stop()
+
+    fun cancelDictation() = dictation.cancel()
+
+    fun refuseDictation() = dictation.refuse(dictationOwner)
+
+    /** The draft goes with the screen, so a take that's still running goes too. */
+    fun abandonDictation() = dictation.abandon(dictationOwner)
+
     fun send() {
+        if (dictation.state.value.isActive(dictationOwner)) return
         val current = draft.value
         if (!current.hasContent) return
         val drafts = current.pending.mapNotNull { item ->
             item.data?.let { NoteAttachmentDraft(item.name, item.mimeType, it) }
         }
         store?.addNote(key.project, key.chatId, current.text, drafts)
+        dictation.noteSent()
     }
 
     /** Photos keep their pick order however their loads finish: the chips are reserved first. */

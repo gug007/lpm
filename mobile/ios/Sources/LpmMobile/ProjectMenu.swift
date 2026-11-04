@@ -27,6 +27,8 @@ struct ProjectRunControl: View {
     let onHistory: (() -> Void)?
     let onAuto: (_ kind: GitAutoKind) -> Void
     let onDiscard: () -> Void
+    /// Find in the terminal this menu sits over; nil leaves the row out.
+    let onFind: (() -> Void)?
     // On a terminal's screen Rename names that tab, not the project.
     let renamesTab: Bool
     let onRename: () -> Void
@@ -52,6 +54,10 @@ struct ProjectRunControl: View {
 
     var body: some View {
         Menu {
+            if let onFind {
+                Button(action: onFind) { Label("Find in Terminal", systemImage: "magnifyingglass") }
+                Divider()
+            }
             // A YAML the Mac can't read has nothing to start, as on the desktop.
             if running || project.configError == nil {
                 Button {

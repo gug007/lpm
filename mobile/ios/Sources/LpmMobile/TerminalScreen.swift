@@ -9,6 +9,7 @@ struct TerminalScreen: View {
     let term: TerminalInfo
     let project: Project
     @StateObject private var keyboard = KeyboardObserver()
+    @State private var composerRoom: CGFloat = 0
     @State private var textExtent = TextExtent()
     // Flips when the first screen snapshot renders, hiding the loading spinner.
     @State private var hasContent = false
@@ -124,7 +125,8 @@ struct TerminalScreen: View {
             }
             if controlled && ended == nil {
                 TerminalComposer(store: model.composerStore(for: term.id, project: term.project, label: term.label),
-                                 terminalBackground: theme.backgroundColor, onFind: { find.open() })
+                                 terminalBackground: theme.backgroundColor,
+                                 fullHeight: composerRoom)
                     .environment(model)
                     .id(term.id)
             } else if let endedHere {
@@ -137,6 +139,10 @@ struct TerminalScreen: View {
             }
         }
             .background(theme.backgroundColor.ignoresSafeArea(.all, edges: .all))
+            // The space on offer, not what's in it: a composer taller than the screen
+            // after rotating would otherwise keep reading as the room it needs.
+            .frame(minHeight: 0, maxHeight: .infinity)
+            .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { composerRoom = $0 }
             .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).midX } action: { barAxis = $0 }
             .navigationTitle(term.label)
             .navigationBarTitleDisplayMode(.inline)
@@ -144,7 +150,9 @@ struct TerminalScreen: View {
                 ToolbarItem(placement: .principal) { TerminalTitle(term: term, axis: barAxis) }
             }
             .followsGitChanges(term.project)
-            .projectMenuToolbar(project: liveProject, terminal: term, onSpawnedTerminal: { t in
+            .projectMenuToolbar(project: liveProject, terminal: term,
+                                onFind: controlled && ended == nil ? { find.open() } : nil,
+                                onSpawnedTerminal: { t in
                 // The new terminal is owned by the desktop that opened it; claim it
                 // for this phone before pushing so the pushed screen renders live
                 // instead of a "take control" placeholder.

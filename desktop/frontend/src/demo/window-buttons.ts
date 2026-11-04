@@ -9,7 +9,7 @@ export function drawWindowButtons(): void {
   Object.assign(row.style, {
     position: "fixed",
     left: "14px",
-    top: "13px",
+    top: "22px",
     display: "flex",
     gap: "8px",
     zIndex: "2147483645",

@@ -54,8 +54,9 @@ import kotlinx.coroutines.launch
  * A project's toolbar buttons on any of its screens (iOS `projectMenuToolbar`): ⚡
  * for its actions when it has some, and the "…" menu (green while it runs, a
  * spinner while a Start/Stop is out), plus everything that menu opens. On a
- * terminal's screen ([terminal]) its Rename names that tab. [onSpawnedTerminal] is
- * told about a terminal an action run spawns.
+ * terminal's screen ([terminal]) its Rename names that tab, and [onFind] leads the
+ * menu while that tab is live here. [onSpawnedTerminal] is told about a terminal an
+ * action run spawns.
  */
 @Composable
 fun ProjectMenuToolbar(
@@ -64,6 +65,7 @@ fun ProjectMenuToolbar(
     onNavigate: (NavKey) -> Unit,
     modifier: Modifier = Modifier,
     terminal: TerminalInfo? = null,
+    onFind: (() -> Unit)? = null,
     onSpawnedTerminal: (TerminalInfo) -> Unit = {},
     slots: ProjectsSlots = ProjectsSlots(),
     viewModel: ProjectMenuViewModel =
@@ -82,6 +84,7 @@ fun ProjectMenuToolbar(
     val scope = rememberCoroutineScope()
     val confirmRisky = LocalConfirmRisky.current
     val actions = ProjectMenuActions(
+        find = onFind,
         start = viewModel::start,
         stop = { confirmRisky.stopProject(project) { viewModel.stop() } },
         reviewChanges = { onNavigate(GitReviewKey(project, session)) },

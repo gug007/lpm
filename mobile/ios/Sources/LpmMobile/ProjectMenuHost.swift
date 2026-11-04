@@ -8,6 +8,8 @@ struct ProjectMenuHost: ViewModifier {
     let project: Project
     // The terminal whose screen hosts the menu, if any.
     let terminal: TerminalInfo?
+    // Find in that terminal, while it's live here.
+    let onFind: (() -> Void)?
     // Run a terminal action and switch to the terminal it spawns.
     let onSpawnedTerminal: ((TerminalInfo) -> Void)?
 
@@ -152,6 +154,7 @@ struct ProjectMenuHost: ViewModifier {
                                           showAutoSheet = true
                                       },
                                       onDiscard: { confirmingDiscard = true },
+                                      onFind: onFind,
                                       renamesTab: terminal != nil,
                                       onRename: rename,
                                       onTerminalSettings: { showTerminalSettings = true },
@@ -203,8 +206,9 @@ struct ProjectMenuHost: ViewModifier {
 }
 
 extension View {
-    func projectMenuToolbar(project: Project, terminal: TerminalInfo? = nil,
+    func projectMenuToolbar(project: Project, terminal: TerminalInfo? = nil, onFind: (() -> Void)? = nil,
                             onSpawnedTerminal: ((TerminalInfo) -> Void)? = nil) -> some View {
-        modifier(ProjectMenuHost(project: project, terminal: terminal, onSpawnedTerminal: onSpawnedTerminal))
+        modifier(ProjectMenuHost(project: project, terminal: terminal, onFind: onFind,
+                                 onSpawnedTerminal: onSpawnedTerminal))
     }
 }

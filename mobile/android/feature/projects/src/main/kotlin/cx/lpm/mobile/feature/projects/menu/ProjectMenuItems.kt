@@ -24,6 +24,8 @@ import cx.lpm.mobile.feature.projects.R as ProjectsR
 /** What the project menu's rows do; navigation goes to features that may not be ported yet. */
 @Immutable
 class ProjectMenuActions(
+    /** Find in the terminal the menu sits over; null leaves the item out. */
+    val find: (() -> Unit)? = null,
     val start: (profile: String) -> Unit = {},
     val stop: () -> Unit = {},
     val reviewChanges: () -> Unit = {},
@@ -44,9 +46,9 @@ class ProjectMenuActions(
 )
 
 /**
- * The project's "More" menu: Start/Stop, Review Changes, Files, Resume Session, Git,
- * Memory, Commands, Notes, Automations, Claude Account, Status, its profiles, then
- * Rename, Configure and Terminal Settings.
+ * The project's "More" menu: Find in Terminal over a terminal, then Start/Stop, Review
+ * Changes, Files, Resume Session, Git, Memory, Commands, Notes, Automations, Claude
+ * Account, Status, its profiles, then Rename, Configure and Terminal Settings.
  */
 @Composable
 fun ColumnScope.ProjectMenuItems(
@@ -56,6 +58,14 @@ fun ColumnScope.ProjectMenuItems(
     renamesTab: Boolean = false
 ) {
     val running = project.running
+    actions.find?.let {
+        ContextMenuItem(
+            title = stringResource(ProjectsR.string.menu_find_in_terminal),
+            onClick = it,
+            icon = painterResource(R.drawable.ic_search)
+        )
+        ContextMenuDivider()
+    }
     // A YAML the Mac can't read has nothing to start, as on the desktop.
     if (running || project.configError == null) {
         ContextMenuItem(

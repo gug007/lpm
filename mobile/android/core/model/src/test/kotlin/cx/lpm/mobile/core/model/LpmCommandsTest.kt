@@ -34,6 +34,10 @@ class LpmCommandsTest {
             PromptVariables(listOf("ticket", "who"), listOf("branch")),
             promptVariables("Fix {{ticket}} on {{ branch }} for {{who}}, {{ticket}} again")
         )
+        assertEquals(
+            PromptVariables(listOf("what"), listOf("dir")),
+            promptVariables("Read {{dir}}/GUIDE.md about {{what}}")
+        )
         assertTrue(promptVariables("No variables, just \$ARGUMENTS").isEmpty)
     }
 

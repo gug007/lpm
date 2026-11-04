@@ -3,6 +3,8 @@ package cx.lpm.mobile.feature.terminal.composer
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.snapshots.Snapshot
 import cx.lpm.mobile.core.data.commands.LpmCommandsStore
+import cx.lpm.mobile.core.data.dictation.DictationResult
+import cx.lpm.mobile.core.data.dictation.DictationStore
 import cx.lpm.mobile.core.data.git.GitStore
 import cx.lpm.mobile.core.data.services.ServiceLogsStore
 import cx.lpm.mobile.core.data.session.SessionStore
@@ -36,6 +38,8 @@ class ComposerViewModelTest {
 
     private val submitted = mutableListOf<String>()
     private val target = ComposerTarget("t1", "storefront", "Claude", SessionKey.Live)
+    private val engine = FakeDictationEngine()
+    private val dictation = DictationStore(makeEngine = { engine })
 
     private class Setup(val t: TestSession, val socket: FakeSocket, val vm: ComposerViewModel)
 
@@ -66,7 +70,7 @@ class ComposerViewModelTest {
                 }, {}, { submitted += it }, { _, done -> done("$ npm test\nok") })
             )
         }
-        val vm = ComposerViewModel(target, t.sessions)
+        val vm = ComposerViewModel(target, t.sessions, dictation)
         backgroundScope.launch { vm.uiState.collect {} }
         testScheduler.runCurrent()
         return Setup(t, socket, vm)
@@ -290,5 +294,59 @@ class ComposerViewModelTest {
         testScheduler.runCurrent()
         assertEquals("later", s.socket.sentOf("historySaveDraft").single().string("message"))
         assertEquals(R.string.composer_saved_to_drafts, s.vm.uiState.value.sendWarning)
+    }
+
+    @Test
+    fun `dictated words land in the field, after what's typed`() = runTest {
+        val s = setup()
+        s.vm.input.setTextAndPlaceCursorAtEnd("Please")
+        Snapshot.sendApplyNotifications()
+        testScheduler.runCurrent()
+        s.vm.startDictation()
+        testScheduler.runCurrent()
+        assertTrue(s.vm.uiState.value.takeActive)
+        s.vm.stopDictation()
+        engine.finished?.invoke(DictationResult.Words("run the tests"))
+        testScheduler.runCurrent()
+        assertEquals("Please run the tests", s.vm.input.text.toString())
+        assertFalse(s.vm.uiState.value.stripShown)
+    }
+
+    @Test
+    fun `dictated words stay with the prompt the take started on`() = runTest {
+        val s = setup()
+        s.vm.startDictation()
+        s.vm.newTab()
+        testScheduler.runCurrent()
+        s.vm.stopDictation()
+        engine.finished?.invoke(DictationResult.Words("first prompt"))
+        testScheduler.runCurrent()
+        assertEquals("", s.vm.input.text.toString())
+        s.vm.switchTab(0)
+        testScheduler.runCurrent()
+        assertEquals("first prompt", s.vm.input.text.toString())
+    }
+
+    @Test
+    fun `dictated words reach the screen's prompt if theirs has closed`() = runTest {
+        val s = setup()
+        s.vm.startDictation()
+        s.vm.newTab()
+        s.vm.closeTab(0)
+        testScheduler.runCurrent()
+        s.vm.stopDictation()
+        engine.finished?.invoke(DictationResult.Words("kept"))
+        testScheduler.runCurrent()
+        assertEquals("kept", s.vm.input.text.toString())
+    }
+
+    @Test
+    fun `a take in progress holds a send back`() = runTest {
+        val s = setup()
+        s.vm.input.setTextAndPlaceCursorAtEnd("hello")
+        s.vm.startDictation()
+        testScheduler.runCurrent()
+        assertFalse(s.vm.send())
+        assertTrue(submitted.isEmpty())
     }
 }

@@ -47,7 +47,7 @@ export interface ExpandedCommand {
 
 export const SCOPES: readonly CommandScope[] = ["project", "global"];
 
-export const AUTO_VARIABLES = ["branch", "project"] as const;
+export const AUTO_VARIABLES = ["branch", "project", "dir"] as const;
 
 export const NAME_RULE = "Letters, numbers, - and _, starting with a letter or number.";
 

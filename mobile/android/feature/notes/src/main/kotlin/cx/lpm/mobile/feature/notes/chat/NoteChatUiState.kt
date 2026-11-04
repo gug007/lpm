@@ -31,7 +31,7 @@ enum class NoteChatOverlay { None, Loading, Empty }
 data class NoteDraft(
     val text: String = "",
     val pending: List<PendingNoteAttachment> = emptyList(),
-    /** A file refused for its size, shown in the "Too large" alert. */
+    /** A file refused for its size, shown in a toast. */
     val warning: String? = null
 ) {
     val hasContent: Boolean get() = text.trimmingWhitespace().isNotEmpty() || pending.isNotEmpty()

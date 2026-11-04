@@ -1690,7 +1690,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       style={{ width: collapsed ? 0 : width, overflow: collapsed ? "hidden" : undefined }}
     >
       <div
-        className="app-drag flex h-11 shrink-0 items-center justify-end pr-3 pt-[7px]"
+        className="app-drag flex h-11 shrink-0 items-center justify-end pr-3 pt-3 native-chrome:pt-[7px]"
         style={{ minWidth: width }}
       >
         {!isMac && <AppMenuButton onSettings={onSettings} onFeedback={onFeedback} />}

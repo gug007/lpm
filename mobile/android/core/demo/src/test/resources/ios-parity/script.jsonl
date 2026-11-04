@@ -588,6 +588,13 @@
 {"at": 76700, "frame": {"t": "lpmCommandExpand", "project": "storefront", "name": "fix-ticket", "args": "LPM-7", "reqId": "e9"}}
 {"at": 76700, "frame": {"t": "lpmCommandExpand", "project": "storefront", "name": "review-changes", "args": "", "reqId": "e10"}}
 {"at": 76700, "frame": {"t": "lpmCommandExpand", "project": "storefront-2", "name": "ship", "args": "", "reqId": "e11"}}
+{"at": 76700, "frame": {"t": "lpmCommandSave", "project": "storefront", "reqId": "s20", "previous": null, "command": {"scope": "project", "folder": "Review", "name": "kit", "description": "", "body": "Read {{dir}}/GUIDE.md about {{what}}"}}}
+{"at": 76700, "frame": {"t": "lpmCommandSave", "project": "storefront", "reqId": "s21", "previous": null, "command": {"scope": "global", "folder": null, "name": "kit-all", "description": "", "body": "Read {{dir}}/GUIDE.md"}}}
+{"at": 76700, "frame": {"t": "lpmCommandExpand", "project": "storefront", "name": "kit", "args": "a demo", "reqId": "e12"}}
+{"at": 76700, "frame": {"t": "lpmCommandExpand", "project": "storefront", "name": "kit-all", "args": "", "reqId": "e13"}}
+{"at": 76700, "frame": {"t": "lpmCommandExpand", "project": "", "name": "kit-all", "args": "", "reqId": "e14"}}
+{"at": 76700, "frame": {"t": "lpmCommandDelete", "project": "storefront", "reqId": "d4", "target": {"scope": "project", "folder": "Review", "name": "kit"}}}
+{"at": 76700, "frame": {"t": "lpmCommandDelete", "project": "storefront", "reqId": "d5", "target": {"scope": "global", "folder": null, "name": "kit-all"}}}
 {"at": 76800, "frame": {"t": "lpmCommands", "project": "storefront", "reqId": "c3"}}
 {"at": 76800, "frame": {"t": "lpmCommands", "project": "api-gateway", "reqId": "c4"}}
 {"at": 76800, "frame": {"t": "slash", "id": "demo-storefront-claude", "project": "storefront"}}

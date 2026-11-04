@@ -44,17 +44,18 @@
     <string name="composer_placeholder">Message</string>
     <string name="composer_add">Add</string>
     <string name="composer_send">Send</string>
+    <string name="composer_expand">Expand</string>
+    <string name="composer_collapse">Collapse</string>
     <string name="composer_rewriting">Rewriting your prompt…</string>
     <string name="composer_cancel">Cancel</string>
     <string name="composer_rewrite_with_ai">Rewrite with AI</string>
-    <string name="composer_photo_library">Photo Library</string>
-    <string name="composer_take_photo">Take Photo</string>
-    <string name="composer_choose_files">Choose Files</string>
+    <string name="composer_photos">Photos</string>
+    <string name="composer_camera">Camera</string>
+    <string name="composer_files">Files</string>
     <string name="composer_paste_image">Paste Image</string>
     <string name="composer_memory">Memory</string>
     <string name="composer_new_prompt">New prompt</string>
     <string name="composer_history">History</string>
-    <string name="composer_find">Find in Terminal</string>
     <string name="find_placeholder">Find in terminal</string>
     <string name="find_no_matches">No matches</string>
     <string name="find_count">%1$d of %2$d</string>
@@ -75,13 +76,10 @@
         <item quantity="one">%1$d copy</item>
         <item quantity="other">%1$d copies</item>
     </plurals>
-    <string name="composer_heads_up">Heads up</string>
-    <string name="composer_ok">OK</string>
-    <string name="composer_rewrite_failed">Rewrite failed</string>
-    <string name="composer_could_not_attach">Couldn’t attach</string>
     <string name="composer_still_uploading">Still uploading an attachment — try again in a moment.</string>
     <string name="composer_dropped_failures">Some attachments failed to upload and were left out.</string>
-    <string name="composer_saved_to_drafts">Saved to your drafts.</string>
+    <string name="composer_saved_to_drafts">Saved to your drafts</string>
+    <string name="composer_open_drafts">Open Drafts</string>
     <string name="composer_not_sent">Not sent — lpm isn\'t connected to your Mac right now. Your message is still here.</string>
 
     <!-- Autocomplete -->

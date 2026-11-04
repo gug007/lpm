@@ -32,7 +32,7 @@ const PERIODS = [
   { days: 0, label: "All time" },
 ] as const;
 
-export function StatsView() {
+export function StatsView({ sidebarCollapsed = false }: { sidebarCollapsed?: boolean }) {
   const [days, setDays] = useState(30);
   const [machine, setMachine] = useState(ALL_MACHINES);
   const [stats, setStats] = useState<AgentUsageStats | null>(null);
@@ -87,7 +87,11 @@ export function StatsView() {
         if (event.key === "Escape" && view.stepBack()) event.stopPropagation();
       }}
     >
-      <div className="app-drag flex items-center gap-4 -mx-6 px-6 py-1">
+      <div
+        className={`app-drag flex items-center gap-4 -mx-6 px-6 py-1 transition-[padding] duration-200 ${
+          sidebarCollapsed ? "pl-[112px] native-chrome:pl-11" : ""
+        }`}
+      >
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-2">
             <h1 className="text-xl font-semibold tracking-tight">Stats</h1>

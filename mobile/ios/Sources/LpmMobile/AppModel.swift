@@ -217,6 +217,9 @@ final class AppModel {
     // Read-aloud playback. Held here rather than in a view so speech keeps going
     // after leaving the screen that started it.
     @ObservationIgnored let speech = SpeechStore()
+    // The composers' recorder, held here so a take's words still reach a draft whose
+    // screen has gone.
+    @ObservationIgnored let dictation = DictationStore()
     // reqId -> terminal id, routing streamed transform replies to the right store.
     @ObservationIgnored private var transformRoutes: [String: String] = [:]
 
@@ -466,6 +469,11 @@ final class AppModel {
     init(visitHost: AppModel? = nil) {
         self.visitHost = visitHost
         link.model = self
+        dictation.makeEngine = { [weak self] in
+            if self?.demoMode == true { return DemoDictationEngine() }
+            return SpeechDictationEngine()
+        }
+        dictation.willRecord = { [weak self] in self?.speech.stop() }
         link.network.onChange = { [weak self] from, to in self?.networkChanged(from: from, to: to) }
         git.model = self
         gitAuto.model = self
@@ -1002,6 +1010,7 @@ final class AppModel {
     /// then restore whatever real pairing state was on disk (usually none — the demo
     /// is offered on the fresh pairing screen).
     func exitDemo() {
+        dictation.cancel()
         // Tear down while still in Demo Mode: the disconnect's bookkeeping persists
         // the active Mac, and only `demoMode` keeps the demo Mac off disk.
         resetSessionState()

@@ -97,7 +97,7 @@ data class ExpandedCommand(val text: String, val missing: List<String>)
 data class CommandRun(val name: String, val args: String)
 
 /** The variables lpm fills in by itself. */
-val AUTO_COMMAND_VARIABLES = listOf("branch", "project")
+val AUTO_COMMAND_VARIABLES = listOf("branch", "project", "dir")
 
 private val COMMAND_NAME = Regex("^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 private val COMMAND_RUN = Regex("^\\s*/([A-Za-z0-9][A-Za-z0-9_-]*)(?:\\s+([\\s\\S]*))?$")

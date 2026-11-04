@@ -9,6 +9,7 @@ struct AutomationConversationView: View {
     let jobId: String
     let rootAt: Int
 
+    @State private var composerRoom: CGFloat = 0
     @State private var pendingMessage: String?
     @State private var pendingBaseCount = 0
 
@@ -73,10 +74,12 @@ struct AutomationConversationView: View {
                     disabled: isSending,
                     placeholder: isSending ? "Automation is running…"
                         : entries.contains(where: \.waiting) ? "Answer above, or reply in your own words"
-                        : "Reply to this run"
+                        : "Reply to this run",
+                    fullHeight: composerRoom
                 )
             }
         }
+        .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { composerRoom = $0 }
         .navigationTitle(job?.displayName ?? "Automation chat")
         .navigationBarTitleDisplayMode(.inline)
         .task {

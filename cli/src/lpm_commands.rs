@@ -77,7 +77,7 @@ pub struct NameArgs {
 
 #[derive(Args)]
 pub struct Prompt {
-    #[arg(long, value_name = "TEXT", conflicts_with_all = ["file", "stdin"], help = "The prompt; {{name}} asks for a value, {{branch}} and {{project}} fill themselves in")]
+    #[arg(long, value_name = "TEXT", conflicts_with_all = ["file", "stdin"], help = "The prompt; {{name}} asks for a value, {{branch}}, {{project}} and {{dir}} (the command's folder) fill themselves in")]
     prompt: Option<String>,
     #[arg(
         long,

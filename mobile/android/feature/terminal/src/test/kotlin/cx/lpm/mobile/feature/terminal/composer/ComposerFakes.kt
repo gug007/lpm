@@ -1,6 +1,10 @@
 package cx.lpm.mobile.feature.terminal.composer
 
 import androidx.compose.ui.graphics.ImageBitmap
+import cx.lpm.mobile.core.data.dictation.DictationEngine
+import cx.lpm.mobile.core.data.dictation.DictationFailure
+import cx.lpm.mobile.core.data.dictation.DictationMeter
+import cx.lpm.mobile.core.data.dictation.DictationResult
 import java.io.File
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -138,4 +142,23 @@ fun TestScope.composer(link: FakeLink, media: FakeMedia): ComposerStore {
         io = dispatcher,
         now = { testScheduler.currentTime }
     )
+}
+
+internal class FakeDictationEngine : DictationEngine {
+    var heard: ((String) -> Unit)? = null
+    var finished: ((DictationResult) -> Unit)? = null
+
+    override fun start(
+        meter: DictationMeter,
+        heard: (String) -> Unit,
+        finished: (DictationResult) -> Unit
+    ): DictationFailure? {
+        this.heard = heard
+        this.finished = finished
+        return null
+    }
+
+    override fun stop() = Unit
+
+    override fun cancel() = Unit
 }

@@ -41,6 +41,7 @@ import cx.lpm.mobile.feature.notes.R
 import cx.lpm.mobile.feature.notes.attachment.NoteAttachmentActions
 import cx.lpm.mobile.feature.notes.composer.NotesComposer
 import cx.lpm.mobile.feature.notes.composer.NotesComposerActions
+import cx.lpm.mobile.feature.notes.composer.NotesDictation
 import cx.lpm.mobile.feature.notes.ui.NotesErrorBanner
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
@@ -68,7 +69,8 @@ fun NoteChatScreen(
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier,
     actions: NoteChatActions = NoteChatActions(),
-    composer: NotesComposerActions = NotesComposerActions()
+    composer: NotesComposerActions = NotesComposerActions(),
+    dictation: NotesDictation? = null
 ) {
     val list = rememberLazyListState()
     FollowNewest(list, state.newestId)
@@ -133,6 +135,7 @@ fun NoteChatScreen(
             sending = state.sending,
             canSend = state.canSend,
             actions = composer,
+            dictation = dictation,
             modifier = Modifier.imePadding()
         )
     }

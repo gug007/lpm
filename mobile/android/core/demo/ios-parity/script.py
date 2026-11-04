@@ -548,6 +548,15 @@ at(76600, 'lpmCommandDelete', project='', reqId='d3', target=ref('project', None
 at(76700, 'lpmCommandExpand', project='storefront', name='fix-ticket', args='LPM-7', reqId='e9')
 at(76700, 'lpmCommandExpand', project='storefront', name='review-changes', args='', reqId='e10')
 at(76700, 'lpmCommandExpand', project='storefront-2', name='ship', args='', reqId='e11')
+at(76700, 'lpmCommandSave', project='storefront', reqId='s20', previous=None,
+   command=cmd('project', 'Review', 'kit', body='Read {{dir}}/GUIDE.md about {{what}}'))
+at(76700, 'lpmCommandSave', project='storefront', reqId='s21', previous=None,
+   command=cmd('global', None, 'kit-all', body='Read {{dir}}/GUIDE.md'))
+at(76700, 'lpmCommandExpand', project='storefront', name='kit', args='a demo', reqId='e12')
+at(76700, 'lpmCommandExpand', project='storefront', name='kit-all', args='', reqId='e13')
+at(76700, 'lpmCommandExpand', project='', name='kit-all', args='', reqId='e14')
+at(76700, 'lpmCommandDelete', project='storefront', reqId='d4', target=ref('project', 'Review', 'kit'))
+at(76700, 'lpmCommandDelete', project='storefront', reqId='d5', target=ref('global', None, 'kit-all'))
 at(76800, 'lpmCommands', project='storefront', reqId='c3'); at(76800, 'lpmCommands', project='api-gateway', reqId='c4')
 at(76800, 'slash', id='demo-storefront-claude', project='storefront')
 at(76800, 'slash', id='demo-storefront-1', project='storefront')
