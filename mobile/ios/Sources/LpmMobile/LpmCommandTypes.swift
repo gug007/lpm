@@ -20,6 +20,10 @@ struct LpmCommand: Identifiable, Equatable {
     let body: String
     let scope: LpmCommandScope
     let argumentHint: String
+    /// Git ignores it and holds none of its files. False from a Mac on an older lpm.
+    let keptOutOfGit: Bool
+    /// Git holds some of its files. False from a Mac on an older lpm.
+    let tracked: Bool
 
     var id: String { "\(scope.rawValue):\(folder ?? ""):\(name)" }
     var ref: LpmCommandRef { LpmCommandRef(scope: scope, folder: folder, name: name) }
@@ -37,6 +41,8 @@ struct LpmCommand: Identifiable, Equatable {
         body = o["body"] as? String ?? ""
         scope = LpmCommandScope(rawValue: o["scope"] as? String ?? "") ?? .global
         argumentHint = o["argumentHint"] as? String ?? ""
+        keptOutOfGit = o["keptOutOfGit"] as? Bool ?? false
+        tracked = o["tracked"] as? Bool ?? false
     }
 }
 
@@ -48,6 +54,8 @@ struct OtherSkill: Identifiable, Equatable {
     let agents: [String]
     let path: String
     let folder: String?
+    /// With the list's skills in no folder, out of the Other skills group.
+    let atRoot: Bool
 
     var id: String { name }
 
@@ -63,6 +71,7 @@ struct OtherSkill: Identifiable, Equatable {
         agents = o["agents"] as? [String] ?? []
         path = o["path"] as? String ?? ""
         folder = o["folder"] as? String
+        atRoot = o["atRoot"] as? Bool ?? false
     }
 }
 
@@ -71,19 +80,35 @@ struct LpmCommandList: Equatable {
     let commands: [LpmCommand]
     /// Empty from a Mac on an older lpm.
     let others: [OtherSkill]
+    /// The list is a project's in a git repo. False from a Mac on an older lpm.
+    let inRepo: Bool
 
-    /// The commands in a folder, and the other skills filed there. Other skills in
-    /// no folder have their own row, so No folder doesn't count them.
-    func count(in folder: String?) -> Int {
-        commands.filter { $0.folder == folder }.count + (folder == nil ? 0 : others(in: folder).count)
+    /// The folders directly inside `parent`, or at the top of the list for nil.
+    func subfolders(of parent: String?) -> [String] {
+        folders.filter { LpmFolderPath.parent($0) == parent }
     }
 
-    func others(in folder: String?) -> [OtherSkill] { others.filter { $0.folder == folder } }
+    /// The commands in a folder and the folders inside it, and the other skills
+    /// shown there. The Other skills group has its own row, so No folder doesn't count it.
+    func count(in folder: String?) -> Int {
+        guard let folder else { return commands.filter { $0.folder == nil }.count + others(in: nil).count }
+        let held = { (f: String?) in f.map { LpmFolderPath.isWithin($0, folder) } ?? false }
+        return commands.filter { held($0.folder) }.count + others.filter { held($0.folder) }.count
+    }
+
+    /// The other skills shown with a folder's commands, or with the ones in no folder.
+    func others(in folder: String?) -> [OtherSkill] {
+        others.filter { $0.folder == folder && (folder != nil || $0.atRoot) }
+    }
+
+    /// The other skills in neither: the Other skills group.
+    var otherGroup: [OtherSkill] { others.filter { $0.folder == nil && !$0.atRoot } }
 
     init(_ o: [String: Any]) {
         folders = o["folders"] as? [String] ?? []
         commands = (o["commands"] as? [[String: Any]] ?? []).map(LpmCommand.init)
         others = (o["others"] as? [[String: Any]] ?? []).map(OtherSkill.init)
+        inRepo = o["inRepo"] as? Bool ?? false
     }
 }
 
@@ -104,6 +129,32 @@ struct LpmCommandLists: Equatable {
         global = LpmCommandList(o["global"] as? [String: Any] ?? [:])
         project = (o["project"] as? [String: Any]).map(LpmCommandList.init)
         projectError = o["projectError"] as? String
+    }
+}
+
+/// A folder is the path to it: `Work/Reviews` sits inside `Work`, and a list names
+/// every level.
+enum LpmFolderPath {
+    /// The folder holding this one, nil at the top of a list.
+    static func parent(_ folder: String) -> String? {
+        folder.lastIndex(of: "/").map { String(folder[..<$0]) }
+    }
+
+    /// A folder's own name, without the folders it sits inside.
+    static func label(_ folder: String) -> String {
+        folder.lastIndex(of: "/").map { String(folder[folder.index(after: $0)...]) } ?? folder
+    }
+
+    /// The folder named `name` inside `parent`. Blank stays blank, for the Mac to refuse.
+    static func child(_ parent: String?, _ name: String) -> String {
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let parent, !name.isEmpty else { return name }
+        return "\(parent)/\(name)"
+    }
+
+    /// `folder` is `parent` or sits somewhere inside it.
+    static func isWithin(_ folder: String, _ parent: String) -> Bool {
+        folder == parent || folder.hasPrefix("\(parent)/")
     }
 }
 
@@ -128,6 +179,7 @@ struct LpmCommandDraft: Identifiable {
     var name: String
     var description: String
     var body: String
+    var keepOutOfGit = false
 
     static func new(scope: LpmCommandScope, folder: String? = nil, body: String = "") -> LpmCommandDraft {
         LpmCommandDraft(original: nil, scope: scope, folder: folder, name: "", description: "", body: body)
@@ -135,7 +187,7 @@ struct LpmCommandDraft: Identifiable {
 
     static func editing(_ c: LpmCommand) -> LpmCommandDraft {
         LpmCommandDraft(original: c.ref, scope: c.scope, folder: c.folder, name: c.name,
-                        description: c.description, body: c.body)
+                        description: c.description, body: c.body, keepOutOfGit: c.keptOutOfGit)
     }
 
     var place: LpmCommandRef { LpmCommandRef(scope: scope, folder: folder, name: name) }
@@ -220,10 +272,11 @@ extension Wire {
     }
 
     static func lpmCommandSave(project: String, command: LpmCommandRef, description: String, body: String,
-                               previous: LpmCommandRef?, reqId: String) -> String {
+                               keepOutOfGit: Bool?, previous: LpmCommandRef?, reqId: String) -> String {
         var input = command.wire
         input["description"] = description
         input["body"] = body
+        if let keepOutOfGit { input["keepOutOfGit"] = keepOutOfGit }
         return json(["t": "lpmCommandSave", "project": project, "command": input,
                      "previous": previous?.wire ?? NSNull(), "reqId": reqId])
     }
@@ -241,9 +294,11 @@ extension Wire {
     }
 
     static func lpmCommandOtherFolder(project: String, scope: LpmCommandScope, name: String, folder: String?,
-                                      reqId: String) -> String {
-        json(["t": "lpmCommandOtherFolder", "project": project, "scope": scope.rawValue, "name": name,
-              "folder": folder ?? NSNull(), "reqId": reqId])
+                                      root: Bool = false, reqId: String) -> String {
+        var frame: [String: Any] = ["t": "lpmCommandOtherFolder", "project": project, "scope": scope.rawValue,
+                                    "name": name, "folder": folder ?? NSNull(), "reqId": reqId]
+        if root { frame["root"] = true }
+        return json(frame)
     }
 
     static func lpmCommandConvert(project: String, scope: LpmCommandScope, name: String, toLpm: Bool,

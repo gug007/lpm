@@ -144,8 +144,8 @@ export function CreateLpmCommandFolder(project, scope, name) {
 export function RenameLpmCommandFolder(project, scope, name, newName) {
   return invoke("rename_lpm_command_folder", { project, scope, name, newName });
 }
-export function MoveOtherSkill(project, scope, name, folder) {
-  return invoke("move_other_skill", { project, scope, name, folder });
+export function MoveOtherSkill(project, scope, name, folder, root) {
+  return invoke("move_other_skill", { project, scope, name, folder, root });
 }
 export function ConvertSkill(project, scope, name, toLpm) {
   return invoke("convert_skill", { project, scope, name, toLpm });

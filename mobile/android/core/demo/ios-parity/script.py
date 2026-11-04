@@ -527,9 +527,19 @@ at(76300, 'lpmCommandSave', project='storefront', reqId='s9',
 at(76300, 'lpmCommandSave', project='storefront', reqId='s10',
    command=cmd('project', 'Review', 'review-changes', 'Renamed nothing', 'New body'),
    previous=ref('project', 'Review', 'review-changes'))
+at(76300, 'lpmCommandSave', project='storefront', reqId='k1',
+   command={**cmd('project', None, 'private-notes'), 'keepOutOfGit': True}, previous=None)
+at(76300, 'lpmCommandSave', project='storefront', reqId='k2',
+   command=cmd('project', None, 'private-notes', 'Still kept out'), previous=ref('project', None, 'private-notes'))
+at(76300, 'lpmCommandSave', project='storefront', reqId='k3',
+   command={**cmd('project', 'Review', 'review-changes', 'Renamed nothing', 'New body'), 'keepOutOfGit': True},
+   previous=ref('project', 'Review', 'review-changes'))
+at(76300, 'lpmCommandSave', project='storefront', reqId='k4',
+   command={**cmd('global', None, 'private-notes', 'Global now'), 'keepOutOfGit': True},
+   previous=ref('project', None, 'private-notes'))
 at(76400, 'lpmCommandFolder', project='storefront', reqId='f1', op='create', scope='project', name=' Drafts ')
 at(76400, 'lpmCommandFolder', project='storefront', reqId='f2', op='create', scope='project', name='drafts')
-at(76400, 'lpmCommandFolder', project='storefront', reqId='f3', op='create', scope='global', name='a/b')
+at(76400, 'lpmCommandFolder', project='storefront', reqId='f3', op='create', scope='global', name='a:b')
 at(76400, 'lpmCommandFolder', project='storefront', reqId='f4', op='create', scope='global', name='  ')
 at(76400, 'lpmCommandFolder', project='storefront', reqId='f5', op='rename', scope='project', name='Bugs', newName='Fixes')
 at(76400, 'lpmCommandFolder', project='storefront', reqId='f6', op='rename', scope='project', name='Fixes', newName='DRAFTS')
@@ -545,6 +555,18 @@ at(76600, 'lpmCommandDelete', project='storefront', reqId='d1', target=ref('proj
 at(76600, 'lpmCommandFolder', project='storefront', reqId='f14', op='delete', scope='project', name='Fixes')
 at(76600, 'lpmCommandDelete', project='storefront', reqId='d2', target=ref('global', None, 'gone'))
 at(76600, 'lpmCommandDelete', project='', reqId='d3', target=ref('project', None, 'x'))
+at(76620, 'lpmCommandFolder', project='storefront', reqId='n1', op='create', scope='global', name=' Work / Reviews /')
+at(76620, 'lpmCommandFolder', project='storefront', reqId='n2', op='create', scope='global', name='work/reviews')
+at(76620, 'lpmCommandFolder', project='storefront', reqId='n3', op='create', scope='global', name='WORK/Deep/.hidden')
+at(76620, 'lpmCommandSave', project='storefront', reqId='n4', command=cmd('global', 'WORK/reviews/Deep', 'nested-one'), previous=None)
+at(76620, 'lpmCommandSave', project='storefront', reqId='n5', command=cmd('global', 'Work', 'nested-two'), previous=None)
+at(76640, 'lpmCommandFolder', project='storefront', reqId='n6', op='rename', scope='global', name='Work', newName='Work/Reviews/Work')
+at(76640, 'lpmCommandFolder', project='storefront', reqId='n7', op='rename', scope='global', name='Work', newName='Job')
+at(76640, 'lpmCommandFolder', project='storefront', reqId='n8', op='delete', scope='global', name='Job/Reviews')
+at(76640, 'lpmCommandFolder', project='storefront', reqId='n9', op='delete', scope='global', name='Job')
+at(76640, 'lpmCommandDelete', project='storefront', reqId='n10', target=ref('global', 'Deep', 'nested-one'))
+at(76640, 'lpmCommandDelete', project='storefront', reqId='n11', target=ref('global', None, 'nested-two'))
+at(76640, 'lpmCommandFolder', project='storefront', reqId='n12', op='delete', scope='global', name='Deep')
 at(76700, 'lpmCommandExpand', project='storefront', name='fix-ticket', args='LPM-7', reqId='e9')
 at(76700, 'lpmCommandExpand', project='storefront', name='review-changes', args='', reqId='e10')
 at(76700, 'lpmCommandExpand', project='storefront-2', name='ship', args='', reqId='e11')
@@ -555,6 +577,9 @@ at(76700, 'lpmCommandSave', project='storefront', reqId='s21', previous=None,
 at(76700, 'lpmCommandOtherFolder', project='storefront', reqId='o1', scope='project', name='deploy-preview', folder='Review')
 at(76700, 'lpmCommandOtherFolder', project='storefront', reqId='o2', scope='project', name='nope', folder=None)
 at(76700, 'lpmCommandOtherFolder', project='storefront', reqId='o3', scope='global', name='find-docs', folder='Docs')
+at(76700, 'lpmCommandOtherFolder', project='storefront', reqId='o7', scope='project', name='db-migrate', folder=None, root=True)
+at(76700, 'lpmCommandOtherFolder', project='storefront', reqId='o8', scope='project', name='db-migrate', folder='Review', root=True)
+at(76700, 'lpmCommandOtherFolder', project='storefront', reqId='o9', scope='project', name='db-migrate', folder=None)
 at(76700, 'lpmCommandConvert', project='storefront', reqId='o4', scope='project', name='deploy-preview', toLpm=True)
 at(76700, 'lpmCommandConvert', project='storefront', reqId='o5', scope='project', name='deploy-preview', toLpm=False)
 at(76700, 'lpmCommandConvert', project='storefront', reqId='o6', scope='project', name='nope', toLpm=True)

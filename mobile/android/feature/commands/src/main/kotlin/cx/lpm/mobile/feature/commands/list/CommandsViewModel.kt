@@ -2,12 +2,10 @@ package cx.lpm.mobile.feature.commands.list
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import cx.lpm.mobile.core.data.commands.CommandOutcome
 import cx.lpm.mobile.core.data.commands.LpmCommandsStore
 import cx.lpm.mobile.core.data.session.MacSessions
 import cx.lpm.mobile.core.model.CommandScope
 import cx.lpm.mobile.core.model.SessionKey
-import cx.lpm.mobile.core.protocol.CommandFolderOp
 import cx.lpm.mobile.feature.commands.CommandsWatch
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
@@ -21,7 +19,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
 
 /** A project's lpm commands (iOS `CommandsScreen`): both lists by folder, and folder changes. */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -34,14 +31,14 @@ class CommandsViewModel @AssistedInject constructor(
     internal val watch = CommandsWatch(sessions, session, project)
 
     private val picked = MutableStateFlow(CommandScope.Project)
-    private val changeError = MutableStateFlow<String?>(null)
+    private val folderChanges = FolderChanges(watch, viewModelScope) { uiState.value.scope }
 
     val uiState: StateFlow<CommandsUiState> = sessions.session(session)
         .flatMapLatest { s ->
             val commands = s?.store<LpmCommandsStore>()?.state ?: return@flatMapLatest flowOf(
                 CommandsUiState()
             )
-            combine(commands, picked, changeError) { state, scope, error ->
+            combine(commands, picked, folderChanges.error) { state, scope, error ->
                 state.commandsUiState(project, scope, error)
             }
         }
@@ -55,25 +52,13 @@ class CommandsViewModel @AssistedInject constructor(
         watch.store?.load(project)
     }
 
-    fun createFolder(name: String) = change(CommandFolderOp.Create, name)
+    fun createFolder(name: String) = folderChanges.create(name)
 
-    fun renameFolder(folder: String, newName: String) =
-        change(CommandFolderOp.Rename, folder, newName)
+    fun renameFolder(folder: String, newName: String) = folderChanges.rename(folder, newName)
 
-    fun deleteFolder(folder: String) = change(CommandFolderOp.Delete, folder)
+    fun deleteFolder(folder: String) = folderChanges.delete(folder)
 
-    fun dismissError() {
-        changeError.value = null
-    }
-
-    private fun change(op: CommandFolderOp, name: String, newName: String? = null) {
-        val store = watch.store ?: return
-        val scope = uiState.value.scope
-        viewModelScope.launch {
-            val outcome = store.folder(project, op, scope, name, newName)
-            if (outcome is CommandOutcome.Failed) changeError.value = outcome.error
-        }
-    }
+    fun dismissError() = folderChanges.dismissError()
 
     @AssistedFactory
     interface Factory {

@@ -404,6 +404,9 @@ class LpmClient internal constructor(
         // `lpmCommandOtherFolder` and `lpmCommandConvert`.
         const val LPM_OTHER_SKILLS_FEATURE = "lpmOtherSkills"
 
+        // A folder name in `lpmCommandFolder` may be a path, `Parent/Child`.
+        const val LPM_NESTED_FOLDERS_FEATURE = "lpmNestedFolders"
+
         const val OFFLINE_HINT =
             "Can't reach your Mac. On cellular, make sure Tailscale is connected on both devices."
 

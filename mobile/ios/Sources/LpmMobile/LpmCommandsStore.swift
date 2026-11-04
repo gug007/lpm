@@ -55,11 +55,11 @@ final class LpmCommandsStore {
 
     /// Create a command, or with `previous` edit one: a new name, folder or list
     /// moves its file.
-    func save(_ project: String, place: LpmCommandRef, description: String, body: String,
+    func save(_ project: String, place: LpmCommandRef, description: String, body: String, keepOutOfGit: Bool?,
               previous: LpmCommandRef?) async throws {
         try await change(project) {
             Wire.lpmCommandSave(project: project, command: place, description: description, body: body,
-                                previous: previous, reqId: $0)
+                                keepOutOfGit: keepOutOfGit, previous: previous, reqId: $0)
         }
     }
 
@@ -67,10 +67,13 @@ final class LpmCommandsStore {
         try await change(project) { Wire.lpmCommandDelete(project: project, target: target, reqId: $0) }
     }
 
-    /// Files a skill not made in lpm in a folder, or back out of one with nil.
-    func moveOther(_ project: String, scope: LpmCommandScope, name: String, folder: String?) async throws {
+    /// Files a skill not made in lpm in a folder. With nil, `root` puts it with the
+    /// skills in no folder, and otherwise it goes back to the Other skills group.
+    func moveOther(_ project: String, scope: LpmCommandScope, name: String, folder: String?,
+                   root: Bool = false) async throws {
         try await change(project) {
-            Wire.lpmCommandOtherFolder(project: project, scope: scope, name: name, folder: folder, reqId: $0)
+            Wire.lpmCommandOtherFolder(project: project, scope: scope, name: name, folder: folder, root: root,
+                                       reqId: $0)
         }
     }
 

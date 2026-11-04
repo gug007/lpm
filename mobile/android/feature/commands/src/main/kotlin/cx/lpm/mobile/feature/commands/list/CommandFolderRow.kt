@@ -23,6 +23,7 @@ import cx.lpm.mobile.core.designsystem.component.ListRow
 import cx.lpm.mobile.core.designsystem.component.SwipeAction
 import cx.lpm.mobile.core.designsystem.component.SwipeActionsBox
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
+import cx.lpm.mobile.core.model.folderLabel
 import cx.lpm.mobile.feature.commands.R
 
 /**
@@ -112,7 +113,7 @@ private fun FolderLine(
         }
     ) {
         Text(
-            text = row.folder ?: stringResource(R.string.commands_no_folder),
+            text = row.folder?.let(::folderLabel) ?: stringResource(R.string.commands_no_folder),
             style = LpmTheme.typography.body,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis

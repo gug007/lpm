@@ -28,7 +28,8 @@ sealed interface WireCommands {
         command: CommandRef,
         description: String,
         body: String,
-        previous: CommandRef?
+        previous: CommandRef?,
+        keepOutOfGit: Boolean? = null
     ): String = frame("lpmCommandSave") {
         put("project", project)
         put("reqId", reqId)
@@ -36,6 +37,7 @@ sealed interface WireCommands {
             putRef(command)
             put("description", description)
             put("body", body)
+            if (keepOutOfGit != null) put("keepOutOfGit", keepOutOfGit)
         }
         if (previous != null) {
             putJsonObject("previous") { putRef(previous) }
@@ -72,13 +74,15 @@ sealed interface WireCommands {
         reqId: String,
         scope: CommandScope,
         name: String,
-        folder: String?
+        folder: String?,
+        root: Boolean = false
     ): String = frame("lpmCommandOtherFolder") {
         put("project", project)
         put("reqId", reqId)
         put("scope", scope.wire)
         put("name", name)
         put("folder", folder)
+        if (root) put("root", true)
     }
 
     fun lpmCommandConvert(

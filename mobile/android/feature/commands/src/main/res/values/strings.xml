@@ -20,7 +20,7 @@
     <string name="commands_rename_folder">Rename folder</string>
     <string name="commands_delete_folder">Delete folder</string>
     <string name="commands_delete_folder_title">Delete the %1$s folder?</string>
-    <string name="commands_delete_folder_message">Its skills move to No folder.</string>
+    <string name="commands_delete_folder_message">What\'s inside moves up a level.</string>
     <string name="commands_change_failed">Couldn\'t change skills</string>
     <string name="commands_load_failed">Couldn\'t load skills</string>
     <string name="commands_other_skills">Other skills</string>
@@ -44,6 +44,9 @@
     <string name="command_editor_description">Description</string>
     <string name="command_editor_description_placeholder">Shown next to the name in the / menu</string>
     <string name="command_editor_prompt">Prompt</string>
+    <string name="command_editor_keep_out_of_git">Keep out of Git</string>
+    <string name="command_editor_keep_out_of_git_hint">Stays in the project folder and is never committed.</string>
+    <string name="command_editor_keep_out_of_git_committed">Already committed. After saving, commit to remove it from the repo. Past commits keep a copy, and other computers lose it when they pull.</string>
     <string name="command_editor_delete">Delete skill</string>
     <string name="command_editor_convert">Convert to other skill</string>
     <string name="command_editor_delete_title">Delete /%1$s?</string>

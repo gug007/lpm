@@ -77,6 +77,8 @@ fn command(name: &str, scope: Scope, body: &str) -> LpmCommand {
         scope,
         argument_hint: String::new(),
         reach: Default::default(),
+        kept_out_of_git: false,
+        tracked: false,
     }
 }
 

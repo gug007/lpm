@@ -766,7 +766,8 @@ announces it itself.
 
 Mirrors the portable subset of `~/.lpm` between two paired Macs: projects (present
 on both — intersection only), synced global files + dirs (union — created when
-one-sided), and templates referenced by a matched project. Machine-local parts
+one-sided), templates referenced by a matched project, and global lpm skills (union,
+at `v:2` only). Machine-local parts
 (project `root`/`ssh`/`claudeAccount`/`claudeAccounts`/`parent_name`, settings.json window/geometry
 keys) are stripped from the compared **portable digest** and preserved locally on
 apply, so two Macs that differ only in local paths compare as in sync. The client
@@ -774,8 +775,8 @@ drives every sync; the host answers. Each side that receives changes first copie
 what a sync can overwrite (projects, templates, the synced global files and dirs) to
 `~/.lpm.backup-<ts>`. File-browser metadata (`.DS_Store`, `Thumbs.db`,
 `desktop.ini`) in a synced dir is never synced. Rust: `peersync.rs` (shared digest / plan /
-apply), `syncstate.rs` (the revision sidecar), driven from `peerclient.rs` (client)
-and answered in `peer.rs` (host).
+apply), `skillsync.rs` (skills), `syncstate.rs` (the revision sidecar), driven from
+`peerclient.rs` (client) and answered in `peer.rs` (host).
 
 Three request frames, each a generic correlated request (`reqId`, answered by a
 `result` frame). `v` is the frame version: `1` = legacy (configSync), `2` =
@@ -807,6 +808,8 @@ revision-aware (configSync2). A client sends `v:2` only to a host that advertise
   "projects":  { "<name>": { "hash", "mtime", "rev"?, "device"?, "deleted"?, "scaffold"? } },
   "globals":   { "<rel>":  { "hash", "mtime", "rev"?, "device"?, "deleted"? } },
   "templates": { "<name>": { "hash", "mtime", "rev"?, "device"?, "deleted"? } },
+  "skills":    { "<name>": { "hash", "mtime", "rev"?, "device"?, "deleted"? } },
+  "heldSkills": ["<name>"],
   "projectExtends": { "<name>": ["<template>"] },
   "device": "<sidecar uuid>"
 }
@@ -821,6 +824,17 @@ revision counter, `device` the sidecar id of the Mac that authored that revision
 `services`, which is all that creating a project writes. It is sent only when true,
 so an older peer's projects read as false.
 
+`skills` lists the sender's global lpm skills. It is left out at `v:1`, by a build
+that predates it, and when the sender's skills root can't be read; a plan carries
+skills only when both maps have the key, so no feature flag is needed, and none of
+those cases reads as every skill deleted. `heldSkills` names what must stay as it is
+on the sender: skills lpm didn't create, and lpm's own that can't cross (a linked
+folder, a folder over 8 MiB). A name held on either side stays out of the plan both
+ways, deletions included, and `peer_sync_status` returns it as `skippedSkills` when
+the other side has that skill. `skill-folders`, the list of empty folders, joins the
+global files only between two such maps, because an older build refuses it as a
+global it doesn't sync.
+
 ### Wire item
 
 ```json
@@ -831,6 +845,15 @@ Text files travel as UTF-8, binaries as base64. `deleted:true` (v2) is a pushed
 deletion — empty content, the host removes the file (path-validated like a write,
 synced-dir files only). `rev`/`device` (v2 push) let the host record the base
 without holding the pusher's digest map.
+
+A `skill` item is one whole skill folder, so a prompt and its scripts land together:
+`enc` is `text` and `content` is `{"files":[{"path","b64","exec"?}]}`. `hash` covers
+each file's relative path and content, not its mode, which Windows doesn't have. The
+receiver refuses a bundle whose `SKILL.md` lacks the `lpm-created` mark, a path that
+leaves the folder, and a name that isn't an lpm skill there. It builds the folder
+beside the old one and swaps it in with one rename, keeping the skill in the root that
+computer already holds it in, then refreshes the Claude link. A deletion removes the
+skill as Delete in the app does, and the backup copies each lpm skill to `skills/`.
 
 `secret` rides only with `telegram.json` (bot + chats): the bot token, which the
 file leaves out. The receiver stores it in its own secret store (Keychain on
@@ -901,7 +924,8 @@ regardless, and a backup is always taken.
 | old ↔ new | old client sends `v:1`; new host answers with the stripped legacy map (no revisions, tombstones removed) and applies without touching its sidecar. |
 
 Deletions and revision fields are therefore never sent to, nor accepted from, a peer
-that does not speak `configSync2`.
+that does not speak `configSync2`. Skills need both sides on a build that lists them;
+until then they stay where they are and the rest of the sync runs as before.
 
 ### Auto sync
 

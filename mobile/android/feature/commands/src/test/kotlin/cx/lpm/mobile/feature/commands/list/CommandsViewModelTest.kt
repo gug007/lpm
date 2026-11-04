@@ -73,6 +73,68 @@ class CommandsViewModelTest {
         assertEquals(FolderRowUi(null, 1), folders.last())
     }
 
+    private fun TestScope.folderPage(t: TestSession, folder: String): CommandFolderViewModel {
+        val vm = CommandFolderViewModel(
+            "storefront",
+            CommandScope.Project,
+            folder,
+            SessionKey.Live,
+            t.sessions
+        )
+        backgroundScope.launch { vm.subfolders.collect {} }
+        backgroundScope.launch { vm.changeError.collect {} }
+        vm.watch.open()
+        t.settle()
+        return vm
+    }
+
+    @Test
+    fun `a folder made in a folder sits inside it`() = runTest {
+        val t = demoSession()
+        val top = opened(t)
+        val page = folderPage(t, "Bugs")
+        assertTrue(page.canAddFolder)
+        page.createFolder("Urgent")
+        t.settle()
+        assertEquals(listOf(FolderRowUi("Bugs/Urgent", 0)), page.subfolders.value)
+        assertEquals(
+            listOf(FolderRowUi("Bugs", 1), FolderRowUi("Review", 1), FolderRowUi(null, 0)),
+            top.uiState.value.folders
+        )
+        page.renameFolder("Bugs/Urgent", "Bugs/Hot")
+        t.settle()
+        assertEquals(listOf(FolderRowUi("Bugs/Hot", 0)), page.subfolders.value)
+        page.deleteFolder("Bugs/Hot")
+        t.settle()
+        assertTrue(page.subfolders.value.isEmpty())
+    }
+
+    @Test
+    fun `No folder holds no folders`() = runTest {
+        val t = demoSession()
+        val vm = CommandFolderViewModel(
+            "storefront",
+            CommandScope.Project,
+            null,
+            SessionKey.Live,
+            t.sessions
+        )
+        assertFalse(vm.canAddFolder)
+    }
+
+    @Test
+    fun `a refused change in a folder is shown until dismissed`() = runTest {
+        val t = demoSession()
+        val page = folderPage(t, "Bugs")
+        page.createFolder("Urgent")
+        t.settle()
+        page.createFolder("urgent")
+        t.settle()
+        assertEquals("A folder named Bugs/urgent already exists.", page.changeError.value)
+        page.dismissError()
+        assertNull(page.changeError.value)
+    }
+
     @Test
     fun `a refused folder change is shown until dismissed`() = runTest {
         val t = demoSession()

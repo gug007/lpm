@@ -18,6 +18,7 @@ pub(crate) struct LocalFs {
     claude: PathBuf,
     codex: Option<PathBuf>,
     lpm: PathBuf,
+    repo: Option<PathBuf>,
 }
 
 fn read_capped(path: &Path) -> Option<String> {
@@ -54,7 +55,7 @@ fn link_dir(target: &Path, link: &Path) -> std::io::Result<()> {
     std::os::windows::fs::symlink_dir(target, link)
 }
 
-fn copy_tree(from: &Path, to: &Path) -> std::io::Result<()> {
+pub(crate) fn copy_tree(from: &Path, to: &Path) -> std::io::Result<()> {
     if to.exists() {
         return Ok(());
     }
@@ -100,12 +101,33 @@ pub(crate) fn read_md_list(base: &Path) -> LegacyList {
 
 impl LocalFs {
     pub fn new(skills: PathBuf, claude: PathBuf, lpm: PathBuf) -> Self {
-        Self { skills, claude, codex: None, lpm }
+        Self { skills, claude, codex: None, lpm, repo: None }
     }
 
     pub fn with_codex(mut self, dir: PathBuf) -> Self {
         self.codex = Some(dir);
         self
+    }
+
+    /// The project folder a project's list answers to git from.
+    pub fn with_repo(mut self, root: PathBuf) -> Self {
+        self.repo = Some(root);
+        self
+    }
+
+    /// Whether the skills root is there but can't be read, when every skill in it
+    /// would look gone.
+    pub(crate) fn is_unreadable(&self) -> bool {
+        matches!(std::fs::read_dir(&self.skills), Err(e) if e.kind() != ErrorKind::NotFound)
+    }
+
+    /// Every root a skill of this list can sit in.
+    pub(crate) fn roots(&self) -> Vec<PathBuf> {
+        [Some(&self.skills), Some(&self.claude), self.codex.as_ref()]
+            .into_iter()
+            .flatten()
+            .cloned()
+            .collect()
     }
 
     /// The root that holds the skill: the skills root, unless Agent setup made
@@ -133,6 +155,12 @@ impl LocalFs {
 
     fn legacy_dir(&self) -> PathBuf {
         self.lpm.join(LEGACY_DIR)
+    }
+
+    /// git names its own files from the project's folder, or in full from a
+    /// linked worktree.
+    fn in_repo_folder(&self, path: &str) -> PathBuf {
+        self.repo.as_deref().unwrap_or(Path::new("")).join(path)
     }
 
     /// Relative when the link and the skill share a root, so it survives a
@@ -225,6 +253,9 @@ impl CommandFs for LocalFs {
                 raw.codex.push((name, content));
             }
         }
+        if let Some(root) = &self.repo {
+            raw.git = crate::lpm_commands_git::read_view(root, &raw);
+        }
         Ok(raw.sorted_out())
     }
 
@@ -313,6 +344,28 @@ impl CommandFs for LocalFs {
 
     fn location(&self, name: &str) -> String {
         self.home_of(name).join(name).to_string_lossy().into_owned()
+    }
+
+    fn git(&self, args: &[&str]) -> Result<String, String> {
+        let root = self.repo.as_ref().ok_or("Only a project's skills can be kept out of Git.")?;
+        crate::git::git_out(&root.to_string_lossy(), args)
+    }
+
+    fn read_git_file(&self, path: &str) -> Result<String, String> {
+        match std::fs::read_to_string(self.in_repo_folder(path)) {
+            Ok(text) => Ok(text),
+            Err(e) if e.kind() == ErrorKind::NotFound => Ok(String::new()),
+            Err(e) => Err(e.to_string()),
+        }
+    }
+
+    fn write_git_file(&self, path: &str, text: &str) -> Result<(), String> {
+        let path = self.in_repo_folder(path);
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        crate::fsatomic::write(&path, text.as_bytes(), crate::fsatomic::Mode::Preserve(0o644))
+            .map_err(|e| e.to_string())
     }
 
     fn legacy_list(&self) -> Result<LegacyList, String> {

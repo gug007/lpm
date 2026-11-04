@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
 import { Plus, Search } from "lucide-react";
 import type { CommandScope, LpmCommand, LpmCommandLists } from "../../lpmCommands";
+import type { FolderKey } from "./commandFolders";
 import { CommandTreeScope } from "./CommandTreeScope";
-import { commandTree, runningKeys, type CommandPlace, type FolderKey, type SkillRowActions } from "./commandsModel";
+import { commandTree, runningKeys, type CommandPlace, type SkillRowActions } from "./commandsModel";
 
 interface CommandTreeProps {
   lists: LpmCommandLists;

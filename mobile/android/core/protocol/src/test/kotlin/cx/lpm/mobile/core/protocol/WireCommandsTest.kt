@@ -48,6 +48,24 @@ class WireCommandsTest {
     }
 
     @Test
+    fun saveCarriesKeepOutOfGitOnlyWhenChosen() {
+        assertFrame(
+            """{ "t": "lpmCommandSave", "project": "api", "reqId": "c5",
+                 "command": { "scope": "project", "folder": null, "name": "mine", "description": "", "body": "Do it", "keepOutOfGit": true },
+                 "previous": null }""",
+            Wire.lpmCommandSave(
+                "api",
+                "c5",
+                CommandRef(CommandScope.Project, null, "mine"),
+                description = "",
+                body = "Do it",
+                previous = null,
+                keepOutOfGit = true
+            )
+        )
+    }
+
+    @Test
     fun deleteAndFolders() {
         assertFrame(
             """{ "t": "lpmCommandDelete", "project": "api", "reqId": "c5",
@@ -82,6 +100,11 @@ class WireCommandsTest {
             """{ "t": "lpmCommandOtherFolder", "project": "api", "reqId": "c7",
                  "scope": "global", "name": "lint", "folder": null }""",
             Wire.lpmCommandOtherFolder("api", "c7", CommandScope.Global, "lint", null)
+        )
+        assertFrame(
+            """{ "t": "lpmCommandOtherFolder", "project": "api", "reqId": "c9",
+                 "scope": "global", "name": "lint", "folder": null, "root": true }""",
+            Wire.lpmCommandOtherFolder("api", "c9", CommandScope.Global, "lint", null, root = true)
         )
         assertFrame(
             """{ "t": "lpmCommandConvert", "project": "api", "reqId": "c8",

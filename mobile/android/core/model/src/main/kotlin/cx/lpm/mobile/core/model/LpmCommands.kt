@@ -32,7 +32,11 @@ data class LpmCommand(
     val description: String,
     val body: String,
     val scope: CommandScope,
-    val argumentHint: String
+    val argumentHint: String,
+    /** Git ignores it and holds none of its files. False from a Mac on an older lpm. */
+    val keptOutOfGit: Boolean = false,
+    /** Git holds some of its files. False from a Mac on an older lpm. */
+    val tracked: Boolean = false
 ) {
     val ref: CommandRef get() = CommandRef(scope, folder, name)
 
@@ -43,7 +47,9 @@ data class LpmCommand(
             description = o.string("description").orEmpty(),
             body = o.string("body").orEmpty(),
             scope = CommandScope.parse(o.string("scope")) ?: CommandScope.Global,
-            argumentHint = o.string("argumentHint").orEmpty()
+            argumentHint = o.string("argumentHint").orEmpty(),
+            keptOutOfGit = o.bool("keptOutOfGit") ?: false,
+            tracked = o.bool("tracked") ?: false
         )
     }
 }
@@ -58,6 +64,12 @@ private val KNOWN_AGENTS = listOf(
     "opencode" to "OpenCode"
 )
 
+/**
+ * Where an [OtherSkill] shows: a [folder], with the list's skills in no folder
+ * ([root]), or with neither the Other skills group. Its file doesn't change for any.
+ */
+data class OtherSpot(val folder: String? = null, val root: Boolean = false)
+
 /** A skill in a list's places that wasn't made in lpm: shown, never changed. */
 data class OtherSkill(
     val name: String,
@@ -65,10 +77,13 @@ data class OtherSkill(
     val preview: String,
     val agents: List<String>,
     val path: String,
-    val folder: String? = null
+    val folder: String? = null,
+    val atRoot: Boolean = false
 ) {
     val reach: List<AgentReach>
         get() = KNOWN_AGENTS.map { (cli, label) -> AgentReach(label, cli in agents) }
+
+    val spot: OtherSpot get() = OtherSpot(folder, folder == null && atRoot)
 
     companion object {
         fun parse(o: JsonObject): OtherSkill = OtherSkill(
@@ -77,29 +92,71 @@ data class OtherSkill(
             preview = o.string("preview").orEmpty(),
             agents = o.strings("agents").orEmpty(),
             path = o.string("path").orEmpty(),
-            folder = o.string("folder")
+            folder = o.string("folder"),
+            atRoot = o.bool("atRoot") == true
         )
     }
 }
 
+private const val FOLDER_SEP = '/'
+
+/** The folder holding [folder], null at the top of a list. */
+fun folderParent(folder: String): String? =
+    folder.substringBeforeLast(FOLDER_SEP, "").ifEmpty { null }
+
+/** A folder's own name, without the folders it sits inside. */
+fun folderLabel(folder: String): String = folder.substringAfterLast(FOLDER_SEP)
+
+/** The folder named [name] inside [parent]. Blank stays blank, for the Mac to refuse. */
+fun childFolder(parent: String?, name: String): String {
+    val own = name.trim()
+    return if (parent == null || own.isEmpty()) own else "$parent$FOLDER_SEP$own"
+}
+
+/** [folder] is [parent] or sits somewhere inside it. */
+fun isWithinFolder(folder: String, parent: String): Boolean =
+    folder == parent || folder.startsWith("$parent$FOLDER_SEP")
+
 /**
- * One list: every folder (empty ones too, sorted ignoring case), its commands, and
- * the [others] in its places, which a Mac on an older lpm doesn't send.
+ * One list: every folder (empty ones too, each level of one inside another, sorted
+ * ignoring case; `Work/Reviews` sits inside `Work`), its commands, the
+ * [others] in its places, and [inRepo] for a project's list in a git repo. A Mac on an
+ * older lpm sends neither of the last two.
  */
 data class LpmCommandList(
     val folders: List<String> = emptyList(),
     val commands: List<LpmCommand> = emptyList(),
-    val others: List<OtherSkill> = emptyList()
+    val others: List<OtherSkill> = emptyList(),
+    val inRepo: Boolean = false
 ) {
     fun inFolder(folder: String?): List<LpmCommand> = commands.filter { it.folder == folder }
 
-    fun othersIn(folder: String?): List<OtherSkill> = others.filter { it.folder == folder }
+    /** The folders directly inside [parent], or at the top of the list for null. */
+    fun subfolders(parent: String?): List<String> = folders.filter { folderParent(it) == parent }
+
+    /**
+     * What a row for [folder] counts: its commands and other skills, and those of the
+     * folders inside it. The Other skills group has its own row, so No folder leaves it out.
+     */
+    fun countIn(folder: String?): Int {
+        if (folder == null) return inFolder(null).size + othersIn(null).size
+        val held = { f: String? -> f != null && isWithinFolder(f, folder) }
+        return commands.count { held(it.folder) } + others.count { held(it.folder) }
+    }
+
+    /** The other skills shown with a folder's commands, or with the ones in no folder. */
+    fun othersIn(folder: String?): List<OtherSkill> =
+        others.filter { it.folder == folder && (folder != null || it.atRoot) }
+
+    /** The other skills in neither: the Other skills group. */
+    val otherGroup: List<OtherSkill> get() = others.filter { it.folder == null && !it.atRoot }
 
     companion object {
         fun parse(o: JsonObject): LpmCommandList = LpmCommandList(
             folders = o.strings("folders").orEmpty(),
             commands = o.list("commands", LpmCommand::parse),
-            others = o.list("others", OtherSkill::parse)
+            others = o.list("others", OtherSkill::parse),
+            inRepo = o.bool("inRepo") ?: false
         )
     }
 }

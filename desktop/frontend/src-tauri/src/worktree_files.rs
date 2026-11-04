@@ -216,9 +216,10 @@ fn bring_one(path: &str, sources: &[&Path], dest: &Path, link: bool) -> Result<(
 /// tree it was made from or else the owner's own folder. Files already there are
 /// left alone; returns the ones that couldn't be brought.
 pub fn bring(owner: &str, from: &Path, dest: &Path) -> Vec<String> {
+    let mut failed = crate::lpm_commands_git::bring_kept_out(from, dest);
     let files = saved(owner).unwrap_or_else(|| suggested(&candidates(&from.to_string_lossy())));
     if files.copy.is_empty() && files.link.is_empty() {
-        return Vec::new();
+        return failed;
     }
     let owner_root = config::project_root(owner).ok().map(|(root, _)| root);
     let mut sources = vec![from];
@@ -227,10 +228,12 @@ pub fn bring(owner: &str, from: &Path, dest: &Path) -> Vec<String> {
     }
     let copies = files.copy.iter().map(|p| (p, false));
     let links = files.link.iter().map(|p| (p, true));
-    copies
-        .chain(links)
-        .filter_map(|(path, link)| bring_one(path, &sources, dest, link).err())
-        .collect()
+    failed.extend(
+        copies
+            .chain(links)
+            .filter_map(|(path, link)| bring_one(path, &sources, dest, link).err()),
+    );
+    failed
 }
 
 #[cfg(test)]

@@ -14,6 +14,7 @@ import cx.lpm.mobile.core.model.CommandRef
 import cx.lpm.mobile.core.model.CommandScope
 import cx.lpm.mobile.core.model.ExpandedCommand
 import cx.lpm.mobile.core.model.LpmCommandLists
+import cx.lpm.mobile.core.model.OtherSpot
 import cx.lpm.mobile.core.protocol.CommandFolderOp
 import cx.lpm.mobile.core.protocol.LpmCommandsInbound
 import java.util.UUID
@@ -61,6 +62,10 @@ class LpmCommandsStore(private val session: MacSession) : SessionStore {
     /** The Mac can file other skills in folders and convert them. */
     val otherSkillsAvailable: Boolean
         get() = client?.hostFeatures?.contains(LpmClient.LPM_OTHER_SKILLS_FEATURE) == true
+
+    /** The Mac can keep folders inside folders. */
+    val nestedFoldersAvailable: Boolean
+        get() = client?.hostFeatures?.contains(LpmClient.LPM_NESTED_FOLDERS_FEATURE) == true
 
     /** The Mac keeps lpm commands: its `features` has "lpmCommands". */
     val available: Boolean
@@ -131,22 +136,23 @@ class LpmCommandsStore(private val session: MacSession) : SessionStore {
         place: CommandRef,
         description: String,
         body: String,
-        previous: CommandRef?
+        previous: CommandRef?,
+        keepOutOfGit: Boolean? = null
     ): CommandOutcome<Unit> = change(project) { c, reqId ->
-        c.saveLpmCommand(project, reqId, place, description, body, previous)
+        c.saveLpmCommand(project, reqId, place, description, body, previous, keepOutOfGit)
     }
 
     suspend fun delete(project: String, target: CommandRef): CommandOutcome<Unit> =
         change(project) { c, reqId -> c.deleteLpmCommand(project, reqId, target) }
 
-    /** Files a skill not made in lpm in a folder, or back out of one with null. */
+    /** Moves a skill not made in lpm: [OtherSpot] says where. */
     suspend fun moveOther(
         project: String,
         scope: CommandScope,
         name: String,
-        folder: String?
+        spot: OtherSpot
     ): CommandOutcome<Unit> = change(project) { c, reqId ->
-        c.moveOtherSkill(project, reqId, scope, name, folder)
+        c.moveOtherSkill(project, reqId, scope, name, spot.folder, spot.root)
     }
 
     /** Turns a skill not made in lpm into one of lpm's, or one of lpm's back. */

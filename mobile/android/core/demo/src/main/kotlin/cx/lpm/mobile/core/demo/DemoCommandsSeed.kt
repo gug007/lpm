@@ -5,7 +5,9 @@ internal data class DemoCommand(
     val name: String,
     var folder: String?,
     val description: String,
-    val body: String
+    val body: String,
+    val keptOutOfGit: Boolean = false,
+    val tracked: Boolean = true
 )
 
 /** One skill not made in lpm in a demo list. */
@@ -15,7 +17,8 @@ internal data class DemoOther(
     val preview: String,
     val agents: List<String>,
     val path: String,
-    var folder: String? = null
+    var folder: String? = null,
+    var atRoot: Boolean = false
 )
 
 /** A demo list of lpm commands: its folders (kept when emptied), commands and other skills. */

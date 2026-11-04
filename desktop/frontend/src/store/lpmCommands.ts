@@ -129,8 +129,14 @@ export function deleteLpmCommandFolder(project: string, scope: CommandScope, nam
   return apply(project, DeleteLpmCommandFolder(project, scope, name));
 }
 
-export function moveOtherSkill(project: string, scope: CommandScope, name: string, folder: string | null) {
-  return apply(project, MoveOtherSkill(project, scope, name, folder));
+export function moveOtherSkill(
+  project: string,
+  scope: CommandScope,
+  name: string,
+  folder: string | null,
+  root = false,
+) {
+  return apply(project, MoveOtherSkill(project, scope, name, folder, root));
 }
 
 export function convertSkill(project: string, scope: CommandScope, name: string, toLpm: boolean) {

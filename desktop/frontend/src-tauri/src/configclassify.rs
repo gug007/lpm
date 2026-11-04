@@ -1,10 +1,11 @@
 // Classifying a ~/.lpm filesystem event: which config category it touches, and
 // what one event dirties. Split out of configwatch so the watcher plumbing and
 // this pure, heavily-tested mapping each stay small.
+use crate::lpm_commands_local::FOLDERS_FILE;
 use crate::peersync;
 use crate::syncsurface::{is_os_junk, is_sync_global_dir, is_sync_global_file};
 use std::collections::BTreeSet;
-use std::path::{Component, Path};
+use std::path::{Component, Path, PathBuf};
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub(crate) enum Category {
@@ -22,6 +23,8 @@ pub(crate) enum Category {
     // rather than by lpm, so the pane only learns about a save from here. Carries
     // the project segment so the emit names which project changed.
     Memory(String),
+    // skill-folders: the global list's empty folders, which every Skills screen shows.
+    Skills,
 }
 
 #[derive(Default, PartialEq, Debug)]
@@ -34,11 +37,17 @@ pub(crate) struct Dirty {
     // watcher on Linux, where an open is itself an event.
     pub(crate) settings: bool,
     pub(crate) memory: BTreeSet<String>,
+    pub(crate) skills: bool,
 }
 
 impl Dirty {
     pub(crate) fn any(&self) -> bool {
-        self.projects || self.templates || self.sidebar || self.settings || !self.memory.is_empty()
+        self.projects
+            || self.templates
+            || self.sidebar
+            || self.settings
+            || self.skills
+            || !self.memory.is_empty()
     }
 
     pub(crate) fn merge(&mut self, other: Dirty) {
@@ -47,6 +56,7 @@ impl Dirty {
         self.sidebar |= other.sidebar;
         self.settings |= other.settings;
         self.memory.extend(other.memory);
+        self.skills |= other.skills;
     }
 }
 
@@ -69,6 +79,7 @@ pub(crate) fn classify(lpm: &Path, path: &Path) -> Option<Category> {
     match segs.as_slice() {
         [name] if *name == "settings.json" => Some(Category::Settings),
         [name] if *name == "groups.json" => Some(Category::Sidebar),
+        [name] if *name == FOLDERS_FILE => Some(Category::Skills),
         [name] => is_sync_global_file(name).then_some(Category::Projects),
         ["projects", file] => file.ends_with(".yml").then_some(Category::Projects),
         ["templates", ..] => Some(Category::Templates),
@@ -117,10 +128,21 @@ pub(crate) fn fold_event(root: &Path, ev: &notify::Event) -> Dirty {
             Some(Category::Memory(project)) => {
                 d.memory.insert(project);
             }
+            Some(Category::Skills) => d.skills = true,
             None => {}
         }
     }
     d
+}
+
+/// Whether an event changed something in one of the global skill roots, which sit
+/// outside `~/.lpm`. Pure, like `fold_event`.
+pub(crate) fn touches_skills(roots: &[PathBuf], ev: &notify::Event) -> bool {
+    !crate::watchfilter::is_read_only(ev)
+        && ev.paths.iter().any(|p| {
+            let junk = p.file_name().and_then(|n| n.to_str()).is_some_and(is_os_junk);
+            !junk && roots.iter().any(|root| p.starts_with(root))
+        })
 }
 
 #[cfg(test)]
@@ -140,6 +162,28 @@ mod tests {
 
     fn event(kind: EventKind, rel: &str) -> notify::Event {
         notify::Event::new(kind).add_path(at(rel))
+    }
+
+    #[test]
+    fn the_skill_folders_file_is_a_skills_change() {
+        assert_eq!(classify(&lpm(), &at("skill-folders")), Some(Category::Skills));
+        let d = fold_event(&lpm(), &event(EventKind::Create(CreateKind::File), "skill-folders"));
+        assert!(d.skills && !d.projects);
+    }
+
+    #[test]
+    fn a_write_in_a_skill_root_touches_skills() {
+        let roots = [PathBuf::from("/Users/x/.agents/skills")];
+        let at_path = |kind: EventKind, path: &str| notify::Event::new(kind).add_path(path.into());
+        let write = EventKind::Modify(ModifyKind::Any);
+        let touches = |path: &str| touches_skills(&roots, &at_path(write, path));
+        assert!(touches("/Users/x/.agents/skills/deploy/SKILL.md"));
+        assert!(!touches("/Users/x/.agents/skills/deploy/.DS_Store"));
+        assert!(!touches("/Users/x/.agents/skills-old/deploy/SKILL.md"));
+        assert!(!touches("/Users/x/.lpm/global.yml"));
+        let open = EventKind::Access(AccessKind::Open(AccessMode::Read));
+        let read = at_path(open, "/Users/x/.agents/skills/deploy/SKILL.md");
+        assert!(!touches_skills(&roots, &read));
     }
 
     #[test]

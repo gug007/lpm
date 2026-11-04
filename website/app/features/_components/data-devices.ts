@@ -72,7 +72,7 @@ export const DEVICES_AREA: FeatureArea = {
     },
     {
       title: "Config sync between computers",
-      body: "Compare and sync lpm settings, global config, and presets between paired machines, with a preview and a backup first, or keep them in sync automatically.",
+      body: "Compare and sync lpm settings, global config, global skills, and presets between paired machines, with a preview and a backup first, or keep them in sync automatically.",
       note: "Syncs lpm setup, never your source code.",
     },
     {

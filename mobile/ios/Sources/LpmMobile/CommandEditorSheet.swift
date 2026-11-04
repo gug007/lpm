@@ -41,6 +41,17 @@ struct CommandEditorSheet: View {
         return folders
     }
 
+    /// Only a project's skills live in its repo, and an older lpm can't keep one out.
+    private var canKeepOutOfGit: Bool { draft.scope == .project && lists?.project?.inRepo == true }
+
+    /// What keeping a committed skill out of Git will do, said before it's saved.
+    private var keptOutNote: String? {
+        guard draft.keepOutOfGit, let original = draft.original,
+              lists?.list(original.scope)?.commands.first(where: { $0.ref == original })?.tracked == true
+        else { return nil }
+        return "Already committed. After saving, commit to remove it from the repo. Past commits keep a copy, and other computers lose it when they pull."
+    }
+
     private var place: Binding<Place> {
         Binding(get: { Place(scope: draft.scope, folder: draft.folder) }, set: {
             draft.scope = $0.scope
@@ -85,6 +96,18 @@ struct CommandEditorSheet: View {
                 }
                 Section("Description") {
                     TextField("Shown next to the name in the / menu", text: $draft.description)
+                }
+                if canKeepOutOfGit {
+                    Section {
+                        Toggle("Keep out of Git", isOn: $draft.keepOutOfGit)
+                    } footer: {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Stays in the project folder and is never committed.")
+                            if let keptOutNote {
+                                Text(keptOutNote).foregroundStyle(.orange)
+                            }
+                        }
+                    }
                 }
                 Section {
                     TextEditor(text: $draft.body)
@@ -143,10 +166,11 @@ struct CommandEditorSheet: View {
 
     private func save() {
         let d = draft
+        let keepOutOfGit = canKeepOutOfGit ? d.keepOutOfGit : nil
         commit {
             try await store.save(project, place: d.place,
                                  description: d.description.trimmingCharacters(in: .whitespacesAndNewlines),
-                                 body: d.body, previous: d.original)
+                                 body: d.body, keepOutOfGit: keepOutOfGit, previous: d.original)
         }
     }
 

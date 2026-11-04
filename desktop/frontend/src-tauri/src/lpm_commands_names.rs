@@ -2,6 +2,8 @@
 
 const MAX_NAME_LEN: usize = 64;
 const MAX_FOLDER_LEN: usize = 64;
+const MAX_FOLDER_PATH_LEN: usize = 255;
+pub(crate) const FOLDER_SEP: char = '/';
 
 /// Which entries of an old list are commands: `*.md` files named the way a
 /// `/name` could be typed, at the root or one folder down.
@@ -45,20 +47,28 @@ pub(crate) fn skill_name(raw: &str) -> Option<String> {
     valid_name(&name).then_some(name)
 }
 
+/// A folder is the path to it, so `Work/Reviews` sits inside `Work`.
 pub(crate) fn clean_folder(folder: &str) -> Result<String, String> {
-    let folder = folder.trim();
-    if folder.is_empty() {
+    let levels: Vec<&str> =
+        folder.split(FOLDER_SEP).map(str::trim).filter(|level| !level.is_empty()).collect();
+    if levels.is_empty() {
         return Err("Give the folder a name.".into());
     }
-    if folder.chars().count() > MAX_FOLDER_LEN
-        || folder.starts_with('.')
-        || !crate::fsname::is_portable_everywhere(folder)
-    {
+    let unusable = |level: &&str| {
+        level.chars().count() > MAX_FOLDER_LEN
+            || level.starts_with('.')
+            || !crate::fsname::is_portable_everywhere(level)
+    };
+    if levels.iter().any(unusable) {
         return Err(
-            "A folder name can't start or end with a dot, or hold any of / \\ : * ? \" < > |.".into(),
+            "A folder name can't start or end with a dot, or hold any of \\ : * ? \" < > |.".into(),
         );
     }
-    Ok(folder.to_string())
+    let path = levels.join(&FOLDER_SEP.to_string());
+    if path.chars().count() > MAX_FOLDER_PATH_LEN {
+        return Err("Those folders are nested too deep.".into());
+    }
+    Ok(path)
 }
 
 pub(crate) fn clean_folder_opt(folder: Option<&str>) -> Result<Option<String>, String> {
@@ -66,6 +76,42 @@ pub(crate) fn clean_folder_opt(folder: Option<&str>) -> Result<Option<String>, S
         Some(f) => clean_folder(f).map(Some),
         None => Ok(None),
     }
+}
+
+/// Adds `path` and the folders it sits inside to `folders`, and gives it back as
+/// the list spells it: the list treats folder names the same whatever their case.
+pub(crate) fn add_folder(folders: &mut Vec<String>, path: &str) -> String {
+    let mut spelled = String::new();
+    for level in path.split(FOLDER_SEP) {
+        let next = if spelled.is_empty() { level.to_string() } else { format!("{spelled}{FOLDER_SEP}{level}") };
+        spelled = match folders.iter().find(|f| f.eq_ignore_ascii_case(&next)) {
+            Some(listed) => listed.clone(),
+            None => {
+                folders.push(next.clone());
+                next
+            }
+        };
+    }
+    spelled
+}
+
+/// What `folder` becomes when the folder `from` becomes `to`, with None for the
+/// top of the list. The outer None leaves a folder outside `from` as it is.
+pub(crate) fn moved_folder(folder: &str, from: &str, to: Option<&str>) -> Option<Option<String>> {
+    let rest = match folder.strip_prefix(from)? {
+        "" => None,
+        rest => Some(rest.strip_prefix(FOLDER_SEP)?),
+    };
+    Some(match (to, rest) {
+        (Some(to), Some(rest)) => Some(format!("{to}{FOLDER_SEP}{rest}")),
+        (Some(to), None) => Some(to.to_string()),
+        (None, rest) => rest.map(str::to_string),
+    })
+}
+
+/// Sorts what's inside a folder right after it, ahead of `Work notes` for `Work`.
+pub(crate) fn folder_order(folder: &str) -> Vec<String> {
+    folder.split(FOLDER_SEP).map(str::to_lowercase).collect()
 }
 
 pub(crate) fn skill_file(name: &str) -> String {

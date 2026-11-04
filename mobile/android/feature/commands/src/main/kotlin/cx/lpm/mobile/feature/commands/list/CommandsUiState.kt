@@ -5,7 +5,7 @@ import cx.lpm.mobile.core.data.commands.LpmCommandsState
 import cx.lpm.mobile.core.model.CommandScope
 import cx.lpm.mobile.core.model.LpmCommandList
 
-/** One folder row (null for No folder) and how many commands it holds. */
+/** One folder row (null for No folder) and how many commands it and those inside it hold. */
 @Immutable
 data class FolderRowUi(val folder: String?, val count: Int)
 
@@ -17,11 +17,11 @@ data class CommandsUiState(
     val scope: CommandScope = CommandScope.Global,
     /** Both lists have come; nothing to show (but a spinner or a failure) before. */
     val loaded: Boolean = false,
-    /** The showing list's folders, then No folder; empty while it can't be read. */
+    /** The showing list's top folders, then No folder; empty while it can't be read. */
     val folders: List<FolderRowUi> = emptyList(),
     /** The list itself is there, so its folders and "New folder" show. */
     val hasList: Boolean = false,
-    /** How many skills not made in lpm the showing list has outside its folders. */
+    /** How many skills not made in lpm the showing list has in its Other skills group. */
     val otherSkills: Int = 0,
     /** Why the project's own list couldn't be read, shown over it. */
     val projectError: String? = null,
@@ -56,7 +56,7 @@ internal fun LpmCommandsState.commandsUiState(
         loaded = lists != null,
         folders = list?.folderRows().orEmpty(),
         hasList = list != null,
-        otherSkills = list?.othersIn(null)?.size ?: 0,
+        otherSkills = list?.otherGroup?.size ?: 0,
         projectError = lists?.projectError?.takeIf { scope == CommandScope.Project },
         loadError = loadError[project].takeIf { lists == null },
         changeError = changeError
@@ -64,7 +64,8 @@ internal fun LpmCommandsState.commandsUiState(
 }
 
 private fun LpmCommandList.folderRows(): List<FolderRowUi> =
-    (folders + listOf<String?>(null)).map { folder ->
-        val others = if (folder == null) 0 else othersIn(folder).size
-        FolderRowUi(folder, inFolder(folder).size + others)
-    }
+    (subfolders(null) + listOf<String?>(null)).map { FolderRowUi(it, countIn(it)) }
+
+/** The rows for the folders directly inside [parent]. */
+internal fun LpmCommandList.subfolderRows(parent: String): List<FolderRowUi> =
+    subfolders(parent).map { FolderRowUi(it, countIn(it)) }

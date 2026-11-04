@@ -24,9 +24,10 @@ struct OtherSkillScreen: View {
                 }
                 if model.lpmOtherSkillsAvailable, let list {
                     Section {
-                        Picker("Folder", selection: folderBinding(skill)) {
-                            Text("No folder").tag(String?.none)
-                            ForEach(list.folders, id: \.self) { Text($0).tag(String?.some($0)) }
+                        Picker("Folder", selection: spotBinding(skill)) {
+                            Text("No folder").tag(OtherSkillSpot.root)
+                            ForEach(list.folders, id: \.self) { Text($0).tag(OtherSkillSpot.folder($0)) }
+                            Text("Other skills").tag(OtherSkillSpot.group)
                         }
                     }
                 }
@@ -74,11 +75,12 @@ struct OtherSkillScreen: View {
         } message: { Text($0) }
     }
 
-    private func folderBinding(_ skill: OtherSkill) -> Binding<String?> {
-        Binding(get: { skill.folder }, set: { folder in
+    private func spotBinding(_ skill: OtherSkill) -> Binding<OtherSkillSpot> {
+        Binding(get: { OtherSkillSpot(skill) }, set: { spot in
             Task {
                 do {
-                    try await store.moveOther(project, scope: scope, name: name, folder: folder)
+                    try await store.moveOther(project, scope: scope, name: name, folder: spot.folder,
+                                              root: spot == .root)
                 } catch {
                     self.error = error.localizedDescription
                 }
@@ -97,5 +99,25 @@ struct OtherSkillScreen: View {
                 Haptics.error()
             }
         }
+    }
+}
+
+/// Where a skill not made in lpm shows: its file doesn't change for any of them.
+private enum OtherSkillSpot: Hashable {
+    case group
+    case root
+    case folder(String)
+
+    init(_ skill: OtherSkill) {
+        if let folder = skill.folder {
+            self = .folder(folder)
+        } else {
+            self = skill.atRoot ? .root : .group
+        }
+    }
+
+    var folder: String? {
+        if case .folder(let name) = self { return name }
+        return nil
     }
 }

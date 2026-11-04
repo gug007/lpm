@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// The commands in one folder of one list (No folder when `folder` is nil).
-/// Tapping one edits it; "+" writes a new one here.
+/// One folder of one list (No folder when `folder` is nil): the folders inside it
+/// and its commands. Tapping a command edits it; "+" writes a new one here.
 struct CommandFolderScreen: View {
     @Environment(AppModel.self) private var model
 
@@ -10,17 +10,37 @@ struct CommandFolderScreen: View {
     let folder: String?
 
     @State private var draft: LpmCommandDraft?
+    @State private var folderDialog: CommandFolderDialog?
 
     private var store: LpmCommandsStore { model.lpmCommands }
+    private var list: LpmCommandList? { store.lists[project]?.list(scope) }
     private var commands: [LpmCommand] {
-        store.lists[project]?.list(scope)?.commands.filter { $0.folder == folder } ?? []
+        list?.commands.filter { $0.folder == folder } ?? []
     }
     private var others: [OtherSkill] {
-        folder == nil ? [] : store.lists[project]?.list(scope)?.others(in: folder) ?? []
+        list?.others(in: folder) ?? []
     }
+    /// No folder holds no folders.
+    private var subfolders: [String] {
+        folder.flatMap { list?.subfolders(of: $0) } ?? []
+    }
+    private var canAddFolder: Bool { folder != nil && model.lpmNestedFoldersAvailable }
 
     var body: some View {
         List {
+            if !subfolders.isEmpty || canAddFolder {
+                Section {
+                    ForEach(subfolders, id: \.self) { sub in
+                        CommandFolderLink(project: project, scope: scope, folder: sub,
+                                          count: list?.count(in: sub) ?? 0, dialog: $folderDialog)
+                    }
+                    if canAddFolder {
+                        Button { folderDialog = .create } label: {
+                            Label("New folder", systemImage: "folder.badge.plus")
+                        }
+                    }
+                }
+            }
             ForEach(commands) { command in
                 Button { draft = .editing(command) } label: {
                     CommandRow(command: command)
@@ -35,15 +55,16 @@ struct CommandFolderScreen: View {
                 }
             }
         }
-        .navigationTitle(folder ?? "No folder")
+        .navigationTitle(folder.map(LpmFolderPath.label) ?? "No folder")
         .navigationBarTitleDisplayMode(.inline)
         .overlay {
-            if commands.isEmpty && others.isEmpty {
+            if commands.isEmpty && others.isEmpty && subfolders.isEmpty {
                 ContentUnavailableView {
                     Label("No skills", systemImage: "text.badge.plus")
                 } description: {
                     Text("Save a prompt here, then run it by typing /name in a terminal.")
                 }
+                .allowsHitTesting(false)
             }
         }
         .refreshable { store.load(project) }
@@ -59,5 +80,6 @@ struct CommandFolderScreen: View {
         .sheet(item: $draft) { draft in
             CommandEditorSheet(project: project, draft: draft).environment(model)
         }
+        .modifier(CommandFolderDialogs(project: project, scope: scope, parent: folder, dialog: $folderDialog))
     }
 }

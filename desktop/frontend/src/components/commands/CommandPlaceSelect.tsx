@@ -1,17 +1,12 @@
 import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
-import { Check, ChevronDown, Folder, FolderGit2, FolderMinus, FolderPlus, Globe } from "lucide-react";
+import { Check, ChevronDown, Folder, FolderGit2, FolderLock, FolderMinus, FolderPlus, Globe } from "lucide-react";
 import type { CommandScope, LpmCommandLists } from "../../lpmCommands";
 import { useAnchoredPanel } from "../../hooks/useAnchoredPanel";
 import { FIELD_CLASS } from "../ui/fields";
+import { folderDepth, folderKey, folderLabel, folderNamed } from "./commandFolders";
 import { CommandFolderInput } from "./CommandFolderInput";
-import {
-  folderKey,
-  folderNamed,
-  placeChoices,
-  scopeTitle,
-  type CommandPlace,
-} from "./commandsModel";
+import { placeChoices, scopeTitle, type CommandPlace } from "./commandsModel";
 
 interface CommandPlaceSelectProps {
   id: string;
@@ -21,23 +16,37 @@ interface CommandPlaceSelectProps {
   projectLabel: string;
   // Keeps the choices to one list, for a skill that can't leave it.
   onlyScope?: CommandScope;
+  // Adds the Other skills group as a place, for a skill not made in lpm.
+  otherGroup?: { current: boolean; onChoose: () => void };
   onChange: (place: CommandPlace) => void;
 }
 
 type Row = { key: string; scope: CommandScope; label: string } & (
-  | { kind: "place"; folder: string | null }
+  | { kind: "place"; folder: string | null; depth: number }
   | { kind: "new" }
+  | { kind: "group" }
 );
 
 const NO_FOLDER = "No folder";
+const OTHER_GROUP = "Other skills";
 const MIN_PANEL_WIDTH = 260;
+const ROW_INDENT = 10;
+const INDENT_STEP = 14;
 
-function rowsOf(place: CommandPlace, lists: LpmCommandLists, onlyScope?: CommandScope): Row[] {
+function rowsOf(place: CommandPlace, lists: LpmCommandLists, onlyScope?: CommandScope, group = false): Row[] {
   const choices = placeChoices(place, lists).filter((c) => !onlyScope || c.scope === onlyScope);
   return choices.flatMap(({ scope, folders }) => [
     ...folders.map(
-      (folder): Row => ({ kind: "place", key: folderKey(scope, folder), scope, folder, label: folder ?? NO_FOLDER }),
+      (folder): Row => ({
+        kind: "place",
+        key: folderKey(scope, folder),
+        scope,
+        folder,
+        depth: folder ? folderDepth(folder) : 0,
+        label: folder ? folderLabel(folder) : NO_FOLDER,
+      }),
     ),
+    ...(group ? [{ kind: "group", key: `group:${scope}`, scope, label: OTHER_GROUP } as Row] : []),
     { kind: "new", key: `new:${scope}`, scope, label: "New folder" },
   ]);
 }
@@ -52,13 +61,18 @@ export function CommandPlaceSelect({
   lists,
   projectLabel,
   onlyScope,
+  otherGroup,
   onChange,
 }: CommandPlaceSelectProps) {
   const [open, setOpen] = useState(false);
   const [adding, setAdding] = useState<CommandScope | null>(null);
   const [width, setWidth] = useState(MIN_PANEL_WIDTH);
-  const rows = useMemo(() => rowsOf(place, lists, onlyScope), [place, lists, onlyScope]);
-  const selected = rows.findIndex((r) => r.key === folderKey(place.scope, place.folder));
+  const hasGroup = !!otherGroup;
+  const rows = useMemo(() => rowsOf(place, lists, onlyScope, hasGroup), [place, lists, onlyScope, hasGroup]);
+  const inGroup = !!otherGroup?.current;
+  const selected = rows.findIndex((r) =>
+    inGroup ? r.kind === "group" : r.key === folderKey(place.scope, place.folder),
+  );
   const [highlighted, setHighlighted] = useState(selected);
   const twoLists = lists.project !== null && !onlyScope;
 
@@ -92,7 +106,8 @@ export function CommandPlaceSelect({
       setAdding(row.scope);
       return;
     }
-    onChange({ scope: row.scope, folder: row.folder });
+    if (row.kind === "group") otherGroup?.onChoose();
+    else onChange({ scope: row.scope, folder: row.folder });
     close();
   };
 
@@ -100,7 +115,7 @@ export function CommandPlaceSelect({
     setAdding(null);
     triggerRef.current?.focus();
     if (name === null) return;
-    onChange({ scope, folder: folderNamed(name, scope, lists) });
+    onChange({ scope, folder: folderNamed(name, scope, lists) || null });
     setOpen(false);
   };
 
@@ -155,12 +170,16 @@ export function CommandPlaceSelect({
     if (row.kind === "new" && adding === row.scope) {
       return (
         <div key={row.key} className="px-1 py-0.5">
-          <CommandFolderInput onDone={(name) => finishAdding(row.scope, name)} />
+          <CommandFolderInput
+            placeholder="Name, or Parent/Name"
+            onDone={(name) => finishAdding(row.scope, name)}
+          />
         </div>
       );
     }
     const isNew = row.kind === "new";
-    const Icon = isNew ? FolderPlus : row.folder === null ? FolderMinus : Folder;
+    const place = row.kind === "place" ? row : null;
+    const Icon = isNew ? FolderPlus : row.kind === "group" ? FolderLock : place?.folder ? Folder : FolderMinus;
     return (
       <button
         key={row.key}
@@ -168,7 +187,8 @@ export function CommandPlaceSelect({
         role="option"
         aria-selected={index === selected}
         data-index={index}
-        title={row.label}
+        title={place?.folder ?? row.label}
+        style={place?.depth ? { paddingLeft: ROW_INDENT + place.depth * INDENT_STEP } : undefined}
         // Focus stays on the field, which is what reads the arrow keys.
         onMouseDown={(e) => e.preventDefault()}
         onClick={() => choose(row)}
@@ -215,7 +235,8 @@ export function CommandPlaceSelect({
       document.body,
     );
 
-  const TriggerIcon = place.folder === null ? FolderMinus : Folder;
+  const TriggerIcon = inGroup ? FolderLock : place.folder === null ? FolderMinus : Folder;
+  const placeName = inGroup ? OTHER_GROUP : (place.folder ?? NO_FOLDER);
   const listName = place.scope === "project" ? "This project" : "Global";
 
   return (
@@ -228,7 +249,7 @@ export function CommandPlaceSelect({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-labelledby={labelledBy}
-        title={`${place.folder ?? NO_FOLDER} · ${listName}`}
+        title={`${placeName} · ${listName}`}
         onClick={() => (open ? close() : show())}
         onKeyDown={handleKeyDown}
         className={`${FIELD_CLASS} flex items-center gap-2 px-2.5 py-1.5 text-left transition-colors duration-150 hover:border-[var(--text-muted)] ${
@@ -236,7 +257,7 @@ export function CommandPlaceSelect({
         }`}
       >
         <TriggerIcon size={13} className="shrink-0 text-[var(--text-muted)]" />
-        <span className="min-w-0 grow truncate">{place.folder ?? NO_FOLDER}</span>
+        <span className="min-w-0 grow truncate">{placeName}</span>
         {twoLists && (
           // Gives way first: in a narrow pane the folder is the part to keep.
           <span className="min-w-0 shrink-[1000] truncate text-[11.5px] text-[var(--text-muted)]">

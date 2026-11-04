@@ -1,18 +1,21 @@
 import type { CommandMap } from "../backend";
 import { emitEvent } from "../ipc";
+import { folderAfterMove, folderParent, inTreeOrder, withParents } from "../../components/commands/commandFolders";
 import { AUTO_VARIABLES, findCommand, isValidCommandName, promptVariables, sameCommand } from "../../lpmCommands";
 import type { CommandInput, CommandRef, CommandScope, LpmCommand, LpmCommandLists, OtherSkill } from "../../lpmCommands";
 import type { SeedLpmCommand } from "../seed/types";
 import { GLOBAL, projects, seedData } from "./state";
 
 // lpm skills in memory, by the rules the Rust side keeps (lpm_commands.rs):
-// one name per list whatever its case, folders that stay when emptied, and a
-// project's own command ahead of a global one of the same name.
+// one name per list whatever its case, folders that stay when emptied, folders
+// that are paths and take what's inside them along, and a project's own command
+// ahead of a global one of the same name.
 
 interface List {
   folders: string[];
   commands: LpmCommand[];
   others: OtherSkill[];
+  inRepo: boolean;
 }
 
 let global: List | null = null;
@@ -26,9 +29,16 @@ function hint(body: string): string {
 
 function fromSeed(seeded: SeedLpmCommand[], scope: CommandScope): List {
   return {
-    folders: [...new Set(seeded.flatMap((c) => (c.folder ? [c.folder] : [])))],
-    commands: seeded.map((c) => ({ ...c, scope, argumentHint: hint(c.body) })),
+    folders: withParents(seeded.flatMap((c) => (c.folder ? [c.folder] : []))),
+    commands: seeded.map((c) => ({
+      ...c,
+      scope,
+      argumentHint: hint(c.body),
+      keptOutOfGit: false,
+      tracked: scope === "project",
+    })),
     others: (seedData().lpmCommands?.others?.[scope] ?? []).map((o) => ({ ...o })),
+    inRepo: scope === "project",
   };
 }
 
@@ -57,7 +67,8 @@ const byName = (a: string, b: string) => a.toLowerCase().localeCompare(b.toLower
 
 function sorted(list: List) {
   return {
-    folders: [...list.folders].sort(byName),
+    inRepo: list.inRepo,
+    folders: inTreeOrder([...list.folders].sort(byName)),
     others: [...list.others].sort((a, b) => byName(a.name, b.name)),
     commands: [...list.commands].sort((a, b) =>
         a.folder === b.folder
@@ -82,6 +93,20 @@ function changed(project: string, ...touched: CommandScope[]): LpmCommandLists {
   return lists(project);
 }
 
+function hasFolder(list: List, folder: string): boolean {
+  return list.folders.some((f) => f.toLowerCase() === folder.toLowerCase());
+}
+
+function addFolder(list: List, folder: string) {
+  list.folders = withParents([...list.folders, folder]);
+}
+
+// The folder `from` and what's inside it become `to`, null being the top of the list.
+function moveFolder(list: List, from: string, to: string | null) {
+  list.folders = withParents(list.folders.flatMap((f) => folderAfterMove(f, from, to) ?? []));
+  for (const c of [...list.commands, ...list.others]) c.folder = folderAfterMove(c.folder ?? null, from, to);
+}
+
 function save(project: string, input: CommandInput, previous: CommandRef | null): LpmCommandLists {
   if (!isValidCommandName(input.name)) {
     throw new Error("Use lowercase letters, numbers and single hyphens for the name.");
@@ -92,11 +117,14 @@ function save(project: string, input: CommandInput, previous: CommandRef | null)
     (c) => c.name.toLowerCase() === input.name.toLowerCase() && !sameCommand(c, previous),
   );
   if (clash) throw new Error(`/${clash.name} already exists in ${clash.folder ? `the ${clash.folder} folder` : "No folder"}.`);
+  let before: LpmCommand | undefined;
   if (previous) {
     const from = listOf(project, previous.scope);
+    before = from.commands.find((c) => sameCommand(c, previous));
     from.commands = from.commands.filter((c) => !sameCommand(c, previous));
   }
-  if (input.folder && !list.folders.includes(input.folder)) list.folders.push(input.folder);
+  const keptOutOfGit = list.inRepo && (input.keepOutOfGit ?? !!before?.keptOutOfGit);
+  if (input.folder) addFolder(list, input.folder);
   list.commands.push({
     name: input.name,
     folder: input.folder,
@@ -104,6 +132,8 @@ function save(project: string, input: CommandInput, previous: CommandRef | null)
     body: input.body.trim(),
     scope: input.scope,
     argumentHint: hint(input.body),
+    keptOutOfGit,
+    tracked: list.inRepo && !keptOutOfGit && !!before?.tracked,
   });
   return changed(project, input.scope, ...(previous ? [previous.scope] : []));
 }
@@ -163,31 +193,31 @@ export const lpmCommandCommands: CommandMap = {
   create_lpm_command_folder: ({ project, scope, name }) => {
     const list = listOf(str(project), scope as CommandScope);
     const folder = str(name).trim();
-    if (list.folders.some((f) => f.toLowerCase() === folder.toLowerCase())) {
-      throw new Error(`A folder named ${folder} already exists.`);
-    }
-    list.folders.push(folder);
+    if (hasFolder(list, folder)) throw new Error(`A folder named ${folder} already exists.`);
+    addFolder(list, folder);
     return changed(str(project), scope as CommandScope);
   },
   rename_lpm_command_folder: ({ project, scope, name, newName }) => {
     const list = listOf(str(project), scope as CommandScope);
     const to = str(newName).trim();
-    list.folders = list.folders.map((f) => (f === name ? to : f));
-    for (const c of [...list.commands, ...list.others]) if (c.folder === name) c.folder = to;
+    if (to.toLowerCase() !== str(name).toLowerCase() && hasFolder(list, to)) {
+      throw new Error(`A folder named ${to} already exists.`);
+    }
+    moveFolder(list, str(name), to);
     return changed(str(project), scope as CommandScope);
   },
   delete_lpm_command_folder: ({ project, scope, name }) => {
     const list = listOf(str(project), scope as CommandScope);
-    list.folders = list.folders.filter((f) => f !== name);
-    for (const c of [...list.commands, ...list.others]) if (c.folder === name) c.folder = null;
+    moveFolder(list, str(name), folderParent(str(name)));
     return changed(str(project), scope as CommandScope);
   },
-  move_other_skill: ({ project, scope, name, folder }) => {
+  move_other_skill: ({ project, scope, name, folder, root }) => {
     const list = listOf(str(project), scope as CommandScope);
     const other = list.others.find((o) => o.name === name);
     if (!other) throw new Error(`/${str(name)} isn't in this list any more.`);
     other.folder = (folder as string | null) ?? null;
-    if (other.folder && !list.folders.includes(other.folder)) list.folders.push(other.folder);
+    other.atRoot = !other.folder && root === true;
+    if (other.folder) addFolder(list, other.folder);
     return changed(str(project), scope as CommandScope);
   },
   convert_skill: ({ project, scope, name, toLpm }) => {

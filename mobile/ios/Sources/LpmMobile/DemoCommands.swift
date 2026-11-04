@@ -6,6 +6,8 @@ extension DemoWorld {
         var folder: String?
         var description: String
         var body: String
+        var keptOutOfGit = false
+        var tracked = true
     }
 
     struct Other {
@@ -15,6 +17,7 @@ extension DemoWorld {
         var agents: [String]
         var path: String
         var folder: String? = nil
+        var atRoot = false
     }
 
     struct CommandList {
@@ -74,20 +77,20 @@ extension DemoWorld {
     ], others: projectOthersSeed)
 }
 
-private struct DemoCommandError: Error {
+struct DemoCommandError: Error {
     let message: String
     init(_ message: String) { self.message = message }
 }
 
 /// Demo handlers for lpm commands, by the rules the Mac keeps (lpm_commands.rs):
-/// one name per list whatever its case, folders that stay when emptied, a deleted
-/// folder's commands moved to No folder, and a project's own command ahead of a
+/// one name per list whatever its case, folders that stay when emptied, folders
+/// that are paths and take what's inside them along, a deleted folder's contents
+/// moved up a level, and a project's own command ahead of a
 /// global one of the same name.
 extension DemoServer {
     private static let commandVerbs = ["lpmCommands", "lpmCommandSave", "lpmCommandDelete",
                                        "lpmCommandFolder", "lpmCommandExpand", "lpmCommandOtherFolder", "lpmCommandConvert"]
     private static let autoVariables = ["branch", "project", "dir"]
-    private static let forbiddenFolderChars = "/\\:*?\"<>|"
 
     func registerCommandsHandlers() {
         for verb in Self.commandVerbs {
@@ -172,7 +175,7 @@ extension DemoServer {
         return own
     }
 
-    private func updateCommands(_ project: String, _ scope: String,
+    func updateCommands(_ project: String, _ scope: String,
                                 _ change: (inout DemoWorld.CommandList) throws -> Void) throws {
         var list = try commands(project, scope)
         try change(&list)
@@ -193,15 +196,20 @@ extension DemoServer {
     }
 
     private static func wire(_ list: DemoWorld.CommandList, scope: String, project: String) -> [String: Any] {
-        ["folders": list.folders.sorted(by: byName),
+        ["folders": list.folders.sorted { folderOrder($0) < folderOrder($1) },
+         "inRepo": scope == "project",
          "others": list.others.sorted { byName($0.name, $1.name) }.map { o -> [String: Any] in
-             ["name": o.name, "description": o.description, "preview": o.preview, "agents": o.agents,
-              "path": o.path.replacingOccurrences(of: "{root}", with: "/Users/demo/dev/\(project)"),
-              "folder": o.folder ?? NSNull()]
+             var row: [String: Any] = [
+                 "name": o.name, "description": o.description, "preview": o.preview, "agents": o.agents,
+                 "path": o.path.replacingOccurrences(of: "{root}", with: "/Users/demo/dev/\(project)"),
+                 "folder": o.folder ?? NSNull()]
+             if o.atRoot { row["atRoot"] = true }
+             return row
          },
          "commands": sorted(list.commands).map { c -> [String: Any] in
              ["name": c.name, "folder": c.folder ?? NSNull(), "description": c.description, "body": c.body,
-              "scope": scope, "argumentHint": argumentHint(c.body)]
+              "scope": scope, "argumentHint": argumentHint(c.body), "keptOutOfGit": c.keptOutOfGit,
+              "tracked": scope == "project" && c.tracked]
          }]
     }
 
@@ -211,7 +219,7 @@ extension DemoServer {
     private static func sorted(_ commands: [DemoWorld.Command]) -> [DemoWorld.Command] {
         commands.sorted { a, b in
             switch (a.folder, b.folder) {
-            case let (fa?, fb?) where fa != fb: return byName(fa, fb)
+            case let (fa?, fb?) where fa != fb: return folderOrder(fa) < folderOrder(fb)
             case (nil, _?): return false
             case (_?, nil): return true
             default: return byName(a.name, b.name)
@@ -219,11 +227,11 @@ extension DemoServer {
         }
     }
 
-    private static func scope(_ o: [String: Any]) -> String {
+    static func scope(_ o: [String: Any]) -> String {
         o["scope"] as? String == "global" ? "global" : "project"
     }
 
-    private static func placeLabel(_ folder: String?) -> String {
+    static func placeLabel(_ folder: String?) -> String {
         folder.map { "the \($0) folder" } ?? "No folder"
     }
 
@@ -247,22 +255,23 @@ extension DemoServer {
         }) {
             throw DemoCommandError("/\(clash.name) already exists in \(Self.placeLabel(clash.folder)).")
         }
+        let before = prev.flatMap { p in
+            try? commands(project, p.scope).commands.first { $0.folder == p.folder && $0.name == p.name }
+        }
+        let stays = prev?.scope == scope
+        let keptOut = scope == "project"
+            && (input["keepOutOfGit"] as? Bool ?? (stays && before?.keptOutOfGit == true))
         if let prev {
             try updateCommands(project, prev.scope) { list in
                 list.commands.removeAll { $0.folder == prev.folder && $0.name == prev.name }
             }
         }
         try updateCommands(project, scope) { list in
-            var place = folder
-            if let f = folder {
-                if let existing = list.folders.first(where: { $0.lowercased() == f.lowercased() }) {
-                    place = existing
-                } else {
-                    list.folders.append(f)
-                }
-            }
+            let place = folder.map { Self.addFolder(&list.folders, $0) }
             let description = (input["description"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            list.commands.append(DemoWorld.Command(name: name, folder: place, description: description, body: body))
+            list.commands.append(DemoWorld.Command(name: name, folder: place, description: description, body: body,
+                                                   keptOutOfGit: keptOut,
+                                                   tracked: !keptOut && stays && before?.tracked == true))
         }
     }
 
@@ -273,9 +282,9 @@ extension DemoServer {
             guard let i = list.others.firstIndex(where: { $0.name == name }) else {
                 throw DemoCommandError("/\(name) isn't in this list any more.")
             }
-            let kept = folder.map { f in list.folders.first { $0.lowercased() == f.lowercased() } ?? f }
-            if let kept, !list.folders.contains(kept) { list.folders.append(kept) }
+            let kept = folder.map { Self.addFolder(&list.folders, $0) }
             list.others[i].folder = kept
+            list.others[i].atRoot = kept == nil && o["root"] as? Bool == true
         }
     }
 
@@ -301,59 +310,6 @@ extension DemoServer {
                                                    path: "\(root)/.agents/skills/\(c.name)/SKILL.md", folder: c.folder))
             }
         }
-    }
-
-    private func changeFolder(_ project: String, _ o: [String: Any]) throws {
-        let name = try Self.checkFolder(o["name"] as? String ?? "")
-        let existing = { (list: DemoWorld.CommandList, folder: String) in
-            list.folders.first { $0.lowercased() == folder.lowercased() }
-        }
-        try updateCommands(project, Self.scope(o)) { list in
-            switch o["op"] as? String {
-            case "create":
-                if existing(list, name) != nil { throw DemoCommandError("A folder named \(name) already exists.") }
-                list.folders.append(name)
-            case "rename":
-                let to = try Self.checkFolder(o["newName"] as? String ?? "")
-                guard name != to else { return }
-                guard let current = existing(list, name) else { throw DemoCommandError("The \(name) folder is gone.") }
-                if name.lowercased() != to.lowercased(), existing(list, to) != nil {
-                    throw DemoCommandError("A folder named \(to) already exists.")
-                }
-                list.folders = list.folders.map { $0 == current ? to : $0 }
-                for i in list.others.indices where list.others[i].folder == current { list.others[i].folder = to }
-                for i in list.commands.indices where list.commands[i].folder == current { list.commands[i].folder = to }
-            case "delete":
-                guard let current = existing(list, name) else { return }
-                for c in list.commands where c.folder == current {
-                    if let other = list.commands.first(where: {
-                        $0.folder != current && $0.name.lowercased() == c.name.lowercased()
-                    }) {
-                        throw DemoCommandError("/\(other.name) is also in \(Self.placeLabel(other.folder)); rename one of them first.")
-                    }
-                }
-                list.folders.removeAll { $0 == current }
-                for i in list.others.indices where list.others[i].folder == current { list.others[i].folder = nil }
-                for i in list.commands.indices where list.commands[i].folder == current { list.commands[i].folder = nil }
-            default:
-                throw DemoCommandError("unknown folder op")
-            }
-        }
-    }
-
-    private static func cleanFolder(_ raw: String?) throws -> String? {
-        guard let f = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !f.isEmpty else { return nil }
-        return try checkFolder(f)
-    }
-
-    private static func checkFolder(_ raw: String) throws -> String {
-        let f = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !f.isEmpty else { throw DemoCommandError("Give the folder a name.") }
-        let control = f.unicodeScalars.contains { CharacterSet.controlCharacters.contains($0) }
-        if f.count > 64 || f.hasPrefix(".") || control || f.contains(where: { forbiddenFolderChars.contains($0) }) {
-            throw DemoCommandError("A folder name can't start with a dot or hold any of \(forbiddenFolderChars).")
-        }
-        return f
     }
 
     // MARK: running

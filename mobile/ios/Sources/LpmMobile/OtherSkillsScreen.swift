@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The skills in one list's places that weren't made in lpm and aren't in a folder.
+/// The skills in one list's places that weren't made in lpm and aren't filed anywhere.
 /// Tapping one reads it.
 struct OtherSkillsScreen: View {
     @Environment(AppModel.self) private var model
@@ -9,7 +9,7 @@ struct OtherSkillsScreen: View {
     let scope: LpmCommandScope
 
     private var store: LpmCommandsStore { model.lpmCommands }
-    private var skills: [OtherSkill] { store.lists[project]?.list(scope)?.others(in: nil) ?? [] }
+    private var skills: [OtherSkill] { store.lists[project]?.list(scope)?.otherGroup ?? [] }
 
     var body: some View {
         List {

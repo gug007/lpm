@@ -1,7 +1,14 @@
 import { RefreshCw } from "lucide-react";
 import { PeerSetAutoSync } from "../../../bridge/commands";
 import type { PeerClient } from "../../peer/usePeerState";
-import { autoSyncHint, canSyncNow, lastSyncedText, syncPill, type SyncDiff } from "../../peer/usePeerSync";
+import {
+  autoSyncHint,
+  canSyncNow,
+  lastSyncedText,
+  skippedSkillsText,
+  syncPill,
+  type SyncDiff,
+} from "../../peer/usePeerSync";
 import { DetailLine } from "./DetailLine";
 import { Toggle } from "./Toggle";
 import { SECONDARY_BUTTON } from "../mobile/styles";
@@ -20,6 +27,7 @@ export function PeerSyncLines({
 }) {
   const pill = syncPill(peer, diff);
   const hint = autoSyncHint(peer);
+  const skipped = skippedSkillsText(diff?.skippedSkills);
 
   return (
     <>
@@ -48,6 +56,7 @@ export function PeerSyncLines({
           Sync now
         </button>
       </DetailLine>
+      {skipped && <DetailLine title="Skills not synced" subtitle={skipped} />}
       <DetailLine
         title="Keep config in sync automatically"
         subtitle={

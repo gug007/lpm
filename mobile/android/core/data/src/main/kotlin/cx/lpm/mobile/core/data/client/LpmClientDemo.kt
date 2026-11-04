@@ -44,6 +44,7 @@ internal fun LpmClient.connectDemo() {
                 add(LpmClient.KEEP_AWAKE_FEATURE)
                 add(LpmClient.LPM_COMMANDS_FEATURE)
                 add(LpmClient.LPM_OTHER_SKILLS_FEATURE)
+                add(LpmClient.LPM_NESTED_FOLDERS_FEATURE)
                 add(LpmClient.GIT_CHECKS_FEATURE)
             }
         }

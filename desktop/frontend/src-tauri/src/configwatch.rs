@@ -7,7 +7,9 @@
 // events; listeners are read-only refreshers, so self-echo from our own writes is
 // harmless.
 use crate::config;
-use crate::configclassify::{fold_event, settings_changed, settings_digests, Dirty};
+use crate::configclassify::{
+    fold_event, settings_changed, settings_digests, touches_skills, Dirty,
+};
 use crate::syncsurface::sync_global_dirs;
 use std::path::PathBuf;
 use std::sync::mpsc::{sync_channel, RecvTimeoutError};
@@ -16,6 +18,19 @@ use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 
 const SETTLE: Duration = Duration::from_millis(500);
+
+/// The global skill roots that exist, as FSEvents names them. The shared one is
+/// made here because notify can only watch a path that exists.
+fn skill_roots() -> Vec<PathBuf> {
+    let roots = crate::lpm_commands::global_store().roots();
+    if let Some(shared) = roots.first() {
+        let _ = std::fs::create_dir_all(shared);
+    }
+    roots
+        .iter()
+        .filter_map(|root| std::fs::canonicalize(root).ok())
+        .collect()
+}
 
 /// Start the watcher on a background thread. Non-fatal on failure (logged), like
 /// socketsrv::start — the app still runs, external edits just won't propagate.
@@ -38,10 +53,12 @@ pub fn start(app: AppHandle) {
     // FSEvents delivers canonical absolute paths; canonicalize the root so
     // strip_prefix matches (mirrors git.rs).
     let root = std::fs::canonicalize(&lpm).unwrap_or(lpm);
+    let skill_roots = skill_roots();
     let dirty = Arc::new(Mutex::new(Dirty::default()));
     let (tx, rx) = sync_channel::<()>(1);
 
     let cb_root = root.clone();
+    let cb_skill_roots = skill_roots.clone();
     let cb_dirty = dirty.clone();
     // Seeded before any watch is armed, so this read cannot produce an event. From
     // here on the digest belongs to the debounce thread alone.
@@ -50,7 +67,8 @@ pub fn start(app: AppHandle) {
     let mut watcher =
         match notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
             let Ok(ev) = res else { return };
-            let d = fold_event(&cb_root, &ev);
+            let mut d = fold_event(&cb_root, &ev);
+            d.skills |= touches_skills(&cb_skill_roots, &ev);
             if d.any() {
                 cb_dirty.lock().unwrap().merge(d);
                 let _ = tx.try_send(());
@@ -77,6 +95,17 @@ pub fn start(app: AppHandle) {
                 path.display()
             );
             return;
+        }
+    }
+
+    // Skills sync without these watches too, on the next run, so one that can't be
+    // armed costs a delay rather than the whole watcher.
+    for path in &skill_roots {
+        if let Err(e) = watcher.watch(path, RecursiveMode::Recursive) {
+            eprintln!(
+                "warning: config watcher could not watch {}: {e}",
+                path.display()
+            );
         }
     }
 
@@ -123,6 +152,9 @@ pub fn start(app: AppHandle) {
             // One emit per memory folder that changed; the payload names the
             // folder's owner, which a pane on a duplicate matches against the
             // owner it already resolved.
+            if d.skills {
+                let _ = app.emit(crate::lpm_commands_cmds::CHANGED_EVENT, "");
+            }
             let memory_changed = !d.memory.is_empty();
             for project in d.memory {
                 let _ = app.emit("memory-changed", project);
@@ -134,7 +166,7 @@ pub fn start(app: AppHandle) {
             // Memory does: its own category classifies before the synced-dir arm,
             // so without this a session save would only sync when some unrelated
             // config edit happened to trigger a run.
-            if projects || d.templates || memory_changed {
+            if projects || d.templates || memory_changed || d.skills {
                 if let Some(engine) = app.try_state::<crate::autosync::Engine>() {
                     engine.notify_local_change();
                 }

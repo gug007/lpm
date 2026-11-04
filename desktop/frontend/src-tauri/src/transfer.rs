@@ -293,6 +293,7 @@ pub(crate) fn snapshot_backup() -> Result<String, String> {
 pub(crate) fn snapshot_sync_backup() -> Result<String, String> {
     let backup = backup_path();
     snapshot_sync_surface(&config::lpm_dir(), Path::new(&backup))?;
+    crate::skillsync::back_up(&Path::new(&backup).join("skills"))?;
     prune_backups(BACKUP_KEEP);
     Ok(backup)
 }

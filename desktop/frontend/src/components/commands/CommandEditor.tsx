@@ -2,8 +2,9 @@ import { useEffect, useRef } from "react";
 import { Trash2 } from "lucide-react";
 import { promptVariables, shadowNote, type LpmCommandLists } from "../../lpmCommands";
 import { FIELD_CLASS } from "../ui/fields";
+import { CommandGitSwitch } from "./CommandGitSwitch";
 import { CommandPlaceSelect } from "./CommandPlaceSelect";
-import { commandPath, draftProblem, isDirty, type Draft } from "./commandsModel";
+import { canKeepOutOfGit, commandPath, draftProblem, isDirty, keptOutNote, type Draft } from "./commandsModel";
 
 interface CommandEditorProps {
   draft: Draft;
@@ -93,6 +94,13 @@ export function CommandEditor({ draft, lists, projectLabel, saving, onChange, on
             className={`${FIELD_CLASS} px-2.5 py-1.5`}
           />
         </label>
+        {canKeepOutOfGit(draft, lists) && (
+          <CommandGitSwitch
+            checked={draft.keepOutOfGit}
+            note={keptOutNote(draft, lists)}
+            onChange={(keepOutOfGit) => set({ keepOutOfGit })}
+          />
+        )}
         <label className="flex min-h-[180px] flex-1 flex-col gap-1.5">
           <span className={LABEL}>Prompt</span>
           <textarea

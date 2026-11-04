@@ -1,5 +1,5 @@
 # lpm skills: a project's Skills screen (this project's folders, a new folder),
-# the skill editor, then the composer's "/" menu with the user's skills grouped
+# the skill editor, a folder inside that folder, then the composer's "/" menu with the user's skills grouped
 # by folder ahead of the agent's own.
 appId: cx.lpm.mobile
 name: 157-lpm-commands
@@ -45,10 +45,30 @@ tags: [demo, commands, composer]
 - waitForAnimationToEnd:
     timeout: 3000
 - takeScreenshot: 2-editor
+- scrollUntilVisible:
+    element: "Keep out of Git"
+    direction: DOWN
+- assertVisible: "Stays in the project folder and is never committed."
 - tapOn: "Cancel"
 - extendedWaitUntil:
     notVisible: "Save"
     timeout: 5000
+- tapOn: "Docs"
+- extendedWaitUntil:
+    visible: "New folder"
+    timeout: 5000
+- tapOn: "New folder"
+- extendedWaitUntil:
+    visible: "Create"
+    timeout: 5000
+- inputText: "Guides"
+- tapOn: "Create"
+- extendedWaitUntil:
+    visible: "Guides"
+    timeout: 5000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 2b-subfolder
 - runFlow: subflows/enter-demo.yaml
 - tapOn: "storefront"
 - extendedWaitUntil:

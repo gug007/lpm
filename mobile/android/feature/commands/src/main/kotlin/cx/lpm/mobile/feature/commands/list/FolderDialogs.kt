@@ -10,9 +10,12 @@ import cx.lpm.mobile.core.designsystem.component.AlertButton
 import cx.lpm.mobile.core.designsystem.component.AlertRole
 import cx.lpm.mobile.core.designsystem.component.AlertTextField
 import cx.lpm.mobile.core.designsystem.component.LpmAlert
+import cx.lpm.mobile.core.model.childFolder
+import cx.lpm.mobile.core.model.folderLabel
+import cx.lpm.mobile.core.model.folderParent
 import cx.lpm.mobile.feature.commands.R
 
-/** The folder dialog showing on the Commands screen, if any. */
+/** The folder dialog showing on a Commands page, if any. */
 sealed interface FolderDialog {
     data object Create : FolderDialog
 
@@ -43,14 +46,17 @@ internal fun FolderDialogs(
 
         is FolderDialog.Rename -> FolderNameAlert(
             title = stringResource(R.string.commands_rename_folder),
-            initial = dialog.folder,
+            initial = folderLabel(dialog.folder),
             confirm = stringResource(R.string.commands_rename),
-            onConfirm = { onRename(dialog.folder, it) },
+            onConfirm = { onRename(dialog.folder, childFolder(folderParent(dialog.folder), it)) },
             onDismiss = onDismiss
         )
 
         is FolderDialog.Delete -> LpmAlert(
-            title = stringResource(R.string.commands_delete_folder_title, dialog.folder),
+            title = stringResource(
+                R.string.commands_delete_folder_title,
+                folderLabel(dialog.folder)
+            ),
             message = stringResource(R.string.commands_delete_folder_message),
             buttons = listOf(
                 AlertButton(
@@ -62,6 +68,18 @@ internal fun FolderDialogs(
             onDismissRequest = onDismiss
         )
     }
+}
+
+/** A folder change the Mac refused. */
+@Composable
+internal fun FolderChangeFailed(error: String?, onDismiss: () -> Unit) {
+    if (error == null) return
+    LpmAlert(
+        title = stringResource(R.string.commands_change_failed),
+        message = error,
+        buttons = listOf(AlertButton(stringResource(R.string.ok), AlertRole.Cancel)),
+        onDismissRequest = onDismiss
+    )
 }
 
 @Composable

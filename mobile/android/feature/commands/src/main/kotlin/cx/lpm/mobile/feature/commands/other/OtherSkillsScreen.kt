@@ -76,7 +76,7 @@ internal fun OtherSkillsHost(
         modifier = modifier,
         inSheet = inSheet
     ) {
-        OtherSkillList(list.othersIn(null), onOpen)
+        OtherSkillList(list.otherGroup, onOpen)
     }
 }
 

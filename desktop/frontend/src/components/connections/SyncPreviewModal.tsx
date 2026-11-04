@@ -5,7 +5,7 @@ import { PeerSyncRun } from "../../../bridge/commands";
 import { MACHINE as M } from "../../machineWords";
 
 export interface SyncItem {
-  kind: "project" | "global" | "template";
+  kind: "project" | "global" | "template" | "skill";
   name: string;
   direction: "toLocal" | "toRemote";
   localMtime: number;
@@ -28,6 +28,7 @@ const KIND_ORDER: { kind: SyncItem["kind"]; label: string }[] = [
   { kind: "project", label: "Projects" },
   { kind: "global", label: "Global" },
   { kind: "template", label: "Templates" },
+  { kind: "skill", label: "Skills" },
 ];
 
 function DirectionArrow({
@@ -49,17 +50,20 @@ function DirectionArrow({
 }
 
 function RemoveLabel({
+  kind,
   direction,
   peerName,
 }: {
+  kind: SyncItem["kind"];
   direction: SyncItem["direction"];
   peerName: string;
 }) {
   const where = direction === "toRemote" ? peerName : M.ThisMachine;
+  const what = kind === "skill" ? "skill" : "file";
   return (
     <span
       className="flex shrink-0 items-center gap-1 text-[11px] text-[var(--accent-red)]"
-      title={`This file was deleted and will be removed on ${where}. A backup is kept.`}
+      title={`This ${what} was deleted and will be removed on ${where}. A backup is kept.`}
     >
       <Trash2 size={11} className="shrink-0" />
       <span className="max-w-[120px] truncate">Removed on {where}</span>
@@ -213,12 +217,12 @@ export function SyncPreviewModal({
                   >
                     <div className="flex min-w-0 items-center gap-2">
                       <span className="min-w-0 truncate text-[13px] text-[var(--text-primary)]">
-                        {it.name}
+                        {it.kind === "skill" ? `/${it.name}` : it.name}
                       </span>
                       {it.conflict && <ConflictBadge />}
                     </div>
                     {it.deleted ? (
-                      <RemoveLabel direction={it.direction} peerName={peerName} />
+                      <RemoveLabel kind={it.kind} direction={it.direction} peerName={peerName} />
                     ) : (
                       <DirectionArrow direction={it.direction} peerName={peerName} />
                     )}

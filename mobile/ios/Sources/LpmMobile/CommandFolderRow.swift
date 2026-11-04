@@ -8,7 +8,7 @@ struct CommandFolderRow: View {
 
     var body: some View {
         HStack {
-            Label(folder ?? "No folder", systemImage: folder == nil ? "tray" : "folder")
+            Label(folder.map(LpmFolderPath.label) ?? "No folder", systemImage: folder == nil ? "tray" : "folder")
             Spacer()
             Text("\(count)")
                 .foregroundStyle(.secondary)

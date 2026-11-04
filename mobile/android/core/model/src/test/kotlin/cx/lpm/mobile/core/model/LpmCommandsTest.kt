@@ -67,4 +67,59 @@ class LpmCommandsTest {
             skill.reach
         )
     }
+
+    @Test
+    fun otherSkillAtTheTopShowsWithTheSkillsInNoFolder() {
+        val inGroup = OtherSkill("lint", "", "", emptyList(), "")
+        val atRoot = OtherSkill("docs", "", "", emptyList(), "", atRoot = true)
+        val filed = OtherSkill("ship", "", "", emptyList(), "", folder = "Ops")
+        val list = LpmCommandList(others = listOf(inGroup, atRoot, filed))
+        assertEquals(listOf(atRoot), list.othersIn(null))
+        assertEquals(listOf(filed), list.othersIn("Ops"))
+        assertEquals(listOf(inGroup), list.otherGroup)
+        assertEquals(OtherSpot(root = true), atRoot.spot)
+        assertEquals(OtherSpot(), inGroup.spot)
+        assertEquals(OtherSpot("Ops"), filed.spot)
+    }
+
+    @Test
+    fun aFolderPathSplitsIntoItsParentAndOwnName() {
+        assertEquals("Work/Reviews", folderParent("Work/Reviews/Deep"))
+        assertNull(folderParent("Work"))
+        assertEquals("Deep", folderLabel("Work/Reviews/Deep"))
+        assertEquals("Work", folderLabel("Work"))
+        assertEquals("Work/Reviews", childFolder("Work", " Reviews "))
+        assertEquals("Work", childFolder(null, "Work"))
+        assertEquals("", childFolder("Work", "  "))
+    }
+
+    @Test
+    fun aNeighbourWithTheSameStartIsntInside() {
+        assertTrue(isWithinFolder("Work/Reviews", "Work"))
+        assertTrue(isWithinFolder("Work", "Work"))
+        assertFalse(isWithinFolder("Workshop", "Work"))
+    }
+
+    @Test
+    fun aListNamesEachLevelsFoldersAndCountsAllThatsInside() {
+        val command = { name: String, folder: String? ->
+            LpmCommand(name, folder, "", "", CommandScope.Global, "")
+        }
+        val list = LpmCommandList(
+            folders = listOf("Work", "Work/Reviews", "Work/Reviews/Deep", "Workshop"),
+            commands = listOf(
+                command("a", "Work"),
+                command("b", "Work/Reviews/Deep"),
+                command("c", "Workshop"),
+                command("d", null)
+            ),
+            others = listOf(OtherSkill("o", "", "", emptyList(), "", folder = "Work/Reviews"))
+        )
+        assertEquals(listOf("Work", "Workshop"), list.subfolders(null))
+        assertEquals(listOf("Work/Reviews"), list.subfolders("Work"))
+        assertEquals(3, list.countIn("Work"))
+        assertEquals(2, list.countIn("Work/Reviews"))
+        assertEquals(1, list.countIn("Workshop"))
+        assertEquals(1, list.countIn(null))
+    }
 }

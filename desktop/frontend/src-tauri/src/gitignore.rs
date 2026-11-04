@@ -21,16 +21,20 @@ pub fn ignored_names(dir: &Path, names: &[&str]) -> HashSet<String> {
     if names.is_empty() {
         return HashSet::new();
     }
-    let Ok(mut child) = crate::osproc::command("git")
+    ignored_in_repo(dir, names).unwrap_or_default()
+}
+
+/// The same question, telling a folder with nothing ignored from one that isn't
+/// in a repo: None there, or when there's no git to ask.
+pub fn ignored_in_repo(dir: &Path, names: &[&str]) -> Option<HashSet<String>> {
+    let mut child = crate::osproc::command("git")
         .args(["check-ignore", "-z", "--stdin"])
         .current_dir(dir)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .spawn()
-    else {
-        return HashSet::new();
-    };
+        .ok()?;
     let input = nul_joined(names);
     let writer = child.stdin.take().map(|mut stdin| {
         std::thread::spawn(move || {
@@ -41,7 +45,8 @@ pub fn ignored_names(dir: &Path, names: &[&str]) -> HashSet<String> {
     if let Some(writer) = writer {
         let _ = writer.join();
     }
-    out.map(|o| parse_nul_list(&o.stdout)).unwrap_or_default()
+    let out = out.ok()?;
+    matches!(out.status.code(), Some(0 | 1)).then(|| parse_nul_list(&out.stdout))
 }
 
 /// The same question of an SSH host, the names carried as arguments. A host

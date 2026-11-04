@@ -178,6 +178,7 @@ const PHONE_FEATURES: &[&str] = &[
     crate::keepawake_cmds::PHONE_FEATURE,
     crate::remote_lpm_commands::FEATURE,
     crate::remote_lpm_commands::OTHER_SKILLS_FEATURE,
+    crate::remote_lpm_commands::NESTED_FOLDERS_FEATURE,
     crate::remote_ci::FEATURE,
 ];
 

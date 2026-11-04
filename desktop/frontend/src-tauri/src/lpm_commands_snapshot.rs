@@ -1,7 +1,12 @@
 // What a list's places hold: read by `CommandFs`, here sorted into lpm's skills,
 // the skills that aren't lpm's, and the names lpm must leave alone.
-use crate::lpm_commands::{clean_folder, parse_doc, valid_name, Doc, OtherSkill, Reach};
+use crate::lpm_commands::{add_folder, clean_folder, parse_doc, valid_name, Doc, OtherSkill, Reach};
+use crate::lpm_commands_git::{GitView, SkillGit, CLAUDE_ROOT, SHARED_ROOT};
 use std::collections::HashSet;
+
+/// The folder saved for an other skill kept at the top of its list. An lpm that
+/// doesn't know it reads no folder, and shows the skill under Other skills.
+pub(crate) const AT_ROOT: &str = "";
 
 /// What of another skill a list carries: lists are read often, and a skill's
 /// whole file can run to tens of kilobytes.
@@ -16,6 +21,7 @@ pub(crate) struct CommandFile {
     pub name: String,
     pub doc: Doc,
     pub reach: Reach,
+    pub git: SkillGit,
 }
 
 /// One entry of a root's .claude/skills.
@@ -39,6 +45,8 @@ pub(crate) struct RawList {
     pub skills_dir: String,
     pub claude_dir: String,
     pub codex_dir: String,
+    /// What git says of a project's skills; None outside a repo.
+    pub git: Option<GitView>,
 }
 
 /// A list as it is on disk.
@@ -56,6 +64,7 @@ pub(crate) struct Snapshot {
     pub other_folders: Vec<(String, String)>,
     /// An old .lpm/commands list is still waiting to be moved here.
     pub legacy: bool,
+    pub in_repo: bool,
 }
 
 impl ClaudeEntry {
@@ -69,13 +78,11 @@ impl ClaudeEntry {
 
 impl Snapshot {
     fn add(&mut self, name: String, mut doc: Doc, reach: Reach) {
-        doc.folder = doc.folder.filter(|f| clean_folder(f).is_ok());
-        if let Some(folder) = &doc.folder {
-            if !self.folders.iter().any(|f| f.eq_ignore_ascii_case(folder)) {
-                self.folders.push(folder.clone());
-            }
-        }
-        self.files.push(CommandFile { name, doc, reach });
+        doc.folder = doc
+            .folder
+            .and_then(|f| clean_folder(&f).ok())
+            .map(|f| add_folder(&mut self.folders, &f));
+        self.files.push(CommandFile { name, doc, reach, git: SkillGit::default() });
     }
 
     /// A skill lpm didn't create. The same name in two places is one skill that
@@ -89,6 +96,7 @@ impl Snapshot {
                 agents: Vec::new(),
                 path,
                 folder: None,
+                at_root: false,
             });
         }
         self.also_read_by(&name, readers);
@@ -108,12 +116,10 @@ impl Snapshot {
     fn file_others(&mut self) {
         for other in &mut self.listed_others {
             let filed = self.other_folders.iter().find(|(name, _)| *name == other.name);
-            other.folder = filed.map(|(_, f)| f.clone()).filter(|f| clean_folder(f).is_ok());
-            if let Some(folder) = &other.folder {
-                if !self.folders.iter().any(|f| f.eq_ignore_ascii_case(folder)) {
-                    self.folders.push(folder.clone());
-                }
-            }
+            other.folder = filed
+                .and_then(|(_, f)| clean_folder(f).ok())
+                .map(|f| add_folder(&mut self.folders, &f));
+            other.at_root = filed.is_some_and(|(_, f)| f == AT_ROOT);
         }
     }
 
@@ -149,8 +155,12 @@ fn skill_path(root: &str, name: &str) -> String {
 
 impl RawList {
     pub(crate) fn sorted_out(self) -> Snapshot {
+        let mut folders = Vec::new();
+        for folder in &self.saved_folders {
+            add_folder(&mut folders, &clean_folder(folder).unwrap_or_else(|_| folder.clone()));
+        }
         let mut snap = Snapshot {
-            folders: self.saved_folders.clone(),
+            folders,
             saved_folders: self.saved_folders,
             other_folders: self.other_folders,
             legacy: self.legacy,
@@ -196,6 +206,18 @@ impl RawList {
             snap.add_elsewhere(name, &content, &shared, place);
         }
         snap.file_others();
+        if let Some(git) = &self.git {
+            snap.in_repo = true;
+            let in_claude: HashSet<&str> = self.claude.iter().map(|(name, _)| name.as_str()).collect();
+            for file in &mut snap.files {
+                let name = file.name.as_str();
+                let places = [
+                    shared.contains(name).then(|| format!("{SHARED_ROOT}/{name}")),
+                    in_claude.contains(name).then(|| format!("{CLAUDE_ROOT}/{name}")),
+                ];
+                file.git = git.skill(&places.into_iter().flatten().collect::<Vec<_>>());
+            }
+        }
         snap
     }
 }

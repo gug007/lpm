@@ -16,8 +16,9 @@ fun LpmClient.saveLpmCommand(
     command: CommandRef,
     description: String,
     body: String,
-    previous: CommandRef?
-) = send(Wire.lpmCommandSave(project, reqId, command, description, body, previous))
+    previous: CommandRef?,
+    keepOutOfGit: Boolean?
+) = send(Wire.lpmCommandSave(project, reqId, command, description, body, previous, keepOutOfGit))
 
 fun LpmClient.deleteLpmCommand(project: String, reqId: String, target: CommandRef) =
     send(Wire.lpmCommandDelete(project, reqId, target))
@@ -44,8 +45,9 @@ fun LpmClient.moveOtherSkill(
     reqId: String,
     scope: CommandScope,
     name: String,
-    folder: String?
-) = send(Wire.lpmCommandOtherFolder(project, reqId, scope, name, folder))
+    folder: String?,
+    root: Boolean
+) = send(Wire.lpmCommandOtherFolder(project, reqId, scope, name, folder, root))
 
 fun LpmClient.convertSkill(
     project: String,

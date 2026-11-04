@@ -3,12 +3,13 @@ import { useDraggable } from "@dnd-kit/core";
 import { commandKey, type LpmCommand } from "../../lpmCommands";
 import { ContextMenuItem } from "../ui/ContextMenuItem";
 import { ContextMenuShell } from "../ui/ContextMenuShell";
+import { skillIndent } from "./commandFolders";
 
 interface CommandRowProps {
   command: LpmCommand;
   selected: boolean;
-  // Inside a folder, so indented under it.
-  nested: boolean;
+  // How many folders it sits inside.
+  depth: number;
   // False when a same-named command elsewhere runs instead of this one.
   runs: boolean;
   onSelect: () => void;
@@ -20,7 +21,7 @@ interface CommandRowProps {
 export function CommandRow({
   command,
   selected,
-  nested,
+  depth,
   runs,
   onSelect,
   onConvert,
@@ -44,9 +45,10 @@ export function CommandRow({
           setMenu({ x: e.clientX, y: e.clientY });
         }}
         aria-current={selected ? "true" : undefined}
+        style={{ paddingLeft: skillIndent(depth) }}
         className={`flex w-full min-w-0 items-baseline gap-2 rounded-md py-1.5 pr-2 text-left transition-colors ${
-          nested ? "pl-7" : "pl-2"
-        } ${isDragging ? "opacity-40" : ""} ${selected ? "bg-[var(--bg-active)]" : "hover:bg-[var(--bg-hover)]"}`}
+          isDragging ? "opacity-40" : ""
+        } ${selected ? "bg-[var(--bg-active)]" : "hover:bg-[var(--bg-hover)]"}`}
       >
         <span
           className={`max-w-full shrink-0 truncate font-mono text-[12.5px] font-medium ${

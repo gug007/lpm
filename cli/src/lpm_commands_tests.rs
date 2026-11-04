@@ -13,6 +13,8 @@ fn saved(scope: Scope, folder: Option<&str>, name: &str) -> Saved {
         body: format!("prompt of {name}"),
         scope,
         argument_hint: String::new(),
+        kept_out_of_git: false,
+        keep_out_of_git: None,
     }
 }
 
@@ -267,4 +269,50 @@ fn an_app_error_is_a_failure_with_its_text() {
         (1, "/x already exists in No folder.")
     );
     h.join().unwrap();
+}
+
+#[test]
+fn git_flags_say_what_to_do_and_alone_count_as_a_change() {
+    let out = edit_args(&["--keep-out-of-git"]);
+    assert_eq!(git_choice(&out), Some(true));
+    assert!(!changes_nothing(&out, false));
+    let back = edit_args(&["--in-git"]);
+    assert_eq!(git_choice(&back), Some(false));
+    assert!(!changes_nothing(&back, false));
+    assert_eq!(git_choice(&edit_args(&[])), None);
+    assert!(changes_nothing(&edit_args(&[]), false));
+}
+
+#[test]
+fn git_flags_refuse_each_other_and_the_global_list() {
+    let refused = |words: &[&str]| {
+        let argv = ["lpm", "edit", "x"].iter().chain(words).copied();
+        Cli::try_parse_from(argv).is_err()
+    };
+    assert!(refused(&["--keep-out-of-git", "--in-git"]));
+    assert!(refused(&["--keep-out-of-git", "--global"]));
+    assert!(refused(&["--in-git", "--global"]));
+}
+
+#[test]
+fn a_save_sends_the_switch_only_when_asked() {
+    let plain = saved(Scope::Project, None, "mine");
+    assert!(serde_json::to_value(&plain).unwrap().get("keepOutOfGit").is_none());
+    let asked = Saved { keep_out_of_git: Some(true), ..plain };
+    assert_eq!(serde_json::to_value(&asked).unwrap()["keepOutOfGit"], true);
+}
+
+#[test]
+fn an_app_that_skipped_the_switch_is_an_error_not_a_success() {
+    let reply = json!({
+        "global": { "commands": [] },
+        "project": { "commands": [{
+            "name": "mine", "folder": null, "description": "", "body": "x",
+            "scope": "project", "argumentHint": ""
+        }] },
+        "projectError": null,
+    });
+    let asked = Saved { keep_out_of_git: Some(true), ..saved(Scope::Project, None, "mine") };
+    assert!(confirm_git(&reply, &asked).is_err());
+    assert!(confirm_git(&reply, &saved(Scope::Project, None, "mine")).is_ok());
 }

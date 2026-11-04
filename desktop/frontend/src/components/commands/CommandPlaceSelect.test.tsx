@@ -164,4 +164,41 @@ describe("CommandPlaceSelect", () => {
     press(field(), "Enter");
     expect(spy).toHaveBeenCalledWith({ scope: "global", folder: "Git" });
   });
+
+  it("offers the Other skills group for a skill not made in lpm", () => {
+    const choose = vi.fn();
+    const render = (current: boolean) =>
+      act(() =>
+        root.render(
+          <div>
+            <span id="label">Folder</span>
+            <CommandPlaceSelect
+              id="field"
+              labelledBy="label"
+              place={{ scope: "project", folder: null }}
+              lists={lists}
+              projectLabel="web"
+              onlyScope="project"
+              otherGroup={{ current, onChoose: choose }}
+              onChange={spy}
+            />
+          </div>,
+        ),
+      );
+    render(true);
+    expect(field().textContent).toContain("Other skills");
+    click(field());
+    const picked = () => document.querySelector('[role="option"][aria-selected="true"]')?.textContent;
+    expect(picked()).toContain("Other skills");
+    click(field());
+
+    render(false);
+    expect(field().textContent).toContain("No folder");
+    click(field());
+    expect(picked()).toContain("No folder");
+    const option = [...document.querySelectorAll('[role="option"]')].find((o) => o.textContent?.includes("Other skills"))!;
+    click(option);
+    expect(choose).toHaveBeenCalledOnce();
+    expect(spy).not.toHaveBeenCalled();
+  });
 });

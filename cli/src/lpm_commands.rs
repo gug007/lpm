@@ -101,9 +101,15 @@ pub struct AddArgs {
     #[arg(
         long,
         value_name = "NAME",
-        help = "Folder to keep it in; created if new"
+        help = "Folder to keep it in, Parent/Child for one inside another; created if new"
     )]
     folder: Option<String>,
+    #[arg(
+        long,
+        conflicts_with = "global",
+        help = "Keep it out of Git: it stays in the project folder and is never committed"
+    )]
+    keep_out_of_git: bool,
     #[command(flatten)]
     at: Place,
     #[arg(long, help = "Emit machine-readable JSON")]
@@ -125,7 +131,7 @@ pub struct EditArgs {
     #[arg(
         long,
         value_name = "NAME",
-        help = "Move it to this folder; empty moves it out of its folder"
+        help = "Move it to this folder, Parent/Child for one inside another; empty moves it out of its folder"
     )]
     folder: Option<String>,
     #[arg(long, value_name = "NAME", help = "Give it a new name")]
@@ -137,6 +143,18 @@ pub struct EditArgs {
         help = "Move it to the other list"
     )]
     to: Option<Scope>,
+    #[arg(
+        long,
+        conflicts_with = "global",
+        help = "Keep it out of Git; a committed skill has its removal staged for you to commit"
+    )]
+    keep_out_of_git: bool,
+    #[arg(
+        long,
+        conflicts_with_all = ["global", "keep_out_of_git"],
+        help = "Let Git see it again"
+    )]
+    in_git: bool,
     #[command(flatten)]
     at: Place,
     #[arg(long, help = "Emit machine-readable JSON")]
@@ -244,6 +262,22 @@ fn report(verb: &str, at: &str, c: &Saved, project: &str, as_json: bool) {
     }
 }
 
+/// An older app saves the skill and skips what it doesn't know, which for this
+/// must not pass as done.
+fn confirm_git(reply: &Value, command: &Saved) -> Result<(), RunError> {
+    let Some(want) = command.keep_out_of_git else {
+        return Ok(());
+    };
+    let lists = parse_lists(reply)?;
+    if find_in(&lists, command.scope, &command.name)?.kept_out_of_git == want {
+        return Ok(());
+    }
+    Err(RunError::Internal(format!(
+        "the skill was saved, but the app didn't change whether Git sees /{}; update the lpm app",
+        command.name
+    )))
+}
+
 fn add(ctx: &Ctx, args: AddArgs) -> Result<(), RunError> {
     let scope = args.at.scope();
     let project = project_to_change(ctx, &args.at, scope == Scope::Project)?;
@@ -259,8 +293,11 @@ fn add(ctx: &Ctx, args: AddArgs) -> Result<(), RunError> {
         body,
         scope,
         argument_hint: String::new(),
+        kept_out_of_git: false,
+        keep_out_of_git: args.keep_out_of_git.then_some(true),
     };
-    request(ctx, "save", &project, json!({ "command": command }))?;
+    let reply = request(ctx, "save", &project, json!({ "command": command }))?;
+    confirm_git(&reply, &command)?;
     report("saved", "in", &command, &project, args.json);
     Ok(())
 }
@@ -271,6 +308,15 @@ fn changes_nothing(args: &EditArgs, has_prompt: bool) -> bool {
         && args.folder.is_none()
         && args.rename.is_none()
         && args.to.is_none()
+        && git_choice(args).is_none()
+}
+
+fn git_choice(args: &EditArgs) -> Option<bool> {
+    match (args.keep_out_of_git, args.in_git) {
+        (true, _) => Some(true),
+        (_, true) => Some(false),
+        _ => None,
+    }
 }
 
 /// The command as it stands with the flags given laid over it.
@@ -289,6 +335,8 @@ fn edited(c: &Saved, args: &EditArgs, body: Option<String>) -> Saved {
         body: body.unwrap_or_else(|| c.body.clone()),
         scope: args.to.unwrap_or(c.scope),
         argument_hint: String::new(),
+        kept_out_of_git: false,
+        keep_out_of_git: git_choice(args),
     }
 }
 
@@ -299,7 +347,7 @@ fn edit(ctx: &Ctx, args: EditArgs) -> Result<(), RunError> {
     let body = read_prompt(&args.prompt)?;
     if changes_nothing(&args, body.is_some()) {
         return Err(RunError::NotFound(
-            "nothing to change: pass --prompt, --file, --stdin, --description, --folder, --rename or --to"
+            "nothing to change: pass --prompt, --file, --stdin, --description, --folder, --rename, --to, --keep-out-of-git or --in-git"
                 .into(),
         ));
     }
@@ -307,7 +355,8 @@ fn edit(ctx: &Ctx, args: EditArgs) -> Result<(), RunError> {
     let current = find_in(&lists, from, bare(&args.name))?;
     let command = edited(current, &args, body);
     let fields = json!({ "command": command, "previous": reference(current) });
-    request(ctx, "save", &project, fields)?;
+    let reply = request(ctx, "save", &project, fields)?;
+    confirm_git(&reply, &command)?;
     report("saved", "in", &command, &project, args.json);
     Ok(())
 }

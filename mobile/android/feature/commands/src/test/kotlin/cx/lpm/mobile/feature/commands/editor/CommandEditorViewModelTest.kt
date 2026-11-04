@@ -3,11 +3,13 @@ package cx.lpm.mobile.feature.commands.editor
 import cx.lpm.mobile.core.model.CommandRef
 import cx.lpm.mobile.core.model.CommandScope
 import cx.lpm.mobile.core.model.Haptic
+import cx.lpm.mobile.core.model.SessionKey
 import cx.lpm.mobile.core.navigation.CommandEditorKey
 import cx.lpm.mobile.core.testing.MainDispatcherRule
 import cx.lpm.mobile.core.testing.TestSession
 import cx.lpm.mobile.feature.commands.commands
 import cx.lpm.mobile.feature.commands.demoSession
+import cx.lpm.mobile.feature.commands.folder.editorKey
 import cx.lpm.mobile.feature.commands.settle
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
@@ -122,5 +124,45 @@ class CommandEditorViewModelTest {
         val vm = editor(t, CommandEditorKey("", body = "x"))
         assertEquals(CommandScope.Global, vm.uiState.value.draft.scope)
         assertEquals(listOf(CommandScope.Global), vm.uiState.value.places.map { it.scope })
+    }
+
+    @Test
+    fun `a project's skill in a repo offers Keep out of Git and a global one doesn't`() = runTest {
+        val t = demoSession()
+        val vm = editor(t, CommandEditorKey("storefront", body = "Ship the release"))
+        assertTrue(vm.uiState.value.canKeepOutOfGit)
+        vm.place(CommandScope.Global, null)
+        t.settle()
+        assertFalse(vm.uiState.value.canKeepOutOfGit)
+    }
+
+    @Test
+    fun `Save keeps a new skill out of Git and it reads back that way`() = runTest {
+        val t = demoSession()
+        val vm = editor(t, CommandEditorKey("storefront", body = "Ship the release"))
+        vm.setName("mine")
+        vm.setKeepOutOfGit(true)
+        t.settle()
+        assertFalse("a skill not committed needs no warning", vm.uiState.value.warnCommitted)
+        vm.save()
+        t.settle()
+        val saved = t.commands.state.value.lists.getValue("storefront").project!!
+            .commands.first { it.name == "mine" }
+        assertTrue(saved.keptOutOfGit)
+        assertFalse(saved.tracked)
+    }
+
+    @Test
+    fun `turning it on for a committed skill warns first`() = runTest {
+        val t = demoSession()
+        editor(t, CommandEditorKey("storefront"))
+        val committed = t.commands.state.value.lists.getValue("storefront").project!!
+            .commands.first()
+        assertTrue(committed.tracked)
+        val vm = editor(t, committed.editorKey("storefront", SessionKey.Live))
+        assertFalse(vm.uiState.value.warnCommitted)
+        vm.setKeepOutOfGit(true)
+        t.settle()
+        assertTrue(vm.uiState.value.warnCommitted)
     }
 }

@@ -35,6 +35,12 @@ pub(crate) struct Saved {
     pub(crate) body: String,
     pub(crate) scope: Scope,
     pub(crate) argument_hint: String,
+    /// What the app reports; older apps leave it out.
+    #[serde(default, skip_serializing)]
+    pub(crate) kept_out_of_git: bool,
+    /// What a save asks for; left out, the skill stays as it is.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) keep_out_of_git: Option<bool>,
 }
 
 impl Saved {

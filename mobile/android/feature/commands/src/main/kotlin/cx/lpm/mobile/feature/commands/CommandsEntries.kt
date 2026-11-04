@@ -31,7 +31,12 @@ fun EntryProviderScope<NavKey>.commandsEntries(navigator: Navigator) {
         )
     }
     entry<CommandFolderKey> { key ->
-        CommandFolderRoute(key = key, onOpenOther = navigator::navigate, onBack = navigator::back)
+        CommandFolderRoute(
+            key = key,
+            onOpenFolder = navigator::navigate,
+            onOpenOther = navigator::navigate,
+            onBack = navigator::back
+        )
     }
     entry<OtherSkillsKey> { key ->
         OtherSkillsRoute(key = key, onOpen = navigator::navigate, onBack = navigator::back)

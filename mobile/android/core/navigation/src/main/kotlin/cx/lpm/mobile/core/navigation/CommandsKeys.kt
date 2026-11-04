@@ -54,5 +54,6 @@ data class CommandEditorKey(
     val name: String = "",
     val description: String = "",
     val body: String = "",
-    val session: SessionKey = SessionKey.Live
+    val session: SessionKey = SessionKey.Live,
+    val keepOutOfGit: Boolean = false
 ) : NavKey

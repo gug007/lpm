@@ -18,6 +18,9 @@ pub const FEATURE: &str = "lpmCommands";
 /// The phone may send `lpmCommandOtherFolder` and `lpmCommandConvert`.
 pub const OTHER_SKILLS_FEATURE: &str = "lpmOtherSkills";
 
+/// The phone may name a folder inside another, as `Parent/Child`.
+pub const NESTED_FOLDERS_FEATURE: &str = "lpmNestedFolders";
+
 fn kind(verb: &str, v: &Value) -> &'static str {
     match verb {
         "lpmCommands" => "list",

@@ -27,10 +27,10 @@ import cx.lpm.mobile.core.designsystem.component.ListCard
 import cx.lpm.mobile.core.designsystem.component.ListRow
 import cx.lpm.mobile.core.designsystem.component.LpmAlert
 import cx.lpm.mobile.core.designsystem.component.PickerRow
-import cx.lpm.mobile.core.designsystem.component.PickerSection
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.core.model.CommandScope
 import cx.lpm.mobile.core.model.OtherSkill
+import cx.lpm.mobile.core.model.OtherSpot
 import cx.lpm.mobile.core.model.SessionKey
 import cx.lpm.mobile.core.navigation.OtherSkillKey
 import cx.lpm.mobile.feature.commands.R
@@ -107,7 +107,7 @@ internal fun OtherSkillDetail(
     skill: OtherSkill,
     folders: List<String>,
     canChange: Boolean,
-    onMove: (String?) -> Unit,
+    onMove: (OtherSpot) -> Unit,
     onConvert: () -> Unit
 ) {
     LazyColumn(
@@ -159,14 +159,15 @@ internal fun OtherSkillDetail(
 }
 
 @Composable
-private fun FolderRow(skill: OtherSkill, folders: List<String>, onMove: (String?) -> Unit) {
+private fun FolderRow(skill: OtherSkill, folders: List<String>, onMove: (OtherSpot) -> Unit) {
     val noFolder = stringResource(R.string.commands_no_folder)
+    val otherSkills = stringResource(R.string.commands_other_skills)
     PickerRow(
         title = stringResource(R.string.command_editor_folder),
-        sections = listOf(PickerSection(null, folders + null)),
-        selected = skill.folder,
+        options = folders.map { OtherSpot(it) } + OtherSpot(root = true) + OtherSpot(),
+        selected = skill.spot,
         onSelect = onMove,
-        optionLabel = { it ?: noFolder }
+        optionLabel = { it.folder ?: if (it.root) noFolder else otherSkills }
     )
 }
 

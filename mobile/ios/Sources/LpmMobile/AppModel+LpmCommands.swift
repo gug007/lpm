@@ -11,6 +11,11 @@ extension AppModel {
         client?.hostFeatures.contains(LpmClient.lpmOtherSkillsFeature) == true
     }
 
+    /// The Mac can keep folders inside folders.
+    var lpmNestedFoldersAvailable: Bool {
+        client?.hostFeatures.contains(LpmClient.lpmNestedFoldersFeature) == true
+    }
+
     func wireLpmCommands(_ c: LpmClient) {
         c.onLpmCommandReply = { [weak self, weak c] reply in
             guard let self, let c, c === self.client else { return }

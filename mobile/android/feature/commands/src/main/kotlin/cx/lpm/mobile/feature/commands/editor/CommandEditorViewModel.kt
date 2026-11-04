@@ -55,6 +55,8 @@ class CommandEditorViewModel @AssistedInject constructor(
         CommandEditorUiState(
             draft = d,
             places = placesFor(d, l),
+            canKeepOutOfGit = canKeepOutOfGit(d, l),
+            warnCommitted = warnsCommitted(d, l),
             saving = w.saving,
             error = w.error,
             done = w.done,
@@ -81,11 +83,21 @@ class CommandEditorViewModel @AssistedInject constructor(
     fun place(scope: CommandScope, folder: String?) =
         draft.update { it.copy(scope = scope, folder = folder) }
 
+    fun setKeepOutOfGit(keep: Boolean) = draft.update { it.copy(keepOutOfGit = keep) }
+
     fun save() {
         val d = draft.value
         if (!d.isValid) return
+        val keepOutOfGit = d.keepOutOfGit.takeIf { uiState.value.canKeepOutOfGit }
         commit { store ->
-            store.save(project, d.place, d.description.trimmingWhitespace(), d.body, d.original)
+            store.save(
+                project,
+                d.place,
+                d.description.trimmingWhitespace(),
+                d.body,
+                d.original,
+                keepOutOfGit
+            )
         }
     }
 

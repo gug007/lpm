@@ -11,6 +11,8 @@ export interface SyncDiff {
   loading: boolean;
   items: SyncItem[] | null;
   error: string | null;
+  // Skills left on one side: the other keeps something else under that name.
+  skippedSkills?: string[];
 }
 
 export interface SyncPill {
@@ -51,6 +53,14 @@ export function autoSyncHint(p: PeerClient): string | null {
   return null;
 }
 
+export function skippedSkillsText(names: string[] | undefined): string | null {
+  if (!names?.length) return null;
+  const list = names.map((name) => `/${name}`).join(", ");
+  return names.length === 1
+    ? `${list}: a different skill has that name on one of these ${M.plural}.`
+    : `${list}: different skills have those names on one of these ${M.plural}.`;
+}
+
 export function lastSyncedText(p: PeerClient): string {
   const rel = p.lastSyncAt ? relativeTime(Math.floor(p.lastSyncAt / 1000)) : "";
   if (!rel) return "Never synced";
@@ -73,11 +83,20 @@ export function usePeerSync(peers: PeerClient[]) {
   peersRef.current = peers;
 
   const load = useCallback(async (slug: string): Promise<SyncItem[] | null> => {
-    setDiffs((d) => ({ ...d, [slug]: { loading: true, items: d[slug]?.items ?? null, error: null } }));
+    setDiffs((d) => ({
+      ...d,
+      [slug]: {
+        loading: true,
+        items: d[slug]?.items ?? null,
+        error: null,
+        skippedSkills: d[slug]?.skippedSkills,
+      },
+    }));
     try {
-      const res = (await PeerSyncStatus(slug)) as { items: SyncItem[] };
+      const res = (await PeerSyncStatus(slug)) as { items: SyncItem[]; skippedSkills?: string[] };
       const items = res?.items ?? [];
-      setDiffs((d) => ({ ...d, [slug]: { loading: false, items, error: null } }));
+      const skippedSkills = res?.skippedSkills;
+      setDiffs((d) => ({ ...d, [slug]: { loading: false, items, error: null, skippedSkills } }));
       return items;
     } catch (err) {
       setDiffs((d) => ({ ...d, [slug]: { loading: false, items: null, error: String(err) } }));
@@ -123,9 +142,11 @@ export function usePeerSync(peers: PeerClient[]) {
       EventsOn("projects-changed", debounced),
       EventsOn("templates-changed", debounced),
       EventsOn("memory-changed", debounced),
+      EventsOn("lpm-commands-changed", debounced),
       subscribePeerGlobalEvent("projects-changed", debounced),
       subscribePeerGlobalEvent("templates-changed", debounced),
       subscribePeerGlobalEvent("memory-changed", debounced),
+      subscribePeerGlobalEvent("lpm-commands-changed", debounced),
     ];
     return () => offs.forEach((off) => off());
   }, [refreshAll]);

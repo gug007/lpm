@@ -14,7 +14,7 @@ use std::collections::HashSet;
 use std::path::Path;
 
 pub(crate) use crate::lpm_commands_doc::{parse_doc, Doc};
-pub(crate) use crate::lpm_commands_local::LocalFs;
+pub(crate) use crate::lpm_commands_local::{copy_tree, LocalFs};
 pub(crate) use crate::lpm_commands_names::*;
 pub(crate) use crate::lpm_commands_snapshot::*;
 
@@ -46,6 +46,10 @@ pub struct LpmCommand {
     pub argument_hint: String,
     #[serde(skip)]
     pub reach: Reach,
+    /// Git ignores it and holds none of its files.
+    pub kept_out_of_git: bool,
+    /// Git holds some of its files.
+    pub tracked: bool,
 }
 
 /// A skill in one of a list's places that lpm didn't create: listed so the user
@@ -61,13 +65,18 @@ pub struct OtherSkill {
     pub path: String,
     /// Kept by lpm beside the list: the skill's own file stays as it is.
     pub folder: Option<String>,
+    /// Shown with the list's skills in no folder, out of the Other skills group.
+    pub at_root: bool,
 }
 
 #[derive(Serialize, Clone, Debug, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct ScopeList {
     pub folders: Vec<String>,
     pub commands: Vec<LpmCommand>,
     pub others: Vec<OtherSkill>,
+    /// The list belongs to a git repo, so its skills can be kept out of it.
+    pub in_repo: bool,
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -90,6 +99,9 @@ pub struct CommandInput {
     #[serde(default)]
     pub description: String,
     pub body: String,
+    /// None leaves it as it is, which is what an older phone or a move sends.
+    #[serde(default)]
+    pub keep_out_of_git: Option<bool>,
 }
 
 #[derive(Deserialize, Clone, Debug, PartialEq)]
@@ -122,6 +134,12 @@ pub(crate) trait CommandFs {
     fn rewrite(&self, path: &str, content: &str) -> Result<(), String>;
     /// The skill's folder as the computer holding the list names it.
     fn location(&self, name: &str) -> String;
+    /// `git` in the project's folder, its trimmed output; refused for a list
+    /// outside a project.
+    fn git(&self, args: &[&str]) -> Result<String, String>;
+    /// A file `git rev-parse --git-path` named, "" when it isn't there yet.
+    fn read_git_file(&self, path: &str) -> Result<String, String>;
+    fn write_git_file(&self, path: &str, text: &str) -> Result<(), String>;
 
     fn legacy_list(&self) -> Result<LegacyList, String>;
     /// Copies what sits beside the `commands` of an old folder into a skill's
@@ -188,7 +206,7 @@ pub(crate) fn project_place(project: &str) -> Result<Option<ProjectPlace>, Strin
     }))
 }
 
-fn global_store() -> LocalFs {
+pub(crate) fn global_store() -> LocalFs {
     let home = dirs::home_dir().unwrap_or_default();
     let claude = crate::agentdirs::claude_config_dir()
         .map(Path::to_path_buf)
@@ -204,12 +222,13 @@ fn global_store() -> LocalFs {
     }
 }
 
-fn project_store(root: &Path) -> LocalFs {
+pub(crate) fn project_store(root: &Path) -> LocalFs {
     LocalFs::new(
         root.join(".agents").join("skills"),
         root.join(".claude").join("skills"),
         root.join(".lpm"),
     )
+    .with_repo(root.to_path_buf())
 }
 
 /// The list a `.agents/skills` root is, for Agent setup, which writes to a root
@@ -261,7 +280,7 @@ pub(crate) fn list_stores(stores: &Stores) -> Result<LpmCommands, String> {
 
 /// The list as it stands, moving an old .lpm/commands one in first. A move that
 /// fails leaves the old list where it was and is tried again on the next read.
-fn current(fs: &dyn CommandFs) -> Result<Snapshot, String> {
+pub(crate) fn current(fs: &dyn CommandFs) -> Result<Snapshot, String> {
     let snap = fs.snapshot()?;
     if !snap.legacy {
         return Ok(snap);
@@ -276,7 +295,7 @@ fn current(fs: &dyn CommandFs) -> Result<Snapshot, String> {
 }
 
 fn read_scope(fs: &dyn CommandFs, scope: Scope) -> Result<ScopeList, String> {
-    let Snapshot { mut folders, files, listed_others: mut others, .. } = current(fs)?;
+    let Snapshot { mut folders, files, listed_others: mut others, in_repo, .. } = current(fs)?;
     let mut commands: Vec<LpmCommand> = files
         .into_iter()
         .map(|f| LpmCommand {
@@ -287,15 +306,17 @@ fn read_scope(fs: &dyn CommandFs, scope: Scope) -> Result<ScopeList, String> {
             name: f.name,
             scope,
             reach: f.reach,
+            kept_out_of_git: f.git.kept_out,
+            tracked: f.git.tracked,
         })
         .collect();
-    folders.sort_by_key(|f| f.to_lowercase());
+    folders.sort_by_key(|f| folder_order(f));
     commands.sort_by(|a, b| {
-        let key = |c: &LpmCommand| (c.folder.is_none(), c.folder.as_deref().map(str::to_lowercase));
+        let key = |c: &LpmCommand| (c.folder.is_none(), c.folder.as_deref().map(folder_order));
         key(a).cmp(&key(b)).then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
     });
     others.sort_by_key(|o| o.name.to_lowercase());
-    Ok(ScopeList { folders, commands, others })
+    Ok(ScopeList { folders, commands, others, in_repo })
 }
 
 /// What `/name` runs, in menu order: the project's commands, then the global

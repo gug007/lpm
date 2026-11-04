@@ -7,19 +7,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.stringResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import cx.lpm.mobile.core.designsystem.component.AlertButton
-import cx.lpm.mobile.core.designsystem.component.AlertRole
-import cx.lpm.mobile.core.designsystem.component.LpmAlert
 import cx.lpm.mobile.core.model.CommandScope
 import cx.lpm.mobile.core.model.SessionKey
 import cx.lpm.mobile.core.navigation.CommandEditorKey
 import cx.lpm.mobile.core.navigation.CommandFolderKey
 import cx.lpm.mobile.core.navigation.CommandsKey
 import cx.lpm.mobile.core.navigation.OtherSkillsKey
-import cx.lpm.mobile.feature.commands.R
 import cx.lpm.mobile.feature.commands.editor.CommandEditorSheet
 import cx.lpm.mobile.feature.commands.ui.BackButton
 import cx.lpm.mobile.feature.commands.ui.rememberCommandsPage
@@ -96,12 +91,5 @@ internal fun CommandsHost(
         onDismiss = { dialog = null }
     )
     page.editing?.let { CommandEditorSheet(it, onDismiss = { page.editing = null }) }
-    state.changeError?.let { error ->
-        LpmAlert(
-            title = stringResource(R.string.commands_change_failed),
-            message = error,
-            buttons = listOf(AlertButton(stringResource(R.string.ok), AlertRole.Cancel)),
-            onDismissRequest = viewModel::dismissError
-        )
-    }
+    FolderChangeFailed(state.changeError, viewModel::dismissError)
 }

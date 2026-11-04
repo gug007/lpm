@@ -23,7 +23,9 @@ pub(crate) enum Request {
     CreateFolder { scope: Scope, name: String },
     RenameFolder { scope: Scope, name: String, new_name: String },
     DeleteFolder { scope: Scope, name: String },
-    MoveOther { scope: Scope, name: String, folder: Option<String> },
+    /// `root` shows it with the skills in no folder; a `folder` wins over it, and
+    /// neither puts it back in the Other skills group.
+    MoveOther { scope: Scope, name: String, folder: Option<String>, root: bool },
     Convert { scope: Scope, name: String, to_lpm: bool },
     Import { scope: Scope },
     /// `cli` is the agent the run goes to, None to get the prompt whatever it is.
@@ -86,6 +88,7 @@ impl Request {
                 scope: field(args, "scope")?,
                 name: text("name")?,
                 folder: field(args, "folder")?,
+                root: field::<Option<bool>>(args, "root")?.unwrap_or(false),
             },
             "convert" => Request::Convert {
                 scope: field(args, "scope")?,
@@ -134,7 +137,12 @@ pub(crate) fn dispatch(app: &AppHandle, project: &str, request: Request) -> Resu
         Request::CreateFolder { scope, name } => ops::create_folder(&stores, scope, &name)?,
         Request::RenameFolder { scope, name, new_name } => ops::rename_folder(&stores, scope, &name, &new_name)?,
         Request::DeleteFolder { scope, name } => ops::delete_folder(&stores, scope, &name)?,
-        Request::MoveOther { scope, name, folder } => ops::move_other(&stores, scope, &name, folder.as_deref())?,
+        Request::MoveOther { scope, name, folder: None, root: true } => {
+            ops::move_other_to_root(&stores, scope, &name)?
+        }
+        Request::MoveOther { scope, name, folder, .. } => {
+            ops::move_other(&stores, scope, &name, folder.as_deref())?
+        }
         Request::Convert { scope, name, to_lpm } => ops::convert(&stores, scope, &name, to_lpm)?,
         Request::Import { scope } => imported = Some(import(&stores, place.as_ref(), scope)?),
     }
@@ -218,8 +226,10 @@ pub fn move_other_skill(
     scope: Scope,
     name: String,
     folder: Option<String>,
+    root: Option<bool>,
 ) -> Result<LpmCommands, String> {
-    dispatch(&app, &project, Request::MoveOther { scope, name, folder })?.lists()
+    let root = root.unwrap_or(false);
+    dispatch(&app, &project, Request::MoveOther { scope, name, folder, root })?.lists()
 }
 
 #[tauri::command(async)]

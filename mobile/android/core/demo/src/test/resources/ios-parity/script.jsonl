@@ -567,9 +567,13 @@
 {"at": 76200, "frame": {"t": "lpmCommandSave", "project": "storefront", "reqId": "s8", "command": {"scope": "global", "folder": "Release", "name": "review-changes", "description": "", "body": "Do it."}}}
 {"at": 76300, "frame": {"t": "lpmCommandSave", "project": "storefront", "reqId": "s9", "command": {"scope": "global", "folder": "Ops", "name": "ship", "description": "Moved", "body": "Ship it now"}, "previous": {"scope": "project", "folder": null, "name": "ship-it"}}}
 {"at": 76300, "frame": {"t": "lpmCommandSave", "project": "storefront", "reqId": "s10", "command": {"scope": "project", "folder": "Review", "name": "review-changes", "description": "Renamed nothing", "body": "New body"}, "previous": {"scope": "project", "folder": "Review", "name": "review-changes"}}}
+{"at": 76300, "frame": {"t": "lpmCommandSave", "project": "storefront", "reqId": "k1", "command": {"scope": "project", "folder": null, "name": "private-notes", "description": "", "body": "Do it.", "keepOutOfGit": true}, "previous": null}}
+{"at": 76300, "frame": {"t": "lpmCommandSave", "project": "storefront", "reqId": "k2", "command": {"scope": "project", "folder": null, "name": "private-notes", "description": "Still kept out", "body": "Do it."}, "previous": {"scope": "project", "folder": null, "name": "private-notes"}}}
+{"at": 76300, "frame": {"t": "lpmCommandSave", "project": "storefront", "reqId": "k3", "command": {"scope": "project", "folder": "Review", "name": "review-changes", "description": "Renamed nothing", "body": "New body", "keepOutOfGit": true}, "previous": {"scope": "project", "folder": "Review", "name": "review-changes"}}}
+{"at": 76300, "frame": {"t": "lpmCommandSave", "project": "storefront", "reqId": "k4", "command": {"scope": "global", "folder": null, "name": "private-notes", "description": "Global now", "body": "Do it.", "keepOutOfGit": true}, "previous": {"scope": "project", "folder": null, "name": "private-notes"}}}
 {"at": 76400, "frame": {"t": "lpmCommandFolder", "project": "storefront", "reqId": "f1", "op": "create", "scope": "project", "name": " Drafts "}}
 {"at": 76400, "frame": {"t": "lpmCommandFolder", "project": "storefront", "reqId": "f2", "op": "create", "scope": "project", "name": "drafts"}}
-{"at": 76400, "frame": {"t": "lpmCommandFolder", "project": "storefront", "reqId": "f3", "op": "create", "scope": "global", "name": "a/b"}}
+{"at": 76400, "frame": {"t": "lpmCommandFolder", "project": "storefront", "reqId": "f3", "op": "create", "scope": "global", "name": "a:b"}}
 {"at": 76400, "frame": {"t": "lpmCommandFolder", "project": "storefront", "reqId": "f4", "op": "create", "scope": "global", "name": "  "}}
 {"at": 76400, "frame": {"t": "lpmCommandFolder", "project": "storefront", "reqId": "f5", "op": "rename", "scope": "project", "name": "Bugs", "newName": "Fixes"}}
 {"at": 76400, "frame": {"t": "lpmCommandFolder", "project": "storefront", "reqId": "f6", "op": "rename", "scope": "project", "name": "Fixes", "newName": "DRAFTS"}}
@@ -585,6 +589,18 @@
 {"at": 76600, "frame": {"t": "lpmCommandFolder", "project": "storefront", "reqId": "f14", "op": "delete", "scope": "project", "name": "Fixes"}}
 {"at": 76600, "frame": {"t": "lpmCommandDelete", "project": "storefront", "reqId": "d2", "target": {"scope": "global", "folder": null, "name": "gone"}}}
 {"at": 76600, "frame": {"t": "lpmCommandDelete", "project": "", "reqId": "d3", "target": {"scope": "project", "folder": null, "name": "x"}}}
+{"at": 76620, "frame": {"t": "lpmCommandFolder", "project": "storefront", "reqId": "n1", "op": "create", "scope": "global", "name": " Work / Reviews /"}}
+{"at": 76620, "frame": {"t": "lpmCommandFolder", "project": "storefront", "reqId": "n2", "op": "create", "scope": "global", "name": "work/reviews"}}
+{"at": 76620, "frame": {"t": "lpmCommandFolder", "project": "storefront", "reqId": "n3", "op": "create", "scope": "global", "name": "WORK/Deep/.hidden"}}
+{"at": 76620, "frame": {"t": "lpmCommandSave", "project": "storefront", "reqId": "n4", "command": {"scope": "global", "folder": "WORK/reviews/Deep", "name": "nested-one", "description": "", "body": "Do it."}, "previous": null}}
+{"at": 76620, "frame": {"t": "lpmCommandSave", "project": "storefront", "reqId": "n5", "command": {"scope": "global", "folder": "Work", "name": "nested-two", "description": "", "body": "Do it."}, "previous": null}}
+{"at": 76640, "frame": {"t": "lpmCommandFolder", "project": "storefront", "reqId": "n6", "op": "rename", "scope": "global", "name": "Work", "newName": "Work/Reviews/Work"}}
+{"at": 76640, "frame": {"t": "lpmCommandFolder", "project": "storefront", "reqId": "n7", "op": "rename", "scope": "global", "name": "Work", "newName": "Job"}}
+{"at": 76640, "frame": {"t": "lpmCommandFolder", "project": "storefront", "reqId": "n8", "op": "delete", "scope": "global", "name": "Job/Reviews"}}
+{"at": 76640, "frame": {"t": "lpmCommandFolder", "project": "storefront", "reqId": "n9", "op": "delete", "scope": "global", "name": "Job"}}
+{"at": 76640, "frame": {"t": "lpmCommandDelete", "project": "storefront", "reqId": "n10", "target": {"scope": "global", "folder": "Deep", "name": "nested-one"}}}
+{"at": 76640, "frame": {"t": "lpmCommandDelete", "project": "storefront", "reqId": "n11", "target": {"scope": "global", "folder": null, "name": "nested-two"}}}
+{"at": 76640, "frame": {"t": "lpmCommandFolder", "project": "storefront", "reqId": "n12", "op": "delete", "scope": "global", "name": "Deep"}}
 {"at": 76700, "frame": {"t": "lpmCommandExpand", "project": "storefront", "name": "fix-ticket", "args": "LPM-7", "reqId": "e9"}}
 {"at": 76700, "frame": {"t": "lpmCommandExpand", "project": "storefront", "name": "review-changes", "args": "", "reqId": "e10"}}
 {"at": 76700, "frame": {"t": "lpmCommandExpand", "project": "storefront-2", "name": "ship", "args": "", "reqId": "e11"}}
@@ -593,6 +609,9 @@
 {"at": 76700, "frame": {"t": "lpmCommandOtherFolder", "project": "storefront", "reqId": "o1", "scope": "project", "name": "deploy-preview", "folder": "Review"}}
 {"at": 76700, "frame": {"t": "lpmCommandOtherFolder", "project": "storefront", "reqId": "o2", "scope": "project", "name": "nope", "folder": null}}
 {"at": 76700, "frame": {"t": "lpmCommandOtherFolder", "project": "storefront", "reqId": "o3", "scope": "global", "name": "find-docs", "folder": "Docs"}}
+{"at": 76700, "frame": {"t": "lpmCommandOtherFolder", "project": "storefront", "reqId": "o7", "scope": "project", "name": "db-migrate", "folder": null, "root": true}}
+{"at": 76700, "frame": {"t": "lpmCommandOtherFolder", "project": "storefront", "reqId": "o8", "scope": "project", "name": "db-migrate", "folder": "Review", "root": true}}
+{"at": 76700, "frame": {"t": "lpmCommandOtherFolder", "project": "storefront", "reqId": "o9", "scope": "project", "name": "db-migrate", "folder": null}}
 {"at": 76700, "frame": {"t": "lpmCommandConvert", "project": "storefront", "reqId": "o4", "scope": "project", "name": "deploy-preview", "toLpm": true}}
 {"at": 76700, "frame": {"t": "lpmCommandConvert", "project": "storefront", "reqId": "o5", "scope": "project", "name": "deploy-preview", "toLpm": false}}
 {"at": 76700, "frame": {"t": "lpmCommandConvert", "project": "storefront", "reqId": "o6", "scope": "project", "name": "nope", "toLpm": true}}

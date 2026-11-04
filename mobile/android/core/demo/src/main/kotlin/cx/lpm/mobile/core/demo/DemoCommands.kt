@@ -1,6 +1,6 @@
 package cx.lpm.mobile.core.demo
 
-private class DemoCommandError(override val message: String) : Exception(message)
+internal class DemoCommandError(override val message: String) : Exception(message)
 
 private val COMMAND_VERBS = listOf(
     "lpmCommands",
@@ -11,13 +11,13 @@ private val COMMAND_VERBS = listOf(
     "lpmCommandOtherFolder",
     "lpmCommandConvert"
 )
-private const val FORBIDDEN_FOLDER_CHARS = "/\\:*?\"<>|"
 private val COMMAND_NAME = Regex("^(?=.{1,64}\$)[a-z0-9]+(-[a-z0-9]+)*\$")
 
 /**
  * Demo handlers for lpm commands, by the rules the Mac keeps (lpm_commands.rs): one
- * name per list whatever its case, folders that stay when emptied, a deleted folder's
- * commands moved to No folder, and a project's own command ahead of a global one of
+ * name per list whatever its case, folders that stay when emptied, folders that are
+ * paths and take what's inside them along, a deleted folder's contents moved up a
+ * level, and a project's own command ahead of a global one of
  * the same name.
  */
 internal fun DemoServer.registerCommandsHandlers() {
@@ -113,7 +113,7 @@ private fun DemoServer.commands(project: String, scope: String): DemoCommandList
     return ownCommands(project) ?: throw DemoCommandError("This terminal isn't in a project.")
 }
 
-private fun DemoServer.updateCommands(
+internal fun DemoServer.updateCommands(
     project: String,
     scope: String,
     change: (DemoCommandList) -> Unit
@@ -139,6 +139,7 @@ private fun DemoServer.effectiveCommands(project: String): List<Pair<DemoCommand
 }
 
 private fun wireCommands(list: DemoCommandList, scope: String, project: String): Dict = mapOf(
+    "inRepo" to (scope == "project"),
     "others" to list.others.sortedBy { it.name.lowercase() }.map { o ->
         mapOf(
             "name" to o.name,
@@ -147,9 +148,9 @@ private fun wireCommands(list: DemoCommandList, scope: String, project: String):
             "agents" to o.agents,
             "path" to o.path.replace("{root}", "/Users/demo/dev/$project"),
             "folder" to o.folder
-        )
+        ) + if (o.atRoot) mapOf("atRoot" to true) else emptyMap()
     },
-    "folders" to list.folders.sortedBy { it.lowercase() },
+    "folders" to list.folders.sortedBy(::folderOrder),
     "commands" to sortedCommands(list.commands).map { c ->
         mapOf(
             "name" to c.name,
@@ -157,17 +158,19 @@ private fun wireCommands(list: DemoCommandList, scope: String, project: String):
             "description" to c.description,
             "body" to c.body,
             "scope" to scope,
-            "argumentHint" to commandArgumentHint(c.body)
+            "argumentHint" to commandArgumentHint(c.body),
+            "keptOutOfGit" to c.keptOutOfGit,
+            "tracked" to (scope == "project" && c.tracked)
         )
     }
 )
 
 /** By folder, No folder last, then by name. */
 private fun sortedCommands(commands: List<DemoCommand>): List<DemoCommand> = commands.sortedWith(
-    compareBy({ it.folder == null }, { it.folder?.lowercase() }, { it.name.lowercase() })
+    compareBy({ it.folder == null }, { it.folder?.let(::folderOrder) }, { it.name.lowercase() })
 )
 
-private fun commandScope(o: Dict): String = if (o.string("scope") ==
+internal fun commandScope(o: Dict): String = if (o.string("scope") ==
     "global"
 ) {
     "global"
@@ -175,7 +178,7 @@ private fun commandScope(o: Dict): String = if (o.string("scope") ==
     "project"
 }
 
-private fun placeLabel(folder: String?): String = folder?.let { "the $it folder" } ?: "No folder"
+internal fun placeLabel(folder: String?): String = folder?.let { "the $it folder" } ?: "No folder"
 
 // changes
 
@@ -200,19 +203,30 @@ private fun DemoServer.saveCommand(project: String, input: Dict, previous: Dict?
     if (clash != null) {
         throw DemoCommandError("/${clash.name} already exists in ${placeLabel(clash.folder)}.")
     }
+    val before = prev?.let { p ->
+        commands(project, p.first).commands.firstOrNull {
+            it.folder == p.second && it.name == p.third
+        }
+    }
+    val stays = prev?.first == scope
+    val keptOut = scope == "project" &&
+        (input.bool("keepOutOfGit") ?: (stays && before?.keptOutOfGit == true))
     if (prev != null) {
         updateCommands(project, prev.first) { list ->
             list.commands.removeAll { it.folder == prev.second && it.name == prev.third }
         }
     }
     updateCommands(project, scope) { list ->
-        var place = folder
-        if (folder != null) {
-            val existing = list.folders.firstOrNull { it.lowercase() == folder.lowercase() }
-            if (existing != null) place = existing else list.folders += folder
-        }
+        val place = folder?.let { addFolder(list.folders, it) }
         val description = (input.string("description") ?: "").trimmingWhitespacesAndNewlines()
-        list.commands += DemoCommand(name, place, description, body)
+        list.commands += DemoCommand(
+            name,
+            place,
+            description,
+            body,
+            keptOutOfGit = keptOut,
+            tracked = !keptOut && stays && before?.tracked == true
+        )
     }
 }
 
@@ -222,12 +236,9 @@ private fun DemoServer.moveOther(project: String, o: Dict) {
     updateCommands(project, commandScope(o)) { list ->
         val other = list.others.firstOrNull { it.name == name }
             ?: throw DemoCommandError("/$name isn't in this list any more.")
-        val kept = folder?.let { f ->
-            list.folders.firstOrNull { it.lowercase() == f.lowercase() }
-                ?: f
-        }
-        if (kept != null && kept !in list.folders) list.folders += kept
+        val kept = folder?.let { addFolder(list.folders, it) }
         other.folder = kept
+        other.atRoot = kept == null && o.bool("root") == true
     }
 }
 
@@ -255,83 +266,6 @@ private fun DemoServer.convertSkill(project: String, o: Dict) {
             )
         }
     }
-}
-
-private fun DemoServer.changeFolder(project: String, o: Dict) {
-    val name = checkFolder(o.string("name") ?: "")
-    val existing = { list: DemoCommandList, folder: String ->
-        list.folders.firstOrNull { it.lowercase() == folder.lowercase() }
-    }
-    updateCommands(project, commandScope(o)) { list ->
-        when (o.string("op")) {
-            "create" -> {
-                if (existing(list, name) != null) {
-                    throw DemoCommandError("A folder named $name already exists.")
-                }
-                list.folders += name
-            }
-
-            "rename" -> renameFolder(list, name, checkFolder(o.string("newName") ?: ""), existing)
-
-            "delete" -> deleteFolder(list, existing(list, name) ?: return@updateCommands)
-
-            else -> throw DemoCommandError("unknown folder op")
-        }
-    }
-}
-
-private fun renameFolder(
-    list: DemoCommandList,
-    name: String,
-    to: String,
-    existing: (DemoCommandList, String) -> String?
-) {
-    if (name == to) return
-    val current = existing(list, name) ?: throw DemoCommandError("The $name folder is gone.")
-    if (name.lowercase() != to.lowercase() && existing(list, to) != null) {
-        throw DemoCommandError("A folder named $to already exists.")
-    }
-    list.folders.replaceAll { if (it == current) to else it }
-    list.commands.forEach { if (it.folder == current) it.folder = to }
-    list.others.forEach { if (it.folder == current) it.folder = to }
-}
-
-private fun deleteFolder(list: DemoCommandList, current: String) {
-    for (c in list.commands.filter { it.folder == current }) {
-        val other = list.commands.firstOrNull {
-            it.folder != current && it.name.lowercase() == c.name.lowercase()
-        }
-        if (other != null) {
-            throw DemoCommandError(
-                "/${other.name} is also in ${placeLabel(other.folder)}; rename one of them first."
-            )
-        }
-    }
-    list.folders.removeAll { it == current }
-    list.commands.forEach { if (it.folder == current) it.folder = null }
-    list.others.forEach { if (it.folder == current) it.folder = null }
-}
-
-private fun cleanFolder(raw: String?): String? {
-    val f = raw?.trimmingWhitespacesAndNewlines()?.takeIf { it.isNotEmpty() } ?: return null
-    return checkFolder(f)
-}
-
-private fun checkFolder(raw: String): String {
-    val f = raw.trimmingWhitespacesAndNewlines()
-    if (f.isEmpty()) throw DemoCommandError("Give the folder a name.")
-    val control = f.any {
-        val type = Character.getType(it).toByte()
-        type == Character.CONTROL || type == Character.FORMAT
-    }
-    if (f.graphemeCount() > 64 || f.startsWith(".") || control ||
-        f.any { it in FORBIDDEN_FOLDER_CHARS }
-    ) {
-        throw DemoCommandError(
-            "A folder name can't start with a dot or hold any of $FORBIDDEN_FOLDER_CHARS."
-        )
-    }
-    return f
 }
 
 // running

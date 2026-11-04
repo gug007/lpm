@@ -16,8 +16,12 @@
 // Against a `configSync2` peer it is revision-based: the sidecar in syncstate.rs
 // tracks a per-unit revision + author and the agreed base with each Mac, so
 // `compute_plan_v2` tells a fast-forward from a real conflict and lets a deletion
-// of a synced-dir file cross to the other Mac. See PEER_PROTOCOL.md.
+// of a synced-dir file cross to the other Mac. Global lpm skills are units of their
+// own (skillsync.rs), in configSync2 only and only with a peer whose map lists them.
+// See PEER_PROTOCOL.md.
 use crate::config;
+use crate::lpm_commands_local::FOLDERS_FILE;
+use crate::skillsync;
 use crate::syncstate::{BaseState, TOMBSTONE};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as Json;
@@ -77,6 +81,13 @@ pub struct DigestMap {
     pub projects: BTreeMap<String, ItemDigest>,
     pub globals: BTreeMap<String, ItemDigest>,
     pub templates: BTreeMap<String, ItemDigest>,
+    /// Global lpm skills. None from a peer too old to sync them, and when this
+    /// computer's list can't be read, so neither side reads that as all deleted.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub skills: Option<BTreeMap<String, ItemDigest>>,
+    /// Skill names that must stay as they are here, kept out of the plan both ways.
+    #[serde(rename = "heldSkills", default, skip_serializing_if = "Vec::is_empty")]
+    pub held_skills: Vec<String>,
     /// Direct `extends:` refs per project, so the client can compute which
     /// templates a matched project references on either side.
     #[serde(rename = "projectExtends", default)]
@@ -93,6 +104,7 @@ impl DigestMap {
             "project" => self.projects.get(name),
             "global" => self.globals.get(name),
             "template" => self.templates.get(name),
+            skillsync::KIND => self.skills.as_ref()?.get(name),
             _ => None,
         }
     }
@@ -101,8 +113,8 @@ impl DigestMap {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct SyncItem {
-    pub kind: String,      // "project" | "global" | "template"
-    pub name: String,      // project/template name, or global relative path
+    pub kind: String,      // "project" | "global" | "template" | "skill"
+    pub name: String,      // project/template/skill name, or global relative path
     pub direction: String, // "toLocal" | "toRemote"
     pub local_mtime: i64,
     pub remote_mtime: i64,
@@ -213,6 +225,11 @@ pub fn local_digest_map() -> DigestMap {
         }
     }
 
+    if let Some(list) = skillsync::local_list() {
+        dm.skills = Some(list.skills);
+        dm.held_skills = list.held;
+    }
+
     reconcile_and_attach(&mut dm);
     dm
 }
@@ -232,8 +249,16 @@ fn reconcile_and_attach(dm: &mut DigestMap) {
     for (n, d) in &dm.templates {
         present.insert(item_key("template", n), d.hash.clone());
     }
+    for (n, d) in dm.skills.iter().flatten() {
+        present.insert(item_key(skillsync::KIND, n), d.hash.clone());
+    }
+    let skills_read = dm.skills.is_some();
+    let held = &dm.held_skills;
     let state = crate::syncstate::mutate(|s| {
-        let changed = s.reconcile(&present, tombstone_eligible);
+        let changed = s.reconcile(&present, |key| {
+            tombstone_eligible(key)
+                || skill_of(key).is_some_and(|n| skills_read && !held.iter().any(|h| h == n))
+        });
         (changed, s.clone())
     });
     dm.device = state.device.clone();
@@ -255,9 +280,26 @@ fn reconcile_and_attach(dm: &mut DigestMap) {
             d.device = it.device.clone();
         }
     }
+    for (n, d) in dm.skills.iter_mut().flatten() {
+        if let Some(it) = state.items.get(&item_key(skillsync::KIND, n)) {
+            d.rev = it.rev;
+            d.device = it.device.clone();
+        }
+    }
     for (key, it) in &state.items {
         if !it.deleted {
             continue;
+        }
+        if let (Some(name), Some(skills)) = (skill_of(key), dm.skills.as_mut()) {
+            skills.insert(
+                name.to_string(),
+                ItemDigest {
+                    rev: it.rev,
+                    device: it.device.clone(),
+                    deleted: true,
+                    ..Default::default()
+                },
+            );
         }
         if let Some(rel) = key.strip_prefix("global/") {
             if is_deletable_global(rel) {
@@ -277,8 +319,14 @@ fn reconcile_and_attach(dm: &mut DigestMap) {
     }
 }
 
-/// Whether an absent sidecar entry keyed `key` should become a tombstone: only
-/// files under a synced global dir (generator-icons/*, zdotdir/*).
+/// The skill a sidecar key names.
+fn skill_of(key: &str) -> Option<&str> {
+    key.strip_prefix(skillsync::KIND)?.strip_prefix('/')
+}
+
+/// Whether an absent sidecar entry keyed `key` should become a tombstone: files
+/// under a synced global dir (generator-icons/*, zdotdir/*). A skill can too, by
+/// the rule in `reconcile_and_attach`, which knows why it went.
 fn tombstone_eligible(key: &str) -> bool {
     key.strip_prefix("global/")
         .map(is_deletable_global)
@@ -310,6 +358,8 @@ fn syncable_global(rel: &str) -> bool {
 /// as empty files).
 pub fn legacy_view(mut dm: DigestMap) -> DigestMap {
     dm.device.clear();
+    dm.skills = None;
+    dm.held_skills.clear();
     dm.globals.retain(|_, d| !d.deleted);
     for d in dm
         .projects
@@ -480,6 +530,11 @@ fn plan_core(
     // A peer running an older surface may still advertise units this build no
     // longer syncs (e.g. groups.json); planning them would only fail at apply.
     global_keys.retain(|n| syncable_global(n));
+    // An older build refuses this file on sight, every run.
+    let skills = local.skills.as_ref().zip(remote.skills.as_ref()).filter(|_| !legacy);
+    if skills.is_none() {
+        global_keys.retain(|n| n.as_str() != FOLDERS_FILE);
+    }
     for name in global_keys {
         if let Some(it) = resolve_pair(
             "global",
@@ -504,7 +559,34 @@ fn plan_core(
             items.push(it);
         }
     }
+    if let Some((l, r)) = skills {
+        let free = |n: &&String| !local.held_skills.contains(n) && !remote.held_skills.contains(n);
+        let names: BTreeSet<&String> = l.keys().chain(r.keys()).filter(free).collect();
+        for name in names {
+            let kind = skillsync::KIND;
+            if let Some(it) = resolve_pair(kind, name, l.get(name), r.get(name), bases, legacy) {
+                items.push(it);
+            }
+        }
+    }
     items
+}
+
+/// Skills that stay on one computer because the other keeps something else under
+/// that name, to say so rather than leave them missing without a word.
+pub fn skipped_skills(local: &DigestMap, remote: &DigestMap) -> Vec<String> {
+    let (Some(l), Some(r)) = (&local.skills, &remote.skills) else {
+        return Vec::new();
+    };
+    let blocked = |skills: &BTreeMap<String, ItemDigest>, held: &[String]| {
+        let live = |n: &&String| skills.get(*n).is_some_and(|d| !d.deleted);
+        held.iter().filter(live).cloned().collect::<Vec<_>>()
+    };
+    let mut names = blocked(l, &remote.held_skills);
+    names.extend(blocked(r, &local.held_skills));
+    names.sort();
+    names.dedup();
+    names
 }
 
 /// One Mac's contribution to a decision. `ck` (content key) is None when the unit
@@ -638,7 +720,7 @@ fn resolve_no_base(kind: &str, name: &str, l: &SideInfo, r: &SideInfo, legacy: b
     match (l.deleted, r.deleted) {
         (false, true) => item(kind, name, "toRemote", l.mtime, r.mtime, false, false),
         (true, false) => item(kind, name, "toLocal", l.mtime, r.mtime, false, false),
-        _ if kind == "project" && !legacy => {
+        _ if (kind == "project" || kind == skillsync::KIND) && !legacy => {
             let (dir, conflict) = match (l.scaffold, r.scaffold) {
                 (true, false) => ("toLocal", false),
                 (false, true) => ("toRemote", false),
@@ -712,6 +794,11 @@ pub fn converged_bases(local: &DigestMap, remote: &DigestMap) -> Vec<(String, Ba
             push_if_equal("template", &name, l, r, &mut out);
         }
     }
+    for (name, l) in local.skills.iter().flatten() {
+        if let Some(r) = remote.skills.as_ref().and_then(|skills| skills.get(name)) {
+            push_if_equal(skillsync::KIND, name, l, r, &mut out);
+        }
+    }
     out
 }
 
@@ -771,6 +858,9 @@ fn referenced_templates(local: &DigestMap, remote: &DigestMap) -> BTreeSet<Strin
 /// Read a config unit for sending over the wire. Binaries and any non-UTF-8 file
 /// are base64-encoded; text files travel verbatim.
 pub fn read_item(kind: &str, name: &str) -> Result<WireItem, String> {
+    if kind == skillsync::KIND {
+        return skillsync::read_item(name);
+    }
     let path = read_path(kind, name)?;
     let mut bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
     if kind == "project" {
@@ -859,10 +949,7 @@ pub struct Applied {
 /// sidecar; the caller updates the revision state.
 pub fn apply_item(item: &WireItem) -> Result<Applied, String> {
     if item.deleted {
-        if item.kind != "global" {
-            return Err(format!("cannot delete {}: only global files", item.kind));
-        }
-        delete_global(&item.name)?;
+        delete_item(&item.kind, &item.name)?;
         return Ok(Applied {
             incoming: String::new(),
             stored: String::new(),
@@ -874,6 +961,7 @@ pub fn apply_item(item: &WireItem) -> Result<Applied, String> {
     let stored = match item.kind.as_str() {
         "project" => apply_project(&item.name, &bytes)?,
         "template" => apply_template(&item.name, &bytes)?,
+        skillsync::KIND => skillsync::apply(&item.name, &bytes)?,
         "global" => {
             if item.name == crate::telegramlink::FILE {
                 crate::telegramsync::adopt(&bytes, item.secret.as_deref())?;
@@ -896,8 +984,18 @@ pub fn portable_digest(kind: &str, name: &str, bytes: &[u8]) -> Result<String, S
     match kind {
         "project" => project_digest(bytes),
         "template" => Ok(sha256_hex(bytes)),
+        skillsync::KIND => skillsync::wire_digest(bytes),
         "global" => global_digest(name, bytes),
         other => Err(format!("unknown item kind: {other}")),
+    }
+}
+
+/// Remove what a deletion names, on the only surfaces one can cross.
+pub fn delete_item(kind: &str, name: &str) -> Result<(), String> {
+    match kind {
+        "global" => delete_global(name),
+        skillsync::KIND => skillsync::delete(name),
+        other => Err(format!("cannot delete {other}: only global files and skills")),
     }
 }
 
@@ -1007,7 +1105,7 @@ fn validate_simple_name(name: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn mtime_millis(path: &Path) -> i64 {
+pub(crate) fn mtime_millis(path: &Path) -> i64 {
     std::fs::metadata(path)
         .and_then(|m| m.modified())
         .ok()
@@ -1016,7 +1114,7 @@ fn mtime_millis(path: &Path) -> i64 {
         .unwrap_or(0)
 }
 
-fn sha256_hex(bytes: &[u8]) -> String {
+pub(crate) fn sha256_hex(bytes: &[u8]) -> String {
     hex::encode(Sha256::digest(bytes))
 }
 
@@ -1091,12 +1189,12 @@ fn yaml_to_json(y: &serde_norway::Value) -> Json {
     }
 }
 
-fn base64_encode(bytes: &[u8]) -> String {
+pub(crate) fn base64_encode(bytes: &[u8]) -> String {
     use base64::Engine as _;
     base64::engine::general_purpose::STANDARD.encode(bytes)
 }
 
-fn base64_decode(s: &str) -> Result<Vec<u8>, String> {
+pub(crate) fn base64_decode(s: &str) -> Result<Vec<u8>, String> {
     use base64::Engine as _;
     base64::engine::general_purpose::STANDARD
         .decode(s.as_bytes())
@@ -2141,5 +2239,183 @@ mod tests {
             b_plan.is_empty(),
             "already converged after the conflict resolved"
         );
+    }
+
+    fn skill(hash: &str, rev: u64, device: &str, mtime: i64) -> ItemDigest {
+        ItemDigest {
+            hash: hash.into(),
+            mtime,
+            rev,
+            device: device.into(),
+            ..Default::default()
+        }
+    }
+
+    fn skill_map(entries: &[(&str, ItemDigest)], held: &[&str]) -> DigestMap {
+        DigestMap {
+            skills: Some(entries.iter().map(|(n, d)| (n.to_string(), d.clone())).collect()),
+            held_skills: held.iter().map(|n| n.to_string()).collect(),
+            ..Default::default()
+        }
+    }
+
+    fn base(hash: &str) -> BaseState {
+        BaseState {
+            rev: 1,
+            digest: hash.into(),
+            deleted: false,
+        }
+    }
+
+    fn skill_plan(local: &DigestMap, remote: &DigestMap) -> Vec<SyncItem> {
+        compute_plan_v2(local, remote, &BTreeMap::new())
+    }
+
+    #[test]
+    fn a_skill_on_one_computer_is_created_on_the_other() {
+        let local = skill_map(&[("deploy", skill("a", 1, "me", 5))], &[]);
+        let remote = skill_map(&[("review", skill("b", 1, "you", 5))], &[]);
+        let plan = skill_plan(&local, &remote);
+        let pairs: Vec<_> = plan
+            .iter()
+            .map(|i| (i.kind.as_str(), i.name.as_str(), i.direction.as_str()))
+            .collect();
+        assert_eq!(
+            pairs,
+            [("skill", "deploy", "toRemote"), ("skill", "review", "toLocal")]
+        );
+    }
+
+    #[test]
+    fn a_peer_without_a_skills_list_gets_no_skills_and_no_folders_file() {
+        let mut local = skill_map(&[("deploy", skill("a", 1, "me", 5))], &[]);
+        local
+            .globals
+            .insert("skill-folders".into(), skill("f", 1, "me", 5));
+        let older = DigestMap::default();
+        assert!(skill_plan(&local, &older).is_empty());
+        assert!(compute_plan(&local, &older).is_empty());
+        assert!(skipped_skills(&local, &older).is_empty());
+    }
+
+    #[test]
+    fn the_folders_file_syncs_between_computers_that_both_list_skills() {
+        let mut local = skill_map(&[], &[]);
+        local
+            .globals
+            .insert("skill-folders".into(), skill("f", 1, "me", 5));
+        let plan = skill_plan(&local, &skill_map(&[], &[]));
+        assert_eq!(plan.len(), 1);
+        assert_eq!(plan[0].name, "skill-folders");
+    }
+
+    #[test]
+    fn a_legacy_plan_never_carries_skills() {
+        let local = skill_map(&[("deploy", skill("a", 1, "me", 5))], &[]);
+        assert!(compute_plan(&local, &skill_map(&[], &[])).is_empty());
+    }
+
+    #[test]
+    fn a_name_held_on_either_side_stays_out_of_the_plan_and_is_reported() {
+        let local = skill_map(&[("lint", skill("a", 1, "me", 5))], &[]);
+        let remote = skill_map(&[], &["lint"]);
+        assert!(skill_plan(&local, &remote).is_empty());
+        assert!(skill_plan(&remote, &local).is_empty());
+        assert_eq!(skipped_skills(&local, &remote), ["lint"]);
+        assert_eq!(skipped_skills(&remote, &local), ["lint"]);
+    }
+
+    #[test]
+    fn a_deleted_skill_crosses_once_there_is_a_base() {
+        let gone = ItemDigest {
+            rev: 2,
+            device: "me".into(),
+            deleted: true,
+            ..Default::default()
+        };
+        let local = skill_map(&[("deploy", gone)], &[]);
+        let remote = skill_map(&[("deploy", skill("a", 1, "you", 5))], &[]);
+        let bases = BTreeMap::from([(item_key("skill", "deploy"), base("a"))]);
+
+        let plan = compute_plan_v2(&local, &remote, &bases);
+        assert_eq!(plan.len(), 1);
+        assert_eq!(plan[0].direction, "toRemote");
+        assert!(plan[0].deleted);
+
+        let revived = skill_plan(&local, &remote);
+        assert_eq!(revived[0].direction, "toLocal");
+        assert!(!revived[0].deleted);
+    }
+
+    #[test]
+    fn a_deletion_doesnt_cross_a_name_the_other_side_holds() {
+        let gone = ItemDigest {
+            rev: 2,
+            device: "me".into(),
+            deleted: true,
+            ..Default::default()
+        };
+        let local = skill_map(&[("lint", gone)], &["lint"]);
+        let remote = skill_map(&[("lint", skill("a", 1, "you", 5))], &[]);
+        let bases = BTreeMap::from([(item_key("skill", "lint"), base("a"))]);
+        assert!(compute_plan_v2(&local, &remote, &bases).is_empty());
+        assert_eq!(skipped_skills(&local, &remote), ["lint"]);
+    }
+
+    #[test]
+    fn two_skills_made_apart_under_one_name_are_flagged() {
+        let local = skill_map(&[("deploy", skill("a", 1, "me", 5))], &[]);
+        let remote = skill_map(&[("deploy", skill("b", 1, "you", 9))], &[]);
+        let plan = skill_plan(&local, &remote);
+        assert_eq!(plan[0].direction, "toLocal");
+        assert!(plan[0].conflict);
+    }
+
+    #[test]
+    fn an_edit_on_one_side_is_a_plain_fast_forward() {
+        let local = skill_map(&[("deploy", skill("a", 1, "me", 5))], &[]);
+        let remote = skill_map(&[("deploy", skill("b", 2, "you", 1))], &[]);
+        let bases = BTreeMap::from([(item_key("skill", "deploy"), base("a"))]);
+        let plan = compute_plan_v2(&local, &remote, &bases);
+        assert_eq!(plan[0].direction, "toLocal");
+        assert!(!plan[0].conflict);
+    }
+
+    #[test]
+    fn equal_skills_record_a_base() {
+        let local = skill_map(&[("deploy", skill("a", 1, "me", 5))], &[]);
+        let remote = skill_map(&[("deploy", skill("a", 1, "you", 9))], &[]);
+        assert!(skill_plan(&local, &remote).is_empty());
+        let bases = converged_bases(&local, &remote);
+        assert_eq!(bases.len(), 1);
+        assert_eq!(bases[0].0, "skill/deploy");
+    }
+
+    #[test]
+    fn a_map_from_an_older_peer_has_no_skills_list() {
+        let dm: DigestMap =
+            serde_json::from_str(r#"{"projects":{},"globals":{},"templates":{}}"#).unwrap();
+        assert!(dm.skills.is_none());
+    }
+
+    #[test]
+    fn the_legacy_view_drops_skills() {
+        let dm = skill_map(&[("deploy", skill("a", 1, "me", 5))], &["lint"]);
+        let legacy = legacy_view(dm);
+        assert!(legacy.skills.is_none());
+        assert!(legacy.held_skills.is_empty());
+    }
+
+    #[test]
+    fn only_global_files_and_skills_can_be_deleted() {
+        assert!(delete_item("project", "web").is_err());
+        assert!(delete_item("template", "web").is_err());
+    }
+
+    #[test]
+    fn a_sidecar_key_names_its_skill() {
+        assert_eq!(skill_of("skill/deploy"), Some("deploy"));
+        assert_eq!(skill_of("skills/deploy"), None);
+        assert_eq!(skill_of("global/skill/deploy"), None);
     }
 }

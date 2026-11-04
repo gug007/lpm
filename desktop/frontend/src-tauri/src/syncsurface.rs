@@ -90,6 +90,13 @@ const GLOBAL_FILES: &[GlobalFile] = &[
         sync: true,
         export: true,
     },
+    // The folders kept while no skill is in them. The skills themselves sit outside
+    // this directory and cross through skillsync.rs.
+    GlobalFile {
+        name: "skill-folders",
+        sync: true,
+        export: false,
+    },
     // The bot token rides beside it on the peer channel (telegramsync.rs); an
     // export archive would carry the chats without it, so it stays out.
     GlobalFile {
@@ -241,6 +248,7 @@ mod tests {
                 "pr-title-instructions.txt",
                 "pr-description-instructions.txt",
                 "branch-name-instructions.txt",
+                "skill-folders",
                 "telegram.json",
             ]
         );

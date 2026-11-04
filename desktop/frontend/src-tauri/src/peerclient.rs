@@ -1453,7 +1453,8 @@ impl PeerClientHub {
             commit_sidecar(&remote.device, &[], &bases);
         }
         let last = self.peer_entry(slug).map(|p| p.last_sync_at).unwrap_or(0);
-        Ok(json!({ "items": items, "lastSyncAt": last }))
+        let skipped = crate::peersync::skipped_skills(&local, &remote);
+        Ok(json!({ "items": items, "lastSyncAt": last, "skippedSkills": skipped }))
     }
 
     /// Run the sync both directions. The plan is recomputed here against a fresh
@@ -1524,7 +1525,7 @@ impl PeerClientHub {
                     }
                     for i in to_local.iter().filter(|i| i.deleted) {
                         let key = crate::peersync::item_key(&i.kind, &i.name);
-                        match crate::peersync::delete_global(&i.name) {
+                        match crate::peersync::delete_item(&i.kind, &i.name) {
                             Ok(()) => {
                                 applied += 1;
                                 if v2 {
@@ -2845,7 +2846,10 @@ fn handle_frame(conn: &Arc<PeerConn>, app: Option<&AppHandle>, txt: &str) {
                 // safety net).
                 if matches!(
                     name,
-                    "projects-changed" | "templates-changed" | "memory-changed"
+                    "projects-changed"
+                        | "templates-changed"
+                        | "memory-changed"
+                        | crate::lpm_commands_cmds::CHANGED_EVENT
                 ) {
                     if let Some(engine) = autosync_engine(Some(app)) {
                         engine.notify_remote_change(slug);

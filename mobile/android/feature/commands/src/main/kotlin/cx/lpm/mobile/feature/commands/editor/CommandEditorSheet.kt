@@ -103,6 +103,7 @@ private fun CommandEditor(
             state = state,
             actions = EditorActions(
                 setName = viewModel::setName,
+                setKeepOutOfGit = viewModel::setKeepOutOfGit,
                 setDescription = viewModel::setDescription,
                 setBody = viewModel::setBody,
                 place = viewModel::place,

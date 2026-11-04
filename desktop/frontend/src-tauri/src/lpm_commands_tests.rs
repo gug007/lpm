@@ -50,6 +50,7 @@ fn input(scope: Scope, folder: Option<&str>, name: &str, body: &str) -> CommandI
         name: name.to_string(),
         description: String::new(),
         body: body.to_string(),
+        keep_out_of_git: None,
     }
 }
 
@@ -729,6 +730,66 @@ fn renaming_and_deleting_a_folder_carry_the_other_skills_in_it() {
 }
 
 #[test]
+fn another_skill_moves_to_the_top_of_its_list_and_back() {
+    let l = lists();
+    let dir = theirs(&l.global.claude, "lint");
+    let before = std::fs::read_to_string(dir.join("SKILL.md")).unwrap();
+    ops::move_other(&l.stores, Scope::Global, "lint", Some("Tools")).unwrap();
+
+    ops::move_other_to_root(&l.stores, Scope::Global, "lint").unwrap();
+    let out = list_stores(&l.stores).unwrap().global;
+    assert!(out.others[0].at_root);
+    assert_eq!(out.others[0].folder, None);
+    assert_eq!(out.folders, ["Tools"], "the folder it left stays");
+    assert_eq!(std::fs::read_to_string(dir.join("SKILL.md")).unwrap(), before);
+
+    ops::move_other(&l.stores, Scope::Global, "lint", Some("Tools")).unwrap();
+    let out = list_stores(&l.stores).unwrap().global;
+    assert!(!out.others[0].at_root);
+    assert_eq!(out.others[0].folder.as_deref(), Some("Tools"));
+
+    ops::move_other_to_root(&l.stores, Scope::Global, "lint").unwrap();
+    ops::move_other(&l.stores, Scope::Global, "lint", None).unwrap();
+    let out = list_stores(&l.stores).unwrap().global;
+    assert!(!out.others[0].at_root, "no place at all is the Other skills group");
+}
+
+#[test]
+fn a_folder_change_leaves_a_skill_at_the_top_alone() {
+    let l = lists();
+    theirs(&l.global.skills, "lint");
+    theirs(&l.global.skills, "docs");
+    ops::move_other(&l.stores, Scope::Global, "docs", Some("Tools")).unwrap();
+    ops::move_other_to_root(&l.stores, Scope::Global, "lint").unwrap();
+    ops::rename_folder(&l.stores, Scope::Global, "Tools", "Checks").unwrap();
+    ops::delete_folder(&l.stores, Scope::Global, "Checks").unwrap();
+    let out = list_stores(&l.stores).unwrap().global;
+    assert!(out.others.iter().find(|o| o.name == "lint").unwrap().at_root);
+}
+
+#[test]
+fn a_skill_at_the_top_converts_to_one_in_no_folder() {
+    let l = lists();
+    theirs(&l.global.skills, "lint");
+    ops::move_other_to_root(&l.stores, Scope::Global, "lint").unwrap();
+    ops::convert(&l.stores, Scope::Global, "lint", true).unwrap();
+    let out = list_stores(&l.stores).unwrap().global;
+    assert_eq!(names(&out), [(None, "lint".to_string())]);
+    assert!(out.folders.is_empty());
+    ops::convert(&l.stores, Scope::Global, "lint", false).unwrap();
+    let out = list_stores(&l.stores).unwrap().global;
+    assert!(!out.others[0].at_root, "back in the Other skills group");
+}
+
+#[test]
+fn only_a_skill_the_list_holds_can_move_to_the_top() {
+    let l = lists();
+    theirs(&l.global.skills, "lint");
+    assert!(ops::move_other_to_root(&l.stores, Scope::Project, "lint").is_err());
+    assert!(ops::move_other_to_root(&l.stores, Scope::Global, "gone").is_err());
+}
+
+#[test]
 fn only_a_skill_the_list_holds_can_move() {
     let l = lists();
     theirs(&l.global.skills, "lint");
@@ -881,4 +942,166 @@ fn a_move_cut_short_finishes_without_doubling_up() {
     crate::lpm_commands_ops::create_skill(fs.as_ref(), "one", Doc::new("", "One.", None)).unwrap();
     let out = list_stores(&l.stores).unwrap().global;
     assert_eq!(names(&out), [(None, "one".to_string())]);
+}
+
+// ---- folders inside folders --------------------------------------------------
+
+#[test]
+fn a_folder_path_lists_every_level_and_sorts_inside_its_parent() {
+    let l = lists();
+    ops::create_folder(&l.stores, Scope::Global, "Work notes").unwrap();
+    ops::save(&l.stores, input(Scope::Global, Some(" Work / Reviews "), "go", "b"), None).unwrap();
+    let out = list_stores(&l.stores).unwrap().global;
+    assert_eq!(out.folders, ["Work", "Work/Reviews", "Work notes"]);
+    assert_eq!(out.commands[0].folder.as_deref(), Some("Work/Reviews"));
+    assert!(l.global.skill("go").contains("lpm-folder: \"Work/Reviews\""));
+    assert!(!l.global.skills.join("Work").exists(), "a folder is still only a label");
+}
+
+#[test]
+fn a_new_folder_takes_its_parents_spelling() {
+    let l = lists();
+    ops::create_folder(&l.stores, Scope::Global, "Work").unwrap();
+    ops::create_folder(&l.stores, Scope::Global, "work/Reviews").unwrap();
+    assert!(ops::create_folder(&l.stores, Scope::Global, "WORK/reviews").is_err());
+    ops::save(&l.stores, input(Scope::Global, Some("WORK/REVIEWS"), "go", "b"), None).unwrap();
+    let out = list_stores(&l.stores).unwrap().global;
+    assert_eq!(out.folders, ["Work", "Work/Reviews"]);
+    assert_eq!(out.commands[0].folder.as_deref(), Some("Work/Reviews"));
+}
+
+#[test]
+fn a_skill_written_by_hand_lands_in_the_listed_spelling() {
+    let l = lists();
+    ops::create_folder(&l.stores, Scope::Global, "Work").unwrap();
+    let dir = l.global.skills.join("go");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join("SKILL.md"),
+        "---\nname: go\ndescription: x\nmetadata:\n  lpm-created: \"true\"\n  lpm-folder: \"work/deep/er\"\n---\n\nGo.\n",
+    )
+    .unwrap();
+    let out = list_stores(&l.stores).unwrap().global;
+    assert_eq!(out.folders, ["Work", "Work/deep", "Work/deep/er"]);
+    assert_eq!(out.commands[0].folder.as_deref(), Some("Work/deep/er"));
+}
+
+#[test]
+fn renaming_a_folder_carries_all_that_is_inside_it() {
+    let l = lists();
+    ops::save(&l.stores, input(Scope::Global, Some("Work"), "a", "b"), None).unwrap();
+    ops::save(&l.stores, input(Scope::Global, Some("Work/Reviews/Deep"), "c", "b"), None).unwrap();
+    ops::save(&l.stores, input(Scope::Global, Some("Workshop"), "d", "b"), None).unwrap();
+    foreign(&l.global, "theirs");
+    ops::move_other(&l.stores, Scope::Global, "theirs", Some("Work/Reviews")).unwrap();
+
+    ops::rename_folder(&l.stores, Scope::Global, "Work", "Job").unwrap();
+
+    let out = list_stores(&l.stores).unwrap().global;
+    assert_eq!(out.folders, ["Job", "Job/Reviews", "Job/Reviews/Deep", "Workshop"]);
+    assert_eq!(
+        names(&out),
+        [
+            (Some("Job".to_string()), "a".to_string()),
+            (Some("Job/Reviews/Deep".to_string()), "c".to_string()),
+            (Some("Workshop".to_string()), "d".to_string()),
+        ]
+    );
+    assert_eq!(out.others[0].folder.as_deref(), Some("Job/Reviews"));
+}
+
+#[test]
+fn a_folder_moves_with_a_new_path_but_not_into_itself_or_onto_another() {
+    let l = lists();
+    ops::save(&l.stores, input(Scope::Global, Some("Work/Reviews"), "a", "b"), None).unwrap();
+    ops::create_folder(&l.stores, Scope::Global, "Home").unwrap();
+    ops::create_folder(&l.stores, Scope::Global, "Home/Reviews").unwrap();
+
+    let err = ops::rename_folder(&l.stores, Scope::Global, "Work", "Work/Reviews/Work").unwrap_err();
+    assert!(err.contains("into itself"), "{err}");
+    let err = ops::rename_folder(&l.stores, Scope::Global, "Work/Reviews", "Home/Reviews").unwrap_err();
+    assert!(err.contains("already exists"), "{err}");
+
+    ops::rename_folder(&l.stores, Scope::Global, "Work/Reviews", "Reviews").unwrap();
+    let out = list_stores(&l.stores).unwrap().global;
+    assert_eq!(out.folders, ["Home", "Home/Reviews", "Reviews", "Work"]);
+    assert_eq!(out.commands[0].folder.as_deref(), Some("Reviews"));
+}
+
+#[test]
+fn a_folder_can_change_case_and_a_new_parent_is_made() {
+    let l = lists();
+    ops::save(&l.stores, input(Scope::Global, Some("Work/Reviews"), "a", "b"), None).unwrap();
+    ops::rename_folder(&l.stores, Scope::Global, "Work/Reviews", "work/REVIEWS").unwrap();
+    assert_eq!(list_stores(&l.stores).unwrap().global.folders, ["Work", "Work/REVIEWS"]);
+    ops::rename_folder(&l.stores, Scope::Global, "Work/REVIEWS", "New/Inner").unwrap();
+    let out = list_stores(&l.stores).unwrap().global;
+    assert_eq!(out.folders, ["New", "New/Inner", "Work"]);
+}
+
+#[test]
+fn deleting_a_folder_moves_what_it_held_up_a_level() {
+    let l = lists();
+    ops::save(&l.stores, input(Scope::Global, Some("Work"), "a", "b"), None).unwrap();
+    ops::save(&l.stores, input(Scope::Global, Some("Work/Reviews"), "c", "b"), None).unwrap();
+    ops::save(&l.stores, input(Scope::Global, Some("Work/Reviews/Deep"), "d", "b"), None).unwrap();
+    foreign(&l.global, "theirs");
+    ops::move_other(&l.stores, Scope::Global, "theirs", Some("Work/Reviews")).unwrap();
+
+    ops::delete_folder(&l.stores, Scope::Global, "Work/Reviews").unwrap();
+    let out = list_stores(&l.stores).unwrap().global;
+    assert_eq!(out.folders, ["Work", "Work/Deep"]);
+    assert_eq!(
+        names(&out),
+        [
+            (Some("Work".to_string()), "a".to_string()),
+            (Some("Work".to_string()), "c".to_string()),
+            (Some("Work/Deep".to_string()), "d".to_string()),
+        ]
+    );
+    assert_eq!(out.others[0].folder.as_deref(), Some("Work"));
+
+    ops::delete_folder(&l.stores, Scope::Global, "Work").unwrap();
+    let out = list_stores(&l.stores).unwrap().global;
+    assert_eq!(out.folders, ["Deep"]);
+    assert_eq!(names(&out)[2], (None, "c".to_string()));
+    assert_eq!(out.others[0].folder, None);
+}
+
+#[test]
+fn a_deleted_folder_inside_another_merges_with_a_folder_of_that_name() {
+    let l = lists();
+    ops::save(&l.stores, input(Scope::Global, Some("Reviews"), "a", "b"), None).unwrap();
+    ops::save(&l.stores, input(Scope::Global, Some("Work/Reviews"), "c", "b"), None).unwrap();
+    ops::delete_folder(&l.stores, Scope::Global, "Work").unwrap();
+    let out = list_stores(&l.stores).unwrap().global;
+    assert_eq!(out.folders, ["Reviews"]);
+    assert_eq!(out.commands.len(), 2);
+}
+
+#[test]
+fn another_skill_files_in_a_new_folder_inside_another() {
+    let l = lists();
+    foreign(&l.global, "theirs");
+    ops::move_other(&l.stores, Scope::Global, "theirs", Some("Tools/Lint")).unwrap();
+    let out = list_stores(&l.stores).unwrap().global;
+    assert_eq!(out.folders, ["Tools", "Tools/Lint"]);
+    assert_eq!(out.others[0].folder.as_deref(), Some("Tools/Lint"));
+}
+
+#[test]
+fn every_level_of_a_folder_path_has_to_be_a_good_name() {
+    let l = lists();
+    for bad in ["../..", "Work/.git", "Work/a:b", "Work/Notes.", "/", "a/CON"] {
+        assert!(ops::create_folder(&l.stores, Scope::Global, bad).is_err(), "{bad}");
+    }
+    assert!(ops::create_folder(&l.stores, Scope::Global, &"a/".repeat(200)).is_err(), "too deep");
+    assert!(list_stores(&l.stores).unwrap().global.folders.is_empty());
+}
+
+#[test]
+fn slashes_around_a_folder_path_mean_nothing() {
+    let l = lists();
+    ops::create_folder(&l.stores, Scope::Global, "/Work//Reviews/").unwrap();
+    assert_eq!(list_stores(&l.stores).unwrap().global.folders, ["Work", "Work/Reviews"]);
 }

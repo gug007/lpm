@@ -2,15 +2,17 @@ import { useState } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import { FolderGit2, FolderPlus, Globe } from "lucide-react";
 import { commandKey, type LpmCommand } from "../../lpmCommands";
+import { folderKey, type FolderKey } from "./commandFolders";
 import { CommandFolderInput } from "./CommandFolderInput";
 import { CommandOtherFolder } from "./CommandOtherFolder";
+import { CommandOtherRow } from "./CommandOtherRow";
 import { CommandRow } from "./CommandRow";
 import { CommandTreeFolder } from "./CommandTreeFolder";
 import {
-  folderKey,
+  otherKey,
   scopeTitle,
   type CommandPlace,
-  type FolderKey,
+  type FolderRowActions,
   type SkillRowActions,
   type TreeScope,
 } from "./commandsModel";
@@ -35,7 +37,8 @@ interface CommandTreeScopeProps {
 
 // One list in the Skills tree (this project's or the global one): its heading,
 // its folders, the skills in no folder, then the skills not made in lpm. A skill
-// dropped on the heading or among those loose skills leaves its folder.
+// dropped on the heading or among those loose skills leaves its folder, and one
+// not made in lpm stays there, among them.
 export function CommandTreeScope({
   node,
   projectLabel,
@@ -54,13 +57,23 @@ export function CommandTreeScope({
   onDeleteFolder,
 }: CommandTreeScopeProps) {
   const [adding, setAdding] = useState(false);
-  // A drop here takes a command out of its folder.
+  // A drop here takes a skill out of its folder.
   const rootKey = folderKey(node.scope, null);
   const heading = useDroppable({ id: `root:${rootKey}`, data: { folderKey: rootKey } });
   const loose = useDroppable({ id: `loose:${rootKey}`, data: { folderKey: rootKey } });
   const overRoot = heading.isOver || loose.isOver;
   const title = scopeTitle(node.scope, projectLabel);
-  const empty = !searching && !adding && node.folders.length === 0 && node.loose.length === 0;
+  const folderActions: FolderRowActions = {
+    isOpen: (key) => searching || !collapsed.has(key),
+    onToggle,
+    onSelect,
+    onNew,
+    onCreateFolder,
+    onRenameFolder,
+    onDeleteFolder,
+  };
+  const empty =
+    !searching && !adding && node.folders.length === 0 && node.loose.length + node.rootOthers.length === 0;
 
   return (
     <section className="flex flex-col gap-px" aria-label={title}>
@@ -90,14 +103,9 @@ export function CommandTreeScope({
           folder={f}
           scope={node.scope}
           actions={actions}
-          open={searching || !collapsed.has(f.key)}
+          folderActions={folderActions}
           selectedKey={selectedKey}
           running={running}
-          onToggle={() => onToggle(f.key)}
-          onSelect={onSelect}
-          onNew={() => onNew({ scope: node.scope, folder: f.name })}
-          onRename={(name) => onRenameFolder(f.name, name)}
-          onDelete={() => onDeleteFolder(f.name)}
         />
       ))}
       {adding && (
@@ -115,11 +123,21 @@ export function CommandTreeScope({
           <CommandRow
             key={commandKey(c)}
             command={c}
-            nested={false}
+            depth={0}
             selected={selectedKey === commandKey(c)}
             runs={running.has(commandKey(c))}
             onSelect={() => onSelect(c)}
             onConvert={() => actions.onConvert(node.scope, c.name, false)}
+          />
+        ))}
+        {node.rootOthers.map((skill) => (
+          <CommandOtherRow
+            key={skill.name}
+            scope={node.scope}
+            skill={skill}
+            depth={0}
+            selected={selectedKey === otherKey(node.scope, skill.name)}
+            actions={actions}
           />
         ))}
       </div>

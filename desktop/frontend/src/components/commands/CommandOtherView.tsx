@@ -1,14 +1,14 @@
 import { Check, ExternalLink, Lock } from "lucide-react";
 import type { CommandScope, LpmCommandLists, OtherSkill } from "../../lpmCommands";
 import { CommandPlaceSelect } from "./CommandPlaceSelect";
-import { agentReach, scopeTitle } from "./commandsModel";
+import { agentReach, scopeTitle, type OtherSpot } from "./commandsModel";
 
 interface CommandOtherViewProps {
   skill: OtherSkill;
   scope: CommandScope;
   lists: LpmCommandLists;
   projectLabel: string;
-  onMove: (folder: string | null) => void;
+  onMove: (spot: OtherSpot) => void;
   onConvert: () => void;
   onOpenInAgentSetup: () => void;
 }
@@ -51,7 +51,11 @@ export function CommandOtherView({
             lists={lists}
             projectLabel={projectLabel}
             onlyScope={scope}
-            onChange={(place) => onMove(place.folder)}
+            otherGroup={{
+              current: !skill.folder && !skill.atRoot,
+              onChoose: () => onMove({ folder: null, root: false }),
+            }}
+            onChange={(place) => onMove({ folder: place.folder, root: place.folder === null })}
           />
         </div>
         <div className="flex flex-col gap-1.5">

@@ -7,6 +7,7 @@ import cx.lpm.mobile.core.data.commands.LpmCommandsStore
 import cx.lpm.mobile.core.data.session.MacSessions
 import cx.lpm.mobile.core.model.CommandScope
 import cx.lpm.mobile.core.model.LpmCommandList
+import cx.lpm.mobile.core.model.OtherSpot
 import cx.lpm.mobile.core.model.SessionKey
 import cx.lpm.mobile.feature.commands.CommandsWatch
 import dagger.assisted.Assisted
@@ -54,9 +55,9 @@ class OtherSkillsViewModel @AssistedInject constructor(
         mutableError.value = null
     }
 
-    fun move(name: String, folder: String?) {
+    fun move(name: String, spot: OtherSpot) {
         val store = watch.store ?: return
-        change { store.moveOther(project, scope, name, folder) }
+        change { store.moveOther(project, scope, name, spot) }
     }
 
     fun convert(name: String, onDone: () -> Unit) {

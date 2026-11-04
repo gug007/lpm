@@ -1,5 +1,6 @@
 package cx.lpm.mobile.feature.commands.editor
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
@@ -18,12 +19,14 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import cx.lpm.mobile.core.designsystem.R as DesignR
 import cx.lpm.mobile.core.designsystem.component.ButtonRow
 import cx.lpm.mobile.core.designsystem.component.ListDefaults
 import cx.lpm.mobile.core.designsystem.component.ListHeaderStyle
 import cx.lpm.mobile.core.designsystem.component.ListRow
 import cx.lpm.mobile.core.designsystem.component.ListSection
+import cx.lpm.mobile.core.designsystem.component.LpmSwitch
 import cx.lpm.mobile.core.designsystem.component.PlainTextField
 import cx.lpm.mobile.core.designsystem.component.TextFieldRow
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
@@ -38,6 +41,7 @@ class EditorActions(
     val setDescription: (String) -> Unit = {},
     val setBody: (String) -> Unit = {},
     val place: (CommandScope, String?) -> Unit = { _, _ -> },
+    val setKeepOutOfGit: (Boolean) -> Unit = {},
     /** Null when the Mac can't. */
     val convert: (() -> Unit)? = null,
     val delete: () -> Unit = {}
@@ -45,7 +49,8 @@ class EditorActions(
 
 /**
  * The editor's form: the Mac's refusal on top, then Name, the folder picker,
- * Description, Prompt with what its variables do, and Delete command when editing.
+ * Description, Keep out of Git for a project's skill in a repo, Prompt with what its
+ * variables do, and Delete command when editing.
  */
 @Composable
 internal fun CommandEditorForm(
@@ -74,6 +79,9 @@ internal fun CommandEditorForm(
                 onValueChange = actions.setDescription,
                 placeholder = stringResource(R.string.command_editor_description_placeholder)
             )
+        }
+        if (state.canKeepOutOfGit) {
+            KeepOutOfGitSection(draft.keepOutOfGit, state.warnCommitted, actions.setKeepOutOfGit)
         }
         ListSection(
             header = stringResource(R.string.command_editor_prompt),
@@ -112,6 +120,42 @@ internal fun CommandEditorForm(
 @Composable
 private fun Section(header: String, content: @Composable () -> Unit) {
     ListSection(header = header, headerStyle = ListHeaderStyle.Title, content = content)
+}
+
+@Composable
+private fun KeepOutOfGitSection(checked: Boolean, warn: Boolean, onChange: (Boolean) -> Unit) {
+    val title = stringResource(R.string.command_editor_keep_out_of_git)
+    val footnote = LpmTheme.typography.footnote.copy(lineHeight = 16.sp)
+    ListSection(
+        footerContent = {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    stringResource(R.string.command_editor_keep_out_of_git_hint),
+                    style = footnote,
+                    color = LpmTheme.colors.secondaryLabel
+                )
+                if (warn) {
+                    Text(
+                        stringResource(R.string.command_editor_keep_out_of_git_committed),
+                        style = footnote,
+                        color = LpmTheme.colors.orange
+                    )
+                }
+            }
+        }
+    ) {
+        ListRow(
+            trailing = {
+                LpmSwitch(
+                    checked = checked,
+                    onCheckedChange = onChange,
+                    contentDescription = title
+                )
+            }
+        ) {
+            Text(title, style = LpmTheme.typography.body, color = LpmTheme.colors.label)
+        }
+    }
 }
 
 /** "/" and the name, monospaced in lpm's accent. */

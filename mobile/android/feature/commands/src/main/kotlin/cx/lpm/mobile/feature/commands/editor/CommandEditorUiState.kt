@@ -17,7 +17,8 @@ data class CommandDraft(
     val folder: String?,
     val name: String,
     val description: String,
-    val body: String
+    val body: String,
+    val keepOutOfGit: Boolean = false
 ) {
     val place: CommandRef get() = CommandRef(scope, folder, name)
 
@@ -34,7 +35,8 @@ data class CommandDraft(
             folder = key.folder,
             name = key.name,
             description = key.description,
-            body = key.body
+            body = key.body,
+            keepOutOfGit = key.keepOutOfGit
         )
     }
 }
@@ -47,6 +49,9 @@ data class PlaceGroup(val scope: CommandScope, val folders: List<String>)
 data class CommandEditorUiState(
     val draft: CommandDraft,
     val places: List<PlaceGroup> = emptyList(),
+    val canKeepOutOfGit: Boolean = false,
+    /** Keeping this committed skill out of Git needs saying before it's saved. */
+    val warnCommitted: Boolean = false,
     val saving: Boolean = false,
     /** The Mac refused the save or delete; shown at the top. */
     val error: String? = null,
@@ -57,6 +62,17 @@ data class CommandEditorUiState(
     val isNew: Boolean get() = draft.original == null
 
     val canSave: Boolean get() = draft.isValid
+}
+
+/** Only a project's skills live in its repo, and an older lpm can't keep one out. */
+internal fun canKeepOutOfGit(draft: CommandDraft, lists: LpmCommandLists?): Boolean =
+    draft.scope == CommandScope.Project && lists?.project?.inRepo == true
+
+internal fun warnsCommitted(draft: CommandDraft, lists: LpmCommandLists?): Boolean {
+    val original = draft.original
+    if (!draft.keepOutOfGit || original == null) return false
+    val saved = lists?.list(original.scope)?.commands?.firstOrNull { it.ref == original }
+    return saved?.tracked == true
 }
 
 /**

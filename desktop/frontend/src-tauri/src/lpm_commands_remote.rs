@@ -7,6 +7,7 @@ use crate::lpm_commands::{
     is_visible_folder, legacy_name_of, skill_file, ClaudeEntry, CommandFs, LegacyFile, LegacyList, RawList, Snapshot,
     MAX_FILE_BYTES,
 };
+use crate::lpm_commands_git::{GitView, CLAUDE_ROOT, SHARED_ROOT};
 use crate::lpm_commands_local::{FOLDERS_FILE, LEGACY_DIR, LEGACY_DONE, LEGACY_DONE_NOTE, OTHER_FOLDERS_FILE};
 
 pub(crate) struct RemoteFs {
@@ -14,9 +15,10 @@ pub(crate) struct RemoteFs {
     root: String,
 }
 
-fn snapshot_script(skills: &str, claude: &str, lpm: &str) -> String {
+fn snapshot_script(root: &str, skills: &str, claude: &str, lpm: &str) -> String {
     format!(
-        "S={skills}
+        "R={root}
+S={skills}
 C={claude}
 L={lpm}
 send() {{
@@ -29,7 +31,7 @@ if [ -f \"$L/{folders}\" ]; then
   while IFS= read -r d; do [ -n \"$d\" ] && printf 'D\\037%s\\n' \"$d\"; done < \"$L/{folders}\"
 fi
 if [ -f \"$L/{other_folders}\" ]; then
-  while IFS=\"$(printf '\\t')\" read -r n f; do [ -n \"$f\" ] && printf 'O\\037%s\\037%s\\n' \"$n\" \"$f\"; done < \"$L/{other_folders}\"
+  while IFS=\"$(printf '\\t')\" read -r n f; do [ -n \"$n\" ] && printf 'O\\037%s\\037%s\\n' \"$n\" \"$f\"; done < \"$L/{other_folders}\"
 fi
 if [ -d \"$L/{legacy}\" ] && [ ! -e \"$L/{legacy}/{done}\" ]; then printf 'L\\n'; fi
 for f in \"$S\"/*/SKILL.md; do
@@ -43,8 +45,17 @@ for d in \"$C\"/*; do
   elif [ -f \"$d/SKILL.md\" ]; then send C \"$n\" \"$d/SKILL.md\"
   fi
 done
+(
+  cd \"$R\" 2>/dev/null && git rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 0
+  printf 'G\\n'
+  git ls-files -- {shared} {claude_root} | while IFS= read -r p; do printf 'T\\037%s\\n' \"$p\"; done
+  printf '%s\\n' {shared}/* {claude_root}/* | git check-ignore --stdin 2>/dev/null | while IFS= read -r p; do printf 'I\\037%s\\n' \"$p\"; done
+)
+true
 ",
         cap = MAX_FILE_BYTES,
+        shared = SHARED_ROOT,
+        claude_root = CLAUDE_ROOT,
         folders = FOLDERS_FILE,
         other_folders = OTHER_FOLDERS_FILE,
         legacy = LEGACY_DIR,
@@ -98,6 +109,11 @@ pub(crate) fn parse_snapshot(bytes: &[u8], skills_dir: &str, claude_dir: &str) -
         let fields: Vec<&str> = header.split('\u{1f}').collect();
         match fields.as_slice() {
             ["L"] => raw.legacy = true,
+            ["G"] => raw.git = Some(GitView::default()),
+            ["T", path] => raw.git.get_or_insert_default().tracked.push(path.to_string()),
+            ["I", path] => {
+                raw.git.get_or_insert_default().ignored.insert(path.to_string());
+            }
             ["D", name] => raw.saved_folders.push(name.to_string()),
             ["O", name, folder] => raw.other_folders.push((name.to_string(), folder.to_string())),
             ["K", name, target] if is_visible_folder(name) => {
@@ -172,6 +188,16 @@ impl RemoteFs {
         quote_remote_path(&self.at(&format!(".lpm/{rel}")))
     }
 
+    /// git names its own files from the project's folder, or in full from a
+    /// linked worktree.
+    fn git_file(&self, path: &str) -> String {
+        if path.starts_with('/') {
+            quote_remote_path(path)
+        } else {
+            quote_remote_path(&self.at(path))
+        }
+    }
+
     fn run(&self, script: &str) -> Result<Vec<u8>, String> {
         let out = crate::sshexec::remote_login_script(&self.ssh, script)
             .output()
@@ -220,7 +246,7 @@ true
 
 impl CommandFs for RemoteFs {
     fn snapshot(&self) -> Result<Snapshot, String> {
-        let script = snapshot_script(&self.quoted(""), &self.claude(""), &self.lpm(""));
+        let script = snapshot_script(&quote_remote_path(&self.root), &self.quoted(""), &self.claude(""), &self.lpm(""));
         let (skills, claude) = (self.at(".agents/skills"), self.at(".claude/skills"));
         self.run(&script).map(|bytes| parse_snapshot(&bytes, &skills, &claude))
     }
@@ -310,6 +336,25 @@ rmdir \"$D\" 2>/dev/null
         self.at(&format!(".agents/skills/{name}"))
     }
 
+    fn git(&self, args: &[&str]) -> Result<String, String> {
+        let out = crate::sshexec::remote_output(&self.ssh, &self.root, "git", args)?;
+        Ok(String::from_utf8_lossy(&out).trim().to_string())
+    }
+
+    fn read_git_file(&self, path: &str) -> Result<String, String> {
+        let file = self.git_file(path);
+        let bytes = self.run(&format!("if [ -f {file} ]; then cat {file}; fi"))?;
+        String::from_utf8(bytes).map_err(|e| e.to_string())
+    }
+
+    fn write_git_file(&self, path: &str, text: &str) -> Result<(), String> {
+        if crate::hooks::write_remote_file(&self.ssh, &self.git_file(path), text.as_bytes()) {
+            Ok(())
+        } else {
+            Err(format!("Couldn't save Git's ignore rules on {}.", self.ssh.host))
+        }
+    }
+
     fn legacy_list(&self) -> Result<LegacyList, String> {
         self.run(&legacy_script(&self.lpm(LEGACY_DIR))).map(|bytes| parse_legacy(&bytes))
     }
@@ -343,82 +388,5 @@ done
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::lpm_commands::Reach;
-
-    fn frame(kind: &str, path: &str, body: &str) -> Vec<u8> {
-        let mut out = format!("{kind}\u{1f}{path}\u{1f}{}\n", body.len()).into_bytes();
-        out.extend_from_slice(body.as_bytes());
-        out
-    }
-
-    const MINE: &str = "---\nname: fix\ndescription: Fix\nmetadata:\n  lpm-created: \"true\"\n  lpm-folder: Bugs\n---\n\nFix it.\n";
-    const THEIRS: &str = "---\nname: lint\ndescription: Lint\n---\n\nLint.\n";
-
-    #[test]
-    fn sorts_the_stream_into_lpm_skills_and_others() {
-        let mut bytes = b"L\nD\x1fReview\nO\x1flint\x1fReview\n".to_vec();
-        bytes.extend(frame("S", "fix", MINE));
-        bytes.extend(frame("S", "lint", THEIRS));
-        bytes.extend(b"K\x1ffix\x1f../../.agents/skills/fix\n");
-        bytes.extend(b"K\x1fdotfiles\x1f/home/me/dotfiles/x\n");
-        bytes.extend(frame("C", "solo", THEIRS));
-        let snap = parse_snapshot(&bytes, "/srv/.agents/skills", "/srv/.claude/skills");
-        assert!(snap.legacy);
-        assert_eq!(snap.saved_folders, ["Review"]);
-        assert_eq!(snap.folders, ["Review", "Bugs"]);
-        let files: Vec<_> = snap.files.iter().map(|f| (f.name.as_str(), f.doc.body.as_str())).collect();
-        assert_eq!(files, [("fix", "Fix it.")]);
-        assert_eq!(snap.others, ["lint", "dotfiles", "solo"]);
-        assert_eq!(snap.listed_others[0].folder.as_deref(), Some("Review"));
-        let listed: Vec<_> = snap.listed_others.iter().map(|o| (o.name.as_str(), o.path.as_str())).collect();
-        assert_eq!(
-            listed,
-            [("lint", "/srv/.agents/skills/lint/SKILL.md"), ("solo", "/srv/.claude/skills/solo/SKILL.md")],
-            "a link alone can't be read over SSH, so its name is only held"
-        );
-        assert_eq!(snap.files[0].reach, Reach { claude: true, codex: true });
-    }
-
-    #[test]
-    fn a_skill_with_no_link_on_the_host_is_out_of_claudes_reach() {
-        let snap = parse_snapshot(&frame("S", "fix", MINE), "", "");
-        assert_eq!(snap.files[0].reach, Reach { claude: false, codex: true });
-    }
-
-    #[test]
-    fn a_truncated_stream_stops_without_inventing_content() {
-        let mut bytes = frame("S", "a", MINE);
-        bytes.extend(b"S\x1fb\x1f99\nshort");
-        assert_eq!(parse_snapshot(&bytes, "", "").files.len(), 1);
-    }
-
-    #[test]
-    fn reads_an_old_list_from_its_stream() {
-        let mut bytes = b"D\x1fReview\nD\x1f.hidden\n".to_vec();
-        bytes.extend(frame("F", "Review/fix-ticket.md", "Fix it.\nTwice.\n"));
-        bytes.extend(frame("F", "explain.md", "Explain."));
-        bytes.extend(frame("F", "bad name.md", "skip"));
-        let list = parse_legacy(&bytes);
-        assert_eq!(list.folders, ["Review"]);
-        let files: Vec<_> = list
-            .files
-            .iter()
-            .map(|f| (f.folder.clone(), f.name.clone(), f.content.clone()))
-            .collect();
-        assert_eq!(
-            files,
-            [
-                (Some("Review".to_string()), "fix-ticket".to_string(), "Fix it.\nTwice.\n".to_string()),
-                (None, "explain".to_string(), "Explain.".to_string()),
-            ]
-        );
-    }
-
-    #[test]
-    fn paths_stay_quoted_under_home() {
-        let fs = RemoteFs::new(SshSettings::default(), "~/code/app");
-        assert_eq!(fs.quoted("bugs/SKILL.md"), "\"$HOME\"'/code/app/.agents/skills/bugs/SKILL.md'");
-    }
-}
+#[path = "lpm_commands_remote_tests.rs"]
+mod tests;

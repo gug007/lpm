@@ -3,7 +3,6 @@ import {
   DndContext,
   DragOverlay,
   PointerSensor,
-  pointerWithin,
   useSensor,
   useSensors,
   type DragEndEvent,
@@ -35,22 +34,32 @@ import {
 } from "../../store/lpmCommands";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { EmptyState } from "../ui/EmptyState";
+import {
+  type DraggedFolder,
+  folderDrop,
+  folderLabel,
+  folderParent,
+  type FolderKey,
+  heldCount,
+  innermostTarget,
+  parseFolderKey,
+} from "./commandFolders";
 import { CommandEditor } from "./CommandEditor";
 import { CommandImportButton } from "./CommandImportButton";
 import { CommandOtherView } from "./CommandOtherView";
 import { CommandTree } from "./CommandTree";
 import {
   type Draft,
+  draftAfterFolderMove,
   draftOf,
   findOther,
-  type FolderKey,
   isDirty,
   movedTo,
   newDraft,
-  otherDropFolder,
+  otherDrop,
   otherKey,
   type OtherPlace,
-  parseFolderKey,
+  type OtherSpot,
   type SkillRowActions,
 } from "./commandsModel";
 
@@ -141,10 +150,39 @@ export function CommandsView({ projectName, projectLabel, visible }: CommandsVie
     if (await attempt(() => deleteLpmCommand(projectName, target))) setDraft(null);
   };
 
-  const dropOther = (skill: OtherSkill, scope: CommandScope, key: FolderKey) => {
-    const folder = otherDropFolder(skill, scope, key);
-    if (folder !== undefined) void attempt(() => moveOtherSkill(projectName, scope, skill.name, folder));
-    else if (parseFolderKey(key)?.scope !== scope) toast.info("This skill stays in its own list.");
+  const moveOther = (scope: CommandScope, name: string, spot: OtherSpot) => {
+    void attempt(() => moveOtherSkill(projectName, scope, name, spot.folder, spot.root));
+  };
+
+  const dropOther = (skill: OtherSkill, scope: CommandScope, key: FolderKey, intoGroup: boolean) => {
+    const spot = otherDrop(skill, scope, key, intoGroup);
+    const crossing = parseFolderKey(key)?.scope !== scope;
+    if (!spot) {
+      if (crossing) toast.info("This skill stays in its own list.");
+      return;
+    }
+    moveOther(scope, skill.name, spot);
+    if (crossing) {
+      toast.info(`Moved to ${spot.folder} in ${scope === "project" ? "This project" : "Global"}, its own list.`);
+    }
+  };
+
+  const renameFolder = (scope: CommandScope, name: string, newName: string) =>
+    void attempt(async () => {
+      await renameLpmCommandFolder(projectName, scope, name, newName);
+      setDraft((d) => d && draftAfterFolderMove(d, scope, name, newName));
+    });
+
+  const deleteFolder = (scope: CommandScope, name: string) =>
+    void attempt(async () => {
+      await deleteLpmCommandFolder(projectName, scope, name);
+      setDraft((d) => d && draftAfterFolderMove(d, scope, name, folderParent(name)));
+    });
+
+  const dropFolder = (folder: DraggedFolder, key: FolderKey) => {
+    const to = folderDrop(folder, key);
+    if (to) renameFolder(folder.scope, folder.name, to);
+    else if (parseFolderKey(key)?.scope !== folder.scope) toast.info("A folder stays in its own list.");
   };
 
   const convert = (scope: CommandScope, name: string, toLpm: boolean) =>
@@ -165,6 +203,8 @@ export function CommandsView({ projectName, projectLabel, visible }: CommandsVie
       }),
     onConvert: convert,
     onOpenInAgentSetup: (skill) => useToolkitOpen.getState().request(projectName, skill.path),
+    onMoveOther: moveOther,
+    foldersOf: (scope) => (lists ? (scopeList(lists, scope)?.folders ?? []) : []),
   };
 
   const onDragEnd = ({ active, over }: DragEndEvent) => {
@@ -172,9 +212,14 @@ export function CommandsView({ projectName, projectLabel, visible }: CommandsVie
     const c = active.data.current?.command as LpmCommand | undefined;
     const key = over?.data.current?.folderKey as FolderKey | undefined;
     if (!key) return;
+    const folder = active.data.current?.folder as DraggedFolder | undefined;
+    if (folder) {
+      if (!over?.data.current?.otherGroup) dropFolder(folder, key);
+      return;
+    }
     const other = active.data.current?.other as OtherSkill | undefined;
     if (other) {
-      dropOther(other, active.data.current?.scope as CommandScope, key);
+      dropOther(other, active.data.current?.scope as CommandScope, key, !!over?.data.current?.otherGroup);
       return;
     }
     if (!c) return;
@@ -183,7 +228,10 @@ export function CommandsView({ projectName, projectLabel, visible }: CommandsVie
     const editing = sameCommand(draft?.original ?? null, c) && draft && !isDirty(draft, lists);
     void attempt(async () => {
       await saveLpmCommand(projectName, moved, commandRef(c));
-      if (editing) setDraft({ ...moved, original: commandRef(moved) });
+      if (editing) {
+        const keepOutOfGit = moved.scope === c.scope && !!c.keptOutOfGit;
+        setDraft({ ...moved, keepOutOfGit, original: commandRef(moved) });
+      }
     });
   };
 
@@ -210,10 +258,10 @@ export function CommandsView({ projectName, projectLabel, visible }: CommandsVie
       </div>
       <DndContext
         sensors={sensors}
-        collisionDetection={pointerWithin}
+        collisionDetection={innermostTarget}
         onDragStart={({ active }) => {
-          const { command, other } = active.data.current ?? {};
-          setDragging((command ?? other)?.name ?? null);
+          const { command, other, folder } = active.data.current ?? {};
+          setDragging(folder ? folderLabel(folder.name) : `/${(command ?? other)?.name}`);
         }}
         onDragCancel={() => setDragging(null)}
         onDragEnd={onDragEnd}
@@ -241,28 +289,11 @@ export function CommandsView({ projectName, projectLabel, visible }: CommandsVie
               })
             }
             onCreateFolder={(scope, name) => void attempt(() => createLpmCommandFolder(projectName, scope, name))}
-            onRenameFolder={(scope, name, newName) =>
-              void attempt(async () => {
-                await renameLpmCommandFolder(projectName, scope, name, newName);
-                if (draft?.scope === scope && draft.folder === name) {
-                  setDraft({
-                    ...draft,
-                    folder: newName,
-                    original: draft.original && { ...draft.original, folder: newName },
-                  });
-                }
-              })
-            }
-            onDeleteFolder={(scope, name) =>
-              setConfirm({
-                kind: "folder",
-                scope,
-                name,
-                count: [...(scopeList(lists, scope)?.commands ?? []), ...(scopeList(lists, scope)?.others ?? [])].filter(
-                  (c) => c.folder === name,
-                ).length,
-              })
-            }
+            onRenameFolder={renameFolder}
+            onDeleteFolder={(scope, name) => {
+              const list = scopeList(lists, scope);
+              setConfirm({ kind: "folder", scope, name, count: list ? heldCount(list, name) : 0 });
+            }}
           />
           {draft ? (
             <CommandEditor
@@ -281,7 +312,7 @@ export function CommandsView({ projectName, projectLabel, visible }: CommandsVie
               scope={viewing.scope}
               lists={lists}
               projectLabel={projectLabel}
-              onMove={(folder) => void attempt(() => moveOtherSkill(projectName, viewing.scope, other.name, folder))}
+              onMove={(spot) => moveOther(viewing.scope, other.name, spot)}
               onConvert={() => convert(viewing.scope, other.name, true)}
               onOpenInAgentSetup={() => actions.onOpenInAgentSetup(other)}
             />
@@ -302,7 +333,7 @@ export function CommandsView({ projectName, projectLabel, visible }: CommandsVie
         <DragOverlay dropAnimation={null}>
           {dragging && (
             <span className="inline-flex rounded-md border border-[var(--accent-cyan)]/50 bg-[var(--bg-secondary)] px-2.5 py-1 font-mono text-[12.5px] text-[var(--accent-cyan)] shadow-lg">
-              /{dragging}
+              {dragging}
             </span>
           )}
         </DragOverlay>
@@ -313,7 +344,7 @@ export function CommandsView({ projectName, projectLabel, visible }: CommandsVie
           confirm?.kind === "discard"
             ? "Discard your changes?"
             : confirm?.kind === "folder"
-              ? `Delete the ${confirm.name} folder?`
+              ? `Delete the ${folderLabel(confirm.name)} folder?`
               : `Delete /${draft?.original?.name ?? ""}?`
         }
         body={
@@ -321,7 +352,7 @@ export function CommandsView({ projectName, projectLabel, visible }: CommandsVie
             ? "The skill you're editing has changes that aren't saved."
             : confirm?.kind === "folder"
               ? confirm.count > 0
-                ? `Its ${confirm.count === 1 ? "skill moves" : `${confirm.count} skills move`} to the top level.`
+                ? "What's inside moves up a level."
                 : "It's empty."
               : "Its file is deleted."
         }
@@ -333,8 +364,7 @@ export function CommandsView({ projectName, projectLabel, visible }: CommandsVie
           setConfirm(null);
           if (c?.kind === "discard") c.then();
           else if (c?.kind === "delete") void removeCommand();
-          else if (c?.kind === "folder")
-            void attempt(() => deleteLpmCommandFolder(projectName, c.scope, c.name));
+          else if (c?.kind === "folder") deleteFolder(c.scope, c.name);
         }}
       />
     </div>

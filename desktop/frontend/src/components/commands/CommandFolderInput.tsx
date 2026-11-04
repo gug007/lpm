@@ -2,12 +2,13 @@ import { useEffect, useRef, useState } from "react";
 
 interface CommandFolderInputProps {
   initial?: string;
+  placeholder?: string;
   onDone: (name: string | null) => void;
 }
 
 // The inline field that names a new folder or renames one: Enter or leaving it
 // keeps the name, Escape drops it.
-export function CommandFolderInput({ initial = "", onDone }: CommandFolderInputProps) {
+export function CommandFolderInput({ initial = "", placeholder = "Folder name", onDone }: CommandFolderInputProps) {
   const [value, setValue] = useState(initial);
   const done = useRef(false);
   const ref = useRef<HTMLInputElement>(null);
@@ -28,7 +29,7 @@ export function CommandFolderInput({ initial = "", onDone }: CommandFolderInputP
     <input
       ref={ref}
       value={value}
-      placeholder="Folder name"
+      placeholder={placeholder}
       aria-label="Folder name"
       onChange={(e) => setValue(e.target.value)}
       onKeyDown={(e) => {

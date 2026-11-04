@@ -1,8 +1,9 @@
 import { useDroppable } from "@dnd-kit/core";
 import { ChevronDown, ChevronRight, FolderLock } from "lucide-react";
 import type { CommandScope, OtherSkill } from "../../lpmCommands";
+import { folderKey } from "./commandFolders";
 import { CommandOtherRow } from "./CommandOtherRow";
-import { folderKey, otherKey, type SkillRowActions } from "./commandsModel";
+import { otherKey, type SkillRowActions } from "./commandsModel";
 
 interface CommandOtherFolderProps {
   scope: CommandScope;
@@ -15,10 +16,13 @@ interface CommandOtherFolderProps {
 
 // The skills in a list's places that weren't made in lpm and aren't in a folder:
 // a group of its own at the end of the list, closed until asked for. Dropping one
-// here takes it back out of its folder.
+// here brings it back from a folder or the top of the list.
 export function CommandOtherFolder({ scope, skills, open, selectedKey, actions, onToggle }: CommandOtherFolderProps) {
   const rootKey = folderKey(scope, null);
-  const { setNodeRef, isOver } = useDroppable({ id: `others:${rootKey}`, data: { folderKey: rootKey } });
+  const { setNodeRef, isOver } = useDroppable({
+    id: `others:${rootKey}`,
+    data: { folderKey: rootKey, otherGroup: true },
+  });
   const Chevron = open ? ChevronDown : ChevronRight;
   return (
     <div

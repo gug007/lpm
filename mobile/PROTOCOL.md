@@ -884,14 +884,25 @@ Each list also carries `others`: the skills in its places that weren't made in
 lpm, each `{ name, description, preview, agents, path }`, sorted by name.
 `preview` is the start of the instructions, `agents` the CLIs that read it
 (`claude`, `codex`, `gemini`, `opencode`), `folder` the folder of the list it is
-filed in, or null. Their files can't be edited through these verbs. A Mac on an
-older lpm sends no `others`.
+filed in, or null, and `atRoot` true for one kept with the list's skills in no folder
+instead of in the Other skills group. Their files can't be edited through these
+verbs. A Mac on an older lpm sends no `others`.
 
 When `features` has `"lpmOtherSkills"`, `lpmCommandOtherFolder` files one in a
-folder (null takes it out, a new name creates the folder; the Mac keeps the label
-and its file stays as it was), and `lpmCommandConvert` with `toLpm: true` makes it
+folder (a new name creates the folder; the Mac keeps the place and its file stays
+as it was). With a null folder, `root: true` puts it with the skills in no folder,
+and without `root` it goes back to the Other skills group. And `lpmCommandConvert` with `toLpm: true` makes it
 an lpm skill, `false` makes an lpm skill an other skill, in its folder either way.
 It stays in its list; a skill behind someone's link can't be converted.
+
+A folder's name in `folders`, in a command's or other skill's `folder` and in every
+verb is its whole path: `Work/Reviews` sits inside `Work`. `folders` names every
+level, each folder right before the ones inside it. The phone shows a level at a
+time: the top-level folders on the Skills screen, and a folder's page lists the
+folders directly inside it, with its own name (the part after the last `/`) as the
+title, and a row's count takes in the folders inside it. When `features` has
+`"lpmNestedFolders"` a phone offers New folder on a folder's page; a Mac without it
+refuses a `/` in a name, and an older phone shows each level as a folder of its own.
 
 The phone shows them in its `/` menu (they arrive in the `slash` reply, grouped
 by `folder` within `scope`, project first) and on a Skills screen per project
@@ -911,10 +922,10 @@ lists hold, or a skill that agent can't reach comes back as the prompt. Without
 | Request | Reply |
 |---|---|
 | `{ "t": "lpmCommands", "project": "<name>", "reqId": <any>? }` | `{ "t": "lpmCommands", "project": "<name>", "ok": true, "lists": LpmCommandLists }` / `{ "ok": false, "error": "…" }` — both lists. `project: ""` (or a terminal outside a project) gets `lists.project: null` |
-| `{ "t": "lpmCommandSave", "project": "<name>", "command": { "scope": "global"\|"project", "folder": "<folder>"\|null, "name": "…", "description": "…", "body": "…" }, "previous": { "scope", "folder", "name" }\|null }` | `{ "t": "lpmCommandSave", "project": "<name>", "ok": true, "lists": LpmCommandLists }` / `{ "ok": false, "error": "<sentence to show>" }` — creates the command, or with `previous` edits it: a new name, folder or list renames or moves its file. A folder that doesn't exist is created. Refused: a name not matching `^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$`, an empty body, a prompt too long to save, a name the list already has |
+| `{ "t": "lpmCommandSave", "project": "<name>", "command": { "scope": "global"\|"project", "folder": "<folder>"\|null, "name": "…", "description": "…", "body": "…", "keepOutOfGit": true\|false? }, "previous": { "scope", "folder", "name" }\|null }` | `{ "t": "lpmCommandSave", "project": "<name>", "ok": true, "lists": LpmCommandLists }` / `{ "ok": false, "error": "<sentence to show>" }` — creates the command, or with `previous` edits it: a new name, folder or list renames or moves its file. A folder that doesn't exist is created. `keepOutOfGit` is for a project's list in a repo (`inRepo`): `true` keeps the skill out of Git, staging the removal of a committed one for the user to commit, and `false` lets Git see it again; left out, the skill stays as it is. Refused: a name not matching `^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$`, an empty body, a prompt too long to save, a name the list already has |
 | `{ "t": "lpmCommandDelete", "project": "<name>", "target": { "scope", "folder", "name" } }` | `{ "t": "lpmCommandDelete", "ok": true, "lists": LpmCommandLists }` / `{ "ok": false, "error": "…" }` — deletes the file; a file already gone is success |
-| `{ "t": "lpmCommandFolder", "project": "<name>", "op": "create"\|"rename"\|"delete", "scope": "global"\|"project", "name": "<folder>", "newName": "<folder>"? }` | `{ "t": "lpmCommandFolder", "ok": true, "lists": LpmCommandLists }` / `{ "ok": false, "error": "…" }` — a folder name is trimmed and may not start with a dot or hold any of `/\:*?"<>\|`. `delete` keeps the folder's commands: they move to No folder |
-| `{ "t": "lpmCommandOtherFolder", "project": "<name>", "scope": "global"\|"project", "name": "<skill>", "folder": "<folder>"\|null }` | `{ "t": "lpmCommandOtherFolder", "ok": true, "lists": LpmCommandLists }` / `{ "ok": false, "error": "…" }` |
+| `{ "t": "lpmCommandFolder", "project": "<name>", "op": "create"\|"rename"\|"delete", "scope": "global"\|"project", "name": "<folder>", "newName": "<folder>"? }` | `{ "t": "lpmCommandFolder", "ok": true, "lists": LpmCommandLists }` / `{ "ok": false, "error": "…" }` — a folder is the path to it, `Parent/Child` for one inside another (see below), each level trimmed and not starting with a dot or holding any of `\:*?"<>\|`. Creating one creates the folders it sits inside. `rename` takes the whole new path, so it also moves a folder, and what's inside goes with it; a folder can't move into itself or onto one that exists. `delete` keeps what the folder holds: its commands and folders move up a level (to No folder from the top level), a folder landing on one of the same name joining it |
+| `{ "t": "lpmCommandOtherFolder", "project": "<name>", "scope": "global"\|"project", "name": "<skill>", "folder": "<folder>"\|null, "root"?: true }` | `{ "t": "lpmCommandOtherFolder", "ok": true, "lists": LpmCommandLists }` / `{ "ok": false, "error": "…" }` |
 | `{ "t": "lpmCommandConvert", "project": "<name>", "scope": "global"\|"project", "name": "<skill>", "toLpm": true\|false }` | `{ "t": "lpmCommandConvert", "ok": true, "lists": LpmCommandLists }` / `{ "ok": false, "error": "…" }` |
 | `{ "t": "lpmCommandExpand", "project": "<name>", "name": "<command>", "args": "<the words after it>", "cli": "<the terminal's agent>"? }` | `{ "t": "lpmCommandExpand", "ok": true, "text": "<what to send>", "missing": ["<variable>"…] }` / `{ "ok": false, "error": "…" }` — the prompt with `{{branch}}`, `{{project}}` and `{{dir}}` (the folder holding the command's file, on the computer its agent runs on; `missing` for a global command in an SSH project) filled in by the Mac, each other `{{name}}` taking a word of `args` in order (the last taking the rest), `$ARGUMENTS` taking all of them, and `args` appended on a new paragraph when the prompt has nowhere to put them. `missing` names the variables still left as `{{name}}` in `text` |
 
@@ -1598,9 +1609,9 @@ content: string       // preview (first 1200 chars) on `memory`; full text on `m
 
 **LpmCommandLists** (the `lists` of every `lpmCommand*` reply): `{ global: LpmCommandList, project: LpmCommandList | null, projectError: string | null }`. `project` is null outside a project, or when its list couldn't be read (an SSH host that didn't answer): `projectError` says why.
 
-**LpmCommandList**: `{ folders: [string…], commands: [LpmCommand…] }`. `folders` holds every folder, empty ones too, sorted by name ignoring case; `commands` comes sorted by folder (No folder last), then name.
+**LpmCommandList**: `{ folders: [string…], commands: [LpmCommand…], inRepo: bool? }`. `inRepo` says the list is a project's in a Git repo, so its skills can be kept out of it; absent from an older Mac, which can't. `folders` holds every folder, empty ones too, sorted by name ignoring case; `commands` comes sorted by folder (No folder last), then name.
 
-**LpmCommand**: `{ name, folder: string | null, description, body, scope: "global" | "project", argumentHint }`. `body` is the prompt as written, `{{…}}` and all; `argumentHint` is `"<ticket> <who>"` for the variables a run asks for (`"<arguments>"` for a body using `$ARGUMENTS`), `""` when it asks for none.
+**LpmCommand**: `{ name, folder: string | null, description, body, scope: "global" | "project", argumentHint, keptOutOfGit: bool?, tracked: bool? }`. `keptOutOfGit` is on for a skill Git ignores and holds none of; `tracked` for one Git holds files of, which keeping it out will stage the removal of (say so first, as the desktop form does). `body` is the prompt as written, `{{…}}` and all; `argumentHint` is `"<ticket> <who>"` for the variables a run asks for (`"<arguments>"` for a body using `$ARGUMENTS`), `""` when it asks for none.
 
 **SlashCommand** rows that are lpm commands: `{ name, description, argumentHint, source: "lpm", folder: string | null, scope: "global" | "project" }`. Group them under a `<folder or "No folder"> · this project|global` heading, and show the agent's own commands under its name below them.
 

@@ -2,21 +2,22 @@ import { describe, expect, it } from "vitest";
 import { commandKey, type LpmCommand, type LpmCommandLists } from "../../lpmCommands";
 import {
   agentReach,
+  canKeepOutOfGit,
   commandTree,
+  draftAfterFolderMove,
   draftOf,
   draftProblem,
   findOther,
-  folderKey,
-  folderNamed,
   isDirty,
+  keptOutNote,
   movedTo,
   newDraft,
-  otherDropFolder,
+  otherDrop,
   otherKey,
-  parseFolderKey,
   placeChoices,
   runningKeys,
 } from "./commandsModel";
+import { folderKey, folderNamed, parseFolderKey } from "./commandFolders";
 
 const cmd = (name: string, scope: "global" | "project", folder: string | null, body = "Do it."): LpmCommand => ({
   name,
@@ -192,17 +193,170 @@ describe("other skills", () => {
     expect(commandTree(filed, "deploy")[0].folders.map((f) => f.name)).toEqual(["Bugs"]);
   });
 
-  it("files one only inside its own list", () => {
+  it("files one by folder name in its own list, wherever it was dropped", () => {
     const o = skill("lint", "", "Bugs");
-    expect(otherDropFolder(o, "project", folderKey("project", "Docs"))).toBe("Docs");
-    expect(otherDropFolder(o, "project", folderKey("project", null))).toBeNull();
-    expect(otherDropFolder(o, "project", folderKey("project", "Bugs"))).toBeUndefined();
-    expect(otherDropFolder(o, "project", folderKey("global", "Git"))).toBeUndefined();
+    const folder = (f: string) => ({ folder: f, root: false });
+    expect(otherDrop(o, "project", folderKey("project", "Docs"), false)).toEqual(folder("Docs"));
+    expect(otherDrop(o, "project", folderKey("project", "Bugs"), false)).toBeUndefined();
+    expect(otherDrop(o, "project", folderKey("global", "Git"), false)).toEqual(folder("Git"));
+    expect(otherDrop(o, "project", folderKey("global", null), false)).toBeUndefined();
+  });
+
+  it("tells the top of a list from the Other skills group", () => {
+    const inGroup = skill("lint", "");
+    const atRoot = { ...inGroup, atRoot: true };
+    const rootKey = folderKey("project", null);
+    const top = { folder: null, root: true };
+    const group = { folder: null, root: false };
+    expect(otherDrop(inGroup, "project", rootKey, false)).toEqual(top);
+    expect(otherDrop(inGroup, "project", rootKey, true)).toBeUndefined();
+    expect(otherDrop(atRoot, "project", rootKey, true)).toEqual(group);
+    expect(otherDrop(atRoot, "project", rootKey, false)).toBeUndefined();
+    expect(otherDrop(skill("lint", "", "Bugs"), "project", rootKey, false)).toEqual(top);
+    expect(otherDrop(skill("lint", "", "Bugs"), "project", rootKey, true)).toEqual(group);
+  });
+
+  it("keeps a skill at the top out of the Other skills group", () => {
+    const lists: LpmCommandLists = {
+      project: { folders: [], commands: [], others: [skill("lint", ""), { ...skill("docs", ""), atRoot: true }] },
+      global: { folders: [], commands: [] },
+      projectError: null,
+    };
+    const [project] = commandTree(lists, "");
+    expect(project.others.map((o) => o.name)).toEqual(["lint"]);
+    expect(project.rootOthers.map((o) => o.name)).toEqual(["docs"]);
   });
 
   it("says which agents read it", () => {
     const reach = agentReach(["claude", "opencode"]);
     expect(reach.filter((a) => a.reads).map((a) => a.label)).toEqual(["Claude Code", "OpenCode"]);
     expect(reach.filter((a) => !a.reads).map((a) => a.label)).toContain("Codex");
+  });
+});
+
+describe("keeping a skill out of Git", () => {
+  const skill = (over: Partial<LpmCommand>): LpmCommand => ({ ...cmd("mine", "project", null), ...over });
+  const inRepo = (c: LpmCommand, inRepoList = true): LpmCommandLists => ({
+    project: { folders: [], commands: [c], inRepo: inRepoList },
+    global: { folders: [], commands: [] },
+    projectError: null,
+  });
+
+  it("is offered for a project's skill in a repo, and not elsewhere", () => {
+    const lists = inRepo(skill({}));
+    expect(canKeepOutOfGit({ scope: "project", folder: null }, lists)).toBe(true);
+    expect(canKeepOutOfGit({ scope: "global", folder: null }, lists)).toBe(false);
+    expect(canKeepOutOfGit({ scope: "project", folder: null }, inRepo(skill({}), false))).toBe(false);
+  });
+
+  it("isn't offered by a computer on an older lpm", () => {
+    const older: LpmCommandLists = { project: { folders: [], commands: [] }, global: { folders: [], commands: [] }, projectError: null };
+    expect(canKeepOutOfGit({ scope: "project", folder: null }, older)).toBe(false);
+  });
+
+  it("starts from what the saved skill says, off for a new one", () => {
+    expect(draftOf(skill({ keptOutOfGit: true })).keepOutOfGit).toBe(true);
+    expect(draftOf(skill({})).keepOutOfGit).toBe(false);
+    expect(newDraft(null, inRepo(skill({}))).keepOutOfGit).toBe(false);
+  });
+
+  it("counts as a change to save", () => {
+    const saved = skill({});
+    expect(isDirty({ ...draftOf(saved), keepOutOfGit: true }, inRepo(saved))).toBe(true);
+    expect(isDirty(draftOf(saved), inRepo(saved))).toBe(false);
+  });
+
+  it("isn't a change where the switch isn't shown", () => {
+    const saved = skill({});
+    expect(isDirty({ ...draftOf(saved), keepOutOfGit: true }, inRepo(saved, false))).toBe(false);
+  });
+
+  it("warns only for a committed skill being turned on", () => {
+    const committed = skill({ tracked: true });
+    const on = { ...draftOf(committed), keepOutOfGit: true };
+    expect(keptOutNote(on, inRepo(committed))).toMatch(/Already committed/);
+    expect(keptOutNote(draftOf(committed), inRepo(committed))).toBeNull();
+    const fresh = skill({});
+    expect(keptOutNote({ ...draftOf(fresh), keepOutOfGit: true }, inRepo(fresh))).toBeNull();
+    expect(keptOutNote({ ...newDraft(null, inRepo(fresh)), keepOutOfGit: true }, inRepo(fresh))).toBeNull();
+  });
+});
+
+describe("folders inside folders", () => {
+  const nested: LpmCommandLists = {
+    global: {
+      folders: ["Home", "Work", "Work/Reviews", "Work/Reviews/Deep", "Workshop"],
+      commands: [
+        cmd("top", "global", "Work"),
+        cmd("mid", "global", "Work/Reviews"),
+        cmd("low", "global", "Work/Reviews/Deep"),
+        cmd("shop", "global", "Workshop"),
+      ],
+      others: [{ name: "lint", description: "", preview: "", agents: [], path: "", folder: "Work/Reviews" }],
+    },
+    project: null,
+    projectError: null,
+  };
+
+  it("puts each folder under its parent and counts all that's inside", () => {
+    const [scope] = commandTree(nested, "");
+    expect(scope.folders.map((f) => f.name)).toEqual(["Home", "Work", "Workshop"]);
+    const work = scope.folders[1];
+    expect(work.label).toBe("Work");
+    expect(work.total).toBe(4);
+    const reviews = work.children[0];
+    expect(reviews).toMatchObject({ name: "Work/Reviews", label: "Reviews", depth: 1, total: 3 });
+    expect(reviews.others.map((o) => o.name)).toEqual(["lint"]);
+    expect(reviews.children[0]).toMatchObject({ name: "Work/Reviews/Deep", label: "Deep", depth: 2, total: 1 });
+  });
+
+  it("shows a folder a list somehow left a parent out of under that parent", () => {
+    const [scope] = commandTree(
+      { global: { folders: ["A/B"], commands: [] }, project: null, projectError: null },
+      "",
+    );
+    expect(scope.folders.map((f) => f.name)).toEqual(["A"]);
+    expect(scope.folders[0].children.map((f) => f.name)).toEqual(["A/B"]);
+  });
+
+  it("keeps the way down to a match when searching and drops the rest", () => {
+    const [scope] = commandTree(nested, "low");
+    expect(scope.folders.map((f) => f.name)).toEqual(["Work"]);
+    expect(scope.folders[0].commands).toEqual([]);
+    expect(scope.folders[0].children[0].children[0].commands.map((c) => c.name)).toEqual(["low"]);
+  });
+
+  it("lists a pending folder and its new parents where the tree would show them", () => {
+    const [scope] = placeChoices({ scope: "global", folder: "Home/New/Inner" }, nested);
+    expect(scope.folders).toEqual([
+      null,
+      "Home",
+      "Home/New",
+      "Home/New/Inner",
+      "Work",
+      "Work/Reviews",
+      "Work/Reviews/Deep",
+      "Workshop",
+    ]);
+  });
+
+  it("brings the editor along when its folder or one around it moves", () => {
+    const draft = draftOf(nested.global.commands[1]);
+    const moved = draftAfterFolderMove(draft, "global", "Work", "Job");
+    expect(moved.folder).toBe("Job/Reviews");
+    expect(moved.original?.folder).toBe("Job/Reviews");
+    const up = draftAfterFolderMove(draft, "global", "Work/Reviews", "Work");
+    expect(up.folder).toBe("Work");
+    expect(draftAfterFolderMove(draft, "project", "Work", "Job")).toEqual(draft);
+  });
+
+  it("leaves a folder's next-door neighbour out of its moves", () => {
+    const draft = draftOf(nested.global.commands[3]);
+    expect(draftAfterFolderMove(draft, "global", "Work", "Job").folder).toBe("Workshop");
+  });
+
+  it("moves a skill into a folder inside another", () => {
+    const moved = movedTo(nested.global.commands[3], folderKey("global", "Work/Reviews/Deep"), nested);
+    expect(moved?.folder).toBe("Work/Reviews/Deep");
   });
 });

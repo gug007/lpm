@@ -287,6 +287,7 @@ final class LpmClient: NSObject {
     static let keepAwakeFeature = "keepAwake"
     static let lpmCommandsFeature = "lpmCommands"
     static let lpmOtherSkillsFeature = "lpmOtherSkills"
+    static let lpmNestedFoldersFeature = "lpmNestedFolders"
     static let dictationFeature = "dictation"
 
     // Requests made while the link is down or half-dead, delivered on the next
@@ -530,7 +531,8 @@ final class LpmClient: NSObject {
                              Self.tabAccountFeature,
                              Self.weeklyRecapFeature, Self.recapMonthFeature, Self.agentArchiveFeature,
                              Self.limitRemindersFeature, Self.projectPinsFeature, Self.gitHistoryFeature,
-                             Self.keepAwakeFeature, Self.lpmCommandsFeature, Self.lpmOtherSkillsFeature, Self.gitChecksFeature],
+                             Self.keepAwakeFeature, Self.lpmCommandsFeature, Self.lpmOtherSkillsFeature, Self.lpmNestedFoldersFeature,
+                             Self.gitChecksFeature],
             ]))
         }
     }

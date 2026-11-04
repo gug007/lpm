@@ -53,6 +53,7 @@ fun ManageCommandsSheet(key: ManageCommandsKey, onDone: () -> Unit, modifier: Mo
                 scope = page.scope,
                 folder = page.folder,
                 session = key.session,
+                onOpenFolder = { navigator.push(ManagePage.Folder(page.scope, it)) },
                 onOpenOther = { navigator.push(ManagePage.Other(page.scope, it)) },
                 leading = { BackButton(navigator::back) },
                 inSheet = true

@@ -174,7 +174,7 @@ private fun OtherSkillsRow(count: Int, onClick: () -> Unit) {
 
 /** "New folder", its icon in the folders' column as a `Label` in a List lines up. */
 @Composable
-private fun NewFolderRow(onClick: () -> Unit) {
+internal fun NewFolderRow(onClick: () -> Unit) {
     val tint = LpmTheme.colors.tint
     ListRow(
         onClick = onClick,

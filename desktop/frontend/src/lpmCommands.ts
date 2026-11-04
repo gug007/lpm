@@ -14,6 +14,10 @@ export interface LpmCommand {
   scope: CommandScope;
   // "<ticket>" for a prompt that asks for a ticket, shown after "/name ".
   argumentHint: string;
+  // Git ignores it and holds none of its files. Absent from a computer on an older lpm.
+  keptOutOfGit?: boolean;
+  // Git holds some of its files. Absent from a computer on an older lpm.
+  tracked?: boolean;
 }
 
 // A skill in this list's places that wasn't made in lpm. Shown, never changed.
@@ -26,6 +30,8 @@ export interface OtherSkill {
   path: string;
   // Absent from a computer on an older lpm.
   folder?: string | null;
+  // Shown with the skills in no folder, out of the Other skills group.
+  atRoot?: boolean;
 }
 
 export interface CommandScopeList {
@@ -33,6 +39,8 @@ export interface CommandScopeList {
   commands: LpmCommand[];
   // Absent from a computer on an older lpm.
   others?: OtherSkill[];
+  // The list belongs to a git repo. Absent from a computer on an older lpm.
+  inRepo?: boolean;
 }
 
 export interface LpmCommandLists {
@@ -51,6 +59,8 @@ export interface CommandRef {
 export interface CommandInput extends CommandRef {
   description: string;
   body: string;
+  // Left out, the skill stays as it is.
+  keepOutOfGit?: boolean;
 }
 
 export interface ExpandedCommand {
