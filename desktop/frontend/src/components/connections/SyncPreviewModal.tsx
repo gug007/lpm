@@ -10,7 +10,7 @@ export interface SyncItem {
   direction: "toLocal" | "toRemote";
   localMtime: number;
   remoteMtime: number;
-  // Changed on both Macs since they last matched; the newer change wins.
+  // Changed on both Macs since they last matched; one version wins.
   conflict?: boolean;
   // Removes the file on the destination side rather than copying content.
   deleted?: boolean;
@@ -70,7 +70,7 @@ function RemoveLabel({
 function ConflictBadge() {
   return (
     <span
-      title={`Changed on both ${M.plural} — the newer change wins, and a backup is kept.`}
+      title={`Changed on both ${M.plural} — one version is kept, with a backup of the other.`}
       className="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium"
       style={{
         color: "var(--accent-amber)",

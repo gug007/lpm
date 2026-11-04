@@ -15,7 +15,7 @@ describe("autoSyncToast", () => {
     const t = autoSyncToast(result({ conflicts: ["web"] }), "Studio", undefined, 0);
     expect(t).toEqual({
       kind: "conflict",
-      message: "'web' changed on both Macs — kept the newer change. Backup saved.",
+      message: "'web' changed on both Macs — kept one version. Backup saved.",
     });
   });
 
@@ -23,7 +23,7 @@ describe("autoSyncToast", () => {
     const t = autoSyncToast(result({ conflicts: ["web", "api"] }), "Studio", undefined, 0);
     expect(t?.kind).toBe("conflict");
     expect(t?.message).toBe(
-      "2 items changed on both Macs — kept the newer changes. Backup saved.",
+      "2 items changed on both Macs — kept one version of each. Backup saved.",
     );
   });
 
