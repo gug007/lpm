@@ -3,7 +3,7 @@ import SwiftUI
 /// The user's lpm commands for one project: this project's own list and the
 /// global one, each split into folders. Tapping a folder lists its commands;
 /// "+" writes a new one. Pushed from the project menu, or shown in a sheet from
-/// the composer's "Manage commands".
+/// the composer's "Manage skills".
 struct CommandsScreen: View {
     @Environment(AppModel.self) private var model
 
@@ -63,7 +63,7 @@ struct CommandsScreen: View {
                 }
             }
         }
-        .navigationTitle("Commands")
+        .navigationTitle("Skills")
         .navigationBarTitleDisplayMode(.inline)
         .overlay { stateOverlay }
         .refreshable { store.load(project) }
@@ -72,7 +72,7 @@ struct CommandsScreen: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button { draft = .new(scope: scope) } label: {
-                    Label("New command", systemImage: "plus")
+                    Label("New skill", systemImage: "plus")
                 }
                 .disabled(lists == nil)
             }
@@ -95,9 +95,9 @@ struct CommandsScreen: View {
             Button("Delete folder", role: .destructive) { perform(.delete, folder: folder) }
             Button("Cancel", role: .cancel) {}
         } message: { _ in
-            Text("Its commands move to No folder.")
+            Text("Its skills move to No folder.")
         }
-        .alert("Couldn't change commands", isPresented: isPresent($error), presenting: error) { _ in
+        .alert("Couldn't change skills", isPresented: isPresent($error), presenting: error) { _ in
             Button("OK", role: .cancel) {}
         } message: { Text($0) }
     }
@@ -129,7 +129,7 @@ struct CommandsScreen: View {
         if lists == nil {
             if let loadError = store.loadError[project] {
                 ContentUnavailableView {
-                    Label("Couldn't load commands", systemImage: "exclamationmark.triangle")
+                    Label("Couldn't load skills", systemImage: "exclamationmark.triangle")
                 } description: {
                     Text(loadError)
                 } actions: {

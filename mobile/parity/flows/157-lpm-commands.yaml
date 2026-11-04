@@ -1,6 +1,6 @@
-# lpm commands: a project's Commands screen (this project's folders, a new
-# folder), the command editor, then the composer's "/" menu with the user's
-# commands grouped by folder ahead of the agent's own.
+# lpm skills: a project's Skills screen (this project's folders, a new folder),
+# the skill editor, then the composer's "/" menu with the user's skills grouped
+# by folder ahead of the agent's own.
 appId: cx.lpm.mobile
 name: 157-lpm-commands
 tags: [demo, commands, composer]
@@ -12,12 +12,12 @@ tags: [demo, commands, composer]
     timeout: 5000
 - tapOn: "More"
 - extendedWaitUntil:
-    visible: "Commands"
+    visible: "Skills"
     timeout: 5000
 - retry:
     maxRetries: 2
     commands:
-      - tapOn: "Commands"
+      - tapOn: "Skills"
       - extendedWaitUntil:
           visible: "Review"
           timeout: 5000
@@ -36,7 +36,7 @@ tags: [demo, commands, composer]
 - extendedWaitUntil:
     visible: "Docs"
     timeout: 5000
-- tapOn: "New command"
+- tapOn: "New skill"
 - extendedWaitUntil:
     visible: "Save"
     timeout: 5000
@@ -66,7 +66,7 @@ tags: [demo, commands, composer]
 - extendedWaitUntil:
     visible: "/review-changes"
     timeout: 5000
-- assertVisible: "Manage commands"
+- assertVisible: "Manage skills"
 - waitForAnimationToEnd:
     timeout: 3000
 - takeScreenshot: 3-slash-menu

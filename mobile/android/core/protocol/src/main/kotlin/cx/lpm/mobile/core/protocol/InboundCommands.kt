@@ -25,9 +25,9 @@ sealed interface LpmCommandsInbound : Inbound {
 }
 
 private val listFailures = mapOf(
-    "lpmCommands" to "Couldn't load your commands.",
-    "lpmCommandSave" to "Couldn't save the command.",
-    "lpmCommandDelete" to "Couldn't delete the command.",
+    "lpmCommands" to "Couldn't load your skills.",
+    "lpmCommandSave" to "Couldn't save the skill.",
+    "lpmCommandDelete" to "Couldn't delete the skill.",
     "lpmCommandFolder" to "Couldn't change the folder."
 )
 

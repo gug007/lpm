@@ -30,7 +30,7 @@ struct CommandFolderScreen: View {
         .overlay {
             if commands.isEmpty {
                 ContentUnavailableView {
-                    Label("No commands", systemImage: "text.badge.plus")
+                    Label("No skills", systemImage: "text.badge.plus")
                 } description: {
                     Text("Save a prompt here, then run it by typing /name in a terminal.")
                 }
@@ -42,7 +42,7 @@ struct CommandFolderScreen: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button { draft = .new(scope: scope, folder: folder) } label: {
-                    Label("New command", systemImage: "plus")
+                    Label("New skill", systemImage: "plus")
                 }
             }
         }

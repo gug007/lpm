@@ -77,7 +77,7 @@ class InboundCommandsTest {
         assertNull(save.lists)
         assertEquals("/ship already exists in No folder.", save.error)
         assertEquals(
-            "Couldn't delete the command.",
+            "Couldn't delete the skill.",
             decode<LpmCommandsInbound.Reply>("""{ "t": "lpmCommandDelete", "ok": false }""").error
         )
     }
@@ -95,10 +95,10 @@ class InboundCommandsTest {
             )
         )
         assertEquals(
-            LpmCommandsInbound.Reply("e2", error = "/nope isn't one of your commands."),
+            LpmCommandsInbound.Reply("e2", error = "/nope isn't one of your skills."),
             Inbound.parse(
                 """{ "t": "lpmCommandExpand", "project": "api", "ok": false, "reqId": "e2",
-                     "error": "/nope isn't one of your commands." }"""
+                     "error": "/nope isn't one of your skills." }"""
             )
         )
         assertEquals(

@@ -129,7 +129,7 @@ struct LpmCommandReply {
         expansion = ok && o["t"] as? String == "lpmCommandExpand"
             ? LpmCommandExpansion(text: o["text"] as? String ?? "", missing: o["missing"] as? [String] ?? [])
             : nil
-        error = ok ? nil : (o["error"] as? String ?? "Couldn't reach your commands on the Mac.")
+        error = ok ? nil : (o["error"] as? String ?? "Couldn't reach your skills on the Mac.")
     }
 }
 
@@ -141,7 +141,7 @@ enum LpmCommandRules {
     static let autoVariables = ["branch", "project", "dir"]
 
     static func isValidName(_ name: String) -> Bool {
-        name.range(of: "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$", options: .regularExpression) != nil
+        name.range(of: "^(?=.{1,64}$)[a-z0-9]+(-[a-z0-9]+)*$", options: .regularExpression) != nil
     }
 
     /// Each `{{name}}` in a prompt once, in order: the ones a run asks for, and

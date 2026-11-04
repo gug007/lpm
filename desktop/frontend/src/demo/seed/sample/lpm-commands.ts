@@ -1,6 +1,6 @@
 import type { Seed } from "../types";
 
-// The prompts a sample workspace keeps as lpm commands: a few everyday ones
+// The prompts a sample workspace keeps as lpm skills: a few everyday ones
 // for every project, and a couple each project keeps in its own folder.
 export const SAMPLE_LPM_COMMANDS: NonNullable<Seed["lpmCommands"]> = {
   global: [

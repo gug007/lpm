@@ -1,8 +1,8 @@
 import type { SlashCommand } from "./slashCommands";
 
-// lpm commands: prompts saved as files and run by typing `/name` in the
+// lpm skills: prompts saved as Agent Skills and run by typing `/name` in the
 // composer. A project has its own list beside the global one; the shapes here
-// mirror the Rust side (lpm_commands.rs).
+// mirror the Rust side (lpm_commands.rs), whose names the wire keeps.
 
 export type CommandScope = "global" | "project";
 
@@ -49,12 +49,13 @@ export const SCOPES: readonly CommandScope[] = ["project", "global"];
 
 export const AUTO_VARIABLES = ["branch", "project", "dir"] as const;
 
-export const NAME_RULE = "Letters, numbers, - and _, starting with a letter or number.";
+export const NAME_RULE = "Lowercase letters, numbers and single hyphens.";
 
-const NAME_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
+const MAX_NAME_LENGTH = 64;
+const NAME_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 export function isValidCommandName(name: string): boolean {
-  return NAME_RE.test(name);
+  return name.length <= MAX_NAME_LENGTH && NAME_RE.test(name);
 }
 
 export function scopeList(lists: LpmCommandLists, scope: CommandScope): CommandScopeList | null {
@@ -131,7 +132,7 @@ export function shadowNote(c: CommandRef, lists: LpmCommandLists): string | null
   return null;
 }
 
-// The rows the composer's `/` menu shows for the lists: lpm commands first,
+// The rows the composer's `/` menu shows for the lists: lpm skills first,
 // carrying their folder and list, then the agent's own commands not hidden by
 // one of them.
 export function mergeSlashCommands(lists: LpmCommandLists, agent: SlashCommand[]): SlashCommand[] {
@@ -147,7 +148,7 @@ export function mergeSlashCommands(lists: LpmCommandLists, agent: SlashCommand[]
   return [...mine, ...agent.filter((c) => !taken.has(c.name.toLowerCase()))];
 }
 
-// The matched lpm commands, folder by folder in the menu's order, with the
+// The matched lpm skills, folder by folder in the menu's order, with the
 // folders that hold a prefix match ahead of those with only a looser one.
 export function rankLpmGroups(all: SlashCommand[], starts: Set<SlashCommand>, contains: Set<SlashCommand>): SlashCommand[] {
   const groups = new Map<string, { rank: number; rows: SlashCommand[] }>();

@@ -9,7 +9,7 @@ interface CommandImportButtonProps {
   onImport: (scope: CommandScope) => void;
 }
 
-// Copies the custom commands the agent CLIs already have into an Imported
+// Turns the custom commands the agent CLIs already have into skills in an Imported
 // folder: the user's own into the global list, the project's into its list.
 export function CommandImportButton({ hasProject, onImport }: CommandImportButtonProps) {
   const [open, setOpen] = useState(false);

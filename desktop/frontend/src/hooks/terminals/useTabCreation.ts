@@ -460,7 +460,7 @@ export function useTabCreation({
     [addTerminal, forward],
   );
 
-  // Commands tabs have no PTY either — they render the lpm commands lists.
+  // Skills tabs have no PTY either — they render the lpm skills lists.
   const addCommandsToPane = useCallback(
     (paneId?: string) => {
       if (IS_MIRROR_WINDOW) return forward("addCommandsToPane", paneId);

@@ -5,7 +5,7 @@ import type { CommandInput, CommandRef, CommandScope, LpmCommand, LpmCommandList
 import type { SeedLpmCommand } from "../seed/types";
 import { GLOBAL, projects, seedData } from "./state";
 
-// lpm commands in memory, by the rules the Rust side keeps (lpm_commands.rs):
+// lpm skills in memory, by the rules the Rust side keeps (lpm_commands.rs):
 // one name per list whatever its case, folders that stay when emptied, and a
 // project's own command ahead of a global one of the same name.
 
@@ -81,7 +81,7 @@ function changed(project: string, ...touched: CommandScope[]): LpmCommandLists {
 
 function save(project: string, input: CommandInput, previous: CommandRef | null): LpmCommandLists {
   if (!isValidCommandName(input.name)) {
-    throw new Error("Use letters, numbers, - and _ for the name, starting with a letter or number.");
+    throw new Error("Use lowercase letters, numbers and single hyphens for the name.");
   }
   if (!input.body.trim()) throw new Error("Write the prompt first.");
   const list = listOf(project, input.scope);
@@ -119,13 +119,13 @@ function positional(args: string, n: number): string[] {
 }
 
 function commandDir(project: string, c: LpmCommand): string {
-  const root = c.scope === "project" ? `${projects.get(project)?.root}/.lpm/commands` : "~/.lpm/commands";
-  return c.folder ? `${root}/${c.folder}` : root;
+  const root = c.scope === "project" ? `${projects.get(project)?.root}/.agents/skills` : "~/.agents/skills";
+  return `${root}/${c.name}`;
 }
 
 function expand(project: string, name: string, args: string) {
   const command = findCommand(lists(project), name.replace(/^\//, ""));
-  if (!command) throw new Error(`/${name} isn't one of your commands.`);
+  if (!command) throw new Error(`/${name} isn't one of your skills.`);
   const { asks } = promptVariables(command.body);
   const values = positional(args, asks.length);
   const auto: Record<string, string | undefined> = {

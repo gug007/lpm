@@ -214,7 +214,7 @@ export const FEATURE_INDEX: IndexGroup[] = [
       },
       {
         icon: Puzzle,
-        title: "Skills and tools inspector",
+        title: "Agent setup inspector",
         body: "See the skills, MCP servers and hooks Claude Code and Codex load, and write new skills.",
         href: SKILLS_PATH,
       },

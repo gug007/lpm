@@ -1,7 +1,7 @@
 import { create } from "zustand";
 
 // Asks a project's terminal view to bring up its Commands tab: from the `/`
-// menu's Manage commands row, or from Save as command with the prompt to save.
+// menu's Manage skills row, or from Save as skill with the prompt to save.
 // The view opens the tab and clears `open`; the tab takes `draft` once it has
 // mounted, since a tab added just now isn't there to receive it yet.
 interface CommandsOpenState {

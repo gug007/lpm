@@ -8,6 +8,7 @@
 //! for any path with a `.claude` component and for any CLAUDE.md on the disk,
 //! which is far too loose to authorise a recursive removal.
 
+use crate::lpm_commands::CommandFs;
 use serde::Serialize;
 use std::path::{Component, Path, PathBuf};
 
@@ -22,7 +23,7 @@ const EXTRAS_CAP: usize = 8;
 /// Codex's own opt-out, written to `<skill>/agents/openai.yaml`. Claude ignores
 /// the folder entirely, so it goes into every root: a skill created as manual
 /// stays manual if it is later copied into a Codex one.
-pub(super) const CODEX_OPT_OUT: &str = "policy:\n  allow_implicit_invocation: false\n";
+pub(crate) const CODEX_OPT_OUT: &str = "policy:\n  allow_implicit_invocation: false\n";
 
 const NOT_A_ROOT: &str = "That is not a folder an agent reads skills from.";
 const NOT_A_SKILL: &str = "This is not a skill folder lpm can remove.";
@@ -48,7 +49,7 @@ pub(super) fn codex_home(home: &Path) -> PathBuf {
 }
 
 /// In scan order: claude user, claude project, codex `$CODEX_HOME/skills`,
-/// codex `~/.agents/skills`. Non-absolute entries are dropped — `dirs::home_dir()
+/// codex `~/.agents/skills`, codex project. Non-absolute entries are dropped — `dirs::home_dir()
 /// .unwrap_or_default()` yields `""`, which would make `home.join(".claude/skills")`
 /// the *relative* path `.claude/skills`. Duplicates are dropped keeping the
 /// first — `CODEX_HOME=~/.agents` collapses two entries into one.
@@ -80,6 +81,13 @@ pub(super) fn skill_roots_in(
         scope: "user",
         path: home.join(".agents").join("skills"),
     });
+    if let Some(project) = project {
+        candidates.push(SkillRoot {
+            cli: "codex",
+            scope: "project",
+            path: project.join(".agents").join("skills"),
+        });
+    }
 
     let mut out: Vec<SkillRoot> = Vec::new();
     for candidate in candidates {
@@ -225,7 +233,32 @@ pub fn create_agent_skill(
     if manual {
         write_opt_out(&dir)?;
     }
+    link_shared_skill(&root.path, &name);
     Ok(skill_md.to_string_lossy().into_owned())
+}
+
+/// A skill in `.agents/skills` is one every agent reads, and Claude Code needs a
+/// link to get there. The skill itself is already safe, so a link that can't be
+/// made doesn't undo it; saving the skill tries again.
+fn link_shared_skill(root: &Path, name: &str) {
+    let Some(list) = crate::lpm_commands::store_of_shared_root(root) else {
+        return;
+    };
+    if let Err(e) = list.link_claude(name) {
+        eprintln!("lpm: couldn't link {name} for Claude Code: {e}");
+    }
+}
+
+/// Claude's link to a skill that has just gone, which would otherwise dangle.
+fn unlink_shared_skill(dir: &Path) {
+    let (Some(root), Some(name)) = (dir.parent(), dir.file_name().and_then(|n| n.to_str())) else {
+        return;
+    };
+    if let Some(list) = crate::lpm_commands::store_of_shared_root(root) {
+        if let Err(e) = list.unlink_claude(name) {
+            eprintln!("lpm: couldn't remove Claude Code's link to {name}: {e}");
+        }
+    }
 }
 
 /// Fill a folder `create_agent_skill` has just claimed. A folder with no
@@ -292,7 +325,9 @@ pub fn preview_agent_skill_delete(cwd: String, path: String) -> Result<SkillRemo
 pub fn delete_agent_skill(cwd: String, path: String) -> Result<(), String> {
     ensure_local(&cwd, "Remove")?;
     let dir = resolve_skill_dir(Path::new(&path), &skill_roots(&cwd))?;
-    remove_skill_dir(&dir, &crate::trash::move_to_trash)
+    remove_skill_dir(&dir, &crate::trash::move_to_trash)?;
+    unlink_shared_skill(&dir);
+    Ok(())
 }
 
 /// The trash call is injected so `cargo test` never moves real folders into the
@@ -542,6 +577,25 @@ mod tests {
             create_agent_skill(cwd, root_arg, "deploy".into(), "second".into(), false).unwrap_err();
         assert_eq!(err, "A skill named deploy is already here.");
         assert_eq!(std::fs::read_to_string(&made).unwrap(), "first");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_skill_in_a_shared_root_gets_claudes_link_and_gives_it_back() {
+        let project = tempfile::tempdir().unwrap();
+        let root = project.path().join(".agents").join("skills");
+        create_agent_skill(
+            project.path().to_string_lossy().into_owned(),
+            root.to_string_lossy().into_owned(),
+            "deploy".into(),
+            "---\nname: deploy\ndescription: x\n---\n\nbody\n".into(),
+            false,
+        )
+        .unwrap();
+        let link = project.path().join(".claude/skills/deploy");
+        assert!(link.join("SKILL.md").is_file());
+        unlink_shared_skill(&root.join("deploy"));
+        assert!(std::fs::symlink_metadata(&link).is_err());
     }
 
     #[test]

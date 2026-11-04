@@ -10,7 +10,7 @@ private val COMMAND_VERBS = listOf(
     "lpmCommandExpand"
 )
 private const val FORBIDDEN_FOLDER_CHARS = "/\\:*?\"<>|"
-private val COMMAND_NAME = Regex("^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
+private val COMMAND_NAME = Regex("^(?=.{1,64}\$)[a-z0-9]+(-[a-z0-9]+)*\$")
 
 /**
  * Demo handlers for lpm commands, by the rules the Mac keeps (lpm_commands.rs): one
@@ -166,9 +166,7 @@ private fun placeLabel(folder: String?): String = folder?.let { "the $it folder"
 private fun DemoServer.saveCommand(project: String, input: Dict, previous: Dict?) {
     val name = input.string("name") ?: ""
     if (!COMMAND_NAME.matches(name)) {
-        throw DemoCommandError(
-            "Use letters, numbers, - and _ for the name, starting with a letter or number."
-        )
+        throw DemoCommandError("Use lowercase letters, numbers and single hyphens for the name.")
     }
     val body = (input.string("body") ?: "").trimmingWhitespacesAndNewlines()
     if (body.isEmpty()) throw DemoCommandError("Write the prompt first.")
@@ -288,19 +286,19 @@ private fun DemoServer.expandCommand(
     val (command, scope) = effectiveCommands(project).firstOrNull {
         it.first.name.lowercase() == key
     }
-        ?: throw DemoCommandError("/$name isn't one of your commands.")
+        ?: throw DemoCommandError("/$name isn't one of your skills.")
     val known = world.projects.firstOrNull { it.name == project }
     val list = if (scope == "project") {
-        "/Users/demo/dev/$project/.lpm/commands"
+        "/Users/demo/dev/$project/.agents/skills"
     } else {
-        "/Users/demo/.lpm/commands"
+        "/Users/demo/.agents/skills"
     }
     val auto: Map<String, String> = known?.let {
         mapOf(
             "branch" to (world.git[project]?.branch ?: "main"),
             "project" to it.label.ifEmpty { it.name }
         )
-    }.orEmpty() + ("dir" to (command.folder?.let { "$list/$it" } ?: list))
+    }.orEmpty() + ("dir" to "$list/${command.name}")
     val given = args.trimmingWhitespacesAndNewlines()
     val asks = commandVariables(command.body).filter { it !in AUTO_VARIABLES }
     val values = positionalArguments(given, asks.size)

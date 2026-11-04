@@ -15,8 +15,8 @@ import {
   type LpmCommandLists,
 } from "../../lpmCommands";
 
-// What the Commands tab shows: both lists as one tree of folders and
-// commands, and the command being edited.
+// What the Skills tab shows: both lists as one tree of folders and skills, and
+// the skill being edited.
 
 // "<scope>:<folder>", with an empty folder for a command in no folder.
 export type FolderKey = string;
@@ -80,8 +80,8 @@ export function scopeTitle(scope: CommandScope, projectLabel: string): string {
 
 // Where the file lives, as the user would find it.
 export function commandPath(c: CommandRef): string {
-  const root = c.scope === "project" ? ".lpm/commands" : "~/.lpm/commands";
-  return `${root}/${c.folder ? `${c.folder}/` : ""}${c.name || "name"}.md`;
+  const root = c.scope === "project" ? ".agents/skills" : "~/.agents/skills";
+  return `${root}/${c.name || "name"}/SKILL.md`;
 }
 
 // The scopes this place has: global always, the project's own list when the
@@ -92,6 +92,28 @@ export function scopesOf(lists: LpmCommandLists): CommandScope[] {
 
 // A list and a folder in it (null for the top level).
 export type CommandPlace = Pick<CommandInput, "scope" | "folder">;
+
+// The places a skill can go in one list: no folder, then each folder. A folder
+// the draft names that isn't saved yet is listed too, so the choice stays visible.
+export interface PlaceChoices {
+  scope: CommandScope;
+  folders: (string | null)[];
+}
+
+export function placeChoices(place: CommandPlace, lists: LpmCommandLists): PlaceChoices[] {
+  return scopesOf(lists).map((scope) => {
+    const saved = scopeList(lists, scope)!.folders;
+    const pending = place.scope === scope && place.folder && !saved.includes(place.folder);
+    return { scope, folders: [null, ...saved, ...(pending ? [place.folder] : [])] };
+  });
+}
+
+// The folder a typed name means: the list's own spelling when it has one, since
+// the list treats folder names the same whatever their case.
+export function folderNamed(name: string, scope: CommandScope, lists: LpmCommandLists): string {
+  const key = name.toLowerCase();
+  return scopeList(lists, scope)?.folders.find((f) => f.toLowerCase() === key) ?? name;
+}
 
 export interface Draft extends CommandInput {
   // The saved command this edits; null for a new one.

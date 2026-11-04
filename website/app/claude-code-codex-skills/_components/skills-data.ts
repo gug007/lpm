@@ -55,8 +55,8 @@ export const STEPS: {
   {
     step: "01",
     icon: Layers,
-    title: "Open Skills & tools",
-    copy: "Press ⌘⇧K (Ctrl+Alt+Shift+K on Windows and Linux) in any project, or choose Skills & tools from the ⋯ menu in the terminal pane header. You can pin it to the toolbar from there.",
+    title: "Open Agent setup",
+    copy: "Press ⌘⇧K (Ctrl+Alt+Shift+K on Windows and Linux) in any project, or choose Agent setup from the ⋯ menu in the terminal pane header. You can pin it to the toolbar from there.",
   },
   {
     step: "02",

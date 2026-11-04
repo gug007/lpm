@@ -106,7 +106,7 @@ export function CommandTreeScope({
           />
         ))}
       </div>
-      {empty && <p className="px-2 py-1 text-[11.5px] text-[var(--text-muted)]">No commands yet.</p>}
+      {empty && <p className="px-2 py-1 text-[11.5px] text-[var(--text-muted)]">No skills yet.</p>}
     </section>
   );
 }

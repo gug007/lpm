@@ -179,7 +179,7 @@ export interface Seed {
   stats: (days: number, omit?: readonly string[]) => unknown;
   // The recap of the week or month starting `week`, as `weekly_recap` returns it.
   recap: (week: string, period: "week" | "month") => unknown;
-  // lpm commands: the global list, and the list every seeded project starts with.
+  // lpm skills: the global list, and the list every seeded project starts with.
   lpmCommands?: { global: SeedLpmCommand[]; project: SeedLpmCommand[] };
 }
 

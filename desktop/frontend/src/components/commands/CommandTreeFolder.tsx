@@ -92,11 +92,11 @@ export function CommandTreeFolder({
         ))}
       {menu && (
         <ContextMenuShell x={menu.x} y={menu.y} onClose={() => setMenu(null)}>
-          <ContextMenuItem label="New command here" onClick={pick(onNew)} />
+          <ContextMenuItem label="New skill here" onClick={pick(onNew)} />
           <ContextMenuItem label="Rename" onClick={pick(() => setRenaming(true))} />
           <ContextMenuItem
             label="Delete folder"
-            description="Its commands move to the top level"
+            description="Its skills move to the top level"
             destructive
             onClick={pick(onDelete)}
           />

@@ -6,7 +6,7 @@ export default function ToolkitOverview() {
     <section className="py-20 sm:py-24">
       <div className="mx-auto max-w-5xl px-6">
         <SectionHeader
-          eyebrow="The Skills & tools pane"
+          eyebrow="The Agent setup pane"
           title="Skills are one tab of a bigger picture"
           description="The pane that creates skills also shows everything else Claude Code and Codex will load in that folder, and what it costs."
         />

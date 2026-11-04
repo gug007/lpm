@@ -16,7 +16,7 @@ const SOURCE_LABEL: Record<SlashCommand["source"], string> = {
   lpm: "",
 };
 
-// lpm commands read in lpm's own accent; the agent's keep the terminal's blue.
+// lpm skills read in lpm's own accent; the agent's keep the terminal's blue.
 const LPM_COMMAND_COLOR = "var(--accent-cyan)";
 
 interface SlashCommandMenuProps {
@@ -26,7 +26,7 @@ interface SlashCommandMenuProps {
   anchorRect: DOMRect | null;
   onSelect: (cmd: SlashCommand) => void;
   onHoverIndex: (i: number) => void;
-  // Names the agent's own group when lpm commands are listed above it.
+  // Names the agent's own group when lpm skills are listed above it.
   agentLabel?: string;
   // Opens the Commands tab; shown as the menu's last row when given.
   onManage?: () => void;
@@ -145,7 +145,7 @@ export function SlashCommandMenu({
           className="flex shrink-0 items-center gap-2 border-t border-[var(--border)] px-3.5 py-2 text-left text-[11.5px] text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
         >
           <Settings2 size={13} strokeWidth={1.75} />
-          Manage commands
+          Manage skills
           <span className="ml-auto text-[10.5px]">↵ run · ⇥ edit first</span>
         </button>
       )}

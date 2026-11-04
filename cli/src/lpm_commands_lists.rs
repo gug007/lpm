@@ -1,5 +1,5 @@
-//! What the app holds for `lpm commands`: the lists as its dispatcher returns
-//! them, how a name finds a command in them, and the one request every verb
+//! What the app holds for `lpm skills`: the lists as its dispatcher returns
+//! them, how a name finds a skill in them, and the one request every verb
 //! makes.
 
 use crate::config::Ctx;
@@ -106,7 +106,7 @@ pub(crate) fn fetch(ctx: &Ctx, project: &str) -> Result<Lists, RunError> {
     parse_lists(&request(ctx, "list", project, Value::Null)?)
 }
 
-/// The one command `name` means in a list. Files put in by hand can give two
+/// The one skill `name` means in a list. Files put in by hand can give two
 /// folders the same name, and a change must not guess between them.
 pub(crate) fn find_in<'a>(
     lists: &'a Lists,
@@ -141,13 +141,13 @@ fn not_found(lists: &Lists, scope: Scope, name: &str) -> String {
     let hint = if in_global {
         "it's in the global list: pass --global"
     } else {
-        "see `lpm commands list`"
+        "see `lpm skills list`"
     };
     format!("no /{name} in the {} list\n{hint}", scope.word())
 }
 
 /// One line for the list: the name as it's typed, then where it's kept and what
-/// it does. A global command the project's own hides says so.
+/// it does. A global skill the project's own hides says so.
 pub(crate) fn rows(lists: &Lists) -> Vec<[String; 4]> {
     lists
         .all()
@@ -176,7 +176,7 @@ pub(crate) fn rows(lists: &Lists) -> Vec<[String; 4]> {
 }
 
 pub(crate) fn render_table(rows: &[[String; 4]]) -> String {
-    let head = ["COMMAND", "LIST", "FOLDER", "DESCRIPTION"].map(String::from);
+    let head = ["SKILL", "LIST", "FOLDER", "DESCRIPTION"].map(String::from);
     let width = |i: usize| {
         rows.iter()
             .chain([&head])

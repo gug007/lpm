@@ -1,7 +1,8 @@
-// lpm commands' requests and their one dispatcher, used by the Tauri commands,
-// by lpm Link (remote_lpm_commands), by a Mac that drives this one's projects
-// (the peer connection, so a headless host answers too) and by `lpm commands`
-// (the socket verb). Every change hands back the whole updated list and
+// lpm skills' requests and their one dispatcher, used by the Tauri commands, by
+// lpm Link (remote_lpm_commands), by a Mac that drives this one's projects (the
+// peer connection, so a headless host answers too) and by `lpm skills` (the
+// socket verb). The names on those wires stay `lpm_commands`, so phones and
+// computers on an older lpm keep working. Every change hands back the whole updated list and
 // announces itself, so other windows, phones and paired Macs refresh.
 use crate::lpm_commands::{
     list_stores, project_place, stores_at, CommandInput, CommandRef, LpmCommands, Scope, Stores,

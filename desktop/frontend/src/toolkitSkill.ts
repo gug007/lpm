@@ -99,6 +99,8 @@ export function skillTemplate(
     `name: "${name}"`,
     `description: ${yamlDescription(description)}`,
     ...(manual ? ["disable-model-invocation: true"] : []),
+    "metadata:",
+    '  lpm-created: "true"',
     "---",
     "",
     `# ${titleCaseSkillName(name)}`,

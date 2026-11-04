@@ -1,8 +1,8 @@
 // Turning `/name args` into the prompt the agent gets. Done here rather than in
-// each client so the desktop composer and both phones expand a command the
-// same way, against the machine that holds the project.
+// each client so the desktop composer and both phones expand a skill the same
+// way, against the machine that holds the project.
 //
-// `{{branch}}`, `{{project}}` and `{{dir}}` (the command's own folder, so a prompt
+// `{{branch}}`, `{{project}}` and `{{dir}}` (the skill's own folder, so a prompt
 // can point at files kept beside it) fill themselves in. Any other `{{name}}`
 // takes a word of the arguments, in order, the last one taking the rest;
 // `$ARGUMENTS` (Claude Code's own form) takes all of them.
@@ -138,19 +138,19 @@ pub(crate) fn expand_at(
 ) -> Result<Expanded, String> {
     let list = list_stores(stores)?;
     let command = find(&list, name.trim_start_matches('/'))
-        .ok_or_else(|| format!("/{name} isn't one of your commands."))?;
+        .ok_or_else(|| format!("/{name} isn't one of your skills."))?;
     Ok(fill(project, place, stores, command, args))
 }
 
-/// The command's folder as the agent's computer names it. An SSH project's agent
-/// works on its host, where a global command's files aren't, so it has none.
+/// The skill's folder as the agent's computer names it. An SSH project's agent
+/// works on its host, where a global skill's files aren't, so it has none.
 fn command_dir(place: Option<&ProjectPlace>, stores: &Stores, command: &LpmCommand) -> Option<String> {
     let agent_on_host = place.is_some_and(|p| p.ssh.is_some());
     if agent_on_host && command.scope == Scope::Global {
         return None;
     }
     let list = stores.get(command.scope).ok()?;
-    Some(list.location(command.folder.as_deref()))
+    Some(list.location(&command.name))
 }
 
 fn fill(
@@ -191,7 +191,7 @@ fn missing_error(command: &LpmCommand, missing: &[String]) -> String {
 }
 
 /// What a prompt from outside the composer sends: the saved prompt when it is
-/// `/name args` for one of the user's commands, otherwise the prompt itself,
+/// `/name args` for one of the user's skills, otherwise the prompt itself,
 /// so the agent's own `/compact` still reaches the agent.
 pub(crate) fn expand_prompt(project: &str, prompt: &str) -> Result<String, String> {
     let Some((name, args)) = parse_run(prompt) else {

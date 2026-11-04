@@ -866,19 +866,22 @@ render a list.
 | `{ "t": "memorySave", "project": "<name>", "name": "<slug>", "content": "…", "baseline": "…"?, "reqId": <any>? }` | `{ "t": "memorySave", "project": "<name>", "name": "<slug>", "ok": true }` / `{ "ok": false, "error": "…" }` — compare-and-swap: with `baseline` the write lands only if the file still reads exactly like that, otherwise it fails with the bare literal `"modified"` (**not** a sentence — the phone shows its own copy and reloads). Omit `baseline` to overwrite unconditionally, which is what the create path does. A missing file matches only an **empty** baseline. Slugs must match `^[a-z0-9][a-z0-9-]{0,63}$` — the slug becomes a filename. Async (worker) |
 | `{ "t": "memoryDelete", "project": "<name>", "name": "<slug>" }` | `{ "t": "memoryDelete", "project": "<name>", "name": "<slug>", "ok": true }` / `{ "ok": false, "error": "…" }` — takes no baseline (the user is discarding the whole session) and an already-missing file is success. Async (worker) |
 
-### lpm commands
+### lpm skills
 
-Prompts the user saved as files and runs by typing `/name` in a terminal's
-composer. Two lists: **global** ones in the Mac's `~/.lpm/commands/`, and the
-project's own in `.lpm/commands/` inside the project (on the host, for an SSH
-project), committed with its code. A folder is a real folder one level down; a
-file is `<name>.md`, an optional frontmatter `description:` and the prompt.
-Names are unique within a list whatever their case. When both lists have a
-name, `/name` runs the **project's**. Only when `features` has `"lpmCommands"`;
-every verb runs on a worker and echoes `reqId`.
+Prompts the user saved and runs by typing `/name` in a terminal's composer, kept
+as Agent Skills so every agent reads them itself. The wire keeps the `lpmCommand`
+names, so older apps keep working. Two lists: **global** ones in the Mac's
+`~/.agents/skills/`, and the project's own in `.agents/skills/` inside the
+project (on the host, for an SSH project), committed with its code. Each is
+`<name>/SKILL.md`, with `metadata.lpm-created: "true"`: those roots hold skills
+from elsewhere too, which lpm doesn't list and refuses to overwrite. A `folder`
+is the label in `metadata.lpm-folder`, not a place on disk. Names are lowercase
+letters, numbers and single hyphens, and unique within a list. When both lists
+have a name, `/name` runs the **project's**. Only when `features` has
+`"lpmCommands"`; every verb runs on a worker and echoes `reqId`.
 
 The phone shows them in its `/` menu (they arrive in the `slash` reply, grouped
-by `folder` within `scope`, project first) and on a Commands screen per project
+by `folder` within `scope`, project first) and on a Skills screen per project
 with the same two lists and folders. Picking one in the menu works like the
 desktop: on a message that is just the command, it runs at once, or leaves
 `/name ` when `argumentHint` is not empty; sending `/name args` (the whole

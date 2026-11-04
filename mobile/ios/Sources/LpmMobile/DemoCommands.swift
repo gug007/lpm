@@ -188,8 +188,8 @@ extension DemoServer {
 
     private func saveCommand(_ project: String, _ input: [String: Any], previous: [String: Any]?) throws {
         let name = input["name"] as? String ?? ""
-        guard name.range(of: "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$", options: .regularExpression) != nil else {
-            throw DemoCommandError("Use letters, numbers, - and _ for the name, starting with a letter or number.")
+        guard name.range(of: "^(?=.{1,64}$)[a-z0-9]+(-[a-z0-9]+)*$", options: .regularExpression) != nil else {
+            throw DemoCommandError("Use lowercase letters, numbers and single hyphens for the name.")
         }
         let body = (input["body"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         guard !body.isEmpty else { throw DemoCommandError("Write the prompt first.") }
@@ -279,14 +279,14 @@ extension DemoServer {
     private func expandCommand(_ project: String, name: String, args: String) throws -> (String, [String]) {
         let key = String(name.drop(while: { $0 == "/" })).lowercased()
         guard let (command, scope) = effectiveCommands(project).first(where: { $0.0.name.lowercased() == key }) else {
-            throw DemoCommandError("/\(name) isn't one of your commands.")
+            throw DemoCommandError("/\(name) isn't one of your skills.")
         }
         let known = world.projects.first { $0.name == project }
         var auto: [String: String] = known.map {
             ["branch": world.git[project]?.branch ?? "main", "project": $0.label.isEmpty ? $0.name : $0.label]
         } ?? [:]
-        let list = scope == "project" ? "/Users/demo/dev/\(project)/.lpm/commands" : "/Users/demo/.lpm/commands"
-        auto["dir"] = command.folder.map { "\(list)/\($0)" } ?? list
+        let list = scope == "project" ? "/Users/demo/dev/\(project)/.agents/skills" : "/Users/demo/.agents/skills"
+        auto["dir"] = "\(list)/\(command.name)"
         let args = args.trimmingCharacters(in: .whitespacesAndNewlines)
         let asks = Self.variables(command.body).filter { !Self.autoVariables.contains($0) }
         let values = Self.positional(args, asks.count)

@@ -297,7 +297,7 @@ class ComposerUiTest {
         compose.onNodeWithText("NO FOLDER · GLOBAL").assertExists()
         compose.onNodeWithText("CLAUDE CODE").assertExists()
         compose.onNodeWithText("/explain").performClick()
-        compose.onNodeWithText("Manage commands").performClick()
+        compose.onNodeWithText("Manage skills").performClick()
         assertEquals(listOf("slash:explain", "manage"), events)
     }
 

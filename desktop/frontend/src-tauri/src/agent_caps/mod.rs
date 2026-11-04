@@ -17,6 +17,7 @@ mod write;
 
 pub use edit::update_agent_skill;
 pub use generate::generate_agent_skill;
+pub(crate) use skills::CODEX_OPT_OUT;
 pub use skills::{create_agent_skill, delete_agent_skill, preview_agent_skill_delete};
 pub use write::{read_agent_capability, write_agent_capability};
 

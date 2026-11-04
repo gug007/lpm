@@ -11,7 +11,7 @@ const FAQS = [
   {
     question: "How do I create a Claude Code skill in lpm?",
     answer:
-      "Open a project and press ⌘⇧K (Ctrl+Alt+Shift+K on Windows and Linux), or choose Skills & tools from the ⋯ (More options) menu in the terminal pane header, then click New skill. Name it, pick the folder for the CLI you want, choose who runs it, and write the description and instructions, or describe the task in one sentence and let AI draft every field.",
+      "Open a project and press ⌘⇧K (Ctrl+Alt+Shift+K on Windows and Linux), or choose Agent setup from the ⋯ (More options) menu in the terminal pane header, then click New skill. Name it, pick the folder for the CLI you want, choose who runs it, and write the description and instructions, or describe the task in one sentence and let AI draft every field.",
   },
   {
     question: "Can AI write the skill for me?",
@@ -44,7 +44,7 @@ const FAQS = [
       "In the same local folders the CLIs already read; nothing is uploaded or synced to a website. Deleting a skill first previews what will be removed, then moves its folder to the Trash (the Recycle Bin on Windows), so you can get it back.",
   },
   {
-    question: "What else does the Skills & tools pane show?",
+    question: "What else does the Agent setup pane show?",
     answer:
       "Everything Claude Code and Codex will load in that folder: MCP servers, plugins, subagents, slash commands, hooks, and CLAUDE.md or AGENTS.md instruction files, with a context budget bar that estimates what loads every turn. It flags conflicts too, such as a personal skill that overrides the project's copy.",
   },

@@ -54,8 +54,8 @@ type Confirm =
   | { kind: "delete" }
   | { kind: "folder"; scope: CommandScope; name: string; count: number };
 
-// The Commands tab (`kind: "commands"`, like the memory and automations tabs):
-// this project's lpm commands and the global ones as one tree of folders,
+// The Skills tab (`kind: "commands"`, like the memory and automations tabs):
+// this project's lpm skills and the global ones as one tree of folders,
 // with an editor for the one picked. Typing `/name` in an agent's input runs one.
 export function CommandsView({ projectName, projectLabel, visible }: CommandsViewProps) {
   const lists = useLpmCommandLists(projectName, visible);
@@ -67,7 +67,7 @@ export function CommandsView({ projectName, projectLabel, visible }: CommandsVie
   const pendingDraft = useCommandsOpen((s) => (s.draft?.project === projectName ? s.draft.seq : null));
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
-  // Save as command, from an input: a new command holding that prompt, beside
+  // Save as skill, from an input: a new skill holding that prompt, beside
   // the one open.
   useEffect(() => {
     if (pendingDraft === null || !lists) return;
@@ -145,7 +145,7 @@ export function CommandsView({ projectName, projectLabel, visible }: CommandsVie
       <div className="flex shrink-0 items-center gap-3 border-b border-[var(--border)] px-4 py-2.5">
         <SquareSlash size={15} className="text-[var(--accent-cyan)]" />
         <div className="min-w-0 flex-1">
-          <p className="text-[13px] font-semibold text-[var(--text-primary)]">Commands</p>
+          <p className="text-[13px] font-semibold text-[var(--text-primary)]">Skills</p>
           <p className="truncate text-[11.5px] text-[var(--text-muted)]">
             Type <span className="font-mono text-[var(--accent-cyan)]">/name</span> in an agent's input to run one.
           </p>
@@ -156,7 +156,7 @@ export function CommandsView({ projectName, projectLabel, visible }: CommandsVie
             void attempt(async () => {
               const n = await importLpmCommands(projectName, scope);
               if (n === 0) toast.info("Nothing new to import.");
-              else toast.success(`Imported ${n} ${n === 1 ? "command" : "commands"}.`);
+              else toast.success(`Imported ${n} ${n === 1 ? "skill" : "skills"}.`);
             })
           }
         />
@@ -214,11 +214,11 @@ export function CommandsView({ projectName, projectLabel, visible }: CommandsVie
             <div className="flex min-h-0 items-start justify-center overflow-y-auto">
               <EmptyState
                 icon={<SquareSlash size={20} />}
-                title={empty ? "Save the prompts you send most" : "Pick a command"}
+                title={empty ? "Save the prompts you send most" : "Pick a skill"}
                 body={
                   empty
-                    ? "A command is a prompt you run by typing /name in an agent's input. This project's commands travel with it in git; global ones work everywhere."
-                    : "Or press New. Drag a command onto a folder to move it."
+                    ? "A skill is a prompt you run by typing /name in an agent's input, and every agent can use it. This project's skills travel with it in git; global ones work everywhere."
+                    : "Or press New. Drag a skill onto a folder to move it."
                 }
               />
             </div>
@@ -243,10 +243,10 @@ export function CommandsView({ projectName, projectLabel, visible }: CommandsVie
         }
         body={
           confirm?.kind === "discard"
-            ? "The command you're editing has changes that aren't saved."
+            ? "The skill you're editing has changes that aren't saved."
             : confirm?.kind === "folder"
               ? confirm.count > 0
-                ? `Its ${confirm.count === 1 ? "command moves" : `${confirm.count} commands move`} to the top level.`
+                ? `Its ${confirm.count === 1 ? "skill moves" : `${confirm.count} skills move`} to the top level.`
                 : "It's empty."
               : "Its file is deleted."
         }

@@ -496,7 +496,7 @@ at(75100, 'archiveStatus', project='mobile-app', keys=['codex_demo-mobile-app-co
 at(75200, 'closeTerminal', project='mobile-app', id='demo-mobile-app-claude')
 at(75200, 'closeTerminal', project='design-system', id='demo-design-system-claude')
 at(75300, 'projects'); at(75300, 'terminals', project='mobile-app')
-# lpm commands
+# lpm skills
 def cmd(scope, folder, name, description='', body='Do it.'):
     return {'scope': scope, 'folder': folder, 'name': name, 'description': description, 'body': body}
 def ref(scope, folder, name):
@@ -515,7 +515,7 @@ at(76100, 'lpmCommandExpand', project='blog', name='fix-ticket', args='T-1', req
 at(76200, 'lpmCommandSave', project='storefront', reqId='s1',
    command=cmd('project', None, 'ship-it', ' Ships it ', '  Ship {{what}} for {{project}} on {{ branch }} {{who}}  '),
    previous=None)
-at(76200, 'lpmCommandSave', project='storefront', reqId='s2', command=cmd('project', 'Bugs', 'SHIP-IT'), previous=None)
+at(76200, 'lpmCommandSave', project='storefront', reqId='s2', command=cmd('project', 'Bugs', 'ship-it'), previous=None)
 at(76200, 'lpmCommandSave', project='storefront', reqId='s3', command=cmd('project', None, '-bad'), previous=None)
 at(76200, 'lpmCommandSave', project='storefront', reqId='s4', command=cmd('project', None, 'empty', body='  \n '))
 at(76200, 'lpmCommandSave', project='storefront', reqId='s5', command=cmd('project', ' .hidden ', 'dotted'))
@@ -536,7 +536,7 @@ at(76400, 'lpmCommandFolder', project='storefront', reqId='f6', op='rename', sco
 at(76400, 'lpmCommandFolder', project='storefront', reqId='f7', op='rename', scope='project', name='Gone', newName='Here')
 at(76400, 'lpmCommandFolder', project='storefront', reqId='f8', op='rename', scope='project', name='Drafts', newName='drafts')
 at(76400, 'lpmCommandFolder', project='storefront', reqId='f9', op='rename', scope='project', name='Same', newName='Same')
-at(76500, 'lpmCommandSave', project='storefront', reqId='s11', command=cmd('project', None, 'FIX-ticket'))
+at(76500, 'lpmCommandSave', project='storefront', reqId='s11', command=cmd('project', None, 'fix-ticket'))
 at(76500, 'lpmCommandFolder', project='storefront', reqId='f10', op='delete', scope='project', name='fixes')
 at(76500, 'lpmCommandFolder', project='storefront', reqId='f11', op='delete', scope='project', name='drafts')
 at(76500, 'lpmCommandFolder', project='storefront', reqId='f12', op='delete', scope='project', name='never')

@@ -59,7 +59,11 @@ describe("parseCommandRun", () => {
 
 describe("names", () => {
   it("validates", () => {
-    expect(isValidCommandName("fix_ticket-2")).toBe(true);
+    expect(isValidCommandName("fix-ticket-2")).toBe(true);
+    expect(isValidCommandName("fix_ticket")).toBe(false);
+    expect(isValidCommandName("Fix")).toBe(false);
+    expect(isValidCommandName("two--dashes")).toBe(false);
+    expect(isValidCommandName("x".repeat(65))).toBe(false);
     expect(isValidCommandName("-x")).toBe(false);
     expect(isValidCommandName("two words")).toBe(false);
   });

@@ -10,7 +10,11 @@ class LpmCommandsTest {
     @Test
     fun namesFollowTheMacsRule() {
         assertTrue(isValidCommandName("fix-ticket"))
-        assertTrue(isValidCommandName("a_1"))
+        assertTrue(isValidCommandName("a-1"))
+        assertFalse(isValidCommandName("a_1"))
+        assertFalse(isValidCommandName("Fix"))
+        assertFalse(isValidCommandName("two--dashes"))
+        assertFalse(isValidCommandName("fix-"))
         assertFalse(isValidCommandName(""))
         assertFalse(isValidCommandName("-fix"))
         assertFalse(isValidCommandName("fix ticket"))

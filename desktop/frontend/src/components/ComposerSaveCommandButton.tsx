@@ -13,8 +13,8 @@ interface ComposerSaveCommandButtonProps {
 
 const LABEL = COMPOSER_TOOL_LABEL.saveCommand;
 
-// Turns the prompt in the input into an lpm command: the Commands tab opens
-// with a new command holding it, ready for a name and a folder.
+// Turns the prompt in the input into an lpm skill: the Skills tab opens with a
+// new skill holding it, ready for a name and a folder.
 export function ComposerSaveCommandButton({ variant = "button", disabled, onClick }: ComposerSaveCommandButtonProps) {
   if (variant === "row") {
     return (

@@ -2060,7 +2060,7 @@ fn dispatch_invoke(
         });
         return;
     }
-    // lpm commands: files, so a headless host has them too, and read off the
+    // lpm skills: files, so a headless host has them too, and read off the
     // socket thread since an SSH project's list is a round trip to its host.
     if let Some(kind) = crate::lpm_commands_cmds::peer_kind(cmd) {
         let app = app.clone();

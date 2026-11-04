@@ -1,6 +1,6 @@
-// Phone-side lpm commands: the `lpmCommands`, `lpmCommandSave`,
+// Phone-side lpm skills: the `lpmCommands`, `lpmCommandSave`,
 // `lpmCommandDelete`, `lpmCommandFolder` and `lpmCommandExpand` verbs behind
-// lpm Link's Commands screen and its composer's `/` menu, and the lpm rows of
+// lpm Link's Skills screen and its composer's `/` menu, and the lpm rows of
 // its `slash` reply. They go through the dispatcher the desktop uses, so a
 // phone edit writes the files exactly as a desktop edit would. An SSH
 // project's list is a round trip to its host, so every one answers through the
@@ -12,7 +12,7 @@ use std::sync::mpsc::SyncSender;
 use tauri::AppHandle;
 
 /// The phone may send the `lpmCommand*` verbs, and the `slash` reply carries
-/// lpm commands.
+/// lpm skills.
 pub const FEATURE: &str = "lpmCommands";
 
 fn kind(verb: &str, v: &Value) -> &'static str {
@@ -59,7 +59,7 @@ pub fn handle(app: &AppHandle, out: &SyncSender<String>, t: &str, v: &Value) {
     });
 }
 
-/// A terminal's `/` menu rows: the user's lpm commands first (this project's,
+/// A terminal's `/` menu rows: the user's lpm skills first (this project's,
 /// then global), shaped like the agent's own with `source: "lpm"`, then the
 /// agent's commands that none of them hides.
 pub fn slash_rows(project: &str, agent: Vec<crate::aigen::AgentCommand>) -> Vec<Value> {

@@ -52,8 +52,8 @@ export function CommandTree({
           <input
             value={query}
             onChange={(e) => onQuery(e.target.value)}
-            placeholder="Search commands"
-            aria-label="Search commands"
+            placeholder="Search skills"
+            aria-label="Search skills"
             className="min-w-0 flex-1 bg-transparent text-[12.5px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
           />
         </label>
@@ -73,7 +73,7 @@ export function CommandTree({
           </p>
         )}
         {tree.length === 0 ? (
-          <p className="px-2 py-6 text-center text-[12px] text-[var(--text-muted)]">No commands match.</p>
+          <p className="px-2 py-6 text-center text-[12px] text-[var(--text-muted)]">No skills match.</p>
         ) : (
           tree.map((node) => (
             <CommandTreeScope

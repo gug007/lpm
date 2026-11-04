@@ -107,7 +107,7 @@ struct ProjectRunControl: View {
             }
             if let onCommands {
                 Button(action: onCommands) {
-                    Label("Commands", systemImage: "slash.circle")
+                    Label("Skills", systemImage: "slash.circle")
                 }
             }
             Button(action: onNotes) {

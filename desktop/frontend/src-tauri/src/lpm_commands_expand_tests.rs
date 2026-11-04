@@ -123,10 +123,22 @@ fn in_folder(mut c: LpmCommand, folder: &str) -> LpmCommand {
     c
 }
 
+fn home_store() -> Box<LocalFs> {
+    Box::new(LocalFs::new(
+        PathBuf::from("/home/me/.agents/skills"),
+        PathBuf::from("/home/me/.claude/skills"),
+        PathBuf::from("/home/me/.lpm"),
+    ))
+}
+
 fn local_stores() -> Stores {
     Stores {
-        global: Box::new(LocalFs::new(PathBuf::from("/home/me/.lpm/commands"))),
-        project: Some(Box::new(LocalFs::new(PathBuf::from("/code/web/.lpm/commands")))),
+        global: home_store(),
+        project: Some(Box::new(LocalFs::new(
+            PathBuf::from("/code/web/.agents/skills"),
+            PathBuf::from("/code/web/.claude/skills"),
+            PathBuf::from("/code/web/.lpm"),
+        ))),
     }
 }
 
@@ -143,7 +155,7 @@ fn ssh_place() -> ProjectPlace {
 
 fn ssh_stores(place: &ProjectPlace) -> Stores {
     Stores {
-        global: Box::new(LocalFs::new(PathBuf::from("/home/me/.lpm/commands"))),
+        global: home_store(),
         project: Some(Box::new(RemoteFs::new(place.ssh.clone().unwrap(), &place.root))),
     }
 }
@@ -153,27 +165,23 @@ fn joined(base: &str, folder: &str) -> Option<String> {
 }
 
 #[test]
-fn dir_is_the_folder_the_command_sits_in() {
+fn dir_is_the_skill_s_own_folder() {
     let stores = local_stores();
     let place = local_place();
     let global = command("walkthrough", Scope::Global, "");
     assert_eq!(
-        command_dir(Some(&place), &stores, &in_folder(global.clone(), "walkthrough")),
-        joined("/home/me/.lpm/commands", "walkthrough"),
-    );
-    assert_eq!(
-        command_dir(Some(&place), &stores, &global).as_deref(),
-        Some("/home/me/.lpm/commands"),
+        command_dir(Some(&place), &stores, &global),
+        joined("/home/me/.agents/skills", "walkthrough"),
     );
     let own = in_folder(command("ship", Scope::Project, ""), "Release");
-    assert_eq!(command_dir(Some(&place), &stores, &own), joined("/code/web/.lpm/commands", "Release"));
+    assert_eq!(command_dir(Some(&place), &stores, &own), joined("/code/web/.agents/skills", "ship"));
 }
 
 #[test]
 fn dir_works_with_no_project() {
     let stores = Stores { project: None, ..local_stores() };
     let c = command("walkthrough", Scope::Global, "");
-    assert_eq!(command_dir(None, &stores, &c).as_deref(), Some("/home/me/.lpm/commands"));
+    assert_eq!(command_dir(None, &stores, &c), joined("/home/me/.agents/skills", "walkthrough"));
 }
 
 #[test]
@@ -183,7 +191,7 @@ fn dir_in_an_ssh_project_is_a_path_on_its_host() {
     let own = in_folder(command("ship", Scope::Project, ""), "Release");
     assert_eq!(
         command_dir(Some(&place), &stores, &own).as_deref(),
-        Some("/srv/web/.lpm/commands/Release"),
+        Some("/srv/web/.agents/skills/ship"),
     );
 }
 
@@ -204,7 +212,7 @@ fn dir_fills_in_without_taking_an_argument() {
     let c = in_folder(command("kit", Scope::Global, "About {{what}}: read {{dir}}/GUIDE.md"), "kit");
     assert_eq!(argument_hint(&c.body), "<what>");
     let out = fill("", None, &stores, &c, "a short demo");
-    let dir = stores.global.location(Some("kit"));
+    let dir = stores.global.location("kit");
     assert_eq!(out.text, format!("About a short demo: read {dir}/GUIDE.md"));
     assert!(out.missing.is_empty());
 }

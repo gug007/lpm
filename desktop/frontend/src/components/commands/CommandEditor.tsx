@@ -1,17 +1,9 @@
 import { useEffect, useRef } from "react";
 import { Trash2 } from "lucide-react";
-import { promptVariables, scopeList, shadowNote, type LpmCommandLists } from "../../lpmCommands";
+import { promptVariables, shadowNote, type LpmCommandLists } from "../../lpmCommands";
 import { FIELD_CLASS } from "../ui/fields";
-import {
-  commandPath,
-  draftProblem,
-  folderKey,
-  isDirty,
-  parseFolderKey,
-  scopeTitle,
-  scopesOf,
-  type Draft,
-} from "./commandsModel";
+import { CommandPlaceSelect } from "./CommandPlaceSelect";
+import { commandPath, draftProblem, isDirty, type Draft } from "./commandsModel";
 
 interface CommandEditorProps {
   draft: Draft;
@@ -26,8 +18,8 @@ interface CommandEditorProps {
 const LABEL = "text-[11.5px] font-medium text-[var(--text-muted)]";
 const TOKEN = "rounded px-1 font-mono text-[11px]";
 
-// The right column of the Commands tab: one command's name, folder, the line
-// the `/` menu shows beside it, and its prompt. ⌘S or Save writes the file.
+// The right column of the Skills tab: one skill's name, folder, the line the
+// `/` menu shows beside it, and its prompt. ⌘S or Save writes the file.
 export function CommandEditor({ draft, lists, projectLabel, saving, onChange, onSave, onDelete }: CommandEditorProps) {
   const nameRef = useRef<HTMLInputElement>(null);
   const isNew = draft.original === null;
@@ -76,29 +68,19 @@ export function CommandEditor({ draft, lists, projectLabel, saving, onChange, on
               />
             </span>
           </label>
-          <label className="flex min-w-0 flex-col gap-1.5">
-            <span className={LABEL}>Folder</span>
-            <select
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <span id="lpm-command-folder-label" className={LABEL}>
+              Folder
+            </span>
+            <CommandPlaceSelect
               id="lpm-command-folder"
-              value={folderKey(draft.scope, draft.folder)}
-              onChange={(e) => {
-                const place = parseFolderKey(e.target.value);
-                if (place) set(place);
-              }}
-              className={`${FIELD_CLASS} px-2 py-1.5`}
-            >
-              {scopesOf(lists).map((scope) => (
-                <optgroup key={scope} label={scopeTitle(scope, projectLabel)}>
-                  {scopeList(lists, scope)!.folders.map((f) => (
-                    <option key={f} value={folderKey(scope, f)}>
-                      {f}
-                    </option>
-                  ))}
-                  <option value={folderKey(scope, null)}>No folder</option>
-                </optgroup>
-              ))}
-            </select>
-          </label>
+              labelledBy="lpm-command-folder-label"
+              place={draft}
+              lists={lists}
+              projectLabel={projectLabel}
+              onChange={set}
+            />
+          </div>
         </div>
         {shadow && <p className="-mt-1.5 text-[11.5px] text-[var(--accent-amber-text)]">{shadow}</p>}
         <label className="flex flex-col gap-1.5">
@@ -151,7 +133,7 @@ export function CommandEditor({ draft, lists, projectLabel, saving, onChange, on
             <>
               Add <span className="font-mono">{"{{ticket}}"}</span> to ask for a value when it runs;{" "}
               <span className="font-mono">{"{{branch}}"}</span>, <span className="font-mono">{"{{project}}"}</span> and{" "}
-              <span className="font-mono">{"{{dir}}"}</span>, the command's folder, fill themselves in.
+              <span className="font-mono">{"{{dir}}"}</span>, the skill's folder, fill themselves in.
             </>
           )}
         </p>
@@ -164,8 +146,8 @@ export function CommandEditor({ draft, lists, projectLabel, saving, onChange, on
           <button
             type="button"
             onClick={onDelete}
-            title="Delete command"
-            aria-label="Delete command"
+            title="Delete skill"
+            aria-label="Delete skill"
             className="grid h-7 w-7 place-items-center rounded-md text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--accent-red-text)]"
           >
             <Trash2 size={14} />

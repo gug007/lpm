@@ -189,11 +189,11 @@ class ComposerLpmCommandsTest {
         val reqId = s.socket.sentOf("lpmCommandExpand").single().string("reqId")
         s.socket.receive(
             """{"t":"lpmCommandExpand","ok":false,"reqId":"$reqId",""" +
-                """"error":"/explain isn't one of your commands."}"""
+                """"error":"/explain isn't one of your skills."}"""
         )
         testScheduler.runCurrent()
         assertEquals(
-            CommandNotice.Failed("/explain isn't one of your commands."),
+            CommandNotice.Failed("/explain isn't one of your skills."),
             s.vm.uiState.value.commandNotice
         )
         assertEquals("/explain this", s.vm.input.text.toString())

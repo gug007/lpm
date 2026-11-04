@@ -694,8 +694,8 @@ const HistoryRow = memo(function HistoryRow({
               e.stopPropagation();
               onSaveAsCommand(message.text);
             }}
-            title="Save as command"
-            aria-label="Save as command"
+            title="Save as skill"
+            aria-label="Save as skill"
             className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-active)] hover:text-[var(--accent-cyan)] group-hover:pointer-events-auto"
           >
             <BookmarkPlus size={13} />

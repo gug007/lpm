@@ -52,7 +52,7 @@ class CommandsScreenTest {
     @Test
     fun foldersOpenAndOfferTheirChanges() {
         show(loaded)
-        compose.onNodeWithText("Commands").assertExists()
+        compose.onNodeWithText("Skills").assertExists()
         compose.onNodeWithText("Bugs").performClick()
         compose.onNodeWithText("No folder").performClick()
         compose.onNodeWithText("Bugs").performTouchInput { longClick() }
@@ -60,7 +60,7 @@ class CommandsScreenTest {
         compose.onNodeWithText("Bugs").performTouchInput { longClick() }
         compose.onNodeWithText("Delete folder").performClick()
         compose.onNodeWithText("New folder").performClick()
-        compose.onNodeWithContentDescription("New command").performClick()
+        compose.onNodeWithContentDescription("New skill").performClick()
         compose.onNodeWithText("Global").performClick()
         assertEquals(
             listOf(
@@ -92,7 +92,7 @@ class CommandsScreenTest {
     @Test
     fun aFailedLoadOffersTryAgain() {
         show(CommandsUiState(loadError = "Lost the connection to the Mac."))
-        compose.onNodeWithText("Couldn't load commands").assertExists()
+        compose.onNodeWithText("Couldn't load skills").assertExists()
         compose.onNodeWithText("Try Again").performClick()
         assertEquals(listOf("retry"), events)
     }

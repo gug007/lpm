@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// The composer's ways into lpm commands: the Commands screen behind the `/`
-/// menu's "Manage commands", the editor behind "Save as command", and a fresh
+/// menu's "Manage skills", the editor behind "Save as skill", and a fresh
 /// `/` list each time the menu opens after a command changed.
 struct ComposerLpmCommands: ViewModifier {
     @Environment(AppModel.self) private var model

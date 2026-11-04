@@ -97,12 +97,12 @@ struct CommandEditorSheet: View {
                 }
                 if !isNew {
                     Section {
-                        Button("Delete command", role: .destructive) { confirmingDelete = true }
+                        Button("Delete skill", role: .destructive) { confirmingDelete = true }
                             .disabled(saving)
                     }
                 }
             }
-            .navigationTitle(isNew ? "New command" : "Edit command")
+            .navigationTitle(isNew ? "New skill" : "Edit skill")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

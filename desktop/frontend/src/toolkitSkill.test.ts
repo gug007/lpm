@@ -135,9 +135,10 @@ describe("skillTemplate", () => {
     "1. Build the site",
   );
 
-  it("carries exactly name and description, and no version", () => {
+  it("carries name, description and lpm's mark, and no version", () => {
     const { fields } = splitFrontmatter(template);
-    expect(fields.map((f) => f.key)).toEqual(["name", "description"]);
+    expect(fields.map((f) => f.key)).toEqual(["name", "description", "metadata"]);
+    expect(template).toContain('metadata:\n  lpm-created: "true"\n---');
     expect(template).not.toContain("version:");
   });
 
@@ -159,13 +160,13 @@ describe("skillTemplate", () => {
   it("escapes a quoted description rather than breaking the frontmatter", () => {
     const quoted = skillTemplate("deploy", 'Ship the "web" app.', false, "Run it.");
     expect(quoted).toContain('description: "Ship the \\"web\\" app."');
-    expect(splitFrontmatter(quoted).fields.map((f) => f.key)).toEqual(["name", "description"]);
+    expect(splitFrontmatter(quoted).fields.map((f) => f.key)).toEqual(["name", "description", "metadata"]);
   });
 
   it("folds a description that spans lines", () => {
     const folded = skillTemplate("deploy", "Ship it.\nUse when asked to deploy.", false, "Run it.");
     expect(folded).toContain("description: >-\n  Ship it.\n  Use when asked to deploy.");
-    expect(splitFrontmatter(folded).fields.map((f) => f.key)).toEqual(["name", "description"]);
+    expect(splitFrontmatter(folded).fields.map((f) => f.key)).toEqual(["name", "description", "metadata"]);
   });
 
   // The one key beyond name and description lpm will write, and only on request:

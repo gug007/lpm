@@ -205,7 +205,7 @@ the iPhone screenshots). An icon-only control keeps the accessible name iOS give
 | `hand.tap` / `bolt` / `checklist` (tips) | `touch_app` / `bolt` / `checklist` | 22 dp | a tip card's mark | |
 | `xmark` (tip) | `close` | 15 dp | a tip card's close button | "Close tip" |
 | `slash.circle` | `slash_circle` (drawn here: no Material Symbol has it) | 22 dp | project menu "Commands" | |
-| `text.badge.plus` | `post_add` | 22 dp menu, 56 dp empty state | "Save as command", "No commands" | |
+| `text.badge.plus` | `post_add` | 22 dp menu, 56 dp empty state | "Save as skill", "No skills" | |
 | `tray` | `inbox` | 22 dp | a command list's "No folder" row | |
-| `slider.horizontal.3` (`/` menu) | `tune` | 14 dp | "Manage commands" | |
+| `slider.horizontal.3` (`/` menu) | `tune` | 14 dp | "Manage skills" | |
 | `plus` (Commands bar) | `add` | 30 dp | a new lpm command | "New command" |

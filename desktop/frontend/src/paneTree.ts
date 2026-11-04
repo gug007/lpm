@@ -235,7 +235,7 @@ export function makeMemory(id: string, label = "Memory"): TerminalInstance {
   return { id, label, kind: "memory" };
 }
 
-export function makeToolkit(id: string, label = "Skills & tools"): TerminalInstance {
+export function makeToolkit(id: string, label = "Agent setup"): TerminalInstance {
   return { id, label, kind: "toolkit" };
 }
 
@@ -247,7 +247,7 @@ export function makeAutomations(id: string, label = "Automations"): TerminalInst
   return { id, label, kind: "automations" };
 }
 
-export function makeCommands(id: string, label = "Commands"): TerminalInstance {
+export function makeCommands(id: string, label = "Skills"): TerminalInstance {
   return { id, label, kind: "commands" };
 }
 

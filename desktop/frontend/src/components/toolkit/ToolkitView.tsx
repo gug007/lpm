@@ -21,6 +21,7 @@ import { ToolkitHeader, type CliFilter } from "./ToolkitHeader";
 import { ToolkitList } from "./ToolkitList";
 import { ToolkitRoots } from "./ToolkitRoots";
 import { SURFACE_TOKENS } from "./surfaces";
+import { reloadLpmCommands } from "../../store/lpmCommands";
 
 // Sentinel for "every group open", used while a filter is live so a match can
 // never hide behind a folded heading.
@@ -150,6 +151,7 @@ export function ToolkitView({ cwd, visible, focused }: ToolkitViewProps) {
     (path: string) => {
       setCreating(false);
       setPending({ path, after: scannedAt });
+      reloadLpmCommands();
       void refresh();
     },
     [refresh, scannedAt],
@@ -261,6 +263,7 @@ export function ToolkitView({ cwd, visible, focused }: ToolkitViewProps) {
       onBack={() => setEditing(null)}
       onSaved={() => {
         setSaved((n) => n + 1);
+        reloadLpmCommands();
         void refresh();
       }}
     />
@@ -284,6 +287,7 @@ export function ToolkitView({ cwd, visible, focused }: ToolkitViewProps) {
           onSaved={refresh}
           onDeleted={() => {
             setSelected(null);
+            reloadLpmCommands();
             void refresh();
           }}
         />
@@ -366,7 +370,7 @@ export function ToolkitView({ cwd, visible, focused }: ToolkitViewProps) {
       {!data ? (
         <EmptyState
           title={loading ? "Scanning…" : "Nothing scanned yet"}
-          body="Skills & tools reads the skills, MCP servers and plugins the agent in this directory would load."
+          body="Agent setup reads the skills, MCP servers and plugins the agent in this directory would load."
           icon={<LayersIcon />}
         />
       ) : all.length === 0 ? (

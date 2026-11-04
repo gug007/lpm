@@ -91,6 +91,11 @@ function refresh(project: unknown) {
 
 const offChanged = EventsOn("lpm-commands-changed", refresh);
 
+// Skills changed outside these lists, in Agent setup.
+export function reloadLpmCommands() {
+  refresh("");
+}
+
 import.meta.hot?.dispose(() => {
   if (typeof offChanged === "function") offChanged();
 });

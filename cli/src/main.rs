@@ -111,9 +111,10 @@ enum Commands {
         command: job::Command,
     },
     #[command(
-        name = "commands",
-        visible_alias = "command",
-        about = "List, show, add, edit, and remove saved /name commands"
+        name = "skills",
+        visible_alias = "skill",
+        aliases = ["commands", "command"],
+        about = "List, show, add, edit, and remove /name skills every agent can read"
     )]
     Saved {
         #[command(subcommand)]

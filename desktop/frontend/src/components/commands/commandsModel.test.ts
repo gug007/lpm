@@ -5,10 +5,12 @@ import {
   draftOf,
   draftProblem,
   folderKey,
+  folderNamed,
   isDirty,
   movedTo,
   newDraft,
   parseFolderKey,
+  placeChoices,
   runningKeys,
 } from "./commandsModel";
 
@@ -84,8 +86,8 @@ describe("drafts", () => {
   it("explain what stops a save", () => {
     const d = newDraft({ scope: "global", folder: null }, lists, "Body");
     expect(draftProblem(d, lists)).toBe("Give it a name.");
-    expect(draftProblem({ ...d, name: "two words" }, lists)).toMatch(/Letters/);
-    expect(draftProblem({ ...d, name: "Commit" }, lists)).toBe("/commit already exists in the Git folder.");
+    expect(draftProblem({ ...d, name: "two words" }, lists)).toMatch(/Lowercase/);
+    expect(draftProblem({ ...d, name: "commit" }, lists)).toBe("/commit already exists in the Git folder.");
     expect(draftProblem({ ...d, name: "new-one" }, lists)).toBeNull();
     expect(draftProblem(draftOf(lists.global.commands[0]), lists)).toBeNull();
   });
@@ -106,5 +108,33 @@ describe("dropping on a folder", () => {
   it("refuses a no-op or a name the other list has", () => {
     expect(movedTo(lists.global.commands[0], folderKey("global", "Git"), lists)).toBeNull();
     expect(movedTo(lists.global.commands[1], folderKey("project", "Bugs"), lists)).toBeNull();
+  });
+});
+
+describe("placeChoices", () => {
+  it("offers each list's no folder and folders, this project first", () => {
+    expect(placeChoices({ scope: "project", folder: null }, lists)).toEqual([
+      { scope: "project", folders: [null, "Bugs"] },
+      { scope: "global", folders: [null, "Git"] },
+    ]);
+  });
+
+  it("keeps a folder that isn't saved yet in its own list only", () => {
+    const [project, global] = placeChoices({ scope: "project", folder: "Docs" }, lists);
+    expect(project.folders).toEqual([null, "Bugs", "Docs"]);
+    expect(global.folders).toEqual([null, "Git"]);
+  });
+
+  it("offers only the global list outside a project", () => {
+    const choices = placeChoices({ scope: "global", folder: null }, { ...lists, project: null });
+    expect(choices.map((c) => c.scope)).toEqual(["global"]);
+  });
+});
+
+describe("folderNamed", () => {
+  it("uses the list's spelling, or the name as typed for a new folder", () => {
+    expect(folderNamed("bugs", "project", lists)).toBe("Bugs");
+    expect(folderNamed("Docs", "project", lists)).toBe("Docs");
+    expect(folderNamed("bugs", "global", lists)).toBe("bugs");
   });
 });

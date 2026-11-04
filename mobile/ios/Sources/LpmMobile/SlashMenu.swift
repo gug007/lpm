@@ -39,7 +39,7 @@ struct SlashMenu: View {
                     HStack(spacing: 8) {
                         Image(systemName: "slider.horizontal.3")
                             .font(.system(size: 12))
-                        Text("Manage commands")
+                        Text("Manage skills")
                             .font(.system(size: 13))
                         Spacer()
                     }

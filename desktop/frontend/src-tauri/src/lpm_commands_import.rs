@@ -1,8 +1,10 @@
-// Import: copy the custom commands the agent CLIs already have into an
-// Imported folder, so a library built up in Claude Code or Codex works in
-// every agent. The global list takes the user's own (Claude's commands folder,
-// Codex's prompts folder); a project's list takes the project's .claude/commands.
-use crate::lpm_commands::{parse_doc, rel_path, serialize_doc, CommandFs, LocalFs, Scope, Stores};
+// Import: turn the custom commands the agent CLIs already have into skills in an
+// Imported folder, so a library built up in Claude Code or Codex works in every
+// agent. The global list takes the user's own (Claude's commands folder, Codex's
+// prompts folder); a project's list takes the project's .claude/commands.
+use crate::lpm_commands::{parse_doc, skill_name, Scope, Stores};
+use crate::lpm_commands_local::read_md_list;
+use crate::lpm_commands_ops::create_skill;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
@@ -26,23 +28,37 @@ pub(crate) fn sources(scope: Scope, project_root: Option<&str>) -> Vec<PathBuf> 
     }
 }
 
-/// Copy what isn't in the list yet; a name the list already has is skipped.
-/// A source's own folders are flattened into Imported. Returns how many
-/// commands were added.
+/// Copy what isn't in the list yet; a name another skill holds is skipped. A
+/// source's own folders are flattened into Imported. Returns how many skills
+/// were added.
 pub(crate) fn import(stores: &Stores, scope: Scope, from: &[PathBuf]) -> Result<usize, String> {
-    let fs: &dyn CommandFs = stores.get(scope)?;
-    let mut taken: HashSet<String> = fs.snapshot()?.files.into_iter().map(|f| f.name.to_lowercase()).collect();
+    let fs = stores.get(scope)?;
+    let snap = fs.snapshot()?;
+    let mut taken: HashSet<String> = snap
+        .files
+        .iter()
+        .map(|f| f.name.clone())
+        .chain(snap.others.iter().map(|n| n.to_lowercase()))
+        .collect();
     let mut added = 0;
     for dir in from {
-        for file in LocalFs::new(dir.clone()).snapshot()?.files {
-            let doc = parse_doc(&file.content);
-            if doc.body.trim().is_empty() || !taken.insert(file.name.to_lowercase()) {
+        for file in read_md_list(dir).files {
+            let mut doc = parse_doc(&file.content);
+            let Some(name) = skill_name(&file.name).filter(|_| !doc.body.trim().is_empty()) else {
+                continue;
+            };
+            if !taken.insert(name.clone()) {
                 continue;
             }
-            let text = serialize_doc(&doc.description, &doc.body, &doc.extra);
-            fs.write(&rel_path(Some(IMPORT_FOLDER), &file.name), &text)?;
+            doc.folder = Some(IMPORT_FOLDER.to_string());
+            create_skill(fs, &name, doc.made_by_lpm())?;
             added += 1;
         }
+    }
+    if added > 0 && !snap.folders.iter().any(|f| f == IMPORT_FOLDER) {
+        let mut folders = snap.folders.clone();
+        folders.push(IMPORT_FOLDER.to_string());
+        fs.save_folders(&folders)?;
     }
     Ok(added)
 }

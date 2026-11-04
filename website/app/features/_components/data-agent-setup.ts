@@ -33,12 +33,12 @@ export const AGENT_SETUP_AREA: FeatureArea = {
     },
     {
       icon: Blocks,
-      title: "Skills & tools inspector",
+      title: "Agent setup inspector",
       body: "See the MCP servers, skills, plugins, subagents, commands, instruction files, and hooks an agent will load in a folder, with clashes flagged and a context-size estimate.",
       scope: "claude-codex",
       keys: ["⌘⇧K"],
       href: SKILLS_PATH,
-      linkLabel: "Skills & tools",
+      linkLabel: "Agent setup",
     },
   ],
   features: [

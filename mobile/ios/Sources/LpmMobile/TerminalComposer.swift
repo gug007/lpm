@@ -612,7 +612,7 @@ struct TerminalComposer: View {
                 Button { showMemory = true } label: { Label("Memory", systemImage: "brain") }
             }
             if lpmCommandsOn {
-                Button { saveAsCommand() } label: { Label("Save as command", systemImage: "text.badge.plus") }
+                Button { saveAsCommand() } label: { Label("Save as skill", systemImage: "text.badge.plus") }
                     .disabled(store.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
             Button { store.newTab() } label: { Label("New prompt", systemImage: "plus.bubble") }

@@ -353,7 +353,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   const slashCli = detectAICLI(launchCmd);
   const agentName = session?.provider ?? slashCli ?? "";
   const projectIsRemote = useAppStore((s) => s.projects.find((p) => p.name === projectName)?.isRemote ?? false);
-  // lpm commands are the user's own: a guest at a shared tab doesn't get them.
+  // lpm skills are the user's own: a guest at a shared tab doesn't get them.
   const lpmProject = guest ? null : projectName;
   const {
     filter: filterSlash,
@@ -1254,7 +1254,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     await deliverPrompt(value, images);
   };
 
-  // `/name args` for one of the user's lpm commands: the agent gets the
+  // `/name args` for one of the user's lpm skills: the agent gets the
   // command's prompt with the arguments filled in. One still unfilled puts the
   // prompt in the input instead, to finish by hand.
   const runLpmCommand = async (name: string, args: string, images: Record<string, string>) => {

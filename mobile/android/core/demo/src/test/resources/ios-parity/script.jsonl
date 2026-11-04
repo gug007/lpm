@@ -558,7 +558,7 @@
 {"at": 76100, "frame": {"t": "lpmCommandExpand", "project": "", "name": "explain", "args": "", "reqId": "e7"}}
 {"at": 76100, "frame": {"t": "lpmCommandExpand", "project": "blog", "name": "fix-ticket", "args": "T-1", "reqId": "e8"}}
 {"at": 76200, "frame": {"t": "lpmCommandSave", "project": "storefront", "reqId": "s1", "command": {"scope": "project", "folder": null, "name": "ship-it", "description": " Ships it ", "body": "  Ship {{what}} for {{project}} on {{ branch }} {{who}}  "}, "previous": null}}
-{"at": 76200, "frame": {"t": "lpmCommandSave", "project": "storefront", "reqId": "s2", "command": {"scope": "project", "folder": "Bugs", "name": "SHIP-IT", "description": "", "body": "Do it."}, "previous": null}}
+{"at": 76200, "frame": {"t": "lpmCommandSave", "project": "storefront", "reqId": "s2", "command": {"scope": "project", "folder": "Bugs", "name": "ship-it", "description": "", "body": "Do it."}, "previous": null}}
 {"at": 76200, "frame": {"t": "lpmCommandSave", "project": "storefront", "reqId": "s3", "command": {"scope": "project", "folder": null, "name": "-bad", "description": "", "body": "Do it."}, "previous": null}}
 {"at": 76200, "frame": {"t": "lpmCommandSave", "project": "storefront", "reqId": "s4", "command": {"scope": "project", "folder": null, "name": "empty", "description": "", "body": "  \n "}}}
 {"at": 76200, "frame": {"t": "lpmCommandSave", "project": "storefront", "reqId": "s5", "command": {"scope": "project", "folder": " .hidden ", "name": "dotted", "description": "", "body": "Do it."}}}
@@ -576,7 +576,7 @@
 {"at": 76400, "frame": {"t": "lpmCommandFolder", "project": "storefront", "reqId": "f7", "op": "rename", "scope": "project", "name": "Gone", "newName": "Here"}}
 {"at": 76400, "frame": {"t": "lpmCommandFolder", "project": "storefront", "reqId": "f8", "op": "rename", "scope": "project", "name": "Drafts", "newName": "drafts"}}
 {"at": 76400, "frame": {"t": "lpmCommandFolder", "project": "storefront", "reqId": "f9", "op": "rename", "scope": "project", "name": "Same", "newName": "Same"}}
-{"at": 76500, "frame": {"t": "lpmCommandSave", "project": "storefront", "reqId": "s11", "command": {"scope": "project", "folder": null, "name": "FIX-ticket", "description": "", "body": "Do it."}}}
+{"at": 76500, "frame": {"t": "lpmCommandSave", "project": "storefront", "reqId": "s11", "command": {"scope": "project", "folder": null, "name": "fix-ticket", "description": "", "body": "Do it."}}}
 {"at": 76500, "frame": {"t": "lpmCommandFolder", "project": "storefront", "reqId": "f10", "op": "delete", "scope": "project", "name": "fixes"}}
 {"at": 76500, "frame": {"t": "lpmCommandFolder", "project": "storefront", "reqId": "f11", "op": "delete", "scope": "project", "name": "drafts"}}
 {"at": 76500, "frame": {"t": "lpmCommandFolder", "project": "storefront", "reqId": "f12", "op": "delete", "scope": "project", "name": "never"}}

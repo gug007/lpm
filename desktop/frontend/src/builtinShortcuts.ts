@@ -47,10 +47,10 @@ export const BUILTIN_SHORTCUT_GROUPS: BuiltinShortcutGroup[] = [
       { id: "split-down", label: "Split stacked", description: "A new pane below", keys: cmd("d", { shift: true }) },
       { id: "search", label: "Search the output", description: `${enterHint()} for the next match, ${enterHint({ shift: true })} for the previous`, keys: cmd("f") },
       { id: "zoom", label: "Bigger or smaller text", description: "In the terminal", keys: `${cmd("+")}  ${isMac ? "⌘−" : "Ctrl+-"}` },
-      { id: "skills", label: "Skills and tools", description: "Opens or closes the tab", keys: cmd("k", { shift: true }) },
+      { id: "skills", label: "Agent setup", description: "Opens or closes the tab", keys: cmd("k", { shift: true }) },
       { id: "memory", label: "Memory", description: "Opens or closes the tab", keys: cmd("m", { shift: true }) },
       { id: "automations", label: "Automations", description: "Opens or closes the tab", keys: cmd("j", { shift: true }) },
-      { id: "commands", label: "Commands", description: "Opens or closes the tab", keys: cmd("o", { shift: true }) },
+      { id: "commands", label: "Skills", description: "Opens or closes the tab", keys: cmd("o", { shift: true }) },
     ],
   },
   {

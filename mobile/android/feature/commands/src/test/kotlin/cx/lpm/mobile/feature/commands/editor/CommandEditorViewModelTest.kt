@@ -75,7 +75,7 @@ class CommandEditorViewModelTest {
     fun `a name the list has shows the Mac's refusal`() = runTest {
         val t = demoSession()
         val vm = editor(t, CommandEditorKey("storefront", body = "x"))
-        vm.setName("Review-Changes")
+        vm.setName("review-changes")
         vm.save()
         t.settle()
         val state = vm.uiState.value

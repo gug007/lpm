@@ -81,7 +81,7 @@ class LpmCommandsStoreTest {
         val save = async {
             t.commands.save(
                 "storefront",
-                CommandRef(CommandScope.Project, null, "FIX-TICKET"),
+                CommandRef(CommandScope.Project, null, "fix-ticket"),
                 "",
                 "Again",
                 previous = null

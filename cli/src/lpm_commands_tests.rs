@@ -68,7 +68,7 @@ fn a_project_miss_points_at_the_global_list_when_it_has_the_name() {
     assert_eq!(err.code(), 2);
     assert!(err.message().contains("pass --global"));
     let err = find_in(&l, Scope::Project, "nope").unwrap_err();
-    assert!(err.message().contains("lpm commands list"));
+    assert!(err.message().contains("lpm skills list"));
 }
 
 #[test]
@@ -163,7 +163,7 @@ fn a_hidden_global_command_says_what_runs_instead() {
     let l = lists(vec![own], vec![saved(Scope::Global, None, "ship")]);
     let table = render_table(&rows(&l));
     let lines: Vec<&str> = table.lines().collect();
-    assert_eq!(lines[0], "COMMAND         LIST     FOLDER  DESCRIPTION");
+    assert_eq!(lines[0], "SKILL           LIST     FOLDER  DESCRIPTION");
     assert_eq!(lines[1], "/ship <ticket>  project  bugs    about ship");
     assert_eq!(
         lines[2],

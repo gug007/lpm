@@ -668,7 +668,7 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
     [openMemory],
   );
 
-  // Manage commands in the `/` menu, or Save as command: bring up this
+  // Manage skills in the `/` menu, or Save as skill: bring up this
   // project's Commands tab wherever it is, else add one to the focused pane.
   const commandsRequest = useCommandsOpen((s) => (s.open?.project === projectName ? s.open.seq : null));
   useEffect(() => {

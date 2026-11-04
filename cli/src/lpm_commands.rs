@@ -1,6 +1,6 @@
-//! `lpm commands list|show|add|edit|remove` — the prompts saved as `/name`
-//! commands, a project's own and the global ones. Every read and write goes
-//! through the running app, which keeps the naming rules, tells open windows and
+//! `lpm skills list|show|add|edit|remove` — the prompts saved as `/name` skills
+//! every agent can read, a project's own and the global ones. Every read and
+//! write goes through the running app, which keeps the naming rules, tells open windows and
 //! phones about a change, and reaches an SSH project's list on its host.
 
 use crate::config::{self, Ctx};
@@ -17,18 +17,18 @@ use std::path::PathBuf;
 #[derive(Subcommand)]
 pub enum Command {
     #[command(
-        about = "List saved commands, the project's and the global ones",
+        about = "List skills made in lpm, the project's and the global ones",
         alias = "ls"
     )]
     List(ListArgs),
-    #[command(about = "Print a saved command's prompt")]
+    #[command(about = "Print a skill's prompt")]
     Show(NameArgs),
-    #[command(about = "Save a new command", alias = "create")]
+    #[command(about = "Save a new skill", alias = "create")]
     Add(AddArgs),
-    #[command(about = "Change a saved command")]
+    #[command(about = "Change a skill")]
     Edit(EditArgs),
     #[command(
-        about = "Delete a saved command",
+        about = "Delete a skill",
         visible_alias = "rm",
         alias = "delete"
     )]
@@ -67,7 +67,7 @@ pub struct ListArgs {
 
 #[derive(Args)]
 pub struct NameArgs {
-    #[arg(help = "Command name, with or without the leading /")]
+    #[arg(help = "Skill name, with or without the leading /")]
     name: String,
     #[command(flatten)]
     at: Place,
@@ -77,7 +77,7 @@ pub struct NameArgs {
 
 #[derive(Args)]
 pub struct Prompt {
-    #[arg(long, value_name = "TEXT", conflicts_with_all = ["file", "stdin"], help = "The prompt; {{name}} asks for a value, {{branch}}, {{project}} and {{dir}} (the command's folder) fill themselves in")]
+    #[arg(long, value_name = "TEXT", conflicts_with_all = ["file", "stdin"], help = "The prompt; {{name}} asks for a value, {{branch}}, {{project}} and {{dir}} (the skill's folder) fill themselves in")]
     prompt: Option<String>,
     #[arg(
         long,
@@ -92,7 +92,7 @@ pub struct Prompt {
 
 #[derive(Args)]
 pub struct AddArgs {
-    #[arg(help = "Name typed after /: letters, digits, '-' and '_'")]
+    #[arg(help = "Name typed after /: lowercase letters, digits and single hyphens")]
     name: String,
     #[command(flatten)]
     prompt: Prompt,
@@ -112,7 +112,7 @@ pub struct AddArgs {
 
 #[derive(Args)]
 pub struct EditArgs {
-    #[arg(help = "Command name, with or without the leading /")]
+    #[arg(help = "Skill name, with or without the leading /")]
     name: String,
     #[command(flatten)]
     prompt: Prompt,
@@ -192,7 +192,7 @@ fn list(ctx: &Ctx, args: ListArgs) -> Result<(), RunError> {
     }
     let rows = rows(&lists);
     if rows.is_empty() {
-        println!("no saved commands");
+        println!("no skills");
     } else {
         println!("{}", render_table(&rows));
     }
@@ -207,7 +207,7 @@ fn show(ctx: &Ctx, args: NameArgs) -> Result<(), RunError> {
         find_in(&lists, Scope::Global, name)?
     } else {
         lists.effective(name).ok_or_else(|| {
-            RunError::NotFound(format!("no /{name} here\nsee `lpm commands list`"))
+            RunError::NotFound(format!("no /{name} here\nsee `lpm skills list`"))
         })?
     };
     if args.json {

@@ -49,6 +49,7 @@ emit instructions user AGENTS.md \"$CH/AGENTS.md\" \"$CH/AGENTS.md\" codex
 emit codextoml user config.toml \"$CH/config.toml\" \"$CH/config.toml\" codex
 if [ -n \"$CWD\" ]; then
   scan_skills \"$CWD/.claude/skills\" project claude
+  scan_skills \"$CWD/.agents/skills\" project codex
   scan_md \"$CWD/.claude/commands\" project command claude
   scan_md \"$CWD/.claude/agents\" project subagent claude
   emit instructions project CLAUDE.md \"$CWD/CLAUDE.md\" \"$CWD/CLAUDE.md\" claude

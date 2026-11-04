@@ -9,7 +9,7 @@ import { useLpmCommandLists } from "../store/lpmCommands";
 // The agent's own list is fetched once per (cli, cwd) and cached for the hook's
 // lifetime, so filtering as the user types never hits the backend. A null `cli`
 // (a terminal not running a known agent) yields an empty list, keeping the menu
-// closed. With an `lpmProject` the user's lpm commands for that project lead
+// closed. With an `lpmProject` the user's lpm skills for that project lead
 // the list, read again each time the composer is focused.
 export function useSlashCommands(cli: AICLI | null, cwd: string, active: boolean, lpmProject: string | null) {
   const [agent, setAgent] = useState<SlashCommand[]>([]);
@@ -63,7 +63,7 @@ export function useSlashCommands(cli: AICLI | null, cwd: string, active: boolean
         if (name.startsWith(q) || c.folder?.toLowerCase().startsWith(q)) starts.push(c);
         else if (name.includes(q) || c.description.toLowerCase().includes(q)) contains.push(c);
       }
-      // lpm commands lead and each folder's rows stay together under one
+      // lpm skills lead and each folder's rows stay together under one
       // heading; the folder holding the best match comes first.
       const lpm = rankLpmGroups(all, new Set(starts), new Set(contains));
       return [...lpm, ...starts.concat(contains).filter((c) => c.source !== "lpm")];

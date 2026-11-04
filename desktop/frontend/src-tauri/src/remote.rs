@@ -2820,7 +2820,7 @@ fn handle_msg(
         "slash" => {
             // Slash-command autocomplete for a terminal: the frontend registered
             // which AI CLI the terminal runs (detected from its launch command);
-            // the user's lpm commands lead, then that CLI's built-ins and the
+            // the user's lpm skills lead, then that CLI's built-ins and the
             // project's custom commands. Listing may be an SSH round trip, so
             // it runs off this connection's thread.
             let id = str_field("id").unwrap_or_default();
