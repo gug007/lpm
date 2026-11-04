@@ -78,7 +78,7 @@ export function AppMenuButton({ onSettings, onFeedback }: AppMenuButtonProps) {
   };
 
   return (
-    <div className="mr-auto pl-3">
+    <div className="mr-auto pl-[15px]">
       {/* Not a native title: the webview would draw it over the open menu. */}
       <Tooltip content="lpm menu" side="right" delay={500} disabled={menu !== null} triggerClassName="flex">
         <button

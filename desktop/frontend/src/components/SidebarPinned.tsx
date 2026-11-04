@@ -49,7 +49,7 @@ export function SidebarPinned({
   const ids = projects.map((p) => p.name);
   return (
     <section aria-label="Pinned projects" className="shrink-0 pb-2" style={{ minWidth: width }}>
-      <h2 className="px-4 pb-1.5 text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">
+      <h2 className="pb-1 pl-[18px] pr-4 pt-3.5 text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">
         Pinned
       </h2>
       <div className="max-h-[35vh] overflow-y-auto px-2">

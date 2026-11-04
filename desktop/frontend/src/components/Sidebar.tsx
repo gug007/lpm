@@ -1690,7 +1690,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       style={{ width: collapsed ? 0 : width, overflow: collapsed ? "hidden" : undefined }}
     >
       <div
-        className="app-drag flex h-11 shrink-0 items-center justify-end pr-3 pt-3 native-chrome:pt-[7px]"
+        className="app-drag flex h-11 shrink-0 items-center justify-end pr-[15px] pt-3 native-chrome:pt-[7px]"
         style={{ minWidth: width }}
       >
         {!isMac && <AppMenuButton onSettings={onSettings} onFeedback={onFeedback} />}
@@ -1722,21 +1722,26 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           onAgentAction={agentAction}
         />
       )}
-      <div className="flex items-center justify-between px-4 pb-2" style={{ minWidth: width }}>
+      <div
+        // The ink lines up, not the boxes: the label starts on the folder glyph,
+        // and the toggle above, + and Select all end where a folder's count ends.
+        className="flex items-center justify-between pb-0.5 pl-[18px] pr-4 pt-3"
+        style={{ minWidth: width }}
+      >
         <h2 className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">
           Projects
         </h2>
         {selectMode ? (
           <button
             onClick={() => setSelectedForDelete(new Set(allSelected ? [] : scopeNames))}
-            className="rounded px-1 text-[11px] font-medium text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            className="-mr-1 h-5 rounded px-1 text-[11px] font-medium text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
           >
             {allSelected ? "Select none" : "Select all"}
           </button>
         ) : (
           <button
             onClick={onAddProject}
-            className="flex h-5 w-5 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] [&_svg]:h-3.5 [&_svg]:w-3.5"
+            className="-mr-[5px] flex h-5 w-5 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] [&_svg]:h-3.5 [&_svg]:w-3.5"
             title="Add project"
           >
             <PlusIcon />
