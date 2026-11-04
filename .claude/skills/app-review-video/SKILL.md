@@ -1,8 +1,10 @@
 ---
 name: app-review-video
+description: "Record the App Store review demo video for lpm Link: the lpm desktop app and lpm Link on a physical iPhone (live through iPhone Mirroring) side by side, pairing and then controlling the Mac from the phone, driven with computer use. Isolated review Mac with demo projects, recorder that captures only those two windows plus a log of the clicks, waits between clicks cut, tap ripples, close-ups on the phone, other people's Mac names blurred, numbered step captions, title and closing cards, 1920x1080 MP4. Use when the user asks for an App Store / App Review / Apple review video, a physical-device demo video, or a video of connecting the iPhone to the Mac."
 version: 1.1.0
 argument-hint: "[--device \"iPhone 18 Pro\"] [--build <n>]"
-description: "Record the App Store review demo video for lpm Link: the lpm desktop app and lpm Link on a physical iPhone (live through iPhone Mirroring) side by side, pairing and then controlling the Mac from the phone, driven with computer use. Isolated review Mac with demo projects, recorder that captures only those two windows plus a log of the clicks, waits between clicks cut, tap ripples, close-ups on the phone, other people's Mac names blurred, numbered step captions, title and closing cards, 1920x1080 MP4. Use when the user asks for an App Store / App Review / Apple review video, a physical-device demo video, or a video of connecting the iPhone to the Mac."
+metadata:
+  lpm-created: "true"
 ---
 
 App Review asks for a video of lpm Link on a **physical device** connected to the Mac (the

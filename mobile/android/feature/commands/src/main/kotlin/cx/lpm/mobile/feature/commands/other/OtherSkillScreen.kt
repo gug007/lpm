@@ -47,7 +47,7 @@ fun OtherSkillRoute(key: OtherSkillKey, onBack: () -> Unit, modifier: Modifier =
         scope = key.scope,
         name = key.name,
         session = key.session,
-        onConvertDone = onBack,
+        onClose = onBack,
         leading = { BackButton(onBack) },
         modifier = modifier
     )
@@ -60,7 +60,7 @@ internal fun OtherSkillHost(
     scope: CommandScope,
     name: String,
     session: SessionKey,
-    onConvertDone: () -> Unit,
+    onClose: () -> Unit,
     leading: @Composable RowScope.() -> Unit,
     modifier: Modifier = Modifier,
     inSheet: Boolean = false,
@@ -88,7 +88,7 @@ internal fun OtherSkillHost(
                 folders = list.folders,
                 canChange = viewModel.canChange,
                 onMove = { viewModel.move(name, it) },
-                onConvert = { viewModel.convert(name, onConvertDone) }
+                onConvert = { viewModel.convert(name, onClose) }
             )
         }
     }

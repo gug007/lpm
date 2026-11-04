@@ -1,8 +1,10 @@
 ---
 name: app-store-screenshots
+description: "Make the App Store screenshots for lpm Link (iPhone 6.3\" 1206x2622, iPad 13\" 2064x2752 and iPhone Duo closed 1398x2034 and open 2007x2853) from the current mobile/ source: a screenshot build of the app opens each screen straight into Demo Mode sample data in the iOS Simulator (no taps, no personal data), and each capture is laid into a store image with a headline, a subline and a device frame. Captions, order and screens live in shots.json. Use when the user asks for new, updated or regenerated App Store / App Store Connect screenshots, store images, or product page screenshots for the iOS app."
 version: 1.0.0
 argument-hint: "[--device iphone|ipad|duo-closed|duo-open] [--only name,name]"
-description: "Make the App Store screenshots for lpm Link (iPhone 6.3\" 1206x2622, iPad 13\" 2064x2752 and iPhone Duo closed 1398x2034 and open 2007x2853) from the current mobile/ source: a screenshot build of the app opens each screen straight into Demo Mode sample data in the iOS Simulator (no taps, no personal data), and each capture is laid into a store image with a headline, a subline and a device frame. Captions, order and screens live in shots.json. Use when the user asks for new, updated or regenerated App Store / App Store Connect screenshots, store images, or product page screenshots for the iOS app."
+metadata:
+  lpm-created: "true"
 ---
 
 Makes the lpm Link App Store screenshots again whenever the app changes, with no

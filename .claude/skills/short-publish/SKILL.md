@@ -1,8 +1,10 @@
 ---
 name: short-publish
+description: "Post a finished vertical lesson from ~/Movies/lpm-lessons/tiktok/<slug>/ to YouTube Shorts (LPM channel, through Chrome) and TikTok (@lpm06557, from the user's iPhone through iPhone Mirroring) in parallel: the MP4, the caption and hashtags from post.txt, the headline cover, each platform's settings, then both links logged and the title listed in SHORTS.md. Use when the user asks to upload, publish or post a short, vertical, TikTok or YouTube Shorts video, to one platform or both."
 version: 2.3.0
 argument-hint: "<slug> [youtube|tiktok]"
-description: "Post a finished vertical lesson from ~/Movies/lpm-lessons/tiktok/<slug>/ to YouTube Shorts (LPM channel, through Chrome) and TikTok (@lpm06557, from the user's iPhone through iPhone Mirroring) in parallel: the MP4, the caption and hashtags from post.txt, the headline cover, each platform's settings, then both links logged and the title listed in SHORTS.md. Use when the user asks to upload, publish or post a short, vertical, TikTok or YouTube Shorts video, to one platform or both."
+metadata:
+  lpm-created: "true"
 ---
 
 Post a vertical lesson to YouTube Shorts and TikTok at the same time.

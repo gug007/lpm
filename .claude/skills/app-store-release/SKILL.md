@@ -1,8 +1,10 @@
 ---
 name: app-store-release
+description: "Release the latest lpm Link iOS build on App Store Connect (appstoreconnect.apple.com) through Chrome: first suggest the What's New text for the user's OK, then upload a build with mobile/ios/deploy.sh when needed, add the new version, attach the newest build, save What's New, refresh the screenshots (app-store-screenshots) and review video (app-review-video) when they're stale, then submit for review. Use when the user asks to release, ship or submit lpm Link / the iOS app to the App Store."
 version: 1.1.0
 argument-hint: "[--upload] [--screenshots] [--video]"
-description: "Release the latest lpm Link iOS build on App Store Connect (appstoreconnect.apple.com) through Chrome: first suggest the What's New text for the user's OK, then upload a build with mobile/ios/deploy.sh when needed, add the new version, attach the newest build, save What's New, refresh the screenshots (app-store-screenshots) and review video (app-review-video) when they're stale, then submit for review. Use when the user asks to release, ship or submit lpm Link / the iOS app to the App Store."
+metadata:
+  lpm-created: "true"
 ---
 
 1. **What's New first.** Before opening Chrome or uploading anything, draft the release notes:

@@ -72,7 +72,7 @@ fun ManageCommandsSheet(key: ManageCommandsKey, onDone: () -> Unit, modifier: Mo
                 scope = page.scope,
                 name = page.name,
                 session = key.session,
-                onConvertDone = navigator::back,
+                onClose = navigator::back,
                 leading = { BackButton(navigator::back) },
                 inSheet = true
             )

@@ -1,7 +1,9 @@
 ---
 name: short-daily
-version: 1.2.0
 description: "The daily model-race short, run by the `daily-short` lpm automation every morning: read the comments on the LPM YouTube channel (@lpmcx) and TikTok (@lpm06557), pick the comparison viewers asked for (or a researched one when nobody asked) and the format to race it on (experimenting with new prompts, every format scored by its views), ask the user which matchup to record through `lpm ask` (the day's only question), then, in the turn the answer starts, record it with short-race or short-game, check it, post it to YouTube Shorts and TikTok (both through Chrome), reply to the viewers whose idea it was, and report both links. Use when the daily-short automation runs, or when the user asks for today's short proposal."
+version: 1.2.0
+metadata:
+  lpm-created: "true"
 ---
 
 The goal is a bigger YouTube and TikTok audience: every pick, hook, title and reply is chosen for views, watch time, comments and follows. The recording and posting belong to `short-race`, `short-game`, `short` and `short-publish`, and what they say holds unless this file says otherwise. Where they differ, this file wins.

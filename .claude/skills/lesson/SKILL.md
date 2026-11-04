@@ -1,8 +1,10 @@
 ---
 name: lesson
+description: Make a narrated lesson video about lpm from the real desktop app, recorded on a pristine data directory. Title and optional narration text in, MP4 with OpenAI voice out, audio in sync with the clicks. Use when the user asks for a video lesson, tutorial, screencast, or YouTube video about lpm.
 version: 4.2.0
 argument-hint: "\"<title>\" [-- <text>]"
-description: "Make a narrated lesson video about lpm from the real desktop app, recorded on a pristine data directory. Title and optional narration text in, MP4 with OpenAI voice out, audio in sync with the clicks. Use when the user asks for a video lesson, tutorial, screencast, or YouTube video about lpm."
+metadata:
+  lpm-created: "true"
 ---
 
 Generate a video tutorial from a title and optional narration text.

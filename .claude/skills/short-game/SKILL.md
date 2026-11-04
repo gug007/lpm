@@ -1,8 +1,10 @@
 ---
 name: short-game
+description: "Make a short vertical (9:16) video where two AI models build the same self-playing game in lpm, one above the other, and both games then play live in lpm's browser. It is a short-race whose prompt comes from a ready game catalog (3D endless runner, 3D racer, Flappy Bird, Snake, space shooter, Breakout, a GTA-style police chase), with the hook, headline, title and caption written around the game and the brand pair people search for (\"Claude vs Gemini: build a 3D game 🎮\"). Models in, 1080x1920 MP4 + cover + post caption out. Use when the user asks for a TikTok, Reel or Short where models build a game, such as \"opus 5.5 high vs gemini 3.1 pro build a 3D game\", \"Claude vs GPT 6: Opus 5.5 high vs Astra high build a 3D game\" or \"claude vs grok make flappy bird\". A race on any other prompt is short-race."
 version: 1.3.0
 argument-hint: "\"<model A>\" vs \"<model B>\" [game: runner|racer|flappy|snake|shooter|breakout|gta] [title: …]"
-description: "Make a short vertical (9:16) video where two AI models build the same self-playing game in lpm, one above the other, and both games then play live in lpm's browser. It is a short-race whose prompt comes from a ready game catalog (3D endless runner, 3D racer, Flappy Bird, Snake, space shooter, Breakout, a GTA-style police chase), with the hook, headline, title and caption written around the game and the brand pair people search for (\"Claude vs Gemini: build a 3D game 🎮\"). Models in, 1080x1920 MP4 + cover + post caption out. Use when the user asks for a TikTok, Reel or Short where models build a game, such as \"opus 5.5 high vs gemini 3.1 pro build a 3D game\", \"Claude vs GPT 6: Opus 5.5 high vs Astra high build a 3D game\" or \"claude vs grok make flappy bird\". A race on any other prompt is short-race."
+metadata:
+  lpm-created: "true"
 ---
 
 A short-race with a game for its prompt. `scripts/new.js` writes the lesson through short-race's own `new.js`, so everything in `../short-race/SKILL.md` and `../short/SKILL.md` still holds (models and CLIs, Run in duplicates, the take, the review) and is not repeated here. This file covers only what a game race adds.
