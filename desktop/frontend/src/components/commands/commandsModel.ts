@@ -168,9 +168,20 @@ function skillsRootOf(path: string): string | null {
 // from ~ for a global skill. A saved skill stays in the skills folder it's in
 // (Claude's own, say) when renamed; a new one, or one moving to the other list,
 // goes to that list's .agents/skills.
-export function commandPath(c: CommandRef, saved?: Pick<LpmCommand, "scope" | "path"> | null): string {
+export function commandPath(
+  c: Pick<CommandRef, "scope" | "name">,
+  saved?: Pick<LpmCommand, "scope" | "path"> | null,
+): string {
   const kept = saved?.path && saved.scope === c.scope ? skillsRootOf(saved.path) : null;
   return `${c.scope === "global" ? "~/" : ""}${kept ?? ".agents/skills"}/${c.name || "name"}/SKILL.md`;
+}
+
+// The file a draft's name is saved as, if it is.
+export function draftFile(
+  c: Pick<CommandRef, "scope" | "name">,
+  saved?: Pick<LpmCommand, "scope" | "name" | "path"> | null,
+): string | null {
+  return saved?.path && saved.scope === c.scope && saved.name === c.name ? saved.path : null;
 }
 
 // The scopes this place has: global always, the project's own list when the

@@ -55,8 +55,8 @@ fn a_stream_says_where_git_stands_on_each_skill() {
     let snap = parse_snapshot(&bytes, "", "");
     assert!(snap.in_repo);
     let git = |name: &str| snap.files.iter().find(|f| f.name == name).unwrap().git;
-    assert_eq!(git("fix"), SkillGit { kept_out: false, tracked: true });
-    assert_eq!(git("kept"), SkillGit { kept_out: true, tracked: false });
+    assert_eq!(git("fix"), SkillGit { tracked: true, ..SkillGit::default() });
+    assert_eq!(git("kept"), SkillGit { kept_out: true, ..SkillGit::default() });
 }
 
 #[test]
@@ -95,8 +95,8 @@ fn the_script_reports_git_as_a_host_would() {
     let snap = parse_snapshot(&out.stdout, "", "");
     assert!(snap.in_repo);
     let state = |name: &str| snap.files.iter().find(|f| f.name == name).unwrap().git;
-    assert_eq!(state("kept"), SkillGit { kept_out: true, tracked: false });
-    assert_eq!(state("open"), SkillGit { kept_out: false, tracked: true });
+    assert_eq!(state("kept"), SkillGit { kept_out: true, ..SkillGit::default() });
+    assert_eq!(state("open"), SkillGit { tracked: true, ..SkillGit::default() });
 }
 
 #[cfg(unix)]

@@ -349,7 +349,19 @@ describe("a host project's files", () => {
     });
   });
 
-  // Reveal in Finder and Open hand a skill's file back to the host.
+  it("marks an other skill's host path, so the viewer and Agent setup reach it", () => {
+    const theirs = "/Users/them/web/.claude/skills/deploy/SKILL.md";
+    const lists = { global: { folders: [], commands: [] }, project: { folders: [], commands: [], others: [{ name: "deploy", path: theirs }] }, projectError: null };
+    const marked = translateResult("list_lpm_commands", SLUG, lists) as typeof lists;
+    expect(marked.project.others[0].path).toBe(prefixRoot(SLUG, theirs));
+  });
+
+  it("leaves a list without other skills as an older host sends it", () => {
+    const lists = { global: { folders: [], commands: [] }, project: null, projectError: null };
+    expect(translateResult("list_lpm_commands", SLUG, lists)).toEqual(lists);
+  });
+
+  // The viewer reads a skill's file on the host.
   it("marks the host paths of lpm skills in both lists", () => {
     const own = "/Users/them/web/.claude/skills/ship/SKILL.md";
     const mine = "/Users/them/.agents/skills/explain/SKILL.md";

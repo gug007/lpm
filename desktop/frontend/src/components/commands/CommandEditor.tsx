@@ -1,19 +1,21 @@
 import { useEffect, useRef } from "react";
 import { Trash2 } from "lucide-react";
 import { allCommands, commandKey, promptVariables, sameCommand, shadowNote, type LpmCommandLists } from "../../lpmCommands";
-import { stripMarker } from "../../peer/markers";
 import { isMac } from "../../platform";
 import { FIELD_CLASS } from "../ui/fields";
 import { CommandFieldIssue } from "./CommandFieldIssue";
 import { CommandGitSwitch } from "./CommandGitSwitch";
 import { CommandPlaceSelect } from "./CommandPlaceSelect";
-import { canKeepOutOfGit, commandPath, draftIssue, isDirty, keptOutNote, type Draft } from "./commandsModel";
+import { canKeepOutOfGit, commandPath, draftFile, draftIssue, isDirty, keptOutNote, type Draft } from "./commandsModel";
+import type { SkillFiles } from "./skillFile";
+import { SkillPathButton } from "./SkillPathButton";
 import { SkillPromptEditor } from "./SkillPromptEditor";
 
 interface CommandEditorProps {
   draft: Draft;
   lists: LpmCommandLists;
   projectLabel: string;
+  files: SkillFiles;
   saving: boolean;
   onChange: (draft: Draft) => void;
   onSave: () => void;
@@ -29,7 +31,7 @@ const insideMonaco = (target: EventTarget | null) =>
 
 // The right column of the Skills tab: one skill's name, folder, the line the
 // `/` menu shows beside it, and its prompt. ⌘S or Save writes the file.
-export function CommandEditor({ draft, lists, projectLabel, saving, onChange, onSave, onDelete }: CommandEditorProps) {
+export function CommandEditor({ draft, lists, projectLabel, files, saving, onChange, onSave, onDelete }: CommandEditorProps) {
   const nameRef = useRef<HTMLInputElement>(null);
   const isNew = draft.original === null;
   const saved = draft.original ? allCommands(lists).find((c) => sameCommand(c, draft.original)) : null;
@@ -176,12 +178,7 @@ export function CommandEditor({ draft, lists, projectLabel, saving, onChange, on
         </p>
       </div>
       <div className="flex shrink-0 items-center gap-2 border-t border-[var(--border)] px-4 py-2.5">
-        <span
-          className="min-w-0 flex-1 truncate font-mono text-[11px] text-[var(--text-muted)]"
-          title={saved?.path && saved.scope === draft.scope && saved.name === draft.name ? stripMarker(saved.path) : undefined}
-        >
-          {commandPath(draft, saved)}
-        </span>
+        <SkillPathButton label={commandPath(draft, saved)} path={draftFile(draft, saved)} scope={draft.scope} files={files} />
         {dirty && <span className="shrink-0 text-[11px] text-[var(--text-muted)]">Unsaved</span>}
         {!isNew && (
           <button

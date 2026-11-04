@@ -1,13 +1,16 @@
 import { Check, ExternalLink, Lock } from "lucide-react";
 import type { CommandScope, LpmCommandLists, OtherSkill } from "../../lpmCommands";
 import { CommandPlaceSelect } from "./CommandPlaceSelect";
-import { agentReach, scopeTitle, type OtherSpot } from "./commandsModel";
+import { agentReach, commandPath, scopeTitle, type OtherSpot } from "./commandsModel";
+import type { SkillFiles } from "./skillFile";
+import { SkillPathButton } from "./SkillPathButton";
 
 interface CommandOtherViewProps {
   skill: OtherSkill;
   scope: CommandScope;
   lists: LpmCommandLists;
   projectLabel: string;
+  files: SkillFiles;
   onMove: (spot: OtherSpot) => void;
   onConvert: () => void;
   onOpenInAgentSetup: () => void;
@@ -22,10 +25,12 @@ export function CommandOtherView({
   scope,
   lists,
   projectLabel,
+  files,
   onMove,
   onConvert,
   onOpenInAgentSetup,
 }: CommandOtherViewProps) {
+  const saved = { ...skill, scope };
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto px-4 pb-4 pt-3">
@@ -92,9 +97,7 @@ export function CommandOtherView({
         )}
       </div>
       <div className="flex shrink-0 items-center gap-2 border-t border-[var(--border)] px-4 py-2.5">
-        <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-[var(--text-muted)]" title={skill.path}>
-          {skill.path}
-        </span>
+        <SkillPathButton label={commandPath(saved, saved)} path={skill.path} scope={scope} files={files} />
         <button
           type="button"
           onClick={onConvert}

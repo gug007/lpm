@@ -9,7 +9,8 @@ import type { FolderKey } from "./commandFolders";
 // What the menu of a skill made in lpm can do, to one skill or several.
 export interface SkillMenuActions {
   lists: LpmCommandLists;
-  // Reveal and Open need a file this computer can reach.
+  // Open needs a file lpm can read; Reveal one on this computer.
+  canOpen: (c: LpmCommand) => boolean;
   canReveal: (c: LpmCommand) => boolean;
   copyName: (c: LpmCommand) => void;
   duplicate: (c: LpmCommand) => void;
@@ -54,6 +55,7 @@ const IDLE: SkillTreeState = {
   clearPicks: none,
   menu: {
     lists: EMPTY_LISTS,
+    canOpen: () => false,
     canReveal: () => false,
     copyName: none,
     duplicate: none,

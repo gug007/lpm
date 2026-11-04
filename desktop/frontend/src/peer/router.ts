@@ -236,14 +236,14 @@ const SKILL_LIST_CMDS = new Set([
   "convert_skill",
 ]);
 
-// A skill's SKILL.md is named by its host path, which Reveal in Finder and Open
-// hand back to the host.
+// A skill's SKILL.md is named by its host path, which the viewer reads there and
+// Agent setup finds it by. Skills from an older host have no path to mark.
 function markSkillPaths(slug: string, lists: unknown): unknown {
   if (!lists || typeof lists !== "object") return lists;
   const mark = (list: unknown) => {
     if (!list || typeof list !== "object") return list;
-    const l = list as { commands?: unknown };
-    return { ...list, commands: markPaths(slug, l.commands) };
+    const l = list as { commands?: unknown; others?: unknown };
+    return { ...list, commands: markPaths(slug, l.commands), others: markPaths(slug, l.others) };
   };
   const l = lists as { global?: unknown; project?: unknown };
   return { ...lists, global: mark(l.global), project: mark(l.project) };

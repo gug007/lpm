@@ -11,7 +11,7 @@ description: "Operate lpm-managed projects through the `lpm` CLI: start or stop 
 - The project name is inferred from `LPM_PROJECT_NAME` or the current directory — omit it inside lpm terminals.
 - Default output is compact text (cheapest); add `--json` only when you need to parse the result.
 - Exit codes: `0` ok, `2` usage / not found / app not running, `1` failure / timeout.
-- `config get`, `config apply`, `commands`, and control commands need the lpm app running; other inspection commands do not.
+- `config get`, `config apply`, `skills`, and control commands need the lpm app running; other inspection commands do not.
 
 ### Commands
 

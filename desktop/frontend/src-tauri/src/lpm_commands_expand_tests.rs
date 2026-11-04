@@ -79,6 +79,7 @@ fn command(name: &str, scope: Scope, body: &str) -> LpmCommand {
         reach: Default::default(),
         kept_out_of_git: false,
         tracked: false,
+        awaiting_commit: false,
         path: String::new(),
         runs: None,
         last_run_at: None,

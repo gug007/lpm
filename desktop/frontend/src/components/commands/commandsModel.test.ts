@@ -6,6 +6,7 @@ import {
   commandPath,
   commandTree,
   draftAfterFolderMove,
+  draftFile,
   draftOf,
   draftProblem,
   findOther,
@@ -380,5 +381,14 @@ describe("where a skill's file is", () => {
     expect(commandPath({ ...own, scope: "global" }, own)).toBe("~/.agents/skills/lesson/SKILL.md");
     expect(commandPath(cmd("", "project", null), null)).toBe(".agents/skills/name/SKILL.md");
     expect(commandPath(cmd("old", "project", null), cmd("old", "project", null))).toBe(".agents/skills/old/SKILL.md");
+  });
+
+  it("has a file on disk only while the draft still names the saved one", () => {
+    const own = at("/Users/me/lpm/.claude/skills/lesson/SKILL.md");
+    expect(draftFile(own, own)).toBe(own.path);
+    expect(draftFile({ ...own, name: "lessons" }, own)).toBeNull();
+    expect(draftFile({ ...own, scope: "global" }, own)).toBeNull();
+    expect(draftFile(own, null)).toBeNull();
+    expect(draftFile(own, cmd("lesson", "project", null))).toBeNull();
   });
 });

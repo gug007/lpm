@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LpmCommand, LpmCommandLists } from "../../lpmCommands";
 import { CommandEditor } from "./CommandEditor";
 import { draftOf, type Draft } from "./commandsModel";
+import type { SkillFiles } from "./skillFile";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -23,6 +24,8 @@ const skill = (over: Partial<LpmCommand> = {}): LpmCommand => ({
   argumentHint: "",
   ...over,
 });
+
+const FILES: SkillFiles = { reachOf: () => "here", open: () => {} };
 
 const listsWith = (c: LpmCommand, inRepo = true): LpmCommandLists => ({
   project: { folders: [], commands: [c], inRepo },
@@ -53,6 +56,7 @@ describe("the Keep out of Git switch", () => {
           draft={draft}
           lists={lists}
           projectLabel="app"
+          files={FILES}
           saving={false}
           onChange={onChange}
           onSave={() => {}}
@@ -125,6 +129,7 @@ describe("a problem with the draft", () => {
           draft={draft}
           lists={lists}
           projectLabel="app"
+          files={FILES}
           saving={false}
           onChange={onChange}
           onSave={() => {}}

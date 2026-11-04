@@ -1,7 +1,9 @@
 import type { CommandMap } from "../backend";
 import { emitEvent } from "../ipc";
+import { joinAbs } from "../../path";
 import { isBinary } from "../seed/sample";
 import { demoDirsIn, fileEditCommands } from "./fileEdits";
+import { demoSkillFile } from "./lpmCommands";
 import { projectAt, project, type Project } from "./state";
 
 export function tree(root: unknown): Record<string, string> {
@@ -72,10 +74,12 @@ export const fileCommands: CommandMap = {
   list_dir_entries: ({ root, rel }) => listing(root, String(rel ?? "")),
   list_dir_files: ({ root }) => allPaths(tree(root)),
   read_project_file: ({ root, rel }) => {
-    const content = tree(root)[String(rel)];
+    const stored = tree(root)[String(rel)];
+    const content = stored ?? demoSkillFile(joinAbs(String(root), String(rel)));
     if (content === undefined) throw new Error(`${rel}: No such file`);
     const binary = isBinary(String(rel));
-    return { content: binary ? "" : content, binary, tooLarge: false, size: content.length, writable: !binary };
+    const writable = stored !== undefined && !binary;
+    return { content: binary ? "" : content, binary, tooLarge: false, size: content.length, writable };
   },
   file_exists: ({ absPath }) => {
     const hit = locate(String(absPath));

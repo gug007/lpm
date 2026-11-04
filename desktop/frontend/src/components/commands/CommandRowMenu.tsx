@@ -70,10 +70,12 @@ export function CommandRowMenu({ x, y, targets, onClose }: CommandRowMenuProps) 
           onClick={run(() => menu.keepOut(gitable, !allKept))}
         />
       )}
-      {one && menu.canReveal(one) && (
+      {one && menu.canOpen(one) && (
         <>
           <ContextMenuSeparator />
-          <ContextMenuItem icon={<FolderSearch size={ICON} />} label={revealLabel()} onClick={run(() => menu.reveal(one))} />
+          {menu.canReveal(one) && (
+            <ContextMenuItem icon={<FolderSearch size={ICON} />} label={revealLabel()} onClick={run(() => menu.reveal(one))} />
+          )}
           <ContextMenuItem icon={<FileText size={ICON} />} label="Open SKILL.md" onClick={run(() => menu.open(one))} />
         </>
       )}

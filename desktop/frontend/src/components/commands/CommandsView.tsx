@@ -19,7 +19,6 @@ import {
   sameCommand,
   scopeList,
 } from "../../lpmCommands";
-import { useAppStore } from "../../store/app";
 import { useCommandsOpen } from "../../store/commandsOpen";
 import { useSkillsUnsaved } from "../../store/skillsUnsaved";
 import { useToolkitOpen } from "../../store/toolkitOpen";
@@ -34,7 +33,6 @@ import {
   useLpmCommandLists,
 } from "../../store/lpmCommands";
 import { copyText, revealInFinder } from "../files/fileActions";
-import { openInDefaultApp } from "../terminal/openInDefaultApp";
 import { EmptyState } from "../ui/EmptyState";
 import {
   type DraggedFolder,
@@ -64,9 +62,11 @@ import {
   type OtherSpot,
   type SkillRowActions,
 } from "./commandsModel";
+import { canOpenSkillFile, canRevealSkillFile } from "./skillFile";
 import { skillOps } from "./skillOps";
 import type { SkillMenuActions } from "./skillTreeContext";
 import { loadSkillSort, saveSkillSort, type SkillSort } from "./skillUsage";
+import { useSkillFiles } from "./useSkillFiles";
 
 interface CommandsViewProps {
   tabId: string;
@@ -92,7 +92,7 @@ export function CommandsView({ tabId, projectName, projectLabel, visible, focuse
   const [dragging, setDragging] = useState<string | null>(null);
   const [sort, setSort] = useState<SkillSort>(loadSkillSort);
   const [picked, setPicked] = useState<ReadonlySet<string>>(NO_PICKS);
-  const onSsh = useAppStore((s) => s.projects.find((p) => p.name === projectName)?.isRemote ?? false);
+  const files = useSkillFiles(projectName);
   const pendingDraft = useCommandsOpen((s) => (s.draft?.project === projectName ? s.draft.seq : null));
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
   const dirty = !!draft && !!lists && isDirty(draft, lists);
@@ -231,7 +231,8 @@ export function CommandsView({ tabId, projectName, projectLabel, visible, focuse
 
   const menu: SkillMenuActions = {
     lists,
-    canReveal: (c) => !!c.path && !(onSsh && c.scope === "project"),
+    canOpen: (c) => !!c.path && canOpenSkillFile(files.reachOf(c.path, c.scope)),
+    canReveal: (c) => !!c.path && canRevealSkillFile(files.reachOf(c.path, c.scope)),
     copyName: (c) => void copyText(`/${c.name}`),
     duplicate: (c) =>
       guard(
@@ -248,7 +249,7 @@ export function CommandsView({ tabId, projectName, projectLabel, visible, focuse
     copyTo: (cs, scope) => void ops.copyTo(cs, scope),
     keepOut: (cs, keep) => void ops.keepOut(cs, keep),
     reveal: (c) => c.path && void revealInFinder(c.path),
-    open: (c) => c.path && openInDefaultApp(c.path),
+    open: (c) => c.path && files.open(c.path),
     convert: (c) => convert(c.scope, c.name, false),
     remove: (cs) => setConfirm({ kind: "delete", targets: cs.map(commandRef) }),
   };
@@ -339,6 +340,7 @@ export function CommandsView({ tabId, projectName, projectLabel, visible, focuse
               draft={draft}
               lists={lists}
               projectLabel={projectLabel}
+              files={files}
               saving={saving}
               onChange={setDraft}
               onSave={() => void save()}
@@ -350,6 +352,7 @@ export function CommandsView({ tabId, projectName, projectLabel, visible, focuse
               scope={viewing.scope}
               lists={lists}
               projectLabel={projectLabel}
+              files={files}
               onMove={(spot) => moveOther(viewing.scope, other.name, spot)}
               onConvert={() => convert(viewing.scope, other.name, true)}
               onOpenInAgentSetup={() => actions.onOpenInAgentSetup(other)}

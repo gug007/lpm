@@ -108,6 +108,7 @@ describe("CommandTree", () => {
     onSelect = vi.fn<(c: LpmCommand) => void>();
     menu = {
       lists,
+      canOpen: () => true,
       canReveal: () => true,
       copyName: vi.fn(),
       duplicate: vi.fn(),

@@ -1,10 +1,11 @@
 import type { CommandMap } from "../backend";
 import { emitEvent } from "../ipc";
 import { folderAfterMove, folderParent, inTreeOrder, withParents } from "../../components/commands/commandFolders";
-import { AUTO_VARIABLES, findCommand, isValidCommandName, promptVariables, sameCommand } from "../../lpmCommands";
+import { allCommands, AUTO_VARIABLES, findCommand, isValidCommandName, promptVariables, sameCommand } from "../../lpmCommands";
 import type { CommandInput, CommandRef, CommandScope, LpmCommand, LpmCommandLists, OtherSkill } from "../../lpmCommands";
+import { joinAbs } from "../../path";
 import type { SeedLpmCommand } from "../seed/types";
-import { GLOBAL, projects, seedData } from "./state";
+import { GLOBAL, projectAt, projects, seedData } from "./state";
 
 // lpm skills in memory, by the rules the Rust side keeps (lpm_commands.rs):
 // one name per list whatever its case, folders that stay when emptied, folders
@@ -27,7 +28,7 @@ function hint(body: string): string {
   return asks.map((a) => `<${a}>`).join(" ");
 }
 
-function fromSeed(seeded: SeedLpmCommand[], scope: CommandScope): List {
+function fromSeed(seeded: SeedLpmCommand[], scope: CommandScope, root = ""): List {
   const loaded = Date.now();
   return {
     folders: withParents(seeded.flatMap((c) => (c.folder ? [c.folder] : []))),
@@ -39,7 +40,7 @@ function fromSeed(seeded: SeedLpmCommand[], scope: CommandScope): List {
       tracked: scope === "project",
       ...(runs ? { runs, lastRunAt: loaded - (ranAgo ?? 0) } : {}),
     })),
-    others: (seedData().lpmCommands?.others?.[scope] ?? []).map((o) => ({ ...o })),
+    others: (seedData().lpmCommands?.others?.[scope] ?? []).map((o) => ({ ...o, path: joinAbs(root, o.path) })),
     inRepo: scope === "project",
   };
 }
@@ -53,7 +54,7 @@ function projectList(project: string): List | null {
   if (!project || project === GLOBAL || !projects.has(project)) return null;
   let list = byProject.get(project);
   if (!list) {
-    list = fromSeed(seedData().lpmCommands?.project ?? [], "project");
+    list = fromSeed(seedData().lpmCommands?.project ?? [], "project", projects.get(project)?.root);
     byProject.set(project, list);
   }
   return list;
@@ -95,6 +96,17 @@ function lists(project: string): LpmCommandLists {
     project: own && withPaths(project, sorted(own)),
     projectError: null,
   };
+}
+
+// A demo skill has no file, so the viewer gets one made from what the list holds.
+export function demoSkillFile(path: string): string | undefined {
+  const shown = lists(projectAt(path)?.name ?? "");
+  const doc = (name: string, description: string, body: string, ours: boolean) =>
+    `---\nname: ${name}\ndescription: ${description || name}\n${ours ? 'metadata:\n  lpm-created: "true"\n' : ""}---\n\n${body}\n`;
+  const own = allCommands(shown).find((c) => c.path === path);
+  if (own) return doc(own.name, own.description, own.body, true);
+  const other = [shown.project, shown.global].flatMap((l) => l?.others ?? []).find((o) => o.path === path);
+  return other && doc(other.name, other.description, other.preview, false);
 }
 
 // "" when the global list changed, which every project shows; else the project.
@@ -265,7 +277,7 @@ export const lpmCommandCommands: CommandMap = {
         description: command.description,
         preview: command.body,
         agents: ["claude", "codex", "gemini", "opencode"],
-        path: `.agents/skills/${command.name}/SKILL.md`,
+        path: `${commandDir(str(project), command)}/SKILL.md`,
         folder: command.folder,
       });
     }

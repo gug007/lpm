@@ -19,6 +19,7 @@ const STAGED_DIFFERENT: &str = "staged content different";
 pub(crate) struct SkillGit {
     pub kept_out: bool,
     pub tracked: bool,
+    pub awaiting_commit: bool,
 }
 
 /// What git says of a list's folders, by paths from the project's folder.
@@ -26,19 +27,24 @@ pub(crate) struct SkillGit {
 pub(crate) struct GitView {
     pub ignored: HashSet<String>,
     pub tracked: Vec<String>,
+    /// What the last commit holds, which a staged removal hasn't changed yet.
+    pub committed: Vec<String>,
 }
 
 impl GitView {
     /// A skill by the `places` it has: a folder, and a link for Claude when
     /// it has one. All of them must be out, or a commit would still carry part of it.
     pub(crate) fn skill(&self, places: &[String]) -> SkillGit {
-        let holds = |place: &String| {
-            let inside = format!("{place}/");
-            self.tracked.iter().any(|t| t == place || t.starts_with(&inside))
+        let any_in = |paths: &[String]| {
+            places.iter().any(|place| {
+                let inside = format!("{place}/");
+                paths.iter().any(|p| p == place || p.starts_with(&inside))
+            })
         };
-        let tracked = places.iter().any(holds);
+        let tracked = any_in(&self.tracked);
         let ignored = places.iter().all(|p| self.ignored.contains(p));
-        SkillGit { tracked, kept_out: !tracked && !places.is_empty() && ignored }
+        let kept_out = !tracked && !places.is_empty() && ignored;
+        SkillGit { tracked, kept_out, awaiting_commit: kept_out && any_in(&self.committed) }
     }
 }
 
@@ -49,13 +55,18 @@ pub(crate) fn read_view(root: &Path, raw: &RawList) -> Option<GitView> {
     let places: Vec<String> = shared.chain(claude).collect();
     let asked: Vec<&str> = places.iter().map(String::as_str).collect();
     let ignored = crate::gitignore::ignored_in_repo(root, &asked)?;
-    let listed = crate::git::git_out(
-        &root.to_string_lossy(),
-        &["ls-files", "-z", "--", SHARED_ROOT, CLAUDE_ROOT],
-    )
-    .unwrap_or_default();
-    let tracked = listed.split('\0').filter(|p| !p.is_empty()).map(str::to_string).collect();
-    Some(GitView { ignored, tracked })
+    let paths = |args: &[&str]| {
+        let listed = crate::git::git_out(&root.to_string_lossy(), args).unwrap_or_default();
+        crate::gitconflict::nul_separated(listed.as_bytes())
+    };
+    let tracked = paths(&["ls-files", "-z", "--", SHARED_ROOT, CLAUDE_ROOT]);
+    // Only an ignored skill can be waiting for a commit.
+    let committed = if ignored.is_empty() {
+        Vec::new()
+    } else {
+        paths(&["ls-tree", "-r", "-z", "--name-only", "HEAD", "--", SHARED_ROOT, CLAUDE_ROOT])
+    };
+    Some(GitView { ignored, tracked, committed })
 }
 
 fn places(name: &str) -> [String; 2] {

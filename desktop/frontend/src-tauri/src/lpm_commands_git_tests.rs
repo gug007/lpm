@@ -147,6 +147,56 @@ fn a_committed_skill_has_its_removal_staged_and_stays_on_disk() {
 }
 
 #[test]
+fn a_committed_skill_waits_for_a_commit_until_its_removal_is_committed() {
+    let repo = Repo::new();
+    repo.committed_claude_skill("mine");
+    assert!(!repo.skill("mine").awaiting_commit, "still in git, nothing to finish");
+    repo.edit("mine", "mine", Some(true)).unwrap();
+    assert!(repo.skill("mine").awaiting_commit, "the last commit still holds it");
+    run_git(&repo.top, &["commit", "-qm", "stop tracking"]);
+    assert!(!repo.skill("mine").awaiting_commit, "the commit finished it");
+    assert!(repo.skill("mine").kept_out_of_git);
+}
+
+#[test]
+fn turning_it_off_ends_the_wait() {
+    let repo = Repo::new();
+    repo.committed_claude_skill("mine");
+    repo.edit("mine", "mine", Some(true)).unwrap();
+    repo.edit("mine", "mine", Some(false)).unwrap();
+    assert!(!repo.skill("mine").awaiting_commit);
+}
+
+#[test]
+fn a_skill_git_never_held_has_nothing_to_wait_for() {
+    let repo = Repo::new();
+    repo.save("mine", Some(true));
+    assert!(repo.skill("mine").kept_out_of_git);
+    assert!(!repo.skill("mine").awaiting_commit);
+}
+
+#[test]
+fn a_repo_without_a_commit_has_nothing_to_wait_for() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("repo");
+    std::fs::create_dir_all(&root).unwrap();
+    run_git(&root, &["init", "-q"]);
+    let stores = stores_at(&dir.path().join("home"), &root);
+    ops::save(&stores, input("mine", Some(true)), None).unwrap();
+    let list = list_stores(&stores).unwrap().project.unwrap();
+    assert!(list.commands[0].kept_out_of_git);
+    assert!(!list.commands[0].awaiting_commit);
+}
+
+#[test]
+fn a_project_in_a_subfolder_waits_too() {
+    let repo = Repo::at("apps/web");
+    repo.committed_claude_skill("mine");
+    repo.edit("mine", "mine", Some(true)).unwrap();
+    assert!(repo.skill("mine").awaiting_commit);
+}
+
+#[test]
 fn turning_it_off_before_committing_puts_git_back_as_it_was() {
     let repo = Repo::new();
     repo.committed_claude_skill("mine");
@@ -335,13 +385,28 @@ fn view_needs_every_place_out_and_nothing_tracked() {
     let view = GitView {
         ignored: [".agents/skills/a".to_string()].into(),
         tracked: vec![".claude/skills/b/SKILL.md".to_string()],
+        ..GitView::default()
     };
     let a = [".agents/skills/a".to_string(), ".claude/skills/a".to_string()];
-    assert_eq!(view.skill(&a), SkillGit { kept_out: false, tracked: false });
-    assert_eq!(view.skill(&a[..1]), SkillGit { kept_out: true, tracked: false });
-    assert_eq!(view.skill(&[".claude/skills/b".to_string()]), SkillGit { kept_out: false, tracked: true });
+    assert_eq!(view.skill(&a), SkillGit::default());
+    assert_eq!(view.skill(&a[..1]), SkillGit { kept_out: true, ..SkillGit::default() });
+    let b = [".claude/skills/b".to_string()];
+    assert_eq!(view.skill(&b), SkillGit { tracked: true, ..SkillGit::default() });
     assert_eq!(view.skill(&[".claude/skills/bb".to_string()]).tracked, false);
     assert_eq!(view.skill(&[]), SkillGit::default());
+}
+
+#[test]
+fn only_a_kept_out_skill_the_last_commit_holds_is_waiting() {
+    let place = ".claude/skills/a".to_string();
+    let file = format!("{place}/SKILL.md");
+    let waiting = GitView { ignored: [place.clone()].into(), tracked: vec![], committed: vec![file.clone()] };
+    let done = GitView { ignored: [place.clone()].into(), ..GitView::default() };
+    let in_git = GitView { tracked: vec![file.clone()], committed: vec![file], ..GitView::default() };
+    let places = [place];
+    assert_eq!(waiting.skill(&places), SkillGit { kept_out: true, tracked: false, awaiting_commit: true });
+    assert!(!done.skill(&places).awaiting_commit);
+    assert!(!in_git.skill(&places).awaiting_commit);
 }
 
 #[test]
@@ -361,4 +426,5 @@ fn the_wire_names_are_the_ones_every_client_reads() {
     assert_eq!(list["inRepo"], true);
     assert_eq!(list["commands"][0]["keptOutOfGit"], true);
     assert_eq!(list["commands"][0]["tracked"], false);
+    assert_eq!(list["commands"][0]["awaitingCommit"], false);
 }

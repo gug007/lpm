@@ -74,7 +74,7 @@ control projects — start, stop, restart services, set agent status — by aski
 app over that socket (so the app stays the single owner of run-state).\n\n\
 Inspection commands: `list`, `project`, `logs`, `status`, `config resolve`, `config validate`. \
 Config transactions (need the app running): `config get`, `config apply`. Control commands: \
-`start`, `stop`, `service`, `set-status`, `clear-status`, `duplicate`, `worktree`, `remove`, `run`, `refresh-label`, `automations`, `commands`. \
+`start`, `stop`, `service`, `set-status`, `clear-status`, `duplicate`, `worktree`, `remove`, `run`, `refresh-label`, `automations`, `skills`. \
 `auto-pull` shows whether the app pulls a project by itself; `auto-pull --set` changes it \
 through the running app. \
 Inside an automation run, `ask` puts a question to the user and waits for the answer. \
@@ -113,7 +113,6 @@ enum Commands {
     #[command(
         name = "skills",
         visible_alias = "skill",
-        aliases = ["commands", "command"],
         about = "List, show, add, edit, and remove /name skills every agent can read"
     )]
     Saved {

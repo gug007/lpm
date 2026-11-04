@@ -50,6 +50,8 @@ pub struct LpmCommand {
     pub kept_out_of_git: bool,
     /// Git holds some of its files.
     pub tracked: bool,
+    /// Kept out, but the last commit still holds it until the removal is committed.
+    pub awaiting_commit: bool,
     /// Its SKILL.md, as the computer holding the list names it.
     pub path: String,
     /// How many times it ran on this computer (lpm_commands_usage), and when it
@@ -319,6 +321,7 @@ fn read_scope(fs: &dyn CommandFs, scope: Scope) -> Result<ScopeList, String> {
             reach: f.reach,
             kept_out_of_git: f.git.kept_out,
             tracked: f.git.tracked,
+            awaiting_commit: f.git.awaiting_commit,
         })
         .collect();
     folders.sort_by_key(|f| folder_order(f));

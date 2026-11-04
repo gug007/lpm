@@ -49,6 +49,7 @@ done
   cd \"$R\" 2>/dev/null && git rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 0
   printf 'G\\n'
   git ls-files -- {shared} {claude_root} | while IFS= read -r p; do printf 'T\\037%s\\n' \"$p\"; done
+  git ls-tree -r --name-only HEAD -- {shared} {claude_root} 2>/dev/null | while IFS= read -r p; do printf 'H\\037%s\\n' \"$p\"; done
   printf '%s\\n' {shared}/* {claude_root}/* | git check-ignore --stdin 2>/dev/null | while IFS= read -r p; do printf 'I\\037%s\\n' \"$p\"; done
 )
 true
@@ -111,6 +112,7 @@ pub(crate) fn parse_snapshot(bytes: &[u8], skills_dir: &str, claude_dir: &str) -
             ["L"] => raw.legacy = true,
             ["G"] => raw.git = Some(GitView::default()),
             ["T", path] => raw.git.get_or_insert_default().tracked.push(path.to_string()),
+            ["H", path] => raw.git.get_or_insert_default().committed.push(path.to_string()),
             ["I", path] => {
                 raw.git.get_or_insert_default().ignored.insert(path.to_string());
             }

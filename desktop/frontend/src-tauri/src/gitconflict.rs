@@ -19,7 +19,7 @@ pub(crate) fn unmerged_files(cwd: &str) -> Vec<String> {
 /// The paths of a `-z` listing, verbatim. Without `-z` git C-quotes non-ASCII
 /// and special-character names (`"\344\270\255.txt"`), which no longer match
 /// the names in MERGE_MSG or the status list.
-fn nul_separated(out: &[u8]) -> Vec<String> {
+pub(crate) fn nul_separated(out: &[u8]) -> Vec<String> {
     String::from_utf8_lossy(out)
         .split('\0')
         .filter(|p| !p.is_empty())
