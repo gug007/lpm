@@ -42,6 +42,12 @@ internal fun DemoServer.demoCommandSlashRows(project: String): List<Dict> =
 
 private fun DemoServer.answerCommands(verb: String, o: Dict) {
     val project = o.string("project") ?: ""
+    // A run counts against its skill's list, so the change it pushes names that list.
+    val ranScope = if (verb == "lpmCommandExpand") {
+        effectiveCommand(project, o.string("name") ?: "")?.second
+    } else {
+        null
+    }
     val reply: MutableMap<String, Any?> = try {
         commandsReply(verb, project, o).toMutableMap().apply { put("ok", true) }
     } catch (e: DemoCommandError) {
@@ -51,13 +57,9 @@ private fun DemoServer.answerCommands(verb: String, o: Dict) {
     reply["project"] = project
     if (o.containsKey("reqId")) reply["reqId"] = o["reqId"]
     pushAfter(0.2, reply)
-    val changed = reply["ok"] == true && verb != "lpmCommands" && verb != "lpmCommandExpand"
-    if (changed) {
-        pushAfter(
-            0.2,
-            mapOf("t" to "lpmCommandsChanged", "project" to if (touchesGlobal(o)) "" else project)
-        )
-    }
+    if (reply["ok"] != true || verb == "lpmCommands") return
+    val global = if (verb == "lpmCommandExpand") ranScope == "global" else touchesGlobal(o)
+    pushAfter(0.2, mapOf("t" to "lpmCommandsChanged", "project" to if (global) "" else project))
 }
 
 /** A change to the global list, which every project shows, names no project in its push. */
@@ -124,8 +126,8 @@ internal fun DemoServer.updateCommands(
 }
 
 private fun DemoServer.commandLists(project: String): Dict = mapOf(
-    "global" to wireCommands(world.commandsGlobal, "global", project),
-    "project" to ownCommands(project)?.let { wireCommands(it, "project", project) },
+    "global" to wireCommands(world.commandsGlobal, "global", project, nowMillis()),
+    "project" to ownCommands(project)?.let { wireCommands(it, "project", project, nowMillis()) },
     "projectError" to null
 )
 
@@ -138,32 +140,49 @@ private fun DemoServer.effectiveCommands(project: String): List<Pair<DemoCommand
     return (own + global).filter { seen.add(it.first.name.lowercase()) }
 }
 
-private fun wireCommands(list: DemoCommandList, scope: String, project: String): Dict = mapOf(
-    "inRepo" to (scope == "project"),
-    "others" to list.others.sortedBy { it.name.lowercase() }.map { o ->
-        mapOf(
-            "name" to o.name,
-            "description" to o.description,
-            "preview" to o.preview,
-            "agents" to o.agents,
-            "path" to o.path.replace("{root}", "/Users/demo/dev/$project"),
-            "folder" to o.folder
-        ) + if (o.atRoot) mapOf("atRoot" to true) else emptyMap()
-    },
-    "folders" to list.folders.sortedBy(::folderOrder),
-    "commands" to sortedCommands(list.commands).map { c ->
-        mapOf(
-            "name" to c.name,
-            "folder" to c.folder,
-            "description" to c.description,
-            "body" to c.body,
-            "scope" to scope,
-            "argumentHint" to commandArgumentHint(c.body),
-            "keptOutOfGit" to c.keptOutOfGit,
-            "tracked" to (scope == "project" && c.tracked)
-        )
-    }
-)
+private fun DemoServer.effectiveCommand(project: String, name: String): Pair<DemoCommand, String>? {
+    val key = name.dropWhile { it == '/' }.lowercase()
+    return effectiveCommands(project).firstOrNull { it.first.name.lowercase() == key }
+}
+
+private fun skillsDir(scope: String, project: String): String = if (scope == "project") {
+    "/Users/demo/dev/$project/.agents/skills"
+} else {
+    "/Users/demo/.agents/skills"
+}
+
+private fun wireCommands(list: DemoCommandList, scope: String, project: String, now: Long): Dict =
+    mapOf(
+        "inRepo" to (scope == "project"),
+        "others" to list.others.sortedBy { it.name.lowercase() }.map { o ->
+            mapOf(
+                "name" to o.name,
+                "description" to o.description,
+                "preview" to o.preview,
+                "agents" to o.agents,
+                "path" to o.path.replace("{root}", "/Users/demo/dev/$project"),
+                "folder" to o.folder
+            ) + if (o.atRoot) mapOf("atRoot" to true) else emptyMap()
+        },
+        "folders" to list.folders.sortedBy(::folderOrder),
+        "commands" to sortedCommands(list.commands).map { c ->
+            mapOf(
+                "name" to c.name,
+                "folder" to c.folder,
+                "description" to c.description,
+                "body" to c.body,
+                "scope" to scope,
+                "argumentHint" to commandArgumentHint(c.body),
+                "keptOutOfGit" to c.keptOutOfGit,
+                "tracked" to (scope == "project" && c.tracked),
+                "path" to "${skillsDir(scope, project)}/${c.name}/SKILL.md"
+            ) + if (c.runs > 0) {
+                mapOf("runs" to c.runs, "lastRunAt" to (c.lastRunAt ?: (now - (c.ranAgo ?: 0))))
+            } else {
+                emptyMap()
+            }
+        }
+    )
 
 /** By folder, No folder last, then by name. */
 private fun sortedCommands(commands: List<DemoCommand>): List<DemoCommand> = commands.sortedWith(
@@ -225,7 +244,10 @@ private fun DemoServer.saveCommand(project: String, input: Dict, previous: Dict?
             description,
             body,
             keptOutOfGit = keptOut,
-            tracked = !keptOut && stays && before?.tracked == true
+            tracked = !keptOut && stays && before?.tracked == true,
+            runs = before?.runs ?: 0,
+            lastRunAt = before?.lastRunAt,
+            ranAgo = before?.ranAgo
         )
     }
 }
@@ -270,22 +292,26 @@ private fun DemoServer.convertSkill(project: String, o: Dict) {
 
 // running
 
+/** Counted the way the Mac counts a run (lpm_commands_usage.rs). */
+private fun DemoServer.recordRun(project: String, command: DemoCommand, scope: String) {
+    updateCommands(project, scope) { list ->
+        val ran = list.commands.firstOrNull { it.name == command.name } ?: return@updateCommands
+        ran.runs += 1
+        ran.lastRunAt = nowMillis()
+        ran.ranAgo = null
+    }
+}
+
 private fun DemoServer.expandCommand(
     project: String,
     name: String,
     args: String
 ): Pair<String, List<String>> {
-    val key = name.dropWhile { it == '/' }.lowercase()
-    val (command, scope) = effectiveCommands(project).firstOrNull {
-        it.first.name.lowercase() == key
-    }
+    val (command, scope) = effectiveCommand(project, name)
         ?: throw DemoCommandError("/$name isn't one of your skills.")
+    recordRun(project, command, scope)
     val known = world.projects.firstOrNull { it.name == project }
-    val list = if (scope == "project") {
-        "/Users/demo/dev/$project/.agents/skills"
-    } else {
-        "/Users/demo/.agents/skills"
-    }
+    val list = skillsDir(scope, project)
     val auto: Map<String, String> = known?.let {
         mapOf(
             "branch" to (world.git[project]?.branch ?: "main"),

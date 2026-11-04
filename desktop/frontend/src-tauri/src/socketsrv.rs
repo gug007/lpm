@@ -660,7 +660,13 @@ fn cmd_run_task(args: &[String], app: &AppHandle) -> String {
         .map(|p| crate::lpm_commands_expand::expand_prompt(&positional[0], p))
         .transpose();
     let prompt = match prompt {
-        Ok(prompt) => prompt,
+        Ok(Some((text, ran))) => {
+            if let Some(scope) = ran {
+                crate::lpm_commands_cmds::announce(app, &positional[0], &[scope]);
+            }
+            Some(text)
+        }
+        Ok(None) => None,
         Err(e) => return format!("ERROR: {e}"),
     };
     let task = match (action, command) {

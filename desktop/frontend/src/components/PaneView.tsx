@@ -84,6 +84,7 @@ import { useFilesView } from "../store/filesView";
 import { canForkSession } from "../forkSession";
 import { actionTextColor } from "../actionColors";
 import { SendLaterTabMark } from "./SendLaterTabMark";
+import { SkillsUnsavedMark } from "./commands/SkillsUnsavedMark";
 import { SharedTabMark } from "./share/SharedTabMark";
 import { PaneShareButton } from "./share/PaneShareButton";
 import { useTabShares } from "../store/tabShares";
@@ -696,6 +697,7 @@ function PaneViewImpl(props: PaneViewProps) {
                         <CommandMarkIcon mark={tabCommandMark(t, tabCommands[t.id])} />
                         <SharedTabMark terminalId={t.id} />
                         <SendLaterTabMark historyKey={t.historyKey} />
+                        {t.kind === "commands" && <SkillsUnsavedMark tabId={t.id} />}
                       </>
                     }
                     onClick={(e) => {
@@ -948,7 +950,13 @@ function PaneViewImpl(props: PaneViewProps) {
                 </ErrorBoundary>
               ) : t.kind === "commands" ? (
                 <ErrorBoundary resetKey={t.id} scope="commands">
-                  <CommandsView projectName={projectName} projectLabel={projectLabel} visible={visible && isActive} />
+                  <CommandsView
+                    tabId={t.id}
+                    projectName={projectName}
+                    projectLabel={projectLabel}
+                    visible={visible && isActive}
+                    focused={visible && focused && isActive}
+                  />
                 </ErrorBoundary>
               ) : t.kind === "automations" ? (
                 <ErrorBoundary resetKey={t.id} scope="automations">

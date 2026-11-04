@@ -161,7 +161,8 @@ fn native_call(
     Some(format!("{sigil}{} {}", command.name, args.trim()).trim_end().to_string())
 }
 
-/// `/name args` in `project`, whose place and lists `dispatch` already resolved.
+/// `/name args` in `project`, whose place and lists `dispatch` already resolved,
+/// counted as a run of the skill. Says which list the skill that ran is in.
 pub(crate) fn expand_at(
     project: &str,
     place: Option<&ProjectPlace>,
@@ -169,14 +170,16 @@ pub(crate) fn expand_at(
     name: &str,
     args: &str,
     cli: Option<&str>,
-) -> Result<Expanded, String> {
+) -> Result<(Expanded, Scope), String> {
     let list = list_stores(stores)?;
     let command = find(&list, name.trim_start_matches('/'))
         .ok_or_else(|| format!("/{name} isn't one of your skills."))?;
-    if let Some(text) = cli.and_then(|cli| native_call(&list, place, command, cli, args)) {
-        return Ok(Expanded { text, missing: Vec::new() });
-    }
-    Ok(fill(project, place, stores, command, args))
+    crate::lpm_commands_usage::record(project, command.scope, &command.name);
+    let expanded = match cli.and_then(|cli| native_call(&list, place, command, cli, args)) {
+        Some(text) => Expanded { text, missing: Vec::new() },
+        None => fill(project, place, stores, command, args),
+    };
+    Ok((expanded, command.scope))
 }
 
 /// The skill's folder as the agent's computer names it.
@@ -227,23 +230,24 @@ fn missing_error(command: &LpmCommand, missing: &[String]) -> String {
 
 /// What a prompt from outside the composer sends: the saved prompt when it is
 /// `/name args` for one of the user's skills, otherwise the prompt itself,
-/// so the agent's own `/compact` still reaches the agent.
-pub(crate) fn expand_prompt(project: &str, prompt: &str) -> Result<String, String> {
+/// so the agent's own `/compact` still reaches the agent. A skill's run is
+/// counted, and the list of the skill that ran comes back with the text.
+pub(crate) fn expand_prompt(project: &str, prompt: &str) -> Result<(String, Option<Scope>), String> {
     let Some((name, args)) = parse_run(prompt) else {
-        return Ok(prompt.to_string());
+        return Ok((prompt.to_string(), None));
     };
     let place = project_place(project)?;
     let stores = stores_at(place.as_ref());
     let list = list_stores(&stores)?;
     let Some(command) = find(&list, name) else {
-        return Ok(prompt.to_string());
+        return Ok((prompt.to_string(), None));
     };
     let expanded = fill(project, place.as_ref(), &stores, command, args);
-    if expanded.missing.is_empty() {
-        Ok(expanded.text)
-    } else {
-        Err(missing_error(command, &expanded.missing))
+    if !expanded.missing.is_empty() {
+        return Err(missing_error(command, &expanded.missing));
     }
+    crate::lpm_commands_usage::record(project, command.scope, &command.name);
+    Ok((expanded.text, Some(command.scope)))
 }
 
 #[cfg(test)]

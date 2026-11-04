@@ -1,4 +1,5 @@
 import type { Seed } from "../types";
+import { DAY, HOUR, MINUTE } from "./clock";
 
 // The prompts a sample workspace keeps as lpm skills: a few everyday ones
 // for every project, and a couple each project keeps in its own folder.
@@ -9,12 +10,16 @@ export const SAMPLE_LPM_COMMANDS: NonNullable<Seed["lpmCommands"]> = {
       folder: "Git",
       description: "Small conventional commits, no push",
       body: "Split my changes into small conventional commits, one concern per commit. Do not push.",
+      runs: 23,
+      ranAgo: 2 * HOUR,
     },
     {
       name: "write-tests",
       folder: "Testing",
       description: "Tests for what I just changed",
       body: "Write focused tests for the code I just changed, run them, and fix anything that fails.",
+      runs: 2,
+      ranAgo: 9 * DAY,
     },
     {
       name: "explain",
@@ -29,12 +34,16 @@ export const SAMPLE_LPM_COMMANDS: NonNullable<Seed["lpmCommands"]> = {
       folder: "Review",
       description: "Bugs and gaps in my uncommitted changes",
       body: "Review my uncommitted changes for bugs, missing edge cases and untested paths. List blocking issues first.",
+      runs: 11,
+      ranAgo: 40 * MINUTE,
     },
     {
       name: "fix-ticket",
       folder: "Bugs",
       description: "Fix a ticket on the current branch",
       body: "Fix {{ticket}} on branch {{branch}}. Read the issue first and tell me your plan before editing. Keep the diff small and add a test.",
+      runs: 4,
+      ranAgo: 3 * DAY,
     },
   ],
   others: {

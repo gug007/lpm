@@ -18,6 +18,12 @@ export interface LpmCommand {
   keptOutOfGit?: boolean;
   // Git holds some of its files. Absent from a computer on an older lpm.
   tracked?: boolean;
+  // Its SKILL.md on the computer that holds the list. Absent from an older lpm.
+  path?: string;
+  // How often it ran on that computer and when last (unix millis); absent
+  // before its first run.
+  runs?: number;
+  lastRunAt?: number;
 }
 
 // A skill in this list's places that wasn't made in lpm. Shown, never changed.
@@ -128,12 +134,28 @@ export function parseCommandRun(text: string): { name: string; args: string } | 
   return m ? { name: m[1], args: (m[2] ?? "").trim() } : null;
 }
 
+const VARIABLE_RE = /\{\{\s*([A-Za-z0-9_-]+)\s*\}\}/g;
+
+export function isAutoVariable(name: string): boolean {
+  return (AUTO_VARIABLES as readonly string[]).includes(name);
+}
+
+// Where each {{name}} sits in a prompt, for an editor to mark.
+export function variableSpans(body: string): { start: number; end: number; name: string; auto: boolean }[] {
+  return [...body.matchAll(VARIABLE_RE)].map((m) => ({
+    start: m.index,
+    end: m.index + m[0].length,
+    name: m[1],
+    auto: isAutoVariable(m[1]),
+  }));
+}
+
 // Each {{name}} in a prompt once, in order; split into the ones lpm fills in
 // and the ones a run asks for.
 export function promptVariables(body: string): { asks: string[]; auto: string[] } {
   const asks: string[] = [];
   const auto: string[] = [];
-  for (const m of body.matchAll(/\{\{\s*([A-Za-z0-9_-]+)\s*\}\}/g)) {
+  for (const m of body.matchAll(VARIABLE_RE)) {
     const name = m[1];
     const bucket = (AUTO_VARIABLES as readonly string[]).includes(name) ? auto : asks;
     if (!bucket.includes(name)) bucket.push(name);

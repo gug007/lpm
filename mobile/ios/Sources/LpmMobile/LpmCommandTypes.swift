@@ -24,6 +24,10 @@ struct LpmCommand: Identifiable, Equatable {
     let keptOutOfGit: Bool
     /// Git holds some of its files. False from a Mac on an older lpm.
     let tracked: Bool
+    /// How often it ran on the Mac and when last (unix millis); 0 and nil before
+    /// its first run, and from a Mac on an older lpm.
+    let runs: Int
+    let lastRunAt: Int?
 
     var id: String { "\(scope.rawValue):\(folder ?? ""):\(name)" }
     var ref: LpmCommandRef { LpmCommandRef(scope: scope, folder: folder, name: name) }
@@ -43,6 +47,26 @@ struct LpmCommand: Identifiable, Equatable {
         argumentHint = o["argumentHint"] as? String ?? ""
         keptOutOfGit = o["keptOutOfGit"] as? Bool ?? false
         tracked = o["tracked"] as? Bool ?? false
+        runs = (o["runs"] as? NSNumber)?.intValue ?? 0
+        lastRunAt = (o["lastRunAt"] as? NSNumber)?.intValue
+    }
+
+    /// "2h · 14×": how long ago it last ran and how often, as the desktop's
+    /// Skills tab shows it; nil before its first run.
+    func runsLabel(now: Date = Date()) -> String? {
+        guard runs > 0, let lastRunAt else { return nil }
+        return "\(Self.runAge(lastRunAt, now: now)) · \(runs)×"
+    }
+
+    static func runAge(_ at: Int, now: Date) -> String {
+        let minute = 60_000, hour = 60 * minute, day = 24 * hour
+        let ago = max(0, Int(now.timeIntervalSince1970 * 1000) - at)
+        if ago < minute { return "now" }
+        if ago < hour { return "\(ago / minute)m" }
+        if ago < day { return "\(ago / hour)h" }
+        if ago < 60 * day { return "\(ago / day)d" }
+        if ago < 365 * day { return "\(ago / (30 * day))mo" }
+        return "\(ago / (365 * day))y"
     }
 }
 

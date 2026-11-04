@@ -127,7 +127,6 @@ export function CommandTreeScope({
             selected={selectedKey === commandKey(c)}
             runs={running.has(commandKey(c))}
             onSelect={() => onSelect(c)}
-            onConvert={() => actions.onConvert(node.scope, c.name, false)}
           />
         ))}
         {node.rootOthers.map((skill) => (

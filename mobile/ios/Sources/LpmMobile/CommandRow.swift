@@ -15,6 +15,14 @@ struct CommandRow: View {
                         .font(.system(.caption, design: .monospaced))
                         .foregroundStyle(.tertiary)
                 }
+                if let runs = command.runsLabel() {
+                    Spacer(minLength: 8)
+                    Text(runs)
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                        .layoutPriority(1)
+                }
             }
             if !command.summary.isEmpty {
                 Text(command.summary)

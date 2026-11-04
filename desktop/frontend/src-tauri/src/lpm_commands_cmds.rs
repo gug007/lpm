@@ -9,6 +9,7 @@ use crate::lpm_commands::{
 };
 use crate::lpm_commands_expand::Expanded;
 use crate::lpm_commands_ops as ops;
+use crate::lpm_commands_usage as usage;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use serde_json::Value;
@@ -127,13 +128,30 @@ pub(crate) fn dispatch(app: &AppHandle, project: &str, request: Request) -> Resu
     let touches = request.touches();
     let mut imported = None;
     match request {
-        Request::List => return list_stores(&stores).map(Reply::Lists),
+        Request::List => return listed(project, &stores).map(Reply::Lists),
         Request::Expand { name, args, cli } => {
-            return crate::lpm_commands_expand::expand_at(project, place.as_ref(), &stores, &name, &args, cli.as_deref())
-                .map(Reply::Expanded)
+            let (expanded, ran) = crate::lpm_commands_expand::expand_at(
+                project,
+                place.as_ref(),
+                &stores,
+                &name,
+                &args,
+                cli.as_deref(),
+            )?;
+            announce(app, project, &[ran]);
+            return Ok(Reply::Expanded(expanded));
         }
-        Request::Save { command, previous } => ops::save(&stores, command, previous)?,
-        Request::Delete { target } => ops::delete(&stores, &target)?,
+        Request::Save { command, previous } => {
+            let renamed = previous.as_ref().map(|p| ((p.scope, p.name.clone()), (command.scope, command.name.clone())));
+            ops::save(&stores, command, previous)?;
+            if let Some(((from_scope, from), (to_scope, to))) = renamed {
+                usage::rename(project, (from_scope, &from), (to_scope, &to));
+            }
+        }
+        Request::Delete { target } => {
+            ops::delete(&stores, &target)?;
+            usage::forget(project, target.scope, &target.name);
+        }
         Request::CreateFolder { scope, name } => ops::create_folder(&stores, scope, &name)?,
         Request::RenameFolder { scope, name, new_name } => ops::rename_folder(&stores, scope, &name, &new_name)?,
         Request::DeleteFolder { scope, name } => ops::delete_folder(&stores, scope, &name)?,
@@ -147,15 +165,22 @@ pub(crate) fn dispatch(app: &AppHandle, project: &str, request: Request) -> Resu
         Request::Import { scope } => imported = Some(import(&stores, place.as_ref(), scope)?),
     }
     announce(app, project, &touches);
-    let list = list_stores(&stores)?;
+    let list = listed(project, &stores)?;
     Ok(match imported {
         Some(imported) => Reply::Imported(ImportResult { imported, list }),
         None => Reply::Lists(list),
     })
 }
 
+/// Both lists, each skill with how often it ran here.
+fn listed(project: &str, stores: &Stores) -> Result<LpmCommands, String> {
+    let mut lists = list_stores(stores)?;
+    usage::annotate(project, &mut lists);
+    Ok(lists)
+}
+
 /// "" when the global list changed, which every project shows; else the project.
-fn announce(app: &AppHandle, project: &str, touches: &[Scope]) {
+pub(crate) fn announce(app: &AppHandle, project: &str, touches: &[Scope]) {
     let named = if touches.contains(&Scope::Global) { "" } else { project };
     let _ = app.emit(CHANGED_EVENT, named);
 }

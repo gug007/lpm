@@ -3,6 +3,7 @@ import { commandKey, type LpmCommand, type LpmCommandLists } from "../../lpmComm
 import {
   agentReach,
   canKeepOutOfGit,
+  commandPath,
   commandTree,
   draftAfterFolderMove,
   draftOf,
@@ -358,5 +359,26 @@ describe("folders inside folders", () => {
   it("moves a skill into a folder inside another", () => {
     const moved = movedTo(nested.global.commands[3], folderKey("global", "Work/Reviews/Deep"), nested);
     expect(moved?.folder).toBe("Work/Reviews/Deep");
+  });
+});
+
+describe("where a skill's file is", () => {
+  const at = (path: string, scope: "global" | "project" = "project") => ({ ...cmd("lesson", scope, null), path });
+
+  it("names the skills folder it's really in", () => {
+    const own = at("/Users/me/lpm/.claude/skills/lesson/SKILL.md");
+    expect(commandPath(own, own)).toBe(".claude/skills/lesson/SKILL.md");
+    const mine = at("/Users/me/.agents/skills/lesson/SKILL.md", "global");
+    expect(commandPath(mine, mine)).toBe("~/.agents/skills/lesson/SKILL.md");
+    const windows = at("C:\\Users\\me\\.codex\\skills\\lesson\\SKILL.md", "global");
+    expect(commandPath(windows, windows)).toBe("~/.codex/skills/lesson/SKILL.md");
+  });
+
+  it("follows a rename in the same folder, and a new or moved skill to .agents/skills", () => {
+    const own = at("/Users/me/lpm/.claude/skills/lesson/SKILL.md");
+    expect(commandPath({ ...own, name: "lessons" }, own)).toBe(".claude/skills/lessons/SKILL.md");
+    expect(commandPath({ ...own, scope: "global" }, own)).toBe("~/.agents/skills/lesson/SKILL.md");
+    expect(commandPath(cmd("", "project", null), null)).toBe(".agents/skills/name/SKILL.md");
+    expect(commandPath(cmd("old", "project", null), cmd("old", "project", null))).toBe(".agents/skills/old/SKILL.md");
   });
 });

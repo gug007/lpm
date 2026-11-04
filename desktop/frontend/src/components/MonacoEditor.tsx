@@ -38,6 +38,12 @@ interface MonacoEditorProps {
   // passed.
   jumpTo?: EditorTarget;
   problems?: ConfigProblem[];
+  wordWrap?: boolean;
+  ariaLabel?: string;
+  placeholder?: string;
+  // Runs once the editor exists, for decorations of the host's own; what it
+  // returns runs when the editor goes.
+  onReady?: (editor: monacoNs.editor.IStandaloneCodeEditor, monaco: Monaco) => void | (() => void);
 }
 
 // With `endCol` the text up to it is selected instead of the line marked;
@@ -78,6 +84,10 @@ export function MonacoEditor({
   reveal,
   jumpTo,
   problems,
+  wordWrap = false,
+  ariaLabel,
+  placeholder,
+  onReady,
 }: MonacoEditorProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monacoNs.editor.IStandaloneCodeEditor | null>(null);
@@ -86,6 +96,7 @@ export function MonacoEditor({
   const onSaveRef = useRef(onSave);
   const onToggleViewRef = useRef(onToggleView);
   const revealRef = useRef(reveal);
+  const onReadyRef = useRef(onReady);
   // The text the model holds as far as this component knows — typed by the
   // user or set from `value` — so the value effect can skip its own echo.
   const lastEmittedRef = useRef(value);
@@ -147,6 +158,9 @@ export function MonacoEditor({
       fixedOverflowWidgets: true,
       readOnly,
       domReadOnly: readOnly,
+      wordWrap: wordWrap ? "on" : "off",
+      ariaLabel,
+      placeholder,
     });
     editorRef.current = editor;
 
@@ -279,9 +293,11 @@ export function MonacoEditor({
     setReady(true);
 
     const disposeTheme = observeMonacoTheme(monaco);
+    const disposeHost = onReadyRef.current?.(editor, monaco);
 
     const host = hostRef.current;
     return () => {
+      disposeHost?.();
       disposeTheme();
       host?.removeEventListener("wheel", wheelHandler);
       host?.removeEventListener("beforeinput", beforeInputHandler, true);

@@ -28,14 +28,16 @@ function hint(body: string): string {
 }
 
 function fromSeed(seeded: SeedLpmCommand[], scope: CommandScope): List {
+  const loaded = Date.now();
   return {
     folders: withParents(seeded.flatMap((c) => (c.folder ? [c.folder] : []))),
-    commands: seeded.map((c) => ({
+    commands: seeded.map(({ runs, ranAgo, ...c }) => ({
       ...c,
       scope,
       argumentHint: hint(c.body),
       keptOutOfGit: false,
       tracked: scope === "project",
+      ...(runs ? { runs, lastRunAt: loaded - (ranAgo ?? 0) } : {}),
     })),
     others: (seedData().lpmCommands?.others?.[scope] ?? []).map((o) => ({ ...o })),
     inRepo: scope === "project",
@@ -82,9 +84,17 @@ function sorted(list: List) {
   };
 }
 
+function withPaths(project: string, list: ReturnType<typeof sorted>) {
+  return { ...list, commands: list.commands.map((c) => ({ ...c, path: `${commandDir(project, c)}/SKILL.md` })) };
+}
+
 function lists(project: string): LpmCommandLists {
   const own = projectList(project);
-  return { global: sorted(globalList()), project: own && sorted(own), projectError: null };
+  return {
+    global: withPaths(project, sorted(globalList())),
+    project: own && withPaths(project, sorted(own)),
+    projectError: null,
+  };
 }
 
 // "" when the global list changed, which every project shows; else the project.
@@ -134,6 +144,8 @@ function save(project: string, input: CommandInput, previous: CommandRef | null)
     argumentHint: hint(input.body),
     keptOutOfGit,
     tracked: list.inRepo && !keptOutOfGit && !!before?.tracked,
+    runs: before?.runs,
+    lastRunAt: before?.lastRunAt,
   });
   return changed(project, input.scope, ...(previous ? [previous.scope] : []));
 }
@@ -156,9 +168,19 @@ function commandDir(project: string, c: LpmCommand): string {
   return `${root}/${c.name}`;
 }
 
+// A run counted the way the Rust side counts one (lpm_commands_usage.rs).
+function ran(project: string, c: LpmCommand) {
+  const saved = listOf(project, c.scope).commands.find((o) => o.name === c.name);
+  if (!saved) return;
+  saved.runs = (saved.runs ?? 0) + 1;
+  saved.lastRunAt = Date.now();
+  changed(project, c.scope);
+}
+
 function expand(project: string, name: string, args: string) {
   const command = findCommand(lists(project), name.replace(/^\//, ""));
   if (!command) throw new Error(`/${name} isn't one of your skills.`);
+  ran(project, command);
   const { asks } = promptVariables(command.body);
   const values = positional(args, asks.length);
   const auto: Record<string, string | undefined> = {

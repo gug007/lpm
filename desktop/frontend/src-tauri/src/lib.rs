@@ -176,6 +176,7 @@ mod lpm_commands_names;
 mod lpm_commands_ops;
 mod lpm_commands_remote;
 mod lpm_commands_snapshot;
+mod lpm_commands_usage;
 mod mainwindow;
 mod mdns;
 mod mediacache;

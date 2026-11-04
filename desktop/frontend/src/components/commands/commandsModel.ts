@@ -16,6 +16,8 @@ import {
   type OtherSkill,
 } from "../../lpmCommands";
 import { AI_CLI_OPTIONS } from "../../types";
+import { nameSuggestion, nextFreeName } from "./skillNames";
+import { sortSkills, type SkillSort } from "./skillUsage";
 import {
   folderAfterMove,
   folderDepth,
@@ -53,6 +55,8 @@ export interface TreeScope {
   // The other skills kept with `loose`.
   rootOthers: OtherSkill[];
   count: number;
+  // Every skill shown, the other skills too.
+  matched: number;
 }
 
 // What a row in the tree can ask for, passed down unchanged.
@@ -84,13 +88,14 @@ function matches(c: LpmCommand, q: string): boolean {
 }
 
 // The tab's tree: each list with its folders and their commands, then the
-// commands in no folder. A search keeps only the commands it matches, the
-// folders holding them and the lists it found something in.
-export function commandTree(lists: LpmCommandLists, query: string): TreeScope[] {
-  const q = query.trim().toLowerCase();
+// commands in no folder, each group in the order `sort` asks for. A search keeps
+// only the commands it matches, the folders holding them and the lists it found
+// something in.
+export function commandTree(lists: LpmCommandLists, query: string, sort: SkillSort = "name"): TreeScope[] {
+  const q = query.trim().toLowerCase().replace(/^\//, "");
   return scopesOf(lists).flatMap((scope) => {
     const list = scopeList(lists, scope)!;
-    const shown = q ? list.commands.filter((c) => matches(c, q)) : list.commands;
+    const shown = sortSkills(q ? list.commands.filter((c) => matches(c, q)) : list.commands, sort);
     const others = (list.others ?? []).filter((o) => !q || matchesOther(o, q));
     if (q && shown.length === 0 && others.length === 0) return [];
     const paths = withParents(list.folders);
@@ -123,6 +128,7 @@ export function commandTree(lists: LpmCommandLists, query: string): TreeScope[] 
         others: others.filter((o) => !o.folder && !o.atRoot),
         rootOthers: others.filter((o) => !o.folder && o.atRoot),
         count: shown.length,
+        matched: shown.length + others.length,
       },
     ];
   });
@@ -151,10 +157,20 @@ export function scopeTitle(scope: CommandScope, projectLabel: string): string {
   return scope === "project" ? `This project · ${projectLabel}` : "Global";
 }
 
-// Where the file lives, as the user would find it.
-export function commandPath(c: CommandRef): string {
-  const root = c.scope === "project" ? ".agents/skills" : "~/.agents/skills";
-  return `${root}/${c.name || "name"}/SKILL.md`;
+// The skills folder a SKILL.md sits in, from its dot folder on: `.claude/skills`
+// for `/repo/.claude/skills/ship/SKILL.md`, a Windows path too.
+function skillsRootOf(path: string): string | null {
+  const parts = path.split(/[\\/]/);
+  return parts.length >= 4 && parts.at(-1) === "SKILL.md" ? parts.slice(-4, -2).join("/") : null;
+}
+
+// Where the file lives, as the user would find it: from the project's folder, or
+// from ~ for a global skill. A saved skill stays in the skills folder it's in
+// (Claude's own, say) when renamed; a new one, or one moving to the other list,
+// goes to that list's .agents/skills.
+export function commandPath(c: CommandRef, saved?: Pick<LpmCommand, "scope" | "path"> | null): string {
+  const kept = saved?.path && saved.scope === c.scope ? skillsRootOf(saved.path) : null;
+  return `${c.scope === "global" ? "~/" : ""}${kept ?? ".agents/skills"}/${c.name || "name"}/SKILL.md`;
 }
 
 // The scopes this place has: global always, the project's own list when the
@@ -234,17 +250,37 @@ export function keptOutNote(draft: Draft, lists: LpmCommandLists): string | null
   return "Already committed. After saving, commit to remove it from the repo. Past commits keep a copy, and other computers lose it when they pull.";
 }
 
-// Why the draft can't be saved yet, if it can't.
-export function draftProblem(draft: Draft, lists: LpmCommandLists): string | null {
-  if (!draft.name) return "Give it a name.";
-  if (!isValidCommandName(draft.name)) return NAME_RULE;
-  if (!draft.body.trim()) return "Write the prompt.";
-  const key = draft.name.toLowerCase();
-  const clash = scopeList(lists, draft.scope)?.commands.find(
-    (c) => c.name.toLowerCase() === key && !sameCommand(c, draft.original),
-  );
-  if (clash) return `/${clash.name} already exists in ${clash.folder ? `the ${clash.folder} folder` : "No folder"}.`;
+// Why the draft can't be saved yet, the field that's wrong, and a name that
+// would do when it's the name.
+export interface DraftIssue {
+  field: "name" | "body";
+  message: string;
+  fix?: string;
+}
+
+export function draftIssue(draft: Draft, lists: LpmCommandLists): DraftIssue | null {
+  const others = (scopeList(lists, draft.scope)?.commands ?? []).filter((c) => !sameCommand(c, draft.original));
+  const taken = new Set(others.map((c) => c.name.toLowerCase()));
+  if (!draft.name) return { field: "name", message: "Give it a name." };
+  if (!isValidCommandName(draft.name)) {
+    const fix = nameSuggestion(draft.name);
+    const free = fix && taken.has(fix) ? nextFreeName(fix, taken) : fix;
+    return { field: "name", message: NAME_RULE, fix: free ?? undefined };
+  }
+  if (!draft.body.trim()) return { field: "body", message: "Write the prompt." };
+  const clash = others.find((c) => c.name.toLowerCase() === draft.name.toLowerCase());
+  if (clash) {
+    return {
+      field: "name",
+      message: `/${clash.name} already exists in ${clash.folder ? `the ${clash.folder} folder` : "No folder"}.`,
+      fix: nextFreeName(draft.name, taken),
+    };
+  }
   return null;
+}
+
+export function draftProblem(draft: Draft, lists: LpmCommandLists): string | null {
+  return draftIssue(draft, lists)?.message ?? null;
 }
 
 // The command a drop on `key` turns `c` into, or null when it's already there

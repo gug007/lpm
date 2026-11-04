@@ -349,6 +349,32 @@ describe("a host project's files", () => {
     });
   });
 
+  // Reveal in Finder and Open hand a skill's file back to the host.
+  it("marks the host paths of lpm skills in both lists", () => {
+    const own = "/Users/them/web/.claude/skills/ship/SKILL.md";
+    const mine = "/Users/them/.agents/skills/explain/SKILL.md";
+    const lists = {
+      global: { folders: [], commands: [{ name: "explain", path: mine }], others: [] },
+      project: { folders: [], commands: [{ name: "ship", path: own }, { name: "old" }] },
+      projectError: null,
+    };
+    const marked = {
+      global: { folders: [], commands: [{ name: "explain", path: prefixRoot(SLUG, mine) }], others: [] },
+      project: { folders: [], commands: [{ name: "ship", path: prefixRoot(SLUG, own) }, { name: "old" }] },
+      projectError: null,
+    };
+    expect(translateResult("list_lpm_commands", SLUG, lists)).toEqual(marked);
+    expect(translateResult("save_lpm_command", SLUG, lists)).toEqual(marked);
+    expect(translateResult("import_lpm_commands", SLUG, { imported: 1, list: lists })).toEqual({
+      imported: 1,
+      list: marked,
+    });
+    expect(translateResult("list_lpm_commands", SLUG, { ...lists, project: null })).toEqual({
+      ...marked,
+      project: null,
+    });
+  });
+
   it("forwards the host's memory saves under the project's name here", () => {
     expect(GLOBAL_PEER_EVENTS.has("memory-changed")).toBe(true);
     expect(translatePeerEventPayload("memory-changed", SLUG, "web")).toBe(prefixName(SLUG, "web"));

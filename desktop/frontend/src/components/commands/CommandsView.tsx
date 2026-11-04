@@ -19,12 +19,13 @@ import {
   sameCommand,
   scopeList,
 } from "../../lpmCommands";
+import { useAppStore } from "../../store/app";
 import { useCommandsOpen } from "../../store/commandsOpen";
+import { useSkillsUnsaved } from "../../store/skillsUnsaved";
 import { useToolkitOpen } from "../../store/toolkitOpen";
 import {
   convertSkill,
   createLpmCommandFolder,
-  deleteLpmCommand,
   deleteLpmCommandFolder,
   importLpmCommands,
   moveOtherSkill,
@@ -32,7 +33,8 @@ import {
   saveLpmCommand,
   useLpmCommandLists,
 } from "../../store/lpmCommands";
-import { ConfirmDialog } from "../ui/ConfirmDialog";
+import { copyText, revealInFinder } from "../files/fileActions";
+import { openInDefaultApp } from "../terminal/openInDefaultApp";
 import { EmptyState } from "../ui/EmptyState";
 import {
   type DraggedFolder,
@@ -45,8 +47,9 @@ import {
   parseFolderKey,
 } from "./commandFolders";
 import { CommandEditor } from "./CommandEditor";
-import { CommandImportButton } from "./CommandImportButton";
 import { CommandOtherView } from "./CommandOtherView";
+import { CommandsConfirm, type Confirm } from "./CommandsConfirm";
+import { CommandsHeader } from "./CommandsHeader";
 import { CommandTree } from "./CommandTree";
 import {
   type Draft,
@@ -54,7 +57,6 @@ import {
   draftOf,
   findOther,
   isDirty,
-  movedTo,
   newDraft,
   otherDrop,
   otherKey,
@@ -62,22 +64,25 @@ import {
   type OtherSpot,
   type SkillRowActions,
 } from "./commandsModel";
+import { skillOps } from "./skillOps";
+import type { SkillMenuActions } from "./skillTreeContext";
+import { loadSkillSort, saveSkillSort, type SkillSort } from "./skillUsage";
 
 interface CommandsViewProps {
+  tabId: string;
   projectName: string;
   projectLabel: string;
   visible: boolean;
+  // The tab is in view in the focused pane.
+  focused: boolean;
 }
 
-type Confirm =
-  | { kind: "discard"; then: () => void }
-  | { kind: "delete" }
-  | { kind: "folder"; scope: CommandScope; name: string; count: number };
+const NO_PICKS: ReadonlySet<string> = new Set();
 
 // The Skills tab (`kind: "commands"`, like the memory and automations tabs):
 // this project's lpm skills and the global ones as one tree of folders,
 // with an editor for the one picked. Typing `/name` in an agent's input runs one.
-export function CommandsView({ projectName, projectLabel, visible }: CommandsViewProps) {
+export function CommandsView({ tabId, projectName, projectLabel, visible, focused }: CommandsViewProps) {
   const lists = useLpmCommandLists(projectName, visible);
   const [query, setQuery] = useState("");
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -85,8 +90,12 @@ export function CommandsView({ projectName, projectLabel, visible }: CommandsVie
   const [saving, setSaving] = useState(false);
   const [confirm, setConfirm] = useState<Confirm | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
+  const [sort, setSort] = useState<SkillSort>(loadSkillSort);
+  const [picked, setPicked] = useState<ReadonlySet<string>>(NO_PICKS);
+  const onSsh = useAppStore((s) => s.projects.find((p) => p.name === projectName)?.isRemote ?? false);
   const pendingDraft = useCommandsOpen((s) => (s.draft?.project === projectName ? s.draft.seq : null));
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+  const dirty = !!draft && !!lists && isDirty(draft, lists);
 
   // Save as skill, from an input: a new skill holding that prompt, beside
   // the one open.
@@ -105,6 +114,18 @@ export function CommandsView({ projectName, projectLabel, visible }: CommandsVie
     const saved = allCommands(lists).find((c) => sameCommand(c, draft.original));
     if (!saved) setDraft(null);
   }, [lists, draft]);
+
+  // Picks of skills that moved or went away let go.
+  useEffect(() => {
+    if (!lists || picked.size === 0) return;
+    const there = new Set(allCommands(lists).map(commandKey));
+    if ([...picked].some((key) => !there.has(key))) setPicked(new Set([...picked].filter((key) => there.has(key))));
+  }, [lists, picked]);
+
+  useEffect(() => {
+    useSkillsUnsaved.getState().set(tabId, dirty);
+  }, [tabId, dirty]);
+  useEffect(() => () => useSkillsUnsaved.getState().set(tabId, false), [tabId]);
 
   const guard = useCallback(
     (next: () => void) => {
@@ -131,6 +152,13 @@ export function CommandsView({ projectName, projectLabel, visible }: CommandsVie
   const hasProject = lists.project !== null;
   const other = viewing ? findOther(lists, viewing) : null;
   const empty = allCommands(lists).length === 0;
+  const ops = skillOps({ projectName, lists, draft, setDraft });
+  const pickedSkills = () => allCommands(lists).filter((c) => picked.has(commandKey(c)));
+
+  const openSkill = (c: LpmCommand) => {
+    setViewing(null);
+    setDraft(draftOf(c));
+  };
 
   const save = async () => {
     if (!draft) return;
@@ -142,12 +170,6 @@ export function CommandsView({ projectName, projectLabel, visible }: CommandsVie
       setDraft(saved ? draftOf(saved) : null);
     });
     setSaving(false);
-  };
-
-  const removeCommand = async () => {
-    if (!draft?.original) return;
-    const target = draft.original;
-    if (await attempt(() => deleteLpmCommand(projectName, target))) setDraft(null);
   };
 
   const moveOther = (scope: CommandScope, name: string, spot: OtherSpot) => {
@@ -204,12 +226,38 @@ export function CommandsView({ projectName, projectLabel, visible }: CommandsVie
     onConvert: convert,
     onOpenInAgentSetup: (skill) => useToolkitOpen.getState().request(projectName, skill.path),
     onMoveOther: moveOther,
-    foldersOf: (scope) => (lists ? (scopeList(lists, scope)?.folders ?? []) : []),
+    foldersOf: (scope) => scopeList(lists, scope)?.folders ?? [],
   };
+
+  const menu: SkillMenuActions = {
+    lists,
+    canReveal: (c) => !!c.path && !(onSsh && c.scope === "project"),
+    copyName: (c) => void copyText(`/${c.name}`),
+    duplicate: (c) =>
+      guard(
+        () =>
+          void attempt(async () => {
+            const made = await ops.duplicate(c);
+            if (made) openSkill(made);
+          }),
+      ),
+    move: (cs, to) =>
+      void ops.move(cs, to).then((landed) => {
+        if (cs.length > 1) setPicked(new Set(landed));
+      }),
+    copyTo: (cs, scope) => void ops.copyTo(cs, scope),
+    keepOut: (cs, keep) => void ops.keepOut(cs, keep),
+    reveal: (c) => c.path && void revealInFinder(c.path),
+    open: (c) => c.path && openInDefaultApp(c.path),
+    convert: (c) => convert(c.scope, c.name, false),
+    remove: (cs) => setConfirm({ kind: "delete", targets: cs.map(commandRef) }),
+  };
+
+  // A skill dragged from among the picked ones takes them all along.
+  const dragGroup = (c: LpmCommand) => (picked.size > 1 && picked.has(commandKey(c)) ? pickedSkills() : [c]);
 
   const onDragEnd = ({ active, over }: DragEndEvent) => {
     setDragging(null);
-    const c = active.data.current?.command as LpmCommand | undefined;
     const key = over?.data.current?.folderKey as FolderKey | undefined;
     if (!key) return;
     const folder = active.data.current?.folder as DraggedFolder | undefined;
@@ -222,46 +270,31 @@ export function CommandsView({ projectName, projectLabel, visible }: CommandsVie
       dropOther(other, active.data.current?.scope as CommandScope, key, !!over?.data.current?.otherGroup);
       return;
     }
-    if (!c) return;
-    const moved = movedTo(c, key, lists);
-    if (!moved) return;
-    const editing = sameCommand(draft?.original ?? null, c) && draft && !isDirty(draft, lists);
-    void attempt(async () => {
-      await saveLpmCommand(projectName, moved, commandRef(c));
-      if (editing) {
-        const keepOutOfGit = moved.scope === c.scope && !!c.keptOutOfGit;
-        setDraft({ ...moved, keepOutOfGit, original: commandRef(moved) });
-      }
-    });
+    const c = active.data.current?.command as LpmCommand | undefined;
+    if (c) menu.move(dragGroup(c), key);
   };
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-[var(--bg-primary)]">
-      <div className="flex shrink-0 items-center gap-3 border-b border-[var(--border)] px-4 py-2.5">
-        <SquareSlash size={15} className="text-[var(--accent-cyan)]" />
-        <div className="min-w-0 flex-1">
-          <p className="text-[13px] font-semibold text-[var(--text-primary)]">Skills</p>
-          <p className="truncate text-[11.5px] text-[var(--text-muted)]">
-            Type <span className="font-mono text-[var(--accent-cyan)]">/name</span> in an agent's input to run one.
-          </p>
-        </div>
-        <CommandImportButton
-          hasProject={hasProject}
-          onImport={(scope) =>
-            void attempt(async () => {
-              const n = await importLpmCommands(projectName, scope);
-              if (n === 0) toast.info("Nothing new to import.");
-              else toast.success(`Imported ${n} ${n === 1 ? "skill" : "skills"}.`);
-            })
-          }
-        />
-      </div>
+      <CommandsHeader
+        hasProject={hasProject}
+        onImport={(scope) =>
+          void attempt(async () => {
+            const n = await importLpmCommands(projectName, scope);
+            if (n === 0) toast.info("Nothing new to import.");
+            else toast.success(`Imported ${n} ${n === 1 ? "skill" : "skills"}.`);
+          })
+        }
+      />
       <DndContext
         sensors={sensors}
         collisionDetection={innermostTarget}
         onDragStart={({ active }) => {
           const { command, other, folder } = active.data.current ?? {};
-          setDragging(folder ? folderLabel(folder.name) : `/${(command ?? other)?.name}`);
+          const group = command ? dragGroup(command as LpmCommand).length : 1;
+          setDragging(
+            folder ? folderLabel(folder.name) : group > 1 ? `${group} skills` : `/${(command ?? other)?.name}`,
+          );
         }}
         onDragCancel={() => setDragging(null)}
         onDragEnd={onDragEnd}
@@ -274,13 +307,18 @@ export function CommandsView({ projectName, projectLabel, visible }: CommandsVie
             selectedKey={
               draft?.original ? commandKey(draft.original) : other && viewing ? otherKey(viewing.scope, other.name) : null
             }
+            focused={focused}
+            sort={sort}
+            picked={picked}
+            unsavedKey={dirty && draft?.original ? commandKey(draft.original) : null}
+            menu={menu}
             onQuery={setQuery}
-            onSelect={(c) =>
-              guard(() => {
-                setViewing(null);
-                setDraft(draftOf(c));
-              })
-            }
+            onSort={(next) => {
+              setSort(next);
+              saveSkillSort(next);
+            }}
+            onPicked={setPicked}
+            onSelect={(c) => guard(() => openSkill(c))}
             actions={actions}
             onNew={(where) =>
               guard(() => {
@@ -304,7 +342,7 @@ export function CommandsView({ projectName, projectLabel, visible }: CommandsVie
               saving={saving}
               onChange={setDraft}
               onSave={() => void save()}
-              onDelete={() => setConfirm({ kind: "delete" })}
+              onDelete={() => draft.original && setConfirm({ kind: "delete", targets: [draft.original] })}
             />
           ) : other && viewing ? (
             <CommandOtherView
@@ -338,33 +376,16 @@ export function CommandsView({ projectName, projectLabel, visible }: CommandsVie
           )}
         </DragOverlay>
       </DndContext>
-      <ConfirmDialog
-        open={confirm !== null}
-        title={
-          confirm?.kind === "discard"
-            ? "Discard your changes?"
-            : confirm?.kind === "folder"
-              ? `Delete the ${folderLabel(confirm.name)} folder?`
-              : `Delete /${draft?.original?.name ?? ""}?`
-        }
-        body={
-          confirm?.kind === "discard"
-            ? "The skill you're editing has changes that aren't saved."
-            : confirm?.kind === "folder"
-              ? confirm.count > 0
-                ? "What's inside moves up a level."
-                : "It's empty."
-              : "Its file is deleted."
-        }
-        confirmLabel={confirm?.kind === "discard" ? "Discard" : "Delete"}
-        variant="destructive"
+      <CommandsConfirm
+        confirm={confirm}
         onCancel={() => setConfirm(null)}
-        onConfirm={() => {
-          const c = confirm;
+        onConfirm={(c) => {
           setConfirm(null);
-          if (c?.kind === "discard") c.then();
-          else if (c?.kind === "delete") void removeCommand();
-          else if (c?.kind === "folder") deleteFolder(c.scope, c.name);
+          if (c.kind === "discard") c.then();
+          else if (c.kind === "delete") {
+            setPicked(NO_PICKS);
+            void ops.remove(c.targets);
+          } else deleteFolder(c.scope, c.name);
         }}
       />
     </div>

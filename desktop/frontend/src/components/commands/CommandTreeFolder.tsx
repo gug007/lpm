@@ -8,6 +8,8 @@ import { childFolder, folderIndent, folderParent } from "./commandFolders";
 import { CommandFolderInput } from "./CommandFolderInput";
 import { CommandOtherRow } from "./CommandOtherRow";
 import { CommandRow } from "./CommandRow";
+import { HighlightedText } from "./HighlightedText";
+import { useSkillTree } from "./skillTreeContext";
 import { otherKey, type FolderRowActions, type SkillRowActions, type TreeFolder } from "./commandsModel";
 
 interface CommandTreeFolderProps {
@@ -36,6 +38,7 @@ export function CommandTreeFolder({
     id: `drag-folder:${folder.key}`,
     data: { folder: { scope, name: folder.name } },
   });
+  const { query } = useSkillTree();
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const [renaming, setRenaming] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -93,7 +96,9 @@ export function CommandTreeFolder({
         >
           <Chevron size={12} className="shrink-0 text-[var(--text-muted)]" />
           <Icon size={13} className="shrink-0 text-[var(--text-muted)]" />
-          <span className="min-w-0 flex-1 truncate">{folder.label}</span>
+          <span className="min-w-0 flex-1 truncate">
+            <HighlightedText text={folder.label} query={query} />
+          </span>
           <span className="shrink-0 text-[11px] tabular-nums text-[var(--text-muted)]">{folder.total}</span>
         </button>
       )}
@@ -123,7 +128,6 @@ export function CommandTreeFolder({
             selected={selectedKey === commandKey(c)}
             runs={running.has(commandKey(c))}
             onSelect={() => folderActions.onSelect(c)}
-            onConvert={() => actions.onConvert(scope, c.name, false)}
           />
         ))}
       {open &&

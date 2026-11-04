@@ -8,6 +8,11 @@ extension DemoWorld {
         var body: String
         var keptOutOfGit = false
         var tracked = true
+        /// How often it ran, and when last: `lastRunAt` once it runs here, else
+        /// `ranAgo` ms before the moment the list is read.
+        var runs = 0
+        var lastRunAt: Int? = nil
+        var ranAgo: Int? = nil
     }
 
     struct Other {
@@ -39,9 +44,11 @@ extension DemoWorld {
     // project, and a couple each project keeps in its own folder.
     static let globalCommandsSeed = CommandList([
         Command(name: "commit-parts", folder: "Git", description: "Small conventional commits, no push",
-                body: "Split my changes into small conventional commits, one concern per commit. Do not push."),
+                body: "Split my changes into small conventional commits, one concern per commit. Do not push.",
+                runs: 23, ranAgo: 2 * 3_600_000),
         Command(name: "write-tests", folder: "Testing", description: "Tests for what I just changed",
-                body: "Write focused tests for the code I just changed, run them, and fix anything that fails."),
+                body: "Write focused tests for the code I just changed, run them, and fix anything that fails.",
+                runs: 2, ranAgo: 9 * 86_400_000),
         Command(name: "explain", folder: nil, description: "Explain a piece of code",
                 body: "Explain what $ARGUMENTS does, where it is called from, and what would break if it changed."),
     ], others: globalOthersSeed)
@@ -71,9 +78,11 @@ extension DemoWorld {
 
     static let projectCommandsSeed = CommandList([
         Command(name: "review-changes", folder: "Review", description: "Bugs and gaps in my uncommitted changes",
-                body: "Review my uncommitted changes for bugs, missing edge cases and untested paths. List blocking issues first."),
+                body: "Review my uncommitted changes for bugs, missing edge cases and untested paths. List blocking issues first.",
+                runs: 11, ranAgo: 40 * 60_000),
         Command(name: "fix-ticket", folder: "Bugs", description: "Fix a ticket on the current branch",
-                body: "Fix {{ticket}} on branch {{branch}}. Read the issue first and tell me your plan before editing. Keep the diff small and add a test."),
+                body: "Fix {{ticket}} on branch {{branch}}. Read the issue first and tell me your plan before editing. Keep the diff small and add a test.",
+                runs: 4, ranAgo: 3 * 86_400_000),
     ], others: projectOthersSeed)
 }
 
@@ -109,6 +118,8 @@ extension DemoServer {
 
     private func answerCommands(_ verb: String, _ o: [String: Any]) {
         let project = o["project"] as? String ?? ""
+        // A run counts against its skill's list, so the change it pushes names that list.
+        let ranScope = verb == "lpmCommandExpand" ? effectiveCommand(project, o["name"] as? String ?? "")?.1 : nil
         var reply: [String: Any]
         do {
             reply = try commandsReply(verb, project, o)
@@ -120,8 +131,9 @@ extension DemoServer {
         reply["project"] = project
         if let reqId = o["reqId"] { reply["reqId"] = reqId }
         pushAfter(0.2, reply)
-        let changed = reply["ok"] as? Bool == true && verb != "lpmCommands" && verb != "lpmCommandExpand"
-        if changed { pushAfter(0.2, ["t": "lpmCommandsChanged", "project": Self.touchesGlobal(o) ? "" : project]) }
+        guard reply["ok"] as? Bool == true, verb != "lpmCommands" else { return }
+        let global = verb == "lpmCommandExpand" ? ranScope == "global" : Self.touchesGlobal(o)
+        pushAfter(0.2, ["t": "lpmCommandsChanged", "project": global ? "" : project])
     }
 
     /// Like the Mac, a change that reaches the global list (by its scope, a save's
@@ -195,6 +207,15 @@ extension DemoServer {
         return (own + global).filter { seen.insert($0.0.name.lowercased()).inserted }
     }
 
+    private func effectiveCommand(_ project: String, _ name: String) -> (DemoWorld.Command, String)? {
+        let key = String(name.drop(while: { $0 == "/" })).lowercased()
+        return effectiveCommands(project).first { $0.0.name.lowercased() == key }
+    }
+
+    private static func skillsDir(_ scope: String, _ project: String) -> String {
+        scope == "project" ? "/Users/demo/dev/\(project)/.agents/skills" : "/Users/demo/.agents/skills"
+    }
+
     private static func wire(_ list: DemoWorld.CommandList, scope: String, project: String) -> [String: Any] {
         ["folders": list.folders.sorted { folderOrder($0) < folderOrder($1) },
          "inRepo": scope == "project",
@@ -207,9 +228,16 @@ extension DemoServer {
              return row
          },
          "commands": sorted(list.commands).map { c -> [String: Any] in
-             ["name": c.name, "folder": c.folder ?? NSNull(), "description": c.description, "body": c.body,
-              "scope": scope, "argumentHint": argumentHint(c.body), "keptOutOfGit": c.keptOutOfGit,
-              "tracked": scope == "project" && c.tracked]
+             var row: [String: Any] = [
+                 "name": c.name, "folder": c.folder ?? NSNull(), "description": c.description, "body": c.body,
+                 "scope": scope, "argumentHint": argumentHint(c.body), "keptOutOfGit": c.keptOutOfGit,
+                 "tracked": scope == "project" && c.tracked,
+                 "path": "\(skillsDir(scope, project))/\(c.name)/SKILL.md"]
+             if c.runs > 0 {
+                 row["runs"] = c.runs
+                 row["lastRunAt"] = c.lastRunAt ?? Int(Date().timeIntervalSince1970 * 1000) - (c.ranAgo ?? 0)
+             }
+             return row
          }]
     }
 
@@ -271,7 +299,9 @@ extension DemoServer {
             let description = (input["description"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             list.commands.append(DemoWorld.Command(name: name, folder: place, description: description, body: body,
                                                    keptOutOfGit: keptOut,
-                                                   tracked: !keptOut && stays && before?.tracked == true))
+                                                   tracked: !keptOut && stays && before?.tracked == true,
+                                                   runs: before?.runs ?? 0, lastRunAt: before?.lastRunAt,
+                                                   ranAgo: before?.ranAgo))
         }
     }
 
@@ -314,17 +344,26 @@ extension DemoServer {
 
     // MARK: running
 
+    /// Counted the way the Mac counts a run (lpm_commands_usage.rs).
+    private func recordRun(_ project: String, _ command: DemoWorld.Command, _ scope: String) {
+        try? updateCommands(project, scope) { list in
+            guard let i = list.commands.firstIndex(where: { $0.name == command.name }) else { return }
+            list.commands[i].runs += 1
+            list.commands[i].lastRunAt = Int(Date().timeIntervalSince1970 * 1000)
+            list.commands[i].ranAgo = nil
+        }
+    }
+
     private func expandCommand(_ project: String, name: String, args: String) throws -> (String, [String]) {
-        let key = String(name.drop(while: { $0 == "/" })).lowercased()
-        guard let (command, scope) = effectiveCommands(project).first(where: { $0.0.name.lowercased() == key }) else {
+        guard let (command, scope) = effectiveCommand(project, name) else {
             throw DemoCommandError("/\(name) isn't one of your skills.")
         }
+        recordRun(project, command, scope)
         let known = world.projects.first { $0.name == project }
         var auto: [String: String] = known.map {
             ["branch": world.git[project]?.branch ?? "main", "project": $0.label.isEmpty ? $0.name : $0.label]
         } ?? [:]
-        let list = scope == "project" ? "/Users/demo/dev/\(project)/.agents/skills" : "/Users/demo/.agents/skills"
-        auto["dir"] = "\(list)/\(command.name)"
+        auto["dir"] = "\(Self.skillsDir(scope, project))/\(command.name)"
         let args = args.trimmingCharacters(in: .whitespacesAndNewlines)
         let asks = Self.variables(command.body).filter { !Self.autoVariables.contains($0) }
         let values = Self.positional(args, asks.count)

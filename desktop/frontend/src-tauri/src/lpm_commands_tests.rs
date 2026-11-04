@@ -527,7 +527,7 @@ fn a_shared_root_names_its_list() {
 // ---- running a skill in the agent itself -------------------------------------
 
 fn run_in(l: &Lists, cli: Option<&str>, name: &str, args: &str) -> crate::lpm_commands_expand::Expanded {
-    crate::lpm_commands_expand::expand_at("", None, &l.stores, name, args, cli).unwrap()
+    crate::lpm_commands_expand::expand_at("", None, &l.stores, name, args, cli).unwrap().0
 }
 
 #[cfg(unix)]

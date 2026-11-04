@@ -50,6 +50,14 @@ pub struct LpmCommand {
     pub kept_out_of_git: bool,
     /// Git holds some of its files.
     pub tracked: bool,
+    /// Its SKILL.md, as the computer holding the list names it.
+    pub path: String,
+    /// How many times it ran on this computer (lpm_commands_usage), and when it
+    /// last did in unix millis; None before its first run.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub runs: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_run_at: Option<u64>,
 }
 
 /// A skill in one of a list's places that lpm didn't create: listed so the user
@@ -299,6 +307,9 @@ fn read_scope(fs: &dyn CommandFs, scope: Scope) -> Result<ScopeList, String> {
     let mut commands: Vec<LpmCommand> = files
         .into_iter()
         .map(|f| LpmCommand {
+            path: skill_md_at(&fs.location(&f.name)),
+            runs: None,
+            last_run_at: None,
             description: f.doc.shown_description(&f.name),
             argument_hint: crate::lpm_commands_expand::argument_hint(&f.doc.body),
             folder: f.doc.folder,
@@ -317,6 +328,13 @@ fn read_scope(fs: &dyn CommandFs, scope: Scope) -> Result<ScopeList, String> {
     });
     others.sort_by_key(|o| o.name.to_lowercase());
     Ok(ScopeList { folders, commands, others, in_repo })
+}
+
+/// The SKILL.md in a skill's folder, written the way that folder is: a Windows
+/// path on Windows, and `/` for one an SSH host names.
+fn skill_md_at(dir: &str) -> String {
+    let sep = if dir.contains('\\') && !dir.contains('/') { '\\' } else { '/' };
+    format!("{}{sep}SKILL.md", dir.trim_end_matches(sep))
 }
 
 /// What `/name` runs, in menu order: the project's commands, then the global

@@ -24,24 +24,38 @@ internal fun CommandRow(command: LpmCommand, onClick: () -> Unit, modifier: Modi
     ListRow(modifier = modifier, onClick = onClick, verticalPadding = 10.dp) {
         Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.Bottom
             ) {
-                Text(
-                    text = "/${command.name}",
-                    style = typography.subheadline.copy(
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.SemiBold
-                    ),
-                    color = lpmCommandTint,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false)
-                )
-                if (command.argumentHint.isNotEmpty()) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.Bottom,
+                    modifier = Modifier.weight(1f)
+                ) {
                     Text(
-                        text = command.argumentHint,
-                        style = typography.caption1.copy(fontFamily = FontFamily.Monospace),
+                        text = "/${command.name}",
+                        style = typography.subheadline.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.SemiBold
+                        ),
+                        color = lpmCommandTint,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    if (command.argumentHint.isNotEmpty()) {
+                        Text(
+                            text = command.argumentHint,
+                            style = typography.caption1.copy(fontFamily = FontFamily.Monospace),
+                            color = colors.tertiaryLabel,
+                            maxLines = 1
+                        )
+                    }
+                }
+                command.runsLabel(System.currentTimeMillis())?.let { runs ->
+                    Text(
+                        text = runs,
+                        style = typography.caption2.copy(fontFeatureSettings = "tnum"),
                         color = colors.tertiaryLabel,
                         maxLines = 1
                     )

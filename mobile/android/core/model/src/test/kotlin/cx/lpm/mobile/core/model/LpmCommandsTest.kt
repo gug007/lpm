@@ -1,5 +1,7 @@
 package cx.lpm.mobile.core.model
 
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -121,5 +123,48 @@ class LpmCommandsTest {
         assertEquals(2, list.countIn("Work/Reviews"))
         assertEquals(1, list.countIn("Workshop"))
         assertEquals(1, list.countIn(null))
+    }
+
+    @Test
+    fun runsSayHowLongAgoAndHowOften() {
+        val now = 1_792_089_000_000L
+        val minute = 60_000L
+        val day = 24 * 60 * minute
+        assertEquals("now", runAge(now - 20_000, now))
+        assertEquals("40m", runAge(now - 40 * minute, now))
+        assertEquals("2h", runAge(now - 125 * minute, now))
+        assertEquals("41d", runAge(now - 41 * day, now))
+        assertEquals("3mo", runAge(now - 90 * day, now))
+        assertEquals("2y", runAge(now - 800 * day, now))
+        assertEquals("now", runAge(now + minute, now))
+        val ran =
+            LpmCommand(
+                "ship",
+                null,
+                "",
+                "Do it.",
+                CommandScope.Global,
+                "",
+                runs = 14,
+                lastRunAt =
+                    now - 2 * 60 * minute
+            )
+        assertEquals("2h · 14×", ran.runsLabel(now))
+        assertNull(ran.copy(runs = 0).runsLabel(now))
+        assertNull(ran.copy(lastRunAt = null).runsLabel(now))
+    }
+
+    @Test
+    fun runsAreReadFromTheMacsList() {
+        val o = Json.parseToJsonElement(
+            """{"name":"ship","scope":"global","runs":3,"lastRunAt":1792089000123}"""
+        ).jsonObject
+        val c = LpmCommand.parse(o)
+        assertEquals(3, c.runs)
+        assertEquals(1_792_089_000_123L, c.lastRunAt)
+        assertEquals(
+            0,
+            LpmCommand.parse(Json.parseToJsonElement("""{"name":"old"}""").jsonObject).runs
+        )
     }
 }

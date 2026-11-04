@@ -36,9 +36,24 @@ data class LpmCommand(
     /** Git ignores it and holds none of its files. False from a Mac on an older lpm. */
     val keptOutOfGit: Boolean = false,
     /** Git holds some of its files. False from a Mac on an older lpm. */
-    val tracked: Boolean = false
+    val tracked: Boolean = false,
+    /**
+     * How often it ran on the Mac and when last (unix millis); 0 and null before its
+     * first run, and from a Mac on an older lpm.
+     */
+    val runs: Int = 0,
+    val lastRunAt: Long? = null
 ) {
     val ref: CommandRef get() = CommandRef(scope, folder, name)
+
+    /**
+     * "2h · 14×": how long ago it last ran and how often, as the desktop's Skills tab
+     * shows it; null before its first run.
+     */
+    fun runsLabel(now: Long): String? {
+        val at = lastRunAt ?: return null
+        return if (runs > 0) "${runAge(at, now)} · $runs×" else null
+    }
 
     companion object {
         fun parse(o: JsonObject): LpmCommand = LpmCommand(
@@ -49,8 +64,27 @@ data class LpmCommand(
             scope = CommandScope.parse(o.string("scope")) ?: CommandScope.Global,
             argumentHint = o.string("argumentHint").orEmpty(),
             keptOutOfGit = o.bool("keptOutOfGit") ?: false,
-            tracked = o.bool("tracked") ?: false
+            tracked = o.bool("tracked") ?: false,
+            runs = o.int("runs") ?: 0,
+            lastRunAt = o.long("lastRunAt")
         )
+    }
+}
+
+private const val MINUTE_MS = 60_000L
+private const val HOUR_MS = 60 * MINUTE_MS
+private const val DAY_MS = 24 * HOUR_MS
+
+/** "now", "40m", "2h", "3d", "5mo", "2y": how long before [now] [at] was. */
+fun runAge(at: Long, now: Long): String {
+    val ago = maxOf(0L, now - at)
+    return when {
+        ago < MINUTE_MS -> "now"
+        ago < HOUR_MS -> "${ago / MINUTE_MS}m"
+        ago < DAY_MS -> "${ago / HOUR_MS}h"
+        ago < 60 * DAY_MS -> "${ago / DAY_MS}d"
+        ago < 365 * DAY_MS -> "${ago / (30 * DAY_MS)}mo"
+        else -> "${ago / (365 * DAY_MS)}y"
     }
 }
 

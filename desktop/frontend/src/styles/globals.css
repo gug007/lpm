@@ -769,6 +769,21 @@ body {
   background: rgb(234 179 8 / 0.15);
 }
 
+/* A skill prompt's {{variables}} (SkillPromptEditor): asked for when it runs,
+   or filled in by lpm. */
+.monaco-editor .lpm-skill-var-ask,
+.monaco-editor .lpm-skill-var-auto {
+  border-radius: 3px;
+}
+.monaco-editor .lpm-skill-var-ask {
+  background: color-mix(in srgb, var(--accent-cyan) 16%, transparent);
+  color: var(--accent-cyan-text) !important;
+}
+.monaco-editor .lpm-skill-var-auto {
+  background: color-mix(in srgb, var(--accent-green) 16%, transparent);
+  color: var(--accent-green-text) !important;
+}
+
 /* A config problem's line (monacoProblems.ts): a faint red band, a dot in the
    gutter, and the message on a line of its own underneath. */
 .monaco-editor .lpm-problem-line {

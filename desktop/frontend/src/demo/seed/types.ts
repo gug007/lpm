@@ -195,4 +195,7 @@ export interface SeedLpmCommand {
   folder: string | null;
   description: string;
   body: string;
+  // How often it ran, the last time this long (ms) before the demo loaded.
+  runs?: number;
+  ranAgo?: number;
 }

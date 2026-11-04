@@ -224,6 +224,31 @@ function markPaths(slug: string, list: unknown): unknown {
   return Array.isArray(list) ? list.map((entry) => markPath(slug, entry)) : list;
 }
 
+// Every skills call that answers with both lists.
+const SKILL_LIST_CMDS = new Set([
+  "list_lpm_commands",
+  "save_lpm_command",
+  "delete_lpm_command",
+  "create_lpm_command_folder",
+  "rename_lpm_command_folder",
+  "delete_lpm_command_folder",
+  "move_other_skill",
+  "convert_skill",
+]);
+
+// A skill's SKILL.md is named by its host path, which Reveal in Finder and Open
+// hand back to the host.
+function markSkillPaths(slug: string, lists: unknown): unknown {
+  if (!lists || typeof lists !== "object") return lists;
+  const mark = (list: unknown) => {
+    if (!list || typeof list !== "object") return list;
+    const l = list as { commands?: unknown };
+    return { ...list, commands: markPaths(slug, l.commands) };
+  };
+  const l = lists as { global?: unknown; project?: unknown };
+  return { ...lists, global: mark(l.global), project: mark(l.project) };
+}
+
 // Rewrite host identifiers in a routed command's result into their prefixed
 // client-side form. Default is passthrough; start_terminal ids are handled by
 // the caller (they also trigger an attach).
@@ -289,6 +314,11 @@ export function translateResult(cmd: string, slug: string, result: unknown): unk
     };
   }
   if (cmd === "read_agent_capability") return markPath(slug, result);
+  if (SKILL_LIST_CMDS.has(cmd)) return markSkillPaths(slug, result);
+  if (cmd === "import_lpm_commands" && result && typeof result === "object") {
+    const r = result as { list?: unknown };
+    return { ...result, list: markSkillPaths(slug, r.list) };
+  }
   if (cmd === "create_agent_skill" && typeof result === "string") return prefixRoot(slug, result);
   // Duplicate commands return freshly created host project name(s); prefix them
   // so the client selects / marks / spawns against the id it can actually see.

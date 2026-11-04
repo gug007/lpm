@@ -1,13 +1,19 @@
 package cx.lpm.mobile.core.demo
 
-/** One lpm command in a demo list. */
+/**
+ * One lpm command in a demo list. It ran [runs] times, last at [lastRunAt] once it runs
+ * here, else [ranAgo] ms before the moment the list is read.
+ */
 internal data class DemoCommand(
     val name: String,
     var folder: String?,
     val description: String,
     val body: String,
     val keptOutOfGit: Boolean = false,
-    val tracked: Boolean = true
+    val tracked: Boolean = true,
+    var runs: Int = 0,
+    var lastRunAt: Long? = null,
+    var ranAgo: Long? = null
 )
 
 /** One skill not made in lpm in a demo list. */
@@ -84,6 +90,10 @@ internal fun projectOthersSeed() = mutableListOf(
     )
 )
 
+private const val MINUTE_MS = 60_000L
+private const val HOUR_MS = 60 * MINUTE_MS
+private const val DAY_MS = 24 * HOUR_MS
+
 // The desktop's sample (lpm-commands.ts): a few everyday prompts for every project,
 // and a couple each project keeps in its own folder.
 
@@ -93,14 +103,18 @@ internal fun globalCommandsSeed() = DemoCommandList(
             "commit-parts",
             "Git",
             "Small conventional commits, no push",
-            "Split my changes into small conventional commits, one concern per commit. Do not push."
+            "Split my changes into small conventional commits, one concern per commit. Do not push.",
+            runs = 23,
+            ranAgo = 2 * HOUR_MS
         ),
         DemoCommand(
             "write-tests",
             "Testing",
             "Tests for what I just changed",
             "Write focused tests for the code I just changed, run them, and fix anything " +
-                "that fails."
+                "that fails.",
+            runs = 2,
+            ranAgo = 9 * DAY_MS
         ),
         DemoCommand(
             "explain",
@@ -120,14 +134,18 @@ internal fun projectCommandsSeed() = DemoCommandList(
             "Review",
             "Bugs and gaps in my uncommitted changes",
             "Review my uncommitted changes for bugs, missing edge cases and untested paths. " +
-                "List blocking issues first."
+                "List blocking issues first.",
+            runs = 11,
+            ranAgo = 40 * MINUTE_MS
         ),
         DemoCommand(
             "fix-ticket",
             "Bugs",
             "Fix a ticket on the current branch",
             "Fix {{ticket}} on branch {{branch}}. Read the issue first and tell me your plan " +
-                "before editing. Keep the diff small and add a test."
+                "before editing. Keep the diff small and add a test.",
+            runs = 4,
+            ranAgo = 3 * DAY_MS
         )
     ),
     projectOthersSeed()
