@@ -14,6 +14,9 @@
     <string name="commands_no_folder">No folder</string>
     <string name="commands_new_folder">New folder</string>
     <string name="commands_new_command">New skill</string>
+    <string name="commands_video_guides">Video guides</string>
+    <string name="commands_video_manage">Manage skills in one place</string>
+    <string name="commands_video_folders">Organize skills in folders</string>
     <string name="commands_folder_name">Folder name</string>
     <string name="commands_create">Create</string>
     <string name="commands_rename">Rename</string>

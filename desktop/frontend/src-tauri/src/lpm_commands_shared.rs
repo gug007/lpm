@@ -185,20 +185,20 @@ fn adopt_own(original: &Path, root: &Path, held: &HashSet<String>, shared: &BTre
 
 /// Whether the checkout can take the original's skill in place of what it has. A
 /// real folder goes only if it says the same: one that differs is someone's work.
-fn can_share(own: &LocalFs, original: &Path, target: &Path, name: &str, shared: bool) -> bool {
+fn can_share(own: &LocalFs, original: &Path, target: &Path, name: &str, was_shared: bool) -> bool {
     let here = PathBuf::from(own.location(name));
     match std::fs::symlink_metadata(&here) {
         Err(_) => true,
         Ok(meta) if meta.file_type().is_symlink() => is_our_link(&here, original, name),
-        Ok(_) => (shared && is_our_copy(&here)) || same_tree(&here, target),
+        Ok(_) => (was_shared && is_our_copy(&here)) || same_tree(&here, target),
     }
 }
 
-fn share(own: &LocalFs, root: &Path, target: &Path, name: &str) -> Result<(), String> {
+fn share(own: &LocalFs, root: &Path, target: &Path, name: &str, was_shared: bool) -> Result<(), String> {
     let place = root.join(SHARED_ROOT).join(name);
     let linked = std::fs::read_link(&place).is_ok_and(|t| t == target);
     if !linked {
-        if is_our_copy(&place) && same_tree(&place, target) {
+        if was_shared && is_our_copy(&place) && same_tree(&place, target) {
             return own.link_claude(name);
         }
         remove_entry(Path::new(&own.location(name)))?;
@@ -250,7 +250,9 @@ fn sync_checkout(original: &Path, root: &Path) -> Result<(), String> {
     for dir in [SHARED_ROOT, CLAUDE_ROOT] {
         write_rules(&root.join(dir), &shared)?;
     }
-    shared.iter().try_for_each(|name| share(&own, root, &PathBuf::from(from.location(name)), name))
+    shared.iter().try_for_each(|name| {
+        share(&own, root, &PathBuf::from(from.location(name)), name, was_shared.contains(name))
+    })
 }
 
 fn sync(original: &ProjectPlace, checkout: &ProjectPlace) {

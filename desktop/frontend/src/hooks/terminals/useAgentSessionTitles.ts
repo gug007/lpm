@@ -187,7 +187,6 @@ export function useAgentSessionTitles({
         changed = true;
       }
       if (changed) {
-        treeRef.current = next;
         applyTree(next);
         pendingRounds = 0;
       }

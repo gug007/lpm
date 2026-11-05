@@ -1,0 +1,29 @@
+# The Skills screen's Video guides menu: the lessons, with their lengths.
+appId: cx.lpm.mobile
+name: 162-skill-video-guides
+tags: [demo, commands]
+---
+- runFlow: subflows/enter-demo.yaml
+- tapOn: "storefront"
+- extendedWaitUntil:
+    visible: "Tabs"
+    timeout: 5000
+- tapOn: "More"
+- extendedWaitUntil:
+    visible: "Skills"
+    timeout: 5000
+- retry:
+    maxRetries: 2
+    commands:
+      - tapOn: "Skills"
+      - extendedWaitUntil:
+          visible: "Review"
+          timeout: 5000
+- waitForAnimationToEnd:
+    timeout: 3000
+- tapOn: "Video guides"
+- extendedWaitUntil:
+    visible: "Manage skills in one place.*"
+    timeout: 5000
+- assertVisible: "Organize skills in folders.*"
+- takeScreenshot: 1-video-guides

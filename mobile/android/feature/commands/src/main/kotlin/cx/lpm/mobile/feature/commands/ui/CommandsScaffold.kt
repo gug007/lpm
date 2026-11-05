@@ -18,6 +18,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import cx.lpm.mobile.core.designsystem.R as DesignR
+import cx.lpm.mobile.core.designsystem.component.GlassButtonGroup
+import cx.lpm.mobile.core.designsystem.component.GlassGroupButton
 import cx.lpm.mobile.core.designsystem.component.GlassIconButton
 import cx.lpm.mobile.core.designsystem.component.ListDefaults
 import cx.lpm.mobile.core.designsystem.component.LpmTopBar
@@ -26,8 +28,9 @@ import cx.lpm.mobile.feature.commands.R
 
 /**
  * A Commands page: the bar with [leading], [title] and "+" ([onNewCommand], none on a
- * page that only reads), over [content] that pulls to refresh. [inSheet] drops the
- * status bar inset for the room under a sheet's grabber.
+ * page that only reads), over [content] that pulls to refresh. [beforeNewCommand] shares
+ * the "+" button's glass capsule. [inSheet] drops the status bar inset for the room
+ * under a sheet's grabber.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -40,6 +43,7 @@ internal fun CommandsScaffold(
     modifier: Modifier = Modifier,
     inSheet: Boolean = false,
     newCommandEnabled: Boolean = true,
+    beforeNewCommand: (@Composable RowScope.() -> Unit)? = null,
     content: @Composable BoxScope.() -> Unit
 ) {
     Column(
@@ -54,13 +58,28 @@ internal fun CommandsScaffold(
             leading = leading,
             trailing = {
                 if (onNewCommand != null) {
-                    GlassIconButton(
-                        icon = painterResource(DesignR.drawable.ic_add),
-                        contentDescription = stringResource(R.string.commands_new_command),
-                        onClick = onNewCommand,
-                        enabled = newCommandEnabled,
-                        iconSize = 30.dp
-                    )
+                    val icon = painterResource(DesignR.drawable.ic_add)
+                    val label = stringResource(R.string.commands_new_command)
+                    if (beforeNewCommand == null) {
+                        GlassIconButton(
+                            icon = icon,
+                            contentDescription = label,
+                            onClick = onNewCommand,
+                            enabled = newCommandEnabled,
+                            iconSize = 30.dp
+                        )
+                    } else {
+                        GlassButtonGroup {
+                            beforeNewCommand()
+                            GlassGroupButton(
+                                icon = icon,
+                                contentDescription = label,
+                                onClick = onNewCommand,
+                                enabled = newCommandEnabled,
+                                iconSize = 30.dp
+                            )
+                        }
+                    }
                 }
             }
         )

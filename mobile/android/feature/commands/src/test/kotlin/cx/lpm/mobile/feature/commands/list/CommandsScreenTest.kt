@@ -1,5 +1,8 @@
 package cx.lpm.mobile.feature.commands.list
 
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -21,24 +24,32 @@ class CommandsScreenTest {
 
     private val events = mutableListOf<String>()
 
+    private val uriHandler = object : UriHandler {
+        override fun openUri(uri: String) {
+            events += "watch $uri"
+        }
+    }
+
     private fun show(state: CommandsUiState) = compose.setContent {
         LpmTheme {
-            CommandsScreen(
-                state = state,
-                refreshing = false,
-                onRefresh = {},
-                leading = {},
-                actions = CommandsActions(
-                    newCommand = { events += "new" },
-                    openFolder = { events += "open ${it.folder}" },
-                    newFolder = { events += "new folder" },
-                    openOthers = { events += "others" },
-                    renameFolder = { events += "rename $it" },
-                    deleteFolder = { events += "delete $it" },
-                    pickScope = { events += "pick $it" },
-                    retry = { events += "retry" }
+            CompositionLocalProvider(LocalUriHandler provides uriHandler) {
+                CommandsScreen(
+                    state = state,
+                    refreshing = false,
+                    onRefresh = {},
+                    leading = {},
+                    actions = CommandsActions(
+                        newCommand = { events += "new" },
+                        openFolder = { events += "open ${it.folder}" },
+                        newFolder = { events += "new folder" },
+                        openOthers = { events += "others" },
+                        renameFolder = { events += "rename $it" },
+                        deleteFolder = { events += "delete $it" },
+                        pickScope = { events += "pick $it" },
+                        retry = { events += "retry" }
+                    )
                 )
-            )
+            }
         }
     }
 
@@ -75,6 +86,17 @@ class CommandsScreenTest {
             ),
             events
         )
+    }
+
+    @Test
+    fun videoGuidesListTheLessonsAndOpenOne() {
+        show(loaded)
+        compose.onNodeWithContentDescription("Video guides").performClick()
+        compose.onNodeWithText("Manage skills in one place").assertExists()
+        compose.onNodeWithText("7:00").assertExists()
+        compose.onNodeWithText("3:38").assertExists()
+        compose.onNodeWithText("Organize skills in folders").performClick()
+        assertEquals(listOf("watch https://www.youtube.com/watch?v=MI_GqFpr6ms"), events)
     }
 
     @Test

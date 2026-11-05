@@ -4,11 +4,11 @@ import {
   MAKER_LINKEDIN_URL,
   MAKER_X_URL,
   lessonDate,
-  lessonThumbnail,
   lessonUrl,
 } from "../lessons";
 import { TUTORIAL_PLAYLIST_URL } from "../sidebarNav";
 import { PlayIcon, YoutubeIcon } from "./icons";
+import { LessonThumbnail } from "./LessonThumbnail";
 import { NetworkLogo } from "./recap/NetworkLogo";
 import type { RecapNetwork } from "./recap/recapShare";
 
@@ -36,15 +36,7 @@ export function FeedbackLessonsRail() {
                 className="group flex w-full items-start gap-2.5 text-left"
               >
                 <span className="relative aspect-video w-[112px] shrink-0 overflow-hidden rounded-[7px] border border-[var(--border)] bg-[var(--bg-hover)] transition-colors group-hover:border-[var(--text-muted)]">
-                  <img
-                    src={lessonThumbnail(lesson.id)}
-                    alt=""
-                    loading="lazy"
-                    onError={(event) => {
-                      event.currentTarget.style.visibility = "hidden";
-                    }}
-                    className="h-full w-full object-cover"
-                  />
+                  <LessonThumbnail id={lesson.id} />
                   <span className="absolute inset-0 flex items-center justify-center bg-black/35 opacity-0 transition-opacity group-hover:opacity-100">
                     <span className="flex h-6 w-6 items-center justify-center rounded-full bg-black/75 pl-px text-white [&>svg]:h-2.5 [&>svg]:w-2.5">
                       <PlayIcon />

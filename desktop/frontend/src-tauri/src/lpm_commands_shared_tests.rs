@@ -88,6 +88,14 @@ fn read(path: PathBuf) -> String {
     std::fs::read_to_string(path).unwrap()
 }
 
+fn link_claude_folder_to_the_shared_one(root: &Path) {
+    std::fs::create_dir_all(root.join(".agents/skills")).unwrap();
+    std::fs::create_dir_all(root.join(".claude")).unwrap();
+    // Windows can't follow a relative link written with forward slashes.
+    let target = Path::new("..").join(".agents").join("skills");
+    link_dir(&target, &root.join(".claude/skills")).unwrap();
+}
+
 #[test]
 fn a_skill_made_after_the_copy_reaches_every_checkout() {
     let family = Family::new();
@@ -268,6 +276,19 @@ fn an_identical_copy_becomes_a_link_and_one_that_differs_is_left_alone() {
     assert!(read(family.original.join(".agents/skills/edited/SKILL.md")).contains("Original."));
 }
 
+#[cfg(windows)]
+#[test]
+fn a_copy_made_where_links_are_refused_stays_while_it_matches() {
+    let family = Family::new();
+    family.save(&family.original, "kept", "Hi.\n", Some(true));
+    family.sync();
+    let place = family.copy.join(".agents/skills/kept");
+    remove_entry(&place).unwrap();
+    copy_tree(&family.original.join(".agents/skills/kept"), &place).unwrap();
+    sync_checkout(&family.original, &family.copy).unwrap();
+    assert!(!std::fs::symlink_metadata(&place).unwrap().file_type().is_symlink());
+}
+
 #[test]
 fn a_skill_lpm_did_not_make_under_that_name_is_never_replaced() {
     let family = Family::new();
@@ -305,9 +326,7 @@ fn a_link_broken_by_the_original_moving_is_pointed_at_it_again() {
 fn a_claude_folder_that_links_to_the_shared_one_keeps_the_link_whole() {
     let family = Family::new();
     family.save(&family.original, "kept", "Hi.\n", Some(true));
-    std::fs::create_dir_all(family.copy.join(".agents/skills")).unwrap();
-    std::fs::create_dir_all(family.copy.join(".claude")).unwrap();
-    link_dir(Path::new("../.agents/skills"), &family.copy.join(".claude/skills")).unwrap();
+    link_claude_folder_to_the_shared_one(&family.copy);
     sync_checkout(&family.original, &family.copy).unwrap();
     sync_checkout(&family.original, &family.copy).unwrap();
     assert!(read(family.copy.join(".agents/skills/kept/SKILL.md")).contains("Hi."));
@@ -317,9 +336,7 @@ fn a_claude_folder_that_links_to_the_shared_one_keeps_the_link_whole() {
 #[test]
 fn saving_never_empties_a_skill_behind_a_claude_folder_link() {
     let family = Family::new();
-    std::fs::create_dir_all(family.original.join(".agents/skills")).unwrap();
-    std::fs::create_dir_all(family.original.join(".claude")).unwrap();
-    link_dir(Path::new("../.agents/skills"), &family.original.join(".claude/skills")).unwrap();
+    link_claude_folder_to_the_shared_one(&family.original);
     family.save(&family.original, "mine", "Keep me.\n", None);
     assert!(read(family.original.join(".agents/skills/mine/SKILL.md")).contains("Keep me."));
 }

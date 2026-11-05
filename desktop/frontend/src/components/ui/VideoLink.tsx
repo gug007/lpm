@@ -1,6 +1,9 @@
 import { SquarePlay } from "lucide-react";
 import { BrowserOpenURL } from "../../../bridge/runtime";
 
+export const VIDEO_LINK_CLASS =
+  "inline-flex shrink-0 items-center gap-1.5 text-xs font-medium text-[var(--accent-blue-text)] underline-offset-2 transition-colors hover:underline";
+
 interface VideoLinkProps {
   url: string;
   label: string;
@@ -13,7 +16,7 @@ export function VideoLink({ url, label, length }: VideoLinkProps) {
     <button
       type="button"
       onClick={() => BrowserOpenURL(url)}
-      className="inline-flex shrink-0 items-center gap-1.5 text-xs font-medium text-[var(--accent-blue-text)] underline-offset-2 transition-colors hover:underline"
+      className={VIDEO_LINK_CLASS}
     >
       <SquarePlay size={14} />
       {label} · {length}

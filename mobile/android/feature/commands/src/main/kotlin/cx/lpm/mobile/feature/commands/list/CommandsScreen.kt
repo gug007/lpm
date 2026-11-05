@@ -49,8 +49,9 @@ class CommandsActions(
 /**
  * The user's lpm commands for one project (iOS `CommandsScreen`): this project's own
  * list and the global one, each split into folders. Tapping a folder lists its
- * commands; "+" writes a new one. [leading] is Back on a pushed screen and Done in a
- * sheet, where [inSheet] drops the status bar inset.
+ * commands; "+" writes a new one, and the video button beside it lists the lessons.
+ * [leading] is Back on a pushed screen and Done in a sheet, where [inSheet] drops the
+ * status bar inset.
  */
 @Composable
 fun CommandsScreen(
@@ -70,7 +71,8 @@ fun CommandsScreen(
         onRefresh = onRefresh,
         modifier = modifier,
         inSheet = inSheet,
-        newCommandEnabled = state.loaded
+        newCommandEnabled = state.loaded,
+        beforeNewCommand = { SkillVideosButton() }
     ) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = CommandsListPadding) {
             // The segments head the folder section, as iOS draws them.

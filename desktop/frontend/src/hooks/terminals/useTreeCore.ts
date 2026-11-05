@@ -89,6 +89,9 @@ export function useTreeCore({ projectName, onCountRef }: UseTreeCoreProps) {
   const applyTree = useCallback(
     (next: PaneNode | null, focus?: string | null) => {
       cancelDeferredPersist();
+      // A tab landing before the next render builds on this; from the tree that
+      // render replaces, it would overwrite the tab just added.
+      treeRef.current = next;
       setTree(next);
       if (focus !== undefined) {
         setFocusedPaneId(focus);

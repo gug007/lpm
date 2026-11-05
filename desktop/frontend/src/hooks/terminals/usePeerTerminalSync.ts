@@ -66,7 +66,6 @@ export function usePeerTerminalSync({
       const swapped = withReplacedHostTabs(tree, fresh, listing.tabs);
       if (swapped.replaced.length === 0) return fresh;
       applyTree(swapped.tree);
-      treeRef.current = swapped.tree;
       const taken = new Set<string>();
       for (const { from, to } of swapped.replaced) {
         claimPeerTerminal(to);
@@ -90,8 +89,6 @@ export function usePeerTerminalSync({
       }
       const next = withHostTabs(tree, focusedRef.current, fresh);
       applyTree(next.tree, next.focus);
-      // A create resuming before the re-render must append to this tree.
-      treeRef.current = next.tree;
     };
 
     const drop = (closed: Set<string>) => {
@@ -101,7 +98,6 @@ export function usePeerTerminalSync({
       closed.forEach(releasePeerTerminal);
       const next = withoutHostTabs(tree, focusedRef.current, closed);
       applyTree(next.tree, next.focus);
-      treeRef.current = next.tree;
       onTerminalsClosed(
         projectName,
         tabs.filter((t) => closed.has(t.id)).map((t) => t.historyKey),
@@ -134,7 +130,6 @@ export function usePeerTerminalSync({
       const next = followHostTabs(tree, hostTabs, listing.tabs ?? hostTabs.map((t) => t.id));
       if (next === tree) return;
       applyTree(next);
-      treeRef.current = next;
     };
 
     const sync = async () => {

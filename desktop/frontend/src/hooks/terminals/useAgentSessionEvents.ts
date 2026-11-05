@@ -120,7 +120,6 @@ export function useAgentSessionEvents({
       const current = treeRef.current;
       const next = update(current, projectName, payload);
       if (next !== current) {
-        treeRef.current = next;
         applyTree(next);
       }
     };

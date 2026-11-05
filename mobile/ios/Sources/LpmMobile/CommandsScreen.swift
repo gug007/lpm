@@ -82,6 +82,18 @@ struct CommandsScreen: View {
         .onDisappear { store.close(project) }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    ForEach(SkillVideo.all) { video in
+                        Link(destination: video.url) {
+                            Text(video.title)
+                            Text(video.length)
+                        }
+                    }
+                } label: {
+                    Label("Video guides", systemImage: "play.rectangle.fill")
+                }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
                 Button { draft = .new(scope: scope) } label: {
                     Label("New skill", systemImage: "plus")
                 }
@@ -111,4 +123,17 @@ struct CommandsScreen: View {
             }
         }
     }
+}
+
+private struct SkillVideo: Identifiable {
+    let id: String
+    let title: String
+    let length: String
+
+    var url: URL { URL(string: "https://www.youtube.com/watch?v=\(id)")! }
+
+    static let all = [
+        SkillVideo(id: "GY0USUZz2ZM", title: "Manage skills in one place", length: "7:00"),
+        SkillVideo(id: "MI_GqFpr6ms", title: "Organize skills in folders", length: "3:38"),
+    ]
 }
