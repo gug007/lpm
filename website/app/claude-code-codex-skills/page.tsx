@@ -29,6 +29,7 @@ import {
 import Cta from "./_components/cta";
 import DialogPreview from "./_components/dialog-preview";
 import Faq from "./_components/faq";
+import FoldersLesson from "./_components/folders-lesson";
 import Lesson from "./_components/lesson";
 import {
   BENEFITS,
@@ -158,6 +159,8 @@ export default function ClaudeCodeCodexSkillsPage() {
       <DialogPreview />
 
       <Lesson />
+
+      <FoldersLesson />
 
       <section className="border-y border-gray-100 bg-gray-50/70 py-20 dark:border-gray-800/70 dark:bg-white/[0.015] sm:py-24">
         <div className="mx-auto max-w-5xl px-6">

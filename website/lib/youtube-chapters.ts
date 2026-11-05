@@ -329,4 +329,18 @@ export const LESSON_CHAPTERS: Record<YouTubeLessonId, LessonChapters> = {
       [384, "On your other devices"],
     ],
   },
+  "organize-claude-code-codex-skills-folders": {
+    seconds: 219,
+    chapters: [
+      [0, "Intro"],
+      [24, "Make a folder"],
+      [50, "Other ways to move skills"],
+      [84, "Folders inside folders"],
+      [108, "Skills you made elsewhere"],
+      [131, "Keep it tidy"],
+      [141, "Nothing moves on disk"],
+      [157, "The slash menu"],
+      [189, "On your other devices"],
+    ],
+  },
 };

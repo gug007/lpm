@@ -43,3 +43,4 @@ Manual order. Each published lesson is appended here and to the playlist in the 
 - Switch Claude Code Account Mid-Session Without Losing Your Conversation — https://youtu.be/W0bAReCOh1Y
 - Let Claude Code or Codex Run Commands and Copy Files on Your Other Mac or Server — https://youtu.be/52ZBcHKb9AA
 - Manage Claude Code and Codex Skills in One Place — https://youtu.be/GY0USUZz2ZM
+- How to Organize Claude Code and Codex Skills in Folders — https://youtu.be/MI_GqFpr6ms

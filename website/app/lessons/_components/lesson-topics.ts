@@ -98,6 +98,10 @@ const LESSONS: Record<YouTubeLessonId, { topic: TopicId; title: string }> = {
     topic: "agents",
     title: "Manage skills in one place",
   },
+  "organize-claude-code-codex-skills-folders": {
+    topic: "agents",
+    title: "Organize skills in folders",
+  },
 };
 
 export type LessonCardData = { lesson: YouTubeLessonId; title: string };

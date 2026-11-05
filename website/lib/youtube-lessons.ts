@@ -198,6 +198,13 @@ const LESSONS = {
       "Claude Code reads skills from one folder and Codex from another. In lpm you write a skill once, run it in both agents as a real skill, and manage every skill you have in one list: create and run skills, save a prompt as a skill, project and global lists, folders, skills made somewhere else, import, search and Keep out of Git.",
     uploadDate: "2026-11-04T09:00:00+00:00",
   },
+  "organize-claude-code-codex-skills-folders": {
+    id: "MI_GqFpr6ms",
+    name: "How to Organize Claude Code and Codex Skills in Folders",
+    description:
+      "A dozen skills in one long slash menu is hard to scan. In lpm you sort Claude Code and Codex skills into folders: make a folder, drag skills in one at a time or several at once, nest folders, and see them as headings in the slash menu of both agents.",
+    uploadDate: "2026-11-05T09:00:00+00:00",
+  },
 } as const;
 
 export type YouTubeLessonId = keyof typeof LESSONS;

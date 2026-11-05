@@ -144,6 +144,10 @@ const LESSON_CAPTION: Record<
     heading: "One list for your Claude Code and Codex skills",
     blurb: "A short video: write a skill once, run it in both agents, and keep every skill you have in one place.",
   },
+  "organize-claude-code-codex-skills-folders": {
+    heading: "Sort a long list of skills into folders",
+    blurb: "A short video: make folders, file your skills, and see them as headings in the slash menu.",
+  },
 };
 
 function DesktopOnlyPrompt({
