@@ -132,6 +132,12 @@ export function ListAgentCommands(cli, cwd) {
 export function ListLpmCommands(project) {
   return invoke("list_lpm_commands", { project });
 }
+export function LoadSkillFolds(project) {
+  return invoke("load_skill_folds", { project });
+}
+export function SetSkillFold(project, scope, folder, open) {
+  return invoke("set_skill_fold", { project, scope, folder, open });
+}
 export function SaveLpmCommand(project, command, previous) {
   return invoke("save_lpm_command", { project, command, previous });
 }

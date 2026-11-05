@@ -142,6 +142,8 @@ macro_rules! all_command_handlers {
             generate_project_config,
             list_agent_commands,
             list_lpm_commands,
+            load_skill_folds,
+            set_skill_fold,
             save_lpm_command,
             delete_lpm_command,
             create_lpm_command_folder,

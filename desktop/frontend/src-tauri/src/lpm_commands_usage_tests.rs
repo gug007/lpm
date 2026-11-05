@@ -24,6 +24,7 @@ fn lists() -> LpmCommands {
         global: ScopeList { commands: vec![skill("ship", Scope::Global)], ..Default::default() },
         project: Some(ScopeList { commands: vec![skill("ship", Scope::Project), skill("fix", Scope::Project)], ..Default::default() }),
         project_error: None,
+        folds: Default::default(),
     }
 }
 

@@ -103,8 +103,8 @@ struct SlashMenu: View {
 extension Array where Element == SlashCommand {
     /// The rows a typed fragment keeps, like the desktop's filter: a name (or an
     /// lpm command's folder) starting with it first, then a name or description
-    /// holding it. lpm commands keep their folder order, ahead of the agent's, so
-    /// each folder's rows stay together under one heading.
+    /// holding it. Rows stay together under their heading, and the heading holding
+    /// the best match leads; lpm commands come first here, so they win a tie.
     func matching(_ fragment: String) -> [SlashCommand] {
         let q = fragment.lowercased()
         guard !q.isEmpty else { return self }
@@ -118,8 +118,14 @@ extension Array where Element == SlashCommand {
                 contains.append(c)
             }
         }
-        let matched = Set((starts + contains).map(\.id))
-        return filter { $0.isLpm && matched.contains($0.id) } + (starts + contains).filter { !$0.isLpm }
+        var keys: [String] = []
+        var groups: [String: [SlashCommand]] = [:]
+        for c in starts + contains {
+            let key = c.isLpm ? "\(c.scope?.rawValue ?? ""):\(c.folder ?? "")" : ""
+            if groups[key] == nil { keys.append(key) }
+            groups[key, default: []].append(c)
+        }
+        return keys.flatMap { groups[$0] ?? [] }
     }
 }
 

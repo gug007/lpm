@@ -126,6 +126,8 @@ export const GLOBAL_PEER_EVENTS = new Set<string>([
   "memory-changed",
   // A command saved on the host, so a Mac showing its project lists it again.
   "lpm-commands-changed",
+  // A skill folder closed on the host, so a Mac showing its project closes it too.
+  "skill-folds-changed",
   // A coding agent's progress on a generation run on the host.
   "commit-msg-progress",
   "pr-title-progress",

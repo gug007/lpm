@@ -10,7 +10,7 @@ use crate::lpm_commands::{
 use crate::lpm_commands_git::{GitView, CLAUDE_ROOT, SHARED_ROOT};
 use crate::lpm_commands_layout as layout;
 use crate::lpm_commands_local::{LEGACY_DIR, LEGACY_DONE, LEGACY_DONE_NOTE};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub(crate) struct RemoteFs {
     ssh: SshSettings,
@@ -293,8 +293,8 @@ rmdir \"$D\" 2>/dev/null
         self.run(&script).map(|_| ())
     }
 
-    fn update_layout(&self, edit: &mut dyn FnMut(&mut Layout)) -> Result<(), String> {
-        layout::update(self.layout.as_deref(), edit)
+    fn layout_path(&self) -> Option<&Path> {
+        self.layout.as_deref()
     }
 
     fn skill_files(&self, name: &str) -> Result<Vec<(String, String)>, String> {

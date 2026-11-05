@@ -70,8 +70,8 @@ export interface SkillRowActions {
 
 // What a folder's row can ask for, in one list, passed down the tree unchanged.
 export interface FolderRowActions {
-  isOpen: (key: FolderKey) => boolean;
-  onToggle: (key: FolderKey) => void;
+  isOpen: (name: string) => boolean;
+  onToggle: (name: string) => void;
   onSelect: (c: LpmCommand) => void;
   onNew: (where: CommandPlace) => void;
   onCreateFolder: (name: string) => void;

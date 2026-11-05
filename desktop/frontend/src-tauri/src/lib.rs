@@ -170,6 +170,7 @@ mod lpm_commands;
 mod lpm_commands_cmds;
 mod lpm_commands_doc;
 mod lpm_commands_expand;
+mod lpm_commands_folds;
 mod lpm_commands_git;
 mod lpm_commands_import;
 mod lpm_commands_layout;
@@ -178,6 +179,7 @@ mod lpm_commands_migrate;
 mod lpm_commands_names;
 mod lpm_commands_ops;
 mod lpm_commands_remote;
+mod lpm_commands_shared;
 mod lpm_commands_snapshot;
 mod lpm_commands_usage;
 mod mainwindow;
@@ -404,7 +406,8 @@ use aigen::*;
 use lpm_commands_cmds::{
     convert_skill, move_other_skill,
     create_lpm_command_folder, delete_lpm_command, delete_lpm_command_folder, expand_lpm_command,
-    import_lpm_commands, list_lpm_commands, rename_lpm_command_folder, save_lpm_command,
+    import_lpm_commands, list_lpm_commands, load_skill_folds, rename_lpm_command_folder,
+    save_lpm_command, set_skill_fold,
 };
 use aigen_split::generate_commit_split;
 use browser::*;

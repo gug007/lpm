@@ -54,6 +54,25 @@ export interface LpmCommandLists {
   // Null outside a project, or when its list couldn't be read (projectError).
   project: CommandScopeList | null;
   projectError: string | null;
+  // Absent from a computer on an older lpm.
+  folds?: SkillFolds;
+}
+
+export interface ListFolds {
+  closed: string[];
+  othersOpen: boolean;
+}
+
+export type SkillFolds = Record<CommandScope, ListFolds>;
+
+const NOTHING_FOLDED: ListFolds = { closed: [], othersOpen: false };
+export const NO_FOLDS: SkillFolds = { global: NOTHING_FOLDED, project: NOTHING_FOLDED };
+
+// No folder means the list's Other skills group. Sorted as the saved file is.
+export function withFold(list: ListFolds, folder: string | null, open: boolean): ListFolds {
+  if (folder === null) return { ...list, othersOpen: open };
+  const others = list.closed.filter((name) => name !== folder);
+  return { ...list, closed: open ? others : [...others, folder].sort() };
 }
 
 export interface CommandRef {
@@ -192,19 +211,4 @@ export function mergeSlashCommands(lists: LpmCommandLists, agent: SlashCommand[]
   }));
   const taken = new Set(mine.map((c) => c.name.toLowerCase()));
   return [...mine, ...agent.filter((c) => !taken.has(c.name.toLowerCase()))];
-}
-
-// The matched lpm skills, folder by folder in the menu's order, with the
-// folders that hold a prefix match ahead of those with only a looser one.
-export function rankLpmGroups(all: SlashCommand[], starts: Set<SlashCommand>, contains: Set<SlashCommand>): SlashCommand[] {
-  const groups = new Map<string, { rank: number; rows: SlashCommand[] }>();
-  for (const c of all) {
-    if (c.source !== "lpm" || (!starts.has(c) && !contains.has(c))) continue;
-    const key = `${c.scope}:${c.folder ?? ""}`;
-    const group = groups.get(key) ?? { rank: 1, rows: [] };
-    if (starts.has(c)) group.rank = 0;
-    group.rows.push(c);
-    groups.set(key, group);
-  }
-  return [...groups.values()].sort((a, b) => a.rank - b.rank).flatMap((g) => g.rows);
 }

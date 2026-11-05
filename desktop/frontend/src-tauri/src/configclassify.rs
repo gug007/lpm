@@ -1,6 +1,7 @@
 // Classifying a ~/.lpm filesystem event: which config category it touches, and
 // what one event dirties. Split out of configwatch so the watcher plumbing and
 // this pure, heavily-tested mapping each stay small.
+use crate::lpm_commands_folds::is_folds_file;
 use crate::lpm_commands_layout::LAYOUT_DIR;
 use crate::peersync;
 use crate::syncsurface::{is_os_junk, is_sync_global_dir, is_sync_global_file};
@@ -26,6 +27,9 @@ pub(crate) enum Category {
     // skill-layout/*.json: a list's folders, which a sync lands here without lpm
     // having changed anything else.
     Skills,
+    // skill-layout/folds/*.json: which folders are closed. No skill changed, so
+    // this stays apart from Skills, whose emit reads every list again.
+    SkillFolds,
 }
 
 #[derive(Default, PartialEq, Debug)]
@@ -39,6 +43,7 @@ pub(crate) struct Dirty {
     pub(crate) settings: bool,
     pub(crate) memory: BTreeSet<String>,
     pub(crate) skills: bool,
+    pub(crate) skill_folds: bool,
 }
 
 impl Dirty {
@@ -48,6 +53,7 @@ impl Dirty {
             || self.sidebar
             || self.settings
             || self.skills
+            || self.skill_folds
             || !self.memory.is_empty()
     }
 
@@ -58,6 +64,7 @@ impl Dirty {
         self.settings |= other.settings;
         self.memory.extend(other.memory);
         self.skills |= other.skills;
+        self.skill_folds |= other.skill_folds;
     }
 }
 
@@ -84,6 +91,7 @@ pub(crate) fn classify(lpm: &Path, path: &Path) -> Option<Category> {
         ["projects", file] => file.ends_with(".yml").then_some(Category::Projects),
         ["templates", ..] => Some(Category::Templates),
         ["memory", project, ..] => Some(Category::Memory((*project).to_string())),
+        _ if is_folds_file(rel) => Some(Category::SkillFolds),
         [dir, ..] if *dir == LAYOUT_DIR => Some(Category::Skills),
         [dir, ..] if is_sync_global_dir(dir) => Some(Category::Projects),
         _ => None,
@@ -130,6 +138,7 @@ pub(crate) fn fold_event(root: &Path, ev: &notify::Event) -> Dirty {
                 d.memory.insert(project);
             }
             Some(Category::Skills) => d.skills = true,
+            Some(Category::SkillFolds) => d.skill_folds = true,
             None => {}
         }
     }
@@ -168,6 +177,7 @@ mod tests {
     #[test]
     fn a_skill_layout_is_a_skills_change() {
         assert_eq!(classify(&lpm(), &at("skill-layout/web.json")), Some(Category::Skills));
+        assert_eq!(classify(&lpm(), &at("skill-layout/folds/web.json")), Some(Category::SkillFolds));
         let d = fold_event(&lpm(), &event(EventKind::Create(CreateKind::File), "skill-layout/web.json"));
         assert!(d.skills && !d.projects);
     }

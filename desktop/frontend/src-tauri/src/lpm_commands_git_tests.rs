@@ -1,5 +1,5 @@
 use super::*;
-use crate::lpm_commands::{list_stores, CommandInput, CommandRef, LocalFs, ScopeList, Scope, Stores};
+use crate::lpm_commands::{list_stores, project_store, CommandInput, CommandRef, LocalFs, ScopeList, Scope, Stores};
 use crate::lpm_commands_ops as ops;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -304,22 +304,6 @@ fn a_linked_worktree_uses_the_repos_shared_rules() {
     ops::save(&stores, input("mine", Some(true)), None).unwrap();
     assert_eq!(run_git(&linked, &["status", "--porcelain", "-uall"]), "");
     assert!(repo.exclude().contains("/.agents/skills/mine"), "{}", repo.exclude());
-}
-
-#[test]
-fn a_new_worktree_brings_a_kept_out_skill_and_its_link() {
-    let repo = Repo::new();
-    repo.save("mine", Some(true));
-    repo.save("open", None);
-    std::fs::write(repo.root.join(".agents/skills/mine/notes.txt"), "beside it\n").unwrap();
-    let linked = repo.top.parent().unwrap().join("linked");
-    run_git(&repo.top, &["worktree", "add", "-q", "-b", "wt", linked.to_str().unwrap()]);
-
-    assert_eq!(bring_kept_out(&repo.root, &linked), Vec::<String>::new());
-    assert!(linked.join(".agents/skills/mine/notes.txt").is_file());
-    assert!(linked.join(".claude/skills/mine/SKILL.md").is_file());
-    assert!(!linked.join(".agents/skills/open").exists());
-    assert_eq!(run_git(&linked, &["status", "--porcelain", "-uall"]), "");
 }
 
 #[test]

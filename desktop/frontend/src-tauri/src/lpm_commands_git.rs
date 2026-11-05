@@ -3,7 +3,7 @@
 // A skill git already holds has its removal staged, for the user to commit: lpm
 // never commits. A rule names both places a skill can sit, so Claude's link is
 // covered even when it is made later.
-use crate::lpm_commands::{current, project_store, CommandFs};
+use crate::lpm_commands::{current, CommandFs};
 use crate::lpm_commands_snapshot::RawList;
 use std::collections::HashSet;
 use std::path::Path;
@@ -187,30 +187,6 @@ pub(crate) fn forget_removed(fs: &dyn CommandFs, name: &str) {
     if left.is_ok_and(|files| files.is_empty()) {
         let _ = edit_exclude(fs, |text, prefix| without_rules(text, &rules(prefix, name)));
     }
-}
-
-/// A linked worktree shares its repo's rules but not ignored files, so skills kept
-/// out would be missing there. Returns the ones that couldn't be brought.
-pub(crate) fn bring_kept_out(from: &Path, dest: &Path) -> Vec<String> {
-    let Ok(snap) = project_store(from).snapshot() else {
-        return Vec::new();
-    };
-    let target = project_store(dest);
-    let mut failed = Vec::new();
-    for file in snap.files.iter().filter(|f| f.git.kept_out) {
-        let copied = places(&file.name).iter().try_for_each(|place| {
-            let source = from.join(place);
-            if source.exists() {
-                crate::lpm_commands::copy_tree(&source, &dest.join(place)).map_err(|e| e.to_string())
-            } else {
-                Ok(())
-            }
-        });
-        if let Err(e) = copied.and_then(|()| target.link_claude(&file.name)) {
-            failed.push(format!("{}: {e}", file.name));
-        }
-    }
-    failed
 }
 
 #[cfg(test)]

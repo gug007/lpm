@@ -1,7 +1,8 @@
 // How often each lpm skill ran and when it last did, kept on the computer that
 // expands it (~/.lpm/skill-runs.json): from the composer, a phone, a paired Mac
 // or `lpm`. Lists carry it so the Skills tab can show which skills get used.
-// A project's skills are counted per project, the global ones once.
+// A project's skills are counted once across its duplicates and worktrees, which
+// share them, and the global ones once.
 use crate::lpm_commands::{LpmCommands, Scope, ScopeList};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -124,24 +125,28 @@ fn now_millis() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_millis() as u64)
 }
 
+fn owner(project: &str) -> String {
+    crate::session_memory_scope::memory_owner(project)
+}
+
 pub(crate) fn record(project: &str, scope: Scope, name: &str) {
     let now = now_millis();
-    update(|log| log.record(project, scope, name, now));
+    update(|log| log.record(&owner(project), scope, name, now));
 }
 
 pub(crate) fn rename(project: &str, from: (Scope, &str), to: (Scope, &str)) {
     if from.0 == to.0 && from.1.eq_ignore_ascii_case(to.1) {
         return;
     }
-    update(|log| log.rename(project, from, to));
+    update(|log| log.rename(&owner(project), from, to));
 }
 
 pub(crate) fn forget(project: &str, scope: Scope, name: &str) {
-    update(|log| log.forget(project, scope, name));
+    update(|log| log.forget(&owner(project), scope, name));
 }
 
 pub(crate) fn annotate(project: &str, lists: &mut LpmCommands) {
-    load().annotate(project, lists);
+    load().annotate(&owner(project), lists);
 }
 
 #[cfg(test)]

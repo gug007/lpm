@@ -119,7 +119,8 @@ fn repo_of(root: &Path) -> Option<String> {
 /// Every project here that sits in a repository, and its kept-out skills.
 pub(crate) fn local_list<'a>(projects: impl Iterator<Item = &'a String>) -> KeptSkills {
     let mut out = KeptSkills::default();
-    for project in projects {
+    // A duplicate's are its original's, and would cross twice under another name.
+    for project in projects.filter(|p| config::peek_parent(p).is_none()) {
         if let Some((root, fs)) = local_project(project) {
             if let Some(repo) = repo_of(&root) {
                 add_project(project, repo, &fs, &mut out);
@@ -201,7 +202,10 @@ pub(crate) fn announce<'a>(app: &AppHandle, items: impl Iterator<Item = (&'a str
         .map(|(project, _)| project)
         .collect();
     for project in projects {
-        let _ = app.emit(CHANGED_EVENT, project);
+        crate::lpm_commands_shared::refresh_all(project);
+        for named in crate::lpm_commands_shared::family(project) {
+            let _ = app.emit(CHANGED_EVENT, named);
+        }
     }
 }
 

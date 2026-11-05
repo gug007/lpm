@@ -92,6 +92,7 @@ fn the_project_command_wins_over_a_global_one() {
         global: ScopeList { commands: vec![command("ship", Scope::Global, "global")], ..Default::default() },
         project: Some(ScopeList { commands: vec![command("Ship", Scope::Project, "project")], ..Default::default() }),
         project_error: None,
+        folds: Default::default(),
     };
     assert_eq!(find(&list, "ship").unwrap().body, "project");
     assert_eq!(find(&list, "SHIP").unwrap().body, "project");

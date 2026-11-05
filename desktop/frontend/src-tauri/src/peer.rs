@@ -144,6 +144,8 @@ const FORWARDED_EVENTS: &[&str] = &[
     "memory-changed",
     // A command saved here, so a Mac showing one of these projects lists it again.
     "lpm-commands-changed",
+    // ...or a folder closed, so that Mac shows it closed too.
+    crate::lpm_commands_folds::CHANGED_EVENT,
     "clone-done",
     "duplicate-done",
     // The host's folders changed, so a Mac showing them reads them again.
@@ -1914,7 +1916,7 @@ fn handle_sync(app: &AppHandle, out: &SyncSender<String>, t: &str, v: &Value) {
                     .unwrap_or_default();
             let mut applied = 0u64;
             let mut errors: Vec<String> = Vec::new();
-            match crate::transfer::snapshot_sync_backup() {
+            match crate::peersync::backup_before(items.iter().map(|i| (i.kind.as_str(), i.name.as_str()))) {
                 Ok(_) => {
                     // Sidecar entries to write after the files land (revisions of the
                     // received units, keyed under the sending Mac's device id).

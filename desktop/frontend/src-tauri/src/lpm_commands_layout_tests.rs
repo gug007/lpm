@@ -221,7 +221,7 @@ fn a_change_with_nothing_to_save_leaves_the_file_alone() {
 
 #[test]
 fn a_list_with_no_layout_reads_empty_and_refuses_only_a_real_change() {
-    assert_eq!(read(None), Layout::default());
+    assert_eq!(read::<Layout>(None), Layout::default());
     update(None, &mut |_| {}).unwrap();
     assert!(update(None, &mut |layout| layout.keep(&["Git".to_string()])).is_err());
 }
@@ -249,7 +249,7 @@ fn changes_at_once_lose_nothing() {
             });
         }
     });
-    assert_eq!(read(Some(&path)).skills.len(), 16);
+    assert_eq!(read::<Layout>(Some(&path)).skills.len(), 16);
 }
 
 #[test]

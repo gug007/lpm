@@ -8,6 +8,7 @@ use crate::lpm_commands::{
     FOLDER_SEP,
 };
 use crate::lpm_commands_doc::MAX_DESCRIPTION_CHARS;
+use crate::lpm_commands_folds as folds;
 use crate::lpm_commands_git as git;
 
 fn existing_folder(folders: &[String], folder: &str) -> Option<String> {
@@ -210,7 +211,10 @@ fn move_folder(fs: &dyn CommandFs, snap: &Snapshot, from: &str, to: Option<&str>
     fs.update_layout(&mut |layout| {
         layout.keep(&snap.folders);
         layout.move_folder(from, to);
-    })
+    })?;
+    // The move is done; a fold left behind only shows the folder open.
+    let _ = folds::update(fs.layout_path(), &mut |folds| folds.move_folder(from, to));
+    Ok(())
 }
 
 /// Gives a folder a new name or, with a new path, a new place in the list. What's
@@ -249,5 +253,6 @@ pub(crate) fn delete_folder(stores: &Stores, scope: Scope, name: &str) -> Result
         return Ok(());
     };
     let parent = current.rsplit_once(FOLDER_SEP).map(|(parent, _)| parent);
+    let _ = folds::update(fs.layout_path(), &mut |folds| folds.forget(&current));
     move_folder(fs, &snap, &current, parent)
 }

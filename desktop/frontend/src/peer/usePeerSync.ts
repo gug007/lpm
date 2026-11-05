@@ -143,6 +143,7 @@ export function usePeerSync(peers: PeerClient[]) {
       EventsOn("templates-changed", debounced),
       EventsOn("memory-changed", debounced),
       EventsOn("lpm-commands-changed", debounced),
+      EventsOn("skill-folds-changed", debounced),
       subscribePeerGlobalEvent("projects-changed", debounced),
       subscribePeerGlobalEvent("templates-changed", debounced),
       subscribePeerGlobalEvent("memory-changed", debounced),

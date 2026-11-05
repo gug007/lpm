@@ -66,3 +66,26 @@ export function findAICLI(cmd: string | undefined | null): { cli: AICLI; end: nu
   }
   return null;
 }
+
+// The rows a typed fragment keeps: a name (or an lpm skill's folder) starting
+// with it first, then a name or description holding it, so the best match is
+// the highlighted row. Rows stay together under their heading, and the heading
+// holding the best match leads; `all` lists lpm skills first, so they win a tie.
+// An empty fragment (a lone "/") keeps the full list so the menu is browsable.
+export function filterSlashCommands(all: SlashCommand[], frag: string): SlashCommand[] {
+  const q = frag.toLowerCase();
+  if (!q) return all;
+  const starts: SlashCommand[] = [];
+  const contains: SlashCommand[] = [];
+  for (const c of all) {
+    const name = c.name.toLowerCase();
+    if (name.startsWith(q) || c.folder?.toLowerCase().startsWith(q)) starts.push(c);
+    else if (name.includes(q) || c.description.toLowerCase().includes(q)) contains.push(c);
+  }
+  const groups = new Map<string, SlashCommand[]>();
+  for (const c of starts.concat(contains)) {
+    const key = c.source === "lpm" ? `${c.scope}:${c.folder ?? ""}` : "";
+    groups.set(key, [...(groups.get(key) ?? []), c]);
+  }
+  return [...groups.values()].flat();
+}

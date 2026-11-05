@@ -9,6 +9,7 @@
 use crate::config;
 use crate::lpm_commands::{add_folder, folder_order, moved_folder};
 use crate::lpm_commands_local::missing_is_fine;
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -86,36 +87,43 @@ pub(crate) fn is_layout_file(rel: &str) -> bool {
 }
 
 /// What's saved. A file that can't be read costs the list its folders, not its skills.
-pub(crate) fn read(path: Option<&Path>) -> Layout {
+pub(crate) fn read<T: DeserializeOwned + Default>(path: Option<&Path>) -> T {
     path.and_then(|p| std::fs::read(p).ok())
         .and_then(|bytes| serde_json::from_slice(&bytes).ok())
         .unwrap_or_default()
 }
 
-fn write(path: &Path, layout: &Layout) -> Result<(), String> {
-    if layout.folders.is_empty() && layout.skills.is_empty() {
+/// Reads the file fresh, so a change can't undo one saved since its caller looked.
+/// Nothing left to keep means no file.
+pub(crate) fn rewrite<T>(path: Option<&Path>, edit: &mut dyn FnMut(&mut T)) -> Result<(), String>
+where
+    T: Serialize + DeserializeOwned + Default + Clone + PartialEq,
+{
+    let _updating = UPDATING.lock().unwrap_or_else(|e| e.into_inner());
+    let before: T = read(path);
+    let mut value = before.clone();
+    edit(&mut value);
+    if value == before {
+        return Ok(());
+    }
+    let path = path.ok_or("This list can't keep folders.")?;
+    if value == T::default() {
         return missing_is_fine(std::fs::remove_file(path));
     }
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     }
-    let text = serde_json::to_string_pretty(layout).map_err(|e| e.to_string())?;
+    let text = serde_json::to_string_pretty(&value).map_err(|e| e.to_string())?;
     crate::fsatomic::write(path, format!("{text}\n").as_bytes(), crate::fsatomic::Mode::Preserve(0o644))
         .map_err(|e| e.to_string())
 }
 
-/// Reads the file fresh, so a change can't undo one saved since its caller looked.
 /// Sorted, so two computers holding the same layout hold the same file.
 pub(crate) fn update(path: Option<&Path>, edit: &mut dyn FnMut(&mut Layout)) -> Result<(), String> {
-    let _updating = UPDATING.lock().unwrap_or_else(|e| e.into_inner());
-    let before = read(path);
-    let mut layout = before.clone();
-    edit(&mut layout);
-    layout.folders.sort_by_key(|f| folder_order(f));
-    if layout == before {
-        return Ok(());
-    }
-    write(path.ok_or("This list can't keep folders.")?, &layout)
+    rewrite(path, &mut |layout: &mut Layout| {
+        edit(layout);
+        layout.folders.sort_by_key(|f| folder_order(f));
+    })
 }
 
 #[cfg(test)]

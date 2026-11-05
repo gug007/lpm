@@ -37,6 +37,8 @@ export function CancelActionBackground(...args: any[]): Promise<any>;
 export function CheckAICLIs(...args: any[]): Promise<any>;
 export function ListAgentCommands(...args: any[]): Promise<any>;
 export function ListLpmCommands(...args: any[]): Promise<any>;
+export function LoadSkillFolds(...args: any[]): Promise<any>;
+export function SetSkillFold(...args: any[]): Promise<any>;
 export function SaveLpmCommand(...args: any[]): Promise<any>;
 export function DeleteLpmCommand(...args: any[]): Promise<any>;
 export function CreateLpmCommandFolder(...args: any[]): Promise<any>;

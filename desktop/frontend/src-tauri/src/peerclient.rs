@@ -1476,7 +1476,7 @@ impl PeerClientHub {
         // backup was kept), threaded out so an unattended run can surface them.
         let conflicts: Vec<String> = plan
             .iter()
-            .filter(|i| i.conflict)
+            .filter(|i| i.conflict && !crate::peersync::is_folds_unit(&i.kind, &i.name))
             .map(|i| i.name.clone())
             .collect();
         let (to_local, to_remote): (Vec<_>, Vec<_>) =
@@ -1497,7 +1497,7 @@ impl PeerClientHub {
                 .map(|i| json!({ "kind": i.kind, "name": i.name }))
                 .collect();
             let fetched = self.fetch_items(slug, req_items, &mut errors)?;
-            match crate::transfer::snapshot_sync_backup() {
+            match crate::peersync::backup_before(to_local.iter().map(|i| (i.kind.as_str(), i.name.as_str()))) {
                 Ok(path) => {
                     backup_path = path;
                     for it in &fetched {
@@ -2852,6 +2852,7 @@ fn handle_frame(conn: &Arc<PeerConn>, app: Option<&AppHandle>, txt: &str) {
                         | "templates-changed"
                         | "memory-changed"
                         | crate::lpm_commands_cmds::CHANGED_EVENT
+                        | crate::lpm_commands_folds::CHANGED_EVENT
                 ) {
                     if let Some(engine) = autosync_engine(Some(app)) {
                         engine.notify_remote_change(slug);

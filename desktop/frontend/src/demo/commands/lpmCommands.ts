@@ -1,8 +1,26 @@
 import type { CommandMap } from "../backend";
 import { emitEvent } from "../ipc";
 import { folderAfterMove, folderParent, inTreeOrder, withParents } from "../../components/commands/commandFolders";
-import { allCommands, AUTO_VARIABLES, findCommand, isValidCommandName, promptVariables, sameCommand } from "../../lpmCommands";
-import type { CommandInput, CommandRef, CommandScope, LpmCommand, LpmCommandLists, OtherSkill } from "../../lpmCommands";
+import {
+  allCommands,
+  AUTO_VARIABLES,
+  findCommand,
+  isValidCommandName,
+  NO_FOLDS,
+  promptVariables,
+  sameCommand,
+  withFold,
+} from "../../lpmCommands";
+import type {
+  CommandInput,
+  CommandRef,
+  CommandScope,
+  ListFolds,
+  LpmCommand,
+  LpmCommandLists,
+  OtherSkill,
+  SkillFolds,
+} from "../../lpmCommands";
 import { joinAbs } from "../../path";
 import type { SeedLpmCommand } from "../seed/types";
 import { GLOBAL, projectAt, projects, seedData } from "./state";
@@ -17,6 +35,7 @@ interface List {
   commands: LpmCommand[];
   others: OtherSkill[];
   inRepo: boolean;
+  folds: ListFolds;
 }
 
 let global: List | null = null;
@@ -42,6 +61,7 @@ function fromSeed(seeded: SeedLpmCommand[], scope: CommandScope, root = ""): Lis
     })),
     others: (seedData().lpmCommands?.others?.[scope] ?? []).map((o) => ({ ...o, path: joinAbs(root, o.path) })),
     inRepo: scope === "project",
+    folds: NO_FOLDS[scope],
   };
 }
 
@@ -89,12 +109,17 @@ function withPaths(project: string, list: ReturnType<typeof sorted>) {
   return { ...list, commands: list.commands.map((c) => ({ ...c, path: `${commandDir(project, c)}/SKILL.md` })) };
 }
 
+function skillFolds(project: string): SkillFolds {
+  return { global: globalList().folds, project: projectList(project)?.folds ?? NO_FOLDS.project };
+}
+
 function lists(project: string): LpmCommandLists {
   const own = projectList(project);
   return {
     global: withPaths(project, sorted(globalList())),
     project: own && withPaths(project, sorted(own)),
     projectError: null,
+    folds: skillFolds(project),
   };
 }
 
@@ -124,9 +149,11 @@ function addFolder(list: List, folder: string) {
 }
 
 // The folder `from` and what's inside it become `to`, null being the top of the list.
-function moveFolder(list: List, from: string, to: string | null) {
+function moveFolder(list: List, from: string, to: string | null, deleted = false) {
   list.folders = withParents(list.folders.flatMap((f) => folderAfterMove(f, from, to) ?? []));
   for (const c of [...list.commands, ...list.others]) c.folder = folderAfterMove(c.folder ?? null, from, to);
+  const closed = deleted ? list.folds.closed.filter((f) => f !== from) : list.folds.closed;
+  list.folds = { ...list.folds, closed: [...new Set(closed.flatMap((f) => folderAfterMove(f, from, to) ?? []))] };
 }
 
 function save(project: string, input: CommandInput, previous: CommandRef | null): LpmCommandLists {
@@ -242,8 +269,14 @@ export const lpmCommandCommands: CommandMap = {
   },
   delete_lpm_command_folder: ({ project, scope, name }) => {
     const list = listOf(str(project), scope as CommandScope);
-    moveFolder(list, str(name), folderParent(str(name)));
+    moveFolder(list, str(name), folderParent(str(name)), true);
     return changed(str(project), scope as CommandScope);
+  },
+  load_skill_folds: ({ project }) => skillFolds(str(project)),
+  set_skill_fold: ({ project, scope, folder, open }) => {
+    const list = listOf(str(project), scope as CommandScope);
+    list.folds = withFold(list.folds, (folder as string | null) ?? null, open === true);
+    return skillFolds(str(project));
   },
   move_other_skill: ({ project, scope, name, folder, root }) => {
     const list = listOf(str(project), scope as CommandScope);

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ListAgentCommands } from "../../bridge/commands";
 import type { AICLI } from "../types";
-import type { SlashCommand } from "../slashCommands";
-import { mergeSlashCommands, rankLpmGroups, type LpmCommandLists } from "../lpmCommands";
+import { filterSlashCommands, type SlashCommand } from "../slashCommands";
+import { mergeSlashCommands, type LpmCommandLists } from "../lpmCommands";
 import { useLpmCommandLists } from "../store/lpmCommands";
 
 // Loads the slash commands for a CLI + cwd and exposes a client-side filter.
@@ -49,27 +49,7 @@ export function useSlashCommands(cli: AICLI | null, cwd: string, active: boolean
   const lists: LpmCommandLists | null = lpmOn ? lpmLists : null;
   const all = useMemo(() => (lists ? mergeSlashCommands(lists, agent) : agent), [lists, agent]);
 
-  // Prefix matches first, then a substring fallback over name/description. An
-  // empty fragment (a lone "/") returns the full list so the menu is browsable.
-  // An lpm command also matches on its folder's name.
-  const filter = useCallback(
-    (frag: string): SlashCommand[] => {
-      const q = frag.toLowerCase();
-      if (!q) return all;
-      const starts: SlashCommand[] = [];
-      const contains: SlashCommand[] = [];
-      for (const c of all) {
-        const name = c.name.toLowerCase();
-        if (name.startsWith(q) || c.folder?.toLowerCase().startsWith(q)) starts.push(c);
-        else if (name.includes(q) || c.description.toLowerCase().includes(q)) contains.push(c);
-      }
-      // lpm skills lead and each folder's rows stay together under one
-      // heading; the folder holding the best match comes first.
-      const lpm = rankLpmGroups(all, new Set(starts), new Set(contains));
-      return [...lpm, ...starts.concat(contains).filter((c) => c.source !== "lpm")];
-    },
-    [all],
-  );
+  const filter = useCallback((frag: string) => filterSlashCommands(all, frag), [all]);
 
   // Whether a "/name" the user typed is a real command — drives the in-composer
   // blue highlight, so only recognized commands get colored. False when no CLI is

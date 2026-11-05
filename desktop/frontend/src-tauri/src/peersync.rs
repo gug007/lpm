@@ -21,6 +21,7 @@
 // and so are project skills kept out of Git (skillsync_kept.rs).
 // See PEER_PROTOCOL.md.
 use crate::config;
+use crate::lpm_commands_folds::is_folds_file;
 use crate::lpm_commands_layout::is_layout_file;
 use crate::skillsync;
 use crate::skillsync_kept::{self, KeptSkills};
@@ -444,6 +445,22 @@ fn collect_global_dir(lpm: &Path, rel: &Path, out: &mut BTreeMap<String, ItemDig
             }
         }
     }
+}
+
+/// Whether a unit only says which skill folders are closed.
+pub(crate) fn is_folds_unit(kind: &str, name: &str) -> bool {
+    kind == "global" && is_folds_file(name)
+}
+
+/// The backup ahead of applying `units`, as (kind, name). Backups are kept by count
+/// and folding happens all the time, so a sync of nothing else takes none: it would
+/// push out a restore point worth having.
+pub(crate) fn backup_before<'a>(units: impl Iterator<Item = (&'a str, &'a str)>) -> Result<String, String> {
+    let mut units = units.peekable();
+    if units.peek().is_some() && units.all(|(kind, name)| is_folds_unit(kind, name)) {
+        return Ok(String::new());
+    }
+    crate::transfer::snapshot_sync_backup()
 }
 
 fn global_digest(relpath: &str, bytes: &[u8]) -> Result<String, String> {
@@ -2364,6 +2381,32 @@ mod tests {
         let plan = skill_plan(&local, &skill_map(&[], &[]));
         assert_eq!(plan.len(), 1);
         assert_eq!(plan[0].name, "skill-layout/web.json");
+    }
+
+    #[test]
+    fn only_folds_are_folds_units() {
+        assert!(is_folds_unit("global", "skill-layout/folds/web.json"));
+        assert!(!is_folds_unit("global", "skill-layout/web.json"));
+        // A kept skill's name is `<project>/<skill>`, which can read like the path.
+        assert!(!is_folds_unit("kept-skill", "skill-layout/folds/web.json"));
+    }
+
+    #[test]
+    fn folds_alone_cost_no_backup() {
+        let units = [("global", "skill-layout/folds/web.json"), ("global", "skill-layout/folds/api.json")];
+        assert_eq!(backup_before(units.into_iter()), Ok(String::new()));
+    }
+
+    #[test]
+    fn folds_sync_wherever_a_layout_does_and_nowhere_else() {
+        let name = "skill-layout/folds/web.json";
+        assert!(safe_global_rel(name).is_ok());
+        let mut local = skill_map(&[], &[]);
+        local.globals.insert(name.into(), skill("f", 1, "me", 5));
+        let plan = skill_plan(&local, &skill_map(&[], &[]));
+        assert_eq!(plan.len(), 1);
+        assert_eq!(plan[0].name, name);
+        assert!(skill_plan(&local, &DigestMap::default()).is_empty());
     }
 
     #[test]

@@ -883,6 +883,9 @@ letters, numbers and single hyphens, and unique within a list. When both lists
 have a name, `/name` runs the **project's**. Only when `features` has
 `"lpmCommands"`; every verb runs on a worker and echoes `reqId`.
 
+The lists also carry `folds`, which folders the desktop tree shows closed. Phones
+page through folders, so they have no use for it.
+
 Each list also carries `others`: the skills in its places that weren't made in
 lpm, each `{ name, description, preview, agents, path }`, sorted by name.
 `preview` is the start of the instructions, `agents` the CLIs that read it

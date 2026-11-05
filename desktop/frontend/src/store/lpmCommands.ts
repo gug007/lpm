@@ -14,6 +14,7 @@ import {
 } from "../../bridge/commands";
 import { EventsOn } from "../../bridge/runtime";
 import type { AICLI } from "../types";
+import { foldsReader } from "./skillFolds";
 import type {
   CommandInput,
   CommandRef,
@@ -49,8 +50,10 @@ export const useLpmCommandsStore = create<LpmCommandsState>((set, get) => ({
   load: (project) => {
     const pending = inFlight.get(project);
     if (pending) return pending;
+    const takeFolds = foldsReader(project);
     const run = (ListLpmCommands(project) as Promise<LpmCommandLists>)
       .then((lists) => {
+        takeFolds(lists.folds);
         get().put(project, lists);
         return lists;
       })
@@ -104,7 +107,9 @@ import.meta.hot?.dispose(() => {
 });
 
 async function apply(project: string, call: Promise<unknown>): Promise<LpmCommandLists> {
+  const takeFolds = foldsReader(project);
   const lists = (await call) as LpmCommandLists;
+  takeFolds(lists.folds);
   useLpmCommandsStore.getState().put(project, lists);
   return lists;
 }

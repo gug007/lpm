@@ -840,7 +840,11 @@ ways, deletions included, and `peer_sync_status` returns it as `skippedSkills` w
 the other side has that skill. `skill-layout/<project>.json`, each list's folders and
 which skill sits in which (`__global__.json` for the global list), joins the global
 files only between two such maps, because an older build refuses it as a global it
-doesn't sync.
+doesn't sync. `skill-layout/folds/<project>.json`, which of a list's folders are closed
+and whether its Other skills group is open, sits inside that directory, so it crosses
+between the same computers. It is a file of its own so that folding can never lose a
+folder move to a conflict, and a sync of nothing else takes no backup and raises no
+conflict notice, since folding happens all the time and backups are kept by count.
 
 `keptSkills` does the same for project skills kept out of Git, which Git can't carry.
 `repos` holds each project this computer read and its repository, the `origin` reduced

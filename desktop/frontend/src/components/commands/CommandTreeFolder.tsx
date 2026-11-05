@@ -42,7 +42,7 @@ export function CommandTreeFolder({
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const [renaming, setRenaming] = useState(false);
   const [adding, setAdding] = useState(false);
-  const open = folderActions.isOpen(folder.key);
+  const open = folderActions.isOpen(folder.name);
   const Chevron = open ? ChevronDown : ChevronRight;
   const Icon = open ? FolderOpen : FolderClosed;
   const skillDepth = folder.depth + 1;
@@ -56,7 +56,7 @@ export function CommandTreeFolder({
     setAdding(false);
     if (!name) return;
     folderActions.onCreateFolder(childFolder(folder.name, name));
-    if (!open) folderActions.onToggle(folder.key);
+    if (!open) folderActions.onToggle(folder.name);
   };
 
   return (
@@ -82,7 +82,7 @@ export function CommandTreeFolder({
           type="button"
           {...drag.attributes}
           {...drag.listeners}
-          onClick={() => folderActions.onToggle(folder.key)}
+          onClick={() => folderActions.onToggle(folder.name)}
           onContextMenu={(e) => {
             e.preventDefault();
             setMenu({ x: e.clientX, y: e.clientY });

@@ -155,6 +155,9 @@ pub fn start(app: AppHandle) {
             if d.skills {
                 let _ = app.emit(crate::lpm_commands_cmds::CHANGED_EVENT, "");
             }
+            if d.skill_folds {
+                let _ = app.emit(crate::lpm_commands_folds::CHANGED_EVENT, "");
+            }
             let memory_changed = !d.memory.is_empty();
             for project in d.memory {
                 let _ = app.emit("memory-changed", project);
@@ -166,7 +169,7 @@ pub fn start(app: AppHandle) {
             // Memory does: its own category classifies before the synced-dir arm,
             // so without this a session save would only sync when some unrelated
             // config edit happened to trigger a run.
-            if projects || d.templates || memory_changed || d.skills {
+            if projects || d.templates || memory_changed || d.skills || d.skill_folds {
                 if let Some(engine) = app.try_state::<crate::autosync::Engine>() {
                     engine.notify_local_change();
                 }

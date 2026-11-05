@@ -9,8 +9,8 @@ internal val SlashCommand.key: String get() = "$source:${scope?.wire.orEmpty()}:
 /**
  * The rows a typed fragment keeps, like the desktop's filter: a name (or an lpm
  * command's folder) starting with it first, then a name or description holding it.
- * lpm commands keep their folder order, ahead of the agent's, so each folder's rows
- * stay together under one heading.
+ * Rows stay together under their heading, and the heading holding the best match
+ * leads; lpm commands come first here, so they win a tie.
  */
 internal fun List<SlashCommand>.matching(fragment: String): List<SlashCommand> {
     val q = fragment.lowercase()
@@ -25,8 +25,9 @@ internal fun List<SlashCommand>.matching(fragment: String): List<SlashCommand> {
             contains += c
         }
     }
-    val matched = (starts + contains).map { it.key }.toSet()
-    return filter { it.isLpm && it.key in matched } + (starts + contains).filterNot { it.isLpm }
+    return (starts + contains).groupBy {
+        if (it.isLpm) it.scope to it.folder else null
+    }.values.flatten()
 }
 
 /** What the `/` menu calls an agent CLI's own commands; null for the generic heading. */

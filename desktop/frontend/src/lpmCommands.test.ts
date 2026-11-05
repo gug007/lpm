@@ -7,7 +7,6 @@ import {
   mergeSlashCommands,
   parseCommandRun,
   promptVariables,
-  rankLpmGroups,
   shadowNote,
   type LpmCommand,
   type LpmCommandLists,
@@ -87,32 +86,5 @@ describe("shadowNote", () => {
     expect(shadowNote(lists.global.commands[1], lists)).toBe("This project's own /ship runs instead here.");
     expect(shadowNote(lists.project!.commands[0], lists)).toBe("Replaces your global /Ship in this project.");
     expect(shadowNote(lists.global.commands[0], lists)).toBeNull();
-  });
-});
-
-describe("rankLpmGroups", () => {
-  const row = (name: string, folder: string | null, description = ""): SlashCommand => ({
-    name,
-    folder,
-    description,
-    argumentHint: "",
-    source: "lpm",
-    scope: "project",
-  });
-
-  it("puts the folder with a prefix match first and keeps each folder together", () => {
-    const review = row("review-changes", "Review", "Gaps in my uncommitted changes");
-    const audit = row("audit", "Review");
-    const commit = row("commit-parts", "Git");
-    const all = [review, audit, commit];
-    expect(rankLpmGroups(all, new Set([commit, audit]), new Set([review])).map((c) => c.name)).toEqual([
-      "review-changes",
-      "audit",
-      "commit-parts",
-    ]);
-    expect(rankLpmGroups(all, new Set([commit]), new Set([review])).map((c) => c.name)).toEqual([
-      "commit-parts",
-      "review-changes",
-    ]);
   });
 });

@@ -6,7 +6,8 @@
 // changes only the ones marked as created with lpm (lpm_commands_doc). Agent
 // setup can also create a marked skill in Claude's or Codex's own folder; it is
 // listed like the rest and stays where it was made. Folders aren't in any of those
-// roots: see lpm_commands_layout.
+// roots: see lpm_commands_layout. A duplicate or worktree shares its original's
+// list: see lpm_commands_shared.
 //
 // Every operation goes through `CommandFs`, so an SSH project's list is read and
 // written on its host (lpm_commands_remote) by the same rules as a local one.
@@ -15,8 +16,9 @@ use std::collections::HashSet;
 use std::path::Path;
 
 pub(crate) use crate::lpm_commands_doc::{parse_doc, Doc};
+use crate::lpm_commands_folds::SkillFolds;
 pub(crate) use crate::lpm_commands_layout::{Layout, AT_ROOT};
-pub(crate) use crate::lpm_commands_local::{copy_tree, LocalFs};
+pub(crate) use crate::lpm_commands_local::{copy_tree, link_dir, LocalFs};
 pub(crate) use crate::lpm_commands_names::*;
 pub(crate) use crate::lpm_commands_snapshot::*;
 
@@ -98,6 +100,8 @@ pub struct LpmCommands {
     /// could not be read (`project_error` says why).
     pub project: Option<ScopeList>,
     pub project_error: Option<String>,
+    /// Here so that a folder and its fold arrive together, whoever moved it.
+    pub folds: SkillFolds,
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -136,7 +140,11 @@ pub(crate) trait CommandFs {
     /// Removes what lpm wrote; files someone added to the skill's folder stay.
     fn remove_skill(&self, name: &str) -> Result<(), String>;
     /// The file is on this computer, whichever computer holds the skills.
-    fn update_layout(&self, edit: &mut dyn FnMut(&mut Layout)) -> Result<(), String>;
+    fn update_layout(&self, edit: &mut dyn FnMut(&mut Layout)) -> Result<(), String> {
+        crate::lpm_commands_layout::update(self.layout_path(), edit)
+    }
+    /// None for a list that keeps no folders of its own.
+    fn layout_path(&self) -> Option<&Path>;
     /// Every real SKILL.md a skill has, as (path, content): a skill copied into
     /// two roots has two, and one behind someone's link has none here.
     fn skill_files(&self, name: &str) -> Result<Vec<(String, String)>, String>;
@@ -235,14 +243,18 @@ pub(crate) fn global_store() -> LocalFs {
     }
 }
 
-/// With no layout, which is all linking and syncing skills need: `stores_at` adds it.
-pub(crate) fn project_store(root: &Path) -> LocalFs {
+/// Without asking git, for a read that only needs what's on disk.
+pub(crate) fn project_files(root: &Path) -> LocalFs {
     LocalFs::new(
         root.join(".agents").join("skills"),
         root.join(".claude").join("skills"),
         root.join(".lpm"),
     )
-    .with_repo(root.to_path_buf())
+}
+
+/// With no layout, which is all linking and syncing skills need: `stores_at` adds it.
+pub(crate) fn project_store(root: &Path) -> LocalFs {
+    project_files(root).with_repo(root.to_path_buf())
 }
 
 /// The list a `.agents/skills` root is, for Agent setup, which writes to a root
@@ -293,6 +305,7 @@ pub(crate) fn list_stores(stores: &Stores) -> Result<LpmCommands, String> {
         global,
         project,
         project_error,
+        folds: crate::lpm_commands_folds::of(stores),
     })
 }
 

@@ -3,11 +3,25 @@ import { act, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { DndContext } from "@dnd-kit/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { commandKey, type LpmCommand, type LpmCommandLists } from "../../lpmCommands";
+import {
+  commandKey,
+  NO_FOLDS,
+  type LpmCommand,
+  type LpmCommandLists,
+  type OtherSkill,
+  type SkillFolds,
+} from "../../lpmCommands";
 import { isMac } from "../../platform";
 import { CommandTree } from "./CommandTree";
 import type { SkillRowActions } from "./commandsModel";
 import type { SkillMenuActions } from "./skillTreeContext";
+
+const foldStore = vi.hoisted(() => ({ folds: null as SkillFolds | null, setSkillFold: vi.fn() }));
+
+vi.mock("../../store/skillFolds", () => ({
+  useSkillFolds: () => foldStore.folds,
+  setSkillFold: foldStore.setSkillFold,
+}));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -47,14 +61,16 @@ const rowActions: SkillRowActions = {
   foldersOf: () => [],
 };
 
-function Harness() {
+function Harness({ list = lists }: { list?: LpmCommandLists }) {
   const [query, setQuery] = useState("");
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
   return (
     <DndContext>
       <CommandTree
-        lists={lists}
+        lists={list}
+        projectName="web"
         projectLabel="lpm"
+        visible
         query={query}
         selectedKey={null}
         focused
@@ -106,6 +122,8 @@ describe("CommandTree", () => {
     document.body.appendChild(host);
     root = createRoot(host);
     onSelect = vi.fn<(c: LpmCommand) => void>();
+    foldStore.folds = NO_FOLDS;
+    foldStore.setSkillFold.mockReset();
     menu = {
       lists,
       canOpen: () => true,
@@ -203,5 +221,71 @@ describe("CommandTree", () => {
     }
     act(() => item("Duplicate")!.click());
     expect(menu.duplicate).toHaveBeenCalledWith(SKILLS[1]);
+  });
+
+  describe("folds", () => {
+    const other: OtherSkill = { name: "pdf", description: "", preview: "", agents: [], path: "/skills/pdf" };
+    const filed: LpmCommandLists = {
+      project: {
+        folders: ["Work", "Work/Reviews"],
+        commands: [skill("lesson", { folder: "Work" }), skill("short", { folder: "Work/Reviews" })],
+        others: [other],
+        inRepo: true,
+      },
+      global: { folders: ["Work"], commands: [skill("deploy", { scope: "global", folder: "Work" })] },
+      projectError: null,
+    };
+    const closing = (...closed: string[]): SkillFolds => ({ ...NO_FOLDS, project: { closed, othersOpen: false } });
+    const heading = (label: string, list = "lpm") =>
+      [...host.querySelectorAll<HTMLElement>("[aria-expanded]")].find(
+        (b) =>
+          b.textContent?.startsWith(label) && b.closest("section")?.getAttribute("aria-label")?.toLowerCase().includes(list),
+      )!;
+    const show = (folds: SkillFolds) => {
+      foldStore.folds = folds;
+      act(() => root.render(<Harness list={filed} />));
+    };
+    const filedRow = (name: string, folder: string) =>
+      host.querySelector(`[data-skill-row="${commandKey(skill(name, { folder }))}"]`);
+
+    it("shows a folder closed when the folds say so, and what's inside stays out", () => {
+      show(NO_FOLDS);
+      expect(filedRow("lesson", "Work")).not.toBeNull();
+      show(closing("Work"));
+      expect(heading("Work").getAttribute("aria-expanded")).toBe("false");
+      expect(filedRow("lesson", "Work")).toBeNull();
+      expect(heading("Reviews")).toBeUndefined();
+    });
+
+    it("closes only the list the folds name, whatever the other list calls its folder", () => {
+      show(closing("Work"));
+      expect(heading("Work", "global").getAttribute("aria-expanded")).toBe("true");
+    });
+
+    it("asks to close an open folder and to open a closed one", () => {
+      show(NO_FOLDS);
+      click(heading("Work"));
+      expect(foldStore.setSkillFold).toHaveBeenLastCalledWith("web", "project", "Work", false);
+      show(closing("Work"));
+      click(heading("Work"));
+      expect(foldStore.setSkillFold).toHaveBeenLastCalledWith("web", "project", "Work", true);
+    });
+
+    it("folds the Other skills group as the list's own, with no folder named", () => {
+      show(NO_FOLDS);
+      click(heading("Other skills"));
+      expect(foldStore.setSkillFold).toHaveBeenLastCalledWith("web", "project", null, true);
+      show({ ...NO_FOLDS, project: { closed: [], othersOpen: true } });
+      expect(heading("Other skills").getAttribute("aria-expanded")).toBe("true");
+      click(heading("Other skills"));
+      expect(foldStore.setSkillFold).toHaveBeenLastCalledWith("web", "project", null, false);
+    });
+
+    it("shows what a search finds inside a closed folder without opening it", () => {
+      show(closing("Work"));
+      type("lesson");
+      expect(filedRow("lesson", "Work")).not.toBeNull();
+      expect(foldStore.setSkillFold).not.toHaveBeenCalled();
+    });
   });
 });

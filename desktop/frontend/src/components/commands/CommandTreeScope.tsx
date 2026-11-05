@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import { FolderGit2, FolderPlus, Globe } from "lucide-react";
-import { commandKey, type LpmCommand } from "../../lpmCommands";
-import { folderKey, type FolderKey } from "./commandFolders";
+import { commandKey, type ListFolds, type LpmCommand } from "../../lpmCommands";
+import { folderKey } from "./commandFolders";
 import { CommandFolderInput } from "./CommandFolderInput";
 import { CommandOtherFolder } from "./CommandOtherFolder";
 import { CommandOtherRow } from "./CommandOtherRow";
@@ -22,11 +22,10 @@ interface CommandTreeScopeProps {
   projectLabel: string;
   selectedKey: string | null;
   running: ReadonlySet<string>;
-  collapsed: ReadonlySet<FolderKey>;
+  folds: ListFolds;
   searching: boolean;
-  othersOpen: boolean;
-  onToggle: (key: FolderKey) => void;
-  onToggleOthers: () => void;
+  // No folder means the Other skills group.
+  onFold: (folder: string | null, open: boolean) => void;
   onSelect: (c: LpmCommand) => void;
   actions: SkillRowActions;
   onNew: (where: CommandPlace) => void;
@@ -44,11 +43,9 @@ export function CommandTreeScope({
   projectLabel,
   selectedKey,
   running,
-  collapsed,
+  folds,
   searching,
-  othersOpen,
-  onToggle,
-  onToggleOthers,
+  onFold,
   onSelect,
   actions,
   onNew,
@@ -64,8 +61,8 @@ export function CommandTreeScope({
   const overRoot = heading.isOver || loose.isOver;
   const title = scopeTitle(node.scope, projectLabel);
   const folderActions: FolderRowActions = {
-    isOpen: (key) => searching || !collapsed.has(key),
-    onToggle,
+    isOpen: (name) => searching || !folds.closed.includes(name),
+    onToggle: (name) => onFold(name, folds.closed.includes(name)),
     onSelect,
     onNew,
     onCreateFolder,
@@ -145,10 +142,10 @@ export function CommandTreeScope({
         <CommandOtherFolder
           scope={node.scope}
           skills={node.others}
-          open={searching || othersOpen}
+          open={searching || folds.othersOpen}
           selectedKey={selectedKey}
           actions={actions}
-          onToggle={onToggleOthers}
+          onToggle={() => onFold(null, !folds.othersOpen)}
         />
       )}
     </section>

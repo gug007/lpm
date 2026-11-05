@@ -5,7 +5,7 @@ import { useEventListener } from "../../hooks/useEventListener";
 import { chordLabel, matchesChord, type Chord } from "../../keys";
 import { isMac } from "../../platform";
 import { blockingDialogOpen } from "../ui/blockingDialog";
-import type { FolderKey } from "./commandFolders";
+import { setSkillFold, useSkillFolds } from "../../store/skillFolds";
 import { CommandTreeScope } from "./CommandTreeScope";
 import { commandTree, runningKeys, type CommandPlace, type SkillRowActions } from "./commandsModel";
 import { SkillBulkBar } from "./SkillBulkBar";
@@ -15,9 +15,12 @@ import type { SkillSort } from "./skillUsage";
 
 interface CommandTreeProps {
   lists: LpmCommandLists;
+  projectName: string;
   projectLabel: string;
   query: string;
   selectedKey: string | null;
+  // The tab is showing, so what another window or computer folds should show too.
+  visible: boolean;
   // The tab is the one in view in the focused pane, so ⌘F is its own.
   focused: boolean;
   sort: SkillSort;
@@ -47,9 +50,11 @@ const insideMonaco = (target: EventTarget | null) =>
 // field drives the list: ↑ ↓ move through what it found and ↵ opens it.
 export function CommandTree({
   lists,
+  projectName,
   projectLabel,
   query,
   selectedKey,
+  visible,
   focused,
   sort,
   picked,
@@ -67,9 +72,7 @@ export function CommandTree({
 }: CommandTreeProps) {
   const tree = useMemo(() => commandTree(lists, query, sort), [lists, query, sort]);
   const running = useMemo(() => runningKeys(lists), [lists]);
-  const [collapsed, setCollapsed] = useState<ReadonlySet<FolderKey>>(() => new Set());
-  // The lists whose other skills are showing; they start closed, unlike folders.
-  const [othersOpen, setOthersOpen] = useState<ReadonlySet<CommandScope>>(() => new Set());
+  const folds = useSkillFolds(projectName, visible);
   const [cursor, setCursor] = useState<string | null>(null);
   const [searchFocused, setSearchFocused] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
@@ -101,20 +104,6 @@ export function CommandTree({
     focused,
     true,
   );
-
-  const toggle = (key: FolderKey) =>
-    setCollapsed((prev) => {
-      const next = new Set(prev);
-      if (!next.delete(key)) next.add(key);
-      return next;
-    });
-
-  const toggleOthers = (scope: CommandScope) =>
-    setOthersOpen((prev) => {
-      const next = new Set(prev);
-      if (!next.delete(scope)) next.add(scope);
-      return next;
-    });
 
   const moveCursor = (step: 1 | -1) => {
     const all = rows();
@@ -246,11 +235,9 @@ export function CommandTree({
                 projectLabel={projectLabel}
                 selectedKey={selectedKey}
                 running={running}
-                collapsed={collapsed}
+                folds={folds[node.scope]}
                 searching={searching}
-                othersOpen={othersOpen.has(node.scope)}
-                onToggle={toggle}
-                onToggleOthers={() => toggleOthers(node.scope)}
+                onFold={(folder, open) => setSkillFold(projectName, node.scope, folder, open)}
                 onSelect={onSelect}
                 actions={actions}
                 onNew={onNew}

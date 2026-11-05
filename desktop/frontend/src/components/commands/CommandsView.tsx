@@ -303,11 +303,13 @@ export function CommandsView({ tabId, projectName, projectLabel, visible, focuse
         <div className="grid min-h-0 flex-1 grid-cols-[300px_minmax(0,1fr)]">
           <CommandTree
             lists={lists}
+            projectName={projectName}
             projectLabel={projectLabel}
             query={query}
             selectedKey={
               draft?.original ? commandKey(draft.original) : other && viewing ? otherKey(viewing.scope, other.name) : null
             }
+            visible={visible}
             focused={focused}
             sort={sort}
             picked={picked}

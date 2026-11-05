@@ -8,7 +8,9 @@ use crate::lpm_commands::{
     list_stores, project_place, stores_at, CommandInput, CommandRef, LpmCommands, Scope, Stores,
 };
 use crate::lpm_commands_expand::Expanded;
+use crate::lpm_commands_folds::{self as folds, SkillFolds};
 use crate::lpm_commands_ops as ops;
+use crate::lpm_commands_shared as shared;
 use crate::lpm_commands_usage as usage;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -31,6 +33,9 @@ pub(crate) enum Request {
     Import { scope: Scope },
     /// `cli` is the agent the run goes to, None to get the prompt whatever it is.
     Expand { name: String, args: String, cli: Option<String> },
+    Folds,
+    /// No `folder` means the Other skills group.
+    Fold { scope: Scope, folder: Option<String>, open: bool },
 }
 
 #[derive(Serialize)]
@@ -44,6 +49,7 @@ pub(crate) enum Reply {
     Lists(LpmCommands),
     Imported(ImportResult),
     Expanded(Expanded),
+    Folds(SkillFolds),
 }
 
 impl Reply {
@@ -54,11 +60,19 @@ impl Reply {
         }
     }
 
+    fn folds(self) -> Result<SkillFolds, String> {
+        match self {
+            Reply::Folds(folds) => Ok(folds),
+            _ => Err("unexpected reply".into()),
+        }
+    }
+
     pub(crate) fn to_value(&self) -> Result<Value, String> {
         match self {
             Reply::Lists(l) => serde_json::to_value(l),
             Reply::Imported(i) => serde_json::to_value(i),
             Reply::Expanded(e) => serde_json::to_value(e),
+            Reply::Folds(f) => serde_json::to_value(f),
         }
         .map_err(|e| e.to_string())
     }
@@ -70,8 +84,8 @@ fn field<T: DeserializeOwned>(args: &Value, key: &str) -> Result<T, String> {
 
 impl Request {
     /// The request named by `kind` (`list`, `save`, `delete`, `createFolder`,
-    /// `renameFolder`, `deleteFolder`, `moveOther`, `convert`, `import` or
-    /// `expand`), its fields read from `args` under their camelCase names.
+    /// `renameFolder`, `deleteFolder`, `moveOther`, `convert`, `import`, `expand`,
+    /// `folds` or `fold`), its fields read from `args` under their camelCase names.
     pub(crate) fn parse(kind: &str, args: &Value) -> Result<Self, String> {
         let text = |k: &str| field::<Option<String>>(args, k).map(Option::unwrap_or_default);
         Ok(match kind {
@@ -98,6 +112,8 @@ impl Request {
             },
             "import" => Request::Import { scope: field(args, "scope")? },
             "expand" => Request::Expand { name: text("name")?, args: text("args")?, cli: field(args, "cli")? },
+            "folds" => Request::Folds,
+            "fold" => Request::Fold { scope: field(args, "scope")?, folder: field(args, "folder")?, open: field(args, "open")? },
             _ => return Err(format!("unknown commands request {kind}")),
         })
     }
@@ -117,7 +133,7 @@ impl Request {
             | Request::MoveOther { scope, .. }
             | Request::Convert { scope, .. }
             | Request::Import { scope } => vec![*scope],
-            Request::List | Request::Expand { .. } => Vec::new(),
+            Request::List | Request::Expand { .. } | Request::Folds | Request::Fold { .. } => Vec::new(),
         }
     }
 }
@@ -128,7 +144,15 @@ pub(crate) fn dispatch(app: &AppHandle, project: &str, request: Request) -> Resu
     let touches = request.touches();
     let mut imported = None;
     match request {
-        Request::List => return listed(project, &stores).map(Reply::Lists),
+        Request::List => {
+            shared::refresh(project);
+            return listed(project, &stores).map(Reply::Lists);
+        }
+        Request::Folds => return Ok(Reply::Folds(folds::of(&stores))),
+        Request::Fold { scope, folder, open } => {
+            folds::set(stores.get(scope)?.layout_path(), folder.as_deref(), open)?;
+            return Ok(Reply::Folds(folds::of(&stores)));
+        }
         Request::Expand { name, args, cli } => {
             let (expanded, ran) = crate::lpm_commands_expand::expand_at(
                 project,
@@ -143,19 +167,24 @@ pub(crate) fn dispatch(app: &AppHandle, project: &str, request: Request) -> Resu
         }
         Request::Save { command, previous } => {
             let renamed = previous.as_ref().map(|p| ((p.scope, p.name.clone()), (command.scope, command.name.clone())));
-            ops::save(&stores, command, previous)?;
+            let own = previous.as_ref().filter(|p| p.scope == Scope::Project).map(|p| p.name.as_str());
+            let holder = shared::holder(project, own.unwrap_or(&command.name));
+            let (there, stores) = holder.as_ref().map_or((project, &stores), |(p, s)| (p.as_str(), s));
+            ops::save(stores, command, previous)?;
             if let Some(((from_scope, from), (to_scope, to))) = renamed {
                 usage::rename(project, (from_scope, &from), (to_scope, &to));
                 if from_scope == Scope::Project && (from_scope, &from) != (to_scope, &to) {
-                    crate::skillsync_kept::note_removed(project, &from);
+                    crate::skillsync_kept::note_removed(there, &from);
                 }
             }
         }
         Request::Delete { target } => {
-            ops::delete(&stores, &target)?;
+            let holder = shared::holder(project, &target.name);
+            let (there, stores) = holder.as_ref().map_or((project, &stores), |(p, s)| (p.as_str(), s));
+            ops::delete(stores, &target)?;
             usage::forget(project, target.scope, &target.name);
             if target.scope == Scope::Project {
-                crate::skillsync_kept::note_removed(project, &target.name);
+                crate::skillsync_kept::note_removed(there, &target.name);
             }
         }
         Request::CreateFolder { scope, name } => ops::create_folder(&stores, scope, &name)?,
@@ -167,8 +196,14 @@ pub(crate) fn dispatch(app: &AppHandle, project: &str, request: Request) -> Resu
         Request::MoveOther { scope, name, folder, .. } => {
             ops::move_other(&stores, scope, &name, folder.as_deref())?
         }
-        Request::Convert { scope, name, to_lpm } => ops::convert(&stores, scope, &name, to_lpm)?,
+        Request::Convert { scope, name, to_lpm } => {
+            let holder = shared::holder(project, &name);
+            ops::convert(holder.as_ref().map_or(&stores, |(_, s)| s), scope, &name, to_lpm)?
+        }
         Request::Import { scope } => imported = Some(import(&stores, place.as_ref(), scope)?),
+    }
+    if touches.contains(&Scope::Project) {
+        shared::refresh_all(project);
     }
     announce(app, project, &touches);
     // Nothing watches a project's skills, so a kept-out one's change is told here.
@@ -188,13 +223,20 @@ pub(crate) fn dispatch(app: &AppHandle, project: &str, request: Request) -> Resu
 fn listed(project: &str, stores: &Stores) -> Result<LpmCommands, String> {
     let mut lists = list_stores(stores)?;
     usage::annotate(project, &mut lists);
+    shared::show_original_git(project, &mut lists);
     Ok(lists)
 }
 
-/// "" when the global list changed, which every project shows; else the project.
+/// "" when the global list changed, which every project shows; else each project
+/// sharing the list.
 pub(crate) fn announce(app: &AppHandle, project: &str, touches: &[Scope]) {
-    let named = if touches.contains(&Scope::Global) { "" } else { project };
-    let _ = app.emit(CHANGED_EVENT, named);
+    if touches.contains(&Scope::Global) {
+        let _ = app.emit(CHANGED_EVENT, "");
+        return;
+    }
+    for named in shared::family(project) {
+        let _ = app.emit(CHANGED_EVENT, named);
+    }
 }
 
 fn import(stores: &Stores, place: Option<&crate::lpm_commands::ProjectPlace>, scope: Scope) -> Result<usize, String> {
@@ -302,6 +344,22 @@ pub fn expand_lpm_command(
     }
 }
 
+#[tauri::command(async)]
+pub fn load_skill_folds(app: AppHandle, project: String) -> Result<SkillFolds, String> {
+    dispatch(&app, &project, Request::Folds)?.folds()
+}
+
+#[tauri::command(async)]
+pub fn set_skill_fold(
+    app: AppHandle,
+    project: String,
+    scope: Scope,
+    folder: Option<String>,
+    open: bool,
+) -> Result<SkillFolds, String> {
+    dispatch(&app, &project, Request::Fold { scope, folder, open })?.folds()
+}
+
 // ---- calls from outside the app ------------------------------------------------------
 
 /// The request a peer's Tauri command name asks for, if it is one of these.
@@ -317,6 +375,8 @@ pub(crate) fn peer_kind(cmd: &str) -> Option<&'static str> {
         "convert_skill" => "convert",
         "import_lpm_commands" => "import",
         "expand_lpm_command" => "expand",
+        "load_skill_folds" => "folds",
+        "set_skill_fold" => "fold",
         _ => return None,
     })
 }

@@ -1,7 +1,7 @@
 // A skills list on this computer: its skills root, the .claude/skills beside it
 // and the .lpm folder an old list of commands sits in.
 use crate::lpm_commands::{
-    is_link_to_skill, is_visible_folder, legacy_name_of, parse_doc, ClaudeEntry, CommandFs, Layout, LegacyFile,
+    is_link_to_skill, is_visible_folder, legacy_name_of, parse_doc, ClaudeEntry, CommandFs, LegacyFile,
     LegacyList, RawList, Snapshot, MAX_FILE_BYTES,
 };
 use crate::lpm_commands_layout as layout;
@@ -46,12 +46,12 @@ pub(crate) fn missing_is_fine(result: std::io::Result<()>) -> Result<(), String>
 }
 
 #[cfg(unix)]
-fn link_dir(target: &Path, link: &Path) -> std::io::Result<()> {
+pub(crate) fn link_dir(target: &Path, link: &Path) -> std::io::Result<()> {
     std::os::unix::fs::symlink(target, link)
 }
 
 #[cfg(windows)]
-fn link_dir(target: &Path, link: &Path) -> std::io::Result<()> {
+pub(crate) fn link_dir(target: &Path, link: &Path) -> std::io::Result<()> {
     std::os::windows::fs::symlink_dir(target, link)
 }
 
@@ -186,7 +186,19 @@ impl LocalFs {
             .map_err(|e| e.to_string())
     }
 
+    /// A repo can make Claude's folder a link to the shared one, and then a skill
+    /// is already there: anything written for Claude would land on the skill.
+    fn claude_is_skills_root(&self) -> bool {
+        matches!(
+            (std::fs::canonicalize(&self.claude), std::fs::canonicalize(&self.skills)),
+            (Ok(claude), Ok(skills)) if claude == skills
+        )
+    }
+
     pub(crate) fn unlink_claude(&self, name: &str) -> Result<(), String> {
+        if self.claude_is_skills_root() {
+            return Ok(());
+        }
         let link = self.claude.join(name);
         let Ok(meta) = std::fs::symlink_metadata(&link) else {
             return Ok(());
@@ -255,7 +267,7 @@ impl CommandFs for LocalFs {
     fn link_claude(&self, name: &str) -> Result<(), String> {
         // A skill living in Claude's or Codex's own folder has no link to make,
         // and the copy below would write a file in Claude's over itself.
-        if self.home_of(name) != self.skills {
+        if self.home_of(name) != self.skills || self.claude_is_skills_root() {
             return Ok(());
         }
         std::fs::create_dir_all(&self.claude).map_err(|e| e.to_string())?;
@@ -297,8 +309,8 @@ impl CommandFs for LocalFs {
         self.unlink_claude(name)
     }
 
-    fn update_layout(&self, edit: &mut dyn FnMut(&mut Layout)) -> Result<(), String> {
-        layout::update(self.layout.as_deref(), edit)
+    fn layout_path(&self) -> Option<&Path> {
+        self.layout.as_deref()
     }
 
     fn skill_files(&self, name: &str) -> Result<Vec<(String, String)>, String> {
