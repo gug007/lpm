@@ -61,6 +61,10 @@ pub struct StatusEntry {
     /// keeps `timestamp` at the first one, but each says the agent is still here.
     #[serde(skip)]
     pub reported_at: i64,
+    /// The process that made the report, in this machine's terms only on a local
+    /// pane. Zero when the report didn't say.
+    #[serde(skip)]
+    pub reporter_pid: i32,
     /// A tool call of the main thread is running: it draws nothing of its own,
     /// and a fullscreen agent scrolled away from its spinner draws nothing at all.
     #[serde(skip)]
@@ -242,6 +246,7 @@ impl StatusStore {
         // report rather than its latest. What it says about right now is kept.
         if let Some(e) = bucket.get_mut(&entry.key).filter(|e| !should_replace(e, &entry)) {
             e.reported_at = entry.reported_at;
+            e.reporter_pid = entry.reporter_pid;
             e.tool = entry.tool;
             e.compact &= entry.compact;
             return None;
@@ -697,6 +702,20 @@ mod tests {
             pane_id: pane.into(),
             ..Default::default()
         }
+    }
+
+    // Issue #150: a re-report changes nothing anyone sees, but it does say who
+    // is reporting now, which is what tells a working agent from an idle shell.
+    #[test]
+    fn a_re_report_keeps_the_entry_and_names_its_reporter() {
+        let s = StatusStore::new();
+        let reported = |pid| StatusEntry {
+            reporter_pid: pid,
+            ..entry("k", STATUS_RUNNING, 0, 100, "p-1")
+        };
+        assert!(s.set("p", reported(41)));
+        assert!(!s.set("p", reported(42)));
+        assert_eq!(only(&s, "p").reporter_pid, 42);
     }
 
     #[test]

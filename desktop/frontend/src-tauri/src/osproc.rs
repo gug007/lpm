@@ -312,9 +312,37 @@ pub fn session_of(pid: u32) -> Option<u32> {
     }
 }
 
+/// The process group `pid` is in, while it exists.
+#[cfg(unix)]
+pub fn group_of(pid: i32) -> Option<i32> {
+    let group = unsafe { libc::getpgid(pid) };
+    (group > 0).then_some(group)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn a_process_is_in_its_parents_group_until_it_gets_its_own() {
+        use std::os::unix::process::CommandExt;
+        let sleep = || {
+            let mut cmd = Command::new("sleep");
+            cmd.arg("30");
+            cmd
+        };
+        let mut job = sleep().spawn().unwrap();
+        let mut leader = sleep().process_group(0).spawn().unwrap();
+        let (job_pid, leader_pid) = (job.id() as i32, leader.id() as i32);
+        assert_eq!(group_of(job_pid), group_of(std::process::id() as i32));
+        assert_eq!(group_of(leader_pid), Some(leader_pid));
+        for child in [&mut job, &mut leader] {
+            child.kill().unwrap();
+            child.wait().unwrap();
+        }
+        assert_eq!(group_of(leader_pid), None, "gone once it has exited");
+    }
 
     #[test]
     fn a_filetime_converts_to_unix_seconds() {

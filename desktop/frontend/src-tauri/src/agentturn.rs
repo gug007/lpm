@@ -324,6 +324,7 @@ pub(crate) fn running(waiting: &StatusEntry) -> StatusEntry {
         priority: waiting.priority,
         timestamp: now_millis(),
         pane_id: waiting.pane_id.clone(),
+        reporter_pid: waiting.reporter_pid,
         ..Default::default()
     }
 }
@@ -415,7 +416,9 @@ fn is_stale(
     let Some(sess) = sess else {
         return true;
     };
-    if sess.shell_at_prompt() == Some(true) {
+    // A shell without job control keeps its jobs in its own group, and `exec
+    // claude` leaves no shell at all, so only an agent outside that group is gone.
+    if sess.shell_at_prompt() == Some(true) && !sess.holds_terminal(entry.reporter_pid) {
         return true;
     }
     entry.value == STATUS_RUNNING
@@ -534,6 +537,15 @@ mod tests {
             true
         }));
         assert!(!asked, "the transcript is read only once the pane has gone quiet");
+    }
+
+    #[test]
+    fn work_resumed_after_an_answer_keeps_who_reported_it() {
+        let asked = StatusEntry {
+            reporter_pid: 42,
+            ..waiting("claude_code_s1")
+        };
+        assert_eq!(running(&asked).reporter_pid, 42);
     }
 
     #[test]

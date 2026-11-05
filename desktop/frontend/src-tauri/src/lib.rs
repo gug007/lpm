@@ -257,6 +257,7 @@ mod pull_request_review;
 mod ptymodes;
 mod ptyring;
 mod releasenotes;
+mod releasesite;
 mod remote;
 mod remotepresence;
 mod remote_ci;

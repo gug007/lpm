@@ -5,11 +5,15 @@
 // promoted to stable (scripts/release.sh). Promoting clears the flag on that
 // same release, so Stable gets the build Beta already ran. Either channel
 // can always go back to the newest stable release.
+use reqwest::blocking::Response;
+use reqwest::redirect::Policy;
 use serde::Deserialize;
 use serde_json::Value;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 pub(crate) const API: &str = "https://api.github.com/repos/gug007/lpm/releases";
+/// The same releases on github.com's own pages (releasesite.rs).
+const SITE: &str = "https://github.com/gug007/lpm/releases";
 /// Enough to reach past a run of Beta builds to the newest stable one;
 /// when it doesn't, that release is asked for on its own.
 const LIST_LEN: usize = 20;
@@ -44,11 +48,11 @@ impl Channel {
 #[derive(Deserialize)]
 pub(crate) struct Release {
     #[serde(default)]
-    tag_name: String,
+    pub(crate) tag_name: String,
     #[serde(default)]
-    prerelease: bool,
+    pub(crate) prerelease: bool,
     #[serde(default)]
-    draft: bool,
+    pub(crate) draft: bool,
     #[serde(default)]
     pub(crate) assets: Vec<Asset>,
 }
@@ -82,11 +86,37 @@ pub(crate) fn fetch(
     channel: Channel,
     download: &dyn Fn(&[Asset]) -> Option<String>,
 ) -> Result<Choice, String> {
+    fetch_from(API, SITE, channel, download)
+}
+
+/// The API first; when it says no, github.com's release pages. Their answer
+/// counts only if it names a stable release with this machine's download, so a
+/// page that stops parsing shows the API's refusal instead of "up to date".
+pub(crate) fn fetch_from(
+    api: &str,
+    site: &str,
+    channel: Channel,
+    download: &dyn Fn(&[Asset]) -> Option<String>,
+) -> Result<Choice, String> {
+    from_api(api, channel, download).or_else(|refused| {
+        crate::releasesite::releases(site, channel)
+            .map(|releases| choose(&releases, channel, download))
+            .ok()
+            .filter(|choice| choice.stable.is_some())
+            .ok_or(refused)
+    })
+}
+
+fn from_api(
+    api: &str,
+    channel: Channel,
+    download: &dyn Fn(&[Asset]) -> Option<String>,
+) -> Result<Choice, String> {
     let latest =
-        || -> Result<Vec<Release>, String> { Ok(vec![parse(&get(&format!("{API}/latest"))?)?]) };
+        || -> Result<Vec<Release>, String> { Ok(vec![parse(&get(&format!("{api}/latest"))?)?]) };
     let releases = match channel {
         Channel::Stable => latest()?,
-        Channel::Beta => parse(&get(&format!("{API}?per_page={LIST_LEN}"))?)?,
+        Channel::Beta => parse(&get(&format!("{api}?per_page={LIST_LEN}"))?)?,
     };
     let mut choice = choose(&releases, channel, download);
     if choice.stable.is_none() && channel == Channel::Beta {
@@ -138,23 +168,50 @@ fn keep_newer(slot: &mut Option<Found>, found: Found) {
 pub(crate) fn get(url: &str) -> Result<String, String> {
     let url = url.to_string();
     crate::updates::run_off_worker(move || {
-        let client = reqwest::blocking::Client::builder()
-            .timeout(Duration::from_secs(30))
-            .user_agent("lpm")
-            .build()
-            .map_err(|e| e.to_string())?;
-        let resp = client
-            .get(&url)
-            .send()
-            .map_err(|e| format!("failed to check for updates: {e}"))?;
+        let resp = send(&url, true)?;
         if !resp.status().is_success() {
-            return Err(format!(
-                "GitHub API returned status {}",
-                resp.status().as_u16()
-            ));
+            return Err(refusal(&resp));
         }
         resp.text().map_err(|e| e.to_string())
     })
+}
+
+/// Blocking, so only from a plain thread (`run_off_worker`).
+pub(crate) fn send(url: &str, follow_redirects: bool) -> Result<Response, String> {
+    let redirects = if follow_redirects {
+        Policy::default()
+    } else {
+        Policy::none()
+    };
+    reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(30))
+        .user_agent("lpm")
+        .redirect(redirects)
+        .build()
+        .map_err(|e| e.to_string())?
+        .get(url)
+        .send()
+        .map_err(|e| format!("failed to check for updates: {e}"))
+}
+
+fn refusal(resp: &Response) -> String {
+    let status = resp.status().as_u16();
+    let header = |name: &str| resp.headers().get(name).and_then(|v| v.to_str().ok());
+    if !matches!(status, 403 | 429) || header("x-ratelimit-remaining") != Some("0") {
+        return format!("GitHub API returned status {status}");
+    }
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs());
+    let minutes = header("x-ratelimit-reset")
+        .and_then(|reset| reset.parse::<u64>().ok())
+        .map(|reset| reset.saturating_sub(now).div_ceil(60).max(1));
+    let when = match minutes {
+        Some(1) => "in a minute".to_string(),
+        Some(m) => format!("in {m} minutes"),
+        None => "later".to_string(),
+    };
+    format!("GitHub is limiting update checks from this network. Try again {when}.")
 }
 
 #[cfg(test)]

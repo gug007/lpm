@@ -1132,6 +1132,10 @@ fn cmd_set_status(args: &[String], store: &StatusStore, app: &AppHandle) -> Stri
             .unwrap_or(0),
         timestamp: now_millis(),
         agent_pid: options.get("pid").and_then(|p| p.parse().ok()).unwrap_or(0),
+        reporter_pid: options
+            .get("reporter-pid")
+            .and_then(|p| p.parse().ok())
+            .unwrap_or(0),
         pane_id: pane_id.clone(),
         held: options.contains_key("hold"),
         tool: options.contains_key("tool"),

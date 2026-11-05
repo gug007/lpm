@@ -132,6 +132,25 @@ impl PtySession {
         None
     }
 
+    /// Whether `pid` is in the job holding the terminal. Windows has no such job.
+    pub fn holds_terminal(&self, pid: i32) -> bool {
+        #[cfg(unix)]
+        {
+            let holder = self
+                .master
+                .lock()
+                .unwrap()
+                .as_ref()
+                .and_then(|m| m.process_group_leader());
+            pid > 0 && holder.is_some_and(|group| crate::osproc::group_of(pid) == Some(group))
+        }
+        #[cfg(windows)]
+        {
+            let _ = pid;
+            false
+        }
+    }
+
     fn resize_pty(&self, cols: u16, rows: u16) -> Result<(), String> {
         {
             let master = self.master.lock().unwrap();
