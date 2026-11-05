@@ -101,6 +101,8 @@ final class LpmClient: NSObject {
     var onGitCheckout: ((_ project: String, _ error: String?) -> Void)?
     var onGitDiscardAll: ((_ project: String, _ undo: String?, _ error: String?) -> Void)?
     var onGitRestoreDiscarded: ((_ project: String, _ error: String?) -> Void)?
+    var onGitDiscardFiles: ((_ project: String, _ paths: [String], _ undo: String?, _ error: String?) -> Void)?
+    var onAgentDialog: ((_ read: AgentDialogRead) -> Void)?
     var onGitChanged: ((_ project: String) -> Void)?
     var onGitHistory: ((_ project: String, _ skip: Int, _ page: HistoryPage?, _ error: String?) -> Void)?
     var onGitChecks: ((_ project: String, _ checks: GitChecks?, _ error: String?) -> Void)?
@@ -291,6 +293,8 @@ final class LpmClient: NSObject {
     static let lpmOtherSkillsFeature = "lpmOtherSkills"
     static let lpmNestedFoldersFeature = "lpmNestedFolders"
     static let dictationFeature = "dictation"
+    static let agentDialogFeature = "agentDialog"
+    static let gitDiscardFilesFeature = "gitDiscardFiles"
 
     // Requests made while the link is down or half-dead, delivered on the next
     // `ready`. iOS kills the socket seconds after backgrounding and the
@@ -534,7 +538,8 @@ final class LpmClient: NSObject {
                              Self.weeklyRecapFeature, Self.recapMonthFeature, Self.agentArchiveFeature,
                              Self.limitRemindersFeature, Self.projectPinsFeature, Self.gitHistoryFeature,
                              Self.keepAwakeFeature, Self.lpmCommandsFeature, Self.lpmOtherSkillsFeature, Self.lpmNestedFoldersFeature,
-                             Self.gitChecksFeature, Self.gitCommitChecksFeature],
+                             Self.gitChecksFeature, Self.gitCommitChecksFeature,
+                             Self.agentDialogFeature, Self.gitDiscardFilesFeature],
             ]))
         }
     }
@@ -1221,6 +1226,15 @@ final class LpmClient: NSObject {
         send(Wire.gitCreateBranch(project: project, name: name))
     }
     func gitDiscardAll(project: String) { send(Wire.gitDiscardAll(project: project)) }
+    func gitDiscardFiles(project: String, paths: [String]) {
+        send(Wire.gitDiscardFiles(project: project, paths: paths))
+    }
+    func requestAgentDialog(project: String, terminalId: String) {
+        send(Wire.agentDialog(project: project, terminalId: terminalId))
+    }
+    func pickAgentDialog(_ read: AgentDialogRead, option: String, reqId: String) {
+        send(Wire.pickAgentDialog(read, option: option, reqId: reqId))
+    }
     func gitRestoreDiscarded(project: String, id: String) {
         send(Wire.gitRestoreDiscarded(project: project, id: id))
     }
@@ -1583,6 +1597,9 @@ final class LpmClient: NSObject {
             case .gitCreateBranch(let proj, let error): self.onGitCreateBranch?(proj, error)
             case .gitDiscardAll(let proj, let undo, let error): self.onGitDiscardAll?(proj, undo, error)
             case .gitRestoreDiscarded(let proj, let error): self.onGitRestoreDiscarded?(proj, error)
+            case .gitDiscardFiles(let proj, let paths, let undo, let error):
+                self.onGitDiscardFiles?(proj, paths, undo, error)
+            case .agentDialog(let read): self.onAgentDialog?(read)
             case .gitChanged(let proj): self.onGitChanged?(proj)
             case .gitHistory(let proj, let skip, let page, let error): self.onGitHistory?(proj, skip, page, error)
             case .gitChecks(let proj, let checks, let error): self.onGitChecks?(proj, checks, error)

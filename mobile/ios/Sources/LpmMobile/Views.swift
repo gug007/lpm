@@ -173,14 +173,14 @@ struct ProjectsView: View {
     private func agentRows(_ project: Project,
                            tabTitles: [String: String]? = nil) -> [ProjectAgentRow] {
         projectAgentRows(project, now: Int(Date().timeIntervalSince1970 * 1000),
-                         tabTitles: tabTitles ?? model.activityTerminalTitles[project.name] ?? [:])
+                         tabTitles: tabTitles ?? model.agentTabTitles[project.name] ?? [:])
     }
 
     /// A project's agents, with its seen ones from a Mac that archives agents.
     private func listedAgents(_ project: Project) -> [ProjectAgentRow] {
         guard model.canArchiveAgents else { return agentRows(project) }
         return projectAgentList(project, now: Int(Date().timeIntervalSince1970 * 1000),
-                                tabTitles: model.activityTerminalTitles[project.name] ?? [:],
+                                tabTitles: model.agentTabTitles[project.name] ?? [:],
                                 hiding: model.archivingAgentKeys(project.name))
     }
 
@@ -395,7 +395,7 @@ struct ProjectsView: View {
         // the project list itself has arrived, and again whenever an agent starts
         // somewhere new — a bare `.task` fires once, against an empty list.
         .task(id: model.projects.filter(\.hasAgentStatus).map(\.name)) {
-            model.loadActivityTerminals()
+            model.loadAgentTabTitles()
         }
         .navigationDestination(item: $openTerminal) { target in
             NotificationTerminalDestination(projectName: target.project,
@@ -404,8 +404,7 @@ struct ProjectsView: View {
         .navigationDestination(item: $visiting) { MachineVisitScreen(visit: $0) }
         .onChange(of: visiting) { _, now in if now == nil { model.leaveVisit() } }
         .onChange(of: model.visitSession == nil) { _, ended in if ended { visiting = nil } }
-        // Whatever was opened on another machine, from here or from Activity, is
-        // off screen once the list is back.
+        // Whatever was opened on another machine is off screen once the list is back.
         .onAppear { model.leaveVisit() }
         .onChange(of: model.notificationOpens) { _, _ in
             openTerminal = nil
@@ -420,11 +419,6 @@ struct ProjectsView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                    NavigationLink {
-                        ActivityScreen()
-                    } label: {
-                        Label("Activity", systemImage: "square.stack.3d.up")
-                    }
                     NavigationLink(value: NotificationRoute.automations) {
                         // A menu row can't carry a badge, so the count rides in
                         // the label — the dot on the button is what says the menu
@@ -461,32 +455,20 @@ struct ProjectsView: View {
                     }
                     PairDirectlyMenuItems()
                 } label: {
-                    // An agent waiting on you lives one tap deep, under Activity —
-                    // the dot is what says the menu is worth opening.
                     Image(systemName: "ellipsis")
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundStyle(.primary)
                         .overlay(alignment: .topTrailing) {
-                            let ambient = agentAmbient(model.ambientProjects)
-                            // An agent waiting on you outranks an automation that
-                            // merely has something to read.
-                            if ambient.isLit {
-                                Circle()
-                                    .fill(ambient.needsYou > 0 ? Color.orange : Color.red)
-                                    .frame(width: 7, height: 7)
-                                    .offset(x: 5, y: -5)
-                            } else if model.automationsUnread > 0 {
+                            if model.automationsUnread > 0 {
                                 Circle()
                                     .fill(Color.accentColor)
                                     .frame(width: 7, height: 7)
                                     .offset(x: 5, y: -5)
                             }
                         }
-                        .accessibilityLabel(agentAmbient(model.ambientProjects).needsYou > 0
-                                            ? "More — an agent needs you"
-                                            : model.automationsUnread > 0
-                                              ? "More — automations have new messages"
-                                              : "More")
+                        .accessibilityLabel(model.automationsUnread > 0
+                                            ? "More — automations have new messages"
+                                            : "More")
                 }
             }
         }
@@ -618,8 +600,8 @@ struct DemoBanner: View {
 }
 
 /// Opens a terminal named only by its id — the destination behind a notification
-/// tap and behind an Activity row, both of which know the terminal before the
-/// project's tab list has loaded.
+/// tap or an agent row, both of which know the terminal before the project's tab
+/// list has loaded.
 struct NotificationTerminalDestination: View {
     @Environment(AppModel.self) private var model
     let projectName: String

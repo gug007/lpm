@@ -135,9 +135,7 @@ class ProjectsViewModelTest {
     @Test
     fun `unread automations light the menu`() = runTest {
         val t = demoSession()
-        val state = subscribed(t).uiState.value
-        assertTrue(state.automationsUnread > 0)
-        assertEquals(MoreBadge.Automations, state.badge)
+        assertTrue(subscribed(t).uiState.value.automationsUnread > 0)
     }
 
     @Test
@@ -153,8 +151,6 @@ class ProjectsViewModelTest {
         assertFalse(header.opensOnlyBySwitching)
         val api = state.rows.filterIsInstance<ProjectsListRow.MachineProjectEntry>().first()
         assertEquals(1, api.agents.size)
-        // An agent waiting on one of the machines lights the menu too.
-        assertEquals(MoreBadge.NeedsYou, state.badge)
 
         vm.toggleMachine("box", expandedNow = true)
         t.settle()

@@ -1,5 +1,5 @@
-# The Projects toolbar "…" menu. Its label gains a suffix ("More — an agent
-# needs you") when something wants attention, hence the regex.
+# The Projects toolbar "…" menu. Its label gains a suffix ("More — automations
+# have new messages") when something wants attention, hence the regex.
 appId: cx.lpm.mobile
 ---
 - tapOn: "More.*"

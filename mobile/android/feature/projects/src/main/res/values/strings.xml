@@ -10,9 +10,7 @@
     <string name="projects_unpaired_footer">Projects open read-only until this %1$s is paired with %2$s again.</string>
     <string name="projects_none">No projects</string>
     <string name="projects_more">More</string>
-    <string name="projects_more_needs_you">More — an agent needs you</string>
     <string name="projects_more_automations">More — automations have new messages</string>
-    <string name="menu_activity">Activity</string>
     <string name="menu_automations">Automations</string>
     <string name="menu_automations_count">Automations (%1$d)</string>
     <string name="menu_stats">Stats</string>
@@ -79,6 +77,10 @@
         <item quantity="one">Archived %1$d agent</item>
         <item quantity="other">Archived %1$d agents</item>
     </plurals>
+
+    <!-- A waiting agent's question, answered from its row -->
+    <string name="agent_ask_option">Option %1$s: %2$s</string>
+    <string name="agent_ask_sent">Sent</string>
 
     <!-- Row actions -->
     <string name="row_start_with_profile">Start with profile</string>

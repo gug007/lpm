@@ -87,6 +87,7 @@ import {
 import { useEndedTerminals } from "../store/endedTerminals";
 import "@xterm/xterm/css/xterm.css";
 import { installImeShiftFix } from "../terminalImeShiftFix";
+import { MACHINE } from "../machineWords";
 
 // Cross-window flow-control ack authority (one window acks a PTY's output; two
 // desync the shared counter). Window-level state shared by every session.
@@ -424,7 +425,7 @@ function saveImageBlob(terminalId: string, blob: Blob, mimeType: string) {
   // link's frame limit; the upload command runs on the host and returns a path
   // the host pane can read.
   if (peer && blob.size > PEER_UPLOAD_MAX_BYTES) {
-    writeTerminalError(terminalId, "image too large to send to a remote Mac (max 8 MB)");
+    writeTerminalError(terminalId, `image too large to send to a remote ${MACHINE.noun} (max 8 MB)`);
     return;
   }
   const reader = new FileReader();

@@ -25,6 +25,8 @@ struct GitReviewView: View {
     @State private var showCommit = false
     @State private var showPrSheet = false
     @State private var asking: AskContext?
+    // The file whose Discard waits on the confirmation.
+    @State private var discarding: GitFile?
     @State private var openTerminal: TerminalInfo?
     @State private var isVisible = false
 
@@ -60,6 +62,7 @@ struct GitReviewView: View {
                             toggleCollapsed: { toggleCollapsed(file.path) },
                             toggleViewed: { toggleViewed(file.path, proxy: proxy) },
                             onAsk: { diffText in asking = AskContext(path: file.path, diffText: diffText) },
+                            onDiscard: model.git.canDiscardFiles ? { discarding = file } : nil,
                             pins: pins
                         )
                     }
@@ -149,6 +152,22 @@ struct GitReviewView: View {
             .sheet(isPresented: $showPrSheet) {
                 GitPrSheet(project: project)
                     .environment(model)
+            }
+            .confirmationDialog(
+                "Discard changes to \(discarding?.name ?? "")?",
+                isPresented: Binding(get: { discarding != nil }, set: { if !$0 { discarding = nil } }),
+                titleVisibility: .visible,
+                presenting: discarding
+            ) { file in
+                Button("Discard Changes", role: .destructive) {
+                    Haptics.warning()
+                    AppLock.shared.confirm("Discard the changes to \(file.name)") {
+                        model.git.discardFile(name, path: file.path)
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: { file in
+                Text("\(file.path) goes back to how it was at the last commit. lpm keeps a copy on the Mac for 7 days, so you can undo it.")
             }
             .sheet(item: $asking) { ctx in
                 AgentAskSheet(project: project, path: ctx.path, diffText: ctx.diffText) { term, prompt in

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { FeatureMatrix, type MatrixRow } from "@/components/vs/feature-matrix";
+import { STATUS_AGENT_NAMES } from "@/lib/app-facts";
 import { vsPath } from "@/lib/links";
 
 const ROWS: MatrixRow[] = [
@@ -35,7 +36,7 @@ const ROWS: MatrixRow[] = [
   },
   {
     label: "Seeing what an agent is doing without switching to it",
-    lpm: "working, needs you, done or error on the terminal tab — Claude Code, Codex, Gemini CLI and Cursor CLI",
+    lpm: `working, needs you, done or error on the terminal tab — ${STATUS_AGENT_NAMES}`,
     competitor:
       "working, waiting or idle in the Session Status panel — Claude Code only, since 3.7",
   },

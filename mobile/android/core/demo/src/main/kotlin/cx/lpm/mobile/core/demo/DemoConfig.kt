@@ -15,6 +15,10 @@ internal fun DemoServer.registerConfigHandlers() {
     register("apnsToken") { push(mapOf("t" to "apnsToken", "ok" to true)) }
     register("liveActivity") { push(mapOf("t" to "liveActivity", "ok" to true)) }
     register("answerAgent") { o ->
+        if (o.string("action") == "pick") {
+            answerDemoDialog(o)
+            return@register
+        }
         val reply = mutableMapOf<String, Any?>("t" to "answerAgent", "ok" to true)
         o["reqId"]?.let { reply["reqId"] = it }
         push(reply)

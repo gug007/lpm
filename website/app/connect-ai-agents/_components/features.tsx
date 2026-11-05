@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { FeatureCard } from "@/components/feature-card";
 import { SectionHeader } from "@/components/section-header";
+import { STATUS_AGENT_NAMES } from "@/lib/app-facts";
 import { SKILLS_PATH } from "@/lib/links";
 
 type Feature = {
@@ -62,8 +63,8 @@ const FEATURES: Feature[] = [
     title: "Report and read live status",
     body: (
       <>
-        Claude Code, Codex, Gemini CLI and Cursor CLI report working, needs
-        you, done, or problem on their own. Any other agent can post the same states with{" "}
+        {STATUS_AGENT_NAMES} report working, needs you, done, or problem on
+        their own. Any other agent can post the same states with{" "}
         <code className="font-mono text-xs">lpm set-status</code>
         {", "}and scripts read them back with{" "}
         <code className="font-mono text-xs">lpm status</code>.

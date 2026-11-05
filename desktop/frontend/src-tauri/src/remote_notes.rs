@@ -15,6 +15,7 @@ use crate::notes_cmds::{
     notes_edit_message, notes_list_chats, notes_list_messages, notes_read_attachment,
     notes_rename_chat, notes_search, NotesAttachmentInput, NotesState,
 };
+use crate::sys::MACHINE;
 use serde::Serialize;
 use serde_json::{json, Value};
 use std::sync::mpsc::SyncSender;
@@ -29,10 +30,16 @@ use tauri::{AppHandle, Manager};
 /// Anything larger stays a Mac-only attachment — the phone still lists it, it
 /// just can't move the bytes.
 const MAX_WS_ATTACHMENT_BYTES: usize = 8 * 1024 * 1024;
-const TOO_LARGE_SEND: &str =
-    "That file is too large to send from your phone. Add it from your Mac instead.";
-const TOO_LARGE_READ: &str =
-    "This attachment is too large to open on your phone. Open it on your Mac instead.";
+
+fn too_large_to_send() -> String {
+    format!("That file is too large to send from your phone. Add it from your {MACHINE} instead.")
+}
+
+fn too_large_to_read() -> String {
+    format!(
+        "This attachment is too large to open on your phone. Open it on your {MACHINE} instead."
+    )
+}
 
 /// Compare encoded lengths rather than decoding a payload we are about to
 /// reject anyway. Base64 emits `ceil(n / 3)` four-character groups, so the bound
@@ -131,7 +138,7 @@ fn add_message(
         Err(_) => return err("That attachment could not be read. Try sending it again.".into()),
     };
     if attachments.iter().any(|a| encoded_over_cap(a.data.len())) {
-        return err(TOO_LARGE_SEND.into());
+        return err(too_large_to_send());
     }
     wrap(
         "message",
@@ -141,7 +148,7 @@ fn add_message(
 
 fn attachment(state: tauri::State<'_, NotesState>, project: String, hash: String) -> Value {
     match notes_read_attachment(state, project, hash) {
-        Ok(data) if encoded_over_cap(data.len()) => err(TOO_LARGE_READ.into()),
+        Ok(data) if encoded_over_cap(data.len()) => err(too_large_to_read()),
         Ok(data) => json!({ "ok": true, "data": data }),
         Err(e) => err(e),
     }

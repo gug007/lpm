@@ -1,4 +1,5 @@
 import * as commands from "../bridge/commands";
+import { MACHINE } from "./machineWords";
 
 // A local project kept in step with another Mac. `paused` means syncing stopped
 // and needs an answer; `lastError` is a fault expected to clear on its own.
@@ -43,7 +44,7 @@ const bridge = commands as unknown as Partial<{
   FollowResume(project: string): Promise<void>;
 }>;
 
-const UNSUPPORTED = "Following a Mac isn't available in this version of lpm";
+const UNSUPPORTED = `Following a ${MACHINE.noun} isn't available in this version of lpm`;
 
 export function followSupported(): boolean {
   return typeof bridge.FollowStop === "function";

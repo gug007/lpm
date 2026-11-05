@@ -218,6 +218,8 @@ struct DemoWorld {
     var gitAutoNextId = 1
     var ciRerunAt: [String: Date] = [:] // project -> when its failed CI jobs were run again
     var gitDiscardNextId = 1
+    // Terminals whose sample question was answered: they wait on no dialog since.
+    var answeredDialogs: Set<String> = []
 
     // MARK: Jobs (automations)
 

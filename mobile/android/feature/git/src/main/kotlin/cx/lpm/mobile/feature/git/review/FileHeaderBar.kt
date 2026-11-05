@@ -29,8 +29,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -45,8 +47,12 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import cx.lpm.mobile.core.designsystem.R as DesignR
+import cx.lpm.mobile.core.designsystem.component.AlertButton
+import cx.lpm.mobile.core.designsystem.component.AlertRole
 import cx.lpm.mobile.core.designsystem.component.ContextMenu
+import cx.lpm.mobile.core.designsystem.component.ContextMenuDivider
 import cx.lpm.mobile.core.designsystem.component.ContextMenuItem
+import cx.lpm.mobile.core.designsystem.component.LpmConfirmationDialog
 import cx.lpm.mobile.core.designsystem.component.clickableNoIndication
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.core.ui.GitStatusBadge
@@ -56,8 +62,9 @@ import kotlinx.coroutines.launch
 /**
  * A file's bar, pinned over its diff while the diff scrolls (GitHub "Files changed"
  * style): the collapse chevron, status letter, name over folder with +N −M, the
- * "Wrap" and "Viewed" toggles, and "…" with "Ask agent…", include or exclude, and
- * "Copy Path" — also on a long press.
+ * "Wrap" and "Viewed" toggles, and "…" with "Ask agent…", include or exclude, "Copy
+ * Path" and, when the Mac can ([canDiscard]), "Discard Changes…" — also on a long
+ * press.
  */
 @Composable
 internal fun FileHeaderBar(
@@ -65,10 +72,13 @@ internal fun FileHeaderBar(
     wrap: Boolean,
     actions: ReviewActions,
     onViewedToggle: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    canDiscard: Boolean = false,
+    discarding: Boolean = false
 ) {
     val colors = LpmTheme.colors
     var menu by remember { mutableStateOf(false) }
+    var confirmingDiscard by remember { mutableStateOf(false) }
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
     val path = row.path
@@ -153,8 +163,46 @@ internal fun FileHeaderBar(
                 },
                 icon = painterResource(DesignR.drawable.ic_content_copy)
             )
+            if (canDiscard) {
+                ContextMenuDivider()
+                ContextMenuItem(
+                    title = stringResource(R.string.git_file_discard),
+                    onClick = { confirmingDiscard = true },
+                    icon = painterResource(DesignR.drawable.ic_delete),
+                    destructive = true,
+                    enabled = !discarding
+                )
+            }
         }
     }
+    if (confirmingDiscard) {
+        DiscardConfirmation(
+            row = row,
+            onDiscard = { actions.discardFile(path) },
+            onDismiss = { confirmingDiscard = false }
+        )
+    }
+}
+
+/** "Discard changes to <name>?": the file goes back to the last commit, and can be undone. */
+@Composable
+private fun DiscardConfirmation(
+    row: ReviewRow.FileHeader,
+    onDiscard: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val haptics = LocalHapticFeedback.current
+    LpmConfirmationDialog(
+        title = stringResource(R.string.git_file_discard_title, row.file.name),
+        message = stringResource(R.string.git_file_discard_message, row.path),
+        buttons = listOf(
+            AlertButton(stringResource(R.string.git_file_discard_confirm), AlertRole.Destructive) {
+                haptics.performHapticFeedback(HapticFeedbackType.Reject)
+                onDiscard()
+            }
+        ),
+        onDismissRequest = onDismiss
+    )
 }
 
 /** The chevron, status and name that collapse the diff, read out as the file's path. */

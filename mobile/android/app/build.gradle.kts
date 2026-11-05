@@ -84,7 +84,6 @@ dependencies {
     implementation(projects.core.ui)
     implementation(projects.core.web)
     implementation(projects.feature.actions)
-    implementation(projects.feature.activity)
     implementation(projects.feature.automations)
     implementation(projects.feature.claudeaccount)
     implementation(projects.feature.commands)

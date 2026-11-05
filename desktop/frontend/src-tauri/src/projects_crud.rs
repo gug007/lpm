@@ -4,6 +4,7 @@
 // serde_norway writes configs.
 use crate::adopt::{self, AdoptedProject};
 use crate::config;
+use crate::sys::TRASH;
 use serde::Deserialize;
 use serde_norway::{Mapping, Value as Yaml};
 use std::path::{Path, PathBuf};
@@ -1418,7 +1419,9 @@ pub fn remove_project(app: AppHandle, name: String) -> Result<(), String> {
 #[tauri::command(async)]
 pub fn trash_project(app: AppHandle, name: String) -> Result<(), String> {
     if config::peek_worktree(&name) {
-        return Err("Remove Git worktrees from lpm instead of moving them to Trash.".into());
+        return Err(format!(
+            "Remove Git worktrees from lpm instead of moving them to {TRASH}."
+        ));
     }
     let worktrees: Vec<String> = config::duplicates_of(&name)?
         .into_iter()
@@ -1426,7 +1429,7 @@ pub fn trash_project(app: AppHandle, name: String) -> Result<(), String> {
         .collect();
     if !worktrees.is_empty() {
         return Err(format!(
-            "Remove the Git worktree{} before moving this project to Trash: {}",
+            "Remove the Git worktree{} before moving this project to {TRASH}: {}",
             if worktrees.len() == 1 { "" } else { "s" },
             worktrees.join(", ")
         ));

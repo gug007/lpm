@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 import { SectionHeader } from "@/components/section-header";
+import { OTHER_STATUS_AGENT_NAMES } from "@/lib/app-facts";
 import { jsonLdString } from "@/lib/structured-data";
 import {
   CONNECT_AGENTS_PATH,
@@ -74,7 +75,7 @@ const FAQS: QA[] = [
       <>
         They run in lpm terminals like any other command, and lpm suggests
         launch buttons for Gemini CLI and OpenCode when their CLIs are
-        installed. Gemini CLI and Cursor CLI also get live status and alerts,
+        installed. {OTHER_STATUS_AGENT_NAMES} also get live status and alerts,
         though Cursor CLI asks for approval without telling lpm, so it never
         shows Needs you. Resume, fork, and the model switcher are built for
         Claude Code and Codex. Any agent can still drive lpm
@@ -87,7 +88,7 @@ const FAQS: QA[] = [
       </>
     ),
     answerText:
-      "They run in lpm terminals like any other command, and lpm suggests launch buttons for Gemini CLI and OpenCode when their CLIs are installed. Gemini CLI and Cursor CLI also get live status and alerts, though Cursor CLI asks for approval without telling lpm, so it never shows Needs you. Resume, fork, and the model switcher are built for Claude Code and Codex. Any agent can still drive lpm through the lpm CLI and agent skills, and post its own status badge with lpm set-status.",
+      `They run in lpm terminals like any other command, and lpm suggests launch buttons for Gemini CLI and OpenCode when their CLIs are installed. ${OTHER_STATUS_AGENT_NAMES} also get live status and alerts, though Cursor CLI asks for approval without telling lpm, so it never shows Needs you. Resume, fork, and the model switcher are built for Claude Code and Codex. Any agent can still drive lpm through the lpm CLI and agent skills, and post its own status badge with lpm set-status.`,
   },
   {
     question: "Do I need Docker to use lpm?",

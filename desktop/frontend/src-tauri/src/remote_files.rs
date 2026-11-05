@@ -3,6 +3,7 @@
 // phone can mark changed files and the folders that hold them.
 use crate::file_browser::{list_dir_entries, DirEntryInfo};
 use crate::git::{git_changed_files, ChangedFile};
+use crate::sys::MACHINE;
 use serde_json::{json, Map, Value};
 use std::cmp::Ordering;
 use std::sync::mpsc::SyncSender;
@@ -35,7 +36,7 @@ pub fn handle(out: &SyncSender<String>, v: &Value) {
 fn list(project: &str, dir: &str) -> Result<(String, Vec<Value>), String> {
     let (root, is_remote) = crate::config::project_root(project)?;
     if is_remote {
-        return Err("Files on an SSH host open on your Mac.".into());
+        return Err(format!("Files on an SSH host open on your {MACHINE}."));
     }
     let dir = dir.trim_matches('/');
     let mut entries = list_dir_entries(root.clone(), dir.to_string())?;

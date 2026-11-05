@@ -551,6 +551,11 @@ impl Grid {
 
     // ---- reading -------------------------------------------------------------
 
+    /// The screen's rows, top first, without the scrollback.
+    pub fn screen_rows(&self) -> Vec<String> {
+        self.screen.iter().map(Row::text).collect()
+    }
+
     /// `capture-pane -p -J -S -<history>`: the last `history` scrollback rows
     /// followed by the whole screen, with wrapped rows re-joined into one line.
     /// Like tmux, the result can exceed `history` lines — the screen is always

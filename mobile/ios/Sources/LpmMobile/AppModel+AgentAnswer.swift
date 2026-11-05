@@ -30,6 +30,7 @@ extension AppModel {
     }
 
     func noteAnswerAgent(reqId: String, error: String?) {
+        if agentDialogs.applyAnswer(reqId: reqId, error: error) { return }
         answerWaiters.removeValue(forKey: reqId)?.resume(returning: .some(error))
     }
 }

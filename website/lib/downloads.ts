@@ -1,3 +1,4 @@
+import { listNames } from "./app-facts";
 import { releaseAsset } from "./links";
 
 export type MacDownloadPlatform = "mac-arm" | "mac-intel";
@@ -94,6 +95,8 @@ export const OS_NAMES: Record<DesktopOs, string> = {
   windows: "Windows",
   linux: "Linux",
 };
+
+export const DESKTOP_SYSTEMS = listNames(DOWNLOAD_OS_ORDER.map((os) => OS_NAMES[os]));
 
 export const DOWNLOADS_BY_OS: Record<DesktopOs, DownloadEntry[]> = {
   macos: [DOWNLOAD_ENTRIES["mac-arm"], DOWNLOAD_ENTRIES["mac-intel"]],

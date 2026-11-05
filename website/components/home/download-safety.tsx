@@ -7,6 +7,7 @@ import {
   SquareTerminal,
   type LucideIcon,
 } from "lucide-react";
+import { STATUS_AGENT_NAMES } from "@/lib/app-facts";
 import { getLatestReleaseVerification } from "@/lib/release-verification";
 import { PRIVACY_PATH, RELEASES_URL, SECURITY_PATH } from "@/lib/links";
 import { RemoveLpm } from "@/components/remove-lpm";
@@ -57,7 +58,7 @@ const OTHER_ITEMS: SafetyItem[] = [
   {
     icon: SquareTerminal,
     title: "Your commands only",
-    body: "Runs what you configure as your user and adds status hooks for Claude Code, Codex, Gemini CLI and Cursor CLI.",
+    body: `Runs what you configure as your user and adds status hooks for ${STATUS_AGENT_NAMES}.`,
   },
   {
     icon: PackageCheck,

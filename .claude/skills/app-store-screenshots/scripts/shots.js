@@ -15,7 +15,7 @@ const USAGE = `shots.js <command> [--device iphone|ipad|duo-closed|duo-open] [--
 
 shots.json holds the devices, the order, captions and routes. Route steps, joined by " > ":
   list | project:<name> | terminal:<project>/<terminalId> | changes:<project>
-  usage | stats | activity | automations | automation:<project>/<jobId>`;
+  usage | stats | automations | automation:<project>/<jobId>`;
 
 function args(argv) {
   const o = { cmd: argv[0] };

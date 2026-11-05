@@ -22,6 +22,7 @@ import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -43,6 +44,8 @@ import androidx.compose.ui.unit.dp
 import cx.lpm.mobile.core.designsystem.R
 import cx.lpm.mobile.core.designsystem.component.DisclosureChevron
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
+import cx.lpm.mobile.core.model.AgentDialogOption
+import cx.lpm.mobile.core.model.AgentDialogRead
 import cx.lpm.mobile.core.model.ProjectAgentRow
 import cx.lpm.mobile.core.ui.AgentToneText
 import cx.lpm.mobile.feature.projects.R as ProjectsR
@@ -56,7 +59,8 @@ import cx.lpm.mobile.feature.projects.agents.AgentStatusTrail
  * From a Mac that archives agents ([actions] set), a finished row archives with a
  * swipe, its long-press menu marks it unread once seen (or seen, while the Mac keeps
  * finished agents), and the [folded] seen rows past the Mac's limit fold into one
- * line that expands in place.
+ * line that expands in place. On the live Mac ([asking] set), a waiting agent's row
+ * carries the question it waits on, to answer from here.
  */
 @Composable
 fun ProjectTerminalDeck(
@@ -71,7 +75,8 @@ fun ProjectTerminalDeck(
     folded: Int = 0,
     expanded: Boolean = false,
     onToggleFold: () -> Unit = {},
-    actions: AgentRowActions? = null
+    actions: AgentRowActions? = null,
+    asking: DeckAsking? = null
 ) {
     val shape = RoundedCornerShape(10.dp)
     Column(
@@ -84,12 +89,24 @@ fun ProjectTerminalDeck(
             key(row.id, row.seen) {
                 if (index > 0) DeckRule()
                 AgentEdgeRow(edgeRows, "$edgeKey/${row.id}", row.edgeState) {
-                    DeckAgentRow(
-                        row = row,
-                        onOpen = { onOpen(row) },
-                        enabled = enabled && row.terminalId != null,
-                        actions = actions
-                    )
+                    val terminal = row.waitingTerminal
+                    if (asking != null && terminal != null) {
+                        AskingAgentRow(
+                            row = row,
+                            terminal = terminal,
+                            asking = asking,
+                            onOpen = { onOpen(row) },
+                            enabled = enabled,
+                            actions = actions
+                        )
+                    } else {
+                        DeckAgentRow(
+                            row = row,
+                            onOpen = { onOpen(row) },
+                            enabled = enabled && row.terminalId != null,
+                            actions = actions
+                        )
+                    }
                 }
             }
         }
@@ -109,6 +126,44 @@ private fun DeckRule() {
             .height(0.5.dp)
             .background(LpmTheme.colors.separator)
     )
+}
+
+/**
+ * Answering a waiting agent's question from its row, on the live Mac's projects: the
+ * question each row asks once the Mac has read one ([asks], by status key), asking for
+ * it while the row is on screen ([follow]), and a pick from its options.
+ */
+class DeckAsking(
+    val asks: Map<String, AgentAsk>,
+    val follow: suspend (row: ProjectAgentRow, terminal: String) -> Unit,
+    val pick: (AgentDialogRead, AgentDialogOption) -> Unit
+)
+
+/**
+ * A waiting agent's row carrying the question it waits on, once the Mac has read one
+ * off its terminal, to answer from here. It asks again as the wait starts over.
+ */
+@Composable
+private fun AskingAgentRow(
+    row: ProjectAgentRow,
+    terminal: String,
+    asking: DeckAsking,
+    onOpen: () -> Unit,
+    enabled: Boolean,
+    actions: AgentRowActions?
+) {
+    LaunchedEffect(row.id, row.since) { asking.follow(row, terminal) }
+    Column {
+        DeckAgentRow(row = row, onOpen = onOpen, enabled = enabled, actions = actions)
+        asking.asks[row.id]?.let { ask ->
+            AgentAskCard(
+                ask = ask,
+                onPick = { asking.pick(ask.read, it) },
+                onOpen = onOpen,
+                modifier = Modifier.padding(start = 10.dp, end = 10.dp, bottom = 10.dp)
+            )
+        }
+    }
 }
 
 /** One row of the deck, with its swipe and long-press menu when the Mac archives agents. */

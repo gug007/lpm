@@ -12,6 +12,7 @@
 // Style matches the rest of the codebase: std::thread + blocking tungstenite, one
 // thread per connection, no tokio in the connection path.
 use crate::peer::{self, PeerEntry, SharedConfig};
+use crate::sys::MACHINE;
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
 use std::io::{self, Read, Write};
@@ -46,8 +47,6 @@ const PAIR_REQUEST_WINDOW: Duration = Duration::from_secs(150); // wait for the 
 const INVOKE_GRACE: Duration = Duration::from_secs(5); // past the host's own deadline, so its error comes back
 const SYNC_TIMEOUT: Duration = Duration::from_secs(60); // digest / fetch round-trip
 const SYNC_APPLY_TIMEOUT: Duration = Duration::from_secs(180); // an older host snapshots all of ~/.lpm first
-const SYNC_UNSUPPORTED: &str = "the other Mac needs to update lpm to sync config";
-const GIT_BRING_UNSUPPORTED: &str = "the other Mac needs to update lpm to send its changes";
 pub(crate) const IGNORED_SYNC_UNSUPPORTED: &str = "the other computer needs a newer lpm to sync files";
 const REMOTE_PAIR_TIMEOUT: Duration = Duration::from_secs(20); // arm a code + render its QR
 const REMOTE_PAIR_UNSUPPORTED: &str = "this host needs to update lpm to show its pairing code";
@@ -82,6 +81,14 @@ const RESYNC_MIN_INTERVAL: Duration = Duration::from_secs(2);
 /// paste above all, which this app reads off the emulator on its own send path.
 /// Those are input-side modes; a replay only has to rebuild the screen.
 const SCREEN_RESET: &str = "\x1b[?1049l\x1b[?6l\x1b[?7h\x1b(B\x1b[r\x1b[0m\x1b[2J\x1b[3J\x1b[H";
+
+fn sync_unsupported() -> String {
+    format!("the other {MACHINE} needs to update lpm to sync config")
+}
+
+fn git_bring_unsupported() -> String {
+    format!("the other {MACHINE} needs to update lpm to send its changes")
+}
 
 // --- shared state -------------------------------------------------------------
 
@@ -776,7 +783,7 @@ impl PeerClientHub {
             }
             match ws.read() {
                 Ok(m) if m.is_close() => {
-                    let e = "the other Mac closed the connection".to_string();
+                    let e = format!("the other {MACHINE} closed the connection");
                     self.emit_pair_failed(&e);
                     return Err(e);
                 }
@@ -820,7 +827,7 @@ impl PeerClientHub {
                     if e.kind() == std::io::ErrorKind::WouldBlock
                         || e.kind() == std::io::ErrorKind::TimedOut => {}
                 Err(WsError::ConnectionClosed) | Err(WsError::AlreadyClosed) => {
-                    let e = "the other Mac closed the connection".to_string();
+                    let e = format!("the other {MACHINE} closed the connection");
                     self.emit_pair_failed(&e);
                     return Err(e);
                 }
@@ -867,7 +874,7 @@ impl PeerClientHub {
             }
         };
         if device_id.is_empty() || token.is_empty() || slug.len() != 8 {
-            let e = "the other Mac sent an incomplete pairing reply".to_string();
+            let e = format!("the other {MACHINE} sent an incomplete pairing reply");
             self.emit_pair_failed(&e);
             return Err(e);
         }
@@ -1184,7 +1191,7 @@ impl PeerClientHub {
         self.require_feature(
             slug,
             |c| c.supports_git_bring.load(Ordering::Relaxed),
-            GIT_BRING_UNSUPPORTED,
+            &git_bring_unsupported(),
         )
     }
 
@@ -1194,7 +1201,7 @@ impl PeerClientHub {
         self.require_feature(
             slug,
             |c| c.supports_git_follow.load(Ordering::Relaxed),
-            GIT_BRING_UNSUPPORTED,
+            &git_bring_unsupported(),
         )
     }
 
@@ -1338,7 +1345,7 @@ impl PeerClientHub {
             return Err(PEER_NOT_CONNECTED.to_string());
         }
         if !conn.supports_sync.load(Ordering::Relaxed) {
-            return Err(SYNC_UNSUPPORTED.to_string());
+            return Err(sync_unsupported());
         }
         Ok(())
     }
@@ -1402,7 +1409,7 @@ impl PeerClientHub {
                 .flatten()
             {
                 if let Some(s) = e.as_str() {
-                    errors.push(format!("other Mac: {s}"));
+                    errors.push(format!("other {MACHINE}: {s}"));
                 }
             }
             if items.is_empty() {
@@ -1637,7 +1644,7 @@ impl PeerClientHub {
                 if let Some(errs) = host_errors {
                     for e in errs {
                         if let Some(s) = e.as_str() {
-                            errors.push(format!("other Mac: {s}"));
+                            errors.push(format!("other {MACHINE}: {s}"));
                         }
                     }
                 }

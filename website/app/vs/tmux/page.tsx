@@ -179,7 +179,7 @@ export default function VsTmuxPage() {
       />
       <ComparisonHero
         eyebrow="lpm vs tmux"
-        title="A tmux alternative for Mac dev stacks — panes without .tmux.conf."
+        title="A tmux alternative for dev stacks — panes without .tmux.conf."
         description="tmux is a fine multiplexer and this page does not pretend otherwise. What it does not know is what a project is: which commands belong together, which order they start in, and which repo they came out of."
         verdictLine="Most people asking for a tmux alternative want one of tmux's three jobs. lpm takes that one."
         jumpHref="#migrate"
@@ -298,7 +298,7 @@ export default function VsTmuxPage() {
 
       <Cta
         title="Keep tmux. Let lpm bring the stack up."
-        description="lpm is free, MIT-licensed, and runs as a native macOS app. Add the folder, check the services it lists, press Start, and every service comes up in its own pane — with no tmux installed."
+        description="lpm is free, MIT-licensed, and runs as a native app on macOS, Windows and Linux. Add the folder, check the services it lists, press Start, and every service comes up in its own pane — with no tmux installed."
         downloadSource="vs-tmux-cta"
       />
     </>

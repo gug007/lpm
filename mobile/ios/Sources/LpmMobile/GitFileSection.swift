@@ -17,6 +17,8 @@ struct GitFileSection: View {
     let toggleCollapsed: () -> Void
     let toggleViewed: () -> Void
     let onAsk: (String) -> Void
+    /// Asks to discard this file's changes; nil when the Mac can't.
+    let onDiscard: (() -> Void)?
     let pins: HeaderPins
 
     @State private var expanded = false
@@ -151,6 +153,13 @@ struct GitFileSection: View {
             UIPasteboard.general.string = file.path
         } label: {
             Label("Copy Path", systemImage: "doc.on.doc")
+        }
+        if let onDiscard {
+            Divider()
+            Button(role: .destructive, action: onDiscard) {
+                Label("Discard Changes…", systemImage: "trash")
+            }
+            .disabled(model.git.discarding.contains(project))
         }
     }
 

@@ -200,6 +200,8 @@ class GitReviewViewModel @AssistedInject constructor(
             commitTick = g.commitTick[project] ?: 0,
             opError = g.opError[project],
             notice = g.notice[project],
+            canDiscardFiles = git?.canDiscardFiles == true,
+            discarding = project in g.discarding,
             terminals = t.terminals[project].orEmpty()
         )
     }
@@ -323,6 +325,11 @@ class GitReviewViewModel @AssistedInject constructor(
 
     fun dismissOpError() {
         git?.dismissOpError(project)
+    }
+
+    /** "Discard Changes…" on one file, once confirmed: Undo follows on the notice. */
+    fun discardFile(path: String) {
+        git?.discardFile(project, path)
     }
 
     /** Undo on a discard's notice: [id] names the copy the Mac kept. */

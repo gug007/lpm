@@ -4,8 +4,8 @@ import androidx.compose.ui.graphics.Color
 
 /**
  * The desktop's "working" shimmer that sweeps through an agent's name in the
- * projects list, project tabs and Activity (`AgentStateStyle.swift`). The same in
- * both appearances.
+ * projects list and project tabs (`AgentStateStyle.swift`). The same in both
+ * appearances.
  */
 val AgentWorkingSweep: List<Color> = listOf(
     Color(0xFF3B82F6),

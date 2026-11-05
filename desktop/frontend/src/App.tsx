@@ -81,6 +81,7 @@ import { SharedTabView } from "./components/share/SharedTabView";
 import { TabShareHosts } from "./components/share/TabShareHosts";
 import { IgnoredSyncHost } from "./components/ignored/IgnoredSyncHost";
 import { useIgnoredSyncConflicts } from "./components/ignored/useIgnoredSyncConflicts";
+import { MACHINE } from "./machineWords";
 
 export default function App() {
   const projects = useAppStore((s) => s.projects);
@@ -206,7 +207,7 @@ export default function App() {
     isPeerName(selected) &&
     !selectedProject &&
     (!peersLoaded || selectedPeer !== undefined);
-  const selectedPeerAlias = selectedPeer?.alias || selectedPeer?.host || "Mac";
+  const selectedPeerAlias = selectedPeer?.alias || selectedPeer?.host || MACHINE.Noun;
 
   // A mirror (detached) window can trigger run-in-duplicates but can't create
   // the copies itself — they mount and auto-run in this main window's store.

@@ -26,7 +26,6 @@ internal enum class GalleryScreen(val key: String, val title: String) {
     Projects("projects", "Projects (demo header)"),
     Detail("detail", "Project detail"),
     Menu("menu", "Project menu"),
-    Activity("activity", "Activity"),
     Automations("automations", "Automations"),
     Settings("settings", "Settings sheet"),
     Terminal("terminal", "Terminal bar (dark)"),
@@ -52,7 +51,6 @@ internal fun Gallery(start: GalleryScreen, modifier: Modifier = Modifier) {
             GalleryScreen.Projects -> ProjectsSample(showSettings = false)
             GalleryScreen.Detail -> ProjectDetailSample(onBack = back, menuOpen = false)
             GalleryScreen.Menu -> ProjectDetailSample(onBack = back, menuOpen = true)
-            GalleryScreen.Activity -> ActivitySample(onBack = back)
             GalleryScreen.Automations -> AutomationsSample(onBack = back)
             GalleryScreen.Settings -> ProjectsSample(showSettings = true)
             GalleryScreen.Terminal -> TerminalBarSample(onBack = back)

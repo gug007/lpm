@@ -60,6 +60,7 @@ export function CodeBlock({
       {!filename && copyButton}
       <pre
         ref={preRef}
+        tabIndex={0}
         className={`${filename ? "px-4" : "pl-4 pr-24"} py-3 text-xs font-mono text-gray-700 dark:text-gray-300 leading-relaxed overflow-x-auto`}
       >
         <code>{children}</code>

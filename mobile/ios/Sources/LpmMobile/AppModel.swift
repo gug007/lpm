@@ -410,6 +410,8 @@ final class AppModel {
     var gitHistory = GitHistoryStore()
     // CI on each project's branch (`model.gitChecks`), same split.
     var gitChecks = GitChecksStore()
+    // The dialogs waiting agents show (`model.agentDialogs`), same split.
+    var agentDialogs = AgentDialogStore()
     // The other machines saved here, while the list shows them all.
     let machineFeeds = PairedMachineFeeds()
 
@@ -497,6 +499,7 @@ final class AppModel {
         projectFiles.model = self
         gitHistory.model = self
         gitChecks.model = self
+        agentDialogs.model = self
         pushRegistrar.onIdentity = { [weak self] localId, serverId, serverName, platform in
             self?.learnIdentity(of: localId, serverId: serverId, serverName: serverName,
                                 platform: platform)
@@ -1457,6 +1460,8 @@ final class AppModel {
         gitHistory.model = self
         gitChecks = GitChecksStore()
         gitChecks.model = self
+        agentDialogs = AgentDialogStore()
+        agentDialogs.model = self
         fileFetches.cancelAll()
         answerRequests.failAll()
         pendingAgentPrompt = [:]
@@ -1839,45 +1844,23 @@ final class AppModel {
 
     func loadAutomations() { client?.requestJobs() }
 
-    // MARK: Activity
+    // MARK: Agents
 
-    /// Project -> terminal id -> that tab's name, for naming the agent rows on the
-    /// Activity screen. Only projects whose terminals have been fetched contribute.
-    var activityTerminalTitles: [String: [String: String]] {
+    /// Project -> terminal id -> that tab's name, for naming the agent rows in the
+    /// projects list and the widgets. Only projects whose terminals have been
+    /// fetched contribute.
+    var agentTabTitles: [String: [String: String]] {
         terminals.mapValues { list in
             Dictionary(list.map { ($0.id, $0.label) }, uniquingKeysWith: { _, last in last })
         }
     }
 
-    /// Fetch the tab names behind the Activity rows: only projects that actually
+    /// Fetch the tab names behind the agent rows: only projects that actually
     /// report an agent, so an idle Mac costs nothing.
-    func loadActivityTerminals() {
+    func loadAgentTabTitles() {
         for project in projects where project.hasAgentStatus {
             client?.requestTerminals(project: project.name)
         }
-    }
-
-    /// Pull-to-refresh on Activity: everything the screen reads comes from the
-    /// projects and automations lists plus the terminals behind them.
-    func refreshActivity() async {
-        guard case .ready = connection else {
-            reconnectIfNeeded()
-            try? await Task.sleep(nanoseconds: 500_000_000)
-            return
-        }
-        client?.requestProjects()
-        client?.requestJobs()
-        loadActivityTerminals()
-        try? await Task.sleep(nanoseconds: 500_000_000)
-    }
-
-    /// Dismiss a finished agent status. The Mac clears every entry on that terminal
-    /// holding this value and broadcasts status-changed; the row is dropped locally
-    /// first so the list settles on the tap rather than on the round-trip.
-    func clearAgentStatus(project: String, paneId: String, value: String) {
-        guard !paneId.isEmpty, !value.isEmpty else { return }
-        Haptics.tap()
-        dropAgentStatus(project: project, paneId: paneId, values: [value])
     }
 
     /// Retire the finish or problem a terminal shows once the user is looking at
@@ -2507,6 +2490,7 @@ final class AppModel {
         gitHistory.handleConnectionReset()
         gitChecks.handleConnectionReset()
         fileFetches.handleConnectionReset()
+        agentDialogs.handleConnectionReset()
         answerRequests.failAll()
         historyPending = []
         historyLoadingMore = false
@@ -2717,6 +2701,8 @@ final class AppModel {
         wireProjectFiles(c)
         wireGitHistory(c)
         wireGitChecks(c)
+        wireAgentDialogs(c)
+        wireGitDiscardFiles(c)
     }
 
     private func wireConnection(_ c: LpmClient) {

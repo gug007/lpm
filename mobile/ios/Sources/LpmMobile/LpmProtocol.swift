@@ -119,8 +119,8 @@ enum Wire {
         json(["t": "historyAdd", "project": project, "id": id, "label": label, "text": text])
     }
     static func status(project: String) -> String { json(["t": "status", "project": project]) }
-    /// Dismiss a finished agent status from the Activity list. Clears every entry on
-    /// `paneId` holding `value`, exactly like the desktop's tab-click dismiss.
+    /// Dismiss a finished agent status. Clears every entry on `paneId` holding
+    /// `value`, exactly like the desktop's tab-click dismiss.
     static func clearStatus(project: String, paneId: String, value: String) -> String {
         json(["t": "clearStatus", "project": project, "paneId": paneId, "value": value])
     }
@@ -390,6 +390,20 @@ enum Wire {
         return json(["t": "apnsToken", "token": token, "env": env, "key": key, "notify": notify])
     }
 
+    /// The dialog a waiting agent's terminal shows. Only for a Mac whose
+    /// `features` has "agentDialog".
+    static func agentDialog(project: String, terminalId: String) -> String {
+        json(["t": "agentDialog", "project": project, "terminalId": terminalId])
+    }
+
+    /// Pick one of a dialog's options, naming the report and the dialog it was
+    /// picked from, so the Mac types it only while both still stand.
+    static func pickAgentDialog(_ read: AgentDialogRead, option: String, reqId: String) -> String {
+        json(["t": "answerAgent", "project": read.project, "terminalId": read.terminalId,
+              "key": read.key, "ts": read.ts, "action": "pick", "option": option,
+              "dialog": read.dialog?.id ?? "", "reqId": reqId])
+    }
+
     /// Answer the agent a notification is about, naming the report it answers.
     /// Only for a Mac whose `features` has "answerAgent".
     static func answerAgent(_ answer: AgentAnswer, reqId: String) -> String {
@@ -456,6 +470,10 @@ enum Wire {
         json(["t": "gitCreateBranch", "project": project, "name": name])
     }
     static func gitDiscardAll(project: String) -> String { json(["t": "gitDiscardAll", "project": project]) }
+    /// Discard the changes to `paths` only. Only for a Mac whose `features` has "gitDiscardFiles".
+    static func gitDiscardFiles(project: String, paths: [String]) -> String {
+        json(["t": "gitDiscardFiles", "project": project, "paths": paths])
+    }
     static func gitRestoreDiscarded(project: String, id: String) -> String {
         json(["t": "gitRestoreDiscarded", "project": project, "id": id])
     }
@@ -788,6 +806,8 @@ enum Wire {
         // keep none.
         case gitDiscardAll(project: String, undo: String?, error: String?)
         case gitRestoreDiscarded(project: String, error: String?)
+        case gitDiscardFiles(project: String, paths: [String], undo: String?, error: String?)
+        case agentDialog(AgentDialogRead)
         // Server push: watched files changed for this project (already debounced).
         case gitChanged(project: String)
         // Commit history: a page of the branch's commits, one commit's files and
@@ -1211,6 +1231,13 @@ enum Wire {
                 return .gitDiscardAll(project: obj["project"] as? String ?? "",
                                       undo: (obj["undo"] as? String).flatMap { $0.isEmpty ? nil : $0 },
                                       error: ok ? nil : (obj["error"] as? String ?? "Couldn't discard changes."))
+            case "gitDiscardFiles":
+                let ok = obj["ok"] as? Bool ?? false
+                return .gitDiscardFiles(project: obj["project"] as? String ?? "",
+                                        paths: obj["paths"] as? [String] ?? [],
+                                        undo: (obj["undo"] as? String).flatMap { $0.isEmpty ? nil : $0 },
+                                        error: ok ? nil : (obj["error"] as? String ?? "Couldn't discard the changes."))
+            case "agentDialog": return .agentDialog(AgentDialogRead(obj))
             case "gitRestoreDiscarded":
                 let ok = obj["ok"] as? Bool ?? false
                 return .gitRestoreDiscarded(project: obj["project"] as? String ?? "",

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { BellRing, Gauge, ListTree, PanelTop } from "lucide-react";
 import type { ReactNode } from "react";
 import { SectionHeader } from "@/components/section-header";
+import { STATUS_AGENT_NAMES } from "@/lib/app-facts";
 import { MOBILE_PATH, TOKEN_USAGE_PATH } from "@/lib/links";
 import AgentSidebarReplica from "./agent-sidebar-replica";
 
@@ -71,7 +72,7 @@ export default function KeepTrack() {
         <SectionHeader
           eyebrow="Keep track"
           title="Know which agent needs you without opening every tab"
-          description="Every Claude Code, Codex, Gemini CLI and Cursor CLI session reports its own state, so you see it on the tab and under its project in the sidebar."
+          description={`Every ${STATUS_AGENT_NAMES} session reports its own state, so you see it on the tab and under its project in the sidebar.`}
         />
         <div className="grid items-center gap-12 lg:grid-cols-2">
           <figure className="min-w-0">

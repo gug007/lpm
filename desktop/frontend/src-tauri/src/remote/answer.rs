@@ -18,6 +18,8 @@ pub(super) const FEATURE: &str = "answerAgent";
 const ALLOW: &str = "allow";
 const DENY: &str = "deny";
 const REPLY: &str = "reply";
+/// One of the dialog's options, read for the phone by `agentDialog`.
+const PICK: &str = "pick";
 
 /// Anything longer belongs in the app's composer.
 const MAX_REPLY_CHARS: usize = 4000;
@@ -36,6 +38,9 @@ struct Request {
     ts: i64,
     action: String,
     text: String,
+    /// For a pick: the option's key, and the id of the dialog it was picked from.
+    option: String,
+    dialog: String,
 }
 
 /// The answers a notification about `entry` may offer. Allow and Deny are Enter
@@ -74,6 +79,8 @@ pub(super) fn handle(hub: &RemoteHub, app: &AppHandle, out: &SyncSender<String>,
         ts: v.get("ts").and_then(Value::as_i64).unwrap_or(0),
         action: field("action"),
         text: field("text"),
+        option: field("option"),
+        dialog: field("dialog"),
     };
     let req_id = v.get("reqId").cloned().unwrap_or(Value::Null);
     let (hub, app, out) = (hub.clone(), app.clone(), out.clone());
@@ -101,6 +108,11 @@ fn answer(hub: &RemoteHub, app: &AppHandle, r: &Request) -> Result<(), String> {
             let key = if r.action == ALLOW { "\r" } else { "\x1b" };
             crate::pty::remote_write(app, &r.terminal, key).map_err(|_| gone())
         }
+        PICK => {
+            prompt_still_open(&entries, r)?;
+            super::dialog::still_shown(hub, app, &r.terminal, &r.dialog, &r.option)?;
+            crate::pty::remote_write(app, &r.terminal, &r.option).map_err(|_| gone())
+        }
         REPLY => {
             let text = reply_text(&r.text)?;
             ready_for_reply(&entries, &r.terminal)?;
@@ -125,7 +137,7 @@ fn prompt_still_open(entries: &[StatusEntry], r: &Request) -> Result<(), String>
             && e.pane_id == r.terminal
             && e.value == STATUS_WAITING
             && e.timestamp == r.ts
-            && permission_prompt(e)
+            && (r.action == PICK || permission_prompt(e))
     });
     if open {
         Ok(())
@@ -265,6 +277,8 @@ mod tests {
             ts: 100,
             action: action.into(),
             text: String::new(),
+            option: String::new(),
+            dialog: String::new(),
         }
     }
 

@@ -179,6 +179,44 @@ class InboundGitTest {
     }
 
     @Test
+    fun discardOfOneFileEchoesItsPathsAndNamesTheCopy() {
+        assertEquals(
+            Inbound.GitDiscardFiles("a", listOf("src/app.ts"), undo = "discard-3", error = null),
+            Inbound.parse(
+                """{ "t": "gitDiscardFiles", "project": "a", "paths": ["src/app.ts"], "ok": true,
+                     "undo": "discard-3" }"""
+            )
+        )
+        assertEquals(
+            Inbound.GitDiscardFiles("a", listOf("x.md"), undo = null, error = null),
+            Inbound.parse(
+                """{ "t": "gitDiscardFiles", "project": "a", "paths": ["x.md"], "ok": true, "undo": "" }"""
+            )
+        )
+        assertEquals(
+            Inbound.GitDiscardFiles(
+                "a",
+                emptyList(),
+                undo = null,
+                error = "Couldn't discard the changes."
+            ),
+            Inbound.parse("""{ "t": "gitDiscardFiles", "project": "a", "ok": false }""")
+        )
+        assertEquals(
+            Inbound.GitDiscardFiles(
+                "a",
+                listOf("x.md"),
+                undo = null,
+                error = "Not a git repository."
+            ),
+            Inbound.parse(
+                """{ "t": "gitDiscardFiles", "project": "a", "paths": ["x.md"], "ok": false,
+                     "error": "Not a git repository." }"""
+            )
+        )
+    }
+
+    @Test
     fun aiDrafts() {
         assertEquals(
             Inbound.GitGenMessage("a", "Fix the login redirect", null),

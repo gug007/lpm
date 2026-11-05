@@ -56,7 +56,9 @@ class ReviewActions(
     val ask: (String) -> Unit = {},
     val openCommit: () -> Unit = {},
     val createPullRequest: () -> Unit = {},
-    val undoDiscard: (id: String) -> Unit = {}
+    val undoDiscard: (id: String) -> Unit = {},
+    /** A file's "Discard Changes", confirmed: [path] goes back to the last commit. */
+    val discardFile: (path: String) -> Unit = {}
 )
 
 /**
@@ -162,7 +164,9 @@ private fun ReviewList(
                         row,
                         state.wrap,
                         actions,
-                        onViewedToggle = { onViewedToggle(row) }
+                        onViewedToggle = { onViewedToggle(row) },
+                        canDiscard = state.canDiscardFiles,
+                        discarding = state.discarding
                     )
                 }
             } else {

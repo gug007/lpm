@@ -44,6 +44,10 @@ data class GitReviewUiState(
     val commitTick: Int = 0,
     val opError: GitOpError? = null,
     val notice: GitNotice? = null,
+    /** The Mac discards one file's changes: each file's "…" offers "Discard Changes…". */
+    val canDiscardFiles: Boolean = false,
+    /** A discard is running for the project, so another waits. */
+    val discarding: Boolean = false,
     val terminals: List<TerminalInfo> = emptyList()
 ) {
     val committing: Boolean

@@ -56,7 +56,7 @@ enum AgentWidgetStore {
     }
 
     /// Every Mac's agents, most urgent first and the longest at it first within a
-    /// state, as Activity orders them.
+    /// state.
     static func items(_ macs: [AgentWidgetMac]) -> [AgentWidgetItem] {
         macs.flatMap { mac in mac.rows.map { AgentWidgetItem(macId: mac.id, row: $0) } }
             .sorted { a, b in

@@ -445,6 +445,22 @@ pub fn machine_name() -> String {
     return "Linux host".to_string();
 }
 
+/// What a message calls this machine: a Mac on macOS, a computer on Linux and
+/// Windows, as the frontend's `machineWords` does. "The other {noun}" takes it
+/// too, as `MACHINE.otherMachine` does, so a Mac's wording stays as it was.
+pub const MACHINE: &str = if cfg!(target_os = "macos") {
+    "Mac"
+} else {
+    "computer"
+};
+
+/// Where a removed folder goes: the Recycle Bin on Windows, the Trash elsewhere.
+pub const TRASH: &str = if cfg!(windows) {
+    "Recycle Bin"
+} else {
+    "Trash"
+};
+
 /// The running macOS major version (12 for Monterey), if it can be read.
 #[cfg(target_os = "macos")]
 pub fn macos_major() -> Option<u32> {
@@ -521,6 +537,17 @@ pub fn which(bin: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn messages_name_the_machine_the_way_its_platform_does() {
+        let (noun, trash) = (MACHINE, TRASH);
+        #[cfg(target_os = "macos")]
+        assert_eq!((noun, trash), ("Mac", "Trash"));
+        #[cfg(windows)]
+        assert_eq!((noun, trash), ("computer", "Recycle Bin"));
+        #[cfg(all(unix, not(target_os = "macos")))]
+        assert_eq!((noun, trash), ("computer", "Trash"));
+    }
 
     // The shell every spawn path resolves must exist on the machine it spawns on.
     // A service manager hands down no $SHELL, and the old fallback was macOS's

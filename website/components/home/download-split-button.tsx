@@ -127,7 +127,7 @@ export function DownloadSplitButton({
                       href: entry.href,
                     })
                   }
-                  className="flex items-center gap-3 rounded-lg px-2.5 py-1.5 transition-colors hover:bg-gray-100 focus-visible:bg-gray-100 focus-visible:outline-none dark:hover:bg-white/[0.06] dark:focus-visible:bg-white/[0.06]"
+                  className="flex items-center gap-3 rounded-lg px-2.5 py-1.5 transition-colors hover:bg-gray-100 focus-visible:bg-gray-100 dark:hover:bg-white/[0.06] dark:focus-visible:bg-white/[0.06]"
                 >
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-2 text-[13px] font-medium text-gray-900 dark:text-gray-100">

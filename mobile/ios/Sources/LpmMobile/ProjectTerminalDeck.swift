@@ -35,8 +35,35 @@ struct ProjectTerminalDeck: View {
         }
     }
 
+    /// A waiting agent's row carries the question it waits on, once the Mac has
+    /// read one off its terminal, to answer from here.
     @ViewBuilder
     private func agentRow(_ row: ProjectAgentRow) -> some View {
+        if let terminal = askable(row) {
+            VStack(spacing: 0) {
+                agentButton(row)
+                if let read = model.agentDialogs.read(terminal: terminal, key: row.id), let dialog = read.dialog {
+                    AgentAskCard(read: read, dialog: dialog) { open(row) }
+                        .padding(.horizontal, 10)
+                        .padding(.bottom, 10)
+                }
+            }
+            .task(id: "\(row.id)|\(row.since ?? 0)") {
+                await model.agentDialogs.follow(project: project, terminal: terminal, key: row.id)
+            }
+        } else {
+            agentButton(row)
+        }
+    }
+
+    /// The terminal of an agent waiting on the live Mac, whose dialog it can read.
+    private func askable(_ row: ProjectAgentRow) -> String? {
+        guard machine == nil, row.state == .needsYou, model.agentDialogs.available else { return nil }
+        return row.terminalId
+    }
+
+    @ViewBuilder
+    private func agentButton(_ row: ProjectAgentRow) -> some View {
         let button = Button { open(row) } label: {
             ProjectTerminalRow(row: row)
         }

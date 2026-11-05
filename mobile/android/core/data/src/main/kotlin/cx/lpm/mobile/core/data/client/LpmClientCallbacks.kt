@@ -1,6 +1,7 @@
 package cx.lpm.mobile.core.data.client
 
 import cx.lpm.mobile.core.model.ActionBgOutput
+import cx.lpm.mobile.core.model.AgentDialogRead
 import cx.lpm.mobile.core.model.AgentOption
 import cx.lpm.mobile.core.model.AgentSessionsPage
 import cx.lpm.mobile.core.model.AgentStats
@@ -193,6 +194,9 @@ abstract class LpmClientCallbacks {
     var onGitCheckout: ((project: String, error: String?) -> Unit)? = null
     var onGitDiscardAll: ((project: String, undo: String?, error: String?) -> Unit)? = null
     var onGitRestoreDiscarded: ((project: String, error: String?) -> Unit)? = null
+    var onGitDiscardFiles: (
+        (project: String, paths: List<String>, undo: String?, error: String?) -> Unit
+    )? = null
     var onGitChanged: ((project: String) -> Unit)? = null
 
     // Commit history: a page of commits, one commit's files, one file's patch in it.
@@ -258,6 +262,11 @@ abstract class LpmClientCallbacks {
     var onApnsToken: ((ok: Boolean) -> Unit)? = null
     var onPushToken: ((ok: Boolean) -> Unit)? = null
     var onAnswerAgent: ((reqId: String, error: String?) -> Unit)? = null
+
+    // The dialogs agents wait on, and the replies to picks from them: an `answerAgent`
+    // reply goes to [onAnswerAgent] unless [onAgentDialogAnswer] takes it as its own.
+    var onAgentDialog: ((read: AgentDialogRead) -> Unit)? = null
+    var onAgentDialogAnswer: ((reqId: String, error: String?) -> Boolean)? = null
     var onLiveActivity: ((ok: Boolean) -> Unit)? = null
     var onComposerActions: ((actions: List<ComposerAction>) -> Unit)? = null
     var onTransformVariant: (

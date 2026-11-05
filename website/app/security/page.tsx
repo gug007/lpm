@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { DocsHeading } from "@/components/docs/docs-heading";
 import { CODE, LINK, P } from "@/components/prose";
 import { RemoveLpm } from "@/components/remove-lpm";
+import { STATUS_AGENT_NAMES } from "@/lib/app-facts";
 import { REPO_URL, SECURITY_PATH, SECURITY_REPORT_URL } from "@/lib/links";
 import {
   breadcrumbJsonLd,
@@ -91,8 +92,8 @@ export default function SecurityPage() {
         lpm runs only the commands you configure, as your own user. It keeps
         its settings and project config in <code className={CODE}>~/.lpm</code>
         , with project notes encrypted on disk. To show what each agent is
-        doing, it adds status hooks for Claude Code, Codex, Gemini CLI and
-        Cursor CLI. Installing Agent tools adds the{" "}
+        doing, it adds status hooks for {STATUS_AGENT_NAMES}. Installing Agent
+        tools adds the{" "}
         <code className={CODE}>lpm</code> command and the lpm skills for your
         agents.
       </p>

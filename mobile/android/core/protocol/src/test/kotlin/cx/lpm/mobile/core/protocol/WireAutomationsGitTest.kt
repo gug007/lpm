@@ -92,6 +92,10 @@ class WireAutomationsGitTest {
         assertFrame("""{ "t": "gitAutoPullUndo", "project": "a" }""", Wire.gitAutoPullUndo("a"))
         assertFrame("""{ "t": "gitDiscardAll", "project": "a" }""", Wire.gitDiscardAll("a"))
         assertFrame(
+            """{ "t": "gitDiscardFiles", "project": "a", "paths": ["src/app.ts"] }""",
+            Wire.gitDiscardFiles("a", listOf("src/app.ts"))
+        )
+        assertFrame(
             """{ "t": "gitRestoreDiscarded", "project": "a", "id": "7" }""",
             Wire.gitRestoreDiscarded("a", "7")
         )

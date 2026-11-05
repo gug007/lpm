@@ -27,7 +27,7 @@ export default function VisualComposer() {
             <Icon className="mt-0.5 h-3 w-3 shrink-0" strokeWidth={2} />
             <span className="flex min-w-0 flex-1 flex-col">
               <span className="truncate text-gray-300">{label}</span>
-              <span className="hidden truncate text-[9px] text-gray-500 sm:block">
+              <span className="hidden truncate text-[9px] text-gray-400 sm:block">
                 {description}
               </span>
             </span>

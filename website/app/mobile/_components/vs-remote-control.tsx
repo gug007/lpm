@@ -1,4 +1,5 @@
 import { SectionHeader } from "@/components/section-header";
+import { STATUS_AGENT_NAMES } from "@/lib/app-facts";
 
 type Row = {
   label: string;
@@ -12,7 +13,7 @@ const ROWS: Row[] = [
     label: "Agents",
     remoteControl: "Claude Code",
     lpmLink:
-      "Claude Code, Codex, Gemini CLI, or any CLI you run in lpm, with status and alerts for Claude Code, Codex, Gemini CLI and Cursor CLI",
+      `Claude Code, Codex, Gemini CLI, or any CLI you run in lpm, with status and alerts for ${STATUS_AGENT_NAMES}`,
   },
   {
     label: "On screen",
@@ -36,7 +37,7 @@ const ROWS: Row[] = [
     label: "Across machines",
     remoteControl: "Claude Code sessions on machines running Remote Control",
     lpmLink:
-      "An Activity list across projects and agents, automations, plan-limit meters, several Macs and Linux servers",
+      "Agents across every project, automations, plan-limit meters, several Macs and Linux servers",
   },
   {
     label: "Connection",
@@ -81,13 +82,13 @@ export default function VsRemoteControl() {
                   {label}
                 </dt>
                 <dd className="text-sm leading-relaxed text-gray-500 sm:px-6 sm:py-4 dark:text-gray-400">
-                  <span className="text-xs font-medium text-gray-400 sm:sr-only dark:text-gray-500">
+                  <span className="text-xs font-medium text-gray-500 sm:sr-only dark:text-gray-400">
                     Claude Code remote control:{" "}
                   </span>
                   {remoteControl}
                 </dd>
                 <dd className="text-sm leading-relaxed text-gray-900 sm:bg-gray-50/70 sm:px-6 sm:py-4 dark:text-gray-100 sm:dark:bg-white/[0.03]">
-                  <span className="text-xs font-medium text-gray-400 sm:sr-only dark:text-gray-500">
+                  <span className="text-xs font-medium text-gray-500 sm:sr-only dark:text-gray-400">
                     lpm Link:{" "}
                   </span>
                   {lpmLink}

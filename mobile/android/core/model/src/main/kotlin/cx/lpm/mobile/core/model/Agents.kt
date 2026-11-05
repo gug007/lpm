@@ -30,19 +30,6 @@ enum class AgentState(val label: String) {
     }
 }
 
-/** The whole Mac's agents rolled up, for the badge over the way into Activity. */
-data class AgentAmbient(val needsYou: Int = 0, val hasError: Boolean = false) {
-    val isLit: Boolean get() = needsYou > 0 || hasError
-}
-
-fun agentAmbient(projects: List<Project>): AgentAmbient {
-    val states = projects.flatMap { p -> p.statusEntries.map { AgentState.of(it.value) } }
-    return AgentAmbient(
-        needsYou = states.count { it == AgentState.NeedsYou },
-        hasError = AgentState.Error in states
-    )
-}
-
 /** A project where agents are mid-task, which the restart an lpm update ends in would cut off. */
 data class BusyAgentPlace(val id: String, val label: String, val count: Int)
 

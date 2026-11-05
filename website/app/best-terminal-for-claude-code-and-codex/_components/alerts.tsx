@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BellRing, PanelTop, Smartphone, Volume2, type LucideIcon } from "lucide-react";
 import { SectionHeader } from "@/components/section-header";
+import { STATUS_AGENT_NAMES } from "@/lib/app-facts";
 import { MOBILE_PATH } from "@/lib/links";
 import { AlertsReplica } from "./alerts-replica";
 
@@ -76,10 +77,10 @@ export default function Alerts() {
           </ul>
         </div>
         <p className="mt-10 text-center text-xs text-gray-500 dark:text-gray-400 max-w-xl mx-auto leading-relaxed">
-          Live status, sounds, and banners cover Claude Code, Codex, Gemini CLI,
-          and Cursor CLI, which asks for approval without telling lpm and so
-          never shows Needs you. OpenCode runs fine in lpm terminals but
-          doesn&apos;t report its state on its own.
+          Live status, sounds, and banners cover {STATUS_AGENT_NAMES}. Cursor
+          CLI asks for approval without telling lpm, so it never shows Needs
+          you. Any other CLI runs fine in lpm terminals and can post its own
+          status with lpm set-status.
         </p>
       </div>
     </section>

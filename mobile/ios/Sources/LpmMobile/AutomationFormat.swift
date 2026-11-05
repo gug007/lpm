@@ -39,8 +39,8 @@ func automationThreads(_ entries: [AutomationHistoryEntry]) -> [AutomationThread
 
 /// The job a page opened for `project` is about. A shared job is one row over
 /// several projects, so it answers to any of them — a page reached from a
-/// notification or the Activity feed carries the project that ran, which need
-/// not be the one the list addresses it by.
+/// notification carries the project that ran, which need not be the one the list
+/// addresses it by.
 func automationMatching(_ jobs: [AutomationJob],
                         _ project: String, _ jobId: String) -> AutomationJob? {
     jobs.first { $0.id == jobId && ($0.runTargets.contains(project) || $0.runProject == project) }

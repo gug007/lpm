@@ -16,6 +16,7 @@
 // (remote/relay.rs).
 use crate::peer::PeerEntry;
 use crate::peerclient::{PeerClientHub, PhoneMachine};
+use crate::sys::MACHINE;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -237,7 +238,7 @@ fn pair_reply(hub: &PeerClientHub, slug: &str) -> Value {
         .map(|m| m.entry)
         .find(|e| e.slug == slug)
     else {
-        return fail("This machine is no longer connected to this Mac.".into());
+        return fail(format!("This machine is no longer connected to this {MACHINE}."));
     };
     let payload = match hub.remote_pair_blocking(slug) {
         Ok(p) => p,

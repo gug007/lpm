@@ -9,6 +9,7 @@
 // connection's reads.
 use crate::git::{git_command, git_out_env};
 use crate::gitworkstate::LPM_IDENTITY as SNAPSHOT_IDENTITY;
+use crate::sys::MACHINE;
 use base64::engine::general_purpose::STANDARD as B64;
 use base64::Engine;
 use serde_json::{json, Value};
@@ -94,20 +95,26 @@ fn str_arg(v: &Value, key: &str) -> String {
 fn checked_root(v: &Value) -> Result<String, String> {
     let cwd = str_arg(v, "cwd");
     if cwd.is_empty() || !Path::new(&cwd).is_dir() {
-        return Err("the project folder is missing on the other Mac".into());
+        return Err(format!(
+            "the project folder is missing on the other {MACHINE}"
+        ));
     }
     if !is_known_project_root(&cwd) {
-        return Err("that folder is not a project on the other Mac".into());
+        return Err(format!(
+            "that folder is not a project on the other {MACHINE}"
+        ));
     }
     if git(&cwd, &["rev-parse", "--is-inside-work-tree"]).is_err() {
-        return Err("that project is not a Git repository on the other Mac".into());
+        return Err(format!(
+            "that project is not a Git repository on the other {MACHINE}"
+        ));
     }
     Ok(cwd)
 }
 
 fn head_of(cwd: &str) -> Result<String, String> {
     crate::gitworkstate::head_sha(cwd)
-        .map_err(|_| "that project has no commits yet on the other Mac".to_string())
+        .map_err(|_| format!("that project has no commits yet on the other {MACHINE}"))
 }
 
 fn branch_of(cwd: &str) -> Option<String> {

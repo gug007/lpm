@@ -205,6 +205,9 @@ fun LpmClient.gitCreateBranch(project: String, name: String) =
 
 fun LpmClient.gitDiscardAll(project: String) = send(Wire.gitDiscardAll(project))
 
+fun LpmClient.gitDiscardFiles(project: String, paths: List<String>) =
+    send(Wire.gitDiscardFiles(project, paths))
+
 fun LpmClient.gitRestoreDiscarded(project: String, id: String) =
     send(Wire.gitRestoreDiscarded(project, id))
 

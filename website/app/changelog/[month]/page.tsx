@@ -118,7 +118,11 @@ export default async function ChangelogMonthPage({ params }: Props) {
         )}
       </nav>
 
-      <DownloadFooter href={`${REPO_URL}/releases`} label="All releases on GitHub" />
+      <DownloadFooter
+        href={`${REPO_URL}/releases`}
+        label="All releases on GitHub"
+        source="changelog-footer"
+      />
     </article>
   );
 }

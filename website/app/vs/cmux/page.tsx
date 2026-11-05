@@ -11,6 +11,7 @@ import { VS_REVIEWED, VS_REVIEWED_ISO } from "@/components/vs/reviewed";
 import { SectionVideo } from "@/components/vs/section-video";
 import type { VerdictCard } from "@/components/vs/verdict-cards";
 import { WhenToPick } from "@/components/vs/when-to-pick";
+import { STATUS_AGENT_CHOICES } from "@/lib/app-facts";
 import {
   AI_AGENTS_PATH,
   CONNECT_AGENTS_PATH,
@@ -83,7 +84,7 @@ const VERDICT_CARDS: [VerdictCard, VerdictCard, VerdictCard] = [
   {
     label: "lpm",
     title: "The project",
-    body: "Start the stack, check the ports, fan one prompt out to 50 copies, and read working, needs you, done or a problem off each Claude Code, Codex, Gemini CLI or Cursor CLI tab.",
+    body: `Start the stack, check the ports, fan one prompt out to 50 copies, and read working, needs you, done or a problem off each ${STATUS_AGENT_CHOICES} tab.`,
   },
   {
     label: "Both",
@@ -297,7 +298,7 @@ lpm status --json`}
 
       <Cta
         title="Run your projects, your way."
-        description="lpm is free under MIT and native on macOS. Add a repo, let lpm list its services, and keep cmux open beside it."
+        description="lpm is free under MIT and native on macOS, Windows and Linux. Add a repo, let lpm list its services, and keep cmux open beside it."
         downloadSource="vs-cmux-cta"
       />
     </>

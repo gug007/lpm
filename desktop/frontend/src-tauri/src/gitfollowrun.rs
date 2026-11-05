@@ -8,6 +8,7 @@
 use crate::gitbring::{Follow as FollowContext, Request};
 use crate::gitfollowstore::{self as store, Follow};
 use crate::peerclient::{PeerClientHub, PEER_NOT_CONNECTED, PEER_REQUEST_TIMED_OUT};
+use crate::sys::MACHINE;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::time::Duration;
@@ -93,13 +94,15 @@ impl RemoteStates {
                 self.states.insert(cwd.to_string(), state);
             }
             None => {
-                self.errors.insert(cwd.to_string(), NO_ANSWER.to_string());
+                self.errors.insert(cwd.to_string(), no_answer());
             }
         }
     }
 }
 
-const NO_ANSWER: &str = "the other Mac did not report what it holds";
+fn no_answer() -> String {
+    format!("the other {MACHINE} did not report what it holds")
+}
 
 /// Ask one Mac about every folder followed from it. A build that speaks the batch
 /// verb answers all of them in one frame; an older one is asked folder by folder.
@@ -142,14 +145,14 @@ fn parse_states(reply: &Value) -> Result<RemoteStates, String> {
     }
     if let Some(map) = reply.get("errors").and_then(Value::as_object) {
         for (cwd, value) in map {
-            let reason = value.as_str().unwrap_or(NO_ANSWER).to_string();
+            let reason = value.as_str().map_or_else(no_answer, str::to_string);
             out.errors.insert(cwd.clone(), reason);
         }
     }
     // A reply that mentioned none of the folders is a broken answer, not a set of
     // silent per-folder failures.
     if out.states.is_empty() && out.errors.is_empty() {
-        return Err(NO_ANSWER.to_string());
+        return Err(no_answer());
     }
     Ok(out)
 }
@@ -499,7 +502,7 @@ mod tests {
         let reply = json!({ "states": { "/Users/dev/app": { "head": "h1" } } });
         let parsed = parse_states(&reply).unwrap();
         assert!(parsed.states.is_empty());
-        assert_eq!(parsed.errors["/Users/dev/app"], NO_ANSWER);
+        assert_eq!(parsed.errors["/Users/dev/app"], no_answer());
     }
 
     #[test]

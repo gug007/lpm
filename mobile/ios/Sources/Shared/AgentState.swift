@@ -86,7 +86,19 @@ enum AgentSweep {
                                       endPoint: UnitPoint(x: 9, y: 0.5))
 }
 
-/// "45s", "4m", "2h 5m" — `formatActivityDuration` with the remainder dropped, for
+/// "12s", "4m", "4m 30s", "1h 12m" — matches the desktop's formatDuration.
+func formatDuration(_ secs: Int) -> String {
+    if secs < 60 { return "\(max(0, secs))s" }
+    let mins = secs / 60
+    if mins < 60 {
+        let rest = secs % 60
+        return rest > 0 ? "\(mins)m \(rest)s" : "\(mins)m"
+    }
+    let rest = mins % 60
+    return rest > 0 ? "\(mins / 60)h \(rest)m" : "\(mins / 60)h"
+}
+
+/// "45s", "4m", "2h 5m" — `formatDuration` with the remainder dropped, for
 /// a row with room for a reading rather than a stopwatch. Takes millis, and rounds
 /// down like a stopwatch: it says what has elapsed, never more.
 func shortDuration(millis: Int) -> String {

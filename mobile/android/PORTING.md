@@ -32,7 +32,7 @@ side by side (see `mobile/parity/README.md`).
   no Find bar; read aloud's voices are the phone's text-to-speech voices, named by
   language and voice code, and the basic-voices note points to Android's "Text-to-speech
   output" settings (Android's engine can't pause, so resuming starts again at the word
-  it stopped on); a terminal opened from a notification or an Activity row stays on
+  it stopped on); a terminal opened from a notification or an agent row stays on
   screen after its tab leaves the list, where iOS shows "Terminal unavailable" (tab
   restore needs the screen to stay, as iOS's tab-list path does); Android 17 keeps an app
   targeting it off the local network until it holds `ACCESS_LOCAL_NETWORK`, so the app asks
@@ -233,7 +233,6 @@ Port order is top to bottom within each milestone below. Lines are iOS sizes.
 | Project config → `:feature:config` | ProjectConfigView, YamlConfigEditorSheet, ProfileEditorSheet, AddProjectSheet, DirBrowserView, CodeEditorTextView | 1,192 |
 | Terminal + composer → `:feature:terminal`, `:core:web` | WebTerminalView, WKWebView+NoAccessoryBar, TerminalScreens, TerminalTitle, TerminalTheme, TerminalSettingsSheet, TerminalEndedBanner, TabRow, TabPeek, KeyboardSteadyFrame, WindowTouchObserver, TerminalComposer, ComposerStore(+Files), ComposerAttachments, ComposerTabStrip, ComposerActionsSheet, ComposerVariantsSheet, HistoryScreen, ChunkedUpload, UploadScratch, PlainPunctuation, HardwareReturn | 3,844 |
 | Actions → `:feature:actions` | ActionColorPicker, ActionEditorSheet, ActionInputsSheet, ActionPlacement, ActionTint, ActionZoneView, ActionZones, DesktopActionButton, ProjectActionsSheet(+Host), BackgroundRunSheet | 1,840 |
-| Activity → `:feature:activity` | ActivityBuild, ActivityChrome, ActivityModel, ActivityRowViews, ActivityScreen, AgentStateStyle | 1,322 |
 | Automations → `:feature:automations` | AutomationConversationView, AutomationDetailRows, AutomationDetailView, AutomationEditorSheet, AutomationFormat, AutomationViews | 2,283 |
 | Git → `:feature:git` | GitReviewView, GitFileSection, GitReviewParts, GitCommitSheet, GitCommitFilesPage, CommitDraftRow, CommitButtons, GitPrSheet, GitReviewStore, GitBranchSheet, GitAutoSheet, GitAutoStore, GitNotice, GitOpError, DiffHighlighter, DiffRendering, AgentAskSheet | 3,359 |
 | Notes → `:feature:notes` | NotesScreen, NotesChatView, NotesComposer, NotesMessageRow, NotesAttachmentView, NotesSearchStore, NotesStore, NotesTypes, NoteAttachmentStore | 1,736 |
@@ -247,7 +246,7 @@ Port order is top to bottom within each milestone below. Lines are iOS sizes.
 | Push → `:core:push` | AppDelegate, PushRegistrar, NotificationSettingsSheet, Shared/PushKey, Shared/PushPayload, NotificationService | 661 |
 | Built-in Tailscale → `:core:tailnet` | BuiltInTailscale, TailnetSettingsView (+ Go `tailnet/`) | 452 |
 | Widgets → `:feature:widgets`, `:core:data` (`AgentWidgetStore`), `:core:model` (`AgentWidget`) | Widgets/AgentListWidget, Widgets/AgentListView, Shared/AgentWidgetStore, AppModel+Widget | 472 |
-| Shared UI → `:core:designsystem`, `:core:ui` | DarkKeyboard, ElapsedText, FollowingScrollView, Haptics, KeyboardObserver, MarkdownText, SkeletonViews, SwipeDownDismissesKeyboard, SafariView | 688 |
+| Shared UI → `:core:designsystem`, `:core:ui` | AgentStateStyle, DarkKeyboard, ElapsedText, FollowingScrollView, Haptics, KeyboardObserver, MarkdownText, SkeletonViews, SwipeDownDismissesKeyboard, SafariView | 820 |
 
 ## Platform services
 
@@ -293,7 +292,7 @@ intents beyond the Token activity widget's pills, speech recognition, biometrics
 | UserDefaults | `appearanceMode`, `terminalFontSize` (12, 8–24), `terminalTheme` (`claude-dark`) | appearance |
 | UserDefaults | `speech.engine`, `speech.voiceId`, `speech.rate` | read aloud |
 | UserDefaults | `builtInTailscale.enabled`, `pairing.usesTailscaleApp` | Tailscale |
-| UserDefaults | `activity.groupByProject`, `automation.scheduleOpen`, `automation.setupOpen`, `filePreviewMarkdownSource`, `actionPrimaryLastUsed`, `zoneOpenLayers`, `newTab.lastPick`, `gitReview.wrap` (missing = on), `macUpdate.dismissed.<id>` | UI memory |
+| UserDefaults | `automation.scheduleOpen`, `automation.setupOpen`, `filePreviewMarkdownSource`, `actionPrimaryLastUsed`, `zoneOpenLayers`, `newTab.lastPick`, `gitReview.wrap` (missing = on), `macUpdate.dismissed.<id>` | UI memory |
 | UserDefaults | `lpm.allMachines` (missing = off), `lpm.tips.closed` (a string array; Android keeps it as a JSON array string, like the other lists) | Show All Machines; the tips closed, which Settings › Tips brings back |
 | Files | `Caches/project-lists/<localId>.json`; `ApplicationSupport/tailnet/` (no backup) | offline project list; tailnet state (`noBackupFilesDir`) |
 | App group `group.cx.lpm.mobile` | `token-activity.json` (Android: `filesDir`); UserDefaults `tokenActivity.range` (7, 14 or 30; missing = 7) | the Token activity widget's last 30-day read and the range its pills picked |
@@ -326,7 +325,7 @@ build Android until the same flows pass there.
 | 2 | Pairing screen, Enter a Code, demo entry/exit (done) | 01, 02, 12–16 |
 | 3 | Projects list, project detail, project menu, services (done) | 03–05, 30–34 |
 | 4 | Terminal (WebView + shim) and composer (done) | 06, 17 |
-| 5 | Activity, Automations, Stats, Usage, Settings (done) | 07–11, 35–37, 40–42, 45–47 |
+| 5 | Automations, Stats, Usage, Settings (done) | 08–11, 35–37, 40–42, 46 |
 | 6 | Git review (50–55), Notes and Memory (60–66), Actions (70–76), config editors (80–87), file preview (90–94), Claude accounts and Auto Pull (95–99), speech (100–101), machines and lpm updates (unit and Robolectric tests: Demo Mode has neither) (done) | as listed |
 | 7 | Real Mac: OkHttp client + pin, Bonjour, QR, approve-on-Mac, reconnect (done on the emulator against the desktop app: Bonjour, approve-on-Mac, Enter a Code at `10.0.2.2`, services, logs, terminal, Git commit, reconnect after a network drop, a cold start, a Mac restart and backgrounding, and the R8 release build; QR with a real camera and a physical phone still untested) | by hand against an isolated debug desktop app (`.claude/skills/app-review-video/scripts/review.js setup`, port 8792; a code from `remote_start_pairing` through its `eval`) |
 | 8 | Push (FCM) (done: `PushRegistrar` registers the FCM installation ID over the live link with `pushToken` and sweeps the other saved Macs; `:core:push` opens the sealed blob, posts it on the channel of its Settings → Notifications kind, withdraws cleared and stale ones, and a tap opens the project, terminal or automation on its Mac. Verified on an emulator signed in to Google, through a local relay: registration, delivery, tap-through, withdrawal. firebase-messaging 26 needs Google Play services 26.12+; an emulator without a Google account gets no FCM ID) | needs the items below |

@@ -190,6 +190,12 @@ class GitStore(private val session: MacSession) : SessionStore {
 
     fun discardAll(project: String) = discards.discardAll(project)
 
+    /** Whether the Mac discards one file's changes ("Discard Changes…" on a file). */
+    val canDiscardFiles: Boolean get() = discards.canDiscardFiles
+
+    /** Discard one file's changes; the notice offers Undo as for [discardAll]. */
+    fun discardFile(project: String, path: String) = discards.discardFile(project, path)
+
     /** Undo for a discard: put back the copy the Mac kept ([GitNotice.undo]). */
     fun restoreDiscarded(project: String, id: String) = discards.restore(project, id)
 

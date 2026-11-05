@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStoreFile
 import cx.lpm.mobile.core.data.actions.ActionsStore
+import cx.lpm.mobile.core.data.agents.AgentDialogStore
 import cx.lpm.mobile.core.data.agents.AgentLaunchStore
 import cx.lpm.mobile.core.data.automations.AutomationsStore
 import cx.lpm.mobile.core.data.claude.ClaudeAccountsStore
@@ -256,6 +257,10 @@ object DataModule {
     @Provides
     @IntoSet
     fun gitChecksStoreFactory(): SessionStore.Factory = SessionStore.Factory(::GitChecksStore)
+
+    @Provides
+    @IntoSet
+    fun agentDialogStoreFactory(): SessionStore.Factory = SessionStore.Factory(::AgentDialogStore)
 
     @Provides
     @IntoSet

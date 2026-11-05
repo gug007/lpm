@@ -8,7 +8,7 @@ extension AppModel {
         guard case .ready = connection, projectsLoaded, link.listAsOf == nil, !link.pairing,
               let record = activeRecord else { return nil }
         let now = Int(Date().timeIntervalSince1970 * 1000)
-        let titles = activityTerminalTitles
+        let titles = agentTabTitles
         let rows = projects.flatMap { project in
             projectAgentRows(project, now: now, tabTitles: titles[project.name] ?? [:])
                 .filter { $0.state != .idle }

@@ -1,6 +1,7 @@
 package cx.lpm.mobile.core.data.testing
 
 import cx.lpm.mobile.core.data.actions.ActionsStore
+import cx.lpm.mobile.core.data.agents.AgentDialogStore
 import cx.lpm.mobile.core.data.agents.AgentLaunchStore
 import cx.lpm.mobile.core.data.automations.AutomationsStore
 import cx.lpm.mobile.core.data.claude.ClaudeAccountsStore
@@ -104,6 +105,7 @@ class SessionHarness(test: TestScope) {
             SessionStore.Factory(::ActionsStore),
             SessionStore.Factory(::MachineImporter),
             SessionStore.Factory(::AgentLaunchStore),
+            SessionStore.Factory(::AgentDialogStore),
             SessionStore.Factory(::ProjectFilesStore),
             SessionStore.Factory { PushStore(it, registrar, answers) }
         )

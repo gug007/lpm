@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { FeatureMatrix, type MatrixRow } from "@/components/vs/feature-matrix";
+import { STATUS_AGENT_NAMES } from "@/lib/app-facts";
 import { WORKTREE_AGENTS_PATH, WORKTREE_ALTERNATIVE_PATH } from "@/lib/links";
 
 const ROWS: MatrixRow[] = [
@@ -76,7 +77,7 @@ const ROWS: MatrixRow[] = [
   },
   {
     label: "Your coding agent gets a tab next to the service panes",
-    lpm: "Claude Code, Codex, Gemini CLI and Cursor CLI report Working, Needs you or Done",
+    lpm: `${STATUS_AGENT_NAMES} report Working, Needs you or Done`,
     competitor: "the agent runs in a terminal you open yourself",
   },
   {

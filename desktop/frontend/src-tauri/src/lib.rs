@@ -3,6 +3,7 @@ mod actions;
 mod cmd_inputs;
 mod command_run;
 mod adopt;
+mod agent_dialog;
 mod agent_last_answer;
 mod agent_last_answer_codex;
 mod agent_limits;

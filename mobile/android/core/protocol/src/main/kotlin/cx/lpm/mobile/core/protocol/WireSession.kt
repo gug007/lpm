@@ -1,5 +1,6 @@
 package cx.lpm.mobile.core.protocol
 
+import cx.lpm.mobile.core.model.AgentDialogRead
 import cx.lpm.mobile.core.model.WakeTarget
 import kotlinx.serialization.json.JsonObjectBuilder
 import kotlinx.serialization.json.put
@@ -161,6 +162,31 @@ sealed interface WireSession {
         text?.let { put("text", it) }
         put("reqId", reqId)
     }
+
+    /**
+     * The dialog a waiting agent's terminal shows. Only for a Mac whose `features` has
+     * "agentDialog".
+     */
+    fun agentDialog(project: String, terminalId: String): String = frame("agentDialog") {
+        put("project", project)
+        put("terminalId", terminalId)
+    }
+
+    /**
+     * Pick one of a dialog's options, naming the report and the dialog it was picked
+     * from, so the Mac types it only while both still stand.
+     */
+    fun pickAgentDialog(read: AgentDialogRead, option: String, reqId: String): String =
+        frame("answerAgent") {
+            put("project", read.project)
+            put("terminalId", read.terminalId)
+            put("key", read.key)
+            put("ts", read.ts)
+            put("action", "pick")
+            put("option", option)
+            put("dialog", read.dialog?.id.orEmpty())
+            put("reqId", reqId)
+        }
 
     /**
      * Live updates on or off for this phone. An FCM phone names no token: the Mac

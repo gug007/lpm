@@ -7,8 +7,8 @@ import { useInView } from "@/components/config/playground/hooks";
 const ORANGE = "text-[#d97757]";
 const BOLD = "font-semibold text-gray-100";
 const TEXT = "text-gray-100";
-const DIM = "text-gray-500";
-const FAINT = "text-gray-600";
+const DIM = "text-[#8d8d8d]";
+const FAINT = "text-[#858585]";
 const BOLD_DIM = "font-semibold text-gray-400";
 const CLAUDE_GREEN = "text-[#4eba65]";
 const PROMPT_BUBBLE = "bg-[#373737]";
@@ -127,14 +127,14 @@ function RunningDot() {
 function Sidebar() {
   return (
     <div className="flex w-[5.5rem] shrink-0 flex-col gap-0.5 border-r border-[#262626] bg-[#161616] p-1.5 sm:w-[7rem]">
-      <span className="px-1.5 pb-1 pt-0.5 text-[7px] font-semibold uppercase tracking-[0.14em] text-gray-600">
+      <span className="px-1.5 pb-1 pt-0.5 text-[7px] font-semibold uppercase tracking-[0.14em] text-[#919191]">
         Projects
       </span>
       {SIDEBAR.map((p) => (
         <span
           key={p.name}
           className={`flex items-center gap-1.5 rounded-md px-1.5 py-1 text-[9px] ${
-            p.active ? "bg-white/[0.07] text-gray-200" : "text-gray-500"
+            p.active ? "bg-white/[0.07] text-gray-200" : "text-[#919191]"
           }`}
         >
           <span

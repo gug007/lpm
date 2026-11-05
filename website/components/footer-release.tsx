@@ -1,6 +1,6 @@
 "use client";
 
-import { formatReleaseDate } from "@/lib/downloads";
+import { DESKTOP_SYSTEMS, formatReleaseDate } from "@/lib/downloads";
 import { DownloadLink } from "./download-link";
 import { useRelease } from "./release-context";
 
@@ -21,7 +21,8 @@ export function FooterRelease() {
         lpm v{release.version}
       </p>
       <p className="text-[13px] text-gray-500 dark:text-gray-400">
-        {released && `Released ${released} · `}macOS, Windows and Linux
+        {released && `Released ${released} · `}
+        {DESKTOP_SYSTEMS}
       </p>
       <DownloadLink className="ml-auto inline-flex h-8 items-center rounded-full bg-gray-900 px-4 text-[13px] font-medium text-white transition-colors hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100">
         Download

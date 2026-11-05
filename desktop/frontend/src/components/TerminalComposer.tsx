@@ -164,6 +164,7 @@ import { announceSavedDraft } from "../sendLater/actions";
 import { SendLaterPopover } from "./SendLaterPopover";
 import { SendLaterStrip } from "./SendLaterStrip";
 import { isImeComposing } from "../imeComposing";
+import { MACHINE } from "../machineWords";
 
 interface TerminalComposerProps {
   // Terminal whose draft this composer owns; its draft is persisted per id.
@@ -858,7 +859,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   const uploadPeerImage = useCallback(
     async (b64: string, mimeType: string, rawBytes: number): Promise<HTMLSpanElement | null> => {
       if (rawBytes > PEER_UPLOAD_MAX_BYTES) {
-        toast.error("Image too large to send to a remote Mac (max 8 MB)");
+        toast.error(`Image too large to send to a remote ${MACHINE.noun} (max 8 MB)`);
         return null;
       }
       try {
@@ -1435,7 +1436,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       if (present.has(token)) images[token] = path;
     }
     if (row.offHost && Object.keys(images).length > 0) {
-      toast.error("Images can't be sent to a tab on another Mac.");
+      toast.error(`Images can't be sent to a tab on ${MACHINE.anotherMachine}.`);
       return;
     }
     sending.current.add(sentId);

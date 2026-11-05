@@ -50,7 +50,7 @@ const PROJECTS = [
 ];
 
 const TONE = {
-  dim: "text-gray-500",
+  dim: "text-[#8d8d8d]",
   ok: "text-[#4eba65]",
   bright: "text-gray-100",
 };
@@ -82,7 +82,7 @@ export default function ServicesReplica() {
         </div>
         <div className="flex h-[15.5rem] sm:h-[16.5rem]">
           <div className="hidden w-[11.5rem] shrink-0 flex-col gap-px border-r border-[#262626] bg-[#161616] px-1.5 py-2.5 md:flex">
-            <span className="px-2.5 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500">
+            <span className="px-2.5 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#919191]">
               Projects
             </span>
             {PROJECTS.map((project) => (
@@ -129,7 +129,7 @@ export default function ServicesReplica() {
               {SERVICES.map((service) => (
                 <span
                   key={service.name}
-                  className="hidden items-center gap-1.5 px-2.5 py-1 text-[11px] text-gray-500 min-[420px]:flex"
+                  className="hidden items-center gap-1.5 px-2.5 py-1 text-[11px] text-[#919191] min-[420px]:flex"
                 >
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
                   {service.name}

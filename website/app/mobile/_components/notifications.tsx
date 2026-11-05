@@ -1,12 +1,13 @@
 import { BellRing, Lock, Navigation, type LucideIcon } from "lucide-react";
 import { FeatureCard } from "@/components/feature-card";
 import { SectionHeader } from "@/components/section-header";
+import { STATUS_AGENT_CHOICES } from "@/lib/app-facts";
 
 const CARDS: { icon: LucideIcon; title: string; body: string }[] = [
   {
     icon: BellRing,
     title: "Know the second an agent needs you",
-    body: "When Claude Code, Codex, Gemini CLI or Cursor CLI stops to ask a question, finishes a task, or hits an error, a notification lands on your phone, even with the app closed. Automations can alert you too when they start, finish, or fail. Turn each kind on or off.",
+    body: `When ${STATUS_AGENT_CHOICES} stops to ask a question, finishes a task, or hits an error, a notification lands on your phone, even with the app closed. Automations can alert you too when they start, finish, or fail. Turn each kind on or off.`,
   },
   {
     icon: Lock,

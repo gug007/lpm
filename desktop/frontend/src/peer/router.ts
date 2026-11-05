@@ -1,5 +1,6 @@
 import type { ProjectInfo, StatusEntry } from "../types";
 import { parsePeerMarker, prefixName, prefixRoot, stripMarker } from "./markers";
+import { MACHINE } from "../machineWords";
 
 // Commands that must always run against the LOCAL lpm even when an argument
 // looks marked: window/dock/mirror control, settings, tts, updater, account,
@@ -151,7 +152,7 @@ export function findAgreedSlug(args: unknown): string | null {
     if (!marker) return;
     if (slug === null) slug = marker.slug;
     else if (slug !== marker.slug) {
-      throw new Error("peer command targets more than one Mac");
+      throw new Error(`peer command targets more than one ${MACHINE.noun}`);
     }
   };
   if (args && typeof args === "object") {

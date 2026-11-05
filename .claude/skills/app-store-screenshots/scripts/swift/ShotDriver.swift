@@ -29,7 +29,6 @@ enum ShotDriver {
             case "changes": p.append(NotificationRoute.changes(project: arg))
             case "usage": p.append(NotificationRoute.usage)
             case "stats": p.append(NotificationRoute.stats)
-            case "activity": p.append(NotificationRoute.activity)
             case "automations": p.append(NotificationRoute.automations)
             case "automation" where pair.count == 2:
                 p.append(NotificationRoute.automation(project: pair[0], id: pair[1]))

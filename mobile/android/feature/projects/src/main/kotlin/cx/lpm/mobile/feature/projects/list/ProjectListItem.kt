@@ -108,6 +108,17 @@ fun ProjectListItem(
                     null
                 }
             }
+            val asking = remember(entry.asks, project, actions) {
+                entry.asks?.let { asks ->
+                    DeckAsking(
+                        asks = asks,
+                        follow = { row, terminal ->
+                            actions.followDialog(project, terminal, row.id)
+                        },
+                        pick = actions.pickDialog
+                    )
+                }
+            }
             ProjectTerminalDeck(
                 rows = entry.agents,
                 edgeRows = edgeRows,
@@ -117,6 +128,7 @@ fun ProjectListItem(
                 expanded = entry.seenExpanded,
                 onToggleFold = { actions.toggleSeenAgents(project) },
                 actions = agentActions,
+                asking = asking,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(

@@ -86,7 +86,7 @@ data class TerminalsState(
      */
     val dismissedLimitStops: Map<String, LimitStop> = emptyMap()
 ) {
-    /** project → terminal id → tab name, for naming agent rows on Activity. */
+    /** project → terminal id → tab name, for naming agent rows. */
     val terminalTitles: Map<String, Map<String, String>>
         get() = terminals.mapValues { (_, list) -> list.associate { it.id to it.label } }
 }

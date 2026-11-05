@@ -99,8 +99,7 @@ data class CommitFile(
     val id: String get() = oldPath.orEmpty() + "\n" + path
     val isBinary: Boolean get() = added == null
 
-    /** `NSString.lastPathComponent`. */
-    val name: String get() = path.trimEnd('/').substringAfterLast('/').ifEmpty { path }
+    val name: String get() = lastPathComponent(path)
 
     /** `NSString.deletingLastPathComponent`. */
     val directory: String
@@ -143,3 +142,7 @@ fun relativeAgo(unix: Long, nowSeconds: Long): String {
     }
     return "$short ago"
 }
+
+/** `NSString.lastPathComponent`. */
+fun lastPathComponent(path: String): String =
+    path.trimEnd('/').substringAfterLast('/').ifEmpty { path }

@@ -49,7 +49,7 @@ about 50 characters on iPhone), `devices`, an optional `wait` in seconds (defaul
 optional `captions` to give one device its own `title`/`subtitle`.
 Route steps, joined by ` > `, are pushed in order:
 `list` · `project:<name>` · `terminal:<project>/<terminalId>` · `changes:<project>` ·
-`usage` · `stats` · `activity` · `automations` · `automation:<project>/<jobId>`.
+`usage` · `stats` · `automations` · `automation:<project>/<jobId>`.
 Demo names: projects `storefront`, `api-gateway`, `analytics`, `mobile-app`, `blog`, …;
 terminal `demo-storefront-claude`; automation `nightly-tests`
 (`mobile/ios/Sources/LpmMobile/DemoWorld.swift`, `DemoJobs`).

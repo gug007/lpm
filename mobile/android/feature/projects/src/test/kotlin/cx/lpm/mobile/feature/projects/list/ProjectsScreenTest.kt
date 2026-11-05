@@ -37,7 +37,6 @@ class ProjectsScreenTest {
         listIsEmpty = false,
         loaded = true,
         folders = listOf(folder),
-        badge = MoreBadge.Automations,
         automationsUnread = 2
     )
 

@@ -21,30 +21,38 @@ import { SendLinkCta } from "./send-link-cta";
 // the shorter ARM Linux card.
 const SHELL =
   "flex w-full flex-col items-center justify-center gap-4 min-h-[144px] sm:min-h-[97px]";
+const COMPACT_SHELL = "flex flex-col items-center gap-3";
+
+const BUTTON = "px-6 py-2 text-[15px] sm:px-7 sm:text-[16px]";
+const COMPACT_BUTTON = "px-5 py-1.5 text-[14px]";
 
 type Props = {
   source?: DownloadSource;
   // A page about one system keeps that system's download on the button for
   // every visitor; the other builds stay in its menu.
   focus?: DesktopOs;
+  // For a row that names the release itself: the button alone, with no trust
+  // line and no reserved height.
+  compact?: boolean;
 };
 
-export function HeroDownload({ source = "hero", focus }: Props) {
+export function HeroDownload({ source = "hero", focus, compact = false }: Props) {
   const platform = usePlatform();
   const { release } = useRelease();
+  const shell = compact ? COMPACT_SHELL : SHELL;
 
   if (isMobilePlatform(platform)) {
     return (
-      <div className={SHELL}>
+      <div className={shell}>
         <SendLinkCta />
-        <HeroTrustLine os={null} />
+        {!compact && <HeroTrustLine os={null} />}
       </div>
     );
   }
 
   if (platform === "linux-arm") {
     return (
-      <div className={SHELL}>
+      <div className={shell}>
         <NoDownloadCard />
       </div>
     );
@@ -56,15 +64,15 @@ export function HeroDownload({ source = "hero", focus }: Props) {
       : primaryDownload(platform);
 
   return (
-    <div className={SHELL}>
+    <div className={shell}>
       <DownloadSplitButton
         primary={primary}
         detected={isDownloadPlatform(platform) ? platform : null}
         release={release}
         source={source}
-        className="px-6 py-2 text-[15px] sm:px-7 sm:text-[16px]"
+        className={compact ? COMPACT_BUTTON : BUTTON}
       />
-      <HeroTrustLine os={primary.os} />
+      {!compact && <HeroTrustLine os={primary.os} />}
     </div>
   );
 }

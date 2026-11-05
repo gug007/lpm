@@ -96,6 +96,15 @@ sealed interface WireGit {
 
     fun gitDiscardAll(project: String): String = frame("gitDiscardAll") { put("project", project) }
 
+    /**
+     * Discard the changes to [paths] only. Only for a Mac whose `features` has
+     * "gitDiscardFiles".
+     */
+    fun gitDiscardFiles(project: String, paths: List<String>): String = frame("gitDiscardFiles") {
+        put("project", project)
+        putStrings("paths", paths)
+    }
+
     fun gitRestoreDiscarded(project: String, id: String): String = frame("gitRestoreDiscarded") {
         put("project", project)
         put("id", id)

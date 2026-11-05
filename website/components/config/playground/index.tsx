@@ -240,7 +240,7 @@ function Toolbar({
           {filename}
         </span>
         {valid ? (
-          <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 flex-shrink-0">
+          <span className="text-[10px] font-medium text-emerald-700 dark:text-emerald-400 flex-shrink-0">
             valid
           </span>
         ) : (

@@ -1,4 +1,5 @@
 import { AtSign, BellRing, Bot, MessageSquareText, Radio, Slash } from "lucide-react";
+import { OTHER_STATUS_AGENT_NAMES, STATUS_AGENT_NAMES } from "@/lib/app-facts";
 import { AI_AGENTS_PATH, PROJECT_SIDEBAR_PATH } from "@/lib/links";
 import type { FeatureArea } from "./feature-types";
 
@@ -6,7 +7,7 @@ export const AGENTS_AREA: FeatureArea = {
   id: "agents",
   title: "A terminal built for Claude Code and Codex",
   description:
-    "Every project gets its own terminals next to its services. Claude Code and Codex get live status, alerts, and session tools; Gemini CLI and Cursor CLI get live status and alerts; Gemini CLI and OpenCode launch with one click too.",
+    `Every project gets its own terminals next to its services. Claude Code and Codex get live status, alerts, and session tools; ${OTHER_STATUS_AGENT_NAMES} get live status and alerts; Gemini CLI and OpenCode launch with one click too.`,
   highlights: [
     {
       icon: Bot,
@@ -19,7 +20,7 @@ export const AGENTS_AREA: FeatureArea = {
     {
       icon: Radio,
       title: "Live agent status",
-      body: "Each Claude Code, Codex, Gemini CLI, and Cursor CLI tab shows whether it's Working, Needs you, Done, or Problem. The sidebar lists every session under its project with a running timer; click one to open its tab.",
+      body: `Each ${STATUS_AGENT_NAMES} tab shows whether it's Working, Needs you, Done, or Problem. The sidebar lists every session under its project with a running timer; click one to open its tab.`,
       scope: "claude-codex",
       href: PROJECT_SIDEBAR_PATH,
       linkLabel: "Status in the sidebar",

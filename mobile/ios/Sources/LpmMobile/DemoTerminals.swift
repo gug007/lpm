@@ -670,7 +670,7 @@ extension DemoServer {
         ]
     }
 
-    private func claudeRespond(_ id: String) {
+    func claudeRespond(_ id: String) {
         guard let term = demoTerminal(id) else { return }
         let project = term.project
         let ack = claudeAcks[term.ackCount % claudeAcks.count]

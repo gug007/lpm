@@ -12,7 +12,8 @@ png="$here/../../../../shared/demo/summary-card.png"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
-cp "$ios"/Demo*.swift "$ios/WorkStatusModel.swift" "$ios/ActionInputDrafts.swift" "$ios/AgentCommand.swift" "$work/"
+cp "$ios"/Demo*.swift "$ios/WorkStatusModel.swift" "$ios/ActionInputDrafts.swift" "$ios/AgentCommand.swift" \
+    "$ios/AgentDialog.swift" "$work/"
 # Demo Mode's dictation engine stands in for the microphone, not the Mac: no frame reaches it.
 rm "$work/DemoDictation.swift"
 python3 "$here/patch.py" "$work"

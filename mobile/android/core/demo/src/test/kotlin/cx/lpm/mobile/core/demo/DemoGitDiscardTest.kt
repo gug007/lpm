@@ -56,6 +56,50 @@ class DemoGitDiscardTest {
         assertEquals(4, demo.changedPaths("storefront").size)
     }
 
+    @Test
+    fun oneFilesDiscardKeepsItAloneForUndo() = runTest {
+        val demo = DemoHarness(this)
+        val before = demo.changedPaths("storefront")
+
+        val discard = demo.exchange(
+            0.4,
+            "gitDiscardFiles",
+            "project" to "storefront",
+            "paths" to listOf("lib/payments.ts")
+        ).single("gitDiscardFiles")
+        assertEquals(true, discard["ok"])
+        assertEquals(listOf("lib/payments.ts"), discard.strings("paths"))
+        assertEquals("discard-1", discard.string("undo"))
+        assertEquals(before - "lib/payments.ts", demo.changedPaths("storefront"))
+
+        assertEquals(true, demo.restore("storefront", "discard-1")["ok"])
+        assertEquals(before.toSet(), demo.changedPaths("storefront").toSet())
+    }
+
+    @Test
+    fun aFileWithNoChangesKeepsNoCopy() = runTest {
+        val demo = DemoHarness(this)
+        val unchanged = demo.exchange(
+            0.4,
+            "gitDiscardFiles",
+            "project" to "storefront",
+            "paths" to listOf("nope.ts")
+        ).single("gitDiscardFiles")
+        assertEquals(true, unchanged["ok"])
+        assertFalse("undo" in unchanged)
+        assertEquals(4, demo.changedPaths("storefront").size)
+
+        val notRepo = demo.exchange(
+            0.4,
+            "gitDiscardFiles",
+            "project" to "nope",
+            "paths" to listOf("x.md")
+        ).single("gitDiscardFiles")
+        assertEquals(false, notRepo["ok"])
+        assertEquals("Not a git repository.", notRepo.string("error"))
+        assertEquals(listOf("x.md"), notRepo.strings("paths"))
+    }
+
     private fun DemoHarness.changedPaths(project: String): List<String?> =
         exchange(0.3, "git", "project" to project).single("git").dictList("files")
             .map { it.string("path") }

@@ -314,8 +314,8 @@ export default function LpmVsForemanPage() {
       />
 
       <Cta
-        title="Three lines in a Procfile. Three panes on your Mac."
-        description="lpm starts the same commands your Procfile.dev already names, one pane each, and leaves them running when you quit the app. Free, MIT-licensed, macOS."
+        title="Three lines in a Procfile. Three panes on your computer."
+        description="lpm starts the same commands your Procfile.dev already names, one pane each, and leaves them running when you quit the app. Free, MIT-licensed, for macOS, Windows and Linux."
         downloadSource="vs-foreman-cta"
       />
     </>

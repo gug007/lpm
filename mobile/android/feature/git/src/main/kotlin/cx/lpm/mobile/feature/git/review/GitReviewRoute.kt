@@ -95,7 +95,12 @@ fun GitReviewRoute(
                 viewModel.commitOpened()
             },
             createPullRequest = { onNavigate(GitPullRequestKey(key.project, key.session)) },
-            undoDiscard = viewModel::restoreDiscarded
+            undoDiscard = viewModel::restoreDiscarded,
+            discardFile = { path ->
+                confirmRisky.confirm("Discard the changes to ${lastPathComponent(path)}") {
+                    viewModel.discardFile(path)
+                }
+            }
         )
     )
 

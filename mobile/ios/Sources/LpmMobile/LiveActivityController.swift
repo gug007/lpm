@@ -1,7 +1,6 @@
 import ActivityKit
 import Foundation
 
-// The app has an Activity of its own: the Activity screen.
 private typealias AgentActivity = ActivityKit.Activity<AgentActivityAttributes>
 
 /// The live Mac's agents on the Lock Screen and in the Dynamic Island while any

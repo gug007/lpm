@@ -1,3 +1,5 @@
+import { OTHER_STATUS_AGENT_NAMES } from "@/lib/app-facts";
+
 export const FEATURE_FAQS = [
   {
     question: "Are any features paid or behind an account?",
@@ -7,7 +9,7 @@ export const FEATURE_FAQS = [
   {
     question: "Which features need Claude Code or Codex?",
     answer:
-      "Session resume, fork, copy last answer, slash-command autocomplete, and model switching work only with Claude Code and Codex, and pinning an account per project is Claude Code only. Live status and alerts extend to Gemini CLI and Cursor CLI, though Cursor CLI never shows Needs you. The launchers also cover Gemini CLI and OpenCode, and any other CLI runs in a terminal or behind a button. You install and sign in to each agent yourself.",
+      `Session resume, fork, copy last answer, slash-command autocomplete, and model switching work only with Claude Code and Codex, and pinning an account per project is Claude Code only. Live status and alerts extend to ${OTHER_STATUS_AGENT_NAMES}, though Cursor CLI never shows Needs you. The launchers also cover Gemini CLI and OpenCode, and any other CLI runs in a terminal or behind a button. You install and sign in to each agent yourself.`,
   },
   {
     question: "Do duplicates or worktrees get their own ports?",

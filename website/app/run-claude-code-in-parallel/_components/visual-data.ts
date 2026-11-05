@@ -75,8 +75,8 @@ const ORANGE = "text-[#d97757]";
 const CLAUDE_GREEN = "text-[#4eba65]";
 const BOLD = "font-semibold text-gray-100";
 const TEXT = "text-gray-200";
-const DIM = "text-gray-500";
-const FAINT = "text-gray-600";
+const DIM = "text-[#8d8d8d]";
+const FAINT = "text-[#858585]";
 const CODEX_ACCENT = "text-[#67e8f9]";
 const PROMPT_BUBBLE = "bg-[#373737]";
 

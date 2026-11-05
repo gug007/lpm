@@ -215,6 +215,12 @@
 {"at": 10600, "frame": {"t": "gitRestoreDiscarded", "project": "work-copy", "id": "discard-1"}}
 {"at": 11100, "frame": {"t": "gitRestoreDiscarded", "project": "work-copy", "id": "discard-1"}}
 {"at": 11100, "frame": {"t": "git", "project": "work-copy"}}
+{"at": 11500, "frame": {"t": "gitDiscardFiles", "project": "work-copy", "paths": ["lib/payments.ts"]}}
+{"at": 12000, "frame": {"t": "git", "project": "work-copy"}}
+{"at": 12000, "frame": {"t": "gitDiscardFiles", "project": "work-copy", "paths": ["nope.ts"]}}
+{"at": 12000, "frame": {"t": "gitDiscardFiles", "project": "nope", "paths": ["a"]}}
+{"at": 12500, "frame": {"t": "gitRestoreDiscarded", "project": "work-copy", "id": "discard-2"}}
+{"at": 13000, "frame": {"t": "git", "project": "work-copy"}}
 {"at": 13500, "frame": {"t": "actionBgOutput", "project": "api-gateway", "runId": "run-1"}}
 {"at": 13500, "frame": {"t": "backgroundRuns", "project": "api-gateway"}}
 {"at": 14000, "frame": {"t": "runActionBackground", "project": "blog", "action": "new-post", "inputValues": {"title": "Hello World!"}, "runId": "run-2"}}
@@ -276,6 +282,15 @@
 {"at": 42000, "frame": {"t": "in", "id": "demo-storefront-claude", "d": "\u001b[200~Add tests\rand docs\u001b[201~"}}
 {"at": 42100, "frame": {"t": "in", "id": "demo-storefront-claude", "d": "\r"}}
 {"at": 42500, "frame": {"t": "in", "id": "demo-storefront-claude", "d": "queued\r"}}
+{"at": 44400, "frame": {"t": "agentDialog", "project": "storefront", "terminalId": "demo-storefront-claude"}}
+{"at": 44400, "frame": {"t": "agentDialog", "project": "storefront", "terminalId": "demo-storefront-1", "reqId": "d1"}}
+{"at": 44400, "frame": {"t": "agentDialog", "project": "nope", "terminalId": "x"}}
+{"at": 44450, "frame": {"t": "answerAgent", "project": "storefront", "terminalId": "demo-storefront-claude", "key": "claude_code_demo-storefront-claude", "ts": 5, "action": "pick", "option": "1", "dialog": "demo-cart-badge", "reqId": "k0"}}
+{"at": 44450, "frame": {"t": "answerAgent", "project": "storefront", "terminalId": "demo-storefront-claude", "key": "claude_code_demo-storefront-claude", "ts": 1792089044423, "action": "pick", "option": "1", "dialog": "0123456789abcdef", "reqId": "k1"}}
+{"at": 44450, "frame": {"t": "answerAgent", "project": "storefront", "terminalId": "demo-storefront-claude", "key": "claude_code_demo-storefront-claude", "ts": 1792089044423, "action": "pick", "option": "9", "dialog": "demo-cart-badge", "reqId": "k2"}}
+{"at": 44450, "frame": {"t": "answerAgent", "project": "storefront", "terminalId": "demo-storefront-1", "key": "claude_code_demo-storefront-claude", "ts": 1792089044423, "action": "pick", "option": "1", "dialog": "demo-cart-badge", "reqId": "k3"}}
+{"at": 44500, "frame": {"t": "answerAgent", "project": "storefront", "terminalId": "demo-storefront-claude", "key": "claude_code_demo-storefront-claude", "ts": 1792089044423, "action": "pick", "option": "1", "dialog": "demo-cart-badge", "reqId": "k9"}}
+{"at": 44900, "frame": {"t": "agentDialog", "project": "storefront", "terminalId": "demo-storefront-claude"}}
 {"at": 45000, "frame": {"t": "in", "id": "demo-storefront-claude", "d": "more\r"}}
 {"at": 45000, "frame": {"t": "gitAutoState", "project": "storefront"}}
 {"at": 45000, "frame": {"t": "git", "project": "storefront"}}
@@ -293,6 +308,7 @@
 {"at": 47000, "frame": {"t": "status", "project": "storefront"}}
 {"at": 47000, "frame": {"t": "clearStatus", "project": "storefront", "paneId": "demo-storefront-claude", "value": "Waiting"}}
 {"at": 47000, "frame": {"t": "clearStatus", "project": "storefront", "paneId": "demo-storefront-claude", "value": "Waiting"}}
+{"at": 47100, "frame": {"t": "agentDialog", "project": "storefront", "terminalId": "demo-storefront-claude"}}
 {"at": 47100, "frame": {"t": "sub", "id": "demo-storefront-claude"}}
 {"at": 47200, "frame": {"t": "unsub", "id": "demo-storefront-claude"}}
 {"at": 48000, "frame": {"t": "gitCheckout", "project": "storefront", "branch": "main", "remote": ""}}

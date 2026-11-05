@@ -1,3 +1,5 @@
+import { OTHER_STATUS_AGENT_NAMES, STATUS_AGENT_NAMES } from "@/lib/app-facts";
+
 export const FAQ_ITEMS: { question: string; answer: string }[] = [
   {
     question: "How do I run multiple Claude Code sessions at once?",
@@ -22,7 +24,7 @@ export const FAQ_ITEMS: { question: string; answer: string }[] = [
   {
     question: "How do I know which agent needs me?",
     answer:
-      "Claude Code, Codex, Gemini CLI and Cursor CLI tabs show Working, Needs you, Done or Problem, and so do the rows under each project in the sidebar, with how long each state has lasted. Click a row to open that tab. lpm also plays a sound, shows a system notification when it isn't in front, and can push to your iPhone through the lpm link app.",
+      `${STATUS_AGENT_NAMES} tabs show Working, Needs you, Done or Problem, and so do the rows under each project in the sidebar, with how long each state has lasted. Click a row to open that tab. lpm also plays a sound, shows a system notification when it isn't in front, and can push to your iPhone through the lpm link app.`,
   },
   {
     question: "Does running agents in parallel use more of my plan?",
@@ -37,6 +39,6 @@ export const FAQ_ITEMS: { question: string; answer: string }[] = [
   {
     question: "Does it work with Codex, Gemini CLI, Cursor CLI or OpenCode?",
     answer:
-      "Codex gets the same live status, alerts, resume and fork support as Claude Code. Gemini CLI and Cursor CLI get live status and alerts too, though Cursor CLI asks for approval without telling lpm, so it never shows Needs you. OpenCode runs in tabs, copies and worktrees like any terminal command, but without live status or alerts.",
+      `Codex gets the same live status, alerts, resume and fork support as Claude Code. ${OTHER_STATUS_AGENT_NAMES} get live status and alerts too, though Cursor CLI asks for approval without telling lpm, so it never shows Needs you. All of them run in tabs, copies and worktrees like any terminal command.`,
   },
 ];

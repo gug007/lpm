@@ -58,7 +58,7 @@ export default function Benefits() {
             >
               <span
                 aria-hidden="true"
-                className="text-4xl sm:text-5xl font-bold tabular-nums text-gray-200 dark:text-gray-800 leading-none select-none"
+                className="text-4xl sm:text-5xl font-bold tabular-nums text-gray-500/80 dark:text-gray-500 leading-none select-none"
               >
                 {String(i + 1).padStart(2, "0")}
               </span>

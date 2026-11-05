@@ -7,6 +7,7 @@ import { ConfigIntro } from "@/components/config/config-intro";
 import { Cta } from "@/components/config/cta";
 import { DocsShell } from "@/components/docs/docs-shell";
 import { LegacyAnchorRedirect } from "@/components/docs/legacy-anchor-redirect";
+import { LatestRelease } from "@/components/latest-release";
 import { LINK } from "@/components/prose";
 import { DOCS_GROUPS, docsPath } from "@/lib/docs-pages";
 import {
@@ -119,7 +120,13 @@ export default function DocsPage() {
         <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
           lpm docs
         </h1>
-        <p className="mt-4 mb-8 text-[15px] leading-relaxed text-gray-600 dark:text-gray-400">
+        <p className="mt-4 text-[15px] leading-relaxed text-gray-600 dark:text-gray-400">
+          lpm is a free desktop app for macOS, Windows and Linux that starts
+          your projects&apos; dev servers and runs AI coding agents beside them.
+          These docs cover its project config.
+        </p>
+        <LatestRelease source="docs-latest" className="mt-6" />
+        <p className="mt-6 mb-8 text-[15px] leading-relaxed text-gray-600 dark:text-gray-400">
           New here?{" "}
           <Link
             href={docsPath("install")}

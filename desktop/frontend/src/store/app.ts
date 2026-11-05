@@ -109,6 +109,7 @@ import type { RemoteTabRequest } from "../remoteAgentTabs";
 import { displayNameForProjectName } from "../components/ProjectNameDisplay";
 import { onProjectsRemoved } from "../sendLater/closeout";
 import { deferRefresh, holdRefresh, refreshHeld } from "./refreshHold";
+import { MACHINE } from "../machineWords";
 
 export type ProjectDetailTarget = "config" | "notes" | "ai" | "memory" | "automations";
 
@@ -633,7 +634,7 @@ let detachedRefreshSeq = 0;
 // can distinguish "connection lost" (toast) from a clone failure (modal error).
 class LostPeerError extends Error {
   constructor() {
-    super("Lost connection to the remote Mac.");
+    super(`Lost connection to the remote ${MACHINE.noun}.`);
     this.name = "LostPeerError";
   }
 }
@@ -740,7 +741,7 @@ function collectRemoteDuplicates(slug: string): {
               if (done) waiter.settle({ ok: done.ok === true, error: done.error ?? undefined });
               else if (status === "unknown") {
                 waiter.fail(
-                  new Error("The remote Mac no longer reports this copy — it may have restarted."),
+                  new Error(`The remote ${MACHINE.noun} no longer reports this copy — it may have restarted.`),
                 );
               }
             })

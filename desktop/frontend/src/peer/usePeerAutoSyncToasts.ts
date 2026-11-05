@@ -4,6 +4,7 @@ import { toast } from "../notifications/toast";
 import { IS_MIRROR_WINDOW } from "../mirror";
 import type { PeerClient } from "./usePeerState";
 import { autoSyncToast, type AutoSyncResult } from "./autoSyncToast";
+import { MACHINE } from "../machineWords";
 
 // Surfaces auto-sync outcomes to the user. The engine emits `peer-autosync-result`
 // after every unattended run; only the ones that need a human — a both-sides change
@@ -32,7 +33,7 @@ export function usePeerAutoSyncToasts(peers: PeerClient[]): void {
         conflicts: p.conflicts ?? [],
       };
       const peer = peersRef.current.find((x) => x.slug === res.slug);
-      const name = peer?.alias || peer?.host || "the other Mac";
+      const name = peer?.alias || peer?.host || MACHINE.otherMachine;
       const now = Date.now();
       const decision = autoSyncToast(res, name, lastErrorAt.current.get(res.slug), now);
       if (!decision) return;

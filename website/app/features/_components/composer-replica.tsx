@@ -41,7 +41,7 @@ export default function ComposerReplica() {
             <span className="font-semibold text-gray-100">Read</span>
             <span className="text-gray-300">(src/cart/cart.test.ts)</span>
           </p>
-          <p className="text-gray-500">{"  ⎿  Read 86 lines"}</p>
+          <p className="text-[#8d8d8d]">{"  ⎿  Read 86 lines"}</p>
         </div>
 
         <div className="relative mx-2 mt-auto">
@@ -55,7 +55,7 @@ export default function ComposerReplica() {
               >
                 <Icon className="h-3.5 w-3.5 shrink-0 text-gray-500" strokeWidth={2} />
                 <span className="min-w-0 flex-1 truncate">{label}</span>
-                <span className="shrink-0 text-[10px] text-gray-500">{hint}</span>
+                <span className="shrink-0 text-[10px] text-gray-400">{hint}</span>
               </div>
             ))}
           </div>
@@ -83,7 +83,7 @@ export default function ComposerReplica() {
             </div>
           </div>
         </div>
-        <p className="mx-2 mb-2 mt-2 flex items-center gap-1.5 px-1 text-[10.5px] text-gray-500">
+        <p className="mx-2 mb-2 mt-2 flex items-center gap-1.5 px-1 text-[10.5px] text-gray-400">
           <Lightbulb className="h-3 w-3 text-[#fbbf24]" strokeWidth={2} />
           Type
           <kbd className="rounded border border-[#3a3a3a] px-1 font-sans text-[10px] text-gray-400">

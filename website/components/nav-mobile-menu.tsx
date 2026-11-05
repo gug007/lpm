@@ -2,7 +2,14 @@
 
 import { Menu, X } from "lucide-react";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FocusEvent,
+  type MouseEvent,
+  type ReactNode,
+} from "react";
 import {
   AI_AGENTS_PATH,
   AUTOMATIONS_PATH,
@@ -99,8 +106,16 @@ export function NavMobileMenu({ github }: { github: ReactNode }) {
     if ((e.target as Element).closest("a")) setOpen(false);
   };
 
+  // The panel covers the page, so Tab past its last link would land on
+  // controls hidden underneath; leaving it by keyboard closes it instead. A
+  // tap on the panel's background moves focus nowhere and keeps it open.
+  const closeOnFocusOut = (e: FocusEvent<HTMLDivElement>) => {
+    const next = e.relatedTarget as Node | null;
+    if (next && !containerRef.current?.contains(next)) setOpen(false);
+  };
+
   return (
-    <div ref={containerRef} className="contents">
+    <div ref={containerRef} onBlur={closeOnFocusOut} className="contents">
       <button
         ref={toggleRef}
         type="button"

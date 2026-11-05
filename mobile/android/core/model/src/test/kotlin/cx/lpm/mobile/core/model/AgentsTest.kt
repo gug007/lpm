@@ -1,9 +1,7 @@
 package cx.lpm.mobile.core.model
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AgentsTest {
@@ -198,15 +196,6 @@ class AgentsTest {
         assertEquals("4m", shortDuration(4 * 60_000 + 59_000))
         assertEquals("2h", shortDuration(2 * 3_600_000L))
         assertEquals("2h 5m", shortDuration(2 * 3_600_000L + 5 * 60_000))
-    }
-
-    @Test
-    fun `the ambient badge lights for a wait or a problem`() {
-        assertFalse(agentAmbient(listOf(project(entry("a", "Running", 1)))).isLit)
-        val ambient =
-            agentAmbient(listOf(project(entry("a", "Waiting", 1), entry("b", "Error", 1))))
-        assertEquals(1, ambient.needsYou)
-        assertTrue(ambient.hasError)
     }
 
     @Test

@@ -15,16 +15,18 @@ export function NavMobileGroup({
 }: NavMobileGroupSpec) {
   return (
     <div>
-      <p className="mt-4 mb-0.5 text-[11px] font-semibold uppercase tracking-widest text-gray-500 dark:text-gray-400">
+      <h2 className="mt-4 mb-0.5 text-[11px] font-semibold uppercase tracking-widest text-gray-500 dark:text-gray-400">
         {title}
-      </p>
-      <div className={listClassName}>
+      </h2>
+      <ul className={listClassName}>
         {links.map(({ href, label }) => (
-          <NavLink key={href} href={href} className={linkClassName}>
-            {label}
-          </NavLink>
+          <li key={href}>
+            <NavLink href={href} className={linkClassName}>
+              {label}
+            </NavLink>
+          </li>
         ))}
-      </div>
+      </ul>
     </div>
   );
 }

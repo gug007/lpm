@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { DownloadFooter } from "@/components/download-footer";
+import { LatestRelease } from "@/components/latest-release";
 import { getChangelogReleases } from "@/lib/changelog";
 import { changelogDays, changelogMonths } from "@/lib/changelog-days";
 import { CHANGELOG_PATH, REPO_URL } from "@/lib/links";
@@ -75,11 +76,17 @@ export default async function ChangelogPage() {
           {releases.length} releases since{" "}
           {fullDateFmt.format(new Date(firstDate))}
         </p>
+        <LatestRelease source="changelog-latest" className="mt-6" />
       </header>
 
       <ChangelogBrowser months={months} total={releases.length} />
 
-      <DownloadFooter href={`${REPO_URL}/releases`} label="All releases on GitHub" />
+      <DownloadFooter
+        href={`${REPO_URL}/releases`}
+        label="All releases on GitHub"
+        source="changelog-footer"
+        anchor={false}
+      />
     </article>
   );
 }

@@ -58,7 +58,8 @@ class GitReviewScreenTest {
                     ask = { events += "ask $it" },
                     openCommit = { events += "open commit" },
                     createPullRequest = { events += "pr" },
-                    undoDiscard = { events += "undo $it" }
+                    undoDiscard = { events += "undo $it" },
+                    discardFile = { events += "discard $it" }
                 )
             )
         }
@@ -197,6 +198,37 @@ class GitReviewScreenTest {
         compose.onNodeWithText("Include in Commit").performClick()
         compose.waitForIdle()
         assertEquals(listOf("select assets/logo.png"), events)
+    }
+
+    @Test
+    fun aFilesChangesAreDiscardedOnceConfirmed() {
+        show(loaded().copy(canDiscardFiles = true))
+        compose.onAllNodesWithContentDescription("More")[1].performClick()
+        compose.onNodeWithText("Discard Changes…").performClick()
+        compose.onNodeWithText("Discard changes to logo.png?").assertExists()
+        compose.onNodeWithText(
+            "assets/logo.png goes back to how it was at the last commit. lpm keeps a copy on " +
+                "the Mac for 7 days, so you can undo it."
+        ).assertExists()
+        compose.onNodeWithText("Discard Changes").performClick()
+        compose.waitForIdle()
+        assertEquals(listOf("discard assets/logo.png"), events)
+        compose.onNodeWithText("Discard changes to logo.png?").assertDoesNotExist()
+    }
+
+    @Test
+    fun anOlderMacOffersNoDiscardOfOneFile() {
+        show(loaded())
+        compose.onAllNodesWithContentDescription("More")[0].performClick()
+        compose.onNodeWithText("Copy Path").assertExists()
+        compose.onNodeWithText("Discard Changes…").assertDoesNotExist()
+    }
+
+    @Test
+    fun aRunningDiscardDimsTheItem() {
+        show(loaded().copy(canDiscardFiles = true, discarding = true))
+        compose.onAllNodesWithContentDescription("More")[0].performClick()
+        compose.onNode(hasText("Discard Changes…") and hasClickAction()).assertIsNotEnabled()
     }
 
     @Test

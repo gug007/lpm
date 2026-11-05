@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { FeatureMatrix, type MatrixRow } from "@/components/vs/feature-matrix";
+import { STATUS_AGENT_NAMES } from "@/lib/app-facts";
 import { CONNECT_AGENTS_PATH, REVIEW_CHANGES_PATH } from "@/lib/links";
 
 const LINK =
@@ -48,7 +49,7 @@ const ROWS: MatrixRow[] = [
   },
   {
     label: "Reports agent status back to the app",
-    lpm: "Claude Code, Codex, Gemini CLI and Cursor CLI, via hooks lpm installs",
+    lpm: `${STATUS_AGENT_NAMES}, via hooks lpm installs`,
     competitor: "agent hooks, cmux notify, notification panel",
   },
   {

@@ -1,5 +1,6 @@
 package cx.lpm.mobile.core.protocol
 
+import cx.lpm.mobile.core.model.AgentDialogRead
 import cx.lpm.mobile.core.model.AgentStats
 import cx.lpm.mobile.core.model.LimitReminder
 import cx.lpm.mobile.core.model.LimitsSnapshot
@@ -60,6 +61,7 @@ internal val sessionParsers = parsers {
             error = o.failure("The Mac couldn't send it.")
         )
     }
+    put("agentDialog") { o -> Inbound.AgentDialog(AgentDialogRead.parse(o)) }
     put("liveActivity") { o -> Inbound.LiveActivity(ok = o.ok) }
     put("stats") { o ->
         Inbound.Stats(

@@ -12,6 +12,7 @@ use crate::gitbring::{self, Done, Follow, Request};
 use crate::gitbringrun::progress;
 use crate::gitfollowstore::{self as store, Follow as FollowRecord};
 use crate::peerclient::PeerClientHub;
+use crate::sys::MACHINE;
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -34,7 +35,9 @@ pub fn sync_project_start(
     let source_root = gitbring::unmark(source_root.trim()).to_string();
     let remote_name = gitbring::unmark(remote_name.trim()).to_string();
     if source_root.is_empty() {
-        return Err("the other Mac did not report a project folder".into());
+        return Err(format!(
+            "the other {MACHINE} did not report a project folder"
+        ));
     }
     let hub = app.state::<PeerClientHub>().inner().clone();
     hub.require_git_bring(&slug)?;

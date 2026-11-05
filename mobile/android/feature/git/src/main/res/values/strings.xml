@@ -40,6 +40,10 @@
     <string name="git_file_include_in_commit">Include in Commit</string>
     <string name="git_file_exclude_from_commit">Exclude from Commit</string>
     <string name="git_file_copy_path">Copy Path</string>
+    <string name="git_file_discard">Discard Changes…</string>
+    <string name="git_file_discard_title">Discard changes to %1$s?</string>
+    <string name="git_file_discard_message">%1$s goes back to how it was at the last commit. lpm keeps a copy on the Mac for 7 days, so you can undo it.</string>
+    <string name="git_file_discard_confirm">Discard Changes</string>
     <string name="git_file_binary">Binary file</string>
     <string name="git_file_no_changes">No changes to show</string>
     <string name="git_file_loading">Loading diff…</string>

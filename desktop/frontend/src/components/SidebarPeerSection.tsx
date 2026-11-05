@@ -318,7 +318,7 @@ export function SidebarPeerSection({
       <RenameModal
         open={renameOpen}
         title={`Rename ${noun}`}
-        description="The name this Mac lists it under. Nothing changes on the machine itself."
+        description={`The name ${MACHINE.thisMachine} lists it under. Nothing changes on the machine itself.`}
         initialValue={alias}
         onClose={() => setRenameOpen(false)}
         onSubmit={(value) => void PeerSetAlias(slug, value)}

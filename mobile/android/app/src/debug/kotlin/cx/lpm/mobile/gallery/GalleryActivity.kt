@@ -16,8 +16,8 @@ import cx.lpm.mobile.core.web.TerminalWebPool
  *
  *   adb shell am start -n cx.lpm.mobile/.gallery.GalleryActivity --es screen detail --ez dark false
  *
- * Screens: index, pairing, projects, detail, menu, activity, automations, settings,
- * terminal, controls, webterminal, markdown, filepreview. Remove src/debug to drop it.
+ * Screens: index, pairing, projects, detail, menu, automations, settings, terminal,
+ * controls, webterminal, markdown, filepreview. Remove src/debug to drop it.
  */
 class GalleryActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {

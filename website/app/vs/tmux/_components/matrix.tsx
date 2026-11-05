@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { FeatureMatrix, type MatrixRow } from "@/components/vs/feature-matrix";
+import { STATUS_AGENT_NAMES } from "@/lib/app-facts";
 import { PROJECT_SIDEBAR_PATH } from "@/lib/links";
 
 const ROWS: MatrixRow[] = [
@@ -50,7 +51,7 @@ const ROWS: MatrixRow[] = [
   },
   {
     label: "Which agent needs you, shown on its own tab",
-    lpm: "working, needs you, done or error, from Claude Code, Codex, Gemini CLI and Cursor CLI",
+    lpm: `working, needs you, done or error, from ${STATUS_AGENT_NAMES}`,
     competitor: false,
   },
   {

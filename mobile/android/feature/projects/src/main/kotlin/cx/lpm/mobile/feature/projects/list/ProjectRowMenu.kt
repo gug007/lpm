@@ -10,6 +10,8 @@ import cx.lpm.mobile.core.designsystem.component.ContextMenu
 import cx.lpm.mobile.core.designsystem.component.ContextMenuDivider
 import cx.lpm.mobile.core.designsystem.component.ContextMenuItem
 import cx.lpm.mobile.core.designsystem.component.ContextMenuSubmenu
+import cx.lpm.mobile.core.model.AgentDialogOption
+import cx.lpm.mobile.core.model.AgentDialogRead
 import cx.lpm.mobile.core.model.Project
 import cx.lpm.mobile.core.model.ProjectAgentRow
 import cx.lpm.mobile.core.model.ProjectFolder
@@ -34,7 +36,11 @@ class ProjectRowActions(
     val markAgentSeen: (Project, ProjectAgentRow) -> Unit = { _, _ -> },
     val markAgentUnread: (Project, ProjectAgentRow) -> Unit = { _, _ -> },
     val cancelQueued: (id: String) -> Unit = {},
-    val retryQueued: (id: String) -> Unit = {}
+    val retryQueued: (id: String) -> Unit = {},
+    /** Asks for a waiting agent's dialog while its row is on screen. */
+    val followDialog: suspend (Project, terminal: String, key: String) -> Unit = { _, _, _ -> },
+    /** Answers a waiting agent's dialog with one of its options. */
+    val pickDialog: (AgentDialogRead, AgentDialogOption) -> Unit = { _, _ -> }
 )
 
 /** Whether a long press on the row has anything to offer; [pinned] null hides Pin to top. */

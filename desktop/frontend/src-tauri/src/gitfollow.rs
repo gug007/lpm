@@ -14,6 +14,7 @@
 use crate::gitfollowrun::Outcome;
 use crate::gitfollowstore::{self as store, Follow};
 use crate::peerclient::PeerClientHub;
+use crate::sys::MACHINE;
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Condvar, Mutex};
@@ -432,7 +433,7 @@ fn pending_note(follow: &Follow, reason: &str) -> Option<String> {
 /// fault stays on screen and reads as the reason.
 fn availability_note(reason: &str) -> String {
     if reason == crate::peerclient::PEER_NOT_CONNECTED {
-        return "that Mac is not connected".to_string();
+        return format!("that {MACHINE} is not connected");
     }
     reason.to_string()
 }
@@ -541,7 +542,7 @@ mod tests {
     fn the_guards_wording_is_said_the_way_a_status_line_reads() {
         assert_eq!(
             availability_note(crate::peerclient::PEER_NOT_CONNECTED),
-            "that Mac is not connected"
+            format!("that {MACHINE} is not connected")
         );
         let needs_update = "the other Mac needs to update lpm to send its changes";
         assert_eq!(availability_note(needs_update), needs_update);

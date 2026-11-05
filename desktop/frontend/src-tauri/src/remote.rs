@@ -37,6 +37,7 @@ use crate::remotestore::{
     Device, RemoteConfig, StoreError,
 };
 use crate::status::{StatusEntry, StatusStore, STATUS_DONE, STATUS_ERROR, STATUS_WAITING};
+use crate::sys::MACHINE;
 use crate::{config, pty, services};
 use aes_gcm::aead::{Aead, KeyInit};
 use aes_gcm::{Aes256Gcm, Nonce};
@@ -55,6 +56,7 @@ use tungstenite::{accept, Error as WsError, Message, WebSocket};
 
 mod answer;
 mod ci_push;
+mod dialog;
 mod dictation;
 mod live;
 mod mac_alert;
@@ -167,6 +169,8 @@ const PHONE_FEATURES: &[&str] = &[
     crate::remote_agents::ACTION_PROMPT_FEATURE,
     crate::remote_files::FEATURE,
     answer::FEATURE,
+    dialog::FEATURE,
+    GIT_DISCARD_FILES_FEATURE,
     live::FEATURE,
     crate::weekly_recap::PHONE_FEATURE,
     crate::weekly_recap::PHONE_MONTH_FEATURE,
@@ -191,6 +195,9 @@ pub(crate) fn phone_features() -> Vec<&'static str> {
     }
     features
 }
+
+/// The phone may send `gitDiscardFiles`.
+const GIT_DISCARD_FILES_FEATURE: &str = "gitDiscardFiles";
 
 /// The phone may send `restartService` / `stopService`.
 const SERVICE_RESTART_FEATURE: &str = "serviceRestart";
@@ -2949,9 +2956,9 @@ fn handle_msg(
                 json!({ "t": "status", "project": project, "status": list, "seen": seen }),
             )?;
         }
-        // Dismiss a finished agent status from the phone's Activity list — the same
-        // as the desktop's tab click, so every entry on that pane holding this
-        // value turns seen, or goes. The `status-changed` emit is what refreshes
+        // Dismiss a finished agent status the phone's terminal screen has shown —
+        // the same as the desktop's tab click, so every entry on that pane holding
+        // this value turns seen, or goes. The `status-changed` emit is what refreshes
         // the desktop and every other connected phone.
         "clearStatus" => {
             let project = str_field("project").unwrap_or_default();
@@ -3225,9 +3232,9 @@ fn handle_msg(
                                 .emit("remote-run-task", json!({ "project": copy, "task": task }));
                         }
                     } else {
-                        warning = Some(
-                            "Copies created, but open the lpm app on your Mac to run the task on them.".to_string(),
-                        );
+                        warning = Some(format!(
+                            "Copies created, but open the lpm app on your {MACHINE} to run the task on them."
+                        ));
                     }
                 }
                 if let Some(e) = err {
@@ -3317,7 +3324,7 @@ fn handle_msg(
                 send(
                     ws,
                     json!({ "t": "runAction", "ok": false, "project": project,
-                    "error": "Open the lpm app on your Mac to run actions." }),
+                    "error": format!("Open the lpm app on your {MACHINE} to run actions.") }),
                 )?;
             } else {
                 if !project.is_empty() && !action.is_empty() {
@@ -3415,7 +3422,7 @@ fn handle_msg(
                 send(
                     ws,
                     json!({ "t": "newTerminal", "ok": false, "project": project,
-                    "error": "Open the lpm app on your Mac to open a new terminal." }),
+                    "error": format!("Open the lpm app on your {MACHINE} to open a new terminal.") }),
                 )?;
             } else {
                 if !project.is_empty() {
@@ -3442,7 +3449,7 @@ fn handle_msg(
                 send(
                     ws,
                     json!({ "t": "resumeSession", "ok": false, "project": project,
-                    "error": "Open the lpm app on your Mac to resume a session." }),
+                    "error": format!("Open the lpm app on your {MACHINE} to resume a session.") }),
                 )?;
             } else {
                 if let Some(resume) = resume.filter(|_| !project.is_empty()) {
@@ -3869,6 +3876,26 @@ fn handle_msg(
                     json!({ "t": "gitDiscardAll", "project": project, "ok": false, "error": e }),
                 )?,
             }
+        }
+        // One file's Discard from the phone's review, kept for Undo like Discard all.
+        "gitDiscardFiles" => {
+            let project = str_field("project").unwrap_or_default();
+            let paths: Vec<String> = v
+                .get("paths")
+                .and_then(Value::as_array)
+                .map(|a| a.iter().filter_map(Value::as_str).map(String::from).collect())
+                .unwrap_or_default();
+            let reply = match config::project_root(&project) {
+                Ok(_) if paths.is_empty() => Err("Pick a file to discard.".to_string()),
+                Ok((cwd, _)) => crate::git::git_discard_files(cwd, paths.clone()),
+                Err(e) => Err(e),
+            };
+            let mut out = json!({ "t": "gitDiscardFiles", "project": project, "paths": paths, "ok": reply.is_ok() });
+            match reply {
+                Ok(undo) => out["undo"] = json!(undo),
+                Err(e) => out["error"] = json!(e),
+            }
+            send(ws, out)?;
         }
         // Undo for a phone's Discard all: puts back the copy its reply named.
         "gitRestoreDiscarded" => {
@@ -4758,6 +4785,7 @@ fn handle_msg(
             crate::remote_answers::handle(out, &v, session)
         }
         "answerAgent" => answer::handle(hub, app, out, &v),
+        "agentDialog" => send(ws, dialog::reply(hub, app, &v))?,
         "limitReminders" | "setLimitReminder" | "clearLimitReminder" => {
             send(ws, reminders::handle(app, t, &v))?;
         }

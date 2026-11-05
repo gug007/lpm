@@ -4,6 +4,7 @@ import { PeerInvoke } from "../../bridge/commands";
 import { readHostClaude, translatePool, type MachineClaudeAccounts } from "../peer/hostClaude";
 import { subscribeEveryPeer, watchConnectedPeers } from "../peer/route";
 import { announceSwitch, type ClaudePool, type Switched } from "./claudePool";
+import { MACHINE } from "../machineWords";
 
 // Each connected machine's Claude accounts, read from it and kept current by the
 // pool changes it forwards, so a project's menu, Settings and the sidebar's notes
@@ -88,7 +89,7 @@ const offPool = subscribeEveryPeer("claude-pool-changed", (slug, raw) => {
 const offSwitched = subscribeEveryPeer("claude-account-switched", (slug, raw) => {
   const s = raw as Switched;
   const { machines, aliases } = useMachineClaudeStore.getState();
-  const where = `${s.project ? ` in ${s.project}` : ""} on ${aliases[slug] ?? "another Mac"}`;
+  const where = `${s.project ? ` in ${s.project}` : ""} on ${aliases[slug] ?? MACHINE.anotherMachine}`;
   announceSwitch(s, machines[slug]?.pool ?? null, where, machines[slug]?.accounts);
 });
 

@@ -1,6 +1,7 @@
 package cx.lpm.mobile.core.protocol
 
 import cx.lpm.mobile.core.model.ActionBgOutput as BgOutput
+import cx.lpm.mobile.core.model.AgentDialogRead
 import cx.lpm.mobile.core.model.AgentOption
 import cx.lpm.mobile.core.model.AgentSessionsPage
 import cx.lpm.mobile.core.model.AgentStats
@@ -298,6 +299,15 @@ sealed interface Inbound {
         Inbound
 
     data class GitRestoreDiscarded(val project: String, val error: String?) : Inbound
+
+    /** Discard of just [paths] (echoed); [undo] as for [GitDiscardAll]. */
+    data class GitDiscardFiles(
+        val project: String,
+        val paths: List<String>,
+        val undo: String?,
+        val error: String?
+    ) : Inbound
+
     data class GitChanged(val project: String) : Inbound
 
     // Commit history: a page of the branch's commits, one commit's files and one
@@ -348,6 +358,9 @@ sealed interface Inbound {
     data class ApnsToken(val ok: Boolean) : Inbound
     data class PushToken(val ok: Boolean) : Inbound
     data class AnswerAgent(val reqId: String, val error: String?) : Inbound
+
+    // The dialog a waiting agent's terminal shows, if any.
+    data class AgentDialog(val read: AgentDialogRead) : Inbound
     data class LiveActivity(val ok: Boolean) : Inbound
     data class ComposerActions(val actions: List<ComposerAction>) : Inbound
 

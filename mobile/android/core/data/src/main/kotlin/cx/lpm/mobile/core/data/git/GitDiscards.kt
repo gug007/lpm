@@ -2,17 +2,20 @@ package cx.lpm.mobile.core.data.git
 
 import cx.lpm.mobile.core.data.client.LpmClient
 import cx.lpm.mobile.core.data.client.gitDiscardAll
+import cx.lpm.mobile.core.data.client.gitDiscardFiles
 import cx.lpm.mobile.core.data.client.gitRestoreDiscarded
 import cx.lpm.mobile.core.data.session.GenerationTimeout
 import cx.lpm.mobile.core.data.session.MacSession
+import cx.lpm.mobile.core.model.lastPathComponent
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 
 /**
- * Discard all changes, and its Undo ([GitStore]'s half, iOS `GitReviewStore+Discard`):
- * the Mac keeps a copy for 7 days and names it in the reply, so the notice can offer
- * to put it back. A Mac that keeps no copy (nothing to keep, or an older Mac) gets no
- * Undo. Failures land in [GitState.opError]; [reload] refreshes the snapshot.
+ * Discard all changes, Discard of one file, and their Undo ([GitStore]'s half, iOS
+ * `GitReviewStore+Discard`): the Mac keeps a copy for 7 days and names it in the
+ * reply, so the notice can offer to put it back. A Mac that keeps no copy (nothing to
+ * keep, or an older Mac) gets no Undo. Failures land in [GitState.opError]; [reload]
+ * refreshes the snapshot.
  */
 internal class GitDiscards(
     private val session: MacSession,
@@ -33,10 +36,29 @@ internal class GitDiscards(
         c.onGitRestoreDiscarded = { project, error ->
             finish(GitOpCopy.RestoreDiscarded, project, error)
         }
+        c.onGitDiscardFiles = { project, paths, undo, error ->
+            finish(GitOpCopy.Discard, project, error)
+            if (error == null) {
+                val name = paths.singleOrNull()?.let(::lastPathComponent) ?: "${paths.size} files"
+                notices.show(
+                    project,
+                    GitNotice("Discarded changes to $name", undo),
+                    if (undo == null) GitNotices.NOTICE_MS else GitNotices.UNDO_NOTICE_MS
+                )
+            }
+        }
     }
+
+    /** The Mac discards one file's changes and keeps a copy, as for Discard all. */
+    val canDiscardFiles: Boolean
+        get() = client?.hostFeatures?.contains(LpmClient.GIT_DISCARD_FILES_FEATURE) == true
 
     fun discardAll(project: String) = start(GitOpCopy.Discard, project) {
         it.gitDiscardAll(project)
+    }
+
+    fun discardFile(project: String, path: String) = start(GitOpCopy.Discard, project) {
+        it.gitDiscardFiles(project, listOf(path))
     }
 
     /** Undo on the discard's notice: put back the copy the Mac kept ([GitNotice.undo]). */

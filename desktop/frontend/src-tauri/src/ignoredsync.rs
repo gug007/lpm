@@ -9,6 +9,7 @@ use crate::gitbring::lock_landing;
 use crate::ignoredkeep::{self, SyncList};
 use crate::ignoredrun::{changed, copy, on_all, on_both, Remote, Side};
 use crate::peerclient::{PeerClientHub, IGNORED_SYNC_UNSUPPORTED, PEER_NOT_CONNECTED};
+use crate::sys::MACHINE;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -92,7 +93,7 @@ pub fn ignored_sync_list(
     let mut found = on_all(&sides, |side| side.list(&dir)).into_iter();
     let local = found
         .next()
-        .unwrap_or_else(|| Err("reading this Mac failed".into()));
+        .unwrap_or_else(|| Err(format!("reading this {MACHINE} failed")));
     let origin = |r: &Result<crate::ignoredscan::Listing, String>| {
         r.as_ref().ok().and_then(|l| l.origin.clone())
     };

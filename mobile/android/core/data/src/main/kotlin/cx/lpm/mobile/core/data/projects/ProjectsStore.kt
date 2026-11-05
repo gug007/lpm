@@ -368,12 +368,6 @@ class ProjectsStore(internal val session: MacSession) : SessionStore {
         delay(REFRESH_SETTLE_MS)
     }
 
-    /** Dismiss a finished agent status; the row goes on the tap, not the round trip. */
-    fun clearAgentStatus(project: String, paneId: String, value: String) {
-        if (paneId.isEmpty() || value.isEmpty()) return
-        dropAgentStatus(project, paneId, setOf(value))
-    }
-
     /**
      * Retire the finish or problem a terminal shows once the user looks at it, as
      * clicking its tab does on the desktop. A wait stays: the agent still asks.

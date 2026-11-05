@@ -11,7 +11,7 @@ data class AutomationsKey(val project: String? = null, val session: SessionKey =
 
 /**
  * One automation's page, opened for `project` (the list's project, the one a
- * notification or Activity row names, or the job's first target).
+ * notification names, or the job's first target).
  */
 @Serializable
 data class AutomationKey(

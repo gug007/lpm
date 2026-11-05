@@ -6,6 +6,7 @@ import {
   ShieldCheck,
   SquareTerminal,
 } from "lucide-react";
+import { STATUS_AGENT_NAMES } from "@/lib/app-facts";
 import { CONNECT_AGENTS_PATH } from "@/lib/links";
 import type { FeatureArea } from "./feature-types";
 
@@ -54,7 +55,7 @@ export const CLI_AREA: FeatureArea = {
     },
     {
       title: "lpm logs · lpm status",
-      body: "Print a service's recent output, or each Claude Code, Codex, Gemini CLI, and Cursor CLI session's state and how long it has lasted, plus any status posted with lpm set-status.",
+      body: `Print a service's recent output, or each ${STATUS_AGENT_NAMES} session's state and how long it has lasted, plus any status posted with lpm set-status.`,
       mono: true,
     },
     {

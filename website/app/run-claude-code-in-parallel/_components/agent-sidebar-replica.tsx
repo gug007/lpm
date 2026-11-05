@@ -72,7 +72,7 @@ function Banner() {
 function Sidebar() {
   return (
     <div className="flex w-full shrink-0 flex-col gap-px px-1.5 pb-3 pt-2.5 sm:w-[16.5rem] sm:border-r sm:border-[#262626] sm:bg-[#161616]">
-      <span className="px-2.5 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500">
+      <span className="px-2.5 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#919191]">
         Projects
       </span>
       {PROJECTS.map((project) => (
@@ -109,7 +109,7 @@ function Sidebar() {
                 <span className={`h-3 w-3 shrink-0 ${STATE_TONE[agent.state]}`}>
                   {Mark && <Mark className="h-3 w-3" strokeWidth={2.25} />}
                 </span>
-                <span className="w-10 shrink-0 text-right text-[10.5px] tabular-nums text-gray-500">
+                <span className="w-10 shrink-0 text-right text-[10.5px] tabular-nums text-[#919191]">
                   {agent.elapsed}
                 </span>
               </div>

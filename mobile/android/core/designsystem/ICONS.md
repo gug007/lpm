@@ -29,9 +29,8 @@ the iPhone screenshots). An icon-only control keeps the accessible name iOS give
 | `magnifyingglass` | `search` | 22 dp | `SearchField` | |
 | `xmark` | `close` | 24 dp | close buttons | |
 | `xmark.circle.fill` | `cancel` (fill) | 20 dp | search field clear ("Clear text") | |
-| `checkmark` | `check` | 22 dp | picked option in menus (`iconDescription`) | "selected" |
+| `checkmark` | `check` | 22 dp, 16 dp | picked option in menus (`iconDescription`), "Sent" on an agent's question | "selected" |
 | `bolt` | `bolt` | 28 dp toolbar, 22 dp in rows | actions button, background-run rows | |
-| `square.3.layers.3d` | `stacks` | 27 dp | Activity group-by button | |
 | `play.circle` | `play_circle` | 20 dp | "No Mac nearby? Try the demo" | |
 | `play.circle.fill` | `play_circle` (fill) | 18 dp | demo banner | |
 | `play.rectangle.fill` | `smart_display` (fill) | 24 dp | "Watch how to connect" | |
@@ -53,10 +52,10 @@ the iPhone screenshots). An icon-only control keeps the accessible name iOS give
 | `sun.max` / `moon` | `light_mode` / `dark_mode` | 22 dp | Theme "Light" / "Dark" | |
 | `speaker.wave.2` | `volume_up` | 26 dp | Read aloud | |
 | `bell.badge` | `notifications_unread` | 26 dp | Notifications | |
-| `server.rack` | `dns` | 22 dp | Activity service card, machine section header, offline machine | |
+| `server.rack` | `dns` | 22 dp | machine section header, offline machine | |
 | `wifi` | `wifi` | 22 dp | "Pairing for this Wi-Fi only", home address | |
 | `qrcode.viewfinder` | `qr_code_scanner` | 24 dp | "Scan QR code" | |
-| `keyboard` | `keyboard_alt` | 24 dp | "Enter a code" | |
+| `keyboard` | `keyboard_alt` | 24 dp, 18 dp | "Enter a code", a typed option of an agent's question | |
 | `lock.shield` | `shield_lock` | 24 dp | Local Network access off | |
 | `desktopcomputer` | `desktop_mac` | 26 dp, 22 dp in menus and headers, 17 dp in the @ menu | nearby Mac, saved Mac, Mac switcher row, machine section header, a place on another computer in the @ menu | |
 | `hourglass` | `hourglass` | 44 dp | "Mac is busy" | |
@@ -72,7 +71,7 @@ the iPhone screenshots). An icon-only control keeps the accessible name iOS give
 | `arrow.clockwise` | `refresh` | 22 dp | "Test again", an automation row's Retry swipe | |
 | `point.3.connected.trianglepath.dotted` | `device_hub` | 22 dp | "Addresses", relay issues | |
 | `macbook.and.iphone` | `devices` | 22 dp | "Pair again" | |
-| `trash` | `delete` | 22–24 dp | "Remove from this phone", Remove, Delete folder, Discard All Changes…, config list swipe "Delete" | |
+| `trash` | `delete` | 22–24 dp | "Remove from this phone", Remove, Delete folder, Discard All Changes…, a file's Discard Changes…, config list swipe "Delete" | |
 | `person.crop.circle.badge.checkmark` | `person_check` | 22 dp | "Sign in with Tailscale" | |
 | `house` | `home` | 18 dp | name on your network | |
 | `globe` | `public` | 18 dp | internet address | |
@@ -88,7 +87,7 @@ the iPhone screenshots). An icon-only control keeps the accessible name iOS give
 | `iphone.slash` | `mobile_off` | 18 dp | remote control off | |
 | `play.fill` | `play_arrow` (fill) | 22 dp | Start (project menu) | |
 | `xmark.circle` | `cancel` | 22 dp | Exit Demo, Clear status | |
-| `square.stack.3d.up` | `layers` | 22 dp | Activity (projects "…" menu) | |
+| `square.stack.3d.up` | `layers` | 17 dp | service logs mention | |
 | `chart.bar` | `bar_chart` | 22 dp | Stats | |
 | `speedometer` | `speed` | 22 dp | Usage | |
 | `gearshape` | `settings` | 22 dp | Settings | |
@@ -107,7 +106,7 @@ the iPhone screenshots). An icon-only control keeps the accessible name iOS give
 | `bell` / `bell.fill` (usage) | `notifications` / `notifications` (fill) | 18 dp | a usage meter's reset reminder | "Remind me when the <window> limit resets" |
 | `faceid` | `lock` | 52 dp | the app lock's cover | |
 | `exclamationmark.circle.fill` | `error` (fill) | text size | agent problem | |
-| `exclamationmark.circle` | `error` | 14 dp, 56 dp | queued action not sent, invalid configuration | |
+| `exclamationmark.circle` | `error` | 14 dp, 16 dp, 56 dp | queued action not sent, a pick from an agent's question that didn't land, invalid configuration | |
 | `clock` | `schedule` | 14 dp | queued action waiting | |
 | `doc.on.doc` | `content_copy` | 22 dp | Copy Branch Name | |
 | `arrow.triangle.pull` | `merge` | 22 dp | Create Pull Request… | |
@@ -153,9 +152,6 @@ the iPhone screenshots). An icon-only control keeps the accessible name iOS give
 | `pause.fill` | `pause` (fill) | 22–24 dp | Turn off (automation rows) | |
 | `power` | `power_settings_new` | 22–24 dp | Turn on (automation rows, run bar) | |
 | `clock.badge.questionmark` | `history_toggle_off` | 56 dp | "Automation not found" | |
-| `square.stack.3d.up.fill` | `stacks` (fill) | 27 dp | Activity group-by button while grouped | |
-| `questionmark` | `question_mark` | 24 dp | Activity swipe "Why?" | |
-| `arrow.up.arrow.down` | `swap_vert` | 15 dp | Activity "sort now" | |
 | `nosign` | `block` | 30 dp | action color picker "No color" | |
 | `square.and.pencil` (Notes bar) | `edit_square` | 24 dp toolbar, 56 dp empty chat | "New Chat", "No notes here yet" | "New Chat" |
 | `note.text` (empty notebook) | `article` | 56 dp | "No notes yet" | |

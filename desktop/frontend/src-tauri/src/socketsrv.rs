@@ -42,6 +42,7 @@
 use crate::ipc::{UnixListener, UnixStream};
 use crate::jobsocket::job_ref;
 use crate::status::{now_millis, StatusEntry, StatusStore};
+use crate::sys::MACHINE;
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
 use std::sync::Arc;
@@ -615,10 +616,9 @@ fn cmd_duplicate_project(
                 );
             }
         } else {
-            warning = Some(
-                "Copies created, but open the lpm app on your Mac to run the task on them."
-                    .to_string(),
-            );
+            warning = Some(format!(
+                "Copies created, but open the lpm app on your {MACHINE} to run the task on them."
+            ));
         }
     }
     if let Some(e) = err {

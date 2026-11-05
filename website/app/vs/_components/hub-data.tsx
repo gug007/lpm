@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { FaqItem } from "@/components/vs/faq";
+import { STATUS_AGENT_CHOICES } from "@/lib/app-facts";
 import { vsPath } from "@/lib/links";
 
 const LINK =
@@ -116,14 +117,13 @@ export const HUB_FAQ: FaqItem[] = [
         Claude Code and Codex a click away in every project from the first
         launch, offers Gemini CLI
         and OpenCode when they are installed, opens each agent in its own tab
-        alongside the running services, marks a Claude Code, Codex, Gemini CLI
-        or Cursor CLI tab working, needs-you or done as the agent goes, and can copy the whole
+        alongside the running services, marks a {STATUS_AGENT_CHOICES} tab
+        working, needs-you or done as the agent goes, and can copy the whole
         project so two agents never edit the same files. The rest are process
         runners with no opinion about agents.
       </>
     ),
-    answerText:
-      "cmux and lpm, and as of September 2026 iTerm2 has a Claude Code integration too. cmux is built around agent sessions in the terminal. lpm puts Claude Code and Codex a click away in every project from the first launch, offers Gemini CLI and OpenCode when they are installed, opens each agent in its own tab alongside the running services, marks a Claude Code, Codex, Gemini CLI or Cursor CLI tab working, needs-you or done as the agent goes, and can copy the whole project so two agents never edit the same files. The rest are process runners with no opinion about agents.",
+    answerText: `cmux and lpm, and as of September 2026 iTerm2 has a Claude Code integration too. cmux is built around agent sessions in the terminal. lpm puts Claude Code and Codex a click away in every project from the first launch, offers Gemini CLI and OpenCode when they are installed, opens each agent in its own tab alongside the running services, marks a ${STATUS_AGENT_CHOICES} tab working, needs-you or done as the agent goes, and can copy the whole project so two agents never edit the same files. The rest are process runners with no opinion about agents.`,
   },
   {
     question: "Can I run more than one of these at once?",

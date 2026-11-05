@@ -58,20 +58,6 @@ extension AppModel {
         }
     }
 
-    /// The live Mac's connected machines with their projects, as Activity and the
-    /// ambient badge count them.
-    var activityMachines: [ActivityMachine] {
-        listedMachineSections.map {
-            ActivityMachine(slug: $0.machine.slug, name: $0.machine.name, projects: $0.machine.projects ?? [])
-        }
-    }
-
-    /// Every project whose agents the ambient badge counts: the Mac's own and its
-    /// connected machines'.
-    var ambientProjects: [Project] {
-        projects + activityMachines.flatMap(\.projects)
-    }
-
     func switchToMachine(_ section: MachineSection) {
         guard let record = section.record ?? recordThroughLiveMac(section, saving: true) else { return }
         pendingNotificationTarget = nil

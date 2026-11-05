@@ -25,6 +25,10 @@ extension DemoServer {
             self?.push(["t": "liveActivity", "ok": true])
         }
         register("answerAgent") { [weak self] o in
+            if o["action"] as? String == "pick" {
+                self?.answerDemoDialog(o)
+                return
+            }
             var reply: [String: Any] = ["t": "answerAgent", "ok": true]
             reply["reqId"] = o["reqId"]
             self?.push(reply)

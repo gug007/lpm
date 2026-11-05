@@ -46,7 +46,7 @@ export default function Setup() {
             <li key={title} className="relative">
               <span
                 aria-hidden="true"
-                className="block text-5xl font-bold tabular-nums text-gray-200 dark:text-gray-800 leading-none select-none mb-4"
+                className="block text-5xl font-bold tabular-nums text-gray-500/80 dark:text-gray-500 leading-none select-none mb-4"
               >
                 {String(i + 1).padStart(2, "0")}
               </span>
@@ -57,7 +57,7 @@ export default function Setup() {
                 {body}
               </p>
               {path && (
-                <p className="mt-3 flex flex-wrap items-center gap-1 text-[10px] font-mono text-gray-500 dark:text-gray-400">
+                <p className="mt-3 flex flex-wrap items-center gap-1 text-[10px] font-mono text-gray-600 dark:text-gray-400">
                   {path.map((crumb, j) => (
                     <Fragment key={crumb}>
                       {j > 0 && (

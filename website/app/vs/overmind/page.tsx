@@ -205,8 +205,8 @@ export default function OvermindVsPage() {
       />
       <ComparisonHero
         eyebrow="lpm vs Overmind"
-        title="An Overmind alternative for Mac — your Procfile as live panes, no tmux."
-        description="Overmind runs each Procfile line as a tmux window and asks you to install tmux first. lpm imports the same named commands and runs them as panes in a Mac app: click one to read its output, stop or restart one without the rest, start them in dependsOn order."
+        title="An Overmind alternative — your Procfile as live panes, no tmux."
+        description="Overmind runs each Procfile line as a tmux window and asks you to install tmux first. lpm imports the same named commands and runs them as panes in a desktop app: click one to read its output, stop or restart one without the rest, start them in dependsOn order."
         verdictLine="Five rows go to Overmind. If any of them is load-bearing for you, stay where you are."
         jumpHref="#procfile"
         jumpLabel="See the Procfile conversion"

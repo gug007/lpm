@@ -410,6 +410,12 @@ class LpmClient internal constructor(
         // A folder name in `lpmCommandFolder` may be a path, `Parent/Child`.
         const val LPM_NESTED_FOLDERS_FEATURE = "lpmNestedFolders"
 
+        // `agentDialog`, and `answerAgent` with `action: "pick"`.
+        const val AGENT_DIALOG_FEATURE = "agentDialog"
+
+        // `gitDiscardFiles`: Discard Changes… on one file of the review.
+        const val GIT_DISCARD_FILES_FEATURE = "gitDiscardFiles"
+
         const val OFFLINE_HINT =
             "Can't reach your Mac. On cellular, make sure Tailscale is connected on both devices."
 

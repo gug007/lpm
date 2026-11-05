@@ -1,3 +1,5 @@
+import { STATUS_AGENTS } from "@/lib/app-facts";
+
 export type ToolKey =
   | "lpm"
   | "iterm2"
@@ -108,7 +110,7 @@ export const TOOL_ROWS: ToolRow[] = [
   },
   {
     label: "Says whether an agent is working, needs you or done",
-    lpm: "Claude Code, Codex, Gemini CLI, Cursor CLI",
+    lpm: STATUS_AGENTS.join(", "),
     iterm2: "Claude Code, since 3.7",
     tmux: false,
     cmux: "when it needs you",

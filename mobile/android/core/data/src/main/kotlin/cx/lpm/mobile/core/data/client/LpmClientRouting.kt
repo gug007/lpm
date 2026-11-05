@@ -199,6 +199,9 @@ private fun LpmClientCallbacks.routeGitAndMore(frame: Inbound) {
 
         is Inbound.GitRestoreDiscarded -> onGitRestoreDiscarded?.invoke(frame.project, frame.error)
 
+        is Inbound.GitDiscardFiles ->
+            onGitDiscardFiles?.invoke(frame.project, frame.paths, frame.undo, frame.error)
+
         is Inbound.GitChanged -> onGitChanged?.invoke(frame.project)
 
         is Inbound.GitHistory ->
@@ -243,7 +246,12 @@ private fun LpmClientCallbacks.routeGitAndMore(frame: Inbound) {
 
         is Inbound.PushToken -> onPushToken?.invoke(frame.ok)
 
-        is Inbound.AnswerAgent -> onAnswerAgent?.invoke(frame.reqId, frame.error)
+        is Inbound.AnswerAgent ->
+            if (onAgentDialogAnswer?.invoke(frame.reqId, frame.error) != true) {
+                onAnswerAgent?.invoke(frame.reqId, frame.error)
+            }
+
+        is Inbound.AgentDialog -> onAgentDialog?.invoke(frame.read)
 
         is Inbound.LiveActivity -> onLiveActivity?.invoke(frame.ok)
 

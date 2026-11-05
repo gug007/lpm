@@ -41,7 +41,11 @@ export function DevicesCapabilities() {
         Also in the iPhone app
       </h3>
       {/* A row that scrolls sideways until all five fit side by side. */}
-      <ul className="scrollbar-none -mx-4 mt-6 flex snap-x snap-mandatory gap-5 overflow-x-auto px-4 pb-2 sm:mt-7 lg:mx-0 lg:grid lg:grid-cols-5 lg:overflow-visible lg:px-0">
+      <ul
+        tabIndex={0}
+        aria-label="Also in the iPhone app"
+        className="scrollbar-none -mx-4 mt-6 flex snap-x snap-mandatory gap-5 overflow-x-auto px-4 pb-2 sm:mt-7 lg:mx-0 lg:grid lg:grid-cols-5 lg:overflow-visible lg:px-0"
+      >
         {SCREENS.map(({ src, title, body, alt }) => (
           <li
             key={src}

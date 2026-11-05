@@ -158,7 +158,6 @@ private fun ProjectsHeader(
         LpmTopBar(
             trailing = {
                 ProjectsMoreButton(
-                    badge = state.badge,
                     automationsUnread = state.automationsUnread,
                     actions = menuActions
                 )

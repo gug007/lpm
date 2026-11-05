@@ -1,3 +1,5 @@
+import { MACHINE } from "../machineWords";
+
 // Pure decision for what (if anything) an auto-sync run should tell the user.
 //
 // Auto-sync runs unattended, so the only runs worth interrupting for are the two
@@ -26,9 +28,9 @@ export const ERROR_TOAST_GAP_MS = 3 * 60_000;
 
 function conflictMessage(conflicts: string[]): string {
   if (conflicts.length === 1) {
-    return `'${conflicts[0]}' changed on both Macs — kept one version. Backup saved.`;
+    return `'${conflicts[0]}' changed on both ${MACHINE.plural} — kept one version. Backup saved.`;
   }
-  return `${conflicts.length} items changed on both Macs — kept one version of each. Backup saved.`;
+  return `${conflicts.length} items changed on both ${MACHINE.plural} — kept one version of each. Backup saved.`;
 }
 
 function errorMessage(peerName: string): string {

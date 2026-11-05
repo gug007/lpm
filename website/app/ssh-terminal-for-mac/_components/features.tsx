@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { FeatureCard } from "@/components/feature-card";
 import { SectionHeader } from "@/components/section-header";
+import { STATUS_AGENT_NAMES } from "@/lib/app-facts";
 
 type Feature = {
   icon: LucideIcon;
@@ -67,7 +68,7 @@ const FEATURES: Feature[] = [
   {
     icon: Bot,
     title: "Your agents report home",
-    body: "Open a terminal on the remote box and lpm sets up its agent status and skills there. Claude Code, Codex, Gemini CLI and Cursor CLI running on the server light up your Mac sidebar and send the same alerts as local agents.",
+    body: `Open a terminal on the remote box and lpm sets up its agent status and skills there. ${STATUS_AGENT_NAMES} running on the server light up your Mac sidebar and send the same alerts as local agents.`,
   },
   {
     icon: FolderTree,

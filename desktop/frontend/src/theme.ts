@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { useEventListener } from "./hooks/useEventListener";
 import { useSettingsStore } from "./store/settings";
+import { syncNativeTheme } from "./windowTheme";
 
 export type Theme = "light" | "dark" | "system";
 
@@ -30,6 +31,7 @@ export function useResolvedTheme(): "light" | "dark" {
 export function applyTheme(theme: Theme): boolean {
   const dark = isDarkTheme(theme);
   document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+  syncNativeTheme(theme);
   return dark;
 }
 

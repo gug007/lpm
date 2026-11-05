@@ -208,6 +208,9 @@ internal class DemoWorld(val clock: Clock) {
     val ciRerunAt = mutableMapOf<String, Long>() // project -> when its failed CI ran again, millis
     var gitDiscardNextId = 1
 
+    // Terminals whose sample question was answered: they wait on no dialog since.
+    var answeredDialogs: Set<String> = emptySet()
+
     // Jobs (automations)
 
     data class JobRun(

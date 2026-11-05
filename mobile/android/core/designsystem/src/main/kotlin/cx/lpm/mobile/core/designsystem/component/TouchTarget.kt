@@ -18,7 +18,7 @@ private val MinTouchTarget = 48.dp
  * accessibility) area grows to 48 dp: the inner half pads the content out to the
  * minimum, the outer half reports the content's own size to the parent.
  */
-internal class TouchTarget {
+class TouchTarget {
     private var slopX = 0
     private var slopY = 0
     private var outer = Constraints()
@@ -55,7 +55,8 @@ internal class TouchTarget {
         }
 }
 
-internal fun Modifier.clickableTarget(
+/** A click whose touch area [target] grows to 48 dp, the content keeping its own size. */
+fun Modifier.clickableTarget(
     target: TouchTarget,
     interactionSource: MutableInteractionSource,
     enabled: Boolean,

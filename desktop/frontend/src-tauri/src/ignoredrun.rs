@@ -6,6 +6,7 @@ use crate::ignoredhost::{read_piece, FRAME_BYTES};
 use crate::ignoredscan::{FileRec, Listing};
 use crate::ignoredwrite::{Batch, Piece};
 use crate::peerclient::PeerClientHub;
+use crate::sys::MACHINE;
 use base64::engine::general_purpose::STANDARD as B64;
 use base64::Engine;
 use serde_json::{json, Value};
@@ -95,7 +96,7 @@ pub(crate) fn on_both<T: Send>(
         let remote = f(there);
         let local = local
             .join()
-            .unwrap_or_else(|_| Err("reading this Mac failed".into()));
+            .unwrap_or_else(|_| Err(format!("reading this {MACHINE} failed")));
         (local, remote)
     })
 }

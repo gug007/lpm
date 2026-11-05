@@ -59,10 +59,7 @@ fun agentWidgetRows(
         }
 }
 
-/**
- * Every Mac's agents, most urgent first and the longest at it first within a state,
- * as Activity orders them.
- */
+/** Every Mac's agents, most urgent first and the longest at it first within a state. */
 fun agentWidgetItems(macs: List<AgentWidgetMac>): List<AgentWidgetItem> =
     macs.flatMap { mac -> mac.rows.map { AgentWidgetItem(mac.id, it) } }
         .sortedWith(

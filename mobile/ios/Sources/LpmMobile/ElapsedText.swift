@@ -24,7 +24,7 @@ struct ElapsedText: View {
 
     private func label(_ now: Int) -> some View {
         let millis = now - since
-        return Text(precise ? formatActivityDuration(max(0, millis) / 1000) : shortDuration(millis: millis))
+        return Text(precise ? formatDuration(max(0, millis) / 1000) : shortDuration(millis: millis))
             .monospacedDigit()
     }
 }

@@ -1,5 +1,6 @@
 import { Bot, Coins, Eye, FolderGit2, HardDrive, Network } from "lucide-react";
 import { SectionHeader } from "@/components/section-header";
+import { STATUS_AGENT_NAMES } from "@/lib/app-facts";
 
 const LIMITS = [
   {
@@ -10,7 +11,7 @@ const LIMITS = [
   {
     icon: Bot,
     title: "Not every agent reports or forks",
-    body: "Claude Code, Codex, Gemini CLI and Cursor CLI send lpm their Working, Needs you and Done states and get the sounds, banners and pushes, though Cursor CLI asks for approval without telling lpm, so it never shows Needs you. OpenCode runs fine in tabs, copies and worktrees but reports nothing, and only Claude Code and Codex can be forked.",
+    body: `${STATUS_AGENT_NAMES} send lpm their Working, Needs you and Done states and get the sounds, banners and pushes, though Cursor CLI asks for approval without telling lpm, so it never shows Needs you. Other agents run fine in tabs, copies and worktrees but report nothing unless they post their own status with lpm set-status, and only Claude Code and Codex can be forked.`,
   },
   {
     icon: Coins,

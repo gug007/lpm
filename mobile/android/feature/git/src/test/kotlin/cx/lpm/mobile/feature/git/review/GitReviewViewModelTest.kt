@@ -236,6 +236,25 @@ class GitReviewViewModelTest {
     }
 
     @Test
+    fun `discarding one file leaves the others and offers Undo`() = runTest {
+        val t = demoSession()
+        val vm = review(t)
+        assertTrue(vm.uiState.value.canDiscardFiles)
+        vm.discardFile("lib/payments.ts")
+        assertTrue(vm.uiState.value.discarding)
+        t.settle()
+
+        val state = vm.uiState.value
+        assertFalse(state.discarding)
+        assertEquals(paths - "lib/payments.ts", state.headers.map { it.path })
+        assertEquals("Discarded changes to payments.ts", state.notice?.text)
+        val undo = state.notice?.undo!!
+        vm.restoreDiscarded(undo)
+        t.settle()
+        assertEquals(paths.toSet(), vm.uiState.value.headers.map { it.path }.toSet())
+    }
+
+    @Test
     fun `coming back to the screen fetches what changed while it was away`() = runTest {
         val t = TestSession(this, setOf(SessionStore.Factory(::GitStore)))
         val socket = t.connectReady()

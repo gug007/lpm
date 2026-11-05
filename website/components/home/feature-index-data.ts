@@ -30,6 +30,7 @@ import {
   Workflow,
   type LucideIcon,
 } from "lucide-react";
+import { OTHER_STATUS_AGENT_NAMES } from "@/lib/app-facts";
 import {
   AI_AGENTS_PATH,
   AUTOMATIONS_PATH,
@@ -165,7 +166,7 @@ export const FEATURE_INDEX: IndexGroup[] = [
         href: STATUSLINE_PATH,
       },
     ],
-    note: "Slash commands, resume, fork and model switching are for Claude Code and Codex only; live status and alerts also cover Gemini CLI and Cursor CLI.",
+    note: `Slash commands, resume, fork and model switching are for Claude Code and Codex only; live status and alerts also cover ${OTHER_STATUS_AGENT_NAMES}.`,
   },
   {
     id: "ship",

@@ -13,7 +13,6 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation3.runtime.NavKey
-import cx.lpm.mobile.core.navigation.ActivityKey
 import cx.lpm.mobile.core.navigation.AddProjectKey
 import cx.lpm.mobile.core.navigation.AutomationsKey
 import cx.lpm.mobile.core.navigation.ProjectKey
@@ -21,6 +20,7 @@ import cx.lpm.mobile.core.navigation.SettingsKey
 import cx.lpm.mobile.core.navigation.StatsKey
 import cx.lpm.mobile.core.navigation.TerminalKey
 import cx.lpm.mobile.core.navigation.UsageKey
+import cx.lpm.mobile.core.ui.HapticEffect
 import cx.lpm.mobile.feature.projects.ProjectsSlots
 import cx.lpm.mobile.feature.projects.ui.LightStatusBarIcons
 import cx.lpm.mobile.feature.projects.ui.SessionAlertsHost
@@ -56,6 +56,7 @@ fun ProjectsRoute(
         }
     }
     LightStatusBarIcons(light = state.demoMode)
+    HapticEffect(state.dialogFeedback)
 
     ProjectsScreen(
         state = state,
@@ -70,7 +71,6 @@ fun ProjectsRoute(
         onExitDemo = viewModel::exitDemo,
         modifier = modifier,
         menuActions = ProjectsMenuActions(
-            activity = { onNavigate(ActivityKey) },
             automations = { onNavigate(AutomationsKey()) },
             stats = { onNavigate(StatsKey()) },
             usage = { onNavigate(UsageKey()) },
@@ -127,7 +127,11 @@ fun ProjectsRoute(
                 viewModel.markAgentUnread(project, row)
             },
             cancelQueued = viewModel::cancelQueued,
-            retryQueued = viewModel::retryQueued
+            retryQueued = viewModel::retryQueued,
+            followDialog = { project, terminal, key ->
+                viewModel.followDialog(project.name, terminal, key)
+            },
+            pickDialog = viewModel::pickDialog
         ),
         folderActions = FolderActions(
             toggle = viewModel::toggleFolder,

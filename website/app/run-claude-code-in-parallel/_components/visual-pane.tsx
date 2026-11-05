@@ -30,7 +30,7 @@ export default function VisualPane({ tabs, lines, className = "", children }: Pr
             className={`${tab.display ?? "flex"} min-w-0 ${tab.callout ? "max-w-[13rem]" : "max-w-[11rem]"} items-center gap-1.5 rounded-t-md px-2 py-1 text-[9px] sm:text-[10.5px] ${
               tab.active
                 ? "bg-[#1f1f1f] text-gray-100 ring-1 ring-inset ring-[#2d2d2d]"
-                : "text-gray-500"
+                : "text-[#919191]"
             }`}
           >
             <span className={`shrink-0 ${tab.glyphClass}`}>{tab.glyph}</span>

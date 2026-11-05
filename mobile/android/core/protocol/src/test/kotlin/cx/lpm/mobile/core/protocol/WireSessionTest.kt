@@ -1,5 +1,8 @@
 package cx.lpm.mobile.core.protocol
 
+import cx.lpm.mobile.core.model.AgentDialog
+import cx.lpm.mobile.core.model.AgentDialogOption
+import cx.lpm.mobile.core.model.AgentDialogRead
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
@@ -110,6 +113,30 @@ class WireSessionTest {
             """{ "t": "answerAgent", "project": "api", "terminalId": "t-1", "key": "k", "ts": 5,
                  "action": "reply", "text": "Ship it", "reqId": "r-2" }""",
             Wire.answerAgent("api", "t-1", "k", 5, "reply", "Ship it", "r-2")
+        )
+    }
+
+    @Test
+    fun agentDialogAsksForATerminalsDialogAndPicksFromIt() {
+        assertFrame(
+            """{ "t": "agentDialog", "project": "api", "terminalId": "t-1" }""",
+            Wire.agentDialog("api", "t-1")
+        )
+        val dialog = AgentDialog(
+            id = "0123456789abcdef",
+            question = "Run it?",
+            details = emptyList(),
+            options = listOf(
+                AgentDialogOption("1", "Yes", "", typed = false),
+                AgentDialogOption("2", "No", "", typed = false)
+            )
+        )
+        val read = AgentDialogRead("api", "t-1", "claude_code_t-1", 1792089000123, dialog)
+        assertFrame(
+            """{ "t": "answerAgent", "project": "api", "terminalId": "t-1", "key": "claude_code_t-1",
+                 "ts": 1792089000123, "action": "pick", "option": "2", "dialog": "0123456789abcdef",
+                 "reqId": "r-3" }""",
+            Wire.pickAgentDialog(read, "2", "r-3")
         )
     }
 

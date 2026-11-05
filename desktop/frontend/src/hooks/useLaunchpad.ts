@@ -10,6 +10,7 @@ import { peerSlugOf } from "../peer/markers";
 import type { RemoteAgentLaunch } from "../remoteAgentTabs";
 import type { ActionInfo } from "../types";
 import type { RunActionOpts } from "./useProjectActions";
+import { MACHINE } from "../machineWords";
 
 // The project a launchpad starts things in, and its actions to offer.
 export interface LaunchpadProject {
@@ -54,7 +55,9 @@ export function useLaunchpad(project: LaunchpadProject, targets: LaunchpadTarget
     // Attachments are saved on this Mac, where a paired Mac's agent can't
     // read them; its own tab's composer uploads them instead.
     if (value.images.length > 0 && peerSlugOf(project.name)) {
-      toast.error("Images can't go to a connected Mac from here. Start the agent, then attach them in its tab.");
+      toast.error(
+        `Images can't go to a connected ${MACHINE.noun} from here. Start the agent, then attach them in its tab.`,
+      );
       return false;
     }
     saveLaunchpadAction(option?.id ?? "terminal");

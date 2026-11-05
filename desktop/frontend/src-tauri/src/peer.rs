@@ -22,6 +22,7 @@
 // single-use pairing code, only sha256(token) stored, plaintext WebSocket bound
 // to loopback by default (LAN/tailnet is an explicit opt-in).
 use crate::ptyring::PtyRings;
+use crate::sys::MACHINE;
 use crate::{config, pty};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -2139,7 +2140,9 @@ fn dispatch_invoke(
         let _ = out.try_send(result_frame(
             &req_id,
             false,
-            Value::String("host UI unavailable — open the lpm app on the host Mac".to_string()),
+            Value::String(format!(
+                "host UI unavailable — open the lpm app on the host {MACHINE}"
+            )),
         ));
         return;
     }

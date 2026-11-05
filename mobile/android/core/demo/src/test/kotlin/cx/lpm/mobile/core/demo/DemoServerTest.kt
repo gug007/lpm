@@ -116,6 +116,6 @@ class DemoServerTest {
         "gitHistory", "gitCommitFiles", "gitCommitPatch", "gitChecks", "gitChecksRerun",
         "gitCommitChecks",
         "lpmCommands", "lpmCommandSave", "lpmCommandDelete", "lpmCommandFolder", "lpmCommandExpand",
-        "lpmCommandOtherFolder", "lpmCommandConvert"
+        "lpmCommandOtherFolder", "lpmCommandConvert", "agentDialog", "gitDiscardFiles"
     )
 }

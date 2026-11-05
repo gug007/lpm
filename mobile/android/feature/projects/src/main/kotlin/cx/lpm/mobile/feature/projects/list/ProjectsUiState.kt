@@ -1,5 +1,6 @@
 package cx.lpm.mobile.feature.projects.list
 
+import cx.lpm.mobile.core.data.agents.AgentDialogState
 import cx.lpm.mobile.core.data.link.ConnectionIssue
 import cx.lpm.mobile.core.data.link.LinkStatusLine
 import cx.lpm.mobile.core.data.link.MacReach
@@ -17,6 +18,7 @@ import cx.lpm.mobile.core.model.AgentState
 import cx.lpm.mobile.core.model.AppTip
 import cx.lpm.mobile.core.model.DuplicateOptions
 import cx.lpm.mobile.core.model.FoldedAgents
+import cx.lpm.mobile.core.model.HapticCue
 import cx.lpm.mobile.core.model.Project
 import cx.lpm.mobile.core.model.ProjectAgentRow
 import cx.lpm.mobile.core.model.ProjectFolder
@@ -51,11 +53,12 @@ data class ProjectsUiState(
     val folders: List<ProjectFolder> = emptyList(),
     val duplicateDefaults: DuplicateOptions = DuplicateOptions(),
     val duplicateProgress: DuplicateProgress? = null,
-    val badge: MoreBadge = MoreBadge.None,
     val automationsUnread: Int = 0,
     val workStatusMenu: List<WorkStatusChoice> = emptyList(),
     /** Agents archived here, held back behind Undo for a few seconds. */
-    val pendingArchive: PendingAgentArchive? = null
+    val pendingArchive: PendingAgentArchive? = null,
+    /** Felt when the Mac turns down an answer picked from an agent's question. */
+    val dialogFeedback: HapticCue? = null
 )
 
 data class RepairFooter(val device: String, val mac: String)
@@ -94,9 +97,6 @@ sealed interface MacStatus {
     data class Reach(val reach: MacReach?, val lastConnected: Instant?) : MacStatus
 }
 
-/** The dot on the "…" button: an agent waiting outranks automations with news. */
-enum class MoreBadge { None, NeedsYou, Problem, Automations }
-
 /**
  * One row of the projects list: a project (with its terminal deck), a folder, or one
  * of the live Mac's machines with its projects under it.
@@ -123,7 +123,12 @@ sealed interface ProjectsListRow {
         /** Pinned on the Mac; null when the Mac doesn't pin projects (no menu row). */
         val pinned: Boolean? = null,
         /** A row of the Pinned section: a way back, so its agents stay in its place below. */
-        val pinLink: Boolean = false
+        val pinLink: Boolean = false,
+        /**
+         * The question each waiting agent asks, once the Mac has read one, by status key;
+         * null when the live Mac doesn't read waiting agents' dialogs.
+         */
+        val asks: Map<String, AgentAsk>? = null
     ) : ProjectsListRow {
         override val key: String get() = (if (pinLink) "pin:" else "p:") + project.name
     }
@@ -205,7 +210,9 @@ data class RowInputs(
     /** The Mac archives agents and lists the seen ones it keeps. */
     val archivable: Boolean = false,
     /** The Mac pins projects: rows offer Pin to top / Unpin. */
-    val canPin: Boolean = false
+    val canPin: Boolean = false,
+    /** What the live Mac read off its waiting agents' terminals; null when it can't. */
+    val dialogs: AgentDialogState? = null
 )
 
 /**
@@ -278,6 +285,17 @@ private fun ProjectsState.projectEntry(
         seenExpanded = expanded,
         archivable = inputs.archivable,
         keepsFinished = inputs.archivable && keepFinishedAgents,
-        pinned = if (inputs.canPin) name in pins else null
+        pinned = if (inputs.canPin) name in pins else null,
+        asks = inputs.dialogs?.let { agents.rows.asks(it) }
     )
 }
+
+/** The questions the waiting agents among these rows ask, by status key. */
+private fun List<ProjectAgentRow>.asks(dialogs: AgentDialogState): Map<String, AgentAsk> =
+    mapNotNull { row ->
+        row.waitingTerminal?.let { dialogs.ask(it, row.id) }?.let { row.id to it }
+    }.toMap()
+
+/** The terminal of an agent waiting on the user, which may show a question to answer. */
+internal val ProjectAgentRow.waitingTerminal: String?
+    get() = terminalId?.takeIf { state == AgentState.NeedsYou }

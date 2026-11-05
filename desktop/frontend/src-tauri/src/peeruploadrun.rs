@@ -9,6 +9,7 @@
 // long enough to notice can be shown.
 use crate::gitbringapply::next_chunk;
 use crate::peerclient::PeerClientHub;
+use crate::sys::MACHINE;
 use crate::upload::basename;
 use base64::engine::general_purpose::STANDARD as B64;
 use base64::Engine;
@@ -56,7 +57,7 @@ fn plan(size: u64, name: &str, supports_chunks: bool) -> Plan {
         return Plan::SingleFrame;
     }
     Plan::Refuse(format!(
-        "{name} is {} MB — update lpm on the other Mac to send files over {} MB",
+        "{name} is {} MB — update lpm on the other {MACHINE} to send files over {} MB",
         size.div_ceil(1024 * 1024),
         LEGACY_MAX_BYTES / (1024 * 1024)
     ))
@@ -179,7 +180,7 @@ pub(crate) fn send_in_pieces(
         .unwrap_or_default()
         .to_string();
     if upload_id.is_empty() {
-        return Err(format!("the other Mac did not take {name}"));
+        return Err(format!("the other {MACHINE} did not take {name}"));
     }
     let chunk = begun.get("chunk").and_then(Value::as_u64).unwrap_or(0);
 
@@ -253,7 +254,7 @@ fn progress(app: &AppHandle, token: &str, name: &str, sent: u64, total: u64) {
 fn saved_path(v: &Value, name: &str) -> Result<String, String> {
     match v.as_str() {
         Some(p) if !p.is_empty() => Ok(p.to_string()),
-        _ => Err(format!("the other Mac did not save {name}")),
+        _ => Err(format!("the other {MACHINE} did not save {name}")),
     }
 }
 
@@ -282,7 +283,10 @@ mod tests {
         };
         assert!(why.contains("cp4500.zip"), "{why}");
         assert!(why.contains("20 MB"), "{why}");
-        assert!(why.contains("update lpm on the other Mac"), "{why}");
+        assert!(
+            why.contains(&format!("update lpm on the other {MACHINE}")),
+            "{why}"
+        );
         // Rounded up, so a file just over the cap never reads as being at it.
         let Plan::Refuse(just_over) = plan(LEGACY_MAX_BYTES + 1, "a.zip", false) else {
             panic!("one byte past the cap is still past it");

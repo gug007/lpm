@@ -2,6 +2,8 @@ package cx.lpm.mobile.feature.projects.list
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import cx.lpm.mobile.core.data.agents.AgentDialogState
+import cx.lpm.mobile.core.data.agents.AgentDialogStore
 import cx.lpm.mobile.core.data.automations.AutomationsState
 import cx.lpm.mobile.core.data.automations.AutomationsStore
 import cx.lpm.mobile.core.data.git.GitStore
@@ -30,13 +32,14 @@ import cx.lpm.mobile.core.data.session.SessionState
 import cx.lpm.mobile.core.data.terminals.TerminalsStore
 import cx.lpm.mobile.core.data.tips.TipsStore
 import cx.lpm.mobile.core.data.tips.firstOpen
+import cx.lpm.mobile.core.model.AgentDialogOption
+import cx.lpm.mobile.core.model.AgentDialogRead
 import cx.lpm.mobile.core.model.AppTip
 import cx.lpm.mobile.core.model.DuplicateOptions
 import cx.lpm.mobile.core.model.Project
 import cx.lpm.mobile.core.model.ProjectAgentRow
 import cx.lpm.mobile.core.model.ProjectFolder
 import cx.lpm.mobile.core.model.WorkStatusInput
-import cx.lpm.mobile.core.model.agentAmbient
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Clock
 import javax.inject.Inject
@@ -66,6 +69,7 @@ class ProjectsViewModel @Inject constructor(
     private val automations: AutomationsStore = session.store()
     private val machines: MachineImporter = session.store()
     private val git: GitStore = session.store()
+    private val dialogs: AgentDialogStore = session.store()
     private val expanded = MutableStateFlow<Map<String, Boolean>>(emptyMap())
     private val removing = MutableStateFlow<String?>(null)
 
@@ -73,6 +77,9 @@ class ProjectsViewModel @Inject constructor(
 
     private val link: Flow<Pair<LinkState, LinkView>> =
         combine(session.link.state, session.link.views, ::Pair)
+
+    private val listed: Flow<Pair<ProjectsState, AgentDialogState>> =
+        combine(projects.state, dialogs.state, ::Pair)
 
     private val extras: Flow<ListExtras> = combine(
         terminals.state,
@@ -87,11 +94,11 @@ class ProjectsViewModel @Inject constructor(
     val uiState: StateFlow<ProjectsUiState> = combine(
         session.state,
         link,
-        projects.state,
+        listed,
         feeds.listedSections,
         extras
-    ) { s, (linkState, view), p, sections, extras ->
-        buildState(s, linkState, view, p, sections, extras)
+    ) { s, (linkState, view), (p, asks), sections, extras ->
+        buildState(s, linkState, view, p, sections, extras, asks)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ProjectsUiState())
 
     /** The copy whose Remove is being confirmed: its git status, for the work only it has. */
@@ -124,7 +131,8 @@ class ProjectsViewModel @Inject constructor(
         view: LinkView,
         p: ProjectsState,
         sections: List<MachineSection>,
-        extras: ListExtras
+        extras: ListExtras,
+        asks: AgentDialogState
     ): ProjectsUiState {
         val ready = s.isReady
         val stale = link.listAsOf != null && !ready
@@ -138,11 +146,10 @@ class ProjectsViewModel @Inject constructor(
             machines = sections,
             activeMacId = s.activeMacId,
             archivable = projects.canArchiveAgents,
-            canPin = projects.canPinProjects
+            canPin = projects.canPinProjects,
+            dialogs = asks.takeIf { dialogs.available }
         )
         val rows = p.listRows(inputs)
-        // The badge counts the agents of the Mac's connected machines too.
-        val ambient = agentAmbient(p.projects + sections.flatMap { it.machine.projects.orEmpty() })
         val waiting = link.waitingCount
         val dragging = link.slowConnect && view.issue?.isConnecting == true
         return ProjectsUiState(
@@ -176,15 +183,10 @@ class ProjectsViewModel @Inject constructor(
             folders = p.groups,
             duplicateDefaults = p.duplicateDefaults,
             duplicateProgress = p.duplicateProgress,
-            badge = when {
-                ambient.needsYou > 0 -> MoreBadge.NeedsYou
-                ambient.isLit -> MoreBadge.Problem
-                jobs.unread > 0 -> MoreBadge.Automations
-                else -> MoreBadge.None
-            },
             automationsUnread = jobs.unread,
             workStatusMenu = p.workStatusMenu,
-            pendingArchive = p.pendingAgentArchive
+            pendingArchive = p.pendingAgentArchive,
+            dialogFeedback = asks.feedback
         )
     }
 
@@ -230,6 +232,12 @@ class ProjectsViewModel @Inject constructor(
 
     fun markAgentUnread(project: Project, row: ProjectAgentRow) =
         projects.markAgentUnread(row, project.name)
+
+    /** Ask for a waiting agent's dialog while its row is on screen. */
+    suspend fun followDialog(project: String, terminal: String, key: String) =
+        dialogs.follow(project, terminal, key)
+
+    fun pickDialog(read: AgentDialogRead, option: AgentDialogOption) = dialogs.pick(option, read)
 
     /** Open one of the Mac's machines, or another saved here, in place of the live Mac. */
     fun switchToMachine(slug: String) {

@@ -1,5 +1,8 @@
 package cx.lpm.mobile.core.protocol
 
+import cx.lpm.mobile.core.model.AgentDialog
+import cx.lpm.mobile.core.model.AgentDialogOption
+import cx.lpm.mobile.core.model.AgentDialogRead
 import cx.lpm.mobile.core.model.MacBuild
 import cx.lpm.mobile.core.model.MacUpdateStep
 import cx.lpm.mobile.core.model.USAGE_GENERIC_ERROR
@@ -115,6 +118,56 @@ class InboundSessionTest {
         )
         assertTrue(decode<Inbound.LiveActivity>("""{ "t": "liveActivity", "ok": true }""").ok)
         assertFalse(decode<Inbound.LiveActivity>("""{ "t": "liveActivity", "ok": false }""").ok)
+    }
+
+    @Test
+    fun agentDialogReadsTheWaitingReportAndItsChoices() {
+        val read = decode<Inbound.AgentDialog>(
+            """{ "t": "agentDialog", "project": "api", "terminalId": "t-1", "key": "claude_code_t-1",
+                 "ts": 1792089000123, "dialog": { "id": "0123456789abcdef", "question": "Run it?",
+                 "details": ["npm test", "in api/"],
+                 "options": [ { "key": "1", "label": "Yes", "description": "Run once", "typed": false },
+                              { "key": "", "label": "Dropped" },
+                              { "key": "2", "label": "Tell Claude what to do", "typed": true } ] } }"""
+        ).read
+        assertEquals(
+            AgentDialogRead(
+                project = "api",
+                terminalId = "t-1",
+                key = "claude_code_t-1",
+                ts = 1792089000123,
+                dialog = AgentDialog(
+                    id = "0123456789abcdef",
+                    question = "Run it?",
+                    details = listOf("npm test", "in api/"),
+                    options = listOf(
+                        AgentDialogOption("1", "Yes", "Run once", typed = false),
+                        AgentDialogOption("2", "Tell Claude what to do", "", typed = true)
+                    )
+                )
+            ),
+            read
+        )
+    }
+
+    @Test
+    fun agentDialogWithNothingToPickReadsAsNone() {
+        val idle = decode<Inbound.AgentDialog>(
+            """{ "t": "agentDialog", "project": "api", "terminalId": "t-1", "dialog": null }"""
+        ).read
+        assertEquals(AgentDialogRead("api", "t-1", "", 0, null), idle)
+        for (dialog in listOf(
+            """{ "question": "No id", "options": [ { "key": "1" }, { "key": "2" } ] }""",
+            """{ "id": "", "options": [ { "key": "1" }, { "key": "2" } ] }""",
+            """{ "id": "a", "options": [ { "key": "1", "label": "Only one" } ] }"""
+        )) {
+            val read = decode<Inbound.AgentDialog>(
+                """{ "t": "agentDialog", "project": "api", "terminalId": "t-1", "key": "k", "ts": 5,
+                     "dialog": $dialog }"""
+            ).read
+            assertEquals("k", read.key)
+            assertNull(dialog, read.dialog)
+        }
     }
 
     @Test

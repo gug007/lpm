@@ -11,8 +11,6 @@ const DEMO_ROUTES = `            case .usage:
                 UsageScreen()
             case .stats:
                 StatsScreen()
-            case .activity:
-                ActivityScreen()
             case .changes(let name):
                 if let p = model.projects.first(where: { $0.name == name }) {
                     GitReviewView(project: p)
@@ -27,7 +25,7 @@ const PATCHES = [
   ["Views.swift", "DemoBanner { model.exitDemo() }", "EmptyView()"],
   ["ConnectionIssue.swift", 'text: "Demo · sample projects"', 'text: "Connected · on your network"'],
   ["Views.swift", "private enum NotificationRoute: Hashable {\n",
-    "enum NotificationRoute: Hashable {\n    case usage, stats, activity\n    case changes(project: String)\n"],
+    "enum NotificationRoute: Hashable {\n    case usage, stats\n    case changes(project: String)\n"],
   ["Views.swift", "            case .automations:\n                AutomationsView()\n", DEMO_ROUTES],
   ["Views.swift", "            model.bootstrap()\n", "            model.bootstrap()\n            ShotDriver.start(model) { path = $0 }\n"],
   ["DemoWorld.swift", "        seedHistory(nowMs: nowMs)\n    }\n", "        seedHistory(nowMs: nowMs)\n        shotSeed()\n    }\n"],

@@ -115,7 +115,7 @@ private val claudeAcks = listOf(
     "$TEXT_DOT Got it — I'll take a look and keep the changes scoped to the checkout flow."
 )
 
-private fun DemoServer.claudeRespond(id: String) {
+internal fun DemoServer.claudeRespond(id: String) {
     val term = demoTerminal(id) ?: return
     val project = term.project
     val ack = claudeAcks[term.ackCount % claudeAcks.size]

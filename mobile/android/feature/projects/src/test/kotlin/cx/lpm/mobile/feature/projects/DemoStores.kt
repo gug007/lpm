@@ -1,6 +1,7 @@
 package cx.lpm.mobile.feature.projects
 
 import cx.lpm.mobile.core.data.actions.ActionsStore
+import cx.lpm.mobile.core.data.agents.AgentDialogStore
 import cx.lpm.mobile.core.data.agents.AgentLaunchStore
 import cx.lpm.mobile.core.data.automations.AutomationsStore
 import cx.lpm.mobile.core.data.claude.ClaudeAccountsStore
@@ -31,6 +32,7 @@ val ScreenStores: Set<SessionStore.Factory> = setOf(
     SessionStore.Factory(::UsageStore),
     SessionStore.Factory(::MachineImporter),
     SessionStore.Factory(::AgentLaunchStore),
+    SessionStore.Factory(::AgentDialogStore),
     SessionStore.Factory(::ProjectFilesStore),
     SessionStore.Factory(::LpmCommandsStore)
 )

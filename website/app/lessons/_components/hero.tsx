@@ -1,5 +1,6 @@
 import { ArrowUpRight, Play } from "lucide-react";
 import { formatLength } from "@/components/home/lesson-data";
+import { LatestRelease } from "@/components/latest-release";
 import { LESSON_CHAPTERS } from "@/lib/youtube-chapters";
 import { YOUTUBE_PLAYLIST_URL } from "@/lib/youtube-lessons";
 import { ALL_LESSONS_MINUTES, LESSON_IDS } from "./lesson-topics";
@@ -42,6 +43,7 @@ export default function Hero() {
             <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
           </a>
         </div>
+        <LatestRelease source="lessons-latest" className="mx-auto mt-8 max-w-xl" />
       </div>
     </section>
   );

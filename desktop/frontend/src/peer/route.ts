@@ -21,6 +21,7 @@ import {
   translatePeerEventPayload,
   translateResult,
 } from "./router";
+import { MACHINE } from "../machineWords";
 
 export { GLOBAL_PEER_EVENTS };
 
@@ -68,7 +69,7 @@ async function refreshPeers(): Promise<void> {
     peers = list.map((p) => ({
       slug: p.slug,
       connected: !!p.connected,
-      alias: p.alias || p.host || "another Mac",
+      alias: p.alias || p.host || MACHINE.anotherMachine,
     }));
     const present = new Set(peers.map((p) => p.slug));
     for (const slug of [...peerListCache.keys()]) {

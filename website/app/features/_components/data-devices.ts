@@ -6,6 +6,7 @@ import {
   Smartphone,
   SquareTerminal,
 } from "lucide-react";
+import { STATUS_AGENT_NAMES } from "@/lib/app-facts";
 import {
   LINUX_HOST_PATH,
   MAC_MINI_PATH,
@@ -38,7 +39,7 @@ export const DEVICES_AREA: FeatureArea = {
     {
       icon: SquareTerminal,
       title: "SSH projects",
-      body: "Add a project on any machine you can SSH into, picked from your SSH config or typed in. Its terminals, services, and actions run there, and Claude Code, Codex, Gemini CLI, and Cursor CLI report their status back.",
+      body: `Add a project on any machine you can SSH into, picked from your SSH config or typed in. Its terminals, services, and actions run there, and ${STATUS_AGENT_NAMES} report their status back.`,
       note: "lpm itself isn't installed on the server. SSH projects can't be duplicated.",
       href: SSH_TERMINAL_MAC_PATH,
       linkLabel: "The SSH terminal",
@@ -122,7 +123,7 @@ export const IPHONE_AREA: FeatureArea = {
       icon: BellRing,
       title: "Push notifications",
       body: "Get a push when an agent waits for you, finishes, or errors, and optionally when automations run. Content is encrypted on your computer and only your phone can read it.",
-      note: "Agent alerts come from Claude Code, Codex, Gemini CLI, and Cursor CLI.",
+      note: `Agent alerts come from ${STATUS_AGENT_NAMES}.`,
     },
     {
       icon: MessageSquareText,
@@ -132,8 +133,8 @@ export const IPHONE_AREA: FeatureArea = {
   ],
   features: [
     {
-      title: "Agent status and Activity",
-      body: "See each project's agents as Needs you, Working, Done, or Problem, and one Activity list of agents, automations, and running services.",
+      title: "Agent status",
+      body: "See each project's agents in the projects list as Needs you, Working, Done, or Problem, and open any of them with a tap.",
     },
     {
       title: "Start, stop, and run actions",

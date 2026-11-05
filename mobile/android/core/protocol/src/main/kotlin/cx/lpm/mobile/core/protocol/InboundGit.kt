@@ -14,6 +14,7 @@ import cx.lpm.mobile.core.model.int
 import cx.lpm.mobile.core.model.list
 import cx.lpm.mobile.core.model.obj
 import cx.lpm.mobile.core.model.string
+import cx.lpm.mobile.core.model.strings
 
 internal val gitParsers = parsers {
     put("git") { o ->
@@ -92,6 +93,14 @@ internal val gitParsers = parsers {
     }
     put("gitRestoreDiscarded") { o ->
         Inbound.GitRestoreDiscarded(o.str("project"), o.failure("Couldn't restore the changes."))
+    }
+    put("gitDiscardFiles") { o ->
+        Inbound.GitDiscardFiles(
+            project = o.str("project"),
+            paths = o.strings("paths").orEmpty(),
+            undo = if (o.ok) o.string("undo")?.takeIf { it.isNotEmpty() } else null,
+            error = o.failure("Couldn't discard the changes.")
+        )
     }
     put("git-changed") { o -> Inbound.GitChanged(o.str("project")) }
     put("gitHistory") { o ->

@@ -5,6 +5,7 @@
 use crate::gitbring::{check_cancelled, local_root, Done, Progress, Request};
 use crate::gitbringapply as ga;
 use crate::peerclient::PeerClientHub;
+use crate::sys::MACHINE;
 use base64::engine::general_purpose::STANDARD as B64;
 use base64::Engine;
 use serde_json::{json, Value};
@@ -74,11 +75,13 @@ fn receive_and_land(
     // before use: a reply of "--force" would otherwise be a flag, not a commit.
     let head = string_of(prepared, "head");
     if !ga::is_object_id(&head) {
-        return Err("the other Mac did not report a commit to bring".into());
+        return Err(format!(
+            "the other {MACHINE} did not report a commit to bring"
+        ));
     }
     let snapshot = match prepared.get("snapshot").and_then(Value::as_str) {
         Some(s) if ga::is_object_id(s) => Some(s.to_string()),
-        Some(_) => return Err("the other Mac sent an unusable change id".into()),
+        Some(_) => return Err(format!("the other {MACHINE} sent an unusable change id")),
         None => None,
     };
     let branch = ga::bring_branch(
@@ -161,7 +164,7 @@ fn download(
         };
         if bytes.is_empty() {
             let _ = std::fs::remove_file(&path);
-            return Err("the other Mac stopped sending the changes".into());
+            return Err(format!("the other {MACHINE} stopped sending the changes"));
         }
         if let Err(e) = file.write_all(&bytes) {
             let _ = std::fs::remove_file(&path);

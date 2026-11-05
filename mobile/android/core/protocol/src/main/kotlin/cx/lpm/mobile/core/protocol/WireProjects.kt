@@ -45,8 +45,8 @@ sealed interface WireProjects {
     fun status(project: String): String = frame("status") { put("project", project) }
 
     /**
-     * Dismiss a finished agent status from the Activity list. Clears every entry on
-     * `paneId` holding `value`, exactly like the desktop's tab-click dismiss.
+     * Dismiss a finished agent status. Clears every entry on `paneId` holding
+     * `value`, exactly like the desktop's tab-click dismiss.
      */
     fun clearStatus(project: String, paneId: String, value: String): String = frame("clearStatus") {
         put("project", project)

@@ -2,6 +2,7 @@ package cx.lpm.mobile.core.data.client
 
 import cx.lpm.mobile.core.data.push.AgentAnswer
 import cx.lpm.mobile.core.data.push.PushRegistration
+import cx.lpm.mobile.core.model.AgentDialogRead
 import cx.lpm.mobile.core.model.AgentLaunch
 import cx.lpm.mobile.core.model.AgentSession
 import cx.lpm.mobile.core.model.ClaudeAccountChoice
@@ -208,6 +209,12 @@ fun LpmClient.sendLiveActivity(on: Boolean) = send(Wire.liveActivity(on))
 fun LpmClient.answerAgent(a: AgentAnswer, reqId: String) = sendLive(
     Wire.answerAgent(a.project, a.terminalId, a.key, a.ts, a.action.wire, a.text, reqId)
 )
+
+fun LpmClient.requestAgentDialog(project: String, terminalId: String) =
+    send(Wire.agentDialog(project, terminalId))
+
+fun LpmClient.pickAgentDialog(read: AgentDialogRead, option: String, reqId: String) =
+    send(Wire.pickAgentDialog(read, option, reqId))
 
 fun LpmClient.startProject(name: String, profile: String = "") = send(Wire.start(name, profile))
 

@@ -36,7 +36,7 @@ import kotlinx.coroutines.launch
 /**
  * A terminal named by its ids. Until the project's terminal list holds it, it's
  * opening — or unavailable once the list shows it's gone (a notification or an
- * Activity row can name a terminal before its list has loaded). One that has shown
+ * agent row can name a terminal before its list has loaded). One that has shown
  * stays on screen with how it ended, and carries on as the tab lpm reopened in its
  * place after a restart.
  */

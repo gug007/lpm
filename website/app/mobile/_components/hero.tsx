@@ -8,11 +8,11 @@ export default function Hero() {
           The lpm companion for iPhone &amp; iPad
         </p>
         <h1 className="text-[2.25rem] sm:text-5xl md:text-[clamp(2.75rem,6.2vh,3.75rem)] font-extrabold tracking-tight leading-[1.06] bg-gradient-to-br from-gray-900 via-gray-800 to-gray-600 dark:from-white dark:via-gray-100 dark:to-gray-400 bg-clip-text text-transparent">
-          Control Claude Code and Codex on your Mac from your iPhone.
+          Control Claude Code and Codex on your computer from your iPhone.
         </h1>
         <p className="mt-5 text-base sm:text-[17px] text-gray-600 dark:text-gray-400 max-w-2xl mx-auto leading-relaxed">
-          lpm Link, the lpm app for iPhone and iPad, pairs with lpm on your Mac
-          and puts every terminal in your pocket, live on whichever screen has
+          lpm Link, the lpm app for iPhone and iPad, pairs with lpm on your
+          computer and puts every terminal in your pocket, live on whichever screen has
           control. Prompt Claude Code, Codex, or any
           running agent with a real composer, review and push the diff it just
           wrote, and get an encrypted alert the moment it&rsquo;s waiting on

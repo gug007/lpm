@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { PeerState } from "../../bridge/commands";
 import { EventsOn } from "../../bridge/runtime";
 import type { UpdateChannel } from "../store/settings";
+import { MACHINE } from "../machineWords";
 
 export type AgentFilesAccess = "off" | "read" | "write";
 export type AgentFilesScope = "projects" | "home";
@@ -163,12 +164,12 @@ export const DEFAULT_PEER_STATE: PeerStateShape = {
 /// The display name a peer is known by, for copy that names the other Mac.
 export function peerAlias(peers: PeerClient[], slug: string): string {
   const peer = peers.find((p) => p.slug === slug);
-  return peer?.alias || peer?.host || "another Mac";
+  return peer?.alias || peer?.host || MACHINE.anotherMachine;
 }
 
 /// Every peer's display name, keyed by slug, for views that label many at once.
 export function peerAliasMap(peers: PeerClient[]): Record<string, string> {
-  return Object.fromEntries(peers.map((p) => [p.slug, p.alias || p.host || "another Mac"]));
+  return Object.fromEntries(peers.map((p) => [p.slug, p.alias || p.host || MACHINE.anotherMachine]));
 }
 
 const RETRY_MIN_MS = 500;

@@ -160,7 +160,11 @@ export default async function StatsPage() {
         </p>
       )}
 
-      <DownloadFooter href={RELEASES_URL} label="Latest release notes" />
+      <DownloadFooter
+        href={RELEASES_URL}
+        label="Latest release notes"
+        source="stats-footer"
+      />
     </article>
   );
 }

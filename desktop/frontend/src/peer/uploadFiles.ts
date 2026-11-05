@@ -11,6 +11,7 @@ import { PeerUploadFile } from "../../bridge/commands";
 import { basename } from "../path";
 import { peerSlugOf, stripMarker } from "./markers";
 import { trackPeerUpload } from "./uploadProgress";
+import { MACHINE } from "../machineWords";
 
 // Identifies one transfer end to end: Rust stamps every progress event with it,
 // so a toast can follow the file it was minted for.
@@ -29,7 +30,7 @@ export async function uploadPeerFile(
 ): Promise<string> {
   const name = basename(path);
   const slug = peerSlugOf(terminalId);
-  if (!slug) throw new Error(`${name} is not going to another Mac`);
+  if (!slug) throw new Error(`${name} is not going to ${MACHINE.anotherMachine}`);
   const hostPath = await trackPeerUpload(
     token,
     slug,
@@ -37,7 +38,7 @@ export async function uploadPeerFile(
     PeerUploadFile(slug, stripMarker(terminalId), path, token),
   );
   if (typeof hostPath !== "string" || !hostPath) {
-    throw new Error(`the remote Mac did not save ${name}`);
+    throw new Error(`the remote ${MACHINE.noun} did not save ${name}`);
   }
   return hostPath;
 }

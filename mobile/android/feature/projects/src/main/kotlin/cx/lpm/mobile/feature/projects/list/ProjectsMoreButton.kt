@@ -28,7 +28,6 @@ import cx.lpm.mobile.feature.projects.R as ProjectsR
 /** Where the projects "…" menu leads; the update and pairing rows are other features'. */
 @Immutable
 class ProjectsMenuActions(
-    val activity: () -> Unit = {},
     val automations: () -> Unit = {},
     val stats: () -> Unit = {},
     val usage: () -> Unit = {},
@@ -40,53 +39,39 @@ class ProjectsMenuActions(
 )
 
 /**
- * The projects list's "…" button and its menu. A dot on it says the menu is worth
- * opening: an agent waiting on you (orange) or with a problem (red) outranks an
- * automation with news (blue), whose count rides in the Automations row.
+ * The projects list's "…" button and its menu. A dot on it says an automation has
+ * news, whose count rides in the Automations row.
  */
 @Composable
 fun ProjectsMoreButton(
-    badge: MoreBadge,
     automationsUnread: Int,
     actions: ProjectsMenuActions,
     modifier: Modifier = Modifier
 ) {
     var open by remember { mutableStateOf(false) }
-    val colors = LpmTheme.colors
     Box(modifier) {
         GlassIconButton(
             icon = painterResource(R.drawable.ic_more_horiz),
             contentDescription = stringResource(
-                when {
-                    badge == MoreBadge.NeedsYou -> ProjectsR.string.projects_more_needs_you
-                    automationsUnread > 0 -> ProjectsR.string.projects_more_automations
-                    else -> ProjectsR.string.projects_more
+                if (automationsUnread > 0) {
+                    ProjectsR.string.projects_more_automations
+                } else {
+                    ProjectsR.string.projects_more
                 }
             ),
             onClick = { open = true },
             iconSize = 28.dp
         )
-        val dot = when (badge) {
-            MoreBadge.NeedsYou -> colors.orange
-            MoreBadge.Problem -> colors.red
-            MoreBadge.Automations -> colors.tint
-            MoreBadge.None -> null
-        }
-        if (dot != null) {
+        if (automationsUnread > 0) {
             Box(
                 Modifier
                     .align(Alignment.TopEnd)
                     .offset(x = (-3).dp, y = 9.dp)
                     .size(8.dp)
-                    .background(dot, CircleShape)
+                    .background(LpmTheme.colors.tint, CircleShape)
             )
         }
         ContextMenu(expanded = open, onDismissRequest = { open = false }) {
-            ContextMenuItem(
-                title = stringResource(ProjectsR.string.menu_activity),
-                onClick = actions.activity,
-                icon = painterResource(R.drawable.ic_layers)
-            )
             ContextMenuItem(
                 title = if (automationsUnread > 0) {
                     stringResource(ProjectsR.string.menu_automations_count, automationsUnread)

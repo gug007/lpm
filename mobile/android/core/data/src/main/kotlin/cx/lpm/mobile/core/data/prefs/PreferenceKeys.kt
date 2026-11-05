@@ -41,7 +41,6 @@ object PreferenceKeys {
     const val BUILT_IN_TAILSCALE_ENABLED = "builtInTailscale.enabled"
     const val USES_TAILSCALE_APP = "pairing.usesTailscaleApp"
 
-    const val ACTIVITY_GROUP_BY_PROJECT = "activity.groupByProject"
     const val AUTOMATION_SCHEDULE_OPEN = "automation.scheduleOpen"
     const val AUTOMATION_SETUP_OPEN = "automation.setupOpen"
     const val FILE_PREVIEW_MARKDOWN_SOURCE = "filePreviewMarkdownSource"

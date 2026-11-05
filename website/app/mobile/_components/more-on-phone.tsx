@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { FeatureCard } from "@/components/feature-card";
 import { SectionHeader } from "@/components/section-header";
+import { STATUS_AGENT_NAMES } from "@/lib/app-facts";
 import {
   AUTOMATIONS_PATH,
   LINUX_HOST_PATH,
@@ -23,8 +24,8 @@ const LINK =
 const CARDS: { icon: LucideIcon; title: string; body: React.ReactNode }[] = [
   {
     icon: Activity,
-    title: "Activity across every project",
-    body: "One list of every Claude Code, Codex, Gemini CLI and Cursor CLI agent, sorted by what needs you first, plus running automations and services you can start or stop. Filter, search, or group it by project.",
+    title: "Agents across every project",
+    body: `Every ${STATUS_AGENT_NAMES} agent sits under its project in the list, named after its tab and marked Needs you, Working, Done or Problem, with a notification when one needs you.`,
   },
   {
     icon: CalendarClock,

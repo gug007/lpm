@@ -132,7 +132,20 @@ at(4500, 'in', id='demo-storefront-claude', d='hi there\x7f\x7f\x7fe\r')
 at(42000, 'in', id='demo-storefront-claude', d='\x1b[200~Add tests\rand docs\x1b[201~')
 at(42100, 'in', id='demo-storefront-claude', d='\r')
 at(42500, 'in', id='demo-storefront-claude', d='queued\r')
+# the dialog Claude waits on (Waiting since 44300), and picks from it
+at(44400, 'agentDialog', project='storefront', terminalId='demo-storefront-claude')
+at(44400, 'agentDialog', project='storefront', terminalId='demo-storefront-1', reqId='d1')
+at(44400, 'agentDialog', project='nope', terminalId='x')
+for i, (k, v) in enumerate([('ts', 5), ('dialog', '0123456789abcdef'), ('option', '9'), ('terminalId', 'demo-storefront-1')]):
+    pick = {'project': 'storefront', 'terminalId': 'demo-storefront-claude', 'key': 'claude_code_demo-storefront-claude',
+            'ts': 1792089044423, 'action': 'pick', 'option': '1', 'dialog': 'demo-cart-badge', 'reqId': 'k%d' % i}
+    pick[k] = v
+    at(44450, 'answerAgent', **pick)
+at(44500, 'answerAgent', project='storefront', terminalId='demo-storefront-claude', key='claude_code_demo-storefront-claude',
+   ts=1792089044423, action='pick', option='1', dialog='demo-cart-badge', reqId='k9')
+at(44900, 'agentDialog', project='storefront', terminalId='demo-storefront-claude')
 at(45000, 'in', id='demo-storefront-claude', d='more\r')
+at(47100, 'agentDialog', project='storefront', terminalId='demo-storefront-claude')
 at(47000, 'status', project='storefront')
 at(47000, 'clearStatus', project='storefront', paneId='demo-storefront-claude', value='Waiting')
 at(47000, 'clearStatus', project='storefront', paneId='demo-storefront-claude', value='Waiting')
@@ -426,6 +439,10 @@ at(9300, 'readConfig', project='work-copy', layer='repo')
 at(10000, 'gitDiscardAll', project='work-copy'); at(10500, 'git', project='work-copy')
 at(10600, 'gitRestoreDiscarded', project='work-copy', id='discard-1')
 at(11100, 'gitRestoreDiscarded', project='work-copy', id='discard-1'); at(11100, 'git', project='work-copy')
+# Discard of one file keeps only that file's copy; one with no changes keeps none
+at(11500, 'gitDiscardFiles', project='work-copy', paths=['lib/payments.ts']); at(12000, 'git', project='work-copy')
+at(12000, 'gitDiscardFiles', project='work-copy', paths=['nope.ts']); at(12000, 'gitDiscardFiles', project='nope', paths=['a'])
+at(12500, 'gitRestoreDiscarded', project='work-copy', id='discard-2'); at(13000, 'git', project='work-copy')
 at(20000, 'gitAuto', project='work-copy', kind='commitPush', nonce='wc1')
 at(24500, 'git', project='work-copy'); at(24500, 'gitAutoState', project='work-copy')
 at(24600, 'gitAuto', project='work-copy', kind='pr', nonce='wc2')

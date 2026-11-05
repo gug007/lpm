@@ -30,6 +30,7 @@ final class DemoServer {
         registerAnswersHandlers()
         registerGitHandlers()
         registerGitDiscardHandlers()
+        registerAgentDialogHandlers()
         registerGitHistoryHandlers()
         registerGitAutoHandlers()
         registerGitChecksHandlers()
