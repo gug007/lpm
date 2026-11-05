@@ -9,7 +9,8 @@ use reqwest::blocking::Response;
 use reqwest::redirect::Policy;
 use serde::Deserialize;
 use serde_json::Value;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::sync::Mutex;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 pub(crate) const API: &str = "https://api.github.com/repos/gug007/lpm/releases";
 /// The same releases on github.com's own pages (releasesite.rs).
@@ -72,7 +73,7 @@ pub(crate) struct Found {
     pub(crate) url: String,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Choice {
     /// What this channel updates to.
     pub(crate) newest: Option<Found>,
@@ -86,7 +87,31 @@ pub(crate) fn fetch(
     channel: Channel,
     download: &dyn Fn(&[Asset]) -> Option<String>,
 ) -> Result<Choice, String> {
-    fetch_from(API, SITE, channel, download)
+    shared(channel, || fetch_from(API, SITE, channel, download))
+}
+
+/// How long one answer serves every check on its channel. The app asks at
+/// launch from its sidebar and its background checker at once, and an Update
+/// pressed right after a check asks again.
+const SHARED_FOR: Duration = Duration::from_secs(60);
+
+/// The lock is held while `ask` runs, so checks that arrive together wait for
+/// the first one's answer instead of each asking GitHub. Failures aren't kept,
+/// so Retry asks again.
+fn shared(
+    channel: Channel,
+    ask: impl FnOnce() -> Result<Choice, String>,
+) -> Result<Choice, String> {
+    static LAST: Mutex<Option<(Instant, Channel, Choice)>> = Mutex::new(None);
+    let mut last = LAST.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some((at, asked, choice)) = &*last {
+        if *asked == channel && at.elapsed() < SHARED_FOR {
+            return Ok(choice.clone());
+        }
+    }
+    let choice = ask()?;
+    *last = Some((Instant::now(), channel, choice.clone()));
+    Ok(choice)
 }
 
 /// The API first; when it says no, github.com's release pages. Their answer
@@ -306,5 +331,24 @@ mod tests {
         assert_eq!(Channel::parse(None), Channel::Stable);
         assert_eq!(Channel::parse(Some(&json!("bogus"))), Channel::Stable);
         assert_eq!(Channel::parse(Some(&json!("beta"))), Channel::Beta);
+    }
+
+    #[test]
+    fn checks_close_together_share_one_answer_per_channel() {
+        let asked = std::cell::Cell::new(0);
+        let ask = || {
+            asked.set(asked.get() + 1);
+            Ok(Choice {
+                newest: None,
+                stable: None,
+            })
+        };
+        let refused = || Err("GitHub API returned status 403".to_string());
+        assert!(shared(Channel::Beta, refused).is_err());
+        shared(Channel::Beta, ask).unwrap();
+        shared(Channel::Beta, ask).unwrap();
+        assert_eq!(asked.get(), 1, "the second check reuses the first's answer");
+        shared(Channel::Stable, ask).unwrap();
+        assert_eq!(asked.get(), 2, "another channel asks for itself");
     }
 }

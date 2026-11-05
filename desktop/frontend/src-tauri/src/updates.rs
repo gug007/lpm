@@ -167,6 +167,9 @@ pub fn start_auto_check(app: AppHandle) {
     if crate::sys::headless() {
         return;
     }
+    if current_version() == "dev" {
+        return;
+    }
     std::thread::spawn(move || {
         let mut next_check = SystemTime::now();
         loop {
@@ -189,17 +192,19 @@ pub(crate) fn run_off_worker<T: Send + 'static>(
         .map_err(|_| "background thread panicked".to_string())?
 }
 
+/// Dev builds (version "dev") have no enclosing .app to swap, so they never
+/// ask: GitHub answers 60 logged-out checks an hour per network, and a test
+/// harness or `tauri dev` relaunching the app would spend them for everyone
+/// behind the same address.
 fn do_check() -> Result<Check, String> {
+    let current = current_version().trim_start_matches('v').to_string();
+    if current == "dev" {
+        return Err(DEV_BUILD.into());
+    }
     let channel = Channel::current();
     let Choice { newest, stable } = crate::updatechannel::fetch(channel, &download)?;
-    let current = current_version().trim_start_matches('v').to_string();
-    // Dev/debug builds report version "dev" (parsed as 0.0.0) and have no
-    // enclosing .app to swap — never offer them a release they can't apply.
-    let release_build = current != "dev";
-    let update_avail =
-        release_build && newest.as_ref().is_some_and(|f| newer(&f.version, &current));
-    let rollback_avail =
-        release_build && stable.as_ref().is_some_and(|f| newer(&current, &f.version));
+    let update_avail = newest.as_ref().is_some_and(|f| newer(&f.version, &current));
+    let rollback_avail = stable.as_ref().is_some_and(|f| newer(&current, &f.version));
     let version = |f: &Option<Found>| f.as_ref().map(|f| f.version.clone()).unwrap_or_default();
     let url = |f: &Option<Found>| f.as_ref().map(|f| f.url.clone()).unwrap_or_default();
     Ok(Check {

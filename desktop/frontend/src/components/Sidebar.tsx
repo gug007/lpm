@@ -23,7 +23,7 @@ import { openClaudeAccountSettings } from "../store/claudeAccountPin";
 import { useClaudePoolStore } from "../store/claudePool";
 import { useTerminalTitles } from "../store/terminalTitles";
 import { EventsOn } from "../../bridge/runtime";
-import { SetClipboardText } from "../../bridge/commands";
+import { GetVersion, SetClipboardText } from "../../bridge/commands";
 import {
   isDuplicate,
   type DuplicateMode,
@@ -916,9 +916,9 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
 
   useEffect(() => EventsOn("update-available", noteUpdateCheck), []);
   useEffect(() => {
-    checkForUpdate().catch((err) =>
-      logDiagnostic("warn", "update.check_failed", "Update check failed", err),
-    );
+    GetVersion()
+      .then((version: string) => (version === "dev" ? undefined : checkForUpdate()))
+      .catch((err) => logDiagnostic("warn", "update.check_failed", "Update check failed", err));
   }, []);
   const handleUpdate = () => {
     if (!UPDATES_INSTALL_IN_APP) {
