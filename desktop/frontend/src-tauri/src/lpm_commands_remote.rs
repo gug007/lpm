@@ -4,15 +4,18 @@
 // prompt can hold any bytes.
 use crate::config::{quote_remote_path, SshSettings};
 use crate::lpm_commands::{
-    is_visible_folder, legacy_name_of, skill_file, ClaudeEntry, CommandFs, LegacyFile, LegacyList, RawList, Snapshot,
-    MAX_FILE_BYTES,
+    is_visible_folder, legacy_name_of, skill_file, ClaudeEntry, CommandFs, Layout, LegacyFile, LegacyList, RawList,
+    Snapshot, MAX_FILE_BYTES,
 };
 use crate::lpm_commands_git::{GitView, CLAUDE_ROOT, SHARED_ROOT};
-use crate::lpm_commands_local::{FOLDERS_FILE, LEGACY_DIR, LEGACY_DONE, LEGACY_DONE_NOTE, OTHER_FOLDERS_FILE};
+use crate::lpm_commands_layout as layout;
+use crate::lpm_commands_local::{LEGACY_DIR, LEGACY_DONE, LEGACY_DONE_NOTE};
+use std::path::PathBuf;
 
 pub(crate) struct RemoteFs {
     ssh: SshSettings,
     root: String,
+    layout: Option<PathBuf>,
 }
 
 fn snapshot_script(root: &str, skills: &str, claude: &str, lpm: &str) -> String {
@@ -27,12 +30,6 @@ send() {{
   printf '%s\\037%s\\037%s\\n' \"$1\" \"$2\" \"$N\"
   head -c \"$N\" \"$3\"
 }}
-if [ -f \"$L/{folders}\" ]; then
-  while IFS= read -r d; do [ -n \"$d\" ] && printf 'D\\037%s\\n' \"$d\"; done < \"$L/{folders}\"
-fi
-if [ -f \"$L/{other_folders}\" ]; then
-  while IFS=\"$(printf '\\t')\" read -r n f; do [ -n \"$n\" ] && printf 'O\\037%s\\037%s\\n' \"$n\" \"$f\"; done < \"$L/{other_folders}\"
-fi
 if [ -d \"$L/{legacy}\" ] && [ ! -e \"$L/{legacy}/{done}\" ]; then printf 'L\\n'; fi
 for f in \"$S\"/*/SKILL.md; do
   [ -f \"$f\" ] || continue
@@ -57,8 +54,6 @@ true
         cap = MAX_FILE_BYTES,
         shared = SHARED_ROOT,
         claude_root = CLAUDE_ROOT,
-        folders = FOLDERS_FILE,
-        other_folders = OTHER_FOLDERS_FILE,
         legacy = LEGACY_DIR,
         done = LEGACY_DONE,
     )
@@ -97,10 +92,11 @@ fn framed(bytes: &[u8], at: usize, len: &str) -> Option<(String, usize)> {
     Some((String::from_utf8_lossy(&bytes[at..at + len]).into_owned(), at + len))
 }
 
-pub(crate) fn parse_snapshot(bytes: &[u8], skills_dir: &str, claude_dir: &str) -> Snapshot {
+pub(crate) fn parse_snapshot(bytes: &[u8], skills_dir: &str, claude_dir: &str, layout: Layout) -> Snapshot {
     let mut raw = RawList {
         skills_dir: skills_dir.to_string(),
         claude_dir: claude_dir.to_string(),
+        layout,
         ..RawList::default()
     };
     let mut i = 0;
@@ -116,8 +112,6 @@ pub(crate) fn parse_snapshot(bytes: &[u8], skills_dir: &str, claude_dir: &str) -
             ["I", path] => {
                 raw.git.get_or_insert_default().ignored.insert(path.to_string());
             }
-            ["D", name] => raw.saved_folders.push(name.to_string()),
-            ["O", name, folder] => raw.other_folders.push((name.to_string(), folder.to_string())),
             ["K", name, target] if is_visible_folder(name) => {
                 raw.claude.push((name.to_string(), ClaudeEntry::Link(target.to_string(), None)));
             }
@@ -171,7 +165,13 @@ impl RemoteFs {
         Self {
             ssh,
             root: root.trim_end_matches('/').to_string(),
+            layout: None,
         }
+    }
+
+    pub fn with_layout(mut self, path: PathBuf) -> Self {
+        self.layout = Some(path);
+        self
     }
 
     fn at(&self, rel: &str) -> String {
@@ -217,19 +217,6 @@ impl RemoteFs {
             .unwrap_or_else(|| format!("{} didn't answer.", self.ssh.host)))
     }
 
-    fn save_lines(&self, file: &str, lines: &[String]) -> Result<(), String> {
-        let path = self.lpm(file);
-        if lines.is_empty() {
-            return self.run(&format!("rm -f {path}")).map(|_| ());
-        }
-        let text = format!("{}\n", lines.join("\n"));
-        if crate::hooks::write_remote_file(&self.ssh, &path, text.as_bytes()) {
-            Ok(())
-        } else {
-            Err(format!("Couldn't save the folders on {}.", self.ssh.host))
-        }
-    }
-
     fn unlink_script(&self, name: &str) -> String {
         format!(
             "C={claude}
@@ -250,7 +237,8 @@ impl CommandFs for RemoteFs {
     fn snapshot(&self) -> Result<Snapshot, String> {
         let script = snapshot_script(&quote_remote_path(&self.root), &self.quoted(""), &self.claude(""), &self.lpm(""));
         let (skills, claude) = (self.at(".agents/skills"), self.at(".claude/skills"));
-        self.run(&script).map(|bytes| parse_snapshot(&bytes, &skills, &claude))
+        let saved = layout::read(self.layout.as_deref());
+        self.run(&script).map(|bytes| parse_snapshot(&bytes, &skills, &claude, saved))
     }
 
     fn write(&self, rel: &str, content: &str) -> Result<(), String> {
@@ -305,13 +293,8 @@ rmdir \"$D\" 2>/dev/null
         self.run(&script).map(|_| ())
     }
 
-    fn save_folders(&self, folders: &[String]) -> Result<(), String> {
-        self.save_lines(FOLDERS_FILE, folders)
-    }
-
-    fn save_other_folders(&self, filed: &[(String, String)]) -> Result<(), String> {
-        let lines: Vec<String> = filed.iter().map(|(name, folder)| format!("{name}\t{folder}")).collect();
-        self.save_lines(OTHER_FOLDERS_FILE, &lines)
+    fn update_layout(&self, edit: &mut dyn FnMut(&mut Layout)) -> Result<(), String> {
+        layout::update(self.layout.as_deref(), edit)
     }
 
     fn skill_files(&self, name: &str) -> Result<Vec<(String, String)>, String> {

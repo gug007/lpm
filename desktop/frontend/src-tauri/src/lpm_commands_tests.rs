@@ -7,11 +7,13 @@ struct Place {
     skills: PathBuf,
     claude: PathBuf,
     lpm: PathBuf,
+    layout: PathBuf,
 }
 
 impl Place {
     fn store(&self) -> Box<dyn CommandFs> {
-        Box::new(LocalFs::new(self.skills.clone(), self.claude.clone(), self.lpm.clone()))
+        let store = LocalFs::new(self.skills.clone(), self.claude.clone(), self.lpm.clone());
+        Box::new(store.with_layout(self.layout.clone()))
     }
 
     fn skill(&self, name: &str) -> String {
@@ -26,6 +28,7 @@ fn place() -> Place {
         skills: root.join(".agents").join("skills"),
         claude: root.join(".claude").join("skills"),
         lpm: root.join(".lpm"),
+        layout: root.join("layout.json"),
         _dir: dir,
     }
 }
@@ -84,7 +87,7 @@ fn saving_writes_a_marked_skill_every_agent_can_read() {
     ops::save(&l.stores, cmd, None).unwrap();
     assert_eq!(
         l.project.skill("fix-ticket"),
-        "---\nname: fix-ticket\ndescription: Fix a ticket\ndisable-model-invocation: true\nmetadata:\n  lpm-created: \"true\"\n  lpm-folder: \"Bugs\"\n---\n\nFix {{ticket}}.\n"
+        "---\nname: fix-ticket\ndescription: Fix a ticket\ndisable-model-invocation: true\nmetadata:\n  lpm-created: \"true\"\n---\n\nFix {{ticket}}.\n"
     );
     let policy = l.project.skills.join("fix-ticket/agents/openai.yaml");
     assert_eq!(std::fs::read_to_string(policy).unwrap(), crate::agent_caps::CODEX_OPT_OUT);
@@ -218,13 +221,14 @@ fn editing_renames_the_skill_and_its_link_and_keeps_files_beside_it() {
     assert!(l.global.skills.join("new/scripts/run.sh").exists());
     assert!(l.global.skills.join("new/agents/openai.yaml").exists());
     let text = l.global.skill("new");
-    assert!(text.contains("name: new\n") && text.contains("lpm-folder: \"Git\"") && text.ends_with("\nb\n"), "{text}");
+    assert!(text.contains("name: new\n") && text.ends_with("\nb\n"), "{text}");
+    assert_eq!(names(&list_stores(&l.stores).unwrap().global), [(Some("Git".to_string()), "new".to_string())]);
     #[cfg(unix)]
     assert!(l.global.claude.join("new/SKILL.md").exists());
 }
 
 #[test]
-fn moving_a_skill_between_folders_only_changes_its_label() {
+fn moving_a_skill_out_of_a_folder_leaves_the_folder() {
     let l = lists();
     ops::save(&l.stores, input(Scope::Global, Some("Git"), "ship", "a"), None).unwrap();
     ops::save(&l.stores, input(Scope::Global, None, "ship", "a"), Some(reference(Scope::Global, Some("Git"), "ship")))
@@ -246,8 +250,9 @@ fn moving_between_lists_leaves_no_copy_behind() {
     .unwrap();
     assert!(!l.global.skills.join("ship").exists());
     assert!(!l.global.claude.join("ship").exists());
-    assert!(l.project.skill("ship").contains("lpm-folder: \"Release\""));
-    assert_eq!(list_stores(&l.stores).unwrap().global.folders, ["Git"]);
+    let out = list_stores(&l.stores).unwrap();
+    assert_eq!(names(&out.project.unwrap()), [(Some("Release".to_string()), "ship".to_string())]);
+    assert_eq!(out.global.folders, ["Git"]);
 }
 
 #[test]
@@ -369,10 +374,13 @@ fn import_turns_new_commands_into_skills_in_an_imported_folder() {
     let n = crate::lpm_commands_import::import(&l.stores, Scope::Global, &[src.path().to_path_buf()]).unwrap();
     assert_eq!(n, 1);
     let text = l.global.skill("make-component");
-    assert!(text.contains("model: opus\n") && text.contains("lpm-folder: \"Imported\""), "{text}");
+    assert!(text.contains("model: opus\n"), "{text}");
     assert!(l.global.skill("review").ends_with("\nmine\n"));
     assert!(l.global.skill("lint").contains("Theirs."));
-    assert_eq!(list_stores(&l.stores).unwrap().global.folders, ["Imported"]);
+    let out = list_stores(&l.stores).unwrap().global;
+    assert_eq!(out.folders, ["Imported"]);
+    let imported = out.commands.iter().find(|c| c.name == "make-component").unwrap();
+    assert_eq!(imported.folder.as_deref(), Some("Imported"));
 }
 
 #[test]
@@ -398,7 +406,7 @@ fn a_folded_description_reads_whole_and_is_written_back_plain() {
 #[test]
 fn a_description_yaml_would_misread_is_quoted() {
     for text in ["true", "123", "a: b", "- list", "[x", "#tag"] {
-        let doc = Doc::new(text, "Body", None);
+        let doc = Doc::new(text, "Body");
         assert_eq!(parse_doc(&doc.to_skill("x")).description, text);
     }
 }
@@ -453,7 +461,7 @@ fn a_skill_made_in_claudes_folder_is_listed_and_edited_where_it_is() {
     edit.description = "Ship it.".into();
     ops::save(&l.stores, edit, Some(reference(Scope::Project, None, "deploy"))).unwrap();
     let text = std::fs::read_to_string(dir.join("SKILL.md")).unwrap();
-    assert!(text.contains("Run it again.") && text.contains("lpm-folder: \"Ops\""), "{text}");
+    assert!(text.contains("Run it again."), "{text}");
     assert!(!dir.is_symlink(), "it stays a real folder");
     assert!(!l.project.skills.join("deploy").exists(), "nothing appears in the shared root");
 }
@@ -939,9 +947,20 @@ fn a_move_cut_short_finishes_without_doubling_up() {
     let dir = old_list(&l.global);
     std::fs::write(dir.join("one.md"), "One.\n").unwrap();
     let fs = l.global.store();
-    crate::lpm_commands_ops::create_skill(fs.as_ref(), "one", Doc::new("", "One.", None)).unwrap();
+    crate::lpm_commands_ops::create_skill(fs.as_ref(), "one", Doc::new("", "One.")).unwrap();
     let out = list_stores(&l.stores).unwrap().global;
     assert_eq!(names(&out), [(None, "one".to_string())]);
+}
+
+#[test]
+fn a_move_cut_short_still_files_the_skills_it_made() {
+    let l = lists();
+    let dir = old_list(&l.global);
+    std::fs::write(dir.join("Review/pr.md"), "Review the PR.\n").unwrap();
+    let fs = l.global.store();
+    crate::lpm_commands_ops::create_skill(fs.as_ref(), "pr", Doc::new("", "Review the PR.")).unwrap();
+    let out = list_stores(&l.stores).unwrap().global;
+    assert_eq!(names(&out), [(Some("Review".to_string()), "pr".to_string())]);
 }
 
 // ---- folders inside folders --------------------------------------------------
@@ -954,7 +973,6 @@ fn a_folder_path_lists_every_level_and_sorts_inside_its_parent() {
     let out = list_stores(&l.stores).unwrap().global;
     assert_eq!(out.folders, ["Work", "Work/Reviews", "Work notes"]);
     assert_eq!(out.commands[0].folder.as_deref(), Some("Work/Reviews"));
-    assert!(l.global.skill("go").contains("lpm-folder: \"Work/Reviews\""));
     assert!(!l.global.skills.join("Work").exists(), "a folder is still only a label");
 }
 
@@ -971,16 +989,11 @@ fn a_new_folder_takes_its_parents_spelling() {
 }
 
 #[test]
-fn a_skill_written_by_hand_lands_in_the_listed_spelling() {
+fn a_layout_written_by_hand_lands_in_the_listed_spelling() {
     let l = lists();
-    ops::create_folder(&l.stores, Scope::Global, "Work").unwrap();
-    let dir = l.global.skills.join("go");
-    std::fs::create_dir_all(&dir).unwrap();
-    std::fs::write(
-        dir.join("SKILL.md"),
-        "---\nname: go\ndescription: x\nmetadata:\n  lpm-created: \"true\"\n  lpm-folder: \"work/deep/er\"\n---\n\nGo.\n",
-    )
-    .unwrap();
+    ops::save(&l.stores, input(Scope::Global, Some("Work"), "go", "Go."), None).unwrap();
+    let layout = r#"{"folders": ["Work"], "skills": {"go": "work/deep/er"}}"#;
+    std::fs::write(&l.global.layout, layout).unwrap();
     let out = list_stores(&l.stores).unwrap().global;
     assert_eq!(out.folders, ["Work", "Work/deep", "Work/deep/er"]);
     assert_eq!(out.commands[0].folder.as_deref(), Some("Work/deep/er"));

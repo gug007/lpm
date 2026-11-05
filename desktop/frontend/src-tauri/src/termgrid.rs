@@ -114,9 +114,14 @@ pub struct Grid {
     /// Where the line lpm last typed into the shell started (`mark_anchor`),
     /// until the shell runs it (`cut_to_anchor`).
     anchor: Option<usize>,
+    /// The first line of what lpm typed, which is how its echo is recognised.
+    /// A later line can be a command of its own, with output worth keeping
+    /// above its echo.
+    typed: String,
     /// The shell said it was running the typed line before its echo was drawn,
-    /// so the cut waits for the next line feed, which a wrap is not.
-    cut_at_line_end: bool,
+    /// so the cut waits for the line feed that ends the echo, which a wrap is
+    /// not.
+    cut_after_echo: bool,
 }
 
 impl Grid {
@@ -140,7 +145,8 @@ impl Grid {
             title: String::new(),
             dropped: 0,
             anchor: None,
-            cut_at_line_end: false,
+            typed: String::new(),
+            cut_after_echo: false,
         }
     }
 
@@ -200,8 +206,10 @@ impl Grid {
 
     /// LF: advance a row, scrolling the region when already at its bottom.
     pub fn line_feed(&mut self) {
+        let echoed = self.cut_after_echo && self.echo_ends_here();
         self.next_row();
-        if std::mem::take(&mut self.cut_at_line_end) {
+        if echoed {
+            self.cut_after_echo = false;
             self.cut_typed_line();
         }
     }
@@ -463,23 +471,52 @@ impl Grid {
     /// Remember the cursor's line as lpm types a line into the shell: the
     /// terminal's echo of it, and the shell's prompt with it again, draw from
     /// here.
-    pub fn mark_anchor(&mut self) {
+    pub fn mark_anchor(&mut self, typed: &str) {
         self.anchor = Some(self.line());
-        self.cut_at_line_end = false;
+        self.typed = typed.lines().next().unwrap_or("").trim_end().to_string();
+        self.cut_after_echo = false;
     }
 
     /// The shell has started running the typed line: drop the rows from the
     /// anchor down to the cursor's, so the output reads from where the line was
-    /// typed. ConPTY passes the shell's mark through ahead of an echo it has yet
-    /// to draw, leaving the cursor partway along the prompt, so there the cut
-    /// waits for that line to end. A full-screen program or a scroll region is
-    /// left alone, as is an anchor the scrollback has already let go of.
+    /// typed. ConPTY passes the shell's mark through ahead of what it has yet to
+    /// draw: the echo, leaving the cursor partway along the prompt, or when its
+    /// next frame runs late the prompt too, leaving nothing drawn at all. Either
+    /// way the cut waits for the echo, and the row can't be told from the output
+    /// by where it is, because one frame can hold the prompt, the echo and the
+    /// first output. A full-screen program or a scroll region is left alone, as
+    /// is an anchor the scrollback has already let go of.
     pub fn cut_to_anchor(&mut self) {
-        if self.anchor.is_some() && self.cursor_col > 0 {
-            self.cut_at_line_end = true;
+        let Some(anchor) = self.anchor else {
+            return;
+        };
+        if self.cursor_col > 0 || self.blank_from(anchor) {
+            self.cut_after_echo = true;
         } else {
             self.cut_typed_line();
         }
+    }
+
+    fn blank_from(&self, anchor: usize) -> bool {
+        self.scrollback
+            .iter()
+            .chain(&self.screen)
+            .take(self.scrollback.len() + self.cursor_row + 1)
+            .skip(anchor.saturating_sub(self.dropped))
+            .all(|row| row.text().trim().is_empty())
+    }
+
+    fn echo_ends_here(&self) -> bool {
+        let first = (0..self.cursor_row)
+            .rev()
+            .take_while(|&row| self.screen[row].wrapped)
+            .last()
+            .unwrap_or(self.cursor_row);
+        let line: String = self.screen[first..=self.cursor_row]
+            .iter()
+            .map(Row::text)
+            .collect();
+        line.trim_end().ends_with(&self.typed)
     }
 
     fn cut_typed_line(&mut self) {

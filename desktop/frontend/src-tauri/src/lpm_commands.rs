@@ -5,7 +5,8 @@
 // .claude/skills. Those roots hold other people's skills too: lpm lists and
 // changes only the ones marked as created with lpm (lpm_commands_doc). Agent
 // setup can also create a marked skill in Claude's or Codex's own folder; it is
-// listed like the rest and stays where it was made.
+// listed like the rest and stays where it was made. Folders aren't in any of those
+// roots: see lpm_commands_layout.
 //
 // Every operation goes through `CommandFs`, so an SSH project's list is read and
 // written on its host (lpm_commands_remote) by the same rules as a local one.
@@ -14,6 +15,7 @@ use std::collections::HashSet;
 use std::path::Path;
 
 pub(crate) use crate::lpm_commands_doc::{parse_doc, Doc};
+pub(crate) use crate::lpm_commands_layout::{Layout, AT_ROOT};
 pub(crate) use crate::lpm_commands_local::{copy_tree, LocalFs};
 pub(crate) use crate::lpm_commands_names::*;
 pub(crate) use crate::lpm_commands_snapshot::*;
@@ -73,7 +75,6 @@ pub struct OtherSkill {
     /// The agents that read it, as `AICLI` names them.
     pub agents: Vec<String>,
     pub path: String,
-    /// Kept by lpm beside the list: the skill's own file stays as it is.
     pub folder: Option<String>,
     /// Shown with the list's skills in no folder, out of the Other skills group.
     pub at_root: bool,
@@ -134,9 +135,8 @@ pub(crate) trait CommandFs {
     fn rename_skill(&self, from: &str, to: &str) -> Result<(), String>;
     /// Removes what lpm wrote; files someone added to the skill's folder stay.
     fn remove_skill(&self, name: &str) -> Result<(), String>;
-    fn save_folders(&self, folders: &[String]) -> Result<(), String>;
-    /// Which other skills sit in which folder, as (skill, folder).
-    fn save_other_folders(&self, filed: &[(String, String)]) -> Result<(), String>;
+    /// The file is on this computer, whichever computer holds the skills.
+    fn update_layout(&self, edit: &mut dyn FnMut(&mut Layout)) -> Result<(), String>;
     /// Every real SKILL.md a skill has, as (path, content): a skill copied into
     /// two roots has two, and one behind someone's link has none here.
     fn skill_files(&self, name: &str) -> Result<Vec<(String, String)>, String>;
@@ -191,6 +191,7 @@ impl Stores {
 // ---- where the lists live ----------------------------------------------------
 
 pub(crate) struct ProjectPlace {
+    pub name: String,
     pub root: String,
     pub ssh: Option<crate::config::SshSettings>,
 }
@@ -211,6 +212,7 @@ pub(crate) fn project_place(project: &str) -> Result<Option<ProjectPlace>, Strin
         return Ok(None);
     }
     Ok(Some(ProjectPlace {
+        name: project.to_string(),
         root,
         ssh: info.is_remote.then_some(info.ssh),
     }))
@@ -225,13 +227,15 @@ pub(crate) fn global_store() -> LocalFs {
         home.join(".agents").join("skills"),
         claude.join("skills"),
         crate::config::lpm_dir(),
-    );
+    )
+    .with_layout(crate::lpm_commands_layout::global_path());
     match crate::agentdirs::codex_home() {
         Some(codex) => store.with_codex(codex.join("skills")),
         None => store,
     }
 }
 
+/// With no layout, which is all linking and syncing skills need: `stores_at` adds it.
 pub(crate) fn project_store(root: &Path) -> LocalFs {
     LocalFs::new(
         root.join(".agents").join("skills"),
@@ -256,9 +260,13 @@ pub(crate) fn store_of_shared_root(root: &Path) -> Option<LocalFs> {
 }
 
 pub(crate) fn stores_at(place: Option<&ProjectPlace>) -> Stores {
-    let project = place.map(|p| match &p.ssh {
-        Some(ssh) => Box::new(crate::lpm_commands_remote::RemoteFs::new(ssh.clone(), &p.root)) as Box<dyn CommandFs>,
-        None => Box::new(project_store(Path::new(&p.root))) as Box<dyn CommandFs>,
+    let project = place.map(|p| {
+        let layout = crate::lpm_commands_layout::project_path(&p.name);
+        match &p.ssh {
+            Some(ssh) => Box::new(crate::lpm_commands_remote::RemoteFs::new(ssh.clone(), &p.root).with_layout(layout))
+                as Box<dyn CommandFs>,
+            None => Box::new(project_store(Path::new(&p.root)).with_layout(layout)) as Box<dyn CommandFs>,
+        }
     });
     Stores {
         global: Box::new(global_store()),
@@ -314,7 +322,7 @@ fn read_scope(fs: &dyn CommandFs, scope: Scope) -> Result<ScopeList, String> {
             last_run_at: None,
             description: f.doc.shown_description(&f.name),
             argument_hint: crate::lpm_commands_expand::argument_hint(&f.doc.body),
-            folder: f.doc.folder,
+            folder: f.folder,
             body: f.doc.body,
             name: f.name,
             scope,

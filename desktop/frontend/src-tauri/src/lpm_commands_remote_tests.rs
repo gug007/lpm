@@ -1,5 +1,5 @@
 use super::*;
-use crate::lpm_commands::Reach;
+use crate::lpm_commands::{Layout, Reach, AT_ROOT};
 use crate::lpm_commands_git::SkillGit;
 
 fn frame(kind: &str, path: &str, body: &str) -> Vec<u8> {
@@ -8,29 +8,32 @@ fn frame(kind: &str, path: &str, body: &str) -> Vec<u8> {
     out
 }
 
-const MINE: &str = "---\nname: fix\ndescription: Fix\nmetadata:\n  lpm-created: \"true\"\n  lpm-folder: Bugs\n---\n\nFix it.\n";
+const MINE: &str = "---\nname: fix\ndescription: Fix\nmetadata:\n  lpm-created: \"true\"\n---\n\nFix it.\n";
 const THEIRS: &str = "---\nname: lint\ndescription: Lint\n---\n\nLint.\n";
 
 #[test]
 fn a_skill_kept_at_the_top_reads_back_as_that() {
-    let mut bytes = b"O\x1flint\x1f\n".to_vec();
-    bytes.extend(frame("S", "lint", THEIRS));
-    let snap = parse_snapshot(&bytes, "/srv/.agents/skills", "/srv/.claude/skills");
+    let bytes = frame("S", "lint", THEIRS);
+    let layout = Layout { skills: [("lint".to_string(), AT_ROOT.to_string())].into(), ..Layout::default() };
+    let snap = parse_snapshot(&bytes, "/srv/.agents/skills", "/srv/.claude/skills", layout);
     assert!(snap.listed_others[0].at_root);
     assert_eq!(snap.listed_others[0].folder, None);
 }
 
 #[test]
 fn sorts_the_stream_into_lpm_skills_and_others() {
-    let mut bytes = b"L\nD\x1fReview\nO\x1flint\x1fReview\n".to_vec();
+    let mut bytes = b"L\n".to_vec();
     bytes.extend(frame("S", "fix", MINE));
     bytes.extend(frame("S", "lint", THEIRS));
     bytes.extend(b"K\x1ffix\x1f../../.agents/skills/fix\n");
     bytes.extend(b"K\x1fdotfiles\x1f/home/me/dotfiles/x\n");
     bytes.extend(frame("C", "solo", THEIRS));
-    let snap = parse_snapshot(&bytes, "/srv/.agents/skills", "/srv/.claude/skills");
+    let layout = Layout {
+        folders: vec!["Review".to_string()],
+        skills: [("fix".to_string(), "Bugs".to_string()), ("lint".to_string(), "Review".to_string())].into(),
+    };
+    let snap = parse_snapshot(&bytes, "/srv/.agents/skills", "/srv/.claude/skills", layout);
     assert!(snap.legacy);
-    assert_eq!(snap.saved_folders, ["Review"]);
     assert_eq!(snap.folders, ["Review", "Bugs"]);
     let files: Vec<_> = snap.files.iter().map(|f| (f.name.as_str(), f.doc.body.as_str())).collect();
     assert_eq!(files, [("fix", "Fix it.")]);
@@ -52,7 +55,7 @@ fn a_stream_says_where_git_stands_on_each_skill() {
     bytes.extend(b"K\x1fkept\x1f../../.agents/skills/kept\n");
     bytes.extend(b"G\nT\x1f.agents/skills/fix/SKILL.md\n");
     bytes.extend(b"I\x1f.agents/skills/kept\nI\x1f.claude/skills/kept\n");
-    let snap = parse_snapshot(&bytes, "", "");
+    let snap = parse_snapshot(&bytes, "", "", Layout::default());
     assert!(snap.in_repo);
     let git = |name: &str| snap.files.iter().find(|f| f.name == name).unwrap().git;
     assert_eq!(git("fix"), SkillGit { tracked: true, ..SkillGit::default() });
@@ -61,7 +64,7 @@ fn a_stream_says_where_git_stands_on_each_skill() {
 
 #[test]
 fn a_stream_without_git_is_a_project_outside_a_repo() {
-    assert!(!parse_snapshot(&frame("S", "fix", MINE), "", "").in_repo);
+    assert!(!parse_snapshot(&frame("S", "fix", MINE), "", "", Layout::default()).in_repo);
 }
 
 #[cfg(unix)]
@@ -92,7 +95,7 @@ fn the_script_reports_git_as_a_host_would() {
     );
     let out = std::process::Command::new("sh").arg("-c").arg(script).output().unwrap();
     assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
-    let snap = parse_snapshot(&out.stdout, "", "");
+    let snap = parse_snapshot(&out.stdout, "", "", Layout::default());
     assert!(snap.in_repo);
     let state = |name: &str| snap.files.iter().find(|f| f.name == name).unwrap().git;
     assert_eq!(state("kept"), SkillGit { kept_out: true, ..SkillGit::default() });
@@ -111,12 +114,12 @@ fn the_script_says_nothing_of_git_outside_a_repo_and_still_succeeds() {
         .output()
         .unwrap();
     assert!(out.status.success());
-    assert!(!parse_snapshot(&out.stdout, "", "").in_repo);
+    assert!(!parse_snapshot(&out.stdout, "", "", Layout::default()).in_repo);
 }
 
 #[test]
 fn a_skill_with_no_link_on_the_host_is_out_of_claudes_reach() {
-    let snap = parse_snapshot(&frame("S", "fix", MINE), "", "");
+    let snap = parse_snapshot(&frame("S", "fix", MINE), "", "", Layout::default());
     assert_eq!(snap.files[0].reach, Reach { claude: false, codex: true });
 }
 
@@ -124,7 +127,7 @@ fn a_skill_with_no_link_on_the_host_is_out_of_claudes_reach() {
 fn a_truncated_stream_stops_without_inventing_content() {
     let mut bytes = frame("S", "a", MINE);
     bytes.extend(b"S\x1fb\x1f99\nshort");
-    assert_eq!(parse_snapshot(&bytes, "", "").files.len(), 1);
+    assert_eq!(parse_snapshot(&bytes, "", "", Layout::default()).files.len(), 1);
 }
 
 #[test]

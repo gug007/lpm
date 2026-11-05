@@ -16,6 +16,7 @@
 //            accounts.json are exported/imported through their own merge paths, so
 //            they are deliberately NOT export items here.
 
+use crate::lpm_commands_layout::LAYOUT_DIR;
 use std::path::Path;
 
 struct GlobalFile {
@@ -90,13 +91,6 @@ const GLOBAL_FILES: &[GlobalFile] = &[
         sync: true,
         export: true,
     },
-    // The folders kept while no skill is in them. The skills themselves sit outside
-    // this directory and cross through skillsync.rs.
-    GlobalFile {
-        name: "skill-folders",
-        sync: true,
-        export: false,
-    },
     // The bot token rides beside it on the peer channel (telegramsync.rs); an
     // export archive would carry the chats without it, so it stays out.
     GlobalFile {
@@ -127,6 +121,13 @@ const GLOBAL_DIRS: &[GlobalDir] = &[
     },
     GlobalDir {
         name: "memory",
+        sync: true,
+        export: false,
+    },
+    // Each skills list's folders. The skills themselves sit outside this directory
+    // and cross through skillsync.rs.
+    GlobalDir {
+        name: LAYOUT_DIR,
         sync: true,
         export: false,
     },
@@ -248,7 +249,6 @@ mod tests {
                 "pr-title-instructions.txt",
                 "pr-description-instructions.txt",
                 "branch-name-instructions.txt",
-                "skill-folders",
                 "telegram.json",
             ]
         );
@@ -319,7 +319,7 @@ mod tests {
     #[test]
     fn dir_sets_unchanged() {
         let sync: Vec<&str> = sync_global_dirs().collect();
-        assert_eq!(sync, vec!["generator-icons", "zdotdir", "memory", "scripts"]);
+        assert_eq!(sync, vec!["generator-icons", "zdotdir", "memory", "skill-layout", "scripts"]);
         let export: Vec<&str> = export_global_dirs().collect();
         assert_eq!(export, vec!["zdotdir", "scripts"]);
         assert!(is_sync_global_dir("generator-icons"));

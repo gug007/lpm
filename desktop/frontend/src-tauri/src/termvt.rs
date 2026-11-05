@@ -504,13 +504,14 @@ mod tests {
     /// yet: the terminal echoes it, the prompt draws it again, then the shell
     /// says it is running it and the output follows.
     const TYPED: &[u8] = b"cd '/srv/app' && npm run api\r\n$ cd '/srv/app' && npm run api\r\n\x1b]7702;\x07listening on :4000\r\n";
+    const LINE: &str = "cd '/srv/app' && npm run api";
 
     #[test]
     fn the_typed_line_and_its_echoes_are_dropped_once_it_runs() {
         let mut grid = Grid::new(40, 6);
         let mut parser = Parser::default();
         parser.feed(b"last run's log\r\n", &mut grid);
-        grid.mark_anchor();
+        grid.mark_anchor(LINE);
         parser.feed(TYPED, &mut grid);
         assert_eq!(
             grid.capture(100).trim(),
@@ -523,7 +524,7 @@ mod tests {
         let mut grid = Grid::new(16, 3);
         let mut parser = Parser::default();
         parser.feed(b"kept\r\n", &mut grid);
-        grid.mark_anchor();
+        grid.mark_anchor(LINE);
         parser.feed(TYPED, &mut grid);
         parser.feed(b"GET / 200\r\n", &mut grid);
         assert_eq!(
@@ -539,13 +540,82 @@ mod tests {
         let mut grid = Grid::new(40, 6);
         let mut parser = Parser::default();
         parser.feed(b"last run's log\r\n", &mut grid);
-        grid.mark_anchor();
+        grid.mark_anchor("npm run api");
         parser.feed(b"\r\nme@host /srv/app\r\n$ \x1b]7702;\x07", &mut grid);
         parser.feed(b"npm run api\r\nlistening on :4000\r\n", &mut grid);
         assert_eq!(
             grid.capture(100).trim(),
             "last run's log\nlistening on :4000"
         );
+    }
+
+    /// When conhost's next frame runs late the mark overtakes the prompt too,
+    /// and that one frame then holds the prompt, the echo and the first output.
+    #[test]
+    fn a_mark_ahead_of_the_whole_prompt_still_cuts_it() {
+        let mut grid = Grid::new(40, 6);
+        let mut parser = Parser::default();
+        parser.feed(b"last run's log\r\n", &mut grid);
+        grid.mark_anchor("npm run api");
+        parser.feed(b"\x1b[?2004l\x1b]7702;\x07", &mut grid);
+        parser.feed(
+            b"\x1b[32m\r\nme@host /srv/app\x1b[m\r\n$ npm run api\r\nlistening on :4000\r\n",
+            &mut grid,
+        );
+        assert_eq!(
+            grid.capture(100).trim(),
+            "last run's log\nlistening on :4000"
+        );
+    }
+
+    #[test]
+    fn a_mark_partway_through_the_prompt_waits_for_the_echo() {
+        let mut grid = Grid::new(40, 6);
+        let mut parser = Parser::default();
+        grid.mark_anchor("npm run api");
+        parser.feed(b"\r\nme@host /srv/app\x1b]7702;\x07", &mut grid);
+        parser.feed(b"\r\n$ npm run api\r\nlistening on :4000\r\n", &mut grid);
+        assert_eq!(grid.capture(100).trim(), "listening on :4000");
+    }
+
+    #[test]
+    fn a_wrapped_echo_is_recognised_across_its_rows() {
+        let mut grid = Grid::new(10, 6);
+        let mut parser = Parser::default();
+        grid.mark_anchor("npm run api -- --port 4000");
+        parser.feed(
+            b"\x1b]7702;\x07$ npm run api -- --port 4000\r\nup\r\n",
+            &mut grid,
+        );
+        assert_eq!(grid.capture(100).trim(), "up");
+    }
+
+    #[test]
+    fn the_output_of_a_first_command_outlives_the_cut() {
+        let mut grid = Grid::new(40, 6);
+        let mut parser = Parser::default();
+        grid.mark_anchor("npm ci\nnpm run api");
+        parser.feed(
+            b"\x1b]7702;\x07$ npm ci\r\nadded 12 packages\r\n",
+            &mut grid,
+        );
+        parser.feed(b"$ npm run api\r\nup\r\n", &mut grid);
+        assert_eq!(
+            grid.capture(100).trim(),
+            "added 12 packages\n$ npm run api\nup"
+        );
+    }
+
+    #[test]
+    fn output_is_kept_when_the_echo_never_comes() {
+        let mut grid = Grid::new(40, 6);
+        let mut parser = Parser::default();
+        grid.mark_anchor("npm run api");
+        parser.feed(
+            b"\x1b]7702;\x07listening on :4000\r\nGET / 200\r\n",
+            &mut grid,
+        );
+        assert_eq!(grid.capture(100).trim(), "listening on :4000\nGET / 200");
     }
 
     #[test]
@@ -558,7 +628,7 @@ mod tests {
         let mut grid = Grid::new(40, 6);
         let mut parser = Parser::default();
         parser.feed(b"\x1b[?1049hmenu\r\n", &mut grid);
-        grid.mark_anchor();
+        grid.mark_anchor("typed");
         parser.feed(b"typed\r\n\x1b]7702;\x07", &mut grid);
         assert_eq!(grid.capture(100).trim(), "menu\ntyped");
     }

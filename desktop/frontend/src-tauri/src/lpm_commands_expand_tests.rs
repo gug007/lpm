@@ -150,11 +150,12 @@ fn local_stores() -> Stores {
 }
 
 fn local_place() -> ProjectPlace {
-    ProjectPlace { root: "/code/web".into(), ssh: None }
+    ProjectPlace { name: "web".into(), root: "/code/web".into(), ssh: None }
 }
 
 fn ssh_place() -> ProjectPlace {
     ProjectPlace {
+        name: "web".into(),
         root: "/srv/web/".into(),
         ssh: Some(SshSettings { host: "box".into(), ..Default::default() }),
     }

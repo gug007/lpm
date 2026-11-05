@@ -1,14 +1,13 @@
 // A skills list on this computer: its skills root, the .claude/skills beside it
-// and the lpm folder that keeps what isn't a skill.
+// and the .lpm folder an old list of commands sits in.
 use crate::lpm_commands::{
-    is_link_to_skill, is_visible_folder, legacy_name_of, parse_doc, ClaudeEntry, CommandFs, LegacyFile,
+    is_link_to_skill, is_visible_folder, legacy_name_of, parse_doc, ClaudeEntry, CommandFs, Layout, LegacyFile,
     LegacyList, RawList, Snapshot, MAX_FILE_BYTES,
 };
+use crate::lpm_commands_layout as layout;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
-pub(crate) const FOLDERS_FILE: &str = "skill-folders";
-pub(crate) const OTHER_FOLDERS_FILE: &str = "other-skill-folders";
 pub(crate) const LEGACY_DIR: &str = "commands";
 pub(crate) const LEGACY_DONE: &str = ".migrated";
 pub(crate) const LEGACY_DONE_NOTE: &str = "Moved to skills. lpm doesn't read this folder any more.\n";
@@ -19,6 +18,7 @@ pub(crate) struct LocalFs {
     codex: Option<PathBuf>,
     lpm: PathBuf,
     repo: Option<PathBuf>,
+    layout: Option<PathBuf>,
 }
 
 fn read_capped(path: &Path) -> Option<String> {
@@ -38,7 +38,7 @@ fn visible_entries(dir: &Path) -> Vec<(String, PathBuf)> {
         .collect()
 }
 
-fn missing_is_fine(result: std::io::Result<()>) -> Result<(), String> {
+pub(crate) fn missing_is_fine(result: std::io::Result<()>) -> Result<(), String> {
     match result {
         Err(e) if e.kind() != ErrorKind::NotFound => Err(e.to_string()),
         _ => Ok(()),
@@ -101,7 +101,7 @@ pub(crate) fn read_md_list(base: &Path) -> LegacyList {
 
 impl LocalFs {
     pub fn new(skills: PathBuf, claude: PathBuf, lpm: PathBuf) -> Self {
-        Self { skills, claude, codex: None, lpm, repo: None }
+        Self { skills, claude, codex: None, lpm, repo: None, layout: None }
     }
 
     pub fn with_codex(mut self, dir: PathBuf) -> Self {
@@ -112,6 +112,11 @@ impl LocalFs {
     /// The project folder a project's list answers to git from.
     pub fn with_repo(mut self, root: PathBuf) -> Self {
         self.repo = Some(root);
+        self
+    }
+
+    pub fn with_layout(mut self, path: PathBuf) -> Self {
+        self.layout = Some(path);
         self
     }
 
@@ -181,18 +186,6 @@ impl LocalFs {
             .map_err(|e| e.to_string())
     }
 
-    /// One of lpm's small lists, gone once it has nothing to hold.
-    fn save_lines(&self, file: &str, lines: &[String]) -> Result<(), String> {
-        let path = self.lpm.join(file);
-        if lines.is_empty() {
-            return missing_is_fine(std::fs::remove_file(&path));
-        }
-        std::fs::create_dir_all(&self.lpm).map_err(|e| e.to_string())?;
-        let text = format!("{}\n", lines.join("\n"));
-        crate::fsatomic::write(&path, text.as_bytes(), crate::fsatomic::Mode::Preserve(0o644))
-            .map_err(|e| e.to_string())
-    }
-
     pub(crate) fn unlink_claude(&self, name: &str) -> Result<(), String> {
         let link = self.claude.join(name);
         let Ok(meta) = std::fs::symlink_metadata(&link) else {
@@ -223,18 +216,9 @@ impl CommandFs for LocalFs {
             skills_dir: self.skills.to_string_lossy().into_owned(),
             claude_dir: self.claude.to_string_lossy().into_owned(),
             codex_dir: self.codex.as_ref().map(|d| d.to_string_lossy().into_owned()).unwrap_or_default(),
+            layout: layout::read(self.layout.as_deref()),
             ..RawList::default()
         };
-        if let Ok(text) = std::fs::read_to_string(self.lpm.join(FOLDERS_FILE)) {
-            raw.saved_folders = text.lines().filter(|l| !l.is_empty()).map(str::to_string).collect();
-        }
-        if let Ok(text) = std::fs::read_to_string(self.lpm.join(OTHER_FOLDERS_FILE)) {
-            raw.other_folders = text
-                .lines()
-                .filter_map(|l| l.split_once('\t'))
-                .map(|(name, folder)| (name.to_string(), folder.to_string()))
-                .collect();
-        }
         for (name, path) in visible_entries(&self.skills) {
             if let Some(content) = read_capped(&path.join("SKILL.md")) {
                 raw.skills.push((name, content));
@@ -313,13 +297,8 @@ impl CommandFs for LocalFs {
         self.unlink_claude(name)
     }
 
-    fn save_folders(&self, folders: &[String]) -> Result<(), String> {
-        self.save_lines(FOLDERS_FILE, folders)
-    }
-
-    fn save_other_folders(&self, filed: &[(String, String)]) -> Result<(), String> {
-        let lines: Vec<String> = filed.iter().map(|(name, folder)| format!("{name}\t{folder}")).collect();
-        self.save_lines(OTHER_FOLDERS_FILE, &lines)
+    fn update_layout(&self, edit: &mut dyn FnMut(&mut Layout)) -> Result<(), String> {
+        layout::update(self.layout.as_deref(), edit)
     }
 
     fn skill_files(&self, name: &str) -> Result<Vec<(String, String)>, String> {

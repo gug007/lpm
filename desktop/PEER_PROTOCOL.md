@@ -837,9 +837,10 @@ those cases reads as every skill deleted. `heldSkills` names what must stay as i
 on the sender: skills lpm didn't create, and lpm's own that can't cross (a linked
 folder, a folder over 8 MiB). A name held on either side stays out of the plan both
 ways, deletions included, and `peer_sync_status` returns it as `skippedSkills` when
-the other side has that skill. `skill-folders`, the list of empty folders, joins the
-global files only between two such maps, because an older build refuses it as a
-global it doesn't sync.
+the other side has that skill. `skill-layout/<project>.json`, each list's folders and
+which skill sits in which (`__global__.json` for the global list), joins the global
+files only between two such maps, because an older build refuses it as a global it
+doesn't sync.
 
 `keptSkills` does the same for project skills kept out of Git, which Git can't carry.
 `repos` holds each project this computer read and its repository, the `origin` reduced

@@ -1,11 +1,9 @@
 // The SKILL.md behind one lpm skill: Agent Skills frontmatter, then the prompt.
-// lpm owns `name`, `description` and its own two `metadata` keys. Every other
-// frontmatter entry is carried through, so a hand edit or an imported file keeps
-// what it had.
+// lpm owns `name`, `description` and its own `metadata` key. Every other frontmatter
+// entry is carried through, so a hand edit or an imported file keeps what it had.
 use serde_norway::Value;
 
 const CREATED_KEY: &str = "lpm-created";
-const FOLDER_KEY: &str = "lpm-folder";
 pub(crate) const MAX_DESCRIPTION_CHARS: usize = 1024;
 /// Claude's and Cursor's switch for a skill only the user starts.
 const MANUAL_ONLY: &str = "disable-model-invocation: true";
@@ -16,8 +14,6 @@ pub(crate) struct Doc {
     pub body: String,
     /// The `lpm-created` mark: lpm lists and changes only skills that carry it.
     pub created_with_lpm: bool,
-    /// Skills sit flat in their root, so a folder in lpm is only this label.
-    pub folder: Option<String>,
     /// Top-level frontmatter lines lpm doesn't own, kept as written.
     pub extra: Vec<String>,
     /// `metadata` entries that aren't lpm's.
@@ -26,11 +22,10 @@ pub(crate) struct Doc {
 
 impl Doc {
     /// A skill lpm creates: marked as lpm's, and started only by the user.
-    pub(crate) fn new(description: &str, body: &str, folder: Option<String>) -> Self {
+    pub(crate) fn new(description: &str, body: &str) -> Self {
         Self {
             description: description.to_string(),
             body: body.to_string(),
-            folder,
             ..Self::default()
         }
         .made_by_lpm()
@@ -60,7 +55,7 @@ impl Doc {
             out.push_str(line);
             out.push('\n');
         }
-        if self.created_with_lpm || self.folder.is_some() || !self.metadata.is_empty() {
+        if self.created_with_lpm || !self.metadata.is_empty() {
             out.push_str("metadata:\n");
         }
         for (key, value) in &self.metadata {
@@ -68,9 +63,6 @@ impl Doc {
         }
         if self.created_with_lpm {
             out.push_str(&format!("  {CREATED_KEY}: \"true\"\n"));
-        }
-        if let Some(folder) = &self.folder {
-            out.push_str(&format!("  {FOLDER_KEY}: {}\n", quoted(folder)));
         }
         out.push_str("---\n\n");
         out.push_str(self.body.trim_end());
@@ -105,7 +97,6 @@ pub(crate) fn parse_doc(content: &str) -> Doc {
     for (key, value) in yaml.as_ref().map(metadata_of).unwrap_or_default() {
         match key.as_str() {
             CREATED_KEY => doc.created_with_lpm = value == "true",
-            FOLDER_KEY => doc.folder = Some(value).filter(|f| !f.is_empty()),
             _ => doc.metadata.push((key, value)),
         }
     }

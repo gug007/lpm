@@ -98,7 +98,8 @@ pub(crate) fn add_folder(folders: &mut Vec<String>, path: &str) -> String {
 /// What `folder` becomes when the folder `from` becomes `to`, with None for the
 /// top of the list. The outer None leaves a folder outside `from` as it is.
 pub(crate) fn moved_folder(folder: &str, from: &str, to: Option<&str>) -> Option<Option<String>> {
-    let rest = match folder.strip_prefix(from)? {
+    let head = folder.get(..from.len()).filter(|head| head.eq_ignore_ascii_case(from))?;
+    let rest = match &folder[head.len()..] {
         "" => None,
         rest => Some(rest.strip_prefix(FOLDER_SEP)?),
     };

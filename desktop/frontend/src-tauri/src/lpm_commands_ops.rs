@@ -3,9 +3,9 @@
 // Each one checks the list as it is on disk first, so two skills in one list
 // never share a name and a skill lpm didn't create is never written over.
 use crate::lpm_commands::{
-    add_folder, check_name, clean_folder, clean_folder_opt, codex_policy_file, moved_folder, parse_doc, place_label,
-    skill_file, CommandFile, CommandFs, CommandInput, CommandRef, Doc, MAX_FILE_BYTES, Scope, Snapshot, Stores,
-    AT_ROOT, FOLDER_SEP,
+    add_folder, check_name, clean_folder, clean_folder_opt, codex_policy_file, parse_doc, place_label, skill_file,
+    CommandFile, CommandFs, CommandInput, CommandRef, Doc, MAX_FILE_BYTES, Scope, Snapshot, Stores, AT_ROOT,
+    FOLDER_SEP,
 };
 use crate::lpm_commands_doc::MAX_DESCRIPTION_CHARS;
 use crate::lpm_commands_git as git;
@@ -18,13 +18,11 @@ fn find<'a>(snap: &'a Snapshot, name: &str) -> Option<&'a CommandFile> {
     snap.files.iter().find(|f| f.name == name)
 }
 
-/// The list's folders go on existing as they stood, a skill's move out of its
-/// folder leaving it empty rather than gone.
-fn keep_folders(fs: &dyn CommandFs, snap: &Snapshot, folders: Vec<String>) -> Result<(), String> {
-    if folders == snap.saved_folders {
-        return Ok(());
-    }
-    fs.save_folders(&folders)
+fn file_skill(fs: &dyn CommandFs, folders: &[String], name: &str, folder: Option<&str>) -> Result<(), String> {
+    fs.update_layout(&mut |layout| {
+        layout.keep(folders);
+        layout.file(name, folder);
+    })
 }
 
 /// A new skill: its file, what keeps Codex from starting it on its own, and
@@ -54,7 +52,7 @@ pub(crate) fn save(stores: &Stores, input: CommandInput, previous: Option<Comman
     let same_list = previous.as_ref().filter(|p| p.scope == input.scope);
     let is_previous = |name: &str| same_list.is_some_and(|p| p.name == name);
     if let Some(clash) = snap.files.iter().find(|f| f.name == input.name && !is_previous(&f.name)) {
-        return Err(format!("/{} already exists in {}.", clash.name, place_label(clash.doc.folder.as_deref())));
+        return Err(format!("/{} already exists in {}.", clash.name, place_label(clash.folder.as_deref())));
     }
     if snap.others.iter().any(|n| n.eq_ignore_ascii_case(&input.name)) {
         return Err(format!("A skill named {} already exists, not created in lpm.", input.name));
@@ -66,10 +64,9 @@ pub(crate) fn save(stores: &Stores, input: CommandInput, previous: Option<Comman
             Some(old) => Doc {
                 description: input.description.clone(),
                 body: input.body.clone(),
-                folder: folder.clone(),
                 ..old.clone()
             },
-            None => Doc::new(&input.description, &input.body, folder.clone()),
+            None => Doc::new(&input.description, &input.body),
         };
         // A list reads MAX_FILE_BYTES of a file, so a longer one would come back cut.
         if doc.to_skill(&input.name).len() > MAX_FILE_BYTES {
@@ -83,20 +80,26 @@ pub(crate) fn save(stores: &Stores, input: CommandInput, previous: Option<Comman
         Some(p) if p.scope == input.scope => {
             let Some(old) = find(&snap, &p.name) else {
                 create_skill(fs, &input.name, doc(None)?)?;
-                keep_folders(fs, &snap, folders)?;
+                file_skill(fs, &folders, &input.name, folder.as_deref())?;
                 return git::apply(fs, &input.name, false, want_out);
             };
             let doc = doc(Some(&old.doc))?;
             is_out = old.git.kept_out;
-            if p.name != input.name {
+            let renamed = p.name != input.name;
+            if renamed {
                 // Rules first: a renamed skill must not spend a moment in git's view.
                 if is_out {
                     git::move_rules(fs, &p.name, &input.name)?;
                 }
                 fs.rename_skill(&p.name, &input.name)?;
             }
-            fs.write(&skill_file(&input.name), &doc.to_skill(&input.name))?;
-            fs.link_claude(&input.name)?;
+            // A move between folders leaves the repo alone: writing would put the
+            // frontmatter in lpm's order.
+            let text = doc.to_skill(&input.name);
+            if renamed || text != old.doc.to_skill(&input.name) {
+                fs.write(&skill_file(&input.name), &text)?;
+                fs.link_claude(&input.name)?;
+            }
         }
         Some(p) => {
             let other = stores.get(p.scope)?;
@@ -109,11 +112,11 @@ pub(crate) fn save(stores: &Stores, input: CommandInput, previous: Option<Comman
                     git::forget_removed(other, &p.name);
                 }
             }
-            keep_folders(other, &other_snap, other_snap.folders.clone())?;
+            file_skill(other, &other_snap.folders, &p.name, None)?;
         }
         None => create_skill(fs, &input.name, doc(None)?)?,
     }
-    keep_folders(fs, &snap, folders)?;
+    file_skill(fs, &folders, &input.name, folder.as_deref())?;
     git::apply(fs, &input.name, is_out, want_out)
 }
 
@@ -130,7 +133,7 @@ pub(crate) fn delete(stores: &Stores, target: &CommandRef) -> Result<(), String>
     if file.git.kept_out {
         git::forget_removed(fs, &target.name);
     }
-    keep_folders(fs, &snap, snap.folders.clone())
+    file_skill(fs, &snap.folders, &target.name, None)
 }
 
 pub(crate) fn create_folder(stores: &Stores, scope: Scope, name: &str) -> Result<(), String> {
@@ -142,11 +145,11 @@ pub(crate) fn create_folder(stores: &Stores, scope: Scope, name: &str) -> Result
     }
     let mut folders = snap.folders.clone();
     add_folder(&mut folders, &name);
-    keep_folders(fs, &snap, folders)
+    fs.update_layout(&mut |layout| layout.keep(&folders))
 }
 
 /// Files a skill lpm didn't create under a folder, or back out of one with None.
-/// Its own file isn't touched: the list keeps the label.
+/// Its own file isn't touched.
 pub(crate) fn move_other(stores: &Stores, scope: Scope, name: &str, folder: Option<&str>) -> Result<(), String> {
     let fs = stores.get(scope)?;
     let snap = fs.snapshot()?;
@@ -155,12 +158,7 @@ pub(crate) fn move_other(stores: &Stores, scope: Scope, name: &str, folder: Opti
     }
     let mut folders = snap.folders.clone();
     let folder = clean_folder_opt(folder)?.map(|f| add_folder(&mut folders, &f));
-    let mut filed: Vec<(String, String)> = snap.other_folders.iter().filter(|(n, _)| n != name).cloned().collect();
-    if let Some(folder) = folder {
-        filed.push((name.to_string(), folder));
-    }
-    fs.save_other_folders(&filed)?;
-    keep_folders(fs, &snap, folders)
+    file_skill(fs, &folders, name, folder.as_deref())
 }
 
 /// Shows a skill lpm didn't create with the list's skills in no folder, out of the
@@ -171,10 +169,7 @@ pub(crate) fn move_other_to_root(stores: &Stores, scope: Scope, name: &str) -> R
     if !snap.listed_others.iter().any(|o| o.name == name) {
         return Err(format!("/{name} isn't in this list any more."));
     }
-    let mut filed: Vec<(String, String)> = snap.other_folders.iter().filter(|(n, _)| n != name).cloned().collect();
-    filed.push((name.to_string(), AT_ROOT.to_string()));
-    fs.save_other_folders(&filed)?;
-    keep_folders(fs, &snap, snap.folders.clone())
+    file_skill(fs, &snap.folders, name, Some(AT_ROOT))
 }
 
 /// Turns another skill into one of lpm's, or one of lpm's back: the mark in its
@@ -182,16 +177,13 @@ pub(crate) fn move_other_to_root(stores: &Stores, scope: Scope, name: &str) -> R
 pub(crate) fn convert(stores: &Stores, scope: Scope, name: &str, to_lpm: bool) -> Result<(), String> {
     let fs = stores.get(scope)?;
     let snap = fs.snapshot()?;
-    let folder = if to_lpm {
+    if to_lpm {
         check_name(name)?;
-        if !snap.listed_others.iter().any(|o| o.name == name) {
-            return Err(format!("/{name} isn't in this list any more."));
-        }
-        snap.other_folders.iter().find(|(n, _)| n == name).map(|(_, f)| f.clone()).filter(|f| f != AT_ROOT)
-    } else {
-        let file = find(&snap, name).ok_or_else(|| format!("/{name} isn't in this list any more."))?;
-        file.doc.folder.clone()
-    };
+    }
+    let held = if to_lpm { snap.listed_others.iter().any(|o| o.name == name) } else { find(&snap, name).is_some() };
+    if !held {
+        return Err(format!("/{name} isn't in this list any more."));
+    }
     let files = fs.skill_files(name)?;
     if files.is_empty() {
         return Err("This skill is a link to a folder somewhere else. Change it where it lives.".into());
@@ -200,60 +192,25 @@ pub(crate) fn convert(stores: &Stores, scope: Scope, name: &str, to_lpm: bool) -
         return Err("That skill is too long to convert.".into());
     }
     for (path, content) in &files {
-        let doc = Doc {
-            created_with_lpm: to_lpm,
-            folder: folder.clone().filter(|_| to_lpm),
-            ..parse_doc(content)
-        };
+        let doc = Doc { created_with_lpm: to_lpm, ..parse_doc(content) };
         fs.rewrite(path, &doc.to_skill(name))?;
-    }
-    let mut filed: Vec<(String, String)> = snap.other_folders.iter().filter(|(n, _)| n != name).cloned().collect();
-    if let Some(folder) = folder.filter(|_| !to_lpm) {
-        filed.push((name.to_string(), folder));
-    }
-    if filed != snap.other_folders {
-        fs.save_other_folders(&filed)?;
     }
     if to_lpm {
         fs.link_claude(name)?;
     }
-    keep_folders(fs, &snap, snap.folders.clone())
-}
-
-/// Moves the folder `from` and all that's inside it to `to`, or for None to the top
-/// of the list. A file is only rewritten for a skill that moves.
-fn relabel(fs: &dyn CommandFs, snap: &Snapshot, from: &str, to: Option<&str>) -> Result<(), String> {
-    let filed: Vec<(String, String)> = snap
-        .other_folders
-        .iter()
-        .filter_map(|(name, folder)| match moved_folder(folder, from, to) {
-            None => Some((name.clone(), folder.clone())),
-            Some(moved) => moved.map(|folder| (name.clone(), folder)),
-        })
-        .collect();
-    if filed != snap.other_folders {
-        fs.save_other_folders(&filed)?;
-    }
-    for file in &snap.files {
-        let Some(folder) = file.doc.folder.as_deref().and_then(|f| moved_folder(f, from, to)) else {
-            continue;
-        };
-        let doc = Doc { folder, ..file.doc.clone() };
-        fs.write(&skill_file(&file.name), &doc.to_skill(&file.name))?;
-        fs.link_claude(&file.name)?;
-    }
-    Ok(())
-}
-
-/// The list's folders after that move. Two that land on one name become one.
-fn moved_folders(folders: &[String], from: &str, to: Option<&str>) -> Vec<String> {
-    let mut out = Vec::new();
-    for folder in folders {
-        if let Some(moved) = moved_folder(folder, from, to).unwrap_or_else(|| Some(folder.clone())) {
-            add_folder(&mut out, &moved);
+    fs.update_layout(&mut |layout| {
+        layout.keep(&snap.folders);
+        if to_lpm && layout.skills.get(name).is_some_and(|f| f == AT_ROOT) {
+            layout.skills.remove(name);
         }
-    }
-    out
+    })
+}
+
+fn move_folder(fs: &dyn CommandFs, snap: &Snapshot, from: &str, to: Option<&str>) -> Result<(), String> {
+    fs.update_layout(&mut |layout| {
+        layout.keep(&snap.folders);
+        layout.move_folder(from, to);
+    })
 }
 
 /// Gives a folder a new name or, with a new path, a new place in the list. What's
@@ -280,8 +237,7 @@ pub(crate) fn rename_folder(stores: &Stores, scope: Scope, from: &str, to: &str)
     if !current.eq_ignore_ascii_case(&to) && existing_folder(&snap.folders, &to).is_some() {
         return Err(format!("A folder named {to} already exists."));
     }
-    relabel(fs, &snap, &current, Some(&to))?;
-    keep_folders(fs, &snap, moved_folders(&snap.folders, &current, Some(&to)))
+    move_folder(fs, &snap, &current, Some(&to))
 }
 
 /// Remove a folder but keep what it held: its skills and folders move up a level.
@@ -293,6 +249,5 @@ pub(crate) fn delete_folder(stores: &Stores, scope: Scope, name: &str) -> Result
         return Ok(());
     };
     let parent = current.rsplit_once(FOLDER_SEP).map(|(parent, _)| parent);
-    relabel(fs, &snap, &current, parent)?;
-    keep_folders(fs, &snap, moved_folders(&snap.folders, &current, parent))
+    move_folder(fs, &snap, &current, parent)
 }

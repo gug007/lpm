@@ -1,7 +1,7 @@
 // Classifying a ~/.lpm filesystem event: which config category it touches, and
 // what one event dirties. Split out of configwatch so the watcher plumbing and
 // this pure, heavily-tested mapping each stay small.
-use crate::lpm_commands_local::FOLDERS_FILE;
+use crate::lpm_commands_layout::LAYOUT_DIR;
 use crate::peersync;
 use crate::syncsurface::{is_os_junk, is_sync_global_dir, is_sync_global_file};
 use std::collections::BTreeSet;
@@ -23,7 +23,8 @@ pub(crate) enum Category {
     // rather than by lpm, so the pane only learns about a save from here. Carries
     // the project segment so the emit names which project changed.
     Memory(String),
-    // skill-folders: the global list's empty folders, which every Skills screen shows.
+    // skill-layout/*.json: a list's folders, which a sync lands here without lpm
+    // having changed anything else.
     Skills,
 }
 
@@ -79,11 +80,11 @@ pub(crate) fn classify(lpm: &Path, path: &Path) -> Option<Category> {
     match segs.as_slice() {
         [name] if *name == "settings.json" => Some(Category::Settings),
         [name] if *name == "groups.json" => Some(Category::Sidebar),
-        [name] if *name == FOLDERS_FILE => Some(Category::Skills),
         [name] => is_sync_global_file(name).then_some(Category::Projects),
         ["projects", file] => file.ends_with(".yml").then_some(Category::Projects),
         ["templates", ..] => Some(Category::Templates),
         ["memory", project, ..] => Some(Category::Memory((*project).to_string())),
+        [dir, ..] if *dir == LAYOUT_DIR => Some(Category::Skills),
         [dir, ..] if is_sync_global_dir(dir) => Some(Category::Projects),
         _ => None,
     }
@@ -165,9 +166,9 @@ mod tests {
     }
 
     #[test]
-    fn the_skill_folders_file_is_a_skills_change() {
-        assert_eq!(classify(&lpm(), &at("skill-folders")), Some(Category::Skills));
-        let d = fold_event(&lpm(), &event(EventKind::Create(CreateKind::File), "skill-folders"));
+    fn a_skill_layout_is_a_skills_change() {
+        assert_eq!(classify(&lpm(), &at("skill-layout/web.json")), Some(Category::Skills));
+        let d = fold_event(&lpm(), &event(EventKind::Create(CreateKind::File), "skill-layout/web.json"));
         assert!(d.skills && !d.projects);
     }
 

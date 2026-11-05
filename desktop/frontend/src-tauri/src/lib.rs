@@ -172,6 +172,7 @@ mod lpm_commands_doc;
 mod lpm_commands_expand;
 mod lpm_commands_git;
 mod lpm_commands_import;
+mod lpm_commands_layout;
 mod lpm_commands_local;
 mod lpm_commands_migrate;
 mod lpm_commands_names;

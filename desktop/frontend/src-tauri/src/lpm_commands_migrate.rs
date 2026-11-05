@@ -52,22 +52,31 @@ pub(crate) fn run(fs: &dyn CommandFs) -> Result<(), String> {
             folders.push(folder.clone());
         }
     }
+    let mut filed: Vec<(String, String)> = Vec::new();
     for file in &legacy.files {
-        let mut doc = parse_doc(&file.content);
+        let doc = parse_doc(&file.content);
         let Some(base) = skill_name(&file.name).filter(|_| !doc.body.trim().is_empty()) else {
             continue;
         };
+        let folder = file.folder.clone().filter(|f| clean_folder(f).is_ok());
+        // Already moved by a run that stopped before saving the folders.
         if snap.files.iter().any(|f| f.name == base && f.doc.body == doc.body) {
+            filed.extend(folder.map(|folder| (base, folder)));
             continue;
         }
         let name = free_name(&base, &taken);
         taken.insert(name.clone());
-        doc.folder = file.folder.clone().filter(|f| clean_folder(f).is_ok());
         create_skill(fs, &name, doc.made_by_lpm())?;
+        filed.extend(folder.map(|folder| (name.clone(), folder)));
         if let Some(folder) = &file.folder {
             fs.copy_legacy_files(folder, &beside[folder.as_str()], &name)?;
         }
     }
-    fs.save_folders(&folders)?;
+    fs.update_layout(&mut |layout| {
+        layout.keep(&folders);
+        for (name, folder) in &filed {
+            layout.skills.entry(name.clone()).or_insert_with(|| folder.clone());
+        }
+    })?;
     fs.finish_legacy()
 }

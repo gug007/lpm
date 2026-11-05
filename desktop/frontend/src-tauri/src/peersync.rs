@@ -21,7 +21,7 @@
 // and so are project skills kept out of Git (skillsync_kept.rs).
 // See PEER_PROTOCOL.md.
 use crate::config;
-use crate::lpm_commands_local::FOLDERS_FILE;
+use crate::lpm_commands_layout::is_layout_file;
 use crate::skillsync;
 use crate::skillsync_kept::{self, KeptSkills};
 use crate::syncstate::{BaseState, TOMBSTONE};
@@ -563,10 +563,10 @@ fn plan_core(
     // A peer running an older surface may still advertise units this build no
     // longer syncs (e.g. groups.json); planning them would only fail at apply.
     global_keys.retain(|n| syncable_global(n));
-    // An older build refuses this file on sight, every run.
+    // An older build refuses these files on sight, every run.
     let skills = local.skills.as_ref().zip(remote.skills.as_ref()).filter(|_| !legacy);
     if skills.is_none() {
-        global_keys.retain(|n| n.as_str() != FOLDERS_FILE);
+        global_keys.retain(|n| !is_layout_file(n));
     }
     for name in global_keys {
         if let Some(it) = resolve_pair(
@@ -2344,11 +2344,11 @@ mod tests {
     }
 
     #[test]
-    fn a_peer_without_a_skills_list_gets_no_skills_and_no_folders_file() {
+    fn a_peer_without_a_skills_list_gets_no_skills_and_no_layout() {
         let mut local = skill_map(&[("deploy", skill("a", 1, "me", 5))], &[]);
         local
             .globals
-            .insert("skill-folders".into(), skill("f", 1, "me", 5));
+            .insert("skill-layout/web.json".into(), skill("f", 1, "me", 5));
         let older = DigestMap::default();
         assert!(skill_plan(&local, &older).is_empty());
         assert!(compute_plan(&local, &older).is_empty());
@@ -2356,14 +2356,14 @@ mod tests {
     }
 
     #[test]
-    fn the_folders_file_syncs_between_computers_that_both_list_skills() {
+    fn a_layout_syncs_between_computers_that_both_list_skills() {
         let mut local = skill_map(&[], &[]);
         local
             .globals
-            .insert("skill-folders".into(), skill("f", 1, "me", 5));
+            .insert("skill-layout/web.json".into(), skill("f", 1, "me", 5));
         let plan = skill_plan(&local, &skill_map(&[], &[]));
         assert_eq!(plan.len(), 1);
-        assert_eq!(plan[0].name, "skill-folders");
+        assert_eq!(plan[0].name, "skill-layout/web.json");
     }
 
     #[test]

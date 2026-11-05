@@ -1,12 +1,8 @@
 // What a list's places hold: read by `CommandFs`, here sorted into lpm's skills,
 // the skills that aren't lpm's, and the names lpm must leave alone.
-use crate::lpm_commands::{add_folder, clean_folder, parse_doc, valid_name, Doc, OtherSkill, Reach};
+use crate::lpm_commands::{add_folder, clean_folder, parse_doc, valid_name, Doc, Layout, OtherSkill, Reach, AT_ROOT};
 use crate::lpm_commands_git::{GitView, SkillGit, CLAUDE_ROOT, SHARED_ROOT};
 use std::collections::HashSet;
-
-/// The folder saved for an other skill kept at the top of its list. An lpm that
-/// doesn't know it reads no folder, and shows the skill under Other skills.
-pub(crate) const AT_ROOT: &str = "";
 
 /// What of another skill a list carries: lists are read often, and a skill's
 /// whole file can run to tens of kilobytes.
@@ -20,6 +16,7 @@ const READER_ORDER: &[&str] = &["claude", "codex", "gemini", "opencode"];
 pub(crate) struct CommandFile {
     pub name: String,
     pub doc: Doc,
+    pub folder: Option<String>,
     pub reach: Reach,
     pub git: SkillGit,
 }
@@ -39,8 +36,7 @@ pub(crate) struct RawList {
     pub claude: Vec<(String, ClaudeEntry)>,
     /// Folder name and SKILL.md of everything in Codex's own skills folder.
     pub codex: Vec<(String, String)>,
-    pub saved_folders: Vec<String>,
-    pub other_folders: Vec<(String, String)>,
+    pub layout: Layout,
     pub legacy: bool,
     pub skills_dir: String,
     pub claude_dir: String,
@@ -52,16 +48,14 @@ pub(crate) struct RawList {
 /// A list as it is on disk.
 #[derive(Default)]
 pub(crate) struct Snapshot {
-    /// Every folder: the labels in use and the ones kept while empty.
+    /// Every folder: the saved ones and any a skill was filed under.
     pub folders: Vec<String>,
-    pub saved_folders: Vec<String>,
+    pub layout: Layout,
     pub files: Vec<CommandFile>,
     /// Names of skills that aren't lpm's, which lpm must never take over.
     pub others: Vec<String>,
     /// The ones of those that could be read, to show.
     pub listed_others: Vec<OtherSkill>,
-    /// Which of them sit in which folder, as saved.
-    pub other_folders: Vec<(String, String)>,
     /// An old .lpm/commands list is still waiting to be moved here.
     pub legacy: bool,
     pub in_repo: bool,
@@ -77,12 +71,16 @@ impl ClaudeEntry {
 }
 
 impl Snapshot {
-    fn add(&mut self, name: String, mut doc: Doc, reach: Reach) {
-        doc.folder = doc
-            .folder
-            .and_then(|f| clean_folder(&f).ok())
-            .map(|f| add_folder(&mut self.folders, &f));
-        self.files.push(CommandFile { name, doc, reach, git: SkillGit::default() });
+    fn add(&mut self, name: String, doc: Doc, reach: Reach) {
+        let folder = self.folder_of(&name);
+        self.files.push(CommandFile { name, doc, folder, reach, git: SkillGit::default() });
+    }
+
+    /// As the list spells it, whatever was saved. A folder only a skill names joins
+    /// the list here.
+    fn folder_of(&mut self, name: &str) -> Option<String> {
+        let folder = clean_folder(self.layout.skills.get(name)?).ok()?;
+        Some(add_folder(&mut self.folders, &folder))
     }
 
     /// A skill lpm didn't create. The same name in two places is one skill that
@@ -111,16 +109,14 @@ impl Snapshot {
         }
     }
 
-    /// Puts each other skill in its folder. One whose skill has gone is left in
-    /// the saved list, in case the skill comes back.
+    /// Puts each other skill in its folder.
     fn file_others(&mut self) {
-        for other in &mut self.listed_others {
-            let filed = self.other_folders.iter().find(|(name, _)| *name == other.name);
-            other.folder = filed
-                .and_then(|(_, f)| clean_folder(f).ok())
-                .map(|f| add_folder(&mut self.folders, &f));
-            other.at_root = filed.is_some_and(|(_, f)| f == AT_ROOT);
+        let mut others = std::mem::take(&mut self.listed_others);
+        for other in &mut others {
+            other.folder = self.folder_of(&other.name);
+            other.at_root = self.layout.skills.get(&other.name).is_some_and(|f| f == AT_ROOT);
         }
+        self.listed_others = others;
     }
 
     /// A skill outside the skills root: lpm's unless it is a copy of one in
@@ -159,13 +155,12 @@ fn skill_path(root: &str, name: &str) -> String {
 impl RawList {
     pub(crate) fn sorted_out(self) -> Snapshot {
         let mut folders = Vec::new();
-        for folder in &self.saved_folders {
+        for folder in &self.layout.folders {
             add_folder(&mut folders, &clean_folder(folder).unwrap_or_else(|_| folder.clone()));
         }
         let mut snap = Snapshot {
             folders,
-            saved_folders: self.saved_folders,
-            other_folders: self.other_folders,
+            layout: self.layout,
             legacy: self.legacy,
             ..Snapshot::default()
         };

@@ -40,25 +40,28 @@ pub(crate) fn import(stores: &Stores, scope: Scope, from: &[PathBuf]) -> Result<
         .map(|f| f.name.clone())
         .chain(snap.others.iter().map(|n| n.to_lowercase()))
         .collect();
-    let mut added = 0;
+    let mut added = Vec::new();
     for dir in from {
         for file in read_md_list(dir).files {
-            let mut doc = parse_doc(&file.content);
+            let doc = parse_doc(&file.content);
             let Some(name) = skill_name(&file.name).filter(|_| !doc.body.trim().is_empty()) else {
                 continue;
             };
             if !taken.insert(name.clone()) {
                 continue;
             }
-            doc.folder = Some(IMPORT_FOLDER.to_string());
             create_skill(fs, &name, doc.made_by_lpm())?;
-            added += 1;
+            added.push(name);
         }
     }
-    if added > 0 && !snap.folders.iter().any(|f| f == IMPORT_FOLDER) {
-        let mut folders = snap.folders.clone();
-        folders.push(IMPORT_FOLDER.to_string());
-        fs.save_folders(&folders)?;
+    if !added.is_empty() {
+        fs.update_layout(&mut |layout| {
+            layout.keep(&snap.folders);
+            layout.keep(&[IMPORT_FOLDER.to_string()]);
+            for name in &added {
+                layout.file(name, Some(IMPORT_FOLDER));
+            }
+        })?;
     }
-    Ok(added)
+    Ok(added.len())
 }

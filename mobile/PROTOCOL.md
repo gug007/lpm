@@ -877,7 +877,8 @@ names, so older apps keep working. Two lists: **global** ones in the Mac's
 project (on the host, for an SSH project), committed with its code. Each is
 `<name>/SKILL.md`, with `metadata.lpm-created: "true"`: those roots hold skills
 from elsewhere too, which lpm doesn't list and refuses to overwrite. A `folder`
-is the label in `metadata.lpm-folder`, not a place on disk. Names are lowercase
+is not a place on disk: the Mac keeps it apart from the skill, in
+`~/.lpm/skill-layout/`, so sorting a list never changes a repo. Names are lowercase
 letters, numbers and single hyphens, and unique within a list. When both lists
 have a name, `/name` runs the **project's**. Only when `features` has
 `"lpmCommands"`; every verb runs on a worker and echoes `reqId`.
