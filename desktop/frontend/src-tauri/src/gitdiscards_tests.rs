@@ -224,6 +224,8 @@ fn a_tracked_name_with_brackets_is_not_a_pattern() {
 #[test]
 fn committing_a_name_with_brackets_leaves_the_file_it_would_match() {
     let (_tmp, root) = repo();
+    git_out(&root, &["config", "user.email", "t@t"]).unwrap();
+    git_out(&root, &["config", "user.name", "t"]).unwrap();
     write(&root, "a.txt", "a\n");
     write(&root, "[ab].txt", "brackets\n");
     commit(&root);
