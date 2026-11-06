@@ -371,7 +371,7 @@ export function JobTaskView({
                 <JobLiveOutput
                   project={project}
                   jobId={job.id}
-                  running={job.running === true}
+                  running={job.running === true && !job.runningStep}
                   onGrow={followGrowth}
                 />
               </div>

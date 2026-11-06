@@ -6,6 +6,7 @@
 // question closes, wherever it was answered, its buttons give way to one that
 // says how it ended.
 
+use crate::jobs::askform::Question;
 use crate::sendto::Asking;
 use crate::telegram::{api, client};
 use crate::telegramask::{self, Outcome};
@@ -210,7 +211,7 @@ fn tapped(app: &AppHandle, token: &str, tap: &Value) -> Seen {
             notice(token, tap_id, "", false);
         }
         Outcome::Prompt => {
-            prompt(token, &entry, &ask.questions[0].text);
+            prompt(token, &entry, &ask.questions[0]);
             notice(token, tap_id, "", false);
         }
         Outcome::Ignore => notice(token, tap_id, &telegramask::status_text(&ask, entry.private), false),
@@ -225,12 +226,16 @@ fn tapped(app: &AppHandle, token: &str, tap: &Value) -> Seen {
     Seen::Handled
 }
 
+fn prompt_text(question: &Question) -> String {
+    format!("Your answer to: {}", question.headline())
+}
+
 /// Asks for an answer in the user's own words; their reply to this message
 /// is the answer.
-fn prompt(token: &str, entry: &Entry, question: &str) {
+fn prompt(token: &str, entry: &Entry, question: &Question) {
     let body = json!({
         "chat_id": entry.chat,
-        "text": format!("Your answer to: {question}"),
+        "text": prompt_text(question),
         "reply_markup": { "force_reply": true, "selective": !entry.private, "input_field_placeholder": "Your answer" },
     });
     let Ok(c) = client(Duration::from_secs(20)) else {

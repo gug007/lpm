@@ -37,18 +37,15 @@ fn read_log_head(path: &str) -> String {
 /// the run did, so it brings the conversation along the way a fork does.
 fn resume_task(project: &str, session: &str, flags: &str, label: &str, emoji: &str) -> Value {
     let command = format!("{CLAUDE} --resume {session}{flags}");
-    let mut task = json!({
+    json!({
         "kind": "fork",
         "command": command,
         "label": label,
+        "emoji": emoji,
         "startCmd": CLAUDE,
         "resumeCmd": command,
         "claudeSession": { "sourceProject": project, "sessionId": session },
-    });
-    if !emoji.is_empty() {
-        task["emoji"] = json!(emoji);
-    }
-    task
+    })
 }
 
 /// Ends the job's live run and returns the project to open a tab in and the
@@ -63,7 +60,10 @@ pub(crate) fn take_over(project: &str, job_id: &str) -> Result<Value, String> {
     if !can_take_over(project, &run) {
         return Err("Only a Claude run in a project can carry on in a terminal.".into());
     }
+    let target = run.copy.clone().unwrap_or_else(|| project.to_string());
+    let root = config::spawn_info(&target)?.root;
     let session = session_in_log(&read_log_head(&run.log_path))
+        .filter(|id| crate::claude_dirs::find_transcript(&root, id).is_some())
         .ok_or("This run is still starting. Try again in a moment.")?;
 
     request_cancel(&key);
@@ -72,7 +72,6 @@ pub(crate) fn take_over(project: &str, job_id: &str) -> Result<Value, String> {
         std::thread::sleep(STOP_POLL);
     }
     let job = find_job(project, job_id);
-    let target = run.copy.unwrap_or_else(|| project.to_string());
     let task = resume_task(
         &target,
         &session,
@@ -86,7 +85,10 @@ pub(crate) fn take_over(project: &str, job_id: &str) -> Result<Value, String> {
 /// `take_over` for a caller with no window of its own to open the tab in.
 pub(crate) fn take_over_in_app(app: &AppHandle, project: &str, job_id: &str) -> Result<(), String> {
     if app.get_webview_window("main").is_none() {
-        return Err("Open lpm on this computer to carry the run on in a terminal.".into());
+        return Err(format!(
+            "Open the lpm app on your {} to carry the run on in a terminal.",
+            crate::sys::MACHINE
+        ));
     }
     let mut tab = take_over(project, job_id)?;
     tab["select"] = json!(true);
@@ -127,7 +129,6 @@ mod tests {
             task["claudeSession"],
             json!({ "sourceProject": "app-x1", "sessionId": "abc-1" })
         );
-        assert!(task.get("emoji").is_none());
     }
 
     #[test]

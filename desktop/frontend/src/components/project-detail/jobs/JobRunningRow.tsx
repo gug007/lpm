@@ -63,8 +63,8 @@ export function JobRunningRow({ project, job, now, onStop, onOpenCopy }: JobRunn
           <JobLiveOutput
             project={project}
             jobId={job.id}
-            running={job.running === true}
-            placeholder={step ? undefined : "No output yet."}
+            running={job.running === true && !step}
+            placeholder="No output yet."
           />
         </div>
       </div>

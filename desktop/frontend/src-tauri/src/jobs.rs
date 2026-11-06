@@ -3924,11 +3924,6 @@ fn global_job_row(
             Err(_) => st.is_on(false),
         };
         enabled = enabled || job_enabled;
-        let since = running_since(&key);
-        if let Some(since) = since {
-            running_count += 1;
-            earliest_since = Some(earliest_since.map_or(since, |e| e.min(since)));
-        }
         if let Some(lr) = st.last_run_at {
             if max_last.map_or(true, |m| lr >= m) {
                 max_last = Some(lr);
@@ -3948,7 +3943,9 @@ fn global_job_row(
                 }
             }
         }
-        if since.is_some() {
+        if let Some(since) = running_since(&key) {
+            running_count += 1;
+            earliest_since = Some(earliest_since.map_or(since, |e| e.min(since)));
             running = Some((key, st));
         }
     }

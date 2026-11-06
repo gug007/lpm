@@ -205,8 +205,7 @@ struct AutomationDetailView: View {
             AutomationLiveTail(text: model.automationLiveOutput[key]?.text ?? "")
             if !job.takeOverIn.isEmpty {
                 Button("Open in terminal") { model.takeOverAutomation(job) }
-                    .font(.subheadline)
-                    .disabled(model.automationPending.contains(key))
+                    .disabled(pending)
             }
         }
     }

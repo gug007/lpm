@@ -151,16 +151,4 @@ fun LivePlace(text: String, modifier: Modifier = Modifier) {
     }
 }
 
-/** Stops a Claude run and carries its conversation on in a terminal on the Mac. */
-@Composable
-fun TakeOverRow(enabled: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    ListRow(modifier = modifier, onClick = onClick.takeIf { enabled }) {
-        Text(
-            text = stringResource(AutomationsR.string.detail_take_over),
-            style = LpmTheme.typography.subheadline,
-            color = if (enabled) LpmTheme.colors.tint else LpmTheme.colors.secondaryLabel
-        )
-    }
-}
-
 private const val LIVE_LINES = 12

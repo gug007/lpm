@@ -18,6 +18,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import cx.lpm.mobile.core.designsystem.R
+import cx.lpm.mobile.core.designsystem.component.ButtonRow
 import cx.lpm.mobile.core.designsystem.component.EmptyState
 import cx.lpm.mobile.core.designsystem.component.GlassIconButton
 import cx.lpm.mobile.core.designsystem.component.ListCard
@@ -127,8 +128,12 @@ fun AutomationDetailScreen(
                         ) {
                             if (state.livePlace.isNotEmpty()) LivePlace(state.livePlace)
                             LiveTail(live)
-                            if (job?.takeOverIn?.isNotEmpty() == true) {
-                                TakeOverRow(enabled = !state.pending, onClick = actions.takeOver)
+                            if (job.takeOverIn.isNotEmpty()) {
+                                ButtonRow(
+                                    text = stringResource(AutomationsR.string.detail_take_over),
+                                    onClick = actions.takeOver,
+                                    enabled = !state.pending
+                                )
                             }
                         }
                     }

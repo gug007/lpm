@@ -195,3 +195,17 @@ fn a_state_file_from_a_newer_build_still_loads() {
         Some(json!("4"))
     );
 }
+
+#[test]
+fn a_refused_answer_names_a_long_question_by_its_first_line() {
+    let long = format!("Fix UAI-5401?\n\n{}", "Stack trace line.\n".repeat(400));
+    let ask = ask_of(json!({ "questions": [{ "type": "confirm", "text": long }] }));
+    let q = &ask.questions[0];
+    assert_eq!(q.headline(), "Fix UAI-5401?");
+    assert_eq!(
+        normalize_one(q, &json!("maybe")).unwrap_err(),
+        "Answer \"Fix UAI-5401?\" with yes or no."
+    );
+    assert_eq!(ask.summary(), "Fix UAI-5401?");
+    assert!(ask.outline().contains("Stack trace line."));
+}

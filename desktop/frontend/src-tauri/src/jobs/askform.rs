@@ -26,7 +26,7 @@ const MAX_ID_CHARS: usize = 40;
 const MAX_ANSWER_CHARS: usize = 8_000;
 const MIN_TIMEOUT_SECS: u64 = 60;
 const MAX_TIMEOUT_SECS: u64 = 365 * 86_400;
-/// A notification reads one line, however long the question it stands for.
+/// A notification or an error reads one line, however long the question.
 const SUMMARY_CHARS: usize = 200;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
@@ -93,6 +93,14 @@ fn open_status() -> String {
     OPEN.to_string()
 }
 
+impl Question {
+    /// What names the question anywhere its whole text, which can be a full
+    /// report, has no room.
+    pub fn headline(&self) -> String {
+        super::first_line(&self.text, SUMMARY_CHARS).unwrap_or_default()
+    }
+}
+
 impl Ask {
     pub fn new(asked_at: u64, request: Request, blocking: bool) -> Ask {
         let id = uuid::Uuid::new_v4().simple().to_string()[..12].to_string();
@@ -157,7 +165,7 @@ impl Ask {
         let first = self
             .questions
             .first()
-            .and_then(|q| super::first_line(&q.text, SUMMARY_CHARS))
+            .map(Question::headline)
             .unwrap_or_default();
         match self.questions.len() {
             0 | 1 => first,
@@ -334,7 +342,7 @@ fn parse_question(raw: &Value, index: usize) -> Result<Question, String> {
         CONFIRM | TEXT if !q.options.is_empty() => {
             return Err(format!(
                 "Only a choice question has options — \"{}\" is a {} question.",
-                q.text, q.kind
+                q.headline(), q.kind
             ))
         }
         CHOICE => {
@@ -363,8 +371,8 @@ fn parse_question(raw: &Value, index: usize) -> Result<Question, String> {
     if let Some(d) = raw.get("default").filter(|d| !d.is_null()) {
         q.default = Some(
             normalize_one(&q, d)
-                .map_err(|e| format!("The default for \"{}\" doesn't fit: {e}", q.text))?
-                .ok_or_else(|| format!("The default for \"{}\" is empty.", q.text))?,
+                .map_err(|e| format!("The default for \"{}\" doesn't fit: {e}", q.headline()))?
+                .ok_or_else(|| format!("The default for \"{}\" is empty.", q.headline()))?,
         );
     }
     Ok(q)
@@ -410,10 +418,10 @@ pub(crate) fn normalize_one(q: &Question, v: &Value) -> Result<Option<Value>, St
                 {
                     Ok(Some(Value::Bool(false)))
                 } else {
-                    Err(format!("Answer \"{}\" with yes or no.", q.text))
+                    Err(format!("Answer \"{}\" with yes or no.", q.headline()))
                 }
             }
-            _ => Err(format!("Answer \"{}\" with yes or no.", q.text)),
+            _ => Err(format!("Answer \"{}\" with yes or no.", q.headline())),
         },
         CHOICE => {
             let picked: Vec<&str> = match v {
@@ -423,7 +431,7 @@ pub(crate) fn normalize_one(q: &Question, v: &Value) -> Result<Option<Value>, St
                     .iter()
                     .map(|i| i.as_str().ok_or("Each pick is text."))
                     .collect::<Result<_, _>>()?,
-                _ => return Err(format!("Pick from the options for \"{}\".", q.text)),
+                _ => return Err(format!("Pick from the options for \"{}\".", q.headline())),
             };
             let mut out: Vec<String> = Vec::new();
             for pick in picked.iter().map(|p| p.trim()).filter(|p| !p.is_empty()) {
@@ -444,7 +452,7 @@ pub(crate) fn normalize_one(q: &Question, v: &Value) -> Result<Option<Value>, St
                 return Ok(None);
             }
             if out.len() > 1 && !q.multiple {
-                return Err(format!("Pick one option for \"{}\".", q.text));
+                return Err(format!("Pick one option for \"{}\".", q.headline()));
             }
             Ok(Some(Value::Array(out.into_iter().map(Value::String).collect())))
         }
@@ -454,7 +462,7 @@ pub(crate) fn normalize_one(q: &Question, v: &Value) -> Result<Option<Value>, St
                 Value::String(s) => s.trim().to_string(),
                 Value::Number(n) => n.to_string(),
                 Value::Bool(b) => b.to_string(),
-                _ => return Err(format!("Answer \"{}\" with text.", q.text)),
+                _ => return Err(format!("Answer \"{}\" with text.", q.headline())),
             };
             if s.is_empty() {
                 Ok(None)
@@ -480,7 +488,7 @@ pub(crate) fn normalize_answers(
                 out.insert(q.id.clone(), a);
             }
             None if q.optional => {}
-            None => return Err(format!("Answer \"{}\" first.", q.text)),
+            None => return Err(format!("Answer \"{}\" first.", q.headline())),
         }
     }
     Ok(out)

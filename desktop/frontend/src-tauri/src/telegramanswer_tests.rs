@@ -115,3 +115,12 @@ fn only_the_user_in_a_linked_chat_counts_as_answering() {
     assert!(!from_user(&link(), &json!({ "id": 2002 }), OWNER));
     assert!(!from_user(&link(), &json!({ "id": OWNER }), 5005));
 }
+
+#[test]
+fn the_prompt_for_a_long_question_still_fits_in_a_message() {
+    let question = Question {
+        text: format!("Fix UAI-5401?\n\n{}", "Stack trace line.\n".repeat(400)),
+        ..Question::default()
+    };
+    assert_eq!(prompt_text(&question), "Your answer to: Fix UAI-5401?");
+}

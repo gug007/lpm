@@ -6,7 +6,8 @@ const POLL_MS = 2000;
 
 // The tail of a running job's live output, polled while the run works so the
 // page shows what the agent is doing instead of a bare spinner. Until the run
-// has said something it shows the placeholder, if it was given one.
+// has said something it shows the placeholder, if it was given one. No reply
+// means no run here to wait on: a shared job's may be in another project.
 export function JobLiveOutput({
   project,
   jobId,
@@ -22,6 +23,7 @@ export function JobLiveOutput({
   onGrow?: () => void;
 }) {
   const [text, setText] = useState("");
+  const [waiting, setWaiting] = useState(false);
   const lastText = useRef("");
   const onGrowRef = useRef(onGrow);
   onGrowRef.current = onGrow;
@@ -30,6 +32,7 @@ export function JobLiveOutput({
     if (!running) {
       lastText.current = "";
       setText("");
+      setWaiting(false);
       return;
     }
     let cancelled = false;
@@ -39,6 +42,7 @@ export function JobLiveOutput({
           text?: string;
         } | null;
         if (cancelled) return;
+        setWaiting(res != null);
         const tail = liveOutputTail(res?.text);
         if (tail !== lastText.current) {
           lastText.current = tail;
@@ -59,7 +63,7 @@ export function JobLiveOutput({
 
   if (!running) return null;
   if (!text) {
-    return placeholder ? (
+    return placeholder && waiting ? (
       <p className="text-[12px] text-[var(--text-muted)]">{placeholder}</p>
     ) : null;
   }

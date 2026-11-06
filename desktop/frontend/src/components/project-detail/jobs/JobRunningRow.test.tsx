@@ -64,6 +64,7 @@ describe("JobRunningRow", () => {
     await show({ runningStep: "copy" });
     expect(host.textContent).toContain("Copying the project…");
     expect(host.textContent).not.toContain("No output yet.");
+    expect(bridge.JobLiveOutput).not.toHaveBeenCalled();
   });
 
   it("names the copy a run works in and opens it", async () => {
@@ -75,13 +76,19 @@ describe("JobRunningRow", () => {
   });
 
   it("says so when a working run has printed nothing", async () => {
+    bridge.JobLiveOutput.mockResolvedValueOnce({ text: "" });
     await show({});
     expect(host.textContent).toContain("No output yet.");
     expect(host.textContent).not.toContain("Open in terminal");
   });
 
+  it("claims nothing about a run that isn't in this project", async () => {
+    await show({});
+    expect(host.textContent).not.toContain("No output yet.");
+  });
+
   it("opens the tab the run carries on in, where the app says it goes", async () => {
-    const task = { kind: "fork", command: "claude --resume 'abc'", label: "Triage" };
+    const task = { kind: "fork", command: "claude --resume abc", label: "Triage" };
     bridge.TakeOverJobRun.mockResolvedValue({ project: "app-x1", task });
 
     await show({ takeOverIn: "shared-target" });
