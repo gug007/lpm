@@ -29,7 +29,9 @@ data class Action(
     val inputs: List<ActionInput>,
     val children: List<Action>,
     // The task for the agent `cmd` opens, submitted once it's ready.
-    val prompt: String = ""
+    val prompt: String = "",
+    // The card a long press shows, when the action has one.
+    val popup: ActionPopupInfo? = null
 ) {
     val id: String get() = name
     val isRunnable: Boolean get() = children.isEmpty()
@@ -91,7 +93,8 @@ data class Action(
                 confirm = o.bool("confirm") ?: false,
                 inputs = o.list("inputs", ActionInput::parse),
                 children = o.list("children", Action::parse),
-                prompt = o.string("prompt").orEmpty()
+                prompt = o.string("prompt").orEmpty(),
+                popup = ActionPopupInfo.parse(o.obj("popup"))
             )
         }
     }

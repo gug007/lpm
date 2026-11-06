@@ -49,6 +49,7 @@ internal fun LpmClient.connectDemo() {
                 add(LpmClient.GIT_COMMIT_CHECKS_FEATURE)
                 add(LpmClient.AGENT_DIALOG_FEATURE)
                 add(LpmClient.GIT_DISCARD_FILES_FEATURE)
+                add(LpmClient.ACTION_POPUP_FEATURE)
             }
         }
         injectInbound(Wire.json(ready))

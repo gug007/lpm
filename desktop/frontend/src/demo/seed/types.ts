@@ -2,7 +2,7 @@
 // (sidebar, header buttons, services, Git, files, open agent tabs) is derived
 // from one SeedProject, so no two views of it can disagree.
 
-import type { AICLI, ProfileInfo } from "../../types";
+import type { AICLI, ActionPopupInfo, ProfileInfo } from "../../types";
 import type { OtherSkill } from "../../lpmCommands";
 
 export type AgentKind = AICLI;
@@ -94,6 +94,7 @@ export interface SeedAction {
   // For an agent action: the task this project's tour types into it, and the
   // reply that prompt gets.
   task?: AgentTask;
+  popup?: ActionPopupInfo;
 }
 
 export type SeedProfile = ProfileInfo;

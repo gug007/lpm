@@ -205,6 +205,13 @@ const LESSONS = {
       "A dozen skills in one long slash menu is hard to scan. In lpm you sort Claude Code and Codex skills into folders: make a folder, drag skills in one at a time or several at once, nest folders, and see them as headings in the slash menu of both agents.",
     uploadDate: "2026-11-05T09:00:00+00:00",
   },
+  "action-popups-html-labels": {
+    id: "REO8u4dePiE",
+    name: "Action Popups and HTML Labels in lpm: Charts on Your Buttons",
+    description:
+      "Put charts on lpm's action buttons: a popup page that opens when you point at a button, and an HTML label that draws right on the button itself.",
+    uploadDate: "2026-11-06T09:00:00+00:00",
+  },
 } as const;
 
 export type YouTubeLessonId = keyof typeof LESSONS;

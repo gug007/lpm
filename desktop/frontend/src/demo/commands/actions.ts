@@ -51,4 +51,18 @@ export const actionCommands: CommandMap = {
     return null;
   },
   stop_command: () => null,
+  // A popup's commands would run on a real Mac, so the sample says so instead.
+  action_popup: ({ projectName, actionName }) => {
+    const popup = find(project(String(projectName))?.actions, String(actionName))?.popup;
+    return {
+      format: popup?.format ?? "html",
+      title: popup?.title ?? "",
+      width: popup?.width ?? 360,
+      height: popup?.height ?? 220,
+      refresh: 0,
+      data: null,
+      updatedAt: Date.now(),
+      error: "Popups run their commands on your own Mac.",
+    };
+  },
 };

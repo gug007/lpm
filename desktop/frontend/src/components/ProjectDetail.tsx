@@ -74,6 +74,7 @@ import {
 } from "../types";
 import { projectStartProfile } from "../projectStartProfile";
 import { SyncedBar } from "./SyncedBar";
+import { HeldCommandsBar } from "./project-detail/HeldCommandsBar";
 import { CloseColumnButton } from "./project-detail/CloseColumnButton";
 import { useFollowState } from "../hooks/useFollowState";
 import { peerSlugOf } from "../peer/markers";
@@ -861,6 +862,10 @@ export function ProjectDetail({
         {follow && (
           <SyncedBar follow={follow} macName={peerAlias(peerState.peers, follow.slug)} />
         )}
+
+        {project.heldCommands?.length ? (
+          <HeldCommandsBar projectName={project.name} commands={project.heldCommands} />
+        ) : null}
 
         <TerminalPane
           active={detailView === "terminal"}

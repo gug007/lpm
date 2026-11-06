@@ -77,6 +77,11 @@ const LOCAL_ONLY_EXACT = new Set<string>([
   "notes_read_file_as_input",
   // The computers an agent here can reach are this Mac's own paired ones.
   "agent_mention_computers",
+  // A popup's page is drawn on the Mac the person is at, whichever Mac made it.
+  "popup_view_open",
+  "popup_view_place",
+  "popup_view_push",
+  "popup_view_close",
 ]);
 
 export function isLocalOnlyCommand(cmd: string): boolean {

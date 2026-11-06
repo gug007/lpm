@@ -95,6 +95,7 @@ A script anywhere else stays on this Mac, so the synced action fails on the othe
 |---|---|---|
 | `cmd` | string | Required unless child `actions` exist or this is a valid sparse override. |
 | `label` | string | Display label; defaults to the key. May hold variables and `$(…)` commands; see [Dynamic labels](#dynamic-labels). |
+| `labelSvg` | string | The `<svg>` the button draws in place of its text label, inline or printed by `$(…)`; see [SVG labels](#svg-labels). `label` stays the button's name and its fallback. |
 | `labelRefresh` | number or string | How often the action's `$(…)` commands run: seconds, or a number with `s`, `m` or `h` such as `5m`. Defaults to `1m`; the floor is `5s`. |
 | `labelRefreshOnHover` | boolean | Run the action's `$(…)` commands again when the pointer rests on the button; see [Dynamic labels](#dynamic-labels). |
 | `labelRefreshOnChange` | boolean | Run the action's `$(…)` commands again soon after files in the project change; see [Dynamic labels](#dynamic-labels). |
@@ -115,11 +116,12 @@ A script anywhere else stays on this Mac, so the synced action fails on the othe
 | `portConflict` | string | `ask`, `free`, or `fail`. |
 | `position` | number | Lower values render first; unpositioned entries follow by key; floats are allowed. Inside a zone it orders the zone's buttons. |
 | `inputs` | mapping | Values prompted before execution and substituted into `{{key}}`. |
+| `popup` | string or mapping | A page shown in a card while the pointer rests on the button, or on a long press in lpm Link; see [Popups](#popups). |
 | `actions` | mapping | Nested child actions. |
 
 ## Dynamic labels
 
-A label can change on its own: a button's `label` and `emoji`, an input's `label`, and a radio option's `label`. Use `{{…}}` variables for facts lpm reads itself, and `$(…)` for anything a command can print; the command's first line of output takes its place.
+A label can change on its own: a button's `label` and `emoji`, an input's `label`, and a radio option's `label`. Use `{{…}}` variables for facts lpm reads itself, and `$(…)` for anything a command can print; the command's first line of output takes its place. In a repo's `.lpm.yml`, `$(…)` commands, `labelSvg` and popup commands wait until the user allows them (see [sharing.md](sharing.md#repo-config)).
 
 ```yaml
 actions:
@@ -165,6 +167,75 @@ actions:
 - An unknown `{{name}}`, or a `$(` that never closes, shows as written, and `lpm config apply` warns about it. Input `{{key}}` tokens fill `cmd`, `cwd`, `env` and `prompt`, never a label.
 - The button, the prompt and lpm Link update by themselves: a new tag or branch shows within a few seconds, command output when it next runs, and ages as they tick over.
 - Edit forms show and save labels and emoji as written, never their current value.
+
+## SVG labels
+
+`labelSvg` draws the button's face from an SVG: a sparkline, a count over a chart, a badge. It renders like a dynamic label (variables and `$(…)`, on `labelRefresh` and the other refresh settings), except that a command's whole output is kept, up to 32 KB, not just its first line.
+
+```yaml
+actions:
+  stars:
+    label: $(gh api repos/gug007/lpm --jq .stargazers_count)   # the name, and what shows when the markup can't
+    labelSvg: $(~/.lpm/scripts/github-stars/button.sh gug007/lpm)
+    labelRefresh: 10m
+```
+
+- The `<svg>` is drawn as an image that fills the button edge to edge, so nothing in it runs, loads or touches the app: scripts, event handlers, links and `url(…)` are removed, and it can't reach outside the button.
+- It's drawn at its own `width` and `height` (`30` is the header button's height). Nothing measures it for you, so size the `width` to its contents, allowing for a number that grows.
+- It reads lpm's colors as CSS variables (`var(--lpm-text)`, `--lpm-accent`, `--lpm-muted`, `--lpm-amber`, `--lpm-green`, `--lpm-red`, `--lpm-border`, `--lpm-bg`, `--lpm-surface`), with the text color and font set. Use them through `style="fill:var(--lpm-accent)"` rather than a `fill` attribute.
+- Output that isn't an `<svg>`, is empty or too big, or doesn't parse shows the text `label` instead. lpm Link shows the text label.
+
+## Popups
+
+`popup` shows a page in a card while the pointer rests on the button, and in the card of a terminal tab the action opened; in lpm Link a long press on the button opens it. The page can be anything HTML draws: a chart, a table, a dashboard. One key names the page's format (`html` is the one lpm shows today), and the settings beside it mean the same for every format.
+
+```yaml
+actions:
+  stars:
+    cmd: gh repo view --web
+    popup:
+      html: popups/stars.html          # the page: a file, the page itself, or $(a command that prints it)
+      data: $(./scripts/stars.sh)      # optional: what the page reads as lpm.data
+      title: GitHub stars              # optional: the card's heading; defaults to the button's label
+      size: 380x220                    # optional: the page's width x height, 200–720 by 80–560; default 360x220
+      refresh: 5m                      # optional: open (default) runs it as the card opens; or an interval while it's open
+      cache: 1m                        # optional: run the commands at most this often; default 30s
+```
+
+`popup: popups/stars.html` alone is the short form; the format comes from the file's ending.
+
+| Field | Meaning |
+|---|---|
+| `html` | A file, relative to the action's `cwd` (the project root by default); the page written in place (a `\|` block, or a value that starts with `<`); or `$(command)`, whose whole output is the page. Up to 1.5 MB. A file's own scripts, styles and images load from beside it on the Mac that holds the project. A page for a paired computer, an SSH project or lpm Link gets only its own text, so keep it self-contained or load libraries from `https`. |
+| `data` | `$(command)`, a file, or YAML written in place. Output that is JSON arrives parsed as `lpm.data`; anything else arrives as text in `lpm.text`, with `lpm.data` null. Up to 1 MB. |
+| `title` | Plain text. |
+| `size` | `WIDTHxHEIGHT` in points. |
+| `refresh` | `open`, seconds, or a number with `s`, `m` or `h`, at least `5s`. Each refresh hands new data to the page without reloading it. |
+| `cache` | Seconds, or a number with `s`, `m` or `h`, at least `5s`; `30s` by default. How long a result stays current: opening the card within it runs nothing. Once it's older, the card shows it at once (with its age) while the commands run again, then updates in place. A run that fails keeps the last good result on the card, with the failure under it, and isn't tried again before `cache` has passed. The card's refresh button always runs now. Use it for slow or rate-limited data such as the GitHub API. |
+
+The page gets `window.lpm` before its own scripts run:
+
+- `lpm.data`, `lpm.text`, and `lpm.error` (why the `data` command failed; the page still loads).
+- `lpm.theme`: `{ mode: "dark" | "light", colors: { bg, surface, text, muted, border, accent, green, red, amber } }`, also set as CSS variables `--lpm-bg`, `--lpm-text` and so on. The card's colors are a default that the page's own styles override.
+- `lpm.project`, `lpm.action`, and `lpm.onData(fn)`, called with the new data on each refresh.
+
+```html
+<!doctype html>
+<style>.bar { background: var(--lpm-accent); }</style>
+<div id="bars"></div>
+<script>
+  function draw(data) { /* render data.months … */ }
+  draw(lpm.data);
+  lpm.onData(draw);
+</script>
+```
+
+- Scripts run as the page loads, so put them after the elements they draw into, as above, or wait for `DOMContentLoaded`: a script that comes before any body content finds `document.body` null, and the card stays blank.
+- In a repo's `.lpm.yml`, the page and data commands wait until the user allows them, and the card says so meanwhile (see [sharing.md](sharing.md#repo-config)).
+- Commands run like label commands: in the action's `cwd` with its `env`, `LPM_PROJECT_NAME` and `LPM_ACTION`, through the login shell, on an SSH project's host, with a 15-second limit. They run when the card opens, not in the background, at most once per `cache`.
+- The page runs isolated from lpm: on macOS and Windows in a webview of its own that closes with the card, so a page that hangs or throws only affects itself, and one that hasn't finished loading within 8 seconds is closed with a message. It can't call lpm, and a link opens in the browser. On Linux it runs in a sandboxed frame.
+- Nothing about a popup can break its action. A file that's missing, a command that fails or runs too long, a page too big, or a `popup` the app can't read show as a message in the card, and the button still runs. `lpm config apply` reports a `popup` with no format key, two format keys, an unknown field, or a bad `size` or `refresh` as an error, and a page file that doesn't exist as a warning.
+- `widgets`, `vega`, `markdown`, `image`, `terminal` and `url` are reserved as format keys for later; this version shows a note to update lpm for them.
 
 ## Zones
 

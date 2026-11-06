@@ -65,6 +65,19 @@ export function ActionsSection() {
         className="mb-6 rounded-xl ring-1 ring-black/5 dark:ring-white/10"
       />
 
+      <Lede title="Charts on your buttons." className="mt-8 mb-3">
+        A button can show more than text.{" "}
+        <code className="font-mono">labelSvg</code>{" "}draws its face from
+        an SVG, like a small chart behind a number, and{" "}
+        <code className="font-mono">popup</code>{" "}opens a whole page in a card
+        when you point at it. The lesson below has Claude Code add both to a
+        button that counts GitHub stars:
+      </Lede>
+      <YouTubeVideo
+        lesson="action-popups-html-labels"
+        className="mb-6 rounded-xl ring-1 ring-black/5 dark:ring-white/10"
+      />
+
       <Lede title="Shorthand.">
         If all your action needs is a command, write it as a single line — the
         key becomes the label and you skip the nested form entirely. Great for

@@ -273,6 +273,8 @@ private fun LpmClientCallbacks.routeGitAndMore(frame: Inbound) {
 
         is Inbound.ActionBgOutput -> onActionBgOutput?.invoke(frame.runId, frame.snapshot)
 
+        is Inbound.ActionPopup -> onActionPopup?.invoke(frame.reply)
+
         is Inbound.ActionBgStartFailed -> onActionBgStartFailed?.invoke(frame.runId, frame.error)
 
         is Inbound.BackgroundRuns -> onBackgroundRuns?.invoke(frame.project, frame.runs)

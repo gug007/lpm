@@ -51,6 +51,7 @@ fn apply_renders_labels_down_the_tree_and_keeps_the_template() {
         project: "app",
         root,
         ssh: None,
+        held: &Default::default(),
     };
     let mut parent = action("deploy", "Deploy {{git.branch}}");
     parent.children = vec![
@@ -83,6 +84,7 @@ fn apply_falls_back_to_the_key_when_nothing_is_left() {
         project: "app",
         root: "",
         ssh: None,
+        held: &Default::default(),
     };
     let mut list = vec![action("menu:release", "{{git.tag}}")];
     apply(&ctx, &mut list);
@@ -116,6 +118,7 @@ fn apply_renders_input_and_option_labels_and_keeps_their_templates() {
         project: "app",
         root,
         ssh: None,
+        held: &Default::default(),
     };
     let option = |label: &str, value: &str| crate::config::ActionInputOption {
         label: label.into(),
@@ -174,6 +177,7 @@ fn the_emoji_takes_variables() {
         project: "app",
         root: dir.path().to_str().unwrap(),
         ssh: None,
+        held: &Default::default(),
     };
     let mut deploy = action("deploy", "Deploy");
     deploy.emoji = "{{git.branch}}".into();
@@ -191,6 +195,7 @@ fn commands_fill_the_label_emoji_and_options_once_they_have_run() {
         project: "commands-test",
         root,
         ssh: None,
+        held: &Default::default(),
     };
     let build = || {
         let mut release = action("release", "Release · $(git describe --tags)");
@@ -234,4 +239,23 @@ fn commands_fill_the_label_emoji_and_options_once_they_have_run() {
     );
     assert_eq!(list[1].emoji, "🚀");
     assert_eq!(list[1].config_emoji, None);
+}
+
+#[test]
+fn a_held_command_reads_as_empty_even_after_it_ran() {
+    let held: BTreeSet<String> = ["./stars.sh".to_string()].into();
+    let ctx = Ctx {
+        project: "held-test",
+        root: "",
+        ssh: None,
+        held: &held,
+    };
+    settle("held-test", "", "./stars.sh", "248");
+    let mut stars = action("stars", "Stars $(./stars.sh)");
+    stars.label_svg = "$(./stars.sh)".into();
+    let mut list = vec![stars];
+    apply(&ctx, &mut list);
+    assert_eq!(list[0].label, "Stars");
+    assert_eq!(list[0].config_label, "Stars $(./stars.sh)");
+    assert_eq!(list[0].label_svg, "");
 }

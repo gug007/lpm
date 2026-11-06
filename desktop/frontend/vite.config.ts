@@ -13,6 +13,8 @@ export default defineConfig({
     strictPort: true,
     // Don't let Rust build artifacts trigger HMR reload storms.
     watch: { ignored: ["**/src-tauri/**"] },
+    // The popup bootstrap is the one the phones bundle.
+    fs: { allow: [".", "../../mobile/shared/web/popup"] },
   },
   plugins: [react(), tailwindcss(), pdfjsAssets()],
   build: {

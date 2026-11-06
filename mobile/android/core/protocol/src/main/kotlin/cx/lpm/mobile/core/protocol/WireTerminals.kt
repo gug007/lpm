@@ -160,6 +160,17 @@ sealed interface WireTerminals {
         put("runId", runId)
     }
 
+    /**
+     * An action's popup page and data. [fresh] runs its commands again. Only for a Mac
+     * whose `features` has "actionPopup".
+     */
+    fun actionPopup(project: String, action: String, fresh: Boolean): String =
+        frame("actionPopup") {
+            put("project", project)
+            put("action", action)
+            if (fresh) put("fresh", true)
+        }
+
     fun actionBgOutput(project: String, runId: String): String = frame("actionBgOutput") {
         put("project", project)
         put("runId", runId)

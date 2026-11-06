@@ -1,0 +1,41 @@
+appId: cx.lpm.mobile
+name: 77-action-popup
+tags: [demo, actions]
+---
+- runFlow: subflows/enter-demo.yaml
+- tapOn: "api-gateway"
+- extendedWaitUntil:
+    visible: "Tap a service for its logs."
+    timeout: 5000
+- tapOn: "Actions"
+- extendedWaitUntil:
+    visible: "Stars"
+    timeout: 5000
+# An action with a popup offers it first on a long press; the page the Mac made
+# (the sample's GitHub stars chart) opens in a sheet under the popup's title.
+- longPressOn: "Stars"
+- extendedWaitUntil:
+    visible: "Show Popup"
+    timeout: 5000
+- assertVisible: "Edit Action…"
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 1-long-press
+- tapOn: "Show Popup"
+- extendedWaitUntil:
+    visible: "GitHub stars"
+    timeout: 5000
+- assertVisible: "Refresh"
+- assertVisible: "Done"
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 2-popup
+- tapOn: "Refresh"
+- waitForAnimationToEnd:
+    timeout: 3000
+- assertVisible: "GitHub stars"
+- tapOn: "Done"
+- extendedWaitUntil:
+    notVisible: "GitHub stars"
+    timeout: 5000
+- assertVisible: "Stars"

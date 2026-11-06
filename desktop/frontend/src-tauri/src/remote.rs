@@ -185,6 +185,7 @@ const PHONE_FEATURES: &[&str] = &[
     crate::remote_lpm_commands::NESTED_FOLDERS_FEATURE,
     crate::remote_ci::FEATURE,
     crate::remote_ci::COMMITS_FEATURE,
+    crate::remote_popup::FEATURE,
 ];
 
 /// `PHONE_FEATURES`, and what depends on this machine as well as this build.
@@ -4779,6 +4780,7 @@ fn handle_msg(
         }
         "claudeAccounts" | "setClaudeAccount" => crate::remote_claude::handle(app, out, t, &v),
         "gitChecks" | "gitChecksRerun" | "gitCommitChecks" => crate::remote_ci::handle(out, t, &v),
+        "actionPopup" => crate::remote_popup::handle(out, &v),
         "answers" => {
             let id = str_field("id").unwrap_or_default();
             let session = hub.inner.agent_sessions.lock().unwrap().get(&id).cloned();

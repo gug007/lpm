@@ -329,7 +329,7 @@ fn phone_hosts(route: &str, own: &[String]) -> Vec<String> {
     hosts
 }
 
-fn is_loopback(host: &str) -> bool {
+pub(crate) fn is_loopback(host: &str) -> bool {
     host.eq_ignore_ascii_case("localhost")
         || host
             .parse::<std::net::IpAddr>()

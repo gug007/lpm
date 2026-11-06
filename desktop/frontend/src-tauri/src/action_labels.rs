@@ -9,7 +9,7 @@ use crate::config::{self, ActionInfo, SshSettings};
 use crate::label_git::{self, TagOrder};
 use crate::label_probes;
 use crate::label_template::{is_dynamic, render, Part, Var};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -24,6 +24,9 @@ pub struct Ctx<'a> {
     pub project: &'a str,
     pub root: &'a str,
     pub ssh: Option<&'a SshSettings>,
+    /// Commands from the repo's `.lpm.yml` not yet allowed: they read as empty
+    /// and never run.
+    pub held: &'a BTreeSet<String>,
 }
 
 pub(crate) fn format_age(secs: i64) -> String {
@@ -43,19 +46,9 @@ pub(crate) fn format_age(secs: i64) -> String {
 /// number with `s`, `m` or `h`. Missing or unreadable means a minute; anything
 /// under five seconds is raised to five.
 pub(crate) fn parse_every(s: &str) -> Duration {
-    let s = s.trim();
-    let split = s.find(|c: char| !c.is_ascii_digit()).unwrap_or(s.len());
-    let (num, unit) = s.split_at(split);
-    let Ok(n) = num.parse::<u64>() else {
-        return DEFAULT_EVERY;
-    };
-    let secs = match unit.trim() {
-        "" | "s" => n,
-        "m" => n.saturating_mul(60),
-        "h" => n.saturating_mul(3600),
-        _ => return DEFAULT_EVERY,
-    };
-    Duration::from_secs(secs).max(MIN_EVERY)
+    crate::interval::parse_secs(s).map_or(DEFAULT_EVERY, |secs| {
+        Duration::from_secs(secs).max(MIN_EVERY)
+    })
 }
 
 pub fn apply(ctx: &Ctx, actions: &mut [ActionInfo]) {
@@ -80,10 +73,13 @@ fn apply_one(ctx: &Ctx, a: &mut ActionInfo) {
     if a.label_refresh_on_change && ctx.ssh.is_none() {
         crate::label_watch::watch(ctx.project, &a.name, ctx.root);
     }
-    if let Some(label) = owner.finish(&a.label, key_of(&a.name)) {
+    if let Some(label) = owner.finish(&a.label, key_of(&a.name), false) {
         a.config_label = std::mem::replace(&mut a.label, label);
     }
-    if let Some(emoji) = owner.finish(&a.emoji, "") {
+    if let Some(markup) = owner.finish(&a.label_svg, "", true) {
+        a.label_svg = markup;
+    }
+    if let Some(emoji) = owner.finish(&a.emoji, "", false) {
         let emoji = emoji
             .split_whitespace()
             .next()
@@ -94,11 +90,11 @@ fn apply_one(ctx: &Ctx, a: &mut ActionInfo) {
         }
     }
     for input in a.inputs.iter_mut() {
-        if let Some(label) = owner.finish(&input.label, &input.key) {
+        if let Some(label) = owner.finish(&input.label, &input.key, false) {
             input.config_label = std::mem::replace(&mut input.label, label);
         }
         for option in input.options.iter_mut() {
-            if let Some(label) = owner.finish(&option.label, &option.value) {
+            if let Some(label) = owner.finish(&option.label, &option.value, false) {
                 option.config_label = std::mem::replace(&mut option.label, label);
             }
         }
@@ -116,13 +112,15 @@ struct Owner<'a, 'c> {
 }
 
 impl Owner<'_, '_> {
-    /// The text to show, or None when it reads as written.
-    fn finish(&self, template: &str, fallback: &str) -> Option<String> {
+    /// The text to show, or None when it reads as written. A `whole` template
+    /// (a `labelSvg`) keeps all its commands print, not their first line.
+    fn finish(&self, template: &str, fallback: &str, whole: bool) -> Option<String> {
         if !is_dynamic(template) {
             return None;
         }
         let rendered = render(template, |part| match part {
             Part::Var(var) => resolve(self.ctx, var),
+            Part::Cmd(cmd) if self.ctx.held.contains(*cmd) => String::new(),
             Part::Cmd(cmd) => label_probes::read_command(
                 self.ctx,
                 self.action,
@@ -130,6 +128,7 @@ impl Owner<'_, '_> {
                 self.env,
                 cmd,
                 self.every,
+                whole,
             ),
         });
         let rendered = if rendered.trim().is_empty() {

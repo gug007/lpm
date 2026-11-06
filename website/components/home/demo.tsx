@@ -148,6 +148,10 @@ const LESSON_CAPTION: Record<
     heading: "Sort a long list of skills into folders",
     blurb: "A short video: make folders, file your skills, and see them as headings in the slash menu.",
   },
+  "action-popups-html-labels": {
+    heading: "A chart on your button, and a page of them on hover",
+    blurb: "A short video: have Claude Code add a popup and an HTML label, both fed by live GitHub data.",
+  },
 };
 
 function DesktopOnlyPrompt({

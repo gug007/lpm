@@ -112,6 +112,16 @@ export interface ActionInputInfo {
   options?: ActionInputOption[];
 }
 
+// What a button knows about its popup before the card opens: the format the
+// config names, the page's size, and why the config can't make one.
+export interface ActionPopupInfo {
+  format: string;
+  title?: string;
+  width: number;
+  height: number;
+  problem?: string;
+}
+
 export interface ActionInfo {
   name: string;
   // What the button shows. A label with variables or $(…) commands arrives
@@ -120,6 +130,9 @@ export interface ActionInfo {
   configLabel?: string;
   // Hovering the button runs its label commands again.
   labelRefreshOnHover?: boolean;
+  // The `<svg>` the button draws as an image in place of `label` (its
+  // `labelSvg`, rendered); `label` stays its name and its fallback.
+  labelSvg?: string;
   emoji?: string;
   // The emoji as written when variables or $(…) rendered it.
   configEmoji?: string;
@@ -142,6 +155,7 @@ export interface ActionInfo {
   reuse?: boolean;
   position?: number;
   inputs?: ActionInputInfo[];
+  popup?: ActionPopupInfo;
   children?: ActionInfo[];
 }
 
@@ -247,6 +261,9 @@ export interface ProjectInfo {
   configError?: string;
   // Actions left out because they don't parse, each naming where and why.
   actionErrors?: string[];
+  // Commands the repo's .lpm.yml would run by itself (labels, labelSvg,
+  // popups, automations), held until the user allows them.
+  heldCommands?: string[];
   parentName?: string;
   worktree?: boolean;
   isRemote: boolean;

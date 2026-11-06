@@ -107,6 +107,10 @@ at(2500, 'readConfig', project='api-gateway', layer='project'); at(2500, 'readCo
 at(2600, 'actionBody', project='storefront', key='test'); at(2600, 'actionBody', project='api-gateway', key='release')
 at(2600, 'actionBody', project='blog', key='new-post'); at(2600, 'actionBody', project='blog', key='nope')
 at(2600, 'serviceBody', project='storefront', key='web'); at(2600, 'serviceBody', project='storefront', key='nope')
+at(2600, 'actionBody', project='api-gateway', key='stars')
+# an action's popup: the sample page and its data; an action without one, a missing project
+at(2700, 'actionPopup', project='api-gateway', action='stars'); at(2700, 'actionPopup', project='api-gateway', action='stars', fresh=True)
+at(2700, 'actionPopup', project='api-gateway', action='test'); at(2700, 'actionPopup', project='nope', action='stars')
 
 # shell
 at(3000, 'sub', id='demo-storefront-1')
@@ -282,10 +286,17 @@ at(57650, 'saveAction', project='blog', key='publish', payload={'label': 'Publis
 at(57650, 'saveAction', project='blog', key='new-post', payload={'label': 'New post', 'type': 'background', 'cmd': 'npm run new-post', 'inputs': {}})
 at(57700, 'saveAction', project='api-gateway', key='release', payload={'label': '🚀 Release · {{git.tag}} · {{git.tagAge}}', 'cmd': './scripts/release.sh', 'type': 'background'})
 at(57700, 'saveAction', project='api-gateway', key='test2', previousKey='test', payload={'cmd': 'go test -race ./...', 'emoji': '🧪', 'label': 'true'})
+# an edit that keeps the popup keeps its card; one that changes it carries what the config says
+stars = {'label': 'Stars', 'cmd': 'gh api repos/example/api-gateway --jq .stargazers_count', 'type': 'background',
+         'popup': {'html': 'popups/stars.html', 'data': '$(node scripts/stars.mjs)', 'title': 'GitHub stars', 'size': '380x200'}}
+at(57700, 'saveAction', project='api-gateway', key='stars', payload=stars)
 at(58000, 'readConfig', project='storefront', layer='project'); at(58000, 'readConfig', project='api-gateway', layer='project')
 at(58000, 'readConfig', project='blog', layer='project'); at(58000, 'readConfig', project='remote-box', layer='repo')
 at(58100, 'actionBody', project='storefront', key='deploy:staging'); at(58100, 'actionBody', project='storefront', key='deploy')
-at(58100, 'actionBody', project='api-gateway', key='release')
+at(58100, 'actionBody', project='api-gateway', key='release'); at(58100, 'actionBody', project='api-gateway', key='stars')
+at(58150, 'actionPopup', project='api-gateway', action='stars')
+at(58200, 'saveAction', project='api-gateway', key='stars', payload=dict(stars, popup=dict(stars['popup'], title='Stars by month')))
+at(58300, 'actionPopup', project='api-gateway', action='stars')
 at(58100, 'actionBody', project='blog', key='publish'); at(58100, 'actionBody', project='blog', key='new-post')
 at(58200, 'deleteService', project='storefront', key='worker'); at(58200, 'deleteProfile', project='storefront', name='server')
 at(58200, 'deleteAction', project='storefront', key='lint')

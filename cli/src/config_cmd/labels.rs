@@ -13,9 +13,26 @@ pub(super) fn validate_action_label(map: &Mapping, path: &str, report: &mut Repo
     validate_bool_field(map, "labelRefreshOnHover", path, report);
     validate_bool_field(map, "labelRefreshOnChange", path, report);
     validate_every(map, path, report);
-    for field in ["label", "emoji"] {
+    for field in ["label", "labelSvg", "emoji"] {
         validate_text(map, field, path, report);
     }
+    validate_svg(map, path, report);
+}
+
+// A template's output is only known when it runs; anything else is what the
+// button gets.
+fn validate_svg(map: &Mapping, path: &str, report: &mut Report) {
+    let Some(text) = string_at(map, "labelSvg") else {
+        return;
+    };
+    let text = text.trim();
+    if text.is_empty() || text.starts_with("<svg") || text.contains("$(") || text.contains("{{") {
+        return;
+    }
+    report.warning(
+        &format!("{path}.labelSvg"),
+        "isn't an <svg>, so the button shows its text label",
+    );
 }
 
 pub(super) fn validate_label_text(map: &Mapping, path: &str, report: &mut Report) {
@@ -118,7 +135,7 @@ fn validate_every(map: &Mapping, path: &str, report: &mut Report) {
     }
 }
 
-fn is_interval(s: &str) -> bool {
+pub(super) fn is_interval(s: &str) -> bool {
     let s = s.trim();
     let digits = s.strip_suffix(['s', 'm', 'h']).unwrap_or(s).trim_end();
     !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit())
@@ -174,6 +191,14 @@ mod tests {
         assert_clean(&report_for(
             "    cmd: x\n    label: $(jq -r '.{{name}}' v.json)\n    labelRefresh: 30\n",
         ));
+    }
+
+    #[test]
+    fn a_label_svg_must_be_an_svg_unless_a_command_prints_it() {
+        assert_clean(&report_for("    cmd: x\n    labelSvg: <svg width='30'></svg>\n"));
+        assert_clean(&report_for("    cmd: x\n    labelSvg: $(./button.sh)\n"));
+        let report = report_for("    cmd: x\n    labelSvg: <div>149</div>\n");
+        assert!(warned(&report, "labelSvg", "isn't an <svg>"), "{:?}", report.warnings);
     }
 
     #[test]

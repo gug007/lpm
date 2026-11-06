@@ -341,6 +341,7 @@ export function CommandsView({ tabId, projectName, projectLabel, visible, focuse
               key={draft.original ? commandKey(draft.original) : "new"}
               draft={draft}
               lists={lists}
+              projectName={projectName}
               projectLabel={projectLabel}
               files={files}
               saving={saving}

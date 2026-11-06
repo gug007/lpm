@@ -240,6 +240,13 @@ extension DemoServer {
                 entry["configLabel"] = template
                 entry["label"] = self.world.projects[idx].actions[i]["label"]
             }
+            // An unchanged popup keeps the card the Mac makes from it.
+            if let i = existing,
+               let config = self.world.projects[idx].actions[i]["configPopup"] as? [String: String],
+               entry["popup"] as? [String: String] == config {
+                entry["configPopup"] = config
+                entry["popup"] = self.world.projects[idx].actions[i]["popup"]
+            }
             if let i = existing { self.world.projects[idx].actions[i] = entry }
             else { self.world.projects[idx].actions.append(entry) }
             self.reflowProjectLayer(project)
@@ -327,12 +334,13 @@ extension DemoServer {
     }
 
     /// The action as its config file holds it: a rendered label goes back to the
-    /// template the Mac rendered it from.
+    /// template the Mac rendered it from, and a popup to what the config says.
     private func configBody(_ action: [String: Any]) -> [String: Any] {
         var body = action
         body.removeValue(forKey: "name")
         body.removeValue(forKey: "children")
         if let template = body.removeValue(forKey: "configLabel") { body["label"] = template }
+        if let popup = body.removeValue(forKey: "configPopup") { body["popup"] = popup }
         if let inputs = body["inputs"] as? [[String: Any]] {
             body["inputs"] = ActionInputsYaml.map(from: ActionInputsYaml.drafts(from: inputs))
         }

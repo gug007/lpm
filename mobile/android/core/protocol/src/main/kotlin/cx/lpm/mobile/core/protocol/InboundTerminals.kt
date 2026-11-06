@@ -1,6 +1,7 @@
 package cx.lpm.mobile.core.protocol
 
 import cx.lpm.mobile.core.model.ActionBgOutput
+import cx.lpm.mobile.core.model.ActionPopupReply
 import cx.lpm.mobile.core.model.AgentOption
 import cx.lpm.mobile.core.model.AgentSessionsPage
 import cx.lpm.mobile.core.model.BackgroundRunSummary
@@ -62,6 +63,7 @@ internal val terminalParsers = parsers {
     put("agentOptions") { o -> Inbound.AgentOptions(o.list("agents", AgentOption::parse)) }
     put("agentSessions") { o -> Inbound.AgentSessions(AgentSessionsPage.parse(o)) }
     put("listDir") { o -> Inbound.ListDir(ProjectDirContents.parse(o)) }
+    put("actionPopup") { o -> Inbound.ActionPopup(ActionPopupReply.parse(o)) }
     put("actionBgOutput") { o ->
         val found = o.bool("found") ?: false
         Inbound.ActionBgOutput(

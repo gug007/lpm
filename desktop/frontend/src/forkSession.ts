@@ -12,6 +12,9 @@ const ENV_ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/;
 
 export interface ForkLaunch {
   cmd: string;
+  // Claude: what starts the fork over while it has saved nothing — the same
+  // fork under its own id, never the session it branched from.
+  startCmd?: string;
   resumeCmd?: string;
 }
 
@@ -48,6 +51,12 @@ export function claudeSessionIdOf(resumeCmd: string | undefined): string | null 
   return tokens[tokens.indexOf("--resume") + 1];
 }
 
+// The Claude session a fork launch branches from, or null for anything else.
+export function forkedSessionOf(cmd: string | undefined): string | null {
+  if (!parse(cmd)?.tokens.includes("--fork-session")) return null;
+  return claudeSessionIdOf(cmd);
+}
+
 export function buildForkLaunch(resumeCmd: string): ForkLaunch | null {
   if (!canForkSession(resumeCmd)) return null;
   const { tokens, progIdx, prog } = parse(resumeCmd)!;
@@ -55,10 +64,8 @@ export function buildForkLaunch(resumeCmd: string): ForkLaunch | null {
     const newId = crypto.randomUUID();
     const forkedResume = [...tokens];
     forkedResume[tokens.indexOf("--resume") + 1] = newId;
-    return {
-      cmd: [...tokens, "--fork-session", "--session-id", newId].join(" "),
-      resumeCmd: forkedResume.join(" "),
-    };
+    const cmd = [...tokens, "--fork-session", "--session-id", newId].join(" ");
+    return { cmd, startCmd: cmd, resumeCmd: forkedResume.join(" ") };
   }
   const forked = [...tokens];
   forked[progIdx + 1] = "fork";

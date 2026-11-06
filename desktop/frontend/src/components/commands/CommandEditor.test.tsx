@@ -55,6 +55,7 @@ describe("the Keep out of Git switch", () => {
         <CommandEditor
           draft={draft}
           lists={lists}
+          projectName="app"
           projectLabel="app"
           files={FILES}
           saving={false}
@@ -128,6 +129,7 @@ describe("a problem with the draft", () => {
         <CommandEditor
           draft={draft}
           lists={lists}
+          projectName="app"
           projectLabel="app"
           files={FILES}
           saving={false}

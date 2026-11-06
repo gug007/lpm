@@ -247,6 +247,12 @@ mod portsprobe;
 #[cfg(any(windows, test))]
 mod portsprobe_windows;
 mod procinfo;
+mod interval;
+mod ipc_gate;
+mod popup_cache;
+mod popup_content;
+mod popup_run;
+mod popup_view;
 mod proctree;
 mod procwin;
 mod project_labels;
@@ -261,6 +267,7 @@ mod releasesite;
 mod remote;
 mod remotepresence;
 mod remote_ci;
+mod remote_popup;
 mod remote_claude;
 mod remote_git_auto;
 mod remote_agents;
@@ -442,6 +449,8 @@ use gitwatch::{start_watching_project, stop_watching_project};
 use label_probes::refresh_action_label;
 use ci_checks::*;
 use ci_commits::recent_commit_checks;
+use popup_content::action_popup;
+use popup_view::{popup_view_close, popup_view_open, popup_view_place, popup_view_push};
 use pull_request::*;
 use pull_request_review::pull_request_discussion;
 use gitfollow::{follow_list, follow_pause, follow_resume, follow_stop};
@@ -667,6 +676,7 @@ pub fn run() {
         .manage(sshsync::SyncState::default())
         .manage(browser::BrowserState::default())
         .manage(htmlproto::PreviewRoots::default())
+        .manage(popup_view::PopupPages::default())
         .manage(remote::RemoteHub::default())
         .manage(lesson::LessonState::default())
         .manage(peer_hub.clone())
@@ -864,7 +874,7 @@ pub fn run() {
             });
             Ok(())
         })
-        .invoke_handler(crate::all_command_handlers!())
+        .invoke_handler(ipc_gate::only_app_webviews(crate::all_command_handlers!()))
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app, event| match event {

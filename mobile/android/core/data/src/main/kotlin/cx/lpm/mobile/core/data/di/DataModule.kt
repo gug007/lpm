@@ -7,6 +7,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStoreFile
+import cx.lpm.mobile.core.data.actions.ActionPopupStore
 import cx.lpm.mobile.core.data.actions.ActionsStore
 import cx.lpm.mobile.core.data.agents.AgentDialogStore
 import cx.lpm.mobile.core.data.agents.AgentLaunchStore
@@ -261,6 +262,10 @@ object DataModule {
     @Provides
     @IntoSet
     fun agentDialogStoreFactory(): SessionStore.Factory = SessionStore.Factory(::AgentDialogStore)
+
+    @Provides
+    @IntoSet
+    fun actionPopupStoreFactory(): SessionStore.Factory = SessionStore.Factory(::ActionPopupStore)
 
     @Provides
     @IntoSet

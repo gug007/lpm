@@ -1,8 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capabilities for the main, detached and quick terminal windows.",
-  "windows": ["main", "detached-*", "quick-terminal"],
+  "description": "Capabilities for the main, detached and quick terminal windows. Listed by webview, not window: a window would also give them to its child webviews (popup pages, browser panes).",
+  "webviews": ["main", "detached-*", "quick-terminal"],
   "permissions": [
     "core:default",
     "core:app:allow-set-app-theme",

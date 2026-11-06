@@ -78,13 +78,14 @@ internal fun DemoServer.storedActionBody(project: String, key: String): Dict? {
 
 /**
  * The action as its config file holds it: a rendered label goes back to its template,
- * and inputs to the mapping keyed by name.
+ * a popup to what the config says, and inputs to the mapping keyed by name.
  */
 private fun configBody(action: Dict): Dict {
     val body = action.toMutableMap()
     body.remove("name")
     body.remove("children")
     if (body.containsKey("configLabel")) body["label"] = body.remove("configLabel")
+    if (body.containsKey("configPopup")) body["popup"] = body.remove("configPopup")
     body["inputs"].asDictList()?.let { inputs ->
         val mapping = inputsMapping(inputs)
         if (mapping == null) body.remove("inputs") else body["inputs"] = mapping

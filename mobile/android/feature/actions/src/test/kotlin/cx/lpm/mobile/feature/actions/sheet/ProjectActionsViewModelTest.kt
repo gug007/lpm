@@ -43,6 +43,7 @@ class ProjectActionsViewModelTest {
         assertEquals(listOf("Claude", "Codex"), agents.lists.map { it.title })
         assertEquals(0, state.openIndex("agents", agents.lists))
         assertTrue(state.rows.footer.isEmpty() && state.rows.menu.isEmpty())
+        assertTrue("the demo Mac makes action popups", state.popups)
 
         vm.showLayer("agents", "codex")
         t.settle()

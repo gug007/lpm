@@ -36,6 +36,8 @@ Automations in `global.yml` never run in duplicates. Every command finds an auto
 
 These commands rewrite the YAML file the automation lives in, the same way the lpm phone app does. Comments in that file are not kept.
 
+An automation in a repo's `.lpm.yml` doesn't run until the user allows that file's commands in lpm (the bar above the project's terminals), and again after it changes; until then it's listed with that reason.
+
 ## Create
 
 ```bash

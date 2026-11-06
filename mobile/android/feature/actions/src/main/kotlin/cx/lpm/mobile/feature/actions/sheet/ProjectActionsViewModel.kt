@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import cx.lpm.mobile.core.data.actions.ActionMemory
 import cx.lpm.mobile.core.data.actions.ActionMemoryState
+import cx.lpm.mobile.core.data.actions.ActionPopupStore
 import cx.lpm.mobile.core.data.projects.ProjectsStore
 import cx.lpm.mobile.core.data.session.MacSessions
 import cx.lpm.mobile.core.model.Action
@@ -30,7 +31,9 @@ data class ProjectActionsUiState(
     val rows: ActionRows = ActionRows(),
     /** Actions the Mac left out for a config problem, each naming its problem. */
     val actionErrors: List<String> = emptyList(),
-    val memory: ActionMemoryState = ActionMemoryState()
+    val memory: ActionMemoryState = ActionMemoryState(),
+    /** The Mac makes action popups: a long press offers "Show Popup". */
+    val popups: Boolean = false
 ) {
     /** The open list among a zone's [lists]: the remembered layer, else the first. */
     fun openIndex(zone: String, lists: List<ZoneList>): Int {
@@ -48,21 +51,23 @@ class ProjectActionsViewModel @AssistedInject constructor(
     private val memory: ActionMemory,
     private val picks: ActionPicks
 ) : ViewModel() {
-    val uiState: StateFlow<ProjectActionsUiState> = combine(
-        sessions.session(key.session).flatMapLatest {
-            it?.store<ProjectsStore>()?.state
-                ?: flowOf(null)
-        },
-        memory.state
-    ) { projects, remembered ->
-        val project = projects?.project(key.project)
-        ProjectActionsUiState(
-            project = key.project,
-            zones = project?.zones.orEmpty(),
-            rows = ActionRows.of(project?.actions.orEmpty(), project?.zones.orEmpty()),
-            actionErrors = project?.actionErrors.orEmpty(),
-            memory = remembered
-        )
+    val uiState: StateFlow<ProjectActionsUiState> = sessions.session(
+        key.session
+    ).flatMapLatest { session ->
+        combine(
+            session?.store<ProjectsStore>()?.state ?: flowOf(null),
+            memory.state
+        ) { projects, remembered ->
+            val project = projects?.project(key.project)
+            ProjectActionsUiState(
+                project = key.project,
+                zones = project?.zones.orEmpty(),
+                rows = ActionRows.of(project?.actions.orEmpty(), project?.zones.orEmpty()),
+                actionErrors = project?.actionErrors.orEmpty(),
+                memory = remembered,
+                popups = session?.store<ActionPopupStore>()?.available == true
+            )
+        }
     }.stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5_000),

@@ -34,12 +34,17 @@ import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.core.model.Action
 import cx.lpm.mobile.feature.actions.R as ActionsR
 
-/** What an action button does: run, offer "Edit Action…", and remember a group's last child. */
+/**
+ * What an action button does: run, offer "Show Popup" and "Edit Action…", and remember
+ * a group's last child.
+ */
 @Immutable
 class ActionCallbacks(
     val run: (Action) -> Unit,
     /** Long-press offers "Edit Action…" when set. */
     val edit: ((Action) -> Unit)? = null,
+    /** Long-press offers "Show Popup" for an action with a popup when set: the Mac makes them. */
+    val popup: ((Action) -> Unit)? = null,
     /** The child a `last-used` group ran last on this phone. */
     val lastUsed: (group: String) -> String? = { null },
     val remember: (group: String, child: String) -> Unit = { _, _ -> }
@@ -60,8 +65,14 @@ internal fun DesktopActionButton(
     compact: Boolean = false,
     fill: Boolean = false
 ) {
-    var editMenu by remember { mutableStateOf(false) }
-    val longPress: (() -> Unit)? = callbacks.edit?.let { { editMenu = true } }
+    var longPressMenu by remember { mutableStateOf(false) }
+    val edit = callbacks.edit
+    val popup = callbacks.popup?.takeIf { action.popup != null }
+    val longPress: (() -> Unit)? = if (edit != null || popup != null) {
+        { longPressMenu = true }
+    } else {
+        null
+    }
     val run = { child: Action ->
         action.lastUsedKey(child)?.let { callbacks.remember(action.name, it) }
         callbacks.run(child)
@@ -79,14 +90,22 @@ internal fun DesktopActionButton(
 
             else -> MenuButton(action, compact, fill, run, longPress)
         }
-        val edit = callbacks.edit
-        if (edit != null) {
-            ContextMenu(expanded = editMenu, onDismissRequest = { editMenu = false }) {
-                ContextMenuItem(
-                    title = stringResource(ActionsR.string.actions_edit),
-                    onClick = { edit(action) },
-                    icon = painterResource(R.drawable.ic_edit)
-                )
+        if (longPress != null) {
+            ContextMenu(expanded = longPressMenu, onDismissRequest = { longPressMenu = false }) {
+                if (popup != null) {
+                    ContextMenuItem(
+                        title = stringResource(ActionsR.string.actions_show_popup),
+                        onClick = { popup(action) },
+                        icon = painterResource(R.drawable.ic_bar_chart)
+                    )
+                }
+                if (edit != null) {
+                    ContextMenuItem(
+                        title = stringResource(ActionsR.string.actions_edit),
+                        onClick = { edit(action) },
+                        icon = painterResource(R.drawable.ic_edit)
+                    )
+                }
             }
         }
     }

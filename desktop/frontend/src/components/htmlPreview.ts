@@ -22,19 +22,20 @@ export function previewSrc(token: string, name: string, windows: boolean = isWin
 
 // Undefined while asking; null for a page this machine doesn't hold, which
 // renders from its text.
-export function useHtmlPreviewSrc(absPath: string): string | null | undefined {
+export function useHtmlPreviewSrc(absPath: string | undefined): string | null | undefined {
   const [src, setSrc] = useState<{ path: string; src: string | null } | null>(null);
+  const path = absPath && !isPeerMarked(absPath) ? absPath : null;
   useEffect(() => {
-    if (isPeerMarked(absPath)) return;
+    if (!path) return;
     let live = true;
-    HtmlPreviewRoot(absPath).then(
-      (token) => live && setSrc({ path: absPath, src: token ? previewSrc(token, basename(absPath)) : null }),
-      () => live && setSrc({ path: absPath, src: null }),
+    HtmlPreviewRoot(path).then(
+      (token) => live && setSrc({ path, src: token ? previewSrc(token, basename(path)) : null }),
+      () => live && setSrc({ path, src: null }),
     );
     return () => {
       live = false;
     };
-  }, [absPath]);
-  if (isPeerMarked(absPath)) return null;
-  return src?.path === absPath ? src.src : undefined;
+  }, [path]);
+  if (!path) return null;
+  return src?.path === path ? src.src : undefined;
 }

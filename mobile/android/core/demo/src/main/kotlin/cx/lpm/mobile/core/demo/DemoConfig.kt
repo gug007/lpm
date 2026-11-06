@@ -306,6 +306,14 @@ private fun DemoServer.registerActionConfigHandlers() {
                 if (rendered != null) entry["label"] = rendered else entry.remove("label")
             }
         }
+        // An unchanged popup keeps the card the Mac makes from it.
+        if (existing != null) {
+            val config = p.actions[existing].dict("configPopup")?.asStringMap()
+            if (config != null && entry.dict("popup")?.asStringMap() == config) {
+                entry["configPopup"] = config
+                entry["popup"] = p.actions[existing]["popup"]
+            }
+        }
         p.actions = if (existing != null) {
             p.actions.toMutableList().also { it[existing] = entry }
         } else {

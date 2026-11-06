@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "../notifications/toast";
 import { Play, RefreshCw } from "lucide-react";
+import { BarButton } from "./BarButton";
 import { RemoveSyncedCopyDialog } from "./RemoveSyncedCopyDialog";
 import { SyncGlyph } from "./SyncGlyph";
 import { followPause, followResume, followStop, isFirstSync, type FollowState } from "../followApi";
@@ -78,27 +79,6 @@ export function SyncedBar({ follow, macName }: SyncedBarProps) {
         onClose={() => setRemoving(false)}
       />
     </div>
-  );
-}
-
-function BarButton({
-  children,
-  icon,
-  onClick,
-}: {
-  children: React.ReactNode;
-  icon?: React.ReactNode;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex shrink-0 items-center gap-1 rounded-md px-2 py-0.5 text-[12px] text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-    >
-      {icon}
-      {children}
-    </button>
   );
 }
 

@@ -120,6 +120,24 @@ export function CancelActionBackground(runId) {
 export function RefreshActionLabel(projectName, actionName) {
   return invoke("refresh_action_label", { projectName, actionName });
 }
+export function AllowRepoCommands(projectName) {
+  return invoke("allow_repo_commands", { projectName });
+}
+export function ActionPopup(projectName, actionName, fresh) {
+  return invoke("action_popup", { projectName, actionName, fresh });
+}
+export function PopupViewOpen(id, html, x, y, width, height, background) {
+  return invoke("popup_view_open", { id, html, x, y, width, height, background });
+}
+export function PopupViewPlace(id, x, y, width, height) {
+  return invoke("popup_view_place", { id, x, y, width, height });
+}
+export function PopupViewPush(id, payload) {
+  return invoke("popup_view_push", { id, payload });
+}
+export function PopupViewClose(id) {
+  return invoke("popup_view_close", { id });
+}
 export function CheckActionPortConflict(projectName, actionName) {
   return invoke("check_action_port_conflict", { projectName, actionName });
 }
@@ -1303,8 +1321,8 @@ export function HideBrowser(id) {
 export function CloseBrowser(id) {
   return invoke("close_browser", { id });
 }
-export function CopyClaudeSessionForFork(sourceProject, destProject, sessionId) {
-  return invoke("copy_claude_session_for_fork", { sourceProject, destProject, sessionId });
+export function CopyClaudeSessionForFork(sourceProject, destProject, sessionId, account) {
+  return invoke("copy_claude_session_for_fork", { sourceProject, destProject, sessionId, account });
 }
 export function SetBrowserTheme(id, dark) {
   return invoke("set_browser_theme", { id, dark });

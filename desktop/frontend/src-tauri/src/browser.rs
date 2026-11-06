@@ -25,9 +25,9 @@ pub struct BrowserState {
     theme: Mutex<HashMap<String, bool>>,
 }
 
-const OFFSCREEN: f64 = -32000.0; // park here to hide without destroying page state
+pub(crate) const OFFSCREEN: f64 = -32000.0; // park here to hide without destroying page state
 
-const EMBEDDED: bool = !cfg!(target_os = "linux");
+pub(crate) const EMBEDDED: bool = !cfg!(target_os = "linux");
 
 // WKWebView's default app UA omits the "Version/… Safari/…" tokens, so UA-sniffing
 // sites (Google) serve a stripped-down page; a real Safari UA gets the modern site.
@@ -41,7 +41,7 @@ struct UrlChanged {
     url: String,
 }
 
-fn place(wv: &tauri::Webview, x: f64, y: f64, width: f64, height: f64) -> Result<(), String> {
+pub(crate) fn place(wv: &tauri::Webview, x: f64, y: f64, width: f64, height: f64) -> Result<(), String> {
     wv.set_position(LogicalPosition::new(x, y))
         .map_err(|e| e.to_string())?;
     wv.set_size(LogicalSize::new(width.max(1.0), height.max(1.0)))

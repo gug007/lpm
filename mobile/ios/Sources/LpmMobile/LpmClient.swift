@@ -103,6 +103,7 @@ final class LpmClient: NSObject {
     var onGitRestoreDiscarded: ((_ project: String, _ error: String?) -> Void)?
     var onGitDiscardFiles: ((_ project: String, _ paths: [String], _ undo: String?, _ error: String?) -> Void)?
     var onAgentDialog: ((_ read: AgentDialogRead) -> Void)?
+    var onActionPopup: ((_ reply: ActionPopupReply) -> Void)?
     var onGitChanged: ((_ project: String) -> Void)?
     var onGitHistory: ((_ project: String, _ skip: Int, _ page: HistoryPage?, _ error: String?) -> Void)?
     var onGitChecks: ((_ project: String, _ checks: GitChecks?, _ error: String?) -> Void)?
@@ -295,6 +296,7 @@ final class LpmClient: NSObject {
     static let dictationFeature = "dictation"
     static let agentDialogFeature = "agentDialog"
     static let gitDiscardFilesFeature = "gitDiscardFiles"
+    static let actionPopupFeature = "actionPopup"
 
     // Requests made while the link is down or half-dead, delivered on the next
     // `ready`. iOS kills the socket seconds after backgrounding and the
@@ -539,7 +541,7 @@ final class LpmClient: NSObject {
                              Self.limitRemindersFeature, Self.projectPinsFeature, Self.gitHistoryFeature,
                              Self.keepAwakeFeature, Self.lpmCommandsFeature, Self.lpmOtherSkillsFeature, Self.lpmNestedFoldersFeature,
                              Self.gitChecksFeature, Self.gitCommitChecksFeature,
-                             Self.agentDialogFeature, Self.gitDiscardFilesFeature],
+                             Self.agentDialogFeature, Self.gitDiscardFilesFeature, Self.actionPopupFeature],
             ]))
         }
     }
@@ -1235,6 +1237,9 @@ final class LpmClient: NSObject {
     func pickAgentDialog(_ read: AgentDialogRead, option: String, reqId: String) {
         send(Wire.pickAgentDialog(read, option: option, reqId: reqId))
     }
+    func requestActionPopup(project: String, action: String, fresh: Bool) {
+        send(Wire.actionPopup(project: project, action: action, fresh: fresh))
+    }
     func gitRestoreDiscarded(project: String, id: String) {
         send(Wire.gitRestoreDiscarded(project: project, id: id))
     }
@@ -1600,6 +1605,7 @@ final class LpmClient: NSObject {
             case .gitDiscardFiles(let proj, let paths, let undo, let error):
                 self.onGitDiscardFiles?(proj, paths, undo, error)
             case .agentDialog(let read): self.onAgentDialog?(read)
+            case .actionPopup(let reply): self.onActionPopup?(reply)
             case .gitChanged(let proj): self.onGitChanged?(proj)
             case .gitHistory(let proj, let skip, let page, let error): self.onGitHistory?(proj, skip, page, error)
             case .gitChecks(let proj, let checks, let error): self.onGitChecks?(proj, checks, error)

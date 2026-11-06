@@ -53,6 +53,7 @@ const LESSONS: Record<YouTubeLessonId, { topic: TopicId; title: string }> = {
   "switch-profiles": { topic: "get-started", title: "Run only the services you need" },
   "add-action": { topic: "buttons", title: "Turn any command into a button" },
   "dynamic-action-labels": { topic: "buttons", title: "Buttons that show live info" },
+  "action-popups-html-labels": { topic: "buttons", title: "Put charts on your buttons" },
   "action-zones": { topic: "buttons", title: "Stack buttons in rows and layers" },
   "run-any-ai-coding-agent": { topic: "agents", title: "Run any AI coding agent" },
   "parallel-agents": { topic: "agents", title: "Run agents in parallel copies" },

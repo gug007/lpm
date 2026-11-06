@@ -29,6 +29,7 @@ vi.mock("../../terminals", () => ({
   updateProjectTerminalsCache: vi.fn(),
 }));
 
+import { forkedSessionOf } from "../../forkSession";
 import { collectTerminals, makePaneLeaf, makeTerminal } from "../../paneTree";
 import { useTabCreation } from "./useTabCreation";
 import { useTreeCore } from "./useTreeCore";
@@ -98,6 +99,39 @@ describe("useTabCreation", () => {
       ["pty-3", "Claude 3"],
     ]);
     expect(scheduleCmdInject.mock.calls.map(([id]) => id)).toEqual(["pty-2", "pty-3"]);
+  });
+
+  it("gives every fork its own session, a fork of a fork included", async () => {
+    act(() =>
+      core.applyTree(
+        makePaneLeaf("p1", [
+          makeTerminal("pty-1", "Claude", {
+            actionName: "claude",
+            startCmd: "claude --session-id src --permission-mode auto",
+            resumeCmd: "claude --resume src --permission-mode auto",
+          }),
+        ]),
+        "p1",
+      ),
+    );
+    bridge.CopyClaudeSessionForFork.mockResolvedValue(undefined);
+    for (const id of ["pty-2", "pty-3", "pty-4"]) bridge.StartTerminalForRestore.mockResolvedValueOnce(id);
+
+    await act(() => tabs.forkTerminal("p1", "pty-1"));
+    await act(() => tabs.forkTerminal("p1", "pty-1"));
+    await act(() => tabs.forkTerminal("p1", "pty-2"));
+
+    const tab = (id: string) => collectTerminals(core.tree!).find((t) => t.id === id)!;
+    const ownId = (id: string) => tab(id).startCmd!.match(/--session-id (\S+)$/)![1];
+    const ids = ["pty-2", "pty-3", "pty-4"].map(ownId);
+    expect(new Set(["src", ...ids]).size).toBe(4);
+    for (const id of ["pty-2", "pty-3", "pty-4"]) {
+      expect(tab(id).resumeCmd).toBe(`claude --resume ${ownId(id)} --permission-mode auto`);
+    }
+    expect(forkedSessionOf(tab("pty-2").startCmd)).toBe("src");
+    expect(forkedSessionOf(tab("pty-3").startCmd)).toBe("src");
+    expect(forkedSessionOf(tab("pty-4").startCmd)).toBe(ids[0]);
+    expect(scheduleCmdInject).toHaveBeenCalledWith("pty-4", tab("pty-4").startCmd);
   });
 
   it("keeps every tab when several launches open a project with none", async () => {
