@@ -59,7 +59,7 @@ fn validate_map(popup: &Mapping, path: &str, dir: Option<&Path>, report: &mut Re
         }
     }
     match named.as_slice() {
-        [] => report.error(path, "needs a format key, as in `html: popups/page.html`"),
+        [] => report.error(path, "needs a format key, as in `html: scripts/stars/popup.html`"),
         [format] => match string_at(popup, format).map(str::trim) {
             Some(source) if !source.is_empty() => {
                 warn_unshown(format, path, report);

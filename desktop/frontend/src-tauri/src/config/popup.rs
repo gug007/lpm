@@ -154,7 +154,7 @@ fn from_map(map: &Mapping) -> PopupDef {
         .collect();
     let format = match named.as_slice() {
         [format] => *format,
-        [] => return problem("needs a format key, as in `html: popups/page.html`"),
+        [] => return problem("needs a format key, as in `html: scripts/stars/popup.html`"),
         many => {
             return problem(format!(
                 "names {} formats ({}); keep one",

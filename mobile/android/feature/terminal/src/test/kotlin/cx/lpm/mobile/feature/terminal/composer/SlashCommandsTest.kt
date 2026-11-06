@@ -56,7 +56,8 @@ class SlashCommandsTest {
 
     @Test
     fun `a tie goes to the latest run, then the name`() {
-        val rows = listOf(ran(agent("older"), 2, 5), ran(agent("newer"), 2, 9), ran(agent("alpha"), 2, 5))
+        val rows =
+            listOf(ran(agent("older"), 2, 5), ran(agent("newer"), 2, 9), ran(agent("alpha"), 2, 5))
         assertEquals(listOf("newer", "alpha", "older"), rows.names(""))
     }
 

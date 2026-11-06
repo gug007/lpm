@@ -288,7 +288,12 @@ class ComposerViewModel @AssistedInject constructor(
     private fun noteSentCommand(text: String) {
         val name = sentCommandName(text) ?: return
         val row = slashRows().firstOrNull { it.name.equals(name, ignoreCase = true) } ?: return
-        if (!row.isLpm) session?.store<LpmCommandsStore>()?.noteCommandUsed(target.project, row.name)
+        if (!row.isLpm) {
+            session?.store<LpmCommandsStore>()?.noteCommandUsed(
+                target.project,
+                row.name
+            )
+        }
     }
 
     fun saveDraft() {

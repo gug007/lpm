@@ -27,15 +27,7 @@ internal fun LaunchpadMark(agent: String?, emoji: String, modifier: Modifier = M
         mark != null -> AgentMarkIcon(mark, modifier.size(20.dp))
 
         emoji.isEmpty() -> Icon(
-            painter = painterResource(
-                if (agent ==
-                    null
-                ) {
-                    DesignR.drawable.ic_terminal
-                } else {
-                    DesignR.drawable.ic_auto_awesome_fill
-                }
-            ),
+            painter = painterResource(if (agent == null) ShellIcon else AgentIcon),
             contentDescription = null,
             tint = agent?.let { providerMeta(it).tint } ?: LpmTheme.colors.secondaryLabel,
             modifier = modifier.size(20.dp)
@@ -44,3 +36,6 @@ internal fun LaunchpadMark(agent: String?, emoji: String, modifier: Modifier = M
         else -> Text(text = emoji, style = LpmTheme.typography.body, modifier = modifier)
     }
 }
+
+private val ShellIcon = DesignR.drawable.ic_terminal
+private val AgentIcon = DesignR.drawable.ic_auto_awesome_fill

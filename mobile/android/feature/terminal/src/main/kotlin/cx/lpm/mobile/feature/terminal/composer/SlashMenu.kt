@@ -4,7 +4,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -118,18 +117,15 @@ private fun SlashRow(command: SlashCommand, onPick: (SlashCommand) -> Unit) {
             color = if (command.isLpm) lpmCommandTint else colors.label,
             maxLines = 1
         )
-        Spacer(Modifier.weight(1f))
-        if (command.description.isNotEmpty()) {
-            Text(
-                text = command.description,
-                fontSize = 12.sp,
-                color = colors.secondaryLabel,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.End,
-                modifier = Modifier.widthIn(max = 180.dp)
-            )
-        }
+        Text(
+            text = command.description,
+            fontSize = 12.sp,
+            color = colors.secondaryLabel,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.End,
+            modifier = Modifier.weight(1f)
+        )
         command.tag(
             stringResource(R.string.composer_slash_this_project),
             stringResource(R.string.composer_slash_global)

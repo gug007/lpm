@@ -3,7 +3,6 @@ import { mergeSlashCommands, type LpmCommand, type LpmCommandLists } from "./lpm
 import {
   filterSlashCommands,
   sentCommandName,
-  slashPlace,
   slashTag,
   type SlashCommand,
 } from "./slashCommands";
@@ -114,7 +113,7 @@ describe("filterSlashCommands", () => {
   });
 });
 
-describe("slashTag and slashPlace", () => {
+describe("slashTag", () => {
   const lpm = (folder: string | null, scope: "global" | "project"): SlashCommand => ({
     ...agent("x"),
     source: "lpm",
@@ -130,7 +129,6 @@ describe("slashTag and slashPlace", () => {
 
   it("names only the last level of a nested folder on the row", () => {
     expect(slashTag(lpm("Work/Reviews", "project"))).toBe("Reviews");
-    expect(slashPlace(lpm("Work/Reviews", "project"), "Claude Code")).toBe("Work/Reviews · This project");
   });
 
   it("treats a skill made elsewhere like the list it's in", () => {
@@ -139,9 +137,8 @@ describe("slashTag and slashPlace", () => {
     expect(slashTag({ ...agent("x"), source: "user", folder: "Docs" })).toBe("Docs");
   });
 
-  it("leaves the agent's own untagged and names the agent in full", () => {
+  it("leaves the agent's own untagged", () => {
     expect(slashTag(agent("clear"))).toBeNull();
-    expect(slashPlace(agent("clear"), "Claude Code")).toBe("Claude Code");
   });
 });
 

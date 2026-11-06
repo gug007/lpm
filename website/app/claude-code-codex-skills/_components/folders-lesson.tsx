@@ -11,7 +11,7 @@ const STEPS = [
   },
   {
     title: "Find them in the slash menu",
-    body: "Type a slash in lpm's input and each folder has its own heading. Type a folder's name and the list narrows to it.",
+    body: "Type a slash in lpm's input and each skill shows its folder beside it. Type a folder's name and the list narrows to it.",
   },
 ];
 

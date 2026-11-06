@@ -2,9 +2,10 @@
 // commit (parents HEAD, an index commit, and the untracked files) under a
 // per-worktree ref, so Undo and Git › History › Discarded can bring them back
 // with `git stash apply` for a week. The user's own stash list is never touched.
-use crate::git::{git_out, git_out_env};
+use crate::git::{git_out, git_out_env, LITERAL_PATHS};
 use crate::gitworkstate::LPM_IDENTITY;
 use serde::Serialize;
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -83,6 +84,46 @@ fn tracked_tree_all(cwd: &str) -> Result<String, String> {
     scratch.git(cwd, &["write-tree"])
 }
 
+/// Which of `paths` exist at HEAD.
+pub(crate) fn in_head(cwd: &str, paths: &[&str]) -> HashSet<String> {
+    let mut args = vec![
+        LITERAL_PATHS,
+        "ls-tree",
+        "-r",
+        "-z",
+        "--name-only",
+        "HEAD",
+        "--",
+    ];
+    args.extend(paths);
+    lines(&git_out(cwd, &args).unwrap_or_default())
+        .into_iter()
+        .collect()
+}
+
+/// What the staged renames ending at one of `paths` were called at HEAD. Asked
+/// of the whole index, since a rename can't be seen from its new name alone.
+pub(crate) fn rename_sources(cwd: &str, paths: &[&str]) -> Vec<String> {
+    if paths.is_empty() {
+        return Vec::new();
+    }
+    let args = [
+        "diff",
+        "--cached",
+        "--name-status",
+        "-z",
+        "-M",
+        "--diff-filter=R",
+    ];
+    let raw = git_out(cwd, &args).unwrap_or_default();
+    let fields: Vec<&str> = raw.split('\0').collect();
+    fields
+        .chunks_exact(3)
+        .filter(|rename| paths.contains(&rename[2]))
+        .map(|rename| rename[1].to_string())
+        .collect()
+}
+
 /// The tree of HEAD with only `paths` taken from the working copy.
 fn tracked_tree_of(cwd: &str, paths: &[&str]) -> Result<String, String> {
     if paths.is_empty() {
@@ -90,16 +131,14 @@ fn tracked_tree_of(cwd: &str, paths: &[&str]) -> Result<String, String> {
     }
     let scratch = ScratchIndex::new(cwd, "tracked")?;
     scratch.git(cwd, &["read-tree", "HEAD"])?;
-    let mut ls = vec!["ls-tree", "-r", "-z", "--name-only", "HEAD", "--"];
-    ls.extend(paths);
-    let in_head = lines(&git_out(cwd, &ls).unwrap_or_default());
+    let at_head = in_head(cwd, paths);
     let present: Vec<&str> = paths
         .iter()
         .copied()
-        .filter(|p| Path::new(cwd).join(p).exists() || in_head.iter().any(|h| h == p))
+        .filter(|p| Path::new(cwd).join(p).exists() || at_head.contains(*p))
         .collect();
     if !present.is_empty() {
-        let mut add = vec!["add", "-A", "--"];
+        let mut add = vec![LITERAL_PATHS, "add", "-A", "--"];
         add.extend(&present);
         scratch.git(cwd, &add)?;
     }
@@ -112,14 +151,21 @@ fn untracked_tree(cwd: &str, paths: &[&str]) -> Result<Option<String>, String> {
     }
     let scratch = ScratchIndex::new(cwd, "untracked")?;
     scratch.git(cwd, &["read-tree", "--empty"])?;
-    let mut add = vec!["add", "-f", "--"];
+    let mut add = vec![LITERAL_PATHS, "add", "-f", "--"];
     add.extend(paths);
     scratch.git(cwd, &add)?;
     Ok(Some(scratch.git(cwd, &["write-tree"])?))
 }
 
 fn untracked_in(cwd: &str, paths: &[&str]) -> Vec<String> {
-    let mut args = vec!["ls-files", "--others", "--exclude-standard", "-z", "--"];
+    let mut args = vec![
+        LITERAL_PATHS,
+        "ls-files",
+        "--others",
+        "--exclude-standard",
+        "-z",
+        "--",
+    ];
     args.extend(paths);
     lines(&git_out(cwd, &args).unwrap_or_default())
 }

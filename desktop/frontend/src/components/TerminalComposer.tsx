@@ -144,7 +144,6 @@ import { SlashCommandMenu } from "./SlashCommandMenu";
 import { useSlashCommands } from "../hooks/useSlashCommands";
 import { missingNote, useLpmCommandRun } from "../hooks/useLpmCommandRun";
 import { useCommandsOpen } from "../store/commandsOpen";
-import { aiPickLabel } from "../types";
 import {
   detectAICLI,
   hintCommandAt,
@@ -2622,7 +2621,6 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
           anchorRect={slashRect}
           onSelect={(cmd) => insertSlashCommand(cmd)}
           onHoverIndex={setSlashIndex}
-          agentLabel={slashCli ? aiPickLabel(slashCli, "") : undefined}
           onManage={lpmProject !== null ? manageCommands : undefined}
         />
       )}

@@ -56,21 +56,19 @@ struct SlashMenu: View {
                 Text("/\(cmd.name)")
                     .font(.system(size: 14, weight: .semibold, design: .monospaced))
                     .foregroundStyle(cmd.isLpm ? accentCyan : .primary)
-                Spacer(minLength: 8)
-                if !cmd.description.isEmpty {
-                    Text(cmd.description)
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .frame(maxWidth: 180, alignment: .trailing)
-                }
+                    .lineLimit(1)
+                    .layoutPriority(2)
+                Text(cmd.description)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
                 if let tag = cmd.tag {
                     Text(tag)
                         .font(.system(size: 10))
                         .foregroundStyle(.tertiary)
                         .lineLimit(1)
-                        .frame(maxWidth: 80, alignment: .trailing)
-                        .fixedSize()
+                        .layoutPriority(1)
                 }
             }
             .padding(.horizontal, 16)
