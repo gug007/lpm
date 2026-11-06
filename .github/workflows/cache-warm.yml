@@ -38,10 +38,10 @@ jobs:
           # cross-builds. An explicit --target changes the output directory and
           # how build scripts are compiled, so it has to match per platform.
           - target: aarch64-apple-darwin
-            os: macos-14
+            os: macos-15
             build-args: --target aarch64-apple-darwin
           - target: x86_64-apple-darwin
-            os: macos-14
+            os: macos-15
             build-args: --target x86_64-apple-darwin
           # build-linux and build-linux-desktop share this one.
           - target: x86_64-unknown-linux-gnu

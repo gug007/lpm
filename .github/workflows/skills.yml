@@ -25,7 +25,7 @@ on:
 
 jobs:
   validate:
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
       # The built-in Tailscale sidecar (tailnet/, Go) is built and shipped beside

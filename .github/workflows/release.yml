@@ -19,7 +19,7 @@ jobs:
   # compilations (the bulk of the wall-clock) run in parallel instead of
   # back-to-back on a single machine.
   build:
-    runs-on: macos-14
+    runs-on: macos-15
     strategy:
       fail-fast: false
       matrix:
