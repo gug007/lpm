@@ -183,6 +183,9 @@ export function ImportLpmCommands(project, scope) {
 export function ExpandLpmCommand(project, name, args, cli) {
   return invoke("expand_lpm_command", { project, name, args, cli });
 }
+export function RecordSlashCommand(project, name) {
+  return invoke("record_slash_command", { project, name });
+}
 export function CheckClaudeHooks() {
   return invoke("check_claude_hooks");
 }

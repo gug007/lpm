@@ -125,7 +125,6 @@ class ComposerViewModel @AssistedInject constructor(
             terminalTools = tools,
             slashMatches = if (tools) slashMatches(composer.text, commands) else emptyList(),
             slashArgumentHint = if (tools) slashArgumentHint(composer.text, commands) else null,
-            agentLabel = agentCommandsLabel(cli),
             lpmCommands = lpmCommands.runHere(tools, cli),
             mentionActive = mention != null,
             mentions = mention?.let {
@@ -262,6 +261,7 @@ class ComposerViewModel @AssistedInject constructor(
                 body
             )
         }
+        noteSentCommand(body)
         store?.afterSend()
         dictation.noteSent()
         return true
@@ -281,6 +281,14 @@ class ComposerViewModel @AssistedInject constructor(
     fun sendRaw(text: String, onSend: ((String) -> Unit)? = null) {
         if (text.isBlank() || !submit(text, onSend)) return
         terminals?.recordHistory(target.project, target.termId, target.label, text)
+        noteSentCommand(text)
+    }
+
+    /** Counts a sent message that runs one of the agent's commands; an lpm skill counts on expanding. */
+    private fun noteSentCommand(text: String) {
+        val name = sentCommandName(text) ?: return
+        val row = slashRows().firstOrNull { it.name.equals(name, ignoreCase = true) } ?: return
+        if (!row.isLpm) session?.store<LpmCommandsStore>()?.noteCommandUsed(target.project, row.name)
     }
 
     fun saveDraft() {

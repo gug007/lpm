@@ -48,6 +48,7 @@ export function MoveOtherSkill(...args: any[]): Promise<any>;
 export function ConvertSkill(...args: any[]): Promise<any>;
 export function ImportLpmCommands(...args: any[]): Promise<any>;
 export function ExpandLpmCommand(...args: any[]): Promise<any>;
+export function RecordSlashCommand(...args: any[]): Promise<any>;
 export function RefreshActionLabel(...args: any[]): Promise<any>;
 export function ActionPopup(...args: any[]): Promise<any>;
 export function AllowRepoCommands(...args: any[]): Promise<any>;

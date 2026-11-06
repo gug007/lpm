@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ListAgentCommands } from "../../bridge/commands";
 import type { AICLI } from "../types";
-import { filterSlashCommands, type SlashCommand } from "../slashCommands";
+import { filterSlashCommands, sentCommandName, type SlashCommand } from "../slashCommands";
 import { mergeSlashCommands, type LpmCommandLists } from "../lpmCommands";
-import { useLpmCommandLists } from "../store/lpmCommands";
+import { recordSlashCommand, useLpmCommandLists } from "../store/lpmCommands";
 
 // Loads the slash commands for a CLI + cwd and exposes a client-side filter.
 // The agent's own list is fetched once per (cli, cwd) and cached for the hook's
 // lifetime, so filtering as the user types never hits the backend. A null `cli`
 // (a terminal not running a known agent) yields an empty list, keeping the menu
-// closed. With an `lpmProject` the user's lpm skills for that project lead
-// the list, read again each time the composer is focused.
+// closed. With an `lpmProject` the list holds the user's lpm skills for that
+// project too, read again each time the composer is focused.
 export function useSlashCommands(cli: AICLI | null, cwd: string, active: boolean, lpmProject: string | null) {
   const [agent, setAgent] = useState<SlashCommand[]>([]);
   const cache = useRef(new Map<string, SlashCommand[]>());
@@ -66,5 +66,16 @@ export function useSlashCommands(cli: AICLI | null, cwd: string, active: boolean
     [all],
   );
 
-  return { filter, isCommand, argumentHintFor, lpmLists: lists };
+  // Counts a sent message that runs one of the agent's commands, for the menu's
+  // Most used. An lpm skill is counted when it expands.
+  const noteSent = useCallback(
+    (text: string) => {
+      const name = sentCommandName(text)?.toLowerCase();
+      const row = name ? all.find((c) => c.name.toLowerCase() === name) : undefined;
+      if (row && row.source !== "lpm" && lpmProject !== null) recordSlashCommand(lpmProject, row.name);
+    },
+    [all, lpmProject],
+  );
+
+  return { filter, isCommand, argumentHintFor, noteSent, lpmLists: lists };
 }

@@ -5,7 +5,7 @@ import { useAnchoredPanel } from "../../hooks/useAnchoredPanel";
 import { useDismissOnEscape } from "../../hooks/useDismissOnEscape";
 import type { LaunchpadTab } from "../../launchpadAgentActions";
 import { useOverlay } from "../../store/overlay";
-import { AgentGlyph } from "../terminal/AgentGlyph";
+import { LaunchpadMark } from "../LaunchpadMark";
 import { LaunchpadRadioTab } from "./LaunchpadRadioTab";
 import { LAUNCHPAD_TAB, LAUNCHPAD_TAB_HOVER, launchpadTabTone } from "./launchpadTabStyle";
 
@@ -52,7 +52,7 @@ export function LaunchpadGroupTab({
             onClick={() => onChange(lead.id)}
             className={`flex h-full items-center gap-1.5 rounded-l-lg pl-2.5 pr-1.5 ${hover}`}
           >
-            <AgentGlyph agent={lead.agent} size={14} />
+            <LaunchpadMark agent={lead.agent} emoji={lead.emoji} size={14} />
             {lead.label}
           </button>
           <button
@@ -68,7 +68,7 @@ export function LaunchpadGroupTab({
         </div>
       ) : (
         <LaunchpadRadioTab checked={picked !== null} aria-haspopup="menu" aria-expanded={open} onClick={toggle}>
-          <AgentGlyph agent={(picked ?? tab.options[0]).agent} />
+          <LaunchpadMark agent={(picked ?? tab.options[0]).agent} emoji={(picked ?? tab).emoji} size={14} />
           {picked?.label ?? tab.label}
           {chevron}
         </LaunchpadRadioTab>
@@ -95,7 +95,7 @@ export function LaunchpadGroupTab({
                 }}
                 className="mx-1.5 flex w-[calc(100%-12px)] items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
               >
-                <AgentGlyph agent={o.agent} />
+                <LaunchpadMark agent={o.agent} emoji={o.emoji} />
                 <span className="min-w-0 flex-1 truncate">{o.label}</span>
                 {o.id === value && <Check size={14} strokeWidth={2} className="shrink-0 text-[var(--text-primary)]" />}
               </button>

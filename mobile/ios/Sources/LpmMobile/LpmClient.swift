@@ -293,6 +293,7 @@ final class LpmClient: NSObject {
     static let lpmCommandsFeature = "lpmCommands"
     static let lpmOtherSkillsFeature = "lpmOtherSkills"
     static let lpmNestedFoldersFeature = "lpmNestedFolders"
+    static let lpmCommandUsedFeature = "lpmCommandUsed"
     static let dictationFeature = "dictation"
     static let agentDialogFeature = "agentDialog"
     static let gitDiscardFilesFeature = "gitDiscardFiles"
@@ -920,6 +921,9 @@ final class LpmClient: NSObject {
     func requestSpeech(reqId: String, text: String) { send(Wire.ttsSpeak(reqId: reqId, text: text)) }
     func requestTerminals(project: String) { send(Wire.terminals(project: project)) }
     func requestSlash(id: String, project: String) { send(Wire.slash(id: id, project: project)) }
+    func noteCommandUsed(project: String, name: String) {
+        send(Wire.lpmCommandUsed(project: project, name: name))
+    }
     func requestAnswers(id: String, project: String, limit: Int, reqId: String) {
         send(Wire.answers(id: id, project: project, limit: limit, reqId: reqId))
     }

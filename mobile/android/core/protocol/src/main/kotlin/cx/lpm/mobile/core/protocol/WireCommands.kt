@@ -99,6 +99,12 @@ sealed interface WireCommands {
         put("toLpm", toLpm)
     }
 
+    /** A sent `/` command that isn't an lpm skill, for the menu's Most used. Gets no reply. */
+    fun lpmCommandUsed(project: String, name: String): String = frame("lpmCommandUsed") {
+        put("project", project)
+        put("name", name)
+    }
+
     fun lpmCommandExpand(
         project: String,
         reqId: String,

@@ -15,15 +15,11 @@ import cx.lpm.mobile.core.designsystem.R as DesignR
 import cx.lpm.mobile.core.designsystem.component.ListLeadingSlot
 import cx.lpm.mobile.core.designsystem.component.ListRow
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
-import cx.lpm.mobile.core.ui.AgentMark
-import cx.lpm.mobile.core.ui.AgentMarkIcon
-import cx.lpm.mobile.core.ui.providerMeta
-import cx.lpm.mobile.core.ui.tint
 
 /**
  * One way a new tab can start (iOS `NewTabStartRow`): a terminal, or an agent ([agent]
- * its id) shown by its own mark as the desktop shows it, checked when picked.
- * [accessory] follows the check.
+ * its id) shown by its action's [emoji] or its own mark as the desktop shows it, checked
+ * when picked. [accessory] follows the check.
  */
 @Composable
 internal fun NewTabStartRow(
@@ -32,27 +28,16 @@ internal fun NewTabStartRow(
     picked: Boolean,
     onPick: () -> Unit,
     modifier: Modifier = Modifier,
+    emoji: String = "",
     accessory: (@Composable () -> Unit)? = null
 ) {
     val colors = LpmTheme.colors
-    // A terminal, or an agent without a mark of its own, gets a symbol in the agent's colour.
-    val tint = agent?.let { providerMeta(it).tint } ?: colors.secondaryLabel
     ListRow(
         modifier = modifier.semantics { selected = picked },
         onClick = onPick,
         leading = {
             Box(Modifier.size(28.dp), contentAlignment = Alignment.Center) {
-                val mark = agent?.let(AgentMark::of)
-                if (mark != null) {
-                    AgentMarkIcon(mark, Modifier.size(20.dp))
-                } else {
-                    Icon(
-                        painter = painterResource(if (agent == null) ShellIcon else AgentIcon),
-                        contentDescription = null,
-                        tint = tint,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
+                LaunchpadMark(agent = agent, emoji = emoji)
             }
         },
         leadingSlot = MarkSlot,
@@ -73,5 +58,3 @@ internal fun NewTabStartRow(
 }
 
 private val MarkSlot = ListLeadingSlot(width = 28.dp, spacing = 12.dp)
-private val ShellIcon = DesignR.drawable.ic_terminal
-private val AgentIcon = DesignR.drawable.ic_auto_awesome_fill

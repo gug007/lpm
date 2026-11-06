@@ -320,7 +320,7 @@ struct TerminalComposer: View {
                 transformLockBar
                 Divider().opacity(0.5)
             } else if !slashMatches.isEmpty {
-                SlashMenu(commands: slashMatches, agentLabel: agentCommandsLabel(terminalCli), pick: pick,
+                SlashMenu(commands: slashMatches, pick: pick,
                           onManage: lpmCommandsOn ? { showCommands = true } : nil,
                           maxHeight: verticalSizeClass == .compact ? 110 : 220)
                 Divider().opacity(0.5)
@@ -786,6 +786,7 @@ struct TerminalComposer: View {
         if !body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             model.recordHistory(project: project, id: termId, label: label, text: body)
         }
+        noteSentCommand(body)
         store.afterSend()
         dictation.noteSent()
         withAnimation(.easeOut(duration: 0.2)) { isFull = false }
@@ -801,6 +802,17 @@ struct TerminalComposer: View {
             return
         }
         model.recordHistory(project: project, id: termId, label: label, text: text)
+        noteSentCommand(text)
+    }
+
+    /// Counts a sent message that runs one of the agent's commands, for the menu's
+    /// Most used. An lpm skill is counted when it expands.
+    private func noteSentCommand(_ text: String) {
+        guard let name = sentCommandName(text),
+              let row = (model.slashCommands[termId] ?? []).first(where: {
+                  $0.name.caseInsensitiveCompare(name) == .orderedSame
+              }), !row.isLpm else { return }
+        model.noteCommandUsed(project: project, name: row.name)
     }
 
     private static let notSentWarning = "Not sent — lpm isn't connected to your Mac right now. Your message is still here."

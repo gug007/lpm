@@ -17,7 +17,7 @@ struct NewTabGroupRow: View {
             let lead = current ?? primary
             HStack(spacing: 4) {
                 Button { onPick(lead) } label: {
-                    NewTabStartLabel(label: lead.label, agent: lead.agent, picked: current != nil)
+                    NewTabStartLabel(label: lead.label, agent: lead.agent, emoji: lead.emoji, picked: current != nil)
                 }
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(current != nil ? .isSelected : [])
@@ -28,7 +28,8 @@ struct NewTabGroupRow: View {
             items {
                 HStack(spacing: 4) {
                     NewTabStartLabel(label: current?.label ?? tab.label,
-                                     agent: (current ?? tab.options[0]).agent, picked: current != nil)
+                                     agent: (current ?? tab.options[0]).agent,
+                                     emoji: current?.emoji ?? tab.emoji, picked: current != nil)
                     chevron.frame(width: 32)
                 }
             }
@@ -48,7 +49,7 @@ struct NewTabGroupRow: View {
                 get: { picked },
                 set: { id in tab.options.first { $0.id == id }.map(onPick) }
             )) {
-                ForEach(tab.options) { Text($0.label).tag($0.id) }
+                ForEach(tab.options) { Text($0.menuTitle).tag($0.id) }
             }
         } label: {
             label()

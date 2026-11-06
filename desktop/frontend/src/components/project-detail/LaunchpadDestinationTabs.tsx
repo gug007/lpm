@@ -1,6 +1,6 @@
 import type { LaunchpadTab } from "../../launchpadAgentActions";
 import { TerminalIcon } from "../icons";
-import { AgentGlyph } from "../terminal/AgentGlyph";
+import { LaunchpadMark } from "../LaunchpadMark";
 import { LaunchpadGroupTab } from "./LaunchpadGroupTab";
 import { LaunchpadRadioTab } from "./LaunchpadRadioTab";
 
@@ -33,7 +33,7 @@ export function LaunchpadDestinationTabs({
         const [option] = tab.options;
         return (
           <LaunchpadRadioTab key={tab.key} checked={value === option.id} onClick={() => onChange(option.id)}>
-            <AgentGlyph agent={option.agent} />
+            <LaunchpadMark agent={option.agent} emoji={option.emoji} size={14} />
             {option.label}
           </LaunchpadRadioTab>
         );

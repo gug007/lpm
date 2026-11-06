@@ -1,11 +1,10 @@
 import SwiftUI
 
 /// Slash-command autocomplete list, shown above the input while the user is typing
-/// a "/command". The user's lpm commands lead, under a heading per folder and
-/// list; the agent's own follow under its name. Tapping a row picks it.
+/// a "/command". A lone "/" leads with the commands run most, whoever made them,
+/// then lists every other one A–Z. Tapping a row picks it.
 struct SlashMenu: View {
     let commands: [SlashCommand]
-    let agentLabel: String
     let pick: (SlashCommand) -> Void
     // Opens the Commands screen; shown as the menu's last row when given.
     let onManage: (() -> Void)?
@@ -15,8 +14,6 @@ struct SlashMenu: View {
     // terminal above while it's open, rather than splitting the space with it and
     // leaving a row or two in view.
     @State private var contentHeight: CGFloat = 0
-
-    private var grouped: Bool { commands.contains { $0.isLpm } }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -59,11 +56,6 @@ struct SlashMenu: View {
                 Text("/\(cmd.name)")
                     .font(.system(size: 14, weight: .semibold, design: .monospaced))
                     .foregroundStyle(cmd.isLpm ? accentCyan : .primary)
-                if !cmd.argumentHint.isEmpty {
-                    Text(cmd.argumentHint)
-                        .font(.system(size: 12))
-                        .foregroundStyle(.tertiary)
-                }
                 Spacer(minLength: 8)
                 if !cmd.description.isEmpty {
                     Text(cmd.description)
@@ -72,11 +64,12 @@ struct SlashMenu: View {
                         .lineLimit(1)
                         .frame(maxWidth: 180, alignment: .trailing)
                 }
-                if let source = cmd.sourceLabel {
-                    Text(source.uppercased())
-                        .font(.system(size: 9, weight: .medium))
-                        .kerning(0.6)
+                if let tag = cmd.tag {
+                    Text(tag)
+                        .font(.system(size: 10))
                         .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                        .frame(maxWidth: 80, alignment: .trailing)
                         .fixedSize()
                 }
             }
@@ -87,45 +80,78 @@ struct SlashMenu: View {
         .buttonStyle(.plain)
     }
 
-    /// The heading the row at `index` starts, if it starts a group.
+    /// The heading the row at `index` starts: Most used over the rows it marks, and
+    /// All over the rest. Nothing while typing, or before anything has run.
     private func heading(at index: Int) -> String? {
-        guard grouped else { return nil }
-        let group = groupOf(commands[index])
-        return index == 0 || groupOf(commands[index - 1]) != group ? group : nil
+        guard commands.first?.mostUsed == true else { return nil }
+        if index == 0 { return "Most used" }
+        guard commands[index - 1].mostUsed, !commands[index].mostUsed else { return nil }
+        return "All \(commands.count - index)"
+    }
+}
+
+/// The command a message opens with, or nil. A CLI only runs a "/" in that spot,
+/// which is all a run count should see.
+func sentCommandName(_ text: String) -> String? {
+    guard let re = try? NSRegularExpression(pattern: "^\\s*/([a-z0-9:_-]+)(?:\\s|$)", options: .caseInsensitive),
+          let m = re.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+          let range = Range(m.range(at: 1), in: text) else { return nil }
+    return String(text[range])
+}
+
+extension SlashCommand {
+    private var sortName: String { name.lowercased() }
+
+    /// How well the row matches a typed fragment, best first; nil when it doesn't.
+    fileprivate func matchRank(_ q: String) -> Int? {
+        let n = sortName
+        if n == q { return 0 }
+        if n.hasPrefix(q) { return 1 }
+        if n.split(whereSeparator: { "-:_".contains($0) }).contains(where: { $0.hasPrefix(q) }) { return 2 }
+        if folder?.lowercased().hasPrefix(q) == true { return 3 }
+        if n.contains(q) { return 4 }
+        return description.lowercased().contains(q) ? 5 : nil
     }
 
-    private func groupOf(_ cmd: SlashCommand) -> String {
-        guard cmd.isLpm else { return agentLabel }
-        return "\(cmd.folder ?? "No folder") · \((cmd.scope ?? .global).menuLabel)"
+    fileprivate static func byUse(_ a: SlashCommand, _ b: SlashCommand) -> Bool {
+        if a.recentRuns != b.recentRuns { return a.recentRuns > b.recentRuns }
+        if a.lastRunAt != b.lastRunAt { return a.lastRunAt > b.lastRunAt }
+        return a.sortName < b.sortName
+    }
+
+    fileprivate static func byName(_ a: SlashCommand, _ b: SlashCommand) -> Bool {
+        a.sortName < b.sortName
     }
 }
 
 extension Array where Element == SlashCommand {
-    /// The rows a typed fragment keeps, like the desktop's filter: a name (or an
-    /// lpm command's folder) starting with it first, then a name or description
-    /// holding it. Rows stay together under their heading, and the heading holding
-    /// the best match leads; lpm commands come first here, so they win a tie.
+    private static var mostUsedRows: Int { 5 }
+
+    /// What a lone "/" lists, like the desktop's menu: the commands run most in the
+    /// last 30 days, then every other one A–Z, so nothing depends on who made it.
+    private var browseOrder: [SlashCommand] {
+        let top = filter { $0.recentRuns > 0 }.sorted(by: SlashCommand.byUse).prefix(Self.mostUsedRows)
+        let topIds = Set(top.map(\.id))
+        let rest = filter { !topIds.contains($0.id) }.sorted(by: SlashCommand.byName)
+        return top.map { row in
+            var row = row
+            row.mostUsed = true
+            return row
+        } + rest
+    }
+
+    /// The rows a typed fragment keeps, like the desktop's filter: best match first,
+    /// and among equal matches the one run most. A lone "/" keeps every row.
     func matching(_ fragment: String) -> [SlashCommand] {
         let q = fragment.lowercased()
-        guard !q.isEmpty else { return self }
-        var starts: [SlashCommand] = []
-        var contains: [SlashCommand] = []
-        for c in self {
-            let name = c.name.lowercased()
-            if name.hasPrefix(q) || c.folder?.lowercased().hasPrefix(q) == true {
-                starts.append(c)
-            } else if name.contains(q) || c.description.lowercased().contains(q) {
-                contains.append(c)
+        guard !q.isEmpty else { return browseOrder }
+        return compactMap { c in c.matchRank(q).map { (c, $0) } }
+            .sorted { a, b in
+                if a.1 != b.1 { return a.1 < b.1 }
+                if a.0.recentRuns != b.0.recentRuns { return a.0.recentRuns > b.0.recentRuns }
+                return SlashCommand.byName(a.0, b.0)
             }
-        }
-        var keys: [String] = []
-        var groups: [String: [SlashCommand]] = [:]
-        for c in starts + contains {
-            let key = c.isLpm ? "\(c.scope?.rawValue ?? ""):\(c.folder ?? "")" : ""
-            if groups[key] == nil { keys.append(key) }
-            groups[key, default: []].append(c)
-        }
-        return keys.flatMap { groups[$0] ?? [] }
+            .map(\.0)
     }
 }
 

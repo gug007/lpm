@@ -135,9 +135,18 @@ private fun DemoServer.registerTerminalLifecycleHandlers() {
     }
 }
 
+/**
+ * `/compact` is the one agent command with runs, so Most used in the `/` menu shows the
+ * user's skills and the agent's own side by side.
+ */
+private fun DemoServer.withSeededRuns(row: Dict): Dict {
+    if (row.string("name") != "compact") return row
+    return row + mapOf("recentRuns" to 9, "lastRunAt" to nowMillis() - 5 * 3_600_000L)
+}
+
 private fun DemoServer.registerComposerHandlers() {
-    // The user's lpm commands lead, and hide an agent command of the same name, since
-    // `/name` runs theirs.
+    // The user's lpm commands hide an agent command of the same name, since `/name`
+    // runs theirs.
     register("slash") { o ->
         val id = o.string("id") ?: return@register
         val term = demoTerminal(id)
@@ -149,6 +158,7 @@ private fun DemoServer.registerComposerHandlers() {
         val taken = lpm.mapNotNull { it.string("name")?.lowercase() }.toSet()
         val agent = (if (term.cli == "claude") claudeSlashCommands else emptyList())
             .filter { (it.string("name") ?: "").lowercase() !in taken }
+            .map(::withSeededRuns)
         push(mapOf("t" to "slash", "id" to id, "commands" to lpm + agent))
     }
     register("mentions") { o ->

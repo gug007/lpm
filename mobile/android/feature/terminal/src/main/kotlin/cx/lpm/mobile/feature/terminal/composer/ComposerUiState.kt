@@ -26,8 +26,6 @@ data class ComposerUiState(
     val terminalTools: Boolean = true,
     val slashMatches: List<SlashCommand> = emptyList(),
     val slashArgumentHint: String? = null,
-    /** The heading over the agent's own commands in the `/` menu; null for the generic one. */
-    val agentLabel: String? = null,
     /**
      * The user's lpm commands run here (an agent terminal on a Mac that keeps them): the
      * `/` menu ends with "Manage commands" and "+" offers "Save as command".

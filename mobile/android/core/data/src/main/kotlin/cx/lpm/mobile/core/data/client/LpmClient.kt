@@ -410,6 +410,9 @@ class LpmClient internal constructor(
         // A folder name in `lpmCommandFolder` may be a path, `Parent/Child`.
         const val LPM_NESTED_FOLDERS_FEATURE = "lpmNestedFolders"
 
+        // `lpmCommandUsed`.
+        const val LPM_COMMAND_USED_FEATURE = "lpmCommandUsed"
+
         // `agentDialog`, and `answerAgent` with `action: "pick"`.
         const val AGENT_DIALOG_FEATURE = "agentDialog"
 

@@ -10,6 +10,7 @@ import { AI_CLI_OPTIONS, type ActionInfo, type AICLI } from "./types";
 export interface LaunchpadOption {
   id: string;
   label: string;
+  emoji?: string;
   agent: AICLI;
   action?: ActionInfo;
   group?: ActionInfo;
@@ -20,6 +21,7 @@ export interface LaunchpadOption {
 export interface LaunchpadTab {
   key: string;
   label: string;
+  emoji?: string;
   options: LaunchpadOption[];
   // What the tab's main part picks; null for a menu, which only opens.
   primary: LaunchpadOption | null;
@@ -46,7 +48,7 @@ export function startsOwnTask(action: Pick<ActionInfo, "cmd" | "prompt">): boole
 function agentOption(action: ActionInfo, group: ActionInfo | undefined, skipOwnTasks: boolean): LaunchpadOption | null {
   const agent = action.type === "terminal" ? detectAICLI(action.cmd) : null;
   if (!agent || (skipOwnTasks && startsOwnTask(action))) return null;
-  return { id: action.name, label: action.label || action.name, agent, action, group };
+  return { id: action.name, label: action.label || action.name, emoji: action.emoji, agent, action, group };
 }
 
 function singleTab(option: LaunchpadOption): LaunchpadTab {
@@ -78,7 +80,7 @@ export function launchpadTabs(
     const options = own ? [own, ...children] : children;
     const lead = resolvePrimaryChild(action, loadRememberedChild(scope, action.name));
     const primary = options.find((o) => o.id === lead?.name) ?? (isSplitButton(action, lead) ? options[0] : null);
-    tabs.push({ key: action.name, label: action.label || action.name, options, primary });
+    tabs.push({ key: action.name, label: action.label || action.name, emoji: action.emoji, options, primary });
   }
   if (tabs.length > 0) return tabs;
   return AI_CLI_OPTIONS.map((o) => singleTab({ id: o.value, label: providerMeta(o.value).short, agent: o.value }));

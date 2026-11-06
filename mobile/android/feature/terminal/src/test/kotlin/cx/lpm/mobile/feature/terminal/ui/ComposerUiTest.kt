@@ -288,14 +288,12 @@ class ComposerUiTest {
                     SlashCommand("explain", "", "", "lpm", null, CommandScope.Global),
                     SlashCommand("review", "", "", "builtin")
                 ),
-                agentLabel = "Claude Code",
                 lpmCommands = true
             ),
             callbacks = withManage
         )
-        compose.onNodeWithText("BUGS · THIS PROJECT").assertExists()
-        compose.onNodeWithText("NO FOLDER · GLOBAL").assertExists()
-        compose.onNodeWithText("CLAUDE CODE").assertExists()
+        compose.onNodeWithText("Bugs").assertExists()
+        compose.onNodeWithText("Global").assertExists()
         compose.onNodeWithText("/explain").performClick()
         compose.onNodeWithText("Manage skills").performClick()
         assertEquals(listOf("slash:explain", "manage"), events)

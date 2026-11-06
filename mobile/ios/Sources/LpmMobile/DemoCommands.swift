@@ -110,9 +110,16 @@ extension DemoServer {
     /// The `/` menu's lpm rows for a project's terminal: this project's commands,
     /// then the global ones whose name it doesn't already use.
     func demoCommandSlashRows(_ project: String) -> [[String: Any]] {
-        effectiveCommands(project).map { c, scope in
-            ["name": c.name, "description": c.description, "argumentHint": Self.argumentHint(c.body),
-             "source": "lpm", "folder": c.folder ?? NSNull(), "scope": scope]
+        let now = Int(Date().timeIntervalSince1970 * 1000)
+        return effectiveCommands(project).map { c, scope in
+            var row: [String: Any] = ["name": c.name, "description": c.description,
+                                      "argumentHint": Self.argumentHint(c.body), "source": "lpm",
+                                      "folder": c.folder ?? NSNull(), "scope": scope]
+            if c.runs > 0 {
+                row["recentRuns"] = c.runs
+                row["lastRunAt"] = c.lastRunAt ?? now - (c.ranAgo ?? 0)
+            }
+            return row
         }
     }
 

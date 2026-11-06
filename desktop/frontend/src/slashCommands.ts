@@ -9,9 +9,16 @@ export interface SlashCommand {
   description: string;
   argumentHint: string;
   source: "builtin" | "project" | "user" | "lpm";
-  // An lpm command's folder and list; absent for the agent's own commands.
+  // The folder a skill is filed in; absent for the agent's own commands.
   folder?: string | null;
+  // An lpm command's list.
   scope?: CommandScope;
+  // Its runs in the last 30 days and when it last ran (unix millis); absent
+  // when there were none, or from a computer on an older lpm.
+  recentRuns?: number;
+  lastRunAt?: number;
+  // Leads a lone "/" as one of the user's most used.
+  mostUsed?: boolean;
 }
 
 // A "/<frag>" run ending at the caret opens the command menu. The "/" may sit
@@ -67,25 +74,74 @@ export function findAICLI(cmd: string | undefined | null): { cli: AICLI; end: nu
   return null;
 }
 
-// The rows a typed fragment keeps: a name (or an lpm skill's folder) starting
-// with it first, then a name or description holding it, so the best match is
-// the highlighted row. Rows stay together under their heading, and the heading
-// holding the best match leads; `all` lists lpm skills first, so they win a tie.
-// An empty fragment (a lone "/") keeps the full list so the menu is browsable.
+const MOST_USED_ROWS = 5;
+
+const recent = (c: SlashCommand) => c.recentRuns ?? 0;
+
+function byName(a: SlashCommand, b: SlashCommand): number {
+  const [x, y] = [a.name.toLowerCase(), b.name.toLowerCase()];
+  return x < y ? -1 : x > y ? 1 : 0;
+}
+
+// What a lone "/" lists: the commands run most in the last 30 days, then every
+// other one A–Z, so nothing depends on who made it.
+function browseOrder(all: SlashCommand[]): SlashCommand[] {
+  const top = all
+    .filter((c) => recent(c) > 0)
+    .sort((a, b) => recent(b) - recent(a) || (b.lastRunAt ?? 0) - (a.lastRunAt ?? 0) || byName(a, b))
+    .slice(0, MOST_USED_ROWS);
+  const rest = all.filter((c) => !top.includes(c)).sort(byName);
+  return [...top.map((c) => ({ ...c, mostUsed: true })), ...rest];
+}
+
+// How well a row matches a typed fragment, best first; null when it doesn't.
+function matchRank(c: SlashCommand, q: string): number | null {
+  const name = c.name.toLowerCase();
+  if (name === q) return 0;
+  if (name.startsWith(q)) return 1;
+  if (name.split(/[-:_]/).some((word) => word.startsWith(q))) return 2;
+  if (c.folder?.toLowerCase().startsWith(q)) return 3;
+  if (name.includes(q)) return 4;
+  return c.description.toLowerCase().includes(q) ? 5 : null;
+}
+
+// The rows a typed fragment keeps, best match first so it's the highlighted
+// row, and among equal matches the one run most. An empty fragment (a lone "/")
+// keeps every row so the menu is browsable.
 export function filterSlashCommands(all: SlashCommand[], frag: string): SlashCommand[] {
   const q = frag.toLowerCase();
-  if (!q) return all;
-  const starts: SlashCommand[] = [];
-  const contains: SlashCommand[] = [];
+  if (!q) return browseOrder(all);
+  const ranked: { c: SlashCommand; rank: number }[] = [];
   for (const c of all) {
-    const name = c.name.toLowerCase();
-    if (name.startsWith(q) || c.folder?.toLowerCase().startsWith(q)) starts.push(c);
-    else if (name.includes(q) || c.description.toLowerCase().includes(q)) contains.push(c);
+    const rank = matchRank(c, q);
+    if (rank !== null) ranked.push({ c, rank });
   }
-  const groups = new Map<string, SlashCommand[]>();
-  for (const c of starts.concat(contains)) {
-    const key = c.source === "lpm" ? `${c.scope}:${c.folder ?? ""}` : "";
-    groups.set(key, [...(groups.get(key) ?? []), c]);
-  }
-  return [...groups.values()].flat();
+  return ranked
+    .sort((a, b) => a.rank - b.rank || recent(b.c) - recent(a.c) || byName(a.c, b.c))
+    .map(({ c }) => c);
+}
+
+function listName(c: SlashCommand): string | null {
+  if (c.source === "builtin") return null;
+  const global = c.source === "lpm" ? c.scope === "global" : c.source === "user";
+  return global ? "Global" : "This project";
+}
+
+// A row's tag: a skill's folder (its last level), else its list. The agent's
+// own commands have none, so the tags pick out what the user keeps.
+export function slashTag(c: SlashCommand): string | null {
+  return c.folder?.split("/").pop() || listName(c);
+}
+
+// Where a row lives, in full, for the selected row's details.
+export function slashPlace(c: SlashCommand, agentLabel: string): string {
+  const list = listName(c);
+  if (!list) return agentLabel;
+  return c.folder ? `${c.folder} · ${list}` : list;
+}
+
+// The command a message opens with, or null. A CLI only runs a "/" in that spot
+// when it's the whole message's start, which is all a run count should see.
+export function sentCommandName(text: string): string | null {
+  return /^\s*\/([a-z0-9:_-]+)(?:\s|$)/i.exec(text)?.[1] ?? null;
 }

@@ -43,6 +43,7 @@ internal fun NewTabGroupRow(
     NewTabStartRow(
         label = lead?.label ?: current?.label ?: tab.label,
         agent = (lead ?: current ?: tab.options.first()).agent,
+        emoji = (lead ?: current)?.emoji ?: tab.emoji,
         picked = current != null,
         onPick = { if (lead != null) onPick(lead) else open = true },
         modifier = modifier,
@@ -64,7 +65,7 @@ internal fun NewTabGroupRow(
                     val check = painterResource(DesignR.drawable.ic_check)
                     tab.options.forEach { option ->
                         ContextMenuItem(
-                            title = option.label,
+                            title = option.menuTitle,
                             onClick = { onPick(option) },
                             icon = check.takeIf { option.id == picked }
                         )

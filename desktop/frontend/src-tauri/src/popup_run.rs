@@ -116,10 +116,15 @@ fn read_capped(source: impl Read, max: usize) -> (Vec<u8>, bool) {
     (buf, cut)
 }
 
+/// The command's last error line. The interactive login shell's own lines are
+/// passed over: its job-control notices, and the "logout" bash prints after an
+/// `exit`. Wrapping the command in a subshell would avoid that one, but `( )` is
+/// a syntax error in fish.
 fn last_line(text: &[u8]) -> Option<String> {
     String::from_utf8_lossy(text)
         .lines()
         .rev()
+        .filter(|line| *line != "logout" && !crate::shellpath::is_job_control_notice(line))
         .find_map(|line| crate::label_probes::first_line_within(line, REASON_MAX))
 }
 
@@ -157,6 +162,18 @@ mod tests {
         )
         .unwrap_err();
         assert_eq!(err, "exited with 3: no token");
+    }
+
+    #[test]
+    fn the_reason_is_never_what_the_shell_says_for_itself() {
+        let noisy = "bash: cannot set terminal process group (-1): Inappropriate ioctl for device\n\
+                     bash: no job control in this shell\n\
+                     first\n\
+                     no token\n\
+                     logout\n";
+        assert_eq!(last_line(noisy.as_bytes()).as_deref(), Some("no token"));
+        let silent = "bash: no job control in this shell\nlogout\n";
+        assert_eq!(last_line(silent.as_bytes()), None);
     }
 
     #[test]

@@ -28,8 +28,9 @@ internal fun DemoServer.registerCommandsHandlers() {
  * The `/` menu's lpm rows for a project's terminal: this project's commands, then the
  * global ones whose name it doesn't already use.
  */
-internal fun DemoServer.demoCommandSlashRows(project: String): List<Dict> =
-    effectiveCommands(project).map { (c, scope) ->
+internal fun DemoServer.demoCommandSlashRows(project: String): List<Dict> {
+    val now = nowMillis()
+    return effectiveCommands(project).map { (c, scope) ->
         mapOf(
             "name" to c.name,
             "description" to c.description,
@@ -37,8 +38,13 @@ internal fun DemoServer.demoCommandSlashRows(project: String): List<Dict> =
             "source" to "lpm",
             "folder" to c.folder,
             "scope" to scope
-        )
+        ) + if (c.runs > 0) {
+            mapOf("recentRuns" to c.runs, "lastRunAt" to (c.lastRunAt ?: (now - (c.ranAgo ?: 0))))
+        } else {
+            emptyMap()
+        }
     }
+}
 
 private fun DemoServer.answerCommands(verb: String, o: Dict) {
     val project = o.string("project") ?: ""

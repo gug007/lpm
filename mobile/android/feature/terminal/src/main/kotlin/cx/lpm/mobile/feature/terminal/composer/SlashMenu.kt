@@ -33,21 +33,19 @@ import cx.lpm.mobile.core.ui.lpmCommandTint
 import cx.lpm.mobile.feature.terminal.R
 
 /**
- * Slash-command autocomplete over the field while a "/command" is typed. The user's
- * lpm commands lead, under a heading per folder and list; the agent's own follow
- * under its name. A row picks its command; "Manage commands", when given, opens the
- * Commands screen.
+ * Slash-command autocomplete over the field while a "/command" is typed. A lone "/"
+ * leads with the commands run most, whoever made them, then lists every other one A–Z.
+ * A row picks its command; "Manage commands", when given, opens the Commands screen.
  */
 @Composable
 internal fun SlashMenu(
     commands: List<SlashCommand>,
-    agentLabel: String?,
     onPick: (SlashCommand) -> Unit,
     modifier: Modifier = Modifier,
     onManage: (() -> Unit)? = null,
     maxHeight: Dp = 220.dp
 ) {
-    val headings = slashHeadings(commands, agentLabel)
+    val headings = slashHeadings(commands)
     Column(modifier) {
         // The rows' own height, up to [maxHeight], taken from the terminal above.
         LazyColumn(Modifier.heightIn(max = maxHeight)) {
@@ -66,18 +64,23 @@ internal fun SlashMenu(
     }
 }
 
-/** The heading each row starts, if it starts a group; none when no lpm command is listed. */
+/**
+ * The heading each row starts: Most used over the rows it marks, and All over the rest.
+ * None while typing, or before anything has run.
+ */
 @Composable
-private fun slashHeadings(commands: List<SlashCommand>, agentLabel: String?): List<String?> {
-    if (commands.none { it.isLpm }) return commands.map { null }
-    val noFolder = stringResource(R.string.composer_slash_no_folder)
-    val thisProject = stringResource(R.string.composer_slash_this_project)
-    val global = stringResource(R.string.composer_slash_global)
-    val agent = agentLabel ?: stringResource(R.string.composer_slash_agent_commands)
-    val groups = commands.map {
-        if (it.isLpm) it.lpmGroup(noFolder, thisProject, global) else agent
+private fun slashHeadings(commands: List<SlashCommand>): List<String?> {
+    val top = commands.count { it.mostUsed }
+    if (top == 0) return commands.map { null }
+    val mostUsed = stringResource(R.string.composer_slash_most_used)
+    val all = stringResource(R.string.composer_slash_all, commands.size - top)
+    return commands.indices.map { i ->
+        when (i) {
+            0 -> mostUsed
+            top -> all
+            else -> null
+        }
     }
-    return groups.mapIndexed { i, group -> group.takeIf { i == 0 || groups[i - 1] != group } }
 }
 
 @Composable
@@ -115,14 +118,6 @@ private fun SlashRow(command: SlashCommand, onPick: (SlashCommand) -> Unit) {
             color = if (command.isLpm) lpmCommandTint else colors.label,
             maxLines = 1
         )
-        if (command.argumentHint.isNotEmpty()) {
-            Text(
-                command.argumentHint,
-                fontSize = 12.sp,
-                color = colors.tertiaryLabel,
-                maxLines = 1
-            )
-        }
         Spacer(Modifier.weight(1f))
         if (command.description.isNotEmpty()) {
             Text(
@@ -135,14 +130,17 @@ private fun SlashRow(command: SlashCommand, onPick: (SlashCommand) -> Unit) {
                 modifier = Modifier.widthIn(max = 180.dp)
             )
         }
-        command.sourceLabel?.let { source ->
+        command.tag(
+            stringResource(R.string.composer_slash_this_project),
+            stringResource(R.string.composer_slash_global)
+        )?.let { tag ->
             Text(
-                text = source.uppercase(),
-                fontSize = 9.sp,
-                fontWeight = FontWeight.Medium,
-                letterSpacing = 0.6.sp,
+                text = tag,
+                fontSize = 10.sp,
                 color = colors.tertiaryLabel,
-                maxLines = 1
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.widthIn(max = 80.dp)
             )
         }
     }

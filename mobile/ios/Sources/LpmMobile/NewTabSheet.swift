@@ -100,7 +100,7 @@ struct NewTabSheet: View {
                     if tab.options.count > 1 {
                         NewTabGroupRow(tab: tab, picked: picked, onPick: choose)
                     } else if let only = tab.options.first {
-                        NewTabStartRow(label: only.label, agent: only.agent, picked: picked == only.id) {
+                        NewTabStartRow(label: only.label, agent: only.agent, emoji: only.emoji, picked: picked == only.id) {
                             choose(only)
                         }
                     }

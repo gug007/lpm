@@ -2234,7 +2234,7 @@ struct MentionEntry: Identifiable {
 
 /// One slash-command autocomplete entry (mirrors the Rust AgentCommand): a CLI
 /// built-in, a project/user command discovered on disk, or one of the user's lpm
-/// commands, which carries its folder and list.
+/// commands, which carries its list. A skill carries the folder it's filed in.
 struct SlashCommand: Identifiable {
     let name: String        // no leading "/", e.g. "review" or "prompts:draftpr"
     let description: String
@@ -2242,15 +2242,25 @@ struct SlashCommand: Identifiable {
     let source: String      // builtin | project | user | lpm
     let folder: String?
     let scope: LpmCommandScope?
+    /// Its runs in the last 30 days and when it last ran (unix millis); 0 when
+    /// there were none, or from a Mac on an older lpm.
+    let recentRuns: Int
+    let lastRunAt: Int
+    /// Leads a lone "/" as one of the user's most used.
+    var mostUsed = false
 
     var id: String { "\(source):\(scope?.rawValue ?? ""):\(name)" }
     var isLpm: Bool { source == "lpm" }
 
-    /// Where it comes from, as the desktop's menu tags it.
-    var sourceLabel: String? {
+    /// A row's tag, like the desktop's menu: a skill's folder (its last level),
+    /// else its list. The agent's own commands have none, so the tags pick out
+    /// what the user keeps.
+    var tag: String? {
+        if let last = folder?.split(separator: "/").last { return String(last) }
         switch source {
-        case "builtin": return "built-in"
-        case "project", "user": return source
+        case "lpm": return (scope ?? .global).title
+        case "project": return LpmCommandScope.project.title
+        case "user": return LpmCommandScope.global.title
         default: return nil
         }
     }
@@ -2262,6 +2272,8 @@ struct SlashCommand: Identifiable {
         source = o["source"] as? String ?? ""
         folder = o["folder"] as? String
         scope = (o["scope"] as? String).flatMap(LpmCommandScope.init(rawValue:))
+        recentRuns = o["recentRuns"] as? Int ?? 0
+        lastRunAt = o["lastRunAt"] as? Int ?? 0
     }
 }
 

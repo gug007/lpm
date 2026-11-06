@@ -98,7 +98,6 @@ internal fun TerminalComposer(
             state.slashMatches.isNotEmpty() -> {
                 SlashMenu(
                     commands = state.slashMatches,
-                    agentLabel = state.agentLabel,
                     onPick = callbacks.onPickSlash,
                     onManage = callbacks.onManageCommands.takeIf { state.lpmCommands },
                     maxHeight = if (compact) 110.dp else 220.dp

@@ -5,6 +5,7 @@ import cx.lpm.mobile.core.data.client.changeLpmCommandFolder
 import cx.lpm.mobile.core.data.client.convertSkill
 import cx.lpm.mobile.core.data.client.deleteLpmCommand
 import cx.lpm.mobile.core.data.client.expandLpmCommand
+import cx.lpm.mobile.core.data.client.noteCommandUsed
 import cx.lpm.mobile.core.data.client.moveOtherSkill
 import cx.lpm.mobile.core.data.client.requestLpmCommands
 import cx.lpm.mobile.core.data.client.saveLpmCommand
@@ -193,6 +194,14 @@ class LpmCommandsStore(private val session: MacSession) : SessionStore {
             CommandOutcome.Done(outcome.value.expanded ?: ExpandedCommand("", emptyList()))
 
         is CommandOutcome.Failed -> outcome
+    }
+
+    /** Counts a sent `/` command that isn't an lpm skill, for the menu's Most used. */
+    fun noteCommandUsed(project: String, name: String) {
+        val client = client ?: return
+        if (LpmClient.LPM_COMMAND_USED_FEATURE in client.hostFeatures) {
+            client.noteCommandUsed(project, name)
+        }
     }
 
     private fun receive(frame: LpmCommandsInbound) {

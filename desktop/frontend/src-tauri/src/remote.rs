@@ -183,6 +183,7 @@ const PHONE_FEATURES: &[&str] = &[
     crate::remote_lpm_commands::FEATURE,
     crate::remote_lpm_commands::OTHER_SKILLS_FEATURE,
     crate::remote_lpm_commands::NESTED_FOLDERS_FEATURE,
+    crate::remote_lpm_commands::COMMAND_USED_FEATURE,
     crate::remote_ci::FEATURE,
     crate::remote_ci::COMMITS_FEATURE,
     crate::remote_popup::FEATURE,
@@ -2831,9 +2832,9 @@ fn handle_msg(
         "slash" => {
             // Slash-command autocomplete for a terminal: the frontend registered
             // which AI CLI the terminal runs (detected from its launch command);
-            // the user's lpm skills lead, then that CLI's built-ins and the
-            // project's custom commands. Listing may be an SSH round trip, so
-            // it runs off this connection's thread.
+            // the user's lpm skills, then that CLI's built-ins and the project's
+            // custom commands. Listing may be an SSH round trip, so it runs off
+            // this connection's thread.
             let id = str_field("id").unwrap_or_default();
             let project = str_field("project").unwrap_or_default();
             let cli = hub
@@ -4761,6 +4762,7 @@ fn handle_msg(
         }
         "lpmCommands" | "lpmCommandSave" | "lpmCommandDelete" | "lpmCommandFolder"
         | "lpmCommandExpand" | "lpmCommandOtherFolder" | "lpmCommandConvert" => crate::remote_lpm_commands::handle(app, out, t, &v),
+        "lpmCommandUsed" => crate::remote_lpm_commands::command_used(app, &v),
         "machines" | "machinePair" => crate::remote_machines::handle(app, out, t, &v),
         "gitHistory" | "gitCommitFiles" | "gitCommitPatch" => {
             crate::remote_history::handle(out, t, &v)

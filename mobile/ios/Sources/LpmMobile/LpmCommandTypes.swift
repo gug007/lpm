@@ -9,8 +9,6 @@ enum LpmCommandScope: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
     var title: String { self == .project ? "This project" : "Global" }
-    /// How the `/` menu's headings name the list.
-    var menuLabel: String { self == .project ? "this project" : "global" }
 }
 
 struct LpmCommand: Identifiable, Equatable {
@@ -303,6 +301,10 @@ extension Wire {
         if let keepOutOfGit { input["keepOutOfGit"] = keepOutOfGit }
         return json(["t": "lpmCommandSave", "project": project, "command": input,
                      "previous": previous?.wire ?? NSNull(), "reqId": reqId])
+    }
+
+    static func lpmCommandUsed(project: String, name: String) -> String {
+        json(["t": "lpmCommandUsed", "project": project, "name": name])
     }
 
     static func lpmCommandDelete(project: String, target: LpmCommandRef, reqId: String) -> String {
