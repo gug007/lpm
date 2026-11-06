@@ -89,6 +89,34 @@ When a command outgrows one line, move it into a script and run the script from 
 
 A script anywhere else stays on this Mac, so the synced action fails on the others. Start the script with a shebang and `chmod +x` it. Writing the script file directly is fine; the config that calls it still goes through `lpm config apply`.
 
+### Files behind a button
+
+A button with a `labelSvg` or a `popup` keeps its files in one folder named after the button, in the same two places as any script: `scripts/<button>/` in the repo, or `~/.lpm/scripts/<button>/` when it isn't part of a repo. Use these names, and leave out what the button doesn't use:
+
+| File | What it does | Used by |
+|---|---|---|
+| `button.sh` | Prints the button's `<svg>` | `labelSvg` |
+| `data.sh` | Prints the popup's data | the popup's `data` |
+| `popup.html` | The popup's page | the popup's `html` |
+
+```yaml
+actions:
+  stars:
+    cmd: gh repo view --web
+    labelSvg: $(./scripts/stars/button.sh)
+    popup:
+      html: scripts/stars/popup.html
+      data: $(./scripts/stars/data.sh)
+```
+
+In a config outside a repo (the project file, `global.yml`, a template), the same paths start with `~/.lpm/scripts/stars/`.
+
+- Anything else the button needs, such as a library the page loads, goes in the same folder.
+- Relative paths start from the action's `cwd`, which is the project root by default.
+- A repo's `.lpm.yml` uses relative paths, never `~/.lpm/scripts/`: that folder exists only on the user's own computers, so the files are missing for anyone else who clones the repo.
+- An SSH project reads the page and runs the commands on the host, and `~/.lpm/scripts/` doesn't sync there. Keep the files in the project's directory on the host, or write the page in place.
+- A small static `<svg>` or page needs no folder: write it in place in the config.
+
 ## Fields
 
 | Field | Type | Rule |
@@ -176,10 +204,11 @@ actions:
 actions:
   stars:
     label: $(gh api repos/gug007/lpm --jq .stargazers_count)   # the name, and what shows when the markup can't
-    labelSvg: $(~/.lpm/scripts/github-stars/button.sh gug007/lpm)
+    labelSvg: $(./scripts/stars/button.sh)
     labelRefresh: 10m
 ```
 
+- Keep the command with the button's other files; see [Files behind a button](#files-behind-a-button).
 - The `<svg>` is drawn as an image that fills the button edge to edge, so nothing in it runs, loads or touches the app: scripts, event handlers, links and `url(…)` are removed, and it can't reach outside the button.
 - It's drawn at its own `width` and `height` (`30` is the header button's height). Nothing measures it for you, so size the `width` to its contents, allowing for a number that grows.
 - It reads lpm's colors as CSS variables (`var(--lpm-text)`, `--lpm-accent`, `--lpm-muted`, `--lpm-amber`, `--lpm-green`, `--lpm-red`, `--lpm-border`, `--lpm-bg`, `--lpm-surface`), with the text color and font set. Use them through `style="fill:var(--lpm-accent)"` rather than a `fill` attribute.
@@ -194,15 +223,15 @@ actions:
   stars:
     cmd: gh repo view --web
     popup:
-      html: popups/stars.html          # the page: a file, the page itself, or $(a command that prints it)
-      data: $(./scripts/stars.sh)      # optional: what the page reads as lpm.data
+      html: scripts/stars/popup.html   # the page: a file, the page itself, or $(a command that prints it)
+      data: $(./scripts/stars/data.sh) # optional: what the page reads as lpm.data
       title: GitHub stars              # optional: the card's heading; defaults to the button's label
       size: 380x220                    # optional: the page's width x height, 200–720 by 80–560; default 360x220
       refresh: 5m                      # optional: open (default) runs it as the card opens; or an interval while it's open
       cache: 1m                        # optional: run the commands at most this often; default 30s
 ```
 
-`popup: popups/stars.html` alone is the short form; the format comes from the file's ending.
+`popup: scripts/stars/popup.html` alone is the short form; the format comes from the file's ending. For where the page and its commands go, see [Files behind a button](#files-behind-a-button).
 
 | Field | Meaning |
 |---|---|

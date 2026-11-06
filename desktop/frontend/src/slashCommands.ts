@@ -133,13 +133,6 @@ export function slashTag(c: SlashCommand): string | null {
   return c.folder?.split("/").pop() || listName(c);
 }
 
-// Where a row lives, in full, for the selected row's details.
-export function slashPlace(c: SlashCommand, agentLabel: string): string {
-  const list = listName(c);
-  if (!list) return agentLabel;
-  return c.folder ? `${c.folder} · ${list}` : list;
-}
-
 // The command a message opens with, or null. A CLI only runs a "/" in that spot
 // when it's the whole message's start, which is all a run count should see.
 export function sentCommandName(text: string): string | null {

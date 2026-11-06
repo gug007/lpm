@@ -1,5 +1,5 @@
 use super::*;
-use crate::git::{git_discard_all, git_discard_files};
+use crate::git::{git_changed_files, git_diff, git_diffs, git_discard_all, git_discard_files};
 
 fn repo() -> (tempfile::TempDir, String) {
     let dir = tempfile::tempdir().unwrap();
@@ -124,3 +124,188 @@ fn worktrees_keep_their_own_copies() {
     assert_eq!(git_discarded(root).len(), 1);
     assert!(git_discarded(other).is_empty());
 }
+
+fn commit(root: &str) {
+    git_out(root, &["add", "-A"]).unwrap();
+    git_out_env(root, &["commit", "-q", "-m", "more"], &LPM_IDENTITY).unwrap();
+}
+
+fn changes_list(root: &str) -> Vec<String> {
+    git_changed_files(root.to_string())
+        .into_iter()
+        .map(|f| f.path)
+        .collect()
+}
+
+fn assert_discards_and_undoes(names: &[&str]) {
+    let (_dir, root) = repo();
+    for name in names {
+        write(&root, name, "old\n");
+    }
+    commit(&root);
+    for name in names {
+        write(&root, name, "new\n");
+    }
+
+    let listed = changes_list(&root);
+    assert_eq!(listed.len(), names.len(), "{listed:?}");
+    let id = git_discard_files(root.clone(), listed)
+        .unwrap()
+        .expect("a copy");
+    for name in names {
+        assert_eq!(read(&root, name).as_deref(), Some("old\n"), "{name}");
+    }
+    assert_eq!(status(&root), "");
+
+    git_restore_discarded(root.clone(), id).unwrap();
+    for name in names {
+        assert_eq!(read(&root, name).as_deref(), Some("new\n"), "{name}");
+    }
+}
+
+#[test]
+fn tracked_non_ascii_names_are_discarded_and_undo_restores_them() {
+    assert_discards_and_undoes(&["中文.txt", "目录/日本語.txt", "cafe\u{301}.txt", "a.txt"]);
+}
+
+#[cfg(unix)]
+#[test]
+fn names_git_quotes_under_any_setting_are_discarded() {
+    assert_discards_and_undoes(&["a\"b.txt", "back\\slash.txt", "tab\there.txt"]);
+}
+
+#[test]
+fn a_mixed_batch_sorts_each_file_the_right_way() {
+    let (_dir, root) = repo();
+    write(&root, "中文.txt", "old\n");
+    write(&root, "删除.txt", "old\n");
+    commit(&root);
+    write(&root, "a.txt", "a2\n");
+    write(&root, "中文.txt", "new\n");
+    std::fs::remove_file(Path::new(&root).join("删除.txt")).unwrap();
+    write(&root, "新的.txt", "new\n");
+    write(&root, "新目录/里面.txt", "new\n");
+
+    let id = git_discard_files(root.clone(), changes_list(&root))
+        .unwrap()
+        .expect("a copy");
+    assert_eq!(status(&root), "");
+    assert_eq!(read(&root, "中文.txt").as_deref(), Some("old\n"));
+    assert_eq!(read(&root, "删除.txt").as_deref(), Some("old\n"));
+    assert_eq!(read(&root, "新的.txt"), None);
+
+    git_restore_discarded(root.clone(), id).unwrap();
+    assert_eq!(read(&root, "a.txt").as_deref(), Some("a2\n"));
+    assert_eq!(read(&root, "中文.txt").as_deref(), Some("new\n"));
+    assert_eq!(read(&root, "删除.txt"), None);
+    assert_eq!(read(&root, "新的.txt").as_deref(), Some("new\n"));
+    assert_eq!(read(&root, "新目录/里面.txt").as_deref(), Some("new\n"));
+}
+
+#[test]
+fn a_tracked_name_with_brackets_is_not_a_pattern() {
+    let (_dir, root) = repo();
+    write(&root, "[ab].txt", "old\n");
+    commit(&root);
+    write(&root, "[ab].txt", "new\n");
+    write(&root, "a.txt", "mine\n");
+
+    let id = git_discard_files(root.clone(), vec!["[ab].txt".into()])
+        .unwrap()
+        .expect("a copy");
+    assert_eq!(read(&root, "[ab].txt").as_deref(), Some("old\n"));
+    assert_eq!(read(&root, "a.txt").as_deref(), Some("mine\n"));
+
+    git_restore_discarded(root.clone(), id).unwrap();
+    assert_eq!(read(&root, "[ab].txt").as_deref(), Some("new\n"));
+    assert_eq!(read(&root, "a.txt").as_deref(), Some("mine\n"));
+}
+
+#[test]
+fn an_untracked_name_with_brackets_is_not_a_pattern() {
+    let (_dir, root) = repo();
+    write(&root, "[cd].txt", "gone\n");
+    write(&root, "c.txt", "mine\n");
+
+    let id = git_discard_files(root.clone(), vec!["[cd].txt".into()])
+        .unwrap()
+        .expect("a copy");
+    assert_eq!(read(&root, "[cd].txt"), None);
+    assert_eq!(read(&root, "c.txt").as_deref(), Some("mine\n"));
+
+    git_restore_discarded(root.clone(), id).unwrap();
+    assert_eq!(read(&root, "[cd].txt").as_deref(), Some("gone\n"));
+    assert_eq!(read(&root, "c.txt").as_deref(), Some("mine\n"));
+}
+
+#[test]
+fn a_new_folder_is_still_removed_by_its_name() {
+    let (_dir, root) = repo();
+    write(&root, "fresh/one.txt", "1\n");
+    write(&root, "fresh/sub/two.txt", "2\n");
+
+    let id = git_discard_files(root.clone(), vec!["fresh".into()])
+        .unwrap()
+        .expect("a copy");
+    assert_eq!(status(&root), "");
+
+    git_restore_discarded(root.clone(), id).unwrap();
+    assert_eq!(read(&root, "fresh/one.txt").as_deref(), Some("1\n"));
+    assert_eq!(read(&root, "fresh/sub/two.txt").as_deref(), Some("2\n"));
+}
+
+#[test]
+fn a_path_git_refuses_stops_the_discard() {
+    let (_dir, root) = repo();
+    write(&root, "a.txt", "a2\n");
+
+    let result = git_discard_files(root.clone(), vec!["a.txt".into(), "../outside.txt".into()]);
+    assert!(result.is_err());
+    assert_eq!(read(&root, "a.txt").as_deref(), Some("a2\n"));
+}
+
+#[test]
+fn discard_all_keeps_every_kind_of_name() {
+    let (_dir, root) = repo();
+    write(&root, "中文.txt", "old\n");
+    write(&root, "[ab].txt", "old\n");
+    commit(&root);
+    write(&root, "中文.txt", "new\n");
+    write(&root, "[ab].txt", "new\n");
+    write(&root, "新的.txt", "new\n");
+
+    let id = git_discard_all(root.clone()).unwrap().expect("a copy");
+    assert_eq!(status(&root), "");
+
+    git_restore_discarded(root.clone(), id).unwrap();
+    assert_eq!(read(&root, "中文.txt").as_deref(), Some("new\n"));
+    assert_eq!(read(&root, "[ab].txt").as_deref(), Some("new\n"));
+    assert_eq!(read(&root, "新的.txt").as_deref(), Some("new\n"));
+}
+
+#[test]
+fn tracked_non_ascii_files_get_their_real_diff() {
+    let (_dir, root) = repo();
+    write(&root, "中文.txt", "old\nsame\n");
+    commit(&root);
+    write(&root, "a.txt", "a2\n");
+    write(&root, "中文.txt", "new\nsame\n");
+    write(&root, "新的.txt", "fresh\n");
+
+    let batch = git_diffs(
+        &root,
+        &["a.txt".into(), "中文.txt".into(), "新的.txt".into()],
+    );
+    assert!(batch[0].diff.contains("+a2"), "{}", batch[0].diff);
+    assert!(batch[1].diff.contains("-old"), "{}", batch[1].diff);
+    assert!(!batch[1].diff.contains("+a2"), "{}", batch[1].diff);
+    assert!(!batch[1].diff.contains("new file"), "{}", batch[1].diff);
+    assert!(batch[2].diff.contains("new file"), "{}", batch[2].diff);
+
+    let single = git_diff(root.clone(), vec!["中文.txt".into()]).unwrap();
+    assert_eq!(single.matches("diff --git ").count(), 1, "{single}");
+    assert!(single.contains("-old"), "{single}");
+}
+
+#[path = "gitdiscards_staged_tests.rs"]
+mod staged;

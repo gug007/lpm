@@ -1,13 +1,13 @@
 import { Fragment, useLayoutEffect, useRef, type CSSProperties } from "react";
 import { Settings2 } from "lucide-react";
 import { createPortal } from "react-dom";
-import { slashPlace, slashTag, type SlashCommand } from "../slashCommands";
+import { slashTag, type SlashCommand } from "../slashCommands";
 import { COMMAND_COLOR } from "./composerEditor";
 
 const GAP = 6;
 const EDGE_MARGIN = 8;
 const LIST_MAX_HEIGHT = 232;
-const MAX_HEIGHT = 336;
+const MAX_HEIGHT = 270;
 const WIDTH = 520;
 
 // lpm skills read in lpm's own accent; the agent's keep the terminal's blue.
@@ -20,8 +20,6 @@ interface SlashCommandMenuProps {
   anchorRect: DOMRect | null;
   onSelect: (cmd: SlashCommand) => void;
   onHoverIndex: (i: number) => void;
-  // Names the agent where the selected row is one of its own.
-  agentLabel?: string;
   // Opens the Commands tab; shown as the menu's last row when given.
   onManage?: () => void;
 }
@@ -35,7 +33,6 @@ export function SlashCommandMenu({
   anchorRect,
   onSelect,
   onHoverIndex,
-  agentLabel = "Agent commands",
   onManage,
 }: SlashCommandMenuProps) {
   const listRef = useRef<HTMLDivElement>(null);
@@ -125,19 +122,6 @@ export function SlashCommandMenu({
           );
         })}
       </div>
-      {selected && (
-        <div className="h-[66px] shrink-0 border-t border-[var(--border)] px-3.5 py-[7px]">
-          <div className="flex items-center gap-2 text-[10.5px] text-[var(--text-muted)]">
-            <span className="truncate">{slashPlace(selected, agentLabel)}</span>
-            {selected.argumentHint && (
-              <span className="truncate font-mono">{selected.argumentHint}</span>
-            )}
-          </div>
-          <p className="line-clamp-2 text-[12px] leading-[17px] text-[var(--text-secondary)]">
-            {selected.description}
-          </p>
-        </div>
-      )}
       {onManage && (
         <button
           type="button"

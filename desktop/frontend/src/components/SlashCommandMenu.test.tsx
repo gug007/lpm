@@ -47,7 +47,6 @@ const open = (
       anchorRect={anchorRect}
       onSelect={() => {}}
       onHoverIndex={() => {}}
-      agentLabel="Claude Code"
       onManage={onManage ?? undefined}
     />,
   );
@@ -90,11 +89,10 @@ describe("SlashCommandMenu", () => {
     expect(rows()).toEqual(["/lessonLessons", "/clear"]);
   });
 
-  it("spells out the selected row, with what it takes", () => {
+  it("shows the selected row only in the list", () => {
     open([agent("clear"), agent("model", "Switch the AI model", "[model]")], 1);
-    expect(text()).toContain("Claude Code");
-    expect(text()).toContain("[model]");
-    expect(text().split("Switch the AI model").length).toBe(3);
+    expect(text()).not.toContain("[model]");
+    expect(text().split("Switch the AI model").length).toBe(2);
   });
 
   it("offers the prompt to edit on an lpm skill", () => {

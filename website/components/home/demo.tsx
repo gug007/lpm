@@ -146,7 +146,7 @@ const LESSON_CAPTION: Record<
   },
   "organize-claude-code-codex-skills-folders": {
     heading: "Sort a long list of skills into folders",
-    blurb: "A short video: make folders, file your skills, and see them as headings in the slash menu.",
+    blurb: "A short video: make folders, file your skills, and find them by folder in the slash menu.",
   },
   "action-popups-html-labels": {
     heading: "A chart on your button, and a page of them on hover",
