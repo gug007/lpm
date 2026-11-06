@@ -40,6 +40,7 @@ fn a_probe_is_shared_and_refreshed_by_project() {
         "/tmp/x".into(),
         "echo shared-probe".into(),
         Duration::from_secs(60),
+        false,
     );
     assert_eq!(out, "");
     read(
@@ -48,6 +49,7 @@ fn a_probe_is_shared_and_refreshed_by_project() {
         "/tmp/x".into(),
         "echo shared-probe".into(),
         Duration::from_secs(30),
+        false,
     );
     let key = "\n/tmp/x\necho shared-probe";
     {
@@ -72,6 +74,7 @@ fn a_changed_interval_replaces_the_old_one() {
             "/tmp/w".into(),
             "echo interval".into(),
             every,
+            false,
         )
     };
     listing(Duration::from_secs(60));
@@ -91,6 +94,7 @@ fn finish_keeps_the_last_output_when_a_run_fails() {
         "/tmp/y".into(),
         "echo keep".into(),
         Duration::from_secs(60),
+        false,
     );
     finish(key, Some("v1".into()));
     finish(key, None);
@@ -116,7 +120,7 @@ fn hovering_refreshes_the_action_and_its_menu_unless_it_just_ran() {
         ("rel:patch", "echo h2"),
         ("relx", "echo h3"),
     ] {
-        read(("hp", action), None, "/tmp/h".into(), script.into(), every);
+        read(("hp", action), None, "/tmp/h".into(), script.into(), every, false);
     }
     let keys = [
         "\n/tmp/h\necho h1",
@@ -152,7 +156,7 @@ fn a_change_reruns_the_commands_but_defers_one_that_just_ran() {
         ("todos:open", "echo c2"),
         ("other", "echo c3"),
     ] {
-        read(("cp", action), None, "/tmp/c".into(), script.into(), every);
+        read(("cp", action), None, "/tmp/c".into(), script.into(), every, false);
     }
     let keys = [
         "\n/tmp/c\necho c1",
@@ -185,4 +189,14 @@ fn a_change_reruns_the_commands_but_defers_one_that_just_ran() {
     probes().lock().unwrap().get_mut(keys[1]).unwrap().ran_at = Some(Instant::now() - CHANGE_GAP);
     assert!(refresh_for_change("cp", "todos"));
     assert!(probes().lock().unwrap()[keys[0]].due);
+}
+
+#[test]
+fn markup_keeps_every_line_from_the_first_tag() {
+    assert_eq!(markup("Restored session\n<svg>\n<rect/></svg>\n"), "<svg>\n<rect/></svg>");
+    assert_eq!(markup("<?xml version=\"1.0\"?>\n<svg></svg>"), "<svg></svg>");
+    assert_eq!(markup("loaded <3 plugins\n<svg></svg>"), "<svg></svg>");
+    assert_eq!(markup("<div>149</div>"), "");
+    assert_eq!(markup("no markup here"), "");
+    assert_eq!(markup(&format!("<svg>{}</svg>", "x".repeat(MAX_MARKUP))), "");
 }

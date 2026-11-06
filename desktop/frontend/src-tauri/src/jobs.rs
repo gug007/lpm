@@ -714,14 +714,19 @@ fn resolve_job(project: &str, id: &str, def: &JobDef) -> Result<JobResolved, Str
     })
 }
 
+/// Each job in a config file, as written.
+pub(crate) fn raw_jobs(bytes: &[u8]) -> BTreeMap<String, serde_norway::Value> {
+    serde_norway::from_slice::<JobsYaml>(bytes)
+        .map(|y| y.jobs)
+        .unwrap_or_default()
+}
+
 /// Each job is read on its own: a field the schema doesn't recognise breaks
 /// that job into a row the user can see and fix, instead of taking every other
 /// job in the file down with it silently.
 fn load_jobs_yaml(path: &Path) -> JobEntries {
     std::fs::read(path)
-        .ok()
-        .and_then(|b| serde_norway::from_slice::<JobsYaml>(&b).ok())
-        .map(|y| y.jobs)
+        .map(|bytes| raw_jobs(&bytes))
         .unwrap_or_default()
         .into_iter()
         .map(|(id, body)| {
@@ -777,6 +782,10 @@ fn resolve_jobs(project: &str) -> Vec<(String, &'static str, Result<JobResolved,
     } else {
         load_jobs_yaml(&config::global_path())
     };
+    let held = match &root_info {
+        Some((root, false)) if !repo.is_empty() => config::repo_trust::held(root, false),
+        _ => Default::default(),
+    };
 
     merge_job_defs(registry, repo, global)
         .into_iter()
@@ -792,6 +801,8 @@ fn resolve_jobs(project: &str) -> Vec<(String, &'static str, Result<JobResolved,
         .map(|(id, (def, source))| {
             let r = if is_remote {
                 Err("Scheduled jobs aren't available on SSH projects.".to_string())
+            } else if source == SOURCE_REPO && config::repo_trust::holds_job(&held, &id) {
+                Err("This automation comes from the repo's .lpm.yml and waits until you allow its commands in lpm.".to_string())
             } else {
                 def.and_then(|d| resolve_job(project, &id, &d))
             };

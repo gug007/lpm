@@ -8,6 +8,8 @@ use serde::Deserialize;
 
 pub(crate) mod check;
 mod lenient;
+pub(crate) mod popup;
+pub(crate) mod repo_trust;
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::PathBuf;
@@ -1142,6 +1144,8 @@ struct ActionFull {
     label_refresh_on_hover: bool,
     #[serde(rename = "labelRefreshOnChange", default)]
     label_refresh_on_change: bool,
+    #[serde(rename = "labelSvg", default)]
+    label_svg: String,
     #[serde(default)]
     emoji: String,
     #[serde(default)]
@@ -1176,6 +1180,8 @@ struct ActionFull {
     position: Option<f64>,
     #[serde(default, deserialize_with = "lenient::inputs")]
     inputs: BTreeMap<String, ActionInputDef>,
+    #[serde(default, deserialize_with = "popup::lenient")]
+    popup: Option<popup::PopupDef>,
     #[serde(default, deserialize_with = "lenient::actions")]
     actions: BTreeMap<String, ActionDef>, // children
 }
@@ -1813,6 +1819,10 @@ pub struct ActionInfo {
     /// rendered, so an edit form never saves a command's emoji as the fallback.
     #[serde(rename = "configEmoji", skip_serializing_if = "Option::is_none")]
     pub config_emoji: Option<String>,
+    /// The `<svg>` the button draws as an image in place of its text label, already
+    /// rendered; empty when there's none or its command printed nothing.
+    #[serde(rename = "labelSvg", skip_serializing_if = "String::is_empty")]
+    pub label_svg: String,
     #[serde(skip_serializing_if = "String::is_empty")]
     pub emoji: String,
     #[serde(skip_serializing_if = "String::is_empty")]
@@ -1842,6 +1852,8 @@ pub struct ActionInfo {
     pub position: Option<f64>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub inputs: Vec<ActionInputInfo>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub popup: Option<popup::PopupInfo>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub children: Vec<ActionInfo>,
 }
@@ -1925,6 +1937,9 @@ fn merge_action(d: &mut ActionFull, s: &ActionFull) {
     if !d.label_refresh_on_change {
         d.label_refresh_on_change = s.label_refresh_on_change;
     }
+    if d.label_svg.is_empty() {
+        d.label_svg = s.label_svg.clone();
+    }
     if d.emoji.is_empty() {
         d.emoji = s.emoji.clone();
     }
@@ -1975,6 +1990,9 @@ fn merge_action(d: &mut ActionFull, s: &ActionFull) {
     }
     if d.inputs.is_empty() {
         d.inputs = s.inputs.clone();
+    }
+    if d.popup.is_none() {
+        d.popup = s.popup.clone();
     }
     if d.actions.is_empty() {
         d.actions = s.actions.clone();
@@ -2288,6 +2306,7 @@ fn action_to_info(id: &str, name: &str, act: &ActionFull) -> ActionInfo {
         label_refresh_on_hover: act.label_refresh_on_hover,
         label_refresh_on_change: act.label_refresh_on_change,
         config_emoji: None,
+        label_svg: act.label_svg.clone(),
         emoji: act.emoji.clone(),
         color: act.color.clone(),
         shortcut: act.shortcut.clone(),
@@ -2305,6 +2324,7 @@ fn action_to_info(id: &str, name: &str, act: &ActionFull) -> ActionInfo {
         reuse: act.reuse,
         position: act.position,
         inputs: build_input_infos(&act.inputs),
+        popup: act.popup.as_ref().map(popup::PopupInfo::from),
         children: vec![],
     }
 }
@@ -2548,6 +2568,7 @@ fn to_project_info(
         .map(|(pname, names)| json!({ "name": pname, "services": names }))
         .collect();
 
+    let held = repo_trust::held(&root, is_remote);
     let mut info = json!({
         "name": file_name,
         "session": session,
@@ -2562,6 +2583,7 @@ fn to_project_info(
                 project: file_name,
                 root: &root,
                 ssh: is_remote.then_some(&ssh),
+                held: &held,
             },
         ),
         "zones": crate::zones::resolve_zones_with(
@@ -2580,6 +2602,9 @@ fn to_project_info(
     let dropped = check::project_dropped_actions(file_name, &expand_home(&yaml.root), is_remote);
     if !dropped.is_empty() {
         info["actionErrors"] = json!(dropped);
+    }
+    if !held.is_empty() {
+        info["heldCommands"] = json!(held);
     }
     if let Some(ws) = work_status_json(yaml.work_status.take()) {
         info["workStatus"] = ws;
@@ -2847,10 +2872,12 @@ fn global_root() -> String {
 
 fn global_project_info() -> Value {
     let root = global_root();
+    let held = std::collections::BTreeSet::new();
     let ctx = crate::action_labels::Ctx {
         project: RESERVED_PROJECT_NAME,
         root: &root,
         ssh: None,
+        held: &held,
     };
     json!({
         "name": RESERVED_PROJECT_NAME,

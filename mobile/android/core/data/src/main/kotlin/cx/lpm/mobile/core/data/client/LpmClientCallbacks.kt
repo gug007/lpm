@@ -1,6 +1,7 @@
 package cx.lpm.mobile.core.data.client
 
 import cx.lpm.mobile.core.model.ActionBgOutput
+import cx.lpm.mobile.core.model.ActionPopupReply
 import cx.lpm.mobile.core.model.AgentDialogRead
 import cx.lpm.mobile.core.model.AgentOption
 import cx.lpm.mobile.core.model.AgentSessionsPage
@@ -295,6 +296,7 @@ abstract class LpmClientCallbacks {
         ) -> Unit
     )? = null
     var onActionBgOutput: ((runId: String, snapshot: ActionBgOutput?) -> Unit)? = null
+    var onActionPopup: ((reply: ActionPopupReply) -> Unit)? = null
     var onActionBgStartFailed: ((runId: String, error: String) -> Unit)? = null
     var onBackgroundRuns: ((project: String, runs: List<BackgroundRunSummary>) -> Unit)? = null
     var onHistoryQuery: ((items: List<HistoryItem>, hasMore: Boolean) -> Unit)? = null

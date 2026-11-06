@@ -18,6 +18,7 @@ import { RenameModal } from "./RenameModal";
 import { EmojiMark } from "./EmojiMark";
 import { TabContextMenu } from "./terminal/TabContextMenu";
 import { TabClaudeAccountRow } from "./terminal/TabClaudeAccountRow";
+import { tabPopup } from "../popup/tabPopup";
 import { TabClaudeAccountSubmenu } from "./terminal/TabClaudeAccountSubmenu";
 import { ClaudeSwitchOverlay } from "./terminal/ClaudeSwitchOverlay";
 import { useClaudeSwitches } from "../store/claudeSwitches";
@@ -691,6 +692,7 @@ function PaneViewImpl(props: PaneViewProps) {
                         <TabClaudeAccountRow projectName={projectName} terminalId={t.id} />
                       ) : undefined
                     }
+                    popup={tabPopup(newTabProject, t.actionName)}
                     color={t.color}
                     trailing={
                       <>

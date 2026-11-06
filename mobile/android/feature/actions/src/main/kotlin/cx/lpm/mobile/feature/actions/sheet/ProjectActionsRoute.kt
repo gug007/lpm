@@ -14,6 +14,7 @@ import cx.lpm.mobile.core.model.Action
 import cx.lpm.mobile.core.navigation.ProjectActionsKey
 import cx.lpm.mobile.feature.actions.button.ActionCallbacks
 import cx.lpm.mobile.feature.actions.editor.ActionEditorSheet
+import cx.lpm.mobile.feature.actions.popup.ActionPopupSheet
 
 /**
  * The ⚡ sheet wired to its ViewModel. A picked action closes the sheet and is handed
@@ -34,6 +35,7 @@ fun ProjectActionsRoute(
     var chosen by remember { mutableStateOf<Action?>(null) }
     var editorOpen by rememberSaveable { mutableStateOf(false) }
     var editingKey by rememberSaveable { mutableStateOf<String?>(null) }
+    var popup by remember { mutableStateOf<Action?>(null) }
     DisposableEffect(viewModel) { onDispose { chosen?.let(viewModel::pick) } }
     ProjectActionsSheet(
         state = state,
@@ -48,6 +50,11 @@ fun ProjectActionsRoute(
                 editingKey = it.name
                 editorOpen = true
             },
+            popup = if (state.popups) {
+                { popup = it }
+            } else {
+                null
+            },
             lastUsed = { group -> state.memory.lastUsed(key.project, group) },
             remember = viewModel::rememberChild
         ),
@@ -58,6 +65,14 @@ fun ProjectActionsRoute(
         },
         modifier = modifier
     )
+    popup?.let { action ->
+        ActionPopupSheet(
+            project = key.project,
+            action = action,
+            session = key.session,
+            onDismiss = { popup = null }
+        )
+    }
     if (editorOpen) {
         ActionEditorSheet(
             project = key.project,

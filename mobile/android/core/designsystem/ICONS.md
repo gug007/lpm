@@ -143,6 +143,8 @@ the iPhone screenshots). An icon-only control keeps the accessible name iOS give
 | `square.and.pencil` | `edit_square` | 22 dp | "Load into composer" | |
 | `exclamationmark.triangle.fill` | `warning` (fill) | 20 dp, 24 dp | failed rewrite variant, lpm update bar ("Couldn't update lpm") | |
 | `chart.bar.xaxis` | `bar_chart` | 40 dp | "No local agent usage found" (Stats) | |
+| `chart.bar.xaxis` (menu) | `bar_chart` | 22 dp | an action's long-press "Show Popup" | |
+| `arrow.clockwise` (toolbar) | `refresh` | 22 dp | an action popup's Refresh | "Refresh" |
 | `exclamationmark.triangle` (32 pt) | `warning` | 37 dp | "Couldn't load stats" / "Couldn't load usage" | |
 | `chevron.right` / `chevron.down` (caption2) | `chevron_right` / `keyboard_arrow_down` | 17 dp in a 12 dp frame | usage row closed / open | |
 | `checkmark.circle.fill` (title3) | `check_circle` (fill) | 24 dp | usage row "Always use …" / "Using …" | |

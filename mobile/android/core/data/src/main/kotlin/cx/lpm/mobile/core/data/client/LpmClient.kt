@@ -416,6 +416,9 @@ class LpmClient internal constructor(
         // `gitDiscardFiles`: Discard Changes… on one file of the review.
         const val GIT_DISCARD_FILES_FEATURE = "gitDiscardFiles"
 
+        // `actionPopup`: an action's popup card, opened from a long press.
+        const val ACTION_POPUP_FEATURE = "actionPopup"
+
         const val OFFLINE_HINT =
             "Can't reach your Mac. On cellular, make sure Tailscale is connected on both devices."
 

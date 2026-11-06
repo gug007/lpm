@@ -869,6 +869,24 @@ render a list.
 | `{ "t": "memorySave", "project": "<name>", "name": "<slug>", "content": "…", "baseline": "…"?, "reqId": <any>? }` | `{ "t": "memorySave", "project": "<name>", "name": "<slug>", "ok": true }` / `{ "ok": false, "error": "…" }` — compare-and-swap: with `baseline` the write lands only if the file still reads exactly like that, otherwise it fails with the bare literal `"modified"` (**not** a sentence — the phone shows its own copy and reloads). Omit `baseline` to overwrite unconditionally, which is what the create path does. A missing file matches only an **empty** baseline. Slugs must match `^[a-z0-9][a-z0-9-]{0,63}$` — the slug becomes a filename. Async (worker) |
 | `{ "t": "memoryDelete", "project": "<name>", "name": "<slug>" }` | `{ "t": "memoryDelete", "project": "<name>", "name": "<slug>", "ok": true }` / `{ "ok": false, "error": "…" }` — takes no baseline (the user is discarding the whole session) and an already-missing file is success. Async (worker) |
 
+### Action popups
+
+Only when `features` has `"actionPopup"`. An action whose `ActionInfo` carries `popup` has a card the desktop shows when the pointer rests on its button, and the phone opens on a long press. The Mac builds the page and runs its `data` command; the phone only renders what comes back.
+
+| Request | Reply |
+|---|---|
+| `{ "t": "actionPopup", "project": "<name>", "action": "<action id>", "fresh": bool? }` | `{ "t": "actionPopup", "project": "<name>", "action": "<action id>", "ok": true, "popup": PopupContent }` / `{ "ok": false, "error": "…" }` when the project or action doesn't exist. Without `fresh`, the last result comes back at once when there is one, with `stale: true` once it's older than the config's `cache` (30 s by default): show it, then ask again with `fresh: true`, which runs the commands (two asks at once share one run). Async (worker): a command may take up to 15 seconds |
+
+`PopupContent`: `{ format, title, width, height, refresh, html?, data, text?, dataError?, error?, updatedAt, stale?, refreshError? }`.
+
+- `title` is the config's `title`, empty when unset: head the card with the action's label then. `width`×`height` is the page's size in points.
+- `html` is the whole page. Absent when the page couldn't be made; `error` then says why (a missing file, a command that failed or took longer than 15 seconds, a page over 1.5 MB, a format this Mac can't show). Show `error` in its place.
+- `data` is the JSON the `data` command printed, or `null`. `text` is that output as printed when it isn't JSON. `dataError` says why the command failed; the page still loads and reads it as `lpm.error`.
+- `refresh` is seconds between refreshes while the card is open, `0` for only when it opens. Each refresh asks again without `fresh` (so it follows `cache`, asking with `fresh: true` when the answer is `stale`) and hands the new `data`/`text`/`dataError` to the page through `window.__lpmPush({ data, text, error })`, without reloading it. The sheet's Refresh button asks with `fresh: true`.
+- `updatedAt` is when the page and data were made, in Unix milliseconds; show it as "just now" / "3m ago" beside the title. `refreshError` says why the last run failed while the last good result is shown: show it in place of the `dataError` line as "Couldn't refresh: …".
+
+Rendering: load `html` with no base URL (a page's own files stay on the Mac, so a phone page uses what it holds inline or loads from `https`). Before the page's scripts run, inject `mobile/shared/web/popup/bootstrap.js` with `__LPM_POPUP_PAYLOAD__` replaced by `{ data, text, error: dataError, theme: { mode: "dark"|"light", colors: { bg, surface, text, muted, border, accent, green, red, amber } }, project, action }` as JSON. It defines `window.lpm` (`data`, `text`, `error`, `theme`, `project`, `action`, `onData(fn)`), `window.__lpmPush`, and `--lpm-<color>` CSS variables. Give the page no bridge to the app, keep it on its first load (open `http`/`https` links in the browser instead), and let a script error stay inside it.
+
 ### lpm skills
 
 Prompts the user saved and runs by typing `/name` in a terminal's composer, kept
@@ -1358,6 +1376,14 @@ actions: [ActionInfo]     // recursive: { name (composite parent:child), label, 
                           // Editors read `actionBody`, which keeps the templates, and `labelRefresh`/`labelRefreshOnHover`/
                           // `labelRefreshOnChange` ride along as unmanaged keys (the Mac watches files itself). `labelRefreshOnHover: true` asks a pointer-driven client to
                           // rerun the action's commands when hovered; the phone has no hover and ignores it
+                          // `labelSvg?`: the `<svg>` the desktop draws on the button in place of `label`; phones show
+                          // `label` (it stays the button's name).
+                          // `popup?: { format, title?, width, height, problem? }` — the action has a popup card (see
+                          // [Action popups](#action-popups)): `format` is the config's format key ("html" today),
+                          // `width`×`height` the page's size in points, `title` the card's heading when set (else
+                          // the action's label). `problem` is why the config can't make a popup (no format key, two of
+                          // them, a value of the wrong shape); show it in place of the page. A `format` the client
+                          // doesn't know reads as "needs a newer lpm Link"
 zones: [ZoneInfo]         // framed groups of buttons in the header or footer row, sorted by position:
                           // { name, label, rows: 1…3, display: "header"|"footer", position?, layers?: [{ name, label?,
                           //   position? }], collapsed?: bool, source: "project"|"repo"|"global" }. Placement only: an

@@ -1,4 +1,4 @@
-import type { MouseEvent } from "react";
+import type { MouseEvent, ReactElement } from "react";
 import { ActionButton } from "./ActionButton";
 import { SplitButton, type ActionSize } from "./SplitButton";
 import { Tooltip } from "./ui/Tooltip";
@@ -13,9 +13,11 @@ import { refreshLabelOnHover } from "../labelHover";
 import { GLOBAL_TERMINALS_KEY } from "../terminals";
 import { actionRunKey } from "../store/actionRunMarks";
 import { ActionRunMarkBadge } from "./ActionRunMarkBadge";
+import { ActionPopupHover } from "../popup/ActionPopupHover";
+import { SvgLabel } from "./SvgLabel";
 
 const FLAT_BASE =
-  "relative flex cursor-grab select-none items-center rounded-md border px-2.5 text-[11px] font-medium transition-all duration-100 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40";
+  "relative flex cursor-grab select-none items-center rounded-md border text-[11px] font-medium transition-all duration-100 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40";
 const FLAT_HEADER_TONE =
   "border-[var(--border)] bg-[var(--action-tint,var(--bg-secondary))] text-[var(--text-secondary)] hover:bg-[var(--action-tint-strong,var(--terminal-header-active))] hover:text-[var(--text-primary)]";
 const FLAT_FOOTER_TONE =
@@ -39,10 +41,30 @@ interface ActionViewProps {
 
 export function ActionView({ action, size, disabled, onRun, onContextMenu, scope }: ActionViewProps) {
   const handleContextMenu = onContextMenu ? (e: MouseEvent) => onContextMenu(e, action) : undefined;
-  const handleHover = () => refreshLabelOnHover(scope ?? GLOBAL_TERMINALS_KEY, action);
+  const project = scope ?? GLOBAL_TERMINALS_KEY;
+  const handleHover = () => refreshLabelOnHover(project, action);
+  const zoneFit = size === "zone" || size === "footerZone";
+  const parsedShortcut =
+    action.cmd && action.shortcut ? parseShortcut(action.shortcut) : null;
+  const shortcutLabel = parsedShortcut ? formatShortcut(parsedShortcut) : null;
+  // An action with a popup shows its card on hover in place of a tooltip, with
+  // the shortcut beside the card's title.
+  const withPopup = (button: ReactElement) =>
+    action.popup ? (
+      <ActionPopupHover
+        project={project}
+        action={{ ...action, popup: action.popup }}
+        triggerClassName={zoneFit ? "flex h-full w-full" : "inline-flex"}
+        extra={shortcutLabel ? <Combo label={shortcutLabel} /> : undefined}
+      >
+        {button}
+      </ActionPopupHover>
+    ) : (
+      button
+    );
 
   if (action.children?.length) {
-    return (
+    return withPopup(
       <SplitButton
         action={action}
         disabled={disabled}
@@ -51,31 +73,39 @@ export function ActionView({ action, size, disabled, onRun, onContextMenu, scope
         onHover={handleHover}
         size={size}
         scope={scope}
-      />
+      />,
     );
   }
-  const runKey = actionRunKey(scope ?? GLOBAL_TERMINALS_KEY, action.name);
+  const runKey = actionRunKey(project, action.name);
   const displayLabel = withEmoji(action.emoji, action.label);
-  const shownLabel = <EmojiLabel emoji={action.emoji} label={action.label} />;
-  const parsedShortcut =
-    action.cmd && action.shortcut ? parseShortcut(action.shortcut) : null;
-  const shortcutLabel = parsedShortcut ? formatShortcut(parsedShortcut) : null;
+  const textLabel = <EmojiLabel emoji={action.emoji} label={action.label} />;
+  const textPadding = size === "default" ? "px-3.5" : "px-2.5";
+  const shownLabel = action.labelSvg ? (
+    <SvgLabel
+      markup={action.labelSvg}
+      alt={displayLabel}
+      fallback={<span className={`flex items-center ${textPadding}`}>{textLabel}</span>}
+    />
+  ) : (
+    textLabel
+  );
+  const padding = action.labelSvg ? "" : textPadding;
   const title = shortcutLabel ? `${displayLabel}  ·  ${shortcutLabel}` : displayLabel;
   if (size !== "default") {
-    return (
+    return withPopup(
       <button
         onClick={() => onRun(action)}
         onContextMenu={handleContextMenu}
         onMouseEnter={handleHover}
         disabled={disabled}
-        title={title}
+        title={action.popup ? undefined : title}
         style={actionButtonStyle(action.color)}
         data-action-run={runKey}
-        className={FLAT_SIZE_CLASSES[size]}
+        className={`${FLAT_SIZE_CLASSES[size]} ${padding}`}
       >
         {shownLabel}
         <ActionRunMarkBadge runKey={runKey} />
-      </button>
+      </button>,
     );
   }
   const button = (
@@ -88,8 +118,10 @@ export function ActionView({ action, size, disabled, onRun, onContextMenu, scope
       label={shownLabel}
       color={action.color}
       runKey={runKey}
+      padding={padding}
     />
   );
+  if (action.popup) return withPopup(button);
   if (!shortcutLabel) return button;
   return (
     <Tooltip

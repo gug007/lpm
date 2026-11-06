@@ -40,6 +40,7 @@ class DemoServer(
         registerGitHandlers()
         registerGitDiscardHandlers()
         registerAgentDialogHandlers()
+        registerActionPopupHandlers()
         registerGitHistoryHandlers()
         registerGitChecksHandlers()
         registerGitAutoHandlers()

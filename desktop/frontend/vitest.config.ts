@@ -7,6 +7,8 @@ const webStorageOff = process.allowedNodeEnvironmentFlags.has("--experimental-we
   : [];
 
 export default defineConfig({
+  // As in vite.config.ts: the popup bootstrap is the one the phones bundle.
+  server: { fs: { allow: [".", "../../mobile/shared/web/popup"] } },
   test: {
     environment: "node",
     include: ["src/**/*.test.{ts,tsx}"],

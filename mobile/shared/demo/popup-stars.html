@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GitHub stars</title>
+<style>
+  html, body { margin: 0; height: 100%; background: transparent; }
+  body {
+    font: 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: var(--lpm-text, #ededed);
+    display: flex; flex-direction: column; gap: 8px; padding: 2px 4px 4px; box-sizing: border-box;
+  }
+  .head { display: flex; align-items: baseline; justify-content: space-between; }
+  .total { font-size: 20px; font-weight: 600; }
+  .muted { color: var(--lpm-muted, #9a9a9a); }
+  .bars { flex: 1; display: flex; align-items: flex-end; gap: 6px; min-height: 0; }
+  .bar { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; height: 100%; justify-content: flex-end; }
+  .fill { width: 100%; max-width: 28px; border-radius: 4px 4px 0 0; background: var(--lpm-muted, #6b6b6b); opacity: 0.55; }
+  .bar:last-child .fill { background: var(--lpm-accent, #e8916f); opacity: 1; }
+  .label { font-size: 10px; color: var(--lpm-muted, #9a9a9a); }
+</style>
+</head>
+<body>
+  <div class="head">
+    <span><span class="total" id="total">–</span> <span class="muted">stars</span></span>
+    <span class="muted" id="gain"></span>
+  </div>
+  <div class="bars" id="bars"></div>
+  <script>
+    function draw(data) {
+      var months = (data && data.months) || [];
+      var max = Math.max.apply(null, months.map(function (m) { return m.stars; }).concat([1]));
+      document.getElementById("total").textContent = data && data.total != null ? data.total.toLocaleString() : "–";
+      var last = months[months.length - 1];
+      document.getElementById("gain").textContent = last ? "+" + last.stars + " in " + last.label : "";
+      var bars = document.getElementById("bars");
+      bars.textContent = "";
+      months.forEach(function (m) {
+        var bar = document.createElement("div");
+        bar.className = "bar";
+        var fill = document.createElement("div");
+        fill.className = "fill";
+        fill.style.height = Math.max(4, Math.round((m.stars / max) * 100)) + "%";
+        var label = document.createElement("span");
+        label.className = "label";
+        label.textContent = m.label;
+        bar.appendChild(fill);
+        bar.appendChild(label);
+        bars.appendChild(bar);
+      });
+    }
+    draw(window.lpm && window.lpm.data);
+    if (window.lpm) window.lpm.onData(draw);
+  </script>
+</body>
+</html>

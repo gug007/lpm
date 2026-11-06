@@ -30,6 +30,7 @@ export function HeaderTab({
   trailing,
   stripKey,
   account,
+  popup,
 }: {
   label: string;
   icon?: ReactNode;
@@ -60,6 +61,8 @@ export function HeaderTab({
   stripKey?: string;
   // The card row naming the Claude account a Claude tab runs as.
   account?: ReactNode;
+  // The popup of the action that launched the tab, under the card's rows.
+  popup?: { node: ReactNode; width: number };
 }) {
   const closable = !!onClose && !pinned;
   const hasHoverIcon = closable || !!pinned;
@@ -108,7 +111,7 @@ export function HeaderTab({
   // A tab with an agent in it, or one renamed away from the action that
   // launched it, gets a card lined up under the tab. Everything else keeps the
   // plain one-line tooltip, shown only when the strip clips the label.
-  const card = tabCardHasDetails(agentStatus, origin, fork, command, !!account);
+  const card = tabCardHasDetails(agentStatus, origin, fork, command, !!account, !!popup);
   const tooltip = card ? (
     <TabTooltipCard
       label={label}
@@ -119,6 +122,7 @@ export function HeaderTab({
       fork={fork}
       command={command}
       account={account}
+      popup={popup?.node}
     />
   ) : (
     label
@@ -178,6 +182,7 @@ export function HeaderTab({
           side="bottom"
           align={card ? "start" : "center"}
           wide={card}
+          maxWidth={popup ? popup.width + 32 : undefined}
           maxLines={3}
           triggerClassName="flex min-w-0"
         >

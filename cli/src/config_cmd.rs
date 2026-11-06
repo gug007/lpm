@@ -14,6 +14,7 @@ use std::path::{Path, PathBuf};
 
 mod jobs;
 mod labels;
+mod popup;
 mod project_fields;
 mod service_ready;
 mod zones;
@@ -1060,6 +1061,7 @@ fn validate_action(
             "labelRefresh",
             "labelRefreshOnHover",
             "labelRefreshOnChange",
+            "labelSvg",
             "emoji",
             "color",
             "shortcut",
@@ -1077,6 +1079,7 @@ fn validate_action(
             "mode",
             "position",
             "inputs",
+            "popup",
             "actions",
         ],
         path,
@@ -1085,6 +1088,7 @@ fn validate_action(
     for key in [
         "cmd",
         "label",
+        "labelSvg",
         "emoji",
         "color",
         "shortcut",
@@ -1131,6 +1135,7 @@ fn validate_action(
     }
     validate_shortcut(map, path, report);
     labels::validate_action_label(map, path, report);
+    popup::validate_popup(map, path, local_root.filter(|_| !remote), report);
     validate_inputs(map, path, report);
     let children = map.get(Value::String("actions".into()));
     validate_primary(map, children, path, report);

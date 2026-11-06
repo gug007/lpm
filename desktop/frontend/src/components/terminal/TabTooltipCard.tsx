@@ -23,19 +23,22 @@ export function tabCardHasDetails(
   fork?: TabFork,
   command?: TerminalCommandState,
   hasAccount = false,
+  hasPopup = false,
 ): boolean {
   return (
     !!origin ||
     !!fork ||
     !!command ||
     hasAccount ||
+    hasPopup ||
     (!!status && (status.state !== "working" || status.since !== null))
   );
 }
 
 /** The hover card for a terminal tab: its full title over labelled rows for the
  *  agent's state, how long it has been in it, the action the tab came from and
- *  the Claude account it runs as. A row without a value is left out. */
+ *  the Claude account it runs as, then that action's popup when it has one. A
+ *  row without a value is left out. */
 export function TabTooltipCard({
   label,
   icon,
@@ -45,6 +48,7 @@ export function TabTooltipCard({
   fork,
   command,
   account,
+  popup,
 }: {
   label: string;
   icon?: ReactNode;
@@ -56,6 +60,8 @@ export function TabTooltipCard({
   command?: TerminalCommandState;
   // The row naming the tab's Claude account.
   account?: ReactNode;
+  // The popup of the action the tab came from.
+  popup?: ReactNode;
 }) {
   const since = agentStatus?.since ?? null;
   const until = agentStatus?.until;
@@ -116,6 +122,7 @@ export function TabTooltipCard({
         )}
         {account}
       </span>
+      {popup}
     </span>
   );
 }

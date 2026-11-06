@@ -15,17 +15,35 @@ struct DesktopActionButton: View {
     var onEdit: ((Action) -> Void)? = nil
     let onRun: (Action) -> Void
 
+    @Environment(AppModel.self) private var model
+    @State private var showsPopup = false
+
     private var memory: ActionPrimaryMemory { .shared }
 
+    /// Long-press offers Show Popup for an action with a popup, on a Mac that makes them.
+    private var hasPopup: Bool { action.popup != nil && model.actionPopups.available }
+
     var body: some View {
-        if let onEdit {
-            button.contextMenu {
-                Button { onEdit(action) } label: {
-                    Label("Edit Action…", systemImage: "pencil")
+        Group {
+            if onEdit != nil || hasPopup {
+                button.contextMenu {
+                    if hasPopup {
+                        Button { showsPopup = true } label: {
+                            Label("Show Popup", systemImage: "chart.bar.xaxis")
+                        }
+                    }
+                    if let onEdit {
+                        Button { onEdit(action) } label: {
+                            Label("Edit Action…", systemImage: "pencil")
+                        }
+                    }
                 }
+            } else {
+                button
             }
-        } else {
-            button
+        }
+        .sheet(isPresented: $showsPopup) {
+            ActionPopupSheet(project: project, action: action).environment(model)
         }
     }
 

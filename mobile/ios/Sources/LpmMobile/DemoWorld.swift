@@ -416,7 +416,12 @@ struct DemoWorld {
                            "cmd": "go test ./..."],
                           ["name": "release", "label": "🚀 Release · v2.4.1 · 3d ago",
                            "configLabel": "🚀 Release · {{git.tag}} · {{git.tagAge}}",
-                           "type": "background", "cmd": "./scripts/release.sh", "confirm": true]]
+                           "type": "background", "cmd": "./scripts/release.sh", "confirm": true],
+                          ["name": "stars", "label": "Stars", "type": "background",
+                           "cmd": "gh api repos/example/api-gateway --jq .stargazers_count",
+                           "popup": ["format": "html", "title": "GitHub stars", "width": 380, "height": 200],
+                           "configPopup": ["html": "popups/stars.html", "data": "$(node scripts/stars.mjs)",
+                                           "title": "GitHub stars", "size": "380x200"]]]
             ),
             Project(
                 name: "mobile-app", label: "mobile-app", running: false,

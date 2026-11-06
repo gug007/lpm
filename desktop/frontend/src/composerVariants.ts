@@ -1,4 +1,7 @@
 import { TransformText } from "../bridge/commands";
+import { isCanceledError, type AIGeneration } from "./hooks/useAIGeneration";
+import { toast } from "./notifications/toast";
+import type { ComposerAction } from "./store/composerActions";
 import { getSettings } from "./store/settings";
 import { aiEffectiveEffort, aiEffectiveFast, type AICLI } from "./types";
 import type { AIPicker } from "./hooks/useAIPicker";
@@ -79,4 +82,60 @@ export async function generateVariants(
     if (failed && failed.status === "rejected") throw failed.reason;
   }
   return ok;
+}
+
+interface ActionRewrite {
+  gen: AIGeneration;
+  projectName: string | null;
+  cwd: string;
+  ai: AIPicker;
+  action: ComposerAction;
+  value: string;
+  count: number;
+  onText: (text: string) => void;
+  onVariants: (list: string[]) => void;
+}
+
+// Runs a composer action over `value`: one rewrite goes to `onText`, several to
+// `onVariants`. An empty answer or a failure reads as a toast; a stop is silent.
+export async function rewriteWithAction({
+  gen,
+  projectName,
+  cwd,
+  ai,
+  action,
+  value,
+  count,
+  onText,
+  onVariants,
+}: ActionRewrite): Promise<void> {
+  try {
+    const params = resolveTransformParams(ai);
+    if (count <= 1) {
+      const out = await gen.run((genId) =>
+        TransformText(
+          projectName,
+          cwd,
+          params.cli,
+          params.model,
+          params.effort,
+          params.fast,
+          action.instruction,
+          value,
+          genId,
+        ),
+      );
+      const text = typeof out === "string" ? out.trim() : "";
+      if (text) onText(text);
+      else toast.error("AI returned an empty response");
+    } else {
+      const list = await gen.runAll(count, (genIds) =>
+        generateVariants(projectName, cwd, params, action.instruction, value, count, genIds),
+      );
+      if (list.length > 0) onVariants(list);
+      else toast.error("AI returned an empty response");
+    }
+  } catch (err) {
+    if (!isCanceledError(err)) toast.error(`Action failed: ${err}`);
+  }
 }

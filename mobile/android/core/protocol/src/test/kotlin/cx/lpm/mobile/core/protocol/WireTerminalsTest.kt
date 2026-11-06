@@ -70,6 +70,14 @@ class WireTerminalsTest {
             Wire.runActionBackground("api", "seed", emptyMap(), "r-1")
         )
         assertFrame(
+            """{ "t": "actionPopup", "project": "api", "action": "deploy:stars" }""",
+            Wire.actionPopup("api", "deploy:stars", fresh = false)
+        )
+        assertFrame(
+            """{ "t": "actionPopup", "project": "api", "action": "stars", "fresh": true }""",
+            Wire.actionPopup("api", "stars", fresh = true)
+        )
+        assertFrame(
             """{ "t": "actionBgOutput", "project": "api", "runId": "r-1" }""",
             Wire.actionBgOutput("api", "r-1")
         )

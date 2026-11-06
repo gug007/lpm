@@ -1,5 +1,6 @@
 package cx.lpm.mobile.feature.actions
 
+import cx.lpm.mobile.core.data.actions.ActionPopupStore
 import cx.lpm.mobile.core.data.actions.ActionsStore
 import cx.lpm.mobile.core.data.config.ProjectConfigStore
 import cx.lpm.mobile.core.data.projects.ProjectsStore
@@ -12,6 +13,7 @@ import kotlinx.coroutines.test.TestScope
 /** The stores beyond Projects/Terminals that the actions screens read. */
 val ActionStores: Set<SessionStore.Factory> = setOf(
     SessionStore.Factory(::ActionsStore),
+    SessionStore.Factory(::ActionPopupStore),
     SessionStore.Factory(::ProjectConfigStore)
 )
 

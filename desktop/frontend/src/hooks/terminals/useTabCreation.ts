@@ -328,7 +328,7 @@ export function useTabCreation({
       }
       addTerminal(
         makeTerminal(id, forkLabel(tab.label), {
-          startCmd: tab.startCmd,
+          startCmd: launch.startCmd ?? tab.startCmd,
           resumeCmd: launch.resumeCmd,
           actionName: tab.actionName,
           emoji: tab.emoji,
@@ -378,7 +378,7 @@ export function useTabCreation({
               kind: "fork",
               command: launch.cmd,
               label: forkLabel(tab.label),
-              startCmd: tab.startCmd,
+              startCmd: launch.startCmd ?? tab.startCmd,
               resumeCmd: launch.resumeCmd,
               actionName: tab.actionName,
               emoji: tab.emoji,

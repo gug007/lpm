@@ -14,9 +14,14 @@
     <string name="actions_footer">Footer</string>
     <string name="actions_menu">Menu</string>
     <string name="actions_edit">Edit Action…</string>
+    <string name="actions_show_popup">Show Popup</string>
     <string name="actions_more">More %1$s Actions</string>
     <string name="actions_zone_no_actions">No actions</string>
     <string name="actions_zone_layer">Layer</string>
+
+    <!-- An action's popup -->
+    <string name="popup_refresh">Refresh</string>
+    <string name="popup_retry">Retry</string>
 
     <!-- Running one -->
     <string name="actions_run_confirm">Run %1$s?</string>

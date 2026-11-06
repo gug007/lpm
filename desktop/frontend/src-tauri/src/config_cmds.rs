@@ -359,3 +359,16 @@ mod tests {
         assert_eq!(std::fs::read_to_string(path).unwrap(), replacement);
     }
 }
+
+/// Lets the project's `.lpm.yml` run what it runs by itself (the commands in its
+/// labels, `labelSvg` and popups, and its automations), as they read now.
+#[tauri::command(async)]
+pub fn allow_repo_commands(app: AppHandle, project_name: String) -> Result<(), String> {
+    let (root, is_remote) = config::project_root(&project_name)?;
+    if is_remote {
+        return Err("A remote project's .lpm.yml isn't read, so it has nothing to allow.".into());
+    }
+    config::repo_trust::allow(&root)?;
+    let _ = app.emit("projects-changed", ());
+    Ok(())
+}

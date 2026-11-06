@@ -1,6 +1,7 @@
 import { useCallback, type RefObject } from "react";
 import { toast } from "../../notifications/toast";
 import {
+  CopyClaudeSessionForFork,
   MoveClaudeTabToAccount,
   StartTerminal,
   StartTerminalForRestore,
@@ -10,6 +11,7 @@ import {
 import { agentSessionOf } from "../../agentSession";
 import { accountLabel } from "../../claudePoolText";
 import { isClaudeTab } from "../../claudeTab";
+import { forkedSessionOf } from "../../forkSession";
 import { IS_MIRROR_WINDOW } from "../../mirror";
 import { expectHostSwap, settleHostSwap } from "../../peer/hostSwaps";
 import { isPeerName } from "../../peer/markers";
@@ -85,8 +87,12 @@ export function useClaudeAccountSwitch({
           throw err;
         });
         // Nothing saved yet means nothing to resume: start the session afresh.
+        // A fork starts over as the same fork, so the conversation it branches
+        // from has to be on the new account first.
         const cmd = moved ? tab.resumeCmd : tab.startCmd;
         if (!cmd) return;
+        const forkedFrom = moved ? null : forkedSessionOf(cmd);
+        if (forkedFrom) await CopyClaudeSessionForFork(projectName, projectName, forkedFrom, account);
         const carriesOn = moved && cutShort;
         const launch = carriesOn ? foldAgentPrompt(cmd, CONTINUE_PROMPT) : { cmd };
         const back = whenClaudeBack(projectName, newId, carriesOn ? "working" : "settled");

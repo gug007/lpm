@@ -1,11 +1,15 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type * as monacoNs from "monaco-editor";
 import { variableSpans } from "../../lpmCommands";
 import { MessageMarkdown } from "../MessageMarkdown";
 import { MonacoEditor } from "../MonacoEditor";
+import { syncModelText } from "../review/modelText";
 import { SegmentedControl } from "../ui/SegmentedControl";
+import { SkillPromptTools } from "./SkillPromptTools";
 
 interface SkillPromptEditorProps {
+  projectName: string;
+  projectLabel: string;
   value: string;
   // Names the editor's model, so each skill keeps its own undo history.
   modelKey: string;
@@ -54,9 +58,37 @@ function markVariables(editor: monacoNs.editor.IStandaloneCodeEditor, monaco: ty
 
 // The prompt of a skill: Markdown in the code editor, its variables marked, or
 // rendered the way it reads.
-export function SkillPromptEditor({ value, modelKey, invalid, onChange, onSave }: SkillPromptEditorProps) {
+export function SkillPromptEditor({
+  projectName,
+  projectLabel,
+  value,
+  modelKey,
+  invalid,
+  onChange,
+  onSave,
+}: SkillPromptEditorProps) {
   const [view, setView] = useState<View>("edit");
-  const onReady = useCallback(markVariables, []);
+  const [refining, setRefining] = useState(false);
+  const editorRef = useRef<monacoNs.editor.IStandaloneCodeEditor | null>(null);
+  const onReady = useCallback((editor: monacoNs.editor.IStandaloneCodeEditor, monaco: typeof monacoNs) => {
+    editorRef.current = editor;
+    const unmark = markVariables(editor, monaco);
+    return () => {
+      editorRef.current = null;
+      unmark();
+    };
+  }, []);
+
+  // One undo step on the model itself, so ⌘Z brings back the prompt it
+  // replaced even while the editor is locked for a rewrite.
+  const replace = (text: string) => {
+    const editor = editorRef.current;
+    const model = editor?.getModel();
+    if (!editor || !model) return onChange(text);
+    syncModelText(model, text);
+    editor.focus();
+  };
+
   return (
     <div className="flex min-h-[180px] flex-1 flex-col gap-1.5">
       <div className="flex items-center gap-2">
@@ -73,32 +105,57 @@ export function SkillPromptEditor({ value, modelKey, invalid, onChange, onSave }
         />
       </div>
       <div
-        className={`relative min-h-[150px] flex-1 overflow-hidden rounded-md border bg-[var(--bg-secondary)] ${
-          invalid ? "border-[var(--accent-amber)]" : "border-[var(--border)] focus-within:border-[var(--accent-cyan)]"
+        className={`flex min-h-[150px] flex-1 flex-col rounded-md p-px ${
+          refining
+            ? "[background:conic-gradient(from_var(--gradient-angle),#6366f1,#a855f7,#ec4899,#06b6d4,#6366f1)] animate-[gradient-spin_3s_linear_infinite]"
+            : ""
         }`}
       >
-        {view === "edit" ? (
-          <MonacoEditor
-            value={value}
-            onChange={onChange}
-            onSave={onSave}
-            language="markdown"
-            modelUri={`inmemory://lpm/skills/${encodeURIComponent(modelKey)}.md`}
-            perInstance
-            wordWrap
-            ariaLabel="Prompt"
-            placeholder={PLACEHOLDER}
-            onReady={onReady}
-          />
-        ) : (
-          <div className="absolute inset-0 overflow-y-auto px-3 py-2" aria-labelledby="lpm-command-body-label">
-            {value.trim() ? (
-              <MessageMarkdown text={value} />
+        <div
+          className={`flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border bg-[var(--bg-secondary)] ${
+            refining
+              ? "border-transparent"
+              : invalid
+                ? "border-[var(--accent-amber)]"
+                : "border-[var(--border)] focus-within:border-[var(--accent-cyan)]"
+          }`}
+        >
+          <div className="relative min-h-0 flex-1">
+            {view === "edit" ? (
+              <div className="absolute inset-0">
+                <MonacoEditor
+                  value={value}
+                  onChange={onChange}
+                  onSave={onSave}
+                  language="markdown"
+                  modelUri={`inmemory://lpm/skills/${encodeURIComponent(modelKey)}.md`}
+                  perInstance
+                  readOnly={refining}
+                  wordWrap
+                  ariaLabel="Prompt"
+                  placeholder={PLACEHOLDER}
+                  onReady={onReady}
+                />
+              </div>
             ) : (
-              <p className="text-[12px] text-[var(--text-muted)]">Nothing to preview yet.</p>
+              <div className="absolute inset-0 overflow-y-auto px-3 py-2" aria-labelledby="lpm-command-body-label">
+                {value.trim() ? (
+                  <MessageMarkdown text={value} />
+                ) : (
+                  <p className="text-[12px] text-[var(--text-muted)]">Nothing to preview yet.</p>
+                )}
+              </div>
             )}
           </div>
-        )}
+          <SkillPromptTools
+            projectName={projectName}
+            projectLabel={projectLabel}
+            value={value}
+            onReplace={replace}
+            busy={refining}
+            onBusyChange={setRefining}
+          />
+        </div>
       </div>
     </div>
   );

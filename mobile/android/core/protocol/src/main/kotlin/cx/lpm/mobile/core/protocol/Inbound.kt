@@ -1,6 +1,7 @@
 package cx.lpm.mobile.core.protocol
 
 import cx.lpm.mobile.core.model.ActionBgOutput as BgOutput
+import cx.lpm.mobile.core.model.ActionPopupReply
 import cx.lpm.mobile.core.model.AgentDialogRead
 import cx.lpm.mobile.core.model.AgentOption
 import cx.lpm.mobile.core.model.AgentSessionsPage
@@ -396,6 +397,9 @@ sealed interface Inbound {
 
     // `snapshot` is null once the run has been reaped on the Mac (or never existed).
     data class ActionBgOutput(val runId: String, val snapshot: BgOutput?) : Inbound
+
+    // An action's popup page and data, or why there's none.
+    data class ActionPopup(val reply: ActionPopupReply) : Inbound
     data class ActionBgStartFailed(val runId: String, val error: String) : Inbound
     data class BackgroundRuns(val project: String, val runs: List<BackgroundRunSummary>) : Inbound
     data class HistoryQuery(val items: List<HistoryItem>, val hasMore: Boolean) : Inbound

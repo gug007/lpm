@@ -109,6 +109,24 @@ internal fun DemoWorld.seedProjects() {
                     "type" to "background",
                     "cmd" to "./scripts/release.sh",
                     "confirm" to true
+                ),
+                mapOf(
+                    "name" to "stars",
+                    "label" to "Stars",
+                    "type" to "background",
+                    "cmd" to "gh api repos/example/api-gateway --jq .stargazers_count",
+                    "popup" to mapOf(
+                        "format" to "html",
+                        "title" to "GitHub stars",
+                        "width" to 380,
+                        "height" to 200
+                    ),
+                    "configPopup" to mapOf(
+                        "html" to "popups/stars.html",
+                        "data" to "\$(node scripts/stars.mjs)",
+                        "title" to "GitHub stars",
+                        "size" to "380x200"
+                    )
                 )
             )
         ),

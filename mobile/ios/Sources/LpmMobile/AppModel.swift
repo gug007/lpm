@@ -412,6 +412,8 @@ final class AppModel {
     var gitChecks = GitChecksStore()
     // The dialogs waiting agents show (`model.agentDialogs`), same split.
     var agentDialogs = AgentDialogStore()
+    // The action popup on screen (`model.actionPopups`), same split.
+    var actionPopups = ActionPopupStore()
     // The other machines saved here, while the list shows them all.
     let machineFeeds = PairedMachineFeeds()
 
@@ -500,6 +502,7 @@ final class AppModel {
         gitHistory.model = self
         gitChecks.model = self
         agentDialogs.model = self
+        actionPopups.model = self
         pushRegistrar.onIdentity = { [weak self] localId, serverId, serverName, platform in
             self?.learnIdentity(of: localId, serverId: serverId, serverName: serverName,
                                 platform: platform)
@@ -1462,6 +1465,8 @@ final class AppModel {
         gitChecks.model = self
         agentDialogs = AgentDialogStore()
         agentDialogs.model = self
+        actionPopups = ActionPopupStore()
+        actionPopups.model = self
         fileFetches.cancelAll()
         answerRequests.failAll()
         pendingAgentPrompt = [:]
@@ -2703,6 +2708,7 @@ final class AppModel {
         wireGitChecks(c)
         wireAgentDialogs(c)
         wireGitDiscardFiles(c)
+        wireActionPopups(c)
     }
 
     private func wireConnection(_ c: LpmClient) {

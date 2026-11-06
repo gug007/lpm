@@ -27,13 +27,6 @@ const MAX_FULL_READ: u64 = 8 * MAX_CHUNK;
 
 const ALLOWED_EXT: &[&str] = &["mp4", "m4v", "mov", "webm", "mkv", "avi", "ogv"];
 
-/// Registered protocols attach to EVERY webview, including the in-pane browser
-/// that loads arbitrary remote pages — so the handler answers only the webviews
-/// that run our own frontend.
-pub(crate) fn is_app_webview(label: &str) -> bool {
-    label == "main" || label.starts_with("detached-")
-}
-
 pub fn handle<R: Runtime>(
     ctx: UriSchemeContext<'_, R>,
     request: Request<Vec<u8>>,
@@ -74,7 +67,9 @@ fn serve<R: Runtime>(
     label: &str,
     request: &Request<Vec<u8>>,
 ) -> Response<Vec<u8>> {
-    if !is_app_webview(label) {
+    // Registered protocols attach to EVERY webview, including the in-pane browser
+    // that loads arbitrary remote pages — so this answers only our own frontend.
+    if !crate::ipc_gate::is_app_webview(label) {
         return empty(StatusCode::FORBIDDEN);
     }
     serve_path(
@@ -275,13 +270,5 @@ mod tests {
         assert_eq!(parse_range("bytes=-0", 100), None);
         assert_eq!(parse_range("bytes=0-", 0), None);
         assert_eq!(parse_range("items=0-", 100), None);
-    }
-
-    #[test]
-    fn only_app_webviews_are_served() {
-        assert!(is_app_webview("main"));
-        assert!(is_app_webview("detached-lpm-1a2b3c4d"));
-        assert!(!is_app_webview("browser-1"));
-        assert!(!is_app_webview(""));
     }
 }

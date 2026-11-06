@@ -14,6 +14,7 @@ import { SkillPromptEditor } from "./SkillPromptEditor";
 interface CommandEditorProps {
   draft: Draft;
   lists: LpmCommandLists;
+  projectName: string;
   projectLabel: string;
   files: SkillFiles;
   saving: boolean;
@@ -31,7 +32,7 @@ const insideMonaco = (target: EventTarget | null) =>
 
 // The right column of the Skills tab: one skill's name, folder, the line the
 // `/` menu shows beside it, and its prompt. ⌘S or Save writes the file.
-export function CommandEditor({ draft, lists, projectLabel, files, saving, onChange, onSave, onDelete }: CommandEditorProps) {
+export function CommandEditor({ draft, lists, projectName, projectLabel, files, saving, onChange, onSave, onDelete }: CommandEditorProps) {
   const nameRef = useRef<HTMLInputElement>(null);
   const isNew = draft.original === null;
   const saved = draft.original ? allCommands(lists).find((c) => sameCommand(c, draft.original)) : null;
@@ -135,6 +136,8 @@ export function CommandEditor({ draft, lists, projectLabel, files, saving, onCha
           />
         )}
         <SkillPromptEditor
+          projectName={projectName}
+          projectLabel={projectLabel}
           value={draft.body}
           modelKey={draft.original ? commandKey(draft.original) : "new"}
           invalid={shown?.field === "body"}

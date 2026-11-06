@@ -396,6 +396,14 @@ enum Wire {
         json(["t": "agentDialog", "project": project, "terminalId": terminalId])
     }
 
+    /// An action's popup page and data. `fresh` runs its commands again. Only for a
+    /// Mac whose `features` has "actionPopup".
+    static func actionPopup(project: String, action: String, fresh: Bool) -> String {
+        var o: [String: Any] = ["t": "actionPopup", "project": project, "action": action]
+        if fresh { o["fresh"] = true }
+        return json(o)
+    }
+
     /// Pick one of a dialog's options, naming the report and the dialog it was
     /// picked from, so the Mac types it only while both still stand.
     static func pickAgentDialog(_ read: AgentDialogRead, option: String, reqId: String) -> String {
@@ -808,6 +816,7 @@ enum Wire {
         case gitRestoreDiscarded(project: String, error: String?)
         case gitDiscardFiles(project: String, paths: [String], undo: String?, error: String?)
         case agentDialog(AgentDialogRead)
+        case actionPopup(ActionPopupReply)
         // Server push: watched files changed for this project (already debounced).
         case gitChanged(project: String)
         // Commit history: a page of the branch's commits, one commit's files and
@@ -1238,6 +1247,7 @@ enum Wire {
                                         undo: (obj["undo"] as? String).flatMap { $0.isEmpty ? nil : $0 },
                                         error: ok ? nil : (obj["error"] as? String ?? "Couldn't discard the changes."))
             case "agentDialog": return .agentDialog(AgentDialogRead(obj))
+            case "actionPopup": return .actionPopup(ActionPopupReply(obj))
             case "gitRestoreDiscarded":
                 let ok = obj["ok"] as? Bool ?? false
                 return .gitRestoreDiscarded(project: obj["project"] as? String ?? "",
@@ -1928,6 +1938,8 @@ struct Action: Identifiable {
     let inputs: [ActionInput]
     // The task for the agent `cmd` opens, submitted once it's ready.
     let prompt: String
+    // The card a long press shows, when the action has one.
+    let popup: ActionPopupInfo?
     let children: [Action]
 
     var id: String { name }
@@ -1948,6 +1960,7 @@ struct Action: Identifiable {
         confirm = o["confirm"] as? Bool ?? false
         inputs = (o["inputs"] as? [[String: Any]] ?? []).map(ActionInput.init)
         prompt = o["prompt"] as? String ?? ""
+        popup = ActionPopupInfo(o["popup"])
         children = (o["children"] as? [[String: Any]] ?? []).map(Action.init)
     }
 

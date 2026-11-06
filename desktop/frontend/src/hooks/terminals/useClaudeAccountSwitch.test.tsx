@@ -4,6 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const bridge = vi.hoisted(() => ({
+  CopyClaudeSessionForFork: vi.fn(async () => {}),
   MoveClaudeTabToAccount: vi.fn(async () => ({ moved: true, carriesOn: false })),
   StartTerminal: vi.fn(async () => "pty-2"),
   StartTerminalForRestore: vi.fn(async () => "pty-2"),
@@ -110,6 +111,47 @@ describe("useClaudeAccountSwitch", () => {
     bridge.MoveClaudeTabToAccount.mockResolvedValue({ moved: false, carriesOn: false });
     await switchAccount("pty-1", "work");
     expect(scheduleCmdInject).toHaveBeenCalledWith("pty-2", "claude --session-id abc", undefined);
+  });
+
+  it("starts an unsaved fork over as the same fork, its source copied to the new account first", async () => {
+    const fork = "claude --resume abc --permission-mode auto --fork-session --session-id f1";
+    treeRef.current = makePaneLeaf("p1", [
+      makeTerminal("pty-1", "Claude · fork", { startCmd: fork, resumeCmd: "claude --resume f1 --permission-mode auto" }),
+    ]);
+    bridge.MoveClaudeTabToAccount.mockResolvedValue({ moved: false, carriesOn: false });
+    await switchAccount("pty-1", "work");
+    expect(bridge.MoveClaudeTabToAccount).toHaveBeenCalledWith("web", "pty-1", "f1", "work");
+    expect(bridge.CopyClaudeSessionForFork).toHaveBeenCalledWith("web", "web", "abc", "work");
+    expect(scheduleCmdInject).toHaveBeenCalledWith("pty-2", fork, undefined);
+    expect(bridge.CopyClaudeSessionForFork.mock.invocationCallOrder[0]).toBeLessThan(
+      scheduleCmdInject.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("resumes a fork that has saved, with nothing copied", async () => {
+    treeRef.current = makePaneLeaf("p1", [
+      makeTerminal("pty-1", "Claude · fork", {
+        startCmd: "claude --resume abc --fork-session --session-id f1",
+        resumeCmd: "claude --resume f1",
+      }),
+    ]);
+    await switchAccount("pty-1", "work");
+    expect(bridge.CopyClaudeSessionForFork).not.toHaveBeenCalled();
+    expect(scheduleCmdInject).toHaveBeenCalledWith("pty-2", "claude --resume f1", undefined);
+  });
+
+  it("starts nothing when a fork's source can't reach the new account", async () => {
+    treeRef.current = makePaneLeaf("p1", [
+      makeTerminal("pty-1", "Claude · fork", {
+        startCmd: "claude --resume abc --fork-session --session-id f1",
+        resumeCmd: "claude --resume f1",
+      }),
+    ]);
+    bridge.MoveClaudeTabToAccount.mockResolvedValue({ moved: false, carriesOn: false });
+    bridge.CopyClaudeSessionForFork.mockRejectedValueOnce("disk full");
+    await switchAccount("pty-1", "work");
+    expect(toastError).toHaveBeenCalledWith("Couldn't switch the Claude account: disk full");
+    expect(scheduleCmdInject).not.toHaveBeenCalled();
   });
 
   it("continues the conversation on its own account when the move fails", async () => {

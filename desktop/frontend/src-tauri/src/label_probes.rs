@@ -7,21 +7,24 @@
 use crate::action_labels::{self, Ctx};
 use crate::config::{self, SshSettings};
 use std::collections::{BTreeMap, HashMap};
-use std::io::Read;
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{mpsc, Mutex, OnceLock};
+use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter};
 
 const TICK: Duration = Duration::from_secs(1);
 const WATCH_TICKS: u32 = 5;
-const TIMEOUT: Duration = Duration::from_secs(15);
 const STALE: Duration = Duration::from_secs(600);
 const REMOTE_GIT_EVERY: Duration = Duration::from_secs(60);
 const MAX_RUNNING: usize = 4;
 const MAX_CHARS: usize = 60;
+/// The most a `labelSvg` command may print; more reads as nothing, so the
+/// button falls back to its text label.
+const MAX_MARKUP: usize = 32 * 1024;
+/// A command printing more than this is stopped and keeps its last output.
+const MAX_OUTPUT: usize = 16 * 1024 * 1024;
 const HOVER_GAP: Duration = Duration::from_secs(5);
 const CHANGE_GAP: Duration = Duration::from_secs(2);
 
@@ -30,6 +33,8 @@ struct Probe {
     dir: String,
     script: String,
     output: Option<String>,
+    /// Keeps everything the command prints (a `labelSvg`), not its first line.
+    whole: bool,
     ran_at: Option<Instant>,
     running: bool,
     due: bool,
@@ -55,7 +60,8 @@ fn probes() -> &'static Mutex<HashMap<String, Probe>> {
 
 static DIRTY: AtomicBool = AtomicBool::new(false);
 
-/// A label's `$(…)` command's last output, run in the action's cwd with its env.
+/// A label's `$(…)` command's last output, run in the action's cwd with its env:
+/// its first line, or with `whole` all of it, as a `labelSvg` needs.
 pub fn read_command(
     ctx: &Ctx,
     action: &str,
@@ -63,6 +69,7 @@ pub fn read_command(
     env: &BTreeMap<String, String>,
     cmd: &str,
     every: Duration,
+    whole: bool,
 ) -> String {
     let mut env = env.clone();
     env.insert("LPM_PROJECT_NAME".into(), ctx.project.to_string());
@@ -76,6 +83,7 @@ pub fn read_command(
         dir,
         config::build_local_script(&env, cmd),
         every,
+        whole,
     )
 }
 
@@ -87,6 +95,7 @@ pub fn read_remote(project: &str, ssh: &SshSettings, dir: &str, script: &str) ->
         dir.to_string(),
         script.to_string(),
         REMOTE_GIT_EVERY,
+        false,
     )
 }
 
@@ -98,17 +107,23 @@ fn read(
     dir: String,
     script: String,
     every: Duration,
+    whole: bool,
 ) -> String {
     let host = ssh
         .map(|s| format!("{}@{}:{}", s.user, s.host, s.port))
         .unwrap_or_default();
-    let key = format!("{host}\n{dir}\n{script}");
+    let key = if whole {
+        format!("whole\n{host}\n{dir}\n{script}")
+    } else {
+        format!("{host}\n{dir}\n{script}")
+    };
     let mut probes = probes().lock().unwrap();
     let probe = probes.entry(key).or_insert_with(|| Probe {
         ssh: ssh.cloned(),
         dir,
         script,
         output: None,
+        whole,
         ran_at: None,
         running: false,
         due: true,
@@ -228,9 +243,10 @@ fn run_due() {
         };
         probe.running = true;
         probe.due = false;
-        let (ssh, dir, script) = (probe.ssh.clone(), probe.dir.clone(), probe.script.clone());
+        let (ssh, dir, script, whole) =
+            (probe.ssh.clone(), probe.dir.clone(), probe.script.clone(), probe.whole);
         std::thread::spawn(move || {
-            let output = run(ssh.as_ref(), &dir, &script);
+            let output = run(ssh.as_ref(), &dir, &script, whole);
             finish(&key, output);
         });
     }
@@ -255,8 +271,10 @@ pub(crate) fn finish(key: &str, output: Option<String>) {
     probe.output = Some(output);
 }
 
-fn run(ssh: Option<&SshSettings>, dir: &str, script: &str) -> Option<String> {
-    let cmd = match ssh {
+/// An action's command as its labels and popups run it: in `dir` through the
+/// login shell, on an SSH project's host when there is one.
+pub(crate) fn command(ssh: Option<&SshSettings>, dir: &str, script: &str) -> Command {
+    match ssh {
         Some(ssh) => {
             let line = if dir.trim().is_empty() {
                 script.to_string()
@@ -266,8 +284,29 @@ fn run(ssh: Option<&SshSettings>, dir: &str, script: &str) -> Option<String> {
             crate::sshexec::remote_login_script(ssh, &line)
         }
         None => local_command(dir, script),
-    };
-    run_with_timeout(cmd).map(|out| first_line(&String::from_utf8_lossy(&out)))
+    }
+}
+
+fn run(ssh: Option<&SshSettings>, dir: &str, script: &str, whole: bool) -> Option<String> {
+    let out = run_with_timeout(command(ssh, dir, script))?;
+    let text = String::from_utf8_lossy(&out);
+    Some(if whole {
+        markup(&text)
+    } else {
+        first_line(&text)
+    })
+}
+
+/// What a `labelSvg` command printed, from its `<svg`: a login shell's own line
+/// or an XML prolog before it isn't the image. Too much reads as nothing.
+fn markup(out: &str) -> String {
+    let start = out.find("<svg").unwrap_or(out.len());
+    let markup = out[start..].trim();
+    if markup.len() > MAX_MARKUP {
+        String::new()
+    } else {
+        markup.to_string()
+    }
 }
 
 /// The user's interactive login shell, as background actions use, so a label
@@ -281,25 +320,8 @@ fn local_command(dir: &str, script: &str) -> Command {
 }
 
 fn run_with_timeout(mut cmd: Command) -> Option<Vec<u8>> {
-    cmd.stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null());
-    let mut child = cmd.spawn().ok()?;
-    let mut stdout = child.stdout.take()?;
-    let (tx, rx) = mpsc::channel();
-    std::thread::spawn(move || {
-        let mut buf = Vec::new();
-        let _ = stdout.read_to_end(&mut buf);
-        let _ = tx.send(buf);
-    });
-    match rx.recv_timeout(TIMEOUT) {
-        Ok(buf) => child.wait().ok()?.success().then_some(buf),
-        Err(_) => {
-            crate::proctree::kill_tree_async(child.id() as i32);
-            let _ = child.wait();
-            None
-        }
-    }
+    cmd.stderr(Stdio::null());
+    crate::popup_run::capture(cmd, MAX_OUTPUT).ok()
 }
 
 /// The first line with text, cut to fit a button.
