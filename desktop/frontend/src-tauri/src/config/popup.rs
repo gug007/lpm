@@ -62,12 +62,10 @@ impl PopupDef {
 
 /// The command in `$(command)` when that's the whole value.
 pub(crate) fn command_of(source: &str) -> Option<&str> {
-    let source = source.trim();
-    source
-        .strip_prefix("$(")
-        .and_then(|rest| rest.strip_suffix(')'))
-        .map(str::trim)
-        .filter(|cmd| !cmd.is_empty())
+    let rest = source.trim().strip_prefix("$(")?;
+    let end = crate::label_template::command_end(rest)?;
+    let cmd = rest[..end].trim();
+    (end + 1 == rest.len() && !cmd.is_empty()).then_some(cmd)
 }
 
 /// What the button needs before the card opens.
@@ -98,7 +96,7 @@ pub(super) fn lenient<'de, D: Deserializer<'de>>(d: D) -> Result<Option<PopupDef
     Ok(parse(&Value::deserialize(d)?))
 }
 
-pub(crate) fn parse(value: &Value) -> Option<PopupDef> {
+fn parse(value: &Value) -> Option<PopupDef> {
     match value {
         Value::Null => None,
         Value::String(s) if s.trim().is_empty() => None,

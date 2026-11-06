@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { mergeSlashCommands, type LpmCommand, type LpmCommandLists } from "./lpmCommands";
 import {
   filterSlashCommands,
-  sentCommandName,
   slashTag,
   type SlashCommand,
 } from "./slashCommands";
@@ -139,19 +138,5 @@ describe("slashTag", () => {
 
   it("leaves the agent's own untagged", () => {
     expect(slashTag(agent("clear"))).toBeNull();
-  });
-});
-
-describe("sentCommandName", () => {
-  it("reads the command a message opens with", () => {
-    expect(sentCommandName("/compact")).toBe("compact");
-    expect(sentCommandName("  /effort high\n")).toBe("effort");
-    expect(sentCommandName("/prompts:draft now")).toBe("prompts:draft");
-  });
-
-  it("ignores a slash anywhere else, and a path", () => {
-    expect(sentCommandName("please /compact")).toBeNull();
-    expect(sentCommandName("/usr/bin/env")).toBeNull();
-    expect(sentCommandName("hello")).toBeNull();
   });
 });

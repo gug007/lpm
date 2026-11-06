@@ -1,10 +1,6 @@
 // What `action_popup` answers: the page and the data its command printed, or
 // the words the card shows instead (see src-tauri/src/popup_content.rs).
 export interface PopupContent {
-  format: string;
-  title: string;
-  width: number;
-  height: number;
   // Seconds between refreshes while the card is open; 0 only when it opens.
   refresh: number;
   html?: string;
@@ -22,9 +18,11 @@ export interface PopupContent {
   refreshError?: string;
 }
 
+export type PopupColor = "bg" | "surface" | "text" | "muted" | "border" | "accent" | "green" | "red" | "amber";
+
 export interface PopupTheme {
   mode: "dark" | "light";
-  colors: Record<string, string>;
+  colors: Record<PopupColor, string>;
 }
 
 // What the page reads as `window.lpm` (and gets again on each refresh).

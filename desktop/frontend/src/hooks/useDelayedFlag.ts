@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 
 // `on`, but only once it has stayed on for `ms` — so a state that usually
-// passes in a blink (a warm model loading) never flashes on screen.
+// passes in a blink (a warm model loading) never flashes on screen. With no
+// wait to make, it's simply `on`.
 export function useDelayedFlag(on: boolean, ms: number): boolean {
   const [shown, setShown] = useState(false);
   useEffect(() => {
@@ -12,5 +13,5 @@ export function useDelayedFlag(on: boolean, ms: number): boolean {
     const id = setTimeout(() => setShown(true), ms);
     return () => clearTimeout(id);
   }, [on, ms]);
-  return on && shown;
+  return on && (shown || ms <= 0);
 }

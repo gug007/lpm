@@ -85,9 +85,7 @@ fn empty(status: StatusCode) -> Response<Vec<u8>> {
 }
 
 fn serve<R: Runtime>(app: &AppHandle<R>, label: &str, path: &str) -> Response<Vec<u8>> {
-    // An action popup's page loads its own files from here too; it reaches
-    // only a folder the app registered, like any preview.
-    if !crate::ipc_gate::is_app_webview(label) && !crate::popup_view::is_popup_label(label) {
+    if !crate::ipc_gate::can_read_previews(label) {
         return empty(StatusCode::FORBIDDEN);
     }
     let path = path.trim_start_matches('/');

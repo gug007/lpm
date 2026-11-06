@@ -9,7 +9,7 @@ import {
   isLocalOnlyCommand,
   GLOBAL_PEER_EVENTS,
 } from "./router";
-import { prefixName, prefixRoot } from "./markers";
+import { isPeerMarked, prefixName, prefixRoot } from "./markers";
 
 const A = "aaaaaaaa";
 const B = "bbbbbbbb";
@@ -71,6 +71,12 @@ describe("stripArgs", () => {
 });
 
 describe("translateResult", () => {
+  it("marks a popup page's file as the host's", () => {
+    const out = translateResult("action_popup", A, { html: "<p></p>", file: "/srv/app/page.html" }) as { file: string };
+    expect(isPeerMarked(out.file)).toBe(true);
+    expect(translateResult("action_popup", A, { html: "<p></p>" })).toEqual({ html: "<p></p>" });
+  });
+
   it("prefixes the host terminal ids a project lists", () => {
     const out = translateResult("list_project_terminals", A, [
       { id: "app-1", label: "Claude Code", pinned: false },

@@ -20,7 +20,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
 data class ActionPopupUiState(
-    /** The reply's title, else the config's, else the action's label. */
+    /** The config's title, else the action's label. */
     val title: String = "",
     /** The page's height in dp. */
     val height: Int = ActionPopupInfo.DEFAULT_HEIGHT,
@@ -73,13 +73,9 @@ class ActionPopupViewModel @AssistedInject constructor(
 
     private fun uiState(popup: ActionPopupState): ActionPopupUiState {
         val info = action.popup
-        val content = popup.content
         return ActionPopupUiState(
-            title =
-                content?.title?.ifEmpty { null } ?: info?.title?.ifEmpty { null } ?: action.label,
-            height = ActionPopupInfo.pageHeight(
-                content?.height ?: info?.height ?: ActionPopupInfo.DEFAULT_HEIGHT
-            ),
+            title = info?.title?.ifEmpty { null } ?: action.label,
+            height = info?.height ?: ActionPopupInfo.DEFAULT_HEIGHT,
             popup = popup
         )
     }

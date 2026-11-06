@@ -30,10 +30,6 @@ internal fun DemoServer.registerActionPopupHandlers() {
         }
         reply["ok"] = true
         reply["popup"] = mapOf(
-            "format" to (popup.string("format") ?: "html"),
-            "title" to popup.string("title").orEmpty(),
-            "width" to (popup.int("width") ?: 360),
-            "height" to (popup.int("height") ?: 220),
             "refresh" to 0,
             "html" to demoPopupPage,
             "data" to demoStars,

@@ -18,6 +18,7 @@ import cx.lpm.mobile.core.data.terminals.TerminalsStore
 import cx.lpm.mobile.core.model.MentionPlace
 import cx.lpm.mobile.core.model.ServiceInfo
 import cx.lpm.mobile.core.model.SlashCommand
+import cx.lpm.mobile.core.model.parseCommandRun
 import cx.lpm.mobile.feature.terminal.R
 import cx.lpm.mobile.feature.terminal.history.HistoryStore
 import dagger.assisted.Assisted
@@ -286,7 +287,7 @@ class ComposerViewModel @AssistedInject constructor(
 
     /** Counts a sent message that runs one of the agent's commands; an lpm skill counts on expanding. */
     private fun noteSentCommand(text: String) {
-        val name = sentCommandName(text) ?: return
+        val name = parseCommandRun(text)?.name ?: return
         val row = slashRows().firstOrNull { it.name.equals(name, ignoreCase = true) } ?: return
         if (!row.isLpm) {
             session?.store<LpmCommandsStore>()?.noteCommandUsed(

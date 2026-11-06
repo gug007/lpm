@@ -36,8 +36,7 @@ class ActionPopupStoreTest {
     private fun FakeSocket.page(html: String = "<p>1</p>", data: String = "1", extra: String = "") =
         receive(
             """{"t":"actionPopup","project":"api","action":"stars","ok":true,"popup":""" +
-                """{"format":"html","title":"GitHub stars","width":380,"height":200,""" +
-                """"refresh":5,"html":"$html","data":$data$extra}}"""
+                """{"refresh":5,"html":"$html","data":$data$extra}}"""
         )
 
     private val ActionPopupStore.popup get() = state.value.popup("api", "stars")
@@ -71,11 +70,16 @@ class ActionPopupStoreTest {
         store.tick("api", "stars")
         assertEquals("one refresh at a time", 2, socket.sentOf("actionPopup").size)
 
-        socket.page(data = "2")
+        socket.page(data = "2", extra = ""","updatedAt":2""")
         runCurrent()
         assertEquals(1, store.popup.page)
         assertEquals(1, store.popup.pushes)
         assertEquals("2", store.popup.content?.data.toString())
+
+        store.tick("api", "stars")
+        socket.page(data = "2", extra = ""","updatedAt":2""")
+        runCurrent()
+        assertEquals("the same run again leaves the page alone", 1, store.popup.pushes)
 
         store.tick("api", "stars")
         socket.page(html = "<p>2</p>")
@@ -115,18 +119,6 @@ class ActionPopupStoreTest {
             ActionPopupPhase.Failed("Can't find popups/x.html.", retry = true),
             store.popup.phase
         )
-
-        store.reload("api", "stars")
-        socket.receive(
-            """{"t":"actionPopup","project":"api","action":"stars","ok":true,"popup":""" +
-                """{"format":"vega","html":"<p>"}}"""
-        )
-        runCurrent()
-        assertEquals(
-            ActionPopupPhase.Failed(ActionPopupCopy.NEWER_APP, retry = false),
-            store.popup.phase
-        )
-        assertFalse(store.popup.canReload)
     }
 
     @Test

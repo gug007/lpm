@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { listen } from "@tauri-apps/api/event";
 import { PopupViewClose, PopupViewOpen, PopupViewPlace, PopupViewPush } from "../../bridge/commands";
+import { EventsOn } from "../../bridge/runtime";
 import { popupDocument } from "./popupDocument";
 import { hexColor } from "./popupTheme";
 import type { PopupPageProps } from "./popupTypes";
@@ -11,8 +11,6 @@ import { usePagePayload } from "./usePagePayload";
 // a page that hangs or crashes can't take the app with it.
 export function NativePopupFrame({ html, base, payload, width, height, onFailure }: PopupPageProps) {
   const holeRef = useRef<HTMLDivElement>(null);
-  const failRef = useRef(onFailure);
-  failRef.current = onFailure;
   const [opened, setOpened] = useState<string | null>(null);
   const push = useMemo(
     () =>
@@ -30,36 +28,29 @@ export function NativePopupFrame({ html, base, payload, width, height, onFailure
     const r = hole.getBoundingClientRect();
     let live = true;
     // A page that never finishes loading (its script stuck) is closed by the app.
-    let offFailed: (() => void) | null = null;
-    void listen<{ id?: string; error?: string }>("popup-view-failed", (event) => {
-      if (live && event.payload?.id === id) failRef.current(event.payload.error ?? "The page stopped loading.");
-    }).then((off) => {
-      if (live) offFailed = off;
-      else off();
+    const offFailed = EventsOn("popup-view-failed", (failed?: { id?: string; error?: string }) => {
+      if (failed?.id === id) onFailure(failed.error ?? "The page stopped loading.");
     });
     PopupViewOpen(
       id,
       popupDocument(html, first, base),
-      r.left,
-      r.top,
-      r.width,
-      r.height,
-      hexColor(first.theme.colors.bg ?? ""),
+      { x: r.left, y: r.top, width: r.width, height: r.height },
+      hexColor(first.theme.colors.bg),
     ).then(
       () => live && setOpened(id),
-      (err: unknown) => live && failRef.current(`Couldn't open the page: ${err}`),
+      (err: unknown) => live && onFailure(`Couldn't open the page: ${err}`),
     );
     return () => {
       live = false;
-      offFailed?.();
+      offFailed();
       setOpened(null);
       void PopupViewClose(id).catch(() => {});
     };
-  }, [html, base, first]);
+  }, [html, base, first, onFailure]);
 
   const follow = useCallback(
     (rect: Rect) => {
-      if (opened) void PopupViewPlace(opened, rect.x, rect.y, rect.width, rect.height).catch(() => {});
+      if (opened) void PopupViewPlace(opened, rect).catch(() => {});
     },
     [opened],
   );

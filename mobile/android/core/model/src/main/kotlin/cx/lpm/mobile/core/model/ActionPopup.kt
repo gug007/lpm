@@ -27,17 +27,11 @@ data class ActionPopupInfo(
                 problem = it.string("problem").orEmpty()
             )
         }
-
-        /** The page's height on the phone, held to what the Mac allows. */
-        fun pageHeight(height: Int): Int = height.coerceIn(80, 560)
     }
 }
 
 /** The page and data the Mac made for one opening, or one refresh, of a popup. */
 data class ActionPopupContent(
-    val format: String,
-    val title: String,
-    val height: Int,
     /** Seconds between refreshes while the sheet is open; 0 for only when it opens. */
     val refresh: Int,
     /** The whole page; null when it couldn't be made, and [error] says why. */
@@ -56,9 +50,6 @@ data class ActionPopupContent(
 ) {
     companion object {
         fun parse(o: JsonObject): ActionPopupContent = ActionPopupContent(
-            format = o.string("format") ?: ActionPopupInfo.HTML,
-            title = o.string("title").orEmpty(),
-            height = o.size("height") ?: ActionPopupInfo.DEFAULT_HEIGHT,
             refresh = (o.size("refresh") ?: 0).coerceAtLeast(0),
             html = o.string("html"),
             data = o["data"] ?: JsonNull,

@@ -4,10 +4,10 @@
 //! thread starts due probes, watches local git and rendered ages, and emits
 //! `projects-changed` when any of them moves.
 
+use crate::action_exec;
 use crate::action_labels::{self, Ctx};
 use crate::config::{self, SshSettings};
 use std::collections::{BTreeMap, HashMap};
-use std::path::Path;
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
@@ -71,12 +71,7 @@ pub fn read_command(
     every: Duration,
     whole: bool,
 ) -> String {
-    let mut env = env.clone();
-    env.insert("LPM_PROJECT_NAME".into(), ctx.project.to_string());
-    let dir = match ctx.ssh {
-        Some(_) => config::join_remote_dir(ctx.root, cwd),
-        None => config::resolve_cwd(ctx.root, cwd),
-    };
+    let (dir, env) = action_exec::action_place(ctx.project, ctx.root, ctx.ssh.is_some(), cwd, env);
     read(
         (ctx.project, action),
         ctx.ssh,
@@ -271,24 +266,8 @@ pub(crate) fn finish(key: &str, output: Option<String>) {
     probe.output = Some(output);
 }
 
-/// An action's command as its labels and popups run it: in `dir` through the
-/// login shell, on an SSH project's host when there is one.
-pub(crate) fn command(ssh: Option<&SshSettings>, dir: &str, script: &str) -> Command {
-    match ssh {
-        Some(ssh) => {
-            let line = if dir.trim().is_empty() {
-                script.to_string()
-            } else {
-                format!("cd {} && {script}", config::quote_remote_path(dir.trim()))
-            };
-            crate::sshexec::remote_login_script(ssh, &line)
-        }
-        None => local_command(dir, script),
-    }
-}
-
 fn run(ssh: Option<&SshSettings>, dir: &str, script: &str, whole: bool) -> Option<String> {
-    let out = run_with_timeout(command(ssh, dir, script))?;
+    let out = run_with_timeout(action_exec::command(ssh, dir, script))?;
     let text = String::from_utf8_lossy(&out);
     Some(if whole {
         markup(&text)
@@ -309,74 +288,14 @@ fn markup(out: &str) -> String {
     }
 }
 
-/// The user's interactive login shell, as background actions use, so a label
-/// command finds the same PATH and version managers the action itself does.
-fn local_command(dir: &str, script: &str) -> Command {
-    #[cfg_attr(windows, allow(unused_mut))]
-    let mut cmd = crate::shellpath::login_line(Path::new(dir), script);
-    #[cfg(unix)]
-    crate::osproc::detach(&mut cmd);
-    cmd
-}
-
 fn run_with_timeout(mut cmd: Command) -> Option<Vec<u8>> {
     cmd.stderr(Stdio::null());
-    crate::popup_run::capture(cmd, MAX_OUTPUT).ok()
+    action_exec::capture(cmd, MAX_OUTPUT).ok()
 }
 
 /// The first line with text, cut to fit a button.
 pub(crate) fn first_line(out: &str) -> String {
-    first_line_within(out, MAX_CHARS).unwrap_or_default()
-}
-
-/// The first line with text, without terminal escapes (colors, links, the
-/// marks iTerm2's shell integration prints at startup) or control characters,
-/// cut to `max` characters with "…" when longer.
-pub(crate) fn first_line_within(out: &str, max: usize) -> Option<String> {
-    let line = out
-        .lines()
-        .map(|l| strip_ansi(l).trim().to_string())
-        .find(|l| !l.is_empty())?;
-    if line.chars().count() <= max {
-        return Some(line);
-    }
-    let cut: String = line.chars().take(max - 1).collect();
-    Some(format!("{}…", cut.trim_end()))
-}
-
-fn strip_ansi(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    let mut chars = s.chars().peekable();
-    while let Some(c) = chars.next() {
-        if c != '\u{1b}' {
-            if !c.is_control() {
-                out.push(c);
-            }
-            continue;
-        }
-        match chars.next() {
-            Some('[') => {
-                for c in chars.by_ref() {
-                    if ('@'..='~').contains(&c) {
-                        break;
-                    }
-                }
-            }
-            Some(']' | 'P' | 'X' | '^' | '_') => {
-                while let Some(c) = chars.next() {
-                    if c == '\u{7}' {
-                        break;
-                    }
-                    if c == '\u{1b}' {
-                        chars.next_if_eq(&'\\');
-                        break;
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-    out
+    action_exec::first_line_within(out, MAX_CHARS).unwrap_or_default()
 }
 
 #[cfg(test)]

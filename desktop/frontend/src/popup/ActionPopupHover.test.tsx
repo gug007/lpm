@@ -10,9 +10,7 @@ vi.mock("../store/overlay", () => ({ useOverlay: () => {} }));
 import { ActionPopupHover } from "./ActionPopupHover";
 
 const popup: ActionPopupInfo = { format: "html", title: "GitHub stars", width: 300, height: 160 };
-const action = { name: "stars", label: "Stars", cmd: "x", confirm: false, display: "", popup } as ActionInfo & {
-  popup: ActionPopupInfo;
-};
+const action = { name: "stars", label: "Stars", cmd: "x", confirm: false, display: "", popup } as ActionInfo;
 
 let container: HTMLDivElement;
 let root: Root;
@@ -33,7 +31,7 @@ afterEach(() => {
 const dialog = () => document.querySelector('[role="dialog"]');
 
 function openCard() {
-  act(() => root.render(<ActionPopupHover project="storefront" action={action}><button>Stars</button></ActionPopupHover>));
+  act(() => root.render(<ActionPopupHover project="storefront" action={action} popup={popup}><button>Stars</button></ActionPopupHover>));
   const trigger = container.querySelector("span")!;
   act(() => {
     trigger.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));

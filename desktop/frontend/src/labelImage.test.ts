@@ -3,7 +3,20 @@ import { describe, expect, it } from "vitest";
 import { labelImage } from "./labelImage";
 import type { PopupTheme } from "./popup/popupTypes";
 
-const theme: PopupTheme = { mode: "dark", colors: { text: "rgb(229, 229, 229)", accent: "rgb(110, 168, 254)" } };
+const theme: PopupTheme = {
+  mode: "dark",
+  colors: {
+    bg: "rgb(38, 38, 38)",
+    surface: "rgb(23, 23, 23)",
+    text: "rgb(229, 229, 229)",
+    muted: "rgb(150, 150, 150)",
+    border: "rgb(60, 60, 60)",
+    accent: "rgb(110, 168, 254)",
+    green: "rgb(80, 200, 120)",
+    red: "rgb(240, 90, 90)",
+    amber: "rgb(240, 180, 60)",
+  },
+};
 
 function svgOf(src: string | null): string {
   expect(src).not.toBeNull();

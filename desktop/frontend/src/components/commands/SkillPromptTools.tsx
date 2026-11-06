@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { composerValueToText } from "../../composerValue";
 import { rewriteWithAction } from "../../composerVariants";
 import { useAIPicker } from "../../hooks/useAIPicker";
-import { useAIGeneration } from "../../hooks/useAIGeneration";
+import type { AIGeneration } from "../../hooks/useAIGeneration";
 import { useAppStore } from "../../store/app";
 import { useEnabledComposerActions, type ComposerAction } from "../../store/composerActions";
 import { ComposerActionsButton } from "../ComposerActionsButton";
@@ -15,8 +15,7 @@ interface SkillPromptToolsProps {
   projectLabel: string;
   value: string;
   onReplace: (text: string) => void;
-  busy: boolean;
-  onBusyChange: (busy: boolean) => void;
+  gen: AIGeneration;
 }
 
 function historyText(text: string, images: Record<string, string>): string {
@@ -35,13 +34,11 @@ export function SkillPromptTools({
   projectLabel,
   value,
   onReplace,
-  busy,
-  onBusyChange,
+  gen,
 }: SkillPromptToolsProps) {
   const rowRef = useRef<HTMLDivElement>(null);
   const root = useAppStore((s) => s.projects.find((p) => p.name === projectName)?.root);
   const ai = useAIPicker(!!root, projectName);
-  const gen = useAIGeneration(projectName);
   const enabledActions = useEnabledComposerActions();
   const [manageOpen, setManageOpen] = useState(false);
   const [variants, setVariants] = useState<{ label: string; list: string[] } | null>(null);
@@ -50,8 +47,7 @@ export function SkillPromptTools({
   useEffect(() => gen.cancel, [gen.cancel]);
 
   const runAction = async (action: ComposerAction, count: number) => {
-    if (busy || !root || !value.trim()) return;
-    onBusyChange(true);
+    if (gen.generating || !root || !value.trim()) return;
     await rewriteWithAction({
       gen,
       projectName,
@@ -63,7 +59,6 @@ export function SkillPromptTools({
       onText: onReplace,
       onVariants: (list) => setVariants({ label: action.label, list }),
     });
-    onBusyChange(false);
   };
 
   return (
@@ -72,8 +67,8 @@ export function SkillPromptTools({
         <ComposerActionsButton
           align="left"
           enabledActions={enabledActions}
-          busy={busy}
-          onStop={gen.generating ? gen.cancel : undefined}
+          busy={gen.generating}
+          onStop={gen.cancel}
           canRun={value.trim().length > 0}
           cliLabel={ai.cliLabel}
           onRun={(action, count) => void runAction(action, count)}

@@ -275,7 +275,7 @@ enum LpmCommandRules {
 
     /// The `/name args` a whole message is when it could run a command.
     static func parseRun(_ text: String) -> (name: String, args: String)? {
-        guard let re = try? NSRegularExpression(pattern: "^\\s*/([A-Za-z0-9][A-Za-z0-9_-]*)(?:\\s+([\\s\\S]*))?$"),
+        guard let re = try? NSRegularExpression(pattern: "^\\s*/([A-Za-z0-9][A-Za-z0-9:_-]*)(?:\\s+([\\s\\S]*))?$"),
               let m = re.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
               let nameRange = Range(m.range(at: 1), in: text) else { return nil }
         let args = Range(m.range(at: 2), in: text).map { String(text[$0]) } ?? ""

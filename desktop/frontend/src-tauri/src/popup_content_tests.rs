@@ -31,16 +31,35 @@ fn a_command_is_the_whole_value_or_nothing() {
     assert_eq!(command_of("page.html"), None);
     assert_eq!(command_of("$()"), None);
     assert_eq!(command_of("v $(x)"), None);
+    assert_eq!(command_of("$(a) $(b)"), None);
+    assert_eq!(command_of("$(echo ')')"), Some("echo ')'"));
 }
 
+#[cfg(unix)]
 #[test]
-fn json_is_found_after_a_line_the_shell_printed_first() {
-    assert_eq!(parse_json(" {\"a\": 1}\n"), Some(serde_json::json!({ "a": 1 })));
-    assert_eq!(
-        parse_json("Restored session\n[1, 2]\n"),
-        Some(serde_json::json!([1, 2]))
-    );
-    assert_eq!(parse_json("12 commits"), None);
+fn output_that_isnt_json_stays_text() {
+    let tmp = tempfile::tempdir().unwrap();
+    let def = PopupDef {
+        data: PopupData::Source("$(echo 12 commits)".into()),
+        ..html("<p>hi</p>")
+    };
+    let out = make("p", "a", &site(tmp.path(), def));
+    assert_eq!(out.data, Value::Null);
+    assert_eq!(out.text, "12 commits\n");
+}
+
+#[cfg(unix)]
+#[test]
+fn what_a_command_prints_is_read_whatever_the_login_shell_printed_first() {
+    let tmp = tempfile::tempdir().unwrap();
+    let def = PopupDef {
+        data: PopupData::Source("$(echo '{\"a\": 1}')".into()),
+        ..html("$(echo '<p>hi</p>')")
+    };
+    let out = make("p", "a", &site(tmp.path(), def));
+    assert_eq!(out.html.as_deref(), Some("<p>hi</p>\n"));
+    assert_eq!(out.data, serde_json::json!({ "a": 1 }));
+    assert_eq!(out.text, "");
 }
 
 #[test]

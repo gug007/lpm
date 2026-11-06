@@ -6,6 +6,8 @@ import type { ActionInfo, ActionPopupInfo } from "../types";
 import type { PopupContent } from "./popupTypes";
 
 const actionPopup = vi.hoisted(() => vi.fn());
+vi.mock("../../bridge/runtime", () => ({ EventsOn: () => () => {} }));
+vi.mock("../platform", async (original) => ({ ...(await original<typeof import("../platform")>()), isLinux: true }));
 vi.mock("../../bridge/commands", () => ({
   ActionPopup: actionPopup,
   HtmlPreviewRoot: vi.fn(() => Promise.resolve(null)),
@@ -21,10 +23,6 @@ const popup: ActionPopupInfo = { format: "html", title: "GitHub stars", width: 3
 const action = { name: "stars", label: "Stars", cmd: "x", confirm: false, display: "", popup } as ActionInfo;
 
 const content = (over: Partial<PopupContent>): PopupContent => ({
-  format: "html",
-  title: "GitHub stars",
-  width: 300,
-  height: 160,
   refresh: 0,
   data: null,
   updatedAt: Date.now(),
@@ -48,7 +46,7 @@ afterEach(() => {
 
 async function show(info: ActionPopupInfo = popup) {
   await act(async () => {
-    root.render(<ActionPopupCard project="web" action={{ ...action, popup: info }} open />);
+    root.render(<ActionPopupCard project="web" action={action} popup={info} open />);
   });
   await act(async () => {});
 }

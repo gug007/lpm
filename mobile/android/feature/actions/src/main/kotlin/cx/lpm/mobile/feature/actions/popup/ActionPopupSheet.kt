@@ -13,9 +13,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
@@ -24,7 +22,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import cx.lpm.mobile.core.data.actions.ActionPopupPhase
 import cx.lpm.mobile.core.designsystem.R as DesignR
 import cx.lpm.mobile.core.designsystem.component.ActivityIndicator
@@ -39,6 +40,7 @@ import cx.lpm.mobile.core.model.ActionPopupContent
 import cx.lpm.mobile.core.model.SessionKey
 import cx.lpm.mobile.core.model.relativeAgo
 import cx.lpm.mobile.core.navigation.PresentationScope
+import cx.lpm.mobile.core.ui.tickingNow
 import cx.lpm.mobile.core.web.ActionPopupWebView
 import cx.lpm.mobile.feature.actions.R
 import kotlinx.coroutines.delay
@@ -74,11 +76,14 @@ private fun ActionPopupSheetContent(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val sheet = rememberModalSheetState(medium = true)
     val refresh = state.popup.content?.refresh ?: 0
-    LaunchedEffect(refresh) {
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(refresh, lifecycle) {
         if (refresh <= 0) return@LaunchedEffect
-        while (true) {
-            delay(refresh * 1_000L)
-            viewModel.tick()
+        lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            while (true) {
+                delay(refresh * 1_000L)
+                viewModel.tick()
+            }
         }
     }
     ModalSheet(onDismissRequest = onDismiss, modifier = modifier, state = sheet) {
@@ -216,13 +221,7 @@ private fun Page(
 /** How old the page's data is, beside the title, kept current. */
 @Composable
 private fun Age(updatedAt: Long) {
-    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(updatedAt) {
-        while (true) {
-            now = System.currentTimeMillis()
-            delay(AGE_TICK_MS)
-        }
-    }
+    val now = tickingNow(periodMs = AGE_TICK_MS)
     Text(
         text = relativeAgo(updatedAt / 1_000, now / 1_000),
         style = LpmTheme.typography.subheadline,

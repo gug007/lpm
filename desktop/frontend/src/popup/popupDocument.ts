@@ -1,4 +1,5 @@
 import bootstrap from "../../../../mobile/shared/web/popup/bootstrap.js?raw";
+import { POPUP_FONT } from "./popupTheme";
 import type { PopupPayload } from "./popupTypes";
 
 const PAYLOAD_TOKEN = "__LPM_POPUP_PAYLOAD__";
@@ -25,31 +26,17 @@ function escapeAttr(value: string): string {
 }
 
 // The script that runs before a popup page's own and gives it `window.lpm`, the
-// same one the phones inject. Its header names the token too, so this takes the
-// last, as they do.
+// same one the phones inject.
 function bootstrapScript(payload: PopupPayload): string {
-  const at = bootstrap.lastIndexOf(PAYLOAD_TOKEN);
-  return bootstrap.slice(0, at) + scriptJson(payload) + bootstrap.slice(at + PAYLOAD_TOKEN.length);
+  return bootstrap.replace(PAYLOAD_TOKEN, () => scriptJson(payload));
 }
 
-// Puts `snippet` first in the page's head, adding one where it has none.
+// Puts `snippet` first in the page's head, or where one would start: the parser
+// opens it for what's in the snippet.
 export function injectHead(html: string, snippet: string): string {
-  const head = /<head(\s[^>]*)?>/i.exec(html);
-  if (head) {
-    const at = head.index + head[0].length;
-    return html.slice(0, at) + snippet + html.slice(at);
-  }
-  const root = /<html(\s[^>]*)?>/i.exec(html);
-  if (root) {
-    const at = root.index + root[0].length;
-    return `${html.slice(0, at)}<head>${snippet}</head>${html.slice(at)}`;
-  }
-  const doctype = /<!doctype[^>]*>/i.exec(html);
-  if (doctype) {
-    const at = doctype.index + doctype[0].length;
-    return html.slice(0, at) + snippet + html.slice(at);
-  }
-  return snippet + html;
+  const opening = /<head(\s[^>]*)?>/i.exec(html) ?? /<html(\s[^>]*)?>/i.exec(html) ?? /<!doctype[^>]*>/i.exec(html);
+  const at = opening ? opening.index + opening[0].length : 0;
+  return html.slice(0, at) + snippet + html.slice(at);
 }
 
 // The popup's page as the card loads it: `<base>` so its own files load from
@@ -59,8 +46,8 @@ export function popupDocument(html: string, payload: PopupPayload, baseHref?: st
   const colors = payload.theme.colors;
   const snippet = [
     baseHref ? `<base href="${escapeAttr(baseHref)}">` : "",
-    `<style>:where(html){background:${colors.bg ?? "transparent"};color:${colors.text ?? "inherit"};` +
-      `font:12px -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}:where(body){margin:0}</style>`,
+    `<style>:where(html){background:${colors.bg};color:${colors.text};font:12px ${POPUP_FONT}}` +
+      `:where(body){margin:0}</style>`,
     `<script>${bootstrapScript(payload)}${LINKS}</script>`,
   ].join("");
   return injectHead(html, snippet);

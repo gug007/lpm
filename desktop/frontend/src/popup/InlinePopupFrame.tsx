@@ -4,7 +4,7 @@ import type { PopupPageProps } from "./popupTypes";
 import { usePagePayload } from "./usePagePayload";
 
 // The page in a sandboxed frame, where there's no webview to lay over the app:
-// Linux (see browser.rs) and the demo.
+// Linux (see browser.rs).
 export function InlinePopupFrame({ html, base, payload, width, height }: PopupPageProps) {
   const frameRef = useRef<HTMLIFrameElement>(null);
   const push = useCallback((next: unknown) => {

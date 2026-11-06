@@ -20,7 +20,6 @@ export function PromptImprover({ value, onChange, disabled = false }: PromptImpr
   const enabledActions = useEnabledPromptActions();
   const promptActions = usePromptActions();
   const savePromptActions = useGeneratorsStore((s) => s.savePromptActions);
-  const [busy, setBusy] = useState(false);
   const gen = useAIGeneration();
   const [manageOpen, setManageOpen] = useState(false);
   const [variants, setVariants] = useState<{ label: string; list: string[] } | null>(null);
@@ -28,8 +27,7 @@ export function PromptImprover({ value, onChange, disabled = false }: PromptImpr
   if (!ai.anyAvailable) return null;
 
   const runAction = async (action: ComposerAction, count = 1) => {
-    if (busy || !value.trim()) return;
-    setBusy(true);
+    if (gen.generating || !value.trim()) return;
     await rewriteWithAction({
       gen,
       projectName: null,
@@ -41,15 +39,14 @@ export function PromptImprover({ value, onChange, disabled = false }: PromptImpr
       onText: onChange,
       onVariants: (list) => setVariants({ label: action.label, list }),
     });
-    setBusy(false);
   };
 
   return (
     <>
       <ComposerActionsButton
         enabledActions={enabledActions}
-        busy={busy}
-        onStop={gen.generating ? gen.cancel : undefined}
+        busy={gen.generating}
+        onStop={gen.cancel}
         canRun={!disabled && value.trim().length > 0}
         cliLabel={ai.cliLabel}
         onRun={runAction}

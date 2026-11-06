@@ -49,7 +49,7 @@ pub(crate) fn place(wv: &tauri::Webview, x: f64, y: f64, width: f64, height: f64
     Ok(())
 }
 
-fn open_externally(app: &AppHandle, url: &str) -> Result<(), String> {
+pub(crate) fn open_externally(app: &AppHandle, url: &str) -> Result<(), String> {
     use tauri_plugin_opener::OpenerExt;
     let target = parse_url(url)?;
     if target.scheme() == "about" {

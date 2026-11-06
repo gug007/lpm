@@ -15,13 +15,12 @@ struct ActionPopupSheet: View {
     private var refresh: Int { state.content?.refresh ?? 0 }
 
     private var title: String {
-        if let title = state.content?.title, !title.isEmpty { return title }
         if let title = action.popup?.title, !title.isEmpty { return title }
         return action.label
     }
 
     private var height: CGFloat {
-        ActionPopupInfo.pageHeight(state.content?.height ?? action.popup?.height ?? ActionPopupInfo.defaultHeight)
+        CGFloat(action.popup?.height ?? ActionPopupInfo.defaultHeight)
     }
 
     var body: some View {

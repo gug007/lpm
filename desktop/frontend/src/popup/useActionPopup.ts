@@ -67,7 +67,7 @@ export function useActionPopup(project: string, action: string, open: boolean): 
   useEffect(() => {
     if (!open || every <= 0) return;
     const timer = window.setInterval(() => {
-      if (!loadingRef.current) load(false);
+      if (!loadingRef.current && !document.hidden) load(false);
     }, every * 1000);
     return () => window.clearInterval(timer);
   }, [open, every, load]);

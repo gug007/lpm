@@ -2,8 +2,8 @@
 // `size` and `refresh` beside it. The app shows a popup it can't read as words
 // in the card, never dropping the action, but a config that says nothing it
 // can use is still an error here, where it can be fixed before it's applied.
-use super::labels::is_interval;
-use super::{config, string_at, Mapping, Report, Value};
+use super::labels::validate_interval;
+use super::{config, string_at, validate_string_field, Mapping, Report, Value};
 use std::path::{Path, PathBuf};
 
 const FORMATS: &[&str] = &["html", "widgets", "vega", "markdown", "image", "terminal", "url"];
@@ -75,14 +75,10 @@ fn validate_map(popup: &Mapping, path: &str, dir: Option<&Path>, report: &mut Re
             format!("names {} formats ({}); keep one", many.len(), many.join(", ")),
         ),
     }
-    if let Some(title) = popup.get(Value::String("title".into())) {
-        if title.as_str().is_none() {
-            report.error(&format!("{path}.title"), "expected a string");
-        }
-    }
+    validate_string_field(popup, "title", &format!("{path}.title"), report);
     validate_size(popup, path, report);
-    validate_interval(popup, path, "refresh", report);
-    validate_interval(popup, path, "cache", report);
+    validate_interval(popup, "refresh", path, true, report);
+    validate_interval(popup, "cache", path, false, report);
 }
 
 fn validate_size(popup: &Mapping, path: &str, report: &mut Report) {
@@ -110,26 +106,6 @@ fn parse_size(size: &str) -> Option<(u32, u32)> {
     let lower = size.trim().to_lowercase();
     let (w, h) = lower.split_once('x').or_else(|| lower.split_once('×'))?;
     Some((w.trim().parse().ok()?, h.trim().parse().ok()?))
-}
-
-/// `refresh` and `cache`: seconds, or a number with `s`, `m` or `h`; `refresh`
-/// may also be `open`.
-fn validate_interval(popup: &Mapping, path: &str, key: &str, report: &mut Report) {
-    let Some(value) = popup.get(Value::String(key.into())) else {
-        return;
-    };
-    let ok = match value {
-        Value::Number(n) => n.as_u64().is_some(),
-        Value::String(s) => (key == "refresh" && s.trim() == "open") || is_interval(s),
-        _ => false,
-    };
-    if !ok {
-        let open = if key == "refresh" { "open, or " } else { "" };
-        report.error(
-            &format!("{path}.{key}"),
-            format!("expected {open}seconds or a number with s, m or h, like 30s or 5m"),
-        );
-    }
 }
 
 fn warn_unshown(format: &str, path: &str, report: &mut Report) {
@@ -179,12 +155,8 @@ fn format_of(source: &str) -> Option<&'static str> {
 }
 
 fn action_dir(root: &Path, cwd: &str) -> PathBuf {
-    let cwd = PathBuf::from(config::expand_home(cwd));
-    if cwd.is_absolute() {
-        cwd
-    } else {
-        root.join(cwd)
-    }
+    let cwd = config::expand_home(cwd);
+    config::resolve_cwd(&root.to_string_lossy(), &cwd).into()
 }
 
 #[cfg(test)]

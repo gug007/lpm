@@ -1,10 +1,10 @@
 import Foundation
 
 /// Where one open popup sheet stands. `page` counts the loads the web view must
-/// make; an answer that keeps the same page counts `pushes` instead, and its new
-/// values reach the page without a reload.
-struct ActionPopupState: Equatable {
-    enum Phase: Equatable {
+/// make; an answer from a newer run of the same page counts `pushes` instead, and
+/// its values reach the page without a reload.
+struct ActionPopupState {
+    enum Phase {
         case loading
         /// `retry` is false when asking again can't help (a config problem, a
         /// format this app doesn't know).
@@ -61,12 +61,8 @@ struct ActionPopupState: Equatable {
             phase = .failed(content.error.isEmpty ? ActionPopupCopy.couldNotOpen : content.error, retry: true)
             return false
         }
-        guard content.format == ActionPopupInfo.html else {
-            phase = .failed(ActionPopupCopy.newerApp, retry: false)
-            return false
-        }
         if !reload && self.content?.html == html {
-            pushes += 1
+            if self.content?.updatedAt != content.updatedAt { pushes += 1 }
         } else {
             page += 1
         }
@@ -78,7 +74,7 @@ struct ActionPopupState: Equatable {
     mutating func timeOut() {
         inFlight = false
         reloadOnAnswer = false
-        if phase == .loading {
+        if case .loading = phase {
             phase = .failed(ActionPopupCopy.lateAnswer, retry: true)
         } else if content != nil {
             refreshFailure = ActionPopupCopy.lateAnswer

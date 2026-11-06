@@ -41,9 +41,11 @@ pub(crate) fn git_command(cwd: &str, args: &[&str], envs: &[(&str, &str)]) -> Co
     tool_command(cwd, "git", args, envs)
 }
 
-/// Put first in a git command that's given real file names: without it
+/// A git command's arguments over real file names, read literally: otherwise
 /// `[ab].txt` is a pattern that also matches `a.txt`. Not for `:/` and friends.
-pub(crate) const LITERAL_PATHS: &str = "--literal-pathspecs";
+pub(crate) fn path_args<'a>(verb: &[&'a str], paths: &[&'a str]) -> Vec<&'a str> {
+    [&["--literal-pathspecs"], verb, &["--"], paths].concat()
+}
 
 /// Run git in `cwd`, trimmed stdout on success; trimmed stderr (or status) on error.
 pub(crate) fn git_out(cwd: &str, args: &[&str]) -> Result<String, String> {
@@ -496,9 +498,7 @@ pub fn git_status_and_files(cwd: &str) -> (GitStatus, Vec<ChangedFile>) {
 /// Which of `paths` git tracks. `-z` keeps names as they are: otherwise git
 /// quotes non-ASCII ones, and they match nothing.
 fn tracked_files(cwd: &str, paths: &[&str]) -> Result<HashSet<String>, String> {
-    let mut args = vec![LITERAL_PATHS, "ls-files", "-z", "--"];
-    args.extend(paths);
-    Ok(git_out(cwd, &args)?
+    Ok(git_out(cwd, &path_args(&["ls-files", "-z"], paths))?
         .split('\0')
         .filter(|p| !p.is_empty())
         .map(String::from)
@@ -510,11 +510,8 @@ pub fn git_diff(cwd: String, files: Vec<String>) -> Result<String, String> {
     if files.is_empty() {
         return Err("no files".into());
     }
-    let mut dargs: Vec<&str> = vec![LITERAL_PATHS, "diff", "HEAD", "--"];
-    dargs.extend(files.iter().map(String::as_str));
-    let tracked = git_out(&cwd, &dargs).unwrap_or_default();
-
     let paths: Vec<&str> = files.iter().map(String::as_str).collect();
+    let tracked = git_out(&cwd, &path_args(&["diff", "HEAD"], &paths)).unwrap_or_default();
     let tracked_set = tracked_files(&cwd, &paths).unwrap_or_default();
 
     let mut out = String::new();
@@ -705,9 +702,7 @@ pub fn git_diffs(cwd: &str, paths: &[String]) -> Vec<BatchDiff> {
         .collect();
     let mut matched: HashMap<String, String> = HashMap::new();
     if !tracked_paths.is_empty() {
-        let mut dargs: Vec<&str> = vec![LITERAL_PATHS, "diff", "HEAD", "--"];
-        dargs.extend(&tracked_paths);
-        let batch = git_out(cwd, &dargs).unwrap_or_default();
+        let batch = git_out(cwd, &path_args(&["diff", "HEAD"], &tracked_paths)).unwrap_or_default();
         for (p, chunk) in split_diff_by_file(&batch) {
             if !p.is_empty() {
                 matched.insert(p, chunk);
@@ -723,7 +718,7 @@ pub fn git_diffs(cwd: &str, paths: &[String]) -> Vec<BatchDiff> {
                     Some(d) => d,
                     // Ambiguous header or no changes: cheap per-file fallback.
                     None => {
-                        git_out(cwd, &[LITERAL_PATHS, "diff", "HEAD", "--", p]).unwrap_or_default()
+                        git_out(cwd, &path_args(&["diff", "HEAD"], &[p])).unwrap_or_default()
                     }
                 }
             } else {
@@ -1039,22 +1034,18 @@ pub fn git_discard_files(cwd: String, files: Vec<String>) -> Result<Option<Strin
     let tracked = [restore.as_slice(), added.as_slice()].concat();
     let saved = crate::gitdiscards::save_paths(&cwd, &tracked, &untracked)
         .map_err(|e| format!("Couldn't keep a copy, so nothing was discarded: {e}"))?;
+    let reset = |verb: &[&str], paths: &[&str], name: &str| {
+        if paths.is_empty() {
+            return Ok(());
+        }
+        git_out(&cwd, &path_args(verb, paths))
+            .map(|_| ())
+            .map_err(|e| format!("{name}: {e}"))
+    };
     // Before the restore: a case-only rename is one file on a case-insensitive disk.
-    if !added.is_empty() {
-        let mut a: Vec<&str> = vec![LITERAL_PATHS, "rm", "-f", "-q", "--"];
-        a.extend(&added);
-        git_out(&cwd, &a).map_err(|e| format!("rm: {e}"))?;
-    }
-    if !restore.is_empty() {
-        let mut a: Vec<&str> = vec![LITERAL_PATHS, "checkout", "HEAD", "--"];
-        a.extend(&restore);
-        git_out(&cwd, &a).map_err(|e| format!("checkout: {e}"))?;
-    }
-    if !untracked.is_empty() {
-        let mut a: Vec<&str> = vec![LITERAL_PATHS, "clean", "-fd", "--"];
-        a.extend(&untracked);
-        git_out(&cwd, &a).map_err(|e| format!("clean: {e}"))?;
-    }
+    reset(&["rm", "-f", "-q"], &added, "rm")?;
+    reset(&["checkout", "HEAD"], &restore, "checkout")?;
+    reset(&["clean", "-fd"], &untracked, "clean")?;
     Ok(saved)
 }
 
@@ -1317,9 +1308,8 @@ pub fn git_commit(cwd: String, message: String, files: Vec<String>) -> Result<()
     }
     crate::gitconflict::check_commit(&cwd, &files)?;
     let _ = git_out(&cwd, &["reset", "HEAD"]); // clear stage; ignore (initial commit)
-    let mut a: Vec<&str> = vec!["add", "--"];
-    a.extend(files.iter().map(String::as_str));
-    git_out(&cwd, &a).map_err(|e| format!("staging files: {e}"))?;
+    let paths: Vec<&str> = files.iter().map(String::as_str).collect();
+    git_out(&cwd, &path_args(&["add"], &paths)).map_err(|e| format!("staging files: {e}"))?;
     git_out(&cwd, &["commit", "-m", message]).map(|_| ())
 }
 

@@ -124,7 +124,7 @@ pub fn turn_answer(project: &str, key: &str, turn_start: i64) -> Option<String> 
 }
 
 fn first_line(text: &str) -> Option<String> {
-    crate::label_probes::first_line_within(text, ANSWER_CHARS)
+    crate::action_exec::first_line_within(text, ANSWER_CHARS)
 }
 
 #[cfg(test)]

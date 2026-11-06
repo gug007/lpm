@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ActionInfo, ZoneInfo } from "../types";
 import { buildActionsModel } from "../actionsLayoutModel";
 
+vi.mock("../../bridge/runtime", () => ({ EventsOn: () => () => {} }));
 vi.mock("../zoneActions", () => ({ setZoneCollapsed: vi.fn() }));
 vi.mock("../hooks/useGitStatus", () => ({ useGitStatus: () => ({ status: null }) }));
 vi.mock("../hooks/useBranchPullRequest", () => ({ useBranchPullRequest: () => ({ pr: null, commit: null }) }));
@@ -67,8 +68,9 @@ describe("TerminalFooter", () => {
     expect(group.className.startsWith("flex flex-wrap items-center justify-end gap-1 ")).toBe(true);
     expect(tip.dataset.tip).toBe("auto");
     expect(group.querySelector("button")?.className.split(" ")).toEqual(
-      expect.arrayContaining(["px-2.5", "py-1", "text-[11px]"]),
+      expect.arrayContaining(["py-1", "text-[11px]"]),
     );
+    expect(group.querySelector("button > span")?.className.split(" ")).toContain("px-2.5");
   });
 
   it("draws a footer zone in the row, aligned to the top with the tip on the first row", () => {

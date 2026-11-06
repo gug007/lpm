@@ -2,6 +2,7 @@ package cx.lpm.mobile.feature.terminal.composer
 
 import cx.lpm.mobile.core.model.CommandScope
 import cx.lpm.mobile.core.model.SlashCommand
+import cx.lpm.mobile.core.model.parseCommandRun
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -114,11 +115,11 @@ class SlashCommandsTest {
 
     @Test
     fun `only a command a message opens with counts as sent`() {
-        assertEquals("compact", sentCommandName("/compact"))
-        assertEquals("effort", sentCommandName("  /effort high\n"))
-        assertEquals("prompts:draft", sentCommandName("/prompts:draft now"))
-        assertNull(sentCommandName("please /compact"))
-        assertNull(sentCommandName("/usr/bin/env"))
-        assertTrue(sentCommandName("hello") == null)
+        assertEquals("compact", parseCommandRun("/compact")?.name)
+        assertEquals("effort", parseCommandRun("  /effort high\n")?.name)
+        assertEquals("prompts:draft", parseCommandRun("/prompts:draft now")?.name)
+        assertNull(parseCommandRun("please /compact"))
+        assertNull(parseCommandRun("/usr/bin/env"))
+        assertNull(parseCommandRun("hello"))
     }
 }

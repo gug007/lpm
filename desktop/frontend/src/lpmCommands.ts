@@ -154,7 +154,7 @@ export function commandKey(c: CommandRef): string {
 
 // The `/name args` a whole message is when it runs a command, or null.
 export function parseCommandRun(text: string): { name: string; args: string } | null {
-  const m = /^\s*\/([A-Za-z0-9][A-Za-z0-9_-]*)(?:\s+([\s\S]*))?$/.exec(text);
+  const m = /^\s*\/([A-Za-z0-9][A-Za-z0-9:_-]*)(?:\s+([\s\S]*))?$/.exec(text);
   return m ? { name: m[1], args: (m[2] ?? "").trim() } : null;
 }
 

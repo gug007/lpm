@@ -5,8 +5,6 @@ import cx.lpm.mobile.core.model.SlashCommand
 
 private const val MOST_USED_ROWS = 5
 
-private val SENT_COMMAND = Regex("""^\s*/([a-z0-9:_-]+)(?:\s|$)""", RegexOption.IGNORE_CASE)
-
 /** A row's identity: an lpm command and an agent's can share a name in the Mac's reply. */
 internal val SlashCommand.key: String get() = "$source:${scope?.wire.orEmpty()}:$name"
 
@@ -56,12 +54,6 @@ internal fun List<SlashCommand>.matching(fragment: String): List<SlashCommand> {
         )
         .map { it.first }
 }
-
-/**
- * The command a message opens with, or null. A CLI only runs a "/" in that spot, which
- * is all a run count should see.
- */
-internal fun sentCommandName(text: String): String? = SENT_COMMAND.find(text)?.groupValues?.get(1)
 
 /**
  * A row's tag, like the desktop's menu: a skill's folder (its last level), else its list.
