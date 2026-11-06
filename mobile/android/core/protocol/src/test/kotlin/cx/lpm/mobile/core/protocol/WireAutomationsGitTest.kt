@@ -27,6 +27,10 @@ class WireAutomationsGitTest {
         assertFrame("""{ "t": "runJob", "project": "a", "jobId": "j" }""", Wire.runJob("a", "j"))
         assertFrame("""{ "t": "stopJob", "project": "a", "jobId": "j" }""", Wire.stopJob("a", "j"))
         assertFrame(
+            """{ "t": "takeOverJob", "project": "a", "jobId": "j" }""",
+            Wire.takeOverJob("a", "j")
+        )
+        assertFrame(
             """{ "t": "setJobEnabled", "project": "a", "jobId": "j", "enabled": false }""",
             Wire.setJobEnabled("a", "j", enabled = false)
         )

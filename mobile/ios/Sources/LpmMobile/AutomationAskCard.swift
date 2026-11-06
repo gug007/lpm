@@ -48,11 +48,19 @@ struct AutomationAskCard: View {
             ForEach(ask.questions) { q in
                 VStack(alignment: .leading, spacing: 10) {
                     VStack(alignment: .leading, spacing: 2) {
-                        (Text(q.text) + Text(q.optional ? "  optional" : "")
+                        let (headline, details) = automationAskParts(q.text)
+                        (Text(headline) + Text(q.optional ? "  optional" : "")
                             .font(.caption)
                             .foregroundColor(.secondary))
                             .font(lead ? .headline : .subheadline.weight(.semibold))
                             .fixedSize(horizontal: false, vertical: true)
+                        if !details.isEmpty {
+                            Text(details)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .padding(.top, 4)
+                        }
                         if !lead, let d = q.defaultAnswer {
                             Text("Default: \(automationAskDisplay(q, d))")
                                 .font(.caption)

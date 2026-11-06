@@ -57,26 +57,28 @@ extension DemoServer {
                 self.push(["t": "jobs-changed"])
             }
         }
-        register("stopJob") { [weak self] o in
-            guard let self, let project = o["project"] as? String, let jobId = o["jobId"] as? String else { return }
-            if let i = self.jobIndex(project, jobId), self.world.jobs[i].running {
-                var j = self.world.jobs[i]
-                j.runSeq += 1
-                let done = Int(Date().timeIntervalSince1970)
-                let started = j.liveStartedAt ?? done
-                let run = DemoWorld.JobRun(at: done, result: "canceled", output: j.liveText,
-                                           durationSecs: max(1, done - started))
-                j.running = false
-                j.runningSince = nil
-                j.liveStartedAt = nil
-                j.liveText = ""
-                j.lastRunAt = done
-                j.lastResult = "canceled"
-                j.history.append(run)
-                self.world.jobs[i] = j
+        for verb in ["stopJob", "takeOverJob"] {
+            register(verb) { [weak self] o in
+                guard let self, let project = o["project"] as? String, let jobId = o["jobId"] as? String else { return }
+                if let i = self.jobIndex(project, jobId), self.world.jobs[i].running {
+                    var j = self.world.jobs[i]
+                    j.runSeq += 1
+                    let done = Int(Date().timeIntervalSince1970)
+                    let started = j.liveStartedAt ?? done
+                    let run = DemoWorld.JobRun(at: done, result: "canceled", output: j.liveText,
+                                               durationSecs: max(1, done - started))
+                    j.running = false
+                    j.runningSince = nil
+                    j.liveStartedAt = nil
+                    j.liveText = ""
+                    j.lastRunAt = done
+                    j.lastResult = "canceled"
+                    j.history.append(run)
+                    self.world.jobs[i] = j
+                }
+                self.push(["t": verb, "project": project, "jobId": jobId, "ok": true])
+                self.push(["t": "jobs-changed"])
             }
-            self.push(["t": "stopJob", "project": project, "jobId": jobId, "ok": true])
-            self.push(["t": "jobs-changed"])
         }
         register("setJobEnabled") { [weak self] o in
             guard let self, let project = o["project"] as? String, let jobId = o["jobId"] as? String else { return }

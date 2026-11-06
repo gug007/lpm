@@ -72,7 +72,7 @@ class InboundAutomationsTest {
 
     @Test
     fun runStopAndEnableAreMutations() {
-        for (t in listOf("runJob", "stopJob", "setJobEnabled")) {
+        for (t in listOf("runJob", "stopJob", "takeOverJob", "setJobEnabled")) {
             assertEquals(
                 Inbound.AutomationMutation("a", "j", null),
                 Inbound.parse("""{ "t": "$t", "project": "a", "jobId": "j", "ok": true }""")

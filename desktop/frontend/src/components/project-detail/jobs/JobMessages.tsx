@@ -18,14 +18,13 @@ import { displayNameForProjectName } from "../../ProjectNameDisplay";
 import { stripMarker } from "../../../peer/markers";
 import { peerAlias, usePeerState } from "../../../peer/usePeerState";
 import { JobRunRow } from "./JobRunRow";
-import { JobLiveOutput } from "./JobLiveOutput";
+import { JobRunningRow } from "./JobRunningRow";
 import { JobOffBanner } from "./JobOffBanner";
 import { JobOnOffToggle } from "./JobOnOffToggle";
 import { JobAskCard } from "./JobAskCard";
 import { askWaitingIn } from "../../../jobAsk";
 import {
   formatNextRun,
-  formatRunningFor,
   formatSchedule,
   groupJobThreads,
   jobThreadTail,
@@ -246,33 +245,13 @@ export function JobMessages({
         ) : (
           <div className="-mx-1 flex flex-col" style={{ zoom: zoom.zoom }}>
             {job.running && (
-              <div className="flex items-start gap-3 py-3 pl-1 pr-3">
-                <span className="w-2.5 shrink-0" />
-                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[var(--bg-hover)]">
-                  <span className="h-2 w-2 animate-pulse rounded-full bg-[var(--accent-cyan)]" />
-                </span>
-                <div className="min-w-0 flex-1 pt-0.5">
-                  <div className="flex items-center gap-3">
-                    <span className="min-w-0 flex-1 truncate text-[14.5px] font-medium text-[var(--accent-cyan-text)]">
-                      {formatRunningFor(job.runningSince, now)}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={onStop}
-                      className="shrink-0 rounded-lg px-2.5 py-1 text-[12px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--accent-red)]"
-                    >
-                      Stop
-                    </button>
-                  </div>
-                  <div className="mt-2">
-                    <JobLiveOutput
-                      project={project}
-                      jobId={job.id}
-                      running={job.running === true}
-                    />
-                  </div>
-                </div>
-              </div>
+              <JobRunningRow
+                project={project}
+                job={job}
+                now={now}
+                onStop={onStop}
+                onOpenCopy={onOpenCopy}
+              />
             )}
             {threads.map((thread, i) => (
               <JobRunRow

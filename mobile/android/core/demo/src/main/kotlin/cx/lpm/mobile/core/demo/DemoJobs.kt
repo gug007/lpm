@@ -75,30 +75,32 @@ internal fun DemoServer.registerJobsHandlers() {
             push(mapOf("t" to "jobs-changed"))
         }
     }
-    register("stopJob") { o ->
-        val project = o.string("project") ?: return@register
-        val jobId = o.string("jobId") ?: return@register
-        val j = job(project, jobId)
-        if (j != null && j.running) {
-            j.runSeq += 1
-            val done = nowSeconds()
-            val started = j.liveStartedAt ?: done
-            val run = DemoWorld.JobRun(
-                at = done,
-                result = "canceled",
-                output = j.liveText,
-                durationSecs = maxOf(1L, done - started).toInt()
-            )
-            j.running = false
-            j.runningSince = null
-            j.liveStartedAt = null
-            j.liveText = ""
-            j.lastRunAt = done
-            j.lastResult = "canceled"
-            j.history += run
+    for (verb in listOf("stopJob", "takeOverJob")) {
+        register(verb) { o ->
+            val project = o.string("project") ?: return@register
+            val jobId = o.string("jobId") ?: return@register
+            val j = job(project, jobId)
+            if (j != null && j.running) {
+                j.runSeq += 1
+                val done = nowSeconds()
+                val started = j.liveStartedAt ?: done
+                val run = DemoWorld.JobRun(
+                    at = done,
+                    result = "canceled",
+                    output = j.liveText,
+                    durationSecs = maxOf(1L, done - started).toInt()
+                )
+                j.running = false
+                j.runningSince = null
+                j.liveStartedAt = null
+                j.liveText = ""
+                j.lastRunAt = done
+                j.lastResult = "canceled"
+                j.history += run
+            }
+            push(jobReply(verb, project, jobId))
+            push(mapOf("t" to "jobs-changed"))
         }
-        push(jobReply("stopJob", project, jobId))
-        push(mapOf("t" to "jobs-changed"))
     }
     register("setJobEnabled") { o ->
         val project = o.string("project") ?: return@register

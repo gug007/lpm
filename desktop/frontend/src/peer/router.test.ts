@@ -304,6 +304,22 @@ describe("a host's automations", () => {
     ]);
   });
 
+  it("marks where a host's live run is and where it carries on", () => {
+    const [row] = translateResult("list_jobs", SLUG, [
+      { id: "lint", runningIn: "web-2", takeOverIn: "web", runningInName: "UAI-1" },
+    ]) as Record<string, unknown>[];
+    expect(row.runningIn).toBe(prefixName(SLUG, "web-2"));
+    expect(row.takeOverIn).toBe(prefixName(SLUG, "web"));
+    expect(row.runningInName).toBe("UAI-1");
+
+    const session = { sourceProject: "web-2", sessionId: "a" };
+    const task = { kind: "fork", command: "claude --resume a", label: "Lint", claudeSession: session };
+    expect(translateResult("take_over_job_run", SLUG, { project: "web-2", task })).toEqual({
+      project: prefixName(SLUG, "web-2"),
+      task: { ...task, claudeSession: { ...session, sourceProject: prefixName(SLUG, "web-2") } },
+    });
+  });
+
   it("forwards and marks a host's automation events", () => {
     expect(GLOBAL_PEER_EVENTS.has("job-status")).toBe(true);
     expect(GLOBAL_PEER_EVENTS.has("job-seen")).toBe(true);

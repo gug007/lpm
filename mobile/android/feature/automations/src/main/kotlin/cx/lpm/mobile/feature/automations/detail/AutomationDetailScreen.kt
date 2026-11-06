@@ -42,6 +42,7 @@ class AutomationDetailActions(
     val markRead: () -> Unit = {},
     val openRun: (Long) -> Unit = {},
     val runBar: () -> Unit = {},
+    val takeOver: () -> Unit = {},
     val answer: (askId: String, answers: JsonObject) -> Unit = { _, _ -> },
     val dismissQuestion: (askId: String) -> Unit = {}
 )
@@ -123,7 +124,13 @@ fun AutomationDetailScreen(
                         ListSection(
                             header = stringResource(AutomationsR.string.detail_live_output),
                             headerStyle = ListHeaderStyle.Title
-                        ) { LiveTail(live) }
+                        ) {
+                            if (state.livePlace.isNotEmpty()) LivePlace(state.livePlace)
+                            LiveTail(live)
+                            if (job?.takeOverIn?.isNotEmpty() == true) {
+                                TakeOverRow(enabled = !state.pending, onClick = actions.takeOver)
+                            }
+                        }
                     }
                 } else if (state.loaded) {
                     NotFound()

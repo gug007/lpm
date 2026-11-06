@@ -239,4 +239,28 @@ class AutomationFormatTest {
             automationEntryLabel(entry(1, """"result":"error","verified":true"""))
         )
     }
+
+    @Test
+    fun `a live run says what it is doing before it says where`() {
+        val busy = job().copy(running = true)
+        assertEquals("", automationRunPlaceText(busy))
+        assertEquals("Checking for work…", automationRunPlaceText(busy.copy(runningStep = "check")))
+        assertEquals(
+            "Copying the project…",
+            automationRunPlaceText(busy.copy(runningStep = "copy"))
+        )
+        assertEquals(
+            "Working in UAI-5401",
+            automationRunPlaceText(busy.copy(runningInName = "UAI-5401"))
+        )
+    }
+
+    @Test
+    fun `a question leads with its first line and the rest reads under it`() {
+        assertEquals(
+            "Ship it?" to "line one\n  line two",
+            automationAskParts("Ship it?\n\nline one\n  line two\n")
+        )
+        assertEquals("Ship it?" to "", automationAskParts("Ship it?"))
+    }
 }

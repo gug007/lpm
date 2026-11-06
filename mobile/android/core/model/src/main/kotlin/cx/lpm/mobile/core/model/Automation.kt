@@ -54,6 +54,13 @@ data class AutomationJob(
     val nextFireAt: Long?,
     val running: Boolean,
     val runningSince: Long?,
+    /**
+     * What a run is doing before its own work starts ("check" or "copy"), the copy it
+     * works in, and the project to carry it on in a terminal from. Older Macs omit them.
+     */
+    val runningStep: String = "",
+    val runningInName: String = "",
+    val takeOverIn: String = "",
     val agent: String,
     val model: String,
     val effort: String,
@@ -141,6 +148,9 @@ data class AutomationJob(
                 nextFireAt = o.long("nextFireAt"),
                 running = o.bool("running") ?: false,
                 runningSince = o.long("runningSince"),
+                runningStep = o.string("runningStep").orEmpty(),
+                runningInName = o.string("runningInName").orEmpty(),
+                takeOverIn = o.string("takeOverIn").orEmpty(),
                 agent = o.string("agent").orEmpty(),
                 model = o.string("model").orEmpty(),
                 effort = o.string("effort").orEmpty(),

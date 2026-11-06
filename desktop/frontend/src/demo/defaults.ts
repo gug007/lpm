@@ -61,7 +61,7 @@ const NULL: string[] = [
   "set_claude_pool", "set_clipboard_text", "set_openai_key", "set_project_label", "share_png_image",
   "set_work_status", "start_clone_project", "start_tts", "start_watching_project", "stop_all",
   "stop_job_run", "stop_service", "stop_tts", "stop_watching_project", "sync_project_cancel",
-  "tailnet_set_enabled", "tailnet_sign_in", "tailnet_sign_out", "tailnet_state",
+  "take_over_job_run", "tailnet_set_enabled", "tailnet_sign_in", "tailnet_sign_out", "tailnet_state",
   "take_share_join_link", "telegram_connect", "telegram_disconnect", "telegram_remove_chat",
   "telegram_status", "telegram_test", "terminal_claim_control", "terminal_claude_account",
   "terminal_control_owner", "terminal_present_control", "terminal_tab_op",

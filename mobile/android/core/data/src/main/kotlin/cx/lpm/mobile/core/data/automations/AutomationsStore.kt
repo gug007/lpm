@@ -15,6 +15,7 @@ import cx.lpm.mobile.core.data.client.saveJob
 import cx.lpm.mobile.core.data.client.sendJobFollowup
 import cx.lpm.mobile.core.data.client.setJobEnabled
 import cx.lpm.mobile.core.data.client.stopJob
+import cx.lpm.mobile.core.data.client.takeOverJob
 import cx.lpm.mobile.core.data.session.GenerationTimeout
 import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.data.session.SessionStore
@@ -155,6 +156,13 @@ class AutomationsStore(private val session: MacSession) : SessionStore {
     fun run(job: AutomationJob) = forEachTarget(job) { c, target -> c.runJob(target, job.id) }
 
     fun stop(job: AutomationJob) = forEachTarget(job) { c, target -> c.stopJob(target, job.id) }
+
+    /** Stops a Claude run and carries its conversation on in a terminal on the Mac. */
+    fun takeOver(job: AutomationJob) {
+        val c = client ?: return
+        mutable.update { it.copy(pending = it.pending + automationKey(job.takeOverIn, job.id)) }
+        c.takeOverJob(job.takeOverIn, job.id)
+    }
 
     fun setEnabled(job: AutomationJob, enabled: Boolean) =
         forEachTarget(job) { c, target -> c.setJobEnabled(target, job.id, enabled) }

@@ -22,6 +22,10 @@ sealed interface WireAutomations {
         putJob(project, jobId)
     }
 
+    fun takeOverJob(project: String, jobId: String): String = frame("takeOverJob") {
+        putJob(project, jobId)
+    }
+
     fun setJobEnabled(project: String, jobId: String, enabled: Boolean): String =
         frame("setJobEnabled") {
             putJob(project, jobId)

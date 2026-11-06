@@ -9,6 +9,7 @@ import {
   formatInterval,
   formatNextRun,
   formatRunningFor,
+  jobRunPlace,
   formatSchedule,
   groupJobThreads,
   isThreadUnread,
@@ -965,5 +966,17 @@ describe("jobScopePhrase", () => {
     expect(
       jobScopePhrase({ id: "j", valid: true, enabled: true, standalone: true }, upper),
     ).toBe("");
+  });
+});
+
+describe("jobRunPlace", () => {
+  it("says what a run is doing before it says where", () => {
+    expect(jobRunPlace({ runningStep: "check" })).toBe("Checking for work");
+    expect(jobRunPlace({ runningStep: "copy" })).toBe("Copying the project");
+    expect(jobRunPlace({ runningInName: "UAI-5401" })).toBe("in UAI-5401");
+  });
+
+  it("says nothing about a run in the project itself", () => {
+    expect(jobRunPlace({})).toBe("");
   });
 });

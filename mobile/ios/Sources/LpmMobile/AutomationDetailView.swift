@@ -41,7 +41,7 @@ struct AutomationDetailView: View {
                     schedule(job)
                     setup(job)
                 }
-                if job.running { liveOutput }
+                if job.running { liveOutput(job) }
             } else if model.automationsLoaded {
                 Section {
                     ContentUnavailableView("Automation not found",
@@ -194,9 +194,20 @@ struct AutomationDetailView: View {
         }
     }
 
-    private var liveOutput: some View {
+    private func liveOutput(_ job: AutomationJob) -> some View {
         Section("Live output") {
+            if let place = automationRunPlaceText(job) {
+                Text(place)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
             AutomationLiveTail(text: model.automationLiveOutput[key]?.text ?? "")
+            if !job.takeOverIn.isEmpty {
+                Button("Open in terminal") { model.takeOverAutomation(job) }
+                    .font(.subheadline)
+                    .disabled(model.automationPending.contains(key))
+            }
         }
     }
 

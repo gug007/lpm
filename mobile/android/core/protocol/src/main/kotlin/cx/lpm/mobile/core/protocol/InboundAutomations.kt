@@ -31,7 +31,7 @@ internal val automationParsers = parsers {
             error = o.failure("Couldn't load live output.")
         )
     }
-    for (t in listOf("runJob", "stopJob", "setJobEnabled")) {
+    for (t in listOf("runJob", "stopJob", "takeOverJob", "setJobEnabled")) {
         put(t) { o ->
             Inbound.AutomationMutation(
                 project = o.str("project"),

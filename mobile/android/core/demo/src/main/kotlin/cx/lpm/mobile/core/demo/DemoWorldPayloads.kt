@@ -187,6 +187,7 @@ internal fun jobDict(j: DemoWorld.Job): Dict {
     }
     j.nextFireAt?.let { o["nextFireAt"] = it }
     j.runningSince?.let { o["runningSince"] = it }
+    if (j.running && j.runKind == "prompt" && j.agent == "claude") o["takeOverIn"] = j.project
     o["unread"] = jobUnreadCount(j)
     openAsk(j)?.let { o["ask"] = it }
     return o

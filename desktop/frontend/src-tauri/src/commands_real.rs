@@ -274,6 +274,9 @@ pub fn reorder_projects(app: AppHandle, order: Vec<String>) -> Result<(), String
 #[tauri::command(async)]
 pub fn set_project_label(app: AppHandle, name: String, label: String) -> Result<(), String> {
     let wanted = label.trim();
+    if wanted.contains(['\n', '\r']) {
+        return Err("A project's name has to fit on one line".into());
+    }
     if !wanted.is_empty() && crate::project_labels::taken_by(&name, wanted).is_some() {
         return Err(format!("Another project is already called \"{wanted}\""));
     }
@@ -303,15 +306,15 @@ pub fn set_project_label(app: AppHandle, name: String, label: String) -> Result<
 /// What the UI sends to set a status. `state` is required; the rest describe a
 /// custom one, and a missing or blank one of those clears that field. Clearing
 /// the whole block is a missing `status`, not an empty patch.
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, Debug, PartialEq)]
 pub struct WorkStatusPatch {
-    state: String,
+    pub(crate) state: String,
     #[serde(default)]
-    label: Option<String>,
+    pub(crate) label: Option<String>,
     #[serde(default)]
-    emoji: Option<String>,
+    pub(crate) emoji: Option<String>,
     #[serde(default)]
-    note: Option<String>,
+    pub(crate) note: Option<String>,
 }
 
 /// Rewrites the doc's `work_status` block; returns whether anything changed, so

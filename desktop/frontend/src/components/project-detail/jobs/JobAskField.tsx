@@ -1,5 +1,6 @@
 import { modalInputClass } from "../../../forms/styles";
 import {
+  askParts,
   displayAnswer,
   type JobAskAnswer,
   type JobAskDraft,
@@ -27,6 +28,7 @@ interface Props extends JobAskFieldProps {
 // One question and the way it's answered: yes and no, the options to pick
 // from, or a box to write in.
 export function JobAskField({ question: q, draft, onChange, onAnswer, disabled, lead }: Props) {
+  const { headline, details } = askParts(q.text);
   return (
     <div className="mt-4 first:mt-0">
       <p
@@ -34,9 +36,14 @@ export function JobAskField({ question: q, draft, onChange, onAnswer, disabled, 
           lead ? "text-[15px]" : "text-[13px]"
         }`}
       >
-        {q.text}
+        {headline}
         {q.optional && <span className="ml-1.5 text-[11px] font-normal text-[var(--text-muted)]">optional</span>}
       </p>
+      {details && (
+        <p className="mt-1.5 max-h-[40vh] overflow-y-auto whitespace-pre-wrap break-words text-[13px] leading-[1.5] text-[var(--text-secondary)]">
+          {details}
+        </p>
+      )}
       {!lead && q.default !== undefined && (
         <p className="mt-0.5 text-[11px] text-[var(--text-muted)]">
           Default: {displayAnswer(q, q.default)}

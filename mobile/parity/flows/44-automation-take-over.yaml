@@ -1,0 +1,35 @@
+appId: cx.lpm.mobile
+name: 44-automation-take-over
+tags: [demo, automations]
+---
+- runFlow: subflows/enter-demo.yaml
+- runFlow: subflows/open-more-menu.yaml
+- retry:
+    maxRetries: 2
+    commands:
+      - tapOn: "Automations.*"
+      - extendedWaitUntil:
+          visible: "Weekly dependency check"
+          timeout: 5000
+- tapOn: "Weekly dependency check"
+- extendedWaitUntil:
+    visible: "Run history"
+    timeout: 5000
+# The automation is off, so the bar turns it on before it can run.
+- tapOn: "Turn on"
+- extendedWaitUntil:
+    visible: "Run now"
+    timeout: 5000
+- tapOn: "Run now"
+- extendedWaitUntil:
+    visible: "Open in terminal"
+    timeout: 5000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 1-automation-live
+# Carrying the run on in a terminal ends it here.
+- tapOn: "Open in terminal"
+- extendedWaitUntil:
+    notVisible: "Open in terminal"
+    timeout: 5000
+- assertVisible: "Run now"

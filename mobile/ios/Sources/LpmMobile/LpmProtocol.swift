@@ -147,6 +147,9 @@ enum Wire {
     static func stopJob(project: String, jobId: String) -> String {
         json(["t": "stopJob", "project": project, "jobId": jobId])
     }
+    static func takeOverJob(project: String, jobId: String) -> String {
+        json(["t": "takeOverJob", "project": project, "jobId": jobId])
+    }
     static func setJobEnabled(project: String, jobId: String, enabled: Bool) -> String {
         json(["t": "setJobEnabled", "project": project, "jobId": jobId, "enabled": enabled])
     }
@@ -1055,7 +1058,7 @@ enum Wire {
                                       jobId: obj["jobId"] as? String ?? "",
                                       live: ok ? AutomationLiveOutput(obj["live"] as? [String: Any]) : nil,
                                       error: ok ? nil : (obj["error"] as? String ?? "Couldn't load live output."))
-            case "runJob", "stopJob", "setJobEnabled":
+            case "runJob", "stopJob", "takeOverJob", "setJobEnabled":
                 let ok = obj["ok"] as? Bool ?? false
                 return .automationMutation(project: obj["project"] as? String ?? "",
                                            jobId: obj["jobId"] as? String ?? "",
@@ -1599,6 +1602,12 @@ struct AutomationJob: Identifiable {
     let nextFireAt: Int?
     let running: Bool
     let runningSince: Int?
+    /// What a run is doing before its own work starts ("check" or "copy"), the
+    /// copy it works in, and the project to carry it on in a terminal from.
+    /// Older Macs omit them.
+    let runningStep: String
+    let runningInName: String
+    let takeOverIn: String
     let agent: String
     let model: String
     let effort: String
@@ -1657,6 +1666,9 @@ struct AutomationJob: Identifiable {
         nextFireAt = o["nextFireAt"] as? Int
         running = o["running"] as? Bool ?? false
         runningSince = o["runningSince"] as? Int
+        runningStep = o["runningStep"] as? String ?? ""
+        runningInName = o["runningInName"] as? String ?? ""
+        takeOverIn = o["takeOverIn"] as? String ?? ""
         agent = o["agent"] as? String ?? ""
         model = o["model"] as? String ?? ""
         effort = o["effort"] as? String ?? ""

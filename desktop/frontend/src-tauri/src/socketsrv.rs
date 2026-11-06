@@ -286,6 +286,9 @@ fn process_command(line: &str, store: &StatusStore, app: &AppHandle) -> String {
         "list_all_jobs" => cmd_list_all_jobs(),
         "run_job" => cmd_run_job(args, app),
         "stop_job" => cmd_stop_job(args),
+        "take_over_job" => cmd_take_over_job(args, app),
+        "rename_project" => crate::projectmarks::cmd_rename_project(args, app),
+        "set_project_status" => crate::projectmarks::cmd_set_project_status(args, app),
         "set_job_enabled" => cmd_set_job_enabled(args),
         "job_history" => cmd_job_history(args),
         "job_live_output" => cmd_job_live_output(args),
@@ -320,7 +323,7 @@ fn process_command(line: &str, store: &StatusStore, app: &AppHandle) -> String {
 
 /// `OK` on success, `ERROR: <msg>` otherwise. Shared reply shape for the control
 /// verbs so failures pass the underlying `services::*` text straight through.
-fn reply(r: Result<(), String>) -> String {
+pub(crate) fn reply(r: Result<(), String>) -> String {
     match r {
         Ok(()) => "OK".into(),
         Err(e) => format!("ERROR: {e}"),
@@ -952,6 +955,18 @@ fn cmd_stop_job(args: &[String]) -> String {
     )
 }
 
+fn cmd_take_over_job(args: &[String], app: &AppHandle) -> String {
+    let (positional, options) = parse_options(args);
+    let Some(job) = job_ref(&positional, &options) else {
+        return serde_json::json!({ "ok": false, "error": "usage: take_over_job <project> <job_id>" })
+            .to_string();
+    };
+    job_result(
+        ensure_job_exists(job.project, job.id)
+            .and_then(|_| crate::jobs::takeover::take_over_in_app(app, job.project, job.id)),
+    )
+}
+
 fn cmd_set_job_enabled(args: &[String]) -> String {
     let (positional, options) = parse_options(args);
     let Some(job) = job_ref(&positional, &options).filter(|job| !job.rest.is_empty()) else {
@@ -1533,6 +1548,9 @@ mod tests {
             "list_all_jobs",
             "run_job",
             "stop_job",
+            "take_over_job",
+            "rename_project",
+            "set_project_status",
             "set_job_enabled",
             "job_history",
             "job_live_output",

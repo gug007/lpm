@@ -2,8 +2,8 @@
 // the user's account, so the local socket checks who is calling before the
 // verbs a run must never use on itself: answering or dismissing a question,
 // replying in its thread (which answers in words), pairing a phone or a
-// computer, and starting a task in the app's terminals (`lpm run`, or a
-// duplicate that runs one), whose processes would sit outside the run and so
+// computer, and starting a task in the app's terminals (`lpm run`, a duplicate
+// that runs one, or carrying a run on in a terminal), whose processes would sit outside the run and so
 // could answer for it. The app's own UI, phones and Telegram answer in-process
 // and never meet this check.
 //
@@ -30,7 +30,7 @@ const MAX_DEPTH: usize = 64;
 
 const REFUSAL: &str = "An automation run can't answer, dismiss or reply to automation questions, or pair a device. Answer in lpm, lpm Link or Telegram.";
 const AGENT_REFUSAL: &str = "An automation run can't copy files to or run commands on another computer. Run it from a terminal in lpm.";
-const TASK_REFUSAL: &str = "An automation run can't start tasks in lpm's terminals (lpm run, or lpm duplicate or lpm worktree with --run or --command): they would run outside the automation.";
+const TASK_REFUSAL: &str = "An automation run can't start tasks in lpm's terminals (lpm run, lpm automations take-over, or lpm duplicate or lpm worktree with --run or --command): they would run outside the automation.";
 
 struct Mark {
     id: u64,
@@ -57,6 +57,7 @@ pub fn refused(verb: &str) -> bool {
             | "remote_pair"
             | "peer_pair"
             | "run_task"
+            | "take_over_job"
             | "agent_cp"
             | "agent_exec"
     )
@@ -67,7 +68,7 @@ pub fn refused(verb: &str) -> bool {
 /// duplicate verbs as JSON.
 pub fn refusal(verb: &str) -> String {
     let text = match verb {
-        "run_task" | "duplicate_project" | "duplicate_worktree" => TASK_REFUSAL,
+        "run_task" | "take_over_job" | "duplicate_project" | "duplicate_worktree" => TASK_REFUSAL,
         "agent_cp" | "agent_exec" => AGENT_REFUSAL,
         _ => REFUSAL,
     };

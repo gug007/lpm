@@ -115,6 +115,10 @@ class AutomationDetailViewModel @AssistedInject constructor(
         }
     }
 
+    fun takeOver() {
+        uiState.value.job?.let { store?.takeOver(it) }
+    }
+
     /** Answer the job's open question where it waits; the first answer from any device wins. */
     fun answer(askId: String, answers: JsonObject) {
         store?.answerQuestion(uiState.value.askProject, key.jobId, askId, answers)

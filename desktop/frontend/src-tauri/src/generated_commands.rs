@@ -243,6 +243,7 @@ macro_rules! all_command_handlers {
             send_job_followup,
             set_job_enabled,
             stop_job_run,
+            take_over_job_run,
             test_job_check,
             list_branches,
             list_dir_entries,

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   answersOnClick,
   askDeadlineNote,
+  askParts,
   askStatusLabel,
   askWaitingIn,
   displayAnswer,
@@ -92,5 +93,18 @@ describe("jobAsk", () => {
     expect(askWaitingIn(ask({ project: "web" }), "web")?.id).toBe("a");
     expect(askWaitingIn(ask({ project: "api" }), "web")).toBeUndefined();
     expect(askWaitingIn(ask({ status: "answered" }), "web")).toBeUndefined();
+  });
+});
+
+describe("askParts", () => {
+  it("leads with the first line and keeps the rest as it was written", () => {
+    expect(askParts("Ship it?\n\nline one\n  line two\n")).toEqual({
+      headline: "Ship it?",
+      details: "line one\n  line two",
+    });
+  });
+
+  it("leaves a one-line question whole", () => {
+    expect(askParts("Ship it?")).toEqual({ headline: "Ship it?", details: "" });
   });
 });

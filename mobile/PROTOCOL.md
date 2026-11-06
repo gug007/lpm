@@ -363,6 +363,7 @@ holds no credential of its own, so removing it sends nothing.
 | `{ "t": "jobLiveOutput", "project": "<name>", "jobId": "<id>" }` | `{ "t": "jobLiveOutput", "project": "<name>", "jobId": "<id>", "ok": true, "live": { "startedAt": N, "text": "…" }\|null }` / `{ "ok": false, "error": "…" }` |
 | `{ "t": "runJob", "project": "<name>", "jobId": "<id>" }` | `{ "t": "runJob", "project": "<name>", "jobId": "<id>", "ok": true }` / `{ "ok": false, "error": "…" }` |
 | `{ "t": "stopJob", "project": "<name>", "jobId": "<id>" }` | `{ "t": "stopJob", "project": "<name>", "jobId": "<id>", "ok": true }` / `{ "ok": false, "error": "…" }` |
+| `{ "t": "takeOverJob", "project": "<name>", "jobId": "<id>" }` | `{ "t": "takeOverJob", "project": "<name>", "jobId": "<id>", "ok": true }` / `{ "ok": false, "error": "…" }` — for a job whose row has `takeOverIn`, which is the `project` to send: stops the run and carries its conversation on in a new terminal tab of the project it worked in (`runningIn`, else that project), which the Mac's window opens and selects. The reply comes once the run has stopped, within a few seconds. Refused when no window is open on the Mac, or while the run hasn't started its conversation yet |
 | `{ "t": "setJobEnabled", "project": "<name>", "jobId": "<id>", "enabled": bool }` | `{ "t": "setJobEnabled", "project": "<name>", "jobId": "<id>", "ok": true }` / `{ "ok": false, "error": "…" }` |
 | `{ "t": "markJobSeen", "project": "<name>", "jobId": "<id>", "at": N? }` | `{ "t": "markJobSeen", "project": "<name>", "jobId": "<id>", "ok": true }` / `{ "ok": false, "error": "…" }` — mark this automation's runs read up to `at`, the entry the phone opened, leaving anything newer unread; omit `at` to read all of it. The watermark only moves forward, so opening an older run can't un-read newer ones. Read state is per project/job pair and shared with the desktop, so a job spanning several projects needs one call per entry in `targets`. Pushes `jobs-changed` |
 | `{ "t": "markAllJobsSeen" }` | `{ "t": "markAllJobsSeen", "ok": true }` / `{ "ok": false, "error": "…" }` — mark every automation read. Pushes `jobs-changed` |
@@ -1491,6 +1492,13 @@ lastDurationSecs: N | null // how long the last run ran, when it was timed
 nextFireAt: unix seconds | null
 running: bool
 runningSince: unix seconds | null
+runningStep: "check" | "copy"? // what the run is doing before its own work starts
+runningIn: string?        // the copy the run works in
+runningInName: string?    // that copy as the app names it
+takeOverIn: string?       // set while a Claude run can carry on in a terminal: the
+                          // project to send `takeOverJob` for. A shared job's row
+                          // stands for every project it runs in. Older Macs omit
+                          // these four
 agent: string?
 model: string?
 effort: string?

@@ -1950,6 +1950,13 @@ final class AppModel {
         forEachAutomationTarget(job) { $0.stopJob(project: $1, jobId: job.id) }
     }
 
+    /// Stops a Claude run and carries its conversation on in a terminal on the
+    /// Mac, in the folder it was working in.
+    func takeOverAutomation(_ job: AutomationJob) {
+        automationPending.insert(automationKey(job.takeOverIn, job.id))
+        client?.takeOverJob(project: job.takeOverIn, jobId: job.id)
+    }
+
     func setAutomationEnabled(_ job: AutomationJob, enabled: Bool) {
         forEachAutomationTarget(job) {
             $0.setJobEnabled(project: $1, jobId: job.id, enabled: enabled)

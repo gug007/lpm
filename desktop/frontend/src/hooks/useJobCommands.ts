@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import { toast } from "../notifications/toast";
 import { RunJobNow, SetJobEnabled, StopJobRun } from "../../bridge/commands";
 
-const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err));
+export const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
 /** Runs a job now; a refusal (job off, waiting on an answer) is told as a toast. */
 export function runJobNow(project: string, id: string): void {

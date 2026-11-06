@@ -55,6 +55,15 @@ pub fn resolve_or_infer(ctx: &Ctx, name: Option<&str>) -> Result<String, RunErro
     }
 }
 
+/// `resolve_or_infer` for the verbs that mark a project itself. LPM_PROJECT_NAME
+/// stays the original in a run that works in a copy, so the run says which
+/// project it is in: renaming the original instead would be a mistake nothing
+/// warns about.
+pub fn resolve_run_target(ctx: &Ctx, name: Option<&str>) -> Result<String, RunError> {
+    let run = std::env::var("LPM_RUN_PROJECT").ok().filter(|p| !p.is_empty());
+    resolve_or_infer(ctx, name.or(run.as_deref()))
+}
+
 /// `resolve_or_infer` for the verbs that only read or write agent statuses,
 /// which also reach the global Terminals: named by their key, or inferred
 /// inside one of their tabs.

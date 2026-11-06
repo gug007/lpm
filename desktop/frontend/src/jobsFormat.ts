@@ -81,6 +81,8 @@ export type JobSchedule =
 // .lpm.yml, or ~/.lpm/global.yml (applies to every project).
 export type JobSourceLayer = "project" | "repo" | "global";
 
+export type JobRunStep = "check" | "copy";
+
 export interface JobInfo {
   id: string;
   valid: boolean;
@@ -105,6 +107,13 @@ export interface JobInfo {
   nextFireAt?: number;
   running?: boolean;
   runningSince?: number;
+  // What a run is doing before its own work starts, the copy it works in, and
+  // the project to carry it on in a terminal from: a shared job's row stands for
+  // every project it runs in. Absent from older machines.
+  runningStep?: JobRunStep;
+  runningIn?: string;
+  runningInName?: string;
+  takeOverIn?: string;
   agent?: string;
   model?: string;
   effort?: string;
@@ -366,6 +375,22 @@ export function liveOutputTail(text: string | undefined, maxLines = 12): string 
   const lines = clean.split("\n").map((l) => l.trimEnd());
   while (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
   return lines.slice(-maxLines).join("\n");
+}
+
+const RUN_STEP_TEXT: Record<JobRunStep, string> = {
+  check: "Checking for work",
+  copy: "Copying the project",
+};
+
+export function jobRunStep(job: Pick<JobInfo, "runningStep">): string {
+  return job.runningStep ? RUN_STEP_TEXT[job.runningStep] : "";
+}
+
+// What a live run is doing or where it is, beside its clock in a list.
+export function jobRunPlace(job: Pick<JobInfo, "runningStep" | "runningInName">): string {
+  const step = jobRunStep(job);
+  if (step) return step;
+  return job.runningInName ? `in ${job.runningInName}` : "";
 }
 
 // "12s", "4m", "4m 30s", "1h 12m" — how long a run took.

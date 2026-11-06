@@ -18,6 +18,7 @@ import cx.lpm.mobile.feature.automations.format.automationPillText
 import cx.lpm.mobile.feature.automations.format.automationPillTone
 import cx.lpm.mobile.feature.automations.format.automationResultLabel
 import cx.lpm.mobile.feature.automations.format.automationResultTone
+import cx.lpm.mobile.feature.automations.format.automationRunPlaceText
 import cx.lpm.mobile.feature.automations.format.automationScheduleText
 import cx.lpm.mobile.feature.automations.format.automationScopeText
 import cx.lpm.mobile.feature.automations.format.automationThreads
@@ -72,6 +73,8 @@ data class AutomationDetailUiState(
     val setup: SetupUi? = null,
     /** The run's output so far, while it runs. */
     val live: String? = null,
+    /** What the run is doing or where it is, above its output. */
+    val livePlace: String = "",
     val runs: List<RunRowUi> = emptyList(),
     val historyLoading: Boolean = false,
     val error: String? = null,
@@ -130,6 +133,7 @@ internal fun AutomationsState.detailState(
         },
         setup = job.setup(AutomationMachines.label(job, machines)),
         live = if (job.running) liveOutput[key]?.text.orEmpty() else null,
+        livePlace = automationRunPlaceText(job),
         askWhen = job.ask?.let {
             automationAskWhen(it, clock.now.epochSecond, clock::clock)
         }.orEmpty(),

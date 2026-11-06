@@ -209,10 +209,18 @@ function prefixPanes(slug: string, entries: StatusEntry[] | undefined): StatusEn
 // A standalone row keeps its empty targets; `host` is what routes it.
 function translateJob(slug: string, row: unknown): unknown {
   if (!row || typeof row !== "object") return row;
-  const job = row as { project?: unknown; targets?: unknown; ask?: { project?: unknown } };
+  const job = row as {
+    project?: unknown;
+    targets?: unknown;
+    runningIn?: unknown;
+    takeOverIn?: unknown;
+    ask?: { project?: unknown };
+  };
   return {
     ...job,
     host: slug,
+    ...(typeof job.runningIn === "string" ? { runningIn: prefixName(slug, job.runningIn) } : {}),
+    ...(typeof job.takeOverIn === "string" ? { takeOverIn: prefixName(slug, job.takeOverIn) } : {}),
     ...(job.ask && typeof job.ask.project === "string"
       ? { ask: { ...job.ask, project: prefixName(slug, job.ask.project) } }
       : {}),
@@ -284,6 +292,18 @@ export function translateResult(cmd: string, slug: string, result: unknown): unk
   }
   if ((cmd === "list_all_jobs" || cmd === "list_jobs") && Array.isArray(result)) {
     return result.map((row) => translateJob(slug, row));
+  }
+  // The tab carrying a run on opens here, in the host's project.
+  if (cmd === "take_over_job_run" && result && typeof result === "object") {
+    const tab = result as { project: string; task: { claudeSession: { sourceProject: string } } };
+    const session = tab.task.claudeSession;
+    return {
+      project: prefixName(slug, tab.project),
+      task: {
+        ...tab.task,
+        claudeSession: { ...session, sourceProject: prefixName(slug, session.sourceProject) },
+      },
+    };
   }
   // A run that worked in a copy names it, for "Open copy".
   if (cmd === "job_history" && Array.isArray(result)) {

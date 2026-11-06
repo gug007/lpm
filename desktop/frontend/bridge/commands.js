@@ -633,6 +633,9 @@ export function SetJobEnabled(project, jobId, enabled) {
 export function StopJobRun(project, jobId) {
   return invoke("stop_job_run", { project, jobId });
 }
+export function TakeOverJobRun(project, jobId) {
+  return invoke("take_over_job_run", { project, jobId });
+}
 export function SendJobFollowup(project, jobId, at, message, agent, model, effort) {
   return invoke("send_job_followup", { project, jobId, at, message, agent, model, effort });
 }

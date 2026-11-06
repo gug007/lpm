@@ -97,6 +97,23 @@ func automationScopeText(_ job: AutomationJob) -> String {
     return job.runsIn.first ?? ""
 }
 
+/// A question's first line, which is what it asks, and whatever it goes on to
+/// explain, which reads as text under it.
+func automationAskParts(_ text: String) -> (headline: String, details: String) {
+    guard let end = text.firstIndex(of: "\n") else { return (text, "") }
+    return (String(text[..<end]),
+            text[end...].trimmingCharacters(in: .whitespacesAndNewlines))
+}
+
+/// What a live run is doing or where it is, above what it has said so far.
+func automationRunPlaceText(_ job: AutomationJob) -> String? {
+    switch job.runningStep {
+    case "check": return "Checking for work…"
+    case "copy": return "Copying the project…"
+    default: return job.runningInName.isEmpty ? nil : "Working in \(job.runningInName)"
+    }
+}
+
 /// Which agent answers the prompt, at what model and effort — "Claude · opus ·
 /// high effort". An unpinned job says "Default", which is what the app picks.
 func automationAgentText(_ job: AutomationJob) -> String {

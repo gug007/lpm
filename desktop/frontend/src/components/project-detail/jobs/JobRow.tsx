@@ -10,6 +10,7 @@ import { useNow } from "../../../hooks/useNow";
 import {
   formatRunningFor,
   formatSchedule,
+  jobRunPlace,
   type JobInfo,
 } from "../../../jobsFormat";
 
@@ -56,7 +57,8 @@ export function JobRow({ job, scopeLabel, onRunNow, onStop, onToggleEnabled, onO
     job.targetCount && job.targetCount > 1
       ? `Running in ${job.runningCount ?? 0} of ${job.targetCount}${elapsedSuffix}`
       : runningFor;
-  const preview = jobRowPreview(job, runningText);
+  const place = jobRunPlace(job);
+  const preview = jobRowPreview(job, place ? `${runningText} · ${place}` : runningText);
 
   const meta = [
     scopeLabel,

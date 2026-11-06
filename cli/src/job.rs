@@ -41,6 +41,15 @@ pub enum Command {
         #[arg(long)]
         json: bool,
     },
+    #[command(
+        about = "Stop a running Claude automation and carry its conversation on in a terminal"
+    )]
+    TakeOver {
+        #[command(flatten)]
+        target: Target,
+        #[arg(long)]
+        json: bool,
+    },
     #[command(about = "Enable a scheduled automation", alias = "resume")]
     Enable {
         #[command(flatten)]
@@ -128,6 +137,9 @@ pub fn run(ctx: &Ctx, command: Command) -> Result<(), RunError> {
         }
         Command::Stop { target, json } => {
             job_runtime::mutate(ctx, "stop_job", "stopping", &target, "", json)
+        }
+        Command::TakeOver { target, json } => {
+            job_runtime::mutate(ctx, "take_over_job", "taking over", &target, "", json)
         }
         Command::Enable { target, json } => {
             job_runtime::mutate(ctx, "set_job_enabled", "enabled", &target, "true", json)

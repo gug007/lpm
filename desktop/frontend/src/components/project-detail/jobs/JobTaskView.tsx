@@ -18,6 +18,7 @@ import { ConfirmDialog } from "../../ui/ConfirmDialog";
 import { ZoomControl } from "../../ui/ZoomControl";
 import type { ContentZoom } from "../../../hooks/useContentZoom";
 import { JobLiveOutput } from "./JobLiveOutput";
+import { JobTakeOverButton } from "./JobTakeOverButton";
 import { JobAskCard } from "./JobAskCard";
 import {
   CheckIcon,
@@ -352,6 +353,13 @@ export function JobTaskView({
                   <span className="min-w-0 flex-1 truncate text-[12.5px] text-[var(--text-secondary)]">
                     {formatRunningFor(job.runningSince, now)}
                   </span>
+                  {job.takeOverIn && (
+                    <JobTakeOverButton
+                      project={job.takeOverIn}
+                      jobId={job.id}
+                      className="shrink-0 text-[11px] font-medium text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)] disabled:opacity-50"
+                    />
+                  )}
                   <button
                     type="button"
                     onClick={onStop}

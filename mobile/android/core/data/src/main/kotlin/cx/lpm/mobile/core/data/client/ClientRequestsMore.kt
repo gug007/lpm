@@ -19,6 +19,8 @@ fun LpmClient.runJob(project: String, jobId: String) = send(Wire.runJob(project,
 
 fun LpmClient.stopJob(project: String, jobId: String) = send(Wire.stopJob(project, jobId))
 
+fun LpmClient.takeOverJob(project: String, jobId: String) = send(Wire.takeOverJob(project, jobId))
+
 fun LpmClient.setJobEnabled(project: String, jobId: String, enabled: Boolean) =
     send(Wire.setJobEnabled(project, jobId, enabled))
 

@@ -32,6 +32,7 @@ mod mobile;
 mod project;
 mod ready;
 mod refreshlabel;
+mod rename;
 mod remove;
 mod run;
 mod service;
@@ -74,7 +75,7 @@ control projects — start, stop, restart services, set agent status — by aski
 app over that socket (so the app stays the single owner of run-state).\n\n\
 Inspection commands: `list`, `project`, `logs`, `status`, `config resolve`, `config validate`. \
 Config transactions (need the app running): `config get`, `config apply`. Control commands: \
-`start`, `stop`, `service`, `set-status`, `clear-status`, `duplicate`, `worktree`, `remove`, `run`, `refresh-label`, `automations`, `skills`. \
+`start`, `stop`, `service`, `set-status`, `clear-status`, `rename`, `work-status`, `duplicate`, `worktree`, `remove`, `run`, `refresh-label`, `automations`, `skills`. \
 `auto-pull` shows whether the app pulls a project by itself; `auto-pull --set` changes it \
 through the running app. \
 Inside an automation run, `ask` puts a question to the user and waits for the answer. \
@@ -364,6 +365,46 @@ of the tab. Exits with the command's exit code; stopping lpm exec stops the comm
         #[arg(long, short = 'p')]
         project: Option<String>,
     },
+    /// Rename a project or duplicate as lpm shows it (via the running app).
+    Rename {
+        /// The new name. Its folder and its project id stay as they are.
+        #[arg(required_unless_present = "clear")]
+        name: Option<String>,
+        /// Go back to showing the project's own name.
+        #[arg(long, conflicts_with = "name")]
+        clear: bool,
+        /// Project to rename; omit for the current one (in an automation run,
+        /// the copy it works in).
+        #[arg(long, short = 'p')]
+        project: Option<String>,
+        /// Emit a single machine-readable JSON object.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Set the status on a project or duplicate, as its Status menu does: In
+    /// progress, Review, Blocked, Done, and so on. For an agent's own status,
+    /// see set-status.
+    WorkStatus {
+        /// A status the menu lists, or a new name.
+        #[arg(required_unless_present = "clear")]
+        status: Option<String>,
+        /// A line shown under the project's name, such as a ticket or a reason.
+        #[arg(long)]
+        note: Option<String>,
+        /// The emoji for a status of your own.
+        #[arg(long)]
+        emoji: Option<String>,
+        /// Take the status off.
+        #[arg(long, conflicts_with_all = ["status", "note", "emoji"])]
+        clear: bool,
+        /// Project to set it on; omit for the current one (in an automation
+        /// run, the copy it works in).
+        #[arg(long, short = 'p')]
+        project: Option<String>,
+        /// Emit a single machine-readable JSON object.
+        #[arg(long)]
+        json: bool,
+    },
     /// Duplicate a project into standalone copies.
     Duplicate {
         /// Project stem, `name:` field, or unambiguous prefix. Omit to infer it.
@@ -636,6 +677,29 @@ fn main() -> ExitCode {
         Commands::ClearStatus { key, project } => {
             setstatus::run_clear(&ctx, &key, project.as_deref())
         }
+        Commands::Rename {
+            name,
+            clear: _,
+            project,
+            json,
+        } => rename::run_rename(&ctx, name.as_deref(), project.as_deref(), json),
+        Commands::WorkStatus {
+            status,
+            note,
+            emoji,
+            clear: _,
+            project,
+            json,
+        } => rename::run_status(
+            &ctx,
+            rename::StatusChange {
+                status: status.as_deref(),
+                note: note.as_deref(),
+                emoji: emoji.as_deref(),
+            },
+            project.as_deref(),
+            json,
+        ),
         Commands::Duplicate {
             name,
             count,

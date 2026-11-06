@@ -2684,6 +2684,20 @@ fn handle_msg(
             reply["jobId"] = json!(job_id);
             send(ws, reply)?;
         }
+        // Stopping the run takes a moment, and the Mac's window opens the tab.
+        "takeOverJob" => {
+            let project = str_field("project").unwrap_or_default();
+            let job_id = str_field("jobId").unwrap_or_default();
+            let out = out.clone();
+            let app = app.clone();
+            std::thread::spawn(move || {
+                let r = crate::jobs::takeover::take_over_in_app(&app, &project, &job_id);
+                let mut reply = result_reply("takeOverJob", r);
+                reply["project"] = json!(project);
+                reply["jobId"] = json!(job_id);
+                let _ = out.try_send(reply.to_string());
+            });
+        }
         "setJobEnabled" => {
             let project = str_field("project").unwrap_or_default();
             let job_id = str_field("jobId").unwrap_or_default();

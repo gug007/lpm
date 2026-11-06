@@ -977,6 +977,7 @@ final class LpmClient: NSObject {
     }
     func runJob(project: String, jobId: String) { send(Wire.runJob(project: project, jobId: jobId)) }
     func stopJob(project: String, jobId: String) { send(Wire.stopJob(project: project, jobId: jobId)) }
+    func takeOverJob(project: String, jobId: String) { send(Wire.takeOverJob(project: project, jobId: jobId)) }
     func setJobEnabled(project: String, jobId: String, enabled: Bool) {
         send(Wire.setJobEnabled(project: project, jobId: jobId, enabled: enabled))
     }

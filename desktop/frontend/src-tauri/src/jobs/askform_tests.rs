@@ -46,6 +46,23 @@ fn refuses_what_it_cannot_ask() {
 }
 
 #[test]
+fn a_long_question_goes_out_whole_and_its_summary_stays_one_line() {
+    let report = format!("Ship the fix?\n\n{}", "ж".repeat(7_000));
+    let ask = ask_of(json!({ "questions": [{ "type": "confirm", "text": report }] }));
+    assert_eq!(ask.questions[0].text, report);
+    assert_eq!(ask.summary(), "Ship the fix?");
+
+    let unbroken = ask_of(json!({ "questions": [{ "text": "x".repeat(7_000) }] }));
+    assert_eq!(unbroken.summary().chars().count(), SUMMARY_CHARS + 1);
+
+    let windows = ask_of(json!({ "questions": [{ "text": "Ship?\r\n\r\nDetails" }] }));
+    assert_eq!(windows.questions[0].text, "Ship?\n\nDetails");
+
+    let too_long = json!({ "questions": [{ "text": "x".repeat(MAX_QUESTION_CHARS + 1) }] });
+    assert!(parse_request(&too_long).unwrap_err().contains("8000"));
+}
+
+#[test]
 fn a_choice_with_other_can_offer_a_single_option() {
     let req = parse_request(&json!({ "questions": [
         { "type": "choice", "text": "Name it", "options": ["main"], "other": true },

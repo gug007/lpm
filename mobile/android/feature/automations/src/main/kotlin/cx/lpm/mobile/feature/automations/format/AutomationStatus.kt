@@ -102,3 +102,17 @@ fun automationEntryTone(entry: AutomationHistoryEntry): AutomationTone =
     if (entry.waiting) AutomationTone.Orange else automationResultTone(entry.result)
 
 private const val MAX_COUNTED = 9
+
+/** What a live run is doing or where it is, above what it has said so far. */
+fun automationRunPlaceText(job: AutomationJob): String = when (job.runningStep) {
+    "check" -> "Checking for work…"
+    "copy" -> "Copying the project…"
+    else -> job.runningInName.takeIf { it.isNotEmpty() }?.let { "Working in $it" }.orEmpty()
+}
+
+/** A question's first line, which is what it asks, and whatever it goes on to explain. */
+fun automationAskParts(text: String): Pair<String, String> {
+    val end = text.indexOf('\n')
+    if (end < 0) return text to ""
+    return text.substring(0, end) to text.substring(end).trim()
+}

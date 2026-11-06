@@ -5,17 +5,19 @@ import { liveOutputTail } from "../../../jobsFormat";
 const POLL_MS = 2000;
 
 // The tail of a running job's live output, polled while the run works so the
-// page shows what the agent is doing instead of a bare spinner. Renders
-// nothing until the run has said something.
+// page shows what the agent is doing instead of a bare spinner. Until the run
+// has said something it shows the placeholder, if it was given one.
 export function JobLiveOutput({
   project,
   jobId,
   running,
+  placeholder,
   onGrow,
 }: {
   project: string;
   jobId: string;
   running: boolean;
+  placeholder?: string;
   // The tail changed — lets a scroll-anchored host follow the growth.
   onGrow?: () => void;
 }) {
@@ -55,7 +57,12 @@ export function JobLiveOutput({
     };
   }, [project, jobId, running]);
 
-  if (!running || !text) return null;
+  if (!running) return null;
+  if (!text) {
+    return placeholder ? (
+      <p className="text-[12px] text-[var(--text-muted)]">{placeholder}</p>
+    ) : null;
+  }
 
   return (
     <div className="mt-1 overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]/40 px-3 py-2.5">

@@ -19,12 +19,15 @@ pub(crate) const UNANSWERED: &str = "unanswered";
 
 const MAX_QUESTIONS: usize = 4;
 const MAX_OPTIONS: usize = 12;
-const MAX_QUESTION_CHARS: usize = 1_000;
+const MAX_QUESTION_CHARS: usize = 8_000;
+const MAX_DESCRIPTION_CHARS: usize = 1_000;
 const MAX_LABEL_CHARS: usize = 120;
 const MAX_ID_CHARS: usize = 40;
 const MAX_ANSWER_CHARS: usize = 8_000;
 const MIN_TIMEOUT_SECS: u64 = 60;
 const MAX_TIMEOUT_SECS: u64 = 365 * 86_400;
+/// A notification reads one line, however long the question it stands for.
+const SUMMARY_CHARS: usize = 200;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
 pub(crate) struct Choice {
@@ -154,7 +157,7 @@ impl Ask {
         let first = self
             .questions
             .first()
-            .map(|q| q.text.clone())
+            .and_then(|q| super::first_line(&q.text, SUMMARY_CHARS))
             .unwrap_or_default();
         match self.questions.len() {
             0 | 1 => first,
@@ -265,7 +268,7 @@ fn text_field(raw: &Value, key: &str, max: usize) -> Result<Option<String>, Stri
             } else if s.chars().count() > max {
                 Err(format!("\"{key}\" is too long — keep it under {max} characters."))
             } else {
-                Ok(Some(s.to_string()))
+                Ok(Some(s.replace("\r\n", "\n")))
             }
         }
         Some(_) => Err(format!("\"{key}\" must be text.")),
@@ -281,7 +284,7 @@ fn parse_choice(raw: &Value) -> Result<Choice, String> {
         Value::String(s) => (s.trim().to_string(), None),
         Value::Object(_) => (
             text_field(raw, "label", MAX_LABEL_CHARS)?.unwrap_or_default(),
-            text_field(raw, "description", MAX_QUESTION_CHARS)?,
+            text_field(raw, "description", MAX_DESCRIPTION_CHARS)?,
         ),
         _ => return Err("Each option is text, or an object with a label.".into()),
     };

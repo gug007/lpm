@@ -257,6 +257,7 @@ mod popup_view;
 mod proctree;
 mod procwin;
 mod project_labels;
+mod projectmarks;
 mod projects_crud;
 mod pty;
 mod pull_request;

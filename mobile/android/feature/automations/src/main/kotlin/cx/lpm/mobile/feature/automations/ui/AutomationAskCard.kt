@@ -37,6 +37,7 @@ import cx.lpm.mobile.core.model.automationAskDeadlineNote
 import cx.lpm.mobile.core.model.automationAskDisplay
 import cx.lpm.mobile.core.model.automationAskToggle
 import cx.lpm.mobile.feature.automations.R
+import cx.lpm.mobile.feature.automations.format.automationAskParts
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -113,9 +114,10 @@ private fun AskForm(
         ask.questions.forEach { q ->
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    val (headline, details) = automationAskParts(q.text)
                     Text(
                         text = buildAnnotatedString {
-                            append(q.text)
+                            append(headline)
                             if (q.optional) {
                                 withStyle(
                                     SpanStyle(
@@ -132,6 +134,14 @@ private fun AskForm(
                             LpmTheme.typography.subheadline.copy(fontWeight = FontWeight.SemiBold)
                         }
                     )
+                    if (details.isNotEmpty()) {
+                        Text(
+                            text = details,
+                            style = LpmTheme.typography.subheadline,
+                            color = LpmTheme.colors.secondaryLabel,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
                     val default = q.defaultAnswer
                     if (!lead && default != null) {
                         Text(

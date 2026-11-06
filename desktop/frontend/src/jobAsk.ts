@@ -25,6 +25,14 @@ export interface JobAskQuestion {
   default?: JobAskAnswer;
 }
 
+// A question's first line, which is what it asks, and whatever it goes on to
+// explain, which reads as text under it.
+export function askParts(text: string): { headline: string; details: string } {
+  const end = text.indexOf("\n");
+  if (end < 0) return { headline: text, details: "" };
+  return { headline: text.slice(0, end), details: text.slice(end).trim() };
+}
+
 export interface JobAsk {
   id: string;
   askedAt: number;

@@ -29,6 +29,7 @@ fn run_with(asks: Vec<Ask>) -> ActiveRun {
         token: Some("t".into()),
         asks,
         answer_to: None,
+        terminal_flags: String::new(),
     }
 }
 

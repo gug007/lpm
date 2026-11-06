@@ -38,6 +38,7 @@ fn only_answering_replying_pairing_starting_tasks_and_reaching_other_computers_a
         "remote_pair",
         "peer_pair",
         "run_task",
+        "take_over_job",
         "agent_cp",
         "agent_exec",
     ] {
@@ -47,6 +48,8 @@ fn only_answering_replying_pairing_starting_tasks_and_reaching_other_computers_a
         "job_ask",
         "job_ask_wait",
         "set_status",
+        "rename_project",
+        "set_project_status",
         "list_jobs",
         "run_job",
         "ping",
@@ -63,6 +66,9 @@ fn a_refusal_reads_as_an_error_to_each_verbs_cli() {
     assert_eq!(reply["ok"], false);
     assert!(reply["error"].as_str().unwrap().contains("Answer in lpm"));
     assert!(refusal("run_task").starts_with("ERROR: An automation run can't start tasks"));
+    let reply: serde_json::Value = serde_json::from_str(&refusal("take_over_job")).unwrap();
+    assert_eq!(reply["ok"], false);
+    assert!(reply["error"].as_str().unwrap().contains("take-over"));
     let reply: serde_json::Value = serde_json::from_str(&refusal("duplicate_project")).unwrap();
     assert_eq!(reply["ok"], false);
     assert!(reply["error"].as_str().unwrap().contains("lpm duplicate"));

@@ -144,12 +144,6 @@ fn not_open(ask: &Ask) -> String {
 
 const GONE: &str = "That question isn't waiting for an answer anymore.";
 
-/// Enough for the views and phones to show the question's new state.
-fn refresh(app: &AppHandle, key: &str) {
-    let (project, job_id) = split_key(key);
-    let _ = app.emit("job-status", json!({ "project": project, "jobId": job_id }));
-}
-
 /// The question `id` of `project`/`job_id` as it stands now, wherever it sits.
 pub(crate) fn current(project: &str, job_id: &str, id: &str) -> Option<Ask> {
     let f = {
@@ -194,7 +188,7 @@ fn open(app: &AppHandle, token: &str, request: &Value) -> Result<Value, String> 
     } else {
         // The agent is still ending its turn; the run announces the question
         // when it does.
-        refresh(app, &key);
+        refresh_rows(app, &key);
     }
     let mut reply = json!({ "ok": true, "id": ask.id, "blocking": ask.blocking });
     if !ask.blocking {
@@ -273,7 +267,7 @@ fn resume_or_reopen(app: &AppHandle, key: &str, at: u64, ask: &Ask) -> Result<()
                 a.auto = false;
             }
         });
-        refresh(app, key);
+        refresh_rows(app, key);
     })
 }
 
@@ -343,10 +337,10 @@ pub(super) fn expire_due(app: &AppHandle) {
         match at {
             Some(at) if !ask.blocking && ask.status == ANSWERED => {
                 if resume(app, &key, at, &ask).is_err() {
-                    refresh(app, &key);
+                    refresh_rows(app, &key);
                 }
             }
-            _ => refresh(app, &key),
+            _ => refresh_rows(app, &key),
         }
     }
 }
@@ -413,7 +407,7 @@ pub fn dismiss_job_question(
         ask.close(DISMISSED, now_secs());
         Ok(())
     })?;
-    refresh(&app, &key);
+    refresh_rows(&app, &key);
     Ok(())
 }
 

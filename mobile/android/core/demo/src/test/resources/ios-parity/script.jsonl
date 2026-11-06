@@ -275,6 +275,7 @@
 {"at": 33400, "frame": {"t": "runJob", "project": "blog", "jobId": "daily2"}}
 {"at": 34000, "frame": {"t": "stopJob", "project": "blog", "jobId": "daily2"}}
 {"at": 34000, "frame": {"t": "gitCheckout", "project": "storefront", "branch": "main", "remote": ""}}
+{"at": 34100, "frame": {"t": "takeOverJob", "project": "blog", "jobId": "daily2"}}
 {"at": 34100, "frame": {"t": "markAllJobsSeen"}}
 {"at": 34200, "frame": {"t": "jobs"}}
 {"at": 34200, "frame": {"t": "jobHistory", "project": "blog", "jobId": "daily2"}}

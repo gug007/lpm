@@ -816,6 +816,7 @@ extension DemoWorld {
         }
         if let v = j.nextFireAt { o["nextFireAt"] = v }
         if let v = j.runningSince { o["runningSince"] = v }
+        if j.running, j.runKind == "prompt", j.agent == "claude" { o["takeOverIn"] = j.project }
         o["unread"] = jobUnreadCount(j)
         if let ask = openAsk(j) { o["ask"] = ask }
         return o

@@ -60,7 +60,9 @@ const ASK_INSTRUCTION: &str = "If you can't go on without a decision or informat
 pub(crate) mod ask;
 pub(crate) mod askform;
 pub(crate) mod machines;
+mod runstep;
 mod signin;
+pub(crate) mod takeover;
 
 // ---- config parsing ---------------------------------------------------------
 
@@ -269,7 +271,9 @@ struct RunDef {
     claude_account: Option<String>,
 }
 
-const KNOWN_AGENTS: [&str; 4] = ["claude", "codex", "gemini", "opencode"];
+const CLAUDE: &str = "claude";
+const CLAUDE_FULL_ACCESS: &str = " --dangerously-skip-permissions";
+const KNOWN_AGENTS: [&str; 4] = [CLAUDE, "codex", "gemini", "opencode"];
 
 /// A time-of-day schedule. `at_min` is minutes since local midnight and `days`
 /// are weekday numbers (0 = Mon .. 6 = Sun), empty meaning every day. The three
@@ -1295,6 +1299,9 @@ struct ActiveRun {
     asks: Vec<Ask>,
     #[serde(default, rename = "answerTo", skip_serializing_if = "Option::is_none")]
     answer_to: Option<String>,
+    /// What a terminal passes `claude --resume` to carry this run on as it was.
+    #[serde(default, rename = "terminalFlags", skip_serializing_if = "String::is_empty")]
+    terminal_flags: String,
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -1700,7 +1707,7 @@ fn run_env(
     trigger: Trigger,
     scheduled_for: Option<u64>,
     last_run_at: Option<u64>,
-    is_copy: bool,
+    copy: Option<&str>,
 ) -> Vec<(String, String)> {
     let mut env = vec![
         ("LPM_JOB_ID".to_string(), job_id.to_string()),
@@ -1709,8 +1716,11 @@ fn run_env(
         ("LPM_ACTUAL_TIME".to_string(), now_secs().to_string()),
         (
             "LPM_IS_COPY".to_string(),
-            if is_copy { "1" } else { "0" }.to_string(),
+            if copy.is_some() { "1" } else { "0" }.to_string(),
         ),
+        // A script's prints reach the log as they happen, so the run's page can
+        // show them while it works.
+        ("PYTHONUNBUFFERED".to_string(), "1".to_string()),
         // The instance that owns this run, so `lpm ask` reaches it rather than
         // whichever app holds the default socket.
         (
@@ -1721,6 +1731,12 @@ fn run_env(
     // The name terminals already set, so a skill written for one works in both.
     if !project.is_empty() {
         env.push(("LPM_PROJECT_NAME".to_string(), project.to_string()));
+        // The project the run itself is in: LPM_PROJECT_NAME stays the original
+        // in a copy, and renaming that would rename the wrong one.
+        env.push((
+            "LPM_RUN_PROJECT".to_string(),
+            copy.unwrap_or(project).to_string(),
+        ));
         // Where the lpm-memory skill saves and recalls sessions — a run in a
         // copy still belongs to the original's memory, like its terminals do.
         if let Ok(dir) = crate::session_memory_scope::memory_dir(project) {
@@ -1945,6 +1961,24 @@ fn browser_tools(full_access: bool) -> bool {
     full_access && config::claude_chrome_by_default()
 }
 
+fn claude_model_args(model: &str, effort: &str) -> String {
+    let mut args = String::new();
+    if !model.is_empty() {
+        args.push_str(&format!(" --model {}", config::shell_quote(model)));
+    }
+    if !effort.is_empty() {
+        args.push_str(&format!(" --effort {}", config::shell_quote(effort)));
+    }
+    args
+}
+
+/// What a terminal needs to go on with a Claude conversation the way its run
+/// had it.
+fn claude_terminal_flags(model: &str, effort: &str, full_access: bool) -> String {
+    let access = if full_access { CLAUDE_FULL_ACCESS } else { "" };
+    format!("{}{access}", claude_model_args(model, effort))
+}
+
 /// The shared Claude Code headless invocation; `resume` continues an earlier
 /// agent session so a follow-up message lands in the same conversation.
 fn claude_cmdline(
@@ -1956,25 +1990,14 @@ fn claude_cmdline(
     prompt: &str,
 ) -> String {
     let q = config::shell_quote(prompt);
-    let m = config::shell_quote(model);
-    let e = config::shell_quote(effort);
     let resume_arg = match resume {
         Some(sid) => format!(" --resume {}", config::shell_quote(sid)),
         None => String::new(),
     };
-    let model_arg = if model.is_empty() {
-        String::new()
-    } else {
-        format!(" --model {m}")
-    };
-    let effort_arg = if effort.is_empty() {
-        String::new()
-    } else {
-        format!(" --effort {e}")
-    };
+    let model_args = claude_model_args(model, effort);
     // A read-only run can't approve tools, but asking the user stays open to it.
     let access_arg = if full_access {
-        " --dangerously-skip-permissions"
+        CLAUDE_FULL_ACCESS
     } else {
         " --allowedTools 'Bash(lpm ask:*)'"
     };
@@ -1983,8 +2006,14 @@ fn claude_cmdline(
     // message as the run progresses, so the log can be tailed live; its final
     // `result` event carries the same fields the plain json mode did.
     format!(
-        "claude{resume_arg}{model_arg}{effort_arg}{access_arg}{browser_arg} -p --verbose --output-format stream-json {q}"
+        "claude{resume_arg}{model_args}{access_arg}{browser_arg} -p --verbose --output-format stream-json {q}"
     )
+}
+
+/// The session a Claude stream event belongs to.
+fn event_session(event: &Value) -> Option<String> {
+    let session = event.get("session_id")?.as_str()?.trim();
+    (!session.is_empty()).then(|| session.to_string())
 }
 
 /// Claude's json output mode wraps the final message in a single-line JSON
@@ -2003,12 +2032,7 @@ fn extract_result(raw: &str) -> Option<(String, Option<String>, Option<f64>)> {
             if let Some(result) = v.get("result").and_then(Value::as_str) {
                 let result = result.trim();
                 if !result.is_empty() {
-                    let session = v
-                        .get("session_id")
-                        .and_then(Value::as_str)
-                        .map(str::trim)
-                        .filter(|s| !s.is_empty())
-                        .map(str::to_string);
+                    let session = event_session(&v);
                     let cost = v
                         .get("total_cost_usd")
                         .and_then(Value::as_f64)
@@ -2341,6 +2365,7 @@ struct CaptureSpec {
     answer_to: Option<String>,
     /// The job's own Claude account; None leaves it to the project.
     account: Option<String>,
+    terminal_flags: String,
 }
 
 impl CaptureSpec {
@@ -2360,7 +2385,13 @@ impl CaptureSpec {
             manual: false,
             answer_to: None,
             account: None,
+            terminal_flags: String::new(),
         }
+    }
+
+    fn with_terminal_flags(mut self, flags: String) -> Self {
+        self.terminal_flags = flags;
+        self
     }
 
     fn with_account(mut self, account: Option<&str>) -> Self {
@@ -2497,6 +2528,7 @@ fn spawn_captured(app: &AppHandle, key: &str, root: &str, spec: CaptureSpec) -> 
         manual,
         answer_to,
         account: own_account,
+        terminal_flags,
     } = spec;
     let token = uuid::Uuid::new_v4().simple().to_string();
     env.push(("LPM_RUN_ID".to_string(), token.clone()));
@@ -2541,6 +2573,7 @@ fn spawn_captured(app: &AppHandle, key: &str, root: &str, spec: CaptureSpec) -> 
                     token: Some(token),
                     asks: Vec::new(),
                     answer_to: answer_to.clone(),
+                    terminal_flags,
                 });
             });
             let app2 = app.clone();
@@ -2757,7 +2790,8 @@ fn dispatch_run(
                 .with_verify(&job.verify)
                 .with_env(env)
                 .with_quiet(*quiet, trigger)
-                .with_account(claude_account.as_deref()),
+                .with_account(claude_account.as_deref())
+                .with_terminal_flags(claude_terminal_flags(model, effort, *full_access)),
             )
         }
     }
@@ -2809,7 +2843,7 @@ fn pipeline_body(
     let scheduled_for = st
         .last_run_at
         .and_then(|last| due_fire_at(&job.schedule, last, now_secs(), job_seed(project, &job.id)));
-    let context = |run_root: &str, is_copy: bool| {
+    let context = |run_root: &str, copy: Option<&str>| {
         run_env(
             project,
             &job.id,
@@ -2817,7 +2851,7 @@ fn pipeline_body(
             trigger,
             scheduled_for,
             st.last_run_at,
-            is_copy,
+            copy,
         )
     };
 
@@ -2829,7 +2863,7 @@ fn pipeline_body(
             &job.check,
             CHECK_TIMEOUT,
             Some(key),
-            &context(&root, false),
+            &context(&root, None),
             &crate::claude_pool::job_spawn_env(project, None, job.claude_account()).env,
         ) {
             Ok(check) if check.work => {}
@@ -2850,6 +2884,7 @@ fn pipeline_body(
     }
 
     let (target, copy) = if job.duplicate.enabled && !project.is_empty() {
+        runstep::copying(app, key);
         let dup = &job.duplicate;
         let result = if dup.worktree {
             crate::projects_crud::duplicate_worktree_project(
@@ -2891,7 +2926,7 @@ fn pipeline_body(
     }
 
     let run_root = dispatch_root(&target).unwrap_or_else(|| root.clone());
-    let dispatch_env = context(&run_root, copy.is_some());
+    let dispatch_env = context(&run_root, copy.as_deref());
     dispatch_outcome(dispatch_run(app, key, &target, job, dispatch_env, trigger), copy)
 }
 
@@ -3130,6 +3165,12 @@ enum SendOut<'a> {
     Asked(Option<&'a str>, &'a askform::Ask),
 }
 
+/// Enough for the views and phones to read the job again.
+fn refresh_rows(app: &AppHandle, key: &str) {
+    let (project, job_id) = split_key(key);
+    let _ = app.emit("job-status", json!({ "project": project, "jobId": job_id }));
+}
+
 fn emit_status(app: &AppHandle, project: &str, job_id: &str, result: &str, copy: &Option<String>) {
     emit_status_detail(app, project, job_id, result, copy, None, SendOut::Report(None));
 }
@@ -3298,8 +3339,10 @@ fn run_pipeline(app: &AppHandle, project: &str, job: &JobResolved, trigger: Trig
         return;
     }
 
+    runstep::begin(&key, job);
     emit_status(app, project, &job.id, RUNNING, &None);
     let mut outcome = pipeline_body(app, project, job, &key, trigger);
+    runstep::end(&key);
     // The found-work path hands the cancel flag to the agent watcher; every
     // other exit consumes it here so a Stop pressed mid-pipeline is recorded.
     if outcome.result != FOUND_WORK && take_canceled(&key) {
@@ -3855,6 +3898,7 @@ fn global_job_row(
 
     let mut enabled = false;
     let mut running_count: u32 = 0;
+    let mut running: Option<(String, JobState)> = None;
     let mut earliest_since: Option<u64> = None;
     let mut max_last: Option<u64> = None;
     let mut last_result: Option<String> = None;
@@ -3880,7 +3924,8 @@ fn global_job_row(
             Err(_) => st.is_on(false),
         };
         enabled = enabled || job_enabled;
-        if let Some(since) = running_since(&key) {
+        let since = running_since(&key);
+        if let Some(since) = since {
             running_count += 1;
             earliest_since = Some(earliest_since.map_or(since, |e| e.min(since)));
         }
@@ -3902,6 +3947,9 @@ fn global_job_row(
                     next = Some(next.map_or(nf, |n: i64| n.min(nf)));
                 }
             }
+        }
+        if since.is_some() {
+            running = Some((key, st));
         }
     }
 
@@ -3934,6 +3982,10 @@ fn global_job_row(
             });
             if let Some(a) = waiting {
                 row["ask"] = a;
+            }
+            // Several live runs have no one place to name.
+            if let (1, Some((key, st))) = (running_count, &running) {
+                runstep::add_row_fields(&mut row, key, st);
             }
             if let RunTarget::Prompt {
                 agent,
@@ -4051,6 +4103,7 @@ fn project_job_rows(project: &str, names: &machines::Names) -> Vec<Value> {
                     if let Some(a) = ask::open_json(&st, &project) {
                         row["ask"] = a;
                     }
+                    runstep::add_row_fields(&mut row, &key, &st);
                     if let RunTarget::Prompt {
                         agent,
                         model,
@@ -4121,6 +4174,15 @@ pub fn run_job_now(app: AppHandle, project: String, job_id: String) -> Result<()
 pub fn stop_job_run(project: String, job_id: String) -> Result<(), String> {
     request_cancel(&state_key(&project, &job_id));
     Ok(())
+}
+
+/// Ends the live Claude run and says which tab carries it on, for the window
+/// that asked to open it: a paired computer's job opens where the person is.
+#[tauri::command]
+pub async fn take_over_job_run(project: String, job_id: String) -> Result<Value, String> {
+    tauri::async_runtime::spawn_blocking(move || takeover::take_over(&project, &job_id))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 /// Continue one of the job's conversations, addressed by the `at` of any entry
@@ -4280,9 +4342,10 @@ fn start_followup(
         Trigger::Reply,
         None,
         None,
-        tail.copy.is_some(),
+        tail.copy.as_deref(),
     );
     let browser = browser_tools(full_access);
+    let terminal_flags = claude_terminal_flags(&model, &effort, full_access);
     let said = answers_in_words.then(|| message.clone());
     let spec = match resume {
         Some(sid) => CaptureSpec {
@@ -4307,6 +4370,7 @@ fn start_followup(
             manual: false,
             answer_to: answer_to.clone(),
             account: claude_account.clone(),
+            terminal_flags: terminal_flags.clone(),
         },
         None => CaptureSpec {
             cmdline: agent_prompt_cmdline(&agent, &model, &effort, full_access, browser, &condensed),
@@ -4323,6 +4387,7 @@ fn start_followup(
             manual: false,
             answer_to,
             account: claude_account,
+            terminal_flags,
         },
     };
     match spawn_captured(app, &key, &root, spec) {
@@ -5748,7 +5813,7 @@ mod tests {
             Trigger::Schedule,
             Some(1_700_000_000),
             Some(1_699_000_000),
-            false,
+            None,
         );
 
         // The check's own words used to be discarded, so a broken check and a
@@ -5797,7 +5862,7 @@ mod tests {
 
     #[test]
     fn run_env_points_the_memory_skill_at_the_project() {
-        let env = run_env("blog", "nightly", "/tmp", Trigger::Manual, None, None, false);
+        let env = run_env("blog", "nightly", "/tmp", Trigger::Manual, None, None, None);
         let dir = env
             .iter()
             .find(|(k, _)| k == "LPM_MEMORY_DIR")
@@ -5805,8 +5870,26 @@ mod tests {
             .expect("LPM_MEMORY_DIR");
         assert!(dir.ends_with(std::path::Path::new("memory").join("blog")));
 
-        let standalone = run_env("", "nightly", "/tmp", Trigger::Manual, None, None, false);
+        let standalone = run_env("", "nightly", "/tmp", Trigger::Manual, None, None, None);
         assert!(standalone.iter().all(|(k, _)| k != "LPM_MEMORY_DIR"));
+    }
+
+    #[test]
+    fn run_env_names_the_copy_a_run_is_in_apart_from_its_original() {
+        let var = |env: &[(String, String)], key: &str| {
+            env.iter().find(|(k, _)| k == key).map(|(_, v)| v.clone())
+        };
+        let copy = run_env("blog", "n", "/c", Trigger::Manual, None, None, Some("blog-x1"));
+        assert_eq!(var(&copy, "LPM_PROJECT_NAME").as_deref(), Some("blog"));
+        assert_eq!(var(&copy, "LPM_RUN_PROJECT").as_deref(), Some("blog-x1"));
+        assert_eq!(var(&copy, "LPM_IS_COPY").as_deref(), Some("1"));
+
+        let original = run_env("blog", "n", "/r", Trigger::Manual, None, None, None);
+        assert_eq!(var(&original, "LPM_RUN_PROJECT").as_deref(), Some("blog"));
+        assert_eq!(var(&original, "LPM_IS_COPY").as_deref(), Some("0"));
+
+        let standalone = run_env("", "n", "/h", Trigger::Manual, None, None, None);
+        assert_eq!(var(&standalone, "LPM_RUN_PROJECT"), None);
     }
 
     #[test]
@@ -5959,6 +6042,7 @@ mod tests {
             token: None,
             asks: Vec::new(),
             answer_to: None,
+            terminal_flags: String::new(),
         };
         let clean =
             "noise\n{\"result\":\"Did the work.\",\"session_id\":\"s-9\",\"total_cost_usd\":0.05}";
@@ -6384,6 +6468,7 @@ mod tests {
             token: None,
             asks: Vec::new(),
             answer_to: None,
+            terminal_flags: String::new(),
         });
         assert!(job_is_live(&st, "quiet/job"));
     }
