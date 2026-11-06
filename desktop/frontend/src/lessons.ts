@@ -8,8 +8,8 @@ export interface Lesson {
 // lists them. The lesson-publish skill prints the entry to add at the top.
 export const LESSONS: readonly Lesson[] = [
   {
-    id: "REO8u4dePiE",
-    title: "Action Popups and HTML Labels in lpm: Charts on Your Buttons",
+    id: "5VWI8ln_zAQ",
+    title: "6 Action Button Ideas for lpm: Live Charts on Your Buttons",
     published: "2026-11-06",
   },
   {

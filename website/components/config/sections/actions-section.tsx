@@ -70,11 +70,11 @@ export function ActionsSection() {
         <code className="font-mono">labelSvg</code>{" "}draws its face from
         an SVG, like a small chart behind a number, and{" "}
         <code className="font-mono">popup</code>{" "}opens a whole page in a card
-        when you point at it. The lesson below has Claude Code add both to a
-        button that counts GitHub stars:
+        when you point at it. The lesson below shows six ideas and has Claude
+        Code build one from a single prompt:
       </Lede>
       <YouTubeVideo
-        lesson="action-popups-html-labels"
+        lesson="six-action-button-ideas"
         className="mb-6 rounded-xl ring-1 ring-black/5 dark:ring-white/10"
       />
 

@@ -343,12 +343,16 @@ export const LESSON_CHAPTERS: Record<YouTubeLessonId, LessonChapters> = {
       [189, "On your other devices"],
     ],
   },
-  "action-popups-html-labels": {
-    seconds: 115,
+  "six-action-button-ideas": {
+    seconds: 172,
     chapters: [
       [0, "Intro"],
-      [10, "A chart when you point at a button"],
-      [64, "Draw on the button itself"],
+      [28, "Bundle size"],
+      [51, "Orders today"],
+      [68, "Tests"],
+      [81, "Server health"],
+      [97, "Open issues"],
+      [108, "Build one with Claude Code"],
     ],
   },
 };
