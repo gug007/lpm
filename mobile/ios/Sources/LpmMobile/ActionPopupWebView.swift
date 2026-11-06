@@ -113,8 +113,7 @@ enum ActionPopupPage {
 
     /// `bootstrap.js` with its payload in place of the token it's called with.
     static func bootstrap(_ payload: String) -> String? {
-        guard let template, let range = template.range(of: token, options: .backwards) else { return nil }
-        return template.replacingCharacters(in: range, with: payload)
+        template?.replacingOccurrences(of: token, with: payload)
     }
 
     /// A page with no viewport of its own is laid out at the sheet's width, as on

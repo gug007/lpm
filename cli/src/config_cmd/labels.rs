@@ -12,7 +12,7 @@ const PATTERN_VARIABLES: &[&str] = &[
 pub(super) fn validate_action_label(map: &Mapping, path: &str, report: &mut Report) {
     validate_bool_field(map, "labelRefreshOnHover", path, report);
     validate_bool_field(map, "labelRefreshOnChange", path, report);
-    validate_every(map, path, report);
+    validate_interval(map, "labelRefresh", path, false, report);
     for field in ["label", "labelSvg", "emoji"] {
         validate_text(map, field, path, report);
     }
@@ -118,24 +118,33 @@ fn command_end(s: &str) -> Option<usize> {
     None
 }
 
-fn validate_every(map: &Mapping, path: &str, report: &mut Report) {
-    let Some(value) = map.get(Value::String("labelRefresh".into())) else {
+/// An interval: seconds, or a number with `s`, `m` or `h`; with `open`, also
+/// the word itself.
+pub(super) fn validate_interval(
+    map: &Mapping,
+    key: &str,
+    path: &str,
+    open: bool,
+    report: &mut Report,
+) {
+    let Some(value) = map.get(Value::String(key.into())) else {
         return;
     };
     let ok = match value {
         Value::Number(n) => n.as_u64().is_some(),
-        Value::String(s) => is_interval(s),
+        Value::String(s) => (open && s.trim() == "open") || is_interval(s),
         _ => false,
     };
     if !ok {
+        let open = if open { "open, or " } else { "" };
         report.error(
-            &format!("{path}.labelRefresh"),
-            "expected seconds or a number with s, m or h, like 30s or 5m",
+            &format!("{path}.{key}"),
+            format!("expected {open}seconds or a number with s, m or h, like 30s or 5m"),
         );
     }
 }
 
-pub(super) fn is_interval(s: &str) -> bool {
+fn is_interval(s: &str) -> bool {
     let s = s.trim();
     let digits = s.strip_suffix(['s', 'm', 'h']).unwrap_or(s).trim_end();
     !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit())

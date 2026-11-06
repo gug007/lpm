@@ -132,9 +132,3 @@ function listName(c: SlashCommand): string | null {
 export function slashTag(c: SlashCommand): string | null {
   return c.folder?.split("/").pop() || listName(c);
 }
-
-// The command a message opens with, or null. A CLI only runs a "/" in that spot
-// when it's the whole message's start, which is all a run count should see.
-export function sentCommandName(text: string): string | null {
-  return /^\s*\/([a-z0-9:_-]+)(?:\s|$)/i.exec(text)?.[1] ?? null;
-}

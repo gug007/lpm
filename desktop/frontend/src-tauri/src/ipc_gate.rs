@@ -9,6 +9,12 @@ pub(crate) fn is_app_webview(label: &str) -> bool {
     label == "main" || label.starts_with("detached-") || label == crate::quicktermwin::LABEL
 }
 
+/// A popup page loads its own files from the preview scheme too, reaching only
+/// a folder the app registered, like any preview.
+pub(crate) fn can_read_previews(label: &str) -> bool {
+    is_app_webview(label) || crate::popup_view::is_popup_label(label)
+}
+
 pub(crate) fn only_app_webviews<R: Runtime>(
     handler: impl Fn(Invoke<R>) -> bool + Send + Sync + 'static,
 ) -> impl Fn(Invoke<R>) -> bool + Send + Sync + 'static {
@@ -23,7 +29,7 @@ pub(crate) fn only_app_webviews<R: Runtime>(
 
 #[cfg(test)]
 mod tests {
-    use super::is_app_webview;
+    use super::{can_read_previews, is_app_webview};
 
     #[test]
     fn the_app_windows_are_app_webviews() {
@@ -38,5 +44,12 @@ mod tests {
         assert!(!is_app_webview("browser-3"));
         assert!(!is_app_webview("mainly"));
         assert!(!is_app_webview(""));
+    }
+
+    #[test]
+    fn popups_can_read_previews_and_browser_panes_cannot() {
+        assert!(can_read_previews("main"));
+        assert!(can_read_previews("popup-1"));
+        assert!(!can_read_previews("browser-3"));
     }
 }

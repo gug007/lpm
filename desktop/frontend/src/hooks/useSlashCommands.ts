@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ListAgentCommands } from "../../bridge/commands";
 import type { AICLI } from "../types";
-import { filterSlashCommands, sentCommandName, type SlashCommand } from "../slashCommands";
-import { mergeSlashCommands, type LpmCommandLists } from "../lpmCommands";
+import { filterSlashCommands, type SlashCommand } from "../slashCommands";
+import { mergeSlashCommands, parseCommandRun, type LpmCommandLists } from "../lpmCommands";
 import { recordSlashCommand, useLpmCommandLists } from "../store/lpmCommands";
 
 // Loads the slash commands for a CLI + cwd and exposes a client-side filter.
@@ -70,7 +70,7 @@ export function useSlashCommands(cli: AICLI | null, cwd: string, active: boolean
   // Most used. An lpm skill is counted when it expands.
   const noteSent = useCallback(
     (text: string) => {
-      const name = sentCommandName(text)?.toLowerCase();
+      const name = parseCommandRun(text)?.name.toLowerCase();
       const row = name ? all.find((c) => c.name.toLowerCase() === name) : undefined;
       if (row && row.source !== "lpm" && lpmProject !== null) recordSlashCommand(lpmProject, row.name);
     },

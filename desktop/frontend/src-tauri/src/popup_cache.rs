@@ -64,21 +64,14 @@ pub(crate) fn turn(key: &str) -> Arc<Mutex<()>> {
 /// What to show after a run: the new result, unless it failed while the last
 /// one was good, which then stays with the failure beside it.
 pub(crate) fn keep_last_good(previous: Option<PopupContent>, made: PopupContent) -> PopupContent {
-    let failure = if made.error.is_empty() {
-        made.data_error.clone()
-    } else {
-        made.error.clone()
-    };
-    if failure.is_empty() {
+    if made.failure().is_empty() {
         return made;
     }
     match previous {
-        Some(good) if good.error.is_empty() && good.data_error.is_empty() && good.html.is_some() => {
-            PopupContent {
-                refresh_error: failure,
-                ..good
-            }
-        }
+        Some(good) if good.failure().is_empty() => PopupContent {
+            refresh_error: made.failure().to_string(),
+            ..good
+        },
         _ => made,
     }
 }

@@ -14,7 +14,8 @@ export function tabPopup(project: { name: string; actions: ActionInfo[] }, actio
     node: (
       <ActionPopupCard
         project={project.name}
-        action={{ ...action, popup: action.popup }}
+        action={action}
+        popup={action.popup}
         open
         delay={TAB_POPUP_DELAY_MS}
       />

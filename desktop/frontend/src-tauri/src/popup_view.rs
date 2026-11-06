@@ -25,8 +25,8 @@ const PREFIX: &str = "popup-";
 const PAINT_WAIT: Duration = Duration::from_millis(60);
 const LOAD_WITHIN: Duration = Duration::from_secs(8);
 
-#[derive(Clone, Copy)]
-struct Rect {
+#[derive(Clone, Copy, serde::Deserialize)]
+pub struct Rect {
     x: f64,
     y: f64,
     width: f64,
@@ -52,17 +52,13 @@ fn label_of(id: &str) -> Result<String, String> {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 #[tauri::command(async)]
 pub fn popup_view_open(
     app: AppHandle,
     pages: State<'_, PopupPages>,
     id: String,
     html: String,
-    x: f64,
-    y: f64,
-    width: f64,
-    height: f64,
+    rect: Rect,
     background: String,
 ) -> Result<(), String> {
     if !EMBEDDED {
@@ -71,11 +67,7 @@ pub fn popup_view_open(
     let label = label_of(&id)?;
     let page = page_url(&html)?;
     close_all(&app, &pages);
-    pages
-        .0
-        .lock()
-        .unwrap()
-        .insert(label.clone(), Rect { x, y, width, height });
+    pages.0.lock().unwrap().insert(label.clone(), rect);
     let win = app.get_window("main").ok_or("main window not found")?;
     let blank: Url = "about:blank".parse().map_err(|e| format!("{e}"))?;
     let loads = app.clone();
@@ -108,7 +100,7 @@ pub fn popup_view_open(
     win.add_child(
         builder,
         LogicalPosition::new(OFFSCREEN, OFFSCREEN),
-        LogicalSize::new(width.max(1.0), height.max(1.0)),
+        LogicalSize::new(rect.width.max(1.0), rect.height.max(1.0)),
     )
     .map_err(|e| format!("add_child: {e}"))?;
     // Tauri only loads a `data:` page by navigating to it; the about:blank the
@@ -150,13 +142,9 @@ pub fn popup_view_place(
     app: AppHandle,
     pages: State<'_, PopupPages>,
     id: String,
-    x: f64,
-    y: f64,
-    width: f64,
-    height: f64,
+    rect: Rect,
 ) -> Result<(), String> {
     let label = label_of(&id)?;
-    let rect = Rect { x, y, width, height };
     if let Some(waiting) = pages.0.lock().unwrap().get_mut(&label) {
         *waiting = rect;
         return Ok(());
@@ -226,11 +214,9 @@ fn is_local_host(host: &str) -> bool {
 }
 
 fn open_link(app: &AppHandle, url: &Url) {
-    if !matches!(url.scheme(), "http" | "https") {
-        return;
+    if matches!(url.scheme(), "http" | "https") {
+        let _ = crate::browser::open_externally(app, url.as_str());
     }
-    use tauri_plugin_opener::OpenerExt;
-    let _ = app.opener().open_url(url.as_str(), None::<&str>);
 }
 
 /// `#rrggbb`, else the card's dark surface.

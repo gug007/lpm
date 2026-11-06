@@ -30,7 +30,7 @@ export function useFollowRect(ref: RefObject<HTMLElement | null>, onMove: (rect:
     };
     const observer = new ResizeObserver(schedule);
     observer.observe(el);
-    const card = el.parentElement?.parentElement;
+    const card = el.closest("[data-popup-card]");
     if (card) observer.observe(card);
     window.addEventListener("resize", schedule);
     window.addEventListener("scroll", schedule, true);

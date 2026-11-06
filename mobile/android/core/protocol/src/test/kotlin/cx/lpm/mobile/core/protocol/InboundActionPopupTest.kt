@@ -18,7 +18,7 @@ class InboundActionPopupTest {
     fun aPopupReplyCarriesThePageAndItsData() {
         val reply = decode<Inbound.ActionPopup>(
             """{ "t": "actionPopup", "project": "api", "action": "deploy:stars", "ok": true,
-                 "popup": { "format": "html", "title": "GitHub stars", "width": 380, "height": 200,
+                 "popup": {
                             "refresh": 30, "html": "<p>hi</p>", "data": { "total": 3 }, "text": "",
                             "dataError": "gh: not logged in", "updatedAt": 1792089000123,
                             "stale": true, "refreshError": "exit 1" } }"""
@@ -28,9 +28,6 @@ class InboundActionPopupTest {
         assertEquals("", reply.error)
         assertEquals(
             ActionPopupContent(
-                format = "html",
-                title = "GitHub stars",
-                height = 200,
                 refresh = 30,
                 html = "<p>hi</p>",
                 data = Json.parseToJsonElement("""{ "total": 3 }"""),
@@ -48,11 +45,9 @@ class InboundActionPopupTest {
     @Test
     fun missingFieldsFallBackToDefaults() {
         val content = decode<Inbound.ActionPopup>(
-            """{ "t": "actionPopup", "ok": true, "popup": { "width": "wide", "refresh": -4,
+            """{ "t": "actionPopup", "ok": true, "popup": { "refresh": -4,
                  "error": "Can't find popups/x.html." } }"""
         ).reply.content!!
-        assertEquals("html", content.format)
-        assertEquals(220, content.height)
         assertEquals(0, content.refresh)
         assertNull(content.html)
         assertEquals(JsonNull, content.data)

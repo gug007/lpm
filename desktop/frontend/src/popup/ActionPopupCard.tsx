@@ -1,10 +1,9 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { RotateCw } from "lucide-react";
 import type { ActionInfo, ActionPopupInfo } from "../types";
-import { isPeerMarked, stripMarker } from "../peer/markers";
-import { relativeAgo } from "../relativeTime";
+import { stripMarker } from "../peer/markers";
 import { useDelayedFlag } from "../hooks/useDelayedFlag";
-import { useSecondsClock } from "../hooks/useSecondsClock";
+import { PopupAge } from "./PopupAge";
 import { PopupFrame } from "./PopupFrame";
 import { PopupNote } from "./PopupNote";
 import { popupTheme } from "./popupTheme";
@@ -16,7 +15,8 @@ const SHOWN_FORMATS = new Set(["html"]);
 
 interface ActionPopupCardProps {
   project: string;
-  action: ActionInfo & { popup: ActionPopupInfo };
+  action: ActionInfo;
+  popup: ActionPopupInfo;
   open: boolean;
   // How long the card waits before running anything, so a card that only
   // flashes past under a moving pointer runs nothing.
@@ -27,9 +27,8 @@ interface ActionPopupCardProps {
 
 // The popup's title, its page at the size the config asks for, and a line for
 // data that didn't come. Anything that goes wrong reads as words in the frame.
-export function ActionPopupCard({ project, action, open, delay = 0, extra }: ActionPopupCardProps) {
-  const { popup } = action;
-  const settled = useDelayedFlag(open, delay) || (open && delay <= 0);
+export function ActionPopupCard({ project, action, popup, open, delay = 0, extra }: ActionPopupCardProps) {
+  const settled = useDelayedFlag(open, delay);
   const shown = SHOWN_FORMATS.has(popup.format) && !popup.problem;
   const { content, loading, failure, refresh } = useActionPopup(project, action.name, settled && shown);
   const theme = useMemo(() => popupTheme(), []);
@@ -50,9 +49,8 @@ export function ActionPopupCard({ project, action, open, delay = 0, extra }: Act
     [content, theme, project, action.name],
   );
 
-  const width = content?.width || popup.width;
-  const height = content?.height || popup.height;
-  const title = content?.title || popup.title || action.label;
+  const { width, height } = popup;
+  const title = popup.title || action.label;
   // A request that fails over a page already on show leaves the page up.
   const problem = popup.problem
     ? popup.problem
@@ -65,21 +63,15 @@ export function ActionPopupCard({ project, action, open, delay = 0, extra }: Act
     : content?.dataError && !problem
       ? `Data: ${content.dataError}`
       : null;
-  useSecondsClock(!content?.updatedAt);
-  const age = content?.updatedAt ? relativeAgo(Math.floor(content.updatedAt / 1000)) : "";
 
   return (
-    <div className="flex flex-col gap-2" style={{ width }}>
+    <div data-popup-card className="flex flex-col gap-2" style={{ width }}>
       <div className="flex min-w-0 items-center gap-2">
         <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold text-[var(--text-primary)]">
           {title}
         </span>
         {extra}
-        {age && !problem && (
-          <span className="shrink-0 text-[11px] text-[var(--text-muted)]" title="When this data was made">
-            {age}
-          </span>
-        )}
+        {!!content?.updatedAt && !problem && <PopupAge updatedAt={content.updatedAt} />}
         {shown && (
           <button
             type="button"
@@ -101,7 +93,7 @@ export function ActionPopupCard({ project, action, open, delay = 0, extra }: Act
         ) : content?.html && payload ? (
           <PopupFrame
             html={content.html}
-            file={isPeerMarked(project) ? undefined : content.file}
+            file={content.file}
             payload={payload}
             width={width}
             height={height}

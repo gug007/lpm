@@ -88,15 +88,6 @@ struct SlashMenu: View {
     }
 }
 
-/// The command a message opens with, or nil. A CLI only runs a "/" in that spot,
-/// which is all a run count should see.
-func sentCommandName(_ text: String) -> String? {
-    guard let re = try? NSRegularExpression(pattern: "^\\s*/([a-z0-9:_-]+)(?:\\s|$)", options: .caseInsensitive),
-          let m = re.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
-          let range = Range(m.range(at: 1), in: text) else { return nil }
-    return String(text[range])
-}
-
 extension SlashCommand {
     private var sortName: String { name.lowercased() }
 

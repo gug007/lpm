@@ -10,6 +10,7 @@ import { OPEN_DELAY_MS } from "../hooks/useHoverPopup";
 import { ZoneView } from "./ZoneView";
 
 const h = vi.hoisted(() => ({ setZoneCollapsed: vi.fn(), onRun: vi.fn() }));
+vi.mock("../../bridge/runtime", () => ({ EventsOn: () => () => {} }));
 vi.mock("../zoneActions", () => ({ setZoneCollapsed: h.setZoneCollapsed }));
 
 const action = (name: string): ActionInfo =>

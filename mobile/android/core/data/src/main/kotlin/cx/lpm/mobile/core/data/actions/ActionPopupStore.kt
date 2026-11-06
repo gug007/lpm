@@ -27,8 +27,8 @@ sealed interface ActionPopupPhase {
 
 /**
  * Where one open popup sheet stands (iOS `ActionPopupState`). [page] counts the loads
- * the web view must make; an answer that keeps the same page counts [pushes] instead,
- * and its new values reach the page without a reload.
+ * the web view must make; an answer from a newer run of the same page counts [pushes]
+ * instead, and its values reach the page without a reload.
  */
 data class ActionPopupState(
     val phase: ActionPopupPhase = ActionPopupPhase.Loading,
@@ -74,17 +74,12 @@ data class ActionPopupState(
                 refreshFailure = null
             ) to false
         }
-        if (content.format != ActionPopupInfo.HTML) {
-            return settled.copy(
-                phase = ActionPopupPhase.Failed(ActionPopupCopy.NEWER_APP, retry = false),
-                refreshFailure = null
-            ) to false
-        }
         val samePage = !reloadOnAnswer && this.content?.html == html
+        val newRun = this.content?.updatedAt != content.updatedAt
         return settled.copy(
             phase = ActionPopupPhase.Shown(content),
             page = if (samePage) page else page + 1,
-            pushes = if (samePage) pushes + 1 else pushes,
+            pushes = if (samePage && newRun) pushes + 1 else pushes,
             refreshFailure = null
         ) to (content.stale && !askedFresh)
     }
@@ -192,7 +187,7 @@ class ActionPopupStore(private val session: MacSession) : SessionStore {
         val popup = popups[key] ?: return
         timers.cancel(key)
         val (next, stale) = popup.apply(reply)
-        mutable.update { it.copy(popups = it.popups + (key to next)) }
+        set(key, next)
         if (stale) request(key, reply.project, reply.action, fresh = true)
     }
 

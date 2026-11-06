@@ -16,7 +16,7 @@ extension DemoServer {
                 return
             }
             guard let action = self.world.projects[idx].actions.first(where: { $0["name"] as? String == name }),
-                  let popup = action["popup"] as? [String: Any] else {
+                  action["popup"] != nil else {
                 reply["ok"] = false
                 reply["error"] = "This action has no popup."
                 self.push(reply)
@@ -24,10 +24,6 @@ extension DemoServer {
             }
             reply["ok"] = true
             reply["popup"] = [
-                "format": popup["format"] as? String ?? "html",
-                "title": popup["title"] as? String ?? "",
-                "width": popup["width"] as? Int ?? 360,
-                "height": popup["height"] as? Int ?? 220,
                 "refresh": 0,
                 "html": demoPopupPage(),
                 "data": demoStars,

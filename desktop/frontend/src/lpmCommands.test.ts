@@ -84,6 +84,7 @@ describe("parseCommandRun", () => {
     expect(parseCommandRun("/fix-ticket LPM-1 now")).toEqual({ name: "fix-ticket", args: "LPM-1 now" });
     expect(parseCommandRun("  /ship\n")).toEqual({ name: "ship", args: "" });
     expect(parseCommandRun("/fix\nmore lines")).toEqual({ name: "fix", args: "more lines" });
+    expect(parseCommandRun("/prompts:draft now")?.name).toBe("prompts:draft");
   });
 
   it("ignores text that only mentions one", () => {

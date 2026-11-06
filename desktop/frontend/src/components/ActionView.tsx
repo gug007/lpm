@@ -5,7 +5,6 @@ import { Tooltip } from "./ui/Tooltip";
 import { Combo } from "./KeyCombo";
 import type { ActionInfo } from "../types";
 import { withEmoji } from "../withEmoji";
-import { EmojiLabel } from "./EmojiLabel";
 import { actionButtonStyle } from "../actionColors";
 import { formatShortcut, parseShortcut } from "../shortcutParse";
 import { COMPOSER_TOOLTIP_DELAY_MS } from "../composerText";
@@ -14,7 +13,7 @@ import { GLOBAL_TERMINALS_KEY } from "../terminals";
 import { actionRunKey } from "../store/actionRunMarks";
 import { ActionRunMarkBadge } from "./ActionRunMarkBadge";
 import { ActionPopupHover } from "../popup/ActionPopupHover";
-import { SvgLabel } from "./SvgLabel";
+import { ActionFace } from "./ActionFace";
 
 const FLAT_BASE =
   "relative flex cursor-grab select-none items-center rounded-md border text-[11px] font-medium transition-all duration-100 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40";
@@ -53,7 +52,8 @@ export function ActionView({ action, size, disabled, onRun, onContextMenu, scope
     action.popup ? (
       <ActionPopupHover
         project={project}
-        action={{ ...action, popup: action.popup }}
+        action={action}
+        popup={action.popup}
         triggerClassName={zoneFit ? "flex h-full w-full" : "inline-flex"}
         extra={shortcutLabel ? <Combo label={shortcutLabel} /> : undefined}
       >
@@ -78,18 +78,7 @@ export function ActionView({ action, size, disabled, onRun, onContextMenu, scope
   }
   const runKey = actionRunKey(project, action.name);
   const displayLabel = withEmoji(action.emoji, action.label);
-  const textLabel = <EmojiLabel emoji={action.emoji} label={action.label} />;
-  const textPadding = size === "default" ? "px-3.5" : "px-2.5";
-  const shownLabel = action.labelSvg ? (
-    <SvgLabel
-      markup={action.labelSvg}
-      alt={displayLabel}
-      fallback={<span className={`flex items-center ${textPadding}`}>{textLabel}</span>}
-    />
-  ) : (
-    textLabel
-  );
-  const padding = action.labelSvg ? "" : textPadding;
+  const face = <ActionFace action={action} padding={size === "default" ? "px-3.5" : "px-2.5"} />;
   const title = shortcutLabel ? `${displayLabel}  ·  ${shortcutLabel}` : displayLabel;
   if (size !== "default") {
     return withPopup(
@@ -101,9 +90,9 @@ export function ActionView({ action, size, disabled, onRun, onContextMenu, scope
         title={action.popup ? undefined : title}
         style={actionButtonStyle(action.color)}
         data-action-run={runKey}
-        className={`${FLAT_SIZE_CLASSES[size]} ${padding}`}
+        className={FLAT_SIZE_CLASSES[size]}
       >
-        {shownLabel}
+        {face}
         <ActionRunMarkBadge runKey={runKey} />
       </button>,
     );
@@ -115,10 +104,9 @@ export function ActionView({ action, size, disabled, onRun, onContextMenu, scope
       onMouseEnter={handleHover}
       disabled={disabled}
       variant="secondary"
-      label={shownLabel}
+      label={face}
       color={action.color}
       runKey={runKey}
-      padding={padding}
     />
   );
   if (action.popup) return withPopup(button);
@@ -127,7 +115,7 @@ export function ActionView({ action, size, disabled, onRun, onContextMenu, scope
     <Tooltip
       content={
         <span className="flex items-center gap-2">
-          {shownLabel}
+          {face}
           <Combo label={shortcutLabel} />
         </span>
       }

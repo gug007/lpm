@@ -1,3 +1,4 @@
+import { POPUP_FONT } from "./popup/popupTheme";
 import type { PopupTheme } from "./popup/popupTypes";
 
 // An action's `labelSvg` as the image its button shows: an `<svg>`, drawn as
@@ -7,11 +8,10 @@ import type { PopupTheme } from "./popup/popupTypes";
 // the button shows its text label.
 const MAX_MARKUP = 32 * 1024;
 const SVG_NS = "http://www.w3.org/2000/svg";
-const FONT = `-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif`;
 
 function themeStyle(theme: PopupTheme): string {
   const vars = Object.entries(theme.colors).map(([name, value]) => `--lpm-${name}:${value}`);
-  return [...vars, `color:${theme.colors.text ?? "#e5e5e5"}`, `font:600 12px ${FONT}`].join(";");
+  return [...vars, `color:${theme.colors.text}`, `font:600 12px ${POPUP_FONT}`].join(";");
 }
 
 function scrub(root: Element) {

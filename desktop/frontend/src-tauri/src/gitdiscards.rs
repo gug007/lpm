@@ -2,7 +2,7 @@
 // commit (parents HEAD, an index commit, and the untracked files) under a
 // per-worktree ref, so Undo and Git › History › Discarded can bring them back
 // with `git stash apply` for a week. The user's own stash list is never touched.
-use crate::git::{git_out, git_out_env, LITERAL_PATHS};
+use crate::git::{git_out, git_out_env, name_status_entries_z, path_args};
 use crate::gitworkstate::LPM_IDENTITY;
 use serde::Serialize;
 use std::collections::HashSet;
@@ -86,16 +86,7 @@ fn tracked_tree_all(cwd: &str) -> Result<String, String> {
 
 /// Which of `paths` exist at HEAD.
 pub(crate) fn in_head(cwd: &str, paths: &[&str]) -> HashSet<String> {
-    let mut args = vec![
-        LITERAL_PATHS,
-        "ls-tree",
-        "-r",
-        "-z",
-        "--name-only",
-        "HEAD",
-        "--",
-    ];
-    args.extend(paths);
+    let args = path_args(&["ls-tree", "-r", "-z", "--name-only", "HEAD"], paths);
     lines(&git_out(cwd, &args).unwrap_or_default())
         .into_iter()
         .collect()
@@ -116,11 +107,10 @@ pub(crate) fn rename_sources(cwd: &str, paths: &[&str]) -> Vec<String> {
         "--diff-filter=R",
     ];
     let raw = git_out(cwd, &args).unwrap_or_default();
-    let fields: Vec<&str> = raw.split('\0').collect();
-    fields
-        .chunks_exact(3)
-        .filter(|rename| paths.contains(&rename[2]))
-        .map(|rename| rename[1].to_string())
+    name_status_entries_z(&raw)
+        .into_iter()
+        .filter(|(_, _, path)| paths.contains(path))
+        .filter_map(|(_, old, _)| old.map(String::from))
         .collect()
 }
 
@@ -138,9 +128,7 @@ fn tracked_tree_of(cwd: &str, paths: &[&str]) -> Result<String, String> {
         .filter(|p| Path::new(cwd).join(p).exists() || at_head.contains(*p))
         .collect();
     if !present.is_empty() {
-        let mut add = vec![LITERAL_PATHS, "add", "-A", "--"];
-        add.extend(&present);
-        scratch.git(cwd, &add)?;
+        scratch.git(cwd, &path_args(&["add", "-A"], &present))?;
     }
     scratch.git(cwd, &["write-tree"])
 }
@@ -151,22 +139,12 @@ fn untracked_tree(cwd: &str, paths: &[&str]) -> Result<Option<String>, String> {
     }
     let scratch = ScratchIndex::new(cwd, "untracked")?;
     scratch.git(cwd, &["read-tree", "--empty"])?;
-    let mut add = vec![LITERAL_PATHS, "add", "-f", "--"];
-    add.extend(paths);
-    scratch.git(cwd, &add)?;
+    scratch.git(cwd, &path_args(&["add", "-f"], paths))?;
     Ok(Some(scratch.git(cwd, &["write-tree"])?))
 }
 
 fn untracked_in(cwd: &str, paths: &[&str]) -> Vec<String> {
-    let mut args = vec![
-        LITERAL_PATHS,
-        "ls-files",
-        "--others",
-        "--exclude-standard",
-        "-z",
-        "--",
-    ];
-    args.extend(paths);
+    let args = path_args(&["ls-files", "--others", "--exclude-standard", "-z"], paths);
     lines(&git_out(cwd, &args).unwrap_or_default())
 }
 

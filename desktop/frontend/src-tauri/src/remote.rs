@@ -4867,8 +4867,22 @@ fn list_projects_json(app: &AppHandle) -> Value {
     let mut projects = config::list_projects(&svc.snapshot()).unwrap_or_default();
     for p in &mut projects {
         crate::commands_real::inject_status(p, &status);
+        drop_label_svgs(p);
     }
     Value::Array(projects)
+}
+
+/// Phones draw a button's `label`, so its `labelSvg`, up to 32 KB a button, stays
+/// out of a list they fetch on every change.
+fn drop_label_svgs(value: &mut Value) {
+    match value {
+        Value::Object(fields) => {
+            fields.remove("labelSvg");
+            fields.values_mut().for_each(drop_label_svgs);
+        }
+        Value::Array(items) => items.iter_mut().for_each(drop_label_svgs),
+        _ => {}
+    }
 }
 
 /// The sidebar layout so the phone can render folders like the desktop:
@@ -6862,6 +6876,22 @@ pub fn remote_respond_pair_request(hub: State<'_, RemoteHub>, request_id: String
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn phones_get_no_label_images_at_any_depth() {
+        let mut project = json!({
+            "actions": [{
+                "label": "Stars",
+                "labelSvg": "<svg/>",
+                "children": [{ "label": "Week", "labelSvg": "<svg/>" }],
+            }],
+        });
+        drop_label_svgs(&mut project);
+        assert_eq!(
+            project,
+            json!({ "actions": [{ "label": "Stars", "children": [{ "label": "Week" }] }] })
+        );
+    }
     use crate::remotestore::{TEST_CONFIG_PATH, TEST_CONFIG_PATH_GUARD};
 
     /// Points the whole process's `config_path()` at a private temp file, and

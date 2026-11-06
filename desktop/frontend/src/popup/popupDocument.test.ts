@@ -6,7 +6,20 @@ const payload: PopupPayload = {
   data: { total: 3, note: "</script><script>alert(1)</script>" },
   text: "",
   error: "",
-  theme: { mode: "dark", colors: { bg: "rgb(38, 38, 38)", text: "rgb(237, 237, 237)" } },
+  theme: {
+    mode: "dark",
+    colors: {
+      bg: "rgb(38, 38, 38)",
+      surface: "rgb(23, 23, 23)",
+      text: "rgb(237, 237, 237)",
+      muted: "rgb(150, 150, 150)",
+      border: "rgb(60, 60, 60)",
+      accent: "rgb(110, 168, 254)",
+      green: "rgb(80, 200, 120)",
+      red: "rgb(240, 90, 90)",
+      amber: "rgb(240, 180, 60)",
+    },
+  },
   project: "web",
   action: "stars",
 };
@@ -18,8 +31,8 @@ describe("popupDocument", () => {
     expect(doc.startsWith("<!doctype html><html><head>")).toBe(true);
   });
 
-  it("adds a head to a page without one", () => {
-    expect(injectHead("<html><body>hi</body></html>", "<x>")).toBe("<html><head><x></head><body>hi</body></html>");
+  it("starts where a head would on a page without one", () => {
+    expect(injectHead("<html><body>hi</body></html>", "<x>")).toBe("<html><x><body>hi</body></html>");
     expect(injectHead("<!DOCTYPE html><p>hi</p>", "<x>")).toBe("<!DOCTYPE html><x><p>hi</p>");
     expect(injectHead("<p>hi</p>", "<x>")).toBe("<x><p>hi</p>");
   });

@@ -15,9 +15,6 @@ import org.junit.Test
 class ActionPopupPayloadTest {
     private fun content(data: String = "null", text: String = "", dataError: String = "") =
         ActionPopupContent(
-            format = "html",
-            title = "",
-            height = 200,
             refresh = 0,
             html = "<p>",
             data = Json.parseToJsonElement(data),

@@ -8,6 +8,7 @@ import { useRowMenu } from "../../hooks/useRowMenu";
 import type { ActionInfo, ZoneInfo } from "../../types";
 import type { TerminalViewHandle } from "../TerminalView";
 
+vi.mock("../../../bridge/runtime", () => ({ EventsOn: () => () => {} }));
 vi.mock("../../zoneActions", () => ({ setZoneCollapsed: vi.fn() }));
 vi.mock("../TerminalView", () => ({ TerminalView: () => <div data-testid="terminal" /> }));
 vi.mock("./EmptyTerminalState", () => ({ EmptyTerminalState: () => null }));

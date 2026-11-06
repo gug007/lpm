@@ -319,8 +319,8 @@ struct TerminalComposer: View {
             if store.transforming {
                 transformLockBar
                 Divider().opacity(0.5)
-            } else if !slashMatches.isEmpty {
-                SlashMenu(commands: slashMatches, pick: pick,
+            } else if case let matches = slashMatches, !matches.isEmpty {
+                SlashMenu(commands: matches, pick: pick,
                           onManage: lpmCommandsOn ? { showCommands = true } : nil,
                           maxHeight: verticalSizeClass == .compact ? 110 : 220)
                 Divider().opacity(0.5)
@@ -808,7 +808,7 @@ struct TerminalComposer: View {
     /// Counts a sent message that runs one of the agent's commands, for the menu's
     /// Most used. An lpm skill is counted when it expands.
     private func noteSentCommand(_ text: String) {
-        guard let name = sentCommandName(text),
+        guard let name = LpmCommandRules.parseRun(text)?.name,
               let row = (model.slashCommands[termId] ?? []).first(where: {
                   $0.name.caseInsensitiveCompare(name) == .orderedSame
               }), !row.isLpm else { return }

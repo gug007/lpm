@@ -16,7 +16,6 @@ import {
   ListDirs,
   ReadClipboardFiles,
   SaveClipboardImage,
-  TransformText,
 } from "../../bridge/commands";
 import { registerFileDropHandler } from "../fileDrop";
 import { useAIPicker } from "../hooks/useAIPicker";
@@ -24,8 +23,8 @@ import {
   useEnabledComposerActions,
   type ComposerAction,
 } from "../store/composerActions";
-import { generateVariants, resolveTransformParams } from "../composerVariants";
-import { isCanceledError, useAIGeneration } from "../hooks/useAIGeneration";
+import { rewriteWithAction } from "../composerVariants";
+import { useAIGeneration } from "../hooks/useAIGeneration";
 import { ComposerActionsButton } from "./ComposerActionsButton";
 import { ComposerMicButton } from "./ComposerMicButton";
 import { DICTATION_AVAILABLE } from "../hooks/useVoiceDictation";
@@ -457,44 +456,21 @@ export function InputComposer({
       // Multiple rewrites open the picker; the field stays untouched until one is
       // chosen, so skip the field-refocus that the single-result path needs.
       let openedPicker = false;
-      try {
-        const params = resolveTransformParams(ai);
-        if (count <= 1) {
-          const out = await gen.run((genId) =>
-            TransformText(
-              history?.projectName ?? null,
-              aiCwd,
-              params.cli,
-              params.model,
-              params.effort,
-              params.fast,
-              action.instruction,
-              value,
-              genId,
-            ),
-          );
-          const text = typeof out === "string" ? out.trim() : "";
-          if (!text) {
-            toast.error("AI returned an empty response");
-            return;
-          }
-          replaceField(text, images);
-        } else {
-          const list = await gen.runAll(count, (genIds) =>
-            generateVariants(history?.projectName ?? null, aiCwd, params, action.instruction, value, count, genIds),
-          );
-          if (list.length === 0) {
-            toast.error("AI returned an empty response");
-            return;
-          }
+      await rewriteWithAction({
+        gen,
+        projectName: history?.projectName ?? null,
+        cwd: aiCwd,
+        ai,
+        action,
+        value,
+        count,
+        onText: (text) => replaceField(text, images),
+        onVariants: (list) => {
           openedPicker = true;
           setVariants({ label: action.label, list, images });
-        }
-      } catch (err) {
-        if (!isCanceledError(err)) toast.error(`Action failed: ${err}`);
-      } finally {
-        if (!openedPicker) endTransform();
-      }
+        },
+      });
+      if (!openedPicker) endTransform();
     },
     [aiCwd, ai, gen, replaceField, endTransform],
   );

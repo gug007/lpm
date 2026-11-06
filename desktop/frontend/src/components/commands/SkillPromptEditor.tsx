@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import type * as monacoNs from "monaco-editor";
+import { useAIGeneration } from "../../hooks/useAIGeneration";
 import { variableSpans } from "../../lpmCommands";
 import { MessageMarkdown } from "../MessageMarkdown";
 import { MonacoEditor } from "../MonacoEditor";
@@ -68,7 +69,8 @@ export function SkillPromptEditor({
   onSave,
 }: SkillPromptEditorProps) {
   const [view, setView] = useState<View>("edit");
-  const [refining, setRefining] = useState(false);
+  const gen = useAIGeneration(projectName);
+  const refining = gen.generating;
   const editorRef = useRef<monacoNs.editor.IStandaloneCodeEditor | null>(null);
   const onReady = useCallback((editor: monacoNs.editor.IStandaloneCodeEditor, monaco: typeof monacoNs) => {
     editorRef.current = editor;
@@ -152,8 +154,7 @@ export function SkillPromptEditor({
             projectLabel={projectLabel}
             value={value}
             onReplace={replace}
-            busy={refining}
-            onBusyChange={setRefining}
+            gen={gen}
           />
         </div>
       </div>

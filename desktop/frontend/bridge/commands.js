@@ -126,11 +126,11 @@ export function AllowRepoCommands(projectName) {
 export function ActionPopup(projectName, actionName, fresh) {
   return invoke("action_popup", { projectName, actionName, fresh });
 }
-export function PopupViewOpen(id, html, x, y, width, height, background) {
-  return invoke("popup_view_open", { id, html, x, y, width, height, background });
+export function PopupViewOpen(id, html, rect, background) {
+  return invoke("popup_view_open", { id, html, rect, background });
 }
-export function PopupViewPlace(id, x, y, width, height) {
-  return invoke("popup_view_place", { id, x, y, width, height });
+export function PopupViewPlace(id, rect) {
+  return invoke("popup_view_place", { id, rect });
 }
 export function PopupViewPush(id, payload) {
   return invoke("popup_view_push", { id, payload });

@@ -1,12 +1,14 @@
 // @vitest-environment happy-dom
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ActionInfo, ZoneInfo } from "../types";
 import { buildActionsModel } from "../actionsLayoutModel";
 import { useZoneLayers } from "../store/zoneLayers";
 import { ActionDragOverlay } from "./ActionDragOverlay";
 import { type ActionGroup, zoneItemId } from "./actionsDndLayout";
+
+vi.mock("../../bridge/runtime", () => ({ EventsOn: () => () => {} }));
 
 const action = (name: string, display: string, position?: number): ActionInfo =>
   ({ name, label: name, cmd: `run ${name}`, confirm: false, display, position }) as ActionInfo;

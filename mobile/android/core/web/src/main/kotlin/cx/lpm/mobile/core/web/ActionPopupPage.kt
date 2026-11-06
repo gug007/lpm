@@ -22,11 +22,7 @@ internal object ActionPopupPage {
         .also { template = it }
 
     /** [template] calling itself with [payload], the JSON `window.lpm` starts from. */
-    fun bootstrap(template: String, payload: String): String {
-        val at = template.lastIndexOf(TOKEN)
-        if (at < 0) return template
-        return template.substring(0, at) + payload + template.substring(at + TOKEN.length)
-    }
+    fun bootstrap(template: String, payload: String): String = template.replace(TOKEN, payload)
 
     /**
      * [page] with [script] first in its head: after the opening `<head>`, else the

@@ -277,6 +277,11 @@ export function translateResult(cmd: string, slug: string, result: unknown): unk
     const r = result as { dir?: unknown };
     if (typeof r.dir === "string" && r.dir) return { ...result, dir: prefixRoot(slug, r.dir) };
   }
+  // A popup's page file is on the host, so nothing here can load from beside it.
+  if (cmd === "action_popup" && result && typeof result === "object") {
+    const r = result as { file?: unknown };
+    if (typeof r.file === "string") return { ...result, file: prefixRoot(slug, r.file) };
+  }
   if ((cmd === "list_all_jobs" || cmd === "list_jobs") && Array.isArray(result)) {
     return result.map((row) => translateJob(slug, row));
   }

@@ -222,6 +222,20 @@ fn a_tracked_name_with_brackets_is_not_a_pattern() {
 }
 
 #[test]
+fn committing_a_name_with_brackets_leaves_the_file_it_would_match() {
+    let (_tmp, root) = repo();
+    write(&root, "a.txt", "a\n");
+    write(&root, "[ab].txt", "brackets\n");
+    commit(&root);
+    write(&root, "a.txt", "edited\n");
+    write(&root, "[ab].txt", "edited\n");
+
+    crate::git::git_commit(root.clone(), "only brackets".into(), vec!["[ab].txt".into()]).unwrap();
+
+    assert_eq!(changes_list(&root), vec!["a.txt"]);
+}
+
+#[test]
 fn an_untracked_name_with_brackets_is_not_a_pattern() {
     let (_dir, root) = repo();
     write(&root, "[cd].txt", "gone\n");

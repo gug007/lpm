@@ -23,7 +23,6 @@ import {
   RemoteSetComposerDraft,
   RenameMemorySession,
   SaveClipboardImage,
-  TransformText,
   UploadClipboardImageForTerminal,
 } from "../../bridge/commands";
 import { registerFileDropHandler } from "../fileDrop";
@@ -37,8 +36,8 @@ import {
   useEnabledComposerActions,
   type ComposerAction,
 } from "../store/composerActions";
-import { generateVariants, resolveTransformParams } from "../composerVariants";
-import { isCanceledError, useAIGeneration } from "../hooks/useAIGeneration";
+import { rewriteWithAction } from "../composerVariants";
+import { useAIGeneration } from "../hooks/useAIGeneration";
 import { ComposerActionsModal } from "./ComposerActionsModal";
 import { ComposerVariantsModal } from "./ComposerVariantsModal";
 import { ComposerToolbar } from "./ComposerToolbar";
@@ -1937,48 +1936,24 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     // The picker keeps the transform locked until a variant is committed, so the
     // finally must not release it — chooseVariant/closeVariants do.
     let openedPicker = false;
-    try {
-      // Read the live AI selection at run time — the picker in the manage modal
-      // (or any other AI flow) may have changed it since this composer mounted.
-      const params = resolveTransformParams(ai);
-      if (count <= 1) {
-        const out = await gen.run((genId) =>
-          TransformText(
-            projectName,
-            cwd,
-            params.cli,
-            params.model,
-            params.effort,
-            params.fast,
-            action.instruction,
-            value,
-            genId,
-          ),
-        );
-        const text = typeof out === "string" ? out.trim() : "";
-        if (!text) {
-          toast.error("AI returned an empty response");
-          return;
-        }
-        if (activeId.current !== startedId) return;
-        applyRewrite(editor, text, images);
-      } else {
-        const list = await gen.runAll(count, (genIds) =>
-          generateVariants(projectName, cwd, params, action.instruction, value, count, genIds),
-        );
-        if (list.length === 0) {
-          toast.error("AI returned an empty response");
-          return;
-        }
+    await rewriteWithAction({
+      gen,
+      projectName,
+      cwd,
+      ai,
+      action,
+      value,
+      count,
+      onText: (text) => {
+        if (activeId.current === startedId) applyRewrite(editor, text, images);
+      },
+      onVariants: (list) => {
         if (activeId.current !== startedId) return;
         openedPicker = true;
         setVariants({ label: action.label, list, images, startedId });
-      }
-    } catch (err) {
-      if (!isCanceledError(err)) toast.error(`Action failed: ${err}`);
-    } finally {
-      if (!openedPicker) endTransform();
-    }
+      },
+    });
+    if (!openedPicker) endTransform();
   };
 
   const chooseVariant = (text: string) => {

@@ -1,8 +1,10 @@
-import type { PopupTheme } from "./popupTypes";
+import type { PopupColor, PopupTheme } from "./popupTypes";
+
+export const POPUP_FONT = `-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif`;
 
 // The app's colors a popup page gets as `lpm.theme` and `--lpm-*` variables,
 // each read from the app's own variable so a page follows the theme.
-const SOURCES: Record<string, string> = {
+const SOURCES: Record<PopupColor, string> = {
   bg: "--bg-secondary",
   surface: "--bg-primary",
   text: "--text-primary",
@@ -28,7 +30,7 @@ function readTheme(mode: PopupTheme["mode"]): PopupTheme {
   try {
     const colors = Object.fromEntries(
       Object.entries(SOURCES).map(([name, variable]) => [name, resolve(probe, variable)]),
-    );
+    ) as PopupTheme["colors"];
     return { mode, colors };
   } finally {
     probe.remove();

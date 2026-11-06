@@ -22,7 +22,6 @@ export function ActionButton({
   label,
   color,
   runKey,
-  padding,
 }: {
   onClick: () => void;
   onContextMenu?: (e: MouseEvent) => void;
@@ -33,8 +32,6 @@ export function ActionButton({
   color?: string;
   // Names the button to a quick action's result card and run mark.
   runKey?: string;
-  // Empty when the label (a `labelSvg` image) fills the button.
-  padding: string;
 }) {
   return (
     <button
@@ -44,7 +41,7 @@ export function ActionButton({
       disabled={disabled}
       style={actionButtonStyle(color)}
       data-action-run={runKey}
-      className={`relative inline-flex h-8 shrink-0 cursor-grab select-none items-center whitespace-nowrap rounded-lg ${padding} text-xs font-medium transition-all duration-100 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 ${actionStyles[variant]}`}
+      className={`relative inline-flex h-8 shrink-0 cursor-grab select-none items-center whitespace-nowrap rounded-lg text-xs font-medium transition-all duration-100 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 ${actionStyles[variant]}`}
     >
       {label}
       {runKey && <ActionRunMarkBadge runKey={runKey} />}

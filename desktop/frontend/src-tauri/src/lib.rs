@@ -247,6 +247,7 @@ mod portsprobe;
 #[cfg(any(windows, test))]
 mod portsprobe_windows;
 mod procinfo;
+mod action_exec;
 mod interval;
 mod ipc_gate;
 mod popup_cache;

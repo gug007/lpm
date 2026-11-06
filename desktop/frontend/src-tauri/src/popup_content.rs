@@ -4,8 +4,9 @@
 //! can't be made, or data that can't be read, comes back as words the card
 //! shows. Only a missing project or action is an error.
 use crate::config::popup::{command_of, popup_site, PopupData, PopupSite, SHOWN};
+use crate::action_exec::{action_place, size_words};
 use crate::popup_cache;
-use crate::popup_run::{self, size_words};
+use crate::popup_run;
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -17,10 +18,6 @@ const MAX_DATA: usize = 1024 * 1024;
 #[derive(Serialize, Clone, Default, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct PopupContent {
-    pub format: String,
-    pub title: String,
-    pub width: u32,
-    pub height: u32,
     pub refresh: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub html: Option<String>,
@@ -43,6 +40,17 @@ pub struct PopupContent {
     /// Why the last run failed, while the last good result is shown instead.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub refresh_error: String,
+}
+
+impl PopupContent {
+    /// Why this run failed, empty when it didn't.
+    pub(crate) fn failure(&self) -> &str {
+        if self.error.is_empty() {
+            &self.data_error
+        } else {
+            &self.error
+        }
+    }
 }
 
 #[tauri::command(async)]
@@ -95,10 +103,6 @@ fn fingerprint(site: &PopupSite) -> u64 {
 fn make(project: &str, action: &str, site: &PopupSite) -> PopupContent {
     let def = &site.def;
     let mut out = PopupContent {
-        format: def.format.clone(),
-        title: def.title.clone(),
-        width: def.width,
-        height: def.height,
         refresh: def.refresh,
         updated_at: crate::status::now_millis(),
         ..Default::default()
@@ -119,7 +123,12 @@ fn make(project: &str, action: &str, site: &PopupSite) -> PopupContent {
         return out;
     }
     let runner = Runner::new(project, action, site);
-    match runner.page(&def.source) {
+    let (page, data) = std::thread::scope(|scope| {
+        let data = scope.spawn(|| runner.data(&def.data));
+        let page = runner.page(&def.source);
+        (page, data.join().unwrap_or_else(|_| Err("The data command stopped.".into())))
+    });
+    match page {
         Ok((html, file)) => {
             out.html = Some(html);
             out.file = file;
@@ -129,7 +138,7 @@ fn make(project: &str, action: &str, site: &PopupSite) -> PopupContent {
             return out;
         }
     }
-    match runner.data(&def.data) {
+    match data {
         Ok((data, text)) => {
             out.data = data;
             out.text = text;
@@ -147,12 +156,8 @@ struct Runner<'a> {
 
 impl<'a> Runner<'a> {
     fn new(project: &str, action: &str, site: &'a PopupSite) -> Self {
-        let dir = match site.ssh {
-            Some(_) => crate::config::join_remote_dir(&site.root, &site.cwd),
-            None => crate::config::resolve_cwd(&site.root, &site.cwd),
-        };
-        let mut env = site.env.clone();
-        env.insert("LPM_PROJECT_NAME".into(), project.to_string());
+        let (dir, mut env) =
+            action_place(project, &site.root, site.ssh.is_some(), &site.cwd, &site.env);
         env.insert("LPM_ACTION".into(), action.to_string());
         Self { site, dir, env }
     }
@@ -164,7 +169,6 @@ impl<'a> Runner<'a> {
 
     fn read(&self, path: &str, max: usize) -> Result<(String, Option<String>), String> {
         popup_run::read_file(self.site.ssh.as_ref(), &self.dir, path, max)
-            .map(|(text, at)| (text, at.map(|p| p.to_string_lossy().into_owned())))
     }
 
     /// The page: what a `$(command)` prints, the page written in the config
@@ -208,27 +212,11 @@ impl<'a> Runner<'a> {
         if printed.trim().is_empty() {
             return Ok((Value::Null, String::new()));
         }
-        Ok(match parse_json(&printed) {
-            Some(value) => (value, String::new()),
-            None => (Value::Null, printed),
+        Ok(match serde_json::from_str(printed.trim()) {
+            Ok(value) => (value, String::new()),
+            Err(_) => (Value::Null, printed),
         })
     }
-}
-
-/// The JSON a command printed, also when the login shell printed a line of its
-/// own first.
-fn parse_json(printed: &str) -> Option<Value> {
-    if let Ok(value) = serde_json::from_str(printed.trim()) {
-        return Some(value);
-    }
-    let mut at = 0;
-    for line in printed.split_inclusive('\n') {
-        if matches!(line.trim_start().chars().next(), Some('{' | '[')) {
-            return serde_json::from_str(printed[at..].trim()).ok();
-        }
-        at += line.len();
-    }
-    None
 }
 
 fn is_inline_page(source: &str) -> bool {

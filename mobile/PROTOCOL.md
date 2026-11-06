@@ -877,12 +877,12 @@ Only when `features` has `"actionPopup"`. An action whose `ActionInfo` carries `
 |---|---|
 | `{ "t": "actionPopup", "project": "<name>", "action": "<action id>", "fresh": bool? }` | `{ "t": "actionPopup", "project": "<name>", "action": "<action id>", "ok": true, "popup": PopupContent }` / `{ "ok": false, "error": "…" }` when the project or action doesn't exist. Without `fresh`, the last result comes back at once when there is one, with `stale: true` once it's older than the config's `cache` (30 s by default): show it, then ask again with `fresh: true`, which runs the commands (two asks at once share one run). Async (worker): a command may take up to 15 seconds |
 
-`PopupContent`: `{ format, title, width, height, refresh, html?, data, text?, dataError?, error?, updatedAt, stale?, refreshError? }`.
+`PopupContent`: `{ refresh, html?, data, text?, dataError?, error?, updatedAt, stale?, refreshError? }`.
 
-- `title` is the config's `title`, empty when unset: head the card with the action's label then. `width`×`height` is the page's size in points.
+- The card's look comes from `ActionInfo.popup`: `title` is the config's `title`, empty when unset, so head the card with the action's label then, and `height` is the page's height in points.
 - `html` is the whole page. Absent when the page couldn't be made; `error` then says why (a missing file, a command that failed or took longer than 15 seconds, a page over 1.5 MB, a format this Mac can't show). Show `error` in its place.
 - `data` is the JSON the `data` command printed, or `null`. `text` is that output as printed when it isn't JSON. `dataError` says why the command failed; the page still loads and reads it as `lpm.error`.
-- `refresh` is seconds between refreshes while the card is open, `0` for only when it opens. Each refresh asks again without `fresh` (so it follows `cache`, asking with `fresh: true` when the answer is `stale`) and hands the new `data`/`text`/`dataError` to the page through `window.__lpmPush({ data, text, error })`, without reloading it. The sheet's Refresh button asks with `fresh: true`.
+- `refresh` is seconds between refreshes while the card is open, `0` for only when it opens. Each refresh asks again without `fresh` (so it follows `cache`, asking with `fresh: true` when the answer is `stale`) and, when `updatedAt` moved, hands the new `data`/`text`/`dataError` to the page through `window.__lpmPush({ data, text, error })`, without reloading it. The sheet's Refresh button asks with `fresh: true`.
 - `updatedAt` is when the page and data were made, in Unix milliseconds; show it as "just now" / "3m ago" beside the title. `refreshError` says why the last run failed while the last good result is shown: show it in place of the `dataError` line as "Couldn't refresh: …".
 
 Rendering: load `html` with no base URL (a page's own files stay on the Mac, so a phone page uses what it holds inline or loads from `https`). Before the page's scripts run, inject `mobile/shared/web/popup/bootstrap.js` with `__LPM_POPUP_PAYLOAD__` replaced by `{ data, text, error: dataError, theme: { mode: "dark"|"light", colors: { bg, surface, text, muted, border, accent, green, red, amber } }, project, action }` as JSON. It defines `window.lpm` (`data`, `text`, `error`, `theme`, `project`, `action`, `onData(fn)`), `window.__lpmPush`, and `--lpm-<color>` CSS variables. Give the page no bridge to the app, keep it on its first load (open `http`/`https` links in the browser instead), and let a script error stay inside it.
@@ -1388,8 +1388,8 @@ actions: [ActionInfo]     // recursive: { name (composite parent:child), label, 
                           // Editors read `actionBody`, which keeps the templates, and `labelRefresh`/`labelRefreshOnHover`/
                           // `labelRefreshOnChange` ride along as unmanaged keys (the Mac watches files itself). `labelRefreshOnHover: true` asks a pointer-driven client to
                           // rerun the action's commands when hovered; the phone has no hover and ignores it
-                          // `labelSvg?`: the `<svg>` the desktop draws on the button in place of `label`; phones show
-                          // `label` (it stays the button's name).
+                          // The `labelSvg` the desktop draws on a button isn't sent: phones show `label`, which stays
+                          // the button's name.
                           // `popup?: { format, title?, width, height, problem? }` — the action has a popup card (see
                           // [Action popups](#action-popups)): `format` is the config's format key ("html" today),
                           // `width`×`height` the page's size in points, `title` the card's heading when set (else

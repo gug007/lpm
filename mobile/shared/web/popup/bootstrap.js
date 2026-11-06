@@ -2,8 +2,8 @@
 // the JSON its `data` command printed (or `text` when it wasn't JSON, and
 // `error` when the command failed), lpm's colors as `theme` and as `--lpm-*`
 // CSS variables, and `onData(fn)` for the values a refresh brings. The apps
-// replace __LPM_POPUP_PAYLOAD__ with that payload as JSON: the phones when they
-// inject it, the desktop in desktop/frontend/src/popup/popupDocument.ts.
+// replace the token it's called with below with that payload as JSON: the phones
+// when they inject it, the desktop in desktop/frontend/src/popup/popupDocument.ts.
 (function (payload) {
   "use strict";
   var listeners = [];
@@ -45,13 +45,8 @@
     }
   }
 
-  try {
-    Object.defineProperty(window, "lpm", { value: lpm });
-    Object.defineProperty(window, "__lpmPush", { value: push });
-  } catch (e) {
-    window.lpm = lpm;
-    window.__lpmPush = push;
-  }
+  Object.defineProperty(window, "lpm", { value: lpm });
+  Object.defineProperty(window, "__lpmPush", { value: push });
   window.addEventListener("message", function (event) {
     if (window.parent === window || event.source !== window.parent) return;
     if (event.data && event.data.lpmPopup) push(event.data.lpmPopup);

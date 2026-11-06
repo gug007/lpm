@@ -12,7 +12,7 @@ class ActionPopupPageTest {
     fun `the payload replaces the token the bootstrap is called with`() {
         val script = ActionPopupPage.bootstrap(template, """{"data":1}""")
         assertTrue(script.trimEnd().endsWith("""})({"data":1});"""))
-        assertTrue("the comment naming the token stays", "__LPM_POPUP_PAYLOAD__" in script)
+        assertTrue("__LPM_POPUP_PAYLOAD__" !in script)
     }
 
     @Test
