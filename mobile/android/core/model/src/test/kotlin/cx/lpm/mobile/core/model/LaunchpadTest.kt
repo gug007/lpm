@@ -30,6 +30,31 @@ class LaunchpadTest {
     }
 
     @Test
+    fun `variants sharing a label carry their action's emoji, a bare agent has none`() {
+        val tabs = launchpadTabs(
+            actions(
+                """[{"name":"claude","label":"Claude","emoji":"✻",""" +
+                    """"type":"terminal","cmd":"claude","children":[""" +
+                    """{"name":"claude:fast","label":"Claude","emoji":"⚡",""" +
+                    """"type":"terminal","cmd":"claude --model haiku"},""" +
+                    """{"name":"claude:plain","label":"Claude",""" +
+                    """"type":"terminal","cmd":"claude --model opus"}]}]"""
+            ),
+            agents
+        ) { null }
+
+        val claude = tabs.single()
+        assertEquals("✻", claude.emoji)
+        assertEquals(listOf("✻", "⚡", ""), claude.options.map { it.emoji })
+        assertEquals(listOf("✻ Claude", "⚡ Claude", "Claude"), claude.options.map { it.menuTitle })
+
+        val bare = launchpadTabs(emptyList(), agents) { null }.first()
+        assertEquals("", bare.emoji)
+        assertEquals("", bare.options.single().emoji)
+        assertEquals(bare.label, bare.options.single().menuTitle)
+    }
+
+    @Test
     fun `the project's agent actions, groups kept whole with only their agent items`() {
         val tabs = launchpadTabs(
             actions(

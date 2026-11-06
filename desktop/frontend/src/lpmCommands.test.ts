@@ -36,10 +36,46 @@ describe("which command /name runs", () => {
     expect(findCommand(lists, "nope")).toBeNull();
   });
 
-  it("puts lpm commands ahead of the agent's and hides the ones they replace", () => {
+  it("hides the agent's commands that lpm commands replace", () => {
     const rows = mergeSlashCommands(lists, [agent("commit"), agent("review")]);
     expect(rows.map((r) => `${r.source}:${r.name}`)).toEqual(["lpm:Ship", "lpm:commit", "builtin:review"]);
     expect(rows[1]).toMatchObject({ folder: "Git", scope: "global" });
+  });
+
+  it("carries each row's recent runs", () => {
+    const withRuns: LpmCommandLists = {
+      ...lists,
+      project: {
+        ...lists.project!,
+        commands: lists.project!.commands.map((c) => ({ ...c, recentRuns: 4, lastRunAt: 9 })),
+      },
+      agentRuns: { review: { recentRuns: 2, lastRunAt: 7 } },
+    };
+    const rows = mergeSlashCommands(withRuns, [agent("Review"), agent("clear")]);
+    expect(rows.find((r) => r.name === "Ship")).toMatchObject({ recentRuns: 4, lastRunAt: 9 });
+    expect(rows.find((r) => r.name === "Review")).toMatchObject({ recentRuns: 2, lastRunAt: 7 });
+    expect(rows.find((r) => r.name === "clear")?.recentRuns).toBeUndefined();
+  });
+
+  it("gives a filed skill made elsewhere its folder, from its own list", () => {
+    const other = (name: string, folder: string) => ({
+      name,
+      description: "",
+      preview: "",
+      agents: [],
+      path: "",
+      folder,
+    });
+    const filed: LpmCommandLists = {
+      ...lists,
+      project: { ...lists.project!, others: [other("docs", "Web")] },
+      global: { ...lists.global, others: [other("docs", "Global folder")] },
+    };
+    const row = (source: SlashCommand["source"]) =>
+      mergeSlashCommands(filed, [{ ...agent("docs"), source }]).find((r) => r.name === "docs")?.folder;
+    expect(row("project")).toBe("Web");
+    expect(row("user")).toBe("Global folder");
+    expect(row("builtin")).toBeUndefined();
   });
 });
 

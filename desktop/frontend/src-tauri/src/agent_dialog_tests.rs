@@ -252,3 +252,9 @@ fn a_redrawn_dialog_replaces_the_one_under_it() {
     assert_eq!(dialog.question, "Pick a size?");
     assert_eq!(labels(&dialog), ["Small", "Large"]);
 }
+
+#[test]
+fn an_option_numbered_zero_at_the_bottom_is_not_a_dialog() {
+    assert_eq!(parse(&[" ❯ 1. Yes", "   0. foo"], COLS), None);
+    assert_eq!(parse(&[" ❯ 1. Yes", "   00. foo"], COLS), None);
+}

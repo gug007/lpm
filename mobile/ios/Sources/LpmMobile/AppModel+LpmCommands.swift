@@ -16,6 +16,12 @@ extension AppModel {
         client?.hostFeatures.contains(LpmClient.lpmNestedFoldersFeature) == true
     }
 
+    /// Counts a sent `/` command that isn't an lpm skill, for the menu's Most used.
+    func noteCommandUsed(project: String, name: String) {
+        guard let client, client.hostFeatures.contains(LpmClient.lpmCommandUsedFeature) else { return }
+        client.noteCommandUsed(project: project, name: name)
+    }
+
     func wireLpmCommands(_ c: LpmClient) {
         c.onLpmCommandReply = { [weak self, weak c] reply in
             guard let self, let c, c === self.client else { return }

@@ -1,6 +1,6 @@
 # lpm skills: a project's Skills screen (this project's folders, a new folder),
-# the skill editor, a folder inside that folder, then the composer's "/" menu with the user's skills grouped
-# by folder ahead of the agent's own.
+# the skill editor, a folder inside that folder, then the composer's "/" menu with the commands run most,
+# the user's skills and the agent's own side by side, ahead of the rest A–Z.
 appId: cx.lpm.mobile
 name: 157-lpm-commands
 tags: [demo, commands, composer]
@@ -87,6 +87,9 @@ tags: [demo, commands, composer]
 - extendedWaitUntil:
     visible: "/review-changes"
     timeout: 5000
+- assertVisible: "MOST USED"
+- assertVisible: "/commit-parts"
+- assertVisible: "/compact"
 - assertVisible: "Manage skills"
 - waitForAnimationToEnd:
     timeout: 3000

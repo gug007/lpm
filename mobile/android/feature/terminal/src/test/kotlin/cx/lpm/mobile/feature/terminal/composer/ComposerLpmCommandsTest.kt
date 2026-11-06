@@ -96,13 +96,12 @@ class ComposerLpmCommandsTest {
     }
 
     @Test
-    fun `the menu groups lpm commands and ends with Manage commands`() = runTest {
+    fun `the menu lists every command A-Z and ends with Manage commands`() = runTest {
         val s = setup()
         type(s.vm, "/")
         val state = s.vm.uiState.value
         assertTrue(state.lpmCommands)
-        assertEquals("Claude Code", state.agentLabel)
-        assertEquals(listOf("fix-ticket", "explain", "review"), state.slashMatches.map { it.name })
+        assertEquals(listOf("explain", "fix-ticket", "review"), state.slashMatches.map { it.name })
         type(s.vm, "/bu")
         assertEquals(listOf("fix-ticket"), s.vm.uiState.value.slashMatches.map { it.name })
     }

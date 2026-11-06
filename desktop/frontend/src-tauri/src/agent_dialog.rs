@@ -98,7 +98,7 @@ fn first_option_row<S: AsRef<str>>(lines: &[S], last: usize) -> Option<usize> {
             if expected == 1 {
                 return Some(i);
             }
-            expected -= 1;
+            expected = expected.checked_sub(1)?;
         } else if !is_blank(line) && !ANY_RULE.is_match(line) && !INDENTED.is_match(line) {
             return None;
         }

@@ -126,8 +126,8 @@ extension DemoServer {
             }
         }
 
-        // The user's lpm commands lead, and hide an agent command of the same
-        // name, since `/name` runs theirs.
+        // The user's lpm commands hide an agent command of the same name, since
+        // `/name` runs theirs.
         register("slash") { [weak self] o in
             guard let self, let id = o["id"] as? String else { return }
             guard let term = self.demoTerminal(id), !term.cli.isEmpty else {
@@ -138,6 +138,7 @@ extension DemoServer {
             let taken = Set(lpm.compactMap { ($0["name"] as? String)?.lowercased() })
             let agent = (term.cli == "claude" ? self.claudeSlashCommands : [])
                 .filter { !taken.contains(($0["name"] as? String ?? "").lowercased()) }
+                .map(self.withSeededRuns)
             self.push(["t": "slash", "id": id, "commands": lpm + agent])
         }
         register("mentions") { [weak self] o in
@@ -297,6 +298,13 @@ extension DemoServer {
         "\(orange)✻\(reset) \(bold)Welcome to Claude Code\(reset)\r\n\r\n"
             + "\(dim)  /help for help, /status for your current setup\r\n\r\n"
             + "  cwd: /Users/demo/dev/\(project)\(reset)\r\n\r\n"
+    }
+
+    /// `/compact` is the one agent command with runs, so Most used in the `/` menu
+    /// shows the user's skills and the agent's own side by side.
+    private func withSeededRuns(_ row: [String: Any]) -> [String: Any] {
+        guard row["name"] as? String == "compact" else { return row }
+        return row.merging(["recentRuns": 9, "lastRunAt": Int(Date().timeIntervalSince1970 * 1000) - 5 * 3_600_000]) { $1 }
     }
 
     private var claudeSlashCommands: [[String: Any]] {

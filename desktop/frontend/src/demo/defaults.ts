@@ -43,7 +43,7 @@ const NULL: string[] = [
   "peer_sync_status", "peer_term_attach", "peer_term_detach", "peer_uninstall_host",
   "peer_update_host", "play_sound_preview", "popup_view_close", "popup_view_open", "popup_view_place",
   "popup_view_push", "preview_agent_skill_delete", "pull_branch", "push_weekly_recap",
-  "quit_app", "quit_request_heard", "read_agent_capability", "read_clipboard_image", "read_memory_sessions",
+  "quit_app", "quit_request_heard", "read_agent_capability", "read_clipboard_image", "record_slash_command", "read_memory_sessions",
   "refresh_action_label", "refresh_agent_tools", "release_pane_status", "remote_rename_device",
   "remote_respond_pair_request", "remote_revoke_device", "remote_set_agent_options",
   "remote_set_composer_draft", "remote_set_config", "remote_set_keep_awake",

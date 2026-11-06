@@ -144,6 +144,7 @@ private fun StartSection(state: NewTabUiState, actions: NewTabActions) {
                     NewTabStartRow(
                         label = only.label,
                         agent = only.agent,
+                        emoji = only.emoji,
                         picked = state.picked == only.id,
                         onPick = { actions.pickOption(only) }
                     )

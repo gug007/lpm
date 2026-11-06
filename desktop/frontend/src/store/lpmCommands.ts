@@ -9,6 +9,7 @@ import {
   ImportLpmCommands,
   ListLpmCommands,
   MoveOtherSkill,
+  RecordSlashCommand,
   RenameLpmCommandFolder,
   SaveLpmCommand,
 } from "../../bridge/commands";
@@ -161,4 +162,9 @@ export function expandLpmCommand(
   cli?: AICLI,
 ): Promise<ExpandedCommand> {
   return ExpandLpmCommand(project, name, args, cli) as Promise<ExpandedCommand>;
+}
+
+// Only ever orders the `/` menu, so a computer on an older lpm saying no is fine.
+export function recordSlashCommand(project: string, name: string): void {
+  (RecordSlashCommand(project, name) as Promise<void>).catch(() => {});
 }

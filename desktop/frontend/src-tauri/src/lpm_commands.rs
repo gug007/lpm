@@ -12,7 +12,7 @@
 // Every operation goes through `CommandFs`, so an SSH project's list is read and
 // written on its host (lpm_commands_remote) by the same rules as a local one.
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 use std::path::Path;
 
 pub(crate) use crate::lpm_commands_doc::{parse_doc, Doc};
@@ -64,6 +64,9 @@ pub struct LpmCommand {
     pub runs: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_run_at: Option<u64>,
+    /// Its runs in the last 30 days; None when there were none.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub recent_runs: Option<u32>,
 }
 
 /// A skill in one of a list's places that lpm didn't create: listed so the user
@@ -92,6 +95,14 @@ pub struct ScopeList {
     pub in_repo: bool,
 }
 
+/// How often a `/` command that isn't an lpm skill went out lately.
+#[derive(Serialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentRuns {
+    pub recent_runs: u32,
+    pub last_run_at: u64,
+}
+
 #[derive(Serialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct LpmCommands {
@@ -102,6 +113,9 @@ pub struct LpmCommands {
     pub project_error: Option<String>,
     /// Here so that a folder and its fold arrive together, whoever moved it.
     pub folds: SkillFolds,
+    /// The runs of the commands that aren't lpm skills, by lowercase name.
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub agent_runs: BTreeMap<String, AgentRuns>,
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -306,6 +320,7 @@ pub(crate) fn list_stores(stores: &Stores) -> Result<LpmCommands, String> {
         project,
         project_error,
         folds: crate::lpm_commands_folds::of(stores),
+        agent_runs: BTreeMap::new(),
     })
 }
 
@@ -333,6 +348,7 @@ fn read_scope(fs: &dyn CommandFs, scope: Scope) -> Result<ScopeList, String> {
             path: skill_md_at(&fs.location(&f.name)),
             runs: None,
             last_run_at: None,
+            recent_runs: None,
             description: f.doc.shown_description(&f.name),
             argument_hint: crate::lpm_commands_expand::argument_hint(&f.doc.body),
             folder: f.folder,

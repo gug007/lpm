@@ -9,6 +9,10 @@ struct LaunchpadOption: Identifiable {
     let agent: String
     var action: Action?
     var group: Action?
+
+    var emoji: String { action?.emoji ?? "" }
+    /// How a plain-text menu row names it, so variants sharing a label stay apart.
+    var menuTitle: String { emoji.isEmpty ? label : "\(emoji) \(label)" }
 }
 
 /// One entry of the New Tab sheet's Start list: a single option, or a header split
@@ -19,6 +23,7 @@ struct LaunchpadTab: Identifiable {
     let options: [LaunchpadOption]
     /// What the entry itself picks; nil for a menu, which only opens.
     let primary: LaunchpadOption?
+    var emoji = ""
 }
 
 /// The project's actions that open one of `agents`, split buttons and menus kept
@@ -49,7 +54,7 @@ func launchpadTabs(_ actions: [Action], project: String, agents: [AgentOption],
         let lead = action.primaryChild(remembered: memory.child(project: project, group: action.name))
         let primary = options.first { $0.id == lead?.name }
             ?? (lead != nil || !action.cmd.isEmpty ? options.first : nil)
-        tabs.append(LaunchpadTab(id: action.name, label: action.label, options: options, primary: primary))
+        tabs.append(LaunchpadTab(id: action.name, label: action.label, options: options, primary: primary, emoji: action.emoji))
     }
     if !tabs.isEmpty { return tabs }
     return agents.map {

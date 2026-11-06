@@ -33,6 +33,8 @@ pub(crate) enum Request {
     Import { scope: Scope },
     /// `cli` is the agent the run goes to, None to get the prompt whatever it is.
     Expand { name: String, args: String, cli: Option<String> },
+    /// A composer sent `/name` and it isn't an lpm skill, which `Expand` counts.
+    Used { name: String },
     Folds,
     /// No `folder` means the Other skills group.
     Fold { scope: Scope, folder: Option<String>, open: bool },
@@ -50,6 +52,7 @@ pub(crate) enum Reply {
     Imported(ImportResult),
     Expanded(Expanded),
     Folds(SkillFolds),
+    Noted,
 }
 
 impl Reply {
@@ -73,6 +76,7 @@ impl Reply {
             Reply::Imported(i) => serde_json::to_value(i),
             Reply::Expanded(e) => serde_json::to_value(e),
             Reply::Folds(f) => serde_json::to_value(f),
+            Reply::Noted => Ok(Value::Null),
         }
         .map_err(|e| e.to_string())
     }
@@ -85,7 +89,8 @@ fn field<T: DeserializeOwned>(args: &Value, key: &str) -> Result<T, String> {
 impl Request {
     /// The request named by `kind` (`list`, `save`, `delete`, `createFolder`,
     /// `renameFolder`, `deleteFolder`, `moveOther`, `convert`, `import`, `expand`,
-    /// `folds` or `fold`), its fields read from `args` under their camelCase names.
+    /// `used`, `folds` or `fold`), its fields read from `args` under their camelCase
+    /// names.
     pub(crate) fn parse(kind: &str, args: &Value) -> Result<Self, String> {
         let text = |k: &str| field::<Option<String>>(args, k).map(Option::unwrap_or_default);
         Ok(match kind {
@@ -112,6 +117,7 @@ impl Request {
             },
             "import" => Request::Import { scope: field(args, "scope")? },
             "expand" => Request::Expand { name: text("name")?, args: text("args")?, cli: field(args, "cli")? },
+            "used" => Request::Used { name: text("name")? },
             "folds" => Request::Folds,
             "fold" => Request::Fold { scope: field(args, "scope")?, folder: field(args, "folder")?, open: field(args, "open")? },
             _ => return Err(format!("unknown commands request {kind}")),
@@ -133,7 +139,11 @@ impl Request {
             | Request::MoveOther { scope, .. }
             | Request::Convert { scope, .. }
             | Request::Import { scope } => vec![*scope],
-            Request::List | Request::Expand { .. } | Request::Folds | Request::Fold { .. } => Vec::new(),
+            Request::List
+            | Request::Expand { .. }
+            | Request::Used { .. }
+            | Request::Folds
+            | Request::Fold { .. } => Vec::new(),
         }
     }
 }
@@ -164,6 +174,14 @@ pub(crate) fn dispatch(app: &AppHandle, project: &str, request: Request) -> Resu
             )?;
             announce(app, project, &[ran]);
             return Ok(Reply::Expanded(expanded));
+        }
+        Request::Used { name } => {
+            if !is_slash_name(&name) {
+                return Err(format!("/{name} isn't a command name."));
+            }
+            usage::record_agent(project, &name);
+            announce(app, project, &[Scope::Project]);
+            return Ok(Reply::Noted);
         }
         Request::Save { command, previous } => {
             let renamed = previous.as_ref().map(|p| ((p.scope, p.name.clone()), (command.scope, command.name.clone())));
@@ -217,6 +235,12 @@ pub(crate) fn dispatch(app: &AppHandle, project: &str, request: Request) -> Resu
         Some(imported) => Reply::Imported(ImportResult { imported, list }),
         None => Reply::Lists(list),
     })
+}
+
+/// What the `/` menu takes as a name, so a phone's word can't grow the run log.
+fn is_slash_name(name: &str) -> bool {
+    (1..=128).contains(&name.len())
+        && name.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, ':' | '_' | '-'))
 }
 
 /// Both lists, each skill with how often it ran here.
@@ -345,6 +369,11 @@ pub fn expand_lpm_command(
 }
 
 #[tauri::command(async)]
+pub fn record_slash_command(app: AppHandle, project: String, name: String) -> Result<(), String> {
+    dispatch(&app, &project, Request::Used { name }).map(|_| ())
+}
+
+#[tauri::command(async)]
 pub fn load_skill_folds(app: AppHandle, project: String) -> Result<SkillFolds, String> {
     dispatch(&app, &project, Request::Folds)?.folds()
 }
@@ -375,6 +404,7 @@ pub(crate) fn peer_kind(cmd: &str) -> Option<&'static str> {
         "convert_skill" => "convert",
         "import_lpm_commands" => "import",
         "expand_lpm_command" => "expand",
+        "record_slash_command" => "used",
         "load_skill_folds" => "folds",
         "set_skill_fold" => "fold",
         _ => return None,

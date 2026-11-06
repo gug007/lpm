@@ -363,6 +363,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     filter: filterSlash,
     isCommand: isSlashCommand,
     argumentHintFor,
+    noteSent: noteSlashSent,
     lpmLists,
   } = useSlashCommands(slashCli, cwd, focused, lpmProject);
   const lpmRun = useLpmCommandRun(lpmProject, lpmLists);
@@ -1231,6 +1232,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     try {
       const payload = await buildPayloadForHere(text, images);
       if (!onSubmit(payload)) return;
+      noteSlashSent(text);
       rememberSent(text, images);
       recordMessage({
         text,
@@ -1284,6 +1286,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     }
     const payload = await buildPayloadForHere(text, images);
     if (!onSubmit(payload)) return;
+    noteSlashSent(text);
     recordMessage({ text, projectName, terminalId: historyKey, terminalLabel: targetLabel, images });
     onFocusTerminal();
   };

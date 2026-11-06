@@ -83,6 +83,7 @@ fn command(name: &str, scope: Scope, body: &str) -> LpmCommand {
         path: String::new(),
         runs: None,
         last_run_at: None,
+        recent_runs: None,
     }
 }
 
@@ -93,6 +94,7 @@ fn the_project_command_wins_over_a_global_one() {
         project: Some(ScopeList { commands: vec![command("Ship", Scope::Project, "project")], ..Default::default() }),
         project_error: None,
         folds: Default::default(),
+        agent_runs: Default::default(),
     };
     assert_eq!(find(&list, "ship").unwrap().body, "project");
     assert_eq!(find(&list, "SHIP").unwrap().body, "project");

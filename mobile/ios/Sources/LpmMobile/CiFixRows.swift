@@ -16,7 +16,7 @@ struct CiFixRows: View {
                 group(tab)
             } else if let option = tab.options.first {
                 Button { onFix(option) } label: {
-                    CiFixLabel(text: "Fix with \(option.label)", agent: option.agent, described: only)
+                    CiFixLabel(text: "Fix with \(option.label)", agent: option.agent, emoji: option.emoji, described: only)
                 }
             }
         }
@@ -26,7 +26,7 @@ struct CiFixRows: View {
         if let lead = tab.primary {
             HStack(spacing: 4) {
                 Button { onFix(lead) } label: {
-                    CiFixLabel(text: "Fix with \(lead.label)", agent: lead.agent, described: false)
+                    CiFixLabel(text: "Fix with \(lead.label)", agent: lead.agent, emoji: lead.emoji, described: false)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .contentShape(Rectangle())
                 }
@@ -37,7 +37,7 @@ struct CiFixRows: View {
         } else {
             items(tab) {
                 HStack(spacing: 4) {
-                    CiFixLabel(text: "Fix with \(tab.label)", agent: tab.options[0].agent, described: false)
+                    CiFixLabel(text: "Fix with \(tab.label)", agent: tab.options[0].agent, emoji: tab.emoji, described: false)
                     Spacer()
                     chevron.frame(width: 32)
                 }
@@ -55,7 +55,7 @@ struct CiFixRows: View {
     private func items(_ tab: LaunchpadTab, @ViewBuilder label: () -> some View) -> some View {
         Menu {
             ForEach(tab.options) { option in
-                Button(option.label) { onFix(option) }
+                Button(option.menuTitle) { onFix(option) }
             }
         } label: {
             label()
@@ -63,10 +63,11 @@ struct CiFixRows: View {
     }
 }
 
-/// A fix row's face: the agent's mark beside what it does.
+/// A fix row's face: its mark beside what it does.
 private struct CiFixLabel: View {
     let text: String
     let agent: String
+    let emoji: String
     /// Says what the row opens, for a sheet with only one way to fix.
     let described: Bool
 
@@ -80,11 +81,7 @@ private struct CiFixLabel: View {
                 }
             }
         } icon: {
-            if let mark = AgentMark(agent) {
-                mark
-            } else {
-                Image(systemName: "sparkle").foregroundStyle(providerMeta(agent).color)
-            }
+            LaunchpadMark(agent: agent, emoji: emoji)
         }
     }
 }

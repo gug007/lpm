@@ -57,7 +57,7 @@ function fromSeed(seeded: SeedLpmCommand[], scope: CommandScope, root = ""): Lis
       argumentHint: hint(c.body),
       keptOutOfGit: false,
       tracked: scope === "project",
-      ...(runs ? { runs, lastRunAt: loaded - (ranAgo ?? 0) } : {}),
+      ...(runs ? { runs, recentRuns: runs, lastRunAt: loaded - (ranAgo ?? 0) } : {}),
     })),
     others: (seedData().lpmCommands?.others?.[scope] ?? []).map((o) => ({ ...o, path: joinAbs(root, o.path) })),
     inRepo: scope === "project",

@@ -24,6 +24,8 @@ export interface LpmCommand {
   // before its first run.
   runs?: number;
   lastRunAt?: number;
+  // Its runs in the last 30 days; absent when there were none.
+  recentRuns?: number;
 }
 
 // A skill in this list's places that wasn't made in lpm. Shown, never changed.
@@ -56,6 +58,9 @@ export interface LpmCommandLists {
   projectError: string | null;
   // Absent from a computer on an older lpm.
   folds?: SkillFolds;
+  // The recent runs of the `/` commands that aren't lpm skills, by lowercase
+  // name. Absent from a computer on an older lpm.
+  agentRuns?: Record<string, { recentRuns: number; lastRunAt: number }>;
 }
 
 export interface ListFolds {
@@ -197,9 +202,15 @@ export function shadowNote(c: CommandRef, lists: LpmCommandLists): string | null
   return null;
 }
 
-// The rows the composer's `/` menu shows for the lists: lpm skills first,
-// carrying their folder and list, then the agent's own commands not hidden by
-// one of them.
+// The folder a skill made elsewhere is filed in, in the list its row comes from.
+function otherFolder(lists: LpmCommandLists, c: SlashCommand): string | null | undefined {
+  const list = c.source === "project" ? lists.project : c.source === "user" ? lists.global : null;
+  return list?.others?.find((o) => o.name === c.name)?.folder;
+}
+
+// The rows the composer's `/` menu holds for the lists: lpm skills, carrying
+// their folder and list, and the agent's own commands not hidden by one of them,
+// each with its recent runs. filterSlashCommands puts them in order.
 export function mergeSlashCommands(lists: LpmCommandLists, agent: SlashCommand[]): SlashCommand[] {
   const mine: SlashCommand[] = effectiveCommands(lists).map((c) => ({
     name: c.name,
@@ -208,7 +219,12 @@ export function mergeSlashCommands(lists: LpmCommandLists, agent: SlashCommand[]
     source: "lpm",
     folder: c.folder,
     scope: c.scope,
+    recentRuns: c.recentRuns,
+    lastRunAt: c.lastRunAt,
   }));
   const taken = new Set(mine.map((c) => c.name.toLowerCase()));
-  return [...mine, ...agent.filter((c) => !taken.has(c.name.toLowerCase()))];
+  const theirs = agent
+    .filter((c) => !taken.has(c.name.toLowerCase()))
+    .map((c) => ({ ...c, folder: otherFolder(lists, c), ...lists.agentRuns?.[c.name.toLowerCase()] }));
+  return [...mine, ...theirs];
 }

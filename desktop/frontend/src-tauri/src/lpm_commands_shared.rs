@@ -49,12 +49,18 @@ pub(crate) fn family(project: &str) -> Vec<String> {
     std::iter::once(owner).chain(copies).collect()
 }
 
+/// The rules can come from a commit, and a name is later removed from the checkout,
+/// so it has to be one folder beside them on this platform.
+fn is_folder_name(name: &str) -> bool {
+    Path::new(name).file_name() == Some(name.as_ref()) && crate::fsname::is_portable(name)
+}
+
 fn rules_in(text: &str) -> BTreeSet<String> {
     text.lines()
         .skip_while(|line| *line != RULES_MARK)
         .skip(1)
         .filter_map(|line| line.strip_prefix('/'))
-        .filter(|name| *name != RULES_FILE)
+        .filter(|name| *name != RULES_FILE && is_folder_name(name))
         .map(str::to_string)
         .collect()
 }

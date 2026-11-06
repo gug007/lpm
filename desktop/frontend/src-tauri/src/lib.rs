@@ -415,8 +415,8 @@ use aigen::*;
 use lpm_commands_cmds::{
     convert_skill, move_other_skill,
     create_lpm_command_folder, delete_lpm_command, delete_lpm_command_folder, expand_lpm_command,
-    import_lpm_commands, list_lpm_commands, load_skill_folds, rename_lpm_command_folder,
-    save_lpm_command, set_skill_fold,
+    import_lpm_commands, list_lpm_commands, load_skill_folds, record_slash_command,
+    rename_lpm_command_folder, save_lpm_command, set_skill_fold,
 };
 use aigen_split::generate_commit_split;
 use browser::*;

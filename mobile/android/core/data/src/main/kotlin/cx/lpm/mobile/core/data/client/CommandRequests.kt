@@ -32,6 +32,9 @@ fun LpmClient.changeLpmCommandFolder(
     newName: String?
 ) = send(Wire.lpmCommandFolder(project, reqId, op, scope, name, newName))
 
+fun LpmClient.noteCommandUsed(project: String, name: String) =
+    send(Wire.lpmCommandUsed(project, name))
+
 fun LpmClient.expandLpmCommand(
     project: String,
     reqId: String,

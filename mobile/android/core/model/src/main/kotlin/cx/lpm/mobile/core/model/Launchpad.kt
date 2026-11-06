@@ -11,7 +11,12 @@ data class LaunchpadOption(
     val agent: String,
     val action: Action? = null,
     val group: Action? = null
-)
+) {
+    val emoji: String get() = action?.emoji.orEmpty()
+
+    /** How a plain-text menu row names it, so variants sharing a label stay apart. */
+    val menuTitle: String get() = if (emoji.isEmpty()) label else "$emoji $label"
+}
 
 /**
  * One entry of the New Tab sheet's Start list: a single option, or a header split
@@ -22,7 +27,8 @@ data class LaunchpadTab(
     val label: String,
     val options: List<LaunchpadOption>,
     /** What the entry itself picks; null for a menu, which only opens. */
-    val primary: LaunchpadOption?
+    val primary: LaunchpadOption?,
+    val emoji: String = ""
 )
 
 /**
@@ -60,7 +66,7 @@ fun launchpadTabs(
         val lead = action.primaryChild(lastUsed(action.name))
         val primary = options.firstOrNull { it.id == lead?.name }
             ?: options.firstOrNull()?.takeIf { lead != null || action.cmd.isNotEmpty() }
-        LaunchpadTab(action.name, action.label, options, primary)
+        LaunchpadTab(action.name, action.label, options, primary, action.emoji)
     }
     if (tabs.isNotEmpty()) return tabs
     return agents.map {

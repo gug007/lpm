@@ -1,20 +1,14 @@
 import { Fragment, useLayoutEffect, useRef, type CSSProperties } from "react";
 import { Settings2 } from "lucide-react";
 import { createPortal } from "react-dom";
-import type { SlashCommand } from "../slashCommands";
+import { slashPlace, slashTag, type SlashCommand } from "../slashCommands";
 import { COMMAND_COLOR } from "./composerEditor";
 
 const GAP = 6;
 const EDGE_MARGIN = 8;
-const MAX_HEIGHT = 280;
+const LIST_MAX_HEIGHT = 232;
+const MAX_HEIGHT = 336;
 const WIDTH = 520;
-
-const SOURCE_LABEL: Record<SlashCommand["source"], string> = {
-  builtin: "built-in",
-  project: "project",
-  user: "user",
-  lpm: "",
-};
 
 // lpm skills read in lpm's own accent; the agent's keep the terminal's blue.
 const LPM_COMMAND_COLOR = "var(--accent-cyan)";
@@ -26,18 +20,10 @@ interface SlashCommandMenuProps {
   anchorRect: DOMRect | null;
   onSelect: (cmd: SlashCommand) => void;
   onHoverIndex: (i: number) => void;
-  // Names the agent's own group when lpm skills are listed above it.
+  // Names the agent where the selected row is one of its own.
   agentLabel?: string;
   // Opens the Commands tab; shown as the menu's last row when given.
   onManage?: () => void;
-}
-
-// The heading a row starts, if it starts a group: each lpm folder (and its
-// list) gets one, and the agent's own commands get one below them.
-function groupOf(cmd: SlashCommand, agentLabel: string): string {
-  if (cmd.source !== "lpm") return agentLabel;
-  const list = cmd.scope === "project" ? "this project" : "global";
-  return `${cmd.folder ?? "No folder"} · ${list}`;
 }
 
 // Filterable popover of a CLI's slash commands, anchored to the composer caret.
@@ -65,6 +51,7 @@ export function SlashCommandMenu({
   // Below the caret by default; flip above when the lower gap is too small.
   const spaceBelow = window.innerHeight - anchorRect.bottom;
   const placeAbove = spaceBelow < MAX_HEIGHT + GAP && anchorRect.top > spaceBelow;
+  const space = (placeAbove ? anchorRect.top : spaceBelow) - GAP - EDGE_MARGIN;
   const width = Math.min(WIDTH, window.innerWidth - 2 * EDGE_MARGIN);
   const left = Math.max(
     EDGE_MARGIN,
@@ -74,12 +61,18 @@ export function SlashCommandMenu({
     position: "fixed",
     left,
     width,
-    maxHeight: MAX_HEIGHT,
+    maxHeight: Math.min(MAX_HEIGHT, space),
     ...(placeAbove
       ? { bottom: window.innerHeight - anchorRect.top + GAP }
       : { top: anchorRect.bottom + GAP }),
   };
-  const grouped = commands.some((c) => c.source === "lpm");
+  const mostUsed = commands.filter((c) => c.mostUsed).length;
+  const selected = commands[selectedIndex];
+  const heading = (label: string) => (
+    <div className="px-2.5 pb-0.5 pt-2 text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
+      {label}
+    </div>
+  );
 
   return createPortal(
     <div
@@ -89,55 +82,62 @@ export function SlashCommandMenu({
       onMouseDown={(e) => e.preventDefault()}
       className="z-[9999] flex flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] shadow-[0_12px_32px_rgba(0,0,0,0.32)]"
     >
-      <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto p-1">
+      <div
+        ref={listRef}
+        style={{ maxHeight: LIST_MAX_HEIGHT }}
+        className="min-h-0 flex-1 overflow-y-auto p-1"
+      >
         {commands.map((cmd, i) => {
-          const group = grouped ? groupOf(cmd, agentLabel) : null;
-          const startsGroup = group !== null && (i === 0 || groupOf(commands[i - 1], agentLabel) !== group);
-          const lpm = cmd.source === "lpm";
+          const on = i === selectedIndex;
           return (
             <Fragment key={`${cmd.source}:${cmd.scope ?? ""}:${cmd.name}`}>
-              {startsGroup && (
-                <div className="px-2.5 pb-0.5 pt-2 text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
-                  {group}
-                </div>
-              )}
+              {i === 0 && mostUsed > 0 && heading("Most used")}
+              {i === mostUsed && mostUsed > 0 && heading(`All ${commands.length - mostUsed}`)}
               <button
                 type="button"
                 role="option"
                 data-index={i}
-                aria-selected={i === selectedIndex}
+                aria-selected={on}
                 onMouseEnter={() => onHoverIndex(i)}
                 onClick={() => onSelect(cmd)}
-                className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left transition-colors ${
-                  i === selectedIndex ? "bg-[var(--bg-active)]" : ""
+                className={`grid w-full grid-cols-[196px_minmax(0,1fr)_auto] items-center gap-x-2.5 rounded-lg px-2.5 py-1.5 text-left transition-colors ${
+                  on ? "bg-[var(--bg-active)]" : ""
                 }`}
               >
                 <span
-                  className="shrink-0 font-mono text-[13px] font-medium"
-                  style={{ color: lpm ? LPM_COMMAND_COLOR : COMMAND_COLOR }}
+                  className="truncate font-mono text-[13px] font-medium"
+                  style={{ color: cmd.source === "lpm" ? LPM_COMMAND_COLOR : COMMAND_COLOR }}
                 >
                   /{cmd.name}
                 </span>
-                {cmd.argumentHint && (
-                  <span className="shrink-0 font-mono text-[11px] text-[var(--text-muted)]">
-                    {cmd.argumentHint}
-                  </span>
-                )}
-                {cmd.description && (
-                  <span className="flex-1 truncate text-[12px] text-[var(--text-secondary)]">
-                    {cmd.description}
-                  </span>
-                )}
-                {SOURCE_LABEL[cmd.source] && (
-                  <span className="ml-auto shrink-0 text-[10px] uppercase tracking-wider text-[var(--text-muted)] opacity-60">
-                    {SOURCE_LABEL[cmd.source]}
-                  </span>
-                )}
+                <span className="truncate text-[12px] text-[var(--text-secondary)]">
+                  {cmd.description}
+                </span>
+                <span
+                  className={`max-w-[110px] truncate text-[11px] ${
+                    on ? "text-[var(--text-secondary)]" : "text-[var(--text-muted)]"
+                  }`}
+                >
+                  {slashTag(cmd)}
+                </span>
               </button>
             </Fragment>
           );
         })}
       </div>
+      {selected && (
+        <div className="h-[66px] shrink-0 border-t border-[var(--border)] px-3.5 py-[7px]">
+          <div className="flex items-center gap-2 text-[10.5px] text-[var(--text-muted)]">
+            <span className="truncate">{slashPlace(selected, agentLabel)}</span>
+            {selected.argumentHint && (
+              <span className="truncate font-mono">{selected.argumentHint}</span>
+            )}
+          </div>
+          <p className="line-clamp-2 text-[12px] leading-[17px] text-[var(--text-secondary)]">
+            {selected.description}
+          </p>
+        </div>
+      )}
       {onManage && (
         <button
           type="button"
@@ -146,7 +146,9 @@ export function SlashCommandMenu({
         >
           <Settings2 size={13} strokeWidth={1.75} />
           Manage skills
-          <span className="ml-auto text-[10.5px]">↵ insert · ⇥ edit prompt</span>
+          <span className="ml-auto text-[10.5px]">
+            {selected?.source === "lpm" ? "↵ insert · ⇥ edit prompt" : "↵ insert"}
+          </span>
         </button>
       )}
     </div>,

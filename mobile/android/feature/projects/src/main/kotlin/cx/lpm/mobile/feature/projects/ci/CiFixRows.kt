@@ -25,11 +25,8 @@ import cx.lpm.mobile.core.designsystem.component.ListRow
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.core.model.LaunchpadOption
 import cx.lpm.mobile.core.model.LaunchpadTab
-import cx.lpm.mobile.core.ui.AgentMark
-import cx.lpm.mobile.core.ui.AgentMarkIcon
-import cx.lpm.mobile.core.ui.providerMeta
-import cx.lpm.mobile.core.ui.tint
 import cx.lpm.mobile.feature.projects.R
+import cx.lpm.mobile.feature.projects.newtab.LaunchpadMark
 
 /**
  * The checks sheet's "Fix with …" rows (iOS `CiFixRows`), as the desktop's checks menu
@@ -45,7 +42,9 @@ internal fun CiFixRows(tabs: List<LaunchpadTab>, onFix: (LaunchpadOption) -> Uni
             CiFixGroupRow(tab, onFix)
         } else {
             val option = tab.options.first()
-            CiFixRow(option.label, option.agent, described = only, onClick = { onFix(option) })
+            CiFixRow(option.label, option.agent, option.emoji, described = only, onClick = {
+                onFix(option)
+            })
         }
     }
 }
@@ -58,6 +57,7 @@ private fun CiFixGroupRow(tab: LaunchpadTab, onFix: (LaunchpadOption) -> Unit) {
     CiFixRow(
         label = lead?.label ?: tab.label,
         agent = (lead ?: tab.options.first()).agent,
+        emoji = lead?.emoji ?: tab.emoji,
         described = false,
         onClick = { if (lead != null) onFix(lead) else open = true },
         accessory = {
@@ -76,7 +76,7 @@ private fun CiFixGroupRow(tab: LaunchpadTab, onFix: (LaunchpadOption) -> Unit) {
                 )
                 ContextMenu(expanded = open, onDismissRequest = { open = false }) {
                     tab.options.forEach { option ->
-                        ContextMenuItem(title = option.label, onClick = {
+                        ContextMenuItem(title = option.menuTitle, onClick = {
                             open = false
                             onFix(option)
                         })
@@ -87,11 +87,12 @@ private fun CiFixGroupRow(tab: LaunchpadTab, onFix: (LaunchpadOption) -> Unit) {
     )
 }
 
-/** A fix row's face: the agent's mark beside what it does. */
+/** A fix row's face: its mark beside what it does. */
 @Composable
 private fun CiFixRow(
     label: String,
     agent: String,
+    emoji: String,
     described: Boolean,
     onClick: () -> Unit,
     accessory: (@Composable () -> Unit)? = null
@@ -99,19 +100,7 @@ private fun CiFixRow(
     val colors = LpmTheme.colors
     ListRow(
         onClick = onClick,
-        leading = {
-            val mark = AgentMark.of(agent)
-            if (mark != null) {
-                AgentMarkIcon(mark, Modifier.size(20.dp))
-            } else {
-                Icon(
-                    painter = painterResource(DesignR.drawable.ic_auto_awesome_fill),
-                    contentDescription = null,
-                    tint = providerMeta(agent).tint,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-        },
+        leading = { LaunchpadMark(agent = agent, emoji = emoji) },
         trailing = accessory?.let { { it() } }
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {

@@ -1,20 +1,47 @@
 // How often each lpm skill ran and when it last did, kept on the computer that
 // expands it (~/.lpm/skill-runs.json): from the composer, a phone, a paired Mac
-// or `lpm`. Lists carry it so the Skills tab can show which skills get used.
+// or `lpm`. Lists carry it so the Skills tab can show which skills get used, and
+// the `/` menu which commands lead. The menu's other commands, which nothing
+// expands, are counted here too when a composer sends them.
 // A project's skills are counted once across its duplicates and worktrees, which
 // share them, and the global ones once.
-use crate::lpm_commands::{LpmCommands, Scope, ScopeList};
+use crate::lpm_commands::{AgentRuns, LpmCommands, Scope, ScopeList};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq)]
+/// How far back the `/` menu's Most used looks.
+const RECENT_MS: u64 = 30 * 24 * 60 * 60 * 1000;
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
 pub(crate) struct Runs {
     pub count: u32,
     /// Unix millis.
     pub last: u64,
+    /// When each run in the last 30 days was, in unix millis.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub recent: Vec<u64>,
+}
+
+impl Runs {
+    fn add(&mut self, now: u64) {
+        self.count = self.count.saturating_add(1);
+        self.last = self.last.max(now);
+        self.recent.retain(|&at| now.saturating_sub(at) < RECENT_MS);
+        self.recent.push(now);
+    }
+
+    fn merge(&mut self, other: Runs) {
+        self.count = self.count.saturating_add(other.count);
+        self.last = self.last.max(other.last);
+        self.recent.extend(other.recent);
+    }
+
+    fn recent_at(&self, now: u64) -> u32 {
+        self.recent.iter().filter(|&&at| now.saturating_sub(at) < RECENT_MS).count() as u32
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
@@ -24,6 +51,10 @@ pub(crate) struct RunLog {
     /// By project name, then skill name.
     #[serde(default)]
     pub projects: BTreeMap<String, BTreeMap<String, Runs>>,
+    /// The `/` commands that aren't lpm skills: the agent's own and skills made
+    /// elsewhere. By project name, then command name.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub agent: BTreeMap<String, BTreeMap<String, Runs>>,
 }
 
 impl RunLog {
@@ -42,9 +73,12 @@ impl RunLog {
     }
 
     pub(crate) fn record(&mut self, project: &str, scope: Scope, name: &str, now: u64) {
-        let runs = self.of_mut(project, scope).entry(name.to_lowercase()).or_default();
-        runs.count = runs.count.saturating_add(1);
-        runs.last = runs.last.max(now);
+        self.of_mut(project, scope).entry(name.to_lowercase()).or_default().add(now);
+    }
+
+    pub(crate) fn record_agent(&mut self, project: &str, name: &str, now: u64) {
+        let runs = self.agent.entry(project.to_string()).or_default();
+        runs.entry(name.to_lowercase()).or_default().add(now);
     }
 
     /// Keeps a skill's runs when it's renamed or moved to the other list.
@@ -52,9 +86,7 @@ impl RunLog {
         let Some(runs) = self.of_mut(project, from.0).remove(&from.1.to_lowercase()) else {
             return;
         };
-        let into = self.of_mut(project, to.0).entry(to.1.to_lowercase()).or_default();
-        into.count = into.count.saturating_add(runs.count);
-        into.last = into.last.max(runs.last);
+        self.of_mut(project, to.0).entry(to.1.to_lowercase()).or_default().merge(runs);
         self.prune(project);
     }
 
@@ -69,19 +101,30 @@ impl RunLog {
         }
     }
 
-    pub(crate) fn annotate(&self, project: &str, lists: &mut LpmCommands) {
+    pub(crate) fn annotate(&self, project: &str, now: u64, lists: &mut LpmCommands) {
         let fill = |list: &mut ScopeList, scope: Scope| {
             let runs = self.of(project, scope);
             for command in &mut list.commands {
                 let found = runs.and_then(|r| r.get(&command.name.to_lowercase()));
                 command.runs = found.map(|r| r.count);
                 command.last_run_at = found.map(|r| r.last);
+                command.recent_runs = found.map(|r| r.recent_at(now)).filter(|&n| n > 0);
             }
         };
         fill(&mut lists.global, Scope::Global);
         if let Some(own) = lists.project.as_mut() {
             fill(own, Scope::Project);
         }
+        lists.agent_runs = self
+            .agent
+            .get(project)
+            .into_iter()
+            .flatten()
+            .filter_map(|(name, runs)| {
+                let recent_runs = runs.recent_at(now);
+                (recent_runs > 0).then(|| (name.clone(), AgentRuns { recent_runs, last_run_at: runs.last }))
+            })
+            .collect();
     }
 }
 
@@ -134,6 +177,12 @@ pub(crate) fn record(project: &str, scope: Scope, name: &str) {
     update(|log| log.record(&owner(project), scope, name, now));
 }
 
+/// A `/` command that isn't an lpm skill went out from a composer.
+pub(crate) fn record_agent(project: &str, name: &str) {
+    let now = now_millis();
+    update(|log| log.record_agent(&owner(project), name, now));
+}
+
 pub(crate) fn rename(project: &str, from: (Scope, &str), to: (Scope, &str)) {
     if from.0 == to.0 && from.1.eq_ignore_ascii_case(to.1) {
         return;
@@ -146,7 +195,7 @@ pub(crate) fn forget(project: &str, scope: Scope, name: &str) {
 }
 
 pub(crate) fn annotate(project: &str, lists: &mut LpmCommands) {
-    load().annotate(&owner(project), lists);
+    load().annotate(&owner(project), now_millis(), lists);
 }
 
 #[cfg(test)]

@@ -159,6 +159,7 @@ macro_rules! all_command_handlers {
             convert_skill,
             import_lpm_commands,
             expand_lpm_command,
+            record_slash_command,
             generate_pr_title,
             get_msys_mounts,
             get_platform,

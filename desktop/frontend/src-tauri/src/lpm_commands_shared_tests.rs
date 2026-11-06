@@ -349,3 +349,37 @@ fn rules_someone_wrote_above_ours_stay() {
     assert_eq!(with_rules(&text, &BTreeSet::new()), "*.log\n");
     assert!(rules_in("/looks-like-ours\n").is_empty());
 }
+
+#[test]
+fn a_rule_counts_only_as_a_single_folder_name() {
+    let text = format!(
+        "{RULES_MARK}\n/{RULES_FILE}\n/fine\n/../up\n//rooted\n/a/b\n/trailing/\n/..\n/.\n/\n"
+    );
+    assert_eq!(rules_in(&text).into_iter().collect::<Vec<_>>(), ["fine"]);
+}
+
+#[cfg(windows)]
+#[test]
+fn a_rule_windows_would_read_as_another_path_is_dropped() {
+    let text = format!("{RULES_MARK}\n/.. \n/..\\up\n/C:\\up\n/C:up\n/skill:stream\n/skill.\n");
+    assert!(rules_in(&text).is_empty());
+}
+
+#[test]
+fn a_committed_rule_reaches_nothing_outside_the_skills_folder() {
+    let family = Family::new();
+    let outside = family.dir.path().join("outside");
+    if cfg!(windows) {
+        std::fs::create_dir(&outside).unwrap();
+        std::fs::write(outside.join("keep.txt"), "keep\n").unwrap();
+    } else {
+        link_dir(&family.original, &outside).unwrap();
+    }
+    let rules = family.copy.join(".agents/skills/.gitignore");
+    std::fs::create_dir_all(rules.parent().unwrap()).unwrap();
+    for name in ["../../../outside".to_string(), outside.to_string_lossy().into_owned()] {
+        std::fs::write(&rules, format!("{RULES_MARK}\n/{name}\n")).unwrap();
+        sync_checkout(&family.original, &family.copy).unwrap();
+        assert!(std::fs::symlink_metadata(&outside).is_ok(), "{name} reached outside");
+    }
+}

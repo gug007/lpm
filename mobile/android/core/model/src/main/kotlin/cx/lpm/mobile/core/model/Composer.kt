@@ -79,19 +79,17 @@ data class SlashCommand(
     // builtin | project | user | lpm
     val source: String,
     val folder: String? = null,
-    val scope: CommandScope? = null
+    val scope: CommandScope? = null,
+    // Its runs in the last 30 days and when it last ran (unix millis); 0 when there
+    // were none, or from a Mac on an older lpm.
+    val recentRuns: Int = 0,
+    val lastRunAt: Long = 0,
+    // Leads a lone "/" as one of the user's most used.
+    val mostUsed: Boolean = false
 ) {
     val id: String get() = name
 
     val isLpm: Boolean get() = source == LPM_SOURCE
-
-    /** Where it comes from, as the desktop's menu tags it. */
-    val sourceLabel: String?
-        get() = when (source) {
-            "builtin" -> "built-in"
-            "project", "user" -> source
-            else -> null
-        }
 
     companion object {
         const val LPM_SOURCE = "lpm"
@@ -102,7 +100,9 @@ data class SlashCommand(
             argumentHint = o.string("argumentHint").orEmpty(),
             source = o.string("source").orEmpty(),
             folder = o.string("folder"),
-            scope = CommandScope.parse(o.string("scope"))
+            scope = CommandScope.parse(o.string("scope")),
+            recentRuns = o.int("recentRuns") ?: 0,
+            lastRunAt = o.long("lastRunAt") ?: 0
         )
     }
 }

@@ -1,7 +1,8 @@
 import { useMemo } from "react";
 import { launchpadTabs, type LaunchpadOption } from "../launchpadAgentActions";
 import { useAppStore } from "../store/app";
-import { AgentGlyph } from "./terminal/AgentGlyph";
+import type { AICLI } from "../types";
+import { LaunchpadMark } from "./LaunchpadMark";
 import { ContextMenuItem } from "./ui/ContextMenuItem";
 import { ContextMenuSubmenu } from "./ui/ContextMenuSubmenu";
 
@@ -21,7 +22,7 @@ export function FixWithAgentItems({
   const actions = useAppStore((s) => s.projects.find((p) => p.name === projectName)?.actions);
   const tabs = useMemo(() => launchpadTabs(actions ?? [], projectName, { skipOwnTasks: true }), [actions, projectName]);
   const only = tabs.length === 1 && tabs[0].options.length === 1;
-  const glyph = (option: LaunchpadOption) => <AgentGlyph agent={option.agent} size={12} />;
+  const mark = (agent: AICLI, emoji: string | undefined) => <LaunchpadMark agent={agent} emoji={emoji} size={12} />;
 
   return (
     <>
@@ -31,7 +32,7 @@ export function FixWithAgentItems({
           return (
             <ContextMenuItem
               key={tab.key}
-              icon={glyph(option)}
+              icon={mark(option.agent, option.emoji)}
               label={`Fix with ${option.label}`}
               description={only ? DESCRIPTION : undefined}
               title={only ? undefined : DESCRIPTION}
@@ -43,14 +44,14 @@ export function FixWithAgentItems({
         return (
           <ContextMenuSubmenu
             key={tab.key}
-            icon={glyph(lead ?? tab.options[0])}
+            icon={mark((lead ?? tab.options[0]).agent, (lead ?? tab).emoji)}
             label={`Fix with ${lead?.label ?? tab.label}`}
             onActivate={lead ? () => onFix(lead) : undefined}
           >
             {tab.options.map((option) => (
               <ContextMenuItem
                 key={option.id}
-                icon={glyph(option)}
+                icon={mark(option.agent, option.emoji)}
                 label={option.label}
                 onClick={() => onFix(option)}
               />

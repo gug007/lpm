@@ -5,28 +5,30 @@ struct NewTabStartRow: View {
     let label: String
     /// The agent's id; nil for the plain terminal.
     let agent: String?
+    var emoji = ""
     let picked: Bool
     let onPick: () -> Void
 
     var body: some View {
         Button(action: onPick) {
-            NewTabStartLabel(label: label, agent: agent, picked: picked)
+            NewTabStartLabel(label: label, agent: agent, emoji: emoji, picked: picked)
         }
         .accessibilityAddTraits(picked ? .isSelected : [])
     }
 }
 
-/// A Start row's face: the agent's mark, its name, and a check when picked.
+/// A Start row's face: its mark, its name, and a check when picked.
 struct NewTabStartLabel: View {
     let label: String
     let agent: String?
+    var emoji = ""
     let picked: Bool
 
     var body: some View {
         HStack(spacing: 12) {
-            icon
+            LaunchpadMark(agent: agent, emoji: emoji)
                 .frame(width: 28, height: 28)
-                .accessibilityHidden(true)
+                .accessibilityHidden(emoji.isEmpty || agentForEmoji(emoji) != nil)
             Text(label)
                 .foregroundStyle(Color.primary)
             Spacer()
@@ -38,17 +40,5 @@ struct NewTabStartLabel: View {
             }
         }
         .contentShape(Rectangle())
-    }
-
-    /// The agent's own mark, as the desktop shows it; a terminal, or an agent without
-    /// one, gets a symbol in the agent's colour.
-    @ViewBuilder private var icon: some View {
-        if let mark = agent.flatMap(AgentMark.init) {
-            mark.frame(width: 20, height: 20)
-        } else {
-            Image(systemName: agent == nil ? "terminal" : "sparkle")
-                .font(.system(size: 17))
-                .foregroundStyle(agent.map { providerMeta($0).color } ?? .secondary)
-        }
     }
 }

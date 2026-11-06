@@ -154,6 +154,11 @@ describe("parseAgentDialog", () => {
     expect(parseAgentDialog(["Pick one?", "❯ 1. Yes", "  3. No"], COLS)).toBeNull();
     expect(parseAgentDialog(["Pick one?", "❯ 1. Yes", "  2. No", "a", "b", "c", "d"], COLS)).toBeNull();
   });
+
+  it("ignores an option numbered zero at the bottom", () => {
+    expect(parseAgentDialog([" ❯ 1. Yes", "   0. foo"], COLS)).toBeNull();
+    expect(parseAgentDialog([" ❯ 1. Yes", "   00. foo"], COLS)).toBeNull();
+  });
 });
 
 describe("sameDialog", () => {
