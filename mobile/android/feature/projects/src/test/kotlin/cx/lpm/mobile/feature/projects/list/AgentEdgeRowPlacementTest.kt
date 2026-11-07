@@ -32,7 +32,7 @@ class AgentEdgeRowPlacementTest {
 
     private val rows = AgentEdgeRows()
     private lateinit var scroll: ScrollState
-    private var firstState by mutableStateOf<AgentState?>(AgentState.Working)
+    private var firstStates by mutableStateOf(listOf(AgentState.Working))
     private var lastShown by mutableStateOf(true)
 
     private fun show() = compose.setContent {
@@ -44,9 +44,9 @@ class AgentEdgeRowPlacementTest {
                     .onPlaced { rows.content = it }
                     .padding(top = 40.dp)
             ) {
-                AgentEdgeRow(rows, "first", firstState) { Row() }
+                AgentEdgeRow(rows, "first", firstStates) { Row() }
                 Box(Modifier.height(2_000.dp))
-                if (lastShown) AgentEdgeRow(rows, "last", AgentState.NeedsYou) { Row() }
+                if (lastShown) AgentEdgeRow(rows, "last", listOf(AgentState.NeedsYou)) { Row() }
                 Box(Modifier.height(1_000.dp))
             }
         }
@@ -71,17 +71,20 @@ class AgentEdgeRowPlacementTest {
     @Test
     fun `rows read against the scroll, whichever way the list has moved`() {
         show()
-        assertEquals(AgentsOutOfView(below = AgentState.NeedsYou), edges())
+        assertEquals(AgentsOutOfView(below = listOf(AgentState.NeedsYou)), edges())
 
         scrollTo(0.2f)
         assertEquals(
-            AgentsOutOfView(above = AgentState.Working, below = AgentState.NeedsYou),
+            AgentsOutOfView(
+                above = listOf(AgentState.Working),
+                below = listOf(AgentState.NeedsYou)
+            ),
             edges()
         )
 
         scrollTo(1f)
         assertEquals(
-            AgentsOutOfView(above = AgentState.NeedsYou),
+            AgentsOutOfView(above = listOf(AgentState.NeedsYou, AgentState.Working)),
             edges()
         )
     }
@@ -91,11 +94,11 @@ class AgentEdgeRowPlacementTest {
         show()
         scrollTo(0.2f)
 
-        firstState = AgentState.Error
-        assertEquals(AgentState.Error, edges().above)
+        firstStates = listOf(AgentState.Error)
+        assertEquals(listOf(AgentState.Error), edges().above)
 
-        firstState = null
-        assertEquals(null, edges().above)
+        firstStates = emptyList()
+        assertEquals(emptyList<AgentState>(), edges().above)
     }
 
     @Test

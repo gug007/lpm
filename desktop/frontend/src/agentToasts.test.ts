@@ -10,7 +10,7 @@ const row = (key: string, state: AgentState): SidebarAgentRow => ({
   provider: "Claude Code",
   terminalId: `t-${key}`,
   since: null,
-  shared: 0,
+  shared: [],
   holdsError: state === "error",
   keys: [key],
 });

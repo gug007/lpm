@@ -3,10 +3,10 @@ import type { KeyboardEvent, MouseEvent, PointerEvent } from "react";
 import { ARCHIVE_AGENT_CHORD } from "../agentArchive";
 import { AGENT_STATE_LABEL, AGENT_STATE_TONE } from "../agentStatus";
 import { chordLabel } from "../keys";
-import type { EdgeAgentState } from "../sidebarAgentEdges";
 import type { SidebarAgentRow } from "../sidebarAgents";
 import { AgentStateIcon, MARK_SLOT } from "./AgentStateIcon";
 import { SidebarAgentElapsed } from "./SidebarAgentElapsed";
+import type { EdgeAgents } from "../sidebarAgentEdges";
 
 // Where the user is, in the only currency the row has left: a wash under it and
 // its name at full strength. Every other part of the line is spoken for — the
@@ -36,7 +36,7 @@ interface SidebarAgentLineProps {
   lead: string;
   active: boolean;
   /** Set when this line should light the end of the list once it scrolls away. */
-  edgeAgent?: EdgeAgentState;
+  edgeAgents?: EdgeAgents;
   onOpen: () => void;
   onMenu: (at: { x: number; y: number }) => void;
   /** Absent for a row that can't be archived yet. `viaKeyboard` asks for focus
@@ -47,7 +47,7 @@ interface SidebarAgentLineProps {
 /** One task under a project: the tab it runs in by name, colored by what it is
  *  doing, a check once it lands, and how long it took. A finish the user has
  *  already opened stays, muted, until it is archived. */
-export function SidebarAgentLine({ agent, where, lead, active, edgeAgent, onOpen, onMenu, onArchive }: SidebarAgentLineProps) {
+export function SidebarAgentLine({ agent, where, lead, active, edgeAgents, onOpen, onMenu, onArchive }: SidebarAgentLineProps) {
   const seen = agent.seenAt !== undefined;
   const state = `${AGENT_STATE_LABEL[agent.state]}${seen ? ", seen" : ""}`;
   const onKeyDown = (e: KeyboardEvent) => {
@@ -65,7 +65,7 @@ export function SidebarAgentLine({ agent, where, lead, active, edgeAgent, onOpen
     <div className="group/agent relative">
       <button
         data-agent-row={agent.key}
-        data-edge-agent={edgeAgent}
+        data-edge-agent={edgeAgents}
         onClick={onOpen}
         onContextMenu={onContextMenu}
         onKeyDown={onKeyDown}
@@ -93,12 +93,12 @@ export function SidebarAgentLine({ agent, where, lead, active, edgeAgent, onOpen
         {/* A tab running more than one agent says so rather than quietly
             showing the loudest of them: the line is the tab, and this is how
             many others are in there with it. */}
-        {agent.shared > 0 && (
+        {agent.shared.length > 0 && (
           <span
             className="shrink-0 text-[10px] tabular-nums text-[var(--text-muted)]"
-            title={`${agent.shared + 1} agents in this tab`}
+            title={`${agent.shared.length + 1} agents in this tab`}
           >
-            +{agent.shared}
+            +{agent.shared.length}
           </span>
         )}
         <AgentStateIcon state={agent.state} muted={seen} />

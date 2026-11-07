@@ -21,10 +21,10 @@ export interface SidebarAgentRow {
   /** Millis: set once the turn ended, freezing the reading at how long the work
    *  took instead of counting on past it. */
   until?: number;
-  /** How many further agents report on this row's tab, folded into it. A tab
-   *  holds one agent, so this is zero — unless a split runs two in one tab, or
-   *  an agent launched another that reports under the tab it borrowed. */
-  shared: number;
+  /** What the further agents reporting on this row's tab are doing, folded into
+   *  it. A tab holds one agent, so this is empty — unless a split runs two in one
+   *  tab, or an agent launched another that reports under the tab it borrowed. */
+  shared: AgentState[];
   /** Whether this tab holds a problem, its own or one folded behind it. A
    *  question outranks a problem, so `state` alone would lose an error sitting
    *  behind a wait — and the project row above speaks only for problems. */
@@ -85,7 +85,7 @@ export function projectAgentRows(
       terminalId: entry.paneID || null,
       since: turn?.since ?? null,
       until: turn?.until,
-      shared: folded.length,
+      shared: folded.map((e) => agentStateOf(e.value)),
       holdsError: paneHoldsError(held),
       keys: [entry.key, ...folded.map((e) => e.key)],
     };

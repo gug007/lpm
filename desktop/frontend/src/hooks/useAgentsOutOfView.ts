@@ -1,10 +1,15 @@
 import { useEffect, useState, type RefObject } from "react";
 import { EDGE_AGENT_ATTR, agentsOutOfView, type AgentsOutOfView } from "../sidebarAgentEdges";
 
+const NONE: AgentsOutOfView = { above: [], below: [], width: 0 };
+
+const same = (a: AgentsOutOfView, b: AgentsOutOfView) =>
+  a.width === b.width && a.above.join() === b.above.join() && a.below.join() === b.below.join();
+
 /** Follows which agents sit past the ends of a scrolling list. It only measures
  *  after something moved, at most once a frame, so an idle list costs nothing. */
 export function useAgentsOutOfView(listRef: RefObject<HTMLElement | null>): AgentsOutOfView {
-  const [edges, setEdges] = useState<AgentsOutOfView>({});
+  const [edges, setEdges] = useState(NONE);
 
   useEffect(() => {
     const list = listRef.current;
@@ -13,7 +18,7 @@ export function useAgentsOutOfView(listRef: RefObject<HTMLElement | null>): Agen
     const measure = () => {
       frame = 0;
       const next = agentsOutOfView(list);
-      setEdges((prev) => (prev.above === next.above && prev.below === next.below ? prev : next));
+      setEdges((prev) => (same(prev, next) ? prev : next));
     };
     const schedule = () => {
       if (!frame) frame = requestAnimationFrame(measure);

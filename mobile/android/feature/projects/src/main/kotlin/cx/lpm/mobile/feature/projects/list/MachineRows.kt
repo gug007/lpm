@@ -22,7 +22,7 @@ internal fun machineListRows(section: MachineSection, inputs: RowInputs): List<P
         opensOnlyBySwitching = machine.projects == null && section.record != null,
         canOpen = section.canOpen,
         expanded = open,
-        foldedAgent = if (open) null else section.rows.foldedAgent(inputs)
+        foldedAgents = if (open) emptyList() else section.rows.foldedAgents(inputs)
     )
     if (!open) return listOf(header)
     return listOf(header) + section.rows.map { row ->

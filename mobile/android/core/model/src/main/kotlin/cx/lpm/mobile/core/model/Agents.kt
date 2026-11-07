@@ -81,8 +81,8 @@ data class ProjectAgentRow(
     val since: Long?,
     /** Millis: set once the turn ended, freezing the reading at how long it took. */
     val until: Long?,
-    /** How many further agents report on this row's tab, folded into it. */
-    val shared: Int = 0,
+    /** What the further agents reporting on this row's tab are doing, folded into it. */
+    val shared: List<AgentState> = emptyList(),
     /**
      * Every status key the row stands for — its own, the agents folded into it and a
      * seen agent on its tab — which archiving or marking it acts on.
@@ -183,7 +183,7 @@ private fun foldByTerminal(agents: List<ProjectAgentRow>): List<ProjectAgentRow>
 
             index != null -> rows[index] = rows[index].let {
                 it.copy(
-                    shared = it.shared + 1,
+                    shared = it.shared + row.state,
                     keys = it.keys + row.keys,
                     seenAt = listOfNotNull(it.seenAt, row.seenAt).maxOrNull()
                 )

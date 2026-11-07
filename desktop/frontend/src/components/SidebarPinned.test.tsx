@@ -47,7 +47,7 @@ const agent: SidebarAgentRow = {
   state: "working",
   title: "Claude tab account switch",
   provider: "Claude Code",
-  shared: 0,
+  shared: [],
   holdsError: false,
   terminalId: "%1",
   since: Date.now() - 5 * 60 * 1000,

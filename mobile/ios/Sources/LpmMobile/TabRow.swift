@@ -21,8 +21,8 @@ struct TabRow: View {
                         .lineLimit(1)
                         .agentTone(agent?.state)
                 }
-                if let agent, agent.shared > 0 {
-                    Text("+\(agent.shared)")
+                if let agent, !agent.shared.isEmpty {
+                    Text("+\(agent.shared.count)")
                         .font(.caption)
                         .monospacedDigit()
                         .foregroundStyle(.secondary)

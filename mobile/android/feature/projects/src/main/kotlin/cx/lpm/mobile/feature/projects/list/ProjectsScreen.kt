@@ -302,7 +302,11 @@ private fun ProjectsCardRows(
             when (row) {
                 is ProjectsListRow.ProjectEntry -> ProjectEntryItem(row, state, actions, edgeRows)
 
-                is ProjectsListRow.FolderEntry -> AgentEdgeRow(edgeRows, row.key, row.foldedAgent) {
+                is ProjectsListRow.FolderEntry -> AgentEdgeRow(
+                    edgeRows,
+                    row.key,
+                    row.foldedAgents
+                ) {
                     FolderListItem(
                         entry = row,
                         onToggle = { actions.folders.toggle(row.folder, row.expanded) },
@@ -314,7 +318,7 @@ private fun ProjectsCardRows(
                 is ProjectsListRow.MachineEntry -> AgentEdgeRow(
                     edgeRows,
                     row.key,
-                    row.foldedAgent
+                    row.foldedAgents
                 ) {
                     MachineListItem(row, actions.machines)
                 }

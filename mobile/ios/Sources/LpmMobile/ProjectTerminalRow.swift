@@ -12,8 +12,8 @@ struct ProjectTerminalRow: View {
             Text(row.title)
                 .lineLimit(1)
                 .agentTone(row.state, seen: row.seen)
-            if row.shared > 0 {
-                Text("+\(row.shared)")
+            if !row.shared.isEmpty {
+                Text("+\(row.shared.count)")
                     .font(.caption2)
                     .monospacedDigit()
                     .foregroundStyle(.secondary)

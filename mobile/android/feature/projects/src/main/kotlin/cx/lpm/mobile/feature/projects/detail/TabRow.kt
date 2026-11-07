@@ -141,9 +141,9 @@ fun TabRow(
                 ) {
                     AgentToneText(text = it, state = agent?.state, style = LpmTheme.typography.body)
                 }
-                if (agent != null && agent.shared > 0) {
+                if (agent != null && agent.shared.isNotEmpty()) {
                     Text(
-                        text = "+${agent.shared}",
+                        text = "+${agent.shared.size}",
                         style = LpmTheme.typography.caption1.copy(fontFeatureSettings = "tnum"),
                         color = colors.secondaryLabel
                     )

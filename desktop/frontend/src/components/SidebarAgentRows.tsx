@@ -1,6 +1,6 @@
 import { Fragment, memo, useRef, useState } from "react";
 import { archiveAgents, markAgentSeen, markAgentUnread } from "../agentArchive";
-import { edgeAgentOfRow } from "../sidebarAgentEdges";
+import { edgeAgentsOfRow } from "../sidebarAgentEdges";
 import type { SidebarAgentRow } from "../sidebarAgents";
 import { useExpandedSeenAgents } from "../sidebarCollapsed";
 import { isPeerName } from "../peer/markers";
@@ -88,7 +88,7 @@ export const SidebarAgentRows = memo(function SidebarAgentRows({
             where={label ?? projectName}
             lead={lead}
             active={agent.terminalId !== null && agent.terminalId === onScreen}
-            edgeAgent={signalsEdge ? edgeAgentOfRow(agent) : undefined}
+            edgeAgents={signalsEdge ? edgeAgentsOfRow(agent) : undefined}
             onOpen={() => open(agent)}
             onMenu={(at) => setMenu({ agent, ...at })}
             onArchive={canArchive(agent) ? (viaKeyboard) => archive(agent, viaKeyboard) : undefined}

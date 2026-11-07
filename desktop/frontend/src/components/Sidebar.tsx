@@ -81,7 +81,7 @@ import {
 import { SidebarGroupRow } from "./SidebarGroupRow";
 import { HEADER_PLATE_CLASS } from "./SidebarHeaderShell";
 import { rollupSegments, type RollupSegment } from "./sidebarRollup";
-import { edgeAgentState } from "../sidebarAgentEdges";
+import { edgeAgentsOf } from "../sidebarAgentEdges";
 import { peerPlateClass } from "./peerPlate";
 import { LaptopIcon } from "./connections/LaptopIcon";
 import { GroupContextMenu } from "./GroupContextMenu";
@@ -474,8 +474,8 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   const pinnedNames = useMemo(() => new Set(pinned.map((p) => p.name)), [pinned]);
   // A pinned project stays on screen above the list, so its agents can't get lost
   // when its place in the list scrolls away.
-  const edgeAgentOf = (projects: ProjectInfo[]) =>
-    edgeAgentState(projects.filter((p) => !pinnedNames.has(p.name)));
+  const unpinnedEdgeAgents = (projects: ProjectInfo[]) =>
+    edgeAgentsOf(projects.filter((p) => !pinnedNames.has(p.name)));
 
   // The clamp inside `projectAgentRows` only reads `now` against timestamps that
   // change with `projects`, so pinning it to this memo costs nothing.
@@ -1105,7 +1105,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     const deckHoldsSelected =
       deckCollapsed && selected !== null && deckChildren.some((c) => c.name === selected);
     const controlTop = twoLine ? "top-[14px]" : "top-1/2";
-    const edgeAgent = edgeAgentOf([
+    const edgeAgents = unpinnedEdgeAgents([
       ...(isExpanded ? [] : [project]),
       ...(deckCollapsed ? deckChildren : []),
     ]);
@@ -1174,7 +1174,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           <button
             id={projectRowDomId(project.name)}
             data-project-row={project.name}
-            data-edge-agent={edgeAgent}
+            data-edge-agent={edgeAgents}
             onClick={(e) =>
               (selectMode ? selecting : inOwnList(project.name, Boolean(peerRow)))
                 ? handleRowClick(project.name, e)
@@ -1410,7 +1410,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           collapsed={!!item.group.collapsed}
           count={item.count}
           segments={item.segments}
-          edgeAgent={edgeAgentOf(item.folded)}
+          edgeAgents={unpinnedEdgeAgents(item.folded)}
           containsSelected={containsSelected}
           selectMode={selectMode}
           isContextTarget={groupMenu?.id === item.group.id}
@@ -1469,7 +1469,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           projects={section.projects}
           strays={section.strays}
           selected={selected}
-          edgeAgent={edgeAgentOf([...section.projects, ...section.strays.map((stray) => stray.project)])}
+          edgeAgents={unpinnedEdgeAgents([...section.projects, ...section.strays.map((stray) => stray.project)])}
         >
           {item.rows.map((row) => {
             if (row.kind === "folder") return renderPeerFolder(section.slug, row, peerRowFor);
@@ -1654,7 +1654,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             collapsed={collapsed}
             count={folder.count}
             segments={folder.segments}
-            edgeAgent={edgeAgentOf(folder.folded)}
+            edgeAgents={unpinnedEdgeAgents(folder.folded)}
             containsSelected={containsSelected}
             selectMode={selectMode}
             isContextTarget={hostFolderMenu?.slug === slug && hostFolderMenu.id === group.id}

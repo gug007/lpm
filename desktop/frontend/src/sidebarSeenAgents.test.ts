@@ -77,7 +77,7 @@ const row = (key: string, over: Partial<SidebarAgentRow> = {}): SidebarAgentRow 
   provider: "Claude Code",
   terminalId: `t-${key}`,
   since: null,
-  shared: 0,
+  shared: [],
   holdsError: false,
   keys: [key],
   ...over,

@@ -311,9 +311,11 @@ body {
   }
 }
 
-/* The line at an end of the project list. It can sit there for hours while the
-   window is idle, so it runs `.sidebar-shimmer`'s clock — three widths to a lap,
-   two laps every 4s — by sliding a strip with `transform` instead of repainting. */
+/* The line at an end of the project list: a piece per agent past that end, each
+   state one layer masked to its pieces. It can sit there for hours while the
+   window is idle, so working pieces share one strip on `.sidebar-shimmer`'s
+   clock — three widths to a lap, two laps every 4s — slid with `transform`
+   instead of repainting. */
 .sidebar-edge {
   position: absolute;
   left: 0;
@@ -325,26 +327,30 @@ body {
   animation: sidebar-edge-in 160ms ease-out;
 }
 
-.sidebar-edge::before {
-  content: "";
+.sidebar-edge-run {
   position: absolute;
   inset: 0;
+  overflow: hidden;
 }
 
 .sidebar-edge-working::before {
-  right: auto;
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
   width: 900%;
   background-size: calc(100% / 3) 100%;
   will-change: transform;
   animation: sidebar-edge-sweep 4s ease-in-out infinite;
 }
 
-.sidebar-edge-needs-you::before {
+.sidebar-edge-needs-you {
   background: var(--accent-amber);
   animation: waiting-pulse 2s ease-in-out infinite;
 }
 
-.sidebar-edge-error::before {
+.sidebar-edge-error {
   background: var(--accent-red);
 }
 
@@ -363,7 +369,8 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .sidebar-waiting,
   .sidebar-edge,
-  .sidebar-edge::before {
+  .sidebar-edge-run,
+  .sidebar-edge-working::before {
     animation: none;
   }
 }

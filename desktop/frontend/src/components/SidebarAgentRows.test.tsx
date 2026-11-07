@@ -34,7 +34,7 @@ const agent = (over: Partial<SidebarAgentRow> = {}): SidebarAgentRow => ({
   state: "needs-you",
   title: "Rebalance worker",
   provider: "Claude Code",
-  shared: 0,
+  shared: [],
   holdsError: false,
   terminalId: "%1",
   since: Date.now() - (4 * 60 + 5) * 1000,
@@ -112,6 +112,20 @@ describe("SidebarAgentRows", () => {
       // Already looked at, however it ended: it waits on nobody.
       undefined,
     ]);
+  });
+
+  it("speaks for every agent sharing a tab", () => {
+    act(() => {
+      root.render(
+        <SidebarAgentRows
+          projectName="crypto-portfolio"
+          signalsEdge
+          agents={[agent({ key: "a", state: "needs-you", shared: ["working", "done"] })]}
+          onOpenAgent={vi.fn()}
+        />,
+      );
+    });
+    expect(lines()[0].dataset.edgeAgent).toBe("needs-you working");
   });
 
   it("leaves the end of the list alone where nothing can scroll away", () => {

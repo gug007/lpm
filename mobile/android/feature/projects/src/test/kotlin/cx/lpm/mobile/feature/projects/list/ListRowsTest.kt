@@ -74,8 +74,14 @@ class ListRowsTest {
         )
         fun header(inputs: RowInputs) =
             state.listRows(inputs).filterIsInstance<ProjectsListRow.FolderEntry>().single()
-        assertEquals(AgentState.NeedsYou, header(RowInputs()).foldedAgent)
-        assertEquals(null, header(RowInputs(expanded = mapOf("g1" to true))).foldedAgent)
+        assertEquals(
+            listOf(AgentState.NeedsYou, AgentState.Working),
+            header(RowInputs()).foldedAgents
+        )
+        assertEquals(
+            emptyList<AgentState>(),
+            header(RowInputs(expanded = mapOf("g1" to true))).foldedAgents
+        )
     }
 
     @Test

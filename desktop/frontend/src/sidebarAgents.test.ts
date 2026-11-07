@@ -147,7 +147,7 @@ describe("projectAgentRows", () => {
       NOW,
       { "%1": "Ultracode", "%codex_1": "Rebalance" },
     );
-    expect(agents.map((a: SidebarAgentRow) => [a.title, a.shared])).toEqual([
+    expect(agents.map((a: SidebarAgentRow) => [a.title, a.shared.length])).toEqual([
       ["Ultracode", 1],
       ["Rebalance", 0],
     ]);
@@ -170,7 +170,7 @@ describe("projectAgentRows", () => {
       NOW,
     );
     expect(agents).toHaveLength(2);
-    expect(agents.every((a: SidebarAgentRow) => a.shared === 0)).toBe(true);
+    expect(agents.every((a: SidebarAgentRow) => a.shared.length === 0)).toBe(true);
   });
 
   it("has no rows for a project no agent has reported on", () => {

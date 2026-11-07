@@ -18,8 +18,8 @@ struct ProjectAgentRow: Identifiable, Equatable {
     /// Millis: set once the turn ended, freezing the reading at how long the work
     /// took instead of counting on past it.
     var until: Int?
-    /// How many further agents report on this row's tab, folded into it.
-    var shared = 0
+    /// What the further agents reporting on this row's tab are doing, folded into it.
+    var shared: [AgentState] = []
     /// Every status key the row stands for — its own, the agents folded into it
     /// and a seen agent on its tab — which archiving or marking it acts on.
     var keys: [String] = []
@@ -103,7 +103,7 @@ private func foldByTerminal(_ agents: [ProjectAgentRow]) -> [ProjectAgentRow] {
             continue
         }
         if let index = rowForTerminal[terminal] {
-            rows[index].shared += 1
+            rows[index].shared.append(row.state)
             rows[index].keys += row.keys
             rows[index].seenAt = [rows[index].seenAt, row.seenAt].compactMap { $0 }.max()
         } else {

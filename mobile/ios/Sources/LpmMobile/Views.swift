@@ -298,17 +298,17 @@ struct ProjectsView: View {
             case .folder(let g, let members):
                 guard isExpanded(g) else {
                     let agents = members.flatMap { listedAgents($0.project) }
-                    return [ListEdgeRow(id: ListEdgeRow.folderID(g.id), state: agents.edgeState)]
+                    return [ListEdgeRow(id: ListEdgeRow.folderID(g.id), states: agents.edgeStates)]
                 }
-                return [ListEdgeRow(id: ListEdgeRow.folderID(g.id), state: nil)] + members.flatMap {
+                return [ListEdgeRow(id: ListEdgeRow.folderID(g.id))] + members.flatMap {
                     ListEdgeRow.project($0.project.name, agents: listedAgents($0.project))
                 }
             case .machine(let section):
                 guard expandedOverride["m:" + section.id] ?? true else {
                     let agents = section.rows.flatMap { agentRows($0.project, tabTitles: [:]) }
-                    return [ListEdgeRow(id: ListEdgeRow.machineID(section.id), state: agents.edgeState)]
+                    return [ListEdgeRow(id: ListEdgeRow.machineID(section.id), states: agents.edgeStates)]
                 }
-                return [ListEdgeRow(id: ListEdgeRow.machineID(section.id), state: nil)] + section.rows.flatMap {
+                return [ListEdgeRow(id: ListEdgeRow.machineID(section.id))] + section.rows.flatMap {
                     ListEdgeRow.project($0.project.name, machine: section.id,
                                         agents: agentRows($0.project, tabTitles: [:]))
                 }

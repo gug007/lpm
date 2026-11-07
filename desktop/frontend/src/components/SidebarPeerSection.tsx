@@ -14,7 +14,6 @@ import { PeerContextMenu } from "./PeerContextMenu";
 import { peerPlateClass } from "./peerPlate";
 import { ROLLUP_SEPARATOR_CLASS, rollupSegments } from "./sidebarRollup";
 import { SortableItem } from "./ui/SortableList";
-import type { EdgeAgentState } from "../sidebarAgentEdges";
 import type { MirrorRow } from "./peerSections";
 import type { PeerStatus } from "../peer/peerStatus";
 import type { PeerNoun } from "../peer/platform";
@@ -28,6 +27,7 @@ import type { UpdateChannel } from "../store/settings";
 import type { ProjectInfo } from "../types";
 import { useMacUpdateLine } from "../peer/useMacUpdateLine";
 import { MACHINE } from "../machineWords";
+import type { EdgeAgents } from "../sidebarAgentEdges";
 
 // A machine's name is the one thing the header has to get across, and the width
 // it has is never generous. Both shapes a name comes in have a part that can go:
@@ -75,7 +75,7 @@ export function SidebarPeerSection({
   projects,
   strays,
   selected,
-  edgeAgent,
+  edgeAgents,
   children,
 }: {
   /// The section's slot in the sidebar order, making its header draggable.
@@ -102,7 +102,7 @@ export function SidebarPeerSection({
   selected: string | null;
   /// The agents its projects hold, for the line at the end of the list once
   /// folding the section leaves the header to speak for them.
-  edgeAgent?: EdgeAgentState;
+  edgeAgents?: EdgeAgents;
   /// The section's rows, shown while it is open.
   children: ReactNode;
 }) {
@@ -258,7 +258,7 @@ export function SidebarPeerSection({
           <span className="text-[11px] tabular-nums text-[var(--text-muted)]">{rowCount}</span>
         ) : undefined
       }
-      edgeAgent={collapsed ? edgeAgent : undefined}
+      edgeAgents={collapsed ? edgeAgents : undefined}
       active={holdsSelection}
       isContextTarget={menu !== null}
       showMore

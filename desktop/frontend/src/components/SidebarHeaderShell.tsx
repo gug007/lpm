@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import type { EdgeAgentState } from "../sidebarAgentEdges";
 import { ChevronRightIcon, MoreVerticalIcon } from "./icons";
+import type { EdgeAgents } from "../sidebarAgentEdges";
 
 /** The 16px slot that leads every container header, sized once so a folder, a
  *  paired machine and the drag overlay all reserve the same square — and so the
@@ -43,7 +43,7 @@ interface SidebarHeaderShellProps {
    *  the way a peer row's trailing mark does. */
   trailing?: ReactNode;
   /** The agents the header folds away, for the line at the end of the list. */
-  edgeAgent?: EdgeAgentState;
+  edgeAgents?: EdgeAgents;
   active: boolean;
   isContextTarget: boolean;
   showMore: boolean;
@@ -61,7 +61,7 @@ export function SidebarHeaderShell({
   line2,
   line2Action,
   trailing,
-  edgeAgent,
+  edgeAgents,
   active,
   isContextTarget,
   showMore,
@@ -73,7 +73,7 @@ export function SidebarHeaderShell({
   return (
     // The name repeats on the button: hover has to cover the ⋮, which cannot
     // live inside a button, while focus-visible only ever lands on the button.
-    <div className="group/hdr relative" data-edge-agent={edgeAgent}>
+    <div className="group/hdr relative" data-edge-agent={edgeAgents}>
       <button
         type="button"
         onClick={onToggle}

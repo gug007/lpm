@@ -88,7 +88,7 @@ fun ProjectTerminalDeck(
         rows.forEachIndexed { index, row ->
             key(row.id, row.seen) {
                 if (index > 0) DeckRule()
-                AgentEdgeRow(edgeRows, "$edgeKey/${row.id}", row.edgeState) {
+                AgentEdgeRow(edgeRows, "$edgeKey/${row.id}", row.edgeStates) {
                     val terminal = row.waitingTerminal
                     if (asking != null && terminal != null) {
                         AskingAgentRow(
@@ -291,9 +291,9 @@ fun ProjectTerminalRow(
                 modifier = Modifier.weight(1f, fill = false),
                 seen = row.seen
             )
-            if (row.shared > 0) {
+            if (row.shared.isNotEmpty()) {
                 Text(
-                    text = "+${row.shared}",
+                    text = "+${row.shared.size}",
                     style = LpmTheme.typography.caption2.copy(fontFeatureSettings = "tnum"),
                     color = LpmTheme.colors.secondaryLabel
                 )
