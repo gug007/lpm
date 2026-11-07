@@ -250,6 +250,8 @@ macro_rules! all_command_handlers {
             list_dir_files,
             search_files,
             cancel_file_search,
+            download_project_file,
+            cancel_file_download,
             replace_in_files,
             undo_replace,
             list_dirs,

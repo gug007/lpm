@@ -94,6 +94,18 @@ describe("FilesRowMenu", () => {
     ]);
   });
 
+  it("offers a download beside mentioning, only when one is given", () => {
+    const onDownload = vi.fn();
+    const { onClose } = show({ onDownload });
+    const labels = [...container.querySelectorAll("button")].map((b) => b.textContent);
+    expect(labels.indexOf("Download…")).toBe(labels.indexOf("Mention in agent") + 1);
+    act(() => item("Download").click());
+    expect(onDownload).toHaveBeenCalledOnce();
+    expect(onClose).toHaveBeenCalledOnce();
+    show();
+    expect(container.textContent).not.toContain("Download");
+  });
+
   it("makes new entries beside a file and inside a folder", () => {
     const e = edits();
     show({ edits: e });

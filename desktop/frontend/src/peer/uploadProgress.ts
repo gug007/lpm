@@ -24,7 +24,7 @@ export interface UploadToast {
 // before anyone could have read one.
 export const SHOW_AFTER_MS = 600;
 
-function transferToast(title: string, sent: number, total: number): UploadToast {
+export function transferToast(title: string, sent: number, total: number): UploadToast {
   if (total <= 0) return { title };
   return {
     title,

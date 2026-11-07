@@ -10,8 +10,10 @@ import { useContentZoom } from "../../hooks/useContentZoom";
 import { useResizableWidth } from "../../hooks/useResizableWidth";
 import { basename, joinAbs } from "../../path";
 import type { RailView } from "../../store/filesView";
+import { useAppStore } from "../../store/app";
 import { useSettingsStore } from "../../store/settings";
 import { DiffConflictBanner } from "../review/DiffConflictBanner";
+import { canDownload, downloadFile } from "./downloadFile";
 import { copyAbsolutePath, copyText, revealInFinder } from "./fileActions";
 import { FilesAllChanges } from "./FilesAllChanges";
 import { FilesDiscardDialog } from "./FilesDiscardDialog";
@@ -143,6 +145,7 @@ export function FilesPane({
   const [stackPath, setStackPath] = useState<string | null>(null);
   const [cursorRequest, setCursorRequest] = useState<CursorRequest | null>(null);
   const [menu, setMenu] = useState<RowTarget | null>(null);
+  const downloads = useAppStore((s) => canDownload(s.projects.find((p) => p.name === projectName)));
   const [splitFits, setSplitFits] = useState(true);
   const shownRef = useRef(buffer.file);
   shownRef.current = buffer.file;
@@ -462,6 +465,7 @@ export function FilesPane({
           onOpen={() => activate(menu)}
           edits={review ? undefined : edits}
           onDiscard={decorations.has(menu.path) ? () => git.discard.request(menu) : undefined}
+          onDownload={downloads && !menu.isDir ? () => void downloadFile(projectRoot, menu.path) : undefined}
           ignored={underIgnored(menu.path, ignoredPaths)}
           onClose={() => setMenu(null)}
         />

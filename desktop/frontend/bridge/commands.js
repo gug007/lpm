@@ -1114,6 +1114,12 @@ export function SaveTemplate(name, content) {
 export function SaveTerminals(c) {
   return invoke("save_terminals", { c });
 }
+export function DownloadProjectFile(id, root, rel) {
+  return invoke("download_project_file", { id, root, rel });
+}
+export function CancelFileDownload(id) {
+  return invoke("cancel_file_download", { id });
+}
 export function SaveTextFile(defaultName, content) {
   return invoke("save_text_file", { defaultName, content });
 }

@@ -1,5 +1,5 @@
 import { trashName } from "../../platform";
-import { TrashIcon, UndoIcon } from "../icons";
+import { DownloadIcon, TrashIcon, UndoIcon } from "../icons";
 import { ContextMenuItem } from "../ui/ContextMenuItem";
 import { ContextMenuSeparator } from "../ui/ContextMenuSeparator";
 import { ContextMenuShell } from "../ui/ContextMenuShell";
@@ -23,6 +23,8 @@ interface FilesRowMenuProps {
   edits?: TreeEdits;
   // Given only when the row holds uncommitted changes.
   onDiscard?: () => void;
+  // Given only for a file on another computer.
+  onDownload?: () => void;
   // The row is ignored by git, or inside a folder that is.
   ignored?: boolean;
   onClose: () => void;
@@ -35,6 +37,7 @@ export function FilesRowMenu({
   onOpen,
   edits,
   onDiscard,
+  onDownload,
   ignored = false,
   onClose,
 }: FilesRowMenuProps) {
@@ -54,6 +57,7 @@ export function FilesRowMenu({
         title={terminal ? `Add @${target.path} to ${terminal.label || "the agent"}'s input` : NO_TERMINAL}
         onClick={run(() => terminal && mentionInAgent(projectName, terminal, target.path))}
       />
+      {onDownload && <ContextMenuItem label="Download…" icon={<DownloadIcon />} onClick={run(onDownload)} />}
       {edits && (
         <>
           <ContextMenuSeparator />

@@ -2417,6 +2417,10 @@ fn is_denied(cmd: &str) -> bool {
             // the attachment's bytes on its own
             | "notes_save_attachment"
             | "notes_save_attachment_data"
+            // a save dialog on this machine's screen; the Mac asking downloads
+            // the file itself
+            | "download_project_file"
+            | "cancel_file_download"
             // host-local browser overlay
             | "open_browser"
             | "close_browser"
@@ -3101,6 +3105,8 @@ mod tests {
         assert!(is_denied("reveal_in_finder"));
         assert!(is_denied("notes_save_attachment"));
         assert!(is_denied("notes_save_attachment_data"));
+        assert!(is_denied("download_project_file"));
+        assert!(is_denied("cancel_file_download"));
         assert!(!is_denied("start_claude_login"));
         assert!(!is_denied("set_claude_pool"));
         // Control-ownership forgery and global host mutators must be blocked.

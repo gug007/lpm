@@ -462,6 +462,11 @@ describe("isLocalOnlyCommand", () => {
     expect(isLocalOnlyCommand("reveal_in_finder")).toBe(true);
   });
 
+  it("saves a paired machine's file on the computer the person is at", () => {
+    expect(isLocalOnlyCommand("download_project_file")).toBe(true);
+    expect(isLocalOnlyCommand("cancel_file_download")).toBe(true);
+  });
+
   it("opens a paired machine's project's window on this Mac", () => {
     expect(isLocalOnlyCommand("detach_project")).toBe(true);
     expect(isLocalOnlyCommand("attach_project")).toBe(true);

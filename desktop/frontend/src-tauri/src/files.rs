@@ -152,19 +152,26 @@ pub async fn save_text_file(
     if content.len() > 64 * 1024 * 1024 {
         return Err(format!("content too large ({} bytes)", content.len()));
     }
-    let Some(path) = pick_path(app, move |app| {
+    let Some(path) = pick_save_path(app, default_name).await? else {
+        return Ok(false);
+    };
+    std::fs::write(&path, content).map_err(|e| e.to_string())?;
+    Ok(true)
+}
+
+/// The native save dialog, opened on the Downloads folder.
+pub(crate) async fn pick_save_path(
+    app: AppHandle,
+    default_name: String,
+) -> Result<Option<PathBuf>, String> {
+    pick_path(app, move |app| {
         let mut builder = app.dialog().file().set_file_name(&default_name);
         if let Ok(dir) = app.path().download_dir() {
             builder = builder.set_directory(dir);
         }
         builder.blocking_save_file()
     })
-    .await?
-    else {
-        return Ok(false);
-    };
-    std::fs::write(&path, content).map_err(|e| e.to_string())?;
-    Ok(true)
+    .await
 }
 
 #[tauri::command]

@@ -14,6 +14,7 @@
 // Windows has no mode bits: a mode without any write bit becomes the read-only
 // attribute, anything else leaves the file writable, and the user-only ACL the
 // profile folder hands down keeps secrets private.
+use std::fs::File;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use tempfile::NamedTempFile;
@@ -34,6 +35,16 @@ pub enum Mode {
 /// exist (callers create it, exactly as they did before the switch to atomic
 /// writes). On any error the temp file is removed automatically by NamedTempFile.
 pub fn write(path: &Path, bytes: &[u8], mode: Mode) -> io::Result<()> {
+    write_with(path, mode, |file| file.write_all(bytes))
+}
+
+/// `write` for content too big to hold or still on its way: `fill` writes it to
+/// the temp file, and if it fails `path` stays as it was.
+pub fn write_with(
+    path: &Path,
+    mode: Mode,
+    fill: impl FnOnce(&mut File) -> io::Result<()>,
+) -> io::Result<()> {
     let target = resolve_symlink(path)?;
     let parent = target.parent().ok_or_else(|| {
         io::Error::new(io::ErrorKind::InvalidInput, "path has no parent directory")
@@ -48,7 +59,7 @@ pub fn write(path: &Path, bytes: &[u8], mode: Mode) -> io::Result<()> {
     // widened (for non-secret Preserve files) after the bytes are on disk, so a
     // secret file (always Exact(0o600)) never exists at a wider mode.
     let mut temp = NamedTempFile::new_in(parent)?;
-    temp.write_all(bytes)?;
+    fill(temp.as_file_mut())?;
     temp.as_file().sync_all()?;
     #[cfg(unix)]
     {
@@ -149,6 +160,20 @@ mod tests {
         assert_eq!(std::fs::read(&path).unwrap(), b"one");
         write(&path, b"two", Mode::Preserve(0o644)).unwrap();
         assert_eq!(std::fs::read(&path).unwrap(), b"two");
+    }
+
+    #[test]
+    fn a_failed_fill_leaves_the_file_and_no_temp_behind() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("keep.bin");
+        std::fs::write(&path, b"old").unwrap();
+        let failed = write_with(&path, Mode::Preserve(0o644), |file| {
+            file.write_all(b"half")?;
+            Err(io::Error::other("connection lost"))
+        });
+        assert_eq!(failed.unwrap_err().to_string(), "connection lost");
+        assert_eq!(std::fs::read(&path).unwrap(), b"old");
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
     }
 
     #[test]

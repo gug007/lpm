@@ -72,6 +72,9 @@ const LOCAL_ONLY_EXACT = new Set<string>([
   "open_file_in_editor",
   "open_path_in_default_app",
   "reveal_in_finder",
+  // Saves on the computer the person is at, so the dialog and the bytes are here.
+  "download_project_file",
+  "cancel_file_download",
   // Reads a paired machine's file from here, a chunk at a time, so its size
   // isn't held to one frame of the peer connection.
   "notes_read_file_as_input",
