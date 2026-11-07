@@ -1,4 +1,5 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { toast } from "../notifications/toast";
 import {
   CheckoutBranch,
@@ -29,13 +30,9 @@ import {
   type GitPushConfig,
   type GitFetchConfig,
 } from "../gitOptions";
-import { DrillMenu } from "./DrillMenu";
-import { PullSplitRow, pullConfigScreen } from "./pullMenu";
-import { PushSplitRow, pushConfigScreen } from "./pushMenu";
-import { FetchSplitRow, fetchConfigScreen } from "./fetchMenu";
 import { main } from "../../bridge/models";
 import { BrowserOpenURL } from "../../bridge/runtime";
-import { useOutsideClick } from "../hooks/useOutsideClick";
+import { useAnchoredPanel } from "../hooks/useAnchoredPanel";
 import { useEventListener } from "../hooks/useEventListener";
 import type { useGitStatus } from "../hooks/useGitStatus";
 import { CreateBranchModal } from "./CreateBranchModal";
@@ -45,16 +42,21 @@ import { AutoPRModal, type AutoPRAIParams } from "./AutoPRModal";
 import { MergeBranchDialog } from "./MergeBranchDialog";
 import { PRModal } from "./PRModal";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
-import { ChevronDownIcon, HistoryIcon, SparkleIcon, UndoIcon, UploadIcon } from "./icons";
+import { ChevronDownIcon, UploadIcon } from "./icons";
 import { CommitHistoryModal } from "./history/CommitHistoryModal";
 import { BranchButton } from "./BranchButton";
 import { useRecentCommits } from "../hooks/useRecentCommits";
+import { useOverlay } from "../store/overlay";
 import { BranchSearchMenu } from "./BranchSearchMenu";
+import { CommitActionsMenu } from "./CommitActionsMenu";
 import { isUnpublished } from "./branchUtils";
 import { shouldFetch, recordFetch } from "../gitFetchThrottle";
 import { toastPullError } from "../gitPullErrors";
 import { DISCARD_KEPT_TEXT, announceDiscard } from "../gitDiscardUndo";
 import { pulledText, pushedText, syncedText } from "../gitToastText";
+
+const BRANCH_MENU_WIDTH = 520;
+const COMMIT_MENU_WIDTH = 320;
 
 export function BranchSwitcher({
   projectName,
@@ -94,14 +96,26 @@ export function BranchSwitcher({
   const pruningRef = useRef(false);
   const ai = useAIPicker(commitMenuOpen, projectName);
 
-  const commitMenuRef = useOutsideClick<HTMLDivElement>(
-    () => setCommitMenuOpen(false),
-    commitMenuOpen,
-  );
+  const branchMenu = useAnchoredPanel<HTMLDivElement, HTMLDivElement>({
+    open,
+    onClose: () => setOpen(false),
+    width: BRANCH_MENU_WIDTH,
+    side: "above",
+  });
+  const commitMenu = useAnchoredPanel<HTMLDivElement, HTMLDivElement>({
+    open: commitMenuOpen,
+    onClose: () => setCommitMenuOpen(false),
+    width: COMMIT_MENU_WIDTH,
+    side: "above",
+  });
+  useOverlay(open || commitMenuOpen);
 
-  const ref = useOutsideClick<HTMLDivElement>(() => {
+  // On <body>, the menus would outlive a pane hidden by switching project.
+  useEffect(() => {
+    if (active) return;
     setOpen(false);
-  }, open && !creating);
+    setCommitMenuOpen(false);
+  }, [active]);
 
   useEventListener(
     "keydown",
@@ -410,7 +424,7 @@ export function BranchSwitcher({
           )}
         </button>
       )}
-      <div ref={ref} className="relative">
+      <div ref={branchMenu.triggerRef}>
         <BranchButton
           branch={status.branch}
           open={open}
@@ -419,31 +433,36 @@ export function BranchSwitcher({
           commits={recentCommits}
         />
 
-        {open && (
-          <BranchSearchMenu
-            projectPath={projectPath}
-            branches={branches}
-            current={status.branch}
-            uncommitted={status.uncommitted}
-            busy={busy}
-            pruning={pruning}
-            onCheckout={checkout}
-            onCreate={create}
-            onRename={renameBranch}
-            onDelete={setDeletingBranch}
-            onRemoveRemote={setRemovingRemote}
-            onCopyName={copyBranchName}
-            onNewBranch={(prefill) => {
-              setCreatePrefill(prefill);
-              setOpen(false);
-              setCreating(true);
-            }}
-          />
-        )}
+        {open &&
+          branchMenu.style &&
+          createPortal(
+            <div ref={branchMenu.panelRef} style={branchMenu.style} className="z-50">
+              <BranchSearchMenu
+                  projectPath={projectPath}
+                  branches={branches}
+                  current={status.branch}
+                  uncommitted={status.uncommitted}
+                  busy={busy}
+                  pruning={pruning}
+                  onCheckout={checkout}
+                  onCreate={create}
+                  onRename={renameBranch}
+                  onDelete={setDeletingBranch}
+                  onRemoveRemote={setRemovingRemote}
+                  onCopyName={copyBranchName}
+                  onNewBranch={(prefill) => {
+                    setCreatePrefill(prefill);
+                    setOpen(false);
+                    setCreating(true);
+                  }}
+              />
+            </div>,
+            document.body,
+          )}
       </div>
       <div
-        ref={commitMenuRef}
-        className="relative flex rounded-md border border-[var(--composer-border)] bg-[var(--composer-surface)]"
+        ref={commitMenu.triggerRef}
+        className="flex rounded-md border border-[var(--composer-border)] bg-[var(--composer-surface)]"
       >
         <button
           onClick={() => setCommitting(true)}
@@ -477,150 +496,42 @@ export function BranchSwitcher({
         >
           <ChevronDownIcon />
         </button>
-        {commitMenuOpen && (
-          <div data-row-menu="off" className="absolute bottom-full right-0 z-10 mb-2">
-            <DrillMenu
-              widthClassName="w-80"
-              showClose={false}
-              root={{
-                render: (api) => (
-                  <>
-                    <PullSplitRow
-                      busy={busy}
-                      onRun={runPullDefault}
-                      onConfigure={() =>
-                        api.push(
-                          pullConfigScreen({ busy, onRun: runPullDefault }),
-                        )
-                      }
-                    />
-                    <PushSplitRow
-                      busy={busy}
-                      onRun={runPushDefault}
-                      onConfigure={() =>
-                        api.push(
-                          pushConfigScreen({ busy, onRun: runPushDefault }),
-                        )
-                      }
-                    />
-                    <FetchSplitRow
-                      busy={busy}
-                      onRun={runFetchDefault}
-                      onConfigure={() =>
-                        api.push(
-                          fetchConfigScreen({ busy, onRun: runFetchDefault }),
-                        )
-                      }
-                    />
-                    <button
-                      onClick={() => {
-                        setCommitMenuOpen(false);
-                        if (openPr) BrowserOpenURL(openPr.url);
-                        else setCreatingPR(true);
-                      }}
-                      className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-                    >
-                      <PRMenuIcon />
-                      {openPr ? `Open PR #${openPr.number}` : "Create PR"}
-                    </button>
-                    <button
-                      onClick={() => {
-                        setCommitMenuOpen(false);
-                        setMerging(true);
-                      }}
-                      disabled={busy}
-                      className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      <MergeMenuIcon />
-                      Merge
-                    </button>
-                    <button
-                      onClick={() => {
-                        setCommitMenuOpen(false);
-                        setShowingHistory(true);
-                      }}
-                      className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] [&>svg]:h-3.5 [&>svg]:w-3.5"
-                    >
-                      <HistoryIcon />
-                      History
-                    </button>
-                    {ai.anyAvailable && (
-                      <>
-                        <div className="my-1.5 border-t border-[var(--border)]" />
-                        <button
-                          onClick={() => runAuto(false)}
-                          disabled={status.uncommitted === 0}
-                          className="group flex w-full items-start gap-2.5 px-4 py-2 text-left transition-colors hover:bg-[var(--bg-hover)] disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                          <span className="mt-0.5 text-[var(--text-secondary)] [&>svg]:h-3.5 [&>svg]:w-3.5">
-                            <SparkleIcon />
-                          </span>
-                          <span className="flex flex-col">
-                            <span className="text-[13px] text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">
-                              Auto Commit
-                            </span>
-                            <span className="text-[11px] text-[var(--text-muted)]">
-                              AI writes the message, then commits
-                            </span>
-                          </span>
-                        </button>
-                        <button
-                          onClick={() => runAuto(true)}
-                          disabled={status.uncommitted === 0}
-                          className="group flex w-full items-start gap-2.5 px-4 py-2 text-left transition-colors hover:bg-[var(--bg-hover)] disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                          <span className="mt-0.5 text-[var(--text-secondary)] [&>svg]:h-3.5 [&>svg]:w-3.5">
-                            <SparkleIcon />
-                          </span>
-                          <span className="flex flex-col">
-                            <span className="text-[13px] text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">
-                              Auto Commit and Push
-                            </span>
-                            <span className="text-[11px] text-[var(--text-muted)]">
-                              AI writes the message, commits, and pushes
-                            </span>
-                          </span>
-                        </button>
-                        {!openPr && (
-                          <button
-                            onClick={startAutoPR}
-                            disabled={busy}
-                            className="group flex w-full items-start gap-2.5 px-4 py-2 text-left transition-colors hover:bg-[var(--bg-hover)] disabled:cursor-not-allowed disabled:opacity-40"
-                          >
-                            <span className="mt-0.5 text-[var(--text-secondary)] [&>svg]:h-3.5 [&>svg]:w-3.5">
-                              <SparkleIcon />
-                            </span>
-                            <span className="flex flex-col">
-                              <span className="text-[13px] text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">
-                                Auto Create PR
-                              </span>
-                              <span className="text-[11px] text-[var(--text-muted)]">
-                                AI names the branch, commits, pushes, and opens the PR
-                              </span>
-                            </span>
-                          </button>
-                        )}
-                      </>
-                    )}
-                    <div className="my-1.5 border-t border-[var(--border)]" />
-                    <button
-                      onClick={() => {
-                        setCommitMenuOpen(false);
-                        setConfirmDiscardAllOpen(true);
-                      }}
-                      disabled={status.uncommitted === 0}
-                      className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[var(--accent-red)] transition-colors hover:bg-[var(--bg-hover)] disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      <UndoIcon />
-                      Discard all changes
-                    </button>
-                  </>
-                ),
-              }}
-              onClose={() => setCommitMenuOpen(false)}
-            />
-          </div>
-        )}
+        {commitMenuOpen &&
+          commitMenu.style &&
+          createPortal(
+            <div ref={commitMenu.panelRef} style={commitMenu.style} className="z-50">
+              <CommitActionsMenu
+                busy={busy}
+                uncommitted={status.uncommitted}
+                openPr={openPr}
+                showAI={ai.anyAvailable}
+                onPull={runPullDefault}
+                onPush={runPushDefault}
+                onFetch={runFetchDefault}
+                onPullRequest={() => {
+                  setCommitMenuOpen(false);
+                  if (openPr) BrowserOpenURL(openPr.url);
+                  else setCreatingPR(true);
+                }}
+                onMerge={() => {
+                  setCommitMenuOpen(false);
+                  setMerging(true);
+                }}
+                onHistory={() => {
+                  setCommitMenuOpen(false);
+                  setShowingHistory(true);
+                }}
+                onAutoCommit={runAuto}
+                onAutoPR={startAutoPR}
+                onDiscardAll={() => {
+                  setCommitMenuOpen(false);
+                  setConfirmDiscardAllOpen(true);
+                }}
+                onClose={() => setCommitMenuOpen(false)}
+              />
+            </div>,
+            document.body,
+          )}
       </div>
       <CreateBranchModal
         open={creating}
@@ -766,47 +677,6 @@ function CommitIcon({ size = 12 }: { size?: number } = {}) {
       <circle cx="12" cy="12" r="3" />
       <line x1="3" y1="12" x2="9" y2="12" />
       <line x1="15" y1="12" x2="21" y2="12" />
-    </svg>
-  );
-}
-
-function PRMenuIcon() {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx="18" cy="18" r="3" />
-      <circle cx="6" cy="6" r="3" />
-      <path d="M13 6h3a2 2 0 0 1 2 2v7" />
-      <line x1="6" y1="9" x2="6" y2="21" />
-    </svg>
-  );
-}
-
-function MergeMenuIcon() {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx="18" cy="18" r="3" />
-      <circle cx="6" cy="6" r="3" />
-      <circle cx="6" cy="18" r="3" />
-      <path d="M6 9v6" />
-      <path d="M6 21a12 12 0 0 0 12-12" />
     </svg>
   );
 }

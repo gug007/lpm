@@ -73,6 +73,11 @@ describe("TerminalFooter", () => {
     expect(group.querySelector("button > span")?.className.split(" ")).toContain("px-2.5");
   });
 
+  it("stays on the right when no tip fills the space before it", () => {
+    const { group } = render([action("logs", "footer", 1)], []);
+    expect(group.className.split(" ")).toContain("ml-auto");
+  });
+
   it("draws a footer zone in the row, aligned to the top with the tip on the first row", () => {
     const { surface, group, tip } = render([action("logs", "footer", 1), action("prod", "ship")], [SHIP]);
     expect(surface.className).toContain(" items-start ");

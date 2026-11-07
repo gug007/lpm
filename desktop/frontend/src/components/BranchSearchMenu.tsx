@@ -192,10 +192,7 @@ export function BranchSearchMenu({
   );
 
   return (
-    <div
-      data-row-menu="off"
-      className="absolute bottom-full right-0 z-50 mb-2 w-[520px] overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
-    >
+    <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl">
       <div className="border-b border-[var(--border)] p-2">
         <input
           ref={searchRef}

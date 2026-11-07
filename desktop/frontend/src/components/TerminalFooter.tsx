@@ -58,7 +58,7 @@ export function TerminalFooter({
         layout={layout}
         projectName={projectName}
         disabled={disabled}
-        className={`flex flex-wrap ${alignTop ? "items-start" : "items-center"} justify-end gap-1`}
+        className={`flex flex-wrap ${alignTop ? "items-start" : "items-center"} justify-end gap-1 ml-auto`}
         onRun={onRunAction}
         onContextMenu={onActionContextMenu}
         onZoneContextMenu={onZoneContextMenu}
