@@ -314,8 +314,10 @@ body {
 /* The line at an end of the project list: a piece per agent past that end, each
    state one layer masked to its pieces. It can sit there for hours while the
    window is idle, so working pieces share one strip on `.sidebar-shimmer`'s
-   clock — three widths to a lap, two laps every 4s — slid with `transform`
-   instead of repainting. */
+   clock — three widths to a lap, a lap every 2s — slid with `transform`
+   instead of repainting. The strip is one lap plus the line, at most 1600px
+   at the widest sidebar: WebKit tiles a layer wider than 2000px, and the tiles
+   it jumps back to at each loop aren't drawn in time, so the line blinked out. */
 .sidebar-edge {
   position: absolute;
   left: 0;
@@ -339,10 +341,10 @@ body {
   top: 0;
   bottom: 0;
   left: 0;
-  width: 900%;
-  background-size: calc(100% / 3) 100%;
+  width: 400%;
+  background-size: 75% 100%;
   will-change: transform;
-  animation: sidebar-edge-sweep 4s ease-in-out infinite;
+  animation: sidebar-edge-sweep 2s ease-in-out infinite;
 }
 
 .sidebar-edge-needs-you {
@@ -362,7 +364,7 @@ body {
 
 @keyframes sidebar-edge-sweep {
   to {
-    transform: translate3d(calc(-200% / 3), 0, 0);
+    transform: translate3d(-75%, 0, 0);
   }
 }
 
