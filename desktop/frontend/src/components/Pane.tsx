@@ -8,7 +8,7 @@ import { SerializeAddon } from "@xterm/addon-serialize";
 import { canFitHost, getTerminalTheme, openTerminalLink } from "./terminal-utils";
 import { copyTerminalSelection, handleCopyShortcut, handleNativeCopy, handleSelectAllShortcut, handleClearShortcut } from "./terminal/copySelection";
 import { readOnlyTerminalYields } from "./terminal/terminalKeys";
-import { applyFilterQuery, FilterMirror, type FilterSpec } from "./terminal/FilterMirror";
+import { applyFilterQuery, ensureFilterMirror, FilterMirror, type FilterSpec } from "./terminal/FilterMirror";
 import { bufferToPlainText } from "./terminal/consoleActions";
 import { EMPTY_TALLY, tallyLines, type SeverityTally } from "./terminal/logSeverity";
 import { useServiceLogs } from "../store/serviceLogs";
@@ -219,6 +219,14 @@ export function Pane({ label, labelLead, labelHint, labelDetail, onLabelClick, l
     themeOverrideRef.current = themeOverride;
     const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
     const severityFilter = useServiceLogs((s) => (sessionKey ? s.filter[sessionKey] : undefined));
+    const foldRepeats = useServiceLogs((s) => (sessionKey ? Boolean(s.fold[sessionKey]) : false));
+    const visibleRef = useRef(visible);
+    visibleRef.current = visible;
+    const findingRef = useRef(false);
+
+    // Find runs on the pane's own terminal, which holds every line.
+    const syncFoldSuspended = () =>
+      filterRef.current?.setFoldSuspended(!visibleRef.current || findingRef.current);
 
     const applyFilter = (spec: FilterSpec | null, onCount?: (count: number) => void) => {
       const session = sessionRef.current;
@@ -243,12 +251,16 @@ export function Pane({ label, labelLead, labelHint, labelDetail, onLabelClick, l
         clearPaneSession(session);
       },
       find(query: string, direction: FindDirection, options: FindOptions) {
+        findingRef.current = Boolean(query);
+        syncFoldSuspended();
         return runFind(sessionRef.current, query, direction, options);
       },
       watchFind(onResults: (results: FindResults) => void) {
         return watchFindResults(sessionRef.current, onResults);
       },
       clearSearch() {
+        findingRef.current = false;
+        syncFoldSuspended();
         clearFind(sessionRef.current);
       },
       setFilter(query: string | null, onCount?: (count: number) => void) {
@@ -406,6 +418,25 @@ export function Pane({ label, labelLead, labelHint, labelDetail, onLabelClick, l
       if (!session) return;
       session.cwd = cwd;
     }, [cwd]);
+
+    useEffect(() => {
+      const session = sessionRef.current;
+      const el = containerRef.current;
+      if (!session || !el || (!foldRepeats && !filterRef.current)) return;
+      ensureFilterMirror(
+        filterRef,
+        el,
+        session,
+        () => themeOverrideRef.current ?? getTerminalTheme(el),
+        () => fontSizeRef.current,
+        () => ({ fontFamily: fontFamilyRef.current, lineHeight: lineHeightRef.current }),
+      ).setFold(foldRepeats);
+      syncFoldSuspended();
+    }, [foldRepeats, sessionKey]);
+
+    useEffect(() => {
+      syncFoldSuspended();
+    }, [visible]);
 
     useEffect(() => {
       const showing = filterRef.current?.severity() ?? null;

@@ -1,4 +1,6 @@
+import { portProtocol } from "../../portProtocols";
 import { isOutside, type ListeningPort } from "./portsModel";
+import { systemHolder } from "./systemHolders";
 
 interface PortsProjectCellProps {
   port: ListeningPort;
@@ -8,6 +10,14 @@ interface PortsProjectCellProps {
 export function PortsProjectCell({ port: p, onSelectProject }: PortsProjectCellProps) {
   if (p.own) return <span className="truncate text-[var(--text-muted)]">lpm itself</span>;
   if (isOutside(p)) {
+    const known = systemHolder(p)?.label ?? portProtocol(p.port, p.process)?.name;
+    if (known) {
+      return (
+        <span className="w-fit max-w-full truncate rounded-full bg-[var(--bg-hover)] px-2 py-px text-[10px] font-medium text-[var(--text-secondary)]">
+          {known}
+        </span>
+      );
+    }
     return (
       <span className="flex min-w-0 items-center gap-2">
         <span className="shrink-0 rounded-full bg-[var(--accent-amber)]/15 px-2 py-px text-[10px] font-medium text-[var(--accent-amber-text)]">

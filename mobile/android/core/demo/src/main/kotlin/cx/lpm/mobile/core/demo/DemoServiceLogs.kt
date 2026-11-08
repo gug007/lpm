@@ -64,6 +64,7 @@ private fun DemoServer.pushWatchedServiceLogs(
 }
 
 private fun serviceLogText(svc: DemoWorld.Svc, ticks: Int): String {
+    if (svc.exited) return WORKER_CRASH_LOG
     val (header, pool) = logTemplate(svc)
     val extra = minOf(3 + ticks * 2, 60)
     val lines = header + (0 until extra).map { pool[it % pool.size] }

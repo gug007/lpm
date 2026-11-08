@@ -1,6 +1,7 @@
 import { IS_MIRROR_WINDOW } from "./mirror";
-import { openProjectPort } from "./peer/projectPorts";
+import { copyProjectPortUrl, openProjectPort } from "./peer/projectPorts";
 import { isLinux, isMac } from "./platform";
+import { protocolForPort } from "./portProtocols";
 import { requestProjectBrowser } from "./store/browserRequest";
 
 export interface PortLinkTarget {
@@ -38,6 +39,8 @@ export function openPortLink(
   altKey: boolean,
   target: PortLinkTarget = {},
 ): void {
-  if (altKey) void openProjectPort(projectName, port);
+  const protocol = protocolForPort(port);
+  if (protocol && !altKey) void copyProjectPortUrl(projectName, port, protocol.scheme);
+  else if (altKey) void openProjectPort(projectName, port);
   else openPortInLpm(projectName, port, target);
 }

@@ -1,11 +1,13 @@
 import { PencilIcon, RefreshIcon, StopIcon } from "../icons";
 import { Tooltip } from "../ui/Tooltip";
+import { FoldRepeatsToggle } from "./FoldRepeatsToggle";
 import { ServicePortLinks } from "./ServicePortLinks";
 
 interface ServiceColumnActionsProps {
   projectName: string;
   paneId: string;
   name: string;
+  sessionKey: string;
   ports: number[];
   configuredPort?: number;
   exited: boolean;
@@ -19,9 +21,10 @@ const BUTTON =
 
 // The right end of a service's bar, on its own pane and on its column in the
 // All view: where it listens, and restart/stop/edit without leaving the view.
-export function ServiceColumnActions({ projectName, paneId, name, ports, configuredPort, exited, onRestart, onStop, onEdit }: ServiceColumnActionsProps) {
+export function ServiceColumnActions({ projectName, paneId, name, sessionKey, ports, configuredPort, exited, onRestart, onStop, onEdit }: ServiceColumnActionsProps) {
   return (
     <>
+      <FoldRepeatsToggle sessionKey={sessionKey} />
       {!exited && ports.length > 0 && (
         <ServicePortLinks
           projectName={projectName}

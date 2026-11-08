@@ -15,7 +15,7 @@ import {
   PROJECT_MODEL_URI,
   REPO_MODEL_URI,
   GLOBAL_MODEL_URI,
-} from "../monaco-setup";
+} from "../monaco-uris";
 import { ChevronLeftIcon, CodeIcon, HelpCircleIcon } from "./icons";
 import { AIButton } from "./ui/AIButton";
 import { SegmentedControl } from "./ui/SegmentedControl";

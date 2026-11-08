@@ -52,7 +52,7 @@ function nameOf(project: ProjectInfo): string {
 }
 
 // An agent mid-task, or stopped on a question, is working from the files it read.
-function agentBusy(project: ProjectInfo): boolean {
+export function agentBusy(project: ProjectInfo): boolean {
   return projectAgentRows(project, Date.now()).some(
     (row) => row.state === "working" || row.state === "needs-you",
   );

@@ -5,11 +5,13 @@ import type { SerializeAddon } from "@xterm/addon-serialize";
 import { handleCopyShortcut, handleNativeCopy } from "./copySelection";
 import { readOnlyTerminalYields } from "./terminalKeys";
 import { filterLines, stripAnsi } from "./filterLines";
+import { foldRepeats, type FoldRow } from "./foldRepeats";
+import { toggleLink, writtenCells, type ToggleHit } from "./foldToggle";
 import { severityLines, type LogSeverity } from "./logSeverity";
 import { MATCH_DECORATIONS } from "./terminalFind";
 
 
-const LIVE_DEBOUNCE_MS = 120;
+const LIVE_INTERVAL_MS = 200;
 const RESIZE_DEBOUNCE_MS = 200;
 
 export interface FilterMirrorSource {
@@ -26,17 +28,20 @@ export interface FilterMirrorFont {
 export type FilterSpec = string | { severity: LogSeverity };
 
 function matchLines(text: string, spec: FilterSpec): string[] {
+  if (spec === "") return text.split(/\r?\n/);
   return typeof spec === "string" ? filterLines(text, spec) : severityLines(text, spec.severity);
 }
 
 function emptyHintFor(spec: FilterSpec): string {
+  if (spec === "") return "No output yet";
   if (typeof spec === "string") return "No matches";
   return spec.severity === "error" ? "No errors" : "No warnings";
 }
 
-// Read-only xterm overlay that mirrors only the lines of `source` matching the
-// query, preserving their ANSI colors. The live source keeps running beneath
-// it; the mirror re-derives from a fresh serialize on each (debounced) write.
+// Read-only xterm overlay that mirrors the lines of `source` matching the query,
+// preserving their ANSI colors, with repeated lines folded when asked. The live
+// source keeps running beneath it; the mirror re-derives from a fresh serialize
+// on each (throttled) write.
 export class FilterMirror {
   private mirror: Terminal | null = null;
   private fit: FitAddon | null = null;
@@ -48,6 +53,13 @@ export class FilterMirror {
   private resizeTimer = 0;
   private liveTimer = 0;
   private query: FilterSpec = "";
+  private fold = false;
+  private foldSuspended = false;
+  private expanded = new Set<string>();
+  // Which rendered line folds or unfolds a run, as of what the mirror shows.
+  private toggles = new Map<number, NonNullable<FoldRow["toggle"]>>();
+  private lastOutput: string | null = null;
+  private lastQuery: FilterSpec = "";
   private active = false;
   private onCount: (count: number) => void = () => {};
 
@@ -62,15 +74,21 @@ export class FilterMirror {
   setQuery(query: FilterSpec | null, onCount?: (count: number) => void): void {
     if (onCount) this.onCount = onCount;
     this.query = query ?? "";
-    if (!this.query) {
-      this.hide();
-      return;
-    }
-    this.ensure();
-    this.active = true;
-    if (this.host) this.host.style.display = "block";
-    this.subscribeLive();
-    this.run();
+    this.sync();
+  }
+
+  setFold(fold: boolean): void {
+    if (this.fold === fold) return;
+    this.fold = fold;
+    if (!fold) this.expanded.clear();
+    this.sync();
+  }
+
+  // Set while the pane is off screen or Find is searching every line beneath.
+  setFoldSuspended(suspended: boolean): void {
+    if (this.foldSuspended === suspended) return;
+    this.foldSuspended = suspended;
+    this.sync();
   }
 
   // True while a query is actively filtering the overlay (what the user sees).
@@ -95,7 +113,7 @@ export class FilterMirror {
   // Re-derive the overlay from the current source (e.g. after the underlying
   // terminal is cleared, so the filtered view empties too).
   refresh(): void {
-    if (this.active && this.query) this.run();
+    if (this.active && this.showing()) this.run();
   }
 
   setTheme(theme: ITheme): void {
@@ -167,6 +185,15 @@ export class FilterMirror {
     // xterm preventDefaults mousedown without focusing itself, so a selection
     // drag would otherwise leave ⌘C pointed at the previously focused element.
     host.addEventListener("mousedown", () => term.focus());
+    term.registerLinkProvider({
+      provideLinks: (line, callback) => {
+        const hit = this.toggleAt(line);
+        callback(hit ? [toggleLink(hit, line)] : undefined);
+      },
+    });
+    // Not the link's own activate: every live re-render drops the link under a
+    // pointer that hasn't moved, so on a busy log it would rarely be there.
+    host.addEventListener("click", (e) => this.handleClick(e));
     term.open(host);
 
     this.mirror = term;
@@ -189,12 +216,12 @@ export class FilterMirror {
   private subscribeLive(): void {
     if (this.writeSub) return;
     this.writeSub = this.source.term.onWriteParsed(() => {
-      if (!this.active) return;
-      if (this.liveTimer) clearTimeout(this.liveTimer);
+      // A timer already set keeps its time, so a log that never pauses still shows.
+      if (!this.active || this.liveTimer) return;
       this.liveTimer = window.setTimeout(() => {
         this.liveTimer = 0;
         this.run();
-      }, LIVE_DEBOUNCE_MS);
+      }, LIVE_INTERVAL_MS);
     });
   }
 
@@ -215,7 +242,7 @@ export class FilterMirror {
     const { serialize, term } = this.source;
     if (serialize) {
       try {
-        return serialize.serialize();
+        return serialize.serialize({ excludeModes: true, excludeAltBuffer: true });
       } catch {}
     }
     const buf = term.buffer.active;
@@ -229,23 +256,34 @@ export class FilterMirror {
 
   private run(): void {
     const mirror = this.mirror;
-    if (!mirror || !this.query) return;
+    if (!mirror || !this.showing()) return;
 
     const query = this.query;
     const lines = matchLines(this.readSourceText(), query);
+    const rows: FoldRow[] = this.foldShowing() ? foldRepeats(lines, this.expanded) : lines.map((text) => ({ text }));
+    const output = rows.map((row) => row.text).join("\r\n");
+    this.onCount(lines.length);
+    if (output === this.lastOutput && query === this.lastQuery) return;
+    this.lastOutput = output;
+    this.lastQuery = query;
 
     try {
       this.search?.clearDecorations();
     } catch {}
+    const buffer = mirror.buffer.active;
+    const atBottom = buffer.viewportY >= buffer.baseY;
+    const top = buffer.viewportY;
     // Reset (ESC c) in the write itself: reset() runs at once, ahead of a write
     // the previous run still has queued, which would then land before this one.
-    mirror.write(`\x1bc${lines.join("\r\n")}`, () => {
+    mirror.write(`\x1bc\x1b[?25l${output}`, () => {
+      this.toggles = new Map(rows.flatMap((row, i) => (row.toggle ? [[i, row.toggle] as const] : [])));
       if (!lines.length) return;
       try {
-        if (typeof query === "string") this.search?.findNext(query, { decorations: MATCH_DECORATIONS });
+        if (typeof query === "string" && query) this.search?.findNext(query, { decorations: MATCH_DECORATIONS });
       } catch {}
-      // Follow the newest matches, like `tail -f | grep`.
-      mirror.scrollToBottom();
+      // Follow the newest lines, like `tail -f | grep`, unless scrolled up to read.
+      if (atBottom) mirror.scrollToBottom();
+      else mirror.scrollToLine(top);
     });
 
     if (this.emptyHint) {
@@ -255,7 +293,61 @@ export class FilterMirror {
     try {
       this.fit?.fit();
     } catch {}
-    this.onCount(lines.length);
+  }
+
+  private foldShowing(): boolean {
+    return this.fold && !this.foldSuspended;
+  }
+
+  private showing(): boolean {
+    return this.query !== "" || this.foldShowing();
+  }
+
+  private sync(): void {
+    if (!this.showing()) {
+      this.hide();
+      return;
+    }
+    this.ensure();
+    this.active = true;
+    if (this.host) this.host.style.display = "block";
+    this.subscribeLive();
+    this.run();
+  }
+
+  // The count at the end of a folded row, or the row above an unfolded run.
+  // `line` is 1-based, and a rendered line may wrap over several rows; its
+  // toggle sits at the end of the last.
+  private toggleAt(line: number): ToggleHit | null {
+    if (!this.mirror || this.toggles.size === 0) return null;
+    const buffer = this.mirror.buffer.active;
+    const row = buffer.getLine(line - 1);
+    if (!row || buffer.getLine(line)?.isWrapped) return null;
+    let rendered = -1;
+    for (let y = 0; y < line; y++) {
+      if (!buffer.getLine(y)?.isWrapped) rendered++;
+    }
+    const toggle = this.toggles.get(rendered);
+    if (!toggle) return null;
+    const end = writtenCells(row);
+    return { key: toggle.key, start: Math.max(1, end - toggle.cells + 1), end };
+  }
+
+  private handleClick(e: MouseEvent): void {
+    const mirror = this.mirror;
+    const screen = mirror?.element?.querySelector(".xterm-screen");
+    if (!mirror || !screen || mirror.hasSelection()) return;
+    const rect = screen.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const x = Math.floor((e.clientX - rect.left) / (rect.width / mirror.cols)) + 1;
+    const line = Math.floor((e.clientY - rect.top) / (rect.height / mirror.rows)) + mirror.buffer.active.viewportY + 1;
+    const hit = this.toggleAt(line);
+    if (hit && x >= hit.start && x <= hit.end) this.toggleRun(hit.key);
+  }
+
+  private toggleRun(key: string): void {
+    if (!this.expanded.delete(key)) this.expanded.add(key);
+    this.run();
   }
 
   private hide(): void {
@@ -272,6 +364,18 @@ interface FilterMirrorHost extends FilterMirrorSource {
   search?: { clearDecorations(): void } | null;
 }
 
+export function ensureFilterMirror(
+  filterRef: { current: FilterMirror | null },
+  container: HTMLElement,
+  source: FilterMirrorSource,
+  getTheme: () => ITheme,
+  getFontSize: () => number,
+  getFont: () => FilterMirrorFont,
+): FilterMirror {
+  filterRef.current ??= new FilterMirror(container, source, getTheme, getFontSize, getFont);
+  return filterRef.current;
+}
+
 export function applyFilterQuery(
   filterRef: { current: FilterMirror | null },
   container: HTMLElement,
@@ -284,14 +388,5 @@ export function applyFilterQuery(
 ): void {
   if (!query && !filterRef.current) return;
   source.search?.clearDecorations();
-  if (!filterRef.current) {
-    filterRef.current = new FilterMirror(
-      container,
-      source,
-      getTheme,
-      getFontSize,
-      getFont,
-    );
-  }
-  filterRef.current.setQuery(query, onCount);
+  ensureFilterMirror(filterRef, container, source, getTheme, getFontSize, getFont).setQuery(query, onCount);
 }

@@ -31,7 +31,7 @@ export function Footer() {
                 <ul className="mt-4 space-y-1.5">
                   {group.links.map((link) => (
                     <li key={link.href}>
-                      <Link href={link.href} className={linkClass}>
+                      <Link href={link.href} prefetch={false} className={linkClass}>
                         {link.label}
                       </Link>
                     </li>
@@ -55,7 +55,7 @@ export function Footer() {
           <ul className="mt-4 flex flex-wrap gap-x-5 gap-y-1.5">
             {VS_SLUGS.map((slug) => (
               <li key={slug}>
-                <Link href={vsPath(slug)} className={linkClass}>
+                <Link href={vsPath(slug)} prefetch={false} className={linkClass}>
                   {COMPARE_LABELS[slug]}
                 </Link>
               </li>

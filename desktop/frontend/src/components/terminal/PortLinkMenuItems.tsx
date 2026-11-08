@@ -4,6 +4,7 @@ import { ContextMenuItem, type ContextMenuAuxAction } from "../ui/ContextMenuIte
 import { ContextMenuSubmenu } from "../ui/ContextMenuSubmenu";
 import { copyProjectPortUrl, openProjectPort } from "../../peer/projectPorts";
 import { BROWSER_IN_APP, openPortInLpm, portTabLabel } from "../../portLinks";
+import { protocolForPort } from "../../portProtocols";
 
 export interface PortLink {
   port: number;
@@ -34,7 +35,9 @@ export function PortLinkMenuItems({ projectName, links, paneId, emptyHint, onClo
   };
   const openHere = (link: PortLink) =>
     done(() => openPortInLpm(projectName, link.port, { label: portTabLabel(link.port, link.service), paneId }));
-  const copy = (link: PortLink) => done(() => void copyProjectPortUrl(projectName, link.port));
+  const copy = (link: PortLink) =>
+    done(() => void copyProjectPortUrl(projectName, link.port, protocolForPort(link.port)?.scheme));
+  const webLinks = links.filter((link) => !protocolForPort(link.port));
   const outside = (link: PortLink): ContextMenuAuxAction | undefined =>
     BROWSER_IN_APP
       ? {
@@ -53,30 +56,34 @@ export function PortLinkMenuItems({ projectName, links, paneId, emptyHint, onClo
     const [link] = links;
     return (
       <>
-        <ContextMenuItem
-          label={openLabel}
-          icon={<GlobeIcon />}
-          trailing={portLabel(link.port)}
-          trailingAction={outside(link)}
-          onClick={openHere(link)}
-        />
+        {webLinks.length > 0 && (
+          <ContextMenuItem
+            label={openLabel}
+            icon={<GlobeIcon />}
+            trailing={portLabel(link.port)}
+            trailingAction={outside(link)}
+            onClick={openHere(link)}
+          />
+        )}
         <ContextMenuItem label="Copy URL" icon={<CopyIcon />} onClick={copy(link)} />
       </>
     );
   }
   return (
     <>
-      <ContextMenuSubmenu label={openLabel} icon={<GlobeIcon />}>
-        {links.map((link) => (
-          <ContextMenuItem
-            key={`${link.service ?? ""}:${link.port}`}
-            label={nameOf(link)}
-            trailing={portLabel(link.port)}
-            trailingAction={outside(link)}
-            onClick={openHere(link)}
-          />
-        ))}
-      </ContextMenuSubmenu>
+      {webLinks.length > 0 && (
+        <ContextMenuSubmenu label={openLabel} icon={<GlobeIcon />}>
+          {webLinks.map((link) => (
+            <ContextMenuItem
+              key={`${link.service ?? ""}:${link.port}`}
+              label={nameOf(link)}
+              trailing={portLabel(link.port)}
+              trailingAction={outside(link)}
+              onClick={openHere(link)}
+            />
+          ))}
+        </ContextMenuSubmenu>
+      )}
       <ContextMenuSubmenu label="Copy URL" icon={<CopyIcon />}>
         {links.map((link) => (
           <ContextMenuItem

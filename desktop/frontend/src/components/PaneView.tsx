@@ -875,6 +875,7 @@ function PaneViewImpl(props: PaneViewProps) {
                     projectName={projectName}
                     paneId={pane.id}
                     name={svc.name}
+                    sessionKey={svc.sessionKey}
                     ports={svc.ports ?? []}
                     configuredPort={svc.configuredPort}
                     exited={svc.exited ?? false}

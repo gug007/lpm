@@ -51,15 +51,16 @@ extension DemoServer {
                 self.world.projects[idx].activeProfile =
                     self.world.projects[idx].profiles.contains(where: { $0.name == profile }) ? profile : ""
                 if let first = self.startTargets(idx, profile: profile).first {
-                    self.world.projects[idx].services[first].running = true
+                    self.world.projects[idx].services[first].start()
                 }
                 return ["t": "projects-changed"]
             }
             self.pushAfter(1.6) { [weak self] in
                 guard let self, let idx = self.world.projectIndex(name),
                       self.world.projects[idx].running else { return nil }
-                for si in self.startTargets(idx, profile: profile) {
-                    self.world.projects[idx].services[si].running = true
+                for si in self.startTargets(idx, profile: profile)
+                where !self.world.projects[idx].services[si].running || self.world.projects[idx].services[si].exited {
+                    self.world.projects[idx].services[si].start()
                 }
                 self.push(["t": "status-changed", "project": name])
                 return ["t": "projects-changed"]
@@ -73,7 +74,7 @@ extension DemoServer {
                 self.world.projects[idx].running = false
                 self.world.projects[idx].activeProfile = ""
                 for si in self.world.projects[idx].services.indices {
-                    self.world.projects[idx].services[si].running = false
+                    self.world.projects[idx].services[si].stop()
                 }
                 self.push(["t": "status-changed", "project": name])
                 return ["t": "projects-changed"]
@@ -86,7 +87,14 @@ extension DemoServer {
                 guard let self, let idx = self.world.projectIndex(name),
                       let si = self.world.projects[idx].services.firstIndex(where: { $0.name == service })
                 else { return nil }
-                self.world.projects[idx].services[si].running.toggle()
+                // Restarts one that ended, as the phone's Restart asks.
+                let svc = self.world.projects[idx].services[si]
+                if svc.running && !svc.exited {
+                    self.world.projects[idx].services[si].stop()
+                } else {
+                    self.world.projects[idx].services[si].start()
+                    self.crashSoon(project: name, service: service)
+                }
                 self.world.projects[idx].running =
                     self.world.projects[idx].services.contains(where: { $0.running })
                 return ["t": "projects-changed"]
@@ -116,9 +124,13 @@ extension DemoServer {
             var pane = 0
             for s in p.services {
                 let live = p.running && s.running
-                var d: [String: Any] = ["name": s.name, "running": live,
+                var d: [String: Any] = ["name": s.name, "running": live && !s.exited,
                                         "cmd": s.cmd, "port": s.port]
                 if live { d["paneIndex"] = pane; pane += 1 }
+                if live && s.exited {
+                    d["exited"] = true
+                    d["exitCode"] = s.exitCode ?? NSNull()
+                }
                 services.append(d)
             }
             self.push(["t": "services", "project": project, "ok": true,
@@ -617,7 +629,7 @@ extension DemoServer {
             p.parentName = copyOf
             p.running = false
             p.activeProfile = ""
-            for i in p.services.indices { p.services[i].running = false }
+            for i in p.services.indices { p.services[i].stop() }
             p.status = []
             p.seen = []
             p.workStatus = nil

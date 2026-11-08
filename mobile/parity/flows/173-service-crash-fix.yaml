@@ -1,0 +1,58 @@
+# A crashed service's logs: Demo Mode's worker, started on its own, dies on its
+# first job. Its sheet, open as it crashes, turns the error lines red and shows Copy
+# log under them; its row then says how it ended, and opening it again opens tall.
+# With agents to start, the sheet also has the CI sheet's Fix with … rows, and fixing
+# opens a new tab told how it crashed.
+appId: cx.lpm.mobile
+name: 173-service-crash-fix
+tags: [demo, projects, services]
+---
+- runFlow: subflows/enter-demo.yaml
+- tapOn: "storefront"
+- extendedWaitUntil:
+    visible: "Tap a service for its logs."
+    timeout: 5000
+- tapOn: "worker"
+- extendedWaitUntil:
+    visible: "Start"
+    timeout: 5000
+- tapOn: "Start"
+- extendedWaitUntil:
+    visible: "Exited with code 1"
+    timeout: 10000
+- extendedWaitUntil:
+    visible: "Copy log"
+    timeout: 8000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 1-crashed-while-open
+- tapOn: "Close"
+- extendedWaitUntil:
+    visible: "exited with code 1"
+    timeout: 5000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 2-crashed-row
+- tapOn: "exited with code 1"
+- extendedWaitUntil:
+    visible: "Copy log"
+    timeout: 8000
+- assertVisible: "Restart"
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 3-crash-sheet
+- tapOn: "Copy log"
+# Android's Demo Mode doesn't start agents yet (no agentLaunch, as 140-new-tab-agent
+# shows), so there its sheet has no Fix with … rows.
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - assertVisible: "Fix with Claude Code"
+      - tapOn: "Fix with Claude Code"
+      - extendedWaitUntil:
+          notVisible: "Copy log"
+          timeout: 8000
+      - waitForAnimationToEnd:
+          timeout: 3000
+      - takeScreenshot: 4-fix-tab

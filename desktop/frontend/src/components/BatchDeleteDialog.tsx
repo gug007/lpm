@@ -17,6 +17,8 @@ interface BatchDeleteDialogProps {
   // The whole removal set, copies of a removed original included.
   projects: ProjectInfo[];
   projectByName: Map<string, ProjectInfo>;
+  // Every project here is a copy whose pull request has merged.
+  merged?: boolean;
   onCancel: () => void;
   onConfirm: () => void;
 }
@@ -28,6 +30,7 @@ export function BatchDeleteDialog({
   open,
   projects,
   projectByName,
+  merged = false,
   onCancel,
   onConfirm,
 }: BatchDeleteDialogProps) {
@@ -57,7 +60,7 @@ export function BatchDeleteDialog({
           </h4>
           <ul className={GROUP_LIST}>
             {groups.deleted.map((p) => (
-              <RemovalCopyRow key={p.name} project={p} label={label(p)} />
+              <RemovalCopyRow key={p.name} project={p} label={label(p)} merged={merged} />
             ))}
           </ul>
         </section>

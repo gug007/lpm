@@ -1,5 +1,6 @@
 package cx.lpm.mobile.feature.projects.ci
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -32,17 +33,22 @@ import cx.lpm.mobile.feature.projects.newtab.LaunchpadMark
  * The checks sheet's "Fix with …" rows (iOS `CiFixRows`), as the desktop's checks menu
  * lists them: every agent the project's New Tab sheet offers. A header split button or
  * menu is one row: a split's row runs the item its button leads with and its chevron
- * lists every item; a menu's whole row lists them.
+ * lists every item; a menu's whole row lists them. [detail] says what a row opens, under
+ * it when it's the only way to fix.
  */
 @Composable
-internal fun CiFixRows(tabs: List<LaunchpadTab>, onFix: (LaunchpadOption) -> Unit) {
+internal fun CiFixRows(
+    tabs: List<LaunchpadTab>,
+    onFix: (LaunchpadOption) -> Unit,
+    @StringRes detail: Int = R.string.ci_fix_description
+) {
     val only = tabs.size == 1 && tabs[0].options.size == 1
     tabs.forEach { tab ->
         if (tab.options.size > 1) {
             CiFixGroupRow(tab, onFix)
         } else {
             val option = tab.options.first()
-            CiFixRow(option.label, option.agent, option.emoji, described = only, onClick = {
+            CiFixRow(option.label, option.agent, option.emoji, detail.takeIf { only }, onClick = {
                 onFix(option)
             })
         }
@@ -58,7 +64,7 @@ private fun CiFixGroupRow(tab: LaunchpadTab, onFix: (LaunchpadOption) -> Unit) {
         label = lead?.label ?: tab.label,
         agent = (lead ?: tab.options.first()).agent,
         emoji = lead?.emoji ?: tab.emoji,
-        described = false,
+        detail = null,
         onClick = { if (lead != null) onFix(lead) else open = true },
         accessory = {
             val chevron = Modifier.size(width = 32.dp, height = 44.dp)
@@ -93,7 +99,7 @@ private fun CiFixRow(
     label: String,
     agent: String,
     emoji: String,
-    described: Boolean,
+    @StringRes detail: Int?,
     onClick: () -> Unit,
     accessory: (@Composable () -> Unit)? = null
 ) {
@@ -109,9 +115,9 @@ private fun CiFixRow(
                 style = LpmTheme.typography.body,
                 color = colors.tint
             )
-            if (described) {
+            if (detail != null) {
                 Text(
-                    stringResource(R.string.ci_fix_description),
+                    stringResource(detail),
                     style = LpmTheme.typography.caption1,
                     color = colors.secondaryLabel
                 )

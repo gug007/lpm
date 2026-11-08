@@ -31,9 +31,9 @@ export async function openPortOn(slug: string | null, port: number): Promise<voi
 }
 
 // The address this Mac reaches `port` on machine `slug` at, on the clipboard.
-export async function copyPortUrlOn(slug: string | null, port: number): Promise<void> {
+export async function copyPortUrlOn(slug: string | null, port: number, scheme = "http"): Promise<void> {
   try {
-    const url = `http://localhost:${await localPortOn(slug, port)}`;
+    const url = `${scheme}://localhost:${await localPortOn(slug, port)}`;
     await SetClipboardText(url);
     toast.success(`Copied ${url}`);
   } catch (err) {
@@ -45,8 +45,8 @@ export function openProjectPort(projectName: string, port: number): Promise<void
   return openPortOn(peerSlugOf(projectName), port);
 }
 
-export function copyProjectPortUrl(projectName: string, port: number): Promise<void> {
-  return copyPortUrlOn(peerSlugOf(projectName), port);
+export function copyProjectPortUrl(projectName: string, port: number, scheme?: string): Promise<void> {
+  return copyPortUrlOn(peerSlugOf(projectName), port, scheme);
 }
 
 // An address typed into a project's browser: a paired machine's project means

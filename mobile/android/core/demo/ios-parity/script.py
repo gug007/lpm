@@ -165,6 +165,12 @@ at(47200, 'unsub', id='demo-storefront-claude')
 # lifecycle
 at(5000, 'start', name='api-gateway', profile='')
 at(5000, 'toggleService', name='storefront', service='worker')
+# the worker, started on its own, crashes on its first job: its pane and log stay,
+# and starting it again (the phone's Restart) runs it, until it crashes again
+at(9000, 'services', project='storefront'); at(9000, 'serviceLogs', project='storefront', paneIndex=2)
+at(9100, 'toggleService', name='storefront', service='worker')
+at(10500, 'services', project='storefront')
+at(13000, 'services', project='storefront')
 at(5000, 'start', name='nope')
 
 # background actions

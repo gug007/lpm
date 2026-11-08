@@ -50,6 +50,7 @@ import { useUpdateNote } from "./hooks/useUpdateNote";
 import { useActionErrorToasts } from "./hooks/useActionErrorToasts";
 import { useProjectWatcher } from "./hooks/useProjectWatcher";
 import { useOriginStatusPoller } from "./hooks/useOriginStatusPoller";
+import { useMergedCopiesPoller } from "./hooks/useMergedCopiesPoller";
 import { getSettings, saveSettings, useSettingsStore } from "./store/settings";
 import { useAppStore } from "./store/app";
 import { useFileViewerStore } from "./store/fileViewer";
@@ -262,6 +263,7 @@ export default function App() {
 
   useProjectWatcher(view === "projects" ? selectedProject?.root : null);
   useOriginStatusPoller(projects, checkOrigin);
+  useMergedCopiesPoller(projects, checkOrigin);
 
   useEffect(() => {
     if (selected) markVisited(selected);

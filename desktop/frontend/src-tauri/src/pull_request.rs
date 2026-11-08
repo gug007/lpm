@@ -12,8 +12,12 @@ pub struct PullRequestInfo {
     pub state: String,
     pub title: String,
     pub is_draft: bool,
+    /// A merged pull request holding every commit in this checkout, so nothing
+    /// here exists only here. Compares commits, so a squash merge counts.
+    pub head_merged: bool,
     pub checks: Vec<PrCheck>,
-    /// Only filled by `branch_pull_request_with_merge`, for the phone.
+    /// Only filled by `branch_pull_request_with_merge`, for the phone; `head`
+    /// is always filled.
     #[serde(skip)]
     pub merge: MergeReadiness,
     /// What a Fix with … agent is told while an open PR's checks fail.
@@ -70,17 +74,27 @@ struct GhPullRequest {
     head_ref_oid: String,
 }
 
-const FIELDS: &str = "number,url,state,title,isDraft,statusCheckRollup";
+const FIELDS: &str = "number,url,state,title,isDraft,statusCheckRollup,headRefOid";
 /// Asking for these makes GitHub work out mergeability, so the footer's poll
 /// leaves them out.
-const MERGE_FIELDS: &str = "mergeable,mergeStateStatus,reviewDecision,headRefOid";
+const MERGE_FIELDS: &str = "mergeable,mergeStateStatus,reviewDecision";
 
 /// The pull request for `cwd`'s current branch — `gh` prefers an open one and
 /// falls back to the newest merged/closed — or None when there is none, the
 /// remote is not GitHub, or `gh` is missing or signed out.
 #[tauri::command(async)]
 pub fn branch_pull_request(cwd: String) -> Option<PullRequestInfo> {
-    view_pull_request(&cwd, FIELDS)
+    let mut pr = view_pull_request(&cwd, FIELDS)?;
+    pr.head_merged = pr.state == "MERGED" && holds_every_commit(&cwd, &pr.merge.head);
+    Some(pr)
+}
+
+/// Whether `head` is known here and HEAD has no commit beyond it. A commit git
+/// can't find proves nothing, so it answers false.
+fn holds_every_commit(cwd: &str, head: &str) -> bool {
+    !head.is_empty()
+        && crate::git::git_out(cwd, &["rev-list", "--count", &format!("{head}..HEAD")])
+            .is_ok_and(|count| count.trim() == "0")
 }
 
 /// `branch_pull_request` with `merge` filled in.
@@ -124,6 +138,7 @@ fn parse_pull_request(json: &str) -> Option<PullRequestInfo> {
         state: pr.state,
         title: pr.title,
         is_draft: pr.is_draft,
+        head_merged: false,
         checks,
         merge: MergeReadiness {
             mergeable: pr.mergeable,
@@ -220,6 +235,7 @@ mod tests {
                 state: "OPEN".into(),
                 title: "Add footer link".into(),
                 is_draft: false,
+                head_merged: false,
                 checks: vec![],
                 merge: MergeReadiness::default(),
                 fix_prompt: None,

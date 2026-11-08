@@ -1,13 +1,13 @@
-import { setupMonaco } from "../../monaco-setup";
+import { loadedMonaco } from "../../monaco-loaded";
 
 // The text selected in `root`'s editor (the focused one, else the last, which
 // is a diff's editable side) or its Markdown preview; "" unless it is on one
 // line.
 export function selectedText(root: HTMLElement | null): string {
   if (!root) return "";
-  const editors = setupMonaco()
-    .editor.getEditors()
-    .filter((e) => root.contains(e.getContainerDomNode()));
+  const editors = (loadedMonaco()?.editor.getEditors() ?? []).filter((e) =>
+    root.contains(e.getContainerDomNode()),
+  );
   const editor = editors.find((e) => e.hasTextFocus()) ?? editors[editors.length - 1];
   const range = editor?.getSelection();
   let text = "";

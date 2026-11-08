@@ -13,7 +13,16 @@ import java.time.Clock
 internal class DemoWorld(val clock: Clock) {
     // Projects
 
-    data class Svc(var name: String, var cmd: String, var port: Int, var running: Boolean)
+    data class Svc(
+        var name: String,
+        var cmd: String,
+        var port: Int,
+        var running: Boolean,
+        // Started, but its command ended: its pane, and so its logs, stay until it's
+        // restarted or stopped.
+        var exited: Boolean = false,
+        var exitCode: Int? = null
+    )
 
     data class Profile(var name: String, var services: List<String>)
 

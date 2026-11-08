@@ -24,6 +24,8 @@ import cx.lpm.mobile.core.designsystem.component.LpmConfirmationDialog
 import cx.lpm.mobile.core.designsystem.component.stopProject
 import cx.lpm.mobile.core.model.Service
 import cx.lpm.mobile.core.model.TerminalInfo
+import cx.lpm.mobile.core.model.crashed
+import cx.lpm.mobile.core.model.endedServices
 import cx.lpm.mobile.core.navigation.GitBranchKey
 import cx.lpm.mobile.core.navigation.GitReviewKey
 import cx.lpm.mobile.core.navigation.ProjectKey
@@ -204,7 +206,10 @@ fun ProjectDetailRoute(
             project = key.project,
             service = service,
             session = key.session,
-            onDismiss = { logsFor = null }
+            onDismiss = { logsFor = null },
+            crashed = state.project?.endedServices?.get(service.name)?.crashed == true,
+            onSpawnedTerminal = openSpawned,
+            actionInputs = slots.actionInputs
         )
     }
     SessionAlertsHost(

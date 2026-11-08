@@ -18,8 +18,11 @@ type Props = {
   // and runs steps through tourRef.
   tourRef?: Ref<TourHandle>;
   onTour?: (state: TourState) => void;
-  // What covers the frame until the app inside it has booted.
-  placeholder?: ReactNode;
+  // What covers the frame until the app inside it has booted, given how far
+  // along that is, from 0 to 1.
+  placeholder?: (progress: number) => ReactNode;
+  // Takes over the window while the app carries on underneath.
+  cover?: ReactNode;
 };
 
 function appUrl(tour?: Tour) {
@@ -38,16 +41,16 @@ export function DemoFrame({
   tourRef,
   onTour,
   placeholder,
+  cover,
 }: Props) {
   const frameRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const [loaded, setLoaded] = useState(false);
-  const parked = useParked(frameRef);
+  const parked = useParked(frameRef) && !cover;
   const pill = useTourHint(tour);
   // Up until the visitor does anything in the window or the step list.
   const [invited, setInvited] = useState(Boolean(tour?.invite));
   const opening = tour?.opening ?? 0;
-  const ready = useDemoFrame({
+  const { shown, progress } = useDemoFrame({
     iframeRef,
     tour,
     parked,
@@ -62,8 +65,6 @@ export function DemoFrame({
       setInvited(false);
     },
   });
-  // An empty workspace has no tour to take, so loading is enough.
-  const shown = ready || (!tour && loaded);
   useHintExpiry(pill, shown && parked);
 
   return (
@@ -77,16 +78,14 @@ export function DemoFrame({
         ref={iframeRef}
         src={appUrl(tour)}
         title="lpm, running in your browser"
-        onLoad={() => setLoaded(true)}
         className="block h-full w-full border-0"
       />
       {!shown && (
-        <div
-          aria-hidden="true"
-          className="absolute inset-0 flex items-center justify-center bg-[#1a1a1a]"
-        >
-          {placeholder ?? (
-            <span className="text-[13px] text-[#5c5c5c]">Loading demo…</span>
+        <div className="absolute inset-0 flex items-center justify-center bg-[#1a1a1a]">
+          {placeholder?.(progress) ?? (
+            <span aria-hidden="true" className="text-[13px] text-[#5c5c5c]">
+              Loading demo…
+            </span>
           )}
         </div>
       )}
@@ -103,6 +102,7 @@ export function DemoFrame({
           hidden={!shown || !parked || !pill.visible}
         />
       )}
+      {cover && <div className="absolute inset-0 z-40">{cover}</div>}
     </div>
   );
 }

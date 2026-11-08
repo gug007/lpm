@@ -211,8 +211,11 @@
 {"at": 9000, "frame": {"t": "gitMergePr", "project": "storefront", "number": 42, "method": "squash", "head": "4b8e2f1c9d0a7e3b5f6c8d2a1e0b9c7f3d5a6e84", "deleteBranch": true}}
 {"at": 9000, "frame": {"t": "gitMergePr", "project": "api-gateway", "method": "merge"}}
 {"at": 9000, "frame": {"t": "gitMergePr", "number": 42}}
+{"at": 9000, "frame": {"t": "services", "project": "storefront"}}
+{"at": 9000, "frame": {"t": "serviceLogs", "project": "storefront", "paneIndex": 2}}
 {"at": 9000, "frame": {"t": "git", "project": "work-copy"}}
 {"at": 9000, "frame": {"t": "terminals", "project": "work-copy"}}
+{"at": 9100, "frame": {"t": "toggleService", "name": "storefront", "service": "worker"}}
 {"at": 9100, "frame": {"t": "sub", "id": "demo-work-copy-2"}}
 {"at": 9100, "frame": {"t": "sub", "id": "demo-work-copy-1"}}
 {"at": 9200, "frame": {"t": "unsub", "id": "demo-work-copy-1"}}
@@ -222,6 +225,7 @@
 {"at": 10000, "frame": {"t": "gitDiscardAll", "project": "work-copy"}}
 {"at": 10500, "frame": {"t": "gitChecks", "project": "storefront"}}
 {"at": 10500, "frame": {"t": "gitChecks", "project": "api-gateway"}}
+{"at": 10500, "frame": {"t": "services", "project": "storefront"}}
 {"at": 10500, "frame": {"t": "git", "project": "work-copy"}}
 {"at": 10600, "frame": {"t": "gitRestoreDiscarded", "project": "work-copy", "id": "discard-1"}}
 {"at": 11100, "frame": {"t": "gitRestoreDiscarded", "project": "work-copy", "id": "discard-1"}}
@@ -231,6 +235,7 @@
 {"at": 12000, "frame": {"t": "gitDiscardFiles", "project": "work-copy", "paths": ["nope.ts"]}}
 {"at": 12000, "frame": {"t": "gitDiscardFiles", "project": "nope", "paths": ["a"]}}
 {"at": 12500, "frame": {"t": "gitRestoreDiscarded", "project": "work-copy", "id": "discard-2"}}
+{"at": 13000, "frame": {"t": "services", "project": "storefront"}}
 {"at": 13000, "frame": {"t": "git", "project": "work-copy"}}
 {"at": 13500, "frame": {"t": "actionBgOutput", "project": "api-gateway", "runId": "run-1"}}
 {"at": 13500, "frame": {"t": "backgroundRuns", "project": "api-gateway"}}

@@ -122,28 +122,15 @@ struct GitChecksSheet: View {
     }
 
     private func fix(_ option: LaunchpadOption, _ prompt: String) {
-        guard let action = option.action else {
-            Haptics.tap()
-            let spawned = onSpawnedTerminal
-            dismiss()
-            model.newTerminal(name, launch: AgentLaunch(agent: option.agent, prompt: prompt)) { spawned?($0) }
-            return
-        }
         fixing = option
-        if !gauntlet.begin(action) { run(option, action, [:], prompt) }
+        if let action = option.action, gauntlet.begin(action) { return }
+        run(option, option.action, [:], prompt)
     }
 
-    /// Run the agent action with the failing checks as its first prompt. An item run
-    /// from a `last-used` split becomes the one it leads with, as on the desktop.
-    private func run(_ option: LaunchpadOption, _ action: Action, _ values: [String: String], _ prompt: String) {
-        if let group = option.group, let key = group.lastUsedKey(running: action) {
-            ActionPrimaryMemory.shared.remember(key, project: name, group: group.name)
-        }
-        Haptics.tap()
+    /// Start the agent with the failing checks as its first prompt.
+    private func run(_ option: LaunchpadOption, _ action: Action?, _ values: [String: String], _ prompt: String) {
         let spawned = onSpawnedTerminal
         dismiss()
-        model.runAction(name, action: action.name, inputValues: values, confirmed: true, prompt: prompt) {
-            spawned?($0)
-        }
+        model.startFix(name, option: option, action: action, values: values, prompt: prompt) { spawned?($0) }
     }
 }

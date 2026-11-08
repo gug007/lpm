@@ -323,6 +323,10 @@
     <string name="logs_waiting">Waiting for output…</string>
     <string name="logs_not_running">This service isn\'t running.</string>
     <string name="logs_no_output">No output.</string>
+    <string name="logs_fix_description">Opens a new tab with the crash</string>
+    <string name="logs_fix_footer">The agent is told the command, the exit code and the errors in the log.</string>
+    <string name="logs_copy">Copy log</string>
+    <string name="logs_copied">Copied</string>
 
     <!-- Service editor -->
     <string name="service_add_title">Add Service</string>

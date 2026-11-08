@@ -1,6 +1,7 @@
 package cx.lpm.mobile.feature.projects.detail
 
 import cx.lpm.mobile.core.data.git.GitChecksStore
+import cx.lpm.mobile.core.model.crashed
 import cx.lpm.mobile.core.navigation.ProjectKey
 import cx.lpm.mobile.core.testing.MainDispatcherRule
 import cx.lpm.mobile.core.testing.TestSession
@@ -74,10 +75,28 @@ class ProjectDetailViewModelTest {
         t.scheduler.runCurrent()
         assertTrue(vm.uiState.value.service("worker").pending)
 
-        t.settle(5_000)
+        t.settle(1_500)
         val worker = vm.uiState.value.service("worker")
         assertFalse(worker.pending)
         assertTrue(worker.running)
+    }
+
+    @Test
+    fun `the demo worker, started on its own, crashes and restarts`() = runTest {
+        val t = demoSession()
+        val vm = subscribed(t)
+        vm.toggleService("worker")
+        t.settle(5_000)
+        val crashed = vm.uiState.value.service("worker")
+        assertFalse(crashed.running)
+        assertEquals(1, crashed.ended?.exitCode)
+        assertTrue(crashed.ended?.crashed == true)
+
+        vm.restartService("worker")
+        t.settle(1_500)
+        val restarted = vm.uiState.value.service("worker")
+        assertTrue(restarted.running)
+        assertNull(restarted.ended)
     }
 
     @Test

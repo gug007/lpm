@@ -2,13 +2,23 @@ package cx.lpm.mobile.feature.projects.services
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import cx.lpm.mobile.core.data.actions.ActionMemory
+import cx.lpm.mobile.core.data.agents.AgentLaunchStore
 import cx.lpm.mobile.core.data.projects.ProjectsStore
 import cx.lpm.mobile.core.data.services.ServiceLogsStore
 import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.data.session.MacSessions
+import cx.lpm.mobile.core.model.LaunchpadOption
+import cx.lpm.mobile.core.model.LaunchpadTab
 import cx.lpm.mobile.core.model.Service
+import cx.lpm.mobile.core.model.ServiceCrashPrompt
 import cx.lpm.mobile.core.model.SessionKey
+import cx.lpm.mobile.core.model.TerminalInfo
+import cx.lpm.mobile.core.model.crashed
 import cx.lpm.mobile.core.model.endedServices
+import cx.lpm.mobile.feature.projects.ActionRunStep
+import cx.lpm.mobile.feature.projects.ci.AgentFixer
+import cx.lpm.mobile.feature.projects.ci.fixTabs
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
@@ -36,14 +46,24 @@ data class ServiceLogsUiState(
     val paneIndex: Int? = null,
     val ready: Boolean = false,
     val text: String = "",
-    val error: String? = null
-)
+    val error: String? = null,
+    /** How the service starts, from the services discovery. */
+    val cmd: String = "",
+    /** The Mac starts agents in new tabs. */
+    val canFix: Boolean = false,
+    /** What can fix a crash: the CI sheet's agents; null until the Mac says which it has. */
+    val fixTabs: List<LaunchpadTab>? = null,
+    val step: ActionRunStep? = null
+) {
+    val crashed: Boolean get() = ended?.crashed == true
+}
 
 /**
  * One service's recent output (iOS `ServiceLogsSheet`), while it runs or after its
  * command ended with its pane still open: watched while the sheet is open on a Mac
  * that pushes it, polled every few seconds on one that doesn't, and its pane
- * rediscovered until it turns up.
+ * rediscovered until it turns up. A crash is fixed as the CI sheet's failing checks
+ * are, the agent told how it crashed (`ServiceCrashPrompt`).
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel(assistedFactory = ServiceLogsViewModel.Factory::class)
@@ -51,9 +71,13 @@ class ServiceLogsViewModel @AssistedInject constructor(
     @Assisted("project") private val project: String,
     @Assisted("service") private val service: String,
     @Assisted private val sessionKey: SessionKey,
-    private val sessions: MacSessions
+    private val sessions: MacSessions,
+    private val actionMemory: ActionMemory
 ) : ViewModel() {
     private val session: MacSession? get() = sessions[sessionKey]
+    private val fixer = AgentFixer(project, { session }, actionMemory) {
+        uiState.value.let { ServiceCrashPrompt.text(service, it.cmd, it.ended?.exitCode, it.text) }
+    }
 
     val uiState: StateFlow<ServiceLogsUiState> = sessions.session(sessionKey)
         .flatMapLatest { s -> s?.let(::logsState) ?: flowOf(ServiceLogsUiState()) }
@@ -62,9 +86,12 @@ class ServiceLogsViewModel @AssistedInject constructor(
     private fun logsState(s: MacSession) = combine(
         s.state,
         s.store<ProjectsStore>().state,
-        s.store<ServiceLogsStore>().state
-    ) { session, p, logs ->
-        val pane = p.services[project]?.firstOrNull { it.name == service }?.paneIndex
+        s.store<ServiceLogsStore>().state,
+        fixTabs(s, project, actionMemory),
+        fixer.step
+    ) { session, p, logs, tabs, step ->
+        val discovered = p.services[project]?.firstOrNull { it.name == service }
+        val pane = discovered?.paneIndex
         val key = pane?.let { s.store<ServiceLogsStore>().key(project, it) }
         ServiceLogsUiState(
             running = p.serviceRunning(project, service),
@@ -73,7 +100,11 @@ class ServiceLogsViewModel @AssistedInject constructor(
             paneIndex = pane,
             ready = session.isReady,
             text = key?.let(logs.results::get).orEmpty(),
-            error = key?.let(logs.errors::get)
+            error = key?.let(logs.errors::get),
+            cmd = discovered?.cmd.orEmpty(),
+            canFix = s.store<AgentLaunchStore>().canLaunchAgents,
+            fixTabs = tabs,
+            step = step
         )
     }
 
@@ -122,6 +153,27 @@ class ServiceLogsViewModel @AssistedInject constructor(
     fun restart() {
         session?.store<ProjectsStore>()?.restartService(project, service)
     }
+
+    /** The crash panel came up: ask which agents the Mac can start now. */
+    fun loadAgents() {
+        session?.store<AgentLaunchStore>()?.takeIf { it.canLaunchAgents }?.loadOptions()
+    }
+
+    /**
+     * [option] in a new tab, told how the service crashed. An action with inputs or a
+     * confirmation asks for them first: false until it starts.
+     */
+    fun fix(option: LaunchpadOption, onSpawn: (TerminalInfo) -> Unit): Boolean =
+        fixer.fix(option, onSpawn)
+
+    /** The action's inputs are in: its confirmation, or it starts (true). */
+    fun submitInputs(values: Map<String, String>, onSpawn: (TerminalInfo) -> Unit): Boolean =
+        fixer.submitInputs(values, onSpawn)
+
+    fun confirm(onSpawn: (TerminalInfo) -> Unit) = fixer.confirm(onSpawn)
+
+    /** Cancel the inputs or the confirmation, if still showing. */
+    fun dismissStep(shown: ActionRunStep) = fixer.dismissStep(shown)
 
     /** The sheet went: its output was a one-off. */
     fun consume() {

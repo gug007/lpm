@@ -60,7 +60,7 @@ import { useProjectSuggestions } from "./useProjectSuggestions";
 import { filterStaticTemplates, type ActionTemplate } from "./projectSuggestions";
 import { SortableItem, SortableList } from "../ui/SortableList";
 import { MonacoEditor } from "../MonacoEditor";
-import { ACTION_MODEL_URI } from "../../monaco-setup";
+import { ACTION_MODEL_URI } from "../../monaco-uris";
 import { slugify } from "../../slugify";
 import { uniqueKey } from "../../uniqueKey";
 import { withEmoji } from "../../withEmoji";

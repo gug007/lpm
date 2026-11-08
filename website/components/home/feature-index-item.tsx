@@ -9,6 +9,7 @@ export function FeatureIndexItem({ item }: { item: IndexItem }) {
     <li>
       <Link
         href={href}
+        prefetch={false}
         className="group/item flex min-h-11 items-center gap-3 rounded-2xl px-3 py-2 transition-colors duration-200 hover:bg-white sm:items-start sm:py-2.5 dark:hover:bg-white/[0.04]"
       >
         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-gray-700 ring-1 ring-gray-200 transition-colors duration-200 group-hover/item:text-gray-900 dark:bg-white/[0.06] dark:text-gray-300 dark:ring-white/[0.06] dark:group-hover/item:text-white sm:mt-0.5">

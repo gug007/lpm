@@ -1,4 +1,5 @@
 import { PORT_LINK_HINT, openPortLink, portTabLabel } from "../../portLinks";
+import { protocolForPort, protocolUrl } from "../../portProtocols";
 import { Tooltip } from "../ui/Tooltip";
 
 interface ServicePortLinksProps {
@@ -11,6 +12,11 @@ interface ServicePortLinksProps {
   // The port the config names, when the service listens elsewhere instead.
   configuredPort?: number;
   className?: string;
+}
+
+function linkHint(port: number): string {
+  const protocol = protocolForPort(port);
+  return protocol ? `Copy ${protocolUrl(protocol, port)}` : PORT_LINK_HINT;
 }
 
 export function ServicePortLinks({
@@ -28,7 +34,7 @@ export function ServicePortLinks({
         <Tooltip
           key={port}
           content={
-            moved ? `Listening on :${port}, not :${configuredPort} as the config says. ${PORT_LINK_HINT}` : PORT_LINK_HINT
+            moved ? `Listening on :${port}, not :${configuredPort} as the config says. ${linkHint(port)}` : linkHint(port)
           }
           side="bottom"
           wide={moved}

@@ -123,11 +123,14 @@ import { useSideBySideMenu } from "../hooks/useSideBySideMenu";
 import { useSideBySide, useSideBySideColumns } from "../store/sideBySide";
 import { MAX_SIDE_BY_SIDE } from "../sideBySide";
 import { BatchDeleteDialog } from "./BatchDeleteDialog";
+import { useMergedCopies } from "../store/mergedCopies";
 import { DeleteFolderDialog } from "./DeleteFolderDialog";
 import { CheckboxBox } from "./ChangedFilesTree";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { SpinnerIcon } from "./project-detail/icons";
 import { SidebarOriginMark } from "./SidebarOriginMark";
+import { SidebarMergedMark } from "./SidebarMergedMark";
+import { SidebarMergedOffer } from "./SidebarMergedOffer";
 import { SidebarOriginAction } from "./SidebarOriginAction";
 import { recheckOrigin } from "../originActions";
 import { logDiagnostic } from "../diagnostics";
@@ -301,6 +304,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   // Anchor row for shift-click range selection; range spans anchor → clicked.
   const [selectionAnchor, setSelectionAnchor] = useState<string | null>(null);
   const [confirmBatch, setConfirmBatch] = useState(false);
+  const mergedEntries = useMergedCopies((s) => s.entries);
   const [selectionBarMenu, setSelectionBarMenu] = useState(false);
   const [removingCopy, setRemovingCopy] = useState<{ project: string; macName: string } | null>(
     null,
@@ -1082,6 +1086,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     const agents = agentsByProject.get(project.name) ?? [];
     const alert = sidebarProjectAlert(agents);
     const showOrigin = showsOrigin(project, Boolean(peerRow));
+    const merged = !selecting && Boolean(project.parentName) && mergedEntries[project.root] !== undefined;
     // Bulk select is a list of names to tick off — the agents belong to the
     // working list, not to that one.
     const canExpand = !selecting && agents.length > 0;
@@ -1130,7 +1135,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
         {work && <WorkStatusMark status={work} />}
         <span
           className="truncate"
-          style={project.configError ? MUTED_STYLE : status.isDone ? DONE_STYLE : undefined}
+          style={project.configError || merged ? MUTED_STYLE : status.isDone ? DONE_STYLE : undefined}
           title={
             project.configError ||
             (project.parentName
@@ -1148,6 +1153,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           <FollowIndicator follow={follow} macName={peerAlias(peerState.peers, follow.slug)} />
         )}
         {alert && <SidebarAgentSummary agent={alert} />}
+        {merged && <SidebarMergedMark root={project.root} />}
         {showOrigin && <SidebarOriginMark root={project.root} />}
       </>
     );
@@ -2115,6 +2121,13 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       />
 
       <SidebarSharedTabs />
+
+      <SidebarMergedOffer
+        projects={projects}
+        projectByName={allByName}
+        removingNames={removingNames}
+        onRemove={onRemoveProjectsBatch}
+      />
 
       {(updateInfo || update.active || update.error || update.scheduled) && (
         <SidebarUpdateRow

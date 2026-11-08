@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from "react";
-import { GLOBAL_MODEL_URI } from "../monaco-setup";
+import { GLOBAL_MODEL_URI } from "../monaco-uris";
 import type { SettingsMachine } from "../settingsMachine";
 import { globalLayerOf, saveLayer } from "../yamlQueue";
 import { YamlConfigEditor } from "./YamlConfigEditor";

@@ -46,8 +46,8 @@ function toWire(step: TourStep): TourStepWire {
 
 // Hands the page's tour to the app in the frame, lands its opening steps, cues
 // the rest as the frame parks in view, and reports back how far it has got.
-// Returns whether the app is ready to be shown: booted, with the opening steps
-// done.
+// Returns whether the app is ready to be shown (booted, with the opening steps
+// done) and how far along that is, from 0 to 1.
 export function useDemoFrame({
   iframeRef,
   tour,
@@ -58,6 +58,7 @@ export function useDemoFrame({
   onInteract,
 }: Args) {
   const [ready, setReady] = useState(false);
+  const [downloaded, setDownloaded] = useState(0);
   const [opened, setOpened] = useState(!tour?.opening);
   const hooksRef = useRef({ onTour, onStage, onInteract });
   // Read when the app asks for it rather than on every render: a page hands
@@ -89,6 +90,10 @@ export function useDemoFrame({
       if (event.source !== iframeRef.current?.contentWindow) return;
       if (!isAppMessage(event.data)) return;
       const message = event.data;
+      if (message.type === "progress") {
+        setDownloaded(message.fraction);
+        return;
+      }
       if (message.type === "state") {
         const { stage, playing } = message;
         playingRef.current = playing;
@@ -162,5 +167,9 @@ export function useDemoFrame({
     [ready, post],
   );
 
-  return ready && opened;
+  return {
+    shown: ready && opened,
+    // The download is most of the wait, but the app still has to boot after it.
+    progress: ready ? 0.95 : downloaded * 0.9,
+  };
 }

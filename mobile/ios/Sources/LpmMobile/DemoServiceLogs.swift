@@ -52,6 +52,7 @@ extension DemoServer {
     }
 
     private func serviceLogText(svc: DemoWorld.Svc, ticks: Int) -> String {
+        if svc.exited { return Self.workerCrashLog }
         let (header, pool) = logTemplate(svc)
         var lines = header
         let extra = min(3 + ticks * 2, 60)

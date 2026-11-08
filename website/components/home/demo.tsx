@@ -12,6 +12,7 @@ import {
 import { DownloadLink } from "@/components/download-link";
 import { DemoCaption } from "@/components/home/demo-caption";
 import { DemoFrame } from "@/components/home/demo-frame";
+import { DemoLoadStatus } from "@/components/home/demo-load-status";
 import { lessonPoster } from "@/components/home/lesson-data";
 import { DemoSkeleton } from "@/components/home/demo-skeleton";
 import { DemoSteps } from "@/components/home/demo-steps";
@@ -222,15 +223,18 @@ function DemoStage({
   const idle = useIdle();
   const [tour, setTour] = useState<TourState>({ stage: 0, playing: false });
   const tourRef = useRef<TourHandle>(null);
-  const runStep = useCallback(
-    (index: number) => tourRef.current?.run(index),
-    [],
-  );
+  // The video a visitor picked over waiting for the demo.
+  const [watching, setWatching] = useState(false);
+  const runStep = useCallback((index: number) => {
+    setWatching(false);
+    tourRef.current?.run(index);
+  }, []);
   // A fresh key remounts the demo at its first frame, tour and all — the only
   // reset that cannot leave a stray tab or a half-run cursor behind.
   const [demoRun, setDemoRun] = useState(0);
   const restart = useCallback(() => {
     setTour({ stage: 0, playing: false });
+    setWatching(false);
     setDemoRun((n) => n + 1);
   }, []);
 
@@ -271,14 +275,35 @@ function DemoStage({
               tour={script}
               tourRef={tourRef}
               onTour={setTour}
-              placeholder={<DemoSkeleton />}
+              placeholder={(progress) => (
+                <DemoSkeleton
+                  status={
+                    <DemoLoadStatus
+                      progress={progress}
+                      lesson={lesson}
+                      onWatch={() => setWatching(true)}
+                    />
+                  }
+                />
+              )}
+              cover={
+                watching ? (
+                  <div className="flex h-full items-center bg-[#1a1a1a]">
+                    <YouTubeVideo
+                      lesson={lesson}
+                      autoPlay
+                      className="w-full bg-[#1a1a1a]!"
+                    />
+                  </div>
+                ) : undefined
+              }
             />
           ) : (
             <div
               className={WINDOW_FRAME}
               style={{ height: DEMO_HEIGHT_DESKTOP }}
             >
-              <DemoSkeleton />
+              <DemoSkeleton status={<DemoLoadStatus progress={0} />} />
             </div>
           )}
           <div id="demo-next" tabIndex={-1} className="outline-none" />

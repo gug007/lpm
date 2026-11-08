@@ -212,7 +212,7 @@ internal fun DemoServer.demoAddProject(name: String, copyOf: String?) {
         p.parentName = copyOf
         p.running = false
         p.activeProfile = ""
-        for (s in p.services) s.running = false
+        for (s in p.services) s.stop()
         p.status = emptyList()
         p.seen = emptyList()
         p.workStatus = null

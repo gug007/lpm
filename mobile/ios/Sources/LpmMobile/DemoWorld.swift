@@ -13,6 +13,10 @@ struct DemoWorld {
         var cmd: String
         var port: Int
         var running: Bool
+        // Started, but its command ended: its pane, and so its logs, stay until
+        // it's restarted or stopped.
+        var exited = false
+        var exitCode: Int?
     }
 
     struct Profile {
@@ -682,6 +686,16 @@ extension DemoWorld {
         ["name": s.name, "cmd": s.cmd, "port": s.port]
     }
 
+    /// A started service, saying how it ended once its command did.
+    func startedServiceDict(_ s: Svc) -> [String: Any] {
+        var d = serviceDict(s)
+        if s.exited {
+            d["exited"] = true
+            d["exitCode"] = s.exitCode ?? NSNull()
+        }
+        return d
+    }
+
     func statusDict(_ s: Status) -> [String: Any] {
         var d: [String: Any] = ["key": s.key, "value": s.value, "priority": s.priority,
                                 "timestamp": s.timestamp, "paneID": s.paneID]
@@ -701,7 +715,7 @@ extension DemoWorld {
             "worktree": p.worktree,
             "statusEntries": p.status.map(statusDict),
             "seenEntries": p.seen.map(statusDict),
-            "services": p.services.filter(\.running).map(serviceDict),
+            "services": p.services.filter(\.running).map(startedServiceDict),
             "allServices": p.services.map(serviceDict),
             "profiles": p.profiles.map { ["name": $0.name, "services": $0.services] },
             "activeProfile": p.activeProfile,

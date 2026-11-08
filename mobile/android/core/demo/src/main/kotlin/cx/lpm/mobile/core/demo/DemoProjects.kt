@@ -47,13 +47,16 @@ private fun DemoServer.registerLifecycleHandlers() {
             val p = world.projects[idx]
             p.running = true
             p.activeProfile = if (p.profiles.any { it.name == profile }) profile else ""
-            startTargets(idx, profile).firstOrNull()?.let { p.services[it].running = true }
+            startTargets(idx, profile).firstOrNull()?.let { p.services[it].start() }
             mapOf("t" to "projects-changed")
         }
         pushAfter(1.6) {
             val idx = world.projectIndex(name) ?: return@pushAfter null
             if (!world.projects[idx].running) return@pushAfter null
-            for (si in startTargets(idx, profile)) world.projects[idx].services[si].running = true
+            for (si in startTargets(idx, profile)) {
+                val s = world.projects[idx].services[si]
+                if (!s.running || s.exited) s.start()
+            }
             push(mapOf("t" to "status-changed", "project" to name))
             mapOf("t" to "projects-changed")
         }
@@ -66,7 +69,7 @@ private fun DemoServer.registerLifecycleHandlers() {
             val p = world.projects[idx]
             p.running = false
             p.activeProfile = ""
-            for (s in p.services) s.running = false
+            for (s in p.services) s.stop()
             push(mapOf("t" to "status-changed", "project" to name))
             mapOf("t" to "projects-changed")
         }
@@ -78,7 +81,13 @@ private fun DemoServer.registerLifecycleHandlers() {
             val idx = world.projectIndex(name) ?: return@pushAfter null
             val p = world.projects[idx]
             val s = p.services.firstOrNull { it.name == service } ?: return@pushAfter null
-            s.running = !s.running
+            // Restarts one that ended, as the phone's Restart asks.
+            if (s.running && !s.exited) {
+                s.stop()
+            } else {
+                s.start()
+                crashSoon(name, service)
+            }
             p.running = p.services.any { it.running }
             mapOf("t" to "projects-changed")
         }
@@ -116,11 +125,15 @@ private fun DemoServer.registerServiceHandlers() {
             val live = p.running && s.running
             val d = mutableMapOf<String, Any?>(
                 "name" to s.name,
-                "running" to live,
+                "running" to (live && !s.exited),
                 "cmd" to s.cmd,
                 "port" to s.port
             )
             if (live) d["paneIndex"] = pane++
+            if (live && s.exited) {
+                d["exited"] = true
+                d["exitCode"] = s.exitCode
+            }
             d
         }
         push(

@@ -17,8 +17,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -28,21 +31,31 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cx.lpm.mobile.core.designsystem.component.ActivityIndicator
 import cx.lpm.mobile.core.designsystem.component.ActivityIndicatorSize
+import cx.lpm.mobile.core.designsystem.component.AlertButton
+import cx.lpm.mobile.core.designsystem.component.AlertRole
 import cx.lpm.mobile.core.designsystem.component.GlassCapsuleButton
+import cx.lpm.mobile.core.designsystem.component.LpmAlert
 import cx.lpm.mobile.core.designsystem.component.ModalSheet
 import cx.lpm.mobile.core.designsystem.component.StatusDot
 import cx.lpm.mobile.core.designsystem.component.rememberModalSheetState
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
+import cx.lpm.mobile.core.model.LaunchpadOption
 import cx.lpm.mobile.core.model.Service
 import cx.lpm.mobile.core.model.SessionKey
+import cx.lpm.mobile.core.model.TerminalInfo
 import cx.lpm.mobile.core.model.crashed
 import cx.lpm.mobile.core.navigation.PresentationScope
+import cx.lpm.mobile.feature.projects.ActionRunStep
 import cx.lpm.mobile.feature.projects.R
+import cx.lpm.mobile.feature.projects.newtab.ActionInputsSlot
 
 /**
  * A service's recent pane output while it runs, or after its command ended while its
  * pane is still open — the phone's take on the desktop's service pane, with its
- * Start/Stop in the bar, or Restart once it ended. Always dark, like a terminal.
+ * Start/Stop in the bar, or Restart once it ended. Always dark, like a terminal. Error
+ * lines are red, and under a crashed service's log Fix with … rows hand the crash to an
+ * agent in a new tab ([onSpawnedTerminal]); a service that [crashed] opens tall, its log
+ * and the ways to fix it both in view. [actionInputs] asks for an agent action's inputs.
  */
 @Composable
 fun ServiceLogsSheet(
@@ -50,9 +63,24 @@ fun ServiceLogsSheet(
     service: Service,
     session: SessionKey,
     onDismiss: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    crashed: Boolean = false,
+    onSpawnedTerminal: (TerminalInfo) -> Unit = {},
+    actionInputs: ActionInputsSlot = { _, _, _ -> }
 ) {
-    PresentationScope { ServiceLogsContent(project, service, session, onDismiss, modifier) }
+    val tall = remember { crashed }
+    PresentationScope {
+        ServiceLogsContent(
+            project,
+            service,
+            session,
+            onDismiss,
+            tall,
+            onSpawnedTerminal,
+            actionInputs,
+            modifier
+        )
+    }
 }
 
 @Composable
@@ -61,6 +89,9 @@ private fun ServiceLogsContent(
     service: Service,
     session: SessionKey,
     onDismiss: () -> Unit,
+    tall: Boolean,
+    onSpawnedTerminal: (TerminalInfo) -> Unit,
+    actionInputs: ActionInputsSlot,
     modifier: Modifier = Modifier,
     viewModel: ServiceLogsViewModel =
         hiltViewModel<ServiceLogsViewModel, ServiceLogsViewModel.Factory>(
@@ -69,17 +100,23 @@ private fun ServiceLogsContent(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val sheet = rememberModalSheetState()
+    val haptics = LocalHapticFeedback.current
+    val fixing = {
+        haptics.performHapticFeedback(HapticFeedbackType.ContextClick)
+        sheet.dismiss(onDismiss)
+    }
     LaunchedEffect(viewModel) { viewModel.follow() }
+    LaunchedEffect(state.crashed) { if (state.crashed) viewModel.loadAgents() }
     DisposableEffect(viewModel) { onDispose { viewModel.consume() } }
     LpmTheme(darkTheme = true) {
         ModalSheet(
             onDismissRequest = onDismiss,
             modifier = modifier,
-            fullHeight = false,
+            fullHeight = tall,
             state = sheet,
-            floating = true
+            floating = !tall
         ) {
-            Column(Modifier.fillMaxHeight(SHEET_HEIGHT)) {
+            Column(Modifier.fillMaxHeight(if (tall) 1f else SHEET_HEIGHT)) {
                 LogsBar(
                     service.name,
                     state,
@@ -88,8 +125,33 @@ private fun ServiceLogsContent(
                     onRestart = viewModel::restart
                 )
                 StatusLine(service, state)
-                LogsText(state, Modifier.weight(1f))
+                LogsText(
+                    state,
+                    onFix = { if (viewModel.fix(it, onSpawnedTerminal)) fixing() },
+                    modifier = Modifier.weight(1f)
+                )
             }
+        }
+        when (val step = state.step) {
+            is ActionRunStep.Inputs -> actionInputs(
+                step.action,
+                { values -> if (viewModel.submitInputs(values, onSpawnedTerminal)) fixing() },
+                { viewModel.dismissStep(step) }
+            )
+
+            is ActionRunStep.Confirm -> LpmAlert(
+                title = stringResource(R.string.new_tab_run_confirm, step.action.label),
+                buttons = listOf(
+                    AlertButton(stringResource(R.string.new_tab_run)) {
+                        viewModel.confirm(onSpawnedTerminal)
+                        fixing()
+                    },
+                    AlertButton(stringResource(R.string.cancel), AlertRole.Cancel)
+                ),
+                onDismissRequest = { viewModel.dismissStep(step) }
+            )
+
+            null -> Unit
         }
     }
 }
@@ -197,18 +259,36 @@ private fun endedStatus(ended: Service): String {
     }
 }
 
-/** The output, kept scrolled to its end as it grows, or why there's none. */
+/**
+ * The output, kept scrolled to its end as it grows, or why there's none; under a
+ * crashed service's, the ways to fix it.
+ */
 @Composable
-private fun LogsText(state: ServiceLogsUiState, modifier: Modifier = Modifier) {
+private fun LogsText(
+    state: ServiceLogsUiState,
+    onFix: (LaunchpadOption) -> Unit,
+    modifier: Modifier = Modifier
+) {
     val scroll = rememberScrollState()
-    LaunchedEffect(state.text) { scroll.scrollTo(scroll.maxValue) }
-    val secondary = LpmTheme.colors.secondaryLabel
+    LaunchedEffect(state.text, state.crashed, state.fixTabs?.size) {
+        scroll.scrollTo(scroll.maxValue)
+    }
     Column(
         modifier
             .fillMaxWidth()
             .verticalScroll(scroll)
-            .padding(16.dp)
     ) {
+        LogsOutput(state, Modifier.padding(16.dp))
+        if (state.crashed) ServiceCrashPanel(state, onFix, Modifier.padding(bottom = 20.dp))
+    }
+}
+
+@Composable
+private fun LogsOutput(state: ServiceLogsUiState, modifier: Modifier = Modifier) {
+    val colors = LpmTheme.colors
+    val secondary = colors.secondaryLabel
+    val log = remember(state.text, colors.red) { tintedLog(state.text, colors.red) }
+    Column(modifier.fillMaxWidth()) {
         when {
             state.text.isEmpty() && state.error != null ->
                 Text(state.error, style = LpmTheme.typography.body, color = secondary)
@@ -233,7 +313,7 @@ private fun LogsText(state: ServiceLogsUiState, modifier: Modifier = Modifier) {
 
             else -> SelectionContainer {
                 Text(
-                    text = state.text,
+                    text = log,
                     style = LpmTheme.typography.caption1.copy(fontFamily = FontFamily.Monospace)
                 )
             }

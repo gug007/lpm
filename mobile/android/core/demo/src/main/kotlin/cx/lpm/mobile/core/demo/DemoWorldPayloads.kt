@@ -6,6 +6,15 @@ package cx.lpm.mobile.core.demo
 internal fun serviceDict(s: DemoWorld.Svc): Dict =
     mapOf("name" to s.name, "cmd" to s.cmd, "port" to s.port)
 
+/** A started service, saying how it ended once its command did. */
+internal fun startedServiceDict(s: DemoWorld.Svc): Dict = if (s.exited) {
+    serviceDict(
+        s
+    ) + mapOf("exited" to true, "exitCode" to s.exitCode)
+} else {
+    serviceDict(s)
+}
+
 internal fun statusDict(s: DemoWorld.Status): Dict {
     val d = mutableMapOf<String, Any?>(
         "key" to s.key,
@@ -30,7 +39,7 @@ internal fun projectDict(p: DemoWorld.Project): Dict {
         "worktree" to p.worktree,
         "statusEntries" to p.status.map(::statusDict),
         "seenEntries" to p.seen.map(::statusDict),
-        "services" to p.services.filter { it.running }.map(::serviceDict),
+        "services" to p.services.filter { it.running }.map(::startedServiceDict),
         "allServices" to p.services.map(::serviceDict),
         "profiles" to p.profiles.map { mapOf("name" to it.name, "services" to it.services) },
         "activeProfile" to p.activeProfile,

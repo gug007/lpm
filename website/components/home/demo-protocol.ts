@@ -49,6 +49,9 @@ export type HostMessage =
   | { source: typeof SOURCE; type: "config"; yaml: string };
 
 export type AppMessage =
+  // How much of the app's code has arrived, from 0 to 1, sent by the inline
+  // script the demo build puts in its page.
+  | { source: typeof SOURCE; type: "progress"; fraction: number }
   // The app has booted and takes a tour.
   | { source: typeof SOURCE; type: "ready" }
   // How many steps have happened, whoever did them, and whether the mimed

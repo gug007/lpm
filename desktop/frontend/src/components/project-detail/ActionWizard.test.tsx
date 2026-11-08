@@ -23,10 +23,6 @@ vi.mock("../../actionConfig", () => ({
   updatePlacementNote: (...args: unknown[]) => updatePlacementNote(...(args as [])),
 }));
 
-vi.mock("../../monaco-setup", () => ({
-  ACTION_MODEL_URI: "inmemory://lpm/action.yml",
-}));
-
 vi.mock("../MonacoEditor", () => ({
   MonacoEditor: ({ value }: { value: string }) => (
     <div data-testid="editor-value">{value}</div>

@@ -183,7 +183,9 @@ struct ProjectDetail: View {
             BackgroundRunSheet(run: run).environment(model)
         }
         .sheet(item: $logsForService) { s in
-            ServiceLogsSheet(project: live.name, service: s).environment(model)
+            ServiceLogsSheet(project: live.name, service: s, crashed: live.endedServices[s.name]?.crashed ?? false,
+                             onSpawnedTerminal: openSpawned)
+                .environment(model)
         }
         .sheet(isPresented: $newTabOpen) {
             NewTabSheet(project: live, onOpen: openSpawned).environment(model)

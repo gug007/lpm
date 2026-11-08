@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { TEMPLATE_MODEL_URI } from "../monaco-setup";
+import { TEMPLATE_MODEL_URI } from "../monaco-uris";
 import type { MachineScope } from "./settings/machineCommands";
 import { YamlConfigEditor } from "./YamlConfigEditor";
 

@@ -3,6 +3,7 @@ import { IS_MIRROR_WINDOW } from "../../mirror";
 import { toast } from "../../notifications/toast";
 import { copyPortUrlOn, copyProjectPortUrl, openPortOn } from "../../peer/projectPorts";
 import { openPortInLpm } from "../../portLinks";
+import { portProtocol } from "../../portProtocols";
 import { useAppStore } from "../../store/app";
 import { useListeningPorts } from "../../store/listeningPorts";
 import { LOCAL_MACHINE, type ListeningPort } from "./portsModel";
@@ -20,11 +21,12 @@ export async function openPort(p: ListeningPort): Promise<void> {
 }
 
 export async function copyPortUrl(p: ListeningPort): Promise<void> {
+  const scheme = portProtocol(p.port, p.process)?.scheme;
   if (p.project) {
-    await copyProjectPortUrl(p.project, p.port);
+    await copyProjectPortUrl(p.project, p.port, scheme);
     return;
   }
-  await copyPortUrlOn(machineSlug(p), p.port);
+  await copyPortUrlOn(machineSlug(p), p.port, scheme);
 }
 
 export async function stopPortService(p: ListeningPort): Promise<void> {

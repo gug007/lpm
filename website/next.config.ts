@@ -6,6 +6,20 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [{ source: "/config", destination: "/docs", permanent: true }];
   },
+  // Vite names these after their contents, so a repeat visit can skip asking.
+  async headers() {
+    return [
+      {
+        source: "/demo-app/assets/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
+          },
+        ],
+      },
+    ];
+  },
   images: {
     qualities: [75, 90],
     remotePatterns: [

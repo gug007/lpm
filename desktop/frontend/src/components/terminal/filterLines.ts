@@ -13,6 +13,17 @@ export function stripAnsi(input: string): string {
   return input.replace(ANSI_PATTERN, "");
 }
 
+// Rewrites the visible text of a line, leaving its escape sequences untouched.
+export function mapVisibleText(input: string, rewrite: (text: string) => string): string {
+  let out = "";
+  let last = 0;
+  for (const match of input.matchAll(ANSI_PATTERN)) {
+    out += rewrite(input.slice(last, match.index)) + match[0];
+    last = match.index + match[0].length;
+  }
+  return out + rewrite(input.slice(last));
+}
+
 // Keeps only the lines whose visible text contains `query` (case-insensitive),
 // returning them with ANSI intact so a mirror terminal renders them in color.
 export function filterLines(ansiText: string, query: string): string[] {

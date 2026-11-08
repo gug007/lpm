@@ -457,6 +457,9 @@ export interface PullRequestInfo {
   state: PullRequestState;
   title: string;
   isDraft: boolean;
+  // A merged PR holding every commit in this checkout. Absent on a PR known
+  // only from creating it, and from a paired computer that predates it.
+  headMerged?: boolean;
   // Absent on a PR known only from creating it, before the first lookup.
   checks?: PrCheck[];
   // What a Fix with … agent is told while an open PR's checks fail.

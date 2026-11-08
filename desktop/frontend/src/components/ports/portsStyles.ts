@@ -1,5 +1,5 @@
 export const PORTS_GRID =
-  "grid grid-cols-[4.5rem_minmax(7rem,1fr)_minmax(8rem,1.4fr)_minmax(6rem,0.8fr)_3rem_minmax(11rem,auto)] items-center gap-3";
+  "grid grid-cols-[4.5rem_minmax(7rem,1fr)_minmax(8rem,1.4fr)_minmax(6rem,0.8fr)_3rem_minmax(12.5rem,auto)] items-center gap-3";
 
 export const FOCUS = "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)]";
 
