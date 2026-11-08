@@ -6,6 +6,7 @@ import cx.lpm.mobile.core.data.projects.ProjectsState
 import cx.lpm.mobile.core.data.terminals.PendingTabClose
 import cx.lpm.mobile.core.data.tips.firstOpen
 import cx.lpm.mobile.core.model.AppTip
+import cx.lpm.mobile.core.model.GitChecks
 import cx.lpm.mobile.core.model.GitSnapshot
 import cx.lpm.mobile.core.model.Project
 import cx.lpm.mobile.core.model.ProjectAgentRow
@@ -55,6 +56,8 @@ data class ProjectDetailUiState(
     /** The working tree's changes, under the title. */
     val git: GitSnapshot? = null,
     val gitLoading: Boolean = false,
+    /** How the branch stands on CI, from a Mac that answers `gitChecks`. */
+    val checks: GitChecks? = null,
     /** The Mac answers (or it's the demo). */
     val live: Boolean = true,
     /** Starts, stops and runs tapped while the Mac was away, waiting for it. */
@@ -91,6 +94,13 @@ data class ProjectDetailUiState(
 
     /** Behind "No Terminals" or the config error there's no list for usage to follow. */
     val showsUsage: Boolean get() = !isEmpty && project?.configError == null
+
+    /** The Git section under the tabs, once they're in and the folder is a repository. */
+    val showsGit: Boolean
+        get() = tabs != null && !isEmpty && project?.configError == null && git?.isRepo == true
+
+    /** The tree has uncommitted changes: the title opens them. */
+    val hasChanges: Boolean get() = git?.files.orEmpty().isNotEmpty()
 }
 
 /** What the project screen reads besides the projects list. */
@@ -103,6 +113,7 @@ data class DetailInputs(
     val statusLine: LinkStatusLine? = null,
     val git: GitSnapshot? = null,
     val gitLoading: Boolean = false,
+    val checks: GitChecks? = null,
     val queued: List<QueuedAction> = emptyList(),
     val canStopServices: Boolean = false,
     val canLaunchAgents: Boolean = false,
@@ -148,6 +159,7 @@ fun ProjectsState.detail(
         live = inputs.live,
         git = inputs.git,
         gitLoading = inputs.gitLoading,
+        checks = inputs.checks,
         subtitle = when {
             !inputs.live && inputs.statusLine != null -> DetailSubtitle.Link(inputs.statusLine)
             project.configError != null -> DetailSubtitle.InvalidConfiguration

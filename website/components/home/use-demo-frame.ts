@@ -44,8 +44,10 @@ function toWire(step: TourStep): TourStepWire {
   return wire;
 }
 
-// Hands the page's tour to the app in the frame, cues it as the frame parks in
-// view, and reports back how far it has got. Returns whether the app is ready.
+// Hands the page's tour to the app in the frame, lands its opening steps, cues
+// the rest as the frame parks in view, and reports back how far it has got.
+// Returns whether the app is ready to be shown: booted, with the opening steps
+// done.
 export function useDemoFrame({
   iframeRef,
   tour,
@@ -56,6 +58,7 @@ export function useDemoFrame({
   onInteract,
 }: Args) {
   const [ready, setReady] = useState(false);
+  const [opened, setOpened] = useState(!tour?.opening);
   const hooksRef = useRef({ onTour, onStage, onInteract });
   // Read when the app asks for it rather than on every render: a page hands
   // the same tour in for the life of the frame.
@@ -89,6 +92,7 @@ export function useDemoFrame({
       if (message.type === "state") {
         const { stage, playing } = message;
         playingRef.current = playing;
+        if (stage >= (tourConfigRef.current?.opening ?? 0)) setOpened(true);
         hooksRef.current.onStage(stage);
         hooksRef.current.onTour?.({ stage, playing });
         return;
@@ -97,6 +101,9 @@ export function useDemoFrame({
       const script = tourConfigRef.current;
       if (!script) return;
       post({ source: SOURCE, type: "tour", steps: script.steps.map(toWire) });
+      if (script.opening) {
+        post({ source: SOURCE, type: "land", index: script.opening - 1 });
+      }
       const pending = pendingRunRef.current;
       pendingRunRef.current = null;
       if (pending !== null) {
@@ -155,5 +162,5 @@ export function useDemoFrame({
     [ready, post],
   );
 
-  return ready;
+  return ready && opened;
 }

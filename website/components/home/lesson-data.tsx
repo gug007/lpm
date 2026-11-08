@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { LESSON_CHAPTERS } from "@/lib/youtube-chapters";
 import type { YouTubeLessonId } from "@/lib/youtube-lessons";
 
 export type LessonStep = {
@@ -14,7 +15,7 @@ export type LessonStep = {
 };
 
 // The overview leads: a newcomer wants the whole loop before the how-tos.
-export const LESSON_STEPS: LessonStep[] = [
+const STEPS: Omit<LessonStep, "seconds">[] = [
   {
     title: "lpm in 3 minutes",
     blurb: "Your dev servers, Claude Code and Codex in one window.",
@@ -27,7 +28,6 @@ export const LESSON_STEPS: LessonStep[] = [
     ),
     lesson: "lpm-in-3-minutes",
     thumbnail: "/lessons/lpm-in-3-minutes.jpg",
-    seconds: 199,
   },
   {
     title: "Add a project",
@@ -42,7 +42,6 @@ export const LESSON_STEPS: LessonStep[] = [
     ),
     lesson: "add-project",
     thumbnail: "/lessons/add-project.jpg",
-    seconds: 147,
   },
   {
     title: "Start a project",
@@ -56,7 +55,6 @@ export const LESSON_STEPS: LessonStep[] = [
     ),
     lesson: "start-project",
     thumbnail: "/lessons/start-project.jpg",
-    seconds: 115,
   },
   {
     title: "Add an action",
@@ -70,7 +68,6 @@ export const LESSON_STEPS: LessonStep[] = [
     ),
     lesson: "add-action",
     thumbnail: "/lessons/add-action.jpg",
-    seconds: 126,
   },
   {
     title: "Switch between profiles",
@@ -84,7 +81,6 @@ export const LESSON_STEPS: LessonStep[] = [
     ),
     lesson: "switch-profiles",
     thumbnail: "/lessons/switch-profiles.jpg",
-    seconds: 107,
   },
   {
     title: "Run Claude Code and Codex in parallel",
@@ -99,9 +95,14 @@ export const LESSON_STEPS: LessonStep[] = [
     ),
     lesson: "parallel-agents",
     thumbnail: "/lessons/parallel-agents.jpg",
-    seconds: 110,
   },
 ];
+
+// Lengths come from the chapter list, which follows each video's YouTube page.
+export const LESSON_STEPS: LessonStep[] = STEPS.map((step) => ({
+  ...step,
+  seconds: LESSON_CHAPTERS[step.lesson].seconds,
+}));
 
 // The three-minute tour, which leads the series.
 export const OVERVIEW_LESSON = LESSON_STEPS[0];

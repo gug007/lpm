@@ -3,7 +3,8 @@ package cx.lpm.mobile.core.demo
 /*
  * Demo CI (iOS `DemoGitChecks`): storefront's open pull request with one failing test,
  * api-gateway's main passing, the rest without CI. Running the failed jobs again shows
- * them running for a few seconds, then passing.
+ * them running for a few seconds, then passing, and the pull request ready to merge;
+ * merging it leaves storefront without CI.
  */
 
 private const val RERUN_MS = 6_000L
@@ -18,6 +19,21 @@ internal fun DemoServer.registerGitChecksHandlers() {
         world.ciRerunAt[project] = clock.millis()
         pushAfter(0.4) { mapOf("t" to "gitChecksRerun", "project" to project, "ok" to true) }
     }
+    register("gitMergePr") { o ->
+        val project = o.string("project") ?: return@register
+        val number = o.int("number") ?: 0
+        val deleteBranch = o.bool("deleteBranch") ?: false
+        pushAfter(1.2) {
+            world.ciMerged += project
+            mapOf(
+                "t" to "gitMergePr",
+                "project" to project,
+                "ok" to true,
+                "number" to number,
+                "deletedBranch" to deleteBranch
+            )
+        }
+    }
 }
 
 private fun DemoServer.demoChecksReply(project: String): Dict {
@@ -29,8 +45,8 @@ private fun DemoServer.demoChecksReply(project: String): Dict {
         "pr" to null,
         "commit" to null
     )
-    when (project) {
-        "storefront" -> {
+    when {
+        project == "storefront" && project !in world.ciMerged -> {
             val since = world.ciRerunAt[project]?.let { clock.millis() - it }
             val testState = since?.let { if (it < RERUN_MS) "pending" else "pass" } ?: "fail"
             val checks = listOf(
@@ -63,7 +79,16 @@ private fun DemoServer.demoChecksReply(project: String): Dict {
                 "number" to 42,
                 "url" to "https://github.com/example/storefront/pull/42",
                 "title" to "Two-step checkout flow",
-                "checks" to checks
+                "isDraft" to false,
+                "checks" to checks,
+                "merge" to mapOf(
+                    "mergeable" to "MERGEABLE",
+                    "state" to (if (testState == "pass") "CLEAN" else "UNSTABLE"),
+                    "review" to "APPROVED",
+                    "head" to "4b8e2f1c9d0a7e3b5f6c8d2a1e0b9c7f3d5a6e84",
+                    "methods" to listOf("merge", "squash", "rebase"),
+                    "deletesBranch" to false
+                )
             )
             if (testState == "fail") {
                 reply["fixPrompt"] = listOf(
@@ -77,7 +102,7 @@ private fun DemoServer.demoChecksReply(project: String): Dict {
             }
         }
 
-        "api-gateway" -> reply["commit"] = mapOf(
+        project == "api-gateway" -> reply["commit"] = mapOf(
             "sha" to "9e7d031b4c2a8f6e1d0c3b5a7f9e2d4c6b8a0f13",
             "title" to "Rate limit the token endpoint",
             "url" to

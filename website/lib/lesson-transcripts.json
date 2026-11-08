@@ -1,0 +1,3916 @@
+{
+ "add-project": [
+  [
+   0.3,
+   "In lpm, a project is just a folder of code."
+  ],
+  [
+   4.6,
+   "Open one from your Mac or clone one from Git,"
+  ],
+  [
+   7.5,
+   "and Claude Code works right inside it."
+  ],
+  [
+   14.2,
+   "Open a folder is for code already on your Mac,"
+  ],
+  [
+   17.9,
+   "and Clone a repository for"
+  ],
+  [
+   19.8,
+   "code that lives in Git."
+  ],
+  [
+   21.4,
+   "The others are for another computer or a server."
+  ],
+  [
+   25.1,
+   "Start with code on your Mac:"
+  ],
+  [
+   27.6,
+   "click Open a folder, and the Mac's folder picker opens."
+  ],
+  [
+   31.9,
+   "Select the folder your code is in,"
+  ],
+  [
+   34.1,
+   "here client-portal, and click Open."
+  ],
+  [
+   37.3,
+   "lpm read the folder's package.json and found its dev server,"
+  ],
+  [
+   41.6,
+   "ready to run with Start. And client-portal is in your sidebar now,"
+  ],
+  [
+   45.6,
+   "named after its folder, with your files right where they were."
+  ],
+  [
+   48.7,
+   "Now for code that lives in Git. Once you have a project,"
+  ],
+  [
+   52.9,
+   "new ones come in through the plus next to Projects."
+  ],
+  [
+   56.1,
+   "Up top, Local folder and Clone repository are the same two ways in,"
+  ],
+  [
+   60.6,
+   "so choose Clone repository."
+  ],
+  [
+   62.8,
+   "Paste the repository's URL;"
+  ],
+  [
+   65.1,
+   "on GitHub, it's under the Code button."
+  ],
+  [
+   67.5,
+   "HTTPS or SSH both work, private repos included, with your usual Git login."
+  ],
+  [
+   73.9,
+   "lpm names the project after the repository,"
+  ],
+  [
+   76.6,
+   "and clones it into a new folder inside the destination you choose,"
+  ],
+  [
+   81.5,
+   "here my Projects folder."
+  ],
+  [
+   83.6,
+   "Then, click Clone repository."
+  ],
+  [
+   86.5,
+   "A few seconds later, spoon-knife is cloned,"
+  ],
+  [
+   89.8,
+   "listed in your sidebar, and open."
+  ],
+  [
+   92,
+   "Each project opens on this box,"
+  ],
+  [
+   94.6,
+   "where you start a terminal,"
+  ],
+  [
+   96.7,
+   "Claude Code, or Codex."
+  ],
+  [
+   98.8,
+   "Pick Claude, ask what this project is,"
+  ],
+  [
+   101.6,
+   "and click Start Claude."
+  ],
+  [
+   106.9,
+   "Claude Code runs right inside spoon-knife's folder,"
+  ],
+  [
+   110.7,
+   "so it answers from the files it finds there."
+  ],
+  [
+   113.6,
+   "That's both ways in: Open a folder for code on your Mac,"
+  ],
+  [
+   117.5,
+   "Clone a repository for code in Git,"
+  ],
+  [
+   119.4,
+   "and for every project after your first, the plus next to Projects."
+  ]
+ ],
+ "start-project": [
+  [
+   0.3,
+   "Click Start, and your whole dev stack runs in lpm,"
+  ],
+  [
+   4,
+   "side by side."
+  ],
+  [
+   5.6,
+   "Click a port, and your app opens right there. No commands, no config."
+  ],
+  [
+   13.4,
+   "client-portal runs a single dev server."
+  ],
+  [
+   16.5,
+   "Open it, and the Start button is right up in the header."
+  ],
+  [
+   19.9,
+   "lpm found its dev script in package.json"
+  ],
+  [
+   23,
+   "when you added the folder,"
+  ],
+  [
+   24.5,
+   "so there's nothing to set up: just click Start."
+  ],
+  [
+   27.9,
+   "It runs right here, in a tab of its own,"
+  ],
+  [
+   30.9,
+   "and the bar on top shows the command lpm ran for you: npm run dev."
+  ],
+  [
+   35.6,
+   "Its port shows right on the tab,"
+  ],
+  [
+   37.7,
+   "and in the sidebar, the project's dot is green: green means running."
+  ],
+  [
+   42.1,
+   "To stop it, click the same button,"
+  ],
+  [
+   45.3,
+   "now a red Stop."
+  ],
+  [
+   46.9,
+   "The server shuts down, and its dot is an empty ring again."
+  ],
+  [
+   50.7,
+   "Now a bigger project, one that runs several services at once."
+  ],
+  [
+   55.8,
+   "Open storefront, then the menu next to Start."
+  ],
+  [
+   60,
+   "lpm found three services in its Procfile:"
+  ],
+  [
+   62.4,
+   "an API, the web app and a background worker."
+  ],
+  [
+   66.1,
+   "It's still one button."
+  ],
+  [
+   67.9,
+   "Click Start, and all three come up together,"
+  ],
+  [
+   70.7,
+   "each in its own tab, and the API and the web app show their ports."
+  ],
+  [
+   75.6,
+   "Click All to watch the whole stack side by side."
+  ],
+  [
+   79.7,
+   "When you're done, Stop takes all three down at once."
+  ],
+  [
+   84.5,
+   "Only need the web app?"
+  ],
+  [
+   86.4,
+   "Open the menu, then click web:"
+  ],
+  [
+   88.4,
+   "it's the only one that starts,"
+  ],
+  [
+   90,
+   "and the only one with a green dot."
+  ],
+  [
+   92.2,
+   "Then click the port on its tab,"
+  ],
+  [
+   95.1,
+   "and your app opens in a browser tab, right here in lpm."
+  ],
+  [
+   99.2,
+   "One service or several: Start runs them,"
+  ],
+  [
+   102.9,
+   "Stop ends them, and there's nothing to configure."
+  ]
+ ],
+ "edit-services": [
+  [
+   0.3,
+   "Your project runs a web server and an API?"
+  ],
+  [
+   3.4,
+   "Tell lpm about both, and one click starts them together."
+  ],
+  [
+   10.2,
+   "A service is a command lpm keeps running for your project,"
+  ],
+  [
+   13.9,
+   "like a dev server."
+  ],
+  [
+   15.5,
+   "The menu next to Start lists them."
+  ],
+  [
+   18.2,
+   "When you added storefront,"
+  ],
+  [
+   20.4,
+   "lpm found its dev command and made it a service called web."
+  ],
+  [
+   24.7,
+   "Two things are missing: its port, and storefront's API."
+  ],
+  [
+   28.5,
+   "Hover web, and a pencil appears on the right. Click it to edit the service."
+  ],
+  [
+   34.1,
+   "The form shows what lpm found:"
+  ],
+  [
+   37.3,
+   "the name, web, and the command,"
+  ],
+  [
+   39.8,
+   "npm run dev, just what you'd type in a terminal."
+  ],
+  [
+   43.2,
+   "Under Advanced, type the port it serves on."
+  ],
+  [
+   46.5,
+   "The gray 3000 is only an example;"
+  ],
+  [
+   49.5,
+   "storefront uses 5173."
+  ],
+  [
+   52.1,
+   "Now lpm checks the port is free whenever you press Start."
+  ],
+  [
+   56.5,
+   "Leave it on Ask: if something's using it,"
+  ],
+  [
+   59.3,
+   "lpm shows you what and offers to stop it."
+  ],
+  [
+   62.2,
+   "Save changes, and back in the menu, web now shows its port."
+  ],
+  [
+   67.4,
+   "Next, the API that lpm missed."
+  ],
+  [
+   70.7,
+   "At the bottom of the menu, click Add service."
+  ],
+  [
+   74.4,
+   "Name it api, and give it the command you'd run for it,"
+  ],
+  [
+   78.2,
+   "npm run api."
+  ],
+  [
+   81.2,
+   "The preview on the right already"
+  ],
+  [
+   83.4,
+   "shows the menu with api in it."
+  ],
+  [
+   85.9,
+   "Open Advanced again, give it port 4000, then click Add service."
+  ],
+  [
+   92.3,
+   "Click Start, and both services run,"
+  ],
+  [
+   95.3,
+   "each in its own tab with its port."
+  ],
+  [
+   97.9,
+   "Click All to see them side by side."
+  ],
+  [
+   101.2,
+   "To change one while it runs,"
+  ],
+  [
+   103.1,
+   "the pencil on its bar opens this same form,"
+  ],
+  [
+   106,
+   "and Restart applies the change."
+  ],
+  [
+   108.6,
+   "Click 5173 on web's bar, and the shop opens right here in lpm,"
+  ],
+  [
+   114.5,
+   "its products served by the api."
+  ],
+  [
+   117.1,
+   "Edit what lpm found, add what it missed,"
+  ],
+  [
+   120.9,
+   "and one Start runs your whole project."
+  ]
+ ],
+ "add-action": [
+  [
+   0.3,
+   "Any command you keep typing can be a one-click button."
+  ],
+  [
+   3.9,
+   "Its output pops up right under it,"
+  ],
+  [
+   5.7,
+   "or it runs quietly in the background."
+  ],
+  [
+   12,
+   "An action is a button that runs a command for you."
+  ],
+  [
+   15.9,
+   "Claude and Codex up here are actions too,"
+  ],
+  [
+   18.4,
+   "and the plus Action button adds your own."
+  ],
+  [
+   21.1,
+   "Click it, and a form opens."
+  ],
+  [
+   23.5,
+   "Up top, lpm suggests commands it found,"
+  ],
+  [
+   26.1,
+   "like your package.json scripts."
+  ],
+  [
+   28.3,
+   "Seeding the database isn't one of them, so we'll write it below."
+  ],
+  [
+   31.6,
+   "First, the name the button will show: Seed data."
+  ],
+  [
+   35.8,
+   "Then the command, node seed.js,"
+  ],
+  [
+   38.7,
+   "exactly as you'd type it in a terminal."
+  ],
+  [
+   41,
+   "How it looks can stay as it is: a button in the header."
+  ],
+  [
+   44.8,
+   "The preview on the right spells out what a click will do."
+  ],
+  [
+   47.8,
+   "Under How it runs, the default opens a new terminal:"
+  ],
+  [
+   50.7,
+   "right for a server, or anything that keeps running."
+  ],
+  [
+   54.5,
+   "Open the menu for the others:"
+  ],
+  [
+   57,
+   "show the output, for a quick result;"
+  ],
+  [
+   59.2,
+   "type it into the terminal you're using; or run it in the background."
+  ],
+  [
+   63.5,
+   "Seeding is quick, and you'll want to see what it did,"
+  ],
+  [
+   66.3,
+   "so choose Run and show the output, and click Create action."
+  ],
+  [
+   70.2,
+   "There's your button, next to Claude and Codex."
+  ],
+  [
+   73.3,
+   "Click Seed data, and the output pops up in a card, right under it."
+  ],
+  [
+   77.4,
+   "It seeded three customers and"
+  ],
+  [
+   80.2,
+   "twelve invoices, and the green check means it worked."
+  ],
+  [
+   84.4,
+   "Leave it, and the card closes by itself,"
+  ],
+  [
+   87.4,
+   "but a check stays on the button: the last run passed."
+  ],
+  [
+   91.5,
+   "Now the quick way. Click Action again, and from the suggestions,"
+  ],
+  [
+   95.4,
+   "pick Build: one click fills in the name, the command and an icon."
+  ],
+  [
+   99.7,
+   "lpm even picked how it runs:"
+  ],
+  [
+   102.2,
+   "a build needs no watching,"
+  ],
+  [
+   104,
+   "so it goes in the background."
+  ],
+  [
+   105.9,
+   "Click Create action, and Build joins the header."
+  ],
+  [
+   109.6,
+   "Click Build, and it runs quietly while you work."
+  ],
+  [
+   113.2,
+   "This notice in the corner turns to a check when it's done."
+  ],
+  [
+   116.4,
+   "To change an action later, right-click it."
+  ],
+  [
+   119.3,
+   "Edit action reopens the same form,"
+  ],
+  [
+   121.4,
+   "and Delete action removes it."
+  ],
+  [
+   124.2,
+   "Or choose Move, then To footer,"
+  ],
+  [
+   127.1,
+   "and Build moves down to the footer bar."
+  ],
+  [
+   130,
+   "A name and a command,"
+  ],
+  [
+   131.8,
+   "and anything you'd type in a terminal becomes a button in your project."
+  ]
+ ],
+ "switch-profiles": [
+  [
+   0.3,
+   "Four services running when you only need two?"
+  ],
+  [
+   3.6,
+   "Save those two as a profile in lpm,"
+  ],
+  [
+   5.3,
+   "and switch with one click."
+  ],
+  [
+   10.8,
+   "storefront has four services."
+  ],
+  [
+   13.4,
+   "Click Start, and they all come up:"
+  ],
+  [
+   15.5,
+   "an API, the web app, a background worker, and Storybook."
+  ],
+  [
+   19.5,
+   "Click All to see the four of them side by side."
+  ],
+  [
+   23.6,
+   "Most days, though, you only work on the API and the web app."
+  ],
+  [
+   27.9,
+   "The worker and Storybook just sit there, using memory."
+  ],
+  [
+   31.2,
+   "Open the menu next to Stop."
+  ],
+  [
+   33.8,
+   "Under Profiles, storefront already has one, called full."
+  ],
+  [
+   38.2,
+   "A profile is a saved set of services that start together:"
+  ],
+  [
+   42.4,
+   "full runs all four, and its green dot means it's running."
+  ],
+  [
+   46.4,
+   "Let's make a smaller one: click Add profile."
+  ],
+  [
+   50.4,
+   "Name it everyday, then tick the two services it runs: API and web."
+  ],
+  [
+   56.2,
+   "The preview on the right shows the menu you'll get,"
+  ],
+  [
+   59.3,
+   "with everyday just above full."
+  ],
+  [
+   61.6,
+   "Click Add profile to save it."
+  ],
+  [
+   64.7,
+   "Nothing restarts yet: storefront still runs all four."
+  ],
+  [
+   68.5,
+   "Now switch to it: open the menu and click everyday."
+  ],
+  [
+   72.7,
+   "lpm restarts storefront with just those two."
+  ],
+  [
+   75.7,
+   "Just API and web now."
+  ],
+  [
+   78.6,
+   "Open the menu: the green dot has moved to everyday,"
+  ],
+  [
+   81.4,
+   "and only those two services have one."
+  ],
+  [
+   84,
+   "Need the whole stack again?"
+  ],
+  [
+   86.2,
+   "Click full, and all four come back."
+  ],
+  [
+   89.1,
+   "Open the menu again: the green dot is back on full."
+  ],
+  [
+   92.9,
+   "To change a profile later,"
+  ],
+  [
+   94.6,
+   "hover it, and its pencil opens the same form."
+  ],
+  [
+   97.7,
+   "Make a profile for each way you work,"
+  ],
+  [
+   100.4,
+   "and switch between them with one click."
+  ]
+ ],
+ "parallel-agents": [
+  [
+   0.3,
+   "Run Claude Code and Codex at the same time,"
+  ],
+  [
+   3.7,
+   "each in its own copy of your project,"
+  ],
+  [
+   5.6,
+   "so they never touch each other's files."
+  ],
+  [
+   11.2,
+   "Here's storefront."
+  ],
+  [
+   12.7,
+   "Claude and Codex in this one folder would edit the same files at once,"
+  ],
+  [
+   16.3,
+   "so give each agent its own copy."
+  ],
+  [
+   19.1,
+   "Open storefront's menu in the sidebar,"
+  ],
+  [
+   22.1,
+   "choose Duplicate, and press plus for as many copies as you need, two here."
+  ],
+  [
+   27.3,
+   "Each copy's folder gets a random tag."
+  ],
+  [
+   30.9,
+   "Type over it to name the copy for its job:"
+  ],
+  [
+   33.5,
+   "health for the first, version for the second."
+  ],
+  [
+   36.6,
+   "The menu beside each copy sets what runs in it."
+  ],
+  [
+   39.8,
+   "Open the first, choose Action,"
+  ],
+  [
+   41.8,
+   "and it picks Claude, a button from your header."
+  ],
+  [
+   44.5,
+   "Its task: add a health endpoint."
+  ],
+  [
+   47.8,
+   "Open the second copy's menu,"
+  ],
+  [
+   50.3,
+   "choose Action, and switch it to Codex,"
+  ],
+  [
+   53,
+   "with a task of its own: add a version endpoint."
+  ],
+  [
+   57.9,
+   "Each copy now shows its agent,"
+  ],
+  [
+   60.2,
+   "Claude on the first and Codex on the second,"
+  ],
+  [
+   62.5,
+   "so click Create 2 copies."
+  ],
+  [
+   65,
+   "They land right under storefront,"
+  ],
+  [
+   67.5,
+   "each a full folder of its own,"
+  ],
+  [
+   69.4,
+   "and Claude is already on the first one's task."
+  ],
+  [
+   72.3,
+   "To watch both at once, open the version copy's menu,"
+  ],
+  [
+   75.6,
+   "and choose Open side by side."
+  ],
+  [
+   79,
+   "Claude on the left, Codex on the right,"
+  ],
+  [
+   82.3,
+   "each on its own task, at the same time."
+  ],
+  [
+   87,
+   "In the sidebar, a check means that copy's agent is done,"
+  ],
+  [
+   90.9,
+   "and the time shows how long it took."
+  ],
+  [
+   93.2,
+   "Commit the work you keep with each copy's Commit button,"
+  ],
+  [
+   96.5,
+   "and when you're done with a copy, open its menu and delete it."
+  ],
+  [
+   101.1,
+   "Two, three or ten copies work the same way, with one agent in each."
+  ]
+ ],
+ "multiple-accounts": [
+  [
+   0.3,
+   "Two Claude Code subscriptions on one Mac:"
+  ],
+  [
+   3.7,
+   "each project runs on its own account, and you never log out."
+  ],
+  [
+   10.6,
+   "Claude Code keeps one login per Mac,"
+  ],
+  [
+   13.4,
+   "so a second subscription means logging out and back in."
+  ],
+  [
+   16.9,
+   "Down in the sidebar, the Claude line is your main login,"
+  ],
+  [
+   19.9,
+   "and it has used 96% of its week."
+  ],
+  [
+   22.9,
+   "To add a second one, open More,"
+  ],
+  [
+   25.5,
+   "then Settings, and go to Accounts & usage."
+  ],
+  [
+   28.7,
+   "Your main login is already on the list."
+  ],
+  [
+   31.5,
+   "Click Add, pick a name like Work,"
+  ],
+  [
+   34.3,
+   "and confirm with Add and sign in."
+  ],
+  [
+   37.3,
+   "Claude Code's own sign-in opens,"
+  ],
+  [
+   40,
+   "just for this account. Finish it in your browser,"
+  ],
+  [
+   43,
+   "and once you're in, the bar turns green, so click Done."
+  ],
+  [
+   46.8,
+   "Work keeps a login of its own,"
+  ],
+  [
+   49.2,
+   "so your main login stays signed in."
+  ],
+  [
+   51.8,
+   "And each account has its own limits."
+  ],
+  [
+   54.3,
+   "Now go back to Projects and choose who uses Work:"
+  ],
+  [
+   57.7,
+   "click the three dots next to storefront, then Claude account."
+  ],
+  [
+   61.6,
+   "Main login has used 96% of its week,"
+  ],
+  [
+   65,
+   "and Work is fresh, so pick Work."
+  ],
+  [
+   67.9,
+   "New Claude sessions in storefront now run on Work."
+  ],
+  [
+   71.2,
+   "Click Claude in the header,"
+  ],
+  [
+   72.8,
+   "ask what this project does, and send it."
+  ],
+  [
+   76.9,
+   "Claude answers from Work."
+  ],
+  [
+   78.8,
+   "In the sidebar, Work gets its own meter,"
+  ],
+  [
+   81.6,
+   "and it's tagged in use: that's storefront's account."
+  ],
+  [
+   84.9,
+   "Now click client-portal."
+  ],
+  [
+   87.6,
+   "It's still on your main login,"
+  ],
+  [
+   89.2,
+   "so the tag moves to Claude. Open Claude here too."
+  ],
+  [
+   94.7,
+   "Two projects on two subscriptions,"
+  ],
+  [
+   96.9,
+   "side by side, and you never logged out."
+  ],
+  [
+   99.5,
+   "But your main login has almost no week left."
+  ],
+  [
+   103.2,
+   "To move client-portal over,"
+  ],
+  [
+   105.1,
+   "right-click Work's line in the sidebar,"
+  ],
+  [
+   107,
+   "and choose Switch to Work."
+  ],
+  [
+   109.7,
+   "The tag moves to Work."
+  ],
+  [
+   111.7,
+   "The session that's already open keeps its login,"
+  ],
+  [
+   114.5,
+   "and every new one starts on Work."
+  ],
+  [
+   117,
+   "When your main login resets,"
+  ],
+  [
+   119.7,
+   "switch back the same way:"
+  ],
+  [
+   121.3,
+   "each project stays on the account you pick."
+  ]
+ ],
+ "accounts-switching": [
+  [
+   0.9,
+   "One Claude account almost out for the week?"
+  ],
+  [
+   4.1,
+   "lpm moves your new sessions to the next one on its own, and tells you why."
+  ],
+  [
+   12.4,
+   "Down in the sidebar, the Claude line is your main login,"
+  ],
+  [
+   16.7,
+   "at 88% of its week, and it's tagged in use:"
+  ],
+  [
+   20.9,
+   "storefront's new sessions run on it."
+  ],
+  [
+   23.2,
+   "Work, above it, is a second account, barely used."
+  ],
+  [
+   27.6,
+   "Instead of switching by hand when one runs low,"
+  ],
+  [
+   31.1,
+   "let lpm do it."
+  ],
+  [
+   32.8,
+   "Open More, then Settings, and go to Accounts & usage."
+  ],
+  [
+   37.2,
+   "Further down, turn on Switch accounts automatically."
+  ],
+  [
+   40.9,
+   "First, lpm asks you to confirm that each account is yours alone,"
+  ],
+  [
+   45.7,
+   "and the note says why: Anthropic hasn't said whether switching is allowed."
+  ],
+  [
+   50.3,
+   "Tick Only mine, and click Turn on."
+  ],
+  [
+   53.6,
+   "Under Turn order, only your main login takes turns so far."
+  ],
+  [
+   58.2,
+   "Turn Work on, confirm it's yours too, and click Add."
+  ],
+  [
+   62.1,
+   "New sessions start on the first account in the list that's under 90%"
+  ],
+  [
+   65.8,
+   "of its 5-hour and weekly limits."
+  ],
+  [
+   68.1,
+   "Your main login is first, at 88%, so it still gets them."
+  ],
+  [
+   72.4,
+   "Before switching, lpm asks you first,"
+  ],
+  [
+   75.6,
+   "with a note in the sidebar."
+  ],
+  [
+   77.2,
+   "To let it move on by itself, pick Switch on its own."
+  ],
+  [
+   81.5,
+   "Back in Projects, Work is tagged pool:"
+  ],
+  [
+   85.1,
+   "it's next in line."
+  ],
+  [
+   86.7,
+   "Click Claude in the header, ask what this project does, and send it."
+  ],
+  [
+   92.8,
+   "Say that reply takes your main login past 90% of its week."
+  ],
+  [
+   97.5,
+   "lpm moves new sessions to Work on its own, and tells you why."
+  ],
+  [
+   102,
+   "The in use tag moves to Work."
+  ],
+  [
+   104.5,
+   "The session that's already open keeps going on your main login."
+  ],
+  [
+   108.1,
+   "Open Claude again, and this new session starts on Work."
+  ],
+  [
+   113,
+   "When your main login's week resets,"
+  ],
+  [
+   115.7,
+   "it's back under 90%, and new sessions return to it, first in the list."
+  ],
+  [
+   120.7,
+   "And an account that hits a limit outright is skipped until it resets."
+  ]
+ ],
+ "codex-statusline": [
+  [
+   0.3,
+   "See how much context and Codex usage you have left,"
+  ],
+  [
+   3.9,
+   "right under the prompt."
+  ],
+  [
+   5.6,
+   "One pick in lpm sets it up."
+  ],
+  [
+   14.7,
+   "Open a project, and click Codex in the header."
+  ],
+  [
+   20.7,
+   "The line under its prompt is Codex's status line."
+  ],
+  [
+   24.6,
+   "Out of the box, it shows just the model and the folder."
+  ],
+  [
+   28.1,
+   "To change it, at the bottom of the sidebar,"
+  ],
+  [
+   31.2,
+   "click More, then Settings, and open Agents."
+  ],
+  [
+   35.2,
+   "Scroll down to Codex status line,"
+  ],
+  [
+   37.5,
+   "below the Claude Code one, and click Customize."
+  ],
+  [
+   41.5,
+   "At the top is a preview of the line."
+  ],
+  [
+   44.2,
+   "Below it are ready-made layouts, so pick Usage."
+  ],
+  [
+   48.3,
+   "Now it shows the model and the context left,"
+  ],
+  [
+   51.5,
+   "which is how much more this conversation can hold."
+  ],
+  [
+   54.3,
+   "Next is what's left of your five-hour and weekly usage limits."
+  ],
+  [
+   57.8,
+   "These are samples; Codex shows your own."
+  ],
+  [
+   60.6,
+   "Below, you can drag to reorder,"
+  ],
+  [
+   63.7,
+   "remove, or add items."
+  ],
+  [
+   66,
+   "Primary limit is the five-hour one,"
+  ],
+  [
+   67.7,
+   "and Secondary the weekly one."
+  ],
+  [
+   69.8,
+   "Fast mode tells you whether Codex's"
+  ],
+  [
+   72.3,
+   "Fast mode is on."
+  ],
+  [
+   74.1,
+   "If you don't use it, remove it."
+  ],
+  [
+   76.5,
+   "There's no Save button: it's already saved,"
+  ],
+  [
+   79.5,
+   "and new Codex sessions pick it up."
+  ],
+  [
+   81.7,
+   "Now head back to your project:"
+  ],
+  [
+   83.9,
+   "click the back arrow, then Projects."
+  ],
+  [
+   87.8,
+   "The Codex you already had open keeps its old line,"
+  ],
+  [
+   91.3,
+   "so click Codex for a fresh one."
+  ],
+  [
+   95.1,
+   "And there it is, right under the prompt:"
+  ],
+  [
+   97.7,
+   "the context left, and what's left of your five-hour and weekly limits."
+  ],
+  [
+   102.3,
+   "Now ask Codex something,"
+  ],
+  [
+   104.7,
+   "like what this project does, and send it."
+  ],
+  [
+   110.1,
+   "After one answer, there's already less context left."
+  ],
+  [
+   113.4,
+   "Now one glance tells you how much room you have before you run out."
+  ]
+ ],
+ "claude-statusline": [
+  [
+   0.3,
+   "See how much context and Claude Code usage you have left,"
+  ],
+  [
+   4.5,
+   "right under the prompt."
+  ],
+  [
+   6.3,
+   "One pick in lpm sets it up."
+  ],
+  [
+   12.2,
+   "Open the storefront project and click Claude in the header."
+  ],
+  [
+   17,
+   "Ask it what this project does, and send it."
+  ],
+  [
+   22.8,
+   "Right here, between Claude's prompt and the box you type in,"
+  ],
+  [
+   26.5,
+   "Claude Code can show a status line."
+  ],
+  [
+   28.6,
+   "By default it's off, so there's nothing about context or usage."
+  ],
+  [
+   32.9,
+   "To turn it on, open More at the bottom of the sidebar,"
+  ],
+  [
+   36.8,
+   "then Settings, and go to Agents."
+  ],
+  [
+   40.1,
+   "Claude Code status line says nothing shows under the prompt yet,"
+  ],
+  [
+   43.6,
+   "so click Customize."
+  ],
+  [
+   46.3,
+   "Up top is a live preview, empty for now."
+  ],
+  [
+   49.4,
+   "Below it are layouts to start from."
+  ],
+  [
+   51.3,
+   "Pick Clean, which shows context, limits and cost."
+  ],
+  [
+   55,
+   "The preview shows sample"
+  ],
+  [
+   56.9,
+   "numbers. Context left, here 72 percent,"
+  ],
+  [
+   60.6,
+   "is how much room this chat still has."
+  ],
+  [
+   64.4,
+   "Your 5-hour and weekly limits count what you've used:"
+  ],
+  [
+   68.3,
+   "34 and 62 percent."
+  ],
+  [
+   71.2,
+   "Each meter turns yellow at 50 percent, and red at 80."
+  ],
+  [
+   75.7,
+   "Run low on context, and Claude compacts"
+  ],
+  [
+   79,
+   "the chat into a summary."
+  ],
+  [
+   80.9,
+   "Use up a limit, and Claude has to wait for the reset."
+  ],
+  [
+   84.5,
+   "Every item can be dragged, recolored or removed."
+  ],
+  [
+   88,
+   "The cost is only an estimate, so take it out."
+  ],
+  [
+   91.2,
+   "It's gone from the preview, and Live means Claude Code already has it."
+  ],
+  [
+   96.4,
+   "There's no save button."
+  ],
+  [
+   98.3,
+   "Go back to Settings, then to Projects."
+  ],
+  [
+   101.8,
+   "The Claude session that was already running picks"
+  ],
+  [
+   104.4,
+   "up the new line, with no restart."
+  ],
+  [
+   107.5,
+   "Same spot as before, now with this chat's context left,"
+  ],
+  [
+   111.5,
+   "and how much of your 5-hour and weekly limits you've used."
+  ],
+  [
+   115.9,
+   "Set it once, and every Claude Code session shows how much room you have left,"
+  ],
+  [
+   120.5,
+   "right where you type."
+  ]
+ ],
+ "review-code-changes": [
+  [
+   0.3,
+   "Claude just edited your code."
+  ],
+  [
+   3.2,
+   "Read every change in lpm,"
+  ],
+  [
+   5.1,
+   "undo what you don't want, and commit the rest."
+  ],
+  [
+   11.4,
+   "Here's storefront, a small coffee shop. Click Claude in the header,"
+  ],
+  [
+   15.9,
+   "ask it for a free shipping note on the page and in the README, and send it."
+  ],
+  [
+   20,
+   "Claude edits the files right in your project folder,"
+  ],
+  [
+   23.3,
+   "and the sidebar shows it working."
+  ],
+  [
+   25.5,
+   "It commits nothing, so every change waits for you."
+  ],
+  [
+   31.8,
+   "When it's done, click the three dots above the terminal,"
+  ],
+  [
+   35.4,
+   "and choose Review changes."
+  ],
+  [
+   39.1,
+   "Next time, Command Shift R opens it straight away."
+  ],
+  [
+   43.5,
+   "Every change is in one view, file by file."
+  ],
+  [
+   47.3,
+   "On each changed line, red is how it was, and green is what Claude wrote."
+  ],
+  [
+   52.5,
+   "On the right are the files that changed,"
+  ],
+  [
+   54.8,
+   "each marked M, for modified,"
+  ],
+  [
+   56.7,
+   "and the number on Changes counts them."
+  ],
+  [
+   59,
+   "Click a file to see just that one:"
+  ],
+  [
+   61.8,
+   "its diff, or switch to File to read the whole file."
+  ],
+  [
+   66,
+   "Don't want the README change?"
+  ],
+  [
+   68.4,
+   "Hover it, and click the undo arrow."
+  ],
+  [
+   71,
+   "Confirm with Discard, and the file is back the way it was."
+  ],
+  [
+   74.8,
+   "The rest looks good, so click Commit in the footer, type a message, and commit it."
+  ],
+  [
+   80.5,
+   "The list is empty: the change is committed, and there's nothing left to review."
+  ],
+  [
+   85.7,
+   "So whatever an agent changes,"
+  ],
+  [
+   88.1,
+   "you can read it, undo what you don't want,"
+  ],
+  [
+   90.6,
+   "and commit the rest, without leaving lpm."
+  ]
+ ],
+ "action-zones": [
+  [
+   0.3,
+   "Too many buttons in your lpm header?"
+  ],
+  [
+   3.5,
+   "Stack them in a zone, flip between layers,"
+  ],
+  [
+   6.2,
+   "or fold the whole zone into one button."
+  ],
+  [
+   13.2,
+   "Here's storefront."
+  ],
+  [
+   14.8,
+   "Next to Claude and Codex sit five more buttons,"
+  ],
+  [
+   18,
+   "for builds, deploys, formatting, linting and tests."
+  ],
+  [
+   22.3,
+   "The header has run out of room,"
+  ],
+  [
+   24.4,
+   "so they've wrapped onto a second line."
+  ],
+  [
+   26.7,
+   "A zone fixes that:"
+  ],
+  [
+   28.3,
+   "a framed spot that stacks buttons up to three rows tall. Right-click Test,"
+  ],
+  [
+   32.9,
+   "open Move, and choose New zone with Test."
+  ],
+  [
+   35.9,
+   "A frame takes Test's place, with Test inside."
+  ],
+  [
+   39.5,
+   "To set it up, right-click Test again,"
+  ],
+  [
+   42.5,
+   "choose its zone, then Edit zone."
+  ],
+  [
+   45.2,
+   "Name it Tasks: the name shows in menus,"
+  ],
+  [
+   48.7,
+   "not on the zone."
+  ],
+  [
+   50.2,
+   "Make it two rows tall, and click Save."
+  ],
+  [
+   53.6,
+   "Now Lint: right-click it, and under Move,"
+  ],
+  [
+   57.1,
+   "choose Into Tasks. Lint stacks under Test."
+  ],
+  [
+   61.2,
+   "Format goes in the same way, and starts a second column:"
+  ],
+  [
+   64.9,
+   "a zone fills from top to bottom, then the next column."
+  ],
+  [
+   68.2,
+   "A zone can also hold several sets of buttons, called layers."
+  ],
+  [
+   72.5,
+   "Right-click the free corner of the frame,"
+  ],
+  [
+   74.1,
+   "and choose Edit zone again."
+  ],
+  [
+   76.9,
+   "Click Add layer, and you get two."
+  ],
+  [
+   80.3,
+   "Name the first Checks, and the second Release, then click Save."
+  ],
+  [
+   85.9,
+   "Dots now sit under the zone, with the open layer's"
+  ],
+  [
+   89.2,
+   "name. Right-click Build, and under Move,"
+  ],
+  [
+   92,
+   "choose Into Tasks, Release."
+  ],
+  [
+   94.4,
+   "The zone slides over to Release,"
+  ],
+  [
+   96.6,
+   "and Build lands there."
+  ],
+  [
+   99.1,
+   "Move Deploy there the same way."
+  ],
+  [
+   102.3,
+   "Now five buttons share one spot,"
+  ],
+  [
+   104.2,
+   "and the header fits on a single line again."
+  ],
+  [
+   107.7,
+   "To go back to Checks, click the first dot."
+  ],
+  [
+   111.4,
+   "On a trackpad, a sideways swipe over the zone flips layers too."
+  ],
+  [
+   115.8,
+   "Need even more room?"
+  ],
+  [
+   118,
+   "Hover the zone, and click the small button in its corner:"
+  ],
+  [
+   121.2,
+   "the zone folds into one button, Tasks."
+  ],
+  [
+   124.6,
+   "Hover Tasks, and its buttons pop up,"
+  ],
+  [
+   127.4,
+   "layers and all, ready to click."
+  ],
+  [
+   129.8,
+   "Click the arrows beside it to unfold the zone again."
+  ],
+  [
+   133.9,
+   "Everything else is in the zone's menu:"
+  ],
+  [
+   136.9,
+   "right-click its free corner."
+  ],
+  [
+   138.8,
+   "New layer adds a layer, and Remove zone puts every button back in the header,"
+  ],
+  [
+   143.8,
+   "deleting nothing."
+  ],
+  [
+   144.8,
+   "Zones keep related buttons together,"
+  ],
+  [
+   147.3,
+   "up to three rows tall, in the header or the footer,"
+  ],
+  [
+   150.3,
+   "and layers let one spot hold several sets of them."
+  ]
+ ],
+ "connect-iphone": [
+  [
+   1.1,
+   "Send Claude Code a prompt from your iPhone, and it runs on your Mac,"
+  ],
+  [
+   5.9,
+   "at home or on cellular."
+  ],
+  [
+   11.4,
+   "On the Mac, click the plus above your projects,"
+  ],
+  [
+   13.9,
+   "and choose Phone."
+  ],
+  [
+   15.9,
+   "On the iPhone you need lpm Link, free on the App Store."
+  ],
+  [
+   20,
+   "Turn on Remote control, and lpm Link can reach this Mac on your Wi-Fi,"
+  ],
+  [
+   25.1,
+   "while it's awake with lpm open."
+  ],
+  [
+   27.6,
+   "Away from home, your phone can't reach it."
+  ],
+  [
+   30.5,
+   "Built-in Tailscale fixes that:"
+  ],
+  [
+   32.3,
+   "one private network for your Mac and iPhone,"
+  ],
+  [
+   34.9,
+   "encrypted end to end, with no Tailscale app and no ports to open."
+  ],
+  [
+   39.1,
+   "On the Mac, click Set up,"
+  ],
+  [
+   41.9,
+   "then Sign in with Tailscale."
+  ],
+  [
+   46.3,
+   "Your browser opens Tailscale's"
+  ],
+  [
+   48.3,
+   "sign-in page, and a personal account is free."
+  ],
+  [
+   51.4,
+   "Once you're in, the Mac is on your private network,"
+  ],
+  [
+   53.5,
+   "with an address of its own."
+  ],
+  [
+   55.6,
+   "Now the iPhone."
+  ],
+  [
+   57.3,
+   "In lpm Link, tap Set up Built-in Tailscale,"
+  ],
+  [
+   61,
+   "turn it on, and tap Sign in with Tailscale."
+  ],
+  [
+   66.8,
+   "Sign in with the same account you use on the Mac."
+  ],
+  [
+   69.9,
+   "Both now show it, so they're on one private network, and you can tap Done."
+  ],
+  [
+   76.4,
+   "Now pair: your Mac shows up under On this Wi-Fi, so tap it."
+  ],
+  [
+   82.5,
+   "The Mac asks to let this iPhone in."
+  ],
+  [
+   85.4,
+   "The codes on both screens match,"
+  ],
+  [
+   87.3,
+   "so it's really your phone: click Allow."
+  ],
+  [
+   92.3,
+   "lpm Link is connected, and"
+  ],
+  [
+   94.6,
+   "Away from home says Ready."
+  ],
+  [
+   96.9,
+   "Tap Done, and your Mac's projects are on the phone."
+  ],
+  [
+   100.4,
+   "Now for Claude Code."
+  ],
+  [
+   102.8,
+   "On the Mac, open storefront, and"
+  ],
+  [
+   105.4,
+   "click Claude to start a session."
+  ],
+  [
+   108.5,
+   "On the phone, tap storefront,"
+  ],
+  [
+   110.5,
+   "then its Claude tab."
+  ],
+  [
+   112.2,
+   "The session is still on the Mac,"
+  ],
+  [
+   114.1,
+   "so tap Take control, and the Mac shows it's active on your iPhone."
+  ],
+  [
+   121.6,
+   "Type a prompt, like what does this project do, and tap send."
+  ],
+  [
+   128.7,
+   "Claude Code runs on your Mac, and the answer shows up right on your phone."
+  ],
+  [
+   133.2,
+   "Back at the Mac, click Take control, and the session moves back."
+  ],
+  [
+   137.4,
+   "Now say you leave home, and your phone is on cellular: open lpm Link."
+  ],
+  [
+   151.6,
+   "It can't reach the Mac directly,"
+  ],
+  [
+   154.1,
+   "so it connects over Tailscale on its own,"
+  ],
+  [
+   156,
+   "and your projects and sessions are right there."
+  ],
+  [
+   158.6,
+   "Remote control on the Mac,"
+  ],
+  [
+   160.8,
+   "Built-in Tailscale on both,"
+  ],
+  [
+   162.6,
+   "one pairing, and Claude Code goes wherever your phone does."
+  ]
+ ],
+ "create-an-automation": [
+  [
+   0.3,
+   "Put an AI agent on a schedule:"
+  ],
+  [
+   2.6,
+   "it checks your code every weekday evening on its own, and you read what it found."
+  ],
+  [
+   10.2,
+   "Open More at the bottom of the sidebar,"
+  ],
+  [
+   13.1,
+   "then Automations. Nothing is scheduled yet, so click New automation."
+  ],
+  [
+   18.5,
+   "Name it Bug check."
+  ],
+  [
+   20.7,
+   "AI prompt is already picked: an agent follows your written instructions."
+  ],
+  [
+   25.3,
+   "Command runs one shell line instead,"
+  ],
+  [
+   28.2,
+   "and Action, once a project is picked, starts one of its actions."
+  ],
+  [
+   32.5,
+   "Tell the agent what to do:"
+  ],
+  [
+   34.6,
+   "check the cart code for bugs, with a one-line fix for each."
+  ],
+  [
+   38.4,
+   "At the right of the box,"
+  ],
+  [
+   40.4,
+   "pick who runs it: Claude Code with Sonnet, at Low effort, quick and cheap."
+  ],
+  [
+   45.9,
+   "Standalone runs it in your home folder."
+  ],
+  [
+   49.2,
+   "Open it and pick storefront."
+  ],
+  [
+   51.3,
+   "A fresh copy or a Git worktree would leave your real folder untouched;"
+  ],
+  [
+   55.5,
+   "keep The project itself."
+  ],
+  [
+   57.1,
+   "Nobody is there to approve its steps,"
+  ],
+  [
+   59.6,
+   "so change Full access to Read only:"
+  ],
+  [
+   62.6,
+   "it can look, but not change anything."
+  ],
+  [
+   65.1,
+   "The same row picks which runs to report and where the results go,"
+  ],
+  [
+   69.7,
+   "and Only run when there's work can skip a quiet day."
+  ],
+  [
+   73.7,
+   "Now, when it runs."
+  ],
+  [
+   75.9,
+   "Choose Weekly, add Tuesday to Friday,"
+  ],
+  [
+   78.3,
+   "and set the time to six in the evening."
+  ],
+  [
+   82.5,
+   "The footer sums it up: when the first run is,"
+  ],
+  [
+   85.8,
+   "and how it repeats. Click Create automation."
+  ],
+  [
+   89.8,
+   "Bug check is in the list, with its project,"
+  ],
+  [
+   92.4,
+   "its schedule and its next run."
+  ],
+  [
+   94.7,
+   "No need to wait for the evening:"
+  ],
+  [
+   97,
+   "open it, and click Run now."
+  ],
+  [
+   99.9,
+   "The run starts right away,"
+  ],
+  [
+   102.3,
+   "and you can follow what the agent is doing."
+  ],
+  [
+   107.2,
+   "It's done, and here's what it found:"
+  ],
+  [
+   109.6,
+   "the cart adds the tax twice, with a one-line fix."
+  ],
+  [
+   113.4,
+   "Open the run to read all of it,"
+  ],
+  [
+   115.8,
+   "and reply there to ask a follow-up."
+  ],
+  [
+   118.5,
+   "That's an automation: what it does,"
+  ],
+  [
+   121.4,
+   "where it runs, what it may change,"
+  ],
+  [
+   123,
+   "and when, all in one place."
+  ]
+ ],
+ "run-any-ai-coding-agent": [
+  [
+   0.3,
+   "Cursor, Claude Code, Codex,"
+  ],
+  [
+   3.3,
+   "whatever you use: add it to lpm as a button and run them side by side."
+  ],
+  [
+   11.6,
+   "Here's storefront: Claude and Codex sit in its header, one click each."
+  ],
+  [
+   17.4,
+   "To add another, like Cursor's command line agent, click plus Action."
+  ],
+  [
+   22.5,
+   "Name it Cursor, and type the command you'd run in a terminal: agent."
+  ],
+  [
+   27.4,
+   "It runs in a new terminal,"
+  ],
+  [
+   29.2,
+   "as an agent should, so click Create action,"
+  ],
+  [
+   32.5,
+   "and Cursor joins Claude and Codex in the header."
+  ],
+  [
+   36.2,
+   "Click Cursor: the real Cursor agent starts in its own tab, signed in as you."
+  ],
+  [
+   42.3,
+   "Click Split right, then Claude,"
+  ],
+  [
+   46,
+   "and the two sit side by side."
+  ],
+  [
+   49.2,
+   "Ask both the same question in their prompt boxes: what does this project do?"
+  ],
+  [
+   54.7,
+   "While they work, both show up under storefront in the sidebar,"
+  ],
+  [
+   58.4,
+   "Cursor too, each with a clock."
+  ],
+  [
+   60.8,
+   "Both answer from the same folder,"
+  ],
+  [
+   63.4,
+   "and each row gets a check when it's done."
+  ],
+  [
+   66.2,
+   "Gemini CLI, OpenCode, or any other agent works the same way:"
+  ],
+  [
+   70.9,
+   "a name, a command, and it's one click away."
+  ]
+ ],
+ "auto-pull-complete-guide": [
+  [
+   0.3,
+   "Your teammates push, and lpm pulls their commits in for you,"
+  ],
+  [
+   4.8,
+   "waits whenever your own work is in the way,"
+  ],
+  [
+   7.5,
+   "and undoes any pull in one click."
+  ],
+  [
+   13.9,
+   "Here are three projects your team works on."
+  ],
+  [
+   16.7,
+   "The blue arrow next to storefront means origin has three new commits you don't have"
+  ],
+  [
+   20.4,
+   "yet. lpm checks for them in the background, every ten minutes."
+  ],
+  [
+   24.9,
+   "Rest the pointer on it,"
+  ],
+  [
+   26.9,
+   "and a card says what's new and offers to pull for you from now on."
+  ],
+  [
+   31.4,
+   "Choose Turn on for all projects."
+  ],
+  [
+   34.3,
+   "storefront pulls right away,"
+  ],
+  [
+   36,
+   "and a note says three commits came in."
+  ],
+  [
+   38.7,
+   "Now a teammate pushes one more commit."
+  ],
+  [
+   41.8,
+   "There's nothing to click:"
+  ],
+  [
+   43.3,
+   "on lpm's next check, storefront pulls it in by itself, with a note of its own."
+  ],
+  [
+   48.9,
+   "Any pull can be undone, from its note,"
+  ],
+  [
+   51.4,
+   "or later from the project's"
+  ],
+  [
+   53.2,
+   "menu: right-click storefront,"
+  ],
+  [
+   55.2,
+   "open Git, and choose Undo auto pull."
+  ],
+  [
+   58.2,
+   "storefront is back where it was, one commit behind,"
+  ],
+  [
+   62,
+   "and auto pull leaves that commit alone until something newer arrives."
+  ],
+  [
+   66.7,
+   "Auto pull never pulls over your own work."
+  ],
+  [
+   70.1,
+   "client-portal has changes I haven't committed,"
+  ],
+  [
+   72.6,
+   "so its arrow is gray."
+  ],
+  [
+   74.8,
+   "Rest on it, and the card says it's waiting for them."
+  ],
+  [
+   77.8,
+   "docs has a commit of mine that isn't pushed yet,"
+  ],
+  [
+   80.8,
+   "so a pull would mix the two histories."
+  ],
+  [
+   83.5,
+   "Auto pull leaves that to you: Sync, when you're ready."
+  ],
+  [
+   86.8,
+   "It also waits while an agent is working in a project."
+  ],
+  [
+   89.9,
+   "To keep a project still,"
+  ],
+  [
+   91.6,
+   "like docs, right-click it, open Git,"
+  ],
+  [
+   94.3,
+   "and under Auto pull, choose Off."
+  ],
+  [
+   97.2,
+   "Everything else is in Settings,"
+  ],
+  [
+   99.3,
+   "and the card on any arrow links straight to it."
+  ],
+  [
+   102.4,
+   "Check for new commits finds them,"
+  ],
+  [
+   105.1,
+   "and Auto pull is Off, Chosen, for just the projects you turn on,"
+  ],
+  [
+   109.1,
+   "or All. Below it, lpm lists the projects that differ, like docs."
+  ],
+  [
+   114.7,
+   "Turn it on once, and your projects keep up with your team by themselves,"
+  ],
+  [
+   119.3,
+   "without ever pulling over your own work."
+  ]
+ ],
+ "dynamic-action-labels": [
+  [
+   0.3,
+   "Your lpm buttons can show live info:"
+  ],
+  [
+   3.5,
+   "your last release and how long ago it was,"
+  ],
+  [
+   5.8,
+   "or anything a command prints,"
+  ],
+  [
+   7.6,
+   "and they stay current by themselves."
+  ],
+  [
+   13.3,
+   "Here's storefront. Its Release button tags a new version,"
+  ],
+  [
+   16.8,
+   "but it doesn't say what the last one was."
+  ],
+  [
+   19.2,
+   "Right-click it, and choose Edit action."
+  ],
+  [
+   22,
+   "At the end of the name, add the newest tag and its age,"
+  ],
+  [
+   25.9,
+   "each in double braces: git dot tag,"
+  ],
+  [
+   28.3,
+   "and git dot tag age."
+  ],
+  [
+   30.8,
+   "The action also asks which kind of release."
+  ],
+  [
+   34.3,
+   "Open the question, and its choices use variables too:"
+  ],
+  [
+   37.6,
+   "the next patch, minor and major version."
+  ],
+  [
+   40.5,
+   "Click Save changes."
+  ],
+  [
+   42.7,
+   "Now the button reads Release 1.4.2,"
+  ],
+  [
+   46.2,
+   "3 days ago: lpm read both from Git."
+  ],
+  [
+   49.6,
+   "Click it, and each choice shows the version it will make."
+  ],
+  [
+   52.8,
+   "Keep Patch, and click Run."
+  ],
+  [
+   55.3,
+   "The release runs in the background,"
+  ],
+  [
+   57.5,
+   "and a note in the corner says when it's done."
+  ],
+  [
+   60.3,
+   "Seconds later, the button reads 1.4.3,"
+  ],
+  [
+   63.3,
+   "just now. Nobody edited the label: the new tag did."
+  ],
+  [
+   67.9,
+   "A label can also show what a command prints."
+  ],
+  [
+   71,
+   "Click plus Action, and in the name,"
+  ],
+  [
+   72.9,
+   "write To-dos, then the command inside a dollar sign and parentheses,"
+  ],
+  [
+   76.2,
+   "the way your shell does."
+  ],
+  [
+   78.3,
+   "This one counts the to-do comments in src."
+  ],
+  [
+   81.4,
+   "As the command, list them,"
+  ],
+  [
+   83.3,
+   "and under How it runs, choose Run and show the output."
+  ],
+  [
+   87.2,
+   "Click Create action, and the new button runs its command right away."
+  ],
+  [
+   91.7,
+   "It reads To-dos, 6."
+  ],
+  [
+   94.2,
+   "Click it, and the output lists every one of them."
+  ],
+  [
+   97.7,
+   "Git variables follow Git on their own."
+  ],
+  [
+   100.6,
+   "Commands run again every minute,"
+  ],
+  [
+   102.2,
+   "and right after any background action in the project, like a release."
+  ],
+  [
+   106.1,
+   "Double braces for what Git knows,"
+  ],
+  [
+   108.8,
+   "a dollar sign for anything else,"
+  ],
+  [
+   110.8,
+   "and your buttons stay current by themselves."
+  ]
+ ],
+ "share-terminal-in-browser": [
+  [
+   0.3,
+   "Share your Claude Code tab with a link:"
+  ],
+  [
+   3.2,
+   "your teammate watches it live in their browser,"
+  ],
+  [
+   5.2,
+   "and types in it when you let them."
+  ],
+  [
+   10.7,
+   "On the left is your Mac:"
+  ],
+  [
+   13,
+   "click Claude to start Claude Code in storefront."
+  ],
+  [
+   16.3,
+   "On the right, your teammate has just a browser, no lpm."
+  ],
+  [
+   20.9,
+   "Click Share, at the top right of the tab."
+  ],
+  [
+   23.9,
+   "lpm makes a link and copies it for you,"
+  ],
+  [
+   26.5,
+   "so send it to your teammate in a chat or an email."
+  ],
+  [
+   29.7,
+   "Your teammate opens the link."
+  ],
+  [
+   31.8,
+   "With lpm installed, Open lpm takes them straight in;"
+  ],
+  [
+   35.4,
+   "without it, they click Join in browser."
+  ],
+  [
+   37.9,
+   "They type their name, and click Ask to join."
+  ],
+  [
+   41.5,
+   "lpm asks you first."
+  ],
+  [
+   43.9,
+   "Both screens show the same four emoji,"
+  ],
+  [
+   46.1,
+   "so you can check it's really them, then click Let in."
+  ],
+  [
+   50.2,
+   "Your teammate now sees your tab live, but can't type in it."
+  ],
+  [
+   53.9,
+   "Ask Claude how checkout totals are calculated, and send it."
+  ],
+  [
+   61.3,
+   "The answer shows up in their browser at the same moment,"
+  ],
+  [
+   64.7,
+   "encrypted all the way, so lpm's"
+  ],
+  [
+   66.9,
+   "relay in between can't read it."
+  ],
+  [
+   69.2,
+   "To help out, they click Ask to type,"
+  ],
+  [
+   71.9,
+   "and on your Mac you click Let Sam type."
+  ],
+  [
+   75.1,
+   "Now they send Claude a follow-up, right in your session."
+  ],
+  [
+   78.7,
+   "The keys under their box answer Claude's questions, Control C included."
+  ],
+  [
+   84.1,
+   "Claude answers in both places, and you see every word they typed."
+  ],
+  [
+   88.6,
+   "Click Share again to see who's in:"
+  ],
+  [
+   91.4,
+   "Can type takes typing back from one person,"
+  ],
+  [
+   93.3,
+   "and Stop sharing ends it for everyone."
+  ],
+  [
+   96.6,
+   "Their browser shows right away that you stopped sharing."
+  ],
+  [
+   100.7,
+   "Share a tab, send the link,"
+  ],
+  [
+   103.3,
+   "let each person in yourself,"
+  ],
+  [
+   105.1,
+   "and choose who can type."
+  ],
+  [
+   106.9,
+   "All your teammate needs is a browser."
+  ]
+ ],
+ "claude-code-codex-remote-server": [
+  [
+   0.3,
+   "Your agents don't have to run on your Mac."
+  ],
+  [
+   3.2,
+   "Connect a server once, and Claude Code and Codex work there,"
+  ],
+  [
+   7,
+   "right from the sidebar in lpm."
+  ],
+  [
+   12.7,
+   "Click the plus above your projects, and choose Server."
+  ],
+  [
+   16.8,
+   "There are two ways in."
+  ],
+  [
+   19.1,
+   "Install lpm there runs lpm on the server itself:"
+  ],
+  [
+   23.2,
+   "its agents keep working while your Mac sleeps,"
+  ],
+  [
+   25.5,
+   "and every project on it shows in your sidebar."
+  ],
+  [
+   29.1,
+   "Just SSH in installs nothing,"
+  ],
+  [
+   32.4,
+   "and opens one folder, run from your Mac."
+  ],
+  [
+   35.7,
+   "For agents, choose Install lpm there."
+  ],
+  [
+   38.9,
+   "Type what you'd type after ssh, here root at dev-server,"
+  ],
+  [
+   42.9,
+   "and click Connect."
+  ],
+  [
+   45.3,
+   "If lpm isn't on the server yet,"
+  ],
+  [
+   48.1,
+   "it installs itself, then pairs over SSH."
+  ],
+  [
+   51.7,
+   "On a new server, that first setup takes a few minutes."
+  ],
+  [
+   55.1,
+   "Connected. dev-server gets its own section in your sidebar,"
+  ],
+  [
+   58.7,
+   "and lpm goes straight on to adding a project there."
+  ],
+  [
+   61.8,
+   "Pick Local folder, open notes-api,"
+  ],
+  [
+   64.8,
+   "a folder that's already on the server, and click Add project."
+  ],
+  [
+   68.9,
+   "It opens like any project,"
+  ],
+  [
+   70.9,
+   "with its own terminals and agents,"
+  ],
+  [
+   73.1,
+   "but all of it runs on dev-server."
+  ],
+  [
+   75.8,
+   "Click Claude in the header,"
+  ],
+  [
+   78.1,
+   "ask what this API does, and send it."
+  ],
+  [
+   83.2,
+   "Claude Code is running on dev-server,"
+  ],
+  [
+   85.7,
+   "in the project's folder there,"
+  ],
+  [
+   87.5,
+   "and answers from the files it finds."
+  ],
+  [
+   89.8,
+   "Now click Codex, ask it to list the routes, and send that too."
+  ],
+  [
+   97.1,
+   "Codex lists them."
+  ],
+  [
+   99,
+   "Two agents, both on the server:"
+  ],
+  [
+   100.9,
+   "in the sidebar, each one sits under dev-server,"
+  ],
+  [
+   103.3,
+   "with a check once it's done."
+  ],
+  [
+   105.6,
+   "That's a server in lpm: connect it once with what you'd type after ssh,"
+  ],
+  [
+   110.8,
+   "add its projects, and run Claude Code and Codex there."
+  ]
+ ],
+ "keep-agents-running-on-server": [
+  [
+   0.3,
+   "Close your laptop, and Claude Code stops."
+  ],
+  [
+   3.7,
+   "Run it on an always-on machine instead,"
+  ],
+  [
+   5.6,
+   "and come back to finished work."
+  ],
+  [
+   11.2,
+   "Agents in lpm run on this Mac,"
+  ],
+  [
+   14.3,
+   "so closing the lid stops them."
+  ],
+  [
+   16.6,
+   "An always-on machine, like a Mac mini or a Linux server,"
+  ],
+  [
+   20.4,
+   "keeps them going while you're away."
+  ],
+  [
+   22.8,
+   "On your laptop, click the plus and choose Another computer."
+  ],
+  [
+   27.2,
+   "lpm finds the invite you copied on the Mac mini, so just click Connect."
+  ],
+  [
+   32.8,
+   "Its projects now show in your sidebar,"
+  ],
+  [
+   35.3,
+   "under its name, so open express and work in it."
+  ],
+  [
+   38.6,
+   "Click Claude in the header and give it a long job,"
+  ],
+  [
+   41.6,
+   "like a bug review of the code."
+  ],
+  [
+   43.5,
+   "Send it, and it runs on the Mac mini, not on your laptop."
+  ],
+  [
+   47.3,
+   "Click Codex and give it one too,"
+  ],
+  [
+   49.9,
+   "like explaining how a request flows through the code."
+  ],
+  [
+   52.8,
+   "Send it, and both agents work side by side."
+  ],
+  [
+   56.7,
+   "Now close the laptop."
+  ],
+  [
+   59.2,
+   "Here, a switch stands in for the lid:"
+  ],
+  [
+   61.5,
+   "in Settings, under Connections, disconnect from the Mac mini."
+  ],
+  [
+   66.4,
+   "Meanwhile, both agents keep working on the Mac mini."
+  ],
+  [
+   75.9,
+   "Back at your desk, switch it back on,"
+  ],
+  [
+   78.5,
+   "and lpm reconnects."
+  ],
+  [
+   80.7,
+   "Both agents finished while you were away."
+  ],
+  [
+   83.3,
+   "The check means done, and the time shows how long each one worked."
+  ],
+  [
+   87,
+   "Codex's answer is right here,"
+  ],
+  [
+   89.9,
+   "and Claude's review is one tab over,"
+  ],
+  [
+   92.6,
+   "both in sessions still running on the Mac mini."
+  ],
+  [
+   95.3,
+   "Your agents now live on an always-on machine,"
+  ],
+  [
+   98.4,
+   "so the work goes on with your laptop closed."
+  ]
+ ],
+ "automations-that-ask-you-first": [
+  [
+   0.3,
+   "Your automation stops before it decides:"
+  ],
+  [
+   2.6,
+   "patch, minor or major?"
+  ],
+  [
+   4.9,
+   "One click, and Claude picks up right where it left off."
+  ],
+  [
+   11.5,
+   "Say an automation gets storefront ready for a release every Friday,"
+  ],
+  [
+   14.9,
+   "with Claude Code."
+  ],
+  [
+   16.6,
+   "In the sidebar, click Automations, then Release prep."
+  ],
+  [
+   21.3,
+   "Click Edit, and at the end of its prompt,"
+  ],
+  [
+   24,
+   "say when to ask: ask me first whether it's a patch,"
+  ],
+  [
+   27.7,
+   "minor or major release,"
+  ],
+  [
+   29.3,
+   "and ask me to approve the changelog entry before you save it."
+  ],
+  [
+   33.4,
+   "There's nothing to switch on:"
+  ],
+  [
+   35.3,
+   "in every AI prompt automation,"
+  ],
+  [
+   37.5,
+   "lpm tells the agent how to ask,"
+  ],
+  [
+   39.8,
+   "and to ask only what it can't decide by itself. Just click Save changes."
+  ],
+  [
+   45.4,
+   "Click Run now instead of waiting for Friday,"
+  ],
+  [
+   48.5,
+   "and get on with your work, here in client-portal: you don't have to watch it."
+  ],
+  [
+   56,
+   "When the agent needs you, the Automations row says Needs you,"
+  ],
+  [
+   59.8,
+   "and a notice shows its question: click Answer."
+  ],
+  [
+   63.2,
+   "The question leads its page."
+  ],
+  [
+   65.7,
+   "Each option is a button, and one click answers it,"
+  ],
+  [
+   68.8,
+   "while Skip question closes it unanswered."
+  ],
+  [
+   71.8,
+   "Until you answer, the automation waits:"
+  ],
+  [
+   75.3,
+   "Run now is off, and a scheduled run that comes due is skipped."
+  ],
+  [
+   80.3,
+   "It's a minor release, so click minor."
+  ],
+  [
+   83.9,
+   "Claude picks up in the same conversation,"
+  ],
+  [
+   86.1,
+   "so it remembers everything it read."
+  ],
+  [
+   89,
+   "It drafts the changelog entry for 1.5.0"
+  ],
+  [
+   92.8,
+   "and, as you asked, wants your approval: this one is a yes or no."
+  ],
+  [
+   97.1,
+   "To say more, open the run: the whole conversation is here,"
+  ],
+  [
+   100.6,
+   "with the new question at the bottom."
+  ],
+  [
+   102.9,
+   "In the reply box, type yes, and put today's date in the heading, then send it."
+  ],
+  [
+   112.5,
+   "Claude saves the entry with today's date and says what it did,"
+  ],
+  [
+   116.4,
+   "and the question now reads Answered in a reply."
+  ],
+  [
+   119.7,
+   "An agent can also ask for a written answer,"
+  ],
+  [
+   123,
+   "or several things at once,"
+  ],
+  [
+   124.9,
+   "and lpm Link puts the question on your phone too,"
+  ],
+  [
+   128.3,
+   "so you can answer away from your desk."
+  ]
+ ],
+ "run-agent-commands-in-one-click": [
+  [
+   0.3,
+   "Your agent suggests a command?"
+  ],
+  [
+   3.1,
+   "Don't paste it into another terminal."
+  ],
+  [
+   5.3,
+   "Click it, and it runs right there."
+  ],
+  [
+   11.4,
+   "Open a project, click Claude in the header,"
+  ],
+  [
+   14.2,
+   "and ask how to run the tests and start the dev server."
+  ],
+  [
+   17.5,
+   "Send it, and Claude answers with the commands."
+  ],
+  [
+   22.5,
+   "Hover a command, like npm test,"
+  ],
+  [
+   24.8,
+   "and a Run chip appears right next to it."
+  ],
+  [
+   27.9,
+   "Click Run, and the output opens in a card over the terminal."
+  ],
+  [
+   31.7,
+   "All three tests passed, and Claude's answer is still right there."
+  ],
+  [
+   35.4,
+   "For a command that keeps running,"
+  ],
+  [
+   37.3,
+   "like the dev server, choose Run in new tab, and it gets a terminal of its own."
+  ],
+  [
+   42.2,
+   "It works the same in Codex."
+  ],
+  [
+   44.5,
+   "Click Codex in the header, ask how to lint the code and do a clean reinstall,"
+  ],
+  [
+   48.8,
+   "and send it."
+  ],
+  [
+   52.8,
+   "Even faster: hold Command and click npm run lint itself."
+  ],
+  [
+   57.6,
+   "It runs straight away, no chip needed."
+  ],
+  [
+   60.4,
+   "A command that can do damage,"
+  ],
+  [
+   62.2,
+   "like this clean reinstall,"
+  ],
+  [
+   64.3,
+   "asks once more before it runs,"
+  ],
+  [
+   65.9,
+   "so you choose Run anyway or Cancel."
+  ],
+  [
+   68.5,
+   "Now every command your agent suggests is one click away,"
+  ],
+  [
+   72.2,
+   "in Claude Code, Codex, or any terminal tab in lpm."
+  ]
+ ],
+ "sync-ignored-files": [
+  [
+   0.3,
+   "Git never copies your .env"
+  ],
+  [
+   3,
+   "to your other computer."
+  ],
+  [
+   5,
+   "lpm does, and keeps it the same on both."
+  ],
+  [
+   12.7,
+   "Your storefront project is on this Mac and on your Mac mini,"
+  ],
+  [
+   17.1,
+   "cloned from the same repository."
+  ],
+  [
+   19.2,
+   "But git leaves out what it ignores,"
+  ],
+  [
+   21.4,
+   "so the Mac mini is missing your keys and local settings."
+  ],
+  [
+   25.2,
+   "Right-click storefront and choose Sync Ignored Files."
+  ],
+  [
+   30.3,
+   "At the top are the two computers it keeps the same:"
+  ],
+  [
+   33.8,
+   "this Mac, and the Mac mini."
+  ],
+  [
+   36.1,
+   "Below is everything git ignores,"
+  ],
+  [
+   38.5,
+   "on either one, and where each file is."
+  ],
+  [
+   41.3,
+   "Your local settings and certificates are only on this Mac."
+  ],
+  [
+   44.9,
+   "lpm has already ticked your secrets and local config,"
+  ],
+  [
+   49.2,
+   "and left heavy folders like node_modules out."
+  ],
+  [
+   52.7,
+   "Your .env is on both, but the Mac mini's is older."
+  ],
+  [
+   57.2,
+   "Click Compare to see it key by key,"
+  ],
+  [
+   59.3,
+   "with the values hidden: the Stripe key is new here."
+  ],
+  [
+   62.8,
+   "Where they differ, lpm keeps the newest copy."
+  ],
+  [
+   66.8,
+   "Click Sync, and the files are copied to the Mac mini."
+  ],
+  [
+   70.1,
+   "From now on, they stay the same both ways, whenever both computers are connected."
+  ],
+  [
+   75.5,
+   "Click Done, and open storefront on the Mac mini."
+  ],
+  [
+   80.3,
+   "Press Command Shift E to see its files."
+  ],
+  [
+   84.6,
+   "Your .env is there now, with the Stripe key."
+  ],
+  [
+   87.8,
+   "Tick your ignored files once,"
+  ],
+  [
+   90,
+   "and every computer you work on has them."
+  ]
+ ],
+ "lpm-in-3-minutes": [
+  [
+   0.3,
+   "A terminal for every service,"
+  ],
+  [
+   2.7,
+   "a busy port, agents to babysit?"
+  ],
+  [
+   5.3,
+   "lpm runs your dev servers and AI coding agents in one window."
+  ],
+  [
+   9.5,
+   "Here's all of it, in three minutes."
+  ],
+  [
+   15.2,
+   "Your projects live in this sidebar."
+  ],
+  [
+   18,
+   "storefront, a small coffee shop,"
+  ],
+  [
+   19.9,
+   "has an API, a web app and a worker: click Start, and all three run."
+  ],
+  [
+   24.9,
+   "Each gets its own tab, and the API and web app show their live ports."
+  ],
+  [
+   30.6,
+   "Click All to see them side by side."
+  ],
+  [
+   32.7,
+   "Click the web app's port,"
+  ],
+  [
+   34.8,
+   "and the shop itself opens in a browser tab, right here inside lpm."
+  ],
+  [
+   39.3,
+   "Open client-portal: storefront keeps running,"
+  ],
+  [
+   42.7,
+   "its dot still green."
+  ],
+  [
+   44.7,
+   "client-portal needs port 3000,"
+  ],
+  [
+   46.4,
+   "though, and something already holds it."
+  ],
+  [
+   49.1,
+   "Click Start, and instead of a crash in the logs,"
+  ],
+  [
+   52.6,
+   "lpm shows who's holding it: a forgotten node server."
+  ],
+  [
+   56.3,
+   "Click Stop and start: lpm ends that server,"
+  ],
+  [
+   60.6,
+   "starts client-portal on 3000, and both projects run."
+  ],
+  [
+   64.2,
+   "Back in storefront, Claude Code and Codex sit in the header."
+  ],
+  [
+   68.9,
+   "Click Claude: it opens right beside your services."
+  ],
+  [
+   72.1,
+   "In the prompt box, ask which port each service uses, and send it."
+  ],
+  [
+   77.7,
+   "Want a second opinion?"
+  ],
+  [
+   79.4,
+   "Click Split right, then Codex in the header, and type the same question."
+  ],
+  [
+   84.5,
+   "Send it, and keep working while they think:"
+  ],
+  [
+   87.5,
+   "in client-portal, click plus Action,"
+  ],
+  [
+   90.1,
+   "and lpm suggests your package.json"
+  ],
+  [
+   92.3,
+   "scripts: pick Build, then Create action."
+  ],
+  [
+   96.3,
+   "Click Build: it runs in the background,"
+  ],
+  [
+   99.2,
+   "and the notice in the corner turns to a check."
+  ],
+  [
+   102.7,
+   "Both agents are done, each with a check and its time."
+  ],
+  [
+   106.2,
+   "Click Claude's row: both answers agree,"
+  ],
+  [
+   108.8,
+   "API on 4000, web app on 5173."
+  ],
+  [
+   113.5,
+   "Now a real change: in client-portal,"
+  ],
+  [
+   116.3,
+   "click Claude, ask for a health check route, and open the menu next to Send."
+  ],
+  [
+   121.3,
+   "Choose Run in duplicates:"
+  ],
+  [
+   124.2,
+   "lpm copies the project, so each run gets its own folder,"
+  ],
+  [
+   128.2,
+   "and click Run 2 in parallel."
+  ],
+  [
+   132.8,
+   "The project and its copy open"
+  ],
+  [
+   135.3,
+   "side by side, with Claude at work in each,"
+  ],
+  [
+   138.4,
+   "and the sidebar tracks both."
+  ],
+  [
+   142.8,
+   "Both are done."
+  ],
+  [
+   144.6,
+   "Keep the one you like, here the original,"
+  ],
+  [
+   146.7,
+   "then open the copy's menu and choose Delete duplicate."
+  ],
+  [
+   150.5,
+   "lpm first lists the work that exists only in that copy,"
+  ],
+  [
+   154.3,
+   "and Delete removes it."
+  ],
+  [
+   157,
+   "Open the three-dot menu and click Review changes:"
+  ],
+  [
+   160.8,
+   "every edit Claude made, in one place."
+  ],
+  [
+   163.9,
+   "Click Commit in the footer,"
+  ],
+  [
+   165.9,
+   "type a short message, and commit it: there's nothing left to commit."
+  ],
+  [
+   169.7,
+   "Some work runs without you:"
+  ],
+  [
+   172.1,
+   "Automations run a prompt or a command on a schedule, and the Week view shows when."
+  ],
+  [
+   176.9,
+   "And the plus button adds more than folders and Git repos:"
+  ],
+  [
+   180.5,
+   "a Linux server, another computer,"
+  ],
+  [
+   182.8,
+   "or your phone with lpm Link."
+  ],
+  [
+   185,
+   "lpm runs on macOS, Linux and Windows:"
+  ],
+  [
+   189,
+   "every project, its services and its agents, in one window."
+  ]
+ ],
+ "stop-mac-sleeping-while-agents-run": [
+  [
+   0.3,
+   "Your Mac goes to sleep, and your coding agent stops halfway."
+  ],
+  [
+   5.2,
+   "lpm keeps it awake while agents work,"
+  ],
+  [
+   7.3,
+   "and lets it sleep once they're done."
+  ],
+  [
+   13.5,
+   "At the bottom of the sidebar,"
+  ],
+  [
+   15.5,
+   "click More, then Keep awake, and its menu opens."
+  ],
+  [
+   19.6,
+   "It's off, so your Mac sleeps on its usual schedule."
+  ],
+  [
+   23,
+   "You can keep it awake while agents work,"
+  ],
+  [
+   25,
+   "for a set time, or until you turn it off."
+  ],
+  [
+   27.8,
+   "Choose While agents work."
+  ],
+  [
+   30.3,
+   "Then stay awake adds time after the last agent finishes:"
+  ],
+  [
+   33.6,
+   "it's five minutes by default,"
+  ],
+  [
+   35.2,
+   "and here we pick fifteen."
+  ],
+  [
+   37.8,
+   "Keep the screen on too is ticked,"
+  ],
+  [
+   40.5,
+   "and On battery too keeps it awake unplugged,"
+  ],
+  [
+   43.5,
+   "until the battery drops to twenty percent."
+  ],
+  [
+   46,
+   "Closing the lid still puts it to sleep, unless a display is connected."
+  ],
+  [
+   50.6,
+   "Now give Claude some work."
+  ],
+  [
+   52.8,
+   "Click Claude in the header, and ask it to review the shop's code."
+  ],
+  [
+   57,
+   "Send it, and a steaming coffee cup appears on More: your Mac is kept awake."
+  ],
+  [
+   63.3,
+   "Open More, and Keep awake reads one agent."
+  ],
+  [
+   66.5,
+   "Click it to see why: one agent is working,"
+  ],
+  [
+   69.1,
+   "and your Mac stays awake fifteen minutes after the last one finishes."
+  ],
+  [
+   76.1,
+   "Claude is done, so the countdown starts."
+  ],
+  [
+   79.3,
+   "Open More, then Keep awake:"
+  ],
+  [
+   81,
+   "in fifteen minutes your Mac can sleep,"
+  ],
+  [
+   83.1,
+   "unless another agent starts first."
+  ],
+  [
+   85.5,
+   "Leaving it overnight?"
+  ],
+  [
+   87.3,
+   "Under For a set time, pick eight hours, or set your own with Custom."
+  ],
+  [
+   91.5,
+   "To keep the countdown in view,"
+  ],
+  [
+   93.8,
+   "open More, click Keep awake's three dots,"
+  ],
+  [
+   96.9,
+   "and choose Move to the sidebar."
+  ],
+  [
+   99.5,
+   "Now the sidebar counts down."
+  ],
+  [
+   102,
+   "Rest on it, and plus one hour adds an hour."
+  ],
+  [
+   105.3,
+   "For no end at all, pick Until I turn it off:"
+  ],
+  [
+   108.8,
+   "the sidebar reads On until you click Turn off, or quit lpm."
+  ],
+  [
+   113.6,
+   "So pick While agents work,"
+  ],
+  [
+   116.2,
+   "and your Mac stays awake until your agents are done, then sleeps on its own."
+  ]
+ ],
+ "agents-other-computer": [
+  [
+   0.8,
+   "Halfway through a session,"
+  ],
+  [
+   2.9,
+   "Claude Code pushes a branch, has your Mac mini run the slow tests on it,"
+  ],
+  [
+   6.7,
+   "and keeps working here."
+  ],
+  [
+   10.9,
+   "Claude Code is in the middle of a session on this MacBook Pro,"
+  ],
+  [
+   14.9,
+   "adding a SAVE20 coupon to storefront."
+  ],
+  [
+   17.8,
+   "The full test suite is slow,"
+  ],
+  [
+   19.6,
+   "so it was told not to run the tests here."
+  ],
+  [
+   26.6,
+   "The code is ready, and your Mac mini is free,"
+  ],
+  [
+   30.8,
+   "so hand it the tests on a branch, without leaving this session."
+  ],
+  [
+   34.8,
+   "Type the next request and an at sign:"
+  ],
+  [
+   37.4,
+   "the Mac mini already allows commands,"
+  ],
+  [
+   39.7,
+   "as set in Settings, Connections."
+  ],
+  [
+   42.5,
+   "Click Mac mini, then storefront, its own copy of the project."
+  ],
+  [
+   47.9,
+   "Ask Claude to commit on a new branch and push it,"
+  ],
+  [
+   52,
+   "have the Mac mini switch to that branch and run the tests in the background,"
+  ],
+  [
+   55.3,
+   "and update the README here meanwhile, then click Send."
+  ],
+  [
+   62.7,
+   "Claude committed on a new branch and pushed it."
+  ],
+  [
+   66.2,
+   "Now lpm asks before the Mac mini fetches that branch,"
+  ],
+  [
+   70.4,
+   "switches to it and runs the tests,"
+  ],
+  [
+   72.4,
+   "so click Allow for this tab,"
+  ],
+  [
+   74.2,
+   "and its next steps there won't ask again."
+  ],
+  [
+   77.2,
+   "While the tests run on the Mac mini,"
+  ],
+  [
+   80.1,
+   "Claude keeps working here, adding SAVE20 to the README."
+  ],
+  [
+   86.7,
+   "When the run ends, Claude reports back:"
+  ],
+  [
+   90.4,
+   "all fourteen tests pass on the Mac mini, on the new branch."
+  ],
+  [
+   94.9,
+   "Open storefront under Mac mini: it's on the new branch now,"
+  ],
+  [
+   98.6,
+   "ready for more work there."
+  ],
+  [
+   100.2,
+   "Push a branch, hand the slow part to another computer mid-session,"
+  ],
+  [
+   104,
+   "and your agent keeps going here."
+  ]
+ ],
+ "six-action-button-ideas": [
+  [
+   0.8,
+   "Six buttons that show what's happening in your project:"
+  ],
+  [
+   3.9,
+   "a live number on the button, and a full chart when you point at it."
+  ],
+  [
+   9.9,
+   "Here's storefront, a small online coffee shop,"
+  ],
+  [
+   12.7,
+   "with five of those buttons already in its header."
+  ],
+  [
+   15.2,
+   "We'll build the sixth one together at the end."
+  ],
+  [
+   17.8,
+   "Every button here has two parts:"
+  ],
+  [
+   20.4,
+   "the face, which shows one number and keeps it current,"
+  ],
+  [
+   23.7,
+   "and a popup, a small page that opens when you rest your pointer on it."
+  ],
+  [
+   28.1,
+   "Bundle size shows how big your app is,"
+  ],
+  [
+   30.7,
+   "right on the button. Point at it,"
+  ],
+  [
+   33.1,
+   "and a popup shows the size of each commit and your largest packages. The dashed line"
+  ],
+  [
+   38.3,
+   "is your budget."
+  ],
+  [
+   39.7,
+   "Now add a heavy package, and watch the button."
+  ],
+  [
+   44,
+   "It jumps past the budget and turns red,"
+  ],
+  [
+   46.8,
+   "and the popup names the package that did it, so you catch it before it ships."
+  ],
+  [
+   51.2,
+   "Orders today counts your sales as they come in."
+  ],
+  [
+   54.5,
+   "Point at it to see the whole week and your best sellers."
+  ],
+  [
+   57.6,
+   "Here comes a new order."
+  ],
+  [
+   61.2,
+   "The count goes up by itself,"
+  ],
+  [
+   63.8,
+   "and the popup shows what sold. There's nothing to reload."
+  ],
+  [
+   68.1,
+   "Tests draws one square for each run:"
+  ],
+  [
+   71.1,
+   "green passed, red failed,"
+  ],
+  [
+   72.9,
+   "so you can tell at a glance whether the last run broke something."
+  ],
+  [
+   76.6,
+   "Point at it to see what failed,"
+  ],
+  [
+   78.1,
+   "where it failed, and which tests are slowing you down."
+  ],
+  [
+   81.1,
+   "Server health shows how fast your dev server answers, with a line behind the number."
+  ],
+  [
+   85.7,
+   "The popup lists each route."
+  ],
+  [
+   88,
+   "Ship a slow query, and watch what happens."
+  ],
+  [
+   92.6,
+   "The button turns red, and the route that caused it stands out."
+  ],
+  [
+   97.4,
+   "Open issues keeps the count in front of you."
+  ],
+  [
+   100.4,
+   "Point at it, and they're sorted by label and age,"
+  ],
+  [
+   103.2,
+   "newest first, so you can see what's waiting right from your project,"
+  ],
+  [
+   106.3,
+   "without opening a browser."
+  ],
+  [
+   108.2,
+   "Now let's build the sixth one: commit activity. It reads your Git history,"
+  ],
+  [
+   112.9,
+   "so it works in any repo."
+  ],
+  [
+   114.9,
+   "Open Claude Code, and describe the button you want."
+  ],
+  [
+   117.9,
+   "Say what goes on the button, and"
+  ],
+  [
+   120.1,
+   "what goes in the popup."
+  ],
+  [
+   122,
+   "Here it's a bar for each day this week, and six months of commits."
+  ],
+  [
+   128,
+   "Claude writes a short script for the numbers and a small web page for the chart,"
+  ],
+  [
+   132.7,
+   "then adds the button."
+  ],
+  [
+   142.6,
+   "And there's the sixth button,"
+  ],
+  [
+   145.1,
+   "drawn from this repo's real history."
+  ],
+  [
+   148.1,
+   "Point at it, and the popup opens with six months of commits and the busiest folders."
+  ],
+  [
+   154.9,
+   "That's all it takes, in Claude Code or Codex."
+  ],
+  [
+   158.4,
+   "Each button is a short script and a small web page,"
+  ],
+  [
+   161.2,
+   "and lpm keeps them current. Pick the number you check most, and put it on a button."
+  ]
+ ]
+}

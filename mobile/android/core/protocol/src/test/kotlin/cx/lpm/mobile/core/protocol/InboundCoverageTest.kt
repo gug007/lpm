@@ -35,8 +35,8 @@ class InboundCoverageTest {
         "updateProgress", "updateInstall", "updateCancel", "pong", "restartService",
         "stopService", "resumeSession", "agentOptions", "agentSessions", "listDir", "answerAgent",
         "liveActivity", "weeklyRecap", "limitReminders", "wake", "sidebar-changed", "sidebarPin",
-        "gitHistory", "gitChecks", "gitChecksRerun", "gitCommitChecks", "gitCommitFiles",
-        "gitCommitPatch",
+        "gitHistory", "gitChecks", "gitChecksRerun", "gitMergePr", "gitCommitChecks",
+        "gitCommitFiles", "gitCommitPatch",
         "keepAwake", "keepAwakeSet",
         "lpmCommands", "lpmCommandSave", "lpmCommandDelete", "lpmCommandFolder",
         "lpmCommandExpand", "lpmCommandOtherFolder", "lpmCommandConvert",
@@ -48,7 +48,7 @@ class InboundCoverageTest {
 
     @Test
     fun decodesExactlyTheTypesIosDoesPlusAndroidsOwn() {
-        assertEquals(164, iosTypes.size)
+        assertEquals(165, iosTypes.size)
         assertEquals(iosTypes + androidOnlyTypes, inboundParsers.keys)
     }
 

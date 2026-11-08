@@ -1,19 +1,16 @@
 package cx.lpm.mobile.feature.terminal.composer
 
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.ImageDecoder
 import android.media.MediaMetadataRetriever
-import android.os.Build
 import android.provider.OpenableColumns
 import android.webkit.MimeTypeMap
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.core.graphics.scale
 import androidx.core.net.toUri
+import cx.lpm.mobile.core.ui.decodeImage
+import cx.lpm.mobile.core.ui.fitting
+import cx.lpm.mobile.core.ui.toJpeg
 import dagger.hilt.android.qualifiers.ApplicationContext
-import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
 import java.io.RandomAccessFile
@@ -21,8 +18,6 @@ import java.util.Base64
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlin.math.max
-import kotlin.math.roundToInt
 
 /** [ComposerMedia] over the content resolver, the bitmap codecs and a cache folder. */
 @Singleton
@@ -56,11 +51,10 @@ class AndroidComposerMedia @Inject constructor(
     }
 
     override fun encodeImage(source: PickedUri): EncodedImage? {
-        val image = decode(source, UPLOAD_MAX_DIMENSION) ?: return null
-        val jpeg = ByteArrayOutputStream()
-        if (!image.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, jpeg)) return null
+        val image = resolver.decodeImage(source.value.toUri(), UPLOAD_MAX_DIMENSION) ?: return null
+        val jpeg = image.toJpeg(JPEG_QUALITY) ?: return null
         return EncodedImage(
-            b64 = Base64.getEncoder().encodeToString(jpeg.toByteArray()),
+            b64 = Base64.getEncoder().encodeToString(jpeg),
             thumbnail = image.fitting(THUMBNAIL_MAX_DIMENSION).asImageBitmap()
         )
     }
@@ -113,45 +107,6 @@ class AndroidComposerMedia @Inject constructor(
 
     override fun discard(file: File) {
         file.parentFile?.deleteRecursively()
-    }
-
-    /** Decoded upright and no larger than `maxDimension` on its longest side. */
-    private fun decode(source: PickedUri, maxDimension: Int): Bitmap? {
-        val uri = source.value.toUri()
-        return try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                ImageDecoder.decodeBitmap(ImageDecoder.createSource(resolver, uri)) {
-                        decoder,
-                        info,
-                        _
-                    ->
-                    val longest = max(info.size.width, info.size.height)
-                    if (longest > maxDimension) {
-                        val scale = maxDimension.toFloat() / longest
-                        decoder.setTargetSize(
-                            (info.size.width * scale).roundToInt(),
-                            (info.size.height * scale).roundToInt()
-                        )
-                    }
-                    decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
-                }
-            } else {
-                resolver.openInputStream(
-                    uri
-                )?.use(BitmapFactory::decodeStream)?.fitting(maxDimension)
-            }
-        } catch (_: IOException) {
-            null
-        } catch (_: SecurityException) {
-            null
-        }
-    }
-
-    private fun Bitmap.fitting(maxDimension: Int): Bitmap {
-        val longest = max(width, height)
-        if (longest <= maxDimension) return this
-        val ratio = maxDimension.toFloat() / longest
-        return scale((width * ratio).roundToInt(), (height * ratio).roundToInt())
     }
 
     private companion object {

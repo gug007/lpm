@@ -49,10 +49,16 @@ object PreferenceKeys {
     const val NEW_TAB_LAST_PICK = "newTab.lastPick"
     const val NEW_TAB_LAST_OPTION = "newTab.lastOption"
     const val GIT_REVIEW_WRAP = "gitReview.wrap"
+    const val GIT_MERGE_METHOD = "gitMerge.method"
     const val TIPS_CLOSED = "lpm.tips.closed"
     const val ALL_MACHINES = "lpm.allMachines"
 
     const val TOKEN_ACTIVITY_RANGE = "tokenActivity.range"
+
+    const val SHARE_MAC = "share.mac"
+    const val SHARE_PROJECT = "share.project"
+    const val SHARE_DESTINATION = "share.destination"
+    const val SHARE_AGENT = "share.agent"
 
     /** The last push registration a Mac acknowledged. */
     fun pushRegistered(localId: String): String = "lpm.push.registered.$localId"

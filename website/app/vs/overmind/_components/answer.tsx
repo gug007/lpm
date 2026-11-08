@@ -24,7 +24,7 @@ export function Answer() {
         is explicit that tmux is a prerequisite you install first.
       </p>
       <p>
-        lpm does the same job from a native Mac app. Each process in your
+        lpm does the same job from a native desktop app. Each process in your
         config lands in a pane of its own, holding its last 10,000 lines, and
         you can stop and start any one of them without touching the rest, or
         run <code className={CODE}>lpm service web restart</code>. One that

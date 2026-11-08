@@ -291,7 +291,7 @@ lpm status --json`}
             href: MOBILE_PATH,
             title: "lpm on your iPhone",
             description:
-              "Open a terminal tab running on your Mac, type into it, and get a push when Claude Code, Codex or Gemini CLI is waiting on you.",
+              "Open a terminal tab running on your computer, type into it, and get a push when Claude Code, Codex or Gemini CLI is waiting on you.",
           },
         ]}
       />

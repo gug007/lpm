@@ -71,6 +71,9 @@ struct GitChecks: Equatable {
         let number: Int
         let url: String
         let title: String
+        var isDraft = false
+        /// How GitHub stands on merging it; nil from a Mac that can't merge.
+        var merge: GitMergeOffer?
     }
 
     struct Commit: Equatable {
@@ -90,7 +93,9 @@ struct GitChecks: Equatable {
         branch = o["branch"] as? String ?? ""
         fixPrompt = (o["fixPrompt"] as? String).flatMap { $0.isEmpty ? nil : $0 }
         if let p = o["pr"] as? [String: Any], let number = p["number"] as? Int {
-            pr = PullRequest(number: number, url: p["url"] as? String ?? "", title: p["title"] as? String ?? "")
+            pr = PullRequest(number: number, url: p["url"] as? String ?? "", title: p["title"] as? String ?? "",
+                             isDraft: p["isDraft"] as? Bool ?? false,
+                             merge: (p["merge"] as? [String: Any]).map(GitMergeOffer.init))
             commit = nil
             checks = (p["checks"] as? [[String: Any]] ?? []).compactMap(CiCheck.init)
         } else if let c = o["commit"] as? [String: Any], let sha = c["sha"] as? String, !sha.isEmpty {

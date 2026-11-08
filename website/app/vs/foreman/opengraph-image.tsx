@@ -13,7 +13,7 @@ export default function Image() {
       "a third option.",
     ],
     subline:
-      "One interleaved stream, one tmux-backed runner, one Mac app. What each does with the same three lines.",
+      "One interleaved stream, one tmux-backed runner, one desktop app. What each does with the same three lines.",
     eyebrow: "Procfile dev on macOS",
     platform: "Free · native on macOS",
   });

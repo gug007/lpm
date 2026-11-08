@@ -19,7 +19,7 @@ export const COMPOSE_DEMO: PageDemo = {
       {
         id: "start",
         title: "Start both halves",
-        body: "The Go server runs on your Mac while compose brings up Postgres. All shows them side by side.",
+        body: "The Go server runs natively while compose brings up Postgres. All shows them side by side.",
         leadMs: 2600,
       },
       {

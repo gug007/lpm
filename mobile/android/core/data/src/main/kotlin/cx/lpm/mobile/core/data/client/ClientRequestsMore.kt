@@ -193,6 +193,14 @@ fun LpmClient.requestGitCommitChecks(project: String) = send(Wire.gitCommitCheck
 fun LpmClient.requestGitChecksRerun(project: String, runIds: List<String>) =
     send(Wire.gitChecksRerun(project, runIds))
 
+fun LpmClient.requestGitMergePr(
+    project: String,
+    number: Int,
+    method: String,
+    head: String,
+    deleteBranch: Boolean
+) = send(Wire.gitMergePr(project, number, method, head, deleteBranch))
+
 fun LpmClient.requestGitCommitFiles(project: String, hash: String) =
     send(Wire.gitCommitFiles(project, hash))
 

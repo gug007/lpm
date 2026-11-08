@@ -6,6 +6,7 @@ import cx.lpm.mobile.core.model.GitAutoRun
 import cx.lpm.mobile.core.model.GitAutoStep
 import cx.lpm.mobile.core.model.GitBranch
 import cx.lpm.mobile.core.model.GitDiffResult
+import cx.lpm.mobile.core.model.GitMergeMethod
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -346,6 +347,45 @@ class InboundGitTest {
             Inbound.GitCommitChecks("a", emptyMap()),
             Inbound.parse("""{ "t": "gitCommitChecks", "project": "a", "ok": false }""")
         )
+    }
+
+    @Test
+    fun gitMergePr() {
+        assertEquals(
+            Inbound.GitMergePr("a", 42, deletedBranch = true, error = null),
+            Inbound.parse(
+                """{ "t": "gitMergePr", "project": "a", "ok": true, "number": 42, "deletedBranch": true }"""
+            )
+        )
+        assertEquals(
+            Inbound.GitMergePr(
+                "a",
+                0,
+                deletedBranch = false,
+                error = "Couldn't merge the pull request."
+            ),
+            Inbound.parse("""{ "t": "gitMergePr", "project": "a", "ok": false }""")
+        )
+        assertEquals(
+            Inbound.GitMergePr("a", 42, deletedBranch = false, error = "Head moved"),
+            Inbound.parse(
+                """{ "t": "gitMergePr", "project": "a", "ok": false, "number": 42, "error": "Head moved" }"""
+            )
+        )
+    }
+
+    @Test
+    fun gitChecksPullRequestMerge() {
+        val f = decode<Inbound.GitChecks>(
+            """{ "t": "gitChecks", "project": "a", "ok": true, "branch": "feat/x", "commit": null,
+                 "pr": { "number": 42, "url": "u", "title": "T", "isDraft": true, "checks": [],
+                   "merge": { "mergeable": "MERGEABLE", "state": "CLEAN", "review": "APPROVED",
+                     "head": "abc", "methods": ["rebase"], "deletesBranch": true } } }"""
+        )
+        val pr = f.checks!!.pr!!
+        assertTrue(pr.isDraft)
+        assertEquals(listOf(GitMergeMethod.REBASE), pr.merge!!.methods)
+        assertTrue(pr.merge!!.deletesBranch)
     }
 
     @Test

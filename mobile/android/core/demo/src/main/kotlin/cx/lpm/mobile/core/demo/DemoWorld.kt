@@ -206,6 +206,7 @@ internal class DemoWorld(val clock: Clock) {
     val gitAutoRuns = mutableMapOf<String, GitAutoRun>() // project -> last Auto Commit / PR run
     var gitAutoNextId = 1
     val ciRerunAt = mutableMapOf<String, Long>() // project -> when its failed CI ran again, millis
+    val ciMerged = mutableSetOf<String>() // projects whose pull request was merged from the phone
     var gitDiscardNextId = 1
 
     // Terminals whose sample question was answered: they wait on no dialog since.

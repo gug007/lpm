@@ -1,8 +1,8 @@
 import Foundation
 
 /// CI on each project's branch, reached as `model.gitChecks`: what the Mac last
-/// said about it, and running the failed jobs again. The screens showing it ask
-/// again while they're up.
+/// said about it, running the failed jobs again, and merging the pull request
+/// once it's ready. The screens showing it ask again while they're up.
 @Observable @MainActor
 final class GitChecksStore {
     @ObservationIgnored weak var model: AppModel?
@@ -12,8 +12,12 @@ final class GitChecksStore {
     var results: [String: GitChecks] = [:]
     var rerunning: Set<String> = []
     var rerunErrors: [String: String] = [:]
+    var merging: Set<String> = []
+    var mergeErrors: [String: String] = [:]
+    var merged: [String: MergedPullRequest] = [:]
 
     var available: Bool { client?.hostFeatures.contains(LpmClient.gitChecksFeature) == true }
+    var canMerge: Bool { client?.hostFeatures.contains(LpmClient.gitMergeFeature) == true }
 
     func checks(_ project: String) -> GitChecks? { results[project] }
 
@@ -49,8 +53,35 @@ final class GitChecksStore {
         load(project)
     }
 
+    func merge(_ project: String, method: GitMergeMethod, deleteBranch: Bool) {
+        guard let pr = results[project]?.pr else { return }
+        mergeErrors[project] = nil
+        merging.insert(project)
+        client?.requestGitMergePr(project: project, number: pr.number, method: method.rawValue,
+                                  head: pr.merge?.head ?? "", deleteBranch: deleteBranch)
+    }
+
+    func applyMerge(_ project: String, number: Int, deletedBranch: Bool, error: String?) {
+        merging.remove(project)
+        if let error {
+            mergeErrors[project] = error
+            return
+        }
+        let title = results[project]?.pr.flatMap { $0.number == number ? $0.title : nil } ?? ""
+        merged[project] = MergedPullRequest(number: number, title: title, deletedBranch: deletedBranch)
+        load(project)
+        model?.git.load(project)
+    }
+
+    /// The sheet closed: what it said about merging is done with.
+    func forgetMerge(_ project: String) {
+        merged[project] = nil
+        mergeErrors[project] = nil
+    }
+
     func handleConnectionReset() {
         rerunning = []
+        merging = []
     }
 }
 
@@ -61,6 +92,9 @@ extension AppModel {
         }
         c.onGitChecksRerun = { [weak self] project, error in
             self?.gitChecks.applyRerun(project, error: error)
+        }
+        c.onGitMergePr = { [weak self] project, number, deletedBranch, error in
+            self?.gitChecks.applyMerge(project, number: number, deletedBranch: deletedBranch, error: error)
         }
     }
 }

@@ -108,6 +108,15 @@ class WireAutomationsGitTest {
     }
 
     @Test
+    fun gitMergePr() {
+        assertFrame(
+            """{ "t": "gitMergePr", "project": "a", "number": 42, "method": "squash", "head": "abc",
+                 "deleteBranch": true }""",
+            Wire.gitMergePr("a", 42, "squash", "abc", deleteBranch = true)
+        )
+    }
+
+    @Test
     fun gitCommitChecks() {
         assertFrame("""{ "t": "gitCommitChecks", "project": "a" }""", Wire.gitCommitChecks("a"))
     }

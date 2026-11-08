@@ -104,6 +104,19 @@
     <string name="ci_fix_description">Opens a new tab with the failing checks</string>
     <string name="ci_rerun">Re-run failed jobs</string>
     <string name="ci_open_github">Open checks on GitHub</string>
+    <string name="ci_merge_ready">Ready to merge</string>
+    <string name="ci_merge_checking">Checking the pull request</string>
+    <string name="ci_merge_waiting">Waiting for checks</string>
+    <string name="ci_merge_blocked">Can\'t merge yet</string>
+    <string name="ci_merge_checking_detail">GitHub is working out whether it merges cleanly.</string>
+    <string name="ci_merge_waiting_detail">It can merge once every check has finished.</string>
+    <string name="ci_merge_method">Method</string>
+    <string name="ci_merge_delete_branch">Delete branch</string>
+    <string name="ci_merge_deletes_branch">GitHub deletes the branch once it\'s merged.</string>
+    <string name="ci_merge_button">Merge #%1$d</string>
+    <string name="ci_merged">Merged #%1$d</string>
+    <string name="ci_merged_branch_deleted">Its branch was deleted on GitHub. The branch on your Mac is still checked out.</string>
+    <string name="ci_merged_branch_kept">The branch on your Mac is still checked out.</string>
     <string name="ok">OK</string>
     <string name="save">Save</string>
     <string name="remove_title">Remove duplicate?</string>
@@ -244,6 +257,18 @@
     </plurals>
     <string name="detail_stop_all">Stop all</string>
     <string name="detail_services_footer">Tap a service for its logs.</string>
+    <string name="detail_git">Git</string>
+    <string name="detail_git_detached">Detached HEAD</string>
+    <string name="detail_git_changes">Changes</string>
+    <string name="detail_git_no_changes">None</string>
+    <string name="detail_git_ci_on">CI on #%1$d</string>
+    <string name="detail_git_to_push">%1$d to push</string>
+    <string name="detail_git_to_pull">%1$d to pull</string>
+    <plurals name="detail_git_files">
+        <item quantity="one">%1$d file</item>
+        <item quantity="other">%1$d files</item>
+    </plurals>
+    <string name="detail_open_changes_hint">Opens the changes</string>
     <string name="detail_no_terminals">No Terminals</string>
     <string name="detail_no_terminals_message">Open a terminal to work in this project.</string>
     <string name="detail_new_terminal">New Terminal</string>

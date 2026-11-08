@@ -24,7 +24,7 @@ const JOBS: Job[] = [
   {
     title: "Sessions that outlive the terminal",
     chip: "tmux keeps this",
-    body: "If the session lives on a remote box you reach from a laptop, a phone and a machine at the office, tmux on that box is the right tool. lpm drives remote boxes as projects from a Mac; it does not replace a multiplexer you attach to over SSH.",
+    body: "If the session lives on a remote box you reach from a laptop, a phone and a machine at the office, tmux on that box is the right tool. lpm drives remote boxes as projects from your desktop; it does not replace a multiplexer you attach to over SSH.",
   },
   {
     title: "Windows, splits and keys",

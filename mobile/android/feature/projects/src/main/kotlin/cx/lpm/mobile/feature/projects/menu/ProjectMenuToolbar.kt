@@ -47,11 +47,11 @@ import cx.lpm.mobile.core.navigation.ProjectConfigKey
 import cx.lpm.mobile.core.navigation.ProjectFilesKey
 import cx.lpm.mobile.feature.projects.ProjectsSlots
 import cx.lpm.mobile.feature.projects.R as ProjectsR
-import cx.lpm.mobile.feature.projects.ci.CiFixActions
 import cx.lpm.mobile.feature.projects.ci.CiMenuItem
 import cx.lpm.mobile.feature.projects.ci.FollowChecks
-import cx.lpm.mobile.feature.projects.ci.GitChecksSheet
+import cx.lpm.mobile.feature.projects.ci.GitChecksSheetHost
 import cx.lpm.mobile.feature.projects.ci.GitChecksViewModel
+import cx.lpm.mobile.feature.projects.ci.gitChecksKey
 import cx.lpm.mobile.feature.projects.resume.ResumeSessionSheet
 import kotlinx.coroutines.launch
 
@@ -80,7 +80,7 @@ fun ProjectMenuToolbar(
         ),
     checksViewModel: GitChecksViewModel =
         hiltViewModel<GitChecksViewModel, GitChecksViewModel.Factory>(
-            key = "git-checks:$session:$project",
+            key = gitChecksKey(project, session),
             creationCallback = { it.create(project, session) }
         )
 ) {
@@ -189,18 +189,12 @@ fun ProjectMenuToolbar(
         )
     }
     if (checksOpen) {
-        LaunchedEffect(checksViewModel) { checksViewModel.loadAgents() }
-        GitChecksSheet(
-            state = checks,
-            fix = CiFixActions(
-                start = { checksViewModel.fix(it, onSpawnedTerminal) },
-                submitInputs = { checksViewModel.submitInputs(it, onSpawnedTerminal) },
-                confirm = { checksViewModel.confirm(onSpawnedTerminal) },
-                dismissStep = checksViewModel::dismissStep
-            ),
-            onRerun = checksViewModel::rerun,
-            onDismiss = { checksOpen = false },
-            actionInputs = slots.actionInputs
+        GitChecksSheetHost(
+            project = project,
+            session = session,
+            onSpawnedTerminal = onSpawnedTerminal,
+            actionInputs = slots.actionInputs,
+            onDismiss = { checksOpen = false }
         )
     }
     slots.claudeConsentPrompt(session, project)

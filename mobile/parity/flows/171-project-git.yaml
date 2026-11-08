@@ -1,0 +1,51 @@
+# The project's Git section under its tabs: storefront's branch with the commits it
+# hasn't pushed, its uncommitted changes and its pull request's CI. Each row opens
+# what the "…" menu's item does: the review, the branch sheet, the CI sheet. Rows
+# read as one line, the title then what's on the right.
+appId: cx.lpm.mobile
+name: 171-project-git
+tags: [demo, projects, git]
+---
+- runFlow: subflows/enter-demo.yaml
+- tapOn: "storefront"
+- extendedWaitUntil:
+    visible: "Git"
+    timeout: 10000
+- assertVisible: "feat/checkout-redesign.*"
+- assertVisible: "Changes.*4 files.*"
+- extendedWaitUntil:
+    visible: "CI on #42.*"
+    timeout: 10000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 1-git-section
+- tapOn: "Changes.*4 files.*"
+- extendedWaitUntil:
+    visible: "components/CheckoutForm.tsx"
+    timeout: 15000
+- waitForAnimationToEnd:
+    timeout: 3000
+- assertVisible: "4 files changed.*"
+- takeScreenshot: 2-review
+- runFlow: subflows/back.yaml
+- extendedWaitUntil:
+    visible: "Git"
+    timeout: 5000
+- tapOn: "feat/checkout-redesign.*"
+- extendedWaitUntil:
+    visible: "fix/cart-badge"
+    timeout: 5000
+- assertVisible: "Switch Branch"
+- takeScreenshot: 3-branches
+- tapOn: "Cancel"
+- extendedWaitUntil:
+    notVisible: "fix/cart-badge"
+    timeout: 5000
+- tapOn: "CI on #42.*"
+- extendedWaitUntil:
+    visible: "test \\(ubuntu-latest\\)"
+    timeout: 5000
+- assertVisible: "Checks on #42"
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 4-ci-sheet

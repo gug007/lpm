@@ -1,11 +1,11 @@
 // CI on the phone, as the desktop footer shows it: the checks of the branch's
 // open pull request, else of the commit the branch last pushed, with what
 // Claude is told to fix them and a way to run the failed jobs again, and how
-// each recent commit did for History's rows. All ask GitHub, so they answer
-// through the out-queue.
+// each recent commit did for History's rows, and merging the pull request once
+// it's ready. All ask GitHub, so they answer through the out-queue.
 use crate::ci_checks::{branch_commit_checks, rerun_failed_checks};
 use crate::ci_commits::recent_commit_checks;
-use crate::pull_request::branch_pull_request;
+use crate::pull_request::branch_pull_request_with_merge;
 use crate::remote::git_result_reply;
 use serde_json::{json, Value};
 use std::sync::mpsc::SyncSender;
@@ -14,6 +14,9 @@ use std::sync::mpsc::SyncSender;
 pub const FEATURE: &str = "gitChecks";
 /// The phone may send `gitCommitChecks`.
 pub const COMMITS_FEATURE: &str = "gitCommitChecks";
+/// The phone may send `gitMergePr`, and `gitChecks` carries each open pull
+/// request's `merge`.
+pub const MERGE_FEATURE: &str = "gitMerge";
 
 pub fn handle(out: &SyncSender<String>, t: &str, v: &Value) {
     let out = out.clone();
@@ -34,6 +37,7 @@ pub fn handle(out: &SyncSender<String>, t: &str, v: &Value) {
                     .unwrap_or_default();
                 git_result_reply(&verb, &project, rerun_failed_checks(root, ids))
             }
+            Ok((root, _)) if verb == "gitMergePr" => merge_reply(&project, &root, &v),
             Ok((root, _)) if verb == "gitCommitChecks" => json!({
                 "t": verb,
                 "project": project,
@@ -50,9 +54,9 @@ fn checks_reply(project: &str, root: String) -> Value {
     let branch = crate::label_git::read_branch(&root)
         .or_else(|| crate::git::git_out(&root, &["rev-parse", "--abbrev-ref", "HEAD"]).ok())
         .unwrap_or_default();
-    let pr = branch_pull_request(root.clone()).filter(|pr| pr.state == "OPEN");
+    let pr = branch_pull_request_with_merge(&root).filter(|pr| pr.state == "OPEN");
     let commit = if pr.is_none() {
-        branch_commit_checks(root)
+        branch_commit_checks(root.clone())
     } else {
         None
     };
@@ -65,11 +69,42 @@ fn checks_reply(project: &str, root: String) -> Value {
         "project": project,
         "ok": true,
         "branch": branch.trim(),
-        "pr": pr.map(|pr| json!({ "number": pr.number, "url": pr.url, "title": pr.title, "checks": pr.checks })),
+        "pr": pr.map(|pr| json!({
+            "number": pr.number,
+            "url": pr.url,
+            "title": pr.title,
+            "isDraft": pr.is_draft,
+            "checks": pr.checks,
+            "merge": crate::pull_request_merge::offer(&root, &pr.merge),
+        })),
         "commit": commit,
     });
     if let Some(fix) = fix {
         reply["fixPrompt"] = json!(fix);
     }
     reply
+}
+
+fn merge_reply(project: &str, root: &str, v: &Value) -> Value {
+    let number = v["number"].as_u64().unwrap_or_default();
+    let method = v["method"].as_str().unwrap_or("squash");
+    let head = v["head"].as_str().unwrap_or_default();
+    let delete = v["deleteBranch"].as_bool().unwrap_or(false);
+    if number == 0 {
+        return git_result_reply(
+            "gitMergePr",
+            project,
+            Err::<(), _>("No pull request to merge".into()),
+        );
+    }
+    match crate::pull_request_merge::merge(root, number, method, head, delete) {
+        Ok(deleted) => json!({
+            "t": "gitMergePr",
+            "project": project,
+            "ok": true,
+            "number": number,
+            "deletedBranch": deleted,
+        }),
+        Err(error) => git_result_reply("gitMergePr", project, Err::<(), _>(error)),
+    }
 }

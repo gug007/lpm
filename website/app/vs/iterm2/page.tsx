@@ -259,9 +259,10 @@ export default function LpmVsIterm2Page() {
           lpm is not on that shelf.
         </p>
         <p>
-          lpm is a free macOS app that manages the projects you run inside a
-          terminal. One click starts and stops every service in a project, each
-          service tab is labelled with the port that service&apos;s process tree
+          lpm is a free desktop app for macOS, Windows and Linux that manages the
+          projects you run inside a terminal. One click starts and stops every
+          service in a project, each service tab is labelled with the port that
+          service&apos;s process tree
           is listening on, those services stay up after you quit the app, and a
           second agent can be handed its own checkout — a linked worktree that
           shares the repository, or a standalone copy that carries its own
@@ -376,7 +377,7 @@ export default function LpmVsIterm2Page() {
         title="Keep iTerm2. Add the project layer."
         description={
           <>
-            lpm is free, macOS-native, MIT-licensed, and starts your services as
+            lpm is free, native on macOS, Windows and Linux, MIT-licensed, and starts your services as
             ordinary processes — the same commands you would type by hand.
             Install it beside iTerm2 and see whether the project layer earns its
             place. Read it first on{" "}

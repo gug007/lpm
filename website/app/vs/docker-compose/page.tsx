@@ -256,7 +256,7 @@ export default function LpmVsDockerComposePage() {
 
       <QuickAnswer question="Can you run a dev stack on macOS without Docker Compose?">
         <p>
-          Yes — for every service your Mac can run directly. Add the folder and
+          Yes — for every service your machine can run directly. Add the folder and
           lpm lists the processes it recognises — Rails, Django, a Next.js or Vite
           dev server, Go, and the compose file itself — then starts them
           together, each in its own live pane, with{" "}
@@ -370,7 +370,7 @@ export default function LpmVsDockerComposePage() {
             href: LINUX_HOST_PATH,
             title: "A Linux box as a headless host",
             description:
-              "Put the services and the agents on a Linux machine and drive all of it from the Mac app.",
+              "Put the services and the agents on a Linux machine and drive all of it from the desktop app.",
           },
           {
             href: PROJECT_SIDEBAR_PATH,

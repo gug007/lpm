@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import cx.lpm.mobile.core.data.actions.ActionsStore
 import cx.lpm.mobile.core.data.agents.AgentLaunchStore
+import cx.lpm.mobile.core.data.git.GitChecksStore
 import cx.lpm.mobile.core.data.git.GitStore
 import cx.lpm.mobile.core.data.machines.PairedMachineFeeds
 import cx.lpm.mobile.core.data.projects.ProjectsStore
@@ -62,10 +63,15 @@ class ProjectDetailViewModel @AssistedInject constructor(
     private fun detailState(s: MacSession) = combine(
         combine(s.state, s.link.views, s.link.state, ::Triple),
         s.store<ProjectsStore>().state,
-        combine(s.store<TerminalsStore>().state, s.store<GitStore>().state, ::Pair),
+        combine(
+            s.store<TerminalsStore>().state,
+            s.store<GitStore>().state,
+            s.store<GitChecksStore>().state,
+            ::Triple
+        ),
         s.store<ActionsStore>().state,
         combine(sessions.listedProject(key, feeds), tips.closed, ::Pair)
-    ) { (session, view, link), p, (t, g), a, (listed, closedTips) ->
+    ) { (session, view, link), p, (t, g, ci), a, (listed, closedTips) ->
         val inputs = DetailInputs(
             terminals = t.terminals[key.project],
             creating = key.project in t.creatingTerminals,
@@ -74,6 +80,7 @@ class ProjectDetailViewModel @AssistedInject constructor(
             statusLine = view.statusLine,
             git = g.snapshots[key.project],
             gitLoading = key.project in g.loading,
+            checks = ci.results[key.project]?.takeIf { s.store<GitChecksStore>().available },
             queued = link.queued(key.project),
             canStopServices = s.store<ProjectsStore>().canRestartServices,
             canLaunchAgents = s.store<AgentLaunchStore>().canLaunchAgents,

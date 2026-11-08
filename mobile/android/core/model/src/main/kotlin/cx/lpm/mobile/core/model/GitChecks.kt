@@ -73,7 +73,14 @@ data class GitChecks(
     val checks: List<CiCheck>,
     val fixPrompt: String?
 ) {
-    data class PullRequest(val number: Int, val url: String, val title: String)
+    data class PullRequest(
+        val number: Int,
+        val url: String,
+        val title: String,
+        val isDraft: Boolean = false,
+        /** How GitHub stands on merging it; null from a Mac that can't merge. */
+        val merge: GitMergeOffer? = null
+    )
 
     data class Commit(val sha: String, val title: String, val url: String) {
         val short: String get() = sha.take(7)
@@ -151,9 +158,11 @@ data class GitChecks(
                 return GitChecks(
                     branch = branch,
                     pr = PullRequest(
-                        number,
-                        p.string("url").orEmpty(),
-                        p.string("title").orEmpty()
+                        number = number,
+                        url = p.string("url").orEmpty(),
+                        title = p.string("title").orEmpty(),
+                        isDraft = p.bool("isDraft") ?: false,
+                        merge = p.obj("merge")?.let(GitMergeOffer::parse)
                     ),
                     commit = null,
                     checks = p.list("checks", CiCheck::parse).filterNotNull(),

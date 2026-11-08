@@ -461,6 +461,10 @@ enum Wire {
     }
     // MARK: CI (a Mac whose `features` has "gitChecks")
     static func gitChecks(project: String) -> String { json(["t": "gitChecks", "project": project]) }
+    static func gitMergePr(project: String, number: Int, method: String, head: String, deleteBranch: Bool) -> String {
+        json(["t": "gitMergePr", "project": project, "number": number, "method": method, "head": head,
+              "deleteBranch": deleteBranch])
+    }
     static func gitChecksRerun(project: String, runIds: [String]) -> String {
         json(["t": "gitChecksRerun", "project": project, "runIds": runIds])
     }
@@ -830,6 +834,8 @@ enum Wire {
         case gitChecks(project: String, checks: GitChecks?, error: String?)
         case gitCommitChecks(project: String, states: [String: CiCheck.State])
         case gitChecksRerun(project: String, error: String?)
+        // The open pull request merged, and whether its branch went with it.
+        case gitMergePr(project: String, number: Int, deletedBranch: Bool, error: String?)
         case gitCommitFiles(project: String, hash: String, files: [CommitFile]?, error: String?)
         case gitCommitPatch(project: String, hash: String, path: String, result: GitDiffResult?, error: String?)
         // An Auto Commit / Auto Create PR run's whole state, pushed on every
@@ -1268,6 +1274,12 @@ enum Wire {
                 let ok = obj["ok"] as? Bool ?? false
                 return .gitChecksRerun(project: obj["project"] as? String ?? "",
                                        error: ok ? nil : (obj["error"] as? String ?? "Couldn't run the failed jobs again."))
+            case "gitMergePr":
+                let ok = obj["ok"] as? Bool ?? false
+                return .gitMergePr(project: obj["project"] as? String ?? "",
+                                   number: obj["number"] as? Int ?? 0,
+                                   deletedBranch: obj["deletedBranch"] as? Bool ?? false,
+                                   error: ok ? nil : (obj["error"] as? String ?? "Couldn't merge the pull request."))
             case "gitHistory":
                 let ok = obj["ok"] as? Bool ?? false
                 return .gitHistory(project: obj["project"] as? String ?? "",

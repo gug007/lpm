@@ -1,6 +1,8 @@
 import { ChevronDown } from "lucide-react";
+import Link from "next/link";
 import { formatLength } from "@/components/home/lesson-data";
 import { YouTubeVideo } from "@/components/youtube-video";
+import { lessonPath } from "@/lib/links";
 import { LESSON_CHAPTERS } from "@/lib/youtube-chapters";
 import { youtubeLesson, youtubeWatchUrl } from "@/lib/youtube-lessons";
 import type { LessonCardData } from "./lesson-topics";
@@ -20,7 +22,12 @@ export function LessonCard({ lesson, title }: LessonCardData) {
         className="rounded-xl ring-1 ring-black/5 dark:ring-white/10"
       />
       <h3 className="mt-3 text-[15px] font-semibold tracking-tight text-gray-900 dark:text-gray-100">
-        {title}
+        <Link
+          href={lessonPath(lesson)}
+          className="underline-offset-4 hover:underline"
+        >
+          {title}
+        </Link>
       </h3>
       <p className="mt-0.5 font-mono text-[12px] tabular-nums text-gray-500 dark:text-gray-400">
         {formatLength(seconds)} · {chapters.length} chapters

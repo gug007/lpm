@@ -75,11 +75,13 @@ export class TourRunner {
     });
   }
 
-  // Lands whatever is left without miming it, as when the frame scrolls away.
-  settle(): void {
+  // Lands whatever is left, or every step up to `last`, without miming it, as
+  // when the frame scrolls away or opens on a tour already under way.
+  settle(last = this.steps.length - 1): void {
     const token = this.cancel();
+    const end = Math.min(last, this.steps.length - 1);
     this.enqueue(async () => {
-      for (let i = this.stage(); i < this.steps.length; i++) await this.perform(i, true, token);
+      for (let i = this.stage(); i <= end; i++) await this.perform(i, true, token);
     });
   }
 

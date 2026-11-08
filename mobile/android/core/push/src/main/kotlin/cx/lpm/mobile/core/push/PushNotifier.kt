@@ -94,6 +94,12 @@ class PushNotifier @Inject constructor(
                     NotificationManager.IMPORTANCE_DEFAULT
                 )
                     .setName(context.getString(R.string.push_channel_ci))
+                    .build() +
+                NotificationChannelCompat.Builder(
+                    SHARES_CHANNEL,
+                    NotificationManager.IMPORTANCE_DEFAULT
+                )
+                    .setName(context.getString(R.string.push_channel_shares))
                     .build()
         )
     }

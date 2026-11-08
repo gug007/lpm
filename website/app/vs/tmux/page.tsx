@@ -242,7 +242,7 @@ export default function VsTmuxPage() {
             "You already love tmux and use it for much more than starting services.",
           points: [
             "You have years of muscle memory and a .tmux.conf you actually enjoy.",
-            "Your session lives on the remote box itself and you reach it from any machine — tmux runs there; lpm drives remote projects from a Mac app instead.",
+            "Your session lives on the remote box itself and you reach it from any machine — tmux runs there; lpm drives remote projects from its desktop app instead.",
             "You need sessions you can reattach from any SSH login, not from a desktop app.",
             "You use tmux for vim splits, logs, monitoring, ops work — not just dev servers.",
             "You have a tmuxinator or zellij setup that fits your brain perfectly — lpm will not talk you out of it.",

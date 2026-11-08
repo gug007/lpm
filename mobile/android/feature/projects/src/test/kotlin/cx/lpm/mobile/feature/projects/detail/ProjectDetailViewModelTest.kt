@@ -1,5 +1,6 @@
 package cx.lpm.mobile.feature.projects.detail
 
+import cx.lpm.mobile.core.data.git.GitChecksStore
 import cx.lpm.mobile.core.navigation.ProjectKey
 import cx.lpm.mobile.core.testing.MainDispatcherRule
 import cx.lpm.mobile.core.testing.TestSession
@@ -109,5 +110,22 @@ class ProjectDetailViewModelTest {
         t.settle(5_000)
         assertFalse(vm.uiState.value.creating)
         assertEquals(before + 1, vm.uiState.value.tabs?.size)
+    }
+
+    @Test
+    fun `the Git section shows the branch, its changes and its pull request's CI`() = runTest {
+        val t = demoSession()
+        val vm = subscribed(t)
+        vm.load()
+        vm.appear()
+        t.store<GitChecksStore>().load("storefront")
+        t.settle()
+        val state = vm.uiState.value
+        assertTrue(state.showsGit)
+        assertTrue(state.hasChanges)
+        assertEquals("feat/checkout-redesign", state.git?.branch)
+        assertEquals(42, state.checks?.pr?.number)
+        assertEquals("1 failing", state.checks?.label)
+        vm.disappear()
     }
 }

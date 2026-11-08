@@ -39,6 +39,7 @@ struct ContentView: View {
         }
         .modifier(ConnectionSheets())
         .background { AgentWidgetPublisher() }
+        .background { ShareDirectoryPublisher() }
         .background { LiveActivityPublisher() }
         .background { UsageWidgetPublisher() }
         .onOpenURL { model.openAgentWidgetLink($0) }

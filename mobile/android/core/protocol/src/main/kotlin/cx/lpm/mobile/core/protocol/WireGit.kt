@@ -63,6 +63,21 @@ sealed interface WireGit {
     fun gitCommitChecks(project: String): String =
         frame("gitCommitChecks") { put("project", project) }
 
+    // A Mac whose `features` has "gitMerge".
+    fun gitMergePr(
+        project: String,
+        number: Int,
+        method: String,
+        head: String,
+        deleteBranch: Boolean
+    ): String = frame("gitMergePr") {
+        put("project", project)
+        put("number", number)
+        put("method", method)
+        put("head", head)
+        put("deleteBranch", deleteBranch)
+    }
+
     fun gitChecksRerun(project: String, runIds: List<String>): String = frame("gitChecksRerun") {
         put("project", project)
         putJsonArray("runIds") { runIds.forEach { add(it) } }

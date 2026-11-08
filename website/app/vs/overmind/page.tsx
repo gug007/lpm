@@ -34,7 +34,7 @@ import { OVERMIND_DEMO } from "./_components/demo-tour";
 const PATH = vsPath("overmind");
 const TITLE = "Overmind Alternative for Mac: Procfile in a GUI";
 const DESCRIPTION =
-  "Overmind runs your Procfile through tmux. lpm runs the same lines as clickable panes in a Mac app with no tmux installed — plus the conversion in full.";
+  "Overmind runs your Procfile through tmux. lpm runs the same lines as clickable panes in a desktop app with no tmux installed — plus the conversion in full.";
 
 const CODE = "font-mono text-[0.9em]";
 const LINK =
@@ -148,11 +148,11 @@ const FAQS: FaqItem[] = [
         </Link>{" "}
         interleaves one log stream in a single terminal. Overmind gives each
         process a tmux window you can attach to. lpm gives each one a pane in a
-        Mac app, plus a project switcher and a service list you can commit.
+        desktop app, plus a project switcher and a service list you can commit.
       </>
     ),
     answerText:
-      "Foreman interleaves one log stream in a single terminal. Overmind gives each process a tmux window you can attach to. lpm gives each one a pane in a Mac app, plus a project switcher and a service list you can commit.",
+      "Foreman interleaves one log stream in a single terminal. Overmind gives each process a tmux window you can attach to. lpm gives each one a pane in a desktop app, plus a project switcher and a service list you can commit.",
   },
   {
     question: "Can I use lpm on a remote dev box?",
@@ -167,11 +167,11 @@ const FAQS: FaqItem[] = [
         <Link href={LINUX_HOST_PATH} className={LINK}>
           pair a Linux machine
         </Link>{" "}
-        as a headless host and drive it from the Mac app.
+        as a headless host and drive it from the desktop app.
       </>
     ),
     answerText:
-      "Two ways: attach it as an SSH project, so its services get panes beside your local ones with ports forwarded to localhost, or pair a Linux machine as a headless host and drive it from the Mac app.",
+      "Two ways: attach it as an SSH project, so its services get panes beside your local ones with ports forwarded to localhost, or pair a Linux machine as a headless host and drive it from the desktop app.",
   },
 ];
 
@@ -317,7 +317,7 @@ export default function OvermindVsPage() {
             href: LINUX_HOST_PATH,
             title: "Run agents on a Linux box",
             description:
-              "Pair a Linux machine as a headless host, then drive its services and its agents from the Mac app.",
+              "Pair a Linux machine as a headless host, then drive its services and its agents from the desktop app.",
           },
           {
             href: WORKTREE_AGENTS_PATH,

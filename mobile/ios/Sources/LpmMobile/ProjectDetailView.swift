@@ -15,6 +15,7 @@ struct ProjectDetail: View {
     @State private var activeBgRun: BackgroundRunInfo?
     @State private var logsForService: Service?
     @State private var newTabOpen = false
+    @State private var gitScreens = ProjectGitScreens()
     @State private var usageRest = UsageRest()
     @State private var barAxis: CGFloat?
 
@@ -69,6 +70,8 @@ struct ProjectDetail: View {
     // for the usage rows to follow.
     private var showsUsage: Bool { !isEmpty && live.configError == nil }
 
+    private var hasChanges: Bool { model.git.snapshots[project.name]?.files.isEmpty == false }
+
     var body: some View {
         // One inset-grouped list, so tabs, services and runs read alike and keep
         // native drag-to-reorder via `.onMove`.
@@ -86,6 +89,10 @@ struct ProjectDetail: View {
                                    creating: creating, renaming: $renaming,
                                    forkingIntoCopy: $forkingIntoCopy, closingOthers: $closingOthers,
                                    onOpen: { openTerminal = $0 }, onSpawned: openSpawned, onNew: newTab)
+            }
+
+            if terminalsLoaded && !isEmpty && live.configError == nil {
+                ProjectGitSection(project: project.name, screens: gitScreens)
             }
 
             if !live.allServices.isEmpty {
@@ -155,6 +162,10 @@ struct ProjectDetail: View {
         .toolbar {
             ToolbarItem(placement: .principal) {
                 ProjectTitle(project: project.name, title: title, status: status, axis: barAxis)
+                    .contentShape(Rectangle())
+                    .onTapGesture { if hasChanges { gitScreens.changes = true } }
+                    .accessibilityAddTraits(hasChanges ? .isButton : [])
+                    .accessibilityHint(hasChanges ? "Opens the changes" : "")
             }
         }
         .followsGitChanges(project.name)
@@ -177,7 +188,7 @@ struct ProjectDetail: View {
         .sheet(isPresented: $newTabOpen) {
             NewTabSheet(project: live, onOpen: openSpawned).environment(model)
         }
-        .projectMenuToolbar(project: live, onSpawnedTerminal: openSpawned)
+        .projectMenuToolbar(project: live, git: gitScreens, onSpawnedTerminal: openSpawned)
         .onAppear {
             model.loadTerminals(project.name)
             model.loadBackgroundRuns(project.name)

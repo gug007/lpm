@@ -14,6 +14,7 @@ export type DownloadSource =
   | "home-cta"
   | "lessons-cta"
   | "lessons-latest"
+  | "lesson-cta"
   | "docs-latest"
   | "changelog-latest"
   | "changelog-footer"

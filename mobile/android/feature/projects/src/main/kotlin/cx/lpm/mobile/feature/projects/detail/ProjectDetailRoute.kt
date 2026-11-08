@@ -24,11 +24,14 @@ import cx.lpm.mobile.core.designsystem.component.LpmConfirmationDialog
 import cx.lpm.mobile.core.designsystem.component.stopProject
 import cx.lpm.mobile.core.model.Service
 import cx.lpm.mobile.core.model.TerminalInfo
+import cx.lpm.mobile.core.navigation.GitBranchKey
+import cx.lpm.mobile.core.navigation.GitReviewKey
 import cx.lpm.mobile.core.navigation.ProjectKey
 import cx.lpm.mobile.core.navigation.TerminalKey
 import cx.lpm.mobile.core.navigation.YamlConfigKey
 import cx.lpm.mobile.feature.projects.ProjectsSlots
 import cx.lpm.mobile.feature.projects.R
+import cx.lpm.mobile.feature.projects.ci.GitChecksSheetHost
 import cx.lpm.mobile.feature.projects.menu.ProjectMenuToolbar
 import cx.lpm.mobile.feature.projects.newtab.NewTabSheet
 import cx.lpm.mobile.feature.projects.services.ServiceLogsSheet
@@ -56,6 +59,7 @@ fun ProjectDetailRoute(
     var closingOthers by remember { mutableStateOf<TerminalInfo?>(null) }
     var logsFor by remember { mutableStateOf<Service?>(null) }
     var newTabOpen by remember { mutableStateOf(false) }
+    var checksOpen by remember { mutableStateOf(false) }
     var refreshing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val confirmRisky = LocalConfirmRisky.current
@@ -131,7 +135,10 @@ fun ProjectDetailRoute(
             },
             editConfig = { onNavigate(YamlConfigKey(key.project, key.session)) },
             retryConfig = { scope.launch { viewModel.refreshProjects() } },
-            closeTip = viewModel::closeTip
+            closeTip = viewModel::closeTip,
+            openBranch = { onNavigate(GitBranchKey(key.project, key.session)) },
+            openChanges = { onNavigate(GitReviewKey(key.project, key.session)) },
+            openChecks = { checksOpen = true }
         ),
         menu = {
             ProjectMenuToolbar(
@@ -181,6 +188,15 @@ fun ProjectDetailRoute(
             onOpen = openSpawned,
             onDismiss = { newTabOpen = false },
             actionInputs = slots.actionInputs
+        )
+    }
+    if (checksOpen) {
+        GitChecksSheetHost(
+            project = key.project,
+            session = key.session,
+            onSpawnedTerminal = openSpawned,
+            actionInputs = slots.actionInputs,
+            onDismiss = { checksOpen = false }
         )
     }
     logsFor?.let { service ->

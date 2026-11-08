@@ -8,9 +8,12 @@ import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
 import cx.lpm.mobile.core.data.link.QueuedAction
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
+import cx.lpm.mobile.core.model.CiCheck
+import cx.lpm.mobile.core.model.GitChecks
 import cx.lpm.mobile.core.model.GitFile
 import cx.lpm.mobile.core.model.GitSnapshot
 import cx.lpm.mobile.core.model.Service
@@ -58,7 +61,10 @@ class ProjectDetailScreenTest {
                     stopService = { events += "stop ${it.name}" },
                     cancelQueued = { events += "cancel" },
                     openLogs = { events += "logs ${it.name}" },
-                    stopAll = { events += "stop all" }
+                    stopAll = { events += "stop all" },
+                    openBranch = { events += "branch" },
+                    openChanges = { events += "changes" },
+                    openChecks = { events += "checks" }
                 )
             )
         }
@@ -152,5 +158,72 @@ class ProjectDetailScreenTest {
         compose.onNodeWithText("No Terminals").assertExists()
         compose.onNodeWithText("New Terminal").performClick()
         assertEquals(listOf("new"), events)
+    }
+
+    private fun snapshot(
+        files: Int = 4,
+        ahead: Int = 2,
+        detached: Boolean = false,
+        isRepo: Boolean = true
+    ) = GitSnapshot(
+        isRepo = isRepo,
+        branch = "feat/checkout-redesign",
+        detached = detached,
+        hasUpstream = true,
+        ahead = ahead,
+        behind = 0,
+        defaultBranch = "main",
+        ghCli = true,
+        files = List(files) { GitFile("f$it.ts", "modified", staged = false, stamp = "") },
+        autoPulled = null,
+        linesAdded = 52,
+        linesRemoved = 5
+    )
+
+    private val failing = GitChecks(
+        branch = "feat/checkout-redesign",
+        pr = GitChecks.PullRequest(42, "https://github.com/o/r/pull/42", "Checkout"),
+        commit = null,
+        checks = listOf(
+            CiCheck("test", "CI", CiCheck.State.FAIL, ""),
+            CiCheck("lint", "CI", CiCheck.State.PASS, "")
+        ),
+        fixPrompt = null
+    )
+
+    @Test
+    fun theGitSectionReadsEachRowAsOneLineAndOpensWhatTheMenuOpens() {
+        show(state.copy(git = snapshot(), checks = failing))
+        compose.onNodeWithText("GIT").assertExists()
+        listOf(
+            "feat/checkout-redesign, 2 to push",
+            "Changes, +52 −5 · 4 files",
+            "CI on #42, 1 failing"
+        ).forEach { compose.onNodeWithContentDescription(it).performScrollTo().performClick() }
+        compose.onNodeWithText("1 failing").assertDoesNotExist()
+        compose.onNodeWithText("storefront").performClick()
+        assertEquals(listOf("branch", "changes", "checks", "changes"), events)
+    }
+
+    @Test
+    fun aCleanDetachedTreeReadsSoAndItsTitleOpensNothing() {
+        show(state.copy(git = snapshot(files = 0, ahead = 0, detached = true)))
+        compose.onNodeWithContentDescription("Detached HEAD").assertExists()
+        compose.onNodeWithContentDescription("Changes, None").assertExists()
+        compose.onNodeWithContentDescription("CI", substring = true).assertDoesNotExist()
+        compose.onNodeWithText("storefront").performClick()
+        assertEquals(emptyList<String>(), events)
+    }
+
+    @Test
+    fun noGitSectionOutsideARepositoryOrBehindNoTerminals() {
+        show(state.copy(git = snapshot(isRepo = false)))
+        compose.onNodeWithText("GIT").assertDoesNotExist()
+    }
+
+    @Test
+    fun noGitSectionUntilTheTabsAreIn() {
+        show(state.copy(tabs = null, git = snapshot()))
+        compose.onNodeWithText("GIT").assertDoesNotExist()
     }
 }

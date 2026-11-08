@@ -333,6 +333,14 @@ sealed interface Inbound {
 
     data class GitChecksRerun(val project: String, val error: String?) : Inbound
 
+    /** The open pull request merged, and whether its branch went with it. */
+    data class GitMergePr(
+        val project: String,
+        val number: Int,
+        val deletedBranch: Boolean,
+        val error: String?
+    ) : Inbound
+
     data class GitCommitFiles(
         val project: String,
         val hash: String,

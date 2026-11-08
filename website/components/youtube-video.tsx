@@ -25,6 +25,8 @@ type Props = {
   // Mounts the player straight away. Only for a lesson the visitor just
   // picked: a player that appears with the page stays click-to-play.
   autoPlay?: boolean;
+  // Where the player starts, in seconds.
+  start?: number;
 };
 
 /**
@@ -38,6 +40,7 @@ export function YouTubeVideo({
   fetchPriority,
   sizes = "(min-width: 768px) 768px, 100vw",
   autoPlay = false,
+  start = 0,
   poster,
 }: Props) {
   const { id, name } = youtubeLesson(lesson);
@@ -49,7 +52,7 @@ export function YouTubeVideo({
     >
       {playing ? (
         <iframe
-          src={`${youtubeEmbedUrl(id)}?autoplay=1&rel=0`}
+          src={`${youtubeEmbedUrl(id)}?autoplay=1&rel=0${start ? `&start=${start}` : ""}`}
           title={name}
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
           allowFullScreen

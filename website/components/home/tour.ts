@@ -45,6 +45,9 @@ export type Tour = {
   // The pill's opening line, up while the tour gets going.
   hint: TourHint;
   invite?: TourInvite;
+  // How many steps the frame lands, unmimed, before it is shown, so the window
+  // opens on a project already at work rather than an empty pane.
+  opening?: number;
   // Seeded projects this frame leaves out, so a tour can add one of those
   // folders as a new project.
   omitProjects?: string[];
@@ -185,6 +188,7 @@ export function defineTour(
   opts: {
     hint?: TourHint;
     invite?: TourInvite;
+    opening?: number;
     omitProjects?: string[];
     done?: string;
   } = {},
@@ -194,6 +198,7 @@ export function defineTour(
     hint: opts.hint ?? OPENING_HINT,
     done: opts.done ?? DONE_LINE,
     ...(opts.invite ? { invite: opts.invite } : {}),
+    ...(opts.opening ? { opening: opts.opening } : {}),
     ...(opts.omitProjects ? { omitProjects: opts.omitProjects } : {}),
     steps: steps.map((input) => {
       const step: TourAction & Partial<TourStepCopy> =
@@ -206,14 +211,17 @@ export function defineTour(
 }
 
 // The home page's tour: boot a project, then put both agents to work on it.
-// The visitor makes the first click themselves, so they try instead of watch.
+// The window opens with saas-app already up and Claude Code on a task, so the
+// first thing a visitor sees is the product at work; the next click, Codex, is
+// theirs, so they try instead of watch.
 export const HOME_TOUR = defineTour(
   ["start", "agent", "prompt", "codex", "codexPrompt"],
   {
     done: "You ran the whole loop: services up, two agents on one project.",
+    opening: 3,
     invite: {
-      button: "Start",
-      hint: "Click Start. saas-app boots right here, in your browser.",
+      button: "Codex",
+      hint: "Claude Code is on a task. Click Codex to put a second agent on it.",
     },
   },
 );

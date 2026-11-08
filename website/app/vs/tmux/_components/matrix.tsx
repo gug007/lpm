@@ -66,7 +66,7 @@ const ROWS: MatrixRow[] = [
   },
   {
     label: "Attach a remote box and run its services in the same window",
-    lpm: "from the Mac app",
+    lpm: "from the desktop app",
     competitor: "on the box itself",
   },
   {

@@ -13,9 +13,9 @@ export default function ShortAnswer() {
   return (
     <QuickAnswer question="Is there a tmux alternative for running a local dev stack on a Mac?">
       <p>
-        Yes, if what you want from tmux is one pane per service. lpm is a macOS
-        app that starts every service in a project at once, each in its own live
-        pane, from a short service list instead of a{" "}
+        Yes, if what you want from tmux is one pane per service. lpm is a desktop
+        app for macOS, Windows and Linux that starts every service in a project
+        at once, each in its own live pane, from a short service list instead of a{" "}
         <code>.tmux.conf</code>. It does not use tmux and does not need it
         installed — quit lpm and your dev servers keep running; reopen it and
         it finds them again.

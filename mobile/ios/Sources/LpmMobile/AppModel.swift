@@ -117,6 +117,8 @@ final class AppModel {
     @ObservationIgnored private let statsTimeout = GenerationTimeout<String>()
     // Reconnecting after a Wake tap; another tap starts it over.
     @ObservationIgnored var wakeRetry: Task<Void, Never>?
+    /// Shares the share sheet kept for later are on their way.
+    @ObservationIgnored var sendingShares = false
 
     // Saved Macs and which one is live. The live session talks to one Mac at a
     // time; `activeMacId` names it. An empty `macs` list means "not paired with any
@@ -552,7 +554,7 @@ final class AppModel {
     var linkRecord: MacRecord? { activeRecord.map(linkRecord(of:)) }
 
     /// The active Mac's stored credential, if any.
-    func activeCredential() -> LpmClient.Credential? {
+    func activeCredential() -> MacCredential? {
         guard let record = activeRecord else { return nil }
         return Keychain.load(for: linkRecord(of: record).localId)
     }
@@ -566,7 +568,7 @@ final class AppModel {
 
     /// Probe the remembered addresses and connect to whichever the phone can
     /// reach right now — the LAN IP at home, the Tailscale IP away from home.
-    func connectBest(credential: LpmClient.Credential) {
+    func connectBest(credential: MacCredential) {
         guard !demoMode else { return } // Demo Mode owns its own in-process client
         let hosts = savedHosts()
         let port = savedPort()
@@ -764,7 +766,7 @@ final class AppModel {
         }
     }
 
-    func connect(host: String, port: Int, credential: LpmClient.Credential) {
+    func connect(host: String, port: Int, credential: MacCredential) {
         guard !demoMode else { return } // never dial a socket while in Demo Mode
         client?.disconnect()
         currentHost = host

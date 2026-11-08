@@ -77,7 +77,7 @@ private final class FeedLink {
     private static let refreshDelay: Double = 0.4
 
     private let record: MacRecord
-    private let credential: LpmClient.Credential
+    private let credential: MacCredential
     private let onUpdate: (Update) -> Void
     private var client: LpmClient?
     private var retry: DispatchWorkItem?
@@ -86,7 +86,7 @@ private final class FeedLink {
     private var stopped = false
     private var dialing = false
 
-    init(record: MacRecord, credential: LpmClient.Credential, onUpdate: @escaping (Update) -> Void) {
+    init(record: MacRecord, credential: MacCredential, onUpdate: @escaping (Update) -> Void) {
         self.record = record
         self.credential = credential
         self.onUpdate = onUpdate

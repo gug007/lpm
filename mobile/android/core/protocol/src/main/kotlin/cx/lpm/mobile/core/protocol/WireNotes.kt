@@ -40,18 +40,20 @@ sealed interface WireNotes {
     /**
      * Post a note. Each attachment is `{ name, mimeType, data }` with `data` as padded
      * base64 of the raw bytes. The Mac refuses anything over 8MiB — the limit is the
-     * WebSocket frame, not the disk.
+     * WebSocket frame, not the disk. The share sheet tags its note with a `reqId`.
      */
     fun notesAddMessage(
         project: String,
         chatId: String,
         text: String,
-        attachments: List<JsonObject>
+        attachments: List<JsonObject>,
+        reqId: String? = null
     ): String = frame("notesAddMessage") {
         put("project", project)
         put("chatId", chatId)
         put("text", text)
         put("attachments", JsonArray(attachments))
+        putNonEmpty("reqId", reqId)
     }
 
     fun notesEditMessage(project: String, id: String, text: String): String =

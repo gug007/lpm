@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="share_title">Send to lpm</string>
+    <string name="share_cancel">Cancel</string>
+    <string name="share_send">Send</string>
+    <string name="share_note_header">Add a note</string>
+    <string name="share_note_placeholder">What should happen with it?</string>
+    <string name="share_project_header">Project</string>
+    <string name="share_computer">Computer</string>
+    <string name="share_project">Project</string>
+    <string name="share_send_to">Send to</string>
+    <string name="share_new_agent_tab">New agent tab</string>
+    <string name="share_new_agent_tab_detail">It\'s the tab\'s first prompt</string>
+    <string name="share_agent">Agent</string>
+    <string name="share_notes">Notes</string>
+    <string name="share_notes_detail">Kept in the project\'s notes</string>
+    <plurals name="share_images">
+        <item quantity="one">%d image</item>
+        <item quantity="other">%d images</item>
+    </plurals>
+
+    <string name="share_empty_title">Connect lpm Link first</string>
+    <string name="share_empty_message">Open lpm Link and connect it to your Mac, then share again.</string>
+
+    <string name="share_sending">Sending to %1$s…</string>
+    <string name="share_your_mac">your Mac</string>
+    <string name="share_sent">Sent to %1$s</string>
+    <string name="share_saved">Saved for later</string>
+    <string name="share_saved_message">lpm Link sends it to %1$s the next time it reaches it.</string>
+    <string name="share_done">Done</string>
+    <string name="share_failed">Couldn\'t send</string>
+    <string name="share_ok">OK</string>
+    <string name="share_not_kept">Couldn\'t reach %1$s, and couldn\'t keep the share for later.</string>
+</resources>

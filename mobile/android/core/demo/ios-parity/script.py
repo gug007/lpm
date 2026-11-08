@@ -48,6 +48,12 @@ at(660, 'gitCommitChecks', project='storefront'); at(660, 'gitCommitChecks', pro
 at(660, 'gitCommitChecks', project='blog')
 at(700, 'gitChecksRerun', project='storefront', runIds=['7001'])
 at(1500, 'gitChecks', project='storefront'); at(8000, 'gitChecks', project='storefront')
+# storefront's pull request is ready to merge once the re-run passed; merged, it has no CI
+at(9000, 'gitMergePr', project='storefront', number=42, method='squash',
+   head='4b8e2f1c9d0a7e3b5f6c8d2a1e0b9c7f3d5a6e84', deleteBranch=True)
+at(9000, 'gitMergePr', project='api-gateway', method='merge'); at(9000, 'gitMergePr', number=42)
+at(9500, 'gitChecks', project='storefront')
+at(10500, 'gitChecks', project='storefront'); at(10500, 'gitChecks', project='api-gateway')
 for h in ['a1f3c9e5b2d84f6a9c0e1b7d3f5a8c2e4b6d9f01', 'e5a8b2c4d6f0a1b3c5d7e9f2a4b6c8d0e1f3a167',
           'c02f6e84a9b1d3f5e7c0a2b4d6f8e1a3c5b7d056', 'deadbeef', '8a2c4e6f0b1d3f5a7c9e2b4d6f8a0c1e3b5d7f90']:
     at(650, 'gitCommitFiles', project='storefront', hash=h)

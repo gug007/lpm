@@ -16,6 +16,7 @@ export const TERMS_PATH = "/terms";
 export const STATS_PATH = "/stats";
 export const CHANGELOG_PATH = "/changelog";
 export const LESSONS_PATH = "/lessons";
+export const lessonPath = (lesson: string): string => `${LESSONS_PATH}/${lesson}`;
 export const DEMO_PATH = "/demo";
 export const DEMO_ANCHOR = "#demo";
 export const LESSONS_ANCHOR = "#lessons";

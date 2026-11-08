@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import cx.lpm.mobile.core.designsystem.R as DesignR
 import cx.lpm.mobile.core.designsystem.component.ActivityIndicator
 import cx.lpm.mobile.core.designsystem.component.ActivityIndicatorSize
+import cx.lpm.mobile.core.designsystem.component.ProminentButton
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.feature.git.R
 

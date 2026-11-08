@@ -85,7 +85,7 @@ const ROWS: MatrixRow[] = [
   },
   {
     label: "Work on a remote machine",
-    lpm: "SSH projects with port forwarding, or a paired Linux host driven from your Mac",
+    lpm: "SSH projects with port forwarding, or a paired Linux host driven from the desktop app",
     competitor: "cmux ssh user@remote",
   },
   {

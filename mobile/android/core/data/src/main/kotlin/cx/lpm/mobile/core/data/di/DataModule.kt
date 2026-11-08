@@ -53,6 +53,8 @@ import cx.lpm.mobile.core.data.services.ServiceLogsStore
 import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.data.session.SessionEnvironment
 import cx.lpm.mobile.core.data.session.SessionStore
+import cx.lpm.mobile.core.data.share.ShareDirectoryStore
+import cx.lpm.mobile.core.data.share.ShareInbox
 import cx.lpm.mobile.core.data.terminals.TerminalsStore
 import cx.lpm.mobile.core.data.usage.StatsStore
 import cx.lpm.mobile.core.data.usage.UsageStore
@@ -173,6 +175,16 @@ object DataModule {
         clock: Clock
     ): ProjectSnapshots =
         ProjectSnapshots(File(context.cacheDir, "project-lists"), scope, Dispatchers.IO, clock)
+
+    @Provides
+    @Singleton
+    fun shareDirectory(@ApplicationContext context: Context): ShareDirectoryStore =
+        ShareDirectoryStore(File(context.filesDir, "share-directory.json"), Dispatchers.IO)
+
+    @Provides
+    @Singleton
+    fun shareInbox(@ApplicationContext context: Context): ShareInbox =
+        ShareInbox(File(context.filesDir, "share-inbox"), Dispatchers.IO)
 
     @Provides
     @Singleton

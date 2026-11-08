@@ -7,14 +7,18 @@ import cx.lpm.mobile.core.data.actions.ActionsStore
 import cx.lpm.mobile.core.data.agents.AgentLaunchStore
 import cx.lpm.mobile.core.data.git.GitChecksStore
 import cx.lpm.mobile.core.data.git.GitStore
+import cx.lpm.mobile.core.data.prefs.AppPreferences
+import cx.lpm.mobile.core.data.prefs.PreferenceKeys
 import cx.lpm.mobile.core.data.projects.ProjectsStore
 import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.data.session.MacSessions
 import cx.lpm.mobile.core.model.Action
 import cx.lpm.mobile.core.model.AgentLaunch
 import cx.lpm.mobile.core.model.GitChecks
+import cx.lpm.mobile.core.model.GitMergeMethod
 import cx.lpm.mobile.core.model.LaunchpadOption
 import cx.lpm.mobile.core.model.LaunchpadTab
+import cx.lpm.mobile.core.model.MergedPullRequest
 import cx.lpm.mobile.core.model.SessionKey
 import cx.lpm.mobile.core.model.TerminalInfo
 import cx.lpm.mobile.core.model.launchpadTabs
@@ -31,9 +35,13 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
-/** The project's CI in its menu and its sheet (iOS `ProjectRunControl` + `GitChecksSheet`). */
+/**
+ * The project's CI in its menu and its sheet (iOS `ProjectRunControl` + `GitChecksSheet`
+ * + `GitMergeSection`).
+ */
 data class GitChecksUiState(
     /** The Mac answers `gitChecks`. */
     val available: Boolean = false,
@@ -50,9 +58,25 @@ data class GitChecksUiState(
      * desktop's checks menu lists them; null until the Mac says which it has.
      */
     val fixTabs: List<LaunchpadTab>? = null,
-    val step: ActionRunStep? = null
+    val step: ActionRunStep? = null,
+    /** The Mac merges pull requests (`gitMergePr`). */
+    val canMerge: Boolean = false,
+    val merging: Boolean = false,
+    val mergeError: String? = null,
+    /** The pull request this phone just merged, until the sheet closes. */
+    val merged: MergedPullRequest? = null,
+    /** The method last merged with, as the wire names it. */
+    val mergeMethod: String = GitMergeMethod.SQUASH.wire
 ) {
     val unpushedNote: String? get() = checks?.unpushedNote(ahead)
+
+    /** The remembered method when the repository allows it, else the first it allows. */
+    val selectedMethod: GitMergeMethod
+        get() {
+            val methods = checks?.pr?.merge?.methods.orEmpty()
+            return methods.firstOrNull { it.wire == mergeMethod } ?: methods.firstOrNull()
+                ?: GitMergeMethod.SQUASH
+        }
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -61,7 +85,8 @@ class GitChecksViewModel @AssistedInject constructor(
     @Assisted private val project: String,
     @Assisted private val sessionKey: SessionKey,
     private val sessions: MacSessions,
-    private val actionMemory: ActionMemory
+    private val actionMemory: ActionMemory,
+    private val prefs: AppPreferences
 ) : ViewModel() {
     @AssistedFactory
     interface Factory {
@@ -70,6 +95,10 @@ class GitChecksViewModel @AssistedInject constructor(
 
     private val session: MacSession? get() = sessions[sessionKey]
     private val step = MutableStateFlow<ActionRunStep?>(null)
+
+    private val mergeMethod = prefs.data.map {
+        prefs.string(PreferenceKeys.GIT_MERGE_METHOD) ?: GitMergeMethod.SQUASH.wire
+    }
 
     /** The option whose inputs or confirmation are up. */
     private var fixing: LaunchpadOption? = null
@@ -83,11 +112,12 @@ class GitChecksViewModel @AssistedInject constructor(
         s.store<GitStore>().state,
         s.state,
         fixTabs(s),
-        step
-    ) { ci, git, _, tabs, step ->
+        combine(step, mergeMethod, ::Pair)
+    ) { ci, git, _, tabs, (step, method) ->
         val snapshot = git.snapshots[project]
+        val store = s.store<GitChecksStore>()
         GitChecksUiState(
-            available = s.store<GitChecksStore>().available,
+            available = store.available,
             checks = ci.results[project],
             branch = snapshot?.branch.orEmpty(),
             ahead = snapshot?.ahead ?: 0,
@@ -95,7 +125,12 @@ class GitChecksViewModel @AssistedInject constructor(
             rerunError = ci.rerunErrors[project],
             canFix = s.store<AgentLaunchStore>().canLaunchAgents,
             fixTabs = tabs,
-            step = step
+            step = step,
+            canMerge = store.canMerge,
+            merging = project in ci.merging,
+            mergeError = ci.mergeErrors[project],
+            merged = ci.merged[project],
+            mergeMethod = method
         )
     }
 
@@ -130,6 +165,19 @@ class GitChecksViewModel @AssistedInject constructor(
 
     fun rerun() {
         session?.store<GitChecksStore>()?.rerun(project)
+    }
+
+    fun merge(method: GitMergeMethod, deleteBranch: Boolean) {
+        session?.store<GitChecksStore>()?.merge(project, method, deleteBranch)
+    }
+
+    fun pickMergeMethod(method: GitMergeMethod) {
+        prefs.setString(PreferenceKeys.GIT_MERGE_METHOD, method.wire)
+    }
+
+    /** The sheet closed. */
+    fun forgetMerge() {
+        session?.store<GitChecksStore>()?.forgetMerge(project)
     }
 
     /**

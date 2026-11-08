@@ -398,6 +398,9 @@ class LpmClient internal constructor(
         // `gitCommitChecks`: how each recent commit did on CI, for History's rows.
         const val GIT_COMMIT_CHECKS_FEATURE = "gitCommitChecks"
 
+        // `gitMergePr`, and `merge` on `gitChecks`' pull request.
+        const val GIT_MERGE_FEATURE = "gitMerge"
+
         // `keepAwake` and `keepAwakeSet`, and the `keepAwake` push.
         const val KEEP_AWAKE_FEATURE = "keepAwake"
 

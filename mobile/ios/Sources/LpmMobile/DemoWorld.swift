@@ -217,6 +217,7 @@ struct DemoWorld {
     var gitAutoRuns: [String: GitAutoRun] = [:] // project -> last Auto Commit / PR run
     var gitAutoNextId = 1
     var ciRerunAt: [String: Date] = [:] // project -> when its failed CI jobs were run again
+    var ciMerged: Set<String> = [] // projects whose pull request was merged from the phone
     var gitDiscardNextId = 1
     // Terminals whose sample question was answered: they wait on no dialog since.
     var answeredDialogs: Set<String> = []

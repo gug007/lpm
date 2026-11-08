@@ -13,9 +13,27 @@ pub struct PullRequestInfo {
     pub title: String,
     pub is_draft: bool,
     pub checks: Vec<PrCheck>,
+    /// Only filled by `branch_pull_request_with_merge`, for the phone.
+    #[serde(skip)]
+    pub merge: MergeReadiness,
     /// What a Fix with … agent is told while an open PR's checks fail.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fix_prompt: Option<String>,
+}
+
+/// How GitHub stands on merging the pull request, in its own words.
+#[derive(Serialize, Debug, PartialEq, Default, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct MergeReadiness {
+    /// MERGEABLE, CONFLICTING, or UNKNOWN while GitHub works it out.
+    pub mergeable: String,
+    /// GitHub's mergeStateStatus: CLEAN, UNSTABLE, HAS_HOOKS, BLOCKED, BEHIND,
+    /// DIRTY, DRAFT or UNKNOWN.
+    pub state: String,
+    /// APPROVED, CHANGES_REQUESTED or REVIEW_REQUIRED; empty when no review is asked for.
+    pub review: String,
+    /// The head commit, so a merge takes exactly what was looked at.
+    pub head: String,
 }
 
 #[derive(Serialize, Debug, PartialEq, Clone)]
@@ -43,16 +61,35 @@ struct GhPullRequest {
     is_draft: bool,
     #[serde(default)]
     status_check_rollup: Vec<Value>,
+    #[serde(default)]
+    mergeable: String,
+    #[serde(default)]
+    merge_state_status: String,
+    review_decision: Option<String>,
+    #[serde(default)]
+    head_ref_oid: String,
 }
 
 const FIELDS: &str = "number,url,state,title,isDraft,statusCheckRollup";
+/// Asking for these makes GitHub work out mergeability, so the footer's poll
+/// leaves them out.
+const MERGE_FIELDS: &str = "mergeable,mergeStateStatus,reviewDecision,headRefOid";
 
 /// The pull request for `cwd`'s current branch — `gh` prefers an open one and
 /// falls back to the newest merged/closed — or None when there is none, the
 /// remote is not GitHub, or `gh` is missing or signed out.
 #[tauri::command(async)]
 pub fn branch_pull_request(cwd: String) -> Option<PullRequestInfo> {
-    gh_out(&cwd, &["pr", "view", "--json", FIELDS])
+    view_pull_request(&cwd, FIELDS)
+}
+
+/// `branch_pull_request` with `merge` filled in.
+pub(crate) fn branch_pull_request_with_merge(cwd: &str) -> Option<PullRequestInfo> {
+    view_pull_request(cwd, &format!("{FIELDS},{MERGE_FIELDS}"))
+}
+
+fn view_pull_request(cwd: &str, fields: &str) -> Option<PullRequestInfo> {
+    gh_out(cwd, &["pr", "view", "--json", fields])
         .ok()
         .and_then(|json| parse_pull_request(&json))
 }
@@ -88,6 +125,12 @@ fn parse_pull_request(json: &str) -> Option<PullRequestInfo> {
         title: pr.title,
         is_draft: pr.is_draft,
         checks,
+        merge: MergeReadiness {
+            mergeable: pr.mergeable,
+            state: pr.merge_state_status,
+            review: pr.review_decision.unwrap_or_default(),
+            head: pr.head_ref_oid,
+        },
         fix_prompt,
     })
 }
@@ -164,7 +207,7 @@ fn status_context_state(state: &str) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_pull_request, PrCheck, PullRequestInfo};
+    use super::{parse_pull_request, MergeReadiness, PrCheck, PullRequestInfo};
 
     #[test]
     fn parses_gh_pr_view_json() {
@@ -178,9 +221,26 @@ mod tests {
                 title: "Add footer link".into(),
                 is_draft: false,
                 checks: vec![],
+                merge: MergeReadiness::default(),
                 fix_prompt: None,
             })
         );
+    }
+
+    #[test]
+    fn reads_how_github_stands_on_merging() {
+        let json = r#"{"number":42,"state":"OPEN","title":"t","url":"https://github.com/o/r/pull/42","mergeable":"MERGEABLE","mergeStateStatus":"CLEAN","reviewDecision":"APPROVED","headRefOid":"9e7d031"}"#;
+        assert_eq!(
+            parse_pull_request(json).unwrap().merge,
+            MergeReadiness {
+                mergeable: "MERGEABLE".into(),
+                state: "CLEAN".into(),
+                review: "APPROVED".into(),
+                head: "9e7d031".into(),
+            }
+        );
+        let unreviewed = r#"{"number":42,"state":"OPEN","title":"t","url":"https://github.com/o/r/pull/42","reviewDecision":null}"#;
+        assert_eq!(parse_pull_request(unreviewed).unwrap().merge.review, "");
     }
 
     #[test]

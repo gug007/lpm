@@ -8,12 +8,14 @@ struct ProjectMenuHost: ViewModifier {
     let project: Project
     // The terminal whose screen hosts the menu, if any.
     let terminal: TerminalInfo?
+    // The screen's hold on the review and the Git sheets, when it opens them itself too.
+    let sharedGit: ProjectGitScreens?
     // Find in that terminal, while it's live here.
     let onFind: (() -> Void)?
     // Run a terminal action and switch to the terminal it spawns.
     let onSpawnedTerminal: ((TerminalInfo) -> Void)?
 
-    @State private var showChanges = false
+    @State private var ownGit = ProjectGitScreens()
     @State private var showFiles = false
     @State private var showResume = false
     @State private var showMemory = false
@@ -21,10 +23,8 @@ struct ProjectMenuHost: ViewModifier {
     @State private var showNotes = false
     @State private var showAutomations = false
     @State private var showHistory = false
-    @State private var showBranchSheet = false
     @State private var showPrSheet = false
     @State private var showAutoSheet = false
-    @State private var showChecks = false
     @State private var confirmingDiscard = false
     @State private var showTerminalSettings = false
     @State private var showingConfig = false
@@ -49,15 +49,16 @@ struct ProjectMenuHost: ViewModifier {
     private var pending: Bool { model.pendingRun[project.name] != nil }
 
     func body(content: Content) -> some View {
+        @Bindable var git = sharedGit ?? ownGit
         content
-            .navigationDestination(isPresented: $showChanges) { GitReviewView(project: project) }
+            .navigationDestination(isPresented: $git.changes) { GitReviewView(project: project) }
             .navigationDestination(isPresented: $showFiles) { ProjectFilesScreen(project: project) }
             .navigationDestination(isPresented: $showMemory) { MemoryScreen(project: project) }
             .navigationDestination(isPresented: $showCommands) { CommandsScreen(project: project.name) }
             .navigationDestination(isPresented: $showNotes) { NotesScreen(project: project.name) }
             .navigationDestination(isPresented: $showAutomations) { AutomationsView(project: project.name) }
             .navigationDestination(isPresented: $showHistory) { CommitHistoryScreen(project: project) }
-            .sheet(isPresented: $showBranchSheet) {
+            .sheet(isPresented: $git.branch) {
                 GitBranchSheet(project: project).environment(model)
             }
             .sheet(isPresented: $showPrSheet) {
@@ -66,7 +67,7 @@ struct ProjectMenuHost: ViewModifier {
             .sheet(isPresented: $showAutoSheet) {
                 GitAutoSheet(project: project).environment(model)
             }
-            .sheet(isPresented: $showChecks) {
+            .sheet(isPresented: $git.checks) {
                 GitChecksSheet(project: project, onSpawnedTerminal: onSpawnedTerminal).environment(model)
             }
             .sheet(isPresented: $showResume) {
@@ -88,11 +89,11 @@ struct ProjectMenuHost: ViewModifier {
             // Gated on isVisible because several screens in one navigation stack
             // host this modifier — without it a single gitOpError would try to
             // present an alert on every one at once. The review screen owns its
-            // own copy of this alert, hence the !showChanges gate too.
+            // own copy of this alert, hence the !git.changes gate too.
             .alert(
                 model.git.opError[project.name]?.title ?? "",
                 isPresented: Binding(
-                    get: { isVisible && !showChanges && !showAutoSheet && model.git.opError[project.name] != nil },
+                    get: { isVisible && !git.changes && !showAutoSheet && model.git.opError[project.name] != nil },
                     set: { if !$0 { model.git.opError[project.name] = nil } }
                 )
             ) {
@@ -100,7 +101,7 @@ struct ProjectMenuHost: ViewModifier {
             } message: {
                 Text(model.git.opError[project.name]?.message ?? "")
             }
-            .gitNotice(project: project.name, isActive: isVisible && !showChanges)
+            .gitNotice(project: project.name, isActive: isVisible && !git.changes)
             .actionRunGauntlet($gauntlet) { action, values in
                 dispatch(action, inputValues: values, deferred: true)
             }
@@ -136,14 +137,14 @@ struct ProjectMenuHost: ViewModifier {
                                       changedCount: changedCount,
                                       onStart: { model.startProject(project, profile: $0) },
                                       onStop: { model.confirmStop(project) },
-                                      onReviewChanges: { showChanges = true },
+                                      onReviewChanges: { git.changes = true },
                                       onFiles: model.canBrowseFiles(project) ? { showFiles = true } : nil,
                                       onResumeSession: model.canResumeSessions(project) ? { showResume = true } : nil,
                                       onMemory: { showMemory = true },
                                       onCommands: model.lpmCommandsAvailable ? { showCommands = true } : nil,
                                       onNotes: { showNotes = true },
                                       onAutomations: { showAutomations = true },
-                                      onSwitchBranch: { showBranchSheet = true },
+                                      onSwitchBranch: { git.branch = true },
                                       onCreatePr: { showPrSheet = true },
                                       onHistory: model.canShowHistory(project) ? { showHistory = true } : nil,
                                       onAuto: { kind in
@@ -151,7 +152,7 @@ struct ProjectMenuHost: ViewModifier {
                                           showAutoSheet = true
                                       },
                                       onDiscard: { confirmingDiscard = true },
-                                      onChecks: { showChecks = true },
+                                      onChecks: { git.checks = true },
                                       onFind: onFind,
                                       renamesTab: terminal != nil,
                                       onRename: rename,
@@ -204,9 +205,19 @@ struct ProjectMenuHost: ViewModifier {
 }
 
 extension View {
-    func projectMenuToolbar(project: Project, terminal: TerminalInfo? = nil, onFind: (() -> Void)? = nil,
+    func projectMenuToolbar(project: Project, terminal: TerminalInfo? = nil, git: ProjectGitScreens? = nil,
+                            onFind: (() -> Void)? = nil,
                             onSpawnedTerminal: ((TerminalInfo) -> Void)? = nil) -> some View {
-        modifier(ProjectMenuHost(project: project, terminal: terminal, onFind: onFind,
+        modifier(ProjectMenuHost(project: project, terminal: terminal, sharedGit: git, onFind: onFind,
                                  onSpawnedTerminal: onSpawnedTerminal))
     }
+}
+
+/// Whether the ⋯ menu's review screen, branch sheet and CI sheet are up. The
+/// project's screen holds it so its Git rows and title open the very same ones.
+@Observable
+final class ProjectGitScreens {
+    var changes = false
+    var branch = false
+    var checks = false
 }

@@ -42,6 +42,9 @@ export type HostMessage =
   | { source: typeof SOURCE; type: "run"; index: number }
   // The frame left the screen mid-tour: land the remaining steps quietly.
   | { source: typeof SOURCE; type: "settle" }
+  // Before the frame is shown: land every step up to and including this one
+  // quietly, so the window opens with them already done.
+  | { source: typeof SOURCE; type: "land"; index: number }
   // A config preview's project is now this file, as if it had just been saved.
   | { source: typeof SOURCE; type: "config"; yaml: string };
 

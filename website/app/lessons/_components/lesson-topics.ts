@@ -121,6 +121,17 @@ export const LESSON_TOPICS: LessonTopic[] = TOPICS.map((topic) => ({
   ),
 }));
 
+// A lesson's card and the topic it is filed under, by its slug.
+export function findLesson(
+  slug: string,
+): (LessonCardData & { topic: LessonTopic }) | undefined {
+  for (const topic of LESSON_TOPICS) {
+    const card = topic.lessons.find(({ lesson }) => lesson === slug);
+    if (card) return { ...card, topic };
+  }
+  return undefined;
+}
+
 export const LESSON_IDS = LESSON_TOPICS.flatMap((topic) =>
   topic.lessons.map(({ lesson }) => lesson),
 );

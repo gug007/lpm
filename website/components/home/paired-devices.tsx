@@ -14,6 +14,7 @@ import {
 import { HANDOFF_CYCLE_MS } from "@/components/home/paired-devices-loop";
 import { useDeviceRotation } from "@/components/home/use-device-rotation";
 import { SectionHeader } from "@/components/section-header";
+import { detectedOs, usePlatform } from "@/lib/use-platform";
 
 const SCENE_MS: Record<DeviceTab, number> = {
   iphone: HANDOFF_CYCLE_MS,
@@ -37,6 +38,12 @@ const COPY = {
       "When Claude Code, Codex or Gemini CLI needs you, your iPhone gets a notification. Answer from the phone, then take control back at your desk — one session, running on your Mac the whole time.",
     summary:
       "An illustration of one Claude Code session on a Mac and an iPhone. The agent tightens a login rate limiter in lpm on the Mac, then stops to ask before committing, and the locked iPhone gets a notification. Opening it brings up the same terminal on the phone, which takes control, so the Mac shows “Active in iPhone” with a Take control button. From the phone you answer “yes — commit & open the PR” and the agent carries on. Then the Mac takes control back and the phone shows the terminal is active there.",
+  },
+  // The home copy for Windows and Linux visitors.
+  homePc: {
+    title: "The same terminal, on your computer and in your pocket",
+    description:
+      "When Claude Code, Codex or Gemini CLI needs you, your iPhone gets a notification. Answer from the phone, then take control back at your desk — one session, running on your computer the whole time.",
   },
   computer: {
     title: "Your other computers, in the same sidebar",
@@ -67,8 +74,15 @@ export function PairedDevices({ companionLink = true, flush = false }: Props) {
   const idBase = useId();
   const panelId = `${idBase}-panel`;
 
+  const os = detectedOs(usePlatform());
+  const onPc = os === "windows" || os === "linux";
+
   const copy = companionLink ? COPY.home : COPY.mobile;
-  const heading = onPhoneTab ? copy : COPY[tab];
+  const heading = !onPhoneTab
+    ? COPY[tab]
+    : companionLink && onPc
+      ? COPY.homePc
+      : copy;
 
   const scenes: { id: DeviceTab; render: (active: boolean) => ReactNode }[] = [
     {

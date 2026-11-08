@@ -262,6 +262,7 @@ mod projectmarks;
 mod projects_crud;
 mod pty;
 mod pull_request;
+mod pull_request_merge;
 mod pull_request_review;
 mod ptymodes;
 mod ptyring;

@@ -97,6 +97,7 @@ dependencies {
     implementation(projects.feature.pairing)
     implementation(projects.feature.projects)
     implementation(projects.feature.settings)
+    implementation(projects.feature.share)
     implementation(projects.feature.speech)
     implementation(projects.feature.terminal)
     implementation(projects.feature.usage)

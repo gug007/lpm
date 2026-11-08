@@ -18,6 +18,7 @@ internal class SocketEvents(private val client: LpmClient) : SocketListener {
         val frame = Inbound.parse(text)
         client.post {
             if (socket !== client.socket) return@post
+            client.onFrameText?.invoke(text)
             if (frame is Inbound.Projects ||
                 frame is Inbound.Sidebar
             ) {

@@ -109,6 +109,7 @@ final class LpmClient: NSObject {
     var onGitChecks: ((_ project: String, _ checks: GitChecks?, _ error: String?) -> Void)?
     var onGitCommitChecks: ((_ project: String, _ states: [String: CiCheck.State]) -> Void)?
     var onGitChecksRerun: ((_ project: String, _ error: String?) -> Void)?
+    var onGitMergePr: ((_ project: String, _ number: Int, _ deletedBranch: Bool, _ error: String?) -> Void)?
     var onGitCommitFiles: ((_ project: String, _ hash: String, _ files: [CommitFile]?, _ error: String?) -> Void)?
     var onGitCommitPatch: ((_ project: String, _ hash: String, _ path: String, _ result: GitDiffResult?,
                             _ error: String?) -> Void)?
@@ -231,7 +232,7 @@ final class LpmClient: NSObject {
     var onNotesAttachment: ((_ project: String, _ hash: String, _ data: String?, _ error: String?) -> Void)?
 
     private var endpoint: Endpoint
-    private var credential: Credential?
+    private var credential: MacCredential?
     private var pairingCode: String?
     // Non-nil while an approve-on-Mac pairing is in flight: the device name sent in
     // the first `pairRequest` frame. This mode never auto-retries (a retry would
@@ -289,6 +290,7 @@ final class LpmClient: NSObject {
     static let gitHistoryFeature = "gitHistory"
     static let gitChecksFeature = "gitChecks"
     static let gitCommitChecksFeature = "gitCommitChecks"
+    static let gitMergeFeature = "gitMerge"
     static let keepAwakeFeature = "keepAwake"
     static let lpmCommandsFeature = "lpmCommands"
     static let lpmOtherSkillsFeature = "lpmOtherSkills"
@@ -436,8 +438,6 @@ final class LpmClient: NSObject {
     // socket reports open (see startAttempt for why it can't be sent earlier).
     private var pendingHandshakeFrame: String?
 
-    struct Credential { let deviceId: String; let token: String }
-
     /// This device's id (once paired/authenticated), for comparing against a
     /// terminal's control owner.
     var deviceId: String? { credential?.deviceId }
@@ -461,7 +461,7 @@ final class LpmClient: NSObject {
     // the Mac rather than paired with this phone. Nil for the Mac itself.
     private let relaySlug: String?
 
-    init(endpoint: Endpoint, credential: Credential?, deviceName: String,
+    init(endpoint: Endpoint, credential: MacCredential?, deviceName: String,
          pinProvider: (() -> String?)? = nil, expectedFingerprint: String? = nil,
          relay: String? = nil) {
         self.endpoint = endpoint
@@ -485,7 +485,7 @@ final class LpmClient: NSObject {
     /// makes control-ownership comparisons work before the scripted `ready` lands.
     init(demoServer: DemoServer, deviceName: String) {
         self.endpoint = Endpoint(host: "demo", port: 0)
-        self.credential = Credential(deviceId: DemoServer.deviceId, token: "demo")
+        self.credential = MacCredential(deviceId: DemoServer.deviceId, token: "demo")
         self.deviceName = deviceName
         self.relaySlug = nil
         self.demoServer = demoServer
@@ -541,7 +541,7 @@ final class LpmClient: NSObject {
                              Self.weeklyRecapFeature, Self.recapMonthFeature, Self.agentArchiveFeature,
                              Self.limitRemindersFeature, Self.projectPinsFeature, Self.gitHistoryFeature,
                              Self.keepAwakeFeature, Self.lpmCommandsFeature, Self.lpmOtherSkillsFeature, Self.lpmNestedFoldersFeature,
-                             Self.gitChecksFeature, Self.gitCommitChecksFeature,
+                             Self.gitChecksFeature, Self.gitCommitChecksFeature, Self.gitMergeFeature,
                              Self.agentDialogFeature, Self.gitDiscardFilesFeature, Self.actionPopupFeature],
             ]))
         }
@@ -1220,6 +1220,9 @@ final class LpmClient: NSObject {
     func requestGitChecksRerun(project: String, runIds: [String]) {
         send(Wire.gitChecksRerun(project: project, runIds: runIds))
     }
+    func requestGitMergePr(project: String, number: Int, method: String, head: String, deleteBranch: Bool) {
+        send(Wire.gitMergePr(project: project, number: number, method: method, head: head, deleteBranch: deleteBranch))
+    }
     func requestGitCommitFiles(project: String, hash: String) {
         send(Wire.gitCommitFiles(project: project, hash: hash))
     }
@@ -1453,7 +1456,7 @@ final class LpmClient: NSObject {
             case .paired(let deviceId, let token, let serverId, let serverName, let hosts, let platform, let build,
                          let features):
                 self.hostFeatures = features
-                self.credential = Credential(deviceId: deviceId, token: token)
+                self.credential = MacCredential(deviceId: deviceId, token: token)
                 self.pairingCode = nil
                 self.pairRequestName = nil
                 self.replacesDeviceId = nil
@@ -1616,6 +1619,8 @@ final class LpmClient: NSObject {
             case .gitChecks(let proj, let checks, let error): self.onGitChecks?(proj, checks, error)
             case .gitCommitChecks(let proj, let states): self.onGitCommitChecks?(proj, states)
             case .gitChecksRerun(let proj, let error): self.onGitChecksRerun?(proj, error)
+            case .gitMergePr(let proj, let number, let deleted, let error):
+                self.onGitMergePr?(proj, number, deleted, error)
             case .gitCommitFiles(let proj, let hash, let files, let error):
                 self.onGitCommitFiles?(proj, hash, files, error)
             case .gitCommitPatch(let proj, let hash, let path, let result, let error):
@@ -1724,24 +1729,6 @@ final class LpmClient: NSObject {
     }
 }
 
-/// Forms `wss://` URLs from any saved host form, shared by the live socket and
-/// the reachability probe. `URL(string:)` returns nil for a bare IPv6 literal —
-/// and a nil URL used to dead-end the connection state machine — so IPv6 hosts
-/// (kept deliberately as an away-from-home fallback) are bracketed here, with
-/// any zone id's `%` percent-encoded per RFC 6874. Hostnames, IPv4 literals,
-/// and already-bracketed input pass through unchanged.
-enum WssURL {
-    static func make(host: String, port: Int) -> URL? {
-        URL(string: "wss://\(urlHost(host)):\(port)/")
-    }
-
-    private static func urlHost(_ host: String) -> String {
-        let trimmed = host.trimmingCharacters(in: .whitespaces)
-        guard trimmed.contains(":"), !trimmed.hasPrefix("[") else { return trimmed }
-        return "[\(trimmed.replacingOccurrences(of: "%", with: "%25"))]"
-    }
-}
-
 /// Evaluates the server's TLS trust for the wss:// link with trust-on-first-use
 /// certificate pinning. The desktop serves a self-signed cert, so default trust
 /// evaluation always fails; instead the identity is the SHA-256 of the leaf
@@ -1808,21 +1795,5 @@ final class PinningDelegate: NSObject, URLSessionDelegate, URLSessionWebSocketDe
         // No pin yet (fresh pair, or a Mac paired before TLS existed): accept and
         // let the model pin the observed fingerprint once auth/pair succeeds.
         accept()
-    }
-}
-
-/// Certificate-identity helpers shared by the live socket and the reachability
-/// probe: the pinned identity is the lowercase hex SHA-256 of the leaf
-/// certificate's DER encoding.
-enum CertPinning {
-    static func leafFingerprint(_ trust: SecTrust) -> String? {
-        guard let chain = SecTrustCopyCertificateChain(trust) as? [SecCertificate],
-              let leaf = chain.first else { return nil }
-        let der = SecCertificateCopyData(leaf) as Data
-        return sha256Hex(der)
-    }
-
-    static func sha256Hex(_ data: Data) -> String {
-        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 }

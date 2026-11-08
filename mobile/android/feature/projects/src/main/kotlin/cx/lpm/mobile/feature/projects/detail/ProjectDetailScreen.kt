@@ -34,6 +34,7 @@ import cx.lpm.mobile.core.designsystem.component.ListRow
 import cx.lpm.mobile.core.designsystem.component.ListSection
 import cx.lpm.mobile.core.designsystem.component.ListSectionSpacing
 import cx.lpm.mobile.core.designsystem.component.LpmTopBar
+import cx.lpm.mobile.core.designsystem.component.clickableNoIndication
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.core.model.AgentState
 import cx.lpm.mobile.core.model.AppTip
@@ -67,13 +68,17 @@ class ProjectDetailActions(
     val stopAll: () -> Unit = {},
     val editConfig: () -> Unit = {},
     val retryConfig: () -> Unit = {},
-    val closeTip: (AppTip) -> Unit = {}
+    val closeTip: (AppTip) -> Unit = {},
+    val openBranch: () -> Unit = {},
+    val openChanges: () -> Unit = {},
+    val openChecks: () -> Unit = {}
 )
 
 /**
- * A project's screen (iOS `ProjectDetail`): its open tabs with "New tab", its
+ * A project's screen (iOS `ProjectDetail`): its open tabs with "New tab", its Git, its
  * services with their switches and "Stop all", and the sections other features add
- * under them; the "…" menu and ⚡ sit in the bar ([menu]).
+ * under them; the "…" menu and ⚡ sit in the bar ([menu]). The title opens the changes
+ * while there are some.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -108,7 +113,15 @@ fun ProjectDetailScreen(
             trailing = menu,
             keepTitleCentered = true
         ) {
-            ProjectTitle(state)
+            val hint = stringResource(ProjectsR.string.detail_open_changes_hint)
+            ProjectTitle(
+                state,
+                modifier = if (state.hasChanges) {
+                    Modifier.clickableNoIndication(actions.openChanges, onClickLabel = hint)
+                } else {
+                    Modifier
+                }
+            )
         }
         connectionStatusBar()
         Box(
@@ -135,6 +148,7 @@ fun ProjectDetailScreen(
                         }
                         QueuedSection(state, actions)
                         TabsSection(state, actions, tabClaudeAccountMenu)
+                        ProjectGitSection(state, actions)
                         ServicesSection(state, actions)
                         belowServices()
                         if (state.showsUsage) {

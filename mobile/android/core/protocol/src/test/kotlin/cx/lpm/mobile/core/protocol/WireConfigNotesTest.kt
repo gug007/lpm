@@ -148,6 +148,11 @@ class WireConfigNotesTest {
             Wire.notesAddMessage("a", "c-1", "plain", emptyList())
         )
         assertFrame(
+            """{ "t": "notesAddMessage", "project": "a", "chatId": "c-1", "text": "shared",
+                 "attachments": [], "reqId": "r-1" }""",
+            Wire.notesAddMessage("a", "c-1", "shared", emptyList(), reqId = "r-1")
+        )
+        assertFrame(
             """{ "t": "notesEditMessage", "project": "a", "id": "m-1", "text": "edited" }""",
             Wire.notesEditMessage("a", "m-1", "edited")
         )

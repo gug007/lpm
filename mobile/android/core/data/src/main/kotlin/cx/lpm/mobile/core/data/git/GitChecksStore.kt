@@ -3,9 +3,12 @@ package cx.lpm.mobile.core.data.git
 import cx.lpm.mobile.core.data.client.LpmClient
 import cx.lpm.mobile.core.data.client.requestGitChecks
 import cx.lpm.mobile.core.data.client.requestGitChecksRerun
+import cx.lpm.mobile.core.data.client.requestGitMergePr
 import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.data.session.SessionStore
 import cx.lpm.mobile.core.model.GitChecks
+import cx.lpm.mobile.core.model.GitMergeMethod
+import cx.lpm.mobile.core.model.MergedPullRequest
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -15,13 +18,16 @@ data class GitChecksState(
     /** A project with no entry is unknown or has nothing to show. */
     val results: Map<String, GitChecks> = emptyMap(),
     val rerunning: Set<String> = emptySet(),
-    val rerunErrors: Map<String, String> = emptyMap()
+    val rerunErrors: Map<String, String> = emptyMap(),
+    val merging: Set<String> = emptySet(),
+    val mergeErrors: Map<String, String> = emptyMap(),
+    val merged: Map<String, MergedPullRequest> = emptyMap()
 )
 
 /**
  * CI on each project's branch (iOS `GitChecksStore`): what the Mac last said about
- * it, and running the failed jobs again. The screens showing it ask again while
- * they're up.
+ * it, running the failed jobs again, and merging the pull request once it's ready.
+ * The screens showing it ask again while they're up.
  */
 class GitChecksStore(private val session: MacSession) : SessionStore {
     private val mutable = MutableStateFlow(GitChecksState())
@@ -32,9 +38,13 @@ class GitChecksStore(private val session: MacSession) : SessionStore {
     val available: Boolean
         get() = client?.hostFeatures?.contains(LpmClient.GIT_CHECKS_FEATURE) == true
 
+    val canMerge: Boolean
+        get() = client?.hostFeatures?.contains(LpmClient.GIT_MERGE_FEATURE) == true
+
     override fun wire(client: LpmClient) {
         client.onGitChecks = ::apply
         client.onGitChecksRerun = ::applyRerun
+        client.onGitMergePr = ::applyMerge
     }
 
     override fun reset() {
@@ -42,7 +52,7 @@ class GitChecksStore(private val session: MacSession) : SessionStore {
     }
 
     override fun onConnectionReset() {
-        mutable.update { it.copy(rerunning = emptySet()) }
+        mutable.update { it.copy(rerunning = emptySet(), merging = emptySet()) }
     }
 
     fun load(project: String) {
@@ -57,6 +67,27 @@ class GitChecksStore(private val session: MacSession) : SessionStore {
             it.copy(rerunning = it.rerunning + project, rerunErrors = it.rerunErrors - project)
         }
         client?.requestGitChecksRerun(project, ids)
+    }
+
+    fun merge(project: String, method: GitMergeMethod, deleteBranch: Boolean) {
+        val pr = state.value.results[project]?.pr ?: return
+        mutable.update {
+            it.copy(merging = it.merging + project, mergeErrors = it.mergeErrors - project)
+        }
+        client?.requestGitMergePr(
+            project,
+            pr.number,
+            method.wire,
+            pr.merge?.head.orEmpty(),
+            deleteBranch
+        )
+    }
+
+    /** The sheet closed: what it said about merging is done with. */
+    fun forgetMerge(project: String) {
+        mutable.update {
+            it.copy(merged = it.merged - project, mergeErrors = it.mergeErrors - project)
+        }
     }
 
     // A failed read keeps what was shown; nothing to show clears it.
@@ -91,5 +122,26 @@ class GitChecksStore(private val session: MacSession) : SessionStore {
             }
         }
         if (error == null) load(project)
+    }
+
+    private fun applyMerge(project: String, number: Int, deletedBranch: Boolean, error: String?) {
+        if (error != null) {
+            mutable.update {
+                it.copy(
+                    merging = it.merging - project,
+                    mergeErrors = it.mergeErrors + (project to error)
+                )
+            }
+            return
+        }
+        mutable.update { s ->
+            val title = s.results[project]?.pr?.takeIf { it.number == number }?.title.orEmpty()
+            s.copy(
+                merging = s.merging - project,
+                merged = s.merged + (project to MergedPullRequest(number, title, deletedBranch))
+            )
+        }
+        load(project)
+        session.store<GitStore>().load(project)
     }
 }

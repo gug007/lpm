@@ -63,7 +63,12 @@ side by side (see `mobile/parity/README.md`).
   VoiceToText dictation uses each phone's own recognizer, so Android asks only for the
   microphone, and its "not allowed" notice names just that, and because Android's
   recognizer ends at every pause a take restarts it until Stop, which can make the
-  system's listening sound each time.
+  system's listening sound each time; "Send to lpm" is an activity in the app
+  (`ACTION_SEND` / `ACTION_SEND_MULTIPLE`) where iOS runs a share extension, and each share
+  opens a short link of its own with the app's client, saved credential, pin and built-in
+  Tailscale; Android's share sheet can't cap a share at five images, so the
+  sheet takes the first five, and a share kept for later is told about on a "Shared from
+  other apps" notification channel.
 - **Same persisted keys and semantics** as iOS (table below), so behavior and
   defaults match.
 - Desktop changes that touch the phone now update both apps (AGENTS.md).
@@ -246,6 +251,7 @@ Port order is top to bottom within each milestone below. Lines are iOS sizes.
 | Push → `:core:push` | AppDelegate, PushRegistrar, NotificationSettingsSheet, Shared/PushKey, Shared/PushPayload, NotificationService | 661 |
 | Built-in Tailscale → `:core:tailnet` | BuiltInTailscale, TailnetSettingsView (+ Go `tailnet/`) | 452 |
 | Widgets → `:feature:widgets`, `:core:data` (`AgentWidgetStore`), `:core:model` (`AgentWidget`) | Widgets/AgentListWidget, Widgets/AgentListView, Shared/AgentWidgetStore, AppModel+Widget | 472 |
+| Send to lpm → `:feature:share`, `:core:data` (`share/`: directory, inbox, choices, delivery), `:core:model` (`Share.kt`) | ShareKit/ShareDirectory, ShareKit/PendingShare, ShareKit/ShareMacLink, ShareKit/ShareDelivery, ShareExtension/SharedItems, ShareExtension/ShareModel, ShareExtension/ShareView, ShareExtension/ShareViewController, AppModel+ShareInbox | 879 |
 | Shared UI → `:core:designsystem`, `:core:ui` | AgentStateStyle, DarkKeyboard, ElapsedText, FollowingScrollView, Haptics, KeyboardObserver, MarkdownText, SkeletonViews, SwipeDownDismissesKeyboard, SafariView | 820 |
 
 ## Platform services
@@ -263,6 +269,7 @@ Port order is top to bottom within each milestone below. Lines are iOS sizes.
 | SFSafariViewController | Custom Tabs |
 | PhotosPicker / camera / fileImporter | Photo Picker, `TakePicture`, `OpenMultipleDocuments` |
 | ShareLink / QuickLook / AVKit | `ACTION_SEND` + FileProvider; in-app renderers + Media3 |
+| Share extension "Send to lpm" (its own short link, the app group's directory and inbox, the shared keychain) | exported `ShareActivity` for `ACTION_SEND` (`text/*`, `image/*`) and `ACTION_SEND_MULTIPLE` (`image/*`), each share on a short `LpmClient` link of its own; directory and inbox in `filesDir` |
 | Swift Charts (Stats) | Compose Canvas |
 | Haptics | `HapticFeedback` |
 | WidgetKit (Agents widget: app-group file the app and notification extension write, a timeline reading a minute) | Glance (`:feature:widgets`): a file in `filesDir` the live session and FCM write, redrawn by an inexact non-wakeup alarm each minute while a time is counting |
@@ -292,10 +299,11 @@ intents beyond the Token activity widget's pills, speech recognition, biometrics
 | UserDefaults | `appearanceMode`, `terminalFontSize` (12, 8–24), `terminalTheme` (`claude-dark`) | appearance |
 | UserDefaults | `speech.engine`, `speech.voiceId`, `speech.rate` | read aloud |
 | UserDefaults | `builtInTailscale.enabled`, `pairing.usesTailscaleApp` | Tailscale |
-| UserDefaults | `automation.scheduleOpen`, `automation.setupOpen`, `filePreviewMarkdownSource`, `actionPrimaryLastUsed`, `zoneOpenLayers`, `newTab.lastPick`, `gitReview.wrap` (missing = on), `macUpdate.dismissed.<id>` | UI memory |
+| UserDefaults | `automation.scheduleOpen`, `automation.setupOpen`, `filePreviewMarkdownSource`, `actionPrimaryLastUsed`, `zoneOpenLayers`, `newTab.lastPick`, `gitReview.wrap` (missing = on), `gitMerge.method` (missing = `squash`), `macUpdate.dismissed.<id>` | UI memory |
 | UserDefaults | `lpm.allMachines` (missing = off), `lpm.tips.closed` (a string array; Android keeps it as a JSON array string, like the other lists) | Show All Machines; the tips closed, which Settings › Tips brings back |
 | Files | `Caches/project-lists/<localId>.json`; `ApplicationSupport/tailnet/` (no backup) | offline project list; tailnet state (`noBackupFilesDir`) |
 | App group `group.cx.lpm.mobile` | `token-activity.json` (Android: `filesDir`); UserDefaults `tokenActivity.range` (7, 14 or 30; missing = 7) | the Token activity widget's last 30-day read and the range its pills picked |
+| App group `group.cx.lpm.mobile` | `share-directory.json`, `share-inbox/<id>/` (`share.json`, `image-<n>.jpg`) (Android: `filesDir`); UserDefaults `share.mac`, `share.project`, `share.destination`, `share.agent` | the Macs, local projects and agents the share sheet offers, the shares it kept for later, and its last choices |
 | App group `group.cx.lpm.mobile` | `usage-widget.json` (Android: `filesDir`) | the Usage widget's rows from the Mac last live, and when the phone last had them |
 
 ## Demo Mode

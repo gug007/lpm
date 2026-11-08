@@ -11,7 +11,7 @@ struct ChangesLine: View {
     var body: some View {
         ZStack {
             if let snapshot = model.git.snapshots[project] {
-                if snapshot.isRepo && !snapshot.files.isEmpty { summary(snapshot) }
+                if snapshot.isRepo && !snapshot.files.isEmpty { Self.summary(snapshot) }
             } else if model.git.loading.contains(project) {
                 Capsule()
                     .fill(.quaternary)
@@ -26,11 +26,12 @@ struct ChangesLine: View {
         .opacity(stale ? 0.5 : 1)
     }
 
-    private func summary(_ snapshot: GitSnapshot) -> some View {
+    /// "+52 −5 · 4 files": the dot and the file count take the surrounding style.
+    static func summary(_ snapshot: GitSnapshot, spacing: CGFloat = 3) -> some View {
         let added = snapshot.linesAdded ?? 0
         let removed = snapshot.linesRemoved ?? 0
         let files = snapshot.files.count
-        return HStack(spacing: 3) {
+        return HStack(spacing: spacing) {
             if added > 0 { Text("+\(compactCount(added))").foregroundStyle(.green) }
             if removed > 0 { Text("−\(compactCount(removed))").foregroundStyle(.red) }
             if added + removed > 0 { Text("·").accessibilityHidden(true) }
@@ -40,7 +41,7 @@ struct ChangesLine: View {
 }
 
 /// "656", "12.4k", "214k", "1.2M": a count that fits the header.
-func compactCount(_ n: Int) -> String {
+private func compactCount(_ n: Int) -> String {
     if n < 10_000 { return "\(n)" }
     if n < 1_000_000 { return scaledCount(n, unit: 1_000, suffix: "k") }
     return scaledCount(n, unit: 1_000_000, suffix: "M")

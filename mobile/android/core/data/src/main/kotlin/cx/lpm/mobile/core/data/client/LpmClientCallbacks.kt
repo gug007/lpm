@@ -209,6 +209,11 @@ abstract class LpmClientCallbacks {
     var onGitChecks: ((project: String, checks: GitChecks?, error: String?) -> Unit)? = null
     var onGitCommitChecks: ((project: String, states: Map<String, CiCheck.State>) -> Unit)? = null
     var onGitChecksRerun: ((project: String, error: String?) -> Unit)? = null
+
+    // The open pull request merged, and whether its branch went with it.
+    var onGitMergePr: (
+        (project: String, number: Int, deletedBranch: Boolean, error: String?) -> Unit
+    )? = null
     var onGitCommitFiles: (
         (project: String, hash: String, files: List<CommitFile>?, error: String?) -> Unit
     )? = null
@@ -246,6 +251,9 @@ abstract class LpmClientCallbacks {
 
     // The raw text of every `projects` and `sidebar` frame, for the saved list.
     var onListFrame: ((text: String) -> Unit)? = null
+
+    // The raw text of every frame, for a short link that reads its replies itself (a share).
+    var onFrameText: ((text: String) -> Unit)? = null
 
     // `ready` carried the Mac's identity / candidate addresses (keyed by the frame's
     // serverId — a pairing connection has no active record yet) / lpm build.

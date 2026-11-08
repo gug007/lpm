@@ -1,7 +1,8 @@
 # CI in the project's "…" menu, under Git: storefront's pull request has a failing
 # test, so the row says 1 failing; its sheet lists the checks failing first, and
 # running the failed jobs again shows them running, then passing. iOS names the row
-# "CI, 1 failing"; Android may read its title and subtitle apart.
+# "CI, 1 failing"; Android may read its title and subtitle apart. The project's Git
+# section reads "CI on #42, 1 failing" behind the menu, which these don't match.
 appId: cx.lpm.mobile
 name: 158-ci-checks
 tags: [demo, projects, git]
@@ -13,12 +14,12 @@ tags: [demo, projects, git]
     timeout: 5000
 - tapOn: "More"
 - extendedWaitUntil:
-    visible: "(CI.*)?1 failing"
+    visible: "CI, 1 failing|1 failing"
     timeout: 10000
 - waitForAnimationToEnd:
     timeout: 3000
 - takeScreenshot: 1-menu
-- tapOn: "(CI.*)?1 failing"
+- tapOn: "CI, 1 failing|1 failing"
 - extendedWaitUntil:
     visible: "test \\(ubuntu-latest\\)"
     timeout: 5000
@@ -38,13 +39,13 @@ tags: [demo, projects, git]
 - tapOn: "Done"
 - tapOn: "More"
 - extendedWaitUntil:
-    visible: "(CI.*)?1 running"
+    visible: "CI, 1 running|1 running"
     timeout: 5000
 - waitForAnimationToEnd:
     timeout: 3000
 - takeScreenshot: 4-menu-running
 - extendedWaitUntil:
-    visible: "(CI.*)?Checks passed"
+    visible: "CI, Checks passed|Checks passed"
     timeout: 70000
 - waitForAnimationToEnd:
     timeout: 3000

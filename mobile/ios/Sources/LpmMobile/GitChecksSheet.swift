@@ -29,6 +29,8 @@ struct GitChecksSheet: View {
             Group {
                 if let checks {
                     list(checks)
+                } else if let merged = model.gitChecks.merged[name] {
+                    List { GitMergedSection(merged: merged) }
                 } else {
                     ContentUnavailableView("No checks", systemImage: "checkmark.circle",
                                            description: Text("GitHub has no checks for this branch."))
@@ -41,6 +43,10 @@ struct GitChecksSheet: View {
             }
         }
         .onAppear { if model.canLaunchAgents { model.agentLaunch.loadOptions() } }
+        .onDisappear { model.gitChecks.forgetMerge(name) }
+        .onChange(of: model.gitChecks.merged[name]) { _, merged in
+            if merged != nil { Haptics.success() }
+        }
         .actionRunGauntlet($gauntlet) { action, values in
             if let fixing, let prompt = checks?.fixPrompt { run(fixing, action, values, prompt) }
         }
@@ -48,6 +54,10 @@ struct GitChecksSheet: View {
 
     private func list(_ checks: GitChecks) -> some View {
         List {
+            if let merged = model.gitChecks.merged[name] {
+                GitMergedSection(merged: merged)
+            }
+            GitMergeSection(project: name, checks: checks)
             Section {
                 ForEach(checks.sorted) { check in
                     Button {

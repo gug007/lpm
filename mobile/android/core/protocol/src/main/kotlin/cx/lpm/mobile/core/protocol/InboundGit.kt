@@ -124,6 +124,14 @@ internal val gitParsers = parsers {
     put("gitChecksRerun") { o ->
         Inbound.GitChecksRerun(o.str("project"), o.failure("Couldn't run the failed jobs again."))
     }
+    put("gitMergePr") { o ->
+        Inbound.GitMergePr(
+            project = o.str("project"),
+            number = o.int("number") ?: 0,
+            deletedBranch = o.bool("deletedBranch") ?: false,
+            error = o.failure("Couldn't merge the pull request.")
+        )
+    }
     put("gitCommitFiles") { o ->
         Inbound.GitCommitFiles(
             project = o.str("project"),

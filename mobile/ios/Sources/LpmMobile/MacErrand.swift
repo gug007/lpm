@@ -47,7 +47,7 @@ final class MacErrand {
         }
     }
 
-    private func start(host: String, port: Int, credential: LpmClient.Credential, mac: MacRecord,
+    private func start(host: String, port: Int, credential: MacCredential, mac: MacRecord,
                        deviceName: String, timeout: TimeInterval,
                        onIdentity: ((String?, String?, String?) -> Void)?,
                        work: @escaping (LpmClient, @escaping (Bool) -> Void) -> Void,

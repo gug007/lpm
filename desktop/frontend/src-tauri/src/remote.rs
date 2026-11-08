@@ -186,6 +186,7 @@ const PHONE_FEATURES: &[&str] = &[
     crate::remote_lpm_commands::COMMAND_USED_FEATURE,
     crate::remote_ci::FEATURE,
     crate::remote_ci::COMMITS_FEATURE,
+    crate::remote_ci::MERGE_FEATURE,
     crate::remote_popup::FEATURE,
 ];
 
@@ -4795,7 +4796,9 @@ fn handle_msg(
             let _ = out.try_send(reply.to_string());
         }
         "claudeAccounts" | "setClaudeAccount" => crate::remote_claude::handle(app, out, t, &v),
-        "gitChecks" | "gitChecksRerun" | "gitCommitChecks" => crate::remote_ci::handle(out, t, &v),
+        "gitChecks" | "gitChecksRerun" | "gitCommitChecks" | "gitMergePr" => {
+            crate::remote_ci::handle(out, t, &v)
+        }
         "actionPopup" => crate::remote_popup::handle(out, &v),
         "answers" => {
             let id = str_field("id").unwrap_or_default();

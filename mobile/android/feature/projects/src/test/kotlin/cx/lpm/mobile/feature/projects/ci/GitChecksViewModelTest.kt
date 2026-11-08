@@ -8,6 +8,8 @@ import cx.lpm.mobile.core.data.git.GitChecksStore
 import cx.lpm.mobile.core.data.git.GitStore
 import cx.lpm.mobile.core.data.prefs.PreferenceKeys
 import cx.lpm.mobile.core.data.session.SessionStore
+import cx.lpm.mobile.core.model.GitMergeMethod
+import cx.lpm.mobile.core.model.MergedPullRequest
 import cx.lpm.mobile.core.model.SessionKey
 import cx.lpm.mobile.core.testing.FakeSocket
 import cx.lpm.mobile.core.testing.MainDispatcherRule
@@ -55,6 +57,13 @@ class GitChecksViewModelTest {
             """"url":"https://github.com/o/r/actions/runs/7/job/1"}]},""" +
             """"fixPrompt":"CI checks are failing on main"}"""
 
+    private val mergeable =
+        """{"t":"gitChecks","project":"storefront","ok":true,"branch":"feat/x","commit":null,""" +
+            """"pr":{"number":42,"url":"https://github.com/o/r/pull/42","title":"Checkout",""" +
+            """"checks":[{"name":"test","workflow":"CI","state":"pass","url":""}],""" +
+            """"merge":{"mergeable":"MERGEABLE","state":"CLEAN","review":"APPROVED",""" +
+            """"head":"4b8e2f1","methods":["merge","rebase"],"deletesBranch":false}}}"""
+
     private fun TestScope.connected(actions: String = "[]"): Pair<TestSession, FakeSocket> {
         val t = TestSession(
             this,
@@ -69,7 +78,8 @@ class GitChecksViewModelTest {
             features = listOf(
                 LpmClient.AGENT_LAUNCH_FEATURE,
                 LpmClient.ACTION_PROMPT_FEATURE,
-                LpmClient.GIT_CHECKS_FEATURE
+                LpmClient.GIT_CHECKS_FEATURE,
+                LpmClient.GIT_MERGE_FEATURE
             )
         )
         socket.receive(
@@ -82,7 +92,13 @@ class GitChecksViewModelTest {
 
     private fun TestScope.subscribed(t: TestSession, socket: FakeSocket): GitChecksViewModel {
         val vm =
-            GitChecksViewModel("storefront", SessionKey.Live, t.sessions, ActionMemory(t.prefs))
+            GitChecksViewModel(
+                "storefront",
+                SessionKey.Live,
+                t.sessions,
+                ActionMemory(t.prefs),
+                t.prefs
+            )
         backgroundScope.launch { vm.uiState.collect() }
         vm.loadAgents()
         testScheduler.runCurrent()
@@ -148,5 +164,44 @@ class GitChecksViewModelTest {
         testScheduler.runCurrent()
         assertNull(vm.uiState.value.step)
         assertEquals(1, socket.sentOf("runAction").size)
+    }
+
+    @Test
+    fun `a merge goes with the remembered method, or the first the repository allows`() = runTest {
+        val (t, socket) = connected()
+        val vm = subscribed(t, socket)
+        socket.receive(mergeable)
+        testScheduler.runCurrent()
+        val state = vm.uiState.value
+        assertTrue(state.canMerge)
+        assertEquals(GitMergeMethod.MERGE, state.selectedMethod)
+
+        vm.pickMergeMethod(GitMergeMethod.REBASE)
+        testScheduler.runCurrent()
+        assertEquals("rebase", t.prefs.string(PreferenceKeys.GIT_MERGE_METHOD))
+        assertEquals(GitMergeMethod.REBASE, vm.uiState.value.selectedMethod)
+
+        vm.merge(GitMergeMethod.REBASE, deleteBranch = true)
+        testScheduler.runCurrent()
+        assertTrue(vm.uiState.value.merging)
+        assertEquals(JsonPrimitive("rebase"), socket.sentOf("gitMergePr").single()["method"])
+
+        socket.receive(
+            """{"t":"gitMergePr","project":"storefront","ok":true,"number":42,""" +
+                """"deletedBranch":true}"""
+        )
+        socket.receive(
+            """{"t":"gitChecks","project":"storefront","ok":true,"branch":"feat/x",""" +
+                """"pr":null,"commit":null}"""
+        )
+        testScheduler.runCurrent()
+        val merged = vm.uiState.value
+        assertFalse(merged.merging)
+        assertNull(merged.checks)
+        assertEquals(MergedPullRequest(42, "Checkout", deletedBranch = true), merged.merged)
+
+        vm.forgetMerge()
+        testScheduler.runCurrent()
+        assertNull(vm.uiState.value.merged)
     }
 }

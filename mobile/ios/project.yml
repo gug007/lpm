@@ -30,6 +30,8 @@ targets:
       # Push-key + crypto shared with the notification service extension (the same
       # files are compiled into both targets).
       - Sources/Shared
+      # The share sheet's directory, inbox and delivery, shared with the share extension.
+      - Sources/ShareKit
       # Apple privacy manifest — copied into the app bundle root so App Store
       # uploads pass required-reason-API validation (ITMS-91053).
       - path: PrivacyInfo.xcprivacy
@@ -85,6 +87,8 @@ targets:
       - target: LpmMobileNotificationContent
         embed: true
       - target: LpmMobileWidgets
+        embed: true
+      - target: LpmMobileShare
         embed: true
     info:
       path: Info.plist
@@ -247,3 +251,46 @@ targets:
         CFBundleDisplayName: lpm
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
+
+  # Share extension: "Send to lpm" in the share sheet. It sends a link, text or
+  # images straight to the Mac as a new agent tab's first prompt or a note, over
+  # a short link of its own (ShareKit), and leaves what it can't deliver in the
+  # app group for the app to send. It reads the Macs the app lists there and the
+  # credentials in the shared keychain group.
+  LpmMobileShare:
+    type: app-extension
+    platform: iOS
+    sources:
+      - Sources/ShareExtension
+      - Sources/ShareKit
+      - Sources/Shared/MacLink.swift
+      - Sources/LpmMobile/Keychain.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: cx.lpm.mobile.share
+        MARKETING_VERSION: "1.79"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "5.9"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_STYLE: Automatic
+    entitlements:
+      path: LpmMobileShare.entitlements
+      properties:
+        keychain-access-groups:
+          - $(AppIdentifierPrefix)cx.lpm.mobile.shared
+        com.apple.security.application-groups:
+          - group.cx.lpm.mobile
+    info:
+      path: Share-Info.plist
+      properties:
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleDisplayName: lpm
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.share-services
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
+          NSExtensionAttributes:
+            NSExtensionActivationRule:
+              NSExtensionActivationSupportsText: true
+              NSExtensionActivationSupportsWebURLWithMaxCount: 1
+              NSExtensionActivationSupportsImageWithMaxCount: 5

@@ -1,0 +1,34 @@
+# Merging storefront's pull request from the CI sheet. While a check fails the sheet
+# offers fixes, not a merge; once the failed job passes again it says "Ready to
+# merge" with the repository's methods and Delete branch, and "Merge #42" merges it.
+appId: cx.lpm.mobile
+name: 172-ci-merge
+tags: [demo, projects, git]
+---
+- runFlow: subflows/enter-demo.yaml
+- tapOn: "storefront"
+- extendedWaitUntil:
+    visible: "CI on #42.*"
+    timeout: 10000
+- tapOn: "CI on #42.*"
+- extendedWaitUntil:
+    visible: "test \\(ubuntu-latest\\)"
+    timeout: 5000
+- assertNotVisible: "Ready to merge.*"
+- tapOn: "Re-run failed jobs"
+- extendedWaitUntil:
+    visible: "Ready to merge.*"
+    timeout: 70000
+- assertVisible: "Method.*"
+- assertVisible: "Delete branch.*"
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 1-ready
+- tapOn: "Merge #42"
+- extendedWaitUntil:
+    visible: "Merged #42.*"
+    timeout: 15000
+- assertVisible: "Its branch was deleted on GitHub.*"
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 2-merged

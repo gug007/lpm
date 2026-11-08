@@ -109,7 +109,7 @@ const structuredData = [
       name: "lpm vs cmux",
       path: vsPath("cmux"),
       description:
-        "Two Mac apps built for coding agents, compared row by row.",
+        "Two desktop apps built for coding agents, compared row by row.",
     },
     {
       name: "lpm vs Docker Compose",
@@ -127,7 +127,7 @@ const structuredData = [
       name: "lpm vs Overmind",
       path: vsPath("overmind"),
       description:
-        "Procfile-shaped control from a Mac app, with no tmux to install underneath it.",
+        "Procfile-shaped control from a desktop app, with no tmux to install underneath it.",
     },
     {
       name: "lpm vs PM2",
@@ -317,7 +317,7 @@ export default function ComparisonsHubPage() {
 
       <Cta
         title="Keep the tool that already works. Let lpm start the project."
-        description="Free, open source, native macOS app. No lock-in — lpm starts and stops native processes the same way you would."
+        description="Free, open source, native on macOS, Windows and Linux. No lock-in — lpm starts and stops native processes the same way you would."
         downloadSource="vs-hub-cta"
       />
     </>

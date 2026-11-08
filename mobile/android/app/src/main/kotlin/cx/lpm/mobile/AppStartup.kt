@@ -6,6 +6,7 @@ import cx.lpm.mobile.core.data.mac.CredentialStore
 import cx.lpm.mobile.core.data.prefs.AppPreferences
 import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.push.PushStartup
+import cx.lpm.mobile.feature.share.SharePublisher
 import cx.lpm.mobile.feature.usage.widget.UsageWidgetPublisher
 import cx.lpm.mobile.feature.widgets.AgentWidgetPublisher
 import javax.inject.Inject
@@ -28,6 +29,7 @@ class AppStartup @Inject constructor(
     private val push: PushStartup,
     private val widgets: AgentWidgetPublisher,
     private val usageWidget: UsageWidgetPublisher,
+    private val shares: SharePublisher,
     private val lock: AppLock,
     @param:ApplicationScope private val scope: CoroutineScope
 ) {
@@ -46,6 +48,7 @@ class AppStartup @Inject constructor(
             push.start()
             widgets.start()
             usageWidget.start()
+            shares.start()
             mutableReady.value = true
         }
     }

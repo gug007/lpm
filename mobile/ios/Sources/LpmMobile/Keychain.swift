@@ -28,7 +28,7 @@ enum Keychain {
         saveCredential(deviceId: deviceId, token: token, account: account(for: localId))
     }
 
-    static func load(for localId: UUID) -> LpmClient.Credential? {
+    static func load(for localId: UUID) -> MacCredential? {
         loadCredential(account: account(for: localId))
     }
 
@@ -141,7 +141,7 @@ enum Keychain {
 
     // MARK: legacy single-item (pre multi-Mac) — migration only
 
-    static func loadLegacy() -> LpmClient.Credential? {
+    static func loadLegacy() -> MacCredential? {
         loadCredential(account: legacyAccount)
     }
 
@@ -177,14 +177,14 @@ enum Keychain {
         }
     }
 
-    private static func loadCredential(account: String) -> LpmClient.Credential? {
+    private static func loadCredential(account: String) -> MacCredential? {
         guard let data = loadData(account: account),
               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: String],
               let id = obj["deviceId"], let token = obj["token"]
         else {
             return nil
         }
-        return LpmClient.Credential(deviceId: id, token: token)
+        return MacCredential(deviceId: id, token: token)
     }
 
     private static func loadData(account: String) -> Data? {

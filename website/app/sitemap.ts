@@ -5,6 +5,7 @@ import { DOCS_PAGES, docsPath } from "@/lib/docs-pages";
 import {
   CHANGELOG_PATH,
   DOCS_PATH,
+  lessonPath,
   PRIVACY_PATH,
   SITE_URL,
   STATS_PATH,
@@ -13,6 +14,8 @@ import {
 } from "@/lib/links";
 // Per-route git content dates; regenerate with `pnpm sitemap:dates`.
 import sitemapDates from "@/lib/sitemap-dates.json";
+import { youtubeLesson } from "@/lib/youtube-lessons";
+import { LESSON_IDS } from "./lessons/_components/lesson-topics";
 
 type Entry = MetadataRoute.Sitemap[number];
 
@@ -38,9 +41,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const docsDates = Object.fromEntries(
     DOCS_PAGES.map(({ slug }) => [docsPath(slug), sitemapDates[DOCS_PATH]]),
   );
+  const lessonDates = Object.fromEntries(
+    LESSON_IDS.map((id) => [lessonPath(id), youtubeLesson(id).uploadDate]),
+  );
   const dates: Record<string, string> = {
     ...sitemapDates,
     ...docsDates,
+    ...lessonDates,
     [CHANGELOG_PATH]: releases[0].date,
   };
   const months: Entry[] = [...daysByMonth(changelogDays(releases))].map(

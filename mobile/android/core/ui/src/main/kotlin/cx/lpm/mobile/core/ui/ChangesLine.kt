@@ -71,7 +71,7 @@ private fun Part(text: String, color: Color, modifier: Modifier = Modifier) {
 }
 
 /** "656", "12.4k", "214k", "1.2M": a count that fits the header. */
-internal fun compactCount(n: Int): String = when {
+fun compactCount(n: Int): String = when {
     n < 10_000 -> "$n"
     n < 1_000_000 -> scaledCount(n, unit = 1_000, suffix = "k")
     else -> scaledCount(n, unit = 1_000_000, suffix = "M")

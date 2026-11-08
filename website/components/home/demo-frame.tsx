@@ -46,6 +46,7 @@ export function DemoFrame({
   const pill = useTourHint(tour);
   // Up until the visitor does anything in the window or the step list.
   const [invited, setInvited] = useState(Boolean(tour?.invite));
+  const opening = tour?.opening ?? 0;
   const ready = useDemoFrame({
     iframeRef,
     tour,
@@ -54,7 +55,7 @@ export function DemoFrame({
     onTour,
     onStage: (stage) => {
       pill.advance(stage);
-      if (stage > 0) setInvited(false);
+      if (stage > opening) setInvited(false);
     },
     onInteract: () => {
       pill.hide();

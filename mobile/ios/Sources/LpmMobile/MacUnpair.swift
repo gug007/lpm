@@ -11,7 +11,7 @@ enum MacUnpair {
     private static let giveUpAfter: TimeInterval = 30 * 24 * 60 * 60
     private static var inFlight: Set<String> = []
 
-    static func send(hosts: [String], port: Int, credential: LpmClient.Credential, pin: String?) {
+    static func send(hosts: [String], port: Int, credential: MacCredential, pin: String?) {
         // Without a pin, whoever answers at the address could be anyone; the token
         // isn't handed to them.
         guard let pin else { return }

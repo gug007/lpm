@@ -1,22 +1,18 @@
 package cx.lpm.mobile.feature.notes.composer
 
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.ImageDecoder
-import android.os.Build
 import android.provider.OpenableColumns
 import android.webkit.MimeTypeMap
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.core.graphics.scale
 import androidx.core.net.toUri
+import cx.lpm.mobile.core.ui.decodeImage
+import cx.lpm.mobile.core.ui.fitting
+import cx.lpm.mobile.core.ui.toJpeg
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlin.math.max
-import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -44,15 +40,10 @@ class AndroidNoteMedia @Inject constructor(@param:ApplicationContext private val
 
     override suspend fun encodeImage(uri: String): EncodedNoteImage? =
         withContext(Dispatchers.Default) {
-            val image = decode(uri) ?: return@withContext null
-            val jpeg = ByteArrayOutputStream()
-            if (!image.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, jpeg)) {
-                return@withContext null
-            }
-            EncodedNoteImage(
-                jpeg.toByteArray(),
-                image.fitting(THUMBNAIL_MAX_DIMENSION).asImageBitmap()
-            )
+            val image = resolver.decodeImage(uri.toUri(), UPLOAD_MAX_DIMENSION)
+                ?: return@withContext null
+            val jpeg = image.toJpeg(JPEG_QUALITY) ?: return@withContext null
+            EncodedNoteImage(jpeg, image.fitting(THUMBNAIL_MAX_DIMENSION).asImageBitmap())
         }
 
     override suspend fun readFile(uri: String, limit: Int): NoteFileRead =
@@ -78,44 +69,6 @@ class AndroidNoteMedia @Inject constructor(@param:ApplicationContext private val
 
     override suspend fun discardCapture(uri: String) {
         withContext(Dispatchers.IO) { runCatching { resolver.delete(uri.toUri(), null, null) } }
-    }
-
-    /** Decoded upright and no larger than the upload size on its longest side. */
-    private fun decode(uri: String): Bitmap? {
-        val parsed = uri.toUri()
-        return try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                ImageDecoder.decodeBitmap(ImageDecoder.createSource(resolver, parsed)) {
-                        decoder,
-                        info,
-                        _
-                    ->
-                    val longest = max(info.size.width, info.size.height)
-                    if (longest > UPLOAD_MAX_DIMENSION) {
-                        val ratio = UPLOAD_MAX_DIMENSION.toFloat() / longest
-                        decoder.setTargetSize(
-                            (info.size.width * ratio).roundToInt(),
-                            (info.size.height * ratio).roundToInt()
-                        )
-                    }
-                    decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
-                }
-            } else {
-                resolver.openInputStream(parsed)?.use(BitmapFactory::decodeStream)
-                    ?.fitting(UPLOAD_MAX_DIMENSION)
-            }
-        } catch (_: IOException) {
-            null
-        } catch (_: SecurityException) {
-            null
-        }
-    }
-
-    private fun Bitmap.fitting(maxDimension: Int): Bitmap {
-        val longest = max(width, height)
-        if (longest <= maxDimension) return this
-        val ratio = maxDimension.toFloat() / longest
-        return scale((width * ratio).roundToInt(), (height * ratio).roundToInt())
     }
 
     private companion object {

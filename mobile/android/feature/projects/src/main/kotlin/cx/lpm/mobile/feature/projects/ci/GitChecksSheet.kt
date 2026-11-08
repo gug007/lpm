@@ -10,6 +10,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -39,6 +44,7 @@ import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.core.model.CiCheck
 import cx.lpm.mobile.core.model.GitChecks
 import cx.lpm.mobile.core.model.LaunchpadOption
+import cx.lpm.mobile.core.model.MergedPullRequest
 import cx.lpm.mobile.core.navigation.PresentationScope
 import cx.lpm.mobile.core.ui.CiStateIcon
 import cx.lpm.mobile.feature.projects.ActionRunStep
@@ -60,8 +66,9 @@ internal class CiFixActions(
 /**
  * Every check on the branch (iOS `GitChecksSheet`), with the desktop menu's ways on:
  * fixing them with any agent the project's New Tab sheet offers, in a new tab, running
- * the failed jobs again, and the checks on GitHub. [actionInputs] asks for an agent
- * action's inputs before it runs.
+ * the failed jobs again, and the checks on GitHub; above them, merging the pull request
+ * once it's ready ([merge]). [actionInputs] asks for an agent action's inputs before it
+ * runs.
  */
 @Composable
 internal fun GitChecksSheet(
@@ -69,7 +76,8 @@ internal fun GitChecksSheet(
     fix: CiFixActions,
     onRerun: () -> Unit,
     onDismiss: () -> Unit,
-    actionInputs: ActionInputsSlot
+    actionInputs: ActionInputsSlot,
+    merge: CiMergeActions = CiMergeActions()
 ) {
     PresentationScope {
         AppAppearance {
@@ -79,19 +87,31 @@ internal fun GitChecksSheet(
                 haptics.performHapticFeedback(HapticFeedbackType.ContextClick)
                 sheet.dismiss(onDismiss)
             }
+            MergedHaptic(state.merged)
             ModalSheet(onDismissRequest = onDismiss, state = sheet) {
                 SheetScaffold(title = stringResource(R.string.ci_title), onDone = {
                     sheet.dismiss(onDismiss)
                 }) {
                     val checks = state.checks
-                    if (checks == null) {
-                        EmptyState(
+                    val merged = state.merged
+                    when {
+                        checks != null -> ChecksList(
+                            state,
+                            checks,
+                            onFix = { if (fix.start(it)) fixing() },
+                            onRerun,
+                            merge
+                        )
+
+                        merged != null -> Column(Modifier.verticalScroll(rememberScrollState())) {
+                            GitMergedSection(merged)
+                        }
+
+                        else -> EmptyState(
                             title = stringResource(R.string.ci_none_title),
                             icon = painterResource(DesignR.drawable.ic_check_circle),
                             description = { Text(stringResource(R.string.ci_none_description)) }
                         )
-                    } else {
-                        ChecksList(state, checks, onFix = { if (fix.start(it)) fixing() }, onRerun)
                     }
                 }
             }
@@ -120,16 +140,32 @@ internal fun GitChecksSheet(
     }
 }
 
+/** A merge that just landed taps back, as iOS's success haptic does. */
+@Composable
+private fun MergedHaptic(merged: MergedPullRequest?) {
+    val haptics = LocalHapticFeedback.current
+    var seen by remember { mutableStateOf(merged) }
+    LaunchedEffect(merged) {
+        if (merged != null && merged != seen) {
+            haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+        }
+        seen = merged
+    }
+}
+
 @Composable
 private fun ChecksList(
     state: GitChecksUiState,
     checks: GitChecks,
     onFix: (LaunchpadOption) -> Unit,
-    onRerun: () -> Unit
+    onRerun: () -> Unit,
+    merge: CiMergeActions
 ) {
     val uri = LocalUriHandler.current
     val colors = LpmTheme.colors
     Column(Modifier.verticalScroll(rememberScrollState())) {
+        state.merged?.let { GitMergedSection(it) }
+        GitMergeSection(state, checks, merge)
         Column(Modifier.padding(horizontal = ListDefaults.Margin)) {
             ListSectionHeader(
                 text = checks.heading,

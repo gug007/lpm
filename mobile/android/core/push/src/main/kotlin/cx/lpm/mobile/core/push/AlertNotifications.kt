@@ -217,6 +217,8 @@ internal const val KEEP_AWAKE_CHANNEL = "keep-awake"
 
 internal const val CI_CHANNEL = "ci-results"
 
+internal const val SHARES_CHANNEL = "shares"
+
 /** A notification in the Mac's words; a tap opens `target` there, or [project]. */
 private fun Context.macNotification(
     serverId: String?,
