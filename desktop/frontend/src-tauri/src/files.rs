@@ -469,6 +469,19 @@ pub(crate) fn open_default(path: &str) -> Result<(), String> {
     tauri_plugin_opener::open_path(path, None::<&str>).map_err(|e| e.to_string())
 }
 
+#[cfg(target_os = "macos")]
+pub(crate) fn reveal(path: &str) -> Result<(), String> {
+    let status = Command::new("open")
+        .arg("-R")
+        .arg(path)
+        .status()
+        .map_err(|e| e.to_string())?;
+    if !status.success() {
+        return Err("could not reveal in Finder".into());
+    }
+    Ok(())
+}
+
 /// Show `path` selected in the file manager: Explorer on Windows, the
 /// org.freedesktop.FileManager1 service (or the OpenURI portal) on Linux. A
 /// Linux desktop offering neither still gets the folder opened.

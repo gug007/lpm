@@ -144,25 +144,11 @@ pub fn reveal_in_finder(abs_path: String) -> Result<(), String> {
         });
     }
     let resolved = crate::files::resolve_existing_file(&abs_path)?;
-    #[cfg(target_os = "macos")]
-    {
-        let status = std::process::Command::new("open")
-            .arg("-R")
-            .arg(&resolved)
-            .status()
-            .map_err(|e| e.to_string())?;
-        if !status.success() {
-            return Err("could not reveal in Finder".into());
-        }
-        Ok(())
-    }
     #[cfg(not(target_os = "macos"))]
-    {
-        if crate::sys::headless() {
-            return Err("This host has no file manager to show the file in".into());
-        }
-        crate::files::reveal(&resolved)
+    if crate::sys::headless() {
+        return Err("This host has no file manager to show the file in".into());
     }
+    crate::files::reveal(&resolved)
 }
 
 fn verdict(binary: bool, too_large: bool, size: u64, writable: bool) -> ProjectFileContent {

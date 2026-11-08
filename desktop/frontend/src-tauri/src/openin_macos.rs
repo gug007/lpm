@@ -1,6 +1,7 @@
 // macOS: apps are bundles under /Applications (or ~/Applications), launched
 // with `open -a`; Terminal and iTerm are driven over AppleScript.
 use super::{format_path_spec, run, InstalledApp};
+use std::path::Path;
 use std::process::Command;
 
 fn home() -> String {
@@ -99,16 +100,24 @@ pub(crate) fn system_icon(_id: &str) -> Option<String> {
     None
 }
 
-pub(crate) fn open_folder(app: &InstalledApp, path: &str) -> Result<(), String> {
-    match app.id {
-        "finder" => run(Command::new("open").arg(path)),
-        "terminal" => launch_terminal(path),
-        "iterm2" => launch_iterm(path),
-        "ghostty" => launch_ghostty(path),
+fn open_dir(id: &str, app_path: &str, dir: &str) -> Result<(), String> {
+    match id {
+        "finder" => run(Command::new("open").arg(dir)),
+        "terminal" => launch_terminal(dir),
+        "iterm2" => launch_iterm(dir),
+        "ghostty" => launch_ghostty(dir),
         // By bundle path, not label: a version-suffixed bundle (Path Finder 26)
         // has no app named after the label for `open -a` to resolve.
-        _ => run(Command::new("open").args(["-a", &app.path, path])),
+        _ => run(Command::new("open").args(["-a", app_path, dir])),
     }
+}
+
+pub(crate) fn open_folder(app: &InstalledApp, path: &str) -> Result<(), String> {
+    open_dir(app.id, &app.path, path)
+}
+
+fn is_terminal(id: &str) -> bool {
+    matches!(id, "terminal" | "iterm2" | "ghostty" | "warp")
 }
 
 /// The command-line launcher a VS Code-family editor ships in its bundle.
@@ -130,6 +139,16 @@ pub(crate) fn open_file_with(
     line: i64,
     col: i64,
 ) -> Result<(), String> {
+    // Finder and the terminals only take folders (and scripts) as documents;
+    // `open -a Finder.app clip.mp4` answers with "(null) does not have
+    // permission to open".
+    if id == "finder" {
+        return crate::files::reveal(abs);
+    }
+    if is_terminal(id) {
+        let dir = Path::new(abs).parent().unwrap_or(Path::new("/"));
+        return open_dir(id, app_path, &dir.to_string_lossy());
+    }
     let spec = format_path_spec(abs, line, col);
     if let Some(cli) = vscode_cli(id, app_path) {
         return run(Command::new(cli).args(["-g", &spec]));
@@ -150,8 +169,8 @@ pub(crate) fn open_file_with(
             c.arg(abs);
             run(&mut c)
         }
-        // xcode, typora, terminals, file managers: no per-line recipe — open the
-        // app on the file.
+        // xcode, typora, Path Finder: no per-line recipe — open the app on the
+        // file.
         _ => run(Command::new("open").args(["-a", app_path, abs])),
     }
 }
