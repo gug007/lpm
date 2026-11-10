@@ -6,6 +6,7 @@ import { prefixName } from "./markers";
 const h = vi.hoisted(() => ({
   connected: true,
   answers: true,
+  fails: false,
   stateChanged: null as null | (() => void),
 }));
 
@@ -14,6 +15,7 @@ vi.mock("@tauri-apps/api/core", () => ({
     if (cmd === "peer_state") return { peers: [{ slug: "aaaaaaaa", connected: h.connected }] };
     if (cmd === "list_all_jobs") return [];
     if (cmd === "peer_invoke") {
+      if (h.fails) throw new Error("peer not connected");
       if (!h.answers) return new Promise(() => {});
       return [{ id: "triage", project: "shop", valid: true, enabled: true, running: true }];
     }
@@ -45,6 +47,7 @@ beforeEach(async () => {
   vi.resetModules();
   h.connected = true;
   h.answers = true;
+  h.fails = false;
   ({ routedInvoke } = await import("./route"));
 });
 afterEach(() => vi.useRealTimers());
@@ -74,5 +77,12 @@ describe("list_all_jobs with a server that drops off", () => {
     await vi.advanceTimersByTimeAsync(0);
     const back = await list();
     expect(back[0].offline).toBeUndefined();
+  });
+
+  it("marks them offline when the call fails before the drop reaches the peer list", async () => {
+    await list();
+    h.fails = true;
+    const dropped = await list();
+    expect(dropped).toEqual([expect.objectContaining({ id: "triage", offline: true, running: false })]);
   });
 });

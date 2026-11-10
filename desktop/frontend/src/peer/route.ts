@@ -42,7 +42,7 @@ const peerListCache = new Map<string, { list: ProjectInfo[]; at: number }>();
 // per refresh.
 const pendingPeerLists = new Map<string, { call: Promise<unknown>; startedAt: number }>();
 // Each peer's last answered automation list: it stands in while the peer is
-// slow, and (marked offline) while it isn't connected, so a host dropping off
+// slow, and (marked offline) while it can't be reached, so a host dropping off
 // doesn't read as its automations being gone.
 const peerJobsCache = new Map<string, JobInfo[]>();
 let registryStarted = false;
@@ -154,9 +154,13 @@ async function routedListProjects(): Promise<ProjectInfo[]> {
   return mergeProjectLists(local, peerLists);
 }
 
-// A peer's answer to a list command, kept by `keep` when it lands, or null when
-// it doesn't land within the wait.
-async function peerListAnswer<T>(cmd: string, slug: string, keep: (answer: T) => void): Promise<T | null> {
+// A peer's answer to a list command, kept by `keep` when it lands; "failed"
+// when the call errs, "slow" when it doesn't land within the wait.
+async function peerListAnswer<T>(
+  cmd: string,
+  slug: string,
+  keep: (answer: T) => void,
+): Promise<T | "failed" | "slow"> {
   const id = `${cmd}:${slug}`;
   let entry = pendingPeerLists.get(id);
   if (!entry) {
@@ -175,14 +179,15 @@ async function peerListAnswer<T>(cmd: string, slug: string, keep: (answer: T) =>
     entry = started;
   }
   const budget = Math.max(0, entry.startedAt + PEER_LIST_WAIT_MS - Date.now());
-  return (Promise.race([entry.call, delay(budget).then(() => null)]) as Promise<T | null>).catch(() => null);
+  const slow = delay(budget).then(() => "slow" as const);
+  return (Promise.race([entry.call, slow]) as Promise<T | "slow">).catch(() => "failed" as const);
 }
 
 async function listPeerProjects(slug: string): Promise<ProjectInfo[]> {
   const answer = await peerListAnswer<ProjectInfo[]>("list_projects", slug, (list) =>
     peerListCache.set(slug, { list, at: Date.now() }),
   );
-  return answer ?? cachedPeerList(slug);
+  return typeof answer === "string" ? cachedPeerList(slug) : answer;
 }
 
 // Whether a peer has answered list_projects at least once: until it has, an
@@ -201,10 +206,10 @@ function cachedPeerList(slug: string): ProjectInfo[] {
 }
 
 // Every automation there is: this Mac's own and each connected host's, which
-// that host lists itself. A host that doesn't answer in time doesn't hold back
-// the rest: what it listed last stands in for it, and while it isn't connected
-// that list is marked offline and not running. An automation config sync put on
-// several of them is listed once, from the one that runs it.
+// that host lists itself. A host that doesn't answer doesn't hold back the
+// rest: what it listed last stands in for it, as it was while it's only slow,
+// and marked offline and not running once it can't be reached. An automation
+// config sync put on several of them is listed once, from the one that runs it.
 async function routedListAllJobs(): Promise<unknown[]> {
   ensureRegistry();
   const listing = invoke("list_all_jobs") as Promise<unknown[] | null>;
@@ -212,9 +217,12 @@ async function routedListAllJobs(): Promise<unknown[]> {
   const peerRows = await Promise.all(
     peers.map(async ({ slug, connected }) => {
       const cached = peerJobsCache.get(slug) ?? [];
-      if (!connected) return cached.map((row) => ({ ...row, offline: true, running: false }));
+      const offline = () => cached.map((row) => ({ ...row, offline: true, running: false }));
+      if (!connected) return offline();
       const answer = await peerListAnswer<JobInfo[]>("list_all_jobs", slug, (rows) => peerJobsCache.set(slug, rows));
-      return answer ?? cached;
+      // The call fails at once when the peer just dropped, before `peers` says so.
+      if (answer === "failed") return offline();
+      return answer === "slow" ? cached : answer;
     }),
   );
   return oneRowPerJob([...(((await listing) ?? []) as JobInfo[]), ...peerRows.flat()]);

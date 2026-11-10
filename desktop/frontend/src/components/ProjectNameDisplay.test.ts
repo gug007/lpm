@@ -62,6 +62,7 @@ describe("displayNameForProjectName", () => {
 
   it("returns the raw name for a name with no matching project", () => {
     expect(displayNameForProjectName("ghost", projects)).toBe("ghost");
+    expect(displayNameForProjectName("peer-abcd1234-api", projects)).toBe("api");
   });
 });
 

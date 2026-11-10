@@ -1,3 +1,4 @@
+import { peerRawName } from "../peer/markers";
 import { type ProjectInfo } from "../types";
 
 interface ProjectNameDisplayProps {
@@ -34,7 +35,8 @@ export function displayNameForProjectName(
   projects: ProjectInfo[],
 ): string {
   const project = projects.find((p) => p.name === name);
-  if (!project) return name;
+  // A project of a computer that isn't connected is no longer listed.
+  if (!project) return peerRawName(name);
   return projectDisplayName(project, findParentProject(project, projects));
 }
 
