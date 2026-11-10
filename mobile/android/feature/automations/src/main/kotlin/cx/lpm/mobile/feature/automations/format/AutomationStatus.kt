@@ -13,7 +13,11 @@ enum class AutomationTone { Green, Red, Orange, Blue, Secondary }
  */
 fun automationStatusText(job: AutomationJob, now: AutomationClock): String {
     if (!job.valid) return job.error.ifEmpty { "Invalid automation" }
-    job.ask?.let { return "$AUTOMATION_WAITING_LABEL · ${it.summary}" }
+    job.asks.firstOrNull()?.let {
+        val n = job.asks.size
+        val waiting = if (n > 1) "$n questions waiting" else AUTOMATION_WAITING_LABEL
+        return "$waiting · ${it.summary}"
+    }
     if (job.running) return "Running"
     if (!job.enabled) return "Off · ${automationScheduleText(job)}"
     if (automationLastRunFailed(job)) return automationFailureText(job)
@@ -61,6 +65,15 @@ fun automationResultLabel(result: String): String = when (result) {
  */
 fun automationEntryLabel(entry: AutomationHistoryEntry): String {
     if (entry.waiting) return AUTOMATION_WAITING_LABEL
+    if (entry.onAnswer) {
+        return if (entry.result ==
+            "completed"
+        ) {
+            "Answered"
+        } else {
+            "Answer didn't go through"
+        }
+    }
     val base = automationResultLabel(entry.result)
     val verified = entry.verified
     if (entry.result != "completed" || verified == null) return base

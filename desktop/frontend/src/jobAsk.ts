@@ -45,6 +45,9 @@ export interface JobAsk {
   answeredAt?: number;
   // Nobody answered in time and the defaults stood in.
   auto?: boolean;
+  // What the asker filed it under: one open question per key, none of them
+  // holding the job up, and its answer goes to the job's onAnswer command.
+  key?: string;
   // On a job row: the project it waits in, and the run entry that asked —
   // absent while that run is still going.
   project?: string;
@@ -135,6 +138,8 @@ export function askStatusLabel(ask: JobAsk): string {
       return ask.reply !== undefined ? "Answered in a reply" : "Answered";
     case "dismissed":
       return "Skipped";
+    case "replaced":
+      return "Replaced by a newer question";
     default:
       return "No answer";
   }
@@ -169,4 +174,15 @@ export function askDeadlineNote(ask: JobAsk, nowMs: number = Date.now()): string
 export function askWaitingIn(ask: JobAsk | undefined, project: string): JobAsk | undefined {
   if (!isOpenAsk(ask)) return undefined;
   return ask.project === undefined || ask.project === project ? ask : undefined;
+}
+
+// Every question a job row waits on; an older host sends only `ask`.
+export function waitingAsks(job: { ask?: JobAsk; asks?: JobAsk[] }): JobAsk[] {
+  if (job.asks) return job.asks.filter(isOpenAsk);
+  return isOpenAsk(job.ask) ? [job.ask] : [];
+}
+
+// A question asked without a key stops the job's runs until it's answered.
+export function holdsJob(ask: JobAsk): boolean {
+  return ask.key === undefined;
 }

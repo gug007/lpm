@@ -254,7 +254,10 @@ private func automationTimePhrase(_ job: AutomationJob) -> String {
 
 func automationStatusText(_ job: AutomationJob) -> String {
     if !job.valid { return job.error.isEmpty ? "Invalid automation" : job.error }
-    if let ask = job.ask { return "\(automationWaitingLabel) · \(ask.summary)" }
+    if let ask = job.asks.first {
+        let waiting = job.asks.count > 1 ? "\(job.asks.count) questions waiting" : automationWaitingLabel
+        return "\(waiting) · \(ask.summary)"
+    }
     if job.running { return "Running" }
     if !job.enabled { return "Off · \(automationScheduleText(job))" }
     if automationLastRunFailed(job) { return automationFailureText(job) }
@@ -307,6 +310,7 @@ func automationResultLabel(_ result: String) -> String {
 /// says the agent exited, not that it did what it was asked.
 func automationEntryLabel(_ entry: AutomationHistoryEntry) -> String {
     if entry.waiting { return automationWaitingLabel }
+    if entry.onAnswer { return entry.result == "completed" ? "Answered" : "Answer didn't go through" }
     let base = automationResultLabel(entry.result)
     guard entry.result == "completed", let verified = entry.verified else { return base }
     return verified ? "\(base) — checks passed" : "\(base) — checks failed"

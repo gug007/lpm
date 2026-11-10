@@ -15,17 +15,17 @@ import {
   speechBlocks,
 } from "../../../tts/markdownToSpeech";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
-import { ZoomControl } from "../../ui/ZoomControl";
 import type { ContentZoom } from "../../../hooks/useContentZoom";
-import { JobLiveOutput } from "./JobLiveOutput";
+import { JobLiveConversation } from "./JobLiveConversation";
 import { JobTakeOverButton } from "./JobTakeOverButton";
 import { JobAskCard } from "./JobAskCard";
+import { JobAskCards } from "./JobAskCards";
+import { JobRunPageHeader } from "./JobRunPageHeader";
+import { JobStopButton } from "./JobStopButton";
+import { useFollowBottom } from "./useFollowBottom";
 import {
   CheckIcon,
-  ChevronLeftIcon,
-  ClockIcon,
   CopyIcon,
-  StopIcon,
   TrashIcon,
 } from "../../icons";
 import { ComposerSendButton } from "../../ComposerSendButton";
@@ -55,6 +55,7 @@ import {
   type JobInfo,
 } from "../../../jobsFormat";
 import { isImeComposing } from "../../../imeComposing";
+import { runningRunAsks } from "../../../jobLive";
 
 interface JobTaskViewProps {
   project: string;
@@ -98,9 +99,8 @@ export function JobTaskView({
   const [removing, setRemoving] = useState<{ at: number; whole: boolean } | null>(null);
   const [removeCopy, setRemoveCopy] = useState(false);
   const sawRunning = useRef(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const page = useFollowBottom(zoom.surfaceRef);
   const scrolledOnce = useRef(false);
-  const nearBottom = useRef(true);
   const now = useNow(job.running === true);
   // AI-edit and prompt history both belong to the project the job runs in.
   const projectRoot = useAppStore(
@@ -154,22 +154,14 @@ export function JobTaskView({
 
   useEffect(() => {
     if (entries === null) return;
-    const el = scrollRef.current;
+    const el = page.scrollRef.current;
     if (!el) return;
-    if (!scrolledOnce.current || nearBottom.current) {
+    if (!scrolledOnce.current || page.nearBottom.current) {
       scrolledOnce.current = true;
       el.scrollTop = el.scrollHeight;
     }
   }, [entries, pending]);
 
-  // Live output grows outside React's knowledge of "content changed" — keep
-  // the page pinned to the newest lines only while the user is already there.
-  const followGrowth = () => {
-    requestAnimationFrame(() => {
-      const el = scrollRef.current;
-      if (el && nearBottom.current) el.scrollTop = el.scrollHeight;
-    });
-  };
 
   const [agent, model] = pick.split("|");
   const efforts = effortsFor(agent, model);
@@ -242,42 +234,8 @@ export function JobTaskView({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="flex items-center gap-3 pt-6">
-        <button
-          type="button"
-          onClick={onBack}
-          aria-label="Back to the automation"
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-        >
-          <ChevronLeftIcon />
-        </button>
-        <span className="grid h-8 w-8 shrink-0 place-items-center text-[17px] text-[var(--text-muted)]">
-          {job.emoji || <ClockIcon size={16} />}
-        </span>
-        <div className="min-w-0 flex-1">
-          <h1 className="truncate text-lg font-semibold tracking-tight">
-            {job.label || job.id}
-          </h1>
-          <p className="truncate text-[11px] text-[var(--text-muted)]">{meta}</p>
-        </div>
-        <ZoomControl
-          percent={zoom.percent}
-          onZoomIn={zoom.zoomIn}
-          onZoomOut={zoom.zoomOut}
-          onReset={zoom.zoomReset}
-          canZoomIn={zoom.canZoomIn}
-          canZoomOut={zoom.canZoomOut}
-        />
-        {job.running && (
-          <button
-            type="button"
-            onClick={onStop}
-            className="flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--accent-red)]"
-          >
-            <StopIcon />
-            Stop
-          </button>
-        )}
+      <JobRunPageHeader job={job} meta={meta} zoom={zoom} onBack={onBack}>
+        {job.running && <JobStopButton onStop={onStop} />}
         <button
           type="button"
           onClick={() => {
@@ -291,20 +249,11 @@ export function JobTaskView({
         >
           <TrashIcon size={13} />
         </button>
-      </div>
+      </JobRunPageHeader>
 
       <div
-        ref={(el) => {
-          scrollRef.current = el;
-          zoom.surfaceRef(el);
-        }}
-        onScroll={() => {
-          const el = scrollRef.current;
-          if (el) {
-            nearBottom.current =
-              el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-          }
-        }}
+        ref={page.ref}
+        onScroll={page.onScroll}
         className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto pb-4 pt-5"
       >
         {!thread ? (
@@ -368,11 +317,18 @@ export function JobTaskView({
                     Stop
                   </button>
                 </div>
-                <JobLiveOutput
+                <JobLiveConversation
                   project={project}
                   jobId={job.id}
                   running={job.running === true && !job.runningStep}
-                  onGrow={followGrowth}
+                  onGrow={page.follow}
+                />
+                <JobAskCards
+                  asks={runningRunAsks(job, project)}
+                  project={project}
+                  jobId={job.id}
+                  onAnswered={answered}
+                  className="mt-3"
                 />
               </div>
             )}

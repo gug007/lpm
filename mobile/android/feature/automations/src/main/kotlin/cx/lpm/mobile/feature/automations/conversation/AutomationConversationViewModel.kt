@@ -19,9 +19,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.serialization.json.JsonObject
@@ -43,6 +46,11 @@ class AutomationConversationViewModel @AssistedInject constructor(
     /** The reply sent, and how many messages the run had when it went. */
     private val pending = MutableStateFlow<Pair<String, Int>?>(null)
 
+    /** When the run opened on [AUTOMATION_LIVE_RUN] started; the run it lands in ends after it. */
+    private val liveSince: Long = store?.state?.value
+        ?.let { automationMatching(it.jobs, key.project, key.jobId)?.runningSince }
+        ?: 0
+
     val uiState: StateFlow<AutomationConversationUiState> = sessions.session(key.session)
         .flatMapLatest { s ->
             s?.let(::conversationState) ?: flowOf(AutomationConversationUiState())
@@ -59,9 +67,17 @@ class AutomationConversationViewModel @AssistedInject constructor(
         store?.state
             ?.onEach { a ->
                 val (_, base) = pending.value ?: return@onEach
-                val count = a.thread(key.project, key.jobId, key.rootAt)?.entries?.size ?: 0
+                val count =
+                    a.thread(key.project, key.jobId, key.rootAt, liveSince)?.entries?.size ?: 0
                 if (count > base || failure in a.followupError) pending.value = null
             }
+            ?.launchIn(viewModelScope)
+        // A run that ends lands in the history, which the page then shows.
+        store?.state
+            ?.map { a -> automationMatching(a.jobs, key.project, key.jobId)?.running == true }
+            ?.distinctUntilChanged()
+            ?.drop(1)
+            ?.onEach { running -> if (!running) store?.loadHistory(key.project, key.jobId) }
             ?.launchIn(viewModelScope)
     }
 
@@ -74,7 +90,8 @@ class AutomationConversationViewModel @AssistedInject constructor(
             key.jobId,
             key.rootAt,
             p?.first,
-            AutomationClock(clock.instant(), clock.zone)
+            AutomationClock(clock.instant(), clock.zone),
+            liveSince
         )
     }
 
@@ -86,7 +103,7 @@ class AutomationConversationViewModel @AssistedInject constructor(
         val s = store ?: return
         val state = s.state.value
         val job = automationMatching(state.jobs, key.project, key.jobId)
-        val thread = state.thread(key.project, key.jobId, key.rootAt)
+        val thread = state.thread(key.project, key.jobId, key.rootAt, liveSince)
         if (job != null && thread != null && thread.unread) s.markSeen(job, upTo = thread.tail.at)
         s.loadHistory(key.project, key.jobId)
         s.loadLiveOutput(key.project, key.jobId)
@@ -101,7 +118,7 @@ class AutomationConversationViewModel @AssistedInject constructor(
         val s = store ?: return
         val state = s.state.value
         val job = automationMatching(state.jobs, key.project, key.jobId) ?: return
-        val thread = state.thread(key.project, key.jobId, key.rootAt) ?: return
+        val thread = state.thread(key.project, key.jobId, key.rootAt, liveSince) ?: return
         pending.value = message to thread.entries.size
         s.sendFollowup(
             key.project,

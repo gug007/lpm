@@ -23,6 +23,7 @@ import {
   validateDraftSchedule,
 } from "./jobsScheduleDraft";
 import { WEEKDAYS, type Weekday } from "./weekdays";
+import { cleanLive, foldSteps } from "./jobLive";
 
 export { WEEKDAYS, type Weekday };
 
@@ -89,6 +90,8 @@ export interface JobInfo {
   // The paired machine the job lives on, by slug; absent = this one. Its project
   // names arrive peer-marked, so commands about them reach that machine.
   host?: string;
+  // Listed from what its machine said last: that machine isn't answering now.
+  offline?: boolean;
   source?: JobSourceLayer;
   error?: string;
   label?: string;
@@ -129,8 +132,11 @@ export interface JobInfo {
   unread?: number;
   // The head of the newest run answer or reply, for the list's preview line.
   lastMessage?: string;
-  // The question the job is waiting on the user to answer.
+  // The question the job is waiting on the user to answer: the one holding it
+  // up, or else the first asked under a key.
   ask?: JobAsk;
+  // Every question it waits on. Questions asked under a key never hold it up.
+  asks?: JobAsk[];
   // The computers the job may run on, best first, named as the computer
   // listing it knows them, and whether any other one may after them. Absent
   // on a job every computer that has it runs.
@@ -196,6 +202,8 @@ export interface JobHistoryEntry {
   // The question this entry's message answered — the entry that asked shows
   // the answer, so it isn't repeated as a message.
   answerTo?: string;
+  // The job's onAnswer command, run for the keyed question in `asks`.
+  onAnswer?: boolean;
   // The computer that made this run when it wasn't this one: another of the
   // job's computers ran it while this one was off.
   ranOn?: string;
@@ -295,6 +303,7 @@ export function jobResultLabel(result: string | undefined, copy?: string): strin
 // own says the agent exited, not that it did what it was asked.
 export function jobEntryLabel(entry: JobHistoryEntry): string {
   if (isEntryWaiting(entry)) return WAITING_LABEL;
+  if (entry.onAnswer) return entry.result === "completed" ? "Answered" : "Answer didn't go through";
   const base = jobResultLabel(entry.result, entry.copy);
   if (entry.result !== "completed" || entry.verified === undefined) return base;
   return entry.verified ? `${base} — checks passed` : `${base} — checks failed`;
@@ -367,12 +376,11 @@ export function jobOutputSnippet(output: string | undefined, max = 160): string 
 }
 
 // The last few lines of a live run's log, cleaned for display: terminal
-// escape codes stripped, trailing blank lines dropped, capped to `maxLines`.
+// escape codes stripped, each run of tool steps folded onto one line, trailing
+// blank lines dropped, capped to `maxLines`.
 export function liveOutputTail(text: string | undefined, maxLines = 12): string {
   if (!text) return "";
-  // eslint-disable-next-line no-control-regex
-  const clean = text.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "").replace(/\r/g, "");
-  const lines = clean.split("\n").map((l) => l.trimEnd());
+  const lines = foldSteps(cleanLive(text)).split("\n").map((l) => l.trimEnd());
   while (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
   return lines.slice(-maxLines).join("\n");
 }
@@ -657,6 +665,9 @@ export interface JobDraft {
   // Run after the agent exits: it decides whether the run is reported as having
   // worked. Empty = the run is unverified.
   verify: string;
+  // Run when a question asked under a key is answered. No editor control yet,
+  // so it is carried through a save untouched.
+  onAnswer: string;
   // Where the run happens: in the project itself, in a fresh copy of it, or in
   // a Git worktree of it. A standalone job has no project to copy.
   duplicateMode: DuplicateMode;
@@ -732,6 +743,7 @@ export function defaultJobDraft(): JobDraft {
     intervalDays: [],
     check: "",
     verify: "",
+    onAnswer: "",
     duplicateMode: "none",
     duplicatePullLatest: null,
     duplicateReinstallDeps: null,
@@ -856,6 +868,7 @@ export function buildJobPayload(draft: JobDraft): Record<string, unknown> {
   payload.schedule = scheduleBlockFromDraft(draft);
   if (draft.check.trim()) payload.check = draft.check.trim();
   if (draft.verify.trim()) payload.verify = draft.verify.trim();
+  if (draft.onAnswer.trim()) payload.onAnswer = draft.onAnswer.trim();
   const duplicate = buildDuplicateValue(draft);
   if (duplicate !== null) payload.duplicate = duplicate;
   payload.run = buildRunBlock(draft);
@@ -873,6 +886,7 @@ export function payloadToDraft(payload: Record<string, unknown>): JobDraft {
   if (typeof payload.label === "string") draft.label = payload.label;
   if (typeof payload.emoji === "string") draft.emoji = payload.emoji;
   if (typeof payload.verify === "string") draft.verify = payload.verify;
+  if (typeof payload.onAnswer === "string") draft.onAnswer = payload.onAnswer;
   readDuplicateInto(draft, payload.duplicate);
   draft.sendTo = readSendTo(payload.sendTo);
   draft.machines = readMachines(payload.machines);

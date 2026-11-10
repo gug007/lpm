@@ -32,7 +32,7 @@ export interface LpmCommand {
 export interface OtherSkill {
   name: string;
   description: string;
-  // The start of its instructions; Agent setup has the whole file.
+  // Its instructions, cut with an ellipsis only past 16,000 characters.
   preview: string;
   agents: string[];
   path: string;

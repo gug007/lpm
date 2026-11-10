@@ -46,7 +46,9 @@
     <string name="detail_runs_in">Runs in</string>
     <string name="detail_runs_on">Runs on</string>
     <string name="detail_live_output">Live output</string>
-    <string name="detail_take_over">Open in terminal</string>
+    <string name="detail_take_over">Take over in terminal</string>
+    <string name="detail_take_over_footer">Taking over stops this run and carries it on in a terminal.</string>
+    <string name="detail_open_run">Open the run</string>
     <string name="detail_waiting_output">Waiting for output…</string>
     <string name="detail_history">Run history</string>
     <string name="detail_mark_read">Mark read</string>
@@ -72,6 +74,7 @@
     <string name="chat_title">Automation chat</string>
     <string name="chat_reply_placeholder">Reply to this run</string>
     <string name="chat_running_placeholder">Automation is running…</string>
+    <string name="chat_starting">Nothing said yet — it\'s starting.</string>
     <string name="chat_waiting_reply">Waiting for reply…</string>
     <string name="chat_replying">Replying…</string>
     <string name="chat_copy">Copy message</string>

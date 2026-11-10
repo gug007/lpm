@@ -13,6 +13,10 @@ struct AutomationDetailView: View {
 
     @State private var editor: AutomationEditorContext?
     @State private var showAllRuns = false
+    /// The run still going, open on its own page. Pushed from the list rather than
+    /// from its section, which goes when the run ends: the page stays and shows the
+    /// run it landed in.
+    @State private var liveRunOpen = false
     // Settings stay folded away so the runs — the reason you opened the page —
     // start near the top. Collapsed, each group still shows the one fact you'd
     // open it for. The choice is the reader's, and it sticks across automations.
@@ -30,8 +34,9 @@ struct AutomationDetailView: View {
         List {
             if let job {
                 header(job)
-                // The question the automation is waiting on, wherever it waits.
-                if let ask = job.ask {
+                // The questions the automation is waiting on, wherever they wait;
+                // the run still going shows its own.
+                ForEach(job.asksOutsideRun) { ask in
                     Section {
                         AutomationAskCard(ask: ask, project: ask.project, jobId: job.id, framed: false)
                             .id(ask.id)
@@ -50,6 +55,10 @@ struct AutomationDetailView: View {
                 }
             }
             history
+        }
+        .navigationDestination(isPresented: $liveRunOpen) {
+            AutomationConversationView(project: project, jobId: jobId,
+                                       rootAt: AutomationConversationView.liveRun)
         }
         .navigationTitle(job?.displayName ?? "Automation")
         .navigationBarTitleDisplayMode(.inline)
@@ -131,14 +140,16 @@ struct AutomationDetailView: View {
 
     private func schedule(_ job: AutomationJob) -> some View {
         DisclosureGroup(isExpanded: $scheduleOpen) {
-            Toggle("Automation on", isOn: Binding(
-                get: { job.enabled },
-                set: { enabled in
-                    Haptics.tap()
-                    model.setAutomationEnabled(job, enabled: enabled)
-                }
-            ))
-            .disabled(!job.valid || pending)
+            if job.hasOnOffSwitch {
+                Toggle("Automation on", isOn: Binding(
+                    get: { job.enabled },
+                    set: { enabled in
+                        Haptics.tap()
+                        model.setAutomationEnabled(job, enabled: enabled)
+                    }
+                ))
+                .disabled(!job.valid || pending)
+            }
             if job.valid, job.enabled, let next = job.nextFireAt {
                 LabeledContent("Next run", value: automationClockText(next))
             }
@@ -195,17 +206,39 @@ struct AutomationDetailView: View {
     }
 
     private func liveOutput(_ job: AutomationJob) -> some View {
-        Section("Live output") {
+        Section {
             if let place = automationRunPlaceText(job) {
                 Text(place)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
             }
+            // Above the output, which grows while the run streams, so it stays put.
+            Button {
+                liveRunOpen = true
+            } label: {
+                HStack {
+                    Text("Open the run").foregroundStyle(.primary)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+                }
+            }
             AutomationLiveTail(text: model.automationLiveOutput[key]?.text ?? "")
+            ForEach(job.runningRunAsks) { ask in
+                AutomationAskCard(ask: ask, project: ask.project, jobId: job.id, framed: false)
+                    .id(ask.id)
+            }
             if !job.takeOverIn.isEmpty {
-                Button("Open in terminal") { model.takeOverAutomation(job) }
+                Button("Take over in terminal") { model.takeOverAutomation(job) }
                     .disabled(pending)
+            }
+        } header: {
+            Text("Live output")
+        } footer: {
+            if !job.takeOverIn.isEmpty {
+                Text("Taking over stops this run and carries it on in a terminal.")
             }
         }
     }
@@ -281,7 +314,7 @@ struct AutomationDetailView: View {
         .controlSize(.large)
         .tint(job.running ? .red : .accentColor)
         // A question waiting for its answer holds the next run back.
-        .disabled(pending || (job.enabled && !job.valid) || (job.ask != nil && !job.running && job.enabled))
+        .disabled(pending || (job.enabled && !job.valid) || (job.held && !job.running && job.enabled))
         .padding(.horizontal, 16)
         .padding(.top, 8)
         .padding(.bottom, 6)

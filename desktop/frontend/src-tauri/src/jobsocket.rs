@@ -113,7 +113,7 @@ pub fn cmd_save_job(args: &[String], app: &AppHandle) -> String {
         Ok(body) => body,
         Err(error) => return failure(format!("The automation isn't valid YAML: {error}")),
     };
-    let result = crate::jobs::save_job_value(t.source, t.project.clone(), t.id, body);
+    let result = crate::jobs::save_job_value(t.source, t.project.clone(), t.id, body, false);
     finish(app, &t.project, result)
 }
 

@@ -42,12 +42,22 @@ class MarkdownBlockTest {
         assertEquals(
             listOf(
                 Kind.Paragraph to "Before",
-                Kind.Code to "# not a heading\n\n- nor a list",
+                Kind.Code(wraps = false) to "# not a heading\n\n- nor a list",
                 Kind.Paragraph to "After"
             ),
             blocks.map { it.kind to it.text }
         )
         assertEquals(listOf(0, 1, 2), blocks.map { it.id })
-        assertEquals(Kind.Code to "left open", kinds("~~~\nleft open").single())
+        assertEquals(Kind.Code(wraps = true) to "left open", kinds("~~~\nleft open").single())
+    }
+
+    @Test
+    fun aFenceOfWordsWrapsAndCodeKeepsItsLines() {
+        assertEquals(
+            Kind.Code(wraps = true),
+            kinds("```\nSorry for the slow reply.\n```").single().first
+        )
+        assertEquals(Kind.Code(wraps = true), kinds("``` text\nSorry.\n```").single().first)
+        assertEquals(Kind.Code(wraps = false), kinds("```ts\nconst a = 1\n```").single().first)
     }
 }

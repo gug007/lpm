@@ -49,18 +49,26 @@ struct MarkdownText: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .padding(.leading, CGFloat(depth) * 16)
-        case .code:
-            codeBlock(block.text)
+        case .code(let wraps):
+            codeBlock(block.text, wraps: wraps)
         case .rule:
             Divider().padding(.vertical, 2)
         }
     }
 
-    private func codeBlock(_ code: String) -> some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            Text(code)
-                .font(.system(.footnote, design: .monospaced))
-                .padding(10)
+    /// Code keeps its lines and scrolls sideways; a block of words (a drafted
+    /// reply, a quoted message) wraps.
+    @ViewBuilder
+    private func codeBlock(_ code: String, wraps: Bool) -> some View {
+        let text = Text(code)
+            .font(.system(.footnote, design: .monospaced))
+            .padding(10)
+        Group {
+            if wraps {
+                text
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) { text }
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(.secondarySystemBackground),
@@ -93,7 +101,8 @@ struct MarkdownBlock: Identifiable {
         case heading(Int)
         case paragraph
         case listItem(marker: String, depth: Int)
-        case code
+        /// A fence; `wraps` when it has no language, or a prose one.
+        case code(wraps: Bool)
         case rule
     }
 
@@ -113,6 +122,7 @@ extension MarkdownBlock {
         var blocks: [MarkdownBlock] = []
         var paragraph: [String] = []
         var fenced: [String]?
+        var fenceWraps = true
         var nextId = 0
 
         func emit(_ kind: Kind, _ text: String) {
@@ -130,11 +140,12 @@ extension MarkdownBlock {
 
             if trimmed.hasPrefix("```") || trimmed.hasPrefix("~~~") {
                 if let open = fenced {
-                    emit(.code, open.joined(separator: "\n"))
+                    emit(.code(wraps: fenceWraps), open.joined(separator: "\n"))
                     fenced = nil
                 } else {
                     flushParagraph()
                     fenced = []
+                    fenceWraps = proseFence(trimmed)
                 }
                 continue
             }
@@ -164,9 +175,18 @@ extension MarkdownBlock {
             paragraph.append(trimmed)
         }
 
-        if let open = fenced { emit(.code, open.joined(separator: "\n")) }
+        if let open = fenced { emit(.code(wraps: fenceWraps), open.joined(separator: "\n")) }
         flushParagraph()
         return blocks
+    }
+
+    private static let proseLanguages: Set<String> = ["", "text", "txt", "plain", "plaintext", "markdown", "md"]
+
+    /// A fence that holds words rather than code, by the language that opens it.
+    static func proseFence(_ opening: String) -> Bool {
+        let info = opening.drop { $0 == "`" || $0 == "~" }.trimmingCharacters(in: .whitespaces)
+        let language = info.split(separator: " ").first.map(String.init) ?? ""
+        return proseLanguages.contains(language.lowercased())
     }
 
     private static func isRule(_ trimmed: String) -> Bool {

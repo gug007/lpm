@@ -107,14 +107,18 @@ private fun MarkdownBlockView(block: MarkdownBlock, code: SpanStyle, link: SpanS
             )
         }
 
-        Kind.Code -> Text(
+        // Code keeps its lines and scrolls sideways; a block of words (a drafted
+        // reply, a quoted message) wraps.
+        is Kind.Code -> Text(
             text = block.text,
             style = type.footnote.copy(fontFamily = FontFamily.Monospace),
-            softWrap = false,
+            softWrap = kind.wraps,
             modifier = Modifier
                 .fillMaxWidth()
                 .background(colors.secondarySystemBackground, RoundedCornerShape(10.dp))
-                .horizontalScroll(rememberScrollState())
+                .then(
+                    if (kind.wraps) Modifier else Modifier.horizontalScroll(rememberScrollState())
+                )
                 .padding(10.dp)
         )
 

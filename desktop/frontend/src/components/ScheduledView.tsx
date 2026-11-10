@@ -2,23 +2,20 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "../notifications/toast";
 import { EventsOn } from "../../bridge/runtime";
 import {
-  ClearJobState,
   ListAllJobs,
   MarkAllJobsSeen,
   MarkJobSeen,
-  StopJobRun,
 } from "../../bridge/commands";
 import { useAppStore } from "../store/app";
 import { useContentZoom } from "../hooks/useContentZoom";
 import { useJobCommands } from "../hooks/useJobCommands";
 import { useAutomationOpenRequest } from "../hooks/useAutomationOpenRequest";
 import { useJobScopeLabel } from "../hooks/useJobScopeLabel";
-import { ClockIcon, PlusIcon } from "./icons";
-import { EmptyState } from "./ui/EmptyState";
+import { useJobRemoval } from "../hooks/useJobRemoval";
+import { AutomationsPlaceholder } from "./AutomationsPlaceholder";
 import { AutomationsHeader, type AutomationsViewMode } from "./AutomationsHeader";
 import { useFailedFilter } from "./project-detail/jobs/useFailedFilter";
-import { clearJobStateGlobal, deleteJob, deleteJobGlobal } from "../jobsConfig";
-import { peerAlias, usePeerState } from "../peer/usePeerState";
+import { usePeerState } from "../peer/usePeerState";
 import type { JobInfo } from "../jobsFormat";
 import {
   isUnread,
@@ -29,8 +26,10 @@ import {
 import type { ScheduledJob } from "../hooks/useJobs";
 import { displayNameForProjectName } from "./ProjectNameDisplay";
 import { JobListSections } from "./project-detail/jobs/JobListSections";
+import { JobOfflineGroups } from "./project-detail/jobs/JobOfflineGroups";
 import { JobMessages } from "./project-detail/jobs/JobMessages";
 import { JobTaskView } from "./project-detail/jobs/JobTaskView";
+import { JobLiveRunView } from "./project-detail/jobs/JobLiveRunView";
 import { JobDialogs, type JobEditing } from "./project-detail/jobs/JobDialogs";
 import { ScheduleWeekView } from "./project-detail/jobs/schedule/ScheduleWeekView";
 
@@ -61,9 +60,9 @@ export function ScheduledView({ project, visible = true, focused = true }: Sched
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<JobEditing>(null);
   const [open, setOpen] = useState<{ project: string; id: string } | null>(null);
-  // The run page open inside the job page — a run entry's `at`.
-  const [openTask, setOpenTask] = useState<number | null>(null);
-  const [removing, setRemoving] = useState<{ project: string; job: JobInfo } | null>(null);
+  // The run page open inside the job page: a run entry's `at`, or the run
+  // still going.
+  const [openRun, setOpenRun] = useState<number | "live" | null>(null);
   // A multi-project job awaiting the "which projects?" pick before a manual run.
   const [runPick, setRunPick] = useState<ScheduledJob | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -113,7 +112,7 @@ export function ScheduledView({ project, visible = true, focused = true }: Sched
   );
 
   useAutomationOpenRequest(project ?? null, visible, rows, refetch, (job, target) => {
-    setOpenTask(null);
+    setOpenRun(null);
     setOpen({ project: target ?? rowProject(job), id: job.id });
   });
 
@@ -150,9 +149,17 @@ export function ScheduledView({ project, visible = true, focused = true }: Sched
   const shown = project
     ? (rows ?? [])
         .filter((row) => targetsOfRow(row).includes(project))
-        .map((row) => (row.ask && row.ask.project !== project ? { ...row, ask: undefined } : row))
+        .map((row) => {
+          const asks = row.asks?.filter((ask) => ask.project === project);
+          const ask = row.ask && row.ask.project !== project ? asks?.[0] : row.ask;
+          return { ...row, ask, asks };
+        })
     : rows ?? [];
-  const sorted = sortJobsForList(shown);
+  // A computer that isn't answering lists what it said last; those rows wait
+  // in their own group and nothing acts on them until it's back.
+  const live = shown.filter((row) => !row.offline);
+  const removal = useJobRemoval(peerState.peers, shown, rowProjectOf, refetch);
+  const sorted = sortJobsForList(live);
   const unreadRows = sorted.filter(isUnread);
   const failed = useFailedFilter(sorted);
   const unreadCount = unreadRows.length;
@@ -200,50 +207,13 @@ export function ScheduledView({ project, visible = true, focused = true }: Sched
   const editJob = (job: ScheduledJob) =>
     setEditing({ mode: "edit", project: rowProjectOf(job), job });
   const removeJobRow = (job: ScheduledJob) =>
-    setRemoving({ project: rowProjectOf(job), job });
+    removal.setRemoving({ project: rowProjectOf(job), job });
   const newJob = () => setEditing({ mode: "new", project });
 
-  const removeJob = async (deleteCopies: boolean) => {
-    if (!removing) return;
-    const { project, job } = removing;
-    setRemoving(null);
-    const peer = job.host ? peerState.peers.find((p) => p.slug === job.host) : undefined;
-    if (job.source === "global" && job.host && !peer?.supportsHostJobs) {
-      toast.error(`Update lpm on ${peerAlias(peerState.peers, job.host)} to remove its shared automations from here.`);
-      return;
-    }
-    try {
-      void StopJobRun(project, job.id);
-      if (job.source === "global") {
-        await deleteJobGlobal(job.id, job.host);
-        await clearJobStateGlobal(job.id, deleteCopies, job.host);
-      } else {
-        await deleteJob(project, job.id);
-        await ClearJobState(project, job.id, deleteCopies);
-      }
-      toast.success("Automation removed");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err));
-    } finally {
-      void refetch();
-    }
-  };
-
-  // Whether the job on the removal block has a run alive anywhere — a global
-  // job rows under every project, and a copy can't be deleted under a live
-  // run (the backend refuses too; this keeps the dialog honest up front).
-  const removingRunning = removing
-    ? shown.some(
-        (r) =>
-          r.id === removing.job.id &&
-          r.running === true &&
-          rowProjectOf(r) === rowProjectOf(removing.job),
-      )
-    : false;
 
   // A shared job opens on any of its projects' runs, not only its first.
   const openJob = open
-    ? shown.find(
+    ? live.find(
         (r) =>
           r.id === open.id &&
           (rowProjectOf(r) === open.project || targetsOfRow(r).includes(open.project)),
@@ -252,7 +222,7 @@ export function ScheduledView({ project, visible = true, focused = true }: Sched
   useEffect(() => {
     if (open && rows !== null && !openJob) {
       setOpen(null);
-      setOpenTask(null);
+      setOpenRun(null);
     }
   }, [open, rows, openJob]);
 
@@ -265,10 +235,10 @@ export function ScheduledView({ project, visible = true, focused = true }: Sched
       onSaved={() => void refetch()}
       actionsFor={actionsFor}
       knownIds={knownIds}
-      removing={removing}
-      removingRunning={removingRunning}
-      onCancelRemove={() => setRemoving(null)}
-      onConfirmRemove={(deleteCopies) => void removeJob(deleteCopies)}
+      removing={removal.removing}
+      removingRunning={removal.running}
+      onCancelRemove={() => removal.setRemoving(null)}
+      onConfirmRemove={(deleteCopies) => void removal.remove(deleteCopies)}
       runPick={runPick}
       onCancelRunPick={() => setRunPick(null)}
       onRunPicked={(selected) => {
@@ -279,15 +249,28 @@ export function ScheduledView({ project, visible = true, focused = true }: Sched
     />
   );
 
-  if (open && openJob && openTask !== null) {
+  if (open && openJob && openRun === "live") {
+    return (
+      <JobLiveRunView
+        project={open.project}
+        job={openJob}
+        zoom={zoom}
+        onBack={() => setOpenRun(null)}
+        onStop={() => stopRun(open.project, openJob.id)}
+        onLanded={setOpenRun}
+      />
+    );
+  }
+
+  if (open && openJob && typeof openRun === "number") {
     return (
       <JobTaskView
         project={open.project}
         job={openJob}
-        rootAt={openTask}
+        rootAt={openRun}
         refreshKey={refreshKey}
         zoom={zoom}
-        onBack={() => setOpenTask(null)}
+        onBack={() => setOpenRun(null)}
         onStop={() => stopRun(open.project, openJob.id)}
         onChanged={() => void refetch()}
         onOpenCopy={(name) => selectProject(name)}
@@ -309,11 +292,12 @@ export function ScheduledView({ project, visible = true, focused = true }: Sched
           }
           onRunNow={() => runNowJob(openJob)}
           onStop={() => stopRunJob(openJob)}
-          onRemove={() => setRemoving({ project: open.project, job: openJob })}
+          onRemove={() => removal.setRemoving({ project: open.project, job: openJob })}
           onChanged={() => void refetch()}
           onToggleEnabled={(enabled) => toggleEnabledJob(openJob, enabled)}
           onOpenCopy={(name) => selectProject(name)}
-          onOpenTask={(at) => setOpenTask(at)}
+          onOpenTask={setOpenRun}
+          onOpenLive={() => setOpenRun("live")}
           onSeenUpTo={(at) => void markSeenJob(openJob, at)}
         />
         {dialogs}
@@ -341,39 +325,14 @@ export function ScheduledView({ project, visible = true, focused = true }: Sched
         ref={zoom.surfaceRef}
         className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto pb-6 pt-4"
       >
-        {error && !shown.length ? (
-          <EmptyState title="Couldn't load automations" body={error}>
-            <button
-              type="button"
-              onClick={() => void refetch()}
-              className="mt-4 rounded-lg bg-[var(--text-primary)] px-3.5 py-2 text-[13px] font-medium text-[var(--bg-primary)] shadow-sm transition hover:opacity-90"
-            >
-              Try again
-            </button>
-          </EmptyState>
-        ) : rows === null ? (
-          <p className="py-8 text-center text-[12px] text-[var(--text-muted)]">
-            Loading…
-          </p>
-        ) : shown.length === 0 ? (
-          <EmptyState
-            icon={<ClockIcon />}
-            title="Nothing scheduled yet"
-            body={
-              project
-                ? "Create an automation to run an AI prompt, a command, or an action in this project on a schedule."
-                : "Create an automation to run an AI prompt, a command, or an action on a schedule — for one project or all of them."
-            }
-          >
-            <button
-              type="button"
-              onClick={newJob}
-              className="mt-4 flex items-center gap-1.5 rounded-lg bg-[var(--text-primary)] px-3.5 py-2 text-[13px] font-medium text-[var(--bg-primary)] shadow-sm transition hover:opacity-90"
-            >
-              <PlusIcon />
-              New automation
-            </button>
-          </EmptyState>
+        {shown.length === 0 ? (
+          <AutomationsPlaceholder
+            error={error}
+            loading={rows === null}
+            scoped={project !== undefined}
+            onRetry={() => void refetch()}
+            onNewJob={newJob}
+          />
         ) : (
           <>
             {error && (
@@ -408,6 +367,12 @@ export function ScheduledView({ project, visible = true, focused = true }: Sched
                 onRemove={removeJobRow}
               />
             )}
+            <JobOfflineGroups
+              rows={shown}
+              peers={peerState.peers}
+              scopeLabelFor={scopeLabelFor}
+              zoom={zoom.zoom}
+            />
           </>
         )}
       </div>

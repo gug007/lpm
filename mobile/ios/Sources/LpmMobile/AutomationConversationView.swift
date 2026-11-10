@@ -2,21 +2,30 @@ import SwiftUI
 import UIKit
 
 /// One run of an automation as a conversation: what it was asked, what it said,
-/// and the replies that continued it.
+/// and the replies that continued it. Opened on `liveRun`, it's the run still
+/// going, streaming with its question at the end, until it lands in a run of its own.
 struct AutomationConversationView: View {
     @Environment(AppModel.self) private var model
     let project: String
     let jobId: String
     let rootAt: Int
 
+    static let liveRun = -1
+
     @State private var composerRoom: CGFloat = 0
     @State private var pendingMessage: String?
     @State private var pendingBaseCount = 0
+    /// When the run opened on `liveRun` started; the run it lands in ends after it.
+    @State private var liveSince: Int?
 
+    private var isLive: Bool { rootAt == Self.liveRun }
     private var key: String { model.automationKey(project, jobId) }
     private var job: AutomationJob? { automationMatching(model.automations, project, jobId) }
     private var thread: AutomationThread? {
-        automationThreads(model.automationHistory[key] ?? []).first { $0.root.at == rootAt }
+        let threads = automationThreads(model.automationHistory[key] ?? [])
+        guard isLive else { return threads.first { $0.root.at == rootAt } }
+        guard job?.running != true, let since = liveSince else { return nil }
+        return threads.filter { $0.tail.at >= since }.max { $0.tail.at < $1.tail.at }
     }
     private var entries: [AutomationHistoryEntry] { thread?.entries ?? [] }
     private var composerId: String { "automation:\(project):\(jobId):\(rootAt)" }
@@ -25,6 +34,7 @@ struct AutomationConversationView: View {
     }
 
     var body: some View {
+        let rootAt = thread?.root.at
         FollowingScrollView(follow: AutomationProgress(entries: entries.count,
                                                       live: model.automationLiveOutput[key]?.text),
                             returnToEnd: pendingMessage != nil) {
@@ -44,6 +54,18 @@ struct AutomationConversationView: View {
                           let live = model.automationLiveOutput[key]?.text,
                           !live.isEmpty {
                     AutomationLiveMessage(text: live)
+                } else if isLive, job?.running == true {
+                    HStack(spacing: 8) {
+                        ProgressView().controlSize(.small)
+                        Text("Nothing said yet — it's starting.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                if let job, isLive || pendingMessage != nil {
+                    ForEach(job.runningRunAsks) { ask in
+                        AutomationAskCard(ask: ask, project: ask.project, jobId: job.id)
+                    }
                 }
             }
             .padding(16)
@@ -83,6 +105,7 @@ struct AutomationConversationView: View {
         .navigationTitle(job?.displayName ?? "Automation chat")
         .navigationBarTitleDisplayMode(.inline)
         .task {
+            if isLive, liveSince == nil { liveSince = job?.runningSince ?? 0 }
             // Opening a run reads it, and everything under it. Arriving on the
             // automation's page reads nothing, so its list keeps pointing at what
             // still hasn't been looked at.
@@ -97,6 +120,11 @@ struct AutomationConversationView: View {
             while !Task.isCancelled {
                 model.loadAutomationLiveOutput(project: project, jobId: jobId)
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
+            }
+        }
+        .onChange(of: job?.running) { old, new in
+            if old == true, new == false {
+                model.loadAutomationHistory(project: project, jobId: jobId)
             }
         }
         .onChange(of: entries.count) { _, count in
@@ -277,14 +305,27 @@ private struct AutomationPendingMessage: View {
     }
 }
 
+/// What a running agent has said so far, read like its finished messages: its
+/// words in full, and each burst of tool calls folded onto one line.
 private struct AutomationLiveMessage: View {
     let text: String
 
     var body: some View {
-        ScrollView(.horizontal) {
-            Text(text)
-                .font(.system(.caption, design: .monospaced))
-                .textSelection(.enabled)
+        VStack(alignment: .leading, spacing: 10) {
+            ForEach(Array(automationLiveParts(text).enumerated()), id: \.offset) { _, part in
+                switch part {
+                case .text(let said):
+                    MarkdownText(said)
+                case .steps(let names):
+                    Text("→ " + automationStepsLabel(names) + (names.count > 1 ? " · \(names.count) steps" : ""))
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .stroke(Color(.separator)))
+                }
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

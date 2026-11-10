@@ -6,6 +6,8 @@ use std::io::Read;
 use std::time::Instant;
 
 const STOP_WAIT: Duration = Duration::from_secs(5);
+/// Sent into the resumed conversation, so stepping in carries the work on.
+const CARRY_ON: &str = "Carry on where you left off.";
 const STOP_POLL: Duration = Duration::from_millis(50);
 
 /// Only Claude's conversation can be picked up, and only a project has tabs to
@@ -34,12 +36,14 @@ fn read_log_head(path: &str) -> String {
 }
 
 /// The tab that carries a run on. It may start on another Claude account than
-/// the run did, so it brings the conversation along the way a fork does.
+/// the run did, so it brings the conversation along the way a fork does, and
+/// tells the agent to go on with the work the run was doing.
 fn resume_task(project: &str, session: &str, flags: &str, label: &str, emoji: &str) -> Value {
     let command = format!("{CLAUDE} --resume {session}{flags}");
     json!({
         "kind": "fork",
         "command": command,
+        "prompt": CARRY_ON,
         "label": label,
         "emoji": emoji,
         "startCmd": CLAUDE,
@@ -129,6 +133,13 @@ mod tests {
             task["claudeSession"],
             json!({ "sourceProject": "app-x1", "sessionId": "abc-1" })
         );
+    }
+
+    #[test]
+    fn the_tab_carries_the_run_on_instead_of_waiting_idle() {
+        let task = resume_task("app", "abc-1", "", "Sentry triage", "");
+        assert_eq!(task["prompt"], CARRY_ON);
+        assert_eq!(task["resumeCmd"], "claude --resume abc-1", "a restored tab doesn't send it again");
     }
 
     #[test]

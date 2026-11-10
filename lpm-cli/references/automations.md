@@ -21,7 +21,7 @@ The lpm app runs automations on their schedule while it is running. Each run goe
 3. The run itself: `--cmd`, `--action`, or `--prompt`. It times out after an hour, not counting time spent waiting on an answer.
 4. `--verify` (optional) runs afterwards. Exit 0 means the checks passed. It times out after 15 minutes.
 
-Every step gets `LPM_JOB_ID`, `LPM_PROJECT_NAME` (the original project, even in a copy), `LPM_RUN_PROJECT` (the project the run is in: the copy, when it makes one), `LPM_RUN_ROOT` (where the run happens), `LPM_IS_COPY` (`1` in a copy), `LPM_TRIGGER` (`schedule`, `manual`, or `reply`), and, when known, `LPM_SCHEDULED_FOR` and `LPM_LAST_RUN_AT` (Unix seconds). The run itself also gets `LPM_RUN_ID`, which `lpm ask` uses to put a question to the user: a `cmd` waits for the answer, an AI prompt ends its turn and is resumed with it. The user answers in lpm, lpm Link, or Telegram when the automation sends there (its buttons, or a reply to the message), never the run itself. While a question is open, the automation's scheduled runs are skipped and Run now is refused. SSH projects can't have automations.
+Every step gets `LPM_JOB_ID`, `LPM_PROJECT_NAME` (the original project, even in a copy), `LPM_RUN_PROJECT` (the project the run is in: the copy, when it makes one), `LPM_RUN_ROOT` (where the run happens), `LPM_IS_COPY` (`1` in a copy), `LPM_TRIGGER` (`schedule`, `manual`, `reply`, or `answer` for `--on-answer`), and, when known, `LPM_SCHEDULED_FOR` and `LPM_LAST_RUN_AT` (Unix seconds). The run itself also gets `LPM_RUN_ID`, which `lpm ask` uses to put a question to the user: a `cmd` waits for the answer, an AI prompt ends its turn and is resumed with it. The user answers in lpm, lpm Link, or Telegram when the automation sends there (its buttons, or a reply to the message), never the run itself. While a question is open, the automation's scheduled runs are skipped and Run now is refused — except one asked with `lpm ask --key`, which holds nothing up and whose answer goes to `--on-answer` instead. SSH projects can't have automations.
 
 ## Where it lives
 
@@ -101,6 +101,7 @@ A headless run has no one to answer its questions, so write the prompt as a comp
 
 - `--check COMMAND` should be cheap and only decide whether there is work. It always runs in the original project.
 - `--verify COMMAND` isn't available for `--action`.
+- `--on-answer COMMAND` runs in the project each time a question asked with `lpm ask --key` is answered, with `LPM_ASK_KEY`, `LPM_ASK_ID`, `LPM_ANSWER` and `LPM_ANSWERS` set, and times out after 10 minutes. Use it to act on approvals one at a time, such as sending the reply the user approved to that key's chat. A failure is reported like a failed run; a success only appears in the history. `--on-answer ""` removes it.
 - `--duplicate copy|worktree|off` runs the work in a fresh copy (`copy`) or a linked Git worktree (`worktree`). Use it when the run edits files and its work should be reviewed separately. A worktree needs a Git repository.
   - `--reinstall-deps` reinstalls dependencies in the copy or worktree.
   - `--pull-latest false` stops a copy from pulling the latest commits first.

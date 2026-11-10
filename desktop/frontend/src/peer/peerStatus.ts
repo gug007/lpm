@@ -1,3 +1,4 @@
+import { MACHINE } from "../machineWords";
 import type { PeerClient } from "./usePeerState";
 
 export type StatusTone = "live" | "pending" | "error" | "off";
@@ -97,4 +98,27 @@ function connectedStatus(peer: PeerClient): PeerStatus {
     return { tone: "pending", text: `Slow · ${rttText(link.rttMs)} round trip`, detail: "" };
   const base = peer.overTailscale ? "Connected over Tailscale" : "Connected";
   return { tone: "live", text: link?.rttMs ? `${base} · ${rttText(link.rttMs)}` : base, detail: "" };
+}
+
+// What to say about a paired machine that isn't answering, wherever its things
+// are missing from. Turned off here, or no longer accepting this one, no retry
+// fixes, so the copy says what will and offers no Reconnect.
+export function peerDownCopy(
+  alias: string,
+  status: PeerStatus | null,
+  server: boolean,
+): { title: string; detail: string; reconnect: boolean } {
+  const where = `+ above your projects → ${server ? "Server" : "Another computer"}`;
+  if (status?.tone === "off") {
+    return { title: `${alias} is turned off on ${MACHINE.thisMachine}`, detail: `Turn it on from ${where}.`, reconnect: false };
+  }
+  if (status?.tone === "error" && /unauthorized|auth failed|401/i.test(status.detail)) {
+    return {
+      title: `${alias} no longer accepts ${MACHINE.thisMachine}`,
+      detail: `Its access was removed there. Pair again from ${where}.`,
+      reconnect: false,
+    };
+  }
+  const detail = status?.tone === "error" ? `${status.text}. Trying again…` : "Reconnecting…";
+  return { title: `${alias} disconnected`, detail, reconnect: true };
 }

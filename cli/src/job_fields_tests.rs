@@ -208,3 +208,15 @@ fn claude_account_names_one_the_main_login_or_the_projects() {
     );
     assert!(!fields(&["--claude-account", "work"]).is_empty());
 }
+
+#[test]
+fn on_answer_sits_with_the_other_steps_and_an_empty_one_removes_it() {
+    let out = applied("{}", &["--cmd", "tg-draft-all", "--every", "5m", "--on-answer", "tg-send"]).unwrap();
+    assert_eq!(
+        out,
+        "schedule:\n  every: 5m\nonAnswer: tg-send\nrun:\n  cmd: tg-draft-all\n"
+    );
+    let start = "onAnswer: tg-send\nrun: { cmd: x }\n";
+    assert_eq!(applied(start, &["--on-answer", ""]).unwrap(), "run:\n  cmd: x\n");
+    assert!(!fields(&["--on-answer", "x"]).is_empty());
+}

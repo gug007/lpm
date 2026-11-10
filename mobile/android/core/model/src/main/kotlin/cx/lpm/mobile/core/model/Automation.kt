@@ -73,8 +73,13 @@ data class AutomationJob(
     val standalone: Boolean,
     /** Runs that landed since this automation was last read, folded across its projects. */
     val unread: Int,
-    /** The question the automation is waiting on the user to answer. */
+    /**
+     * The question the automation is waiting on the user to answer: the one
+     * holding it up, or else the first asked under a key.
+     */
     val ask: AutomationAsk? = null,
+    /** Every question it waits on. Older Macs send only [ask]. */
+    val asks: List<AutomationAsk> = listOfNotNull(ask),
     /**
      * The computers that may run it, best first; the first one that's on runs it.
      * Empty on a job every computer that has it runs.
@@ -85,6 +90,9 @@ data class AutomationJob(
 ) {
     val key: String get() = runProject + "\n" + id
     val displayName: String get() = label.ifEmpty { id }
+
+    /** A question without a key is waiting, so the next run holds back. */
+    val held: Boolean get() = asks.any { it.holdsJob }
 
     /**
      * The projects this job runs in — none when it is standalone. Older servers
@@ -112,6 +120,7 @@ data class AutomationJob(
     companion object {
         fun parse(o: JsonObject): AutomationJob {
             val schedule = o.obj("schedule") ?: JsonObject(emptyMap())
+            val ask = AutomationAsk.parse(o["ask"])?.takeIf { it.isOpen }
             return AutomationJob(
                 id = o.string("id").orEmpty(),
                 project = o.string("project").orEmpty(),
@@ -159,7 +168,12 @@ data class AutomationJob(
                 runningCount = o.int("runningCount") ?: 0,
                 standalone = o.bool("standalone") ?: false,
                 unread = o.int("unread") ?: 0,
-                ask = AutomationAsk.parse(o["ask"])?.takeIf { it.isOpen },
+                ask = ask,
+                asks =
+                    (o["asks"] as? JsonArray)?.mapNotNull(AutomationAsk::parse)?.filter {
+                        it.isOpen
+                    }
+                        ?: listOfNotNull(ask),
                 machines = o.list("machines", AutomationMachine::parse),
                 anyMachine = o.bool("anyMachine") ?: false
             )
@@ -207,7 +221,9 @@ data class AutomationHistoryEntry(
      */
     val answerTo: String = "",
     /** The computer that made this run when it wasn't this Mac. */
-    val ranOn: String = ""
+    val ranOn: String = "",
+    /** The automation's onAnswer command, run for the keyed question in [asks]. */
+    val onAnswer: Boolean = false
 ) {
     val id: Long get() = at
 
@@ -232,7 +248,8 @@ data class AutomationHistoryEntry(
             unread = o.bool("unread") ?: false,
             asks = (o["asks"] as? JsonArray).orEmpty().mapNotNull(AutomationAsk::parse),
             answerTo = o.string("answerTo").orEmpty(),
-            ranOn = o.string("ranOn").orEmpty()
+            ranOn = o.string("ranOn").orEmpty(),
+            onAnswer = o.bool("onAnswer") ?: false
         )
     }
 }

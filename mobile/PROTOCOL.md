@@ -373,7 +373,7 @@ holds no credential of its own, so removing it sends nothing.
 | `{ "t": "answerJobQuestion", "project": "<name>", "jobId": "<id>", "askId": "<ask id>", "answers": { "<question id>": true\|false\|["<label>"…]\|"<text>" } }` | `{ "t": "answerJobQuestion", "project": "<name>", "jobId": "<id>", "ok": true }` / `{ "ok": false, "error": "…" }` — answers the question the automation is waiting on (`JobInfo.ask`; `project` is `ask.project`). One answer per question id: a bool for `confirm`, the picked option labels for `choice` (with `other`, a label may be the user's own words), text for `text` and any type the phone doesn't know. Optional questions may be left out. The first answer from any device wins; a later one fails with a message saying so. An agent run resumes with the answer; a command run that was waiting carries on. Pushes `jobs-changed` |
 | `{ "t": "dismissJobQuestion", "project": "<name>", "jobId": "<id>", "askId": "<ask id>" }` | `{ "t": "dismissJobQuestion", "project": "<name>", "jobId": "<id>", "ok": true }` / `{ "ok": false, "error": "…" }` — drops the question unanswered: an agent run stays where it stopped, a waiting command hears that no answer is coming. Pushes `jobs-changed` |
 | `{ "t": "jobConfig", "project": "<name>", "jobId": "<id>", "source": "project"\|"repo"\|"global" }` | `{ "t": "jobConfig", "project": "<name>", "jobId": "<id>", "ok": true, "job": { …raw YAML body… } }` / `{ "ok": false, "error": "…" }` — the stored job body (`label`/`emoji`/`schedule`/`check`/`duplicate`/`run`/`projects`) read from `source`'s layer file, so the phone editor can seed an edit. Mirrors the desktop's readJobPayloadFrom |
-| `{ "t": "saveJob", "id": "<id>", "source": "project"\|"repo"\|"global", "project": "<name>", "job": { …body… } }` | `{ "t": "saveJob", "ok": true, "id": "<id>" }` / `{ "ok": false, "id": "<id>", "error": "…" }` — write `job` to `jobs.<id>` in `source`'s layer file (create if new, overwrite if it exists). A new job's `id` is a fresh slug the phone derives from the label, uniquified against every visible job id so it never shadows another job's saved history; editing reuses the job's own id. An empty `id` is rejected. `job` is the full YAML body (same shape the desktop's buildJobPayload writes): `label`, optional `emoji`, `schedule` (`{ manual: true }` \| `{ every: "30m"\|"6h"\|"2d" }` — the interval floor is 5 minutes \| `{ at: "09:00", days?: [mon…] }`), optional `check`, optional `verify` (a shell command run after the run finishes, deciding whether it is reported as done or as needing a look; rejected on `action` jobs, which lpm hands off without waiting), optional `duplicate` (`true` for a plain copy with default options, or `{ mode?: "copy"\|"worktree", pullLatest?, reinstallDeps?, excludeUncommitted? }` — **write back every key you read**, since the body replaces the job's whole mapping), `run` (`{ action }` \| `{ cmd }` \| `{ prompt, agent?, model?, effort?, access?: "read" }`), and — global-layer jobs only — `projects` (the "runs in" list; `[]` = standalone, omitted = every project), and optional `machines` (the computers that may run it, best first: hostIds, `"this"` for this Mac, a paired computer's name, and `"any"` last for any other computer that's on; `[]` = every computer that has it). A body without `machines` keeps the job's own, and a new job without one runs on this Mac only. New jobs use `source: "global"`. Writes off the read loop; on success the desktop's Jobs views refresh and a `jobs-changed` push goes to phones. The scheduler validates on its next read, so a bad body surfaces as an invalid row, not an error here |
+| `{ "t": "saveJob", "id": "<id>", "source": "project"\|"repo"\|"global", "project": "<name>", "job": { …body… } }` | `{ "t": "saveJob", "ok": true, "id": "<id>" }` / `{ "ok": false, "id": "<id>", "error": "…" }` — write `job` to `jobs.<id>` in `source`'s layer file (create if new, overwrite if it exists). A new job's `id` is a fresh slug the phone derives from the label, uniquified against every visible job id so it never shadows another job's saved history; editing reuses the job's own id. An empty `id` is rejected. `job` is the full YAML body (same shape the desktop's buildJobPayload writes): `label`, optional `emoji`, `schedule` (`{ manual: true }` \| `{ every: "30m"\|"6h"\|"2d" }` — the interval floor is 5 minutes \| `{ at: "09:00", days?: [mon…] }`), optional `check`, optional `verify` (a shell command run after the run finishes, deciding whether it is reported as done or as needing a look; rejected on `action` jobs, which lpm hands off without waiting), optional `onAnswer` (a shell command run when a keyed question is answered; the phone has no control for it and leaves it out, which keeps the job's own), optional `duplicate` (`true` for a plain copy with default options, or `{ mode?: "copy"\|"worktree", pullLatest?, reinstallDeps?, excludeUncommitted? }` — **write back every key you read**, since the body replaces the job's whole mapping), `run` (`{ action }` \| `{ cmd }` \| `{ prompt, agent?, model?, effort?, access?: "read" }`), and — global-layer jobs only — `projects` (the "runs in" list; `[]` = standalone, omitted = every project), and optional `machines` (the computers that may run it, best first: hostIds, `"this"` for this Mac, a paired computer's name, and `"any"` last for any other computer that's on; `[]` = every computer that has it). A body without `machines` keeps the job's own, and a new job without one runs on this Mac only. New jobs use `source: "global"`. Writes off the read loop; on success the desktop's Jobs views refresh and a `jobs-changed` push goes to phones. The scheduler validates on its next read, so a bad body surfaces as an invalid row, not an error here |
 | `{ "t": "deleteJob", "id": "<id>", "source": "project"\|"repo"\|"global", "project": "<name>", "deleteCopies": bool }` | `{ "t": "deleteJob", "ok": true, "id": "<id>" }` / `{ "ok": false, "id": "<id>", "error": "…" }` — remove the job from `source`'s layer file and forget its saved state (run history, pause override); `deleteCopies` also tears down the duplicates its runs left behind. Writes off the read loop; refreshes desktop + pushes `jobs-changed` like `saveJob` |
 | `{ "t": "terminals", "project": "<name>" }` | `{ "t": "terminals", "project": "<name>", "terminals": [Terminal…] }` — a project the Mac hasn't shown since lpm started has its saved tabs restored first (off screen), so the reply can take a few seconds |
 | `{ "t": "slash", "id": "<termId>", "project": "<name>" }` | `{ "t": "slash", "id": "<termId>", "commands": [SlashCommand…] }` — slash-command autocomplete; empty unless the terminal runs a known AI CLI (the frontend registers each terminal's CLI, detected from its launch command). When `features` has `"lpmCommands"`, the list holds the user's [lpm commands](#lpm-commands) too (`source: "lpm"`, with `folder` and `scope`), and an agent command whose name one of them takes is left out. Any row may carry `recentRuns` and `lastRunAt`, and a skill not made in lpm its `folder`; the phone [puts the rows in order](#lpm-commands) |
@@ -911,7 +911,7 @@ page through folders, so they have no use for it.
 
 Each list also carries `others`: the skills in its places that weren't made in
 lpm, each `{ name, description, preview, agents, path }`, sorted by name.
-`preview` is the start of the instructions, `agents` the CLIs that read it
+`preview` is the instructions, cut with `…` only past 16,000 characters, `agents` the CLIs that read it
 (`claude`, `codex`, `gemini`, `opencode`), `folder` the folder of the list it is
 filed in, or null, and `atRoot` true for one kept with the list's skills in no folder
 instead of in the Other skills group. Their files can't be edited through these
@@ -1536,7 +1536,14 @@ ask: JobAsk?              // the question the automation is waiting on the user 
                           // answer, plus `project` (where it waits — the project to
                           // answer in) and `at` (the history entry that asked;
                           // absent while that run is still going). A shared job
-                          // carries the first one found across its targets
+                          // carries the first one found across its targets. With
+                          // only keyed questions waiting, the first of those
+asks: [JobAsk]?           // every question it waits on, `ask` first: the one
+                          // without a `key` (which holds the automation's runs
+                          // back), then the keyed ones oldest first, each with its
+                          // `project`. Absent when nothing waits; older Macs send
+                          // only `ask`. Run now is held back only by a question
+                          // without a `key`
 machines: [JobMachine]?   // the computers that may run it, best first: the first
                           // that's on runs each run. Absent = every computer that
                           // has it runs it (automations from before this field)
@@ -1576,8 +1583,12 @@ questions: [{
 }]
 blocking: bool?          // a command run is waiting live; otherwise an agent run
                          // ended its turn and resumes with the answer
+key: string?             // asked with `lpm ask --key`: one open question per key,
+                         // none holding the automation up. Its answer runs the
+                         // automation's `onAnswer` command instead of resuming a
+                         // run; a newer question under the key replaces it
 expiresAt: unix seconds?
-status: "open" | "answered" | "dismissed" | "unanswered" | string
+status: "open" | "answered" | "dismissed" | "unanswered" | "replaced" | string
 answers: { "<question id>": bool | [string] | string }?
 reply: string?           // answered in the user's own words, by a plain reply
 answeredAt: unix seconds?
@@ -1618,6 +1629,11 @@ unread: true?               // the run landed after the automation was last read
 ranOn: string?              // the computer that made this run, when it wasn't this
                             // Mac: another of the automation's computers ran it
                             // while this one was off
+onAnswer: true?             // the automation's `onAnswer` command, run for the
+                            // keyed question in `asks` once it was answered.
+                            // Reads "Answered", or "Answer didn't go through" when
+                            // `result` isn't "completed". Never unread when it
+                            // worked: the user answered it themselves
 ```
 
 **AgentUsageStats** (the `stats` reply) — all token counts are numbers that can reach

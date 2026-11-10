@@ -194,7 +194,9 @@ export function JobEditorModal({
     return () => {
       cancelled = true;
     };
-  }, [open, editing, newProject]);
+    // The saved automation, not the object naming it: a redraw that hands over
+    // a new one for the same automation mustn't reload it over the edits.
+  }, [open, editing?.project, editing?.job.source, editing?.job.id, newProject]);
 
   // A new job runs where it's saved until other computers are picked.
   useEffect(() => {

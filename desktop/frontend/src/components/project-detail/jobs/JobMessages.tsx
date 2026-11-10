@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { hasOnOffSwitch } from "../../../jobsList";
 import { toast } from "../../../notifications/toast";
 import { DeleteJobHistory, JobHistory } from "../../../../bridge/commands";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
@@ -8,7 +9,6 @@ import {
   ChevronLeftIcon,
   ClockIcon,
   PencilIcon,
-  StopIcon,
   TrashIcon,
 } from "../../icons";
 import { PlayIcon } from "../icons";
@@ -21,8 +21,10 @@ import { JobRunRow } from "./JobRunRow";
 import { JobRunningRow } from "./JobRunningRow";
 import { JobOffBanner } from "./JobOffBanner";
 import { JobOnOffToggle } from "./JobOnOffToggle";
-import { JobAskCard } from "./JobAskCard";
-import { askWaitingIn } from "../../../jobAsk";
+import { JobAskCards } from "./JobAskCards";
+import { JobStopButton } from "./JobStopButton";
+import { askWaitingIn, holdsJob, waitingAsks } from "../../../jobAsk";
+import { runningRunAsks } from "../../../jobLive";
 import {
   formatNextRun,
   formatSchedule,
@@ -51,6 +53,8 @@ interface JobMessagesProps {
   // Open one run's own page (its conversation), addressed by the run entry's
   // `at`.
   onOpenTask: (at: number) => void;
+  // Open the run still going, which streams in its own page.
+  onOpenLive: () => void;
   // Opening a run reads it, and everything under it — the runs that landed
   // after it stay new. Merely opening this page reads nothing, so the list keeps
   // pointing at what still hasn't been looked at.
@@ -73,6 +77,7 @@ export function JobMessages({
   onToggleEnabled,
   onOpenCopy,
   onOpenTask,
+  onOpenLive,
   onSeenUpTo,
 }: JobMessagesProps) {
   const [entries, setEntries] = useState<JobHistoryEntry[] | null>(null);
@@ -133,7 +138,11 @@ export function JobMessages({
   const projectLabel = stripMarker(project) ? displayNameForProjectName(project, storeProjects) : "";
   const machineLabel = job.host ? peerAlias(peerState.peers, job.host) : "";
   const meta = [projectLabel, machineLabel, scheduleText, nextRunText].filter(Boolean).join(" · ");
-  const waitingAsk = askWaitingIn(job.ask, project);
+  const allWaiting = waitingAsks(job).filter((ask) => askWaitingIn(ask, project));
+  const held = allWaiting.some(holdsJob);
+  // The run still going shows its own question; the rest wait up here.
+  const ownedByRun = new Set(runningRunAsks(job, project).map((ask) => ask.id));
+  const waiting = allWaiting.filter((ask) => !ownedByRun.has(ask.id));
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -167,21 +176,14 @@ export function JobMessages({
             canZoomOut={zoom.canZoomOut}
           />
           {job.running ? (
-            <button
-              type="button"
-              onClick={onStop}
-              className="flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--accent-red)]"
-            >
-              <StopIcon />
-              Stop
-            </button>
+            <JobStopButton onStop={onStop} />
           ) : (
             <button
               type="button"
               onClick={onRunNow}
-              disabled={!job.enabled || waitingAsk !== undefined}
+              disabled={!job.enabled || held}
               title={
-                waitingAsk
+                held
                   ? "Answer or skip its question first"
                   : job.enabled
                     ? undefined
@@ -212,11 +214,13 @@ export function JobMessages({
               <TrashIcon size={13} />
             </button>
           )}
-          <JobOnOffToggle
-            label={job.label || job.id}
-            enabled={job.enabled}
-            onToggle={onToggleEnabled}
-          />
+          {hasOnOffSwitch(job) && (
+            <JobOnOffToggle
+              label={job.label || job.id}
+              enabled={job.enabled}
+              onToggle={onToggleEnabled}
+            />
+          )}
         </div>
       </div>
 
@@ -225,11 +229,7 @@ export function JobMessages({
         className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto pb-6 pt-4"
       >
         {job.valid && !job.enabled && <JobOffBanner onTurnOn={() => onToggleEnabled(true)} />}
-        {waitingAsk && (
-          <div className="mb-4" style={{ zoom: zoom.zoom }}>
-            <JobAskCard key={waitingAsk.id} ask={waitingAsk} project={project} jobId={job.id} />
-          </div>
-        )}
+        <JobAskCards asks={waiting} project={project} jobId={job.id} className="mb-4" style={{ zoom: zoom.zoom }} />
         {!job.valid ? (
           <p className="py-10 text-center text-[12px] text-[var(--accent-red)]">
             {job.error || "This job can't run — edit it to fix its settings."}
@@ -251,6 +251,7 @@ export function JobMessages({
                 now={now}
                 onStop={onStop}
                 onOpenCopy={onOpenCopy}
+                onOpen={onOpenLive}
               />
             )}
             {threads.map((thread, i) => (

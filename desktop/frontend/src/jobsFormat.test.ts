@@ -275,6 +275,23 @@ describe("liveOutputTail", () => {
     expect(liveOutputTail(undefined)).toBe("");
     expect(liveOutputTail("   \n \n")).toBe("");
   });
+
+  it("folds a run of tool steps into one line, so what the agent said stays in view", () => {
+    const live = [
+      "Found one new chat: customer #482 asks for a refund. My draft:",
+      "Hi! Sorry for the slow reply. We've refunded the second payment.",
+      "→ Skill",
+      "→ Read",
+      ...Array.from({ length: 14 }, () => "→ Bash"),
+    ].join("\n");
+    expect(liveOutputTail(live)).toBe(
+      [
+        "Found one new chat: customer #482 asks for a refund. My draft:",
+        "Hi! Sorry for the slow reply. We've refunded the second payment.",
+        "→ Skill, Read, Bash ×14",
+      ].join("\n"),
+    );
+  });
 });
 
 describe("job result copy", () => {
@@ -647,6 +664,21 @@ describe("draft <-> payload round-trip", () => {
     expect(
       validateJobDraft({ ...draft, runMode: "action", action: "deploy" }),
     ).toBe("A check after the run isn't available for actions.");
+  });
+
+  it("carries onAnswer through a save and names the run it leaves", () => {
+    const draft: JobDraft = {
+      ...defaultJobDraft(),
+      label: "Telegram replies",
+      onAnswer: 'tg-send "$LPM_ASK_KEY" "$LPM_ANSWER"',
+      runMode: "cmd",
+      cmd: "tg-draft-all",
+    };
+    expect(buildJobPayload(draft).onAnswer).toBe('tg-send "$LPM_ASK_KEY" "$LPM_ANSWER"');
+    expect(payloadToDraft(buildJobPayload(draft))).toEqual(draft);
+    expect(buildJobPayload({ ...draft, onAnswer: " " }).onAnswer).toBeUndefined();
+    expect(jobEntryLabel({ at: 1, result: "completed", onAnswer: true })).toBe("Answered");
+    expect(jobEntryLabel({ at: 1, result: "error", onAnswer: true })).toBe("Answer didn't go through");
   });
 
   it("keeps writing duplicate: true for a plain copy", () => {

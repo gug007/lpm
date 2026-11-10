@@ -7,6 +7,7 @@ fn ask(q: Question) -> Ask {
         asked_at: 0,
         questions: vec![q],
         blocking: false,
+        key: None,
         expires_at: None,
         status: OPEN.into(),
         answers: Map::new(),
@@ -203,6 +204,8 @@ fn the_closed_button_reads_like_the_app() {
     assert_eq!(status_text(&a, false), "No answer in time — the default was used");
     a.status = DISMISSED.into();
     assert_eq!(status_text(&a, true), "Skipped");
+    a.status = REPLACED.into();
+    assert_eq!(status_text(&a, true), "Replaced by a newer question");
     a.status = "unanswered".into();
     assert_eq!(status_text(&a, true), "No answer");
     let mut long = ask(Question {

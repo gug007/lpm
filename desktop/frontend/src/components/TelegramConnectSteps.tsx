@@ -25,7 +25,7 @@ export function TelegramConnectSteps({ intent, host, onAdded }: ConnectorProps) 
       onAdded(ids);
     },
   });
-  const { status, waiting, busy, bot } = link;
+  const { status, waiting, busy, bot, problem } = link;
   const hasToken = !!status?.hasToken;
   const connected = !!status?.connected;
   const open = (url: string) => () => BrowserOpenURL(url);
@@ -83,6 +83,14 @@ export function TelegramConnectSteps({ intent, host, onAdded }: ConnectorProps) 
           <p className="text-[12.5px] text-[var(--text-muted)]">
             Connected to {status?.chats[0]?.name}. It just got a welcome message from {bot}.
           </p>
+        ) : waiting && problem ? (
+          <div role="alert" className="space-y-2">
+            <p className="text-[12.5px] leading-5 text-[var(--accent-red-text)]">{problem.text}</p>
+            <p className="break-words text-[11.5px] leading-5 text-[var(--text-muted)]">{problem.said}</p>
+            <button onClick={link.disconnect} disabled={busy} className={BTN_SECONDARY}>
+              Use a new bot
+            </button>
+          </div>
         ) : waiting && status?.bot && status.code ? (
           <div className="flex items-center gap-3">
             <button onClick={open(startUrl(status.bot, status.code))} className={PRIMARY}>

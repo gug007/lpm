@@ -79,7 +79,7 @@ fn the_open_question_is_found_on_the_live_run_first_then_the_newest_entry() {
     let (at, a) = open_with_at(&st).unwrap();
     assert_eq!((at, a.id.as_str()), (None, "live"));
 
-    let v = open_json(&st, "web").unwrap();
+    let v = waiting_json(&st, "web").remove(0);
     assert_eq!(v["project"], json!("web"));
     assert!(v.get("at").is_none());
 }

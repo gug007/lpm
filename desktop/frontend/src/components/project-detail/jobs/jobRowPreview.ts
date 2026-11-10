@@ -1,4 +1,4 @@
-import { askSummary, isOpenAsk, WAITING_LABEL } from "../../../jobAsk";
+import { askSummary, waitingAsks, WAITING_LABEL } from "../../../jobAsk";
 import {
   formatDuration,
   isBlockedResult,
@@ -22,7 +22,11 @@ const FAILURE_NOTE_CHARS = 240;
 // else right now; one that's off waits for whoever turns it back on.
 export function lastRunFailed(job: JobInfo): boolean {
   return (
-    job.valid && job.enabled && !job.running && !isOpenAsk(job.ask) && jobResultTone(job.lastResult) === "error"
+    job.valid &&
+    job.enabled &&
+    !job.running &&
+    waitingAsks(job).length === 0 &&
+    jobResultTone(job.lastResult) === "error"
   );
 }
 
@@ -49,8 +53,10 @@ export function jobRowPreview(job: JobInfo, runningText: string): JobPreview {
       tone: "error",
     };
   }
-  if (isOpenAsk(job.ask)) {
-    return { prefix: `${WAITING_LABEL} · `, text: askSummary(job.ask), tone: "warning" };
+  const asks = waitingAsks(job);
+  if (asks.length > 0) {
+    const prefix = asks.length > 1 ? `${asks.length} questions waiting · ` : `${WAITING_LABEL} · `;
+    return { prefix, text: askSummary(asks[0]), tone: "warning" };
   }
   if (job.running) return { prefix: "", text: runningText, tone: "running" };
   if (isBlockedResult(job.lastResult)) {

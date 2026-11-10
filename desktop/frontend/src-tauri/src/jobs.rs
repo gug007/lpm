@@ -59,6 +59,7 @@ const ASK_INSTRUCTION: &str = "If you can't go on without a decision or informat
 
 pub(crate) mod ask;
 pub(crate) mod askform;
+mod keyed;
 pub(crate) mod machines;
 mod runstep;
 mod signin;
@@ -87,6 +88,10 @@ struct JobDef {
     check: String,
     #[serde(default)]
     verify: String,
+    /// Runs when a keyed question is answered, with the key and the answer in
+    /// its environment (see jobs/keyed.rs).
+    #[serde(default, rename = "onAnswer")]
+    on_answer: String,
     #[serde(default)]
     duplicate: DuplicateDef,
     run: Option<RunDef>,
@@ -342,6 +347,7 @@ struct JobResolved {
     schedule: Schedule,
     check: String,
     verify: String,
+    on_answer: String,
     duplicate: DuplicateSpec,
     run: RunTarget,
     enabled: bool,
@@ -710,6 +716,7 @@ fn resolve_job(project: &str, id: &str, def: &JobDef) -> Result<JobResolved, Str
         schedule,
         check: def.check.trim().to_string(),
         verify: verify.to_string(),
+        on_answer: def.on_answer.trim().to_string(),
         duplicate: resolve_duplicate(&def.duplicate)?,
         run,
         enabled: def.enabled.unwrap_or(true),
@@ -1157,6 +1164,9 @@ struct JobState {
     /// ones still unread. Absent means nothing has been read yet.
     #[serde(default, rename = "seenAt", skip_serializing_if = "Option::is_none")]
     seen_at: Option<u64>,
+    /// Questions asked under a key, which outlive the run that asked them.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    keyed: Vec<Ask>,
 }
 
 impl JobState {
@@ -1244,6 +1254,20 @@ struct HistoryEntry {
     /// job's Macs ran it while this one was off.
     #[serde(default, rename = "ranOn", skip_serializing_if = "Option::is_none")]
     ran_on: Option<String>,
+}
+
+impl HistoryEntry {
+    /// The job's `onAnswer` command, run for the keyed question it carries: no
+    /// run ever holds a keyed question itself.
+    fn on_answer(&self) -> bool {
+        self.asks.iter().any(|a| a.key.is_some())
+    }
+
+    /// The user answered an onAnswer entry's question themselves, so only its
+    /// failure is news.
+    fn is_news(&self) -> bool {
+        is_readable_outcome(&self.result) && !(self.on_answer() && self.result == COMPLETED)
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -1387,7 +1411,7 @@ fn unread_count(st: &JobState) -> u32 {
     let seen = st.seen_at.unwrap_or(0);
     st.history
         .iter()
-        .filter(|h| h.at > seen && is_readable_outcome(&h.result))
+        .filter(|h| h.at > seen && h.is_news())
         .count() as u32
 }
 
@@ -1398,7 +1422,7 @@ const PREVIEW_CHARS: usize = 400;
 fn latest_message(st: &JobState) -> Option<(u64, String)> {
     st.history
         .iter()
-        .filter(|h| is_readable_outcome(&h.result))
+        .filter(|h| h.is_news())
         .filter_map(|h| {
             let out = h.output.as_deref()?.trim();
             (!out.is_empty()).then(|| (h.at, out.chars().take(PREVIEW_CHARS).collect()))
@@ -1663,6 +1687,8 @@ enum Trigger {
     Schedule,
     Manual,
     Reply,
+    /// A keyed question's answer, handed to the job's `onAnswer` command.
+    Answer,
 }
 
 impl Trigger {
@@ -1671,6 +1697,7 @@ impl Trigger {
             Trigger::Schedule => "schedule",
             Trigger::Manual => "manual",
             Trigger::Reply => "reply",
+            Trigger::Answer => "answer",
         }
     }
 }
@@ -2163,16 +2190,20 @@ fn render_claude_stream(raw: &str) -> Option<String> {
 
 /// What the feed stores when there is no clean final message: Claude's stream
 /// log renders to a readable trace; anything else keeps its raw tail
-/// (failures live at the end).
+/// (failures live at the end). A Claude log with nothing readable in it is all
+/// events, whose raw end is the middle of some JSON, so it says that instead.
 fn fallback_output(agent: Option<&str>, raw: &str) -> String {
     match agent {
-        Some("claude") => render_claude_stream(raw).map_or_else(
-            || tail_chars(raw, OUTPUT_CAP_CHARS),
-            |r| tail_chars(&r, OUTPUT_CAP_CHARS),
-        ),
+        Some("claude") => match render_claude_stream(raw) {
+            Some(r) => tail_chars(&r, OUTPUT_CAP_CHARS),
+            None if raw.trim().is_empty() => String::new(),
+            None => NO_MESSAGE.to_string(),
+        },
         _ => tail_chars(raw, OUTPUT_CAP_CHARS),
     }
 }
+
+const NO_MESSAGE: &str = "It ended without a message.";
 
 fn hit_context_limit(output: Option<&str>) -> bool {
     output.is_some_and(|o| o.to_ascii_lowercase().contains("prompt is too long"))
@@ -3906,14 +3937,12 @@ fn global_job_row(
     let mut next: Option<i64> = None;
     let mut unread: u32 = 0;
     let mut latest: Option<(u64, String)> = None;
-    let mut waiting: Option<Value> = None;
+    let mut waiting: Vec<Value> = Vec::new();
     for t in &run_targets {
         let key = state_key(t, id);
         let st = load_job_state(&key);
         unread += unread_count(&st);
-        if waiting.is_none() {
-            waiting = ask::open_json(&st, t);
-        }
+        waiting.extend(ask::waiting_json(&st, t));
         if let Some(msg) = latest_message(&st) {
             if latest.as_ref().map_or(true, |(at, _)| msg.0 > *at) {
                 latest = Some(msg);
@@ -3977,9 +4006,7 @@ fn global_job_row(
                 "unread": unread,
                 "lastMessage": latest.map(|(_, m)| m),
             });
-            if let Some(a) = waiting {
-                row["ask"] = a;
-            }
+            add_waiting(&mut row, waiting);
             // Several live runs have no one place to name.
             if let (1, Some((key, st))) = (running_count, &running) {
                 runstep::add_row_fields(&mut row, key, st);
@@ -4097,9 +4124,7 @@ fn project_job_rows(project: &str, names: &machines::Names) -> Vec<Value> {
                         "unread": unread_count(&st),
                         "lastMessage": latest_message(&st).map(|(_, m)| m),
                     });
-                    if let Some(a) = ask::open_json(&st, &project) {
-                        row["ask"] = a;
-                    }
+                    add_waiting(&mut row, ask::waiting_json(&st, &project));
                     runstep::add_row_fields(&mut row, &key, &st);
                     if let RunTarget::Prompt {
                         agent,
@@ -4125,6 +4150,16 @@ fn project_job_rows(project: &str, names: &machines::Names) -> Vec<Value> {
             }
         })
         .collect()
+}
+
+/// What a row waits on: `asks` every question, the one holding the job up
+/// first, and `ask` that first one for clients that know no other.
+fn add_waiting(row: &mut Value, mut waiting: Vec<Value>) {
+    waiting.sort_by_key(|a| a.get("key").is_some());
+    if let Some(first) = waiting.first() {
+        row["ask"] = first.clone();
+        row["asks"] = Value::Array(waiting);
+    }
 }
 
 /// Dry-run a job's `check` command from the editor so the user can confirm it
@@ -4684,16 +4719,33 @@ pub fn save_job_body(
     job: Value,
 ) -> Result<(), String> {
     let body: serde_norway::Value = serde_norway::to_value(&job).map_err(|e| e.to_string())?;
-    save_job_value(source, project, id, body)
+    save_job_value(source, project, id, body, true)
+}
+
+/// Fields no editor shows. An editor can't mean to remove what it never
+/// showed, and phones and older Macs write the whole job back.
+const EDITOR_UNSEEN_FIELDS: [&str; 1] = ["onAnswer"];
+
+fn keep_unseen_fields(body: &mut serde_norway::Value, stored: &serde_norway::Value) {
+    let Some(map) = body.as_mapping_mut() else {
+        return;
+    };
+    for field in EDITOR_UNSEEN_FIELDS {
+        if let (false, Some(v)) = (map.contains_key(field), stored.get(field)) {
+            map.insert(field.into(), v.clone());
+        }
+    }
 }
 
 /// `save_job_body` for a body already parsed from YAML, so its key order
-/// survives (a JSON object would sort it).
+/// survives (a JSON object would sort it). A body from an editor keeps the
+/// stored `EDITOR_UNSEEN_FIELDS` it leaves out.
 pub fn save_job_value(
     source: String,
     project: String,
     id: String,
     body: serde_norway::Value,
+    from_editor: bool,
 ) -> Result<(), String> {
     let id = id.trim().to_string();
     if id.is_empty() {
@@ -4722,7 +4774,11 @@ pub fn save_job_value(
         .and_then(serde_norway::Value::as_mapping_mut)
         .ok_or_else(|| "The config file isn't valid.".to_string())?;
     let mut body = body;
-    machines::Names::load().settle_body(&mut body, jobs.get(id.as_str()));
+    let stored = jobs.get(id.as_str());
+    machines::Names::load().settle_body(&mut body, stored);
+    if let (true, Some(stored)) = (from_editor, stored) {
+        keep_unseen_fields(&mut body, stored);
+    }
     jobs.insert(id.as_str().into(), body);
     write_yaml_doc(&path, &doc)
 }
@@ -4851,7 +4907,9 @@ pub fn drain_pending_job_tasks(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-const LIVE_TAIL_CHARS: usize = 4_000;
+/// Enough of a running run for its own page to show what the agent said, a
+/// drafted reply included, and not only the steps it took last.
+const LIVE_TAIL_CHARS: usize = 16_000;
 const LIVE_READ_BYTES: u64 = 256 * 1024;
 
 /// What the job's current run has said so far — the tail of its live log,
@@ -4883,7 +4941,7 @@ pub fn job_history(project: String, job_id: String) -> Result<Vec<Value>, String
         .iter()
         .map(|h| {
             let mut o = json!({ "at": h.at, "result": h.result });
-            if h.at > seen && is_readable_outcome(&h.result) {
+            if h.at > seen && h.is_news() {
                 o["unread"] = json!(true);
             }
             if let Some(n) = h.count.filter(|n| *n > 1) {
@@ -4924,6 +4982,9 @@ pub fn job_history(project: String, job_id: String) -> Result<Vec<Value>, String
             }
             if let Some(m) = &h.ran_on {
                 o["ranOn"] = json!(m);
+            }
+            if h.on_answer() {
+                o["onAnswer"] = json!(true);
             }
             o
         })
@@ -6254,6 +6315,26 @@ mod tests {
         // Plain stderr (an API failure) is kept — it's why the run died.
         assert_eq!(
             render_claude_stream("API Error: overloaded").unwrap(),
+            "API Error: overloaded"
+        );
+    }
+
+    #[test]
+    fn a_claude_log_without_a_message_reads_as_words_not_json() {
+        let commands: Vec<String> = (0..400)
+            .map(|i| format!("{{\"name\":\"cmd-{i}\",\"description\":\"Command {i}\",\"argumentHint\":\"\",\"builtin\":true}}"))
+            .collect();
+        let raw = format!(
+            "{{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"s\",\"slash_commands\":[{}]}}\n{}\n",
+            commands.join(","),
+            "{\"type\":\"result\",\"subtype\":\"success\",\"result\":\"\",\"session_id\":\"s\"}",
+        );
+        let got = fallback_output(Some("claude"), &raw);
+        assert!(!got.contains("argumentHint"), "raw JSON leaked into the summary: {}", &got[..80.min(got.len())]);
+        assert_eq!(got, "It ended without a message.");
+        // Text Claude never wrapped in an event is still why a run died.
+        assert_eq!(
+            fallback_output(Some("claude"), &format!("{raw}API Error: overloaded\n")),
             "API Error: overloaded"
         );
     }

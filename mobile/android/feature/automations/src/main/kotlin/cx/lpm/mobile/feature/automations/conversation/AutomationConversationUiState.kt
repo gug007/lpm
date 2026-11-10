@@ -6,6 +6,7 @@ import cx.lpm.mobile.core.data.automations.automationKey
 import cx.lpm.mobile.core.model.AutomationAsk
 import cx.lpm.mobile.core.model.AutomationHistoryEntry
 import cx.lpm.mobile.core.model.AutomationJob
+import cx.lpm.mobile.core.model.runningRunAsks
 import cx.lpm.mobile.feature.automations.format.AutomationClock
 import cx.lpm.mobile.feature.automations.format.AutomationThread
 import cx.lpm.mobile.feature.automations.format.AutomationTone
@@ -53,7 +54,11 @@ data class AutomationConversationUiState(
     val answering: Boolean = false,
     val askError: String? = null,
     /** Per question, measured now: what happens if nobody answers in time, or when it settled. */
-    val askWhen: Map<String, String> = emptyMap()
+    val askWhen: Map<String, String> = emptyMap(),
+    /** Opened on the run still going, before it lands in a run of its own. */
+    val liveRun: Boolean = false,
+    /** The questions the run going now asked, shown after what it has said. */
+    val runAsks: List<AutomationAsk> = emptyList()
 ) {
     val running: Boolean get() = job?.running == true
 
@@ -64,36 +69,54 @@ data class AutomationConversationUiState(
     val waiting: Boolean get() = messages.any { m -> m.asks.any { it.isOpen } }
 }
 
+/** Where a run still going is opened: it has no entry of its own until it ends. */
+const val AUTOMATION_LIVE_RUN = -1L
+
+/**
+ * The conversation opened, by its root's `at`. Opened on [AUTOMATION_LIVE_RUN], it's
+ * the run that started at [liveSince] once it has landed: the newest one since.
+ */
 internal fun AutomationsState.thread(
     project: String,
     jobId: String,
-    rootAt: Long
-): AutomationThread? = automationThreads(history[automationKey(project, jobId)].orEmpty())
-    .firstOrNull { it.root.at == rootAt }
+    rootAt: Long,
+    liveSince: Long
+): AutomationThread? {
+    val threads = automationThreads(history[automationKey(project, jobId)].orEmpty())
+    if (rootAt != AUTOMATION_LIVE_RUN) return threads.firstOrNull { it.root.at == rootAt }
+    if (automationMatching(jobs, project, jobId)?.running == true) return null
+    return threads.filter { it.tail.at >= liveSince }.maxByOrNull { it.tail.at }
+}
 
 internal fun AutomationsState.conversationState(
     project: String,
     jobId: String,
     rootAt: Long,
     pendingMessage: String?,
-    clock: AutomationClock
+    clock: AutomationClock,
+    liveSince: Long
 ): AutomationConversationUiState {
     val key = automationKey(project, jobId)
     val job = automationMatching(jobs, project, jobId)
-    val entries = thread(project, jobId, rootAt)?.entries.orEmpty()
-    val askWhen = entries.flatMap { it.asks }.associate {
+    val thread = thread(project, jobId, rootAt, liveSince)
+    val entries = thread?.entries.orEmpty()
+    val isLive = rootAt == AUTOMATION_LIVE_RUN
+    val runAsks = job?.runningRunAsks.orEmpty()
+    val askWhen = (entries.flatMap { it.asks } + runAsks).associate {
         it.id to automationAskWhen(it, clock.now.epochSecond, clock::clock)
     }
     return AutomationConversationUiState(
         job = job,
-        messages = entries.map { it.message(isRoot = it.at == rootAt, clock) },
+        messages = entries.map { it.message(isRoot = it.at == thread?.root?.at, clock) },
         pendingMessage = pendingMessage,
         live = liveOutput[key]?.text.orEmpty(),
         sending = pendingMessage != null || job?.running == true || key in pending,
         followupError = followupError[key],
         answering = key in pending,
         askError = askError[key],
-        askWhen = askWhen
+        askWhen = askWhen,
+        liveRun = isLive,
+        runAsks = if (isLive || pendingMessage != null) runAsks else emptyList()
     )
 }
 

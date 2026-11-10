@@ -29,6 +29,8 @@ const job = (fields: Partial<JobInfo>): JobInfo => ({
   ...fields,
 });
 
+const onOpen = vi.fn();
+
 const show = (fields: Partial<JobInfo>, onOpenCopy: (project: string) => void = () => {}) =>
   act(async () => {
     root.render(
@@ -38,6 +40,7 @@ const show = (fields: Partial<JobInfo>, onOpenCopy: (project: string) => void = 
         now={1_000_000}
         onStop={() => {}}
         onOpenCopy={onOpenCopy}
+        onOpen={onOpen}
       />,
     );
   });
@@ -79,7 +82,7 @@ describe("JobRunningRow", () => {
     bridge.JobLiveOutput.mockResolvedValueOnce({ text: "" });
     await show({});
     expect(host.textContent).toContain("No output yet.");
-    expect(host.textContent).not.toContain("Open in terminal");
+    expect(host.textContent).not.toContain("Take over in terminal");
   });
 
   it("claims nothing about a run that isn't in this project", async () => {
@@ -87,12 +90,29 @@ describe("JobRunningRow", () => {
     expect(host.textContent).not.toContain("No output yet.");
   });
 
+  it("opens the run it shows, while it's still going", async () => {
+    await show({});
+    await click("Running");
+    expect(onOpen).toHaveBeenCalled();
+  });
+
+  it("shows the question the run asked inside the run, not apart from it", async () => {
+    const ask = {
+      id: "q1",
+      askedAt: 1,
+      status: "open",
+      questions: [{ id: "a", type: "confirm", text: "Send the draft to customer #482?" }],
+    };
+    await show({ asks: [ask] });
+    expect(host.textContent).toContain("Send the draft to customer #482?");
+  });
+
   it("opens the tab the run carries on in, where the app says it goes", async () => {
     const task = { kind: "fork", command: "claude --resume abc", label: "Triage" };
     bridge.TakeOverJobRun.mockResolvedValue({ project: "app-x1", task });
 
     await show({ takeOverIn: "shared-target" });
-    await click("Open in terminal");
+    await click("Take over in terminal");
 
     expect(bridge.TakeOverJobRun).toHaveBeenCalledWith("shared-target", "triage");
     expect(store.selectProject).toHaveBeenCalledWith("app-x1");

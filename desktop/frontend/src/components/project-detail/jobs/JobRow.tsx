@@ -1,10 +1,12 @@
 import { ClockIcon, PencilIcon, StopIcon, TrashIcon } from "../../icons";
+import { hasOnOffSwitch } from "../../../jobsList";
 import { PlayIcon } from "../icons";
 import { Switch } from "../../ui/Switch";
 import { HoverActionButton } from "./HoverActionButton";
 import { JobRowRetry } from "./JobRowRetry";
 import { jobRowPreview, lastRunFailed, type JobPreviewTone } from "./jobRowPreview";
 import { relativeAgo } from "../../../relativeTime";
+import { holdsJob, waitingAsks } from "../../../jobAsk";
 import { nextRunLabel } from "../../../jobNextRun";
 import { useNow } from "../../../hooks/useNow";
 import {
@@ -43,6 +45,9 @@ export function JobRow({ job, scopeLabel, onRunNow, onStop, onToggleEnabled, onO
   const unread = job.unread ?? 0;
   const enabled = job.enabled;
   const off = job.valid && !enabled;
+  // A question asked without a key holds every run until it's answered.
+  const held = waitingAsks(job).some(holdsJob);
+  const switchable = job.valid && hasOnOffSwitch(job);
   // A repo-declared job lives in the repo's own config file, which stays the
   // user's to edit — no delete from here.
   const removable = job.source !== "repo";
@@ -138,7 +143,12 @@ export function JobRow({ job, scopeLabel, onRunNow, onStop, onToggleEnabled, onO
                 </HoverActionButton>
               ) : (
                 enabled && (
-                  <HoverActionButton label="Run now" onClick={() => onRunNow(job.id)}>
+                  <HoverActionButton
+                    label="Run now"
+                    title={held ? "Answer or skip its question first" : undefined}
+                    disabled={held}
+                    onClick={() => onRunNow(job.id)}
+                  >
                     <PlayIcon />
                   </HoverActionButton>
                 )
@@ -153,7 +163,7 @@ export function JobRow({ job, scopeLabel, onRunNow, onStop, onToggleEnabled, onO
             )}
           </span>
         </span>
-        {job.valid && (
+        {switchable && (
           <button
             type="button"
             role="switch"

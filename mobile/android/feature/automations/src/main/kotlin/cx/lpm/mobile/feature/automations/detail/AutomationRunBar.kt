@@ -50,7 +50,7 @@ fun AutomationRunBar(
 ) {
     val colors = LpmTheme.colors
     // A question waiting for its answer holds the next run back.
-    val waiting = job.ask != null && !job.running && job.enabled
+    val waiting = job.held && !job.running && job.enabled
     val enabled = !pending && !(job.enabled && !job.valid) && !waiting
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()

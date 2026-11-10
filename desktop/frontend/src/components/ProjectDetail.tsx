@@ -81,6 +81,7 @@ import { peerSlugOf } from "../peer/markers";
 import { peerAlias, usePeerState } from "../peer/usePeerState";
 import { liveServices } from "../serviceExit";
 import { useBrowserRequests } from "../hooks/useBrowserRequests";
+import { commandName } from "../tabCommand";
 
 interface ProjectDetailProps {
   project: ProjectInfo;
@@ -95,13 +96,6 @@ interface ProjectDetailProps {
   onToggleService: (name: string, serviceName: string) => Promise<void>;
   onStop: (name: string) => Promise<void>;
   onRefresh: (newName?: string) => void;
-}
-
-// A short, readable terminal-tab label from an ad-hoc command (first word,
-// e.g. "claude" or "npm").
-function spawnCommandLabel(command: string): string {
-  const first = command.trim().split(/\s+/)[0] ?? "";
-  return first.slice(0, 24) || "Command";
 }
 
 export function ProjectDetail({
@@ -245,7 +239,7 @@ export function ProjectDetail({
       if (task.kind === "command") {
         switchDetailView("terminal");
         terminalRef.current?.createTerminalWithCmd(
-          spawnCommandLabel(task.command),
+          commandName(task.command) || "Command",
           task.command,
           { prompt: task.prompt, launchModel: task.launchModel },
         );
@@ -264,6 +258,7 @@ export function ProjectDetail({
         ready
           .then(() =>
             terminalRef.current?.createTerminalWithCmd(forkTask.label, forkTask.command, {
+              prompt: forkTask.prompt,
               actionName: forkTask.actionName,
               emoji: forkTask.emoji,
               color: forkTask.color,

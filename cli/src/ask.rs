@@ -26,6 +26,13 @@ Kinds: --confirm (yes/no), --choice LABEL (repeat for each option), --text (the 
 Exit status: 0 answered (for --confirm, yes), 1 answered no (--confirm), \
 2 usage or not inside an automation run, 3 no answer (dismissed, expired or the run stopped).
 
+With --key the question is filed under that key, one open question per key: \
+asking again under a key replaces its open question, nothing waits for the answer, \
+and the automation's onAnswer command gets it, with LPM_ASK_KEY, LPM_ASK_ID, \
+LPM_ANSWER (printed the way lpm ask prints it) and LPM_ANSWERS (JSON). \
+The automation needs an onAnswer command; lpm ask --key exits 0 once the question is out, \
+printing nothing in a command run (--json prints {id, key, replaced?}).
+
 Inside an AI agent's run the question goes out and the command returns at once: \
 end your turn, and the answer comes back as your next message. Inside a command \
 run, lpm ask waits and prints the answer: yes/no for --confirm, one picked label \
@@ -37,6 +44,7 @@ Examples:
   lpm ask \"Which checks should run?\" --choice lint --choice test --multiple
   lpm ask \"What should the release be called?\" --text --placeholder v2.4
   lpm ask \"Upgrade now?\" --confirm --default no --timeout 4h
+  lpm ask \"Reply to Bob: No outage on our side.\" --confirm --yes-label Send --key \"tg:$CHAT_ID\"
   lpm ask --form '{\"questions\":[{\"type\":\"confirm\",\"text\":\"Ship?\"},{\"text\":\"Notes?\",\"optional\":true}]}'")]
 pub struct AskArgs {
     /// The question, as the user will read it.
@@ -83,6 +91,9 @@ pub struct AskArgs {
     /// Print the answers as JSON.
     #[arg(long)]
     json: bool,
+    /// File the question under KEY: one open question per key, and its answer goes to the automation's onAnswer command.
+    #[arg(long, value_name = "KEY")]
+    key: Option<String>,
 }
 
 fn fail(code: u8, message: &str) -> ExitCode {
@@ -99,12 +110,22 @@ pub fn run(ctx: &Ctx, args: AskArgs) -> ExitCode {
         Err(e) => return fail(USAGE, &e),
     };
     let socket = ctx.socket_path();
-    let line = format!(
-        "job_ask --run={} --ask-hex={}",
-        quote_arg(&token),
-        hex_encode(&request.to_string())
-    );
-    let opened = match request_json(&socket, &line) {
+    let ask = hex_encode(&request.to_string());
+    let (line, feature) = match &args.key {
+        Some(key) => (
+            format!(
+                "job_ask_keyed --run={} --key={} --ask-hex={ask}",
+                quote_arg(&token),
+                quote_arg(key)
+            ),
+            "lpm ask --key",
+        ),
+        None => (
+            format!("job_ask --run={} --ask-hex={ask}", quote_arg(&token)),
+            "lpm ask",
+        ),
+    };
+    let opened = match request_json(&socket, &line, feature) {
         Ok(v) => v,
         Err(e) => return fail(USAGE, &e),
     };
@@ -114,8 +135,18 @@ pub fn run(ctx: &Ctx, args: AskArgs) -> ExitCode {
             text_of(&opened, "error").unwrap_or("the app refused the question"),
         );
     }
+    if args.key.is_some() && args.json {
+        let mut out = json!({ "id": opened["id"], "key": opened["key"] });
+        if let Some(old) = opened.get("replaced") {
+            out["replaced"] = old.clone();
+        }
+        println!("{out}");
+        return ExitCode::SUCCESS;
+    }
     if opened.get("blocking").and_then(Value::as_bool) != Some(true) {
-        println!("{}", text_of(&opened, "message").unwrap_or_default());
+        if let Some(message) = text_of(&opened, "message") {
+            println!("{message}");
+        }
         return ExitCode::SUCCESS;
     }
     let id = text_of(&opened, "id").unwrap_or_default().to_string();
@@ -125,7 +156,7 @@ pub fn run(ctx: &Ctx, args: AskArgs) -> ExitCode {
         quote_arg(&id)
     );
     let ask = loop {
-        match request_json(&socket, &wait) {
+        match request_json(&socket, &wait, "lpm ask") {
             Ok(v) if v.get("ok").and_then(Value::as_bool) != Some(true) => {
                 return fail(
                     NO_ANSWER,
@@ -146,10 +177,12 @@ pub fn run(ctx: &Ctx, args: AskArgs) -> ExitCode {
     ExitCode::from(code)
 }
 
-fn request_json(socket: &std::path::Path, line: &str) -> Result<Value, String> {
+fn request_json(socket: &std::path::Path, line: &str, feature: &str) -> Result<Value, String> {
     let reply = request(socket, line).map_err(|_| "the lpm app isn't running".to_string())?;
     if reply.trim() == "ERROR: unknown command" {
-        return Err("the running lpm app doesn't support lpm ask — update it".into());
+        return Err(format!(
+            "the running lpm app doesn't support {feature} — update it"
+        ));
     }
     serde_json::from_str(&reply).map_err(|e| format!("could not read the app's reply: {e}"))
 }
@@ -297,6 +330,14 @@ mod tests {
         let mut argv = vec!["ask"];
         argv.extend_from_slice(line);
         Wrap::try_parse_from(argv).unwrap().args
+    }
+
+    #[test]
+    fn a_key_rides_beside_the_question_not_inside_it() {
+        let args = parse(&["Send it?", "--confirm", "--key", "tg:42"]);
+        assert_eq!(args.key.as_deref(), Some("tg:42"));
+        let r = build_request(&args).unwrap();
+        assert!(r.get("key").is_none(), "the key goes to its own verb");
     }
 
     #[test]

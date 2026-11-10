@@ -67,9 +67,19 @@ data class AutomationAsk(
     /** Nobody answered in time and the defaults stood in. */
     val auto: Boolean,
     /** On an automation row: where it waits — the project to answer in. */
-    val project: String
+    val project: String,
+    /**
+     * What the asker filed it under: one open question per key, none of them
+     * holding the automation up, and its answer goes to its onAnswer command.
+     */
+    val key: String? = null,
+    /** On an automation row: the run entry that asked it; null while that run is still going. */
+    val at: Long? = null
 ) {
     val isOpen: Boolean get() = status == "open"
+
+    /** A question asked without a key stops the automation's runs until it's answered. */
+    val holdsJob: Boolean get() = key == null
 
     /** One question settled by a single tap: its yes or no, or the one option it takes. */
     val answersOnTap: Boolean
@@ -98,6 +108,8 @@ data class AutomationAsk(
 
             "dismissed" -> "Skipped"
 
+            "replaced" -> "Replaced by a newer question"
+
             else -> "No answer"
         }
 
@@ -115,7 +127,9 @@ data class AutomationAsk(
                 reply = o.string("reply"),
                 answeredAt = o.long("answeredAt"),
                 auto = o.bool("auto") ?: false,
-                project = o.string("project").orEmpty()
+                project = o.string("project").orEmpty(),
+                key = o.string("key"),
+                at = o.long("at")
             )
         }
     }

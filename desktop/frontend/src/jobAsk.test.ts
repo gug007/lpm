@@ -8,7 +8,9 @@ import {
   displayAnswer,
   draftAnswers,
   EMPTY_ASK_DRAFT,
+  holdsJob,
   togglePick,
+  waitingAsks,
   type JobAsk,
   type JobAskQuestion,
 } from "./jobAsk";
@@ -72,6 +74,7 @@ describe("jobAsk", () => {
     expect(askStatusLabel(ask({ status: "answered", reply: "later" }))).toBe("Answered in a reply");
     expect(askStatusLabel(ask({ status: "answered", auto: true }))).toContain("default");
     expect(askStatusLabel(ask({ status: "dismissed" }))).toBe("Skipped");
+    expect(askStatusLabel(ask({ status: "replaced" }))).toBe("Replaced by a newer question");
     expect(askStatusLabel(ask({ status: "unanswered" }))).toBe("No answer");
   });
 
@@ -93,6 +96,23 @@ describe("jobAsk", () => {
     expect(askWaitingIn(ask({ project: "web" }), "web")?.id).toBe("a");
     expect(askWaitingIn(ask({ project: "api" }), "web")).toBeUndefined();
     expect(askWaitingIn(ask({ status: "answered" }), "web")).toBeUndefined();
+  });
+});
+
+describe("waitingAsks", () => {
+  it("lists every open question a row carries, or its one ask from an older host", () => {
+    const held = ask({ id: "h" });
+    const keyed = ask({ id: "k", key: "tg:1" });
+    const closed = ask({ id: "c", key: "tg:2", status: "replaced" });
+    expect(waitingAsks({ ask: held, asks: [held, keyed, closed] }).map((a) => a.id)).toEqual(["h", "k"]);
+    expect(waitingAsks({ ask: held }).map((a) => a.id)).toEqual(["h"]);
+    expect(waitingAsks({ ask: { ...held, status: "answered" } })).toEqual([]);
+    expect(waitingAsks({})).toEqual([]);
+  });
+
+  it("only a question without a key holds the job up", () => {
+    expect(holdsJob(ask())).toBe(true);
+    expect(holdsJob(ask({ key: "tg:1" }))).toBe(false);
   });
 });
 

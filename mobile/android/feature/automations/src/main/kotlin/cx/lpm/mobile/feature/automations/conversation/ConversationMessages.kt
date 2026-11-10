@@ -2,7 +2,7 @@ package cx.lpm.mobile.feature.automations.conversation
 
 import android.content.ClipData
 import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.Icon
@@ -41,6 +40,9 @@ import cx.lpm.mobile.core.designsystem.component.StatusDot
 import cx.lpm.mobile.core.designsystem.component.clickableNoIndication
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.core.model.AutomationAsk
+import cx.lpm.mobile.core.model.AutomationLivePart
+import cx.lpm.mobile.core.model.automationLiveParts
+import cx.lpm.mobile.core.model.automationStepsLabel
 import cx.lpm.mobile.feature.automations.R
 import cx.lpm.mobile.feature.automations.ui.color
 import kotlinx.coroutines.delay
@@ -180,19 +182,29 @@ fun PendingMessage(message: String, live: String, modifier: Modifier = Modifier)
     }
 }
 
-/** A run's output as it comes, scrolled sideways rather than wrapped. */
+/**
+ * What a running agent has said so far, read like its finished messages: its words in
+ * full, and each burst of tool calls folded onto one line.
+ */
 @Composable
 fun LiveMessage(text: String, modifier: Modifier = Modifier) {
-    SelectionContainer(
-        modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-    ) {
-        Text(
-            text = text,
-            style = LpmTheme.typography.caption1.copy(fontFamily = FontFamily.Monospace),
-            softWrap = false
-        )
+    val parts = remember(text) { automationLiveParts(text) }
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        parts.forEach { part ->
+            when (part) {
+                is AutomationLivePart.Said -> MarkdownText(part.text)
+
+                is AutomationLivePart.Steps -> Text(
+                    text = "→ " + automationStepsLabel(part.names) +
+                        if (part.names.size > 1) " · ${part.names.size} steps" else "",
+                    style = LpmTheme.typography.caption1.copy(fontFamily = FontFamily.Monospace),
+                    color = LpmTheme.colors.secondaryLabel,
+                    modifier = Modifier
+                        .border(1.dp, LpmTheme.colors.separator, RoundedCornerShape(6.dp))
+                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                )
+            }
+        }
     }
 }
 

@@ -1,4 +1,7 @@
 import { formatRunningFor, jobRunStep, type JobInfo } from "../../../jobsFormat";
+import { runningRunAsks } from "../../../jobLive";
+import { ChevronRightIcon } from "../../icons";
+import { JobAskCards } from "./JobAskCards";
 import { JobLiveOutput } from "./JobLiveOutput";
 import { JobTakeOverButton } from "./JobTakeOverButton";
 
@@ -11,11 +14,14 @@ interface JobRunningRowProps {
   now: number;
   onStop: () => void;
   onOpenCopy: (project: string) => void;
+  // Open the run's own page, where it streams in full.
+  onOpen: () => void;
 }
 
 // The run in progress at the top of a job's page: how long it has been going,
-// what it is doing and where, what it has said so far, and how to step in.
-export function JobRunningRow({ project, job, now, onStop, onOpenCopy }: JobRunningRowProps) {
+// what it is doing and where, what it has said lately, the question it asked,
+// and how to open it or step in.
+export function JobRunningRow({ project, job, now, onStop, onOpenCopy, onOpen }: JobRunningRowProps) {
   const copy = job.runningIn;
   const step = jobRunStep(job);
 
@@ -27,9 +33,15 @@ export function JobRunningRow({ project, job, now, onStop, onOpenCopy }: JobRunn
       </span>
       <div className="min-w-0 flex-1 pt-0.5">
         <div className="flex items-center gap-1">
-          <span className="min-w-0 flex-1 truncate text-[14.5px] font-medium text-[var(--accent-cyan-text)]">
-            {formatRunningFor(job.runningSince, now)}
-          </span>
+          <button
+            type="button"
+            onClick={onOpen}
+            title="Open this run"
+            className="flex min-w-0 flex-1 items-center gap-1 text-left text-[14.5px] font-medium text-[var(--accent-cyan-text)] hover:underline"
+          >
+            <span className="truncate">{formatRunningFor(job.runningSince, now)}</span>
+            <ChevronRightIcon />
+          </button>
           {job.takeOverIn && (
             <JobTakeOverButton
               project={job.takeOverIn}
@@ -67,6 +79,7 @@ export function JobRunningRow({ project, job, now, onStop, onOpenCopy }: JobRunn
             placeholder="No output yet."
           />
         </div>
+        <JobAskCards asks={runningRunAsks(job, project)} project={project} jobId={job.id} className="mt-3" />
       </div>
     </div>
   );

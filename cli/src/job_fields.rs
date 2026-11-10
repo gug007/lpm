@@ -135,6 +135,13 @@ pub struct JobFields {
     pub verify: Option<String>,
     #[arg(
         long,
+        value_name = "COMMAND",
+        help_heading = STEPS,
+        help = "Runs in the project when a question asked with lpm ask --key is answered, with LPM_ASK_KEY and LPM_ANSWER set"
+    )]
+    pub on_answer: Option<String>,
+    #[arg(
+        long,
         value_name = "MODE",
         value_parser = ["copy", "worktree", "off"],
         help_heading = STEPS,
@@ -216,6 +223,7 @@ impl JobFields {
                 &self.emoji,
                 &self.check,
                 &self.verify,
+                &self.on_answer,
                 &self.duplicate,
             ]
             .iter()
@@ -234,6 +242,7 @@ impl JobFields {
         }
         put(job, "check", self.check.as_deref());
         put(job, "verify", self.verify.as_deref());
+        put(job, "onAnswer", self.on_answer.as_deref());
         self.apply_duplicate(job)?;
         if self.run_given() {
             let mut run = match job.get("run") {

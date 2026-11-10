@@ -33,6 +33,23 @@ describe("jobRowPreview", () => {
     );
   });
 
+  it("counts the questions a job waits on under keys", () => {
+    const keyed = (id: string, text: string) => ({
+      id,
+      askedAt: 1,
+      status: "open",
+      key: id,
+      questions: [{ id: "q1", type: "confirm", text }],
+    });
+    const asks = [keyed("tg:1", "Reply to Alice?"), keyed("tg:2", "Reply to Bob?")];
+    expect(jobRowPreview(job({ ask: asks[0], asks }), "")).toEqual({
+      prefix: "2 questions waiting · ",
+      text: "Reply to Alice?",
+      tone: "warning",
+    });
+    expect(lastRunFailed(job({ asks, lastResult: "error" }))).toBe(false);
+  });
+
   it("counts several unread messages in front of the preview", () => {
     expect(jobRowPreview(job({ unread: 12, lastMessage: "Hello" }), "")).toEqual({
       prefix: "9+ new · ",

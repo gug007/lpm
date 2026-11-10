@@ -183,6 +183,8 @@ export type SpawnTask =
   | {
       kind: "fork";
       command: string;
+      // Sent to the agent once the fork starts; a restored tab doesn't send it.
+      prompt?: string;
       label: string;
       startCmd?: string;
       resumeCmd?: string;

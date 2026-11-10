@@ -46,6 +46,7 @@ fn only_answering_replying_pairing_starting_tasks_and_reaching_other_computers_a
     }
     for verb in [
         "job_ask",
+        "job_ask_keyed",
         "job_ask_wait",
         "set_status",
         "rename_project",

@@ -60,6 +60,12 @@ struct AutomationAsk: Identifiable {
     let auto: Bool
     /// On an automation row: where it waits — the project to answer in.
     let project: String
+    /// What the asker filed it under: one open question per key, none of them
+    /// holding the automation up, and its answer goes to its onAnswer command.
+    let key: String?
+    /// On an automation row: the run entry that asked it; nil while that run is
+    /// still going.
+    let at: Int?
 
     init?(_ value: Any?) {
         guard let o = value as? [String: Any], let id = o["id"] as? String else { return nil }
@@ -73,9 +79,13 @@ struct AutomationAsk: Identifiable {
         answeredAt = o["answeredAt"] as? Int
         auto = o["auto"] as? Bool ?? false
         project = o["project"] as? String ?? ""
+        key = o["key"] as? String
+        at = o["at"] as? Int
     }
 
     var isOpen: Bool { status == "open" }
+    /// A question asked without a key stops the automation's runs until it's answered.
+    var holdsJob: Bool { key == nil }
 
     /// One question settled by a single tap: its yes or no, or the one option it takes.
     var answersOnTap: Bool {
@@ -97,6 +107,7 @@ struct AutomationAsk: Identifiable {
             if auto { return "No answer in time — the default was used" }
             return reply == nil ? "Answered" : "Answered in a reply"
         case "dismissed": return "Skipped"
+        case "replaced": return "Replaced by a newer question"
         default: return "No answer"
         }
     }

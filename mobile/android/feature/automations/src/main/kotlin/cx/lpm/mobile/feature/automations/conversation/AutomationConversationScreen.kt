@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
 import androidx.compose.ui.Modifier
@@ -79,7 +80,14 @@ fun AutomationConversationScreen(
                     PendingMessage(pending, state.live)
                 } else if (state.running && state.live.isNotEmpty()) {
                     LiveMessage(state.live)
+                } else if (state.liveRun && state.running) {
+                    Text(
+                        text = stringResource(R.string.chat_starting),
+                        style = LpmTheme.typography.subheadline,
+                        color = LpmTheme.colors.secondaryLabel
+                    )
                 }
+                state.runAsks.forEach { ask -> key(ask.id) { askCard(ask) } }
             }
         }
         if (state.showsComposer) composer()

@@ -151,17 +151,10 @@ struct AutomationHistoryRow: View {
 }
 
 /// The tail of a run that is still going. Capped to the last handful of lines so
-/// a chatty agent can't push the rest of the page off screen, and scrolled
-/// sideways rather than wrapped — wrapped log lines read as noise.
+/// a chatty agent can't push the rest of the page off screen, with each run of
+/// tool steps folded onto one line so what the agent said stays in view.
 struct AutomationLiveTail: View {
     let text: String
-
-    private static let maxLines = 12
-
-    private var tail: String {
-        let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
-        return lines.suffix(Self.maxLines).joined(separator: "\n")
-    }
 
     var body: some View {
         if text.isEmpty {
@@ -170,12 +163,10 @@ struct AutomationLiveTail: View {
                 Text("Waiting for output…").font(.subheadline).foregroundStyle(.secondary)
             }
         } else {
-            ScrollView(.horizontal, showsIndicators: false) {
-                Text(tail)
-                    .font(.system(.caption2, design: .monospaced))
-                    .textSelection(.enabled)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            Text(automationLiveTail(text))
+                .font(.system(.caption2, design: .monospaced))
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }

@@ -759,6 +759,23 @@ pub fn cancel_ai_generate(gen_id: String) -> bool {
     true
 }
 
+/// Starting in a folder that isn't there fails with the same "No such file or
+/// directory" as a missing program, which would blame the CLI, so a failed start
+/// names the folder when that's what's missing.
+fn start_cli(
+    cmd: &mut std::process::Command,
+    cli: &str,
+    cwd: &str,
+) -> Result<std::process::Child, String> {
+    cmd.spawn().map_err(|e| {
+        if std::path::Path::new(cwd).is_dir() {
+            format!("{cli} couldn't start: {e}")
+        } else {
+            format!("the folder {cwd} isn't on this {}", crate::sys::MACHINE)
+        }
+    })
+}
+
 /// Spawn the CLI, stream stdout line-by-line emitting `event` progress chunks,
 /// and return the trimmed final text. claude parses stream-json events; the
 /// others accumulate raw stdout.
@@ -786,7 +803,7 @@ pub(crate) fn run_ai(
     // Windows cancels through the job the run is put in below, which needs no group.
     #[cfg(unix)]
     crate::osproc::detach(&mut cmd);
-    let mut child = cmd.spawn().map_err(|e| format!("{cli}: start: {e}"))?;
+    let mut child = start_cli(&mut cmd, cli, cwd)?;
     #[cfg(windows)]
     let job = crate::runjob::RunJob::attach(&child);
     let _gen = GenGuard::register(gen_id, child.id() as i32);
@@ -1762,5 +1779,34 @@ mod remote_scan_tests {
         // Only Claude keeps commands on disk; other CLIs need no remote scan.
         assert!(remote_scan_script("codex", "/x").is_empty());
         assert!(remote_scan_script("gemini", "/x").is_empty());
+    }
+}
+
+#[cfg(test)]
+mod start_cli_tests {
+    use super::*;
+
+    #[test]
+    fn a_missing_folder_is_named_rather_than_blamed_on_the_cli() {
+        let missing = std::env::temp_dir()
+            .join("lpm-start-cli-no-such-folder")
+            .to_string_lossy()
+            .into_owned();
+        let mut cmd = std::process::Command::new(std::env::current_exe().unwrap());
+        cmd.arg("--list")
+            .current_dir(&missing)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+        let err = start_cli(&mut cmd, "claude", &missing).unwrap_err();
+        assert_eq!(err, format!("the folder {missing} isn't on this {}", crate::sys::MACHINE));
+    }
+
+    #[test]
+    fn a_missing_cli_is_named() {
+        let here = std::env::temp_dir().to_string_lossy().into_owned();
+        let mut cmd = std::process::Command::new("lpm-start-cli-no-such-program");
+        cmd.current_dir(&here);
+        let err = start_cli(&mut cmd, "lpm-start-cli-no-such-program", &here).unwrap_err();
+        assert!(err.starts_with("lpm-start-cli-no-such-program couldn't start: "), "{err}");
     }
 }

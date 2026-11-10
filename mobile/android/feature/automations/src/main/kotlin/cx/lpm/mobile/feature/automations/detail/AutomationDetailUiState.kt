@@ -78,14 +78,15 @@ data class AutomationDetailUiState(
     val runs: List<RunRowUi> = emptyList(),
     val historyLoading: Boolean = false,
     val error: String? = null,
-    /** Under the open question, what happens if nobody answers in time. */
-    val askWhen: String = "",
+    /** Under each open question, by its id, what happens if nobody answers in time. */
+    val askWhen: Map<String, String> = emptyMap(),
     /** An answer is out and not acknowledged yet. */
     val answering: Boolean = false,
     val askError: String? = null
 ) {
-    /** Where the job waits — the project its question is answered in. */
-    val askProject: String get() = job?.ask?.project.orEmpty()
+    /** Where the job waits on question [askId] — the project it's answered in. */
+    fun askProject(askId: String): String =
+        job?.asks?.firstOrNull { it.id == askId }?.project.orEmpty()
 }
 
 internal fun AutomationsState.detailState(
@@ -111,7 +112,7 @@ internal fun AutomationsState.detailState(
         error = error
     )
     if (job == null) return base
-    val askKey = job.ask?.let { automationKey(it.project, jobId) }
+    val askKeys = job.asks.map { automationKey(it.project, jobId) }.distinct()
     val lastRunAt = job.lastRunAt
     return base.copy(
         scope = automationScopeText(job),
@@ -134,11 +135,11 @@ internal fun AutomationsState.detailState(
         setup = job.setup(AutomationMachines.label(job, machines)),
         live = if (job.running) liveOutput[key]?.text.orEmpty() else null,
         livePlace = automationRunPlaceText(job),
-        askWhen = job.ask?.let {
-            automationAskWhen(it, clock.now.epochSecond, clock::clock)
-        }.orEmpty(),
-        answering = askKey != null && askKey in pending,
-        askError = askKey?.let(askError::get)
+        askWhen = job.asks.associate {
+            it.id to automationAskWhen(it, clock.now.epochSecond, clock::clock)
+        },
+        answering = askKeys.any { it in pending },
+        askError = askKeys.firstNotNullOfOrNull(askError::get)
     )
 }
 

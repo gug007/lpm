@@ -4,9 +4,9 @@ use crate::lpm_commands::{add_folder, clean_folder, parse_doc, valid_name, Doc, 
 use crate::lpm_commands_git::{GitView, SkillGit, CLAUDE_ROOT, SHARED_ROOT};
 use std::collections::HashSet;
 
-/// What of another skill a list carries: lists are read often, and a skill's
-/// whole file can run to tens of kilobytes.
-const OTHER_PREVIEW_CHARS: usize = 1500;
+/// What of another skill a list carries: enough for a skill to read whole on
+/// every screen that shows it, without one rare giant swelling every list.
+const OTHER_PREVIEW_CHARS: usize = 16_000;
 
 const SHARED_READERS: &[&str] = &["codex", "gemini", "opencode"];
 const CLAUDE_READERS: &[&str] = &["claude", "opencode"];
@@ -222,4 +222,26 @@ impl RawList {
 
 pub(crate) fn is_link_to_skill(target: &str, name: &str) -> bool {
     target.replace('\\', "/").ends_with(&format!(".agents/skills/{name}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_skill_of_a_few_thousand_characters_is_listed_whole() {
+        let body: String = (1..=100)
+            .map(|i| format!("- Rule {i}: answer the question asked, then stop.\n"))
+            .collect();
+        assert!(body.chars().count() > 4000);
+        assert_eq!(preview_of(&body), body);
+    }
+
+    #[test]
+    fn a_very_long_skill_is_cut_with_an_ellipsis() {
+        let body = "x".repeat(OTHER_PREVIEW_CHARS + 10);
+        let cut = preview_of(&body);
+        assert_eq!(cut.chars().count(), OTHER_PREVIEW_CHARS + 1);
+        assert!(cut.ends_with('…'));
+    }
 }

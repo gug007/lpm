@@ -9,7 +9,8 @@
 // running at once.
 //
 // One question at a time per job: it lives on the run while the run is alive
-// and moves onto the run's history entry when it ends.
+// and moves onto the run's history entry when it ends. Questions asked under a
+// key are the exception, with rules of their own (keyed.rs).
 use super::askform::{self, Ask, ANSWERED, DISMISSED, UNANSWERED};
 use super::*;
 use crate::jobsocket::failure;
@@ -76,20 +77,21 @@ pub(super) fn settle(asks: &mut [Ask], canceled: bool, at: u64) {
 }
 
 /// Every question the job holds, with the entry that asked it — None for the
-/// run still going.
+/// run still going, and for a keyed question, which belongs to no run.
 fn asks(st: &JobState) -> impl Iterator<Item = (Option<u64>, &Ask)> {
     let live = st.active_run.iter().flat_map(|r| r.asks.iter().map(|a| (None, a)));
     let asked = st
         .history
         .iter()
         .flat_map(|h| h.asks.iter().map(move |a| (Some(h.at), a)));
-    live.chain(asked)
+    live.chain(asked).chain(st.keyed.iter().map(|a| (None, a)))
 }
 
 fn asks_mut(st: &mut JobState) -> impl Iterator<Item = (Option<u64>, &mut Ask)> {
     let JobState {
         active_run,
         history,
+        keyed,
         ..
     } = st;
     let live = active_run
@@ -99,12 +101,13 @@ fn asks_mut(st: &mut JobState) -> impl Iterator<Item = (Option<u64>, &mut Ask)> 
         let at = h.at;
         h.asks.iter_mut().map(move |a| (Some(at), a))
     });
-    live.chain(asked)
+    live.chain(asked).chain(keyed.iter_mut().map(|a| (None, a)))
 }
 
-/// The job's open question, and the entry that asked it.
+/// The job's open question, and the entry that asked it. A keyed question
+/// never holds the job up, so it isn't this one.
 fn open_with_at(st: &JobState) -> Option<(Option<u64>, &Ask)> {
-    asks(st).find(|(_, a)| a.is_open())
+    asks(st).find(|(_, a)| a.is_open() && a.key.is_none())
 }
 
 pub(super) fn open_in(st: &JobState) -> Option<&Ask> {
@@ -113,14 +116,23 @@ pub(super) fn open_in(st: &JobState) -> Option<&Ask> {
 
 /// The open question as the views get it, with the project it's waiting in and
 /// the run it belongs to.
-pub(super) fn open_json(st: &JobState, project: &str) -> Option<Value> {
-    let (at, ask) = open_with_at(st)?;
+fn ask_json(at: Option<u64>, ask: &Ask, project: &str) -> Value {
     let mut v = json!(ask);
     v["project"] = json!(project);
     if let Some(at) = at {
         v["at"] = json!(at);
     }
-    Some(v)
+    v
+}
+
+/// Every question the job waits on: the one holding it up first, then the
+/// keyed ones oldest first.
+pub(super) fn waiting_json(st: &JobState, project: &str) -> Vec<Value> {
+    open_with_at(st)
+        .into_iter()
+        .chain(keyed::waiting(st).map(|a| (None, a)))
+        .map(|(at, a)| ask_json(at, a, project))
+        .collect()
 }
 
 fn find_mut<'a>(st: &'a mut JobState, id: &str) -> Option<(Option<u64>, &'a mut Ask)> {
@@ -128,7 +140,7 @@ fn find_mut<'a>(st: &'a mut JobState, id: &str) -> Option<(Option<u64>, &'a mut 
 }
 
 /// The job whose live run holds `token`.
-fn by_token<'a>(f: &'a mut JobsStateFile, token: &str) -> Option<(&'a String, &'a mut JobState)> {
+pub(super) fn by_token<'a>(f: &'a mut JobsStateFile, token: &str) -> Option<(&'a String, &'a mut JobState)> {
     f.jobs
         .iter_mut()
         .find(|(_, st)| st.active_run.as_ref().and_then(|r| r.token.as_deref()) == Some(token))
@@ -176,15 +188,7 @@ fn open(app: &AppHandle, token: &str, request: &Value) -> Result<Value, String> 
     let (project, job_id) = split_key(&key);
     if ask.blocking {
         blocked().lock().unwrap().insert(key.clone());
-        emit_status_detail(
-            app,
-            project,
-            job_id,
-            ASKED,
-            &None,
-            Some(ask.summary()),
-            SendOut::Asked(Some(&ask.outline()), &ask),
-        );
+        announce_asked(app, project, job_id, &ask);
     } else {
         // The agent is still ending its turn; the run announces the question
         // when it does.
@@ -195,6 +199,19 @@ fn open(app: &AppHandle, token: &str, request: &Value) -> Result<Value, String> 
         reply["message"] = json!(AGENT_ASKED);
     }
     Ok(reply)
+}
+
+/// Tell the views, and wherever the job sends its results, that `ask` waits.
+pub(super) fn announce_asked(app: &AppHandle, project: &str, job_id: &str, ask: &Ask) {
+    emit_status_detail(
+        app,
+        project,
+        job_id,
+        ASKED,
+        &None,
+        Some(ask.summary()),
+        SendOut::Asked(Some(&ask.outline()), ask),
+    );
 }
 
 /// The question `id` asked by the run holding `token`, as it stands now.
@@ -334,6 +351,14 @@ pub(super) fn expire_due(app: &AppHandle) {
     .unwrap_or_default();
     for (key, at, ask) in expired {
         settled(&key, &ask);
+        if ask.key.is_some() {
+            if ask.status == ANSWERED {
+                keyed::answered(app, &key, ask);
+            } else {
+                refresh_rows(app, &key);
+            }
+            continue;
+        }
         match at {
             Some(at) if !ask.blocking && ask.status == ANSWERED => {
                 if resume(app, &key, at, &ask).is_err() {
@@ -384,6 +409,10 @@ pub fn answer_job_question(
         ask.answer(answers, now_secs(), false);
         Ok(())
     })?;
+    if ask.key.is_some() {
+        keyed::answered(&app, &key, ask);
+        return Ok(());
+    }
     match at {
         Some(at) if !ask.blocking => resume_or_reopen(&app, &key, at, &ask),
         _ => {
@@ -414,6 +443,8 @@ pub fn dismiss_job_question(
 // ---- socket verbs -------------------------------------------------------------
 //
 //   job_ask --run=<LPM_RUN_ID> --ask-hex=<JSON>        → {ok, id, blocking, message?}
+//   job_ask_keyed --run=<LPM_RUN_ID> --key=<key> --ask-hex=<JSON>
+//                                                      → {ok, id, key, replaced?, message}
 //   job_ask_wait --run=<LPM_RUN_ID> --id=<ask id>      → {ok, status, ask?}
 //   answer_job_question <project> <id> --ask=<ask id> --answers-hex=<JSON> [--no-project]
 //   dismiss_job_question <project> <id> --ask=<ask id> [--no-project]
@@ -438,6 +469,21 @@ pub(crate) fn cmd_job_ask(args: &[String], app: &AppHandle) -> String {
     let result = run_token(&options).and_then(|token| {
         let request = json_option(&options, "ask")?;
         open(app, &token, &request)
+    });
+    match result {
+        Ok(reply) => reply.to_string(),
+        Err(e) => failure(e),
+    }
+}
+
+/// `job_ask` under a key. A verb of its own, so an app too old to know keys
+/// refuses it rather than opening a question the job would stop for.
+pub(crate) fn cmd_job_ask_keyed(args: &[String], app: &AppHandle) -> String {
+    let (_, options) = parse_options(args);
+    let result = run_token(&options).and_then(|token| {
+        let key = keyed::parse_key(options.get("key").map_or("", String::as_str))?;
+        let request = askform::parse_request(&json_option(&options, "ask")?)?;
+        keyed::open(app, &token, key, request)
     });
     match result {
         Ok(reply) => reply.to_string(),

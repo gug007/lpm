@@ -1,6 +1,6 @@
 ---
 name: lpm-cli
-version: 1.16.0
+version: 1.17.0
 description: "Operate lpm-managed projects through the `lpm` CLI: start or stop projects and services, inspect logs and agent status, wait for readiness, run actions, create, edit, run, pause, and read scheduled automations, manage `/name` skills made in lpm, and duplicate projects into standalone copies or create linked Git worktrees. Use when the user asks to operate or inspect lpm runtime state or manage lpm automations or lpm skills. `LPM_PROJECT_NAME` selects the default project after the skill triggers; it is not a trigger by itself. For editing YAML configuration, use `lpm-config`."
 ---
 
@@ -82,6 +82,8 @@ Automations are tasks the app runs on a schedule: a shell command, a project act
 - `--default ANSWER --timeout 4h` (a minute to a year) uses the default if nobody answers in time; `--form '{"questions":[…]}'` asks several at once.
 
 In an AI agent's run, `lpm ask` returns at once: end your turn right away, without guessing the answer — it comes back as your next message. In a command run it waits and prints the answer (`yes`/`no` for `--confirm`, exit status 1 for no; picked labels one per line; the text), exiting 3 when the question is dismissed or expires.
+
+`--key KEY` files the question under a key instead — one open question per key (such as `tg:<chat id>`, one per person a run answers), so a run can wait on several at once. It never holds up the run, an agent or a command alike: it returns at once (`--json` prints `{id, key, replaced?}`), and you carry on. The automation's scheduled runs keep going. Asking again under a key replaces its open question, which must never be answered once it's out of date. The answer runs the automation's `onAnswer` command (`--on-answer` on `add`/`edit`; `lpm ask --key` fails without one) in the project, with `LPM_TRIGGER=answer`, `LPM_ASK_KEY`, `LPM_ASK_ID`, `LPM_ANSWER` (printed the way `lpm ask` prints it) and `LPM_ANSWERS` (JSON). Skipping the question runs nothing.
 
 An automation in `global.yml` that runs in several projects runs once per project, with its own runs, history, and paused state in each. `-p <project>` acts in one of them; `--global` acts in all of them, like the app's Automations page, so `run --global` starts a run in each. One with no project needs `--global` for every command. With `--global`, `--json` replies carry `global: true` and `projects` instead of `project`, each history entry and live output names its `project`, and `reply` continues the newest conversation across them (or the one holding `--at`).
 

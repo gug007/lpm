@@ -22,14 +22,39 @@ tags: [demo, automations]
     timeout: 5000
 - tapOn: "Run now"
 - extendedWaitUntil:
-    visible: "Open in terminal"
+    visible: "Take over in terminal"
     timeout: 5000
 - waitForAnimationToEnd:
     timeout: 3000
 - takeScreenshot: 1-automation-live
 # Carrying the run on in a terminal ends it here.
-- tapOn: "Open in terminal"
+- tapOn: "Take over in terminal"
 - extendedWaitUntil:
-    notVisible: "Open in terminal"
+    notVisible: "Take over in terminal"
     timeout: 5000
 - assertVisible: "Run now"
+# A run still going opens on its own page, streaming, and becomes the
+# conversation it lands in once it ends.
+# The demo run lasts about 8 seconds; a streaming page never settles, so the
+# taps don't wait for it to.
+- tapOn:
+    text: "Run now"
+    waitToSettleTimeoutMs: 500
+- extendedWaitUntil:
+    visible: "Open the run"
+    timeout: 5000
+- tapOn:
+    text: "Open the run"
+    waitToSettleTimeoutMs: 500
+- extendedWaitUntil:
+    notVisible: "Run history"
+    timeout: 5000
+- takeScreenshot: 2-automation-run-page
+- extendedWaitUntil:
+    visible: "Checked 24 dependencies.*"
+    timeout: 20000
+- waitForAnimationToEnd:
+    timeout: 3000
+# Still on the run's own page, now the conversation the run landed in.
+- assertNotVisible: "Run history"
+- takeScreenshot: 3-automation-run-landed

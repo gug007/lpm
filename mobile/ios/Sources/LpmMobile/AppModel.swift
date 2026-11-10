@@ -2993,8 +2993,8 @@ final class AppModel {
         c.onJobLiveOutput = { [weak self] project, jobId, live, error in
             guard let self else { return }
             let key = self.automationKey(project, jobId)
-            if let live { self.automationLiveOutput[key] = live }
-            else { self.automationLiveOutput[key] = nil }
+            // Every poll answers; only a change redraws the run.
+            if self.automationLiveOutput[key] != live { self.automationLiveOutput[key] = live }
             if let error { self.automationError = error }
         }
         c.onAutomationMutation = { [weak self] project, jobId, error in

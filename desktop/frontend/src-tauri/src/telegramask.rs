@@ -6,7 +6,7 @@
 // read against the question as lpm holds it, so forged data can only pick
 // what the question offers.
 
-use crate::jobs::askform::{self, Ask, Question, ANSWERED, CHOICE, CONFIRM, DISMISSED};
+use crate::jobs::askform::{self, Ask, Question, ANSWERED, CHOICE, CONFIRM, DISMISSED, REPLACED};
 use serde_json::{json, Map, Value};
 
 const PREFIX: &str = "lpm1";
@@ -149,6 +149,7 @@ pub fn status_text(ask: &Ask, reveal: bool) -> String {
         ANSWERED if reveal => format!("Answered: {}", answer()),
         ANSWERED => "Answered".to_string(),
         DISMISSED => "Skipped".to_string(),
+        REPLACED => "Replaced by a newer question".to_string(),
         _ if ask.is_open() => "Waiting for your answer".to_string(),
         _ => "No answer".to_string(),
     };

@@ -1,69 +1,28 @@
-import { useEffect, useRef, useState } from "react";
-import { JobLiveOutput as FetchJobLiveOutput } from "../../../../bridge/commands";
+import { useMemo } from "react";
 import { liveOutputTail } from "../../../jobsFormat";
-
-const POLL_MS = 2000;
+import { useJobLiveText } from "./useJobLiveText";
 
 // The tail of a running job's live output, polled while the run works so the
 // page shows what the agent is doing instead of a bare spinner. Until the run
-// has said something it shows the placeholder, if it was given one. No reply
-// means no run here to wait on: a shared job's may be in another project.
+// has said something it shows the placeholder. No reply means no run here to
+// wait on: a shared job's may be in another project.
 export function JobLiveOutput({
   project,
   jobId,
   running,
   placeholder,
-  onGrow,
 }: {
   project: string;
   jobId: string;
   running: boolean;
-  placeholder?: string;
-  // The tail changed — lets a scroll-anchored host follow the growth.
-  onGrow?: () => void;
+  placeholder: string;
 }) {
-  const [text, setText] = useState("");
-  const [waiting, setWaiting] = useState(false);
-  const lastText = useRef("");
-  const onGrowRef = useRef(onGrow);
-  onGrowRef.current = onGrow;
-
-  useEffect(() => {
-    if (!running) {
-      lastText.current = "";
-      setText("");
-      setWaiting(false);
-      return;
-    }
-    let cancelled = false;
-    const poll = async () => {
-      try {
-        const res = (await FetchJobLiveOutput(project, jobId)) as {
-          text?: string;
-        } | null;
-        if (cancelled) return;
-        setWaiting(res != null);
-        const tail = liveOutputTail(res?.text);
-        if (tail !== lastText.current) {
-          lastText.current = tail;
-          setText(tail);
-          onGrowRef.current?.();
-        }
-      } catch {
-        // A failed poll keeps the last tail; the next one retries.
-      }
-    };
-    void poll();
-    const id = window.setInterval(() => void poll(), POLL_MS);
-    return () => {
-      cancelled = true;
-      window.clearInterval(id);
-    };
-  }, [project, jobId, running]);
+  const { text: live, waiting } = useJobLiveText(project, jobId, running);
+  const text = useMemo(() => liveOutputTail(live), [live]);
 
   if (!running) return null;
   if (!text) {
-    return placeholder && waiting ? (
+    return waiting ? (
       <p className="text-[12px] text-[var(--text-muted)]">{placeholder}</p>
     ) : null;
   }

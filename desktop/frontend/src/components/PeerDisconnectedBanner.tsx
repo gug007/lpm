@@ -1,11 +1,9 @@
 import { PeerReconnect } from "../../bridge/commands";
-import { MACHINE } from "../machineWords";
-import { type PeerStatus } from "../peer/peerStatus";
+import { peerDownCopy, type PeerStatus } from "../peer/peerStatus";
 
 // Shown in place of a remote project whose peer dropped. The project's row and
 // detail return automatically once the peer reconnects and its projects merge
-// back in — unless it was turned off here or stopped accepting this Mac, which
-// no retry fixes, so the copy says what will.
+// back in.
 export function PeerDisconnectedBanner({
   slug,
   alias,
@@ -19,22 +17,7 @@ export function PeerDisconnectedBanner({
   // A Linux host, listed under Server rather than Another computer.
   server: boolean;
 }) {
-  const where = `+ above your projects → ${server ? "Server" : "Another computer"}`;
-  const unauthorized = status?.tone === "error" && /unauthorized|auth failed|401/i.test(status.detail);
-  const title =
-    status?.tone === "off"
-      ? `${alias} is turned off on ${MACHINE.thisMachine}`
-      : unauthorized
-        ? `${alias} no longer accepts ${MACHINE.thisMachine}`
-        : `${alias} disconnected`;
-  const detail =
-    status?.tone === "off"
-      ? `Turn it on from ${where}.`
-      : unauthorized
-        ? `Its access was removed there. Pair again from ${where}.`
-        : status?.tone === "error"
-          ? `${status.text}. Trying again…`
-          : "Reconnecting…";
+  const { title, detail, reconnect } = peerDownCopy(alias, status, server);
   return (
     <div role="status" className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
       <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--bg-active)] text-[var(--text-muted)]">
@@ -56,7 +39,7 @@ export function PeerDisconnectedBanner({
         <p className="text-sm font-medium text-[var(--text-primary)]">{title}</p>
         <p className="mt-0.5 text-xs text-[var(--text-muted)]">{detail}</p>
       </div>
-      {slug && status?.tone !== "off" && !unauthorized && (
+      {slug && reconnect && (
         <button
           type="button"
           onClick={() => void PeerReconnect(slug)}

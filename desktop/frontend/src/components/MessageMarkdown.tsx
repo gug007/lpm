@@ -175,6 +175,10 @@ interface CodeBlockProps {
   lang: string;
 }
 
+// A fence with no language, or a prose one, holds words (an agent's draft of a
+// reply, a quoted message), which wrap; code keeps its lines and scrolls.
+const PROSE_LANGS = new Set(["", "text", "txt", "plain", "plaintext", "markdown", "md"]);
+
 function CodeBlock({ code, lang }: CodeBlockProps) {
   const [lines, setLines] = useState<Token[][] | null>(null);
   const [copied, setCopied] = useState(false);
@@ -229,7 +233,11 @@ function CodeBlock({ code, lang }: CodeBlockProps) {
           </button>
         </div>
       )}
-      <pre className="select-text overflow-x-auto px-3 py-2 text-[12.5px] leading-5">
+      <pre
+        className={`select-text px-3 py-2 text-[12.5px] leading-5 ${
+          PROSE_LANGS.has(lang.toLowerCase()) ? "whitespace-pre-wrap break-words" : "overflow-x-auto"
+        }`}
+      >
         <code className="font-mono">
           {lines
             ? lines.map((tokens, i) => (

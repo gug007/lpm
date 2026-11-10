@@ -16,6 +16,8 @@ pub(crate) const OPEN: &str = "open";
 pub(crate) const ANSWERED: &str = "answered";
 pub(crate) const DISMISSED: &str = "dismissed";
 pub(crate) const UNANSWERED: &str = "unanswered";
+/// A newer question under the same key took its place.
+pub(crate) const REPLACED: &str = "replaced";
 
 const MAX_QUESTIONS: usize = 4;
 const MAX_OPTIONS: usize = 12;
@@ -73,6 +75,10 @@ pub(crate) struct Ask {
     /// resumed with it.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub blocking: bool,
+    /// What the asker files the question under — one open question per key,
+    /// none of them holding the job up (see keyed.rs).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub key: Option<String>,
     #[serde(rename = "expiresAt", default, skip_serializing_if = "Option::is_none")]
     pub expires_at: Option<u64>,
     #[serde(default = "open_status")]
@@ -110,6 +116,7 @@ impl Ask {
             expires_at: request.timeout_secs.map(|t| asked_at + t),
             questions: request.questions,
             blocking,
+            key: None,
             status: open_status(),
             answers: Map::new(),
             reply: None,

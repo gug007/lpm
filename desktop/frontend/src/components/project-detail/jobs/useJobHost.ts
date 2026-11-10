@@ -33,7 +33,7 @@ export function useJobHost(
     if (!open) return;
     const project = editing?.project ?? newProject;
     setHost(editing?.job.host ?? (project ? (peerSlugOf(project) ?? undefined) : undefined));
-  }, [open, editing, newProject]);
+  }, [open, editing?.project, editing?.job.host, newProject]);
 
   const onHost = useCallback((name: string) => (peerSlugOf(name) ?? undefined) === host, [host]);
   const choices = useMemo(() => machineChoices(state), [state]);

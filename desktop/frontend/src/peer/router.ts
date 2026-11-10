@@ -217,16 +217,20 @@ function translateJob(slug: string, row: unknown): unknown {
     targets?: unknown;
     runningIn?: unknown;
     takeOverIn?: unknown;
-    ask?: { project?: unknown };
+    ask?: unknown;
+    asks?: unknown;
+  };
+  const onHost = (ask: unknown) => {
+    const a = ask as { project?: unknown } | null;
+    return a && typeof a.project === "string" ? { ...a, project: prefixName(slug, a.project) } : ask;
   };
   return {
     ...job,
     host: slug,
     ...(typeof job.runningIn === "string" ? { runningIn: prefixName(slug, job.runningIn) } : {}),
     ...(typeof job.takeOverIn === "string" ? { takeOverIn: prefixName(slug, job.takeOverIn) } : {}),
-    ...(job.ask && typeof job.ask.project === "string"
-      ? { ask: { ...job.ask, project: prefixName(slug, job.ask.project) } }
-      : {}),
+    ...(job.ask ? { ask: onHost(job.ask) } : {}),
+    ...(Array.isArray(job.asks) ? { asks: job.asks.map(onHost) } : {}),
     ...(typeof job.project === "string" ? { project: prefixName(slug, job.project) } : {}),
     ...(Array.isArray(job.targets)
       ? { targets: job.targets.map((t) => (typeof t === "string" ? prefixName(slug, t) : t)) }

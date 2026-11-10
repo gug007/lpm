@@ -7,12 +7,13 @@ use super::{
 // exists, and whether a cron line keeps runs 5 minutes apart, depend on more
 // than this file: `lpm automations list` shows those as invalid rows.
 
-const JOB_FIELDS: [&str; 11] = [
+const JOB_FIELDS: [&str; 12] = [
     "label",
     "emoji",
     "schedule",
     "check",
     "verify",
+    "onAnswer",
     "duplicate",
     "run",
     "enabled",
@@ -105,7 +106,7 @@ pub(super) fn validate_jobs(
 
 fn validate_job(map: &Mapping, kind: ConfigKind, path: &str, report: &mut Report) {
     validate_keys(map, &JOB_FIELDS, path, report);
-    for key in ["label", "emoji", "check", "verify"] {
+    for key in ["label", "emoji", "check", "verify", "onAnswer"] {
         validate_string_field(map, key, &format!("{path}.{key}"), report);
     }
     validate_bool_field(map, "enabled", path, report);

@@ -12,6 +12,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.key
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -27,7 +28,11 @@ import cx.lpm.mobile.core.designsystem.component.ListHeaderStyle
 import cx.lpm.mobile.core.designsystem.component.ListSection
 import cx.lpm.mobile.core.designsystem.component.LpmTopBar
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
+import cx.lpm.mobile.core.model.AutomationAsk
+import cx.lpm.mobile.core.model.asksOutsideRun
+import cx.lpm.mobile.core.model.runningRunAsks
 import cx.lpm.mobile.feature.automations.R as AutomationsR
+import cx.lpm.mobile.feature.automations.conversation.AUTOMATION_LIVE_RUN
 import cx.lpm.mobile.feature.automations.ui.AutomationAskCard
 import cx.lpm.mobile.feature.automations.ui.HeaderlessTopPadding
 import kotlinx.serialization.json.JsonObject
@@ -102,12 +107,11 @@ fun AutomationDetailScreen(
             ) {
                 if (job != null) {
                     DetailHeader(state)
-                    // The question the automation is waiting on, wherever it waits.
-                    job.ask?.let { ask ->
-                        ListSection {
+                    val askCard: @Composable (AutomationAsk) -> Unit = { ask ->
+                        key(ask.id) {
                             AutomationAskCard(
                                 ask = ask,
-                                whenText = state.askWhen,
+                                whenText = state.askWhen[ask.id].orEmpty(),
                                 busy = state.answering,
                                 error = state.askError,
                                 onAnswer = { actions.answer(ask.id, it) },
@@ -117,6 +121,11 @@ fun AutomationDetailScreen(
                             )
                         }
                     }
+                    // The questions the automation is waiting on, wherever they wait;
+                    // the run still going shows its own.
+                    for (ask in job.asksOutsideRun) {
+                        ListSection { askCard(ask) }
+                    }
                     ListSection {
                         ScheduleGroup(state, actions)
                         SetupGroup(state, actions)
@@ -124,10 +133,21 @@ fun AutomationDetailScreen(
                     state.live?.let { live ->
                         ListSection(
                             header = stringResource(AutomationsR.string.detail_live_output),
-                            headerStyle = ListHeaderStyle.Title
+                            headerStyle = ListHeaderStyle.Title,
+                            footer = if (job.takeOverIn.isNotEmpty()) {
+                                stringResource(AutomationsR.string.detail_take_over_footer)
+                            } else {
+                                null
+                            }
                         ) {
                             if (state.livePlace.isNotEmpty()) LivePlace(state.livePlace)
+                            // Above the output, which grows while the run streams, so it stays put.
+                            ButtonRow(
+                                text = stringResource(AutomationsR.string.detail_open_run),
+                                onClick = { actions.openRun(AUTOMATION_LIVE_RUN) }
+                            )
                             LiveTail(live)
+                            job.runningRunAsks.forEach { askCard(it) }
                             if (job.takeOverIn.isNotEmpty()) {
                                 ButtonRow(
                                     text = stringResource(AutomationsR.string.detail_take_over),

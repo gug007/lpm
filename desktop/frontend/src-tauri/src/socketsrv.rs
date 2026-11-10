@@ -294,6 +294,7 @@ fn process_command(line: &str, store: &StatusStore, app: &AppHandle) -> String {
         "job_live_output" => cmd_job_live_output(args),
         "send_job_followup" => cmd_send_job_followup(args, app),
         "job_ask" => crate::jobs::ask::cmd_job_ask(args, app),
+        "job_ask_keyed" => crate::jobs::ask::cmd_job_ask_keyed(args, app),
         "job_ask_wait" => crate::jobs::ask::cmd_job_ask_wait(args),
         "answer_job_question" => crate::jobs::ask::cmd_answer_job_question(args, app),
         "dismiss_job_question" => crate::jobs::ask::cmd_dismiss_job_question(args, app),

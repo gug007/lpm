@@ -2,7 +2,6 @@ package cx.lpm.mobile.feature.automations.detail
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,7 +10,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.Icon
@@ -37,6 +35,7 @@ import cx.lpm.mobile.core.designsystem.component.DisclosureChevron
 import cx.lpm.mobile.core.designsystem.component.ListRow
 import cx.lpm.mobile.core.designsystem.component.StatusDot
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
+import cx.lpm.mobile.core.model.automationLiveTail
 import cx.lpm.mobile.feature.automations.R as AutomationsR
 import cx.lpm.mobile.feature.automations.ui.color
 
@@ -107,8 +106,8 @@ private fun NewBadge() {
 }
 
 /**
- * The tail of a run that is still going: the last handful of lines, scrolled sideways
- * rather than wrapped — wrapped log lines read as noise.
+ * The tail of a run that is still going: the last handful of lines, each run of tool
+ * steps folded onto one line so what the agent said stays in view.
  */
 @Composable
 fun LiveTail(text: String, modifier: Modifier = Modifier) {
@@ -122,15 +121,10 @@ fun LiveTail(text: String, modifier: Modifier = Modifier) {
                 color = LpmTheme.colors.secondaryLabel
             )
         } else {
-            SelectionContainer(
-                Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-            ) {
+            SelectionContainer(Modifier.fillMaxWidth()) {
                 Text(
-                    text = text.split("\n").takeLast(LIVE_LINES).joinToString("\n"),
-                    style = LpmTheme.typography.caption2.copy(fontFamily = FontFamily.Monospace),
-                    softWrap = false
+                    text = automationLiveTail(text),
+                    style = LpmTheme.typography.caption2.copy(fontFamily = FontFamily.Monospace)
                 )
             }
         }
@@ -150,5 +144,3 @@ fun LivePlace(text: String, modifier: Modifier = Modifier) {
         )
     }
 }
-
-private const val LIVE_LINES = 12

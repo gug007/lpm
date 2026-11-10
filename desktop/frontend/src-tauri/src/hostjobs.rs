@@ -27,7 +27,7 @@ fn text(args: &Value, key: &str) -> String {
 pub(crate) fn save(app: &AppHandle, args: &Value) -> Result<Value, String> {
     let body: serde_norway::Value =
         serde_norway::from_str(&text(args, "yaml")).map_err(|e| format!("bad automation: {e}"))?;
-    crate::jobs::save_job_value(GLOBAL.into(), String::new(), text(args, "id"), body)?;
+    crate::jobs::save_job_value(GLOBAL.into(), String::new(), text(args, "id"), body, true)?;
     changed(app);
     Ok(Value::Null)
 }

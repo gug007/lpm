@@ -1633,8 +1633,11 @@ struct AutomationJob: Identifiable {
     /// Runs that landed since this automation was last read, folded across every
     /// project it runs in. Older servers omit it, which reads as nothing new.
     let unread: Int
-    /// The question the automation is waiting on the user to answer.
+    /// The question the automation is waiting on the user to answer: the one
+    /// holding it up, or else the first asked under a key.
     let ask: AutomationAsk?
+    /// Every question it waits on. Older Macs send only `ask`.
+    let asks: [AutomationAsk]
     /// The computers that may run it, best first; the first one that's on
     /// runs it. Empty on a job every computer that has it runs.
     let machines: [AutomationMachine]
@@ -1690,12 +1693,16 @@ struct AutomationJob: Identifiable {
         runningCount = o["runningCount"] as? Int ?? 0
         standalone = o["standalone"] as? Bool ?? false
         ask = AutomationAsk(o["ask"]).flatMap { $0.isOpen ? $0 : nil }
+        asks = (o["asks"] as? [Any])?.compactMap(AutomationAsk.init).filter(\.isOpen)
+            ?? (ask.map { [$0] } ?? [])
         machines = (o["machines"] as? [[String: Any]] ?? []).map(AutomationMachine.init)
         anyMachine = o["anyMachine"] as? Bool ?? false
     }
 
     var key: String { runProject + "\n" + id }
     var displayName: String { label.isEmpty ? id : label }
+    /// A question without a key is waiting, so the next run holds back.
+    var held: Bool { asks.contains { $0.holdsJob } }
 
     /// The projects this job runs in — none when it is standalone. Older servers
     /// omit `targets`, in which case the job's own project stands for it.
@@ -1759,10 +1766,13 @@ struct AutomationHistoryEntry: Identifiable {
     let answerTo: String
     /// The computer that made this run when it wasn't this Mac.
     let ranOn: String
+    /// The automation's onAnswer command, run for the keyed question in `asks`.
+    let onAnswer: Bool
 
     init(_ o: [String: Any]) {
         at = o["at"] as? Int ?? 0
         ranOn = o["ranOn"] as? String ?? ""
+        onAnswer = o["onAnswer"] as? Bool ?? false
         asks = (o["asks"] as? [Any] ?? []).compactMap(AutomationAsk.init)
         answerTo = o["answerTo"] as? String ?? ""
         result = o["result"] as? String ?? ""
@@ -1786,7 +1796,7 @@ struct AutomationHistoryEntry: Identifiable {
     var waiting: Bool { asks.contains { $0.isOpen } }
 }
 
-struct AutomationLiveOutput {
+struct AutomationLiveOutput: Equatable {
     let startedAt: Int
     let text: String
 

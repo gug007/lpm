@@ -12,12 +12,13 @@ data class MarkdownBlock(val id: Int, val kind: Kind, val text: String) {
 
         data class ListItem(val marker: String, val depth: Int) : Kind
 
-        data object Code : Kind
+        /** A fence; [wraps] when it has no language, or a prose one. */
+        data class Code(val wraps: Boolean) : Kind
 
         data object Rule : Kind
     }
 
-    val isCode: Boolean get() = kind == Kind.Code
+    val isCode: Boolean get() = kind is Kind.Code
 
     companion object {
         /**
@@ -30,6 +31,7 @@ data class MarkdownBlock(val id: Int, val kind: Kind, val text: String) {
             val blocks = mutableListOf<MarkdownBlock>()
             val paragraph = mutableListOf<String>()
             var fenced: MutableList<String>? = null
+            var fenceWraps = true
 
             fun emit(kind: Kind, text: String) {
                 blocks += MarkdownBlock(blocks.size, kind, text)
@@ -46,11 +48,12 @@ data class MarkdownBlock(val id: Int, val kind: Kind, val text: String) {
                 val open = fenced
                 when {
                     trimmed.startsWith("```") || trimmed.startsWith("~~~") -> if (open != null) {
-                        emit(Kind.Code, open.joinToString("\n"))
+                        emit(Kind.Code(fenceWraps), open.joinToString("\n"))
                         fenced = null
                     } else {
                         flushParagraph()
                         fenced = mutableListOf()
+                        fenceWraps = proseFence(trimmed)
                     }
 
                     open != null -> open += line
@@ -81,9 +84,18 @@ data class MarkdownBlock(val id: Int, val kind: Kind, val text: String) {
                     }
                 }
             }
-            fenced?.let { emit(Kind.Code, it.joinToString("\n")) }
+            fenced?.let { emit(Kind.Code(fenceWraps), it.joinToString("\n")) }
             flushParagraph()
             return blocks
+        }
+
+        private val proseLanguages =
+            setOf("", "text", "txt", "plain", "plaintext", "markdown", "md")
+
+        /** A fence that holds words rather than code, by the language that opens it. */
+        fun proseFence(opening: String): Boolean {
+            val info = opening.dropWhile { it == '`' || it == '~' }.trimSpaces()
+            return info.substringBefore(' ').lowercase() in proseLanguages
         }
 
         private fun isRule(trimmed: String): Boolean {

@@ -3,6 +3,7 @@ import { toast } from "../notifications/toast";
 import { machineCommands } from "../components/settings/machineCommands";
 import { targetId, type SendToTarget } from "../sendTo";
 import { telegramLinkOf, useSendToStatus } from "../store/sendToStatus";
+import { telegramProblem } from "../telegramProblem";
 
 const FIND_CHATS_EVERY_MS = 2500;
 
@@ -21,6 +22,9 @@ export function useTelegramLink({
   const telegram = machineCommands(host).telegram;
   const refresh = useCallback(() => refreshStatus(host), [refreshStatus, host]);
   const [busy, setBusy] = useState(false);
+  // What Telegram said the last time a look failed; cleared by the next look
+  // that goes through.
+  const [lookError, setLookError] = useState<string | null>(null);
   const onAddedRef = useRef(onAdded);
   onAddedRef.current = onAdded;
 
@@ -32,13 +36,18 @@ export function useTelegramLink({
   const looking = !!status?.hasToken && (waiting || watch);
 
   useEffect(() => {
-    if (!looking) return;
+    if (!looking) {
+      setLookError(null);
+      return;
+    }
     let stopped = false;
     const look = () =>
       telegram
         .findChats()
         .then((added: SendToTarget[]) => {
-          if (stopped || !Array.isArray(added) || added.length === 0) return;
+          if (stopped) return;
+          setLookError(null);
+          if (!Array.isArray(added) || added.length === 0) return;
           toast.success(
             added.length === 1
               ? `Telegram can now post in ${added[0].name}`
@@ -47,7 +56,9 @@ export function useTelegramLink({
           onAddedRef.current?.(added.map((c) => targetId("telegram", c.key)));
           void refresh();
         })
-        .catch(() => {});
+        .catch((err: unknown) => {
+          if (!stopped) setLookError(String(err));
+        });
     void look();
     const timer = setInterval(look, FIND_CHATS_EVERY_MS);
     return () => {
@@ -76,6 +87,8 @@ export function useTelegramLink({
     looking,
     busy,
     bot: status?.bot ? `@${status.bot}` : "your bot",
+    // Why the look for chats keeps failing, and Telegram's own words for it.
+    problem: lookError ? { text: telegramProblem(lookError), said: lookError } : null,
     // `text` is the token, or anything holding it.
     connect: (text: string) =>
       run(async () => {

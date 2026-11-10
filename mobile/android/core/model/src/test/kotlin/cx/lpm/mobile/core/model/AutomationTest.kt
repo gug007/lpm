@@ -13,6 +13,36 @@ class AutomationTest {
     private fun obj(json: String): JsonObject = Json.parseToJsonElement(json).jsonObject
 
     @Test
+    fun readsEveryQuestionAJobWaitsOnAndOnlyAnUnkeyedOneHoldsIt() {
+        val q = """"questions": [{"id": "q1", "type": "confirm", "text": "Send?"}]"""
+        val keyed = AutomationJob.parse(
+            obj(
+                """
+                {"id": "replies", "project": "web",
+                 "ask": {"id": "k1", "key": "tg:1", "status": "open", "project": "web", $q},
+                 "asks": [{"id": "k1", "key": "tg:1", "status": "open", "project": "web", $q},
+                          {"id": "k2", "key": "tg:2", "status": "open", "project": "web", $q},
+                          {"id": "k3", "key": "tg:3", "status": "replaced", "project": "web", $q}]}
+                """
+            )
+        )
+        assertEquals(listOf("k1", "k2"), keyed.asks.map { it.id })
+        assertEquals("tg:2", keyed.asks[1].key)
+        assertFalse(keyed.held)
+
+        val older = AutomationJob.parse(
+            obj("""{"id": "deploy", "ask": {"id": "a", "status": "open", $q}}""")
+        )
+        assertEquals(listOf("a"), older.asks.map { it.id })
+        assertTrue(older.held)
+
+        val entry = AutomationHistoryEntry.parse(
+            obj("""{"at": 5, "result": "completed", "onAnswer": true}""")
+        )
+        assertTrue(entry.onAnswer)
+    }
+
+    @Test
     fun parsesACalendarJob() {
         val job = AutomationJob.parse(
             obj(

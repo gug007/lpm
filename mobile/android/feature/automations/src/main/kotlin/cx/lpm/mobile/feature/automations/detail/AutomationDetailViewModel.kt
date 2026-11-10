@@ -121,11 +121,11 @@ class AutomationDetailViewModel @AssistedInject constructor(
 
     /** Answer the job's open question where it waits; the first answer from any device wins. */
     fun answer(askId: String, answers: JsonObject) {
-        store?.answerQuestion(uiState.value.askProject, key.jobId, askId, answers)
+        store?.answerQuestion(uiState.value.askProject(askId), key.jobId, askId, answers)
     }
 
     fun dismissQuestion(askId: String) {
-        store?.dismissQuestion(uiState.value.askProject, key.jobId, askId)
+        store?.dismissQuestion(uiState.value.askProject(askId), key.jobId, askId)
     }
 
     fun markRead() {

@@ -30,7 +30,7 @@ object SpeechText {
             // sentence for the tokenizer, which would split the syntax in half.
             val text = stripNotation(block.text)
             when (block.kind) {
-                MarkdownBlock.Kind.Code, MarkdownBlock.Kind.Rule -> Unit
+                is MarkdownBlock.Kind.Code, MarkdownBlock.Kind.Rule -> Unit
 
                 is MarkdownBlock.Kind.Heading -> emit(text, block.id, 500)
 

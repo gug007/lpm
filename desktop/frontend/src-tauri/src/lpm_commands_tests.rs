@@ -689,10 +689,10 @@ fn a_long_skill_comes_as_its_start() {
     let l = lists();
     let dir = l.global.skills.join("long");
     std::fs::create_dir_all(&dir).unwrap();
-    std::fs::write(dir.join("SKILL.md"), format!("---\nname: long\ndescription: x\n---\n\n{}", "é".repeat(5000))).unwrap();
+    std::fs::write(dir.join("SKILL.md"), format!("---\nname: long\ndescription: x\n---\n\n{}", "é".repeat(20_000))).unwrap();
     let out = list_stores(&l.stores).unwrap().global;
     let preview = &out.others[0].preview;
-    assert_eq!(preview.chars().count(), 1501);
+    assert_eq!(preview.chars().count(), 16_001);
     assert!(preview.ends_with('…'));
 }
 

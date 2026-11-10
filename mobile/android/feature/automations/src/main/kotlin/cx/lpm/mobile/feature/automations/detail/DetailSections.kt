@@ -32,6 +32,7 @@ import cx.lpm.mobile.core.designsystem.component.ListRow
 import cx.lpm.mobile.core.designsystem.component.ListSection
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.core.model.AutomationJob
+import cx.lpm.mobile.core.model.hasOnOffSwitch
 import cx.lpm.mobile.feature.automations.R as AutomationsR
 
 /**
@@ -97,12 +98,14 @@ fun ScheduleGroup(
         onToggle = actions.toggleSchedule
     )
     if (!state.scheduleOpen) return
-    GroupToggleRow(
-        title = stringResource(AutomationsR.string.detail_enabled),
-        checked = job.enabled,
-        onCheckedChange = actions.setEnabled,
-        enabled = job.valid && !state.pending
-    )
+    if (job.hasOnOffSwitch) {
+        GroupToggleRow(
+            title = stringResource(AutomationsR.string.detail_enabled),
+            checked = job.enabled,
+            onCheckedChange = actions.setEnabled,
+            enabled = job.valid && !state.pending
+        )
+    }
     state.nextRun?.let { GroupValueRow(stringResource(AutomationsR.string.detail_next_run), it) }
     state.lastRun?.let { TimeRow(stringResource(AutomationsR.string.detail_last_run), it) }
 }

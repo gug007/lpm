@@ -11,8 +11,9 @@ interface JobTakeOverButtonProps {
   className: string;
 }
 
-// A running Claude automation takes no input, so stepping in ends the run and
-// carries its conversation on in a terminal, in the folder it was working in.
+// A running Claude automation takes no input, so taking it over ends the run
+// and carries its conversation on in a terminal, in the folder it was working
+// in. Watching it needs none of this: the run's own page streams it.
 export function JobTakeOverButton({ project, jobId, className }: JobTakeOverButtonProps) {
   const [opening, setOpening] = useState(false);
 
@@ -35,10 +36,10 @@ export function JobTakeOverButton({ project, jobId, className }: JobTakeOverButt
       type="button"
       onClick={() => void takeOver()}
       disabled={opening}
-      title="Stop this run and carry on with it in a terminal"
+      title="Stops this run and carries it on in a terminal"
       className={className}
     >
-      {opening ? "Opening…" : "Open in terminal"}
+      {opening ? "Opening…" : "Take over in terminal"}
     </button>
   );
 }

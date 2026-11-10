@@ -6,7 +6,12 @@ import { SendToConnectModal } from "./SendToConnectModal";
 import { telegramLinkOf, useSendToStatus } from "../../../store/sendToStatus";
 
 type Chat = { key: string; name: string; kind: string };
-const link = { hasToken: false, chats: [] as Chat[], incoming: [] as Chat[] };
+const link = {
+  hasToken: false,
+  chats: [] as Chat[],
+  incoming: [] as Chat[],
+  lookError: null as string | null,
+};
 const sendTest = vi.fn();
 vi.mock("../../../../bridge/commands", () => ({
   TelegramStatus: () =>
@@ -22,6 +27,7 @@ vi.mock("../../../../bridge/commands", () => ({
     return Promise.resolve({ bot: "lpm_bot" });
   },
   TelegramFindChats: () => {
+    if (link.lookError) return Promise.reject(link.lookError);
     const added = link.incoming;
     link.chats = [...link.chats, ...added];
     link.incoming = [];
@@ -53,6 +59,7 @@ beforeEach(() => {
   link.hasToken = false;
   link.chats = [];
   link.incoming = [];
+  link.lookError = null;
   useSendToStatus.setState({ telegram: {} });
   host = document.createElement("div");
   document.body.appendChild(host);
@@ -118,6 +125,28 @@ describe("SendToConnectModal", () => {
     expect(onAdded).toHaveBeenCalledWith(["telegram:releases"]);
     expect(document.body.textContent).toContain("ReleasesJust added");
     expect(document.body.textContent).toContain("Channel");
+  });
+
+  it("says why it can't see Start when another app gets the bot's messages", async () => {
+    link.hasToken = true;
+    link.lookError =
+      "Telegram said: Conflict: can't use getUpdates method while webhook is active; use deleteWebhook to delete the webhook first";
+    await act(async () => root.render(<SendToConnectModal host={null} destination="telegram" onClose={onClose} />));
+    await settle();
+    await act(async () => vi.advanceTimersByTime(2500));
+    await settle();
+
+    const text = document.body.textContent ?? "";
+    expect(text).toContain("Another app gets this bot's messages");
+    expect(text).toContain("can't use getUpdates method while webhook is active");
+    expect(text).not.toContain("Waiting for you to tap Start…");
+    expect(button("Use a new bot")).toBeDefined();
+
+    link.lookError = null;
+    await act(async () => vi.advanceTimersByTime(2500));
+    await settle();
+    expect(document.body.textContent).not.toContain("Another app gets this bot's messages");
+    expect(document.body.textContent).toContain("Waiting for you to tap Start…");
   });
 
   it("shows nothing for a destination it has no way to connect", () => {

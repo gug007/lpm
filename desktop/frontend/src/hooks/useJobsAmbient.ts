@@ -25,8 +25,10 @@ export function useJobsAmbient(): JobsAmbient {
       ListAllJobs()
         .then((rows) => {
           if (!alive) return;
+          // What a computer that isn't answering listed last is kept for the
+          // list, not counted as live.
           const list = Array.isArray(rows)
-            ? (rows as Pick<JobInfo, "running" | "unread" | "ask">[])
+            ? (rows as Pick<JobInfo, "running" | "unread" | "ask" | "offline">[]).filter((r) => !r.offline)
             : [];
           setWaiting(list.filter((r) => isOpenAsk(r.ask)).length);
           setRunning(list.filter((r) => r.running === true).length);

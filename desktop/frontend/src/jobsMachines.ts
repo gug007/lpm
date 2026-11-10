@@ -112,12 +112,12 @@ function sameJobKey(row: ListRow): string {
   return `${row.source ?? ""}|${stripMarker(row.project ?? "")}|${row.id}`;
 }
 
-// The copy shown: one that's running, then the one from the computer earliest
-// in the automation's own order.
-function rank(row: ListRow): [number, number, string] {
+// The copy shown: one from a computer that's connected, then one that's
+// running, then the one from the computer earliest in the automation's own order.
+function rank(row: ListRow): [number, number, number, string] {
   const ids = (row.machines ?? []).map((m) => m.id);
   const place = row.machineId ? ids.indexOf(row.machineId) : -1;
-  return [row.running ? 0 : 1, place >= 0 ? place : ids.length, row.machineId ?? ""];
+  return [row.offline ? 1 : 0, row.running ? 0 : 1, place >= 0 ? place : ids.length, row.machineId ?? ""];
 }
 
 function before(a: ListRow, b: ListRow): boolean {

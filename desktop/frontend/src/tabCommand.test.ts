@@ -20,6 +20,7 @@ describe("commandName", () => {
 
   it("leaves out env assignments, flags and what follows them", () => {
     expect(commandName("NODE_ENV=production pnpm build")).toBe("pnpm build");
+    expect(commandName("IS_SANDBOX=1 claude --dangerously-skip-permissions")).toBe("claude");
     expect(commandName("curl -H 'Authorization: Bearer abc' https://x")).toBe("curl");
     expect(commandName("git commit -m 'wip'")).toBe("git commit");
   });

@@ -295,6 +295,20 @@ describe("a host's automations", () => {
     expect(row.ask).toEqual({ id: "a1", status: "open", project: prefixName(SLUG, "web"), at: 5 });
   });
 
+  it("marks the project of every question a host's job waits on", () => {
+    const [row] = translateResult("list_jobs", SLUG, [
+      {
+        id: "replies",
+        project: "web",
+        asks: [
+          { id: "k1", key: "tg:1", status: "open", project: "web" },
+          { id: "k2", key: "tg:2", status: "open", project: "api" },
+        ],
+      },
+    ]) as { asks: { project: string }[] }[];
+    expect(row.asks.map((a) => a.project)).toEqual([prefixName(SLUG, "web"), prefixName(SLUG, "api")]);
+  });
+
   it("marks the copy a run worked in, so it opens here", () => {
     expect(
       translateResult("job_history", SLUG, [{ at: 1, result: "completed", copy: "web-2" }, { at: 2, result: "quiet" }]),

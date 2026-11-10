@@ -59,3 +59,9 @@ export function jobScopeLabel(
   if (targets.length >= projectCount) return "All projects";
   return `${targets.length} projects`;
 }
+
+// A Manual automation only runs when asked to, so on/off says nothing about it:
+// its switch stays only to turn one back on.
+export function hasOnOffSwitch(job: JobInfo): boolean {
+  return !(job.schedule?.mode === "manual" && job.enabled);
+}
