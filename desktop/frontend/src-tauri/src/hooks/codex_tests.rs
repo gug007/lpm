@@ -2,6 +2,40 @@ use super::*;
 use crate::hooks::has_marker;
 use crate::hooks::test_support::*;
 
+#[cfg(unix)]
+#[test]
+fn shell_hooks_succeed_without_lpm_context() {
+    let home = tempfile::tempdir().unwrap();
+    for shell in ["/bin/sh", "/bin/zsh"] {
+        if !std::path::Path::new(shell).exists() {
+            continue;
+        }
+        for (event, entries) in codex_shell_events() {
+            for entry in entries {
+                let cmd = entry["hooks"][0]["command"].as_str().unwrap();
+                let output = std::process::Command::new(shell)
+                    .args(["-c", cmd])
+                    .env_clear()
+                    .env("HOME", home.path())
+                    .env("PATH", "/usr/bin:/bin")
+                    .stdin(std::process::Stdio::null())
+                    .output()
+                    .unwrap();
+                assert!(
+                    output.status.success(),
+                    "{shell} {event}: {:?}",
+                    output.status
+                );
+                assert!(
+                    output.stdout.is_empty(),
+                    "{shell} {event}: {:?}",
+                    output.stdout
+                );
+            }
+        }
+    }
+}
+
 #[test]
 fn merge_upgrades_old_nc_only_codex_hook() {
     let old = "{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && echo \"set_status '$LPM_PROJECT_NAME' codex_$LPM_PANE_ID Done --icon=checkmark --color=#4ade80 --pane=$LPM_PANE_ID\" | nc -w1 -U \"$LPM_SOCKET_PATH\" & } >/dev/null 2>&1; # lpm-hook";

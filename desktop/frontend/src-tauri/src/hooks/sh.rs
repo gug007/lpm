@@ -73,7 +73,7 @@ impl Hook<'_> {
         let and_if = gated(self.and_if);
         let end = if self.waits { ";" } else { " &" };
         format!(
-            "{read}{recover} {PROJECT_ARG} {prep}m=\"{frame}{REPORTER_PID_OPT}\"; {{ {only_if}[ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {and_if}{deliver}{end} }} >/dev/null 2>&1; {MARKER}"
+            "{read}{recover} {PROJECT_ARG} {prep}m=\"{frame}{REPORTER_PID_OPT}\"; {{ {only_if}[ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {and_if}{deliver}{end} }} >/dev/null 2>&1; :; {MARKER}"
         )
     }
 }
