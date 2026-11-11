@@ -63,6 +63,11 @@ impl Hook<'_> {
     /// `m` so the portable nc/python3/perl fallback chain can regenerate it. The
     /// gate also requires a known project and pane so a recovered-socket-only case
     /// never sends `set_status ''`.
+    ///
+    /// The line ends on `:` because its status is what the agent judges the hook
+    /// by: zsh backgrounds only the last command of `a && b &`, so a gate that
+    /// holds the frame back would otherwise exit 1 — which Codex, running hooks in
+    /// the user's shell, reports as a failed hook.
     pub(super) fn line(&self) -> String {
         let recover = crate::sockdeliver::env_recover_group();
         let deliver = crate::sockdeliver::delivery_group();
@@ -73,7 +78,7 @@ impl Hook<'_> {
         let and_if = gated(self.and_if);
         let end = if self.waits { ";" } else { " &" };
         format!(
-            "{read}{recover} {PROJECT_ARG} {prep}m=\"{frame}{REPORTER_PID_OPT}\"; {{ {only_if}[ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {and_if}{deliver}{end} }} >/dev/null 2>&1; {MARKER}"
+            "{read}{recover} {PROJECT_ARG} {prep}m=\"{frame}{REPORTER_PID_OPT}\"; {{ {only_if}[ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {and_if}{deliver}{end} }} >/dev/null 2>&1; :; {MARKER}"
         )
     }
 }
