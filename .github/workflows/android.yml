@@ -42,7 +42,7 @@ jobs:
           java-version: 21
       # Built-in Tailscale (tailnet/android, Go) is bound into :core:tailnet
       # with gomobile, against the NDK the Android Gradle plugin installs.
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: tailnet/go.mod
           cache-dependency-path: |

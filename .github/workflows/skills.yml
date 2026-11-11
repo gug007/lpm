@@ -27,10 +27,10 @@ jobs:
   validate:
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # The built-in Tailscale sidecar (tailnet/, Go) is built and shipped beside
       # the app, and tauri-build checks it exists like the CLI sidecar.
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: tailnet/go.mod
           cache-dependency-path: tailnet/go.sum

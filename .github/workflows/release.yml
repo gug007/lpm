@@ -32,7 +32,7 @@ jobs:
       # Tauri's bundler signs the .app with this identity (cert imported below).
       APPLE_SIGNING_IDENTITY: "Developer ID Application: Gurgen Abagyan (N7S7ZCZ5P7)"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # A dispatch from a branch has no tag to take a version from, and Tauri
       # refuses one that isn't semver.
@@ -43,7 +43,7 @@ jobs:
             *) echo "VERSION=0.0.0" >> "$GITHUB_ENV" ;;
           esac
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: npm
@@ -51,7 +51,7 @@ jobs:
 
       # The built-in Tailscale sidecar (tailnet/, Go) is built and shipped beside
       # the app, and tauri-build checks it exists like the CLI sidecar.
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: tailnet/go.mod
           cache-dependency-path: |
@@ -138,7 +138,7 @@ jobs:
       # crates dominate and whether the warm cache actually hit.
       - name: Upload build timings
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: cargo-timings-${{ matrix.arch }}
           path: desktop/frontend/src-tauri/target/**/cargo-timings/*.html
@@ -170,7 +170,7 @@ jobs:
           cp src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg lpm-desktop-macos-${{ matrix.arch }}.dmg
 
       - name: Upload DMG artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: dmg-${{ matrix.arch }}
           path: desktop/frontend/lpm-desktop-macos-${{ matrix.arch }}.dmg
@@ -198,7 +198,7 @@ jobs:
   build-linux:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # A dispatch from a branch has no tag to take a version from, and Tauri
       # refuses one that isn't semver.
@@ -221,7 +221,7 @@ jobs:
 
       # The built-in Tailscale sidecar (tailnet/, Go) is built and shipped beside
       # the app, and tauri-build checks it exists like the CLI sidecar.
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: tailnet/go.mod
           cache-dependency-path: |
@@ -240,7 +240,7 @@ jobs:
           shared-key: release-x86_64-unknown-linux-gnu
           save-if: false
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: npm
@@ -279,7 +279,7 @@ jobs:
           tar czf lpm-host-linux-amd64.tar.gz lpm-host
           ls -lh lpm-host-linux-amd64.tar.gz
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: linux-host
           path: lpm-host-linux-amd64.tar.gz
@@ -294,7 +294,7 @@ jobs:
   build-linux-desktop:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # A dispatch from a branch has no tag to take a version from, and Tauri
       # refuses one that isn't semver.
@@ -317,7 +317,7 @@ jobs:
 
       # The built-in Tailscale sidecar (tailnet/, Go) is built and shipped beside
       # the app, and tauri-build checks it exists like the CLI sidecar.
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: tailnet/go.mod
           cache-dependency-path: |
@@ -336,7 +336,7 @@ jobs:
           shared-key: release-x86_64-unknown-linux-gnu
           save-if: false
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: npm
@@ -371,7 +371,7 @@ jobs:
           cp "$bundle"/appimage/*.AppImage lpm-desktop-linux-amd64.AppImage
           ls -lh lpm-desktop-linux-amd64.*
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: linux-desktop
           path: lpm-desktop-linux-amd64.*
@@ -393,7 +393,7 @@ jobs:
       - name: Keep LF line endings
         run: git config --global core.autocrlf false
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Resolve version
         shell: bash
@@ -410,7 +410,7 @@ jobs:
           $perl = 'C:\Strawberry\perl\bin\perl.exe'
           if (Test-Path $perl) { "OPENSSL_SRC_PERL=$perl" >> $env:GITHUB_ENV }
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: npm
@@ -418,7 +418,7 @@ jobs:
 
       # The built-in Tailscale sidecar (tailnet/, Go) is built and shipped beside
       # the app, and tauri-build checks it exists like the CLI sidecar.
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: tailnet/go.mod
           cache-dependency-path: |
@@ -477,7 +477,7 @@ jobs:
           cp desktop/frontend/src-tauri/target/release/bundle/nsis/*-setup.exe lpm-desktop-windows-amd64-setup.exe
           ls -l lpm-desktop-windows-amd64-setup.exe
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: windows-installer
           path: lpm-desktop-windows-amd64-setup.exe
@@ -521,13 +521,13 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: dist
           merge-multiple: true
 
       - name: Upload to release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             dist/*.dmg
@@ -548,13 +548,13 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: linux-desktop
           path: dist
 
       - name: Upload to release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: dist/lpm-desktop-linux-amd64.*
           fail_on_unmatched_files: true
@@ -566,13 +566,13 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: windows-installer
           path: dist
 
       - name: Upload to release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: dist/lpm-desktop-windows-amd64-setup.exe
           fail_on_unmatched_files: true

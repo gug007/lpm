@@ -61,7 +61,7 @@ jobs:
           $perl = 'C:\Strawberry\perl\bin\perl.exe'
           if (Test-Path $perl) { "OPENSSL_SRC_PERL=$perl" >> $env:GITHUB_ENV }
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install system dependencies
         if: runner.os == 'Linux'
@@ -74,7 +74,7 @@ jobs:
             libsoup-3.0-dev \
             build-essential curl wget file pkg-config
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: npm
@@ -100,7 +100,7 @@ jobs:
       # beforeBuildCommand builds the built-in Tailscale sidecar (tailnet/, Go).
       # The Go cache saved here is what the release jobs restore, so they hit it
       # and save nothing: a cache saved on a tag is unreadable from the next one.
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: tailnet/go.mod
           cache-dependency-path: |

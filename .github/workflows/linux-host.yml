@@ -56,7 +56,7 @@ jobs:
   scripts:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Check syntax with a real POSIX shell
         run: |
@@ -82,7 +82,7 @@ jobs:
   check:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       # Tauri 2's Linux backend is WebKitGTK; iproute2 supplies the `ss` the
       # port probe shells out to on this platform. The session tests need no
@@ -100,7 +100,7 @@ jobs:
 
       # The built-in Tailscale sidecar (tailnet/, Go) is built and shipped beside
       # the app, and tauri-build checks it exists like the CLI sidecar.
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: tailnet/go.mod
           cache-dependency-path: tailnet/go.sum
@@ -109,7 +109,7 @@ jobs:
         with:
           components: clippy
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: 20
           cache: npm
@@ -164,7 +164,7 @@ jobs:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Install system dependencies
         run: |
@@ -178,13 +178,13 @@ jobs:
 
       # The built-in Tailscale sidecar (tailnet/, Go) is built and shipped beside
       # the app, and tauri-build checks it exists like the CLI sidecar.
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: tailnet/go.mod
           cache-dependency-path: tailnet/go.sum
 
       - uses: dtolnay/rust-toolchain@stable
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: 20
           cache: npm
@@ -215,7 +215,7 @@ jobs:
           chmod +x out/*
           ls -lh out/
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: lpm-linux-x86_64
           path: out/
