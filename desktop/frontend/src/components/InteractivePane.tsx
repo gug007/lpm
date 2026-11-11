@@ -86,7 +86,6 @@ import {
 } from "../../bridge/commands";
 import { useEndedTerminals } from "../store/endedTerminals";
 import "@xterm/xterm/css/xterm.css";
-import { installImeShiftFix } from "../terminalImeShiftFix";
 import { MACHINE } from "../machineWords";
 
 // Cross-window flow-control ack authority (one window acks a PTY's output; two
@@ -787,7 +786,6 @@ function createInteractiveSession(
   });
 
   term.open(host);
-  installImeShiftFix(term);
 
   import("@xterm/addon-webgl")
     .then(({ WebglAddon }) => {

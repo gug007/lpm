@@ -66,3 +66,4 @@ Vertical lessons posted to TikTok and YouTube Shorts, oldest first. The short-pu
 - Claude vs ChatGPT: Opus 5.5 high vs GPT-6.1 Sol high build a 3D racing game
 - Claude vs ChatGPT: Sonnet 5.5 high vs GPT-6 Astra high build a 3D racing game
 - Claude vs ChatGPT: Opus 5.5 high vs GPT-6.1 Sol high build Flappy Bird
+- Claude vs Gemini: Opus 5.5 high vs Gemini 4 Argon high build a 3D racing game

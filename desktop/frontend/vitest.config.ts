@@ -12,7 +12,7 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.test.{ts,tsx}"],
-    setupFiles: ["src/testPlatform.ts"],
+    setupFiles: ["src/testPlatform.ts", "src/testAnimations.ts"],
     execArgv: webStorageOff,
   },
 });

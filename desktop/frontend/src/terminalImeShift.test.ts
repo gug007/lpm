@@ -1,14 +1,14 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Terminal } from "@xterm/xterm";
-import { installImeShiftFix } from "./terminalImeShiftFix";
 
-// Event orders below are the ones WKWebView produced with the WeChat IME.
+// macOS IMEs (WeChat, Apple Pinyin) commit Shift+punctuation before the
+// keyCode-229 keydown; xterm forwards it since xterm.js#6200. Event orders below
+// are the ones WKWebView produced with the WeChat IME.
 
 let term: Terminal;
 let host: HTMLElement;
 let sent: string[];
-let dispose: () => void;
 
 function ta(): HTMLTextAreaElement {
   return term.textarea!;
@@ -45,16 +45,14 @@ beforeEach(() => {
   term.open(host);
   sent = [];
   term.onData((d) => sent.push(d));
-  dispose = installImeShiftFix(term);
 });
 
 afterEach(() => {
-  dispose();
   term.dispose();
   host.remove();
 });
 
-describe("installImeShiftFix", () => {
+describe("xterm with a macOS IME", () => {
   it("forwards the punctuation an IME commits right after a Shift keydown", async () => {
     key("keydown", "Shift", 16);
     imeInsert("？");
@@ -79,7 +77,7 @@ describe("installImeShiftFix", () => {
     expect(sent.join("")).toBe("!!!");
   });
 
-  it("leaves input after a non-modifier keydown to xterm", async () => {
+  it("sends punctuation committed after a 229 keydown once", async () => {
     key("keydown", "？", 229, false);
     imeInsert("？");
     await settle();
@@ -101,15 +99,5 @@ describe("installImeShiftFix", () => {
     key("keyup", " ", 32, false);
     await settle();
     expect(sent.join("")).toBe("你");
-  });
-
-  it("stops forwarding once disposed", async () => {
-    dispose();
-    dispose = () => {};
-    key("keydown", "Shift", 16);
-    imeInsert("？");
-    key("keydown", "？", 229);
-    await settle();
-    expect(sent.join("")).toBe("");
   });
 });

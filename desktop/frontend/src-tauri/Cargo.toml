@@ -22,11 +22,11 @@ embed-resource = "3"
 tauri = { version = "2", features = ["unstable"] }  # unstable = multiwebview (in-pane browser)
 tauri-plugin-opener = "2"
 tauri-plugin-deep-link = "2"
-tauri-plugin-global-shortcut = "~2.3.2"  # 2.4 needs tauri 2.12
+tauri-plugin-global-shortcut = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["raw_value"] }
 serde_norway = "0.9"
-dirs = "6"
+dirs = "7"
 dunce = "1"
 portable-pty = "0.9"
 hex = "0.4"
@@ -34,7 +34,7 @@ uuid = { version = "1", features = ["v4"] }
 notify = "8"
 tauri-plugin-dialog = "2"
 tauri-plugin-notification = "2"
-base64 = "0.22"
+base64 = "0.23"
 urlencoding = "2"
 glob = "0.3"
 libc = "0.2"
@@ -47,7 +47,7 @@ toml_edit = "0.25"
 # provider-independent, so it reads files written by Go's go-sqlcipher/v4.
 rusqlite = { version = "0.40", features = ["bundled-sqlcipher-vendored-openssl"] }
 aes-gcm = "0.11"        # AES-256-GCM blob + export AEAD (ct||tag, 12B nonce)
-argon2 = "0.5"          # Argon2id KEK for vault key export/import
+argon2 = "0.6"          # Argon2id KEK for vault key export/import
 sha2 = "0.11"           # blob content addressing
 getrandom = "0.4"       # key / salt / nonce CSPRNG
 zeroize = "1"           # wipe key buffers
@@ -72,13 +72,13 @@ qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 # Bonjour/mDNS advertising so the phone can discover this Mac on the LAN and
 # recover a saved server whose IP changed. Runs its own daemon thread (no tokio),
 # coexisting with the blocking tungstenite server.
-mdns-sd = "0.20"
+mdns-sd = "0.21"
 # wss:// transport for the remote server (remotetls.rs). A self-signed, pinned
 # leaf (ECDSA P-256, CN "lpm") the phone trusts on first pair/auth. rustls uses
 # the aws-lc-rs provider already in the tree; rcgen mints the cert; rustls-pemfile
 # parses the persisted PEM on load.
 rustls = "0.23"
-rcgen = "0.13"
+rcgen = "0.14"
 rustls-pemfile = "2"
 # Browser guests of a shared tab (sharerelay.rs): the relay is reached over wss
 # with the OS's own certificate checks, and each guest's session is end-to-end
@@ -152,8 +152,8 @@ windows-sys = { version = "0.61", features = [
 ] }
 # WebView2 settings Tauri doesn't expose (browser accelerator keys), reached via
 # Webview::with_webview. Same versions wry already pulls in.
-webview2-com = "0.38"
-windows-core = "0.61"
+webview2-com = "0.39"
+windows-core = "0.62"
 
 # Every rebuild orphans its object files (content-hashed names) and cargo never
 # reclaims them. Coarser codegen units cut that leak from ~261 files per edit to

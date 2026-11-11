@@ -2,6 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { pdfjsAssets } from "./vite-pdfjs-assets.ts";
+import { monacoDompurify } from "./vite-monaco-dompurify.ts";
 
 export default defineConfig({
   // Tauri injects its IPC into the webview; no framework runtime plugin needed.
@@ -16,7 +17,7 @@ export default defineConfig({
     // The popup bootstrap is the one the phones bundle.
     fs: { allow: [".", "../../mobile/shared/web/popup"] },
   },
-  plugins: [react(), tailwindcss(), pdfjsAssets()],
+  plugins: [react(), tailwindcss(), pdfjsAssets(), monacoDompurify()],
   build: {
     target: "es2022",
   },

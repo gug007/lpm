@@ -21,20 +21,21 @@
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
-    "@hookform/resolvers": "^5.4.0",
+    "@hookform/resolvers": "^7.0.5",
     "@monaco-editor/react": "^4.7.0",
     "@tanstack/react-query": "^5.101.2",
     "@tanstack/react-virtual": "^3.14.6",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-opener": "^2",
+    "dompurify": "3.4.17",
     "@xterm/addon-fit": "^0.12.0-beta.292",
     "@xterm/addon-search": "^0.17.0-beta.292",
     "@xterm/addon-serialize": "^0.15.0-beta.292",
     "@xterm/addon-unicode11": "^0.10.0-beta.292",
     "@xterm/addon-web-links": "^0.13.0-beta.292",
     "@xterm/addon-webgl": "^0.20.0-beta.291",
-    "@xterm/xterm": "^6.1.0-beta.292",
-    "frimousse": "^0.3.0",
+    "@xterm/xterm": "^6.1.0-beta.337",
+    "frimousse": "^0.4.0",
     "lucide-react": "^1.24.0",
     "monaco-editor": "~0.55.1",
     "monaco-yaml": "^5.5.1",
@@ -50,7 +51,7 @@
     "shiki": "^4.3.1",
     "sonner": "^2.0.7",
     "yaml": "^2.9.0",
-    "zod": "^4.4.3",
+    "zod": "^4.6.7",
     "zustand": "^5.0.14"
   },
   "devDependencies": {
@@ -59,13 +60,13 @@
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",
-    "happy-dom": "^20.10.6",
+    "happy-dom": "^21.0.4",
     "tailwindcss": "^4.3.2",
     "typescript": "^7.0.2",
-    "vite": "^8.1.4",
-    "vitest": "^4.1.10"
+    "vite": "^8.3.7",
+    "vitest": "^5.1.0"
   },
   "overrides": {
-    "dompurify": "3.4.13"
+    "dompurify": "$dompurify"
   }
 }
