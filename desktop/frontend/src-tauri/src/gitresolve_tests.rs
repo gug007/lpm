@@ -161,6 +161,20 @@ fn continuing_commits_the_merge_without_the_conflicts_comment() {
     assert!(git_continue_merge(cwd).unwrap_err().contains("No merge"));
 }
 
+#[test]
+fn a_merge_resolved_to_what_this_branch_already_had_can_still_be_continued() {
+    let (_tmp, cwd) = stopped_merge();
+    for path in ["f.txt", "g.txt", "d.txt"] {
+        git_take_conflict_side(cwd.clone(), path.into(), "ours".into()).unwrap();
+    }
+    assert_eq!(git_out(&cwd, &["status", "--porcelain"]).unwrap(), "");
+    let state = git_merge_state(cwd.clone());
+    assert!(state.merging && state.files.iter().all(|f| f.resolved));
+    git_continue_merge(cwd.clone()).unwrap();
+    let parents = git_out(&cwd, &["log", "-1", "--format=%P"]).unwrap();
+    assert_eq!(parents.split_whitespace().count(), 2);
+}
+
 /// Names git quotes in its listings, or that a `path:line:` reader could cut
 /// in the wrong place. Windows can't create the punctuated ones.
 fn quoted_names() -> Vec<&'static str> {

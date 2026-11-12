@@ -30,7 +30,9 @@ enum class FilePreviewKind {
             if (mimeType != null && (mimeType.startsWith("image/") || mimeType == PDF)) {
                 return Document
             }
-            if (looksLikeText(head)) return if (ext in MARKDOWN) Markdown else Text
+            if (looksLikeText(head) || legacyText(head, mimeType)) {
+                return if (ext in MARKDOWN) Markdown else Text
+            }
             if (mimeType != null &&
                 (mimeType.startsWith("video/") || mimeType.startsWith("audio/"))
             ) {
@@ -48,6 +50,20 @@ enum class FilePreviewKind {
             if (sample.contains(0)) return false
             return (0..minOf(3, sample.size)).any { cut -> isUtf8(sample, sample.size - cut) }
         }
+
+        /**
+         * A file named as text whose bytes aren't UTF-8 (Latin-1, Windows-1252): the
+         * iPhone's Quick Look opens these, so the text view does here.
+         */
+        private fun legacyText(head: ByteArray, mimeType: String?): Boolean =
+            mimeType?.startsWith("text/") == true &&
+                !head.copyOf(minOf(head.size, SAMPLE_BYTES)).contains(0)
+
+        /** UTF-8 when the bytes are, Windows-1252 otherwise, so no character is lost. */
+        fun decode(bytes: ByteArray): String =
+            if (isUtf8(bytes, bytes.size)) bytes.decodeToString() else String(bytes, LEGACY)
+
+        private val LEGACY = charset("windows-1252")
 
         private fun isUtf8(bytes: ByteArray, length: Int): Boolean = try {
             Charsets.UTF_8.newDecoder()

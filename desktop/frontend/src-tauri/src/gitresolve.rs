@@ -35,7 +35,7 @@ fn spec(path: &str) -> String {
     format!(":(top,literal){path}")
 }
 
-fn merging(cwd: &str) -> bool {
+pub(crate) fn merging(cwd: &str) -> bool {
     git_out(cwd, &["rev-parse", "-q", "--verify", "MERGE_HEAD"]).is_ok()
 }
 

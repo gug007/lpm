@@ -379,6 +379,19 @@ pub fn write_file(abs_path: String, content: String) -> Result<(), String> {
     std::fs::write(&path, content).map_err(|e| e.to_string())
 }
 
+/// The editor holds such a file with every byte it couldn't read replaced, so
+/// writing its text back would destroy those characters across the whole file.
+fn not_utf8(path: &std::path::Path) -> String {
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    format!(
+        "{name} isn't UTF-8 text, so saving it here would damage the characters lpm can't read. \
+         Nothing was written. Convert it to UTF-8, or edit it in an app that keeps its encoding."
+    )
+}
+
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WriteResult {
@@ -413,7 +426,9 @@ pub fn write_file_if_unchanged(
         }
     }
     let current = match std::fs::read(&path) {
-        Ok(bytes) => String::from_utf8_lossy(&bytes).into_owned(),
+        Ok(bytes) => {
+            String::from_utf8(bytes).map_err(|_| not_utf8(std::path::Path::new(&path)))?
+        }
         // A freshly-created file the caller loaded as empty may not be on disk
         // yet; treat a missing file as an empty baseline.
         Err(ref e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
@@ -507,3 +522,7 @@ pub(crate) fn reveal(path: &str) -> Result<(), String> {
 pub(crate) fn resolve_existing_file(abs: &str) -> Result<String, String> {
     resolve_existing(abs)
 }
+
+#[cfg(test)]
+#[path = "files_write_tests.rs"]
+mod write_tests;

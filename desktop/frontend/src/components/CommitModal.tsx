@@ -323,8 +323,12 @@ export function CommitModal({
       if (andPush) {
         setBusy("push");
         const pushCfg = getSettings().gitPush ?? DEFAULT_PUSH_CONFIG;
-        await GitPush(projectPath, pushFlags(pushCfg));
-        toast.success("Committed and pushed");
+        try {
+          await GitPush(projectPath, pushFlags(pushCfg));
+          toast.success("Committed and pushed");
+        } catch (err) {
+          toast.error("Committed, but not pushed", { description: String(err) });
+        }
       } else {
         toast.success("Committed successfully");
       }

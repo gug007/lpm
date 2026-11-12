@@ -1307,7 +1307,11 @@ pub fn git_commit(cwd: String, message: String, files: Vec<String>) -> Result<()
         return Err("no files selected".into());
     }
     crate::gitconflict::check_commit(&cwd, &files)?;
-    let _ = git_out(&cwd, &["reset", "HEAD"]); // clear stage; ignore (initial commit)
+    // A mixed reset drops MERGE_HEAD, and the commit would then lose the merged
+    // branch as a parent. Git refuses a partial commit mid-merge anyway.
+    if !crate::gitresolve::merging(&cwd) {
+        let _ = git_out(&cwd, &["reset", "HEAD"]); // clear stage; ignore (initial commit)
+    }
     let paths: Vec<&str> = files.iter().map(String::as_str).collect();
     git_out(&cwd, &path_args(&["add"], &paths)).map_err(|e| format!("staging files: {e}"))?;
     git_out(&cwd, &["commit", "-m", message]).map(|_| ())

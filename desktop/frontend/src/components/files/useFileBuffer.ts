@@ -170,7 +170,7 @@ export function useFileBuffer(root: string, active: boolean) {
         setConflict({ path, theirs: res?.currentContent ?? "" });
         return false;
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Could not save file");
+        toast.error(typeof err === "string" && err ? err : err instanceof Error ? err.message : "Could not save file");
         return false;
       } finally {
         savingRef.current = false;

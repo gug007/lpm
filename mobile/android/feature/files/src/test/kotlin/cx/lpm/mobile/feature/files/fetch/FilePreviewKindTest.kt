@@ -49,6 +49,15 @@ class FilePreviewKindTest {
     }
 
     @Test
+    fun `a text file in an older encoding still opens as text`() {
+        val latin1 = "café\nline two\n".toByteArray(Charsets.ISO_8859_1)
+        assertEquals(Text, kind("legacy.txt", latin1))
+        assertEquals("the name doesn't say text", Document, kind("legacy.bin", latin1))
+        assertEquals("café\nline two\n", FilePreviewKind.decode(latin1))
+        assertEquals("café ✓", FilePreviewKind.decode("café ✓".toByteArray()))
+    }
+
+    @Test
     fun `only the first 8 KB are sampled`() {
         val head = ByteArray(8192) { 'a'.code.toByte() } + byteArrayOf(0)
         assertTrue(FilePreviewKind.looksLikeText(head))

@@ -19,7 +19,8 @@ val TEST_MIME = mapOf(
     "pdf" to "application/pdf",
     "mp4" to "video/mp4",
     "ts" to "video/mp2ts",
-    "svg" to "image/svg+xml"
+    "svg" to "image/svg+xml",
+    "txt" to "text/plain"
 )
 
 /** File fetches in a session paired with a Mac at `ready`, scratch copies in a temp folder. */

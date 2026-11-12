@@ -11,6 +11,7 @@ import cx.lpm.mobile.core.web.MarkdownFileReader
 import cx.lpm.mobile.feature.files.di.PreviewDispatcher
 import cx.lpm.mobile.feature.files.fetch.FileFetch
 import cx.lpm.mobile.feature.files.fetch.FileFetches
+import cx.lpm.mobile.feature.files.fetch.FilePreviewKind
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
@@ -115,7 +116,7 @@ class FilePreviewViewModel @AssistedInject constructor(
     }
 
     private fun read(ready: FileFetch.Phase.Ready): String =
-        runCatching { ready.file.readBytes().decodeToString() }.getOrDefault("")
+        runCatching { FilePreviewKind.decode(ready.file.readBytes()) }.getOrDefault("")
 
     private class Loaded(val file: File, val text: String)
 

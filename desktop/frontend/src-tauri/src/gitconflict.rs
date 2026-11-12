@@ -301,6 +301,34 @@ mod tests {
     }
 
     #[test]
+    fn committing_a_resolved_merge_keeps_the_merged_branch_as_a_parent() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path();
+        git(dir, &["init", "-q", "-b", "main"]);
+        git(dir, &["config", "user.email", "t@t"]);
+        git(dir, &["config", "user.name", "t"]);
+        write(dir, "post.md", "base\n");
+        git(dir, &["add", "."]);
+        git(dir, &["commit", "-qm", "init"]);
+        git(dir, &["checkout", "-qb", "feature"]);
+        write(dir, "post.md", "feature\n");
+        git(dir, &["commit", "-qam", "feature"]);
+        git(dir, &["checkout", "-q", "main"]);
+        write(dir, "post.md", "main\n");
+        git(dir, &["commit", "-qam", "main"]);
+        git(dir, &["merge", "feature"]);
+        write(dir, "post.md", "both\n");
+        git(dir, &["add", "post.md"]);
+
+        let cwd = dir.to_str().unwrap().to_string();
+        crate::git::git_commit(cwd.clone(), "merge feature".into(), files(&["post.md"])).unwrap();
+
+        let parents = git_out(&cwd, &["log", "-1", "--format=%P"]).unwrap();
+        assert_eq!(parents.split_whitespace().count(), 2, "{parents}");
+        assert_eq!(git_out(&cwd, &["branch", "--no-merged"]).unwrap(), "");
+    }
+
+    #[test]
     fn a_pull_blocked_by_local_changes_says_so() {
         let (_tmp, a) = conflicted_clone();
         let cwd = a.to_str().unwrap().to_string();
