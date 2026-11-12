@@ -83,7 +83,7 @@ export function DemoFrame({
       {!shown && (
         <div className="absolute inset-0 flex items-center justify-center bg-[#1a1a1a]">
           {placeholder?.(progress) ?? (
-            <span aria-hidden="true" className="text-[13px] text-[#5c5c5c]">
+            <span aria-hidden="true" className="text-[13px] text-[#919191]">
               Loading demo…
             </span>
           )}

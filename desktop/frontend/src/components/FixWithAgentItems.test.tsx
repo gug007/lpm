@@ -38,7 +38,11 @@ afterEach(() => {
 function render(actions: ActionInfo[]) {
   useAppStore.setState({ projects: [{ name: "web", actions } as ProjectInfo] });
   const onFix = vi.fn();
-  act(() => root.render(<FixWithAgentItems projectName="web" onFix={onFix} />));
+  act(() =>
+    root.render(
+      <FixWithAgentItems projectName="web" onFix={onFix} description="Opens a new tab with the failing checks" />,
+    ),
+  );
   return onFix;
 }
 

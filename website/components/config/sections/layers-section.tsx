@@ -51,7 +51,7 @@ export function LayersSection() {
         ))}
       </ol>
 
-      <Lede title="Sharing a setup with your team." className="mb-3">
+      <Lede title="Sharing a setup with your team">
         Commit a <code className="font-mono">.lpm.yml</code>{" "}at the root of the
         repository. Anyone who adds the folder to lpm gets its services,
         actions, terminals, and profiles — no{" "}
@@ -61,7 +61,7 @@ export function LayersSection() {
       </Lede>
       <CodeBlock filename="~/Projects/shop/.lpm.yml">{REPO_EXAMPLE}</CodeBlock>
 
-      <Lede title="Overriding one field." className="mt-6 mb-3">
+      <Lede title="Overriding one field">
         Entries with the same key merge field by field: whatever the higher
         layer sets wins, and anything it leaves out comes from the layer
         below. To run the shared <code className="font-mono">web</code>{" "}

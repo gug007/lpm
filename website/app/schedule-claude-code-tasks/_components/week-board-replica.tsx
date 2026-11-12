@@ -100,7 +100,7 @@ export function WeekBoardReplica() {
               <Fragment key={row.from}>
                 <div className={HOUR}>
                   {row.from}
-                  <span className="block opacity-80">{row.to}</span>
+                  <span className="block">{row.to}</span>
                 </div>
                 <div
                   className="col-span-3 flex min-h-[20px] items-center justify-center border-l border-t border-[#2e2e2e] text-[10px] text-[#919191] sm:col-span-4 md:col-span-7"
@@ -113,14 +113,12 @@ export function WeekBoardReplica() {
               <Fragment key={row.from}>
                 <div className={HOUR}>
                   {row.from}
-                  <span className="block opacity-80">{row.to}</span>
+                  <span className="block">{row.to}</span>
                 </div>
                 {row.cells.map((block, i) => (
                   <div
                     key={i}
-                    className={`${dayVisibility(i)} min-h-[34px] min-w-0 flex-col gap-[3px] border-l border-t border-[#2e2e2e] p-1 ${cellTint(i)} ${
-                      i < TODAY ? "opacity-80" : ""
-                    }`}
+                    className={`${dayVisibility(i)} min-h-[34px] min-w-0 flex-col gap-[3px] border-l border-t border-[#2e2e2e] p-1 ${cellTint(i)}`}
                   >
                     {block && <WeekBoardBlock block={block} />}
                   </div>

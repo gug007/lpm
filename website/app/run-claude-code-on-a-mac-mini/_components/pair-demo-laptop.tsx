@@ -76,11 +76,11 @@ export function PairDemoLaptop({ step }: { step: PairStep }) {
       <div className={GROUP}>
         <div className="flex items-center gap-2 px-3.5 py-3">
           <span
-            className={`min-w-0 flex-1 truncate rounded-lg border ${BORDER} bg-[#161616] px-3 py-1.5 text-[12px] text-[#6f6f6f]`}
+            className={`min-w-0 flex-1 truncate rounded-lg border ${BORDER} bg-[#161616] px-3 py-1.5 text-[12px] text-[#919191]`}
           >
             Paste invite from the other Mac
           </span>
-          <span className="shrink-0 rounded-lg bg-[#2a2a2a] px-3 py-1.5 text-[13px] font-medium text-[#8a8a8a]">
+          <span className="shrink-0 rounded-lg bg-[#2a2a2a] px-3 py-1.5 text-[13px] font-medium text-[#9a9a9a]">
             Connect
           </span>
         </div>

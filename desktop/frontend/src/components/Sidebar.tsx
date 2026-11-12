@@ -14,6 +14,7 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy, type SortingStrategy } from "@dnd-kit/sortable";
 import { ProjectStatusLight } from "./ProjectStatusLight";
+import { projectNoteLine } from "./projectNoteLine";
 import { RowMenuButton } from "./RowMenuButton";
 import { getSettings, saveSettings, useSettingsStore } from "../store/settings";
 import { useAppStore } from "../store/app";
@@ -107,13 +108,12 @@ import { FollowIndicator } from "./FollowIndicator";
 import { useFollowState } from "../hooks/useFollowState";
 import { followPause, followResume, followStop } from "../followApi";
 import { ProjectNameDisplay, findParentProject, projectDisplayName } from "./ProjectNameDisplay";
-import { SidebarWorkStatusLine } from "./SidebarWorkStatusLine";
 import { WorkStatusMark } from "./WorkStatusMark";
 import { useWorkStatusDialogs } from "./useWorkStatusDialogs";
 import { SidebarUpdateRow } from "./SidebarUpdateRow";
 import { useUpdateInstall } from "./useUpdateInstall";
 import { useWorkStatusesStore } from "../store/workStatuses";
-import { workStatusNote, type WorkStatusInput } from "../workStatus";
+import type { WorkStatusInput } from "../workStatus";
 import { RenameModal } from "./RenameModal";
 import { ProjectRenameModal } from "./ProjectRenameModal";
 import { SelectionContextMenu } from "./SelectionContextMenu";
@@ -1060,7 +1060,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
 
   // A row with a note under its name stands two lines tall wherever it sits,
   // so the elbow a folder draws into it has to know as well as the row does.
-  const hasNoteLine = (project: ProjectInfo) => workStatusNote(project.workStatus) !== null;
+  const hasNoteLine = (project: ProjectInfo) => projectNoteLine(project) !== null;
 
   // A row in its machine's own list: this Mac's, or a paired Mac's section. A
   // synced copy shown in that section is this Mac's project, in neither.
@@ -1103,8 +1103,8 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     const deckCollapsed = hasDeck && collapsedDecks.has(project.name);
     const deckSegments = deckCollapsed ? rollupSegments(deckChildren) : [];
     const work = project.workStatus;
-    const workNote = workStatusNote(work);
-    const twoLine = deckCollapsed || workNote !== null;
+    const noteLine = projectNoteLine(project);
+    const twoLine = deckCollapsed || noteLine !== null;
     // Tints the parent instead: a folded deck is the only trace of a selected
     // duplicate, which has no row of its own on screen.
     const deckHoldsSelected =
@@ -1126,9 +1126,9 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       ) : (
         `${deckChildren.length} ${deckKindLabel(deckChildren)}`
       )
-    ) : work && workNote !== null ? (
-      <SidebarWorkStatusLine status={work}>{workNote}</SidebarWorkStatusLine>
-    ) : null;
+    ) : (
+      noteLine
+    );
 
     const identity = (
       <>

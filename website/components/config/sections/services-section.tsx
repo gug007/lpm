@@ -42,7 +42,7 @@ export function ServicesSection() {
       />
       <FieldTable fields={serviceFields} />
 
-      <Lede title="Services that depend on each other.">
+      <Lede title="Services that depend on each other">
         When one service builds on another — a web app that talks to an API,
         an API that reads from the database — list the ones it needs in{" "}
         <code className="font-mono">dependsOn</code>. Start{" "}

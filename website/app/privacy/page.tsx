@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ConsentSettingsButton } from "@/components/consent-settings-button";
 import { MOBILE_PATH, PRIVACY_PATH, REPO_URL } from "@/lib/links";
 
 const DESCRIPTION =
@@ -32,7 +33,7 @@ export default function PrivacyPage() {
         Privacy Policy
       </h1>
       <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-        Last updated: October 17, 2026
+        Last updated: November 12, 2026
       </p>
 
       <section className="mt-10 space-y-4 text-sm leading-relaxed text-gray-700 dark:text-gray-300">
@@ -207,7 +208,10 @@ export default function PrivacyPage() {
       </section>
 
       <section className="mt-8 space-y-4 text-sm leading-relaxed text-gray-700 dark:text-gray-300">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+        <h2
+          id="website-analytics"
+          className="scroll-mt-24 text-lg font-semibold text-gray-900 dark:text-gray-100"
+        >
           Website analytics
         </h2>
         <p>
@@ -225,8 +229,16 @@ export default function PrivacyPage() {
           </li>
         </ul>
         <p>
-          These services may set cookies in your browser. You can opt out by
-          using browser settings, an ad blocker, or the{" "}
+          These services may set cookies in your browser. Visitors from the
+          European Economic Area, the United Kingdom and Switzerland are asked
+          first. Until they allow it, Google&rsquo;s tags store no cookies and
+          only tell Google, without cookies, that a page was visited. lpm.cx
+          keeps the answer in your browser, with a cookie that records whether
+          to ask. <ConsentSettingsButton />.
+        </p>
+        <p>
+          You can also opt out by using browser settings, an ad blocker, or
+          the{" "}
           <a
             href="https://tools.google.com/dlpage/gaoptout"
             className="underline hover:text-gray-900 dark:hover:text-gray-100"

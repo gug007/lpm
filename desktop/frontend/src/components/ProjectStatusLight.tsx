@@ -1,4 +1,4 @@
-import { crashSummary, projectUp } from "../serviceExit";
+import { crashSummary, pendingSummary, projectUp } from "../serviceExit";
 import type { ProjectInfo } from "../types";
 import { StateGlyph } from "./StateGlyph";
 import { StatusDot, dotKind } from "./StatusDot";
@@ -8,5 +8,12 @@ export function ProjectStatusLight({ project }: { project: ProjectInfo }) {
   if (project.configError) {
     return <StateGlyph state="error" title={`Config error: ${project.configError}`} />;
   }
-  return <StatusDot running={projectUp(project)} crashed={crashSummary(project)} kind={dotKind(project)} />;
+  return (
+    <StatusDot
+      running={projectUp(project)}
+      crashed={crashSummary(project)}
+      pending={pendingSummary(project)}
+      kind={dotKind(project)}
+    />
+  );
 }

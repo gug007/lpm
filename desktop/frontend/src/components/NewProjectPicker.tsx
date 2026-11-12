@@ -42,7 +42,7 @@ export function NewProjectPicker() {
   const target = useAppStore((s) => s.addProjectTarget);
   const start = useAppStore((s) => s.addProjectStart);
 
-  const { root, linuxHostStack, computerStack, phoneStack } = useMemo(() => {
+  const { root, linuxHostStack, serverStack, computerStack, phoneStack } = useMemo(() => {
     const installScreen: DrillScreen = { title: "Linux host", width: WIDE_SCREEN, render: () => <InstallLpmScreen /> };
     const computerScreen: DrillScreen = {
       title: "Another computer",
@@ -172,6 +172,7 @@ export function NewProjectPicker() {
     return {
       root,
       linuxHostStack: [serverScreen, installScreen],
+      serverStack: [serverScreen],
       computerStack: [computerScreen],
       phoneStack: [phoneScreen],
     };
@@ -180,7 +181,7 @@ export function NewProjectPicker() {
   const startStack =
     target || !start
       ? undefined
-      : { "linux-host": linuxHostStack, computer: computerStack, phone: phoneStack }[start];
+      : { "linux-host": linuxHostStack, server: serverStack, computer: computerStack, phone: phoneStack }[start];
 
   // Keyed by target so pairing a server from the Linux host screen lands on
   // that server's own root, not the screen the pairing started from.

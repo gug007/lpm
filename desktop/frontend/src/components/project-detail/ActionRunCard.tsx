@@ -4,13 +4,15 @@ import { AnsiLine } from "../AnsiLine";
 import { failureText } from "../backgroundRunToastText";
 import { useSecondsClock } from "../../hooks/useSecondsClock";
 import type { ActionRunCapture } from "../../hooks/actionRunCapture";
+import { FixWithAgentButton } from "../FixWithAgentButton";
+import { actionFailurePrompt } from "./actionFailurePrompt";
 import {
   RUN_CARD_AUTO_CLOSE_MS,
   RUN_CARD_WIDTH,
-  RUN_STOPPED_ERROR,
   findRunAnchor,
   placeRunCard,
   runDuration,
+  runState,
   type RunCardPlacement,
 } from "./runCardPlacement";
 
@@ -29,6 +31,8 @@ interface ActionRunCardProps {
   onStop?: () => void;
   // More output on screen at a size easier to read, for a wide card.
   large?: boolean;
+  // Where a failed run can be handed to an agent, and the command it ran.
+  fix?: { projectName: string; cmd?: string };
 }
 
 const SMALL_BUTTON =
@@ -37,7 +41,18 @@ const SMALL_BUTTON =
 // A quick action's output, next to its button and out of the way of the rest
 // of the app. A pass closes itself unless the pointer is on it; a failure
 // stays until it's closed.
-export function ActionRunCard({ label, runKey = "", place: placeAt, run, startedAt, onClose, onRunAgain, onStop, large = false }: ActionRunCardProps) {
+export function ActionRunCard({
+  label,
+  runKey = "",
+  place: placeAt,
+  run,
+  startedAt,
+  onClose,
+  onRunAgain,
+  onStop,
+  large = false,
+  fix,
+}: ActionRunCardProps) {
   const { lines, done, dropped, endedAt } = useSyncExternalStore(run.subscribe, run.snapshot);
   const now = useSecondsClock(done !== null);
   const [place, setPlace] = useState<RunCardPlacement | null>(null);
@@ -104,8 +119,7 @@ export function ActionRunCard({ label, runKey = "", place: placeAt, run, started
     void navigator.clipboard.writeText(lines.join("\n")).then(() => setCopied(true));
   };
 
-  const state =
-    done === null ? "running" : done.success ? "passed" : done.error === RUN_STOPPED_ERROR ? "stopped" : "failed";
+  const state = runState(done);
   const took = runDuration((done ? (endedAt ?? now) : now) - startedAt);
   const status = {
     running: `Running · ${took}`,
@@ -168,6 +182,15 @@ export function ActionRunCard({ label, runKey = "", place: placeAt, run, started
         )}
       </div>
       <div className="flex items-center gap-1.5 px-3 pb-2.5 pt-2">
+        {fix && state === "failed" && (
+          <FixWithAgentButton
+            projectName={fix.projectName}
+            prompt={() => actionFailurePrompt({ label, cmd: fix.cmd, error: done?.error, lines })}
+            description="Opens a new tab with this run's output"
+            align="start"
+            className={SMALL_BUTTON}
+          />
+        )}
         {onStop && state === "running" ? (
           <button type="button" onClick={onStop} className={SMALL_BUTTON}>
             <Square size={11} />

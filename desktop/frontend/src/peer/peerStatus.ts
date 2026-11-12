@@ -100,25 +100,44 @@ function connectedStatus(peer: PeerClient): PeerStatus {
   return { tone: "live", text: link?.rttMs ? `${base} · ${rttText(link.rttMs)}` : base, detail: "" };
 }
 
+// What brings a paired machine that isn't answering back: turning it on here,
+// pairing again once it stopped accepting this one, or a reconnect.
+export type PeerFix = "turnOn" | "pairAgain" | "reconnect";
+
+const REVOKED = /unauthorized|auth failed|401/i;
+
+export function peerFix(status: PeerStatus | null): PeerFix {
+  if (status?.tone === "off") return "turnOn";
+  if (status?.tone === "error" && REVOKED.test(status.detail)) return "pairAgain";
+  return "reconnect";
+}
+
+// Whether a retry is worth offering: once a dial has actually failed (while
+// it's still "Connecting…" a retry would interrupt the attempt in flight), and
+// only when a reconnect is what brings it back.
+export function canReconnect(status: PeerStatus): boolean {
+  return peerFix(status) === "reconnect" && (status.tone === "error" || !!status.reconnect);
+}
+
 // What to say about a paired machine that isn't answering, wherever its things
-// are missing from. Turned off here, or no longer accepting this one, no retry
-// fixes, so the copy says what will and offers no Reconnect.
-export function peerDownCopy(
-  alias: string,
-  status: PeerStatus | null,
-  server: boolean,
-): { title: string; detail: string; reconnect: boolean } {
-  const where = `+ above your projects → ${server ? "Server" : "Another computer"}`;
-  if (status?.tone === "off") {
-    return { title: `${alias} is turned off on ${MACHINE.thisMachine}`, detail: `Turn it on from ${where}.`, reconnect: false };
+// are missing from, and the one thing that brings it back. Turned off here, or
+// no longer accepting this one, no retry fixes, so the copy says what will.
+export function peerDownCopy(alias: string, status: PeerStatus | null): { title: string; detail: string; fix: PeerFix } {
+  const fix = peerFix(status);
+  if (fix === "turnOn") {
+    return {
+      title: `${alias} is turned off on ${MACHINE.thisMachine}`,
+      detail: "Turn it on to bring its projects back.",
+      fix,
+    };
   }
-  if (status?.tone === "error" && /unauthorized|auth failed|401/i.test(status.detail)) {
+  if (fix === "pairAgain") {
     return {
       title: `${alias} no longer accepts ${MACHINE.thisMachine}`,
-      detail: `Its access was removed there. Pair again from ${where}.`,
-      reconnect: false,
+      detail: "Its access was removed there. Pair again to bring its projects back.",
+      fix,
     };
   }
   const detail = status?.tone === "error" ? `${status.text}. Trying again…` : "Reconnecting…";
-  return { title: `${alias} disconnected`, detail, reconnect: true };
+  return { title: `${alias} disconnected`, detail, fix };
 }

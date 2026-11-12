@@ -1,10 +1,9 @@
 import Link from "next/link";
-
-const LINK = "block -ml-px border-l py-1 pl-3 text-[13px] transition-colors";
-const ACTIVE =
-  "border-gray-900 font-medium text-gray-900 dark:border-white dark:text-white";
-const INACTIVE =
-  "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-900 dark:text-gray-400 dark:hover:border-gray-600 dark:hover:text-white";
+import {
+  DOCS_LINK,
+  DOCS_LINK_ACTIVE,
+  DOCS_LINK_INACTIVE,
+} from "./docs-nav-styles";
 
 export function DocsNavItem({
   href,
@@ -20,7 +19,7 @@ export function DocsNavItem({
       <Link
         href={href}
         aria-current={current ? "page" : undefined}
-        className={`${LINK} ${current ? ACTIVE : INACTIVE}`}
+        className={`${DOCS_LINK} pl-3 ${current ? DOCS_LINK_ACTIVE : DOCS_LINK_INACTIVE}`}
       >
         {children}
       </Link>

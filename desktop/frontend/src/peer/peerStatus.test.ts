@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { humanizeError, peerStatus, rttText } from "./peerStatus";
+import { humanizeError, peerDownCopy, peerStatus, rttText } from "./peerStatus";
 import type { PeerClient } from "./usePeerState";
 
 const peer = (over: Partial<PeerClient> = {}): PeerClient => ({
@@ -61,5 +61,26 @@ describe("peerStatus", () => {
   it("blames the tunnel only while the tunnel is what's wrong", () => {
     expect(peerStatus(peer({ sshHost: "srv", tunnel: "connecting" })).text).toMatch(/over SSH/);
     expect(peerStatus(peer({ sshHost: "srv", tunnel: "up" })).text).toBe("Connecting…");
+  });
+});
+
+describe("peerDownCopy", () => {
+  it("offers turning it on for a machine turned off here", () => {
+    const copy = peerDownCopy("Studio", peerStatus(peer({ enabled: false })));
+    expect(copy.fix).toBe("turnOn");
+    expect(copy.title).toMatch(/^Studio is turned off on /);
+  });
+
+  it("offers pairing again once the machine no longer accepts this one", () => {
+    const copy = peerDownCopy("Studio", peerStatus(peer({ lastError: "401 Unauthorized" })));
+    expect(copy.fix).toBe("pairAgain");
+    expect(copy.detail).toMatch(/Pair again/);
+  });
+
+  it("offers a reconnect for anything a retry can fix", () => {
+    expect(peerDownCopy("Studio", peerStatus(peer({ lastError: "Operation timed out (os error 60)" }))).fix).toBe(
+      "reconnect",
+    );
+    expect(peerDownCopy("Studio", null)).toEqual({ title: "Studio disconnected", detail: "Reconnecting…", fix: "reconnect" });
   });
 });

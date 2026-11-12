@@ -18,6 +18,7 @@ pub enum NotificationEvent {
     SendLater,
     KeepAwake,
     Ci,
+    ServiceCrash,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -53,6 +54,7 @@ const NOTIFICATION_EVENTS: &[(NotificationEvent, &[(NotificationChannel, bool)])
     (NotificationEvent::SendLater, &[(InApp, true), (Banner, true)]),
     (NotificationEvent::KeepAwake, &[(InApp, true), (Banner, true)]),
     (NotificationEvent::Ci, &[(InApp, true), (Banner, true)]),
+    (NotificationEvent::ServiceCrash, &[(InApp, true), (Banner, true)]),
 ];
 
 impl NotificationEvent {
@@ -67,7 +69,16 @@ impl NotificationEvent {
             Self::SendLater => "sendLater",
             Self::KeepAwake => "keepAwake",
             Self::Ci => "ci",
+            Self::ServiceCrash => "serviceCrash",
         }
+    }
+
+    /// The event the frontend names, for a banner it asks for.
+    pub fn of_id(id: &str) -> Option<Self> {
+        NOTIFICATION_EVENTS
+            .iter()
+            .map(|(event, _)| *event)
+            .find(|event| event.id() == id)
     }
 
     /// The event an agent's status transition is, for the statuses worth
@@ -143,11 +154,6 @@ pub fn enabled_in(
 /// Whether `value` is something `notificationChannels` may hold: known events,
 /// each mapping known channels to true or false.
 pub fn is_valid_choices(value: &Value) -> bool {
-    let known_event = |id: &str| {
-        NOTIFICATION_EVENTS
-            .iter()
-            .any(|(event, _)| event.id() == id)
-    };
     let known_channel = |id: &str| {
         NotificationChannel::ALL
             .iter()
@@ -155,7 +161,7 @@ pub fn is_valid_choices(value: &Value) -> bool {
     };
     value.as_object().is_some_and(|events| {
         events.iter().all(|(event, channels)| {
-            known_event(event)
+            NotificationEvent::of_id(event).is_some()
                 && channels.as_object().is_some_and(|channels| {
                     channels
                         .iter()
@@ -171,7 +177,7 @@ mod tests {
     use serde_json::json;
     use NotificationEvent::*;
 
-    const EVENTS: [NotificationEvent; 9] = [
+    const EVENTS: [NotificationEvent; 10] = [
         AgentWaiting,
         AgentDone,
         AgentError,
@@ -181,6 +187,7 @@ mod tests {
         SendLater,
         KeepAwake,
         Ci,
+        ServiceCrash,
     ];
 
     #[test]
@@ -193,6 +200,14 @@ mod tests {
             assert_eq!(rows, 1, "{event:?}");
         }
         assert_eq!(NOTIFICATION_EVENTS.len(), EVENTS.len());
+    }
+
+    #[test]
+    fn every_event_is_found_by_its_id() {
+        for event in EVENTS {
+            assert_eq!(NotificationEvent::of_id(event.id()), Some(event));
+        }
+        assert_eq!(NotificationEvent::of_id("deploys"), None);
     }
 
     #[test]

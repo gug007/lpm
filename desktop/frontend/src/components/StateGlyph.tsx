@@ -1,7 +1,8 @@
-export type GlyphState = "running" | "stopped" | "crashed" | "error";
+export type GlyphState = "running" | "starting" | "stopped" | "crashed" | "error";
 
 const GLYPH_LABEL: Record<GlyphState, string> = {
   running: "Running",
+  starting: "Starting",
   stopped: "Stopped",
   crashed: "Crashed",
   error: "Config error",
@@ -11,8 +12,8 @@ const SIZE = { sm: "h-1.5 w-1.5", md: "h-2 w-2" } as const;
 
 /** A status light whose shape says the state as well as its color, so it
  *  still reads in grayscale or to someone who can't tell red from green: a
- *  filled dot runs, a ring is stopped, a cross crashed, and a bar over a dot
- *  is a config the app couldn't read. */
+ *  filled dot runs, a ring around a dot is still starting, a ring is stopped,
+ *  a cross crashed, and a bar over a dot is a config the app couldn't read. */
 export function StateGlyph({
   state,
   size = "md",
@@ -33,6 +34,19 @@ export function StateGlyph({
         ? "bg-[var(--accent-green)]"
         : "border border-[var(--text-muted)] bg-[var(--bg-primary)]";
     return <span role="img" aria-label={label} title={label} className={`${box} rounded-full ${fill}`} />;
+  }
+
+  if (state === "starting") {
+    return (
+      <span
+        role="img"
+        aria-label={label}
+        title={label}
+        className={`${box} flex items-center justify-center rounded-full border border-[var(--accent-amber)]`}
+      >
+        <span className="h-[3px] w-[3px] rounded-full bg-[var(--accent-amber)]" />
+      </span>
+    );
   }
 
   return (

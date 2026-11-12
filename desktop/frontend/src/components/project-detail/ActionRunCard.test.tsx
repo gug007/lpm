@@ -6,6 +6,8 @@ import type { ActionRunCapture, ActionRunSnapshot } from "../../hooks/actionRunC
 import { ActionRunCard } from "./ActionRunCard";
 import { RUN_CARD_AUTO_CLOSE_MS, RUN_STOPPED_ERROR } from "./runCardPlacement";
 
+vi.mock("../../../bridge/runtime", () => ({ EventsOn: () => () => {} }));
+
 function fakeRun() {
   let snap: ActionRunSnapshot = { lines: [], done: null };
   const watchers = new Set<() => void>();

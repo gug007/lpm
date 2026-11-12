@@ -6,8 +6,6 @@ import { LaunchpadMark } from "./LaunchpadMark";
 import { ContextMenuItem } from "./ui/ContextMenuItem";
 import { ContextMenuSubmenu } from "./ui/ContextMenuSubmenu";
 
-const DESCRIPTION = "Opens a new tab with the failing checks";
-
 /** A checks menu's "Fix with …" rows: every agent the project's empty
  *  launchpad offers, less the actions that start on a task of their own. A
  *  header split button or menu is one row whose submenu holds its items; a
@@ -15,9 +13,12 @@ const DESCRIPTION = "Opens a new tab with the failing checks";
 export function FixWithAgentItems({
   projectName,
   onFix,
+  description,
 }: {
   projectName: string;
   onFix: (option: LaunchpadOption) => void;
+  /** What a picked agent is handed, under the row or as its tooltip. */
+  description: string;
 }) {
   const actions = useAppStore((s) => s.projects.find((p) => p.name === projectName)?.actions);
   const tabs = useMemo(() => launchpadTabs(actions ?? [], projectName, { skipOwnTasks: true }), [actions, projectName]);
@@ -34,8 +35,8 @@ export function FixWithAgentItems({
               key={tab.key}
               icon={mark(option.agent, option.emoji)}
               label={`Fix with ${option.label}`}
-              description={only ? DESCRIPTION : undefined}
-              title={only ? undefined : DESCRIPTION}
+              description={only ? description : undefined}
+              title={only ? undefined : description}
               onClick={() => onFix(option)}
             />
           );

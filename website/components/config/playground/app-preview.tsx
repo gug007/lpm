@@ -65,7 +65,7 @@ export function AppPreview({ yaml, error, active }: Props) {
       {!shown && (
         <div
           aria-hidden="true"
-          className="absolute inset-0 flex items-center justify-center bg-[#1a1a1a] text-[13px] text-[#5c5c5c]"
+          className="absolute inset-0 flex items-center justify-center bg-[#1a1a1a] text-[13px] text-[#919191]"
         >
           Loading lpm…
         </div>

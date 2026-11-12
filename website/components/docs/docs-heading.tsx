@@ -18,7 +18,7 @@ export function DocsHeading({
       }`}
     >
       <a href={`#${id}`} className="group inline-flex items-center gap-2">
-        {children}
+        <span data-heading-label>{children}</span>
         <span
           aria-hidden
           className="text-sm text-gray-300 opacity-0 transition-opacity group-hover:opacity-100 dark:text-gray-700"

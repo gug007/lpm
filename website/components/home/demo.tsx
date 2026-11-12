@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useInView } from "@/components/config/playground/hooks";
 import {
@@ -9,16 +8,14 @@ import {
   type TourHandle,
   type TourState,
 } from "@/components/home/tour";
-import { DownloadLink } from "@/components/download-link";
 import { DemoCaption } from "@/components/home/demo-caption";
 import { DemoFrame } from "@/components/home/demo-frame";
 import { DemoLoadStatus } from "@/components/home/demo-load-status";
-import { lessonPoster } from "@/components/home/lesson-data";
 import { DemoSkeleton } from "@/components/home/demo-skeleton";
 import { DemoSteps } from "@/components/home/demo-steps";
+import { DesktopOnlyPrompt } from "@/components/home/desktop-only-prompt";
 import { WINDOW_FRAME } from "@/components/home/demo-window";
 import { YouTubeVideo } from "@/components/youtube-video";
-import { MOBILE_PATH } from "@/lib/links";
 import type { YouTubeLessonId } from "@/lib/youtube-lessons";
 
 // Set by .demo-stage in globals.css: capped where a 1040px stage keeps the
@@ -155,39 +152,6 @@ const LESSON_CAPTION: Record<
   },
 };
 
-function DesktopOnlyPrompt({
-  lesson,
-  posterPriority,
-}: {
-  lesson: YouTubeLessonId;
-  posterPriority: boolean;
-}) {
-  return (
-    <div data-on-dark className={WINDOW_FRAME}>
-      <YouTubeVideo
-        lesson={lesson}
-        poster={lessonPoster(lesson)}
-        fetchPriority={posterPriority ? "high" : undefined}
-      />
-      <div className="flex flex-col items-center gap-3 border-t border-[#2e2e2e] px-5 py-5 text-center">
-        <p className="max-w-xs text-[13px] leading-relaxed text-[#919191]">
-          lpm is a desktop app with a multi-pane terminal workspace. Open this
-          page on your computer to try the interactive demo.
-        </p>
-        <DownloadLink className="rounded-lg bg-[#e5e5e5] px-4 py-2 text-[13px] font-medium text-[#1a1a1a] transition-all duration-100 hover:opacity-85 active:scale-[0.97]">
-          Get lpm
-        </DownloadLink>
-        <Link
-          href={MOBILE_PATH}
-          className="text-[12px] text-[#919191] underline decoration-[#4a4a4a] underline-offset-4 transition-colors hover:text-white hover:decoration-current"
-        >
-          Or check your computers from your iPhone
-        </Link>
-      </div>
-    </div>
-  );
-}
-
 // The frame sits in the first viewport, so the observer fires on load. Waiting
 // for an idle slot keeps the demo app's load off the critical path — the drawn
 // placeholder is what the visitor sees while the page settles.
@@ -250,7 +214,11 @@ function DemoStage({
     <div ref={ref} className="demo-stage mx-auto max-w-[1040px]">
       {isDesktop !== true && (
         <div className={isDesktop === null ? "md:hidden" : undefined}>
-          <DesktopOnlyPrompt lesson={lesson} posterPriority={posterPriority} />
+          <DesktopOnlyPrompt
+            lesson={lesson}
+            message="lpm is a desktop app with a multi-pane terminal workspace. Open this page on your computer to try the interactive demo."
+            posterPriority={posterPriority}
+          />
         </div>
       )}
       {isDesktop !== false && (

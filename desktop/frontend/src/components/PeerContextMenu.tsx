@@ -1,3 +1,4 @@
+import { Link, Power } from "lucide-react";
 import {
   DownloadIcon,
   PencilIcon,
@@ -19,6 +20,12 @@ interface PeerContextMenuProps {
   canReconnect: boolean;
   /// Set while the machine is behind and can be updated from here.
   updateLabel?: string;
+  /// Set while it is turned off here, or no longer accepts this machine: what
+  /// brings it back.
+  onTurnOn?: () => void;
+  onPairAgain?: () => void;
+  /// Where its connection is set up here, offered while it isn't connected.
+  onConnectionSettings: () => void;
   onAddProject: () => void;
   onPairPhone: () => void;
   onSettings: () => void;
@@ -36,6 +43,9 @@ export function PeerContextMenu({
   connected,
   canReconnect,
   updateLabel,
+  onTurnOn,
+  onPairAgain,
+  onConnectionSettings,
   onAddProject,
   onPairPhone,
   onSettings,
@@ -51,6 +61,8 @@ export function PeerContextMenu({
   };
   return (
     <ContextMenuShell x={x} y={y} minWidth={180} onClose={onClose}>
+      {onTurnOn && <ContextMenuItem label={`Turn on ${alias}`} icon={<Power size={13} />} onClick={close(onTurnOn)} />}
+      {onPairAgain && <ContextMenuItem label="Pair again…" icon={<Link size={13} />} onClick={close(onPairAgain)} />}
       {connected && (
         <ContextMenuItem
           label={`Add project on ${alias}`}
@@ -77,6 +89,13 @@ export function PeerContextMenu({
       )}
       {canReconnect && (
         <ContextMenuItem label="Reconnect" icon={<RefreshIcon />} onClick={close(onReconnect)} />
+      )}
+      {!connected && (
+        <ContextMenuItem
+          label="Connection settings…"
+          icon={<SettingsIcon />}
+          onClick={close(onConnectionSettings)}
+        />
       )}
       <ContextMenuItem label="Rename" icon={<PencilIcon />} onClick={close(onRename)} />
       <ContextMenuSeparator />

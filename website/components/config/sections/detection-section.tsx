@@ -21,7 +21,7 @@ export function DetectionSection() {
         </>
       }
     >
-      <Lede title="Where it looks." className="mb-3">
+      <Lede title="Where it looks">
         The project root first, then every workspace member declared in{" "}
         <code className="font-mono">package.json</code>{" "}or{" "}
         <code className="font-mono">pnpm-workspace.yaml</code>, then these
@@ -38,7 +38,7 @@ export function DetectionSection() {
         <code className="font-mono">services/</code>.
       </Lede>
 
-      <Lede title="What it recognizes." className="mt-6 mb-3">
+      <Lede title="What it recognizes">
         Node commands use the package manager your repo declares or locks.
         Python commands run through the folder&rsquo;s{" "}
         <code className="font-mono">.venv</code>{" "}(or{" "}
@@ -47,7 +47,7 @@ export function DetectionSection() {
       </Lede>
       <DetectionTable />
 
-      <Lede title="Names and ports.">
+      <Lede title="Names and ports">
         At the root, a service is named for its role —{" "}
         <code className="font-mono">web</code>,{" "}
         <code className="font-mono">api</code>,{" "}
@@ -66,7 +66,7 @@ export function DetectionSection() {
       </Lede>
       <CodeBlock filename="~/.lpm/projects/shop.yml">{DETECTED_EXAMPLE}</CodeBlock>
 
-      <Lede title="Limits." className="mt-6 mb-3">
+      <Lede title="Limits">
         Detection stops at 20 services. In a monorepo, the root&rsquo;s own
         script (say, <code className="font-mono">turbo dev</code>) is left out
         once the workspace members turn up services of their own, so nothing

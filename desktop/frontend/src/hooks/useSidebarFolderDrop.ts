@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type RefObject } from "react";
 import { toast } from "../notifications/toast";
 import { FileExists } from "../../bridge/commands";
 import { registerFileDropHandler } from "../fileDrop";
+import { watchFileDrag } from "../fileDragWatch";
 import { composerDragActive } from "./useComposerDragMove";
 import { useAppStore } from "../store/app";
 import type { AdoptedProject } from "../store/adoptProject";
@@ -45,48 +46,32 @@ export function useSidebarFolderDrop(
   optionsRef.current = options;
 
   useEffect(() => {
-    let dragActive = false;
     let lastKey: string | null = null;
     const folderName = (id: string | null) =>
       id ? optionsRef.current.groups.find((g) => g.id === id)?.name : undefined;
-    const clear = () => {
-      dragActive = false;
-      lastKey = null;
-      setHover(null);
-    };
-    const onEnter = () => {
-      dragActive = true;
-    };
-    const onOver = (e: Event) => {
-      if (!dragActive || composerDragActive()) return;
-      const [x, y] = (e as CustomEvent<[number, number]>).detail ?? [];
-      if (typeof x !== "number" || typeof y !== "number") return;
-      const target = dropTargetAt(listRef.current, x, y);
-      const name = folderName(target?.folderId ?? null);
-      const key = target ? (name ? `folder:${target.folderId}` : "list") : null;
-      if (key === lastKey) return;
-      lastKey = key;
-      const list = listRef.current;
-      setHover(
-        target && list
-          ? {
-              list: list.getBoundingClientRect(),
-              folder:
-                name && target.folder ? { name, rect: target.folder.getBoundingClientRect() } : null,
-            }
-          : null,
-      );
-    };
-    window.addEventListener("app:handleDragEnter", onEnter);
-    window.addEventListener("app:handleDragOver", onOver);
-    window.addEventListener("app:handleDragLeave", clear);
-    window.addEventListener("app:filesDropped", clear);
-    return () => {
-      window.removeEventListener("app:handleDragEnter", onEnter);
-      window.removeEventListener("app:handleDragOver", onOver);
-      window.removeEventListener("app:handleDragLeave", clear);
-      window.removeEventListener("app:filesDropped", clear);
-    };
+    return watchFileDrag(
+      (x, y) => {
+        const target = dropTargetAt(listRef.current, x, y);
+        const name = folderName(target?.folderId ?? null);
+        const key = target ? (name ? `folder:${target.folderId}` : "list") : null;
+        if (key === lastKey) return;
+        lastKey = key;
+        const list = listRef.current;
+        setHover(
+          target && list
+            ? {
+                list: list.getBoundingClientRect(),
+                folder:
+                  name && target.folder ? { name, rect: target.folder.getBoundingClientRect() } : null,
+              }
+            : null,
+        );
+      },
+      () => {
+        lastKey = null;
+        setHover(null);
+      },
+    );
   }, [listRef]);
 
   useEffect(
@@ -95,7 +80,9 @@ export function useSidebarFolderDrop(
         if (paths.length === 0 || composerDragActive()) return false;
         const target = dropTargetAt(listRef.current, x, y);
         if (!target) return false;
-        void addFolders(paths, target.folderId, optionsRef.current);
+        const { groups, onMoveProjectsToGroup, onOpen } = optionsRef.current;
+        const folder = target.folderId ? groups.find((g) => g.id === target.folderId) : undefined;
+        void addDroppedFolders(paths, onOpen, folder && { folder, move: onMoveProjectsToGroup });
         return true;
       }),
     [listRef],
@@ -104,11 +91,13 @@ export function useSidebarFolderDrop(
   return hover;
 }
 
-async function addFolders(
+// Adds the dropped folders as projects, filed `into` a sidebar folder when
+// given, and says what was added. Resolves with the projects it added.
+export async function addDroppedFolders(
   paths: string[],
-  folderId: string | null,
-  { groups, onMoveProjectsToGroup, onOpen }: SidebarFolderDropOptions,
-) {
+  onOpen: (name: string) => void,
+  into?: { folder: ProjectGroup; move: SidebarFolderDropOptions["onMoveProjectsToGroup"] },
+): Promise<AdoptedProject[]> {
   const isFile = await Promise.all(paths.map((p) => FileExists(p).catch(() => false)));
   const dirs = paths.filter((_, i) => !isFile[i]);
   if (dirs.length < paths.length) toast.error(NOT_A_FOLDER);
@@ -117,20 +106,20 @@ async function addFolders(
     const adopted = await useAppStore.getState().addLocalFolder(dir);
     if (adopted) added.push(adopted);
   }
-  if (added.length === 0) return;
-  const folder = folderId ? groups.find((g) => g.id === folderId) : undefined;
-  if (folder) await onMoveProjectsToGroup(added.map((a) => a.name), folder.id);
+  if (added.length === 0) return added;
+  if (into) await into.move(added.map((a) => a.name), into.folder.id);
   const fresh = added.filter((a) => !a.existing);
   const projects = useAppStore.getState().projects;
   const text = addedToast(
     fresh.map((a) => displayNameForProjectName(a.name, projects)),
-    folder?.name,
+    into?.folder.name,
   );
-  if (!text) return;
+  if (!text) return added;
   toast.success(
     text,
     fresh.length === 1
       ? { action: { label: "Open", onClick: () => onOpen(fresh[0].name) } }
       : undefined,
   );
+  return added;
 }

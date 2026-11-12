@@ -2,7 +2,6 @@ import { computeProjectStatus, rowNameClass } from "../agentStatus";
 import type { SidebarAgentRow } from "../sidebarAgents";
 import type { ProjectInfo } from "../types";
 import type { ProjectWindow } from "../windowFocus";
-import { workStatusNote } from "../workStatus";
 import { ProjectNameDisplay, projectDisplayName } from "./ProjectNameDisplay";
 import { ProjectStatusLight } from "./ProjectStatusLight";
 import { RowMenuButton } from "./RowMenuButton";
@@ -10,7 +9,7 @@ import { SidebarAgentChevron } from "./SidebarAgentChevron";
 import { SidebarAgentSummary } from "./SidebarAgentSummary";
 import { SidebarSendLaterMark } from "./SidebarSendLaterMark";
 import { SidebarWindowMark } from "./SidebarWindowMark";
-import { SidebarWorkStatusLine } from "./SidebarWorkStatusLine";
+import { projectNoteLine } from "./projectNoteLine";
 import { WorkStatusMark } from "./WorkStatusMark";
 import { DONE_STYLE, ROW_BASE_CLASS, ROW_TWO_LINE_CLASS, rowTrailing } from "./sidebarRowClass";
 
@@ -54,9 +53,7 @@ export function SidebarPinnedRow({
   const displayName = projectDisplayName(project, parent);
   const name = <ProjectNameDisplay project={project} parent={parent} />;
   const work = project.workStatus;
-  const workNote = workStatusNote(work);
-  const noteLine =
-    work && workNote !== null ? <SidebarWorkStatusLine status={work}>{workNote}</SidebarWorkStatusLine> : null;
+  const noteLine = projectNoteLine(project);
   const twoLine = noteLine !== null;
   const controlTop = twoLine ? "top-[14px]" : "top-1/2";
   const trailing = rowTrailing(canExpand, false);

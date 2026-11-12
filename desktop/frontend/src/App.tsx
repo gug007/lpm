@@ -15,6 +15,7 @@ import { CommitInstructionsEditor } from "./components/CommitInstructionsEditor"
 import { PRInstructionsEditor } from "./components/PRInstructionsEditor";
 import { BranchNameInstructionsEditor } from "./components/BranchNameInstructionsEditor";
 import { EmptyState, EmptyStateNoProjects } from "./components/EmptyState";
+import { ProjectsLoadFailed } from "./components/ProjectsLoadFailed";
 import { FeedbackModal } from "./components/FeedbackModal";
 import { WeeklyRecapModal } from "./components/recap/WeeklyRecapModal";
 import { useWeeklyRecapToast } from "./components/recap/useWeeklyRecapToast";
@@ -64,6 +65,7 @@ import { usePeerFileSaveNotices } from "./peer/usePeerFileSaveNotices";
 import { usePeerRemovedNotices } from "./peer/usePeerRemovedNotices";
 import { useAgentFilesServedNotices } from "./peer/useAgentFilesServedNotices";
 import { useCiResultToasts } from "./hooks/useCiResultToasts";
+import { useServiceCrashAlerts } from "./hooks/useServiceCrashAlerts";
 import { useKeepAwakeHeadsUp } from "./hooks/useKeepAwakeHeadsUp";
 import { usePeerState } from "./peer/usePeerState";
 import { useSettingsMachine } from "./components/settings/useSettingsMachine";
@@ -86,6 +88,7 @@ import { MACHINE } from "./machineWords";
 
 export default function App() {
   const projects = useAppStore((s) => s.projects);
+  const projectsLoad = useAppStore((s) => s.projectsLoad);
   const dockInset = useFileViewerStore((s) => s.dockInset);
   const groups = useAppStore((s) => s.groups);
   const sidebarOrder = useAppStore((s) => s.sidebarOrder);
@@ -180,6 +183,7 @@ export default function App() {
   useAgentFilesServedNotices();
   useKeepAwakeHeadsUp();
   useCiResultToasts();
+  useServiceCrashAlerts();
   useIgnoredSyncConflicts();
   useSshStatusWarnings();
   useUpdateNote();
@@ -413,7 +417,7 @@ export default function App() {
             />
           )}
           {view === "projects" && !selectedProject && !selectedPeerGone && projects.length === 0 && (
-            <EmptyStateNoProjects />
+            projectsLoad === "loaded" ? <EmptyStateNoProjects /> : projectsLoad === "failed" ? <ProjectsLoadFailed /> : null
           )}
           {view === "projects" && !selectedProject && !selectedPeerGone && projects.length > 0 && (
             <EmptyState />

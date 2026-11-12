@@ -44,6 +44,12 @@ export const NOTIFICATION_EVENTS: NotificationEventSpec[] = [
     hint: "A commit you pushed fails, or passes again",
     defaults: { inApp: true, banner: true },
   },
+  {
+    id: "serviceCrash",
+    label: "Service crashed",
+    hint: "In a project you aren't looking at",
+    defaults: { inApp: true, banner: true },
+  },
 ];
 
 export const NOTIFICATION_CHANNELS: { id: NotificationChannel; label: string }[] = [

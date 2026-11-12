@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { crashSummary, liveServices, projectUp, serviceCrashed, serviceExitText } from "./serviceExit";
+import { crashLine, crashSummary, liveServices, pendingSummary, projectUp, serviceCrashed, serviceExitText } from "./serviceExit";
 import type { ServiceInfo } from "./types";
 
 const svc = (name: string, extra: Partial<ServiceInfo> = {}): ServiceInfo => ({
@@ -41,5 +41,55 @@ describe("serviceExit", () => {
     expect(crashSummary(project)).toBeNull();
     expect(projectUp({ running: false, services: [] })).toBe(false);
     expect(projectUp({ running: true, services: [] })).toBe(true);
+  });
+});
+
+describe("crashLine", () => {
+  const svc = (name: string, exitCode?: number | null) => ({
+    name,
+    cmd: "",
+    cwd: "",
+    port: 0,
+    ...(exitCode === undefined ? {} : { exited: true, exitCode }),
+  });
+
+  it("names one crash with its exit code", () => {
+    expect(crashLine({ running: true, services: [svc("web", 1), svc("worker")] })).toBe("web crashed · exit 1");
+  });
+
+  it("names every crashed service", () => {
+    expect(crashLine({ running: true, services: [svc("web", 1), svc("worker", 2), svc("cron", 137)] })).toBe(
+      "web, worker and cron crashed",
+    );
+  });
+
+  it("says nothing for a clean exit, a stop, or a stopped project", () => {
+    expect(crashLine({ running: true, services: [svc("web", 0), svc("api", null)] })).toBeNull();
+    expect(crashLine({ running: false, services: [svc("web", 1)] })).toBeNull();
+  });
+});
+
+describe("pendingSummary", () => {
+  const svc = (name: string, readiness?: "waiting" | "starting" | "notReady", exited = false) => ({
+    name,
+    cmd: "",
+    cwd: "",
+    port: 0,
+    readiness,
+    exited,
+  });
+
+  it("names what hasn't passed its ready check, a timed-out check first", () => {
+    expect(pendingSummary({ running: true, services: [svc("api", "starting"), svc("web", "waiting")] })).toBe(
+      "Starting: api, web",
+    );
+    expect(pendingSummary({ running: true, services: [svc("api", "starting"), svc("web", "notReady")] })).toBe(
+      "Not ready: web",
+    );
+  });
+
+  it("is null once everything is ready, or for an ended service or a stopped project", () => {
+    expect(pendingSummary({ running: true, services: [svc("api"), svc("web", "starting", true)] })).toBeNull();
+    expect(pendingSummary({ running: false, services: [svc("api", "starting")] })).toBeNull();
   });
 });

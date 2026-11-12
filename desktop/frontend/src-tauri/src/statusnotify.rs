@@ -102,11 +102,11 @@ fn register_toast_app_id(app: &AppHandle) {
     });
 }
 
-/// A scheduled prompt's banner (sent, or missed while away), which the frontend
-/// asks for.
+/// A banner the frontend asks for, under the notification event it names: a
+/// scheduled prompt sent or missed while away, or a crashed service.
 #[tauri::command(async)]
-pub fn notify_unattended(app: AppHandle, title: String, body: String) {
-    if should_notify(&app, NotificationEvent::SendLater) {
+pub fn notify_unattended(app: AppHandle, title: String, body: String, event: String) {
+    if NotificationEvent::of_id(&event).is_some_and(|event| should_notify(&app, event)) {
         notify(&app, &title, &body);
     }
 }

@@ -6,9 +6,9 @@ import {
   type TourHandle,
   type TourState,
 } from "@/components/home/tour";
-import { DownloadLink } from "@/components/download-link";
 import { DemoFrame } from "@/components/home/demo-frame";
 import { DemoSteps } from "@/components/home/demo-steps";
+import { DesktopOnlyPrompt } from "@/components/home/desktop-only-prompt";
 import { WINDOW_FRAME } from "@/components/home/demo-window";
 import { StartChooser, type DemoStart } from "./start-chooser";
 
@@ -24,24 +24,7 @@ function FramePlaceholder() {
       className={`flex h-[var(--demo-h)] items-center justify-center ${WINDOW_FRAME}`}
       style={{ "--demo-h": DEMO_HEIGHT } as React.CSSProperties}
     >
-      <span className="text-[13px] text-[#5c5c5c]">Loading demo…</span>
-    </div>
-  );
-}
-
-function DesktopOnlyPrompt() {
-  return (
-    <div
-      data-on-dark
-      className={`flex flex-col items-center gap-3 px-5 py-10 text-center ${WINDOW_FRAME}`}
-    >
-      <p className="max-w-xs text-[13px] leading-relaxed text-[#919191]">
-        lpm is a desktop app with a multi-pane terminal workspace. Open this page
-        on your computer to try the interactive demo.
-      </p>
-      <DownloadLink className="inline-flex min-h-11 items-center rounded-lg bg-[#e5e5e5] px-4 py-2 text-[13px] font-medium text-[#1a1a1a] transition-all duration-100 hover:opacity-85 active:scale-[0.97]">
-        Get lpm
-      </DownloadLink>
+      <span className="text-[13px] text-[#919191]">Loading demo…</span>
     </div>
   );
 }
@@ -80,7 +63,10 @@ export function DemoWorkspace() {
     <div data-nosnippet className="mx-auto w-full max-w-[1040px]">
       {isDesktop !== true && (
         <div className={isDesktop === null ? "md:hidden" : undefined}>
-          <DesktopOnlyPrompt />
+          <DesktopOnlyPrompt
+            lesson="lpm-in-3-minutes"
+            message="The interactive demo needs a computer. Watch the tour here, then send yourself the link."
+          />
         </div>
       )}
       {isDesktop !== false && (

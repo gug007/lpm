@@ -1,6 +1,7 @@
 import { ChevronDown } from "lucide-react";
 import { findDocsPage } from "@/lib/docs-pages";
 import { DocsNavList } from "./docs-nav-list";
+import { DocsOutline } from "./docs-outline";
 
 // Keyed by page so the menu starts closed again after following one of its
 // links: client navigation would otherwise keep the same open <details>.
@@ -26,12 +27,15 @@ export function DocsMobileNav({ current }: { current: string }) {
           aria-hidden
         />
       </summary>
-      <nav aria-label="Docs" className="px-5 pb-5">
-        <DocsNavList
-          current={current}
-          className="grid gap-x-6 gap-y-5 sm:grid-cols-2"
-        />
-      </nav>
+      <div className="px-5 pb-5">
+        <DocsOutline inMenu />
+        <nav aria-label="Docs">
+          <DocsNavList
+            current={current}
+            className="grid gap-x-6 gap-y-5 sm:grid-cols-2"
+          />
+        </nav>
+      </div>
     </details>
   );
 }

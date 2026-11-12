@@ -208,6 +208,7 @@ export function ConfigPlayground({
             )}
             {(!showEditor || !editorReady) && (
               <pre
+                tabIndex={0}
                 className="absolute inset-0 m-0 px-4 py-3 text-xs font-mono text-gray-700 dark:text-gray-300 leading-[18px] overflow-auto bg-white dark:bg-gray-950"
               >
                 <code>{code}</code>

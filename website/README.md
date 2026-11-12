@@ -1,36 +1,43 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# lpm.cx
 
-## Getting Started
+The Next.js site for lpm: the homepage, docs, changelog, lessons and comparison
+pages. It deploys to Vercel.
 
-First, run the development server:
+## Run it
 
 ```bash
+pnpm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+`npm run dev` starts the site on http://localhost:3000 (set `PORT` for another
+port). The first time, it builds the demo app into `public/demo-app` before
+starting, installing `desktop/frontend`'s dependencies if they are missing.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## The demos
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Every interactive demo on the site is the desktop app's own UI in an iframe.
+`desktop/frontend/src/demo` answers its commands from sample data in memory and
+plays each page's tour against the real UI. `npm run dev` builds it only when
+`public/demo-app` is missing, so after changing the desktop UI or the demo,
+rebuild it with `npm run demo-app`. `npm run build` always rebuilds it.
 
-## Learn More
+## Scripts
 
-To learn more about Next.js, take a look at the following resources:
+- `npm run dev`: the site, building the demo app first if it's missing
+- `npm run build`: rebuild the demo app, then `next build`
+- `npm run demo-app`: rebuild `public/demo-app` only
+- `npm run lint`: ESLint
+- `npm run sitemap:dates`: write each page's last change from git into
+  `lib/sitemap-dates.json`
+- `node scripts/import-lesson-transcripts.mjs`: copy each lesson's captions into
+  `lib/lesson-transcripts.json`
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Where things are
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `app/`: one folder per route
+- `components/home/`: the homepage, including the demo frame and its tours
+  (`tour.ts`)
+- `components/config/` and `components/docs/`: the docs
+- `/changelog`: each GitHub release's notes, which `scripts/release.sh` has
+  Claude write into the tag; `lib/changelog.json` holds older releases' notes

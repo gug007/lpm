@@ -75,6 +75,22 @@ describe("StatusDot", () => {
     }
   });
 
+  it("turns amber, as a ring around a dot, while a service is still starting", () => {
+    for (const kind of ["project", "copy", "worktree"] as const) {
+      const light = render(<StatusDot running kind={kind} pending="Starting: api" />).querySelector('[role="img"]')!;
+      expect(light.className).toContain("border-[var(--accent-amber)]");
+      expect(light.getAttribute("aria-label")).toBe("Starting: api");
+    }
+    expect(dot(render(<StatusDot running={false} pending="Starting: api" />)).getAttribute("aria-label")).toBe(
+      "Stopped",
+    );
+    expect(
+      render(<StatusDot running crashed="web exited with code 1" pending="Starting: api" />)
+        .querySelector('[role="img"]')!
+        .getAttribute("aria-label"),
+    ).toBe("Crashed: web exited with code 1");
+  });
+
   it("names running and stopped in words", () => {
     expect(dot(render(<StatusDot running />)).getAttribute("aria-label")).toBe("Running");
     expect(dot(render(<StatusDot running={false} />)).getAttribute("aria-label")).toBe("Stopped");

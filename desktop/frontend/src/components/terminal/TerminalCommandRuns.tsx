@@ -120,6 +120,7 @@ export function TerminalCommandRuns({ projectName, tree, onRunInNewTab }: Termin
           onRunAgain={() => void start(shown.terminalId, shown.command)}
           onStop={() => stop(shown)}
           large
+          fix={{ projectName, cmd: shown.command }}
         />
       )}
     </>

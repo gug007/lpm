@@ -24,7 +24,7 @@ export function TemplatesSection() {
         </>
       }
     >
-      <Lede title="Writing a template." className="mb-3">
+      <Lede title="Writing a template">
         A template holds only <code className="font-mono">actions</code>, with
         terminals written as <code className="font-mono">type: terminal</code>:
       </Lede>
@@ -32,7 +32,7 @@ export function TemplatesSection() {
         {TEMPLATE_EXAMPLE}
       </CodeBlock>
 
-      <Lede title="Using it." className="mt-6 mb-3">
+      <Lede title="Using it">
         List templates in <code className="font-mono">extends</code>{" "}in a
         project file, <code className="font-mono">.lpm.yml</code>, or{" "}
         <code className="font-mono">global.yml</code>. The file that extends

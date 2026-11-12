@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { PeerInvoke, PeerReconnect, PeerSetAlias, PeerUninstallHost, PeerUpdateHost } from "../../../bridge/commands";
 import type { PeerClient } from "../../peer/usePeerState";
-import { peerStatus, type StatusTone } from "../../peer/peerStatus";
+import { peerFix, peerStatus, type StatusTone } from "../../peer/peerStatus";
 import { StatusLine } from "./StatusLine";
 import { HostActionError } from "./HostActionError";
 import type { RowMenuItem } from "./RowMenu";
@@ -189,7 +189,7 @@ export function usePeerRowActions({
   // "Connecting…" the button would just interrupt the attempt in flight — and
   // not to a machine that no longer accepts this Mac: only pairing again helps.
   const canRetry =
-    (status.tone === "error" && !/unauthorized|auth failed|401/i.test(status.detail)) || !!status.reconnect;
+    (status.tone === "error" && peerFix(status) !== "pairAgain") || !!status.reconnect;
 
   const statusLine = removing ? (
     <StatusLine tone="pending" text="Removing lpm over SSH…" />

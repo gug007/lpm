@@ -42,6 +42,7 @@ export function Modals({ projectName, actionModals }: ModalsProps) {
           startedAt={running.shown.startedAt}
           onClose={running.onClose}
           onRunAgain={running.onRunAgain}
+          fix={{ projectName, cmd: running.shown.action.cmd }}
         />
       )}
     </>

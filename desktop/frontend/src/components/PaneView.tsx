@@ -892,7 +892,10 @@ function PaneViewImpl(props: PaneViewProps) {
               />
               {svc.exited && (
                 <ServiceExitBar
+                  projectName={projectName}
                   name={svc.name}
+                  cmd={svc.cmd}
+                  sessionKey={svc.sessionKey}
                   exitCode={svc.exitCode ?? null}
                   onRestart={() => onRestartService(svc.name)}
                 />

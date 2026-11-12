@@ -1,4 +1,5 @@
 import { formatElapsed } from "../backgroundRunToastText";
+import type { ActionDone } from "../../hooks/actionRunCapture";
 
 export const RUN_CARD_WIDTH = 380;
 // A terminal command's card: as wide as its terminal allows, up to this.
@@ -7,6 +8,14 @@ const CORNER_CARD_MAX_WIDTH = 720;
 export const RUN_CARD_AUTO_CLOSE_MS = 4000;
 // The error a run ends with when it was stopped from its card.
 export const RUN_STOPPED_ERROR = "stopped";
+
+export type RunState = "running" | "passed" | "stopped" | "failed";
+
+export function runState(done: ActionDone | null): RunState {
+  if (done === null) return "running";
+  if (done.success) return "passed";
+  return done.error === RUN_STOPPED_ERROR ? "stopped" : "failed";
+}
 
 const GAP = 8;
 const EDGE = 12;

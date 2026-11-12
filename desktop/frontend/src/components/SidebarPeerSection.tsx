@@ -15,7 +15,8 @@ import { peerPlateClass } from "./peerPlate";
 import { ROLLUP_SEPARATOR_CLASS, rollupSegments } from "./sidebarRollup";
 import { SortableItem } from "./ui/SortableList";
 import type { MirrorRow } from "./peerSections";
-import type { PeerStatus } from "../peer/peerStatus";
+import { canReconnect, peerFix, type PeerStatus } from "../peer/peerStatus";
+import { usePeerRecovery } from "../peer/usePeerRecovery";
 import type { PeerNoun } from "../peer/platform";
 import { isMac } from "../platform";
 import { isPeerSectionCollapsed, setPeerSectionCollapsed } from "../peer/peerSectionCollapse";
@@ -126,6 +127,9 @@ export function SidebarPeerSection({
     }
   };
 
+  const fix = peerFix(status);
+  const { turnOn, openConnections } = usePeerRecovery(slug, alias, linuxHost);
+
   const toggle = () => {
     setCollapsed((prev) => {
       const next = !prev;
@@ -224,9 +228,9 @@ export function SidebarPeerSection({
     if (status.tone === "off")
       return (
         <>
-          {/* Not amber: amber is what a blocked agent wears, and a sleeping Mac
-              is not asking for anything. */}
-          <span>Away</span>
+          {/* Not amber: amber is what a blocked agent wears, and a machine
+              turned off here is not asking for anything. */}
+          <span>Off</span>
           {strays.length > 0 && (
             <>
               <span className={ROLLUP_SEPARATOR_CLASS}>·</span>
@@ -283,7 +287,10 @@ export function SidebarPeerSection({
           y={menu.y}
           alias={alias}
           connected={connected}
-          canReconnect={status.tone === "error" || !!status.reconnect}
+          canReconnect={canReconnect(status)}
+          onTurnOn={fix === "turnOn" ? turnOn : undefined}
+          onPairAgain={fix === "pairAgain" ? openConnections : undefined}
+          onConnectionSettings={openConnections}
           onAddProject={() => addProjectForPeer(slug, alias)}
           onPairPhone={() => void pairPhone()}
           onSettings={() => openMachineSettings(slug)}

@@ -1,3 +1,4 @@
+import { useFirstRunFolderDrop } from "../hooks/useFirstRunFolderDrop";
 import { useAppStore } from "../store/app";
 import { CloudBranchIcon, FolderIcon } from "./icons";
 import { LaptopIcon } from "./connections/LaptopIcon";
@@ -24,8 +25,19 @@ export function EmptyStateNoProjects() {
   const pick = useAppStore((s) => s.pickAddProjectKind);
   const connectComputer = useAppStore((s) => s.connectComputer);
   const addProject = useAppStore((s) => s.addProject);
+  const dragging = useFirstRunFolderDrop();
   return (
-    <div className="flex h-full items-center justify-center px-6">
+    <div className="relative flex h-full items-center justify-center px-6">
+      {dragging && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-3 z-10 flex items-end justify-center rounded-2xl border-2 border-dashed border-[var(--accent-cyan)] bg-[color-mix(in_srgb,var(--accent-cyan)_6%,transparent)] pb-8"
+        >
+          <span className="rounded-full bg-[var(--accent-cyan)] px-3 py-1 text-[12px] font-medium text-[var(--bg-primary)] shadow-sm">
+            Drop to add it as a project
+          </span>
+        </div>
+      )}
       <div className="flex max-w-xl flex-col items-center text-center">
         <div className="relative mb-6 flex h-20 w-20 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--bg-secondary)] shadow-sm">
           <svg width="36" height="36" viewBox="0 0 36 36" fill="none" aria-hidden="true">
@@ -63,6 +75,7 @@ export function EmptyStateNoProjects() {
             Connect a computer…
           </button>
         </div>
+        <p className="mt-3 text-[12px] text-[var(--text-muted)]">or drop a project folder anywhere in this window</p>
         <button
           onClick={addProject}
           className="mt-4 text-[12px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"

@@ -180,6 +180,9 @@ export interface PortConflictPrompt {
 
 interface AppState {
   projects: ProjectInfo[];
+  // Whether `projects` has been read yet: "loading" until the first listing
+  // lands, "failed" when it couldn't be read before anything was shown.
+  projectsLoad: "loading" | "loaded" | "failed";
   templates: main.TemplateInfo[];
 
   // Sidebar folders. `sidebarOrder` is the interleaved top-level order (loose
@@ -226,8 +229,9 @@ interface AppState {
   // Where the picker opens: "linux-host" goes straight to setting up a server
   // as a Linux host (from the SSH project form's hint), "computer" to pairing
   // another computer (from the first-launch screen), "phone" to lpm Link (from
-  // the sidebar's Mobile app), null to its first screen.
-  addProjectStart: "linux-host" | "computer" | "phone" | null;
+  // the sidebar's Mobile app), "server" to the servers paired here (from a
+  // server that isn't answering), null to its first screen.
+  addProjectStart: "linux-host" | "computer" | "phone" | "server" | null;
   remoteFolderPickerOpen: boolean;
   sshModalOpen: boolean;
   addingSSHProject: boolean;
@@ -282,6 +286,7 @@ interface AppState {
   setUpLinuxHost: () => void;
   connectComputer: () => void;
   connectPhone: () => void;
+  openServers: () => void;
   openSSHProject: () => void;
   closeAddProjectPicker: () => void;
   closeRemoteFolderPicker: () => void;
@@ -832,6 +837,7 @@ function layoutNames(projects: ProjectInfo[]): Set<string> {
 
 export const useAppStore = create<AppState>((set, get) => ({
   projects: [],
+  projectsLoad: "loading",
   templates: [],
 
   groups: [],
@@ -920,16 +926,21 @@ export const useAppStore = create<AppState>((set, get) => ({
       // known list instead of treating every project as gone.
       if (!Array.isArray(list)) {
         reportError("projects.refresh_failed", new Error("project list unavailable"));
+        if (get().projectsLoad !== "loaded") set({ projectsLoad: "failed" });
         return;
       }
       // Status-only refreshes (the 10s poll, agent status events) leave the
       // project set unchanged — skip the reconcile, which can only differ when
       // projects are added or removed.
-      if (projectsEqual(get().projects, list)) return;
-      set({ projects: list });
+      if (projectsEqual(get().projects, list)) {
+        if (get().projectsLoad !== "loaded") set({ projectsLoad: "loaded" });
+        return;
+      }
+      set({ projects: list, projectsLoad: "loaded" });
       get().reconcileSidebarLayout(list);
     } catch (err) {
       reportError("projects.refresh_failed", err);
+      if (seq === projectsRefreshSeq && get().projectsLoad !== "loaded") set({ projectsLoad: "failed" });
     }
   },
 
@@ -1142,6 +1153,9 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   connectPhone: () =>
     set({ addProjectTarget: null, addProjectStart: "phone", addProjectPickerOpen: true }),
+
+  openServers: () =>
+    set({ addProjectTarget: null, addProjectStart: "server", addProjectPickerOpen: true }),
 
   openSSHProject: () =>
     set({ sshModalOpen: true, addProjectPickerOpen: false, addProjectTarget: null, addProjectStart: null }),

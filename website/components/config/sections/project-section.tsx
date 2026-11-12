@@ -54,7 +54,7 @@ export function ProjectSection() {
 
       <FieldTable fields={projectFields} />
 
-      <Lede title="SSH projects.">
+      <Lede title="SSH projects">
         Swap <code className="font-mono">root</code>{" "}for an{" "}
         <code className="font-mono">ssh</code>{" "}block and the same services,
         actions, and terminals run on a remote machine. Adding an SSH host in

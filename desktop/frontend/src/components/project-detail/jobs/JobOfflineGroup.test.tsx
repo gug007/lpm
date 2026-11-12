@@ -4,9 +4,14 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { JobOfflineGroup } from "./JobOfflineGroup";
 import type { PeerClient } from "../../../peer/usePeerState";
+import { useAppStore } from "../../../store/app";
 
-const bridge = vi.hoisted(() => ({ PeerReconnect: vi.fn(async () => {}) }));
-vi.mock("../../../../bridge/commands", () => bridge);
+const bridge = vi.hoisted(() => ({ PeerReconnect: vi.fn(async () => {}), PeerSetEnabled: vi.fn(async () => {}) }));
+vi.mock("../../../../bridge/commands", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  ...bridge,
+}));
+vi.mock("../../../../bridge/runtime", () => ({ EventsOn: () => () => {} }));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -55,15 +60,22 @@ describe("JobOfflineGroup", () => {
     expect(bridge.PeerReconnect).toHaveBeenCalledWith("aaaaaaaa");
   });
 
-  it("offers no reconnect for a computer turned off here", async () => {
+  it("turns on a computer turned off here instead of reconnecting", async () => {
     await show({ enabled: false });
     expect(host.textContent).toContain("taucloud is turned off on this");
-    expect(host.querySelector("button")).toBeNull();
+    const labels = [...host.querySelectorAll("button")].map((b) => b.textContent);
+    expect(labels).toEqual(["Turn on taucloud", "Connection settings"]);
+    await act(async () => [...host.querySelectorAll("button")][0].click());
+    expect(bridge.PeerSetEnabled).toHaveBeenCalledWith("aaaaaaaa", true);
+    expect(bridge.PeerReconnect).not.toHaveBeenCalled();
   });
 
-  it("offers no reconnect to a computer that removed this one's access", async () => {
+  it("offers pairing again to a computer that removed this one's access", async () => {
     await show({ lastError: "auth failed: 401 Unauthorized" });
     expect(host.textContent).toContain("taucloud no longer accepts this");
-    expect(host.querySelector("button")).toBeNull();
+    const pair = [...host.querySelectorAll("button")].find((b) => b.textContent === "Pair again…")!;
+    act(() => pair.click());
+    expect(useAppStore.getState()).toMatchObject({ addProjectPickerOpen: true, addProjectStart: "computer" });
+    expect(bridge.PeerReconnect).not.toHaveBeenCalled();
   });
 });

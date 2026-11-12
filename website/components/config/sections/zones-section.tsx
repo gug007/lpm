@@ -20,7 +20,7 @@ export function ZonesSection() {
         </>
       }
     >
-      <Lede title="Declaring a zone." className="mb-3">
+      <Lede title="Declaring a zone">
         Add an entry under <code className="font-mono">zones</code>{" "}with{" "}
         <code className="font-mono">rows</code>, then set a button&rsquo;s{" "}
         <code className="font-mono">display</code>{" "}to the zone&rsquo;s key.{" "}
@@ -31,7 +31,7 @@ export function ZonesSection() {
       </Lede>
       <ConfigPlayground filename="~/.lpm/projects/myapp.yml" initial={ZONES_EXAMPLE} />
 
-      <Lede title="Layers." className="mt-6 mb-3">
+      <Lede title="Layers">
         A zone can hold several sets of buttons and slide between them with
         dots under its frame. List them under{" "}
         <code className="font-mono">layers</code>{" "}and point each button at

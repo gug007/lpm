@@ -157,6 +157,11 @@ function recountPaneSession(session: PaneSession, lines: string[], from: Severit
 }
 
 /** Everything a service's pane holds, as plain text, or "" for no such pane. */
+/** The pane session a project's service writes its output to. */
+export function serviceSessionKey(projectName: string, service: string): string {
+  return `${projectName}:${service}`;
+}
+
 export function paneSessionText(key: string): string {
   const session = paneSessions.get(key);
   return session ? bufferToPlainText(session.term) : "";

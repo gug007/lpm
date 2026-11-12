@@ -738,8 +738,8 @@ export function MessageHistoryAdd(message) {
 export function MediaHttpBase() {
   return invoke("media_http_base");
 }
-export function NotifyUnattended(title, body) {
-  return invoke("notify_unattended", { title, body });
+export function NotifyUnattended(title, body, event) {
+  return invoke("notify_unattended", { title, body, event });
 }
 export function SendLaterList() {
   return invoke("send_later_list");

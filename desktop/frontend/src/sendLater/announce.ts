@@ -26,7 +26,7 @@ export function announceSent(item: ScheduledPrompt, target: TerminalTargetInfo):
       onClick: () => useAppStore.getState().focusProjectTerminal(item.projectName, target.id),
     },
   });
-  void NotifyUnattended(`Sent to ${label} · ${projectTitle(item.projectName)}`, preview).catch(() => {});
+  void NotifyUnattended(`Sent to ${label} · ${projectTitle(item.projectName)}`, preview, "sendLater").catch(() => {});
 }
 
 // Missed prompts already told about, so one left alone isn't announced again on
@@ -76,5 +76,5 @@ export function announceMissed(items: ScheduledPrompt[], atLaunch: boolean): voi
     description = `They came due while ${away}. Each is on hold in its terminal's prompt box and in History › Scheduled.`;
   }
   toast.warning(title, { description, duration: 10_000, event: "sendLater" });
-  void NotifyUnattended(title, description).catch(() => {});
+  void NotifyUnattended(title, description, "sendLater").catch(() => {});
 }

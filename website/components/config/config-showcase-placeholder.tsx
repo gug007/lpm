@@ -28,7 +28,7 @@ export function ConfigPlaceholder() {
         <div
           aria-hidden="true"
           data-on-dark
-          className="flex items-center justify-center bg-[#1a1a1a] text-[13px] text-[#5c5c5c]"
+          className="flex items-center justify-center bg-[#1a1a1a] text-[13px] text-[#919191]"
           style={{ height: PREVIEW_HEIGHT }}
         >
           Loading lpm…

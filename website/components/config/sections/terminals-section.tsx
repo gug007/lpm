@@ -35,7 +35,7 @@ export function TerminalsSection() {
         </>
       }
     >
-      <Lede title="Declaring a terminal." className="mb-3">
+      <Lede title="Declaring a terminal">
         Give the entry a <code className="font-mono">cmd</code>{" "}and set{" "}
         <code className="font-mono">type: terminal</code>{" "}so it opens in a pane
         and stays open instead of running once. Reach for a friendlier{" "}
@@ -60,7 +60,7 @@ export function TerminalsSection() {
         </p>
       </Callout>
 
-      <Lede title="AI coding agents, one click away." className="mt-6 mb-3">
+      <Lede title="AI coding agents, one click away">
         This is where terminals really shine. List the agents and REPLs you
         actually use and they&rsquo;re waiting as one-click buttons in the
         project toolbar every time you open the project — each one starts in

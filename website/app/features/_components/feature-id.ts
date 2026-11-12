@@ -1,12 +1,10 @@
+import { slugify } from "@/lib/slug";
+
 export const OPEN_SEARCH_EVENT = "features:open-search";
 export const REVEAL_EVENT = "features:reveal";
 
 export function featureId(title: string) {
-  const slug = title
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
-  return `f-${slug}`;
+  return `f-${slugify(title)}`;
 }
 
 export function openFeatureSearch(query = "") {

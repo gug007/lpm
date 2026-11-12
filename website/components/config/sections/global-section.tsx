@@ -30,7 +30,7 @@ export function GlobalSection() {
         </>
       }
     >
-      <Lede title="What a fresh install starts with." className="mb-3">
+      <Lede title="What a fresh install starts with">
         On a fresh install, lpm writes a <code className="font-mono">global.yml</code>{" "}
         with two terminal actions, <code className="font-mono">claude</code>{" "}
         and <code className="font-mono">codex</code>, so Claude Code and Codex
@@ -45,7 +45,7 @@ export function GlobalSection() {
         initial={GLOBAL_CONFIG_EXAMPLE}
       />
 
-      <Lede title="System-wide utilities.">
+      <Lede title="System-wide utilities">
         A fuller example: prune merged git branches, upgrade Homebrew, and keep
         a few system monitors one click away. These all live above individual
         projects — click them from any project and they just work.

@@ -9,13 +9,13 @@ import {
   type YouTubeLessonId,
 } from "@/lib/youtube-lessons";
 
-type Poster = { src: string; label: string; title: string };
+type Poster = { src: string; label?: string; title?: string };
 
 type Props = {
   lesson: YouTubeLessonId;
   className?: string;
   // A frame from the video in place of YouTube's thumbnail, which is a title
-  // card; the frame carries the title over it instead.
+  // card; a poster with a title carries it over the frame instead.
   poster?: Poster;
   // The thumbnail stays lazy either way; "high" only moves it up the queue on
   // the one page where it is the first thing a phone sees. A preload would
@@ -72,7 +72,7 @@ export function YouTubeVideo({
             fetchPriority={fetchPriority}
             className="object-cover"
           />
-          {poster && (
+          {poster?.title && (
             <span className="absolute inset-x-0 bottom-0 flex h-3/5 flex-col justify-end bg-gradient-to-t from-black/80 via-black/40 to-transparent px-4 pb-16 text-left text-white sm:px-5 sm:pb-[4.5rem]">
               <span className="text-[11px] font-semibold uppercase tracking-widest text-white/75">
                 {poster.label}
@@ -92,7 +92,7 @@ export function YouTubeVideo({
               <path d="M8 5.5v13l11-6.5z" />
             </svg>
             Play
-            {!poster && <span className="sr-only"> video: {name}</span>}
+            {!poster?.title && <span className="sr-only"> video: {name}</span>}
           </span>
         </button>
       )}

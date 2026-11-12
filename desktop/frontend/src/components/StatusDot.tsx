@@ -25,18 +25,21 @@ export function dotKind(project: { parentName?: string; worktree?: boolean }): D
  *  of its own: the twin tints with the dot because it stands for another
  *  instance, and the branch stays muted because it stands for the link. */
 /** `crashed` names the services that crashed; it turns the dot into a red
- *  cross and is its tooltip. */
+ *  cross and is its tooltip. `pending` says what is still starting or not
+ *  ready; it turns a running dot amber and is its tooltip. */
 export function StatusDot({
   running,
   kind = "project",
   crashed,
+  pending,
 }: {
   running: boolean;
   kind?: DotKind;
   crashed?: string | null;
+  pending?: string | null;
 }) {
-  const state = crashed ? "crashed" : running ? "running" : "stopped";
-  const title = crashed ? `Crashed: ${crashed}` : undefined;
+  const state = crashed ? "crashed" : running ? (pending ? "starting" : "running") : "stopped";
+  const title = crashed ? `Crashed: ${crashed}` : state === "starting" ? (pending ?? undefined) : undefined;
   if (kind === "project") return <StateGlyph state={state} title={title} />;
 
   return (

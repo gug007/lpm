@@ -22,8 +22,8 @@ export function Hero() {
           <span className="block">One window.</span>
         </h1>
         <p className="mx-auto mt-5 max-w-3xl text-balance text-base leading-relaxed text-gray-600 sm:text-[17px] dark:text-gray-400">
-          lpm runs your dev servers and AI coding agents side by side, so you
-          stop juggling terminals.
+          Start every service in one click, give each agent its own copy, and
+          see which one needs you.
         </p>
 
         <div className="mx-auto mt-[clamp(1.25rem,3vh,1.75rem)] max-w-4xl">

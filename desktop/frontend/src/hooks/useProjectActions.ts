@@ -19,7 +19,8 @@ import {
 import { trackBackgroundRun } from "../store/backgroundRuns";
 import type { ModelPick } from "../agentModelSwitch";
 import { captureActionRun, type ActionRunCapture } from "./actionRunCapture";
-import { actionRunKey, clearActionRun, markActionRun } from "../store/actionRunMarks";
+import { actionRunKey, clearActionRun, markActionRun, setActionRunReopen } from "../store/actionRunMarks";
+import { runState } from "../components/project-detail/runCardPlacement";
 
 export interface UseProjectActionsOptions {
   projectName: string;
@@ -77,6 +78,17 @@ export interface UseProjectActionsResult {
 
 const noSubscribe = () => () => {};
 
+function failedRun(shown: ShownRun): boolean {
+  return runState(shown.run.snapshot().done) === "failed";
+}
+
+// An ended run's output as it stands, without the listeners that captured it.
+function frozenRun(run: ActionRunCapture): ActionRunCapture {
+  const snap = run.snapshot();
+  run.dispose();
+  return { snapshot: () => snap, subscribe: noSubscribe, dispose: () => {} };
+}
+
 export function useProjectActions({
   projectName,
   terminalViewRef,
@@ -84,7 +96,12 @@ export function useProjectActions({
   onCloseRunning,
 }: UseProjectActionsOptions): UseProjectActionsResult {
   const [shown, setShown] = useState<ShownRun | null>(null);
+  const shownRef = useRef<ShownRun | null>(null);
+  shownRef.current = shown;
   const captureRef = useRef<ActionRunCapture | null>(null);
+  // Failed runs whose cards were closed, by run key, so their buttons' marks
+  // can bring the output back until the action runs again.
+  const keptRef = useRef(new Map<string, ShownRun>());
   const [confirmAction, setConfirmAction] = useState<ActionInfo | null>(null);
   const [inputsAction, setInputsAction] = useState<ActionInfo | null>(null);
   const [pendingInputValues, setPendingInputValues] = useState<Record<string, string> | null>(null);
@@ -96,10 +113,13 @@ export function useProjectActions({
 
   useEffect(() => {
     mountedRef.current = true;
+    const kept = keptRef.current;
     return () => {
       mountedRef.current = false;
       captureRef.current?.dispose();
       captureRef.current = null;
+      for (const runKey of kept.keys()) setActionRunReopen(runKey, undefined);
+      kept.clear();
     };
   }, []);
 
@@ -123,6 +143,27 @@ export function useProjectActions({
     }
     captureRef.current = next?.run ?? null;
     setShown(next);
+  };
+
+  const forgetKept = (runKey: string) => {
+    if (keptRef.current.delete(runKey)) setActionRunReopen(runKey, undefined);
+  };
+
+  // The card on screen is going away: a failure is kept for its mark to reopen.
+  const putAwayShown = () => {
+    const current = shownRef.current;
+    if (!current || !failedRun(current) || captureRef.current !== current.run) return;
+    captureRef.current = null;
+    keptRef.current.set(current.runKey, { ...current, run: frozenRun(current.run) });
+    setActionRunReopen(current.runKey, () => reopenKept(current.runKey));
+  };
+
+  const reopenKept = (runKey: string) => {
+    const kept = keptRef.current.get(runKey);
+    if (!kept) return;
+    forgetKept(runKey);
+    putAwayShown();
+    showRun(kept);
   };
 
   const ensurePortFree = async (action: ActionInfo): Promise<boolean> => {
@@ -246,6 +287,8 @@ export function useProjectActions({
       const startedAt = Date.now();
       capture = await captureActionRun(runId);
       await RunAction(projectName, action.name, inputValues, runId);
+      putAwayShown();
+      forgetKept(runKey);
       showRun({ id: runId, action, run: capture, startedAt, runKey });
     } catch (err) {
       capture?.dispose();
@@ -305,6 +348,7 @@ export function useProjectActions({
       running: {
         shown,
         onClose: () => {
+          putAwayShown();
           showRun(null);
           onCloseRunning?.();
         },

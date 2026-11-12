@@ -10,7 +10,7 @@ import { chordLabel } from "../keys";
 // shared poller for the other.
 const LOG_VIEWER = IS_MIRROR_WINDOW ? "mirror" : "main";
 import type { ITheme } from "@xterm/xterm";
-import { disposePaneSession, type PaneHandle } from "./Pane";
+import { disposePaneSession, serviceSessionKey, type PaneHandle } from "./Pane";
 import { disposeInteractivePaneSession, isInteractivePaneSessionDead, type InteractivePaneHandle } from "./InteractivePane";
 import {
   collectPanes,
@@ -402,7 +402,7 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
       stableServices.map((svc, idx) => ({
         name: svc.name,
         output: outputs[idx] ?? "",
-        sessionKey: `${projectName}:${svc.name}`,
+        sessionKey: serviceSessionKey(projectName, svc.name),
         cwd: projectRoot ? joinAbs(projectRoot, svc.cwd ?? "") : "",
         ports: linkedPorts(servicePorts[svc.name] ?? [], svc.port ?? 0, sessionsReachable),
         configuredPort: movedFromPort(servicePorts[svc.name] ?? [], svc.port ?? 0),
@@ -420,7 +420,7 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
   const serviceKeysRef = useRef<string[]>([]);
 
   useEffect(() => {
-    const nextKeys = stableServices.map((svc) => `${projectName}:${svc.name}`);
+    const nextKeys = stableServices.map((svc) => serviceSessionKey(projectName, svc.name));
     const nextSet = new Set(nextKeys);
     for (const oldKey of serviceKeysRef.current) {
       if (!nextSet.has(oldKey)) disposePaneSession(oldKey);

@@ -1,10 +1,10 @@
-import { PeerReconnect } from "../../../../bridge/commands";
 import { ClockIcon } from "../../icons";
 import { peerDownCopy, peerStatus } from "../../../peer/peerStatus";
 import { isLinuxHost } from "../../../peer/platform";
 import type { PeerClient } from "../../../peer/usePeerState";
 import { relativeAgo } from "../../../relativeTime";
 import { formatSchedule } from "../../../jobsFormat";
+import { PeerRecoveryActions } from "../../PeerRecoveryActions";
 import type { ScheduledJob } from "../../../hooks/useJobs";
 
 interface JobOfflineGroupProps {
@@ -20,7 +20,7 @@ interface JobOfflineGroupProps {
 // greyed, under what's going on with it, so they don't read as deleted. Nothing
 // here can run or change until it's back.
 export function JobOfflineGroup({ slug, alias, peer, jobs, scopeLabelFor, zoom }: JobOfflineGroupProps) {
-  const down = peerDownCopy(alias, peer ? peerStatus(peer) : null, !!peer && isLinuxHost(peer));
+  const down = peerDownCopy(alias, peer ? peerStatus(peer) : null);
   const why = `${down.title} · ${down.detail}`;
 
   return (
@@ -35,15 +35,13 @@ export function JobOfflineGroup({ slug, alias, peer, jobs, scopeLabelFor, zoom }
         <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-[var(--accent-amber-text)]">
           {why}
         </span>
-        {down.reconnect && (
-          <button
-            type="button"
-            onClick={() => void PeerReconnect(slug)}
-            className="shrink-0 rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] px-2.5 py-1 text-[12px] font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-hover)]"
-          >
-            Reconnect
-          </button>
-        )}
+        <PeerRecoveryActions
+          slug={slug}
+          alias={alias}
+          fix={down.fix}
+          server={!!peer && isLinuxHost(peer)}
+          size="sm"
+        />
       </div>
       <ul>
         {jobs.map((job) => {

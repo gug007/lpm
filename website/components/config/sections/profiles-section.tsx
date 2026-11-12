@@ -24,7 +24,7 @@ export function ProfilesSection() {
         </>
       }
     >
-      <Lede title="Start small." className="mb-3">
+      <Lede title="Start small">
         Even two profiles pay off right away — a lightweight one for quick UI
         fixes and a full one for feature work. Here&rsquo;s the smallest
         useful setup: a frontend and a backend, with a{" "}
@@ -41,7 +41,7 @@ export function ProfilesSection() {
         many profiles as you like — overlap is fine and expected.
       </Lede>
 
-      <Lede title="Multiple profiles for different modes.">
+      <Lede title="Multiple profiles for different modes">
         Once your project grows a third or fourth service — a background
         worker, a queue, a second frontend — a single profile isn&rsquo;t
         enough. Define one profile per workflow you actually use, so you can

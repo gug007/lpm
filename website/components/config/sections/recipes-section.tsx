@@ -25,7 +25,7 @@ export function RecipesSection() {
         </>
       }
     >
-      <Lede title="Minimal blog." className="mb-3">
+      <Lede title="Minimal blog">
         Start here if you just want one dev server and nothing else — a
         personal blog, a tiny side project, the &ldquo;hello world&rdquo;
         version of lpm. One service, no actions, no ceremony.
@@ -35,7 +35,7 @@ export function RecipesSection() {
         initial={RECIPE_MINIMAL}
       />
 
-      <Lede title="Blog with tests and linting.">
+      <Lede title="Blog with tests and linting">
         Add this when your tests, linter, or build start taking long enough
         that retyping them feels wasteful. Same dev server as above, plus three
         one-click buttons in the toolbar.
@@ -45,7 +45,7 @@ export function RecipesSection() {
         initial={RECIPE_TESTS}
       />
 
-      <Lede title="Next.js plus a Node API.">
+      <Lede title="Next.js plus a Node API">
         For the classic two-process web app: a Next.js front-end in the project
         root and a Node backend in <code className="font-mono">./server</code>.
         Shows how to set <code className="font-mono">cwd</code>{" "}per service,
@@ -57,7 +57,7 @@ export function RecipesSection() {
         initial={RECIPE_NEXT_NODE}
       />
 
-      <Lede title="Next.js with dev env vars.">
+      <Lede title="Next.js with dev env vars">
         Pick this when your app needs a handful of environment variables to
         boot locally and you&rsquo;re tired of remembering them. lpm sets them
         every time the service starts — keep real secrets in your own{" "}
@@ -68,7 +68,7 @@ export function RecipesSection() {
         initial={RECIPE_ENV}
       />
 
-      <Lede title="Monorepo with an app and docs.">
+      <Lede title="Monorepo with an app and docs">
         For a repo that holds more than one thing you want running at once —
         say an app in <code className="font-mono">apps/web</code>{" "}and a docs
         site in <code className="font-mono">apps/docs</code>. Both services

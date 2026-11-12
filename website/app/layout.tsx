@@ -4,6 +4,7 @@ import Script from "next/script";
 import "./globals.css";
 import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
+import { ConsentBanner } from "@/components/consent-banner";
 import { DownloadInstallNote } from "@/components/download-install-note";
 import { ReleaseProvider } from "@/components/release-context";
 import { getReleaseInfo } from "@/lib/release-info";
@@ -19,6 +20,7 @@ import {
 } from "@/lib/links";
 import { APP_DESCRIPTION, FEATURE_LIST, OPERATING_SYSTEMS } from "@/lib/app-facts";
 import { APP_ID, WEBSITE_ID, jsonLdString } from "@/lib/structured-data";
+import { consentDefaultsScript } from "@/lib/consent";
 import { fetchLatestVersion } from "@/lib/github-stats";
 
 const geistSans = Geist({
@@ -189,6 +191,7 @@ export default async function RootLayout({
           <Footer />
         </ReleaseProvider>
         <DownloadInstallNote />
+        <ConsentBanner />
         {/* /join holds a shared tab's invite in its address, so nobody else's
             script runs there. */}
         <Script id="ga-init" strategy="afterInteractive">
@@ -196,6 +199,7 @@ export default async function RootLayout({
             if (!/^\\/join\\/?$/.test(location.pathname)) {
               window.dataLayer = window.dataLayer || [];
               window.gtag = function gtag(){dataLayer.push(arguments);};
+              ${consentDefaultsScript}
               gtag('js', new Date());
               var page = { page_location: location.href.split('#')[0] };
               gtag('config', '${GA_ID}', page);

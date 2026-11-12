@@ -133,7 +133,9 @@ export function ChecksButton({
               ))}
             </div>
             <ContextMenuSeparator />
-            {summary.failed > 0 && fixPrompt && <FixWithAgentItems projectName={projectName} onFix={fix} />}
+            {summary.failed > 0 && fixPrompt && (
+              <FixWithAgentItems projectName={projectName} onFix={fix} description="Opens a new tab with the failing checks" />
+            )}
             {runIds.length > 0 && (
               <ContextMenuItem icon={<RotateCcw size={12} />} label="Re-run failed jobs" onClick={rerun} />
             )}

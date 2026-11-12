@@ -25,7 +25,8 @@ export type NotificationEvent =
   | "peers"
   | "sendLater"
   | "keepAwake"
-  | "ci";
+  | "ci"
+  | "serviceCrash";
 
 export interface ToastOptions {
   id?: ToastId;

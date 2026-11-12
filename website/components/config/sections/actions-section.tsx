@@ -44,14 +44,14 @@ export function ActionsSection() {
       <ConfigPlayground filename={FILE} initial={ACTIONS_EXAMPLE} />
       <FieldTable fields={actionFields} />
 
-      <Lede title="More fields." className="mt-8 mb-3">
+      <Lede title="More fields">
         The table above covers what the examples on this page use. Actions
         also take these, and the app&rsquo;s action editor sets most of them
         for you:
       </Lede>
       <FieldTable fields={moreActionFields} />
 
-      <Lede title="Dynamic labels." className="mt-8 mb-3">
+      <Lede title="Dynamic labels">
         A label can keep itself current: the branch with{" "}
         <code className="font-mono">{"{{git.branch}}"}</code>, your last
         release and how long ago it was with <code className="font-mono">{"{{git.tag}}"}</code>{" "}and{" "}
@@ -65,7 +65,7 @@ export function ActionsSection() {
         className="mb-6 rounded-xl ring-1 ring-black/5 dark:ring-white/10"
       />
 
-      <Lede title="Charts on your buttons." className="mt-8 mb-3">
+      <Lede title="Charts on your buttons">
         A button can show more than text.{" "}
         <code className="font-mono">labelSvg</code>{" "}draws its face from
         an SVG, like a small chart behind a number, and{" "}
@@ -78,14 +78,14 @@ export function ActionsSection() {
         className="mb-6 rounded-xl ring-1 ring-black/5 dark:ring-white/10"
       />
 
-      <Lede title="Shorthand.">
+      <Lede title="Shorthand">
         If all your action needs is a command, write it as a single line — the
         key becomes the label and you skip the nested form entirely. Great for
         everyday dev commands:
       </Lede>
       <ConfigPlayground filename={FILE} initial={ACTIONS_SHORTHAND_EXAMPLE} />
 
-      <Lede title="Destructive actions.">
+      <Lede title="Destructive actions">
         For anything you don&rsquo;t want to click by accident — cache wipes,
         rollbacks, production deploys — add{" "}
         <code className="font-mono">confirm: true</code>{" "}to get a confirmation
@@ -95,7 +95,7 @@ export function ActionsSection() {
       </Lede>
       <ConfigPlayground filename={FILE} initial={ACTIONS_DESTRUCTIVE_EXAMPLE} />
 
-      <Lede title="Grouping related actions.">
+      <Lede title="Grouping related actions">
         Give a parent action both a <code className="font-mono">cmd</code>{" "}and
         nested <code className="font-mono">actions</code>{" "}and lpm renders it as
         a split button: the main part runs the parent&rsquo;s command, the
@@ -105,7 +105,7 @@ export function ActionsSection() {
       </Lede>
       <ConfigPlayground filename={FILE} initial={ACTIONS_NESTED_EXAMPLE} />
 
-      <Lede title="Remembering your last choice.">
+      <Lede title="Remembering your last choice">
         Add <code className="font-mono">primary: last-used</code>{" "}instead of a
         parent <code className="font-mono">cmd</code>{" "}and the main part of the
         split button becomes whichever option you clicked last — deploy to
@@ -117,7 +117,7 @@ export function ActionsSection() {
       </Lede>
       <ConfigPlayground filename={FILE} initial={ACTIONS_PRIMARY_EXAMPLE} />
 
-      <Lede title="Dropdown-only groups.">
+      <Lede title="Dropdown-only groups">
         Drop the parent&rsquo;s <code className="font-mono">cmd</code>{" "}and the
         whole button becomes a dropdown. Good for a set of related commands
         with no obvious default — like a database toolkit (Migrate, Seed,
@@ -125,7 +125,7 @@ export function ActionsSection() {
       </Lede>
       <ConfigPlayground filename={FILE} initial={ACTIONS_DROPDOWN_EXAMPLE} />
 
-      <Lede title="Background actions.">
+      <Lede title="Background actions">
         For slow, boring commands where the only thing you care about is
         whether they succeeded — builds, migrations, docker pulls,{" "}
         <code className="font-mono">git fetch</code> — add{" "}

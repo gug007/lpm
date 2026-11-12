@@ -30,6 +30,7 @@ vi.mock("../store/app", () => ({
 vi.mock("../../bridge/commands", () => ({
   PeerRemove: vi.fn(),
   PeerReconnect: vi.fn(),
+  PeerSetEnabled: vi.fn(() => Promise.resolve()),
   PeerSetAlias: mocks.setAlias,
   PeerRemotePair: mocks.remotePair,
   PeerInvoke: vi.fn(() => Promise.resolve({ devices: [], hasPendingCode: true })),
@@ -190,7 +191,7 @@ describe("SidebarPeerSection header", () => {
     expect(name?.className).not.toContain("flex-none");
   });
 
-  it("says a sleeping machine is away, and what is still runnable here", () => {
+  it("says a machine turned off here is off, and what is still runnable here", () => {
     const header = render({
       connected: false,
       status: OFF,
@@ -200,7 +201,7 @@ describe("SidebarPeerSection header", () => {
         { project: project("notes"), label: "notes", follow: {} },
       ],
     });
-    expect(header.textContent).toContain("Away");
+    expect(header.textContent).toContain("Off");
     expect(header.textContent).toContain("2 copies here");
   });
 
