@@ -509,7 +509,14 @@ struct ProjectsView: View {
                     IssueCard(issue: issue)
                         .padding(.horizontal, 20)
                 } else if model.projectsLoaded {
-                    ContentUnavailableView("No projects", systemImage: "folder")
+                    ContentUnavailableView {
+                        Label("No projects yet", systemImage: "folder")
+                    } description: {
+                        Text("Add a folder on your Mac, clone a repository, or connect one over SSH.")
+                    } actions: {
+                        Button("Add Project") { addingProject = true }
+                            .buttonStyle(.borderedProminent)
+                    }
                 } else {
                     ProjectListSkeleton()
                 }
@@ -587,16 +594,20 @@ struct DemoBanner: View {
         HStack(spacing: 8) {
             Image(systemName: "play.circle.fill")
                 .font(.footnote.weight(.semibold))
+                .foregroundStyle(.purple)
             Text("Demo — sample projects")
                 .font(.footnote.weight(.medium))
             Spacer()
             Button("Exit", action: onExit)
                 .font(.footnote.weight(.semibold))
+                .tint(.purple)
         }
-        .foregroundStyle(.white)
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(.purple)
+        .background(Color.purple.opacity(0.14), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .padding(.horizontal, 16)
+        .padding(.bottom, 6)
+        .background(Color(.systemGroupedBackground))
     }
 }
 

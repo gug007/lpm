@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
@@ -112,7 +111,10 @@ fun ProjectsScreen(
                     state.loaded -> EmptyState(
                         title = stringResource(ProjectsR.string.projects_none),
                         icon = painterResource(R.drawable.ic_folder),
-                        modifier = Modifier.align(Alignment.Center)
+                        description = stringResource(ProjectsR.string.projects_none_hint),
+                        modifier = Modifier.align(Alignment.Center),
+                        action = stringResource(ProjectsR.string.projects_none_add),
+                        onAction = menuActions.addProject
                     )
 
                     else -> ProjectListSkeleton(Modifier.fillMaxSize())
@@ -150,11 +152,7 @@ private fun ProjectsHeader(
     onExitDemo: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(
-        modifier.background(
-            if (state.demoMode) LpmTheme.colors.purple else LpmTheme.colors.systemGroupedBackground
-        )
-    ) {
+    Column(modifier.background(LpmTheme.colors.systemGroupedBackground)) {
         LpmTopBar(
             trailing = {
                 ProjectsMoreButton(
@@ -171,7 +169,6 @@ private fun ProjectsHeader(
             )
         }
         if (state.demoMode) {
-            Spacer(Modifier.height(10.dp))
             HeaderBanner(
                 text = stringResource(ProjectsR.string.demo_banner),
                 icon = painterResource(R.drawable.ic_play_circle_fill),

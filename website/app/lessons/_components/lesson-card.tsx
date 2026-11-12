@@ -6,6 +6,7 @@ import { lessonPath } from "@/lib/links";
 import { LESSON_CHAPTERS } from "@/lib/youtube-chapters";
 import { youtubeLesson, youtubeWatchUrl } from "@/lib/youtube-lessons";
 import type { LessonCardData } from "./lesson-topics";
+import { LessonWatchedMark } from "./lesson-watched-mark";
 
 const SIZES = "(min-width: 1024px) 368px, (min-width: 640px) 50vw, 100vw";
 
@@ -31,6 +32,7 @@ export function LessonCard({ lesson, title }: LessonCardData) {
       </h3>
       <p className="mt-0.5 font-mono text-[12px] tabular-nums text-gray-500 dark:text-gray-400">
         {formatLength(seconds)} · {chapters.length} chapters
+        <LessonWatchedMark lesson={lesson} />
       </p>
       <p className="mt-2 line-clamp-3 text-pretty text-[13px] leading-relaxed text-gray-600 dark:text-gray-400">
         {description}

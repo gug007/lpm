@@ -67,7 +67,6 @@ class ProjectsViewModelTest {
         assertFalse(state.listIsEmpty)
         assertEquals("Demo Mac", state.title.name)
         assertEquals("Demo · sample projects", state.title.status.text)
-        assertFalse(state.title.opensDetails)
     }
 
     @Test

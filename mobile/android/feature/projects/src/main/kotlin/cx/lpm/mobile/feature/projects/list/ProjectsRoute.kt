@@ -22,7 +22,6 @@ import cx.lpm.mobile.core.navigation.TerminalKey
 import cx.lpm.mobile.core.navigation.UsageKey
 import cx.lpm.mobile.core.ui.HapticEffect
 import cx.lpm.mobile.feature.projects.ProjectsSlots
-import cx.lpm.mobile.feature.projects.ui.LightStatusBarIcons
 import cx.lpm.mobile.feature.projects.ui.SessionAlertsHost
 import cx.lpm.mobile.feature.projects.visit.destination
 import kotlinx.coroutines.delay
@@ -55,7 +54,6 @@ fun ProjectsRoute(
             delay(REACH_REFRESH_MS)
         }
     }
-    LightStatusBarIcons(light = state.demoMode)
     HapticEffect(state.dialogFeedback)
 
     ProjectsScreen(

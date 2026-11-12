@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { COMPARE_LABELS, FOOTER_GROUPS } from "@/lib/footer-links";
 import {
   REPO_URL,
@@ -8,6 +7,7 @@ import {
   vsPath,
 } from "@/lib/links";
 import { FooterFollow } from "./footer-follow";
+import { FooterGroup } from "./footer-group";
 import { FooterRelease } from "./footer-release";
 import { FooterSponsor } from "./footer-sponsor";
 import { FooterYouTubeCard } from "./footer-youtube-card";
@@ -18,28 +18,28 @@ const headingClass =
 const linkClass =
   "inline-flex items-center py-1 text-[13px] text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors duration-200";
 
+const COMPARE_LINKS = VS_SLUGS.map((slug) => ({
+  href: vsPath(slug),
+  label: COMPARE_LABELS[slug],
+}));
+
 export function Footer() {
   return (
     <footer className="border-t border-gray-200 dark:border-gray-800 py-14">
       <div data-nosnippet className="max-w-5xl mx-auto px-6">
         <FooterRelease />
-        <div className="grid grid-cols-2 gap-x-5 gap-y-10 sm:gap-x-8 lg:grid-cols-4">
+        <div className="grid sm:grid-cols-2 sm:gap-x-8 sm:gap-y-10 lg:grid-cols-4">
           {FOOTER_GROUPS.map((group) => (
-            <div key={group.heading}>
-              <nav aria-label={group.heading}>
-                <h2 className={headingClass}>{group.heading}</h2>
-                <ul className="mt-4 space-y-1.5">
-                  {group.links.map((link) => (
-                    <li key={link.href}>
-                      <Link href={link.href} prefetch={false} className={linkClass}>
-                        {link.label}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </nav>
+            <div key={group.heading} className="max-sm:contents">
+              <FooterGroup
+                heading={group.heading}
+                links={group.links}
+                headingClassName={headingClass}
+                linkClassName={linkClass}
+                listClassName="space-y-1.5 sm:mt-4"
+              />
               {group.withLessons && (
-                <div className="mt-10">
+                <div className="max-sm:order-last max-sm:mt-8 sm:mt-10">
                   <h2 className={headingClass}>Watch</h2>
                   <div className="mt-4">
                     <FooterYouTubeCard />
@@ -48,20 +48,15 @@ export function Footer() {
               )}
             </div>
           ))}
+          <FooterGroup
+            heading="Compare lpm with"
+            links={COMPARE_LINKS}
+            headingClassName={headingClass}
+            linkClassName={linkClass}
+            listClassName="flex flex-wrap gap-x-5 gap-y-1.5 sm:mt-4"
+            className="sm:col-span-full"
+          />
         </div>
-
-        <nav aria-label="Comparisons" className="mt-10">
-          <h2 className={headingClass}>Compare lpm with</h2>
-          <ul className="mt-4 flex flex-wrap gap-x-5 gap-y-1.5">
-            {VS_SLUGS.map((slug) => (
-              <li key={slug}>
-                <Link href={vsPath(slug)} prefetch={false} className={linkClass}>
-                  {COMPARE_LABELS[slug]}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </nav>
 
         {SPONSORS_ENABLED && <FooterSponsor />}
 

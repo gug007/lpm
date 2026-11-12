@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { CtaBand } from "@/components/home/cta-band";
 import { LESSONS_PATH } from "@/lib/links";
+import { LESSON_CHAPTERS } from "@/lib/youtube-chapters";
 import {
   breadcrumbJsonLd,
   jsonLdString,
@@ -10,6 +11,10 @@ import {
 import Hero from "./_components/hero";
 import { LessonTopicSection } from "./_components/lesson-topic-section";
 import { LESSON_IDS, LESSON_TOPICS } from "./_components/lesson-topics";
+import {
+  LessonsProgress,
+  type ProgressLesson,
+} from "./_components/lessons-progress";
 import { TopicNav } from "./_components/topic-nav";
 
 const TITLE = "Video Lessons for Dev Servers, Claude Code & Codex";
@@ -56,6 +61,13 @@ const structuredData = [
   ...LESSON_IDS.map(youtubeLessonJsonLd),
 ];
 
+const PROGRESS_LESSONS: ProgressLesson[] = LESSON_TOPICS.flatMap((topic) =>
+  topic.lessons.map((card) => ({
+    ...card,
+    seconds: LESSON_CHAPTERS[card.lesson].seconds,
+  })),
+);
+
 export default function LessonsPage() {
   return (
     <>
@@ -64,6 +76,7 @@ export default function LessonsPage() {
         dangerouslySetInnerHTML={{ __html: jsonLdString(structuredData) }}
       />
       <Hero />
+      <LessonsProgress lessons={PROGRESS_LESSONS} />
       <TopicNav />
       <div className="mx-auto max-w-6xl px-6 pb-8">
         {LESSON_TOPICS.map((topic) => (

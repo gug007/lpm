@@ -69,8 +69,6 @@ data class MacTitleState(
     val status: LinkStatusLine = LinkStatusLine("", LinkStatusLine.Tone.Waiting),
     /** "2 waiting" or "Details" after the status words. */
     val detail: MacTitleDetail? = null,
-    /** The status line opens the connection details, except in Demo Mode. */
-    val opensDetails: Boolean = true,
     /** Show All Machines in the menu, on or off; null while no other machine is paired here. */
     val showAllMachines: Boolean? = null
 )

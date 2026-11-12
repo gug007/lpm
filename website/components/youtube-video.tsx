@@ -1,7 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { markLessonWatched } from "@/lib/watched-lessons";
 import {
   youtubeEmbedUrl,
   youtubeLesson,
@@ -45,6 +46,10 @@ export function YouTubeVideo({
 }: Props) {
   const { id, name } = youtubeLesson(lesson);
   const [playing, setPlaying] = useState(autoPlay);
+
+  useEffect(() => {
+    if (playing) markLessonWatched(lesson);
+  }, [playing, lesson]);
 
   return (
     <div

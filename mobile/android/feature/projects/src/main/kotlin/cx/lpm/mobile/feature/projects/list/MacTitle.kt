@@ -17,7 +17,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
@@ -39,7 +38,7 @@ import cx.lpm.mobile.feature.projects.ui.SymbolGlyph
 /**
  * The projects list's title: the active Mac's name (the Mac picker) with a line
  * under it saying how the phone is connected. Tapping the line opens the
- * connection details.
+ * connection details. Demo Mode has no line: its banner says where the list is from.
  */
 @Composable
 fun MacTitle(
@@ -86,34 +85,35 @@ fun MacTitle(
                 showAllMachines = state.showAllMachines
             )
         }
-        val text = when (val detail = state.detail) {
-            is MacTitleDetail.Waiting -> stringResource(
-                ProjectsR.string.mac_status_detail,
-                state.status.text,
-                pluralStringResource(ProjectsR.plurals.mac_waiting, detail.count, detail.count)
-            )
-
-            MacTitleDetail.Details -> stringResource(
-                ProjectsR.string.mac_status_detail,
-                state.status.text,
-                stringResource(ProjectsR.string.mac_details)
-            )
-
-            null -> state.status.text
-        }
-        val hint = stringResource(ProjectsR.string.mac_status_hint)
-        LinkStatusLabel(
-            line = state.status,
-            text = text,
-            modifier = Modifier
-                .alpha(if (state.opensDetails) 1f else DISABLED_ALPHA)
-                .clickableNoIndication(
-                    actions.showDetails,
-                    enabled = state.opensDetails,
-                    onClickLabel = hint
-                )
-        )
+        if (!demoMode) StatusLine(state, actions.showDetails)
     }
+}
+
+@Composable
+private fun StatusLine(state: MacTitleState, onClick: () -> Unit) {
+    val text = when (val detail = state.detail) {
+        is MacTitleDetail.Waiting -> stringResource(
+            ProjectsR.string.mac_status_detail,
+            state.status.text,
+            pluralStringResource(ProjectsR.plurals.mac_waiting, detail.count, detail.count)
+        )
+
+        MacTitleDetail.Details -> stringResource(
+            ProjectsR.string.mac_status_detail,
+            state.status.text,
+            stringResource(ProjectsR.string.mac_details)
+        )
+
+        null -> state.status.text
+    }
+    LinkStatusLabel(
+        line = state.status,
+        text = text,
+        modifier = Modifier.clickableNoIndication(
+            onClick,
+            onClickLabel = stringResource(ProjectsR.string.mac_status_hint)
+        )
+    )
 }
 
 /** A status dot and the status words, pulsing while connecting. */
@@ -159,5 +159,4 @@ private fun pulseAlpha(): () -> Float {
 }
 
 private val BarItemInset = 72.dp
-private const val DISABLED_ALPHA = 0.5f
 private const val PULSE_MS = 800

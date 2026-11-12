@@ -8,7 +8,9 @@
     <string name="projects_section_updated">Projects · Updated %1$s</string>
     <string name="projects_stale_footer">Projects open read-only until your Mac is back. Start and Stop wait for it, for up to 2 minutes.</string>
     <string name="projects_unpaired_footer">Projects open read-only until this %1$s is paired with %2$s again.</string>
-    <string name="projects_none">No projects</string>
+    <string name="projects_none">No projects yet</string>
+    <string name="projects_none_hint">Add a folder on your Mac, clone a repository, or connect one over SSH.</string>
+    <string name="projects_none_add">Add Project</string>
     <string name="projects_more">More</string>
     <string name="projects_more_automations">More — automations have new messages</string>
     <string name="menu_automations">Automations</string>

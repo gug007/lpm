@@ -164,7 +164,6 @@ class ProjectsViewModel @Inject constructor(
 
                     else -> null
                 },
-                opensDetails = !s.demoMode,
                 showAllMachines = extras.allMachines.takeIf { s.canShowAllMachines() }
             ),
             macs = s.macs.map { macChoice(it, s, link, view) },

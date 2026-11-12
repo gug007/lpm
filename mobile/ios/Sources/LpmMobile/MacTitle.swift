@@ -2,7 +2,7 @@ import SwiftUI
 
 /// The projects list's title: the active Mac's name (the Mac picker) with a line
 /// under it saying how the phone is connected. Tapping the line opens the
-/// connection details.
+/// connection details. Demo Mode has no line: its banner says where the list is from.
 struct MacTitle: View {
     @Environment(AppModel.self) private var model
     var screenWidth: CGFloat = 0
@@ -15,14 +15,15 @@ struct MacTitle: View {
     var body: some View {
         VStack(spacing: 1) {
             MacSwitcherMenu(maxWidth: titleWidth)
-            Button {
-                model.link.sheetOpen = true
-            } label: {
-                LinkStatusLabel(line: model.link.statusLine, detail: detail)
+            if !model.demoMode {
+                Button {
+                    model.link.sheetOpen = true
+                } label: {
+                    LinkStatusLabel(line: model.link.statusLine, detail: detail)
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Shows how this \(ThisDevice.noun) reaches the Mac")
             }
-            .buttonStyle(.plain)
-            .disabled(model.demoMode)
-            .accessibilityHint("Shows how this \(ThisDevice.noun) reaches the Mac")
         }
     }
 

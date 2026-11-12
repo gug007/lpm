@@ -61,7 +61,8 @@ class ProjectsScreenTest {
                 menuActions = ProjectsMenuActions(
                     settings = { events += "settings" },
                     newFolder = { events += "new folder" },
-                    automations = { events += "automations" }
+                    automations = { events += "automations" },
+                    addProject = { events += "add project" }
                 ),
                 rowActions = ProjectRowActions(
                     open = { events += "open ${it.name}" },
@@ -119,7 +120,9 @@ class ProjectsScreenTest {
     @Test
     fun anEmptyLoadedListSaysSo() {
         show(ProjectsUiState(loaded = true, listIsEmpty = true))
-        compose.onNodeWithText("No projects").assertExists()
+        compose.onNodeWithText("No projects yet").assertExists()
+        compose.onNodeWithText("Add Project").performClick()
+        assertEquals(listOf("add project"), events)
     }
 
     @Test

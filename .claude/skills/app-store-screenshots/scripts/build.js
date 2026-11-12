@@ -24,6 +24,7 @@ const PATCHES = [
   ["DemoServer.swift", 'static let serverName = "Demo Mac"', 'static let serverName = "MacBook Pro"'],
   ["Views.swift", "DemoBanner { model.exitDemo() }", "EmptyView()"],
   ["ConnectionIssue.swift", 'text: "Demo · sample projects"', 'text: "Connected · on your network"'],
+  ["MacTitle.swift", "if !model.demoMode {", "if true {"],
   ["Views.swift", "private enum NotificationRoute: Hashable {\n",
     "enum NotificationRoute: Hashable {\n    case usage, stats\n    case changes(project: String)\n"],
   ["Views.swift", "            case .automations:\n                AutomationsView()\n", DEMO_ROUTES],
