@@ -33,7 +33,7 @@ export default function PrivacyPage() {
         Privacy Policy
       </h1>
       <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-        Last updated: November 12, 2026
+        Last updated: November 13, 2026
       </p>
 
       <section className="mt-10 space-y-4 text-sm leading-relaxed text-gray-700 dark:text-gray-300">
@@ -46,7 +46,9 @@ export default function PrivacyPage() {
           runs on your own machines. It does not collect, transmit, or share
           any personal data, telemetry, or usage information. Two things reach
           the network on their own: the desktop app&rsquo;s update check and,
-          if you pair a phone, push notifications. On Android, two Google
+          if you pair a phone, push notifications. A third is yours to turn
+          on: crash reports from the desktop app, which are off until you
+          choose them. On Android, two Google
           components the app is built with also talk to Google: one reads the
           pairing QR code, the other delivers notifications. All of this is
           described below.
@@ -62,7 +64,10 @@ export default function PrivacyPage() {
           The software (desktop app)
         </h2>
         <ul className="list-disc pl-5 space-y-1">
-          <li>No analytics, tracking, or telemetry.</li>
+          <li>
+            No analytics or tracking. Crash reports, described below, are off
+            unless you turn them on.
+          </li>
           <li>No account required.</li>
           <li>
             All project configuration and state stays on your local machine.
@@ -78,6 +83,23 @@ export default function PrivacyPage() {
             Generate with AI, prompt rewrites) run through the agent CLI you
             installed, under your own account, so that provider receives what
             you send it. lpm hosts no model of its own.
+          </li>
+          <li>
+            <strong>Crash reports</strong> are sent only if you turn on Send
+            crash reports in Settings, under General, and each computer has
+            its own switch. While it is on, an error lpm didn&rsquo;t expect is
+            sent to Sentry (sentry.io), the service where we read the reports.
+            A report holds the error and where in lpm it happened, your lpm
+            version, operating system version and processor type, and the
+            app&rsquo;s own recent events. Your code, terminal output, prompts
+            and project settings are never part of it. The error text can name
+            the file or project it was about; your home folder name and
+            anything that looks like a password or token are removed from it
+            before it leaves your computer. A report has no account or name on
+            it, and lpm tells Sentry not to keep the address it came from.
+            Turning the switch off stops reports at once. The screen lpm shows
+            after a crash also has a Send report button, which sends that one
+            error when you press it.
           </li>
           <li>
             <strong>Push notifications</strong> are sent only if you pair a{" "}
@@ -269,7 +291,9 @@ export default function PrivacyPage() {
         </h2>
         <p>
           Because the software stores no personal data on our side, there is
-          nothing for us to export, correct, or delete. For website analytics
+          nothing for us to export, correct, or delete. Crash reports you chose
+          to send carry no name or account, so we can&rsquo;t tell which ones
+          came from you. For website analytics
           data handled by Google, see Google&rsquo;s privacy policy and
           opt-out tools linked above.
         </p>

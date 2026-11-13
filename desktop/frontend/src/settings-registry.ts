@@ -233,6 +233,15 @@ export const ROWS = {
     description: "When you've been away 10 minutes and no agent is working",
     keywords: ["install updates when idle", "automatic", "auto update", "upgrade", "away", "background", "unattended"],
   },
+  "general.crashReports": {
+    kind: "row",
+    tab: "general",
+    id: "general.crashReports",
+    reach: "any",
+    label: "Send crash reports",
+    description: "Tell lpm's developers when the app breaks, so it can be fixed",
+    keywords: ["privacy", "sentry", "telemetry", "diagnostics", "error", "bug", "panic", "analytics", "data"],
+  },
   "general.servicesBuild": {
     kind: "row",
     tab: "general",

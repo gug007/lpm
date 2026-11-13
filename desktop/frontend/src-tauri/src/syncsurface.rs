@@ -142,8 +142,9 @@ const GLOBAL_DIRS: &[GlobalDir] = &[
 /// by an incoming value) on import and peer sync, and excluded from the portable
 /// settings digest so they never trigger a sync. Window geometry, sidebar width
 /// and project order (local and per paired Mac), pinned projects,
-/// last-selected project, and per-project detached-window state.
-pub(crate) const PER_MACHINE_KEYS: [&str; 10] = [
+/// last-selected project, per-project detached-window state, and whether this
+/// machine sends crash reports (crashreport.rs) — consent is given per machine.
+pub(crate) const PER_MACHINE_KEYS: [&str; 11] = [
     "windowWidth",
     "windowHeight",
     "windowX",
@@ -154,6 +155,7 @@ pub(crate) const PER_MACHINE_KEYS: [&str; 10] = [
     "peerProjectOrder",
     "lastSelectedProject",
     "detachedWindows",
+    crate::crashreport::CONSENT_KEY,
 ];
 
 /// Project YAML keys stripped before the portable digest and preserved locally on
@@ -280,7 +282,7 @@ mod tests {
     }
 
     #[test]
-    fn per_machine_keys_are_old_six_plus_detached_windows_pins_and_both_orders() {
+    fn per_machine_keys_are_old_six_plus_detached_windows_pins_both_orders_and_crash_reports() {
         assert_eq!(
             PER_MACHINE_KEYS,
             [
@@ -294,6 +296,7 @@ mod tests {
                 "peerProjectOrder",
                 "lastSelectedProject",
                 "detachedWindows",
+                "crashReports",
             ]
         );
     }

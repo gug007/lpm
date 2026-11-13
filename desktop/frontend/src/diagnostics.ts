@@ -18,6 +18,12 @@ export interface DiagnosticsEnvironment {
   theme: string;
 }
 
+export interface ReportedError {
+  event: string;
+  error: Error;
+  details?: unknown;
+}
+
 export interface DiagnosticsReportInput {
   error: unknown;
   componentStack?: string;
@@ -55,11 +61,19 @@ export class DiagnosticBuffer {
 const diagnosticBuffer = new DiagnosticBuffer(100);
 let currentSurface = "unknown";
 let initialized = false;
+let reportedErrorListener: ((reported: ReportedError) => void) | null = null;
+
+// Who else hears of every reported error (crashReports.ts). One listener: the
+// last one set replaces the one before it.
+export function onReportedError(
+  listener: ((reported: ReportedError) => void) | null,
+): void {
+  reportedErrorListener = listener;
+}
 
 export function redactDiagnosticString(value: string): string {
   return value
-    .replace(/\/Users\/[^/\s]+/g, "~")
-    .replace(/\b[A-Za-z]:[\\/]Users[\\/][^\\/\s]+/gi, "~")
+    .replace(/(?:\/Users\/|\/home\/|\b[a-z]:[\\/]Users[\\/])[^/\\\s:]+/gi, "~")
     .replace(/\b(Bearer\s+)[A-Za-z0-9._~+/=-]+/gi, "$1[REDACTED]")
     .replace(
       /\b((?:authorization|api[_-]?key|password|passphrase|private[_-]?key|secret|token)\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s,;]+)/gi,
@@ -176,10 +190,16 @@ export function reportError(
   details?: unknown,
 ): DiagnosticEntry {
   const normalized = normalizeError(error);
-  return logDiagnostic("error", event, normalized.message, {
+  const entry = logDiagnostic("error", event, normalized.message, {
     error: normalized,
     context: details,
   });
+  try {
+    reportedErrorListener?.({ event, error: normalized, details });
+  } catch {
+    // Reporting an error must never raise another one.
+  }
+  return entry;
 }
 
 export function getDiagnosticEntries(): DiagnosticEntry[] {

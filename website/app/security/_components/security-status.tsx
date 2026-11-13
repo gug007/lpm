@@ -26,8 +26,8 @@ const STATUSES: Status[] = [
   },
   {
     icon: LockKeyhole,
-    text: "The desktop app, the CLI and lpm Link send no analytics or telemetry",
-    chip: "None",
+    text: "The desktop app, the CLI and lpm Link send no analytics, and no crash reports unless you turn them on",
+    chip: "Off by default",
   },
   {
     icon: LockKeyhole,

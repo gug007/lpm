@@ -90,6 +90,10 @@ ignore = "0.4.34"
 grep-searcher = "0.1.17"
 grep-regex = "0.1.14"
 grep-matcher = "0.1.9"
+# Opt-in crash reports (crashreport.rs). No default features: session tracking,
+# logs and metrics would send without an error to report. Its reqwest is the one
+# already in the tree, so TLS follows the per-target choice below.
+sentry = { version = "0.49", default-features = false, features = ["backtrace", "contexts", "panic", "reqwest", "rustls"] }
 
 # objc2 for the in-pane browser's per-webview NSAppearance override (window theme
 # is app-wide on macOS). Versions match what Tauri already pulls in.

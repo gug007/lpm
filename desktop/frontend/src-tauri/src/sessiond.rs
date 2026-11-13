@@ -491,6 +491,7 @@ fn start_janitor() {
 /// Never returns.
 pub fn run() -> ! {
     daemonize::detach();
+    let _crash_reports = crate::crashreport::init("daemon");
     let path = socket_path();
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);

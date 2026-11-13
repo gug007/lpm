@@ -407,6 +407,12 @@ export function GetSuggestedPorts(project) {
 export function GetVersion() {
   return invoke("get_version");
 }
+export function CrashReportConfig() {
+  return invoke("crash_report_config");
+}
+export function CrashReportsAllowed() {
+  return invoke("crash_reports_allowed");
+}
 export function GitAbortMerge(cwd) {
   return invoke("git_abort_merge", { cwd });
 }

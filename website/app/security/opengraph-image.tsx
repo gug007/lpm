@@ -9,7 +9,7 @@ export default function Image() {
   return ogImage({
     headline: ["What lpm installs,", "signs and sends"],
     subline:
-      "Signed and notarized Mac builds, SHA-256 checksums for every file, and no telemetry in the apps.",
+      "Signed and notarized Mac builds, SHA-256 checksums for every file, and no tracking in the apps.",
     eyebrow: "Security",
   });
 }

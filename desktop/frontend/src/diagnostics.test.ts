@@ -1,12 +1,15 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   DiagnosticBuffer,
   formatDiagnosticsReport,
   normalizeError,
+  onReportedError,
   redactDiagnosticString,
+  reportError,
   sanitizeDiagnosticValue,
   type DiagnosticEntry,
 } from "./diagnostics";
+import redactionExamples from "./redaction.vectors.json";
 
 function entry(event: string): DiagnosticEntry {
   return {
@@ -57,6 +60,10 @@ describe("diagnostic redaction", () => {
     expect(redactDiagnosticString("open C:\\Users\\alice\\code\\a.ts")).toBe("open ~\\code\\a.ts");
   });
 
+  it.each(redactionExamples)("agrees with crashreport.rs on %j", (input, expected) => {
+    expect(redactDiagnosticString(input)).toBe(expected);
+  });
+
   it("redacts sensitive object fields and handles cycles", () => {
     const value: Record<string, unknown> = { token: "secret", name: "safe" };
     value.self = value;
@@ -79,6 +86,28 @@ describe("diagnostic redaction", () => {
     );
 
     expect(sanitizeDiagnosticValue(value)).toBe("[UNSERIALIZABLE]");
+  });
+});
+
+describe("reportError", () => {
+  it("tells the listener, and survives one that throws", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const heard = vi.fn();
+    onReportedError(heard);
+    reportError("test.failed", "boom", { step: 1 });
+
+    expect(heard).toHaveBeenCalledWith({
+      event: "test.failed",
+      error: new Error("boom"),
+      details: { step: 1 },
+    });
+
+    onReportedError(() => {
+      throw new Error("listener broke");
+    });
+    expect(reportError("test.failed", "again").message).toBe("again");
+    onReportedError(null);
+    vi.restoreAllMocks();
   });
 });
 

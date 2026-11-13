@@ -36,6 +36,8 @@ macro_rules! all_command_handlers {
             weekly_recap,
             push_weekly_recap,
             copy_png_image,
+            crash_report_config,
+            crash_reports_allowed,
             save_png_image,
             share_png_image,
             apply_claude_limits,

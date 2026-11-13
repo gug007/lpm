@@ -2,6 +2,7 @@ import {
   CheckClaudeHooks,
   CheckKokoroInstalled,
   ClearOpenAIKey,
+  CrashReportConfig,
   HasOpenAIKey,
   InstallKokoro,
   ListSystemSounds,
@@ -69,6 +70,8 @@ export interface MachineCommands {
   kokoroInstalled: () => Promise<boolean>;
   installKokoro: () => Promise<void>;
   uninstallKokoro: () => Promise<void>;
+  // Whether the machine's lpm was built to send crash reports (crashreport.rs).
+  crashReportsAvailable: () => Promise<boolean>;
 }
 
 const strings = (value: unknown): string[] =>
@@ -114,6 +117,7 @@ export const LOCAL_COMMANDS: MachineCommands = {
   kokoroInstalled: () => CheckKokoroInstalled().then(Boolean),
   installKokoro: () => InstallKokoro(),
   uninstallKokoro: () => UninstallKokoro(),
+  crashReportsAvailable: () => CrashReportConfig().then(Boolean),
 };
 
 // The machine a page opened from Settings edits: a connected one's slug and
@@ -152,6 +156,7 @@ export function peerCommands(slug: string): MachineCommands {
     kokoroInstalled: () => run("check_kokoro_installed").then(Boolean),
     installKokoro: () => run("install_kokoro"),
     uninstallKokoro: () => run("uninstall_kokoro"),
+    crashReportsAvailable: () => run("crash_report_config").then(Boolean),
   };
 }
 
