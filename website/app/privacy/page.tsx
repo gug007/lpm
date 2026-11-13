@@ -46,9 +46,8 @@ export default function PrivacyPage() {
           runs on your own machines. It does not collect, transmit, or share
           any personal data, telemetry, or usage information. Two things reach
           the network on their own: the desktop app&rsquo;s update check and,
-          if you pair a phone, push notifications. A third is yours to turn
-          on: crash reports from the desktop app, which are off until you
-          choose them. On Android, two Google
+          if you pair a phone, push notifications. A third is on until you
+          turn it off: crash reports from the desktop app. On Android, two Google
           components the app is built with also talk to Google: one reads the
           pairing QR code, the other delivers notifications. All of this is
           described below.
@@ -65,8 +64,8 @@ export default function PrivacyPage() {
         </h2>
         <ul className="list-disc pl-5 space-y-1">
           <li>
-            No analytics or tracking. Crash reports, described below, are off
-            unless you turn them on.
+            No analytics or tracking. Crash reports, described below, can be
+            turned off in Settings.
           </li>
           <li>No account required.</li>
           <li>
@@ -85,7 +84,7 @@ export default function PrivacyPage() {
             you send it. lpm hosts no model of its own.
           </li>
           <li>
-            <strong>Crash reports</strong> are sent only if you turn on Send
+            <strong>Crash reports</strong> are on until you turn off Send
             crash reports in Settings, under General, and each computer has
             its own switch. While it is on, an error lpm didn&rsquo;t expect is
             sent to Sentry (sentry.io), the service where we read the reports.
@@ -96,10 +95,10 @@ export default function PrivacyPage() {
             the file or project it was about; your home folder name and
             anything that looks like a password or token are removed from it
             before it leaves your computer. A report has no account or name on
-            it, and lpm tells Sentry not to keep the address it came from.
-            Turning the switch off stops reports at once. The screen lpm shows
-            after a crash also has a Send report button, which sends that one
-            error when you press it.
+            it, and Sentry is set to keep neither the address it came from nor
+            a location worked out from it. Turning the switch off stops reports
+            at once. With it off, the screen lpm shows after a crash still has
+            a Send report button, which sends that one error when you press it.
           </li>
           <li>
             <strong>Push notifications</strong> are sent only if you pair a{" "}
@@ -291,8 +290,8 @@ export default function PrivacyPage() {
         </h2>
         <p>
           Because the software stores no personal data on our side, there is
-          nothing for us to export, correct, or delete. Crash reports you chose
-          to send carry no name or account, so we can&rsquo;t tell which ones
+          nothing for us to export, correct, or delete. Crash reports carry no
+          name or account, so we can&rsquo;t tell which ones
           came from you. For website analytics
           data handled by Google, see Google&rsquo;s privacy policy and
           opt-out tools linked above.

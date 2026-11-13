@@ -69,6 +69,13 @@ fn fixture(consented: bool) -> Fixture {
 }
 
 #[test]
+fn reports_are_on_until_the_owner_turns_them_off() {
+    assert!(allows(&serde_json::json!({})));
+    assert!(allows(&serde_json::json!({ "crashReports": true })));
+    assert!(!allows(&serde_json::json!({ "crashReports": false })));
+}
+
+#[test]
 fn nothing_is_sent_or_even_connected_without_consent() {
     let f = fixture(false);
     f.hub.capture_message("boom", Level::Error);

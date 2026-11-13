@@ -1,5 +1,6 @@
-// Crash reports to Sentry, sent only from a machine whose owner turned them on
-// (Settings › General › Privacy). A build without LPM_SENTRY_DSN has none of it.
+// Crash reports to Sentry, sent from every machine whose owner hasn't turned
+// them off (Settings › General › Privacy). A build without LPM_SENTRY_DSN has
+// none of it.
 //
 // Consent is read from settings.json at the moment something would be sent, so
 // turning it off stops this process, the session daemon and a headless host
@@ -22,8 +23,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, LazyLock};
 use std::time::Duration;
 
-/// The settings.json switch. Per machine (syncsurface.rs): saying yes on one
-/// computer never turns reports on for another.
+/// The settings.json switch. Per machine (syncsurface.rs): turning reports off
+/// on one computer leaves the others as they are.
 pub(crate) const CONSENT_KEY: &str = "crashReports";
 
 type Consent = Arc<dyn Fn() -> bool + Send + Sync>;
@@ -35,10 +36,11 @@ fn dsn() -> Option<&'static str> {
 }
 
 fn consented() -> bool {
-    config::load_settings()
-        .get(CONSENT_KEY)
-        .and_then(Value::as_bool)
-        .unwrap_or(false)
+    allows(&config::load_settings())
+}
+
+fn allows(settings: &Value) -> bool {
+    settings.get(CONSENT_KEY) != Some(&Value::Bool(false))
 }
 
 fn release() -> String {

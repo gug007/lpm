@@ -5,8 +5,8 @@ import { SettingsSection } from "../SettingsSection";
 import { Toggle } from "../ui/Toggle";
 import { useSettingsTarget } from "./settingsTarget";
 
-// Settings › General › Privacy: whether the machine sends crash reports. Off
-// until chosen, and chosen on each machine by itself.
+// Settings › General › Privacy: whether the machine sends crash reports. On
+// until turned off, and turned off on each machine by itself.
 export function CrashReportsSection() {
   const { settings, update, commands } = useSettingsTarget();
   const [available, setAvailable] = useState(true);
@@ -54,9 +54,9 @@ export function CrashReportsSection() {
       >
         <Toggle
           aria-label="Send crash reports"
-          enabled={available && settings.crashReports === true}
+          enabled={available && settings.crashReports !== false}
           disabled={!available}
-          onChange={(on) => void update({ crashReports: on || undefined })}
+          onChange={(on) => void update({ crashReports: on ? undefined : false })}
         />
       </SettingsRow>
     </SettingsSection>

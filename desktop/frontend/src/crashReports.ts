@@ -60,9 +60,13 @@ export function crashReportTarget(): Promise<CrashReportTarget | null> {
   return target;
 }
 
+function switchedOn(settings: { crashReports?: boolean }): boolean {
+  return settings.crashReports !== false;
+}
+
 // This window's copy of the switch: enough to decide whether to load the SDK.
 function switchedOnHere(): boolean {
-  return getSettings().crashReports === true;
+  return switchedOn(getSettings());
 }
 
 // The switch as the machine's settings file has it now, whichever window
@@ -208,8 +212,8 @@ export function initCrashReports(): void {
     if (held) {
       const early = held;
       held = null;
-      if (now.crashReports) early.forEach(deliver);
-    } else if (now.crashReports && !before.crashReports) {
+      if (switchedOn(now)) early.forEach(deliver);
+    } else if (switchedOn(now) && !switchedOn(before)) {
       allowedSince = Date.now();
     }
   });
