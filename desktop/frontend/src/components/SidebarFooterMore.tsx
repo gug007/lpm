@@ -53,7 +53,7 @@ export function SidebarFooterMore({ entries, isDefault, onMove, onReset }: Sideb
             ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
             : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
         }`}
-        title={hints.length > 0 ? `More — ${hints.join(", ")}` : "Automations, settings, and more views"}
+        title={hints.length > 0 ? `More — ${hints.join(", ")}` : "Automations, usage, and more views"}
         aria-label="More"
         aria-expanded={open}
       >

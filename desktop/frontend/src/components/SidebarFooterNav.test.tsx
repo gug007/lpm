@@ -153,7 +153,7 @@ describe("SidebarFooterNav", () => {
     expect(mocks.githubStarred).toHaveBeenCalledTimes(1);
     expect(useSettingsStore.getState().githubStarred).toBe(true);
     openMore();
-    expect(buttonWithText("Settings")).toBeDefined();
+    expect(buttonWithText("Mobile app")).toBeDefined();
     expect(buttonWithText("Star on GitHub")).toBeUndefined();
   });
 
@@ -166,6 +166,20 @@ describe("SidebarFooterNav", () => {
 
     openMore();
     expect(buttonWithText("Support & Feedback")).toBeUndefined();
+  });
+
+  it("opens Settings from the icon before Support & Feedback, not from the menu", () => {
+    const onSettings = vi.fn();
+    renderNav({ onSettings });
+
+    const settings = byLabel("Settings")!;
+    const feedback = byLabel("Support & Feedback")!;
+    expect(settings.compareDocumentPosition(feedback) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    act(() => settings.click());
+    expect(onSettings).toHaveBeenCalledTimes(1);
+
+    openMore();
+    expect(buttonWithText("Settings")).toBeUndefined();
   });
 
   it("starts with Terminals as the only row outside the menu", () => {
@@ -260,7 +274,6 @@ describe("SidebarFooterNav", () => {
         "ports",
         "recap",
         "mobile",
-        "settings",
         "github",
       ],
     });

@@ -1,5 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { AGENT_STATE_LABEL, AGENT_STATE_TONE, computeProjectStatus } from "../agentStatus";
+import { SETTINGS_CHORD } from "../appMenuKeys";
+import { chordLabel } from "../keys";
 import { useJobsAmbient } from "../hooks/useJobsAmbient";
 import { useKeepAwakeSession } from "../hooks/useKeepAwakeSession";
 import { MACHINE } from "../machineWords";
@@ -65,6 +67,9 @@ interface SidebarFooterNavProps {
   onSettings: () => void;
   onFeedback: () => void;
 }
+
+const FOOTER_ICON_CLASS =
+  "flex h-9 w-9 items-center justify-center rounded-md transition-colors";
 
 interface RowMenu {
   entry: SidebarNavEntry;
@@ -283,13 +288,6 @@ export function SidebarFooterNav({
       active: showMobile,
       onSelect: onMobile,
     },
-    settings: {
-      id: "settings",
-      label: "Settings",
-      icon: <SettingsIcon />,
-      active: showSettings,
-      onSelect: onSettings,
-    },
     github: {
       id: "github",
       label: "Star on GitHub",
@@ -327,11 +325,29 @@ export function SidebarFooterNav({
             onReset={reset}
           />
         )}
-        <Tooltip content="Support & Feedback" triggerClassName="ml-auto inline-flex shrink-0">
+        <Tooltip
+          content={`Settings  ·  ${chordLabel(SETTINGS_CHORD)}`}
+          triggerClassName="ml-auto inline-flex shrink-0"
+        >
+          <button
+            type="button"
+            onClick={onSettings}
+            className={`${FOOTER_ICON_CLASS} ${
+              showSettings
+                ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
+                : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            }`}
+            aria-label="Settings"
+            aria-pressed={showSettings}
+          >
+            <SettingsIcon />
+          </button>
+        </Tooltip>
+        <Tooltip content="Support & Feedback" triggerClassName="inline-flex shrink-0">
           <button
             type="button"
             onClick={onFeedback}
-            className="flex h-9 w-9 items-center justify-center rounded-md text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            className={`${FOOTER_ICON_CLASS} text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]`}
             aria-label="Support & Feedback"
           >
             <MessageIcon />
