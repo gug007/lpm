@@ -38,6 +38,7 @@ import {
   ZapIcon,
 } from "./icons";
 import { KeepAwakeBadge } from "./KeepAwakeBadge";
+import { KeepAwakeCup } from "./KeepAwakeCup";
 import { KeepAwakeHoverCard } from "./KeepAwakeHoverCard";
 import { KeepAwakeMenu } from "./KeepAwakeMenu";
 import { KeepAwakePanel } from "./KeepAwakePanel";
@@ -215,9 +216,7 @@ export function SidebarFooterNav({
       ),
       trailing: <KeepAwakeBadge session={keepAwake} />,
       menuBadge: awake && (
-        <span className="flex text-[var(--accent-amber-text)]" aria-label={`${MACHINE.ThisMachine} is kept awake`}>
-          <CoffeeIcon awake />
-        </span>
+        <KeepAwakeCup session={keepAwake} menuOpen={awakeMenu !== null} onToggleMenu={toggleAwakeMenu} />
       ),
       menuHints: awake ? [`${MACHINE.thisMachine} is kept awake`] : [],
     },

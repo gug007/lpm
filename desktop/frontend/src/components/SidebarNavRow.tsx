@@ -35,7 +35,7 @@ export interface SidebarNavEntry {
   // The row's own popup is open over it, so its tooltip stays away.
   popupOpen?: boolean;
   // What the More menu shows for this row while it is folded inside it: a badge
-  // on the button, and words for its tooltip.
+  // beside its label, which may be a button of its own, and words for its tooltip.
   menuBadge?: ReactNode;
   menuHints?: string[];
   description?: string;

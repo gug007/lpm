@@ -83,6 +83,8 @@ function byLabel(label: string): HTMLButtonElement | undefined {
 }
 
 const moreButton = () => byLabel("More");
+// The button and the badges beside it, which ride on the row rather than in it.
+const moreRow = () => moreButton()!.parentElement!;
 const openMore = () => act(() => moreButton()!.click());
 // The row's options button opens the menu that holds the move and reset actions.
 const openRowMenu = (label: string) =>
@@ -232,7 +234,7 @@ describe("SidebarFooterNav", () => {
     renderNav();
     await act(async () => {});
 
-    expect(moreButton()!.textContent).toContain("2");
+    expect(moreRow().textContent).toContain("2");
     expect(moreButton()!.title).toContain("2 automations with new messages");
 
     openMore();
@@ -240,7 +242,7 @@ describe("SidebarFooterNav", () => {
     pick("Move to the sidebar");
 
     const more = moreButton()!;
-    expect(more.textContent).not.toContain("2");
+    expect(moreRow().textContent).not.toContain("2");
     expect(more.title).not.toContain("new messages");
     expect(buttonWithText("Automations")!.textContent).toContain("2");
   });
@@ -338,6 +340,70 @@ describe("SidebarFooterNav Keep awake in the More menu", () => {
 
     expect(panelText()).toContain("For a set time");
     expect(moreButton()!.getAttribute("aria-expanded")).toBe("true");
+  });
+
+  const cup = () =>
+    [...container.querySelectorAll("button")].find((b) => b.getAttribute("aria-label")?.startsWith("Keep awake:"));
+  const cardButton = (text: string) =>
+    [...document.querySelectorAll("button")].find((b) => b.textContent === text && !b.closest("[data-context-menu]"));
+
+  it("turns off from the cup's card without opening More", async () => {
+    vi.useFakeTimers();
+    try {
+      mocks.keepAwakeState.mockResolvedValue({ ...KEEP_AWAKE, mode: "agents", active: true, agents: 1 });
+      renderNav();
+      await act(async () => {});
+      hover(cup()!);
+      await act(async () => vi.advanceTimersByTime(200));
+
+      expect(document.body.textContent).toContain("1 agent working.");
+      await act(async () => cardButton("Turn off")!.click());
+      expect(mocks.keepAwakeSet).toHaveBeenCalledWith("off", undefined);
+      expect(moreButton()!.getAttribute("aria-expanded")).toBe("false");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("adds an hour from the cup's card while a set time runs", async () => {
+    vi.useFakeTimers();
+    try {
+      mocks.keepAwakeState.mockResolvedValue({ ...KEEP_AWAKE, mode: "timed", active: true, endsIn: 20 * 60_000 });
+      renderNav();
+      await act(async () => {});
+      hover(cup()!);
+      await act(async () => vi.advanceTimersByTime(200));
+
+      await act(async () => cardButton("+1 h")!.click());
+      expect(mocks.keepAwakeSet).toHaveBeenCalledWith("extend", 60);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("opens the whole menu from a click on the cup, and closes More", async () => {
+    mocks.keepAwakeState.mockResolvedValue({ ...KEEP_AWAKE, mode: "always", active: true, power: "awake" });
+    renderNav();
+    await act(async () => {});
+    openMore();
+
+    act(() => cup()!.click());
+    expect(document.querySelector("[data-context-menu]")?.textContent).toContain("Awake until you turn it off.");
+    expect(moreButton()!.getAttribute("aria-expanded")).toBe("false");
+
+    act(() => {
+      cup()!.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+      cup()!.click();
+    });
+    expect(document.querySelector("[data-context-menu]")).toBeNull();
+  });
+
+  it("has no cup while nothing keeps the machine awake", async () => {
+    mocks.keepAwakeState.mockResolvedValue({ ...KEEP_AWAKE, mode: "agents", active: false });
+    renderNav();
+    await act(async () => {});
+
+    expect(cup()).toBeUndefined();
   });
 
   it("closes its menu once the pointer rests on another row, not when it leaves the menus", async () => {

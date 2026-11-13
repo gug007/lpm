@@ -46,23 +46,29 @@ export function SidebarFooterMore({ entries, isDefault, onMove, onReset }: Sideb
 
   return (
     <div ref={ref} className="relative min-w-0 flex-1">
-      <button
-        onClick={() => (open ? close() : setOpen(true))}
-        className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${
+      {/* The badges sit beside the button, not in it, so one with a button of
+          its own takes its own clicks; the button's ::after covers the rest of the row. */}
+      <div
+        className={`relative flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${
           open || anyActive
             ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
             : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
         }`}
-        title={hints.length > 0 ? `More — ${hints.join(", ")}` : "Automations, usage, and more views"}
-        aria-label="More"
-        aria-expanded={open}
       >
-        <MoreHorizontalIcon />
-        More
-        <span className="flex items-center gap-1">
+        <button
+          onClick={() => (open ? close() : setOpen(true))}
+          className="flex items-center gap-2 after:absolute after:inset-0 after:rounded-md"
+          title={hints.length > 0 ? `More — ${hints.join(", ")}` : "Automations, usage, and more views"}
+          aria-label="More"
+          aria-expanded={open}
+        >
+          <MoreHorizontalIcon />
+          More
+        </button>
+        <span className="flex items-center gap-1" onClick={close}>
           {entries.map((entry) => entry.menuBadge && <span key={entry.id} className="flex">{entry.menuBadge}</span>)}
         </span>
-      </button>
+      </div>
       {open && (
         <div className={`absolute bottom-full left-0 z-[80] mb-1.5 w-max min-w-[max(100%,12rem)] px-1 ${MENU_PANEL_CLASS}`}>
           {entries.map((entry, i) => (
