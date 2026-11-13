@@ -1,7 +1,12 @@
 import { FLOOR_CHOICES, type KeepAwakePrefs, type KeepAwakeState } from "../keepAwake";
 import { KA_FIELD } from "./keepAwakeStyles";
 
+const ROW =
+  "mx-1 flex cursor-pointer select-none items-center gap-2 rounded-md px-2 py-1 transition-colors hover:bg-[var(--bg-hover)]";
+
 // How Keep awake holds, whichever mode is on: the screen too, and on battery.
+// Each whole row toggles its checkbox; the battery level field inside its row
+// keeps its own clicks while it's enabled.
 export function KeepAwakeOptions({
   state,
   onChange,
@@ -10,9 +15,9 @@ export function KeepAwakeOptions({
   onChange: (prefs: KeepAwakePrefs) => void;
 }) {
   return (
-    <div className="flex flex-col gap-1.5 px-3 py-1.5 text-[11px] text-[var(--text-secondary)]">
+    <div className="flex flex-col gap-0.5 py-1 text-[11px] text-[var(--text-secondary)]">
       {state.screenSupported && (
-        <label className="flex cursor-pointer items-center gap-2">
+        <label className={`${ROW} min-h-[29px]`}>
           <input
             id="keep-awake-screen"
             type="checkbox"
@@ -23,24 +28,22 @@ export function KeepAwakeOptions({
           Keep the screen on too
         </label>
       )}
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <label className="flex cursor-pointer items-center gap-2">
-          <input
-            id="keep-awake-battery"
-            type="checkbox"
-            checked={state.battery}
-            onChange={(e) => onChange({ battery: e.target.checked })}
-            className="accent-[var(--accent-amber)]"
-          />
-          On battery too, until
-        </label>
+      <label className={ROW}>
+        <input
+          id="keep-awake-battery"
+          type="checkbox"
+          checked={state.battery}
+          onChange={(e) => onChange({ battery: e.target.checked })}
+          className="accent-[var(--accent-amber)]"
+        />
+        On battery too, until
         <select
           id="keep-awake-floor"
           aria-label="Battery level to stop at"
           value={state.floor}
           disabled={!state.battery}
           onChange={(e) => onChange({ floor: Number(e.target.value) })}
-          className={`${KA_FIELD} disabled:opacity-50`}
+          className={`${KA_FIELD} cursor-default disabled:pointer-events-none disabled:opacity-50`}
         >
           {FLOOR_CHOICES.map((floor) => (
             <option key={floor} value={floor}>
@@ -48,7 +51,7 @@ export function KeepAwakeOptions({
             </option>
           ))}
         </select>
-      </div>
+      </label>
     </div>
   );
 }
