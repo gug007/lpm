@@ -70,7 +70,7 @@ export function buildLlmsTxt(): string {
     "",
     item("All features", url(FEATURES_PATH), "everything lpm does, on one page"),
     item("Lessons", url(LESSONS_PATH), "short videos recorded in the app, grouped by topic"),
-    item("iPhone companion", url(MOBILE_PATH), "lpm Link, for driving lpm from a phone"),
+    item("Phone companion", url(MOBILE_PATH), "lpm Link for iPhone and Android, for driving lpm from a phone"),
     item("Changelog", url(CHANGELOG_PATH), "notes for every release, newest first"),
     item("Download stats", url(STATS_PATH)),
     item("Security", url(SECURITY_PATH), "signing, notarization and checksums"),

@@ -113,6 +113,15 @@ export function usePlatform(): Platform {
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }
 
+function getAndroidSnapshot(): boolean {
+  return navigator.userAgent.toLowerCase().includes("android");
+}
+
+// An Android phone or tablet gets lpm Link from Google Play, not the App Store.
+export function useIsAndroid(): boolean {
+  return useSyncExternalStore(subscribe, getAndroidSnapshot, () => false);
+}
+
 function getChipSnapshot(): string | null {
   getSnapshot();
   return cachedChip;

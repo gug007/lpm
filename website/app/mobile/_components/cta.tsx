@@ -3,6 +3,7 @@ import Link from "next/link";
 import { GithubLink } from "@/components/github-link";
 import { HeroDownload } from "@/components/home/hero-download";
 import { AppStoreButton } from "@/components/app-store-button";
+import { GooglePlayButton } from "@/components/google-play-button";
 
 export default function Cta() {
   return (
@@ -14,14 +15,17 @@ export default function Cta() {
           Prompt your agents, review the diff, and ship it from anywhere.
         </h2>
         <p className="mt-6 text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-xl mx-auto leading-relaxed">
-          Download the lpm desktop app, get lpm Link from the App Store, and
-          pair your iPhone or iPad from + above your projects → Phone. Free,
+          Download the lpm desktop app, get lpm Link from the App Store or
+          Google Play, and pair your phone from + above your projects → Phone. Free,
           native, and yours: the work stays on your Mac, the control comes
           with you.
         </p>
 
         <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row sm:items-start">
-          <AppStoreButton source="mobile-cta" />
+          <div className="flex w-full flex-col items-center gap-3 sm:w-auto">
+            <AppStoreButton source="mobile-cta" />
+            <GooglePlayButton source="mobile-cta" />
+          </div>
           <div className="hidden sm:block">
             <HeroDownload source="mobile-cta" />
           </div>

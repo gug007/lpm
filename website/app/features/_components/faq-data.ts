@@ -4,7 +4,7 @@ export const FEATURE_FAQS = [
   {
     question: "Are any features paid or behind an account?",
     answer:
-      "None. Every feature on this page ships in the free, MIT-licensed app, and nothing asks you to sign up; the lpm link iPhone app costs nothing on the App Store either.",
+      "None. Every feature on this page ships in the free, MIT-licensed app, and nothing asks you to sign up; the lpm link phone app costs nothing on the App Store or Google Play either.",
   },
   {
     question: "Which features need Claude Code or Codex?",
@@ -27,8 +27,8 @@ export const FEATURE_FAQS = [
       "A few, and none of them let lpm read your code. Update checks go to GitHub, AI commit messages go through the agent CLI you installed under your own account, and links to your other computers, servers, and iPhone are direct. Two things cross a relay: iPhone push alerts, sealed so the relay can't read them, and a tab you share with someone's browser, encrypted end to end between their browser and your computer. The desktop app, CLI, and iPhone app have no analytics built in, and the desktop app's crash reports can be turned off in Settings.",
   },
   {
-    question: "Can I use lpm from my iPhone or another computer?",
+    question: "Can I use lpm from my phone or another computer?",
     answer:
-      "Yes. The lpm link app mirrors terminals and controls projects from an iPhone or iPad, Connect computers lets one computer running lpm drive another, such as a Mac mini that stays on, and a Linux host or SSH project runs work on a server. Every command runs on the machine that owns the project, so it has to be on and reachable, for example over your home network or Tailscale.",
+      "Yes. The lpm link app mirrors terminals and controls projects from an iPhone, iPad or Android phone, Connect computers lets one computer running lpm drive another, such as a Mac mini that stays on, and a Linux host or SSH project runs work on a server. Every command runs on the machine that owns the project, so it has to be on and reachable, for example over your home network or Tailscale.",
   },
 ];

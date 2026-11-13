@@ -1,5 +1,5 @@
 import type { DownloadPlatform } from "@/lib/downloads";
-import { APP_STORE_URL, RELEASES_URL } from "@/lib/links";
+import { APP_STORE_URL, PLAY_STORE_URL, RELEASES_URL } from "@/lib/links";
 
 declare global {
   interface Window {
@@ -188,6 +188,14 @@ export function trackAppStoreVisit(source: AppStoreSource): void {
   window.gtag("event", "app_store_visit", {
     placement: source,
     link_url: APP_STORE_URL,
+  });
+}
+
+export function trackPlayStoreVisit(source: AppStoreSource): void {
+  if (typeof window === "undefined" || !window.gtag) return;
+  window.gtag("event", "play_store_visit", {
+    placement: source,
+    link_url: PLAY_STORE_URL,
   });
 }
 

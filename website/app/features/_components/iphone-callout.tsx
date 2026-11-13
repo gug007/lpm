@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, Smartphone } from "lucide-react";
 import { AppStoreButton } from "@/components/app-store-button";
+import { GooglePlayButton } from "@/components/google-play-button";
 import { MOBILE_PATH } from "@/lib/links";
 
 export default function IphoneCallout() {
@@ -11,11 +12,11 @@ export default function IphoneCallout() {
       </span>
       <div className="flex-1">
         <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">
-          lpm link is free on the App Store
+          lpm link is free on the App Store and Google Play
         </h3>
         <p className="mt-1.5 text-sm leading-relaxed text-gray-600 dark:text-gray-400">
           In lpm on your computer, click + above your projects, then Phone.
-          Choose Pair a device and scan the QR code with your iPhone or iPad.
+          Choose Pair a device and scan the QR code with your phone.
         </p>
         <Link
           href={MOBILE_PATH}
@@ -28,7 +29,10 @@ export default function IphoneCallout() {
           />
         </Link>
       </div>
-      <AppStoreButton source="features" />
+      <div className="flex flex-col items-center gap-3">
+        <AppStoreButton source="features" />
+        <GooglePlayButton source="features" />
+      </div>
     </div>
   );
 }

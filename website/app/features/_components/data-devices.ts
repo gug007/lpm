@@ -112,7 +112,7 @@ export const IPHONE_AREA: FeatureArea = {
   id: "iphone",
   title: "Your terminals and agents, in your pocket",
   description:
-    "The free lpm link app for iPhone and iPad mirrors terminals, sends prompts, and tells you when an agent needs you. Everything still runs on your computer or Linux host.",
+    "The free lpm link app for iPhone, iPad and Android mirrors terminals, sends prompts, and tells you when an agent needs you. Everything still runs on your computer or Linux host.",
   highlights: [
     {
       icon: Smartphone,

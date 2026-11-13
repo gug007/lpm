@@ -51,7 +51,7 @@ const REQUIREMENTS: Requirement[] = [
   },
   {
     icon: Smartphone,
-    title: "iPhone or iPad",
+    title: "iPhone, iPad or Android",
     body: "The free lpm link app, paired with a computer or Linux host that is awake and running lpm.",
   },
   {

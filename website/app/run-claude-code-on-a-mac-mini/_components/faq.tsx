@@ -23,7 +23,7 @@ export const FAQ_ITEMS: FaqItem[] = [
   {
     question: "Can I answer Claude Code from my phone?",
     answer:
-      "Yes, with lpm Link on iPhone or iPad. Right-click the Mac mini in your laptop's sidebar, choose Pair a phone…, and scan the code. The phone then connects to the Mac mini directly, over your home network or Tailscale, so it can tell you a session needs you and let you type the answer with your laptop shut. A phone paired only with your laptop can also open the Mac mini through it while the laptop is awake.",
+      "Yes, with lpm Link on iPhone, iPad or Android. Right-click the Mac mini in your laptop's sidebar, choose Pair a phone…, and scan the code. The phone then connects to the Mac mini directly, over your home network or Tailscale, so it can tell you a session needs you and let you type the answer with your laptop shut. A phone paired only with your laptop can also open the Mac mini through it while the laptop is awake.",
     link: { href: MOBILE_PATH, label: "More on lpm Link" },
   },
   {

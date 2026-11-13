@@ -33,7 +33,7 @@ Download lpm from [lpm.cx](https://lpm.cx):
 - **Windows 11** (x64, beta): run the installer. Needs [Git for Windows](https://gitforwindows.org)
 - **Linux** (x86-64, beta): `.deb`, `.rpm`, or AppImage. Needs Ubuntu 22.04 or newer, or another distro with glibc 2.35+
 
-On your iPhone, get [lpm Link](https://apps.apple.com/us/app/lpm-link/id6788396977) from the App Store.
+On your phone, get lpm Link from the [App Store](https://apps.apple.com/us/app/lpm-link/id6788396977) (iPhone and iPad) or [Google Play](https://play.google.com/store/apps/details?id=cx.lpm.mobile) (Android).
 
 ## See it in action
 
@@ -56,7 +56,7 @@ On your iPhone, get [lpm Link](https://apps.apple.com/us/app/lpm-link/id67883969
   <strong>Split terminals</strong> — arrange services and agents side-by-side<br><br>
   <img src="website/public/screenrecording/split-window.gif" alt="Splitting terminals in lpm" width="700">
   <br><br>
-  <strong>Control it from your iPhone</strong> — pair <a href="https://apps.apple.com/us/app/lpm-link/id6788396977">lpm Link</a>, then start services and talk to agents on your Mac<br><br>
+  <strong>Control it from your phone</strong> — pair lpm Link from the <a href="https://apps.apple.com/us/app/lpm-link/id6788396977">App Store</a> or <a href="https://play.google.com/store/apps/details?id=cx.lpm.mobile">Google Play</a>, then start services and talk to agents on your Mac<br><br>
   <img src="website/public/screenrecording/lpm-link.gif" alt="Pairing lpm Link on an iPhone and controlling a project on the Mac" width="700">
 </p>
 

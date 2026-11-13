@@ -1,10 +1,20 @@
 import type { NextConfig } from "next";
+import { APP_STORE_URL, PLAY_STORE_URL, STORE_LINK_PATH } from "./lib/links";
 
 const nextConfig: NextConfig = {
   // /config was the whole reference on one page. A browser keeps the hash
   // across the redirect, and /docs forwards /config#zones to /docs/zones.
   async redirects() {
-    return [{ source: "/config", destination: "/docs", permanent: true }];
+    return [
+      { source: "/config", destination: "/docs", permanent: true },
+      {
+        source: STORE_LINK_PATH,
+        has: [{ type: "header", key: "user-agent", value: ".*Android.*" }],
+        destination: PLAY_STORE_URL,
+        permanent: false,
+      },
+      { source: STORE_LINK_PATH, destination: APP_STORE_URL, permanent: false },
+    ];
   },
   // Vite names these after their contents, so a repeat visit can skip asking.
   async headers() {

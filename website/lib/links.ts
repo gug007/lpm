@@ -44,6 +44,11 @@ export const PARALLEL_PATH = "/run-claude-code-in-parallel";
 export const SHARE_TERMINAL_PATH = "/share-terminal";
 export const APP_STORE_URL =
   "https://apps.apple.com/us/app/lpm-link/id6788396977";
+export const PLAY_STORE_URL =
+  "https://play.google.com/store/apps/details?id=cx.lpm.mobile";
+// One link for either phone: next.config.ts sends it on to the right store.
+export const STORE_LINK_PATH = "/link";
+export const STORE_LINK_URL = `${SITE_URL}${STORE_LINK_PATH}`;
 export const VS_BASE_PATH = "/vs";
 export const VS_SLUGS = [
   "foreman",

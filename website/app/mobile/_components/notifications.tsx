@@ -12,7 +12,7 @@ const CARDS: { icon: LucideIcon; title: string; body: string }[] = [
   {
     icon: Lock,
     title: "End-to-end encrypted, always",
-    body: "Every alert is sealed with a per-device AES-256 key that only your iPhone and your Mac share. The delivery relay passes along an opaque blob it can't read, and your phone decrypts it on arrival.",
+    body: "Every alert is sealed with a per-device AES-256 key that only your phone and your Mac share. The delivery relay passes along an opaque blob it can't read, and your phone decrypts it on arrival.",
   },
   {
     icon: Navigation,
