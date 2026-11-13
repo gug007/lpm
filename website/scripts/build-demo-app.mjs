@@ -18,6 +18,21 @@ const npm = (args) =>
     shell: process.platform === "win32",
   });
 
+// Vercel restores node_modules from the last deployment's build cache, so a
+// dependency added since then is missing although the folder exists.
+const installed = () => {
+  try {
+    execFileSync("npm", ["ls", "--depth=0", "--include=dev"], {
+      cwd: frontendDir,
+      stdio: "ignore",
+      shell: process.platform === "win32",
+    });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 // --include=dev: Vercel builds with NODE_ENV=production, which skips vite.
-if (!existsSync(join(frontendDir, "node_modules"))) npm(["ci", "--include=dev"]);
+if (!existsSync(join(frontendDir, "node_modules")) || !installed()) npm(["ci", "--include=dev"]);
 npm(["run", "build:demo"]);
