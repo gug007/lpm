@@ -38,7 +38,7 @@ import {
   ZapIcon,
 } from "./icons";
 import { KeepAwakeBadge } from "./KeepAwakeBadge";
-import { KeepAwakeCup } from "./KeepAwakeCup";
+import { KeepAwakeFooterButton } from "./KeepAwakeFooterButton";
 import { KeepAwakeHoverCard } from "./KeepAwakeHoverCard";
 import { KeepAwakeMenu } from "./KeepAwakeMenu";
 import { KeepAwakePanel } from "./KeepAwakePanel";
@@ -202,7 +202,9 @@ export function SidebarFooterNav({
           <CoffeeIcon awake={awake} />
         </span>
       ),
-      active: awakeMenu !== null,
+      // Folded into More, the footer's own button opens the menu and shows it
+      // open, so More doesn't light up for it.
+      active: awakeMenu !== null && inSidebar.includes("awake"),
       onSelect: toggleAwakeMenu,
       description: `Keep ${MACHINE.thisMachine} awake while agents work, for a set time, or until you turn it off.`,
       hoverCard: awakeMode !== "off" ? <KeepAwakeHoverCard session={keepAwake} /> : undefined,
@@ -215,10 +217,6 @@ export function SidebarFooterNav({
         />
       ),
       trailing: <KeepAwakeBadge session={keepAwake} />,
-      menuBadge: awake && (
-        <KeepAwakeCup session={keepAwake} menuOpen={awakeMenu !== null} onToggleMenu={toggleAwakeMenu} />
-      ),
-      menuHints: awake ? [`${MACHINE.thisMachine} is kept awake`] : [],
     },
     automations: {
       id: "automations",
@@ -322,6 +320,14 @@ export function SidebarFooterNav({
             isDefault={isDefault}
             onMove={(id) => move(id, true)}
             onReset={reset}
+          />
+        )}
+        {awake && menuIds.includes("awake") && (
+          <KeepAwakeFooterButton
+            session={keepAwake}
+            menuOpen={awakeMenu !== null}
+            onToggleMenu={toggleAwakeMenu}
+            className={FOOTER_ICON_CLASS}
           />
         )}
         <Tooltip

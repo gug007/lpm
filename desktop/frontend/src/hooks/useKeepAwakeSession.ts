@@ -2,8 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { KeepAwakeSet, KeepAwakeSetPrefs, KeepAwakeState, PeerInvoke } from "../../bridge/commands";
 import { EventsOn } from "../../bridge/runtime";
 import {
+  countdownSpan,
   KEEP_AWAKE_CHANGED,
   leftAt,
+  type CountdownSpan,
   readKeepAwake,
   type KeepAwakeChoice,
   type KeepAwakeMode,
@@ -102,4 +104,13 @@ export function useKeepAwakeSession(slug: string | null, enabled = true): KeepAw
 export function useKeepAwakeLeft(endsAt: number | null): number | null {
   useSecondsClock(endsAt === null);
   return leftAt(endsAt, Date.now());
+}
+
+/** How long the running countdown had when it began or last moved, for a ring
+ *  that drains with it. */
+export function useKeepAwakeSpan(endsAt: number | null): number | null {
+  const [span, setSpan] = useState<CountdownSpan | null>(null);
+  const next = countdownSpan(span, endsAt, Date.now());
+  if (next !== span) setSpan(next);
+  return next?.ms ?? null;
 }

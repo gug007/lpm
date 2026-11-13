@@ -83,8 +83,6 @@ function byLabel(label: string): HTMLButtonElement | undefined {
 }
 
 const moreButton = () => byLabel("More");
-// The button and the badges beside it, which ride on the row rather than in it.
-const moreRow = () => moreButton()!.parentElement!;
 const openMore = () => act(() => moreButton()!.click());
 // The row's options button opens the menu that holds the move and reset actions.
 const openRowMenu = (label: string) =>
@@ -234,7 +232,7 @@ describe("SidebarFooterNav", () => {
     renderNav();
     await act(async () => {});
 
-    expect(moreRow().textContent).toContain("2");
+    expect(moreButton()!.textContent).toContain("2");
     expect(moreButton()!.title).toContain("2 automations with new messages");
 
     openMore();
@@ -242,7 +240,7 @@ describe("SidebarFooterNav", () => {
     pick("Move to the sidebar");
 
     const more = moreButton()!;
-    expect(moreRow().textContent).not.toContain("2");
+    expect(more.textContent).not.toContain("2");
     expect(more.title).not.toContain("new messages");
     expect(buttonWithText("Automations")!.textContent).toContain("2");
   });
@@ -297,13 +295,49 @@ describe("SidebarFooterNav", () => {
 });
 
 describe("SidebarFooterNav Keep awake in the More menu", () => {
-  it("marks the More button while it keeps the machine awake", async () => {
+  const cup = () =>
+    [...container.querySelectorAll("button")].find((b) => b.getAttribute("aria-label")?.startsWith("Keep awake:"));
+  const ring = () => cup()?.querySelectorAll("circle").length === 2;
+
+  it("gives the footer its own keep-awake button while it keeps the machine awake", async () => {
     mocks.keepAwakeState.mockResolvedValue({ ...KEEP_AWAKE, mode: "always", active: true, power: "awake" });
     renderNav();
     await act(async () => {});
 
     expect(buttonWithText("Keep awake")).toBeUndefined();
-    expect(moreButton()!.title).toContain("kept awake");
+    expect(cup()!.getAttribute("aria-label")).toBe("Keep awake: until you turn it off");
+    expect(moreButton()!.contains(cup()!)).toBe(false);
+    expect(moreButton()!.title).not.toContain("awake");
+    expect(ring()).toBe(false);
+  });
+
+  it("counts the agents that hold it on the button", async () => {
+    mocks.keepAwakeState.mockResolvedValue({ ...KEEP_AWAKE, mode: "agents", active: true, agents: 2 });
+    renderNav();
+    await act(async () => {});
+
+    expect(cup()!.getAttribute("aria-label")).toBe("Keep awake: 2 agents working");
+    expect(cup()!.textContent).toBe("2");
+    expect(ring()).toBe(false);
+  });
+
+  it("drains a ring while a set time runs", async () => {
+    mocks.keepAwakeState.mockResolvedValue({ ...KEEP_AWAKE, mode: "timed", active: true, endsIn: 42 * 60_000 });
+    renderNav();
+    await act(async () => {});
+
+    expect(cup()!.getAttribute("aria-label")).toBe("Keep awake: 42 min left");
+    expect(ring()).toBe(true);
+  });
+
+  it("leaves the button to the row while the row sits in the sidebar", async () => {
+    useSettingsStore.setState({ sidebarNavInSidebar: ["terminals", "awake"] });
+    mocks.keepAwakeState.mockResolvedValue({ ...KEEP_AWAKE, mode: "always", active: true, power: "awake" });
+    renderNav();
+    await act(async () => {});
+
+    expect(buttonWithText("Keep awake")).toBeDefined();
+    expect(cup()).toBeUndefined();
   });
 
   const hover = (el: Element) =>
@@ -342,8 +376,6 @@ describe("SidebarFooterNav Keep awake in the More menu", () => {
     expect(moreButton()!.getAttribute("aria-expanded")).toBe("true");
   });
 
-  const cup = () =>
-    [...container.querySelectorAll("button")].find((b) => b.getAttribute("aria-label")?.startsWith("Keep awake:"));
   const cardButton = (text: string) =>
     [...document.querySelectorAll("button")].find((b) => b.textContent === text && !b.closest("[data-context-menu]"));
 
@@ -387,7 +419,10 @@ describe("SidebarFooterNav Keep awake in the More menu", () => {
     await act(async () => {});
     openMore();
 
-    act(() => cup()!.click());
+    act(() => {
+      cup()!.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+      cup()!.click();
+    });
     expect(document.querySelector("[data-context-menu]")?.textContent).toContain("Awake until you turn it off.");
     expect(moreButton()!.getAttribute("aria-expanded")).toBe("false");
 

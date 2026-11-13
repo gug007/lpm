@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   clock,
+  countdownSpan,
   customMinutes,
   keepAwakeBadge,
+  keepAwakeCupLabel,
   keepAwakeHeadsUp,
   keepAwakeLine,
   keepAwakePowerNote,
@@ -159,5 +161,36 @@ describe("keepAwakeHeadsUp", () => {
     expect(keepAwakeHeadsUp("Studio", "agents", 0).description).toBe(
       "Agents finished, and the time after them is running out.",
     );
+  });
+});
+
+describe("countdownSpan", () => {
+  const MIN = 60_000;
+
+  it("measures a new countdown from when it is first seen", () => {
+    expect(countdownSpan(null, 1_000 + 30 * MIN, 1_000)).toEqual({ endsAt: 1_000 + 30 * MIN, ms: 30 * MIN });
+    expect(countdownSpan(null, null, 1_000)).toBeNull();
+  });
+
+  it("keeps the span while events re-derive the same end", () => {
+    const span = countdownSpan(null, 30 * MIN, 0);
+    expect(countdownSpan(span, 30 * MIN + 400, 10 * MIN)).toBe(span);
+    expect(countdownSpan(span, 30 * MIN - 400, 10 * MIN)).toBe(span);
+  });
+
+  it("starts over when the end moves, as +1 h or a new time does", () => {
+    const span = countdownSpan(null, 30 * MIN, 0);
+    expect(countdownSpan(span, 90 * MIN, 20 * MIN)).toEqual({ endsAt: 90 * MIN, ms: 70 * MIN });
+    expect(countdownSpan(span, 25 * MIN, 20 * MIN)).toEqual({ endsAt: 25 * MIN, ms: 5 * MIN });
+  });
+});
+
+describe("keepAwakeCupLabel", () => {
+  it("says why the machine is awake and for how long", () => {
+    expect(keepAwakeCupLabel(with_({ mode: "agents", active: true, agents: 1 }), null)).toBe("1 agent working");
+    expect(keepAwakeCupLabel(with_({ mode: "agents", active: true }), 4 * 60_000 + 1)).toBe("5 min left");
+    expect(keepAwakeCupLabel(with_({ mode: "timed", active: true }), 90 * 60_000)).toBe("1 h 30 min left");
+    expect(keepAwakeCupLabel(with_({ mode: "timed", active: true }), 0)).toBe("1 min left");
+    expect(keepAwakeCupLabel(with_({ mode: "always", active: true }), null)).toBe("until you turn it off");
   });
 });

@@ -103,6 +103,34 @@ export function leftAt(endsAt: number | null, now: number): number | null {
   return endsAt === null ? null : Math.max(0, endsAt - now);
 }
 
+/** A countdown as first seen: where it ends, and how long it had to run then. */
+export interface CountdownSpan {
+  endsAt: number;
+  ms: number;
+}
+
+// Each event re-derives the end from the backend's `endsIn`, so it wobbles by
+// the time the event spent in flight; only a real move — a new time, +1 h —
+// starts a new span.
+const SPAN_WOBBLE_MS = 2000;
+
+/** The span `endsAt` belongs to: `prev` while it's the same countdown, else a
+ *  new one measured from `now`. The backend doesn't say when a countdown began,
+ *  so one already running when the app opened is measured from then. */
+export function countdownSpan(prev: CountdownSpan | null, endsAt: number | null, now: number): CountdownSpan | null {
+  if (endsAt === null) return null;
+  if (prev && Math.abs(endsAt - prev.endsAt) <= SPAN_WOBBLE_MS) return prev;
+  return { endsAt, ms: Math.max(1, endsAt - now) };
+}
+
+/** What the footer's keep-awake button says it is doing: "2 agents working",
+ *  "42 min left", "until you turn it off". */
+export function keepAwakeCupLabel(state: KeepAwakeState, left: number | null): string {
+  if (state.mode === "agents" && state.agents > 0) return `${agents(state.agents)} working`;
+  if (left !== null) return `${span(Math.max(1, Math.ceil(left / 60_000)))} left`;
+  return "until you turn it off";
+}
+
 /** The short text beside the sidebar row: "2 agents", "4:32", "On". */
 export function keepAwakeBadge(state: KeepAwakeState | null, left: number | null): string | null {
   if (!state || state.mode === "off") return null;
