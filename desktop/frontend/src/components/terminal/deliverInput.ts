@@ -3,6 +3,9 @@
 // which mirrors the host's screen in an emulator of its own.
 import type { Terminal } from "@xterm/xterm";
 import { sendTerminalInput } from "../../terminal-io";
+import { parseAgentDialog } from "../../agentDialog";
+import { toast } from "../../notifications/toast";
+import { bufferLines } from "./consoleActions";
 import { unquotePastedPath } from "../../composerValue";
 import {
   PASTE_QUIET_MS,
@@ -21,6 +24,14 @@ export const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|bmp|tiff?|heic|heif)$/i;
 // Permissive match so a label change ("[Image #1]" → "[Image:" …) still counts.
 function countImageMarkers(text: string): number {
   return (text.match(/\[image/gi) ?? []).length;
+}
+
+// A permission prompt or approval with no text box takes Enter as its
+// highlighted answer, so a message sent now would approve it and be lost.
+function awaitsChoice(term: Terminal): boolean {
+  const top = term.buffer.active.baseY;
+  const dialog = parseAgentDialog(bufferLines(term, top, top + term.rows), term.cols);
+  return !!dialog && !dialog.options.some((option) => option.typed);
 }
 
 // What a delivery reads and marks: the emulator showing the receiver (its
@@ -50,6 +61,13 @@ export interface DeliveryTarget {
 // quiet, which also preserves multi-part image order.
 export function deliverInput(session: DeliveryTarget, terminalId: string, input: string | string[]): boolean {
   if (session.sessionDead) return false;
+  if (awaitsChoice(session.term)) {
+    toast.error("Answer the agent first", {
+      description:
+        "It is waiting for a choice in the terminal, and Enter would pick the highlighted one. Your message is still here.",
+    });
+    return false;
+  }
   // Mirror xterm's bracketTextForPaste: neutralize ESC in the body so the
   // composed text can't smuggle a \x1b[201~ to break out of the paste.
   const wrap = (s: string) => {

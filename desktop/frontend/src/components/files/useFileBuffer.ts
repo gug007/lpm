@@ -1,8 +1,9 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "../../notifications/toast";
 import { ReadProjectFile, WriteFileIfUnchanged } from "../../../bridge/commands";
 import { useGitChanged } from "../../hooks/useGitChanged";
 import { joinAbs } from "../../path";
+import { heldFiles, holdFiles, type DirtyBuffer } from "./fileDrafts";
 
 export interface OpenFile {
   path: string;
@@ -30,11 +31,6 @@ interface FileContent {
   writable: boolean;
 }
 
-interface DirtyBuffer {
-  baseline: string;
-  draft: string;
-}
-
 const NO_BUFFERS: ReadonlyMap<string, DirtyBuffer> = new Map();
 // The watcher echoes our own save within its coalesce window; that event has
 // nothing to reconcile.
@@ -60,9 +56,12 @@ function blankFile(path: string, loading: boolean, error: string | null = null):
 // The file the editor shows, plus every unsaved draft made in this tab. A draft
 // keeps the disk text it was made against, so reopening it (or a change on
 // disk) can tell "still current" from "someone else wrote this file".
-export function useFileBuffer(root: string, active: boolean) {
+// `tabId` keeps both across a remount of the tab.
+export function useFileBuffer(root: string, active: boolean, tabId?: string) {
   const [file, setFile] = useState<OpenFile | null>(null);
-  const [buffers, setBuffers] = useState<ReadonlyMap<string, DirtyBuffer>>(NO_BUFFERS);
+  const [buffers, setBuffers] = useState<ReadonlyMap<string, DirtyBuffer>>(
+    () => (tabId && heldFiles(tabId)?.buffers) || NO_BUFFERS,
+  );
   const [conflict, setConflict] = useState<FileConflict | null>(null);
   const [saving, setSaving] = useState(false);
   const fileRef = useRef(file);
@@ -254,6 +253,21 @@ export function useFileBuffer(root: string, active: boolean) {
     [read],
   );
   useGitChanged(root, reconcile, active);
+
+  const path = file?.path ?? null;
+  const restored = useRef(false);
+  useEffect(() => {
+    if (!tabId) return;
+    if (!restored.current) {
+      restored.current = true;
+      const was = heldFiles(tabId)?.path;
+      if (was) {
+        void open(was);
+        return;
+      }
+    }
+    holdFiles(tabId, { path, buffers });
+  }, [tabId, path, buffers, open]);
 
   return {
     file,

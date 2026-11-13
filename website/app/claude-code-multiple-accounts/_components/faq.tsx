@@ -9,6 +9,21 @@ type QA = {
 
 const FAQS: QA[] = [
   {
+    question: "Can I log into two Claude accounts at the same time?",
+    answer:
+      "Yes, in Claude Code. Claude Code keeps one login per configuration folder, so two accounts can be signed in at once as long as each has its own folder. lpm sets that up for you: add each account once in Settings, pin one to each project, and both stay signed in and can run side by side. Nothing is logged out when you move between projects.",
+  },
+  {
+    question: "Does this work with the Claude desktop app or claude.ai?",
+    answer:
+      "No. lpm's accounts apply to Claude Code, the command-line agent, in lpm's terminals. The Claude desktop app and claude.ai keep their own sign-in, which lpm doesn't touch. For two claude.ai logins open at once, the usual route is a separate browser profile for each.",
+  },
+  {
+    question: "Is it against Anthropic's terms to have multiple Claude accounts?",
+    answer:
+      "lpm can't answer for Anthropic, so read its terms for your plans. Holding more than one account, such as a company seat and a personal subscription, is a common setup, and lpm only keeps each one signed in for its own project. The open question is using several accounts of your own to keep working past a usage limit: Anthropic hasn't said whether that is allowed, which is why lpm leaves automatic switching off until you turn it on and confirm every account is yours.",
+  },
+  {
     question: "How is this different from claude-swap and other account switchers?",
     answer:
       "Switchers change the globally active account: back up the current credentials, restore another set, restart your sessions — and every project on the machine flips together. lpm never swaps a login. Each project points at its own account, all accounts stay signed in side by side, and two projects can run two different accounts at the same moment. Automatic switching only decides which account the next new session starts on, and a running conversation moves only when you move it. There's also no credential handling: switchers copy token files or Keychain entries around; lpm just points each project at its own Claude Code home and lets Claude manage its own login there.",

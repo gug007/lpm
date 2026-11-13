@@ -55,6 +55,7 @@ export type DownloadSource =
   | "mac-mini-hero"
   | "mac-mini-cta"
   | "statusline-hero"
+  | "statusline-mid"
   | "statusline-cta"
   | "skills-hero"
   | "skills-cta"

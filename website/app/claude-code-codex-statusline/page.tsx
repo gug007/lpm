@@ -32,6 +32,7 @@ import Cta from "./_components/cta";
 import Faq from "./_components/faq";
 import Lessons from "./_components/lessons";
 import LpmStatuslineDemo from "./_components/lpm-statusline-demo";
+import MidCta from "./_components/mid-cta";
 import {
   BENEFITS,
   CLAUDE_ITEMS,
@@ -160,6 +161,8 @@ export default function ClaudeCodeCodexStatuslinePage() {
       </section>
 
       <LpmStatuslineDemo />
+
+      <MidCta />
 
       <Lessons />
 

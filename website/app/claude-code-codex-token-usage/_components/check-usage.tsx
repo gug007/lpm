@@ -7,7 +7,7 @@ import { INLINE_CODE, TEXT_LINK } from "./page-styles";
 export default function CheckUsage() {
   return (
     <div id="check-usage">
-      <QuickAnswer question="How to check Claude Code and Codex usage">
+      <QuickAnswer question="How to check Claude Code and Codex token usage and limits">
         <p>
           In Claude Code, run <code className={INLINE_CODE}>/usage</code> to
           see your plan usage bars with reset times, the session&apos;s cost

@@ -16,6 +16,16 @@ export const FAQ_ITEMS: FaqItem[] = [
       "Yes. Claude Code is a command-line tool, so it runs on any Linux box you can get a shell on — you sign in on that machine and start it in a terminal there. What a plain SSH session does not give you is the rest of the environment: the project's services, the ports they came up on, the diff of what changed, or any signal on your laptop that the agent is waiting for you. Adding the server to lpm as a Linux host gives you the agent and that context in one window on your Mac.",
   },
   {
+    question: "Is there Claude Code for Linux?",
+    answer:
+      "Yes. Claude Code runs on Ubuntu 20.04 or newer, Debian 10 or newer and Alpine 3.19 or newer, on x64 or ARM64, with at least 4 GB of memory. It is a command-line tool, so a server with no screen is enough. Codex runs on Linux as well.",
+  },
+  {
+    question: "How do I install Claude Code on a remote server?",
+    answer:
+      "SSH into the server and run Anthropic's installer: curl -fsSL https://claude.ai/install.sh | bash. Then change into your project folder, run claude, and follow the sign-in prompts. To keep it running after you disconnect, start it inside tmux, or add the server to lpm so its terminals outlive your connection.",
+  },
+  {
     question: "How do I keep Claude Code running when I close my MacBook?",
     answer:
       "Move the run off the MacBook. Anything started on your laptop stops when the laptop sleeps, so the durable answer is to run the agent on a machine that stays awake and treat your Mac as the screen for it. In lpm you add a Linux server under + above your projects → Server, start the agent in a terminal on that server, and close the lid — the connection drops, the agent does not. Reopen lpm and it reattaches to the same running session instead of starting a new one. The machine that stays awake can also be a Mac mini you already own, paired with your MacBook instead of reached over SSH, with Claude Code and Codex running there.",

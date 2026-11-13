@@ -23,6 +23,7 @@ import Cta from "./_components/cta";
 import Faq, { FAQ_ITEMS } from "./_components/faq";
 import Hero from "./_components/hero";
 import HowItWorks from "./_components/how-it-works";
+import InstallOnLinux from "./_components/install-on-linux";
 import Lesson from "./_components/lesson";
 import Lifetimes from "./_components/lifetimes";
 import Problem from "./_components/problem";
@@ -54,6 +55,10 @@ export const metadata: Metadata = {
     "control claude code running on a server from my mac",
     "run multiple claude code agents on one server",
     "install claude code on ubuntu server",
+    "install claude code on linux",
+    "claude code linux",
+    "claude codex linux",
+    "install claude code on remote server",
   ],
   alternates: {
     canonical: LINUX_HOST_PATH,
@@ -105,6 +110,7 @@ export default function RunOnRemoteServerPage() {
       <Hero />
       <AddHostDemo />
       <QuickAnswer />
+      <InstallOnLinux />
       <Problem />
       <HowItWorks />
       <Lesson />

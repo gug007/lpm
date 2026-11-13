@@ -3,6 +3,8 @@ import { type PaneSpot } from "./paneSpot";
 
 // Grace period a closed tab or pane stays recoverable behind the undo toast.
 export const UNDO_CLOSE_DURATION_MS = 5000;
+// Unsaved edits can't be had back from anywhere else, so their undo stays up longer.
+export const UNSAVED_CLOSE_DURATION_MS = 15000;
 
 // A tab whose close is being held open behind an "Undo" toast: its PTY and
 // xterm buffer stay alive for the grace period, but the tab is already out of

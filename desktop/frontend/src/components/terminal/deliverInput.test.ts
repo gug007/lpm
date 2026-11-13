@@ -12,7 +12,43 @@ vi.mock("../../terminal-io", () => ({
   }),
 }));
 
+const toastError = vi.fn();
+vi.mock("../../notifications/toast", () => ({ toast: { error: toastError } }));
+
 const { deliverInput } = await import("./deliverInput");
+
+// A receiver whose screen shows `rows`, the way an agent's dialog is drawn.
+function showing(rows: string[]): DeliveryTarget {
+  const t = target(true);
+  Object.assign(t.term, {
+    rows: rows.length,
+    cols: 100,
+    buffer: {
+      active: {
+        baseY: 0,
+        length: rows.length,
+        getLine: (i: number) => ({ translateToString: () => rows[i] ?? "" }),
+      },
+    },
+  });
+  return t;
+}
+
+const PERMISSION = [
+  " touch notes.txt",
+  " Do you want to proceed?",
+  " ❯ 1. Yes",
+  "   2. Yes, and always allow access to /work/shop from this project",
+  "   3. No",
+  " Esc to cancel · Tab to amend",
+];
+const QUESTION = [
+  "Which color should the button be?",
+  "❯ 1. Red",
+  "  2. Blue",
+  "  3. Type something.",
+  "Enter to select · ↑/↓ to navigate · Esc to cancel",
+];
 
 function target(bracketedPasteMode: boolean): DeliveryTarget {
   const term = {
@@ -39,6 +75,19 @@ describe("deliverInput", () => {
     expect(deliverInput(t, "peer-ab12cd34-t1", "Where would a discount code fit in?")).toBe(true);
     await vi.waitFor(() => expect(t.delivering).toBe(false));
     expect(writes).toEqual(["\x1b[200~Where would a discount code fit in?\x1b[201~", "\r"]);
+  });
+
+  it("holds a message back while a permission prompt would take its Enter as Yes", () => {
+    expect(deliverInput(showing(PERMISSION), "t1", "wait, use another name")).toBe(false);
+    expect(writes).toEqual([]);
+    expect(toastError).toHaveBeenCalledWith("Answer the agent first", expect.anything());
+  });
+
+  it("still sends into a question that takes a typed answer", async () => {
+    const t = showing(QUESTION);
+    expect(deliverInput(t, "t1", "green")).toBe(true);
+    await vi.waitFor(() => expect(t.delivering).toBe(false));
+    expect(writes).toEqual(["\x1b[200~green\x1b[201~", "\r"]);
   });
 
   it("refuses a send while one is still going, and once the tab has ended", () => {

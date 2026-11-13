@@ -8,9 +8,11 @@ import {
 } from "../../../bridge/commands";
 import { disposeInteractivePaneSession } from "../../components/InteractivePane";
 import { forgetComposerDraft } from "../../store/composerDrafts";
+import { forgetFiles, hasUnsavedFiles } from "../../components/files/fileDrafts";
 import { showUndoCloseToast } from "../../components/UndoCloseToast";
 import {
   UNDO_CLOSE_DURATION_MS,
+  UNSAVED_CLOSE_DURATION_MS,
   pendingClosesForProject,
   registerPendingClose,
   takePendingClose,
@@ -112,6 +114,7 @@ export function useTabClose({
         if (isTerminalTab(t)) {
           ClearPaneStatus(projectName, t.id).catch(() => {});
         }
+        forgetFiles(t.id);
       }
       recordClosingTabs(tabs, flush);
       onTerminalsClosed(projectName, tabs.map((t) => t.historyKey));
@@ -189,6 +192,7 @@ export function useTabClose({
     (pane: PaneLeaf, tabIdx: number) => {
       const tab = pane.tabs[tabIdx];
       const toastId = `close-tab-${tab.id}`;
+      const unsaved = hasUnsavedFiles(tab.id);
       registerPendingClose({
         tab,
         paneId: pane.id,
@@ -202,8 +206,10 @@ export function useTabClose({
       if (isTerminalTab(tab)) HoldPaneStatus(projectName, tab.id).catch(() => {});
       showUndoCloseToast({
         toastId,
-        title: `${terminalDisplayLabel(tab)} closed`,
-        durationMs: UNDO_CLOSE_DURATION_MS,
+        title: unsaved
+          ? `${terminalDisplayLabel(tab)} closed with unsaved changes`
+          : `${terminalDisplayLabel(tab)} closed`,
+        durationMs: unsaved ? UNSAVED_CLOSE_DURATION_MS : UNDO_CLOSE_DURATION_MS,
         onUndo: () => undoPendingClose(tab.id),
         onFinalize: () => finalizePendingClose(tab.id),
       });
@@ -239,8 +245,9 @@ export function useTabClose({
       const tab = pane.tabs[tabIdx];
       // Real terminal tabs closed through the normal path defer teardown behind
       // an undo toast; a peer-driven close (stop === false, PTY already dead)
-      // and non-PTY tabs (browser/review) tear down immediately.
-      if ((opts?.stop ?? true) && isTerminalTab(tab)) {
+      // and non-PTY tabs (browser/review) tear down immediately. A Files tab
+      // holding unsaved edits gets the same undo, so they can be brought back.
+      if ((opts?.stop ?? true) && (isTerminalTab(tab) || hasUnsavedFiles(tab.id))) {
         beginPendingClose(pane, tabIdx);
       } else {
         disposeTabs([tab], opts?.stop ?? true);

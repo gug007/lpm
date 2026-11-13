@@ -21,6 +21,21 @@ export const FAQ_ITEMS: { question: string; answer: string }[] = [
       "On a Claude subscription, usage counts against a session window that resets every five hours and a weekly limit across all models. Both are shared with claude.ai, Claude Desktop and the IDE extensions, and Anthropic doesn't publish a token number for either. Max 5x and Max 20x give five and 20 times Pro's per-session allowance. An API-key login has no plan windows: you pay per token, and lpm's Claude card says there are no limits to show.",
   },
   {
+    question: "How many tokens do you get on Claude Max or Pro?",
+    answer:
+      "Anthropic doesn't publish a token number for any plan. Usage counts against a 5-hour session window and a weekly limit, and Max 5x and Max 20x give five and 20 times Pro's per-session allowance. How far that goes depends on the model and on how much of each request is read from cache. To see what you actually used, run /usage in Claude Code for the percentages, or open lpm's Stats view for token totals by project and session.",
+  },
+  {
+    question: "How do I get a Claude Code token usage report?",
+    answer:
+      "Run /stats in Claude Code: it opens the Stats tab of /usage, where r switches between Last 7 days, Last 30 days and All time. For a report split by project, lpm's Stats view totals the input, cached, output and reasoning tokens of every Claude Code and Codex session on this computer, with an estimated cost. If you need JSON to script against, ccusage exports it from the same session files.",
+  },
+  {
+    question: "Can I see token usage in the Claude desktop app?",
+    answer:
+      "Claude Desktop and claude.ai show plan usage under Settings > Usage as bars with reset times, not a token count. Token totals exist for Claude Code, because it writes them to session files on your computer: /usage reads them inside Claude Code, and lpm's Stats view adds them up by project.",
+  },
+  {
     question: "When does the Claude Code weekly limit reset?",
     answer:
       "At a fixed day and time each week that Anthropic assigns to your account, not seven days after you start. /usage and claude.ai Settings > Usage show the next reset. In lpm, the Weekly meter shows it as a countdown and a date, such as “resets in 3d 19h · Sep 27, 4:30 PM”, and the sidebar meter shows the weekly window by default.",

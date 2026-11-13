@@ -50,6 +50,10 @@ export const metadata: Metadata = {
     "claude code switch account mid session",
     "continue claude code conversation on another account",
     "CLAUDE_CONFIG_DIR per project",
+    "log into two claude accounts at the same time",
+    "run multiple claude accounts without logging out",
+    "claude desktop multiple accounts",
+    "multiple claude accounts terms",
   ],
   alternates: {
     canonical: CLAUDE_ACCOUNTS_PATH,

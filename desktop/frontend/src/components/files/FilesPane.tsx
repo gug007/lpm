@@ -88,7 +88,7 @@ export function FilesPane({
   const treeSide = useSettingsStore((s) => s.filesTreeSide ?? "right");
   const updateSettings = useSettingsStore((s) => s.update);
   const { listings, load, ensure, forget } = useDirListings(projectRoot, active);
-  const buffer = useFileBuffer(projectRoot, active);
+  const buffer = useFileBuffer(projectRoot, active, review ? undefined : tabId);
   const { open: openBuffer } = buffer;
   const [query, setQuery] = useState("");
   const filtering = query.trim() !== "";
