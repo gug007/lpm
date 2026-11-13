@@ -52,7 +52,7 @@ const CONNECTIONS: Connection[] = [
   },
   {
     what: "Crash reports",
-    body: "Only if you turn on Send crash reports in Settings. Then an error lpm didn't expect goes to Sentry with your lpm and operating system versions, and never with your code, terminal output or prompts.",
+    body: "Until you turn off Send crash reports in Settings, an error lpm didn't expect goes to Sentry with your lpm and operating system versions, and never with your code, terminal output or prompts.",
   },
   {
     what: "This website",

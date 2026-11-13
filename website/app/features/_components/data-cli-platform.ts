@@ -100,7 +100,7 @@ export const PLATFORM_AREA: FeatureArea = {
     {
       icon: ShieldCheck,
       title: "No tracking in the apps",
-      body: "The desktop app, the CLI, and the iPhone app include no analytics, and the desktop app sends crash reports only if you turn them on. The desktop app checks GitHub for updates; otherwise the apps go online only for features you turn on and things you start.",
+      body: "The desktop app, the CLI, and the iPhone app include no analytics, and the desktop app's crash reports can be turned off in Settings. The desktop app checks GitHub for updates; otherwise the apps go online only for features you turn on and things you start.",
       note: "Paired-iPhone pushes pass through lpm's relay, encrypted.",
     },
     {

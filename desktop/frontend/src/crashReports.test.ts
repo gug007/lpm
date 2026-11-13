@@ -61,7 +61,7 @@ async function quiet() {
 beforeEach(() => {
   vi.resetModules();
   mocks.config.mockReset().mockResolvedValue(TARGET);
-  mocks.allowed.mockReset().mockImplementation(async () => mocks.settings.crashReports === true);
+  mocks.allowed.mockReset().mockImplementation(async () => mocks.settings.crashReports !== false);
   mocks.fetch.mockReset().mockImplementation(async () => new Response("{}", { status: 200 }));
   mocks.settings = {};
   mocks.listeners = [];
@@ -72,13 +72,23 @@ describe("automatic crash reports", () => {
   it("sends nothing, and asks for no target, while the switch is off", async () => {
     const { initCrashReports, reportError } = await load();
     initCrashReports();
-    settingsLoaded(undefined);
+    settingsLoaded(false);
 
     reportError("test.failed", new Error("boom"));
     await quiet();
 
     expect(mocks.fetch).not.toHaveBeenCalled();
     expect(mocks.config).not.toHaveBeenCalled();
+  });
+
+  it("sends by default, when the settings never mention the switch", async () => {
+    const { initCrashReports, reportError } = await load();
+    initCrashReports();
+    settingsLoaded(undefined);
+
+    reportError("test.failed", new Error("boom"));
+    await vi.waitFor(() => expect(mocks.fetch).toHaveBeenCalledTimes(1));
+    expect(sentBodies()[0]).toContain("boom");
   });
 
   it("sends a reported error without the owner's name or their tokens", async () => {
@@ -180,6 +190,7 @@ describe("automatic crash reports", () => {
 
 describe("a report sent by hand", () => {
   it("goes out with the switch off, alone, and says Sentry took it", async () => {
+    mocks.settings = { crashReports: false };
     const { reportError, sendCrashReport } = await load();
     reportError("test.failed", new Error("something earlier"));
 
@@ -204,6 +215,7 @@ describe("a report sent by hand", () => {
 
   it("is offered only while the machine isn't sending reports by itself", async () => {
     const { manualReportOffered } = await load();
+    mocks.allowed.mockResolvedValue(false);
     expect(await manualReportOffered()).toBe(true);
 
     mocks.allowed.mockResolvedValue(true);

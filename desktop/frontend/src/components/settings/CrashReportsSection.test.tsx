@@ -48,17 +48,17 @@ afterEach(() => {
 });
 
 describe("CrashReportsSection", () => {
-  it("starts off, and turning it on saves the switch", async () => {
+  it("starts on, and turning it off saves the switch", async () => {
     await render(LOCAL);
-    expect(toggle().getAttribute("aria-checked")).toBe("false");
+    expect(toggle().getAttribute("aria-checked")).toBe("true");
 
     await act(async () => toggle().click());
-    expect(update).toHaveBeenCalledWith({ crashReports: true });
+    expect(update).toHaveBeenCalledWith({ crashReports: false });
   });
 
-  it("turning it off unsets the switch", async () => {
-    await render(LOCAL, { crashReports: true });
-    expect(toggle().getAttribute("aria-checked")).toBe("true");
+  it("turning it back on unsets the switch", async () => {
+    await render(LOCAL, { crashReports: false });
+    expect(toggle().getAttribute("aria-checked")).toBe("false");
 
     await act(async () => toggle().click());
     expect(update).toHaveBeenCalledWith({ crashReports: undefined });
@@ -66,7 +66,7 @@ describe("CrashReportsSection", () => {
 
   it("says so in a build that reports nowhere, and can't be turned on", async () => {
     available.mockResolvedValue(false);
-    await render(LOCAL, { crashReports: true });
+    await render(LOCAL);
 
     expect(toggle().disabled).toBe(true);
     expect(toggle().getAttribute("aria-checked")).toBe("false");
@@ -82,8 +82,8 @@ describe("CrashReportsSection", () => {
   });
 
   it("shows a connected machine's own switch", async () => {
-    await render(PEER, { crashReports: true });
-    expect(toggle().getAttribute("aria-checked")).toBe("true");
+    await render(PEER, { crashReports: false });
+    expect(toggle().getAttribute("aria-checked")).toBe("false");
   });
 
   it("lists what a report holds", async () => {

@@ -117,7 +117,7 @@ export interface Settings {
   // Which releases this app updates to. Unset means stable.
   updateChannel?: UpdateChannel;
   // Send crash reports from this machine (crashReports.ts, crashreport.rs).
-  // Unset means off, and it is kept per machine.
+  // Unset means on, and it is kept per machine.
   crashReports?: boolean;
   // Opening a finished agent keeps its sidebar row, muted, until it is
   // archived (status/seen.rs). Unset means off.
@@ -259,7 +259,7 @@ function normalize(s: main.Settings): Settings {
     autoUpdateHosts: s.autoUpdateHosts,
     installUpdatesWhenIdle: s.installUpdatesWhenIdle || undefined,
     updateChannel: s.updateChannel === "beta" ? "beta" : undefined,
-    crashReports: s.crashReports === true || undefined,
+    crashReports: s.crashReports === false ? false : undefined,
     keepFinishedAgents: s.keepFinishedAgents,
     autoArchiveAgentsAfter: isArchiveAfter(s.autoArchiveAgentsAfter) ? s.autoArchiveAgentsAfter : undefined,
     seenAgentsShown:
