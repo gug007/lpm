@@ -6,12 +6,12 @@ const CARDS: { icon: LucideIcon; title: string; body: string }[] = [
   {
     icon: KeyRound,
     title: "Per-device tokens, stored on the phone",
-    body: "Pairing issues a unique token that lives in your iPhone's Keychain. Your Mac only ever stores its hash — the raw token never leaves the device. Revoke a phone under + above your projects → Phone and its access is gone instantly, live connection dropped.",
+    body: "Pairing issues a unique token that stays on your phone, in the Keychain on iPhone or encrypted with an Android Keystore key. Your Mac only ever stores its hash — the raw token never leaves the device. Revoke a phone under + above your projects → Phone and its access is gone instantly, live connection dropped.",
   },
   {
     icon: Laptop,
     title: "Your code stays between phone and Mac",
-    body: "Your phone connects directly to your Mac, with no server in the middle. Terminal output, keystrokes, diffs, and files never pass through anyone else. The one thing that leaves your network is a push notification, sealed with a key only your iPhone and your Mac hold.",
+    body: "Your phone connects directly to your Mac, with no server in the middle. Terminal output, keystrokes, diffs, and files never pass through anyone else. The one thing that leaves your network is a push notification, sealed with a key only your phone and your Mac hold.",
   },
   {
     icon: ShieldCheck,

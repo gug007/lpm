@@ -9,7 +9,7 @@ type QA = {
 
 const FAQS: QA[] = [
   {
-    question: "Do I need lpm on a computer to use the iPhone app?",
+    question: "Do I need lpm on a computer to use lpm Link?",
     answer:
       "Yes. lpm Link is a companion, not a standalone terminal. Every project, service, and AI agent runs in the lpm desktop app on your Mac, Windows PC or Linux PC, or on a Linux server set up as an lpm host, and the phone is a live display and input client for it. You can pair several machines and switch between them in the app.",
   },
@@ -36,22 +36,22 @@ const FAQS: QA[] = [
   {
     question: "Does my code or terminal output go through the cloud?",
     answer:
-      "No. Terminal output, keystrokes, diffs, and files all travel directly between your phone and your Mac — there is no server in the middle for any of it. The only thing that leaves your network is a push notification, encrypted with a per-device key that only your iPhone and your Mac hold; the delivery relay sees an opaque blob it cannot read.",
+      "No. Terminal output, keystrokes, diffs, and files all travel directly between your phone and your Mac — there is no server in the middle for any of it. The only thing that leaves your network is a push notification, encrypted with a per-device key that only your phone and your Mac hold; the delivery relay sees an opaque blob it cannot read.",
   },
   {
     question: "Can I use it when I'm away from home?",
     answer:
-      "Yes. On the same Wi-Fi it works out of the box. Away from your network, put both your Mac and iPhone on a Tailscale tailnet. With your Mac's tailnet address added to the pairing QR code, the app keeps both addresses and uses whichever one it can reach. lpm has no cloud relay for terminals, so without a tailnet the phone needs another route to your Mac.",
+      "Yes. On the same Wi-Fi it works out of the box. Away from your network, put both your Mac and phone on a Tailscale tailnet. With your Mac's tailnet address added to the pairing QR code, the app keeps both addresses and uses whichever one it can reach. lpm has no cloud relay for terminals, so without a tailnet the phone needs another route to your Mac.",
   },
   {
     question: "Is it safe to control my dev machine from my phone?",
     answer:
-      "Phone access is off until you turn on Remote control in lpm, under + above your projects → Phone. Pairing issues a per-device token that lives in your iPhone's Keychain, and your Mac stores just its hash. When Remote control is on, your Mac accepts connections from your network, the app pins your Mac's certificate when you pair, and only paired devices get in. You can revoke any device at any time, which immediately drops its connection.",
+      "Phone access is off until you turn on Remote control in lpm, under + above your projects → Phone. Pairing issues a per-device token that stays on your phone, in the Keychain on iPhone or encrypted with an Android Keystore key, and your Mac stores just its hash. When Remote control is on, your Mac accepts connections from your network, the app pins your Mac's certificate when you pair, and only paired devices get in. You can revoke any device at any time, which immediately drops its connection.",
   },
   {
-    question: "Does it work on iPad?",
+    question: "Does it work on iPad and Android?",
     answer:
-      "Yes. The companion runs on iPhone and iPad, on iOS and iPadOS 17 or later. Both pair with lpm on your Mac the same way — scan the QR code once and you're in.",
+      "Yes. The companion runs on iPhone and iPad with iOS and iPadOS 17 or later, and on Android 8.0 or later. Each pairs with lpm on your Mac the same way — scan the QR code once and you're in.",
   },
   {
     question: "Do I need an account to use it?",

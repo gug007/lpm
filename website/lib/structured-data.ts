@@ -1,4 +1,4 @@
-import { APP_STORE_URL, SITE_URL } from "@/lib/links";
+import { APP_STORE_URL, PLAY_STORE_URL, SITE_URL } from "@/lib/links";
 import sitemapDates from "@/lib/sitemap-dates.json";
 import { LESSON_CHAPTERS } from "@/lib/youtube-chapters";
 import {
@@ -208,17 +208,29 @@ export function itemListJsonLd(items: ItemListEntry[]) {
   };
 }
 
-export function iosAppJsonLd({ description }: { description: string }) {
+const MOBILE_APPS = {
+  iOS: { id: "ios-app", url: APP_STORE_URL },
+  Android: { id: "android-app", url: PLAY_STORE_URL },
+} as const;
+
+export function mobileAppJsonLd({
+  os,
+  description,
+}: {
+  os: keyof typeof MOBILE_APPS;
+  description: string;
+}) {
+  const { id, url } = MOBILE_APPS[os];
   return {
     "@context": "https://schema.org",
     "@type": "MobileApplication",
-    "@id": `${SITE_URL}/#ios-app`,
+    "@id": `${SITE_URL}/#${id}`,
     name: "lpm Link",
     description,
-    operatingSystem: "iOS",
+    operatingSystem: os,
     applicationCategory: "DeveloperApplication",
-    url: APP_STORE_URL,
-    downloadUrl: APP_STORE_URL,
+    url,
+    downloadUrl: url,
     isRelatedTo: { "@id": APP_ID },
     publisher: { "@id": `${SITE_URL}/#publisher` },
     offers: {

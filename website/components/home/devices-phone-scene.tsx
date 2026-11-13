@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useRef } from "react";
 import { AppStoreButton } from "@/components/app-store-button";
-import { AppStoreScan } from "@/components/app-store-scan";
+import { GooglePlayButton } from "@/components/google-play-button";
+import { StoreScan } from "@/components/store-scan";
 import { SyncLink } from "@/components/home/paired-devices-link";
 import { usePairedDevicesLoop } from "@/components/home/paired-devices-loop";
 import { MacReplica } from "@/components/home/paired-devices-mac";
@@ -17,7 +18,7 @@ type Props = {
   paused: boolean;
   onTogglePause: () => void;
   summary: string;
-  // The home page follows the mirror with the App Store, which the iPhone
+  // The home page follows the mirror with the store buttons, which the phone
   // page has elsewhere.
   appStore: boolean;
 };
@@ -89,10 +90,11 @@ export function PhoneScene({
         <div className="mt-12 flex flex-col items-center gap-3 text-center sm:mt-14">
           <div className="flex flex-col items-center gap-4 md:flex-row">
             <AppStoreButton source="home-devices" />
-            <AppStoreScan />
+            <GooglePlayButton source="home-devices" />
+            <StoreScan />
           </div>
           <p className="text-pretty text-[13px] text-gray-500 dark:text-gray-400">
-            lpm link for iPhone and iPad. Scan one QR code to pair it with your
+            lpm link for iPhone, iPad and Android. Scan one QR code to pair it with your
             computer.{" "}
             <Link
               href={MOBILE_PATH}

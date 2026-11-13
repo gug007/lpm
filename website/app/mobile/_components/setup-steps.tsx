@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 import { Laptop, Smartphone } from "lucide-react";
 import { AppStoreButton } from "@/components/app-store-button";
-import { AppStoreScan } from "@/components/app-store-scan";
+import { GooglePlayButton } from "@/components/google-play-button";
+import { StoreScan } from "@/components/store-scan";
 import ComputerDownloadStep from "./computer-download-step";
 
 type Step = {
@@ -37,13 +38,14 @@ const STEPS: Step[] = [
     action: <ComputerDownloadStep />,
   },
   {
-    where: "On your iPhone or iPad",
+    where: "On your phone or tablet",
     title: "Get lpm Link",
-    body: "Free on the App Store.",
+    body: "Free on the App Store and Google Play.",
     action: (
       <div className="flex flex-col items-start gap-3">
         <AppStoreButton source="mobile-hero" />
-        <AppStoreScan />
+        <GooglePlayButton source="mobile-hero" />
+        <StoreScan />
       </div>
     ),
   },

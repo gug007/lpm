@@ -12,7 +12,7 @@ import {
 } from "@/lib/links";
 import {
   breadcrumbJsonLd,
-  iosAppJsonLd,
+  mobileAppJsonLd,
   jsonLdString,
   webPageJsonLd,
   youtubeLessonJsonLd,
@@ -31,21 +31,23 @@ import ReviewShip from "./_components/review-ship";
 import Security from "./_components/security";
 import VsRemoteControl from "./_components/vs-remote-control";
 
-const TITLE = "lpm Link: Claude Code on Your Mac From iPhone & iPad";
+const TITLE = "lpm Link: Claude Code on Your Mac From iPhone & Android";
 const DESCRIPTION =
-  "Pair your iPhone with lpm on your Mac to drive Claude Code and Codex in a live terminal, review diffs, commit and push, and get encrypted alerts.";
-const APP_DESCRIPTION =
-  "The lpm companion for iPhone and iPad: live terminals from your Mac or Linux server, a prompt composer, git review and commits, automations, usage limits, and encrypted agent alerts.";
+  "Pair your iPhone or Android phone with lpm on your Mac to drive Claude Code and Codex in a live terminal, review diffs, commit and push, and get encrypted alerts.";
+const appDescription = (devices: string) =>
+  `The lpm companion for ${devices}: live terminals from your Mac or Linux server, a prompt composer, git review and commits, automations, usage limits, and encrypted agent alerts.`;
 
 export const metadata: Metadata = {
   title: { absolute: TITLE },
   description: DESCRIPTION,
   keywords: [
     "claude code iphone",
+    "claude code android",
     "claude code mobile",
     "remote claude code",
     "control claude code from phone",
     "control claude code from iphone",
+    "control claude code from android",
     "ai agent mac terminal",
     "mac terminal on iphone",
     "run ai agents from phone",
@@ -60,6 +62,7 @@ export const metadata: Metadata = {
     "schedule claude code from iphone",
     "lpm link",
     "lpm iphone",
+    "lpm android",
   ],
   alternates: {
     canonical: MOBILE_PATH,
@@ -67,7 +70,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: TITLE,
     description:
-      "Drive Claude Code, Codex, or any terminal agent from your iPhone or iPad: live terminals, a full prompt composer, git review and shipping, automations, usage limits, and encrypted alerts.",
+      "Drive Claude Code, Codex, or any terminal agent from your iPhone, iPad or Android phone: live terminals, a full prompt composer, git review and shipping, automations, usage limits, and encrypted alerts.",
     type: "website",
     url: MOBILE_PATH,
     siteName: "lpm",
@@ -88,15 +91,17 @@ const structuredData = [
     about: [
       "Claude Code on iPhone",
       "Codex on iPhone",
+      "Claude Code on Android",
       "remote control for AI coding agents",
       "iOS terminal companion app",
       "git review on iPhone",
     ],
   }),
-  iosAppJsonLd({ description: APP_DESCRIPTION }),
+  mobileAppJsonLd({ os: "iOS", description: appDescription("iPhone and iPad") }),
+  mobileAppJsonLd({ os: "Android", description: appDescription("Android") }),
   breadcrumbJsonLd([
     { name: "Home", path: "/" },
-    { name: "lpm for iPhone", path: MOBILE_PATH },
+    { name: "lpm Link", path: MOBILE_PATH },
   ]),
   youtubeLessonJsonLd("connect-iphone"),
 ];

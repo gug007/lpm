@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { Play } from "lucide-react";
 import { AppStoreButton } from "@/components/app-store-button";
+import { GooglePlayButton } from "@/components/google-play-button";
 import { useRelease } from "@/components/release-context";
 import type { AppStoreSource, DownloadSource } from "@/lib/analytics";
 import { DEMO_ANCHOR, LESSONS_ANCHOR } from "@/lib/links";
@@ -10,6 +11,7 @@ import {
   isDownloadPlatform,
   isMobilePlatform,
   primaryDownload,
+  useIsAndroid,
   usePlatform,
 } from "@/lib/use-platform";
 import { DownloadSplitButton } from "./download-split-button";
@@ -49,8 +51,8 @@ function TourLink() {
 }
 
 // Phones and tablets can't install lpm, so they send the link on to a
-// computer; pages that pass an App Store source offer the iPhone companion
-// second.
+// computer; pages that pass an App Store source offer the phone companion
+// second, from the store that phone uses.
 export function HeroCta({
   source = "hero",
   secondary,
@@ -63,15 +65,19 @@ export function HeroCta({
   const platform = usePlatform();
   const { release } = useRelease();
   const onMobile = isMobilePlatform(platform);
+  const android = useIsAndroid();
   const trust = <HeroTrustLine os={null} />;
 
   if (onMobile) {
     return (
       <div className={SHELL}>
         <SendLinkCta />
-        {appStoreSource && (
-          <AppStoreButton source={appStoreSource} variant="outline" />
-        )}
+        {appStoreSource &&
+          (android ? (
+            <GooglePlayButton source={appStoreSource} variant="outline" />
+          ) : (
+            <AppStoreButton source={appStoreSource} variant="outline" />
+          ))}
         {trust}
       </div>
     );

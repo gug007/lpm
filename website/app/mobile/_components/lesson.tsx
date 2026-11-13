@@ -3,7 +3,7 @@ import { LessonSection } from "@/components/lesson-section";
 const STEPS = [
   {
     title: "Install both apps",
-    body: "lpm on your Mac, Windows or Linux computer, where every terminal and agent runs, and lpm Link from the App Store. The steps at the top of this page have both.",
+    body: "lpm on your Mac, Windows or Linux computer, where every terminal and agent runs, and lpm Link from the App Store or Google Play. The steps at the top of this page have both.",
   },
   {
     title: "Turn on Remote control and pair",

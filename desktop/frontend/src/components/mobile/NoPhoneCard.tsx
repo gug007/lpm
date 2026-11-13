@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { SetupStep } from "./SetupStep";
 import { AppleIcon } from "./AppleIcon";
+import { GooglePlayIcon } from "./GooglePlayIcon";
 import { PRIMARY_BUTTON, QUIET_BUTTON, SECONDARY_BUTTON } from "./styles";
 import { BrowserOpenURL } from "../../../bridge/runtime";
-import { APP_STORE_URL } from "../../mobile/links";
+import { APP_STORE_URL, PLAY_STORE_URL } from "../../mobile/links";
 import { useMachineWords } from "../settings/useMachineWords";
 
 /** First run, as three steps: get the app, set up Tailscale so the pairing code
@@ -28,10 +29,15 @@ export function NoPhoneCard({
 
   return (
     <div className="divide-y divide-[var(--border)] overflow-hidden rounded-xl border border-[var(--border)]">
-      <SetupStep n={1} done={false} title="Get lpm Link" detail="On your iPhone or iPad, from the App Store.">
+      <SetupStep n={1} done={false} title="Get lpm Link" detail="On iPhone and iPad from the App Store, on Android from Google Play.">
         <button onClick={() => BrowserOpenURL(APP_STORE_URL)} className={SECONDARY_BUTTON}>
           <span className="flex items-center gap-1.5">
             <AppleIcon size={12} /> App Store
+          </span>
+        </button>
+        <button onClick={() => BrowserOpenURL(PLAY_STORE_URL)} className={SECONDARY_BUTTON}>
+          <span className="flex items-center gap-1.5">
+            <GooglePlayIcon size={11} /> Google Play
           </span>
         </button>
       </SetupStep>

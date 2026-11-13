@@ -23,7 +23,7 @@ export default function Phone() {
         <SectionHeader
           eyebrow="On your phone"
           title="Answer Claude Code from your iPhone, laptop shut"
-          description="lpm Link, the lpm app for iPhone and iPad, shows the Mac mini's Claude Code and Codex sessions, tells you when one needs you or finishes, and lets you reply in its terminal."
+          description="lpm Link, the lpm app for iPhone, iPad and Android, shows the Mac mini's Claude Code and Codex sessions, tells you when one needs you or finishes, and lets you reply in its terminal."
         />
         <div className="grid gap-4 sm:grid-cols-2">
           {WAYS.map(({ icon: Icon, title, body }) => (
@@ -51,7 +51,7 @@ export default function Phone() {
             href={MOBILE_PATH}
             className="font-medium text-gray-900 underline decoration-gray-300 underline-offset-4 hover:decoration-gray-900 dark:text-gray-100 dark:decoration-gray-700 dark:hover:decoration-gray-100"
           >
-            lpm Link for iPhone
+            lpm Link
           </Link>
           .
         </p>

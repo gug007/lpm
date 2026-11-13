@@ -41,6 +41,6 @@ export const FEATURE_LIST = [
   "Multiple Claude Code accounts pinned per project",
   "SSH remote projects with port forwarding",
   "Control another computer running lpm or a Linux server from the app",
-  "iPhone companion with live terminals and push notifications",
+  "iPhone and Android companion with live terminals and push notifications",
   "lpm CLI and agent skills so coding agents can drive lpm",
 ];

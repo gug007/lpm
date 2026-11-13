@@ -157,7 +157,7 @@ export function NewProjectPicker() {
                 <div className="min-w-0 flex-1 pt-0.5">
                   <div className="text-[13px] font-medium text-[var(--text-primary)]">Phone</div>
                   <div className="mt-0.5 text-[11px] leading-relaxed text-[var(--text-secondary)]">
-                    Control your projects from lpm Link on iPhone or iPad
+                    Control your projects from lpm Link on iPhone, iPad or Android
                   </div>
                 </div>
                 <span className="mt-2 flex shrink-0 text-[var(--text-muted)]">

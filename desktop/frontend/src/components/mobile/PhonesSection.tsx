@@ -5,7 +5,7 @@ import { NoPhoneCard } from "./NoPhoneCard";
 import { VideoLink } from "../ui/VideoLink";
 import { LINK_BUTTON } from "./styles";
 import { BrowserOpenURL } from "../../../bridge/runtime";
-import { APP_STORE_URL, SETUP_VIDEO_LENGTH, SETUP_VIDEO_URL } from "../../mobile/links";
+import { APP_STORE_URL, PLAY_STORE_URL, SETUP_VIDEO_LENGTH, SETUP_VIDEO_URL } from "../../mobile/links";
 import { sortPhones, type PhoneDevice } from "../../mobile/phoneStatus";
 import type { PeerClient } from "../../peer/usePeerState";
 
@@ -71,9 +71,13 @@ export function PhonesSection({
             ))}
           </div>
           <p className="mt-2 px-1 text-[11px] text-[var(--text-muted)]">
-            lpm Link for iPhone and iPad ·{" "}
+            lpm Link for iPhone, iPad and Android ·{" "}
             <button onClick={() => BrowserOpenURL(APP_STORE_URL)} className={LINK_BUTTON}>
               App Store
+            </button>{" "}
+            ·{" "}
+            <button onClick={() => BrowserOpenURL(PLAY_STORE_URL)} className={LINK_BUTTON}>
+              Google Play
             </button>{" "}
             ·{" "}
             <button onClick={() => BrowserOpenURL(SETUP_VIDEO_URL)} className={LINK_BUTTON}>
