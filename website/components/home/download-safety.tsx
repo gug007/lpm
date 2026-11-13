@@ -47,8 +47,9 @@ const OTHER_ITEMS: SafetyItem[] = [
     title: "Private",
     body: (
       <>
-        No account or telemetry. Besides GitHub update checks, only optional
-        iPhone push reaches an lpm server.{" "}
+        No account or analytics, and crash reports are off unless you turn
+        them on. Besides GitHub update checks, only optional iPhone push
+        reaches an lpm server.{" "}
         <a href={PRIVACY_PATH} className={LINK}>
           Privacy
         </a>

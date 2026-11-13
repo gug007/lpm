@@ -73,6 +73,14 @@ lpm starts, stops, duplicates, and switches between local dev projects, with a b
 - Give every new Tauri command a demo answer: handle it in a `desktop/frontend/src/demo`
   module, or list the empty value of its return type in `src/demo/defaults.ts`
   (`defaults.test.ts` fails until you do)
+- Crash reports go to Sentry only from a machine whose owner turned them on
+  (Settings › General › Privacy; `crashReports`, kept per machine). All of it
+  goes through `src-tauri/src/crashreport.rs` and `src/crashReports.ts`, which ask
+  for that consent at the moment of sending and strip home folder names and
+  credentials. Report an error with `reportError` (frontend) or a panic (Rust):
+  never a second Sentry client, an SDK's own integrations, or user content (code,
+  terminal output, prompts, project names). `website/app/privacy/page.tsx` says
+  what a report holds — keep it true
 - Don't commit or push unless asked
 
  

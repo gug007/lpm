@@ -1,0 +1,13 @@
+[
+  ["/Users/alice/.lpm/x.yml", "~/.lpm/x.yml"],
+  ["at /home/bob/src/main.rs:4", "at ~/src/main.rs:4"],
+  ["C:\\Users\\carol\\AppData\\lpm", "~\\AppData\\lpm"],
+  ["c:/users/dave/x", "~/x"],
+  ["at /Users/alice:12", "at ~:12"],
+  ["src/pty.rs:12", "src/pty.rs:12"],
+  ["sent Bearer abc.def-123", "sent Bearer [REDACTED]"],
+  ["Authorization: Bearer abc.def-123", "Authorization: [REDACTED] [REDACTED]"],
+  ["api_key=sk-12345, next", "api_key=[REDACTED], next"],
+  ["password: \"hunter 2\"", "password: [REDACTED]"],
+  ["GET /x?token=abc&v=1", "GET /x?token=[REDACTED]"]
+]

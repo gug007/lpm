@@ -4,6 +4,7 @@ import { SettingsRow } from "../SettingsRow";
 import { SettingsSection } from "../SettingsSection";
 import { Toggle } from "../ui/Toggle";
 import { AboutSection } from "./AboutSection";
+import { CrashReportsSection } from "./CrashReportsSection";
 import { DefaultDirectoryRow } from "./DefaultDirectoryRow";
 import { KeepAwakeSection } from "./KeepAwakeSection";
 import { OpenAtLoginSection } from "./OpenAtLoginSection";
@@ -57,6 +58,8 @@ export function GeneralPane() {
       </SettingsSection>
 
       <KeepAwakeSection />
+
+      {shows("general.crashReports") && <CrashReportsSection />}
 
       {machine.kind === "local" ? <AboutSection /> : <PeerAboutSection version={machine.version} />}
     </>

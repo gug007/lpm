@@ -28,6 +28,7 @@ import {
   normalizeError,
   reportError,
 } from "./diagnostics";
+import { initCrashReports } from "./crashReports";
 import "./styles/globals.css";
 import { initSendLater } from "./store/sendLater";
 
@@ -39,6 +40,7 @@ applyPlatformClass();
 initScrollbarFade();
 initMenuEditEvents();
 initializeDiagnostics(surface);
+initCrashReports();
 
 function reloadWindow() {
   window.location.reload();

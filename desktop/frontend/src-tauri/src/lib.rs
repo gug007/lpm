@@ -79,6 +79,7 @@ mod configwatch;
 #[cfg(any(windows, test))]
 mod conptyreply;
 mod control;
+mod crashreport;
 mod daemonize;
 mod daemonlaunch;
 mod detached;
@@ -437,6 +438,7 @@ use codex_statusline::*;
 use commands_real::*;
 use config_cmds::*;
 use control::*;
+use crashreport::{crash_report_config, crash_reports_allowed};
 use detached::*;
 use quickterm::{hide_quick_terminal, quick_terminal_cwd, quick_terminal_status, set_quick_terminal};
 use file_browser::*;
@@ -632,6 +634,8 @@ pub fn forget_inherited_tab() {
 }
 
 pub fn run() {
+    let _crash_reports = crashreport::init("app");
+
     #[cfg(target_os = "linux")]
     webengine::prepare_linux_env();
 

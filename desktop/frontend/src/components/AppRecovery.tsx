@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   GetPlatform,
   GetVersion,
   SetClipboardText,
 } from "../../bridge/commands";
+import { manualReportOffered, sendCrashReport } from "../crashReports";
 import {
   formatDiagnosticsReport,
   getDiagnosticSurface,
@@ -21,6 +22,17 @@ interface AppRecoveryProps {
 }
 
 type CopyState = "idle" | "copying" | "copied" | "failed";
+type ReportState = "idle" | "sending" | "sent" | "failed";
+
+const REPORT_LABELS: Record<ReportState, string> = {
+  idle: "Send report",
+  sending: "Sending…",
+  sent: "Report sent",
+  failed: "Couldn't send",
+};
+
+const SECONDARY_BUTTON =
+  "rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-blue)] disabled:opacity-60";
 
 async function readEnvironment() {
   const [version, platform] = await Promise.all([
@@ -45,7 +57,29 @@ export function AppRecovery({
   onReload,
 }: AppRecoveryProps) {
   const [copyState, setCopyState] = useState<CopyState>("idle");
+  const [reportOffered, setReportOffered] = useState(false);
+  const [reportState, setReportState] = useState<ReportState>("idle");
   const normalized = normalizeError(error);
+
+  useEffect(() => {
+    let cancelled = false;
+    void manualReportOffered().then((offered) => {
+      if (!cancelled) setReportOffered(offered);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const sendReport = async () => {
+    setReportState("sending");
+    const sent = await sendCrashReport({
+      event: "recovery.sent_by_hand",
+      error: normalized,
+      details: { componentStack },
+    });
+    setReportState(sent ? "sent" : "failed");
+  };
 
   const copyDiagnostics = async () => {
     setCopyState("copying");
@@ -101,15 +135,30 @@ export function AppRecovery({
           >
             {retryLabel}
           </button>
+          {reportOffered && (
+            <button
+              type="button"
+              onClick={() => void sendReport()}
+              disabled={reportState === "sending" || reportState === "sent"}
+              className={SECONDARY_BUTTON}
+            >
+              {REPORT_LABELS[reportState]}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => void copyDiagnostics()}
             disabled={copyState === "copying"}
-            className="rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-blue)] disabled:opacity-60"
+            className={SECONDARY_BUTTON}
           >
             {copyLabel}
           </button>
         </div>
+        {reportOffered && (
+          <p className="mt-3 max-w-sm text-[11px] leading-relaxed text-[var(--text-muted)]">
+            Send report shares this error and your lpm and OS versions with lpm's developers.
+          </p>
+        )}
         {onReload && (
           <button
             type="button"
@@ -124,6 +173,11 @@ export function AppRecovery({
             ? "Diagnostics copied to the clipboard"
             : copyState === "failed"
               ? "Diagnostics could not be copied"
+              : ""}
+          {reportState === "sent"
+            ? "Crash report sent"
+            : reportState === "failed"
+              ? "The crash report could not be sent"
               : ""}
         </p>
         <details className="mt-6 w-full text-left">

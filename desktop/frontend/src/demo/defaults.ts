@@ -9,7 +9,7 @@ const NULL: string[] = [
   "cancel_action_background", "cancel_file_download", "check_aicl_is", "check_claude_hooks", "check_for_update",
   "claude_limit_stop", "claude_pool_state", "claude_session_state", "claude_statusline_preset_spec", "clear_job_state",
   "clear_job_state_global", "clear_openai_key", "clear_port_suggestions", "close_browser",
-  "copy_claude_session_for_fork", "copy_png_image", "create_branch", "create_template", "delete_agent_skill",
+  "copy_claude_session_for_fork", "copy_png_image", "crash_report_config", "create_branch", "create_template", "delete_agent_skill",
   "delete_branch", "delete_job_history", "delete_memory_session", "delete_remote_tracking_ref",
   "delete_template", "detach_project", "dismiss_claude_limit_stop", "dismiss_port_suggestion", "download_project_file",
   "drain_pending_job_tasks",
@@ -86,7 +86,7 @@ const EMPTY_LIST: string[] = [
 
 const FALSE: string[] = [
   "cancel_ai_generate", "cancel_scheduled_update", "cancel_update", "check_ghcli", "check_kokoro_installed",
-  "focus_detached_window", "git_push_rebasing", "github_starred", "has_openai_key", "is_terminal_remote",
+  "crash_reports_allowed", "focus_detached_window", "git_push_rebasing", "github_starred", "has_openai_key", "is_terminal_remote",
   "peer_cancel_mac_update", "save_text_file", "voice_to_text_available",
 ];
 
