@@ -26,20 +26,45 @@ export function KeepAwakeModeRow({
       {checked && <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent-amber)]" />}
     </span>
   );
+  const box = `mx-1 rounded-md px-2 py-1.5 text-left transition-colors ${
+    checked ? "bg-[var(--bg-active)]" : onSelect ? "hover:bg-[var(--bg-hover)]" : ""
+  }`;
   const title = "flex w-full items-center gap-2 text-left text-[12px] font-medium text-[var(--text-primary)]";
+  const focusRing = "outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-cyan)]/60";
+  const below = (children || detail) && (
+    // As tall as a row of chips, so a row keeps its height when its chips come and go.
+    <span className="mt-1 flex min-h-[21px] items-center pl-[22px] text-[11px] leading-snug text-[var(--text-muted)]">
+      {children || detail}
+    </span>
+  );
+
+  if (onSelect && !children) {
+    return (
+      <button
+        type="button"
+        role="menuitemradio"
+        aria-checked={checked}
+        onClick={onSelect}
+        className={`${box} ${focusRing}`}
+      >
+        <span className={title}>
+          {radio}
+          {label}
+        </span>
+        {below}
+      </button>
+    );
+  }
+
   return (
-    <div
-      className={`mx-1 rounded-md px-2 py-1.5 transition-colors ${
-        checked ? "bg-[var(--bg-active)]" : onSelect ? "hover:bg-[var(--bg-hover)]" : ""
-      }`}
-    >
+    <div className={box}>
       {onSelect ? (
         <button
           type="button"
           role="menuitemradio"
           aria-checked={checked}
           onClick={onSelect}
-          className={`${title} rounded outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-cyan)]/60`}
+          className={`${title} rounded ${focusRing}`}
         >
           {radio}
           {label}
@@ -50,12 +75,7 @@ export function KeepAwakeModeRow({
           {label}
         </div>
       )}
-      {(children || detail) && (
-        // As tall as a row of chips, so a row keeps its height when its chips come and go.
-        <div className="mt-1 flex min-h-[21px] items-center pl-[22px] text-[11px] leading-snug text-[var(--text-muted)]">
-          {children || detail}
-        </div>
-      )}
+      {below}
     </div>
   );
 }

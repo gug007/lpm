@@ -7,11 +7,6 @@ import { Tooltip } from "./ui/Tooltip";
 const RING_RADIUS = 12.5;
 const RING_LENGTH = 2 * Math.PI * RING_RADIUS;
 
-const TINT = {
-  rest: "bg-[color-mix(in_srgb,var(--accent-amber)_12%,transparent)] hover:bg-[color-mix(in_srgb,var(--accent-amber)_20%,transparent)]",
-  open: "bg-[color-mix(in_srgb,var(--accent-amber)_24%,transparent)]",
-};
-
 // The footer's own button while this machine is kept awake and its row is
 // folded into More, so the state isn't hidden behind a menu. A ring drains with
 // a countdown and a count says how many agents hold it; resting on it shows the
@@ -48,7 +43,7 @@ export function KeepAwakeFooterButton({
         onClick={(e) => onToggleMenu(e.currentTarget)}
         aria-expanded={menuOpen}
         aria-label={`Keep awake: ${keepAwakeCupLabel(state, left)}`}
-        className={`${className} relative text-[var(--accent-amber-text)] ${menuOpen ? TINT.open : TINT.rest}`}
+        className={`${className} relative text-[var(--accent-amber-text)] ${menuOpen ? "bg-[var(--bg-active)]" : "hover:bg-[var(--bg-hover)]"}`}
       >
         {ring !== null && (
           <svg
