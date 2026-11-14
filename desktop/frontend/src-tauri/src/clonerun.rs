@@ -7,7 +7,7 @@ use std::io::Read;
 use std::path::Path;
 use std::process::{ExitStatus, Stdio};
 use std::sync::mpsc::{self, RecvTimeoutError};
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Mutex, MutexGuard, OnceLock};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter};
 
@@ -26,36 +26,48 @@ pub(crate) enum Failure {
     Git(String),
 }
 
+/// A clone checks its folder and git's settings before it starts, so a cancel
+/// can arrive first. The last few such cancels are kept for their clone to find.
+const EARLY_CANCELS_KEPT: usize = 32;
+
 #[derive(Default)]
 struct Run {
     pid: u32,
     cancelled: bool,
 }
 
-fn runs() -> &'static Mutex<HashMap<String, Run>> {
-    static RUNS: OnceLock<Mutex<HashMap<String, Run>>> = OnceLock::new();
+#[derive(Default)]
+struct Runs {
+    running: HashMap<String, Run>,
+    early_cancels: VecDeque<String>,
+}
+
+fn runs() -> MutexGuard<'static, Runs> {
+    static RUNS: OnceLock<Mutex<Runs>> = OnceLock::new();
     RUNS.get_or_init(Default::default)
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
 }
 
 fn with_run<T>(id: &str, f: impl FnOnce(&mut Run) -> T) -> Option<T> {
-    runs()
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .get_mut(id)
-        .map(f)
+    runs().running.get_mut(id).map(f)
 }
 
 struct Registered(String);
 
 impl Registered {
     fn new(id: &str) -> Result<Self, Failure> {
-        let mut map = runs().lock().unwrap_or_else(|e| e.into_inner());
-        if map.contains_key(id) {
+        let mut runs = runs();
+        if let Some(at) = runs.early_cancels.iter().position(|c| c == id) {
+            runs.early_cancels.remove(at);
+            return Err(Failure::Cancelled);
+        }
+        if runs.running.contains_key(id) {
             return Err(Failure::Git(format!(
                 "a clone with id {id} is already running"
             )));
         }
-        map.insert(id.to_string(), Run::default());
+        runs.running.insert(id.to_string(), Run::default());
         Ok(Self(id.to_string()))
     }
 
@@ -66,10 +78,7 @@ impl Registered {
 
 impl Drop for Registered {
     fn drop(&mut self) {
-        runs()
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .remove(&self.0);
+        runs().running.remove(&self.0);
     }
 }
 
@@ -79,14 +88,21 @@ fn end_tree(pid: u32) {
 
 /// Stop the clone `id`: end git and everything it started. The clone's own
 /// thread then deletes the partial folder and answers `CANCELLED`. False when
-/// no clone by that id is running (it already finished).
+/// no clone by that id is running: one that already finished is left alone,
+/// and one that hasn't started yet stops as soon as it does.
 #[tauri::command(async)]
 pub fn cancel_clone(id: String) -> bool {
-    let Some(pid) = with_run(&id, |r| {
-        r.cancelled = true;
-        r.pid
-    }) else {
-        return false;
+    let pid = {
+        let mut runs = runs();
+        let Some(run) = runs.running.get_mut(&id) else {
+            if runs.early_cancels.len() == EARLY_CANCELS_KEPT {
+                runs.early_cancels.pop_front();
+            }
+            runs.early_cancels.push_back(id);
+            return false;
+        };
+        run.cancelled = true;
+        run.pid
     };
     if pid > 0 {
         end_tree(pid);

@@ -119,8 +119,25 @@ fn cancel_ends_git_and_everything_it_started() {
 }
 
 #[test]
-fn cancelling_an_unknown_clone_is_a_no_op() {
+fn cancelling_a_clone_that_is_not_running_answers_false() {
     assert!(!cancel_clone("no-such-clone".into()));
+}
+
+#[test]
+fn a_cancel_sent_before_the_clone_starts_stops_it() {
+    let tmp = tempfile::tempdir().unwrap();
+    let src = source_repo(tmp.path());
+    let dest = tmp.path().join("dest");
+    std::fs::create_dir(&dest).unwrap();
+    cancel_clone("test-early-cancel".into());
+    let ran = run(
+        "test-early-cancel",
+        &argv(&file_url(&src), &dest),
+        &test_env(),
+        |_| {},
+    );
+    assert!(matches!(ran, Err(Failure::Cancelled)));
+    assert!(!dest.join("f0.txt").exists());
 }
 
 #[test]
