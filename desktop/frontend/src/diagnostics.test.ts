@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   DiagnosticBuffer,
   formatDiagnosticsReport,
@@ -112,14 +112,26 @@ describe("reportError", () => {
   });
 });
 
-describe("unhandled rejections", () => {
-  it("reports them, except an editor cancelling its own work", () => {
+describe("uncaught errors", () => {
+  const heard = vi.fn();
+
+  beforeAll(() => {
     vi.spyOn(console, "info").mockImplementation(() => {});
     vi.spyOn(console, "error").mockImplementation(() => {});
     vi.stubGlobal("window", new EventTarget());
     initializeDiagnostics("main");
-    const heard = vi.fn();
     onReportedError(heard);
+  });
+
+  beforeEach(() => heard.mockClear());
+
+  afterAll(() => {
+    onReportedError(null);
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("reports rejections, except an editor cancelling its own work", () => {
     const reject = (reason: unknown) =>
       window.dispatchEvent(Object.assign(new Event("unhandledrejection"), { reason }));
 
@@ -131,10 +143,24 @@ describe("unhandled rejections", () => {
     reject(new Error("Canceled"));
     expect(heard).toHaveBeenCalledTimes(1);
     expect(heard.mock.calls[0][0].event).toBe("window.unhandled_rejection");
+  });
 
-    onReportedError(null);
-    vi.unstubAllGlobals();
-    vi.restoreAllMocks();
+  it("reports errors, except the terminal renderer rebuilding on a lost GPU", () => {
+    const fail = (message: string, stack: string) => {
+      const error = new Error(message);
+      error.stack = `Error: ${message}\n${stack}`;
+      window.dispatchEvent(Object.assign(new Event("error"), { error, message }));
+    };
+
+    fail(
+      "value must not be falsy",
+      "T@tauri://localhost/assets/addon-webgl-BzUHyRKl.js:1:5998\n_initializeWebGLState@tauri://localhost/assets/addon-webgl-BzUHyRKl.js:58:16315",
+    );
+    expect(heard).not.toHaveBeenCalled();
+
+    fail("value must not be falsy", "render@tauri://localhost/assets/index.js:1:20");
+    expect(heard).toHaveBeenCalledTimes(1);
+    expect(heard.mock.calls[0][0].event).toBe("window.error");
   });
 });
 

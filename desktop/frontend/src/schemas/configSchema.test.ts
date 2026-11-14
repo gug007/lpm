@@ -14,8 +14,12 @@ function fieldsOf(def: Def): string[] {
 
 const ACTION_FIELDS = [
   "actions", "cmd", "color", "confirm", "cwd", "display", "emoji", "env", "inputs", "label",
-  "labelRefresh", "labelRefreshOnChange", "labelRefreshOnHover", "layer", "mode", "port", "portConflict", "position", "primary", "prompt", "reuse", "shortcut",
+  "labelRefresh", "labelRefreshOnChange", "labelRefreshOnHover", "labelSvg", "layer", "mode", "popup", "port", "portConflict", "position", "primary", "prompt", "reuse", "shortcut",
   "type",
+].sort();
+
+const JOB_FIELDS = [
+  "check", "duplicate", "emoji", "enabled", "label", "machines", "onAnswer", "projects", "run", "schedule", "sendTo", "verify",
 ].sort();
 
 describe("config schemas", () => {
@@ -26,6 +30,16 @@ describe("config schemas", () => {
     }
     expect(repoSchema.definitions.service).toEqual(projectSchema.definitions.service);
     expect(repoSchema.definitions.serviceReady).toEqual(projectSchema.definitions.serviceReady);
+  });
+
+  it("describe automations the same way in every file, without refusing fields added later", () => {
+    for (const schema of Object.values(schemas)) {
+      expect(schema.definitions.job).toEqual(projectSchema.definitions.job);
+      expect(schema.properties.jobs).toEqual(projectSchema.properties.jobs);
+    }
+    expect(projectSchema.properties.jobs.additionalProperties).toEqual({ $ref: "#/definitions/job" });
+    expect(fieldsOf(projectSchema.definitions.job)).toEqual(JOB_FIELDS);
+    expect(projectSchema.definitions.job).not.toHaveProperty("additionalProperties");
   });
 
   for (const [name, schema] of Object.entries(schemas)) {

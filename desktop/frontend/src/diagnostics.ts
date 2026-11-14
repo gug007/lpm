@@ -217,12 +217,24 @@ function isEditorCancellation(reason: unknown): boolean {
   return reason instanceof Error && reason.name === "Canceled" && reason.message === "Canceled";
 }
 
+// xterm's WebGL renderer rebuilds itself when the webview hands back a lost GPU
+// context, and throws if the GPU process goes away again halfway through. The
+// terminal keeps drawing afterwards.
+function isTerminalRendererRebuild(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    error.message === "value must not be falsy" &&
+    (error.stack ?? "").includes("_initializeWebGLState")
+  );
+}
+
 export function initializeDiagnostics(surface: string): void {
   currentSurface = surface;
   if (initialized || typeof window === "undefined") return;
   initialized = true;
 
   window.addEventListener("error", (event) => {
+    if (isTerminalRendererRebuild(event.error)) return;
     reportError("window.error", event.error ?? event.message, {
       filename: event.filename,
       line: event.lineno,

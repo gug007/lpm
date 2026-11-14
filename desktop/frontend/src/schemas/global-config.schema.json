@@ -20,6 +20,11 @@
       "description": "Deprecated alias for actions with type terminal; entries here default to type terminal. Declare new terminals under actions.",
       "additionalProperties": { "$ref": "#/definitions/terminal" }
     },
+    "jobs": {
+      "type": "object",
+      "description": "Automations, by id: what each one runs and when. The Automations view writes these. Each is read on its own, so one that can't be read doesn't stop the others.",
+      "additionalProperties": { "$ref": "#/definitions/job" }
+    },
     "zones": {
       "type": "object",
       "description": "Framed groups of buttons in the header or the footer, 1 to 3 rows tall, available in every project. An action sits in a zone when its \"display\" is the zone's name. An entry with \"rows\" declares the zone; an entry without it only adjusts a zone declared in another config file.",
@@ -31,6 +36,61 @@
     }
   },
   "definitions": {
+    "job": {
+      "type": "object",
+      "properties": {
+        "label": { "type": "string", "description": "The automation's name in the Automations view." },
+        "emoji": { "type": "string", "description": "Optional emoji shown beside its name." },
+        "enabled": { "type": "boolean", "description": "false pauses it: it doesn't run on its schedule until it's turned on again." },
+        "schedule": {
+          "type": "object",
+          "description": "When it runs: a time of day (at) on some days (days), an interval (every), a cron line (cron), or manual: true to run it only by hand.",
+          "properties": {
+            "at": { "description": "A time of day, or a list of them.", "examples": ["09:00"] },
+            "until": { "type": "string", "description": "The end of a window the run lands somewhere inside, instead of at the exact time in at." },
+            "times": { "type": "integer", "description": "Runs per day, spread across the window from at to until." },
+            "days": { "description": "The days it runs on. Every day when left out." },
+            "pickDays": { "type": "integer", "description": "Use only this many of the days each week, chosen at random." },
+            "shortMonths": { "type": "string", "description": "For a date a short month lacks: last runs it on that month's last day; skip (the default) skips the month.", "examples": ["last", "skip"] },
+            "every": { "type": ["string", "integer"], "description": "Run again after this long: hours, or a number with h or d. A band such as 4h-8h draws each gap from it.", "examples": ["6h", "2d", "4h-8h"] },
+            "manual": { "type": "boolean", "description": "Never runs on its own, only when started by hand." },
+            "cron": { "type": "string", "description": "A five-field cron line, in place of every other timing key." }
+          }
+        },
+        "run": {
+          "type": "object",
+          "description": "What it runs: an action, a cmd, or a prompt for an agent.",
+          "properties": {
+            "action": { "type": "string", "description": "One of the project's actions, by name." },
+            "cmd": { "type": "string", "description": "A shell command." },
+            "prompt": { "type": "string", "description": "What to ask the agent." },
+            "agent": { "type": "string", "description": "The agent that answers the prompt.", "examples": ["claude", "codex", "gemini", "opencode"] },
+            "model": { "type": "string", "description": "The agent's model." },
+            "effort": { "type": "string", "description": "How hard the agent thinks." },
+            "access": { "type": "string", "description": "What the agent may do without asking." },
+            "quiet": { "type": "boolean", "description": "Report only runs that found something; a run with nothing to report leaves no trace." },
+            "memory": { "type": "boolean", "description": "Every run recalls and saves the automation's own memory session." },
+            "claudeAccount": { "type": "string", "description": "The Claude account its runs use; empty is the main login. Left out, the project's account applies." }
+          }
+        },
+        "check": { "type": "string", "description": "A command run first, in the project: exit 0 means there is work to do; anything else ends the run as nothing to do." },
+        "verify": { "type": "string", "description": "A command run after the work: exit 0 means it passed." },
+        "onAnswer": { "type": "string", "description": "Runs each time a keyed question is answered, with the key and the answer in its environment." },
+        "duplicate": {
+          "type": ["boolean", "object"],
+          "description": "Run in a copy of the project: true for a fresh copy, or the copy's settings.",
+          "properties": {
+            "mode": { "type": "string", "description": "copy (the default) or worktree.", "examples": ["copy", "worktree"] },
+            "pullLatest": { "type": "boolean", "description": "Pull the latest commits into the copy first. On by default; not for a worktree." },
+            "reinstallDeps": { "type": "boolean", "description": "Install the copy's dependencies again." },
+            "excludeUncommitted": { "type": "boolean", "description": "Leave uncommitted changes out of the copy. Not for a worktree." }
+          }
+        },
+        "projects": { "type": "array", "items": { "type": "string" }, "description": "In global.yml, the projects a shared automation runs in. Left out, every project; an empty list runs it on its own in the home folder." },
+        "sendTo": { "type": ["string", "array"], "items": { "type": "string" }, "description": "Where its results go besides lpm.", "examples": ["telegram"] },
+        "machines": { "type": ["string", "array"], "items": { "type": "string" }, "description": "The computers that may run it, best first. Left out, every computer that has it." }
+      }
+    },
     "envMap": {
       "type": "object",
       "additionalProperties": { "type": "string" }
@@ -85,6 +145,19 @@
             "labelRefresh": { "oneOf": [{ "type": "integer", "minimum": 0 }, { "type": "string", "pattern": "^\\s*\\d+\\s*[smh]?\\s*$" }], "examples": ["30s", "5m", "1h"], "description": "How often the $(…) commands in the action's label, emoji, input and option labels run: seconds, or a number with s, m or h. Defaults to 1m; anything under 5s runs every 5s. They also run after any action in the project finishes in the background." },
             "labelRefreshOnHover": { "type": "boolean", "description": "Run the $(…) commands in the label, emoji and options of this action and its menu items again when the pointer rests on the button (at most every 5s). lpm refresh-label does the same from a script." },
             "labelRefreshOnChange": { "type": "boolean", "description": "Run the $(…) commands in this action's labels again soon after files in the project change: an edit, a commit, a checkout. Folders like node_modules and build output are ignored. Local projects only; SSH projects keep labelRefresh." },
+            "labelSvg": { "type": "string", "description": "The <svg> the button draws in place of its text label: written in place, or $(a command) that prints it. \"label\" stays the button's name and its fallback." },
+            "popup": {
+              "type": ["string", "object"],
+              "description": "A page shown in a card while the pointer rests on the button, or on a long press in lpm Link. The short form is a file whose ending names its format (popup.html); the long form names the format as a key (html) beside the card's settings.",
+              "properties": {
+                "html": { "type": "string", "description": "The page: a file relative to the action's cwd, the page written in place, or $(a command) whose whole output is the page. Up to 1.5 MB." },
+                "data": { "description": "What the page reads as lpm.data: $(a command), a file, or YAML written in place. Output that is JSON arrives parsed; anything else arrives as text in lpm.text. Up to 1 MB." },
+                "title": { "type": ["string", "number"], "description": "The card's heading. Defaults to the button's label." },
+                "size": { "type": "string", "description": "The page's WIDTHxHEIGHT in points, 200–720 by 80–560. Defaults to 360x220.", "examples": ["380x220"] },
+                "refresh": { "type": ["string", "number"], "description": "\"open\" (the default) runs the commands as the card opens; seconds, or a number with s, m or h (at least 5s), runs them again on that interval while it's open.", "examples": ["open", "5m"] },
+                "cache": { "type": ["string", "number"], "description": "How long a result stays current, so opening the card again runs nothing: seconds, or a number with s, m or h, at least 5s. Defaults to 30s.", "examples": ["30s", "1m"] }
+              }
+            },
             "emoji": { "type": "string", "description": "Optional emoji shown as the action's icon and on the terminal tab it launches. May hold the label variables and $(command); it shows the first word of what it renders to." },
             "color": { "type": "string", "description": "Optional accent color for the button and the terminal tab it launches. A named accent adapts to the theme: red, orange, claude, amber, yellow, lime, green, emerald, teal, cyan, sky, blue, indigo, violet, purple, fuchsia, pink, rose, slate, gray or stone; add -deep for a darker tone (e.g. blue-deep). Any other value is used as a CSS color (e.g. #8b5cf6).", "examples": ["red", "orange", "claude", "amber", "yellow", "lime", "green", "emerald", "teal", "cyan", "sky", "blue", "indigo", "violet", "purple", "fuchsia", "pink", "rose", "slate", "gray", "stone", "blue-deep", "#8b5cf6"] },
             "shortcut": { "type": "string", "description": "Optional keyboard shortcut that runs the action while the project is open, e.g. \"cmd+shift+b\". Needs cmd (ctrl counts as cmd) or alt, optionally shift, and exactly one key." },
@@ -196,6 +269,19 @@
             "labelRefresh": { "oneOf": [{ "type": "integer", "minimum": 0 }, { "type": "string", "pattern": "^\\s*\\d+\\s*[smh]?\\s*$" }], "examples": ["30s", "5m", "1h"], "description": "How often the $(…) commands in the action's label, emoji, input and option labels run: seconds, or a number with s, m or h. Defaults to 1m; anything under 5s runs every 5s. They also run after any action in the project finishes in the background." },
             "labelRefreshOnHover": { "type": "boolean", "description": "Run the $(…) commands in the label, emoji and options of this action and its menu items again when the pointer rests on the button (at most every 5s). lpm refresh-label does the same from a script." },
             "labelRefreshOnChange": { "type": "boolean", "description": "Run the $(…) commands in this action's labels again soon after files in the project change: an edit, a commit, a checkout. Folders like node_modules and build output are ignored. Local projects only; SSH projects keep labelRefresh." },
+            "labelSvg": { "type": "string", "description": "The <svg> the button draws in place of its text label: written in place, or $(a command) that prints it. \"label\" stays the button's name and its fallback." },
+            "popup": {
+              "type": ["string", "object"],
+              "description": "A page shown in a card while the pointer rests on the button, or on a long press in lpm Link. The short form is a file whose ending names its format (popup.html); the long form names the format as a key (html) beside the card's settings.",
+              "properties": {
+                "html": { "type": "string", "description": "The page: a file relative to the action's cwd, the page written in place, or $(a command) whose whole output is the page. Up to 1.5 MB." },
+                "data": { "description": "What the page reads as lpm.data: $(a command), a file, or YAML written in place. Output that is JSON arrives parsed; anything else arrives as text in lpm.text. Up to 1 MB." },
+                "title": { "type": ["string", "number"], "description": "The card's heading. Defaults to the button's label." },
+                "size": { "type": "string", "description": "The page's WIDTHxHEIGHT in points, 200–720 by 80–560. Defaults to 360x220.", "examples": ["380x220"] },
+                "refresh": { "type": ["string", "number"], "description": "\"open\" (the default) runs the commands as the card opens; seconds, or a number with s, m or h (at least 5s), runs them again on that interval while it's open.", "examples": ["open", "5m"] },
+                "cache": { "type": ["string", "number"], "description": "How long a result stays current, so opening the card again runs nothing: seconds, or a number with s, m or h, at least 5s. Defaults to 30s.", "examples": ["30s", "1m"] }
+              }
+            },
             "emoji": { "type": "string", "description": "Optional emoji shown as the action's icon and on the terminal tab it launches. May hold the label variables and $(command); it shows the first word of what it renders to." },
             "color": { "type": "string", "description": "Optional accent color for the button and the terminal tab it launches. A named accent adapts to the theme: red, orange, claude, amber, yellow, lime, green, emerald, teal, cyan, sky, blue, indigo, violet, purple, fuchsia, pink, rose, slate, gray or stone; add -deep for a darker tone (e.g. blue-deep). Any other value is used as a CSS color (e.g. #8b5cf6).", "examples": ["red", "orange", "claude", "amber", "yellow", "lime", "green", "emerald", "teal", "cyan", "sky", "blue", "indigo", "violet", "purple", "fuchsia", "pink", "rose", "slate", "gray", "stone", "blue-deep", "#8b5cf6"] },
             "shortcut": { "type": "string", "description": "Optional keyboard shortcut that runs the action while the project is open, e.g. \"cmd+shift+b\". Needs cmd (ctrl counts as cmd) or alt, optionally shift, and exactly one key." },

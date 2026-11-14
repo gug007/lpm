@@ -1,6 +1,9 @@
 import * as monaco from "monaco-editor";
 import EditorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker";
 import TsWorker from "monaco-editor/esm/vs/language/typescript/ts.worker?worker";
+import JsonWorker from "monaco-editor/esm/vs/language/json/json.worker?worker";
+import CssWorker from "monaco-editor/esm/vs/language/css/css.worker?worker";
+import HtmlWorker from "monaco-editor/esm/vs/language/html/html.worker?worker";
 import YamlWorker from "./yaml.worker?worker";
 import { configureMonacoYaml } from "monaco-yaml";
 import "./styles/monaco-overrides.css";
@@ -10,6 +13,7 @@ import globalSchema from "./schemas/global-config.schema.json";
 import repoSchema from "./schemas/repo-config.schema.json";
 import { templateSchema } from "./schemas/templateSchema";
 import { markMonacoLoaded } from "./monaco-loaded";
+import { withLegacyWorkerOptions } from "./monacoLegacyWorkers";
 import {
   ACTION_MODEL_URI,
   ACTION_SCHEMA_URI,
@@ -38,13 +42,15 @@ export function setupMonaco(): typeof monaco {
   configured = true;
   markMonacoLoaded(monaco);
 
-  window.MonacoEnvironment = {
-    getWorker(_workerId: string, label: WorkerLabel) {
-      if (label === "yaml") return new YamlWorker();
-      if (label === "typescript" || label === "javascript") return new TsWorker();
-      return new EditorWorker();
-    },
+  const getWorker = (label: WorkerLabel) => {
+    if (label === "yaml") return new YamlWorker();
+    if (label === "typescript" || label === "javascript") return new TsWorker();
+    if (label === "json") return new JsonWorker();
+    if (label === "css" || label === "scss" || label === "less") return new CssWorker();
+    if (label === "html" || label === "handlebars" || label === "razor") return new HtmlWorker();
+    return new EditorWorker();
   };
+  window.MonacoEnvironment = { getWorker: (_workerId, label) => getWorker(label) };
 
   // The diff review models get .ts/.tsx URIs, so Monaco spins up the TypeScript
   // language worker for validation — but only the editor + yaml workers are wired
@@ -58,7 +64,19 @@ export function setupMonaco(): typeof monaco {
   monaco.typescript.typescriptDefaults.setDiagnosticsOptions(tsDiagnostics);
   monaco.typescript.javascriptDefaults.setDiagnosticsOptions(tsDiagnostics);
 
-  configureMonacoYaml(monaco, {
+  // Files opened here are often JSON that allows comments (tsconfig.json,
+  // devcontainer.json) or CSS with Tailwind's at-rules: flag neither.
+  monaco.json.jsonDefaults.setDiagnosticsOptions({
+    ...monaco.json.jsonDefaults.diagnosticsOptions,
+    comments: "ignore",
+    trailingCommas: "ignore",
+  });
+  for (const defaults of [monaco.css.cssDefaults, monaco.css.scssDefaults, monaco.css.lessDefaults]) {
+    const lint = { ...defaults.options.lint, unknownAtRules: "ignore" as const };
+    defaults.setOptions({ ...defaults.options, lint });
+  }
+
+  configureMonacoYaml(withLegacyWorkerOptions(monaco, getWorker), {
     enableSchemaRequest: false,
     hover: true,
     completion: true,
