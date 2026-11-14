@@ -28,6 +28,7 @@ import cx.lpm.mobile.core.designsystem.component.EmptyState
 import cx.lpm.mobile.core.designsystem.component.GlassCapsuleButton
 import cx.lpm.mobile.core.designsystem.component.GlassIconButton
 import cx.lpm.mobile.core.designsystem.component.LpmTopBar
+import cx.lpm.mobile.core.designsystem.component.TopBarTitle
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.feature.files.R
 import cx.lpm.mobile.feature.files.fetch.FileFetch
@@ -35,8 +36,9 @@ import java.io.File
 
 /**
  * Opens any file on the Mac, like the desktop's file viewer (iOS `FilePreviewSheet`):
- * "Done" and the file's name over the copy's progress, the reason it failed with
- * Retry, or the file itself — with Share once the whole file is here.
+ * "Done" and the file's name over its folder and line, the copy's progress, the reason
+ * it failed with Retry, or the file itself — with Share once the whole file is here,
+ * and [nextSteps] under it.
  */
 @Composable
 fun FilePreviewSheet(
@@ -45,6 +47,7 @@ fun FilePreviewSheet(
     onShare: (File) -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
+    nextSteps: @Composable () -> Unit = {},
     content: @Composable (FileFetch.Phase.Ready) -> Unit
 ) {
     Column(
@@ -54,7 +57,6 @@ fun FilePreviewSheet(
     ) {
         val shareable = state.shareable
         LpmTopBar(
-            title = state.filename,
             modifier = Modifier
                 .background(if (state.barred) LpmTheme.colors.barMaterial else Color.Transparent)
                 .padding(top = 16.dp, bottom = 10.dp),
@@ -71,7 +73,9 @@ fun FilePreviewSheet(
                     )
                 }
             }
-        )
+        ) {
+            PreviewTitle(state)
+        }
         Box(
             Modifier
                 .weight(1f)
@@ -83,7 +87,31 @@ fun FilePreviewSheet(
                 is FileFetch.Phase.Ready -> content(phase)
             }
         }
+        if (state.ready) nextSteps()
     }
+}
+
+/** The file's name over "<folder> · line N", the folder cut from its start when long. */
+@Composable
+private fun PreviewTitle(state: FilePreviewUiState) {
+    val line = if (state.line > 0) stringResource(R.string.files_line, state.line) else ""
+    val subtitle = listOf(state.folder, line).filter { it.isNotEmpty() }.joinToString(" · ")
+    if (subtitle.isEmpty()) {
+        TopBarTitle(title = state.filename)
+        return
+    }
+    TopBarTitle(
+        title = state.filename,
+        subtitleContent = {
+            Text(
+                text = subtitle,
+                style = LpmTheme.typography.caption2,
+                color = LpmTheme.colors.secondaryLabel,
+                maxLines = 1,
+                overflow = TextOverflow.StartEllipsis
+            )
+        }
+    )
 }
 
 @Composable

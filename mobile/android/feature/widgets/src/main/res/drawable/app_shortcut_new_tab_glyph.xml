@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Material Symbols "add" on a 40 dp canvas centred in the 108 dp adaptive icon. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:tint="@color/app_shortcut_glyph"
+    android:viewportWidth="2592"
+    android:viewportHeight="2592">
+    <group
+        android:translateX="816"
+        android:translateY="816">
+        <path
+            android:fillColor="@android:color/white"
+            android:pathData="M440,520L240,520Q223,520 212,508Q200,497 200,480Q200,463 212,452Q223,440 240,440L440,440L440,240Q440,223 452,212Q463,200 480,200Q497,200 508,212Q520,223 520,240L520,440L720,440Q737,440 748,452Q760,463 760,480Q760,497 748,508Q737,520 720,520L520,520L520,720Q520,737 508,748Q497,760 480,760Q463,760 452,748Q440,737 440,720L440,520Z" />
+    </group>
+</vector>

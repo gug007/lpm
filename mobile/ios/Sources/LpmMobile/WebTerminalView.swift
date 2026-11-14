@@ -54,6 +54,8 @@ struct WebTerminalView: UIViewRepresentable {
     var onOpenPath: ((_ paths: [String], _ line: Int) -> Void)? = nil
     /// Find in this terminal, when the screen offers it.
     var find: TerminalFind? = nil
+    /// Text picked with a hold, for the composer.
+    var onAddToPrompt: ((String) -> Void)? = nil
 
     func makeCoordinator() -> Coordinator { Coordinator(model: model, termId: term.id) }
 
@@ -66,6 +68,7 @@ struct WebTerminalView: UIViewRepresentable {
         controller.add(context.coordinator, name: "openURL")
         controller.add(context.coordinator, name: "extent")
         controller.add(context.coordinator, name: "find")
+        controller.add(context.coordinator, name: "selection")
 
         let config = WKWebViewConfiguration()
         config.userContentController = controller
@@ -103,6 +106,7 @@ struct WebTerminalView: UIViewRepresentable {
         context.coordinator.theme = theme
         context.coordinator.onFirstContent = onFirstContent
         context.coordinator.onOpenPath = onOpenPath
+        context.coordinator.onAddToPrompt = onAddToPrompt
         // Capture only the coordinator, not `context` — these closures outlive this
         // call (held by the model until the screen closes), and closing over the
         // context would keep the whole SwiftUI environment alive with them.
@@ -120,6 +124,7 @@ struct WebTerminalView: UIViewRepresentable {
 
     func updateUIView(_ web: WKWebView, context: Context) {
         context.coordinator.onOpenPath = onOpenPath
+        context.coordinator.onAddToPrompt = onAddToPrompt
         context.coordinator.applyFontSize(fontSize)
         context.coordinator.applyTheme(theme)
         context.coordinator.applyHiddenInsets(hiddenInsets)
@@ -131,7 +136,7 @@ struct WebTerminalView: UIViewRepresentable {
 
     static func dismantleUIView(_ web: WKWebView, coordinator: Coordinator) {
         let c = web.configuration.userContentController
-        ["input", "resize", "ready", "openPath", "openURL", "extent", "find"].forEach {
+        ["input", "resize", "ready", "openPath", "openURL", "extent", "find", "selection"].forEach {
             c.removeScriptMessageHandler(forName: $0)
         }
         coordinator.model?.closeTerminalScreen(coordinator.termId, key: coordinator)
@@ -148,6 +153,7 @@ struct WebTerminalView: UIViewRepresentable {
         var theme: TerminalTheme = TerminalPrefs.defaultTheme
         var onFirstContent: (() -> Void)?
         var onOpenPath: ((_ paths: [String], _ line: Int) -> Void)?
+        var onAddToPrompt: ((String) -> Void)?
         private var ready = false
         private var announcedContent = false
         // Live output is coalesced: instead of one evaluateJavaScript per server
@@ -349,6 +355,23 @@ struct WebTerminalView: UIViewRepresentable {
             )
         }
 
+        /// What a hold-to-select bar button asked for.
+        private func selected(_ action: String?, text: String?) {
+            switch (action, text) {
+            case ("began", _):
+                Haptics.tap()
+            case ("copy", let text?):
+                UIPasteboard.general.string = text
+                Haptics.success()
+            case ("prompt", let text?):
+                onAddToPrompt?(text)
+            case ("find", let text?):
+                find?.open(query: text)
+            default:
+                break
+            }
+        }
+
         func userContentController(_ c: WKUserContentController, didReceive msg: WKScriptMessage) {
             switch msg.name {
             case "input":
@@ -373,6 +396,8 @@ struct WebTerminalView: UIViewRepresentable {
                 if let d = msg.body as? [String: Any] {
                     find?.found(index: d["index"] as? Int ?? -1, count: d["count"] as? Int ?? 0)
                 }
+            case "selection":
+                if let d = msg.body as? [String: Any] { selected(d["action"] as? String, text: d["text"] as? String) }
             case "openURL":
                 // The text comes from whatever the terminal printed: open web links only.
                 if let s = msg.body as? String, let url = URL(string: s),

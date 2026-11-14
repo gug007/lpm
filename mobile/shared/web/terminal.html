@@ -9,6 +9,9 @@
   /* The terminal sits within the safe area (below the nav bar); the insets are set from Swift. */
   #term { position: absolute; inset: 0; padding: var(--top-inset, 0px) 6px calc(6px + var(--bottom-inset, 0px)) 6px; }
   .xterm .xterm-viewport { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+  /* A hold selects with select.js, not with the system's text selection or callout. */
+  #term { -webkit-touch-callout: none; }
+  .xterm-screen { -webkit-user-select: none; user-select: none; }
 </style>
 </head>
 <body>
@@ -19,6 +22,7 @@
 <script src="xterm/addon-unicode11.js"></script>
 <script src="xterm/addon-search.js"></script>
 <script src="pathtap.js"></script>
+<script src="select.js"></script>
 <script>
   const post = (name, body) => window.webkit?.messageHandlers?.[name]?.postMessage(body);
 
@@ -65,6 +69,7 @@
   } catch (e) {}
 
   term.open(document.getElementById('term'));
+  const selection = LpmSelect.create(term, post);
 
   // GPU-accelerated renderer — same as the desktop. This is the big performance
   // win over xterm's default DOM renderer (far less layout/paint on each write).
@@ -139,7 +144,10 @@
   (function enableTouchScroll() {
     const el = term.element;
     const TAP_SLOP = 8; // px of movement under which a touch is a tap, not a scroll
-    let lastY = null, startY = 0, rect = null, accum = 0, scrolling = false;
+    const HOLD_MS = 420; // a still finger this long selects the line under it
+    let lastY = null, startY = 0, startX = 0, rect = null, accum = 0, scrolling = false;
+    let holdTimer = 0, held = false;
+    const cancelHold = () => { clearTimeout(holdTimer); holdTimer = 0; };
     // The WebGL renderer draws rows on a canvas, so a row's height is the screen's
     // over the row count.
     const rowHeight = () => {
@@ -199,20 +207,34 @@
     el.addEventListener('touchstart', e => {
       stoppedFling = fling !== 0;
       if (fling) { cancelAnimationFrame(fling); fling = 0; }
+      cancelHold();
+      held = false;
       if (e.touches.length === 1) {
         lastY = startY = e.touches[0].clientY;
+        startX = e.touches[0].clientX;
         rect = el.getBoundingClientRect();
         accum = 0;
         scrolling = false;
         samples = [];
+        holdTimer = setTimeout(() => {
+          holdTimer = 0;
+          if (lastY !== null && !scrolling) held = selection.begin(startX, startY);
+        }, HOLD_MS);
       }
     }, { passive: true });
     el.addEventListener('touchmove', e => {
-      if (lastY === null || e.touches.length !== 1) return;
+      if (lastY === null || e.touches.length !== 1) { cancelHold(); return; }
       const t = e.touches[0];
+      if (held) {
+        selection.extendTo(t.clientX, t.clientY);
+        e.preventDefault();
+        return;
+      }
       // Until the finger clearly moves, treat it as a (possible) tap: don't
       // preventDefault, so the tap still reaches xterm to focus its input and
       // raise the keyboard. Only take over the gesture once it's a real scroll.
+      if (!scrolling && Math.abs(t.clientY - startY) < TAP_SLOP && Math.abs(t.clientX - startX) < TAP_SLOP) return;
+      cancelHold();
       if (!scrolling && Math.abs(t.clientY - startY) < TAP_SLOP) return;
       scrolling = true;
       const now = performance.now();
@@ -223,6 +245,16 @@
       e.preventDefault();
     }, { passive: false });
     const end = e => {
+      cancelHold();
+      // The hold that selected, and any drag after it, ends with the selection up.
+      if (held) { held = false; lastY = null; e.preventDefault(); return; }
+      // A tap while text is selected puts the selection away, and does nothing else.
+      if (lastY !== null && !scrolling && selection.active) {
+        selection.clear();
+        lastY = null;
+        e.preventDefault();
+        return;
+      }
       if (lastY !== null && scrolling && samples.length > 1) {
         const first = samples[0], last = samples[samples.length - 1];
         const t = e.changedTouches[0];
@@ -264,7 +296,7 @@
       lastY = null;
     };
     el.addEventListener('touchend', end, { passive: false });
-    el.addEventListener('touchcancel', () => { lastY = null; }, { passive: true });
+    el.addEventListener('touchcancel', () => { cancelHold(); held = false; lastY = null; }, { passive: true });
   })();
 
   // Report geometry after a fit so the PTY reflows to the phone's real size.

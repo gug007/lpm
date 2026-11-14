@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import { AppToaster } from "./components/AppToaster";
 import { DictationOverlay } from "./components/dictation/DictationOverlay";
+import { DictationShortcut } from "./components/dictation/DictationShortcut";
+import { DICTATION_AVAILABLE } from "./hooks/useVoiceDictation";
 import { Sidebar } from "./components/Sidebar";
 import { ProjectDetail } from "./components/ProjectDetail";
 import { FeedbackModal } from "./components/FeedbackModal";
@@ -113,6 +115,7 @@ export function DetachedApp({ projectName }: DetachedAppProps) {
     <div className="flex h-screen" style={{ paddingRight: dockInset }}>
       <AppToaster theme={theme} dockInset={dockInset} />
       <DictationOverlay />
+      {DICTATION_AVAILABLE && <DictationShortcut />}
       <div className="flex flex-1 overflow-hidden">
         <Sidebar
           projects={projects}

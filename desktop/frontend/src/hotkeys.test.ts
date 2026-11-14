@@ -15,6 +15,11 @@ describe("hotkeyDefs", () => {
       deleteProject: "cmd+shift+backspace",
     });
   });
+
+  it("gives Dictate ⌥⌘V on macOS only, where VoiceToText runs", () => {
+    expect(hotkeyDefs(true).find((d) => d.id === "dictate")?.default).toBe("cmd+alt+v");
+    expect(hotkeyDefs(false).some((d) => d.id === "dictate")).toBe(false);
+  });
 });
 
 describe("normalizeHotkeys", () => {
@@ -24,6 +29,7 @@ describe("normalizeHotkeys", () => {
       tabSwitchPrev: "cmd+alt+arrowleft",
       renameProject: "cmd+r",
       deleteProject: "cmd+shift+backspace",
+      dictate: "cmd+alt+v",
     });
   });
 
@@ -33,6 +39,7 @@ describe("normalizeHotkeys", () => {
       tabSwitchPrev: "cmd+alt+arrowleft",
       renameProject: "cmd+r",
       deleteProject: "cmd+shift+backspace",
+      dictate: "cmd+alt+v",
     });
   });
 });
@@ -51,13 +58,13 @@ describe("resolveHotkey", () => {
 describe("configuredHotkeyCombos", () => {
   it("collects the canonical combos of all configurable hotkeys", () => {
     expect(configuredHotkeyCombos(undefined)).toEqual(
-      new Set(["cmd+alt+arrowright", "cmd+alt+arrowleft", "cmd+r", "cmd+shift+backspace"]),
+      new Set(["cmd+alt+arrowright", "cmd+alt+arrowleft", "cmd+r", "cmd+shift+backspace", "cmd+alt+v"]),
     );
   });
 
   it("excludes the row being edited", () => {
     expect(configuredHotkeyCombos(undefined, "tabSwitchNext")).toEqual(
-      new Set(["cmd+alt+arrowleft", "cmd+r", "cmd+shift+backspace"]),
+      new Set(["cmd+alt+arrowleft", "cmd+r", "cmd+shift+backspace", "cmd+alt+v"]),
     );
   });
 });

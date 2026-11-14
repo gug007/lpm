@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Material Symbols "error_fill" on a 40 dp canvas centred in the 108 dp adaptive icon. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:tint="@color/app_shortcut_glyph"
+    android:viewportWidth="2592"
+    android:viewportHeight="2592">
+    <group
+        android:translateX="816"
+        android:translateY="816">
+        <path
+            android:fillColor="@android:color/white"
+            android:pathData="M480,680Q497,680 508,668Q520,657 520,640Q520,623 508,612Q497,600 480,600Q463,600 452,612Q440,623 440,640Q440,657 452,668Q463,680 480,680ZM480,520Q497,520 508,508Q520,497 520,480L520,320Q520,303 508,292Q497,280 480,280Q463,280 452,292Q440,303 440,320L440,480Q440,497 452,508Q463,520 480,520ZM480,880Q397,880 324,848Q251,817 197,763Q143,709 112,636Q80,563 80,480Q80,397 112,324Q143,251 197,197Q251,143 324,112Q397,80 480,80Q563,80 636,112Q709,143 763,197Q817,251 848,324Q880,397 880,480Q880,563 848,636Q817,709 763,763Q709,817 636,848Q563,880 480,880Z" />
+    </group>
+</vector>

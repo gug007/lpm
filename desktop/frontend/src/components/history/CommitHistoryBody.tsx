@@ -14,16 +14,17 @@ import { useDiscardedCopies } from "./useDiscardedCopies";
 interface CommitHistoryBodyProps {
   projectPath: string;
   branch: string;
+  initialHash?: string | null;
   onClose: () => void;
 }
 
 /** What the History modal holds, mounted only while it is open. */
-export function CommitHistoryBody({ projectPath, branch, onClose }: CommitHistoryBodyProps) {
+export function CommitHistoryBody({ projectPath, branch, initialHash = null, onClose }: CommitHistoryBodyProps) {
   const history = useCommitHistory(projectPath);
   const ci = useCommitCi(projectPath);
   const discarded = useDiscardedCopies(projectPath);
   const { commits } = history;
-  const [selectedHash, setSelectedHash] = useState<string | null>(null);
+  const [selectedHash, setSelectedHash] = useState<string | null>(initialHash);
   const [hoverBranch, setHoverBranch] = useState<number | null>(null);
   const graph = useMemo(() => buildGraph(commits), [commits]);
   const lanes = Math.min(graph.width, MAX_LANES);

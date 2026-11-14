@@ -194,7 +194,10 @@ struct ProjectDetail: View {
         .onAppear {
             model.loadTerminals(project.name)
             model.loadBackgroundRuns(project.name)
+            model.lastOpenedProject = project.name
+            openPendingNewTab()
         }
+        .onChange(of: model.pendingNewTab) { _, _ in openPendingNewTab() }
         .onChange(of: model.link.isReady) { _, ready in
             if ready { model.reloadTerminalsAfterReconnect(project.name) }
         }
@@ -219,6 +222,12 @@ struct ProjectDetail: View {
     /// it opens a shell as it always has.
     private func newTab() {
         if model.canLaunchAgents { newTabOpen = true } else { model.newTerminal(project.name) }
+    }
+
+    private func openPendingNewTab() {
+        guard model.pendingNewTab == project.name else { return }
+        model.pendingNewTab = nil
+        newTab()
     }
 
     private func openSpawned(_ t: TerminalInfo) {

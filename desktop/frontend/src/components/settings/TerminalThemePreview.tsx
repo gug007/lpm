@@ -1,5 +1,10 @@
 import { useLayoutEffect, useRef, useState } from "react";
-import { getTerminalThemeColors, type TerminalThemeName } from "../../terminal-themes";
+import {
+  getTerminalThemeColors,
+  terminalAnsiColors,
+  terminalThemeLabel,
+  type TerminalThemeName,
+} from "../../terminal-themes";
 import { TrafficLights } from "../ui/TrafficLights";
 
 export function TerminalThemePreview({
@@ -20,6 +25,7 @@ export function TerminalThemePreview({
   const headerText = colors?.headerText ?? "var(--terminal-header-text)";
   const cursor = colors?.cursor ?? fg;
   const selection = colors?.selection ?? "var(--terminal-selection)";
+  const ansi = terminalAnsiColors(colors);
 
   // xterm makes a row the font's natural line height times the setting, which
   // CSS's unitless line-height would draw tighter than the real terminal.
@@ -40,7 +46,7 @@ export function TerminalThemePreview({
         style={{ background: header, color: headerText }}
       >
         <TrafficLights />
-        <span className="ml-1 truncate font-sans text-[10px] leading-none">terminal</span>
+        <span className="ml-1 truncate font-sans text-[10px] leading-none">{terminalThemeLabel(theme)}</span>
       </div>
       <div
         className="relative whitespace-pre px-3 py-2 [&>div]:overflow-hidden [&>div]:text-ellipsis"
@@ -54,12 +60,14 @@ export function TerminalThemePreview({
         >
           W
         </span>
-        <div>$ npm run dev</div>
+        <div>
+          <span style={{ color: ansi.blue }}>$</span> npm run dev
+        </div>
         <div style={{ opacity: 0.7 }}>
           {"  Local:   "}
           <span style={{ background: selection }}>http://localhost:3000</span>
         </div>
-        <div>✓ Ready in 842ms</div>
+        <div style={{ color: ansi.green }}>✓ Ready in 842ms</div>
         <div className="flex items-center">
           <span>$&nbsp;</span>
           <span

@@ -1,6 +1,7 @@
 package cx.lpm.mobile.feature.projects.detail
 
 import cx.lpm.mobile.core.data.git.GitChecksStore
+import cx.lpm.mobile.core.data.projects.ProjectOpens
 import cx.lpm.mobile.core.model.crashed
 import cx.lpm.mobile.core.navigation.ProjectKey
 import cx.lpm.mobile.core.testing.MainDispatcherRule
@@ -22,11 +23,14 @@ class ProjectDetailViewModelTest {
     @get:Rule
     val main = MainDispatcherRule()
 
+    private val opens = ProjectOpens()
+
     private fun TestScope.subscribed(
         t: TestSession,
         project: String = "storefront"
     ): ProjectDetailViewModel {
-        val vm = ProjectDetailViewModel(ProjectKey(project), t.sessions, t.clock, t.feeds, t.tips)
+        val vm =
+            ProjectDetailViewModel(ProjectKey(project), t.sessions, t.clock, t.feeds, t.tips, opens)
         backgroundScope.launch { vm.uiState.collect() }
         t.settle()
         return vm
@@ -145,6 +149,22 @@ class ProjectDetailViewModelTest {
         assertEquals("feat/checkout-redesign", state.git?.branch)
         assertEquals(42, state.checks?.pr?.number)
         assertEquals("1 failing", state.checks?.label)
+        vm.disappear()
+    }
+
+    @Test
+    fun `the app icon's New Tab offers the project last opened and opens on it once`() = runTest {
+        val t = demoSession()
+        val vm = subscribed(t)
+        vm.appear()
+        assertEquals("storefront", opens.lastOpened)
+
+        opens.openNewTab("api-gateway")
+        assertFalse(vm.takePendingNewTab())
+        opens.openNewTab("storefront")
+        assertTrue(vm.takePendingNewTab())
+        assertFalse(vm.takePendingNewTab())
+        assertNull(vm.pendingNewTab.value)
         vm.disappear()
     }
 }

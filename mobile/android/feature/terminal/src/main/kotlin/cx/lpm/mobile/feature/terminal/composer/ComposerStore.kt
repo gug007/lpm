@@ -86,6 +86,28 @@ class ComposerStore internal constructor(
         writeActive(next + text)
     }
 
+    /** Terminal text picked for the prompt: a fenced block after whatever is typed. */
+    fun appendQuoted(selected: String) {
+        val body = selected.trim { it in NEWLINES }
+        if (body.isEmpty()) return
+        var text = current.text
+        if (text.isNotEmpty()) text += if (text.endsWith("\n")) "\n" else "\n\n"
+        setText(text + "```\n" + body + "\n```\n")
+    }
+
+    /** Put a prompt's text back as it was (a toast's Undo). */
+    fun restoreText(text: String, tabId: String) {
+        val index = current.tabs.indexOfFirst { it.id == tabId }
+        when {
+            index < 0 -> Unit
+            index == current.activeIndex -> setText(text)
+            else -> setText(text, tabId)
+        }
+    }
+
+    /** The prompt this phone just sent here, offered back while the field is empty. */
+    fun rememberSent(text: String) = update { it.copy(lastSent = text) }
+
     /**
      * Words from a take go to the prompt it started on, or the one on screen if that
      * prompt has closed, so they're never lost.
@@ -214,6 +236,9 @@ class ComposerStore internal constructor(
     internal companion object {
         const val DRAFT_DEBOUNCE_MS = 250L
         const val TYPING_GRACE_MS = 1_500L
+
+        // What Swift's `.newlines` trims.
+        val NEWLINES = setOf('\n', '\r', '\u000B', '\u000C', '\u0085', '\u2028', '\u2029')
     }
 }
 

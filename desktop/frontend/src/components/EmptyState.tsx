@@ -2,6 +2,7 @@ import { useFirstRunFolderDrop } from "../hooks/useFirstRunFolderDrop";
 import { useAppStore } from "../store/app";
 import { CloudBranchIcon, FolderIcon } from "./icons";
 import { LaptopIcon } from "./connections/LaptopIcon";
+import { ClipboardCloneCard } from "./ClipboardCloneCard";
 
 export function EmptyState() {
   return (
@@ -52,6 +53,7 @@ export function EmptyStateNoProjects() {
         <p className="mt-2 max-w-sm text-sm leading-relaxed text-[var(--text-secondary)]">
           Run, stop, and switch between your local dev projects — all from one place.
         </p>
+        <ClipboardCloneCard className="mt-6 w-full max-w-md" />
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
             onClick={() => void pick("local")}

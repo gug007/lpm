@@ -5,6 +5,7 @@ import { chordLabel } from "./keys";
 import { MACHINE } from "./machineWords";
 import { isMac } from "./platform";
 import { removeAppDescription } from "./removeAppCopy";
+import { terminalThemeLabel, terminalThemeNames } from "./terminal-themes";
 import {
   LOCAL_MACHINE,
   reaches,
@@ -340,7 +341,25 @@ export const ROWS = {
     id: "terminal.theme",
     reach: "attended",
     label: "Theme",
-    keywords: ["color", "appearance"],
+    keywords: [
+      "color",
+      "colour",
+      "color scheme",
+      "palette",
+      "appearance",
+      "light",
+      "dark",
+      ...terminalThemeNames.map(terminalThemeLabel),
+    ],
+  },
+  "terminal.themeFollow": {
+    kind: "row",
+    tab: "terminal",
+    id: "terminal.themeFollow",
+    reach: "attended",
+    label: "Follow app appearance",
+    description: "One terminal theme for dark mode and one for light, switching with the app",
+    keywords: ["theme", "light", "dark", "system", "auto", "match", "mode", "color"],
   },
   "terminal.openInDefaultApp": {
     kind: "row",
@@ -475,7 +494,7 @@ export const ROWS = {
     id: "ai.voiceToText",
     label: "Dictation",
     description: "Speak your prompts with VoiceToText, a separate Mac app",
-    keywords: ["voicetotext", "dictation", "speech", "voice"],
+    keywords: ["voicetotext", "dictation", "speech", "voice", "dictate", "shortcut", "microphone", "mic"],
     macOnly: true,
   },
   "general.keepFinishedAgents": {

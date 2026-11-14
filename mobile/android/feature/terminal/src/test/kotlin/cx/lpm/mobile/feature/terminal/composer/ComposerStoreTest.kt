@@ -332,4 +332,48 @@ class ComposerStoreTest {
         received: Long = 0,
         path: String = ""
     ) = cx.lpm.mobile.core.model.UploadStep("t1", reqId, ok, error, uploadId, chunk, received, path)
+
+    @Test
+    fun `terminal text goes after what's typed as a fenced block, mirrored to the Mac`() = runTest {
+        val store = composer(link, media)
+        store.appendQuoted("\n$ npm test\nok\n")
+        assertEquals("```\n$ npm test\nok\n```\n", store.current.text)
+        store.setText("why does this fail?")
+        store.appendQuoted("Error: boom")
+        assertEquals("why does this fail?\n\n```\nError: boom\n```\n", store.current.text)
+        store.appendQuoted("\n\n")
+        assertEquals("why does this fail?\n\n```\nError: boom\n```\n", store.current.text)
+        settle(250)
+        assertEquals(listOf(store.current.text), link.drafts)
+    }
+
+    @Test
+    fun `Undo puts a prompt's text back, in whichever tab it was`() = runTest {
+        val store = composer(link, media)
+        store.setText("first")
+        val first = store.current.activeTab.id
+        store.newTab()
+        store.setText("second, longer")
+        store.restoreText("first, as it was", first)
+        assertEquals(
+            listOf("first, as it was", "second, longer"),
+            store.current.tabs.map {
+                it.text
+            }
+        )
+        store.restoreText("second", store.current.activeTab.id)
+        assertEquals("second", store.current.text)
+        store.restoreText("gone", "no-such-tab")
+        assertEquals(listOf("first, as it was", "second"), store.current.tabs.map { it.text })
+    }
+
+    @Test
+    fun `the last prompt sent outlives the send that cleared the field`() = runTest {
+        val store = composer(link, media)
+        store.setText("ship it")
+        store.rememberSent("ship it")
+        store.afterSend()
+        assertEquals("", store.current.text)
+        assertEquals("ship it", store.current.lastSent)
+    }
 }

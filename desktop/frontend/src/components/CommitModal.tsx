@@ -13,6 +13,7 @@ import {
 import { AIPickerButton } from "./ui/AIPickerButton";
 import {
   GenerateCommitMessage,
+  GitAmendCommit,
   GitChangedFiles,
   GitCommit,
   GitDiff,
@@ -43,6 +44,11 @@ import { useCommitSplit } from "../hooks/useCommitSplit";
 import { useSecretCheck } from "../hooks/useSecretCheck";
 import { SecretFindingsPanel } from "./SecretFindingsPanel";
 import { DISCARD_KEPT_TEXT, announceDiscard } from "../gitDiscardUndo";
+import type { HistoryCommit } from "../gitHistory";
+import { clearCommitDraft, commitDraft, saveCommitDraft } from "../store/commitDrafts";
+import { useCommitAmend } from "../hooks/useCommitAmend";
+import { CommitDraftNote } from "./CommitDraftNote";
+import { CommitAmendToggle } from "./CommitAmendToggle";
 
 type ChangedFile = main.ChangedFile;
 
@@ -55,6 +61,8 @@ interface CommitModalProps {
   projectPath: string;
   onClose: () => void;
   onCommitted: () => void;
+  /** The last commit while it can still be amended, else null. */
+  lastCommit?: HistoryCommit | null;
 }
 
 export function CommitModal({
@@ -63,6 +71,7 @@ export function CommitModal({
   projectPath,
   onClose,
   onCommitted,
+  lastCommit = null,
 }: CommitModalProps) {
   const [files, setFiles] = useState<ChangedFile[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -103,12 +112,28 @@ export function CommitModal({
   const lineCounts = useSelectedLineCounts(projectPath, files, selected);
   const selectedLines = lineCounts.selected;
   const secrets = useSecretCheck(projectPath, open, selected);
+  const [draftSavedAt, setDraftSavedAt] = useState<number | null>(null);
+  const amend = useCommitAmend(open, lastCommit, message, setMessage);
+
+  const editMessage = (text: string) => {
+    setMessage(text);
+    if (!amend.on) saveCommitDraft(projectPath, text);
+  };
+
+  const clearDraft = () => {
+    setMessage("");
+    setDraftSavedAt(null);
+    clearCommitDraft(projectPath);
+    msgRef.current?.focus();
+  };
 
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
     loadedForOpen.current = false;
-    setMessage("");
+    const draft = commitDraft(projectPath);
+    setMessage(draft?.message ?? "");
+    setDraftSavedAt(draft?.savedAt ?? null);
     setFiles([]);
     setSelected(new Set());
     setExpandedFile(null);
@@ -149,6 +174,10 @@ export function CommitModal({
     if (autoGenTriggered.current || !autoGenerate) return;
     if (!loadedForOpen.current || loading || files.length === 0) return;
     if (!ai.anyAvailable) return;
+    if (message.trim()) {
+      autoGenTriggered.current = true;
+      return;
+    }
     autoGenTriggered.current = true;
     generateMessage();
   }, [open, loading, files, ai.anyAvailable, autoGenerate]);
@@ -269,7 +298,7 @@ export function CommitModal({
     genPromise.current = p;
     try {
       const msg = await p;
-      if (msg) setMessage(msg);
+      if (msg) editMessage(msg);
     } catch (err) {
       if (!isCanceledError(err)) toast.error(`AI generate failed: ${err}`);
     } finally {
@@ -299,7 +328,11 @@ export function CommitModal({
   const allState = checkState(selected.size, files.length);
 
   const canCommit =
-    !busy && !secrets.checking && !generating && message.trim().length > 0 && selected.size > 0;
+    !busy &&
+    !secrets.checking &&
+    !generating &&
+    message.trim().length > 0 &&
+    (selected.size > 0 || amend.on);
 
   const canAutoCommit =
     !busy && !secrets.checking && autoGenerate && ai.anyAvailable && selected.size > 0;
@@ -318,24 +351,28 @@ export function CommitModal({
     const paths = Array.from(selected);
     if (!checked && !(await secrets.guard(paths, () => latest.current.submit(andPush, true)))) return;
     setBusy("commit");
+    const verb = amend.on ? "Amended" : "Committed";
     try {
-      await GitCommit(projectPath, message.trim(), paths);
+      if (amend.on && amend.commit) await GitAmendCommit(projectPath, message.trim(), paths, amend.commit.hash);
+      else await GitCommit(projectPath, message.trim(), paths);
+      clearCommitDraft(projectPath);
       if (andPush) {
         setBusy("push");
         const pushCfg = getSettings().gitPush ?? DEFAULT_PUSH_CONFIG;
         try {
           await GitPush(projectPath, pushFlags(pushCfg));
-          toast.success("Committed and pushed");
+          toast.success(`${verb} and pushed`);
         } catch (err) {
-          toast.error("Committed, but not pushed", { description: String(err) });
+          toast.error(`${verb}, but not pushed`, { description: String(err) });
         }
       } else {
-        toast.success("Committed successfully");
+        toast.success(amend.on ? "Amended the last commit" : "Committed successfully");
       }
       onCommitted();
       onClose();
     } catch (err) {
-      toast.error(`${andPush ? "Commit & push" : "Commit"} failed: ${err}`);
+      const what = amend.on ? "Amend" : "Commit";
+      toast.error(`${andPush ? `${what} & push` : what} failed: ${err}`);
     } finally {
       setBusy(false);
     }
@@ -364,6 +401,7 @@ export function CommitModal({
       ai.selectedFast,
     );
     setCommitMenuOpen(false);
+    clearCommitDraft(projectPath);
     // onClose (not closeModal): closeModal cancels the in-flight generation the background flow still needs.
     onClose();
     await runAutoCommit({
@@ -423,7 +461,7 @@ export function CommitModal({
             className="-mx-5 -mt-5 flex items-center justify-between px-5 pb-1 pt-5"
           >
             <h3 className="text-base font-semibold text-[var(--text-primary)]">
-              Commit
+              {amend.on ? "Amend last commit" : "Commit"}
             </h3>
             <button
               onClick={closeModal}
@@ -446,7 +484,7 @@ export function CommitModal({
               <textarea
                 ref={msgRef}
                 value={message}
-                onChange={(e) => setMessage(e.target.value)}
+                onChange={(e) => editMessage(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit();
                 }}
@@ -541,6 +579,10 @@ export function CommitModal({
               )}
             </div>
           </div>
+
+          {draftSavedAt !== null && !amend.on && message.trim() && (
+            <CommitDraftNote savedAt={draftSavedAt} disabled={!!busy} onClear={clearDraft} />
+          )}
 
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between">
@@ -656,6 +698,14 @@ export function CommitModal({
                 </label>
               </Tooltip>
             )}
+            {amend.commit && (
+              <CommitAmendToggle
+                commit={amend.commit}
+                on={amend.on}
+                disabled={!!busy || generating}
+                onToggle={amend.toggle}
+              />
+            )}
             <InstructionsChip projectName={projectName} target="commit" backTitle="Back to commit" />
           </span>
           <div className="flex gap-2">
@@ -675,10 +725,14 @@ export function CommitModal({
                 {busy === "push"
                   ? "Pushing..."
                   : busy === "commit"
-                    ? "Committing..."
+                    ? amend.on
+                      ? "Amending..."
+                      : "Committing..."
                     : secrets.checking
                       ? "Checking..."
-                      : "Commit"}
+                      : amend.on
+                        ? "Amend"
+                        : "Commit"}
               </button>
               <button
                 onClick={() => setCommitMenuOpen(!commitMenuOpen)}
@@ -691,8 +745,8 @@ export function CommitModal({
                 <div className="absolute bottom-full right-0 z-10 mb-1 w-48 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-lg">
                   {(
                     [
-                      { label: "Commit", push: false },
-                      { label: "Commit and Push", push: true },
+                      { label: amend.on ? "Amend" : "Commit", push: false },
+                      { label: amend.on ? "Amend and Push" : "Commit and Push", push: true },
                     ] as const
                   ).map((opt) => (
                     <button
@@ -707,7 +761,7 @@ export function CommitModal({
                       {opt.label}
                     </button>
                   ))}
-                  {ai.anyAvailable && (
+                  {ai.anyAvailable && !amend.on && (
                     <>
                       <div className="my-1 border-t border-[var(--border)]" />
                       <button
@@ -720,7 +774,7 @@ export function CommitModal({
                       </button>
                     </>
                   )}
-                  {autoGenerate && ai.anyAvailable && (
+                  {autoGenerate && ai.anyAvailable && !amend.on && (
                     <>
                       <div className="my-1 border-t border-[var(--border)]" />
                       {(
@@ -750,6 +804,7 @@ export function CommitModal({
             split={split}
             onClose={closeModal}
             onDone={() => {
+              clearCommitDraft(projectPath);
               onCommitted();
               onClose();
             }}

@@ -226,6 +226,18 @@ struct TerminalComposer: View {
     }
     private var micBesideSend: Bool { !stripShown && !micInSendSeat && !disabled }
 
+    /// Room the field leaves for the last prompt, so a tap on the field never lands on it.
+    private var recallRoom: CGFloat { recallPrompt == nil ? 0 : ComposerRecallButton.maxWidth + 8 }
+
+    /// The prompt last sent in this tab, offered back while the field is empty:
+    /// one this phone sent, else the newest the Mac's history has for the tab.
+    private var recallPrompt: String? {
+        guard terminalTools, micInSendSeat, !stripShown, !isExpanded, store.attachments.isEmpty else { return nil }
+        let prompt = store.lastSent ?? model.history[project]?.first { $0.terminalLabel == label }?.text
+        guard let prompt, !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        return prompt
+    }
+
     private func startDictation() {
         let tabId = store.activeTab.id
         dictation.start(owner: dictationOwner) { [store] words in
@@ -252,7 +264,10 @@ struct TerminalComposer: View {
             .animation(.easeOut(duration: 0.12), value: hasMentionContent)
             .animation(.easeOut(duration: 0.15), value: store.transforming)
             .onAppear {
-                if terminalTools { model.loadSlash(termId, project: project) }
+                if terminalTools {
+                    model.loadSlash(termId, project: project)
+                    model.loadHistory(project)
+                }
                 model.loadMentions(project)
                 model.loadComposerActions()
                 model.loadServices(project)
@@ -278,7 +293,7 @@ struct TerminalComposer: View {
             }
             .sheet(isPresented: $showHistory) {
                 HistoryScreen(project: project, initialFilter: historyStart,
-                              onLoad: { text in store.text = text; focused = true },
+                              onLoad: loadFromHistory,
                               onSendNow: { text in sendRaw(text) })
                     .environment(model)
             }
@@ -300,7 +315,8 @@ struct TerminalComposer: View {
                                           showCommands: $showCommands, draft: $commandDraft,
                                           reloadMenu: { model.loadSlash(termId, project: project) }))
             .modifier(ComposerNotices(toast: $toast, transformError: $store.transformError,
-                                      uploadError: $store.uploadError, onOpenDrafts: { openHistory(.drafts) }))
+                                      uploadError: $store.uploadError, onOpenDrafts: { openHistory(.drafts) },
+                                      onRestore: { store.restoreText($0.text, tabId: $0.tab) }))
     }
 
     @ViewBuilder private func dupSheet(_ seed: DupSeed) -> some View {
@@ -406,7 +422,7 @@ struct TerminalComposer: View {
         fieldStack
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.leading, isExpanded ? 6 : 44)
-            .padding(.trailing, isExpanded ? 6 + fullToggleSpace : micBesideSend ? 44 + micRoom : 44)
+            .padding(.trailing, isExpanded ? 6 + fullToggleSpace : micBesideSend ? 44 + micRoom : 44 + recallRoom)
             .padding(.top, isExpanded ? 4 : 0)
             .padding(.bottom, isExpanded ? 40 : 0)
             .overlay(alignment: .bottomLeading) {
@@ -421,6 +437,15 @@ struct TerminalComposer: View {
             }
             .overlay(alignment: .topTrailing) {
                 if showsFullToggle { fullToggle }
+            }
+            .overlay(alignment: .trailing) {
+                if let recallPrompt {
+                    ComposerRecallButton(prompt: recallPrompt,
+                                         onRecall: { store.text = recallPrompt; focused = true },
+                                         onHistory: { openHistory(.all) })
+                        .padding(.trailing, 6 + 36 + 8)
+                        .transition(.opacity)
+                }
             }
             .overlay(alignment: .bottom) {
                 if stripShown {
@@ -761,6 +786,19 @@ struct TerminalComposer: View {
         showHistory = true
     }
 
+    /// A prompt picked in History goes after what's typed, not over it, with Undo.
+    private func loadFromHistory(_ picked: String) {
+        let before = store.text
+        if before.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            store.text = picked
+        } else {
+            store.text = before + (before.hasSuffix("\n") ? "\n" : "\n\n") + picked
+            toast = ComposerToast(text: "Added after your draft", action: "Undo",
+                                  restore: ComposerRestore(tab: store.activeTab.id, text: before))
+        }
+        focused = true
+    }
+
     private func sendComposed() {
         switch sendState {
         case .empty:
@@ -787,6 +825,7 @@ struct TerminalComposer: View {
             model.recordHistory(project: project, id: termId, label: label, text: body)
         }
         noteSentCommand(body)
+        store.lastSent = body
         store.afterSend()
         dictation.noteSent()
         withAnimation(.easeOut(duration: 0.2)) { isFull = false }
@@ -803,6 +842,7 @@ struct TerminalComposer: View {
         }
         model.recordHistory(project: project, id: termId, label: label, text: text)
         noteSentCommand(text)
+        store.lastSent = text
     }
 
     /// Counts a sent message that runs one of the agent's commands, for the menu's
@@ -969,10 +1009,13 @@ private struct ComposerNotices: ViewModifier {
     @Binding var transformError: String?
     @Binding var uploadError: String?
     let onOpenDrafts: () -> Void
+    let onRestore: (ComposerRestore) -> Void
 
     func body(content: Content) -> some View {
         content
-            .composerToast($toast, onAction: onOpenDrafts)
+            .composerToast($toast) { shown in
+                if let restore = shown.restore { onRestore(restore) } else { onOpenDrafts() }
+            }
             .onChange(of: transformError, initial: true) { _, error in
                 guard let error else { return }
                 toast = ComposerToast(text: error)

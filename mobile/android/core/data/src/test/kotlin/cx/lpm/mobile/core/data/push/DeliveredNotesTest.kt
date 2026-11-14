@@ -101,4 +101,14 @@ class DeliveredNotesTest {
         )
         assertNull(target("target" to "terminal", "terminalId" to "t-1"))
     }
+
+    @Test
+    fun theAppIconsNewTabOpensItsProjectWithTheSheet() {
+        val extras = mapOf("project" to "api", "target" to "newTab", "serverId" to "srv-1")
+        assertEquals(
+            NotificationOpenTarget("srv-1", "api", NotificationOpenTarget.Kind.NewTab, null),
+            NotificationOpenTarget.from(extras::get)
+        )
+        assertNull(NotificationOpenTarget.from(mapOf("target" to "newTab")::get))
+    }
 }

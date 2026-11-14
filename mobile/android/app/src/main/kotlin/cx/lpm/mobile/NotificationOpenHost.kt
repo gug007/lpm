@@ -7,6 +7,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import cx.lpm.mobile.core.data.projects.ProjectOpens
 import cx.lpm.mobile.core.data.projects.ProjectsStore
 import cx.lpm.mobile.core.data.push.NotificationOpenTarget
 import cx.lpm.mobile.core.data.push.NotificationOpens
@@ -25,14 +26,16 @@ import kotlinx.coroutines.flow.update
 /**
  * Opens a tapped notification's destination (iOS `ContentView.consumePendingOpen`):
  * first the Mac it came from, then — once that Mac's projects are in — the project,
- * its terminal, the automation, or the weekly recap. A project the list doesn't
- * have yet (a copy made while the phone was away) gets a moment to arrive; after that
- * the tap is dropped rather than acted on at some unrelated later moment.
+ * its terminal, the automation, the weekly recap, or (the app icon's New Tab) the
+ * project with its New Tab sheet up. A project the list doesn't have yet (a copy made
+ * while the phone was away) gets a moment to arrive; after that the tap is dropped
+ * rather than acted on at some unrelated later moment.
  */
 @Composable
 internal fun NotificationOpenHost(
     session: MacSession,
     opens: NotificationOpens,
+    projectOpens: ProjectOpens,
     navigator: Navigator
 ) {
     val target by opens.pending.collectAsStateWithLifecycle()
@@ -84,6 +87,12 @@ internal fun NotificationOpenHost(
             NotificationOpenTarget.Kind.Changes -> {
                 if (!known) return@LaunchedEffect run { awaited = open }
                 navigator.reset(ProjectKey(open.project), GitReviewKey(open.project))
+            }
+
+            NotificationOpenTarget.Kind.NewTab -> {
+                if (!known) return@LaunchedEffect run { awaited = open }
+                navigator.reset(ProjectKey(open.project))
+                projectOpens.openNewTab(open.project)
             }
         }
         opens.clear(open)

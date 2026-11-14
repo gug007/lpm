@@ -81,21 +81,25 @@ class ComposerViewModel @AssistedInject constructor(
 
     private val dictationOwner = "composer:${target.termId}"
 
+    private val field = object : CommandField {
+        override val text: String get() = currentText
+
+        override fun replace(text: String) = replaceText(text)
+
+        override fun send() {
+            sendComposed(onSend = null)
+        }
+    }
+
     private val lpmCommands = ComposerLpmCommands(
         session?.store<LpmCommandsStore>(),
         target.project,
         viewModelScope,
         reloadMenu = { terminals?.loadSlash(target.termId, target.project) },
-        field = object : CommandField {
-            override val text: String get() = currentText
-
-            override fun replace(text: String) = replaceText(text)
-
-            override fun send() {
-                sendComposed(onSend = null)
-            }
-        }
+        field = field
     )
+
+    private val historyPicks = HistoryPicks(field)
 
     // The terminals and the project's git branches, the @-mention menu's sources.
     private val mentionSources = combine(
@@ -140,9 +144,11 @@ class ComposerViewModel @AssistedInject constructor(
             memoryAvailable = tools && projectsState?.project(target.project)?.isRemote != true,
             terminalCli = cli,
             composerActions = actions,
-            variantCounts = counts
+            variantCounts = counts,
+            lastPrompt = terms.lastPrompt(target.project, target.label, composer.lastSent)
         )
     }.combine(warning) { state, sendWarning -> state.copy(sendWarning = sendWarning) }
+        .combine(historyPicks.restore) { state, restore -> state.copy(restore = restore) }
         .combine(lpmCommands.notice) { state, notice -> state.copy(commandNotice = notice) }
         .combine(dictation.state) { state, take ->
             state.copy(dictation = take, dictationOwner = dictationOwner)
@@ -193,7 +199,10 @@ class ComposerViewModel @AssistedInject constructor(
 
     /** The composer came on screen: fetch what its menus offer. */
     fun onAppear() {
-        if (target.terminalTools) terminals?.loadSlash(target.termId, target.project)
+        if (target.terminalTools) {
+            terminals?.loadSlash(target.termId, target.project)
+            terminals?.loadHistory(target.project)
+        }
         terminals?.loadMentions(target.project)
         composers?.loadComposerActions()
         projects?.loadServices(target.project)
@@ -263,7 +272,9 @@ class ComposerViewModel @AssistedInject constructor(
             )
         }
         noteSentCommand(body)
+        store?.rememberSent(body)
         store?.afterSend()
+        historyPicks.dismiss()
         dictation.noteSent()
         return true
     }
@@ -283,6 +294,7 @@ class ComposerViewModel @AssistedInject constructor(
         if (text.isBlank() || !submit(text, onSend)) return
         terminals?.recordHistory(target.project, target.termId, target.label, text)
         noteSentCommand(text)
+        store?.rememberSent(text)
     }
 
     /** Counts a sent message that runs one of the agent's commands; an lpm skill counts on expanding. */
@@ -380,8 +392,16 @@ class ComposerViewModel @AssistedInject constructor(
         store?.appendText(contextBlock(pending.label, text), spaced = false)
     }
 
-    /** A history row or a memory invocation goes into the field. */
-    fun load(text: String) = replaceText(text)
+    /** The last prompt, back in the empty field. */
+    fun recall(text: String) = replaceText(text)
+
+    fun loadFromHistory(picked: String) {
+        if (historyPicks.pick(picked, store?.current?.activeTab?.id)) warning.value = null
+    }
+
+    fun restore(restore: ComposerRestore) = store?.restoreText(restore.text, restore.tab)
+
+    fun dismissRestore() = historyPicks.dismiss()
 
     fun insertInvocation(invocation: String) = replaceText(joined(currentText, invocation))
 

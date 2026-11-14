@@ -125,6 +125,8 @@ export const GLOBAL_PEER_EVENTS = new Set<string>([
   "action-bg-output",
   "templates-changed",
   "clone-done",
+  // How far a clone started on the host has got, by the id this Mac gave it.
+  "clone-progress",
   "duplicate-done",
   "agent-session",
   "agent-session-ended",

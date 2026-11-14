@@ -12,6 +12,9 @@ import cx.lpm.mobile.core.data.terminals.TerminalsState
 import cx.lpm.mobile.core.data.terminals.TerminalsStore
 import cx.lpm.mobile.core.model.TerminalInfo
 import cx.lpm.mobile.core.navigation.GitReviewKey
+import cx.lpm.mobile.feature.git.data.CommitDraft
+import cx.lpm.mobile.feature.git.data.ReviewDraftsState
+import cx.lpm.mobile.feature.git.data.ReviewDraftsStore
 import cx.lpm.mobile.feature.git.di.DiffDispatcher
 import cx.lpm.mobile.feature.git.diff.ParsedDiff
 import cx.lpm.mobile.feature.git.diff.promptDiff
@@ -28,41 +31,34 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/** What the review screen keeps itself, as SwiftUI `@State`. */
+/**
+ * What the review screen keeps itself, as SwiftUI `@State`; the commit being written
+ * lives in [ReviewDraftsStore], so leaving the screen keeps it.
+ */
 private data class ReviewLocal(
-    val message: String = "",
-    // Files the user unchecked: everything else stays selected, so new changes are
-    // picked up and deselections survive a refresh.
-    val deselected: Set<String> = emptySet(),
+    // Collapse the user chose per file; a file without a choice is collapsed once
+    // it's viewed.
     val collapsed: Map<String, Boolean> = emptyMap(),
     val expanded: Set<String> = emptySet(),
-    // The message the Mac last drafted, and the draft as it stood when it was asked
-    // for: a reply that lands after the user typed is dropped, so their text wins.
-    val drafted: String? = null,
+    // The draft as it stood when the Mac was asked for a message: a reply that lands
+    // after the user typed is dropped, so their text wins.
     val draftAtGenerate: String? = null,
-    val autoDraftTried: Boolean = false
-) {
-    fun withGenerated(generated: String): ReviewLocal {
-        val untouched = draftAtGenerate != null && message == draftAtGenerate
-        return copy(
-            message = if (untouched) generated else message,
-            drafted = if (untouched) generated else drafted,
-            draftAtGenerate = null,
-            autoDraftTried = false
-        )
-    }
-}
+    val autoDraftTried: Boolean = false,
+    val focus: String? = null
+)
 
 /**
  * A project's uncommitted changes (iOS `GitReviewView`): the snapshot and every
- * file's diff from [GitStore], parsed here off the main thread, the commit form,
- * and "Ask agent…" into one of the project's terminals.
+ * file's diff from [GitStore], parsed here off the main thread, the commit form kept
+ * in [ReviewDraftsStore], and "Ask agent…" into one of the project's terminals. A
+ * [GitReviewKey.focus] file opens expanded, and the screen scrolls to it.
  */
 @HiltViewModel(assistedFactory = GitReviewViewModel.Factory::class)
 class GitReviewViewModel @AssistedInject constructor(
@@ -80,18 +76,24 @@ class GitReviewViewModel @AssistedInject constructor(
     private val session = sessions[key.session]
     private val git: GitStore? = session?.store()
     private val terminals: TerminalsStore? = session?.store()
+    private val drafts: ReviewDraftsStore? = session?.store()
     private val local = MutableStateFlow(ReviewLocal())
     private val parses = DiffParses(viewModelScope, parseDispatcher)
     private val wraps: Boolean get() = prefs.bool(PreferenceKeys.GIT_REVIEW_WRAP) ?: true
     private val wrap = prefs.data.map { wraps }.distinctUntilChanged()
 
+    private val draft: CommitDraft get() = drafts?.state?.value?.draft(project) ?: CommitDraft()
+
     val uiState: StateFlow<GitReviewUiState> = combine(
-        git?.state ?: flowOf(GitState()),
+        combine(
+            git?.state ?: flowOf(GitState()),
+            drafts?.state ?: flowOf(ReviewDraftsState())
+        ) { g, d -> g to d },
         terminals?.state ?: flowOf(TerminalsState()),
         local,
         parses.parsed,
         wrap
-    ) { g, t, l, p, w -> build(g, t, l, p, w) }
+    ) { (g, d), t, l, p, w -> build(g, d, t, l, p, w) }
         .stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5_000),
@@ -108,28 +110,49 @@ class GitReviewViewModel @AssistedInject constructor(
             viewModelScope.launch {
                 store.state.map { it.generatedMessage[project] }.distinctUntilChanged()
                     .filterNotNull().collect { message ->
-                        local.update { it.withGenerated(message) }
+                        takeGenerated(message)
                         store.consumeGeneratedMessage(project)
                     }
             }
             viewModelScope.launch {
                 store.state.map { it.commitTick[project] }.distinctUntilChanged().drop(1).collect {
+                    local.update { it.copy(draftAtGenerate = null, autoDraftTried = false) }
+                }
+            }
+            key.focus?.let { focus ->
+                viewModelScope.launch {
+                    store.state.first { s ->
+                        s.snapshots[project]?.files.orEmpty().any { it.path == focus }
+                    }
                     local.update {
-                        it.copy(
-                            message = "",
-                            deselected = emptySet(),
-                            drafted = null,
-                            draftAtGenerate = null,
-                            autoDraftTried = false
-                        )
+                        it.copy(collapsed = it.collapsed + (focus to false), focus = focus)
                     }
                 }
             }
         }
+        // A file changed again since it was viewed opens back up.
+        drafts?.let { store ->
+            viewModelScope.launch {
+                store.state.map { it.changedSinceViewed[project] }.distinctUntilChanged()
+                    .filterNotNull()
+                    .collect { changed ->
+                        local.update { it.copy(collapsed = it.collapsed - changed.keys) }
+                    }
+            }
+        }
+    }
+
+    private fun takeGenerated(generated: String) {
+        val at = local.value.draftAtGenerate
+        if (at != null && draft.message == at) {
+            drafts?.updateDraft(project) { it.copy(message = generated, drafted = generated) }
+        }
+        local.update { it.copy(draftAtGenerate = null, autoDraftTried = false) }
     }
 
     private fun build(
         g: GitState,
+        d: ReviewDraftsState,
         t: TerminalsState,
         l: ReviewLocal,
         parsed: Map<String, ParsedDiff>,
@@ -137,6 +160,8 @@ class GitReviewViewModel @AssistedInject constructor(
     ): GitReviewUiState {
         val snapshot = g.snapshots[project]
         val files = snapshot?.files.orEmpty()
+        val draft = d.draft(project)
+        val changed = d.changedSinceViewed[project].orEmpty()
         val review = files.map { file ->
             val key = GitDiffKey(project, file.path)
             val viewed = g.isViewed(project, file.path)
@@ -145,10 +170,11 @@ class GitReviewViewModel @AssistedInject constructor(
                 result = g.diffs[key],
                 error = g.diffError[key],
                 parsed = parsed[file.path],
-                selected = file.path !in l.deselected,
+                selected = file.path !in draft.deselected,
                 viewed = viewed,
                 collapsed = l.collapsed[file.path] ?: viewed,
-                expanded = file.path in l.expanded
+                expanded = file.path in l.expanded,
+                changedSince = changed[file.path]
             )
         }
         val selected = review.count { it.selected }
@@ -185,8 +211,8 @@ class GitReviewViewModel @AssistedInject constructor(
             conflicted = files.filter { it.isConflicted }.map { it.path },
             added = review.sumOf { it.parsed?.addedCount ?: 0 },
             removed = review.sumOf { it.parsed?.removedCount ?: 0 },
-            message = l.message,
-            drafted = l.drafted != null && l.message == l.drafted,
+            message = draft.message,
+            drafted = draft.drafted != null && draft.message == draft.drafted,
             selectedCount = selected,
             branch = snapshot?.takeUnless { it.detached || it.branch.isEmpty() }?.branch,
             generating = project in g.generatingMessage,
@@ -196,19 +222,21 @@ class GitReviewViewModel @AssistedInject constructor(
                 pushing && pushes -> CommitBusy.Pushing
                 else -> null
             },
-            canCommit = selected > 0 && l.message.isNotBlank() && !committing && !pushing,
+            canCommit = selected > 0 && draft.message.isNotBlank() && !committing && !pushing,
             commitTick = g.commitTick[project] ?: 0,
             opError = g.opError[project],
             notice = g.notice[project],
             canDiscardFiles = git?.canDiscardFiles == true,
             discarding = project in g.discarding,
-            terminals = t.terminals[project].orEmpty()
+            terminals = t.terminals[project].orEmpty(),
+            draft = if (repo) draftChip(draft, files) else null,
+            focus = l.focus
         )
     }
 
     private val selectedPaths: List<String>
         get() {
-            val deselected = local.value.deselected
+            val deselected = draft.deselected
             val files = git?.state?.value?.snapshots?.get(project)?.files.orEmpty()
             return files.map { it.path }.filterNot { it in deselected }
         }
@@ -255,22 +283,24 @@ class GitReviewViewModel @AssistedInject constructor(
         git?.loadDiff(project, path)
     }
 
-    fun toggleSelected(path: String) = local.update {
-        it.copy(
-            deselected = if (path in
-                it.deselected
-            ) {
-                it.deselected - path
-            } else {
-                it.deselected + path
-            }
-        )
+    fun toggleSelected(path: String) {
+        drafts?.updateDraft(project) {
+            val deselected = it.deselected
+            it.copy(deselected = if (path in deselected) deselected - path else deselected + path)
+        }
     }
 
     /** "Select All" / "Deselect All" in the commit sheet. */
     fun selectAll(selected: Boolean) {
         val paths = git?.state?.value?.snapshots?.get(project)?.files.orEmpty().map { it.path }
-        local.update { it.copy(deselected = if (selected) emptySet() else paths.toSet()) }
+        drafts?.updateDraft(project) {
+            it.copy(deselected = if (selected) emptySet() else paths.toSet())
+        }
+    }
+
+    /** × on the draft over Commit: start the commit over. */
+    fun clearDraft() {
+        drafts?.clearCommitDraft(project)
     }
 
     fun toggleCollapsed(path: String) {
@@ -284,22 +314,27 @@ class GitReviewViewModel @AssistedInject constructor(
     fun toggleViewed(path: String) {
         val store = git ?: return
         val nowViewed = !store.state.value.isViewed(project, path)
-        store.toggleViewed(project, path)
+        drafts?.toggleViewed(project, path)
         local.update { it.copy(collapsed = it.collapsed + (path to nowViewed)) }
     }
+
+    /** The screen scrolled to the file it opened on. */
+    fun focusShown() = local.update { it.copy(focus = null) }
 
     fun showAll(path: String) = local.update { it.copy(expanded = it.expanded + path) }
 
     /** "Wrap" in any file's bar: long lines wrap, or scroll sideways, in every file. */
     fun toggleWrap() = prefs.setBool(PreferenceKeys.GIT_REVIEW_WRAP, !wraps)
 
-    fun setMessage(message: String) = local.update { it.copy(message = message) }
+    fun setMessage(message: String) {
+        drafts?.updateDraft(project) { it.copy(message = message) }
+    }
 
     fun generateMessage() {
         val store = git ?: return
         val paths = selectedPaths
         if (paths.isEmpty() || project in store.state.value.generatingMessage) return
-        local.update { it.copy(draftAtGenerate = it.message) }
+        local.update { it.copy(draftAtGenerate = draft.message) }
         store.genMessage(project, paths)
     }
 
@@ -308,19 +343,19 @@ class GitReviewViewModel @AssistedInject constructor(
      * Once per draft: after a failed try the sheet waits for "Generate message".
      */
     fun commitOpened() {
-        val l = local.value
-        if (l.autoDraftTried || l.message.isNotBlank() || selectedPaths.isEmpty()) return
+        if (local.value.autoDraftTried || draft.message.isNotBlank()) return
+        if (selectedPaths.isEmpty()) return
         if (project in git?.state?.value?.generatingMessage.orEmpty()) return
         local.update { it.copy(autoDraftTried = true) }
         generateMessage()
     }
 
     fun commit() {
-        git?.commit(project, local.value.message.trim(), selectedPaths)
+        git?.commit(project, draft.message.trim(), selectedPaths)
     }
 
     fun commitAndPush() {
-        git?.commitAndPush(project, local.value.message.trim(), selectedPaths)
+        git?.commitAndPush(project, draft.message.trim(), selectedPaths)
     }
 
     fun dismissOpError() {

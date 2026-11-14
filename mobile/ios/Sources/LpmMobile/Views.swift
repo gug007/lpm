@@ -42,6 +42,7 @@ struct ContentView: View {
         .background { ShareDirectoryPublisher() }
         .background { LiveActivityPublisher() }
         .background { UsageWidgetPublisher() }
+        .background { AppShortcutPublisher() }
         .onOpenURL { model.openAgentWidgetLink($0) }
         .onChange(of: BuiltInTailscale.shared.status.state) { _, state in model.tailnetChanged(state) }
         .onChange(of: scenePhase) { _, phase in
@@ -130,6 +131,10 @@ struct ContentView: View {
             next.append(NotificationRoute.changes(project: target.project))
         case .usage:
             next.append(NotificationRoute.usage)
+        case .newTab:
+            guard known else { awaitedProject = target; return }
+            next.append(target.project)
+            model.pendingNewTab = target.project
         case .keepAwake:
             return
         }

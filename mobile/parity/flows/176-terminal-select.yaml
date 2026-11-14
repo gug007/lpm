@@ -1,0 +1,31 @@
+# Holding a line in the terminal selects it, with Copy, Add to prompt, Find and
+# All over it; Add to prompt puts the lines in the composer as a fenced block.
+appId: cx.lpm.mobile
+name: 176-terminal-select
+tags: [demo, terminal]
+---
+- runFlow: subflows/enter-demo.yaml
+- tapOn: "storefront"
+- extendedWaitUntil:
+    visible: "Terminal 1"
+    timeout: 5000
+- tapOn: "Terminal 1"
+- extendedWaitUntil:
+    visible: "Message"
+    timeout: 10000
+- waitForAnimationToEnd:
+    timeout: 3000
+- longPressOn:
+    point: "30%,15%"
+- extendedWaitUntil:
+    visible: "Add to prompt"
+    timeout: 5000
+- takeScreenshot: 1-selected
+- tapOn: "Add to prompt"
+- extendedWaitUntil:
+    notVisible: "Add to prompt"
+    timeout: 5000
+- extendedWaitUntil:
+    visible: ".*```.*"
+    timeout: 5000
+- takeScreenshot: 2-added-to-prompt

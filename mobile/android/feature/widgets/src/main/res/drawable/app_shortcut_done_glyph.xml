@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Material Symbols "check" on a 40 dp canvas centred in the 108 dp adaptive icon. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:tint="@color/app_shortcut_glyph"
+    android:viewportWidth="2592"
+    android:viewportHeight="2592">
+    <group
+        android:translateX="816"
+        android:translateY="816">
+        <path
+            android:fillColor="@android:color/white"
+            android:pathData="M382,606L721,267Q733,255 749,255Q765,255 777,267Q789,279 789,296Q789,312 777,324L410,692Q398,704 382,704Q366,704 354,692L182,520Q170,508 170,492Q171,475 183,463Q195,451 212,451Q228,451 240,463L382,606Z" />
+    </group>
+</vector>

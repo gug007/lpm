@@ -39,7 +39,12 @@ class FileFetch internal constructor(
         val phase: Phase = Phase.Loading,
         val received: Long = 0,
         /** Bytes this preview will fetch — the whole file, or the head of a long text. */
-        val total: Long? = null
+        val total: Long? = null,
+        /**
+         * Where the Mac says the file sits in the project, "" outside it; null until the
+         * file arrives, or from a Mac that doesn't say.
+         */
+        val projectPath: String? = null
     )
 
     private val mutable = MutableStateFlow(State(candidates.firstOrNull().orEmpty()))
@@ -159,7 +164,7 @@ class FileFetch internal constructor(
 
             else -> size
         }
-        mutable.update { it.copy(total = total) }
+        mutable.update { it.copy(total = total, projectPath = chunk.projectPath) }
         nextOffset = chunk.offset + CHUNK_SIZE
         val token = token
         scratch = router.scratch(token, name.ifEmpty { "file" }) {

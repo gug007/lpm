@@ -9,6 +9,7 @@ enum NotificationTargetKind: String {
     case changes
     case usage
     case keepAwake
+    case newTab
 }
 
 struct NotificationOpenTarget: Equatable {
@@ -36,7 +37,7 @@ struct NotificationOpenTarget: Equatable {
             itemId = (userInfo["terminalId"] as? String).flatMap { $0.isEmpty ? nil : $0 }
         case .automation:
             itemId = (userInfo["automationId"] as? String).flatMap { $0.isEmpty ? nil : $0 }
-        case .project, .recap, .changes, .usage, .keepAwake:
+        case .project, .recap, .changes, .usage, .keepAwake, .newTab:
             itemId = nil
         }
         self.serverId = serverId
@@ -60,12 +61,21 @@ struct NotificationOpenTarget: Equatable {
         self.kind = terminal == nil ? .project : .terminal
         self.itemId = terminal
     }
+
+    /// The project, with its New Tab sheet open.
+    init(serverId: String?, newTabIn project: String) {
+        self.serverId = serverId
+        self.project = project
+        self.kind = .newTab
+        self.itemId = nil
+    }
 }
 
 /// Bridges UIKit's remote-notification callbacks into the SwiftUI app: forwards the
 /// APNs device token to the model, suppresses banners the live socket already shows
 /// while foregrounded, and routes a notification tap to its destination.
 final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
+    private(set) static weak var shared: AppDelegate?
     weak var model: AppModel?
     // The device token and a cold-launch notification tap can both arrive before
     // the model is attached; hold them and hand them over on attach.
@@ -77,6 +87,26 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         UNUserNotificationCenter.current().delegate = self
         MainActor.assumeIsolated { AgentAnswerSender.registerCategories() }
+        Self.shared = self
+        return true
+    }
+
+    /// The scene gets a delegate that hears icon quick actions; one that launched
+    /// the app comes with the connection.
+    func application(_ application: UIApplication, configurationForConnecting session: UISceneSession,
+                     options: UIScene.ConnectionOptions) -> UISceneConfiguration {
+        if let item = options.shortcutItem { _ = open(item) }
+        let config = UISceneConfiguration(name: nil, sessionRole: session.role)
+        config.delegateClass = ShortcutSceneDelegate.self
+        return config
+    }
+
+    /// Open what an icon quick action points at.
+    func open(_ item: UIApplicationShortcutItem) -> Bool {
+        guard let target = AppShortcuts.target(item) else { return false }
+        MainActor.assumeIsolated {
+            if let model { model.pendingNotificationTarget = target } else { pendingTarget = target }
+        }
         return true
     }
 

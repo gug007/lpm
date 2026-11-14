@@ -1,5 +1,6 @@
 import { type MouseEvent, type RefObject } from "react";
 import { useVoiceDictation } from "../hooks/useVoiceDictation";
+import { useDictateShortcut } from "../hooks/useDictateShortcut";
 import type { ComposerToolVariant } from "../composerTools";
 import { MicIcon, StopIcon } from "./icons";
 import { DictationSpinner } from "./dictation/DictationSpinner";
@@ -22,7 +23,8 @@ interface ComposerMicButtonProps {
 }
 
 export function ComposerMicButton({ into, disabled, variant = "button", onPick, prominent = false }: ComposerMicButtonProps) {
-  const { toggle, phase, active, installOpen, setInstallOpen } = useVoiceDictation();
+  const { toggle, phase, active, installOpen, setInstallOpen, startAfterInstall } = useVoiceDictation();
+  const { label: shortcutLabel } = useDictateShortcut();
   const label =
     phase === "recording"
       ? "Stop and insert"
@@ -60,7 +62,10 @@ export function ComposerMicButton({ into, disabled, variant = "button", onPick, 
           disabled={disabled}
         />
       ) : (
-        <Tooltip content={label} delay={COMPOSER_TOOLTIP_DELAY_MS}>
+        <Tooltip
+          content={!active && shortcutLabel ? `${label}  ·  ${shortcutLabel}` : label}
+          delay={COMPOSER_TOOLTIP_DELAY_MS}
+        >
           {prominent ? (
             <div
               className={`${SEND_SHELL_CLASS} ${active ? "bg-[var(--accent-red)]" : sendShellTint(false)}`}
@@ -87,7 +92,11 @@ export function ComposerMicButton({ into, disabled, variant = "button", onPick, 
           )}
         </Tooltip>
       )}
-      <VoiceToTextInstallModal open={installOpen} onClose={() => setInstallOpen(false)} />
+      <VoiceToTextInstallModal
+        open={installOpen}
+        onClose={() => setInstallOpen(false)}
+        onInstalled={() => void startAfterInstall()}
+      />
     </>
   );
 }

@@ -6,7 +6,10 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
@@ -36,6 +39,9 @@ fun rememberTerminalWebController(): TerminalWebController = remember { Terminal
  *   output missed meanwhile (`resync`).
  * @param onPageRestart the page starts over after its renderer died: ask the Mac
  *   for a full snapshot (`reseed`).
+ * @param onAddToPrompt text a hold selected, for the composer; null where there's no
+ *   composer to add it to. Copy is handled here.
+ * @param onFind text a hold selected, to find in the terminal.
  */
 @Composable
 fun TerminalWebView(
@@ -52,10 +58,16 @@ fun TerminalWebView(
     onOpenPath: (paths: List<String>, line: Int) -> Unit = { _, _ -> },
     onOpenUrl: ((String) -> Unit)? = null,
     onRevive: () -> Unit = {},
-    onPageRestart: () -> Unit = {}
+    onPageRestart: () -> Unit = {},
+    onAddToPrompt: ((String) -> Unit)? = null,
+    onFind: (String) -> Unit = {}
 ) {
     val uriHandler = LocalUriHandler.current
+    val haptics = LocalHapticFeedback.current
+    val clipboard = LocalClipboard.current
+    val scope = rememberCoroutineScope()
     SideEffect {
+        val selection = SelectionHandler(haptics, clipboard, scope, onAddToPrompt, onFind)
         controller.textExtent = textExtent
         controller.callbacks = TerminalCallbacks(
             onInput = onInput,
@@ -64,7 +76,8 @@ fun TerminalWebView(
             onOpenPath = onOpenPath,
             onOpenUrl = onOpenUrl ?: uriHandler::openInBrowser,
             onRevive = onRevive,
-            onPageRestart = onPageRestart
+            onPageRestart = onPageRestart,
+            onSelection = selection::handle
         )
     }
     val top = hiddenInsets.calculateTopPadding().value.toInt()

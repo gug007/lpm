@@ -84,6 +84,8 @@ final class ComposerStore: ObservableObject {
 
     @Published var tabs: [ComposerTab] = [ComposerTab()]
     @Published var activeIndex: Int = 0
+    /// The last prompt this phone sent here, offered back in the empty field.
+    @Published var lastSent: String?
 
     // AI rewrite (transform).
     @Published var transforming = false
@@ -161,6 +163,21 @@ final class ComposerStore: ObservableObject {
         if spaced, !t.isEmpty, !t.hasSuffix(" "), !t.hasSuffix("\n") { t += " " }
         t += s
         tabs[activeIndex].text = t
+    }
+
+    /// Put a prompt's text back as it was (a toast's Undo).
+    func restoreText(_ text: String, tabId: UUID) {
+        guard let i = tabs.firstIndex(where: { $0.id == tabId }) else { return }
+        if i == activeIndex { self.text = text } else { tabs[i].text = text }
+    }
+
+    /// Terminal text picked for the prompt: a fenced block after whatever is typed.
+    func appendQuoted(_ selected: String) {
+        let body = selected.trimmingCharacters(in: .newlines)
+        guard !body.isEmpty else { return }
+        var t = text
+        if !t.isEmpty { t += t.hasSuffix("\n") ? "\n" : "\n\n" }
+        text = t + "```\n" + body + "\n```\n"
     }
 
     /// Words from a take go to the prompt it started on, or the one on screen if

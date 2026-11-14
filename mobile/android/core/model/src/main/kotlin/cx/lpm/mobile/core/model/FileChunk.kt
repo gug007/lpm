@@ -17,7 +17,9 @@ class FileChunk(
     val data: ByteArray,
     val error: String?,
     /** The file isn't there — the cue to try the next reading of a tapped path. */
-    val missing: Boolean
+    val missing: Boolean,
+    /** Where the file sits in the project ("" outside it); null from a Mac that predates it. */
+    val projectPath: String? = null
 ) {
     companion object {
         private const val UNREADABLE = "Couldn't read the file."
@@ -37,7 +39,8 @@ class FileChunk(
                     decoded == null -> UNREADABLE
                     else -> null
                 },
-                missing = o.bool("missing") ?: false
+                missing = o.bool("missing") ?: false,
+                projectPath = o.string("projectPath")
             )
         }
 

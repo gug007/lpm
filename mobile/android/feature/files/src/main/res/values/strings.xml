@@ -18,6 +18,10 @@
     <string name="files_preview">Preview</string>
     <string name="files_copy_path">Copy Path</string>
     <string name="files_copy_relative_path">Copy Relative Path</string>
+    <string name="files_copied">Copied</string>
+    <string name="files_mention">Mention</string>
+    <string name="files_diff">Diff</string>
+    <string name="files_line">line %1$d</string>
     <plurals name="files_changed">
         <item quantity="one">%1$d changed</item>
         <item quantity="other">%1$d changed</item>

@@ -13,6 +13,9 @@ struct FileChunk {
     let error: String?
     /// The file isn't there — the cue to try the next reading of a tapped path.
     let missing: Bool
+    /// Where the file sits in the project ("" outside it); nil from a Mac that
+    /// predates `projectPath`.
+    let projectPath: String?
 
     init(_ o: [String: Any]) {
         reqId = Wire.reqIdString(o["reqId"])
@@ -22,6 +25,7 @@ struct FileChunk {
         offset = (o["offset"] as? NSNumber)?.int64Value ?? 0
         let ok = o["ok"] as? Bool ?? false
         missing = o["missing"] as? Bool ?? false
+        projectPath = o["projectPath"] as? String
         let decoded = ok ? Data(base64Encoded: o["data"] as? String ?? "") : nil
         data = decoded ?? Data()
         error = ok ? (decoded == nil ? "Couldn't read the file." : nil)
@@ -43,6 +47,9 @@ final class FileFetch {
     let project: String
     /// The reading of the path being fetched; see `candidates`.
     private(set) var path: String
+    /// Where the Mac says the file sits in the project, "" outside it; nil until
+    /// the file arrives, or from a Mac that doesn't say.
+    private(set) var projectPath: String?
     private(set) var phase: Phase = .loading
     private(set) var received: Int64 = 0
     /// Bytes this preview will fetch — the whole file, or the head of a long text.
@@ -89,6 +96,7 @@ final class FileFetch {
         guard let model else { return }
         close()
         self.path = path
+        projectPath = nil
         token = UUID().uuidString
         phase = .loading
         received = 0
@@ -149,6 +157,7 @@ final class FileFetch {
     private func begin(_ chunk: FileChunk) -> Bool {
         size = chunk.size
         mtime = chunk.mtime
+        projectPath = chunk.projectPath
         let name = ((chunk.path.isEmpty ? path : chunk.path) as NSString).lastPathComponent
         kind = FilePreviewKind.classify(name: name, head: chunk.data)
         if kind.isText {

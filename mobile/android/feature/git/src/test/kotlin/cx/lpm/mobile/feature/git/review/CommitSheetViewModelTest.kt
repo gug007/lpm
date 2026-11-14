@@ -2,12 +2,13 @@ package cx.lpm.mobile.feature.git.review
 
 import cx.lpm.mobile.core.data.git.GitOpError
 import cx.lpm.mobile.core.data.git.GitStore
-import cx.lpm.mobile.core.data.session.SessionStore
 import cx.lpm.mobile.core.navigation.GitReviewKey
 import cx.lpm.mobile.core.testing.FakeSocket
 import cx.lpm.mobile.core.testing.MainDispatcherRule
 import cx.lpm.mobile.core.testing.TestSession
 import cx.lpm.mobile.core.testing.keepCollecting
+import cx.lpm.mobile.feature.git.ReviewStores
+import cx.lpm.mobile.feature.git.data.ReviewDraftsStore
 import cx.lpm.mobile.feature.git.demoSession
 import cx.lpm.mobile.feature.git.settle
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -42,7 +43,7 @@ class CommitSheetViewModelTest {
 
     /** A live Mac whose `storefront` has one change, `a.ts`. */
     private fun TestScope.live(): Pair<TestSession, FakeSocket> {
-        val t = TestSession(this, setOf(SessionStore.Factory(::GitStore)))
+        val t = TestSession(this, ReviewStores)
         return t to t.connectReady()
     }
 
@@ -208,6 +209,19 @@ class CommitSheetViewModelTest {
         t.settle(0)
         assertEquals("", vm.uiState.value.message)
         assertFalse(vm.uiState.value.drafted)
+    }
+
+    @Test
+    fun `a commit that lands after leaving Changes takes its draft with it`() = runTest {
+        val (t, socket) = live()
+        socket.oneChange()
+        t.settle(0)
+        val drafts = t.store<ReviewDraftsStore>()
+        drafts.updateDraft("storefront") { it.copy(message = "fix: mine") }
+        t.store<GitStore>().commit("storefront", "fix: mine", listOf("a.ts"))
+        socket.reply("gitCommit", """"ok":true""")
+        t.settle(0)
+        assertNull(drafts.state.value.commitDrafts["storefront"])
     }
 
     @Test

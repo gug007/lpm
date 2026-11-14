@@ -8,6 +8,14 @@ struct ComposerToast: Equatable, Identifiable {
     let text: String
     /// The button's title; the host says what it does.
     var action: String? = nil
+    /// What the button puts back, when it's an Undo.
+    var restore: ComposerRestore? = nil
+}
+
+/// A prompt's text before a change a toast offers to undo.
+struct ComposerRestore: Equatable {
+    let tab: UUID
+    let text: String
 }
 
 /// Shows a composer's toast floating just above it, over whatever is behind, so
@@ -17,7 +25,7 @@ private struct ComposerToastHost: ViewModifier {
     private static let corner: CGFloat = 18
 
     @Binding var toast: ComposerToast?
-    let onAction: () -> Void
+    let onAction: (ComposerToast) -> Void
 
     func body(content: Content) -> some View {
         content
@@ -52,7 +60,7 @@ private struct ComposerToastHost: ViewModifier {
             if let action = toast.action {
                 Button {
                     self.toast = nil
-                    onAction()
+                    onAction(toast)
                 } label: {
                     Text(action)
                         .font(.footnote.weight(.semibold))
@@ -78,7 +86,7 @@ private struct ComposerToastHost: ViewModifier {
 }
 
 extension View {
-    func composerToast(_ toast: Binding<ComposerToast?>, onAction: @escaping () -> Void = {}) -> some View {
+    func composerToast(_ toast: Binding<ComposerToast?>, onAction: @escaping (ComposerToast) -> Void = { _ in }) -> some View {
         modifier(ComposerToastHost(toast: toast, onAction: onAction))
     }
 }

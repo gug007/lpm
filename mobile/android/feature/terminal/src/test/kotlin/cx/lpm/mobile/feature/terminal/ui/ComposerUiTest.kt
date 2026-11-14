@@ -28,6 +28,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.unit.dp
 import cx.lpm.mobile.core.data.dictation.DictationPhase
 import cx.lpm.mobile.core.data.dictation.DictationState
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
@@ -98,6 +99,36 @@ class ComposerUiTest {
     }
 
     private val terminalLook = ComposerLook(Color.Black, Color.White.copy(alpha = 0.08f), "Message")
+
+    @Test
+    fun `an empty field offers the last prompt inside it, the field ending where it begins`() {
+        val recalled = mutableListOf<String>()
+        val withRecall = callbacks.run {
+            ComposerCallbacks(
+                onFocusChanged, onSend, onHideKeyboard, onKey, onSwitchTab, onCloseTab,
+                onRetryUpload, onRemoveAttachment, onCancelRewrite, onPickSlash, mentions,
+                onRecall = { recalled += it }
+            )
+        }
+        show(ComposerUiState(lastPrompt = "fix the build\nplease"), callbacks = withRecall)
+        val chip = compose.onNodeWithContentDescription("Last prompt")
+        val field = compose.onNode(hasSetTextAction()).getUnclippedBoundsInRoot()
+        assertTrue(field.right <= chip.getUnclippedBoundsInRoot().left)
+        chip.getUnclippedBoundsInRoot().let { assertTrue(it.right - it.left <= 120.dp) }
+        chip.performClick()
+        assertEquals(listOf("fix the build\nplease"), recalled)
+    }
+
+    @Test
+    fun `the last prompt stays out of a field with text in it`() {
+        show(
+            ComposerUiState(
+                composer = ComposerState(tabs = listOf(ComposerTab(text = "draft"))),
+                lastPrompt = "fix the build"
+            )
+        )
+        compose.onNodeWithContentDescription("Last prompt").assertDoesNotExist()
+    }
 
     @Test
     fun `a reply box has no terminal keys, slash commands or terminal output`() {

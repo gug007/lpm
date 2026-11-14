@@ -48,6 +48,9 @@ internal class TerminalPage private constructor(val view: TerminalInputWebView) 
     }
 
     private fun dispatch(message: PageMessage) {
+        if (message.name == SELECTION) {
+            view.selecting = TerminalSelection.from(message) == TerminalSelection.Began
+        }
         val listener = listener
         if (listener == null) {
             when (message.name) {
@@ -105,6 +108,7 @@ internal class TerminalPage private constructor(val view: TerminalInputWebView) 
     companion object {
         private const val READY = "ready"
         private const val RESIZE = "resize"
+        private const val SELECTION = "selection"
         private const val EARLY_SIZE_DELAY_MS = 300L
 
         fun create(context: Context): TerminalPage {

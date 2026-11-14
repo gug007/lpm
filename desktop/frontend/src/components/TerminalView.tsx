@@ -9,7 +9,6 @@ import { chordLabel } from "../keys";
 // one project's logs must identify themselves so pausing one doesn't stop the
 // shared poller for the other.
 const LOG_VIEWER = IS_MIRROR_WINDOW ? "mirror" : "main";
-import type { ITheme } from "@xterm/xterm";
 import { disposePaneSession, serviceSessionKey, type PaneHandle } from "./Pane";
 import { disposeInteractivePaneSession, isInteractivePaneSessionDead, type InteractivePaneHandle } from "./InteractivePane";
 import {
@@ -34,8 +33,7 @@ import { BulkDuplicateDialog, type DuplicatePromptSeed } from "./BulkDuplicateDi
 import type { ServiceTabInfo, StatusKind } from "./PaneView";
 import { readyStateKey, readyStateOf, type ServiceReadyState } from "../serviceReadyState";
 import type { PaneStatus } from "../hooks/usePaneStatus";
-import { type TerminalThemeName, getTerminalThemeColors, terminalThemeCssVars } from "../terminal-themes";
-import { ansiColors } from "./terminal-utils";
+import { type TerminalThemeName, getTerminalThemeColors, terminalThemeCssVars, terminalXtermTheme } from "../terminal-themes";
 import { TerminalIcon } from "./icons";
 import {
   resolveUtilityTabAction,
@@ -387,13 +385,7 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
     if (!colors) return { containerStyle: undefined, xtermTheme: null };
     return {
       containerStyle: terminalThemeCssVars(colors) as React.CSSProperties,
-      xtermTheme: {
-        background: colors.bg,
-        foreground: colors.fg,
-        selectionBackground: colors.selection,
-        cursor: colors.cursor,
-        ...ansiColors,
-      } as ITheme,
+      xtermTheme: terminalXtermTheme(colors),
     };
   }, [terminalTheme]);
 

@@ -245,6 +245,8 @@ class TerminalWebController internal constructor(private val post: (() -> Unit) 
                 findIndex = message.int("index") ?: -1
                 findCount = message.int("count") ?: 0
             }
+
+            "selection" -> TerminalSelection.from(message)?.let(callbacks.onSelection)
         }
     }
 
@@ -317,5 +319,6 @@ internal class TerminalCallbacks(
     val onOpenPath: (paths: List<String>, line: Int) -> Unit = { _, _ -> },
     val onOpenUrl: (String) -> Unit = {},
     val onRevive: () -> Unit = {},
-    val onPageRestart: () -> Unit = {}
+    val onPageRestart: () -> Unit = {},
+    val onSelection: (TerminalSelection) -> Unit = {}
 )

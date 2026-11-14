@@ -6,6 +6,7 @@ import cx.lpm.mobile.core.model.GitFile
 import cx.lpm.mobile.feature.git.diff.DiffBlock
 import cx.lpm.mobile.feature.git.diff.DiffBlockKind
 import cx.lpm.mobile.feature.git.diff.ParsedDiff
+import java.time.Instant
 
 /** A file Git left with merge conflicts. */
 internal val GitFile.isConflicted: Boolean get() = status == "conflicted"
@@ -23,6 +24,7 @@ sealed interface ReviewRow {
     /**
      * A file's bar, pinned while its diff scrolls: collapse, status, name over folder
      * with +N −M once parsed, "Excluded" when left out of the commit, viewed, "…".
+     * [changedSince] is when its diff changed after it was marked viewed.
      */
     data class FileHeader(
         val file: GitFile,
@@ -30,7 +32,8 @@ sealed interface ReviewRow {
         val collapsed: Boolean,
         val viewed: Boolean,
         val added: Int?,
-        val removed: Int?
+        val removed: Int?,
+        val changedSince: Instant? = null
     ) : ReviewRow {
         val path: String get() = file.path
         override val key get() = "h:$path"
@@ -74,7 +77,8 @@ internal class ReviewFile(
     val selected: Boolean,
     val viewed: Boolean,
     val collapsed: Boolean,
-    val expanded: Boolean
+    val expanded: Boolean,
+    val changedSince: Instant? = null
 )
 
 /**
@@ -98,7 +102,8 @@ private fun MutableList<ReviewRow>.addFile(f: ReviewFile) {
             collapsed = f.collapsed,
             viewed = f.viewed,
             added = f.parsed?.addedCount,
-            removed = f.parsed?.removedCount
+            removed = f.parsed?.removedCount,
+            changedSince = f.changedSince
         )
     )
     if (f.collapsed) return

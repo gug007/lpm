@@ -24,7 +24,8 @@ class TerminalWebControllerTest {
             onOpenPath = { paths, line -> events += "openPath:${paths.joinToString(",")}:$line" },
             onOpenUrl = { events += "openUrl:$it" },
             onRevive = { events += "revive" },
-            onPageRestart = { events += "reseed" }
+            onPageRestart = { events += "reseed" },
+            onSelection = { events += "selection:$it" }
         )
         attach(surface)
     }
@@ -153,6 +154,26 @@ class TerminalWebControllerTest {
                 "openPath:a.ts:0",
                 "openUrl:https://lpm.cx/docs",
                 "openUrl:HTTP://example.com"
+            ),
+            events
+        )
+    }
+
+    @Test
+    fun aHoldsSelectionReachesTheScreen() {
+        send("selection", """{"action":"began"}""")
+        send("selection", """{"action":"copy","text":"npm test"}""")
+        send("selection", """{"action":"prompt","text":"line 1\nline 2"}""")
+        send("selection", """{"action":"find","text":"Error"}""")
+        send("selection", """{"action":"copy"}""")
+        send("selection", """{"action":"all","text":"x"}""")
+        send("selection", JsonPrimitive("copy"))
+        assertEquals(
+            listOf(
+                "selection:Began",
+                "selection:Copy(text=npm test)",
+                "selection:Prompt(text=line 1\nline 2)",
+                "selection:Find(text=Error)"
             ),
             events
         )

@@ -53,6 +53,8 @@ import { isUnpublished } from "./branchUtils";
 import { shouldFetch, recordFetch } from "../gitFetchThrottle";
 import { toastPullError } from "../gitPullErrors";
 import { DISCARD_KEPT_TEXT, announceDiscard } from "../gitDiscardUndo";
+import { canAmendCommit, canUndoCommit } from "../commitRewrite";
+import { undoCommit } from "../commitUndo";
 import { pulledText, pushedText, syncedText } from "../gitToastText";
 
 const BRANCH_MENU_WIDTH = 520;
@@ -83,6 +85,7 @@ export function BranchSwitcher({
   const [autoPR, setAutoPR] = useState<AutoPRAIParams | null>(null);
   const [merging, setMerging] = useState(false);
   const [showingHistory, setShowingHistory] = useState(false);
+  const [historyFrom, setHistoryFrom] = useState<string | null>(null);
   const [commitMenuOpen, setCommitMenuOpen] = useState(false);
   const [confirmDiscardAllOpen, setConfirmDiscardAllOpen] = useState(false);
   const [discarding, setDiscarding] = useState(false);
@@ -431,6 +434,20 @@ export function BranchSwitcher({
           busy={busy}
           onToggle={toggleOpen}
           commits={recentCommits}
+          hideCard={showingHistory}
+          onOpenCommit={(commit) => {
+            setHistoryFrom(commit.hash);
+            setShowingHistory(true);
+          }}
+          onViewHistory={() => {
+            setHistoryFrom(null);
+            setShowingHistory(true);
+          }}
+          onUndoCommit={
+            canUndoCommit(recentCommits[0], status)
+              ? (commit) => void undoCommit(projectPath, commit, () => void refresh())
+              : undefined
+          }
         />
 
         {open &&
@@ -519,6 +536,7 @@ export function BranchSwitcher({
                 }}
                 onHistory={() => {
                   setCommitMenuOpen(false);
+                  setHistoryFrom(null);
                   setShowingHistory(true);
                 }}
                 onAutoCommit={runAuto}
@@ -554,6 +572,7 @@ export function BranchSwitcher({
         projectPath={projectPath}
         onClose={() => setCommitting(false)}
         onCommitted={refresh}
+        lastCommit={canAmendCommit(recentCommits[0], status) ? recentCommits[0] : null}
       />
       <PRModal
         open={creatingPR}
@@ -575,6 +594,7 @@ export function BranchSwitcher({
         open={showingHistory}
         projectPath={projectPath}
         branch={status.branch}
+        initialHash={historyFrom}
         onClose={() => setShowingHistory(false)}
       />
       <MergeBranchDialog

@@ -142,8 +142,11 @@ extension DemoServer {
             let bytes = Data(self.demoFileContent(project: project, path: path).utf8)
             let offset = min((o["offset"] as? NSNumber)?.intValue ?? 0, bytes.count)
             let length = (o["length"] as? NSNumber)?.intValue ?? bytes.count
+            // Every sample file is the project's; a path that names its own place isn't.
+            let inProject = path.hasPrefix("/") || path.hasPrefix("~") ? ""
+                : path.hasPrefix("./") ? String(path.dropFirst(2)) : path
             self.push(["t": "fileChunk", "reqId": o["reqId"] ?? "", "ok": true, "path": path,
-                       "size": bytes.count, "mtime": 1, "offset": offset,
+                       "projectPath": inProject, "size": bytes.count, "mtime": 1, "offset": offset,
                        "data": bytes.subdata(in: offset..<min(bytes.count, offset + length))
                            .base64EncodedString()])
         }

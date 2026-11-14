@@ -36,4 +36,6 @@
         <item quantity="other">%1$d done</item>
     </plurals>
     <string name="widget_agents_separator">" · "</string>
+    <string name="app_shortcut_new_tab">New Tab</string>
+    <string name="app_shortcut_new_tab_in">in %1$s</string>
 </resources>

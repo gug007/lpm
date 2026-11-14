@@ -18,7 +18,9 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
@@ -38,6 +40,7 @@ import cx.lpm.mobile.feature.git.diff.HunkSeparator
 import cx.lpm.mobile.feature.git.diff.WrappedDiffCodeBlock
 import cx.lpm.mobile.feature.git.diff.rememberDiffColors
 import cx.lpm.mobile.feature.git.ui.GitNoticeBanner
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /** What the review screen's controls do. */
@@ -58,14 +61,19 @@ class ReviewActions(
     val createPullRequest: () -> Unit = {},
     val undoDiscard: (id: String) -> Unit = {},
     /** A file's "Discard Changes", confirmed: [path] goes back to the last commit. */
-    val discardFile: (path: String) -> Unit = {}
+    val discardFile: (path: String) -> Unit = {},
+    /** × on the kept draft over Commit. */
+    val clearDraft: () -> Unit = {},
+    /** The list scrolled to the file the screen opened on. */
+    val focusShown: () -> Unit = {}
 )
 
 /**
  * The Git review screen (iOS `GitReviewView`): "Changes" over the +A −D and a jump
  * menu, how many files changed and how many are viewed, then every changed file with
  * its whole diff under a bar that pins while it scrolls, and a pinned "Commit N
- * files" that opens the commit sheet. Pull to refresh.
+ * files" that opens the commit sheet, under the kept draft when there is one. Pull to
+ * refresh. Opened on a file ([GitReviewUiState.focus]), it scrolls there once.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -78,6 +86,7 @@ fun GitReviewScreen(
 ) {
     val scope = rememberCoroutineScope()
     val headers = state.rows.filterIsInstance<ReviewRow.FileHeader>()
+    FocusScroll(state, listState, actions.focusShown)
     Column(
         modifier
             .fillMaxSize()
@@ -134,12 +143,27 @@ fun GitReviewScreen(
             )
         }
         if (headers.isNotEmpty()) {
+            state.draft?.let { CommitDraftChip(it, onClear = actions.clearDraft) }
             CommitBar(
                 selected = state.selectedCount,
                 committing = state.committing,
                 onClick = actions.openCommit
             )
         }
+    }
+}
+
+/** Once the file the screen opened on is in the list, scroll it to the top. */
+@Composable
+private fun FocusScroll(state: GitReviewUiState, listState: LazyListState, onFinish: () -> Unit) {
+    val focus = state.focus ?: return
+    val rows by rememberUpdatedState(state.rows)
+    val finish by rememberUpdatedState(onFinish)
+    LaunchedEffect(focus) {
+        delay(FOCUS_DELAY_MS)
+        val index = rows.indexOfFirst { it.key == "h:$focus" }
+        if (index >= 0) listState.animateScrollToItem(index)
+        finish()
     }
 }
 
@@ -230,3 +254,5 @@ private fun ChangesTitle(added: Int, removed: Int) {
         }
     )
 }
+
+private const val FOCUS_DELAY_MS = 300L

@@ -1,0 +1,58 @@
+# A commit message and a left-out file outlive leaving Changes: coming back
+# shows the draft over Commit, with × to clear it.
+appId: cx.lpm.mobile
+name: 179-changes-draft
+tags: [demo, git]
+---
+- runFlow: subflows/enter-demo.yaml
+- tapOn: "storefront"
+- extendedWaitUntil:
+    visible: "Tabs"
+    timeout: 5000
+- tapOn: "More"
+- retry:
+    maxRetries: 2
+    commands:
+      - tapOn: "Review Changes.*"
+      - extendedWaitUntil:
+          visible: "components/CheckoutForm.tsx"
+          timeout: 10000
+- tapOn: "Commit 4 files"
+- extendedWaitUntil:
+    visible: "Commit only"
+    timeout: 5000
+- tapOn: "Files.*"
+- extendedWaitUntil:
+    visible: "Deselect All"
+    timeout: 5000
+- tapOn: "app/checkout/page.tsx"
+- runFlow: subflows/back.yaml
+- extendedWaitUntil:
+    visible: "Commit only"
+    timeout: 5000
+- tapOn: "Cancel"
+- extendedWaitUntil:
+    visible: "Commit 3 files"
+    timeout: 5000
+- runFlow: subflows/back.yaml
+- extendedWaitUntil:
+    visible: "Tabs"
+    timeout: 5000
+- tapOn: "More"
+- retry:
+    maxRetries: 2
+    commands:
+      - tapOn: "Review Changes.*"
+      - extendedWaitUntil:
+          visible: "components/CheckoutForm.tsx"
+          timeout: 10000
+- extendedWaitUntil:
+    visible: "Draft:.*"
+    timeout: 5000
+- assertVisible: "Commit 3 files"
+- takeScreenshot: 1-draft-kept
+- tapOn: "Clear draft"
+- extendedWaitUntil:
+    visible: "Commit 4 files"
+    timeout: 5000
+- takeScreenshot: 2-cleared

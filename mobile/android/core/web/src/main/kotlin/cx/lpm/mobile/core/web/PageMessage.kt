@@ -18,6 +18,8 @@ import kotlinx.serialization.json.intOrNull
 internal data class PageMessage(val name: String, val body: JsonElement = JsonNull) {
     val string: String? get() = body.stringOrNull()
 
+    fun string(key: String): String? = field(key)?.stringOrNull()
+
     fun int(key: String): Int? = field(key)?.numberOrNull()?.intOrNull
 
     fun double(key: String): Double? = field(key)?.numberOrNull()?.doubleOrNull

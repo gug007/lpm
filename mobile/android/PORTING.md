@@ -68,7 +68,11 @@ side by side (see `mobile/parity/README.md`).
   opens a short link of its own with the app's client, saved credential, pin and built-in
   Tailscale; Android's share sheet can't cap a share at five images, so the
   sheet takes the first five, and a share kept for later is told about on a "Shared from
-  other apps" notification channel.
+  other apps" notification channel; the app icon's shortcuts show one line each, the long
+  label ("<tab> · <project> · <state>", "New Tab in <project>") where the launcher has room
+  for it and the tab's title or "New Tab" where not, where iOS shows a title over a
+  subtitle, and their icons are adaptive icons in the app tint where iOS draws the symbols
+  in the menu's color.
 - **Same persisted keys and semantics** as iOS (table below), so behavior and
   defaults match.
 - Desktop changes that touch the phone now update both apps (AGENTS.md).
@@ -250,7 +254,7 @@ Port order is top to bottom within each milestone below. Lines are iOS sizes.
 | Settings → `:feature:settings` | SettingsSheet, AppearanceMode | 112 |
 | Push → `:core:push` | AppDelegate, PushRegistrar, NotificationSettingsSheet, Shared/PushKey, Shared/PushPayload, NotificationService | 661 |
 | Built-in Tailscale → `:core:tailnet` | BuiltInTailscale, TailnetSettingsView (+ Go `tailnet/`) | 452 |
-| Widgets → `:feature:widgets`, `:core:data` (`AgentWidgetStore`), `:core:model` (`AgentWidget`) | Widgets/AgentListWidget, Widgets/AgentListView, Shared/AgentWidgetStore, AppModel+Widget | 472 |
+| Widgets, app icon shortcuts → `:feature:widgets`, `:core:data` (`AgentWidgetStore`, `ProjectOpens`), `:core:model` (`AgentWidget`) | Widgets/AgentListWidget, Widgets/AgentListView, Shared/AgentWidgetStore, AppModel+Widget, AppShortcuts | 581 |
 | Send to lpm → `:feature:share`, `:core:data` (`share/`: directory, inbox, choices, delivery), `:core:model` (`Share.kt`) | ShareKit/ShareDirectory, ShareKit/PendingShare, ShareKit/ShareMacLink, ShareKit/ShareDelivery, ShareExtension/SharedItems, ShareExtension/ShareModel, ShareExtension/ShareView, ShareExtension/ShareViewController, AppModel+ShareInbox | 879 |
 | Shared UI → `:core:designsystem`, `:core:ui` | AgentStateStyle, DarkKeyboard, ElapsedText, FollowingScrollView, Haptics, KeyboardObserver, MarkdownText, SkeletonViews, SwipeDownDismissesKeyboard, SafariView | 820 |
 
@@ -275,6 +279,7 @@ Port order is top to bottom within each milestone below. Lines are iOS sizes.
 | WidgetKit (Agents widget: app-group file the app and notification extension write, a timeline reading a minute) | Glance (`:feature:widgets`): a file in `filesDir` the live session and FCM write, redrawn by an inexact non-wakeup alarm each minute while a time is counting |
 | WidgetKit (Usage widget: app-group file the app writes while a Mac is live, with each row's windows so the widget keeps the countdowns moving; a timeline entry a minute for an hour) | Glance (`:feature:usage`): a file in `filesDir` the live session writes, redrawn by an inexact non-wakeup alarm each minute while it has rows |
 | WidgetKit (Token activity widget: app-group file the app writes after a 30-day `stats` read; its pills run an App Intent in the widget; a timeline entry at midnight) | Glance (`:feature:usage`): a file in `filesDir` the live session writes; the pills run an `ActionCallback`; `updatePeriodMillis` of an hour moves "Today" past midnight |
+| `UIApplicationShortcutItem` (the app icon's quick actions, written as the app leaves the screen) | `ShortcutManagerCompat` dynamic shortcuts (`AppShortcutPublisher`), written when the process stops; a pick opens through `PushNotifier.ACTION_OPEN` as a notification tap does |
 | Keyboard handling (steady terminal frame, hardware Return sends, no smart punctuation) | `WindowInsets.ime`, `onPreviewKeyEvent`, `KeyboardOptions(autoCorrectEnabled = false)` |
 | Embedded Go `LpmTailnet` static lib | `gomobile bind` AAR from a new `tailnet/android` module (own `go.mod` with `replace lpm.cx/tailnet => ..` and `tool golang.org/x/mobile/cmd/gobind`, so the desktop sidecar's module stays clean). Android 11+ blocks netlink, so register a netmon interface getter fed from `ConnectivityManager` (the role `defaultroute_darwin.go` plays on iOS). The `.so` is already 16 KB page-aligned, as Play requires for native code |
 

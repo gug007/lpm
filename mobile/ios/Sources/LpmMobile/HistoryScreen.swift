@@ -1,9 +1,10 @@
 import SwiftUI
 
 /// The full message-history surface: a paged, searchable list of sent prompts and
-/// drafts with favorites and folders. Tapping a row loads it into the composer;
-/// "Send now" sends it straight to the terminal. Backed by the keyset-paginated
-/// `historyQuery` (60 rows/page, infinite scroll).
+/// drafts with favorites and folders: this project's first, every project's a tap
+/// away. Tapping a row adds it to the composer; the row's arrow sends it straight
+/// to the terminal. Backed by the keyset-paginated `historyQuery` (60 rows/page,
+/// infinite scroll).
 struct HistoryScreen: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
@@ -17,6 +18,7 @@ struct HistoryScreen: View {
     }
 
     @State private var filter: Filter
+    @State private var allProjects = false
     @State private var search = ""
     @State private var creatingFolder = false
     @State private var newFolderName = ""
@@ -28,6 +30,12 @@ struct HistoryScreen: View {
         self.onLoad = onLoad
         self.onSendNow = onSendNow
         _filter = State(initialValue: initialFilter)
+        _allProjects = State(initialValue: project.isEmpty)
+    }
+
+    private var projectTitle: String {
+        let label = model.projects.first { $0.name == project }?.label ?? ""
+        return label.isEmpty ? project : label
     }
 
     /// The "Drafts" chip has no server-side flag, so it filters the unscoped query
@@ -54,12 +62,14 @@ struct HistoryScreen: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
             }
             .safeAreaInset(edge: .top, spacing: 0) { filterBar }
-            .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .always))
+            .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .always),
+                        prompt: allProjects ? "Search" : "Search \(projectTitle)")
         }
         .preferredColorScheme(.dark)
         .onAppear { model.loadHistoryFolders() }
         .onDisappear { model.historyScreenDidClose() }
         .onChange(of: filter) { _, _ in reload() }
+        .onChange(of: allProjects) { _, _ in reload() }
         .task(id: search) {
             // Fires on appear and on each search change; debounce typing before
             // re-querying (this is the initial load too).
@@ -92,48 +102,59 @@ struct HistoryScreen: View {
     private var list: some View {
         List {
             ForEach(items) { item in
-                HistoryRowView(item: item, relativeTime: relativeTime(item.timestamp))
-                    .contentShape(Rectangle())
-                    .onTapGesture { onLoad(displayText(item)); dismiss() }
-                    .swipeActions(edge: .leading) {
-                        Button {
-                            model.historyToggleFavorite(item.id)
-                        } label: {
-                            Label(item.favorite ? "Unfavorite" : "Favorite",
-                                  systemImage: item.favorite ? "star.slash" : "star")
-                        }
-                        .tint(.yellow)
+                HStack(spacing: 10) {
+                    HistoryRowView(item: item, relativeTime: relativeTime(item.timestamp), showProject: allProjects)
+                        .contentShape(Rectangle())
+                        .onTapGesture { onLoad(displayText(item)); dismiss() }
+                    Button { onSendNow(displayText(item)); dismiss() } label: {
+                        Image(systemName: "arrow.up.circle.fill")
+                            .font(.system(size: 28))
+                            .symbolRenderingMode(.palette)
+                            .foregroundStyle(SwiftUI.Color.black, SwiftUI.Color.white)
+                            .frame(width: 44, height: 44)
                     }
-                    .swipeActions(edge: .trailing) {
-                        Button(role: .destructive) { model.historyDelete(item.id) } label: {
-                            Label("Delete", systemImage: "trash")
-                        }
-                        // Folders are each computer's own.
-                        if !item.isFromOtherComputer {
-                            Button { movingItem = item } label: {
-                                Label("Folder", systemImage: "folder")
-                            }
-                            .tint(.indigo)
-                        }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel("Send now")
+                }
+                .swipeActions(edge: .leading) {
+                    Button {
+                        model.historyToggleFavorite(item.id)
+                    } label: {
+                        Label(item.favorite ? "Unfavorite" : "Favorite",
+                              systemImage: item.favorite ? "star.slash" : "star")
                     }
-                    .contextMenu {
-                        Button { onSendNow(displayText(item)); dismiss() } label: {
-                            Label("Send now", systemImage: "paperplane")
-                        }
-                        Button { onLoad(displayText(item)); dismiss() } label: {
-                            Label("Load into composer", systemImage: "square.and.pencil")
-                        }
-                        Button { model.historyToggleFavorite(item.id) } label: {
-                            Label(item.favorite ? "Unfavorite" : "Favorite",
-                                  systemImage: item.favorite ? "star.slash" : "star")
-                        }
-                        if !item.isFromOtherComputer {
-                            Button { movingItem = item } label: { Label("Move to folder", systemImage: "folder") }
-                        }
-                        Button(role: .destructive) { model.historyDelete(item.id) } label: {
-                            Label("Delete", systemImage: "trash")
-                        }
+                    .tint(.yellow)
+                }
+                .swipeActions(edge: .trailing) {
+                    Button(role: .destructive) { model.historyDelete(item.id) } label: {
+                        Label("Delete", systemImage: "trash")
                     }
+                    // Folders are each computer's own.
+                    if !item.isFromOtherComputer {
+                        Button { movingItem = item } label: {
+                            Label("Folder", systemImage: "folder")
+                        }
+                        .tint(.indigo)
+                    }
+                }
+                .contextMenu {
+                    Button { onSendNow(displayText(item)); dismiss() } label: {
+                        Label("Send now", systemImage: "paperplane")
+                    }
+                    Button { onLoad(displayText(item)); dismiss() } label: {
+                        Label("Add to Composer", systemImage: "square.and.pencil")
+                    }
+                    Button { model.historyToggleFavorite(item.id) } label: {
+                        Label(item.favorite ? "Unfavorite" : "Favorite",
+                              systemImage: item.favorite ? "star.slash" : "star")
+                    }
+                    if !item.isFromOtherComputer {
+                        Button { movingItem = item } label: { Label("Move to folder", systemImage: "folder") }
+                    }
+                    Button(role: .destructive) { model.historyDelete(item.id) } label: {
+                        Label("Delete", systemImage: "trash")
+                    }
+                }
             }
             // Pagination sentinel — driven by the RAW page count, not the filtered
             // rows, so a page with no matching rows still loads the next one.
@@ -164,6 +185,22 @@ struct HistoryScreen: View {
     }
 
     private var filterBar: some View {
+        VStack(spacing: 0) {
+            if !project.isEmpty {
+                Picker("Prompts from", selection: $allProjects) {
+                    Text(projectTitle).tag(false)
+                    Text("All projects").tag(true)
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal, 12)
+                .padding(.top, 8)
+            }
+            chips
+        }
+        .background(.ultraThinMaterial)
+    }
+
+    private var chips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 chip("All", active: filter == .all) { filter = .all }
@@ -191,7 +228,6 @@ struct HistoryScreen: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
         }
-        .background(.ultraThinMaterial)
     }
 
     private func chip(_ label: String, systemImage: String? = nil, active: Bool, _ tap: @escaping () -> Void) -> some View {
@@ -224,13 +260,14 @@ struct HistoryScreen: View {
 
     private func reload() {
         let searchText = search.trimmingCharacters(in: .whitespacesAndNewlines)
+        let scope = allProjects ? nil : project
         switch filter {
         case .all, .drafts:
-            model.loadHistoryFirst(project: nil, search: searchText, favoritesOnly: false, folder: nil)
+            model.loadHistoryFirst(project: scope, search: searchText, favoritesOnly: false, folder: nil)
         case .favorites:
-            model.loadHistoryFirst(project: nil, search: searchText, favoritesOnly: true, folder: nil)
+            model.loadHistoryFirst(project: scope, search: searchText, favoritesOnly: true, folder: nil)
         case .folder(let id):
-            model.loadHistoryFirst(project: nil, search: searchText, favoritesOnly: false, folder: id)
+            model.loadHistoryFirst(project: scope, search: searchText, favoritesOnly: false, folder: id)
         }
     }
 
@@ -258,6 +295,7 @@ struct HistoryScreen: View {
 private struct HistoryRowView: View {
     let item: HistoryItem
     let relativeTime: String
+    var showProject = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
@@ -274,7 +312,7 @@ private struct HistoryRowView: View {
                         .foregroundStyle(.orange)
                         .clipShape(Capsule())
                 }
-                let source = [item.machineName ?? "", item.project].filter { !$0.isEmpty }
+                let source = [item.machineName ?? "", showProject ? item.project : ""].filter { !$0.isEmpty }
                 if !source.isEmpty {
                     Text(source.joined(separator: " · "))
                         .font(.system(size: 11))

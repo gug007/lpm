@@ -50,11 +50,12 @@ struct QuickLookView: UIViewControllerRepresentable {
 }
 
 /// Read-only, selectable, searchable code with the diff view's highlighting,
-/// scrolled to `line` when the tapped path named one.
+/// scrolled to `line` and that line marked when the tapped path named one.
 struct ReadOnlyCodeView: UIViewRepresentable {
     let text: String
     let ext: String
     var line: Int = 0
+    var handle: CodeViewHandle? = nil
 
     // Highlighting walks every character; past this a plain render stays instant.
     private static let highlightLimit = 300_000
@@ -67,19 +68,44 @@ struct ReadOnlyCodeView: UIViewRepresentable {
         tv.textContainer.lineFragmentPadding = 0
         tv.alwaysBounceVertical = true
         tv.isFindInteractionEnabled = true
-        tv.attributedText = text.utf16.count <= Self.highlightLimit
+        let document = NSMutableAttributedString(attributedString: text.utf16.count <= Self.highlightLimit
             ? DiffHighlighter.attributedDocument(text, ext: ext)
             : NSAttributedString(string: text, attributes: [.font: DiffTypography.codeFont,
-                                                            .foregroundColor: UIColor.label])
-        if line > 1, let offset = Self.utf16Offset(ofLine: line, in: text) {
+                                                            .foregroundColor: UIColor.label]))
+        let target = line > 0 ? Self.lineRange(line, in: text) : nil
+        if let target {
+            document.addAttribute(.backgroundColor, value: UIColor.systemYellow.withAlphaComponent(0.3), range: target)
+        }
+        tv.attributedText = document
+        if line > 1, let target {
             DispatchQueue.main.async {
-                tv.scrollRangeToVisible(NSRange(location: offset, length: 0))
+                tv.scrollRangeToVisible(NSRange(location: target.location, length: 0))
             }
         }
+        handle?.attach(tv)
         return tv
     }
 
     func updateUIView(_ tv: UITextView, context: Context) {}
+
+    func makeCoordinator() -> CodeViewHandle? { handle }
+
+    static func dismantleUIView(_ tv: UITextView, coordinator: CodeViewHandle?) {
+        coordinator?.attach(nil)
+    }
+
+    /// The UTF-16 range of line `line` (1-based), without its newline.
+    static func lineRange(_ line: Int, in text: String) -> NSRange? {
+        guard let start = utf16Offset(ofLine: line, in: text) else { return nil }
+        let units = text.utf16
+        var end = start
+        var index = units.index(units.startIndex, offsetBy: start)
+        while index != units.endIndex, units[index] != 0x0A {
+            end += 1
+            index = units.index(after: index)
+        }
+        return NSRange(location: start, length: end - start)
+    }
 
     static func utf16Offset(ofLine line: Int, in text: String) -> Int? {
         var remaining = line - 1

@@ -170,6 +170,7 @@ export interface CloneProjectParams {
   url: string;
   branch: string;
   destParent: string;
+  cloneId?: string;
 }
 
 export interface PortConflictPrompt {
@@ -1421,7 +1422,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         const prefixed = prefixName(target.slug, name);
         const waiter = waitForRemoteClone(prefixed, target.slug);
         try {
-          await StartCloneProject(name, url, branch, prefixRoot(target.slug, destParent));
+          await StartCloneProject(name, url, branch, prefixRoot(target.slug, destParent), params.cloneId);
         } catch (err) {
           waiter.cancel();
           throw err;
@@ -1437,7 +1438,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         toast.success(`Cloned ${name} on ${target.alias}`);
       } else {
         const services = serviceNames(
-          await CreateProjectFromClone(name, url, branch, destParent),
+          await CreateProjectFromClone(name, url, branch, destParent, params.cloneId),
         );
         await get().refreshProjects();
         set({

@@ -27,6 +27,7 @@ import cx.lpm.mobile.core.designsystem.component.ActivityIndicator
 import cx.lpm.mobile.core.designsystem.component.ActivityIndicatorSize
 import cx.lpm.mobile.core.designsystem.component.ModalSheet
 import cx.lpm.mobile.core.designsystem.component.SearchField
+import cx.lpm.mobile.core.designsystem.component.SegmentedControl
 import cx.lpm.mobile.core.designsystem.component.rememberModalSheetState
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.core.model.HistoryItem
@@ -36,19 +37,20 @@ import cx.lpm.mobile.feature.terminal.composer.SheetHeader
 
 /**
  * The message history (present it in a `PresentationScope`, so each opening starts
- * afresh): sent prompts and saved drafts, searchable, with favorites
- * and folders. A row loads into the composer; "Send now" sends it straight to the
- * terminal.
+ * afresh): sent prompts and saved drafts, searchable, with favorites and folders,
+ * opening on [project]'s and a tap from every project's. Tapping a row adds it to the
+ * composer; the row's arrow sends it straight to the terminal.
  */
 @Composable
 internal fun HistorySheet(
     session: SessionKey,
+    project: String,
     onLoad: (String) -> Unit,
     onSendNow: (String) -> Unit,
     onDismiss: () -> Unit,
     initialFilter: HistoryFilter = HistoryFilter.All,
     viewModel: HistoryViewModel = hiltViewModel<HistoryViewModel, HistoryViewModel.Factory>(
-        creationCallback = { it.create(session) }
+        creationCallback = { it.create(session, project) }
     )
 ) {
     LaunchedEffect(viewModel) { viewModel.setFilter(initialFilter) }
@@ -79,9 +81,24 @@ internal fun HistorySheet(
             SearchField(
                 query = state.search,
                 onQueryChange = viewModel::setSearch,
-                placeholder = stringResource(R.string.history_search),
+                placeholder = if (state.allProjects) {
+                    stringResource(R.string.history_search)
+                } else {
+                    stringResource(R.string.history_search_project, state.projectTitle)
+                },
                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp)
             )
+            if (project.isNotEmpty()) {
+                SegmentedControl(
+                    options = listOf(
+                        state.projectTitle,
+                        stringResource(R.string.history_all_projects)
+                    ),
+                    selectedIndex = if (state.allProjects) 1 else 0,
+                    onSelect = { viewModel.setAllProjects(it == 1) },
+                    modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 8.dp)
+                )
+            }
             HistoryFilterBar(
                 state = state,
                 onFilter = viewModel::setFilter,
@@ -121,7 +138,9 @@ internal fun HistorySheet(
 private fun HistoryList(state: HistoryUiState, actions: HistoryRowActions, onReachEnd: () -> Unit) {
     val reachEnd by rememberUpdatedState(onReachEnd)
     LazyColumn(Modifier.fillMaxSize()) {
-        items(state.items, key = { it.id }) { item -> HistoryRow(item, actions) }
+        items(state.items, key = { it.id }) { item ->
+            HistoryRow(item, actions, showProject = state.allProjects)
+        }
         // Paged by the raw page count, not the filtered rows, so a page with no
         // matching rows still asks for the next.
         if (state.stillPaging) {

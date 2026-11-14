@@ -7,6 +7,7 @@ import cx.lpm.mobile.core.data.agents.AgentLaunchStore
 import cx.lpm.mobile.core.data.git.GitChecksStore
 import cx.lpm.mobile.core.data.git.GitStore
 import cx.lpm.mobile.core.data.machines.PairedMachineFeeds
+import cx.lpm.mobile.core.data.projects.ProjectOpens
 import cx.lpm.mobile.core.data.projects.ProjectsStore
 import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.data.session.MacSessions
@@ -22,6 +23,7 @@ import cx.lpm.mobile.core.data.terminals.undoTabClose
 import cx.lpm.mobile.core.data.terminals.useConversationTitle
 import cx.lpm.mobile.core.data.tips.TipsStore
 import cx.lpm.mobile.core.model.AppTip
+import cx.lpm.mobile.core.model.SessionKey
 import cx.lpm.mobile.core.model.TerminalInfo
 import cx.lpm.mobile.core.navigation.ProjectKey
 import cx.lpm.mobile.feature.projects.visit.listedProject
@@ -46,7 +48,8 @@ class ProjectDetailViewModel @AssistedInject constructor(
     private val sessions: MacSessions,
     private val clock: Clock,
     private val feeds: PairedMachineFeeds,
-    private val tips: TipsStore
+    private val tips: TipsStore,
+    private val opens: ProjectOpens
 ) : ViewModel() {
     private val session: MacSession? get() = sessions[key.session]
     private val projects: ProjectsStore? get() = session?.store()
@@ -56,6 +59,9 @@ class ProjectDetailViewModel @AssistedInject constructor(
     val uiState: StateFlow<ProjectDetailUiState> = sessions.session(key.session)
         .flatMapLatest { s -> s?.let(::detailState) ?: flowOf(ProjectDetailUiState()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ProjectDetailUiState())
+
+    /** A project the app icon's New Tab asked to open with its New Tab sheet up. */
+    val pendingNewTab: StateFlow<String?> = opens.pendingNewTab
 
     private val sessionAlerts = (sessions[key.session] ?: sessions.live).alerts
     val alerts: StateFlow<SessionAlerts.Alerts> = sessionAlerts.alerts
@@ -106,14 +112,27 @@ class ProjectDetailViewModel @AssistedInject constructor(
         git?.load(key.project)
     }
 
-    /** The screen came up: its title follows the project's changes while it shows. */
+    /**
+     * The screen came up: its title follows the project's changes while it shows, and
+     * the app icon's New Tab offers this project next (a machine visit's projects aren't
+     * the live Mac's).
+     */
     fun appear() {
         git?.follow(key.project)
+        if (key.session == SessionKey.Live) opens.opened(key.project)
     }
 
     fun disappear() {
         git?.unfollow(key.project)
     }
+
+    /** Takes the app icon's New Tab when it's for this project on the live Mac. */
+    fun takePendingNewTab(): Boolean =
+        key.session == SessionKey.Live && opens.takeNewTab(key.project)
+
+    /** Read from the store, not [uiState], so a New Tab asked for as the screen comes up sees it. */
+    val canLaunchAgents: Boolean
+        get() = session?.store<AgentLaunchStore>()?.canLaunchAgents == true
 
     /** Back in the foreground: catch up on the changes made meanwhile. */
     fun resume() {

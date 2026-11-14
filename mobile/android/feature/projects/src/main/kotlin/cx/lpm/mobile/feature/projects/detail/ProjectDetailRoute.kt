@@ -85,6 +85,15 @@ fun ProjectDetailRoute(
     LaunchedEffect(state.canLaunchAgents) {
         if (state.canLaunchAgents) viewModel.loadAgentOptions()
     }
+    // With agents to offer, New tab asks what the tab starts with; otherwise it
+    // opens a shell as it always has.
+    val newTab: () -> Unit = {
+        if (viewModel.canLaunchAgents) newTabOpen = true else viewModel.newTerminal()
+    }
+    val pendingNewTab by viewModel.pendingNewTab.collectAsStateWithLifecycle()
+    LaunchedEffect(pendingNewTab) {
+        if (viewModel.takePendingNewTab()) newTab()
+    }
     val openTerminal = { t: TerminalInfo ->
         onNavigate(TerminalKey(key.project, t.id, key.session))
     }
@@ -109,11 +118,7 @@ fun ProjectDetailRoute(
         actions = ProjectDetailActions(
             back = onBack,
             openTerminal = openTerminal,
-            // With agents to offer, New tab asks what the tab starts with; otherwise it
-            // opens a shell as it always has.
-            newTerminal = {
-                if (state.canLaunchAgents) newTabOpen = true else viewModel.newTerminal()
-            },
+            newTerminal = newTab,
             pin = { viewModel.pin(it.id) },
             rename = { renaming = it },
             // A close takes effect at once; the screen offers Undo for a few seconds.

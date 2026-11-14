@@ -10,7 +10,7 @@ import cx.lpm.mobile.core.data.client.uploadBlob
 import cx.lpm.mobile.core.data.client.uploadChunk
 import cx.lpm.mobile.core.data.client.uploadDone
 import cx.lpm.mobile.core.data.session.MacSession
-import cx.lpm.mobile.core.data.session.SessionStore
+import cx.lpm.mobile.core.data.terminals.ComposerPrompts
 import cx.lpm.mobile.core.data.terminals.TerminalsStore
 import cx.lpm.mobile.core.model.ComposerAction
 import cx.lpm.mobile.core.model.TerminalInfo
@@ -35,7 +35,7 @@ class ComposerSessions(
     private val io: CoroutineDispatcher,
     private val deviceNoun: String,
     private val now: () -> Long = System::currentTimeMillis
-) : SessionStore {
+) : ComposerPrompts {
     private val stores = mutableMapOf<String, ComposerStore>()
 
     // reqId → terminal id, routing each rewrite reply to its composer.
@@ -59,6 +59,10 @@ class ComposerSessions(
         stores.getOrPut(termId) {
             ComposerStore(termId, project, label, link, media, session.scope, io, now)
         }
+
+    override fun append(termId: String, text: String) {
+        stores[termId]?.appendText(text)
+    }
 
     /** Hand what was typed for a tab to the tab lpm reopened in its place. */
     fun carryDraft(from: String, to: TerminalInfo) {

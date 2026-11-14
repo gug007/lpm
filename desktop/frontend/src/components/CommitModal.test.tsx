@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const commands = vi.hoisted(() => ({
   GitChangedFiles: vi.fn(),
   GitCommit: vi.fn(),
+  GitAmendCommit: vi.fn(),
   GitPush: vi.fn(),
 }));
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), loading: vi.fn() }));
@@ -46,6 +47,7 @@ vi.mock("./ChangedFilesTree", () => ({
 }));
 
 import { CommitModal } from "./CommitModal";
+import type { HistoryCommit } from "../gitHistory";
 
 let container: HTMLDivElement;
 let root: Root;
@@ -114,5 +116,52 @@ describe("Commit and Push", () => {
     expect(commands.GitPush).not.toHaveBeenCalled();
     expect(toast.error).toHaveBeenCalledWith("Commit & push failed: nothing to commit");
     expect(onClose).not.toHaveBeenCalled();
+  });
+});
+
+const headCommit = (hash: string, subject: string): HistoryCommit => ({
+  hash,
+  short: hash.slice(0, 7),
+  subject,
+  body: "",
+  author: "Ana",
+  email: "ana@example.com",
+  time: 0,
+  parents: 1,
+  parentHashes: ["p"],
+  refs: [],
+  coAuthors: [],
+  unpushed: true,
+});
+
+describe("Amend last commit", () => {
+  it("amends the commit it was turned on for, even after a new one lands", async () => {
+    commands.GitAmendCommit.mockResolvedValue(null);
+    const render = (last: HistoryCommit) =>
+      act(async () => {
+        root.render(
+          <CommitModal
+            open
+            projectName="blog"
+            projectPath="/blog"
+            onClose={onClose}
+            onCommitted={onCommitted}
+            lastCommit={last}
+          />,
+        );
+      });
+    await render(headCommit("a".repeat(40), "Fix A"));
+    await settle();
+    const toggle = [...document.querySelectorAll("label")]
+      .find((l) => l.textContent?.includes("Amend last commit"))!
+      .querySelector("input")!;
+    await act(async () => toggle.click());
+
+    await render(headCommit("b".repeat(40), "Add B"));
+    await settle();
+    await act(async () => button("Amend").click());
+    await settle();
+
+    expect(commands.GitAmendCommit).toHaveBeenCalledWith("/blog", "Fix A", ["README.md"], "a".repeat(40));
   });
 });

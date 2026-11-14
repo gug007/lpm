@@ -34,6 +34,8 @@ import { InstructionsDialogHost } from "./components/InstructionsDialogHost";
 import { TerminalDropOverlayHost } from "./components/terminal/TerminalDropOverlayHost";
 import { AppToaster } from "./components/AppToaster";
 import { DictationOverlay } from "./components/dictation/DictationOverlay";
+import { DictationShortcut } from "./components/dictation/DictationShortcut";
+import { DICTATION_AVAILABLE } from "./hooks/useVoiceDictation";
 import { MainTopBar } from "./components/MainTopBar";
 import { ProjectSwitcher } from "./components/ProjectSwitcher";
 import { useIsFullscreen } from "./hooks/useIsFullscreen";
@@ -294,6 +296,7 @@ export default function App() {
       <AppToaster theme={theme} dockInset={dockInset} />
       <ClaudeAccountPoolDialog />
       <DictationOverlay />
+      {DICTATION_AVAILABLE && <DictationShortcut />}
       <ClaudePoolConsentDialog />
       <ClaudeTabAccountQuestion />
       <div className="flex flex-1 overflow-hidden">

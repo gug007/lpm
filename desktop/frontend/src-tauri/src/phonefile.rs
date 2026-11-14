@@ -6,7 +6,7 @@
 use base64::Engine as _;
 use serde_json::{json, Value};
 use std::io::{Read, Seek, SeekFrom};
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
 pub const MAX_CHUNK: u64 = 1024 * 1024;
@@ -83,6 +83,31 @@ fn read_chunk(path: &Path, offset: u64, length: u64) -> Result<Chunk, String> {
     Ok(Chunk { size, mtime, data })
 }
 
+fn relative_to(path: &Path, root: &Path) -> Option<String> {
+    let rel = path.strip_prefix(root).ok()?;
+    let mut parts = Vec::new();
+    for c in rel.components() {
+        match c {
+            Component::Normal(s) => parts.push(s.to_string_lossy().into_owned()),
+            Component::CurDir => {}
+            _ => return None,
+        }
+    }
+    (!parts.is_empty()).then(|| parts.join("/"))
+}
+
+/// The file's path inside the project at `root`, `/`-separated as git lists it;
+/// empty when it lies outside. Tried as named first, so a symlink in the project
+/// keeps its own name, then with both sides resolved (`/tmp` is `/private/tmp`).
+fn in_project(root: Option<&str>, path: &Path) -> String {
+    let Some(root) = root.filter(|r| !r.is_empty()).map(Path::new) else {
+        return String::new();
+    };
+    relative_to(path, root)
+        .or_else(|| relative_to(&path.canonicalize().ok()?, &root.canonicalize().ok()?))
+        .unwrap_or_default()
+}
+
 /// The `fileChunk` reply. `project` supplies the folder relative paths resolve
 /// against; an SSH project's files live on another machine, so they're refused.
 pub fn chunk_reply(project: &str, raw: &str, offset: u64, length: u64, req_id: Value) -> Value {
@@ -91,16 +116,17 @@ pub fn chunk_reply(project: &str, raw: &str, offset: u64, length: u64, req_id: V
     } else {
         crate::config::project_root(project).ok()
     };
+    let root_dir = root.as_ref().map(|(r, _)| r.as_str());
     let result = match &root {
         Some((_, true)) => Err("Files on an SSH server can't be previewed yet.".to_string()),
-        _ => resolve(root.as_ref().map(|(r, _)| r.as_str()), raw)
-            .and_then(|p| read_chunk(&p, offset, length).map(|c| (p, c))),
+        _ => resolve(root_dir, raw).and_then(|p| read_chunk(&p, offset, length).map(|c| (p, c))),
     };
     let mut reply = match result {
         Ok((path, c)) => json!({
             "t": "fileChunk",
             "ok": true,
             "path": path.to_string_lossy(),
+            "projectPath": in_project(root_dir, &path),
             "size": c.size,
             "mtime": c.mtime,
             "offset": offset,
@@ -204,5 +230,24 @@ mod tests {
         assert!(missing.get("reqId").is_none());
         let dir = chunk_reply("", _d.path().to_str().unwrap(), 0, 3, Value::Null);
         assert_eq!(dir["missing"], false);
+    }
+
+    #[test]
+    fn in_project_names_the_file_as_git_does_and_nothing_outside() {
+        let base = tempfile::tempdir().unwrap();
+        let root = base.path().join("storefront");
+        std::fs::create_dir_all(root.join("app")).unwrap();
+        std::fs::write(root.join("app/page.tsx"), "x").unwrap();
+        std::fs::create_dir_all(base.path().join("storefront-wt/app")).unwrap();
+        std::fs::write(base.path().join("storefront-wt/app/page.tsx"), "x").unwrap();
+        let r = root.to_str();
+
+        assert_eq!(in_project(r, &root.join("app/page.tsx")), "app/page.tsx");
+        assert_eq!(in_project(r, &root.join("./app/page.tsx")), "app/page.tsx");
+        assert_eq!(in_project(r, &base.path().join("storefront-wt/app/page.tsx")), "");
+        assert_eq!(in_project(r, &root.join("../storefront-wt/app/page.tsx")), "");
+        assert_eq!(in_project(r, &root.join("app/../app/page.tsx")), "app/page.tsx");
+        assert_eq!(in_project(r, &root), "");
+        assert_eq!(in_project(None, &root.join("app/page.tsx")), "");
     }
 }

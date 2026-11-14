@@ -7,9 +7,12 @@ interface TerminalFontSelectProps {
   value?: string;
   options: string[];
   onChange: (family?: string) => void;
+  // The font under the pointer while the list is open (undefined is Default),
+  // null once nothing is.
+  onHighlightChange?: (family: string | undefined | null) => void;
 }
 
-export function TerminalFontSelect({ value, options, onChange }: TerminalFontSelectProps) {
+export function TerminalFontSelect({ value, options, onChange, onHighlightChange }: TerminalFontSelectProps) {
   const resolved = defaultTerminalFontName(options);
   const label = (family?: string) => family ?? (resolved ? `Default (${resolved})` : "Default");
   const stack = (family?: string) =>
@@ -20,6 +23,7 @@ export function TerminalFontSelect({ value, options, onChange }: TerminalFontSel
       value={value}
       options={[undefined, ...options]}
       onChange={onChange}
+      onHighlightChange={onHighlightChange}
       label={label}
       ariaLabel="Terminal font"
       renderValue={(family) => (

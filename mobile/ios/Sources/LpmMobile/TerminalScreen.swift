@@ -71,7 +71,10 @@ struct TerminalScreen: View {
                     }, hiddenInsets: hidden, textExtent: textExtent, fontSize: fontSize, theme: theme, onOpenPath: { paths, line in
                         Haptics.tap()
                         preview = FilePreviewTarget(project: term.project, paths: paths, line: line)
-                    }, find: find)
+                    }, find: find, onAddToPrompt: controlled && ended == nil ? { text in
+                        model.composerStore(for: term.id, project: term.project, label: term.label).appendQuoted(text)
+                        Haptics.tap()
+                    } : nil)
                         .environment(model)
                         .id(term.id)
                 }
@@ -160,7 +163,12 @@ struct TerminalScreen: View {
                 switched = t
             })
             .navigationDestination(item: $switched) { TerminalScreen(term: $0, project: liveProject) }
-            .sheet(item: $preview) { FilePreviewSheet(target: $0).environment(model) }
+            .sheet(item: $preview) { target in
+                FilePreviewSheet(target: target, onMention: controlled && ended == nil ? { mention in
+                    model.composerStore(for: term.id, project: term.project, label: term.label).appendText(mention + " ")
+                } : nil)
+                .environment(model)
+            }
             // Opening the terminal is the tap that sees it; a finish that lands while
             // it is already open waits for the next touch, as on the desktop.
             .background(WindowTouchObserver {

@@ -11,6 +11,8 @@ struct FilePreviewContent: View {
     let kind: FilePreviewKind
     let truncated: Bool
     let line: Int
+    var codeView: CodeViewHandle? = nil
+    var onMention: ((String) -> Void)? = nil
     // One choice for every Markdown file, remembered, like the desktop's.
     @AppStorage("filePreviewMarkdownSource") private var markdownSource = false
     @State private var text: String?
@@ -32,7 +34,7 @@ struct FilePreviewContent: View {
                     .padding(.vertical, 8)
                     .background(.bar)
                 }
-                .sheet(item: $linkedFile) { FilePreviewSheet(target: $0).environment(model) }
+                .sheet(item: $linkedFile) { FilePreviewSheet(target: $0, onMention: onMention).environment(model) }
         case .media:
             MediaPlayerView(url: url)
                 .ignoresSafeArea(edges: .bottom)
@@ -63,7 +65,7 @@ struct FilePreviewContent: View {
                     linkedFile = FilePreviewTarget(project: project, paths: paths)
                 }
             } else if let text {
-                ReadOnlyCodeView(text: text, ext: url.pathExtension, line: line)
+                ReadOnlyCodeView(text: text, ext: url.pathExtension, line: line, handle: codeView)
             } else {
                 ProgressView()
             }

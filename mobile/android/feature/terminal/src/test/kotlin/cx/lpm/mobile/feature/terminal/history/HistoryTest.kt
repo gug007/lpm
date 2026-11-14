@@ -127,7 +127,7 @@ class HistoryTest {
     @Test
     fun `the sheet's Drafts filter keeps only drafts and search waits for a pause`() = runTest {
         val (t, socket) = connected()
-        val vm = HistoryViewModel(SessionKey.Live, t.sessions)
+        val vm = HistoryViewModel(SessionKey.Live, "", t.sessions)
         backgroundScope.launch { vm.uiState.collect {} }
         testScheduler.advanceTimeBy(301)
         testScheduler.runCurrent()
@@ -149,5 +149,28 @@ class HistoryTest {
         testScheduler.advanceTimeBy(2)
         testScheduler.runCurrent()
         assertEquals("che", socket.sentOf("historyQuery").last().string("search"))
+    }
+
+    @Test
+    fun `the sheet opens on the composer's project and a tap shows every project's`() = runTest {
+        val (t, socket) = connected()
+        val vm = HistoryViewModel(SessionKey.Live, "storefront", t.sessions)
+        backgroundScope.launch { vm.uiState.collect {} }
+        testScheduler.advanceTimeBy(301)
+        testScheduler.runCurrent()
+        assertFalse(vm.uiState.value.allProjects)
+        assertEquals("storefront", vm.uiState.value.projectTitle)
+        assertEquals("storefront", socket.sentOf("historyQuery").single().string("project"))
+
+        vm.setAllProjects(true)
+        testScheduler.runCurrent()
+        assertTrue(vm.uiState.value.allProjects)
+        assertEquals(2, socket.sentOf("historyQuery").size)
+        assertFalse(socket.sentOf("historyQuery").last().containsKey("project"))
+
+        vm.setFilter(HistoryFilter.Favorites)
+        vm.setAllProjects(false)
+        testScheduler.runCurrent()
+        assertEquals("storefront", socket.sentOf("historyQuery").last().string("project"))
     }
 }

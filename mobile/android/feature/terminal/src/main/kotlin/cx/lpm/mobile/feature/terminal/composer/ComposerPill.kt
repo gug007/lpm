@@ -44,6 +44,11 @@ private val SideGutter = 44.dp
 private val StripInset = 46.dp
 private val StripHeight = 36.dp
 
+// The last prompt sits just left of the mic in Send's seat, and the field ends where
+// it begins.
+private val RecallEnd = 6.dp + 36.dp + 8.dp
+private val RecallRoom = RecallMaxWidth + 8.dp
+
 // The text keeps clear of the expand button, which appears at the third row.
 private val ToggleSpace = 30.dp
 private const val TOGGLE_LINES = 3
@@ -74,7 +79,9 @@ internal fun ComposerPill(
     dictationStrip: @Composable (Modifier) -> Unit,
     modifier: Modifier = Modifier,
     full: Boolean = false,
-    onToggleFull: () -> Unit = {}
+    onToggleFull: () -> Unit = {},
+    onRecall: (String) -> Unit = {},
+    onRecallHistory: () -> Unit = {}
 ) {
     val density = LocalDensity.current
     val measurer = rememberTextMeasurer()
@@ -108,10 +115,12 @@ internal fun ComposerPill(
     // scrolls back rather than closing the keyboard.
     val scrollsText = expanded && lines(ExpandedChrome + toggleSpace) >= MAX_FIELD_LINES
     val start by animateDpAsState(if (expanded) 6.dp else SideGutter, tween(EXPAND_MS), label = "s")
+    val recall = state.recallPrompt(look.enabled)?.takeIf { !expanded }
     val end by animateDpAsState(
         when {
             expanded -> 6.dp + toggleSpace
             micBeside -> SideGutter + MicRoom
+            recall != null -> SideGutter + RecallRoom
             else -> SideGutter
         },
         tween(EXPAND_MS),
@@ -176,6 +185,14 @@ internal fun ComposerPill(
                 color = if (state.terminalTools) Color.White else LpmTheme.colors.label,
                 onClick = onToggleFull,
                 modifier = Modifier.align(Alignment.TopEnd).padding(top = 4.dp, end = 4.dp)
+            )
+        }
+        recall?.let { prompt ->
+            ComposerRecallButton(
+                prompt = prompt,
+                onRecall = { onRecall(prompt) },
+                onHistory = onRecallHistory,
+                modifier = Modifier.align(Alignment.CenterEnd).padding(end = RecallEnd)
             )
         }
         Box(Modifier.align(Alignment.BottomStart).padding(start = 6.dp, bottom = controlsBottom)) {

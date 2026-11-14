@@ -210,6 +210,13 @@ export function getDiagnosticSurface(): string {
   return currentSurface;
 }
 
+// Monaco drops work it no longer needs by rejecting with this error, and
+// ignores it wherever it catches it. On WebKit its clipboard helper leaves one
+// unwatched after a refused write, which is no fault of the app's.
+function isEditorCancellation(reason: unknown): boolean {
+  return reason instanceof Error && reason.name === "Canceled" && reason.message === "Canceled";
+}
+
 export function initializeDiagnostics(surface: string): void {
   currentSurface = surface;
   if (initialized || typeof window === "undefined") return;
@@ -224,6 +231,7 @@ export function initializeDiagnostics(surface: string): void {
   });
 
   window.addEventListener("unhandledrejection", (event) => {
+    if (isEditorCancellation(event.reason)) return;
     reportError("window.unhandled_rejection", event.reason);
   });
 

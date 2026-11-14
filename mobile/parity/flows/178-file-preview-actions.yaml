@@ -1,0 +1,41 @@
+# A changed file's preview ends in a bar of next steps: Diff opens Changes on
+# that file, and Copy Path confirms with "Copied".
+appId: cx.lpm.mobile
+name: 178-file-preview-actions
+tags: [demo, terminal, files, git]
+---
+- runFlow: subflows/enter-demo.yaml
+- tapOn: "storefront"
+- extendedWaitUntil:
+    visible: "Terminal 1"
+    timeout: 5000
+- tapOn: "Terminal 1"
+- extendedWaitUntil:
+    visible: "Message"
+    timeout: 10000
+- tapOn: "Message"
+- inputText: "@CheckoutForm"
+- extendedWaitUntil:
+    visible: "components/CheckoutForm.tsx"
+    timeout: 5000
+- tapOn: "Preview"
+- extendedWaitUntil:
+    visible: "Copy Path"
+    timeout: 10000
+- extendedWaitUntil:
+    visible: "Diff"
+    timeout: 10000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 1-actions
+- tapOn: "Copy Path"
+- extendedWaitUntil:
+    visible: "Copied"
+    timeout: 3000
+- tapOn: "Diff"
+- extendedWaitUntil:
+    visible: "Changes"
+    timeout: 10000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 2-diff

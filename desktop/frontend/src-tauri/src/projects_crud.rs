@@ -239,8 +239,9 @@ fn validate_clone_request(
 }
 
 /// Run the (network-blocking) clone into `dest`; on success write the project
-/// config and emit `projects-changed`, otherwise clean up the partial clone.
-/// `branch` empty means the repository's default branch. Answers with the
+/// config and emit `projects-changed`, otherwise delete the partial clone.
+/// `branch` empty means the repository's default branch. `clone_id` names the
+/// clone for its progress events and for `cancel_clone`. Answers with the
 /// services detected in the fresh checkout.
 fn run_clone(
     app: &AppHandle,
@@ -248,6 +249,7 @@ fn run_clone(
     url: &str,
     branch: &str,
     dest: &Path,
+    clone_id: Option<&str>,
 ) -> Result<Vec<String>, String> {
     let mut argv: Vec<String> = vec!["clone".into(), "--progress".into()];
     if !branch.is_empty() {
@@ -259,16 +261,20 @@ fn run_clone(
     argv.push(url.to_string());
     argv.push(dest.to_string_lossy().into_owned());
 
-    let out = crate::osproc::command("git")
-        .args(&argv)
-        .output()
-        .map_err(|e| format!("clone failed: {e}"))?;
-    if !out.status.success() {
-        let mut combined = out.stdout.clone();
-        combined.extend_from_slice(&out.stderr);
-        let msg = clean_git_output(&String::from_utf8_lossy(&combined));
-        clone_cleanup(dest);
-        return Err(map_clone_error(&msg));
+    // Creating the folder here proves this clone made it, so a failed or
+    // cancelled clone may delete it whole.
+    std::fs::create_dir(dest).map_err(|e| match e.kind() {
+        std::io::ErrorKind::AlreadyExists => {
+            format!("destination folder: {} already exists", dest.display())
+        }
+        _ => format!("could not create {}: {e}", dest.display()),
+    })?;
+    if let Err(failure) = crate::clonerun::clone_for_app(app, clone_id, &argv) {
+        crate::clonerun::remove_partial(dest);
+        return Err(match failure {
+            crate::clonerun::Failure::Cancelled => crate::clonerun::CANCELLED.to_string(),
+            crate::clonerun::Failure::Git(msg) => crate::clonerun::map_clone_error(&msg),
+        });
     }
 
     let (services, detected) = services_for(dest);
@@ -284,7 +290,7 @@ fn run_clone(
         }
     });
     if let Err(e) = write {
-        clone_cleanup(dest);
+        crate::clonerun::remove_partial(dest);
         return Err(e);
     }
     let _ = app.emit("projects-changed", ());
@@ -298,9 +304,10 @@ pub fn create_project_from_clone(
     url: String,
     branch: String,
     dest_parent: String,
+    clone_id: Option<String>,
 ) -> Result<Vec<String>, String> {
     let (branch, dest) = validate_clone_request(&name, &url, &branch, &dest_parent)?;
-    run_clone(&app, &name, &url, &branch, &dest)
+    run_clone(&app, &name, &url, &branch, &dest, clone_id.as_deref())
 }
 
 /// Outcome of a `start_clone_project` clone, delivered via the `clone-done`
@@ -325,10 +332,11 @@ pub fn start_clone_project(
     url: String,
     branch: String,
     dest_parent: String,
+    clone_id: Option<String>,
 ) -> Result<(), String> {
     let (branch, dest) = validate_clone_request(&name, &url, &branch, &dest_parent)?;
     std::thread::spawn(move || {
-        let result = run_clone(&app, &name, &url, &branch, &dest);
+        let result = run_clone(&app, &name, &url, &branch, &dest, clone_id.as_deref());
         let _ = app.emit(
             "clone-done",
             CloneDone {
@@ -1655,41 +1663,6 @@ fn clean_git_output(s: &str) -> String {
         }
     }
     out.trim().chars().take(2048).collect()
-}
-
-fn clone_cleanup(dest: &Path) {
-    if dest.join(".git").exists() {
-        let _ = std::fs::remove_dir_all(dest);
-    } else if dest
-        .read_dir()
-        .map(|mut d| d.next().is_none())
-        .unwrap_or(false)
-    {
-        let _ = std::fs::remove_dir(dest);
-    }
-}
-
-fn map_clone_error(msg: &str) -> String {
-    let m = msg.to_lowercase();
-    let friendly = if m.contains("could not resolve host") || m.contains("couldn't resolve") {
-        "Network error: could not reach the repository host."
-    } else if m.contains("permission denied")
-        || m.contains("publickey")
-        || m.contains("authentication failed")
-    {
-        "Authentication failed. Check your credentials or SSH key."
-    } else if m.contains("repository not found") || m.contains("does not exist") {
-        "Repository not found. Check the URL and your access."
-    } else if m.contains("remote branch") && m.contains("not found") {
-        "Branch not found in the remote repository."
-    } else if m.contains("already exists and is not an empty directory") {
-        "Destination already exists and is not empty."
-    } else if m.contains("ssl certificate") || m.contains("certificate verify failed") {
-        "TLS certificate error connecting to the repository."
-    } else {
-        return format!("clone failed: {msg}");
-    };
-    friendly.to_string()
 }
 
 #[cfg(test)]

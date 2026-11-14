@@ -80,6 +80,11 @@
     <string name="composer_dropped_failures">Some attachments failed to upload and were left out.</string>
     <string name="composer_saved_to_drafts">Saved to your drafts</string>
     <string name="composer_open_drafts">Open Drafts</string>
+    <string name="composer_added_after_draft">Added after your draft</string>
+    <string name="composer_undo">Undo</string>
+    <string name="composer_last_prompt">Last prompt</string>
+    <string name="composer_last_prompt_hint">Puts it back in the message field</string>
+    <string name="composer_use_last_prompt">Use Last Prompt</string>
     <string name="composer_not_sent">Not sent — lpm isn\'t connected to your Mac right now. Your message is still here.</string>
 
     <!-- Autocomplete -->
@@ -123,6 +128,8 @@
     <string name="history_title">History</string>
     <string name="history_done">Done</string>
     <string name="history_search">Search</string>
+    <string name="history_search_project">Search %1$s</string>
+    <string name="history_all_projects">All projects</string>
     <string name="history_all">All</string>
     <string name="history_favorites">Favorites</string>
     <string name="history_drafts">Drafts</string>
@@ -138,7 +145,7 @@
     <string name="history_move_to_folder">Move to folder</string>
     <string name="history_remove_from_folder">Remove from folder</string>
     <string name="history_send_now">Send now</string>
-    <string name="history_load">Load into composer</string>
+    <string name="history_load">Add to Composer</string>
     <string name="history_favorite">Favorite</string>
     <string name="history_unfavorite">Unfavorite</string>
     <string name="history_delete">Delete</string>

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="app_shortcut_background">#2C2C2E</color>
+    <color name="app_shortcut_glyph">#0091FF</color>
+</resources>

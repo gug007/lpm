@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The app icon's shortcuts wear the app tint, the iOS palette's blue. -->
+    <color name="app_shortcut_background">#FFFFFF</color>
+    <color name="app_shortcut_glyph">#0088FF</color>
+</resources>

@@ -326,6 +326,10 @@ final class AppModel {
     // Mac app open). Distinct from actionError, which is a hard failure.
     var notice: String?
     var pendingNotificationTarget: NotificationOpenTarget?
+    // A project to open with its New Tab sheet up (an icon quick action), and the
+    // project last opened, which that action offers.
+    var pendingNewTab: String?
+    var lastOpenedProject: String?
     // Bumped each time a notification tap rebuilds the navigation stack, so a
     // terminal pushed from the projects list (outside that stack) goes too.
     var notificationOpens = 0

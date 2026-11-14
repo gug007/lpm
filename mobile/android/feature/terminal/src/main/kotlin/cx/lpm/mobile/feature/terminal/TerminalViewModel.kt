@@ -179,6 +179,14 @@ class TerminalViewModel @AssistedInject constructor(
         (t.movedTab(shown) ?: t.restoredTab(shown))?.let(::follow)
     }
 
+    /** Terminal text a hold picked, added to this tab's prompt as a fenced block. */
+    fun addToPrompt(text: String) {
+        val term = uiState.value.terminal ?: return
+        session?.store<ComposerSessions>()
+            ?.store(term.id, term.project, term.label)
+            ?.appendQuoted(text)
+    }
+
     /**
      * Carry on with the tab lpm reopened: what was typed here goes with it, and so
      * does control if this phone had it. A restart or a move to another account asked

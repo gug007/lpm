@@ -98,7 +98,9 @@ data class ComposerState(
     val variants: List<TransformVariant> = emptyList(),
     val transformError: String? = null,
     /** Why an attachment couldn't be sent, when retrying won't help. */
-    val uploadError: String? = null
+    val uploadError: String? = null,
+    /** The last prompt this phone sent here, offered back in the empty field. */
+    val lastSent: String? = null
 ) {
     val activeTab: ComposerTab get() = tabs.getOrNull(activeIndex) ?: ComposerTab()
     val text: String get() = tabs.getOrNull(activeIndex)?.text.orEmpty()

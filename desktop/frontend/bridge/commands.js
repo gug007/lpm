@@ -247,11 +247,14 @@ export function CreateBranch(cwd, name, from) {
 export function CreateProject(name, root) {
   return invoke("create_project", { name, root });
 }
-export function CreateProjectFromClone(name, url, branch, destParent) {
-  return invoke("create_project_from_clone", { name, url, branch, destParent });
+export function CreateProjectFromClone(name, url, branch, destParent, cloneId) {
+  return invoke("create_project_from_clone", { name, url, branch, destParent, cloneId });
 }
-export function StartCloneProject(name, url, branch, destParent) {
-  return invoke("start_clone_project", { name, url, branch, destParent });
+export function StartCloneProject(name, url, branch, destParent, cloneId) {
+  return invoke("start_clone_project", { name, url, branch, destParent, cloneId });
+}
+export function CancelClone(id) {
+  return invoke("cancel_clone", { id });
 }
 export function StartDuplicateProject(name, label, excludeUncommitted, reinstallDeps, pullLatest, folderId) {
   return invoke("start_duplicate_project", { name, label, excludeUncommitted, reinstallDeps, pullLatest, folderId });
@@ -430,6 +433,15 @@ export function GitChangedFilesStaged(cwd) {
 }
 export function GitCommit(cwd, message, files) {
   return invoke("git_commit", { cwd, message, files });
+}
+export function GitAmendCommit(cwd, message, files, hash) {
+  return invoke("git_amend_commit", { cwd, message, files, hash });
+}
+export function GitUndoCommit(cwd, hash) {
+  return invoke("git_undo_commit", { cwd, hash });
+}
+export function GitRedoCommit(cwd, hash) {
+  return invoke("git_redo_commit", { cwd, hash });
 }
 export function GitScanSecrets(cwd, files) {
   return invoke("git_scan_secrets", { cwd, files });

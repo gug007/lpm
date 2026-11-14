@@ -4,9 +4,13 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Modal } from "./ui/Modal";
 import { RemoteFolderBrowserModal } from "./RemoteFolderBrowserModal";
+import { CloneProgressPanel } from "./CloneProgressPanel";
 import { XIcon } from "./icons";
 import { slugify } from "../slugify";
 import { useAppStore } from "../store/app";
+import { useCloneOffer } from "../clone/cloneOffer";
+import { remoteHost, repoNameFromUrl } from "../clone/gitRemote";
+import { useCloneRun } from "../clone/useCloneRun";
 import { BrowseFolder } from "../../bridge/commands";
 import { getSettings } from "../store/settings";
 import { gitUrlSchema, projectNameSchema } from "../forms/schemas";
@@ -18,14 +22,6 @@ import {
   modalInputDefaults,
 } from "../forms/styles";
 
-function deriveNameFromUrl(url: string): string {
-  const trimmed = url.trim();
-  if (!trimmed) return "";
-  let tail = trimmed.replace(/\/+$/, "").split(/[\/:]/).pop() ?? "";
-  tail = tail.replace(/\.git$/i, "");
-  return slugify(tail);
-}
-
 const schema = z.object({
   url: gitUrlSchema,
   branch: z.string().trim(),
@@ -34,6 +30,9 @@ const schema = z.object({
 });
 
 type FormValues = z.infer<typeof schema>;
+
+const cloningLabel = (percent: number | null | undefined) =>
+  percent == null ? "Cloning…" : `Cloning… ${percent}%`;
 
 const DEFAULT_VALUES: FormValues = {
   url: "",
@@ -48,9 +47,13 @@ export function AddCloneRepoModal() {
   const busy = useAppStore((s) => s.addingCloneProject);
   const onCreate = useAppStore((s) => s.addCloneProject);
   const target = useAppStore((s) => s.addProjectTarget);
+  const dismissOffer = useCloneOffer((s) => s.dismiss);
+  const takePrefill = useCloneOffer((s) => s.takePrefill);
+  const run = useCloneRun(target?.slug ?? null);
 
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const [stopError, setStopError] = useState("");
   const [browserOpen, setBrowserOpen] = useState(false);
 
   const {
@@ -71,6 +74,7 @@ export function AddCloneRepoModal() {
     reset(DEFAULT_VALUES);
     setShowAdvanced(false);
     setSubmitError("");
+    setStopError("");
     setBrowserOpen(false);
   }, [open, reset]);
 
@@ -80,11 +84,17 @@ export function AddCloneRepoModal() {
     if (dir) setValue("destParent", dir, { shouldDirty: false, shouldValidate: true });
   }, [open, target, setValue]);
 
+  useEffect(() => {
+    if (!open) return;
+    const url = takePrefill();
+    if (url) setValue("url", url, { shouldValidate: true });
+  }, [open, takePrefill, setValue]);
+
   const url = watch("url");
   const nameDirty = !!dirtyFields.name;
   useEffect(() => {
     if (nameDirty) return;
-    setValue("name", deriveNameFromUrl(url), { shouldDirty: false });
+    setValue("name", repoNameFromUrl(url), { shouldDirty: false });
   }, [url, nameDirty, setValue]);
 
   const setDest = (dir: string) =>
@@ -106,19 +116,33 @@ export function AddCloneRepoModal() {
 
   const onSubmit = handleSubmit(async (values) => {
     setSubmitError("");
+    setStopError("");
     try {
-      await onCreate({
-        name: slugify(values.name),
-        url: values.url,
-        branch: values.branch,
-        destParent: values.destParent,
-      });
+      const outcome = await run.start((cloneId) =>
+        onCreate({
+          name: slugify(values.name),
+          url: values.url,
+          branch: values.branch,
+          destParent: values.destParent,
+          cloneId,
+        }),
+      );
+      if (outcome === "cancelled") onClose();
+      else dismissOffer(values.url.trim());
     } catch (err) {
       const msg =
         err instanceof Error ? err.message : String(err ?? "Clone failed");
       setSubmitError(msg);
     }
   });
+
+  const cancelClone = () => {
+    run.cancel().catch((err) => {
+      const where = target ? ` on ${target.alias}` : "";
+      setStopError(`Couldn't stop the clone${where}: ${err instanceof Error ? err.message : String(err)}`);
+    });
+  };
+  const closeOrCancel = busy ? cancelClone : onClose;
 
   const textInputProps = { ...modalInputDefaults, disabled: busy } as const;
 
@@ -145,9 +169,9 @@ export function AddCloneRepoModal() {
           </h3>
           <button
             type="button"
-            onClick={onClose}
-            disabled={busy}
-            aria-label="Close"
+            onClick={closeOrCancel}
+            disabled={run.cancelling}
+            aria-label={busy ? "Cancel clone" : "Close"}
             className="-mr-1 -mt-1 rounded p-1 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
           >
             <XIcon />
@@ -261,27 +285,32 @@ export function AddCloneRepoModal() {
           </div>
         </div>
 
+        {busy && (
+          <CloneProgressPanel progress={run.progress} host={remoteHost(url)} cancelling={run.cancelling} />
+        )}
+        {stopError && <p className={`mt-2 ${modalErrorTextClass}`}>{stopError}</p>}
+
         <div className="mt-5 flex justify-end gap-2">
           <button
             type="button"
-            onClick={onClose}
-            disabled={busy}
+            onClick={closeOrCancel}
+            disabled={run.cancelling}
             className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-40"
           >
-            Cancel
+            {run.cancelling ? "Cancelling…" : "Cancel"}
           </button>
           <button
             type="submit"
             disabled={busy}
             className="rounded-lg bg-[var(--text-primary)] px-4 py-2 text-sm font-medium text-[var(--bg-primary)] transition-all hover:opacity-90 disabled:opacity-40"
           >
-            {busy ? "Cloning…" : "Clone repository"}
+            {busy ? cloningLabel(run.progress?.percent) : "Clone repository"}
           </button>
         </div>
 
         {busy && (
           <p className="mt-2 text-right text-[11px] text-[var(--text-muted)]">
-            This may take a moment for large repositories.
+            Cancel stops git and deletes the partial folder.
           </p>
         )}
       </form>

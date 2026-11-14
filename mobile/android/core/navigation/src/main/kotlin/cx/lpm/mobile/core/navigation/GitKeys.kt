@@ -6,9 +6,16 @@ import cx.lpm.mobile.core.model.HistoryCommit
 import cx.lpm.mobile.core.model.SessionKey
 import kotlinx.serialization.Serializable
 
-/** "Review Changes": the project's uncommitted changes. */
+/**
+ * "Review Changes": the project's uncommitted changes, opened on [focus] (a changed
+ * file's path), scrolled to and expanded, when one is named.
+ */
 @Serializable
-data class GitReviewKey(val project: String, val session: SessionKey = SessionKey.Live) : NavKey
+data class GitReviewKey(
+    val project: String,
+    val session: SessionKey = SessionKey.Live,
+    val focus: String? = null
+) : NavKey
 
 /** "Switch Branch…". */
 @Serializable

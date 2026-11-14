@@ -15,6 +15,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.LineHeightStyle
@@ -23,6 +24,7 @@ import androidx.compose.ui.unit.sp
 import cx.lpm.mobile.core.designsystem.code.SyntaxColors
 import cx.lpm.mobile.core.designsystem.code.highlightCode
 import cx.lpm.mobile.core.designsystem.code.rememberSyntaxColors
+import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.filterNotNull
@@ -40,10 +42,14 @@ internal val CodeStyle = TextStyle(
 // Highlighting walks every character; past this a plain render stays instant.
 private const val HIGHLIGHT_LIMIT = 300_000
 
+// The tapped line's mark: the system yellow at iOS's 30%.
+private const val MARK_ALPHA = 0.3f
+
 /**
  * Read-only, selectable code with the diff view's highlighting (iOS
- * `ReadOnlyCodeView`), long lines wrapped, scrolled to [line] when the tapped path
- * named one. Lines are laid out as they scroll in, so a long text opens at once.
+ * `ReadOnlyCodeView`), long lines wrapped, scrolled to [line] and that line marked
+ * when the tapped path named one. Lines are laid out as they scroll in, so a long text
+ * opens at once.
  */
 @Composable
 internal fun CodeView(
@@ -61,19 +67,30 @@ internal fun CodeView(
         }
     }
     val list = rememberLazyListState()
+    val mark = SpanStyle(background = LpmTheme.colors.yellow.copy(alpha = MARK_ALPHA))
     LaunchedEffect(lines, line) { if (line > 1 && line <= lines.count) list.reveal(line - 1) }
     SelectionContainer(modifier) {
         LazyColumn(state = list, contentPadding = PaddingValues(12.dp)) {
             items(lines.count) { index ->
+                val marked = index == line - 1
                 val styled = highlighted?.getOrNull(index)
                 if (styled != null) {
-                    Text(styled, style = CodeStyle)
+                    Text(styled.markedIf(marked, mark), style = CodeStyle)
                 } else {
-                    Text(lines[index], style = CodeStyle, color = colors.plain)
+                    Text(
+                        AnnotatedString(lines[index]).markedIf(marked, mark),
+                        style = CodeStyle,
+                        color = colors.plain
+                    )
                 }
             }
         }
     }
+}
+
+private fun AnnotatedString.markedIf(marked: Boolean, mark: SpanStyle): AnnotatedString {
+    if (!marked) return this
+    return AnnotatedString.Builder(this).apply { addStyle(mark, 0, length) }.toAnnotatedString()
 }
 
 /**

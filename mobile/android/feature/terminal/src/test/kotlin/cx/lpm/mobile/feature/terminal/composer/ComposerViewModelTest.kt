@@ -349,4 +349,67 @@ class ComposerViewModelTest {
         assertFalse(s.vm.send())
         assertTrue(submitted.isEmpty())
     }
+
+    private fun historyRow(text: String, label: String, draft: Boolean = false) =
+        """{"id":"$text","text":"$text","terminalLabel":"$label","isDraft":$draft}"""
+
+    @Test
+    fun `the empty field offers the tab's last prompt, from the Mac until one is sent here`() =
+        runTest {
+            val s = setup()
+            s.vm.onAppear()
+            testScheduler.runCurrent()
+            assertEquals("storefront", s.socket.sentOf("history").single().string("project"))
+            val rows = listOf(
+                historyRow("saved, not sent", "Claude", draft = true),
+                historyRow("in another tab", "Terminal 1"),
+                historyRow("fix the build\\nplease", "Claude")
+            )
+            s.socket.receive(
+                """{"t":"history","project":"storefront","rows":[${rows.joinToString(",")}]}"""
+            )
+            testScheduler.runCurrent()
+            val state = s.vm.uiState.value
+            assertEquals("fix the build\nplease", state.recallPrompt(enabled = true))
+
+            type(s.vm, "run the tests")
+            assertNull(s.vm.uiState.value.recallPrompt(enabled = true))
+            assertTrue(s.vm.send())
+            testScheduler.runCurrent()
+            assertEquals("run the tests", s.vm.uiState.value.recallPrompt(enabled = true))
+
+            s.vm.sendRaw("Fix the spacing")
+            testScheduler.runCurrent()
+            assertEquals("Fix the spacing", s.vm.uiState.value.recallPrompt(enabled = true))
+
+            s.vm.recall("run the tests")
+            testScheduler.runCurrent()
+            assertEquals("run the tests", s.vm.input.text.toString())
+            assertNull(s.vm.uiState.value.recallPrompt(enabled = true))
+        }
+
+    @Test
+    fun `a History pick fills an empty field, and goes after a draft with Undo`() = runTest {
+        val s = setup()
+        s.vm.loadFromHistory("Fix the spacing")
+        testScheduler.runCurrent()
+        assertEquals("Fix the spacing", s.vm.input.text.toString())
+        assertNull(s.vm.uiState.value.restore)
+
+        type(s.vm, "echo hello")
+        s.vm.loadFromHistory("Fix the spacing")
+        testScheduler.runCurrent()
+        assertEquals("echo hello\n\nFix the spacing", s.vm.input.text.toString())
+        val restore = s.vm.uiState.value.restore!!
+        assertEquals("echo hello", restore.text)
+
+        s.vm.dismissRestore()
+        s.vm.restore(restore)
+        testScheduler.runCurrent()
+        assertNull(s.vm.uiState.value.restore)
+        assertEquals("echo hello", s.vm.input.text.toString())
+        testScheduler.advanceTimeBy(300)
+        testScheduler.runCurrent()
+        assertEquals("echo hello", s.socket.sentOf("composerDraft").last().string("text"))
+    }
 }

@@ -49,7 +49,11 @@ internal class TerminalStreamCallbacks(
     val onRevive: () -> Unit,
     val onPageRestart: () -> Unit,
     val onOpenPath: (paths: List<String>, line: Int) -> Unit,
-    val onFirstContent: () -> Unit = {}
+    val onFirstContent: () -> Unit = {},
+    /** Text a hold selected, for the composer; null while there's no composer. */
+    val onAddToPrompt: ((String) -> Unit)? = null,
+    /** Text a hold selected, to find in the terminal. */
+    val onFind: (String) -> Unit = {}
 )
 
 /**
@@ -134,7 +138,9 @@ internal fun TerminalScreen(
                         },
                         onOpenPath = stream.onOpenPath,
                         onRevive = stream.onRevive,
-                        onPageRestart = stream.onPageRestart
+                        onPageRestart = stream.onPageRestart,
+                        onAddToPrompt = stream.onAddToPrompt,
+                        onFind = stream.onFind
                     )
                 }
                 LoadingOverlay(

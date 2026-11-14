@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   DiagnosticBuffer,
   formatDiagnosticsReport,
+  initializeDiagnostics,
   normalizeError,
   onReportedError,
   redactDiagnosticString,
@@ -107,6 +108,32 @@ describe("reportError", () => {
     });
     expect(reportError("test.failed", "again").message).toBe("again");
     onReportedError(null);
+    vi.restoreAllMocks();
+  });
+});
+
+describe("unhandled rejections", () => {
+  it("reports them, except an editor cancelling its own work", () => {
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubGlobal("window", new EventTarget());
+    initializeDiagnostics("main");
+    const heard = vi.fn();
+    onReportedError(heard);
+    const reject = (reason: unknown) =>
+      window.dispatchEvent(Object.assign(new Event("unhandledrejection"), { reason }));
+
+    const canceled = new Error("Canceled");
+    canceled.name = "Canceled";
+    reject(canceled);
+    expect(heard).not.toHaveBeenCalled();
+
+    reject(new Error("Canceled"));
+    expect(heard).toHaveBeenCalledTimes(1);
+    expect(heard.mock.calls[0][0].event).toBe("window.unhandled_rejection");
+
+    onReportedError(null);
+    vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
 });

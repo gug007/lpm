@@ -30,7 +30,8 @@ import kotlinx.coroutines.launch
 /**
  * The review screen wired to its ViewModel: it follows the working tree while open,
  * catches up when the app comes back, opens the commit sheet, and sends "Ask agent…"
- * to a terminal, opening it once the sheet has slid away.
+ * to a terminal, opening it once the sheet has slid away. A key with a
+ * [GitReviewKey.focus] path opens on that file, expanded.
  */
 @Composable
 fun GitReviewRoute(
@@ -100,7 +101,9 @@ fun GitReviewRoute(
                 confirmRisky.confirm("Discard the changes to ${lastPathComponent(path)}") {
                     viewModel.discardFile(path)
                 }
-            }
+            },
+            clearDraft = viewModel::clearDraft,
+            focusShown = viewModel::focusShown
         )
     )
 

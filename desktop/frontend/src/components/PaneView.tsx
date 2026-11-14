@@ -581,6 +581,7 @@ function PaneViewImpl(props: PaneViewProps) {
   return (
     <div
       className={containerClass}
+      data-focused-pane={visible && focused ? "" : undefined}
       onMouseDownCapture={() => onFocusPane(pane.id)}
     >
       <div className={headerClass}>

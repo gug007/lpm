@@ -123,7 +123,11 @@ struct GitFileSection: View {
     /// left out of the commit.
     private var detailLine: some View {
         HStack(spacing: 6) {
-            if !file.directory.isEmpty {
+            if let changed = model.git.changedSinceViewed(project, path: file.path) {
+                Text("Changed since viewed · \(changed.formatted(.relative(presentation: .named)))")
+                    .foregroundStyle(.orange)
+                    .lineLimit(1)
+            } else if !file.directory.isEmpty {
                 Text(file.directory)
                     .lineLimit(1)
                     .truncationMode(.head)

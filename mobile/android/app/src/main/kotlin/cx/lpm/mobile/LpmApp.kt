@@ -19,6 +19,7 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
+import cx.lpm.mobile.core.data.projects.ProjectOpens
 import cx.lpm.mobile.core.data.push.NotificationOpens
 import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.navigation.Navigator
@@ -63,6 +64,7 @@ fun LpmApp(
     session: MacSession,
     tailnetState: StateFlow<String>,
     opens: NotificationOpens,
+    projectOpens: ProjectOpens,
     modifier: Modifier = Modifier
 ) {
     val state by session.state.collectAsStateWithLifecycle()
@@ -99,7 +101,7 @@ fun LpmApp(
             modifier = modifier,
             overlay = { navigator ->
                 VisitHost(session, navigator)
-                NotificationOpenHost(session, opens, navigator)
+                NotificationOpenHost(session, opens, projectOpens, navigator)
             }
         ) { navigator ->
             val projects = projectsSlots(navigator)

@@ -25,6 +25,7 @@ import { normalizeSavedLayouts, type SavedLayoutsConfig } from "../savedLayouts"
 import { normalizeAutoPullMode, type AutoPullMode } from "../autoPull";
 import { isArchiveAfter } from "../archiveAfter";
 import type { NotificationChannelPrefs } from "../notifications/channels";
+import { isTerminalThemeMode, type TerminalThemeMode } from "../terminalThemeChoice";
 
 export interface DetachedWindowState {
   detached: boolean;
@@ -65,6 +66,11 @@ export interface Settings {
   pinnedProjects?: string[];
   peerProjectOrder?: PeerRowOrder;
   terminalTheme?: string;
+  // Unset means "single": terminalTheme everywhere. "follow" uses
+  // terminalThemeDark or terminalThemeLight as the app is dark or light.
+  terminalThemeMode?: TerminalThemeMode;
+  terminalThemeDark?: string;
+  terminalThemeLight?: string;
   terminalFontSize?: number;
   terminalFontFamily?: string;
   terminalLineHeight?: number;
@@ -215,6 +221,9 @@ function normalize(s: main.Settings): Settings {
       : undefined,
     peerProjectOrder: s.peerProjectOrder,
     terminalTheme: s.terminalTheme,
+    terminalThemeMode: isTerminalThemeMode(s.terminalThemeMode) ? s.terminalThemeMode : undefined,
+    terminalThemeDark: s.terminalThemeDark || undefined,
+    terminalThemeLight: s.terminalThemeLight || undefined,
     terminalFontSize: s.terminalFontSize,
     terminalFontFamily: s.terminalFontFamily || undefined,
     terminalLineHeight: s.terminalLineHeight,

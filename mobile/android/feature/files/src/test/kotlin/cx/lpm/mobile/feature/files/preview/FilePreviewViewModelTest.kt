@@ -4,9 +4,12 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import cx.lpm.mobile.core.data.client.LpmClient
+import cx.lpm.mobile.core.data.git.GitStore
 import cx.lpm.mobile.core.data.mac.ThisDevice
 import cx.lpm.mobile.core.data.prefs.PreferenceKeys
 import cx.lpm.mobile.core.data.session.SessionStore
+import cx.lpm.mobile.core.data.terminals.ComposerPrompts
 import cx.lpm.mobile.core.model.SessionKey
 import cx.lpm.mobile.core.navigation.FilePreviewKey
 import cx.lpm.mobile.core.testing.MainDispatcherRule
@@ -38,12 +41,29 @@ class FilePreviewViewModelTest {
 
     private val root = Files.createTempDirectory("lpm-previews").toFile()
 
+    /** What Mention put in which terminal's prompt. */
+    private val prompts = mutableListOf<String>()
+
+    private inner class FakePrompts : ComposerPrompts {
+        override fun append(termId: String, text: String) {
+            prompts += "$termId:$text"
+        }
+
+        override fun wire(client: LpmClient) = Unit
+
+        override fun reset() = Unit
+    }
+
     /** Demo Mode, whose Mac answers `fileChunk` with its sample files. */
     private fun TestScope.demo(): TestSession {
         val space = ScratchSpace(root, StandardTestDispatcher(testScheduler), backgroundScope)
         return TestSession(
             this,
-            setOf(SessionStore.Factory { FileFetches(it, space, "phone", TEST_MIME::get) })
+            setOf(
+                SessionStore.Factory { FileFetches(it, space, "phone", TEST_MIME::get) },
+                SessionStore.Factory(::GitStore),
+                SessionStore.Factory { FakePrompts() }
+            )
         ).apply { enterDemo() }
     }
 
@@ -130,5 +150,40 @@ class FilePreviewViewModelTest {
         testScheduler.advanceTimeBy(1_000)
         testScheduler.runCurrent()
         assertTrue(image!!.readText().contains("\"name\": \"storefront\""))
+    }
+
+    @Test
+    fun `a changed file offers Diff and goes by git's path`() = runTest {
+        val vm = preview(
+            demo(),
+            FilePreviewKey("storefront", listOf("components/CheckoutForm.tsx"), line = 12)
+        )
+        val state = vm.uiState.value
+        assertTrue(state.ready)
+        assertEquals("components/CheckoutForm.tsx", state.changedPath)
+        assertEquals("components/CheckoutForm.tsx", state.projectPath)
+        assertEquals("components", state.folder)
+        assertEquals(12, state.line)
+        assertFalse("opened from no terminal's prompt", state.canMention)
+        vm.mention()
+        assertTrue(prompts.isEmpty())
+    }
+
+    @Test
+    fun `Mention puts the file and its line in the prompt it was opened from`() = runTest {
+        val vm = preview(
+            demo(),
+            FilePreviewKey(
+                "storefront",
+                listOf("lib/payments.ts"),
+                line = 12,
+                promptTerminal = "t1"
+            )
+        )
+        val state = vm.uiState.value
+        assertTrue(state.canMention)
+        assertEquals("lib/payments.ts", state.projectPath)
+        vm.mention()
+        assertEquals(listOf("t1:@lib/payments.ts:12 "), prompts)
     }
 }

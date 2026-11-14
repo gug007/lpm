@@ -9,6 +9,7 @@ import cx.lpm.mobile.core.push.PushStartup
 import cx.lpm.mobile.feature.share.SharePublisher
 import cx.lpm.mobile.feature.usage.widget.UsageWidgetPublisher
 import cx.lpm.mobile.feature.widgets.AgentWidgetPublisher
+import cx.lpm.mobile.feature.widgets.AppShortcutPublisher
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
@@ -28,6 +29,7 @@ class AppStartup @Inject constructor(
     private val session: MacSession,
     private val push: PushStartup,
     private val widgets: AgentWidgetPublisher,
+    private val shortcuts: AppShortcutPublisher,
     private val usageWidget: UsageWidgetPublisher,
     private val shares: SharePublisher,
     private val lock: AppLock,
@@ -47,6 +49,7 @@ class AppStartup @Inject constructor(
             session.bootstrap()
             push.start()
             widgets.start()
+            shortcuts.start()
             usageWidget.start()
             shares.start()
             mutableReady.value = true

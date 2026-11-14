@@ -37,10 +37,25 @@ function commit(hash: string, over: Partial<HistoryCommit> = {}): HistoryCommit 
 let host: HTMLDivElement;
 let root: Root;
 
-async function card(commits: HistoryCommit[]) {
+const handlers = { onOpen: vi.fn(), onViewHistory: vi.fn(), onUndo: vi.fn() };
+
+async function card(commits: HistoryCommit[], undo = false) {
   await act(async () => {
-    root.render(<BranchCommitCard commits={commits} />);
+    root.render(
+      <BranchCommitCard
+        commits={commits}
+        onOpen={handlers.onOpen}
+        onViewHistory={handlers.onViewHistory}
+        onUndo={undo ? handlers.onUndo : undefined}
+      />,
+    );
   });
+}
+
+function button(label: string): HTMLButtonElement {
+  const found = [...host.querySelectorAll("button")].find((b) => b.textContent?.includes(label));
+  if (!found) throw new Error(`no button ${label}`);
+  return found;
 }
 
 beforeEach(() => {
@@ -81,5 +96,32 @@ describe("BranchCommitCard", () => {
     const row = marks[0].parentElement!;
     expect(row.lastElementChild).toBe(marks[0]);
     expect(row.firstElementChild!.textContent).toContain("Subject of aaaaaaa1");
+  });
+
+  it("opens a commit in History and History itself", async () => {
+    const commits = [commit("aaaaaaa1"), commit("bbbbbbb2")];
+    await card(commits);
+
+    await act(async () => button("Subject of bbbbbbb2").click());
+    expect(handlers.onOpen).toHaveBeenCalledWith(commits[1]);
+    await act(async () => button("View history").click());
+    expect(handlers.onViewHistory).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers Undo commit on the newest row only, in place of its arrow", async () => {
+    const commits = [commit("aaaaaaa1", { unpushed: true }), commit("bbbbbbb2", { unpushed: true })];
+    await card(commits, true);
+
+    expect(host.querySelectorAll("button")).toHaveLength(4);
+    expect(host.querySelectorAll('[role="img"]')).toHaveLength(1);
+    await act(async () => button("Undo commit").click());
+    expect(handlers.onUndo).toHaveBeenCalledWith(commits[0]);
+    expect(handlers.onOpen).not.toHaveBeenCalled();
+  });
+
+  it("offers no Undo when the newest commit can't be taken back", async () => {
+    await card([commit("aaaaaaa1")]);
+
+    expect(host.textContent).not.toContain("Undo commit");
   });
 });

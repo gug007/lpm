@@ -20,6 +20,13 @@ final class TerminalFind {
 
     func open() { isOpen = true }
 
+    /// Open with a query already in, searching for it at once.
+    func open(query: String) {
+        self.query = query
+        isOpen = true
+        search(.type)
+    }
+
     func close() {
         isOpen = false
         query = ""

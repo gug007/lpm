@@ -50,6 +50,9 @@ class PageMessageTest {
         assertNull(message.int("n"))
         assertNull(message.int("absent"))
         assertEquals(listOf("a.ts", "b.ts"), message.strings("paths"))
+        assertEquals("5", message.string("s"))
+        assertNull(message.string("whole"))
+        assertNull(message.string("n"))
         assertNull(message.strings("mixed"))
         assertNull(message.strings("s"))
     }

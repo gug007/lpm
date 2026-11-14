@@ -57,6 +57,13 @@ final class GitReviewStore {
     // Files the user marked "viewed" on the review screen, keyed by project. Session
     // scoped: kept across snapshot refreshes, cleared on logout.
     var viewed: [String: Set<String>] = [:]
+    // Files whose diff changed after they were marked viewed, and when — they lose
+    // Viewed so a second pass isn't committed unseen. Project -> path -> time.
+    var changedSinceViewed: [String: [String: Date]] = [:]
+    // The diff each viewed file had when it was marked, by diffKey.
+    @ObservationIgnored var viewedDiff: [String: Int] = [:]
+    // The commit being written per project, kept while the screen comes and goes.
+    var commitDrafts: [String: CommitDraft] = [:]
     // Git menu ops (Pull/Fetch/Discard/Undo Auto Pull) in flight; their failures
     // also surface via opError, presented on the project screen when the review
     // screen is closed.
@@ -178,6 +185,7 @@ final class GitReviewStore {
             diffs[key] = result
             diffError[key] = nil
             recordDiffStamp(project, path: path, key: key)
+            noteViewedDiff(project, path: path, key: key, diff: result.diff)
             if !result.binary && !result.diff.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 buildParsedDiff(key: key, diff: result.diff, ext: (path as NSString).pathExtension)
             }
@@ -380,11 +388,6 @@ final class GitReviewStore {
     func isViewed(_ project: String, path: String) -> Bool {
         viewed[project]?.contains(path) ?? false
     }
-    func toggleViewed(_ project: String, path: String) {
-        var set = viewed[project] ?? []
-        if set.contains(path) { set.remove(path) } else { set.insert(path) }
-        viewed[project] = set
-    }
 
     func consumeGeneratedMessage(_ project: String) { generatedMessage[project] = nil }
     func consumePrDraft(_ project: String) { prDraft[project] = nil }
@@ -490,7 +493,7 @@ final class GitReviewStore {
             push(project)
         } else {
             announce(project, "Committed successfully")
-            commitTick[project, default: 0] += 1
+            landCommit(project)
             load(project)
         }
     }
@@ -505,7 +508,13 @@ final class GitReviewStore {
             announce(project, afterCommit ? "Committed and pushed" : "Pushed")
             load(project)
         }
-        if afterCommit { commitTick[project, default: 0] += 1 }
+        if afterCommit { landCommit(project) }
+    }
+
+    /// The commit is in: its draft goes with it, whether or not Changes is open.
+    private func landCommit(_ project: String) {
+        commitTick[project, default: 0] += 1
+        clearCommitDraft(project)
     }
 
     func finishGenMessage(_ project: String, message: String?, error: String?) {

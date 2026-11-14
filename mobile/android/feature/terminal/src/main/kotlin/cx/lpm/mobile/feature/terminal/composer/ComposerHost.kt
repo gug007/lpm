@@ -182,7 +182,15 @@ internal fun ComposerHost(
                     },
                     pickServiceLog = viewModel::pickServiceLog
                 ),
-                onManageCommands = mode.onManageCommands
+                onManageCommands = mode.onManageCommands,
+                onRecall = {
+                    viewModel.recall(it)
+                    focusField = true
+                },
+                onRecallHistory = {
+                    historyStart = HistoryFilter.All
+                    showHistory = true
+                }
             ),
             dictationStrip = { stripModifier ->
                 DictationStrip(
@@ -285,14 +293,18 @@ internal fun ComposerHost(
         )
         ComposerNotices(
             state = state,
-            onDismissWarning = viewModel::dismissWarning,
-            onDismissCommandNotice = viewModel::dismissCommandNotice,
-            onDismissRewriteError = viewModel::dismissRewriteError,
-            onDismissUploadError = viewModel::dismissUploadError,
-            onOpenDrafts = {
-                historyStart = HistoryFilter.Drafts
-                showHistory = true
-            },
+            actions = ComposerNoticeActions(
+                onDismissWarning = viewModel::dismissWarning,
+                onDismissCommandNotice = viewModel::dismissCommandNotice,
+                onDismissRewriteError = viewModel::dismissRewriteError,
+                onDismissUploadError = viewModel::dismissUploadError,
+                onDismissRestore = viewModel::dismissRestore,
+                onOpenDrafts = {
+                    historyStart = HistoryFilter.Drafts
+                    showHistory = true
+                },
+                onRestore = { viewModel.restore(it) }
+            ),
             modifier = Modifier.align(Alignment.TopCenter)
         )
     }
@@ -301,9 +313,10 @@ internal fun ComposerHost(
         PresentationScope {
             HistorySheet(
                 session = target.session,
+                project = target.project,
                 initialFilter = historyStart,
                 onLoad = {
-                    viewModel.load(it)
+                    viewModel.loadFromHistory(it)
                     focusField = true
                 },
                 onSendNow = { viewModel.sendRaw(it, mode.onSend) },

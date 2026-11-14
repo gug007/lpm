@@ -148,6 +148,8 @@ const FORWARDED_EVENTS: &[&str] = &[
     // ...or a folder closed, so that Mac shows it closed too.
     crate::lpm_commands_folds::CHANGED_EVENT,
     "clone-done",
+    // How far a clone a Mac started here has got, keyed by the id that Mac chose.
+    crate::clonerun::PROGRESS_EVENT,
     "duplicate-done",
     // The host's folders changed, so a Mac showing them reads them again.
     "sidebar-changed",

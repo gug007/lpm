@@ -26,6 +26,7 @@ import cx.lpm.mobile.core.navigation.FilePreviewKey
 import cx.lpm.mobile.core.navigation.ManageCommandsKey
 import cx.lpm.mobile.core.navigation.Navigator
 import cx.lpm.mobile.core.navigation.TerminalKey
+import cx.lpm.mobile.core.web.FindStep
 import cx.lpm.mobile.core.web.TerminalWebController
 import cx.lpm.mobile.core.web.rememberTerminalWebController
 import cx.lpm.mobile.feature.terminal.composer.ComposerRoute
@@ -110,7 +111,28 @@ internal fun TerminalRoute(
                     onFirstContent = viewModel::contentShown,
                     onOpenPath = { paths, line ->
                         haptics.performHapticFeedback(HapticFeedbackType.ContextClick)
-                        navigator.navigate(FilePreviewKey(key.project, paths, line, key.session))
+                        navigator.navigate(
+                            FilePreviewKey(
+                                key.project,
+                                paths,
+                                line,
+                                key.session,
+                                promptTerminal = terminal.id.takeIf { state.showsComposer }
+                            )
+                        )
+                    },
+                    onAddToPrompt = if (state.showsComposer) {
+                        { text ->
+                            viewModel.addToPrompt(text)
+                            haptics.performHapticFeedback(HapticFeedbackType.ContextClick)
+                        }
+                    } else {
+                        null
+                    },
+                    onFind = { text ->
+                        findQuery = text
+                        findOpen = true
+                        controller.find(text, FindStep.Type)
                     }
                 ),
                 onBack = navigator::back,

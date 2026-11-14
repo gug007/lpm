@@ -1,8 +1,8 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { toast } from "../notifications/toast";
 import { VoiceToTextAvailable } from "../../bridge/commands";
 import { isMac } from "../platform";
-import { captureDictationTarget, focusDictationField } from "../dictation/insert";
+import { captureDictationTarget, focusDictationField, type DictationTarget } from "../dictation/insert";
 import { ACTIVE_PHASES, useDictationStore } from "../store/dictation";
 
 // VoiceToText is a macOS app; elsewhere the composer offers no dictation.
@@ -14,6 +14,7 @@ export const DICTATION_AVAILABLE = isMac;
 // isn't there.
 export function useVoiceDictation() {
   const [installOpen, setInstallOpen] = useState(false);
+  const pending = useRef<DictationTarget | null>(null);
   const phase = useDictationStore((s) => s.phase);
   const active = ACTIVE_PHASES.has(phase);
 
@@ -28,6 +29,7 @@ export function useVoiceDictation() {
     const target = captureDictationTarget(into ?? document.activeElement);
     try {
       if (!(await VoiceToTextAvailable())) {
+        pending.current = target;
         setInstallOpen(true);
         return;
       }
@@ -37,5 +39,19 @@ export function useVoiceDictation() {
     }
   }, []);
 
-  return { toggle, phase, active, installOpen, setInstallOpen };
+  // The install prompt saw VoiceToText arrive: record into the field the
+  // first press was meant for.
+  const startAfterInstall = useCallback(async () => {
+    setInstallOpen(false);
+    const target = pending.current;
+    pending.current = null;
+    if (target) focusDictationField(target.element);
+    try {
+      await useDictationStore.getState().start(target);
+    } catch (err) {
+      toast.error(`Voice dictation failed: ${err}`);
+    }
+  }, []);
+
+  return { toggle, phase, active, installOpen, setInstallOpen, startAfterInstall };
 }

@@ -9,7 +9,8 @@ import kotlinx.serialization.json.JsonPrimitive
  */
 internal object TerminalScripts {
     /** The handlers WebTerminalView registers, i.e. every `post(…)` in terminal.html. */
-    val handlers = listOf("input", "resize", "ready", "openPath", "openURL", "extent", "find")
+    val handlers =
+        listOf("input", "resize", "ready", "openPath", "openURL", "extent", "find", "selection")
 
     const val REVIVE = "window.lpmRevive()"
     const val FOCUS = "document.querySelector('textarea')?.focus()"

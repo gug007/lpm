@@ -5,6 +5,7 @@ import android.icu.text.RelativeDateTimeFormatter
 import android.icu.util.ULocale
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,8 +25,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -37,7 +40,7 @@ import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.core.model.HistoryItem
 import cx.lpm.mobile.feature.terminal.R
 
-/** What a history row's tap and long-press menu do. */
+/** What a history row's tap, send arrow and long-press menu do. */
 internal class HistoryRowActions(
     val onLoad: (HistoryItem) -> Unit,
     val onSendNow: (HistoryItem) -> Unit,
@@ -46,108 +49,160 @@ internal class HistoryRowActions(
     val onDelete: (HistoryItem) -> Unit
 )
 
-/** A message: up to three lines of it over its draft badge, project, star and age. */
+/**
+ * A message: up to three lines of it over its draft badge, project (left out while the
+ * sheet shows one project's), star and age, with an arrow that sends it at once.
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun HistoryRow(
     item: HistoryItem,
     actions: HistoryRowActions,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    showProject: Boolean = true
 ) {
-    val colors = LpmTheme.colors
     var menu by remember { mutableStateOf(false) }
     Box(modifier) {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .combinedClickable(onLongClick = {
-                    menu = true
-                }, onClick = { actions.onLoad(item) })
-                .listSeparator()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(5.dp)
+                .combinedClickable(
+                    onLongClick = { menu = true },
+                    onClick = { actions.onLoad(item) }
+                )
+                .listSeparator(),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = item.text.ifEmpty { stringResource(R.string.history_empty_text) },
-                fontSize = 15.sp,
-                color = colors.label,
-                maxLines = 3
+            HistoryRowText(item, showProject, Modifier.weight(1f))
+            SendNowButton(
+                onClick = { actions.onSendNow(item) },
+                modifier = Modifier.padding(start = 10.dp, end = 8.dp)
             )
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (item.isDraft) {
-                    Text(
-                        text = stringResource(R.string.history_draft),
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = colors.orange,
-                        modifier = Modifier
-                            .background(colors.orange.copy(alpha = 0.18f), CircleShape)
-                            .padding(horizontal = 5.dp, vertical = 1.dp)
-                    )
-                }
-                val source = listOfNotNull(item.machineName, item.project).filter {
-                    it.isNotEmpty()
-                }
-                if (source.isNotEmpty()) {
-                    Text(
-                        source.joinToString(" · "),
-                        fontSize = 11.sp,
-                        color = colors.secondaryLabel,
-                        maxLines = 1
-                    )
-                }
-                Spacer(Modifier.weight(1f))
-                if (item.favorite) {
-                    Icon(
-                        painterResource(DesignR.drawable.ic_star_fill),
-                        contentDescription = null,
-                        tint = colors.yellow,
-                        modifier = Modifier.size(12.dp)
-                    )
-                }
-                relativeTime(item.timestamp)?.let {
-                    Text(it, fontSize = 11.sp, color = colors.tertiaryLabel)
-                }
-            }
         }
-        ContextMenu(expanded = menu, onDismissRequest = { menu = false }) {
-            ContextMenuItem(
-                title = stringResource(R.string.history_send_now),
-                icon = painterResource(DesignR.drawable.ic_send),
-                onClick = { actions.onSendNow(item) }
-            )
-            ContextMenuItem(
-                title = stringResource(R.string.history_load),
-                icon = painterResource(DesignR.drawable.ic_edit_square),
-                onClick = { actions.onLoad(item) }
-            )
-            ContextMenuItem(
-                title = stringResource(
-                    if (item.favorite) R.string.history_unfavorite else R.string.history_favorite
-                ),
-                icon = painterResource(
-                    if (item.favorite) DesignR.drawable.ic_star_fill else DesignR.drawable.ic_star
-                ),
-                onClick = { actions.onToggleFavorite(item) }
-            )
-            // Folders are each computer's own.
-            if (!item.isFromOtherComputer) {
-                ContextMenuItem(
-                    title = stringResource(R.string.history_move_to_folder),
-                    icon = painterResource(DesignR.drawable.ic_folder),
-                    onClick = { actions.onMove(item) }
+        HistoryRowMenu(item, actions, expanded = menu, onDismiss = { menu = false })
+    }
+}
+
+@Composable
+private fun HistoryRowText(item: HistoryItem, showProject: Boolean, modifier: Modifier = Modifier) {
+    val colors = LpmTheme.colors
+    Column(
+        modifier = modifier.padding(start = 16.dp, top = 14.dp, bottom = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(5.dp)
+    ) {
+        Text(
+            text = item.text.ifEmpty { stringResource(R.string.history_empty_text) },
+            fontSize = 15.sp,
+            color = colors.label,
+            maxLines = 3
+        )
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (item.isDraft) {
+                Text(
+                    text = stringResource(R.string.history_draft),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = colors.orange,
+                    modifier = Modifier
+                        .background(colors.orange.copy(alpha = 0.18f), CircleShape)
+                        .padding(horizontal = 5.dp, vertical = 1.dp)
                 )
             }
-            ContextMenuItem(
-                title = stringResource(R.string.history_delete),
-                icon = painterResource(DesignR.drawable.ic_delete),
-                destructive = true,
-                onClick = { actions.onDelete(item) }
+            val source = listOfNotNull(item.machineName, item.project.takeIf { showProject })
+                .filter { it.isNotEmpty() }
+            if (source.isNotEmpty()) {
+                Text(
+                    source.joinToString(" · "),
+                    fontSize = 11.sp,
+                    color = colors.secondaryLabel,
+                    maxLines = 1
+                )
+            }
+            Spacer(Modifier.weight(1f))
+            if (item.favorite) {
+                Icon(
+                    painterResource(DesignR.drawable.ic_star_fill),
+                    contentDescription = null,
+                    tint = colors.yellow,
+                    modifier = Modifier.size(12.dp)
+                )
+            }
+            relativeTime(item.timestamp)?.let {
+                Text(it, fontSize = 11.sp, color = colors.tertiaryLabel)
+            }
+        }
+    }
+}
+
+/** A white arrow-up circle, sending the row's message straight to the terminal. */
+@Composable
+private fun SendNowButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .size(44.dp)
+            .clickable(role = Role.Button, onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .size(27.dp)
+                .background(Color.White, CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                painterResource(DesignR.drawable.ic_arrow_upward),
+                contentDescription = stringResource(R.string.history_send_now),
+                tint = Color.Black,
+                modifier = Modifier.size(19.dp)
             )
         }
+    }
+}
+
+@Composable
+private fun HistoryRowMenu(
+    item: HistoryItem,
+    actions: HistoryRowActions,
+    expanded: Boolean,
+    onDismiss: () -> Unit
+) {
+    ContextMenu(expanded = expanded, onDismissRequest = onDismiss) {
+        ContextMenuItem(
+            title = stringResource(R.string.history_send_now),
+            icon = painterResource(DesignR.drawable.ic_send),
+            onClick = { actions.onSendNow(item) }
+        )
+        ContextMenuItem(
+            title = stringResource(R.string.history_load),
+            icon = painterResource(DesignR.drawable.ic_edit_square),
+            onClick = { actions.onLoad(item) }
+        )
+        ContextMenuItem(
+            title = stringResource(
+                if (item.favorite) R.string.history_unfavorite else R.string.history_favorite
+            ),
+            icon = painterResource(
+                if (item.favorite) DesignR.drawable.ic_star_fill else DesignR.drawable.ic_star
+            ),
+            onClick = { actions.onToggleFavorite(item) }
+        )
+        // Folders are each computer's own.
+        if (!item.isFromOtherComputer) {
+            ContextMenuItem(
+                title = stringResource(R.string.history_move_to_folder),
+                icon = painterResource(DesignR.drawable.ic_folder),
+                onClick = { actions.onMove(item) }
+            )
+        }
+        ContextMenuItem(
+            title = stringResource(R.string.history_delete),
+            icon = painterResource(DesignR.drawable.ic_delete),
+            destructive = true,
+            onClick = { actions.onDelete(item) }
+        )
     }
 }
 

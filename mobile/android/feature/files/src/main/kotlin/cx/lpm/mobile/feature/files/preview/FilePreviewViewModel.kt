@@ -2,10 +2,12 @@ package cx.lpm.mobile.feature.files.preview
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import cx.lpm.mobile.core.data.git.GitStore
 import cx.lpm.mobile.core.data.mac.ThisDevice
 import cx.lpm.mobile.core.data.prefs.AppPreferences
 import cx.lpm.mobile.core.data.prefs.PreferenceKeys
 import cx.lpm.mobile.core.data.session.MacSessions
+import cx.lpm.mobile.core.data.terminals.composerPrompts
 import cx.lpm.mobile.core.navigation.FilePreviewKey
 import cx.lpm.mobile.core.web.MarkdownFileReader
 import cx.lpm.mobile.feature.files.di.PreviewDispatcher
@@ -32,11 +34,13 @@ import kotlinx.coroutines.withContext
 /**
  * The preview sheet (iOS `FilePreviewSheet`): copies the file over from the Mac with
  * progress, then shows it by kind; reads a text file's contents, remembers Markdown's
- * Preview / Source choice, and fetches the images a Markdown file names.
+ * Preview / Source choice, and fetches the images a Markdown file names. It knows the
+ * file by its path in the project, as the Mac names it, for the next steps: Mention,
+ * Diff and Copy Path.
  */
 @HiltViewModel(assistedFactory = FilePreviewViewModel.Factory::class)
 class FilePreviewViewModel @AssistedInject constructor(
-    @Assisted key: FilePreviewKey,
+    @Assisted private val key: FilePreviewKey,
     sessions: MacSessions,
     device: ThisDevice,
     private val prefs: AppPreferences,
@@ -53,7 +57,10 @@ class FilePreviewViewModel @AssistedInject constructor(
     /** Where a document's pages and images decode. */
     val renderDispatcher: CoroutineDispatcher = io
 
-    private val fetches: FileFetches? = sessions[key.session]?.store()
+    private val session = sessions[key.session]
+    private val git = session?.store<GitStore>()
+    private val prompts = key.promptTerminal?.let { session?.composerPrompts() }
+    private val fetches: FileFetches? = session?.store()
     private val fetch: FileFetch? = fetches?.fetch(key.project, key.paths)
     private val text = MutableStateFlow<Loaded?>(null)
     private val images = mutableListOf<FileFetch>()
@@ -68,20 +75,26 @@ class FilePreviewViewModel @AssistedInject constructor(
     val uiState: StateFlow<FilePreviewUiState> = combine(
         fetchState,
         text,
-        prefs.data.map { prefs.bool(PreferenceKeys.FILE_PREVIEW_MARKDOWN_SOURCE) ?: false }
-    ) { f, loaded, source ->
+        prefs.data.map { prefs.bool(PreferenceKeys.FILE_PREVIEW_MARKDOWN_SOURCE) ?: false },
+        git?.state?.map { it.snapshots[key.project] }?.distinctUntilChanged() ?: flowOf(null)
+    ) { f, loaded, source, snapshot ->
+        val inProject = projectPath(f.path, f.projectPath)
         FilePreviewUiState(
             path = f.path,
             phase = f.phase,
             received = f.received,
             total = f.total,
             text = loaded?.takeIf { it.file == (f.phase as? FileFetch.Phase.Ready)?.file }?.text,
-            markdownSource = source
+            markdownSource = source,
+            changedPath = changedPath(inProject, snapshot),
+            projectPath = inProject ?: f.path,
+            line = key.line,
+            canMention = prompts != null
         )
     }.stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5_000),
-        FilePreviewUiState(key.paths.firstOrNull().orEmpty())
+        FilePreviewUiState(key.paths.firstOrNull().orEmpty(), line = key.line)
     )
 
     /** Serves the images a Markdown file names, fetched from the same Mac. */
@@ -93,6 +106,7 @@ class FilePreviewViewModel @AssistedInject constructor(
 
     init {
         fetch?.start()
+        if (git?.state?.value?.snapshots?.containsKey(key.project) == false) git.load(key.project)
         viewModelScope.launch {
             fetchState.map { it.phase }.distinctUntilChanged().collect { phase ->
                 if (phase is FileFetch.Phase.Ready && phase.kind.isText) {
@@ -104,6 +118,13 @@ class FilePreviewViewModel @AssistedInject constructor(
 
     fun retry() {
         fetch?.retry()
+    }
+
+    /** `@path[:line] ` at the end of the prompt of the terminal the file was opened from. */
+    fun mention() {
+        val terminal = key.promptTerminal ?: return
+        val line = if (key.line > 0) ":${key.line}" else ""
+        prompts?.append(terminal, "@${uiState.value.projectPath}$line ")
     }
 
     fun setMarkdownSource(source: Boolean) {

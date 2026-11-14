@@ -16,11 +16,25 @@ interface BranchButtonProps {
   busy: boolean;
   onToggle: () => void;
   commits: HistoryCommit[];
+  onOpenCommit: (commit: HistoryCommit) => void;
+  onViewHistory: () => void;
+  onUndoCommit?: (commit: HistoryCommit) => void;
+  hideCard?: boolean;
 }
 
 /** The footer's branch button, with the last commits on a card while resting
  *  on it. */
-export function BranchButton({ branch, open, busy, onToggle, commits }: BranchButtonProps) {
+export function BranchButton({
+  branch,
+  open,
+  busy,
+  onToggle,
+  commits,
+  onOpenCommit,
+  onViewHistory,
+  onUndoCommit,
+  hideCard = false,
+}: BranchButtonProps) {
   return (
     <Tooltip
       side="top"
@@ -29,8 +43,15 @@ export function BranchButton({ branch, open, busy, onToggle, commits }: BranchBu
       interactive
       maxWidth={COMMIT_CARD_WIDTH}
       delay={COMMIT_CARD_DELAY_MS}
-      disabled={open || busy || commits.length === 0}
-      content={<BranchCommitCard commits={commits} />}
+      disabled={open || busy || hideCard || commits.length === 0}
+      content={
+        <BranchCommitCard
+          commits={commits}
+          onOpen={onOpenCommit}
+          onViewHistory={onViewHistory}
+          onUndo={onUndoCommit}
+        />
+      }
     >
       <button
         onClick={onToggle}

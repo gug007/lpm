@@ -57,6 +57,7 @@ import cx.lpm.mobile.core.designsystem.component.clickableNoIndication
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.core.ui.GitStatusBadge
 import cx.lpm.mobile.feature.git.R
+import java.time.Instant
 import kotlinx.coroutines.launch
 
 /**
@@ -258,7 +259,10 @@ private fun NameButton(
     }
 }
 
-/** The folder, the change counts once parsed, and "Excluded" when left out of the commit. */
+/**
+ * The folder (or "Changed since viewed" when its diff changed after it was marked),
+ * the change counts once parsed, and "Excluded" when left out of the commit.
+ */
 @Composable
 private fun DetailLine(row: ReviewRow.FileHeader) {
     val colors = LpmTheme.colors
@@ -268,7 +272,20 @@ private fun DetailLine(row: ReviewRow.FileHeader) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         val directory = row.file.directory
-        if (directory.isNotEmpty()) {
+        val changed = row.changedSince
+        if (changed != null) {
+            Text(
+                text = stringResource(
+                    R.string.git_file_changed_since_viewed,
+                    relativeNamed(changed, Instant.now())
+                ),
+                style = style,
+                color = colors.orange,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false)
+            )
+        } else if (directory.isNotEmpty()) {
             Text(
                 text = directory,
                 style = style,

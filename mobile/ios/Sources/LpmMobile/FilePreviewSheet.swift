@@ -28,14 +28,48 @@ struct FilePreviewSheet: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     let target: FilePreviewTarget
+    /// Puts an `@path:line` mention in the prompt of the tab the file was opened
+    /// from; nil where there's no prompt to put it in.
+    var onMention: ((String) -> Void)? = nil
     @State private var fetch: FileFetch
+    @State private var codeView = CodeViewHandle()
+    @State private var showDiff = false
 
-    init(target: FilePreviewTarget) {
+    init(target: FilePreviewTarget, onMention: ((String) -> Void)? = nil) {
         self.target = target
+        self.onMention = onMention
         _fetch = State(initialValue: FileFetch(project: target.project, candidates: target.paths))
     }
 
     private var filename: String { (fetch.path as NSString).lastPathComponent }
+
+    /// The file as git lists it, when it has changes.
+    private var changedFile: GitFile? {
+        guard let projectPath else { return nil }
+        return model.git.snapshots[target.project]?.files.first { $0.path == projectPath }
+    }
+
+    /// The path the project knows the file by, as the Mac names it; nil outside
+    /// the project. From a Mac that doesn't say, only a relative path counts.
+    private var projectPath: String? {
+        if let named = fetch.projectPath { return named.isEmpty ? nil : named }
+        return relativeProjectPath(fetch.path)
+    }
+
+    /// The name to mention or copy: the project's, else the path on the Mac.
+    private var shownPath: String { projectPath ?? fetch.path }
+
+    private var subtitle: String {
+        let folder = (shownPath as NSString).deletingLastPathComponent
+        return [folder, target.line > 0 ? "line \(target.line)" : ""]
+            .filter { !$0.isEmpty }
+            .joined(separator: " · ")
+    }
+
+    private var isReady: Bool {
+        if case .ready = fetch.phase { return true }
+        return false
+    }
 
     var body: some View {
         NavigationStack {
@@ -47,14 +81,41 @@ struct FilePreviewSheet: View {
                     errorState(message)
                 case .ready(let url, let kind, let truncated):
                     FilePreviewContent(url: url, project: target.project, path: fetch.path,
-                                       kind: kind, truncated: truncated, line: target.line)
+                                       kind: kind, truncated: truncated, line: target.line,
+                                       codeView: codeView, onMention: onMention)
                 }
             }
             .navigationTitle(filename)
             .navigationBarTitleDisplayMode(.inline)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if isReady {
+                    FilePreviewActions(
+                        onMention: onMention.map { mention in { mentionFile(mention) } },
+                        onDiff: changedFile == nil ? nil : { showDiff = true },
+                        onFind: codeView.attached ? { codeView.find() } : nil,
+                        onCopyPath: { UIPasteboard.general.string = shownPath })
+                }
+            }
+            .navigationDestination(isPresented: $showDiff) {
+                if let project = model.projects.first(where: { $0.name == target.project }) {
+                    GitReviewView(project: project, focus: changedFile?.path)
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
+                }
+                ToolbarItem(placement: .principal) {
+                    VStack(spacing: 0) {
+                        Text(filename).font(.headline).lineLimit(1)
+                        if !subtitle.isEmpty {
+                            Text(subtitle)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.head)
+                        }
+                    }
                 }
                 if case .ready(let url, _, false) = fetch.phase {
                     ToolbarItem(placement: .primaryAction) {
@@ -63,8 +124,18 @@ struct FilePreviewSheet: View {
                 }
             }
         }
-        .onAppear { if fetch.model == nil { fetch.start(model: model) } }
+        .onAppear {
+            if fetch.model == nil { fetch.start(model: model) }
+            if model.git.snapshots[target.project] == nil { model.git.load(target.project) }
+        }
         .onDisappear { fetch.close() }
+    }
+
+    private func mentionFile(_ mention: (String) -> Void) {
+        let line = target.line > 0 ? ":\(target.line)" : ""
+        mention("@\(shownPath)\(line)")
+        Haptics.tap()
+        dismiss()
     }
 
     private var loadingState: some View {
@@ -121,4 +192,12 @@ struct FilePreviewSheet: View {
     private static func bytes(_ n: Int64) -> String {
         ByteCountFormatter.string(fromByteCount: n, countStyle: .file)
     }
+}
+
+/// A tapped path read as the project's: a relative one, without its `./`. Nil for
+/// an absolute, `~/…` or `../…` path, which may name a file anywhere.
+func relativeProjectPath(_ path: String) -> String? {
+    guard !path.isEmpty, !path.hasPrefix("/"), !path.hasPrefix("~") else { return nil }
+    let rel = path.hasPrefix("./") ? String(path.dropFirst(2)) : path
+    return rel.hasPrefix("../") || rel == ".." ? nil : rel
 }

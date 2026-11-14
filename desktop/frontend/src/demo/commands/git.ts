@@ -134,6 +134,14 @@ export const gitCommands: CommandMap = {
     gitChanged(p);
     return null;
   },
+  git_amend_commit: ({ cwd, files }) => {
+    const p = repo(cwd);
+    if (!p) return null;
+    const picked = new Set((files as string[] | undefined) ?? []);
+    p.git.changes = p.git.changes.filter((c) => !picked.has(c.path));
+    gitChanged(p);
+    return null;
+  },
   git_push: ({ cwd }) => {
     const p = repo(cwd);
     if (p) {

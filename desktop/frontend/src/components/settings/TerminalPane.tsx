@@ -11,17 +11,25 @@ import {
   steppedTerminalFontSize,
   terminalFontSizeOf,
 } from "../../hooks/useTerminalFontSize";
-import { terminalThemeOf } from "../../hooks/useTerminalTheme";
 import { rowProps } from "../../settings-registry";
 import type { TerminalThemeName } from "../../terminal-themes";
+import {
+  resolveTerminalTheme,
+  terminalThemeChoiceOf,
+  themeModePatch,
+  themePickPatch,
+} from "../../terminalThemeChoice";
+import { useAppearanceOf } from "../../theme";
 import { SettingsRow } from "../SettingsRow";
 import { SettingsSection } from "../SettingsSection";
 import { SettingsSelect } from "../SettingsSelect";
 import { TerminalFontSelect } from "../TerminalFontSelect";
-import { TerminalThemeSelect } from "../TerminalThemeSelect";
+import { terminalFontStack } from "../terminal-utils";
 import { Toggle } from "../ui/Toggle";
 import { useSettingsTarget } from "./settingsTarget";
 import { StepperControl } from "./StepperControl";
+import { TerminalThemeGrid } from "./TerminalThemeGrid";
+import { TerminalThemeModeControl } from "./TerminalThemeModeControl";
 import { TerminalThemePreview } from "./TerminalThemePreview";
 import { useMachineList } from "./useMachineList";
 
@@ -29,8 +37,11 @@ export function TerminalPane() {
   const { settings, update, commands } = useSettingsTarget();
   const fontSize = terminalFontSizeOf(settings.terminalFontSize);
   const font = terminalFontOf(settings);
-  const theme = terminalThemeOf(settings.terminalTheme);
+  const showing = useAppearanceOf(settings.theme);
+  const themeChoice = terminalThemeChoiceOf(settings);
+  const theme = resolveTerminalTheme(themeChoice, showing);
   const [themePreview, setThemePreview] = useState<TerminalThemeName | null>(null);
+  const [fontPreview, setFontPreview] = useState<string | undefined | null>(null);
 
   const fonts = useMachineList(commands.listMonospaceFonts);
   const fontOptions = useMemo(
@@ -54,7 +65,7 @@ export function TerminalPane() {
           <TerminalThemePreview
             theme={themePreview ?? theme}
             fontSize={fontSize}
-            fontFamily={font.fontFamily}
+            fontFamily={fontPreview === null ? font.fontFamily : terminalFontStack(fontPreview)}
             lineHeight={font.lineHeight}
           />
         </div>
@@ -63,6 +74,7 @@ export function TerminalPane() {
             value={font.family}
             options={fontOptions}
             onChange={(family) => void update({ terminalFontFamily: family })}
+            onHighlightChange={setFontPreview}
           />
         </SettingsRow>
         <SettingsRow {...rowProps("terminal.fontSize")}>
@@ -85,11 +97,24 @@ export function TerminalPane() {
             onIncrease={() => stepLineHeight(0.1)}
           />
         </SettingsRow>
-        <SettingsRow {...rowProps("terminal.theme")}>
-          <TerminalThemeSelect
-            value={theme}
-            onChange={(next) => void update({ terminalTheme: next })}
-            onHighlightChange={setThemePreview}
+        <SettingsRow
+          {...rowProps("terminal.theme", {
+            description:
+              themeChoice.mode === "follow"
+                ? "Choose a dark theme and a light one; terminals switch with the app"
+                : undefined,
+          })}
+          footer={
+            <TerminalThemeGrid
+              choice={themeChoice}
+              onPick={(name) => void update(themePickPatch(themeChoice, name, showing))}
+              onPreview={setThemePreview}
+            />
+          }
+        >
+          <TerminalThemeModeControl
+            mode={themeChoice.mode}
+            onChange={(mode) => void update(themeModePatch(themeChoice, mode, showing))}
           />
         </SettingsRow>
       </SettingsSection>

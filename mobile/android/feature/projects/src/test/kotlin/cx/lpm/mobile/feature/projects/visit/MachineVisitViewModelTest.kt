@@ -1,6 +1,7 @@
 package cx.lpm.mobile.feature.projects.visit
 
 import cx.lpm.mobile.core.data.machines.MachineImporter
+import cx.lpm.mobile.core.data.projects.ProjectOpens
 import cx.lpm.mobile.core.data.session.MachineVisit
 import cx.lpm.mobile.core.model.SessionKey
 import cx.lpm.mobile.core.model.string
@@ -52,7 +53,8 @@ class MachineVisitViewModelTest {
         val vm = subscribed(t)
         assertEquals(MachineVisitContent.Detail, vm.uiState.value.content)
         assertFalse(vm.uiState.value.ready)
-        val detail = ProjectDetailViewModel(api, t.sessions, t.clock, t.feeds, t.tips)
+        val detail =
+            ProjectDetailViewModel(api, t.sessions, t.clock, t.feeds, t.tips, ProjectOpens())
         backgroundScope.launch { detail.uiState.collect() }
         t.settle()
         assertEquals("api", detail.uiState.value.title)

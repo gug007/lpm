@@ -1,6 +1,4 @@
 import { useState } from "react";
-import { ArrowUpRight } from "lucide-react";
-import { BrowserOpenURL } from "../../../bridge/runtime";
 import { isMac } from "../../platform";
 import { rowProps, TAB_TITLES } from "../../settings-registry";
 import type { View } from "../../store/app";
@@ -12,6 +10,7 @@ import { BTN_SECONDARY } from "../ui/buttons";
 import { Toggle } from "../ui/Toggle";
 import { AgentArchiveSettingsSection } from "./AgentArchiveSettingsSection";
 import { AgentToolsRow } from "./AgentToolsRow";
+import { DictationSettingsRow } from "./DictationSettingsRow";
 import { AIModelSettingsRow } from "./AIModelSettingsRow";
 import { ClaudeHooksRow } from "./ClaudeHooksRow";
 import { SettingsLink } from "./SettingsLink";
@@ -77,21 +76,7 @@ export function AgentsPane({ onNavigate }: { onNavigate: (view: View) => void })
               </button>
             </SettingsRow>
           )}
-          {dictation && (
-            <SettingsRow {...rowProps("ai.voiceToText")}>
-              <a
-                href="https://voicetotext.cc"
-                onClick={(e) => {
-                  e.preventDefault();
-                  BrowserOpenURL("https://voicetotext.cc");
-                }}
-                className="flex items-center gap-0.5 text-xs font-medium text-[var(--text-secondary)] underline decoration-[var(--border)] underline-offset-2 transition-colors hover:text-[var(--text-primary)]"
-              >
-                voicetotext.cc
-                <ArrowUpRight size={12} aria-hidden="true" />
-              </a>
-            </SettingsRow>
-          )}
+          {dictation && <DictationSettingsRow />}
         </SettingsSection>
       )}
 

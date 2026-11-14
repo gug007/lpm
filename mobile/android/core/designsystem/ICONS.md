@@ -140,7 +140,7 @@ the iPhone screenshots). An icon-only control keeps the accessible name iOS give
 | `stop.circle` | `stop_circle` | 17 dp | terminal ended banner | |
 | `star` / `star.fill` | `star` / `star` (fill) | 12–22 dp | history favorites | |
 | `paperplane` | `send` | 22 dp | "Send now" | |
-| `square.and.pencil` | `edit_square` | 22 dp | "Load into composer" | |
+| `square.and.pencil` | `edit_square` | 22 dp | "Add to Composer" | |
 | `exclamationmark.triangle.fill` | `warning` (fill) | 20 dp, 24 dp | failed rewrite variant, lpm update bar ("Couldn't update lpm") | |
 | `chart.bar.xaxis` | `bar_chart` | 40 dp | "No local agent usage found" (Stats) | |
 | `chart.bar.xaxis` (menu) | `bar_chart` | 22 dp | an action's long-press "Show Popup" | |
@@ -217,3 +217,7 @@ the iPhone screenshots). An icon-only control keeps the accessible name iOS give
 | `laptopcomputer.and.iphone` | `devices` | 56 dp | the share sheet's "Connect lpm Link first" | |
 | `checkmark.circle.fill` (share) | `check_circle` (fill) | 52 dp | the share sheet's "Sent to …" | |
 | `clock.badge.checkmark` | `alarm_on` | 48 dp | the share sheet's "Saved for later" | |
+| `bell.fill` / `exclamationmark.circle.fill` / `checkmark` / `terminal` / `plus` (app icon) | `notifications` (fill) / `error` (fill) / `check` / `terminal` / `add` | 40 dp canvas in a 108 dp adaptive icon, in the app tint (`feature/widgets` `app_shortcut_*`) | the app icon's long-press shortcuts: needs you, problem, done, working, New Tab | |
+| `arrow.counterclockwise` / `clock` (last prompt) | `replay` / `schedule` | 14 dp in the capsule, 22 dp in its menu | the empty composer's "Last prompt" capsule; its long-press "Use Last Prompt", "History" | "Last prompt" |
+| `arrow.up.circle.fill` (History row) | `arrow_upward` on a 27 dp white circle | 19 dp in a 44 dp target | a History row's send | "Send now" |
+| `at` / `plus.forwardslash.minus` / `doc.on.doc` / `checkmark` (file preview bar) | `alternate_email` / `exposure` / `content_copy` / `check` | 22 dp | the file preview's "Mention", "Diff", "Copy Path" / "Copied" | |

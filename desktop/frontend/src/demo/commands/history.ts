@@ -1,4 +1,5 @@
 import type { CommandMap } from "../backend";
+import { emitEvent } from "../ipc";
 import { projectAt, type Project } from "./state";
 
 const CLAUDE = "Claude Opus 5.5 <noreply@anthropic.com>";
@@ -183,6 +184,23 @@ export const historyCommands: CommandMap = {
     const from = Number(skip) || 0;
     const page = commitsOf(p).slice(from, from + (Number(limit) || 100));
     return { commits: page, hasMore: false };
+  },
+  git_undo_commit: ({ cwd, hash }) => {
+    const p = projectAt(String(cwd));
+    const top = p ? commitsOf(p)[0] : undefined;
+    if (!p || !top || top.hash !== hash || !top.unpushed) throw new Error("The branch has moved since. Reload and try again.");
+    p.git.ahead -= 1;
+    emitEvent("git-changed", { path: p.root, files: null });
+    const message = top.body ? `${top.subject}\n\n${top.body}` : top.subject;
+    return { hash: top.hash, message, files: sampleFor(cwd, hash)?.files.length ?? 1 };
+  },
+  git_redo_commit: ({ cwd }) => {
+    const p = projectAt(String(cwd));
+    if (p) {
+      p.git.ahead += 1;
+      emitEvent("git-changed", { path: p.root, files: null });
+    }
+    return null;
   },
   git_commit_files: ({ cwd, hash }) =>
     (sampleFor(cwd, hash)?.files ?? []).map((f) => ({

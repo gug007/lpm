@@ -4575,6 +4575,7 @@ fn handle_msg(
                     url,
                     branch,
                     dest_parent,
+                    None,
                 );
                 let services = r.clone().unwrap_or_default();
                 let mut reply = result_reply("cloneProject", r.map(|_| ()));

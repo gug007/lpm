@@ -5,11 +5,11 @@ import "@xterm/xterm/css/xterm.css";
 import { EventsOn, EventsOnReady } from "../../../bridge/runtime";
 import { PeerTermAttach, PeerTermDetach } from "../../../bridge/commands";
 import { sendTerminalInput } from "../../terminal-io";
-import { ansiColors, getTerminalTheme } from "../terminal-utils";
+import { getTerminalTheme } from "../terminal-utils";
 import { useTerminalFont } from "../../hooks/useTerminalFont";
 import { useTerminalFontSize } from "../../hooks/useTerminalFontSize";
 import { useTerminalTheme } from "../../hooks/useTerminalTheme";
-import { getTerminalThemeColors } from "../../terminal-themes";
+import { getTerminalThemeColors, terminalXtermTheme } from "../../terminal-themes";
 import { nextFontSize, type FitState } from "../../share/fitFont";
 import { deliverInput, type DeliveryTarget } from "../terminal/deliverInput";
 import { bufferToPlainText } from "../terminal/consoleActions";
@@ -58,16 +58,7 @@ export function SharedTabTerminal({
   const colors = useMemo(() => getTerminalThemeColors(terminalTheme), [terminalTheme]);
   // The user's own terminal theme, as their tabs have it; without one, the app's.
   const themeOf = useRef<() => ITheme>(getTerminalTheme);
-  themeOf.current = () =>
-    colors
-      ? {
-          background: colors.bg,
-          foreground: colors.fg,
-          selectionBackground: colors.selection,
-          cursor: colors.cursor,
-          ...ansiColors,
-        }
-      : getTerminalTheme();
+  themeOf.current = () => (colors ? terminalXtermTheme(colors) : getTerminalTheme());
 
   useEffect(() => {
     const host = hostRef.current;

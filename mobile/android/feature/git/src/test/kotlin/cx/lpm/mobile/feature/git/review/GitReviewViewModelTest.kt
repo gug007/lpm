@@ -1,14 +1,13 @@
 package cx.lpm.mobile.feature.git.review
 
-import cx.lpm.mobile.core.data.git.GitStore
 import cx.lpm.mobile.core.data.prefs.PreferenceKeys
-import cx.lpm.mobile.core.data.session.SessionStore
 import cx.lpm.mobile.core.data.terminals.TerminalHooks
 import cx.lpm.mobile.core.data.terminals.TerminalsStore
 import cx.lpm.mobile.core.navigation.GitReviewKey
 import cx.lpm.mobile.core.testing.MainDispatcherRule
 import cx.lpm.mobile.core.testing.TestSession
 import cx.lpm.mobile.core.testing.keepCollecting
+import cx.lpm.mobile.feature.git.ReviewStores
 import cx.lpm.mobile.feature.git.demoSession
 import cx.lpm.mobile.feature.git.diff.DiffBlockKind
 import cx.lpm.mobile.feature.git.settle
@@ -203,7 +202,7 @@ class GitReviewViewModelTest {
 
     @Test
     fun `the screen shows a skeleton, then why there's nothing to review`() = runTest {
-        val t = TestSession(this, setOf(SessionStore.Factory(::GitStore)))
+        val t = TestSession(this, ReviewStores)
         val socket = t.connectReady()
         val vm = review(t)
         assertEquals(ReviewOverlay.Skeleton, vm.uiState.value.overlay)
@@ -256,7 +255,7 @@ class GitReviewViewModelTest {
 
     @Test
     fun `coming back to the screen fetches what changed while it was away`() = runTest {
-        val t = TestSession(this, setOf(SessionStore.Factory(::GitStore)))
+        val t = TestSession(this, ReviewStores)
         val socket = t.connectReady()
         val vm = review(t)
         socket.receive(

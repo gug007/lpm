@@ -20,6 +20,7 @@ import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import cx.lpm.mobile.core.data.lock.AppLock
+import cx.lpm.mobile.core.data.projects.ProjectOpens
 import cx.lpm.mobile.core.data.push.NotificationOpenTarget
 import cx.lpm.mobile.core.data.push.NotificationOpens
 import cx.lpm.mobile.core.data.session.MacSession
@@ -43,6 +44,9 @@ class MainActivity : FragmentActivity() {
 
     @Inject
     lateinit var opens: NotificationOpens
+
+    @Inject
+    lateinit var projectOpens: ProjectOpens
 
     @Inject
     lateinit var push: PushStartup
@@ -91,7 +95,7 @@ class MainActivity : FragmentActivity() {
                 Box {
                     if (ready) {
                         CompositionLocalProvider(LocalConfirmRisky provides confirmRisky) {
-                            LpmApp(session, tailscale.state, opens)
+                            LpmApp(session, tailscale.state, opens, projectOpens)
                         }
                     }
                     if (ready && locked.locked) {

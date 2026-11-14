@@ -6,8 +6,10 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.feature.terminal.R
+import cx.lpm.mobile.feature.terminal.composer.ComposerNoticeActions
 import cx.lpm.mobile.feature.terminal.composer.ComposerNotices
 import cx.lpm.mobile.feature.terminal.composer.ComposerPlusMenu
+import cx.lpm.mobile.feature.terminal.composer.ComposerRestore
 import cx.lpm.mobile.feature.terminal.composer.ComposerState
 import cx.lpm.mobile.feature.terminal.composer.ComposerUiState
 import cx.lpm.mobile.feature.terminal.composer.PlusMenuActions
@@ -59,11 +61,15 @@ class ComposerTrayTest {
             LpmTheme(darkTheme = true) {
                 ComposerNotices(
                     state = state,
-                    onDismissWarning = { events += "dismiss-warning" },
-                    onDismissCommandNotice = { events += "dismiss-command" },
-                    onDismissRewriteError = { events += "dismiss-rewrite" },
-                    onDismissUploadError = { events += "dismiss-upload" },
-                    onOpenDrafts = { events += "drafts" }
+                    actions = ComposerNoticeActions(
+                        onDismissWarning = { events += "dismiss-warning" },
+                        onDismissCommandNotice = { events += "dismiss-command" },
+                        onDismissRewriteError = { events += "dismiss-rewrite" },
+                        onDismissUploadError = { events += "dismiss-upload" },
+                        onDismissRestore = { events += "dismiss-restore" },
+                        onOpenDrafts = { events += "drafts" },
+                        onRestore = { events += "restore:${it.text}" }
+                    )
                 )
             }
         }
@@ -100,6 +106,14 @@ class ComposerTrayTest {
         compose.onNodeWithText("Saved to your drafts").assertExists()
         compose.onNodeWithText("Open Drafts").performClick()
         assertEquals(listOf("dismiss-warning", "drafts"), events)
+    }
+
+    @Test
+    fun `a History pick after the draft offers Undo, which restores the draft`() {
+        notices(ComposerUiState(restore = ComposerRestore(tab = "t1", text = "echo hello")))
+        compose.onNodeWithText("Added after your draft").assertExists()
+        compose.onNodeWithText("Undo").performClick()
+        assertEquals(listOf("dismiss-restore", "restore:echo hello"), events)
     }
 
     @Test

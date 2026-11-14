@@ -52,7 +52,11 @@ internal class ComposerCallbacks(
     val onPickSlash: (SlashCommand) -> Unit,
     val mentions: MentionActions,
     /** Opens the Commands screen from the `/` menu; null leaves the row out. */
-    val onManageCommands: (() -> Unit)? = null
+    val onManageCommands: (() -> Unit)? = null,
+    /** The last prompt, tapped in the empty field. */
+    val onRecall: (String) -> Unit = {},
+    /** History, from the last prompt's long-press menu. */
+    val onRecallHistory: () -> Unit = {}
 )
 
 /**
@@ -179,7 +183,9 @@ private fun KeysAndInput(
             dictationStrip = dictationStrip,
             modifier = slot,
             full = full,
-            onToggleFull = onToggleFull
+            onToggleFull = onToggleFull,
+            onRecall = callbacks.onRecall,
+            onRecallHistory = callbacks.onRecallHistory
         )
     }
     if (!state.terminalTools) {

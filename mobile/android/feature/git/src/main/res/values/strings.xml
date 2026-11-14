@@ -26,6 +26,12 @@
         <item quantity="other">Commit %1$d files</item>
     </plurals>
     <string name="git_review_create_pr">Create Pull Request</string>
+    <string name="git_review_draft">Draft: %1$s</string>
+    <string name="git_review_draft_message">“%1$s”</string>
+    <string name="git_review_draft_left_out">%1$s left out</string>
+    <string name="git_review_draft_left_out_files" tools:ignore="PluralsCandidate">%1$d files left out</string>
+    <string name="git_review_draft_separator">" · "</string>
+    <string name="git_review_clear_draft">Clear draft</string>
     <string name="git_review_not_repo">Not a git repository</string>
     <string name="git_review_not_repo_message">This project isn\'t tracked by git, so there\'s nothing to review.</string>
     <string name="git_review_unreachable">Can\'t reach your Mac</string>
@@ -36,6 +42,7 @@
     <string name="git_file_collapsed">Collapsed</string>
     <string name="git_file_expanded">Expanded</string>
     <string name="git_file_excluded">Excluded</string>
+    <string name="git_file_changed_since_viewed">Changed since viewed · %1$s</string>
     <string name="git_file_ask_agent">Ask agent…</string>
     <string name="git_file_include_in_commit">Include in Commit</string>
     <string name="git_file_exclude_from_commit">Exclude from Commit</string>

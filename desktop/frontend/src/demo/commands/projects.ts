@@ -18,9 +18,7 @@ import {
 } from "./state";
 import { dropProjectStatus, seenStatusEntries, statusEntries } from "./status";
 import { configYaml, applyConfigYaml } from "./config";
-import { wait } from "../wait";
-
-const CLONE_MS = 1200;
+import { playClone } from "./clone";
 
 // A menu child is named by its path, as lpm names it: `deploy:production`.
 function actionInfo(a: SeedAction, position: number | undefined, path = a.name): ActionInfo {
@@ -116,8 +114,8 @@ export const projectCommands: CommandMap = {
     const created = addProject(projectFromFolder(freeName(String(name)), String(root)));
     return { name: created.name, existing: false, services: detected(created) };
   },
-  create_project_from_clone: ({ name, destParent }) =>
-    wait(CLONE_MS).then(() =>
+  create_project_from_clone: ({ name, destParent, cloneId }) =>
+    playClone(cloneId ? String(cloneId) : undefined).then(() =>
       detected(addProject(projectFromFolder(String(name), joinPath(String(destParent), String(name))))),
     ),
   create_ssh_project: ({ name, ssh }) => {

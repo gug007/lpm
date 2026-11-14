@@ -45,7 +45,14 @@ data class ComposerUiState(
     @param:StringRes val sendWarning: Int? = null,
     /** The app's recorder, and this composer's name for it. */
     val dictation: DictationState = DictationState(),
-    val dictationOwner: String = ""
+    val dictationOwner: String = "",
+    /**
+     * The prompt last sent in this tab: one this phone sent, else the newest the Mac's
+     * history has for the tab.
+     */
+    val lastPrompt: String? = null,
+    /** A History pick went after the draft: the toast offers the draft back. */
+    val restore: ComposerRestore? = null
 ) {
     val hasText: Boolean get() = composer.text.isNotBlank()
 
@@ -66,6 +73,14 @@ data class ComposerUiState(
     fun micBesideSend(enabled: Boolean): Boolean =
         enabled && !stripShown && !micInSendSeat(enabled = true)
 
+    /**
+     * [lastPrompt], offered inside the empty field of a terminal's composer. It sits in
+     * the field rather than on a row of its own, so the terminal never changes height.
+     */
+    fun recallPrompt(enabled: Boolean): String? = lastPrompt?.takeIf {
+        terminalTools && micInSendSeat(enabled) && !stripShown && composer.attachments.isEmpty()
+    }
+
     val canSend: Boolean
         get() = when (composer.sendState) {
             is SendState.Ready, is SendState.DroppedFailures -> !composer.transforming
@@ -82,6 +97,9 @@ data class ComposerUiState(
 
     fun variants(key: String): Int = variantCounts[key] ?: 1
 }
+
+/** A prompt's text before a change a toast offers to undo. */
+data class ComposerRestore(val tab: String, val text: String)
 
 /** The tab strip's summary of each tab; the active tab's preview stays blank while it's typed into. */
 data class TabStripItem(val id: String, val preview: String, val attachmentCount: Int)

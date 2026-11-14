@@ -13,7 +13,7 @@ data class NotificationOpenTarget(
     val kind: Kind,
     val itemId: String?
 ) {
-    enum class Kind { Project, Terminal, Automation, Recap, Changes, Usage, KeepAwake }
+    enum class Kind { Project, Terminal, Automation, Recap, Changes, Usage, KeepAwake, NewTab }
 
     companion object {
         const val PROJECT = "project"
@@ -24,6 +24,9 @@ data class NotificationOpenTarget(
 
         /** A finished turn's Review Changes button: the project's review screen. */
         const val CHANGES = "changes"
+
+        /** The app icon's New Tab: the project with its New Tab sheet open. */
+        const val NEW_TAB = "newTab"
 
         /**
          * Reads the extras a posted notification carries; null without a project,
@@ -47,11 +50,16 @@ data class NotificationOpenTarget(
                 )
             }
             val project = extra(PROJECT)?.takeIf { it.isNotEmpty() } ?: return null
-            if (extra(TARGET) == CHANGES) {
+            val screen = when (extra(TARGET)) {
+                CHANGES -> Kind.Changes
+                NEW_TAB -> Kind.NewTab
+                else -> null
+            }
+            if (screen != null) {
                 return NotificationOpenTarget(
                     serverId = serverId,
                     project = project,
-                    kind = Kind.Changes,
+                    kind = screen,
                     itemId = null
                 )
             }

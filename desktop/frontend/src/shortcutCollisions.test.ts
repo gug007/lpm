@@ -100,6 +100,7 @@ describe("built-in chords on macOS", () => {
       tabSwitchPrev: "cmd+alt+arrowleft",
       renameProject: "cmd+r",
       deleteProject: "cmd+shift+backspace",
+      dictate: "cmd+alt+v",
     });
   });
 });

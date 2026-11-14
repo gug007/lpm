@@ -11,6 +11,7 @@ import { AnotherComputerScreen } from "./AnotherComputerScreen";
 import { PhoneScreen } from "./mobile/PhoneScreen";
 import { LaptopIcon } from "./connections/LaptopIcon";
 import { ServerHosts } from "./connections/ServerHosts";
+import { ClipboardCloneCard } from "./ClipboardCloneCard";
 import type { IconListMenuItem } from "./ui/IconListMenu";
 
 export type NewProjectKind = "local" | "ssh" | "clone";
@@ -82,6 +83,7 @@ export function NewProjectPicker() {
               </span>
             </p>
           )}
+          <ClipboardCloneCard className="mx-2 mt-3" />
           <div className={target ? "mt-3 flex flex-col" : "mt-1 flex flex-col"}>
             {!target && <h4 className={SECTION_LABEL}>On {MACHINE.thisMachine}</h4>}
             {sources.map((s) => (

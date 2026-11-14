@@ -1,0 +1,46 @@
+# An empty composer offers the prompt last sent in the tab; History opens on
+# this project's prompts, and a picked one goes after the draft with Undo.
+appId: cx.lpm.mobile
+name: 177-prompt-recall
+tags: [demo, terminal, composer]
+---
+- runFlow: subflows/enter-demo.yaml
+- tapOn: "storefront"
+- extendedWaitUntil:
+    visible: "Terminal 1"
+    timeout: 5000
+- tapOn: "Terminal 1"
+- extendedWaitUntil:
+    visible: "Message"
+    timeout: 10000
+- tapOn: "Message"
+- inputText: "echo hello"
+- tapOn: "Send"
+- extendedWaitUntil:
+    visible: "Last prompt"
+    timeout: 5000
+- tapOn: "Hide keyboard"
+- takeScreenshot: 1-last-prompt
+- tapOn: "Last prompt"
+- extendedWaitUntil:
+    notVisible: "Last prompt"
+    timeout: 5000
+- tapOn: "Hide keyboard"
+- tapOn: "Add"
+- tapOn: "History"
+- extendedWaitUntil:
+    visible: "All projects"
+    timeout: 5000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 2-history-this-project
+- tapOn: "Fix the checkout button spacing on mobile"
+- extendedWaitUntil:
+    visible: "Added after your draft"
+    timeout: 5000
+- takeScreenshot: 3-added-after-draft
+- tapOn: "Undo"
+- extendedWaitUntil:
+    notVisible: "Added after your draft"
+    timeout: 5000
+- assertNotVisible: ".*Fix the checkout button spacing.*"

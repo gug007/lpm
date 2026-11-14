@@ -5,7 +5,8 @@ export type HotkeyId =
   | "tabSwitchNext"
   | "tabSwitchPrev"
   | "renameProject"
-  | "deleteProject";
+  | "deleteProject"
+  | "dictate";
 
 export interface HotkeyDef {
   id: HotkeyId;
@@ -39,7 +40,16 @@ const MAC_HOTKEYS: HotkeyDef[] = [
     description: "Remove the project or duplicate selected in the sidebar, after a confirmation",
     default: "cmd+shift+backspace",
   },
+  {
+    id: "dictate",
+    label: "Dictate",
+    description: "Speak into the input you're in, or the focused terminal's input, with VoiceToText. Press again to insert",
+    default: "cmd+alt+v",
+  },
 ];
+
+// VoiceToText is a macOS app, so dictation has no shortcut elsewhere.
+const MAC_ONLY = new Set<HotkeyId>(["dictate"]);
 
 // Ctrl+Alt+arrows switch workspaces on Linux desktops (and rotate the screen on
 // some Windows drivers), so tabs step with Ctrl+PageDown / PageUp there.
@@ -50,7 +60,10 @@ const PC_DEFAULTS: Partial<Record<HotkeyId, string>> = {
 
 export function hotkeyDefs(mac: boolean = isMac): HotkeyDef[] {
   if (mac) return MAC_HOTKEYS;
-  return MAC_HOTKEYS.map((def) => ({ ...def, default: PC_DEFAULTS[def.id] ?? def.default }));
+  return MAC_HOTKEYS.filter((def) => !MAC_ONLY.has(def.id)).map((def) => ({
+    ...def,
+    default: PC_DEFAULTS[def.id] ?? def.default,
+  }));
 }
 
 export const HOTKEYS: HotkeyDef[] = hotkeyDefs();
@@ -71,7 +84,7 @@ export function normalizeHotkeys(raw: unknown): HotkeysConfig {
 
 export function resolveHotkey(cfg: HotkeysConfig | undefined, id: HotkeyId): string {
   const raw = cfg?.[id];
-  return typeof raw === "string" && raw ? raw : HOTKEY_BY_ID.get(id)!.default;
+  return typeof raw === "string" && raw ? raw : (HOTKEY_BY_ID.get(id)?.default ?? "");
 }
 
 // Canonical combos already claimed by configurable hotkeys, so the recorder and

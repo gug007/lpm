@@ -153,12 +153,21 @@ private fun DemoServer.registerServiceHandlers() {
         val offset = (o["offset"].numberValue() ?: 0).coerceIn(0, bytes.size.toLong()).toInt()
         val length = o["length"].numberValue() ?: bytes.size.toLong()
         val end = (offset + length).coerceIn(offset.toLong(), bytes.size.toLong()).toInt()
+        // Every sample file is the project's; a path that names its own place isn't.
+        val inProject = if (path.startsWith("/") ||
+            path.startsWith("~")
+        ) {
+            ""
+        } else {
+            path.removePrefix("./")
+        }
         push(
             mapOf(
                 "t" to "fileChunk",
                 "reqId" to (o["reqId"] ?: ""),
                 "ok" to true,
                 "path" to path,
+                "projectPath" to inProject,
                 "size" to bytes.size,
                 "mtime" to 1,
                 "offset" to offset,

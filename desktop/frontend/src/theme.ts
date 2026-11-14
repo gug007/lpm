@@ -5,14 +5,17 @@ import { syncNativeTheme } from "./windowTheme";
 
 export type Theme = "light" | "dark" | "system";
 
-const darkModeQuery = window.matchMedia("(prefers-color-scheme: dark)");
+// Asked for on first use, so importing this where there is no window (the
+// terminal theme hook, in node tests) doesn't throw.
+let darkModeQuery: MediaQueryList | undefined;
+const darkMode = () => (darkModeQuery ??= window.matchMedia("(prefers-color-scheme: dark)"));
 
 const subscribeDarkMode = (onChange: () => void) => {
-  darkModeQuery.addEventListener("change", onChange);
-  return () => darkModeQuery.removeEventListener("change", onChange);
+  darkMode().addEventListener("change", onChange);
+  return () => darkMode().removeEventListener("change", onChange);
 };
 
-const getSystemDark = () => darkModeQuery.matches;
+const getSystemDark = () => darkMode().matches;
 
 export function isDarkTheme(theme: Theme): boolean {
   return theme === "dark" || (theme === "system" && getSystemDark());
@@ -21,7 +24,12 @@ export function isDarkTheme(theme: Theme): boolean {
 /// Re-renders on both the stored setting and the OS appearance, so "system"
 /// keeps following the OS instead of freezing at whatever it was on mount.
 export function useResolvedTheme(): "light" | "dark" {
-  const theme = useSettingsStore((s) => s.theme);
+  return useAppearanceOf(useSettingsStore((s) => s.theme));
+}
+
+/// The same for a theme setting that may be another machine's; "system" reads
+/// this machine's OS, the nearest guess there is for it.
+export function useAppearanceOf(theme: Theme): "light" | "dark" {
   const systemDark = useSyncExternalStore(subscribeDarkMode, getSystemDark);
   return theme === "dark" || (theme === "system" && systemDark)
     ? "dark"
@@ -39,5 +47,5 @@ export function applyTheme(theme: Theme): boolean {
 /// the app is, not only while Settings is open.
 export function useSystemThemeSync(): void {
   const theme = useSettingsStore((s) => s.theme);
-  useEventListener("change", () => applyTheme("system"), darkModeQuery, theme === "system");
+  useEventListener("change", () => applyTheme("system"), darkMode(), theme === "system");
 }

@@ -5,6 +5,7 @@ import cx.lpm.mobile.core.data.git.GitNotice
 import cx.lpm.mobile.core.data.git.GitOpError
 import cx.lpm.mobile.core.model.GitFile
 import cx.lpm.mobile.core.model.TerminalInfo
+import cx.lpm.mobile.feature.git.data.CommitDraft
 
 /** What the review screen shows instead of its list. */
 enum class ReviewOverlay { Skeleton, Unreachable, NotRepo, NoChanges }
@@ -48,7 +49,11 @@ data class GitReviewUiState(
     val canDiscardFiles: Boolean = false,
     /** A discard is running for the project, so another waits. */
     val discarding: Boolean = false,
-    val terminals: List<TerminalInfo> = emptyList()
+    val terminals: List<TerminalInfo> = emptyList(),
+    /** The commit being written, shown over Commit while it has a message or a file left out. */
+    val draft: DraftChip? = null,
+    /** The file the screen opened on, to scroll to once it's in the list; null once shown. */
+    val focus: String? = null
 ) {
     val committing: Boolean
         get() = busy == CommitBusy.Committing || busy == CommitBusy.CommittingOnly
@@ -57,6 +62,23 @@ data class GitReviewUiState(
 /** A file in the commit sheet: in the commit or not, and its +N −M once parsed. */
 @Immutable
 data class CommitFile(val file: GitFile, val selected: Boolean, val added: Int?, val removed: Int?)
+
+/** A kept commit draft: its message's first line, and the names of the files left out. */
+@Immutable
+data class DraftChip(val firstLine: String?, val leftOut: List<String>)
+
+/** The chip for [draft] over the changed [files]; null while there's nothing to keep. */
+internal fun draftChip(draft: CommitDraft, files: List<GitFile>): DraftChip? {
+    if (draft.isEmpty) return null
+    val firstLine = draft.message.split(*NEWLINES).firstOrNull { it.isNotEmpty() }
+    return DraftChip(
+        firstLine = firstLine?.takeIf { it.isNotBlank() },
+        leftOut = files.filter { it.path in draft.deselected }.map { it.name }
+    )
+}
+
+// Swift's `Character.isNewline`.
+private val NEWLINES = charArrayOf('\n', '\r', '\u000B', '\u000C', '\u0085', '\u2028', '\u2029')
 
 /** One "Ask agent…": the file and the diff to attach. */
 @Immutable

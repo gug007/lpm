@@ -63,7 +63,13 @@ export function ComposerActionsButton({
   // CUSTOM_KEY for the free-form field). Defaults to 1 when absent.
   const [counts, setCounts] = useState<Record<string, number>>({});
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const { toggle: toggleDictation, active: dictating, installOpen, setInstallOpen } = useVoiceDictation();
+  const {
+    toggle: toggleDictation,
+    active: dictating,
+    installOpen,
+    setInstallOpen,
+    startAfterInstall,
+  } = useVoiceDictation();
   // The instruction field records in place: its own controls make way for the
   // recorder while the words go into it, whatever had focus when the mic was
   // pressed.
@@ -377,7 +383,11 @@ export function ComposerActionsButton({
           document.body,
         )}
 
-      <VoiceToTextInstallModal open={installOpen} onClose={() => setInstallOpen(false)} />
+      <VoiceToTextInstallModal
+        open={installOpen}
+        onClose={() => setInstallOpen(false)}
+        onInstalled={() => void startAfterInstall()}
+      />
     </div>
   );
 }

@@ -8,14 +8,12 @@ struct GitReviewView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.scenePhase) private var scenePhase
     let project: Project
+    /// A file to open the screen on, scrolled to and expanded.
+    var focus: String? = nil
+    @State private var focused = false
 
-    @State private var message = ""
-    // Files the user explicitly unchecked. Everything else stays selected, so new
-    // changes are picked up automatically and deselections survive a refresh.
-    @State private var deselected: Set<String> = []
-    // The message the Mac last drafted, and the draft as it stood when it was asked
-    // for: a reply that lands after the user typed is dropped, so their text wins.
-    @State private var drafted: String?
+    // The draft as it stood when the Mac was asked for a message: a reply that
+    // lands after the user typed is dropped, so their text wins.
     @State private var draftAtGenerate: String?
     @State private var autoDraftTried = false
     // Collapse the user chose per file; a file without a choice is collapsed once
@@ -31,6 +29,23 @@ struct GitReviewView: View {
     @State private var isVisible = false
 
     private var name: String { project.name }
+
+    // The commit being written lives in the store, so leaving the screen keeps it.
+    private var message: String {
+        get { model.git.commitDrafts[name]?.message ?? "" }
+        nonmutating set { model.git.commitDrafts[name, default: CommitDraft()].message = newValue }
+    }
+    // Files the user explicitly unchecked. Everything else stays selected, so new
+    // changes are picked up automatically and deselections survive a refresh.
+    private var deselected: Set<String> {
+        get { model.git.commitDrafts[name]?.deselected ?? [] }
+        nonmutating set { model.git.commitDrafts[name, default: CommitDraft()].deselected = newValue }
+    }
+    // The message the Mac last drafted.
+    private var drafted: String? {
+        get { model.git.commitDrafts[name]?.drafted }
+        nonmutating set { model.git.commitDrafts[name, default: CommitDraft()].drafted = newValue }
+    }
     private var snapshot: GitSnapshot? { model.git.snapshots[name] }
     private var loadError: String? { model.git.loadError[name] }
     private var loading: Bool { model.git.loading.contains(name) }
@@ -79,9 +94,14 @@ struct GitReviewView: View {
             .refreshable { await refresh() }
             .overlay { stateOverlay }
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                if changedFiles != nil {
-                    CommitBar(selected: selectedCount, committing: model.git.committing.contains(name)) {
-                        showCommit = true
+                if let files = changedFiles {
+                    VStack(spacing: 0) {
+                        if let draft = model.git.commitDrafts[name], !draft.isEmpty {
+                            CommitDraftChip(draft: draft, files: files) { model.git.clearCommitDraft(name) }
+                        }
+                        CommitBar(selected: selectedCount, committing: model.git.committing.contains(name)) {
+                            showCommit = true
+                        }
                     }
                 }
             }
@@ -108,6 +128,17 @@ struct GitReviewView: View {
                 isVisible = false
                 model.git.unwatch(name)
             }
+            // A file changed again since it was viewed opens back up.
+            .onChange(of: model.git.changedSinceViewed[name]) { _, changed in
+                for path in (changed ?? [:]).keys { collapsed[path] = nil }
+            }
+            .task(id: changedFiles?.contains { $0.path == focus } == true) {
+                guard let focus, !focused, changedFiles?.contains(where: { $0.path == focus }) == true else { return }
+                focused = true
+                collapsed[focus] = false
+                try? await Task.sleep(for: .milliseconds(300))
+                withAnimation { proxy.scrollTo("file-" + focus, anchor: .top) }
+            }
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active { model.git.refreshWatched(name) }
             }
@@ -125,9 +156,6 @@ struct GitReviewView: View {
                 draftAtGenerate = nil
             }
             .onChange(of: model.git.commitTick[name]) { _, _ in
-                message = ""
-                deselected = []
-                drafted = nil
                 draftAtGenerate = nil
                 autoDraftTried = false
             }
@@ -145,7 +173,9 @@ struct GitReviewView: View {
                 Text(model.git.opError[name]?.message ?? "")
             }
             .sheet(isPresented: $showCommit) {
-                GitCommitSheet(project: name, message: $message, deselected: $deselected,
+                GitCommitSheet(project: name,
+                               message: Binding(get: { message }, set: { message = $0 }),
+                               deselected: Binding(get: { deselected }, set: { deselected = $0 }),
                                drafted: drafted, autoDraftTried: $autoDraftTried)
                     .environment(model)
             }

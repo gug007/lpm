@@ -17,13 +17,26 @@ import kotlin.math.hypot
  * (`lpmSetInsets`), as iOS turns off the web view's own inset adjustment.
  *
  * A tap takes focus, so the keyboard the page asks for when it focuses its input
- * opens on this view; a scroll leaves focus where it is.
+ * opens on this view; a scroll or a hold leaves focus where it is, as does the tap
+ * that puts a selection away.
+ *
+ * A hold selects with the page's own selection (select.js), so the WebView's long
+ * press — its text selection, context menu and buzz — is off.
  */
 internal class TerminalInputWebView(context: Context) : WebView(context) {
     var page: TerminalPage? = null
+
+    /** The page has text selected, with its bar up. */
+    var selecting = false
     private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
+    private val longPress = ViewConfiguration.getLongPressTimeout()
     private var downX = 0f
     private var downY = 0f
+
+    init {
+        setOnLongClickListener { true }
+        isHapticFeedbackEnabled = false
+    }
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
         when (event.actionMasked) {
@@ -33,8 +46,13 @@ internal class TerminalInputWebView(context: Context) : WebView(context) {
             }
 
             MotionEvent.ACTION_UP -> {
-                val tap = hypot(event.x - downX, event.y - downY) < touchSlop
-                if (tap && !hasFocus()) requestFocus()
+                val tap = hypot(event.x - downX, event.y - downY) < touchSlop &&
+                    event.eventTime - event.downTime < longPress
+                when {
+                    !tap -> Unit
+                    selecting -> selecting = false
+                    !hasFocus() -> requestFocus()
+                }
             }
         }
         return super.dispatchTouchEvent(event)
