@@ -12,7 +12,7 @@ function loadBase(): Promise<string | null> {
   return pending;
 }
 
-// Where Linux streams video from (see mediaSrc). Elsewhere there is nothing to
+// Where Linux streams media from (see mediaSrc). Elsewhere there is nothing to
 // wait for: `ready` is true and `base` null from the first render.
 export function useMediaHttpBase(active: boolean): { base: string | null; ready: boolean } {
   const [base, setBase] = useState<string | null | undefined>(isLinux ? undefined : null);

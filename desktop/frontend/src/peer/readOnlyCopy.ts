@@ -11,8 +11,8 @@ export interface PeerOpened {
   host: string;
 }
 
-// Pictures, videos and PDFs are only looked at, so a copy serves them as well
-// as the original. Anything else, an SVG too, may be edited.
+// Pictures, videos, audio and PDFs are only looked at, so a copy serves them
+// as well as the original. Anything else, an SVG too, may be edited.
 export function isEditable(absPath: string): boolean {
   return mediaKind(absPath) === null || isSourceImage(absPath);
 }

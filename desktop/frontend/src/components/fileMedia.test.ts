@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isVideoPath, mediaKind, mediaSrc, videoMime } from "./fileMedia";
+import { audioMime, isAudioPath, isVideoPath, mediaKind, mediaSrc, videoMime } from "./fileMedia";
 
 describe("mediaKind", () => {
   it("classifies images and videos", () => {
@@ -7,6 +7,8 @@ describe("mediaKind", () => {
     expect(mediaKind("/a/b/icon.SVG")).toBe("image");
     expect(mediaKind("/a/b/clip.mp4")).toBe("video");
     expect(mediaKind("/a/b/clip.MOV")).toBe("video");
+    expect(mediaKind("/a/b/story.mp3")).toBe("audio");
+    expect(mediaKind("/a/b/memo.M4A")).toBe("audio");
     expect(mediaKind("/a/b/receipt.pdf")).toBe("pdf");
     expect(mediaKind("/a/b/RECEIPT.PDF")).toBe("pdf");
   });
@@ -17,6 +19,7 @@ describe("mediaKind", () => {
     // Extension-shaped only at the end: a dotted directory must not count.
     expect(mediaKind("/a/clip.mp4/notes.txt")).toBeNull();
     expect(mediaKind("/a/docs.pdf/notes.txt")).toBeNull();
+    expect(mediaKind("/a/song.mp3/notes.txt")).toBeNull();
   });
 });
 
@@ -26,6 +29,27 @@ describe("isVideoPath", () => {
       expect(isVideoPath(`/x/y.${ext}`)).toBe(true);
     }
     expect(isVideoPath("/x/y.mp3")).toBe(false);
+  });
+});
+
+describe("isAudioPath", () => {
+  it("covers the containers the viewer routes to the audio arm", () => {
+    for (const ext of ["mp3", "m4a", "aac", "wav", "flac", "ogg", "oga", "opus", "weba", "caf", "aif", "aiff"]) {
+      expect(isAudioPath(`/x/y.${ext}`)).toBe(true);
+    }
+    expect(isAudioPath("/x/y.mp4")).toBe(false);
+    expect(isAudioPath("/x/y.ogv")).toBe(false);
+  });
+});
+
+describe("audioMime", () => {
+  it("maps containers to a type the element answers for", () => {
+    expect(audioMime("/x/y.mp3")).toBe("audio/mpeg");
+    // WebKit answers "" for audio/m4a and audio/opus, though it plays both.
+    expect(audioMime("/x/y.M4A")).toBe("audio/mp4");
+    expect(audioMime("/x/y.opus")).toBe("audio/ogg");
+    expect(audioMime("/x/y.wav")).toBe("audio/wav");
+    expect(audioMime("/x/y.mp4")).toBe("");
   });
 });
 

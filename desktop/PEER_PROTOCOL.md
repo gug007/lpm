@@ -201,7 +201,8 @@ that predates it: the client keeps what it has.
 entries ignored). `configSync` = the config-sync frames below exist at all;
 `configSync2` = the revision-aware variant (see **Config sync**); `remotePair` =
 the host will hand back its own phone-pairing QR (see **Commands**); `mediaRange` =
-the host serves a video's byte ranges for preview (see **Commands**); `selfUpdate` =
+the host serves a video's byte ranges for preview (see **Commands**); `mediaAudio` =
+...and an audio file's too; `selfUpdate` =
 the client can have the host install the latest lpm (see **Commands**);
 `hostSettings` = the host answers the settings frames (see **Commands**);
 `hostSettingsAll` = it shares every setting there, not only the first three;
@@ -274,11 +275,12 @@ client edits as the host's own windows do. The client router carries the same gu
 opens a detached window for a host's project on the client. See `is_denied` in
 `peer.rs`.
 
-**Video preview** (`mediaRange` feature). The client's `lpm-media://` handler
-forwards each byte range a `<video>` asks for about a peer-marked path as
+**Video and audio preview** (`mediaRange` feature; audio needs `mediaAudio`). The
+client's `lpm-media://` handler forwards each byte range a `<video>` or `<audio>`
+asks for about a peer-marked path as
 `{ "cmd": "media_read_range", "args": { "path", "range" } }`. `path` is the host
 path (may start with `~/`), and `range` is the request's `Range` header or null.
-The host reads it with the same rules as a local file: video extensions only, and
+The host reads it with the same rules as a local file: video and audio extensions only, and
 at most 1 MB per reply. It answers `{ len, start, end, partial, mime, data }`, with
 `data` in base64, or `{ len, unsatisfiable: true }`. A failure is the HTTP status
 as a string (`"404"`). A client doesn't send it to a host without the feature, and

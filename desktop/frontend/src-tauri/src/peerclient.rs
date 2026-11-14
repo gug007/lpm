@@ -128,6 +128,7 @@ struct PeerConn {
     supports_file_upload: AtomicBool, // host can take an attached file in chunks, not one frame
     supports_file_save: AtomicBool, // ...and save one over a file of its own (hostfilesave.rs)
     supports_media_range: AtomicBool, // host serves a video's byte ranges for preview
+    supports_media_audio: AtomicBool, // ...and an audio file's
     supports_file_range: AtomicBool, // host serves any file a chunk at a time
     supports_self_update: AtomicBool, // a paired Mac can update lpm there (peermacupdate.rs)
     beta_updates: AtomicBool, // the host follows the Beta update channel (updatechannel.rs)
@@ -208,6 +209,7 @@ impl PeerConn {
             supports_file_upload: AtomicBool::new(false),
             supports_file_save: AtomicBool::new(false),
             supports_media_range: AtomicBool::new(false),
+            supports_media_audio: AtomicBool::new(false),
             supports_file_range: AtomicBool::new(false),
             supports_self_update: AtomicBool::new(false),
             beta_updates: AtomicBool::new(false),
@@ -479,6 +481,9 @@ impl PeerClientHub {
                 let supports_media_range = conn
                     .map(|c| c.supports_media_range.load(Ordering::Relaxed))
                     .unwrap_or(false);
+                let supports_media_audio = conn
+                    .map(|c| c.supports_media_audio.load(Ordering::Relaxed))
+                    .unwrap_or(false);
                 let supports_self_update = conn
                     .map(|c| c.supports_self_update.load(Ordering::Relaxed))
                     .unwrap_or(false);
@@ -552,6 +557,7 @@ impl PeerClientHub {
                     "supportsIgnoredSync": supports_ignored_sync,
                     "supportsFileUpload": supports_file_upload,
                     "supportsMediaRange": supports_media_range,
+                    "supportsMediaAudio": supports_media_audio,
                     "supportsSelfUpdate": supports_self_update,
                     "supportsHostSettings": supports_host_settings,
                     "supportsHostFolders": supports_host_folders,
@@ -2444,6 +2450,10 @@ fn connect_session(
     );
     conn.supports_media_range.store(
         has_feature(crate::mediapeer::MEDIA_RANGE_FEATURE),
+        Ordering::Relaxed,
+    );
+    conn.supports_media_audio.store(
+        has_feature(crate::mediapeer::MEDIA_AUDIO_FEATURE),
         Ordering::Relaxed,
     );
     conn.supports_file_range.store(

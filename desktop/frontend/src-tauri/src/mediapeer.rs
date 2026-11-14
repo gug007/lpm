@@ -16,6 +16,8 @@ use crate::mediaproto::{Chunk, Media};
 
 /// Advertised in `ready` by a host that answers `MEDIA_RANGE_CMD`.
 pub(crate) const MEDIA_RANGE_FEATURE: &str = "mediaRange";
+/// ...and serves audio files through it, not only video.
+pub(crate) const MEDIA_AUDIO_FEATURE: &str = "mediaAudio";
 pub(crate) const MEDIA_RANGE_CMD: &str = "media_read_range";
 
 /// The slug and host path of a peer-marked path: `/@peer-<slug>/abs`,
@@ -52,8 +54,9 @@ pub(crate) fn host_file_name(path: &str) -> Option<&str> {
     std::path::Path::new(path).file_name().and_then(|n| n.to_str())
 }
 
-/// Host side: one range of a video for a paired Mac. Only the extensions the
-/// local scheme serves are read, and a failure travels back as its HTTP status.
+/// Host side: one range of a video or audio file for a paired Mac. Only the
+/// extensions the local scheme serves are read, and a failure travels back as
+/// its HTTP status.
 pub(crate) fn serve_host(args: &Value) -> Result<Value, String> {
     let path = args
         .get("path")

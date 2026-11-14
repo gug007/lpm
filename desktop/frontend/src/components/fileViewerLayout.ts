@@ -15,6 +15,8 @@ const MINI_HEADER_PX = 36;
 const MINI_MEDIA_BOX: Size = { w: 384, h: 360 };
 const MINI_MIN_WIDTH = 260;
 const MINI_TEXT: Size = { w: 420, h: 320 };
+// Audio has no picture to hug: the header over a row of player controls.
+export const MINI_AUDIO: Size = { w: 384, h: MINI_HEADER_PX + 56 };
 
 // A minimized window hugs a video or image at its aspect, within a box small
 // enough to leave the terminal under it usable; text gets a fixed card.

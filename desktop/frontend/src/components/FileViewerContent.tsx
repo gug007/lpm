@@ -1,6 +1,7 @@
 import type { ContentZoom } from "../hooks/useContentZoom";
 import { uriPath } from "../path";
 import { formatBytes } from "../syncApi";
+import { AudioFileView } from "./AudioFileView";
 import { FileViewerHtml } from "./FileViewerHtml";
 import { FileViewerMarkdown } from "./FileViewerMarkdown";
 import { ImageFileView } from "./ImageFileView";
@@ -11,10 +12,10 @@ import { FilesDiffEditor } from "./files/FilesDiffEditor";
 import type { OpenFile } from "./files/useFileBuffer";
 import { isHtmlPath } from "./htmlPreview";
 import type { ImagePreview } from "./imagePreview";
+import type { MediaPreview } from "./mediaPreview";
 import type { PdfPreview } from "./pdfPreview";
 import { BinaryFilePlaceholder } from "./review/BinaryFilePlaceholder";
 import type { FileViewerView } from "./useFileViewerView";
-import type { VideoPreview } from "./videoPreview";
 
 interface FileViewerContentProps {
   absPath: string;
@@ -31,7 +32,8 @@ interface FileViewerContentProps {
   deleted: boolean;
   editing: boolean;
   image: ImagePreview | null;
-  video: VideoPreview | null;
+  video: MediaPreview | null;
+  audio: MediaPreview | null;
   pdf: PdfPreview | null;
   // Minimized: media fills the small window edge to edge.
   compact: boolean;
@@ -55,6 +57,7 @@ export function FileViewerContent({
   editing,
   image,
   video,
+  audio,
   pdf,
   compact,
   textZoom,
@@ -62,6 +65,7 @@ export function FileViewerContent({
   onSave,
 }: FileViewerContentProps) {
   if (video) return <VideoFileView video={video} compact={compact} />;
+  if (audio) return <AudioFileView audio={audio} compact={compact} />;
   if (image) return <ImageFileView preview={image} compact={compact} />;
   if (pdf) return <PdfFileView pdf={pdf} />;
   if (loading || !file) {

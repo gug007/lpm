@@ -1,6 +1,6 @@
 //! Streams local media files to the webview over the `lpm-media://` scheme.
 //!
-//! A `<video>` element seeks by asking for byte ranges, so its bytes can't
+//! A `<video>` or `<audio>` element seeks by asking for byte ranges, so its bytes can't
 //! travel as a command result the way an image preview's base64 does — a
 //! 48 MB clip would be held in memory several times over and still wouldn't
 //! seek. This serves one bounded chunk per request instead, so peak memory is
@@ -25,7 +25,10 @@ pub(crate) const MAX_CHUNK: u64 = 1024 * 1024;
 /// rest, rather than materialising the file.
 const MAX_FULL_READ: u64 = 8 * MAX_CHUNK;
 
-const ALLOWED_EXT: &[&str] = &["mp4", "m4v", "mov", "webm", "mkv", "avi", "ogv"];
+const VIDEO_EXT: &[&str] = &["mp4", "m4v", "mov", "webm", "mkv", "avi", "ogv"];
+const AUDIO_EXT: &[&str] = &[
+    "mp3", "m4a", "aac", "wav", "flac", "ogg", "oga", "opus", "weba", "caf", "aif", "aiff",
+];
 
 pub fn handle<R: Runtime>(
     ctx: UriSchemeContext<'_, R>,
@@ -114,7 +117,8 @@ pub(crate) fn read(path: &str, range: Option<&str>) -> Result<Media, StatusCode>
     let ext_ok = path
         .extension()
         .and_then(|e| e.to_str())
-        .is_some_and(|e| ALLOWED_EXT.contains(&e.to_ascii_lowercase().as_str()));
+        .map(str::to_ascii_lowercase)
+        .is_some_and(|e| VIDEO_EXT.contains(&e.as_str()) || AUDIO_EXT.contains(&e.as_str()));
     if !ext_ok {
         return Err(StatusCode::FORBIDDEN);
     }
@@ -261,6 +265,26 @@ mod tests {
     fn caps_a_range_at_one_chunk() {
         let len = 8 * MAX_CHUNK;
         assert_eq!(parse_range("bytes=0-", len), Some((0, MAX_CHUNK - 1)));
+    }
+
+    #[test]
+    fn serves_audio_with_its_type_and_still_refuses_other_files() {
+        let dir = tempfile::tempdir().unwrap();
+        for (name, mime) in [("song.MP3", "audio/mpeg"), ("memo.wav", "audio/wav")] {
+            let path = dir.path().join(name);
+            std::fs::write(&path, b"0123456789").unwrap();
+            let Ok(Media::Bytes(chunk)) = read(&path.to_string_lossy(), Some("bytes=0-1")) else {
+                panic!("{name} should be served");
+            };
+            assert_eq!(chunk.mime, mime);
+            assert_eq!(chunk.data, b"01");
+        }
+        let notes = dir.path().join("notes.txt");
+        std::fs::write(&notes, b"secret").unwrap();
+        assert!(matches!(
+            read(&notes.to_string_lossy(), None),
+            Err(StatusCode::FORBIDDEN)
+        ));
     }
 
     #[test]

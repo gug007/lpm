@@ -4,16 +4,16 @@ import { useEventListener } from "../hooks/useEventListener";
 import { FileViewerCompactHeader } from "./FileViewerCompactHeader";
 import { FileViewerContent } from "./FileViewerContent";
 import { FileViewerHeader } from "./FileViewerHeader";
-import { miniSize, type FileViewerLayout } from "./fileViewerLayout";
+import { MINI_AUDIO, miniSize, type FileViewerLayout } from "./fileViewerLayout";
 import { isSourceImage } from "./fileMedia";
 import { isMarkdownPath } from "./files/useFileView";
 import { isHtmlPath } from "./htmlPreview";
 import { useImagePreview } from "./imagePreview";
+import { useMediaPreview } from "./mediaPreview";
 import { usePdfPreview } from "./pdfPreview";
 import { DiffConflictBanner } from "./review/DiffConflictBanner";
 import { useFileViewerFile } from "./useFileViewerFile";
 import { useFileViewerView } from "./useFileViewerView";
-import { useVideoPreview } from "./videoPreview";
 import { matchesChord } from "../keys";
 
 const CLOSE_CHORD = { key: "w", meta: true };
@@ -62,13 +62,15 @@ export function FileViewer({
 
   const showImage = file.kind === "image" && (!svg || (!editing && textView.view === "preview"));
   const showVideo = file.kind === "video";
+  const showAudio = file.kind === "audio";
   const showPdf = file.kind === "pdf";
   const image = useImagePreview(absPath, showImage);
-  const video = useVideoPreview(absPath, showVideo);
+  const playback = useMediaPreview(absPath, showVideo ? "video" : showAudio ? "audio" : null);
   const pdf = usePdfPreview(absPath, showPdf);
   // The previews whose zoom the header drives.
   const zoomed = showImage ? image : showPdf ? pdf : null;
-  const media = !!zoomed || showVideo;
+  const playing = showVideo || showAudio;
+  const media = !!zoomed || playing;
   const previewing = !editing && !media && textView.view === "preview";
   // A page sizes its own text, and keys pressed in it stay in its frame.
   const zoomsText = previewing && !html;
@@ -80,18 +82,20 @@ export function FileViewer({
   const textZoom = useContentZoom(zoomsText);
   const editorZoom = useEditorZoom(inEditor);
 
-  const meta = zoomed?.meta ?? (showVideo ? video.meta : null);
+  const meta = zoomed?.meta ?? (playing ? playback.meta : null);
   const mini =
-    mode === "minimized"
-      ? miniSize(showVideo ? video.size : showImage ? image.natural : null, showVideo || showImage)
-      : null;
+    mode !== "minimized"
+      ? null
+      : showAudio
+        ? MINI_AUDIO
+        : miniSize(showVideo ? playback.size : showImage ? image.natural : null, showVideo || showImage);
   const frameStyle = mini
     ? { width: mini.w, height: mini.h }
     : mode === "docked"
       ? { width: layout?.dockWidth }
       : undefined;
 
-  const canEdit = file.text && !!buffer.file?.writable && !showVideo && !(showImage && !svg);
+  const canEdit = file.text && !!buffer.file?.writable && !playing && !(showImage && !svg);
   const dirty = buffer.draft !== null;
 
   const startEdit = () => {
@@ -206,7 +210,8 @@ export function FileViewer({
           deleted={file.deleted}
           editing={editing}
           image={showImage ? image : null}
-          video={showVideo ? video : null}
+          video={showVideo ? playback : null}
+          audio={showAudio ? playback : null}
           pdf={showPdf ? pdf : null}
           compact={mode === "minimized"}
           textZoom={textZoom}

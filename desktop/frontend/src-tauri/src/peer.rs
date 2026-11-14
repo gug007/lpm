@@ -103,6 +103,7 @@ const HOST_FEATURES: &[&str] = &[
     crate::peeruploadhost::FILE_UPLOAD_FEATURE,
     crate::hostfilesave::FILE_SAVE_FEATURE,
     crate::mediapeer::MEDIA_RANGE_FEATURE,
+    crate::mediapeer::MEDIA_AUDIO_FEATURE,
     crate::peerread::FILE_RANGE_FEATURE,
     REMOTE_PAIR_FEATURE,
     crate::peersettings::HOST_SETTINGS_FEATURE,
