@@ -30,6 +30,7 @@ import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.core.push.PushNotifier
 import cx.lpm.mobile.core.push.PushStartup
 import cx.lpm.mobile.core.tailnet.BuiltInTailscale
+import cx.lpm.mobile.feature.pairing.PairPayload
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import kotlinx.coroutines.launch
@@ -63,7 +64,7 @@ class MainActivity : FragmentActivity() {
         viewModel.start()
         lock.attach(BiometricOwnerCheck(this))
         // A recreated activity was already handed this intent.
-        if (savedInstanceState == null) openNotification(intent)
+        if (savedInstanceState == null) open(intent)
         enableEdgeToEdge()
         setContent {
             val ready by viewModel.ready.collectAsStateWithLifecycle()
@@ -108,7 +109,7 @@ class MainActivity : FragmentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        openNotification(intent)
+        open(intent)
     }
 
     override fun onResume() {
@@ -129,6 +130,21 @@ class MainActivity : FragmentActivity() {
     override fun onDestroy() {
         lock.attach(null)
         super.onDestroy()
+    }
+
+    private fun open(intent: Intent) {
+        if (intent.action ==
+            Intent.ACTION_VIEW
+        ) {
+            openPairingLink(intent)
+        } else {
+            openNotification(intent)
+        }
+    }
+
+    private fun openPairingLink(intent: Intent) {
+        val url = intent.dataString ?: return
+        if (PairPayload.parse(url) != null) session.openPairingLink(url)
     }
 
     private fun openNotification(intent: Intent) {

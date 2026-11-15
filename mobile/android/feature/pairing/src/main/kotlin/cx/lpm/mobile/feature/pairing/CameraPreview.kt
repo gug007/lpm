@@ -1,6 +1,7 @@
 package cx.lpm.mobile.feature.pairing
 
 import androidx.camera.compose.CameraXViewfinder
+import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
@@ -28,19 +29,27 @@ import kotlinx.coroutines.awaitCancellation
 
 /**
  * The back camera's picture, with every QR code ML Kit reads handed to [onCode]
- * until it returns true. [onSetupFailure] when the camera can't start.
+ * until it returns true. [onSetupFailure] when the camera can't start;
+ * [onTorchAvailable] once it has, saying whether [torchOn] can light it.
  */
 @Composable
 internal fun CameraPreview(
     onCode: (String) -> Boolean,
     onSetupFailure: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    torchOn: Boolean = false,
+    onTorchAvailable: (Boolean) -> Unit = {}
 ) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current
     val handle by rememberUpdatedState(onCode)
     val fail by rememberUpdatedState(onSetupFailure)
+    val torchAvailable by rememberUpdatedState(onTorchAvailable)
     var request by remember { mutableStateOf<SurfaceRequest?>(null) }
+    var bound by remember { mutableStateOf<Camera?>(null) }
+    LaunchedEffect(bound, torchOn) {
+        bound?.takeIf { it.cameraInfo.hasFlashUnit() }?.cameraControl?.enableTorch(torchOn)
+    }
     LaunchedEffect(lifecycle) {
         val provider = try {
             ProcessCameraProvider.awaitInstance(context)
@@ -77,7 +86,7 @@ internal fun CameraPreview(
                 handled = codes.any { handle(it) }
             }
         )
-        try {
+        bound = try {
             provider.bindToLifecycle(lifecycle, camera, preview, analysis)
         } catch (e: IllegalStateException) {
             fail()
@@ -88,9 +97,11 @@ internal fun CameraPreview(
             scanner.close()
             return@LaunchedEffect
         }
+        torchAvailable(bound?.cameraInfo?.hasFlashUnit() == true)
         try {
             awaitCancellation()
         } finally {
+            bound = null
             analysis.clearAnalyzer()
             provider.unbind(preview, analysis)
             scanner.close()

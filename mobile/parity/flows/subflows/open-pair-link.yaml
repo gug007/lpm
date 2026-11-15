@@ -1,0 +1,10 @@
+# Opens a pairing link the way the Camera app does. iOS first asks whether to
+# open it in lpm; Android has no such step.
+appId: cx.lpm.mobile
+---
+- openLink: ${LINK}
+- runFlow:
+    when:
+      visible: "Open in .*lpm.*"
+    commands:
+      - tapOn: "Open"

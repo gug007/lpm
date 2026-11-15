@@ -1,0 +1,56 @@
+appId: cx.lpm.mobile
+name: 180-pair-link
+tags: [pairing]
+---
+# The pairing QR read by the system Camera opens lpm Link through its lpm:// link,
+# and lpm Link asks before it pairs. 10.0.0.2 is a Wi-Fi address, so the question
+# says the code works on this Wi-Fi only; 100.64.0.2 (Tailscale) works anywhere.
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "Connect to your Mac"
+    timeout: 15000
+- runFlow:
+    file: subflows/open-pair-link.yaml
+    env:
+      LINK: "lpm://pair?p=8765&c=AB12-CD34&h=10.0.0.2&f=ab"
+- extendedWaitUntil:
+    visible: "Pair with this Mac?"
+    timeout: 10000
+- assertVisible: "Pair for this Wi-Fi"
+- takeScreenshot: 1-wifi-only
+- tapOn: "Cancel"
+- assertNotVisible: "Pair with this Mac?"
+- runFlow:
+    file: subflows/open-pair-link.yaml
+    env:
+      LINK: "lpm://pair?p=8765&c=AB12-CD34&h=100.64.0.2&f=ab"
+- extendedWaitUntil:
+    visible: "Pair with this Mac?"
+    timeout: 10000
+- assertNotVisible: "Pair for this Wi-Fi"
+- takeScreenshot: 2-anywhere
+- tapOn: "Cancel"
+# From Demo Mode the link leaves the demo for the real pairing screen.
+- runFlow: subflows/enter-demo.yaml
+- runFlow:
+    file: subflows/open-pair-link.yaml
+    env:
+      LINK: "lpm://pair?p=8765&c=AB12-CD34&h=10.0.0.2&f=ab"
+- extendedWaitUntil:
+    visible: "Pair with this Mac?"
+    timeout: 10000
+- takeScreenshot: 3-from-demo
+- tapOn: "Cancel"
+- assertVisible: "Connect to your Mac"
+# Opened while the app isn't running.
+- stopApp
+- runFlow:
+    file: subflows/open-pair-link.yaml
+    env:
+      LINK: "lpm://pair?p=8765&c=AB12-CD34&h=100.64.0.2&f=ab"
+- extendedWaitUntil:
+    visible: "Pair with this Mac?"
+    timeout: 15000
+- tapOn: "Cancel"
+- assertVisible: "Connect to your Mac"

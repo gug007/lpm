@@ -50,6 +50,10 @@
     <string name="held_scan_message">Tailscale isn\'t set up on this Mac yet, so lpm Link can reach it only on its Wi-Fi. To use it from anywhere, set up Tailscale in lpm (+ above your projects → Phone) and scan a new code — or add it later.</string>
     <string name="held_scan_pair">Pair for this Wi-Fi</string>
     <string name="held_scan_title">This code works on this Wi-Fi only</string>
+    <string name="link_message">lpm Link will pair with the Mac at %1$s. Pair only with a code from your own Mac.</string>
+    <string name="link_pair">Pair</string>
+    <string name="link_title">Pair with this Mac?</string>
+    <string name="link_wifi_only">Tailscale isn\'t set up on it yet, so it works on this Wi-Fi only.</string>
     <string name="mac">Mac</string>
     <string name="nearby_added">Added</string>
     <string name="nearby_added_detail">Already on this phone</string>
@@ -75,6 +79,9 @@
     <string name="port">Port</string>
     <string name="scanner_denied">Camera access is off. Enable it in Settings, or enter the code manually.</string>
     <string name="scanner_hint">Scan the QR from lpm: + above your projects → Phone → Pair a device</string>
+    <string name="scanner_open_settings">Open Settings</string>
+    <string name="scanner_torch_off">Turn Torch Off</string>
+    <string name="scanner_torch_on">Turn Torch On</string>
     <string name="scanner_unavailable">Camera unavailable</string>
     <string name="settings">Settings</string>
     <string name="this_mac">this Mac</string>

@@ -353,6 +353,12 @@ class MacSession internal constructor(
 
     fun beginAddMac() = pairing.beginAddMac()
 
+    fun openPairingLink(url: String) = pairing.openPairingLink(url)
+
+    fun presentPairLink() = pairing.presentPairLink()
+
+    fun takePairLink(): String? = pairing.takePairLink()
+
     fun cancelAddMac() = pairing.cancelAddMac()
 
     fun repairActiveMac(reason: RepairReason? = null) = pairing.repairActiveMac(reason)

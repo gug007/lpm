@@ -55,6 +55,7 @@ the iPhone screenshots). An icon-only control keeps the accessible name iOS give
 | `server.rack` | `dns` | 22 dp | machine section header, offline machine | |
 | `wifi` | `wifi` | 22 dp | "Pairing for this Wi-Fi only", home address | |
 | `qrcode.viewfinder` | `qr_code_scanner` | 24 dp | "Scan QR code" | |
+| `flashlight.off.fill` / `flashlight.on.fill` | `flashlight_off` / `flashlight_on` (fill) | 26 dp | the QR scanner's torch | "Turn Torch On" / "Turn Torch Off" |
 | `keyboard` | `keyboard_alt` | 24 dp, 18 dp | "Enter a code", a typed option of an agent's question | |
 | `lock.shield` | `shield_lock` | 24 dp | Local Network access off | |
 | `desktopcomputer` | `desktop_mac` | 26 dp, 22 dp in menus and headers, 17 dp in the @ menu | nearby Mac, saved Mac, Mac switcher row, machine section header, a place on another computer in the @ menu | |

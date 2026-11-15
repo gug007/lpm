@@ -115,6 +115,34 @@ internal class Pairing(private val s: MacSession) {
     }
 
     /**
+     * `lpm://pair?…`, the pairing QR read by the Camera instead of the app's scanner.
+     * A link can come from anywhere, so it only opens the pairing screen with the
+     * code waiting: the pairing screen asks before it pairs.
+     */
+    fun openPairingLink(url: String) {
+        if (s.state.value.demoMode) s.exitDemo()
+        s.mutableState.update { it.copy(pairLink = url) }
+        presentPairLink()
+    }
+
+    /**
+     * With a Mac saved, the code waits on "Add a machine" (or the re-pair already
+     * open); with none, the pairing screen is the root and has it already.
+     */
+    fun presentPairLink() {
+        val state = s.state.value
+        if (state.pairLink == null || state.macs.isEmpty() || state.addingMac) return
+        beginAddMac()
+    }
+
+    /** Hands the waiting code to the pairing screen that will ask about it. */
+    fun takePairLink(): String? {
+        val link = s.state.value.pairLink
+        s.mutableState.update { it.copy(pairLink = null) }
+        return link
+    }
+
+    /**
      * Dismiss "Add a Mac" and reconnect the Mac `pair()` tore down. A pairing still
      * in flight (or failed) leaves a client that never authenticated: tear it down
      * so it can't stamp hosts onto a new record later. One that did authenticate is

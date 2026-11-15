@@ -1,0 +1,26 @@
+appId: cx.lpm.mobile
+name: 181-qr-scanner-denied
+tags: [pairing]
+---
+# Camera access turned off: the scanner says so and opens the app's Settings.
+# Android asks again until the permission is refused, so it's refused there.
+- launchApp:
+    clearState: true
+    permissions:
+      camera: deny
+- extendedWaitUntil:
+    visible: "Pair for this Wi-Fi only"
+    timeout: 15000
+- tapOn: "Pair for this Wi-Fi only"
+- tapOn: "Scan QR code"
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - tapOn: "Don.t allow"
+- extendedWaitUntil:
+    visible: "Camera access is off. Enable it in Settings, or enter the code manually."
+    timeout: 5000
+- assertVisible: "Open Settings"
+- waitForAnimationToEnd
+- takeScreenshot: 1-denied

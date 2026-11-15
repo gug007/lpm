@@ -128,6 +128,9 @@ final class AppModel {
     // Drives the "Add a Mac" pairing sheet over the projects list. Cleared once a
     // pairing succeeds (the new Mac becomes active) or the user cancels.
     var addingMac = false
+    // A pairing code opened from outside the app (the Camera reading lpm's QR),
+    // waiting for the pairing screen to ask before it pairs (AppModel+PairLink).
+    var pairLink: PairPayload?
 
     // True while the offline Demo Mode is active: an in-memory "Demo Mac" backed by
     // a fake in-process server (no network, no pairing, no persistence). Kill and

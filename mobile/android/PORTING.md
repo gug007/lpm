@@ -269,6 +269,7 @@ Port order is top to bottom within each milestone below. Lines are iOS sizes.
 | `NWBrowser` Bonjour `_lpm._tcp` (TXT `id`, `name`, `v`, `rp`, `dev`) | `NsdManager` + `MulticastLock` |
 | `NWPathMonitor` | `ConnectivityManager.NetworkCallback` |
 | AVFoundation QR scanner | CameraX + ML Kit barcode scanning |
+| `lpm` URL scheme (`CFBundleURLTypes`) + `onOpenURL`: the pairing QR read by the Camera | `lpm://pair` `VIEW`/`BROWSABLE` intent filter on `PairLinkActivity`, which forwards it to `MainActivity` as a notification tap is (`CLEAR_TOP` + `SINGLE_TOP`, so a running app gets it in `onNewIntent`) |
 | AVSpeechSynthesizer / AVAudioPlayer / Now Playing | `TextToSpeech`, Media3 + `MediaSession`, `mediaPlayback` foreground service |
 | SFSafariViewController | Custom Tabs |
 | PhotosPicker / camera / fileImporter | Photo Picker, `TakePicture`, `OpenMultipleDocuments` |

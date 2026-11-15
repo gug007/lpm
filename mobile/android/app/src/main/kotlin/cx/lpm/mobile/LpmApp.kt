@@ -69,6 +69,7 @@ fun LpmApp(
 ) {
     val state by session.state.collectAsStateWithLifecycle()
     LaunchedEffect(session, tailnetState) { tailnetState.collect(session::tailnetChanged) }
+    LaunchedEffect(state.macs.isEmpty()) { session.presentPairLink() }
     var backgrounded by rememberSaveable { mutableStateOf(false) }
     LifecycleStartEffect(session) {
         if (backgrounded) {

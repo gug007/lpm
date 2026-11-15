@@ -1,6 +1,7 @@
 package cx.lpm.mobile.feature.pairing
 
 import cx.lpm.mobile.core.data.link.AddressCheck
+import cx.lpm.mobile.core.data.link.AddressKind
 import cx.lpm.mobile.core.data.link.ConnectionIssue
 import cx.lpm.mobile.core.data.link.MacBrowser
 import cx.lpm.mobile.core.data.mac.MacRecord
@@ -42,6 +43,8 @@ data class PairingUiState(
     val approvalMacName: String = "",
     /** A scanned code whose Mac has no away-from-home address, held until the user says so. */
     val heldScan: PairPayload? = null,
+    /** A code the Camera opened the app with, held until the user says to pair. */
+    val linkToConfirm: PairPayload? = null,
     /** A nearby Mac whose address didn't answer. */
     val unreachable: MacBrowser.DiscoveredMac? = null,
     /** Enter a Code to open, with the address of the Mac picked. */
@@ -56,6 +59,13 @@ data class PairingUiState(
      * wait for a choice.
      */
     val showsWaysToPair: Boolean get() = repair != null || localOnly || worksAnywhere
+
+    /**
+     * A code whose Mac has no away-from-home address, before the user has said
+     * pairing for this Wi-Fi only is fine.
+     */
+    fun wifiOnly(payload: PairPayload): Boolean =
+        repair == null && !localOnly && payload.hosts.none { AddressKind.of(it).worksAway }
 
     val awayPhase: AwayPhase
         get() = when {

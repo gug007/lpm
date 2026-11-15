@@ -24,6 +24,8 @@ struct PairingView: View {
     // A scanned code whose Mac has no away-from-home address, held until the user
     // says pairing for this Wi-Fi only is fine.
     @State private var heldScan: PairPayload?
+    // A code the Camera opened lpm Link with, held until the user says to pair.
+    @State private var linkToConfirm: PairPayload?
     @State private var showDetails = false
     // Without Tailscale a pairing works only on the Mac's Wi-Fi, so the ways to
     // pair stay hidden until Tailscale is set up or the user accepts that.
@@ -84,6 +86,9 @@ struct PairingView: View {
         .scrollDismissesKeyboard(.interactively)
         .onAppear { discovery.start() }
         .onDisappear { discovery.stop() }
+        .onChange(of: model.pairLink, initial: true) { _, link in
+            if link != nil { receivePairLink() }
+        }
         .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
         .toolbar {
             if let onCancel {
@@ -118,6 +123,14 @@ struct PairingView: View {
             Button("Not now", role: .cancel) { heldScan = nil }
         } message: {
             Text("Tailscale isn't set up on this Mac yet, so lpm Link can reach it only on its Wi-Fi. To use it from anywhere, set up Tailscale in lpm (+ above your projects → Phone) and scan a new code — or add it later.")
+        }
+        .alert("Pair with this Mac?",
+               isPresented: Binding(get: { linkToConfirm != nil }, set: { if !$0 { linkToConfirm = nil } }),
+               presenting: linkToConfirm) { link in
+            Button(wifiOnly(link) ? "Pair for this Wi-Fi" : "Pair") { pairFromLink(link) }
+            Button("Cancel", role: .cancel) {}
+        } message: { link in
+            Text(linkMessage(link))
         }
         .alert("Couldn't reach \(unreachableMac?.displayName ?? "this Mac")",
                isPresented: Binding(get: { unreachableMac != nil }, set: { if !$0 { unreachableMac = nil } }),
@@ -234,12 +247,44 @@ struct PairingView: View {
     // MARK: flows
 
     private func scanned(_ payload: PairPayload) {
-        let away = payload.hosts.contains { AddressKind.of($0).worksAway }
-        if !away && repairTarget == nil && !localOnly {
-            heldScan = payload
-        } else {
-            pair(payload)
+        if wifiOnly(payload) { heldScan = payload } else { pair(payload) }
+    }
+
+    /// A code whose Mac has no away-from-home address, before the user has said
+    /// pairing for this Wi-Fi only is fine.
+    private func wifiOnly(_ payload: PairPayload) -> Bool {
+        repairTarget == nil && !localOnly && !payload.hosts.contains { AddressKind.of($0).worksAway }
+    }
+
+    /// Takes the Camera's code once this is the pairing screen on show, clearing
+    /// what covers it first so the question isn't asked behind a sheet.
+    private func receivePairLink() {
+        guard onCancel != nil || model.macs.isEmpty, let link = model.takePairLink() else { return }
+        let covered = scanning || codeTarget != nil || model.approvalPairing != nil
+        scanning = false
+        codeTarget = nil
+        heldScan = nil
+        unreachableMac = nil
+        if model.approvalPairing != nil { model.cancelApprovalPairing() }
+        guard covered else { linkToConfirm = link; return }
+        Task {
+            try? await Task.sleep(for: .milliseconds(600))
+            linkToConfirm = link
         }
+    }
+
+    private func linkMessage(_ payload: PairPayload) -> String {
+        let ask = "lpm Link will pair with the Mac at \(payload.host). Pair only with a code from your own Mac."
+        return wifiOnly(payload)
+            ? ask + " Tailscale isn't set up on it yet, so it works on this Wi-Fi only."
+            : ask
+    }
+
+    /// Pairs the code the user said yes to. Without Tailscale on this phone that's
+    /// over the Wi-Fi, which the screen then says, with the ways to pair showing.
+    private func pairFromLink(_ payload: PairPayload) {
+        if !showsWaysToPair { localOnly = true }
+        pair(payload)
     }
 
     private func pair(_ payload: PairPayload) {

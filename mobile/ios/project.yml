@@ -97,10 +97,14 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         CFBundleDisplayName: lpm
         # A tapped Agents widget row opens its terminal through an lpmlink:// URL.
+        # lpm:// is the pairing QR's own scheme, so the Camera app can open it here.
         CFBundleURLTypes:
           - CFBundleURLName: cx.lpm.mobile
             CFBundleURLSchemes:
               - lpmlink
+          - CFBundleURLName: cx.lpm.mobile.pair
+            CFBundleURLSchemes:
+              - lpm
         # Wake the app for silent background pushes that withdraw delivered
         # notifications (agent status cleared on the Mac). `audio` keeps read-aloud
         # speaking with the screen locked — the point of reading a result out loud.

@@ -24,7 +24,11 @@ is a WebSocket client. This document is the contract both sides implement.
   value.
   - **QR pairing:** the pairing QR URL (`lpm://pair?p=<port>&c=<code>&h=<host>…`)
     carries the fingerprint as **`&f=<hex sha256>`**; the phone pins that value up
-    front and verifies the leaf against it on the pairing connection.
+    front and verifies the leaf against it on the pairing connection. The phone
+    also opens this URL from outside the app (the system Camera or any QR reader:
+    the `lpm` URL scheme on iOS, an `lpm://pair` intent filter on Android). Since
+    any app or page can open a URL, a code that arrives this way is never paired
+    on its own: the phone asks first, showing the Mac's address.
   - **Trust-on-first-use:** a device that has no pinned fingerprint yet (paired
     before TLS, or paired by a path without `f=`) pins the leaf SHA-256 it observes
     on its **first successful** pair/auth, then enforces it on every later connect.

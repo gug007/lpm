@@ -118,6 +118,26 @@ fun PairingRoute(
             onDismissRequest = {}
         )
     }
+    state.linkToConfirm?.let { link ->
+        val wifiOnly = state.wifiOnly(link)
+        val ask = stringResource(R.string.link_message, link.host)
+        LpmAlert(
+            title = stringResource(R.string.link_title),
+            message = if (wifiOnly) "$ask ${stringResource(R.string.link_wifi_only)}" else ask,
+            buttons = listOf(
+                AlertButton(
+                    stringResource(if (wifiOnly) R.string.held_scan_pair else R.string.link_pair),
+                    onClick = viewModel::pairLink
+                ),
+                AlertButton(
+                    stringResource(R.string.cancel),
+                    AlertRole.Cancel,
+                    onClick = viewModel::dropLink
+                )
+            ),
+            onDismissRequest = {}
+        )
+    }
     state.unreachable?.let { mac ->
         LpmAlert(
             title = stringResource(

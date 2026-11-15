@@ -98,6 +98,74 @@ class PairingViewModelTest {
     }
 
     @Test
+    fun aCameraLinkAsksBeforeItPairs() = runTest {
+        val (t, vm) = pairing()
+        t.session.openPairingLink("lpm://pair?p=8765&c=AB12&h=100.64.1.2&f=AB")
+        settle()
+        assertEquals(
+            PairPayload(listOf("100.64.1.2"), 8765, "AB12", "ab"),
+            vm.uiState.value.linkToConfirm
+        )
+        assertNull(t.session.state.value.pairLink)
+        assertTrue(t.transport.sockets.isEmpty())
+
+        vm.pairLink()
+        settle()
+        assertNull(vm.uiState.value.linkToConfirm)
+        assertTrue(t.session.link.state.value.pairing)
+        // Without Tailscale on the phone it pairs over the Wi-Fi, and says so.
+        assertEquals(AwayPhase.LocalOnly, vm.uiState.value.awayPhase)
+    }
+
+    @Test
+    fun aCameraLinkCanBeTurnedDown() = runTest {
+        val (t, vm) = pairing()
+        vm.startScan()
+        t.session.openPairingLink("lpm://pair?p=8765&c=AB12&h=192.168.1.20")
+        settle()
+        assertFalse(vm.uiState.value.scanning)
+        val link = vm.uiState.value.linkToConfirm
+        assertNotNull(link)
+        assertTrue(vm.uiState.value.wifiOnly(link!!))
+
+        vm.dropLink()
+        settle()
+        assertNull(vm.uiState.value.linkToConfirm)
+        assertTrue(t.transport.sockets.isEmpty())
+    }
+
+    @Test
+    fun aCameraLinkLeavesTheDemo() = runTest {
+        val (t, vm) = pairing()
+        vm.enterDemo()
+        settle(500)
+        t.session.openPairingLink("lpm://pair?p=8765&c=AB12&h=100.64.1.2")
+        settle()
+        assertFalse(t.session.state.value.demoMode)
+        assertEquals("100.64.1.2", vm.uiState.value.linkToConfirm?.host)
+    }
+
+    @Test
+    fun withAMacSavedACameraLinkWaitsOnAddAMachine() = runTest {
+        val t = TestSession(this)
+        t.savedMac()
+        t.session.bootstrap()
+        settle()
+        val root = PairingViewModel(false, t.session, t.tailscale, t.browser)
+        keepCollecting(root.uiState)
+        t.session.openPairingLink("lpm://pair?p=8765&c=AB12&h=100.64.1.2")
+        settle()
+        assertTrue(t.session.state.value.addingMac)
+        assertNull(root.uiState.value.linkToConfirm)
+
+        val adding = PairingViewModel(true, t.session, t.tailscale, t.browser)
+        keepCollecting(adding.uiState)
+        settle()
+        assertEquals("100.64.1.2", adding.uiState.value.linkToConfirm?.host)
+        assertNull(t.session.state.value.pairLink)
+    }
+
+    @Test
     fun tryAgainRepeatsTheLastScanOrOpensTheScanner() = runTest {
         val (t, vm) = pairing()
         assertTrue(vm.handle(IssueAction.Retry))

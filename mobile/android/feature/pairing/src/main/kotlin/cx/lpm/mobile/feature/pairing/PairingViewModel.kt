@@ -2,7 +2,6 @@ package cx.lpm.mobile.feature.pairing
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import cx.lpm.mobile.core.data.link.AddressKind
 import cx.lpm.mobile.core.data.link.IssueAction
 import cx.lpm.mobile.core.data.link.MacBrowser
 import cx.lpm.mobile.core.data.prefs.PreferenceKeys
@@ -17,6 +16,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -57,6 +58,15 @@ class PairingViewModel @AssistedInject constructor(
         combine(tailscale.enabled, tailscale.status, session.preferences.data) { on, status, _ ->
             Triple(on, status, session.preferences.bool(PreferenceKeys.USES_TAILSCALE_APP) ?: false)
         }
+
+    init {
+        viewModelScope.launch {
+            session.state
+                .map { it.pairLink != null && if (adding) it.addingMac else it.macs.isEmpty() }
+                .distinctUntilChanged()
+                .collect { onShow -> if (onShow) receivePairLink() }
+        }
+    }
 
     val uiState: StateFlow<PairingUiState> =
         combine(sessionPart, tailscalePart, browser.browse, local) {
@@ -109,14 +119,44 @@ class PairingViewModel @AssistedInject constructor(
 
     /** A code that only works on this Wi-Fi waits for the user to say that's fine. */
     fun scanned(payload: PairPayload) {
-        val away = payload.hosts.any { AddressKind.of(it).worksAway }
-        val state = uiState.value
-        if (!away && state.repair == null && !state.localOnly) {
+        if (uiState.value.wifiOnly(payload)) {
             local.update { it.copy(heldScan = payload) }
         } else {
             pair(payload)
         }
     }
+
+    // MARK: the Camera's code
+
+    /**
+     * Takes the Camera's code once this is the pairing screen on show, closing what
+     * covers it first so the question isn't asked behind a sheet.
+     */
+    private fun receivePairLink() {
+        val payload = session.takePairLink()?.let(PairPayload::parse) ?: return
+        if (session.state.value.approvalPairing != null) session.cancelApprovalPairing()
+        local.update {
+            it.copy(
+                scanning = false,
+                heldScan = null,
+                unreachable = null,
+                linkToConfirm = payload
+            )
+        }
+    }
+
+    /**
+     * Pairs the code the user said yes to. Without Tailscale on this phone that's
+     * over the Wi-Fi, which the screen then says, with the ways to pair showing.
+     */
+    fun pairLink() {
+        val payload = local.value.linkToConfirm ?: return
+        val choose = !uiState.value.showsWaysToPair
+        local.update { it.copy(linkToConfirm = null, localOnly = it.localOnly || choose) }
+        pair(payload)
+    }
+
+    fun dropLink() = local.update { it.copy(linkToConfirm = null) }
 
     fun pairHeldScan() {
         local.value.heldScan?.let(::pair)

@@ -43,7 +43,10 @@ struct ContentView: View {
         .background { LiveActivityPublisher() }
         .background { UsageWidgetPublisher() }
         .background { AppShortcutPublisher() }
-        .onOpenURL { model.openAgentWidgetLink($0) }
+        .onOpenURL { url in
+            if url.scheme == "lpm" { model.openPairingLink(url) } else { model.openAgentWidgetLink(url) }
+        }
+        .onChange(of: model.macs.isEmpty) { _, _ in model.presentPairLink() }
         .onChange(of: BuiltInTailscale.shared.status.state) { _, state in model.tailnetChanged(state) }
         .onChange(of: scenePhase) { _, phase in
             AppLock.shared.sceneChanged(phase)

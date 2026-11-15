@@ -184,4 +184,33 @@ class PairingScreenTest {
         compose.onNodeWithContentDescription("Close").performClick()
         assertEquals(1, closes)
     }
+
+    @Test
+    fun theScannerHasATorchAndTheWayToSettings() {
+        var torch by mutableStateOf<Boolean?>(false)
+        var problem by mutableStateOf<CameraProblem?>(null)
+        var toggles = 0
+        var settings = 0
+        compose.setContent {
+            LpmTheme {
+                ScannerChrome(
+                    problem,
+                    onClose = {},
+                    torchOn = torch,
+                    onToggleTorch = { toggles++ },
+                    onOpenSettings = { settings++ }
+                )
+            }
+        }
+        compose.onNodeWithContentDescription("Turn Torch On").performClick()
+        assertEquals(1, toggles)
+        torch = true
+        compose.onNodeWithContentDescription("Turn Torch Off").assertExists()
+        compose.onNodeWithText("Open Settings").assertDoesNotExist()
+
+        problem = CameraProblem.Denied
+        compose.onNodeWithContentDescription("Turn Torch Off").assertDoesNotExist()
+        compose.onNodeWithText("Open Settings").performClick()
+        assertEquals(1, settings)
+    }
 }

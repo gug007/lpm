@@ -14,6 +14,11 @@ data class SessionState(
     val activeMacId: String? = null,
     /** Drives the "Add a Mac" pairing sheet over the projects list. */
     val addingMac: Boolean = false,
+    /**
+     * A pairing link opened from outside the app (the Camera reading lpm's QR),
+     * waiting for the pairing screen to ask before it pairs.
+     */
+    val pairLink: String? = null,
     /** The offline Demo Mode: an in-memory "Demo Mac", nothing persisted. */
     val demoMode: Boolean = false,
     /** "Found <name>, reconnecting…" while endpoint recovery reconnects; null when idle. */
