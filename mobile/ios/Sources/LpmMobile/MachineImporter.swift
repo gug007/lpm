@@ -144,6 +144,17 @@ final class MachineImporter {
         enqueue(slug)
     }
 
+    /// Where pairing directly with a machine the phone opens through the live
+    /// Mac stands, when there is something to say about it.
+    func directPairing(_ m: RemoteMachine) -> Status? {
+        guard let sourceId else { return nil }
+        let key = Self.key(sourceId, m.slug)
+        if adding.contains(m.slug) { return .adding }
+        if Self.revoked().contains(key) { return .revoked }
+        if let f = failures[key] { return .failed(f.message) }
+        return m.state == .update ? .needsUpdate : nil
+    }
+
     func receiveOffer(slug: String, offer: MachinePairOffer?, error: String?) {
         let result: OfferResult = offer.map { .offer($0) } ?? .failed(Self.offerFailure(error))
         offerWaiters.removeValue(forKey: slug)?.cont.resume(returning: result)

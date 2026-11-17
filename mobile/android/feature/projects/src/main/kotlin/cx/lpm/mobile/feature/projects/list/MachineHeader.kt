@@ -3,6 +3,7 @@ package cx.lpm.mobile.feature.projects.list
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -96,12 +97,24 @@ fun MachineHeader(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        ComputerHeaderLabel(
-            linuxHost = entry.linuxHost,
-            name = entry.name,
-            detail = entry.detail?.let { machineDetailText(it) },
-            modifier = Modifier.weight(1f, fill = false)
-        )
+        val detail = entry.detail
+        Column(
+            modifier = Modifier.weight(1f, fill = false),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            ComputerHeaderLabel(
+                linuxHost = entry.linuxHost,
+                name = entry.name,
+                detail = detail?.takeIf { it.fitsBesideName }?.let { machineDetailText(it) }
+            )
+            if (detail != null && !detail.fitsBesideName) {
+                Text(
+                    text = machineDetailText(detail),
+                    style = LpmTheme.typography.caption1,
+                    color = colors.secondaryLabel
+                )
+            }
+        }
         Spacer(Modifier.weight(1f))
         if (entry.opensOnlyBySwitching) {
             LinkButton(
@@ -136,12 +149,33 @@ fun MachineHeader(
 @Composable
 private fun machineDetailText(detail: MachineDetail): String = when (detail) {
     MachineDetail.OpensThroughMac -> stringResource(ProjectsR.string.machine_section_through_mac)
+
+    MachineDetail.ConnectingDirectly ->
+        stringResource(ProjectsR.string.machine_section_connecting_directly)
+
+    is MachineDetail.ThroughMac -> when (detail.why) {
+        MachineDetail.ThroughMac.Why.Failed ->
+            stringResource(ProjectsR.string.machine_section_direct_failed, detail.message)
+
+        MachineDetail.ThroughMac.Why.Revoked ->
+            stringResource(ProjectsR.string.machine_section_direct_revoked)
+
+        MachineDetail.ThroughMac.Why.NeedsUpdate ->
+            stringResource(ProjectsR.string.machine_section_direct_needs_update)
+    }
+
     MachineDetail.Adding -> stringResource(ProjectsR.string.machine_section_adding)
+
     is MachineDetail.Failed -> detail.message
+
     MachineDetail.NotOnPhone -> stringResource(ProjectsR.string.machine_section_not_on_phone)
+
     MachineDetail.Revoked -> stringResource(ProjectsR.string.machine_section_revoked)
+
     MachineDetail.NeedsUpdate -> stringResource(ProjectsR.string.machine_section_needs_update)
+
     MachineDetail.Connecting -> stringResource(ProjectsR.string.machine_section_connecting)
+
     MachineDetail.NotAnswering -> stringResource(ProjectsR.string.mac_not_answering)
 }
 

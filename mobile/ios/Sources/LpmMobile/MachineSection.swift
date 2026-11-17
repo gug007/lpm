@@ -7,7 +7,8 @@ struct MachineSection: Identifiable {
     let rows: [SidebarRow]
     /// The machine as saved on this phone; nil until it has been added here.
     let record: MacRecord?
-    /// Where adding it to this phone stands, while it isn't on it.
+    /// Where adding it to this phone stands, while it isn't on it or only opens
+    /// through the live Mac.
     let pending: MachineImporter.Status?
     /// Not on this phone, but the live Mac can carry the phone to it.
     let throughMac: Bool
@@ -53,7 +54,8 @@ extension AppModel {
             return MachineSection(machine: m,
                                   rows: machineRows(m.projects ?? []),
                                   record: record,
-                                  pending: pending[m.slug],
+                                  pending: pending[m.slug]
+                                      ?? (record?.via != nil ? machineImporter.directPairing(m) : nil),
                                   throughMac: record == nil && relays && m.relay)
         }
     }

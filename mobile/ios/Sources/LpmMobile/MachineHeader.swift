@@ -38,8 +38,14 @@ struct MachineHeader: View {
         HStack(spacing: 8) {
             Button(action: toggle) {
                 HStack(spacing: 8) {
-                    ComputerHeaderLabel(linuxHost: section.machine.isLinuxHost,
-                                        name: section.machine.name, detail: detail)
+                    VStack(alignment: .leading, spacing: 2) {
+                        ComputerHeaderLabel(linuxHost: section.machine.isLinuxHost,
+                                            name: section.machine.name, detail: detailFits ? detail : nil)
+                        if let detail, !detailFits {
+                            Text(detail).font(.caption).foregroundStyle(.secondary).textCase(nil)
+                                .multilineTextAlignment(.leading)
+                        }
+                    }
                     Spacer(minLength: 0)
                     if !opensOnlyBySwitching {
                         if section.machine.projects != nil {
@@ -71,7 +77,7 @@ struct MachineHeader: View {
 
     private var detail: String? {
         if let note = section.note { return note }
-        if section.record?.via?.macId == model.activeMacId { return "Opens through this Mac" }
+        if section.record?.via?.macId == model.activeMacId { return throughMacDetail }
         switch section.pending {
         case .adding?: return "Adding to this \(ThisDevice.noun)…"
         case .failed(let why)?: return why
@@ -79,6 +85,22 @@ struct MachineHeader: View {
         case .revoked?: return "Removed this \(ThisDevice.noun). Pair on it to use it here."
         case .needsUpdate?: return "Update lpm on it to open it here"
         case .offline?, nil: return nil
+        }
+    }
+
+    /// A detail short enough to sit beside the name; a longer one goes under it.
+    private var detailFits: Bool { (detail?.count ?? 0) <= 24 }
+
+    /// A machine without a pairing of its own: how pairing with it directly is
+    /// going, or why it didn't.
+    private var throughMacDetail: String {
+        let through = "Opens through this Mac."
+        switch section.pending {
+        case .adding?: return "Connecting directly…"
+        case .failed(let why)?: return "\(through) Couldn't connect directly: \(why)"
+        case .revoked?: return "\(through) It removed this \(ThisDevice.noun): pair on it to connect directly."
+        case .needsUpdate?: return "\(through) Update lpm on it to connect directly."
+        case .removed?, .offline?, nil: return "Opens through this Mac"
         }
     }
 

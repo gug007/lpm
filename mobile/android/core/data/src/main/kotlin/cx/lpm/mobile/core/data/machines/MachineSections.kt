@@ -15,7 +15,7 @@ data class MachineSection(
     val rows: List<SidebarRow>,
     /** The machine as saved on this phone; null until it has been added here. */
     val record: MacRecord?,
-    /** Where adding it to this phone stands, while it isn't on it. */
+    /** Where adding it to this phone stands, while it isn't on it or only opens through the Mac. */
     val pending: MachineImportStatus?,
     /** Not on this phone, but the live Mac can carry the phone to it. */
     val throughMac: Boolean,
@@ -59,7 +59,7 @@ fun machineSections(session: SessionState, importer: MachineImportState): List<M
             machine = m,
             rows = machineRows(m.projects.orEmpty()),
             record = record,
-            pending = pending[m.slug],
+            pending = pending[m.slug] ?: importer.directPairing(m).takeIf { record?.via != null },
             throughMac = record == null && relays && m.relay
         )
     }

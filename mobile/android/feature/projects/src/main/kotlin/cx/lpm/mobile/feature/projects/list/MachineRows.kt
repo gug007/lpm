@@ -44,7 +44,23 @@ private fun MachineSection.detail(activeMacId: String?): MachineDetail? {
         }
     }
     val via = record?.via
-    if (via != null && via.macId == activeMacId) return MachineDetail.OpensThroughMac
+    if (via != null && via.macId == activeMacId) {
+        return when (val status = pending) {
+            MachineImportStatus.Adding -> MachineDetail.ConnectingDirectly
+
+            is MachineImportStatus.Failed ->
+                MachineDetail.ThroughMac(MachineDetail.ThroughMac.Why.Failed, status.message)
+
+            MachineImportStatus.Revoked ->
+                MachineDetail.ThroughMac(MachineDetail.ThroughMac.Why.Revoked)
+
+            MachineImportStatus.NeedsUpdate ->
+                MachineDetail.ThroughMac(MachineDetail.ThroughMac.Why.NeedsUpdate)
+
+            MachineImportStatus.Removed, MachineImportStatus.Offline, null ->
+                MachineDetail.OpensThroughMac
+        }
+    }
     return when (val status = pending) {
         MachineImportStatus.Adding -> MachineDetail.Adding
 

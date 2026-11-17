@@ -178,11 +178,26 @@ sealed interface ProjectsListRow {
 
 /** The line under a machine's name. */
 sealed interface MachineDetail {
+    /** Sits beside the machine's name; a longer one goes under it. */
+    val fitsBesideName: Boolean get() = true
+
     data object OpensThroughMac : MachineDetail
+
+    /** Opened through the Mac, pairing with it directly right now. */
+    data object ConnectingDirectly : MachineDetail
+
+    /** Opened through the Mac, and why pairing with it directly didn't work. */
+    data class ThroughMac(val why: Why, val message: String = "") : MachineDetail {
+        enum class Why { Failed, Revoked, NeedsUpdate }
+
+        override val fitsBesideName: Boolean get() = false
+    }
 
     data object Adding : MachineDetail
 
-    data class Failed(val message: String) : MachineDetail
+    data class Failed(val message: String) : MachineDetail {
+        override val fitsBesideName: Boolean get() = false
+    }
 
     data object NotOnPhone : MachineDetail
 

@@ -64,6 +64,22 @@ data class MachineImportState(
         }
     }
 
+    /**
+     * Where pairing directly with a machine the phone opens through the live Mac
+     * stands, when there is something to say about it.
+     */
+    fun directPairing(m: RemoteMachine): MachineImportStatus? {
+        val key = key(sourceId ?: return null, m.slug)
+        val failure = failures[key]
+        return when {
+            m.slug in adding -> MachineImportStatus.Adding
+            key in revoked -> MachineImportStatus.Revoked
+            failure != null -> MachineImportStatus.Failed(failure.message)
+            m.state == RemoteMachine.State.Update -> MachineImportStatus.NeedsUpdate
+            else -> null
+        }
+    }
+
     /** The saved machine one of the live Mac's machines is, once it is on this phone. */
     fun record(machine: RemoteMachine, macs: List<MacRecord>): MacRecord? =
         sourceId?.let { record(machine, it, macs) }

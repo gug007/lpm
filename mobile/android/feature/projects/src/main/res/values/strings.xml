@@ -47,6 +47,10 @@
     <string name="machine_section_needs_update">Update lpm on it to open it here</string>
     <string name="machine_section_revoked">Removed this phone. Pair on it to use it here.</string>
     <string name="machine_section_open">Open</string>
+    <string name="machine_section_connecting_directly">Connecting directly…</string>
+    <string name="machine_section_direct_failed">Opens through this Mac. Couldn\'t connect directly: %1$s</string>
+    <string name="machine_section_direct_revoked">Opens through this Mac. It removed this phone: pair on it to connect directly.</string>
+    <string name="machine_section_direct_needs_update">Opens through this Mac. Update lpm on it to connect directly.</string>
     <string name="machine_section_switch">Switch to %1$s</string>
     <string name="visit_unavailable">Project unavailable</string>
 
