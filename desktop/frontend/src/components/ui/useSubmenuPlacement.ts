@@ -7,6 +7,10 @@ const PANEL_PADDING_OFFSET = -4;
 export interface SubmenuPlacement {
   side: "right" | "left";
   shiftY: number;
+  // Taller than the viewport, so the panel caps its height and scrolls. Only
+  // then: a scrolling panel clips sideways too, which would hide a submenu
+  // opened from one of its rows.
+  scrolls: boolean;
 }
 
 // Where a submenu panel sits beside its row: on the right, flipping to the left
@@ -18,7 +22,11 @@ export function useSubmenuPlacement(
   panelRef: RefObject<HTMLElement | null>,
   open: boolean,
 ): SubmenuPlacement {
-  const [placement, setPlacement] = useState<SubmenuPlacement>({ side: "right", shiftY: PANEL_PADDING_OFFSET });
+  const [placement, setPlacement] = useState<SubmenuPlacement>({
+    side: "right",
+    shiftY: PANEL_PADDING_OFFSET,
+    scrolls: false,
+  });
 
   const reposition = useCallback(() => {
     const wrapper = wrapperRef.current;
@@ -33,7 +41,12 @@ export function useSubmenuPlacement(
     const maxTop = window.innerHeight - SUBMENU_VIEWPORT_MARGIN - p.height;
     const top = Math.max(SUBMENU_VIEWPORT_MARGIN, Math.min(desiredTop, maxTop));
     const shiftY = top - w.top;
-    setPlacement((prev) => (prev.side === side && prev.shiftY === shiftY ? prev : { side, shiftY }));
+    const scrolls = panel.scrollHeight > window.innerHeight - 2 * SUBMENU_VIEWPORT_MARGIN;
+    setPlacement((prev) =>
+      prev.side === side && prev.shiftY === shiftY && prev.scrolls === scrolls
+        ? prev
+        : { side, shiftY, scrolls },
+    );
   }, [wrapperRef, panelRef]);
 
   // Re-measure whenever the open panel changes size — its content can load

@@ -1,16 +1,15 @@
-import { BrainIcon, CheckSquareIcon, ClipboardIcon, CopyIcon, DetachIcon, DownloadIcon, FileIcon, HardDriveIcon, MessageIcon, PencilIcon, SettingsIcon, SparkleIcon, TrashIcon, WorktreeIcon } from "./icons";
+import { ClipboardIcon, CopyIcon, DetachIcon, DownloadIcon, HardDriveIcon, PencilIcon, TrashIcon, WorktreeIcon } from "./icons";
 import type { SidebarAgentRow } from "../sidebarAgents";
 import { ProjectArchiveMenuItems } from "./ProjectArchiveMenuItems";
-import { Archive, Columns2, FolderSync, Pin, PinOff } from "lucide-react";
+import { Archive, Pin, PinOff } from "lucide-react";
 import { ContextMenuItem } from "./ui/ContextMenuItem";
 import { ContextMenuSeparator } from "./ui/ContextMenuSeparator";
 import { ContextMenuShell } from "./ui/ContextMenuShell";
 import { ContextMenuSubmenu } from "./ui/ContextMenuSubmenu";
-import { ClaudeAccountSubmenu, type ClaudeOwnChoice } from "./ClaudeAccountSubmenu";
-import type { ClaudeAccountChoice } from "../types";
 import { MoveToFolderSubmenu } from "./MoveToFolderSubmenu";
 import { OpenInBrowserSubmenu } from "./OpenInBrowserSubmenu";
 import { ProjectGitSubmenu } from "./ProjectGitSubmenu";
+import { ProjectMoreSubmenu, type ProjectMoreSubmenuProps } from "./ProjectMoreSubmenu";
 import {
   launchOpenInTarget,
   primaryOpenInTarget,
@@ -19,9 +18,7 @@ import {
 } from "../hooks/useOpenInTargets";
 import type { CustomWorkStatus, ProjectGroup, WorkStatus } from "../types";
 import type { WorkStatusChoice } from "../workStatus";
-import type { SideBySideMenuItem } from "../hooks/useSideBySideMenu";
 import { WorkStatusSubmenu } from "./WorkStatusSubmenu";
-import { chordLabel } from "../keys";
 import { MACHINE } from "../machineWords";
 
 // The sync controls a row only has while a copy of it is synced here. The remote
@@ -37,21 +34,16 @@ export interface FollowingMenuState {
   onRemoveCopy: () => void;
 }
 
-interface ProjectContextMenuProps {
+interface ProjectContextMenuProps extends ProjectMoreSubmenuProps {
   x: number;
   y: number;
   duplicateDisabled: boolean;
-  removeDisabled: boolean;
-  isDuplicate: boolean;
   isWorktree: boolean;
-  isDetached: boolean;
-  canSelect: boolean;
   // That Mac is reached over SSH, so a Remote-SSH editor can open the project.
   peerViaSsh: boolean;
-  // An SSH project (root lives on an SSH host). Limits "Open with" to editors
-  // that can open a remote folder (VS Code-family Remote-SSH).
+  // Limits "Open with" to editors that can open a remote folder (VS Code-family
+  // Remote-SSH).
   sshRemote: boolean;
-  projectName: string;
   projectLabel: string;
   // What the project has agents on, as its sidebar rows list them.
   agents: SidebarAgentRow[];
@@ -72,13 +64,6 @@ interface ProjectContextMenuProps {
   onEditWorkStatus: (entry: CustomWorkStatus) => void;
   onRemoveWorkStatus: (entry: CustomWorkStatus) => void;
   onReorderWorkStatuses: (order: string[]) => void;
-  // The project's own Claude account choice (and its parent's), and the ways
-  // to change it.
-  claudeChoice?: ClaudeOwnChoice;
-  parentClaudeChoice?: ClaudeOwnChoice;
-  onPickClaudeAccount: (choice: ClaudeAccountChoice) => void;
-  onChooseClaudeAccounts: () => void;
-  onManageClaudeAccounts: () => void;
   // Kept at the top of the sidebar.
   pinned: boolean;
   onTogglePin: (pin: boolean) => void;
@@ -87,23 +72,13 @@ interface ProjectContextMenuProps {
   onRename: () => void;
   renameShortcut?: string;
   deleteShortcut?: string;
-  onEditConfig: () => void;
-  onOpenNotes: () => void;
-  onOpenAI: () => void;
-  onOpenMemory: () => void;
   onBulkDuplicate: () => void;
   onWorktree: () => void;
   // Omitted unless this is a project on a paired Mac that can be synced here.
   onSyncHere?: () => void;
-  // Omitted unless another connected computer holds the same project.
-  onSyncIgnored?: () => void;
   // Set only while this project is following a Mac.
   following?: FollowingMenuState;
   onCopyPath: () => void;
-  onDetach: () => void;
-  onAttach: () => void;
-  sideBySideItems: SideBySideMenuItem[];
-  onSelect: () => void;
   onGitCommit: () => void;
   onGitCreatePR: () => void;
   onGitSwitchBranch: () => void;
@@ -112,73 +87,55 @@ interface ProjectContextMenuProps {
   onMoveToGroup: (groupId: string | null) => void;
   onCreateGroupWith: () => void;
   onRemove: () => void;
-  onRemoveFromDisk?: () => void;
-  onClose: () => void;
 }
 
-export function ProjectContextMenu({
-  x,
-  y,
-  duplicateDisabled,
-  removeDisabled,
-  isDuplicate,
-  isWorktree,
-  isDetached,
-  canSelect,
-  peerViaSsh,
-  sshRemote,
-  projectName,
-  projectLabel,
-  agents,
-  running,
-  services,
-  projectPath,
-  groups,
-  currentGroupId,
-  workStatus,
-  customWorkStatuses,
-  workStatusOrder,
-  onPickWorkStatus,
-  onAddWorkStatus,
-  onEditWorkStatus,
-  onRemoveWorkStatus,
-  onReorderWorkStatuses,
-  claudeChoice,
-  parentClaudeChoice,
-  onPickClaudeAccount,
-  onChooseClaudeAccounts,
-  onManageClaudeAccounts,
-  pinned,
-  onTogglePin,
-  onArchive,
-  onRename,
-  renameShortcut,
-  deleteShortcut,
-  onEditConfig,
-  onOpenNotes,
-  onOpenAI,
-  onOpenMemory,
-  onBulkDuplicate,
-  onWorktree,
-  onSyncHere,
-  onSyncIgnored,
-  following,
-  onCopyPath,
-  onDetach,
-  onAttach,
-  sideBySideItems,
-  onSelect,
-  onGitCommit,
-  onGitCreatePR,
-  onGitSwitchBranch,
-  onGitHistory,
-  onGitDiscardAll,
-  onMoveToGroup,
-  onCreateGroupWith,
-  onRemove,
-  onRemoveFromDisk,
-  onClose,
-}: ProjectContextMenuProps) {
+export function ProjectContextMenu(props: ProjectContextMenuProps) {
+  const {
+    x,
+    y,
+    duplicateDisabled,
+    removeDisabled,
+    isDuplicate,
+    isWorktree,
+    peerViaSsh,
+    sshRemote,
+    projectName,
+    projectLabel,
+    agents,
+    running,
+    services,
+    projectPath,
+    groups,
+    currentGroupId,
+    workStatus,
+    customWorkStatuses,
+    workStatusOrder,
+    onPickWorkStatus,
+    onAddWorkStatus,
+    onEditWorkStatus,
+    onRemoveWorkStatus,
+    onReorderWorkStatuses,
+    pinned,
+    onTogglePin,
+    onArchive,
+    onRename,
+    renameShortcut,
+    deleteShortcut,
+    onBulkDuplicate,
+    onWorktree,
+    onSyncHere,
+    following,
+    onCopyPath,
+    onGitCommit,
+    onGitCreatePR,
+    onGitSwitchBranch,
+    onGitHistory,
+    onGitDiscardAll,
+    onMoveToGroup,
+    onCreateGroupWith,
+    onRemove,
+    onClose,
+  } = props;
   const openInTargets = projectOpenInTargets(useOpenInTargets(), projectPath ?? "", {
     isRemote: sshRemote,
     peerViaSsh,
@@ -224,6 +181,8 @@ export function ProjectContextMenu({
         services={services}
         onClose={onClose}
       />
+      <ContextMenuItem label="Copy path" icon={<ClipboardIcon />} onClick={close(onCopyPath)} />
+      <ContextMenuSeparator />
       <ProjectGitSubmenu
         projectPath={projectPath}
         projectName={projectName}
@@ -246,26 +205,6 @@ export function ProjectContextMenu({
         onReorder={onReorderWorkStatuses}
         onClose={onClose}
       />
-      <ContextMenuSubmenu label="Project files" icon={<FileIcon size={14} />}>
-        <ContextMenuItem label="Edit Config" icon={<SettingsIcon />} shortcut={chordLabel({ key: "e", meta: true })} onClick={close(onEditConfig)} />
-        <ContextMenuItem label="Notes" icon={<MessageIcon />} shortcut={chordLabel({ key: "n", meta: true, shift: true })} onClick={close(onOpenNotes)} />
-        <ContextMenuItem label="AI Instructions" icon={<SparkleIcon />} onClick={close(onOpenAI)} />
-        {!sshRemote && (
-          <ContextMenuItem label="Memory" icon={<BrainIcon />} shortcut={chordLabel({ key: "m", meta: true, shift: true })} onClick={close(onOpenMemory)} />
-        )}
-      </ContextMenuSubmenu>
-      {!sshRemote && (
-        <ClaudeAccountSubmenu
-          projectName={projectName}
-          own={claudeChoice}
-          isCopy={isDuplicate}
-          parent={parentClaudeChoice}
-          onPick={onPickClaudeAccount}
-          onChooseList={onChooseClaudeAccounts}
-          onManage={onManageClaudeAccounts}
-          onClose={onClose}
-        />
-      )}
       <ContextMenuSeparator />
       <ContextMenuItem
         label="Duplicate"
@@ -284,13 +223,6 @@ export function ProjectContextMenu({
           label={`Sync to ${MACHINE.ThisMachineTitle}…`}
           icon={<DownloadIcon />}
           onClick={close(onSyncHere)}
-        />
-      )}
-      {onSyncIgnored && (
-        <ContextMenuItem
-          label="Sync Ignored Files…"
-          icon={<FolderSync size={14} />}
-          onClick={close(onSyncIgnored)}
         />
       )}
       {following && (
@@ -330,40 +262,18 @@ export function ProjectContextMenu({
       )}
       <ContextMenuSeparator />
       <ContextMenuItem
+        label="Rename"
+        icon={<PencilIcon />}
+        shortcut={renameShortcut}
+        onClick={close(onRename)}
+      />
+      <ContextMenuItem
         label={pinned ? "Unpin" : "Pin to top"}
         icon={pinned ? <PinOff size={14} /> : <Pin size={14} />}
         onClick={close(() => onTogglePin(!pinned))}
       />
       {onArchive && (
         <ContextMenuItem label="Archive project" icon={<Archive size={14} />} onClick={close(onArchive)} />
-      )}
-      <ContextMenuItem
-        label="Rename"
-        icon={<PencilIcon />}
-        shortcut={renameShortcut}
-        onClick={close(onRename)}
-      />
-      <ContextMenuItem label="Copy path" icon={<ClipboardIcon />} onClick={close(onCopyPath)} />
-      {sideBySideItems.map((item) => (
-        <ContextMenuItem
-          key={item.label}
-          label={item.label}
-          icon={<Columns2 size={14} />}
-          onClick={close(item.onClick)}
-        />
-      ))}
-      {isDetached ? (
-        <ContextMenuItem
-          label="Attach to main window"
-          icon={<DetachIcon />}
-          onClick={close(onAttach)}
-        />
-      ) : (
-        <ContextMenuItem
-          label="Detach to new window"
-          icon={<DetachIcon />}
-          onClick={close(onDetach)}
-        />
       )}
       {groups && (
         <MoveToFolderSubmenu
@@ -375,13 +285,8 @@ export function ProjectContextMenu({
           onClose={onClose}
         />
       )}
-      {canSelect && (
-        <ContextMenuItem
-          label="Select"
-          icon={<CheckSquareIcon />}
-          onClick={close(onSelect)}
-        />
-      )}
+      <ContextMenuSeparator />
+      <ProjectMoreSubmenu {...props} />
       <ContextMenuSeparator />
       <ContextMenuItem
         destructive
@@ -397,15 +302,6 @@ export function ProjectContextMenu({
         onClick={close(onRemove)}
         disabled={removeDisabled}
       />
-      {onRemoveFromDisk && (
-        <ContextMenuItem
-          destructive
-          label="Remove from disk"
-          icon={<HardDriveIcon />}
-          onClick={close(onRemoveFromDisk)}
-          disabled={removeDisabled}
-        />
-      )}
     </ContextMenuShell>
   );
 }

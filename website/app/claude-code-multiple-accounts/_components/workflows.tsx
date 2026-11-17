@@ -50,7 +50,7 @@ const WORKFLOWS: Workflow[] = [
         Claude sessions should start on your second account, and one click
         moves them, while the sessions already open finish on the old one.
         Rather choose yourself? Every account shows its 5-hour and weekly
-        usage in the project&rsquo;s menu, under Claude account.
+        usage in the project&rsquo;s menu, under More, then Claude account.
       </>
     ),
   },

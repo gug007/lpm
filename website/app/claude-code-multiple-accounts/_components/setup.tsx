@@ -22,8 +22,8 @@ const STEPS: Step[] = [
   },
   {
     title: "Pin a project",
-    body: "Open the project's menu in the sidebar and pick the account under Claude account. Every terminal in the project, and lpm's commit, PR, and branch helpers, now use it.",
-    path: ["Project menu", "Claude account"],
+    body: "Open the project's menu in the sidebar, then More, and pick the account under Claude account. Every terminal in the project, and lpm's commit, PR, and branch helpers, now use it.",
+    path: ["Project menu", "More", "Claude account"],
   },
   {
     title: "Or let it switch",

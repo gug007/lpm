@@ -7,7 +7,7 @@ const STEPS = [
   },
   {
     title: "Give a project its own account",
-    body: "Open the ⋮ menu on a project in the sidebar, then Claude account, and pick one under Always use one account. Each account shows its 5-hour and weekly usage beside its name.",
+    body: "Open the ⋮ menu on a project in the sidebar, then More, then Claude account, and pick one under Always use one account. Each account shows its 5-hour and weekly usage beside its name.",
   },
   {
     title: "Let new sessions switch",

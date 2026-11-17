@@ -3,7 +3,7 @@ import { LessonSection } from "@/components/lesson-section";
 const STEPS = [
   {
     title: "Open Sync Ignored Files",
-    body: "With the Mac mini paired and the project cloned on both, right-click it in your sidebar and choose Sync Ignored Files. It lists everything git ignores on either Mac, and where each file is.",
+    body: "With the Mac mini paired and the project cloned on both, right-click it in your sidebar and choose More, then Sync Ignored Files. It lists everything git ignores on either Mac, and where each file is.",
   },
   {
     title: "Check what's ticked",

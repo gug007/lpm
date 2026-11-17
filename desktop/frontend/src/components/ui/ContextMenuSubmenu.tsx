@@ -40,10 +40,12 @@ export function ContextMenuSubmenu({ label, icon, disabled, onActivate, children
       {open && (
         <div
           ref={panelRef}
-          className={`absolute z-50 min-w-[120px] overflow-y-auto ${MENU_PANEL_CLASS}`}
+          className={`absolute z-50 min-w-[120px] ${MENU_PANEL_CLASS}`}
           style={{
             top: placement.shiftY,
-            maxHeight: `calc(100vh - ${2 * SUBMENU_VIEWPORT_MARGIN}px)`,
+            ...(placement.scrolls
+              ? { overflowY: "auto" as const, maxHeight: `calc(100vh - ${2 * SUBMENU_VIEWPORT_MARGIN}px)` }
+              : {}),
             ...(placement.side === "right" ? { left: "100%" } : { right: "100%" }),
           }}
         >
