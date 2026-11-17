@@ -200,7 +200,7 @@ the iPhone screenshots). An icon-only control keeps the accessible name iOS give
 | `doc.on.doc` / `text.quote` (commit) | `content_copy` / `format_quote` | 22 dp menu, 13 dp after the hash | a commit's Copy Hash / Copy Message, the hash's copy button | "More" (menu) |
 | `scissors` | `content_cut` | 18 dp | "This diff is too long to show in full." under a commit's file | |
 | `pin` / `pin.slash` (project) | `keep` / `keep_off` | 22 dp | a project row's Pin to top / Unpin | |
-| `square.stack` | `stacks` | 22 dp | Show All Machines (Mac switcher) | |
+| `square.stack` | `stacks` | 22 dp | Stats: all machines | |
 | `hand.tap` / `bolt` / `checklist` (tips) | `touch_app` / `bolt` / `checklist` | 22 dp | a tip card's mark | |
 | `xmark` (tip) | `close` | 15 dp | a tip card's close button | "Close tip" |
 | `slash.circle` | `slash_circle` (drawn here: no Material Symbol has it) | 22 dp | project menu "Commands" | |

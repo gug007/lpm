@@ -66,9 +66,9 @@ class PinsAndTipsViewModelTest {
     }
 
     @Test
-    fun `Show All Machines stays out of the menu with no other machine`() = runTest {
+    fun `the title names the Mac while it is the only computer listed`() = runTest {
         val t = demoSession()
-        assertNull(subscribed(t).uiState.value.title.showAllMachines)
+        assertEquals(1, subscribed(t).uiState.value.title.shownCount)
     }
 
     private fun List<ProjectsListRow>.entry(name: String) =

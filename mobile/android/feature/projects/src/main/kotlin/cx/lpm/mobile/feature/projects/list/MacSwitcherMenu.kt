@@ -12,27 +12,28 @@ import cx.lpm.mobile.core.designsystem.R
 import cx.lpm.mobile.core.designsystem.component.ContextMenu
 import cx.lpm.mobile.core.designsystem.component.ContextMenuDivider
 import cx.lpm.mobile.core.designsystem.component.ContextMenuItem
+import cx.lpm.mobile.core.designsystem.component.ContextMenuSectionHeader
 import cx.lpm.mobile.feature.projects.R as ProjectsR
 
 /** What the title's Mac picker does; [pendingMachines] are the machines feature's rows. */
 @Immutable
 class MacSwitcherActions(
     val exitDemo: () -> Unit = {},
-    val switchTo: (macId: String) -> Unit = {},
+    val toggleShown: (macId: String) -> Unit = {},
     val addMachine: () -> Unit = {},
     val manageMachines: () -> Unit = {},
     val showDetails: () -> Unit = {},
-    val setShowAllMachines: (Boolean) -> Unit = {},
     val pendingMachines: @Composable ColumnScope.() -> Unit = {},
     val keepAwake: @Composable ColumnScope.() -> Unit = {},
     val keepAwakeIndicator: @Composable () -> Unit = {}
 )
 
 /**
- * The title's menu for choosing which saved Mac is live: every saved Mac with
- * whether it answers right now (a check on the active one), Keep Awake, then "Show All
- * Machines" once another machine is paired here ([showAllMachines] not null), "Add a
- * machine…" and "Manage machines…". In Demo Mode it only offers Keep Awake and the way out.
+ * The title's menu for choosing which saved machines the projects list shows: every
+ * saved machine with whether it answers right now and a check on the ones shown.
+ * Tapping one ticks or clears it and the menu stays open. Then Keep Awake, "Add a
+ * machine…" and "Manage machines…". In Demo Mode it only offers Keep Awake and the
+ * way out.
  */
 @Composable
 fun MacSwitcherMenu(
@@ -41,8 +42,7 @@ fun MacSwitcherMenu(
     macs: List<MacChoice>,
     demoMode: Boolean,
     actions: MacSwitcherActions,
-    modifier: Modifier = Modifier,
-    showAllMachines: Boolean? = null
+    modifier: Modifier = Modifier
 ) {
     ContextMenu(expanded = expanded, onDismissRequest = onDismiss, modifier = modifier) {
         if (demoMode) {
@@ -53,34 +53,29 @@ fun MacSwitcherMenu(
                 icon = painterResource(R.drawable.ic_cancel)
             )
         } else {
+            if (macs.size > 1) {
+                ContextMenuSectionHeader(stringResource(ProjectsR.string.mac_show_on_main))
+            }
             macs.forEach { mac ->
                 ContextMenuItem(
                     title = mac.name,
                     subtitle = macStatusText(mac.status),
-                    onClick = { actions.switchTo(mac.id) },
+                    onClick = { actions.toggleShown(mac.id) },
                     icon = painterResource(
                         when {
-                            mac.active -> R.drawable.ic_check
+                            mac.shown -> R.drawable.ic_check
                             mac.linuxHost -> R.drawable.ic_dns
                             else -> R.drawable.ic_desktop_mac
                         }
-                    )
+                    ),
+                    iconDescription = stringResource(ProjectsR.string.auto_pull_selected)
+                        .takeIf { mac.shown },
+                    keepsMenuOpen = true
                 )
             }
             actions.pendingMachines(this)
             actions.keepAwake(this)
             ContextMenuDivider()
-            if (showAllMachines != null) {
-                ContextMenuItem(
-                    title = stringResource(ProjectsR.string.mac_show_all),
-                    onClick = { actions.setShowAllMachines(!showAllMachines) },
-                    icon = painterResource(
-                        if (showAllMachines) R.drawable.ic_check else R.drawable.ic_stacks
-                    ),
-                    iconDescription = stringResource(ProjectsR.string.auto_pull_selected)
-                        .takeIf { showAllMachines }
-                )
-            }
             ContextMenuItem(
                 title = stringResource(ProjectsR.string.mac_add),
                 onClick = actions.addMachine,
@@ -97,7 +92,7 @@ fun MacSwitcherMenu(
 
 /**
  * Whether a saved machine is reachable: the live one's own status, and for the
- * others the last check, so switching isn't a guess.
+ * others the last check, so ticking one isn't a guess.
  */
 @Composable
 private fun macStatusText(status: MacStatus): String = when (status) {

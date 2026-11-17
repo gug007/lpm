@@ -229,7 +229,11 @@ private fun ProjectsList(
                 }
                 if (state.rows.isNotEmpty()) {
                     ListSection(
-                        header = mainHeader(state.listAge, pinned = state.pinned.isNotEmpty()),
+                        header = mainHeader(
+                            state.listAge,
+                            pinned = state.pinned.isNotEmpty(),
+                            liveMac = state.title.name.takeIf { state.title.shownCount > 1 }
+                        ),
                         headerStyle = ListHeaderStyle.Title,
                         footer = state.listAge?.let {
                             val repair = state.repairFooter
@@ -257,9 +261,20 @@ private fun ProjectsList(
     }
 }
 
-/** "Updated 9:41" on a saved list; "Projects" over it once the Pinned section is up. */
+/**
+ * "Updated 9:41" on a saved list; "Projects" over it once the Pinned section is up,
+ * or the live Mac's name once the list shows other computers too.
+ */
 @Composable
-private fun mainHeader(listAge: Instant?, pinned: Boolean): String? = when {
+private fun mainHeader(listAge: Instant?, pinned: Boolean, liveMac: String?): String? = when {
+    liveMac != null -> listAge?.let {
+        stringResource(
+            ProjectsR.string.projects_live_updated,
+            liveMac,
+            it.clockStamp(Instant.now())
+        )
+    } ?: liveMac
+
     listAge != null -> {
         val stamp = listAge.clockStamp(Instant.now())
         if (pinned) {

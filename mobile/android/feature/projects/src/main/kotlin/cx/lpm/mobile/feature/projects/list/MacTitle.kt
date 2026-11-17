@@ -36,7 +36,8 @@ import cx.lpm.mobile.feature.projects.R as ProjectsR
 import cx.lpm.mobile.feature.projects.ui.SymbolGlyph
 
 /**
- * The projects list's title: the active Mac's name (the Mac picker) with a line
+ * The projects list's title: the live Mac's name, or how many computers the list
+ * shows (the machine picker), with a line
  * under it saying how the phone is connected. Tapping the line opens the
  * connection details. Demo Mode has no line: its banner says where the list is from.
  */
@@ -63,7 +64,15 @@ fun MacTitle(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = state.name,
+                text = if (state.shownCount > 1) {
+                    pluralStringResource(
+                        ProjectsR.plurals.mac_computers,
+                        state.shownCount,
+                        state.shownCount
+                    )
+                } else {
+                    state.name
+                },
                 style = LpmTheme.typography.headline,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -81,8 +90,7 @@ fun MacTitle(
                 onDismiss = { menuOpen = false },
                 macs = macs,
                 demoMode = demoMode,
-                actions = actions,
-                showAllMachines = state.showAllMachines
+                actions = actions
             )
         }
         if (!demoMode) StatusLine(state, actions.showDetails)

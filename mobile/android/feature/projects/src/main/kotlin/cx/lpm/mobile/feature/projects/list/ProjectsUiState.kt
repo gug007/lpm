@@ -63,14 +63,14 @@ data class ProjectsUiState(
 
 data class RepairFooter(val device: String, val mac: String)
 
-/** The title: the active Mac's name over how the phone reaches it. */
+/** The title: the live Mac's name, or how many computers are listed, over how the phone reaches it. */
 data class MacTitleState(
     val name: String = "Mac",
     val status: LinkStatusLine = LinkStatusLine("", LinkStatusLine.Tone.Waiting),
     /** "2 waiting" or "Details" after the status words. */
     val detail: MacTitleDetail? = null,
-    /** Show All Machines in the menu, on or off; null while no other machine is paired here. */
-    val showAllMachines: Boolean? = null
+    /** How many computers the list shows, the live Mac among them. */
+    val shownCount: Int = 1
 )
 
 sealed interface MacTitleDetail {
@@ -84,6 +84,8 @@ data class MacChoice(
     val id: String,
     val name: String,
     val active: Boolean,
+    /** Ticked in the menu: the list shows it. */
+    val shown: Boolean,
     val linuxHost: Boolean,
     val status: MacStatus
 )

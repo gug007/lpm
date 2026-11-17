@@ -19,7 +19,7 @@ data class MachineSection(
     val pending: MachineImportStatus?,
     /** Not on this phone, but the live Mac can carry the phone to it. */
     val throughMac: Boolean,
-    /** How a machine saved here is doing, while it isn't answering (Show All Machines). */
+    /** How a machine saved here is doing, while it isn't answering. */
     val note: MachineFeedNote? = null
 ) {
     val id: String get() = machine.slug

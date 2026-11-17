@@ -54,8 +54,7 @@ side by side (see `mobile/parity/README.md`).
   them passively; the app lock checks with the phone's screen lock (fingerprint, face or
   PIN), so Settings › Security reads "Require screen lock" and the cover's button
   "Unlock" where iOS names Face ID, and the lock also blanks the recent-apps preview;
-  Show All Machines in the Mac menu is a plain row whose icon turns into a checkmark
-  while on (Android menus have no toggle row); a commit's line under its subject (hash ·
+a commit's line under its subject (hash ·
   author · date · Merge) is one text that shrinks before it cuts off, the date the
   platform's medium date and short time joined by "at", and Copy Hash confirms with
   Android's Confirm haptic; Keep awake's Custom Time sets hours and minutes with
@@ -306,7 +305,7 @@ intents beyond the Token activity widget's pills, speech recognition, biometrics
 | UserDefaults | `speech.engine`, `speech.voiceId`, `speech.rate` | read aloud |
 | UserDefaults | `builtInTailscale.enabled`, `pairing.usesTailscaleApp` | Tailscale |
 | UserDefaults | `automation.scheduleOpen`, `automation.setupOpen`, `filePreviewMarkdownSource`, `actionPrimaryLastUsed`, `zoneOpenLayers`, `newTab.lastPick`, `gitReview.wrap` (missing = on), `gitMerge.method` (missing = `squash`), `macUpdate.dismissed.<id>` | UI memory |
-| UserDefaults | `lpm.allMachines` (missing = off), `lpm.tips.closed` (a string array; Android keeps it as a JSON array string, like the other lists) | Show All Machines; the tips closed, which Settings › Tips brings back |
+| UserDefaults | `lpm.shownMachines`, `lpm.hiddenMachines` (string arrays of saved-machine ids ticked and cleared; one in neither shows when the live Mac lists it, or when the older `lpm.allMachines` was on), `lpm.tips.closed` (a string array; Android keeps both as JSON array strings, like the other lists) | the machines ticked and cleared in the title menu; the tips closed, which Settings › Tips brings back |
 | Files | `Caches/project-lists/<localId>.json`; `ApplicationSupport/tailnet/` (no backup) | offline project list; tailnet state (`noBackupFilesDir`) |
 | App group `group.cx.lpm.mobile` | `token-activity.json` (Android: `filesDir`); UserDefaults `tokenActivity.range` (7, 14 or 30; missing = 7) | the Token activity widget's last 30-day read and the range its pills picked |
 | App group `group.cx.lpm.mobile` | `share-directory.json`, `share-inbox/<id>/` (`share.json`, `image-<n>.jpg`) (Android: `filesDir`); UserDefaults `share.mac`, `share.project`, `share.destination`, `share.agent` | the Macs, local projects and agents the share sheet offers, the shares it kept for later, and its last choices |

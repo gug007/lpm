@@ -80,11 +80,10 @@ fun ProjectsRoute(
         ),
         macActions = MacSwitcherActions(
             exitDemo = viewModel::exitDemo,
-            switchTo = viewModel::switchTo,
+            toggleShown = viewModel::toggleShown,
             addMachine = viewModel::addMachine,
             manageMachines = viewModel::manageMachines,
             showDetails = viewModel::showConnectionDetails,
-            setShowAllMachines = viewModel::setShowAllMachines,
             pendingMachines = slots.pendingMachines,
             keepAwake = slots.keepAwakeMenu,
             keepAwakeIndicator = slots.keepAwakeIndicator

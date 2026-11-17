@@ -29,6 +29,10 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 
 /** A saved machine's projects as last listed, and how its link is doing. */
 data class MachineFeed(val projects: List<Project>? = null, val state: State = State.Connecting) {
@@ -39,12 +43,41 @@ data class MachineFeed(val projects: List<Project>? = null, val state: State = S
 enum class MachineFeedNote { Connecting, NotAnswering }
 
 /**
- * Show All Machines (iOS `PairedMachineFeeds` + `AppModel+AllMachines`): the other
- * machines saved on this phone, kept connected while the projects list shows all of
- * them and the app is on screen, so each one's projects and agents list as a section
- * under the live Mac's own. A link only reads the project list: it subscribes to no
- * terminal and takes control of nothing, and it tells its Mac the phone is away, so
- * that Mac still sends its notifications. Their projects open as machine visits.
+ * The machines ticked in the title menu and the ones cleared there; [showedAll] is
+ * Show All Machines as it was left before there were ticks.
+ */
+data class MachineChoices(
+    val ticked: Set<String> = emptySet(),
+    val cleared: Set<String> = emptySet(),
+    val showedAll: Boolean = false
+) {
+    /**
+     * Whether the list shows a saved machine: the live Mac always, then what the menu
+     * ticked or cleared. One never touched there shows as it did before there was a
+     * choice: the machines connected to the live Mac ([own]), and the rest where Show
+     * All Machines was on.
+     */
+    fun shows(mac: MacRecord, s: SessionState, own: List<MachineSection>): Boolean = when {
+        mac.localId == s.activeMacId || mac.localId in ticked -> true
+        mac.localId in cleared -> false
+        else -> own.any { it.record?.localId == mac.localId } || (showedAll && mac.via == null)
+    }
+
+    fun with(macId: String, shown: Boolean): MachineChoices = if (shown) {
+        copy(ticked = ticked + macId, cleared = cleared - macId)
+    } else {
+        copy(ticked = ticked - macId, cleared = cleared + macId)
+    }
+}
+
+/**
+ * Choosing the machines the projects list shows (iOS `PairedMachineFeeds` +
+ * `AppModel+AllMachines`): the title menu ticks them, and each ticked one lists as a
+ * section, the live Mac's own machines in their slots and the others saved on this
+ * phone under them, kept connected while the app is on screen. A link only reads the
+ * project list: it subscribes to no terminal and takes control of nothing, and it
+ * tells its Mac the phone is away, so that Mac still sends its notifications. Their
+ * projects open as machine visits.
  */
 @Singleton
 class PairedMachineFeeds @Inject constructor(
@@ -64,20 +97,29 @@ class PairedMachineFeeds @Inject constructor(
     /** Saved machine localId → its feed, while it's kept connected. */
     val feeds: StateFlow<Map<String, MachineFeed>> = mutableFeeds.asStateFlow()
 
-    val enabled: StateFlow<Boolean> = prefs.data
-        .map { readEnabled() }
+    val choices: StateFlow<MachineChoices> = prefs.data
+        .map { readChoices() }
         .distinctUntilChanged()
-        .stateIn(scope, SharingStarted.Eagerly, readEnabled())
+        .stateIn(scope, SharingStarted.Eagerly, readChoices())
+
+    /** The saved machines the list shows, the live Mac among them, by localId. */
+    val shownIds: Flow<Set<String>> =
+        combine(session.state, importer.sections, choices, ::shownIds).distinctUntilChanged()
 
     /** Every machine section the list shows: the live Mac's own, then the others saved here. */
     val listedSections: Flow<List<MachineSection>> =
-        combine(importer.sections, session.state, enabled, feeds) { own, s, on, feeds ->
-            own + if (on) pairedSections(s, own, feeds) else emptyList()
+        combine(importer.sections, session.state, choices, feeds) { own, s, choices, feeds ->
+            shownSections(s, own, choices) + pairedSections(s, own, feeds, choices)
         }.distinctUntilChanged()
 
     init {
-        combine(session.state, importer.sections, enabled, session.foreground) { s, own, on, fg ->
-            if (on && fg && !s.demoMode) otherSavedMachines(s, own) else emptyList()
+        combine(session.state, importer.sections, choices, session.foreground) {
+                s,
+                own,
+                choices,
+                fg
+            ->
+            if (fg) otherSavedMachines(s, own, choices) else emptyList()
         }
             .distinctUntilChanged()
             .onEach(::keep)
@@ -85,18 +127,53 @@ class PairedMachineFeeds @Inject constructor(
         session.foreground.drop(1).filter { it }.onEach { retryNow() }.launchIn(scope)
     }
 
-    fun setEnabled(on: Boolean) = prefs.setBool(PreferenceKeys.ALL_MACHINES, on)
+    /**
+     * Tick or clear a machine in the title menu. Clearing the live Mac moves the
+     * connection to the first machine still ticked; the last one stays ticked.
+     */
+    fun toggle(macId: String) {
+        val s = session.state.value
+        val own = ownSections(s)
+        val now = choices.value
+        if (macId != s.activeMacId) {
+            val mac = s.macs.firstOrNull { it.localId == macId } ?: return
+            write(now.with(macId, shown = !now.shows(mac, s, own)))
+            return
+        }
+        val next = s.macs.firstOrNull { it.localId != macId && now.shows(it, s, own) } ?: return
+        write(now.with(macId, shown = false))
+        session.switchTo(next)
+    }
 
     /** One listed section, the live Mac's own or a saved machine's, as it stands now. */
     fun section(slug: String): MachineSection? {
         importer.section(slug)?.let { return it }
-        if (!enabled.value) return null
         val s = session.state.value
-        val own = machineSections(s, importer.state.value)
-        return pairedSections(s, own, feeds.value).firstOrNull { it.id == slug }
+        return pairedSections(s, ownSections(s), feeds.value, choices.value)
+            .firstOrNull { it.id == slug }
     }
 
-    private fun readEnabled(): Boolean = prefs.bool(PreferenceKeys.ALL_MACHINES) ?: false
+    private fun ownSections(s: SessionState) = machineSections(s, importer.state.value)
+
+    private fun readChoices() = MachineChoices(
+        ticked = readIds(PreferenceKeys.SHOWN_MACHINES),
+        cleared = readIds(PreferenceKeys.HIDDEN_MACHINES),
+        showedAll = prefs.bool(PreferenceKeys.ALL_MACHINES) ?: false
+    )
+
+    private fun readIds(key: String): Set<String> {
+        val raw = prefs.string(key) ?: return emptySet()
+        val list = runCatching { Json.parseToJsonElement(raw) as? JsonArray }.getOrNull()
+        return list.orEmpty().mapNotNull { (it as? JsonPrimitive)?.contentOrNull }.toSet()
+    }
+
+    private fun write(choices: MachineChoices) {
+        writeIds(PreferenceKeys.SHOWN_MACHINES, choices.ticked)
+        writeIds(PreferenceKeys.HIDDEN_MACHINES, choices.cleared)
+    }
+
+    private fun writeIds(key: String, ids: Set<String>) =
+        prefs.setString(key, JsonArray(ids.sorted().map(::JsonPrimitive)).toString())
 
     /** Keep exactly `records` connected, opening the new ones and closing the rest. */
     private fun keep(records: List<MacRecord>) {
@@ -132,29 +209,46 @@ class PairedMachineFeeds @Inject constructor(
     }
 }
 
+/** The saved machines the list shows, the live Mac among them, by localId. */
+fun shownIds(s: SessionState, own: List<MachineSection>, choices: MachineChoices): Set<String> =
+    s.macs.filter { choices.shows(it, s, own) }.map { it.localId }.toSet()
+
 /**
- * Other machines this phone could list: paired with it directly, not the live Mac,
+ * The live Mac's own machines the list shows. One that isn't saved here yet has no
+ * tick to clear.
+ */
+fun shownSections(
+    s: SessionState,
+    own: List<MachineSection>,
+    choices: MachineChoices
+): List<MachineSection> = own.filter { section ->
+    section.record?.let { choices.shows(it, s, own) } ?: true
+}
+
+/**
+ * Ticked machines the phone lists itself: paired with it directly, not the live Mac,
  * and not already one of the live Mac's own sections.
  */
-fun otherSavedMachines(s: SessionState, own: List<MachineSection>): List<MacRecord> {
+fun otherSavedMachines(
+    s: SessionState,
+    own: List<MachineSection>,
+    choices: MachineChoices
+): List<MacRecord> {
     if (s.demoMode) return emptyList()
     val shownByLiveMac = own.mapNotNull { it.machine.serverId }.toSet()
     return s.macs.filter { mac ->
-        mac.localId != s.activeMacId && mac.via == null &&
+        mac.localId != s.activeMacId && mac.via == null && choices.shows(mac, s, own) &&
             mac.serverId?.let { it in shownByLiveMac } != true
     }
 }
-
-/** Whether the title menu offers Show All Machines. */
-fun SessionState.canShowAllMachines(): Boolean =
-    !demoMode && macs.any { it.localId != activeMacId && it.via == null }
 
 /** The other machines' sections, in the order they were saved. */
 fun pairedSections(
     s: SessionState,
     own: List<MachineSection>,
-    feeds: Map<String, MachineFeed>
-): List<MachineSection> = otherSavedMachines(s, own).mapNotNull { mac ->
+    feeds: Map<String, MachineFeed>,
+    choices: MachineChoices
+): List<MachineSection> = otherSavedMachines(s, own, choices).mapNotNull { mac ->
     val feed = feeds[mac.localId] ?: return@mapNotNull null
     val machine = RemoteMachine(
         slug = "saved:" + mac.localId,

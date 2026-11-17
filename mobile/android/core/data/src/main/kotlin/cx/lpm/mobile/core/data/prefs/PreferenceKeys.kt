@@ -52,6 +52,8 @@ object PreferenceKeys {
     const val GIT_MERGE_METHOD = "gitMerge.method"
     const val TIPS_CLOSED = "lpm.tips.closed"
     const val ALL_MACHINES = "lpm.allMachines"
+    const val SHOWN_MACHINES = "lpm.shownMachines"
+    const val HIDDEN_MACHINES = "lpm.hiddenMachines"
 
     const val TOKEN_ACTIVITY_RANGE = "tokenActivity.range"
 

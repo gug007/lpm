@@ -27,14 +27,15 @@ fun ContextMenuItem(
     subtitle: String? = null,
     trailingIcon: Painter? = null,
     destructive: Boolean = false,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    keepsMenuOpen: Boolean = false
 ) {
     val controller = LocalContextMenuController.current
     val tint = if (destructive) LpmTheme.colors.red else LpmTheme.colors.label
     MenuRow(
         title = title,
         onClick = {
-            controller?.dismiss()
+            if (!keepsMenuOpen) controller?.dismiss()
             onClick()
         },
         modifier = modifier,

@@ -363,7 +363,10 @@ struct ProjectsView: View {
                     sidebarRow(item)
                 }
             } header: {
-                if let asOf = listAge {
+                if let name = model.liveMacSectionName {
+                    Text(listAge.map { "\(name) · Updated \($0.clockStamp)" } ?? name)
+                        .textCase(nil)
+                } else if let asOf = listAge {
                     Text(pinned.isEmpty ? "Updated \(asOf.clockStamp)" : "Projects · Updated \(asOf.clockStamp)")
                         .textCase(nil)
                 } else if !pinned.isEmpty {

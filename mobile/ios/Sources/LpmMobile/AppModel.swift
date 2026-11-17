@@ -2603,7 +2603,7 @@ final class AppModel {
             return r
         }
 
-        let sections = machineSections
+        let sections = shownMachineSections
         var machines = Dictionary(sections.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         var seenGroups = Set<String>()
         func emitGroup(_ g: ProjectFolder) {

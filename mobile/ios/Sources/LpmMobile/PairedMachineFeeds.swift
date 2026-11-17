@@ -1,9 +1,9 @@
 import Foundation
 import UIKit
 
-/// The other machines saved on this phone, kept connected while the projects
-/// list shows all of them (Show All Machines in the title menu), so each one's
-/// projects and agents list as a section under the live Mac's own. A link only
+/// The other machines saved on this phone that are ticked in the title menu,
+/// kept connected while the projects list is up, so each one's projects and
+/// agents list as a section under the live Mac's own. A link only
 /// reads the project list: it subscribes to no terminal and takes control of
 /// nothing, and it tells its Mac the phone is away, so that Mac still sends
 /// its notifications.
@@ -16,10 +16,24 @@ final class PairedMachineFeeds {
         var state: State = .connecting
     }
 
-    private static let enabledKey = "lpm.allMachines"
+    private static let showedAllKey = "lpm.allMachines"
+    private static let shownKey = "lpm.shownMachines"
+    private static let hiddenKey = "lpm.hiddenMachines"
 
-    var enabled = UserDefaults.standard.bool(forKey: enabledKey) {
-        didSet { UserDefaults.standard.set(enabled, forKey: Self.enabledKey) }
+    /// Show All Machines as it was left, from before machines were ticked one by one.
+    let showedAll = UserDefaults.standard.bool(forKey: showedAllKey)
+
+    /// The machines ticked in the title menu, and the ones cleared there. A
+    /// machine in neither shows as it did before there was a choice.
+    var shown = ids(shownKey) {
+        didSet { UserDefaults.standard.set(shown.map(\.uuidString), forKey: Self.shownKey) }
+    }
+    var hidden = ids(hiddenKey) {
+        didSet { UserDefaults.standard.set(hidden.map(\.uuidString), forKey: Self.hiddenKey) }
+    }
+
+    private static func ids(_ key: String) -> Set<UUID> {
+        Set((UserDefaults.standard.stringArray(forKey: key) ?? []).compactMap { UUID(uuidString: $0) })
     }
     private(set) var feeds: [UUID: Feed] = [:]
 

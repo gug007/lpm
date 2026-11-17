@@ -1,10 +1,12 @@
 import SwiftUI
 
-/// The navigation-bar title menu for choosing which saved Mac is live. Shows the
-/// active Mac's name; tapping opens a menu of all saved Macs with whether each
-/// answers right now (checkmark on the active one), the live Mac's own servers
-/// and Macs still being added here, Keep Awake, "Add a machine…" and "Manage
-/// machines…". A cup beside the name says the live Mac is kept awake.
+/// The navigation-bar title menu for choosing which saved machines the projects
+/// list shows. Shows the live Mac's name, or how many computers are listed;
+/// tapping opens a menu of all saved machines with whether each answers right
+/// now and a checkmark on the ones shown. Tapping a row ticks or clears it and
+/// the menu stays open. Under them: the live Mac's own servers and Macs still
+/// being added here, Keep Awake, "Add a machine…" and "Manage machines…". A cup
+/// beside the name says the live Mac is kept awake.
 struct MacSwitcherMenu: View {
     @Environment(AppModel.self) private var model
     var maxWidth: CGFloat? = nil
@@ -19,16 +21,10 @@ struct MacSwitcherMenu: View {
                     Label("Exit Demo", systemImage: "xmark.circle")
                 }
             } else {
-                ForEach(model.macs) { mac in
-                    Button {
-                        model.pendingNotificationTarget = nil
-                        model.switchTo(mac)
-                    } label: {
-                        Text(mac.displayName)
-                        Text(status(of: mac))
-                        Image(systemName: mac.localId == model.activeMacId
-                              ? "checkmark" : (mac.isLinuxHost ? "server.rack" : "desktopcomputer"))
-                    }
+                if model.macs.count > 1 {
+                    Section("Show on the main page") { machineChoices }
+                } else {
+                    machineChoices
                 }
                 let pending = model.machineImporter.rows(macs: model.macs)
                 if !pending.isEmpty {
@@ -40,12 +36,6 @@ struct MacSwitcherMenu: View {
                 }
                 KeepAwakeMenu()
                 Divider()
-                if model.canShowAllMachines {
-                    Toggle(isOn: Binding(get: { model.machineFeeds.enabled },
-                                         set: { model.setShowAllMachines($0) })) {
-                        Label("Show All Machines", systemImage: "square.stack")
-                    }
-                }
                 Button {
                     model.beginAddMac()
                 } label: {
@@ -60,7 +50,7 @@ struct MacSwitcherMenu: View {
         } label: {
             WidthCap(max: maxWidth) {
                 HStack(spacing: 4) {
-                    Text(model.activeRecord?.displayName ?? "Mac")
+                    Text(title)
                         .font(.headline)
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
@@ -79,8 +69,28 @@ struct MacSwitcherMenu: View {
         }
     }
 
+    private var title: String {
+        let count = model.shownMachineCount
+        return count > 1 ? "\(count) computers" : model.activeRecord?.displayName ?? "Mac"
+    }
+
+    private var machineChoices: some View {
+        ForEach(model.macs) { mac in
+            Button {
+                model.toggleShown(mac)
+            } label: {
+                Text(mac.displayName)
+                Text(status(of: mac))
+                Image(systemName: model.isShown(mac)
+                      ? "checkmark" : (mac.isLinuxHost ? "server.rack" : "desktopcomputer"))
+            }
+            .menuActionDismissBehavior(.disabled)
+            .accessibilityAddTraits(model.isShown(mac) ? .isSelected : [])
+        }
+    }
+
     /// Whether a saved machine is reachable: the live one's own status, and for
-    /// the others the last check, so switching isn't a guess.
+    /// the others the last check, so ticking one isn't a guess.
     private func status(of mac: MacRecord) -> String {
         if mac.localId == model.activeMacId { return model.link.statusLine.text }
         return MacSwitcherMenu.reachText(model.link.reach[mac.localId], lastConnected: mac.lastConnected)

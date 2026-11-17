@@ -15,7 +15,6 @@ import cx.lpm.mobile.core.data.mac.ThisDevice
 import cx.lpm.mobile.core.data.machines.MachineImporter
 import cx.lpm.mobile.core.data.machines.MachineSection
 import cx.lpm.mobile.core.data.machines.PairedMachineFeeds
-import cx.lpm.mobile.core.data.machines.canShowAllMachines
 import cx.lpm.mobile.core.data.projects.ProjectsState
 import cx.lpm.mobile.core.data.projects.ProjectsStore
 import cx.lpm.mobile.core.data.projects.archiveAgent
@@ -85,10 +84,10 @@ class ProjectsViewModel @Inject constructor(
         terminals.state,
         automations.state,
         expanded,
-        feeds.enabled,
+        feeds.shownIds,
         tips.closed
-    ) { t, jobs, open, allMachines, closed ->
-        ListExtras(t.terminalTitles, jobs, open, allMachines, closed)
+    ) { t, jobs, open, shown, closed ->
+        ListExtras(t.terminalTitles, jobs, open, shown, closed)
     }
 
     val uiState: StateFlow<ProjectsUiState> = combine(
@@ -121,7 +120,7 @@ class ProjectsViewModel @Inject constructor(
         val titles: Map<String, Map<String, String>>,
         val jobs: AutomationsState,
         val open: Map<String, Boolean>,
-        val allMachines: Boolean,
+        val shownMachines: Set<String>,
         val closedTips: Set<String>
     )
 
@@ -164,9 +163,9 @@ class ProjectsViewModel @Inject constructor(
 
                     else -> null
                 },
-                showAllMachines = extras.allMachines.takeIf { s.canShowAllMachines() }
+                shownCount = 1 + sections.size
             ),
-            macs = s.macs.map { macChoice(it, s, link, view) },
+            macs = s.macs.map { macChoice(it, s, link, view, extras.shownMachines) },
             demoMode = s.demoMode,
             rows = rows,
             pinned = p.pinnedRows(inputs),
@@ -193,13 +192,15 @@ class ProjectsViewModel @Inject constructor(
         mac: MacRecord,
         s: SessionState,
         link: LinkState,
-        view: LinkView
+        view: LinkView,
+        shown: Set<String>
     ): MacChoice {
         val active = mac.localId == s.activeMacId
         return MacChoice(
             id = mac.localId,
             name = mac.displayName,
             active = active,
+            shown = active || mac.localId in shown,
             linuxHost = mac.isLinuxHost,
             status = if (active) {
                 MacStatus.Live(view.statusLine.text)
@@ -279,8 +280,6 @@ class ProjectsViewModel @Inject constructor(
 
     fun setPinned(project: Project, pinned: Boolean) = projects.setPinned(project, pinned)
 
-    fun setShowAllMachines(on: Boolean) = feeds.setEnabled(on)
-
     fun closeTip(tip: AppTip) = tips.close(tip)
 
     fun createFolder(name: String) = projects.createFolder(name)
@@ -298,9 +297,7 @@ class ProjectsViewModel @Inject constructor(
 
     fun exitDemo() = session.exitDemo()
 
-    fun switchTo(macId: String) {
-        session.state.value.macs.firstOrNull { it.localId == macId }?.let(session::switchTo)
-    }
+    fun toggleShown(macId: String) = feeds.toggle(macId)
 
     fun addMachine() = session.beginAddMac()
 
