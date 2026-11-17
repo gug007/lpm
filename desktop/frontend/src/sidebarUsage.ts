@@ -64,7 +64,8 @@ export interface UsageRow {
    *  empty for the weekly one, which needs no label. */
   windowShort: string;
   /** The other window, drawn as the thin lane under the row's own; null for a
-   *  row that only reports the day's spend and draws a single bar. */
+   *  row that only reports the day's spend, or whose plan has no 5-hour window,
+   *  and draws a single bar. */
   lane: UsageLane | null;
   /** The other window's name and use, read out in place of its lane. */
   laneText: string;
@@ -173,12 +174,13 @@ interface PickedWindow {
   windowMs: number;
 }
 
-/** The window the row's numbers are about, and the other one for its lower lane. */
+/** The window the row's numbers are about, and the other one for its lower lane;
+ *  no other one for a plan without a 5-hour window. */
 function pickWindow(
   data: ProviderLimits | undefined,
   choice: UsageWindowChoice,
   now: number,
-): PickedWindow & { other: PickedWindow } {
+): PickedWindow & { other: PickedWindow | null } {
   const five: PickedWindow = {
     win: live(data?.fiveHour, now),
     windowLabel: "5-hour",
@@ -191,7 +193,8 @@ function pickWindow(
     windowShort: "",
     windowMs: WEEKLY_MS,
   };
-  const lead = (main: PickedWindow, other: PickedWindow) => ({ ...main, other });
+  const lead = (main: PickedWindow, other: PickedWindow | null) => ({ ...main, other });
+  if (data?.noFiveHour) return lead(week, null);
   if (choice === "weekly") return week.win ? lead(week, five) : lead(five, week);
   if (choice === "higher" && five.win && week.win) {
     return week.win.usedPercent > five.win.usedPercent ? lead(week, five) : lead(five, week);
@@ -264,7 +267,7 @@ export function usageRows(
   return candidates.map((row) => {
     const meta = providerMeta(row.provider);
     const win = row.win;
-    const other = row.other.win;
+    const other = row.other?.win;
     return {
       id: row.id,
       provider: row.provider,
@@ -285,8 +288,8 @@ export function usageRows(
       percentText: win ? fmtPct(win.usedPercent) : "",
       windowLabel: win ? row.windowLabel : "",
       windowShort: win ? row.windowShort : "",
-      lane: win || row.tokens === 0 ? laneFor(other) : null,
-      laneText: other ? `${row.other.windowLabel} ${fmtPct(other.usedPercent)} used` : "",
+      lane: row.other && (win || row.tokens === 0) ? laneFor(other) : null,
+      laneText: row.other && other ? `${row.other.windowLabel} ${fmtPct(other.usedPercent)} used` : "",
       percent: win ? win.usedPercent : null,
       tokens: row.tokens,
       sessions: row.sessions,

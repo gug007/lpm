@@ -133,6 +133,22 @@ class UsageRowsTest {
     }
 
     @Test
+    fun `a plan without a 5-hour window draws its weekly one alone`() {
+        val weeklyOnly = claude("default", window(60.0, 64 * hour), null).copy(noFiveHour = true)
+        val snapshot = LimitsSnapshot(
+            mapOf("claude:default" to weeklyOnly),
+            claudeEnabled = true,
+            nowMs = null
+        )
+        val row = usageRows(snapshot, null, emptyList(), now, now).single()
+        assertEquals("weekly", row.windowLabel)
+        assertEquals("60%", row.percentText)
+        assertNull(row.lane)
+        assertEquals("", row.laneText)
+        assertTrue(row.pace != null)
+    }
+
+    @Test
     fun `a lone tool with no window shows today's spend instead`() {
         val rows = usageRows(null, spend("codex", 1_234_000, 3), emptyList(), now, now)
         val codex = rows.single()

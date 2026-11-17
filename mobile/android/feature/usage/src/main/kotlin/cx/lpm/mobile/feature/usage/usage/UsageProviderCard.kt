@@ -33,8 +33,9 @@ import cx.lpm.mobile.feature.usage.ui.groupedCard
 
 /**
  * One tool's usage card: who it is, when it last reported, and its weekly and 5-hour
- * meters. A card whose numbers have gone stale keeps showing them, just dimmed, so the
- * reading is never silently replaced by nothing.
+ * meters — the weekly one alone for a plan with no 5-hour window. A card whose numbers
+ * have gone stale keeps showing them, just dimmed, so the reading is never silently
+ * replaced by nothing.
  *
  * [now] is the phone's clock, for the windows the tools stamped; [macNow] the same
  * moment on the Mac's clock, for the `updatedAt` the Mac stamped. [footer] holds the
@@ -83,7 +84,9 @@ internal fun UsageProviderCard(
                     reminder = reminder?.invoke(LimitReminder.FIVE_HOUR, data.fiveHour)
                 )
             }
-            if (fiveHourFirst) {
+            if (data.noFiveHour) {
+                weekly()
+            } else if (fiveHourFirst) {
                 fiveHour()
                 weekly()
             } else {

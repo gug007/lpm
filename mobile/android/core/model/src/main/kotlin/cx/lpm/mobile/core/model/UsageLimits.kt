@@ -25,7 +25,8 @@ data class LimitWindow(val usedPercent: Double, val resetsAt: Long) {
 /**
  * One tool's latest reading. `accountId` is Claude-only (its per-account config
  * directory, usually "default"); `label` is the Codex plan or the Claude model
- * display name. `updatedAt` is unix millis.
+ * display name. `updatedAt` is unix millis. `noFiveHour` marks a plan with a weekly
+ * window and no 5-hour one, whose 5-hour meter is left out.
  */
 data class ProviderLimits(
     val provider: String,
@@ -33,7 +34,8 @@ data class ProviderLimits(
     val label: String?,
     val fiveHour: LimitWindow?,
     val weekly: LimitWindow?,
-    val updatedAt: Long
+    val updatedAt: Long,
+    val noFiveHour: Boolean = false
 ) {
     companion object {
         fun parse(o: JsonObject): ProviderLimits = ProviderLimits(
@@ -42,7 +44,8 @@ data class ProviderLimits(
             label = o.string("label"),
             fiveHour = o.obj("fiveHour")?.let(LimitWindow::parse),
             weekly = o.obj("weekly")?.let(LimitWindow::parse),
-            updatedAt = o.numberLong("updatedAt") ?: 0
+            updatedAt = o.numberLong("updatedAt") ?: 0,
+            noFiveHour = o.bool("noFiveHour") ?: false
         )
     }
 }

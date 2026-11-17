@@ -45,6 +45,9 @@ pub struct LimitWindow {
 /// `updated_at` is unix millis, used by the UI to dim stale meters.
 /// `no_limits` marks a Claude account whose replies carry no plan windows at
 /// all (API-billed logins), so the UI can say so instead of waiting forever.
+/// `no_five_hour` marks a plan that has a weekly window and no 5-hour one, so
+/// the UI leaves the 5-hour meter out instead of showing it empty. Two logins
+/// of the same tool can differ, so it is per entry.
 #[derive(Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct ProviderLimits {
@@ -60,6 +63,8 @@ pub struct ProviderLimits {
     pub updated_at: i64,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub no_limits: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub no_five_hour: bool,
 }
 
 /// Pick between the stored and incoming reading of one window. Every concurrent
@@ -124,6 +129,8 @@ fn merge_limits(prev: &ProviderLimits, next: ProviderLimits, now: i64) -> Provid
         next.label.or_else(|| prev.label.clone())
     };
     let no_limits = five_hour.is_none() && weekly.is_none() && (next.no_limits || prev.no_limits);
+    // A live 5-hour reading outranks the flag, and any 5-hour reading clears it.
+    let no_five_hour = five_hour.is_none() && (next.no_five_hour || prev.no_five_hour);
     ProviderLimits {
         provider: next.provider,
         account_id: next.account_id,
@@ -132,6 +139,7 @@ fn merge_limits(prev: &ProviderLimits, next: ProviderLimits, now: i64) -> Provid
         weekly,
         updated_at: next.updated_at.max(prev.updated_at),
         no_limits,
+        no_five_hour,
     }
 }
 
@@ -143,6 +151,7 @@ fn meaningful_eq(a: &ProviderLimits, b: &ProviderLimits) -> bool {
         && same_reading(&a.five_hour, &b.five_hour)
         && same_reading(&a.weekly, &b.weekly)
         && a.no_limits == b.no_limits
+        && a.no_five_hour == b.no_five_hour
 }
 
 /// Same values, both observed or both not. When a reading was observed moves on
@@ -413,6 +422,9 @@ fn parse_codex_line(line: &str, now: i64, updated_at: i64) -> Option<ProviderLim
     if limits.five_hour.is_none() && limits.weekly.is_none() {
         return None;
     }
+    // Every line carries each window the plan has, so a weekly one alone means
+    // the plan has no 5-hour window.
+    limits.no_five_hour = limits.five_hour.is_none();
     limits.label = rl
         .get("plan_type")
         .and_then(Value::as_str)
@@ -600,30 +612,34 @@ fn parse_claude_payload(
         five_hour,
         weekly,
         updated_at,
-        no_limits: false,
+        ..Default::default()
     })
 }
 
-/// What a report means when it has no usable rate_limits. Claude Code fills
-/// them from the headers of every subscription reply, so a session that just
-/// got a reply (`fresh`) and still has none belongs to a login with no plan
-/// windows. Before the first reply it simply says nothing yet.
+/// What a report says about the account's plan. Claude Code fills rate_limits
+/// from the headers of every subscription reply, one window for each limit the
+/// plan has, so a session that just got a reply (`fresh`) and still has none
+/// belongs to a login with no plan windows, and one with a weekly window alone
+/// to a plan with no 5-hour window. Before the first reply it simply says
+/// nothing yet, and a replay can't tell a missing window from one that reset.
 fn claude_reading(
     account_id: &str,
     payload: &Value,
     updated_at: i64,
     fresh: bool,
 ) -> Option<ProviderLimits> {
-    parse_claude_payload(account_id, payload, updated_at).or_else(|| {
-        fresh.then(|| ProviderLimits {
+    let Some(mut limits) = parse_claude_payload(account_id, payload, updated_at) else {
+        return fresh.then(|| ProviderLimits {
             provider: "claude".into(),
             account_id: Some(account_id.to_string()),
             label: claude_model_label(payload),
             updated_at,
             no_limits: true,
             ..Default::default()
-        })
-    })
+        });
+    };
+    limits.no_five_hour = fresh && limits.five_hour.is_none();
+    Some(limits)
 }
 
 /// Whether this statusline payload reflects an observation its session had not
@@ -745,6 +761,10 @@ mod tests {
         let line = r#"{"type":"event_msg","payload":{"type":"token_count","rate_limits":{"primary":{"used_percent":24.0,"window_minutes":10080,"resets_at":1785088782},"secondary":null,"plan_type":"plus"}}}"#;
         let l = parse_codex_line(line, 1_000, 5).unwrap();
         assert!(l.five_hour.is_none());
+        assert!(
+            l.no_five_hour,
+            "a weekly window alone: the plan has no 5-hour one"
+        );
         let weekly = l.weekly.unwrap();
         assert_eq!(weekly.used_percent, 24.0);
         assert_eq!(weekly.resets_at, 1785088782);
@@ -756,6 +776,7 @@ mod tests {
     fn codex_both_windows() {
         let line = r#"{"payload":{"type":"token_count","rate_limits":{"primary":{"used_percent":3.0,"window_minutes":300,"resets_at":100},"secondary":{"used_percent":2.0,"window_minutes":10080,"resets_at":200},"plan_type":"plus"}}}"#;
         let l = parse_codex_line(line, 0, 0).unwrap();
+        assert!(!l.no_five_hour);
         assert_eq!(l.five_hour.unwrap().used_percent, 3.0);
         assert_eq!(l.weekly.unwrap().used_percent, 2.0);
     }
@@ -1256,6 +1277,93 @@ mod tests {
             "a first real reading clears the flag"
         );
         assert!(!s.snapshot()["claude:api"].no_limits);
+    }
+
+    #[test]
+    fn a_reply_with_a_weekly_window_alone_marks_a_plan_without_a_five_hour_one() {
+        let weekly_only: Value = serde_json::from_str(
+            r#"{"rate_limits":{"seven_day":{"used_percentage":61.0,"resets_at":9000}}}"#,
+        )
+        .unwrap();
+        let both: Value = serde_json::from_str(
+            r#"{"rate_limits":{"five_hour":{"used_percentage":4.0,"resets_at":2000},"seven_day":{"used_percentage":61.0,"resets_at":9000}}}"#,
+        )
+        .unwrap();
+        assert!(
+            claude_reading("work", &weekly_only, 0, true)
+                .unwrap()
+                .no_five_hour
+        );
+        assert!(
+            !claude_reading("work", &weekly_only, 0, false)
+                .unwrap()
+                .no_five_hour,
+            "a replay can't tell a missing window from one that reset"
+        );
+        assert!(!claude_reading("work", &both, 0, true).unwrap().no_five_hour);
+        let json = serde_json::to_value(claude_reading("work", &weekly_only, 0, true)).unwrap();
+        assert_eq!(json["noFiveHour"], true);
+        assert!(serde_json::to_value(claude_reading("work", &both, 0, true))
+            .unwrap()
+            .get("noFiveHour")
+            .is_none());
+    }
+
+    #[test]
+    fn no_five_hour_holds_through_replays_until_a_five_hour_reading() {
+        let s = AgentLimitsStore::new();
+        let flagged = |s: &AgentLimitsStore| s.snapshot()["claude:default"].no_five_hour;
+        let mut weekly_only = claude_limits(None, Some(61.0), 9_000);
+        weekly_only.no_five_hour = true;
+        assert!(s.set("claude:default", weekly_only, 0, true));
+        assert!(flagged(&s));
+        assert!(!s.set(
+            "claude:default",
+            claude_limits(None, Some(61.0), 9_000),
+            10,
+            false
+        ));
+        assert!(flagged(&s), "a replay says nothing about the plan");
+        assert!(s.set(
+            "claude:default",
+            claude_limits(Some(3.0), Some(61.0), 9_000),
+            20,
+            true
+        ));
+        assert!(!flagged(&s), "a 5-hour reading clears it");
+    }
+
+    #[test]
+    fn a_live_five_hour_window_outranks_no_five_hour() {
+        let s = AgentLimitsStore::new();
+        s.set(
+            "claude:default",
+            claude_limits(Some(40.0), Some(61.0), 9_000),
+            0,
+            false,
+        );
+        let mut weekly_only = claude_limits(None, Some(62.0), 9_000);
+        weekly_only.no_five_hour = true;
+        s.set("claude:default", weekly_only.clone(), 10, true);
+        let kept = &s.snapshot()["claude:default"];
+        assert!(!kept.no_five_hour);
+        assert_eq!(kept.five_hour.as_ref().unwrap().used_percent, 40.0);
+
+        s.set("claude:default", weekly_only, 9_001, true);
+        let after = &s.snapshot()["claude:default"];
+        assert!(after.five_hour.is_none() && after.no_five_hour);
+    }
+
+    #[test]
+    fn no_five_hour_survives_a_relaunch() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("agent-limits.json");
+        let mut saved = HashMap::new();
+        let mut l = claude_limits(None, Some(61.0), 9_000);
+        l.no_five_hour = true;
+        saved.insert("claude:default".to_string(), l);
+        persist_claude_at(&path, &saved).unwrap();
+        assert!(load_claude_at(&path, 100)["claude:default"].no_five_hour);
     }
 
     fn observed(mut l: ProviderLimits, at: i64) -> ProviderLimits {

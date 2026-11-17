@@ -26,7 +26,8 @@ struct UsageRow: Identifiable {
     /// empty for the weekly one, which needs no label.
     let windowShort: String
     /// The other window, drawn as the thin lane under the row's own; nil for a
-    /// row that only reports today's spend and draws a single bar.
+    /// row that only reports today's spend, or whose plan has no 5-hour window,
+    /// and draws a single bar.
     let lane: UsageLane?
     /// The other window's name and use, read out in place of its lane.
     let laneText: String
@@ -92,7 +93,8 @@ func usageRows(_ snapshot: LimitsSnapshot?, today: AgentStats?, accounts: [Claud
         // in for a tool that shows a single row.
         let spent: UsageBreakdown? = split ? nil : today?.providers.first { $0.key == provider }
         for identity in identities {
-            let reading = UsageReading(weekly: identity.data?.weekly, fiveHour: identity.data?.fiveHour, now: now)
+            let reading = UsageReading(weekly: identity.data?.weekly, fiveHour: identity.data?.fiveHour,
+                                       noFiveHour: identity.data?.noFiveHour ?? false, now: now)
             let candidate = Candidate(provider: provider, identity: identity, split: split, reading: reading,
                                       tokens: spent?.tokens.totalTokens ?? 0, sessions: spent?.sessions ?? 0)
             // An account row stays even with nothing to show — a row that vanished
@@ -129,8 +131,10 @@ func usageRows(_ snapshot: LimitsSnapshot?, today: AgentStats?, accounts: [Claud
             percentText: reading.percentText,
             windowLabel: windowed ? reading.main.label : "",
             windowShort: windowed ? reading.main.short : "",
-            lane: windowed || c.tokens == 0 ? laneFor(reading.other.win) : nil,
-            laneText: reading.otherUsed.map { "\(reading.other.label) \(Int($0.rounded()))% used" } ?? "",
+            lane: windowed || c.tokens == 0 ? reading.other.map { laneFor($0.win) } : nil,
+            laneText: reading.other.flatMap { other in
+                reading.otherUsed.map { "\(other.label) \(Int($0.rounded()))% used" }
+            } ?? "",
             tokens: c.tokens,
             sessions: c.sessions,
             data: data,

@@ -9,7 +9,8 @@ import Foundation
 /// One tool's latest reading. `accountId` is Claude-only (its per-account config
 /// directory, usually "default"); `label` is the Codex plan or the Claude model
 /// display name. `updatedAt` is unix millis, so it is read through NSNumber —
-/// millisecond timestamps overflow a 32-bit bridge.
+/// millisecond timestamps overflow a 32-bit bridge. `noFiveHour` marks a plan
+/// with a weekly window and no 5-hour one, whose 5-hour meter is left out.
 struct ProviderLimits {
     let provider: String
     let accountId: String?
@@ -17,6 +18,7 @@ struct ProviderLimits {
     let fiveHour: LimitWindow?
     let weekly: LimitWindow?
     let updatedAt: Int
+    let noFiveHour: Bool
 
     init(_ o: [String: Any]) {
         provider = o["provider"] as? String ?? ""
@@ -25,6 +27,7 @@ struct ProviderLimits {
         fiveHour = (o["fiveHour"] as? [String: Any]).map(LimitWindow.init)
         weekly = (o["weekly"] as? [String: Any]).map(LimitWindow.init)
         updatedAt = (o["updatedAt"] as? NSNumber)?.intValue ?? 0
+        noFiveHour = o["noFiveHour"] as? Bool ?? false
     }
 }
 

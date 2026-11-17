@@ -16,16 +16,24 @@ data class PickedWindow(
  * the weekly window — the one that actually runs out on people, and the desktop
  * sidebar's default — falling back to the 5-hour one, with the other one for the row's
  * lower lane. A window past its reset describes one that no longer exists and is left
- * out.
+ * out. A plan without a 5-hour window has the weekly one alone.
  */
-class UsageReading(weekly: LimitWindow?, fiveHour: LimitWindow?, private val now: Double) {
+class UsageReading(
+    weekly: LimitWindow?,
+    fiveHour: LimitWindow?,
+    private val now: Double,
+    noFiveHour: Boolean = false
+) {
     val main: PickedWindow
-    val other: PickedWindow
+    val other: PickedWindow?
 
     init {
         val week = PickedWindow(liveWindow(weekly, now), "weekly", "", WEEKLY_MS)
         val five = PickedWindow(liveWindow(fiveHour, now), "5-hour", "5h", FIVE_HOUR_MS)
-        if (week.win != null) {
+        if (noFiveHour) {
+            main = week
+            other = null
+        } else if (week.win != null) {
             main = week
             other = five
         } else {
@@ -39,7 +47,7 @@ class UsageReading(weekly: LimitWindow?, fiveHour: LimitWindow?, private val now
     /** The window's use as the tool reported it, 0 when it sent no figure; null without one. */
     val used: Double? get() = main.win?.let(::usedOf)
 
-    val otherUsed: Double? get() = other.win?.let(::usedOf)
+    val otherUsed: Double? get() = other?.win?.let(::usedOf)
 
     /** How much of the bar is filled (0…1); null without a window. */
     val fraction: Double? get() = used?.let { it.coerceIn(0.0, 100.0) / 100 }

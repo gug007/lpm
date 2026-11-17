@@ -95,7 +95,7 @@ class MiscModelTest {
         val snap = LimitsSnapshot.parse(
             obj(
                 """{"limits": {"codex": {"provider": "codex", "label": "pro", "weekly": {"usedPercent": 104.5},
-                                         "updatedAt": 1760000000000},
+                                         "updatedAt": 1760000000000, "noFiveHour": true},
                               "claude:default": {"provider": "claude", "accountId": "default",
                                                  "fiveHour": {"usedPercent": 72, "resetsAt": 1760003600}},
                               "junk": 3},
@@ -106,6 +106,8 @@ class MiscModelTest {
         assertEquals(104.5, snap.entries.getValue("codex").weekly!!.usedPercent, 0.0)
         assertEquals(0L, snap.entries.getValue("codex").weekly!!.resetsAt)
         assertNull(snap.entries.getValue("codex").fiveHour)
+        assertTrue(snap.entries.getValue("codex").noFiveHour)
+        assertFalse(snap.entries.getValue("claude:default").noFiveHour)
         assertEquals(1_760_003_600L, snap.entries.getValue("claude:default").fiveHour!!.resetsAt)
         assertEquals(1_760_000_001_000.0, snap.nowMs!!, 0.0)
         assertTrue(snap.claudeEnabled)

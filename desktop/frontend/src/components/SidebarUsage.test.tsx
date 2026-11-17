@@ -203,6 +203,52 @@ describe("SidebarUsage", () => {
     expect(claude.querySelector(".sr-only")?.textContent).toBe("5-hour 34% used");
   });
 
+  it("leaves the 5-hour window out for a plan that has none", async () => {
+    mocks.agentLimits.mockResolvedValue({
+      "claude:default": {
+        provider: "claude",
+        accountId: "default",
+        weekly: { usedPercent: 60, resetsAt: IN_TWO_HOURS + 86_400 },
+        updatedAt: Date.now(),
+        noFiveHour: true,
+      },
+      "claude:work": {
+        provider: "claude",
+        accountId: "work",
+        fiveHour: { usedPercent: 40, resetsAt: IN_TWO_HOURS },
+        weekly: { usedPercent: 14, resetsAt: IN_TWO_HOURS + 86_400 },
+        updatedAt: Date.now(),
+      },
+    });
+    useAccountsStore.setState({ accounts: [{ id: "work", label: "Claude 2" }] });
+    useSettingsStore.setState({ usageSidebarWindow: "fiveHour" });
+    await render();
+
+    const cardOf = async (row: HTMLElement) => {
+      await act(async () => {
+        row.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+        vi.advanceTimersByTime(300);
+      });
+      const text = document.body.querySelector('[role="tooltip"]')!.textContent ?? "";
+      await act(async () => {
+        row.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }));
+      });
+      return text;
+    };
+    const [work, main] = [...container.querySelectorAll<HTMLElement>("button")];
+    expect(main.textContent).toContain("60%");
+    expect(main.textContent).not.toContain("5h");
+    expect(main.querySelector(".sr-only")).toBeNull();
+    expect(main.querySelector('[data-lane="upper"]')).not.toBeNull();
+    expect(main.querySelector('[data-lane="lower"]')).toBeNull();
+    expect(work.querySelector('[data-lane="lower"]')).not.toBeNull();
+
+    const mainCard = await cardOf(main);
+    expect(mainCard).toContain("Weekly");
+    expect(mainCard).not.toContain("5-hour");
+    expect(await cardOf(work)).toContain("5-hour");
+  });
+
   it("switches to the 5-hour window when that is the setting", async () => {
     useSettingsStore.setState({ usageSidebarWindow: "fiveHour" });
     await render();

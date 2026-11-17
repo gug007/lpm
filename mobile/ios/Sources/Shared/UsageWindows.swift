@@ -129,17 +129,21 @@ struct PickedWindow {
 /// window — the one that actually runs out on people, and the desktop sidebar's
 /// default — falling back to the 5-hour one, with the other one for the row's
 /// lower lane. A window past its reset describes one that no longer exists and
-/// is left out.
+/// is left out. A plan without a 5-hour window has the weekly one alone.
 struct UsageReading {
     let main: PickedWindow
-    let other: PickedWindow
+    let other: PickedWindow?
     let now: Double
 
-    init(weekly: LimitWindow?, fiveHour: LimitWindow?, now: Double) {
+    init(weekly: LimitWindow?, fiveHour: LimitWindow?, noFiveHour: Bool = false, now: Double) {
         let week = PickedWindow(win: liveWindow(weekly, now: now), label: "weekly", short: "", windowMs: weeklyMs)
         let five = PickedWindow(win: liveWindow(fiveHour, now: now), label: "5-hour", short: "5h",
                                 windowMs: fiveHourMs)
-        (main, other) = week.win != nil ? (week, five) : (five, week)
+        if noFiveHour {
+            (main, other) = (week, nil)
+        } else {
+            (main, other) = week.win != nil ? (week, five) : (five, week)
+        }
         self.now = now
     }
 
@@ -149,7 +153,7 @@ struct UsageReading {
     /// without a window.
     var used: Double? { main.win.map { $0.usedPercent.isFinite ? $0.usedPercent : 0 } }
 
-    var otherUsed: Double? { other.win.map { $0.usedPercent.isFinite ? $0.usedPercent : 0 } }
+    var otherUsed: Double? { other?.win.map { $0.usedPercent.isFinite ? $0.usedPercent : 0 } }
 
     /// How much of the bar is filled (0…1); nil without a window.
     var fraction: Double? { used.map { max(0, min(100, $0)) / 100 } }

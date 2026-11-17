@@ -91,7 +91,7 @@ function RowBody({ row, note }: { row: UsageRow; note?: AccountNote }) {
         )}
         {row.laneText && <span className="sr-only">{row.laneText}</span>}
       </span>
-      {row.lane ? (
+      {row.lane || row.percent !== null ? (
         <UsageLanes upper={row} pace={row.pace} lower={row.lane} dim={row.stale} />
       ) : (
         <span className="block h-[3px] w-full overflow-hidden rounded-full bg-[var(--bg-active)]">

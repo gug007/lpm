@@ -175,6 +175,24 @@ describe("usageRows", () => {
     expect(rows[1].windowLabel).toBe("5-hour");
   });
 
+  it("draws a plan without a 5-hour window as its weekly one alone", () => {
+    const weeklyOnly: AgentLimitsMap = {
+      codex: {
+        provider: "codex",
+        weekly: { usedPercent: 60, resetsAt: IN_TWO_HOURS + 86_400 },
+        updatedAt: NOW - 60_000,
+        noFiveHour: true,
+      },
+    };
+    for (const window of ["fiveHour", "weekly", "higher"] as const) {
+      const [row] = usageRows(weeklyOnly, null, NOW, { window });
+      expect(row.windowLabel).toBe("weekly");
+      expect(row.percentText).toBe("60%");
+      expect(row.lane).toBeNull();
+      expect(row.laneText).toBe("");
+    }
+  });
+
   it("reports the day's spend for a tool with no window yet", () => {
     const rows = usageRows({}, stats([["claude", 2_000_000, 3]]), NOW);
     expect(rows).toHaveLength(1);

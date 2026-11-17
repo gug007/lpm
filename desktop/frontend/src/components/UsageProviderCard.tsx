@@ -21,7 +21,8 @@ interface UsageProviderCardProps {
   footer?: ReactNode;
   /** One meter under the other, for the sidebar's narrow hover card. */
   stacked?: boolean;
-  /** Leads with the 5-hour meter, for a sidebar row whose own window is it. */
+  /** Leads with the 5-hour meter, for a sidebar row whose own window is it.
+   *  A plan without a 5-hour window shows only its weekly meter. */
   fiveHourFirst?: boolean;
   /** Offers reset reminders, for the card whose limits are `limitKey` in the snapshot. */
   reminders?: LimitRemindersState;
@@ -53,6 +54,7 @@ export function UsageProviderCard({
     win: data.fiveHour,
     windowMs: FIVE_HOUR_MS,
   };
+  const meters = data.noFiveHour ? [weekly] : fiveHourFirst ? [fiveHour, weekly] : [weekly, fiveHour];
   const reminderOf = (meter: typeof weekly) => {
     if (!reminders || !limitKey || !meter.win) return undefined;
     const set = !!reminderFor(reminders.reminders, limitKey, meter.id);
@@ -96,8 +98,10 @@ export function UsageProviderCard({
         </div>
       </header>
 
-      <div className={`grid gap-x-6 gap-y-5 pt-4 ${stacked ? "grid-cols-1" : "grid-cols-2"}`}>
-        {(fiveHourFirst ? [fiveHour, weekly] : [weekly, fiveHour]).map((meter, i) => (
+      <div
+        className={`grid gap-x-6 gap-y-5 pt-4 ${stacked || meters.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}
+      >
+        {meters.map((meter, i) => (
           <UsageMeter
             key={meter.label}
             label={meter.label}

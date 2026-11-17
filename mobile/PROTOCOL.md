@@ -1692,11 +1692,16 @@ label:     string?          // Codex plan ("pro"), Claude model display name —
 fiveHour:  { usedPercent: 0..100, resetsAt: unix SECONDS } ?   // OMITTED, never null
 weekly:    { usedPercent: 0..100, resetsAt: unix SECONDS } ?   // OMITTED, never null
 updatedAt: unix MILLIS      // NOT seconds — the units differ inside one object
+noFiveHour: true?           // the plan has a weekly window and no 5-hour one — OMITTED when false
 ```
 Invariants: `usedPercent` is not clamped, so values above 100 occur — clamp only a
 progress bar, never the number or the verdict. `resetsAt: 0` means unknown. A window
 already past its reset describes a window that no longer exists and is rendered as
-absent rather than as a full bar. The 5-hour and weekly window lengths are fixed
+absent rather than as a full bar. An entry with `noFiveHour` belongs to a plan that
+has no 5-hour window at all, so a client leaves its 5-hour meter and lane out instead
+of drawing them empty; without the flag a missing `fiveHour` is a window that is idle
+or not reported yet, and keeps its empty meter. Two entries of one tool can differ, so
+it is read per entry. The 5-hour and weekly window lengths are fixed
 constants on the client and never travel on the wire, so a client derives how far
 into a window it is from `resetsAt` alone.
 

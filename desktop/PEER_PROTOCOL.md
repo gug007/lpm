@@ -1016,7 +1016,7 @@ both directions:
 
 ```
 { "t": "limits", "claude": [ { "identity", "label"?, "fiveHour"?, "weekly"?,
-                               "updatedAt", "noLimits"? } ] }
+                               "updatedAt", "noLimits"?, "noFiveHour"? } ] }
 ```
 
 Each window is `{ "usedPercent", "resetsAt", "observedAt"? }`. `identity` is
@@ -1024,8 +1024,9 @@ Each window is `{ "usedPercent", "resetsAt", "observedAt"? }`. `identity` is
 each machine's own); a reading lands on every login on the receiving side signed
 in as that identity, and on none when there is no such login. `observedAt` (unix
 secs) is when a session observed the window, absent for a replayed or relaunched
-reading. The receiver folds readings in with the rules that settle two local
-sessions: the later observation wins (ties go to the later `resetsAt`, then the
+reading. `noFiveHour: true` marks a plan with a weekly window and no 5-hour one;
+the receiver keeps it until a 5-hour reading arrives. The receiver folds readings
+in with the rules that settle two local sessions: the later observation wins (ties go to the later `resetsAt`, then the
 higher percent, so both ends settle on the same one), an observed reading beats a
 replay until its window runs out, and two replays go by `resetsAt` then percent.
 `observedAt` is capped at the receiver's own clock and windows that have already

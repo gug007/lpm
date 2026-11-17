@@ -1,8 +1,9 @@
 import SwiftUI
 
 /// One tool's usage card: who it is, when it last reported, and its weekly and
-/// 5-hour meters. A card whose numbers have gone stale keeps showing them, just
-/// dimmed, so the reading is never silently replaced by nothing.
+/// 5-hour meters — the weekly one alone for a plan with no 5-hour window. A card
+/// whose numbers have gone stale keeps showing them, just dimmed, so the reading
+/// is never silently replaced by nothing.
 struct UsageProviderCardView: View {
     let data: ProviderLimits
     /// Unix millis on the phone's clock, for the windows the tools stamped.
@@ -29,7 +30,9 @@ struct UsageProviderCardView: View {
             Divider().padding(.vertical, 12)
 
             VStack(spacing: 18) {
-                if fiveHourFirst {
+                if data.noFiveHour {
+                    weeklyMeter
+                } else if fiveHourFirst {
                     fiveHourMeter
                     weeklyMeter
                 } else {

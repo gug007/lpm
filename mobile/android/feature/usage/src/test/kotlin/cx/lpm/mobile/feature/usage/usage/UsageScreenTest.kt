@@ -65,6 +65,26 @@ class UsageScreenTest {
     }
 
     @Test
+    fun aPlanWithoutAFiveHourWindowShowsItsWeeklyMeterAlone() {
+        val weeklyOnly = claude.copy(
+            fiveHour = null,
+            weekly = LimitWindow(60.0, ((now + 64 * 3_600_000) / 1000).toLong()),
+            noFiveHour = true
+        )
+        show(
+            UsageBody.Loaded(
+                claude = listOf(UsageCard("claude:default", weeklyOnly, "Claude", null)),
+                claudeEnabled = true,
+                codex = null,
+                refreshError = null,
+                dimmed = false
+            )
+        )
+        compose.onNodeWithContentDescription("Weekly window usage").assertExists()
+        compose.onNodeWithContentDescription("5-hour window usage").assertDoesNotExist()
+    }
+
+    @Test
     fun claudeReportingOffSaysWhereToTurnItOn() {
         show(
             UsageBody.Loaded(

@@ -42,7 +42,8 @@ data class UsageRow(
     val windowShort: String,
     /**
      * The other window, drawn as the thin lane under the row's own; null for a row that
-     * only reports today's spend and draws a single bar.
+     * only reports today's spend, or whose plan has no 5-hour window, and draws a single
+     * bar.
      */
     val lane: UsageLane?,
     /** The other window's name and use, read out in place of its lane. */
@@ -122,7 +123,13 @@ fun usageRows(
             val spent: UsageBreakdown? =
                 if (split) null else today?.providers?.firstOrNull { it.key == provider }
             for (identity in identities) {
-                val reading = UsageReading(identity.data?.weekly, identity.data?.fiveHour, now)
+                val data = identity.data
+                val reading = UsageReading(
+                    data?.weekly,
+                    data?.fiveHour,
+                    now,
+                    data?.noFiveHour == true
+                )
                 val candidate = Candidate(
                     provider = provider,
                     identity = identity,
@@ -165,9 +172,9 @@ private fun row(c: Candidate, peak: Long, macNow: Double): UsageRow {
         percentText = reading.percentText,
         windowLabel = if (windowed) reading.main.label else "",
         windowShort = if (windowed) reading.main.short else "",
-        lane = if (windowed || c.tokens == 0L) laneFor(reading.other.win) else null,
-        laneText = reading.otherUsed?.let {
-            "${reading.other.label} ${it.roundToLong()}% used"
+        lane = if (windowed || c.tokens == 0L) reading.other?.let { laneFor(it.win) } else null,
+        laneText = reading.other?.let { other ->
+            reading.otherUsed?.let { "${other.label} ${it.roundToLong()}% used" }
         }.orEmpty(),
         tokens = c.tokens,
         sessions = c.sessions,

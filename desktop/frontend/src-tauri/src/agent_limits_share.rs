@@ -46,6 +46,8 @@ struct SharedReading {
     updated_at: i64,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     no_limits: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    no_five_hour: bool,
 }
 
 /// Every login here that knows which Claude account it is, as (id, identity):
@@ -98,6 +100,7 @@ fn outgoing(
                 weekly: l.weekly.map(shared_window),
                 updated_at: l.updated_at,
                 no_limits: l.no_limits,
+                no_five_hour: l.no_five_hour,
             })
         })
         .collect()
@@ -128,6 +131,7 @@ fn incoming(
                     weekly: weekly.clone(),
                     updated_at: r.updated_at,
                     no_limits: r.no_limits,
+                    no_five_hour: r.no_five_hour,
                 },
             ));
         }
@@ -299,6 +303,7 @@ mod tests {
             }),
             updated_at: 7,
             no_limits: false,
+            no_five_hour: false,
         };
         let mut here = local();
         here.push(("work-2".into(), "acct-b:org".into()));
@@ -333,7 +338,30 @@ mod tests {
             weekly: None,
             updated_at: 0,
             no_limits: false,
+            no_five_hour: false,
         };
         assert!(incoming(vec![reading], &local(), 100).is_empty());
+    }
+
+    #[test]
+    fn a_plan_without_a_five_hour_window_says_so_across_the_link() {
+        let mut entries = HashMap::new();
+        entries.insert(
+            "claude:work".to_string(),
+            ProviderLimits {
+                provider: "claude".into(),
+                account_id: Some("work".into()),
+                weekly: Some(window(62.0, 9_000, Some(50))),
+                no_five_hour: true,
+                ..Default::default()
+            },
+        );
+        let out = outgoing(entries, &local());
+        let frame: Value = serde_json::from_str(&frame_of(out)).unwrap();
+        assert_eq!(frame["claude"][0]["noFiveHour"], true);
+
+        let readings: Vec<SharedReading> = serde_json::from_value(frame["claude"].clone()).unwrap();
+        let got = incoming(readings, &local(), 100);
+        assert!(got[0].1.no_five_hour);
     }
 }
