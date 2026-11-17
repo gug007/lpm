@@ -9,6 +9,9 @@ struct AgentAskCard: View {
     let dialog: AgentDialog
     /// Opens the agent's tab: a typed option is answered there.
     let open: () -> Void
+    /// Details shown in full; the rest stop at three lines. For a command prompt
+    /// the last detail is the command itself.
+    @State private var expanded: Set<Int> = []
 
     private var store: AgentDialogStore { model.agentDialogs }
     private var picking: String? { store.picking[read.terminalId] }
@@ -23,11 +26,12 @@ struct AgentAskCard: View {
                     .font(.subheadline.weight(.semibold))
                     .fixedSize(horizontal: false, vertical: true)
             }
-            ForEach(Array(dialog.details.prefix(2).enumerated()), id: \.offset) { _, detail in
+            ForEach(Array(dialog.details.enumerated()), id: \.offset) { index, detail in
                 Text(detail)
                     .font(.footnote.monospaced())
                     .foregroundStyle(.secondary)
-                    .lineLimit(3)
+                    .lineLimit(expanded.contains(index) ? nil : 3)
+                    .onTapGesture { expanded.formSymmetricDifference([index]) }
             }
             ForEach(dialog.options) { option in
                 optionButton(option)
@@ -51,6 +55,7 @@ struct AgentAskCard: View {
                 .strokeBorder(Color.orange.opacity(0.3))
         }
         .accessibilityElement(children: .contain)
+        .onChange(of: dialog.id) { _, _ in expanded = [] }
     }
 
     private func optionButton(_ option: AgentDialogOption) -> some View {

@@ -415,7 +415,8 @@ Needs an account:
 
 Flows can't reach these by text until both apps label them the same way (adding
 the label on iOS also helps VoiceOver). Done: the composer's send ("Send"), key bar
-("Up", "Down", "Left", "Right", "Hide keyboard"), attachment "Remove",
+("Escape", "Tab", "Shift Tab", "Control C", "Return", "Up", "Down", "Left", "Right",
+"Hide keyboard"), attachment "Remove",
 prompt tab "Close", mention "Preview", history "New folder", the Git review jump
 menu ("Jump to file"), per-file "Viewed" (valued On/Off) / "More", the commit
 sheet's file rows (named by path, valued Included/Excluded) and the branch sheet's

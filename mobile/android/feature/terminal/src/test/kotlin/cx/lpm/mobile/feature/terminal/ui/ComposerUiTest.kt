@@ -272,12 +272,16 @@ class ComposerUiTest {
     @Test
     fun `special keys send their raw sequences`() {
         show(ComposerUiState())
-        compose.onNodeWithText("esc").performClick()
-        compose.onNodeWithText("⌃C").performClick()
-        compose.onNodeWithContentDescription("⏎").performClick()
+        compose.onNodeWithContentDescription("Escape").performClick()
+        compose.onNodeWithContentDescription("Shift Tab").performClick()
+        compose.onNodeWithContentDescription("Control C").performClick()
+        compose.onNodeWithContentDescription("Return").performClick()
         compose.onNodeWithContentDescription("Up").performClick()
         compose.onNodeWithContentDescription("Right").performScrollTo().performClick()
-        assertEquals(listOf("key:27", "key:3", "key:13", "key:27,91,65", "key:27,91,67"), events)
+        assertEquals(
+            listOf("key:27", "key:27,91,90", "key:3", "key:13", "key:27,91,65", "key:27,91,67"),
+            events
+        )
     }
 
     @Test

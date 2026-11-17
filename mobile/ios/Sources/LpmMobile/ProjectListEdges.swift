@@ -104,15 +104,15 @@ final class ListRowsInView {
     }
 }
 
-private struct TracksListRow: ViewModifier {
+private struct ListRowTracker: View {
     @Environment(ListRowsInView.self) private var rows: ListRowsInView?
     @State private var inView = false
     let id: String
 
-    func body(content: Content) -> some View {
+    var body: some View {
         if let rows {
             let viewport = rows.viewport
-            content
+            Color.clear
                 .onGeometryChange(for: Bool.self) { geo in
                     let middle = geo.frame(in: .global).midY
                     return middle >= viewport.minY && middle <= viewport.maxY
@@ -122,16 +122,16 @@ private struct TracksListRow: ViewModifier {
                 }
                 .onAppear { rows.set(id, inView) }
                 .onDisappear { rows.set(id, false) }
-        } else {
-            content
         }
     }
 }
 
 extension View {
-    /// Reports this list row to the `ListRowsInView` in the environment.
+    /// Reports this list row to the `ListRowsInView` in the environment. It rides
+    /// in the row's background: a modifier wrapping the row hides the row's insets,
+    /// separators and swipe actions from the List.
     func tracksListRow(_ id: String) -> some View {
-        modifier(TracksListRow(id: id))
+        background { ListRowTracker(id: id) }
     }
 
     /// Lines the ends of a list when an agent sits past them. The bottom one

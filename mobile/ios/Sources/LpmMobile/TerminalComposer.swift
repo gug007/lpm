@@ -1116,15 +1116,16 @@ private struct SpecialKeyBar: View {
         HStack(spacing: 0) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    cap("esc") { key("\u{1b}") }
-                    cap("tab") { key("\t") }
-                    cap("⌃C") { key("\u{03}") }
-                    cap("⏎") { key("\r") }
+                    cap("esc", spoken: "Escape") { key("\u{1b}") }
+                    cap("tab", spoken: "Tab") { key("\t") }
+                    cap("⇧⇥", spoken: "Shift Tab") { key("\u{1b}[Z") }
+                    cap("⌃C", spoken: "Control C") { key("\u{03}") }
+                    cap("⏎", spoken: "Return") { key("\r") }
                     Divider().frame(height: 18)
-                    arrow("chevron.up", "Up") { key("\u{1b}[A") }
-                    arrow("chevron.down", "Down") { key("\u{1b}[B") }
-                    arrow("chevron.left", "Left") { key("\u{1b}[D") }
-                    arrow("chevron.right", "Right") { key("\u{1b}[C") }
+                    arrow("chevron.up", "Up", repeats: true) { key("\u{1b}[A") }
+                    arrow("chevron.down", "Down", repeats: true) { key("\u{1b}[B") }
+                    arrow("chevron.left", "Left", repeats: true) { key("\u{1b}[D") }
+                    arrow("chevron.right", "Right", repeats: true) { key("\u{1b}[C") }
                     if let answers {
                         Divider().frame(height: 18)
                         CopyAnswerKey(source: answers)
@@ -1145,7 +1146,7 @@ private struct SpecialKeyBar: View {
         .swipeDownDismissesKeyboard()
     }
 
-    private func cap(_ label: String, _ action: @escaping () -> Void) -> some View {
+    private func cap(_ label: String, spoken: String, _ action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(label)
                 .font(.system(size: 13, weight: .medium, design: .rounded))
@@ -1157,9 +1158,11 @@ private struct SpecialKeyBar: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(.primary)
+        .accessibilityLabel(spoken)
     }
 
-    private func arrow(_ systemName: String, _ label: String, action: @escaping () -> Void) -> some View {
+    private func arrow(_ systemName: String, _ label: String, repeats: Bool = false,
+                       action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: 13, weight: .semibold))
@@ -1168,6 +1171,7 @@ private struct SpecialKeyBar: View {
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
         .buttonStyle(.plain)
+        .buttonRepeatBehavior(repeats ? .enabled : .automatic)
         .foregroundStyle(.primary)
         .accessibilityLabel(label)
     }

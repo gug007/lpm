@@ -3,6 +3,7 @@ package cx.lpm.mobile.feature.projects.list
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,13 +20,17 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -84,6 +89,9 @@ fun AgentAskCard(
     val colors = LpmTheme.colors
     val typography = LpmTheme.typography
     val shape = RoundedCornerShape(12.dp)
+    // Details shown in full; the rest stop at three lines. For a command prompt
+    // the last detail is the command itself.
+    var expanded by remember(dialog.id) { mutableStateOf(emptySet<Int>()) }
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -99,12 +107,17 @@ fun AgentAskCard(
                 color = colors.label
             )
         }
-        dialog.details.take(2).forEach { detail ->
+        dialog.details.forEachIndexed { index, detail ->
             Text(
                 text = detail,
+                modifier = Modifier.pointerInput(dialog.id, index) {
+                    detectTapGestures {
+                        expanded = if (index in expanded) expanded - index else expanded + index
+                    }
+                },
                 style = typography.footnote.copy(fontFamily = FontFamily.Monospace),
                 color = colors.secondaryLabel,
-                maxLines = 3,
+                maxLines = if (index in expanded) Int.MAX_VALUE else 3,
                 overflow = TextOverflow.Ellipsis
             )
         }

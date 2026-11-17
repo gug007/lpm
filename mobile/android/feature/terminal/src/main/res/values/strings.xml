@@ -31,9 +31,14 @@
 
     <!-- Special keys -->
     <string name="key_esc">esc</string>
+    <string name="key_esc_spoken">Escape</string>
     <string name="key_tab">tab</string>
+    <string name="key_tab_spoken">Tab</string>
+    <string name="key_shift_tab">⇧⇥</string>
+    <string name="key_shift_tab_spoken">Shift Tab</string>
     <string name="key_ctrl_c">⌃C</string>
-    <string name="key_return">⏎</string>
+    <string name="key_ctrl_c_spoken">Control C</string>
+    <string name="key_return_spoken">Return</string>
     <string name="key_up">Up</string>
     <string name="key_down">Down</string>
     <string name="key_left">Left</string>
