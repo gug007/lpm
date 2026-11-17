@@ -9,7 +9,7 @@ import { DEFAULT_BRANCH_NAME_INSTRUCTIONS } from "../aiInstructions";
 export function ProjectBranchNameInstructionsEditor({
   projectName,
   onBack,
-  backTitle = "Back to AI Instructions",
+  backTitle = "AI instructions",
 }: {
   projectName: string;
   onBack: () => void;

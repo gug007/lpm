@@ -1,7 +1,8 @@
+import { PanelBottom } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "../notifications/toast";
 import type { MachineScope } from "./settings/machineCommands";
-import { ChevronLeftIcon } from "./icons";
+import { PageHeader } from "./ui/PageHeader";
 import { useTerminalTheme } from "../hooks/useTerminalTheme";
 import { useTerminalFontSize } from "../hooks/useTerminalFontSize";
 import { CustomStatusLineEditor } from "./CustomStatusLineEditor";
@@ -16,6 +17,8 @@ import { StatusLineCustomNotice } from "./StatusLineCustomNotice";
 import { notifyStatusLineChanged } from "./statusLineChanges";
 import { StatusLineEmptyState } from "./StatusLineEmptyState";
 import { StatusLineAlerts } from "./StatusLineAlerts";
+import { StatusLineSection } from "./StatusLineSection";
+import { StatusLineBuildPrompt } from "./StatusLineBuildPrompt";
 import { statusLineReadingNote } from "./statusLineReadingNote";
 import { useStatusLineCardSamples } from "../hooks/useStatusLineCardSamples";
 import { customStatusLineError } from "./statusLineValidation";
@@ -106,7 +109,15 @@ interface ReplacedCustom {
 type ApplyState = "applied" | "applying" | "error";
 type PresetSpecState = "idle" | "loading" | "error";
 
-export function ClaudeStatusLineView({ machine, onBack }: { machine: MachineScope; onBack: () => void }) {
+export function ClaudeStatusLineView({
+  machine,
+  onBack,
+  backTitle = "Settings",
+}: {
+  machine: MachineScope;
+  onBack: () => void;
+  backTitle?: string;
+}) {
   const { statusLine } = machine.commands;
   const [selected, setSelected] = useState<StatusLineTemplateId>("current");
   const [hasCustom, setHasCustom] = useState(false);
@@ -450,10 +461,8 @@ export function ClaudeStatusLineView({ machine, onBack }: { machine: MachineScop
       />
     ) : null;
 
-  const emptyHint =
-    selected === "current" && !hasCustom
-      ? "Status line is off"
-      : "Nothing to show yet";
+  const off = selected === "current" && !hasCustom;
+  const emptyHint = off ? "Status line is off" : "Nothing to show yet";
   const isUpdating = previewing || applyState === "applying";
   const previewStatus = (
     loadError
@@ -477,31 +486,22 @@ export function ClaudeStatusLineView({ machine, onBack }: { machine: MachineScop
       : "Loading status";
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col pt-6">
-      <div className="mx-auto flex w-full max-w-6xl items-start gap-3">
-        <button
-          type="button"
-          onClick={onBack}
-          aria-label="Back to Settings"
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[var(--text-muted)] outline-none transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)]"
-          title="Back to Settings"
-        >
-          <ChevronLeftIcon />
-        </button>
-        <div className="min-w-0 flex-1">
-          <h1 className="text-xl font-semibold tracking-tight text-[var(--text-primary)]">
-            Claude Code status line
-          </h1>
-          <p className="mt-1 text-[12px] text-[var(--text-muted)]">
+    <div className="flex min-h-0 flex-1 flex-col">
+      <PageHeader
+        icon={PanelBottom}
+        title="Claude Code status line"
+        back={{ label: backTitle, onClick: onBack }}
+        description={
+          <>
             Shows under the prompt box in every Claude Code session
             {machine.name ? ` on ${machine.name}` : ""}. Changes apply as you work.
-          </p>
-        </div>
-      </div>
+          </>
+        }
+      />
 
-      <div className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1">
+      <div className="-mx-1 mt-3 min-h-0 flex-1 overflow-y-auto px-1">
         <div
-          className="mx-auto w-full max-w-6xl pb-6 transition-opacity"
+          className="w-full pb-8 transition-opacity"
           style={{ opacity: loaded ? 1 : 0.55 }}
           aria-busy={!loaded}
         >
@@ -514,24 +514,15 @@ export function ClaudeStatusLineView({ machine, onBack }: { machine: MachineScop
               status={previewStatus}
               selectionLabel={selectionLabel}
               note={readingNote}
+              off={off}
             />
           </div>
 
-          <div className="space-y-4">
-            <section className="rounded-2xl border border-[var(--border)] bg-[var(--bg-secondary)]/25 p-3.5">
-              <div className="mb-3 flex items-center gap-2.5">
-                <span className="rounded-md bg-[var(--accent-blue)]/10 px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--accent-blue-text)]">
-                  Start
-                </span>
-                <div>
-                  <h2 className="text-[12.5px] font-semibold text-[var(--text-primary)]">
-                    Choose a starting point
-                  </h2>
-                  <p className="text-[10.5px] text-[var(--text-muted)]">
-                    Switch anytime. Every layout stays customizable.
-                  </p>
-                </div>
-              </div>
+          <div className="space-y-5">
+            <StatusLineSection
+              title="Choose a starting point"
+              description="Switch anytime. Pick Custom to arrange every item yourself."
+            >
               <StatusLinePresetPicker
                 selected={selected}
                 hasCustom={hasCustom}
@@ -540,7 +531,7 @@ export function ClaudeStatusLineView({ machine, onBack }: { machine: MachineScop
                 samples={cardSamples}
                 terminalStyle={themeStyle}
               />
-            </section>
+            </StatusLineSection>
 
             <StatusLineAlerts
               loadError={loadError}
@@ -564,14 +555,19 @@ export function ClaudeStatusLineView({ machine, onBack }: { machine: MachineScop
                 disabled={!canCustomize}
                 notice={customNotice}
               />
-            ) : (
+            ) : selected === "current" ? (
+              <StatusLineBuildPrompt
+                ownLine={hasCustom}
+                disabled={!canEdit}
+                onBuild={() => choose("custom")}
+              />
+            ) : selected === "ai" ? (
               <StatusLineEmptyState
-                aiEdited={selected === "ai"}
                 disabled={!canEdit}
                 onBuildCustom={() => choose("custom")}
                 onStartWithClean={() => choose("meters")}
               />
-            )}
+            ) : null}
           </div>
         </div>
       </div>

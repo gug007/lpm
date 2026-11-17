@@ -2,9 +2,8 @@ import { useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { PasteInviteField } from "./PasteInviteField";
 import { Row } from "./GroupedList";
-
-const FIELD_CLASS =
-  "rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-1.5 text-[13px] text-[var(--text-primary)] outline-none focus:border-[var(--accent-cyan)]";
+import { BTN_PRIMARY } from "../ui/buttons";
+import { FIELD_CLASS } from "./fieldClass";
 
 // Both ways in to another Mac, in the order people reach for them: paste the
 // invite you were sent, or — when the invite couldn't make the trip — type what
@@ -86,11 +85,7 @@ export function AddMacPanel({
             <button
               onClick={() => void submit()}
               disabled={!canSubmit}
-              className={`shrink-0 rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors ${
-                canSubmit
-                  ? "bg-[var(--accent-cyan)] text-white hover:opacity-90"
-                  : "bg-[var(--bg-active)] text-[var(--text-muted)]"
-              }`}
+              className={`shrink-0 ${BTN_PRIMARY}`}
             >
               Connect
             </button>

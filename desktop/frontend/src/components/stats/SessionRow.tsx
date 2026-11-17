@@ -3,7 +3,7 @@ import { ChevronDown } from "lucide-react";
 import type { AgentSessionUsage } from "../../types";
 import { formatDuration, formatTokenCount } from "../../agentUsageFormat";
 import { relativeTime } from "../../relativeTime";
-import { providerMeta } from "./statsDerive";
+import { providerMeta, shortModelName } from "./statsDerive";
 import { usePrefersReducedMotion } from "./usePrefersReducedMotion";
 
 const fullTimestamp = (ms: number) =>
@@ -34,7 +34,7 @@ export function SessionRow({ session, machineName }: SessionRowProps) {
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-xs transition-colors duration-[120ms] hover:bg-[var(--bg-hover)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--accent-blue)]"
+        className="flex min-h-9 w-full items-center gap-2.5 px-4 py-1.5 text-left text-[12px] transition-colors duration-[120ms] hover:bg-[var(--bg-hover)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--accent-blue)]"
       >
         <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: meta.color }} />
         <span className="shrink-0 text-[var(--text-secondary)]">{meta.short}</span>
@@ -44,13 +44,15 @@ export function SessionRow({ session, machineName }: SessionRowProps) {
             <span className="font-normal text-[var(--text-muted)]"> · {machineName}</span>
           )}
         </span>
-        <span
-          className="max-w-[84px] shrink-0 truncate rounded bg-[var(--bg-active)] px-1.5 py-0.5 text-[10px] text-[var(--text-secondary)]"
-          title={session.model}
-        >
-          {session.model}
+        <span className="flex w-[88px] shrink-0">
+          <span
+            className="max-w-full truncate rounded bg-[var(--bg-active)] px-1.5 py-0.5 text-[11px] text-[var(--text-secondary)]"
+            title={session.model}
+          >
+            {shortModelName(session.model)}
+          </span>
         </span>
-        <span className="w-9 shrink-0 text-right tabular-nums text-[var(--text-muted)]">
+        <span className="w-11 shrink-0 text-right tabular-nums text-[var(--text-secondary)]">
           {formatDuration(session.lastAt - session.startedAt)}
         </span>
         <span className="w-10 shrink-0 text-right tabular-nums text-[var(--text-muted)]">
@@ -78,7 +80,7 @@ export function SessionRow({ session, machineName }: SessionRowProps) {
             <div className="grid grid-cols-2 gap-x-6 gap-y-2">
               {meters.map((meter) => (
                 <div key={meter.label}>
-                  <div className="flex items-baseline justify-between text-[10px]">
+                  <div className="flex items-baseline justify-between text-[11px]">
                     <span className="text-[var(--text-muted)]">{meter.label}</span>
                     <span className="tabular-nums text-[var(--text-secondary)]">
                       {formatTokenCount(meter.value)}
@@ -97,7 +99,7 @@ export function SessionRow({ session, machineName }: SessionRowProps) {
                 </div>
               ))}
             </div>
-            <div className="mt-3 text-[10px] text-[var(--text-muted)]">
+            <div className="mt-3 text-[11px] text-[var(--text-muted)]">
               Started {fullTimestamp(session.startedAt)} · Last {fullTimestamp(session.lastAt)}
             </div>
           </div>

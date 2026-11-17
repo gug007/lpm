@@ -63,9 +63,9 @@ fun AutomationsRoute(
                 viewModel.markAllRead()
             },
             markRead = viewModel::markRead,
-            toggleFailedOnly = {
+            selectFilter = {
                 haptics.performHapticFeedback(HapticFeedbackType.ContextClick)
-                viewModel.toggleFailedOnly()
+                viewModel.selectFilter(it)
             },
             toggleEnabled = viewModel::toggleEnabled,
             run = viewModel::run,

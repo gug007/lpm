@@ -45,7 +45,7 @@ export function MemorySessionList({
               <li key={s.name} className="group relative">
                 <button
                   onClick={() => onOpen(s.name)}
-                  className="flex w-full flex-col gap-1 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)]/50 px-4 py-3.5 text-left transition-colors hover:border-[var(--accent-purple)]/40 hover:bg-[var(--bg-hover)]"
+                  className="flex w-full flex-col gap-1 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)]/50 px-4 py-3.5 text-left transition-colors hover:border-[var(--text-muted)]/40 hover:bg-[var(--bg-hover)]"
                 >
                   <span className="flex w-full items-baseline gap-3">
                     <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[var(--text-primary)]">

@@ -7,6 +7,7 @@ import {
   GenerateProjectConfig,
 } from "../../bridge/commands";
 import { BrowserOpenURL } from "../../bridge/runtime";
+import { stripMarker } from "../peer/markers";
 import { useYamlEditor } from "../hooks/useYamlEditor";
 import { projectGlobalLayer, projectLayer, queueWrite, repoLayer, saveLayer } from "../yamlQueue";
 import { VisualConfigEditor } from "./VisualConfigEditor";
@@ -16,42 +17,56 @@ import {
   REPO_MODEL_URI,
   GLOBAL_MODEL_URI,
 } from "../monaco-uris";
-import { ChevronLeftIcon, CodeIcon, HelpCircleIcon } from "./icons";
-import { AIButton } from "./ui/AIButton";
+import { ArrowUpRight, Settings, Sparkles } from "lucide-react";
 import { SegmentedControl } from "./ui/SegmentedControl";
+import { BTN_SECONDARY } from "./ui/buttons";
+import type { PageBack } from "./ui/PageHeader";
+import { ProjectSubpage, SUBPAGE_COLUMN } from "./project-detail/ProjectSubpage";
 import { AIGenerateModal } from "./AIGenerateModal";
 import { type AICLI } from "../types";
 import { getSettings, saveSettings } from "../store/settings";
 import { validateYaml } from "../yamlValidation";
-import { primaryHint } from "../shortcutHints";
 import { configProblems, type ConfigProblem } from "../configProblems";
 import { useConfigFix } from "../hooks/useConfigFix";
 import { ConfigProblemNotice } from "./ConfigProblemNotice";
+import { ConfigSaveBar } from "./config-form/ConfigSaveBar";
 
 type ConfigTarget = "user" | "repo" | "global";
 
 const USER_TARGET = {
   value: "user" as const,
-  label: "User",
-  tooltip: "Your personal settings for this project. Only you see them.",
+  label: "This project",
+  tooltip: "Your personal settings for this project, kept in lpm. Only you see them.",
 };
 const REPO_TARGET = {
   value: "repo" as const,
-  label: "Repo",
+  label: "Shared",
   tooltip:
-    "Settings saved inside the project folder. Anyone who opens this project gets the same actions, services, and profiles.",
+    "The .lpm.yml inside the project folder. Anyone who opens this project gets the same actions, services, and profiles.",
 };
 const GLOBAL_TARGET = {
   value: "global" as const,
-  label: "Global",
-  tooltip: "Defaults shared across all your projects. Used when a project doesn't override them.",
+  label: "All projects",
+  tooltip: "global.yml: defaults shared across all your projects, used where a project doesn't override them.",
 };
+
+// Which file each scope edits, said under the switch.
+function targetFile(target: ConfigTarget, projectName: string): { path: string; note: string } {
+  if (target === "repo") return { path: ".lpm.yml", note: "in the project folder, committed with the code for everyone who opens it" };
+  if (target === "global") return { path: "~/.lpm/global.yml", note: "defaults every project uses unless it sets its own" };
+  return { path: `~/.lpm/projects/${stripMarker(projectName)}.yml`, note: "your own settings for this project, kept in lpm" };
+}
+
+const MODE_OPTIONS = [
+  { value: "form" as const, label: "Form" },
+  { value: "yaml" as const, label: "YAML" },
+];
 
 interface ConfigEditorProps {
   projectName: string;
   onSaved: (newName: string) => void;
-  onBack?: () => void;
-  onToggleView?: () => void;
+  // The page's back link.
+  back: PageBack;
   isRemote?: boolean;
   // Why the project's own file doesn't load, as the project page reported it.
   loadError?: string;
@@ -62,8 +77,7 @@ interface ConfigEditorProps {
 export function ConfigEditor({
   projectName,
   onSaved,
-  onBack,
-  onToggleView,
+  back,
   isRemote = false,
   loadError,
   startWith,
@@ -176,66 +190,68 @@ export function ConfigEditor({
     setAiOpen(false);
   };
 
-  return (
-    <div className="flex h-full flex-col" onKeyDown={active.handleSaveKey}>
-      {onBack && (
-        <div className="flex items-center justify-between gap-3 px-6 pt-3 pb-2">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={onBack}
-              className="flex h-6 w-6 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-              title="Back to terminal"
-            >
-              <ChevronLeftIcon />
-            </button>
-            <span className="text-sm font-medium text-[var(--text-primary)]">Config</span>
-            <button
-              onClick={() => BrowserOpenURL("https://lpm.cx/docs")}
-              className="flex h-6 w-6 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-              title="Open configuration reference"
-            >
-              <HelpCircleIcon />
-            </button>
-          </div>
-          <div className="flex items-center gap-2">
-            {targets.length > 1 && (
-              <SegmentedControl value={target} onChange={changeTarget} options={targets} />
-            )}
-            <div
-              className={`flex items-center gap-2 ${
-                target === "user" ? "" : "invisible pointer-events-none"
-              }`}
-              aria-hidden={target !== "user"}
-            >
-              {targets.length > 1 && <span aria-hidden className="mx-1 h-4 w-px bg-[var(--border)]" />}
-              <button
-                onClick={() => changeMode(mode === "form" ? "yaml" : "form")}
-                className={`flex h-6 w-6 items-center justify-center rounded transition-colors ${
-                  mode === "yaml"
-                    ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
-                    : "text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-                }`}
-                title={mode === "form" ? "Switch to source view" : "Switch to form view"}
-              >
-                <CodeIcon />
-              </button>
-              <AIButton onClick={() => setAiOpen(true)} title="Generate config with AI">
-                Generate with AI
-              </AIButton>
-            </div>
-          </div>
-        </div>
+  const headerActions = (
+    <span
+      className={target === "user" ? "" : "invisible pointer-events-none"}
+      aria-hidden={target !== "user"}
+    >
+      <button
+        type="button"
+        onClick={() => setAiOpen(true)}
+        title="Generate config with AI"
+        className={`flex h-8 items-center gap-1.5 ${BTN_SECONDARY}`}
+      >
+        <Sparkles size={13} strokeWidth={1.9} className="text-[var(--text-secondary)]" />
+        Generate with AI
+      </button>
+    </span>
+  );
+  const file = targetFile(target, projectName);
+  const toolbar = (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+      {targets.length > 1 && (
+        <span className="flex items-center gap-2">
+          <span className="text-[12px] text-[var(--text-secondary)]">Editing</span>
+          <SegmentedControl value={target} onChange={changeTarget} options={targets} ariaLabel="Config file to edit" />
+        </span>
       )}
+      {target === "user" && (
+        <span className="ml-auto">
+          <SegmentedControl value={mode} onChange={changeMode} options={MODE_OPTIONS} ariaLabel="Editor view" />
+        </span>
+      )}
+      {targets.length > 1 && (
+        <p className="w-full text-[12px] text-[var(--text-muted)]">
+          Edits <span className="font-mono text-[var(--text-secondary)]">{file.path}</span>: {file.note}.
+        </p>
+      )}
+    </div>
+  );
+  const description = (
+    <>
+      Services, actions and profiles lpm runs for this project.{" "}
+      <button
+        type="button"
+        onClick={() => BrowserOpenURL("https://lpm.cx/docs")}
+        className="inline-flex items-center gap-0.5 text-[var(--text-secondary)] underline decoration-[var(--border)] underline-offset-2 transition-colors hover:text-[var(--text-primary)] hover:decoration-current"
+      >
+        Config reference
+        <ArrowUpRight size={11} strokeWidth={2} />
+      </button>
+    </>
+  );
 
-      {effectiveMode === "form" ? (
-        <VisualConfigEditor
-          content={active.content}
-          onChange={active.setContent}
-          onEditYaml={() => (firstProblem ? goToProblem(firstProblem) : changeMode("yaml"))}
-          isRemote={isRemote}
-        />
-      ) : (
-        <div className="relative flex-1 overflow-hidden">
+  const body =
+    effectiveMode === "form" ? (
+      <VisualConfigEditor
+        content={active.content}
+        onChange={active.setContent}
+        onEditYaml={() => (firstProblem ? goToProblem(firstProblem) : changeMode("yaml"))}
+        isRemote={isRemote}
+      />
+    ) : (
+      <div className={`${SUBPAGE_COLUMN} flex min-h-0 flex-1 flex-col pb-5`}>
+        <div className="relative min-h-0 flex-1 overflow-hidden rounded-xl border border-[var(--border)]">
           {(active.loaded || active.error) && (
             <MonacoEditor
               key={modelUri}
@@ -244,7 +260,7 @@ export function ConfigEditor({
               language="yaml"
               modelUri={modelUri}
               onSave={active.handleSave}
-              onToggleView={onToggleView}
+              onToggleView={back.onClick}
               readOnly={fixer.fixing}
               reveal={goTo}
               jumpTo={goTo}
@@ -252,11 +268,29 @@ export function ConfigEditor({
             />
           )}
         </div>
-      )}
+      </div>
+    );
 
-      {(active.dirty || shownError) && (
-        <div className="absolute bottom-4 right-4 z-10 flex items-end gap-2">
-          {shownError && (
+  return (
+    <div className="relative flex min-h-0 flex-1 flex-col" onKeyDown={active.handleSaveKey}>
+      <ProjectSubpage
+        back={back}
+        title="Config"
+        icon={Settings}
+        description={description}
+        actions={headerActions}
+        toolbar={toolbar}
+        scroll={effectiveMode === "form"}
+      >
+        {body}
+      </ProjectSubpage>
+
+      <ConfigSaveBar
+        dirty={active.dirty}
+        saving={active.saving}
+        invalid={Boolean(active.validationError)}
+        notice={
+          shownError ? (
             <ConfigProblemNotice
               message={shownError}
               goTo={firstProblem && { line: firstProblem.line, onClick: () => goToProblem(firstProblem) }}
@@ -266,26 +300,11 @@ export function ConfigEditor({
                   : undefined
               }
             />
-          )}
-          <span className="mb-2 text-[10px] text-[var(--text-muted)]">{primaryHint("s")}</span>
-          {active.dirty && (
-            <button
-              onClick={active.discard}
-              disabled={active.saving}
-              className="rounded-lg bg-[var(--bg-secondary)] px-3.5 py-1.5 text-xs font-medium text-[var(--text-secondary)] shadow-lg transition-all hover:text-[var(--text-primary)] disabled:opacity-40"
-            >
-              Discard
-            </button>
-          )}
-          <button
-            onClick={active.handleSave}
-            disabled={!active.dirty || active.saving || Boolean(active.validationError)}
-            className="rounded-lg bg-[var(--text-primary)] px-3.5 py-1.5 text-xs font-medium text-[var(--bg-primary)] shadow-lg transition-all hover:opacity-85 disabled:opacity-40"
-          >
-            {active.saving ? "Saving..." : "Save"}
-          </button>
-        </div>
-      )}
+          ) : undefined
+        }
+        onDiscard={active.discard}
+        onSave={active.handleSave}
+      />
 
       <AIGenerateModal
         open={aiOpen}

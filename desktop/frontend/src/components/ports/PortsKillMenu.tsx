@@ -1,8 +1,8 @@
 import { useRef, useState } from "react";
-import { MoreHorizontalIcon } from "../icons";
+import { MoreHorizontal } from "lucide-react";
 import { ContextMenuItem } from "../ui/ContextMenuItem";
 import { ContextMenuShell } from "../ui/ContextMenuShell";
-import { PORT_ACTION } from "./portsStyles";
+import { FOCUS } from "./portsStyles";
 
 interface PortsKillMenuProps {
   holder: string;
@@ -21,9 +21,9 @@ export function PortsKillMenu({ holder, onKill }: PortsKillMenuProps) {
         aria-label={`More actions for ${holder}`}
         aria-expanded={open}
         onClick={() => setOpen((was) => !was)}
-        className={`${PORT_ACTION} flex items-center [&>svg]:h-3.5 [&>svg]:w-3.5`}
+        className={`flex h-7 w-7 items-center justify-center rounded-md border border-[var(--border)] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] ${FOCUS}`}
       >
-        <MoreHorizontalIcon />
+        <MoreHorizontal size={16} strokeWidth={2.5} />
       </button>
       {open && button.current && (
         <ContextMenuShell anchor={button.current} trigger={button.current} align="end" onClose={() => setOpen(false)}>

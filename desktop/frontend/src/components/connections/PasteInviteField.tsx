@@ -3,6 +3,7 @@ import { decodeInvite } from "../../peer/invite";
 import { decodeShareInvite } from "../../share/invite";
 import { useTabShares } from "../../store/tabShares";
 import { MACHINE } from "../../machineWords";
+import { BTN_PRIMARY } from "../ui/buttons";
 
 // The primary way to connect: paste one invite string. The field recognizes a
 // valid invite as you paste — a quiet accent edge + inline check + accent-filled
@@ -56,15 +57,15 @@ export function PasteInviteField({
             autoCorrect="off"
             className={`w-full rounded-lg border bg-[var(--bg-primary)] px-3 py-1.5 pr-8 text-[13px] text-[var(--text-primary)] outline-none transition-colors ${
               valid
-                ? "border-[var(--accent-cyan)]"
+                ? "border-[var(--accent-green)]"
                 : invalid
                   ? "border-[color-mix(in_srgb,var(--accent-red)_45%,var(--border))]"
-                  : "border-[var(--border)] focus:border-[var(--accent-cyan)]"
+                  : "border-[var(--border)] focus:border-[var(--text-muted)]"
             }`}
           />
           {valid && (
             <svg
-              className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--accent-cyan)]"
+              className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--accent-green-text)]"
               width="13"
               height="13"
               viewBox="0 0 24 24"
@@ -81,11 +82,7 @@ export function PasteInviteField({
         <button
           onClick={submit}
           disabled={!canConnect}
-          className={`shrink-0 rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors ${
-            canConnect
-              ? "bg-[var(--accent-cyan)] text-white hover:opacity-90"
-              : "bg-[var(--bg-active)] text-[var(--text-muted)]"
-          }`}
+          className={`shrink-0 ${BTN_PRIMARY}`}
         >
           {shared ? "Join" : busy ? "Connecting…" : "Connect"}
         </button>

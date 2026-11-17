@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
+import { ArrowRight } from "lucide-react";
 import { GetVersion, PeerRemove } from "../../../bridge/commands";
 import type { PeerClient } from "../../peer/usePeerState";
 import { MACHINE } from "../../machineWords";
 import { useAppStore } from "../../store/app";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
+import { TEXT_ACTION } from "../ui/buttons";
 import { Group, GroupHeader } from "./GroupedList";
 import { PeerRow } from "./PeerRow";
 import { AddLinuxHost } from "./AddLinuxHost";
@@ -54,17 +56,13 @@ export function LinuxHostsSection({
       </Group>
       {hosts.length > 0 && <HostAutoUpdateRow />}
       {adding && (
-        <p className="mt-3 text-[12px] leading-relaxed text-[var(--text-muted)]">
-          Only need one folder, with nothing installed on the server?{" "}
-          <button
-            type="button"
-            onClick={openSSHProject}
-            className="font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:underline"
-          >
+        <div className="mt-2 flex flex-wrap items-center gap-x-1 text-[12px] text-[var(--text-muted)]">
+          <span>Only need one folder, with nothing installed on the server?</span>
+          <button type="button" onClick={openSSHProject} className={`-ml-0.5 ${TEXT_ACTION}`}>
             Add an SSH project
-          </button>{" "}
-          instead.
-        </p>
+            <ArrowRight size={12} />
+          </button>
+        </div>
       )}
 
       <ConfirmDialog

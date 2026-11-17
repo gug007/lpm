@@ -1,12 +1,14 @@
 import type { CommandMap } from "../backend";
 import { emitEvent } from "../ipc";
 import { KEEP_AWAKE_CHANGED, type KeepAwakeChoice, type KeepAwakeMode, type KeepAwakePrefs } from "../../keepAwake";
+import { projects } from "./state";
 
-// The sample Mac starts kept awake while its agents work, with one at it.
+// The sample Mac starts kept awake while its agents work, with one at it once
+// a project is added; a fresh install has none.
 let mode: KeepAwakeMode = "agents";
 let endsAt: number | null = null;
 let prefs: Required<KeepAwakePrefs> = { tailMinutes: 5, screen: true, battery: true, floor: 20 };
-const AGENTS = 1;
+const agentsAtWork = () => (projects.size > 0 ? 1 : 0);
 
 function state() {
   if (endsAt !== null && endsAt <= Date.now()) {
@@ -18,7 +20,7 @@ function state() {
     screenSupported: true,
     mode,
     active: mode !== "off",
-    agents: mode === "agents" ? AGENTS : 0,
+    agents: mode === "agents" ? agentsAtWork() : 0,
     endsIn: endsAt === null ? null : endsAt - Date.now(),
     ...prefs,
     power: mode === "off" ? "idle" : "awake",

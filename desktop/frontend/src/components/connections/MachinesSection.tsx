@@ -146,16 +146,14 @@ export function MachinesSection({
           />
         ))}
 
-        {entries.length === 0 && !host.pairing && (
-          <p className="px-4 py-5 text-center text-[12px] text-[var(--text-muted)]">
-            Nothing connected yet. Add a {isMac ? "Mac" : "computer"} to open its projects here, or to let it open{" "}
-            {M.thisMachine}.
-          </p>
-        )}
-
         <AddRow
           title={isMac ? "Add a Mac" : "Add a computer"}
-          description="Paste the invite it created, or create one for it."
+          action={isMac ? "Add Mac…" : "Add computer…"}
+          description={
+            entries.length === 0 && !host.pairing
+              ? `Nothing connected yet. Open ${M.anotherMachine}'s projects here, or let it open yours.`
+              : "Paste the invite it created, or create one for it."
+          }
           onClick={() => setAddOpen(true)}
         />
       </Group>

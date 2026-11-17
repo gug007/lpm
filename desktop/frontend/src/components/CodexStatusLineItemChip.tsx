@@ -29,7 +29,7 @@ export function CodexStatusLineItemChip({
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
       title={option.description}
-      className={`inline-flex h-8 max-w-full items-center rounded-lg border bg-[var(--bg-primary)] text-[11px] text-[var(--text-primary)] shadow-sm transition-[border-color,box-shadow,opacity] ${
+      className={`inline-flex h-8 max-w-full items-center rounded-lg border bg-[var(--bg-secondary)] text-[12px] text-[var(--text-primary)] shadow-sm transition-[border-color,box-shadow,opacity] ${
         isDragging
           ? "z-10 border-[var(--accent-green)] opacity-25"
           : "border-[var(--border)] hover:border-[var(--text-muted)]/60"

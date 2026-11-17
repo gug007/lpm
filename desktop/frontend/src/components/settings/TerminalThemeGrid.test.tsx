@@ -28,7 +28,7 @@ const card = (name: string) =>
 describe("TerminalThemeGrid", () => {
   it("marks the one theme in One theme mode", () => {
     const choice = terminalThemeChoiceOf({ terminalTheme: "nord" });
-    act(() => root.render(<TerminalThemeGrid choice={choice} onPick={() => {}} onPreview={() => {}} />));
+    act(() => root.render(<TerminalThemeGrid choice={choice} onPick={() => {}} onPreview={() => {}} appearance="dark" />));
     expect(container.querySelectorAll("button")).toHaveLength(11);
     expect(card("Nord").getAttribute("aria-pressed")).toBe("true");
     expect(card("Dracula").getAttribute("aria-pressed")).toBe("false");
@@ -41,7 +41,7 @@ describe("TerminalThemeGrid", () => {
       terminalThemeDark: "dracula",
       terminalThemeLight: "github-light",
     });
-    act(() => root.render(<TerminalThemeGrid choice={choice} onPick={() => {}} onPreview={() => {}} />));
+    act(() => root.render(<TerminalThemeGrid choice={choice} onPick={() => {}} onPreview={() => {}} appearance="dark" />));
     expect(card("Dracula").getAttribute("aria-label")).toBe("Dracula, used in dark mode");
     expect(card("Dracula").textContent).toContain("Dark");
     expect(card("GitHub Light").getAttribute("aria-label")).toBe("GitHub Light, used in light mode");
@@ -53,7 +53,7 @@ describe("TerminalThemeGrid", () => {
     const onPick = vi.fn();
     const onPreview = vi.fn();
     const choice = terminalThemeChoiceOf({});
-    act(() => root.render(<TerminalThemeGrid choice={choice} onPick={onPick} onPreview={onPreview} />));
+    act(() => root.render(<TerminalThemeGrid choice={choice} onPick={onPick} onPreview={onPreview} appearance="dark" />));
     act(() => card("Claude Light").dispatchEvent(new MouseEvent("mouseover", { bubbles: true })));
     expect(onPreview).toHaveBeenLastCalledWith("claude-light");
     act(() => card("Claude Light").click());

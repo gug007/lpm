@@ -1,6 +1,10 @@
+import { Clock } from "lucide-react";
 import type { ContentZoom } from "../hooks/useContentZoom";
+import { GLOBAL_COLUMN, GlobalPageHeader } from "./GlobalPageHeader";
 import { PlusIcon } from "./icons";
-import { CountBadge } from "./ui/CountBadge";
+import type { JobListFilter } from "./project-detail/jobs/useJobListFilter";
+import { BTN_PRIMARY, BTN_SECONDARY } from "./ui/buttons";
+import { PageHeader } from "./ui/PageHeader";
 import { SegmentedControl } from "./ui/SegmentedControl";
 import { ZoomControl } from "./ui/ZoomControl";
 
@@ -18,17 +22,18 @@ interface AutomationsHeaderProps {
   unreadCount: number;
   view: AutomationsViewMode;
   onViewChange: (view: AutomationsViewMode) => void;
-  // Automations whose last run failed, and whether the list shows only those.
-  failedCount: number;
-  failedOnly: boolean;
-  onToggleFailed: () => void;
+  // How many rows each filter keeps, and the one the list shows.
+  filterCounts: Record<JobListFilter, number>;
+  filter: JobListFilter;
+  onFilterChange: (filter: JobListFilter) => void;
   zoom: ContentZoom;
   onMarkAllSeen: () => void;
   onNewJob: () => void;
 }
 
-function summary(scoped: boolean, unreadCount: number, view: AutomationsViewMode, failedOnly: boolean): string {
-  if (failedOnly && view === "list") return "The automations whose last run failed.";
+function summary(scoped: boolean, unreadCount: number, view: AutomationsViewMode, filter: JobListFilter): string {
+  if (view === "list" && filter === "needs") return "The automations waiting for your answer.";
+  if (view === "list" && filter === "failed") return "The automations whose last run failed.";
   if (unreadCount > 0) {
     return `${unreadCount} ${unreadCount === 1 ? "automation has" : "automations have"} new messages since you last looked.`;
   }
@@ -42,83 +47,105 @@ function summary(scoped: boolean, unreadCount: number, view: AutomationsViewMode
     : "Every automation across your projects, in one place.";
 }
 
+const FILTERS: { value: JobListFilter; label: string; countTone?: string; tooltip?: string }[] = [
+  { value: "all", label: "All" },
+  {
+    value: "needs",
+    label: "Needs you",
+    countTone: "text-[var(--accent-amber)]",
+    tooltip: "Only the automations waiting for your answer",
+  },
+  {
+    value: "failed",
+    label: "Failed",
+    countTone: "text-[var(--accent-red-text)]",
+    tooltip: "Only the automations whose last run failed",
+  },
+];
+
+const count = (n: number, tone = "text-[var(--text-muted)]") => (
+  <span className={`ml-1.5 tabular-nums ${tone}`}>{n}</span>
+);
+
 export function AutomationsHeader({
   scoped,
   hasJobs,
   unreadCount,
   view,
   onViewChange,
-  failedCount,
-  failedOnly,
-  onToggleFailed,
+  filterCounts,
+  filter,
+  onFilterChange,
   zoom,
   onMarkAllSeen,
   onNewJob,
 }: AutomationsHeaderProps) {
-  return (
-    <div className="flex flex-wrap items-start gap-x-3 gap-y-2 pt-6">
-      <div className="min-w-48 flex-1">
-        <h1 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
-          Automations
-          <CountBadge count={unreadCount} label="unread automations" size="md" />
-        </h1>
-        <p className="mt-1 text-[11px] text-[var(--text-muted)]">
-          {summary(scoped, unreadCount, view, failedOnly)}
-        </p>
-      </div>
-      <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-x-3 gap-y-2">
-        {hasJobs && (
-          <SegmentedControl
-            value={view}
-            options={VIEW_OPTIONS}
-            onChange={onViewChange}
-            ariaLabel="Automations view"
-          />
-        )}
-        {view === "list" && failedCount > 0 && (
-          <button
-            type="button"
-            aria-pressed={failedOnly}
-            onClick={onToggleFailed}
-            title={failedOnly ? "Show every automation" : "Show only the automations whose last run failed"}
-            className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[12px] font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent-cyan)] ${
-              failedOnly
-                ? "border-[var(--accent-red)]/40 bg-[var(--accent-red)]/10 text-[var(--text-primary)]"
-                : "border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-            }`}
-          >
-            Failed
-            <span className="tabular-nums text-[var(--accent-red-text)]">{failedCount}</span>
-          </button>
-        )}
-        {hasJobs && (
-          <ZoomControl
-            percent={zoom.percent}
-            onZoomIn={zoom.zoomIn}
-            onZoomOut={zoom.zoomOut}
-            onReset={zoom.zoomReset}
-            canZoomIn={zoom.canZoomIn}
-            canZoomOut={zoom.canZoomOut}
-          />
-        )}
+  // The reader zoom stays on ⌘+ / ⌘− in the list; its stepper shows there only
+  // once the list is zoomed, so it can be put back.
+  const showZoom = hasJobs && (view === "week" || zoom.percent !== 100);
+  const filters = FILTERS.filter((f) => f.value === "all" || filterCounts[f.value] > 0).map((f) => ({
+    value: f.value,
+    label: (
+      <>
+        {f.label}
+        {count(filterCounts[f.value], f.countTone)}
+      </>
+    ),
+    tooltip: f.tooltip,
+  }));
+  const header = {
+    title: "Automations",
+    icon: scoped ? Clock : undefined,
+    description: summary(scoped, unreadCount, view, filter),
+    actions: (
+      <>
         {unreadCount > 0 && (
-          <button
-            type="button"
-            onClick={onMarkAllSeen}
-            className="rounded-lg px-2.5 py-1.5 text-[12px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-          >
+          <button type="button" onClick={onMarkAllSeen} className={`${BTN_SECONDARY} whitespace-nowrap`}>
             Mark all read
           </button>
         )}
         <button
           type="button"
           onClick={onNewJob}
-          className="flex items-center gap-1.5 whitespace-nowrap rounded-lg bg-[var(--text-primary)] px-3 py-1.5 text-[13px] font-medium text-[var(--bg-primary)] shadow-sm transition hover:opacity-90"
+          className={`${BTN_PRIMARY} flex items-center gap-1.5 whitespace-nowrap`}
         >
           <PlusIcon />
           New automation
         </button>
-      </div>
+      </>
+    ),
+  };
+
+  return (
+    <div className="shrink-0">
+      {scoped ? (
+        <PageHeader {...header} className="pt-5" />
+      ) : (
+        <GlobalPageHeader {...header} column />
+      )}
+      {hasJobs && (
+        <div className={`mt-4 flex items-center gap-2 ${scoped ? "" : GLOBAL_COLUMN}`}>
+          {view === "list" && filters.length > 1 && (
+            <>
+              <span className="text-[12px] text-[var(--text-muted)]">Show</span>
+              <SegmentedControl value={filter} options={filters} onChange={onFilterChange} ariaLabel="Show" />
+            </>
+          )}
+          <div className="ml-auto flex items-center gap-2">
+            {showZoom && (
+              <ZoomControl
+                percent={zoom.percent}
+                onZoomIn={zoom.zoomIn}
+                onZoomOut={zoom.zoomOut}
+                onReset={zoom.zoomReset}
+                canZoomIn={zoom.canZoomIn}
+                canZoomOut={zoom.canZoomOut}
+              />
+            )}
+            <SegmentedControl value={view} options={VIEW_OPTIONS} onChange={onViewChange} ariaLabel="Automations view" />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

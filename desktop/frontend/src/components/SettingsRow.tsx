@@ -10,6 +10,7 @@ export function SettingsRow({
   below,
   footer,
   nested = false,
+  stacked = false,
 }: {
   id?: string;
   label: string;
@@ -20,6 +21,8 @@ export function SettingsRow({
   footer?: ReactNode;
   // Shown only while the row above it is on, indented under it.
   nested?: boolean;
+  // The controls go on their own line under the text, for rows with several.
+  stacked?: boolean;
 }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
   return (
@@ -27,8 +30,8 @@ export function SettingsRow({
       {nested && (
         <span aria-hidden className="absolute inset-y-0 left-6 w-0.5 rounded-full bg-[var(--bg-active)]" />
       )}
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <div className="min-w-0 flex-[1_1_12rem]">
+      <div className={stacked ? "flex flex-col gap-2.5" : "flex flex-wrap items-center justify-between gap-x-4 gap-y-2"}>
+        <div className={stacked ? "min-w-0" : "min-w-0 flex-[1_1_12rem]"}>
           <p className="text-sm font-medium text-[var(--text-primary)]">{label}</p>
           {description && <p className="text-[11px] text-[var(--text-muted)]">{description}</p>}
           {below}
@@ -44,7 +47,7 @@ export function SettingsRow({
             </button>
           )}
         </div>
-        <div className="min-w-0 max-w-full">{children}</div>
+        <div className={stacked ? "min-w-0" : "min-w-0 max-w-full"}>{children}</div>
       </div>
       {footer}
       {details && (

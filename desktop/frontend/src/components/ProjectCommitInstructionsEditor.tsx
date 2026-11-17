@@ -9,7 +9,7 @@ import { DEFAULT_COMMIT_INSTRUCTIONS } from "../aiInstructions";
 export function ProjectCommitInstructionsEditor({
   projectName,
   onBack,
-  backTitle = "Back to AI Instructions",
+  backTitle = "AI instructions",
 }: {
   projectName: string;
   onBack: () => void;

@@ -44,7 +44,7 @@ export function AgentsPane({ onNavigate }: { onNavigate: (view: View) => void })
       )}
 
       {shows("git.aiModel") && (
-        <SettingsSection title="lpm's AI">
+        <SettingsSection title="AI writing">
           <AIModelSettingsRow />
         </SettingsSection>
       )}

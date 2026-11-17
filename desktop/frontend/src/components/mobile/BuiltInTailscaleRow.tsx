@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Grip } from "lucide-react";
 import { RowMenu, type RowMenuItem } from "../connections/RowMenu";
+import { StatusChip } from "../ui/StatusChip";
 import { WayInRow } from "./WayInRow";
 import { RouteChip } from "./RouteChip";
 import { PRIMARY_BUTTON, QUIET_BUTTON, SECONDARY_BUTTON, type TileTone } from "./styles";
@@ -28,6 +29,7 @@ export function BuiltInTailscaleRow({
   live,
   deviceOnTailscale,
   audience = "phones",
+  setupBelow = false,
 }: {
   tailnet: Tailnet;
   /** The Tailscale app runs on this machine, so built-in is optional. */
@@ -37,6 +39,8 @@ export function BuiltInTailscaleRow({
   /** A paired device has come in over Tailscale, so it knows the way. */
   deviceOnTailscale: boolean;
   audience?: "phones" | "machines";
+  /** First-run steps further down the page set it up, so the row only says where it stands. */
+  setupBelow?: boolean;
 }) {
   const words = useMachineWords();
   const forMachines = audience === "machines";
@@ -87,12 +91,16 @@ export function BuiltInTailscaleRow({
         subtitle: hasApp
           ? "Optional while the Tailscale app runs here"
           : forMachines
-            ? `Reach your other ${MACHINE.plural} from anywhere, no Tailscale app needed`
+            ? `Reach your other ${MACHINE.plural} from anywhere. Your phones use it too`
             : `Reach ${words.thisMachine} from anywhere, no Tailscale app needed`,
-        action: !showSetup && (
-          <button onClick={() => setSetupOpen(true)} className={hasApp ? SECONDARY_BUTTON : PRIMARY_BUTTON}>
-            Set up
-          </button>
+        action: setupBelow ? (
+          <StatusChip>Not set up</StatusChip>
+        ) : (
+          !showSetup && (
+            <button onClick={() => setSetupOpen(true)} className={SECONDARY_BUTTON}>
+              Set up
+            </button>
+          )
         ),
         menu: [],
       };

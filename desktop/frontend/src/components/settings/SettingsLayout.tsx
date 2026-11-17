@@ -19,13 +19,15 @@ import { revealSettingsRow } from "./revealSettingsRow";
 import { SettingsNav } from "./SettingsNav";
 import { SettingsPageHeader } from "./SettingsPageHeader";
 import { SettingsPanes } from "./SettingsPanes";
+import { settingsSubpageParent } from "./SettingsSubpage";
 import { SettingsTargetContext, type SettingsTarget } from "./settingsTarget";
+
 
 const PAGE_SUBTITLES: Partial<Record<SettingsTab, string>> = {
   general: "How lpm looks, where new projects go, and how it stays up to date",
   notifications: "How lpm gets your attention when an agent or automation needs you",
   terminal: "How the built-in terminal looks, and what clicking a file path does",
-  shortcuts: `Click a shortcut, then press the keys you want. ${shortcutRequirementHint()}`,
+  shortcuts: `Shortcuts with a pencil can be changed: click one, then press the new keys. ${shortcutRequirementHint()}`,
   agents: "Start agents, choose the model lpm writes with, and keep the sidebar tidy",
   accounts: "Your agent accounts and how much of each plan is left",
   git: "Keep projects up to date, and choose how pull, push and fetch behave",
@@ -42,6 +44,7 @@ export function SettingsLayout({
   target,
   notice,
   picker,
+  subpage,
   onNavigate,
 }: {
   machine: SettingsMachine;
@@ -49,6 +52,7 @@ export function SettingsLayout({
   target: SettingsTarget | null;
   notice?: ReactNode;
   picker: ReactNode;
+  subpage?: ReactNode;
   onNavigate: (view: View) => void;
 }) {
   const activeTab = useAppStore((s) => s.settingsTab);
@@ -56,6 +60,7 @@ export function SettingsLayout({
   const setView = useAppStore((s) => s.setView);
   const view = useAppStore((s) => s.view);
   const onGlobalConfig = view === "global-config";
+  const subpageParent = settingsSubpageParent(view);
   const returnView = useSettingsReturn((s) => s.from);
   const [query, setQuery] = useState("");
 
@@ -74,7 +79,7 @@ export function SettingsLayout({
 
   const selectTab = (next: SettingsTab) => {
     setActiveTab(next);
-    if (onGlobalConfig) onNavigate("settings");
+    if (onGlobalConfig || subpage) onNavigate("settings");
   };
 
   const activateEntry = (entry: SettingsSearchEntry) => {
@@ -97,7 +102,7 @@ export function SettingsLayout({
         onBack={leave}
         picker={picker}
         groups={navGroups}
-        activeTab={tab}
+        activeTab={subpageParent ?? tab}
         activeView={onGlobalConfig ? view : undefined}
         query={query}
         results={searchResults}
@@ -108,13 +113,17 @@ export function SettingsLayout({
         onNavigate={onNavigate}
       />
 
-      {onGlobalConfig ? (
-        <div className="settings-pane-in flex min-h-0 min-w-0 flex-1 flex-col px-8 pt-2 pb-6">
-          <GlobalConfigEditor machine={machine} />
+      {subpage || onGlobalConfig ? (
+        <div
+          className={`settings-pane-in mx-auto flex min-h-0 w-full min-w-0 max-w-3xl flex-1 flex-col px-10 pt-8 ${
+            subpage ? "" : "pb-8"
+          }`}
+        >
+          {subpage ?? <GlobalConfigEditor machine={machine} />}
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto">
-          <div key={tab} className="settings-pane-in mx-auto max-w-2xl px-10 pt-8 pb-10">
+          <div key={tab} className="settings-pane-in mx-auto max-w-3xl px-10 pt-8 pb-10">
             <SettingsPageHeader
               icon={NAV_ICONS[tab]}
               title={TAB_TITLES[tab]}

@@ -34,7 +34,7 @@ export function TemplateRow({
         <>
           <button
             onClick={() => setRenaming(true)}
-            className="flex-1 truncate text-left font-mono text-[12px] text-[var(--text-primary)] hover:text-[var(--accent-cyan)]"
+            className="flex-1 truncate text-left font-mono text-[12px] text-[var(--text-primary)] decoration-[var(--text-muted)] underline-offset-2 hover:underline"
             title="Rename"
           >
             {name}
@@ -49,7 +49,7 @@ export function TemplateRow({
             </button>
             <button
               onClick={onDelete}
-              className="flex h-6 w-6 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-red-400"
+              className="flex h-6 w-6 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--accent-red-text)]"
               title="Delete"
             >
               <TrashIcon />

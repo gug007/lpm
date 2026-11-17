@@ -1,304 +1,29 @@
 import { useState, useMemo } from "react";
+import { Layers, Play, Plus, SquareTerminal, Zap } from "lucide-react";
 import { AddNewPicker, type NewItemType } from "./AddNewPicker";
-import { PlusIcon, TrashIcon, ChevronDownIcon, ChevronRightIcon, ZapIcon, PlayIcon, TerminalIcon, LayersIcon, AlertCircleIcon, CodeIcon } from "./icons";
 import { uniqueKey } from "../uniqueKey";
-import { useAccountsStore } from "../store/accounts";
-import { useAppStore } from "../store/app";
-import { isFooterDisplay, isHeaderDisplay } from "../types";
 import {
   parseYaml,
   serializeToYaml,
   type ConfigForm,
   type ServiceEntry,
   type ActionEntry,
-  type ActionInputEntry,
   type TerminalEntry,
   type ProfileEntry,
 } from "../visualConfigYaml";
-
-const INHERIT_OPTION = "__inherit__";
-const MAIN_OPTION = "__main__";
-const LIST_OPTION = "__list__";
-
-// Which option the Claude account select shows for the project's own keys.
-function claudeChoiceValue(form: ConfigForm): string {
-  if (form.claudeAccount !== null) return form.claudeAccount;
-  if (form.claudeAccounts?.length) return LIST_OPTION;
-  if (form.claudeAccounts) return MAIN_OPTION;
-  return form.parentName ? INHERIT_OPTION : MAIN_OPTION;
-}
-
-function claudeChoicePatch(value: string, form: ConfigForm): Partial<ConfigForm> {
-  if (value === LIST_OPTION) return {};
-  if (value === INHERIT_OPTION) return { claudeAccount: null, claudeAccounts: null };
-  if (value === MAIN_OPTION) return { claudeAccount: null, claudeAccounts: form.parentName ? [] : null };
-  return { claudeAccount: value, claudeAccounts: null };
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="flex flex-col gap-1.5">
-      <span className="text-[11px] text-[var(--text-secondary)]">{label}</span>
-      {children}
-    </label>
-  );
-}
-
-function Input({ value, onChange, placeholder, mono }: { value: string; onChange: (v: string) => void; placeholder?: string; mono?: boolean }) {
-  return (
-    <input
-      type="text"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      className={`w-full border-b border-[var(--border)] bg-transparent px-0.5 pb-1.5 text-[13px] text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[var(--text-secondary)] ${mono ? "font-mono" : ""}`}
-    />
-  );
-}
-
-function Select({ value, onChange, options, invalid }: { value: string; onChange: (v: string) => void; options: { value: string; label: string }[]; invalid?: boolean }) {
-  return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className={`w-full border-b bg-transparent px-0.5 pb-1.5 text-[13px] outline-none transition-colors ${
-        invalid
-          ? "border-[var(--accent-red)] text-[var(--accent-red)] focus:border-[var(--accent-red)]"
-          : "border-[var(--border)] text-[var(--text-primary)] focus:border-[var(--text-secondary)]"
-      }`}
-    >
-      {options.map((o) => (
-        <option key={o.value} value={o.value}>{o.label}</option>
-      ))}
-    </select>
-  );
-}
-
-function DisplaySelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const inZone = !isHeaderDisplay(value) && !isFooterDisplay(value) && value !== "menu";
-  return (
-    <Select
-      value={value === "button" ? "" : value}
-      onChange={onChange}
-      options={[
-        { value: "", label: "Header (default)" },
-        { value: "footer", label: "Footer" },
-        ...(value === "menu" ? [{ value: "menu", label: "Menu (legacy)" }] : []),
-        ...(inZone ? [{ value, label: `Zone “${value}”` }] : []),
-      ]}
-    />
-  );
-}
-
-function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
-  return (
-    <label className="flex items-center gap-2.5 cursor-pointer">
-      <button
-        type="button"
-        role="switch"
-        aria-checked={checked}
-        onClick={() => onChange(!checked)}
-        className={`relative h-[18px] w-8 rounded-full transition-colors ${checked ? "bg-[var(--accent-blue)]" : "bg-[var(--bg-active)]"}`}
-      >
-        <span className={`absolute top-[3px] left-[3px] h-3 w-3 rounded-full bg-white transition-transform ${checked ? "translate-x-3.5" : ""}`} />
-      </button>
-      <span className="text-[13px] text-[var(--text-secondary)]">{label}</span>
-    </label>
-  );
-}
-
-function EnvEditor({ entries, onChange }: { entries: [string, string][]; onChange: (v: [string, string][]) => void }) {
-  return (
-    <Field label="Environment variables">
-      <div className="flex flex-col gap-2">
-        {entries.map(([k, v], i) => (
-          <div key={i} className="flex items-end gap-2">
-            <input
-              type="text"
-              value={k}
-              onChange={(e) => {
-                const next = [...entries] as [string, string][];
-                next[i] = [e.target.value, v];
-                onChange(next);
-              }}
-              placeholder="KEY"
-              className="w-1/3 border-b border-[var(--border)] bg-transparent px-0.5 pb-1 font-mono text-[12px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--text-secondary)]"
-            />
-            <input
-              type="text"
-              value={v}
-              onChange={(e) => {
-                const next = [...entries] as [string, string][];
-                next[i] = [k, e.target.value];
-                onChange(next);
-              }}
-              placeholder="value"
-              className="flex-1 border-b border-[var(--border)] bg-transparent px-0.5 pb-1 font-mono text-[12px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--text-secondary)]"
-            />
-            <button
-              onClick={() => onChange(entries.filter((_, j) => j !== i))}
-              className="shrink-0 pb-1 text-[var(--text-muted)] transition-colors hover:text-[var(--accent-red)]"
-            >
-              <TrashIcon />
-            </button>
-          </div>
-        ))}
-        <button
-          onClick={() => onChange([...entries, ["", ""]])}
-          className="self-start text-[12px] text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]"
-        >
-          + Add variable
-        </button>
-      </div>
-    </Field>
-  );
-}
-
-function InputsEditor({ entries, onChange }: { entries: ActionInputEntry[]; onChange: (v: ActionInputEntry[]) => void }) {
-  return (
-    <Field label="Input prompts">
-      <div className="flex flex-col gap-3">
-        {entries.map((inp, i) => (
-          <div key={i} className="flex flex-col gap-2 border-l border-[var(--border)] pl-3">
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                value={inp.key}
-                onChange={(e) => {
-                  const next = [...entries];
-                  next[i] = { ...inp, key: e.target.value };
-                  onChange(next);
-                }}
-                placeholder="key"
-                className="w-1/3 border-b border-[var(--border)] bg-transparent px-0.5 pb-1 font-mono text-[12px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--text-secondary)]"
-              />
-              <input
-                type="text"
-                value={inp.label}
-                onChange={(e) => {
-                  const next = [...entries];
-                  next[i] = { ...inp, label: e.target.value };
-                  onChange(next);
-                }}
-                placeholder="Label"
-                className="flex-1 border-b border-[var(--border)] bg-transparent px-0.5 pb-1 text-[12px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--text-secondary)]"
-              />
-              <button
-                onClick={() => onChange(entries.filter((_, j) => j !== i))}
-                className="shrink-0 pb-1 text-[var(--text-muted)] transition-colors hover:text-[var(--accent-red)]"
-              >
-                <TrashIcon />
-              </button>
-            </div>
-            <div className="flex items-center gap-2">
-              <select
-                value={inp.type}
-                onChange={(e) => {
-                  const next = [...entries];
-                  next[i] = { ...inp, type: e.target.value };
-                  onChange(next);
-                }}
-                className="w-1/4 border-b border-[var(--border)] bg-transparent px-0.5 pb-1 text-[12px] text-[var(--text-primary)] outline-none focus:border-[var(--text-secondary)]"
-              >
-                <option value="text">text</option>
-                <option value="password">password</option>
-              </select>
-              <input
-                type="text"
-                value={inp.placeholder}
-                onChange={(e) => {
-                  const next = [...entries];
-                  next[i] = { ...inp, placeholder: e.target.value };
-                  onChange(next);
-                }}
-                placeholder="Placeholder"
-                className="flex-1 border-b border-[var(--border)] bg-transparent px-0.5 pb-1 text-[12px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--text-secondary)]"
-              />
-              <input
-                type="text"
-                value={inp.default}
-                onChange={(e) => {
-                  const next = [...entries];
-                  next[i] = { ...inp, default: e.target.value };
-                  onChange(next);
-                }}
-                placeholder="Default"
-                className="flex-1 border-b border-[var(--border)] bg-transparent px-0.5 pb-1 text-[12px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--text-secondary)]"
-              />
-              <label className="flex items-center gap-1 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={inp.required}
-                  onChange={(e) => {
-                    const next = [...entries];
-                    next[i] = { ...inp, required: e.target.checked };
-                    onChange(next);
-                  }}
-                  className="accent-[var(--accent-blue)]"
-                />
-                <span className="text-[11px] text-[var(--text-muted)]">Req</span>
-              </label>
-              <label className="flex items-center gap-1 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={inp.persist}
-                  onChange={(e) => {
-                    const next = [...entries];
-                    next[i] = { ...inp, persist: e.target.checked };
-                    onChange(next);
-                  }}
-                  className="accent-[var(--accent-blue)]"
-                />
-                <span className="text-[11px] text-[var(--text-muted)]">Persist</span>
-              </label>
-            </div>
-          </div>
-        ))}
-        <button
-          onClick={() => onChange([...entries, { key: "", label: "", type: "text", required: false, placeholder: "", default: "", persist: false }])}
-          className="self-start text-[12px] text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]"
-        >
-          + Add input
-        </button>
-      </div>
-    </Field>
-  );
-}
-
-function CardHeader({
-  label,
-  subtitle,
-  expanded,
-  onToggle,
-  onDelete,
-}: {
-  label: string;
-  subtitle?: string;
-  expanded: boolean;
-  onToggle: () => void;
-  onDelete: () => void;
-}) {
-  return (
-    <div className="group flex items-center gap-3">
-      <button onClick={onToggle} className="flex flex-1 items-center gap-3 min-w-0 text-left">
-        <span className="shrink-0 text-[var(--text-muted)] opacity-50 transition-opacity group-hover:opacity-100">
-          {expanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
-        </span>
-        <span className="shrink-0 truncate text-[13px] text-[var(--text-primary)]">{label || "untitled"}</span>
-        {subtitle && !expanded && (
-          <span className="flex-1 min-w-0 truncate text-right text-[12px] font-mono text-[var(--text-muted)]">{subtitle}</span>
-        )}
-      </button>
-      <button
-        onClick={onDelete}
-        className="shrink-0 p-1 text-[var(--text-muted)] opacity-0 transition-all group-hover:opacity-100 hover:text-[var(--accent-red)]"
-        title="Remove"
-      >
-        <TrashIcon />
-      </button>
-    </div>
-  );
-}
+import { ClaudeAccountField } from "./config-form/ClaudeAccountField";
+import { RootDirectoryField } from "./config-form/RootDirectoryField";
+import { ConfigDisplaySelect } from "./config-form/ConfigDisplaySelect";
+import { ConfigEnvEditor } from "./config-form/ConfigEnvEditor";
+import { ConfigField } from "./config-form/ConfigField";
+import { ConfigFormUnavailable } from "./config-form/ConfigFormUnavailable";
+import { ConfigInput } from "./config-form/ConfigInput";
+import { ConfigInputsEditor } from "./config-form/ConfigInputsEditor";
+import { ConfigRow } from "./config-form/ConfigRow";
+import { ConfigSection } from "./config-form/ConfigSection";
+import { ConfigSelect } from "./config-form/ConfigSelect";
+import { ConfigToggle } from "./config-form/ConfigToggle";
+import { TEXT_ACTION } from "./ui/buttons";
 
 interface VisualConfigEditorProps {
   content: string;
@@ -306,6 +31,17 @@ interface VisualConfigEditorProps {
   onEditYaml: () => void;
   isRemote?: boolean;
 }
+
+type Section = "services" | "actions" | "terminals" | "profiles";
+
+const SECTION_OF: Record<NewItemType, Section> = {
+  service: "services",
+  action: "actions",
+  terminal: "terminals",
+  profile: "profiles",
+};
+
+const rowId = (section: Section, index: number) => `${section}:${index}`;
 
 export function VisualConfigEditor({ content, onChange, onEditYaml, isRemote = false }: VisualConfigEditorProps) {
   const parsed = useMemo(() => {
@@ -318,55 +54,17 @@ export function VisualConfigEditor({ content, onChange, onEditYaml, isRemote = f
       };
     }
   }, [content]);
-  const accounts = useAccountsStore((s) => s.accounts);
-  const accountStatuses = useAccountsStore((s) => s.statuses);
-  const setView = useAppStore((s) => s.setView);
-  const setSettingsTab = useAppStore((s) => s.setSettingsTab);
-  const openAccountSettings = () => {
-    setSettingsTab("accounts");
-    setView("settings");
-  };
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  // Open rows by section and position: a row added at its section's end
+  // takes the next position, and no row elsewhere moves.
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
-  if (!parsed.form) {
-    return (
-      <div className="flex flex-1 items-center justify-center overflow-y-auto px-6 py-5">
-        <div
-          role="alert"
-          className="flex w-full max-w-xl flex-col items-center gap-4 rounded-xl border border-[var(--accent-red)]/30 bg-[var(--accent-red)]/5 p-6 text-center"
-        >
-          <div className="text-[var(--accent-red)]">
-            <AlertCircleIcon />
-          </div>
-          <div>
-            <p className="text-sm font-medium text-[var(--text-primary)]">
-              Form view is unavailable
-            </p>
-            <p className="mt-1 text-xs text-[var(--text-secondary)]">
-              Fix the invalid YAML in source view, then return to the form.
-            </p>
-          </div>
-          <pre className="max-h-40 w-full overflow-auto whitespace-pre-wrap break-words rounded-lg bg-[var(--bg-primary)] p-3 text-left text-[11px] leading-relaxed text-[var(--accent-red)]">
-            {parsed.error}
-          </pre>
-          <button
-            type="button"
-            onClick={onEditYaml}
-            className="flex items-center gap-2 rounded-lg bg-[var(--text-primary)] px-4 py-2 text-xs font-medium text-[var(--bg-primary)] transition-opacity hover:opacity-85"
-          >
-            <CodeIcon />
-            Edit YAML source
-          </button>
-        </div>
-      </div>
-    );
-  }
+  if (!parsed.form) return <ConfigFormUnavailable error={parsed.error} onEditYaml={onEditYaml} />;
 
   const form = parsed.form;
   const update = (patch: Partial<ConfigForm>) => onChange(serializeToYaml({ ...form, ...patch }, content));
 
-  const toggleExpand = (id: number) => {
+  const toggleExpand = (id: string) => {
     setExpanded((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -387,12 +85,12 @@ export function VisualConfigEditor({ content, onChange, onEditYaml, isRemote = f
   const updateProfile = (i: number, patch: Partial<ProfileEntry>) =>
     update({ profiles: form.profiles.map((p, j) => (j === i ? { ...p, ...patch } : p)) });
 
-  const deleteItem = (section: "services" | "actions" | "terminals" | "profiles", i: number) =>
+  const deleteItem = (section: Section, i: number) =>
     update({ [section]: (form[section] as unknown[]).filter((_, j) => j !== i) });
 
   const handleAddNew = (type: NewItemType) => {
-    const nextId = form.services.length + form.actions.length + form.terminals.length + form.profiles.length;
-    setExpanded((prev) => new Set(prev).add(nextId));
+    const section = SECTION_OF[type];
+    setExpanded((prev) => new Set([...prev, rowId(section, form[section].length)]));
 
     if (type === "service") {
       const key = uniqueKey("new-service", form.services.map((s) => s.key));
@@ -410,273 +108,200 @@ export function VisualConfigEditor({ content, onChange, onEditYaml, isRemote = f
   };
 
   const serviceKeys = form.services.map((s) => s.key);
-  // Running index counter for stable card IDs across sections
-  let cardIdx = 0;
+  const withAccount = !isRemote && !form.hasSsh;
 
   return (
-    <div className="flex flex-1 flex-col overflow-y-auto px-6 py-5">
-      <div className="grid grid-cols-2 gap-6">
-        <Field label="Project name">
-          <Input value={form.name} onChange={(v) => update({ name: v })} placeholder="my-project" />
-        </Field>
-        <Field label="Root directory">
-          <Input value={form.root} onChange={(v) => update({ root: v })} placeholder="~/Projects/my-app" mono />
-        </Field>
-        {!isRemote && !form.hasSsh && (
-          <Field label="Claude account">
-            <Select
-              value={claudeChoiceValue(form)}
-              onChange={(v) => update(claudeChoicePatch(v, form))}
-              invalid={Boolean(form.claudeAccount) && !accounts.some((a) => a.id === form.claudeAccount)}
-              options={[
-                ...(form.parentName ? [{ value: INHERIT_OPTION, label: "Inherit from parent" }] : []),
-                { value: MAIN_OPTION, label: "Main accounts" },
-                ...(form.claudeAccounts?.length
-                  ? [{ value: LIST_OPTION, label: "Own list (set in the project menu)" }]
-                  : []),
-                { value: "", label: "Main login only" },
-                ...accounts.map((a) => {
-                  const email = accountStatuses[a.id]?.email;
-                  return { value: a.id, label: email ? `${a.label} — ${email}` : a.label };
-                }),
-                ...(form.claudeAccount && !accounts.some((a) => a.id === form.claudeAccount)
-                  ? [{ value: form.claudeAccount, label: "Removed account" }]
-                  : []),
-              ]}
-            />
-            <button
-              type="button"
-              onClick={openAccountSettings}
-              className="self-start text-[11px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-secondary)]"
-            >
-              Manage accounts…
-            </button>
-          </Field>
-        )}
+    <div className="flex flex-col">
+      <div className={`grid gap-4 ${withAccount ? "grid-cols-3" : "grid-cols-2"}`}>
+        <ConfigField label="Project name">
+          <ConfigInput value={form.name} onChange={(v) => update({ name: v })} placeholder="my-project" />
+        </ConfigField>
+        <RootDirectoryField value={form.root} onChange={(root) => update({ root })} browsable={withAccount} />
+        {withAccount && <ClaudeAccountField form={form} onChange={update} />}
       </div>
 
       {form.services.length > 0 && (
-        <Section title="Services" count={form.services.length} icon={<span style={{ color: "#facc15" }}><ZapIcon /></span>}>
+        <ConfigSection title="Services" count={form.services.length} icon={Zap} addLabel="Add service" onAdd={() => handleAddNew("service")}>
           {form.services.map((svc, i) => {
-            const id = cardIdx++;
+            const id = rowId("services", i);
             return (
-              <Card key={id}>
-                <CardHeader
-                  label={svc.key}
-                  subtitle={svc.cmd}
-                  expanded={expanded.has(id)}
-                  onToggle={() => toggleExpand(id)}
-                  onDelete={() => deleteItem("services", i)}
-                />
-                {expanded.has(id) && (
-                  <div className="mt-4 mb-2 flex flex-col gap-4 pl-[26px]">
-                    <Field label="Name (key)">
-                      <Input value={svc.key} onChange={(v) => updateService(i, { key: v })} placeholder="frontend" />
-                    </Field>
-                    <Field label="Command">
-                      <Input value={svc.cmd} onChange={(v) => updateService(i, { cmd: v })} placeholder="npm run dev" mono />
-                    </Field>
-                    <div className="grid grid-cols-2 gap-6">
-                      <Field label="Port">
-                        <Input value={svc.port} onChange={(v) => updateService(i, { port: v })} placeholder="3000" />
-                      </Field>
-                      <Field label="Working directory">
-                        <Input value={svc.cwd} onChange={(v) => updateService(i, { cwd: v })} placeholder="./frontend" mono />
-                      </Field>
-                    </div>
-                    <EnvEditor entries={svc.env} onChange={(v) => updateService(i, { env: v })} />
-                  </div>
-                )}
-              </Card>
+              <ConfigRow
+                key={id}
+                label={svc.key}
+                subtitle={svc.cmd}
+                expanded={expanded.has(id)}
+                onToggle={() => toggleExpand(id)}
+                onDelete={() => deleteItem("services", i)}
+              >
+                <ConfigField label="Name (key)">
+                  <ConfigInput value={svc.key} onChange={(v) => updateService(i, { key: v })} placeholder="frontend" />
+                </ConfigField>
+                <ConfigField label="Command">
+                  <ConfigInput value={svc.cmd} onChange={(v) => updateService(i, { cmd: v })} placeholder="npm run dev" mono />
+                </ConfigField>
+                <div className="grid grid-cols-2 gap-4">
+                  <ConfigField label="Port">
+                    <ConfigInput value={svc.port} onChange={(v) => updateService(i, { port: v })} placeholder="3000" />
+                  </ConfigField>
+                  <ConfigField label="Working directory">
+                    <ConfigInput value={svc.cwd} onChange={(v) => updateService(i, { cwd: v })} placeholder="./frontend" />
+                  </ConfigField>
+                </div>
+                <ConfigEnvEditor entries={svc.env} onChange={(v) => updateService(i, { env: v })} />
+              </ConfigRow>
             );
           })}
-        </Section>
+        </ConfigSection>
       )}
 
       {form.actions.length > 0 && (
-        <Section title="Actions" count={form.actions.length} icon={<span style={{ color: "#10b981" }}><PlayIcon /></span>}>
+        <ConfigSection title="Actions" count={form.actions.length} icon={Play} addLabel="Add action" onAdd={() => handleAddNew("action")}>
           {form.actions.map((act, i) => {
-            const id = cardIdx++;
+            const id = rowId("actions", i);
             return (
-              <Card key={id}>
-                <CardHeader
-                  label={act.key}
-                  subtitle={act.cmd}
-                  expanded={expanded.has(id)}
-                  onToggle={() => toggleExpand(id)}
-                  onDelete={() => deleteItem("actions", i)}
-                />
-                {expanded.has(id) && (
-                  <div className="mt-4 mb-2 flex flex-col gap-4 pl-[26px]">
-                    <Field label="Name (key)">
-                      <Input value={act.key} onChange={(v) => updateAction(i, { key: v })} placeholder="deploy" />
-                    </Field>
-                    <Field label="Command">
-                      <Input value={act.cmd} onChange={(v) => updateAction(i, { cmd: v })} placeholder="./deploy.sh" mono />
-                    </Field>
-                    <div className="grid grid-cols-2 gap-6">
-                      <Field label="Label">
-                        <Input value={act.label} onChange={(v) => updateAction(i, { label: v })} placeholder="Deploy" />
-                      </Field>
-                      <Field label="Working directory">
-                        <Input value={act.cwd} onChange={(v) => updateAction(i, { cwd: v })} placeholder="./backend" mono />
-                      </Field>
-                    </div>
-                    <div className="grid grid-cols-2 gap-6">
-                      <Field label="Display">
-                        <DisplaySelect
-                          value={act.display}
-                          onChange={(v) => updateAction(i, { display: v })}
-                        />
-                      </Field>
-                      <Field label="Type">
-                        <Select
-                          value={act.type}
-                          onChange={(v) => updateAction(i, { type: v })}
-                          options={[{ value: "", label: "Modal" }, { value: "terminal", label: "Terminal tab" }, { value: "command", label: "Active terminal" }, { value: "background", label: "Background" }]}
-                        />
-                      </Field>
-                    </div>
-                    <Toggle checked={act.confirm} onChange={(v) => updateAction(i, { confirm: v })} label="Require confirmation" />
-                    <EnvEditor entries={act.env} onChange={(v) => updateAction(i, { env: v })} />
-                    <InputsEditor
-                      entries={act.inputs}
-                      onChange={(v) => updateAction(i, { inputs: v })}
+              <ConfigRow
+                key={id}
+                label={act.key}
+                subtitle={act.cmd}
+                expanded={expanded.has(id)}
+                onToggle={() => toggleExpand(id)}
+                onDelete={() => deleteItem("actions", i)}
+              >
+                <ConfigField label="Name (key)">
+                  <ConfigInput value={act.key} onChange={(v) => updateAction(i, { key: v })} placeholder="deploy" />
+                </ConfigField>
+                <ConfigField label="Command">
+                  <ConfigInput value={act.cmd} onChange={(v) => updateAction(i, { cmd: v })} placeholder="./deploy.sh" mono />
+                </ConfigField>
+                <div className="grid grid-cols-2 gap-4">
+                  <ConfigField label="Label">
+                    <ConfigInput value={act.label} onChange={(v) => updateAction(i, { label: v })} placeholder="Deploy" />
+                  </ConfigField>
+                  <ConfigField label="Working directory">
+                    <ConfigInput value={act.cwd} onChange={(v) => updateAction(i, { cwd: v })} placeholder="./backend" />
+                  </ConfigField>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <ConfigField label="Display">
+                    <ConfigDisplaySelect value={act.display} onChange={(v) => updateAction(i, { display: v })} />
+                  </ConfigField>
+                  <ConfigField label="Type">
+                    <ConfigSelect
+                      value={act.type}
+                      onChange={(v) => updateAction(i, { type: v })}
+                      options={[
+                        { value: "", label: "Modal" },
+                        { value: "terminal", label: "Terminal tab" },
+                        { value: "command", label: "Active terminal" },
+                        { value: "background", label: "Background" },
+                      ]}
                     />
-                  </div>
-                )}
-              </Card>
+                  </ConfigField>
+                </div>
+                <ConfigToggle checked={act.confirm} onChange={(v) => updateAction(i, { confirm: v })} label="Require confirmation" />
+                <ConfigEnvEditor entries={act.env} onChange={(v) => updateAction(i, { env: v })} />
+                <ConfigInputsEditor entries={act.inputs} onChange={(v) => updateAction(i, { inputs: v })} />
+              </ConfigRow>
             );
           })}
-        </Section>
+        </ConfigSection>
       )}
 
       {form.terminals.length > 0 && (
-        <Section title="Terminals" count={form.terminals.length} icon={<span style={{ color: "#22d3ee" }}><TerminalIcon /></span>}>
+        <ConfigSection
+          title="Terminals"
+          count={form.terminals.length}
+          icon={SquareTerminal}
+          addLabel="Add terminal"
+          onAdd={() => handleAddNew("terminal")}
+        >
           {form.terminals.map((term, i) => {
-            const id = cardIdx++;
+            const id = rowId("terminals", i);
             return (
-              <Card key={id}>
-                <CardHeader
-                  label={term.key}
-                  subtitle={term.cmd}
-                  expanded={expanded.has(id)}
-                  onToggle={() => toggleExpand(id)}
-                  onDelete={() => deleteItem("terminals", i)}
-                />
-                {expanded.has(id) && (
-                  <div className="mt-4 mb-2 flex flex-col gap-4 pl-[26px]">
-                    <Field label="Name (key)">
-                      <Input value={term.key} onChange={(v) => updateTerminal(i, { key: v })} placeholder="logs" />
-                    </Field>
-                    <Field label="Command">
-                      <Input value={term.cmd} onChange={(v) => updateTerminal(i, { cmd: v })} placeholder="tail -f logs/app.log" mono />
-                    </Field>
-                    <div className="grid grid-cols-2 gap-6">
-                      <Field label="Label">
-                        <Input value={term.label} onChange={(v) => updateTerminal(i, { label: v })} placeholder="App Logs" />
-                      </Field>
-                      <Field label="Working directory">
-                        <Input value={term.cwd} onChange={(v) => updateTerminal(i, { cwd: v })} placeholder="./backend" mono />
-                      </Field>
-                    </div>
-                    <Field label="Display">
-                      <DisplaySelect
-                        value={term.display}
-                        onChange={(v) => updateTerminal(i, { display: v })}
-                      />
-                    </Field>
-                    <EnvEditor entries={term.env} onChange={(v) => updateTerminal(i, { env: v })} />
-                  </div>
-                )}
-              </Card>
+              <ConfigRow
+                key={id}
+                label={term.key}
+                subtitle={term.cmd}
+                expanded={expanded.has(id)}
+                onToggle={() => toggleExpand(id)}
+                onDelete={() => deleteItem("terminals", i)}
+              >
+                <ConfigField label="Name (key)">
+                  <ConfigInput value={term.key} onChange={(v) => updateTerminal(i, { key: v })} placeholder="logs" />
+                </ConfigField>
+                <ConfigField label="Command">
+                  <ConfigInput value={term.cmd} onChange={(v) => updateTerminal(i, { cmd: v })} placeholder="tail -f logs/app.log" mono />
+                </ConfigField>
+                <div className="grid grid-cols-2 gap-4">
+                  <ConfigField label="Label">
+                    <ConfigInput value={term.label} onChange={(v) => updateTerminal(i, { label: v })} placeholder="App Logs" />
+                  </ConfigField>
+                  <ConfigField label="Working directory">
+                    <ConfigInput value={term.cwd} onChange={(v) => updateTerminal(i, { cwd: v })} placeholder="./backend" />
+                  </ConfigField>
+                </div>
+                <ConfigField label="Display">
+                  <ConfigDisplaySelect value={term.display} onChange={(v) => updateTerminal(i, { display: v })} />
+                </ConfigField>
+                <ConfigEnvEditor entries={term.env} onChange={(v) => updateTerminal(i, { env: v })} />
+              </ConfigRow>
             );
           })}
-        </Section>
+        </ConfigSection>
       )}
 
       {form.profiles.length > 0 && (
-        <Section title="Profiles" count={form.profiles.length} icon={<span style={{ color: "#a78bfa" }}><LayersIcon /></span>}>
+        <ConfigSection title="Profiles" count={form.profiles.length} icon={Layers} addLabel="Add profile" onAdd={() => handleAddNew("profile")}>
           {form.profiles.map((prof, i) => {
-            const id = cardIdx++;
+            const id = rowId("profiles", i);
             return (
-              <Card key={id}>
-                <CardHeader
-                  label={prof.key}
-                  subtitle={prof.services.length > 0 ? prof.services.join(", ") : undefined}
-                  expanded={expanded.has(id)}
-                  onToggle={() => toggleExpand(id)}
-                  onDelete={() => deleteItem("profiles", i)}
-                />
-                {expanded.has(id) && (
-                  <div className="mt-4 mb-2 flex flex-col gap-4 pl-[26px]">
-                    <Field label="Name (key)">
-                      <Input value={prof.key} onChange={(v) => updateProfile(i, { key: v })} placeholder="backend-only" />
-                    </Field>
-                    <Field label="Services">
-                      {serviceKeys.length > 0 ? (
-                        <div className="flex flex-col gap-1.5">
-                          {serviceKeys.map((svcKey) => (
-                            <label key={svcKey} className="flex items-center gap-2.5 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={prof.services.includes(svcKey)}
-                                onChange={(e) => {
-                                  const next = e.target.checked
-                                    ? [...prof.services, svcKey]
-                                    : prof.services.filter((s) => s !== svcKey);
-                                  updateProfile(i, { services: next });
-                                }}
-                                className="accent-[var(--accent-blue)]"
-                              />
-                              <span className="text-[13px] text-[var(--text-primary)]">{svcKey}</span>
-                            </label>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="text-[12px] text-[var(--text-muted)]">Add services first</span>
-                      )}
-                    </Field>
-                  </div>
-                )}
-              </Card>
+              <ConfigRow
+                key={id}
+                label={prof.key}
+                subtitle={prof.services.length > 0 ? prof.services.join(", ") : undefined}
+                expanded={expanded.has(id)}
+                onToggle={() => toggleExpand(id)}
+                onDelete={() => deleteItem("profiles", i)}
+              >
+                <ConfigField label="Name (key)">
+                  <ConfigInput value={prof.key} onChange={(v) => updateProfile(i, { key: v })} placeholder="backend-only" />
+                </ConfigField>
+                <ConfigField label="Services">
+                  {serviceKeys.length > 0 ? (
+                    <div className="flex flex-col gap-1.5">
+                      {serviceKeys.map((svcKey) => (
+                        <label key={svcKey} className="flex cursor-pointer items-center gap-2.5">
+                          <input
+                            type="checkbox"
+                            checked={prof.services.includes(svcKey)}
+                            onChange={(e) => {
+                              const next = e.target.checked
+                                ? [...prof.services, svcKey]
+                                : prof.services.filter((s) => s !== svcKey);
+                              updateProfile(i, { services: next });
+                            }}
+                            className="accent-[var(--accent-blue)]"
+                          />
+                          <span className="text-[13px] text-[var(--text-primary)]">{svcKey}</span>
+                        </label>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="text-[12px] text-[var(--text-muted)]">Add services first</span>
+                  )}
+                </ConfigField>
+              </ConfigRow>
             );
           })}
-        </Section>
+        </ConfigSection>
       )}
 
-      <div className="mt-6 pb-4">
-        <button
-          onClick={() => setPickerOpen(true)}
-          className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-        >
-          <PlusIcon />
-          Add new
-        </button>
-      </div>
+      <button type="button" onClick={() => setPickerOpen(true)} className={`-ml-1.5 mb-10 mt-6 self-start ${TEXT_ACTION}`}>
+        <Plus size={13} strokeWidth={2} />
+        Add service, action, terminal or profile
+      </button>
 
       <AddNewPicker open={pickerOpen} onClose={() => setPickerOpen(false)} onPick={handleAddNew} />
-    </div>
-  );
-}
-
-function Section({ title, count, icon, children }: { title: string; count: number; icon?: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <div className="mt-10">
-      <div className="mb-1 flex items-center gap-2 border-b border-[var(--border)] pb-2">
-        {icon}
-        <span className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">{title}</span>
-        <span className="text-[10px] text-[var(--text-muted)]">{count}</span>
-      </div>
-      <div className="flex flex-col divide-y divide-[var(--border)]">{children}</div>
-    </div>
-  );
-}
-
-function Card({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="py-3">
-      {children}
     </div>
   );
 }

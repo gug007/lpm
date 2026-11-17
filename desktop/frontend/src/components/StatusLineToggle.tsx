@@ -23,9 +23,9 @@ export function StatusLineToggle({
       aria-describedby={descriptionId}
       disabled={disabled}
       onClick={() => onChange(!checked)}
-      className="inline-flex h-8 items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)]/60 px-2.5 text-left outline-none transition-colors hover:bg-[var(--bg-hover)] focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)] disabled:opacity-40"
+      className="inline-flex h-7 items-center gap-2 rounded-md px-2 text-left outline-none transition-colors hover:bg-[var(--bg-hover)] focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)] disabled:opacity-40"
     >
-      <span className="whitespace-nowrap text-[10.5px] font-medium text-[var(--text-secondary)]">
+      <span className="whitespace-nowrap text-[12px] text-[var(--text-secondary)]">
         {label}
       </span>
       <span id={descriptionId} className="sr-only">

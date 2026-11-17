@@ -2,8 +2,11 @@ import { useState } from "react";
 import { toast } from "../../notifications/toast";
 import { useAppStore } from "../../store/app";
 import { SettingsSection } from "../SettingsSection";
-import { BTN_SECONDARY } from "../ui/buttons";
+import { LayoutTemplate, Plus } from "lucide-react";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
+import { EmptyState } from "../ui/EmptyState";
+import { BTN_PRIMARY, BTN_SECONDARY } from "../ui/buttons";
+import { TemplateExample } from "./TemplateExample";
 import { NewTemplateModal } from "./NewTemplateModal";
 import { useSettingsTarget } from "./settingsTarget";
 import { TemplateRow } from "./TemplateRow";
@@ -29,40 +32,51 @@ export function TemplatesPane() {
   const [creatingTemplateBusy, setCreatingTemplateBusy] = useState(false);
   const [confirmDeleteTemplate, setConfirmDeleteTemplate] = useState<string | null>(null);
 
+  const startNew = () => {
+    setNewTemplateName("");
+    setCreatingTemplate(true);
+  };
+
   return (
     <>
-      <SettingsSection
-        id="templates.list"
-        description="Reusable sets of actions and terminals you can apply to multiple projects. Handy when several projects share a common setup — for example, one template for all your Rails apps."
-      >
-        {templates.length === 0 && !creatingTemplate && (
-          <div className="px-4 py-3 text-[11px] text-[var(--text-muted)]">
-            No templates yet.
-          </div>
-        )}
-        {templates.map((name) => (
-          <TemplateRow
-            key={name}
-            name={name}
-            onEditConfig={() => selectTemplate(name)}
-            onRename={(oldName, newName) =>
-              oldName === newName ? Promise.resolve() : attempt("rename", () => commands.rename(oldName, newName))
-            }
-            onDelete={() => setConfirmDeleteTemplate(name)}
-          />
-        ))}
-        <div className="flex items-center justify-end px-4 py-2.5">
-          <button
-            onClick={() => {
-              setNewTemplateName("");
-              setCreatingTemplate(true);
-            }}
-            className={BTN_SECONDARY}
+      {templates.length === 0 ? (
+        <div data-settings-row="templates.list" className="mt-4">
+          <EmptyState
+            icon={<LayoutTemplate size={18} strokeWidth={1.8} />}
+            title="No templates yet"
+            body="A template holds the actions and terminals several projects share, like one for all your Rails apps."
           >
-            New template
-          </button>
+            <TemplateExample />
+            <button onClick={startNew} className={`mt-5 ${BTN_PRIMARY}`}>
+              New template…
+            </button>
+          </EmptyState>
         </div>
-      </SettingsSection>
+      ) : (
+        <SettingsSection
+          id="templates.list"
+          title="Your templates"
+          description="Reusable sets of actions and terminals you can apply to multiple projects. Handy when several projects share a common setup — for example, one template for all your Rails apps."
+          actions={
+            <button onClick={startNew} className={`flex items-center gap-1.5 ${BTN_SECONDARY}`}>
+              <Plus size={13} />
+              New template…
+            </button>
+          }
+        >
+          {templates.map((name) => (
+            <TemplateRow
+              key={name}
+              name={name}
+              onEditConfig={() => selectTemplate(name)}
+              onRename={(oldName, newName) =>
+                oldName === newName ? Promise.resolve() : attempt("rename", () => commands.rename(oldName, newName))
+              }
+              onDelete={() => setConfirmDeleteTemplate(name)}
+            />
+          ))}
+        </SettingsSection>
+      )}
 
       <ConfirmDialog
         open={confirmDeleteTemplate !== null}

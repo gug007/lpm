@@ -43,7 +43,7 @@ const MAC_HOTKEYS: HotkeyDef[] = [
   {
     id: "dictate",
     label: "Dictate",
-    description: "Speak into the input you're in, or the focused terminal's input, with VoiceToText. Press again to insert",
+    description: "Speak into the focused input or terminal with VoiceToText. Press again to insert",
     default: "cmd+alt+v",
   },
 ];

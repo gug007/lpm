@@ -825,6 +825,8 @@ export function ProjectDetail({
     );
   }
 
+  const subpageBack = { label: displayName, onClick: () => switchDetailView("terminal") };
+
   return (
     <ActionsDnd
       layout={actionsLayout}
@@ -905,23 +907,19 @@ export function ProjectDetail({
             <ConfigEditor
               projectName={project.name}
               onSaved={onRefresh}
-              onBack={() => switchDetailView("terminal")}
-              onToggleView={() => switchDetailView("terminal")}
+              back={subpageBack}
               isRemote={project.isRemote}
             />
           </div>
         )}
         {detailView === "notes" && (
           <div className="mt-1.5 -mx-6 -mb-6 flex min-h-0 flex-1 flex-col overflow-hidden">
-            <NotesView projectName={project.name} visible={visible && detailView === "notes"} />
+            <NotesView projectName={project.name} visible={visible && detailView === "notes"} back={subpageBack} />
           </div>
         )}
         {detailView === "ai" && (
           <div className="mt-1.5 -mx-6 -mb-6 flex min-h-0 flex-1 flex-col overflow-hidden">
-            <ProjectAIInstructions
-              projectName={project.name}
-              onBack={() => switchDetailView("terminal")}
-            />
+            <ProjectAIInstructions projectName={project.name} back={subpageBack} />
           </div>
         )}
 

@@ -6,42 +6,35 @@ struct AutomationsView: View {
     /// it, and a new job starts in it. nil = every job.
     var project: String? = nil
     @State private var editor: AutomationEditorContext?
-    @State private var failedOnly = false
+    @State private var filter: AutomationListFilter = .all
 
     private var shown: [AutomationJob] {
         guard let project else { return model.automations }
         return model.automations.filter { $0.runTargets.contains(project) }
     }
 
-    /// One flat feed rather than a directory: everything unread first, newest
-    /// activity first inside each half. Which projects an automation runs in
-    /// rides on its own row, so the list never has to be cut into sections by
-    /// project.
-    private var sorted: [AutomationJob] { automationsSortedForList(shown) }
-    private var unread: [AutomationJob] { sorted.filter { $0.unread > 0 } }
-    /// The Failed filter narrows the list to the rows whose last run failed,
-    /// and lets go once none are left.
-    private var failed: [AutomationJob] { sorted.filter(automationLastRunFailed) }
-    private var filtering: Bool { failedOnly && !failed.isEmpty }
-    private var listed: [AutomationJob] { filtering ? failed : sorted }
-    private var listedUnread: [AutomationJob] { listed.filter { $0.unread > 0 } }
-    private var listedRead: [AutomationJob] { listed.filter { $0.unread == 0 } }
-
     var body: some View {
+        let list = AutomationListSnapshot(shown, picked: filter)
         List {
-            if !listedUnread.isEmpty {
+            if list.waitingCount > 0 || list.failedCount > 0 {
+                Section {
+                    filterPicker(list)
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets())
+                }
+            }
+            if !list.listedUnread.isEmpty {
                 Section("New") {
-                    ForEach(listedUnread, id: \.key) { row($0) }
+                    ForEach(list.listedUnread, id: \.key) { row($0) }
                 }
             }
             Section {
-                ForEach(listedRead, id: \.key) { row($0) }
+                ForEach(list.listedRead, id: \.key) { row($0) }
             } header: {
-                if !listedUnread.isEmpty && !listedRead.isEmpty { Text("Earlier") }
+                if !list.listedUnread.isEmpty && !list.listedRead.isEmpty { Text("Earlier") }
             }
         }
-        .animation(.default, value: filtering)
-        .onChange(of: failed.isEmpty) { _, none in if none { failedOnly = false } }
+        .animation(.default, value: list.active)
         .navigationTitle("Automations")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -53,18 +46,11 @@ struct AutomationsView: View {
                 }
                 .accessibilityLabel("New automation")
             }
-            ToolbarItem(placement: .topBarTrailing) {
-                if !failed.isEmpty {
-                    AutomationFailedToggle(count: failed.count, isOn: filtering) {
-                        failedOnly = !filtering
-                    }
-                }
-            }
             ToolbarItem(placement: .topBarLeading) {
-                if !unread.isEmpty {
+                if !list.unread.isEmpty {
                     Button("Mark all read") {
                         Haptics.tap()
-                        markAllRead()
+                        markAllRead(list.unread)
                     }
                     .font(.subheadline)
                 }
@@ -96,6 +82,25 @@ struct AutomationsView: View {
         } message: {
             Text(model.automationError ?? "")
         }
+    }
+
+    private func filterPicker(_ list: AutomationListSnapshot) -> some View {
+        Picker("Show", selection: Binding(
+            get: { list.active },
+            set: { next in
+                Haptics.tap()
+                withAnimation { filter = next }
+            }
+        )) {
+            Text("All \(list.sorted.count)").tag(AutomationListFilter.all)
+            if list.waitingCount > 0 {
+                Text("Needs you \(list.waitingCount)").tag(AutomationListFilter.needsYou)
+            }
+            if list.failedCount > 0 {
+                Text("Failed \(list.failedCount)").tag(AutomationListFilter.failed)
+            }
+        }
+        .pickerStyle(.segmented)
     }
 
     /// In a project's page the project is the context: a job that runs only here
@@ -171,7 +176,7 @@ struct AutomationsView: View {
         }
     }
 
-    private func markAllRead() {
+    private func markAllRead(_ unread: [AutomationJob]) {
         if project == nil {
             model.markAllAutomationsSeen()
         } else {
@@ -188,6 +193,7 @@ struct AutomationsView: View {
 }
 
 private struct AutomationRow: View {
+    @Environment(AppModel.self) private var model
     let job: AutomationJob
     /// Which projects the automation runs in — the list is flat, so the row has
     /// to say so itself.
@@ -196,19 +202,22 @@ private struct AutomationRow: View {
     private var unread: Bool { job.unread > 0 }
 
     var body: some View {
+        let chip = AutomationRowChip(job)
         HStack(spacing: 10) {
             Circle()
-                .fill(unread ? Color.accentColor : Color.clear)
+                .fill(unread && chip == nil ? Color.accentColor : Color.clear)
                 .frame(width: 8, height: 8)
 
             Text(job.emoji.isEmpty ? "⏱️" : job.emoji)
                 .font(.title3)
                 .frame(width: 28)
+                .opacity(job.enabled ? 1 : 0.6)
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
                     Text(job.displayName)
                         .font(.body.weight(unread ? .semibold : .medium))
+                        .foregroundStyle(job.enabled ? Color.primary : Color.secondary)
                         .lineLimit(1)
                     if !scope.isEmpty {
                         Text(scope)
@@ -227,15 +236,31 @@ private struct AutomationRow: View {
                     }
                 }
 
-                HStack(alignment: .firstTextBaseline, spacing: 5) {
-                    Circle()
-                        .fill(automationStatusColor(job))
-                        .frame(width: 6, height: 6)
-                        .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 4 }
-                    Text(statusText)
-                        .font(.caption)
-                        .foregroundStyle(job.valid ? Color.secondary : Color.red)
-                        .lineLimit(automationLastRunFailed(job) ? 2 : 1)
+                if let chip {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text(chip.label)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(chip.color)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 1)
+                            .background(chip.color.opacity(0.15), in: Capsule())
+                            .fixedSize()
+                        Text(chip.text)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
+                } else {
+                    HStack(alignment: .firstTextBaseline, spacing: 5) {
+                        Circle()
+                            .fill(job.running ? Color.green : automationStatusColor(job))
+                            .frame(width: 6, height: 6)
+                            .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 4 }
+                        Text(statusText)
+                            .font(.caption)
+                            .foregroundStyle(job.enabled ? Color.secondary : Color(.tertiaryLabel))
+                            .lineLimit(1)
+                    }
                 }
             }
 
@@ -243,9 +268,22 @@ private struct AutomationRow: View {
 
             if job.running {
                 ProgressView().controlSize(.small)
+            } else if chip?.answering == true {
+                Text("Answer")
+                    .modifier(RowCapsule())
+                    .accessibilityHidden(true)
+            } else if automationLastRunFailed(job) {
+                Button {
+                    Haptics.tap()
+                    model.runAutomation(job)
+                } label: {
+                    Label("Retry", systemImage: "arrow.clockwise")
+                        .modifier(RowCapsule())
+                }
+                .buttonStyle(.borderless)
+                .tint(.primary)
             }
         }
-        .opacity(job.enabled ? 1 : 0.6)
         .padding(.vertical, 3)
     }
 
@@ -257,5 +295,42 @@ private struct AutomationRow: View {
         let count = job.unread > 9 ? "9+" : "\(job.unread)"
         let noun = job.unread == 1 ? "message" : "messages"
         return "\(count) new \(noun) · \(status)"
+    }
+}
+
+/// The outlined capsule a row's own button sits in.
+private struct RowCapsule: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .font(.footnote.weight(.semibold))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .overlay(Capsule().strokeBorder(Color(.separator)))
+    }
+}
+
+/// The list as one pass of `body` works it out: sorted once, then counted and
+/// filtered by the desktop's All / Needs you / Failed filter. Everything unread
+/// comes first, newest activity first inside each half, and a filter with
+/// nothing left in it lets go.
+private struct AutomationListSnapshot {
+    let sorted: [AutomationJob]
+    let unread: [AutomationJob]
+    let waitingCount: Int
+    let failedCount: Int
+    let active: AutomationListFilter
+    let listedUnread: [AutomationJob]
+    let listedRead: [AutomationJob]
+
+    init(_ jobs: [AutomationJob], picked: AutomationListFilter) {
+        sorted = automationsSortedForList(jobs)
+        unread = sorted.filter { $0.unread > 0 }
+        waitingCount = sorted.lazy.filter(automationNeedsAnswer).count
+        failedCount = sorted.lazy.filter(automationLastRunFailed).count
+        let pickedCount = picked == .needsYou ? waitingCount : failedCount
+        active = picked == .all || pickedCount == 0 ? .all : picked
+        let listed = sorted.filter(active.keeps)
+        listedUnread = listed.filter { $0.unread > 0 }
+        listedRead = listed.filter { $0.unread == 0 }
     }
 }

@@ -74,6 +74,26 @@ describe("VisualConfigEditor", () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
+  it("opens a row added to an earlier section, leaving later rows closed", async () => {
+    const onChange = vi.fn();
+    const content = "services:\n  web:\n    cmd: pnpm dev\nactions:\n  test:\n    cmd: pnpm test\n";
+    await act(async () => {
+      root.render(<VisualConfigEditor content={content} onChange={onChange} onEditYaml={vi.fn()} />);
+    });
+    const addService = [...container.querySelectorAll("button")].find((b) => b.textContent?.includes("Add service"));
+    await act(async () => addService!.click());
+    const next = onChange.mock.calls.at(-1)![0] as string;
+    await act(async () => {
+      root.render(<VisualConfigEditor content={next} onChange={onChange} onEditYaml={vi.fn()} />);
+    });
+    const row = (label: string) =>
+      [...container.querySelectorAll<HTMLButtonElement>("button[aria-expanded]")].find((b) =>
+        b.textContent?.includes(label),
+      );
+    expect(row("new-service")?.getAttribute("aria-expanded")).toBe("true");
+    expect(row("test")?.getAttribute("aria-expanded")).toBe("false");
+  });
+
   describe("Display", () => {
     const render = async (content: string, onChange = vi.fn()) => {
       await act(async () => {

@@ -23,9 +23,10 @@ export function MemoryCreateForm({
   return (
     <div className="flex min-h-0 flex-1 justify-center px-6 pt-14">
       <div className="w-full max-w-md">
-        <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
-          New session
-        </div>
+        <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">New memory session</h2>
+        <p className="mb-3 mt-1 text-[12px] text-[var(--text-muted)]">
+          Agents pick a session up by its short name, so give it a few plain words.
+        </p>
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -38,7 +39,7 @@ export function MemoryCreateForm({
             value={title}
             onChange={(e) => onChange(e.target.value)}
             placeholder="What is this session about?"
-            className="min-w-0 flex-1 rounded-lg border border-[var(--border)] bg-[var(--bg-sidebar)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--accent-purple)]/50 focus:outline-none"
+            className="min-w-0 flex-1 rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--text-muted)] focus:outline-none"
           />
           <button
             type="submit"

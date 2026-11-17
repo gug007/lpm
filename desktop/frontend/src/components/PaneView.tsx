@@ -10,6 +10,7 @@ import { MemoryView } from "./MemoryView";
 import { ToolkitView } from "./toolkit/ToolkitView";
 import { FilesPane } from "./files/FilesPane";
 import { ScheduledView } from "./ScheduledView";
+import { SUBPAGE_COLUMN } from "./project-detail/ProjectSubpage";
 import { ErrorBoundary } from "./ui/ErrorBoundary";
 import { ScrollFadeEdges } from "./ui/ScrollFadeEdges";
 import { Pane, type PaneHandle } from "./Pane";
@@ -419,6 +420,9 @@ function PaneViewImpl(props: PaneViewProps) {
       activeTerm?.kind === "commands")
       ? activeTerm.kind
       : null;
+  // Memory and Automations are pages, not a terminal: none of the
+  // terminal's tools in their header.
+  const pagePanel = activeUtilityTab === "memory" || activeUtilityTab === "automations";
   const paneActions = usePaneToolbar({
     resume: !!onResumeSession,
     automations: !!onAddAutomations,
@@ -741,69 +745,73 @@ function PaneViewImpl(props: PaneViewProps) {
           )}
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
-          {paneActions.menu.length > 0 && (
-            <PaneMenuButton
-              actions={paneActions.menu}
-              isDefault={paneActions.isDefault}
-              onRun={(id) => runPaneAction(id, false)}
-              onMove={(id) => paneActions.move(id, true)}
-              onReset={paneActions.reset}
-            />
+          {!pagePanel && (
+            <>
+              {paneActions.menu.length > 0 && (
+                <PaneMenuButton
+                  actions={paneActions.menu}
+                  isDefault={paneActions.isDefault}
+                  onRun={(id) => runPaneAction(id, false)}
+                  onMove={(id) => paneActions.move(id, true)}
+                  onReset={paneActions.reset}
+                />
+              )}
+              {composerTab && (
+                <PaneShareButton
+                  terminalId={composerTab.id}
+                  project={projectName}
+                  label={terminalDisplayLabel(composerTab)}
+                />
+              )}
+              <Tooltip
+                content={
+                  <>
+                    Split right <span className="ml-1 opacity-70">{chordLabel({ key: "d", meta: true })}</span>
+                  </>
+                }
+                side="bottom"
+                align="end"
+              >
+                <IconBtn onClick={() => onSplit(pane.id, "row")} ariaLabel="Split right">
+                  <SplitRightIcon />
+                </IconBtn>
+              </Tooltip>
+              <Tooltip
+                content={
+                  <>
+                    Split down <span className="ml-1 opacity-70">{chordLabel({ key: "d", meta: true, shift: true })}</span>
+                  </>
+                }
+                side="bottom"
+                align="end"
+              >
+                <IconBtn onClick={() => onSplit(pane.id, "col")} ariaLabel="Split down">
+                  <SplitDownIcon />
+                </IconBtn>
+              </Tooltip>
+              <PaneLayoutsButton projectName={projectName} capture={layouts.capture} onOpen={layouts.open} />
+              <PaneToolbar
+                actions={paneActions.toolbar}
+                activeTab={activeUtilityTab}
+                isDefault={paneActions.isDefault}
+                onRun={(id) => runPaneAction(id, true)}
+                onMove={(id) => paneActions.move(id, false)}
+                onReset={paneActions.reset}
+              />
+              <Tooltip
+                content={fullscreen ? "Exit fullscreen" : "Fullscreen"}
+                side="bottom"
+                align="end"
+              >
+                <IconBtn
+                  onClick={() => onToggleFullscreen(pane.id)}
+                  ariaLabel={fullscreen ? "Exit fullscreen" : "Fullscreen"}
+                >
+                  {fullscreen ? <ShrinkIcon /> : <ExpandIcon />}
+                </IconBtn>
+              </Tooltip>
+            </>
           )}
-          {composerTab && (
-            <PaneShareButton
-              terminalId={composerTab.id}
-              project={projectName}
-              label={terminalDisplayLabel(composerTab)}
-            />
-          )}
-          <Tooltip
-            content={
-              <>
-                Split right <span className="ml-1 opacity-70">{chordLabel({ key: "d", meta: true })}</span>
-              </>
-            }
-            side="bottom"
-            align="end"
-          >
-            <IconBtn onClick={() => onSplit(pane.id, "row")} ariaLabel="Split right">
-              <SplitRightIcon />
-            </IconBtn>
-          </Tooltip>
-          <Tooltip
-            content={
-              <>
-                Split down <span className="ml-1 opacity-70">{chordLabel({ key: "d", meta: true, shift: true })}</span>
-              </>
-            }
-            side="bottom"
-            align="end"
-          >
-            <IconBtn onClick={() => onSplit(pane.id, "col")} ariaLabel="Split down">
-              <SplitDownIcon />
-            </IconBtn>
-          </Tooltip>
-          <PaneLayoutsButton projectName={projectName} capture={layouts.capture} onOpen={layouts.open} />
-          <PaneToolbar
-            actions={paneActions.toolbar}
-            activeTab={activeUtilityTab}
-            isDefault={paneActions.isDefault}
-            onRun={(id) => runPaneAction(id, true)}
-            onMove={(id) => paneActions.move(id, false)}
-            onReset={paneActions.reset}
-          />
-          <Tooltip
-            content={fullscreen ? "Exit fullscreen" : "Fullscreen"}
-            side="bottom"
-            align="end"
-          >
-            <IconBtn
-              onClick={() => onToggleFullscreen(pane.id)}
-              ariaLabel={fullscreen ? "Exit fullscreen" : "Fullscreen"}
-            >
-              {fullscreen ? <ShrinkIcon /> : <ExpandIcon />}
-            </IconBtn>
-          </Tooltip>
           {canClose && (
             <Tooltip
               content={closePaneTooltip(pane.tabs, runningAgentCount(pane.tabs, paneStatus?.running))}
@@ -967,12 +975,14 @@ function PaneViewImpl(props: PaneViewProps) {
                 </ErrorBoundary>
               ) : t.kind === "automations" ? (
                 <ErrorBoundary resetKey={t.id} scope="automations">
-                  <div className="flex min-h-0 flex-1 flex-col bg-[var(--bg-primary)] px-6">
-                    <ScheduledView
-                      project={projectName}
-                      visible={visible && isActive}
-                      focused={focused}
-                    />
+                  <div className="flex min-h-0 flex-1 flex-col bg-[var(--bg-primary)]">
+                    <div className={`${SUBPAGE_COLUMN} flex min-h-0 flex-1 flex-col`}>
+                      <ScheduledView
+                        project={projectName}
+                        visible={visible && isActive}
+                        focused={focused}
+                      />
+                    </div>
                   </div>
                 </ErrorBoundary>
               ) : (

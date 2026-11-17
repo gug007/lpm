@@ -104,7 +104,7 @@ internal fun TopProjectsCard(
                     }
                     ShareBar(
                         project.tokens.totalTokens.toDouble() / maxTokens,
-                        LpmTheme.colors.tint
+                        LpmTheme.colors.secondaryLabel
                     )
                     Caption(sessions(project.sessions))
                 }
@@ -169,12 +169,12 @@ private fun SessionRow(
                 if (machineName != null) {
                     stringResource(
                         R.string.stats_session_meta_machine,
-                        session.model,
+                        shortModelName(session.model),
                         machineName,
                         ago
                     )
                 } else {
-                    stringResource(R.string.stats_session_meta, session.model, ago)
+                    stringResource(R.string.stats_session_meta, shortModelName(session.model), ago)
                 },
                 maxLines = 1
             )

@@ -4,8 +4,8 @@ import { formatPercent, formatTokenCount } from "../../agentUsageFormat";
 import { providerMeta, providerShare } from "./statsDerive";
 import { usePrefersReducedMotion } from "./usePrefersReducedMotion";
 
-const SIZE = 140;
-const STROKE = 14;
+const SIZE = 124;
+const STROKE = 12;
 const RADIUS = (SIZE - STROKE) / 2;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 const GAP = 3;
@@ -54,8 +54,8 @@ export function ProviderDonut({ providers, total }: ProviderDonutProps) {
     : "tokens";
 
   return (
-    <div>
-      <div className="relative mx-auto" style={{ width: SIZE, height: SIZE }}>
+    <div className="flex w-full items-center gap-5">
+      <div className="relative shrink-0" style={{ width: SIZE, height: SIZE }}>
         <svg width={SIZE} height={SIZE} aria-hidden="true">
           <g transform={`rotate(-90 ${SIZE / 2} ${SIZE / 2})`}>
             {arcs.map((arc) => (
@@ -83,14 +83,14 @@ export function ProviderDonut({ providers, total }: ProviderDonutProps) {
           </g>
         </svg>
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-          <div className="text-2xl font-semibold tracking-tight tabular-nums text-[var(--text-primary)]">
+          <div className="text-xl font-semibold tracking-tight tabular-nums text-[var(--text-primary)]">
             {centerValue}
           </div>
           <div className="mt-0.5 text-[11px] text-[var(--text-muted)]">{centerCaption}</div>
         </div>
       </div>
 
-      <div className="mt-4 space-y-2">
+      <div className="min-w-0 flex-1 space-y-2">
         {providers.map((provider) => {
           const meta = providerMeta(provider.key);
           const share = providerShare(provider.tokens.totalTokens, total);
@@ -100,7 +100,7 @@ export function ProviderDonut({ providers, total }: ProviderDonutProps) {
               key={provider.key}
               onMouseEnter={() => setHovered(provider.key)}
               onMouseLeave={() => setHovered(null)}
-              className="flex w-full items-center gap-2 rounded-md px-1 py-0.5 transition-[background-color,opacity] duration-[120ms] hover:bg-[var(--bg-hover)]"
+              className="flex w-full items-center gap-2.5 rounded-md px-1.5 py-1 transition-[background-color,opacity] duration-[120ms] hover:bg-[var(--bg-hover)]"
               style={{ opacity: dim ? 0.4 : 1 }}
             >
               <span
@@ -109,14 +109,14 @@ export function ProviderDonut({ providers, total }: ProviderDonutProps) {
               />
               <span className="min-w-0 flex-1">
                 <span className="flex items-baseline justify-between gap-2">
-                  <span className="truncate text-xs font-medium text-[var(--text-primary)]">
+                  <span className="truncate text-[13px] font-medium text-[var(--text-primary)]">
                     {meta.label}
                   </span>
-                  <span className="shrink-0 text-xs font-medium tabular-nums text-[var(--text-primary)]">
+                  <span className="shrink-0 text-[13px] font-medium tabular-nums text-[var(--text-primary)]">
                     {formatPercent(share)}
                   </span>
                 </span>
-                <span className="flex items-baseline justify-between gap-2 text-[10px] text-[var(--text-muted)]">
+                <span className="flex items-baseline justify-between gap-2 text-[11px] text-[var(--text-muted)]">
                   <span className="tabular-nums">{formatTokenCount(provider.tokens.totalTokens)}</span>
                   <span className="tabular-nums">
                     {provider.sessions} session{provider.sessions === 1 ? "" : "s"}

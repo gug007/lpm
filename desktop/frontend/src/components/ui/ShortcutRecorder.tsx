@@ -1,6 +1,9 @@
+import { Pencil } from "lucide-react";
 import { parseShortcut, formatShortcut } from "../../shortcutParse";
 import { useShortcutCapture } from "../../hooks/useShortcutCapture";
 import type { CaptureResult } from "../../shortcutRecord";
+import { SHORTCUT_BOX } from "../settings/shortcutBox";
+import { ShortcutKeys } from "../settings/ShortcutKeys";
 
 interface ShortcutRecorderProps {
   value: string;
@@ -10,28 +13,52 @@ interface ShortcutRecorderProps {
   capture?: (event: KeyboardEvent) => CaptureResult;
   // What the button says for `value`.
   label?: (value: string) => string;
+  // Drawn faded, as while the feature it opens is off.
+  dimmed?: boolean;
 }
 
 function shortcutLabel(value: string): string {
   const parsed = value ? parseShortcut(value) : null;
-  return parsed ? formatShortcut(parsed) : "Set shortcut";
+  return parsed ? formatShortcut(parsed) : "";
 }
 
-export function ShortcutRecorder({ value, onChange, reserved, capture, label = shortcutLabel }: ShortcutRecorderProps) {
+export function ShortcutRecorder({
+  value,
+  onChange,
+  reserved,
+  capture,
+  label = shortcutLabel,
+  dimmed = false,
+}: ShortcutRecorderProps) {
   const { recording, hint, toggle } = useShortcutCapture({ reserved, capture, onCapture: onChange });
+  const text = label(value);
 
   return (
     <div className="flex flex-col items-end gap-1">
       <button
         type="button"
         onClick={toggle}
-        className={`min-w-[7rem] rounded-md border px-3 py-1.5 text-center text-[13px] font-medium transition-colors ${
+        aria-label={recording ? "Press the new keys" : `Change shortcut${text ? `, now ${text}` : ""}`}
+        className={`group ${SHORTCUT_BOX} bg-[var(--bg-primary)] transition-colors ${
           recording
-            ? "border-[var(--accent-cyan)] bg-[var(--bg-active)] text-[var(--text-primary)]"
-            : "border-[var(--border)] bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:border-[var(--text-muted)]"
-        }`}
+            ? "border-[var(--accent-cyan)]"
+            : "border-[var(--border)] hover:border-[var(--text-muted)]"
+        } ${dimmed && !recording ? "opacity-55" : ""}`}
       >
-        {recording ? "Press keys…" : label(value)}
+        {recording ? (
+          <span className="px-1 text-[12px] font-medium text-[var(--text-secondary)]">Press keys…</span>
+        ) : text ? (
+          <ShortcutKeys label={text} />
+        ) : (
+          <span className="px-1 text-[12px] font-medium text-[var(--text-secondary)]">Set shortcut</span>
+        )}
+        {!recording && (
+          <Pencil
+            size={12}
+            aria-hidden
+            className="shrink-0 text-[var(--text-muted)] transition-colors group-hover:text-[var(--text-primary)]"
+          />
+        )}
       </button>
       {hint && <span className="text-[11px] text-[var(--text-error,#e15252)]">{hint}</span>}
     </div>

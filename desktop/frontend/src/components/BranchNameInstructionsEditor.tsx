@@ -1,3 +1,4 @@
+import { GitBranch } from "lucide-react";
 import { InstructionsEditor } from "./InstructionsEditor";
 import type { MachineScope } from "./settings/machineCommands";
 import { instructionsScope, useMachineInstructions } from "./settings/useMachineInstructions";
@@ -15,8 +16,9 @@ export function BranchNameInstructionsEditor({
   const { load, save } = useMachineInstructions(machine.commands, "branchName", DEFAULT_BRANCH_NAME_INSTRUCTIONS);
   return (
     <InstructionsEditor
+      icon={GitBranch}
       title="Branch name instructions"
-      description={`Custom instructions for AI-generated branch names. ${instructionsScope(machine.name)}`}
+      description={`How AI names new branches. ${instructionsScope(machine.name)}`}
       defaultText={DEFAULT_BRANCH_NAME_INSTRUCTIONS}
       load={load}
       save={save}

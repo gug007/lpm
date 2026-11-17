@@ -91,3 +91,19 @@ fun chartDays(stats: AgentStats, days: Int): List<UsageDaily> =
     if (days == 0) stats.daily.takeLast(ALL_TIME_CHART_DAYS) else stats.daily
 
 private const val ALL_TIME_CHART_DAYS = 28
+
+/**
+ * A model's name without its maker's prefix, as the desktop's session list shows it:
+ * "fable-5" for "claude-fable-5".
+ */
+fun shortModelName(model: String): String = if (model.startsWith(
+        CLAUDE_PREFIX,
+        ignoreCase = true
+    )
+) {
+    model.drop(CLAUDE_PREFIX.length)
+} else {
+    model
+}
+
+private const val CLAUDE_PREFIX = "claude-"

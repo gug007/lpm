@@ -120,12 +120,12 @@ export function ChartBars({ buckets, grain, mode, filter, pinned, onPin }: Chart
 
   return (
     <>
-      <div className="mt-4 flex min-h-0 flex-1 gap-2">
+      <div className="mt-4 flex min-h-[200px] flex-1 gap-2">
         <div className="relative w-11 shrink-0">
           {ticks.map((tick) => (
             <span
               key={tick.frac}
-              className="absolute right-0 -translate-y-1/2 text-[10px] tabular-nums text-[var(--text-muted)]"
+              className="absolute right-0 -translate-y-1/2 text-[11px] tabular-nums text-[var(--text-muted)]"
               style={{ top: `${(1 - tick.frac) * 100}%` }}
             >
               {tick.label}
@@ -244,18 +244,14 @@ export function ChartBars({ buckets, grain, mode, filter, pinned, onPin }: Chart
 
           {trends && (
             <div
-              className="pointer-events-none absolute inset-x-0 border-t border-dashed border-[var(--text-secondary)]"
+              className="pointer-events-none absolute inset-x-0 border-t border-dashed border-[var(--text-secondary)]/70"
               style={{ top: `${(1 - average / maxValue) * 100}%` }}
-            >
-              <span className="absolute left-1 -translate-y-[calc(100%+2px)] rounded bg-[var(--bg-secondary)] px-1 text-[10px] font-medium tabular-nums text-[var(--text-secondary)]">
-                avg {formatTokenCount(average)} / {grain}
-              </span>
-            </div>
+            />
           )}
 
           {trends && peakBucket && cursor === null && (
             <span
-              className="pointer-events-none absolute whitespace-nowrap rounded bg-[var(--bg-active)] px-1.5 py-px text-[10px] font-medium tabular-nums text-[var(--text-primary)]"
+              className="pointer-events-none absolute whitespace-nowrap rounded bg-[var(--bg-active)] px-1.5 py-px text-[11px] font-medium tabular-nums text-[var(--text-primary)]"
               style={{
                 left: `${peakFraction * 100}%`,
                 top: `max(0px, calc(${(1 - peakBucket.totalTokens / maxValue) * 100}% - 20px))`,
@@ -287,7 +283,7 @@ export function ChartBars({ buckets, grain, mode, filter, pinned, onPin }: Chart
 
       <div className="mt-1.5 flex gap-2">
         <div className="w-11 shrink-0" />
-        <div className="relative h-4 flex-1 text-[10px] text-[var(--text-muted)]">
+        <div className="relative h-4 flex-1 text-[11px] text-[var(--text-muted)]">
           {labels.map((label) => {
             const fraction = (label.index + 0.5) / count;
             return (
@@ -303,9 +299,9 @@ export function ChartBars({ buckets, grain, mode, filter, pinned, onPin }: Chart
         </div>
       </div>
 
-      <div className="mt-2 flex items-center gap-3 pl-[52px] text-[10px] text-[var(--text-muted)]">
+      <div className="mt-2.5 flex items-center gap-4 pl-[52px] text-[11px] text-[var(--text-muted)]">
         {count === 1 ? (
-          <span className="text-[11px]">Single day — pick a longer range for trends</span>
+          <span>Single day — pick a longer range for trends</span>
         ) : (
           <>
             {weekends && (
@@ -317,7 +313,7 @@ export function ChartBars({ buckets, grain, mode, filter, pinned, onPin }: Chart
             {trends && (
               <span className="flex items-center gap-1.5">
                 <span className="w-3.5 border-t border-dashed border-[var(--text-secondary)]" />
-                average
+                average {formatTokenCount(average)} / {grain}
               </span>
             )}
             {lastPartial && (

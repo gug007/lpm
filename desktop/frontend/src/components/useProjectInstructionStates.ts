@@ -1,16 +1,13 @@
 import { useEffect, useState } from "react";
 import { ReadProjectInstructions } from "../../bridge/commands";
 
-type InstructionState = { custom: false } | { custom: true; firstLine: string };
+type InstructionState = { custom: false } | { custom: true; text: string };
 
 // A project overrides the defaults once any of its texts has a non-blank line,
 // the same test the backend uses when it picks which instructions to apply.
 export function instructionState(texts: string[]): InstructionState {
-  for (const text of texts) {
-    const line = text.split("\n").map((l) => l.trim()).find(Boolean);
-    if (line) return { custom: true, firstLine: line };
-  }
-  return { custom: false };
+  const text = texts.map((t) => t.trim()).filter(Boolean).join("\n");
+  return text ? { custom: true, text } : { custom: false };
 }
 
 export function useProjectInstructionStates(

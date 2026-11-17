@@ -102,6 +102,8 @@ export function useFileViewerFile(absPath: string, projectRoot: string) {
   const original = head?.status === "ready" && (text || deleted) ? head.original : null;
 
   return {
+    root,
+    rel,
     kind,
     buffer,
     loading,

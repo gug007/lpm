@@ -2,6 +2,8 @@ package cx.lpm.mobile.feature.automations.list
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -10,7 +12,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -20,11 +26,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -110,7 +118,8 @@ fun AutomationRow(
         AutomationRowContent(
             row = row,
             onOpen = { actions.open(job) },
-            onLongPress = { menuOpen = true }
+            onLongPress = { menuOpen = true },
+            onRetry = { actions.run(job) }
         )
         ContextMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
             ContextMenuItem(
@@ -140,6 +149,7 @@ private fun AutomationRowContent(
     row: AutomationRowUi,
     onOpen: () -> Unit,
     onLongPress: () -> Unit,
+    onRetry: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val job = row.job
@@ -159,46 +169,128 @@ private fun AutomationRowContent(
             .background(if (pressed) colors.gray4 else Color.Transparent),
         verticalPadding = 17.dp,
         trailing = {
-            if (job.running) {
-                Spacer(Modifier.width(4.dp))
-                ActivityIndicator(size = ActivityIndicatorSize.Small)
+            when {
+                job.running -> {
+                    Spacer(Modifier.width(4.dp))
+                    ActivityIndicator(size = ActivityIndicatorSize.Small)
+                }
+
+                row.chip?.answering == true -> {
+                    Spacer(Modifier.width(4.dp))
+                    RowCapsuleButton(stringResource(AutomationsR.string.row_answer))
+                }
+
+                row.failed -> {
+                    Spacer(Modifier.width(4.dp))
+                    RowCapsuleButton(
+                        text = stringResource(AutomationsR.string.row_retry),
+                        icon = R.drawable.ic_refresh,
+                        onClick = onRetry
+                    )
+                }
             }
             Spacer(Modifier.width(8.dp))
             DisclosureChevron()
         }
     ) {
-        Row(
-            Modifier
-                .weight(1f)
-                .alpha(if (job.enabled) 1f else DISABLED_ALPHA),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            StatusDot(color = if (row.unread) colors.tint else Color.Transparent)
+        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+            val unreadDot = row.unread && row.chip == null
+            StatusDot(color = if (unreadDot) colors.tint else Color.Transparent)
             Spacer(Modifier.width(10.dp))
-            Box(Modifier.width(EmojiWidth), contentAlignment = Alignment.Center) {
+            Box(
+                Modifier
+                    .width(EmojiWidth)
+                    .alpha(if (job.enabled) 1f else OFF_EMOJI_ALPHA),
+                contentAlignment = Alignment.Center
+            ) {
                 Text(text = row.emoji, style = LpmTheme.typography.title3)
             }
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 TitleLine(row)
-                // A failed run's reason gets a second line; the dot stays on the first.
-                Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                    StatusDot(
-                        color = row.statusTone.color(),
-                        size = 6.dp,
-                        modifier = Modifier.alignBy { it.measuredHeight / 2 + dotLift }
-                    )
-                    Text(
-                        text = row.status,
-                        style = LpmTheme.typography.caption1,
-                        color = if (job.valid) colors.secondaryLabel else colors.red,
-                        maxLines = if (row.failed) 2 else 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.alignByBaseline()
-                    )
+                val chip = row.chip
+                if (chip != null) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CapsuleTag(
+                            text = chip.label,
+                            contentColor = chip.tone.color(),
+                            containerColor = chip.tone.color().copy(alpha = CHIP_FILL_ALPHA),
+                            textStyle = LpmTheme.typography.caption2.copy(
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        )
+                        Text(
+                            text = chip.text,
+                            style = LpmTheme.typography.caption1,
+                            color = colors.secondaryLabel,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                } else {
+                    Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        StatusDot(
+                            color = if (job.running) colors.green else row.statusTone.color(),
+                            size = 6.dp,
+                            modifier = Modifier.alignBy { it.measuredHeight / 2 + dotLift }
+                        )
+                        Text(
+                            text = row.status,
+                            style = LpmTheme.typography.caption1,
+                            color = if (job.enabled) {
+                                colors.secondaryLabel
+                            } else {
+                                colors.tertiaryLabel
+                            },
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.alignByBaseline()
+                        )
+                    }
                 }
             }
         }
+    }
+}
+
+/**
+ * The row's one waiting action, outlined at its end as the desktop list shows it:
+ * Retry runs again; Answer only marks the row, whose tap opens the question.
+ */
+@Composable
+private fun RowCapsuleButton(text: String, icon: Int? = null, onClick: (() -> Unit)? = null) {
+    val colors = LpmTheme.colors
+    Row(
+        modifier = Modifier
+            .clip(CircleShape)
+            .border(1.dp, colors.separator, CircleShape)
+            .then(
+                if (onClick != null) {
+                    Modifier.clickable(role = Role.Button, onClick = onClick)
+                } else {
+                    Modifier.clearAndSetSemantics {}
+                }
+            )
+            .padding(horizontal = 10.dp, vertical = 5.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (icon != null) {
+            Icon(
+                painter = painterResource(icon),
+                contentDescription = null,
+                tint = colors.label,
+                modifier = Modifier.size(13.dp)
+            )
+        }
+        Text(
+            text = text,
+            style = LpmTheme.typography.footnote.copy(fontWeight = FontWeight.SemiBold),
+            color = colors.label
+        )
     }
 }
 
@@ -215,6 +307,7 @@ private fun TitleLine(row: AutomationRowUi) {
             style = LpmTheme.typography.body.copy(
                 fontWeight = if (row.unread) FontWeight.SemiBold else FontWeight.Medium
             ),
+            color = if (row.job.enabled) colors.label else colors.secondaryLabel,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f, fill = false)
@@ -237,4 +330,6 @@ private val EmojiWidth = 28.dp
 /** The separator starts under the emoji, the row's first text. */
 private val TextInset = ListDefaults.RowPadding + 8.dp + 10.dp
 
-private const val DISABLED_ALPHA = 0.6f
+private const val OFF_EMOJI_ALPHA = 0.6f
+
+private const val CHIP_FILL_ALPHA = 0.15f

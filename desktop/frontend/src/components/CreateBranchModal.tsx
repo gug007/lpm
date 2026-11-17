@@ -246,7 +246,7 @@ export function CreateBranchModal({
 
         <div className="mt-5 flex items-center justify-between">
           {ai.anyAvailable ? (
-            <InstructionsChip projectName={projectName} target="branch" backTitle="Back to new branch" />
+            <InstructionsChip projectName={projectName} target="branch" backTitle="New branch" />
           ) : (
             <span />
           )}

@@ -1,3 +1,4 @@
+import { GitCommitHorizontal } from "lucide-react";
 import { InstructionsEditor } from "./InstructionsEditor";
 import type { MachineScope } from "./settings/machineCommands";
 import { instructionsScope, useMachineInstructions } from "./settings/useMachineInstructions";
@@ -15,8 +16,9 @@ export function CommitInstructionsEditor({
   const { load, save } = useMachineInstructions(machine.commands, "commit", DEFAULT_COMMIT_INSTRUCTIONS);
   return (
     <InstructionsEditor
+      icon={GitCommitHorizontal}
       title="Commit instructions"
-      description={`Custom instructions for AI-generated commit messages. ${instructionsScope(machine.name)}`}
+      description={`How AI writes commit messages. ${instructionsScope(machine.name)}`}
       defaultText={DEFAULT_COMMIT_INSTRUCTIONS}
       load={load}
       save={save}

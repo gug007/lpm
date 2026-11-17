@@ -14,7 +14,7 @@ export function MemoryStamp({ session }: { session: MemorySession }) {
   const agent = lastAgentOf(session.content);
   return (
     <span className="shrink-0 font-mono text-[11px] tabular-nums text-[var(--text-muted)]">
-      {agent && <span className="text-[var(--accent-purple)]">{agent}</span>}
+      {agent && <span className="text-[var(--text-secondary)]">{agent}</span>}
       {agent && " · "}
       {relativeTime(session.updatedAt)}
     </span>

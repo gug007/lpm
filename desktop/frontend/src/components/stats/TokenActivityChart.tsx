@@ -64,7 +64,7 @@ export function TokenActivityChart({ daily, pinned, onPin }: TokenActivityChartP
       </style>
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <div className="flex items-center gap-3">
-          <h2 className="text-sm font-medium">Token activity</h2>
+          <h2 className="text-sm font-semibold">Token activity</h2>
           <div className="flex items-center gap-2">
             {PROVIDER_KEYS.map((key) => {
               const meta = providerMeta(key);
@@ -91,7 +91,7 @@ export function TokenActivityChart({ daily, pinned, onPin }: TokenActivityChartP
             })}
           </div>
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center divide-x divide-[var(--border)] rounded-lg border border-[var(--border)] bg-[var(--bg-primary)]/60 py-0.5">
           {calendarOffered && (
             <ChartSegments label="Chart view" options={VIEWS} value={view} onChange={setView} />
           )}
@@ -104,7 +104,7 @@ export function TokenActivityChart({ daily, pinned, onPin }: TokenActivityChartP
             />
           )}
           {!calendar && (
-            <ChartSegments label="Chart scale" options={MODES} value={mode} onChange={setMode} />
+            <ChartSegments label="Show as" options={MODES} value={mode} onChange={setMode} />
           )}
         </div>
       </div>

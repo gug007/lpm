@@ -117,4 +117,18 @@ class AutomationFailureTest {
         assertEquals("1h", automationRunLengthText(3600))
         assertEquals("1h 12m", automationRunLengthText(4320 + 59))
     }
+
+    @Test
+    fun `a row's chip names what it needs from you, and an automation that's off has none`() {
+        assertEquals(
+            AutomationRowChip("Failed", AutomationTone.Red, "Problem during the run after 4m 30s"),
+            automationRowChip(job(""""lastResult":"error","lastDurationSecs":270"""))
+        )
+        assertEquals(
+            AutomationRowChip("Can't run", AutomationTone.Red, "bad cron"),
+            automationRowChip(job(""""valid":false,"error":"bad cron""""))
+        )
+        assertEquals(null, automationRowChip(job(""""enabled":false,"lastResult":"error"""")))
+        assertEquals(null, automationRowChip(job(""""lastResult":"completed"""")))
+    }
 }

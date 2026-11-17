@@ -16,9 +16,6 @@ interface FilesAllChangesProps {
   // The file at the top of the viewport as the stack is scrolled, so the rail
   // can follow along.
   onActiveFileChange: (path: string) => void;
-  // Namespaces the stack's Monaco models, so two stacks mounted at once (the
-  // changes tab and the commit review) never share or dispose each other's.
-  authority?: string;
   // What the commit review picked: the files left out dim.
   selected?: Set<string>;
   onDirtyPathsChange?: (paths: Set<string>) => void;
@@ -36,7 +33,6 @@ export const FilesAllChanges = memo(function FilesAllChanges({
   wordWrap,
   active,
   onActiveFileChange,
-  authority = "files",
   selected,
   onDirtyPathsChange,
   onSplitFitsChange,
@@ -62,7 +58,6 @@ export const FilesAllChanges = memo(function FilesAllChanges({
       sideBySide={sideBySide}
       wordWrap={wordWrap}
       active={active}
-      authority={authority}
       selected={selected}
       onActiveFileChange={onActiveFileChange}
       onDirtyPathsChange={onDirtyPathsChange}

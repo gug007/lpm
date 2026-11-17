@@ -41,7 +41,7 @@ struct MemoryCreateSheet: View {
                     }
                 }
             }
-            .navigationTitle("New Session")
+            .navigationTitle("New Memory Session")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

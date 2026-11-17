@@ -3,6 +3,7 @@ package cx.lpm.mobile.feature.automations.list
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -12,6 +13,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
+import cx.lpm.mobile.feature.automations.format.AutomationRowChip
 import cx.lpm.mobile.feature.automations.format.AutomationTone
 import cx.lpm.mobile.feature.automations.job
 import org.junit.Assert.assertEquals
@@ -53,7 +55,7 @@ class AutomationsScreenTest {
                     markAllRead = { events += "mark all" },
                     markRead = { events += "read ${it.id}" },
                     toggleEnabled = { events += "toggle ${it.id}" },
-                    toggleFailedOnly = { events += "failed only" },
+                    selectFilter = { events += "filter $it" },
                     run = { events += "run ${it.id}" }
                 )
             )
@@ -114,21 +116,31 @@ class AutomationsScreenTest {
             scope = "storefront",
             status = "Problem during the run after 4m 30s · npm not found",
             statusTone = AutomationTone.Red,
-            failed = true
+            failed = true,
+            chip = AutomationRowChip(
+                "Failed",
+                AutomationTone.Red,
+                "Problem during the run after 4m 30s · npm not found"
+            )
         )
-        show(AutomationsUiState(loaded = true, read = listOf(failed), failedCount = 1))
-        compose.onNodeWithContentDescription("Failed, 1").assertIsNotSelected().performClick()
+        show(
+            AutomationsUiState(loaded = true, read = listOf(failed), allCount = 1, failedCount = 1)
+        )
+        compose.onNodeWithText("All 1").assertIsSelected()
+        compose.onNodeWithText("Needs you", substring = true).assertDoesNotExist()
+        compose.onNodeWithText("Failed 1").assertIsNotSelected().performClick()
         val row = compose.onNode(hasCustomAction("Retry")).fetchSemanticsNode()
         compose.runOnIdle {
             row.config[SemanticsActions.CustomActions].first { it.label == "Retry" }.action()
         }
-        assertEquals(listOf("failed only", "run nightly"), events)
+        compose.onNode(hasText("Retry") and hasClickAction()).performClick()
+        assertEquals(listOf("filter Failed", "run nightly", "run nightly"), events)
     }
 
     @Test
     fun noFailedRunNoFilter() {
         show(AutomationsUiState(loaded = true, read = listOf(weekly)))
-        compose.onNodeWithText("Failed").assertDoesNotExist()
+        compose.onNodeWithText("All", substring = true).assertDoesNotExist()
     }
 
     @Test

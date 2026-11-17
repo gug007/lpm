@@ -17,6 +17,11 @@ import {
   rectSortingStrategy,
   sortableKeyboardCoordinates,
 } from "@dnd-kit/sortable";
+import { StatusLineAlert } from "./StatusLineAlert";
+import { StatusLineOrder } from "./StatusLineOrder";
+import { StatusLineSection } from "./StatusLineSection";
+import { CARD_CLASS } from "./ui/fields";
+import { BTN_SECONDARY } from "./ui/buttons";
 import { StatusLineAppearanceSettings } from "./StatusLineAppearanceSettings";
 import { StatusLineAddItemButton } from "./StatusLineAddItemButton";
 import { StatusLineDragChip } from "./StatusLineDragChip";
@@ -199,55 +204,14 @@ export function CustomStatusLineEditor({
   };
 
   return (
-    <section className="@container overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-secondary)]/35">
-      <div className="flex flex-wrap items-center gap-3 border-b border-[var(--border)] px-4 py-3.5">
-        <div className="flex min-w-0 flex-1 items-center gap-2.5">
-          <span className="rounded-md bg-[var(--accent-green)]/10 px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--accent-green-text)]">
-            Build
-          </span>
-          <div className="min-w-0">
-            <h2 className="text-[13px] font-semibold text-[var(--text-primary)]">
-              Arrange your items
-            </h2>
-            <p className="mt-0.5 text-[11px] text-[var(--text-muted)]">
-              Drag to reorder. Use Edit to customize an item.
-            </p>
-          </div>
-        </div>
-        {undoSpec && (
-          <button
-            type="button"
-            onClick={undo}
-            disabled={disabled}
-            className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[11px] font-medium text-[var(--text-secondary)] outline-none transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)] disabled:opacity-40"
-          >
-            <Undo2 size={13} /> Undo
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={randomize}
-          disabled={disabled}
-          className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-2.5 text-[11px] font-medium text-[var(--text-secondary)] outline-none transition-colors hover:border-[var(--accent-blue)]/50 hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)] disabled:opacity-40"
-        >
-          <Sparkles size={13} /> Randomize
-        </button>
-      </div>
-
-      <div className="p-4">
-        {notice && <div className="mb-3">{notice}</div>}
-        <div className="space-y-3">
-          <div className="min-w-0">
-            <div className="mb-1.5 flex items-center justify-between gap-3">
-              <span className="text-[11px] font-medium text-[var(--text-secondary)]">
-                Status line order
-              </span>
-              <span className="text-[10px] tabular-nums text-[var(--text-muted)]">
-                {spec.segments.length}{" "}
-                {spec.segments.length === 1 ? "item" : "items"}
-              </span>
-            </div>
-
+    <StatusLineSection
+      title="Arrange your items"
+      description="Drag to reorder. Hover an item to edit or remove it."
+    >
+      <section className={`${CARD_CLASS} @container overflow-hidden`}>
+        <div className="p-4">
+          {notice && <div className="mb-3">{notice}</div>}
+          <div className="space-y-3">
             <DndContext
               sensors={sensors}
               collisionDetection={closestCenter}
@@ -255,8 +219,32 @@ export function CustomStatusLineEditor({
               onDragEnd={onDragEnd}
               onDragCancel={() => setDragIndex(null)}
             >
-              <SortableContext items={ids} strategy={rectSortingStrategy}>
-                <div className="flex min-h-14 flex-wrap content-start items-start gap-1.5 rounded-lg border border-dashed border-[var(--border)] bg-[var(--bg-primary)]/55 p-2">
+              <StatusLineOrder
+                count={spec.segments.length}
+                actions={
+                  <>
+                    {undoSpec && (
+                      <button
+                        type="button"
+                        onClick={undo}
+                        disabled={disabled}
+                        className={`${BTN_SECONDARY} inline-flex items-center gap-1.5`}
+                      >
+                        <Undo2 size={13} /> Undo
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={randomize}
+                      disabled={disabled}
+                      className={`${BTN_SECONDARY} inline-flex items-center gap-1.5`}
+                    >
+                      <Sparkles size={13} /> Randomize
+                    </button>
+                  </>
+                }
+              >
+                <SortableContext items={ids} strategy={rectSortingStrategy}>
                   {spec.segments.map((segment, index) => (
                     <StatusLineSegmentChip
                       key={ids[index]}
@@ -277,8 +265,8 @@ export function CustomStatusLineEditor({
                       onRemove={() => remove(index)}
                     />
                   ))}
-                </div>
-              </SortableContext>
+                </SortableContext>
+              </StatusLineOrder>
               <DragOverlay>
                 {dragIndex != null && spec.segments[dragIndex] ? (
                   <StatusLineDragChip
@@ -288,61 +276,54 @@ export function CustomStatusLineEditor({
                 ) : null}
               </DragOverlay>
             </DndContext>
-          </div>
 
-          <div className="min-w-0">
-            <div className="mb-1.5 flex items-center gap-2">
-              <span className="text-[11px] font-semibold text-[var(--text-secondary)]">
-                Add item
-              </span>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {addable.map((id) => (
+            <div className="min-w-0">
+              <div className="mb-1.5 flex items-center gap-2">
+                <span className="text-[12px] font-medium text-[var(--text-secondary)]">
+                  Add item
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {addable.map((id) => (
+                  <StatusLineAddItemButton
+                    key={id}
+                    id={id}
+                    onClick={() => add(id)}
+                    disabled={disabled}
+                  />
+                ))}
                 <StatusLineAddItemButton
-                  key={id}
-                  id={id}
-                  onClick={() => add(id)}
+                  id="text"
+                  onClick={() => add("text")}
                   disabled={disabled}
                 />
-              ))}
-              <StatusLineAddItemButton
-                id="text"
-                onClick={() => add("text")}
-                disabled={disabled}
-              />
+              </div>
             </div>
           </div>
-        </div>
 
-        {validationError && (
-          <div
-            role="alert"
-            className="mt-3 flex items-center gap-3 rounded-lg border border-[var(--accent-red)]/30 bg-[var(--accent-red)]/8 px-3 py-2 text-[10.5px] leading-relaxed text-[var(--accent-red-text)]"
-          >
-            <span className="min-w-0 flex-1">
-              {invalidName ? `${invalidName}: ` : ""}
-              {validationError.message} Claude Code keeps your last working line
-              until it’s fixed.
-            </span>
-            {invalidName && (
-              <button
-                type="button"
-                onClick={showInvalid}
-                disabled={disabled}
-                className="h-7 shrink-0 rounded-lg border border-[var(--accent-red)]/30 px-2.5 font-medium outline-none transition-colors hover:bg-[var(--accent-red)]/10 focus-visible:ring-1 focus-visible:ring-[var(--accent-red)] disabled:opacity-40"
+          {validationError && (
+            <div className="mt-3">
+              <StatusLineAlert
+                action={
+                  invalidName
+                    ? { label: "Show me", onClick: showInvalid, disabled }
+                    : undefined
+                }
               >
-                Show me
-              </button>
-            )}
-          </div>
-        )}
+                {invalidName ? `${invalidName}: ` : ""}
+                {validationError.message} Claude Code keeps your last working line
+                until it’s fixed.
+              </StatusLineAlert>
+            </div>
+          )}
 
-        <StatusLineAppearanceSettings
-          spec={spec}
-          disabled={disabled}
-          onChange={commit}
-        />
-      </div>
-    </section>
+          <StatusLineAppearanceSettings
+            spec={spec}
+            disabled={disabled}
+            onChange={commit}
+          />
+        </div>
+      </section>
+    </StatusLineSection>
   );
 }

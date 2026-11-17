@@ -7,12 +7,15 @@ import cx.lpm.mobile.core.model.AutomationJob
 /** The colors a job's state and a run's result are drawn in. */
 enum class AutomationTone { Green, Red, Orange, Blue, Secondary }
 
+/** Why a job that can't run can't. */
+fun automationInvalidText(job: AutomationJob): String = job.error.ifEmpty { "Invalid automation" }
+
 /**
  * What a job's row says under its name: broken, running, off, why its last run
  * failed, or when it runs next.
  */
 fun automationStatusText(job: AutomationJob, now: AutomationClock): String {
-    if (!job.valid) return job.error.ifEmpty { "Invalid automation" }
+    if (!job.valid) return automationInvalidText(job)
     job.asks.firstOrNull()?.let {
         val n = job.asks.size
         val waiting = if (n > 1) "$n questions waiting" else AUTOMATION_WAITING_LABEL

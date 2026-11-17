@@ -8,6 +8,7 @@ import {
   type CliResult,
   type SkillResult,
 } from "./SkillInstallControl";
+import { BTN_SECONDARY } from "./ui/buttons";
 
 export function SidebarAgentToolsPill() {
   const [skill, setSkill] = useState<SkillResult>({ status: "loading" });
@@ -42,20 +43,24 @@ export function SidebarAgentToolsPill() {
   };
 
   return (
-    <button
-      onClick={handleInstall}
-      disabled={installing}
-      className="mx-2 mb-2 flex items-center gap-2 rounded-md px-3 py-2 text-left transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-50"
-    >
-      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--accent-green)]" />
-      <span className="text-xs text-[var(--text-secondary)]">
-        {installing ? "Installing…" : "Agent tools"}
+    <div className="mx-2 mb-2 flex items-center gap-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]/40 py-2 pl-3 pr-2">
+      <span className="min-w-0 flex-1">
+        <span className="block text-[12px] font-medium text-[var(--text-primary)]">
+          {installing ? "Installing agent tools…" : "Agent tools"}
+        </span>
+        <span className="block text-[11px] leading-snug text-[var(--text-muted)]">
+          lpm's CLI and skills for Claude Code and Codex
+        </span>
       </span>
       {!installing && (
-        <span className="ml-auto text-[10px] font-medium text-[var(--accent-green)]">
+        <button
+          type="button"
+          onClick={handleInstall}
+          className={`${BTN_SECONDARY} shrink-0`}
+        >
           {action === "install" ? "Install" : "Update"}
-        </span>
+        </button>
       )}
-    </button>
+    </div>
   );
 }

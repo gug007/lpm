@@ -79,3 +79,38 @@ private fun String.truncated(max: Int): String {
 private const val NOTE_MAX = 240
 private const val SECONDS_IN_MINUTE = 60
 private const val MINUTES_IN_HOUR = 60
+
+/** A question of the job's waits for your answer: the list's "Needs you" filter keeps it. */
+fun automationNeedsAnswer(job: AutomationJob): Boolean = job.valid && job.asks.isNotEmpty()
+
+/**
+ * What a list row needs from you, as the desktop list marks it: a question waiting
+ * ("Needs you"), a failed last run, or a job that can't run. A tinted word goes ahead
+ * of the line, which stays in the body color; an automation that's off has none.
+ */
+data class AutomationRowChip(
+    val label: String,
+    val tone: AutomationTone,
+    val text: String,
+    val answering: Boolean = false
+)
+
+fun automationRowChip(job: AutomationJob): AutomationRowChip? {
+    if (!job.valid) {
+        return AutomationRowChip("Can't run", AutomationTone.Red, automationInvalidText(job))
+    }
+    val ask = job.asks.firstOrNull()
+    return when {
+        ask != null && job.enabled -> AutomationRowChip(
+            label = if (job.asks.size > 1) "${job.asks.size} questions" else "Needs you",
+            tone = AutomationTone.Orange,
+            text = ask.summary,
+            answering = true
+        )
+
+        automationLastRunFailed(job) ->
+            AutomationRowChip("Failed", AutomationTone.Red, automationFailureText(job))
+
+        else -> null
+    }
+}

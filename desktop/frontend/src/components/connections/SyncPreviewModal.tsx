@@ -52,7 +52,7 @@ function DirectionArrow({
   return (
     <span className="flex shrink-0 items-center gap-1 text-[11px] text-[var(--text-muted)]">
       <span className="max-w-[90px] truncate">{from}</span>
-      <ArrowRight size={11} className="shrink-0 text-[var(--accent-cyan)]" />
+      <ArrowRight size={11} className="shrink-0 text-[var(--text-muted)]" />
       <span className="max-w-[90px] truncate">{to}</span>
     </span>
   );
@@ -149,7 +149,7 @@ export function SyncPreviewModal({
       contentClassName="flex max-h-[85vh] w-[min(560px,92vw)] flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
     >
       <div className="flex shrink-0 items-start gap-3 px-6 pb-1 pt-6">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--accent-cyan)]/10 text-[var(--accent-cyan)] ring-1 ring-inset ring-[var(--accent-cyan)]/20">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] text-[var(--text-secondary)]">
           <RefreshCw size={18} />
         </div>
         <div className="min-w-0">

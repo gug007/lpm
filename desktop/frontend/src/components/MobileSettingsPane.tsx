@@ -200,6 +200,7 @@ export function MobileSettingsPane() {
         reach={state}
         tailnet={tailnet}
         deviceUsedTailscale={deviceUsedTailscale}
+        setupBelow={state.devices.length === 0}
         onEnabled={(v) => void apply({ enabled: v }, "server")}
         onUseApp={(v) => void apply({ tailscale: v }, "tailscale")}
         onPort={(port) => void apply({ port }, "server")}

@@ -123,10 +123,6 @@ interface MonacoDiffPoolProps {
   onActiveFileChange?: (path: string) => void;
   // When given, files not in the set dim and show "(excluded)" (commit flow).
   selected?: Set<string>;
-  // Namespaces the Monaco model URIs so two pools mounted at once (e.g. the
-  // review tab and the commit modal) never share — and dispose — each other's
-  // models. Must be distinct per mount site.
-  authority?: string;
   // Reports which paths have unsaved edits, so a host's file tree can badge them
   // and warn before discarding them (e.g. the commit modal on close).
   onDirtyPathsChange?: (paths: Set<string>) => void;
@@ -147,7 +143,6 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
       active,
       onActiveFileChange,
       selected,
-      authority = "pool",
       onDirtyPathsChange,
       onSplitFitsChange,
     },
@@ -276,7 +271,7 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
         const existing = entriesRef.current.get(path);
         if (existing?.fetched) return existing;
         const monaco = monacoRef.current;
-        if (!monaco) return null;
+        if (!monaco || !poolLiveRef.current) return null;
         const binary = !!diff.binary;
         const tooLarge = !!diff.tooLarge;
         const noEditor = binary || tooLarge;
@@ -284,7 +279,7 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
         const modified = noEditor ? "" : diff.modified ?? "";
         const models = noEditor
           ? null
-          : makeDiffModels(monaco, authority, mode, path, original, modified);
+          : makeDiffModels(monaco, mode, path, original, modified);
         const entry: Entry = {
           models,
           fetched: true,
@@ -301,7 +296,7 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
         patchRow(path, { binary, tooLarge });
         return entry;
       },
-      [mode, authority, isEditable, patchRow],
+      [mode, isEditable, patchRow],
     );
 
     // Fetch every not-yet-fetched path in ONE batch call, registering a shared

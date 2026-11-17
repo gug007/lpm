@@ -16,18 +16,10 @@ import { MemoryCreateForm } from "./MemoryCreateForm";
 import { MemoryEditor } from "./MemoryEditor";
 import { MemoryRenameDialog } from "./MemoryRenameDialog";
 import { MemorySessionList } from "./MemorySessionList";
-import { MemoryStamp } from "./MemoryStamp";
 import { MessageMarkdown } from "./MessageMarkdown";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
-import { ZoomControl } from "./ui/ZoomControl";
-import {
-  BrainIcon,
-  ChevronLeftIcon,
-  PencilIcon,
-  PlusIcon,
-  SquarePenIcon,
-  TrashIcon,
-} from "./icons";
+import { MemoryEmptyState } from "./memory/MemoryEmptyState";
+import { MemoryToolbar } from "./memory/MemoryToolbar";
 
 interface MemoryViewProps {
   projectName: string;
@@ -198,113 +190,28 @@ export function MemoryView({ projectName, visible, focused, target }: MemoryView
     }
   };
 
+  const empty = view.kind === "list" && sessions.length === 0;
+
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-[var(--bg-primary)]">
-      <div className="flex h-11 shrink-0 items-center gap-2 border-b border-[var(--border)] px-4">
-        {view.kind !== "list" && (
-          <button
-            onClick={backToList}
-            aria-label="Back"
-            className="-ml-1.5 flex h-6 w-6 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-          >
-            <ChevronLeftIcon />
-          </button>
-        )}
-        <span className="flex items-center gap-1.5 text-[13px] font-medium text-[var(--text-primary)]">
-          <span className="text-[var(--accent-purple)]">
-            <BrainIcon />
-          </span>
-          Memory
-        </span>
-        {view.kind === "list" && sessions.length > 0 && (
-          <span className="text-xs text-[var(--text-muted)]">{sessions.length}</span>
-        )}
-        {shared && view.kind === "list" && (
-          <span
-            title={`Copies share the memory of ${ownerLabel}, so work carries over both ways`}
-            className="rounded-md bg-[var(--bg-hover)] px-1.5 py-0.5 text-[11px] text-[var(--text-muted)]"
-          >
-            {ownerLabel}
-          </span>
-        )}
-        {detail && (
-          <>
-            <span className="text-[var(--text-muted)]/60">/</span>
-            <span className="min-w-0 truncate text-[13px] text-[var(--text-secondary)]">
-              {detail.title}
-            </span>
-          </>
-        )}
-        <div className="flex-1" />
-        {(detail || (view.kind === "list" && sessions.length > 0)) && (
-          <ZoomControl
-            percent={zoom.percent}
-            onZoomIn={zoom.zoomIn}
-            onZoomOut={zoom.zoomOut}
-            onReset={zoom.zoomReset}
-            canZoomIn={zoom.canZoomIn}
-            canZoomOut={zoom.canZoomOut}
-          />
-        )}
-        {detail && !editing && (
-          <>
-            <MemoryStamp session={detail} />
-            <button
-              onClick={() => setPendingRename(detail)}
-              aria-label="Rename session"
-              title="Rename session"
-              className="flex h-6 w-6 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-            >
-              <SquarePenIcon size={13} />
-            </button>
-            <button
-              onClick={() => startEdit(detail)}
-              className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-            >
-              <PencilIcon size={12} />
-              Edit
-            </button>
-            <button
-              onClick={() => setPendingDelete(detail)}
-              aria-label="Delete session"
-              title="Delete session"
-              className="flex h-6 w-6 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--accent-red)]"
-            >
-              <TrashIcon />
-            </button>
-          </>
-        )}
-        {view.kind === "list" && sessions.length > 0 && (
-          <button
-            onClick={() => setView({ kind: "create" })}
-            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-          >
-            <PlusIcon />
-            New session
-          </button>
-        )}
-      </div>
+      {!empty && (
+        <MemoryToolbar
+          view={view.kind}
+          count={sessions.length}
+          sharedWith={shared ? ownerLabel : ""}
+          detail={detail}
+          editing={editing}
+          zoom={zoom}
+          onBack={backToList}
+          onCreate={() => setView({ kind: "create" })}
+          onRename={setPendingRename}
+          onEdit={startEdit}
+          onDelete={setPendingDelete}
+        />
+      )}
 
-      {view.kind === "list" && sessions.length === 0 && (
-        <div className="flex min-h-0 flex-1 items-center justify-center px-6">
-          <div className="flex w-full max-w-sm flex-col items-center gap-3 pb-16 text-center">
-            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[var(--accent-purple)]/10 text-[var(--accent-purple)]">
-              <BrainIcon />
-            </span>
-            <div className="text-sm font-medium text-[var(--text-primary)]">No memory yet</div>
-            <p className="text-xs leading-5 text-[var(--text-muted)]">
-              Ask an agent to remember the session, or start one here — any agent
-              can pick it up later and continue the work.
-            </p>
-            <button
-              onClick={() => setView({ kind: "create" })}
-              className="mt-1 flex items-center gap-1 rounded-lg bg-[var(--text-primary)] px-3 py-1.5 text-xs font-medium text-[var(--bg-primary)] transition-opacity hover:opacity-85"
-            >
-              <PlusIcon />
-              New session
-            </button>
-          </div>
-        </div>
+      {empty && loaded && (
+        <MemoryEmptyState onCreate={() => setView({ kind: "create" })} />
       )}
 
       {view.kind === "list" && sessions.length > 0 && (

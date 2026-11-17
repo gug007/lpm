@@ -50,11 +50,7 @@ export function SyncSection({ peers }: { peers: PeerClient[] }) {
                   type="button"
                   onClick={() => void syncNow(p)}
                   disabled={!canSyncNow(p, diff, busy)}
-                  className="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors disabled:cursor-default disabled:opacity-40"
-                  style={{
-                    backgroundColor: "color-mix(in srgb, var(--accent-cyan) 12%, transparent)",
-                    color: "var(--accent-cyan)",
-                  }}
+                  className="flex shrink-0 items-center gap-1.5 rounded-lg border border-[var(--border)] px-3 py-1.5 text-[13px] font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-active)] disabled:cursor-default disabled:opacity-40"
                 >
                   <RefreshCw size={13} className={busy === p.slug ? "animate-spin" : ""} />
                   Sync now

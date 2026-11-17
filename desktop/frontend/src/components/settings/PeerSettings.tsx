@@ -11,10 +11,12 @@ import { usePeerSettings } from "./usePeerSettings";
 export function PeerSettings({
   peer,
   picker,
+  subpage,
   onNavigate,
 }: {
   peer: PeerClient;
   picker: ReactNode;
+  subpage?: ReactNode;
   onNavigate: (view: View) => void;
 }) {
   const machine = useMemo(() => peerMachine(peer), [peer]);
@@ -35,6 +37,7 @@ export function PeerSettings({
         />
       }
       picker={picker}
+      subpage={subpage}
       onNavigate={onNavigate}
     />
   );

@@ -1,11 +1,11 @@
 import { useCallback, useMemo, useState } from "react";
-import { ChevronDown, ChevronUp } from "lucide-react";
 import type { DailyUsage, PreviousUsage, UsageBreakdown } from "../../types";
 import { useAppStore } from "../../store/app";
 import { displayNameForProjectName } from "../ProjectNameDisplay";
 import { bucketDays, defaultGrain } from "./chartBuckets";
 import { type ProjectSortKey, projectPanelRows, sortProjectRows } from "./projectsPanelRows";
 import { ProjectRow } from "./ProjectRow";
+import { ProjectsColumns } from "./ProjectsColumns";
 import { usePrefersReducedMotion } from "./usePrefersReducedMotion";
 
 const COLLAPSED_COUNT = 8;
@@ -60,13 +60,8 @@ export function ProjectsPanel({
   );
   const showCost = rows.some((row) => row.cost !== null);
   const showChange = previous !== undefined;
-  const sortOptions: { key: ProjectSortKey; label: string }[] = [
-    { key: "tokens", label: "Tokens" },
-    ...(showCost ? [{ key: "cost" as const, label: "Cost" }] : []),
-    ...(showChange ? [{ key: "change" as const, label: "Change" }] : []),
-    { key: "name", label: "Name" },
-  ];
-  const activeSort = sortOptions.some((option) => option.key === sortKey) ? sortKey : "tokens";
+  const activeSort =
+    (sortKey === "cost" && !showCost) || (sortKey === "change" && !showChange) ? "tokens" : sortKey;
   const sorted = sortProjectRows(rows, activeSort, descending, nameOf);
   const shown = expanded ? sorted : sorted.slice(0, COLLAPSED_COUNT);
 
@@ -81,34 +76,26 @@ export function ProjectsPanel({
 
   return (
     <div className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)]">
-      <div className="flex items-center justify-between gap-3 border-b border-[var(--border)] px-4 py-3">
-        <h2 className="text-sm font-medium">Projects</h2>
-        <div className="flex items-center gap-2 text-[11px]">
-          {sortOptions.map((option) => {
-            const active = option.key === activeSort;
-            return (
-              <button
-                key={option.key}
-                type="button"
-                onClick={() => onSort(option.key)}
-                className={`flex items-center gap-0.5 rounded-md px-1 py-0.5 transition-colors duration-[120ms] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)] ${
-                  active
-                    ? "text-[var(--text-primary)]"
-                    : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-                }`}
-              >
-                {option.label}
-                {active && (descending ? <ChevronDown size={12} /> : <ChevronUp size={12} />)}
-              </button>
-            );
-          })}
-        </div>
+      <div className="flex items-center justify-between gap-3 px-4 pb-2 pt-3">
+        <h2 className="text-sm font-semibold">Projects</h2>
+        {showChange && changeLabel && (
+          <span className="truncate text-[11px] text-[var(--text-muted)]">Change {changeLabel}</span>
+        )}
       </div>
 
       {rows.length === 0 ? (
-        <div className="px-4 py-6 text-xs text-[var(--text-muted)]">Nothing {emptyLabel}</div>
+        <div className="px-4 pb-5 pt-1 text-[12px] text-[var(--text-muted)]">Nothing {emptyLabel}</div>
       ) : (
         <>
+          <ProjectsColumns
+            sortKey={activeSort}
+            descending={descending}
+            showSpark={buckets.length > 1}
+            showCost={showCost}
+            showChange={showChange}
+            changeLabel={changeLabel}
+            onSort={onSort}
+          />
           <div className="divide-y divide-[var(--border)]">
             {shown.map((row) => (
               <ProjectRow
@@ -130,14 +117,11 @@ export function ProjectsPanel({
             <button
               type="button"
               onClick={() => setExpanded((value) => !value)}
-              className="w-full border-t border-[var(--border)] px-4 py-2 text-[11px] font-medium text-[var(--text-muted)] transition-colors duration-[120ms] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--accent-blue)]"
+              className="w-full border-t border-[var(--border)] px-4 py-2 text-[12px] font-medium text-[var(--text-secondary)] transition-colors duration-[120ms] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--accent-blue)]"
             >
               {expanded ? "Show less" : `Show all (${rows.length})`}
             </button>
           )}
-          <div className="border-t border-[var(--border)] px-4 py-2 text-[10px] text-[var(--text-muted)]">
-            Bars: share of all tokens{showChange && changeLabel ? ` · change ${changeLabel}` : ""}
-          </div>
         </>
       )}
     </div>

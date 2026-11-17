@@ -12,7 +12,7 @@ tags: [demo, automations]
       - extendedWaitUntil:
           visible: "Release notes"
           timeout: 5000
-- assertVisible: ".*Waiting for your answer.*"
+- assertVisible: "Needs you"
 - takeScreenshot: 1-automation-waiting
 # Its page asks the question with the job's own buttons, and holds the next run.
 - tapOn: "Release notes"

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { TriangleAlert } from "lucide-react";
 import { toast } from "../../notifications/toast";
 import { ExportConfig, ImportConfig, VaultExportKey, VaultImportKey } from "../../../bridge/commands";
 import type { main } from "../../../bridge/models";
@@ -7,7 +8,7 @@ import { isMac } from "../../platform";
 import { rowProps } from "../../settings-registry";
 import { SettingsRow } from "../SettingsRow";
 import { SettingsSection } from "../SettingsSection";
-import { BTN_SECONDARY } from "../ui/buttons";
+import { BTN_PRIMARY, BTN_SECONDARY } from "../ui/buttons";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { ImportReportModal } from "./ImportReportModal";
 import { PassphraseModal } from "./PassphraseModal";
@@ -75,7 +76,7 @@ export function BackupPane() {
 
   return (
     <>
-      <SettingsSection>
+      <SettingsSection title="Projects and settings">
         <SettingsRow {...rowProps("backup.export")}>
           <button onClick={handleExport} disabled={exporting} className={BTN_SECONDARY}>
             {exporting ? <Spinner /> : "Export…"}
@@ -87,12 +88,13 @@ export function BackupPane() {
           </button>
         </SettingsRow>
       </SettingsSection>
-      <SettingsSection
-        title="Encryption key"
-        description={`Your notes are locked with a secret key. Back it up to move notes between ${MACHINE.plural} or recover them later.`}
-      >
+      <SettingsSection title="Notes encryption key">
+        <p className="flex items-start gap-2 bg-[var(--accent-amber)]/10 px-4 py-2.5 text-[12px] leading-relaxed text-[var(--accent-amber-text)]">
+          <TriangleAlert size={14} className="mt-0.5 shrink-0" />
+          Notes are encrypted with this key. Without a backup, they can't be restored on {MACHINE.anotherMachine}.
+        </p>
         <SettingsRow {...rowProps("backup.vaultExport")}>
-          <button onClick={() => setShowVaultExport(true)} className={BTN_SECONDARY}>
+          <button onClick={() => setShowVaultExport(true)} className={BTN_PRIMARY}>
             Back up…
           </button>
         </SettingsRow>

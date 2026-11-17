@@ -1,3 +1,5 @@
+import { CheckboxInput } from "./CheckboxInput";
+
 export function SettingsCheckbox({
   label,
   checked,
@@ -12,14 +14,9 @@ export function SettingsCheckbox({
   return (
     <label
       title={title}
-      className="flex cursor-pointer items-center gap-1.5 whitespace-nowrap text-xs text-[var(--text-secondary)]"
+      className="flex cursor-pointer items-center gap-2 whitespace-nowrap text-[13px] text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]"
     >
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        className="h-[15px] w-[15px] cursor-pointer accent-[var(--accent-blue)]"
-      />
+      <CheckboxInput checked={checked} onChange={onChange} />
       {label}
     </label>
   );

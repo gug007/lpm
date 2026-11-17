@@ -13,8 +13,11 @@
     <string name="memory_stamp">%1$s · %2$s</string>
     <string name="memory_load_failed">Couldn\'t load memory</string>
     <string name="memory_empty">No memory yet</string>
-    <string name="memory_empty_description">Ask an agent to remember the session, or start one here — any agent can pick it up later and continue the work.</string>
-    <string name="memory_empty_action">New Session</string>
+    <string name="memory_empty_description">A memory session is a shared log of the work, so any agent can pick it up later and continue where the last one stopped.</string>
+    <string name="memory_empty_action">New Memory Session</string>
+    <string name="memory_skill_hint">or ask an agent to run</string>
+    <string name="memory_skill_command">%1$s &lt;name&gt;</string>
+    <string name="memory_skill_copy">Copy command</string>
     <string name="memory_delete_title">Delete session?</string>
     <string name="memory_delete_message">“%1$s” will be gone for good — agents won\'t be able to pick this work up again.</string>
     <string name="memory_delete_failed">Couldn\'t delete session</string>
@@ -28,7 +31,7 @@
     <string name="memory_session_open_failed">Can\'t open this session</string>
 
     <!-- MemoryCreateSheet -->
-    <string name="memory_create_title">New Session</string>
+    <string name="memory_create_title">New Memory Session</string>
     <string name="memory_create_header">Title</string>
     <string name="memory_create_placeholder">What is this session about?</string>
     <string name="memory_create_hint">Agents pick a session up by its short name, so give it a few plain words.</string>

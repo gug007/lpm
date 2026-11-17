@@ -43,6 +43,8 @@ vi.mock("../../bridge/commands", () => ({
   }),
   NotesReadFileAsInput: vi.fn(() => Promise.reject(new Error("no image"))),
   HtmlPreviewRoot: vi.fn(() => Promise.resolve("tok")),
+  DownloadProjectFile: vi.fn(() => Promise.resolve(null)),
+  CancelFileDownload: vi.fn(),
 }));
 vi.mock("../../bridge/runtime", () => ({
   BrowserOpenURL: vi.fn(),
@@ -76,10 +78,16 @@ vi.mock("./files/FilesDiffEditor", () => ({
 }));
 vi.mock("./OpenFileWithDropdown", () => ({ OpenFileWithDropdown: () => null }));
 vi.mock("./pdf/pdfEngine", () => ({ openPdf: vi.fn() }));
+vi.mock("../store/app", async () => {
+  const { create } = await import("zustand");
+  return { useAppStore: create(() => ({ projects: [] })) };
+});
 
 import * as commands from "../../bridge/commands";
 import { isPeerRoot } from "../peer/markers";
+import { useAppStore } from "../store/app";
 import { openFileViewer, useFileViewerStore } from "../store/fileViewer";
+import type { ProjectInfo } from "../types";
 import { FileViewerHost } from "./FileViewerHost";
 import { FileViewerModal } from "./FileViewerModal";
 
@@ -257,6 +265,42 @@ describe("FileViewerModal header", () => {
     mocks.files["/@peer-a1b2c3d4/home/ubuntu/app/AGENTS.md"] = "# Agents\n";
     await open("/@peer-a1b2c3d4/home/ubuntu/app/AGENTS.md", 0, "/@peer-a1b2c3d4/home/ubuntu/app");
     expect(pathLine()).toBe("/home/ubuntu/app/AGENTS.md");
+  });
+});
+
+describe("FileViewerModal download", () => {
+  const SSH = "/home/ubuntu/app";
+  const sshProject = () =>
+    useAppStore.setState({ projects: [{ name: "app", root: SSH, isRemote: true } as ProjectInfo] });
+  afterEach(() => useAppStore.setState({ projects: [] }));
+
+  it("offers no download for a file on this computer", async () => {
+    await open(MAIN);
+    expect(button("Download")).toBeUndefined();
+  });
+
+  it("downloads an SSH project's file through the project", async () => {
+    sshProject();
+    mocks.files[`${SSH}/out/list.csv`] = "a;b\n";
+    await open(`${SSH}/out/list.csv`, 0, SSH);
+    await act(async () => button("Download")?.click());
+    const [, root, rel] = vi.mocked(commands.DownloadProjectFile).mock.calls[0];
+    expect([root, rel]).toEqual([SSH, "out/list.csv"]);
+  });
+
+  it("offers no download for a file outside the SSH project", async () => {
+    sshProject();
+    mocks.files["/etc/hosts"] = "127.0.0.1 localhost\n";
+    await open("/etc/hosts", 0, SSH);
+    expect(button("Download")).toBeUndefined();
+  });
+
+  it("downloads a paired computer's file from the folder it is in", async () => {
+    mocks.files["/@peer-a1b2c3d4/tmp/list.csv"] = "a;b\n";
+    await open("/@peer-a1b2c3d4/tmp/list.csv", 0, "/@peer-a1b2c3d4/Users/me/proj");
+    await act(async () => button("Download")?.click());
+    const [, root, rel] = vi.mocked(commands.DownloadProjectFile).mock.calls.at(-1) ?? [];
+    expect([root, rel]).toEqual(["/@peer-a1b2c3d4/tmp", "list.csv"]);
   });
 });
 

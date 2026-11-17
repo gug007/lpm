@@ -1,5 +1,8 @@
 import type { ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
+import { CAPS_LABEL } from "./settings/sectionStyles";
+
+const LABEL = `px-0.5 ${CAPS_LABEL}`;
 
 export function SettingsSection({
   id,
@@ -10,15 +13,18 @@ export function SettingsSection({
   collapsed = false,
   onToggle,
   summary,
+  actions,
 }: {
   id?: string;
   title?: string;
-  description?: string;
+  description?: ReactNode;
   children: ReactNode;
   collapsible?: boolean;
   collapsed?: boolean;
   onToggle?: () => void;
   summary?: ReactNode;
+  /// Beside the title, right-aligned: a small action for the whole section.
+  actions?: ReactNode;
 }) {
   if (collapsible && collapsed) {
     return (
@@ -72,12 +78,13 @@ export function SettingsSection({
           <span>{title}</span>
           <ChevronRight size={14} className="rotate-90 transition-transform group-hover:translate-y-0.5" />
         </button>
+      ) : actions ? (
+        <div className="flex items-center justify-between gap-3">
+          {title && <h2 className={LABEL}>{title}</h2>}
+          <div className="ml-auto flex shrink-0 items-center gap-2">{actions}</div>
+        </div>
       ) : (
-        title && (
-          <h2 className="px-0.5 text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--text-muted)]">
-            {title}
-          </h2>
-        )
+        title && <h2 className={LABEL}>{title}</h2>
       )}
       {collapsible ? (
         <div className="field-reveal space-y-2">{content}</div>

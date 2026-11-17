@@ -14,8 +14,8 @@ export function hostHeadline(
   words = MACHINE,
 ): { tone: StatusTone; text: string } {
   if (!host.enabled && host.guestsOnly)
-    return { tone: "off", text: `Off — only people you let into a shared tab can reach ${words.thisMachine}` };
-  if (!host.enabled) return { tone: "off", text: `Off — turn on to let ${words.anotherMachine} connect` };
+    return { tone: "off", text: `Off · only people you let into a shared tab can reach ${words.thisMachine}` };
+  if (!host.enabled) return { tone: "off", text: `Off · turn on to let ${words.anotherMachine} connect` };
   if (!host.running)
     return { tone: "pending", text: `Waiting for port ${host.port} — another copy of lpm may be using it` };
   if (!away) return { tone: "live", text: "On · works on this network only" };

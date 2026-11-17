@@ -53,18 +53,29 @@ export function NoPhoneCard({
               : `So your device reaches ${words.thisMachine} from anywhere, not just this network.`
         }
       >
-        {!awayReady && !skipped && (
+        {!awayReady && (
           <>
-            <button onClick={() => setSkipped(true)} className={QUIET_BUTTON}>
-              Skip
-            </button>
-            <button onClick={onSetUpAway} disabled={settingUpAway} className={PRIMARY_BUTTON}>
+            {!skipped && (
+              <button onClick={() => setSkipped(true)} className={QUIET_BUTTON}>
+                Skip
+              </button>
+            )}
+            <button
+              onClick={onSetUpAway}
+              disabled={settingUpAway}
+              className={skipped ? SECONDARY_BUTTON : PRIMARY_BUTTON}
+            >
               {settingUpAway ? "Opening…" : "Set up"}
             </button>
           </>
         )}
       </SetupStep>
-      <SetupStep n={3} done={false} title="Pair a device" detail="Scan the code with lpm Link, or approve it here.">
+      <SetupStep
+        n={3}
+        done={false}
+        title="Pair a device"
+        detail="Turns on remote control and shows a code. Scan it with lpm Link, or approve it here."
+      >
         <button onClick={onPair} disabled={busy} className={ready ? PRIMARY_BUTTON : SECONDARY_BUTTON}>
           {busy ? "Preparing…" : "Pair a device"}
         </button>

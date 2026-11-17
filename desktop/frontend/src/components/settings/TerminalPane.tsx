@@ -61,7 +61,7 @@ export function TerminalPane() {
   return (
     <>
       <SettingsSection title="Appearance">
-        <div className="p-3">
+        <div className="p-4">
           <TerminalThemePreview
             theme={themePreview ?? theme}
             fontSize={fontSize}
@@ -69,6 +69,30 @@ export function TerminalPane() {
             lineHeight={font.lineHeight}
           />
         </div>
+        <SettingsRow
+          {...rowProps("terminal.theme", {
+            description:
+              themeChoice.mode === "follow"
+                ? "One for dark mode and one for light, switching with the app"
+                : "Or follow the app: one for dark mode, one for light",
+          })}
+          footer={
+            <TerminalThemeGrid
+              choice={themeChoice}
+              onPick={(name) => void update(themePickPatch(themeChoice, name, showing))}
+              onPreview={setThemePreview}
+              appearance={showing}
+            />
+          }
+        >
+          <TerminalThemeModeControl
+            mode={themeChoice.mode}
+            onChange={(mode) => void update(themeModePatch(themeChoice, mode, showing))}
+          />
+        </SettingsRow>
+      </SettingsSection>
+
+      <SettingsSection title="Text">
         <SettingsRow {...rowProps("terminal.fontFamily")}>
           <TerminalFontSelect
             value={font.family}
@@ -95,26 +119,6 @@ export function TerminalPane() {
             canIncrease={font.lineHeight < MAX_TERMINAL_LINE_HEIGHT}
             onDecrease={() => stepLineHeight(-0.1)}
             onIncrease={() => stepLineHeight(0.1)}
-          />
-        </SettingsRow>
-        <SettingsRow
-          {...rowProps("terminal.theme", {
-            description:
-              themeChoice.mode === "follow"
-                ? "Choose a dark theme and a light one; terminals switch with the app"
-                : undefined,
-          })}
-          footer={
-            <TerminalThemeGrid
-              choice={themeChoice}
-              onPick={(name) => void update(themePickPatch(themeChoice, name, showing))}
-              onPreview={setThemePreview}
-            />
-          }
-        >
-          <TerminalThemeModeControl
-            mode={themeChoice.mode}
-            onChange={(mode) => void update(themeModePatch(themeChoice, mode, showing))}
           />
         </SettingsRow>
       </SettingsSection>

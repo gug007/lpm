@@ -49,8 +49,7 @@ export function ConfigErrorView({
           <ConfigEditor
             projectName={projectName}
             onSaved={onRefresh}
-            onBack={onCloseConfigEditor}
-            onToggleView={onCloseConfigEditor}
+            back={{ label: projectName, onClick: onCloseConfigEditor }}
             isRemote={isRemote}
             loadError={error}
             startWith={startWith}

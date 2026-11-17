@@ -22,9 +22,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import cx.lpm.mobile.core.designsystem.R as DesignR
 import cx.lpm.mobile.core.designsystem.component.ActivityIndicator
+import cx.lpm.mobile.core.designsystem.component.CapsuleButton
 import cx.lpm.mobile.core.designsystem.component.EmptyState
 import cx.lpm.mobile.core.designsystem.component.GlassIconButton
 import cx.lpm.mobile.core.designsystem.component.LpmTopBar
@@ -136,7 +138,7 @@ private fun SharedWith(owner: String, modifier: Modifier = Modifier) {
     }
 }
 
-/** The spinner, the failure with "Try Again", or the empty state with "New Session". */
+/** The spinner, the failure with "Try Again", or the empty state with "New Memory Session". */
 @Composable
 private fun MemoryOverlay(state: MemoryUiState, actions: MemoryActions) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -154,9 +156,23 @@ private fun MemoryOverlay(state: MemoryUiState, actions: MemoryActions) {
             else -> EmptyState(
                 title = stringResource(R.string.memory_empty),
                 icon = painterResource(DesignR.drawable.ic_psychology),
-                description = stringResource(R.string.memory_empty_description),
-                action = stringResource(R.string.memory_empty_action),
-                onAction = actions.create
+                description = {
+                    Text(
+                        text = stringResource(R.string.memory_empty_description),
+                        style = LpmTheme.typography.body,
+                        color = LpmTheme.colors.secondaryLabel,
+                        textAlign = TextAlign.Center
+                    )
+                },
+                actions = {
+                    CapsuleButton(
+                        text = stringResource(R.string.memory_empty_action),
+                        onClick = actions.create,
+                        prominent = true,
+                        textStyle = LpmTheme.typography.headline
+                    )
+                    MemorySkillHint()
+                }
             )
         }
     }

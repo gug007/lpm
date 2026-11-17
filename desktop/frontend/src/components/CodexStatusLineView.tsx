@@ -1,3 +1,4 @@
+import { PanelBottom } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "../notifications/toast";
 import type { MachineScope } from "./settings/machineCommands";
@@ -5,7 +6,7 @@ import { getSettings, saveSettings } from "../store/settings";
 import { notifyStatusLineChanged } from "./statusLineChanges";
 import { useTerminalFontSize } from "../hooks/useTerminalFontSize";
 import { useTerminalTheme } from "../hooks/useTerminalTheme";
-import { ChevronLeftIcon } from "./icons";
+import { PageHeader } from "./ui/PageHeader";
 import { CodexStatusLineEditor } from "./CodexStatusLineEditor";
 import { CodexStatusLinePreview } from "./CodexStatusLinePreview";
 import type { CodexStatusLinePreviewStatus } from "./CodexStatusLinePreview";
@@ -14,6 +15,10 @@ import {
   CodexStatusLinePresetPicker,
   codexStatusLinePresetId,
 } from "./CodexStatusLinePresetPicker";
+import { StatusLineAlerts } from "./StatusLineAlerts";
+import { useCodexColorScheme } from "./useCodexColorScheme";
+import { StatusLineSection } from "./StatusLineSection";
+import { StatusLineToggle } from "./StatusLineToggle";
 import {
   CODEX_DEFAULT_STATUS_LINE,
   canonicalCodexStatusLineId,
@@ -55,7 +60,15 @@ export function codexStatuslineSelectionLabel(
   );
 }
 
-export function CodexStatusLineView({ machine, onBack }: { machine: MachineScope; onBack: () => void }) {
+export function CodexStatusLineView({
+  machine,
+  onBack,
+  backTitle = "Settings",
+}: {
+  machine: MachineScope;
+  onBack: () => void;
+  backTitle?: string;
+}) {
   const { statusLine } = machine.commands;
   const [items, setItems] = useState<string[]>([
     ...CODEX_DEFAULT_STATUS_LINE,
@@ -71,6 +84,7 @@ export function CodexStatusLineView({ machine, onBack }: { machine: MachineScope
     () => getSettings().codexStatusLineCustomItems ?? [],
   );
   const { themeStyle } = useTerminalTheme();
+  const colorScheme = useCodexColorScheme(themeStyle);
   const { fontSize } = useTerminalFontSize();
   const mountedRef = useRef(true);
   const stateTokenRef = useRef(0);
@@ -267,31 +281,22 @@ export function CodexStatusLineView({ machine, onBack }: { machine: MachineScope
   ) satisfies CodexStatusLinePreviewStatus;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col pt-6">
-      <div className="mx-auto flex w-full max-w-6xl items-start gap-3">
-        <button
-          type="button"
-          onClick={onBack}
-          aria-label="Back to Settings"
-          title="Back to Settings"
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[var(--text-muted)] outline-none transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)]"
-        >
-          <ChevronLeftIcon />
-        </button>
-        <div className="min-w-0 flex-1">
-          <h1 className="text-xl font-semibold tracking-tight text-[var(--text-primary)]">
-            Codex CLI status line
-          </h1>
-          <p className="mt-1 text-[12px] text-[var(--text-muted)]">
+    <div className="flex min-h-0 flex-1 flex-col">
+      <PageHeader
+        icon={PanelBottom}
+        title="Codex CLI status line"
+        back={{ label: backTitle, onClick: onBack }}
+        description={
+          <>
             Shows under the prompt box in Codex{machine.name ? ` on ${machine.name}` : ""}.
             New Codex sessions use your changes.
-          </p>
-        </div>
-      </div>
+          </>
+        }
+      />
 
-      <div className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1">
+      <div className="-mx-1 mt-3 min-h-0 flex-1 overflow-y-auto px-1">
         <div
-          className="mx-auto w-full max-w-6xl pb-6 transition-opacity"
+          className="w-full pb-8 transition-opacity"
           style={{ opacity: loaded ? 1 : 0.55 }}
           aria-busy={!loaded}
         >
@@ -306,93 +311,65 @@ export function CodexStatusLineView({ machine, onBack }: { machine: MachineScope
                   : codexStatuslineSelectionLabel(items, configured)
               }
               status={previewStatus}
+              colorScheme={colorScheme}
               themeStyle={themeStyle}
               fontSize={fontSize}
+              accessory={
+                <StatusLineToggle
+                  checked={useColors}
+                  disabled={!canEdit}
+                  label="Use theme colors"
+                  description="Let Codex apply colors from its active theme"
+                  onChange={(nextUseColors) => change(items, nextUseColors)}
+                />
+              }
             />
           </div>
 
-          <div className="space-y-4">
-            <section className="rounded-2xl border border-[var(--border)] bg-[var(--bg-secondary)]/25 p-3.5">
-              <div className="mb-3 flex items-center gap-2.5">
-                <span className="rounded-md bg-[var(--accent-blue)]/10 px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--accent-blue-text)]">
-                  Start
-                </span>
-                <div>
-                  <h2 className="text-[12.5px] font-semibold text-[var(--text-primary)]">
-                    Choose a starting point
-                  </h2>
-                  <p className="text-[10.5px] text-[var(--text-muted)]">
-                    Every layout can be reordered and extended below.
-                  </p>
-                </div>
-              </div>
+          <div className="space-y-5">
+            <StatusLineSection
+              title="Choose a starting point"
+              description="Every layout can be reordered and extended below."
+            >
               <CodexStatusLinePresetPicker
                 items={items}
                 configured={configured}
                 customItems={customItems}
                 disabled={!canEdit}
+                useColors={useColors}
+                colorScheme={colorScheme}
+                terminalStyle={themeStyle}
                 onSelect={selectLayout}
                 onReset={() => resetToDefault("Switched to Codex default")}
               />
-            </section>
+            </StatusLineSection>
 
-            {loadError && (
-              <div
-                role="alert"
-                className="flex items-center gap-3 rounded-xl border border-[var(--accent-red)]/30 bg-[var(--accent-red)]/8 px-3 py-2.5 text-[10.5px] leading-relaxed text-[var(--accent-red-text)]"
-              >
-                <span className="min-w-0 flex-1">
-                  Couldn’t read your Codex settings.
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    revisionRef.current++;
-                    clearApplyTimer();
-                    queueRef.current = null;
-                    setLoaded(false);
-                    setLoadError(null);
-                    void refresh();
-                  }}
-                  className="h-7 shrink-0 rounded-lg border border-[var(--accent-red)]/30 px-2.5 font-medium outline-none transition-colors hover:bg-[var(--accent-red)]/10 focus-visible:ring-1 focus-visible:ring-[var(--accent-red)]"
-                >
-                  Retry
-                </button>
-              </div>
-            )}
-
-            {applyError && (
-              <div
-                role="alert"
-                title={applyError}
-                className="rounded-xl border border-[var(--accent-red)]/30 bg-[var(--accent-red)]/8 px-3 py-2.5 text-[10.5px] leading-relaxed text-[var(--accent-red-text)]"
-              >
-                Couldn’t save this change. Your previous Codex status line is
-                still active.
-                <details className="mt-1 select-text text-[10px] opacity-80">
-                  <summary className="w-fit cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-red)]">
-                    Show details
-                  </summary>
-                  <p className="mt-1 break-words">{applyError}</p>
-                </details>
-              </div>
-            )}
+            <StatusLineAlerts
+              loadError={loadError}
+              applyError={applyError}
+              loadMessage="Couldn’t read your Codex settings."
+              applyMessage="Couldn’t save this change. Your previous Codex status line is still active."
+              onRetryLoad={() => {
+                revisionRef.current++;
+                clearApplyTimer();
+                queueRef.current = null;
+                setLoaded(false);
+                setLoadError(null);
+                void refresh();
+              }}
+            />
 
             <CodexStatusLineEditor
               items={items}
-              useColors={useColors}
               disabled={!canEdit}
               undoLabel={undo?.label ?? null}
               onItemsChange={(nextItems, undoLabel) =>
                 change(nextItems, useColors, undoLabel)
               }
-              onUseColorsChange={(nextUseColors) =>
-                change(items, nextUseColors)
-              }
               onUndo={undoLast}
             />
 
-            <p className="px-1 text-[10.5px] leading-relaxed text-[var(--text-muted)]">
+            <p className="px-0.5 text-[12px] leading-relaxed text-[var(--text-muted)]">
               Values are samples. Colors follow Codex’s theme, so yours may look
               different. Codex leaves out items that have nothing to show, and
               doesn’t support custom text or separators.

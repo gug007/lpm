@@ -183,6 +183,8 @@ export interface Seed {
   recap: (week: string, period: "week" | "month") => unknown;
   // lpm skills: the global list, and the list every seeded project starts with.
   lpmCommands?: { global: SeedLpmCommand[]; project: SeedLpmCommand[]; others?: SeedOtherSkills };
+  // Notes a project starts with in its "General" chat, oldest first.
+  notes?: Record<string, string[]>;
 }
 
 // Skills not made in lpm, by list.

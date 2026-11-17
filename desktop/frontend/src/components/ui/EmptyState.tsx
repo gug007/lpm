@@ -9,7 +9,7 @@ export function EmptyState({ title, body, icon, children }: EmptyStateProps) {
   return (
     <div className="flex flex-col items-center px-6 py-16 text-center">
       {icon && (
-        <span className="mb-3 grid h-11 w-11 place-items-center rounded-xl bg-[var(--accent-cyan)]/10 text-[var(--accent-cyan)]">
+        <span className="mb-3 grid h-11 w-11 place-items-center rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] text-[var(--text-secondary)]">
           {icon}
         </span>
       )}

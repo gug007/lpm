@@ -2,11 +2,17 @@ import type { TokenUsage } from "../../types";
 import { formatPercent, formatTokenCount } from "../../agentUsageFormat";
 import { tokenTypeSegments, type TokenTypeKey } from "./statsDerive";
 
-const RAMP: Record<TokenTypeKey, number> = {
-  input: 1,
-  cached: 0.66,
-  output: 0.42,
-  reasoning: 0.24,
+const shade = (pct: number) => `color-mix(in srgb, var(--text-primary) ${pct}%, transparent)`;
+const stripes = (color: string) =>
+  `repeating-linear-gradient(135deg, ${color} 0 2px, color-mix(in srgb, ${color} 30%, transparent) 2px 4px)`;
+
+// Four steps that never share a look: light, mid and dark solids, then the
+// dark one striped for reasoning, the part of the output spent thinking.
+const FILL: Record<TokenTypeKey, string> = {
+  input: shade(85),
+  cached: shade(55),
+  output: shade(30),
+  reasoning: stripes(shade(55)),
 };
 
 interface CompositionBarProps {
@@ -23,30 +29,26 @@ export function CompositionBar({ totals }: CompositionBarProps) {
           <div
             key={segment.key}
             className="h-full first:rounded-l-full last:rounded-r-full"
-            style={{
-              flexGrow: segment.value,
-              backgroundColor: "var(--text-secondary)",
-              opacity: RAMP[segment.key],
-            }}
+            style={{ flexGrow: segment.value, background: FILL[segment.key] }}
           />
         ))}
       </div>
-      <div className="mt-2.5 flex flex-wrap gap-x-3 gap-y-1">
+      <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5">
         {segments.map((segment) => (
           <span
             key={segment.key}
             title={formatTokenCount(segment.value)}
-            className="group flex cursor-help items-center gap-1.5 text-[11px] text-[var(--text-muted)]"
+            className="group flex cursor-help items-center gap-1.5 text-[12px] text-[var(--text-muted)]"
           >
             <span
-              className="h-2 w-2 rounded-[2px]"
-              style={{ backgroundColor: "var(--text-secondary)", opacity: RAMP[segment.key] }}
+              className="h-2.5 w-2.5 rounded-[2px]"
+              style={{ background: FILL[segment.key] }}
             />
             <span className="text-[var(--text-secondary)]">{segment.label}</span>
-            <span className="tabular-nums text-[var(--text-secondary)] group-hover:hidden">
+            <span className="tabular-nums text-[var(--text-muted)] group-hover:hidden">
               {formatPercent(segment.pct)}
             </span>
-            <span className="hidden tabular-nums text-[var(--text-secondary)] group-hover:inline">
+            <span className="hidden tabular-nums text-[var(--text-muted)] group-hover:inline">
               {formatTokenCount(segment.value)}
             </span>
           </span>

@@ -72,26 +72,30 @@ export const REVIEW_SOURCES: Record<ReviewMode, ReviewSource> = {
   },
 };
 
-// `authority` namespaces the model URI so the single-file pane and the all-files
-// pool can hold independent models for the same (mode, path) without colliding.
+let modelSeq = 0;
+
+// Each call gets URIs of its own, so two views of one path (two Files tabs, the
+// commit review, a copy of the project) never share or dispose each other's
+// models. The caller disposes what it made.
 export function makeDiffModels(
   monaco: typeof monacoNs,
-  authority: string,
   mode: ReviewMode,
   path: string,
   original: string,
   modified: string,
 ): DiffModels {
-  const make = (side: string, value: string) => {
-    const uri = monaco.Uri.from({
-      scheme: "lpm-diff",
-      authority,
-      path: `/${path}`,
-      query: `mode=${mode}&side=${side}`,
-    });
-    monaco.editor.getModel(uri)?.dispose();
-    return monaco.editor.createModel(value, undefined, uri);
-  };
+  const authority = `m${++modelSeq}`;
+  const make = (side: string, value: string) =>
+    monaco.editor.createModel(
+      value,
+      undefined,
+      monaco.Uri.from({
+        scheme: "lpm-diff",
+        authority,
+        path: `/${path}`,
+        query: `mode=${mode}&side=${side}`,
+      }),
+    );
   return { original: make("original", original), modified: make("modified", modified) };
 }
 

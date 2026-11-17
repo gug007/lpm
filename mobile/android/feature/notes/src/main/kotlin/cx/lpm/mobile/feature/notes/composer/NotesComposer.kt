@@ -199,8 +199,8 @@ internal fun NotesComposer(
                     )
 
                     dictation != null && !draft.hasContent && !sending -> DictationMicDisc(
-                        ground = colors.tint,
-                        glyph = Color.White,
+                        ground = colors.label,
+                        glyph = colors.systemBackground,
                         onClick = dictation.start,
                         seat = 34.dp,
                         disc = 27.dp
@@ -289,7 +289,7 @@ private fun SendButton(
         if (sending) {
             ActivityIndicator(size = ActivityIndicatorSize.Small)
         } else {
-            val tint = if (hasContent) colors.tint else colors.secondaryLabel.dimmed(0.5f)
+            val tint = if (hasContent) colors.label else colors.secondaryLabel.dimmed(0.5f)
             Icon(
                 painter = painterResource(DesignR.drawable.ic_arrow_circle_up_fill),
                 contentDescription = stringResource(R.string.notes_composer_send),

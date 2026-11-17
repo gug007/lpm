@@ -21,6 +21,14 @@ export function canDownload(project: Pick<ProjectInfo, "root" | "isRemote"> | un
   return !!project && project.isRemote !== isPeerRoot(project.root);
 }
 
+// The same rule for a file the viewer reads through `root`, which is its
+// folder when it sits outside the project: an SSH host is only reached through
+// its project's root.
+export function canDownloadFrom(root: string, project: Pick<ProjectInfo, "root" | "isRemote"> | undefined): boolean {
+  if (project?.isRemote) return root === project.root && !isPeerRoot(root);
+  return isPeerRoot(root);
+}
+
 export async function downloadFile(projectRoot: string, rel: string): Promise<void> {
   const id = crypto.randomUUID();
   const name = basename(rel);

@@ -75,7 +75,7 @@ internal fun StatsSummaryTiles(stats: AgentStats, days: Int, modifier: Modifier 
                     },
                     modifier = it
                 ) {
-                    if (cache > 0) ShareBar(cache, LpmTheme.colors.tint)
+                    if (cache > 0) ShareBar(cache, LpmTheme.colors.secondaryLabel)
                 }
             }
         )

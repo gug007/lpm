@@ -706,7 +706,7 @@ export function CommitModal({
                 onToggle={amend.toggle}
               />
             )}
-            <InstructionsChip projectName={projectName} target="commit" backTitle="Back to commit" />
+            <InstructionsChip projectName={projectName} target="commit" backTitle="Commit" />
           </span>
           <div className="flex gap-2">
             <button

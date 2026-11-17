@@ -97,7 +97,7 @@ describe("ThisMachineCard keep awake", () => {
   it("hides it while Allow control is off", async () => {
     await render(host({ enabled: false, running: false }));
     expect(keepAwakeRow()).toBeNull();
-    expect(container.textContent).not.toContain("keep awake");
+    expect(container.textContent).not.toContain("may sleep");
   });
 
   it("says why a change wasn't saved and puts the switch back", async () => {
@@ -110,16 +110,16 @@ describe("ThisMachineCard keep awake", () => {
     expect(container.querySelector('[role="alert"]')?.textContent).toBe(
       "That change wasn't saved. The mobile settings file at /x/remote.json is damaged, so nothing was changed.",
     );
-    expect(container.textContent).toContain("keep awake off");
+    expect(container.textContent).toContain("This Mac may sleep");
   });
 
   it("follows a change made in the Phone pane", async () => {
     await render(host());
-    expect(container.textContent).toContain("keep awake off");
+    expect(container.textContent).toContain("This Mac may sleep");
 
     mocks.remote = { keepAwake: true, keepAwakeStatus: "battery" };
     await act(async () => mocks.listeners.get("remote-devices-changed")?.());
-    expect(container.textContent).toContain("keep awake on");
+    expect(container.textContent).toContain("This Mac stays awake");
     expect(container.textContent).toContain("On battery");
   });
 });

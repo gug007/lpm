@@ -245,6 +245,7 @@ interface AppState {
   setView: (view: View) => void;
   navigateSettings: (view: View) => void;
   setSettingsTab: (tab: SettingsTab) => void;
+  openSettingsTab: (tab: SettingsTab) => void;
   setSettingsMachine: (slug: string | null) => void;
   openMachineSettings: (slug: string) => void;
   setSidebarCollapsed: (next: boolean | ((prev: boolean) => boolean)) => void;
@@ -876,6 +877,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   // Between Settings and the pages it opens, staying on the machine it shows.
   navigateSettings: (view) => set({ view }),
   setSettingsTab: (settingsTab) => set({ settingsTab }),
+  openSettingsTab: (settingsTab) => set({ view: "settings", settingsTab, settingsMachine: null }),
 
   setSettingsMachine: (settingsMachine) => set({ settingsMachine }),
 

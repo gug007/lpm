@@ -3,6 +3,7 @@ import { GLOBAL_MODEL_URI } from "../monaco-uris";
 import type { SettingsMachine } from "../settingsMachine";
 import { globalLayerOf, saveLayer } from "../yamlQueue";
 import { YamlConfigEditor } from "./YamlConfigEditor";
+import { NAV_ICONS } from "./settings/navIcons";
 
 export function GlobalConfigEditor({ machine }: { machine: SettingsMachine }) {
   const slug = machine.kind === "peer" ? machine.slug : null;
@@ -15,6 +16,8 @@ export function GlobalConfigEditor({ machine }: { machine: SettingsMachine }) {
       description={`Actions and terminals defined here are available in every project${
         name ? ` on ${name}` : ""
       }.`}
+      icon={NAV_ICONS["global-config"]}
+      placeholder="actions:  # buttons and terminals every project gets"
       modelUri={GLOBAL_MODEL_URI}
       load={layer.read}
       save={save}

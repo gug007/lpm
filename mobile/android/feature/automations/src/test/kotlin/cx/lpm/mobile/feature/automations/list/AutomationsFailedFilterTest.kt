@@ -7,7 +7,6 @@ import java.time.Instant
 import java.time.ZoneOffset
 import java.util.Locale
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -27,7 +26,8 @@ class AutomationsFailedFilterTest {
     fun `failed rows are counted and marked for Retry`() {
         val all = state.listState(project = null, projectCount = 1, clock = clock)
         assertEquals(2, all.failedCount)
-        assertFalse(all.failedOnly)
+        assertEquals(AutomationListFilter.All, all.filter)
+        assertEquals(4, all.allCount)
         assertEquals(listOf("slow", "fine", "broken", "off"), ids(all))
         assertEquals(emptyList<String>(), all.hiddenUnread.map { it.id })
         assertEquals(
@@ -40,8 +40,8 @@ class AutomationsFailedFilterTest {
 
     @Test
     fun `the filter keeps only failed rows and lets go once none are left`() {
-        val failed = state.listState(null, 1, clock, failedOnly = true)
-        assertTrue(failed.failedOnly)
+        val failed = state.listState(null, 1, clock, AutomationListFilter.Failed)
+        assertEquals(AutomationListFilter.Failed, failed.filter)
         assertEquals(listOf("slow"), failed.unread.map { it.job.id })
         assertEquals(listOf("broken"), failed.read.map { it.job.id })
         assertEquals(
@@ -54,9 +54,10 @@ class AutomationsFailedFilterTest {
         assertTrue(failed.anyUnread)
 
         val healed = AutomationsState(jobs = listOf(fine, off), loaded = true)
-            .listState(null, 1, clock, failedOnly = true)
+            .listState(null, 1, clock, AutomationListFilter.Failed)
         assertEquals(0, healed.failedCount)
-        assertFalse(healed.failedOnly)
+        assertEquals(AutomationListFilter.All, healed.filter)
+        assertEquals(emptyList<AutomationListFilter>(), healed.filters)
         assertEquals(listOf("fine", "off"), ids(healed))
     }
 }

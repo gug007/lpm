@@ -42,6 +42,9 @@ export function StatusLineSegmentChip({
     id,
     disabled,
   });
+  // Edit and remove show on hover or focus, and stay while the item is open
+  // or needs fixing.
+  const pinned = editing || invalid;
   const label =
     segment.id === "text"
       ? segment.text || "Custom text"
@@ -56,7 +59,7 @@ export function StatusLineSegmentChip({
         opacity: isDragging ? 0.3 : 1,
       }}
       data-invalid={invalid || undefined}
-      className={`group inline-flex h-8 items-center rounded-lg border text-[11px] text-[var(--text-primary)] shadow-sm transition-[border-color,background-color,box-shadow] ${
+      className={`group relative inline-flex h-8 items-center rounded-lg border text-[12px] text-[var(--text-primary)] shadow-sm transition-[border-color,background-color,box-shadow] ${
         invalid
           ? "border-[var(--accent-red)] bg-[var(--accent-red)]/8"
           : editing
@@ -75,29 +78,37 @@ export function StatusLineSegmentChip({
       >
         <GripVertical size={12} />
       </button>
-      <span className="flex h-8 items-center gap-1.5 pr-1.5">
+      <span className={`flex h-8 items-center gap-1.5 ${pinned ? "pr-1" : "pr-2.5"}`}>
         <StatusLineSegmentContent segment={segment} showIcon={showIcon} />
       </span>
-      <StatusLineSegmentPopover
-        segment={segment}
-        open={editing}
-        disabled={disabled}
-        canRemove={canRemove}
-        onToggle={onEdit}
-        onUpdate={onUpdate}
-        onRemove={onRemove}
-        onClose={onClose}
-      />
-      <button
-        type="button"
-        disabled={disabled || !canRemove}
-        onClick={onRemove}
-        aria-label={`Remove ${label}`}
-        title={canRemove ? `Remove ${label}` : "Keep at least one item"}
-        className="mr-0.5 flex h-6 w-6 items-center justify-center rounded-md text-[var(--text-muted)] opacity-45 outline-none transition-[color,background-color,opacity] hover:bg-[var(--accent-red)]/10 hover:text-[var(--accent-red-text)] hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)] group-hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-20"
+      <span
+        className={
+          pinned
+            ? "flex items-center pr-0.5"
+            : "absolute inset-y-0 right-0 flex items-center rounded-r-lg bg-[var(--bg-hover)] pl-1 pr-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+        }
       >
-        <X size={12} />
-      </button>
+        <StatusLineSegmentPopover
+          segment={segment}
+          open={editing}
+          disabled={disabled}
+          canRemove={canRemove}
+          onToggle={onEdit}
+          onUpdate={onUpdate}
+          onRemove={onRemove}
+          onClose={onClose}
+        />
+        <button
+          type="button"
+          disabled={disabled || !canRemove}
+          onClick={onRemove}
+          aria-label={`Remove ${label}`}
+          title={canRemove ? `Remove ${label}` : "Keep at least one item"}
+          className="flex h-6 w-6 items-center justify-center rounded-md text-[var(--text-muted)] outline-none transition-colors hover:bg-[var(--accent-red)]/10 hover:text-[var(--accent-red-text)] focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)] disabled:cursor-not-allowed disabled:opacity-30"
+        >
+          <X size={12} />
+        </button>
+      </span>
     </div>
   );
 }

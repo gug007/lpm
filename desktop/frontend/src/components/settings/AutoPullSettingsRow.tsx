@@ -10,13 +10,13 @@ import { SegmentedControl } from "../ui/SegmentedControl";
 
 const OPTIONS: { value: AutoPullMode; label: string; tooltip: string }[] = [
   { value: "off", label: "Off", tooltip: "Never pull on its own" },
-  { value: "chosen", label: "Chosen", tooltip: "Only projects set to On in their Git menu" },
-  { value: "all", label: "All", tooltip: "Every project unless it’s set to Off in its Git menu" },
+  { value: "chosen", label: "Projects I pick", tooltip: "Only projects set to On in their Git menu" },
+  { value: "all", label: "All projects", tooltip: "Every project unless it’s set to Off in its Git menu" },
 ];
 
 function exceptionsLine(mode: AutoPullMode, on: string[], off: string[]): string {
   if (mode === "chosen") {
-    return on.length > 0 ? `On for ${on.join(", ")}` : "No projects chosen yet: right-click one › Git › Auto pull › On";
+    return on.length > 0 ? `On for ${on.join(", ")}` : "No projects picked yet: right-click one › Git › Auto pull › On";
   }
   return off.length > 0 ? `Off for ${off.join(", ")}` : "";
 }

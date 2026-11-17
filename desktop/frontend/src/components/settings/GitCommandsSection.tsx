@@ -21,6 +21,24 @@ import { Toggle } from "../ui/Toggle";
 import { SettingsCheckbox } from "./SettingsCheckbox";
 import { useRowReach, useSettingsTarget } from "./settingsTarget";
 
+const CHECK_GRID = "grid grid-cols-2 gap-x-6 gap-y-2";
+
+// Getting on the left and removing on the right, branches above tags.
+const FETCH_ORDER: (keyof GitFetchConfig)[] = ["all", "prune", "tags", "pruneTags"];
+const FETCH_CHOICES = FETCH_ORDER.flatMap((key) => FETCH_OPTIONS.filter((o) => o.key === key));
+
+const PULL_DESCRIPTIONS: Record<PullStrategy, string> = {
+  ff: "Merges when both sides have changed. The Pull menu uses this too",
+  "ff-only": "Never merges: stops if both sides have changed. The Pull menu uses this too",
+  rebase: "Replays your commits on top of the remote's. The Pull menu uses this too",
+};
+
+const PUSH_DESCRIPTIONS: Record<PushMode, string> = {
+  default: "Stops if the remote has commits you don't. The Push menu uses this too",
+  "force-with-lease":
+    "Overwrites the remote branch, but only if nobody pushed to it since your last fetch. The Push menu uses this too",
+};
+
 // The defaults the Pull, Push and Fetch menus remember, kept as whole objects
 // so a machine stores exactly what those menus would.
 export function GitCommandsSection() {
@@ -37,7 +55,7 @@ export function GitCommandsSection() {
   return (
     <SettingsSection title="Pull, push and fetch">
       {shows("git.pullStrategy") && (
-        <SettingsRow {...rowProps("git.pullStrategy")}>
+        <SettingsRow {...rowProps("git.pullStrategy", { description: PULL_DESCRIPTIONS[pull.strategy] })}>
           <SettingsSelect
             aria-label="When pulling"
             value={pull.strategy}
@@ -61,7 +79,7 @@ export function GitCommandsSection() {
         </SettingsRow>
       )}
       {shows("git.pushMode") && (
-        <SettingsRow {...rowProps("git.pushMode")}>
+        <SettingsRow {...rowProps("git.pushMode", { description: PUSH_DESCRIPTIONS[push.mode] })}>
           <SettingsSelect
             aria-label="When pushing"
             value={push.mode}
@@ -81,8 +99,8 @@ export function GitCommandsSection() {
         </SettingsRow>
       )}
       {shows("git.skipHooks") && (
-        <SettingsRow {...rowProps("git.skipHooks")}>
-          <div role="group" aria-label="Skip Git hooks" className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+        <SettingsRow {...rowProps("git.skipHooks")} stacked>
+          <div role="group" aria-label="Skip Git hooks" className={CHECK_GRID}>
             <SettingsCheckbox
               label="When pushing"
               title="git push --no-verify"
@@ -99,9 +117,9 @@ export function GitCommandsSection() {
         </SettingsRow>
       )}
       {shows("git.fetchOptions") && (
-        <SettingsRow {...rowProps("git.fetchOptions")}>
-          <div role="group" aria-label="When fetching" className="grid grid-cols-2 gap-x-4 gap-y-1.5">
-            {FETCH_OPTIONS.map((o) => (
+        <SettingsRow {...rowProps("git.fetchOptions")} stacked>
+          <div role="group" aria-label="When fetching" className={CHECK_GRID}>
+            {FETCH_CHOICES.map((o) => (
               <SettingsCheckbox
                 key={o.key}
                 label={o.label}

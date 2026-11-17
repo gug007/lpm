@@ -25,6 +25,7 @@ export function StepperControl({
         disabled={!canDecrease}
         className={STEP_BUTTON}
         aria-label={`Decrease ${label}`}
+        title={canDecrease ? undefined : "This is the smallest"}
       >
         −
       </button>
@@ -36,6 +37,7 @@ export function StepperControl({
         disabled={!canIncrease}
         className={STEP_BUTTON}
         aria-label={`Increase ${label}`}
+        title={canIncrease ? undefined : "This is the largest"}
       >
         +
       </button>

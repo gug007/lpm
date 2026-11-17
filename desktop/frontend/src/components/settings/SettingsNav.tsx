@@ -3,6 +3,7 @@ import { ArrowLeft } from "lucide-react";
 import { isMac } from "../../platform";
 import type { SettingsNavGroup, SettingsSearchEntry } from "../../settings-registry";
 import type { SettingsTab, View } from "../../store/app";
+import { useSettingsStore } from "../../store/settings";
 import { SettingsSearch } from "../SettingsSearch";
 import { NAV_ICONS } from "./navIcons";
 
@@ -40,11 +41,11 @@ export function SettingsNav({
   onNavigate: (view: View) => void;
 }) {
   const searching = query.trim() !== "";
+  const sidebarWidth = useSettingsStore((s) => s.sidebarWidth) || 260;
   return (
     <nav
-      className={`flex shrink-0 flex-col overflow-y-auto border-r border-[var(--border)] bg-[var(--bg-sidebar)] px-3 transition-[width] duration-150 ${
-        searching ? "w-[340px]" : "w-56"
-      }`}
+      className="flex shrink-0 flex-col overflow-y-auto border-r border-[var(--border)] bg-[var(--bg-sidebar)] px-3 transition-[width] duration-150"
+      style={{ width: searching ? Math.max(340, sidebarWidth) : sidebarWidth }}
     >
       {/* Settings stand in for the project sidebar, so this column starts at
           the window's edge and keeps the sidebar's room for the traffic lights. */}

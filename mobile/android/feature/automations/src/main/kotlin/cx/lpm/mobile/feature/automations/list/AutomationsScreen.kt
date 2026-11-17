@@ -46,7 +46,7 @@ class AutomationsActions(
     val edit: (AutomationJob) -> Unit = {},
     val markAllRead: () -> Unit = {},
     val markRead: (AutomationJob) -> Unit = {},
-    val toggleFailedOnly: () -> Unit = {},
+    val selectFilter: (AutomationListFilter) -> Unit = {},
     val toggleEnabled: (AutomationJob) -> Unit = {},
     val run: (AutomationJob) -> Unit = {},
     val stop: (AutomationJob) -> Unit = {}
@@ -54,8 +54,9 @@ class AutomationsActions(
 
 /**
  * The automations feed (iOS `AutomationsView`): what's unread under "New", the rest
- * under "Earlier", "Mark all read" while anything is unread, "Failed" to keep only the
- * jobs whose last run failed while any did, and "+" for a new job.
+ * under "Earlier", "Mark all read" while anything is unread, "+" for a new job, and on
+ * top of the list the desktop's All / Needs you / Failed filter while there's
+ * anything to filter.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -88,13 +89,6 @@ fun AutomationsScreen(
                 }
             },
             trailing = {
-                if (state.failedCount > 0) {
-                    AutomationFailedToggle(
-                        count = state.failedCount,
-                        isOn = state.failedOnly,
-                        onToggle = actions.toggleFailedOnly
-                    )
-                }
                 GlassIconButton(
                     icon = painterResource(R.drawable.ic_add),
                     contentDescription = stringResource(AutomationsR.string.automations_add),
@@ -117,6 +111,11 @@ fun AutomationsScreen(
                     bottom = 24.dp
                 )
             ) {
+                if (state.filters.isNotEmpty()) {
+                    item(key = "filter") {
+                        AutomationListFilterBar(state, actions.selectFilter)
+                    }
+                }
                 rowsSection(
                     id = "new",
                     header = AutomationsR.string.automations_new_section,

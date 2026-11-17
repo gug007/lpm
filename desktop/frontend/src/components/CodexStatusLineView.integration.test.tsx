@@ -12,6 +12,7 @@ const commands = vi.hoisted(() => ({
 }));
 
 vi.mock("../../bridge/commands", () => commands);
+vi.mock("../../bridge/runtime", () => ({ EventsOn: vi.fn(() => () => {}) }));
 vi.mock("../notifications/toast", () => ({ toast: { error: vi.fn() } }));
 vi.mock("../hooks/useTerminalTheme", () => ({
   useTerminalTheme: () => ({ themeStyle: undefined }),

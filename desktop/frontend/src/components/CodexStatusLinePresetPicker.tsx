@@ -1,17 +1,9 @@
-import {
-  Check,
-  EyeOff,
-  Gauge,
-  GitBranch,
-  Layers3,
-  Minimize2,
-  SlidersHorizontal,
-} from "lucide-react";
-import type { KeyboardEvent } from "react";
-import {
-  CODEX_DEFAULT_STATUS_LINE,
-  codexStatusLineOption,
-} from "./codexStatusLineOptions";
+import type { CSSProperties, KeyboardEvent } from "react";
+import type { CodexStatusLineColorScheme } from "./codexStatusLineColors";
+import { CodexStatusLineItems } from "./CodexStatusLineItems";
+import { StatusLineChoiceRow } from "./StatusLineChoiceRow";
+import { CODEX_DEFAULT_STATUS_LINE } from "./codexStatusLineOptions";
+import { CARD_CLASS } from "./ui/fields";
 
 export type CodexStatusLinePresetId =
   | "default"
@@ -27,7 +19,6 @@ export interface CodexStatusLinePreset {
   label: string;
   hint: string;
   items: readonly string[];
-  icon: typeof Minimize2;
 }
 
 export const CODEX_STATUS_LINE_PRESETS: CodexStatusLinePreset[] = [
@@ -36,7 +27,6 @@ export const CODEX_STATUS_LINE_PRESETS: CodexStatusLinePreset[] = [
     label: "Codex default",
     hint: "Model, folder and thread name",
     items: CODEX_DEFAULT_STATUS_LINE,
-    icon: Minimize2,
   },
   {
     id: "project",
@@ -48,7 +38,6 @@ export const CODEX_STATUS_LINE_PRESETS: CodexStatusLinePreset[] = [
       "branch-changes",
       "context-remaining",
     ],
-    icon: GitBranch,
   },
   {
     id: "usage",
@@ -61,7 +50,6 @@ export const CODEX_STATUS_LINE_PRESETS: CodexStatusLinePreset[] = [
       "weekly-limit",
       "fast-mode",
     ],
-    icon: Gauge,
   },
   {
     id: "detailed",
@@ -77,14 +65,12 @@ export const CODEX_STATUS_LINE_PRESETS: CodexStatusLinePreset[] = [
       "weekly-limit",
       "task-progress",
     ],
-    icon: Layers3,
   },
   {
     id: "off",
     label: "Off",
     hint: "No status line under the prompt",
     items: [],
-    icon: EyeOff,
   },
 ];
 
@@ -117,35 +103,6 @@ interface Choice {
   label: string;
   hint: string;
   items: readonly string[];
-  icon: typeof Minimize2;
-}
-
-function presetSample(items: readonly string[]) {
-  if (items.length === 0) {
-    return (
-      <span className="font-mono text-[10px] text-[var(--text-muted)]">
-        Status line hidden
-      </span>
-    );
-  }
-  const visible = items.slice(0, 3);
-  return (
-    <span className="flex min-w-0 items-center gap-1 font-mono text-[9px] text-[var(--text-secondary)]">
-      {visible.map((item, index) => (
-        <span key={`${item}:${index}`} className="contents">
-          {index > 0 && (
-            <span className="text-[var(--text-muted)]">·</span>
-          )}
-          <span className="max-w-24 truncate">
-            {codexStatusLineOption(item).preview || item}
-          </span>
-        </span>
-      ))}
-      {items.length > visible.length && (
-        <span className="text-[var(--text-muted)]">…</span>
-      )}
-    </span>
-  );
 }
 
 export function CodexStatusLinePresetPicker({
@@ -153,6 +110,9 @@ export function CodexStatusLinePresetPicker({
   configured,
   customItems,
   disabled,
+  useColors,
+  colorScheme,
+  terminalStyle,
   onSelect,
   onReset,
 }: {
@@ -160,6 +120,9 @@ export function CodexStatusLinePresetPicker({
   configured: boolean;
   customItems: readonly string[];
   disabled: boolean;
+  useColors: boolean;
+  colorScheme: CodexStatusLineColorScheme;
+  terminalStyle?: CSSProperties;
   onSelect: (items: string[]) => void;
   onReset: () => void;
 }) {
@@ -172,7 +135,6 @@ export function CodexStatusLinePresetPicker({
       label: "Custom",
       hint: `${customSample.length} ${customSample.length === 1 ? "item" : "items"}, arranged by you`,
       items: customSample,
-      icon: SlidersHorizontal,
     });
   }
 
@@ -210,67 +172,27 @@ export function CodexStatusLinePresetPicker({
     <div
       role="radiogroup"
       aria-label="Codex status line layouts"
-      className="grid gap-2"
-      style={{
-        gridTemplateColumns:
-          "repeat(auto-fit, minmax(min(150px, 100%), 1fr))",
-      }}
+      className={`${CARD_CLASS} divide-y divide-[var(--border)] overflow-hidden`}
     >
       {choices.map((choice, index) => {
         const active = selected === choice.id;
-        const Icon = choice.icon;
         return (
-          <button
+          <StatusLineChoiceRow
             key={choice.id}
-            type="button"
-            role="radio"
-            aria-checked={active}
-            tabIndex={active ? 0 : -1}
+            active={active}
             disabled={disabled}
+            label={choice.label}
+            hint={choice.hint}
+            sample={
+              choice.items.length > 0 ? (
+                <CodexStatusLineItems items={choice.items} useColors={useColors} scheme={colorScheme} />
+              ) : null
+            }
+            sampleStyle={terminalStyle}
+            tabIndex={active ? 0 : -1}
             onClick={() => activate(choice)}
             onKeyDown={(event) => onKeyDown(event, index)}
-            className={`group relative flex min-h-[92px] flex-col overflow-hidden rounded-xl border p-2.5 text-left transition-[border-color,background-color,box-shadow,transform] duration-150 motion-reduce:transform-none motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-green)]/35 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 ${
-              active
-                ? "border-[var(--accent-green)] bg-[var(--accent-green)]/8 shadow-[0_0_0_1px_var(--accent-green)]"
-                : "border-[var(--border)] bg-[var(--bg-secondary)]/40 hover:-translate-y-px hover:border-[var(--text-muted)]/45 hover:bg-[var(--bg-hover)] hover:shadow-sm"
-            }`}
-          >
-            <span className="flex w-full items-start gap-2">
-              <span
-                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors ${
-                  active
-                    ? "bg-[var(--accent-green)]/15 text-[var(--accent-green-text)]"
-                    : "bg-[var(--bg-active)] text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]"
-                }`}
-              >
-                <Icon aria-hidden className="h-3 w-3" />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-[12px] font-semibold text-[var(--text-primary)]">
-                  {choice.label}
-                </span>
-                <span className="block truncate text-[10px] text-[var(--text-muted)]">
-                  {choice.hint}
-                </span>
-              </span>
-              <span
-                aria-hidden
-                className={`flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-full border transition-all ${
-                  active
-                    ? "border-[var(--accent-green)] bg-[var(--accent-green)] text-green-950"
-                    : "border-[var(--border)] text-transparent group-hover:border-[var(--text-muted)]/60"
-                }`}
-              >
-                <Check className="h-2.5 w-2.5" strokeWidth={2.5} />
-              </span>
-            </span>
-            <span
-              aria-hidden
-              className="mt-auto flex min-h-6 w-full items-center overflow-hidden rounded-md border border-[var(--border)]/80 bg-[var(--bg-primary)]/70 px-2"
-            >
-              {presetSample(choice.items)}
-            </span>
-          </button>
+          />
         );
       })}
     </div>

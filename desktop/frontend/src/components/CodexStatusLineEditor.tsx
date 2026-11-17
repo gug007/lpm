@@ -18,7 +18,10 @@ import {
 } from "@dnd-kit/sortable";
 import { Plus, Undo2 } from "lucide-react";
 import { CodexStatusLineItemChip } from "./CodexStatusLineItemChip";
-import { StatusLineToggle } from "./StatusLineToggle";
+import { StatusLineOrder } from "./StatusLineOrder";
+import { StatusLineSection } from "./StatusLineSection";
+import { CARD_CLASS } from "./ui/fields";
+import { BTN_SECONDARY } from "./ui/buttons";
 import {
   CODEX_STATUS_LINE_GROUPS,
   CODEX_STATUS_LINE_OPTIONS,
@@ -27,19 +30,15 @@ import {
 
 export function CodexStatusLineEditor({
   items,
-  useColors,
   disabled,
   undoLabel,
   onItemsChange,
-  onUseColorsChange,
   onUndo,
 }: {
   items: string[];
-  useColors: boolean;
   disabled: boolean;
   undoLabel: string | null;
   onItemsChange: (items: string[], undoLabel?: string) => void;
-  onUseColorsChange: (useColors: boolean) => void;
   onUndo: () => void;
 }) {
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -67,57 +66,12 @@ export function CodexStatusLineEditor({
   };
 
   return (
-    <section className="@container overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-secondary)]/35">
-      <div className="flex flex-wrap items-center gap-3 border-b border-[var(--border)] px-4 py-3.5">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2.5">
-            <span className="rounded-md bg-[var(--accent-green)]/10 px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--accent-green-text)]">
-              Build
-            </span>
-            <div className="min-w-0">
-              <h2 className="text-[13px] font-semibold text-[var(--text-primary)]">
-                Arrange your items
-              </h2>
-              <p className="mt-0.5 text-[11px] text-[var(--text-muted)]">
-                Drag to reorder. Remove every item to hide the line.
-              </p>
-            </div>
-          </div>
-        </div>
-        {undoLabel && (
-          <div className="flex min-w-0 items-center gap-1" aria-live="polite">
-            <span className="truncate text-[11px] text-[var(--text-muted)]">
-              {undoLabel}
-            </span>
-            <button
-              type="button"
-              onClick={onUndo}
-              disabled={disabled}
-              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-[11px] font-medium text-[var(--text-secondary)] outline-none transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)] disabled:opacity-40"
-            >
-              <Undo2 size={13} /> Undo
-            </button>
-          </div>
-        )}
-        <StatusLineToggle
-          checked={useColors}
-          disabled={disabled}
-          label="Use theme colors"
-          description="Let Codex apply colors from its active theme"
-          onChange={onUseColorsChange}
-        />
-      </div>
-
-      <div className="space-y-4 p-4">
-        <div>
-          <div className="mb-1.5 flex items-center justify-between gap-3">
-            <span className="text-[11px] font-medium text-[var(--text-secondary)]">
-              Status line order
-            </span>
-            <span className="text-[10px] tabular-nums text-[var(--text-muted)]">
-              {items.length} {items.length === 1 ? "item" : "items"}
-            </span>
-          </div>
+    <StatusLineSection
+      title="Arrange your items"
+      description="Drag to reorder. Remove every item to hide the line."
+    >
+      <section className={`${CARD_CLASS} @container overflow-hidden`}>
+        <div className="space-y-4 p-4">
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
@@ -125,10 +79,27 @@ export function CodexStatusLineEditor({
             onDragEnd={onDragEnd}
             onDragCancel={() => setDragIndex(null)}
           >
-            <SortableContext items={sortableIds} strategy={rectSortingStrategy}>
-              <div className="flex min-h-14 flex-wrap content-start items-start gap-1.5 rounded-lg border border-dashed border-[var(--border)] bg-[var(--bg-primary)]/55 p-2">
+            <StatusLineOrder
+              count={items.length}
+              actions={
+                undoLabel && (
+                  <span className="flex min-w-0 items-center gap-2" aria-live="polite">
+                    <span className="truncate text-[12px] text-[var(--text-muted)]">{undoLabel}</span>
+                    <button
+                      type="button"
+                      onClick={onUndo}
+                      disabled={disabled}
+                      className={`${BTN_SECONDARY} inline-flex shrink-0 items-center gap-1.5`}
+                    >
+                      <Undo2 size={13} /> Undo
+                    </button>
+                  </span>
+                )
+              }
+            >
+              <SortableContext items={sortableIds} strategy={rectSortingStrategy}>
                 {items.length === 0 ? (
-                  <span className="m-auto text-[10.5px] text-[var(--text-muted)]">
+                  <span className="m-auto text-[12px] text-[var(--text-muted)]">
                     No status line. Pick a layout above or add an item to bring it back.
                   </span>
                 ) : (
@@ -149,8 +120,8 @@ export function CodexStatusLineEditor({
                     />
                   ))
                 )}
-              </div>
-            </SortableContext>
+              </SortableContext>
+            </StatusLineOrder>
             <DragOverlay>
               {dragIndex != null && items[dragIndex] ? (
                 <div className="inline-flex h-8 items-center rounded-lg border border-[var(--accent-green)] bg-[var(--bg-primary)] px-3 text-[11px] font-medium text-[var(--text-primary)] shadow-xl">
@@ -159,59 +130,61 @@ export function CodexStatusLineEditor({
               ) : null}
             </DragOverlay>
           </DndContext>
-        </div>
 
-        <div className="space-y-3">
           <div>
-            <h3 className="text-[11px] font-semibold text-[var(--text-secondary)]">
-              Add an item
-            </h3>
-            <p className="mt-0.5 text-[10px] text-[var(--text-muted)]">
-              Codex omits items when their value is unavailable.
-            </p>
+            <div className="mb-2">
+              <h3 className="text-[12px] font-medium text-[var(--text-secondary)]">
+                Add an item
+              </h3>
+              <p className="mt-0.5 text-[12px] text-[var(--text-muted)]">
+                Codex omits items when their value is unavailable.
+              </p>
+            </div>
+            <div className="divide-y divide-[var(--border)]/60">
+              {CODEX_STATUS_LINE_GROUPS.map((group) => {
+                const options = CODEX_STATUS_LINE_OPTIONS.filter(
+                  (option) => option.group === group && !used.has(option.id),
+                );
+                if (options.length === 0) return null;
+                return (
+                  <div key={group} className="flex gap-3 py-2">
+                    <h4 className="w-28 shrink-0 pt-1.5 text-[12px] text-[var(--text-muted)]">
+                      {group}
+                    </h4>
+                    <div className="flex min-w-0 flex-1 flex-wrap gap-1.5">
+                      {options.map((option) => (
+                        <button
+                          key={option.id}
+                          type="button"
+                          aria-label={`Add ${option.label} — ${option.description}`}
+                          title={option.description}
+                          disabled={disabled}
+                          onClick={() => onItemsChange([...items, option.id])}
+                          className="group inline-flex h-7 max-w-full items-center gap-1 rounded-md border border-[var(--border)] px-2 text-left outline-none transition-[border-color,background-color,color] hover:border-[var(--text-muted)]/60 hover:bg-[var(--bg-hover)] focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)] disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          <Plus
+                            aria-hidden
+                            size={12}
+                            className="shrink-0 text-[var(--text-muted)] group-hover:text-[var(--text-primary)]"
+                          />
+                          <span className="truncate text-[12px] text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">
+                            {option.label}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {CODEX_STATUS_LINE_OPTIONS.every((option) => used.has(option.id)) && (
+              <p className="py-2 text-[12px] text-[var(--text-muted)]">
+                Every supported Codex item is already in your status line.
+              </p>
+            )}
           </div>
-          {CODEX_STATUS_LINE_GROUPS.map((group) => {
-            const options = CODEX_STATUS_LINE_OPTIONS.filter(
-              (option) => option.group === group && !used.has(option.id),
-            );
-            if (options.length === 0) return null;
-            return (
-              <div key={group}>
-                <h4 className="mb-1.5 text-[9.5px] font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]">
-                  {group}
-                </h4>
-                <div className="flex flex-wrap gap-1.5">
-                  {options.map((option) => (
-                    <button
-                      key={option.id}
-                      type="button"
-                      aria-label={`Add ${option.label} — ${option.description}`}
-                      title={option.description}
-                      disabled={disabled}
-                      onClick={() => onItemsChange([...items, option.id])}
-                      className="group inline-flex h-8 max-w-full items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)]/50 px-2.5 text-left outline-none transition-[border-color,background-color,color] hover:border-[var(--accent-green)]/45 hover:bg-[var(--bg-hover)] focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)] disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      <Plus
-                        aria-hidden
-                        size={11}
-                        className="shrink-0 text-[var(--text-muted)] group-hover:text-[var(--accent-green-text)]"
-                      />
-                      <span className="truncate text-[10.5px] font-medium text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">
-                        {option.label}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-          {CODEX_STATUS_LINE_OPTIONS.every((option) => used.has(option.id)) && (
-            <p className="rounded-lg border border-dashed border-[var(--border)] px-3 py-2 text-[10.5px] text-[var(--text-muted)]">
-              Every supported Codex item is already in your status line.
-            </p>
-          )}
         </div>
-      </div>
-    </section>
+      </section>
+    </StatusLineSection>
   );
 }

@@ -1,7 +1,8 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type * as monacoNs from "monaco-editor";
-import { parseDocument } from "yaml";
 import { setupMonaco } from "../monaco-setup";
+import { formatShortcutLabel, formatYamlInEditor } from "../monacoYamlFormat";
+import { Kbd } from "./ui/Kbd";
 import { showProblems } from "../monacoProblems";
 import type { ConfigProblem } from "../configProblems";
 import {
@@ -13,7 +14,6 @@ import {
   observeMonacoTheme,
 } from "../monaco-theme";
 import { getSettings, saveSettings, useSettingsStore } from "../store/settings";
-import { altKeyLabel, shiftKeyLabel } from "../keys";
 import { createWheelZoomGate } from "../wheelZoom";
 
 type Monaco = typeof monacoNs;
@@ -41,6 +41,9 @@ interface MonacoEditorProps {
   wordWrap?: boolean;
   ariaLabel?: string;
   placeholder?: string;
+  // The corner hint for YAML's format shortcut; off when the host shows its
+  // own Format control.
+  formatHint?: boolean;
   // Runs once the editor exists, for decorations of the host's own; what it
   // returns runs when the editor goes.
   onReady?: (editor: monacoNs.editor.IStandaloneCodeEditor, monaco: Monaco) => void | (() => void);
@@ -87,6 +90,7 @@ export function MonacoEditor({
   wordWrap = false,
   ariaLabel,
   placeholder,
+  formatHint = true,
   onReady,
 }: MonacoEditorProps) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -267,26 +271,7 @@ export function MonacoEditor({
     if (model.getLanguageId() === "yaml") {
       editor.addCommand(
         monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.KeyF,
-        () => {
-          const current = model.getValue();
-          let formatted: string;
-          try {
-            const doc = parseDocument(current);
-            if (doc.errors.length > 0) return;
-            formatted = doc.toString({ indent: 2, lineWidth: 0 });
-          } catch {
-            return;
-          }
-          if (formatted === current) return;
-          editor.executeEdits("format", [
-            {
-              range: model.getFullModelRange(),
-              text: formatted,
-              forceMoveMarkers: true,
-            },
-          ]);
-          editor.pushUndoStop();
-        },
+        () => formatYamlInEditor(editor),
       );
     }
 
@@ -352,22 +337,18 @@ export function MonacoEditor({
     editorRef.current?.updateOptions({ fontSize: size });
   }, [settingsFontSize, ready]);
 
-  const showFormatHint = language === "yaml";
+  const showFormatHint = formatHint && language === "yaml";
 
   return (
     <div className="relative h-full w-full">
       <div ref={hostRef} data-text-scope="" className="h-full w-full" />
       {showFormatHint && (
         <div
-          className="pointer-events-none absolute top-3 right-4 select-none font-mono text-[10px] font-medium uppercase tracking-wider text-neutral-500/70 dark:text-neutral-400/60"
+          className="pointer-events-none absolute top-2.5 right-4 flex select-none items-center gap-1.5 text-[11px] text-[var(--text-muted)]"
           aria-hidden
         >
-          <kbd>{shiftKeyLabel()}</kbd>
-          <span className="mx-0.5">+</span>
-          <kbd>{altKeyLabel()}</kbd>
-          <span className="mx-0.5">+</span>
-          <kbd>F</kbd>
-          <span className="ml-2 normal-case tracking-normal">format</span>
+          Format
+          <Kbd>{formatShortcutLabel()}</Kbd>
         </div>
       )}
     </div>

@@ -1,4 +1,5 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { MessageSquare } from "lucide-react";
 import { toast } from "../notifications/toast";
 import {
   useInfiniteQuery,
@@ -15,55 +16,37 @@ import {
   NotesEditMessage,
   NotesListChats,
   NotesListMessages,
-  NotesReadAttachment,
   NotesReadFileAsInput,
   NotesRenameChat,
-  NotesSaveAttachment,
-  NotesSaveAttachmentData,
   NotesSearch,
 } from "../../bridge/commands";
-import { isPeerName } from "../peer/markers";
 import { registerFileDropHandler } from "../fileDrop";
 import { main, notes } from "../../bridge/models";
-import {
-  PaperclipIcon,
-  SendIcon,
-  TrashIcon,
-  PencilIcon,
-  DownloadIcon,
-  SearchIcon,
-  XIcon,
-} from "./icons";
-import {
-  base64ToBytes,
-  bytesToBase64,
-  bytesToBlobUrl,
-} from "../download";
-import { useAutoGrowTextarea } from "../hooks/useAutoGrowTextarea";
-import { MessageMarkdown } from "./MessageMarkdown";
+import { SearchIcon } from "./icons";
+import { base64ToBytes, bytesToBase64 } from "../download";
 import { ChatList } from "./ChatList";
-import { MiniChatRail } from "./MiniChatRail";
-import { Modal } from "./ui/Modal";
-import { logDiagnostic } from "../diagnostics";
-import { enterHint } from "../shortcutHints";
+import { BTN_SECONDARY } from "./ui/buttons";
+import { EmptyState } from "./ui/EmptyState";
+import type { PageBack } from "./ui/PageHeader";
+import { ProjectSubpage, SUBPAGE_COLUMN } from "./project-detail/ProjectSubpage";
+import { NoteRow } from "./notes/NoteRow";
+import { NotesChatSwitcher } from "./notes/NotesChatSwitcher";
+import { NotesComposer, type PendingAttachment } from "./notes/NotesComposer";
+import { NotesDaySeparator } from "./notes/NotesDaySeparator";
+import { NotesSearchBar } from "./notes/NotesSearchBar";
+import { NotesSearchResults } from "./notes/NotesSearchResults";
+import { buildDayGroups } from "./notes/notesFormat";
+import { buildHighlighter } from "./notes/notesHighlight";
 
 const PAGE_SIZE = 50;
 const MAX_ATTACHMENT_BYTES = 100 * 1024 * 1024;
-const TEXTAREA_MAX_HEIGHT_PX = 216;
 
 type NotesPages = InfiniteData<notes.Message[], string>;
 
 interface NotesViewProps {
   projectName: string;
   visible: boolean;
-}
-
-interface PendingAttachment {
-  id: string;
-  name: string;
-  mimeType: string;
-  size: number;
-  data: Uint8Array;
+  back: PageBack;
 }
 
 function chatsKey(projectName: string) {
@@ -86,9 +69,8 @@ export function activeChatStorageKey(projectName: string) {
 // personal layout choice, not a workspace attribute.
 const SIDEBAR_COLLAPSED_KEY = "notes:sidebarCollapsed";
 
-export function NotesView({ projectName, visible }: NotesViewProps) {
+export function NotesView({ projectName, visible, back }: NotesViewProps) {
   const qc = useQueryClient();
-  const [text, setText] = useState("");
   const [pending, setPending] = useState<PendingAttachment[]>([]);
   const [activeChatID, setActiveChatID] = useState<string | null>(null);
   // null = user hasn't explicitly chosen yet, so fall back to the
@@ -251,7 +233,6 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
     if (visible) textareaRef.current?.focus();
   }, [visible]);
 
-  useAutoGrowTextarea(textareaRef, text, TEXTAREA_MAX_HEIGHT_PX);
 
   const { hasNextPage, isFetchingNextPage, fetchNextPage, isFetching } = query;
   const handleScroll = useCallback(
@@ -386,7 +367,6 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
     setPending((prev) => prev.filter((p) => p.id !== id));
   }, []);
 
-  const canSend = text.trim().length > 0 || pending.length > 0;
 
   const addMutation = useMutation({
     mutationFn: async (input: {
@@ -535,23 +515,25 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
     onError: (err) => toast.error(`Delete chat: ${err}`),
   });
 
-  const handleSend = useCallback(() => {
-    if (!canSend || addMutation.isPending || !activeChatID) return;
-    addMutation.mutate(
-      { chatID: activeChatID, text, pending },
-      {
-        onSuccess: () => {
-          setText("");
-          setPending([]);
+  const handleSend = useCallback(
+    (text: string, sent: () => void) => {
+      if (addMutation.isPending || !activeChatID) return;
+      addMutation.mutate(
+        { chatID: activeChatID, text, pending },
+        {
+          onSuccess: () => {
+            sent();
+            setPending([]);
+          },
         },
-      },
-    );
-  }, [addMutation, canSend, pending, text, activeChatID]);
+      );
+    },
+    [addMutation, pending, activeChatID],
+  );
 
-  // Stable message-row callbacks so MessageRow's memo actually holds across
-  // composer keystrokes (which re-render NotesView on every character).
-  // chatID comes from the message, not the active selection, so edits/deletes
-  // land in the correct chat even if the user switches mid-flight.
+  // Stable message-row callbacks so NoteRow's memo holds when NotesView
+  // re-renders. chatID comes from the message, not the active selection, so
+  // edits/deletes land in the correct chat even if the user switches mid-flight.
   const handleSaveMessage = useCallback(
     (id: string, chatID: string, text: string) =>
       editMutation.mutate({ id, chatID, text }),
@@ -561,13 +543,6 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
     (id: string, chatID: string) => deleteMutation.mutate({ id, chatID }),
     [deleteMutation],
   );
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  };
 
   const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     if (!activeChatID) return;
@@ -602,602 +577,137 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
   // With no explicit pref, default to collapsed when there's nothing to
   // navigate to (fewer than 2 chats).
   const effectiveCollapsed = sidebarPref ?? chats.length < 2;
+  const createChat = () => createChatMutation.mutate("New chat");
+
+  const headerActions = effectiveCollapsed && chats.length > 0 && (
+    <>
+      <button type="button" onClick={openSearch} className={`${BTN_SECONDARY} flex items-center gap-1.5`}>
+        <SearchIcon />
+        Search
+      </button>
+      <NotesChatSwitcher
+        chats={chats}
+        activeId={activeChatID}
+        onSelect={setActiveChatID}
+        onCreate={createChat}
+        onShowList={() => setSidebarCollapsed(false)}
+      />
+    </>
+  );
+
+  const composer = (
+    <NotesComposer
+      textareaRef={textareaRef}
+      fileInputRef={fileInputRef}
+      pending={pending}
+      onRemovePending={removePending}
+      onAddFiles={(files) => void addFiles(files)}
+      onPaste={handlePaste}
+      onSend={handleSend}
+      placeholder={composerPlaceholder}
+      disabled={!activeChatID}
+      ready={!addMutation.isPending && !!activeChatID}
+    />
+  );
 
   return (
     <div
       data-notes-drop={projectName}
-      className="flex h-full min-h-0 flex-1 bg-[var(--bg-primary)]"
+      className="flex min-h-0 flex-1 flex-col bg-[var(--bg-primary)]"
       onDragOver={(e) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = "copy";
       }}
       onDrop={handleDrop}
     >
-      {chats.length > 0 &&
-        (effectiveCollapsed ? (
-          <MiniChatRail
-            chats={chats}
-            activeId={activeChatID}
-            onSelect={setActiveChatID}
-            onCreate={() => createChatMutation.mutate("New chat")}
-            onSearch={openSearch}
-            onExpand={() => setSidebarCollapsed(false)}
-          />
-        ) : (
-          <ChatList
-            chats={chats}
-            activeId={activeChatID}
-            onSelect={setActiveChatID}
-            onCreate={() => createChatMutation.mutate("New chat")}
-            onSearch={openSearch}
-            onRename={(id, title) => renameChatMutation.mutate({ id, title })}
-            onDelete={(id) => deleteChatMutation.mutate(id)}
-            onCollapse={() => setSidebarCollapsed(true)}
-            canDelete={chats.length > 1}
-          />
-        ))}
+      <ProjectSubpage
+        back={back}
+        title="Notes"
+        icon={MessageSquare}
+        description="Commands, credentials and context for this project that don't belong in the repo."
+        actions={headerActions}
+        scroll={false}
+      >
+        <div className={`${SUBPAGE_COLUMN} flex min-h-0 flex-1 gap-4`}>
+          {!effectiveCollapsed && chats.length > 0 && (
+            <ChatList
+              chats={chats}
+              activeId={activeChatID}
+              onSelect={setActiveChatID}
+              onCreate={createChat}
+              onSearch={openSearch}
+              onRename={(id, title) => renameChatMutation.mutate({ id, title })}
+              onDelete={(id) => deleteChatMutation.mutate(id)}
+              onCollapse={() => setSidebarCollapsed(true)}
+              canDelete={chats.length > 1}
+            />
+          )}
 
-      <div className="relative flex min-w-0 flex-1 flex-col">
-        {searchOpen && (
-          <div className="border-b border-[var(--border)] px-3 py-2">
-            <div className="relative flex items-center">
-              <div className="pointer-events-none absolute left-2.5 text-[var(--text-muted)]">
-                <SearchIcon />
-              </div>
-              <input
-                ref={searchInputRef}
-                type="text"
-                placeholder="Search notes"
+          <div className="relative flex min-w-0 flex-1 flex-col">
+            {searchOpen && (
+              <NotesSearchBar
+                inputRef={searchInputRef}
                 value={searchText}
-                onChange={(e) => setSearchText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Escape") closeSearch();
-                }}
-                className="h-8 w-full rounded-md border border-[var(--border)] bg-[var(--bg-primary)] pl-8 pr-8 text-sm outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[var(--text-primary)]/30"
+                onChange={setSearchText}
+                onClose={closeSearch}
               />
-              <button
-                type="button"
-                onClick={closeSearch}
-                aria-label="Close search"
-                className="absolute right-1.5 flex h-5 w-5 items-center justify-center rounded text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-              >
-                <XIcon />
-              </button>
-            </div>
-          </div>
-        )}
-        {searchOn && (
-          <div className="flex-1 overflow-y-auto">
-            {searchQuery.isPending && (
-              <div className="px-6 py-8 text-center text-xs text-[var(--text-muted)]">
-                Searching…
-              </div>
             )}
-            {searchQuery.isError && (
-              <div className="px-6 py-8 text-center text-xs text-[var(--accent-red)]">
-                {`Search failed: ${searchQuery.error}`}
-              </div>
+            {searchOn && (
+              <NotesSearchResults
+                query={trimmedSearch}
+                hits={hits}
+                pending={searchQuery.isPending}
+                error={searchQuery.isError ? searchQuery.error : null}
+                highlighter={highlighter}
+                onPick={jumpToMessage}
+              />
             )}
-            {!searchQuery.isPending &&
-              !searchQuery.isError &&
-              trimmedSearch.length > 0 &&
-              hits.length === 0 && (
-                <div className="px-6 py-8 text-center text-xs text-[var(--text-muted)]">
-                  No matches for "{trimmedSearch}"
+            <div
+              ref={listRef}
+              onScroll={handleScroll}
+              className={`-mx-3 flex min-h-0 flex-1 flex-col overflow-y-auto pb-3 pt-3 ${searchOn ? "hidden" : ""}`}
+            >
+              {isEmpty ? (
+                <div className="flex flex-1 items-center justify-center">
+                  <EmptyState
+                    icon={<MessageSquare size={20} strokeWidth={1.8} />}
+                    title="Knowledge you can't commit"
+                    body="Credentials, commands, context, screenshots: the stuff you'd otherwise lose in a DM to yourself. End-to-end encrypted, and it never leaves this device."
+                  />
+                </div>
+              ) : (
+                <div className="flex flex-col">
+                  {query.hasNextPage && (
+                    <div className="mb-2 text-center text-[11px] text-[var(--text-muted)]">
+                      {query.isFetchingNextPage ? "Loading older notes…" : "Scroll up for older notes"}
+                    </div>
+                  )}
+                  {groups.map(({ key, label, items }) => (
+                    <div key={key}>
+                      <NotesDaySeparator label={label} />
+                      <div className="flex flex-col gap-0.5">
+                        {items.map((m) => (
+                          <NoteRow
+                            key={m.id}
+                            message={m}
+                            projectName={projectName}
+                            highlight={m.id === highlightID}
+                            onSave={handleSaveMessage}
+                            onDelete={handleDeleteMessage}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
-            {hits.length > 0 && (
-              <ul className="divide-y divide-[var(--border)]">
-                {hits.map((hit) => (
-                  <li key={hit.id}>
-                    <button
-                      type="button"
-                      onClick={() => jumpToMessage(hit)}
-                      className="flex w-full flex-col gap-1 px-4 py-3 text-left hover:bg-[var(--bg-hover)]"
-                    >
-                      <div className="flex items-center gap-2 text-[11px] text-[var(--text-muted)]">
-                        <span className="rounded bg-[var(--bg-hover)] px-1.5 py-0.5 text-[var(--text-secondary)]">
-                          {hit.chatTitle}
-                        </span>
-                        <span>{formatHitDate(hit.ts)}</span>
-                      </div>
-                      <div className="whitespace-pre-wrap break-words text-sm leading-relaxed text-[var(--text-primary)]">
-                        {highlightTokens(hit.snippet, highlighter)}
-                      </div>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
-        <div
-          ref={listRef}
-          onScroll={handleScroll}
-          className={`flex-1 overflow-y-auto px-6 py-5 ${searchOn ? "hidden" : ""}`}
-        >
-          {query.hasNextPage && (
-            <div className="mb-3 text-center text-[11px] text-[var(--text-muted)]">
-              {query.isFetchingNextPage
-                ? "Loading older…"
-                : "Scroll up for older"}
             </div>
-          )}
-          {isEmpty && (
-            <div className="flex h-full flex-col items-center justify-center">
-              <div className="flex max-w-sm flex-col items-center gap-5 px-6 text-center">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--bg-hover)] text-[var(--text-muted)]">
-                  <svg
-                    width={26}
-                    height={26}
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth={1.5}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                  </svg>
-                </div>
-                <div className="flex flex-col items-center gap-1.5">
-                  <h3 className="text-sm font-medium text-[var(--text-primary)]">
-                    Knowledge you can't commit
-                  </h3>
-                  <div>
-                    <p className="text-xs leading-relaxed text-[var(--text-muted)]">
-                      Credentials, commands, context, screenshots. The stuff
-                      you'd otherwise lose in a Slack DM to yourself.
-                    </p>
-                    <p className="text-xs leading-relaxed text-[var(--text-muted)]">
-                      End-to-end encrypted. Never leaves this device.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-          {groups.map(({ key, label, items }) => (
-            <div key={key}>
-              <DaySeparator label={label} />
-              <div className="space-y-0.5">
-                {items.map((m) => (
-                  <MessageRow
-                    key={m.id}
-                    message={m}
-                    projectName={projectName}
-                    highlight={m.id === highlightID}
-                    onSave={handleSaveMessage}
-                    onDelete={handleDeleteMessage}
-                  />
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="mx-4 mt-2 mb-4 rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] transition-colors focus-within:border-[var(--text-primary)]/30">
-          {pending.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 border-b border-[var(--border)] px-3 py-2">
-              {pending.map((p) => (
-                <div
-                  key={p.id}
-                  className="flex items-center gap-1.5 rounded-md bg-[var(--bg-hover)] px-2 py-1 text-[11px] text-[var(--text-secondary)]"
-                >
-                  <PaperclipIcon />
-                  <span className="max-w-[160px] truncate">{p.name}</span>
-                  <span className="text-[var(--text-muted)]">
-                    {formatSize(p.size)}
-                  </span>
-                  <button
-                    onClick={() => removePending(p.id)}
-                    className="ml-0.5 text-[var(--text-muted)] opacity-60 hover:opacity-100"
-                    aria-label={`Remove ${p.name}`}
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-          <textarea
-            ref={textareaRef}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
-            placeholder={composerPlaceholder}
-            rows={1}
-            disabled={!activeChatID}
-            className="w-full resize-none bg-transparent px-3 pt-2.5 pb-1 text-sm outline-none placeholder:text-[var(--text-muted)] disabled:opacity-60"
-            style={{ minHeight: 40, maxHeight: TEXTAREA_MAX_HEIGHT_PX }}
-          />
-          <div className="flex items-center justify-between px-2 pb-1.5 pt-0.5">
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={!activeChatID}
-              className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)] disabled:opacity-40"
-              title="Attach files"
-              aria-label="Attach files"
-            >
-              <PaperclipIcon />
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              className="hidden"
-              onChange={(e) => {
-                if (e.target.files) addFiles(e.target.files);
-                e.target.value = "";
-              }}
-            />
-            <div className="flex items-center gap-2">
-              <span
-                aria-hidden="true"
-                className="hidden text-[10px] text-[var(--text-muted)] sm:inline"
-              >
-                <kbd className="font-mono">{enterHint()}</kbd> send ·{" "}
-                <kbd className="font-mono">{enterHint({ shift: true })}</kbd> newline · markdown
-              </span>
-              <button
-                onClick={handleSend}
-                disabled={!canSend || addMutation.isPending || !activeChatID}
-                className="flex h-7 w-7 items-center justify-center rounded-md bg-[var(--text-primary)] text-[var(--bg-primary)] transition-opacity disabled:bg-[var(--bg-hover)] disabled:text-[var(--text-muted)]"
-                title="Send (Enter)"
-                aria-label="Send message"
-              >
-                <SendIcon />
-              </button>
-            </div>
+            <div className="pb-5 pt-2">{composer}</div>
           </div>
         </div>
-      </div>
+      </ProjectSubpage>
     </div>
   );
-}
-
-function DaySeparator({ label }: { label: string }) {
-  return (
-    <div className="flex items-center gap-2 py-2">
-      <span className="h-px flex-1 bg-[var(--border)]" />
-      <span className="text-[11px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
-        {label}
-      </span>
-      <span className="h-px flex-1 bg-[var(--border)]" />
-    </div>
-  );
-}
-
-interface DayGroup {
-  key: string;
-  label: string;
-  items: notes.Message[];
-}
-
-// Single pass: walk newest-first input from the tail to produce oldest-first
-// groups, and format each day label exactly once (≈30 times for 500 messages
-// instead of 500).
-function buildDayGroups(newestFirst: notes.Message[]): DayGroup[] {
-  const groups: DayGroup[] = [];
-  const now = new Date();
-  for (let i = newestFirst.length - 1; i >= 0; i--) {
-    const m = newestFirst[i];
-    const d = new Date(m.ts);
-    const key = d.toDateString();
-    const last = groups[groups.length - 1];
-    if (last && last.key === key) {
-      last.items.push(m);
-    } else {
-      groups.push({ key, label: formatDayLabel(d, now), items: [m] });
-    }
-  }
-  return groups;
-}
-
-interface MessageRowProps {
-  message: notes.Message;
-  projectName: string;
-  highlight: boolean;
-  onSave: (id: string, chatID: string, text: string) => void;
-  onDelete: (id: string, chatID: string) => void;
-}
-
-const MessageRow = memo(function MessageRow({
-  message,
-  projectName,
-  highlight,
-  onSave,
-  onDelete,
-}: MessageRowProps) {
-  const [draft, setDraft] = useState<string | null>(null);
-  const editing = draft !== null;
-  const editRef = useRef<HTMLTextAreaElement | null>(null);
-  useAutoGrowTextarea(editRef, draft ?? "", TEXTAREA_MAX_HEIGHT_PX);
-
-  const cancel = () => setDraft(null);
-  const save = () => {
-    if (draft === null) return;
-    if (draft !== message.text) onSave(message.id, message.chatId, draft);
-    setDraft(null);
-  };
-  const handleDelete = () => onDelete(message.id, message.chatId);
-
-  return (
-    <div
-      data-msg-id={message.id}
-      className={`group relative -mx-2 rounded-md px-2 py-1 transition-colors duration-700 ${
-        highlight
-          ? "bg-[var(--accent-blue)]/15"
-          : "hover:bg-[var(--bg-hover)]/50"
-      }`}
-    >
-      {!editing && (
-        <div className="pointer-events-none absolute right-2 top-0 z-10 flex items-center gap-0.5 rounded-md border border-[var(--border)] bg-[var(--bg-primary)] p-0.5 opacity-0 shadow-sm transition-opacity group-hover:pointer-events-auto group-hover:opacity-100">
-          <button
-            onClick={() => setDraft(message.text)}
-            className="flex h-6 w-6 items-center justify-center rounded text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-            title="Edit"
-            aria-label="Edit"
-          >
-            <PencilIcon />
-          </button>
-          <button
-            onClick={handleDelete}
-            className="flex h-6 w-6 items-center justify-center rounded text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--accent-red)]"
-            title="Delete"
-            aria-label="Delete"
-          >
-            <TrashIcon />
-          </button>
-        </div>
-      )}
-      {editing ? (
-        <div className="flex flex-col gap-2 py-1">
-          <textarea
-            ref={editRef}
-            autoFocus
-            value={draft ?? ""}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) save();
-              if (e.key === "Escape") cancel();
-            }}
-            className="w-full resize-none rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-sm outline-none focus:border-[var(--text-primary)]/30"
-            rows={1}
-            style={{ maxHeight: TEXTAREA_MAX_HEIGHT_PX }}
-          />
-          <div className="flex items-center gap-2">
-            <button
-              onClick={save}
-              className="rounded-md bg-[var(--text-primary)] px-3 py-1 text-[11px] text-[var(--bg-primary)]"
-            >
-              Save
-            </button>
-            <button
-              onClick={cancel}
-              className="rounded-md px-3 py-1 text-[11px] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-            >
-              Cancel
-            </button>
-            <span className="ml-auto text-[10px] text-[var(--text-muted)]">
-              {enterHint({ meta: true })} save · esc cancel
-            </span>
-          </div>
-        </div>
-      ) : (
-        <>
-          <MessageMarkdown text={message.text} />
-          <div className="mt-0.5 flex items-center gap-1.5 text-[10px] text-[var(--text-muted)]">
-            <span>{formatTime(message.ts)}</span>
-            {message.editedAt && <span>· edited</span>}
-          </div>
-        </>
-      )}
-      {message.attachments && message.attachments.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-2">
-          {message.attachments.map((att: any) => (
-            <AttachmentChip
-              key={att.hash}
-              projectName={projectName}
-              attachment={att}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-});
-
-const LIGHTBOX_BTN =
-  "rounded-md bg-black/60 p-1.5 text-white transition-colors hover:bg-black/80";
-
-interface AttachmentChipProps {
-  projectName: string;
-  attachment: notes.Attachment;
-}
-
-function AttachmentChip({ projectName, attachment }: AttachmentChipProps) {
-  const [url, setUrl] = useState<string | null>(null);
-  const [lightboxOpen, setLightboxOpen] = useState(false);
-  const isImage = attachment.mimeType?.startsWith("image/");
-
-  // Ref-tracked so StrictMode's double-invocation doesn't revoke the live URL
-  // before <img> finishes loading.
-  const urlRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    if (!isImage) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const b64 = await NotesReadAttachment(projectName, attachment.hash);
-        if (cancelled) return;
-        const u = bytesToBlobUrl(
-          base64ToBytes(b64),
-          attachment.mimeType || "application/octet-stream",
-        );
-        if (urlRef.current) URL.revokeObjectURL(urlRef.current);
-        urlRef.current = u;
-        setUrl(u);
-      } catch (err) {
-        logDiagnostic(
-          "warn",
-          "notes.attachment_preview_failed",
-          "Attachment preview could not be loaded",
-          { hash: attachment.hash, error: err },
-        );
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [projectName, attachment.hash, attachment.mimeType, isImage]);
-
-  useEffect(
-    () => () => {
-      if (urlRef.current) URL.revokeObjectURL(urlRef.current);
-    },
-    [],
-  );
-
-  const download = async () => {
-    try {
-      // A paired machine's attachment is saved here, where the folder is picked.
-      const path = isPeerName(projectName)
-        ? await NotesSaveAttachmentData(
-            attachment.name,
-            await NotesReadAttachment(projectName, attachment.hash),
-          )
-        : await NotesSaveAttachment(projectName, attachment.hash, attachment.name);
-      if (path) toast.success(`Saved to ${path}`);
-    } catch (err) {
-      toast.error(`Save: ${err}`);
-    }
-  };
-
-  if (isImage && url) {
-    return (
-      <>
-        <button
-          onClick={() => setLightboxOpen(true)}
-          className="overflow-hidden rounded-lg border border-[var(--border)] transition-opacity hover:opacity-90"
-          title={`${attachment.name} · ${formatSize(attachment.size)} — click to view`}
-        >
-          <img
-            src={url}
-            alt={attachment.name}
-            className="max-h-56 max-w-xs object-contain"
-          />
-        </button>
-        <Modal
-          open={lightboxOpen}
-          onClose={() => setLightboxOpen(false)}
-          backdropClassName="bg-black/80"
-          containerClassName="p-6"
-          contentClassName="flex max-h-full max-w-full items-center justify-center"
-        >
-          <img
-            src={url}
-            alt={attachment.name}
-            className="max-h-[90vh] max-w-[90vw] object-contain"
-          />
-          <div className="absolute right-2 top-2 flex gap-1">
-            <button onClick={download} className={LIGHTBOX_BTN} title="Download">
-              <DownloadIcon />
-            </button>
-            <button onClick={() => setLightboxOpen(false)} className={LIGHTBOX_BTN} title="Close">
-              <XIcon />
-            </button>
-          </div>
-        </Modal>
-      </>
-    );
-  }
-
-  return (
-    <button
-      onClick={download}
-      className="flex items-center gap-2 rounded-md bg-[var(--bg-hover)] px-2.5 py-1.5 text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)]/70 hover:text-[var(--text-primary)]"
-      title={`Download ${attachment.name}`}
-    >
-      <DownloadIcon />
-      <span className="max-w-[220px] truncate">{attachment.name}</span>
-      <span className="text-[var(--text-muted)]">
-        {formatSize(attachment.size)}
-      </span>
-    </button>
-  );
-}
-
-function formatSize(n: number) {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-}
-
-function formatTime(ts: number) {
-  return new Date(ts).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function formatDayLabel(d: Date, now: Date) {
-  const startOfDay = (x: Date) =>
-    new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
-  const diffDays = Math.round((startOfDay(now) - startOfDay(d)) / 86_400_000);
-  if (diffDays === 0) return "Today";
-  if (diffDays === 1) return "Yesterday";
-  if (diffDays < 7) return d.toLocaleDateString([], { weekday: "long" });
-  if (d.getFullYear() === now.getFullYear()) {
-    return d.toLocaleDateString([], { month: "short", day: "numeric" });
-  }
-  return d.toLocaleDateString([], {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
-function formatHitDate(ts: number) {
-  const d = new Date(ts);
-  return `${formatDayLabel(d, new Date())} · ${formatTime(ts)}`;
-}
-
-function escapeRegex(s: string) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-type Highlighter = { pattern: RegExp; lower: Set<string> } | null;
-
-function buildHighlighter(tokens: string[]): Highlighter {
-  if (tokens.length === 0) return null;
-  return {
-    pattern: new RegExp(`(${tokens.map(escapeRegex).join("|")})`, "ig"),
-    lower: new Set(tokens.map((t) => t.toLowerCase())),
-  };
-}
-
-// Matches via split-with-capture so the output preserves the source text's
-// original casing — displaying "Docker" when the user searched "docker".
-function highlightTokens(text: string, h: Highlighter): React.ReactNode {
-  if (!h) return text;
-  return text.split(h.pattern).map((part, i) => {
-    if (!part) return null;
-    if (h.lower.has(part.toLowerCase())) {
-      return (
-        <mark
-          key={i}
-          className="rounded-sm bg-[var(--accent-blue)]/25 px-0.5 text-[var(--text-primary)]"
-        >
-          {part}
-        </mark>
-      );
-    }
-    return <span key={i}>{part}</span>;
-  });
 }
 
 function useDebounced<T>(value: T, delayMs: number): T {

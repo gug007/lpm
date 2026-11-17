@@ -42,7 +42,7 @@ export function MachineRowShell({
               type="button"
               onClick={onToggle}
               aria-expanded={open}
-              className="min-w-0 truncate text-left text-sm font-medium text-[var(--text-primary)] outline-none after:absolute after:inset-0 after:content-[''] focus-visible:after:ring-1 focus-visible:after:ring-inset focus-visible:after:ring-[var(--accent-cyan)]/60"
+              className="min-w-0 truncate text-left text-sm font-medium text-[var(--text-primary)] outline-none after:absolute after:inset-0 after:content-[''] focus-visible:after:ring-1 focus-visible:after:ring-inset focus-visible:after:ring-[var(--text-muted)]"
             >
               {name}
             </button>

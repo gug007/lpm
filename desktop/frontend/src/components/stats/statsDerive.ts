@@ -58,3 +58,9 @@ export function tokenTypeSegments(totals: TokenUsage): TokenTypeSegment[] {
 export function providerShare(tokens: number, total: number): number {
   return tokens / Math.max(1, total);
 }
+
+// The row already names the agent, so a model's own "claude-" prefix only
+// crowds out the part that tells one model from another.
+export function shortModelName(model: string): string {
+  return model.replace(/^claude-/i, "");
+}

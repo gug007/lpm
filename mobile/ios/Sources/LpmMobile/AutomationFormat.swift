@@ -252,8 +252,13 @@ private func automationTimePhrase(_ job: AutomationJob) -> String {
 
 // MARK: - Status
 
+/// Why a job that can't run can't.
+func automationInvalidText(_ job: AutomationJob) -> String {
+    job.error.isEmpty ? "Invalid automation" : job.error
+}
+
 func automationStatusText(_ job: AutomationJob) -> String {
-    if !job.valid { return job.error.isEmpty ? "Invalid automation" : job.error }
+    if !job.valid { return automationInvalidText(job) }
     if let ask = job.asks.first {
         let waiting = job.asks.count > 1 ? "\(job.asks.count) questions waiting" : automationWaitingLabel
         return "\(waiting) · \(ask.summary)"

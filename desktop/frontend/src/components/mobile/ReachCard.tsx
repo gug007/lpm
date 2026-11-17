@@ -31,6 +31,7 @@ export function ReachCard({
   reach,
   tailnet,
   deviceUsedTailscale,
+  setupBelow = false,
   onEnabled,
   onUseApp,
   onPort,
@@ -40,6 +41,8 @@ export function ReachCard({
   tailnet: Tailnet;
   /** A paired device has come in over Tailscale before. */
   deviceUsedTailscale: boolean;
+  /** The first-run steps below offer Tailscale setup, so this card only shows its state. */
+  setupBelow?: boolean;
   onEnabled: (on: boolean) => void;
   onUseApp: (on: boolean) => void;
   onPort: (port: number) => void;
@@ -60,15 +63,15 @@ export function ReachCard({
 
   return (
     <div className="mt-2 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)]">
-      <div className="flex items-center gap-4 px-4 py-4">
+      <div className="flex items-center gap-3 px-4 py-3.5">
         <div
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-colors"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors"
           style={{
             backgroundColor: live ? "color-mix(in srgb, var(--accent-green) 15%, transparent)" : "var(--bg-active)",
             color: live ? "var(--accent-green)" : "var(--text-muted)",
           }}
         >
-          <Smartphone size={18} />
+          <Smartphone size={16} />
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-[var(--text-primary)]">Remote control</p>
@@ -110,11 +113,18 @@ export function ReachCard({
           hasApp={!!reach.tailscaleHost}
           live={reach.running}
           deviceOnTailscale={deviceUsedTailscale}
+          setupBelow={setupBelow}
         />
         <WayInRow
           icon={<Wifi size={16} />}
           title="Same network"
-          subtitle={reach.host ? `${reach.host} · only while your device is on this network` : "No network address yet"}
+          subtitle={
+            reach.host
+              ? `${reach.host} · only while your device is on this network`
+              : reach.enabled
+                ? "No network address yet"
+                : "Turns on with Remote control"
+          }
         >
           <RouteChip state={reach.host ? route : "off"} />
         </WayInRow>

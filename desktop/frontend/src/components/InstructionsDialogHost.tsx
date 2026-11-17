@@ -39,7 +39,7 @@ export function InstructionsDialogHost() {
       open={request !== null}
       onClose={close}
       zIndexClassName="z-[70]"
-      contentClassName="flex h-[min(600px,85vh)] w-[620px] max-w-[92vw] flex-col rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-5 pb-5 text-[var(--text-primary)] shadow-2xl"
+      contentClassName="flex h-[min(600px,85vh)] w-[620px] max-w-[92vw] flex-col rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-5 pt-5 pb-3 text-[var(--text-primary)] shadow-2xl"
     >
       {request && request.scope === "project" && ProjectEditor && (
         <ProjectEditor projectName={request.projectName} onBack={close} backTitle={request.backTitle} />

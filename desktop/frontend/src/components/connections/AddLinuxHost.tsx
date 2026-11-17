@@ -3,9 +3,9 @@ import { PeerAddSshHost } from "../../../bridge/commands";
 import { parseSshTarget } from "../../peer/sshTarget";
 import { Row } from "./GroupedList";
 import { AddRow } from "./AddRow";
-
-const FIELD_CLASS =
-  "rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-1.5 text-[13px] text-[var(--text-primary)] outline-none focus:border-[var(--accent-cyan)]";
+import { CheckboxInput } from "../settings/CheckboxInput";
+import { BTN_PRIMARY } from "../ui/buttons";
+import { FIELD_CLASS } from "./fieldClass";
 
 // Adding a server is one field, because the user already has exactly one string
 // for it: what they type after `ssh`. Everything else — installing lpm there,
@@ -44,6 +44,7 @@ export function AddLinuxHost({ refresh }: { refresh: () => Promise<void> }) {
     <>
       <AddRow
         title="Add a Linux host"
+        action="Add host…"
         description="Type what you'd type after ssh — lpm installs and pairs itself there."
         expanded={open}
         onClick={() => setOpen((v) => !v)}
@@ -68,23 +69,14 @@ export function AddLinuxHost({ refresh }: { refresh: () => Promise<void> }) {
             <button
               onClick={() => void submit()}
               disabled={!target || busy}
-              className={`shrink-0 rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors ${
-                target && !busy
-                  ? "bg-[var(--accent-cyan)] text-white hover:opacity-90"
-                  : "bg-[var(--bg-active)] text-[var(--text-muted)]"
-              }`}
+              className={`shrink-0 ${BTN_PRIMARY}`}
             >
               {busy ? "Connecting…" : "Connect"}
             </button>
           </Row>
           <Row>
             <label className="flex items-center gap-2 text-[12px] text-[var(--text-muted)]">
-              <input
-                type="checkbox"
-                checked={install}
-                onChange={(e) => setInstall(e.target.checked)}
-                className="accent-[var(--accent-cyan)]"
-              />
+              <CheckboxInput checked={install} onChange={setInstall} />
               Install lpm on the server if it isn't there yet
             </label>
           </Row>

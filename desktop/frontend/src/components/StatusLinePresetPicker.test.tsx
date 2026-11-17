@@ -45,15 +45,16 @@ describe("StatusLinePresetPicker", () => {
       ...container.querySelectorAll<HTMLButtonElement>('button[role="radio"]'),
     ];
 
-    presets[0].focus();
+    const last = presets[presets.length - 1];
+    last.focus();
     await act(async () => {
-      presets[0].dispatchEvent(
+      last.dispatchEvent(
         new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }),
       );
     });
 
     expect(onSelect).toHaveBeenCalledWith("meters");
-    expect(document.activeElement).toBe(presets[1]);
+    expect(document.activeElement).toBe(presets[0]);
   });
 
   it("maps the visible preset names to their stable template ids", async () => {

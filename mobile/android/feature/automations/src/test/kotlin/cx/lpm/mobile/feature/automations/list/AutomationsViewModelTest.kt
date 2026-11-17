@@ -5,6 +5,7 @@ import cx.lpm.mobile.core.testing.MainDispatcherRule
 import cx.lpm.mobile.core.testing.TestSession
 import cx.lpm.mobile.core.testing.keepCollecting
 import cx.lpm.mobile.feature.automations.demoSession
+import cx.lpm.mobile.feature.automations.format.AutomationRowChip
 import cx.lpm.mobile.feature.automations.format.AutomationTone
 import cx.lpm.mobile.feature.automations.settle
 import kotlinx.coroutines.test.TestScope
@@ -39,6 +40,16 @@ class AutomationsViewModelTest {
             release.status
         )
         assertEquals(AutomationTone.Orange, release.statusTone)
+        assertEquals(
+            AutomationRowChip(
+                "Needs you",
+                AutomationTone.Orange,
+                "Publish the v2.4 release notes to the blog?",
+                answering = true
+            ),
+            release.chip
+        )
+        assertEquals(null, nightly.chip)
         assertEquals("Nightly tests", nightly.job.displayName)
         assertEquals("storefront", nightly.scope)
         assertEquals("1 new message · Every day at 03:00 · in 15 hours", nightly.status)
@@ -72,15 +83,25 @@ class AutomationsViewModelTest {
     }
 
     @Test
-    fun `with nothing failed the Failed filter stays off`() = runTest {
-        val t = demoSession()
-        val vm = list(t)
-        assertEquals(0, vm.uiState.value.failedCount)
-        vm.toggleFailedOnly()
-        t.settle()
-        assertEquals(false, vm.uiState.value.failedOnly)
-        assertEquals(3, (vm.uiState.value.unread + vm.uiState.value.read).size)
-    }
+    fun `with nothing failed the Failed filter stays off, and Needs you keeps the question`() =
+        runTest {
+            val t = demoSession()
+            val vm = list(t)
+            assertEquals(0, vm.uiState.value.failedCount)
+            vm.selectFilter(AutomationListFilter.Failed)
+            t.settle()
+            assertEquals(AutomationListFilter.All, vm.uiState.value.filter)
+            assertEquals(3, (vm.uiState.value.unread + vm.uiState.value.read).size)
+
+            assertEquals(1, vm.uiState.value.needsCount)
+            vm.selectFilter(AutomationListFilter.NeedsYou)
+            t.settle()
+            assertEquals(AutomationListFilter.NeedsYou, vm.uiState.value.filter)
+            assertEquals(
+                listOf("Release notes"),
+                (vm.uiState.value.unread + vm.uiState.value.read).map { it.job.displayName }
+            )
+        }
 
     @Test
     fun `turning a job on, running and stopping it`() = runTest {

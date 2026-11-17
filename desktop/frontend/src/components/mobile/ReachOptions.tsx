@@ -46,12 +46,13 @@ export function ReachOptions({
   return (
     <details className="group" open={open || undefined} data-settings-row={settingsRow}>
       <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-2.5 text-[11px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-secondary)] [&::-webkit-details-marker]:hidden">
-        <span className="flex-1">
+        <span className="font-medium text-[var(--text-secondary)]">More options</span>
+        <span className="min-w-0 flex-1 truncate text-right text-[var(--text-muted)]">
           Port {port}
-          {supported && ` · keep awake ${keepAwake ? "on" : "off"}`}
-          {identityCode && " · security code"}
+          {supported && ` · ${keepAwake ? `${words.ThisMachine} stays awake` : `${words.ThisMachine} may sleep`}`}
+          {identityCode && " · Security code"}
         </span>
-        <ChevronDown size={14} className="transition-transform group-open:rotate-180" />
+        <ChevronDown size={14} className="shrink-0 text-[var(--text-muted)] transition-transform group-open:rotate-180" />
       </summary>
       <div className="divide-y divide-[var(--border)] border-t border-[var(--border)]">
         <WayInRow
@@ -68,7 +69,7 @@ export function ReachOptions({
             onChange={(e) => setDraft(e.target.value)}
             onBlur={commit}
             onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-            className="w-20 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1 text-sm tabular-nums text-[var(--text-primary)] outline-none focus:border-[var(--accent-cyan)]"
+            className="w-20 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1 text-sm tabular-nums text-[var(--text-primary)] outline-none focus:border-[var(--text-muted)]"
           />
         </WayInRow>
         {onKeepAwake && (

@@ -4,12 +4,12 @@ import {
   SaveProjectInstructions,
 } from "../../bridge/commands";
 import { PRInstructionsForm } from "./PRInstructionsForm";
-import { InstructionsHeader } from "./InstructionsHeader";
+import { PageHeader } from "./ui/PageHeader";
 
 export function ProjectPRInstructionsEditor({
   projectName,
   onBack,
-  backTitle = "Back to AI Instructions",
+  backTitle = "AI instructions",
 }: {
   projectName: string;
   onBack: () => void;
@@ -34,12 +34,11 @@ export function ProjectPRInstructionsEditor({
   );
 
   return (
-    <div className="flex flex-1 flex-col pt-6">
-      <InstructionsHeader
+    <div className="flex min-h-0 flex-1 flex-col">
+      <PageHeader
         title="PR instructions"
         description="Custom instructions for this project's AI pull request titles and descriptions. Leave blank to use the global default."
-        onBack={onBack}
-        backTitle={backTitle}
+        back={{ label: backTitle, onClick: onBack }}
       />
 
       <PRInstructionsForm

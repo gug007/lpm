@@ -303,3 +303,10 @@ export function codexStatusLineOption(id: string): CodexStatusLineOption {
     }
   );
 }
+
+/** The items lpm can show a sample for, in order. */
+export function previewableCodexItems(items: readonly string[]) {
+  return items
+    .map((item) => ({ item, option: codexStatusLineOption(item) }))
+    .filter(({ option }) => option.preview.length > 0);
+}

@@ -35,8 +35,8 @@ export function ChatList({
     : null;
 
   return (
-    <div className="flex w-56 shrink-0 flex-col border-r border-[var(--border)] bg-[var(--bg-primary)]">
-      <div className="flex items-center justify-between px-3 py-2.5">
+    <div className="-ml-2 flex w-52 shrink-0 flex-col border-r border-[var(--border)] pr-2">
+      <div className="flex items-center justify-between px-2 pb-2 pt-3">
         <span className="text-[11px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
           Chats
         </span>
@@ -67,7 +67,7 @@ export function ChatList({
           </button>
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto px-1.5 pb-2">
+      <div className="flex-1 overflow-y-auto pb-2">
         {chats.map((c) => {
           const active = c.id === activeId;
           const renaming = c.id === renamingId;
@@ -107,7 +107,7 @@ export function ChatList({
               ) : (
                 <>
                   <span className="flex-1 truncate">{c.title}</span>
-                  <span className="shrink-0 text-[10px] text-[var(--text-muted)] opacity-80 group-hover:hidden group-focus-within:hidden">
+                  <span className="shrink-0 text-[11px] text-[var(--text-muted)] group-hover:hidden group-focus-within:hidden">
                     {relativeShort(c.updatedAt)}
                   </span>
                   <div className="hidden shrink-0 items-center gap-0.5 group-hover:flex group-focus-within:flex">

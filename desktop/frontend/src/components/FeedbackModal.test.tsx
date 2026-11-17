@@ -102,7 +102,7 @@ describe("FeedbackModal", () => {
 
   it("says where each type goes before it is sent", () => {
     const footer = () => submit().parentElement!.textContent;
-    expect(footer()).toContain("Bugs open a GitHub issue; ideas and questions start a GitHub discussion");
+    expect(footer()).toContain("Write what's on your mind to continue.");
     expect(submit().textContent).toBe("Open on GitHub");
 
     type("The terminal crashes when I paste a long line");
@@ -133,11 +133,11 @@ describe("FeedbackModal", () => {
     expect(question.searchParams.get("category")).toBe("q-a");
   });
 
-  it("lists every lesson and opens one on YouTube", () => {
+  it("lists the newest lessons and opens one on YouTube", () => {
     const rail = document.querySelector("aside[aria-label='Lessons and news']")!;
     const lessons = [...rail.querySelectorAll("li button")];
     expect(lessons.map((b) => b.textContent)).toEqual(
-      LESSONS.map((l) => `${l.title}${lessonDate(l.published)}`),
+      LESSONS.slice(0, 3).map((l) => `${l.title}${lessonDate(l.published)}`),
     );
 
     act(() => (lessons[0] as HTMLButtonElement).click());

@@ -308,7 +308,7 @@ export const ROWS = {
     tab: "shortcuts",
     id: "shortcut.quickTerminal",
     label: "Quick terminal",
-    description: "A key that drops a terminal over whatever app is in front, in the project last open in lpm",
+    description: "Drops a terminal over whatever app is in front, in the project last open in lpm",
     keywords: ["keyboard", "hotkey", "shortcut", "global", "quake", "dropdown", "terminal", "any app"],
   },
   "terminal.fontFamily": {
@@ -317,6 +317,7 @@ export const ROWS = {
     id: "terminal.fontFamily",
     reach: "attended",
     label: "Font",
+    description: `Any monospaced font installed on ${MACHINE.thisMachine}`,
     keywords: ["font", "typeface", "monospace", "font family"],
   },
   "terminal.fontSize": {
@@ -325,6 +326,7 @@ export const ROWS = {
     id: "terminal.fontSize",
     reach: "attended",
     label: "Font size",
+    description: "How big the terminal's text is",
     keywords: ["zoom", "text size"],
   },
   "terminal.lineHeight": {
@@ -333,6 +335,7 @@ export const ROWS = {
     id: "terminal.lineHeight",
     reach: "attended",
     label: "Line height",
+    description: "Space between lines. 1.0 is the tightest",
     keywords: ["spacing", "leading"],
   },
   "terminal.theme": {
@@ -459,7 +462,7 @@ export const ROWS = {
     id: "terminal.pickAgentOnNewTab",
     reach: "attended",
     label: "Pick an agent for new tabs",
-    description: `+ and ${chordLabel({ key: "t", meta: true })} ask for an agent, model, level and first prompt instead of opening a plain terminal`,
+    description: `+ and ${chordLabel({ key: "t", meta: true })} open a picker for the agent, model and first prompt, not a plain terminal`,
     keywords: ["pick agent and model on +", "new tab", "new terminal", "agent", "model", "effort", "level", "claude", "codex", "plus"],
   },
   "terminal.input": {
@@ -640,7 +643,7 @@ export const ROWS = {
     id: "general.autoPull",
     reach: "any",
     label: "Auto pull",
-    description: "Pulls new commits for you when the branch has no local changes. A project's Git menu can set its own",
+    description: "Pulls new commits when a branch has no local changes. Pick projects, or exceptions, in each project's Git menu",
     parent: "general.checkOrigin",
     keywords: ["git", "pull", "automatic", "fast-forward", "origin", "update", "sync", "duplicates"],
   },
@@ -695,7 +698,7 @@ export const ROWS = {
     id: "git.fetchOptions",
     reach: "any",
     label: "When fetching",
-    description: "Removing deleted branches keeps your branch list in step with the remote",
+    description: "Which remotes to fetch, and whether to drop branches and tags deleted there",
     keywords: ["fetch", "prune", "prune tags", "all remotes", "tags"],
   },
   "git.aiModel": {
@@ -767,7 +770,7 @@ export const ROWS = {
     tab: "backup",
     id: "backup.export",
     label: "Export config",
-    description: "Save a portable archive of your projects and settings",
+    description: `Saves your projects and settings in one file, to bring to ${MACHINE.anotherMachine}`,
     keywords: ["backup", "archive", "transfer"],
   },
   "backup.import": {
@@ -775,7 +778,7 @@ export const ROWS = {
     tab: "backup",
     id: "backup.import",
     label: "Import config",
-    description: "Restore from an archive (current config backed up first)",
+    description: "Brings in projects and settings from an exported file. It can replace projects with the same name, after backing yours up",
     keywords: ["backup", "archive", "restore", "transfer"],
   },
   "backup.vaultExport": {
@@ -783,7 +786,7 @@ export const ROWS = {
     tab: "backup",
     id: "backup.vaultExport",
     label: "Back up your key",
-    description: "Saves a password-protected file. Keep it somewhere safe.",
+    description: "Saves it to a password-protected file. Keep that somewhere safe",
     keywords: ["encryption", "key", "vault"],
   },
   "backup.vaultImport": {
@@ -791,7 +794,7 @@ export const ROWS = {
     tab: "backup",
     id: "backup.vaultImport",
     label: "Restore your key",
-    description: `Load a saved key file to unlock notes on ${MACHINE.thisMachine}.`,
+    description: `Loads a saved key so ${MACHINE.thisMachine} can read notes locked with it, if it has no key yet`,
     keywords: ["encryption", "key", "vault"],
   },
   "mobile.devices": {

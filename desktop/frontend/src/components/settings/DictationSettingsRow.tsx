@@ -3,13 +3,12 @@ import { VoiceToTextAvailable } from "../../../bridge/commands";
 import { useDictateShortcut } from "../../hooks/useDictateShortcut";
 import { useEventListener } from "../../hooks/useEventListener";
 import { useVoiceDictation } from "../../hooks/useVoiceDictation";
-import { rowProps } from "../../settings-registry";
-import { useAppStore } from "../../store/app";
+import { ROWS, rowProps } from "../../settings-registry";
 import { SettingsRow } from "../SettingsRow";
 import { BTN_SECONDARY } from "../ui/buttons";
 import { VoiceToTextInstallModal } from "../VoiceToTextInstallModal";
 import { DictationTryField } from "./DictationTryField";
-import { revealSettingsRow } from "./revealSettingsRow";
+import { HotkeyEditor } from "./HotkeyEditor";
 
 /** Settings › Agents › Dictation: whether VoiceToText is there, the shortcut,
  *  and a field to try it in. */
@@ -18,7 +17,6 @@ export function DictationSettingsRow() {
   const [tryRun, setTryRun] = useState(0);
   const { toggle, active, installOpen, setInstallOpen } = useVoiceDictation();
   const { label: shortcutLabel } = useDictateShortcut();
-  const setSettingsTab = useAppStore((s) => s.setSettingsTab);
 
   const check = () => {
     VoiceToTextAvailable()
@@ -37,67 +35,49 @@ export function DictationSettingsRow() {
   };
 
   return (
-    <SettingsRow
-      {...rowProps("ai.voiceToText")}
-      description={
-        <>
-          Speak your prompts with VoiceToText, a separate Mac app.
-          {shortcutLabel && (
-            <>
-              {" "}
-              Press{" "}
-              <kbd className="rounded border border-[var(--border)] px-1 text-[11px] font-medium text-[var(--text-secondary)]">
-                {shortcutLabel}
-              </kbd>{" "}
-              in any input, or in a terminal to speak into its input.{" "}
-              <button
-                type="button"
-                onClick={() => {
-                  setSettingsTab("shortcuts");
-                  revealSettingsRow("shortcut.dictate");
-                }}
-                className="font-medium text-[var(--text-secondary)] underline decoration-[var(--border)] underline-offset-2 transition-colors hover:text-[var(--text-primary)]"
-              >
-                Change it
-              </button>
-            </>
-          )}
-        </>
-      }
-      footer={
-        <>
-          {tryRun > 0 && installed !== false && (
-            <DictationTryField key={tryRun} shortcutLabel={shortcutLabel} onReady={(field) => void toggle(field)} />
-          )}
-          <VoiceToTextInstallModal
-            open={installOpen}
-            onClose={() => {
-              setInstallOpen(false);
-              check();
-            }}
-            onInstalled={() => {
-              setInstallOpen(false);
-              setInstalled(true);
-              setTryRun((n) => n + 1);
-            }}
-          />
-        </>
-      }
-    >
-      <div className="flex items-center gap-3">
-        {installed !== null && (
-          <span className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)]">
-            <span
-              aria-hidden
-              className={`h-1.5 w-1.5 rounded-full ${installed ? "bg-[var(--accent-green)]" : "bg-[var(--text-muted)]"}`}
+    <>
+      <SettingsRow
+        {...rowProps("ai.voiceToText")}
+        description={
+          <>
+            {ROWS["ai.voiceToText"].description}
+            {installed !== null && (
+              <span className={installed ? "text-[var(--accent-green-text)]" : "text-[var(--text-secondary)]"}>
+                {" · "}
+                {installed ? "Installed" : "Not installed"}
+              </span>
+            )}
+          </>
+        }
+        footer={
+          <>
+            {tryRun > 0 && installed !== false && (
+              <DictationTryField key={tryRun} shortcutLabel={shortcutLabel} onReady={(field) => void toggle(field)} />
+            )}
+            <VoiceToTextInstallModal
+              open={installOpen}
+              onClose={() => {
+                setInstallOpen(false);
+                check();
+              }}
+              onInstalled={() => {
+                setInstallOpen(false);
+                setInstalled(true);
+                setTryRun((n) => n + 1);
+              }}
             />
-            {installed ? "Installed" : "Not installed"}
-          </span>
-        )}
+          </>
+        }
+      >
         <button type="button" onClick={tryIt} disabled={active} className={BTN_SECONDARY}>
           {installed === false ? "Install…" : "Try it"}
         </button>
-      </div>
-    </SettingsRow>
+      </SettingsRow>
+      <SettingsRow nested label="Shortcut" description="In any input, or in a terminal to speak into its input">
+        <div className={`transition-opacity ${installed === false ? "opacity-50" : ""}`}>
+          <HotkeyEditor id="dictate" />
+        </div>
+      </SettingsRow>
+    </>
   );
 }

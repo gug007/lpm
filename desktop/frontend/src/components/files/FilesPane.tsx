@@ -420,7 +420,6 @@ export function FilesPane({
                 wordWrap={git.wordWrap}
                 active={active && git.allChanges}
                 onActiveFileChange={setStackPath}
-                authority={review ? "commit" : "files"}
                 selected={review?.selected}
                 onDirtyPathsChange={commit.onStackDirty}
                 onSplitFitsChange={setSplitFits}

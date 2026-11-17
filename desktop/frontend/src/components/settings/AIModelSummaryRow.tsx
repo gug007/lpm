@@ -1,7 +1,9 @@
 import { ROWS, TAB_TITLES } from "../../settings-registry";
 import { AI_CLI_OPTIONS, aiEffectiveEffort, aiEfforts, aiSupportsFast } from "../../types";
 import { SettingsRow } from "../SettingsRow";
-import { SettingsLink } from "./SettingsLink";
+import { useAppStore } from "../../store/app";
+import { BTN_SECONDARY } from "../ui/buttons";
+import { revealSettingsRow } from "./revealSettingsRow";
 import { useSettingsTarget } from "./settingsTarget";
 import { useAIModelPick } from "./useAIModelPick";
 
@@ -10,6 +12,7 @@ import { useAIModelPick } from "./useAIModelPick";
 export function AIModelSummaryRow() {
   const { settings } = useSettingsTarget();
   const { cli, model } = useAIModelPick();
+  const setSettingsTab = useAppStore((s) => s.setSettingsTab);
   const option = AI_CLI_OPTIONS.find((o) => o.value === cli);
   const models = option?.models ?? [];
   const efforts = aiEfforts(cli, model);
@@ -22,11 +25,16 @@ export function AIModelSummaryRow() {
 
   return (
     <SettingsRow label={ROWS["git.aiModel"].label} description={parts.join(" · ")}>
-      <span className="text-xs">
-        <SettingsLink tab="agents" row="git.aiModel">
-          Change in {TAB_TITLES.agents}
-        </SettingsLink>
-      </span>
+      <button
+        type="button"
+        onClick={() => {
+          setSettingsTab("agents");
+          revealSettingsRow("git.aiModel");
+        }}
+        className={BTN_SECONDARY}
+      >
+        Change in {TAB_TITLES.agents}
+      </button>
     </SettingsRow>
   );
 }

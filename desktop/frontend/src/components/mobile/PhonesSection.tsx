@@ -45,7 +45,9 @@ export function PhonesSection({
   return (
     <>
       <div className="mb-2 flex items-center justify-between gap-3">
-        <h2 className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">Your devices</h2>
+        <h2 className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">
+          {devices.length === 0 ? "Set up a device" : "Your devices"}
+        </h2>
         <div className="flex items-center gap-3">
           {devices.length === 0 && (
             <VideoLink url={SETUP_VIDEO_URL} label="Setup video" length={SETUP_VIDEO_LENGTH} />

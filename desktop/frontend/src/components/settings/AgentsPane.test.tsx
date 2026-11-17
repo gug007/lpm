@@ -74,7 +74,7 @@ afterEach(() => {
 describe("AgentsPane", () => {
   it("shows a machine nobody sits at its sidebar and agent CLI rows, and nothing of this one's", async () => {
     await render(STUDIO);
-    expect(sections()).toEqual(["lpm's AI", "In the sidebar", "Claude Code", "Codex"]);
+    expect(sections()).toEqual(["AI writing", "In the sidebar", "Claude Code", "Codex"]);
     expect(row("agents.quickActions")).toBeNull();
     expect(row("general.agentTools")).toBeNull();
   });
@@ -112,7 +112,7 @@ describe("AgentsPane", () => {
 
   it("writes the message input's settings on the machine shown", async () => {
     await render({ ...STUDIO, attended: true });
-    expect(sections().slice(0, 4)).toEqual(["Starting agents", "lpm's AI", "Message input", "In the sidebar"]);
+    expect(sections().slice(0, 4)).toEqual(["Starting agents", "AI writing", "Message input", "In the sidebar"]);
     await act(async () => row("terminal.input")?.querySelector<HTMLButtonElement>("[role=switch]")?.click());
     expect(update).toHaveBeenCalledWith({ composerOpen: false });
   });

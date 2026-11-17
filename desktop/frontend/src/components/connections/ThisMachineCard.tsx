@@ -52,15 +52,15 @@ export function ThisMachineCard({
   return (
     <>
       <div className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)]">
-        <div className="flex items-center gap-4 px-4 py-4">
+        <div className="flex items-center gap-3 px-4 py-3.5">
           <div
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-colors"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors"
             style={{
               backgroundColor: live ? "color-mix(in srgb, var(--accent-green) 15%, transparent)" : "var(--bg-active)",
               color: live ? "var(--accent-green)" : "var(--text-muted)",
             }}
           >
-            <LaptopIcon size={20} />
+            <LaptopIcon size={17} />
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold text-[var(--text-primary)]">Allow control of {M.thisMachine}</p>
@@ -91,7 +91,9 @@ export function ThisMachineCard({
             subtitle={
               host.lanHost
                 ? `${host.lanHost} · only while ${M.otherMachine} is on this network`
-                : "No network address yet"
+                : host.enabled
+                  ? "No network address yet"
+                  : "Turns on with Allow control"
             }
           >
             <RouteChip state={host.lanHost ? route : "off"} />

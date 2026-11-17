@@ -24,7 +24,6 @@ export function TerminalThemePreview({
   const header = colors?.header ?? "var(--terminal-header)";
   const headerText = colors?.headerText ?? "var(--terminal-header-text)";
   const cursor = colors?.cursor ?? fg;
-  const selection = colors?.selection ?? "var(--terminal-selection)";
   const ansi = terminalAnsiColors(colors);
 
   // xterm makes a row the font's natural line height times the setting, which
@@ -46,7 +45,7 @@ export function TerminalThemePreview({
         style={{ background: header, color: headerText }}
       >
         <TrafficLights />
-        <span className="ml-1 truncate font-sans text-[10px] leading-none">{terminalThemeLabel(theme)}</span>
+        <span className="ml-1 truncate font-sans text-[11px] font-medium leading-none">{terminalThemeLabel(theme)}</span>
       </div>
       <div
         className="relative whitespace-pre px-3 py-2 [&>div]:overflow-hidden [&>div]:text-ellipsis"
@@ -65,7 +64,9 @@ export function TerminalThemePreview({
         </div>
         <div style={{ opacity: 0.7 }}>
           {"  Local:   "}
-          <span style={{ background: selection }}>http://localhost:3000</span>
+          <span className="underline underline-offset-2" style={{ color: ansi.blue }}>
+            http://localhost:3000
+          </span>
         </div>
         <div style={{ color: ansi.green }}>✓ Ready in 842ms</div>
         <div className="flex items-center">

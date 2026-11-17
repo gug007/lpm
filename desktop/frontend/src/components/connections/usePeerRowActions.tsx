@@ -226,14 +226,14 @@ export function usePeerRowActions({
     canRetry && !installing && !removing && !retrying ? (
       <button
         onClick={() => void reconnect()}
-        className={`${PILL_CLASS} text-[var(--accent-cyan)] hover:bg-[var(--bg-hover)]`}
+        className={`${PILL_CLASS} border border-[var(--border)] text-[var(--text-primary)] hover:bg-[var(--bg-active)]`}
       >
         Reconnect
       </button>
     ) : behind && !installing && !removing ? (
       <button
         onClick={() => setConfirming(true)}
-        className={`${PILL_CLASS} text-[var(--accent-cyan)] hover:bg-[var(--bg-hover)]`}
+        className={`${PILL_CLASS} border border-[var(--border)] text-[var(--text-primary)] hover:bg-[var(--bg-active)]`}
       >
         Update
       </button>

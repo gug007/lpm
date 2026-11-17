@@ -4,11 +4,13 @@ import { copyCommands } from "./commands/copies";
 import { fileCommands } from "./commands/files";
 import { fileSearchCommands } from "./commands/fileSearch";
 import { gitCommands } from "./commands/git";
+import { globalConfigCommands } from "./commands/globalConfig";
 import { historyCommands } from "./commands/history";
 import { portCommands } from "./commands/ports";
 import { jobCommands } from "./commands/jobs";
 import { keepAwakeCommands } from "./commands/keepAwake";
 import { lpmCommandCommands } from "./commands/lpmCommands";
+import { notesCommands } from "./commands/notes";
 import { projectCommands } from "./commands/projects";
 import { reminderCommands } from "./commands/reminders";
 import { serviceCommands } from "./commands/services";
@@ -41,6 +43,8 @@ export const HANDLERS: CommandMap = {
   ...toolCommands,
   ...keepAwakeCommands,
   ...lpmCommandCommands,
+  ...notesCommands,
+  ...globalConfigCommands,
 };
 
 const warned = new Set<string>();

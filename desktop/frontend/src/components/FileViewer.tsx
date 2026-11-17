@@ -6,6 +6,7 @@ import { FileViewerContent } from "./FileViewerContent";
 import { FileViewerHeader } from "./FileViewerHeader";
 import { MINI_AUDIO, miniSize, type FileViewerLayout } from "./fileViewerLayout";
 import { isSourceImage } from "./fileMedia";
+import { canDownloadFrom, downloadFile } from "./files/downloadFile";
 import { isMarkdownPath } from "./files/useFileView";
 import { isHtmlPath } from "./htmlPreview";
 import { useImagePreview } from "./imagePreview";
@@ -15,6 +16,7 @@ import { DiffConflictBanner } from "./review/DiffConflictBanner";
 import { useFileViewerFile } from "./useFileViewerFile";
 import { useFileViewerView } from "./useFileViewerView";
 import { matchesChord } from "../keys";
+import { useAppStore } from "../store/app";
 
 const CLOSE_CHORD = { key: "w", meta: true };
 
@@ -95,6 +97,12 @@ export function FileViewer({
       ? { width: layout?.dockWidth }
       : undefined;
 
+  const downloads = useAppStore((s) =>
+    canDownloadFrom(
+      file.root,
+      s.projects.find((p) => p.root === projectRoot),
+    ),
+  );
   const canEdit = file.text && !!buffer.file?.writable && !playing && !(showImage && !svg);
   const dirty = buffer.draft !== null;
 
@@ -179,6 +187,7 @@ export function FileViewer({
             onCancel: cancelEdit,
             onSave: () => void save(),
           }}
+          onDownload={downloads ? () => void downloadFile(file.root, file.rel) : undefined}
           onMinimize={layout && (() => layout.onModeChange("minimized"))}
           onDock={layout && (() => layout.onModeChange("docked"))}
           onClose={onClose}

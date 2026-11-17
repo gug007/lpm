@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
 import { usePeerState } from "../peer/usePeerState";
 import { useAppStore, type View } from "../store/app";
 import { LocalSettings } from "./settings/LocalSettings";
@@ -7,7 +7,13 @@ import { SettingsMachinePicker } from "./settings/SettingsMachinePicker";
 
 // Settings for this machine, or for a connected one picked at the top of the
 // page or from its sidebar menu.
-export function Settings({ onNavigate }: { onNavigate: (view: View) => void }) {
+export function Settings({
+  onNavigate,
+  subpage,
+}: {
+  onNavigate: (view: View) => void;
+  subpage?: ReactNode;
+}) {
   const slug = useAppStore((s) => s.settingsMachine);
   const setSettingsMachine = useAppStore((s) => s.setSettingsMachine);
   const { state, loaded } = usePeerState();
@@ -26,7 +32,7 @@ export function Settings({ onNavigate }: { onNavigate: (view: View) => void }) {
     />
   );
 
-  if (!slug) return <LocalSettings picker={picker} onNavigate={onNavigate} />;
+  if (!slug) return <LocalSettings picker={picker} subpage={subpage} onNavigate={onNavigate} />;
   if (!peer) return null;
-  return <PeerSettings key={slug} peer={peer} picker={picker} onNavigate={onNavigate} />;
+  return <PeerSettings key={slug} peer={peer} picker={picker} subpage={subpage} onNavigate={onNavigate} />;
 }

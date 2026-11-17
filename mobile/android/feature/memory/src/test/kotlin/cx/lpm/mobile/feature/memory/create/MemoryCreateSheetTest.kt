@@ -46,7 +46,7 @@ class MemoryCreateSheetTest {
                 )
             }
         }
-        compose.onNodeWithText("New Session").assertExists()
+        compose.onNodeWithText("New Memory Session").assertExists()
         compose.onNodeWithText("Title").assertExists()
         compose.onNodeWithText(
             "Agents pick a session up by its short name, so give it a few plain words."

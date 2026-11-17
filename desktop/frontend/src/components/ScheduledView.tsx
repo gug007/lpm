@@ -13,8 +13,9 @@ import { useAutomationOpenRequest } from "../hooks/useAutomationOpenRequest";
 import { useJobScopeLabel } from "../hooks/useJobScopeLabel";
 import { useJobRemoval } from "../hooks/useJobRemoval";
 import { AutomationsPlaceholder } from "./AutomationsPlaceholder";
+import { GLOBAL_COLUMN } from "./GlobalPageHeader";
 import { AutomationsHeader, type AutomationsViewMode } from "./AutomationsHeader";
-import { useFailedFilter } from "./project-detail/jobs/useFailedFilter";
+import { useJobListFilter } from "./project-detail/jobs/useJobListFilter";
 import { usePeerState } from "../peer/usePeerState";
 import type { JobInfo } from "../jobsFormat";
 import {
@@ -161,7 +162,7 @@ export function ScheduledView({ project, visible = true, focused = true }: Sched
   const removal = useJobRemoval(peerState.peers, shown, rowProjectOf, refetch);
   const sorted = sortJobsForList(live);
   const unreadRows = sorted.filter(isUnread);
-  const failed = useFailedFilter(sorted);
+  const filter = useJobListFilter(sorted);
   const unreadCount = unreadRows.length;
   const projectLabel = useCallback(
     (name: string) => displayNameForProjectName(name, projects),
@@ -313,9 +314,9 @@ export function ScheduledView({ project, visible = true, focused = true }: Sched
         unreadCount={unreadCount}
         view={view}
         onViewChange={selectView}
-        failedCount={failed.count}
-        failedOnly={failed.active}
-        onToggleFailed={failed.toggle}
+        filterCounts={filter.counts}
+        filter={filter.active}
+        onFilterChange={filter.pick}
         zoom={zoom}
         onMarkAllSeen={() => void markAllSeen()}
         onNewJob={newJob}
@@ -323,58 +324,60 @@ export function ScheduledView({ project, visible = true, focused = true }: Sched
 
       <div
         ref={zoom.surfaceRef}
-        className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto pb-6 pt-4"
+        className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto pb-6 pt-3"
       >
-        {shown.length === 0 ? (
-          <AutomationsPlaceholder
-            error={error}
-            loading={rows === null}
-            scoped={project !== undefined}
-            onRetry={() => void refetch()}
-            onNewJob={newJob}
-          />
-        ) : (
-          <>
-            {error && (
-              <p className="mb-3 rounded-lg bg-[color-mix(in_srgb,var(--accent-red)_12%,var(--bg-primary))] px-3 py-2 text-[11px] leading-snug text-[var(--accent-red-text)]">
-                Couldn't refresh scheduled jobs: {error}
-              </p>
-            )}
-            {view === "week" ? (
-              <div className="min-w-0" style={{ zoom: zoom.zoom }}>
-                <ScheduleWeekView
-                  jobs={sorted}
+        <div className={project === undefined ? GLOBAL_COLUMN : ""}>
+          {shown.length === 0 ? (
+            <AutomationsPlaceholder
+              error={error}
+              loading={rows === null}
+              scoped={project !== undefined}
+              onRetry={() => void refetch()}
+              onNewJob={newJob}
+            />
+          ) : (
+            <>
+              {error && (
+                <p className="mb-3 rounded-lg bg-[color-mix(in_srgb,var(--accent-red)_12%,var(--bg-primary))] px-3 py-2 text-[12px] leading-snug text-[var(--accent-red-text)]">
+                  Couldn't refresh scheduled jobs: {error}
+                </p>
+              )}
+              {view === "week" ? (
+                <div className="min-w-0" style={{ zoom: zoom.zoom }}>
+                  <ScheduleWeekView
+                    jobs={sorted}
+                    scopeLabelFor={scopeLabelFor}
+                    keyOf={rowKeyOf}
+                    projectLabel={projectLabel}
+                    onOpen={openJobPage}
+                    onRunNow={runNowJob}
+                    onStop={stopRunJob}
+                  />
+                </div>
+              ) : (
+                <JobListSections
+                  unreadRows={filter.rows.filter(isUnread)}
+                  readRows={filter.rows.filter((row) => !isUnread(row))}
+                  zoom={zoom.zoom}
                   scopeLabelFor={scopeLabelFor}
-                  keyOf={rowKeyOf}
-                  projectLabel={projectLabel}
-                  onOpen={openJobPage}
+                  rowKeyOf={rowKeyOf}
                   onRunNow={runNowJob}
                   onStop={stopRunJob}
+                  onToggleEnabled={toggleEnabledJob}
+                  onOpen={openJobPage}
+                  onEdit={editJob}
+                  onRemove={removeJobRow}
                 />
-              </div>
-            ) : (
-              <JobListSections
-                unreadRows={failed.rows.filter(isUnread)}
-                readRows={failed.rows.filter((row) => !isUnread(row))}
-                zoom={zoom.zoom}
+              )}
+              <JobOfflineGroups
+                rows={shown}
+                peers={peerState.peers}
                 scopeLabelFor={scopeLabelFor}
-                rowKeyOf={rowKeyOf}
-                onRunNow={runNowJob}
-                onStop={stopRunJob}
-                onToggleEnabled={toggleEnabledJob}
-                onOpen={openJobPage}
-                onEdit={editJob}
-                onRemove={removeJobRow}
+                zoom={zoom.zoom}
               />
-            )}
-            <JobOfflineGroups
-              rows={shown}
-              peers={peerState.peers}
-              scopeLabelFor={scopeLabelFor}
-              zoom={zoom.zoom}
-            />
-          </>
-        )}
+            </>
+          )}
+        </div>
       </div>
 
       {dialogs}

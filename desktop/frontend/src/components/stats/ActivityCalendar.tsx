@@ -9,10 +9,10 @@ import { type DayRange, inRange } from "./statsScope";
 
 const LEVELS = [
   "var(--bg-active)",
-  "color-mix(in srgb, var(--accent-blue) 30%, var(--bg-active))",
-  "color-mix(in srgb, var(--accent-blue) 52%, var(--bg-active))",
-  "color-mix(in srgb, var(--accent-blue) 76%, var(--bg-active))",
-  "var(--accent-blue)",
+  "color-mix(in srgb, var(--text-primary) 22%, var(--bg-active))",
+  "color-mix(in srgb, var(--text-primary) 42%, var(--bg-active))",
+  "color-mix(in srgb, var(--text-primary) 64%, var(--bg-active))",
+  "color-mix(in srgb, var(--text-primary) 88%, var(--bg-active))",
 ];
 const ROW_LABELS = [0, 2, 4];
 
@@ -83,14 +83,14 @@ export function ActivityCalendar({ days, pinned, onPin }: ActivityCalendarProps)
         {Array.from({ length: 7 }, (_, row) => (
           <span
             key={row}
-            className="flex items-center text-[9.5px] leading-none text-[var(--text-muted)]"
+            className="flex items-center text-[11px] leading-none text-[var(--text-muted)]"
           >
             {ROW_LABELS.includes(row) ? weekdayName(row) : ""}
           </span>
         ))}
         {model.weeks.map((week, column) => (
           <Fragment key={week[0].date}>
-            <span className="h-3.5 overflow-visible whitespace-nowrap text-[9.5px] leading-none text-[var(--text-muted)]">
+            <span className="h-3.5 overflow-visible whitespace-nowrap text-[11px] leading-none text-[var(--text-muted)]">
               {model.months.get(column) ?? ""}
             </span>
             {week.map((cell) =>
@@ -125,7 +125,7 @@ export function ActivityCalendar({ days, pinned, onPin }: ActivityCalendarProps)
             ? dayDetail(hovered)
             : `${model.clipped ? "Last 12 months · " : ""}Shaded by tokens · click a day to focus it`}
         </span>
-        <span className="flex shrink-0 items-center gap-1 text-[10px]">
+        <span className="flex shrink-0 items-center gap-1 text-[11px]">
           Less
           {LEVELS.map((color) => (
             <span

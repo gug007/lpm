@@ -51,7 +51,7 @@ import cx.lpm.mobile.feature.memory.R
 import kotlinx.coroutines.delay
 
 /**
- * "New Session" (iOS `MemoryCreateSheet`). [ownerLabel] names the project these
+ * "New Memory Session" (iOS `MemoryCreateSheet`). [ownerLabel] names the project these
  * sessions belong to; [onOpen] opens the new session (or the one already by that name)
  * once the sheet has slid away.
  */

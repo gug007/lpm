@@ -30,6 +30,29 @@ export function lastRunFailed(job: JobInfo): boolean {
   );
 }
 
+// A question of the job's waits for an answer: the row offers Answer and the
+// list's Needs you filter keeps it.
+export function jobNeedsAnswer(job: JobInfo): boolean {
+  return job.valid && waitingAsks(job).length > 0;
+}
+
+export interface JobRowChip {
+  label: string;
+  tone: "attention" | "danger";
+}
+
+// What a row needs from the user, worn ahead of its line: a question waiting, a
+// failed run, or a job that can't run. An automation that's off has none.
+export function jobRowChip(job: JobInfo, preview: JobPreview): JobRowChip | null {
+  if (job.valid && !job.enabled) return null;
+  if (jobNeedsAnswer(job)) {
+    const count = waitingAsks(job).length;
+    return { label: count > 1 ? `${count} questions` : "Needs you", tone: "attention" };
+  }
+  if (preview.tone === "error") return { label: job.valid ? "Failed" : "Can't run", tone: "danger" };
+  return null;
+}
+
 // A failed run says how long it ran and why it failed, when its machine
 // recorded a reason; older machines only send the result.
 function failedPreview(job: JobInfo): JobPreview {

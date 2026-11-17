@@ -8,12 +8,7 @@ import { usePortsWiring } from "./components/ports/usePortsWiring";
 import { UsageModal } from "./components/UsageModal";
 import { ScheduledView } from "./components/ScheduledView";
 import { Settings } from "./components/Settings";
-import { ClaudeStatusLineView } from "./components/ClaudeStatusLineView";
-import { CodexStatusLineView } from "./components/CodexStatusLineView";
-import { TemplateEditor } from "./components/TemplateEditor";
-import { CommitInstructionsEditor } from "./components/CommitInstructionsEditor";
-import { PRInstructionsEditor } from "./components/PRInstructionsEditor";
-import { BranchNameInstructionsEditor } from "./components/BranchNameInstructionsEditor";
+import { SettingsSubpage, settingsSubpageParent } from "./components/settings/SettingsSubpage";
 import { EmptyState, EmptyStateNoProjects } from "./components/EmptyState";
 import { ProjectsLoadFailed } from "./components/ProjectsLoadFailed";
 import { FeedbackModal } from "./components/FeedbackModal";
@@ -111,7 +106,6 @@ export default function App() {
 
   const setView = useAppStore((s) => s.setView);
   const navigateSettings = useAppStore((s) => s.navigateSettings);
-  const backToSettings = () => navigateSettings("settings");
   const focusProjectTerminal = useAppStore((s) => s.focusProjectTerminal);
   const connectPhone = useAppStore((s) => s.connectPhone);
   const phonePickerOpen = useAppStore((s) => s.addProjectPickerOpen && s.addProjectStart === "phone");
@@ -162,7 +156,6 @@ export default function App() {
   const isScheduledView = view === "scheduled";
   // Settings and the pages it opens take the project sidebar's place.
   const settingsShown = isSettingsView(view);
-  const settingsLayoutShown = view === "settings" || view === "global-config";
   useTrackSettingsReturn(view);
   const selectedProject = projects.find((p) => p.name === selected) || null;
 
@@ -350,11 +343,7 @@ export default function App() {
           pendingDuplicates={pendingDuplicates}
           removingNames={removingNames}
         />
-        <main
-          className={`flex flex-1 flex-col overflow-hidden bg-[var(--bg-primary)] px-6 pb-6 ${
-            settingsShown && !settingsLayoutShown ? "pt-5 native-chrome:pt-0" : ""
-          }`}
-        >
+        <main className="flex flex-1 flex-col overflow-hidden bg-[var(--bg-primary)] px-6 pb-6">
           <MainTopBar
             sidebarCollapsed={sidebarCollapsed && !settingsShown}
             isFullscreen={isFullscreen}
@@ -372,34 +361,25 @@ export default function App() {
               />
             </div>
           )}
-          {settingsLayoutShown && <Settings onNavigate={navigateSettings} />}
-          {isStatsView && <StatsView sidebarCollapsed={sidebarCollapsed} />}
-          {isPortsView && <PortsView sidebarCollapsed={sidebarCollapsed} />}
-          {isScheduledView && <ScheduledView />}
-          {view === "shared" && <SharedTabView />}
-          {view === "claude-statusline" && (
-            <ClaudeStatusLineView machine={settingsMachine} onBack={backToSettings} />
-          )}
-          {view === "codex-statusline" && (
-            <CodexStatusLineView machine={settingsMachine} onBack={backToSettings} />
-          )}
-          {view === "commit-instructions" && (
-            <CommitInstructionsEditor machine={settingsMachine} onBack={backToSettings} />
-          )}
-          {view === "pr-instructions" && (
-            <PRInstructionsEditor machine={settingsMachine} onBack={backToSettings} />
-          )}
-          {view === "branch-instructions" && (
-            <BranchNameInstructionsEditor machine={settingsMachine} onBack={backToSettings} />
-          )}
-          {view === "template" && selectedTemplate && (
-            <TemplateEditor
-              key={selectedTemplate}
-              name={selectedTemplate}
-              machine={settingsMachine}
-              onBack={backToSettings}
+          {settingsShown && (
+            <Settings
+              onNavigate={navigateSettings}
+              subpage={
+                settingsSubpageParent(view) && (
+                  <SettingsSubpage
+                    view={view}
+                    machine={settingsMachine}
+                    template={selectedTemplate}
+                    onNavigate={navigateSettings}
+                  />
+                )
+              }
             />
           )}
+          {isStatsView && <StatsView />}
+          {isPortsView && <PortsView />}
+          {isScheduledView && <ScheduledView />}
+          {view === "shared" && <SharedTabView />}
           {view === "projects" && selectedProject && <PeerLinkStrip project={selected} peers={peerState.peers} />}
           <ProjectColumns
             mounted={visitedProjects}

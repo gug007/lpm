@@ -54,6 +54,7 @@ import { SidebarIcon, PlusIcon, ServerIcon } from "./icons";
 import { SidebarWindowMark } from "./SidebarWindowMark";
 import { focusDetachedTerminal, focusMainTerminal, projectWindow } from "../windowFocus";
 import { SidebarFooterNav } from "./SidebarFooterNav";
+import { SidebarNoProjects } from "./SidebarNoProjects";
 import { AppMenuButton } from "./AppMenuButton";
 import { isMac, trashName } from "../platform";
 import { chordLabel } from "../keys";
@@ -316,6 +317,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   const toggleDeck = useCollapsedDecks((s) => s.toggle);
   const { width, handleResizeStart } = useSidebarResize();
   const listRef = useRef<HTMLElement>(null);
+  const projectsLoad = useAppStore((s) => s.projectsLoad);
   const folderDrop = useSidebarFolderDrop(listRef, {
     groups,
     onMoveProjectsToGroup,
@@ -1803,6 +1805,9 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
                 ) : null}
               </DragOverlay>
             </DndContext>
+          )}
+          {!selectMode && navItems.length === 0 && projectsLoad === "loaded" && (
+            <SidebarNoProjects />
           )}
         </nav>
         {!selectMode && !activeId && <SidebarAgentEdges listRef={listRef} />}

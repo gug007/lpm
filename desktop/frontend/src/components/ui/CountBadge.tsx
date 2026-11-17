@@ -4,13 +4,19 @@ interface CountBadgeProps {
   label: string;
   // "sm" rides inside a menu row, "md" sits beside a page title.
   size?: "sm" | "md";
+  tone?: "accent" | "neutral";
   className?: string;
 }
+
+const TONES = {
+  accent: "bg-[var(--accent-blue-text)] text-[var(--bg-primary)]",
+  neutral: "bg-[var(--bg-active)] text-[var(--text-secondary)]",
+};
 
 // A count of things waiting on the user. Filled with the accent's readable
 // shade against the page background, so the digits keep their contrast in both
 // themes; a single digit lands as a circle and larger counts grow into a pill.
-export function CountBadge({ count, label, size = "sm", className = "" }: CountBadgeProps) {
+export function CountBadge({ count, label, size = "sm", tone = "accent", className = "" }: CountBadgeProps) {
   if (count <= 0) return null;
   const dims =
     size === "md"
@@ -19,7 +25,7 @@ export function CountBadge({ count, label, size = "sm", className = "" }: CountB
   return (
     <span
       aria-label={`${count} ${label}`}
-      className={`inline-flex shrink-0 items-center justify-center rounded-full bg-[var(--accent-blue-text)] font-semibold leading-none tabular-nums tracking-tight text-[var(--bg-primary)] ${dims} ${className}`}
+      className={`inline-flex shrink-0 items-center justify-center rounded-full font-semibold leading-none tabular-nums tracking-tight ${TONES[tone]} ${dims} ${className}`}
     >
       {count > 99 ? "99+" : count}
     </span>

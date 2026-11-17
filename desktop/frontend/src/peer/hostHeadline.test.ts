@@ -8,10 +8,10 @@ const host = { enabled: true, running: true, guestsOnly: false, port: 8766 };
 describe("hostHeadline", () => {
   it("says who can still get in while control is off", () => {
     expect(hostHeadline({ ...host, enabled: false }, true, false, words).text).toBe(
-      "Off — turn on to let another Mac connect",
+      "Off · turn on to let another Mac connect",
     );
     expect(hostHeadline({ ...host, enabled: false, guestsOnly: true }, true, false, words).text).toBe(
-      "Off — only people you let into a shared tab can reach this Mac",
+      "Off · only people you let into a shared tab can reach this Mac",
     );
   });
 

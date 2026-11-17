@@ -2,6 +2,14 @@ import { type CSSProperties } from "react";
 import { chordLabel } from "../keys";
 import { SidebarIcon } from "./icons";
 
+// Where a page title in the title-bar row starts while the sidebar is folded
+// away: just past the expand button below, which sits after the traffic lights
+// (85px + 20px + a 7px gap), or at the window's edge in fullscreen and with
+// native chrome (12px + 20px + 12px).
+export function collapsedTitleInset(isFullscreen: boolean): string {
+  return isFullscreen ? "pl-11" : "pl-[112px] native-chrome:pl-11";
+}
+
 export function MainTopBar({
   sidebarCollapsed,
   isFullscreen,

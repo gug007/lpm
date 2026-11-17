@@ -33,12 +33,13 @@ export function JobListSections({
   onRemove,
 }: JobListSectionsProps) {
   return (
-    <div className="-mx-1 flex flex-col" style={{ zoom }}>
-      {[...unreadRows, ...readRows].map((job) => (
+    <div className="flex flex-col" style={{ zoom }}>
+      {[...unreadRows, ...readRows].map((job, i) => (
         <JobRow
           key={rowKeyOf(job)}
           job={job}
           scopeLabel={scopeLabelFor(job)}
+          divider={i > 0}
           onRunNow={() => onRunNow(job)}
           onStop={() => onStop(job)}
           onToggleEnabled={(_id, enabled) => onToggleEnabled(job, enabled)}

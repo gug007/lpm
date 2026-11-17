@@ -115,7 +115,7 @@ struct NotesComposer: View {
         Button(action: startDictation) {
             Image(systemName: "mic.circle.fill")
                 .font(.system(size: 27))
-                .foregroundStyle(SwiftUI.Color.accentColor)
+                .foregroundStyle(.primary)
                 .frame(width: 34, height: 34)
         }
         .buttonStyle(.plain)
@@ -171,7 +171,7 @@ struct NotesComposer: View {
             } else {
                 Image(systemName: "arrow.up.circle.fill")
                     .font(.system(size: 27))
-                    .foregroundStyle(hasContent ? SwiftUI.Color.accentColor : SwiftUI.Color.secondary.opacity(0.5))
+                    .foregroundStyle(hasContent ? SwiftUI.Color.primary : SwiftUI.Color.secondary.opacity(0.5))
                     .frame(width: 34, height: 34)
             }
         }

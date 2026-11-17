@@ -1,4 +1,3 @@
-import { SlidersHorizontal } from "lucide-react";
 import {
   STATUS_LINE_METER_STYLES,
   STATUS_LINE_SEPARATORS,
@@ -29,17 +28,12 @@ export function StatusLineAppearanceSettings({
       aria-labelledby="status-line-appearance-heading"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[var(--bg-primary)] text-[var(--text-muted)]">
-            <SlidersHorizontal size={13} />
-          </span>
-          <h3
-            id="status-line-appearance-heading"
-            className="text-[12px] font-semibold text-[var(--text-primary)]"
-          >
-            Appearance
-          </h3>
-        </div>
+        <h3
+          id="status-line-appearance-heading"
+          className="text-[12px] font-medium text-[var(--text-secondary)]"
+        >
+          Appearance
+        </h3>
         <div className="flex flex-wrap items-center gap-1.5">
           <StatusLineToggle
             checked={spec.icons}
@@ -61,11 +55,11 @@ export function StatusLineAppearanceSettings({
       </div>
 
       <div
-        className={`mt-2 grid items-start gap-2 ${showMeter ? "@min-[680px]:grid-cols-[minmax(240px,0.7fr)_minmax(0,1.3fr)]" : ""}`}
+        className={`mt-2 grid items-start gap-x-6 gap-y-3 ${showMeter ? "@min-[680px]:grid-cols-[minmax(240px,0.7fr)_minmax(0,1.3fr)]" : ""}`}
       >
-        <fieldset className="rounded-xl border border-[var(--border)] bg-[var(--bg-primary)]/60 p-2">
+        <fieldset className="min-w-0">
           <legend className="sr-only">Separator</legend>
-          <div className="mb-1.5 text-[10.5px] font-medium text-[var(--text-secondary)]">
+          <div className="mb-1.5 text-[12px] text-[var(--text-muted)]">
             Separator
           </div>
           <div className="flex flex-wrap items-center gap-1">
@@ -109,7 +103,7 @@ export function StatusLineAppearanceSettings({
             <p
               id="status-line-separator-error"
               role="alert"
-              className="mt-1.5 text-[10.5px] text-[var(--accent-red-text)]"
+              className="mt-1.5 text-[12px] text-[var(--accent-red-text)]"
             >
               {separatorError}
             </p>
@@ -117,15 +111,15 @@ export function StatusLineAppearanceSettings({
         </fieldset>
 
         {showMeter && (
-          <fieldset className="rounded-xl border border-[var(--border)] bg-[var(--bg-primary)]/60 p-2">
+          <fieldset className="min-w-0">
             <legend className="sr-only">Usage display</legend>
             <div className="mb-1.5 flex min-h-8 items-center justify-between gap-2">
-              <span className="text-[10.5px] font-medium text-[var(--text-secondary)]">
+              <span className="text-[12px] text-[var(--text-muted)]">
                 Usage display
               </span>
               {spec.meterStyle !== "percent" && (
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-[var(--text-muted)]">
+                  <span className="text-[12px] text-[var(--text-muted)]">
                     Meter width
                   </span>
                   <StatusLineStepper
@@ -154,10 +148,10 @@ export function StatusLineAppearanceSettings({
                       : "border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--bg-hover)]"
                   }`}
                 >
-                  <span className="truncate text-[10px] font-medium">
+                  <span className="truncate text-[12px] font-medium">
                     {style.label}
                   </span>
-                  <span className="shrink-0 font-mono text-[9px] opacity-70">
+                  <span className="shrink-0 font-mono text-[10px] opacity-70">
                     {style.sample}
                   </span>
                 </button>

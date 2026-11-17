@@ -1,6 +1,6 @@
 import type { ContentZoom } from "../hooks/useContentZoom";
 import { basename } from "../path";
-import { PanelRightIcon, PictureInPictureIcon, XIcon } from "./icons";
+import { DownloadIcon, PanelRightIcon, PictureInPictureIcon, XIcon } from "./icons";
 import { OpenFileWithDropdown } from "./OpenFileWithDropdown";
 import { SegmentedControl } from "./ui/SegmentedControl";
 import { ZoomControl } from "./ui/ZoomControl";
@@ -35,6 +35,8 @@ interface FileViewerHeaderProps {
     onCancel: () => void;
     onSave: () => void;
   };
+  // Set when the file is on another computer.
+  onDownload?: () => void;
   // Set when the viewer can step aside into a corner or a side panel.
   onMinimize?: () => void;
   onDock?: () => void;
@@ -51,6 +53,7 @@ export function FileViewerHeader({
   views,
   zoom,
   edit,
+  onDownload,
   onMinimize,
   onDock,
   onClose,
@@ -114,6 +117,12 @@ export function FileViewerHeader({
             {edit.canEdit && (
               <button type="button" onClick={edit.onEdit} className={QUIET_BUTTON}>
                 Edit
+              </button>
+            )}
+            {onDownload && (
+              <button type="button" onClick={onDownload} className={`${QUIET_BUTTON} flex items-center gap-1.5`}>
+                <DownloadIcon />
+                Download
               </button>
             )}
             <OpenFileWithDropdown absPath={absPath} line={line} col={col} />

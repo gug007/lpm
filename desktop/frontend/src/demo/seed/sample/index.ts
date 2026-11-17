@@ -6,6 +6,7 @@ import { NEW_FOLDERS } from "./folders";
 import { SAMPLE_JOB_HISTORY, SAMPLE_JOBS } from "./jobs";
 import { SAMPLE_LPM_COMMANDS } from "./lpm-commands";
 import { ML_PIPELINE } from "./ml-pipeline";
+import { SAMPLE_NOTES } from "./notes";
 import { MOBILE_APP } from "./mobile-app";
 import { SAAS_APP } from "./saas-app";
 import { sampleRecap } from "./recap";
@@ -25,6 +26,7 @@ export const SAMPLE: Seed = {
   jobs: SAMPLE_JOBS,
   jobHistory: SAMPLE_JOB_HISTORY,
   lpmCommands: SAMPLE_LPM_COMMANDS,
+  notes: SAMPLE_NOTES,
   usage: {
     limits: sampleLimits(),
     accountsStatus: SAMPLE_ACCOUNTS_STATUS,

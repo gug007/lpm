@@ -209,3 +209,11 @@ extension Color {
         )
     }
 }
+
+/// A model's name without its maker's prefix, as the desktop's session list shows
+/// it: "fable-5" for "claude-fable-5".
+func shortModelName(_ model: String) -> String {
+    let prefix = "claude-"
+    guard model.lowercased().hasPrefix(prefix) else { return model }
+    return String(model.dropFirst(prefix.count))
+}

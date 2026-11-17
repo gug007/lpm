@@ -1,7 +1,5 @@
 import { insertDefault } from "../instructionSources";
-
-const TEXT_BUTTON =
-  "rounded px-1.5 py-0.5 text-[11px] text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:pointer-events-none disabled:opacity-40";
+import { BTN_SECONDARY } from "./ui/buttons";
 
 interface InstructionsDefaultActionsProps {
   content: string;
@@ -20,30 +18,35 @@ export function InstructionsDefaultActions({
   onChange,
 }: InstructionsDefaultActionsProps) {
   const resetText = resetClears ? "" : defaultText;
+  const canInsert = !content.includes(defaultText.trim());
+  const canReset = content.trim() !== resetText.trim();
+  if (!canInsert && !canReset) return null;
   return (
-    <div className="flex items-center gap-0.5">
-      <button
-        type="button"
-        onClick={() => onChange(insertDefault(content, defaultText))}
-        disabled={content.includes(defaultText.trim())}
-        title="Add lpm's built-in instructions to edit from"
-        className={TEXT_BUTTON}
-      >
-        Insert default
-      </button>
-      <button
-        type="button"
-        onClick={() => onChange(resetText)}
-        disabled={content.trim() === resetText.trim()}
-        title={
-          resetClears
-            ? "Clear these instructions so the global ones apply"
-            : "Replace with lpm's built-in instructions"
-        }
-        className={TEXT_BUTTON}
-      >
-        Reset to default
-      </button>
+    <div className="flex items-center gap-1.5">
+      {canInsert && (
+        <button
+          type="button"
+          onClick={() => onChange(insertDefault(content, defaultText))}
+          title="Add lpm's built-in instructions to edit from"
+          className={BTN_SECONDARY}
+        >
+          Insert default
+        </button>
+      )}
+      {canReset && (
+        <button
+          type="button"
+          onClick={() => onChange(resetText)}
+          title={
+            resetClears
+              ? "Clear these instructions so the global ones apply"
+              : "Replace with lpm's built-in instructions"
+          }
+          className={BTN_SECONDARY}
+        >
+          {resetClears ? "Use global" : "Reset to default"}
+        </button>
+      )}
     </div>
   );
 }

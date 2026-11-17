@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type * as monacoNs from "monaco-editor";
 import { setupMonaco } from "../../monaco-setup";
 import {
@@ -40,7 +40,6 @@ export function FilesDiffEditor({
   const lastEmittedRef = useRef(value);
   const suppressRef = useRef(false);
   const [ready, setReady] = useState(false);
-  const authority = `files-${useId().replace(/\W/g, "")}`;
   const fontSize = useSettingsStore((s) => s.editorFontSize) || DEFAULT_MONACO_FONT_SIZE;
   const fontSizeRef = useRef(fontSize);
   fontSizeRef.current = fontSize;
@@ -53,7 +52,7 @@ export function FilesDiffEditor({
     if (!host) return;
     const monaco = setupMonaco();
     defineMonacoThemes(monaco);
-    const models = makeDiffModels(monaco, authority, "working", path, original, value);
+    const models = makeDiffModels(monaco, "working", path, original, value);
     modelsRef.current = models;
     lastEmittedRef.current = value;
 
@@ -121,7 +120,7 @@ export function FilesDiffEditor({
     };
     // The models live as long as the file does; the props are synced below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [path, authority]);
+  }, [path]);
 
   useEffect(() => {
     if (!ready || value === lastEmittedRef.current) return;

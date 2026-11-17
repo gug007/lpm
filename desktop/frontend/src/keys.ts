@@ -114,5 +114,3 @@ export function chordLabel(chord: Chord, mac: boolean = isMac): string {
 }
 
 export const modKeyLabel = (mac: boolean = isMac) => (mac ? "⌘" : "Ctrl");
-export const altKeyLabel = (mac: boolean = isMac) => (mac ? "⌥" : "Alt");
-export const shiftKeyLabel = (mac: boolean = isMac) => (mac ? "⇧" : "Shift");

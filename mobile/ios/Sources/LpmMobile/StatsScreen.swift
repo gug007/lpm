@@ -131,29 +131,29 @@ private struct StatsSummaryTiles: View {
                 aside: cost > 0 ? "≈ \(formatUsd(cost))" : nil,
                 caption: singleDay
                     ? "so far today"
-                    : peak.map { "peak \(formatTokenCount($0.totalTokens)) · \(shortUsageDate($0.date))" }
+                    : peak.map { "Peak \(formatTokenCount($0.totalTokens)) on \(shortUsageDate($0.date))" }
             )
 
             StatTile(
                 label: "Input",
                 value: formatTokenCount(totals.inputTokens),
-                caption: cache > 0 ? "\(formatPercent(cache)) from cache" : "no cache"
+                caption: cache > 0 ? "\(formatPercent(cache)) read from cache" : "Nothing read from cache"
             ) {
                 if cache > 0 {
-                    ShareBar(fraction: cache, color: .accentColor)
+                    ShareBar(fraction: cache, color: .secondary)
                 }
             }
 
             StatTile(
                 label: "Output",
                 value: formatTokenCount(totals.outputTokens),
-                caption: reasoning > 0 ? "\(formatPercent(reasoning)) reasoning" : "no reasoning tokens"
+                caption: reasoning > 0 ? "\(formatPercent(reasoning)) spent reasoning" : "No reasoning tokens"
             )
 
             StatTile(
                 label: "Sessions",
                 value: stats.sessions.formatted(),
-                caption: "\(projectCount) project\(projectCount == 1 ? "" : "s") · \(modelCount) model\(modelCount == 1 ? "" : "s")"
+                caption: "Across \(projectCount) project\(projectCount == 1 ? "" : "s") · \(modelCount) model\(modelCount == 1 ? "" : "s")"
             )
         }
     }
@@ -372,7 +372,7 @@ private struct TopProjectsCard: View {
                                     .font(.subheadline.weight(.semibold))
                                     .monospacedDigit()
                             }
-                            ShareBar(fraction: share, color: .accentColor)
+                            ShareBar(fraction: share, color: .secondary)
                             Text("\(project.sessions) session\(project.sessions == 1 ? "" : "s")")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -430,7 +430,7 @@ private struct SessionRow: View {
                     .font(.subheadline.weight(.medium))
                     .lineLimit(1)
                 HStack(spacing: 6) {
-                    Text(session.model)
+                    Text(shortModelName(session.model))
                         .lineLimit(1)
                     if let machineName {
                         Text("·")

@@ -14,7 +14,7 @@ export function StatusLineCustomNotice({
   return (
     <div
       role="status"
-      className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border border-[var(--accent-blue)]/25 bg-[var(--accent-blue)]/8 px-3 py-2 text-[10.5px] leading-relaxed text-[var(--text-secondary)]"
+      className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border border-[var(--accent-blue)]/25 bg-[var(--accent-blue)]/8 px-3 py-2 text-[12px] leading-relaxed text-[var(--text-secondary)]"
     >
       <Info
         aria-hidden

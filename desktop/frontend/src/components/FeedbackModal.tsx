@@ -1,11 +1,13 @@
 import { useEffect, useState, type KeyboardEvent } from "react";
-import { Check, CircleDot, ExternalLink, MessagesSquare } from "lucide-react";
+import { CircleDot, ExternalLink, MessagesSquare } from "lucide-react";
 import { BrowserOpenURL } from "../../bridge/runtime";
 import { GetPlatform, GetVersion } from "../../bridge/commands";
 import { useAppStore } from "../store/app";
+import { FeedbackKindPicker } from "./FeedbackKindPicker";
 import { FeedbackLessonsRail } from "./FeedbackLessonsRail";
 import { XIcon } from "./icons";
 import { Modal } from "./ui/Modal";
+import { BTN_PRIMARY } from "./ui/buttons";
 import { newDiscussionUrl, newIssueUrl } from "../githubIssue";
 import { feedbackTitle, guessFeedbackKind, type FeedbackKind } from "./feedbackDraft";
 
@@ -90,102 +92,91 @@ export function FeedbackModal() {
       open={open}
       onClose={onClose}
       backdropClassName="bg-black/50 backdrop-blur-sm"
-      contentClassName="w-[min(880px,calc(100vw-32px))] overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
+      contentClassName="w-[min(860px,calc(100vw-32px))] overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
     >
-      <div className="flex max-h-[min(760px,calc(100vh-48px))] flex-col overflow-y-auto md:flex-row">
+      <div className="flex max-h-[min(720px,calc(100vh-48px))] flex-col">
+        <header className="flex shrink-0 items-start gap-4 border-b border-[var(--border)] py-4 pl-6 pr-4">
+          <div className="min-w-0 flex-1 pt-0.5">
+            <h2 className="text-[17px] font-semibold tracking-tight text-[var(--text-primary)]">
+              Send feedback
+            </h2>
+            <p className="mt-1 text-[12px] leading-relaxed text-[var(--text-muted)]">
+              Share a bug, idea, or question with the lpm team. It opens on GitHub, ready to post.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+          >
+            <XIcon />
+          </button>
+        </header>
+
         <form
           onSubmit={(event) => {
             event.preventDefault();
             handleSubmit();
           }}
           onKeyDown={handleFormKeyDown}
-          className="flex flex-col md:w-[560px] md:shrink-0"
+          className="flex min-h-0 flex-1 flex-col"
         >
-          <div className="pb-5 pl-6 pr-14 pt-6 md:pr-6">
-            <h2 className="text-[17px] font-semibold tracking-tight text-[var(--text-primary)]">
-              Send feedback
-            </h2>
-            <p className="mt-1 text-[12px] leading-relaxed text-[var(--text-muted)]">
-              Share a bug, idea, or question with the lpm team.
-            </p>
-          </div>
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto md:flex-row">
+            <div className="flex-1 px-6 py-5 md:w-[560px] md:shrink-0">
+              <label
+                htmlFor="feedback-text"
+                className="mb-2 block text-[12px] font-medium text-[var(--text-secondary)]"
+              >
+                What's on your mind?
+              </label>
+              <textarea
+                id="feedback-text"
+                autoFocus
+                value={text}
+                onChange={(event) => setText(event.target.value)}
+                placeholder="What happened, what you'd like, or what you want to know…"
+                rows={6}
+                className="w-full resize-none rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] p-3 text-[13px] leading-relaxed text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[var(--text-secondary)] md:h-[216px]"
+              />
 
-          <div className="flex-1 px-6 pb-6">
-            <label
-              htmlFor="feedback-text"
-              className="mb-1.5 block text-[11px] font-medium text-[var(--text-secondary)]"
-            >
-              What's on your mind?
-            </label>
-            <textarea
-              id="feedback-text"
-              autoFocus
-              value={text}
-              onChange={(event) => setText(event.target.value)}
-              placeholder="What happened, what you'd like, or what you want to know…"
-              rows={6}
-              className="w-full resize-none rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] p-3 text-[12px] leading-relaxed text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[var(--text-secondary)] md:h-[256px]"
-            />
+              <FeedbackKindPicker
+                choices={KINDS}
+                value={kind}
+                guessed={picked === null}
+                onPick={setPicked}
+              />
 
-            <div role="group" aria-label="Feedback type" className="mt-3 flex flex-wrap items-center gap-1.5">
-              <span className="mr-1 text-[11px] text-[var(--text-muted)]">Sounds like</span>
-              {KINDS.map((choice) => {
-                const selected = kind === choice.value;
-                return (
-                  <button
-                    key={choice.value}
-                    type="button"
-                    onClick={() => setPicked(choice.value)}
-                    aria-pressed={selected}
-                    title={choice.hint}
-                    className={`flex items-center gap-1 rounded-full border px-2.5 py-[3px] text-[11px] font-medium transition-colors ${
-                      selected
-                        ? "border-[var(--text-secondary)] bg-[var(--bg-active)] text-[var(--text-primary)]"
-                        : "border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--text-muted)] hover:text-[var(--text-primary)]"
-                    }`}
-                  >
-                    {selected && <Check size={10} strokeWidth={2.6} />}
-                    {choice.title}
-                  </button>
-                );
-              })}
-            </div>
-
-            {title && (
-              <p className="mt-3.5 truncate text-[11px] text-[var(--text-muted)]">
-                Title: <span className="text-[var(--text-secondary)]">{title}</span>
+              <p className="mt-3 h-[18px] truncate text-[12px] text-[var(--text-muted)]">
+                {title && (
+                  <>
+                    Title: <span className="text-[var(--text-secondary)]">{title}</span>
+                  </>
+                )}
               </p>
-            )}
+            </div>
+            <FeedbackLessonsRail />
           </div>
 
-          <div className="flex items-center justify-between gap-4 border-t border-[var(--border)] bg-[var(--bg-secondary)]/40 px-6 py-4">
-            <p className="flex items-center gap-1.5 text-[10px] text-[var(--text-muted)]">
-              {option?.target === "issue" && <CircleDot size={12} strokeWidth={2} className="shrink-0" />}
+          <div className="flex min-h-[60px] shrink-0 items-center justify-between gap-4 border-t border-[var(--border)] px-6 py-3">
+            <p className="flex items-center gap-1.5 text-[12px] leading-snug text-[var(--text-muted)]">
+              {option?.target === "issue" && <CircleDot size={13} strokeWidth={2} className="shrink-0" />}
               {option?.target === "discussion" && (
-                <MessagesSquare size={12} strokeWidth={2} className="shrink-0" />
+                <MessagesSquare size={13} strokeWidth={2} className="shrink-0" />
               )}
-              {option?.hint ?? "Bugs open a GitHub issue; ideas and questions start a GitHub discussion"}
+              {option?.hint ?? "Write what's on your mind to continue."}
             </p>
             <button
               type="submit"
               disabled={!isValid}
-              className="flex shrink-0 items-center gap-1.5 rounded-lg bg-[var(--text-primary)] px-3.5 py-2 text-[11px] font-semibold text-[var(--bg-primary)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-30"
+              className={`${BTN_PRIMARY} flex shrink-0 items-center gap-1.5`}
             >
               {option ? SUBMIT_LABEL[option.target] : "Open on GitHub"}
               <ExternalLink size={12} strokeWidth={2} />
             </button>
           </div>
         </form>
-        <FeedbackLessonsRail />
       </div>
-      <button
-        type="button"
-        onClick={onClose}
-        aria-label="Close"
-        className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-      >
-        <XIcon />
-      </button>
     </Modal>
   );
 }

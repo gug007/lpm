@@ -33,7 +33,7 @@ export function StatusLine({
         <button
           type="button"
           onClick={action.onClick}
-          className={`shrink-0 whitespace-nowrap rounded-sm font-medium outline-none hover:underline focus-visible:ring-1 focus-visible:ring-[var(--accent-cyan)]/60 ${
+          className={`shrink-0 whitespace-nowrap rounded-sm font-medium outline-none hover:underline focus-visible:ring-1 focus-visible:ring-[var(--text-muted)] ${
             action.accent
               ? "text-[var(--accent-green-text)]"
               : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"

@@ -36,6 +36,7 @@ export function SoundPicker({
       <SettingsSelect
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        aria-label="Sound"
         className="max-w-[150px] truncate"
         title={isPath ? value : undefined}
       >

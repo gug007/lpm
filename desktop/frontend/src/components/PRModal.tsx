@@ -505,7 +505,7 @@ export function PRModal({
               </Tooltip>
             )}
             {!prURL && (
-              <InstructionsChip projectName={projectName} target="pr" backTitle="Back to pull request" />
+              <InstructionsChip projectName={projectName} target="pr" backTitle="Pull request" />
             )}
           </span>
           <div className="flex gap-2">

@@ -108,10 +108,11 @@ struct MemoryScreen: View {
                 ContentUnavailableView {
                     Label("No memory yet", systemImage: "brain")
                 } description: {
-                    Text("Ask an agent to remember the session, or start one here — any agent can pick it up later and continue the work.")
+                    Text("A memory session is a shared log of the work, so any agent can pick it up later and continue where the last one stopped.")
                 } actions: {
-                    Button("New Session") { creating = true }
+                    Button("New Memory Session") { creating = true }
                         .buttonStyle(.borderedProminent)
+                    MemorySkillHint()
                 }
             }
         }

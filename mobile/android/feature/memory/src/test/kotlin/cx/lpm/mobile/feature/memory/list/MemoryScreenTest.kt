@@ -87,9 +87,11 @@ class MemoryScreenTest {
         show(MemoryUiState(loading = false))
         compose.onNodeWithText("No memory yet").assertExists()
         compose.onNodeWithText(
-            "Ask an agent to remember the session, or start one here — any agent can pick it up later and continue the work."
+            "A memory session is a shared log of the work, so any agent can pick it up later and continue where the last one stopped."
         ).assertExists()
-        compose.onNodeWithText("New Session").performClick()
+        compose.onNodeWithText("or ask an agent to run").assertExists()
+        compose.onNodeWithText("/lpm-memory <name>").assertExists()
+        compose.onNodeWithText("New Memory Session").performClick()
         assertEquals(listOf("create"), events)
     }
 

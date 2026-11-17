@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { StatusChip } from "../ui/StatusChip";
 import { SUBTITLE_COLOR, TILE_STYLE, type TileTone } from "./styles";
 
 /** One way a phone can reach this machine, or one setting under it: a tile,
@@ -30,9 +31,7 @@ export function WayInRow({
         <p className="flex items-center gap-2 text-sm font-medium text-[var(--text-primary)]">
           {title}
           {badge && (
-            <span className="rounded-full bg-[color-mix(in_srgb,var(--accent-cyan)_14%,transparent)] px-1.5 py-px text-[10px] font-medium text-[var(--accent-cyan)]">
-              {badge}
-            </span>
+            <StatusChip>{badge}</StatusChip>
           )}
         </p>
         <p className="break-words text-[11px] leading-relaxed" style={{ color: SUBTITLE_COLOR[tone] }}>

@@ -19,6 +19,8 @@ vi.mock("../../bridge/commands", () =>
   ),
 );
 
+vi.mock("../../bridge/runtime", () => ({ EventsOn: () => () => {} }));
+
 import { ProjectAIInstructions } from "./ProjectAIInstructions";
 import { instructionState } from "./useProjectInstructionStates";
 
@@ -39,7 +41,7 @@ afterEach(() => {
 
 async function render() {
   await act(async () => {
-    root.render(<ProjectAIInstructions projectName="saas-app" onBack={() => {}} />);
+    root.render(<ProjectAIInstructions projectName="saas-app" back={{ label: "saas-app", onClick: () => {} }} />);
   });
 }
 
@@ -52,10 +54,10 @@ function row(label: string): HTMLElement {
 }
 
 describe("instructionState", () => {
-  it("is custom once any text has a non-blank line, quoting the first one", () => {
+  it("is custom once any text has a non-blank line", () => {
     expect(instructionState(["", "\n  \n  Keep titles short\nUse the ticket id"])).toEqual({
       custom: true,
-      firstLine: "Keep titles short",
+      text: "Keep titles short\nUse the ticket id",
     });
   });
 
@@ -65,22 +67,24 @@ describe("instructionState", () => {
 });
 
 describe("ProjectAIInstructions", () => {
-  it("marks a customized row and quotes its first line", async () => {
+  it("marks a customized row and previews its lines", async () => {
     saved.texts.commit = "Conventional commits.\nMention the ticket.";
     await render();
 
     const commit = row("Commit instructions");
     expect(chip(commit)).toBe(true);
-    expect(commit.textContent).toContain("“Conventional commits.”");
+    expect(commit.textContent).toContain("Conventional commits.");
+    expect(commit.textContent).toContain("Mention the ticket.");
     expect(commit.querySelector("button")!.textContent).toBe("Edit");
   });
 
-  it("labels rows that use the defaults and offers to customize them", async () => {
+  it("labels rows that use the global default, previews it and offers to customize them", async () => {
     saved.texts.commit = "Conventional commits.";
     await render();
 
     const branch = row("Branch name instructions");
-    expect(branch.textContent).toContain("Using your default");
+    expect(branch.textContent).toContain("Global default");
+    expect(branch.textContent).toContain("Use kebab-case");
     expect(chip(branch)).toBe(false);
     expect(branch.querySelector("button")!.textContent).toBe("Customize");
   });
@@ -89,6 +93,6 @@ describe("ProjectAIInstructions", () => {
     saved.texts["pr-description"] = "List the migrations.";
     await render();
 
-    expect(row("PR instructions").textContent).toContain("“List the migrations.”");
+    expect(row("PR instructions").textContent).toContain("List the migrations.");
   });
 });

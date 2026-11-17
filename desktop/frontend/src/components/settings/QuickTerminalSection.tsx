@@ -4,16 +4,17 @@ import {
   captureGlobalKey,
   defaultQuickTerminalKey,
   globalKeyLabel,
+  globalKeyRequirement,
   quickTerminalProblemText,
   type QuickTerminalStatus,
 } from "../../quickTerminalKeys";
 import { rowProps } from "../../settings-registry";
 import { SettingsRow } from "../SettingsRow";
 import { SettingsSection } from "../SettingsSection";
-import { BTN_SECONDARY } from "../ui/buttons";
 import { ShortcutRecorder } from "../ui/ShortcutRecorder";
 import { Toggle } from "../ui/Toggle";
 import { useSettingsTarget } from "./settingsTarget";
+import { ShortcutResetButton } from "./ShortcutResetButton";
 
 const IDLE: QuickTerminalStatus = { registered: false, problem: null };
 
@@ -67,23 +68,20 @@ export function QuickTerminalSection() {
           )
         }
       >
+        <Toggle aria-label="Quick terminal" enabled={enabled} disabled={busy} onChange={(on) => void apply(on, key)} />
+      </SettingsRow>
+      <SettingsRow nested label="Key" description={globalKeyRequirement().replace(/\.$/, "")}>
         <div className="flex items-start gap-2">
-          {key !== fallback && (
-            <button onClick={() => changeKey(fallback)} className={BTN_SECONDARY}>
-              Reset
-            </button>
-          )}
+          {key !== fallback && <ShortcutResetButton onClick={() => changeKey(fallback)} />}
           {/* Read by physical key and needing two of Ctrl/⌃, Alt/⌥ and ⌘/Win, so
               it can't take a chord other apps rely on. */}
-          <ShortcutRecorder value={key} onChange={changeKey} capture={captureGlobalKey} label={globalKeyLabel} />
-          <div className="pt-1.5">
-            <Toggle
-              aria-label="Quick terminal"
-              enabled={enabled}
-              disabled={busy}
-              onChange={(on) => void apply(on, key)}
-            />
-          </div>
+          <ShortcutRecorder
+            value={key}
+            onChange={changeKey}
+            capture={captureGlobalKey}
+            label={globalKeyLabel}
+            dimmed={!enabled}
+          />
         </div>
       </SettingsRow>
     </SettingsSection>
