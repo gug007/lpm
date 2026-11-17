@@ -1,21 +1,28 @@
 // @vitest-environment happy-dom
-import { expect, it, vi } from "vitest";
+import { beforeAll, expect, it, vi } from "vitest";
+import type * as monacoNs from "monaco-editor";
+import { makeDiffModels } from "./reviewSource";
 
 vi.mock("../../../bridge/commands", () => ({}));
 
-it("gives a second view of the same path its own models", async () => {
+let monaco: typeof monacoNs;
+const errors: string[] = [];
+
+// Loading Monaco takes several seconds on a cold CI runner, past the 5 s test
+// timeout, so it gets its own budget.
+beforeAll(async () => {
   HTMLCanvasElement.prototype.getContext = (() => ({
     measureText: () => ({ width: 8 }),
     clearRect: () => {},
     font: "",
   })) as never;
-  const monaco = await import("monaco-editor");
+  monaco = await import("monaco-editor");
   // @ts-expect-error Monaco ships no types for its internals
   const { errorHandler } = await import("monaco-editor/esm/vs/base/common/errors");
-  const { makeDiffModels } = await import("./reviewSource");
-  const errors: string[] = [];
   errorHandler.unexpectedErrorHandler = (e: unknown) => errors.push(String(e));
+}, 60_000);
 
+it("gives a second view of the same path its own models", () => {
   const host = document.createElement("div");
   document.body.appendChild(host);
   const editor = monaco.editor.createDiffEditor(host, {});
