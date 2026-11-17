@@ -24,7 +24,7 @@ fun MachineProjectListItem(
     val project = entry.project
     Column(
         modifier.listSeparator(
-            startInset = MachineIndent + ListDefaults.RowPadding + ListDefaults.DotSlot.width +
+            startInset = ListDefaults.RowPadding + ListDefaults.DotSlot.width +
                 ListDefaults.DotSlot.spacing
         )
     ) {
@@ -33,7 +33,6 @@ fun MachineProjectListItem(
             onOpen = { actions.open(entry.slug, project.name) },
             stale = entry.stale,
             agentCount = entry.agents.size,
-            indent = MachineIndent,
             enabled = entry.canOpen
         )
         if (entry.agents.isNotEmpty()) {
@@ -48,7 +47,7 @@ fun MachineProjectListItem(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(
-                        start = ListDefaults.RowPadding + DeckInset + MachineIndent,
+                        start = ListDefaults.RowPadding + DeckInset,
                         end = ListDefaults.RowPadding,
                         bottom = 8.dp
                     )
@@ -56,8 +55,6 @@ fun MachineProjectListItem(
         }
     }
 }
-
-private val MachineIndent = 20.dp
 
 /** The deck starts beneath the project's name: the dot's 14 dp column and the gap. */
 private val DeckInset = 22.dp

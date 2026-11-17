@@ -62,15 +62,24 @@ extension AppModel {
         }
     }
 
-    /// Keep the other ticked machines connected while the app is on screen.
+    /// Keep the other ticked machines connected while the app is on screen, and
+    /// pair with the listed ones the phone only opens through the live Mac.
     func syncMachineFeeds() {
         guard !isVisit else { return }
         machineFeeds.keep(inForeground && !demoMode ? otherSavedMachines : [])
+        machinesOpenedThroughLiveMac.forEach(machineImporter.pairDirectly)
     }
 
     /// What decides which machines stay connected, for the list to follow.
     var machineFeedsKey: [String] {
         [String(demoMode), activeMacId?.uuidString ?? ""] + otherSavedMachines.map(\.localId.uuidString)
+            + machinesOpenedThroughLiveMac
+    }
+
+    /// Listed machines saved here without a pairing of their own, that the live
+    /// Mac can get a pairing code from right now.
+    private var machinesOpenedThroughLiveMac: [String] {
+        shownMachineSections.filter { $0.record?.via != nil && $0.machine.state == .ready }.map(\.id)
     }
 
     /// The other machines' sections, in the order they were saved.

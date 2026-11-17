@@ -23,6 +23,7 @@ fun ListSection(
     header: String? = null,
     headerStyle: ListHeaderStyle = ListHeaderStyle.Caps,
     headerAction: (@Composable () -> Unit)? = null,
+    headerContent: (@Composable () -> Unit)? = null,
     footer: String? = null,
     footerColor: Color = LpmTheme.colors.secondaryLabel,
     footerContent: (@Composable () -> Unit)? = null,
@@ -30,7 +31,16 @@ fun ListSection(
     content: @Composable () -> Unit
 ) {
     Column(modifier.padding(horizontal = ListDefaults.Margin)) {
-        if (header != null) {
+        if (headerContent != null) {
+            Box(
+                Modifier.padding(
+                    start = ListDefaults.RowPadding,
+                    end = ListDefaults.RowPadding,
+                    top = 2.dp,
+                    bottom = 8.8.dp
+                )
+            ) { headerContent() }
+        } else if (header != null) {
             ListSectionHeader(text = header, style = headerStyle, action = headerAction)
         } else {
             Spacer(Modifier.height(7.6.dp))

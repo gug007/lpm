@@ -104,6 +104,9 @@ sealed interface MacStatus {
 sealed interface ProjectsListRow {
     val key: String
 
+    /** A row of a machine's own card, under the live Mac's projects. */
+    val onMachine: Boolean get() = this is MachineEntry || this is MachineProjectEntry
+
     data class ProjectEntry(
         val project: Project,
         val indented: Boolean,
@@ -222,7 +225,11 @@ data class RowInputs(
  */
 fun ProjectsState.listRows(inputs: RowInputs): List<ProjectsListRow> {
     val machines = inputs.machines.associateBy { it.id }
-    return sidebarItems(inputs.machines.map { it.id }).flatMap { item ->
+    // Each machine lists as a card of its own under the live Mac's projects, in
+    // the order the sidebar had them.
+    val (machineItems, ownItems) = sidebarItems(inputs.machines.map { it.id })
+        .partition { it is SidebarItem.Machine }
+    return (ownItems + machineItems).flatMap { item ->
         when (item) {
             is SidebarItem.ProjectItem -> listOf(projectEntry(item.row, indented = false, inputs))
 

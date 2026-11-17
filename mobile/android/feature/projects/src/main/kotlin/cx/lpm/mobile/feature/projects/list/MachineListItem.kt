@@ -25,7 +25,7 @@ class MachineActions(
     val openTerminal: (slug: String, project: String, terminal: String) -> Unit = { _, _, _ -> }
 )
 
-/** A machine's header in the card, with "Switch to …" on a long press when it opens. */
+/** A machine's header over its card, with "Switch to …" on a long press when it opens. */
 @Composable
 fun MachineListItem(
     entry: ProjectsListRow.MachineEntry,
@@ -33,7 +33,7 @@ fun MachineListItem(
     modifier: Modifier = Modifier
 ) {
     var menuOpen by remember { mutableStateOf(false) }
-    Box(modifier.listSeparator(startInset = MachineHeaderSeparatorInset)) {
+    Box(modifier) {
         MachineHeader(
             entry = entry,
             onToggle = { actions.toggle(entry.slug, entry.expanded) },

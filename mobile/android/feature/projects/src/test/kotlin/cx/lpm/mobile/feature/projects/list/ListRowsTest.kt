@@ -138,17 +138,17 @@ class ListRowsTest {
         MacRecord(localId = "R", name = "Build Box", hosts = listOf("10.0.0.9"), port = 8765)
 
     @Test
-    fun `a machine sits at its peer slot with its projects under it`() {
+    fun `a machine lists under the Mac's own projects with its projects under it`() {
         val state = ProjectsState(
             projects = listOf(project("web"), project("blog")),
             sidebarOrder = listOf("web", "peer:box", "blog")
         )
         assertEquals(
-            listOf("web", "<Build Box 1>", "  box:api", "  box:api-2", "blog"),
+            listOf("web", "blog", "<Build Box 1>", "  box:api", "  box:api-2"),
             state.names(RowInputs(machines = listOf(section(record = saved))))
         )
         assertEquals(
-            listOf("web", "<Build Box 1>", "blog"),
+            listOf("web", "blog", "<Build Box 1>"),
             state.names(RowInputs(machines = listOf(section()), expanded = mapOf("m:box" to false)))
         )
     }

@@ -2635,7 +2635,9 @@ final class AppModel {
             out.append(.machine(section))
         }
         out.append(contentsOf: pairedMachineSections.map(SidebarItem.machine))
-        return out
+        // Each machine lists as a card of its own under the live Mac's projects,
+        // in the order the sidebar had them.
+        return out.filter { !$0.isMachine } + out.filter(\.isMachine)
     }
 
     /// Foreground backstop for notification withdrawal: iOS drops background clear
@@ -3436,6 +3438,11 @@ enum SidebarItem: Identifiable {
         case .folder(let g, _): return "g:" + g.id
         case .machine(let m): return "m:" + m.id
         }
+    }
+
+    var isMachine: Bool {
+        if case .machine = self { return true }
+        return false
     }
 }
 

@@ -133,6 +133,17 @@ final class MachineImporter {
         enqueue(slug)
     }
 
+    /// Pair with a machine this phone only opens through the live Mac, so it gets
+    /// a connection of its own. Not while a try failed lately, nor on a machine
+    /// that removed this phone.
+    func pairDirectly(_ slug: String) {
+        guard let sourceId else { return }
+        let key = Self.key(sourceId, slug)
+        if Self.revoked().contains(key) { return }
+        if let f = failures[key], Date().timeIntervalSince(f.at) < Self.retryAfter { return }
+        enqueue(slug)
+    }
+
     func receiveOffer(slug: String, offer: MachinePairOffer?, error: String?) {
         let result: OfferResult = offer.map { .offer($0) } ?? .failed(Self.offerFailure(error))
         offerWaiters.removeValue(forKey: slug)?.cont.resume(returning: result)

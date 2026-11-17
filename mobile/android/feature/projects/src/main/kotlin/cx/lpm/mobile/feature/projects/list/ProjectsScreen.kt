@@ -227,14 +227,12 @@ private fun ProjectsList(
                         }
                     }
                 }
-                if (state.rows.isNotEmpty()) {
+                val ownRows = state.rows.filterNot { it.onMachine }
+                if (ownRows.isNotEmpty()) {
                     ListSection(
-                        header = mainHeader(
-                            state.listAge,
-                            pinned = state.pinned.isNotEmpty(),
-                            liveMac = state.title.name.takeIf { state.title.shownCount > 1 }
-                        ),
+                        header = mainHeader(state.listAge, pinned = state.pinned.isNotEmpty()),
                         headerStyle = ListHeaderStyle.Title,
+                        headerContent = liveMacHeader(state),
                         footer = state.listAge?.let {
                             val repair = state.repairFooter
                             if (repair != null) {
@@ -248,9 +246,10 @@ private fun ProjectsList(
                             }
                         }
                     ) {
-                        ProjectsCardRows(state, actions, edgeRows)
+                        ProjectsCardRows(ownRows, state, actions, edgeRows)
                     }
                 }
+                MachineCards(state, actions, edgeRows)
                 if (!state.listIsEmpty) {
                     Spacer(Modifier.weight(1f))
                     slots.usage()
@@ -262,19 +261,45 @@ private fun ProjectsList(
 }
 
 /**
- * "Updated 9:41" on a saved list; "Projects" over it once the Pinned section is up,
- * or the live Mac's name once the list shows other computers too.
+ * The live Mac's name over its own projects, once the list shows other computers
+ * too, with when a saved list was last live or how the phone reaches the Mac.
  */
 @Composable
-private fun mainHeader(listAge: Instant?, pinned: Boolean, liveMac: String?): String? = when {
-    liveMac != null -> listAge?.let {
-        stringResource(
-            ProjectsR.string.projects_live_updated,
-            liveMac,
-            it.clockStamp(Instant.now())
-        )
-    } ?: liveMac
+private fun liveMacHeader(state: ProjectsUiState): (@Composable () -> Unit)? {
+    if (state.title.shownCount <= 1) return null
+    val detail = state.listAge?.let {
+        stringResource(ProjectsR.string.projects_updated, it.clockStamp(Instant.now()))
+    } ?: state.title.status.text.split(" · ").takeIf { it.size > 1 }?.last()
+    val linuxHost = state.macs.firstOrNull { it.active }?.linuxHost == true
+    return { ComputerHeaderLabel(linuxHost = linuxHost, name = state.title.name, detail = detail) }
+}
 
+/** Each machine's card under the live Mac's projects, its header over it. */
+@Composable
+private fun MachineCards(state: ProjectsUiState, actions: ListActions, edgeRows: AgentEdgeRows) {
+    state.rows.filterIsInstance<ProjectsListRow.MachineEntry>().forEach { header ->
+        key(header.key) {
+            ListSection(
+                headerContent = {
+                    AgentEdgeRow(edgeRows, header.key, header.foldedAgents) {
+                        MachineListItem(header, actions.machines)
+                    }
+                }
+            ) {
+                state.rows
+                    .filterIsInstance<ProjectsListRow.MachineProjectEntry>()
+                    .filter { it.slug == header.slug }
+                    .forEach { row ->
+                        key(row.key) { MachineProjectListItem(row, actions.machines, edgeRows) }
+                    }
+            }
+        }
+    }
+}
+
+/** "Updated 9:41" on a saved list; "Projects" over it once the Pinned section is up. */
+@Composable
+private fun mainHeader(listAge: Instant?, pinned: Boolean): String? = when {
     listAge != null -> {
         val stamp = listAge.clockStamp(Instant.now())
         if (pinned) {
@@ -305,11 +330,12 @@ private fun ProjectEntryItem(
 
 @Composable
 private fun ProjectsCardRows(
+    rows: List<ProjectsListRow>,
     state: ProjectsUiState,
     actions: ListActions,
     edgeRows: AgentEdgeRows
 ) {
-    state.rows.forEach { row ->
+    rows.forEach { row ->
         key(row.key) {
             when (row) {
                 is ProjectsListRow.ProjectEntry -> ProjectEntryItem(row, state, actions, edgeRows)
@@ -327,19 +353,7 @@ private fun ProjectsCardRows(
                     )
                 }
 
-                is ProjectsListRow.MachineEntry -> AgentEdgeRow(
-                    edgeRows,
-                    row.key,
-                    row.foldedAgents
-                ) {
-                    MachineListItem(row, actions.machines)
-                }
-
-                is ProjectsListRow.MachineProjectEntry -> MachineProjectListItem(
-                    row,
-                    actions.machines,
-                    edgeRows
-                )
+                is ProjectsListRow.MachineEntry, is ProjectsListRow.MachineProjectEntry -> Unit
             }
         }
     }

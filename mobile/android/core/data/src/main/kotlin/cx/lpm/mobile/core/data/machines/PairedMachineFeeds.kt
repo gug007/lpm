@@ -124,6 +124,10 @@ class PairedMachineFeeds @Inject constructor(
             .distinctUntilChanged()
             .onEach(::keep)
             .launchIn(scope)
+        combine(session.state, importer.sections, choices, ::openedThroughLiveMac)
+            .distinctUntilChanged()
+            .onEach { slugs -> slugs.forEach(importer::pairDirectly) }
+            .launchIn(scope)
         session.foreground.drop(1).filter { it }.onEach { retryNow() }.launchIn(scope)
     }
 
@@ -224,6 +228,18 @@ fun shownSections(
 ): List<MachineSection> = own.filter { section ->
     section.record?.let { choices.shows(it, s, own) } ?: true
 }
+
+/**
+ * Listed machines saved here without a pairing of their own, that the live Mac can
+ * get a pairing code from right now.
+ */
+fun openedThroughLiveMac(
+    s: SessionState,
+    own: List<MachineSection>,
+    choices: MachineChoices
+): List<String> = shownSections(s, own, choices)
+    .filter { it.record?.via != null && it.machine.state == RemoteMachine.State.Ready }
+    .map { it.id }
 
 /**
  * Ticked machines the phone lists itself: paired with it directly, not the live Mac,

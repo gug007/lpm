@@ -1,8 +1,33 @@
 import SwiftUI
 
-/// The header of a machine's section in the projects list: which machine it is
-/// and whether it is on this iPhone yet. Pairing it with this iPhone lives in the
-/// list's "…" menu.
+/// A computer's name over its card in the projects list: its glyph, its name and
+/// a few words on how it is doing.
+struct ComputerHeaderLabel: View {
+    let linuxHost: Bool
+    let name: String
+    var detail: String? = nil
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: linuxHost ? "server.rack" : "desktopcomputer")
+                .font(.subheadline)
+                .foregroundStyle(.primary)
+            Text(name)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .layoutPriority(1)
+            if let detail {
+                Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            }
+        }
+        .textCase(nil)
+    }
+}
+
+/// The header over a machine's card in the projects list: which machine it is
+/// and whether it is on this iPhone yet. Tapping it folds the card. Pairing it
+/// with this iPhone lives in the list's "…" menu.
 struct MachineHeader: View {
     @Environment(AppModel.self) private var model
     let section: MachineSection
@@ -13,27 +38,26 @@ struct MachineHeader: View {
         HStack(spacing: 8) {
             Button(action: toggle) {
                 HStack(spacing: 8) {
-                    Image(systemName: expanded ? "chevron.down" : "chevron.right")
-                        .font(.caption2).foregroundStyle(.secondary)
-                    Image(systemName: section.machine.isLinuxHost ? "server.rack" : "desktopcomputer")
-                        .font(.subheadline).foregroundStyle(.secondary)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(section.machine.name).fontWeight(.medium).lineLimit(1)
-                        if let detail {
-                            Text(detail).font(.caption).foregroundStyle(.secondary)
-                        }
-                    }
+                    ComputerHeaderLabel(linuxHost: section.machine.isLinuxHost,
+                                        name: section.machine.name, detail: detail)
                     Spacer(minLength: 0)
+                    if !opensOnlyBySwitching {
+                        if section.machine.projects != nil {
+                            Text("\(section.projectCount)").font(.caption).foregroundStyle(.secondary)
+                        }
+                        Image(systemName: expanded ? "chevron.down" : "chevron.right")
+                            .font(.caption2).foregroundStyle(.secondary)
+                    }
                 }
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityHint(expanded ? "Hides its projects" : "Shows its projects")
             if opensOnlyBySwitching {
                 Button("Open") { model.switchToMachine(section) }
                     .buttonStyle(.borderless)
                     .font(.subheadline.weight(.semibold))
-            } else if section.machine.projects != nil {
-                Text("\(section.projectCount)").font(.caption).foregroundStyle(.secondary)
+                    .textCase(nil)
             }
         }
         .contextMenu {

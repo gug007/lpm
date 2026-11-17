@@ -412,6 +412,5 @@
         <item quantity="one">%1$d computer</item>
         <item quantity="other">%1$d computers</item>
     </plurals>
-    <string name="projects_live_updated">%1$s · Updated %2$s</string>
     <string name="machine_section_connecting">Connecting…</string>
 </resources>

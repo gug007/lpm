@@ -221,12 +221,15 @@ struct ProjectsView: View {
         case .machine(let section):
             let key = "m:" + section.id
             let open = expandedOverride[key] ?? true
-            MachineHeader(section: section, expanded: open) { expandedOverride[key] = !open }
-                .tracksListRow(ListEdgeRow.machineID(section.id))
-            if open {
-                ForEach(section.rows) { row in
-                    machineProjectLink(row, in: section)
+            Section {
+                if open {
+                    ForEach(section.rows) { row in
+                        machineProjectLink(row, in: section)
+                    }
                 }
+            } header: {
+                MachineHeader(section: section, expanded: open) { expandedOverride[key] = !open }
+                    .tracksListRow(ListEdgeRow.machineID(section.id))
             }
         }
     }
@@ -237,7 +240,7 @@ struct ProjectsView: View {
     @ViewBuilder
     private func machineProjectLink(_ row: SidebarRow, in section: MachineSection) -> some View {
         let agents = agentRows(row.project, tabTitles: [:])
-        let indent: CGFloat = 20
+        let indent: CGFloat = 0
         Button {
             visiting = model.beginVisit(section, project: row.project.name)
         } label: {
@@ -325,6 +328,12 @@ struct ProjectsView: View {
         }
     }
 
+    /// How the phone reaches the live Mac, in the words after "Connected ·".
+    private var liveMacDetail: String? {
+        let words = model.link.statusLine.text.components(separatedBy: " · ")
+        return words.count > 1 ? words.last : nil
+    }
+
     /// The list on screen is the one saved from the last connection, not live.
     private var isStale: Bool { model.link.listAsOf != nil && !model.link.isReady }
 
@@ -358,14 +367,15 @@ struct ProjectsView: View {
                     ForEach(pinned) { pinnedLink($0) }
                 }
             }
+            let items = model.sidebarItems
             Section {
-                ForEach(model.sidebarItems) { item in
+                ForEach(items.filter { !$0.isMachine }) { item in
                     sidebarRow(item)
                 }
             } header: {
                 if let name = model.liveMacSectionName {
-                    Text(listAge.map { "\(name) · Updated \($0.clockStamp)" } ?? name)
-                        .textCase(nil)
+                    ComputerHeaderLabel(linuxHost: model.activeRecord?.isLinuxHost == true, name: name,
+                                        detail: listAge.map { "Updated \($0.clockStamp)" } ?? liveMacDetail)
                 } else if let asOf = listAge {
                     Text(pinned.isEmpty ? "Updated \(asOf.clockStamp)" : "Projects · Updated \(asOf.clockStamp)")
                         .textCase(nil)
@@ -382,6 +392,9 @@ struct ProjectsView: View {
                         Text("Projects open read-only until your Mac is back. Start and Stop wait for it, for up to 2 minutes.")
                     }
                 }
+            }
+            ForEach(items.filter(\.isMachine)) { item in
+                sidebarRow(item)
             }
             if !listIsEmpty {
                 UsageRowsSection(rest: usageRest)

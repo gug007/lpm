@@ -122,6 +122,20 @@ class MachineImporter(private val session: MacSession) : SessionStore {
         enqueue(slug)
     }
 
+    /**
+     * Pair with a machine this phone only opens through the live Mac, so it gets a
+     * connection of its own. Not while a try failed lately, nor on a machine that
+     * removed this phone.
+     */
+    fun pairDirectly(slug: String) {
+        val s = state.value
+        val key = MachineImportState.key(s.sourceId ?: return, slug)
+        if (key in s.revoked) return
+        val failure = s.failures[key]
+        if (failure != null && clock.millis() - failure.at.toEpochMilli() < RETRY_AFTER_MS) return
+        enqueue(slug)
+    }
+
     /** Open a machine in place of the live Mac, saving its entry through the Mac first. */
     fun switchTo(section: MachineSection) {
         val record = section.record
