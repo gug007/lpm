@@ -3776,7 +3776,11 @@ fn tick(app: &AppHandle) {
             due.push((project.to_string(), job, waited));
         }
     };
+    let archived = crate::project_archive::hidden_names();
     for project in config::project_names() {
+        if archived.contains(&project) {
+            continue;
+        }
         for (id, _source, res) in resolve_jobs(&project) {
             let Ok(job) = res else { continue };
             consider(&project, &id, job);
@@ -4076,7 +4080,45 @@ pub fn list_all_jobs() -> Result<Vec<Value>, String> {
             }),
         });
     }
+    let archived = crate::project_archive::hidden_names();
+    if !archived.is_empty() {
+        out.iter_mut().for_each(|row| mark_archived_targets(row, &archived));
+    }
     Ok(out)
+}
+
+/// The targets a row's job is paused in because their project is archived.
+fn mark_archived_targets(row: &mut Value, archived: &HashSet<String>) {
+    let paused: Vec<Value> = row
+        .get("targets")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter(|t| t.as_str().is_some_and(|t| archived.contains(t)))
+        .cloned()
+        .collect();
+    if !paused.is_empty() {
+        row["archivedTargets"] = Value::Array(paused);
+    }
+}
+
+/// How many automations run under `project`.
+pub(crate) fn job_count(project: &str) -> usize {
+    resolve_jobs(project).len()
+}
+
+/// Unarchiving resumes a project's automations from now, as switching one back
+/// on does, never firing for every run missed while it was archived.
+pub(crate) fn resume_from_now(project: &str) {
+    let now = now_secs();
+    let ids: Vec<String> = resolve_jobs(project).into_iter().map(|(id, _, _)| id).collect();
+    let _ = with_state(|f| {
+        for id in &ids {
+            if let Some(st) = f.jobs.get_mut(&state_key(project, id)) {
+                st.last_run_at = Some(now);
+            }
+        }
+    });
 }
 
 #[tauri::command(async)]

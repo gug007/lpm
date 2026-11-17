@@ -1,7 +1,7 @@
 import { BrainIcon, CheckSquareIcon, ClipboardIcon, CopyIcon, DetachIcon, DownloadIcon, FileIcon, HardDriveIcon, MessageIcon, PencilIcon, SettingsIcon, SparkleIcon, TrashIcon, WorktreeIcon } from "./icons";
 import type { SidebarAgentRow } from "../sidebarAgents";
 import { ProjectArchiveMenuItems } from "./ProjectArchiveMenuItems";
-import { Columns2, FolderSync, Pin, PinOff } from "lucide-react";
+import { Archive, Columns2, FolderSync, Pin, PinOff } from "lucide-react";
 import { ContextMenuItem } from "./ui/ContextMenuItem";
 import { ContextMenuSeparator } from "./ui/ContextMenuSeparator";
 import { ContextMenuShell } from "./ui/ContextMenuShell";
@@ -82,6 +82,8 @@ interface ProjectContextMenuProps {
   // Kept at the top of the sidebar.
   pinned: boolean;
   onTogglePin: (pin: boolean) => void;
+  // Absent while the project can't be archived (it's being removed or copied).
+  onArchive?: () => void;
   onRename: () => void;
   renameShortcut?: string;
   deleteShortcut?: string;
@@ -148,6 +150,7 @@ export function ProjectContextMenu({
   onManageClaudeAccounts,
   pinned,
   onTogglePin,
+  onArchive,
   onRename,
   renameShortcut,
   deleteShortcut,
@@ -331,6 +334,9 @@ export function ProjectContextMenu({
         icon={pinned ? <PinOff size={14} /> : <Pin size={14} />}
         onClick={close(() => onTogglePin(!pinned))}
       />
+      {onArchive && (
+        <ContextMenuItem label="Archive project" icon={<Archive size={14} />} onClick={close(onArchive)} />
+      )}
       <ContextMenuItem
         label="Rename"
         icon={<PencilIcon />}

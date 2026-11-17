@@ -34,6 +34,7 @@ mod ready;
 mod refreshlabel;
 mod rename;
 mod remove;
+mod archive;
 mod run;
 mod service;
 mod service_cmd;
@@ -476,6 +477,23 @@ of the tab. Exits with the command's exit code; stopping lpm exec stops the comm
         #[arg(long)]
         json: bool,
     },
+    /// Archive a project (via the running app): it leaves the app's lists, its
+    /// services stop and its automations pause; its config, notes and folder stay.
+    Archive {
+        /// Project stem, `name:` field, or unambiguous prefix (required).
+        name: String,
+        /// Emit a single machine-readable JSON object.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Bring an archived project back (via the running app); its automations resume from now.
+    Unarchive {
+        /// Project stem, `name:` field, or unambiguous prefix (required).
+        name: String,
+        /// Emit a single machine-readable JSON object.
+        #[arg(long)]
+        json: bool,
+    },
     /// Remove a project (via the running app). Originals and SSH projects require --force.
     Remove {
         /// Project stem, `name:` field, or unambiguous prefix (required).
@@ -754,6 +772,8 @@ fn main() -> ExitCode {
             json,
         ),
         Commands::Remove { name, force, json } => remove::run(&ctx, &name, force, json),
+        Commands::Archive { name, json } => archive::run(&ctx, &name, true, json),
+        Commands::Unarchive { name, json } => archive::run(&ctx, &name, false, json),
         Commands::AutoPull {
             name,
             set,

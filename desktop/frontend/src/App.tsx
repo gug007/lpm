@@ -4,6 +4,9 @@ import { ProjectColumns } from "./components/ProjectColumns";
 import { GlobalTerminalsView } from "./components/GlobalTerminalsView";
 import { StatsView } from "./components/StatsView";
 import { PortsView } from "./components/ports/PortsView";
+import { ArchiveView } from "./components/archive/ArchiveView";
+import { ArchiveProjectDialog } from "./components/archive/ArchiveProjectDialog";
+import { useProjectArchiveSync } from "./hooks/useProjectArchiveSync";
 import { usePortsWiring } from "./components/ports/usePortsWiring";
 import { UsageModal } from "./components/UsageModal";
 import { ScheduledView } from "./components/ScheduledView";
@@ -165,6 +168,7 @@ export default function App() {
   }, [isTerminalsView]);
 
   useProjectsSync();
+  useProjectArchiveSync();
   useGlobalAgentStatusSync();
   useAgentToasts();
   useAppEvents();
@@ -376,6 +380,7 @@ export default function App() {
           )}
           {isStatsView && <StatsView />}
           {isPortsView && <PortsView />}
+          {view === "archive" && <ArchiveView />}
           {isScheduledView && <ScheduledView />}
           {view === "shared" && <SharedTabView />}
           {view === "projects" && selectedProject && <PeerLinkStrip project={selected} peers={peerState.peers} />}
@@ -413,6 +418,7 @@ export default function App() {
       <AddCloneRepoModal />
       <RemoteFolderPickerHost />
       <PortConflictDialog />
+      <ArchiveProjectDialog />
       <PairApprovalHost />
       <AgentFilesApproval />
       <QuitGuardHost />

@@ -19,6 +19,7 @@ import {
 import { dropProjectStatus, seenStatusEntries, statusEntries } from "./status";
 import { configYaml, applyConfigYaml } from "./config";
 import { playClone } from "./clone";
+import { demoListed } from "./archive";
 
 // A menu child is named by its path, as lpm names it: `deploy:production`.
 function actionInfo(a: SeedAction, position: number | undefined, path = a.name): ActionInfo {
@@ -101,7 +102,8 @@ function remove(names: string[]): null {
 }
 
 export const projectCommands: CommandMap = {
-  list_projects: () => [...projects.values()].map(info),
+  list_projects: () =>
+    [...projects.values()].filter((p) => demoListed(p.name, p.parentName)).map(info),
   get_project: ({ name }) => {
     if (name === GLOBAL) return globalInfo();
     const p = project(String(name));

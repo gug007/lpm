@@ -124,6 +124,8 @@ export interface JobInfo {
   // standalone job), whether it's standalone, and the aggregate run counts folded
   // across its targets.
   targets?: string[];
+  // The targets it's paused in because their project is archived.
+  archivedTargets?: string[];
   standalone?: boolean;
   targetCount?: number;
   runningCount?: number;

@@ -131,6 +131,7 @@ export type View =
   | "terminals"
   | "stats"
   | "ports"
+  | "archive"
   | "scheduled"
   | "shared"
   | "settings"

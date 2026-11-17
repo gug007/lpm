@@ -1,4 +1,5 @@
 import { actionCommands } from "./commands/actions";
+import { archiveCommands } from "./commands/archive";
 import { cloneCommands } from "./commands/clone";
 import { copyCommands } from "./commands/copies";
 import { fileCommands } from "./commands/files";
@@ -26,6 +27,7 @@ export type CommandMap = Record<string, (args: Record<string, unknown>) => unkno
 export const HANDLERS: CommandMap = {
   ...settingsCommands,
   ...projectCommands,
+  ...archiveCommands,
   ...cloneCommands,
   ...serviceCommands,
   ...terminalCommands,

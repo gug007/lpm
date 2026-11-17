@@ -61,6 +61,7 @@ describe("menuNavItems", () => {
     expect(menuNavItems(DEFAULT_SIDEBAR_NAV)).toEqual([
       "awake",
       "automations",
+      "archive",
       "usage",
       "stats",
       "recap",

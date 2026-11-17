@@ -20,6 +20,8 @@ struct Row {
     is_remote: bool,
     parent_name: String,
     worktree: bool,
+    // Out of the app's lists (or a copy of a project that is).
+    archived: bool,
     running: bool,
     services_running: usize,
     services_total: usize,
@@ -52,6 +54,7 @@ pub fn run(ctx: &Ctx, as_json: bool) -> Result<(), RunError> {
 
 fn collect_rows(ctx: &Ctx, sessions: &HashSet<String>) -> Vec<Row> {
     let names = config::project_names(ctx);
+    let archived = crate::archive::archived(ctx);
     let mut rows = Vec::with_capacity(names.len());
     for name in &names {
         match config::resolve_project(ctx, name) {
@@ -70,6 +73,7 @@ fn collect_rows(ctx: &Ctx, sessions: &HashSet<String>) -> Vec<Row> {
                     label: p.label,
                     root: p.display_root,
                     is_remote: p.is_remote,
+                    archived: archived.contains(name) || archived.contains(&p.parent_name),
                     parent_name: p.parent_name,
                     worktree: p.worktree,
                     running,
@@ -86,6 +90,7 @@ fn collect_rows(ctx: &Ctx, sessions: &HashSet<String>) -> Vec<Row> {
                 is_remote: false,
                 parent_name: String::new(),
                 worktree: false,
+                archived: archived.contains(name),
                 running: false,
                 services_running: 0,
                 services_total: 0,
@@ -112,6 +117,7 @@ fn render_json(rows: &[Row]) -> Value {
                 "isRemote": r.is_remote,
                 "parentName": r.parent_name,
                 "worktree": r.worktree,
+                "archived": r.archived,
                 "running": r.running,
                 "servicesRunning": r.services_running,
                 "servicesTotal": r.services_total,
@@ -174,6 +180,9 @@ fn render_human(s: &Style, rows: &[Row]) -> String {
         if r.worktree {
             parts.push(s.dim("worktree"));
         }
+        if r.archived {
+            parts.push(s.dim("archived"));
+        }
         if !r.root.is_empty() {
             parts.push(s.dim(&shorten_home(&r.root)));
         }
@@ -233,9 +242,13 @@ mod tests {
         )
         .unwrap();
 
+        std::fs::write(ctx.settings_path(), r#"{"archivedProjects":{"web":1}}"#).unwrap();
+
         let rows = collect_rows(&ctx, &HashSet::new());
         let json = render_json(&rows);
 
+        assert_eq!(json["projects"][0]["archived"], false);
+        assert_eq!(json["projects"][1]["archived"], true);
         assert_eq!(json["projects"][0]["name"], "api");
         assert_eq!(json["projects"][0]["root"], "~/code/api");
         assert_eq!(json["projects"][1]["root"], "/srv/web");

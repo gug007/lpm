@@ -2828,11 +2828,13 @@ fn group_duplicates_after_parents(projects: Vec<Value>) -> Vec<Value> {
 
 pub fn list_projects(run: &HashMap<String, RunState>) -> Result<Vec<Value>, String> {
     let running = crate::sessions::running_sessions();
+    let archived = crate::project_archive::archived();
     // Fails rather than reporting an empty list when ~/.lpm/projects is
     // unreadable: the frontend prunes sidebar folders against this list.
     let projects: Vec<Value> = try_project_names()?
         .iter()
         .map(|name| read_project(name, &running, run))
+        .filter(|p| !crate::project_archive::is_hidden(p, &archived))
         .collect();
     Ok(apply_project_order(projects, &project_order()))
 }

@@ -1038,6 +1038,22 @@ export function ReadTemplate(name) {
 export function RemovePortForward(project, localPort) {
   return invoke("remove_port_forward", { project, localPort });
 }
+export function ArchiveProject(name) {
+  return invoke("archive_project", { name });
+}
+export function UnarchiveProject(name) {
+  return invoke("unarchive_project", { name });
+}
+export function ArchivePreview(name) {
+  return invoke("archive_preview", { name });
+}
+// `machine` routes the call: "" for this machine, a peer marker for a paired one.
+export function ListArchivedProjects(machine) {
+  return invoke("list_archived_projects", { machine });
+}
+export function ProjectDiskSize(name) {
+  return invoke("project_disk_size", { name });
+}
 export function RemoveProject(name) {
   return invoke("remove_project", { name });
 }

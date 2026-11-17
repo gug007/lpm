@@ -26,6 +26,13 @@ vi.mock("../../bridge/runtime", () => ({
   EventsOn: vi.fn(() => () => {}),
   BrowserOpenURL: mocks.browserOpenURL,
 }));
+vi.mock("../store/app", () => ({
+  useAppStore: (pick: (s: { view: string }) => unknown) => pick({ view: "projects" }),
+}));
+vi.mock("../store/projectArchive", () => ({
+  openArchiveView: vi.fn(),
+  useArchivedCount: () => 0,
+}));
 
 import { useCollapsedAgents } from "../sidebarCollapsed";
 import { useGlobalAgentStatus } from "../store/globalAgentStatus";

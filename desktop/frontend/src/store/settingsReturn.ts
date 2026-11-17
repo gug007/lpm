@@ -8,6 +8,7 @@ const APP_VIEWS: Partial<Record<View, string>> = {
   terminals: "Terminals",
   stats: "Stats",
   ports: "Ports",
+  archive: "Archive",
   scheduled: "Automations",
   shared: "Shared tab",
 };

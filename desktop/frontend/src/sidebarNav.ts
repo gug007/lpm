@@ -8,6 +8,7 @@ export const NAV_ITEM_IDS = [
   "terminals",
   "awake",
   "automations",
+  "archive",
   "usage",
   "stats",
   "recap",

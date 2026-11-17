@@ -1540,6 +1540,12 @@ fn clean_settings_references(name: &str) {
     if let Some(dw) = s.get_mut("detachedWindows").and_then(|v| v.as_object_mut()) {
         changed |= dw.remove(name).is_some();
     }
+    if let Some(archived) = s
+        .get_mut(crate::project_archive::KEY)
+        .and_then(|v| v.as_object_mut())
+    {
+        changed |= archived.remove(name).is_some();
+    }
     if changed {
         let _ = config::save_settings(&s);
     }

@@ -17,6 +17,9 @@ import {
   type NavItemId,
 } from "../sidebarNav";
 import { openGithubStarPage } from "../githubStarred";
+import { Archive } from "lucide-react";
+import { useAppStore } from "../store/app";
+import { openArchiveView, useArchivedCount } from "../store/projectArchive";
 import { useGlobalAgentStatus } from "../store/globalAgentStatus";
 import { useSettingsStore } from "../store/settings";
 import { useWeeklyRecapStore } from "../store/weeklyRecap";
@@ -95,6 +98,8 @@ export function SidebarFooterNav({
   const githubStarred = useSettingsStore((s) => s.githubStarred === true);
   const update = useSettingsStore((s) => s.update);
   const recapOpen = useWeeklyRecapStore((s) => s.open);
+  const archived = useArchivedCount();
+  const showArchive = useAppStore((s) => s.view === "archive");
   const showRecap = useWeeklyRecapStore((s) => s.show);
   const { running, unread, waiting } = useJobsAmbient();
   const [rowMenu, setRowMenu] = useState<RowMenu | null>(null);
@@ -231,6 +236,23 @@ export function SidebarFooterNav({
         unread > 0 ? `${unread} automation${unread === 1 ? "" : "s"} with new messages` : "",
       ].filter(Boolean),
     },
+    archive: {
+      id: "archive",
+      label: "Archive",
+      icon: <Archive size={14} strokeWidth={2} />,
+      active: showArchive,
+      onSelect: openArchiveView,
+      description: "Projects you archived, with the space each takes, and the way to bring one back.",
+      trailing:
+        archived > 0 ? (
+          <span
+            className="text-[10px] tabular-nums text-[var(--text-muted)]"
+            aria-label={`${archived} archived projects`}
+          >
+            {archived}
+          </span>
+        ) : undefined,
+    },
     usage: {
       id: "usage",
       label: "Usage",
@@ -274,7 +296,8 @@ export function SidebarFooterNav({
   // starred lpm isn't asked to again.
   const shown = (id: NavItemId) =>
     (id !== "awake" || keepAwake.state?.supported !== false) &&
-    (id !== "github" || !githubStarred);
+    (id !== "github" || !githubStarred) &&
+    (id !== "archive" || archived > 0 || showArchive);
   const sidebarIds = inSidebar.filter(shown);
   const menuIds = menuNavItems(inSidebar).filter(shown);
 

@@ -42,8 +42,10 @@ function toneClass(tone: JobPreviewTone): string {
 export function JobRow({ job, scopeLabel, divider, onRunNow, onStop, onToggleEnabled, onOpen, onEdit, onRemove }: JobRowProps) {
   const now = useNow(job.running === true);
   const unread = job.unread ?? 0;
+  // Every project it runs in is archived, so its schedule waits for one to come back.
+  const archived = (job.targets?.length ?? 0) > 0 && job.archivedTargets?.length === job.targets?.length;
   const enabled = job.enabled;
-  const off = job.valid && !enabled;
+  const off = job.valid && (!enabled || archived);
   const asks = waitingAsks(job);
   const held = asks.some(holdsJob);
   const switchable = job.valid && hasOnOffSwitch(job);
@@ -72,7 +74,7 @@ export function JobRow({ job, scopeLabel, divider, onRunNow, onStop, onToggleEna
   ]
     .filter(Boolean)
     .join(" · ");
-  const nextRun = job.valid && enabled ? nextRunLabel(job.nextFireAt) : "";
+  const nextRun = job.valid && enabled && !archived ? nextRunLabel(job.nextFireAt) : "";
 
   const answering = jobNeedsAnswer(job);
   const action: JobRowAction = answering ? "answer" : lastRunFailed(job) ? "retry" : null;
@@ -122,6 +124,11 @@ export function JobRow({ job, scopeLabel, divider, onRunNow, onStop, onToggleEna
             {chip && (
               <StatusChip tone={chip.tone} className="mr-2 align-[1px]">
                 {chip.label}
+              </StatusChip>
+            )}
+            {archived && !chip && (
+              <StatusChip tone="attention" className="mr-2 align-[1px]">
+                Paused · project archived
               </StatusChip>
             )}
             {!off && preview.tone === "running" && (

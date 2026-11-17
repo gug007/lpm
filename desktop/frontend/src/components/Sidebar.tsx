@@ -161,6 +161,7 @@ import { useMacUpdateWatch } from "../peer/useMacUpdateWatch";
 import { SidebarSendLaterMark } from "./SidebarSendLaterMark";
 import { SidebarPinned } from "./SidebarPinned";
 import { reorderPinned, togglePinned, usePinnedProjects } from "../hooks/usePinnedProjects";
+import { askArchiveProject } from "../store/projectArchive";
 import { openReleasePage, UPDATES_INSTALL_IN_APP } from "../releasePage";
 import { checkForUpdate, noteUpdateCheck, useUpdateCheck } from "../store/updateCheck";
 
@@ -1876,6 +1877,11 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             }
             pinned={pinned.some((p) => p.name === contextMenu.name)}
             onTogglePin={(pin) => togglePinned(contextMenu.name, pin)}
+            onArchive={
+              removingNames.has(contextMenu.name) || duplicatingNames.includes(contextMenu.name)
+                ? undefined
+                : () => askArchiveProject({ name: contextMenu.name, label: contextProject?.label || contextMenu.name })
+            }
             onRename={() => setRenamingName(contextMenu.name)}
             renameShortcut={renameShortcut}
             deleteShortcut={deleteShortcut}

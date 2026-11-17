@@ -109,14 +109,21 @@ pub(crate) fn settings_changed(prev: Option<&str>, new: Option<&str>) -> bool {
 
 /// settings.json's portable digest and, from the same read, the sidebar's:
 /// what the sidebar draws from it that the portable digest leaves out, being
-/// per machine (the order and the pins).
+/// per machine (the order, the pins and the archived projects).
 pub(crate) fn settings_digests(path: &Path) -> (Option<String>, Option<String>) {
     let Ok(bytes) = std::fs::read(path) else {
         return (None, None);
     };
     let sidebar = serde_json::from_slice::<serde_json::Value>(&bytes)
         .ok()
-        .map(|v| serde_json::json!([v.get("sidebarOrder"), v.get("pinnedProjects")]).to_string());
+        .map(|v| {
+            serde_json::json!([
+                v.get("sidebarOrder"),
+                v.get("pinnedProjects"),
+                v.get(crate::project_archive::KEY),
+            ])
+            .to_string()
+        });
     (peersync::settings_digest(&bytes).ok(), sidebar)
 }
 
@@ -198,7 +205,7 @@ mod tests {
     }
 
     #[test]
-    fn sidebar_digest_follows_order_and_pins_only() {
+    fn sidebar_digest_follows_order_pins_and_archive_only() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("settings.json");
         let digest = |body: &str| {
@@ -209,6 +216,7 @@ mod tests {
         assert_eq!(base, digest(r#"{"sidebarOrder":["api"],"theme":"light"}"#));
         assert_ne!(base, digest(r#"{"sidebarOrder":["api"],"pinnedProjects":["api"]}"#));
         assert_ne!(base, digest(r#"{"sidebarOrder":["web","api"]}"#));
+        assert_ne!(base, digest(r#"{"sidebarOrder":["api"],"archivedProjects":{"web":1}}"#));
     }
 
     /// The bug: the callback read settings.json, the read was an open, the open

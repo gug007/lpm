@@ -8,6 +8,8 @@ import { ProjectDetail } from "./components/ProjectDetail";
 import { FeedbackModal } from "./components/FeedbackModal";
 import { findParentProject, projectDisplayName } from "./components/ProjectNameDisplay";
 import { PortConflictDialog } from "./components/PortConflictDialog";
+import { ArchiveProjectDialog } from "./components/archive/ArchiveProjectDialog";
+import { useProjectArchiveSync } from "./hooks/useProjectArchiveSync";
 import { FileViewerHost } from "./components/FileViewerHost";
 import { InstructionsDialogHost } from "./components/InstructionsDialogHost";
 import { IgnoredSyncHost } from "./components/ignored/IgnoredSyncHost";
@@ -73,6 +75,7 @@ export function DetachedApp({ projectName }: DetachedAppProps) {
   const refreshAfterRename = useAppStore((s) => s.refreshAfterRename);
 
   useProjectsSync({ mode: "detached" });
+  useProjectArchiveSync();
   useGlobalAgentStatusSync();
   useAmbientAppEvents();
 
@@ -186,6 +189,7 @@ export function DetachedApp({ projectName }: DetachedAppProps) {
       </div>
       <FeedbackModal />
       <PortConflictDialog />
+      <ArchiveProjectDialog />
       <FileViewerHost />
       <InstructionsDialogHost />
       <IgnoredSyncHost />

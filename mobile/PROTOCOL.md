@@ -660,7 +660,10 @@ desktop's settings `pinnedProjects`, kept per machine. A pin can name a project 
 isn't listed (removed, or on a machine that is away); it keeps its place and shows
 again when the project does, so the phone shows only the pins it has a project for,
 as a **Pinned** section above the list. A pinned project stays in its place below as
-well: a pin is a way back, not a move. The four folder
+well: a pin is a way back, not a move. A project archived on the desktop (settings
+`archivedProjects`, kept per machine), and every copy of it, is left out of the
+project list until it's unarchived; `order`, folders and pins keep its name, so it
+comes back where it was. Archiving or unarchiving emits `projects-changed`. The four folder
 `sidebar*` mutations write both `~/.lpm/groups.json` (the folder defs) and the
 settings `sidebarOrder` + flattened `projectOrder`, replicating the desktop's
 `applySidebarLayout` — the exact same helpers the duplicate flow's
