@@ -5,6 +5,7 @@ import {
   ArchivePreview,
   ListArchivedProjects,
   ProjectDiskSize,
+  ProjectSizeBreakdown,
 } from "../bridge/commands";
 import { prefixName, stripMarker } from "./peer/markers";
 import type { NavItemId } from "./sidebarNav";
@@ -62,10 +63,54 @@ export async function archivePreview(name: string): Promise<ArchivePreviewInfo> 
   return { running: raw?.running === true, copies: num(raw?.copies), automations: num(raw?.automations) };
 }
 
-/** The folder's size in bytes, or null when it can't be measured here. */
-export async function projectDiskSize(name: string): Promise<number | null> {
-  const bytes: unknown = await ProjectDiskSize(name);
-  return typeof bytes === "number" && Number.isFinite(bytes) ? bytes : null;
+// A folder a reinstall or a build recreates, as a path inside the project.
+export interface RebuildableFolder {
+  path: string;
+  bytes: number;
+}
+
+export interface ProjectSize {
+  bytes: number;
+  rebuildable: RebuildableFolder[];
+}
+
+export function toProjectSize(raw: unknown): ProjectSize | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as { bytes?: unknown; rebuildable?: unknown };
+  if (typeof r.bytes !== "number" || !Number.isFinite(r.bytes)) return null;
+  const rebuildable = (Array.isArray(r.rebuildable) ? r.rebuildable : [])
+    .map((f) => f as { path?: unknown; bytes?: unknown } | null)
+    .filter((f): f is RebuildableFolder => typeof f?.path === "string" && num(f.bytes) > 0);
+  return { bytes: r.bytes, rebuildable };
+}
+
+/** The folder's size and what in it can be rebuilt, or null when it can't be
+ *  measured here. A paired machine whose lpm predates the breakdown still
+ *  gives the size. */
+export async function projectSize(name: string): Promise<ProjectSize | null> {
+  try {
+    return toProjectSize(await ProjectSizeBreakdown(name));
+  } catch {
+    const bytes: unknown = await ProjectDiskSize(name);
+    return typeof bytes === "number" && Number.isFinite(bytes) ? { bytes, rebuildable: [] } : null;
+  }
+}
+
+export function rebuildableBytes(size: ProjectSize | null | undefined): number {
+  return (size?.rebuildable ?? []).reduce((n, f) => n + f.bytes, 0);
+}
+
+/** Rebuildable folders summed by their own name ("node_modules" wherever it
+ *  sits), biggest first. */
+export function rebuildableKinds(sizes: Iterable<ProjectSize | null | undefined>): RebuildableFolder[] {
+  const byKind = new Map<string, number>();
+  for (const size of sizes) {
+    for (const f of size?.rebuildable ?? []) {
+      const kind = f.path.split(/[\\/]/).pop() || f.path;
+      byKind.set(kind, (byKind.get(kind) ?? 0) + f.bytes);
+    }
+  }
+  return [...byKind].map(([path, bytes]) => ({ path, bytes })).sort((a, b) => b.bytes - a.bytes);
 }
 
 /** Where the Archive page is reached from, as the confirmation names it. */
@@ -92,14 +137,14 @@ export function matchesArchived(p: ArchivedProject, query: string): boolean {
 export function sortArchived(
   list: readonly ArchivedProject[],
   sort: ArchiveSort,
-  sizes: ReadonlyMap<string, number | null>,
+  sizes: ReadonlyMap<string, ProjectSize | null>,
 ): ArchivedProject[] {
   const byName = (a: ArchivedProject, b: ArchivedProject) =>
     a.label.localeCompare(b.label, undefined, { sensitivity: "base" });
   const out = [...list];
   if (sort === "name") return out.sort(byName);
   if (sort === "size") {
-    const size = (p: ArchivedProject) => sizes.get(p.name) ?? -1;
+    const size = (p: ArchivedProject) => sizes.get(p.name)?.bytes ?? -1;
     return out.sort((a, b) => size(b) - size(a) || byName(a, b));
   }
   return out.sort((a, b) => b.archivedAt - a.archivedAt || byName(a, b));

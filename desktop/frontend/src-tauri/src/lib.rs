@@ -528,7 +528,7 @@ use portforward::*;
 use ports::*;
 use portsall::{kill_port_holder, list_ports_overview};
 use project_archive::{archive_preview, archive_project, list_archived_projects, unarchive_project};
-use project_size::project_disk_size;
+use project_size::{free_project_space, project_disk_size, project_size_breakdown};
 use projects_crud::*;
 use pty::*;
 use releasenotes::release_notes;

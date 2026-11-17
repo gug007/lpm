@@ -434,6 +434,8 @@ macro_rules! all_command_handlers {
             unarchive_project,
             list_archived_projects,
             project_disk_size,
+            project_size_breakdown,
+            free_project_space,
             remove_projects,
             rename_branch,
             rename_memory_session,

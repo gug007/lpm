@@ -345,6 +345,8 @@ export function UnarchiveProject(...args: any[]): Promise<any>;
 export function ArchivePreview(...args: any[]): Promise<any>;
 export function ListArchivedProjects(...args: any[]): Promise<any>;
 export function ProjectDiskSize(...args: any[]): Promise<any>;
+export function ProjectSizeBreakdown(...args: any[]): Promise<any>;
+export function FreeProjectSpace(...args: any[]): Promise<any>;
 export function RemoveProject(...args: any[]): Promise<any>;
 export function RemoveProjectCascade(...args: any[]): Promise<any>;
 export function RemoveProjects(...args: any[]): Promise<any>;

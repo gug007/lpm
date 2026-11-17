@@ -1054,6 +1054,12 @@ export function ListArchivedProjects(machine) {
 export function ProjectDiskSize(name) {
   return invoke("project_disk_size", { name });
 }
+export function ProjectSizeBreakdown(name) {
+  return invoke("project_size_breakdown", { name });
+}
+export function FreeProjectSpace(name) {
+  return invoke("free_project_space", { name });
+}
 export function RemoveProject(name) {
   return invoke("remove_project", { name });
 }

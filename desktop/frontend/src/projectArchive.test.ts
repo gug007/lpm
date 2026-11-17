@@ -4,14 +4,18 @@ vi.mock("../bridge/commands", () => ({
   ArchivePreview: vi.fn(),
   ListArchivedProjects: vi.fn(),
   ProjectDiskSize: vi.fn(),
+  ProjectSizeBreakdown: vi.fn(),
 }));
 
-import { ListArchivedProjects } from "../bridge/commands";
+import { ListArchivedProjects, ProjectDiskSize, ProjectSizeBreakdown } from "../bridge/commands";
 import {
   archiveLocation,
   archiveSummary,
   listArchived,
   matchesArchived,
+  projectSize,
+  rebuildableBytes,
+  rebuildableKinds,
   sortArchived,
   toArchived,
   type ArchivedProject,
@@ -77,10 +81,10 @@ describe("sortArchived", () => {
   });
 
   it("puts the biggest first and what isn't measured last", () => {
-    const sizes = new Map<string, number | null>([
-      ["a", 10],
+    const sizes = new Map([
+      ["a", { bytes: 10, rebuildable: [] }],
       ["b", null],
-      ["c", 300],
+      ["c", { bytes: 300, rebuildable: [] }],
     ]);
     expect(names(sortArchived(list, "size", sizes))).toEqual(["c", "a", "b"]);
   });
@@ -100,5 +104,42 @@ describe("matchesArchived and archiveSummary", () => {
       "2 projects · 2 automations paused",
     );
     expect(archiveSummary([entry({})])).toBe("1 project");
+  });
+});
+
+describe("projectSize", () => {
+  it("reads the breakdown and drops folders with nothing in them", async () => {
+    vi.mocked(ProjectSizeBreakdown).mockResolvedValue({
+      bytes: 500,
+      rebuildable: [{ path: "node_modules", bytes: 300 }, { path: "dist", bytes: 0 }, { bogus: 1 }],
+    });
+    expect(await projectSize("api")).toEqual({ bytes: 500, rebuildable: [{ path: "node_modules", bytes: 300 }] });
+    vi.mocked(ProjectSizeBreakdown).mockResolvedValue(null);
+    expect(await projectSize("ssh")).toBeNull();
+  });
+
+  it("falls back to the plain size on a machine that can't break it down", async () => {
+    vi.mocked(ProjectSizeBreakdown).mockRejectedValue(new Error("unknown command"));
+    vi.mocked(ProjectDiskSize).mockResolvedValue(42);
+    expect(await projectSize("peer-0123abcd-api")).toEqual({ bytes: 42, rebuildable: [] });
+  });
+});
+
+describe("rebuildable folders", () => {
+  const web = { bytes: 900, rebuildable: [{ path: "node_modules", bytes: 400 }, { path: "packages/ui/node_modules", bytes: 100 }, { path: ".next", bytes: 50 }] };
+  const cli = { bytes: 600, rebuildable: [{ path: "target", bytes: 520 }] };
+
+  it("adds up what can be rebuilt", () => {
+    expect(rebuildableBytes(web)).toBe(550);
+    expect(rebuildableBytes(null)).toBe(0);
+    expect(rebuildableBytes(undefined)).toBe(0);
+  });
+
+  it("sums folders by their own name, biggest first", () => {
+    expect(rebuildableKinds([web, cli, null])).toEqual([
+      { path: "target", bytes: 520 },
+      { path: "node_modules", bytes: 500 },
+      { path: ".next", bytes: 50 },
+    ]);
   });
 });

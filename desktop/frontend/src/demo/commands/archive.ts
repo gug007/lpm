@@ -20,6 +20,17 @@ function demoSize(name: string): number {
   return 40_000_000 + (h % 1_900_000_000);
 }
 
+// What a reinstall would recreate in the demo's folders, until it's freed.
+const freed = new Set<string>();
+const demoRebuildable = (name: string) =>
+  freed.has(name)
+    ? []
+    : [
+        { path: "node_modules", bytes: Math.round(demoSize(name) * 0.7) },
+        { path: ".next", bytes: Math.round(demoSize(name) * 0.08) },
+      ];
+const freeable = (name: string) => demoRebuildable(name).reduce((n, f) => n + f.bytes, 0);
+
 export const archiveCommands: CommandMap = {
   archive_preview: ({ name }) => {
     const members = family(String(name));
@@ -61,6 +72,19 @@ export const archiveCommands: CommandMap = {
       }),
   project_disk_size: ({ name }) => {
     const p = project(String(name));
-    return p && !p.remote ? demoSize(p.name) : null;
+    return p && !p.remote ? demoSize(p.name) - (freed.has(p.name) ? Math.round(demoSize(p.name) * 0.78) : 0) : null;
+  },
+  project_size_breakdown: ({ name }) => {
+    const p = project(String(name));
+    if (!p || p.remote) return null;
+    const rebuildable = demoRebuildable(p.name);
+    const gone = freed.has(p.name) ? Math.round(demoSize(p.name) * 0.78) : 0;
+    return { bytes: demoSize(p.name) - gone, rebuildable };
+  },
+  free_project_space: ({ name }) => {
+    const n = String(name);
+    const bytes = freeable(n);
+    freed.add(n);
+    return bytes;
   },
 };

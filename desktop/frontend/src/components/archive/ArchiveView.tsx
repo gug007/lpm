@@ -1,9 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { Search } from "lucide-react";
+import { Archive, Search } from "lucide-react";
+import { FreeProjectSpace } from "../../../bridge/commands";
 import { MACHINE } from "../../machineWords";
+import { toast } from "../../notifications/toast";
+import { trashName } from "../../platform";
 import {
   archiveSummary,
   matchesArchived,
+  rebuildableBytes,
   sortArchived,
   type ArchivedProject,
   type ArchiveSort,
@@ -14,19 +18,15 @@ import { GlobalPageHeader } from "../GlobalPageHeader";
 import { PORT_ACTION } from "../ports/portsStyles";
 import { CAPS_LABEL } from "../settings/sectionStyles";
 import { CARD_CLASS } from "../ui/fields";
-import { ARCHIVE_GRID } from "./archiveStyles";
-import { ArchiveRemoveDialog } from "./ArchiveRemoveDialog";
+import { ARCHIVE_GRID, ARCHIVE_PRIMARY } from "./archiveStyles";
+import { ArchiveFreeDialog } from "./ArchiveFreeDialog";
+import { ArchiveRemoveDialog, type ArchiveRemoval } from "./ArchiveRemoveDialog";
 import { ArchiveRow } from "./ArchiveRow";
+import { ArchiveSortHeader } from "./ArchiveSortHeader";
 import { useProjectSizes } from "./useProjectSizes";
 
-const SORTS: { id: ArchiveSort; label: string }[] = [
-  { id: "archived", label: "Recently archived" },
-  { id: "name", label: "Name" },
-  { id: "size", label: "Size" },
-];
-
 /** Every archived project, with what it keeps and the space it takes, and the
- *  way to bring it back. */
+ *  ways to bring it back or get that space back. */
 export function ArchiveView() {
   const byMachine = useProjectArchiveStore((s) => s.byMachine);
   const peers = useProjectArchiveStore((s) => s.peers);
@@ -35,14 +35,15 @@ export function ArchiveView() {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<ArchiveSort>("archived");
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
-  const [removing, setRemoving] = useState<ArchivedProject | null>(null);
+  const [removal, setRemoval] = useState<ArchiveRemoval | null>(null);
+  const [freeing, setFreeing] = useState<ArchivedProject[] | null>(null);
 
   useEffect(() => {
     void load();
   }, [load]);
 
   const all = useMemo(() => Object.values(byMachine).flat(), [byMachine]);
-  const sizes = useProjectSizes(all);
+  const { sizes, remeasure } = useProjectSizes(all);
   const shown = useMemo(
     () => sortArchived(all.filter((p) => matchesArchived(p, query)), sort, sizes),
     [all, query, sort, sizes],
@@ -57,9 +58,11 @@ export function ArchiveView() {
         : MACHINE.ThisMachineTitle;
 
   const measuredAll = all.length > 0 && all.every((p) => sizes.has(p.name));
-  const total = all.reduce((n, p) => n + (sizes.get(p.name) ?? 0), 0);
-  const summary =
-    measuredAll && total > 0 ? `${archiveSummary(all)} · ${formatBytes(total)} on disk` : archiveSummary(all);
+  const total = all.reduce((n, p) => n + (sizes.get(p.name)?.bytes ?? 0), 0);
+  const freeable = all.filter((p) => rebuildableBytes(sizes.get(p.name)) > 0);
+  const rebuildable = freeable.reduce((n, p) => n + rebuildableBytes(sizes.get(p.name)), 0);
+  const pickedBytes = picked.reduce((n, p) => n + (sizes.get(p.name)?.bytes ?? 0), 0);
+  const allShownPicked = shown.length > 0 && shown.every((p) => selected.has(p.name));
 
   const toggle = (name: string) =>
     setSelected((prev) => {
@@ -71,12 +74,41 @@ export function ArchiveView() {
     setSelected((prev) => new Set([...prev].filter((n) => !targets.some((t) => t.name === n))));
     void unarchive(targets.map(({ name, label }) => ({ name, label })));
   };
+  const free = async (targets: ArchivedProject[]) => {
+    setFreeing(null);
+    let freed = 0;
+    const failed: string[] = [];
+    for (const p of targets) {
+      try {
+        freed += Number(await FreeProjectSpace(p.name)) || 0;
+      } catch (err) {
+        failed.push(`${p.label}: ${err}`);
+      }
+    }
+    remeasure();
+    if (freed > 0) {
+      toast.success(`Freed ${formatBytes(freed)}`, {
+        description: `The folders are in the ${trashName()} until you empty it.`,
+      });
+    }
+    if (failed.length > 0) {
+      toast.error("Couldn't free some space", { description: failed.join("\n") });
+    }
+  };
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <GlobalPageHeader
         title="Archive"
-        description={summary}
+        description={
+          <>
+            {archiveSummary(all)}
+            {measuredAll && total > 0 && ` · ${formatBytes(total)} on disk`}
+            {measuredAll && rebuildable > 0 && (
+              <span className="text-[var(--accent-cyan)]"> · {formatBytes(rebuildable)} rebuildable</span>
+            )}
+          </>
+        }
         actions={
           all.length > 0 && (
             <>
@@ -90,18 +122,16 @@ export function ArchiveView() {
                   className="min-w-0 flex-1 bg-transparent text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none"
                 />
               </label>
-              <select
-                value={sort}
-                onChange={(e) => setSort(e.target.value as ArchiveSort)}
-                aria-label="Sort archived projects"
-                className="h-8 rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] px-2 text-[12px] text-[var(--text-secondary)] focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)]"
-              >
-                {SORTS.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
+              {measuredAll && rebuildable > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setFreeing(freeable)}
+                  className={`${PORT_ACTION} h-8 px-3`}
+                  title={`Move folders a reinstall recreates to the ${trashName()}`}
+                >
+                  Free {formatBytes(rebuildable)}…
+                </button>
+              )}
             </>
           )
         }
@@ -109,33 +139,59 @@ export function ArchiveView() {
 
       <div className="mt-5 min-h-0 flex-1 overflow-auto pb-1">
         {all.length === 0 ? (
-          <div className={`px-6 py-10 text-center ${CARD_CLASS}`}>
-            <p className="text-[13px] text-[var(--text-primary)]">Nothing is archived</p>
-            <p className="mx-auto mt-1 max-w-md text-[12px] text-[var(--text-muted)]">
+          <div className={`flex flex-col items-center px-6 py-12 text-center ${CARD_CLASS}`}>
+            <span className="mb-3 grid h-10 w-10 place-items-center rounded-full bg-[var(--bg-hover)] text-[var(--text-muted)]">
+              <Archive size={18} aria-hidden />
+            </span>
+            <p className="text-[13px] font-medium text-[var(--text-primary)]">Nothing is archived</p>
+            <p className="mt-1 max-w-md text-[12px] leading-relaxed text-[var(--text-muted)]">
               Right-click a project in the sidebar and pick Archive project to take it out of
               the list. Its setup, notes and folder stay, and it waits here.
             </p>
           </div>
         ) : (
           <div className={`min-w-[46rem] overflow-hidden ${CARD_CLASS}`}>
-            <div
-              className={`${ARCHIVE_GRID} sticky top-0 z-[1] border-b border-[var(--border)] bg-[var(--bg-secondary)] px-4 py-2 ${CAPS_LABEL}`}
-            >
-              <input
-                type="checkbox"
-                checked={shown.length > 0 && shown.every((p) => selected.has(p.name))}
-                onChange={(e) =>
-                  setSelected(e.target.checked ? new Set(shown.map((p) => p.name)) : new Set())
-                }
-                aria-label="Select every project shown"
-                className="h-3.5 w-3.5 accent-[var(--accent-cyan)]"
-              />
-              <span>Project</span>
-              <span>Archived</span>
-              <span>Size</span>
-              <span>Automations</span>
-              <span className="text-right">Actions</span>
-            </div>
+            {picked.length > 0 ? (
+              <div className="sticky top-0 z-[1] flex h-10 items-center gap-3 border-b border-[var(--border)] bg-[var(--accent-cyan)]/10 px-4 text-[12px]">
+                <input
+                  type="checkbox"
+                  checked={allShownPicked}
+                  onChange={(e) =>
+                    setSelected(e.target.checked ? new Set(shown.map((p) => p.name)) : new Set())
+                  }
+                  aria-label="Select every project shown"
+                  className="h-3.5 w-3.5 accent-[var(--accent-cyan)]"
+                />
+                <span className="font-medium text-[var(--text-primary)]">{picked.length} selected</span>
+                {pickedBytes > 0 && (
+                  <span className="tabular-nums text-[var(--text-muted)]">{formatBytes(pickedBytes)}</span>
+                )}
+                <span className="flex-1" />
+                <button type="button" onClick={() => setSelected(new Set())} className={PORT_ACTION}>
+                  Clear
+                </button>
+                <button type="button" onClick={() => bringBack(picked)} className={ARCHIVE_PRIMARY}>
+                  Unarchive {picked.length}
+                </button>
+              </div>
+            ) : (
+              <div
+                className={`${ARCHIVE_GRID} sticky top-0 z-[1] h-10 border-b border-[var(--border)] bg-[var(--bg-secondary)] px-4 ${CAPS_LABEL}`}
+              >
+                <input
+                  type="checkbox"
+                  checked={false}
+                  onChange={() => setSelected(new Set(shown.map((p) => p.name)))}
+                  aria-label="Select every project shown"
+                  className="h-3.5 w-3.5 accent-[var(--accent-cyan)]"
+                />
+                <ArchiveSortHeader id="name" label="Project" sort={sort} onSort={setSort} />
+                <ArchiveSortHeader id="archived" label="Archived" sort={sort} onSort={setSort} />
+                <ArchiveSortHeader id="size" label="Size" sort={sort} onSort={setSort} />
+                <span>Automations</span>
+                <span />
+              </div>
+            )}
             {shown.map((p) => (
               <ArchiveRow
                 key={p.name}
@@ -145,7 +201,9 @@ export function ArchiveView() {
                 selected={selected.has(p.name)}
                 onToggle={() => toggle(p.name)}
                 onUnarchive={() => bringBack([p])}
-                onRemove={() => setRemoving(p)}
+                onFree={() => setFreeing([p])}
+                onRemove={() => setRemoval({ project: p, from: "lpm" })}
+                onTrash={() => setRemoval({ project: p, from: "disk" })}
               />
             ))}
             {shown.length === 0 && (
@@ -156,31 +214,20 @@ export function ArchiveView() {
           </div>
         )}
         {all.length > 0 && (
-          <p className="mt-3 px-1 text-[12px] text-[var(--text-muted)]">
+          <p className="mt-3 max-w-3xl px-1 text-[12px] leading-relaxed text-[var(--text-muted)]">
             Archived projects stay out of the sidebar, the project switcher and the phone, and
             their automations don't run. Unarchive puts one back where it was, set up as before.
           </p>
         )}
       </div>
 
-      {picked.length > 0 && (
-        <div className={`mt-3 flex items-center gap-3 px-4 py-2.5 text-[13px] ${CARD_CLASS}`}>
-          <span className="text-[var(--text-secondary)]">{picked.length} selected</span>
-          <span className="flex-1" />
-          <button type="button" onClick={() => setSelected(new Set())} className={PORT_ACTION}>
-            Clear
-          </button>
-          <button
-            type="button"
-            onClick={() => bringBack(picked)}
-            className={`${PORT_ACTION} border-transparent bg-[var(--text-primary)] text-[var(--bg-primary)] hover:bg-[var(--text-primary)] hover:text-[var(--bg-primary)] hover:opacity-90`}
-          >
-            Unarchive {picked.length}
-          </button>
-        </div>
-      )}
-
-      <ArchiveRemoveDialog project={removing} onClose={() => setRemoving(null)} />
+      <ArchiveRemoveDialog removal={removal} onClose={() => setRemoval(null)} />
+      <ArchiveFreeDialog
+        projects={freeing}
+        sizes={sizes}
+        onCancel={() => setFreeing(null)}
+        onConfirm={() => freeing && void free(freeing)}
+      />
     </div>
   );
 }

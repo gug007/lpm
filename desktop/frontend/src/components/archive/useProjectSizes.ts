@@ -1,19 +1,24 @@
 import { useEffect, useState } from "react";
-import { projectDiskSize, type ArchivedProject } from "../../projectArchive";
+import { projectSize, type ArchivedProject, type ProjectSize } from "../../projectArchive";
 
 // What each folder measured last, so the page shows sizes at once on a second
 // visit while it measures again behind them.
-const measured = new Map<string, number | null>();
+const measured = new Map<string, ProjectSize | null>();
 
 // Two at a time: a folder with node_modules can take seconds, and every walk
 // competes for the same disk.
 const PARALLEL = 2;
 
 /** Each project's folder size: absent while it's measured, null when it can't
- *  be (an SSH project, a folder that's gone), else bytes. */
-export function useProjectSizes(list: readonly ArchivedProject[]): ReadonlyMap<string, number | null> {
-  const [sizes, setSizes] = useState<Map<string, number | null>>(() => new Map(measured));
-  const key = list.map((p) => `${p.name}\u0000${p.isRemote}`).join("\n");
+ *  be (an SSH project, a folder that's gone). `remeasure` measures them again,
+ *  after space was freed. */
+export function useProjectSizes(list: readonly ArchivedProject[]): {
+  sizes: ReadonlyMap<string, ProjectSize | null>;
+  remeasure: () => void;
+} {
+  const [sizes, setSizes] = useState<Map<string, ProjectSize | null>>(() => new Map(measured));
+  const [round, setRound] = useState(0);
+  const key = `${round}\n${list.map((p) => `${p.name}\u0000${p.isRemote}`).join("\n")}`;
 
   useEffect(() => {
     let cancelled = false;
@@ -28,7 +33,7 @@ export function useProjectSizes(list: readonly ArchivedProject[]): ReadonlyMap<s
     }
     const worker = async () => {
       for (let name = queue.shift(); name !== undefined && !cancelled; name = queue.shift()) {
-        const bytes = await projectDiskSize(name).catch(() => null);
+        const bytes = await projectSize(name).catch(() => null);
         measured.set(name, bytes);
         if (!cancelled) setSizes((prev) => new Map(prev).set(name, bytes));
       }
@@ -41,5 +46,5 @@ export function useProjectSizes(list: readonly ArchivedProject[]): ReadonlyMap<s
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
-  return sizes;
+  return { sizes, remeasure: () => setRound((n) => n + 1) };
 }

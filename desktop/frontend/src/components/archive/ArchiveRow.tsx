@@ -1,26 +1,39 @@
+import { useRef, useState } from "react";
 import { LoaderCircle } from "lucide-react";
+import { MoreHorizontalIcon } from "../icons";
 import { stripMarker } from "../../peer/markers";
-import { copiesWord } from "../../projectArchive";
-import type { ArchivedProject } from "../../projectArchive";
+import {
+  copiesWord,
+  rebuildableBytes,
+  rebuildableKinds,
+  type ArchivedProject,
+  type ProjectSize,
+} from "../../projectArchive";
 import { fullStamp, relativeAgo } from "../../relativeTime";
 import { formatBytes } from "../../syncApi";
-import { PORT_ACTION, PORT_DANGER } from "../ports/portsStyles";
+import { PORT_ACTION } from "../ports/portsStyles";
 import { StatusChip } from "../ui/StatusChip";
 import { ARCHIVE_GRID } from "./archiveStyles";
+import { ArchiveRowMenu } from "./ArchiveRowMenu";
 
 interface ArchiveRowProps {
   project: ArchivedProject;
   // Absent while it's measured, null when it can't be.
-  size: number | null | undefined;
+  size: ProjectSize | null | undefined;
   // The paired machine it's on, when the page lists more than one.
   machineName?: string;
   selected: boolean;
   onToggle: () => void;
   onUnarchive: () => void;
+  onFree: () => void;
   onRemove: () => void;
+  onTrash: () => void;
 }
 
-function SizeCell({ size }: { size: number | null | undefined }) {
+// The two biggest kinds say where the space went; the rest is "+N more".
+const KINDS_SHOWN = 2;
+
+function SizeCell({ size }: { size: ProjectSize | null | undefined }) {
   if (size === undefined) {
     return (
       <span className="flex items-center gap-1.5 text-[var(--text-muted)]">
@@ -30,7 +43,32 @@ function SizeCell({ size }: { size: number | null | undefined }) {
     );
   }
   if (size === null) return <span className="text-[var(--text-muted)]">—</span>;
-  return <span className="tabular-nums text-[var(--text-secondary)]">{formatBytes(size)}</span>;
+  const rebuildable = rebuildableBytes(size);
+  const kinds = rebuildableKinds([size]);
+  const named = kinds.slice(0, KINDS_SHOWN).map((k) => `${formatBytes(k.bytes)} ${k.path}`);
+  if (kinds.length > KINDS_SHOWN) named.push(`+${kinds.length - KINDS_SHOWN} more`);
+  return (
+    <span className="min-w-0">
+      <span className="block tabular-nums text-[var(--text-primary)]">{formatBytes(size.bytes)}</span>
+      {rebuildable > 0 && size.bytes > 0 && (
+        <>
+          <span
+            className="mt-1 block h-1 overflow-hidden rounded-full bg-[var(--bg-active)]"
+            role="img"
+            aria-label={`${formatBytes(rebuildable)} of it can be rebuilt`}
+          >
+            <span
+              className="block h-full rounded-full bg-[var(--accent-cyan)]"
+              style={{ width: `${Math.max(3, Math.round((rebuildable / size.bytes) * 100))}%` }}
+            />
+          </span>
+          <span className="mt-1 block truncate text-[11px] text-[var(--text-muted)]" title={named.join(" · ")}>
+            {named.join(" · ")}
+          </span>
+        </>
+      )}
+    </span>
+  );
 }
 
 export function ArchiveRow({
@@ -40,8 +78,12 @@ export function ArchiveRow({
   selected,
   onToggle,
   onUnarchive,
+  onFree,
   onRemove,
+  onTrash,
 }: ArchiveRowProps) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const moreRef = useRef<HTMLButtonElement>(null);
   const archivedSecs = Math.floor(p.archivedAt / 1000);
   const where = [
     stripMarker(p.root),
@@ -51,8 +93,8 @@ export function ArchiveRow({
 
   return (
     <div
-      className={`${ARCHIVE_GRID} border-t border-[var(--border)] px-4 py-2.5 text-[13px] first:border-t-0 ${
-        selected ? "bg-[var(--bg-hover)]" : ""
+      className={`${ARCHIVE_GRID} group border-t border-[var(--border)] px-4 py-2.5 text-[13px] transition-colors first:border-t-0 ${
+        selected || menuOpen ? "bg-[var(--bg-hover)]" : "hover:bg-[var(--bg-hover)]/50"
       }`}
     >
       <input
@@ -86,10 +128,29 @@ export function ArchiveRow({
         <button type="button" onClick={onUnarchive} className={PORT_ACTION}>
           Unarchive
         </button>
-        <button type="button" onClick={onRemove} className={PORT_DANGER}>
-          Remove…
+        <button
+          ref={moreRef}
+          type="button"
+          onClick={() => setMenuOpen((open) => !open)}
+          aria-label={`More for ${p.label}`}
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          className={`${PORT_ACTION} w-7 justify-center px-0 ${menuOpen ? "bg-[var(--bg-active)] text-[var(--text-primary)]" : ""}`}
+        >
+          <MoreHorizontalIcon />
         </button>
       </span>
+      {menuOpen && moreRef.current && (
+        <ArchiveRowMenu
+          project={p}
+          anchor={moreRef.current}
+          rebuildable={rebuildableBytes(size)}
+          onFree={onFree}
+          onRemove={onRemove}
+          onTrash={onTrash}
+          onClose={() => setMenuOpen(false)}
+        />
+      )}
     </div>
   );
 }
