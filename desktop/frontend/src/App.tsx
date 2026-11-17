@@ -306,7 +306,6 @@ export default function App() {
           onTerminals={() => setView("terminals")}
           onTerminalTab={(id) => focusProjectTerminal(GLOBAL_TERMINALS_KEY, id)}
           onStats={() => setView("stats")}
-          onPorts={() => setView("ports")}
           onUsage={() => setUsageOpen(true)}
           onScheduled={() => setView("scheduled")}
           onMobile={connectPhone}
@@ -334,7 +333,6 @@ export default function App() {
           detached={detached}
           showTerminals={isTerminalsView}
           showStats={isStatsView}
-          showPorts={isPortsView}
           showUsage={usageOpen}
           showMobile={phonePickerOpen}
           showScheduled={isScheduledView}

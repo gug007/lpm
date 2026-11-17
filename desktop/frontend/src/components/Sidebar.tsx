@@ -195,7 +195,6 @@ interface SidebarProps {
   /** Opens one of the global Terminals' tabs. */
   onTerminalTab: (terminalId: string) => void;
   onStats: () => void;
-  onPorts: () => void;
   onUsage: () => void;
   onScheduled: () => void;
   onMobile: () => void;
@@ -224,7 +223,6 @@ interface SidebarProps {
   detachedSelf?: string;
   showTerminals: boolean;
   showStats: boolean;
-  showPorts: boolean;
   showUsage: boolean;
   showMobile: boolean;
   showScheduled: boolean;
@@ -270,7 +268,7 @@ interface PeerRowOptions {
   mark?: React.ReactNode;
 }
 
-export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, onCollapsedChange, onSelect, onOpenProjectView, onToggle, onTerminals, onTerminalTab, onStats, onPorts, onUsage, onScheduled, onMobile, onFeedback, onSettings, onAddProject, onBulkDuplicate, onRemoveProject, onRemoveProjectCascade, onRemoveProjectFromDisk, onRemoveProjectsBatch, onRenameProject, onSetWorkStatus, onMoveProjectRoot, onApplySidebarLayout, onReorderDuplicate, onCreateGroup, onRenameGroup, onDeleteGroup, onToggleGroupCollapsed, onMoveProjectToGroup, onMoveProjectsToGroup, onDetachProject, onAttachProject, detached, detachedSelf, showTerminals, showStats, showPorts, showUsage, showMobile, showScheduled, showSettings, duplicatingNames, pendingDuplicates, removingNames }: SidebarProps) {
+export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, onCollapsedChange, onSelect, onOpenProjectView, onToggle, onTerminals, onTerminalTab, onStats, onUsage, onScheduled, onMobile, onFeedback, onSettings, onAddProject, onBulkDuplicate, onRemoveProject, onRemoveProjectCascade, onRemoveProjectFromDisk, onRemoveProjectsBatch, onRenameProject, onSetWorkStatus, onMoveProjectRoot, onApplySidebarLayout, onReorderDuplicate, onCreateGroup, onRenameGroup, onDeleteGroup, onToggleGroupCollapsed, onMoveProjectToGroup, onMoveProjectsToGroup, onDetachProject, onAttachProject, detached, detachedSelf, showTerminals, showStats, showUsage, showMobile, showScheduled, showSettings, duplicatingNames, pendingDuplicates, removingNames }: SidebarProps) {
   const checkedUpdate = useUpdateCheck((s) => s.info);
   const updateInfo = checkedUpdate?.updateAvail ? checkedUpdate : null;
   const update = useUpdateInstall();
@@ -2159,8 +2157,6 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
         onUsage={onUsage}
         showStats={showStats}
         onStats={onStats}
-        showPorts={showPorts}
-        onPorts={onPorts}
         showMobile={showMobile}
         onMobile={onMobile}
         showSettings={showSettings}

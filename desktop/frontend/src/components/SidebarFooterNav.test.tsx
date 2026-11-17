@@ -57,8 +57,6 @@ function renderNav(overrides: Partial<Parameters<typeof SidebarFooterNav>[0]> = 
         onUsage={noop}
         showStats={false}
         onStats={noop}
-        showPorts={false}
-        onPorts={noop}
         showMobile={false}
         onMobile={noop}
         showSettings={false}
@@ -271,7 +269,6 @@ describe("SidebarFooterNav", () => {
         "automations",
         "usage",
         "stats",
-        "ports",
         "recap",
         "mobile",
         "github",

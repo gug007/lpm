@@ -20,8 +20,6 @@ import { openGithubStarPage } from "../githubStarred";
 import { useGlobalAgentStatus } from "../store/globalAgentStatus";
 import { useSettingsStore } from "../store/settings";
 import { useWeeklyRecapStore } from "../store/weeklyRecap";
-import { useListeningPorts } from "../store/listeningPorts";
-import { projectPortCount } from "./ports/portsModel";
 import { useTerminalTitles } from "../store/terminalTitles";
 import { GLOBAL_TERMINALS_KEY } from "../terminals";
 import {
@@ -32,7 +30,6 @@ import {
   SettingsIcon,
   SmartphoneIcon,
   StarIcon,
-  PortForwardIcon,
   StatsIcon,
   TerminalIcon,
   ZapIcon,
@@ -60,8 +57,6 @@ interface SidebarFooterNavProps {
   onUsage: () => void;
   showStats: boolean;
   onStats: () => void;
-  showPorts: boolean;
-  onPorts: () => void;
   showMobile: boolean;
   onMobile: () => void;
   showSettings: boolean;
@@ -90,8 +85,6 @@ export function SidebarFooterNav({
   onUsage,
   showStats,
   onStats,
-  showPorts,
-  onPorts,
   showMobile,
   onMobile,
   showSettings,
@@ -104,7 +97,6 @@ export function SidebarFooterNav({
   const recapOpen = useWeeklyRecapStore((s) => s.open);
   const showRecap = useWeeklyRecapStore((s) => s.show);
   const { running, unread, waiting } = useJobsAmbient();
-  const projectPorts = useListeningPorts((s) => projectPortCount(s.overview?.ports ?? []));
   const [rowMenu, setRowMenu] = useState<RowMenu | null>(null);
   const footerRef = useRef<HTMLDivElement>(null);
   const keepAwake = useKeepAwakeSession(null);
@@ -252,23 +244,6 @@ export function SidebarFooterNav({
       icon: <StatsIcon />,
       active: showStats,
       onSelect: onStats,
-    },
-    ports: {
-      id: "ports",
-      label: "Ports",
-      icon: <PortForwardIcon />,
-      active: showPorts,
-      onSelect: onPorts,
-      description: "Every listening port, with the project and service that holds it.",
-      trailing:
-        projectPorts > 0 ? (
-          <span
-            className="text-[10px] tabular-nums text-[var(--text-muted)]"
-            aria-label={`${projectPorts} ports held by your projects`}
-          >
-            {projectPorts}
-          </span>
-        ) : undefined,
     },
     recap: {
       id: "recap",
