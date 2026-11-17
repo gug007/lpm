@@ -162,7 +162,7 @@ struct TerminalScreen: View {
                 model.claimControl(t.id)
                 switched = t
             })
-            .navigationDestination(item: $switched) { TerminalScreen(term: $0, project: liveProject) }
+            .navigationDestination(item: $switched) { TerminalScreen(term: $0, project: liveProject).environment(model) }
             .sheet(item: $preview) { target in
                 FilePreviewSheet(target: target, onMention: controlled && ended == nil ? { mention in
                     model.composerStore(for: term.id, project: term.project, label: term.label).appendText(mention + " ")

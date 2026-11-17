@@ -51,13 +51,13 @@ struct ProjectMenuHost: ViewModifier {
     func body(content: Content) -> some View {
         @Bindable var git = sharedGit ?? ownGit
         content
-            .navigationDestination(isPresented: $git.changes) { GitReviewView(project: project) }
-            .navigationDestination(isPresented: $showFiles) { ProjectFilesScreen(project: project) }
-            .navigationDestination(isPresented: $showMemory) { MemoryScreen(project: project) }
-            .navigationDestination(isPresented: $showCommands) { CommandsScreen(project: project.name) }
-            .navigationDestination(isPresented: $showNotes) { NotesScreen(project: project.name) }
-            .navigationDestination(isPresented: $showAutomations) { AutomationsView(project: project.name) }
-            .navigationDestination(isPresented: $showHistory) { CommitHistoryScreen(project: project) }
+            .navigationDestination(isPresented: $git.changes) { GitReviewView(project: project).environment(model) }
+            .navigationDestination(isPresented: $showFiles) { ProjectFilesScreen(project: project).environment(model) }
+            .navigationDestination(isPresented: $showMemory) { MemoryScreen(project: project).environment(model) }
+            .navigationDestination(isPresented: $showCommands) { CommandsScreen(project: project.name).environment(model) }
+            .navigationDestination(isPresented: $showNotes) { NotesScreen(project: project.name).environment(model) }
+            .navigationDestination(isPresented: $showAutomations) { AutomationsView(project: project.name).environment(model) }
+            .navigationDestination(isPresented: $showHistory) { CommitHistoryScreen(project: project).environment(model) }
             .sheet(isPresented: $git.branch) {
                 GitBranchSheet(project: project).environment(model)
             }

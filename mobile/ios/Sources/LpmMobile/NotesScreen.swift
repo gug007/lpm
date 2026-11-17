@@ -77,6 +77,7 @@ struct NotesScreen: View {
         .onChange(of: notes.createdChatId[project]) { _, id in openCreated(id) }
         .navigationDestination(item: $route) { target in
             NotesChatView(project: project, chatId: target.id, title: target.title)
+                .environment(model)
         }
         .modifier(NotesChatPrompts(
             creating: $creating, newTitle: $newTitle,

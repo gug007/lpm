@@ -59,6 +59,7 @@ struct AutomationDetailView: View {
         .navigationDestination(isPresented: $liveRunOpen) {
             AutomationConversationView(project: project, jobId: jobId,
                                        rootAt: AutomationConversationView.liveRun)
+                .environment(model)
         }
         .navigationTitle(job?.displayName ?? "Automation")
         .navigationBarTitleDisplayMode(.inline)

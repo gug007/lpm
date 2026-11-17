@@ -99,6 +99,7 @@ struct FilePreviewSheet: View {
             .navigationDestination(isPresented: $showDiff) {
                 if let project = model.projects.first(where: { $0.name == target.project }) {
                     GitReviewView(project: project, focus: changedFile?.path)
+                        .environment(model)
                 }
             }
             .toolbar {

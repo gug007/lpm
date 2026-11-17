@@ -170,7 +170,10 @@ struct ProjectDetail: View {
         }
         .followsGitChanges(project.name)
         .topBar { ConnectionStatusBar() }
-        .navigationDestination(item: $openTerminal) { TerminalScreen(term: $0, project: live) }
+        // A pushed screen takes its session from the navigation stack, not from
+        // the screen that pushed it: on a machine visit that is the live Mac's,
+        // so every screen pushed from here is handed this one's.
+        .navigationDestination(item: $openTerminal) { TerminalScreen(term: $0, project: live).environment(model) }
         .tabRenameAlert($renaming)
         .tabMenuConfirmations(forkingIntoCopy: $forkingIntoCopy, closingOthers: $closingOthers)
         .safeAreaInset(edge: .bottom) {
