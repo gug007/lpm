@@ -84,10 +84,6 @@ fun ProjectRow(
             DisclosureChevron()
         }
     ) {
-        project.workStatus?.let {
-            WorkStatusMark(it)
-            Spacer(Modifier.width(8.dp))
-        }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
                 text = project.label,
@@ -98,9 +94,7 @@ fun ProjectRow(
                     LpmTheme.colors.secondaryLabel
                 }
             )
-            val status = project.workStatus
-            val note = status?.note
-            if (status != null && note != null) WorkStatusNoteLine(status, note)
+            project.workStatus?.let { WorkStatusLine(it) }
             queued.forEach { action ->
                 QueuedActionLine(
                     action = action,

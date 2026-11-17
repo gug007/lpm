@@ -172,20 +172,23 @@ class PairedMachineFeedsTest {
     }
 
     @Test
-    fun `machines carried through another Mac or shown by the live one are left out`() = runTest {
-        val through = record("10.0.0.5", "srv-3", "Pi", MacVia(macId = "x", slug = "pi"))
-        val s = twoMacs(through)
-        val box = """{"slug":"build-box","name":"Build Box","serverId":"srv-2","state":"ready"}"""
-        s.h.transport.sockets.first().receive("""{"t":"machines","machines":[$box]}""")
-        settle()
-        settle()
-        val listed = s.feeds.listedSections.first()
-        assertEquals(listOf("build-box"), listed.map { it.id })
-        assertTrue(s.feeds.feeds.value.isEmpty())
+    fun `a machine paired here lists over its own connection, not through the live Mac`() =
+        runTest {
+            val through = record("10.0.0.5", "srv-3", "Pi", MacVia(macId = "x", slug = "pi"))
+            val s = twoMacs(through)
+            val box =
+                """{"slug":"build-box","name":"Build Box","serverId":"srv-2","state":"ready",""" +
+                    """"projects":[{"name":"api"}]}"""
+            s.h.transport.sockets.first().receive("""{"t":"machines","machines":[$box]}""")
+            settle()
+            val listed = s.feeds.listedSections.first().single()
+            assertEquals("saved:" + s.other.localId, listed.id)
+            assertEquals(listOf("api"), listed.rows.map { it.project.name })
+            assertEquals(setOf(s.other.localId), s.feeds.feeds.value.keys)
 
-        s.feeds.toggle(s.other.localId)
-        settle()
-        assertTrue(s.feeds.listedSections.first().isEmpty())
-        assertEquals(setOf(s.other.localId), s.feeds.choices.value.cleared)
-    }
+            s.feeds.toggle(s.other.localId)
+            settle()
+            assertTrue(s.feeds.listedSections.first().isEmpty())
+            assertEquals(setOf(s.other.localId), s.feeds.choices.value.cleared)
+        }
 }

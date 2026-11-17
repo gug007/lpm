@@ -902,14 +902,11 @@ struct ProjectRow: View {
                 }
             }
             .frame(width: 14)
-            if let status = project.workStatus {
-                WorkStatusMark(status: status)
-            }
             VStack(alignment: .leading, spacing: 2) {
                 Text(project.label)
                     .foregroundStyle(project.configError == nil ? .primary : .secondary)
-                if let status = project.workStatus, let note = status.note {
-                    WorkStatusNoteLine(status: status, note: note)
+                if let status = project.workStatus {
+                    WorkStatusLine(status: status)
                 }
                 if showsQueued {
                     ForEach(model.link.queued(for: project.name)) { action in

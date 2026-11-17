@@ -218,15 +218,16 @@ fun shownIds(s: SessionState, own: List<MachineSection>, choices: MachineChoices
     s.macs.filter { choices.shows(it, s, own) }.map { it.localId }.toSet()
 
 /**
- * The live Mac's own machines the list shows. One that isn't saved here yet has no
- * tick to clear.
+ * The live Mac's own machines the list shows through it: the ones this phone has no
+ * pairing of its own with. One paired here lists over its own connection instead, and
+ * one that isn't saved yet has no tick to clear.
  */
 fun shownSections(
     s: SessionState,
     own: List<MachineSection>,
     choices: MachineChoices
 ): List<MachineSection> = own.filter { section ->
-    section.record?.let { choices.shows(it, s, own) } ?: true
+    section.record?.let { it.via != null && choices.shows(it, s, own) } ?: true
 }
 
 /**
@@ -242,8 +243,8 @@ fun openedThroughLiveMac(
     .map { it.id }
 
 /**
- * Ticked machines the phone lists itself: paired with it directly, not the live Mac,
- * and not already one of the live Mac's own sections.
+ * Ticked machines the phone lists over a connection of its own: every one paired
+ * with it directly, the live Mac aside.
  */
 fun otherSavedMachines(
     s: SessionState,
@@ -251,10 +252,8 @@ fun otherSavedMachines(
     choices: MachineChoices
 ): List<MacRecord> {
     if (s.demoMode) return emptyList()
-    val shownByLiveMac = own.mapNotNull { it.machine.serverId }.toSet()
     return s.macs.filter { mac ->
-        mac.localId != s.activeMacId && mac.via == null && choices.shows(mac, s, own) &&
-            mac.serverId?.let { it in shownByLiveMac } != true
+        mac.localId != s.activeMacId && mac.via == null && choices.shows(mac, s, own)
     }
 }
 
@@ -266,6 +265,11 @@ fun pairedSections(
     choices: MachineChoices
 ): List<MachineSection> = otherSavedMachines(s, own, choices).mapNotNull { mac ->
     val feed = feeds[mac.localId] ?: return@mapNotNull null
+    // Until its own connection has listed them, the live Mac's word for its
+    // projects stands in.
+    val projects = feed.projects ?: own
+        .firstOrNull { it.machine.serverId != null && it.machine.serverId == mac.serverId }
+        ?.machine?.projects
     val machine = RemoteMachine(
         slug = "saved:" + mac.localId,
         name = mac.displayName,
@@ -276,12 +280,12 @@ fun pairedSections(
         } else {
             RemoteMachine.State.Offline
         },
-        projects = feed.projects,
+        projects = projects,
         relay = false
     )
     MachineSection(
         machine = machine,
-        rows = machineRows(feed.projects.orEmpty()),
+        rows = machineRows(projects.orEmpty()),
         record = mac,
         pending = null,
         throughMac = false,

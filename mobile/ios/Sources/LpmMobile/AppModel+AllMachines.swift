@@ -45,21 +45,21 @@ extension AppModel {
         }
     }
 
-    /// The live Mac's own machines the list shows. One that isn't saved here
-    /// yet has no tick to clear.
+    /// The live Mac's own machines the list shows through it: the ones this
+    /// phone has no pairing of its own with. One paired here lists over its own
+    /// connection instead, and one that isn't saved yet has no tick to clear.
     var shownMachineSections: [MachineSection] {
-        machineSections.filter { $0.record.map(isShown) ?? true }
+        machineSections.filter { section in
+            guard let record = section.record else { return true }
+            return record.via != nil && isShown(record)
+        }
     }
 
-    /// Ticked machines the phone lists itself: paired with it directly, not the
-    /// live Mac, and not already one of the live Mac's own sections.
+    /// Ticked machines the phone lists over a connection of its own: every one
+    /// paired with it directly, the live Mac aside.
     var otherSavedMachines: [MacRecord] {
         guard !demoMode, !isVisit else { return [] }
-        let shownByLiveMac = Set(machineImporter.machines.filter(\.isConnected).compactMap(\.serverId))
-        return macs.filter { mac in
-            mac.localId != activeMacId && mac.via == nil && isShown(mac)
-                && !(mac.serverId.map(shownByLiveMac.contains) ?? false)
-        }
+        return macs.filter { $0.localId != activeMacId && $0.via == nil && isShown($0) }
     }
 
     /// Keep the other ticked machines connected while the app is on screen, and
@@ -86,8 +86,12 @@ extension AppModel {
     var pairedMachineSections: [MachineSection] {
         otherSavedMachines.compactMap { mac in
             guard let feed = machineFeeds.feeds[mac.localId] else { return nil }
-            let machine = RemoteMachine(record: mac, projects: feed.projects, connected: feed.state == .ready)
-            return MachineSection(machine: machine, rows: machineRows(feed.projects ?? []), record: mac,
+            // Until its own connection has listed them, the live Mac's word for
+            // its projects stands in.
+            let projects = feed.projects ?? machineImporter.machines
+                .first { $0.serverId != nil && $0.serverId == mac.serverId }?.projects
+            let machine = RemoteMachine(record: mac, projects: projects, connected: feed.state == .ready)
+            return MachineSection(machine: machine, rows: machineRows(projects ?? []), record: mac,
                                   pending: nil, throughMac: false, note: Self.note(feed))
         }
     }
