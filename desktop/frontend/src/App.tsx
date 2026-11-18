@@ -5,8 +5,11 @@ import { GlobalTerminalsView } from "./components/GlobalTerminalsView";
 import { StatsView } from "./components/StatsView";
 import { PortsView } from "./components/ports/PortsView";
 import { ArchiveView } from "./components/archive/ArchiveView";
+import { ArchivedProjectBar } from "./components/archive/ArchivedProjectBar";
 import { ArchiveProjectDialog } from "./components/archive/ArchiveProjectDialog";
+import { useCloseLeftArchived } from "./hooks/useCloseLeftArchived";
 import { useProjectArchiveSync } from "./hooks/useProjectArchiveSync";
+import { listedProjects } from "./store/openedArchive";
 import { usePortsWiring } from "./components/ports/usePortsWiring";
 import { UsageModal } from "./components/UsageModal";
 import { ScheduledView } from "./components/ScheduledView";
@@ -161,6 +164,8 @@ export default function App() {
   const settingsShown = isSettingsView(view);
   useTrackSettingsReturn(view);
   const selectedProject = projects.find((p) => p.name === selected) || null;
+  // Archived projects open for now have a sidebar section of their own.
+  const listed = useMemo(() => listedProjects(projects), [projects]);
 
   const [globalTerminalsVisited, setGlobalTerminalsVisited] = useState(false);
   useEffect(() => {
@@ -169,6 +174,7 @@ export default function App() {
 
   useProjectsSync();
   useProjectArchiveSync();
+  useCloseLeftArchived();
   useGlobalAgentStatusSync();
   useAgentToasts();
   useAppEvents();
@@ -228,7 +234,7 @@ export default function App() {
   }, !settingsShown);
   usePortsWiring();
 
-  const projectNames = useMemo(() => projects.map((p) => p.name), [projects]);
+  const projectNames = useMemo(() => listed.map((p) => p.name), [listed]);
   useKeyboardShortcut(PROJECT_JUMP_SHORTCUTS, (_e, matched) => {
     const pins = shownPins(useSettingsStore.getState().pinnedProjects, new Set(projectNames));
     const name = jumpTargets(pins, projectNames)[Number(matched.key) - 1];
@@ -298,7 +304,7 @@ export default function App() {
       <ClaudeTabAccountQuestion />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar
-          projects={projects}
+          projects={listed}
           groups={groups}
           sidebarOrder={sidebarOrder}
           selected={view === "projects" ? selected : null}
@@ -383,6 +389,7 @@ export default function App() {
           {view === "archive" && <ArchiveView />}
           {isScheduledView && <ScheduledView />}
           {view === "shared" && <SharedTabView />}
+          {view === "projects" && selectedProject?.archived && <ArchivedProjectBar project={selectedProject} />}
           {view === "projects" && selectedProject && <PeerLinkStrip project={selected} peers={peerState.peers} />}
           <ProjectColumns
             mounted={visitedProjects}

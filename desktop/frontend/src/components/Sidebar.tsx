@@ -54,6 +54,7 @@ import { SidebarIcon, PlusIcon, ServerIcon } from "./icons";
 import { SidebarWindowMark } from "./SidebarWindowMark";
 import { focusDetachedTerminal, focusMainTerminal, projectWindow } from "../windowFocus";
 import { SidebarFooterNav } from "./SidebarFooterNav";
+import { SidebarArchivedOpen } from "./SidebarArchivedOpen";
 import { SidebarNoProjects } from "./SidebarNoProjects";
 import { AppMenuButton } from "./AppMenuButton";
 import { isMac, trashName } from "../platform";
@@ -1808,6 +1809,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           {!selectMode && navItems.length === 0 && projectsLoad === "loaded" && (
             <SidebarNoProjects />
           )}
+          {!selectMode && <SidebarArchivedOpen width={width - 8} />}
         </nav>
         {!selectMode && !activeId && <SidebarAgentEdges listRef={listRef} />}
       </div>

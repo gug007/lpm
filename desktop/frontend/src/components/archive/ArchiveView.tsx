@@ -12,6 +12,7 @@ import {
   type ArchivedProject,
   type ArchiveSort,
 } from "../../projectArchive";
+import { useAppStore } from "../../store/app";
 import { useProjectArchiveStore } from "../../store/projectArchive";
 import { formatBytes } from "../../syncApi";
 import { GlobalPageHeader } from "../GlobalPageHeader";
@@ -32,6 +33,7 @@ export function ArchiveView() {
   const peers = useProjectArchiveStore((s) => s.peers);
   const load = useProjectArchiveStore((s) => s.load);
   const unarchive = useProjectArchiveStore((s) => s.unarchive);
+  const openArchived = useAppStore((s) => s.openArchived);
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<ArchiveSort>("archived");
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
@@ -150,7 +152,7 @@ export function ArchiveView() {
             </p>
           </div>
         ) : (
-          <div className={`min-w-[46rem] overflow-hidden ${CARD_CLASS}`}>
+          <div className={`min-w-[49rem] overflow-hidden ${CARD_CLASS}`}>
             {picked.length > 0 ? (
               <div className="sticky top-0 z-[1] flex h-10 items-center gap-3 border-b border-[var(--border)] bg-[var(--accent-cyan)]/10 px-4 text-[12px]">
                 <input
@@ -200,6 +202,7 @@ export function ArchiveView() {
                 machineName={machineName(p)}
                 selected={selected.has(p.name)}
                 onToggle={() => toggle(p.name)}
+                onOpen={() => void openArchived(p.name)}
                 onUnarchive={() => bringBack([p])}
                 onFree={() => setFreeing([p])}
                 onRemove={() => setRemoval({ project: p, from: "lpm" })}
@@ -216,7 +219,8 @@ export function ArchiveView() {
         {all.length > 0 && (
           <p className="mt-3 max-w-3xl px-1 text-[12px] leading-relaxed text-[var(--text-muted)]">
             Archived projects stay out of the sidebar, the project switcher and the phone, and
-            their automations don't run. Unarchive puts one back where it was, set up as before.
+            their automations don't run. Open shows one in the sidebar until you leave it, still
+            archived. Unarchive puts one back where it was, set up as before.
           </p>
         )}
       </div>

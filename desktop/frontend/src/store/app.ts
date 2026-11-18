@@ -42,6 +42,7 @@ import {
   StartDuplicateWorktreeProject,
   StartProject,
   StartProjectWithServices,
+  GetProject,
   StopProject,
   ToggleProjectService,
   RestartProjectService,
@@ -81,6 +82,7 @@ import {
 } from "../terminals";
 import { isPeerName, peerSlugOf, prefixName, prefixRoot } from "../peer/markers";
 import { fileCopiesOnHosts } from "../peer/useHostFolders";
+import { listedProjects } from "./openedArchive";
 import {
   adoptedProject,
   adoptionNotice,
@@ -260,6 +262,10 @@ interface AppState {
   pruneVisitedToProjects: () => void;
 
   refreshProjects: () => Promise<void>;
+  // The archived project open in this window, until something else is shown.
+  openedArchive: string | null;
+  openArchived: (name: string) => Promise<void>;
+  closeArchived: (name: string) => Promise<void>;
   refreshTemplates: () => Promise<void>;
   selectTemplate: (name: string) => void;
 
@@ -923,8 +929,17 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (refreshHeld()) return deferRefresh();
     const seq = ++projectsRefreshSeq;
     try {
-      const list = await ListProjects();
+      const opening = get().openedArchive;
+      const [listed, opened] = await Promise.all([
+        ListProjects(),
+        opening ? (GetProject(opening) as Promise<ProjectInfo | null>).catch(() => null) : null,
+      ]);
       if (seq !== projectsRefreshSeq) return;
+      // Listed again means it was unarchived, here or elsewhere.
+      const unarchived = !!opening && Array.isArray(listed) && listed.some((p) => p.name === opening);
+      if (unarchived && get().openedArchive === opening) set({ openedArchive: null });
+      const list =
+        Array.isArray(listed) && opened && !unarchived ? [...listed, { ...opened, archived: true }] : listed;
       // Read before a drag or a layout save began: it would undo them.
       if (refreshHeld()) return deferRefresh();
       // A non-array means the listing failed (the backend errors rather than
@@ -950,11 +965,37 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
+  openedArchive: null,
+
+  openArchived: async (name) => {
+    const open = get().openedArchive;
+    if (open && open !== name) await get().closeArchived(open);
+    set({ openedArchive: name });
+    await get().refreshProjects();
+    if (get().projects.some((p) => p.name === name)) {
+      get().selectProject(name);
+      return;
+    }
+    if (get().openedArchive === name) set({ openedArchive: null });
+    toast.error("Couldn't open the archived project");
+  },
+
+  closeArchived: async (name) => {
+    if (get().openedArchive !== name) return;
+    const running = () => get().projects.some((p) => p.name === name && p.running);
+    if (running()) {
+      await get().stopProject(name);
+      if (running()) return;
+    }
+    set((s) => ({ openedArchive: null, ...(s.selected === name && { selected: null }) }));
+    await get().refreshProjects();
+  },
+
   reconcileSidebarLayout: (projects) => {
     // Remote (peer) projects render in their Mac's own section — their order
     // lives in settings.peerProjectOrder, never in sidebarOrder or folders, so
     // keep them out of the layout.
-    const local = projects.filter((p) => !isPeerName(p.name));
+    const local = listedProjects(projects).filter((p) => !isPeerName(p.name));
     const before: SidebarLayout = { order: get().sidebarOrder, groups: get().groups };
     const after = reconcile(
       before,
@@ -1792,7 +1833,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     // token — e.g. removing a duplicate from a folder leaves it with no loose
     // top-level slot, so reconcile drops the stray token and it nests under its
     // parent again. Idempotent, so a clean drag-drop layout passes through.
-    const projects = get().projects;
+    const projects = listedProjects(get().projects);
     const next = reconcile(
       layout,
       topLevelProjectNames(projects),

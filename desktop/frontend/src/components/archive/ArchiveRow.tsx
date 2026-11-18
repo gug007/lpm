@@ -24,6 +24,7 @@ interface ArchiveRowProps {
   machineName?: string;
   selected: boolean;
   onToggle: () => void;
+  onOpen: () => void;
   onUnarchive: () => void;
   onFree: () => void;
   onRemove: () => void;
@@ -77,6 +78,7 @@ export function ArchiveRow({
   machineName,
   selected,
   onToggle,
+  onOpen,
   onUnarchive,
   onFree,
   onRemove,
@@ -125,6 +127,14 @@ export function ArchiveRow({
         )}
       </span>
       <span className="flex items-center justify-end gap-1.5">
+        <button
+          type="button"
+          onClick={onOpen}
+          className={PORT_ACTION}
+          title="Open it without unarchiving. Its automations stay paused."
+        >
+          Open
+        </button>
         <button type="button" onClick={onUnarchive} className={PORT_ACTION}>
           Unarchive
         </button>

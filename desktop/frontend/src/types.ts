@@ -269,6 +269,9 @@ export interface ProjectInfo {
   parentName?: string;
   worktree?: boolean;
   isRemote: boolean;
+  // An archived project opened for now: listed by this window only, under
+  // "From the Archive", and still archived everywhere else.
+  archived?: boolean;
   workStatus?: WorkStatus;
   // The project's own Claude account pin: absent when unset, "" for the main
   // login, otherwise a ClaudeAccount id.
