@@ -150,6 +150,10 @@ const LESSON_CAPTION: Record<
     heading: "Six buttons that show live numbers, and a chart on hover",
     blurb: "A short video: six ideas for your header, and Claude Code building one from a single prompt.",
   },
+  "archive-projects": {
+    heading: "Archive finished projects, and free the disk space they hold",
+    blurb: "A short video: archive a project, free node_modules from every archived one, and unarchive it later.",
+  },
 };
 
 // The frame sits in the first viewport, so the observer fires on load. Waiting

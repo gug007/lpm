@@ -3912,5 +3912,159 @@
    161.2,
    "and lpm keeps them current. Pick the number you check most, and put it on a button."
   ]
+ ],
+ "archive-projects": [
+  [
+   0.5,
+   "How to archive projects in lpm,"
+  ],
+  [
+   2.7,
+   "and free up disk space. Put away the projects you're done with,"
+  ],
+  [
+   6.6,
+   "and get back the gigabytes they hold."
+  ],
+  [
+   9.6,
+   "Here's a sidebar with five projects."
+  ],
+  [
+   12.2,
+   "Two of them, docs-site and ml-pipeline, are finished for now."
+  ],
+  [
+   16.5,
+   "To put one away, right-click it,"
+  ],
+  [
+   18.5,
+   "and pick Archive project."
+  ],
+  [
+   21.1,
+   "lpm tells you what happens:"
+  ],
+  [
+   23.7,
+   "the project leaves the sidebar,"
+  ],
+  [
+   25.6,
+   "and its setup, notes and folder stay as they are,"
+  ],
+  [
+   28.7,
+   "so go ahead and click Archive."
+  ],
+  [
+   31.4,
+   "It's gone from the list, and for a few seconds you can still Undo."
+  ],
+  [
+   36.2,
+   "Do the same for ml-pipeline:"
+  ],
+  [
+   39.4,
+   "right-click, then Archive project, and confirm."
+  ],
+  [
+   42.8,
+   "A project that's still running is stopped first."
+  ],
+  [
+   46.1,
+   "Archived projects wait on a page of their own."
+  ],
+  [
+   49.4,
+   "Open More, and from its menu, pick Archive."
+  ],
+  [
+   52.7,
+   "Each one shows when you archived it,"
+  ],
+  [
+   54.7,
+   "and how much disk space its folder takes."
+  ],
+  [
+   58.1,
+   "The colored bar is the part you can get back:"
+  ],
+  [
+   61.4,
+   "folders like node_modules,"
+  ],
+  [
+   63,
+   "which an install or a build makes again."
+  ],
+  [
+   65.4,
+   "To clear them out of every archived project at once,"
+  ],
+  [
+   69,
+   "click the Free button, up in the corner."
+  ],
+  [
+   71.1,
+   "lpm lists what it will move to the Trash."
+  ],
+  [
+   73.9,
+   "Your code, git history and setup stay. Click Move to Trash."
+  ],
+  [
+   78.6,
+   "The folders are in the Trash now,"
+  ],
+  [
+   80.9,
+   "so the space comes back once you empty it."
+  ],
+  [
+   83.5,
+   "And each project is a fraction of its size."
+  ],
+  [
+   86.7,
+   "While a project is archived,"
+  ],
+  [
+   88.9,
+   "it stays out of the sidebar,"
+  ],
+  [
+   90.5,
+   "the project switcher and the phone app,"
+  ],
+  [
+   92.6,
+   "and its automations don't run."
+  ],
+  [
+   94.8,
+   "When you need one again, click Unarchive."
+  ],
+  [
+   98.3,
+   "It's back in the sidebar, set up as before."
+  ],
+  [
+   101.3,
+   "If you freed its space, run your install or build once more."
+  ],
+  [
+   105.2,
+   "So archive what you've finished,"
+  ],
+  [
+   107.5,
+   "free the space, and unarchive it the day you need it."
+  ]
  ]
 }

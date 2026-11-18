@@ -330,4 +330,13 @@ export const LESSON_CHAPTERS: Record<YouTubeLessonId, LessonChapters> = {
       [108, "Build one with Claude Code"],
     ],
   },
+  "archive-projects": {
+    seconds: 115,
+    chapters: [
+      [0, "Archive a project"],
+      [46, "The Archive page"],
+      [65, "Free up disk space"],
+      [94, "Unarchive"],
+    ],
+  },
 };

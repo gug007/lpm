@@ -51,6 +51,7 @@ const LESSONS: Record<YouTubeLessonId, { topic: TopicId; title: string }> = {
   "start-project": { topic: "get-started", title: "Start and stop your dev server" },
   "edit-services": { topic: "get-started", title: "Edit and add services" },
   "switch-profiles": { topic: "get-started", title: "Run only the services you need" },
+  "archive-projects": { topic: "get-started", title: "Archive projects and free disk space" },
   "add-action": { topic: "buttons", title: "Turn any command into a button" },
   "dynamic-action-labels": { topic: "buttons", title: "Buttons that show live info" },
   "six-action-button-ideas": { topic: "buttons", title: "Six ideas for charts on your buttons" },

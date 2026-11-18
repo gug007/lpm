@@ -212,6 +212,13 @@ const LESSONS = {
       "Six ideas for lpm's action buttons, each with a live number on the button and a chart when you point at it, and how to build one with Claude Code from a single prompt.",
     uploadDate: "2026-11-06T09:00:00+00:00",
   },
+  "archive-projects": {
+    id: "aJLIUPsDN1c",
+    name: "How to Archive Projects in lpm (and Free Up Disk Space)",
+    description:
+      "Archive the projects you're done with in lpm, and free the disk space they hold. Right-click a project and pick Archive project, find it later under More, Archive with the space its folder takes, move node_modules and build folders from every archived project to the Trash at once, and unarchive a project set up as it was.",
+    uploadDate: "2026-11-18T09:00:00+00:00",
+  },
 } as const;
 
 export type YouTubeLessonId = keyof typeof LESSONS;
