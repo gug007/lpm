@@ -294,7 +294,9 @@ interface AppState {
   closeAddProjectPicker: () => void;
   closeRemoteFolderPicker: () => void;
   createRemoteProjectFromFolder: (hostDir: string) => Promise<void>;
-  noteAdoption: (adopted: AdoptedProject, requested: string, where: string) => void;
+  // True when the folder turned out to be an archived project, which has no
+  // sidebar row to select.
+  noteAdoption: (adopted: AdoptedProject, requested: string, where: string) => Promise<boolean>;
   pickAddProjectKind: (kind: "local" | "ssh" | "clone") => Promise<void>;
   // Adopt a folder on this machine as a project; null when that failed (toasted).
   addLocalFolder: (dir: string) => Promise<AdoptedProject | null>;
@@ -1182,13 +1184,12 @@ export const useAppStore = create<AppState>((set, get) => ({
         prefixName(target.slug, name),
       );
       await get().refreshProjects();
+      const archived = await get().noteAdoption(adopted, name, target.alias);
       set({
-        selected: adopted.name,
-        view: "projects",
+        ...(archived ? {} : { selected: adopted.name, view: "projects" as const }),
         remoteFolderPickerOpen: false,
         addProjectTarget: null,
       });
-      get().noteAdoption(adopted, name, target.alias);
     } catch (err) {
       toast.error(`Failed to add project on ${target.alias}: ${err}`);
     }
@@ -1198,12 +1199,18 @@ export const useAppStore = create<AppState>((set, get) => ({
   // project (shown under whatever label it carries), or that name was taken.
   // And say what its files turned into, so the user knows there is no
   // placeholder to replace.
-  noteAdoption: (adopted, requested, where) => {
+  noteAdoption: async (adopted, requested, where) => {
+    // Loaded on demand: the archive store builds on this one.
+    if (adopted.existing && !get().projects.some((p) => p.name === adopted.name)) {
+      const { noteArchivedAdoption } = await import("./archivedAdoption");
+      if (noteArchivedAdoption(adopted.name)) return true;
+    }
     const label = get().projects.find((p) => p.name === adopted.name)?.label;
     const notice = adoptionNotice(adopted, requested, label, where);
     if (notice) toast.info(notice);
     const found = detectionNotice(adopted.services);
     if (found) toast.success(found);
+    return false;
   },
 
   pickAddProjectKind: async (kind) => {
@@ -1238,8 +1245,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       const name = folderBaseName(dir);
       const adopted = adoptedProject(await CreateProject(name, dir), name);
       await get().refreshProjects();
-      get().noteAdoption(adopted, name, "");
-      return adopted;
+      return (await get().noteAdoption(adopted, name, "")) ? null : adopted;
     } catch (err) {
       toast.error(`Failed to add project: ${err}`);
       return null;

@@ -1,9 +1,12 @@
+// @vitest-environment happy-dom
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   createProject: vi.fn(),
   browseFolder: vi.fn(),
   toastError: vi.fn(),
+  toastInfo: vi.fn(),
+  unarchiveProject: vi.fn(),
 }));
 
 // vi.mock hoists above any const, so the factories are inlined. `then` must
@@ -19,7 +22,9 @@ vi.mock("../../bridge/commands", () =>
           ? mocks.createProject
           : prop === "BrowseFolder"
             ? mocks.browseFolder
-            : vi.fn(),
+            : prop === "UnarchiveProject"
+              ? mocks.unarchiveProject
+              : vi.fn(),
   }));
 vi.mock("../../bridge/runtime", () =>
   new Proxy({}, {
@@ -27,10 +32,23 @@ vi.mock("../../bridge/runtime", () =>
     get: (_t, prop) => (prop === "then" ? undefined : vi.fn()),
   }));
 vi.mock("../notifications/toast", () => ({
-  toast: Object.assign(vi.fn(), { error: mocks.toastError, info: vi.fn(), success: vi.fn() }),
+  toast: Object.assign(vi.fn(), { error: mocks.toastError, info: mocks.toastInfo, success: vi.fn() }),
 }));
 
+import type { ArchivedProject } from "../projectArchive";
 import { useAppStore } from "./app";
+import { useProjectArchiveStore } from "./projectArchive";
+
+const archived = (name: string): ArchivedProject => ({
+  name,
+  label: name,
+  root: `/code/${name}`,
+  isRemote: false,
+  archivedAt: 1,
+  copies: 0,
+  automations: 0,
+  machine: "",
+});
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -41,6 +59,7 @@ beforeEach(() => {
     addProjectTarget: null,
     refreshProjects: vi.fn(async () => {}),
   });
+  useProjectArchiveStore.setState({ byMachine: {}, load: vi.fn(async () => {}) });
 });
 
 describe("addLocalFolder", () => {
@@ -71,5 +90,43 @@ describe("addLocalFolder", () => {
     expect(mocks.createProject).toHaveBeenCalledWith("api", "/code/api");
     expect(useAppStore.getState().selected).toBe("api");
     expect(useAppStore.getState().view).toBe("projects");
+  });
+
+  it("says an archived project's folder is archived instead of opening a project the sidebar doesn't list", async () => {
+    useProjectArchiveStore.setState({ byMachine: { "": [archived("docs-site")] } });
+    mocks.browseFolder.mockResolvedValue("/code/docs-site");
+    mocks.createProject.mockResolvedValue({ name: "docs-site", existing: true, services: [] });
+
+    await useAppStore.getState().pickAddProjectKind("local");
+
+    expect(useAppStore.getState().selected).toBeNull();
+    expect(useAppStore.getState().view).toBe("terminals");
+    expect(mocks.toastInfo).toHaveBeenCalledTimes(1);
+    const [title, options] = mocks.toastInfo.mock.calls[0];
+    expect(title).toBe("docs-site is archived");
+    expect(options.action.label).toBe("Unarchive");
+  });
+
+  it("unarchives from that notice and opens the project once the sidebar lists it", async () => {
+    useProjectArchiveStore.setState({ byMachine: { "": [archived("docs-site")] } });
+    mocks.createProject.mockResolvedValue({ name: "docs-site", existing: true, services: [] });
+    mocks.unarchiveProject.mockImplementation(async () => {
+        useAppStore.setState({ projects: [{ name: "docs-site" }] as never });
+    });
+
+    expect(await useAppStore.getState().addLocalFolder("/code/docs-site")).toBeNull();
+    mocks.toastInfo.mock.calls[0][1].action.onClick();
+    await vi.waitFor(() => expect(useAppStore.getState().selected).toBe("docs-site"));
+
+    expect(mocks.unarchiveProject).toHaveBeenCalledWith("docs-site");
+    expect(useAppStore.getState().view).toBe("projects");
+  });
+
+  it("still points at an existing project that isn't archived", async () => {
+    useAppStore.setState({ projects: [{ name: "api" }] as never });
+    mocks.createProject.mockResolvedValue({ name: "api", existing: true, services: [] });
+
+    expect(await useAppStore.getState().addLocalFolder("/code/api")).toEqual({ name: "api", existing: true, services: [] });
+    expect(mocks.toastInfo).toHaveBeenCalledWith("That folder is already the project “api”.");
   });
 });
