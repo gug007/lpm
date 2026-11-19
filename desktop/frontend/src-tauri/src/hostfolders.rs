@@ -80,7 +80,7 @@ pub(crate) fn edit(app: &AppHandle, args: &Value) -> Result<Value, String> {
         let current = project_order();
         config::merge_settings(json!({ "projectOrder": reorder_copies(&current, order) }))?;
     } else {
-        let (mut order, mut wrap) = crate::remote::load_sidebar_layout();
+        let (mut order, mut wrap) = crate::remote::load_sidebar_layout()?;
         let groups = wrap
             .get_mut("groups")
             .and_then(Value::as_array_mut)

@@ -143,23 +143,36 @@ pub fn save_terminals(c: Value) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn load_groups() -> Value {
-    // Sidebar folders (~/.lpm/groups.json). Opaque JSON the frontend owns; we
-    // round-trip it, guaranteeing a `groups` array so the UI is safe.
-    let mut v: Value = match std::fs::read(config::groups_path()) {
-        Ok(b) => serde_json::from_slice(&b).unwrap_or_else(|_| json!({ "groups": [] })),
-        Err(_) => json!({ "groups": [] }),
+pub fn load_groups() -> Result<Value, String> {
+    read_groups()
+}
+
+/// Sidebar folders (~/.lpm/groups.json). Opaque JSON the frontend owns; we
+/// round-trip it, guaranteeing a `groups` array so the UI is safe. Only a
+/// missing file means no folders: one that can't be read or parsed is an error,
+/// since whoever read it as empty would write that back over every folder.
+pub(crate) fn read_groups() -> Result<Value, String> {
+    let path = config::groups_path();
+    let unreadable = |why: String| format!("Couldn't read your folders ({}): {why}", path.display());
+    let bytes = match std::fs::read(&path) {
+        Ok(b) => b,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(json!({ "groups": [] })),
+        Err(e) => return Err(unreadable(e.to_string())),
     };
-    let has_groups = v.get("groups").map(|g| g.is_array()).unwrap_or(false);
-    if !has_groups {
-        match v.as_object_mut() {
-            Some(o) => {
-                o.insert("groups".into(), json!([]));
-            }
-            None => v = json!({ "groups": [] }),
+    parse_groups(&bytes).map_err(unreadable)
+}
+
+fn parse_groups(bytes: &[u8]) -> Result<Value, String> {
+    let mut v: Value = serde_json::from_slice(bytes).map_err(|e| e.to_string())?;
+    let o = v.as_object_mut().ok_or("not a JSON object")?;
+    match o.get("groups") {
+        None => {
+            o.insert("groups".into(), json!([]));
         }
+        Some(g) if !g.is_array() => return Err("`groups` isn't a list".into()),
+        Some(_) => {}
     }
-    v
+    Ok(v)
 }
 
 #[tauri::command]
@@ -622,5 +635,26 @@ mod work_status_tests {
             serde_norway::to_string(&d).unwrap(),
             "name: solo\nwork_status:\n  state: custom\n  label: Review\n  emoji: 🔍\n  note: second pass\n  since: 1757520000000\n",
         );
+    }
+}
+
+#[cfg(test)]
+mod groups_tests {
+    use super::*;
+
+    #[test]
+    fn keeps_folders_and_fills_a_missing_list() {
+        let v = parse_groups(br#"{"groups":[{"id":"a","members":["x"]}]}"#).unwrap();
+        assert_eq!(v["groups"][0]["members"][0], "x");
+        assert_eq!(parse_groups(b"{}").unwrap(), json!({ "groups": [] }));
+    }
+
+    // Reading any of these as "no folders" would let the next save empty them.
+    #[test]
+    fn a_file_it_cant_make_sense_of_is_an_error_not_no_folders() {
+        assert!(parse_groups(br#"{"groups":[{"id":"a""#).is_err());
+        assert!(parse_groups(b"").is_err());
+        assert!(parse_groups(b"[]").is_err());
+        assert!(parse_groups(br#"{"groups":{"id":"a"}}"#).is_err());
     }
 }

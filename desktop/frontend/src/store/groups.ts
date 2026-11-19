@@ -31,12 +31,10 @@ function normalize(raw: unknown): GroupsConfig {
   };
 }
 
+// Throws when the file can't be read: a caller that took that as "no folders"
+// would save it back and empty every folder.
 export async function loadGroups(): Promise<GroupsConfig> {
-  try {
-    return normalize(await LoadGroups());
-  } catch {
-    return { groups: [] };
-  }
+  return normalize(await LoadGroups());
 }
 
 export function saveGroups(cfg: GroupsConfig): Promise<void> {
