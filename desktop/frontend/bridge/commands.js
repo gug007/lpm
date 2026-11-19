@@ -578,6 +578,15 @@ export function VideoSetupCheck() {
 export function VideoSetupInstall(part) {
   return invoke("video_setup_install", { part });
 }
+export function VideoSettingsInfo() {
+  return invoke("video_settings_info");
+}
+export function VideoSetOpenAIKey(key) {
+  return invoke("video_set_openai_key", { key });
+}
+export function VideoClearOpenAIKey() {
+  return invoke("video_clear_openai_key");
+}
 export function InstallCli() {
   return invoke("install_cli");
 }

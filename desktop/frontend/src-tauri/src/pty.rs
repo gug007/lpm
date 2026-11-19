@@ -636,6 +636,12 @@ fn start_internal(
         if let Ok(dir) = crate::session_memory_scope::memory_dir(project_name) {
             builder.env("LPM_MEMORY_DIR", dir);
         }
+        // The narrator picked in the Video settings window, for the videos an agent here
+        // makes. Videos record on a Mac only.
+        #[cfg(target_os = "macos")]
+        if let Some(voice) = crate::video_settings::narrator_env() {
+            builder.env(crate::video_settings::VOICE_ENV, voice);
+        }
         // Pinned Claude account; an explicit CLAUDE_CONFIG_DIR in the action's
         // env map wins because extra_env is applied after. Scrub drops the var
         // inherited from lpm's own env so an explicit default login can't run

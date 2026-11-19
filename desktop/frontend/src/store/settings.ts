@@ -45,6 +45,7 @@ export interface DetachedWindowState {
 export type FilesTreeSide = "left" | "right";
 
 export type UpdateChannel = "stable" | "beta";
+export type VideoNarrator = "local" | "openai";
 
 export const DEFAULT_SEEN_SHOWN = 3;
 export const SEEN_SHOWN_MIN = 1;
@@ -153,6 +154,12 @@ export interface Settings {
   ttsOpenAiVoice?: string;
   ttsVoice?: string;
   ttsSpeed?: number;
+  // Who narrates video answers, passed to explaincast as EXPLAINCAST_VOICE in
+  // new terminals (video_settings.rs). Unset leaves explaincast's own default,
+  // the voice on this Mac.
+  videoNarrator?: VideoNarrator;
+  videoLocalVoice?: string;
+  videoCloudVoice?: string;
   preferredEditor?: string;
   detachedWindows?: Record<string, DetachedWindowState>;
   searchFilterMode?: boolean;
@@ -298,6 +305,9 @@ function normalize(s: main.Settings): Settings {
     ttsOpenAiVoice: s.ttsOpenAiVoice || undefined,
     ttsVoice: s.ttsVoice || undefined,
     ttsSpeed: s.ttsSpeed,
+    videoNarrator: s.videoNarrator === "local" || s.videoNarrator === "openai" ? s.videoNarrator : undefined,
+    videoLocalVoice: s.videoLocalVoice || undefined,
+    videoCloudVoice: s.videoCloudVoice || undefined,
     preferredEditor: s.preferredEditor || undefined,
     searchFilterMode: s.searchFilterMode,
     duplicateExcludeUncommitted: s.duplicateExcludeUncommitted,

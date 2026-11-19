@@ -2,6 +2,7 @@
 import { act, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { useOverlayStore } from "../../store/overlay";
 import { Tooltip } from "./Tooltip";
 
 function PopoverButton() {
@@ -127,6 +128,14 @@ describe("Tooltip with buttons of its own", () => {
 
     expect(pressed).toHaveBeenCalled();
     expect(extend()).toBeDefined();
+  });
+
+  it("steps aside for a dialog that opens while the pointer is still on it", () => {
+    hover();
+    act(() => useOverlayStore.getState().push());
+
+    expect(extend()).toBeUndefined();
+    act(() => useOverlayStore.getState().pop());
   });
 
   it("goes a moment after the pointer leaves it", () => {

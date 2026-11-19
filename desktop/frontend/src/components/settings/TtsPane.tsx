@@ -1,4 +1,5 @@
 import { chordLabel } from "../../keys";
+import { DEFAULT_KOKORO_VOICE, KOKORO_VOICES } from "../../kokoroVoices";
 import { MACHINE } from "../../machineWords";
 import { isMac } from "../../platform";
 import { rowProps } from "../../settings-registry";
@@ -10,7 +11,6 @@ import { Toggle } from "../ui/Toggle";
 import { KokoroEngineRow } from "./KokoroEngineRow";
 import { useRowReach, useSettingsTarget } from "./settingsTarget";
 
-const KOKORO_VOICES = ["af_heart", "af_bella", "af_sarah", "am_adam", "am_michael"];
 const SPEEDS = [
   { value: 0.5, label: "0.5x" },
   { value: 0.75, label: "0.75x" },
@@ -64,7 +64,7 @@ export function TtsPane() {
           ) : (
             <SettingsRow {...rowProps("tts.voice")}>
               <SettingsSelect
-                value={settings.ttsVoice ?? "af_heart"}
+                value={settings.ttsVoice ?? DEFAULT_KOKORO_VOICE}
                 onChange={(e) => void update({ ttsVoice: e.target.value })}
                 aria-label="Voice"
               >

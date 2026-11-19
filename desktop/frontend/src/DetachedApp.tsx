@@ -13,6 +13,7 @@ import { useProjectArchiveSync } from "./hooks/useProjectArchiveSync";
 import { FileViewerHost } from "./components/FileViewerHost";
 import { InstructionsDialogHost } from "./components/InstructionsDialogHost";
 import { VideoSetupModal } from "./components/VideoSetupModal";
+import { VideoSettingsModal } from "./components/videoSettings/VideoSettingsModal";
 import { IgnoredSyncHost } from "./components/ignored/IgnoredSyncHost";
 import { ShareTabPopover } from "./components/share/ShareTabPopover";
 import { TerminalDropOverlayHost } from "./components/terminal/TerminalDropOverlayHost";
@@ -193,6 +194,7 @@ export function DetachedApp({ projectName }: DetachedAppProps) {
       <ArchiveProjectDialog />
       <FileViewerHost />
       <InstructionsDialogHost />
+      <VideoSettingsModal />
       <VideoSetupModal />
       <IgnoredSyncHost />
       <TerminalDropOverlayHost />

@@ -69,7 +69,8 @@ const NULL: string[] = [
   "terminal_control_owner", "terminal_present_control", "terminal_tab_op",
   "terminal_unpresent_control", "test_job_check", "trash_project", "uninstall_app",
   "uninstall_kokoro", "update_agent_skill", "vault_import_key", "voice_to_text_cancel",
-  "video_setup_install", "voice_to_text_stop", "voice_to_text_toggle", "watch_origin_refs", "write_agent_capability",
+  "video_setup_install", "video_settings_info", "video_set_openai_key",
+  "video_clear_openai_key", "voice_to_text_stop", "voice_to_text_toggle", "watch_origin_refs", "write_agent_capability",
   "write_memory_session",
   "restart_services", "schedule_update", "scheduled_update", "take_update_note",
 ];
