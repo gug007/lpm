@@ -44,11 +44,7 @@ export type FooterGroup = {
 };
 
 export const COMPARE_LABELS: Record<VsSlug, string> = {
-  foreman: "Foreman",
-  overmind: "Overmind",
-  "docker-compose": "Docker Compose",
   tmux: "tmux",
-  pm2: "PM2",
   cmux: "cmux",
   iterm2: "iTerm2",
 };

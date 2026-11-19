@@ -169,4 +169,36 @@
     <string name="git_history_from">from %1$s</string>
     <string name="git_history_binary">binary</string>
     <string name="git_history_truncated">This diff is too long to show in full.</string>
+    <string name="git_commit_checking">Checking for secrets…</string>
+    <plurals name="git_secrets_title">
+        <item quantity="one">This commit may contain a secret</item>
+        <item quantity="other">This commit may contain %1$d secrets</item>
+    </plurals>
+    <string name="git_secrets_leave_out">Leave File Out</string>
+    <string name="git_secrets_ignore_line">Ignore Line</string>
+    <string name="git_secrets_ignore">Ignore</string>
+    <string name="git_secrets_back">Back to the commit</string>
+    <string name="git_secrets_footer">Found on your Mac in the lines this commit adds. Only the key\'s kind and last characters are shown.</string>
+    <plurals name="git_secrets_files">
+        <item quantity="one">1 File</item>
+        <item quantity="other">%1$d Files</item>
+    </plurals>
+    <string name="git_secrets_leave_out_push">Leave Out %1$s and Push</string>
+    <string name="git_secrets_leave_out_commit">Leave Out %1$s and Commit</string>
+    <string name="git_secrets_anyway_push">Commit and Push Anyway</string>
+    <string name="git_secrets_anyway">Commit Anyway</string>
+    <string name="git_scope_uncommitted">Uncommitted</string>
+    <string name="git_scope_branch">Branch</string>
+    <plurals name="git_scope_branch_files">
+        <item quantity="one">Branch · %1$d file</item>
+        <item quantity="other">Branch · %1$d files</item>
+    </plurals>
+    <string name="git_branch_no_commits">No commits since %1$s</string>
+    <string name="git_branch_no_commits_message">This branch has no changes of its own yet.</string>
+    <string name="git_branch_all_pushed">Everything is pushed</string>
+    <string name="git_branch_all_pushed_message">No commits are waiting to be pushed.</string>
+    <string name="git_branch_nothing">Nothing to compare</string>
+    <string name="git_branch_nothing_message">This branch has no upstream and no base branch to compare it with.</string>
+    <string name="git_branch_unreachable">Can\'t read the branch</string>
+    <string name="git_branch_open_pr">Open Pull Request #%1$d</string>
 </resources>

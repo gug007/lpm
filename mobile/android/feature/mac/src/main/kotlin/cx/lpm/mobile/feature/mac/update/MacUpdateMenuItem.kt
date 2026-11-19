@@ -28,3 +28,10 @@ fun MacUpdateMenuItem(state: MacUpdateUiState, onCheck: () -> Unit) {
         enabled = state.canCheckNow
     )
 }
+
+/** The version of lpm the live Mac runs; null until it says. */
+@Composable
+fun liveMacVersion(): String? {
+    val state by macUpdateViewModel(SessionKey.Live).uiState.collectAsStateWithLifecycle()
+    return state.update.version
+}

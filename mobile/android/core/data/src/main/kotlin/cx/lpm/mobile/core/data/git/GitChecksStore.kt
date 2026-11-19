@@ -4,6 +4,7 @@ import cx.lpm.mobile.core.data.client.LpmClient
 import cx.lpm.mobile.core.data.client.requestGitChecks
 import cx.lpm.mobile.core.data.client.requestGitChecksRerun
 import cx.lpm.mobile.core.data.client.requestGitMergePr
+import cx.lpm.mobile.core.data.review.noteWin
 import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.data.session.SessionStore
 import cx.lpm.mobile.core.model.GitChecks
@@ -141,6 +142,7 @@ class GitChecksStore(private val session: MacSession) : SessionStore {
                 merged = s.merged + (project to MergedPullRequest(number, title, deletedBranch))
             )
         }
+        session.noteWin()
         load(project)
         session.store<GitStore>().load(project)
     }

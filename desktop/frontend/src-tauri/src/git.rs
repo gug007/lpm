@@ -851,6 +851,39 @@ fn file_diff_from_blobs(orig: Vec<u8>, modi: Vec<u8>) -> FileDiff {
 
 /// Files changed on this branch versus `base` (the `base...HEAD` range), for a
 /// read-only branch review.
+/// [git_diffs] for committed work: each path's diff across `range` (`a...b`), from
+/// one `git diff` split per file, falling back to a per-file diff where a header
+/// couldn't be matched.
+pub fn git_diffs_range(cwd: &str, range: &str, paths: &[String]) -> Vec<BatchDiff> {
+    if paths.is_empty() {
+        return Vec::new();
+    }
+    let args = ["diff", "--no-color", range];
+    let names: Vec<&str> = paths.iter().map(String::as_str).collect();
+    let mut matched: HashMap<String, String> =
+        split_diff_by_file(&git_out(cwd, &path_args(&args, &names)).unwrap_or_default())
+            .into_iter()
+            .filter(|(p, _)| !p.is_empty())
+            .collect();
+    paths
+        .iter()
+        .map(|p| {
+            let (diff, error) = match matched.remove(p) {
+                Some(d) => (d, None),
+                None => match git_out(cwd, &path_args(&args, &[p])) {
+                    Ok(d) => (d, None),
+                    Err(e) => (String::new(), Some(e)),
+                },
+            };
+            BatchDiff {
+                path: p.clone(),
+                diff,
+                error,
+            }
+        })
+        .collect()
+}
+
 #[tauri::command(async)]
 pub fn git_changed_files_ref(cwd: String, base: String) -> Result<Vec<ChangedFile>, String> {
     let base = resolve_base(&cwd, &base)?;

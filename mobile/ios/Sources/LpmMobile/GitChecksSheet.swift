@@ -21,8 +21,10 @@ struct GitChecksSheet: View {
     }
 
     @State private var gauntlet = ActionRunGauntlet()
-    /// The fixing option whose inputs or confirmation are up.
-    @State private var fixing: LaunchpadOption?
+    /// The fixing option whose inputs or confirmation are up, and what it's told.
+    @State private var fixing: (option: LaunchpadOption, prompt: String)?
+    /// The failed checks opened to their logs.
+    @State private var openLogs: Set<String> = []
 
     var body: some View {
         NavigationStack {
@@ -42,13 +44,16 @@ struct GitChecksSheet: View {
                 ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() }.fontWeight(.semibold) }
             }
         }
-        .onAppear { if model.canLaunchAgents { model.agentLaunch.loadOptions() } }
+        .onAppear {
+            if model.canLaunchAgents { model.agentLaunch.loadOptions() }
+            model.gitExtras.forgetCheckLogs(name)
+        }
         .onDisappear { model.gitChecks.forgetMerge(name) }
         .onChange(of: model.gitChecks.merged[name]) { _, merged in
             if merged != nil { Haptics.success() }
         }
         .actionRunGauntlet($gauntlet) { action, values in
-            if let fixing, let prompt = checks?.fixPrompt { run(fixing, action, values, prompt) }
+            if let fixing { run(fixing.option, action, values, fixing.prompt) }
         }
     }
 
@@ -58,20 +63,42 @@ struct GitChecksSheet: View {
                 GitMergedSection(merged: merged)
             }
             GitMergeSection(project: name, checks: checks)
+            if checks.conflicts, let prompt = checks.resolvePrompt, model.canLaunchAgents, checks.verdict != .fail {
+                Section {
+                    CiFixRows(tabs: tabs, verb: "Resolve with",
+                              detail: "Opens a new tab to merge the base branch and resolve the conflicts") {
+                        fix($0, prompt)
+                    }
+                }
+            }
             Section {
                 ForEach(checks.sorted) { check in
                     Button {
-                        if let url = URL(string: check.url) { openURL(url) }
+                        if check.hasLog && model.gitExtras.canReadCheckLogs {
+                            withAnimation { toggleLog(check) }
+                        } else if let url = URL(string: check.url) {
+                            openURL(url)
+                        }
                     } label: {
                         HStack(spacing: 10) {
                             CiStateIcon(state: check.state).frame(width: 18)
                             Text(check.name).lineLimit(1).foregroundStyle(.primary)
                             Spacer(minLength: 8)
                             Text(check.detail).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                            if check.hasLog && model.gitExtras.canReadCheckLogs {
+                                Image(systemName: "chevron.down")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                                    .rotationEffect(.degrees(openLogs.contains(check.id) ? 0 : -90))
+                            }
                         }
                     }
                     .tint(.primary)
                     .disabled(check.url.isEmpty)
+                    .accessibilityHint(check.hasLog && model.gitExtras.canReadCheckLogs ? "Shows why it failed" : "")
+                    if openLogs.contains(check.id) {
+                        CheckLogRow(project: name, check: check)
+                    }
                 }
             } header: {
                 VStack(alignment: .leading, spacing: 2) {
@@ -86,14 +113,12 @@ struct GitChecksSheet: View {
 
             Section {
                 if checks.failed > 0, let prompt = checks.fixPrompt, model.canLaunchAgents {
-                    if let tabs {
-                        CiFixRows(tabs: tabs) { fix($0, prompt) }
-                    } else {
-                        TerminalRowSkeleton()
-                    }
+                    CiFixRows(tabs: tabs) { fix($0, prompt) }
                 }
                 if !checks.failingRunIds.isEmpty {
                     Button {
+                        model.gitExtras.forgetCheckLogs(name)
+                        openLogs = []
                         model.gitChecks.rerun(name)
                     } label: {
                         HStack {
@@ -121,8 +146,12 @@ struct GitChecksSheet: View {
         }
     }
 
+    private func toggleLog(_ check: CiCheck) {
+        if openLogs.remove(check.id) == nil { openLogs.insert(check.id) }
+    }
+
     private func fix(_ option: LaunchpadOption, _ prompt: String) {
-        fixing = option
+        fixing = (option, prompt)
         if let action = option.action, gauntlet.begin(action) { return }
         run(option, option.action, [:], prompt)
     }

@@ -90,7 +90,7 @@ shows it before the reader reaches the table. Nothing else moves.
 
 ### Hero (`components/vs/comparison-hero.tsx`)
 
-- eyebrow `cmux alternative · macOS`
+- eyebrow `cmux alternative · Mac, Windows, Linux` (2026-11-19: it said `· macOS` under a title that names all three; the OG card already used this wording)
 - H1 `A cmux alternative that runs Claude Code and Codex on whole projects.`
 - description (2026-09-23, replaces the reused meta `DESCRIPTION` so the hero has copy of
   its own): "cmux is a programmable terminal for agents. lpm is the project they work in: it
@@ -118,7 +118,7 @@ shows it before the reader reaches the table. Nothing else moves.
 - H2 = the query: `Is there a cmux alternative that also runs my dev services?`
 - Paragraph 1 is the extractable answer and names cmux first, not lpm.
 - Paragraph 2: both free to use, both macOS-only, running both is normal. "free to use"
-  rather than "free", because FAQ 2 names cmux's paid Founder's Edition.
+  rather than "free", because FAQ 2 names cmux's paid plans.
 - `CodeBlock filename="Three agents, one prompt"` — `lpm start api` /
   `lpm worktree api --count 3 --run claude --prompt "fix the flaky auth test"` /
   `lpm status --json`.
@@ -152,13 +152,13 @@ brief's two strings per card were fitted to the component's three required field
 - the rows and the render moved into `_components/matrix.tsx` this pass, which is what
   `/vs/iterm2` already does; `page.tsx` drops from 399 lines to 294
 - title `cmux and lpm, row by row`
-- description "Seventeen rows. Two go to cmux — the browser it can script and the emulator
-  underneath it." Seventeen is the row count since the 2026-09-23 PR row, two is the count
+- description "Eighteen rows. Two go to cmux — the browser it can script and the emulator
+  underneath it." Eighteen is the row count since the 2026-11-19 phone row, two is the count
   of conceded rows, and naming them means no reader has to reverse-engineer the arithmetic
   (R2). The agent-CLI row stopped being a concession on 2026-09-23: the cmux README says any
   agent that runs in a terminal works, and so does lpm — any CLI runs in a tab or as an
   action — so the row is a tie; lpm's extra is presets for four.
-- 17 rows, full table in §4
+- 18 rows, full table in §4
 - footnote carries the two remaining in-body links (`/connect-ai-agents`,
   `/review-changes-in-terminal`) and now says whose rows they belong to — "Two of lpm's
   rows have a page behind them" — because the old wording, "Two of those rows", pointed
@@ -249,7 +249,8 @@ binding rule for an agent-query page; the retired copy said "AI Agents".
 | Drive a browser from a script                | browser tabs, not scriptable                                                     | snapshot, click, type, evaluate JS                                                       |
 | Terminal-emulator quality                    | a terminal built for services and agents                                         | libghostty rendering, vertical tabs, splits                                              |
 | Work on a remote machine                     | SSH projects with port forwarding, or a paired Linux host driven from your Mac   | `cmux ssh user@remote`                                                                   |
-| License, and what a paid tier buys           | MIT, nothing to buy                                                              | GPL-3.0-or-later, commercial terms on request, a paid Founder's Edition for early access |
+| An app for your phone                        | lpm Link for iPhone, iPad and Android, free on both stores                       | an iOS app in beta on TestFlight, early access with the Pro plan                         |
+| License, and what a paid tier buys           | MIT, nothing to buy                                                              | GPL-3.0-or-later, commercial terms on request; the terminal is free, and paid plans from $15 a month add cloud VMs |
 
 **Conceded to cmux — two rows, and the matrix description names both:** _Drive a browser
 from a script_ and _Terminal-emulator quality_, the "why people keep it as their terminal"
@@ -343,7 +344,7 @@ not do).
 All six answers are plain strings, so `FaqItem`'s union needs no `answerText`.
 
 1. **What is cmux?** — A native macOS terminal from Manaflow built around AI coding agents: vertical tabs showing branch and PR status, split panes, a notification panel, a scriptable browser pane, and a CLI plus Unix socket to control all of it. It renders through libghostty and reads your Ghostty config for themes and fonts.
-2. **Is cmux free and open source?** — Yes. cmux ships under GPL-3.0-or-later; its repository adds that commercial terms may be available where the GPL will not do, and that a paid Founder's Edition buys early access to features still in progress. lpm is MIT and has nothing to buy. Cost is not the reason to choose between them.
+2. **Is cmux free and open source?** — Yes. The terminal is free and ships under GPL-3.0-or-later; its repository adds that commercial terms may be available where the GPL will not do. Paid plans start at $15 a month and add cloud VMs, and the Pro plan brings early access to its iOS app. lpm is MIT and has nothing to buy, its phone app included. Cost is not the reason to choose between them.
 3. **Can I run several Claude Code or Codex agents at once?** — In cmux each agent gets its own tab, so two agents in the same folder still edit the same files. lpm splits the repo first — up to 50 copies at a time, each one a linked worktree on a branch of its own or a full folder copy that keeps its Git history — and queues the same prompt in every copy, with working, needs you, done or a problem on the agent tab that owns it. What the copies still share is ports and databases.
 4. **Can lpm and cmux run side by side?** — Yes, and it is a reasonable setup. cmux configures your terminal; lpm describes your projects. Neither reads the other's config.
 5. **How do I move a cmux setup to lpm?** — There is nothing to convert: cmux.json describes your terminal, not your stack. Add the folder in lpm and it lists the services it finds in the repo — package.json scripts, a Procfile or Gemfile, compose files — for you to prune, with Generate with AI in the config editor if you want another draft. A command you kept as a cmux action becomes an lpm action: one click, or lpm run. (2026-09-23: this is the FAQPage JSON-LD text too.)
@@ -414,7 +415,7 @@ all three were fetched and read on the review date (R3):
 | `cmux list-workspaces` and `cmux notify` as CLI verbs; "a socket-based control API"; workspace groups as sidebar organisation — nesting, collapsing, pinning — with no broadcast and no file isolation                                                                                                                                                                          | cmux's documentation        |
 | `~/.config/cmux/cmux.json` holding "app-owned settings, shortcuts, actions, custom commands, and workspace layouts", and ".cmux/cmux.json in a project for project-scoped actions and workspace commands"                                                                                                                                                                       | its configuration reference |
 | The agent CLIs it launches — Claude Code, Codex, OpenCode, Gemini CLI, Kiro, Aider, Goose, Amp, Cline, Cursor Agent; the matrix names six of the ten                                                                                                                                                                                                                            | the cmux repository         |
-| GPL-3.0-or-later, "commercial terms may be available" where an organisation cannot comply, and a paid Founder's Edition sold on early access                                                                                                                                                                                                                                    | the cmux repository         |
+| GPL-3.0-or-later, "commercial terms may be available" where an organisation cannot comply; paid plans from $15 a month for cloud VMs, with the iOS beta in Pro (2026-11-19; was a paid Founder's Edition sold on early access)                                                                                                                                                                                                                                    | the cmux repository         |
 
 Where cmux documents no project-level service lifecycle, no service subset, no worktree
 creation, no prompt fan-out and no diff view, the cell says **"not documented"** or names
@@ -557,7 +558,7 @@ reader can check, and none of them softens a concession.
 | "Open a terminal tab running on your Mac, type into it, and get a push when Claude Code, Codex or Gemini CLI is waiting on you" | RelatedPages `/mobile` card | `mobile/` (lpm Link: live terminal mirroring with a keyboard); push for needs-you comes from the same agent-status hooks (`hooks/mod.rs:40`); Cursor CLI has them too but never reports needs you (`hooks/cursor.rs:1-10`), so it is left out |
 | Hero: "it starts the services, checks the ports, and can split the repo so each Claude Code or Codex session edits its own checkout" | hero description | `services.rs:1-7`; `ports.rs:1-8`; `projects_crud.rs:828` (worktree), `BulkDuplicateDialog.tsx:42` (`MAX_COUNT = 50`) |
 
-Counts after this pass: **seventeen rows, two to cmux** — matrix description only (no other
+Counts after this pass (superseded 2026-11-19, see the facts pass at the end): **seventeen rows, two to cmux** — matrix description only (no other
 surface on this page repeats the number). Also rewritten because detection made them false:
 the matrix drafting cell, FAQ 5 (and its JSON-LD), WhenToPick bullet 3 and the CTA ("Add a
 repo, let lpm list its services, and keep cmux open beside it").
@@ -567,3 +568,25 @@ repo, let lpm list its services, and keep cmux open beside it").
 - Verdict "The project": "read working, needs you, done or a problem off each agent's own tab" → "…off each Claude Code or Codex tab", then (2026-10-12) → "…off each Claude Code, Codex, Gemini CLI or Cursor CLI tab", once lpm installed status hooks for those two as well (`hooks/mod.rs:40`). OpenCode still launches from a preset but reports nothing.
 - QuickAnswer: the worktree is "branched off the current commit" (`projects_crud.rs:564-577`, `git worktree add -b <branch> <root> HEAD`) — uncommitted edits stay behind; the standalone copy is the one that takes the folder as it sits on disk (`projects_crud.rs:464-487` `cp_clone`).
 - cmux README re-read 2026-09-23: GPL-3.0-or-later, commercial terms "may be available", Founder's Edition for early access; sidebar shows "git branch, linked PR status/number, working directory, listening ports"; no PR creation documented; browser pane can "snapshot the DOM, click, type, evaluate JavaScript"; `cmux ssh user@remote`; libghostty + Ghostty config; tmux optional (`cmux local-tmux`).
+
+## Facts pass — 2026-11-19
+
+The cmux facts that change without notice now live in `website/lib/rival-facts.ts`
+(`CMUX_FACTS`), with the day they were last read. The page prints that day as its "Facts
+checked" date and uses it as `dateModified`; it no longer shares the cluster-wide
+`VS_REVIEWED`. lpm's own rows were not re-read this pass, and the basis note says so
+("read back out of the app's source on September 23, 2026").
+
+What moved since 2026-09-23, and where each new cell comes from:
+
+| Change on the page | Source, read 2026-11-19 |
+| --- | --- |
+| License row, cmux: "…; the terminal is free, and paid plans from $15 a month add cloud VMs" (was "a paid Founder's Edition for early access") | https://cmux.com/pricing — Free $0; Plus $15/mo (one saved VM); Pro $50/mo billed monthly, $40 yearly (Cloud VMs, the iOS app, email support); Max $200/mo; Team $60 per user. The page still offers "Connect Founder's Edition" to people who bought it, so the edition is no longer what a new buyer is sold. License text: the README's License section — GPL-3.0-or-later, "commercial terms may be available"; the server software under `web/` is Business Source License 1.1 |
+| New row "An app for your phone", cmux: "an iOS app in beta on TestFlight, early access with the Pro plan" | https://cmux.com FAQ "Is there an iOS app?" — "Yes, in beta… It ships on TestFlight as cmux BETA. Early access is included with cmux Pro." |
+| New row, lpm: "lpm Link for iPhone, iPad and Android, free on both stores" | `mobile/ios`, `mobile/android`; store links `APP_STORE_URL` and `PLAY_STORE_URL` in `website/lib/links.ts` |
+| FAQ 2 re-voiced around paid plans; adds "its phone app included" for lpm | same two sources |
+| Hero eyebrow names Mac, Windows, Linux | cmux requirements: https://cmux.com/docs/getting-started — "macOS 14.0 or later"; lpm builds: `website/lib/downloads.ts` |
+| A fourth source, "its pricing page", in the basis; the note reads "those four" | — |
+
+Counts after this pass: **eighteen rows, two to cmux** — matrix description only. The
+phone row label repeats on no other /vs page.

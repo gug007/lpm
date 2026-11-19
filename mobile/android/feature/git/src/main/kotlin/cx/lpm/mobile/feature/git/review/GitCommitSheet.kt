@@ -14,6 +14,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -64,8 +65,10 @@ private enum class CommitPage { Form, Files }
 internal fun GitCommitSheet(
     state: GitReviewUiState,
     actions: CommitActions,
+    secrets: SecretCheck,
     onDismiss: () -> Unit
 ) {
+    DisposableEffect(secrets) { onDispose(secrets::closed) }
     val sheet = rememberModalSheetState()
     val pages = rememberSheetNavigator(CommitPage.Form)
     val opened = remember { state.commitTick }
@@ -80,6 +83,7 @@ internal fun GitCommitSheet(
                 CommitPage.Form -> CommitFormPage(
                     state = state,
                     actions = actions,
+                    secrets = secrets,
                     onCancel = { sheet.dismiss(onDismiss) },
                     onFiles = { pages.push(CommitPage.Files) }
                 )
@@ -99,6 +103,7 @@ internal fun GitCommitSheet(
 private fun CommitFormPage(
     state: GitReviewUiState,
     actions: CommitActions,
+    secrets: SecretCheck,
     onCancel: () -> Unit,
     onFiles: () -> Unit
 ) {
@@ -119,6 +124,7 @@ private fun CommitFormPage(
                 .verticalScroll(rememberScrollState())
                 .padding(top = ListDefaults.ContentTopPadding, bottom = 24.dp)
         ) {
+            if (state.findings.isNotEmpty()) SecretFindingsSection(state.findings, secrets)
             if (state.conflicted.isNotEmpty()) ConflictSection(state.conflicted)
             ListSection {
                 TextFieldRow(
@@ -145,12 +151,16 @@ private fun CommitFormPage(
                 }
             }
         }
-        CommitButtons(
-            busy = state.busy,
-            enabled = state.canCommit,
-            onCommitAndPush = actions.commitAndPush,
-            onCommitOnly = actions.commit
-        )
+        if (state.findings.isEmpty()) {
+            CommitButtons(
+                busy = state.busy,
+                enabled = state.canCommit,
+                onCommitAndPush = actions.commitAndPush,
+                onCommitOnly = actions.commit
+            )
+        } else {
+            SecretFindingsButtons(state, secrets)
+        }
     }
 }
 

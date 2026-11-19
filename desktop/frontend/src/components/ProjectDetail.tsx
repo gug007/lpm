@@ -82,6 +82,7 @@ import { peerAlias, usePeerState } from "../peer/usePeerState";
 import { liveServices } from "../serviceExit";
 import { useBrowserRequests } from "../hooks/useBrowserRequests";
 import { commandName } from "../tabCommand";
+import { useLaunchpadSeed } from "../store/launchpadSeed";
 
 interface ProjectDetailProps {
   project: ProjectInfo;
@@ -268,7 +269,7 @@ export function ProjectDetail({
             }),
           )
           .catch((err) =>
-            toast.error(`Couldn't fork the session into ${project.name}: ${String(err)}`),
+            toast.error(`Couldn't continue the session in ${project.name}: ${String(err)}`),
           );
       } else {
         const action = resolveRunnableAction(actions, task.actionName);
@@ -672,6 +673,26 @@ export function ProjectDetail({
   useEffect(() => {
     if (!showEmptyState) setNewTabAsked(false);
   }, [showEmptyState, newTabAsked]);
+
+  // A link's prompt for this project waits in its new-tab box. A project that
+  // just opened may still be bringing its tabs back, so the box is asked for
+  // until there is a pane to show it on.
+  const seedNonce = useLaunchpadSeed((s) => (s.seed?.projectName === project.name ? s.seed.nonce : null));
+  const emptyStateRef = useRef(showEmptyState);
+  emptyStateRef.current = showEmptyState;
+  useEffect(() => {
+    if (seedNonce === null) return;
+    switchDetailView("terminal");
+    let tries = 0;
+    let timer = 0;
+    const ask = () => {
+      if (emptyStateRef.current) return setNewTabAsked(true);
+      if (terminalRef.current?.openNewTab(true) || ++tries > 20) return;
+      timer = window.setTimeout(ask, 150);
+    };
+    timer = window.setTimeout(ask, 0);
+    return () => window.clearTimeout(timer);
+  }, [seedNonce, switchDetailView]);
 
   const {
     wrapped: actionsWrapped,

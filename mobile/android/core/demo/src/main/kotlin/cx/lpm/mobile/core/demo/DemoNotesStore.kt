@@ -78,7 +78,7 @@ internal fun DemoServer.addNote(
             ?: return AddNoteResult.Failure(
                 "That attachment could not be read. Try sending it again."
             )
-        val hash = noteHash(bytes)
+        val hash = sha256(bytes)
         world.noteBlobs[hash] = encoded
         attachments.add(
             DemoWorld.NoteAttachmentRec(
@@ -136,7 +136,7 @@ internal fun DemoServer.sweepNoteBlobs() {
     world.noteBlobs = world.noteBlobs.filterKeys { it in live }.toMutableMap()
 }
 
-private fun noteHash(bytes: ByteArray): String =
+internal fun sha256(bytes: ByteArray): String =
     MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
 
 /**
@@ -247,7 +247,7 @@ private fun DemoServer.seedNoteChat(
 /** Store the summary-card screenshot and describe it the way a real attachment is described. */
 private fun DemoServer.seedNoteImage(): DemoWorld.NoteAttachmentRec {
     val bytes = summaryCardPng()
-    val hash = noteHash(bytes)
+    val hash = sha256(bytes)
     world.noteBlobs[hash] = Base64.getEncoder().encodeToString(bytes)
     return DemoWorld.NoteAttachmentRec(
         hash = hash,

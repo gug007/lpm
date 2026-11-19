@@ -31,4 +31,15 @@
     <string name="files_try_again">Try Again</string>
     <string name="files_no_results">No Results for “%1$s”</string>
     <string name="files_no_results_message">Check the spelling or try a new search.</string>
+    <string name="files_edit">Edit</string>
+    <string name="files_edit_cancel">Cancel</string>
+    <string name="files_edit_back">Back</string>
+    <string name="files_edit_save">Save</string>
+    <string name="files_edit_unreadable">Can\'t edit this file</string>
+    <string name="files_edit_unreadable_message">It isn\'t UTF-8 text.</string>
+    <string name="files_edit_changed">Changed on your Mac</string>
+    <string name="files_edit_failed">Couldn\'t save</string>
+    <string name="files_edit_open_again">Open Again</string>
+    <string name="files_edit_keep_editing">Keep Editing</string>
+    <string name="files_edit_ok">OK</string>
 </resources>

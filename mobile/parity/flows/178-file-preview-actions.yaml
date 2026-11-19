@@ -28,10 +28,7 @@ tags: [demo, terminal, files, git]
 - waitForAnimationToEnd:
     timeout: 3000
 - takeScreenshot: 1-actions
-- tapOn: "Copy Path"
-- extendedWaitUntil:
-    visible: "Copied"
-    timeout: 3000
+# Diff first: right after a copy, Android's clipboard chip covers the bar's left side.
 - tapOn: "Diff"
 - extendedWaitUntil:
     visible: "Changes"
@@ -39,3 +36,11 @@ tags: [demo, terminal, files, git]
 - waitForAnimationToEnd:
     timeout: 3000
 - takeScreenshot: 2-diff
+- runFlow: subflows/back.yaml
+- extendedWaitUntil:
+    visible: "Copy Path"
+    timeout: 10000
+- tapOn: "Copy Path"
+- extendedWaitUntil:
+    visible: "Copied"
+    timeout: 3000

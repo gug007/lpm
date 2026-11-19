@@ -5,11 +5,14 @@ import androidx.lifecycle.viewModelScope
 import cx.lpm.mobile.core.data.actions.ActionMemory
 import cx.lpm.mobile.core.data.agents.AgentLaunchStore
 import cx.lpm.mobile.core.data.git.GitChecksStore
+import cx.lpm.mobile.core.data.git.GitExtrasStore
 import cx.lpm.mobile.core.data.git.GitStore
 import cx.lpm.mobile.core.data.prefs.AppPreferences
 import cx.lpm.mobile.core.data.prefs.PreferenceKeys
 import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.data.session.MacSessions
+import cx.lpm.mobile.core.model.CheckLog
+import cx.lpm.mobile.core.model.CiCheck
 import cx.lpm.mobile.core.model.GitChecks
 import cx.lpm.mobile.core.model.GitMergeMethod
 import cx.lpm.mobile.core.model.LaunchpadOption
@@ -17,6 +20,7 @@ import cx.lpm.mobile.core.model.LaunchpadTab
 import cx.lpm.mobile.core.model.MergedPullRequest
 import cx.lpm.mobile.core.model.SessionKey
 import cx.lpm.mobile.core.model.TerminalInfo
+import cx.lpm.mobile.core.model.conflicts
 import cx.lpm.mobile.feature.projects.ActionRunStep
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
@@ -26,6 +30,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -59,8 +64,19 @@ data class GitChecksUiState(
     /** The pull request this phone just merged, until the sheet closes. */
     val merged: MergedPullRequest? = null,
     /** The method last merged with, as the wire names it. */
-    val mergeMethod: String = GitMergeMethod.SQUASH.wire
+    val mergeMethod: String = GitMergeMethod.SQUASH.wire,
+    /** The Mac reads a failed job's log (`gitCheckLog`): a failed check opens to it. */
+    val canReadLogs: Boolean = false,
+    /** The failed checks' logs and why they couldn't be read, by check URL. */
+    val logs: Map<String, CheckLog> = emptyMap(),
+    val logErrors: Map<String, String> = emptyMap()
 ) {
+    /** The pull request conflicts with its base and an agent can be told to resolve it. */
+    val canResolve: Boolean
+        get() = checks?.let {
+            it.conflicts && it.resolvePrompt != null && canFix && it.verdict != CiCheck.State.FAIL
+        } == true
+
     val unpushedNote: String? get() = checks?.unpushedNote(ahead)
 
     /** The remembered method when the repository allows it, else the first it allows. */
@@ -87,8 +103,10 @@ class GitChecksViewModel @AssistedInject constructor(
     }
 
     private val session: MacSession? get() = sessions[sessionKey]
-    private val fixer =
-        AgentFixer(project, { session }, actionMemory) { uiState.value.checks?.fixPrompt }
+
+    /** What the agent being started is told: the failing checks, or the conflicts. */
+    private var prompt: String? = null
+    private val fixer = AgentFixer(project, { session }, actionMemory) { prompt }
 
     private val mergeMethod = prefs.data.map {
         prefs.string(PreferenceKeys.GIT_MERGE_METHOD) ?: GitMergeMethod.SQUASH.wire
@@ -103,8 +121,15 @@ class GitChecksViewModel @AssistedInject constructor(
         s.store<GitStore>().state,
         s.state,
         fixTabs(s, project, actionMemory),
-        combine(fixer.step, mergeMethod, ::Pair)
-    ) { ci, git, _, tabs, (step, method) ->
+        combine(
+            fixer.step,
+            mergeMethod,
+            s.store<GitExtrasStore>().state
+                .map { it.checkLogs[project].orEmpty() to it.checkLogErrors[project].orEmpty() }
+                .distinctUntilChanged(),
+            ::Triple
+        )
+    ) { ci, git, _, tabs, (step, method, logs) ->
         val snapshot = git.snapshots[project]
         val store = s.store<GitChecksStore>()
         GitChecksUiState(
@@ -121,7 +146,10 @@ class GitChecksViewModel @AssistedInject constructor(
             merging = project in ci.merging,
             mergeError = ci.mergeErrors[project],
             merged = ci.merged[project],
-            mergeMethod = method
+            mergeMethod = method,
+            canReadLogs = s.store<GitExtrasStore>().canReadCheckLogs,
+            logs = logs.first,
+            logErrors = logs.second
         )
     }
 
@@ -135,7 +163,18 @@ class GitChecksViewModel @AssistedInject constructor(
     }
 
     fun rerun() {
+        forgetLogs()
         session?.store<GitChecksStore>()?.rerun(project)
+    }
+
+    /** A failed check opened: read why it failed on the Mac. */
+    fun loadLog(url: String) {
+        session?.store<GitExtrasStore>()?.loadCheckLog(project, url)
+    }
+
+    /** The sheet came up, or the jobs run again: their logs are new. */
+    fun forgetLogs() {
+        session?.store<GitExtrasStore>()?.forgetCheckLogs(project)
     }
 
     fun merge(method: GitMergeMethod, deleteBranch: Boolean) {
@@ -155,8 +194,16 @@ class GitChecksViewModel @AssistedInject constructor(
      * [option] in a new tab, told what the desktop's Fix with … tells it. An action with
      * inputs or a confirmation asks for them first: false until it starts.
      */
-    fun fix(option: LaunchpadOption, onSpawn: (TerminalInfo) -> Unit): Boolean =
-        fixer.fix(option, onSpawn)
+    fun fix(option: LaunchpadOption, onSpawn: (TerminalInfo) -> Unit): Boolean {
+        prompt = uiState.value.checks?.fixPrompt
+        return fixer.fix(option, onSpawn)
+    }
+
+    /** [option] in a new tab, told to merge the base branch and resolve the conflicts. */
+    fun resolve(option: LaunchpadOption, onSpawn: (TerminalInfo) -> Unit): Boolean {
+        prompt = uiState.value.checks?.resolvePrompt
+        return fixer.fix(option, onSpawn)
+    }
 
     /** The action's inputs are in: its confirmation, or it starts (true). */
     fun submitInputs(values: Map<String, String>, onSpawn: (TerminalInfo) -> Unit): Boolean =

@@ -33,6 +33,10 @@ internal fun LpmClient.connectDemo() {
                 add(LpmClient.FILE_UPLOAD_FEATURE)
                 add(LpmClient.SERVICE_LOGS_WATCH_FEATURE)
                 add(LpmClient.RESTART_TERMINAL_FEATURE)
+                add(LpmClient.AGENT_LAUNCH_FEATURE)
+                add(LpmClient.AGENT_SESSIONS_FEATURE)
+                add(LpmClient.ACTION_PROMPT_FEATURE)
+                add(LpmClient.LIST_DIR_FEATURE)
                 add(LpmClient.TAB_MENU_FEATURE)
                 add(LpmClient.TAB_ACCOUNT_FEATURE)
                 add(LpmClient.WEEKLY_RECAP_FEATURE)
@@ -51,6 +55,11 @@ internal fun LpmClient.connectDemo() {
                 add(LpmClient.AGENT_DIALOG_FEATURE)
                 add(LpmClient.GIT_DISCARD_FILES_FEATURE)
                 add(LpmClient.ACTION_POPUP_FEATURE)
+                add(LpmClient.GIT_SCAN_SECRETS_FEATURE)
+                add(LpmClient.GIT_BRANCH_DIFF_FEATURE)
+                add(LpmClient.GIT_PR_DISCUSSION_FEATURE)
+                add(LpmClient.GIT_CHECK_LOG_FEATURE)
+                add(LpmClient.WRITE_FILE_FEATURE)
             }
         }
         injectInbound(Wire.json(ready))

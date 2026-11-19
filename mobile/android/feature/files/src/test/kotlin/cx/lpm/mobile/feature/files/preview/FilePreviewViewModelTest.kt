@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import cx.lpm.mobile.core.data.client.LpmClient
+import cx.lpm.mobile.core.data.git.GitExtrasStore
 import cx.lpm.mobile.core.data.git.GitStore
 import cx.lpm.mobile.core.data.mac.ThisDevice
 import cx.lpm.mobile.core.data.prefs.PreferenceKeys
@@ -62,6 +63,7 @@ class FilePreviewViewModelTest {
             setOf(
                 SessionStore.Factory { FileFetches(it, space, "phone", TEST_MIME::get) },
                 SessionStore.Factory(::GitStore),
+                SessionStore.Factory(::GitExtrasStore),
                 SessionStore.Factory { FakePrompts() }
             )
         ).apply { enterDemo() }

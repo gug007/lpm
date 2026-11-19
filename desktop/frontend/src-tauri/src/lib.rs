@@ -115,6 +115,8 @@ mod gitignore;
 mod gitlines;
 mod git_mentions;
 mod git_history;
+mod git_branch_base;
+mod termlook;
 mod gitdiscards;
 mod gitundo;
 mod worktree_files;
@@ -147,6 +149,9 @@ mod htmlproto;
 mod gitmoved;
 mod gitwatchhost;
 mod gitworkstate;
+mod handoff;
+mod handoffhost;
+mod handoffland;
 mod hookform;
 mod hooks;
 mod hostautoupdate;
@@ -207,6 +212,7 @@ mod keepawake_session;
 mod limit_reminders;
 mod loginitem;
 mod sharelink;
+mod openlink;
 mod sharenoise;
 mod sharerelay;
 mod sharerelaydial;
@@ -471,6 +477,8 @@ use gitautopull::{git_auto_pull, git_auto_pull_last, git_auto_pull_undo, set_aut
 use gitlines::{git_diff_stat, git_file_line_counts};
 use git_mentions::{git_recent_commits, git_show_commit};
 use git_history::{git_commit_file_patch, git_commit_files, git_history};
+use git_branch_base::git_branch_base;
+use termlook::list_terminal_looks;
 use gitdiscards::{git_discarded, git_restore_discarded};
 use gitundo::{git_amend_commit, git_redo_commit, git_undo_commit};
 use worktree_files::{set_worktree_files, worktree_files};
@@ -482,6 +490,7 @@ use gitresolve::{
     git_continue_merge, git_mark_conflict_resolved, git_merge_state, git_take_conflict_side,
 };
 use gitsync::{sync_project_cancel, sync_project_start};
+use handoff::{handoff_send, handoff_take};
 use ignoredset::ignored_sync_set;
 use ignoredsync::{
     ignored_sync_cancel, ignored_sync_forget, ignored_sync_list, ignored_sync_read,
@@ -507,6 +516,7 @@ use peer::{
     peer_host_start_pairing, peer_state,
 };
 use sharelink::take_share_join_link;
+use openlink::take_open_link;
 use tabshare::{
     peer_share_decline_ask, peer_share_qr, peer_share_remove_guest, peer_share_respond,
     peer_share_set_can_type, peer_share_set_guest_can_type, peer_share_start, peer_share_stop,

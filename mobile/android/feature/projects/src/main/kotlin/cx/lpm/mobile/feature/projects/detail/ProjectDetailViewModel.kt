@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import cx.lpm.mobile.core.data.actions.ActionsStore
 import cx.lpm.mobile.core.data.agents.AgentLaunchStore
 import cx.lpm.mobile.core.data.git.GitChecksStore
+import cx.lpm.mobile.core.data.git.GitExtrasStore
 import cx.lpm.mobile.core.data.git.GitStore
 import cx.lpm.mobile.core.data.machines.PairedMachineFeeds
 import cx.lpm.mobile.core.data.projects.ProjectOpens
@@ -36,8 +37,10 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
 /** A project's screen (iOS `ProjectDetail`): its tabs and services. */
@@ -72,12 +75,19 @@ class ProjectDetailViewModel @AssistedInject constructor(
         combine(
             s.store<TerminalsStore>().state,
             s.store<GitStore>().state,
-            s.store<GitChecksStore>().state,
+            combine(
+                s.store<GitChecksStore>().state,
+                s.store<GitExtrasStore>().state.map {
+                    it.discussions[key.project]
+                }.distinctUntilChanged(),
+                ::Pair
+            ),
             ::Triple
         ),
         s.store<ActionsStore>().state,
         combine(sessions.listedProject(key, feeds), tips.closed, ::Pair)
-    ) { (session, view, link), p, (t, g, ci), a, (listed, closedTips) ->
+    ) { (session, view, link), p, (t, g, git), a, (listed, closedTips) ->
+        val (ci, discussion) = git
         val inputs = DetailInputs(
             terminals = t.terminals[key.project],
             creating = key.project in t.creatingTerminals,
@@ -87,6 +97,7 @@ class ProjectDetailViewModel @AssistedInject constructor(
             git = g.snapshots[key.project],
             gitLoading = key.project in g.loading,
             checks = ci.results[key.project]?.takeIf { s.store<GitChecksStore>().available },
+            discussion = discussion,
             queued = link.queued(key.project),
             canStopServices = s.store<ProjectsStore>().canRestartServices,
             canLaunchAgents = s.store<AgentLaunchStore>().canLaunchAgents,
@@ -96,6 +107,11 @@ class ProjectDetailViewModel @AssistedInject constructor(
             closedTips = closedTips
         )
         p.detail(key.project, inputs, listed)
+    }
+
+    /** The branch has a pull request: what its reviewers wrote, at most once a minute. */
+    fun loadReview() {
+        session?.store<GitExtrasStore>()?.loadDiscussion(key.project)
     }
 
     /** The screen came up: ask for its tabs again (a switch or reconnect clears them). */

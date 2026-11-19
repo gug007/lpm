@@ -72,6 +72,9 @@ struct FilePreviewContent: View {
         }
         .task(id: url) {
             let url = url
+            // A copy fetched again (after a save) builds the code view anew: it takes its
+            // text only when made.
+            text = nil
             text = await Task.detached {
                 (try? Data(contentsOf: url)).map { String(decoding: $0, as: UTF8.self) } ?? ""
             }.value

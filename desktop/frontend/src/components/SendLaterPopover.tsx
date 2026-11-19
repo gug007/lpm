@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react";
 import { createPortal } from "react-dom";
-import { CalendarClock, Clock3, Gauge, Sun } from "lucide-react";
+import { CalendarClock, Clock3, Gauge, Repeat2, Sun } from "lucide-react";
 import type { SendLaterPicker } from "../hooks/useComposerSendLater";
 import { useLimitReset } from "../hooks/useLimitReset";
 import { useNow } from "../hooks/useNow";
@@ -8,6 +8,7 @@ import { useOverlay } from "../store/overlay";
 import { clockChoice, type LastChoice } from "../sendLater/lastChoice";
 import type { LimitAgent } from "../sendLater/limitReset";
 import { promptPreview } from "../sendLater/preview";
+import { REPEAT_CHOICES, withRepeat } from "../sendLater/repeat";
 import { MINUTE, clockLabel, dayLabel, scheduleButtonLabel, shortWhenLabel } from "../sendLater/time";
 import { MIN_DELAY, buildScale, dayMarks, snapTime } from "../sendLater/timeline";
 import type { ScheduledPromptKind } from "../store/sendLater";
@@ -25,7 +26,7 @@ interface SendLaterPopoverProps {
   agent: LimitAgent | null;
   // The terminal the prompt goes to, when known: its own Claude account.
   terminalId?: string;
-  onPick: (at: number, kind: ScheduledPromptKind, choice: LastChoice | null) => void;
+  onPick: (at: number, kind: ScheduledPromptKind, choice: LastChoice | null, repeatMs: number) => void;
   // Whether focus should go back to the input: yes for Escape, no for a click
   // somewhere else, which already put focus where the user wanted it.
   onClose: (refocus: boolean) => void;
@@ -44,6 +45,7 @@ export function SendLaterPopover({ anchorRef, picker, projectName, agent, termin
   const earliest = now + MIN_DELAY;
   const [value, setValue] = useState(() => Math.max(picker.initialAt, Date.now() + MIN_DELAY));
   const [choice, setChoice] = useState<LastChoice | null>(null);
+  const [repeat, setRepeat] = useState(() => (picker.mode === "reschedule" ? (picker.item.repeatMs ?? 0) : 0));
   const [preview, setPreview] = useState<number | null>(null);
   const [panel, setPanel] = useState<"line" | "date">(() =>
     picker.initialAt > buildScale(Date.now()).end ? "date" : "line",
@@ -138,7 +140,7 @@ export function SendLaterPopover({ anchorRef, picker, projectName, agent, termin
 
   const pickFlag = (flag: TimelineFlag) => {
     const kind = flags.find((f) => f.key === flag.key)?.kind ?? "time";
-    onPick(flag.t, kind, kind === "limit" ? null : clockChoice(flag.t));
+    onPick(flag.t, kind, kind === "limit" ? null : clockChoice(flag.t), kind === "time" ? repeat : 0);
   };
 
   const move = (at: number, next: LastChoice | null) => {
@@ -156,7 +158,7 @@ export function SendLaterPopover({ anchorRef, picker, projectName, agent, termin
 
   const commit = () => {
     if (value < Date.now() + MIN_DELAY) return;
-    onPick(value, "time", choice);
+    onPick(value, "time", choice, repeat);
   };
 
   if (!style) return null;
@@ -181,7 +183,7 @@ export function SendLaterPopover({ anchorRef, picker, projectName, agent, termin
           onDone={focusLine}
           onTyped={(at, delay, isLimit) => {
             if (isLimit) {
-              onPick(at, "limit", null);
+              onPick(at, "limit", null, 0);
               return;
             }
             move(at, delay ? { kind: "delay", ms: at - Date.now() } : clockChoice(at));
@@ -216,6 +218,29 @@ export function SendLaterPopover({ anchorRef, picker, projectName, agent, termin
         />
       )}
 
+      <div role="radiogroup" aria-label="Repeat" className="flex flex-wrap items-center gap-1.5">
+        <span className="mr-0.5 flex items-center gap-1 text-[11px] text-[var(--text-muted)]">
+          <Repeat2 size={12} strokeWidth={1.75} />
+          Repeat
+        </span>
+        {REPEAT_CHOICES.map((c) => (
+          <button
+            key={c.ms}
+            type="button"
+            role="radio"
+            aria-checked={repeat === c.ms}
+            onClick={() => setRepeat(c.ms)}
+            className={`flex h-6 shrink-0 items-center whitespace-nowrap rounded-md border px-2 text-[11px] transition-colors ${
+              repeat === c.ms
+                ? "border-[var(--accent-blue)] bg-[var(--accent-blue)]/15 text-[var(--text-primary)]"
+                : "border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            }`}
+          >
+            {c.label}
+          </button>
+        ))}
+      </div>
+
       <div className="flex flex-wrap items-center gap-1.5 border-t border-[var(--border)] pt-2.5">
         {panel === "line" && (
           <>
@@ -230,7 +255,7 @@ export function SendLaterPopover({ anchorRef, picker, projectName, agent, termin
           </>
         )}
         {laterLimit && (
-          <FooterButton onClick={() => onPick(laterLimit.at, "limit", null)} title={`${laterLimit.agent}'s ${laterLimit.window} limit is ${Math.round(laterLimit.usedPercent)}% used`}>
+          <FooterButton onClick={() => onPick(laterLimit.at, "limit", null, 0)} title={`${laterLimit.agent}'s ${laterLimit.window} limit is ${Math.round(laterLimit.usedPercent)}% used`}>
             <Gauge size={12} strokeWidth={1.75} />
             Limit resets {shortWhenLabel(laterLimit.resetsAt, now)}
           </FooterButton>
@@ -242,7 +267,9 @@ export function SendLaterPopover({ anchorRef, picker, projectName, agent, termin
           disabled={!ready}
           className="flex h-7 shrink-0 items-center gap-1.5 rounded-lg bg-[var(--accent-blue)] px-3 text-[12px] font-medium text-[var(--bg-primary)] transition-opacity hover:opacity-90 disabled:opacity-40"
         >
-          {ready ? scheduleButtonLabel(value, now) : `Pick a time at least ${MIN_DELAY / MINUTE} min ahead`}
+          {ready
+            ? withRepeat(scheduleButtonLabel(value, now), repeat)
+            : `Pick a time at least ${MIN_DELAY / MINUTE} min ahead`}
           {ready && <span className="text-[11px] opacity-70">{enterHint()}</span>}
         </button>
       </div>

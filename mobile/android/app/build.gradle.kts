@@ -41,8 +41,8 @@ android {
     defaultConfig {
         applicationId = "cx.lpm.mobile"
         // Bumped for every Play upload; the name follows iOS's MARKETING_VERSION.
-        versionCode = 4
-        versionName = "1.74"
+        versionCode = 5
+        versionName = "1.86"
         // The values the google-services plugin would generate, read by Firebase at launch.
         firebase.forEach { (name, value) -> resValue("string", name, value) }
     }
@@ -107,6 +107,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.navigation3)
     implementation(libs.androidx.navigation3.ui)
+    implementation(libs.play.review)
     // Glance brings WorkManager 2.7.1, whose Room keeps WorkDatabase_Impl without its
     // constructor under R8 full mode: a minified build crashes at launch.
     runtimeOnly(libs.androidx.work.runtime)

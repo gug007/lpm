@@ -1,5 +1,6 @@
 package cx.lpm.mobile.feature.git.review
 
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -45,12 +46,18 @@ internal fun ReviewOverlayContent(
     onCreatePullRequest: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    when (state.overlay ?: return) {
+    when (val overlay = state.overlay ?: return) {
         ReviewOverlay.Skeleton -> ReviewSkeleton(modifier)
 
-        ReviewOverlay.Unreachable -> Centered(modifier) {
+        ReviewOverlay.Unreachable, ReviewOverlay.BranchUnreachable -> Centered(modifier) {
             EmptyState(
-                title = stringResource(R.string.git_review_unreachable),
+                title = stringResource(
+                    if (overlay == ReviewOverlay.Unreachable) {
+                        R.string.git_review_unreachable
+                    } else {
+                        R.string.git_branch_unreachable
+                    }
+                ),
                 icon = painterResource(DesignR.drawable.ic_wifi_off),
                 description = { Description(state.loadError.orEmpty()) },
                 actions = {
@@ -64,13 +71,12 @@ internal fun ReviewOverlayContent(
             )
         }
 
-        ReviewOverlay.NotRepo -> Centered(modifier) {
-            EmptyState(
-                title = stringResource(R.string.git_review_not_repo),
-                icon = painterResource(DesignR.drawable.ic_folder_off),
-                description = { Description(stringResource(R.string.git_review_not_repo_message)) }
-            )
-        }
+        ReviewOverlay.NotRepo -> Message(
+            stringResource(R.string.git_review_not_repo),
+            DesignR.drawable.ic_folder_off,
+            stringResource(R.string.git_review_not_repo_message),
+            modifier
+        )
 
         ReviewOverlay.NoChanges -> Centered(modifier) {
             EmptyState(
@@ -100,6 +106,42 @@ internal fun ReviewOverlayContent(
                 }
             )
         }
+
+        ReviewOverlay.BranchNothing -> Message(
+            stringResource(R.string.git_branch_nothing),
+            DesignR.drawable.ic_merge,
+            stringResource(R.string.git_branch_nothing_message),
+            modifier
+        )
+
+        ReviewOverlay.BranchNoCommits -> Message(
+            stringResource(R.string.git_branch_no_commits, state.branchBase),
+            DesignR.drawable.ic_check_circle,
+            stringResource(R.string.git_branch_no_commits_message),
+            modifier
+        )
+
+        ReviewOverlay.BranchAllPushed -> Message(
+            stringResource(R.string.git_branch_all_pushed),
+            DesignR.drawable.ic_check_circle,
+            stringResource(R.string.git_branch_all_pushed_message),
+            modifier
+        )
+    }
+}
+
+/** A static overlay: what's up, and a line on why. */
+@Composable
+private fun Message(
+    title: String,
+    @DrawableRes icon: Int,
+    message: String,
+    modifier: Modifier = Modifier
+) {
+    Centered(modifier) {
+        EmptyState(title = title, icon = painterResource(icon), description = {
+            Description(message)
+        })
     }
 }
 

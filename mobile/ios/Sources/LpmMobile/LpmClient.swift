@@ -109,6 +109,11 @@ final class LpmClient: NSObject {
     var onGitChecks: ((_ project: String, _ checks: GitChecks?, _ error: String?) -> Void)?
     var onGitCommitChecks: ((_ project: String, _ states: [String: CiCheck.State]) -> Void)?
     var onGitChecksRerun: ((_ project: String, _ error: String?) -> Void)?
+    var onGitScanSecrets: ((SecretScanReply) -> Void)?
+    var onGitBranchFiles: ((BranchFilesReply) -> Void)?
+    var onGitPrDiscussion: ((PrDiscussionReply) -> Void)?
+    var onGitCheckLog: ((CheckLogReply) -> Void)?
+    var onWriteFile: ((FileWriteReply) -> Void)?
     var onGitMergePr: ((_ project: String, _ number: Int, _ deletedBranch: Bool, _ error: String?) -> Void)?
     var onGitCommitFiles: ((_ project: String, _ hash: String, _ files: [CommitFile]?, _ error: String?) -> Void)?
     var onGitCommitPatch: ((_ project: String, _ hash: String, _ path: String, _ result: GitDiffResult?,
@@ -300,6 +305,11 @@ final class LpmClient: NSObject {
     static let agentDialogFeature = "agentDialog"
     static let gitDiscardFilesFeature = "gitDiscardFiles"
     static let actionPopupFeature = "actionPopup"
+    static let gitScanSecretsFeature = "gitScanSecrets"
+    static let gitBranchDiffFeature = "gitBranchDiff"
+    static let gitPrDiscussionFeature = "gitPrDiscussion"
+    static let gitCheckLogFeature = "gitCheckLog"
+    static let writeFileFeature = "writeFile"
 
     // Requests made while the link is down or half-dead, delivered on the next
     // `ready`. iOS kills the socket seconds after backgrounding and the
@@ -542,7 +552,9 @@ final class LpmClient: NSObject {
                              Self.limitRemindersFeature, Self.projectPinsFeature, Self.gitHistoryFeature,
                              Self.keepAwakeFeature, Self.lpmCommandsFeature, Self.lpmOtherSkillsFeature, Self.lpmNestedFoldersFeature,
                              Self.gitChecksFeature, Self.gitCommitChecksFeature, Self.gitMergeFeature,
-                             Self.agentDialogFeature, Self.gitDiscardFilesFeature, Self.actionPopupFeature],
+                             Self.agentDialogFeature, Self.gitDiscardFilesFeature, Self.actionPopupFeature,
+                             Self.gitScanSecretsFeature, Self.gitBranchDiffFeature, Self.gitPrDiscussionFeature,
+                             Self.gitCheckLogFeature, Self.writeFileFeature],
             ]))
         }
     }
@@ -1220,6 +1232,14 @@ final class LpmClient: NSObject {
     func requestGitChecksRerun(project: String, runIds: [String]) {
         send(Wire.gitChecksRerun(project: project, runIds: runIds))
     }
+    func scanSecrets(project: String, files: [String]) { send(Wire.gitScanSecrets(project: project, files: files)) }
+    func requestBranchFiles(project: String) { send(Wire.gitBranchFiles(project: project)) }
+    func requestBranchDiffs(project: String, paths: [String]) { send(Wire.gitBranchDiffs(project: project, paths: paths)) }
+    func requestPrDiscussion(project: String) { send(Wire.gitPrDiscussion(project: project)) }
+    func requestCheckLog(project: String, url: String) { send(Wire.gitCheckLog(project: project, url: url)) }
+    func writeFile(project: String, path: String, content: String, base: String, reqId: String) {
+        send(Wire.writeFile(project: project, path: path, content: content, base: base, reqId: reqId))
+    }
     func requestGitMergePr(project: String, number: Int, method: String, head: String, deleteBranch: Bool) {
         send(Wire.gitMergePr(project: project, number: number, method: method, head: head, deleteBranch: deleteBranch))
     }
@@ -1614,6 +1634,13 @@ final class LpmClient: NSObject {
                 self.onGitDiscardFiles?(proj, paths, undo, error)
             case .agentDialog(let read): self.onAgentDialog?(read)
             case .actionPopup(let reply): self.onActionPopup?(reply)
+            case .gitScanSecrets(let reply): self.onGitScanSecrets?(reply)
+            case .gitBranchFiles(let reply): self.onGitBranchFiles?(reply)
+            case .gitBranchDiffs(let proj, let entries, let error):
+                self.onGitDiffs?(GitExtrasStore.branchKey(proj), entries, error)
+            case .gitPrDiscussion(let reply): self.onGitPrDiscussion?(reply)
+            case .gitCheckLog(let reply): self.onGitCheckLog?(reply)
+            case .writeFile(let reply): self.onWriteFile?(reply)
             case .gitChanged(let proj): self.onGitChanged?(proj)
             case .gitHistory(let proj, let skip, let page, let error): self.onGitHistory?(proj, skip, page, error)
             case .gitChecks(let proj, let checks, let error): self.onGitChecks?(proj, checks, error)

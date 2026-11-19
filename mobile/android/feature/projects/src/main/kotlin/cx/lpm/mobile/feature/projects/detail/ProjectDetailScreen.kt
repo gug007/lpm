@@ -71,7 +71,10 @@ class ProjectDetailActions(
     val closeTip: (AppTip) -> Unit = {},
     val openBranch: () -> Unit = {},
     val openChanges: () -> Unit = {},
-    val openChecks: () -> Unit = {}
+    val openChecks: () -> Unit = {},
+    val openReview: () -> Unit = {},
+    /** The branch's pull request changed: ask what its reviewers wrote. */
+    val loadReview: () -> Unit = {}
 )
 
 /**

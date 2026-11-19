@@ -15,10 +15,10 @@ export const FILE_CHORDS = {
   trash: chordLabel(TRASH_CHORD),
 } as const;
 
-export async function copyText(text: string): Promise<void> {
+export async function copyText(text: string, done = "Copied"): Promise<void> {
   try {
     await SetClipboardText(text);
-    toast.success("Copied");
+    toast.success(done);
   } catch (err: unknown) {
     toast.error(String(err));
   }

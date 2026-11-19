@@ -10,6 +10,7 @@ mod auto_pull;
 mod awake;
 mod config;
 mod config_cmd;
+mod os_cmd;
 mod control;
 mod cp;
 mod exec;

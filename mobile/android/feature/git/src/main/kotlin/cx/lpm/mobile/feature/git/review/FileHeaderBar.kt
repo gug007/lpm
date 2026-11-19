@@ -55,6 +55,7 @@ import cx.lpm.mobile.core.designsystem.component.ContextMenuItem
 import cx.lpm.mobile.core.designsystem.component.LpmConfirmationDialog
 import cx.lpm.mobile.core.designsystem.component.clickableNoIndication
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
+import cx.lpm.mobile.core.designsystem.theme.isLargeText
 import cx.lpm.mobile.core.ui.GitStatusBadge
 import cx.lpm.mobile.feature.git.R
 import java.time.Instant
@@ -83,55 +84,86 @@ internal fun FileHeaderBar(
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
     val path = row.path
-    Box(modifier) {
-        Row(
+    val large = isLargeText()
+    val toggles: @Composable () -> Unit = {
+        // Long diff lines wrap to the screen (the default) or scroll sideways,
+        // one choice for every file.
+        TogglePill(
+            on = wrap,
+            onToggle = actions.toggleWrap,
+            label = stringResource(R.string.git_file_wrap),
+            tint = colors.tint,
+            role = Role.Switch
+        )
+        TogglePill(
+            on = row.viewed,
+            onToggle = onViewedToggle,
+            label = stringResource(R.string.git_file_viewed),
+            tint = colors.green,
+            role = Role.Checkbox,
+            icon = if (row.viewed) {
+                DesignR.drawable.ic_check_circle_fill
+            } else {
+                DesignR.drawable.ic_circle
+            }
+        )
+    }
+    val more: @Composable () -> Unit = {
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = HeaderMinHeight)
-                .background(colors.secondarySystemBackground)
-                .padding(start = 12.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .size(32.dp)
+                .clickableNoIndication(onClick = { menu = true }),
+            contentAlignment = Alignment.Center
         ) {
-            NameButton(
-                row = row,
-                onClick = { actions.toggleCollapsed(path) },
-                onLongClick = { menu = true },
-                modifier = Modifier.weight(1f)
+            Icon(
+                painter = painterResource(DesignR.drawable.ic_more_horiz),
+                contentDescription = stringResource(R.string.git_more),
+                tint = colors.secondaryLabel,
+                modifier = Modifier.size(20.dp)
             )
-            // Long diff lines wrap to the screen (the default) or scroll sideways,
-            // one choice for every file.
-            TogglePill(
-                on = wrap,
-                onToggle = actions.toggleWrap,
-                label = stringResource(R.string.git_file_wrap),
-                tint = colors.tint,
-                role = Role.Switch
-            )
-            TogglePill(
-                on = row.viewed,
-                onToggle = onViewedToggle,
-                label = stringResource(R.string.git_file_viewed),
-                tint = colors.green,
-                role = Role.Checkbox,
-                icon = if (row.viewed) {
-                    DesignR.drawable.ic_check_circle_fill
-                } else {
-                    DesignR.drawable.ic_circle
+        }
+    }
+    val name: @Composable (Modifier) -> Unit = {
+        NameButton(
+            row = row,
+            large = large,
+            onClick = { actions.toggleCollapsed(path) },
+            onLongClick = { menu = true },
+            modifier = it
+        )
+    }
+    Box(modifier) {
+        val bar = Modifier
+            .fillMaxWidth()
+            .heightIn(min = HeaderMinHeight)
+            .background(colors.secondarySystemBackground)
+            .padding(start = 12.dp, end = 6.dp, top = 8.dp, bottom = 8.dp)
+        // At the largest text sizes the name gets lines of its own and the
+        // toggles go under it, so neither is cut short.
+        if (large) {
+            Column(bar, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    name(Modifier.weight(1f))
+                    more()
                 }
-            )
-            Box(
-                modifier = Modifier
-                    .size(32.dp)
-                    .clickableNoIndication(onClick = { menu = true }),
-                contentAlignment = Alignment.Center
+                Row(
+                    modifier = Modifier.padding(start = 22.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) { toggles() }
+            }
+        } else {
+            Row(
+                modifier = bar,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    painter = painterResource(DesignR.drawable.ic_more_horiz),
-                    contentDescription = stringResource(R.string.git_more),
-                    tint = colors.secondaryLabel,
-                    modifier = Modifier.size(20.dp)
-                )
+                name(Modifier.weight(1f))
+                toggles()
+                more()
             }
         }
         HorizontalDivider(
@@ -145,17 +177,19 @@ internal fun FileHeaderBar(
                 onClick = { actions.ask(path) },
                 icon = painterResource(DesignR.drawable.ic_auto_awesome)
             )
-            ContextMenuItem(
-                title = stringResource(
-                    if (row.selected) {
-                        R.string.git_file_exclude_from_commit
-                    } else {
-                        R.string.git_file_include_in_commit
-                    }
-                ),
-                onClick = { actions.toggleSelected(path) },
-                icon = painterResource(if (row.selected) EXCLUDE_ICON else INCLUDE_ICON)
-            )
+            if (row.committable) {
+                ContextMenuItem(
+                    title = stringResource(
+                        if (row.selected) {
+                            R.string.git_file_exclude_from_commit
+                        } else {
+                            R.string.git_file_include_in_commit
+                        }
+                    ),
+                    onClick = { actions.toggleSelected(path) },
+                    icon = painterResource(if (row.selected) EXCLUDE_ICON else INCLUDE_ICON)
+                )
+            }
             ContextMenuItem(
                 title = stringResource(R.string.git_file_copy_path),
                 onClick = {
@@ -210,6 +244,7 @@ private fun DiscardConfirmation(
 @Composable
 private fun NameButton(
     row: ReviewRow.FileHeader,
+    large: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -251,10 +286,10 @@ private fun NameButton(
                 text = row.file.name,
                 style = LpmTheme.typography.subheadline.copy(fontWeight = FontWeight.SemiBold),
                 color = colors.label,
-                maxLines = 1,
+                maxLines = if (large) 3 else 1,
                 overflow = TextOverflow.MiddleEllipsis
             )
-            DetailLine(row)
+            DetailLine(row, large)
         }
     }
 }
@@ -264,7 +299,7 @@ private fun NameButton(
  * the change counts once parsed, and "Excluded" when left out of the commit.
  */
 @Composable
-private fun DetailLine(row: ReviewRow.FileHeader) {
+private fun DetailLine(row: ReviewRow.FileHeader, large: Boolean) {
     val colors = LpmTheme.colors
     val style = LpmTheme.typography.caption1
     Row(
@@ -290,7 +325,7 @@ private fun DetailLine(row: ReviewRow.FileHeader) {
                 text = directory,
                 style = style,
                 color = colors.secondaryLabel,
-                maxLines = 1,
+                maxLines = if (large) 2 else 1,
                 overflow = TextOverflow.StartEllipsis,
                 modifier = Modifier.weight(1f, fill = false)
             )
@@ -298,7 +333,7 @@ private fun DetailLine(row: ReviewRow.FileHeader) {
         if (row.added != null && row.removed != null) {
             DiffStat(row.added, row.removed)
         }
-        if (!row.selected) {
+        if (row.committable && !row.selected) {
             Text(
                 text = stringResource(R.string.git_file_excluded),
                 style = style,

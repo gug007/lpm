@@ -28,7 +28,7 @@ import {
 
 const TITLE = "lpm Docs — Install, Configure Projects, and Ask Your AI Agent";
 const DESCRIPTION =
-  "Install lpm, then ask Claude Code or Codex to configure it, or edit it yourself: every key for services, actions, terminals, zones, profiles, and the shared layers.";
+  "Install lpm, learn the app (agents, copies, review, automations, other computers and the phone app), then configure projects yourself or ask Claude Code or Codex to.";
 
 export const metadata: Metadata = {
   title: { absolute: TITLE },
@@ -123,7 +123,7 @@ export default function DocsPage() {
         <p className="mt-4 text-[15px] leading-relaxed text-gray-600 dark:text-gray-400">
           lpm is a free desktop app for macOS, Windows and Linux that starts
           your projects&apos; dev servers and runs AI coding agents beside them.
-          These docs cover its project config.
+          These docs cover how to use the app and how to configure a project.
         </p>
         <LatestRelease source="docs-latest" className="mt-6" />
         <p className="mt-6 mb-8 text-[15px] leading-relaxed text-gray-600 dark:text-gray-400">
@@ -134,8 +134,12 @@ export default function DocsPage() {
           >
             Install lpm
           </Link>{" "}
-          and add a project folder. Then ask your AI agent to set it up for
-          you, or edit the config yourself: every key is in the reference.
+          and add a project folder, then see{" "}
+          <Link href={docsPath("concepts")} className={LINK}>
+            how lpm is organized
+          </Link>
+          . To set a project up, ask your AI agent, or edit the config
+          yourself: every key is in the reference.
         </p>
 
         <ConfigPaths />

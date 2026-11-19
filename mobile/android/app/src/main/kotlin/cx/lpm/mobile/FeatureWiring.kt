@@ -23,6 +23,7 @@ import cx.lpm.mobile.feature.mac.machines.PairDirectlyRoute
 import cx.lpm.mobile.feature.mac.machines.PendingMachinesRoute
 import cx.lpm.mobile.feature.mac.update.MacUpdateBarRoute
 import cx.lpm.mobile.feature.mac.update.MacUpdateMenuItemRoute
+import cx.lpm.mobile.feature.mac.update.liveMacVersion
 import cx.lpm.mobile.feature.memory.composer.ComposerMemorySheet
 import cx.lpm.mobile.feature.pairing.IssueCardSlot
 import cx.lpm.mobile.feature.projects.ProjectsSlots
@@ -142,7 +143,8 @@ internal val settingsSlots = SettingsSlots(
     terminalControls = { TerminalSettingsControls() },
     readAloudPage = { onBack ->
         SettingsPage(stringResource(SpeechR.string.speech_title), onBack) { SpeechSettings() }
-    }
+    },
+    macVersion = { liveMacVersion() }
 )
 
 internal val configSlots = ConfigSlots(

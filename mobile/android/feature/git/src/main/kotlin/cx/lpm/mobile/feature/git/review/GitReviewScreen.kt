@@ -24,12 +24,15 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import cx.lpm.mobile.core.designsystem.R as DesignR
 import cx.lpm.mobile.core.designsystem.component.GlassIconButton
 import cx.lpm.mobile.core.designsystem.component.LpmTopBar
+import cx.lpm.mobile.core.designsystem.component.ProminentButton
+import cx.lpm.mobile.core.designsystem.component.SegmentedControl
 import cx.lpm.mobile.core.designsystem.component.TopBarTitle
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.feature.git.R
@@ -65,7 +68,11 @@ class ReviewActions(
     /** × on the kept draft over Commit. */
     val clearDraft: () -> Unit = {},
     /** The list scrolled to the file the screen opened on. */
-    val focusShown: () -> Unit = {}
+    val focusShown: () -> Unit = {},
+    /** The switch at the top: the uncommitted work or the branch's own changes. */
+    val setScope: (ReviewScope) -> Unit = {},
+    /** The Branch scope's open pull request, on GitHub. */
+    val openPullRequest: (String) -> Unit = {}
 )
 
 /**
@@ -112,6 +119,7 @@ fun GitReviewScreen(
                 }
             }
         ) { ChangesTitle(state.added, state.removed) }
+        if (state.scopeAvailable) ScopePicker(state, actions.setScope)
         Box(Modifier.weight(1f)) {
             PullToRefreshBox(
                 isRefreshing = refreshing,
@@ -142,7 +150,9 @@ fun GitReviewScreen(
                 onUndo = actions.undoDiscard
             )
         }
-        if (headers.isNotEmpty()) {
+        if (headers.isNotEmpty() && state.scope == ReviewScope.Branch) {
+            if (state.ghCli) PullRequestBar(state.openPr, actions)
+        } else if (headers.isNotEmpty()) {
             state.draft?.let { CommitDraftChip(it, onClear = actions.clearDraft) }
             CommitBar(
                 selected = state.selectedCount,
@@ -150,6 +160,45 @@ fun GitReviewScreen(
                 onClick = actions.openCommit
             )
         }
+    }
+}
+
+/** What Changes reviews (iOS `ReviewScopePicker`). */
+@Composable
+private fun ScopePicker(state: GitReviewUiState, onSelect: (ReviewScope) -> Unit) {
+    val branch = state.branchFiles?.let {
+        pluralStringResource(R.plurals.git_scope_branch_files, it, it)
+    } ?: stringResource(R.string.git_scope_branch)
+    SegmentedControl(
+        options = listOf(stringResource(R.string.git_scope_uncommitted), branch),
+        selectedIndex = if (state.scope == ReviewScope.Branch) 1 else 0,
+        onSelect = { onSelect(if (it == 1) ReviewScope.Branch else ReviewScope.Uncommitted) },
+        modifier = Modifier
+            .barBackground()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+    )
+}
+
+/** The Branch scope's last step: its open pull request, or a new one. */
+@Composable
+private fun PullRequestBar(pr: OpenPullRequest?, actions: ReviewActions) {
+    Column(
+        Modifier.bottomBar()
+    ) {
+        ProminentButton(
+            text = pr?.let { stringResource(R.string.git_branch_open_pr, it.number) }
+                ?: stringResource(R.string.git_review_create_pr),
+            icon = painterResource(DesignR.drawable.ic_merge),
+            onClick = {
+                if (pr !=
+                    null
+                ) {
+                    actions.openPullRequest(pr.url)
+                } else {
+                    actions.createPullRequest()
+                }
+            }
+        )
     }
 }
 

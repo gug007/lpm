@@ -1,6 +1,7 @@
 package cx.lpm.mobile.feature.projects.detail
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -9,6 +10,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.movableContentOf
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
@@ -29,9 +34,11 @@ import cx.lpm.mobile.core.designsystem.component.ListRow
 import cx.lpm.mobile.core.designsystem.component.ListSection
 import cx.lpm.mobile.core.designsystem.component.ListSectionSpacing
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
+import cx.lpm.mobile.core.designsystem.theme.isLargeText
 import cx.lpm.mobile.core.model.CiCheck
 import cx.lpm.mobile.core.model.GitChecks
 import cx.lpm.mobile.core.model.GitSnapshot
+import cx.lpm.mobile.core.model.PrDiscussion
 import cx.lpm.mobile.core.ui.CiStateIcon
 import cx.lpm.mobile.core.ui.compactCount
 import cx.lpm.mobile.feature.projects.R
@@ -44,13 +51,34 @@ import cx.lpm.mobile.feature.projects.R
 @Composable
 internal fun ProjectGitSection(state: ProjectDetailUiState, actions: ProjectDetailActions) {
     val git = state.git?.takeIf { state.showsGit } ?: return
+    val checks = state.checks
+    LaunchedEffect(checks) { if (checks?.pr != null) actions.loadReview() }
     ListSection(
         header = stringResource(R.string.detail_git),
         spacing = ListSectionSpacing.Compact
     ) {
         BranchRow(git, actions.openBranch)
         ChangesRow(git, actions.openChanges)
-        state.checks?.let { checks -> ChecksRow(checks, actions.openChecks) }
+        state.review?.let { ReviewRow(it, actions.openReview) }
+        checks?.let { ChecksRow(it, actions.openChecks) }
+    }
+}
+
+/** "Review on #12 · 3 comments", orange while a reviewer asks for changes. */
+@Composable
+private fun ReviewRow(review: PrDiscussion, onClick: () -> Unit) {
+    val count = review.comments.size
+    val comments = pluralStringResource(R.plurals.review_comments, count, count)
+    GitSectionRow(
+        title = stringResource(R.string.review_on, review.number),
+        trailingSpoken = comments,
+        onOpen = onClick,
+        leading = { RowIcon(DesignR.drawable.ic_chat_bubble) }
+    ) {
+        TrailingText(
+            comments,
+            if (review.changesRequested) LpmTheme.colors.orange else LpmTheme.colors.secondaryLabel
+        )
     }
 }
 
@@ -128,7 +156,8 @@ private fun ChecksRow(checks: GitChecks, onClick: () -> Unit) {
 
 /**
  * A full-width row: [leading] icon, [title], what's on the right, and a chevron, opening
- * [onOpen]. It reads as one line, the title then [trailingSpoken].
+ * [onOpen]. It reads as one line, the title then [trailingSpoken]. At the largest text
+ * sizes the value goes under the title, each on lines of its own, so neither is cut short.
  */
 @Composable
 private fun GitSectionRow(
@@ -141,6 +170,11 @@ private fun GitSectionRow(
 ) {
     val spoken = listOf(title, trailingSpoken).filter { it.isNotEmpty() }.joinToString(", ")
     val body = LpmTheme.typography.body
+    val style = if (monospaced) body.copy(fontFamily = FontFamily.Monospace) else body
+    val stacked = isLargeText()
+    val value = remember(trailing) {
+        movableContentOf { Row(verticalAlignment = Alignment.CenterVertically) { trailing() } }
+    }
     ListRow(
         modifier = Modifier.clearAndSetSemantics {
             contentDescription = spoken
@@ -155,20 +189,27 @@ private fun GitSectionRow(
         leadingSlot = GitLeadingSlot,
         verticalPadding = 4.dp,
         trailing = {
-            trailing()
             Spacer(Modifier.width(12.dp))
             DisclosureChevron()
         }
     ) {
-        Text(
-            text = title,
-            style = if (monospaced) body.copy(fontFamily = FontFamily.Monospace) else body,
-            color = LpmTheme.colors.label,
-            maxLines = 1,
-            overflow = TextOverflow.MiddleEllipsis,
-            modifier = Modifier.weight(1f)
-        )
-        Spacer(Modifier.width(8.dp))
+        if (stacked) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(text = title, style = style, color = LpmTheme.colors.label, maxLines = 3)
+                value()
+            }
+        } else {
+            Text(
+                text = title,
+                style = style,
+                color = LpmTheme.colors.label,
+                maxLines = 1,
+                overflow = TextOverflow.MiddleEllipsis,
+                modifier = Modifier.weight(1f)
+            )
+            Spacer(Modifier.width(8.dp))
+            value()
+        }
     }
 }
 

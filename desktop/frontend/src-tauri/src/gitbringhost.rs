@@ -117,7 +117,7 @@ fn head_of(cwd: &str) -> Result<String, String> {
         .map_err(|_| format!("that project has no commits yet on the other {MACHINE}"))
 }
 
-fn branch_of(cwd: &str) -> Option<String> {
+pub(crate) fn branch_of(cwd: &str) -> Option<String> {
     git(cwd, &["symbolic-ref", "--quiet", "--short", "HEAD"])
         .ok()
         .filter(|b| !b.is_empty())
@@ -258,8 +258,8 @@ fn reap_expired() {
 
 // --- git plumbing -------------------------------------------------------------
 
-struct Snapshot {
-    sha: Option<String>,
+pub(crate) struct Snapshot {
+    pub(crate) sha: Option<String>,
     /// The working state's tree id — the fingerprint a follower compares against,
     /// reported whether or not a snapshot commit was needed.
     tree: String,
@@ -278,7 +278,7 @@ fn temp_path(prefix: &str) -> PathBuf {
 /// from the shared working-state definition, so what travels is exactly what a
 /// follower fingerprints; `commit-tree` reads no index, so nothing here touches
 /// the user's staging area. Returns no sha when the tree already matches HEAD.
-fn snapshot(cwd: &str, head: &str) -> Result<Snapshot, String> {
+pub(crate) fn snapshot(cwd: &str, head: &str) -> Result<Snapshot, String> {
     let tree = crate::gitworkstate::working_state_tree(cwd, head)?;
     let head_tree = crate::gitworkstate::tree_of(cwd, head)?;
     if tree == head_tree {
@@ -305,7 +305,7 @@ fn snapshot(cwd: &str, head: &str) -> Result<Snapshot, String> {
 
 /// Keep only the haves this repo actually contains as commits; a rev arg for a
 /// missing object makes `pack-objects` fail outright.
-fn filter_haves(cwd: &str, raw: Option<&Value>) -> Vec<String> {
+pub(crate) fn filter_haves(cwd: &str, raw: Option<&Value>) -> Vec<String> {
     let wanted = crate::gitbringapply::dedup_cap(
         raw.and_then(Value::as_array)
             .map(|a| {
@@ -340,7 +340,7 @@ fn filter_haves(cwd: &str, raw: Option<&Value>) -> Vec<String> {
 /// Pack every object reachable from `target` that the asking Mac is missing.
 /// Both ends of the pipeline are files, so neither the rev list nor the pack can
 /// deadlock against a full pipe buffer.
-fn pack(cwd: &str, target: &str, haves: &[String]) -> Result<PathBuf, String> {
+pub(crate) fn pack(cwd: &str, target: &str, haves: &[String]) -> Result<PathBuf, String> {
     let mut revs = format!("{target}\n");
     for h in haves {
         revs.push('^');

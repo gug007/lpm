@@ -43,6 +43,7 @@ struct ContentView: View {
         .background { LiveActivityPublisher() }
         .background { UsageWidgetPublisher() }
         .background { AppShortcutPublisher() }
+        .modifier(ReviewAskPresenter())
         .onOpenURL { url in
             if url.scheme == "lpm" { model.openPairingLink(url) } else { model.openAgentWidgetLink(url) }
         }

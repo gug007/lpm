@@ -9,6 +9,7 @@ type DocsPageEntry = {
 };
 
 const SECTIONS = "components/config/sections";
+const GUIDES = "components/docs/guides";
 
 const GROUPS = [
   {
@@ -20,6 +21,13 @@ const GROUPS = [
         description:
           "Download and install lpm on macOS, Windows or Linux, open your first project, and get past the warnings a beta build can show.",
         source: "components/docs/install-guide.tsx",
+      },
+      {
+        slug: "concepts",
+        title: "How lpm is organized",
+        description:
+          "The eight words lpm is built from: project, service, action, terminal, agent status, copy and worktree, profile, and automation, each pointed out in the window.",
+        source: "components/docs/concepts-guide.tsx",
       },
       {
         slug: "ask-your-agent",
@@ -34,6 +42,60 @@ const GROUPS = [
         description:
           "Change a project's config in lpm as a form, as YAML with schema hints, or let AI draft it from your code.",
         source: `${SECTIONS}/editor-section.tsx`,
+      },
+    ],
+  },
+  {
+    title: "Use the app",
+    pages: [
+      {
+        slug: "agents",
+        title: "Agents and status",
+        description:
+          "Start Claude Code, Codex or any other agent in a project, read Working, Needs you and Done in the sidebar, and get an alert when one needs you.",
+        source: `${GUIDES}/agents-guide.tsx`,
+      },
+      {
+        slug: "copies-and-worktrees",
+        title: "Copies and worktrees",
+        description:
+          "Give each agent its own folder: duplicate a project or make Git worktrees, hand every copy a task, then keep the result you like and delete the rest.",
+        source: `${GUIDES}/copies-guide.tsx`,
+      },
+      {
+        slug: "review-and-git",
+        title: "Review and Git",
+        description:
+          "Read what an agent changed as one diff, discard what you don't want, commit with an AI-written message, and open a pull request from lpm.",
+        source: `${GUIDES}/review-guide.tsx`,
+      },
+      {
+        slug: "automations",
+        title: "Automations",
+        description:
+          "Run an agent prompt, a command or an action on a schedule, read each run, reply to it, and let it ask you before it decides.",
+        source: `${GUIDES}/automations-guide.tsx`,
+      },
+      {
+        slug: "accounts-and-usage",
+        title: "Accounts and usage limits",
+        description:
+          "Add a second Claude account, choose which one each project uses, watch the 5-hour and weekly limits, and switch when one runs low.",
+        source: `${GUIDES}/accounts-guide.tsx`,
+      },
+      {
+        slug: "other-computers",
+        title: "Other computers and servers",
+        description:
+          "Run projects and agents on another computer or a Linux server and drive them from this one, or add a single folder over SSH.",
+        source: `${GUIDES}/computers-guide.tsx`,
+      },
+      {
+        slug: "phone",
+        title: "lpm Link on your phone",
+        description:
+          "Pair lpm Link for iPhone, iPad or Android with your computer, answer an agent from a push, and reach home from anywhere.",
+        source: `${GUIDES}/phone-guide.tsx`,
       },
     ],
   },

@@ -1,24 +1,33 @@
 import SwiftUI
 
 /// The checks sheet's "Fix with …" rows, as the desktop's checks menu lists them:
-/// every agent the project's New Tab sheet offers. A header split button or menu is
+/// every agent the project's New Tab sheet offers, or a placeholder row while `tabs`
+/// load. A header split button or menu is
 /// one row: a split's row runs the item its button leads with and its chevron lists
 /// every item; a menu's whole row lists them. In a `panel` (outside a List) each row
 /// sizes and divides itself as a List row would.
 struct CiFixRows: View {
-    let tabs: [LaunchpadTab]
+    let tabs: [LaunchpadTab]?
+    /// "Fix with", "Resolve with": what each row does with its agent.
+    var verb = "Fix with"
     /// What a row opens, said under it when it's the only way to fix.
     var detail = "Opens a new tab with the failing checks"
     var panel = false
     let onFix: (LaunchpadOption) -> Void
 
-    private var only: Bool { tabs.count == 1 && tabs[0].options.count == 1 }
+    private var only: Bool { tabs?.count == 1 && tabs?[0].options.count == 1 }
 
     var body: some View {
-        ForEach(Array(tabs.enumerated()), id: \.element.id) { index, tab in
-            row(tab).overlay(alignment: .top) {
-                if panel && index > 0 { PanelRowDivider() }
+        if let tabs {
+            ForEach(Array(tabs.enumerated()), id: \.element.id) { index, tab in
+                row(tab).overlay(alignment: .top) {
+                    if panel && index > 0 { PanelRowDivider() }
+                }
             }
+        } else if panel {
+            ProgressView().controlSize(.small).panelRowFrame(true)
+        } else {
+            TerminalRowSkeleton()
         }
     }
 
@@ -27,7 +36,7 @@ struct CiFixRows: View {
             group(tab)
         } else if let option = tab.options.first {
             Button { onFix(option) } label: {
-                CiFixLabel(text: "Fix with \(option.label)", agent: option.agent, emoji: option.emoji,
+                CiFixLabel(text: "\(verb) \(option.label)", agent: option.agent, emoji: option.emoji,
                            detail: only ? detail : nil)
                     .panelRowFrame(panel)
             }
@@ -38,7 +47,7 @@ struct CiFixRows: View {
         if let lead = tab.primary {
             HStack(spacing: 4) {
                 Button { onFix(lead) } label: {
-                    CiFixLabel(text: "Fix with \(lead.label)", agent: lead.agent, emoji: lead.emoji, detail: nil)
+                    CiFixLabel(text: "\(verb) \(lead.label)", agent: lead.agent, emoji: lead.emoji, detail: nil)
                         .panelRowFrame(panel, trailing: 0)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .contentShape(Rectangle())
@@ -51,7 +60,7 @@ struct CiFixRows: View {
         } else {
             items(tab) {
                 HStack(spacing: 4) {
-                    CiFixLabel(text: "Fix with \(tab.label)", agent: tab.options[0].agent, emoji: tab.emoji, detail: nil)
+                    CiFixLabel(text: "\(verb) \(tab.label)", agent: tab.options[0].agent, emoji: tab.emoji, detail: nil)
                     Spacer()
                     chevron.frame(width: 32)
                 }

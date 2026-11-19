@@ -80,7 +80,7 @@ pub fn move_claude_tab_to_account(
 /// Interrupt a turn in progress the way Esc does, so Claude Code ends it itself
 /// and saves where it stopped, then wait for that save to reach the transcript.
 /// True when a turn was running.
-fn interrupt_turn(
+pub(crate) fn interrupt_turn(
     app: &AppHandle,
     project: &str,
     terminal_id: &str,

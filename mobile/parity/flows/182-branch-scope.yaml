@@ -1,0 +1,32 @@
+# Changes reviews the branch too: "Branch" lists every file storefront's two commits
+# changed since main, each with its diff, read only, and ends in its pull request.
+appId: cx.lpm.mobile
+name: 182-branch-scope
+tags: [demo, projects, git]
+---
+- runFlow: subflows/enter-demo.yaml
+- tapOn: "storefront"
+- extendedWaitUntil:
+    visible: "Git"
+    timeout: 10000
+- tapOn: "Changes.*4 files.*"
+- extendedWaitUntil:
+    visible: "Uncommitted"
+    timeout: 15000
+- tapOn: "Branch.*"
+- extendedWaitUntil:
+    visible: "2 commits since main"
+    timeout: 10000
+- assertVisible: "Branch · 4 files"
+- extendedWaitUntil:
+    visible: "Open Pull Request #42"
+    timeout: 10000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 1-branch
+- tapOn: "Uncommitted"
+- extendedWaitUntil:
+    visible: "4 files changed.*"
+    timeout: 5000
+- assertVisible: "Commit 4 files"
+- takeScreenshot: 2-uncommitted

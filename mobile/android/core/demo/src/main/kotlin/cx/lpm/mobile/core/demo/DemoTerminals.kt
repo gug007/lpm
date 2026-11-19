@@ -73,7 +73,7 @@ private fun DemoServer.registerTerminalLifecycleHandlers() {
     register("newTerminal") { o ->
         val project = o.string("project") ?: return@register
         val (n, id) = nextTerminalId(project)
-        val term = DemoWorld.Terminal(
+        val term = demoAgentTerminal(o, id, project) ?: DemoWorld.Terminal(
             id = id,
             label = "Terminal $n",
             project = project,

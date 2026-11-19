@@ -48,7 +48,10 @@ enum class FilePreviewKind {
         fun looksLikeText(head: ByteArray): Boolean {
             val sample = head.copyOf(minOf(head.size, SAMPLE_BYTES))
             if (sample.contains(0)) return false
-            return (0..minOf(3, sample.size)).any { cut -> isUtf8(sample, sample.size - cut) }
+            return (0..minOf(3, sample.size)).any { cut ->
+                utf8OrNull(sample, sample.size - cut) !=
+                    null
+            }
         }
 
         /**
@@ -60,19 +63,19 @@ enum class FilePreviewKind {
                 !head.copyOf(minOf(head.size, SAMPLE_BYTES)).contains(0)
 
         /** UTF-8 when the bytes are, Windows-1252 otherwise, so no character is lost. */
-        fun decode(bytes: ByteArray): String =
-            if (isUtf8(bytes, bytes.size)) bytes.decodeToString() else String(bytes, LEGACY)
+        fun decode(bytes: ByteArray): String = utf8OrNull(bytes) ?: String(bytes, LEGACY)
 
         private val LEGACY = charset("windows-1252")
 
-        private fun isUtf8(bytes: ByteArray, length: Int): Boolean = try {
+        /** The first [length] bytes as UTF-8, or null for anything that isn't. */
+        internal fun utf8OrNull(bytes: ByteArray, length: Int = bytes.size): String? = try {
             Charsets.UTF_8.newDecoder()
                 .onMalformedInput(CodingErrorAction.REPORT)
                 .onUnmappableCharacter(CodingErrorAction.REPORT)
                 .decode(ByteBuffer.wrap(bytes, 0, length))
-            true
+                .toString()
         } catch (_: CharacterCodingException) {
-            false
+            null
         }
 
         private const val PDF = "application/pdf"

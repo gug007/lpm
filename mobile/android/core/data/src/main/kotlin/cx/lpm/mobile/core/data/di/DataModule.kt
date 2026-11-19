@@ -1,6 +1,7 @@
 package cx.lpm.mobile.core.data.di
 
 import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings
 import androidx.datastore.core.DataStore
@@ -25,6 +26,7 @@ import cx.lpm.mobile.core.data.dictation.DictationLink
 import cx.lpm.mobile.core.data.files.ProjectFilesStore
 import cx.lpm.mobile.core.data.git.GitAutoStore
 import cx.lpm.mobile.core.data.git.GitChecksStore
+import cx.lpm.mobile.core.data.git.GitExtrasStore
 import cx.lpm.mobile.core.data.git.GitHistoryStore
 import cx.lpm.mobile.core.data.git.GitStore
 import cx.lpm.mobile.core.data.link.ConnectivityNetworkMonitor
@@ -114,7 +116,32 @@ object DataModule {
     @Singleton
     fun thisDevice(@ApplicationContext context: Context): ThisDevice {
         val name = Settings.Global.getString(context.contentResolver, Settings.Global.DEVICE_NAME)
-        return ThisDevice(name = name?.ifBlank { null } ?: Build.MODEL)
+        return ThisDevice(
+            name = name?.ifBlank {
+                null
+            } ?: Build.MODEL,
+            appVersion = appVersion(context)
+        )
+    }
+
+    private fun appVersion(context: Context): String {
+        val manager = context.packageManager
+        val info = runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                manager.getPackageInfo(context.packageName, PackageManager.PackageInfoFlags.of(0))
+            } else {
+                @Suppress("DEPRECATION")
+                manager.getPackageInfo(context.packageName, 0)
+            }
+        }.getOrNull() ?: return ""
+        val version = info.versionName.orEmpty()
+        val build = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            info.longVersionCode
+        } else {
+            @Suppress("DEPRECATION")
+            info.versionCode.toLong()
+        }
+        return if (build <= 1L) version else "$version ($build)"
     }
 
     @Provides
@@ -270,6 +297,10 @@ object DataModule {
     @Provides
     @IntoSet
     fun gitChecksStoreFactory(): SessionStore.Factory = SessionStore.Factory(::GitChecksStore)
+
+    @Provides
+    @IntoSet
+    fun gitExtrasStoreFactory(): SessionStore.Factory = SessionStore.Factory(::GitExtrasStore)
 
     @Provides
     @IntoSet

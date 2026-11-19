@@ -1,4 +1,5 @@
 import { isWhenDone, type ScheduledPrompt, type SendLaterHold } from "../store/sendLater";
+import { repeatLabel } from "./repeat";
 import { countdownLabel, shortWhenLabel } from "./time";
 
 // What a prompt queued for "when done" waits on: the agent, or for a plain
@@ -54,10 +55,11 @@ export function promptStatus(item: ScheduledPrompt, hold: SendLaterHold | undefi
           : `due ${shortWhenLabel(item.dueAt, now)} · sends when it's ready`;
     return { tone: "waiting", title, detail };
   }
+  const every = repeatLabel(item.repeatMs);
   return {
     tone: "scheduled",
     title: `${shortWhenLabel(item.dueAt, now)} · ${countdownLabel(item.dueAt, now)}`,
-    detail: null,
+    detail: every ? `Repeats ${every}` : null,
   };
 }
 

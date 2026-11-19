@@ -34,7 +34,7 @@ import { ITERM2_DEMO } from "./_components/demo-tour";
 
 const PATH = vsPath("iterm2");
 
-const TITLE = "iTerm2 Alternative on Mac (2026): Claude Code & Codex";
+const TITLE = "iTerm2 Alternative for Mac: Projects, Not Just Panes";
 const DESCRIPTION =
   "iTerm2 is the better emulator. lpm runs the project instead: one click brings up every service, with Claude Code and Codex in the next tab. Keep both.";
 

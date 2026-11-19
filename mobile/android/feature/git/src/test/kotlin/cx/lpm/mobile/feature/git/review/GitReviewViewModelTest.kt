@@ -132,6 +132,9 @@ class GitReviewViewModelTest {
 
         vm.commit()
         t.settle(0)
+        assertEquals(CommitBusy.CheckingOnly, vm.uiState.value.busy)
+        assertFalse(vm.uiState.value.canCommit)
+        t.settle(600)
         assertTrue(vm.uiState.value.committing)
         t.settle(2_000)
         val after = vm.uiState.value

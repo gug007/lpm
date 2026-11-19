@@ -768,7 +768,8 @@ extension DemoServer {
 
     // MARK: fixture file contents
 
-    private func demoFileContent(project: String, path: String) -> String {
+    func demoFileContent(project: String, path: String) -> String {
+        if let edited = world.fileEdits[project + "\n" + path] { return edited }
         switch path {
         case "package.json" where project.hasPrefix("storefront"):
             return Self.storefrontPackageJson

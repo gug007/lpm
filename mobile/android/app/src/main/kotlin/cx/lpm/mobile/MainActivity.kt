@@ -20,6 +20,7 @@ import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import cx.lpm.mobile.core.data.lock.AppLock
+import cx.lpm.mobile.core.data.mac.ThisDevice
 import cx.lpm.mobile.core.data.projects.ProjectOpens
 import cx.lpm.mobile.core.data.push.NotificationOpenTarget
 import cx.lpm.mobile.core.data.push.NotificationOpens
@@ -54,6 +55,9 @@ class MainActivity : FragmentActivity() {
 
     @Inject
     lateinit var lock: AppLock
+
+    @Inject
+    lateinit var device: ThisDevice
 
     private val viewModel: AppViewModel by viewModels()
 
@@ -98,6 +102,7 @@ class MainActivity : FragmentActivity() {
                         CompositionLocalProvider(LocalConfirmRisky provides confirmRisky) {
                             LpmApp(session, tailscale.state, opens, projectOpens)
                         }
+                        ReviewAskPresenter(session.preferences, device.appVersion)
                     }
                     if (ready && locked.locked) {
                         AppLockCover(onUnlock = { lifecycleScope.launch { lock.unlock() } })

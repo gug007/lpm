@@ -25,11 +25,7 @@ struct ServiceCrashPanel: View {
         VStack(alignment: .leading, spacing: 7) {
             VStack(spacing: 0) {
                 if model.canLaunchAgents {
-                    if let tabs {
-                        CiFixRows(tabs: tabs, detail: "Opens a new tab with the crash", panel: true, onFix: onFix)
-                    } else {
-                        ProgressView().controlSize(.small).panelRowFrame(true)
-                    }
+                    CiFixRows(tabs: tabs, detail: "Opens a new tab with the crash", panel: true, onFix: onFix)
                 }
                 if !log.isEmpty {
                     copyRow.overlay(alignment: .top) {

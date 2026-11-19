@@ -41,6 +41,23 @@
 {"at": 600, "frame": {"t": "gitBranches", "project": "storefront"}}
 {"at": 600, "frame": {"t": "gitBranches", "project": "nope"}}
 {"at": 600, "frame": {"t": "gitWatch", "project": "storefront"}}
+{"at": 600, "frame": {"t": "gitScanSecrets", "project": "storefront", "files": ["lib/payments.ts"]}}
+{"at": 600, "frame": {"t": "gitBranchFiles", "project": "storefront"}}
+{"at": 600, "frame": {"t": "gitPrDiscussion", "project": "storefront"}}
+{"at": 600, "frame": {"t": "gitScanSecrets", "project": "api-gateway", "files": ["lib/payments.ts"]}}
+{"at": 600, "frame": {"t": "gitBranchFiles", "project": "api-gateway"}}
+{"at": 600, "frame": {"t": "gitPrDiscussion", "project": "api-gateway"}}
+{"at": 600, "frame": {"t": "gitScanSecrets", "project": "blog", "files": ["lib/payments.ts"]}}
+{"at": 600, "frame": {"t": "gitBranchFiles", "project": "blog"}}
+{"at": 600, "frame": {"t": "gitPrDiscussion", "project": "blog"}}
+{"at": 600, "frame": {"t": "gitScanSecrets", "project": "nope", "files": ["lib/payments.ts"]}}
+{"at": 600, "frame": {"t": "gitBranchFiles", "project": "nope"}}
+{"at": 600, "frame": {"t": "gitPrDiscussion", "project": "nope"}}
+{"at": 600, "frame": {"t": "gitBranchDiffs", "project": "storefront", "paths": ["components/CheckoutForm.tsx", "nope.ts"]}}
+{"at": 600, "frame": {"t": "gitBranchDiffs", "project": "blog", "paths": ["README.md"]}}
+{"at": 600, "frame": {"t": "gitCheckLog", "project": "storefront", "url": "https://github.com/example/storefront/actions/runs/7001/job/1"}}
+{"at": 600, "frame": {"t": "gitCheckLog", "project": "storefront", "url": "https://github.com/example/storefront/actions/runs/7001/job/2"}}
+{"at": 600, "frame": {"t": "gitCheckLog", "project": "storefront", "url": ""}}
 {"at": 650, "frame": {"t": "gitHistory", "project": "storefront", "skip": 0, "limit": 3}}
 {"at": 650, "frame": {"t": "gitHistory", "project": "storefront", "skip": 3, "limit": 3}}
 {"at": 650, "frame": {"t": "gitHistory", "project": "storefront", "skip": 6, "limit": 100}}
@@ -222,6 +239,7 @@
 {"at": 9300, "frame": {"t": "readConfig", "project": "work-copy", "layer": "repo"}}
 {"at": 9500, "frame": {"t": "gitChecks", "project": "storefront"}}
 {"at": 9500, "frame": {"t": "actionBgOutput", "project": "api-gateway", "runId": "run-1"}}
+{"at": 9600, "frame": {"t": "gitPrDiscussion", "project": "storefront"}}
 {"at": 10000, "frame": {"t": "gitDiscardAll", "project": "work-copy"}}
 {"at": 10500, "frame": {"t": "gitChecks", "project": "storefront"}}
 {"at": 10500, "frame": {"t": "gitChecks", "project": "api-gateway"}}
@@ -667,6 +685,28 @@
 {"at": 76800, "frame": {"t": "slash", "id": "demo-storefront-1", "project": "storefront"}}
 {"at": 76800, "frame": {"t": "terminals", "project": "mobile-app"}}
 {"at": 76900, "frame": {"t": "slash", "id": "demo-mobile-app-codex", "project": "mobile-app"}}
+{"at": 77000, "frame": {"t": "agentOptions"}}
+{"at": 77000, "frame": {"t": "agentSessions", "project": "storefront", "search": "", "limit": 40}}
+{"at": 77000, "frame": {"t": "agentSessions", "project": "storefront", "search": "CHECKOUT", "limit": 1}}
+{"at": 77000, "frame": {"t": "agentSessions", "project": "api-gateway"}}
+{"at": 77000, "frame": {"t": "agentSessions", "project": "blog"}}
+{"at": 77000, "frame": {"t": "listDir", "project": "storefront", "dir": ""}}
+{"at": 77000, "frame": {"t": "listDir", "project": "storefront", "dir": "app"}}
+{"at": 77000, "frame": {"t": "listDir", "project": "storefront", "dir": "/components/"}}
+{"at": 77000, "frame": {"t": "listDir", "project": "storefront", "dir": "node_modules"}}
+{"at": 77000, "frame": {"t": "listDir", "project": "storefront", "dir": "nope"}}
+{"at": 77000, "frame": {"t": "listDir", "project": "blog", "dir": ""}}
+{"at": 77100, "frame": {"t": "newTerminal", "project": "storefront", "agent": "claude", "model": "opus", "effort": "high", "prompt": "Fix the tax rounding\nThen run the tests"}}
+{"at": 77100, "frame": {"t": "newTerminal", "project": "storefront", "agent": "codex", "model": "", "effort": "", "prompt": ""}}
+{"at": 77100, "frame": {"t": "newTerminal", "project": "storefront", "agent": "nope"}}
+{"at": 77100, "frame": {"t": "runAction", "project": "storefront", "action": "fix-tests", "prompt": "Fix the failing checks"}}
+{"at": 77100, "frame": {"t": "runAction", "project": "storefront", "action": "fix-tests", "prompt": ""}}
+{"at": 77200, "frame": {"t": "resumeSession", "project": "storefront", "provider": "codex", "sessionId": "019a6c2e-zustand", "title": "Migrate cart store to Zustand"}}
+{"at": 77300, "frame": {"t": "agentSessions", "project": "storefront", "search": "zustand", "limit": 40}}
+{"at": 77300, "frame": {"t": "terminals", "project": "storefront"}}
+{"at": 77400, "frame": {"t": "writeFile", "project": "blog", "path": "docs/notes.md", "content": "# Notes\n", "base": "69bcdbba5912073bec7ad3aad491a31fe430e1661d68ba5a48839365f9f7f202", "reqId": "w1"}}
+{"at": 77500, "frame": {"t": "writeFile", "project": "blog", "path": "docs/notes.md", "content": "# Again\n", "base": "69bcdbba5912073bec7ad3aad491a31fe430e1661d68ba5a48839365f9f7f202", "reqId": "w2"}}
+{"at": 77600, "frame": {"t": "fileChunk", "project": "blog", "path": "docs/notes.md"}}
 {"at": 79500, "frame": {"t": "closeOtherTerminals", "project": "storefront", "id": "nope"}}
 {"at": 79500, "frame": {"t": "closeOtherTerminals", "project": "storefront", "id": "demo-storefront-1"}}
 {"at": 79600, "frame": {"t": "terminals", "project": "storefront"}}

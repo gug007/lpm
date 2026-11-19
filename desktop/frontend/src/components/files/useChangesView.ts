@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { indexEntry, type IndexEntry } from "./filesFilter";
 import { decorate } from "./gitDecorations";
+import type { ReviewScope } from "./ReviewScopeSwitch";
+import { useBranchChanges } from "./useBranchChanges";
 import { useChangedFiles, type ChangedFile } from "./useChangedFiles";
 import { useDiffView } from "./useDiffView";
 import { useFileDiscard } from "./useFileDiscard";
@@ -29,7 +31,8 @@ function useStoredFlag(key: string, fallback: boolean) {
 // The git side of the Files tab: what changed, how the tree marks it, and
 // which git view the editor shows — the open file against HEAD, or every
 // change as one stack of diffs. `review` holds the rail on the changes and
-// opens on the stack, for the commit dialog's review.
+// opens on the stack, for the commit dialog's review. The Branch scope lists
+// what the branch's own commits changed instead, as a read-only stack.
 export function useChangesView(
   root: string,
   selectedPath: string | null,
@@ -38,24 +41,32 @@ export function useChangesView(
 ) {
   const changes = useChangedFiles(root, active);
   const files = changes.status === "ready" ? changes.files : NO_FILES;
-  const decorations = useMemo(
-    () => (changes.status === "ready" ? decorate(changes.files) : NO_DECORATIONS),
-    [changes],
-  );
   const [changesOnly, setChangesOnly] = useState(
     () => review || localStorage.getItem(CHANGES_ONLY_KEY) === "1",
   );
+  const [scope, setScope] = useState<ReviewScope>("uncommitted");
+  const branch = useBranchChanges(root, active && changesOnly && !review);
+  const onBranch = scope === "branch" && changesOnly && !review;
+  const branchFiles = branch.status === "ready" && branch.base ? branch.files : NO_FILES;
+  const railFiles = onBranch ? branchFiles : files;
+  const workingDecorations = useMemo(
+    () => (changes.status === "ready" ? decorate(changes.files) : NO_DECORATIONS),
+    [changes],
+  );
+  const branchDecorations = useMemo(() => decorate(branchFiles), [branchFiles]);
+  const decorations = onBranch ? branchDecorations : workingDecorations;
   const [allWanted, setAllWanted] = useState(review);
   const [sideBySide, showSideBySide] = useStoredFlag(SIDE_BY_SIDE_KEY, true);
   const [wordWrap, showWordWrap] = useStoredFlag(WORD_WRAP_KEY, false);
-  const status = selectedPath ? decorations.get(selectedPath) : undefined;
+  // The open file's diff is always against HEAD, so its own changes decide.
+  const status = selectedPath ? workingDecorations.get(selectedPath) : undefined;
   const diff = useDiffView(root, selectedPath, status, active);
   const discard = useFileDiscard(root, changes);
   // The filter ranks the changed files rather than the project index while the
   // rail is on the git view.
   const items = useMemo<IndexEntry[] | null>(
-    () => (changesOnly ? files.map((f) => indexEntry(f.path, false)) : null),
-    [changesOnly, files],
+    () => (changesOnly ? railFiles.map((f) => indexEntry(f.path, false)) : null),
+    [changesOnly, railFiles],
   );
 
   const allChanges = allWanted && changesOnly && files.length > 0;
@@ -78,6 +89,13 @@ export function useChangesView(
   return {
     changes,
     files,
+    scope,
+    showScope: setScope,
+    branch,
+    onBranch,
+    branchFiles,
+    // What the rail lists: the uncommitted files, or the branch's.
+    railChanges: onBranch ? branch : changes,
     decorations,
     status,
     diff,

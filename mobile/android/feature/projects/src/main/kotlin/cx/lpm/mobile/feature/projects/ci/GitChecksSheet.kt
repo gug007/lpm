@@ -1,5 +1,7 @@
 package cx.lpm.mobile.feature.projects.ci
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
@@ -16,6 +18,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalUriHandler
@@ -26,8 +29,6 @@ import androidx.compose.ui.unit.dp
 import cx.lpm.mobile.core.designsystem.R as DesignR
 import cx.lpm.mobile.core.designsystem.component.ActivityIndicator
 import cx.lpm.mobile.core.designsystem.component.ActivityIndicatorSize
-import cx.lpm.mobile.core.designsystem.component.AlertButton
-import cx.lpm.mobile.core.designsystem.component.AlertRole
 import cx.lpm.mobile.core.designsystem.component.ButtonRow
 import cx.lpm.mobile.core.designsystem.component.EmptyState
 import cx.lpm.mobile.core.designsystem.component.ListDefaults
@@ -35,7 +36,6 @@ import cx.lpm.mobile.core.designsystem.component.ListHeaderStyle
 import cx.lpm.mobile.core.designsystem.component.ListRow
 import cx.lpm.mobile.core.designsystem.component.ListSection
 import cx.lpm.mobile.core.designsystem.component.ListSectionHeader
-import cx.lpm.mobile.core.designsystem.component.LpmAlert
 import cx.lpm.mobile.core.designsystem.component.ModalSheet
 import cx.lpm.mobile.core.designsystem.component.SheetScaffold
 import cx.lpm.mobile.core.designsystem.component.rememberModalSheetState
@@ -48,8 +48,8 @@ import cx.lpm.mobile.core.model.MergedPullRequest
 import cx.lpm.mobile.core.navigation.PresentationScope
 import cx.lpm.mobile.core.ui.CiStateIcon
 import cx.lpm.mobile.feature.projects.ActionRunStep
+import cx.lpm.mobile.feature.projects.ActionRunStepHost
 import cx.lpm.mobile.feature.projects.R
-import cx.lpm.mobile.feature.projects.detail.TerminalRowSkeleton
 import cx.lpm.mobile.feature.projects.newtab.ActionInputsSlot
 
 /**
@@ -58,6 +58,7 @@ import cx.lpm.mobile.feature.projects.newtab.ActionInputsSlot
  */
 internal class CiFixActions(
     val start: (LaunchpadOption) -> Boolean,
+    val resolve: (LaunchpadOption) -> Boolean = { false },
     val submitInputs: (Map<String, String>) -> Boolean,
     val confirm: () -> Unit,
     val dismissStep: (ActionRunStep) -> Unit
@@ -77,7 +78,8 @@ internal fun GitChecksSheet(
     onRerun: () -> Unit,
     onDismiss: () -> Unit,
     actionInputs: ActionInputsSlot,
-    merge: CiMergeActions = CiMergeActions()
+    merge: CiMergeActions = CiMergeActions(),
+    logs: CheckLogs = CheckLogs()
 ) {
     PresentationScope {
         AppAppearance {
@@ -99,8 +101,10 @@ internal fun GitChecksSheet(
                             state,
                             checks,
                             onFix = { if (fix.start(it)) fixing() },
+                            onResolve = { if (fix.resolve(it)) fixing() },
                             onRerun,
-                            merge
+                            merge,
+                            logs
                         )
 
                         merged != null -> Column(Modifier.verticalScroll(rememberScrollState())) {
@@ -115,27 +119,16 @@ internal fun GitChecksSheet(
                     }
                 }
             }
-            when (val step = state.step) {
-                is ActionRunStep.Inputs -> actionInputs(
-                    step.action,
-                    { values -> if (fix.submitInputs(values)) fixing() },
-                    { fix.dismissStep(step) }
-                )
-
-                is ActionRunStep.Confirm -> LpmAlert(
-                    title = stringResource(R.string.new_tab_run_confirm, step.action.label),
-                    buttons = listOf(
-                        AlertButton(stringResource(R.string.new_tab_run)) {
-                            fix.confirm()
-                            fixing()
-                        },
-                        AlertButton(stringResource(R.string.cancel), AlertRole.Cancel)
-                    ),
-                    onDismissRequest = { fix.dismissStep(step) }
-                )
-
-                null -> Unit
-            }
+            ActionRunStepHost(
+                state.step,
+                actionInputs,
+                onSubmit = { values -> if (fix.submitInputs(values)) fixing() },
+                onConfirm = {
+                    fix.confirm()
+                    fixing()
+                },
+                onDismiss = fix.dismissStep
+            )
         }
     }
 }
@@ -158,14 +151,27 @@ private fun ChecksList(
     state: GitChecksUiState,
     checks: GitChecks,
     onFix: (LaunchpadOption) -> Unit,
+    onResolve: (LaunchpadOption) -> Unit,
     onRerun: () -> Unit,
-    merge: CiMergeActions
+    merge: CiMergeActions,
+    logs: CheckLogs
 ) {
     val uri = LocalUriHandler.current
     val colors = LpmTheme.colors
+    var openLogs by remember { mutableStateOf(emptySet<String>()) }
     Column(Modifier.verticalScroll(rememberScrollState())) {
         state.merged?.let { GitMergedSection(it) }
         GitMergeSection(state, checks, merge)
+        if (state.canResolve) {
+            ListSection {
+                CiFixRows(
+                    state.fixTabs,
+                    onResolve,
+                    detail = R.string.ci_resolve_description,
+                    verb = R.string.ci_resolve
+                )
+            }
+        }
         Column(Modifier.padding(horizontal = ListDefaults.Margin)) {
             ListSectionHeader(
                 text = checks.heading,
@@ -184,16 +190,36 @@ private fun ChecksList(
             }
         }
         ListSection(footer = state.unpushedNote) {
-            checks.sorted.forEach { check -> CheckRow(check, onOpen = { uri.openUri(check.url) }) }
+            checks.sorted.forEach { check ->
+                val expandable = check.hasLog && state.canReadLogs
+                val open = check.id in openLogs
+                CheckRow(check, open = open.takeIf { expandable }, onOpen = {
+                    if (expandable) {
+                        openLogs = if (open) openLogs - check.id else openLogs + check.id
+                    } else {
+                        uri.openUri(check.url)
+                    }
+                })
+                if (expandable && open) {
+                    CheckLogRow(
+                        check = check,
+                        log = state.logs[check.url],
+                        error = state.logErrors[check.url],
+                        onLoad = { logs.load(check.url) }
+                    )
+                }
+            }
         }
         ListSection(footer = state.rerunError, footerColor = colors.red) {
             if (checks.failed > 0 && checks.fixPrompt != null && state.canFix) {
-                val tabs = state.fixTabs
-                if (tabs == null) TerminalRowSkeleton() else CiFixRows(tabs, onFix)
+                CiFixRows(state.fixTabs, onFix)
             }
             if (checks.failingRunIds.isNotEmpty()) {
                 ListRow(
-                    onClick = onRerun,
+                    onClick = {
+                        openLogs = emptySet()
+                        onRerun()
+                    },
                     enabled = !state.rerunning,
                     leading = { RowIcon(DesignR.drawable.ic_replay) },
                     trailing = {
@@ -218,9 +244,11 @@ private fun ChecksList(
     }
 }
 
+/** A check; [open] is whether its log shows, null for one with no log to show. */
 @Composable
-private fun CheckRow(check: CiCheck, onOpen: () -> Unit) {
+private fun CheckRow(check: CiCheck, open: Boolean?, onOpen: () -> Unit) {
     val colors = LpmTheme.colors
+    val turn by animateFloatAsState(if (open == true) 0f else -90f, tween(150), label = "log")
     ListRow(
         onClick = if (check.url.isEmpty()) null else onOpen,
         leading = { CiStateIcon(check.state) },
@@ -232,6 +260,17 @@ private fun CheckRow(check: CiCheck, onOpen: () -> Unit) {
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
+            if (open != null) {
+                Icon(
+                    painter = painterResource(DesignR.drawable.ic_keyboard_arrow_down),
+                    contentDescription = null,
+                    tint = colors.secondaryLabel,
+                    modifier = Modifier
+                        .padding(start = 6.dp)
+                        .size(18.dp)
+                        .rotate(turn)
+                )
+            }
         }
     ) {
         Text(

@@ -636,6 +636,40 @@ at(76800, 'slash', id='demo-storefront-claude', project='storefront')
 at(76800, 'slash', id='demo-storefront-1', project='storefront')
 at(76800, 'terminals', project='mobile-app')
 at(76900, 'slash', id='demo-mobile-app-codex', project='mobile-app')
+# the review's extras: secrets, the branch's own changes, the pull request's review, a check's log
+for p in ['storefront', 'api-gateway', 'blog', 'nope']:
+    at(600, 'gitScanSecrets', project=p, files=['lib/payments.ts'])
+    at(600, 'gitBranchFiles', project=p)
+    at(600, 'gitPrDiscussion', project=p)
+at(600, 'gitBranchDiffs', project='storefront', paths=['components/CheckoutForm.tsx', 'nope.ts'])
+at(600, 'gitBranchDiffs', project='blog', paths=['README.md'])
+at(600, 'gitCheckLog', project='storefront', url='https://github.com/example/storefront/actions/runs/7001/job/1')
+at(600, 'gitCheckLog', project='storefront', url='https://github.com/example/storefront/actions/runs/7001/job/2')
+at(600, 'gitCheckLog', project='storefront', url='')
+at(9600, 'gitPrDiscussion', project='storefront')
+# agents a new tab can start, past sessions, resuming one, and the file browser
+at(77000, 'agentOptions')
+at(77000, 'agentSessions', project='storefront', search='', limit=40)
+at(77000, 'agentSessions', project='storefront', search='CHECKOUT', limit=1)
+at(77000, 'agentSessions', project='api-gateway'); at(77000, 'agentSessions', project='blog')
+for d in ['', 'app', '/components/', 'node_modules', 'nope']:
+    at(77000, 'listDir', project='storefront', dir=d)
+at(77000, 'listDir', project='blog', dir='')
+at(77100, 'newTerminal', project='storefront', agent='claude', model='opus', effort='high', prompt='Fix the tax rounding\nThen run the tests')
+at(77100, 'newTerminal', project='storefront', agent='codex', model='', effort='', prompt='')
+at(77100, 'newTerminal', project='storefront', agent='nope')
+at(77100, 'runAction', project='storefront', action='fix-tests', prompt='Fix the failing checks')
+at(77100, 'runAction', project='storefront', action='fix-tests', prompt='')
+at(77200, 'resumeSession', project='storefront', provider='codex', sessionId='019a6c2e-zustand',
+   title='Migrate cart store to Zustand')
+at(77300, 'agentSessions', project='storefront', search='zustand', limit=40)
+at(77300, 'terminals', project='storefront')
+# saving an edit: taken while the file is as opened, refused once it changed
+notes = '# notes.md\n\nNotes for the blog project.\n'
+base = hashlib.sha256(notes.encode()).hexdigest()
+at(77400, 'writeFile', project='blog', path='docs/notes.md', content='# Notes\n', base=base, reqId='w1')
+at(77500, 'writeFile', project='blog', path='docs/notes.md', content='# Again\n', base=base, reqId='w2')
+at(77600, 'fileChunk', project='blog', path='docs/notes.md')
 steps.append({'at': 80000})
 steps.sort(key=lambda s: s['at'])
 for s in steps:

@@ -109,12 +109,23 @@ services:
 | Field | Type | Rule |
 |---|---|---|
 | `cmd` | string | Required and non-empty in every service entry, including one that overrides a repo service. |
+| `cmdMacos`, `cmdLinux`, `cmdWindows` | string | Runs in place of `cmd` when lpm runs on that system; a system without one runs `cmd`. `cmd_macos`, `cmd_linux` and `cmd_windows` are also accepted. |
 | `cwd` | string | Relative to `root`, `~`-expanded, or absolute. Must exist for local projects. |
 | `port` | integer | Single listening port from 0 to 65535; nonzero ports must be unique across services. |
 | `portConflict` | string | `ask`, `free`, or `fail`; defaults to `ask`. |
 | `env` | string map | Environment variables. |
 | `dependsOn` | string list | Services that start first. `depends_on` is also accepted, but never both on one service. In a project file the app then fails to load the project; in a repo `.lpm.yml` it silently drops every service and profile from that file. |
 | `ready` | see below | When the service counts as ready. Services that depend on it start once it is. |
+
+The computer that runs lpm picks its own command, so a paired computer or a Linux host runs the one for its system. An SSH project's commands run on its server but are still picked by the system lpm runs on: give an SSH project its server's command in `cmd`. Each file picks for itself before files are merged, so a project file's `cmd` still wins over a repo `.lpm.yml`'s `cmdLinux`.
+
+```yaml
+services:
+  web:
+    cmd: pnpm dev
+    cmdLinux: pnpm dev --host 0.0.0.0
+    cmdWindows: pnpm run dev:win
+```
 
 Dependencies are transitive and determine start order. They do not affect stop order. Reject unknown dependencies and cycles.
 

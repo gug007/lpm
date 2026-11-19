@@ -27,7 +27,6 @@ import cx.lpm.mobile.core.model.LaunchpadOption
 import cx.lpm.mobile.core.model.LogSeverity
 import cx.lpm.mobile.feature.projects.R
 import cx.lpm.mobile.feature.projects.ci.CiFixRows
-import cx.lpm.mobile.feature.projects.detail.TerminalRowSkeleton
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -57,12 +56,7 @@ internal fun ServiceCrashPanel(
         footer = if (state.canFix) stringResource(R.string.logs_fix_footer) else null
     ) {
         if (state.canFix) {
-            val tabs = state.fixTabs
-            if (tabs == null) {
-                TerminalRowSkeleton()
-            } else {
-                CiFixRows(tabs, onFix, detail = R.string.logs_fix_description)
-            }
+            CiFixRows(state.fixTabs, onFix, detail = R.string.logs_fix_description)
         }
         if (state.text.isNotEmpty()) {
             ButtonRow(

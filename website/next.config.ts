@@ -1,5 +1,11 @@
 import type { NextConfig } from "next";
-import { APP_STORE_URL, PLAY_STORE_URL, STORE_LINK_PATH } from "./lib/links";
+import {
+  APP_STORE_URL,
+  PLAY_STORE_URL,
+  STORE_LINK_PATH,
+  VS_BASE_PATH,
+  VS_HUB_ONLY,
+} from "./lib/links";
 
 const nextConfig: NextConfig = {
   // /config was the whole reference on one page. A browser keeps the hash
@@ -7,6 +13,11 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       { source: "/config", destination: "/docs", permanent: true },
+      ...VS_HUB_ONLY.map((tool) => ({
+        source: `${VS_BASE_PATH}/${tool}`,
+        destination: `${VS_BASE_PATH}#${tool}`,
+        permanent: true,
+      })),
       {
         source: STORE_LINK_PATH,
         has: [{ type: "header", key: "user-agent", value: ".*Android.*" }],

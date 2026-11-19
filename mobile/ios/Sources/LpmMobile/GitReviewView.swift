@@ -27,6 +27,7 @@ struct GitReviewView: View {
     @State private var discarding: GitFile?
     @State private var openTerminal: TerminalInfo?
     @State private var isVisible = false
+    @State private var scope = ReviewScope.uncommitted
 
     private var name: String { project.name }
 
@@ -58,7 +59,119 @@ struct GitReviewView: View {
         (snapshot?.files ?? []).filter { !deselected.contains($0.path) }.count
     }
 
+    private var showsScope: Bool { model.gitExtras.canBranchScope && snapshot?.isRepo == true }
+
     var body: some View {
+        Group {
+            if scope == .branch {
+                GitBranchReviewList(project: project, onCreatePr: { showPrSheet = true }, onAsk: { asking = $0 })
+            } else {
+                uncommittedList
+            }
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if showsScope {
+                ReviewScopePicker(scope: $scope, branchFiles: model.gitExtras.branchScopes[name]?.files.count)
+            }
+        }
+        .navigationTitle("Changes")
+        .navigationBarTitleDisplayMode(.inline)
+        .gitNotice(project: name, isActive: isVisible)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                if scope == .branch {
+                    ChangesTitle(project: GitExtrasStore.branchKey(name),
+                                 files: model.gitExtras.branchScopes[name]?.files ?? [])
+                } else {
+                    ChangesTitle(project: name)
+                }
+            }
+        }
+        // The watch only reports changes from here on, so whatever changed
+        // since the last snapshot is fetched now.
+        .onAppear {
+            isVisible = true
+            model.git.watch(name)
+            model.git.refreshWatched(name)
+        }
+        .onDisappear {
+            isVisible = false
+            model.git.unwatch(name)
+        }
+        // A file changed again since it was viewed opens back up.
+        .onChange(of: model.git.changedSinceViewed[name]) { _, changed in
+            for path in (changed ?? [:]).keys { collapsed[path] = nil }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { model.git.refreshWatched(name) }
+        }
+        .onChange(of: model.git.generatingMessage.contains(name)) { _, generating in
+            if generating { draftAtGenerate = message }
+        }
+        .onChange(of: model.git.generatedMessage[name]) { _, m in
+            guard let m else { return }
+            model.git.consumeGeneratedMessage(name)
+            autoDraftTried = false
+            if message == draftAtGenerate {
+                message = m
+                drafted = m
+            }
+            draftAtGenerate = nil
+        }
+        .onChange(of: model.git.commitTick[name]) { _, _ in
+            draftAtGenerate = nil
+            autoDraftTried = false
+        }
+        // Gated on isVisible: a terminal pushed from this screen hosts the
+        // project menu, whose git ops report into the same gitOpError slot —
+        // without the gate both screens would try to present this alert. The
+        // commit sheet reports its own failures while it's up.
+        .alert(
+            model.git.opError[name]?.title ?? "",
+            isPresented: Binding(get: { isVisible && !showCommit && model.git.opError[name] != nil },
+                                 set: { if !$0 { model.git.opError[name] = nil } })
+        ) {
+            Button("OK", role: .cancel) { model.git.opError[name] = nil }
+        } message: {
+            Text(model.git.opError[name]?.message ?? "")
+        }
+        .sheet(isPresented: $showCommit) {
+            GitCommitSheet(project: name,
+                           message: Binding(get: { message }, set: { message = $0 }),
+                           deselected: Binding(get: { deselected }, set: { deselected = $0 }),
+                           drafted: drafted, autoDraftTried: $autoDraftTried)
+                .environment(model)
+        }
+        .sheet(isPresented: $showPrSheet) {
+            GitPrSheet(project: project)
+                .environment(model)
+        }
+        .confirmationDialog(
+            "Discard changes to \(discarding?.name ?? "")?",
+            isPresented: Binding(get: { discarding != nil }, set: { if !$0 { discarding = nil } }),
+            titleVisibility: .visible,
+            presenting: discarding
+        ) { file in
+            Button("Discard Changes", role: .destructive) {
+                Haptics.warning()
+                AppLock.shared.confirm("Discard the changes to \(file.name)") {
+                    model.git.discardFile(name, path: file.path)
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { file in
+            Text("\(file.path) goes back to how it was at the last commit. lpm keeps a copy on the Mac for 7 days, so you can undo it.")
+        }
+        .sheet(item: $asking) { ctx in
+            AgentAskSheet(project: project, path: ctx.path, diffText: ctx.diffText) { term, prompt in
+                sendToAgent(term, prompt)
+            }
+            .environment(model)
+        }
+        .navigationDestination(item: $openTerminal) { TerminalScreen(term: $0, project: project).environment(model) }
+    }
+
+    private var uncommittedList: some View {
         ScrollViewReader { proxy in
             List {
                 if let files = changedFiles {
@@ -75,7 +188,11 @@ struct GitReviewView: View {
                             collapsed: isCollapsed(file.path),
                             toggleSelected: { toggleSelected(file.path) },
                             toggleCollapsed: { toggleCollapsed(file.path) },
-                            toggleViewed: { toggleViewed(file.path, proxy: proxy) },
+                            toggleViewed: {
+                                toggleViewedInPlace(model.git, key: name, path: file.path,
+                                                    wasOpen: !isCollapsed(file.path), collapsed: $collapsed,
+                                                    pins: pins, proxy: proxy)
+                            },
                             onAsk: { diffText in asking = AskContext(path: file.path, diffText: diffText) },
                             onDiscard: model.git.canDiscardFiles ? { discarding = file } : nil,
                             pins: pins
@@ -89,8 +206,6 @@ struct GitReviewView: View {
             .listStyle(.plain)
             .listSectionSpacing(0)
             .scrollDismissesKeyboard(.interactively)
-            .navigationTitle("Changes")
-            .navigationBarTitleDisplayMode(.inline)
             .refreshable { await refresh() }
             .overlay { stateOverlay }
             .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -105,32 +220,13 @@ struct GitReviewView: View {
                     }
                 }
             }
-            .gitNotice(project: name, isActive: isVisible)
             .animation(.default, value: snapshot?.files.count ?? -1)
             .toolbar {
-                ToolbarItem(placement: .principal) {
-                    ChangesTitle(project: name)
-                }
                 if let files = changedFiles {
                     ToolbarItem(placement: .topBarTrailing) {
-                        jumpMenu(files, proxy: proxy)
+                        ReviewJumpMenu(key: name, files: files, proxy: proxy)
                     }
                 }
-            }
-            // The watch only reports changes from here on, so whatever changed
-            // since the last snapshot is fetched now.
-            .onAppear {
-                isVisible = true
-                model.git.watch(name)
-                model.git.refreshWatched(name)
-            }
-            .onDisappear {
-                isVisible = false
-                model.git.unwatch(name)
-            }
-            // A file changed again since it was viewed opens back up.
-            .onChange(of: model.git.changedSinceViewed[name]) { _, changed in
-                for path in (changed ?? [:]).keys { collapsed[path] = nil }
             }
             .task(id: changedFiles?.contains { $0.path == focus } == true) {
                 guard let focus, !focused, changedFiles?.contains(where: { $0.path == focus }) == true else { return }
@@ -139,73 +235,6 @@ struct GitReviewView: View {
                 try? await Task.sleep(for: .milliseconds(300))
                 withAnimation { proxy.scrollTo("file-" + focus, anchor: .top) }
             }
-            .onChange(of: scenePhase) { _, phase in
-                if phase == .active { model.git.refreshWatched(name) }
-            }
-            .onChange(of: model.git.generatingMessage.contains(name)) { _, generating in
-                if generating { draftAtGenerate = message }
-            }
-            .onChange(of: model.git.generatedMessage[name]) { _, m in
-                guard let m else { return }
-                model.git.consumeGeneratedMessage(name)
-                autoDraftTried = false
-                if message == draftAtGenerate {
-                    message = m
-                    drafted = m
-                }
-                draftAtGenerate = nil
-            }
-            .onChange(of: model.git.commitTick[name]) { _, _ in
-                draftAtGenerate = nil
-                autoDraftTried = false
-            }
-            // Gated on isVisible: a terminal pushed from this screen hosts the
-            // project menu, whose git ops report into the same gitOpError slot —
-            // without the gate both screens would try to present this alert. The
-            // commit sheet reports its own failures while it's up.
-            .alert(
-                model.git.opError[name]?.title ?? "",
-                isPresented: Binding(get: { isVisible && !showCommit && model.git.opError[name] != nil },
-                                     set: { if !$0 { model.git.opError[name] = nil } })
-            ) {
-                Button("OK", role: .cancel) { model.git.opError[name] = nil }
-            } message: {
-                Text(model.git.opError[name]?.message ?? "")
-            }
-            .sheet(isPresented: $showCommit) {
-                GitCommitSheet(project: name,
-                               message: Binding(get: { message }, set: { message = $0 }),
-                               deselected: Binding(get: { deselected }, set: { deselected = $0 }),
-                               drafted: drafted, autoDraftTried: $autoDraftTried)
-                    .environment(model)
-            }
-            .sheet(isPresented: $showPrSheet) {
-                GitPrSheet(project: project)
-                    .environment(model)
-            }
-            .confirmationDialog(
-                "Discard changes to \(discarding?.name ?? "")?",
-                isPresented: Binding(get: { discarding != nil }, set: { if !$0 { discarding = nil } }),
-                titleVisibility: .visible,
-                presenting: discarding
-            ) { file in
-                Button("Discard Changes", role: .destructive) {
-                    Haptics.warning()
-                    AppLock.shared.confirm("Discard the changes to \(file.name)") {
-                        model.git.discardFile(name, path: file.path)
-                    }
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: { file in
-                Text("\(file.path) goes back to how it was at the last commit. lpm keeps a copy on the Mac for 7 days, so you can undo it.")
-            }
-            .sheet(item: $asking) { ctx in
-                AgentAskSheet(project: project, path: ctx.path, diffText: ctx.diffText) { term, prompt in
-                    sendToAgent(term, prompt)
-                }
-                .environment(model)
-            }
-            .navigationDestination(item: $openTerminal) { TerminalScreen(term: $0, project: project).environment(model) }
         }
     }
 
@@ -224,25 +253,6 @@ struct GitReviewView: View {
 
     private func isCollapsed(_ path: String) -> Bool {
         collapsed[path] ?? model.git.isViewed(name, path: path)
-    }
-
-    /// Every changed file by name with its folder, checked once viewed, each
-    /// scrolling to its diff.
-    private func jumpMenu(_ files: [GitFile], proxy: ScrollViewProxy) -> some View {
-        Menu {
-            ForEach(files) { f in
-                Button {
-                    withAnimation { proxy.scrollTo("file-" + f.path, anchor: .top) }
-                } label: {
-                    Label(f.name, systemImage: model.git.isViewed(name, path: f.path)
-                          ? "checkmark.circle.fill" : GitFileStatus(f.status).symbol)
-                    if !f.directory.isEmpty { Text(f.directory) }
-                }
-            }
-        } label: {
-            Image(systemName: "list.bullet")
-        }
-        .accessibilityLabel("Jump to file")
     }
 
     private var prSection: some View {
@@ -307,28 +317,6 @@ struct GitReviewView: View {
     private func toggleCollapsed(_ path: String) {
         let now = !isCollapsed(path)
         withAnimation(.easeInOut(duration: 0.15)) { collapsed[path] = now }
-    }
-
-    /// Marking a file viewed collapses it; unmarking opens it again. A header
-    /// pinned over its scrolled diff would collapse out from under the screen, so
-    /// the list goes back to it instead, the next file right below it.
-    private func toggleViewed(_ path: String, proxy: ScrollViewProxy) {
-        let nowViewed = !model.git.isViewed(name, path: path)
-        let wasOpen = !isCollapsed(path)
-        Haptics.tap()
-        guard nowViewed, wasOpen, pins.isPinned(path) else {
-            model.git.toggleViewed(name, path: path)
-            withAnimation(.easeInOut(duration: 0.15)) { collapsed[path] = nowViewed }
-            return
-        }
-        // The scroll lands on the next layout pass, so the diff is held open until
-        // it has: collapsed first, the list would lose its place.
-        collapsed[path] = false
-        model.git.toggleViewed(name, path: path)
-        proxy.scrollTo("file-" + path, anchor: .top)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            withAnimation(.easeInOut(duration: 0.2)) { collapsed[path] = true }
-        }
     }
 
     private func refresh() async {

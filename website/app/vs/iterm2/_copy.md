@@ -13,8 +13,8 @@ Source of truth: **the app source and the fact-check ledger first, spec part 4.3
 ## 1. Metadata
 
 ```ts
-title: "iTerm2 Alternative on Mac (2026): Claude Code & Codex"
-// 53 chars; renders 59 with the layout's " — lpm". Retitled 2026-11-03: the SERP is year-stamped lists, and "Projects, Not Just Panes" named nothing people search for.
+title: "iTerm2 Alternative for Mac: Projects, Not Just Panes"
+// 52 chars; renders 58 with the layout's " — lpm". Restored 2026-11-19: under the 2026-11-03 title ("iTerm2 Alternative on Mac (2026): Claude Code & Codex") Search Console clicks went from 8 to 2 over 28 days at about the same position.
 description: "iTerm2 is the better emulator. lpm runs the project instead: one click brings up every service, with Claude Code and Codex in the next tab. Keep both."
 // 150 chars. Rewritten: part 4.3's "lpm is the project layer above it" is banned by ledger §5.3 row 1.
 keywords: [

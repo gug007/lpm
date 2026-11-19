@@ -84,6 +84,8 @@ struct DiffStat: View {
 /// The top of the review: how many files changed and how many are viewed, over a
 /// bar that fills as files are marked viewed.
 struct ReviewSummary: View {
+    @Environment(\.dynamicTypeSize) private var typeSize
+    var title: String?
     let total: Int
     let viewed: Int
 
@@ -91,10 +93,13 @@ struct ReviewSummary: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("\(total) file\(total == 1 ? "" : "s") changed")
+            let layout = typeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+                : AnyLayout(HStackLayout(alignment: .firstTextBaseline))
+            layout {
+                Text(title ?? "\(total) file\(total == 1 ? "" : "s") changed")
                     .font(.subheadline.weight(.semibold))
-                Spacer(minLength: 8)
+                if !typeSize.isAccessibilitySize { Spacer(minLength: 8) }
                 HStack(spacing: 4) {
                     if done {
                         Image(systemName: "checkmark.circle.fill")
@@ -131,10 +136,12 @@ struct ReviewSummary: View {
 struct ChangesTitle: View {
     @Environment(AppModel.self) private var model
     let project: String
+    /// The files to total instead of the snapshot's, read under `project`.
+    var files: [GitFile]?
 
     private var totals: (added: Int, removed: Int) {
         var added = 0, removed = 0
-        for file in model.git.snapshots[project]?.files ?? [] {
+        for file in files ?? model.git.snapshots[project]?.files ?? [] {
             if let parsed = model.git.parsedDiff(project, path: file.path) {
                 added += parsed.addedCount
                 removed += parsed.removedCount
@@ -182,10 +189,7 @@ struct CommitBar: View {
         .buttonStyle(.borderedProminent)
         .controlSize(.large)
         .disabled(committing)
-        .padding(.horizontal, 16)
-        .padding(.top, 8)
-        .padding(.bottom, 6)
-        .background(.bar)
+        .bottomBar()
     }
 }
 
@@ -270,5 +274,15 @@ struct GitReviewSkeleton: View {
         .scrollDisabled(true)
         .allowsHitTesting(false)
         .transition(.opacity)
+    }
+}
+
+extension View {
+    /// The pinned bar under the review and the commit sheet.
+    func bottomBar() -> some View {
+        padding(.horizontal, 16)
+            .padding(.top, 8)
+            .padding(.bottom, 6)
+            .background(.bar)
     }
 }

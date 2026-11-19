@@ -18,11 +18,14 @@ export interface UseTerminalThemeResult {
 export function useTerminalTheme(): UseTerminalThemeResult {
   const appearance = useResolvedTheme();
   const theme = useSettingsStore((s) => resolveTerminalTheme(terminalThemeChoiceOf(s), appearance));
+  // The imported theme keeps its name when its colors change.
+  const imported = useSettingsStore((s) => s.terminalImportedTheme);
 
   const themeStyle = useMemo(() => {
     const colors = getTerminalThemeColors(theme);
     return colors ? (terminalThemeCssVars(colors) as React.CSSProperties) : undefined;
-  }, [theme]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [theme, imported]);
 
   return { theme, themeStyle };
 }

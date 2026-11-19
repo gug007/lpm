@@ -119,6 +119,8 @@ class DemoServerTest {
         "gitHistory", "gitCommitFiles", "gitCommitPatch", "gitChecks", "gitChecksRerun",
         "gitMergePr", "gitCommitChecks",
         "lpmCommands", "lpmCommandSave", "lpmCommandDelete", "lpmCommandFolder", "lpmCommandExpand",
-        "lpmCommandOtherFolder", "lpmCommandConvert", "agentDialog", "gitDiscardFiles"
+        "lpmCommandOtherFolder", "lpmCommandConvert", "agentDialog", "gitDiscardFiles",
+        "gitScanSecrets", "gitBranchFiles", "gitBranchDiffs", "gitPrDiscussion", "gitCheckLog",
+        "writeFile", "agentOptions", "agentSessions", "resumeSession", "listDir"
     )
 }

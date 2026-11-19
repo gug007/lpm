@@ -113,7 +113,7 @@ export function SendLaterCard({ items, anchor, fromHistoryKey, now, onClose }: S
                     Edit
                   </button>
                   <button type="button" onClick={act(() => cancelScheduled(item))} className={ACTION_CLASS}>
-                    Cancel
+                    {item.repeatMs ? "Stop repeating" : "Cancel"}
                   </button>
                 </>
               )}

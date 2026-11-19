@@ -2945,6 +2945,7 @@ dependencies = [
  "notify",
  "objc2",
  "objc2-foundation",
+ "plist",
  "portable-pty",
  "qrcode",
  "rcgen",

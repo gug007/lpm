@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   getTerminalThemeColors,
+  hasImportedTheme,
+  setImportedTheme,
   terminalThemeAppearance,
   terminalThemeLabel,
   terminalThemeNames,
@@ -124,7 +126,20 @@ describe("terminal themes", () => {
       "GitHub Light",
       "Solarized Light",
       "Claude Light",
+      "Imported",
     ]);
+  });
+
+  it("draws the imported theme from the colors settings hold", () => {
+    setImportedTheme({ name: "Ghostty · Nord", bg: "#2e3440", fg: "#d8dee9", ansi: ["", "#bf616a"] });
+    expect(hasImportedTheme()).toBe(true);
+    expect(terminalThemeLabel("imported")).toBe("Ghostty · Nord");
+    const colors = getTerminalThemeColors("imported")!;
+    expect(colors.appearance).toBe("dark");
+    expect(terminalXtermTheme(colors)).toMatchObject({ background: "#2e3440", red: "#bf616a", green: ansiColors.green });
+    setImportedTheme(undefined);
+    expect(hasImportedTheme()).toBe(false);
+    expect(getTerminalThemeColors("imported")).toBeNull();
   });
 
   it("gives light themes their own ANSI colors", () => {

@@ -44,6 +44,18 @@ pub struct ScheduledPrompt {
     /// Send now: goes out without waiting for the agent to finish its turn.
     #[serde(default)]
     pub force: bool,
+    /// Sent again this long after each time it goes out; 0 sends it once.
+    #[serde(default)]
+    pub repeat_ms: i64,
+}
+
+impl ScheduledPrompt {
+    /// Waits again for the repeating prompt's next time after `now`.
+    pub fn repeat_after(&mut self, now: i64) {
+        self.state = PromptState::Scheduled;
+        self.force = false;
+        self.due_at = next_repeat(self.due_at, self.repeat_ms, now);
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -61,6 +73,8 @@ pub struct NewPrompt {
     pub due_at: i64,
     #[serde(default)]
     pub kind: String,
+    #[serde(default)]
+    pub repeat_ms: i64,
 }
 
 /// The list as windows see it. `rev` orders snapshots, so one that arrives late
@@ -75,36 +89,71 @@ pub struct Snapshot {
 }
 
 /// Move every prompt whose time has come to Due, or to Missed when the tick that
-/// noticed it came too late for it to count as on time.
+/// noticed it came too late for it to count as on time. A repeating prompt
+/// skips a time it missed and waits for its next one instead.
 pub fn settle(items: &mut [ScheduledPrompt], now: i64) -> bool {
     let mut changed = false;
     for item in items.iter_mut() {
         if item.state != PromptState::Scheduled || item.due_at > now {
             continue;
         }
-        item.state = if now - item.due_at > GRACE_MS {
-            PromptState::Missed
+        if now - item.due_at <= GRACE_MS {
+            item.state = PromptState::Due;
+        } else if item.repeat_ms > 0 {
+            item.due_at = next_repeat(item.due_at, item.repeat_ms, now);
         } else {
-            PromptState::Due
-        };
+            item.state = PromptState::Missed;
+        }
         changed = true;
     }
     changed
 }
 
 /// On launch lpm was, by definition, closed for a while: anything already past
-/// its time, and anything that was still waiting on its agent, is Missed.
+/// its time, and anything that was still waiting on its agent, is Missed. A
+/// repeating prompt carries on from its next time.
 pub fn settle_after_launch(items: &mut [ScheduledPrompt], now: i64) -> bool {
     let mut changed = false;
     for item in items.iter_mut() {
         let overdue = item.state == PromptState::Scheduled && now - item.due_at > GRACE_MS;
-        if overdue || item.state == PromptState::Due {
-            item.state = PromptState::Missed;
-            item.force = false;
-            changed = true;
+        if !overdue && item.state != PromptState::Due {
+            continue;
         }
+        if item.repeat_ms > 0 {
+            item.repeat_after(now);
+        } else {
+            item.force = false;
+            item.state = PromptState::Missed;
+        }
+        changed = true;
     }
     changed
+}
+
+/// The first of a repeating prompt's times that is still ahead of `now`.
+pub fn next_repeat(due_at: i64, repeat_ms: i64, now: i64) -> i64 {
+    if due_at > now {
+        return due_at;
+    }
+    due_at + ((now - due_at) / repeat_ms + 1) * repeat_ms
+}
+
+/// The shortest gap a prompt may repeat at.
+pub const MIN_REPEAT_MS: i64 = 5 * 60 * 1000;
+
+/// A repeat a prompt can be set to: none, or at least MIN_REPEAT_MS apart, and
+/// only for a prompt set for a time.
+pub fn check_repeat(kind: &str, repeat_ms: i64) -> Result<(), String> {
+    if repeat_ms == 0 {
+        return Ok(());
+    }
+    if !(kind.is_empty() || kind == "time") {
+        return Err("Only a prompt set for a time can repeat.".into());
+    }
+    if repeat_ms < MIN_REPEAT_MS {
+        return Err("A prompt can repeat at most every 5 minutes.".into());
+    }
+    Ok(())
 }
 
 /// How long to sleep before the next prompt comes due; None when nothing is
@@ -163,7 +212,63 @@ mod tests {
             state,
             kind: "time".into(),
             force: false,
+            repeat_ms: 0,
         }
+    }
+
+    fn repeating(id: &str, due_at: i64, state: PromptState) -> ScheduledPrompt {
+        ScheduledPrompt {
+            repeat_ms: 30 * MIN,
+            ..prompt(id, due_at, state)
+        }
+    }
+
+    #[test]
+    fn a_repeating_prompt_skips_a_missed_time_to_its_next_one() {
+        let mut items = vec![repeating("a", 1_000 * MIN, PromptState::Scheduled)];
+        assert!(settle(&mut items, 1_000 * MIN + 95 * MIN));
+        assert_eq!(items[0].state, PromptState::Scheduled);
+        assert_eq!(items[0].due_at, 1_000 * MIN + 120 * MIN);
+    }
+
+    #[test]
+    fn a_repeating_prompt_reached_on_time_is_due_like_any_other() {
+        let mut items = vec![repeating("a", 1_000 * MIN, PromptState::Scheduled)];
+        assert!(settle(&mut items, 1_000 * MIN + MIN));
+        assert_eq!(items[0].state, PromptState::Due);
+        assert_eq!(items[0].due_at, 1_000 * MIN);
+    }
+
+    #[test]
+    fn launch_moves_a_repeating_prompt_on_instead_of_missing_it() {
+        let mut due = repeating("due", 990 * MIN, PromptState::Due);
+        due.force = true;
+        let mut items = vec![repeating("overdue", 900 * MIN, PromptState::Scheduled), due];
+        assert!(settle_after_launch(&mut items, 1_000 * MIN));
+        assert_eq!(items[0].state, PromptState::Scheduled);
+        assert_eq!(items[0].due_at, 1_020 * MIN);
+        assert_eq!(items[1].state, PromptState::Scheduled);
+        assert_eq!(items[1].due_at, 1_020 * MIN);
+        assert!(!items[1].force);
+    }
+
+    #[test]
+    fn the_next_repeat_is_strictly_ahead() {
+        assert_eq!(next_repeat(1_000, 100, 1_000), 1_100);
+        assert_eq!(next_repeat(1_000, 100, 1_099), 1_100);
+        assert_eq!(next_repeat(1_000, 100, 1_100), 1_200);
+        assert_eq!(next_repeat(2_000, 100, 1_000), 2_000);
+    }
+
+    #[test]
+    fn only_a_timed_prompt_repeats_and_never_faster_than_five_minutes() {
+        assert!(check_repeat("time", 0).is_ok());
+        assert!(check_repeat("done", 0).is_ok());
+        assert!(check_repeat("time", 30 * MIN).is_ok());
+        assert!(check_repeat("", MIN_REPEAT_MS).is_ok());
+        assert!(check_repeat("time", MIN).is_err());
+        assert!(check_repeat("done", 30 * MIN).is_err());
+        assert!(check_repeat("limit", 30 * MIN).is_err());
     }
 
     #[test]

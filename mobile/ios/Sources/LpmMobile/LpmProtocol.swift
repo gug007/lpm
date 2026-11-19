@@ -824,6 +824,12 @@ enum Wire {
         case gitDiscardFiles(project: String, paths: [String], undo: String?, error: String?)
         case agentDialog(AgentDialogRead)
         case actionPopup(ActionPopupReply)
+        case gitScanSecrets(SecretScanReply)
+        case gitBranchFiles(BranchFilesReply)
+        case gitBranchDiffs(project: String, entries: [GitDiffEntry], error: String?)
+        case gitPrDiscussion(PrDiscussionReply)
+        case gitCheckLog(CheckLogReply)
+        case writeFile(FileWriteReply)
         // Server push: watched files changed for this project (already debounced).
         case gitChanged(project: String)
         // Commit history: a page of the branch's commits, one commit's files and
@@ -1257,6 +1263,16 @@ enum Wire {
                                         error: ok ? nil : (obj["error"] as? String ?? "Couldn't discard the changes."))
             case "agentDialog": return .agentDialog(AgentDialogRead(obj))
             case "actionPopup": return .actionPopup(ActionPopupReply(obj))
+            case "gitScanSecrets": return .gitScanSecrets(SecretScanReply(obj))
+            case "gitBranchFiles": return .gitBranchFiles(BranchFilesReply(obj))
+            case "gitBranchDiffs":
+                let ok = obj["ok"] as? Bool ?? false
+                return .gitBranchDiffs(project: obj["project"] as? String ?? "",
+                                       entries: (obj["files"] as? [[String: Any]] ?? []).map(GitDiffEntry.init),
+                                       error: ok ? nil : (obj["error"] as? String ?? "Couldn't load the diffs."))
+            case "gitPrDiscussion": return .gitPrDiscussion(PrDiscussionReply(obj))
+            case "gitCheckLog": return .gitCheckLog(CheckLogReply(obj))
+            case "writeFile": return .writeFile(FileWriteReply(obj))
             case "gitRestoreDiscarded":
                 let ok = obj["ok"] as? Bool ?? false
                 return .gitRestoreDiscarded(project: obj["project"] as? String ?? "",

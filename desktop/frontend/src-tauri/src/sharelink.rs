@@ -20,10 +20,14 @@ pub fn init(app: &AppHandle) {
         return;
     }
     let handle = app.clone();
-    app.deep_link()
-        .on_open_url(move |event| receive(&handle, &event.urls()));
+    app.deep_link().on_open_url(move |event| {
+        let urls = event.urls();
+        receive(&handle, &urls);
+        crate::openlink::receive(&handle, &urls);
+    });
     if let Ok(Some(urls)) = app.deep_link().get_current() {
         receive(app, &urls);
+        crate::openlink::receive(app, &urls);
     }
     // An AppImage has no installer to register the scheme.
     #[cfg(target_os = "linux")]

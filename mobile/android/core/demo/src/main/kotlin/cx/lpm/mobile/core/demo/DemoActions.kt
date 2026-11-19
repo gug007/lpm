@@ -24,6 +24,13 @@ internal fun DemoServer.registerActionHandlers() {
         val cmd = substitute(action.string("cmd") ?: actionName, values)
         val label = action.string("label")?.takeIf { it.isNotEmpty() } ?: actionName
         val id = "demo-$project-run-${nowMillis()}"
+        val agent =
+            demoActionAgentTerminal(action, o.string("prompt").orEmpty(), label, id, project)
+        if (agent != null) {
+            world.terminals.getOrPut(project) { mutableListOf() }.add(agent)
+            push(mapOf("t" to "runAction", "ok" to true))
+            return@register
+        }
         world.terminals.getOrPut(project) { mutableListOf() }.add(
             DemoWorld.Terminal(
                 id = id,

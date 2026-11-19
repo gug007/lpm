@@ -1,13 +1,20 @@
-import { memo, useMemo } from "react";
+import { memo, useMemo, type Ref } from "react";
 import { DEFAULT_MONACO_FONT_SIZE } from "../../monaco-theme";
 import { useSettingsStore } from "../../store/settings";
 import { MonacoDiffPool } from "../review/MonacoDiffPool";
+import type { MonacoDiffPoolHandle } from "../review/MonacoDiffPoolImpl";
+import type { ReviewMode } from "../review/reviewSource";
 import { buildMatchTree, type Item } from "./treeModel";
 import type { ChangedFile } from "./useChangedFiles";
 
 interface FilesAllChangesProps {
   projectRoot: string;
   files: readonly ChangedFile[];
+  // The uncommitted files, or with "base" the branch's commits since `base`.
+  mode?: ReviewMode;
+  base?: string;
+  // Scrolls the stack to a file.
+  ref?: Ref<MonacoDiffPoolHandle>;
   // Reader zoom as a factor of the configured editor font size.
   zoom: number;
   sideBySide: boolean;
@@ -22,12 +29,15 @@ interface FilesAllChangesProps {
   onSplitFitsChange?: (fits: boolean) => void;
 }
 
-// Every uncommitted file as one scrolling stack of diffs. Memoized so the pane
+// Every changed file as one scrolling stack of diffs. Memoized so the pane
 // re-rendering for its rail (the scroll spy moves the selection) leaves the
 // stack alone.
 export const FilesAllChanges = memo(function FilesAllChanges({
   projectRoot,
   files,
+  mode = "working",
+  base = "",
+  ref,
   zoom,
   sideBySide,
   wordWrap,
@@ -50,10 +60,11 @@ export const FilesAllChanges = memo(function FilesAllChanges({
 
   return (
     <MonacoDiffPool
+      ref={ref}
       projectRoot={projectRoot}
       files={ordered}
-      mode="working"
-      baseBranch=""
+      mode={mode}
+      baseBranch={base}
       fontSize={baseFontSize * zoom}
       sideBySide={sideBySide}
       wordWrap={wordWrap}

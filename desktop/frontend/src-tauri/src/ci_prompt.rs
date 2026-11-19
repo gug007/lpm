@@ -72,6 +72,25 @@ pub(crate) fn for_pull_request(number: u64, url: &str, checks: &[PrCheck]) -> Op
     )
 }
 
+/// For a pull request GitHub can't merge because it conflicts with its base.
+pub(crate) fn for_conflicts(number: u64, url: &str, base: &str) -> String {
+    let base = if base.is_empty() {
+        format!("its base branch (`gh pr view {number} --json baseRefName` names it)")
+    } else {
+        format!("origin/{base}")
+    };
+    let at = if url.is_empty() {
+        String::new()
+    } else {
+        format!(" ({url})")
+    };
+    format!(
+        "Pull request #{number}{at} has conflicts with its base branch, so it can't be merged.\n\n\
+         Fetch, merge {base} into this branch, resolve every conflict, run the tests, \
+         then commit the merge and push."
+    )
+}
+
 /// For a branch without one, naming the commit each failure is on.
 pub(crate) fn for_branch(
     branch: &str,
@@ -111,6 +130,16 @@ pub(crate) fn for_branch(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_conflicted_pull_request_names_what_to_merge_in() {
+        assert_eq!(
+            for_conflicts(42, "https://github.com/o/r/pull/42", "main"),
+            "Pull request #42 (https://github.com/o/r/pull/42) has conflicts with its base branch, so it can't be merged.\n\n\
+             Fetch, merge origin/main into this branch, resolve every conflict, run the tests, then commit the merge and push."
+        );
+        assert!(for_conflicts(7, "", "").contains("`gh pr view 7 --json baseRefName`"));
+    }
 
     fn check(
         name: &str,

@@ -57,7 +57,8 @@ interface FilesTreeProps {
   onActivate: (item: Item, opts?: ActivateOptions) => void;
   onToggleDir: (path: string) => void;
   onRowMenu: (target: RowTarget) => void;
-  onDiscard: (item: Item) => void;
+  // Absent where nothing listed can be discarded.
+  onDiscard?: (item: Item) => void;
   // Commit checkboxes on the rows, keyed by path, for picking what to commit.
   checks?: ReadonlyMap<string, CheckState>;
   onCheck?: (item: Item, select: boolean) => void;

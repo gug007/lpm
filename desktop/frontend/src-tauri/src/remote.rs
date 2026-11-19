@@ -55,9 +55,11 @@ use tauri::{AppHandle, Emitter, Listener, Manager, State};
 use tungstenite::{accept, Error as WsError, Message, WebSocket};
 
 mod answer;
+mod check_log;
 mod ci_push;
 mod dialog;
 mod dictation;
+mod file_write;
 mod live;
 mod mac_alert;
 mod mentions;
@@ -67,6 +69,7 @@ mod push_fit;
 mod recap_push;
 mod reminders;
 mod relay;
+mod review;
 pub(crate) mod relayed;
 mod tab_account;
 mod tab_menu;
@@ -188,6 +191,11 @@ const PHONE_FEATURES: &[&str] = &[
     crate::remote_ci::COMMITS_FEATURE,
     crate::remote_ci::MERGE_FEATURE,
     crate::remote_popup::FEATURE,
+    review::SECRETS_FEATURE,
+    review::BRANCH_FEATURE,
+    review::DISCUSSION_FEATURE,
+    check_log::FEATURE,
+    file_write::FEATURE,
 ];
 
 /// `PHONE_FEATURES`, and what depends on this machine as well as this build.
@@ -2068,6 +2076,23 @@ pub(crate) fn git_result_reply(kind: &str, project: &str, r: Result<(), String>)
 
 const GIT_DIFF_CAP: usize = 400 * 1024; // per-file diff byte cap sent to the phone
 
+/// One file of a batch diff as the phone reads it: its error, or the diff capped,
+/// with git's `Binary files … differ` / `GIT binary patch` marker surfaced as
+/// binary with no body.
+pub(crate) fn diff_entry(e: &crate::git::BatchDiff) -> Value {
+    if let Some(error) = &e.error {
+        return json!({ "path": e.path, "error": error });
+    }
+    if e.diff
+        .lines()
+        .any(|l| l.starts_with("Binary files ") || l.starts_with("GIT binary patch"))
+    {
+        return json!({ "path": e.path, "diff": "", "binary": true, "truncated": false });
+    }
+    let (diff, truncated) = cap_git_diff(&e.diff);
+    json!({ "path": e.path, "diff": diff, "binary": false, "truncated": truncated })
+}
+
 /// Cap a diff at ~400 KB, truncating at a line boundary so the phone never
 /// receives a half-line. Returns (text, truncated).
 pub(crate) fn cap_git_diff(diff: &str) -> (String, bool) {
@@ -3639,26 +3664,15 @@ fn handle_msg(
             match config::project_root(&project) {
                 Ok((cwd, _)) => match crate::git::git_diff(cwd, vec![path.clone()]) {
                     Ok(diff) => {
-                        // git renders a binary change as a `Binary files … differ`
-                        // / `GIT binary patch` line rather than hunks — surface it
-                        // as binary with no diff body instead of shipping the marker.
-                        let binary = diff.lines().any(|l| {
-                            l.starts_with("Binary files ") || l.starts_with("GIT binary patch")
+                        let mut reply = diff_entry(&crate::git::BatchDiff {
+                            path: path.clone(),
+                            diff,
+                            error: None,
                         });
-                        if binary {
-                            send(
-                                ws,
-                                json!({ "t": "gitDiff", "project": project, "path": path,
-                                "ok": true, "diff": "", "binary": true, "truncated": false }),
-                            )?;
-                        } else {
-                            let (diff, truncated) = cap_git_diff(&diff);
-                            send(
-                                ws,
-                                json!({ "t": "gitDiff", "project": project, "path": path,
-                                "ok": true, "diff": diff, "binary": false, "truncated": truncated }),
-                            )?;
-                        }
+                        reply["t"] = "gitDiff".into();
+                        reply["project"] = project.into();
+                        reply["ok"] = true.into();
+                        send(ws, reply)?;
                     }
                     Err(e) => send(
                         ws,
@@ -3692,22 +3706,8 @@ fn handle_msg(
                     let out = out.clone();
                     std::thread::spawn(move || {
                         let files: Vec<Value> = crate::git::git_diffs(&cwd, &paths)
-                            .into_iter()
-                            .map(|e| {
-                                if let Some(err) = e.error {
-                                    return json!({ "path": e.path, "error": err });
-                                }
-                                let binary = e.diff.lines().any(|l| {
-                                    l.starts_with("Binary files ")
-                                        || l.starts_with("GIT binary patch")
-                                });
-                                if binary {
-                                    json!({ "path": e.path, "diff": "", "binary": true, "truncated": false })
-                                } else {
-                                    let (diff, truncated) = cap_git_diff(&e.diff);
-                                    json!({ "path": e.path, "diff": diff, "binary": false, "truncated": truncated })
-                                }
-                            })
+                            .iter()
+                            .map(diff_entry)
                             .collect();
                         let _ = out.try_send(
                             json!({ "t": "gitDiffs", "project": project, "ok": true, "files": files })
@@ -4801,6 +4801,11 @@ fn handle_msg(
             crate::remote_ci::handle(out, t, &v)
         }
         "actionPopup" => crate::remote_popup::handle(out, &v),
+        "gitScanSecrets" | "gitBranchFiles" | "gitBranchDiffs" | "gitPrDiscussion" => {
+            review::handle(out, t, &v)
+        }
+        "gitCheckLog" => check_log::handle(out, &v),
+        "writeFile" => file_write::handle(out, &v),
         "answers" => {
             let id = str_field("id").unwrap_or_default();
             let session = hub.inner.agent_sessions.lock().unwrap().get(&id).cloned();

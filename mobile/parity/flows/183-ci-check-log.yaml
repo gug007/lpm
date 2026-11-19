@@ -1,0 +1,23 @@
+# A failed check in the CI sheet opens to why it failed: the step and the last lines
+# of its log, read on the Mac, with the whole log a tap away.
+appId: cx.lpm.mobile
+name: 183-ci-check-log
+tags: [demo, projects, git]
+---
+- runFlow: subflows/enter-demo.yaml
+- tapOn: "storefront"
+- extendedWaitUntil:
+    visible: "CI on #42.*"
+    timeout: 10000
+- tapOn: "CI on #42.*"
+- extendedWaitUntil:
+    visible: "test \\(ubuntu-latest\\)"
+    timeout: 5000
+- tapOn: "test \\(ubuntu-latest\\)"
+- extendedWaitUntil:
+    visible: "Run tests · failed"
+    timeout: 5000
+- assertVisible: "Show Full Log"
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 1-log

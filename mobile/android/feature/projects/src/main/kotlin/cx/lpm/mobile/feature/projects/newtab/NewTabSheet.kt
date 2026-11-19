@@ -12,10 +12,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cx.lpm.mobile.core.designsystem.R as DesignR
-import cx.lpm.mobile.core.designsystem.component.AlertButton
-import cx.lpm.mobile.core.designsystem.component.AlertRole
 import cx.lpm.mobile.core.designsystem.component.GlassIconButton
-import cx.lpm.mobile.core.designsystem.component.LpmAlert
 import cx.lpm.mobile.core.designsystem.component.ModalSheet
 import cx.lpm.mobile.core.designsystem.component.rememberModalSheetState
 import cx.lpm.mobile.core.model.Action
@@ -24,7 +21,7 @@ import cx.lpm.mobile.core.model.TerminalInfo
 import cx.lpm.mobile.core.navigation.PresentationScope
 import cx.lpm.mobile.core.navigation.SheetStack
 import cx.lpm.mobile.core.navigation.rememberSheetNavigator
-import cx.lpm.mobile.feature.projects.ActionRunStep
+import cx.lpm.mobile.feature.projects.ActionRunStepHost
 import cx.lpm.mobile.feature.projects.R
 import cx.lpm.mobile.feature.projects.resume.ResumeSessionPage
 
@@ -117,27 +114,16 @@ private fun NewTabContent(
             }
         }
     }
-    when (val step = state.step) {
-        is ActionRunStep.Inputs -> actionInputs(
-            step.action,
-            { values -> if (viewModel.submitInputs(values, onOpen)) opening() },
-            { viewModel.dismiss(step) }
-        )
-
-        is ActionRunStep.Confirm -> LpmAlert(
-            title = stringResource(R.string.new_tab_run_confirm, step.action.label),
-            buttons = listOf(
-                AlertButton(stringResource(R.string.new_tab_run)) {
-                    viewModel.confirm(onOpen)
-                    opening()
-                },
-                AlertButton(stringResource(R.string.cancel), AlertRole.Cancel)
-            ),
-            onDismissRequest = { viewModel.dismiss(step) }
-        )
-
-        null -> Unit
-    }
+    ActionRunStepHost(
+        state.step,
+        actionInputs,
+        onSubmit = { values -> if (viewModel.submitInputs(values, onOpen)) opening() },
+        onConfirm = {
+            viewModel.confirm(onOpen)
+            opening()
+        },
+        onDismiss = viewModel::dismiss
+    )
 }
 
 /** An action's inputs sheet: the action, its values once given, and its dismissal. */

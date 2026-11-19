@@ -23,6 +23,7 @@ struct FilePreviewActions: View {
     let onMention: (() -> Void)?
     let onDiff: (() -> Void)?
     let onFind: (() -> Void)?
+    var onEdit: (() -> Void)?
     let onCopyPath: () -> Void
     @State private var copied = false
 
@@ -31,6 +32,7 @@ struct FilePreviewActions: View {
             if let onMention { item("Mention", systemImage: "at", action: onMention) }
             if let onDiff { item("Diff", systemImage: "plus.forwardslash.minus", action: onDiff) }
             if let onFind { item("Find", systemImage: "magnifyingglass", action: onFind) }
+            if let onEdit { item("Edit", systemImage: "pencil", action: onEdit) }
             item(copied ? "Copied" : "Copy Path", systemImage: copied ? "checkmark" : "doc.on.doc") {
                 onCopyPath()
                 Haptics.success()

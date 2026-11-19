@@ -17,6 +17,7 @@ camerax = "1.6.2"
 androidxMedia3 = "1.11.1"
 mlkitBarcode = "17.3.0"
 firebaseBom = "35.0.2"
+playReview = "2.0.2"
 composeBom = "2026.09.00"
 kotlinxCoroutines = "1.11.0"
 kotlinxSerialization = "1.11.0"
@@ -34,6 +35,7 @@ ktlint = "1.8.0"
 composeRulesKtlint = "0.6.8"
 
 [libraries]
+play-review = { group = "com.google.android.play", name = "review", version.ref = "playReview" }
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "androidxActivity" }
 androidx-biometric = { group = "androidx.biometric", name = "biometric", version.ref = "androidxBiometric" }
 androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }

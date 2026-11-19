@@ -2,12 +2,14 @@ package cx.lpm.mobile.feature.files.preview
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import cx.lpm.mobile.core.data.git.GitExtrasStore
 import cx.lpm.mobile.core.data.git.GitStore
 import cx.lpm.mobile.core.data.mac.ThisDevice
 import cx.lpm.mobile.core.data.prefs.AppPreferences
 import cx.lpm.mobile.core.data.prefs.PreferenceKeys
 import cx.lpm.mobile.core.data.session.MacSessions
 import cx.lpm.mobile.core.data.terminals.composerPrompts
+import cx.lpm.mobile.core.model.FileWriteResult
 import cx.lpm.mobile.core.navigation.FilePreviewKey
 import cx.lpm.mobile.core.web.MarkdownFileReader
 import cx.lpm.mobile.feature.files.di.PreviewDispatcher
@@ -59,6 +61,7 @@ class FilePreviewViewModel @AssistedInject constructor(
 
     private val session = sessions[key.session]
     private val git = session?.store<GitStore>()
+    private val extras = session?.store<GitExtrasStore>()
     private val prompts = key.promptTerminal?.let { session?.composerPrompts() }
     private val fetches: FileFetches? = session?.store()
     private val fetch: FileFetch? = fetches?.fetch(key.project, key.paths)
@@ -89,7 +92,8 @@ class FilePreviewViewModel @AssistedInject constructor(
             changedPath = changedPath(inProject, snapshot),
             projectPath = inProject ?: f.path,
             line = key.line,
-            canMention = prompts != null
+            canMention = prompts != null,
+            editable = editable(f, inProject)
         )
     }.stateIn(
         viewModelScope,
@@ -125,6 +129,22 @@ class FilePreviewViewModel @AssistedInject constructor(
         val terminal = key.promptTerminal ?: return
         val line = if (key.line > 0) ":${key.line}" else ""
         prompts?.append(terminal, "@${uiState.value.projectPath}$line ")
+    }
+
+    /** Saves [content] over the file, only while it still hashes to [base] on the Mac. */
+    fun save(content: String, base: String, done: (FileWriteResult) -> Unit) {
+        val path = uiState.value.projectPath
+        val store = extras ?: return done(FileWriteResult("", null, false, GONE))
+        store.save(key.project, path, content, base) { result ->
+            if (result.sha256 != null) git?.changed(key.project)
+            done(result)
+        }
+    }
+
+    private fun editable(f: FileFetch.State, inProject: String?): Boolean {
+        val ready = f.phase as? FileFetch.Phase.Ready ?: return false
+        return extras?.canWriteFiles == true && inProject != null && ready.kind.isText &&
+            !ready.truncated && (f.total ?: 0) <= FileEdit.MAX_BYTES
     }
 
     fun setMarkdownSource(source: Boolean) {

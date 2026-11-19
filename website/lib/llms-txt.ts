@@ -34,7 +34,7 @@ export function buildLlmsTxt(): string {
     "",
     `> ${APP_DESCRIPTION}`,
     "",
-    'lpm ("local project manager") keeps each project\'s services, actions and terminals in a YAML config. Agents can operate it through the `lpm` CLI and configure it with the lpm skills; see "Ask your agent" below.',
+    'lpm keeps each project\'s services, actions and terminals in a YAML config. Agents can operate it through the `lpm` CLI and configure it with the lpm skills; see "Ask your agent" below.',
     "",
     `- Runs on: ${OPERATING_SYSTEMS}`,
     `- License: MIT, free with no paid tier. Source: ${REPO_URL}`,
@@ -49,7 +49,7 @@ export function buildLlmsTxt(): string {
     item(
       "Docs overview",
       url(DOCS_PATH),
-      "install lpm, then configure it yourself or ask your agent to",
+      "install lpm, learn the app, then configure it yourself or ask your agent to",
     ),
     ...DOCS_PAGES.map((page) =>
       item(page.title, url(docsPath(page.slug)), page.description),

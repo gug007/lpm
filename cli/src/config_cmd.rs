@@ -909,18 +909,25 @@ fn validate_services(
         validate_keys(
             map,
             &[
-                "cmd",
-                "cwd",
-                "port",
-                "portConflict",
-                "env",
-                "dependsOn",
-                "depends_on",
-                "ready",
-            ],
+                &[
+                    "cmd",
+                    "cwd",
+                    "port",
+                    "portConflict",
+                    "env",
+                    "dependsOn",
+                    "depends_on",
+                    "ready",
+                ][..],
+                &crate::os_cmd::KEYS,
+            ]
+            .concat(),
             &path,
             report,
         );
+        for key in crate::os_cmd::KEYS {
+            validate_string_field(map, key, &format!("{path}.{key}"), report);
+        }
         service_ready::validate_ready(map, &path, report);
         match string_at(map, "cmd") {
             Some(cmd) if !cmd.trim().is_empty() => {}
@@ -1056,35 +1063,42 @@ fn validate_action(
     validate_keys(
         map,
         &[
-            "cmd",
-            "label",
-            "labelRefresh",
-            "labelRefreshOnHover",
-            "labelRefreshOnChange",
-            "labelSvg",
-            "emoji",
-            "color",
-            "shortcut",
-            "cwd",
-            "port",
-            "portConflict",
-            "env",
-            "confirm",
-            "display",
-            "layer",
-            "primary",
-            "prompt",
-            "type",
-            "reuse",
-            "mode",
-            "position",
-            "inputs",
-            "popup",
-            "actions",
-        ],
+            &[
+                "cmd",
+                "label",
+                "labelRefresh",
+                "labelRefreshOnHover",
+                "labelRefreshOnChange",
+                "labelSvg",
+                "emoji",
+                "color",
+                "shortcut",
+                "cwd",
+                "port",
+                "portConflict",
+                "env",
+                "confirm",
+                "display",
+                "layer",
+                "primary",
+                "prompt",
+                "type",
+                "reuse",
+                "mode",
+                "position",
+                "inputs",
+                "popup",
+                "actions",
+            ][..],
+            &crate::os_cmd::KEYS,
+        ]
+        .concat(),
         path,
         report,
     );
+    for key in crate::os_cmd::KEYS {
+        validate_string_field(map, key, &format!("{path}.{key}"), report);
+    }
     for key in [
         "cmd",
         "label",
@@ -1682,6 +1696,25 @@ mod tests {
             .errors
             .iter()
             .any(|error| error.contains("inputs.env.position")));
+    }
+
+    #[test]
+    fn validator_accepts_a_command_per_system_and_rejects_a_non_string() {
+        let (_dir, ctx) = context();
+        let path = ctx.project_path("web");
+        let ok: Value = serde_norway::from_str(
+            "root: /tmp\nservices:\n  dev:\n    cmd: npm run dev\n    cmdWindows: npm run dev:win\n    cmd_linux: npm run dev -- --host\nactions:\n  test:\n    cmd: make test\n    cmdMacos: make test-mac\n",
+        )
+        .unwrap();
+        let report = validate_value(&ctx, &path, ConfigKind::Project, &ok);
+        assert!(report.errors.is_empty(), "{:?}", report.errors);
+
+        let bad: Value = serde_norway::from_str(
+            "root: /tmp\nservices:\n  dev:\n    cmd: npm run dev\n    cmdLinux: [npm]\n",
+        )
+        .unwrap();
+        let report = validate_value(&ctx, &path, ConfigKind::Project, &bad);
+        assert!(report.errors.iter().any(|error| error.contains("cmdLinux")), "{:?}", report.errors);
     }
 
     #[test]

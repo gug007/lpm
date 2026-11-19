@@ -13,7 +13,7 @@ function fieldsOf(def: Def): string[] {
 }
 
 const ACTION_FIELDS = [
-  "actions", "cmd", "color", "confirm", "cwd", "display", "emoji", "env", "inputs", "label",
+  "actions", "cmd", "cmdLinux", "cmdMacos", "cmdWindows", "color", "confirm", "cwd", "display", "emoji", "env", "inputs", "label",
   "labelRefresh", "labelRefreshOnChange", "labelRefreshOnHover", "labelSvg", "layer", "mode", "popup", "port", "portConflict", "position", "primary", "prompt", "reuse", "shortcut",
   "type",
 ].sort();
@@ -66,7 +66,7 @@ describe("config schemas", () => {
 
   it("list only the fields a service has", () => {
     expect(fieldsOf(projectSchema.definitions.service)).toEqual(
-      ["cmd", "cwd", "dependsOn", "depends_on", "env", "port", "portConflict", "ready"],
+      ["cmd", "cmdLinux", "cmdMacos", "cmdWindows", "cwd", "dependsOn", "depends_on", "env", "port", "portConflict", "ready"],
     );
   });
 

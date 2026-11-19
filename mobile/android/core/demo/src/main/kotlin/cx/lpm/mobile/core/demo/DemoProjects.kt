@@ -149,7 +149,7 @@ private fun DemoServer.registerServiceHandlers() {
     register("fileChunk") { o ->
         val project = o.string("project") ?: return@register
         val path = o.string("path") ?: return@register
-        val bytes = demoFileContent(project, path).toByteArray()
+        val bytes = demoFileText(project, path).toByteArray()
         val offset = (o["offset"].numberValue() ?: 0).coerceIn(0, bytes.size.toLong()).toInt()
         val length = o["length"].numberValue() ?: bytes.size.toLong()
         val end = (offset + length).coerceIn(offset.toLong(), bytes.size.toLong()).toInt()

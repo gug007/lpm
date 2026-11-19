@@ -210,6 +210,9 @@ abstract class LpmClientCallbacks {
     var onGitCommitChecks: ((project: String, states: Map<String, CiCheck.State>) -> Unit)? = null
     var onGitChecksRerun: ((project: String, error: String?) -> Unit)? = null
 
+    // The review's extras: secrets, branch scope, the PR review, check logs, saves.
+    var onGitExtras: ((frame: cx.lpm.mobile.core.protocol.Inbound) -> Unit)? = null
+
     // The open pull request merged, and whether its branch went with it.
     var onGitMergePr: (
         (project: String, number: Int, deletedBranch: Boolean, error: String?) -> Unit

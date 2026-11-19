@@ -98,7 +98,7 @@ private fun DemoServer.treeKey(project: String): String {
 }
 
 /** The project's files as (path, isDirectory). */
-private fun DemoServer.mentionTree(project: String): List<Pair<String, Boolean>> =
+internal fun DemoServer.mentionTree(project: String): List<Pair<String, Boolean>> =
     when (treeKey(project)) {
         "storefront" -> listOf(
             "app" to true, "app/checkout" to true, "app/layout.tsx" to false,

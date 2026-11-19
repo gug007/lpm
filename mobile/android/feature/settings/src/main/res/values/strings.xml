@@ -72,4 +72,20 @@
     <string name="settings_tips">Tips</string>
     <string name="settings_tips_show_again">Show Tips Again</string>
     <string name="settings_tips_footer">Tips you closed come back where they apply.</string>
+    <string name="settings_help">Help</string>
+    <string name="settings_send_feedback">Send Feedback</string>
+    <string name="settings_video_guides">Video Guides</string>
+    <string name="settings_whats_new">What\'s New in lpm</string>
+    <string name="settings_rate">Rate lpm Link</string>
+    <string name="feedback_header">What\'s on your mind?</string>
+    <string name="feedback_placeholder">What happened, what you\'d like, or what you want to know…</string>
+    <string name="feedback_title_line">Title: %1$s</string>
+    <string name="feedback_bug">Bug</string>
+    <string name="feedback_idea">Idea</string>
+    <string name="feedback_question">Question</string>
+    <string name="feedback_open_issue">Open GitHub Issue</string>
+    <string name="feedback_start_discussion">Start GitHub Discussion</string>
+    <string name="feedback_bug_hint">Bugs open a GitHub issue, where the fix is tracked.</string>
+    <string name="feedback_idea_hint">Ideas start a GitHub discussion others can upvote.</string>
+    <string name="feedback_question_hint">Questions start a Q&amp;A discussion anyone can answer.</string>
 </resources>

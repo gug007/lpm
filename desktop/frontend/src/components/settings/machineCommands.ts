@@ -6,6 +6,7 @@ import {
   HasOpenAIKey,
   InstallKokoro,
   ListSystemSounds,
+  ListTerminalLooks,
   OpenAIVoices,
   PeerInvoke,
   ReadBranchNameInstructions,
@@ -51,6 +52,8 @@ export type InstructionKind = "commit" | "prTitle" | "prDescription" | "branchNa
 export interface MachineCommands {
   listSystemSounds: () => Promise<string[]>;
   listMonospaceFonts: () => Promise<string[]>;
+  // Other terminals' fonts and colors found on the machine (termlook/).
+  listTerminalLooks: () => Promise<TerminalLook[]>;
   checkClaudeHooks: () => Promise<ClaudeHooksCheck>;
   resetClaudeHooks: () => Promise<void>;
   readInstructions: (kind: InstructionKind) => Promise<string>;
@@ -73,6 +76,23 @@ export interface MachineCommands {
   // Whether the machine's lpm was built to send crash reports (crashreport.rs).
   crashReportsAvailable: () => Promise<boolean>;
 }
+
+// A terminal's look as termlook/mod.rs reads it.
+export interface TerminalLook {
+  app: string;
+  fontFamily?: string;
+  fontSize?: number;
+  themeName?: string;
+  colors?: {
+    background: string;
+    foreground: string;
+    cursor?: string;
+    selection?: string;
+    ansi: string[];
+  };
+}
+
+const looks = (value: unknown): TerminalLook[] => (Array.isArray(value) ? (value as TerminalLook[]) : []);
 
 const strings = (value: unknown): string[] =>
   Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : [];
@@ -101,6 +121,7 @@ const INSTRUCTION_COMMAND: Record<InstructionKind, string> = {
 export const LOCAL_COMMANDS: MachineCommands = {
   listSystemSounds: () => ListSystemSounds().then(strings),
   listMonospaceFonts,
+  listTerminalLooks: () => ListTerminalLooks().then(looks),
   checkClaudeHooks: () => CheckClaudeHooks(),
   resetClaudeHooks: () => ResetClaudeHooks(),
   readInstructions: (kind) => LOCAL_INSTRUCTIONS[kind].read(),
@@ -138,6 +159,7 @@ export function peerCommands(slug: string): MachineCommands {
     listSystemSounds: () => run("list_system_sounds").then(strings),
     listMonospaceFonts: () =>
       run("list_monospace_fonts").then((fonts) => mergeFontLists(strings(fonts), [])),
+    listTerminalLooks: () => run("list_terminal_looks").then(looks, () => []),
     checkClaudeHooks: () => run("check_claude_hooks"),
     resetClaudeHooks: () => run("reset_claude_hooks").then(() => undefined),
     readInstructions: (kind) =>

@@ -111,30 +111,6 @@ const structuredData = [
       description:
         "Two desktop apps built for coding agents, compared row by row.",
     },
-    {
-      name: "lpm vs Docker Compose",
-      path: vsPath("docker-compose"),
-      description:
-        "Native processes against containers for the local inner loop.",
-    },
-    {
-      name: "lpm vs Foreman",
-      path: vsPath("foreman"),
-      description:
-        "A Procfile formation against a project you start, stop and duplicate.",
-    },
-    {
-      name: "lpm vs Overmind",
-      path: vsPath("overmind"),
-      description:
-        "Procfile-shaped control from a desktop app, with no tmux to install underneath it.",
-    },
-    {
-      name: "lpm vs PM2",
-      path: vsPath("pm2"),
-      description:
-        "A production supervisor next to a workflow built for the dev loop.",
-    },
   ]),
   screenRecordingJsonLd("start-project"),
 ];

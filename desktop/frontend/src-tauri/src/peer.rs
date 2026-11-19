@@ -96,6 +96,7 @@ const HOST_FEATURES: &[&str] = &[
     crate::peersync::SYNC_FEATURE2,
     crate::gitbringhost::GIT_BRING_FEATURE,
     crate::gitbringhost::GIT_FOLLOW_FEATURE,
+    crate::handoffhost::HANDOFF_FEATURE,
     crate::ignoredhost::IGNORED_SYNC_FEATURE,
     crate::gitwatchhost::GIT_WATCH_FEATURE,
     crate::porttunnel::PORT_TUNNEL_FEATURE,
@@ -1784,6 +1785,10 @@ fn handle_msg(
         // gitBring feature so an older host simply ignores them.
         "gitBringPrepare" | "gitBringState" | "gitBringStates" | "gitBringChunk"
         | "gitBringDone" => crate::gitbringhost::handle_bring(out, t, &v),
+        // A session handed to this machine, or taken back from it (handoffhost.rs).
+        // Dedicated frames again, gated on the handoff feature.
+        "handoffOpen" | "handoffPut" | "handoffLand" | "handoffStop" | "handoffSession"
+        | "handoffAnchor" | "handoffClose" => crate::handoffhost::handle(app, out, t, &v),
         // Files of a project here — what git ignores, or any file the asking
         // Mac picked — listed, sent and taken in pieces (ignoredhost.rs). Same
         // shape again, gated on the ignoredSync feature.

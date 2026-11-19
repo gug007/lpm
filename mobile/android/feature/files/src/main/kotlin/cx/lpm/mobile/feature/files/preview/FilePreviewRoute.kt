@@ -5,8 +5,10 @@ import android.content.ClipData
 import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.ClipEntry
@@ -18,6 +20,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.core.navigation.FilePreviewKey
 import cx.lpm.mobile.core.web.MarkdownWebView
+import cx.lpm.mobile.feature.files.fetch.FileFetch
 import java.io.File
 import kotlinx.coroutines.launch
 
@@ -45,6 +48,21 @@ fun FilePreviewRoute(
     val scope = rememberCoroutineScope()
     val share = remember(context) { { file: File -> context.share(file) } }
     val dark = LpmTheme.colors.isDark
+    var editing by remember { mutableStateOf<File?>(null) }
+    editing?.let { file ->
+        FileEditScreen(
+            file = file,
+            filename = state.filename,
+            onSave = viewModel::save,
+            onReopen = {
+                editing = null
+                viewModel.retry()
+            },
+            onClose = { editing = null },
+            modifier = modifier
+        )
+        return
+    }
     val actions = FilePreviewActions(
         onMarkdownSource = viewModel::setMarkdownSource,
         markdown = { text, textModifier ->
@@ -87,6 +105,9 @@ fun FilePreviewRoute(
                     null
                 },
                 onDiff = state.changedPath?.let { path -> { onOpenChanges(path) } },
+                onEdit = (state.phase as? FileFetch.Phase.Ready)?.file
+                    ?.takeIf { state.editable }
+                    ?.let { file -> { editing = file } },
                 onCopyPath = {
                     val path = state.projectPath
                     val clip = ClipEntry(ClipData.newPlainText(path, path))

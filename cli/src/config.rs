@@ -179,6 +179,8 @@ pub struct ServiceFull {
     pub depends_on: Vec<String>,
     #[serde(default)]
     pub ready: Option<crate::ready::ReadySpec>,
+    #[serde(flatten)]
+    pub os: crate::os_cmd::OsCmds,
 }
 
 impl ServiceDef {
@@ -188,7 +190,10 @@ impl ServiceDef {
                 cmd,
                 ..Default::default()
             },
-            ServiceDef::Full(f) => f,
+            ServiceDef::Full(mut f) => {
+                f.os.pick(&mut f.cmd);
+                f
+            }
         }
     }
 }
@@ -343,6 +348,8 @@ pub struct ActionFull {
     /// `terminals:` block (used to split the Terminals vs Actions sections).
     #[serde(skip)]
     pub from_terminals: bool,
+    #[serde(flatten)]
+    os: crate::os_cmd::OsCmds,
 }
 
 impl ActionDef {
@@ -352,7 +359,11 @@ impl ActionDef {
                 cmd,
                 ..Default::default()
             },
-            ActionDef::Full(f) => *f,
+            ActionDef::Full(f) => {
+                let mut f = *f;
+                f.os.pick(&mut f.cmd);
+                f
+            }
         }
     }
 }
