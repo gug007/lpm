@@ -13,7 +13,7 @@
 // written on its host (lpm_commands_remote) by the same rules as a local one.
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashSet};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 pub(crate) use crate::lpm_commands_doc::{parse_doc, Doc};
 use crate::lpm_commands_folds::SkillFolds;
@@ -240,16 +240,21 @@ pub(crate) fn project_place(project: &str) -> Result<Option<ProjectPlace>, Strin
     }))
 }
 
-pub(crate) fn global_store() -> LocalFs {
-    let home = dirs::home_dir().unwrap_or_default();
-    let claude = crate::agentdirs::claude_config_dir()
+/// The skills root Codex, Gemini and OpenCode read, where lpm's own skills live.
+pub(crate) fn agents_skills_dir() -> PathBuf {
+    dirs::home_dir().unwrap_or_default().join(".agents").join("skills")
+}
+
+/// Claude Code's skills folder, under its config dir.
+pub(crate) fn claude_skills_dir() -> PathBuf {
+    crate::agentdirs::claude_config_dir()
         .map(Path::to_path_buf)
-        .unwrap_or_else(|| home.join(".claude"));
-    let store = LocalFs::new(
-        home.join(".agents").join("skills"),
-        claude.join("skills"),
-        crate::config::lpm_dir(),
-    )
+        .unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join(".claude"))
+        .join("skills")
+}
+
+pub(crate) fn global_store() -> LocalFs {
+    let store = LocalFs::new(agents_skills_dir(), claude_skills_dir(), crate::config::lpm_dir())
     .with_layout(crate::lpm_commands_layout::global_path());
     match crate::agentdirs::codex_home() {
         Some(codex) => store.with_codex(codex.join("skills")),

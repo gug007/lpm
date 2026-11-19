@@ -3,6 +3,7 @@ package cx.lpm.mobile.feature.terminal.composer
 import androidx.annotation.StringRes
 import cx.lpm.mobile.core.data.dictation.DictationFailure
 import cx.lpm.mobile.core.data.dictation.DictationState
+import cx.lpm.mobile.core.data.terminals.TerminalsState
 import cx.lpm.mobile.core.model.ComposerAction
 import cx.lpm.mobile.core.model.SessionKey
 import cx.lpm.mobile.core.model.SlashCommand
@@ -19,6 +20,14 @@ data class ComposerTarget(
     val session: SessionKey,
     val terminalTools: Boolean = true
 )
+
+/** The agent CLI running in [target]'s terminal, "" when none is known. */
+internal fun TerminalsState?.cli(target: ComposerTarget): String =
+    this?.terminals?.get(target.project)?.firstOrNull { it.id == target.termId }?.cli.orEmpty()
+
+/** The commands the agent in [target]'s terminal lists. */
+internal fun TerminalsState?.slashRows(target: ComposerTarget): List<SlashCommand> =
+    this?.slashCommands?.get(target.termId).orEmpty()
 
 data class ComposerUiState(
     val composer: ComposerState = ComposerState(),
@@ -52,9 +61,14 @@ data class ComposerUiState(
      */
     val lastPrompt: String? = null,
     /** A History pick went after the draft: the toast offers the draft back. */
-    val restore: ComposerRestore? = null
+    val restore: ComposerRestore? = null,
+    /** Answering with a video, where the terminal's agent can make one. */
+    val video: ComposerVideo? = null
 ) {
     val hasText: Boolean get() = composer.text.isNotBlank()
+
+    /** The next prompt asks the agent for a video of its answer. */
+    val videoOn: Boolean get() = video?.on == true
 
     val takeActive: Boolean get() = dictation.isActive(dictationOwner)
     val takeFailure: DictationFailure? get() = dictation.failure(dictationOwner)

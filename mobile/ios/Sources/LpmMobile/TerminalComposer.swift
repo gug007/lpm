@@ -87,6 +87,18 @@ struct TerminalComposer: View {
         terminalTools && !terminalCli.isEmpty && model.lpmCommandsAvailable
     }
 
+    // MARK: video answers
+
+    private var video: ComposerVideo? {
+        guard terminalTools else { return nil }
+        return ComposerVideo(cli: terminalCli, commands: model.slashCommands[termId] ?? [],
+                             record: model.activeRecord, picked: store.videoOn)
+    }
+    /// The next prompt asks the agent for a video of its answer.
+    private var videoOn: Bool { video?.on == true }
+    /// The desktop's `--accent-violet`, which marks a prompt that comes back as a video.
+    private static let videoAccent = ActionTint("violet")?.accent ?? .purple
+
     /// Park the invocation at the end of whatever is already typed rather than
     /// replacing it, keeping exactly one space between the two.
     private func joined(_ existing: String, _ invocation: String) -> String {
@@ -263,6 +275,7 @@ struct TerminalComposer: View {
             .animation(.easeOut(duration: 0.12), value: slashMatches.count)
             .animation(.easeOut(duration: 0.12), value: hasMentionContent)
             .animation(.easeOut(duration: 0.15), value: store.transforming)
+            .animation(.easeOut(duration: 0.15), value: videoOn)
             .onAppear {
                 if terminalTools {
                     model.loadSlash(termId, project: project)
@@ -459,6 +472,12 @@ struct TerminalComposer: View {
             .background(fieldGround)
             .clipShape(RoundedRectangle(cornerRadius: composerCorner, style: .continuous))
             .overlay {
+                if videoOn {
+                    RoundedRectangle(cornerRadius: composerCorner, style: .continuous)
+                        .strokeBorder(Self.videoAccent, lineWidth: 1)
+                }
+            }
+            .overlay {
                 if store.transforming {
                     ShimmerBorder(cornerRadius: composerCorner)
                         .clipShape(RoundedRectangle(cornerRadius: composerCorner, style: .continuous))
@@ -631,6 +650,13 @@ struct TerminalComposer: View {
             Button {
                 if canRewrite { showActions = true } else { showRewriteHint = true }
             } label: { Label("Rewrite with AI", systemImage: "sparkles") }
+            if let video {
+                Button { store.videoOn.toggle() } label: {
+                    Label(video.on ? "Back to a text answer" : "Answer as a video", systemImage: "video")
+                    if let reason = video.offReason { Text(reason) }
+                }
+                .disabled(video.offReason != nil)
+            }
             // Session memory is written on the Mac that runs the agent, so an SSH
             // project's terminals have nothing here to reach.
             if memoryAvailable {
@@ -679,7 +705,7 @@ struct TerminalComposer: View {
                     .padding(.vertical, 8)
                     .allowsHitTesting(false)
             }
-            TextField(placeholder, text: store.textBinding, axis: .vertical)
+            TextField(videoOn ? "Ask for a video…" : placeholder, text: store.textBinding, axis: .vertical)
                 .font(.body)
                 .lineLimit(1...(isFull ? fullLineLimit : 5))
                 .opacity(fieldHidden ? 0 : 1)
@@ -699,7 +725,8 @@ struct TerminalComposer: View {
     }
 
     private var sendButton: some View {
-        Menu {
+        let videoOn = videoOn
+        return Menu {
             Button {
                 let text = store.text.trimmingCharacters(in: .whitespacesAndNewlines)
                 if !text.isEmpty {
@@ -708,7 +735,8 @@ struct TerminalComposer: View {
                 }
             } label: { Label("Save as draft", systemImage: "tray.and.arrow.down") }
 
-            if terminalTools {
+            // A video is made once, by this tab's agent: it isn't run in copies.
+            if terminalTools && !videoOn {
                 Menu {
                     ForEach(2...10, id: \.self) { n in
                         Button("\(n) copies") { dupSeed = DupSeed(count: n, prompt: store.text) }
@@ -717,8 +745,8 @@ struct TerminalComposer: View {
                     .disabled(store.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         } label: {
-            Image(systemName: "arrow.up")
-                .font(.system(size: 16, weight: .semibold))
+            Image(systemName: videoOn ? "play.fill" : "arrow.up")
+                .font(.system(size: videoOn ? 14 : 16, weight: .semibold))
                 .foregroundStyle(sendForeground)
                 .frame(width: 32, height: 32)
                 .background(sendGround)
@@ -728,7 +756,7 @@ struct TerminalComposer: View {
             send()
         }
         .disabled(disabled || (!canSend && !isSendMenuUseful))
-        .accessibilityLabel("Send")
+        .accessibilityLabel(videoOn ? "Send for a video" : "Send")
     }
 
     private var liveSendForeground: SwiftUI.Color { terminalTools ? .black : .white }
@@ -740,7 +768,7 @@ struct TerminalComposer: View {
     }
 
     private var sendGround: SwiftUI.Color {
-        if canSend { return liveSendGround }
+        if canSend { return videoOn ? Self.videoAccent : liveSendGround }
         return terminalTools ? SwiftUI.Color.white.opacity(0.12) : SwiftUI.Color(.tertiarySystemFill)
     }
 
@@ -774,7 +802,7 @@ struct TerminalComposer: View {
     /// instead, filled in by the Mac.
     private func send() {
         guard !expandingCommand, !takeActive else { return }
-        if lpmCommandsOn, let run = LpmCommandRules.parseRun(store.text), let cmd = lpmCommand(run.name) {
+        if !videoOn, lpmCommandsOn, let run = LpmCommandRules.parseRun(store.text), let cmd = lpmCommand(run.name) {
             runLpmCommand(cmd.name, args: run.args)
             return
         }
@@ -806,11 +834,17 @@ struct TerminalComposer: View {
         case .pending:
             toast = ComposerToast(text: "Still uploading an attachment — try again in a moment.")
         case .ready(let body):
-            deliver(body)
+            deliver(outgoing(body))
         case .droppedFailures(let body):
             toast = ComposerToast(text: "Some attachments failed to upload and were left out.")
-            deliver(body)
+            deliver(outgoing(body))
         }
+    }
+
+    /// The composed prompt as it goes out: a call to the video skill while the
+    /// next prompt asks for a video, the prompt itself otherwise.
+    private func outgoing(_ body: String) -> String {
+        videoOn ? VideoRequest.build(cli: terminalCli, prompt: body) : body
     }
 
     /// Deliver a composed body and reset the active tab (closing it if others exist).
@@ -827,6 +861,7 @@ struct TerminalComposer: View {
         noteSentCommand(body)
         store.lastSent = body
         store.afterSend()
+        store.videoOn = false
         dictation.noteSent()
         withAnimation(.easeOut(duration: 0.2)) { isFull = false }
     }

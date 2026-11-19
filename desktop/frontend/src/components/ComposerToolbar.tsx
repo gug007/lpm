@@ -11,6 +11,7 @@ import { ComposerMoreButton, type ComposerMenuHost } from "./ComposerMoreButton"
 import { ComposerNewInputButton } from "./ComposerNewInputButton";
 import { ComposerSaveCommandButton } from "./ComposerSaveCommandButton";
 import { ComposerToolbarSlot } from "./ComposerToolbarSlot";
+import { ComposerVideoButton, type ComposerVideoButtonProps } from "./ComposerVideoButton";
 import { SquarePenIcon } from "./icons";
 import { SendSplitButton, type SendSplitButtonProps } from "./SendSplitButton";
 import { TerminalHistoryButton, type TerminalHistoryButtonProps } from "./TerminalHistoryButton";
@@ -46,6 +47,8 @@ interface ComposerToolbarProps {
   fork: ComposerForkProps;
   // Saving the prompt as an lpm command; null where the terminal runs no agent.
   saveCommand: { disabled: boolean; onSave: () => void } | null;
+  // Asking for a video of the answer; null where the agent can't make one.
+  video: Pick<ComposerVideoButtonProps, "on" | "onToggle" | "offReason" | "agent"> | null;
   send: SendSplitButtonProps;
   // History › Drafts asked for from outside the row (a toast's Open Drafts),
   // wherever the Drafts tool sits.
@@ -66,6 +69,7 @@ export function ComposerToolbar({
   model,
   fork,
   saveCommand,
+  video,
   send,
   draftsOpen,
   onDraftsClose,
@@ -84,6 +88,7 @@ export function ComposerToolbar({
     fork: fork.canFork,
     forkCopy: fork.canForkCopy,
     saveCommand: saveCommand !== null,
+    video: video !== null,
   });
 
   const renderTool = (id: ComposerToolId, variant: ComposerToolVariant, host?: ComposerMenuHost) => {
@@ -173,6 +178,16 @@ export function ComposerToolbar({
                 host?.close();
                 saveCommand.onSave();
               }}
+            />
+          )
+        );
+      case "video":
+        return (
+          video && (
+            <ComposerVideoButton
+              {...video}
+              variant={variant}
+              onPick={host?.close}
             />
           )
         );

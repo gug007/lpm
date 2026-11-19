@@ -141,6 +141,8 @@ import { composerChord, composerKeepsCtrlChord, isFormatInput, runComposerEdit }
 import { isLinux, isMac } from "../platform";
 import { SlashCommandMenu } from "./SlashCommandMenu";
 import { useSlashCommands } from "../hooks/useSlashCommands";
+import { useComposerVideo } from "../hooks/useComposerVideo";
+import { VIDEO_SKILL } from "../videoRequest";
 import { missingNote, useLpmCommandRun } from "../hooks/useLpmCommandRun";
 import { useCommandsOpen } from "../store/commandsOpen";
 import {
@@ -365,6 +367,15 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     lpmLists,
   } = useSlashCommands(slashCli, cwd, focused, lpmProject);
   const lpmRun = useLpmCommandRun(lpmProject, lpmLists);
+  const videoListed = useMemo(() => isSlashCommand(VIDEO_SKILL), [isSlashCommand]);
+  const video = useComposerVideo({
+    terminalId,
+    cli: slashCli,
+    cwd,
+    listed: videoListed,
+    local: !isRemotePeer && !projectIsRemote,
+    guest,
+  });
   // Only Claude Code and Codex can be re-pointed at another model mid-session,
   // so only their terminals get the model switcher in the button row.
   const switchCli = switchableCLI(slashCli);
@@ -1210,26 +1221,26 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // the recall ring, record durable history, then clear the field. Shared by the
   // manual ↵ send and the run-in-duplicates "copy #1" send, which fires the same
   // prompt into this terminal while the dialog spins up the extra copies.
-  const deliverPrompt = async (text: string, images: Record<string, string>) => {
+  const deliverPrompt = async (text: string, images: Record<string, string>): Promise<boolean> => {
     const editor = editorRef.current;
-    if (!editor) return;
+    if (!editor) return false;
     // A model switch has the agent's picker open and drives it with raw keys; a
     // prompt pasted into that lands as picker input and its CR confirms whatever
     // row is highlighted. The draft is kept, so ↵ again once the switch settles.
     if (isSwitchingModel(terminalId)) {
       toast.error("Switching model — try again in a moment.");
-      return;
+      return false;
     }
     // The editor stays editable across the upload await, so pin which prompt is
     // being sent now; a concurrent tab switch must not redirect the retire below.
     const sentId = activeId.current;
     // Re-entry guard scoped to this prompt: block a second Enter on the same tab
     // mid-upload, while a different prepared prompt can still be sent.
-    if (sending.current.has(sentId)) return;
+    if (sending.current.has(sentId)) return false;
     sending.current.add(sentId);
     try {
       const payload = await buildPayloadForHere(text, images);
-      if (!onSubmit(payload)) return;
+      if (!onSubmit(payload)) return false;
       noteSlashSent(text);
       rememberSent(text, images);
       recordMessage({
@@ -1240,6 +1251,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
         images,
       });
       finishSend(sentId, editor);
+      return true;
     } finally {
       sending.current.delete(sentId);
     }
@@ -1253,6 +1265,12 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     // Snapshot the token→local-path map now (before it's cleared) — a plain-object
     // copy, so a concurrent send clearing the live map can't strip paths mid-upload.
     const images = Object.fromEntries(imagePaths.current);
+    // The mode covers one prompt: it ends once that prompt has gone out, and
+    // stays for another try when it couldn't.
+    if (video.on) {
+      if (await deliverPrompt(video.wrap(value), images)) video.turnOff();
+      return;
+    }
     const run = slashCli ? lpmRun.match(value) : null;
     if (run) return runLpmCommand(run.name, run.args, images);
     await deliverPrompt(value, images);
@@ -1329,8 +1347,8 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     for (const [token, path] of imagePaths.current) {
       if (present.has(token)) images[token] = path;
     }
-    return { id: activeId.current, text, images };
-  }, []);
+    return { id: activeId.current, text: video.wrap(text), images };
+  }, [video.wrap]);
 
   // Bring a prompt back into the input: in place when the input is empty, as its
   // own prepared prompt when something is already being typed, so nothing there
@@ -1371,6 +1389,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     retire: (id) => {
       const editor = editorRef.current;
       if (editor) finishSend(id, editor);
+      video.turnOff();
     },
     restore: restorePrompt,
     shown,
@@ -1399,11 +1418,11 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     for (const [token, path] of imagePaths.current) {
       if (present.has(token)) images.push({ token, path });
     }
-    const runHere = () => {
-      if (transforming.current) return Promise.resolve();
+    const runHere = async () => {
+      if (transforming.current) return;
       const map: Record<string, string> = {};
       for (const img of images) map[img.token] = img.path;
-      return deliverPrompt(text, map);
+      await deliverPrompt(text, map);
     };
     onRunInDuplicates(
       {
@@ -2411,7 +2430,9 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
         className={`relative rounded-xl bg-[var(--composer-surface)] transition-colors ${
           busy
             ? "border border-transparent"
-            : "border border-[var(--composer-border)] focus-within:border-[var(--composer-border-focus)]"
+            : video.on
+              ? "border border-[var(--accent-violet)] shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent-violet)_16%,transparent)]"
+              : "border border-[var(--composer-border)] focus-within:border-[var(--composer-border-focus)]"
         }`}
       >
         {dragOver && <TerminalDropOverlay compact label="Drop files to add" />}
@@ -2468,7 +2489,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
             style={textStyle}
             className="pointer-events-none absolute left-3.5 right-3.5 top-1.5 truncate text-[var(--composer-fg-muted)]"
           >
-            {composerPlaceholder({ label: targetLabel, agent, started: agentStarted })}
+            {composerPlaceholder({ label: targetLabel, agent, started: agentStarted, video: video.on })}
           </div>
         )}
         {hint && (
@@ -2533,6 +2554,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
           }
           fork={{ canFork, onFork, canForkCopy, onForkCopy }}
           saveCommand={slashCli && lpmProject !== null ? { disabled, onSave: saveAsCommand } : null}
+          video={video.available ? { on: video.on, onToggle: video.toggle, offReason: video.offReason, agent: slashCli } : null}
           send={{
             disabled,
             busy,
@@ -2542,7 +2564,9 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
               ? undefined
               : { run: () => void sendLater.sendWhenDone(), hint: sendLater.whenDoneHint },
             onSendLater: guest ? undefined : sendLater.openForPrompt,
-            onSendElsewhere: guest
+            // A video is asked of this tab's agent, in its own call form, and
+            // made once: it isn't handed to another tab or run in copies.
+            onSendElsewhere: guest || video.on
               ? undefined
               : () => {
                   const editor = editorRef.current;
@@ -2551,7 +2575,8 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
                     imageCount: editor ? presentImageTokens(editor).size : 0,
                   });
                 },
-            onRunInDuplicates: guest ? undefined : runInDuplicates,
+            onRunInDuplicates: guest || video.on ? undefined : runInDuplicates,
+            video: video.on,
           }}
           draftsOpen={sendLater.draftsOpen}
           onDraftsClose={sendLater.closeDrafts}

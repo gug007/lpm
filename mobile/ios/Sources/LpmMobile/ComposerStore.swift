@@ -86,6 +86,8 @@ final class ComposerStore: ObservableObject {
     @Published var activeIndex: Int = 0
     /// The last prompt this phone sent here, offered back in the empty field.
     @Published var lastSent: String?
+    /// The next prompt asks the agent for a video of its answer.
+    @Published var videoOn = false
 
     // AI rewrite (transform).
     @Published var transforming = false

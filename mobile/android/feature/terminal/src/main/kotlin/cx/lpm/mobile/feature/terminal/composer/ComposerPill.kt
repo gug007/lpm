@@ -3,6 +3,7 @@ package cx.lpm.mobile.feature.terminal.composer
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -23,6 +24,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
@@ -31,6 +33,7 @@ import cx.lpm.mobile.core.data.dictation.plusDictated
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.core.ui.dictation.DictationMicGap
 import cx.lpm.mobile.core.ui.dictation.DictationPreview
+import cx.lpm.mobile.feature.terminal.R
 
 private val Corner = 24.dp
 private const val EXPAND_MS = 150
@@ -148,7 +151,11 @@ internal fun ComposerPill(
     ) {
         ComposerField(
             input = input,
-            placeholder = look.placeholder,
+            placeholder = if (state.videoOn) {
+                stringResource(R.string.video_placeholder)
+            } else {
+                look.placeholder
+            },
             argumentHint = state.slashArgumentHint,
             enabled = look.enabled && !state.composer.transforming,
             focusRequester = focusRequester,
@@ -209,6 +216,9 @@ internal fun ComposerPill(
                     .fillMaxWidth()
                     .height(StripHeight)
             )
+        }
+        if (state.videoOn) {
+            Box(Modifier.matchParentSize().border(1.dp, videoAccent, RoundedCornerShape(Corner)))
         }
         if (state.composer.transforming) ShimmerBorder(Corner, Modifier.matchParentSize())
     }

@@ -572,6 +572,12 @@ export function ImportConfig(overwrite) {
 export function InstallKokoro() {
   return invoke("install_kokoro");
 }
+export function VideoSetupCheck() {
+  return invoke("video_setup_check");
+}
+export function VideoSetupInstall(part) {
+  return invoke("video_setup_install", { part });
+}
 export function InstallCli() {
   return invoke("install_cli");
 }

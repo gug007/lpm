@@ -13,6 +13,12 @@ describe("composerPlaceholder", () => {
     expect(composerPlaceholder({ label: "Terminal 2", agent: null })).toBe("Run a command in Terminal 2…");
   });
 
+  it("says the next prompt comes back as a video", () => {
+    expect(composerPlaceholder({ label: "Claude", agent: "Claude", started: true, video: true })).toBe(
+      "Ask Claude for a video…",
+    );
+  });
+
   it("keeps the neutral wording when the composer can't tell what runs there", () => {
     expect(composerPlaceholder({ label: "storefront" })).toBe("Send to storefront…");
   });

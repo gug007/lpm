@@ -114,6 +114,13 @@
     <string name="attachment_done">Done</string>
     <string name="tab_close">Close</string>
 
+    <!-- Video answers -->
+    <string name="video_answer">Answer as a video</string>
+    <string name="video_back_to_text">Back to a text answer</string>
+    <string name="video_needs_mac">Videos record on a Mac</string>
+    <string name="video_placeholder">Ask for a video…</string>
+    <string name="video_send">Send for a video</string>
+
     <!-- Rewrite -->
     <string name="rewrite_title">Rewrite with AI</string>
     <string name="rewrite_quick">Quick rewrites</string>

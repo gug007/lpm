@@ -9,12 +9,15 @@ export interface ComposerTarget {
   agent?: string | null;
   // Whether the agent has taken a prompt yet.
   started?: boolean;
+  // The next prompt asks the agent for a video of its answer.
+  video?: boolean;
 }
 
 // The composer's placeholder, shared by the live input and its closed-state
 // stand-in (ComposerReopenBar) so both always read the same and can't drift.
 // It names who the text goes to: the agent, or the shell a line will run in.
-export function composerPlaceholder({ label, agent, started = false }: ComposerTarget): string {
+export function composerPlaceholder({ label, agent, started = false, video = false }: ComposerTarget): string {
+  if (video) return agent ? `Ask ${agent} for a video…` : "Ask for a video…";
   if (agent === undefined) return `Send to ${label}…`;
   if (agent === null) return `Run a command in ${label}…`;
   return started ? `Reply to ${agent}…` : `Ask ${agent}…`;

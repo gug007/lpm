@@ -394,6 +394,7 @@ mod vaultkeychain;
 #[cfg(windows)]
 mod vaultcred;
 mod vaultkeyfile;
+mod video_setup;
 mod voicetotext;
 #[cfg(target_os = "macos")]
 mod voicetotext_api;
@@ -573,6 +574,7 @@ use updateidle::{cancel_scheduled_update, schedule_update, scheduled_update};
 use updatenote::take_update_note;
 use updates::*;
 use upload::*;
+use video_setup::*;
 use voicetotext::*;
 
 /// The argument that turns this binary into the session daemon (sessiond.rs)

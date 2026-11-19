@@ -35,13 +35,15 @@ internal class PlusMenuActions(
     /** The command editor seeded with what's typed; disabled while nothing is. */
     val onSaveAsCommand: (() -> Unit)? = null,
     val onNewPrompt: () -> Unit,
-    val onHistory: () -> Unit
+    val onHistory: () -> Unit,
+    val onToggleVideo: () -> Unit = {}
 )
 
 /**
  * The "+" tray: tiles for photos, the camera and files, and a copied image when there
- * is one; then rewrite with AI, session memory, save as an lpm command, a new prompt
- * tab and the message history. Rewriting with nothing typed explains itself instead.
+ * is one; then rewrite with AI, a video answer where the agent can make one, session
+ * memory, save as an lpm command, a new prompt tab and the message history. Rewriting
+ * with nothing typed explains itself instead.
  */
 @Composable
 internal fun ComposerPlusMenu(
@@ -50,7 +52,8 @@ internal fun ComposerPlusMenu(
     enabled: Boolean,
     hasText: Boolean,
     hasClipboardImage: () -> Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    video: ComposerVideo? = null
 ) {
     var open by remember { mutableStateOf(false) }
     var hint by remember { mutableStateOf(false) }
@@ -106,6 +109,17 @@ internal fun ComposerPlusMenu(
                 icon = painterResource(DesignR.drawable.ic_auto_awesome),
                 onClick = { if (canRewrite) actions.onRewrite() else hint = true }
             )
+            if (video != null) {
+                ContextMenuItem(
+                    title = stringResource(
+                        if (video.on) R.string.video_back_to_text else R.string.video_answer
+                    ),
+                    icon = painterResource(DesignR.drawable.ic_videocam),
+                    onClick = actions.onToggleVideo,
+                    subtitle = video.offReason?.let { stringResource(it) },
+                    enabled = video.offReason == null
+                )
+            }
             actions.onMemory?.let {
                 ContextMenuItem(
                     title = stringResource(R.string.composer_memory),

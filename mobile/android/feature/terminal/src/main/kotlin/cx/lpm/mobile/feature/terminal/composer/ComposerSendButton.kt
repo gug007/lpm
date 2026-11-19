@@ -32,7 +32,8 @@ private val DuplicateCopies = 2..10
 
 /**
  * Send, with a long-press menu: save the prompt as a draft, or run it in several
- * duplicates of the project at once (this terminal being the first copy).
+ * duplicates of the project at once (this terminal being the first copy). A prompt
+ * that asks for a [video] goes out on a play button in the video accent.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -43,13 +44,14 @@ internal fun ComposerSendButton(
     onSaveDraft: () -> Unit,
     onRunInDuplicates: ((copies: Int) -> Unit)?,
     modifier: Modifier = Modifier,
-    onTerminal: Boolean = true
+    onTerminal: Boolean = true,
+    video: Boolean = false
 ) {
     var open by remember { mutableStateOf(false) }
     val colors = LpmTheme.colors
     // White on the dark terminal; the tint on a reply box, as iOS draws each.
     val (ground, glyph) = when {
-        onTerminal && canSend -> Color.White to Color.Black
+        onTerminal && canSend -> (if (video) videoAccent else Color.White) to Color.Black
 
         onTerminal -> Color.White.copy(alpha = 0.12f) to Color.White.copy(alpha = 0.35f)
 
@@ -79,10 +81,18 @@ internal fun ComposerSendButton(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    painterResource(DesignR.drawable.ic_arrow_upward),
-                    contentDescription = stringResource(R.string.composer_send),
+                    painterResource(
+                        if (video) {
+                            DesignR.drawable.ic_play_arrow_fill
+                        } else {
+                            DesignR.drawable.ic_arrow_upward
+                        }
+                    ),
+                    contentDescription = stringResource(
+                        if (video) R.string.video_send else R.string.composer_send
+                    ),
                     tint = glyph,
-                    modifier = Modifier.size(22.dp)
+                    modifier = Modifier.size(if (video) 23.dp else 22.dp)
                 )
             }
         }

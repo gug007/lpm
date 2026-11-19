@@ -222,3 +222,4 @@ the iPhone screenshots). An icon-only control keeps the accessible name iOS give
 | `arrow.counterclockwise` / `clock` (last prompt) | `replay` / `schedule` | 14 dp in the capsule, 22 dp in its menu | the empty composer's "Last prompt" capsule; its long-press "Use Last Prompt", "History" | "Last prompt" |
 | `arrow.up.circle.fill` (History row) | `arrow_upward` on a 27 dp white circle | 19 dp in a 44 dp target | a History row's send | "Send now" |
 | `at` / `plus.forwardslash.minus` / `doc.on.doc` / `checkmark` (file preview bar) | `alternate_email` / `exposure` / `content_copy` / `check` | 22 dp | the file preview's "Mention", "Diff", "Copy Path" / "Copied" | |
+| `video` / `play.fill` (video answer) | `videocam` / `play_arrow` (fill) | 22 dp in the "+" menu, 23 dp on Send | the composer's "Answer as a video": its "+" row, and Send while it's on | "Answer as a video" / "Send for a video" / "Back to a text answer" |

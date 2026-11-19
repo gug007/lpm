@@ -140,12 +140,23 @@ export function Tooltip({ content, children, side = "top", align = "center", wid
     if (top < EDGE_MARGIN) top = EDGE_MARGIN;
     if (top + tt.height > window.innerHeight - EDGE_MARGIN) top = window.innerHeight - EDGE_MARGIN - tt.height;
 
-    setPos({ top, left });
+    setPos((p) => (p && p.top === top && p.left === left ? p : { top, left }));
   }, [side, align]);
 
+  // Placed before paint, then again whenever its content changes size while
+  // it's up (a toggle that swaps a one-liner for a card): a top-placed tooltip
+  // has to move to keep its bottom edge off the trigger.
   useLayoutEffect(() => {
-    if (visible) updatePosition();
-    else setPos(null);
+    if (!visible) {
+      setPos(null);
+      return;
+    }
+    updatePosition();
+    const tooltip = tooltipRef.current;
+    if (!tooltip || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(updatePosition);
+    observer.observe(tooltip);
+    return () => observer.disconnect();
   }, [visible, updatePosition]);
 
   return (

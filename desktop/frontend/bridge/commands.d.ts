@@ -189,6 +189,8 @@ export function AgentSkillStatus(...args: any[]): Promise<any>;
 export function InstallAgentSkill(...args: any[]): Promise<any>;
 export function RefreshAgentTools(...args: any[]): Promise<any>;
 export function InstallKokoro(...args: any[]): Promise<any>;
+export function VideoSetupCheck(...args: any[]): Promise<any>;
+export function VideoSetupInstall(...args: any[]): Promise<any>;
 export function InstallUpdate(...args: any[]): Promise<any>;
 export function RollbackUpdate(...args: any[]): Promise<any>;
 export function CancelUpdate(...args: any[]): Promise<boolean>;

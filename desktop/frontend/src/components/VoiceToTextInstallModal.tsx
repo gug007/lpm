@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Modal } from "./ui/Modal";
+import { BTN_QUIET } from "./ui/buttons";
 import { BrowserOpenURL } from "../../bridge/runtime";
 import { MicIcon, DownloadIcon, DetachIcon } from "./icons";
 import { useVoiceToTextWatch } from "../hooks/useVoiceToTextWatch";
@@ -21,8 +22,6 @@ const WAITING_STEPS: VoiceToTextStep[] = [
   { text: "Allow Microphone and Accessibility access when it asks.", state: "todo" },
 ];
 
-const SECONDARY_BTN =
-  "rounded-lg px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--text-muted)]";
 const LINK_BTN =
   "flex min-w-0 items-center gap-1.5 rounded text-[11px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)] focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--text-muted)]";
 
@@ -101,7 +100,7 @@ export function VoiceToTextInstallModal({ open, onClose, onInstalled }: VoiceToT
           </button>
         )}
         <div className="flex shrink-0 items-center gap-2">
-          <button type="button" onClick={onClose} className={SECONDARY_BTN}>
+          <button type="button" onClick={onClose} className={BTN_QUIET}>
             {waiting ? "Cancel" : "Not now"}
           </button>
           {!waiting && (

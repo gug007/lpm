@@ -32,6 +32,7 @@ import { QuitGuardHost } from "./components/QuitGuardHost";
 import { PairRequestDialog } from "./components/connections/PairRequestDialog";
 import { FileViewerHost } from "./components/FileViewerHost";
 import { InstructionsDialogHost } from "./components/InstructionsDialogHost";
+import { VideoSetupModal } from "./components/VideoSetupModal";
 import { TerminalDropOverlayHost } from "./components/terminal/TerminalDropOverlayHost";
 import { AppToaster } from "./components/AppToaster";
 import { DictationOverlay } from "./components/dictation/DictationOverlay";
@@ -435,6 +436,7 @@ export default function App() {
       <TabShareHosts />
       <FileViewerHost />
       <InstructionsDialogHost />
+      <VideoSetupModal />
       <IgnoredSyncHost />
       <TerminalDropOverlayHost />
       <ProjectSwitcher
