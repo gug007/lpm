@@ -96,7 +96,10 @@ async function startApplication() {
     const [settings, , groups] = await Promise.all([
       loadSettings(),
       loadTerminals(),
-      loadGroups(),
+      loadGroups().catch((err) => {
+        reportError("sidebar.folders_unread", err);
+        return null;
+      }),
       hydrateComposerActions(),
     ]);
     applySettingsOutsideStore(settings);

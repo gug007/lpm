@@ -193,6 +193,9 @@ interface AppState {
   // project names + "group:<id>" tokens); `groups` holds the folder defs.
   groups: ProjectGroup[];
   sidebarOrder: string[];
+  // Whether the folders have been read from disk. Until then the layout here
+  // holds none, and saving it would take every project out of its folder.
+  foldersRead: boolean;
 
   selected: string | null;
   selectedTemplate: string | null;
@@ -822,14 +825,10 @@ async function persistSidebarLayout(
   known: Set<string>,
   projects: ProjectInfo[],
 ): Promise<SidebarLayout> {
-  let merged = layout;
-  try {
-    const [cfg, fresh] = await Promise.all([loadGroups(), loadSettings()]);
-    const disk: SidebarLayout = { order: fresh.sidebarOrder ?? [], groups: cfg.groups };
-    merged = mergeWithDisk(layout, base, disk, known);
-  } catch (err) {
-    reportError("sidebar.merge_failed", err);
-  }
+  // Unread, disk could hold folders this layout would write over.
+  const [cfg, fresh] = await Promise.all([loadGroups(), loadSettings()]);
+  const disk: SidebarLayout = { order: fresh.sidebarOrder ?? [], groups: cfg.groups };
+  const merged = mergeWithDisk(layout, base, disk, known);
   await Promise.all([
     saveGroups({ groups: merged.groups }),
     saveSettings({
@@ -853,6 +852,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   groups: [],
   sidebarOrder: [],
+  foldersRead: false,
 
   selected: null,
   selectedTemplate: null,
@@ -992,6 +992,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   reconcileSidebarLayout: (projects) => {
+    if (!get().foldersRead) {
+      void get()
+        .rehydrateSidebarLayout()
+        .then(() => get().foldersRead && get().reconcileSidebarLayout(get().projects));
+      return;
+    }
     // Remote (peer) projects render in their Mac's own section — their order
     // lives in settings.peerProjectOrder, never in sidebarOrder or folders, so
     // keep them out of the layout.
@@ -1006,7 +1012,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ sidebarOrder: after.order, groups: after.groups });
     persistSidebarLayout(after, before, layoutNames(projects), projects)
       .then((merged) => get().adoptSidebarLayout(merged))
-      .catch(() => undefined);
+      .catch((err) => reportError("sidebar.save_failed", err));
   },
 
   // Take the layout a persist actually landed (it may carry folders or
@@ -1029,8 +1035,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         groups: cfg.groups,
       };
       const prev: SidebarLayout = { order: get().sidebarOrder, groups: get().groups };
-      if (layoutsEqual(prev, next)) return;
-      set({ sidebarOrder: next.order, groups: next.groups });
+      if (get().foldersRead && layoutsEqual(prev, next)) return;
+      set({ sidebarOrder: next.order, groups: next.groups, foldersRead: true });
     } catch (err) {
       reportError("sidebar.rehydrate_failed", err);
     }
@@ -1829,6 +1835,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   applySidebarLayout: async (layout) => {
+    // A layout arranged before the folders were read has none in it: show them
+    // instead of saving it.
+    if (!get().foldersRead) {
+      await get().rehydrateSidebarLayout();
+      if (!get().foldersRead) toast.error("Couldn't read your folders, so this change wasn't saved");
+      return;
+    }
     // Normalize before committing so a move can't persist an unrepresentable
     // token — e.g. removing a duplicate from a folder leaves it with no loose
     // top-level slot, so reconcile drops the stray token and it nests under its
@@ -1850,9 +1863,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       );
     } catch (err) {
       toast.error(`Failed to save folders: ${err}`);
-      const cfg = await loadGroups();
-      const fresh = await loadSettings();
-      set({ groups: cfg.groups, sidebarOrder: fresh.sidebarOrder ?? [] });
+      await get().rehydrateSidebarLayout();
     }
   },
 
@@ -2091,11 +2102,14 @@ export const useAppStore = create<AppState>((set, get) => ({
 // up the persisted selection and sidebar folders before the app first renders.
 // Keeping this out of the initializer lets the store module import cleanly even
 // when settings haven't been loaded yet.
-export function hydrateAppStore(groups?: GroupsConfig): void {
+// `groups` is null when they couldn't be read; the sidebar then reads them again
+// before it saves anything.
+export function hydrateAppStore(groups: GroupsConfig | null): void {
   const last = getSettings().lastSelectedProject ?? null;
   useAppStore.setState({
     selected: last,
     groups: groups?.groups ?? [],
     sidebarOrder: getSettings().sidebarOrder ?? [],
+    foldersRead: groups !== null,
   });
 }

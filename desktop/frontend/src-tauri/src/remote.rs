@@ -4951,7 +4951,7 @@ pub(crate) fn group_copies_into_folder(
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default();
-    let mut wrap = crate::commands_real::load_groups();
+    let mut wrap = crate::commands_real::read_groups()?;
     let groups = wrap
         .get_mut("groups")
         .and_then(Value::as_array_mut)
@@ -5074,13 +5074,15 @@ fn flatten_order(order: &[Value], groups: &[Value]) -> Vec<String> {
 
 /// The current sidebar layout for mutation: the `sidebarOrder` token list and the
 /// groups.json wrapper (`{ "groups": [...] }`), matching group_copies_into_folder.
-pub(crate) fn load_sidebar_layout() -> (Vec<Value>, Value) {
+/// Fails when groups.json can't be read, so a change never lands on folders
+/// read as none.
+pub(crate) fn load_sidebar_layout() -> Result<(Vec<Value>, Value), String> {
     let order: Vec<Value> = config::load_settings()
         .get("sidebarOrder")
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default();
-    (order, crate::commands_real::load_groups())
+    Ok((order, crate::commands_real::read_groups()?))
 }
 
 /// Persist a mutated layout: rewrite groups.json and the settings sidebarOrder +
@@ -5127,7 +5129,7 @@ fn sidebar_create_folder(name: &str) -> Result<(), String> {
     if name.is_empty() {
         return Err("Folder name required.".into());
     }
-    let (mut order, mut wrap) = load_sidebar_layout();
+    let (mut order, mut wrap) = load_sidebar_layout()?;
     let groups = wrap
         .get_mut("groups")
         .and_then(Value::as_array_mut)
@@ -5144,7 +5146,7 @@ fn sidebar_rename_folder(name: &str, new_name: &str) -> Result<(), String> {
     if new_name.is_empty() {
         return Err("Folder name required.".into());
     }
-    let (order, mut wrap) = load_sidebar_layout();
+    let (order, mut wrap) = load_sidebar_layout()?;
     let groups = wrap
         .get_mut("groups")
         .and_then(Value::as_array_mut)
@@ -5159,7 +5161,7 @@ fn sidebar_rename_folder(name: &str, new_name: &str) -> Result<(), String> {
 /// Delete a folder; its members spill back into the top-level order at the
 /// folder's former slot, then the folder is dropped (mirrors removeGroup).
 fn sidebar_delete_folder(name: &str) -> Result<(), String> {
-    let (mut order, mut wrap) = load_sidebar_layout();
+    let (mut order, mut wrap) = load_sidebar_layout()?;
     let groups = wrap
         .get_mut("groups")
         .and_then(Value::as_array_mut)
@@ -5196,7 +5198,7 @@ fn sidebar_move_project(project: &str, folder: Option<&str>) -> Result<(), Strin
     if project.trim().is_empty() {
         return Err("Project required.".into());
     }
-    let (mut order, mut wrap) = load_sidebar_layout();
+    let (mut order, mut wrap) = load_sidebar_layout()?;
     let groups = wrap
         .get_mut("groups")
         .and_then(Value::as_array_mut)
