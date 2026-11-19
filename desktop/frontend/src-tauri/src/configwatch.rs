@@ -49,6 +49,9 @@ pub fn start(app: AppHandle) {
             return;
         }
     }
+    if let Err(e) = crate::synckeys::make_private(&lpm) {
+        eprintln!("warning: could not close the keys folder to other accounts: {e}");
+    }
 
     // FSEvents delivers canonical absolute paths; canonicalize the root so
     // strip_prefix matches (mirrors git.rs).

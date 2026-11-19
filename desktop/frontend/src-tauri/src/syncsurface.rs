@@ -108,6 +108,9 @@ const GLOBAL_FILES: &[GlobalFile] = &[
 // `scripts/` holds the files actions and automations call (`cmd:
 // ~/.lpm/scripts/cleanup.sh`): the command syncs in its config, so the script it
 // runs has to cross and export with it.
+// `keys/` (synckeys.rs) holds credentials those scripts and deploys read. It syncs
+// so the same key is on each of the user's computers, and never exports: an
+// archive is handed to other people.
 const GLOBAL_DIRS: &[GlobalDir] = &[
     GlobalDir {
         name: "generator-icons",
@@ -135,6 +138,11 @@ const GLOBAL_DIRS: &[GlobalDir] = &[
         name: "scripts",
         sync: true,
         export: true,
+    },
+    GlobalDir {
+        name: crate::synckeys::DIR,
+        sync: true,
+        export: false,
     },
 ];
 
@@ -190,7 +198,7 @@ pub(crate) fn export_top_level_files() -> impl Iterator<Item = &'static str> {
     GLOBAL_FILES.iter().filter(|f| f.export).map(|f| f.name)
 }
 
-/// Global config directories synced file-by-file (generator-icons, zdotdir).
+/// Global config directories synced file-by-file.
 pub(crate) fn sync_global_dirs() -> impl Iterator<Item = &'static str> {
     GLOBAL_DIRS.iter().filter(|d| d.sync).map(|d| d.name)
 }
@@ -201,12 +209,26 @@ pub(crate) fn is_sync_global_dir(dir: &str) -> bool {
     GLOBAL_DIRS.iter().any(|d| d.sync && d.name == dir)
 }
 
+/// Synced dirs added after builds that refuse them at apply were released. A
+/// computer names them in its digest map, and their files are planned only to one
+/// that does.
+pub(crate) fn announced_dirs() -> impl Iterator<Item = &'static str> {
+    [crate::synckeys::DIR].into_iter()
+}
+
+pub(crate) fn announced_dir_of(rel: &str) -> Option<&'static str> {
+    announced_dirs().find(|d| Path::new(rel).starts_with(d))
+}
+
 /// The mode a synced global file is created at when it lands on a Mac that doesn't
 /// have it yet (an existing file keeps its own). Scripts arrive executable, since
-/// an action runs them by path; the wire carries content only, not mode bits.
+/// an action runs them by path, and keys readable by their owner only; the wire
+/// carries content only, not mode bits.
 pub(crate) fn new_global_file_mode(rel: &str) -> u32 {
     if Path::new(rel).starts_with("scripts") {
         0o755
+    } else if crate::synckeys::holds(rel) {
+        crate::synckeys::FILE_MODE
     } else {
         0o644
     }
@@ -325,7 +347,10 @@ mod tests {
     #[test]
     fn dir_sets_unchanged() {
         let sync: Vec<&str> = sync_global_dirs().collect();
-        assert_eq!(sync, vec!["generator-icons", "zdotdir", "memory", "skill-layout", "scripts"]);
+        assert_eq!(
+            sync,
+            vec!["generator-icons", "zdotdir", "memory", "skill-layout", "scripts", "keys"]
+        );
         let export: Vec<&str> = export_global_dirs().collect();
         assert_eq!(export, vec!["zdotdir", "scripts"]);
         assert!(is_sync_global_dir("generator-icons"));

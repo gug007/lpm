@@ -345,6 +345,7 @@ mod statusnotify;
 mod statusrelay;
 mod statusroute;
 mod syncbatch;
+mod synckeys;
 mod syncstate;
 mod skillsync;
 mod skillsync_kept;

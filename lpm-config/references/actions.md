@@ -89,6 +89,8 @@ When a command outgrows one line, move it into a script and run the script from 
 
 A script anywhere else stays on this Mac, so the synced action fails on the others. Start the script with a shebang and `chmod +x` it. Writing the script file directly is fine; the config that calls it still goes through `lpm config apply`.
 
+A key or credential a script reads (a service account file, a signing key) goes in `~/.lpm/keys/`, never in a repo or in `~/.lpm/scripts/`. lpm syncs that folder between paired Macs too, keeps it readable by the user's account only, and leaves it out of config export.
+
 ### Files behind a button
 
 A button with a `labelSvg` or a `popup` keeps its files in one folder named after the button, in the same two places as any script: `scripts/<button>/` in the repo, or `~/.lpm/scripts/<button>/` when it isn't part of a repo. Use these names, and leave out what the button doesn't use:
