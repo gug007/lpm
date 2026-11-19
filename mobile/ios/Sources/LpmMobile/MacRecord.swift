@@ -35,6 +35,7 @@ struct MacRecord: Codable, Identifiable, Equatable {
     var id: UUID { localId }
 
     var isLinuxHost: Bool { platform == "linux" }
+    var isMac: Bool { (platform ?? "").isEmpty || platform == "macos" }
 
     /// What to show wherever this Mac is named: the user's custom name if set,
     /// otherwise the learned name (which may still be a raw address).

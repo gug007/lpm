@@ -533,6 +533,8 @@ macro_rules! all_command_handlers {
             upload_file_for_terminal,
             vault_export_key,
             vault_import_key,
+            video_setup_check,
+            video_setup_install,
             voice_to_text_available,
             voice_to_text_toggle,
             voice_to_text_start,

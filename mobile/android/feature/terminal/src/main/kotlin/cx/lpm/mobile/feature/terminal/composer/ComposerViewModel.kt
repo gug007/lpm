@@ -13,7 +13,6 @@ import cx.lpm.mobile.core.data.services.ServiceLogsState
 import cx.lpm.mobile.core.data.services.ServiceLogsStore
 import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.data.session.MacSessions
-import cx.lpm.mobile.core.data.terminals.TerminalsState
 import cx.lpm.mobile.core.data.terminals.TerminalsStore
 import cx.lpm.mobile.core.model.MentionPlace
 import cx.lpm.mobile.core.model.ServiceInfo
@@ -101,6 +100,8 @@ class ComposerViewModel @AssistedInject constructor(
 
     private val historyPicks = HistoryPicks(field)
 
+    private val video = ComposerVideoAnswers(target, session, store)
+
     // The terminals and the project's git branches, the @-mention menu's sources.
     private val mentionSources = combine(
         terminals?.state ?: flowOf(null),
@@ -116,15 +117,9 @@ class ComposerViewModel @AssistedInject constructor(
         composers?.variantCounts ?: flowOf(emptyMap())
     ) { composer, (terms, branches), projectsState, actions, counts ->
         val tools = target.terminalTools
-        val commands = if (tools) {
-            terms?.slashCommands?.get(
-                target.termId
-            ).orEmpty()
-        } else {
-            emptyList()
-        }
+        val commands = if (tools) terms.slashRows(target) else emptyList()
         val mention = mentionQuery(composer.text)
-        val cli = terms.cli()
+        val cli = terms.cli(target)
         ComposerUiState(
             composer = composer,
             terminalTools = tools,
@@ -153,6 +148,7 @@ class ComposerViewModel @AssistedInject constructor(
         .combine(dictation.state) { state, take ->
             state.copy(dictation = take, dictationOwner = dictationOwner)
         }
+        .combine(video.state) { state, answer -> state.copy(video = answer) }
         .stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5_000),
@@ -227,7 +223,8 @@ class ComposerViewModel @AssistedInject constructor(
     fun send(onSend: ((String) -> Unit)? = null): Boolean {
         if (lpmCommands.expanding || dictation.state.value.isActive(dictationOwner)) return false
         pushInput(input.text.toString())
-        if (lpmCommandsHere() && lpmCommands.runTyped(slashRows(), terminalCli())) return true
+        val runsCommand = !video.on && lpmCommandsHere()
+        if (runsCommand && lpmCommands.runTyped(slashRows(), terminalCli())) return true
         return sendComposed(onSend)
     }
 
@@ -241,11 +238,11 @@ class ComposerViewModel @AssistedInject constructor(
                 false
             }
 
-            is SendState.Ready -> deliver(state.body, onSend)
+            is SendState.Ready -> deliver(video.outgoing(state.body), onSend)
 
             is SendState.DroppedFailures -> {
                 warning.value = R.string.composer_dropped_failures
-                deliver(state.body, onSend)
+                deliver(video.outgoing(state.body), onSend)
             }
         }
     }
@@ -253,13 +250,9 @@ class ComposerViewModel @AssistedInject constructor(
     private fun lpmCommandsHere(): Boolean =
         lpmCommands.runHere(target.terminalTools, terminalCli())
 
-    private fun terminalCli(): String = terminals?.state?.value.cli()
+    private fun terminalCli(): String = terminals?.state?.value.cli(target)
 
-    /** The agent CLI running in this terminal, "" when none is known. */
-    private fun TerminalsState?.cli(): String =
-        this?.terminals?.get(target.project)?.firstOrNull { it.id == target.termId }?.cli.orEmpty()
-
-    private fun slashRows() = terminals?.state?.value?.slashCommands?.get(target.termId).orEmpty()
+    private fun slashRows() = terminals?.state?.value.slashRows(target)
 
     private fun deliver(body: String, onSend: ((String) -> Unit)?): Boolean {
         if (!submit(body, onSend)) return false
@@ -274,6 +267,7 @@ class ComposerViewModel @AssistedInject constructor(
         noteSentCommand(body)
         store?.rememberSent(body)
         store?.afterSend()
+        video.turnOff()
         historyPicks.dismiss()
         dictation.noteSent()
         return true
@@ -443,6 +437,10 @@ class ComposerViewModel @AssistedInject constructor(
     fun variantsDismissed() = store?.variantsSheetDismissed()
 
     fun dismissRewriteError() = store?.dismissTransformError()
+
+    // MARK: video answers
+
+    fun toggleVideo() = video.toggle()
 
     private class PendingLog(val key: String, val label: String)
 

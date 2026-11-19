@@ -7,6 +7,10 @@ import {
   isDefaultComposerToolbar,
   normalizeComposerToolbar,
   withComposerToolbar,
+  withNewComposerTools,
+  isNewComposerTool,
+  normalizeComposerToolTimes,
+  NEW_COMPOSER_TOOL_MS,
 } from "./composerTools";
 
 describe("normalizeComposerToolbar", () => {
@@ -71,5 +75,47 @@ describe("isComposerToolId", () => {
     for (const id of COMPOSER_TOOL_IDS) expect(isComposerToolId(id)).toBe(true);
     expect(isComposerToolId("send")).toBe(false);
     expect(isComposerToolId(3)).toBe(false);
+  });
+});
+
+describe("withNewComposerTools", () => {
+  it("seats a tool added after an old layout was saved", () => {
+    expect(withNewComposerTools(["mic", "history", "model"], undefined)).toEqual(["mic", "history", "video", "model"]);
+  });
+
+  it("leaves a tool where the user put it once the layout has seen it", () => {
+    expect(withNewComposerTools(["mic", "model"], COMPOSER_TOOL_IDS)).toEqual(["mic", "model"]);
+  });
+
+  it("leaves a new tool that starts in the menu in the menu", () => {
+    const seenAllButCopy = COMPOSER_TOOL_IDS.filter((id) => id !== "forkCopy");
+    expect(withNewComposerTools(["mic"], seenAllButCopy)).toEqual(["mic"]);
+  });
+});
+
+describe("isNewComposerTool", () => {
+  const now = 1_000_000_000_000;
+
+  it("marks an announced tool new until it's seen", () => {
+    expect(isNewComposerTool("video", undefined, now)).toBe(true);
+    expect(isNewComposerTool("video", 0, now)).toBe(false);
+  });
+
+  it("drops the mark a week after it was first on screen", () => {
+    const firstShown = now - NEW_COMPOSER_TOOL_MS + 1;
+    expect(isNewComposerTool("video", firstShown + NEW_COMPOSER_TOOL_MS, now)).toBe(true);
+    expect(isNewComposerTool("video", now, now)).toBe(false);
+  });
+
+  it("never marks a tool that isn't announced", () => {
+    expect(isNewComposerTool("memory", undefined, now)).toBe(false);
+  });
+});
+
+describe("normalizeComposerToolTimes", () => {
+  it("keeps known tools with a real time", () => {
+    expect(normalizeComposerToolTimes({ video: 5, nope: 6, memory: "x", fork: Infinity })).toEqual({ video: 5 });
+    expect(normalizeComposerToolTimes([1])).toBeUndefined();
+    expect(normalizeComposerToolTimes(null)).toBeUndefined();
   });
 });

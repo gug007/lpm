@@ -37,6 +37,8 @@ data class MacRecord(
 
     val isLinuxHost: Boolean get() = platform == "linux"
 
+    val isMac: Boolean get() = platform.isNullOrEmpty() || platform == "macos"
+
     /** The user's custom name if set, otherwise the learned name (maybe an address). */
     val displayName: String get() = trimmedCustomName ?: name
 

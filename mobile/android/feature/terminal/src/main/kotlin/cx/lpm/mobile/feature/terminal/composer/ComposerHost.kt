@@ -239,12 +239,14 @@ internal fun ComposerHost(
                             onHistory = {
                                 historyStart = HistoryFilter.All
                                 showHistory = true
-                            }
+                            },
+                            onToggleVideo = viewModel::toggleVideo
                         ),
                         canRewrite = state.canRewrite,
                         enabled = mode.look.enabled && !state.composer.transforming,
                         hasText = state.composer.text.isNotBlank(),
-                        hasClipboardImage = context::clipboardHasImage
+                        hasClipboardImage = context::clipboardHasImage,
+                        video = state.video
                     )
                 }
             },
@@ -276,7 +278,9 @@ internal fun ComposerHost(
                             onSend = send,
                             onSaveDraft = viewModel::saveDraft,
                             onTerminal = state.terminalTools,
-                            onRunInDuplicates = if (state.terminalTools &&
+                            video = state.videoOn,
+                            // A video is made once, by this tab's agent: it isn't run in copies.
+                            onRunInDuplicates = if (state.terminalTools && !state.videoOn &&
                                 mode.duplicateSheet != null
                             ) {
                                 { copies ->
