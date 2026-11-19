@@ -36,6 +36,7 @@ internal fun Project.configureKotlinAndroid(android: CommonExtension) {
         // Hilt generates test sources in every module, including ones with no tests yet.
         failOnNoDiscoveredTests.set(false)
     }
+    resolveRobolectricRuntimes()
     configureKotlin()
 }
 

@@ -29,6 +29,9 @@ androidxTestCore = "1.7.0"
 androidxTestEspresso = "3.7.0"
 junit4 = "4.13.2"
 robolectric = "4.17"
+# The Android runtimes Robolectric 4.17 runs tests on: change them with it.
+robolectricSdk36 = "16-robolectric-13921718-i7"
+robolectricSdk37 = "17-robolectric-15733970-i7"
 turbine = "1.2.1"
 spotless = "8.10.4"
 ktlint = "1.8.0"
@@ -86,6 +89,8 @@ okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhtt
 okhttp-mockwebserver = { group = "com.squareup.okhttp3", name = "mockwebserver3", version.ref = "okhttp" }
 okhttp-tls = { group = "com.squareup.okhttp3", name = "okhttp-tls", version.ref = "okhttp" }
 robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
+robolectric-runtime-sdk36 = { group = "org.robolectric", name = "android-all-instrumented", version.ref = "robolectricSdk36" }
+robolectric-runtime-sdk37 = { group = "org.robolectric", name = "android-all-instrumented", version.ref = "robolectricSdk37" }
 turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine" }
 
 # Plugins on build-logic's classpath

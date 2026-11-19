@@ -216,6 +216,12 @@ needs `--add-exports java.base/jdk.internal.access` on SDK 37 (robolectric#11434
 Compose's test library still pulls Espresso 3.5, which breaks on API 34+, so androidx.test
 is pinned to current.
 
+Robolectric's Android runtimes are the `robolectric-runtime-*` libraries in
+`libs.versions.toml`, resolved by Gradle so the tests need no network. A test on another
+SDK (`@Config(sdk = …)`), or a Robolectric upgrade, fails with `no artifacts found for
+DependencyJar{org.robolectric:android-all-instrumented:<version>}`: add that version to
+the catalog as another `robolectric-runtime-*` library.
+
 ### iOS → Android
 
 | iOS | Android |
