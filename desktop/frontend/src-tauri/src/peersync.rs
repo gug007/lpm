@@ -55,8 +55,8 @@ fn is_zero(n: &u64) -> bool {
 // none of them can drift. settings.json among the global files gets a special
 // digest + merge; every other synced file is a byte-identical newest-wins replace.
 use crate::syncsurface::{
-    is_os_junk, is_sync_global_file, sync_global_dirs, sync_global_files, PER_MACHINE_KEYS,
-    PROJECT_LOCAL_KEYS,
+    announced_dir_of, announced_dirs, is_os_junk, is_sync_global_file, sync_global_dirs,
+    sync_global_files, PER_MACHINE_KEYS, PROJECT_LOCAL_KEYS,
 };
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
@@ -102,6 +102,10 @@ pub struct DigestMap {
     /// so the receiver keys its base map by the other Mac's id.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub device: String,
+    /// The announced synced dirs this build takes (syncsurface::announced_dirs).
+    /// Empty from a peer too old to take any.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub dirs: Vec<String>,
 }
 
 impl DigestMap {
@@ -204,6 +208,7 @@ pub fn local_digest_map() -> DigestMap {
     for d in sync_global_dirs() {
         collect_global_dir(&lpm, Path::new(d), &mut dm.globals);
     }
+    dm.dirs = announced_dirs().map(str::to_string).collect();
 
     if let Ok(entries) = std::fs::read_dir(config::templates_dir()) {
         for e in entries.flatten() {
@@ -580,6 +585,9 @@ fn plan_core(
     // A peer running an older surface may still advertise units this build no
     // longer syncs (e.g. groups.json); planning them would only fail at apply.
     global_keys.retain(|n| syncable_global(n));
+    // An older build refuses a dir it doesn't sync, every run.
+    global_keys
+        .retain(|n| announced_dir_of(n).is_none_or(|d| remote.dirs.iter().any(|r| r == d)));
     // An older build refuses these files on sight, every run.
     let skills = local.skills.as_ref().zip(remote.skills.as_ref()).filter(|_| !legacy);
     if skills.is_none() {
@@ -1133,9 +1141,16 @@ fn apply_template(name: &str, incoming: &[u8]) -> Result<String, String> {
 /// digest is of the MERGED result (which may exceed the incoming digest — the
 /// fixpoint the caller resolves).
 fn apply_global(name: &str, incoming: &[u8]) -> Result<String, String> {
-    let path = config::lpm_dir().join(safe_global_rel(name)?);
+    apply_global_in(&config::lpm_dir(), name, incoming)
+}
+
+fn apply_global_in(lpm: &Path, name: &str, incoming: &[u8]) -> Result<String, String> {
+    let path = lpm.join(safe_global_rel(name)?);
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    if crate::synckeys::holds(name) {
+        crate::synckeys::make_private(lpm).map_err(|e| e.to_string())?;
     }
     let bytes = if name == "settings.json" {
         let current = std::fs::read(&path).unwrap_or_default();
@@ -1582,6 +1597,40 @@ mod tests {
         assert!(safe_global_rel("scripts").is_err());
         assert!(is_deletable_global("scripts/disk-cleanup.sh"));
         assert!(!is_deletable_global("scripts/.DS_Store"));
+    }
+
+    #[test]
+    fn keys_are_planned_only_to_a_peer_that_takes_them() {
+        assert!(safe_global_rel("keys/play.json").is_ok());
+        assert!(safe_global_rel("keys/android/upload.jks").is_ok());
+        assert!(safe_global_rel("keys/../peer.json").is_err());
+        assert!(is_deletable_global("keys/play.json"));
+
+        let mut local = DigestMap::default();
+        local.globals.insert("keys/play.json".into(), id("x", 9));
+        let mut remote = DigestMap::default();
+        assert!(compute_plan(&local, &remote).is_empty());
+        assert!(compute_plan_v2(&local, &remote, &BTreeMap::new()).is_empty());
+
+        remote.dirs = vec!["keys".into()];
+        let plan = compute_plan_v2(&local, &remote, &BTreeMap::new());
+        assert_eq!(plan.len(), 1);
+        assert_eq!(plan[0].name, "keys/play.json");
+        assert_eq!(plan[0].direction, "toRemote");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_synced_key_lands_private() {
+        let lpm = tempfile::tempdir().unwrap();
+        apply_global_in(lpm.path(), "keys/android/play.json", b"{}").unwrap();
+        let mode = |rel: &str| {
+            crate::fsperm::mode(&std::fs::metadata(lpm.path().join(rel)).unwrap()) & 0o777
+        };
+        assert_eq!(mode("keys"), 0o700);
+        assert_eq!(mode("keys/android/play.json"), 0o600);
+        apply_global_in(lpm.path(), "scripts/deploy.sh", b"#!/bin/sh\n").unwrap();
+        assert_eq!(mode("scripts/deploy.sh"), 0o755);
     }
 
     #[test]

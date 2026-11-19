@@ -402,13 +402,16 @@ pub(crate) fn snapshot_lpm(src: &Path, dst: &Path) -> Result<(), String> {
         // mutates or restores pairing state, so it must not land in a timestamped
         // backup dir where a stale copy would leak indefinite peer access. The
         // built-in Tailscale keys are skipped for the same reason, and because a
-        // restored copy would put two devices on one tailnet identity.
+        // restored copy would put two devices on one tailnet identity. The synced
+        // keys folder stays out too: only a sync changes it, and that takes its own
+        // backup, so a copy here would just be a credential left lying around.
         if name_str == "lpm.sock"
             || name_str.ends_with(".sock")
             || name_str == "peer.json"
             // Account logins: on Linux and Windows Claude Code keeps them as
             // plain files inside these dirs.
             || name_str == "claude-accounts"
+            || name_str == crate::synckeys::DIR
             || crate::tailnet::STATE_DIRS.contains(&name_str.as_ref())
             || is_held_lock(&name_str)
         {
@@ -677,6 +680,24 @@ mod tests {
             assert!(!dst.join(dir).exists(), "{dir} was copied");
         }
         assert!(dst.join("tailnet.json").is_file());
+    }
+
+    #[test]
+    fn keys_are_backed_up_only_before_a_sync_that_can_overwrite_them() {
+        let tmp = tempfile::tempdir().unwrap();
+        let src = tmp.path().join("lpm");
+        crate::synckeys::make_private(&src).unwrap();
+        std::fs::write(src.join("keys/play.json"), "{}").unwrap();
+
+        let whole = tmp.path().join("whole");
+        snapshot_lpm(&src, &whole).unwrap();
+        assert!(!whole.join("keys").exists());
+
+        let sync = tmp.path().join("sync");
+        snapshot_sync_surface(&src, &sync).unwrap();
+        assert!(sync.join("keys/play.json").is_file());
+        #[cfg(unix)]
+        assert_eq!(fsperm::mode(&std::fs::metadata(sync.join("keys")).unwrap()) & 0o777, 0o700);
     }
 
     #[test]

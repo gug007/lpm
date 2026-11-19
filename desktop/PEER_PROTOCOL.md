@@ -867,7 +867,8 @@ revision-aware (configSync2). A client sends `v:2` only to a host that advertise
     "held":   ["<project>/<skill>"]
   },
   "projectExtends": { "<name>": ["<template>"] },
-  "device": "<sidecar uuid>"
+  "device": "<sidecar uuid>",
+  "dirs": ["keys"]
 }
 ```
 
@@ -910,6 +911,13 @@ removes every kept-out skill at once, so a tombstone is written only when the us
 deletes or renames one in lpm or moves it to the global list. A skill that is merely
 gone comes back from the other computer. A skill turned back to Git is held, not
 deleted.
+
+`dirs` names the synced dirs the sender takes beyond the ones every build has. A
+build that predates one refuses its files as a global it doesn't sync, so they are
+planned only to a host that lists it. `keys/` is the only one: `~/.lpm/keys` holds
+signing keys and service credentials for the scripts and deploys that read them. It
+syncs like `scripts/`, except that the folder is created 0700, a file lands 0600, and
+none of it goes into an export archive.
 
 ### Wire item
 
