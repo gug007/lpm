@@ -134,6 +134,10 @@ class CommitSheetViewModelTest {
         vm.setMessage("feat: ship it")
         vm.commitAndPush()
         t.settle(0)
+        assertEquals(CommitBusy.Checking, vm.uiState.value.busy)
+        assertFalse(vm.uiState.value.canCommit)
+
+        t.settle(600)
         assertEquals(CommitBusy.Committing, vm.uiState.value.busy)
         assertFalse(vm.uiState.value.canCommit)
 

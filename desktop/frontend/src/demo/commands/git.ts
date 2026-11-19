@@ -2,6 +2,7 @@ import type { CommandMap } from "../backend";
 import type { SeedChange } from "../seed/types";
 import { emitEvent } from "../ipc";
 import { projectAt, record, type Project } from "./state";
+import { branchFileDiffs } from "./history";
 
 const now = () => Date.now();
 
@@ -99,7 +100,8 @@ export const gitCommands: CommandMap = {
   git_file_line_counts: ({ cwd }) =>
     (repo(cwd)?.git.changes ?? []).map((c) => ({ path: c.path, ...lineCounts(c) })),
   git_file_diff: ({ cwd, path }) => diff(repo(cwd)?.git.changes.find((c) => c.path === path)),
-  git_file_diffs: ({ cwd, files }) => {
+  git_file_diffs: ({ cwd, files, source }) => {
+    if (source === "base") return branchFileDiffs(cwd, ((files as { path: string }[]) ?? []).map((f) => f.path));
     const p = repo(cwd);
     if (p) record("review", p.name, "changes");
     return Object.fromEntries(

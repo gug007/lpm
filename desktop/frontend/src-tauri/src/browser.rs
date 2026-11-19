@@ -128,14 +128,83 @@ pub fn open_browser(
     // Other engines already send their own browser's UA.
     #[cfg(target_os = "macos")]
     let builder = builder.user_agent(SAFARI_UA);
-    win.add_child(
-        builder,
-        LogicalPosition::new(x, y),
-        LogicalSize::new(width.max(1.0), height.max(1.0)),
-    )
-    .map_err(|e| format!("add_child: {e}"))?;
+    // Off here as in a release build, so a dev build takes the same path:
+    // allow_inspector turns it on for this page alone.
+    let builder = builder.devtools(false);
+    let wv = win
+        .add_child(
+            builder,
+            LogicalPosition::new(x, y),
+            LogicalSize::new(width.max(1.0), height.max(1.0)),
+        )
+        .map_err(|e| format!("add_child: {e}"))?;
+    allow_inspector(&wv, false);
     Ok(())
 }
+
+/// Opens the web engine's own inspector on a browser tab's page.
+#[tauri::command(async)]
+pub fn inspect_browser(app: AppHandle, id: String) -> Result<(), String> {
+    let wv = app
+        .get_webview(&id)
+        .ok_or("Open a page first, then inspect it.")?;
+    allow_inspector(&wv, true);
+    Ok(())
+}
+
+/// Lets the engine's inspector reach this page, and with `show` opens it. Only
+/// the browser tabs' pages get this: the app's own windows stay closed to it,
+/// which is why it isn't Tauri's app-wide `devtools` feature.
+#[cfg(target_os = "macos")]
+fn allow_inspector(wv: &tauri::Webview, show: bool) {
+    use objc2::{class, msg_send, runtime::AnyObject, sel};
+    use objc2_foundation::NSString;
+    let _ = wv.with_webview(move |pv| unsafe {
+        let view: *mut AnyObject = pv.inner().cast();
+        if view.is_null() {
+            return;
+        }
+        // WKWebView's inspectable switch arrived in macOS 13.3; before it the
+        // developer-extras preference alone governs the inspector.
+        let inspectable: bool = msg_send![view, respondsToSelector: sel!(setInspectable:)];
+        if inspectable {
+            let _: () = msg_send![view, setInspectable: true];
+        }
+        let config: *mut AnyObject = msg_send![view, configuration];
+        let prefs: *mut AnyObject = msg_send![config, preferences];
+        if !prefs.is_null() {
+            let yes: *mut AnyObject = msg_send![class!(NSNumber), numberWithBool: true];
+            let key = NSString::from_str("developerExtrasEnabled");
+            let _: () = msg_send![prefs, setValue: yes, forKey: &*key];
+        }
+        if show {
+            let inspector: *mut AnyObject = msg_send![view, _inspector];
+            if !inspector.is_null() {
+                let _: () = msg_send![inspector, show];
+            }
+        }
+    });
+}
+
+#[cfg(windows)]
+fn allow_inspector(wv: &tauri::Webview, show: bool) {
+    let _ = wv.with_webview(move |pv| unsafe {
+        let Ok(core) = pv.controller().CoreWebView2() else {
+            return;
+        };
+        if let Ok(settings) = core.Settings() {
+            let _ = settings.SetAreDevToolsEnabled(true);
+        }
+        if show {
+            let _ = core.OpenDevToolsWindow();
+        }
+    });
+}
+
+// Linux has no in-pane page (see the top of this file): its pages open in the
+// system browser, which brings its own inspector.
+#[cfg(target_os = "linux")]
+fn allow_inspector(_wv: &tauri::Webview, _show: bool) {}
 
 #[tauri::command(async)]
 pub fn set_browser_bounds(

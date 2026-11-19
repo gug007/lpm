@@ -92,7 +92,7 @@ Written reasons for the three ways the hub departs from the child template:
 - `reviewed={VS_REVIEWED}`, `reviewedIso={VS_REVIEWED_ISO}`, fifteen competitor sources (the fifteenth, iTerm2's Claude Code docs, added by the 2026-09-23 verifier pass), `lpmNote` naming the two rows that go against lpm.
 
 ### Router
-- One H2, six uppercase prompts, seven cards — one per child page (`lpm vs {name}` as `<h3>`), three labelled lines each: What it is / Switch if / Stay if. In-body links: `/best-terminal-for-mac`, `/ssh-terminal-for-mac`, `/config`, `/best-terminal-for-claude-code-and-codex`.
+- One H2, six uppercase prompts, seven cards — one per tool (`lpm vs {name}` as `<h3>`, a link only on iTerm2, tmux and cmux, the three that still have a page; every card carries its tool's slug as `id`), three labelled lines each: What it is / Switch if / Stay if. In-body links: `/best-terminal-for-mac`, `/ssh-terminal-for-mac`, `/config`, `/best-terminal-for-claude-code-and-codex`.
 
 ### Video
 - `clip="start-project"` (shared only with `/vs/overmind`, different label per spec Rule 4).
@@ -165,11 +165,11 @@ SectionHeader: eyebrow `Every tool, side by side`, title `The capabilities that 
 ## 5. FAQ (6 Q&A, plain text for JSON-LD)
 
 1. **What is the difference between a multiplexer, a Procfile runner, and a container stack?** — "A multiplexer (tmux) gives you panes and keeps them alive; you decide what runs in them. A Procfile runner (Foreman, Overmind) starts a fixed list of named processes with one command. A container stack (Docker Compose) also builds the environment those processes run in. Three different layers, and it is normal to want two of them."
-2. **Where do Foreman and Overmind fit next to the other five?** — "Both are Procfile runners you drive from a terminal. Foreman prints every process into one merged stream; Overmind gives each its own tmux window, so tmux has to be installed first. The head-to-head, with the Procfile conversion, is on the Foreman vs Overmind page." (2026-09-23: replaced "Foreman or Overmind — which Procfile runner should I use?", which answered the question `/vs/foreman` exists to own — its FAQ 1 is "Foreman or Overmind — which should I use?" with the same verdict, and both sat in FAQPage JSON-LD. The hub now hands off, linking "Foreman vs Overmind page" to `/vs/foreman`.)
+2. **Where do Foreman and Overmind fit next to the other five?** — "Both are Procfile runners you drive from a terminal. Foreman prints every process into one merged stream; Overmind gives each its own tmux window, so tmux has to be installed first. " (2026-11-19: the closing hand-off to the Foreman vs Overmind page went with that page. 2026-09-23: replaced "Foreman or Overmind — which Procfile runner should I use?", which answered the question `/vs/foreman` exists to own — its FAQ 1 is "Foreman or Overmind — which should I use?" with the same verdict, and both sat in FAQPage JSON-LD. The hub now hands off, linking "Foreman vs Overmind page" to `/vs/foreman`.)
 3. **Which of these run on Linux or Windows?** — "tmux, Docker Compose, Foreman and PM2 all run on Linux, and Compose and PM2 run on Windows too; Overmind covers Linux, \*BSD and macOS. iTerm2, cmux and lpm are Mac apps. lpm can drive a Linux machine as a headless host from the Mac, but the app itself is macOS only."
 4. **Which of them will launch Claude Code or Codex for me?** — "cmux and lpm, and as of September 2026 iTerm2 has a Claude Code integration too. cmux is built around agent sessions in the terminal. lpm puts Claude Code and Codex a click away in every project from the first launch, offers Gemini CLI and OpenCode when they are installed, opens each agent in its own tab alongside the running services, marks a Claude Code or Codex tab working, needs-you or done as the agent goes, and can copy the whole project so two agents never edit the same files. The rest are process runners with no opinion about agents."
 5. **Can I run more than one of these at once?** — "Usually yes, and most people do. Keep iTerm2 or tmux for SSH and ad-hoc shells, keep PM2 for anything that has to stay alive, keep compose for the services that need a container — and let one tool own starting and stopping the project. Nothing here holds your processes hostage."
-6. **Which of them are free and open source?** — "tmux, Foreman, Overmind, PM2 and Docker Compose are all open source and free; iTerm2 is free under GPLv2 and lpm is free under MIT. cmux ships under GPL-3.0-or-later; an organisation that cannot live with that can ask for commercial terms, and new features reach paying Founder's Edition users first. Docker Desktop — how most Mac developers get Compose — is the one that can cost money: past Docker's size and revenue thresholds a company needs a paid subscription."
+6. **Which of them are free and open source?** — "tmux, Foreman, Overmind, PM2 and Docker Compose are all open source and free; iTerm2 is free under GPLv2 and lpm is free under MIT. cmux ships under GPL-3.0-or-later; an organisation that cannot live with that can ask for commercial terms, and its terminal costs nothing while paid plans, from $15 a month, rent cloud VMs. Docker Desktop — how most Mac developers get Compose — is the one that can cost money: past Docker's size and revenue thresholds a company needs a paid subscription."
 
 Items 2, 4 and 6 were rewritten from §4.1's wording under **R5** (each shared an ≥8-word run with a sibling: FAQ 2 with `/vs/foreman`, FAQ 4's agent-status clause with the cluster's agent-status sentence, FAQ 6's cmux licence clause with `/vs/cmux`). Every fact in all three survives the rewrite; FAQ 2 gains the tmux-install requirement its own source states, and FAQ 6 drops "above Docker's company-size threshold" for the licence page's actual two-part test, still without numbers.
 
@@ -253,7 +253,7 @@ Two competitor claims from §4.1 were **cut rather than sourced** (**R3/R8**):
 
 - Files: `app/vs/page.tsx`, `app/vs/_components/{hero,tool-matrix,router,hub-data}.tsx`, `app/vs/_components/tool-matrix-data.ts`, `app/vs/opengraph-image.tsx`.
 - Path constant: `VS_BASE_PATH` (`lib/links.ts`); child URLs via `vsPath(slug)`. Canonical `https://lpm.cx/vs`.
-- Structured data, exactly four entries: `webPageJsonLd` (with `about[]` and `dateModified: VS_REVIEWED_ISO`), `breadcrumbJsonLd`, `itemListJsonLd` (hub only, seven children), `screenRecordingJsonLd("start-project")`. `FAQPage` comes from the `Faq` component. Nothing from §6.2's excluded list.
+- Structured data, exactly four entries: `webPageJsonLd` (with `about[]` and `dateModified: VS_REVIEWED_ISO`), `breadcrumbJsonLd`, `itemListJsonLd` (hub only, the three children that remain), `screenRecordingJsonLd("start-project")`. `FAQPage` comes from the `Faq` component. Nothing from §6.2's excluded list.
 - `itemListJsonLd` will not render a carousel (§6.2) — it is there for entity extraction, not a SERP feature.
 - Analytics: hero `vs-hub-hero`, CTA `vs-hub-cta`. Both already exist in `DownloadSource`.
 - Emerald appears nowhere in this page's own files.
@@ -262,3 +262,16 @@ Two competitor claims from §4.1 were **cut rather than sourced** (**R3/R8**):
 - **Deviation from §3.2 / the brief's mention of `VerdictCards`:** §4.1 supplies no verdict-card copy and the canonical hub order omits the component, so the hub does not render it. Inventing three strings per card would be unreviewed copy (**R8**).
 - **Known shared-layer issue, not fixable from this page:** `components/vs/comparison-basis.tsx` renders a bare `<div>` with no section padding, so on the hub it sits flush between the matrix (`py-16 sm:py-20`) and the router (`py-16 sm:py-20`). It looks the same on all eight pages; a wrapper belongs in the shared component.
 - **Worth eyeballing at 390px:** the sticky capability column while the table is scrolled. The separator is now a `box-shadow` for exactly this reason, but the interaction between a sticky `<th>` and a collapsed-border table is the one place this table can look wrong.
+
+## Facts pass — 2026-11-19
+
+FAQ 6's cmux clause: "new features reach paying Founder's Edition users first" became "its terminal costs nothing while paid plans, from $15 a month, rent cloud VMs", read from https://cmux.com/pricing that day (Plus $15/mo is one saved VM). The price and what it buys come from `CMUX_FACTS` in `website/lib/rival-facts.ts`; the rest of the hub was not re-read and keeps the 2026-09-23 date.
+
+## Four child pages removed — 2026-11-19
+
+`/vs/foreman`, `/vs/overmind`, `/vs/docker-compose` and `/vs/pm2` are gone. Over three months they brought 21 search clicks, 55 landing sessions and 1 key event between them, and the queries behind them wanted something else ("pm2 alternative" is a production-manager SERP, Foreman's top query was "foreman env"). `/vs/iterm2`, `/vs/tmux` and `/vs/cmux` stay.
+
+- `next.config.ts` sends each old URL permanently to its card here (`/vs#pm2` and so on), from `VS_HUB_ONLY` in `lib/links.ts`. The card ids in `_components/router.tsx` are typed against that list and `VS_SLUGS`, so a card cannot carry an id no redirect or page knows.
+- The hub still compares all seven tools: the table, the quick answer and the four cards are what a visitor from an old URL lands on, so none of that copy changed. Only the links out went: four `itemListJsonLd` entries, the FAQ 2 hand-off, and the heading link on four cards.
+- `/vs/tmux`'s related cards for Overmind and PM2 became iTerm2 and cmux; the mobile menu lost its PM2 chip; the footer and `/llms.txt` follow `VS_SLUGS`.
+- Do not bring the four back as pages. A new child is worth it only for a direct rival people search by name, the way cmux is.

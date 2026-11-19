@@ -32,7 +32,10 @@ internal fun GitChecksSheetHost(
         )
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    LaunchedEffect(viewModel) { viewModel.loadAgents() }
+    LaunchedEffect(viewModel) {
+        viewModel.loadAgents()
+        viewModel.forgetLogs()
+    }
     DisposableEffect(viewModel) {
         onDispose { viewModel.forgetMerge() }
     }
@@ -40,11 +43,13 @@ internal fun GitChecksSheetHost(
         state = state,
         fix = CiFixActions(
             start = { viewModel.fix(it, onSpawnedTerminal) },
+            resolve = { viewModel.resolve(it, onSpawnedTerminal) },
             submitInputs = { viewModel.submitInputs(it, onSpawnedTerminal) },
             confirm = { viewModel.confirm(onSpawnedTerminal) },
             dismissStep = viewModel::dismissStep
         ),
         onRerun = viewModel::rerun,
+        logs = CheckLogs(load = viewModel::loadLog),
         onDismiss = onDismiss,
         actionInputs = actionInputs,
         merge = CiMergeActions(

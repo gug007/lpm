@@ -26,6 +26,8 @@ import { normalizeAutoPullMode, type AutoPullMode } from "../autoPull";
 import { isArchiveAfter } from "../archiveAfter";
 import type { NotificationChannelPrefs } from "../notifications/channels";
 import { isTerminalThemeMode, type TerminalThemeMode } from "../terminalThemeChoice";
+import { isImportedTheme, type ImportedTerminalTheme } from "../importedTheme";
+import { setImportedTheme } from "../terminal-themes";
 
 export interface DetachedWindowState {
   detached: boolean;
@@ -71,6 +73,8 @@ export interface Settings {
   terminalThemeMode?: TerminalThemeMode;
   terminalThemeDark?: string;
   terminalThemeLight?: string;
+  // Colors brought over from another terminal, drawn as the "imported" theme.
+  terminalImportedTheme?: ImportedTerminalTheme;
   terminalFontSize?: number;
   terminalFontFamily?: string;
   terminalLineHeight?: number;
@@ -224,6 +228,7 @@ function normalize(s: main.Settings): Settings {
     terminalThemeMode: isTerminalThemeMode(s.terminalThemeMode) ? s.terminalThemeMode : undefined,
     terminalThemeDark: s.terminalThemeDark || undefined,
     terminalThemeLight: s.terminalThemeLight || undefined,
+    terminalImportedTheme: isImportedTheme(s.terminalImportedTheme) ? s.terminalImportedTheme : undefined,
     terminalFontSize: s.terminalFontSize,
     terminalFontFamily: s.terminalFontFamily || undefined,
     terminalLineHeight: s.terminalLineHeight,
@@ -384,6 +389,10 @@ function snapshot(): Settings {
 // Snapshot accessors for callers outside React render paths (audio
 // helpers, monaco link providers, event handlers). React components
 // should subscribe with useSettingsStore directly.
+// The imported theme's colors follow the setting before anything redraws.
+setImportedTheme(useSettingsStore.getState().terminalImportedTheme);
+useSettingsStore.subscribe((s) => setImportedTheme(s.terminalImportedTheme));
+
 export function getSettings(): Settings {
   return snapshot();
 }

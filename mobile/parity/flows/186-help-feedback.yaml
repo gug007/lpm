@@ -1,0 +1,27 @@
+# Settings' Help: feedback to the lpm team, the video guides, what's new and a rating.
+# Send Feedback reads the text's kind and its title, and opens a filled-in GitHub
+# issue or discussion (not tapped here).
+appId: cx.lpm.mobile
+name: 186-help-feedback
+tags: [demo, settings]
+---
+- runFlow: subflows/enter-demo.yaml
+- runFlow: subflows/open-more-menu.yaml
+- tapOn: "Settings"
+- scrollUntilVisible:
+    element: "Send Feedback"
+    direction: DOWN
+    timeout: 10000
+- assertVisible: "Rate lpm Link"
+- assertVisible: ".*Demo Mode"
+- takeScreenshot: 1-help
+- tapOn: "Send Feedback"
+- extendedWaitUntil:
+    visible: "What's on your mind\\?"
+    timeout: 5000
+- inputText: "The terminal crashes when I rotate the phone. Steps below"
+- extendedWaitUntil:
+    visible: "Open GitHub Issue"
+    timeout: 5000
+- assertVisible: "Title: The terminal crashes when I rotate the phone"
+- takeScreenshot: 2-feedback

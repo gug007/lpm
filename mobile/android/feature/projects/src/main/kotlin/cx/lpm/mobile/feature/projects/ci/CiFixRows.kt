@@ -27,36 +27,53 @@ import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.core.model.LaunchpadOption
 import cx.lpm.mobile.core.model.LaunchpadTab
 import cx.lpm.mobile.feature.projects.R
+import cx.lpm.mobile.feature.projects.detail.TerminalRowSkeleton
 import cx.lpm.mobile.feature.projects.newtab.LaunchpadMark
 
 /**
- * The checks sheet's "Fix with …" rows (iOS `CiFixRows`), as the desktop's checks menu
- * lists them: every agent the project's New Tab sheet offers. A header split button or
+ * The checks sheet's "Fix with …" rows ([verb]; iOS `CiFixRows`), as the desktop's checks menu
+ * lists them: every agent the project's New Tab sheet offers, or a placeholder row while
+ * [tabs] are still loading. A header split button or
  * menu is one row: a split's row runs the item its button leads with and its chevron
  * lists every item; a menu's whole row lists them. [detail] says what a row opens, under
  * it when it's the only way to fix.
  */
 @Composable
 internal fun CiFixRows(
-    tabs: List<LaunchpadTab>,
+    tabs: List<LaunchpadTab>?,
     onFix: (LaunchpadOption) -> Unit,
-    @StringRes detail: Int = R.string.ci_fix_description
+    @StringRes detail: Int = R.string.ci_fix_description,
+    @StringRes verb: Int = R.string.ci_fix
 ) {
+    if (tabs == null) return TerminalRowSkeleton()
     val only = tabs.size == 1 && tabs[0].options.size == 1
     tabs.forEach { tab ->
         if (tab.options.size > 1) {
-            CiFixGroupRow(tab, onFix)
+            CiFixGroupRow(tab, verb, onFix)
         } else {
             val option = tab.options.first()
-            CiFixRow(option.label, option.agent, option.emoji, detail.takeIf { only }, onClick = {
-                onFix(option)
-            })
+            CiFixRow(
+                option.label,
+                option.agent,
+                option.emoji,
+                verb,
+                detail.takeIf {
+                    only
+                },
+                onClick = {
+                    onFix(option)
+                }
+            )
         }
     }
 }
 
 @Composable
-private fun CiFixGroupRow(tab: LaunchpadTab, onFix: (LaunchpadOption) -> Unit) {
+private fun CiFixGroupRow(
+    tab: LaunchpadTab,
+    @StringRes verb: Int,
+    onFix: (LaunchpadOption) -> Unit
+) {
     var open by remember { mutableStateOf(false) }
     val lead = tab.primary
     val pickFrom = stringResource(R.string.new_tab_pick_from, tab.label)
@@ -64,6 +81,7 @@ private fun CiFixGroupRow(tab: LaunchpadTab, onFix: (LaunchpadOption) -> Unit) {
         label = lead?.label ?: tab.label,
         agent = (lead ?: tab.options.first()).agent,
         emoji = lead?.emoji ?: tab.emoji,
+        verb = verb,
         detail = null,
         onClick = { if (lead != null) onFix(lead) else open = true },
         accessory = {
@@ -99,6 +117,7 @@ private fun CiFixRow(
     label: String,
     agent: String,
     emoji: String,
+    @StringRes verb: Int,
     @StringRes detail: Int?,
     onClick: () -> Unit,
     accessory: (@Composable () -> Unit)? = null
@@ -111,7 +130,7 @@ private fun CiFixRow(
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
-                stringResource(R.string.ci_fix, label),
+                stringResource(verb, label),
                 style = LpmTheme.typography.body,
                 color = colors.tint
             )

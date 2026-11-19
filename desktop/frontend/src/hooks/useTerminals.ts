@@ -10,6 +10,7 @@ import { useCmdInject } from "./terminals/useCmdInject";
 import { useSshReconnect } from "./terminals/useSshReconnect";
 import { useTerminalRestart } from "./terminals/useTerminalRestart";
 import { useClaudeAccountSwitch } from "./terminals/useClaudeAccountSwitch";
+import { useSessionHandoff } from "./terminals/useSessionHandoff";
 import { useSessionRestore } from "./terminals/useSessionRestore";
 import { usePeerTerminalSync } from "./terminals/usePeerTerminalSync";
 import { useTabCreation } from "./terminals/useTabCreation";
@@ -242,6 +243,14 @@ export function useTerminals(
     getPane,
   });
 
+  const continueSessionOn = useSessionHandoff({
+    projectName,
+    treeRef,
+    closeTerminal,
+    restartTerminal,
+    forward,
+  });
+
   const {
     remoteCloseTerminal,
     remoteForkTerminal,
@@ -277,6 +286,7 @@ export function useTerminals(
     forkTerminal,
     forkTerminalIntoCopy,
     switchClaudeAccount,
+    continueSessionOn,
     addTerminalToPane,
     addBrowserToPane,
     addMemoryToPane,
@@ -373,6 +383,7 @@ export function useTerminals(
     closeOtherTerminals,
     restartTerminal,
     switchClaudeAccount,
+    continueSessionOn,
     focusTerminal,
     focusAdjacentPaneItem,
     focusService,

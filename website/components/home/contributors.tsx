@@ -12,6 +12,7 @@ import {
 import { REPO_URL } from "@/lib/links";
 import { RecentFixes } from "./recent-fixes";
 import { RepoNumbers } from "./repo-numbers";
+import { UserVoices } from "./user-voices";
 
 const CARD =
   "group flex items-center gap-3 rounded-2xl border pl-3 pr-5 py-3 transition-colors duration-200";
@@ -97,9 +98,10 @@ export async function Contributors() {
         <SectionHeader
           eyebrow="Open source"
           title="Built in the open"
-          description="lpm is free and open source. Thanks to everyone who has landed a commit."
+          description="lpm is free and open source. Here is what people using it say, in their own words on GitHub."
           className="mb-10"
         />
+        <UserVoices />
         <RepoNumbers stats={stats} lastCommit={lastCommit} />
         <ul className="flex flex-wrap justify-center gap-3">
           {contributors.map((c) => (

@@ -34,6 +34,7 @@ struct FilePreviewSheet: View {
     @State private var fetch: FileFetch
     @State private var codeView = CodeViewHandle()
     @State private var showDiff = false
+    @State private var editing: URL?
 
     init(target: FilePreviewTarget, onMention: ((String) -> Void)? = nil) {
         self.target = target
@@ -71,6 +72,14 @@ struct FilePreviewSheet: View {
         return false
     }
 
+    /// A whole, small text file in the project, on a Mac that saves edits.
+    private var editableURL: URL? {
+        guard model.gitExtras.canWriteFiles, projectPath != nil,
+              case .ready(let url, let kind, false) = fetch.phase, kind.isText,
+              (fetch.total ?? 0) <= FileEditScreen.maxBytes else { return nil }
+        return url
+    }
+
     var body: some View {
         NavigationStack {
             Group {
@@ -93,7 +102,17 @@ struct FilePreviewSheet: View {
                         onMention: onMention.map { mention in { mentionFile(mention) } },
                         onDiff: changedFile == nil ? nil : { showDiff = true },
                         onFind: codeView.attached ? { codeView.find() } : nil,
+                        onEdit: editableURL.map { url in { editing = url } },
                         onCopyPath: { UIPasteboard.general.string = shownPath })
+                }
+            }
+            .navigationDestination(item: $editing) { url in
+                if let projectPath {
+                    FileEditScreen(project: target.project, path: projectPath, url: url) {
+                        fetch.retry()
+                        model.git.changed(target.project)
+                    }
+                    .environment(model)
                 }
             }
             .navigationDestination(isPresented: $showDiff) {

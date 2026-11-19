@@ -1,0 +1,42 @@
+# A small fix right from the file preview: Edit opens the file's text, Save writes it
+# into the project on the Mac, and the preview shows the saved file.
+appId: cx.lpm.mobile
+name: 185-file-edit
+tags: [demo, terminal, files]
+---
+- runFlow: subflows/enter-demo.yaml
+- tapOn: "storefront"
+- extendedWaitUntil:
+    visible: "Terminal 1"
+- tapOn: "Terminal 1"
+- extendedWaitUntil:
+    visible: "Message"
+- tapOn: "Message"
+- inputText: "@payments"
+- extendedWaitUntil:
+    visible: "lib/payments.ts"
+- tapOn: "Preview"
+- extendedWaitUntil:
+    visible: "Edit"
+    timeout: 10000
+- takeScreenshot: 1-preview
+- tapOn: "Edit"
+- extendedWaitUntil:
+    visible: "Save"
+    timeout: 5000
+# The code field's lines aren't separate elements: tap into it by position.
+- tapOn:
+    point: "50%,45%"
+- inputText: "// checked "
+- extendedWaitUntil:
+    visible: "Cancel"
+    timeout: 5000
+- takeScreenshot: 2-editing
+- tapOn: "Save"
+- extendedWaitUntil:
+    visible: "Copy Path"
+    timeout: 10000
+- extendedWaitUntil:
+    visible: ".*checked.*"
+    timeout: 10000
+- takeScreenshot: 3-saved

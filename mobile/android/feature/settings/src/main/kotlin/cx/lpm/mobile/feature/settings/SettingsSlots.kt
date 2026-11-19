@@ -20,5 +20,7 @@ class SettingsSlots(
     /** Read aloud's voice and speed (`:feature:speech`). */
     val readAloudPage: @Composable (onBack: () -> Unit) -> Unit = { onBack ->
         SettingsPage(stringResource(R.string.settings_read_aloud), onBack) {}
-    }
+    },
+    /** The version of lpm the live Mac runs, for Help's foot (`:feature:mac`). */
+    val macVersion: @Composable () -> String? = { null }
 )

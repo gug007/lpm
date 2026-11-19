@@ -227,7 +227,11 @@ final class GitReviewStore {
     private func flushDiffs(_ project: String) {
         diffFlush[project] = nil
         guard let paths = diffPending.removeValue(forKey: project), !paths.isEmpty else { return }
-        client?.requestGitDiffs(project: project, paths: Array(paths))
+        if let branchOf = GitExtrasStore.branchProject(project) {
+            client?.requestBranchDiffs(project: branchOf, paths: Array(paths))
+        } else {
+            client?.requestGitDiffs(project: project, paths: Array(paths))
+        }
     }
 
     func commit(_ project: String, message: String, files: [String]) {
@@ -358,19 +362,25 @@ final class GitReviewStore {
     }
 
     /// After a watched snapshot arrives: re-fetch loaded diffs whose file stamp
-    /// changed (or is unknown on either side), and drop diffs for files that left
-    /// the snapshot. Untouched files keep their cached parse.
+    /// changed (or is unknown on either side).
     private func reconcileWatchedDiffs(_ project: String) {
         guard let files = snapshots[project]?.files else { return }
         let stampByPath = Dictionary(files.map { ($0.path, $0.stamp) }, uniquingKeysWith: { a, _ in a })
+        reconcileDiffs(project, keep: Set(stampByPath.keys)) { key, path in
+            let newStamp = stampByPath[path] ?? ""
+            let remembered = diffStamp[key] ?? ""
+            return newStamp.isEmpty || remembered.isEmpty || newStamp != remembered
+        }
+    }
+
+    /// Re-fetches the loaded diffs `isStale` picks and drops those for files not
+    /// in `keep`. Untouched files keep their cached parse.
+    func reconcileDiffs(_ project: String, keep: Set<String>, isStale: (_ key: String, _ path: String) -> Bool) {
         let prefix = project + "\n"
         for key in Array(diffs.keys) where key.hasPrefix(prefix) {
             let path = String(key.dropFirst(prefix.count))
-            if let newStamp = stampByPath[path] {
-                let remembered = diffStamp[key] ?? ""
-                if newStamp.isEmpty || remembered.isEmpty || newStamp != remembered {
-                    loadDiff(project, path: path)
-                }
+            if keep.contains(path) {
+                if isStale(key, path) { loadDiff(project, path: path) }
             } else {
                 diffs[key] = nil
                 parsedEntries[key]?.parsed = nil
@@ -493,6 +503,7 @@ final class GitReviewStore {
             push(project)
         } else {
             announce(project, "Committed successfully")
+            model?.noteWin()
             landCommit(project)
             load(project)
         }
@@ -506,6 +517,7 @@ final class GitReviewStore {
             opError[project] = GitOpError(title: afterCommit ? "Committed, but not pushed" : "Push failed", message: error)
         } else {
             announce(project, afterCommit ? "Committed and pushed" : "Pushed")
+            model?.noteWin()
             load(project)
         }
         if afterCommit { landCommit(project) }

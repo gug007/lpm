@@ -258,16 +258,16 @@ export default function VsTmuxPage() {
       <RelatedPages
         links={[
           {
-            href: vsPath("overmind"),
-            title: "lpm vs Overmind",
+            href: vsPath("iterm2"),
+            title: "lpm vs iTerm2",
             description:
-              "For anyone whose service list already lives in a Procfile: lpm imports it once, when the folder is added.",
+              "The emulator question: iTerm2 stays for the shell, lpm starts the services. The verdict there is to keep both.",
           },
           {
-            href: vsPath("pm2"),
-            title: "lpm vs PM2 for local dev",
+            href: vsPath("cmux"),
+            title: "lpm vs cmux",
             description:
-              "lpm does not restart a service that dies. That trade-off, at length.",
+              "If the panes are for coding agents: cmux is a Mac terminal built around them; lpm runs the services beside them, on Windows and Linux too.",
           },
           {
             href: SSH_TERMINAL_MAC_PATH,

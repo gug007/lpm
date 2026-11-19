@@ -5,6 +5,7 @@ import {
   SendLaterRemove,
   SendLaterReschedule,
   SendLaterSendNow,
+  SendLaterSent,
 } from "../../bridge/commands";
 import { EventsOn } from "../../bridge/runtime";
 
@@ -33,6 +34,9 @@ export interface ScheduledPrompt {
   kind: ScheduledPromptKind;
   // Send now: it goes out without waiting for the agent to finish.
   force: boolean;
+  // Sent again this long after each time it goes out; 0 (or absent, from an
+  // older backend) sends it once.
+  repeatMs?: number;
 }
 
 export function isWhenDone(item: Pick<ScheduledPrompt, "kind">): boolean {
@@ -41,7 +45,7 @@ export function isWhenDone(item: Pick<ScheduledPrompt, "kind">): boolean {
 
 export type NewScheduledPrompt = Pick<
   ScheduledPrompt,
-  "projectName" | "historyKey" | "terminalLabel" | "agent" | "text" | "images" | "dueAt" | "kind"
+  "projectName" | "historyKey" | "terminalLabel" | "agent" | "text" | "images" | "dueAt" | "kind" | "repeatMs"
 >;
 
 interface Snapshot {
@@ -103,8 +107,13 @@ export async function schedulePrompt(prompt: NewScheduledPrompt): Promise<Schedu
   return (await SendLaterAdd(prompt)) as ScheduledPrompt;
 }
 
-export function reschedulePrompt(id: string, dueAt: number, kind?: ScheduledPromptKind): Promise<void> {
-  return SendLaterReschedule(id, dueAt, kind ?? null);
+export function reschedulePrompt(
+  id: string,
+  dueAt: number,
+  kind?: ScheduledPromptKind,
+  repeatMs?: number,
+): Promise<void> {
+  return SendLaterReschedule(id, dueAt, kind ?? null, repeatMs ?? null);
 }
 
 export function sendPromptNow(id: string): Promise<void> {
@@ -113,6 +122,11 @@ export function sendPromptNow(id: string): Promise<void> {
 
 export async function removePrompt(id: string): Promise<ScheduledPrompt | null> {
   return ((await SendLaterRemove(id)) as ScheduledPrompt | null) ?? null;
+}
+
+// It went out: off the list, or on to its next time when it repeats.
+export function markPromptSent(id: string): Promise<unknown> {
+  return SendLaterSent(id);
 }
 
 export function setHold(id: string, hold: SendLaterHold | null): void {

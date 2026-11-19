@@ -7,7 +7,6 @@ import { ComparisonHero } from "@/components/vs/comparison-hero";
 import { Cta } from "@/components/vs/cta";
 import { Faq, type FaqItem } from "@/components/vs/faq";
 import { QuickAnswer } from "@/components/vs/quick-answer";
-import { VS_REVIEWED, VS_REVIEWED_ISO } from "@/components/vs/reviewed";
 import { SectionVideo } from "@/components/vs/section-video";
 import type { VerdictCard } from "@/components/vs/verdict-cards";
 import { WhenToPick } from "@/components/vs/when-to-pick";
@@ -21,6 +20,7 @@ import {
   WORKTREE_AGENTS_PATH,
   vsPath,
 } from "@/lib/links";
+import { CMUX_FACTS, checkedLabel } from "@/lib/rival-facts";
 import {
   breadcrumbJsonLd,
   jsonLdString,
@@ -102,7 +102,7 @@ const FAQ_ITEMS: FaqItem[] = [
   {
     question: "Is cmux free and open source?",
     answer:
-      "Yes. cmux ships under GPL-3.0-or-later; its repository adds that commercial terms may be available where the GPL will not do, and that a paid Founder's Edition buys early access to features still in progress. lpm is MIT and has nothing to buy. Cost is not the reason to choose between them.",
+      `Yes. The terminal is free and ships under GPL-3.0-or-later; its repository adds that commercial terms may be available where the GPL will not do. Paid plans start at ${CMUX_FACTS.cheapestPlan} and add ${CMUX_FACTS.paidPlansAdd}, and the Pro plan brings early access to its iOS app. lpm is MIT and has nothing to buy, its phone app included. Cost is not the reason to choose between them.`,
   },
   {
     question: "Can I run several Claude Code or Codex agents at once?",
@@ -138,7 +138,7 @@ const structuredData = [
       "AI agent terminal for macOS",
       "project-level service control",
     ],
-    dateModified: VS_REVIEWED_ISO,
+    dateModified: CMUX_FACTS.checked,
   }),
   breadcrumbJsonLd([
     { name: "Home", path: "/" },
@@ -156,7 +156,7 @@ export default function LpmVsCmuxPage() {
         dangerouslySetInnerHTML={{ __html: jsonLdString(structuredData) }}
       />
       <ComparisonHero
-        eyebrow="cmux alternative · macOS"
+        eyebrow="cmux alternative · Mac, Windows, Linux"
         title="A cmux alternative that runs Claude Code and Codex on whole projects."
         description="cmux is a programmable terminal for agents. lpm is the project they work in: it starts the services, checks the ports, and can split the repo so each Claude Code or Codex session edits its own checkout."
         verdictLine="cmux owns the terminal. lpm owns the project the agents run inside."
@@ -167,20 +167,10 @@ export default function LpmVsCmuxPage() {
       />
 
       <ComparisonBasis
-        reviewed={VS_REVIEWED}
-        reviewedIso={VS_REVIEWED_ISO}
-        sources={[
-          { href: "https://cmux.com/docs", label: "cmux's documentation" },
-          {
-            href: "https://cmux.com/docs/configuration",
-            label: "its configuration reference",
-          },
-          {
-            href: "https://github.com/manaflow-ai/cmux",
-            label: "the cmux repository",
-          },
-        ]}
-        lpmNote="Every cmux row traces to those three; lpm's own rows were read back out of the app's source that day. Tell us what has drifted."
+        reviewed={checkedLabel(CMUX_FACTS.checked)}
+        reviewedIso={CMUX_FACTS.checked}
+        sources={CMUX_FACTS.sources}
+        lpmNote="Every cmux row traces to those four; lpm's own rows were read back out of the app's source on September 23, 2026. Tell us what has drifted."
       />
 
       <QuickAnswer question={QUICK_ANSWER_QUESTION}>

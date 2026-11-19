@@ -4,6 +4,7 @@ import { type PersistedHistoryEntry } from "../../terminals";
 import { type TerminalMemoryRef } from "../../terminalMemory";
 import type { ModelPick } from "../../agentModelSwitch";
 import type { SavedLayoutNode } from "../../savedLayouts";
+import type { HandoffTarget } from "../../sessionHandoff";
 
 export interface TerminalStartOpts {
   configName?: string;
@@ -68,6 +69,8 @@ export interface UseTerminalsResult {
   restartTerminal: (terminalId: string) => Promise<void>;
   // Continue a Claude tab's conversation on another Claude account.
   switchClaudeAccount: (terminalId: string, account: string, accountLabel?: string) => Promise<void>;
+  // Continue a Claude tab's session on another computer, or bring one here.
+  continueSessionOn: (terminalId: string, target: HandoffTarget) => Promise<void>;
   closeOtherTerminals: (paneId: string, tabIdx: number) => void;
   focusTerminal: (paneId: string, tabIdx: number) => void;
   focusAdjacentPaneItem: (paneId: string, delta: 1 | -1, serviceNames: string[]) => void;

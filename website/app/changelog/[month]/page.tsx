@@ -12,9 +12,11 @@ import {
   releaseCount,
   releasesText,
 } from "@/lib/changelog-days";
+import { monthHighlights } from "@/lib/changelog-highlights";
 import { CHANGELOG_PATH, REPO_URL } from "@/lib/links";
 import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
 import { ChangelogEntry } from "../_components/changelog-entry";
+import { MonthHighlights } from "../_components/month-highlights";
 
 export const revalidate = 3600;
 
@@ -91,6 +93,8 @@ export default async function ChangelogMonthPage({ params }: Props) {
           {releasesText(releaseCount(days))}
         </p>
       </header>
+
+      <MonthHighlights items={monthHighlights(month, days)} />
 
       <ol className="mt-12 space-y-10">
         {days.map((day) => (

@@ -31,10 +31,11 @@ import { StepperControl } from "./StepperControl";
 import { TerminalThemeGrid } from "./TerminalThemeGrid";
 import { TerminalThemeModeControl } from "./TerminalThemeModeControl";
 import { TerminalThemePreview } from "./TerminalThemePreview";
+import { TerminalLookImport } from "./TerminalLookImport";
 import { useMachineList } from "./useMachineList";
 
 export function TerminalPane() {
-  const { settings, update, commands } = useSettingsTarget();
+  const { settings, update, commands, machine } = useSettingsTarget();
   const fontSize = terminalFontSizeOf(settings.terminalFontSize);
   const font = terminalFontOf(settings);
   const showing = useAppearanceOf(settings.theme);
@@ -61,6 +62,15 @@ export function TerminalPane() {
   return (
     <>
       <SettingsSection title="Appearance">
+        {machine.kind === "local" && (
+          <TerminalLookImport
+            load={commands.listTerminalLooks}
+            fonts={fonts}
+            settings={settings}
+            choice={themeChoice}
+            update={update}
+          />
+        )}
         <div className="p-4">
           <TerminalThemePreview
             theme={themePreview ?? theme}

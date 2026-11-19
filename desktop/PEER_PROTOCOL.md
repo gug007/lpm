@@ -215,6 +215,8 @@ the client can have the host install the latest lpm (see **Commands**);
 **Commands**);
 `ignoredSync` = the host lists, sends and takes the files of its projects (see
 **File sync**);
+`handoff` = the host takes a Claude session handed to it and gives one back (see
+**Session handoff**);
 `agentLimits` = the host trades Claude usage limits (see **Usage
 limits**);
 `agentFiles` = the client's agents may copy files there with `lpm cp`, as far as
@@ -523,6 +525,52 @@ compared every 30 s while its computer is connected, both ways, against the
 digests both sides last agreed on. An undo that puts back a kept file pauses that
 list and forgets what it agreed on. A file changed on both is left alone and
 reported as `ignored-sync-conflict` `{ project, slug, remoteRoot, machine, paths }`.
+
+## Session handoff
+
+`handoff` feature (`handoffhost.rs`, driven from `handoff.rs`; both ends land
+with `handoffland.rs`). "Continue on" moves a Claude tab's session between the
+client and the same project on the host: the work as the git objects the other
+side is missing, committed and uncommitted alike (ignored files stay), and the
+conversation as its transcript. The client drives both directions. Every frame
+names the host folder as `cwd`, which must be a Git project the host manages.
+Replies use `result`, like `invoke`.
+
+To the host:
+
+- `{ "t": "handoffOpen", "cwd" }` → `{ id, have }` — refused when the folder
+  holds uncommitted changes of its own. `have` lists the commits the host can
+  offer as pack bases.
+- `{ "t": "handoffPut", "id", "part": "pack" | "session", "b64" }` → `{}` —
+  appended in order, at most 1 MiB raw per frame; a pack is capped at 1 GiB and a
+  transcript at 512 MiB.
+- `{ "t": "handoffLand", "id", "head", "snapshot"?, "branch"?, "sessionId" }` →
+  `{ branch }` — indexes the pack, checks out `snapshot` (the working state as a
+  commit on `head`) on `branch` with the branch left at `head` and the
+  uncommitted work unstaged, then files the transcript under the folder's own
+  Claude project dir. A detached sender lands on `lpm/handoff`. Refused when the
+  branch has commits the incoming work lacks, or an incoming path is ignored and
+  present on the host. A transcript longer than the incoming one is kept.
+- `{ "t": "handoffClose", "id" }` → `{}` — drops a transfer that won't land; one
+  left open is dropped after 10 minutes.
+
+From the host:
+
+- `{ "t": "handoffStop", "cwd", "terminalId", "sessionId" }` → `{ carriesOn }` —
+  interrupts a turn in progress, lets it save, and stops the terminal. Its tab
+  stays, so the session can resume there if the move fails; the client closes it
+  with `stop_terminal` once the session has landed.
+- The work goes out through `gitBringPrepare` / `gitBringChunk` / `gitBringDone`.
+- `{ "t": "handoffSession", "cwd", "sessionId" }` → `{ path }` — where the
+  transcript is, which the client then reads as a file (`file_read_range`).
+- `{ "t": "handoffAnchor", "cwd", "sha" }` → `{}` — records that the folder holds
+  exactly the state the client just took.
+
+Each side records the last state it sent or landed at `refs/lpm/handoff`. A
+folder that is dirty but still holds exactly that state has nothing of the
+user's own since, so the next handoff may replace it; any other uncommitted
+change refuses it. That is what lets a session go, come back and go again
+without a commit in between.
 
 ## Agent copies
 
@@ -1197,6 +1245,13 @@ Client role:
   one, so these never route to the host. Lists stay per computer; the background
   engine settles a project's computers together the same way, so a change on one
   reaches the others in one sweep while this Mac is on
+- `handoff_send(projectName, terminalId, sessionId, slug, targetRoot)` and
+  `handoff_take(projectName, terminalId, sessionId, slug, sourceRoot)`, both
+  `-> { error?, branch, carriesOn }`: they reject before anything is touched;
+  once the tab's terminal is stopped a failure comes back as `error`, for the
+  tab to resume where it was. Progress as `handoff-progress`
+  `{ terminalId, phase, done, total }`. `projectName` is the local project, so
+  these never route to the host
 - `peer_settings_get(slug) -> { <shared setting>? … }`
 - `peer_settings_set(slug, patch) -> same shape` (both fail with an update hint on a
   host without `hostSettingsAll`)

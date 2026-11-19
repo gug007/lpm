@@ -2,7 +2,10 @@ package cx.lpm.mobile.feature.git.review
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import cx.lpm.mobile.core.data.git.GitChecksStore
 import cx.lpm.mobile.core.data.git.GitDiffKey
+import cx.lpm.mobile.core.data.git.GitExtrasState
+import cx.lpm.mobile.core.data.git.GitExtrasStore
 import cx.lpm.mobile.core.data.git.GitState
 import cx.lpm.mobile.core.data.git.GitStore
 import cx.lpm.mobile.core.data.prefs.AppPreferences
@@ -43,16 +46,21 @@ import kotlinx.coroutines.launch
  * lives in [ReviewDraftsStore], so leaving the screen keeps it.
  */
 private data class ReviewLocal(
-    // Collapse the user chose per file; a file without a choice is collapsed once
-    // it's viewed.
-    val collapsed: Map<String, Boolean> = emptyMap(),
-    val expanded: Set<String> = emptySet(),
+    val folds: Folds = Folds(),
     // The draft as it stood when the Mac was asked for a message: a reply that lands
     // after the user typed is dropped, so their text wins.
     val draftAtGenerate: String? = null,
     val autoDraftTried: Boolean = false,
-    val focus: String? = null
-)
+    val focus: String? = null,
+    val scope: ReviewScope = ReviewScope.Uncommitted,
+    val branchFolds: Folds = Folds()
+) {
+    fun withFolds(scope: ReviewScope, change: (Folds) -> Folds) = if (scope == ReviewScope.Branch) {
+        copy(branchFolds = change(branchFolds))
+    } else {
+        copy(folds = change(folds))
+    }
+}
 
 /**
  * A project's uncommitted changes (iOS `GitReviewView`): the snapshot and every
@@ -77,8 +85,22 @@ class GitReviewViewModel @AssistedInject constructor(
     private val git: GitStore? = session?.store()
     private val terminals: TerminalsStore? = session?.store()
     private val drafts: ReviewDraftsStore? = session?.store()
+    private val extras: GitExtrasStore? = session?.store()
+    private val checks: GitChecksStore? = session?.store()
+    private val branchKey = GitExtrasStore.branchKey(project)
     private val local = MutableStateFlow(ReviewLocal())
     private val parses = DiffParses(viewModelScope, parseDispatcher)
+    private val branchParses = DiffParses(viewModelScope, parseDispatcher)
+    private val scopeKey: String get() = if (local.value.scope ==
+        ReviewScope.Branch
+    ) {
+        branchKey
+    } else {
+        project
+    }
+
+    /** The commit sheet's answers to what the look for secrets found. */
+    val secrets = SecretCheck(project, extras, drafts)
     private val wraps: Boolean get() = prefs.bool(PreferenceKeys.GIT_REVIEW_WRAP) ?: true
     private val wrap = prefs.data.map { wraps }.distinctUntilChanged()
 
@@ -87,13 +109,20 @@ class GitReviewViewModel @AssistedInject constructor(
     val uiState: StateFlow<GitReviewUiState> = combine(
         combine(
             git?.state ?: flowOf(GitState()),
-            drafts?.state ?: flowOf(ReviewDraftsState())
-        ) { g, d -> g to d },
-        terminals?.state ?: flowOf(TerminalsState()),
+            drafts?.state ?: flowOf(ReviewDraftsState()),
+            extras?.state ?: flowOf(GitExtrasState())
+        ) { g, d, e -> Triple(g, d, e) },
+        combine(
+            terminals?.state ?: flowOf(TerminalsState()),
+            checks?.state?.map { c ->
+                c.results[project]?.pr?.let { OpenPullRequest(it.number, it.url) }
+            }
+                ?.distinctUntilChanged() ?: flowOf(null)
+        ) { t, pr -> t to pr },
         local,
-        parses.parsed,
+        combine(parses.parsed, branchParses.parsed) { p, bp -> p to bp },
         wrap
-    ) { (g, d), t, l, p, w -> build(g, d, t, l, p, w) }
+    ) { (g, d, e), (t, pr), l, (p, bp), w -> build(g, d, e, t, pr, l, p, bp, w) }
         .stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5_000),
@@ -106,6 +135,17 @@ class GitReviewViewModel @AssistedInject constructor(
                 store.state.map { s ->
                     s.diffs.filterKeys { it.project == project }.mapKeys { it.key.path }
                 }.distinctUntilChanged().collect(parses::update)
+            }
+            viewModelScope.launch {
+                store.state.map { s ->
+                    s.diffs.filterKeys { it.project == branchKey }.mapKeys { it.key.path }
+                }.distinctUntilChanged().collect(branchParses::update)
+            }
+            viewModelScope.launch {
+                store.state.map { it.commitTick[project] to it.snapshots[project]?.branch }
+                    .distinctUntilChanged().drop(1).collect {
+                        if (local.value.scope == ReviewScope.Branch) extras?.loadBranch(project)
+                    }
             }
             viewModelScope.launch {
                 store.state.map { it.generatedMessage[project] }.distinctUntilChanged()
@@ -125,7 +165,9 @@ class GitReviewViewModel @AssistedInject constructor(
                         s.snapshots[project]?.files.orEmpty().any { it.path == focus }
                     }
                     local.update {
-                        it.copy(collapsed = it.collapsed + (focus to false), focus = focus)
+                        it.withFolds(ReviewScope.Uncommitted) { f ->
+                            f.copy(collapsed = f.collapsed + (focus to false))
+                        }.copy(focus = focus)
                     }
                 }
             }
@@ -136,7 +178,11 @@ class GitReviewViewModel @AssistedInject constructor(
                 store.state.map { it.changedSinceViewed[project] }.distinctUntilChanged()
                     .filterNotNull()
                     .collect { changed ->
-                        local.update { it.copy(collapsed = it.collapsed - changed.keys) }
+                        local.update {
+                            it.withFolds(ReviewScope.Uncommitted) { f ->
+                                f.copy(collapsed = f.collapsed - changed.keys)
+                            }
+                        }
                     }
             }
         }
@@ -153,85 +199,37 @@ class GitReviewViewModel @AssistedInject constructor(
     private fun build(
         g: GitState,
         d: ReviewDraftsState,
+        e: GitExtrasState,
         t: TerminalsState,
+        openPr: OpenPullRequest?,
         l: ReviewLocal,
         parsed: Map<String, ParsedDiff>,
+        branchParsed: Map<String, ParsedDiff>,
         wrap: Boolean
     ): GitReviewUiState {
-        val snapshot = g.snapshots[project]
-        val files = snapshot?.files.orEmpty()
-        val draft = d.draft(project)
-        val changed = d.changedSinceViewed[project].orEmpty()
-        val review = files.map { file ->
-            val key = GitDiffKey(project, file.path)
-            val viewed = g.isViewed(project, file.path)
-            ReviewFile(
-                file = file,
-                result = g.diffs[key],
-                error = g.diffError[key],
-                parsed = parsed[file.path],
-                selected = file.path !in draft.deselected,
-                viewed = viewed,
-                collapsed = l.collapsed[file.path] ?: viewed,
-                expanded = file.path in l.expanded,
-                changedSince = changed[file.path]
-            )
-        }
-        val selected = review.count { it.selected }
-        val committing = project in g.committing
-        val pushing = project in g.pushing
-        val pushes = project in g.commitPushing
-        val loading = project in g.loading
-        val repo = snapshot?.isRepo == true
-        val overlay = when {
-            snapshot != null -> when {
-                !snapshot.isRepo -> ReviewOverlay.NotRepo
-                files.isEmpty() -> ReviewOverlay.NoChanges
-                else -> null
-            }
-
-            g.loadError[project] != null && !loading -> ReviewOverlay.Unreachable
-
-            else -> ReviewOverlay.Skeleton
-        }
-        return GitReviewUiState(
+        val base = uncommittedReviewState(
             project = project,
-            overlay = overlay,
-            loadError = g.loadError[project],
-            ghCli = snapshot?.ghCli == true,
-            rows = if (repo) reviewRows(review, snapshot.ghCli) else emptyList(),
-            wrap = wrap,
-            commitFiles = if (repo) {
-                review.map {
-                    CommitFile(it.file, it.selected, it.parsed?.addedCount, it.parsed?.removedCount)
-                }
-            } else {
-                emptyList()
-            },
-            conflicted = files.filter { it.isConflicted }.map { it.path },
-            added = review.sumOf { it.parsed?.addedCount ?: 0 },
-            removed = review.sumOf { it.parsed?.removedCount ?: 0 },
-            message = draft.message,
-            drafted = draft.drafted != null && draft.message == draft.drafted,
-            selectedCount = selected,
-            branch = snapshot?.takeUnless { it.detached || it.branch.isEmpty() }?.branch,
-            generating = project in g.generatingMessage,
-            busy = when {
-                committing && pushes -> CommitBusy.Committing
-                committing -> CommitBusy.CommittingOnly
-                pushing && pushes -> CommitBusy.Pushing
-                else -> null
-            },
-            canCommit = selected > 0 && draft.message.isNotBlank() && !committing && !pushing,
-            commitTick = g.commitTick[project] ?: 0,
-            opError = g.opError[project],
-            notice = g.notice[project],
-            canDiscardFiles = git?.canDiscardFiles == true,
-            discarding = project in g.discarding,
+            g = g,
+            d = d,
+            e = e,
             terminals = t.terminals[project].orEmpty(),
-            draft = if (repo) draftChip(draft, files) else null,
-            focus = l.focus
+            folds = l.folds,
+            listed = l.scope != ReviewScope.Branch,
+            focus = l.focus,
+            parsed = parsed,
+            wrap = wrap,
+            canDiscardFiles = git?.canDiscardFiles == true
         )
+        val branch = e.branchScopes[project]
+        val ready = base.copy(
+            scopeAvailable = extras?.canBranchScope == true && g.snapshots[project]?.isRepo == true,
+            scope = l.scope,
+            branchFiles = branch?.files?.size,
+            branchBase = branch?.base.orEmpty(),
+            openPr = openPr
+        )
+        if (l.scope != ReviewScope.Branch) return ready
+        return branchReviewState(ready, project, g, d, e, l.branchFolds, branchParsed)
     }
 
     private val selectedPaths: List<String>
@@ -262,25 +260,37 @@ class GitReviewViewModel @AssistedInject constructor(
     }
 
     fun load() {
-        git?.load(project)
+        if (local.value.scope ==
+            ReviewScope.Branch
+        ) {
+            extras?.loadBranch(project)
+        } else {
+            git?.load(project)
+        }
     }
 
     /** Pull to refresh, held long enough for the spinner to read. */
     suspend fun refresh() {
-        git?.load(project)
+        load()
         delay(REFRESH_HOLD_MS)
+    }
+
+    /** The switch at the top: the Branch scope loads what the branch changed. */
+    fun setScope(scope: ReviewScope) {
+        local.update { it.copy(scope = scope) }
+        if (scope == ReviewScope.Branch) extras?.loadBranch(project)
     }
 
     /** A file came into view: fetch its diff if nothing has yet. */
     fun fileAppeared(path: String) {
         val store = git ?: return
-        val key = GitDiffKey(project, path)
+        val key = GitDiffKey(scopeKey, path)
         val s = store.state.value
-        if (s.diffs[key] == null && key !in s.diffLoading) store.loadDiff(project, path)
+        if (s.diffs[key] == null && key !in s.diffLoading) store.loadDiff(scopeKey, path)
     }
 
     fun retryDiff(path: String) {
-        git?.loadDiff(project, path)
+        git?.loadDiff(scopeKey, path)
     }
 
     fun toggleSelected(path: String) {
@@ -304,24 +314,39 @@ class GitReviewViewModel @AssistedInject constructor(
     }
 
     fun toggleCollapsed(path: String) {
-        val viewed = git?.state?.value?.isViewed(project, path) == true
+        val viewed = git?.state?.value?.isViewed(scopeKey, path) == true
         local.update {
-            it.copy(collapsed = it.collapsed + (path to !(it.collapsed[path] ?: viewed)))
+            it.withFolds(it.scope) { f ->
+                f.copy(
+                    collapsed =
+                        f.collapsed + (path to !(f.collapsed[path] ?: viewed))
+                )
+            }
         }
     }
 
     /** Marking a file viewed collapses it; unmarking opens it again. */
     fun toggleViewed(path: String) {
         val store = git ?: return
-        val nowViewed = !store.state.value.isViewed(project, path)
-        drafts?.toggleViewed(project, path)
-        local.update { it.copy(collapsed = it.collapsed + (path to nowViewed)) }
+        val key = scopeKey
+        val nowViewed = !store.state.value.isViewed(key, path)
+        drafts?.toggleViewed(key, path)
+        local.update {
+            it.withFolds(it.scope) { f ->
+                f.copy(
+                    collapsed =
+                        f.collapsed + (path to nowViewed)
+                )
+            }
+        }
     }
 
     /** The screen scrolled to the file it opened on. */
     fun focusShown() = local.update { it.copy(focus = null) }
 
-    fun showAll(path: String) = local.update { it.copy(expanded = it.expanded + path) }
+    fun showAll(path: String) = local.update {
+        it.withFolds(it.scope) { f -> f.copy(expanded = f.expanded + path) }
+    }
 
     /** "Wrap" in any file's bar: long lines wrap, or scroll sideways, in every file. */
     fun toggleWrap() = prefs.setBool(PreferenceKeys.GIT_REVIEW_WRAP, !wraps)
@@ -351,11 +376,11 @@ class GitReviewViewModel @AssistedInject constructor(
     }
 
     fun commit() {
-        git?.commit(project, draft.message.trim(), selectedPaths)
+        extras?.commit(project, draft.message.trim(), selectedPaths, push = false)
     }
 
     fun commitAndPush() {
-        git?.commitAndPush(project, draft.message.trim(), selectedPaths)
+        extras?.commit(project, draft.message.trim(), selectedPaths, push = true)
     }
 
     fun dismissOpError() {
@@ -374,7 +399,7 @@ class GitReviewViewModel @AssistedInject constructor(
 
     /** "Ask agent…" about one file: its diff without the file-header noise. */
     fun askContext(path: String): AskContext {
-        val result = git?.state?.value?.diffs?.get(GitDiffKey(project, path))
+        val result = git?.state?.value?.diffs?.get(GitDiffKey(scopeKey, path))
         val diff = if (result == null || result.binary) "" else promptDiff(result.diff)
         return AskContext(path, diff)
     }

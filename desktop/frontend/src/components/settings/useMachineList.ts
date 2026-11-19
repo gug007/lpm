@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 
 // A list a machine reports, such as its fonts or sounds: empty until it answers,
 // when it can't, or when there is nothing to ask (`load` null).
-export function useMachineList(load: (() => Promise<string[]>) | null): string[] {
-  const [items, setItems] = useState<string[]>([]);
+export function useMachineList<T = string>(load: (() => Promise<T[]>) | null): T[] {
+  const [items, setItems] = useState<T[]>([]);
   useEffect(() => {
     if (!load) return;
     let alive = true;

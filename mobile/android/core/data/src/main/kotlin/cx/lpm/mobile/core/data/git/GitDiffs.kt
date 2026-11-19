@@ -1,5 +1,6 @@
 package cx.lpm.mobile.core.data.git
 
+import cx.lpm.mobile.core.data.client.requestBranchDiffs
 import cx.lpm.mobile.core.data.client.requestGitDiffs
 import cx.lpm.mobile.core.data.session.GenerationTimeout
 import cx.lpm.mobile.core.data.session.MacSession
@@ -120,6 +121,17 @@ internal class GitDiffs(
         }
     }
 
+    /** A Branch scope that changed: its files still there load again, the rest go. */
+    fun refresh(key: String, files: Set<String>) {
+        val loaded = state.value.diffs.keys.filter { it.project == key }
+        val gone = loaded.filter { it.path !in files }.toSet()
+        if (gone.isNotEmpty()) {
+            stamps -= gone
+            state.update { it.copy(diffs = it.diffs - gone, diffError = it.diffError - gone) }
+        }
+        loaded.filter { it.path in files }.forEach { load(key, it.path) }
+    }
+
     private fun enqueue(project: String, path: String) {
         pending.getOrPut(project) { linkedSetOf() } += path
         flushes.remove(project)?.cancel()
@@ -127,7 +139,13 @@ internal class GitDiffs(
             delay(FLUSH_MS)
             flushes.remove(project)
             val paths = pending.remove(project)
-            if (!paths.isNullOrEmpty()) session.client?.requestGitDiffs(project, paths.toList())
+            if (paths.isNullOrEmpty()) return@launch
+            val branchOf = GitExtrasStore.branchProject(project)
+            if (branchOf != null) {
+                session.client?.requestBranchDiffs(branchOf, paths.toList())
+            } else {
+                session.client?.requestGitDiffs(project, paths.toList())
+            }
         }
     }
 

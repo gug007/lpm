@@ -210,7 +210,7 @@ fn clear_the_way(root: &str, req: &Request, name: &str) -> Result<Option<String>
     Ok(Some(anchor))
 }
 
-fn string_of(v: &Value, key: &str) -> String {
+pub(crate) fn string_of(v: &Value, key: &str) -> String {
     v.get(key)
         .and_then(Value::as_str)
         .unwrap_or_default()

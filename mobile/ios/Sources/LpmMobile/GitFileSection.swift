@@ -9,11 +9,14 @@ import UIKit
 /// no cap.
 struct GitFileSection: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.dynamicTypeSize) private var typeSize
     let project: String
     let file: GitFile
     let selected: Bool
     let collapsed: Bool
-    let toggleSelected: () -> Void
+    /// Includes or excludes the file from the commit; nil for a file already
+    /// committed (the Branch scope).
+    let toggleSelected: (() -> Void)?
     let toggleCollapsed: () -> Void
     let toggleViewed: () -> Void
     let onAsk: (String) -> Void
@@ -52,71 +55,103 @@ struct GitFileSection: View {
 
     // MARK: header
 
-    private var header: some View {
-        HStack(spacing: 8) {
-            Button(action: toggleCollapsed) {
-                HStack(spacing: 8) {
-                    Image(systemName: "chevron.down")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(Color.secondary)
-                        .rotationEffect(.degrees(collapsed ? -90 : 0))
-                        .frame(width: 14)
-                    GitStatusBadge(status: file.status)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(file.name)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(Color.primary)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                        detailLine
-                    }
-                    Spacer(minLength: 4)
+    /// At the largest text sizes the name gets lines of its own and the
+    /// toggles go under it, so neither is cut short.
+    @ViewBuilder
+    private var headerContent: some View {
+        if typeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .top, spacing: 8) {
+                    nameButton
+                    moreMenu
                 }
-                .contentShape(Rectangle())
+                HStack(spacing: 8) {
+                    toggles
+                }
+                .padding(.leading, 22)
             }
-            .buttonStyle(.plain)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(file.path)
-            .accessibilityValue(collapsed ? "Collapsed" : "Expanded")
-            .accessibilityAddTraits(.isButton)
+        } else {
+            HStack(spacing: 8) {
+                nameButton
+                toggles
+                moreMenu
+            }
+        }
+    }
 
-            // Long diff lines wrap to the screen (the default) or scroll sideways,
-            // one choice for every file.
-            TogglePill(label: "Wrap", tint: .accentColor, on: wrap) { wrap.toggle() }
-
-            TogglePill(
-                label: "Viewed",
-                icon: viewed ? "checkmark.circle.fill" : "circle",
-                tint: .green,
-                on: viewed,
-                action: toggleViewed
-            )
-
-            Menu {
-                menuItems
-            } label: {
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 15, weight: .semibold))
+    private var nameButton: some View {
+        let stacked = typeSize.isAccessibilitySize
+        return Button(action: toggleCollapsed) {
+            HStack(spacing: 8) {
+                Image(systemName: "chevron.down")
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(Color.secondary)
-                    .frame(width: 32, height: 32)
-                    .contentShape(Rectangle())
+                    .rotationEffect(.degrees(collapsed ? -90 : 0))
+                    .frame(width: 14)
+                GitStatusBadge(status: file.status)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(file.name)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.primary)
+                        .lineLimit(stacked ? 3 : 1)
+                        .truncationMode(.middle)
+                    detailLine
+                }
+                Spacer(minLength: 4)
             }
-            .accessibilityLabel("More")
+            .contentShape(Rectangle())
         }
-        .padding(.leading, 12)
-        .padding(.trailing, 6)
-        .padding(.vertical, 8)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.secondarySystemBackground))
-        // A bare Divider over an HStack takes its axis and draws a vertical line.
-        .overlay(alignment: .bottom) { VStack(spacing: 0) { Divider() } }
-        .contentShape(Rectangle())
-        .contextMenu { menuItems }
-        .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).maxY } action: {
-            pins.header(file.path, bottom: $0)
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(file.path)
+        .accessibilityValue(collapsed ? "Collapsed" : "Expanded")
+        .accessibilityAddTraits(.isButton)
+    }
+
+    @ViewBuilder
+    private var toggles: some View {
+        // Long diff lines wrap to the screen (the default) or scroll sideways,
+        // one choice for every file.
+        TogglePill(label: "Wrap", tint: .accentColor, on: wrap) { wrap.toggle() }
+
+        TogglePill(
+            label: "Viewed",
+            icon: viewed ? "checkmark.circle.fill" : "circle",
+            tint: .green,
+            on: viewed,
+            action: toggleViewed
+        )
+    }
+
+    private var moreMenu: some View {
+        Menu {
+            menuItems
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(Color.secondary)
+                .frame(width: 32, height: 32)
+                .contentShape(Rectangle())
         }
-        .listRowInsets(EdgeInsets())
-        .textCase(nil)
+        .accessibilityLabel("More")
+    }
+
+    private var header: some View {
+        headerContent
+            .padding(.leading, 12)
+            .padding(.trailing, 6)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(.secondarySystemBackground))
+            // A bare Divider over an HStack takes its axis and draws a vertical line.
+            .overlay(alignment: .bottom) { VStack(spacing: 0) { Divider() } }
+            .contentShape(Rectangle())
+            .contextMenu { menuItems }
+            .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).maxY } action: {
+                pins.header(file.path, bottom: $0)
+            }
+            .listRowInsets(EdgeInsets())
+            .textCase(nil)
     }
 
     /// The folder, the change counts once parsed, and "Excluded" when the file is
@@ -129,13 +164,13 @@ struct GitFileSection: View {
                     .lineLimit(1)
             } else if !file.directory.isEmpty {
                 Text(file.directory)
-                    .lineLimit(1)
+                    .lineLimit(typeSize.isAccessibilitySize ? 2 : 1)
                     .truncationMode(.head)
             }
             if let parsed {
                 DiffStat(added: parsed.addedCount, removed: parsed.removedCount)
             }
-            if !selected {
+            if toggleSelected != nil && !selected {
                 Text("Excluded")
                     .foregroundStyle(.orange)
             }
@@ -149,9 +184,11 @@ struct GitFileSection: View {
         Button { onAsk(promptDiff) } label: {
             Label("Ask agent…", systemImage: "sparkles")
         }
-        Button(action: toggleSelected) {
-            Label(selected ? "Exclude from Commit" : "Include in Commit",
-                  systemImage: selected ? "minus.circle" : "plus.circle")
+        if let toggleSelected {
+            Button(action: toggleSelected) {
+                Label(selected ? "Exclude from Commit" : "Include in Commit",
+                      systemImage: selected ? "minus.circle" : "plus.circle")
+            }
         }
         Button {
             UIPasteboard.general.string = file.path

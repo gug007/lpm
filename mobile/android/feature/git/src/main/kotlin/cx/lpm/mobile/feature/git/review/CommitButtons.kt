@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -41,31 +40,32 @@ internal fun CommitButtons(
     modifier: Modifier = Modifier
 ) {
     val pushLabel = when (busy) {
+        CommitBusy.Checking -> R.string.git_commit_checking
         CommitBusy.Committing -> R.string.git_commit_committing
         CommitBusy.Pushing -> R.string.git_commit_pushing
         else -> R.string.git_commit_and_push
     }
     Column(
-        modifier
-            .fillMaxWidth()
-            .barBackground()
-            .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 6.dp),
+        modifier.bottomBar(),
         verticalArrangement = Arrangement.spacedBy(2.dp)
     ) {
         ProminentButton(
             text = stringResource(pushLabel),
             icon = painterResource(DesignR.drawable.ic_arrow_upward),
-            busy = busy == CommitBusy.Committing || busy == CommitBusy.Pushing,
+            busy =
+                busy == CommitBusy.Checking || busy == CommitBusy.Committing ||
+                    busy == CommitBusy.Pushing,
             enabled = enabled,
             onClick = onCommitAndPush
         )
-        CommitOnlyButton(busy = busy == CommitBusy.CommittingOnly, enabled, onCommitOnly)
+        CommitOnlyButton(busy, enabled, onCommitOnly)
     }
 }
 
 /** A plain text button across the width, iOS's `.borderless`. */
 @Composable
-private fun CommitOnlyButton(busy: Boolean, enabled: Boolean, onClick: () -> Unit) {
+private fun CommitOnlyButton(busy: CommitBusy?, enabled: Boolean, onClick: () -> Unit) {
+    val running = busy == CommitBusy.CommittingOnly || busy == CommitBusy.CheckingOnly
     val colors = LpmTheme.colors
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
@@ -84,10 +84,14 @@ private fun CommitOnlyButton(busy: Boolean, enabled: Boolean, onClick: () -> Uni
         horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        if (busy) ActivityIndicator(size = ActivityIndicatorSize.Small)
+        if (running) ActivityIndicator(size = ActivityIndicatorSize.Small)
         Text(
             text = stringResource(
-                if (busy) R.string.git_commit_committing else R.string.git_commit_only
+                when (busy) {
+                    CommitBusy.CheckingOnly -> R.string.git_commit_checking
+                    CommitBusy.CommittingOnly -> R.string.git_commit_committing
+                    else -> R.string.git_commit_only
+                }
             ),
             style = LpmTheme.typography.body,
             color = if (enabled) colors.tint else colors.tertiaryLabel

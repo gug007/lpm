@@ -1,5 +1,6 @@
 import type { ITheme } from "@xterm/xterm";
-import { ansiColors } from "./components/terminal-colors";
+import { DARK_HOVER, LIGHT_HOVER, ansiColors } from "./components/terminal-colors";
+import { importedThemeColors, isImportedTheme, type ImportedTerminalTheme } from "./importedTheme";
 
 export const terminalThemeNames = [
   "default",
@@ -13,6 +14,7 @@ export const terminalThemeNames = [
   "github-light",
   "solarized-light",
   "claude-light",
+  "imported",
 ] as const;
 
 export type TerminalThemeName = (typeof terminalThemeNames)[number];
@@ -37,10 +39,27 @@ const labels: Readonly<Record<TerminalThemeName, string>> = {
   "github-light": "GitHub Light",
   "solarized-light": "Solarized Light",
   "claude-light": "Claude Light",
+  imported: "Imported",
 };
 
 export function terminalThemeLabel(name: TerminalThemeName): string {
-  return labels[name];
+  return name === "imported" && imported ? imported.name : labels[name];
+}
+
+// The look brought over from another terminal, as settings hold it; the
+// "imported" theme draws it. Set by the settings store whenever they change.
+let imported: ImportedTerminalTheme | null = null;
+let importedColors: TerminalThemeColors | null = null;
+
+export function setImportedTheme(spec: unknown): void {
+  const next = isImportedTheme(spec) ? spec : null;
+  if (next === imported || JSON.stringify(next) === JSON.stringify(imported)) return;
+  imported = next;
+  importedColors = next ? importedThemeColors(next) : null;
+}
+
+export function hasImportedTheme(): boolean {
+  return imported !== null;
 }
 
 export interface TerminalThemeColors {
@@ -58,10 +77,7 @@ export interface TerminalThemeColors {
   ansi?: AnsiPalette;
 }
 
-const DARK_HOVER = { headerHover: "rgba(255,255,255,0.04)", headerActive: "rgba(255,255,255,0.08)" };
-const LIGHT_HOVER = { headerHover: "rgba(0,0,0,0.05)", headerActive: "rgba(0,0,0,0.09)" };
-
-const themes: Readonly<Record<Exclude<TerminalThemeName, "default">, TerminalThemeColors>> = {
+const themes: Readonly<Record<Exclude<TerminalThemeName, "default" | "imported">, TerminalThemeColors>> = {
   "one-dark": {
     appearance: "dark", ...DARK_HOVER,
     bg: "#282c34", fg: "#abb2bf", selection: "#3e4451", cursor: "#528bff",
@@ -136,6 +152,7 @@ const themes: Readonly<Record<Exclude<TerminalThemeName, "default">, TerminalThe
 
 export function getTerminalThemeColors(name: TerminalThemeName): TerminalThemeColors | null {
   if (name === "default") return null;
+  if (name === "imported") return importedColors;
   return themes[name] ?? null;
 }
 

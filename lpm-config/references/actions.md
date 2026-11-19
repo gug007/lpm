@@ -122,6 +122,7 @@ In a config outside a repo (the project file, `global.yml`, a template), the sam
 | Field | Type | Rule |
 |---|---|---|
 | `cmd` | string | Required unless child `actions` exist or this is a valid sparse override. |
+| `cmdMacos`, `cmdLinux`, `cmdWindows` | string | Runs in place of `cmd` when lpm runs on that system, as for services. `cmd_macos`, `cmd_linux` and `cmd_windows` are also accepted. |
 | `label` | string | Display label; defaults to the key. May hold variables and `$(…)` commands; see [Dynamic labels](#dynamic-labels). |
 | `labelSvg` | string | The `<svg>` the button draws in place of its text label, inline or printed by `$(…)`; see [SVG labels](#svg-labels). `label` stays the button's name and its fallback. |
 | `labelRefresh` | number or string | How often the action's `$(…)` commands run: seconds, or a number with `s`, `m` or `h` such as `5m`. Defaults to `1m`; the floor is `5s`. |

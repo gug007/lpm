@@ -8,6 +8,7 @@ import cx.lpm.mobile.core.data.mac.CredentialStore
 import cx.lpm.mobile.core.data.mac.MacStore
 import cx.lpm.mobile.core.data.mac.ThisDevice
 import cx.lpm.mobile.core.data.prefs.AppPreferences
+import cx.lpm.mobile.core.data.review.ReviewAsk
 import cx.lpm.mobile.core.data.session.MacSession
 import java.util.UUID
 import javax.inject.Inject
@@ -44,7 +45,11 @@ class AgentAnswers @Inject constructor(
         this.session = session
     }
 
-    suspend fun send(answer: AgentAnswer): AnswerOutcome {
+    /** An answer the Mac took is a win toward asking for a rating. */
+    suspend fun send(answer: AgentAnswer): AnswerOutcome =
+        deliver(answer).also { if (it == AnswerOutcome.Sent) ReviewAsk.win(prefs) }
+
+    private suspend fun deliver(answer: AgentAnswer): AnswerOutcome {
         if (!prefs.isLoaded) prefs.load()
         if (!credentials.isLoaded) credentials.load()
         val mac = macStore.loadRecords().firstOrNull {

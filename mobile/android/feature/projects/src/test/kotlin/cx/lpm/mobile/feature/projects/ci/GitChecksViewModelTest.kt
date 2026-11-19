@@ -5,6 +5,7 @@ import cx.lpm.mobile.core.data.actions.ActionsStore
 import cx.lpm.mobile.core.data.agents.AgentLaunchStore
 import cx.lpm.mobile.core.data.client.LpmClient
 import cx.lpm.mobile.core.data.git.GitChecksStore
+import cx.lpm.mobile.core.data.git.GitExtrasStore
 import cx.lpm.mobile.core.data.git.GitStore
 import cx.lpm.mobile.core.data.prefs.PreferenceKeys
 import cx.lpm.mobile.core.data.session.SessionStore
@@ -71,7 +72,8 @@ class GitChecksViewModelTest {
                 SessionStore.Factory(::AgentLaunchStore),
                 SessionStore.Factory(::ActionsStore),
                 SessionStore.Factory(::GitChecksStore),
-                SessionStore.Factory(::GitStore)
+                SessionStore.Factory(::GitStore),
+                SessionStore.Factory(::GitExtrasStore)
             )
         )
         val socket = t.connectReady(

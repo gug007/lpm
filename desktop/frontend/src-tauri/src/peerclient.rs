@@ -99,6 +99,28 @@ struct Pending {
     cv: Condvar,
 }
 
+/// The features a host advertised, each under its key in the peers row.
+const PEER_FEATURES: [(&str, fn(&PeerConn) -> &AtomicBool); 18] = [
+    ("supportsSync", |c| &c.supports_sync),
+    ("supportsSync2", |c| &c.supports_sync2),
+    ("supportsGitBring", |c| &c.supports_git_bring),
+    ("supportsIgnoredSync", |c| &c.supports_ignored_sync),
+    ("supportsGitFollow", |c| &c.supports_git_follow),
+    ("supportsFileUpload", |c| &c.supports_file_upload),
+    ("supportsMediaRange", |c| &c.supports_media_range),
+    ("supportsMediaAudio", |c| &c.supports_media_audio),
+    ("supportsSelfUpdate", |c| &c.supports_self_update),
+    ("supportsHostSettings", |c| &c.supports_host_settings),
+    ("supportsHostFolders", |c| &c.supports_host_folders),
+    ("supportsHostFolderFolds", |c| &c.supports_host_folder_folds),
+    ("supportsHostJobs", |c| &c.supports_host_jobs),
+    ("supportsPortTunnel", |c| &c.supports_port_tunnel),
+    ("supportsHandoff", |c| &c.supports_handoff),
+    ("supportsTabShare", |c| &c.supports_tab_share),
+    ("supportsAgentFiles", |c| &c.supports_agent_files),
+    ("supportsAgentExec", |c| &c.supports_agent_exec),
+];
+
 /// Live state for a single paired peer's connection.
 struct PeerConn {
     slug: String,
@@ -140,6 +162,7 @@ struct PeerConn {
     supports_phone_relay: AtomicBool, // host runs phones this Mac relays to it (peerclient/phone.rs)
     supports_limits: AtomicBool, // host trades Claude usage limits (agent_limits_share.rs)
     supports_tab_share: AtomicBool, // this Mac may share the host's tabs (tabshare/machines.rs)
+    supports_handoff: AtomicBool, // host takes a session from here and gives one back (handoffhost.rs)
     supports_agent_files: AtomicBool, // agents here may copy files there, as far as it allows (agentcp.rs)
     supports_agent_exec: AtomicBool, // ...and run commands there, when it allows (agentexec.rs)
     agent_policy: Mutex<crate::agentfiles::Policy>, // ...what it allows them, as it last said
@@ -221,6 +244,7 @@ impl PeerConn {
             supports_phone_relay: AtomicBool::new(false),
             supports_limits: AtomicBool::new(false),
             supports_tab_share: AtomicBool::new(false),
+            supports_handoff: AtomicBool::new(false),
             supports_agent_files: AtomicBool::new(false),
             supports_agent_exec: AtomicBool::new(false),
             agent_policy: Mutex::new(Default::default()),
@@ -460,59 +484,8 @@ impl PeerClientHub {
                 let connected = conn
                     .map(|c| c.connected.load(Ordering::Relaxed))
                     .unwrap_or(false);
-                let supports_sync = conn
-                    .map(|c| c.supports_sync.load(Ordering::Relaxed))
-                    .unwrap_or(false);
-                let supports_sync2 = conn
-                    .map(|c| c.supports_sync2.load(Ordering::Relaxed))
-                    .unwrap_or(false);
-                let supports_git_bring = conn
-                    .map(|c| c.supports_git_bring.load(Ordering::Relaxed))
-                    .unwrap_or(false);
-                let supports_ignored_sync = conn
-                    .map(|c| c.supports_ignored_sync.load(Ordering::Relaxed))
-                    .unwrap_or(false);
-                let supports_git_follow = conn
-                    .map(|c| c.supports_git_follow.load(Ordering::Relaxed))
-                    .unwrap_or(false);
-                let supports_file_upload = conn
-                    .map(|c| c.supports_file_upload.load(Ordering::Relaxed))
-                    .unwrap_or(false);
-                let supports_media_range = conn
-                    .map(|c| c.supports_media_range.load(Ordering::Relaxed))
-                    .unwrap_or(false);
-                let supports_media_audio = conn
-                    .map(|c| c.supports_media_audio.load(Ordering::Relaxed))
-                    .unwrap_or(false);
-                let supports_self_update = conn
-                    .map(|c| c.supports_self_update.load(Ordering::Relaxed))
-                    .unwrap_or(false);
-                let supports_host_settings = conn
-                    .map(|c| c.supports_host_settings.load(Ordering::Relaxed))
-                    .unwrap_or(false);
-                let supports_host_folders = conn
-                    .map(|c| c.supports_host_folders.load(Ordering::Relaxed))
-                    .unwrap_or(false);
-                let supports_host_folder_folds = conn
-                    .map(|c| c.supports_host_folder_folds.load(Ordering::Relaxed))
-                    .unwrap_or(false);
-                let supports_host_jobs = conn
-                    .map(|c| c.supports_host_jobs.load(Ordering::Relaxed))
-                    .unwrap_or(false);
-                let supports_port_tunnel = conn
-                    .map(|c| c.supports_port_tunnel.load(Ordering::Relaxed))
-                    .unwrap_or(false);
-                let supports_tab_share = conn
-                    .map(|c| c.supports_tab_share.load(Ordering::Relaxed))
-                    .unwrap_or(false);
                 let beta_updates = conn
                     .map(|c| c.beta_updates.load(Ordering::Relaxed))
-                    .unwrap_or(false);
-                let supports_agent_files = conn
-                    .map(|c| c.supports_agent_files.load(Ordering::Relaxed))
-                    .unwrap_or(false);
-                let supports_agent_exec = conn
-                    .map(|c| c.supports_agent_exec.load(Ordering::Relaxed))
                     .unwrap_or(false);
                 let agent_policy = conn
                     .map(|c| *c.agent_policy.lock().unwrap())
@@ -540,7 +513,7 @@ impl PeerClientHub {
                         .and_then(|c| c.last_host.lock().unwrap().clone())
                         .is_some_and(|h| crate::tailnet_dial::is_tailnet_host(&h));
                 let (updating, update_error) = crate::hostautoupdate::row_state(&p.slug);
-                json!({
+                let mut row = json!({
                     "slug": p.slug,
                     "alias": p.alias,
                     "hostId": p.host_id,
@@ -550,25 +523,8 @@ impl PeerClientHub {
                     "connected": connected,
                     "link": conn.filter(|_| connected).map(|c| c.health.json()),
                     "overTailscale": over_tailscale,
-                    "supportsSync": supports_sync,
-                    "supportsSync2": supports_sync2,
-                    "supportsGitBring": supports_git_bring,
-                    "supportsGitFollow": supports_git_follow,
-                    "supportsIgnoredSync": supports_ignored_sync,
-                    "supportsFileUpload": supports_file_upload,
-                    "supportsMediaRange": supports_media_range,
-                    "supportsMediaAudio": supports_media_audio,
-                    "supportsSelfUpdate": supports_self_update,
-                    "supportsHostSettings": supports_host_settings,
-                    "supportsHostFolders": supports_host_folders,
-                    "supportsHostFolderFolds": supports_host_folder_folds,
-                    "supportsHostJobs": supports_host_jobs,
-                    "supportsPortTunnel": supports_port_tunnel,
-                    "supportsTabShare": supports_tab_share,
-                    "supportsAgentFiles": supports_agent_files,
                     "agentFiles": agent_policy.access,
                     "agentScope": agent_policy.scope,
-                    "supportsAgentExec": supports_agent_exec,
                     "agentRun": agent_policy.run,
                     "updateChannel": if beta_updates { "beta" } else { "stable" },
                     // Whether the peer's identity is pinned (verified-encrypted). An
@@ -584,7 +540,11 @@ impl PeerClientHub {
                     "tunnel": tunnel,
                     "updating": updating,
                     "updateError": update_error,
-                })
+                });
+                for (key, flag) in PEER_FEATURES {
+                    row[key] = conn.is_some_and(|c| flag(c).load(Ordering::Relaxed)).into();
+                }
+                row
             })
             .collect();
         Value::Array(rows)
@@ -1198,6 +1158,15 @@ impl PeerClientHub {
             slug,
             |c| c.supports_git_bring.load(Ordering::Relaxed),
             &git_bring_unsupported(),
+        )
+    }
+
+    /// Guard: the peer must be connected and take a session handed to it.
+    pub(crate) fn require_handoff(&self, slug: &str) -> Result<(), String> {
+        self.require_feature(
+            slug,
+            |c| c.supports_handoff.load(Ordering::Relaxed),
+            &format!("the other {MACHINE} needs to update lpm to continue a session there"),
         )
     }
 
@@ -2503,6 +2472,10 @@ fn connect_session(
     );
     conn.supports_agent_files
         .store(has_feature(crate::agentfiles::FEATURE), Ordering::Relaxed);
+    conn.supports_handoff.store(
+        has_feature(crate::handoffhost::HANDOFF_FEATURE),
+        Ordering::Relaxed,
+    );
     conn.supports_agent_exec
         .store(has_feature(crate::agentexec::FEATURE), Ordering::Relaxed);
     *conn.agent_policy.lock().unwrap() = rv

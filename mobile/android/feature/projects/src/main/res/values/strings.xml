@@ -417,4 +417,27 @@
         <item quantity="other">%1$d computers</item>
     </plurals>
     <string name="machine_section_connecting">Connecting…</string>
+    <string name="ci_resolve">Resolve with %1$s</string>
+    <string name="ci_resolve_description">Opens a new tab to merge the base branch and resolve the conflicts</string>
+    <string name="ci_log_failed">%1$s · failed</string>
+    <string name="ci_log_label">Log of %1$s</string>
+    <string name="ci_log_reading">Reading the log…</string>
+    <string name="ci_log_try_again">Try Again</string>
+    <string name="ci_log_full">Show Full Log</string>
+    <string name="review_title">Review</string>
+    <string name="review_on">Review on #%1$d</string>
+    <plurals name="review_comments">
+        <item quantity="one">1 comment</item>
+        <item quantity="other">%1$d comments</item>
+    </plurals>
+    <string name="review_none_title">No pull request</string>
+    <string name="review_none_description">This branch has no pull request on GitHub.</string>
+    <string name="review_no_comments">No review comments yet.</string>
+    <string name="review_send">Send to %1$s</string>
+    <string name="review_send_description">Opens a new tab with the review</string>
+    <string name="review_open_github">Open on GitHub</string>
+    <string name="review_verdict_approved">approved</string>
+    <string name="review_verdict_changes">requested changes</string>
+    <string name="review_verdict_commented">commented</string>
+    <string name="review_verdict_dismissed">dismissed</string>
 </resources>

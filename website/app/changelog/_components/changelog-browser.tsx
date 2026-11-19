@@ -8,16 +8,21 @@ import {
   TOPICS,
   type ChangelogMonth as Month,
 } from "@/lib/changelog-days";
+import type { MonthHighlight } from "@/lib/changelog-highlights";
 import { ChangelogFilters } from "./changelog-filters";
 import { ChangelogMonth } from "./changelog-month";
 import { ChangelogRail } from "./changelog-rail";
 import { useChangelogData } from "./use-changelog-data";
 
-type Props = { months: Month[]; total: number };
+type Props = {
+  months: Month[];
+  total: number;
+  highlights: Record<string, MonthHighlight[]>;
+};
 
 const add = (set: ReadonlySet<string>, month: string) => new Set(set).add(month);
 
-export function ChangelogBrowser({ months, total }: Props) {
+export function ChangelogBrowser({ months, total, highlights }: Props) {
   const [query, setQuery] = useState("");
   const [topicId, setTopicId] = useState<string | null>(null);
   const [opened, setOpened] = useState<ReadonlySet<string>>(new Set());
@@ -154,6 +159,7 @@ export function ChangelogBrowser({ months, total }: Props) {
           <ChangelogMonth
             key={month.month}
             {...month}
+            highlights={filtering ? undefined : highlights[month.month]}
             loading={loading && opening === month.month}
             onOpen={(m) => void open(m)}
           />

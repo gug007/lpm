@@ -202,7 +202,7 @@ fn checkout(l: &Landing) -> Result<(), String> {
 /// changes already contain is not a loss, hence the ancestor test; neither is a
 /// tip this sync's own last run put there, which is what lets an amend or a
 /// rebase on the other Mac keep flowing.
-fn branch_would_lose_commits(l: &Landing) -> bool {
+pub(crate) fn branch_would_lose_commits(l: &Landing) -> bool {
     let git_ref = format!("refs/heads/{}", l.branch);
     if git_out(l.root, &["rev-parse", "--verify", "--quiet", &git_ref]).is_err() {
         return false;

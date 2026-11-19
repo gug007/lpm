@@ -12,9 +12,9 @@ interface UseNewTabRequestProps {
 }
 
 // ⌘T: a terminal, or with "Pick agent and model on +" on, the + popup of the
-// focused pane. With no pane to hang it on, the view's own empty state shows it
-// when that is on screen; otherwise openNewTab answers false and the caller's
-// empty state does.
+// focused pane; `asLauncher` asks for the popup either way. With no pane to
+// hang it on, the view's own empty state shows it when that is on screen;
+// otherwise openNewTab answers false and the caller's empty state does.
 export function useNewTabRequest({
   tree,
   focusedPaneId,
@@ -27,8 +27,8 @@ export function useNewTabRequest({
   const latest = useRef({ tree, focusedPaneId, visible, onScreen });
   latest.current = { tree, focusedPaneId, visible, onScreen };
 
-  const openNewTab = useCallback((): boolean => {
-    if (!useSettingsStore.getState().pickAgentOnNewTab) {
+  const openNewTab = useCallback((asLauncher = false): boolean => {
+    if (!asLauncher && !useSettingsStore.getState().pickAgentOnNewTab) {
       void createTerminal();
       return true;
     }

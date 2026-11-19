@@ -187,6 +187,7 @@ mod tests {
             state: "CLEAN".into(),
             review: "APPROVED".into(),
             head: "9e7d031".into(),
+            base: String::new(),
         };
         assert_eq!(
             offer_json(&readiness, &RepoSettings::default()),

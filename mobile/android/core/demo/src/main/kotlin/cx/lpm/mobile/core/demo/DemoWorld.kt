@@ -216,6 +216,10 @@ internal class DemoWorld(val clock: Clock) {
     var gitAutoNextId = 1
     val ciRerunAt = mutableMapOf<String, Long>() // project -> when its failed CI ran again, millis
     val ciMerged = mutableSetOf<String>() // projects whose pull request was merged from the phone
+    val fileEdits = mutableMapOf<String, String>() // "project\npath" -> what the editor saved
+
+    // The tab each resumed agent session runs in, by "provider:sessionId".
+    val sessionTabs = mutableMapOf("claude:7c1e4f2a-tax" to "demo-storefront-claude")
     var gitDiscardNextId = 1
 
     // Terminals whose sample question was answered: they wait on no dialog since.

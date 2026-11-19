@@ -24,12 +24,15 @@ struct GitCommitSheet: View {
     private var committing: Bool { model.git.committing.contains(project) }
     private var pushing: Bool { model.git.pushing.contains(project) }
     private var generating: Bool { model.git.generatingMessage.contains(project) }
+    private var scanning: Bool { model.gitExtras.scanning.contains(project) }
+    private var findings: [SecretFinding] { model.gitExtras.findings[project] ?? [] }
     private var trimmedMessage: String { message.trimmingCharacters(in: .whitespacesAndNewlines) }
     private var canCommit: Bool {
-        !selectedPaths.isEmpty && !trimmedMessage.isEmpty && !committing && !pushing
+        !selectedPaths.isEmpty && !trimmedMessage.isEmpty && !committing && !pushing && !scanning
     }
 
     private var busy: CommitButtons.Busy? {
+        if scanning { return model.gitExtras.pendingPushes(project) ? .checking : .checkingOnly }
         let pushes = model.git.commitPushing.contains(project)
         if committing { return pushes ? .committing : .committingOnly }
         return pushing && pushes ? .pushing : nil
@@ -43,6 +46,16 @@ struct GitCommitSheet: View {
     var body: some View {
         NavigationStack {
             Form {
+                if !findings.isEmpty {
+                    SecretFindingsSection(findings: findings) { path in
+                        deselected.insert(path)
+                        model.gitExtras.leaveOut(project, path: path)
+                    } onIgnore: { finding in
+                        model.gitExtras.ignore(project, finding)
+                    } onDismiss: {
+                        model.gitExtras.dismissFindings(project)
+                    }
+                }
                 if let notice = conflictNotice {
                     Section {
                         Label(notice, systemImage: "exclamationmark.triangle.fill")
@@ -80,13 +93,24 @@ struct GitCommitSheet: View {
                 }
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                CommitButtons(busy: busy, enabled: canCommit) {
-                    let (message, files) = (trimmedMessage, selectedPaths)
-                    AppLock.shared.confirm("Commit and push \(project)") {
-                        model.git.commitAndPush(project, message: message, files: files)
+                if findings.isEmpty {
+                    CommitButtons(busy: busy, enabled: canCommit) {
+                        let (message, files) = (trimmedMessage, selectedPaths)
+                        AppLock.shared.confirm("Commit and push \(project)") {
+                            model.gitExtras.commit(project, message: message, files: files, push: true)
+                        }
+                    } commitOnly: {
+                        model.gitExtras.commit(project, message: trimmedMessage, files: selectedPaths, push: false)
                     }
-                } commitOnly: {
-                    model.git.commit(project, message: trimmedMessage, files: selectedPaths)
+                } else {
+                    SecretFindingsButtons(flagged: model.gitExtras.flaggedFiles(project).count,
+                                          remaining: model.gitExtras.cleanFiles(project).count,
+                                          pushes: model.gitExtras.pendingPushes(project)) {
+                        for path in model.gitExtras.flaggedFiles(project) { deselected.insert(path) }
+                        model.gitExtras.leaveOutAndCommit(project)
+                    } commitAnyway: {
+                        model.gitExtras.commitAnyway(project)
+                    }
                 }
             }
             .onChange(of: model.git.commitTick[project]) { _, _ in
@@ -109,6 +133,7 @@ struct GitCommitSheet: View {
             }
         }
         .onAppear(perform: autoDraft)
+        .onDisappear { model.gitExtras.forgetSecrets(project) }
     }
 
     /// "4 of 4 · +52 −5": the files going in and the lines they change, once parsed.

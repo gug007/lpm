@@ -69,6 +69,7 @@ final class GitChecksStore {
         }
         let title = results[project]?.pr.flatMap { $0.number == number ? $0.title : nil } ?? ""
         merged[project] = MergedPullRequest(number: number, title: title, deletedBranch: deletedBranch)
+        model?.noteWin()
         load(project)
         model?.git.load(project)
     }

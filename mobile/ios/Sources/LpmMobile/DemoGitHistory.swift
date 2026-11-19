@@ -27,7 +27,7 @@ extension DemoServer {
     private static let claude = "Claude Opus 5.5 <noreply@anthropic.com>"
     private static let codex = "Codex <noreply@openai.com>"
 
-    private static let storefrontLog: [DemoCommit] = [
+    static let storefrontLog: [DemoCommit] = [
         DemoCommit(hash: "a1f3c9e5b2d84f6a9c0e1b7d3f5a8c2e4b6d9f01", subject: "Two-step checkout flow",
                    body: "Split the form into address and payment steps.\n\nCo-authored-by: \(claude)",
                    author: "Alex Kim", email: "alex@example.com", minutesAgo: 12, parents: 1,
@@ -71,7 +71,7 @@ extension DemoServer {
                            DemoCommitFile(path: "package.json", status: "added", added: 18, removed: 0)]),
     ]
 
-    private static let otherLog: [DemoCommit] = [
+    static let otherLog: [DemoCommit] = [
         DemoCommit(hash: "4f1c2ab9d3e5f7a0b2c4d6e8f1a3b5c7d9e0f289", subject: "Update dependencies",
                    body: "", author: "Alex Kim", email: "alex@example.com", minutesAgo: 1_440, parents: 1,
                    coAuthors: [],
@@ -159,7 +159,7 @@ extension DemoServer {
     }
 
     /// A patch with the file's line counts: its removed lines, then its added ones.
-    private static func demoPatch(_ f: DemoCommitFile) -> String {
+    static func demoPatch(_ f: DemoCommitFile) -> String {
         let from = f.status == "added" ? "/dev/null" : "a/\(f.oldPath ?? f.path)"
         let to = f.status == "deleted" ? "/dev/null" : "b/\(f.path)"
         let removed = f.removed ?? 0

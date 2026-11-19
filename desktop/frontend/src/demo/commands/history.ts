@@ -168,6 +168,39 @@ function patch(f: SampleFile): string {
   ].join("\n");
 }
 
+// The sample commits the checked-out branch made itself: every one ahead of
+// main on a branch of its own (at least two, so a review has something to
+// show), the unpushed ones on main.
+function branchSamples(p: Project): { samples: SampleCommit[]; onDefault: boolean } {
+  const onDefault = (p.git.branch || "main") === "main";
+  const ahead = Math.min(p.git.ahead, SAMPLES.length);
+  return { samples: SAMPLES.slice(0, onDefault ? ahead : Math.max(2, ahead)), onDefault };
+}
+
+// Each file the branch touched: as it was before the branch's first change to
+// it, and as its last change left it.
+function branchFiles(p: Project): Map<string, { status: SampleFile["status"]; before: string[]; after: string[] }> {
+  const files = new Map<string, { status: SampleFile["status"]; before: string[]; after: string[] }>();
+  for (const commit of [...branchSamples(p).samples].reverse()) {
+    for (const f of commit.files) {
+      const seen = files.get(f.path);
+      files.set(f.path, { status: seen?.status === "A" ? "A" : f.status, before: seen?.before ?? f.before, after: f.after });
+    }
+  }
+  return files;
+}
+
+export function branchFileDiffs(cwd: unknown, paths: string[]): Record<string, { original: string; modified: string; binary: boolean; tooLarge: boolean }> {
+  const p = projectAt(String(cwd));
+  const files = p ? branchFiles(p) : new Map();
+  return Object.fromEntries(
+    paths.map((path) => {
+      const f = files.get(path);
+      return [path, { original: (f?.before ?? []).join("\n"), modified: (f?.after ?? []).join("\n"), binary: false, tooLarge: false }];
+    }),
+  );
+}
+
 // What the sample's pushed commits did on CI, newest first.
 const SAMPLE_CI = ["pass", "pass", "fail", "pass", "pass"] as const;
 
@@ -202,6 +235,23 @@ export const historyCommands: CommandMap = {
     }
     return null;
   },
+  git_branch_base: ({ cwd }) => {
+    const p = projectAt(String(cwd));
+    if (!p) return null;
+    const { samples, onDefault } = branchSamples(p);
+    if (onDefault && samples.length === 0) return null;
+    return {
+      rev: hashOf(p.name, samples.length),
+      name: onDefault ? `origin/${p.git.branch || "main"}` : "main",
+      range: onDefault ? "unpushed" : "since",
+      commits: samples.length,
+    };
+  },
+  git_changed_files_ref: ({ cwd }) => {
+    const p = projectAt(String(cwd));
+    return p ? [...branchFiles(p)].map(([path, f]) => ({ path, status: STATUS_LABEL[f.status], staged: false })) : [];
+  },
+  git_file_diff_ref: ({ cwd, path }) => branchFileDiffs(cwd, [String(path)])[String(path)],
   git_commit_files: ({ cwd, hash }) =>
     (sampleFor(cwd, hash)?.files ?? []).map((f) => ({
       path: f.path,

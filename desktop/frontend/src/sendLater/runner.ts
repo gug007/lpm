@@ -7,7 +7,7 @@ import { projectStatusEntries } from "../projectStatusEntries";
 import { useAppStore } from "../store/app";
 import { useGlobalAgentStatus } from "../store/globalAgentStatus";
 import { recordMessage } from "../store/messageHistory";
-import { removePrompt, setHold, useSendLater, type ScheduledPrompt } from "../store/sendLater";
+import { markPromptSent, setHold, useSendLater, type ScheduledPrompt } from "../store/sendLater";
 import { sendToTerminal, useTerminalTargets, type TerminalTargetInfo } from "../store/terminalTargets";
 import { GLOBAL_TERMINALS_KEY } from "../terminals";
 import { announceMissed, announceSent } from "./announce";
@@ -84,7 +84,7 @@ export function startSendLaterRunner(): () => void {
   };
 
   const dropSent = (id: string) => {
-    removePrompt(id).catch(() => window.setTimeout(() => void removePrompt(id).catch(() => {}), 5_000));
+    markPromptSent(id).catch(() => window.setTimeout(() => void markPromptSent(id).catch(() => {}), 5_000));
   };
 
   const attempt = async (item: ScheduledPrompt, target: TerminalTargetInfo) => {

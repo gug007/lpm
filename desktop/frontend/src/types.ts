@@ -5,7 +5,13 @@ import type { ModelPick } from "./agentModelSwitch";
 
 export interface ServiceInfo {
   name: string;
+  // What runs on this computer: `cmd`, or this system's own command.
   cmd: string;
+  // `cmd` as written, when this computer runs its own command instead.
+  configCmd?: string;
+  cmdMacos?: string;
+  cmdLinux?: string;
+  cmdWindows?: string;
   cwd: string;
   port: number;
   portConflict?: ActionPortConflict;
@@ -128,6 +134,8 @@ export interface ActionInfo {
   // rendered, with the text as written in configLabel for edit forms.
   label: string;
   configLabel?: string;
+  // `cmd` as written, when this computer runs its own command instead.
+  configCmd?: string;
   // Hovering the button runs its label commands again.
   labelRefreshOnHover?: boolean;
   // The `<svg>` the button draws as an image in place of `label` (its
@@ -176,8 +184,10 @@ export type SpawnTask =
       fixedAccount?: boolean;
     }
   | { kind: "command"; command: string; prompt?: string | string[]; launchModel?: ModelPick }
-  // Continue a forked agent conversation in the copy: `command` launches the
-  // fork; startCmd/resumeCmd become the new tab's persisted restore identity.
+  // Continue an agent conversation in a new tab: a fork in a copy, an automation
+  // run taken over, or a session handed to the same project on another
+  // computer. `command` launches
+  // it; startCmd/resumeCmd become the new tab's persisted restore identity.
   // `claudeSession` asks the copy to pull the source transcript into its own
   // session directory first (Claude keys transcripts by cwd; Codex doesn't).
   | {

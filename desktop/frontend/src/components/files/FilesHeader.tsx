@@ -48,6 +48,8 @@ interface FilesHeaderProps {
   onTreeSide: (side: FilesTreeSide) => void;
   // Shown when the pane sits in a dialog rather than a tab.
   onClose?: () => void;
+  // What the stack of every change is called; "All changes" by default.
+  allChangesLabel?: string;
 }
 
 const CRUMB_CLASS =
@@ -64,6 +66,7 @@ export function FilesHeader({
   viewOptions,
   onView,
   allChanges,
+  allChangesLabel = "All changes",
   zoom,
   sideBySide,
   canSplit,
@@ -137,7 +140,7 @@ export function FilesHeader({
           <Separator />
           {allChanges ? (
             <span className="shrink-0 px-1 text-xs font-medium text-[var(--text-primary)]">
-              All changes
+              {allChangesLabel}
             </span>
           ) : path ? (
             <span className="flex shrink-0 items-center gap-1.5 px-1 text-xs font-medium">

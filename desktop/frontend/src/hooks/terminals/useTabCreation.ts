@@ -53,6 +53,7 @@ import { noteOpenedByOtherMac } from "../../peer/openedByOtherMac";
 import { nextId, appendTerminal, configLaunchCmds, foldAgentPrompt, reuseLaunch } from "./util";
 import { type TerminalStartOpts } from "./types";
 import { pinLaunchCommand } from "../../agentLaunchModel";
+import { agentFolderRoots, withAgentFolders } from "../../agentFolders";
 
 interface UseTabCreationProps {
   projectName: string;
@@ -156,7 +157,8 @@ export function useTabCreation({
       if (IS_MIRROR_WINDOW)
         return forward("createTerminalWithCmd", label, cmd, opts);
       await restoreSettled.current;
-      cmd = pinLaunchCommand(cmd, opts?.launchModel);
+      const folders = agentFolderRoots(projectName);
+      cmd = withAgentFolders(pinLaunchCommand(cmd, opts?.launchModel), folders);
       // When reuse is requested, find an existing live terminal tagged with
       // the same actionName. A dead session (process exited) falls through
       // so the user gets a fresh PTY instead of typing into a dead tab.
@@ -204,8 +206,8 @@ export function useTabCreation({
         const started = await StartTerminalForConfig(projectName, opts.configName, opts.fixedAccount, tab);
         const launch = {
           ...started,
-          startCmd: pinLaunchCommand(started.startCmd, opts.launchModel),
-          resumeCmd: pinLaunchCommand(started.resumeCmd, opts.launchModel),
+          startCmd: withAgentFolders(pinLaunchCommand(started.startCmd, opts.launchModel), folders),
+          resumeCmd: withAgentFolders(pinLaunchCommand(started.resumeCmd, opts.launchModel), folders),
         };
         const term = makeTerminal(launch.id, label, {
           ...configLaunchCmds(launch),

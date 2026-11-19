@@ -15,12 +15,28 @@ import { TerminalsSection } from "@/components/config/sections/terminals-section
 import { ValidationSection } from "@/components/config/sections/validation-section";
 import { ZonesSection } from "@/components/config/sections/zones-section";
 import type { DocsSlug } from "@/lib/docs-pages";
+import { ConceptsGuide } from "./concepts-guide";
+import { AccountsGuide } from "./guides/accounts-guide";
+import { AgentsGuide } from "./guides/agents-guide";
+import { AutomationsGuide } from "./guides/automations-guide";
+import { ComputersGuide } from "./guides/computers-guide";
+import { CopiesGuide } from "./guides/copies-guide";
+import { PhoneGuide } from "./guides/phone-guide";
+import { ReviewGuide } from "./guides/review-guide";
 import { InstallGuide } from "./install-guide";
 
 export const DOCS_CONTENT: Record<DocsSlug, ComponentType> = {
   install: InstallGuide,
+  concepts: ConceptsGuide,
   "ask-your-agent": AgentSection,
   editor: EditorSection,
+  agents: AgentsGuide,
+  "copies-and-worktrees": CopiesGuide,
+  "review-and-git": ReviewGuide,
+  automations: AutomationsGuide,
+  "accounts-and-usage": AccountsGuide,
+  "other-computers": ComputersGuide,
+  phone: PhoneGuide,
   project: ProjectSection,
   detection: DetectionSection,
   services: ServicesSection,

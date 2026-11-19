@@ -90,6 +90,27 @@ pub fn find_transcript(project_root: &str, session_id: &str) -> Option<(AccountD
     find_in(&account_dirs(), project_root, session_id)
 }
 
+/// The copy of `session_id` filed under `project_root` itself, which is the
+/// one `claude --resume` finds from that folder.
+pub fn find_filed(project_root: &str, session_id: &str) -> Option<(AccountDir, PathBuf)> {
+    filed_in(&account_dirs(), project_root, session_id)
+}
+
+fn filed_in(
+    dirs: &[AccountDir],
+    project_root: &str,
+    session_id: &str,
+) -> Option<(AccountDir, PathBuf)> {
+    if !crate::socketsrv::valid_session_id(session_id) {
+        return None;
+    }
+    let file = format!("{session_id}.jsonl");
+    latest(dirs.iter().filter_map(|a| {
+        let path = sessions_dir(&a.dir, project_root).join(&file);
+        path.is_file().then(|| (a.clone(), path))
+    }))
+}
+
 fn find_in(
     dirs: &[AccountDir],
     project_root: &str,
@@ -99,11 +120,7 @@ fn find_in(
         return None;
     }
     let file = format!("{session_id}.jsonl");
-    let direct = latest(dirs.iter().filter_map(|a| {
-        let path = sessions_dir(&a.dir, project_root).join(&file);
-        path.is_file().then(|| (a.clone(), path))
-    }));
-    direct.or_else(|| {
+    filed_in(dirs, project_root, session_id).or_else(|| {
         latest(dirs.iter().filter_map(|a| {
             std::fs::read_dir(a.dir.join("projects"))
                 .ok()?

@@ -1,7 +1,6 @@
-import Link from "next/link";
 import type { FaqItem } from "@/components/vs/faq";
 import { STATUS_AGENT_CHOICES } from "@/lib/app-facts";
-import { vsPath } from "@/lib/links";
+import { CMUX_FACTS } from "@/lib/rival-facts";
 
 const LINK =
   "underline underline-offset-2 hover:text-gray-900 dark:hover:text-white";
@@ -80,20 +79,8 @@ export const HUB_FAQ: FaqItem[] = [
   },
   {
     question: "Where do Foreman and Overmind fit next to the other five?",
-    answer: (
-      <>
-        Both are Procfile runners you drive from a terminal. Foreman prints
-        every process into one merged stream; Overmind gives each its own tmux
-        window, so tmux has to be installed first. The head-to-head, with the
-        Procfile conversion, is on the{" "}
-        <Link href={vsPath("foreman")} className={LINK}>
-          Foreman vs Overmind page
-        </Link>
-        .
-      </>
-    ),
-    answerText:
-      "Both are Procfile runners you drive from a terminal. Foreman prints every process into one merged stream; Overmind gives each its own tmux window, so tmux has to be installed first. The head-to-head, with the Procfile conversion, is on the Foreman vs Overmind page.",
+    answer:
+      "Both are Procfile runners you drive from a terminal. Foreman prints every process into one merged stream; Overmind gives each its own tmux window, so tmux has to be installed first.",
   },
   {
     question: "Which of these run on Linux or Windows?",
@@ -137,8 +124,9 @@ export const HUB_FAQ: FaqItem[] = [
         tmux, Foreman, Overmind, PM2 and Docker Compose are all open source and
         free; iTerm2 is free under GPLv2 and lpm is free under MIT. cmux ships
         under GPL-3.0-or-later; an organisation that cannot live with that can
-        ask for commercial terms, and new features reach paying Founder&apos;s
-        Edition users first. Docker Desktop — how most Mac developers get Compose — is
+        ask for commercial terms, and its terminal costs nothing while paid
+        plans, from {CMUX_FACTS.cheapestPlan}, rent {CMUX_FACTS.paidPlansAdd}.
+        Docker Desktop — how most Mac developers get Compose — is
         the one that can cost money: past{" "}
         <a
           href="https://docs.docker.com/subscription/desktop-license/"
@@ -151,7 +139,6 @@ export const HUB_FAQ: FaqItem[] = [
         a company needs a paid subscription.
       </>
     ),
-    answerText:
-      "tmux, Foreman, Overmind, PM2 and Docker Compose are all open source and free; iTerm2 is free under GPLv2 and lpm is free under MIT. cmux ships under GPL-3.0-or-later; an organisation that cannot live with that can ask for commercial terms, and new features reach paying Founder's Edition users first. Docker Desktop — how most Mac developers get Compose — is the one that can cost money: past Docker's size and revenue thresholds a company needs a paid subscription.",
+    answerText: `tmux, Foreman, Overmind, PM2 and Docker Compose are all open source and free; iTerm2 is free under GPLv2 and lpm is free under MIT. cmux ships under GPL-3.0-or-later; an organisation that cannot live with that can ask for commercial terms, and its terminal costs nothing while paid plans, from ${CMUX_FACTS.cheapestPlan}, rent ${CMUX_FACTS.paidPlansAdd}. Docker Desktop — how most Mac developers get Compose — is the one that can cost money: past Docker's size and revenue thresholds a company needs a paid subscription.`,
   },
 ];

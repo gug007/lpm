@@ -7,12 +7,14 @@ import {
   BEST_TERMINAL_MAC_PATH,
   DOCS_PATH,
   SSH_TERMINAL_MAC_PATH,
+  VS_SLUGS,
   vsPath,
+  type VsHubOnlySlug,
   type VsSlug,
 } from "@/lib/links";
 
 type Card = {
-  slug: VsSlug;
+  id: VsSlug | VsHubOnlySlug;
   name: string;
   what: ReactNode;
   switchIf: ReactNode;
@@ -27,12 +29,15 @@ type Group = {
 
 const LINK = "underline underline-offset-2 hover:text-gray-900 dark:hover:text-white";
 
+const hasPage = (id: Card["id"]): id is VsSlug =>
+  (VS_SLUGS as readonly string[]).includes(id);
+
 const GROUPS: Group[] = [
   {
     prompt: "You run each process in its own terminal tab",
     cards: [
       {
-        slug: "iterm2",
+        id: "iterm2",
         name: "iTerm2",
         what: "A Mac terminal emulator with a deep configuration surface: triggers, smart selection, a Python API, tmux control mode.",
         switchIf:
@@ -54,7 +59,7 @@ const GROUPS: Group[] = [
     prompt: "You have a .tmux.conf or a tmuxinator file",
     cards: [
       {
-        slug: "tmux",
+        id: "tmux",
         name: "tmux",
         what: "A multiplexer: panes and sessions that survive a disconnect.",
         switchIf: (
@@ -80,7 +85,7 @@ const GROUPS: Group[] = [
     prompt: "You have a Procfile",
     cards: [
       {
-        slug: "foreman",
+        id: "foreman",
         name: "Foreman",
         what: (
           <>
@@ -101,7 +106,7 @@ const GROUPS: Group[] = [
         ),
       },
       {
-        slug: "overmind",
+        id: "overmind",
         name: "Overmind",
         what: (
           <>
@@ -125,7 +130,7 @@ const GROUPS: Group[] = [
     prompt: "You have a compose file",
     cards: [
       {
-        slug: "docker-compose",
+        id: "docker-compose",
         name: "Docker Compose",
         what: "Containers that reproduce the stack on any machine, with pinned image versions and its own network namespace.",
         switchIf:
@@ -148,7 +153,7 @@ const GROUPS: Group[] = [
     prompt: "You use pm2 for local dev",
     cards: [
       {
-        slug: "pm2",
+        id: "pm2",
         name: "PM2",
         what: "A production process supervisor: keep-alive with backoff, cluster mode across cores, boot persistence, log rotation.",
         switchIf:
@@ -166,7 +171,7 @@ const GROUPS: Group[] = [
     prompt: "You are choosing a terminal for coding agents",
     cards: [
       {
-        slug: "cmux",
+        id: "cmux",
         name: "cmux",
         what: "A macOS terminal built around agent sessions: workspaces you switch between, plus a browser pane and a CLI you can automate.",
         switchIf:
@@ -217,20 +222,25 @@ export default function Router() {
               >
                 {group.cards.map((card) => (
                   <article
-                    key={card.slug}
-                    className="rounded-2xl border border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 transition-colors duration-200 p-6"
+                    key={card.id}
+                    id={card.id}
+                    className="scroll-mt-20 rounded-2xl border border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 transition-colors duration-200 p-6"
                   >
                     <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">
-                      <Link
-                        href={vsPath(card.slug)}
-                        className="group -my-2.5 inline-flex items-center gap-1.5 py-2.5"
-                      >
-                        lpm vs {card.name}
-                        <ArrowRight
-                          className="w-3.5 h-3.5 shrink-0 text-gray-300 dark:text-gray-600 group-hover:text-gray-900 dark:group-hover:text-white group-hover:translate-x-0.5 transition-all duration-200"
-                          aria-hidden
-                        />
-                      </Link>
+                      {hasPage(card.id) ? (
+                        <Link
+                          href={vsPath(card.id)}
+                          className="group -my-2.5 inline-flex items-center gap-1.5 py-2.5"
+                        >
+                          lpm vs {card.name}
+                          <ArrowRight
+                            className="w-3.5 h-3.5 shrink-0 text-gray-300 dark:text-gray-600 group-hover:text-gray-900 dark:group-hover:text-white group-hover:translate-x-0.5 transition-all duration-200"
+                            aria-hidden
+                          />
+                        </Link>
+                      ) : (
+                        <>lpm vs {card.name}</>
+                      )}
                     </h3>
                     <dl>
                       <Line label="What it is">{card.what}</Line>

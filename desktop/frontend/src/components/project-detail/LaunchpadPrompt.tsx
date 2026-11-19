@@ -2,6 +2,8 @@ import type { Launchpad, LaunchpadProject } from "../../hooks/useLaunchpad";
 import { InputComposer } from "../InputComposer";
 import { LaunchpadDestinationTabs } from "./LaunchpadDestinationTabs";
 import { LaunchpadModelMenu } from "./LaunchpadModelMenu";
+import { LaunchpadFoldersMenu } from "./LaunchpadFoldersMenu";
+import { takesFolders } from "../../agentFolders";
 
 // The launchpad's prompt: where it goes picked at the top of the box, then a
 // task for that agent or a command for a terminal, with the composer's tools
@@ -27,6 +29,8 @@ export function LaunchpadPrompt({
 
   return (
     <InputComposer
+      key={launchpad.seeded?.key}
+      defaultValue={launchpad.seeded?.value}
       tone="terminal"
       fontSize={fontSize}
       onChange={launchpad.setValue}
@@ -40,6 +44,7 @@ export function LaunchpadPrompt({
       footer={
         <>
           <span className="min-w-0 flex-1" />
+          {option && command === null && takesFolders(option.agent) && <LaunchpadFoldersMenu projectName={project.name} />}
           {pick && command === null && <LaunchpadModelMenu pick={pick} onChange={launchpad.changePick} />}
           <button
             type="button"

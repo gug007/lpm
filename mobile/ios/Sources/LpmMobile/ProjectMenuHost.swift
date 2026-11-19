@@ -67,6 +67,9 @@ struct ProjectMenuHost: ViewModifier {
             .sheet(isPresented: $showAutoSheet) {
                 GitAutoSheet(project: project).environment(model)
             }
+            .sheet(isPresented: $git.review) {
+                PrReviewSheet(project: project, onSpawnedTerminal: onSpawnedTerminal).environment(model)
+            }
             .sheet(isPresented: $git.checks) {
                 GitChecksSheet(project: project, onSpawnedTerminal: onSpawnedTerminal).environment(model)
             }
@@ -220,4 +223,5 @@ final class ProjectGitScreens {
     var changes = false
     var branch = false
     var checks = false
+    var review = false
 }

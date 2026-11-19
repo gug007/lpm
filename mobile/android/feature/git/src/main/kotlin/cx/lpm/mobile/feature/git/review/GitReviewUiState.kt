@@ -4,14 +4,34 @@ import androidx.compose.runtime.Immutable
 import cx.lpm.mobile.core.data.git.GitNotice
 import cx.lpm.mobile.core.data.git.GitOpError
 import cx.lpm.mobile.core.model.GitFile
+import cx.lpm.mobile.core.model.SecretFinding
 import cx.lpm.mobile.core.model.TerminalInfo
 import cx.lpm.mobile.feature.git.data.CommitDraft
 
 /** What the review screen shows instead of its list. */
-enum class ReviewOverlay { Skeleton, Unreachable, NotRepo, NoChanges }
+enum class ReviewOverlay {
+    Skeleton,
+    Unreachable,
+    NotRepo,
+    NoChanges,
+    BranchUnreachable,
+    BranchNothing,
+    BranchNoCommits,
+    BranchAllPushed
+}
 
-/** Which commit-sheet button is running: Commit and Push's commit or push, or Commit only. */
-enum class CommitBusy { Committing, Pushing, CommittingOnly }
+/** What Changes reviews: the uncommitted work, or what the branch's own commits changed. */
+enum class ReviewScope { Uncommitted, Branch }
+
+/**
+ * Which commit-sheet button is running: Commit and Push's look for secrets, commit or
+ * push, or Commit only's look or commit.
+ */
+enum class CommitBusy { Checking, Committing, Pushing, CheckingOnly, CommittingOnly }
+
+/** The branch's open pull request, which the Branch scope opens instead of creating one. */
+@Immutable
+data class OpenPullRequest(val number: Int, val url: String)
 
 /**
  * The review screen (iOS `GitReviewView`): its rows, the title's +A −D across every
@@ -53,7 +73,18 @@ data class GitReviewUiState(
     /** The commit being written, shown over Commit while it has a message or a file left out. */
     val draft: DraftChip? = null,
     /** The file the screen opened on, to scroll to once it's in the list; null once shown. */
-    val focus: String? = null
+    val focus: String? = null,
+    /** The Mac lists the branch's own changes: the scope switch shows. */
+    val scopeAvailable: Boolean = false,
+    val scope: ReviewScope = ReviewScope.Uncommitted,
+    val branchFiles: Int? = null,
+    val branchBase: String = "",
+    val openPr: OpenPullRequest? = null,
+    /** What the look for secrets found, holding the commit; empty while nothing is. */
+    val findings: List<SecretFinding> = emptyList(),
+    val flaggedFiles: Int = 0,
+    val cleanFiles: Int = 0,
+    val pendingPushes: Boolean = false
 ) {
     val committing: Boolean
         get() = busy == CommitBusy.Committing || busy == CommitBusy.CommittingOnly

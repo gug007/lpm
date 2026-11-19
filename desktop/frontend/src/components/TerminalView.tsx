@@ -123,7 +123,7 @@ export interface TerminalViewHandle {
   createTerminal(background?: boolean): void;
   // ⌘T. False when the "Pick agent and model on +" popup has no pane to open on
   // and the caller's own empty state should show it.
-  openNewTab(): boolean;
+  openNewTab(asLauncher?: boolean): boolean;
   // An agent picked from an empty state's popup, in the focused pane.
   openAgent(launch: RemoteAgentLaunch): void;
   // A saved layout picked from an empty state.
@@ -261,6 +261,7 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
     closeOtherTerminals,
     restartTerminal,
     switchClaudeAccount,
+    continueSessionOn,
     focusTerminal,
     focusAdjacentPaneItem,
     focusService,
@@ -380,6 +381,8 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
     }
   }, [tree, searchPaneId, getPane]);
 
+  // The imported theme keeps its name when its colors change.
+  const importedTheme = useSettingsStore((s) => s.terminalImportedTheme);
   const { containerStyle, xtermTheme } = useMemo(() => {
     const colors = getTerminalThemeColors(terminalTheme);
     if (!colors) return { containerStyle: undefined, xtermTheme: null };
@@ -387,7 +390,8 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
       containerStyle: terminalThemeCssVars(colors) as React.CSSProperties,
       xtermTheme: terminalXtermTheme(colors),
     };
-  }, [terminalTheme]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [terminalTheme, importedTheme]);
 
   const serviceTabInfos: ServiceTabInfo[] = useMemo(
     () =>
@@ -1339,6 +1343,7 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
             canForkIntoCopy={canForkIntoCopy}
             onForkTerminalIntoCopy={requestForkIntoCopy}
             onSwitchClaudeAccount={sessionsReachable ? switchClaudeAccount : undefined}
+            onContinueSessionOn={sessionsReachable ? continueSessionOn : undefined}
             onRenameTerminal={renameTerminal}
             onRestoreSessionTitle={restoreSessionTitle}
             onTogglePinTab={toggleTabPinned}

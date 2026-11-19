@@ -1,7 +1,7 @@
 import { ClipboardIcon, CopyIcon, DetachIcon, DownloadIcon, HardDriveIcon, PencilIcon, TrashIcon, WorktreeIcon } from "./icons";
 import type { SidebarAgentRow } from "../sidebarAgents";
 import { ProjectArchiveMenuItems } from "./ProjectArchiveMenuItems";
-import { Archive, Pin, PinOff } from "lucide-react";
+import { Archive, Link2, Pin, PinOff } from "lucide-react";
 import { ContextMenuItem } from "./ui/ContextMenuItem";
 import { ContextMenuSeparator } from "./ui/ContextMenuSeparator";
 import { ContextMenuShell } from "./ui/ContextMenuShell";
@@ -20,6 +20,7 @@ import type { CustomWorkStatus, ProjectGroup, WorkStatus } from "../types";
 import type { WorkStatusChoice } from "../workStatus";
 import { WorkStatusSubmenu } from "./WorkStatusSubmenu";
 import { MACHINE } from "../machineWords";
+import { copyLink, projectLink } from "../openLinks";
 
 // The sync controls a row only has while a copy of it is synced here. The remote
 // project's row and the copy's own row both get them, since either is a way to
@@ -182,6 +183,7 @@ export function ProjectContextMenu(props: ProjectContextMenuProps) {
         onClose={onClose}
       />
       <ContextMenuItem label="Copy path" icon={<ClipboardIcon />} onClick={close(onCopyPath)} />
+      <ContextMenuItem label="Copy link" icon={<Link2 size={12} />} onClick={close(() => void copyLink(projectLink(projectName)))} />
       <ContextMenuSeparator />
       <ProjectGitSubmenu
         projectPath={projectPath}

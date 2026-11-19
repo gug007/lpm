@@ -29,6 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import cx.lpm.mobile.core.designsystem.R as DesignR
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
+import cx.lpm.mobile.core.designsystem.theme.isLargeText
 import cx.lpm.mobile.feature.git.R
 
 /**
@@ -50,17 +51,19 @@ internal fun ReviewSummary(row: ReviewRow.Summary, modifier: Modifier = Modifier
             .semantics(mergeDescendants = true) {}
             .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 14.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        val title: @Composable (Modifier) -> Unit = {
             Text(
-                text = pluralStringResource(
+                text = row.title ?: pluralStringResource(
                     R.plurals.git_review_files_changed,
                     row.total,
                     row.total
                 ),
                 style = LpmTheme.typography.subheadline.copy(fontWeight = FontWeight.SemiBold),
                 color = colors.label,
-                modifier = Modifier.weight(1f)
+                modifier = it
             )
+        }
+        val viewedCount: @Composable () -> Unit = {
             Row(
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -82,6 +85,17 @@ internal fun ReviewSummary(row: ReviewRow.Summary, modifier: Modifier = Modifier
                     ),
                     color = tint
                 )
+            }
+        }
+        if (isLargeText()) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                title(Modifier)
+                viewedCount()
+            }
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                title(Modifier.weight(1f))
+                viewedCount()
             }
         }
         Spacer(Modifier.height(10.dp))

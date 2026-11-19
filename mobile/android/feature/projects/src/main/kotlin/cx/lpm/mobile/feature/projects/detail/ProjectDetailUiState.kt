@@ -8,6 +8,7 @@ import cx.lpm.mobile.core.data.tips.firstOpen
 import cx.lpm.mobile.core.model.AppTip
 import cx.lpm.mobile.core.model.GitChecks
 import cx.lpm.mobile.core.model.GitSnapshot
+import cx.lpm.mobile.core.model.PrDiscussion
 import cx.lpm.mobile.core.model.Project
 import cx.lpm.mobile.core.model.ProjectAgentRow
 import cx.lpm.mobile.core.model.Service
@@ -58,6 +59,8 @@ data class ProjectDetailUiState(
     val gitLoading: Boolean = false,
     /** How the branch stands on CI, from a Mac that answers `gitChecks`. */
     val checks: GitChecks? = null,
+    /** What reviewers wrote on the branch's pull request, once there's something. */
+    val review: PrDiscussion? = null,
     /** The Mac answers (or it's the demo). */
     val live: Boolean = true,
     /** Starts, stops and runs tapped while the Mac was away, waiting for it. */
@@ -114,6 +117,7 @@ data class DetailInputs(
     val git: GitSnapshot? = null,
     val gitLoading: Boolean = false,
     val checks: GitChecks? = null,
+    val discussion: PrDiscussion? = null,
     val queued: List<QueuedAction> = emptyList(),
     val canStopServices: Boolean = false,
     val canLaunchAgents: Boolean = false,
@@ -160,6 +164,9 @@ fun ProjectsState.detail(
         git = inputs.git,
         gitLoading = inputs.gitLoading,
         checks = inputs.checks,
+        review = inputs.discussion?.takeIf { d ->
+            d.number == inputs.checks?.pr?.number && d.comments.isNotEmpty()
+        },
         subtitle = when {
             !inputs.live && inputs.statusLine != null -> DetailSubtitle.Link(inputs.statusLine)
             project.configError != null -> DetailSubtitle.InvalidConfiguration

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { FeatureMatrix, type MatrixRow } from "@/components/vs/feature-matrix";
 import { STATUS_AGENT_NAMES } from "@/lib/app-facts";
 import { CONNECT_AGENTS_PATH, REVIEW_CHANGES_PATH } from "@/lib/links";
+import { CMUX_FACTS } from "@/lib/rival-facts";
 
 const LINK =
   "font-medium underline underline-offset-2 hover:text-gray-900 dark:hover:text-white";
@@ -89,10 +90,14 @@ const ROWS: MatrixRow[] = [
     competitor: "cmux ssh user@remote",
   },
   {
+    label: "An app for your phone",
+    lpm: "lpm Link for iPhone, iPad and Android, free on both stores",
+    competitor: CMUX_FACTS.phoneApp,
+  },
+  {
     label: "License, and what a paid tier buys",
     lpm: "MIT, nothing to buy",
-    competitor:
-      "GPL-3.0-or-later, commercial terms on request, a paid Founder's Edition for early access",
+    competitor: `${CMUX_FACTS.license}; the terminal is free, and paid plans from ${CMUX_FACTS.cheapestPlan} add ${CMUX_FACTS.paidPlansAdd}`,
   },
 ];
 
@@ -101,7 +106,7 @@ export default function Matrix() {
     <FeatureMatrix
       id="matrix"
       title="cmux and lpm, row by row"
-      description="Seventeen rows. Two go to cmux — the browser it can script and the emulator underneath it."
+      description="Eighteen rows. Two go to cmux — the browser it can script and the emulator underneath it."
       competitorName="cmux"
       rows={ROWS}
       footnote={

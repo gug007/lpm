@@ -1,0 +1,28 @@
+# What reviewers wrote on storefront's pull request: a row in the project's Git
+# section, and a sheet with each verdict and line comment that can be sent to an agent.
+appId: cx.lpm.mobile
+name: 184-pr-review
+tags: [demo, projects, git]
+---
+- runFlow: subflows/enter-demo.yaml
+- tapOn: "storefront"
+- extendedWaitUntil:
+    visible: "Review on #42.*"
+    timeout: 10000
+- assertVisible: ".*4 comments.*"
+- takeScreenshot: 1-git-section
+- tapOn: "Review on #42.*"
+- extendedWaitUntil:
+    visible: "Two-step checkout flow"
+    timeout: 5000
+- assertVisible: "components/CheckoutForm.tsx:42"
+- extendedWaitUntil:
+    visible: "Send to Claude Code"
+    timeout: 5000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 2-review
+- scrollUntilVisible:
+    element: "Open on GitHub"
+    direction: DOWN
+    timeout: 10000

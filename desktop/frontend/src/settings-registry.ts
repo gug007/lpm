@@ -311,6 +311,15 @@ export const ROWS = {
     description: "Drops a terminal over whatever app is in front, in the project last open in lpm",
     keywords: ["keyboard", "hotkey", "shortcut", "global", "quake", "dropdown", "terminal", "any app"],
   },
+  "terminal.importLook": {
+    kind: "row",
+    tab: "terminal",
+    id: "terminal.importLook",
+    reach: "attended",
+    label: "Use another terminal's look",
+    description: "Font, size and colors from Ghostty, iTerm2, Kitty, Alacritty or Windows Terminal",
+    keywords: ["import", "ghostty", "iterm", "iterm2", "kitty", "alacritty", "windows terminal", "migrate", "copy", "theme", "colors"],
+  },
   "terminal.fontFamily": {
     kind: "row",
     tab: "terminal",

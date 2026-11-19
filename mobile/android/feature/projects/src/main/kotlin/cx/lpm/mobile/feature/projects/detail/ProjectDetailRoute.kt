@@ -36,6 +36,7 @@ import cx.lpm.mobile.feature.projects.R
 import cx.lpm.mobile.feature.projects.ci.GitChecksSheetHost
 import cx.lpm.mobile.feature.projects.menu.ProjectMenuToolbar
 import cx.lpm.mobile.feature.projects.newtab.NewTabSheet
+import cx.lpm.mobile.feature.projects.review.PrReviewSheet
 import cx.lpm.mobile.feature.projects.services.ServiceLogsSheet
 import cx.lpm.mobile.feature.projects.ui.SessionAlertsHost
 import kotlinx.coroutines.delay
@@ -62,6 +63,7 @@ fun ProjectDetailRoute(
     var logsFor by remember { mutableStateOf<Service?>(null) }
     var newTabOpen by remember { mutableStateOf(false) }
     var checksOpen by remember { mutableStateOf(false) }
+    var reviewOpen by remember { mutableStateOf(false) }
     var refreshing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val confirmRisky = LocalConfirmRisky.current
@@ -145,7 +147,9 @@ fun ProjectDetailRoute(
             closeTip = viewModel::closeTip,
             openBranch = { onNavigate(GitBranchKey(key.project, key.session)) },
             openChanges = { onNavigate(GitReviewKey(key.project, key.session)) },
-            openChecks = { checksOpen = true }
+            openChecks = { checksOpen = true },
+            openReview = { reviewOpen = true },
+            loadReview = viewModel::loadReview
         ),
         menu = {
             ProjectMenuToolbar(
@@ -195,6 +199,15 @@ fun ProjectDetailRoute(
             onOpen = openSpawned,
             onDismiss = { newTabOpen = false },
             actionInputs = slots.actionInputs
+        )
+    }
+    if (reviewOpen) {
+        PrReviewSheet(
+            project = key.project,
+            session = key.session,
+            onSpawnedTerminal = openSpawned,
+            actionInputs = slots.actionInputs,
+            onDismiss = { reviewOpen = false }
         )
     }
     if (checksOpen) {

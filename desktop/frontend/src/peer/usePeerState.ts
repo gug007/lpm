@@ -97,6 +97,8 @@ export interface PeerClient {
   supportsHostFolderFolds?: boolean;
   // ...and takes its shared automations (several projects, all, or none) from here.
   supportsHostJobs?: boolean;
+  // ...and take a Claude session handed to it, and give one back.
+  supportsHandoff?: boolean;
   // ...and opens its web servers on this Mac's localhost (porttunnel.rs).
   supportsPortTunnel?: boolean;
   // ...and lets this Mac share its tabs and let their guests in (tabshare/machines.rs).

@@ -503,6 +503,12 @@ export function GitShowCommit(cwd, hash) {
 export function GitHistory(cwd, skip, limit) {
   return invoke("git_history", { cwd, skip, limit });
 }
+export function ListTerminalLooks() {
+  return invoke("list_terminal_looks");
+}
+export function GitBranchBase(cwd) {
+  return invoke("git_branch_base", { cwd });
+}
 export function GitCommitFiles(cwd, hash) {
   return invoke("git_commit_files", { cwd, hash });
 }
@@ -765,14 +771,17 @@ export function SendLaterList() {
 export function SendLaterAdd(prompt) {
   return invoke("send_later_add", { prompt });
 }
-export function SendLaterReschedule(id, dueAt, kind) {
-  return invoke("send_later_reschedule", { id, dueAt, kind });
+export function SendLaterReschedule(id, dueAt, kind, repeatMs) {
+  return invoke("send_later_reschedule", { id, dueAt, kind, repeatMs });
 }
 export function SendLaterSendNow(id) {
   return invoke("send_later_send_now", { id });
 }
 export function SendLaterRemove(id) {
   return invoke("send_later_remove", { id });
+}
+export function SendLaterSent(id) {
+  return invoke("send_later_sent", { id });
 }
 export function TerminalForegroundCommand(id) {
   return invoke("terminal_foreground_command", { id });
@@ -1367,6 +1376,12 @@ export function BrowserForward(id) {
 export function BrowserReload(id) {
   return invoke("browser_reload", { id });
 }
+export function InspectBrowser(id) {
+  return invoke("inspect_browser", { id });
+}
+export function TakeOpenLink() {
+  return invoke("take_open_link");
+}
 export function HideBrowser(id) {
   return invoke("hide_browser", { id });
 }
@@ -1565,6 +1580,12 @@ export function SyncProjectStart(slug, sourceRoot, remoteName) {
 }
 export function SyncProjectCancel(id) {
   return invoke("sync_project_cancel", { id });
+}
+export function HandoffSend(projectName, terminalId, sessionId, slug, targetRoot) {
+  return invoke("handoff_send", { projectName, terminalId, sessionId, slug, targetRoot });
+}
+export function HandoffTake(projectName, terminalId, sessionId, slug, sourceRoot) {
+  return invoke("handoff_take", { projectName, terminalId, sessionId, slug, sourceRoot });
 }
 export function IgnoredSyncList(project, targets, dir) {
   return invoke("ignored_sync_list", { project, targets, dir });

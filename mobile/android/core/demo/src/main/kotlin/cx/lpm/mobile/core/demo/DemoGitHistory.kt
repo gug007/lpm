@@ -6,7 +6,7 @@ package cx.lpm.mobile.core.demo
  * the line counts.
  */
 
-private class DemoCommitFile(
+internal class DemoCommitFile(
     val path: String,
     val status: String,
     val added: Int?,
@@ -14,7 +14,7 @@ private class DemoCommitFile(
     val oldPath: String? = null
 )
 
-private class DemoCommit(
+internal class DemoCommit(
     val hash: String,
     val subject: String,
     val body: String,
@@ -29,7 +29,7 @@ private class DemoCommit(
 private const val CLAUDE = "Claude Opus 5.5 <noreply@anthropic.com>"
 private const val CODEX = "Codex <noreply@openai.com>"
 
-private val storefrontLog = listOf(
+internal val storefrontLog = listOf(
     DemoCommit(
         "a1f3c9e5b2d84f6a9c0e1b7d3f5a8c2e4b6d9f01", "Two-step checkout flow",
         "Split the form into address and payment steps.\n\nCo-authored-by: $CLAUDE",
@@ -90,7 +90,7 @@ private val storefrontLog = listOf(
     )
 )
 
-private val otherLog = listOf(
+internal val otherLog = listOf(
     DemoCommit(
         "4f1c2ab9d3e5f7a0b2c4d6e8f1a3b5c7d9e0f289", "Update dependencies",
         "", "Alex Kim", "alex@example.com", 1_440, 1, emptyList(),
@@ -229,7 +229,7 @@ private fun DemoServer.demoCommit(project: String, hash: String): DemoCommit? =
     demoLog(project)?.firstOrNull { it.hash == hash }
 
 /** A patch with the file's line counts: its removed lines, then its added ones. */
-private fun demoPatch(f: DemoCommitFile): String {
+internal fun demoPatch(f: DemoCommitFile): String {
     val from = if (f.status == "added") "/dev/null" else "a/${f.oldPath ?: f.path}"
     val to = if (f.status == "deleted") "/dev/null" else "b/${f.path}"
     val removed = f.removed ?: 0

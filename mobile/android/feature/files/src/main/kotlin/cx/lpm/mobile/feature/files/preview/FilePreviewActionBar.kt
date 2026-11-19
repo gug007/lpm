@@ -35,15 +35,16 @@ private const val COPIED_MS = 1_500L
 
 /**
  * The steps after reading a file: mention it in the prompt of the tab it was opened
- * from, see its diff when it has changes, copy its path. Each is left out where it
- * can't apply (null).
+ * from, see its diff when it has changes, edit it, copy its path. Each is left out
+ * where it can't apply (null).
  */
 @Composable
 internal fun FilePreviewActionBar(
     onMention: (() -> Unit)?,
     onDiff: (() -> Unit)?,
     onCopyPath: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onEdit: (() -> Unit)? = null
 ) {
     val haptics = LocalHapticFeedback.current
     var copied by remember { mutableStateOf(false) }
@@ -68,6 +69,9 @@ internal fun FilePreviewActionBar(
         }
         if (onDiff != null) {
             Item(stringResource(R.string.files_diff), DesignR.drawable.ic_exposure, onDiff)
+        }
+        if (onEdit != null) {
+            Item(stringResource(R.string.files_edit), DesignR.drawable.ic_edit, onEdit)
         }
         Item(
             title = stringResource(if (copied) R.string.files_copied else R.string.files_copy_path),

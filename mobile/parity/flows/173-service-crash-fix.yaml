@@ -42,17 +42,11 @@ tags: [demo, projects, services]
     timeout: 3000
 - takeScreenshot: 3-crash-sheet
 - tapOn: "Copy log"
-# Android's Demo Mode doesn't start agents yet (no agentLaunch, as 140-new-tab-agent
-# shows), so there its sheet has no Fix with … rows.
-- runFlow:
-    when:
-      platform: iOS
-    commands:
-      - assertVisible: "Fix with Claude Code"
-      - tapOn: "Fix with Claude Code"
-      - extendedWaitUntil:
-          notVisible: "Copy log"
-          timeout: 8000
-      - waitForAnimationToEnd:
-          timeout: 3000
-      - takeScreenshot: 4-fix-tab
+- assertVisible: "Fix with Claude Code"
+- tapOn: "Fix with Claude Code"
+- extendedWaitUntil:
+    notVisible: "Copy log"
+    timeout: 8000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 4-fix-tab

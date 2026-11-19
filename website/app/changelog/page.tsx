@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { DownloadFooter } from "@/components/download-footer";
 import { LatestRelease } from "@/components/latest-release";
 import { getChangelogReleases } from "@/lib/changelog";
-import { changelogDays, changelogMonths } from "@/lib/changelog-days";
+import { changelogDays, changelogMonths, daysByMonth } from "@/lib/changelog-days";
+import { monthHighlights } from "@/lib/changelog-highlights";
 import { CHANGELOG_PATH, REPO_URL } from "@/lib/links";
 import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
 import { ChangelogBrowser } from "./_components/changelog-browser";
@@ -44,6 +45,12 @@ export default async function ChangelogPage() {
   const releases = await getChangelogReleases();
   const days = changelogDays(releases);
   const months = changelogMonths(days);
+  const highlights = Object.fromEntries(
+    [...daysByMonth(days)].map(([month, monthDays]) => [
+      month,
+      monthHighlights(month, monthDays),
+    ]),
+  );
   const firstDate = days[days.length - 1].date;
   const structuredData = [
     webPageJsonLd({
@@ -79,7 +86,11 @@ export default async function ChangelogPage() {
         <LatestRelease source="changelog-latest" className="mt-6" />
       </header>
 
-      <ChangelogBrowser months={months} total={releases.length} />
+      <ChangelogBrowser
+        months={months}
+        total={releases.length}
+        highlights={highlights}
+      />
 
       <DownloadFooter
         href={`${REPO_URL}/releases`}

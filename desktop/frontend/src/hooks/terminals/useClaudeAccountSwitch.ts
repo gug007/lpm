@@ -24,7 +24,7 @@ import { foldAgentPrompt } from "./util";
 
 // Sent to a conversation whose turn was cut short, by the move or by its
 // account's limit, so the work goes on.
-const CONTINUE_PROMPT = "Continue where you left off.";
+export const CONTINUE_PROMPT = "Continue where you left off.";
 
 interface UseClaudeAccountSwitchProps {
   projectName: string;

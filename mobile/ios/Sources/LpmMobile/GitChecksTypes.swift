@@ -40,6 +40,9 @@ struct CiCheck: Equatable, Identifiable {
         [workflow, commit.map { "on \($0)" } ?? ""].filter { !$0.isEmpty }.joined(separator: " · ")
     }
 
+    /// A failed GitHub Actions job, whose log the Mac can read.
+    var hasLog: Bool { state == .fail && runId != nil }
+
     var runId: String? {
         guard let range = url.range(of: "/actions/runs/") else { return nil }
         let id = url[range.upperBound...].prefix { $0.isNumber }
@@ -88,10 +91,13 @@ struct GitChecks: Equatable {
     let commit: Commit?
     var checks: [CiCheck]
     let fixPrompt: String?
+    /// What an agent is told to resolve the pull request's conflicts.
+    var resolvePrompt: String?
 
     init?(_ o: [String: Any]) {
         branch = o["branch"] as? String ?? ""
         fixPrompt = (o["fixPrompt"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        resolvePrompt = (o["resolvePrompt"] as? String).flatMap { $0.isEmpty ? nil : $0 }
         if let p = o["pr"] as? [String: Any], let number = p["number"] as? Int {
             pr = PullRequest(number: number, url: p["url"] as? String ?? "", title: p["title"] as? String ?? "",
                              isDraft: p["isDraft"] as? Bool ?? false,

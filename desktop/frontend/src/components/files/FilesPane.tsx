@@ -13,6 +13,7 @@ import type { RailView } from "../../store/filesView";
 import { useAppStore } from "../../store/app";
 import { useSettingsStore } from "../../store/settings";
 import { DiffConflictBanner } from "../review/DiffConflictBanner";
+import type { MonacoDiffPoolHandle } from "../review/MonacoDiffPoolImpl";
 import { canDownload, downloadFile } from "./downloadFile";
 import { copyAbsolutePath, copyText, revealInFinder } from "./fileActions";
 import { FilesAllChanges } from "./FilesAllChanges";
@@ -27,6 +28,9 @@ import { rankFiles, type IndexEntry } from "./filesFilter";
 import { FilesContentSearch } from "./FilesContentSearch";
 import { FilesSearch } from "./FilesSearch";
 import { FilesViewSwitch } from "./FilesViewSwitch";
+import { ReviewScopeSwitch } from "./ReviewScopeSwitch";
+import { branchStackLabel } from "./useBranchChanges";
+import { FilesBranchEmpty } from "./FilesBranchEmpty";
 import { selectedText } from "./editorSelection";
 import { matchKey, type LineMatch } from "./fileSearch";
 import {
@@ -57,6 +61,8 @@ const CHANGES_ZOOM_KEY = "lpm:filesChangesZoom";
 const NO_ITEMS: IndexEntry[] = [];
 const NO_CHANGES: ChangedFile[] = [];
 const NO_SELECTION: ReadonlySet<string> = new Set();
+// The Branch scope always shows its stack.
+const KEEP_STACK = () => {};
 const TREE_WIDTH_MIN = 180;
 const TREE_WIDTH_MAX = 480;
 const TREE_WIDTH_DEFAULT = 260;
@@ -127,7 +133,12 @@ export function FilesPane({
   const { setWanted: setDiffWanted } = git.diff;
   // The stack of diffs zooms on its own; the shortcuts are taken only while it
   // is the focused pane's view, so ⌘+ elsewhere still sizes the terminal.
-  const zoom = useContentZoom(active && focused && git.allChanges, CHANGES_ZOOM_KEY);
+  const stackShown = git.allChanges || git.onBranch;
+  const zoom = useContentZoom(active && focused && stackShown, CHANGES_ZOOM_KEY);
+  // A file picked in the Branch scope scrolls its read-only stack there.
+  const branchStackRef = useRef<MonacoDiffPoolHandle>(null);
+  const [branchStackPath, setBranchStackPath] = useState<string | null>(null);
+  const branchBase = git.branch.status === "ready" ? git.branch.base : null;
   const index = useFileIndex(projectRoot, filtering && !changesOnly, active);
   const ranked = useMemo(() => {
     if (!filtering) return null;
@@ -248,6 +259,10 @@ export function FilesPane({
   // while filtering and toggled otherwise.
   const activate = useCallback(
     (item: Item, opts?: ActivateOptions) => {
+      if (git.onBranch && !item.isDir) {
+        branchStackRef.current?.scrollToFile(item.path);
+        return;
+      }
       if (item.isDir) {
         if (filtering) revealDir(item.path);
         else toggleDir(item.path);
@@ -259,7 +274,7 @@ export function FilesPane({
       if (shown?.path === item.path && !shown.loading) focusEditor();
       else editorFocusPending.current = true;
     },
-    [filtering, openFile, revealDir, toggleDir, focusEditor],
+    [git.onBranch, filtering, openFile, revealDir, toggleDir, focusEditor],
   );
 
   const absPath = selectedPath ? joinAbs(projectRoot, selectedPath) : null;
@@ -321,6 +336,14 @@ export function FilesPane({
           onChange={showRailView}
         />
       )}
+      {!review && railView === "changes" && (
+        <ReviewScopeSwitch
+          scope={git.scope}
+          uncommitted={git.changes.status === "ready" ? git.changes.files.length : null}
+          branch={git.branch}
+          onChange={git.showScope}
+        />
+      )}
       {searching ? (
         <FilesSearch
           search={search}
@@ -332,13 +355,13 @@ export function FilesPane({
         <FilesTree
           rows={rows}
           rootListing={listings.get("")}
-          changes={git.changes}
+          changes={git.railChanges}
           decorations={decorations}
           ignoredPaths={ignoredPaths}
           changesOnly={changesOnly}
-          allChanges={git.allChanges}
-          onAllChangesChange={showAllChanges}
-          selectedPath={git.allChanges ? stackPath : selectedPath}
+          allChanges={stackShown}
+          onAllChangesChange={git.onBranch ? KEEP_STACK : showAllChanges}
+          selectedPath={git.onBranch ? branchStackPath : git.allChanges ? stackPath : selectedPath}
           dirtyPaths={commit.dirtyPaths}
           query={query}
           onQueryChange={setQuery}
@@ -350,7 +373,7 @@ export function FilesPane({
           onActivate={activate}
           onToggleDir={toggleDir}
           onRowMenu={setMenu}
-          onDiscard={git.discard.request}
+          onDiscard={git.onBranch ? undefined : git.discard.request}
           checks={commit.checks}
           onCheck={commit.onCheck}
           onCursorChange={onCursorChange}
@@ -381,8 +404,9 @@ export function FilesPane({
         view={fileView.view}
         viewOptions={fileView.options}
         onView={fileView.select}
-        allChanges={git.allChanges}
-        zoom={git.allChanges ? zoom : fileView.previewing ? fileView.zoom : null}
+        allChanges={stackShown}
+        allChangesLabel={git.onBranch && branchBase ? branchStackLabel(branchBase) : undefined}
+        zoom={stackShown ? zoom : fileView.previewing ? fileView.zoom : null}
         sideBySide={git.sideBySide}
         canSplit={splitFits}
         onSideBySide={git.showSideBySide}
@@ -411,7 +435,7 @@ export function FilesPane({
         {treeSide === "left" && rail}
         <div ref={zoom.surfaceRef} className="relative min-w-0 flex-1">
           {git.stackMounted && (
-            <div className={git.allChanges ? "h-full" : "hidden"}>
+            <div className={git.allChanges && !git.onBranch ? "h-full" : "hidden"}>
               <FilesAllChanges
                 projectRoot={projectRoot}
                 files={git.files}
@@ -426,7 +450,28 @@ export function FilesPane({
               />
             </div>
           )}
-          {startShown && (
+          {git.onBranch &&
+            (git.branchFiles.length > 0 && branchBase ? (
+              <div className="h-full">
+                <FilesAllChanges
+                  key={`branch:${branchBase.rev}:${branchBase.commits}`}
+                  projectRoot={projectRoot}
+                  files={git.branchFiles}
+                  mode="base"
+                  base={branchBase.rev}
+                  ref={branchStackRef}
+                  zoom={zoom.zoom}
+                  sideBySide={git.sideBySide}
+                  wordWrap={git.wordWrap}
+                  active={active}
+                  onActiveFileChange={setBranchStackPath}
+                  onSplitFitsChange={setSplitFits}
+                />
+              </div>
+            ) : (
+              <FilesBranchEmpty branch={git.branch} />
+            ))}
+          {startShown && !git.onBranch && (
             <FilesStart
               files={git.files}
               lineCounts={startLines}
@@ -437,7 +482,7 @@ export function FilesPane({
               }}
             />
           )}
-          {!git.allChanges && !startShown && (
+          {!git.allChanges && !startShown && !git.onBranch && (
             <FilesEditor
               file={buffer.file}
               value={buffer.value}
@@ -463,7 +508,7 @@ export function FilesPane({
           projectName={projectName}
           onOpen={() => activate(menu)}
           edits={review ? undefined : edits}
-          onDiscard={decorations.has(menu.path) ? () => git.discard.request(menu) : undefined}
+          onDiscard={decorations.has(menu.path) && !git.onBranch ? () => git.discard.request(menu) : undefined}
           onDownload={downloads && !menu.isDir ? () => void downloadFile(projectRoot, menu.path) : undefined}
           ignored={underIgnored(menu.path, ignoredPaths)}
           onClose={() => setMenu(null)}

@@ -2573,7 +2573,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
           anchorRef={containerRef}
           picker={sendLater.picker}
           {...pickerLimitSource(sendLater.picker, projectName, agentName, projectIsRemote, terminalId)}
-          onPick={(at, kind, choice) => void sendLater.pick(at, kind, choice)}
+          onPick={(at, kind, choice, repeatMs) => void sendLater.pick(at, kind, choice, repeatMs)}
           onClose={(refocus) => {
             sendLater.close();
             if (refocus) editorRef.current?.focus();

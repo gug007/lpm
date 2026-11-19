@@ -24,6 +24,9 @@ data class CiCheck(
 
     val id: String get() = "$workflow/$name"
 
+    /** A failed GitHub Actions job, whose log the Mac can read. */
+    val hasLog: Boolean get() = state == State.FAIL && runId != null
+
     /** "Linux host · on fcb454f": what the menu shows after the name. */
     val detail: String
         get() = listOf(workflow, commit?.let { "on $it" }.orEmpty())
@@ -71,7 +74,9 @@ data class GitChecks(
     val pr: PullRequest?,
     val commit: Commit?,
     val checks: List<CiCheck>,
-    val fixPrompt: String?
+    val fixPrompt: String?,
+    /** What an agent is told to resolve the pull request's conflicts. */
+    val resolvePrompt: String? = null
 ) {
     data class PullRequest(
         val number: Int,
@@ -152,6 +157,7 @@ data class GitChecks(
         fun parse(o: JsonObject): GitChecks? {
             val branch = o.string("branch").orEmpty()
             val fixPrompt = o.string("fixPrompt")?.takeIf { it.isNotEmpty() }
+            val resolvePrompt = o.string("resolvePrompt")?.takeIf { it.isNotEmpty() }
             val p = o.obj("pr")
             val number = p?.int("number")
             if (p != null && number != null) {
@@ -166,7 +172,8 @@ data class GitChecks(
                     ),
                     commit = null,
                     checks = p.list("checks", CiCheck::parse).filterNotNull(),
-                    fixPrompt = fixPrompt
+                    fixPrompt = fixPrompt,
+                    resolvePrompt = resolvePrompt
                 )
             }
             val c = o.obj("commit") ?: return null

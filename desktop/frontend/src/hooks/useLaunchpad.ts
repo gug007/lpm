@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "../notifications/toast";
 import { composerValueToText } from "../composerValue";
 import { EMPTY_COMPOSER, type ComposerValue } from "../components/InputComposer";
@@ -8,9 +8,10 @@ import { launchpadCommand } from "../launchpadCommand";
 import { loadNewTabMemory, saveNewTabMemory, type NewTabMemory, type NewTabPick } from "../newTabPick";
 import { peerSlugOf } from "../peer/markers";
 import type { RemoteAgentLaunch } from "../remoteAgentTabs";
-import type { ActionInfo } from "../types";
+import { AI_CLI_OPTIONS, type ActionInfo } from "../types";
 import type { RunActionOpts } from "./useProjectActions";
 import { MACHINE } from "../machineWords";
+import { takeLaunchpadSeed, useLaunchpadSeed } from "../store/launchpadSeed";
 
 // The project a launchpad starts things in, and its actions to offer.
 export interface LaunchpadProject {
@@ -38,7 +39,25 @@ export function useLaunchpad(project: LaunchpadProject, targets: LaunchpadTarget
   const [value, setValue] = useState<ComposerValue>(EMPTY_COMPOSER);
 
   const tabs = useMemo(() => launchpadTabs(project.actions, project.name), [project.actions, project.name]);
-  const option = useMemo(() => tabs.flatMap((t) => t.options).find((o) => o.id === picked) ?? null, [tabs, picked]);
+  const options = useMemo(() => tabs.flatMap((t) => t.options), [tabs]);
+  // A prompt a link left for this project: its agent picked, its text in the
+  // box, and nothing started until Return.
+  const [seeded, setSeeded] = useState<{ key: number; value: ComposerValue } | null>(null);
+  const seed = useLaunchpadSeed((s) => (s.seed?.projectName === project.name ? s.seed : null));
+  useEffect(() => {
+    if (!seed || !takeLaunchpadSeed(project.name)) return;
+    const wanted = options.find((o) => o.agent === seed.agent);
+    const target = wanted ?? options[0];
+    if (target) setPicked(target.id);
+    if (seed.agent && !wanted && target) {
+      const asked = AI_CLI_OPTIONS.find((o) => o.value === seed.agent)?.label ?? seed.agent;
+      toast(`${project.label}'s new tab has no ${asked}, so the prompt is set for ${target.label}.`);
+    }
+    const next = { ...EMPTY_COMPOSER, text: seed.text };
+    setValue(next);
+    setSeeded({ key: seed.nonce, value: next });
+  }, [seed, options, project.name, project.label]);
+  const option = useMemo(() => options.find((o) => o.id === picked) ?? null, [options, picked]);
   const pick = option && !option.action ? memory[option.agent] : null;
   const text = composerValueToText(value);
   const command = option ? launchpadCommand(text) : text;
@@ -79,7 +98,7 @@ export function useLaunchpad(project: LaunchpadProject, targets: LaunchpadTarget
     return true;
   };
 
-  return { tabs, option, command, pick, value, setValue, select: setPicked, changePick, start };
+  return { tabs, option, command, pick, value, setValue, select: setPicked, changePick, start, seeded };
 }
 
 export type Launchpad = ReturnType<typeof useLaunchpad>;

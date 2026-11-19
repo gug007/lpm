@@ -425,6 +425,21 @@ class LpmClient internal constructor(
         // `actionPopup`: an action's popup card, opened from a long press.
         const val ACTION_POPUP_FEATURE = "actionPopup"
 
+        // `gitScanSecrets`: the commit sheet's look for secrets.
+        const val GIT_SCAN_SECRETS_FEATURE = "gitScanSecrets"
+
+        // `gitBranchFiles` and `gitBranchDiffs`: Changes' Branch scope.
+        const val GIT_BRANCH_DIFF_FEATURE = "gitBranchDiff"
+
+        // `gitPrDiscussion`: the review on the branch's pull request.
+        const val GIT_PR_DISCUSSION_FEATURE = "gitPrDiscussion"
+
+        // `gitCheckLog`: why a check failed.
+        const val GIT_CHECK_LOG_FEATURE = "gitCheckLog"
+
+        // `writeFile`: saving an edit from the file preview.
+        const val WRITE_FILE_FEATURE = "writeFile"
+
         const val OFFLINE_HINT =
             "Can't reach your Mac. On cellular, make sure Tailscale is connected on both devices."
 

@@ -141,6 +141,18 @@
           "additionalProperties": false,
           "properties": {
             "cmd": { "type": "string", "description": "Shell command to run. May be left out when the entry has sub-actions, or when it only adjusts an entry declared in another config file." },
+            "cmdMacos": {
+              "type": "string",
+              "description": "What runs in place of cmd when lpm runs on macOS. Other systems run cmd."
+            },
+            "cmdLinux": {
+              "type": "string",
+              "description": "What runs in place of cmd when lpm runs on Linux. Other systems run cmd."
+            },
+            "cmdWindows": {
+              "type": "string",
+              "description": "What runs in place of cmd when lpm runs on Windows. Other systems run cmd."
+            },
             "label": { "type": "string", "description": "Button label. Defaults to the key. May hold variables — {{git.branch}}, {{git.tag}} and {{git.tagAge}} (newest tag and how long ago it was made; {{git.tag:v*}} limits them to matching tags), {{git.nextPatch}}, {{git.nextMinor}} and {{git.nextMajor}} (the version after the highest tag), {{project}} — and $(command), replaced by the first line the command prints." },
             "labelRefresh": { "oneOf": [{ "type": "integer", "minimum": 0 }, { "type": "string", "pattern": "^\\s*\\d+\\s*[smh]?\\s*$" }], "examples": ["30s", "5m", "1h"], "description": "How often the $(…) commands in the action's label, emoji, input and option labels run: seconds, or a number with s, m or h. Defaults to 1m; anything under 5s runs every 5s. They also run after any action in the project finishes in the background." },
             "labelRefreshOnHover": { "type": "boolean", "description": "Run the $(…) commands in the label, emoji and options of this action and its menu items again when the pointer rests on the button (at most every 5s). lpm refresh-label does the same from a script." },
@@ -265,6 +277,18 @@
           "additionalProperties": false,
           "properties": {
             "cmd": { "type": "string", "description": "Shell command to run. May be left out when the entry has sub-actions, or when it only adjusts an entry declared in another config file." },
+            "cmdMacos": {
+              "type": "string",
+              "description": "What runs in place of cmd when lpm runs on macOS. Other systems run cmd."
+            },
+            "cmdLinux": {
+              "type": "string",
+              "description": "What runs in place of cmd when lpm runs on Linux. Other systems run cmd."
+            },
+            "cmdWindows": {
+              "type": "string",
+              "description": "What runs in place of cmd when lpm runs on Windows. Other systems run cmd."
+            },
             "label": { "type": "string", "description": "Button label. Defaults to the key. May hold variables — {{git.branch}}, {{git.tag}} and {{git.tagAge}} (newest tag and how long ago it was made; {{git.tag:v*}} limits them to matching tags), {{git.nextPatch}}, {{git.nextMinor}} and {{git.nextMajor}} (the version after the highest tag), {{project}} — and $(command), replaced by the first line the command prints." },
             "labelRefresh": { "oneOf": [{ "type": "integer", "minimum": 0 }, { "type": "string", "pattern": "^\\s*\\d+\\s*[smh]?\\s*$" }], "examples": ["30s", "5m", "1h"], "description": "How often the $(…) commands in the action's label, emoji, input and option labels run: seconds, or a number with s, m or h. Defaults to 1m; anything under 5s runs every 5s. They also run after any action in the project finishes in the background." },
             "labelRefreshOnHover": { "type": "boolean", "description": "Run the $(…) commands in the label, emoji and options of this action and its menu items again when the pointer rests on the button (at most every 5s). lpm refresh-label does the same from a script." },

@@ -15,12 +15,12 @@ export type Changes =
 
 const IDLE: Changes = { status: "loading" };
 
+export function sameFiles(a: ChangedFile[], b: ChangedFile[]): boolean {
+  return a.length === b.length && a.every((f, i) => f.path === b[i].path && f.status === b[i].status);
+}
+
 function sameChanges(a: Changes, b: Changes): boolean {
-  if (a.status !== "ready" || b.status !== "ready") return false;
-  return (
-    a.files.length === b.files.length &&
-    a.files.every((f, i) => f.path === b.files[i].path && f.status === b.files[i].status)
-  );
+  return a.status === "ready" && b.status === "ready" && sameFiles(a.files, b.files);
 }
 
 // The working tree's uncommitted files, fetched while the tab is shown and

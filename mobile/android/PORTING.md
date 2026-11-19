@@ -71,7 +71,11 @@ a commit's line under its subject (hash ·
   label ("<tab> · <project> · <state>", "New Tab in <project>") where the launcher has room
   for it and the tab's title or "New Tab" where not, where iOS shows a title over a
   subtitle, and their icons are adaptive icons in the app tint where iOS draws the symbols
-  in the menu's color.
+  in the menu's color; the rating prompt is Google Play's in-app review where iOS asks
+  StoreKit, and Settings › Help's "Rate lpm Link" opens the app's Play listing where iOS
+  opens the App Store's review page; Send Feedback is a page pushed inside Settings where
+  iOS shows a sheet; rows that stack at the largest text sizes do so from a font scale of
+  1.5, Android's nearest to iOS's accessibility sizes.
 - **Same persisted keys and semantics** as iOS (table below), so behavior and
   defaults match.
 - Desktop changes that touch the phone now update both apps (AGENTS.md).
@@ -362,7 +366,7 @@ build Android until the same flows pass there.
 2. **Play: App Bundle, Play App Signing**, with a separate upload key kept outside the
    repo. Package `cx.lpm.mobile`, the iOS bundle id; it can't change after the first upload.
 3. **Demo seed: kept identical by a test, not shared.** `:core:demo` is a line-by-line
-   port of `Demo*.swift`, and `IosParityTest` replays a fixed script of 592 frames into it
+   port of `Demo*.swift`, and `IosParityTest` replays a fixed script of 712 frames into it
    and compares every reply with goldens recorded from the iOS demo code itself, compiled
    on a Mac (`core/demo/ios-parity/generate.sh`, needs `swiftc`). A change to
    `Demo*.swift` is ported to `:core:demo` and the goldens regenerated in the same change;

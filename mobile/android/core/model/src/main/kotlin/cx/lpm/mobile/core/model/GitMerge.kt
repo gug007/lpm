@@ -56,6 +56,13 @@ sealed interface GitMergeStatus {
 /** A pull request this phone just merged, shown until the sheet closes. */
 data class MergedPullRequest(val number: Int, val title: String, val deletedBranch: Boolean)
 
+/** GitHub can't merge the open pull request because it conflicts with its base. */
+val GitChecks.conflicts: Boolean
+    get() {
+        val offer = pr?.merge ?: return false
+        return offer.mergeable == "CONFLICTING" || offer.state == "DIRTY"
+    }
+
 /**
  * How the open pull request stands on merging; null when there's none, or while its
  * checks fail and the sheet's fixes come first.

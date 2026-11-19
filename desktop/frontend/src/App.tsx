@@ -80,6 +80,7 @@ import { PeerLinkStrip } from "./components/PeerLinkStrip";
 import { publishPeerSnapshot } from "./peer/retainedSessions";
 import { PeerDisconnectedBanner } from "./components/PeerDisconnectedBanner";
 import { startSendLaterRunner } from "./sendLater/runner";
+import { startOpenLinks } from "./openLinks";
 import { ClaudePoolConsentDialog } from "./components/ClaudePoolConsentDialog";
 import { ClaudeTabAccountQuestion } from "./components/ClaudeTabAccountQuestion";
 import { ClaudeAccountPoolDialog } from "./components/ClaudeAccountPoolDialog";
@@ -179,6 +180,7 @@ export default function App() {
   useAgentToasts();
   useAppEvents();
   useEffect(() => startSendLaterRunner(), []);
+  useEffect(() => startOpenLinks(), []);
   usePeerDispatcher();
   const { state: peerState, loaded: peersLoaded } = usePeerState();
   const settingsMachine = useSettingsMachine(peerState.peers);

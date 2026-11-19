@@ -38,6 +38,9 @@ pub struct MergeReadiness {
     pub review: String,
     /// The head commit, so a merge takes exactly what was looked at.
     pub head: String,
+    /// The branch it merges into; empty when not asked for.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub base: String,
 }
 
 #[derive(Serialize, Debug, PartialEq, Clone)]
@@ -72,12 +75,14 @@ struct GhPullRequest {
     review_decision: Option<String>,
     #[serde(default)]
     head_ref_oid: String,
+    #[serde(default)]
+    base_ref_name: String,
 }
 
 const FIELDS: &str = "number,url,state,title,isDraft,statusCheckRollup,headRefOid";
 /// Asking for these makes GitHub work out mergeability, so the footer's poll
 /// leaves them out.
-const MERGE_FIELDS: &str = "mergeable,mergeStateStatus,reviewDecision";
+const MERGE_FIELDS: &str = "mergeable,mergeStateStatus,reviewDecision,baseRefName";
 
 /// The pull request for `cwd`'s current branch — `gh` prefers an open one and
 /// falls back to the newest merged/closed — or None when there is none, the
@@ -145,6 +150,7 @@ fn parse_pull_request(json: &str) -> Option<PullRequestInfo> {
             state: pr.merge_state_status,
             review: pr.review_decision.unwrap_or_default(),
             head: pr.head_ref_oid,
+            base: pr.base_ref_name,
         },
         fix_prompt,
     })
@@ -245,7 +251,7 @@ mod tests {
 
     #[test]
     fn reads_how_github_stands_on_merging() {
-        let json = r#"{"number":42,"state":"OPEN","title":"t","url":"https://github.com/o/r/pull/42","mergeable":"MERGEABLE","mergeStateStatus":"CLEAN","reviewDecision":"APPROVED","headRefOid":"9e7d031"}"#;
+        let json = r#"{"number":42,"state":"OPEN","title":"t","url":"https://github.com/o/r/pull/42","mergeable":"MERGEABLE","mergeStateStatus":"CLEAN","reviewDecision":"APPROVED","headRefOid":"9e7d031","baseRefName":"main"}"#;
         assert_eq!(
             parse_pull_request(json).unwrap().merge,
             MergeReadiness {
@@ -253,6 +259,7 @@ mod tests {
                 state: "CLEAN".into(),
                 review: "APPROVED".into(),
                 head: "9e7d031".into(),
+                base: "main".into(),
             }
         );
         let unreviewed = r#"{"number":42,"state":"OPEN","title":"t","url":"https://github.com/o/r/pull/42","reviewDecision":null}"#;

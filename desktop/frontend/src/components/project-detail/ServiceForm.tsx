@@ -31,6 +31,7 @@ import {
   type ReadyDraft,
 } from "../../serviceReady";
 import { StartMenuPreview } from "./StartMenuPreview";
+import { OS_CMDS, OsCommandFields, type OsCmdKey } from "./OsCommandFields";
 
 const FALLBACK_KEY = "new-service";
 
@@ -93,6 +94,7 @@ function parsePort(raw: string): { value: number; valid: boolean } {
 interface ServiceDraft {
   trimmedName: string;
   trimmedCmd: string;
+  osCmds?: Partial<Record<OsCmdKey, string>>;
   trimmedCwd: string;
   port: number;
   portConflict: string;
@@ -109,6 +111,9 @@ interface EnvDraft {
 interface FormValues {
   name: string;
   cmd: string;
+  cmdMacos: string;
+  cmdLinux: string;
+  cmdWindows: string;
   cwd: string;
   port: string;
   portConflict: string;
@@ -120,6 +125,9 @@ interface FormValues {
 const DEFAULT_VALUES: FormValues = {
   name: "",
   cmd: "",
+  cmdMacos: "",
+  cmdLinux: "",
+  cmdWindows: "",
   cwd: "",
   port: "",
   portConflict: "",
@@ -130,6 +138,10 @@ const DEFAULT_VALUES: FormValues = {
 
 function buildPayload(draft: ServiceDraft): Record<string, unknown> {
   const payload: Record<string, unknown> = { cmd: draft.trimmedCmd };
+  for (const { key } of OS_CMDS) {
+    const cmd = draft.osCmds?.[key]?.trim();
+    if (cmd) payload[key] = cmd;
+  }
   if (draft.trimmedCwd) payload.cwd = draft.trimmedCwd;
   if (draft.port > 0) payload.port = draft.port;
   if (isExplicitPolicy(draft.portConflict)) {
@@ -146,8 +158,9 @@ function buildPayload(draft: ServiceDraft): Record<string, unknown> {
 function buildPatch(payload: Record<string, unknown>, keepReady: boolean): ServicePatch {
   // Explicitly remove fields the user cleared so stale values don't linger
   // from the previous YAML.
-  const remove: string[] = [];
-  for (const field of ["cwd", "port", "portConflict", "env", "dependsOn", "depends_on", "ready"] as const) {
+  const remove: string[] = ["cmd_macos", "cmd_linux", "cmd_windows"];
+  const fields = ["cwd", "port", "portConflict", "env", "dependsOn", "depends_on", "ready", ...OS_CMDS.map((o) => o.key)];
+  for (const field of fields) {
     if (payload[field] === undefined && !(field === "ready" && keepReady)) remove.push(field);
   }
   return { set: payload, remove };
@@ -181,6 +194,9 @@ export function ServiceForm({
         otherNames: otherKeys,
       }),
       cmd: z.string().trim().min(1, "Command is required"),
+      cmdMacos: z.string(),
+      cmdLinux: z.string(),
+      cmdWindows: z.string(),
       cwd: z.string().trim(),
       port: portInputSchema,
       portConflict: z.string(),
@@ -226,7 +242,10 @@ export function ServiceForm({
       const portConflict = toPickerValue(editing.portConflict);
       reset({
         name: editing.name,
-        cmd: editing.cmd,
+        cmd: editing.configCmd ?? editing.cmd,
+        cmdMacos: editing.cmdMacos ?? "",
+        cmdLinux: editing.cmdLinux ?? "",
+        cmdWindows: editing.cmdWindows ?? "",
         cwd: editing.cwd ?? "",
         port: editing.port > 0 ? String(editing.port) : "",
         portConflict,
@@ -342,6 +361,7 @@ export function ServiceForm({
       const submitDraft: ServiceDraft = {
         trimmedName: values.name.trim(),
         trimmedCmd: values.cmd.trim(),
+        osCmds: { cmdMacos: values.cmdMacos, cmdLinux: values.cmdLinux, cmdWindows: values.cmdWindows },
         trimmedCwd: values.cwd.trim(),
         port: portInfo.valid ? portInfo.value : 0,
         portConflict: values.portConflict,
@@ -448,6 +468,18 @@ export function ServiceForm({
                       {...register("cmd")}
                     />
                   </Field>
+
+                  <OsCommandFields
+                    key={`${open}:${editing?.name ?? ""}`}
+                    values={{
+                      cmdMacos: watch("cmdMacos"),
+                      cmdLinux: watch("cmdLinux"),
+                      cmdWindows: watch("cmdWindows"),
+                    }}
+                    field={(key) => register(key)}
+                    onClear={(key) => setValue(key, "", { shouldDirty: true, shouldValidate: true })}
+                    textareaClass={textareaClass}
+                  />
 
                   <AdvancedSection
                     open={advancedOpen}

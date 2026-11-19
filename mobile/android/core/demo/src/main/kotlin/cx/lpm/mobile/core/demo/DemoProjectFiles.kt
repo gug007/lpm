@@ -2,6 +2,10 @@ package cx.lpm.mobile.core.demo
 
 // Fixture file contents served by `fileChunk`.
 
+/** A file's text: what the phone's editor saved into it, else the fixture. */
+internal fun DemoServer.demoFileText(project: String, path: String): String =
+    world.fileEdits["$project\n$path"] ?: demoFileContent(project, path)
+
 internal fun demoFileContent(project: String, path: String): String = when {
     path == "package.json" && project.startsWith("storefront") -> storefrontPackageJson
     path == "components/CheckoutForm.tsx" -> checkoutFormTsx

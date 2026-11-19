@@ -419,6 +419,8 @@ final class AppModel {
     var gitHistory = GitHistoryStore()
     // CI on each project's branch (`model.gitChecks`), same split.
     var gitChecks = GitChecksStore()
+    // The review's extras: secrets, branch scope, PR review, check logs, saves.
+    var gitExtras = GitExtrasStore()
     // The dialogs waiting agents show (`model.agentDialogs`), same split.
     var agentDialogs = AgentDialogStore()
     // The action popup on screen (`model.actionPopups`), same split.
@@ -510,6 +512,7 @@ final class AppModel {
         projectFiles.model = self
         gitHistory.model = self
         gitChecks.model = self
+        gitExtras.model = self
         agentDialogs.model = self
         actionPopups.model = self
         pushRegistrar.onIdentity = { [weak self] localId, serverId, serverName, platform in
@@ -1472,6 +1475,9 @@ final class AppModel {
         gitHistory.model = self
         gitChecks = GitChecksStore()
         gitChecks.model = self
+        gitExtras.handleConnectionReset()
+        gitExtras = GitExtrasStore()
+        gitExtras.model = self
         agentDialogs = AgentDialogStore()
         agentDialogs.model = self
         actionPopups = ActionPopupStore()
@@ -2510,6 +2516,7 @@ final class AppModel {
         projectFiles.handleConnectionReset()
         gitHistory.handleConnectionReset()
         gitChecks.handleConnectionReset()
+        gitExtras.handleConnectionReset()
         fileFetches.handleConnectionReset()
         agentDialogs.handleConnectionReset()
         answerRequests.failAll()
@@ -2724,6 +2731,7 @@ final class AppModel {
         wireProjectFiles(c)
         wireGitHistory(c)
         wireGitChecks(c)
+        wireGitExtras(c)
         wireAgentDialogs(c)
         wireGitDiscardFiles(c)
         wireActionPopups(c)

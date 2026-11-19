@@ -8,6 +8,7 @@ use serde::Deserialize;
 
 pub(crate) mod check;
 mod lenient;
+pub(crate) mod os_cmd;
 pub(crate) mod popup;
 pub(crate) mod repo_trust;
 use serde_json::{json, Value};
@@ -1004,6 +1005,11 @@ pub struct ServiceFull {
     pub depends_on: Vec<String>,
     #[serde(default)]
     pub ready: Option<crate::readyspec::ReadySpec>,
+    #[serde(flatten)]
+    pub os: os_cmd::OsCmds,
+    /// `cmd` as written, before `os` put this computer's command there.
+    #[serde(skip)]
+    pub written_cmd: String,
 }
 
 impl ServiceDef {
@@ -1013,7 +1019,10 @@ impl ServiceDef {
                 cmd,
                 ..Default::default()
             },
-            ServiceDef::Full(f) => f,
+            ServiceDef::Full(mut f) => {
+                f.os.pick(&mut f.cmd, &mut f.written_cmd);
+                f
+            }
         }
     }
 }
@@ -1184,6 +1193,11 @@ struct ActionFull {
     popup: Option<popup::PopupDef>,
     #[serde(default, deserialize_with = "lenient::actions")]
     actions: BTreeMap<String, ActionDef>, // children
+    #[serde(flatten)]
+    os: os_cmd::OsCmds,
+    /// `cmd` as written, before `os` put this computer's command there.
+    #[serde(skip)]
+    written_cmd: String,
 }
 
 /// A scalar as text, so `labelRefresh: 30` reads like `labelRefresh: 30s`; any
@@ -1203,7 +1217,10 @@ impl ActionDef {
                 cmd,
                 ..Default::default()
             },
-            ActionDef::Full(f) => f,
+            ActionDef::Full(mut f) => {
+                f.os.pick(&mut f.cmd, &mut f.written_cmd);
+                f
+            }
         }
     }
 }
@@ -1809,6 +1826,9 @@ pub struct ActionInfo {
     /// The label as written, present only when `label` was rendered from it.
     #[serde(rename = "configLabel", skip_serializing_if = "String::is_empty")]
     pub config_label: String,
+    /// `cmd` as written, when this computer runs another of its commands.
+    #[serde(rename = "configCmd", skip_serializing_if = "String::is_empty")]
+    pub config_cmd: String,
     #[serde(skip)]
     pub label_refresh: String,
     #[serde(rename = "labelRefreshOnHover", skip_serializing_if = "std::ops::Not::not")]
@@ -1924,6 +1944,7 @@ fn merge_action_fallback(
 fn merge_action(d: &mut ActionFull, s: &ActionFull) {
     if d.cmd.is_empty() {
         d.cmd = s.cmd.clone();
+        d.written_cmd = s.written_cmd.clone();
     }
     if d.label.is_empty() {
         d.label = s.label.clone();
@@ -2096,6 +2117,8 @@ pub fn declared_service_ports(name: &str) -> std::collections::HashSet<u16> {
 fn merge_service(dst: &mut ServiceFull, src: &ServiceFull) {
     if dst.cmd.is_empty() {
         dst.cmd = src.cmd.clone();
+        dst.written_cmd = src.written_cmd.clone();
+        dst.os = src.os.clone();
     }
     if dst.cwd.is_empty() {
         dst.cwd = src.cwd.clone();
@@ -2311,6 +2334,7 @@ fn action_to_info(id: &str, name: &str, act: &ActionFull) -> ActionInfo {
         color: act.color.clone(),
         shortcut: act.shortcut.clone(),
         cmd: act.cmd.clone(),
+        config_cmd: os_cmd::config_cmd(&act.written_cmd, &act.cmd),
         cwd: act.cwd.clone(),
         port: act.port.to_vec(),
         port_conflict: act.port_conflict.clone(),
@@ -2518,7 +2542,7 @@ fn to_project_info(
 
     let service_info = |name: &str| -> Value {
         let svc = services.get(name).cloned().unwrap_or_default();
-        json!({
+        let mut info = json!({
             "name": name,
             "cmd": svc.cmd,
             "cwd": svc.cwd,
@@ -2527,7 +2551,15 @@ fn to_project_info(
             "env": svc.env,
             "dependsOn": svc.depends_on,
             "ready": svc.ready.as_ref().map(|r| r.to_json(svc.port)),
-        })
+        });
+        if let Some(map) = info.as_object_mut() {
+            let written = os_cmd::config_cmd(&svc.written_cmd, &svc.cmd);
+            if !written.is_empty() {
+                map.insert("configCmd".into(), Value::String(written));
+            }
+            svc.os.write_json(map);
+        }
+        info
     };
     let all_services: Vec<Value> = all_names.iter().map(|n| service_info(n)).collect();
 

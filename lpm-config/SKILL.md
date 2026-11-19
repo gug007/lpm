@@ -1,6 +1,6 @@
 ---
 name: lpm-config
-version: 1.6.0
+version: 1.7.0
 description: Create and edit lpm YAML configs for projects, duplicates, worktree metadata, services, actions, header and footer button zones and zone layers, terminals, profiles, SSH projects, and shared config layers. Use when the user explicitly asks to configure lpm, add an lpm service/action/button/zone/terminal, edit `.lpm.yml`, or manage lpm templates or global config. For creating or removing linked Git worktrees and operating running projects, use `lpm-cli`.
 ---
 

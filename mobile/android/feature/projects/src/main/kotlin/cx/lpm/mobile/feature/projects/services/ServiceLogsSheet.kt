@@ -31,10 +31,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cx.lpm.mobile.core.designsystem.component.ActivityIndicator
 import cx.lpm.mobile.core.designsystem.component.ActivityIndicatorSize
-import cx.lpm.mobile.core.designsystem.component.AlertButton
-import cx.lpm.mobile.core.designsystem.component.AlertRole
 import cx.lpm.mobile.core.designsystem.component.GlassCapsuleButton
-import cx.lpm.mobile.core.designsystem.component.LpmAlert
 import cx.lpm.mobile.core.designsystem.component.ModalSheet
 import cx.lpm.mobile.core.designsystem.component.StatusDot
 import cx.lpm.mobile.core.designsystem.component.rememberModalSheetState
@@ -45,7 +42,7 @@ import cx.lpm.mobile.core.model.SessionKey
 import cx.lpm.mobile.core.model.TerminalInfo
 import cx.lpm.mobile.core.model.crashed
 import cx.lpm.mobile.core.navigation.PresentationScope
-import cx.lpm.mobile.feature.projects.ActionRunStep
+import cx.lpm.mobile.feature.projects.ActionRunStepHost
 import cx.lpm.mobile.feature.projects.R
 import cx.lpm.mobile.feature.projects.newtab.ActionInputsSlot
 
@@ -132,27 +129,18 @@ private fun ServiceLogsContent(
                 )
             }
         }
-        when (val step = state.step) {
-            is ActionRunStep.Inputs -> actionInputs(
-                step.action,
-                { values -> if (viewModel.submitInputs(values, onSpawnedTerminal)) fixing() },
-                { viewModel.dismissStep(step) }
-            )
-
-            is ActionRunStep.Confirm -> LpmAlert(
-                title = stringResource(R.string.new_tab_run_confirm, step.action.label),
-                buttons = listOf(
-                    AlertButton(stringResource(R.string.new_tab_run)) {
-                        viewModel.confirm(onSpawnedTerminal)
-                        fixing()
-                    },
-                    AlertButton(stringResource(R.string.cancel), AlertRole.Cancel)
-                ),
-                onDismissRequest = { viewModel.dismissStep(step) }
-            )
-
-            null -> Unit
-        }
+        ActionRunStepHost(
+            state.step,
+            actionInputs,
+            onSubmit = { values ->
+                if (viewModel.submitInputs(values, onSpawnedTerminal)) fixing()
+            },
+            onConfirm = {
+                viewModel.confirm(onSpawnedTerminal)
+                fixing()
+            },
+            onDismiss = viewModel::dismissStep
+        )
     }
 }
 

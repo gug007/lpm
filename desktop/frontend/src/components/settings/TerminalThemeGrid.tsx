@@ -1,4 +1,5 @@
 import {
+  hasImportedTheme,
   terminalThemeAppearance,
   terminalThemeNames,
   type TerminalAppearance,
@@ -39,7 +40,7 @@ export function TerminalThemeGrid({
           <p className="mb-2 text-[12px] text-[var(--text-muted)]">{group.label}</p>
           <div className="grid grid-cols-[repeat(auto-fill,minmax(124px,1fr))] gap-x-2.5 gap-y-3">
             {terminalThemeNames
-              .filter((name) => groupOf(name) === group.appearance)
+              .filter((name) => (name !== "imported" || hasImportedTheme()) && groupOf(name) === group.appearance)
               .map((name) => {
                 const picks = picksOf(choice, name);
                 return (

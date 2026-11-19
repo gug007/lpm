@@ -23,6 +23,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import cx.lpm.mobile.core.designsystem.R as DesignR
+import cx.lpm.mobile.core.designsystem.code.CodeEditor
 import cx.lpm.mobile.core.designsystem.code.highlightCode
 import cx.lpm.mobile.core.designsystem.code.rememberSyntaxColors
 import cx.lpm.mobile.core.designsystem.component.ActivityIndicator
@@ -35,7 +36,6 @@ import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.core.ui.EditorTopBar
 import cx.lpm.mobile.feature.config.R
 import cx.lpm.mobile.feature.config.ui.BarBottomGap
-import cx.lpm.mobile.feature.config.ui.CodeEditor
 
 /**
  * The raw file editor: the layer picker, then the layer's text — or why it can't be

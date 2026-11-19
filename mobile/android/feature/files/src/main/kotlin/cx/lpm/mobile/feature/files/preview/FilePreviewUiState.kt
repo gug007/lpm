@@ -24,7 +24,9 @@ data class FilePreviewUiState(
     /** The line the tapped path named; 0 for none. */
     val line: Int = 0,
     /** Mention puts the file in the prompt of the terminal it was opened from. */
-    val canMention: Boolean = false
+    val canMention: Boolean = false,
+    /** A whole, small text file in the project, on a Mac that saves edits: Edit shows. */
+    val editable: Boolean = false
 ) {
     val filename: String get() = lastPathComponent(path)
 

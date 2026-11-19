@@ -10,6 +10,7 @@ import cx.lpm.mobile.core.data.config.ProjectConfigStore
 import cx.lpm.mobile.core.data.files.ProjectFilesStore
 import cx.lpm.mobile.core.data.git.GitAutoStore
 import cx.lpm.mobile.core.data.git.GitChecksStore
+import cx.lpm.mobile.core.data.git.GitExtrasStore
 import cx.lpm.mobile.core.data.git.GitHistoryStore
 import cx.lpm.mobile.core.data.git.GitStore
 import cx.lpm.mobile.core.data.machines.MachineImporter
@@ -25,6 +26,7 @@ val ScreenStores: Set<SessionStore.Factory> = setOf(
     SessionStore.Factory(::AutomationsStore),
     SessionStore.Factory(::GitStore),
     SessionStore.Factory(::GitChecksStore),
+    SessionStore.Factory(::GitExtrasStore),
     SessionStore.Factory(::GitHistoryStore),
     SessionStore.Factory(::GitAutoStore),
     SessionStore.Factory(::ServiceLogsStore),

@@ -21,6 +21,7 @@ import { TabContextMenu } from "./terminal/TabContextMenu";
 import { TabClaudeAccountRow } from "./terminal/TabClaudeAccountRow";
 import { tabPopup } from "../popup/tabPopup";
 import { TabClaudeAccountSubmenu } from "./terminal/TabClaudeAccountSubmenu";
+import { TabContinueOnSubmenu } from "./terminal/TabContinueOnSubmenu";
 import { ClaudeSwitchOverlay } from "./terminal/ClaudeSwitchOverlay";
 import { useClaudeSwitches } from "../store/claudeSwitches";
 import { isClaudeTab } from "../claudeTab";
@@ -41,6 +42,7 @@ import {
 } from "./terminal/icons";
 import { AddTerminalButton } from "./terminal/AddTerminalButton";
 import type { RemoteAgentLaunch } from "../remoteAgentTabs";
+import { handoffSessionId, type HandoffTarget } from "../sessionHandoff";
 import type { LaunchpadProject } from "../hooks/useLaunchpad";
 import type { RunActionOpts } from "../hooks/useProjectActions";
 import type { ActionInfo } from "../types";
@@ -116,6 +118,7 @@ import { useShallow } from "zustand/react/shallow";
 import { pickCommands, useTerminalCommands } from "../store/terminalCommands";
 import { tabCommandDetails, tabCommandMark, terminalStripLabel } from "../tabCommand";
 import { CommandMarkIcon } from "./terminal/CommandMarkIcon";
+import { copyLink, tabLink } from "../openLinks";
 
 export type StatusKind = "Done" | "Waiting" | "Error";
 
@@ -252,6 +255,8 @@ export interface PaneViewProps {
   // Moves a Claude tab to another Claude account of the machine the project is
   // on. Absent for SSH projects, whose agents use the server's own login.
   onSwitchClaudeAccount?: (terminalId: string, account: string, accountLabel: string) => void;
+  // Continues a Claude tab's session on another computer. Absent for SSH projects.
+  onContinueSessionOn?: (terminalId: string, target: HandoffTarget) => void;
   onRenameTerminal: (
     paneId: string,
     tabIdx: number,
@@ -349,6 +354,7 @@ function PaneViewImpl(props: PaneViewProps) {
     canForkIntoCopy,
     onForkTerminalIntoCopy,
     onSwitchClaudeAccount,
+    onContinueSessionOn,
     onRenameTerminal,
     onRestoreSessionTitle,
     onTogglePinTab,
@@ -1099,6 +1105,11 @@ function PaneViewImpl(props: PaneViewProps) {
                 anchor: { left: tabMenu.x, top: tabMenu.y, right: tabMenu.x, bottom: tabMenu.y },
               })
             }
+            onCopyLink={
+              isTerminalTab(tab) && tab.historyKey
+                ? () => void copyLink(tabLink(projectName, tab.historyKey!))
+                : undefined
+            }
             canFork={forkable}
             canForkCopy={forkable && canForkIntoCopy}
             canCloseOthers={canCloseOthers}
@@ -1135,6 +1146,15 @@ function PaneViewImpl(props: PaneViewProps) {
                   terminalId={tab.id}
                   working={paneStatus?.running.has(tab.id) ?? false}
                   onPick={(account, label) => switchAccount(tab.id, account, label)}
+                  onClose={() => setTabMenu(null)}
+                />
+              ) : undefined
+            }
+            continueMenu={
+              onContinueSessionOn && handoffSessionId(tab) ? (
+                <TabContinueOnSubmenu
+                  projectName={projectName}
+                  onPick={(target) => onContinueSessionOn(tab.id, target)}
                   onClose={() => setTabMenu(null)}
                 />
               ) : undefined

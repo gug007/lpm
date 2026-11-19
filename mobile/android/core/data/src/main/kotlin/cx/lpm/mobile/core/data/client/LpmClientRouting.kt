@@ -1,8 +1,14 @@
 package cx.lpm.mobile.core.data.client
 
 import cx.lpm.mobile.core.model.GitDiffResult
+import cx.lpm.mobile.core.protocol.BranchDiffsReply
+import cx.lpm.mobile.core.protocol.BranchFilesReply
+import cx.lpm.mobile.core.protocol.CheckLogReply
+import cx.lpm.mobile.core.protocol.FileWriteReply
 import cx.lpm.mobile.core.protocol.Inbound
 import cx.lpm.mobile.core.protocol.LpmCommandsInbound
+import cx.lpm.mobile.core.protocol.PrDiscussionReply
+import cx.lpm.mobile.core.protocol.SecretScanReply
 
 /**
  * Hands a reply or push to its callback. The frames that drive the connection
@@ -407,6 +413,9 @@ private fun LpmClientCallbacks.routeConfigAndNotes(frame: Inbound) {
 
         is Inbound.NotesAttachment ->
             onNotesAttachment?.invoke(frame.project, frame.hash, frame.data, frame.error)
+
+        is SecretScanReply, is BranchFilesReply, is BranchDiffsReply, is PrDiscussionReply,
+        is CheckLogReply, is FileWriteReply -> onGitExtras?.invoke(frame)
 
         // The connection frames, which LpmClient handled before routing.
         else -> Unit

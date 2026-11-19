@@ -48,7 +48,6 @@ const GUIDES: MenuLink[] = [
 const COMPARE: MenuLink[] = [
   { href: vsPath("tmux"), label: "tmux" },
   { href: vsPath("iterm2"), label: "iTerm2" },
-  { href: vsPath("pm2"), label: "PM2" },
   { href: vsPath("cmux"), label: "cmux" },
   { href: VS_BASE_PATH, label: "All" },
 ];

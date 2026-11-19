@@ -7,6 +7,7 @@ import {
   BrowserBack,
   BrowserForward,
   BrowserReload,
+  InspectBrowser,
   HideBrowser,
   CloseBrowser,
 } from "../../bridge/commands";
@@ -22,7 +23,7 @@ import { toTarget } from "./browserTarget";
 import { browserStartUrl, forgetBrowserStartUrl } from "../browserStartUrls";
 import { ExternalBrowserPane } from "./ExternalBrowserPane";
 import { BrowserServiceList, serviceAddress, type BrowserService } from "./BrowserServiceList";
-import { ChevronLeftIcon, ChevronRightIcon, RefreshIcon, SunIcon, MoonIcon, GlobeIcon } from "./icons";
+import { ChevronLeftIcon, ChevronRightIcon, CodeIcon, RefreshIcon, SunIcon, MoonIcon, GlobeIcon } from "./icons";
 
 export interface BrowserPaneProps {
   id: string;
@@ -215,6 +216,15 @@ function EmbeddedBrowserPane({ id, projectName, projectLabel, active, services =
             className="h-7 w-full rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2.5 text-xs text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--text-muted)]/60"
           />
         </form>
+        <button
+          className={`${navBtn} disabled:pointer-events-none disabled:opacity-40`}
+          onClick={() => InspectBrowser(id).catch((err) => toast.error(String(err)))}
+          disabled={!opened}
+          title="Inspect the page"
+          aria-label="Inspect the page"
+        >
+          <CodeIcon />
+        </button>
         {/* WebView2 pages keep their own color scheme (browser.rs sets it on macOS only). */}
         {!isWindows && (
           <button

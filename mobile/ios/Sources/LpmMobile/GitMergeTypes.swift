@@ -54,6 +54,12 @@ struct MergedPullRequest: Equatable {
 }
 
 extension GitChecks {
+    /// GitHub can't merge the open pull request because it conflicts with its base.
+    var conflicts: Bool {
+        guard let offer = pr?.merge else { return false }
+        return offer.mergeable == "CONFLICTING" || offer.state == "DIRTY"
+    }
+
     /// How the open pull request stands on merging; nil when there's none, or
     /// while its checks fail and the sheet's fixes come first.
     var mergeStatus: GitMergeStatus? {

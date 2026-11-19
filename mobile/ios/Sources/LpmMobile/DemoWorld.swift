@@ -6,6 +6,8 @@ import Foundation
 /// through the dictionary builders below. Plain value types held on `DemoServer`
 /// as a single `var world`, mutated only on the main queue.
 struct DemoWorld {
+    // Files saved from the phone's editor, by "project\npath".
+    var fileEdits: [String: String] = [:]
     // MARK: Projects
 
     struct Svc {

@@ -10,9 +10,11 @@ import cx.lpm.mobile.core.data.client.gitGenPr
 import cx.lpm.mobile.core.data.client.gitPull
 import cx.lpm.mobile.core.data.client.gitPush
 import cx.lpm.mobile.core.data.client.requestGit
+import cx.lpm.mobile.core.data.review.noteWin
 import cx.lpm.mobile.core.data.session.GenerationTimeout
 import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.data.session.SessionStore
+import cx.lpm.mobile.core.model.GitDiffResult
 import cx.lpm.mobile.core.model.GitSnapshot
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -108,6 +110,12 @@ class GitStore(private val session: MacSession) : SessionStore {
 
     /** A file's diff, coalesced with the others asked for in the same moment. */
     fun loadDiff(project: String, path: String) = diffs.load(project, path)
+
+    /** A diff that arrived for another key (the Branch scope's). */
+    fun applyDiff(project: String, path: String, result: GitDiffResult?, error: String?) =
+        diffs.apply(project, path, result, error)
+
+    fun refreshDiffs(key: String, files: Set<String>) = diffs.refresh(key, files)
 
     /**
      * The review screen is open: the Mac pushes `git-changed` as the working tree
@@ -298,6 +306,7 @@ class GitStore(private val session: MacSession) : SessionStore {
             return
         }
         copy.done?.let { announce(project, it) }
+        if (copy == GitOpCopy.Commit || copy == GitOpCopy.Push) session.noteWin()
         if (copy == GitOpCopy.Commit) {
             mutable.update {
                 it.copy(commitTick = it.commitTick + (project to (it.commitTick[project] ?: 0) + 1))
@@ -329,6 +338,7 @@ class GitStore(private val session: MacSession) : SessionStore {
             )
         }
         if (error == null) {
+            session.noteWin()
             announce(project, "Committed and pushed")
             load(project)
         }

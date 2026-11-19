@@ -58,6 +58,10 @@ const LOCAL_ONLY_EXACT = new Set<string>([
   "bring_changes_targets",
   "bring_changes_start",
   "bring_changes_cancel",
+  // Continuing a session on another computer is driven from the one the
+  // person is at: it names the other computer in its arguments.
+  "handoff_send",
+  "handoff_take",
   // The send-later list and its clock live on this Mac even when a prompt is for
   // a peer's terminal: this Mac types it in when it comes due.
   "send_later_list",

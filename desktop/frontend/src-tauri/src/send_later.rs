@@ -6,8 +6,8 @@
 
 use crate::config;
 use crate::send_later_model::{
-    check_due_at, first_state, next_wait, settle, settle_after_launch, NewPrompt, PromptState,
-    ScheduledPrompt, Snapshot,
+    check_due_at, check_repeat, first_state, next_wait, settle, settle_after_launch,
+    NewPrompt, PromptState, ScheduledPrompt, Snapshot,
 };
 use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -251,6 +251,7 @@ pub fn send_later_add(
     }
     let now = now_ms();
     let (due_at, state) = first_state(&prompt.kind, prompt.due_at, now)?;
+    check_repeat(&prompt.kind, prompt.repeat_ms)?;
     if !store.is_sender() {
         return Err(NOT_SENDER.into());
     }
@@ -272,6 +273,7 @@ pub fn send_later_add(
             prompt.kind
         },
         force: false,
+        repeat_ms: prompt.repeat_ms,
     };
     store.mutate(&app, |items| {
         items.push(item.clone());
@@ -287,6 +289,7 @@ pub fn send_later_reschedule(
     id: String,
     due_at: i64,
     kind: Option<String>,
+    repeat_ms: Option<i64>,
 ) -> Result<(), String> {
     check_due_at(due_at, now_ms())?;
     store.mutate(&app, |items| {
@@ -294,14 +297,42 @@ pub fn send_later_reschedule(
             .iter_mut()
             .find(|i| i.id == id)
             .ok_or_else(|| GONE.to_string())?;
+        let kind = kind.unwrap_or_else(|| item.kind.clone());
+        let repeat_ms = repeat_ms.unwrap_or(item.repeat_ms);
+        check_repeat(&kind, repeat_ms)?;
         item.due_at = due_at;
         item.state = PromptState::Scheduled;
         item.force = false;
-        if let Some(kind) = kind {
-            item.kind = kind;
-        }
+        item.kind = kind;
+        item.repeat_ms = repeat_ms;
         Ok(())
     })
+}
+
+/// A prompt went out: gone from the list, unless it repeats, when it waits for
+/// its next time.
+#[tauri::command(async)]
+pub fn send_later_sent(
+    app: AppHandle,
+    store: State<'_, Arc<SendLaterStore>>,
+    id: String,
+) -> Result<Option<ScheduledPrompt>, String> {
+    let now = now_ms();
+    let removed = store.mutate(&app, |items| {
+        let Some(idx) = items.iter().position(|i| i.id == id) else {
+            return Ok(None);
+        };
+        let item = &mut items[idx];
+        if item.repeat_ms > 0 {
+            item.repeat_after(now);
+            return Ok(None);
+        }
+        Ok(Some(items.remove(idx)))
+    })?;
+    if removed.is_some() {
+        release_images(&id);
+    }
+    Ok(removed)
 }
 
 #[tauri::command(async)]

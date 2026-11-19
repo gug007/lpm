@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { CircleDot, Copy, GitFork, Pin, PinOff, Sparkles, Users } from "lucide-react";
+import { CircleDot, Copy, GitFork, Link2, Pin, PinOff, Sparkles, Users } from "lucide-react";
 import { PencilIcon, XIcon } from "../icons";
 import { ContextMenuItem } from "../ui/ContextMenuItem";
 import { ContextMenuShell } from "../ui/ContextMenuShell";
@@ -15,6 +15,8 @@ interface TabContextMenuProps {
   canRestoreSessionTitle: boolean;
   canShare: boolean;
   onShare: () => void;
+  // Absent where the tab has no key a link could find it by.
+  onCopyLink?: () => void;
   onRename: () => void;
   onRestoreSessionTitle: () => void;
   onTogglePin: () => void;
@@ -24,6 +26,8 @@ interface TabContextMenuProps {
   onForkCopy: () => void;
   // The Claude account submenu, on a Claude tab when there's more than one.
   accountMenu?: ReactNode;
+  // "Continue on", where the tab's session can move to another computer.
+  continueMenu?: ReactNode;
   onCloseTab: () => void;
   onCloseOthers: () => void;
   onClose: () => void;
@@ -39,6 +43,7 @@ export function TabContextMenu({
   canRestoreSessionTitle,
   canShare,
   onShare,
+  onCopyLink,
   onRename,
   onRestoreSessionTitle,
   onTogglePin,
@@ -46,6 +51,7 @@ export function TabContextMenu({
   onFork,
   onForkCopy,
   accountMenu,
+  continueMenu,
   onCloseTab,
   onCloseOthers,
   onClose,
@@ -95,11 +101,19 @@ export function TabContextMenu({
         />
       )}
       {accountMenu}
+      {continueMenu}
       {canShare && (
         <ContextMenuItem
           label="Share tab…"
           icon={<Users size={12} />}
           onClick={close(onShare)}
+        />
+      )}
+      {onCopyLink && (
+        <ContextMenuItem
+          label="Copy link to tab"
+          icon={<Link2 size={12} />}
+          onClick={close(onCopyLink)}
         />
       )}
       <ContextMenuItem

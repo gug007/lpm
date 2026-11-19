@@ -16,8 +16,8 @@ internal val GitFile.isConflicted: Boolean get() = status == "conflicted"
 sealed interface ReviewRow {
     val key: String
 
-    /** "4 files changed" and "1 of 4 viewed" over the viewed progress bar. */
-    data class Summary(val total: Int, val viewed: Int) : ReviewRow {
+    /** "4 files changed" (or [title]) and "1 of 4 viewed" over the viewed progress bar. */
+    data class Summary(val total: Int, val viewed: Int, val title: String? = null) : ReviewRow {
         override val key get() = "summary"
     }
 
@@ -33,7 +33,9 @@ sealed interface ReviewRow {
         val viewed: Boolean,
         val added: Int?,
         val removed: Int?,
-        val changedSince: Instant? = null
+        val changedSince: Instant? = null,
+        /** False for a file already committed (the Branch scope): no Exclude. */
+        val committable: Boolean = true
     ) : ReviewRow {
         val path: String get() = file.path
         override val key get() = "h:$path"
@@ -93,7 +95,14 @@ internal fun reviewRows(files: List<ReviewFile>, ghCli: Boolean): List<ReviewRow
     if (ghCli) add(ReviewRow.CreatePullRequest)
 }
 
-private fun MutableList<ReviewRow>.addFile(f: ReviewFile) {
+/** The Branch scope's list: its heading over the files, read only. */
+internal fun branchRows(files: List<ReviewFile>, heading: String): List<ReviewRow> = buildList {
+    if (files.isEmpty()) return@buildList
+    add(ReviewRow.Summary(files.size, files.count { it.viewed }, heading))
+    files.forEach { addFile(it, committable = false) }
+}
+
+private fun MutableList<ReviewRow>.addFile(f: ReviewFile, committable: Boolean = true) {
     val path = f.file.path
     add(
         ReviewRow.FileHeader(
@@ -103,7 +112,8 @@ private fun MutableList<ReviewRow>.addFile(f: ReviewFile) {
             viewed = f.viewed,
             added = f.parsed?.addedCount,
             removed = f.parsed?.removedCount,
-            changedSince = f.changedSince
+            changedSince = f.changedSince,
+            committable = committable
         )
     )
     if (f.collapsed) return

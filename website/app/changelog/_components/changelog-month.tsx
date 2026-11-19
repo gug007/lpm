@@ -2,18 +2,22 @@
 
 import { ChevronDown } from "lucide-react";
 import { monthLabel, monthPath, releasesText, type ChangelogDay } from "@/lib/changelog-days";
+import type { MonthHighlight } from "@/lib/changelog-highlights";
 import { ChangelogEntry } from "./changelog-entry";
+import { MonthHighlights } from "./month-highlights";
 
 type Props = {
   month: string;
   releases: number;
   days: ChangelogDay[] | null;
+  // Left out while a search or topic narrows the list.
+  highlights?: MonthHighlight[];
   expanded: boolean;
   loading: boolean;
   onOpen: (month: string) => void;
 };
 
-export function ChangelogMonth({ month, releases, days, expanded, loading, onOpen }: Props) {
+export function ChangelogMonth({ month, releases, days, highlights, expanded, loading, onOpen }: Props) {
   const label = monthLabel(month);
   return (
     <section aria-labelledby={`month-${month}`} className="mt-14" id={`m-${month}`}>
@@ -29,11 +33,14 @@ export function ChangelogMonth({ month, releases, days, expanded, loading, onOpe
         </span>
       </div>
       {expanded && days ? (
-        <ol className="mt-8 space-y-10">
-          {days.map((day) => (
-            <ChangelogEntry key={day.date} day={day} />
-          ))}
-        </ol>
+        <>
+          {highlights && <MonthHighlights items={highlights} />}
+          <ol className="mt-8 space-y-10">
+            {days.map((day) => (
+              <ChangelogEntry key={day.date} day={day} />
+            ))}
+          </ol>
+        </>
       ) : (
         <a
           href={monthPath(month)}

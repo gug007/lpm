@@ -23,7 +23,7 @@ import cx.lpm.mobile.core.model.AppearanceMode
 
 /**
  * The Settings sheet's sections: away from home, appearance, terminal, the pages,
- * security, tips, privacy.
+ * security, tips, help, privacy.
  */
 @Composable
 fun SettingsContent(
@@ -34,7 +34,8 @@ fun SettingsContent(
     modifier: Modifier = Modifier,
     terminalControls: @Composable () -> Unit = {},
     security: @Composable () -> Unit = {},
-    tips: @Composable () -> Unit = {}
+    tips: @Composable () -> Unit = {},
+    help: @Composable () -> Unit = {}
 ) {
     Column(
         modifier
@@ -87,6 +88,7 @@ fun SettingsContent(
         }
         security()
         tips()
+        help()
         ListSection {
             NavigationRow(
                 title = stringResource(R.string.settings_privacy_policy),

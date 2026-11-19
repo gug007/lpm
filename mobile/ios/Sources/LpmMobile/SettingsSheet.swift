@@ -2,8 +2,10 @@ import SwiftUI
 
 struct SettingsSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppModel.self) private var model
     @AppStorage(AppearanceMode.storageKey) private var appearanceRaw = AppearanceMode.system.rawValue
     @State private var tailscale = BuiltInTailscale.shared
+    @State private var feedback = false
 
     private var tailscaleSummary: String {
         guard tailscale.enabled else { return "Off" }
@@ -75,6 +77,8 @@ struct SettingsSheet: View {
                     Text("Tips you closed come back where they apply.")
                 }
 
+                HelpSection { feedback = true }
+
                 Section {
                     Link(destination: URL(string: "https://lpm.cx/privacy")!) {
                         Label("Privacy Policy", systemImage: "lock.shield")
@@ -89,6 +93,11 @@ struct SettingsSheet: View {
                         .fontWeight(.semibold)
                 }
             }
+        }
+        // On the sheet's root, not in the Form: a sheet presented from a list row goes
+        // when the row does, and takes Settings with it.
+        .sheet(isPresented: $feedback) {
+            FeedbackSheet().environment(model)
         }
     }
 }

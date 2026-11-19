@@ -4,6 +4,7 @@ import { registerComposerHost, unschedule } from "../sendLater/actions";
 import { choiceAt, DEFAULT_CHOICE, loadLastChoice, saveLastChoice, type LastChoice } from "../sendLater/lastChoice";
 import { whenDoneSubject } from "../sendLater/status";
 import { shortWhenLabel } from "../sendLater/time";
+import { withRepeat } from "../sendLater/repeat";
 import {
   reschedulePrompt,
   schedulePrompt,
@@ -103,7 +104,7 @@ export function useComposerSendLater({
   // Take the prompt in the input onto the schedule, with Undo on the toast that
   // says so. True once it's there.
   const scheduleInput = useCallback(
-    async (at: number, kind: ScheduledPromptKind, done: string, failed: string): Promise<boolean> => {
+    async (at: number, kind: ScheduledPromptKind, done: string, failed: string, repeatMs = 0): Promise<boolean> => {
       const prompt = readPrompt();
       if (!prompt || !claim(prompt.id)) return false;
       try {
@@ -116,6 +117,7 @@ export function useComposerSendLater({
           images: prompt.images,
           dueAt: at,
           kind,
+          repeatMs,
         });
         retire(prompt.id);
         toast.success(done, { action: { label: "Undo", onClick: () => void unschedule(item) } });
@@ -131,21 +133,22 @@ export function useComposerSendLater({
   );
 
   const pick = useCallback(
-    async (at: number, kind: ScheduledPromptKind, choice: LastChoice | null) => {
+    async (at: number, kind: ScheduledPromptKind, choice: LastChoice | null, repeatMs = 0) => {
       const current = picker;
       if (!current) return;
       if (choice) saveLastChoice(choice);
       if (current.mode === "reschedule") {
         setPicker(null);
         try {
-          await reschedulePrompt(current.item.id, at, kind);
+          await reschedulePrompt(current.item.id, at, kind, repeatMs);
           toast.success(`Rescheduled for ${shortWhenLabel(at, Date.now())}`);
         } catch (err) {
           toast.error(`Couldn't reschedule it: ${String(err)}`);
         }
         return;
       }
-      if (await scheduleInput(at, kind, `Scheduled for ${shortWhenLabel(at, Date.now())}`, "Couldn't schedule it")) {
+      const done = withRepeat(`Scheduled for ${shortWhenLabel(at, Date.now())}`, repeatMs);
+      if (await scheduleInput(at, kind, done, "Couldn't schedule it", repeatMs)) {
         setPicker(null);
       }
     },

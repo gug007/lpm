@@ -50,16 +50,16 @@ export const PLAY_STORE_URL =
 export const STORE_LINK_PATH = "/link";
 export const STORE_LINK_URL = `${SITE_URL}${STORE_LINK_PATH}`;
 export const VS_BASE_PATH = "/vs";
-export const VS_SLUGS = [
+export const VS_SLUGS = ["tmux", "cmux", "iterm2"] as const;
+// Their pages are gone; each is a card on the hub that the old URL lands on.
+export const VS_HUB_ONLY = [
   "foreman",
   "overmind",
   "docker-compose",
-  "tmux",
   "pm2",
-  "cmux",
-  "iterm2",
 ] as const;
 export type VsSlug = (typeof VS_SLUGS)[number];
+export type VsHubOnlySlug = (typeof VS_HUB_ONLY)[number];
 export const vsPath = (slug: VsSlug): string => `${VS_BASE_PATH}/${slug}`;
 export const TELEGRAM_URL = "https://t.me/lpm_desktop";
 export const YOUTUBE_CHANNEL_URL = "https://www.youtube.com/@lpmcx";

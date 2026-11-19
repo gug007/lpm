@@ -11,6 +11,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleStartEffect
@@ -51,6 +52,7 @@ fun GitReviewRoute(
     var backgrounded by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val haptics = LocalHapticFeedback.current
+    val uriHandler = LocalUriHandler.current
     DisposableEffect(viewModel) {
         viewModel.appear()
         onDispose { viewModel.disappear() }
@@ -103,7 +105,9 @@ fun GitReviewRoute(
                 }
             },
             clearDraft = viewModel::clearDraft,
-            focusShown = viewModel::focusShown
+            focusShown = viewModel::focusShown,
+            setScope = viewModel::setScope,
+            openPullRequest = { uriHandler.openUri(it) }
         )
     )
 
@@ -122,6 +126,7 @@ fun GitReviewRoute(
                     }
                 }
             ),
+            secrets = viewModel.secrets,
             onDismiss = { committing = false }
         )
     }

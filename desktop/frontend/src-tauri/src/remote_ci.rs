@@ -64,6 +64,10 @@ fn checks_reply(project: &str, root: String) -> Value {
         .as_ref()
         .and_then(|pr| pr.fix_prompt.clone())
         .or_else(|| commit.as_ref().and_then(|c| c.fix_prompt.clone()));
+    let resolve = pr
+        .as_ref()
+        .filter(|pr| pr.merge.mergeable == "CONFLICTING" || pr.merge.state == "DIRTY")
+        .map(|pr| crate::ci_prompt::for_conflicts(pr.number, &pr.url, &pr.merge.base));
     let mut reply = json!({
         "t": "gitChecks",
         "project": project,
@@ -81,6 +85,9 @@ fn checks_reply(project: &str, root: String) -> Value {
     });
     if let Some(fix) = fix {
         reply["fixPrompt"] = json!(fix);
+    }
+    if let Some(resolve) = resolve {
+        reply["resolvePrompt"] = json!(resolve);
     }
     reply
 }

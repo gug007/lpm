@@ -19,7 +19,7 @@ interface FilesRowsProps {
   cursorStore: TreeCursorStore;
   onActivate: (item: Item) => void;
   onContextMenu: (target: RowTarget) => void;
-  onDiscard: (item: Item) => void;
+  onDiscard?: (item: Item) => void;
   checks?: ReadonlyMap<string, CheckState>;
   onCheck?: (item: Item, select: boolean) => void;
   // The row whose name is being typed, shown as a field instead.
@@ -68,7 +68,7 @@ export const FilesRows = memo(function FilesRows({
             cursorStore={cursorStore}
             onActivate={onActivate}
             onContextMenu={onContextMenu}
-            onDiscard={status ? onDiscard : undefined}
+            onDiscard={status && onDiscard ? onDiscard : undefined}
             check={checks?.get(row.path)}
             onCheck={onCheck}
           />
