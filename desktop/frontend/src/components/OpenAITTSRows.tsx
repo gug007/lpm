@@ -1,12 +1,10 @@
 import { useEffect, useState } from "react";
-import { toast } from "../notifications/toast";
-import { useConfirmFlash } from "../hooks/useConfirmFlash";
+import { useOpenAiVoices } from "../hooks/useOpenAiVoices";
+import { isMac } from "../platform";
+import { OpenAIKeyField } from "./OpenAIKeyField";
 import { useSettingsTarget } from "./settings/settingsTarget";
 import { SettingsRow } from "./SettingsRow";
 import { SettingsSelect } from "./SettingsSelect";
-import { BTN_SECONDARY } from "./ui/buttons";
-import { ConfirmNote } from "./ui/ConfirmNote";
-import { isMac } from "../platform";
 
 /// The key lives in the macOS Keychain (a 0600 file on a Linux host), never in
 /// settings.json — so this row can ask whether one is saved, but never reads it
@@ -15,9 +13,6 @@ import { isMac } from "../platform";
 export function OpenAIKeyRow() {
   const { machine, commands } = useSettingsTarget();
   const [saved, setSaved] = useState<boolean | null>(null);
-  const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState("");
-  const [confirmed, flashConfirmed] = useConfirmFlash();
   const keychain = machine.kind === "local" ? isMac : machine.mac;
   const where = machine.kind === "local" ? "on this computer" : `on ${machine.name}`;
 
@@ -27,28 +22,6 @@ export function OpenAIKeyRow() {
       .then(setSaved)
       .catch(() => setSaved(false));
   }, [commands]);
-
-  const save = async () => {
-    try {
-      await commands.setOpenAiKey(value.trim());
-      setValue("");
-      setEditing(false);
-      setSaved(true);
-      flashConfirmed();
-    } catch (err) {
-      toast.error(`Couldn't save key: ${String(err)}`);
-    }
-  };
-
-  const clear = async () => {
-    try {
-      await commands.clearOpenAiKey();
-      setSaved(false);
-      flashConfirmed();
-    } catch (err) {
-      toast.error(`Couldn't remove key: ${String(err)}`);
-    }
-  };
 
   const description =
     saved === null
@@ -61,37 +34,11 @@ export function OpenAIKeyRow() {
 
   return (
     <SettingsRow id="tts.openaiKey" label="OpenAI API Key" description={description}>
-      {confirmed ? (
-        <ConfirmNote>{saved ? "Saved" : "Removed"}</ConfirmNote>
-      ) : editing || saved === false ? (
-        <div className="flex items-center gap-2">
-          <input
-            type="password"
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && value.trim()) save();
-            }}
-            placeholder="sk-…"
-            aria-label="OpenAI API key"
-            autoComplete="off"
-            spellCheck={false}
-            className="w-56 rounded-md border border-white/10 bg-black/20 px-2 py-1 text-sm"
-          />
-          <button onClick={save} disabled={!value.trim()} className={BTN_SECONDARY}>
-            Save
-          </button>
-        </div>
-      ) : (
-        <div className="flex items-center gap-2">
-          <button onClick={() => setEditing(true)} className={BTN_SECONDARY}>
-            Replace
-          </button>
-          <button onClick={clear} className={BTN_SECONDARY}>
-            Remove
-          </button>
-        </div>
-      )}
+      <OpenAIKeyField
+        saved={saved}
+        onSave={(key) => commands.setOpenAiKey(key).then(() => setSaved(true))}
+        onClear={() => commands.clearOpenAiKey().then(() => setSaved(false))}
+      />
     </SettingsRow>
   );
 }
@@ -104,14 +51,7 @@ export function OpenAIVoiceRow({
   onChange: (voice: string) => void;
 }) {
   const { commands } = useSettingsTarget();
-  const [voices, setVoices] = useState<string[]>([]);
-
-  useEffect(() => {
-    commands
-      .openAiVoices()
-      .then(setVoices)
-      .catch(() => setVoices([]));
-  }, [commands]);
+  const voices = useOpenAiVoices(commands);
 
   return (
     <SettingsRow id="tts.openaiVoice" label="OpenAI Voice" description="OpenAI voice">

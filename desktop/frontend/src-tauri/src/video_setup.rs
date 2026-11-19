@@ -15,7 +15,7 @@ pub struct VideoSetupPart {
 }
 
 #[cfg(not(target_os = "macos"))]
-const NOT_MAC: &str = "Videos record on a Mac";
+pub(crate) const NOT_MAC: &str = "Videos record on a Mac";
 
 #[tauri::command]
 pub async fn video_setup_check() -> Result<Vec<VideoSetupPart>, String> {

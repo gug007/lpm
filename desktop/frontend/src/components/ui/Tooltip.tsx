@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect, useLayoutEffect, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { useOverlayStore } from "../../store/overlay";
 
 type Side = "top" | "bottom" | "right" | "left";
 
@@ -109,6 +110,15 @@ export function Tooltip({ content, children, side = "top", align = "center", wid
   useEffect(() => {
     if (suppressed) hide();
   }, [suppressed, hide]);
+
+  // A dialog or menu opening takes the card down: the pointer may still be on
+  // it (a card's own button opened it), so it would cover what just opened.
+  useEffect(() => {
+    if (!visible) return;
+    return useOverlayStore.subscribe((s, prev) => {
+      if (s.count > prev.count) hide();
+    });
+  }, [visible, hide]);
 
   const updatePosition = useCallback(() => {
     const trigger = triggerRef.current;

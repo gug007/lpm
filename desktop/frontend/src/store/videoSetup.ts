@@ -35,29 +35,48 @@ export const useVideoSetup = create<VideoSetupStore>(() => ({
   errors: {},
 }));
 
+// What this Mac has now, or null where it can't be checked.
+async function checkVideoSetup(): Promise<VideoSetupPart[] | null> {
+  try {
+    return (await VideoSetupCheck()) as VideoSetupPart[];
+  } catch {
+    return null;
+  }
+}
+
 /** True when video can be made now; otherwise opens the setup window for
  *  `terminalId` and resolves false. */
 export async function ensureVideoReady(terminalId: string): Promise<boolean> {
   const { parts: known, running } = useVideoSetup.getState();
   // Everything was there at the last check: later clicks skip checking.
   if (known && isVideoSetUp(known)) return true;
-  if (running) {
-    useVideoSetup.setState({ open: true, turnOnFor: terminalId });
-    return false;
-  }
-  let parts: VideoSetupPart[];
-  try {
-    parts = (await VideoSetupCheck()) as VideoSetupPart[];
-  } catch {
+  if (!running) {
+    const parts = await checkVideoSetup();
     // A Mac that can't be checked still lets the skill report what it lacks.
-    return true;
-  }
-  if (isVideoSetUp(parts)) {
+    if (!parts) return true;
     useVideoSetup.setState({ parts });
-    return true;
+    if (isVideoSetUp(parts)) return true;
   }
-  useVideoSetup.setState({ parts, open: true, turnOnFor: terminalId, runs: {}, errors: {} });
+  openVideoSetup(terminalId);
   return false;
+}
+
+// The Video settings window's Setup row: what the Mac has now, unless an
+// install is on its way.
+export async function refreshVideoSetup(): Promise<void> {
+  if (useVideoSetup.getState().running) return;
+  const parts = await checkVideoSetup();
+  if (parts) useVideoSetup.setState({ parts });
+}
+
+// The setup window, for `turnOnFor` to get Video once it's done, or for the Mac
+// as a whole. A running install keeps its rows.
+export function openVideoSetup(turnOnFor: string | null = null): void {
+  if (useVideoSetup.getState().running) {
+    useVideoSetup.setState(turnOnFor ? { open: true, turnOnFor } : { open: true });
+    return;
+  }
+  useVideoSetup.setState({ open: true, turnOnFor, runs: {}, errors: {} });
 }
 
 export function closeVideoSetup(): void {
@@ -84,12 +103,8 @@ export async function installVideoSetup(): Promise<void> {
       mark(id, "failed", String(err));
     }
   }
-  let fresh = parts;
-  try {
-    fresh = (await VideoSetupCheck()) as VideoSetupPart[];
-  } catch {
-    // Keep the rows as they ran.
-  }
+  // Where it can't be checked, the rows stay as they ran.
+  const fresh = (await checkVideoSetup()) ?? parts;
   const { open, turnOnFor, errors } = useVideoSetup.getState();
   useVideoSetup.setState({ parts: fresh, running: false });
   if (isVideoSetUp(fresh)) {

@@ -395,6 +395,7 @@ mod vaultkeychain;
 mod vaultcred;
 mod vaultkeyfile;
 mod video_setup;
+mod video_settings;
 mod voicetotext;
 #[cfg(target_os = "macos")]
 mod voicetotext_api;
@@ -575,6 +576,7 @@ use updatenote::take_update_note;
 use updates::*;
 use upload::*;
 use video_setup::*;
+use video_settings::*;
 use voicetotext::*;
 
 /// The argument that turns this binary into the session daemon (sessiond.rs)

@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import type { AICLI } from "../types";
 import { AgentGlyph } from "./terminal/AgentGlyph";
 import { PlayIcon, VideoIcon } from "./icons";
+import { VideoVoiceLine } from "./VideoVoiceLine";
 
 // A still in explaincast's own look, a warm canvas and a serif title, so it
 // reads as a frame of a video rather than a piece of lpm.
@@ -60,6 +61,7 @@ export function VideoAnswerPreview({ agent }: { agent: AICLI | null }) {
         <span className="font-medium text-[var(--text-primary)]">Answer as a video</span>
         <span className="leading-snug text-[var(--text-muted)]">Ask as usual. The reply is a narrated video.</span>
       </div>
+      <VideoVoiceLine />
     </div>
   );
 }

@@ -33,6 +33,7 @@ import { PairRequestDialog } from "./components/connections/PairRequestDialog";
 import { FileViewerHost } from "./components/FileViewerHost";
 import { InstructionsDialogHost } from "./components/InstructionsDialogHost";
 import { VideoSetupModal } from "./components/VideoSetupModal";
+import { VideoSettingsModal } from "./components/videoSettings/VideoSettingsModal";
 import { TerminalDropOverlayHost } from "./components/terminal/TerminalDropOverlayHost";
 import { AppToaster } from "./components/AppToaster";
 import { DictationOverlay } from "./components/dictation/DictationOverlay";
@@ -436,6 +437,7 @@ export default function App() {
       <TabShareHosts />
       <FileViewerHost />
       <InstructionsDialogHost />
+      <VideoSettingsModal />
       <VideoSetupModal />
       <IgnoredSyncHost />
       <TerminalDropOverlayHost />
