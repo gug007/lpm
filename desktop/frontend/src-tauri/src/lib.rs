@@ -122,6 +122,7 @@ mod gitundo;
 mod worktree_files;
 mod peerhealth;
 mod gitsecrets;
+mod gitstage;
 mod secretscan;
 mod gitorigin;
 mod gitbring;
