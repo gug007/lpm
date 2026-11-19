@@ -77,6 +77,9 @@ fn voice_in(home: &std::path::Path) -> bool {
 }
 
 #[cfg(target_os = "macos")]
+pub(crate) use mac::skill_lib;
+
+#[cfg(target_os = "macos")]
 mod mac {
     use super::{chromium_in, voice_in, VideoSetupPart};
     use crate::lpm_commands::{agents_skills_dir, claude_skills_dir, global_store, CommandFs};
@@ -356,18 +359,22 @@ mod mac {
             .args(["install", "chromium"]))
     }
 
-    // The skill sets its own voice up, the same way its first video would.
-    fn install_voice() -> Result<(), String> {
-        require_node()?;
+    // The skill's scripts/lib, where its voices are.
+    pub(crate) fn skill_lib() -> Result<PathBuf, String> {
         let skill = [agents_skill(), claude_skill()]
             .into_iter()
             .find(|dir| has_skill(dir))
             .ok_or("Needs the explaincast skill first")?;
-        let local = std::fs::canonicalize(&skill)
+        Ok(std::fs::canonicalize(&skill)
             .map_err(|e| e.to_string())?
             .join("scripts")
-            .join("lib")
-            .join("local.js");
+            .join("lib"))
+    }
+
+    // The skill sets its own voice up, the same way its first video would.
+    fn install_voice() -> Result<(), String> {
+        require_node()?;
+        let local = skill_lib()?.join("local.js");
         if !local.is_file() {
             return Err("This explaincast has no local voice: update the skill".into());
         }

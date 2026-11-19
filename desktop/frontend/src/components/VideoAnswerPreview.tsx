@@ -16,7 +16,7 @@ const SERIF: CSSProperties = { fontFamily: '"Iowan Old Style", Palatino, Georgia
 
 // The Video button's tooltip: a question as it would be typed, and the agent's
 // reply to it as a video, so the button explains itself by example.
-export function VideoAnswerPreview({ agent }: { agent: AICLI | null }) {
+export function VideoAnswerPreview({ agent, on = false }: { agent: AICLI | null; on?: boolean }) {
   return (
     <div className="flex w-[296px] flex-col gap-2.5 py-0.5">
       <div className="self-end rounded-[12px_12px_4px_12px] bg-[var(--bg-active)] px-2.5 py-1.5 leading-snug text-[var(--text-primary)]">
@@ -58,8 +58,10 @@ export function VideoAnswerPreview({ agent }: { agent: AICLI | null }) {
         </div>
       </div>
       <div className="flex flex-col gap-0.5">
-        <span className="font-medium text-[var(--text-primary)]">Answer as a video</span>
-        <span className="leading-snug text-[var(--text-muted)]">Ask as usual. The reply is a narrated video.</span>
+        <span className="font-medium text-[var(--text-primary)]">{on ? "Answering as a video" : "Answer as a video"}</span>
+        <span className="leading-snug text-[var(--text-muted)]">
+          Ask as usual. The reply is a narrated video.{on && " Click again for a text answer."}
+        </span>
       </div>
       <VideoVoiceLine />
     </div>

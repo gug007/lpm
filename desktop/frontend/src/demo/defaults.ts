@@ -106,7 +106,7 @@ const EMPTY_STRING: string[] = [
   "read_template", "resolve_merge_conflicts_with_ai", "save_clipboard_image", "save_png_image",
   "save_generator_icon", "start_claude_login", "sync_project_start", "ignored_sync_start", "terminal_foreground_command",
   "transform_text", "upload_and_quote_for_terminal", "upload_clipboard_image_for_terminal",
-  "upload_file_for_terminal", "vault_export_key", "voice_to_text_start",
+  "upload_file_for_terminal", "vault_export_key", "video_voice_sample", "voice_to_text_start",
 ];
 
 const ZERO: string[] = [

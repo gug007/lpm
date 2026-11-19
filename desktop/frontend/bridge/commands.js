@@ -587,6 +587,9 @@ export function VideoSetOpenAIKey(key) {
 export function VideoClearOpenAIKey() {
   return invoke("video_clear_openai_key");
 }
+export function VideoVoiceSample(voice) {
+  return invoke("video_voice_sample", { voice });
+}
 export function InstallCli() {
   return invoke("install_cli");
 }

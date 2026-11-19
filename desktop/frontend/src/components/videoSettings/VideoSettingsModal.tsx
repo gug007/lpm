@@ -1,12 +1,11 @@
 import { closeVideoSettings, useVideoSettings } from "../../store/videoSettings";
 import { VideoIcon } from "../icons";
-import { BTN_PRIMARY } from "../ui/buttons";
 import { Modal } from "../ui/Modal";
 import { VideoSettingsBody } from "./VideoSettingsBody";
 
-// Who narrates video answers, the key the cloud voice bills, and what this Mac
-// needs for videos. Mounted once per window, beside the setup window, which
-// opens on top of it from the Setup row.
+// Who narrates video answers, the key the cloud voice bills, and whether this
+// Mac is ready for videos. Mounted once per window, beside the setup window,
+// which opens on top of it from the footer.
 export function VideoSettingsModal() {
   const open = useVideoSettings((s) => s.open);
   return (
@@ -28,12 +27,7 @@ export function VideoSettingsModal() {
           </p>
         </div>
       </div>
-      <VideoSettingsBody />
-      <div className="flex justify-end border-t border-[var(--border)] px-5 py-3">
-        <button type="button" onClick={closeVideoSettings} className={BTN_PRIMARY}>
-          Done
-        </button>
-      </div>
+      <VideoSettingsBody onDone={closeVideoSettings} />
     </Modal>
   );
 }

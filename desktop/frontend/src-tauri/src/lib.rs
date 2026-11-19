@@ -396,6 +396,7 @@ mod vaultcred;
 mod vaultkeyfile;
 mod video_setup;
 mod video_settings;
+mod video_voice_sample;
 mod voicetotext;
 #[cfg(target_os = "macos")]
 mod voicetotext_api;
@@ -577,6 +578,7 @@ use updates::*;
 use upload::*;
 use video_setup::*;
 use video_settings::*;
+use video_voice_sample::*;
 use voicetotext::*;
 
 /// The argument that turns this binary into the session daemon (sessiond.rs)
