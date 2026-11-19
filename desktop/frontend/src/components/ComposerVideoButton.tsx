@@ -46,16 +46,15 @@ export function ComposerVideoButton({ on, onToggle, offReason, agent, variant = 
       />
     );
   }
-  // Off, the tooltip shows what the button does by example, ending on who will
-  // voice it and a Settings link the pointer can reach; on, or where it can't
-  // be used, it says in one line how to go back or why.
-  const explains = !blocked && !on;
+  // The tooltip shows what the button does by example, on or off, ending on
+  // who will voice it and a Settings link the pointer can reach; where it
+  // can't be used, it says why in one line.
   return (
     <Tooltip
-      content={explains ? <VideoAnswerPreview agent={agent} /> : (offReason ?? label)}
+      content={blocked ? offReason : <VideoAnswerPreview agent={agent} on={on} />}
       delay={COMPOSER_TOOLTIP_DELAY_MS}
-      wide={explains}
-      interactive={explains}
+      wide={!blocked}
+      interactive={!blocked}
     >
       <button
         type="button"

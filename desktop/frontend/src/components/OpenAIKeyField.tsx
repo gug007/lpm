@@ -12,10 +12,12 @@ export function OpenAIKeyField({
   saved,
   onSave,
   onClear,
+  autoFocus = false,
 }: {
   saved: boolean | null;
   onSave: (key: string) => Promise<unknown>;
   onClear: () => Promise<unknown>;
+  autoFocus?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState("");
@@ -51,6 +53,7 @@ export function OpenAIKeyField({
           }}
           placeholder="sk-…"
           aria-label="OpenAI API key"
+          autoFocus={autoFocus}
           autoComplete="off"
           spellCheck={false}
           className="w-56 rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1 text-sm"

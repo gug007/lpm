@@ -47,7 +47,7 @@ fn narrator_from(settings: &Value) -> Option<String> {
 
 // Kokoro names a voice by accent and sex, then a name: af_heart, bm_george.
 #[cfg(any(target_os = "macos", test))]
-fn is_local_voice(v: &str) -> bool {
+pub(crate) fn is_local_voice(v: &str) -> bool {
     let b = v.as_bytes();
     b.len() > 3
         && b[0].is_ascii_lowercase()

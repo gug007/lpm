@@ -194,6 +194,7 @@ export function VideoSetupInstall(...args: any[]): Promise<any>;
 export function VideoSettingsInfo(...args: any[]): Promise<any>;
 export function VideoSetOpenAIKey(...args: any[]): Promise<any>;
 export function VideoClearOpenAIKey(...args: any[]): Promise<any>;
+export function VideoVoiceSample(...args: any[]): Promise<any>;
 export function InstallUpdate(...args: any[]): Promise<any>;
 export function RollbackUpdate(...args: any[]): Promise<any>;
 export function CancelUpdate(...args: any[]): Promise<boolean>;

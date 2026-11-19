@@ -66,7 +66,7 @@ describe("ComposerVideoButton tooltip", () => {
   it("names the cloud voice and its price once it is picked", () => {
     useSettingsStore.setState({ videoNarrator: "openai", videoCloudVoice: "cedar" });
     render();
-    expect(hover()).toContain("OpenAI voice, cedar · ≈ 2¢ a minute");
+    expect(hover()).toContain("OpenAI voice, cedar · ≈ $0.02 a minute");
   });
 
   it("opens Video settings from the card", () => {
@@ -77,9 +77,13 @@ describe("ComposerVideoButton tooltip", () => {
     expect(useVideoSettings.getState().open).toBe(true);
   });
 
-  it("says how to go back once it is on", () => {
+  it("keeps the same card once it is on, saying how to go back", () => {
     render({ on: true });
-    expect(hover()).toBe("Back to a text answer");
+    const text = hover();
+    expect(text).toContain("How does checkout apply a coupon?");
+    expect(text).toContain("Answering as a video");
+    expect(text).toContain("Click again for a text answer.");
+    expect(text).toContain("Voiced on this Mac · free");
   });
 
   it("says why where it can't be used", () => {

@@ -538,6 +538,7 @@ macro_rules! all_command_handlers {
             video_settings_info,
             video_set_openai_key,
             video_clear_openai_key,
+            video_voice_sample,
             voice_to_text_available,
             voice_to_text_toggle,
             voice_to_text_start,
