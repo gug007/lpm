@@ -86,7 +86,8 @@ if [ -n "$NOTES" ]; then
 fi
 
 echo "▸ Uploading $NEW_NAME ($NEW_CODE) to the $TRACK track…"
-FASTLANE_SKIP_UPDATE_CHECK=1 FASTLANE_HIDE_CHANGELOG=1 CI=1 fastlane run upload_to_play_store \
+FASTLANE_SKIP_UPDATE_CHECK=1 FASTLANE_HIDE_CHANGELOG=1 FASTLANE_OPT_OUT_USAGE=1 \
+FASTLANE_HIDE_GITHUB_ISSUES=1 CI=1 fastlane run upload_to_play_store \
   package_name:"$PACKAGE" \
   json_key:"$JSON_KEY" \
   aab:"$BUNDLE" \

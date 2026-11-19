@@ -1,4 +1,4 @@
-use crate::git::{git_out, path_args};
+use crate::git::git_out;
 use serde::Serialize;
 
 #[derive(Serialize, Debug)]
@@ -87,12 +87,14 @@ pub fn git_amend_commit(
     if !files.is_empty() {
         crate::gitconflict::check_commit(&cwd, &files)?;
     }
+    let removals = crate::gitstage::Removals::staged(&cwd);
     git_out(&cwd, &["reset", "-q", "HEAD"])?;
-    if !files.is_empty() {
-        let paths: Vec<&str> = files.iter().map(String::as_str).collect();
-        git_out(&cwd, &path_args(&["add"], &paths)).map_err(|e| format!("staging files: {e}"))?;
-    }
-    git_out(&cwd, &["commit", "--amend", "-m", message]).map(|_| ())
+    let amended = removals
+        .add(&cwd, &files)
+        .map_err(|e| format!("staging files: {e}"))
+        .and_then(|()| git_out(&cwd, &["commit", "--amend", "-m", message]).map(|_| ()));
+    removals.keep(&cwd, &files);
+    amended
 }
 
 #[cfg(test)]
