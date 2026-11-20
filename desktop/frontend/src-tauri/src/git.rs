@@ -1056,7 +1056,7 @@ pub fn git_discard_files(cwd: String, files: Vec<String>) -> Result<Option<Strin
     }
     let paths: Vec<&str> = files.iter().map(String::as_str).collect();
     let indexed = tracked_files(&cwd, &paths).map_err(|e| format!("ls-files: {e}"))?;
-    let at_head = crate::gitdiscards::in_head(&cwd, &paths);
+    let at_head = crate::gitdiscards::in_head(&cwd, &paths).map_err(|e| format!("ls-tree: {e}"))?;
     let (mut restore, rest): (Vec<&str>, Vec<&str>) =
         paths.iter().copied().partition(|f| at_head.contains(*f));
     let (added, untracked): (Vec<&str>, Vec<&str>) =

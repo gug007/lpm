@@ -174,6 +174,12 @@ fn names_git_quotes_under_any_setting_are_discarded() {
     assert_discards_and_undoes(&["a\"b.txt", "back\\slash.txt", "tab\there.txt"]);
 }
 
+#[cfg(unix)]
+#[test]
+fn a_tracked_name_ending_in_a_space_is_restored_not_deleted() {
+    assert_discards_and_undoes(&["trailing ", "a.txt"]);
+}
+
 #[test]
 fn a_mixed_batch_sorts_each_file_the_right_way() {
     let (_dir, root) = repo();
