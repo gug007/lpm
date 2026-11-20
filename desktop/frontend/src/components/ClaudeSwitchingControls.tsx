@@ -9,7 +9,7 @@ import { SegmentedControl } from "./ui/SegmentedControl";
 import { Toggle } from "./ui/Toggle";
 
 const UNAVAILABLE: Record<string, string> = {
-  headless: "Not available on a headless host: there is no one here to confirm the accounts.",
+  headless: "This server runs an older lpm. Update it to switch accounts here.",
   ambient:
     "lpm was opened with a Claude config folder set in its environment, so it can't tell your accounts apart. Remove it from your shell profile and reopen lpm.",
   profile:

@@ -12,13 +12,23 @@ use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
 fn exported(name: &str) -> Option<PathBuf> {
-    crate::sys::capture_login_env(name)
-        .map(PathBuf::from)
-        .or_else(|| {
-            std::env::var_os(name)
-                .filter(|v| !v.is_empty())
-                .map(PathBuf::from)
-        })
+    or_own_env(crate::sys::capture_login_env(name).as_deref(), name)
+}
+
+fn or_own_env(profile: Option<&str>, name: &str) -> Option<PathBuf> {
+    profile.map(PathBuf::from).or_else(|| {
+        std::env::var_os(name)
+            .filter(|v| !v.is_empty())
+            .map(PathBuf::from)
+    })
+}
+
+/// What the login profile exports as `CLAUDE_CONFIG_DIR`.
+pub(crate) fn profile_claude_config_dir() -> Option<&'static str> {
+    static VALUE: OnceLock<Option<String>> = OnceLock::new();
+    VALUE
+        .get_or_init(|| crate::sys::capture_login_env(crate::config::CLAUDE_CONFIG_DIR_ENV))
+        .as_deref()
 }
 
 /// `$CODEX_HOME`, else `~/.codex`.
@@ -68,7 +78,8 @@ pub fn claude_config_dir() -> Option<&'static Path> {
     static DIR: OnceLock<Option<PathBuf>> = OnceLock::new();
     DIR.get_or_init(|| {
         let default = dirs::home_dir().map(|home| home.join(".claude"));
-        exported(crate::config::CLAUDE_CONFIG_DIR_ENV).filter(|dir| Some(dir) != default.as_ref())
+        or_own_env(profile_claude_config_dir(), crate::config::CLAUDE_CONFIG_DIR_ENV)
+            .filter(|dir| Some(dir) != default.as_ref())
     })
     .as_deref()
 }

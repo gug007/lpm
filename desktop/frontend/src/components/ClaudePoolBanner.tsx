@@ -1,3 +1,5 @@
+import { sharingMachines } from "../claudeMachines";
+import { MACHINE } from "../machineWords";
 import { openClaudeAccountSettings } from "../store/claudeAccountPin";
 import { useClaudePoolStore } from "../store/claudePool";
 import { useMachineClaudeStore } from "../store/machineClaude";
@@ -17,6 +19,7 @@ export function ClaudePoolBanner() {
   const dismissedOn = useMachineClaudeStore((s) => s.dismissed);
   const acceptOn = useMachineClaudeStore((s) => s.accept);
   const dismissOn = useMachineClaudeStore((s) => s.dismiss);
+  const sharing = sharingMachines(aliases, machines);
 
   return (
     <>
@@ -24,27 +27,27 @@ export function ClaudePoolBanner() {
         <ClaudePoolNotes
           pool={pool}
           dismissed={dismissed}
+          // With other machines' accounts in play, this one's notes say whose they are.
+          machine={sharing.length > 0 ? MACHINE.ThisMachine : undefined}
           onAccept={(key) => void accept(key)}
           onDismiss={dismiss}
           onOpenSettings={() => openClaudeAccountSettings()}
         />
       )}
-      {Object.entries(aliases).map(([slug, alias]) => {
-        const machine = machines[slug];
-        if (!machine?.pool) return null;
-        return (
+      {sharing.map(({ slug, alias, claude }) =>
+        claude.pool ? (
           <ClaudePoolNotes
             key={slug}
-            pool={machine.pool}
+            pool={claude.pool}
             dismissed={dismissedOn[slug] ?? NOTHING_DISMISSED}
             machine={alias}
-            accounts={machine.accounts}
+            accounts={claude.accounts}
             onAccept={(key) => void acceptOn(slug, key)}
             onDismiss={(key) => dismissOn(slug, key)}
             onOpenSettings={() => openClaudeAccountSettings(slug)}
           />
-        );
-      })}
+        ) : null,
+      )}
     </>
   );
 }
