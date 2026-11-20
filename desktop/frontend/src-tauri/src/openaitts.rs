@@ -27,7 +27,7 @@ pub const VOICES: &[&str] = &[
 
 /// Split on paragraph, then sentence, then hard-cut — so a chunk boundary lands
 /// where a speaker would pause rather than mid-word.
-fn chunk(text: &str) -> Vec<String> {
+pub(crate) fn chunk(text: &str) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     let mut current = String::new();
 
@@ -84,15 +84,29 @@ fn hard_split(text: &str) -> Vec<String> {
 pub fn synthesize(text: &str, voice: &str, speed: f64) -> Result<Vec<u8>, String> {
     let key = secrets::get(secrets::OPENAI_API_KEY)?
         .ok_or("No OpenAI API key saved. Add one in Settings → Text to Speech.")?;
+    let chunks = chunk(text);
+    if chunks.is_empty() {
+        return Err("text is empty".into());
+    }
+    speak(&key, &chunks, voice, speed, FORMAT)
+}
+
+/// Speak each piece in turn and join the audio, which holds together only for
+/// formats made of self-contained frames (AAC, MP3).
+pub(crate) fn speak(
+    key: &str,
+    pieces: &[String],
+    voice: &str,
+    speed: f64,
+    format: &str,
+) -> Result<Vec<u8>, String> {
     let voice = if VOICES.contains(&voice) {
         voice
     } else {
         DEFAULT_VOICE
     };
     let speed = speed.clamp(0.25, 4.0);
-
-    let chunks = chunk(text);
-    if chunks.is_empty() {
+    if pieces.is_empty() {
         return Err("text is empty".into());
     }
 
@@ -103,20 +117,20 @@ pub fn synthesize(text: &str, voice: &str, speed: f64) -> Result<Vec<u8>, String
         .map_err(|e| e.to_string())?;
 
     let mut audio = Vec::new();
-    for piece in chunks {
+    for piece in pieces {
         let body = serde_json::json!({
             "model": MODEL,
             "input": piece,
             "voice": voice,
             "speed": speed,
-            "response_format": FORMAT,
+            "response_format": format,
         });
         // Serialized by hand rather than via .json(): reqwest is built here
         // without its `json` feature, and adding one for a single call would
         // widen the dependency for both the macOS and Linux targets.
         let resp = client
             .post(ENDPOINT)
-            .bearer_auth(&key)
+            .bearer_auth(key)
             .header("content-type", "application/json")
             .body(serde_json::to_string(&body).map_err(|e| e.to_string())?)
             .send()
@@ -140,7 +154,7 @@ pub fn synthesize(text: &str, voice: &str, speed: f64) -> Result<Vec<u8>, String
     Ok(audio)
 }
 
-fn summarize_error(body: &str) -> String {
+pub(crate) fn summarize_error(body: &str) -> String {
     serde_json::from_str::<serde_json::Value>(body)
         .ok()
         .and_then(|v| {

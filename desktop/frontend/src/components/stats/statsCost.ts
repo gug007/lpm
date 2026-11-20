@@ -54,6 +54,9 @@ const RATE_TABLE: { tokens: string[]; rate: Rate }[] = [
   // A prompt over 100K tokens bills every bucket at five times the rate.
   { tokens: ["haiku-5-5"], rate: { ...anthropic(0.1, 0.5), longContext: 5 } },
   { tokens: ["haiku"], rate: anthropic(1, 5) },
+  { tokens: ["gpt-6.2-sol"], rate: openai(2, 0.1, 10, 2.5) },
+  { tokens: ["gpt-6.2-astra"], rate: openai(8, 0.4, 40, 10) },
+  { tokens: ["gpt-6.1-terra"], rate: openai(1, 0.05, 5, 1.25) },
   { tokens: ["gpt-6.1-sol"], rate: openai(2, 0.1, 10, 2.5) },
   { tokens: ["gpt-6-astra"], rate: openai(10, 1, 50, 12.5) },
   { tokens: ["gpt-6-sol"], rate: openai(2, 0.2, 10, 2.5) },

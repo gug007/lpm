@@ -30,6 +30,7 @@ const PAGE_SUBTITLES: Partial<Record<SettingsTab, string>> = {
   shortcuts: `Shortcuts with a pencil can be changed: click one, then press the new keys. ${shortcutRequirementHint()}`,
   agents: "Start agents, choose the model lpm writes with, and keep the sidebar tidy",
   accounts: "Your agent accounts and how much of each plan is left",
+  generate: "Let agents in any terminal make images and audio with your own keys. Ask in plain words, such as “make a nano banana image of…” or “read this aloud as an mp3”",
   git: "Keep projects up to date, and choose how pull, push and fetch behave",
 };
 

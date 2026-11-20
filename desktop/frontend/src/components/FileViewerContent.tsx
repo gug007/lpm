@@ -4,6 +4,7 @@ import { formatBytes } from "../syncApi";
 import { AudioFileView } from "./AudioFileView";
 import { FileViewerHtml } from "./FileViewerHtml";
 import { FileViewerMarkdown } from "./FileViewerMarkdown";
+import { GeneratedMedia } from "./GeneratedMedia";
 import { ImageFileView } from "./ImageFileView";
 import { MonacoEditor } from "./MonacoEditor";
 import { PdfFileView } from "./PdfFileView";
@@ -65,8 +66,20 @@ export function FileViewerContent({
   onSave,
 }: FileViewerContentProps) {
   if (video) return <VideoFileView video={video} compact={compact} />;
-  if (audio) return <AudioFileView audio={audio} compact={compact} />;
-  if (image) return <ImageFileView preview={image} compact={compact} />;
+  if (audio) {
+    return (
+      <GeneratedMedia absPath={absPath} compact={compact}>
+        <AudioFileView audio={audio} compact={compact} />
+      </GeneratedMedia>
+    );
+  }
+  if (image) {
+    return (
+      <GeneratedMedia absPath={absPath} compact={compact}>
+        <ImageFileView preview={image} compact={compact} />
+      </GeneratedMedia>
+    );
+  }
   if (pdf) return <PdfFileView pdf={pdf} />;
   if (loading || !file) {
     return (

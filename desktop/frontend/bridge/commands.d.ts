@@ -474,6 +474,21 @@ export function PeerAgentFilesSet(...args: any[]): Promise<any>;
 export function PeerAgentRequests(...args: any[]): Promise<any>;
 export function AgentMentionComputers(): Promise<import("../src/computerMentions").MentionComputer[]>;
 export function PeerAgentAnswer(...args: any[]): Promise<any>;
+export function GenerateRequests(): Promise<import("../src/generate").GenerateRequest[]>;
+export function GenerateAnswer(
+  id: string,
+  decision: import("../src/generate").GenerateDecision,
+  prompt?: string | null,
+  key?: string | null,
+): Promise<void>;
+export function GenerateKeyStatus(): Promise<Partial<import("../src/generate").GenerateKeys>>;
+export function SetGenerateKey(provider: import("../src/generate").GenerateProvider, key: string): Promise<void>;
+export function ClearGenerateKey(provider: import("../src/generate").GenerateProvider): Promise<void>;
+export function GenerateOptions(): Promise<import("../src/generate").GenerateOptions>;
+export function GenerateUsage(): Promise<import("../src/generate").GenerateUsage>;
+export function GeneratedFileRecord(path: string): Promise<import("../src/generate").GeneratedRecord | null>;
+export function GenerateAllowedProjects(): Promise<string[]>;
+export function GenerateForgetProjects(): Promise<void>;
 export function PeerHostRevokeDevice(...args: any[]): Promise<any>;
 export function PeerHostRespondPairing(...args: any[]): Promise<any>;
 export function PeerPairRequest(...args: any[]): Promise<any>;

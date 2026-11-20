@@ -14,6 +14,7 @@ mod os_cmd;
 mod control;
 mod cp;
 mod exec;
+mod generate;
 mod duplicate;
 mod error;
 mod hook;
@@ -354,6 +355,11 @@ of the tab. Exits with the command's exit code; stopping lpm exec stops the comm
         #[arg(trailing_var_arg = true, allow_hyphen_values = true, required = true)]
         command: Vec<String>,
     },
+    /// Make an image or an audio file with the keys saved in lpm.
+    Generate {
+        #[command(subcommand)]
+        command: generate::Command,
+    },
     /// Pair a phone with this machine, and manage the phones already paired.
     Mobile {
         #[command(subcommand)]
@@ -692,6 +698,7 @@ fn main() -> ExitCode {
             json,
         } => cp::run(&ctx, &src, &dst, force, json),
         Commands::Exec { on, json, command } => exec::run(&ctx, &on, &command, json),
+        Commands::Generate { command } => generate::run(&ctx, command),
         Commands::Mobile { command } => mobile::run(&ctx, command),
         Commands::ClearStatus { key, project } => {
             setstatus::run_clear(&ctx, &key, project.as_deref())

@@ -5,6 +5,7 @@ import { AccountsPane } from "./AccountsPane";
 import { AgentsPane } from "./AgentsPane";
 import { BackupPane } from "./BackupPane";
 import { GeneralPane } from "./GeneralPane";
+import { GeneratePane } from "./GeneratePane";
 import { GitPane } from "./GitPane";
 import { NotificationsPane } from "./NotificationsPane";
 import { ShortcutsPane } from "./ShortcutsPane";
@@ -28,6 +29,8 @@ export function SettingsPanes({ tab, onNavigate }: { tab: SettingsTab; onNavigat
       return <AgentsPane onNavigate={onNavigate} />;
     case "accounts":
       return <AccountsPane />;
+    case "generate":
+      return <GeneratePane />;
     case "git":
       return <GitPane onNavigate={onNavigate} />;
     case "templates":

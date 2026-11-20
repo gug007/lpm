@@ -123,6 +123,9 @@ private let rateTable: [(tokens: [String], rate: Rate)] = [
     // A prompt over 100K tokens bills every bucket at five times the rate.
     (["haiku-5-5"], anthropic(0.1, 0.5, longContext: 5)),
     (["haiku"], anthropic(1, 5)),
+    (["gpt-6.2-sol"], openai(2, 0.1, 10, cacheWrite: 2.5)),
+    (["gpt-6.2-astra"], openai(8, 0.4, 40, cacheWrite: 10)),
+    (["gpt-6.1-terra"], openai(1, 0.05, 5, cacheWrite: 1.25)),
     (["gpt-6.1-sol"], openai(2, 0.1, 10, cacheWrite: 2.5)),
     (["gpt-6-astra"], openai(10, 1, 50, cacheWrite: 12.5)),
     (["gpt-6-sol"], openai(2, 0.2, 10, cacheWrite: 2.5)),

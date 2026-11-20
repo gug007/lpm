@@ -1457,6 +1457,36 @@ export function AgentMentionComputers() {
 export function PeerAgentAnswer(id, decision) {
   return invoke("peer_agent_answer", { id, decision });
 }
+export function GenerateRequests() {
+  return invoke("generate_requests");
+}
+export function GenerateAnswer(id, decision, prompt, key) {
+  return invoke("generate_answer", { id, decision, prompt: prompt ?? null, key: key ?? null });
+}
+export function GenerateKeyStatus() {
+  return invoke("generate_key_status");
+}
+export function SetGenerateKey(provider, key) {
+  return invoke("set_generate_key", { provider, key });
+}
+export function ClearGenerateKey(provider) {
+  return invoke("clear_generate_key", { provider });
+}
+export function GenerateOptions() {
+  return invoke("generate_options");
+}
+export function GenerateUsage() {
+  return invoke("generate_usage");
+}
+export function GeneratedFileRecord(path) {
+  return invoke("generated_file_record", { path });
+}
+export function GenerateAllowedProjects() {
+  return invoke("generate_allowed_projects");
+}
+export function GenerateForgetProjects() {
+  return invoke("generate_forget_projects");
+}
 export function PeerHostRevokeDevice(id) {
   return invoke("peer_host_revoke_device", { id });
 }

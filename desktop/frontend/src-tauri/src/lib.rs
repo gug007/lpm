@@ -25,6 +25,7 @@ mod agent_caps;
 mod agentexit;
 mod agentapprove;
 mod agentexec;
+mod generate;
 mod agentcp;
 mod agentfiles;
 mod agentmentions;
@@ -514,6 +515,11 @@ use msysmounts::get_msys_mounts;
 use notes_cmds::*;
 use openin::*;
 use agentapprove::{peer_agent_answer, peer_agent_requests};
+use generate::approval::{generate_answer, generate_requests};
+use generate::commands::{
+    clear_generate_key, generate_allowed_projects, generate_forget_projects, generate_key_status,
+    generate_options, generate_usage, generated_file_record, set_generate_key,
+};
 use agentmentions::agent_mention_computers;
 use peer::{
     peer_dispatch_reply, peer_host_cancel_pairing, peer_host_respond_pairing,

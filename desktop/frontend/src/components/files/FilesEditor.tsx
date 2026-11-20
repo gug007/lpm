@@ -1,6 +1,7 @@
 import { uriPath } from "../../path";
 import { formatBytes } from "../../syncApi";
 import { AudioFileView } from "../AudioFileView";
+import { GeneratedMedia } from "../GeneratedMedia";
 import { FolderIcon } from "../icons";
 import { ImageFileView } from "../ImageFileView";
 import { MonacoEditor, type EditorTarget } from "../MonacoEditor";
@@ -99,8 +100,20 @@ export function FilesEditor({
   }
   if (file.error) return <BinaryFilePlaceholder path={file.path} message={file.error} />;
   if (media === "video") return <VideoFileView video={playback} />;
-  if (media === "audio") return <AudioFileView audio={playback} />;
-  if (media === "image") return <ImageFileView preview={preview} />;
+  if (media === "audio") {
+    return (
+      <GeneratedMedia absPath={absPath}>
+        <AudioFileView audio={playback} />
+      </GeneratedMedia>
+    );
+  }
+  if (media === "image") {
+    return (
+      <GeneratedMedia absPath={absPath}>
+        <ImageFileView preview={preview} />
+      </GeneratedMedia>
+    );
+  }
   if (media === "pdf") return <PdfFileView pdf={pdf} />;
   if (file.binary) {
     return (

@@ -107,6 +107,7 @@ describe("a connected machine's settings", () => {
       "shortcuts",
       "agents",
       "accounts",
+      "generate",
       "git",
       "templates",
       "backup",
@@ -124,6 +125,7 @@ describe("a connected machine's settings", () => {
       "shortcuts",
       "agents",
       "accounts",
+      "generate",
       "git",
       "templates",
       "global-config",
@@ -138,6 +140,7 @@ describe("a connected machine's settings", () => {
       "notifications",
       "agents",
       "accounts",
+      "generate",
       "git",
       "templates",
       "global-config",
@@ -166,5 +169,6 @@ describe("a connected machine's settings", () => {
     expect(onServer).not.toContain("terminal.fontSize");
     expect(onServer).not.toContain("shortcut.renameProject");
     expect(onServer).not.toContain("tts.openaiKey");
+    expect(onServer).toContain("generate.geminiKey");
   });
 });
