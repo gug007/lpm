@@ -21,9 +21,9 @@ interface ComposerReopenBarProps {
   agentStatus?: PaneAgentStatus | null;
 }
 
-// Shown in the composer's slot when the shared input is closed: a slim, inert
-// stand-in for the field that reopens it on click (same as ⌘I). Sits per-pane so
-// wherever a terminal is, its input is one click away.
+// Shown in the composer's slot when the shared input is closed, in windows with
+// no project footer (quick terminal, shared tab): a slim, inert stand-in for the
+// field that reopens it on click (same as ⌘I).
 export function ComposerReopenBar({ targetLabel, agent, agentStarted, fontSize, agentStatus }: ComposerReopenBarProps) {
   return (
     <div className="border-t border-[var(--border)] bg-[var(--terminal-bg)] px-3 py-1.5">

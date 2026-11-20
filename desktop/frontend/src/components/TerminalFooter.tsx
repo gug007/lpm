@@ -5,6 +5,7 @@ import { BranchCiPill } from "./BranchCiPill";
 import { BranchPrLink } from "./BranchPrLink";
 import { BranchSwitcher } from "./BranchSwitcher";
 import { AppTip } from "./AppTip";
+import { ComposerFooterToggle } from "./ComposerFooterToggle";
 import { ActionsRow } from "./ActionsRow";
 import { FOOTER_ROW_PX } from "./zoneGeometry";
 import type { RowItem } from "../actionsLayoutModel";
@@ -51,6 +52,7 @@ export function TerminalFooter({
       onContextMenu={onRowContextMenu}
       className={`composer-terminal-surface flex ${alignTop ? "items-start" : "items-center"} gap-2 bg-[var(--terminal-bg)] px-3 py-2`}
     >
+      <ComposerFooterToggle projectName={projectName} />
       <AppTip rowHeight={alignTop ? FOOTER_ROW_PX : undefined} />
       <ActionsRow
         display="footer"

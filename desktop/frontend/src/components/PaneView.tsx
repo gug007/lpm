@@ -59,7 +59,6 @@ import { Tooltip } from "./ui/Tooltip";
 import { SortableTab, TabStrip } from "./TerminalTabDnd";
 import { TerminalComposer } from "./TerminalComposer";
 import type { DuplicatePromptSeed } from "./BulkDuplicateDialog";
-import { ComposerReopenBar } from "./ComposerReopenBar";
 import { useScrollFade } from "../hooks/useScrollFade";
 import { useWheelScrollX } from "../hooks/useWheelScrollX";
 import { computeScrollIntoViewLeft } from "../hooks/scrollIntoViewX";
@@ -1040,7 +1039,7 @@ function PaneViewImpl(props: PaneViewProps) {
           }}
         />
       ) : composerTab &&
-        (composerOpen ? (
+        composerOpen && (
           // Keyed by terminal id so each terminal keeps its own draft and the
           // input refocuses when the active terminal changes.
           <TerminalComposer
@@ -1072,16 +1071,7 @@ function PaneViewImpl(props: PaneViewProps) {
             memory={composerTab.memory}
             onDetachMemory={() => onDetachMemory(composerTab.id)}
           />
-        ) : (
-          // Input closed: leave a slim stand-in that reopens it (same as ⌘I).
-          <ComposerReopenBar
-            targetLabel={terminalDisplayLabel(composerTab)}
-            agent={composerAgent}
-            agentStarted={composerStarted}
-            fontSize={fontSize}
-            agentStatus={composerStatus}
-          />
-        ))}
+        )}
       {tabMenu && (() => {
         const targetPane = pane.id === tabMenu.paneId ? pane : null;
         const tab = targetPane?.tabs[tabMenu.tabIdx];
