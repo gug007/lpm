@@ -67,6 +67,7 @@ mod notify_levels;
 mod push_detail;
 mod push_fit;
 mod recap_push;
+mod generate;
 mod reminders;
 mod relay;
 mod review;
@@ -78,6 +79,7 @@ pub(crate) mod tabs;
 pub(crate) use ci_push::push_ci_result;
 pub(crate) use mac_alert::send_all as send_mac_alert;
 pub(crate) use recap_push::send_weekly_recap;
+pub(crate) use generate::push_generate_request;
 pub(crate) use reminders::push_limit_reminder;
 
 // One phone connection's transport. The acceptor handles both this build's
@@ -181,6 +183,7 @@ const PHONE_FEATURES: &[&str] = &[
     crate::remote_pins::FEATURE,
     crate::remote_history::FEATURE,
     reminders::FEATURE,
+    generate::FEATURE,
     crate::wakeonlan::FEATURE,
     crate::keepawake_cmds::PHONE_FEATURE,
     crate::remote_lpm_commands::FEATURE,
@@ -239,6 +242,7 @@ struct PushPreferences {
     automation_error: bool,
     weekly_recap: bool,
     ci: bool,
+    generate: bool,
 }
 
 impl PushPreferences {
@@ -260,6 +264,7 @@ impl PushPreferences {
             automation_error: pref("automationError", false),
             weekly_recap: pref("weeklyRecap", false),
             ci: pref("ci", false),
+            generate: pref("generate", false),
         }
     }
 }
@@ -4816,6 +4821,8 @@ fn handle_msg(
         "limitReminders" | "setLimitReminder" | "clearLimitReminder" => {
             send(ws, reminders::handle(app, t, &v))?;
         }
+        "generateRequests" => send(ws, generate::frame())?,
+        "answerGenerate" => generate::answer(app, out, &v),
         "wake" => send(ws, crate::wakeonlan::handle(&v))?,
         "liveActivity" => {
             let ok = live::register(hub, app, device_id, &v);
@@ -5400,6 +5407,7 @@ fn apply_push_token(devices: &mut [Device], device_id: &str, reg: &PushRegistrat
             d.push_automation_error = reg.prefs.automation_error;
             d.push_weekly_recap = reg.prefs.weekly_recap;
             d.push_ci = reg.prefs.ci;
+            d.push_generate = reg.prefs.generate;
             d.push_projects = reg.projects.clone();
         } else if d.apns_token == reg.token && d.push_platform == reg.platform {
             d.apns_token.clear();
@@ -5502,6 +5510,7 @@ struct PushDevice {
     push_automation_error: bool,
     push_weekly_recap: bool,
     push_ci: bool,
+    push_generate: bool,
     projects: notify_levels::ProjectLevels,
 }
 
@@ -5509,6 +5518,14 @@ impl PushDevice {
     /// `wants`, for an alert about `project` at the level the phone set for it.
     fn wants_in(&self, project: &str, status: &str) -> bool {
         self.wants(status) && notify_levels::allows(&self.projects, project, status == STATUS_WAITING)
+    }
+
+    /// An `lpm generate` request waits on the user as a waiting agent does; only a
+    /// phone that can show one is told.
+    fn wants_generate_in(&self, project: &str) -> bool {
+        self.push_waiting
+            && self.push_generate
+            && notify_levels::allows(&self.projects, project, true)
     }
 
     fn wants_automation_in(&self, project: &str, result: &str) -> bool {
@@ -5662,6 +5679,7 @@ fn make_push_device(d: &Device) -> Option<PushDevice> {
         push_automation_error: d.push_automation_error,
         push_weekly_recap: d.push_weekly_recap,
         push_ci: d.push_ci,
+        push_generate: d.push_generate,
         projects: d.push_projects.clone(),
     })
 }
@@ -6248,6 +6266,7 @@ fn post_push(
 fn install_forwarders(hub: &RemoteHub, app: &AppHandle) {
     tabs::install(hub, app);
     reminders::install(hub, app);
+    generate::install(hub, app);
     let h = hub.clone();
     app.listen("projects-changed", move |_| {
         broadcast(&h, json!({ "t": "projects-changed" }));
@@ -8096,6 +8115,7 @@ mod tests {
             automation_error: true,
             weekly_recap: true,
             ci: true,
+            generate: true,
         };
         let reg = |token: &str| PushRegistration {
             platform: "",
@@ -8242,6 +8262,7 @@ mod tests {
                 push_automation_error: false,
                 push_weekly_recap: true,
                 push_ci: true,
+                push_generate: true,
                 push_projects: [("blog".to_string(), "off".to_string())].into(),
                 live_updates: true,
                 live_token: String::new(),
@@ -8289,6 +8310,7 @@ mod tests {
         assert!(back.devices[0].push_automation_done);
         assert!(back.devices[0].push_weekly_recap);
         assert!(back.devices[0].push_ci);
+        assert!(back.devices[0].push_generate);
         assert!(!back.devices[0].push_automation_error);
     }
 
@@ -8788,6 +8810,31 @@ mod tests {
     }
 
     #[test]
+    fn a_generate_request_reaches_a_phone_that_can_show_it_and_wants_waiting() {
+        let dev = |waiting: bool, generate: bool| PushDevice {
+            id: "d".into(),
+            token: "t".into(),
+            env: "sandbox".into(),
+            platform: String::new(),
+            key: [0u8; 32],
+            push_waiting: waiting,
+            push_done: true,
+            push_error: true,
+            push_automation_started: false,
+            push_automation_done: false,
+            push_automation_error: false,
+            push_weekly_recap: false,
+            push_ci: false,
+            push_generate: generate,
+            projects: [("blog".to_string(), "off".to_string())].into(),
+        };
+        assert!(dev(true, true).wants_generate_in("web"));
+        assert!(!dev(true, true).wants_generate_in("blog"), "project off");
+        assert!(!dev(true, false).wants_generate_in("web"), "older phone");
+        assert!(!dev(false, true).wants_generate_in("web"), "waiting off");
+    }
+
+    #[test]
     fn push_device_wants_filters_by_prefs() {
         let dev = |w: bool, d: bool, e: bool| PushDevice {
             id: "d".into(),
@@ -8803,6 +8850,7 @@ mod tests {
             push_automation_error: false,
             push_weekly_recap: false,
             push_ci: false,
+            push_generate: false,
             projects: Default::default(),
         };
         let jobs = [STATUS_WAITING, STATUS_DONE, STATUS_ERROR];
@@ -8838,6 +8886,7 @@ mod tests {
             push_automation_error: true,
             push_weekly_recap: false,
             push_ci: false,
+            push_generate: false,
             projects: Default::default(),
         };
 

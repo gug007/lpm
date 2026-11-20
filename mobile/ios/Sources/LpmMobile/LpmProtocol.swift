@@ -55,6 +55,15 @@ enum Wire {
     static func limits() -> String { json(["t": "limits"]) }
     /// Limit reminders, only for a Mac whose `features` has "limitReminders".
     static func limitReminders() -> String { json(["t": "limitReminders"]) }
+    /// `lpm generate` requests waiting on the Mac, only for a Mac whose `features`
+    /// has "generateApproval".
+    static func generateRequests() -> String { json(["t": "generateRequests"]) }
+    static func answerGenerate(id: String, decision: String, prompt: String?, key: String?) -> String {
+        var o: [String: Any] = ["t": "answerGenerate", "id": id, "decision": decision]
+        if let prompt { o["prompt"] = prompt }
+        if let key, !key.isEmpty { o["key"] = key }
+        return json(o)
+    }
     static func setLimitReminder(limit: String, window: String, resetsAt: Int, name: String) -> String {
         json(["t": "setLimitReminder", "limit": limit, "window": window, "resetsAt": resetsAt, "name": name])
     }
@@ -387,7 +396,10 @@ enum Wire {
                                      "automationDone": notifyAutomationDone,
                                      "automationError": notifyAutomationError,
                                      "weeklyRecap": notifyWeeklyRecap,
-                                     "ci": notifyCi]
+                                     "ci": notifyCi,
+                                     // This app shows an `lpm generate` request; the
+                                     // Mac sends it only with `waiting` on.
+                                     "generate": true]
         // Only the projects heard less about; the rest hear everything.
         if !notifyProjects.isEmpty { notify["projects"] = notifyProjects }
         return json(["t": "apnsToken", "token": token, "env": env, "key": key, "notify": notify])
@@ -724,6 +736,10 @@ enum Wire {
         // The Mac's limit reminders, as a reply or after any change; `error` when
         // a change was refused.
         case limitReminders([LimitReminder], error: String?)
+        // The `lpm generate` requests waiting for a yes, as a reply or after any
+        // change; and the answer to one of them.
+        case generateRequests([GenerateRequest])
+        case answerGenerate(id: String, error: String?)
         case wake(ok: Bool)
         case weeklyRecap(RecapPick, recap: WeeklyRecap?, error: String?)
         case limitsChanged(LimitsSnapshot)
@@ -1019,6 +1035,12 @@ enum Wire {
                 let refused = obj["ok"] as? Bool == false
                 return .limitReminders((obj["reminders"] as? [[String: Any]] ?? []).compactMap(LimitReminder.init),
                                        error: refused ? (obj["error"] as? String ?? usageGenericError) : nil)
+            case "generateRequests":
+                return .generateRequests((obj["requests"] as? [[String: Any]] ?? []).compactMap(GenerateRequest.init))
+            case "answerGenerate":
+                let ok = obj["ok"] as? Bool ?? false
+                return .answerGenerate(id: obj["id"] as? String ?? "",
+                                       error: ok ? nil : (obj["error"] as? String ?? "The Mac couldn't answer it."))
             case "wake":
                 return .wake(ok: obj["ok"] as? Bool ?? false)
             case "terminals":

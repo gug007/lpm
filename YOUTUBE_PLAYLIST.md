@@ -47,3 +47,4 @@ Manual order. Each published lesson is appended here and to the playlist in the 
 - 6 Action Button Ideas for lpm: Live Charts on Your Buttons — https://youtu.be/5VWI8ln_zAQ
 - How to Archive Projects in lpm (and Free Up Disk Space) — https://youtu.be/aJLIUPsDN1c
 - Any AI Coding Agent Can Answer with a Video: lpm's Video Request Mode — https://youtu.be/JRf26eXi_ik
+- Generate Images in Claude Code and Codex with Nano Banana — https://youtu.be/wchpqSE2PRg

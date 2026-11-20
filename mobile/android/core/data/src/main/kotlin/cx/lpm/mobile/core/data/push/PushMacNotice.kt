@@ -6,7 +6,8 @@ import kotlinx.serialization.json.JsonObject
 /**
  * A notification in the Mac's own words: a limit reminder that fired, which opens that
  * Mac's Usage screen, Keep awake about to let go, which opens that Mac's connection page,
- * or CI on a commit pushed from it, which opens [project].
+ * CI on a commit pushed from it, which opens [project], or an agent's `lpm generate`
+ * waiting for a yes, which opens the app on that Mac, where the request shows itself.
  */
 data class PushMacNotice(
     val serverId: String?,
@@ -20,9 +21,12 @@ data class PushMacNotice(
         const val USAGE = "usage"
         const val KEEP_AWAKE = "keepAwake"
         const val CI = "ci"
+        const val GENERATE = "generate"
+
+        private val TARGETS = setOf(USAGE, KEEP_AWAKE, CI, GENERATE)
 
         fun parse(o: JsonObject): PushMacNotice? {
-            val target = o.string("target")?.takeIf { it == USAGE || it == KEEP_AWAKE || it == CI }
+            val target = o.string("target")?.takeIf { it in TARGETS }
                 ?: return null
             val title = o.string("title").orEmpty()
             val project = o.string("project")?.takeIf { it.isNotEmpty() }

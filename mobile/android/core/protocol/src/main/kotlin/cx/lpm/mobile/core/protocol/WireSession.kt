@@ -86,17 +86,43 @@ sealed interface WireSession {
         put("token", token)
         put("env", env)
         put("key", key)
-        putJsonObject("notify") {
-            put("waiting", notifyWaiting)
-            put("done", notifyDone)
-            put("error", notifyError)
-            put("automationStarted", notifyAutomationStarted)
-            put("automationDone", notifyAutomationDone)
-            put("automationError", notifyAutomationError)
-            put("weeklyRecap", notifyWeeklyRecap)
-            put("ci", notifyCi)
-            putProjects(notifyProjects)
-        }
+        putNotify(
+            notifyWaiting,
+            notifyDone,
+            notifyError,
+            notifyAutomationStarted,
+            notifyAutomationDone,
+            notifyAutomationError,
+            notifyWeeklyRecap,
+            notifyCi,
+            notifyProjects
+        )
+    }
+
+    // The kinds of alert the phone wants, the same for both registrations.
+    private fun JsonObjectBuilder.putNotify(
+        waiting: Boolean,
+        done: Boolean,
+        error: Boolean,
+        automationStarted: Boolean,
+        automationDone: Boolean,
+        automationError: Boolean,
+        weeklyRecap: Boolean,
+        ci: Boolean,
+        projects: Map<String, String>
+    ) = putJsonObject("notify") {
+        put("waiting", waiting)
+        put("done", done)
+        put("error", error)
+        put("automationStarted", automationStarted)
+        put("automationDone", automationDone)
+        put("automationError", automationError)
+        put("weeklyRecap", weeklyRecap)
+        put("ci", ci)
+        // This app shows an `lpm generate` request; the Mac sends it only with
+        // `waiting` on.
+        put("generate", true)
+        putProjects(projects)
     }
 
     // Only the projects heard less about; the rest hear everything.
@@ -128,17 +154,17 @@ sealed interface WireSession {
         put("token", token)
         env?.let { put("env", it) }
         put("key", key)
-        putJsonObject("notify") {
-            put("waiting", notifyWaiting)
-            put("done", notifyDone)
-            put("error", notifyError)
-            put("automationStarted", notifyAutomationStarted)
-            put("automationDone", notifyAutomationDone)
-            put("automationError", notifyAutomationError)
-            put("weeklyRecap", notifyWeeklyRecap)
-            put("ci", notifyCi)
-            putProjects(notifyProjects)
-        }
+        putNotify(
+            notifyWaiting,
+            notifyDone,
+            notifyError,
+            notifyAutomationStarted,
+            notifyAutomationDone,
+            notifyAutomationError,
+            notifyWeeklyRecap,
+            notifyCi,
+            notifyProjects
+        )
     }
 
     /**
@@ -235,6 +261,17 @@ sealed interface WireSession {
         put("limit", limit)
         put("window", window)
     }
+
+    /** `lpm generate` requests, only for a Mac whose `features` has "generateApproval". */
+    fun generateRequests(): String = frame("generateRequests")
+
+    fun answerGenerate(id: String, decision: String, prompt: String?, key: String?): String =
+        frame("answerGenerate") {
+            put("id", id)
+            put("decision", decision)
+            prompt?.let { put("prompt", it) }
+            putNonEmpty("key", key)
+        }
 
     /** Asks a machine to wake another one, only when its `features` has "wake". */
     fun wake(targets: List<WakeTarget>, port: Int): String = frame("wake") {

@@ -186,6 +186,7 @@ internal fun Context.macNoticeNotification(
     when (notice.target) {
         PushMacNotice.KEEP_AWAKE -> KEEP_AWAKE_CHANNEL
         PushMacNotice.CI -> CI_CHANNEL
+        PushMacNotice.GENERATE -> PushKind.Waiting.channelId
         else -> REMINDER_CHANNEL
     },
     tag,

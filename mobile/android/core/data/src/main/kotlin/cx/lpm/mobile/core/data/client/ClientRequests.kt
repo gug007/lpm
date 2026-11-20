@@ -198,6 +198,11 @@ fun LpmClient.sendPushToken(p: PushRegistration) = send(
 
 fun LpmClient.requestLimitReminders() = send(Wire.limitReminders())
 
+fun LpmClient.requestGenerateRequests() = send(Wire.generateRequests())
+
+fun LpmClient.answerGenerate(id: String, decision: String, prompt: String?, key: String?) =
+    send(Wire.answerGenerate(id, decision, prompt, key))
+
 fun LpmClient.setLimitReminder(limit: String, window: String, resetsAt: Long, name: String) =
     send(Wire.setLimitReminder(limit, window, resetsAt, name))
 

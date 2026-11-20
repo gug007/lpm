@@ -49,5 +49,6 @@ private struct MachineVisitContent: View {
         }
         .modifier(SessionAlerts())
         .modifier(ConnectionSheets())
+        .modifier(GenerateSheets())
     }
 }

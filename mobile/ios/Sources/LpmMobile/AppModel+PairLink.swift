@@ -16,7 +16,7 @@ extension AppModel {
     /// left open in the app would keep "Add a machine" from showing, so it goes first.
     func presentPairLink() {
         guard pairLink != nil, !macs.isEmpty, !addingMac else { return }
-        guard let root = Self.rootViewController, root.presentedViewController != nil else {
+        guard let root = UIApplication.keyRootViewController, root.presentedViewController != nil else {
             beginAddMac()
             return
         }
@@ -27,13 +27,5 @@ extension AppModel {
     func takePairLink() -> PairPayload? {
         defer { pairLink = nil }
         return pairLink
-    }
-
-    private static var rootViewController: UIViewController? {
-        UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .flatMap(\.windows)
-            .first { $0.isKeyWindow }?
-            .rootViewController
     }
 }

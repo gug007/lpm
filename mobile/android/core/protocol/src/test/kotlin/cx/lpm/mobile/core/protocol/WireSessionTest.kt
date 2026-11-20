@@ -61,7 +61,7 @@ class WireSessionTest {
             """{ "t": "apnsToken", "token": "ab", "env": "production", "key": "a2V5",
                  "notify": { "waiting": true, "done": false, "error": true, "automationStarted": false,
                              "automationDone": true, "automationError": true, "weeklyRecap": false,
-                             "ci": true } }""",
+                             "ci": true, "generate": true } }""",
             Wire.apnsToken(
                 token = "ab",
                 env = "production",
@@ -84,7 +84,7 @@ class WireSessionTest {
             """{ "t": "pushToken", "platform": "fcm", "token": "f:A-b_1", "key": "a2V5",
                  "notify": { "waiting": true, "done": true, "error": false, "automationStarted": false,
                              "automationDone": true, "automationError": false, "weeklyRecap": true,
-                             "ci": false } }""",
+                             "ci": false, "generate": true } }""",
             Wire.pushToken(
                 platform = "fcm",
                 token = "f:A-b_1",

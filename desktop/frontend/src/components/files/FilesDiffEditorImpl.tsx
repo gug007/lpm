@@ -74,7 +74,10 @@ export function FilesDiffEditor({
       scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10 },
       fixedOverflowWidgets: true,
     });
-    editor.setModel(models);
+    // Monaco never disposes a view model it builds from bare models, which leaves
+    // its diff running after teardown, so this editor owns one.
+    const viewModel = editor.createViewModel(models);
+    editor.setModel(viewModel);
     editorRef.current = editor;
 
     const modified = editor.getModifiedEditor();
@@ -109,6 +112,7 @@ export function FilesDiffEditor({
       sub.dispose();
       try {
         editor.setModel(null);
+        viewModel.dispose();
         editor.dispose();
       } catch {
         // Monaco can throw mid-teardown of its diff observables.

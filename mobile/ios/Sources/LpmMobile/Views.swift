@@ -38,6 +38,7 @@ struct ContentView: View {
             }
         }
         .modifier(ConnectionSheets())
+        .modifier(GenerateSheets())
         .background { AgentWidgetPublisher() }
         .background { ShareDirectoryPublisher() }
         .background { LiveActivityPublisher() }
@@ -104,6 +105,12 @@ struct ContentView: View {
             model.switchTo(mac)
             return
         }
+        // An `lpm generate` request shows itself once the Mac's list arrives.
+        if target.kind == .generate {
+            model.notificationOpens += 1
+            model.pendingNotificationTarget = nil
+            return
+        }
         // Keep awake about to let go: the Mac's own sheet, over whatever is open.
         if target.kind == .keepAwake {
             model.link.sheetOpen = true
@@ -139,7 +146,7 @@ struct ContentView: View {
             guard known else { awaitedProject = target; return }
             next.append(target.project)
             model.pendingNewTab = target.project
-        case .keepAwake:
+        case .keepAwake, .generate:
             return
         }
         path = next

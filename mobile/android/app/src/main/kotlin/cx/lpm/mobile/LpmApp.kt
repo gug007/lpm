@@ -35,6 +35,7 @@ import cx.lpm.mobile.feature.connection.IssueCardRoute
 import cx.lpm.mobile.feature.connection.TerminalConnectionBannerRoute
 import cx.lpm.mobile.feature.files.filesEntries
 import cx.lpm.mobile.feature.git.gitEntries
+import cx.lpm.mobile.feature.mac.generate.GenerateSheetRoute
 import cx.lpm.mobile.feature.mac.keepawake.KeepAwakeCustomTimeRoute
 import cx.lpm.mobile.feature.mac.keepawake.KeepAwakeSectionRoute
 import cx.lpm.mobile.feature.mac.update.MacUpdateSectionRoute
@@ -128,6 +129,7 @@ fun LpmApp(
         },
         keepAwakeCustomTime = { onDone -> KeepAwakeCustomTimeRoute(onDone = onDone) }
     )
+    if (state.macs.isNotEmpty()) GenerateSheetRoute()
 }
 
 @Composable

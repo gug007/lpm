@@ -383,6 +383,9 @@ class LpmClient internal constructor(
         // `limitReminders`, `setLimitReminder` and `clearLimitReminder`.
         const val LIMIT_REMINDERS_FEATURE = "limitReminders"
 
+        // `generateRequests` and `answerGenerate`, and the `generateRequests` push.
+        const val GENERATE_APPROVAL_FEATURE = "generateApproval"
+
         // `wake`: waking another paired machine.
         const val WAKE_FEATURE = "wake"
 

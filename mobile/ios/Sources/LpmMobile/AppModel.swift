@@ -408,6 +408,8 @@ final class AppModel {
     var macUpdate = MacUpdateStore()
     // Keep awake on the live Mac (`model.keepAwake`), same split.
     var keepAwake = KeepAwakeStore()
+    // The `lpm generate` requests waiting on the live Mac (`model.generate`), same split.
+    var generate = GenerateStore()
     // The weekly recap card (`model.weeklyRecap`), same split.
     var weeklyRecap = WeeklyRecapStore()
 
@@ -507,6 +509,7 @@ final class AppModel {
         tokenActivity.model = self
         macUpdate.model = self
         keepAwake.model = self
+        generate.model = self
         weeklyRecap.model = self
         agentLaunch.model = self
         projectFiles.model = self
@@ -1465,6 +1468,8 @@ final class AppModel {
         macUpdate.model = self
         keepAwake = KeepAwakeStore()
         keepAwake.model = self
+        generate = GenerateStore()
+        generate.model = self
         weeklyRecap = WeeklyRecapStore()
         weeklyRecap.model = self
         agentLaunch = AgentLaunchStore()
@@ -2512,6 +2517,7 @@ final class AppModel {
         usage.handleConnectionReset()
         macUpdate.handleConnectionReset()
         keepAwake.handleConnectionReset()
+        generate.handleConnectionReset()
         agentLaunch.handleConnectionReset()
         projectFiles.handleConnectionReset()
         gitHistory.handleConnectionReset()
@@ -2723,6 +2729,7 @@ final class AppModel {
         wireMachines(c)
         wireMacUpdate(c)
         wireKeepAwake(c)
+        wireGenerate(c)
         wireAutoPull(c)
         wireAgentArchive(c)
         wireClaudeAccounts(c)
@@ -2786,6 +2793,7 @@ final class AppModel {
                 c.requestDuplicateDefaults()
                 c.requestJobs()
                 self.keepAwake.noteReady(features: c.hostFeatures)
+                self.generate.noteReady(features: c.hostFeatures)
                 // Demo Mode has no APNs identity and no relay — skip push registration.
                 if !self.demoMode && !self.isVisit {
                     self.requestPushRegistration()

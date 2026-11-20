@@ -59,6 +59,10 @@ pub(crate) struct Device {
     // from before CI alerts, which couldn't show them.
     #[serde(default)]
     pub(crate) push_ci: bool,
+    // The phone can show an agent's `lpm generate` request (generate/approval.rs);
+    // off for a phone from before it could.
+    #[serde(default)]
+    pub(crate) push_generate: bool,
     // Projects the phone hears less about ("waiting" or "off"), by project name;
     // any project not named hears everything (remote/notify_levels.rs).
     #[serde(skip_serializing_if = "std::collections::BTreeMap::is_empty")]
@@ -117,6 +121,7 @@ impl Default for Device {
             push_automation_error: false,
             push_weekly_recap: false,
             push_ci: false,
+            push_generate: false,
             push_projects: Default::default(),
             live_updates: false,
             live_token: String::new(),

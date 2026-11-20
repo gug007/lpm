@@ -78,6 +78,7 @@ pub(crate) fn ask(app: &AppHandle, req: Request, provider: Provider) -> Result<A
         let (title, body) = notice(&req);
         crate::statusnotify::notify(app, &title, &body);
     }
+    crate::remote::push_generate_request(app, &req);
     rx.recv_timeout(WAIT).map_err(|_| {
         pending().lock().unwrap().retain(|p| p.req.id != id);
         let _ = app.emit(REQUEST_EVENT, ());
@@ -86,6 +87,13 @@ pub(crate) fn ask(app: &AppHandle, req: Request, provider: Provider) -> Result<A
 }
 
 fn notice(req: &Request) -> (String, String) {
+    let (title, line) = notice_words(req);
+    (title, format!("{line}. Open lpm to allow or deny it."))
+}
+
+/// (title, line) of a notification about a request: who asks for what, and the
+/// project and the start of its prompt.
+pub(crate) fn notice_words(req: &Request) -> (String, String) {
     let who = if req.agent.is_empty() {
         "An agent"
     } else {
@@ -97,7 +105,7 @@ fn notice(req: &Request) -> (String, String) {
         "make an image"
     };
     let mut prompt: String = req.prompt.chars().take(80).collect();
-    if req.prompt.chars().count() > 80 {
+    if req.prompt.chars().nth(80).is_some() {
         prompt.push('…');
     }
     let place = if req.project.is_empty() {
@@ -105,10 +113,7 @@ fn notice(req: &Request) -> (String, String) {
     } else {
         format!("{}: ", req.project)
     };
-    (
-        format!("{who} wants to {what}"),
-        format!("{place}{prompt}. Open lpm to allow or deny it."),
-    )
+    (format!("{who} wants to {what}"), format!("{place}{prompt}"))
 }
 
 /// The requests waiting for an answer, oldest first.
@@ -133,21 +138,33 @@ pub fn generate_answer(
     prompt: Option<String>,
     key: Option<String>,
 ) -> Result<(), String> {
-    let decision = match decision.as_str() {
+    answer(&app, &id, &decision, prompt, key)
+}
+
+/// The answer to request `id`, from this Mac's card or a phone's. Blocking: a
+/// key goes to the Keychain first.
+pub(crate) fn answer(
+    app: &AppHandle,
+    id: &str,
+    decision: &str,
+    prompt: Option<String>,
+    key: Option<String>,
+) -> Result<(), String> {
+    let decision = match decision {
         "once" => Decision::Once,
         "project" => Decision::Project,
         _ => Decision::Deny,
     };
     if decision != Decision::Deny {
         if let Some(key) = key.as_deref().map(str::trim).filter(|k| !k.is_empty()) {
-            let provider = provider_of(&id).ok_or("that request is gone")?;
+            let provider = provider_of(id).ok_or("that request is gone")?;
             crate::secrets::set(provider.secret(), key)?;
         }
     }
     let prompt = prompt
         .map(|p| p.trim().to_string())
         .filter(|p| !p.is_empty());
-    take_answer(&id, Answer { decision, prompt })?;
+    take_answer(id, Answer { decision, prompt })?;
     let _ = app.emit(REQUEST_EVENT, ());
     Ok(())
 }
