@@ -194,7 +194,7 @@ export function VisualConfigEditor({ content, onChange, onEditYaml, isRemote = f
                         { value: "terminal", label: "Terminal tab" },
                         { value: "command", label: "Active terminal" },
                         { value: "background", label: "Background" },
-                        { value: "app", label: "App tab" },
+                        { value: "app", label: "Mini app" },
                       ]}
                     />
                   </ConfigField>

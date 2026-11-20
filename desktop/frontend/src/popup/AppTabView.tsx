@@ -50,7 +50,7 @@ export function AppTabView({ project, actionName, action, label, active }: AppTa
   const problem = page?.problem
     ? page.problem
     : !drawn
-      ? `This app is a \`${page?.format}\` page, which needs a newer lpm.`
+      ? `This mini app is a \`${page?.format}\` page, which needs a newer lpm.`
       : content?.error || (content ? null : failure) || frameFailure;
   const refreshNote = content && !problem ? content.refreshError || failure : null;
   const note = refreshNote
@@ -100,6 +100,7 @@ export function AppTabView({ project, actionName, action, label, active }: AppTa
                 height="100%"
                 shown={active && !overlayOpen}
                 onFailure={setFrameFailure}
+                onRefresh={refresh}
               />
             </div>
           </>

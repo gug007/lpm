@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GitHub issues</title>
+<style>
+  :root {
+    --text: var(--lpm-text, #ededed);
+    --muted: var(--lpm-muted, #9a9a9a);
+    --border: var(--lpm-border, #333);
+    --surface: var(--lpm-surface, #1c1c1c);
+    --accent: var(--lpm-accent, #60a5fa);
+    --amber: var(--lpm-amber, #e3b341);
+    --red: var(--lpm-red, #f87171);
+    --green: var(--lpm-green, #4ade80);
+    --hover: color-mix(in srgb, var(--text) 5%, transparent);
+    --chip: color-mix(in srgb, var(--muted) 15%, transparent);
+  }
+  html { background: var(--lpm-bg, #141414); }
+  body {
+    margin: 0; color: var(--text);
+    font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: inherit; text-decoration: none; }
+  button, input { font: inherit; color: inherit; }
+  main { max-width: 860px; margin: 0 auto; padding: 22px 24px 28px; }
+  [hidden] { display: none !important; }
+
+  .head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
+  .lead { display: flex; align-items: baseline; gap: 8px; }
+  .count { font-size: 28px; font-weight: 650; letter-spacing: -0.02em; line-height: 1; font-variant-numeric: tabular-nums; }
+  .count.zero { color: var(--green); }
+  .lead span:last-child { font-size: 14px; font-weight: 600; }
+  .sub { margin-top: 6px; font-size: 12px; color: var(--muted); }
+  .out { flex: none; font-size: 12px; font-weight: 550; color: var(--accent); }
+  .out:hover { text-decoration: underline; }
+
+  .bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin: 18px 0 10px; }
+  .seg { display: inline-flex; padding: 2px; border-radius: 8px; background: var(--chip); }
+  .seg button {
+    display: inline-flex; align-items: center; gap: 6px; border: 0; background: none; cursor: pointer;
+    padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; color: var(--muted); white-space: nowrap;
+  }
+  .seg button:hover { color: var(--text); }
+  .seg button[aria-selected="true"] { color: var(--text); background: var(--surface); box-shadow: 0 1px 2px rgb(0 0 0 / 0.2); }
+  .seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .seg .n { font-variant-numeric: tabular-nums; opacity: 0.75; }
+  .find { position: relative; flex: 0 1 240px; }
+  .find input {
+    width: 100%; box-sizing: border-box; height: 28px; padding: 0 26px 0 10px; border-radius: 7px;
+    border: 1px solid var(--border); background: transparent; outline: none; font-size: 12px;
+  }
+  .find input::placeholder { color: var(--muted); }
+  .find input:focus { border-color: var(--accent); }
+  .find kbd {
+    position: absolute; right: 7px; top: 50%; transform: translateY(-50%); pointer-events: none;
+    font: 11px/16px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--muted);
+    padding: 0 5px; border: 1px solid var(--border); border-radius: 4px;
+  }
+  .find input:focus + kbd, .find input:not(:placeholder-shown) + kbd { display: none; }
+
+  .list { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .row { display: flex; gap: 11px; padding: 11px 14px; outline: none; }
+  .row + .row { border-top: 1px solid var(--border); }
+  .row:hover { background: var(--hover); }
+  .row:focus-visible { background: var(--hover); box-shadow: inset 2px 0 0 var(--accent); }
+  .avatar {
+    flex: none; width: 24px; height: 24px; margin-top: 1px; border-radius: 50%; object-fit: cover;
+    background: var(--chip); display: grid; place-items: center; font-size: 11px; font-weight: 650; color: var(--muted);
+  }
+  .main { flex: 1; min-width: 0; }
+  .top { display: flex; align-items: baseline; gap: 12px; }
+  .title { flex: 1; min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
+  .age { flex: none; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .age.old { color: var(--red); font-weight: 600; }
+  .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 3px 12px; margin-top: 3px; font-size: 12px; color: var(--muted); }
+  .tag { font-size: 10.5px; font-weight: 650; line-height: 17px; padding: 0 6px; border-radius: 4px; }
+  .tag.new { color: var(--accent); background: color-mix(in srgb, var(--accent) 15%, transparent); }
+  .tag.theirs { color: var(--amber); background: color-mix(in srgb, var(--amber) 15%, transparent); }
+  .tag.mine { background: var(--chip); }
+  .stat { display: inline-flex; align-items: center; gap: 4px; }
+  .stat svg { width: 13px; height: 13px; }
+  .label { display: inline-flex; align-items: center; gap: 5px; }
+  .label i { width: 8px; height: 8px; border-radius: 50%; }
+  .quote { margin-top: 4px; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .quote b { color: var(--text); font-weight: 600; }
+
+  .empty { padding: 30px 16px; text-align: center; color: var(--muted); }
+  .empty b { display: block; margin-bottom: 2px; font-size: 14px; color: var(--text); }
+  .problem { padding: 14px 16px; border: 1px solid var(--border); border-radius: 10px; }
+  .problem b { display: block; margin-bottom: 4px; }
+  .problem pre { margin: 8px 0 0; white-space: pre-wrap; font-size: 12px; color: var(--muted); }
+  .keys { margin-top: 12px; text-align: center; font-size: 11px; color: var(--muted); }
+  .keys kbd { font: 10.5px ui-monospace, SFMono-Regular, Menlo, monospace; padding: 0 4px; border: 1px solid var(--border); border-radius: 4px; }
+
+  @media (max-width: 560px) {
+    main { padding: 16px 16px 24px; }
+    .find { flex-basis: 100%; }
+    .seg { max-width: 100%; overflow-x: auto; }
+    .keys { display: none; }
+    .quote { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+  }
+  @media (hover: none) { .keys, .find kbd { display: none; } }
+</style>
+</head>
+<body>
+<main>
+  <div id="problem" hidden></div>
+  <div id="ui" hidden>
+    <header class="head">
+      <div>
+        <div class="lead"><span class="count" id="count"></span><span id="count-text"></span></div>
+        <div class="sub" id="sub"></div>
+      </div>
+      <a class="out" id="out">Open on GitHub ↗</a>
+    </header>
+    <div class="bar">
+      <div class="seg" id="tabs" role="tablist"></div>
+      <label class="find">
+        <input id="filter" type="search" placeholder="Filter issues" autocomplete="off" spellcheck="false" aria-label="Filter issues">
+        <kbd>/</kbd>
+      </label>
+    </div>
+    <div class="list" id="list"></div>
+    <div class="keys"><kbd>/</kbd> filter · <kbd>j</kbd> <kbd>k</kbd> move · <kbd>↵</kbd> open · <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> tabs</div>
+  </div>
+</main>
+<script>
+  var DAY = 86400000;
+  var ICONS = {
+    comments: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M2.5 3h11v7.5h-6l-3 2.5v-2.5h-2z"/></svg>',
+    reactions: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="8" cy="8" r="5.8"/><path d="M5.7 9.5c.6.8 1.4 1.2 2.3 1.2s1.7-.4 2.3-1.2M6.1 6.4v.2M9.9 6.4v.2"/></svg>',
+  };
+  var TAGS = { new: "New", theirs: "Their reply", mine: "Waiting" };
+  var TABS = [
+    { id: "you", name: "Needs you", tags: true, has: function (i) { return i.state !== "mine"; }, order: longestWait },
+    { id: "them", name: "Waiting on them", tags: false, has: function (i) { return i.state === "mine"; }, order: latest },
+    { id: "all", name: "All", tags: true, has: function () { return true; }, order: latest },
+  ];
+  var tab = TABS[0];
+  var query = "";
+
+  function $(id) { return document.getElementById(id); }
+
+  function el(tag, cls, text) {
+    var node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text != null) node.textContent = text;
+    return node;
+  }
+
+  function ago(iso) {
+    var s = Math.max(0, (Date.now() - Date.parse(iso)) / 1000);
+    if (s < 60) return "now";
+    if (s < 3600) return Math.floor(s / 60) + "m";
+    if (s < 86400) return Math.floor(s / 3600) + "h";
+    var d = s / 86400;
+    if (d < 14) return Math.floor(d) + "d";
+    if (d < 60) return Math.floor(d / 7) + "w";
+    if (d < 365) return Math.floor(d / 30) + "mo";
+    return Math.floor(d / 365) + "y";
+  }
+
+  function activity(issue) { return issue.last ? issue.last.at : issue.createdAt; }
+  function since(issue) { return issue.state === "new" ? issue.createdAt : activity(issue); }
+  function longestWait(a, b) { return Date.parse(since(a)) - Date.parse(since(b)); }
+  function latest(a, b) { return Date.parse(activity(b)) - Date.parse(activity(a)); }
+
+  function matches(issue) {
+    if (!query) return true;
+    var hay = [issue.title, issue.body, issue.author, "#" + issue.number]
+      .concat(issue.last ? [issue.last.author, issue.last.body] : [])
+      .concat((issue.labels || []).map(function (l) { return l.name; }))
+      .join("\n").toLowerCase();
+    return query.split(/\s+/).every(function (word) { return hay.indexOf(word) >= 0; });
+  }
+
+  function avatar(url, name) {
+    var initial = el("span", "avatar", (name || "?").charAt(0).toUpperCase());
+    if (!url) return initial;
+    var img = el("img", "avatar");
+    img.alt = "";
+    img.referrerPolicy = "no-referrer";
+    img.onerror = function () { img.replaceWith(initial); };
+    img.src = url;
+    return img;
+  }
+
+  function stat(kind, count, word) {
+    var node = el("span", "stat");
+    node.innerHTML = ICONS[kind];
+    node.appendChild(document.createTextNode(String(count)));
+    node.title = count + " " + word + (count === 1 ? "" : "s");
+    return node;
+  }
+
+  function row(issue, me) {
+    var link = el("a", "row");
+    link.href = issue.url;
+    link.dataset.n = issue.number;
+    link.appendChild(avatar(issue.avatar, issue.author));
+    var main = el("div", "main");
+
+    var top = el("div", "top");
+    top.appendChild(el("span", "title", issue.title));
+    var at = since(issue);
+    var age = el("span", "age", ago(at));
+    var waiting = issue.state !== "mine";
+    if (waiting && Date.now() - Date.parse(at) > 30 * DAY) age.classList.add("old");
+    age.title = (waiting ? "Waiting since " : "Last activity ") + new Date(at).toLocaleString();
+    top.appendChild(age);
+    main.appendChild(top);
+
+    var meta = el("div", "meta");
+    if (tab.tags) meta.appendChild(el("span", "tag " + issue.state, TAGS[issue.state]));
+    meta.appendChild(el("span", null, "#" + issue.number + " · " + issue.author));
+    if (issue.comments) meta.appendChild(stat("comments", issue.comments, "comment"));
+    if (issue.reactions) meta.appendChild(stat("reactions", issue.reactions, "reaction"));
+    (issue.labels || []).forEach(function (label) {
+      var chip = el("span", "label");
+      var dot = el("i");
+      if (/^[0-9a-f]{6}$/i.test(label.color)) dot.style.background = "#" + label.color;
+      chip.appendChild(dot);
+      chip.appendChild(document.createTextNode(label.name));
+      meta.appendChild(chip);
+    });
+    main.appendChild(meta);
+
+    var reply = issue.state !== "new" && issue.last;
+    var text = reply ? issue.last.body : issue.body;
+    if (text) {
+      var quote = el("div", "quote");
+      if (reply) quote.appendChild(el("b", null, (issue.last.author === me ? "You" : issue.last.author) + ": "));
+      quote.appendChild(document.createTextNode(text.replace(/\s+/g, " ")));
+      main.appendChild(quote);
+    }
+    link.appendChild(main);
+    return link;
+  }
+
+  function empty(title, detail) {
+    var box = el("div", "empty");
+    box.appendChild(el("b", null, title));
+    if (detail) box.appendChild(document.createTextNode(detail));
+    return box;
+  }
+
+  function renderTabs(issues) {
+    var tabs = $("tabs");
+    if (!tabs.children.length) {
+      TABS.forEach(function (def) {
+        var button = el("button");
+        button.type = "button";
+        button.setAttribute("role", "tab");
+        button.appendChild(el("span", null, def.name));
+        button.appendChild(el("span", "n"));
+        button.onclick = function () { select(def); };
+        tabs.appendChild(button);
+      });
+    }
+    TABS.forEach(function (def, i) {
+      var button = tabs.children[i];
+      button.setAttribute("aria-selected", String(def === tab));
+      button.lastChild.textContent = issues.filter(function (x) { return def.has(x) && matches(x); }).length;
+    });
+  }
+
+  function renderList(data) {
+    var list = $("list");
+    var focused = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.n : null;
+    var shown = data.issues.filter(function (x) { return tab.has(x) && matches(x); }).sort(tab.order);
+    list.textContent = "";
+    if (!shown.length) {
+      if (query) list.appendChild(empty("No matches", "No issues here match “" + query + "”."));
+      else if (tab.id === "you") list.appendChild(empty("All caught up", "Nothing needs a reply."));
+      else list.appendChild(empty("Nothing here", "No open issues are waiting on anyone else."));
+      return;
+    }
+    shown.forEach(function (issue) { list.appendChild(row(issue, data.me)); });
+    if (focused) {
+      var again = list.querySelector('[data-n="' + focused + '"]');
+      if (again) again.focus();
+    }
+  }
+
+  function renderHead(data) {
+    var waiting = data.issues.filter(TABS[0].has).sort(longestWait);
+    $("count").textContent = waiting.length;
+    $("count").className = "count" + (waiting.length ? "" : " zero");
+    $("count-text").textContent = waiting.length === 1 ? "needs a reply" : "need a reply";
+    $("sub").textContent = (waiting.length ? "Longest wait " + ago(since(waiting[0])) + " · " : "") + data.total + " open";
+    $("out").href = data.url + "/issues";
+  }
+
+  function render() {
+    var data = window.lpm && lpm.data;
+    var ok = !!data && Array.isArray(data.issues);
+    $("ui").hidden = !ok;
+    $("problem").hidden = ok;
+    if (!ok) {
+      var box = $("problem");
+      box.className = "problem";
+      box.textContent = "";
+      box.appendChild(el("b", null, "Couldn't load the issues."));
+      box.appendChild(el("span", null, "They come from scripts/github-issues/app-data.sh, which needs gh signed in (gh auth status)."));
+      var why = window.lpm && (lpm.error || lpm.text);
+      if (why) box.appendChild(el("pre", null, why));
+      return;
+    }
+    renderHead(data);
+    renderTabs(data.issues);
+    renderList(data);
+  }
+
+  function select(def) {
+    tab = def;
+    render();
+  }
+
+  function move(step) {
+    var rows = Array.prototype.slice.call(document.querySelectorAll(".row"));
+    if (!rows.length) return;
+    var at = rows.indexOf(document.activeElement);
+    if (at === 0 && step < 0) return $("filter").focus();
+    var next = at < 0 ? (step > 0 ? 0 : rows.length - 1) : Math.min(rows.length - 1, Math.max(0, at + step));
+    rows[next].focus();
+    rows[next].scrollIntoView({ block: "nearest" });
+  }
+
+  $("filter").addEventListener("input", function (event) {
+    query = event.target.value.trim().toLowerCase();
+    render();
+  });
+
+  document.addEventListener("keydown", function (event) {
+    if (event.metaKey || event.ctrlKey || event.altKey) return;
+    var filter = $("filter");
+    if (event.target === filter) {
+      if (event.key === "ArrowDown") { event.preventDefault(); move(1); }
+      else if (event.key === "Escape") {
+        event.preventDefault();
+        if (filter.value) { filter.value = ""; query = ""; render(); }
+        else filter.blur();
+      }
+      return;
+    }
+    if (event.key === "/") { event.preventDefault(); filter.focus(); }
+    else if (event.key === "j" || event.key === "ArrowDown") { event.preventDefault(); move(1); }
+    else if (event.key === "k" || event.key === "ArrowUp") { event.preventDefault(); move(-1); }
+    else if (/^[1-3]$/.test(event.key)) select(TABS[Number(event.key) - 1]);
+  });
+
+  render();
+  if (window.lpm) lpm.onData(render);
+  setInterval(render, 60000);
+</script>
+</body>
+</html>

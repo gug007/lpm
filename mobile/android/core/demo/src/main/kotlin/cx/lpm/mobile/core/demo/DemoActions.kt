@@ -159,6 +159,15 @@ private fun bgRunScript(
             BgRunLine(5.7, "PASS")
         )
     }
+    if ("release" in c) {
+        return 5.0 to listOf(
+            BgRunLine(0.0, "$ $cmd"),
+            BgRunLine(0.8, "Tagging v2.4.2…"),
+            BgRunLine(2.0, "Building linux/amd64, linux/arm64…"),
+            BgRunLine(3.4, "Pushing ghcr.io/acme/$project:v2.4.2…"),
+            BgRunLine(4.6, "Released v2.4.2.")
+        )
+    }
     if ("clean" in c) {
         return 5.5 to listOf(
             BgRunLine(0.0, "$ $cmd"),

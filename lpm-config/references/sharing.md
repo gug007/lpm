@@ -35,7 +35,7 @@ actions:
 
 Repo config applies only to local projects and sits below the personal project file.
 
-What a `.lpm.yml` runs by itself waits until the user allows it, since the file comes with the repo and may come from someone else: `$(…)` commands in labels and emoji, `labelSvg`, a popup's or an app's `html` and `data` commands, and its automations (`jobs`). Until then a label reads as if its command printed nothing, a popup says why it's empty, an automation doesn't run, and lpm shows a bar above the terminals that lists them, with Allow. lpm remembers what was allowed for that folder; a command added later, or an automation that changes, waits again. A button's `cmd` still runs only when it's clicked, and nothing in the project file or `global.yml` waits. Tell the user to press Allow after adding such a command to `.lpm.yml`.
+What a `.lpm.yml` runs by itself waits until the user allows it, since the file comes with the repo and may come from someone else: `$(…)` commands in labels and emoji, `labelSvg`, a popup's or a mini app's `html` and `data` commands, a popup's or mini app's page from a file (it can run the project's actions with `lpm.run`), and its automations (`jobs`). Until then a label reads as if its command printed nothing, a popup says why it's empty, an automation doesn't run, and lpm shows a bar above the terminals that lists them, with Allow. lpm remembers what was allowed for that folder; a command added later, or an automation that changes, waits again. A button's `cmd` still runs only when it's clicked, and nothing in the project file or `global.yml` waits. Tell the user to press Allow after adding such a command to `.lpm.yml`.
 
 ## Global config
 

@@ -129,6 +129,26 @@ internal fun DemoWorld.seedProjects() {
                     ),
                     "app" to mapOf("format" to "html", "title" to "GitHub stars"),
                     "configApp" to true
+                ),
+                mapOf(
+                    "name" to "releases",
+                    "label" to "Releases",
+                    "type" to "app",
+                    "cmd" to "",
+                    "popup" to mapOf(
+                        "format" to "html",
+                        "title" to "Releases",
+                        "width" to 360,
+                        "height" to 220
+                    ),
+                    "configPopup" to mapOf(
+                        "html" to "popups/releases.html",
+                        "data" to "\$(./scripts/releases.sh)",
+                        "title" to "Releases",
+                        "size" to "360x220"
+                    ),
+                    "app" to mapOf("format" to "html", "title" to "Releases"),
+                    "configApp" to true
                 )
             )
         ),

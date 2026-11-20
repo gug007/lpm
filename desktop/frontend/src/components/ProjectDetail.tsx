@@ -40,6 +40,8 @@ import { useActionShortcuts } from "../hooks/useActionShortcuts";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { useOverflowWrap } from "../hooks/useOverflowWrap";
 import { usePaneStatus } from "../hooks/usePaneStatus";
+import { PageRunContext } from "../popup/pageRun";
+import { usePageRunner } from "../popup/usePageRunner";
 import { useProjectActions } from "../hooks/useProjectActions";
 import { useRowMenu } from "../hooks/useRowMenu";
 import { useTerminalFontSize } from "../hooks/useTerminalFontSize";
@@ -211,6 +213,7 @@ export function ProjectDetail({
     onSwitchToTerminal: () => switchDetailView("terminal"),
   });
   const { runningAction, handleRunAction, modals: actionModals } = projectActions;
+  const runFromPage = usePageRunner(project.actions, handleRunAction);
 
   const actionWizardOpen = newActionRow !== null || editingAction !== null;
   useActionShortcuts(
@@ -849,287 +852,289 @@ export function ProjectDetail({
   const subpageBack = { label: displayName, onClick: () => switchDetailView("terminal") };
 
   return (
-    <ActionsDnd
-      layout={actionsLayout}
-      onMove={handleMoveActions}
-      onPreview={handlePreviewActions}
-      onStructural={handleStructural}
-      canNest={canNest}
-      isMenu={isMenu}
-      renderOverlay={renderActionOverlay}
-      onDragActiveChange={handleActionsDragActive}
-      openListOf={openListOf}
-    >
-      <div className="flex h-full flex-col">
-        <Header
-          projectName={displayName}
-          machineName={machineName}
-          showProjectName={showProjectName}
-          sidebarCollapsed={sidebarCollapsed}
-          rowRef={headerRowRef}
-          innerRef={innerContainerRef}
-          actionsWrapped={actionsWrapped}
-          actions={headerActionsNode}
-          controls={controlsNode}
-          trailing={onCloseColumn && <CloseColumnButton onClose={onCloseColumn} />}
-          dimmed={onCloseColumn !== undefined && !focused}
-          alignTop={hasZones}
-          onRowContextMenu={rowMenu.onHeaderContextMenu}
-        />
+    <PageRunContext.Provider value={runFromPage}>
+      <ActionsDnd
+        layout={actionsLayout}
+        onMove={handleMoveActions}
+        onPreview={handlePreviewActions}
+        onStructural={handleStructural}
+        canNest={canNest}
+        isMenu={isMenu}
+        renderOverlay={renderActionOverlay}
+        onDragActiveChange={handleActionsDragActive}
+        openListOf={openListOf}
+      >
+        <div className="flex h-full flex-col">
+          <Header
+            projectName={displayName}
+            machineName={machineName}
+            showProjectName={showProjectName}
+            sidebarCollapsed={sidebarCollapsed}
+            rowRef={headerRowRef}
+            innerRef={innerContainerRef}
+            actionsWrapped={actionsWrapped}
+            actions={headerActionsNode}
+            controls={controlsNode}
+            trailing={onCloseColumn && <CloseColumnButton onClose={onCloseColumn} />}
+            dimmed={onCloseColumn !== undefined && !focused}
+            alignTop={hasZones}
+            onRowContextMenu={rowMenu.onHeaderContextMenu}
+          />
 
-        {follow && (
-          <SyncedBar follow={follow} macName={peerAlias(peerState.peers, follow.slug)} />
-        )}
+          {follow && (
+            <SyncedBar follow={follow} macName={peerAlias(peerState.peers, follow.slug)} />
+          )}
 
-        {project.heldCommands?.length ? (
-          <HeldCommandsBar projectName={project.name} commands={project.heldCommands} />
-        ) : null}
+          {project.heldCommands?.length ? (
+            <HeldCommandsBar projectName={project.name} commands={project.heldCommands} />
+          ) : null}
 
-        <TerminalPane
-          active={detailView === "terminal"}
-          visible={visible}
-          keysActive={focused}
-          showEmptyState={showEmptyState}
-          onNewTerminal={handleNewTerminal}
-          onEditService={(name) => {
-            const service = project.allServices.find((s) => s.name === name);
-            if (service) serviceEditor.startEdit(service);
-          }}
-          actions={project.actions}
-          newTabAsked={newTabAsked}
-          onNewTabHandled={clearNewTabAsked}
-          themeStyle={themeStyle}
-          terminalRef={terminalRef}
-          projectName={project.name}
-          projectLabel={displayName}
-          projectRoot={project.root}
-          services={project.running ? project.services : EMPTY_SERVICES}
-          terminalTheme={terminalTheme}
-          fontSize={fontSize}
-          paneStatus={paneStatus}
-          footerItems={actionsModel.footerItems}
-          layout={actionsLayout}
-          disabled={runningAction !== null}
-          onTerminalCountChange={setTerminalCount}
-          onZoomIn={zoomIn}
-          onZoomOut={zoomOut}
-          onRunAction={handleRunAction}
-          onActionContextMenu={handleActionContextMenu}
-          onZoneContextMenu={handleZoneContextMenu}
-          onFooterContextMenu={rowMenu.onFooterContextMenu}
-          onResumeSession={handleOpenHistory}
-          sessionHistory={historyEntries}
-          hiddenSessions={hiddenSessions}
-          onResumeRow={handleResumeSession}
-        />
-
-        {detailView === "config" && (
-          <div className="mt-1.5 -mx-6 -mb-6 flex flex-1 flex-col overflow-hidden">
-            <ConfigEditor
-              projectName={project.name}
-              onSaved={onRefresh}
-              back={subpageBack}
-              isRemote={project.isRemote}
-            />
-          </div>
-        )}
-        {detailView === "notes" && (
-          <div className="mt-1.5 -mx-6 -mb-6 flex min-h-0 flex-1 flex-col overflow-hidden">
-            <NotesView projectName={project.name} visible={visible && detailView === "notes"} back={subpageBack} />
-          </div>
-        )}
-        {detailView === "ai" && (
-          <div className="mt-1.5 -mx-6 -mb-6 flex min-h-0 flex-1 flex-col overflow-hidden">
-            <ProjectAIInstructions projectName={project.name} back={subpageBack} />
-          </div>
-        )}
-
-        <Modals projectName={project.name} actionModals={actionModals} />
-
-        <ActionWizard
-          open={actionWizardOpen}
-          projectName={project.name}
-          projectLabel={displayName}
-          actions={project.actions}
-          existingActionKeys={existingActionKeys}
-          nextPosition={newActionPosition}
-          projectRoot={project.root}
-          isRemote={project.isRemote}
-          zones={project.zones ?? []}
-          initialDisplay={newActionRow ?? "header"}
-          editing={editingAction}
-          onClose={() => {
-            setNewActionRow(null);
-            setEditingAction(null);
-          }}
-          onSaved={() => onRefresh()}
-        />
-
-        {showHistory && (
-          <ResumeSessionModal
+          <TerminalPane
+            active={detailView === "terminal"}
+            visible={visible}
+            keysActive={focused}
+            showEmptyState={showEmptyState}
+            onNewTerminal={handleNewTerminal}
+            onEditService={(name) => {
+              const service = project.allServices.find((s) => s.name === name);
+              if (service) serviceEditor.startEdit(service);
+            }}
+            actions={project.actions}
+            newTabAsked={newTabAsked}
+            onNewTabHandled={clearNewTabAsked}
+            themeStyle={themeStyle}
+            terminalRef={terminalRef}
             projectName={project.name}
-            history={historyEntries}
-            openSessions={openSessions}
-            hidden={hiddenSessions}
-            onResume={handleResumeSession}
-            onFocusTerminal={handleFocusTerminal}
-            onForget={handleForgetHistory}
-            onRestoreHidden={handleRestoreHidden}
-            onClose={() => setShowHistory(false)}
+            projectLabel={displayName}
+            projectRoot={project.root}
+            services={project.running ? project.services : EMPTY_SERVICES}
+            terminalTheme={terminalTheme}
+            fontSize={fontSize}
+            paneStatus={paneStatus}
+            footerItems={actionsModel.footerItems}
+            layout={actionsLayout}
+            disabled={runningAction !== null}
+            onTerminalCountChange={setTerminalCount}
+            onZoomIn={zoomIn}
+            onZoomOut={zoomOut}
+            onRunAction={handleRunAction}
+            onActionContextMenu={handleActionContextMenu}
+            onZoneContextMenu={handleZoneContextMenu}
+            onFooterContextMenu={rowMenu.onFooterContextMenu}
+            onResumeSession={handleOpenHistory}
+            sessionHistory={historyEntries}
+            hiddenSessions={hiddenSessions}
+            onResumeRow={handleResumeSession}
           />
-        )}
 
-        {actionMenu && actionMenuMove && (
-          <ActionContextMenu
-            x={actionMenu.x}
-            y={actionMenu.y}
-            currentGroup={actionMenuMove.group}
-            canMoveLeft={actionMenuMove.canMoveLeft}
-            canMoveRight={actionMenuMove.canMoveRight}
-            onMoveTo={actionMenuMove.toGroup}
-            onMoveLeft={actionMenuMove.left}
-            onMoveRight={actionMenuMove.right}
-            zone={actionMenuZone}
-            onZoneMenu={(zone) => setZoneMenu({ x: actionMenu.x, y: actionMenu.y, zone })}
-            zoneTargets={zoneTargetsFor(project.zones ?? [], actionMenuMove.group)}
-            actionLabel={actionMenu.action.label || actionMenu.action.name}
-            onNewZone={
-              actionMenuMove.group === null
-                ? undefined
-                : () => void createZoneAround(project.name, actionsSnapshot, actionMenu.action.name)
+          {detailView === "config" && (
+            <div className="mt-1.5 -mx-6 -mb-6 flex flex-1 flex-col overflow-hidden">
+              <ConfigEditor
+                projectName={project.name}
+                onSaved={onRefresh}
+                back={subpageBack}
+                isRemote={project.isRemote}
+              />
+            </div>
+          )}
+          {detailView === "notes" && (
+            <div className="mt-1.5 -mx-6 -mb-6 flex min-h-0 flex-1 flex-col overflow-hidden">
+              <NotesView projectName={project.name} visible={visible && detailView === "notes"} back={subpageBack} />
+            </div>
+          )}
+          {detailView === "ai" && (
+            <div className="mt-1.5 -mx-6 -mb-6 flex min-h-0 flex-1 flex-col overflow-hidden">
+              <ProjectAIInstructions projectName={project.name} back={subpageBack} />
+            </div>
+          )}
+
+          <Modals projectName={project.name} actionModals={actionModals} />
+
+          <ActionWizard
+            open={actionWizardOpen}
+            projectName={project.name}
+            projectLabel={displayName}
+            actions={project.actions}
+            existingActionKeys={existingActionKeys}
+            nextPosition={newActionPosition}
+            projectRoot={project.root}
+            isRemote={project.isRemote}
+            zones={project.zones ?? []}
+            initialDisplay={newActionRow ?? "header"}
+            editing={editingAction}
+            onClose={() => {
+              setNewActionRow(null);
+              setEditingAction(null);
+            }}
+            onSaved={() => onRefresh()}
+          />
+
+          {showHistory && (
+            <ResumeSessionModal
+              projectName={project.name}
+              history={historyEntries}
+              openSessions={openSessions}
+              hidden={hiddenSessions}
+              onResume={handleResumeSession}
+              onFocusTerminal={handleFocusTerminal}
+              onForget={handleForgetHistory}
+              onRestoreHidden={handleRestoreHidden}
+              onClose={() => setShowHistory(false)}
+            />
+          )}
+
+          {actionMenu && actionMenuMove && (
+            <ActionContextMenu
+              x={actionMenu.x}
+              y={actionMenu.y}
+              currentGroup={actionMenuMove.group}
+              canMoveLeft={actionMenuMove.canMoveLeft}
+              canMoveRight={actionMenuMove.canMoveRight}
+              onMoveTo={actionMenuMove.toGroup}
+              onMoveLeft={actionMenuMove.left}
+              onMoveRight={actionMenuMove.right}
+              zone={actionMenuZone}
+              onZoneMenu={(zone) => setZoneMenu({ x: actionMenu.x, y: actionMenu.y, zone })}
+              zoneTargets={zoneTargetsFor(project.zones ?? [], actionMenuMove.group)}
+              actionLabel={actionMenu.action.label || actionMenu.action.name}
+              onNewZone={
+                actionMenuMove.group === null
+                  ? undefined
+                  : () => void createZoneAround(project.name, actionsSnapshot, actionMenu.action.name)
+              }
+              onEdit={() => setEditingAction(actionMenu.action)}
+              canUngroup={!!actionMenu.action.children?.length}
+              onUngroup={() => handleStructural({ kind: "ungroup", path: actionMenu.action.name })}
+              onDelete={() => setActionToDelete(actionMenu.action)}
+              onClose={() => setActionMenu(null)}
+            />
+          )}
+
+          <ZoneMenus
+            projectName={project.name}
+            layout={actionsLayout}
+            menu={zoneMenu}
+            onClose={() => setZoneMenu(null)}
+          />
+
+          <RowMenus
+            projectName={project.name}
+            snapshot={actionsSnapshot}
+            menu={rowMenu.menu}
+            onClose={rowMenu.close}
+            onNewAction={setNewActionRow}
+          />
+
+          <ConfirmDialog
+            open={actionToDelete !== null}
+            title="Delete action?"
+            body={
+              <>
+                Remove <span className="font-medium text-[var(--text-primary)]">{actionToDelete?.label || actionToDelete?.name}</span> from this project's config. This cannot be undone.
+              </>
             }
-            onEdit={() => setEditingAction(actionMenu.action)}
-            canUngroup={!!actionMenu.action.children?.length}
-            onUngroup={() => handleStructural({ kind: "ungroup", path: actionMenu.action.name })}
-            onDelete={() => setActionToDelete(actionMenu.action)}
-            onClose={() => setActionMenu(null)}
+            confirmLabel="Delete"
+            variant="destructive"
+            disabled={deletingAction}
+            onCancel={() => setActionToDelete(null)}
+            onConfirm={handleConfirmDeleteAction}
           />
-        )}
 
-        <ZoneMenus
-          projectName={project.name}
-          layout={actionsLayout}
-          menu={zoneMenu}
-          onClose={() => setZoneMenu(null)}
-        />
-
-        <RowMenus
-          projectName={project.name}
-          snapshot={actionsSnapshot}
-          menu={rowMenu.menu}
-          onClose={rowMenu.close}
-          onNewAction={setNewActionRow}
-        />
-
-        <ConfirmDialog
-          open={actionToDelete !== null}
-          title="Delete action?"
-          body={
-            <>
-              Remove <span className="font-medium text-[var(--text-primary)]">{actionToDelete?.label || actionToDelete?.name}</span> from this project's config. This cannot be undone.
-            </>
-          }
-          confirmLabel="Delete"
-          variant="destructive"
-          disabled={deletingAction}
-          onCancel={() => setActionToDelete(null)}
-          onConfirm={handleConfirmDeleteAction}
-        />
-
-        <ServiceForm
-          open={serviceEditor.formOpen}
-          projectName={project.name}
-          services={project.allServices}
-          profiles={project.profiles}
-          editing={serviceEditor.editing}
-          onClose={serviceEditor.closeForm}
-          onSaved={onRefresh}
-          onDelete={
-            serviceEditor.editing && project.allServices.length > 1
-              ? serviceEditor.requestDelete
-              : undefined
-          }
-          onPickService={serviceEditor.startEdit}
-          onPickProfile={(profile) => {
-            serviceEditor.closeForm();
-            profileEditor.startEdit(profile);
-          }}
-        />
-
-        {serviceEditor.contextMenu && (
-          <ServiceContextMenu
-            x={serviceEditor.contextMenu.x}
-            y={serviceEditor.contextMenu.y}
-            onEdit={serviceEditor.editFromContextMenu}
-            onDelete={serviceEditor.deleteFromContextMenu}
-            onClose={serviceEditor.closeContextMenu}
+          <ServiceForm
+            open={serviceEditor.formOpen}
+            projectName={project.name}
+            services={project.allServices}
+            profiles={project.profiles}
+            editing={serviceEditor.editing}
+            onClose={serviceEditor.closeForm}
+            onSaved={onRefresh}
+            onDelete={
+              serviceEditor.editing && project.allServices.length > 1
+                ? serviceEditor.requestDelete
+                : undefined
+            }
+            onPickService={serviceEditor.startEdit}
+            onPickProfile={(profile) => {
+              serviceEditor.closeForm();
+              profileEditor.startEdit(profile);
+            }}
           />
-        )}
 
-        <ConfirmDialog
-          open={serviceEditor.toDelete !== null}
-          title="Delete service?"
-          body={
-            <>
-              Remove{" "}
-              <span className="font-medium text-[var(--text-primary)]">
-                {serviceEditor.toDelete?.name}
-              </span>{" "}
-              from this project's config. Any profile that referenced it will be updated.
-            </>
-          }
-          confirmLabel="Delete"
-          variant="destructive"
-          disabled={serviceEditor.deleting}
-          onCancel={serviceEditor.cancelDelete}
-          onConfirm={serviceEditor.confirmDelete}
-        />
+          {serviceEditor.contextMenu && (
+            <ServiceContextMenu
+              x={serviceEditor.contextMenu.x}
+              y={serviceEditor.contextMenu.y}
+              onEdit={serviceEditor.editFromContextMenu}
+              onDelete={serviceEditor.deleteFromContextMenu}
+              onClose={serviceEditor.closeContextMenu}
+            />
+          )}
 
-        <ProfileForm
-          open={profileEditor.formOpen}
-          projectName={project.name}
-          services={project.allServices}
-          profiles={project.profiles}
-          editing={profileEditor.editing}
-          onClose={profileEditor.closeForm}
-          onSaved={onRefresh}
-          onDelete={profileEditor.editing ? profileEditor.requestDelete : undefined}
-          onPickService={(service) => {
-            profileEditor.closeForm();
-            serviceEditor.startEdit(service);
-          }}
-          onPickProfile={profileEditor.startEdit}
-        />
-
-        {profileEditor.contextMenu && (
-          <ProfileContextMenu
-            x={profileEditor.contextMenu.x}
-            y={profileEditor.contextMenu.y}
-            onEdit={profileEditor.editFromContextMenu}
-            onDelete={profileEditor.deleteFromContextMenu}
-            onClose={profileEditor.closeContextMenu}
+          <ConfirmDialog
+            open={serviceEditor.toDelete !== null}
+            title="Delete service?"
+            body={
+              <>
+                Remove{" "}
+                <span className="font-medium text-[var(--text-primary)]">
+                  {serviceEditor.toDelete?.name}
+                </span>{" "}
+                from this project's config. Any profile that referenced it will be updated.
+              </>
+            }
+            confirmLabel="Delete"
+            variant="destructive"
+            disabled={serviceEditor.deleting}
+            onCancel={serviceEditor.cancelDelete}
+            onConfirm={serviceEditor.confirmDelete}
           />
-        )}
 
-        <ConfirmDialog
-          open={profileEditor.toDelete !== null}
-          title="Delete profile?"
-          body={
-            <>
-              Remove{" "}
-              <span className="font-medium text-[var(--text-primary)]">
-                {profileEditor.toDelete?.name}
-              </span>{" "}
-              from this project's config. The services it bundled stay.
-            </>
-          }
-          confirmLabel="Delete"
-          variant="destructive"
-          disabled={profileEditor.deleting}
-          onCancel={profileEditor.cancelDelete}
-          onConfirm={profileEditor.confirmDelete}
-        />
-      </div>
-    </ActionsDnd>
+          <ProfileForm
+            open={profileEditor.formOpen}
+            projectName={project.name}
+            services={project.allServices}
+            profiles={project.profiles}
+            editing={profileEditor.editing}
+            onClose={profileEditor.closeForm}
+            onSaved={onRefresh}
+            onDelete={profileEditor.editing ? profileEditor.requestDelete : undefined}
+            onPickService={(service) => {
+              profileEditor.closeForm();
+              serviceEditor.startEdit(service);
+            }}
+            onPickProfile={profileEditor.startEdit}
+          />
+
+          {profileEditor.contextMenu && (
+            <ProfileContextMenu
+              x={profileEditor.contextMenu.x}
+              y={profileEditor.contextMenu.y}
+              onEdit={profileEditor.editFromContextMenu}
+              onDelete={profileEditor.deleteFromContextMenu}
+              onClose={profileEditor.closeContextMenu}
+            />
+          )}
+
+          <ConfirmDialog
+            open={profileEditor.toDelete !== null}
+            title="Delete profile?"
+            body={
+              <>
+                Remove{" "}
+                <span className="font-medium text-[var(--text-primary)]">
+                  {profileEditor.toDelete?.name}
+                </span>{" "}
+                from this project's config. The services it bundled stay.
+              </>
+            }
+            confirmLabel="Delete"
+            variant="destructive"
+            disabled={profileEditor.deleting}
+            onCancel={profileEditor.cancelDelete}
+            onConfirm={profileEditor.confirmDelete}
+          />
+        </div>
+      </ActionsDnd>
+    </PageRunContext.Provider>
   );
 }

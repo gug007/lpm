@@ -19,7 +19,7 @@ pub(crate) const SHOWN: &[&str] = &["html"];
 
 pub(crate) const APP_KIND: &str = "app";
 const POPUP_CONFIG: &str = "This popup's config";
-const APP_CONFIG: &str = "This app's config";
+const APP_CONFIG: &str = "This mini app's config";
 
 const DEFAULT_SIZE: (u32, u32) = (360, 220);
 const WIDTH: (u32, u32) = (200, 720);
@@ -55,10 +55,10 @@ pub(crate) struct PopupDef {
 }
 
 impl AppDef {
-    pub(crate) fn commands(&self) -> Vec<&str> {
+    pub(crate) fn held_parts(&self) -> Vec<String> {
         match self {
             AppDef::Popup => Vec::new(),
-            AppDef::Page(def) => def.commands().collect(),
+            AppDef::Page(def) => def.held_parts().collect(),
         }
     }
 }
@@ -74,6 +74,28 @@ impl PopupDef {
             .chain(data)
             .filter_map(command_of)
     }
+
+    /// What a repo's `.lpm.yml` needs allowed before the page shows: the
+    /// commands behind it, and the page itself, which can run the project's
+    /// actions (`lpm.run`). A page a command makes is allowed with its command,
+    /// and one written in place by a fingerprint, so a change to it asks again.
+    pub(crate) fn held_parts(&self) -> impl Iterator<Item = String> + '_ {
+        let page = if command_of(&self.source).is_some() || self.source.is_empty() {
+            None
+        } else if is_inline_page(&self.source) {
+            use sha2::{Digest, Sha256};
+            let digest = hex::encode(Sha256::digest(self.source.as_bytes()));
+            Some(format!("page written in .lpm.yml ({})", &digest[..12]))
+        } else {
+            Some(format!("page {}", self.source))
+        };
+        self.commands().map(str::to_string).chain(page)
+    }
+}
+
+/// A page written in the config itself rather than a file's name.
+pub(crate) fn is_inline_page(source: &str) -> bool {
+    source.contains('\n') || source.trim_start().starts_with('<')
 }
 
 /// The command in `$(command)` when that's the whole value.
@@ -338,7 +360,7 @@ pub(crate) fn popup_site(project: &str, action: &str, view: View) -> Result<Popu
     let def = match view {
         View::Popup => act.popup.clone().ok_or("This action has no popup.")?,
         View::App => app_page(&act.kind, act.app.as_ref(), act.popup.as_ref())
-            .ok_or("This action has no app.")?,
+            .ok_or("This action has no mini app.")?,
     };
     let (root, ssh, held) = if project == super::RESERVED_PROJECT_NAME {
         (super::global_root(), None, BTreeSet::new())

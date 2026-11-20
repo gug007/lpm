@@ -4,7 +4,7 @@
 //! can't be made, or data that can't be read, comes back as words the card
 //! shows. Only a missing project or action is an error. An action's app, the
 //! page its tab shows, is made the same way.
-use crate::config::popup::{command_of, popup_site, PopupData, PopupSite, View, SHOWN};
+use crate::config::popup::{command_of, is_inline_page, popup_site, PopupData, PopupSite, View, SHOWN};
 use crate::action_exec::{action_place, size_words};
 use crate::popup_cache;
 use crate::popup_run;
@@ -133,6 +133,10 @@ fn make(project: &str, action: &str, site: &PopupSite) -> PopupContent {
         out.error = "This page runs commands from the repo's .lpm.yml, which wait until you allow them in lpm.".into();
         return out;
     }
+    if def.held_parts().any(|part| site.held.contains(&part)) {
+        out.error = "This page comes from the repo's .lpm.yml and can run its actions, so it waits until you allow it in lpm.".into();
+        return out;
+    }
     if !SHOWN.contains(&def.format.as_str()) {
         out.error = format!(
             "This version of lpm can't show `{}` popups yet. Update lpm to see it.",
@@ -235,10 +239,6 @@ impl<'a> Runner<'a> {
             Err(_) => (Value::Null, printed),
         })
     }
-}
-
-fn is_inline_page(source: &str) -> bool {
-    source.contains('\n') || source.trim_start().starts_with('<')
 }
 
 #[cfg(test)]

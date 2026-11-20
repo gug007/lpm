@@ -88,6 +88,7 @@ const LOCAL_ONLY_EXACT = new Set<string>([
   "popup_view_open",
   "popup_view_place",
   "popup_view_push",
+  "popup_view_reply",
   "popup_view_close",
 ]);
 

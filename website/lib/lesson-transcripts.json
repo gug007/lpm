@@ -4430,5 +4430,111 @@
    139.1,
    "allow it once, and it's in your project."
   ]
+ ],
+ "mini-apps": [
+  [
+   0.5,
+   "A mini app is a page of your own inside lpm."
+  ],
+  [
+   5.3,
+   "It turns your project's data into a dashboard,"
+  ],
+  [
+   7.9,
+   "a chart or a list, one click away."
+  ],
+  [
+   11.2,
+   "Here's a project called saas-app."
+  ],
+  [
+   13.9,
+   "The Signups button in its header is a mini app."
+  ],
+  [
+   16.9,
+   "Rest the pointer on it, and a small card shows this week's numbers at a glance."
+  ],
+  [
+   22.5,
+   "Click it, and the full mini app opens in a tab of its own,"
+  ],
+  [
+   26.1,
+   "right next to the Claude tab."
+  ],
+  [
+   28.1,
+   "The page shows whatever you want."
+  ],
+  [
+   30.4,
+   "Here it's signups, trials and revenue, a chart of the last thirty days,"
+  ],
+  [
+   34.4,
+   "and the newest teams."
+  ],
+  [
+   36,
+   "A script in the project reads them from the database."
+  ],
+  [
+   38.9,
+   "The bar on top says how old the data is."
+  ],
+  [
+   42.2,
+   "Click refresh, and the script runs again. A new team just signed up."
+  ],
+  [
+   46.6,
+   "Switch to Claude and back."
+  ],
+  [
+   48.9,
+   "The mini app keeps running in its tab, right where you left it."
+  ],
+  [
+   52.7,
+   "Making one takes a sentence."
+  ],
+  [
+   55,
+   "In the Claude tab, ask for the mini app you want, and send it."
+  ],
+  [
+   58.9,
+   "Claude looks at your setup,"
+  ],
+  [
+   61.1,
+   "writes the page and the script that feeds it, and adds a button to the project."
+  ],
+  [
+   65.4,
+   "A minute later, there's a new Queues button."
+  ],
+  [
+   68.2,
+   "Click it, and your queues open live, updating every five seconds."
+  ],
+  [
+   72.7,
+   "They come with you, too."
+  ],
+  [
+   74.6,
+   "On your phone, open lpm Link and tap the same button:"
+  ],
+  [
+   78.3,
+   "the mini app opens full screen,"
+  ],
+  [
+   80.2,
+   "so your numbers are always in your pocket, wherever you are."
+  ]
  ]
 }

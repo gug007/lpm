@@ -36,6 +36,7 @@ const READING: Record<YouTubeLessonId, string[]> = {
   "add-action": [docsPath("actions")],
   "dynamic-action-labels": [docsPath("actions")],
   "six-action-button-ideas": [docsPath("actions")],
+  "mini-apps": [docsPath("actions")],
   "action-zones": [docsPath("zones"), docsPath("actions")],
   "run-any-ai-coding-agent": [docsPath("agents"), CONNECT_AGENTS_PATH, AI_AGENTS_PATH],
   "parallel-agents": [

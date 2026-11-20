@@ -162,6 +162,10 @@ const LESSON_CAPTION: Record<
     heading: "Ask Claude Code or Codex for an image, made with Nano Banana",
     blurb: "A short video: ask in plain words, add your Google Gemini key once, and open the image inside lpm.",
   },
+  "mini-apps": {
+    heading: "Your own dashboard, one click away",
+    blurb: "A short video: open a mini app in a tab, refresh its data, and have Claude Code build a new one.",
+  },
 };
 
 // The frame sits in the first viewport, so the observer fires on load. Waiting

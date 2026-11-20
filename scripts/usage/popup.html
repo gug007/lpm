@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Usage</title>
+<style>
+  :root {
+    --text: var(--lpm-text, #ededed); --muted: var(--lpm-muted, #9a9a9a); --border: var(--lpm-border, #333);
+    --surface: var(--lpm-surface, #1c1c1c); --accent: var(--lpm-accent, #60a5fa);
+    --chip: color-mix(in srgb, var(--muted) 15%, transparent); --neutral: color-mix(in srgb, var(--muted) 60%, transparent);
+    --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --up: #15803d; --down: #c53030;
+  }
+  :root[data-theme="dark"] { --s1: #3987e5; --s2: #d95926; --s3: #199e70; --up: var(--lpm-green, #4ade80); --down: var(--lpm-red, #f87171); }
+  html { background: var(--lpm-bg, #141414); }
+  body { margin: 0; color: var(--text); font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
+  button { font: inherit; color: inherit; }
+  main { max-width: 960px; margin: 0 auto; padding: 22px 24px 28px; }
+  .popup main { padding: 2px 2px 0; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+  .tile { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+  .tile .label { font-size: 12px; font-weight: 600; color: var(--muted); }
+  .tile .value { font-size: 28px; font-weight: 650; letter-spacing: -0.02em; line-height: 1.15; margin: 4px 0 2px; }
+  .tile .when, .tile .then { font-size: 12px; color: var(--muted); }
+  .delta { font-weight: 650; margin-left: 4px; }
+  .delta.up { color: var(--up); } .delta.down { color: var(--down); }
+
+  .card { margin-top: 12px; border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px 12px; }
+  .bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-bottom: 10px; }
+  .bar h2 { margin: 0; font-size: 13px; font-weight: 650; flex: 1; min-width: 160px; }
+  .seg { display: inline-flex; padding: 2px; border-radius: 8px; background: var(--chip); }
+  .seg button { border: 0; background: none; cursor: pointer; padding: 3px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; color: var(--muted); }
+  .seg button:hover { color: var(--text); }
+  .seg button[aria-pressed="true"] { color: var(--text); background: var(--surface); box-shadow: 0 1px 2px rgb(0 0 0 / 0.2); }
+  .seg button:focus-visible, .chart:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { width: 10px; height: 10px; border-radius: 3px; }
+  .legend b { color: var(--text); font-weight: 600; }
+
+  .chart { position: relative; outline: none; border-radius: 4px; }
+  .chart svg { display: block; width: 100%; overflow: visible; }
+  .chart text { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .tip {
+    position: absolute; top: 0; z-index: 2; pointer-events: none; min-width: 130px; padding: 8px 10px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 6px 18px rgb(0 0 0 / 0.22); font-size: 12px;
+  }
+  .tip .when { color: var(--muted); margin-bottom: 4px; }
+  .tip .sum { font-size: 15px; font-weight: 650; }
+  .tip .row { display: flex; align-items: center; gap: 7px; margin-top: 2px; }
+  .tip .row i { width: 10px; height: 2px; border-radius: 1px; }
+  .tip .row b { font-weight: 650; min-width: 28px; }
+  .tip .row span { color: var(--muted); }
+  .table { max-height: 260px; overflow: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+  th, td { padding: 5px 8px; text-align: right; border-bottom: 1px solid var(--border); }
+  th { position: sticky; top: 0; background: var(--lpm-bg, #141414); color: var(--muted); font-weight: 600; }
+  th:first-child, td:first-child { text-align: left; }
+  .link { border: 0; background: none; padding: 0; cursor: pointer; color: var(--accent); font-size: 12px; font-weight: 550; }
+
+  .panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; }
+  .panels .card { margin-top: 12px; }
+  .panel h3 { margin: 0; font-size: 13px; font-weight: 650; }
+  .panel .note { font-size: 12px; color: var(--muted); margin: 1px 0 10px; }
+  .meter { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(40px, 1fr) 3em; align-items: center; gap: 4px 10px; padding: 3px 0; font-size: 12px; }
+  .meter .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .meter .tag { margin-left: 6px; font-size: 10.5px; font-weight: 650; color: var(--accent); }
+  .meter .track { height: 8px; border-radius: 4px; background: var(--chip); }
+  .meter .fill { height: 100%; border-radius: 4px; min-width: 2px; }
+  .meter .share { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  .hero { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+  .hero .label { font-size: 12px; color: var(--muted); }
+  .hero .value { font-size: 30px; font-weight: 650; letter-spacing: -0.02em; line-height: 1.1; }
+  .hero .side { text-align: right; font-size: 12px; color: var(--muted); line-height: 1.6; }
+  .hero .side b { color: var(--text); font-weight: 600; }
+  .message { border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  .message b { display: block; margin-bottom: 4px; font-size: 14px; }
+  .message span { color: var(--muted); }
+  .message pre { margin: 8px 0 0; white-space: pre-wrap; font-size: 12px; color: var(--muted); }
+  @media (max-width: 560px) { main { padding: 16px 16px 24px; } .tile .value { font-size: 24px; } }
+</style>
+</head>
+<body>
+<main id="app"></main>
+<script>
+  var SERIES = [
+    { key: "macos", name: "macOS", color: "var(--s1)" },
+    { key: "windows", name: "Windows", color: "var(--s2)" },
+    { key: "linux", name: "Linux", color: "var(--s3)" },
+  ];
+  var RANGES = [
+    { id: "days", name: "Days", key: "daily", min: 7, title: "Active desktop computers per day" },
+    { id: "weeks", name: "Weeks", key: "weekly", min: 4, title: "Active desktop computers per week" },
+    { id: "months", name: "Months", key: "monthly", min: 3, title: "Active desktop computers per month" },
+  ];
+  var ARCH = { aarch64: "ARM", x86_64: "x64" };
+  var OS = { macos: "macOS", windows: "Windows", linux: "Linux" };
+  var range = RANGES[0];
+  var tableShown = false;
+  var data = null;
+
+  function el(tag, cls, text) {
+    var node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text != null) node.textContent = text;
+    return node;
+  }
+  function fmt(n) {
+    return n < 10000 ? n.toLocaleString("en-US") : (n / 1000).toFixed(n < 100000 ? 1 : 0).replace(/\.0$/, "") + "K";
+  }
+  function pct(part, whole) { return whole ? Math.round((part / whole) * 100) + "%" : "–"; }
+  function total(p) { return p.macos + p.windows + p.linux; }
+  function sum(list, f) { return list.reduce(function (a, x) { return a + f(x); }, 0); }
+  function day(date) { return new Date((date.length === 7 ? date + "-01" : date) + "T00:00:00Z"); }
+  function when(date, opts) { return day(date).toLocaleDateString("en-US", Object.assign({ timeZone: "UTC" }, opts)); }
+
+  function delta(now, before) {
+    if (!before) return null;
+    var change = Math.round(((now - before) / before) * 100);
+    var node = el("span", "delta " + (change > 0 ? "up" : change < 0 ? "down" : ""), (change > 0 ? "▲ " : change < 0 ? "▼ " : "") + Math.abs(change) + "%");
+    node.title = fmt(before) + " at the same point before";
+    return node;
+  }
+
+  function figures() {
+    var days = data.daily, n = days.length, today = days[n - 1];
+    var dow = (day(today.date).getUTCDay() + 6) % 7, dom = day(today.date).getUTCDate();
+    var prevMonth = data.monthly[data.monthly.length - 2].date;
+    var monthBefore = days.filter(function (d) { return d.date.slice(0, 7) === prevMonth && Number(d.date.slice(8)) <= dom; });
+    return {
+      today: total(today),
+      yesterday: total(days[n - 2]), weekAgo: total(days[n - 9]),
+      week: sum(days.slice(n - 1 - dow), function (d) { return d.weekly; }),
+      weekBefore: sum(days.slice(n - 8 - dow, n - 7), function (d) { return d.weekly; }),
+      lastWeek: total(data.weekly[data.weekly.length - 2]),
+      month: sum(days.slice(n - dom), function (d) { return d.monthly; }),
+      monthBefore: sum(monthBefore, function (d) { return d.monthly; }),
+      lastMonth: total(data.monthly[data.monthly.length - 2]),
+      installs: sum(days.slice(n - 8, n - 1), function (d) { return d.installs; }),
+      installsBefore: sum(days.slice(n - 15, n - 8), function (d) { return d.installs; }),
+      installs30: sum(days.slice(n - 31, n - 1), function (d) { return d.installs; }),
+    };
+  }
+
+  function tile(label, value, whenText, change, thenText) {
+    var node = el("div", "tile");
+    node.appendChild(el("div", "label", label));
+    node.appendChild(el("div", "value", fmt(value)));
+    var line = el("div", "when", whenText);
+    if (change) line.appendChild(change);
+    node.appendChild(line);
+    node.appendChild(el("div", "then", thenText));
+    return node;
+  }
+
+  function ticks(max) {
+    var raw = Math.max(1, max) / 4, mag = Math.pow(10, Math.floor(Math.log10(raw))), norm = raw / mag;
+    var step = Math.max(1, (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10) * mag);
+    var out = [0];
+    while (out[out.length - 1] < max) out.push(out[out.length - 1] + step);
+    return out.length > 1 ? out : [0, step];
+  }
+
+  function column(x, top, w, h, round) {
+    var r = round ? Math.min(4, w / 2, h) : 0;
+    return "M" + x + "," + (top + h) + "V" + (top + r) + "A" + r + "," + r + " 0 0 1 " + (x + r) + "," + top +
+      "H" + (x + w - r) + "A" + r + "," + r + " 0 0 1 " + (x + w) + "," + (top + r) + "V" + (top + h) + "Z";
+  }
+
+  // Stacked columns, one per period, the last one faded while it's still running.
+  function chart(periods, series, opts) {
+    var box = el("div", "chart");
+    box.tabIndex = 0;
+    box.setAttribute("role", "img");
+    box.setAttribute("aria-label", opts.label);
+    var width = Math.max(200, opts.width), height = opts.height, axisW = opts.axis ? 36 : 0, base = height - 20;
+    var max = Math.max.apply(null, periods.map(function (p) { return sum(series, function (s) { return p[s.key]; }); }));
+    var ys = ticks(max), top = ys[ys.length - 1], scale = (base - 8) / top;
+    var band = (width - axisW) / periods.length, colW = Math.max(1, Math.min(24, band - 2));
+    var svg = '<svg viewBox="0 0 ' + width + " " + height + '" height="' + height + '">';
+    if (opts.axis) ys.forEach(function (v) {
+      var y = Math.round(base - v * scale) + 0.5;
+      svg += '<line x1="' + axisW + '" x2="' + width + '" y1="' + y + '" y2="' + y + '" style="stroke:var(--border)"/>';
+      svg += '<text x="' + (axisW - 8) + '" y="' + (y + 4) + '" text-anchor="end">' + fmt(v) + "</text>";
+    });
+    else svg += '<line x1="0" x2="' + width + '" y1="' + (base + 0.5) + '" y2="' + (base + 0.5) + '" style="stroke:var(--border)"/>';
+    svg += '<rect class="hl" y="0" height="' + base + '" width="' + band + '" style="fill:var(--chip)" opacity="0"/>';
+    periods.forEach(function (p, i) {
+      var x = axisW + i * band + (band - colW) / 2, cum = 0, drawn = false;
+      var live = series.filter(function (s) { return p[s.key] > 0; });
+      svg += '<g opacity="' + (i === periods.length - 1 ? 0.45 : 1) + '">';
+      live.forEach(function (s, k) {
+        var y1 = base - (cum + p[s.key]) * scale, y0 = base - cum * scale - (drawn ? 2 : 0);
+        cum += p[s.key];
+        if (y0 - y1 < 0.5) return;
+        svg += '<path d="' + column(x, y1, colW, y0 - y1, k === live.length - 1) + '" style="fill:' + s.color + '"/>';
+        drawn = true;
+      });
+      svg += "</g>";
+    });
+    var taken = [];
+    for (var i = periods.length - 1; i >= 0; i--) {
+      var text = opts.tick(periods[i], i, periods);
+      if (!text) continue;
+      var cx = axisW + (i + 0.5) * band, half = text.length * 3.3 + 4;
+      cx = Math.min(width - half, Math.max(axisW + half, cx));
+      if (taken.some(function (t) { return Math.abs(t - cx) < half * 2; })) continue;
+      taken.push(cx);
+      svg += '<text x="' + cx + '" y="' + (height - 4) + '" text-anchor="middle">' + text + "</text>";
+    }
+    box.innerHTML = svg + "</svg>";
+    var hl = box.querySelector(".hl"), tip = el("div", "tip"), at = -1;
+    tip.hidden = true;
+    box.appendChild(tip);
+
+    function show(i) {
+      at = Math.max(0, Math.min(periods.length - 1, i));
+      var p = periods[at], x = axisW + at * band;
+      hl.setAttribute("x", x);
+      hl.setAttribute("opacity", 1);
+      tip.textContent = "";
+      tip.appendChild(el("div", "when", opts.tip(p) + (at === periods.length - 1 ? " · so far" : "")));
+      tip.appendChild(el("div", "sum", fmt(sum(series, function (s) { return p[s.key]; }))));
+      if (series.length > 1) series.forEach(function (s) {
+        var row = el("div", "row"), key = el("i");
+        key.style.background = s.color;
+        row.appendChild(key);
+        row.appendChild(el("b", null, fmt(p[s.key])));
+        row.appendChild(el("span", null, s.name));
+        tip.appendChild(row);
+      });
+      tip.hidden = false;
+      var left = x + band + 8;
+      if (left + tip.offsetWidth > width) left = Math.max(0, x - tip.offsetWidth - 8);
+      tip.style.left = left + "px";
+    }
+    function hide() { tip.hidden = true; hl.setAttribute("opacity", 0); }
+    box.addEventListener("pointermove", function (e) {
+      var x = (e.clientX - box.getBoundingClientRect().left) * (width / box.clientWidth) - axisW;
+      if (x < 0) return hide();
+      show(Math.floor(x / band));
+    });
+    box.addEventListener("pointerleave", hide);
+    box.addEventListener("blur", hide);
+    box.addEventListener("focus", function () { show(at < 0 ? periods.length - 1 : at); });
+    box.addEventListener("keydown", function (e) {
+      var to = { ArrowLeft: at - 1, ArrowRight: at + 1, Home: 0, End: periods.length - 1 }[e.key];
+      if (to == null) return;
+      e.preventDefault();
+      show(to);
+    });
+    return box;
+  }
+
+  function ticker(id) {
+    return function (p, i, all) {
+      var d = day(p.date);
+      if (id === "days") {
+        if (i === all.length - 1) return "Today";
+        return i === 0 ? when(p.date, { month: "short", day: "numeric" }) : d.getUTCDate() === 1 ? when(p.date, { month: "short" }) : "";
+      }
+      if (id === "weeks") return (all.length - 1 - i) % 2 === 0 ? when(p.date, { month: "short", day: "numeric" }) : "";
+      return d.getUTCMonth() === 0 ? when(p.date, { month: "short" }) + " ’" + String(d.getUTCFullYear()).slice(2) : when(p.date, { month: "short" });
+    };
+  }
+
+  function tipper(id) {
+    return function (p) {
+      if (id === "days") return when(p.date, { weekday: "short", month: "short", day: "numeric" });
+      if (id === "weeks") return "Week of " + when(p.date, { month: "short", day: "numeric" });
+      return when(p.date, { month: "long", year: "numeric" });
+    };
+  }
+
+  function table(periods, id) {
+    var wrap = el("div", "table"), t = el("table"), head = el("tr");
+    ["Period"].concat(SERIES.map(function (s) { return s.name; }), ["Total", "Servers"]).forEach(function (h) { head.appendChild(el("th", null, h)); });
+    t.appendChild(head);
+    periods.slice().reverse().forEach(function (p) {
+      var tr = el("tr");
+      [tipper(id)(p)].concat(SERIES.map(function (s) { return fmt(p[s.key]); }), [fmt(total(p)), fmt(p.hosts)]).forEach(function (v) { tr.appendChild(el("td", null, v)); });
+      t.appendChild(tr);
+    });
+    wrap.appendChild(t);
+    return wrap;
+  }
+
+  function meters(title, note, rows) {
+    var card = el("div", "card panel"), whole = sum(rows, function (r) { return r.n; });
+    card.appendChild(el("h3", null, title));
+    card.appendChild(el("div", "note", note));
+    rows.forEach(function (r) {
+      var row = el("div", "meter"), name = el("div", "name", r.name), track = el("div", "track"), fill = el("div", "fill");
+      if (r.tag) name.appendChild(el("span", "tag", r.tag));
+      name.title = r.name + ": " + fmt(r.n);
+      fill.style.width = (whole ? (r.n / whole) * 100 : 0) + "%";
+      fill.style.background = r.color || "var(--neutral)";
+      track.appendChild(fill);
+      row.appendChild(name);
+      row.appendChild(track);
+      row.appendChild(el("div", "share", pct(r.n, whole)));
+      card.appendChild(row);
+    });
+    if (!rows.length) card.appendChild(el("div", "note", "Nothing in this period."));
+    return card;
+  }
+
+  function versions() {
+    var latest = data.versions.filter(function (v) { return v.version === data.latest; })[0];
+    var top = data.versions.slice(0, 5);
+    if (latest && top.indexOf(latest) < 0) top = top.slice(0, 4).concat([latest]);
+    var whole = sum(data.versions, function (v) { return v.n; });
+    var list = top.map(function (v) {
+      return { name: "v" + v.version, n: v.n, tag: v === latest ? "latest" : "", color: v === latest ? "var(--s1)" : null };
+    });
+    var older = whole - sum(top, function (v) { return v.n; });
+    if (older) list.push({ name: "Older", n: older });
+    var note = data.latest ? pct(latest ? latest.n : 0, whole) + " of daily use is on v" + data.latest + ", the latest release" : "Share of daily use, last 7 days";
+    return meters("Versions", note, list);
+  }
+
+  function platforms() {
+    return meters("Platforms", "Share of daily use, last 7 days", data.platforms.map(function (p) {
+      var host = p.kind === "host", series = SERIES.filter(function (s) { return s.key === p.os; })[0];
+      var arch = p.os === "macos" ? (p.arch === "aarch64" ? "Apple silicon" : "Intel") : ARCH[p.arch] || p.arch;
+      return { name: (host ? "Server" : OS[p.os] || p.os) + " · " + arch, n: p.n, color: host ? null : series && series.color };
+    }));
+  }
+
+  function cohorts() {
+    var month = data.today.slice(0, 7);
+    return meters("Install month", "This month's users, by the month they installed lpm", data.cohorts.map(function (c) {
+      return { name: when(c.cohort, { month: "short", year: "numeric" }), tag: c.cohort === month ? "new" : "", n: c.n };
+    }));
+  }
+
+  function message(main, title, detail, extra) {
+    var box = el("div", "message");
+    box.appendChild(el("b", null, title));
+    box.appendChild(el("span", null, detail));
+    if (extra) box.appendChild(el("pre", null, extra));
+    main.appendChild(box);
+  }
+
+  function popup(main, f) {
+    var hero = el("div", "hero"), left = el("div"), side = el("div", "side");
+    left.appendChild(el("div", "label", "Desktop computers today so far"));
+    left.appendChild(el("div", "value", fmt(f.today)));
+    [["Yesterday", f.yesterday, delta(f.yesterday, f.weekAgo)], ["This week", f.week, null], ["This month", f.month, null]].forEach(function (r) {
+      var line = el("div", null, r[0] + " ");
+      line.appendChild(el("b", null, fmt(r[1])));
+      if (r[2]) line.appendChild(r[2]);
+      side.appendChild(line);
+    });
+    hero.appendChild(left);
+    hero.appendChild(side);
+    main.appendChild(hero);
+    var last30 = data.daily.slice(-30).map(function (p) { return { date: p.date, total: total(p) }; });
+    main.appendChild(chart(last30, [{ key: "total", name: "Desktop", color: "var(--s1)" }], {
+      width: main.clientWidth || 360, height: 96, axis: false, label: "Desktop computers per day, last 30 days",
+      tick: function (p, i, all) { return i === 0 ? when(p.date, { month: "short", day: "numeric" }) : i === all.length - 1 ? "Today" : ""; },
+      tip: tipper("days"),
+    }));
+  }
+
+  function tab(main, f) {
+    var tiles = el("div", "tiles");
+    tiles.appendChild(tile("Daily active", f.yesterday, "yesterday", delta(f.yesterday, f.weekAgo), "today so far " + fmt(f.today)));
+    tiles.appendChild(tile("Weekly active", f.week, "this week so far", delta(f.week, f.weekBefore), "last week " + fmt(f.lastWeek)));
+    tiles.appendChild(tile("Monthly active", f.month, "this month so far", delta(f.month, f.monthBefore), "last month " + fmt(f.lastMonth)));
+    tiles.appendChild(tile("New installs", f.installs, "last 7 days", delta(f.installs, f.installsBefore), "last 30 days " + fmt(f.installs30)));
+    main.appendChild(tiles);
+
+    var card = el("div", "card"), bar = el("div", "bar"), seg = el("div", "seg"), legend = el("div", "legend");
+    main.appendChild(card);
+    var all = data[range.key], first = 0;
+    while (first < all.length - range.min && !total(all[first]) && !all[first].hosts) first++;
+    var periods = all.slice(first);
+    if (range.id === "days") periods = periods.slice(-Math.max(range.min, Math.floor((card.clientWidth - 68) / 6)));
+    var whole = sum(periods, total);
+    bar.appendChild(el("h2", null, range.title));
+    RANGES.forEach(function (r) {
+      var b = el("button", null, r.name);
+      b.type = "button";
+      b.setAttribute("aria-pressed", String(r === range));
+      b.onclick = function () { range = r; render(); };
+      seg.appendChild(b);
+    });
+    SERIES.forEach(function (s) {
+      var item = el("span"), key = el("i");
+      key.style.background = s.color;
+      item.appendChild(key);
+      item.appendChild(document.createTextNode(s.name + " "));
+      item.appendChild(el("b", null, pct(sum(periods, function (p) { return p[s.key]; }), whole)));
+      legend.appendChild(item);
+    });
+    var toggle = el("button", "link", tableShown ? "Chart" : "Table");
+    toggle.type = "button";
+    toggle.onclick = function () { tableShown = !tableShown; render(); };
+    bar.appendChild(seg);
+    bar.appendChild(legend);
+    bar.appendChild(toggle);
+    card.appendChild(bar);
+    card.appendChild(tableShown ? table(periods, range.id) : chart(periods, SERIES, {
+      width: card.clientWidth - 32, height: 230, axis: true, label: range.title, tick: ticker(range.id), tip: tipper(range.id),
+    }));
+
+    var panels = el("div", "panels");
+    panels.appendChild(versions());
+    panels.appendChild(platforms());
+    panels.appendChild(cohorts());
+    main.appendChild(panels);
+  }
+
+  function render() {
+    var main = document.getElementById("app");
+    var focused = document.activeElement && document.activeElement.classList.contains("chart");
+    data = window.lpm && lpm.data;
+    main.textContent = "";
+    if (!data || !Array.isArray(data.daily)) {
+      return message(main, "Couldn't read the ping database.", "The numbers come from scripts/usage/data.mjs, which reads the ping Worker's database with wrangler in ping/.", window.lpm && (lpm.error || lpm.text));
+    }
+    var seen = sum(data.monthly, function (p) { return total(p) + p.hosts; }) + sum(data.daily, function (p) { return total(p) + p.hosts; });
+    if (!seen) {
+      return message(main, "No pings yet.", "Each computer running a release built with the daily usage ping sends one ping a day, so numbers appear here after the first such release.");
+    }
+    (lpm.view === "tab" ? tab : popup)(main, figures());
+    if (focused) { var c = main.querySelector(".chart"); if (c) c.focus(); }
+  }
+
+  document.documentElement.setAttribute("data-theme", window.lpm && lpm.theme && lpm.theme.mode === "light" ? "light" : "dark");
+  if (window.lpm && lpm.view !== "tab") document.documentElement.classList.add("popup");
+  render();
+  if (window.lpm) lpm.onData(render);
+  var lastWidth = 0;
+  new ResizeObserver(function () {
+    var w = document.getElementById("app").clientWidth;
+    if (Math.abs(w - lastWidth) > 4) { lastWidth = w; render(); }
+  }).observe(document.getElementById("app"));
+</script>
+</body>
+</html>

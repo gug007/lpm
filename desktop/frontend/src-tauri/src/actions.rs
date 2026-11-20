@@ -218,7 +218,7 @@ fn resolve_action_command(
         .ok_or_else(|| format!("action {action:?} not found in project {project:?}"))?;
     if a.kind == config::popup::APP_KIND {
         return Err(format!(
-            "{action:?} opens an app in lpm and has no command to run."
+            "{action:?} opens a mini app in lpm and has no command to run."
         ));
     }
     substitute_inputs(&mut a, input_values);

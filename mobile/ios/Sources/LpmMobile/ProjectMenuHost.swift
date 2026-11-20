@@ -118,7 +118,8 @@ struct ProjectMenuHost: ViewModifier {
             }
             .projectActionsSheet(project: project, isPresented: $showActions, onRun: beginRun)
             .sheet(item: $appAction) { action in
-                ActionAppScreen(project: project.name, action: action).environment(model)
+                ActionAppScreen(project: project.name, action: action, onSpawnedTerminal: onSpawnedTerminal)
+                    .environment(model)
             }
             .tabRenameAlert($renamingTab)
             .alert("Rename project", isPresented: $renaming) {

@@ -20,7 +20,7 @@ use tauri::{
 
 use crate::browser::{EMBEDDED, OFFSCREEN};
 
-const PREFIX: &str = "popup-";
+pub(crate) const PREFIX: &str = "popup-";
 // An app tab's page, which another card opening leaves alone.
 const TAB_PREFIX: &str = "popup-tab-";
 // macOS can't color a webview before its page paints, so a loaded page gets a
@@ -174,12 +174,23 @@ pub fn popup_view_place(
 /// New data for the open page, which hands it to `lpm.onData`.
 #[tauri::command(async)]
 pub fn popup_view_push(app: AppHandle, id: String, payload: String) -> Result<(), String> {
-    let Some(webview) = app.get_webview(&label_of(&id)?) else {
+    hand_page(&app, &id, "__lpmPush", payload)
+}
+
+/// What came of something the page asked for (see popup_page.rs).
+#[tauri::command(async)]
+pub fn popup_view_reply(app: AppHandle, id: String, reply: String) -> Result<(), String> {
+    hand_page(&app, &id, "__lpmReply", reply)
+}
+
+/// Calls the bootstrap's `function` in the open page with `json`.
+fn hand_page(app: &AppHandle, id: &str, function: &str, json: String) -> Result<(), String> {
+    let Some(webview) = app.get_webview(&label_of(id)?) else {
         return Ok(());
     };
-    let payload = serde_json::value::RawValue::from_string(payload).map_err(|e| e.to_string())?;
+    let json = serde_json::value::RawValue::from_string(json).map_err(|e| e.to_string())?;
     webview
-        .eval(format!("window.__lpmPush && window.__lpmPush({})", payload.get()))
+        .eval(format!("window.{function} && window.{function}({})", json.get()))
         .map_err(|e| e.to_string())
 }
 

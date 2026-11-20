@@ -40,6 +40,8 @@ export interface PopupPayload {
   project: string;
   action: string;
   view: PopupView;
+  // Where a page in a webview of its own posts what it asks (see popup_page.rs).
+  post?: string;
 }
 
 // A popup page as a frame draws it.
@@ -55,6 +57,8 @@ export interface PopupPageProps {
   // out of view keeps running, parked off screen.
   shown?: boolean;
   onFailure: (message: string) => void;
+  // The page's `lpm.refresh()`.
+  onRefresh?: () => void;
 }
 
 // What a refresh hands a page that's already open.

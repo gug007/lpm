@@ -7,6 +7,8 @@ import SwiftUI
 struct ActionInputsSheet: View {
     @Environment(\.dismiss) private var dismiss
     let action: Action
+    /// Values to start with, ahead of the defaults (a page's `lpm.run`).
+    var initial: [String: String] = [:]
     let onSubmit: ([String: String]) -> Void
 
     @State private var values: [String: String] = [:]
@@ -64,7 +66,9 @@ struct ActionInputsSheet: View {
         .presentationBackground(Color(.systemBackground))
         .onAppear {
             for input in action.inputs where values[input.key] == nil {
-                if input.isSelect && input.defaultValue.isEmpty {
+                if let given = initial[input.key] {
+                    values[input.key] = given
+                } else if input.isSelect && input.defaultValue.isEmpty {
                     values[input.key] = input.options.first?.value ?? ""
                 } else {
                     values[input.key] = input.defaultValue

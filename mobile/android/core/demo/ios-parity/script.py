@@ -118,6 +118,7 @@ at(2600, 'actionBody', project='api-gateway', key='stars')
 at(2700, 'actionPopup', project='api-gateway', action='stars'); at(2700, 'actionPopup', project='api-gateway', action='stars', fresh=True)
 at(2700, 'actionPopup', project='api-gateway', action='test'); at(2700, 'actionPopup', project='nope', action='stars')
 at(2700, 'actionApp', project='api-gateway', action='stars'); at(2700, 'actionApp', project='api-gateway', action='test')
+at(2700, 'actionApp', project='api-gateway', action='releases'); at(2700, 'actionPopup', project='api-gateway', action='releases')
 
 # shell
 at(3000, 'sub', id='demo-storefront-1')
@@ -191,6 +192,9 @@ at(15000, 'runAction', project='storefront', action='fix-tests', inputValues={})
 at(15000, 'runAction', project='storefront', action='nope')
 at(16500, 'terminals', project='storefront')
 at(21000, 'backgroundRuns', project='mobile-app')
+# the Releases app's button runs Release (`lpm.run`)
+at(15000, 'runActionBackground', project='api-gateway', action='release', inputValues={}, runId='run-4')
+at(21000, 'actionBgOutput', project='api-gateway', runId='run-4')
 
 # jobs
 at(17000, 'runJob', project='storefront', jobId='nightly-tests')

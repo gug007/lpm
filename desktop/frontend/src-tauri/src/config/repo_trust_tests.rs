@@ -58,6 +58,7 @@ fn holds_every_command_the_repo_runs_by_itself() {
             "./first.sh",
             "./prod.sh",
             "./staging.sh",
+            "page page.html",
         ])
     );
 }
@@ -123,6 +124,36 @@ fn holds_an_apps_commands_like_a_popups() {
     );
     assert_eq!(
         held_in(dir.path(), root.path().to_str().unwrap(), false),
-        set(&["./board.sh", "./issues.sh", "./same.sh"])
+        set(&["./board.sh", "./issues.sh", "page page.html", "./same.sh"])
     );
+}
+
+#[test]
+fn holds_a_page_from_a_file_since_it_can_run_actions() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = repo("actions:\n  board:\n    app: scripts/board.html\n    popup:\n      html: $(./page.sh)\n");
+    let path = root.path().to_str().unwrap();
+    assert_eq!(
+        held_in(dir.path(), path, false),
+        set(&["page scripts/board.html", "./page.sh"])
+    );
+    allow_in(dir.path(), path).unwrap();
+    assert!(held_in(dir.path(), path, false).is_empty());
+}
+
+#[test]
+fn holds_a_page_written_in_place_by_its_fingerprint() {
+    let dir = tempfile::tempdir().unwrap();
+    let yaml = "actions:\n  board:\n    app:\n      html: |\n        <button onclick=\"lpm.run('deploy')\">Deploy</button>\n";
+    let root = repo(yaml);
+    let path = root.path().to_str().unwrap();
+    let held = held_in(dir.path(), path, false);
+    let entry = held.iter().next().unwrap().clone();
+    assert_eq!(held.len(), 1);
+    assert!(entry.starts_with("page written in .lpm.yml ("), "{entry}");
+    allow_in(dir.path(), path).unwrap();
+    assert!(held_in(dir.path(), path, false).is_empty());
+
+    std::fs::write(root.path().join(".lpm.yml"), yaml.replace("deploy", "wipe")).unwrap();
+    assert_eq!(held_in(dir.path(), path, false).len(), 1);
 }

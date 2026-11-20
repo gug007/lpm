@@ -56,6 +56,7 @@ export function AllowRepoCommands(...args: any[]): Promise<any>;
 export function PopupViewOpen(...args: any[]): Promise<any>;
 export function PopupViewPlace(...args: any[]): Promise<any>;
 export function PopupViewPush(...args: any[]): Promise<any>;
+export function PopupViewReply(...args: any[]): Promise<any>;
 export function PopupViewClose(...args: any[]): Promise<any>;
 export function CheckActionPortConflict(...args: any[]): Promise<any>;
 export function CheckClaudeHooks(...args: any[]): Promise<any>;

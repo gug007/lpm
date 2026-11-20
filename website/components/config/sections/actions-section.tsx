@@ -70,11 +70,25 @@ export function ActionsSection() {
         <code className="font-mono">labelSvg</code>{" "}draws its face from
         an SVG, like a small chart behind a number, and{" "}
         <code className="font-mono">popup</code>{" "}opens a whole page in a card
-        when you point at it. The lesson below shows six ideas and has Claude
-        Code build one from a single prompt:
+        when you point at it.{" "}
+        <code className="font-mono">app</code>{" "}turns the button into a mini
+        app: a click opens your page in a tab of its own. The lesson below shows
+        six ideas and has Claude Code build one from a single prompt:
       </Lede>
       <YouTubeVideo
         lesson="six-action-button-ideas"
+        className="mb-6 rounded-xl ring-1 ring-black/5 dark:ring-white/10"
+      />
+
+      <Lede title="Mini apps">
+        A mini app is a page of your own, a dashboard, a chart or a list, built
+        from what a command in your project prints. Point at its button for a
+        quick card, click it and the full page opens in a tab, where it keeps
+        running while you work in other tabs. The lesson below opens one and
+        has Claude Code build another:
+      </Lede>
+      <YouTubeVideo
+        lesson="mini-apps"
         className="mb-6 rounded-xl ring-1 ring-black/5 dark:ring-white/10"
       />
 

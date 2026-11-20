@@ -63,6 +63,7 @@ macro_rules! all_command_handlers {
             popup_view_open,
             popup_view_place,
             popup_view_push,
+            popup_view_reply,
             popup_view_close,
             cancel_ai_generate,
             browser_forward,

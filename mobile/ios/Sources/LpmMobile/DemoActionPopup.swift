@@ -1,15 +1,16 @@
 import Foundation
 
 /// Demo handlers for `actionPopup` and `actionApp`: api-gateway's Stars action
-/// shows the repo's GitHub stars month by month, drawn by the sample page in
-/// mobile/shared/demo, which lays itself out larger as the app.
+/// shows the repo's GitHub stars month by month, and its Releases action the
+/// latest releases with a button that runs Release (`lpm.run`), each drawn by its
+/// sample page in mobile/shared/demo, which lays itself out larger as the app.
 extension DemoServer {
     func registerActionPopupHandlers() {
-        registerActionPage("actionPopup", key: "popup")
-        registerActionPage("actionApp", key: "app")
+        registerActionPage("actionPopup", key: "popup", noun: "popup")
+        registerActionPage("actionApp", key: "app", noun: "mini app")
     }
 
-    private func registerActionPage(_ type: String, key: String) {
+    private func registerActionPage(_ type: String, key: String, noun: String) {
         register(type) { [weak self] o in
             guard let self else { return }
             let project = o["project"] as? String ?? ""
@@ -24,15 +25,16 @@ extension DemoServer {
             guard let action = self.world.projects[idx].actions.first(where: { $0["name"] as? String == name }),
                   action[key] != nil else {
                 reply["ok"] = false
-                reply["error"] = "This action has no \(key)."
+                reply["error"] = "This action has no \(noun)."
                 self.push(reply)
                 return
             }
+            let releases = name == "releases"
             reply["ok"] = true
             reply[key] = [
                 "refresh": 0,
-                "html": demoPopupPage(),
-                "data": demoStars,
+                "html": demoPopupPage(releases ? "popup-releases" : "popup-stars"),
+                "data": releases ? demoReleases : demoStars,
                 "updatedAt": Int(Date().timeIntervalSince1970 * 1000),
                 "stale": false,
             ] as [String: Any]
@@ -53,9 +55,18 @@ private let demoStars: [String: Any] = [
     ],
 ]
 
-/// The sample page, the same file the Android demo ships (mobile/shared/demo).
-private func demoPopupPage() -> String {
-    guard let url = Bundle.main.url(forResource: "popup-stars", withExtension: "html", subdirectory: "demo"),
+private let demoReleases: [String: Any] = [
+    "next": "v2.4.2",
+    "releases": [
+        ["tag": "v2.4.1", "notes": "Rate limits per route", "age": "3d ago"],
+        ["tag": "v2.4.0", "notes": "gRPC upstreams", "age": "2w ago"],
+        ["tag": "v2.3.2", "notes": "Fix header casing on retries", "age": "1mo ago"],
+    ],
+]
+
+/// A sample page, the same file the Android demo ships (mobile/shared/demo).
+private func demoPopupPage(_ name: String) -> String {
+    guard let url = Bundle.main.url(forResource: name, withExtension: "html", subdirectory: "demo"),
           let page = try? String(contentsOf: url, encoding: .utf8) else { return "" }
     return page
 }

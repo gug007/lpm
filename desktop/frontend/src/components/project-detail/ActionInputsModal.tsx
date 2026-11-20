@@ -5,6 +5,8 @@ import type { ActionInfo } from "../../types";
 interface ActionInputsModalProps {
   projectName: string;
   action: ActionInfo;
+  // Values to start with, ahead of the last ones picked (a page's `lpm.run`).
+  initial?: Record<string, string> | null;
   onCancel: () => void;
   onSubmit: (values: Record<string, string>) => void;
 }
@@ -15,7 +17,7 @@ function persistKey(projectName: string, actionName: string, inputKey: string) {
   return `lpm:input-last:${projectName}:${actionName}:${inputKey}`;
 }
 
-export function ActionInputsModal({ projectName, action, onCancel, onSubmit }: ActionInputsModalProps) {
+export function ActionInputsModal({ projectName, action, initial, onCancel, onSubmit }: ActionInputsModalProps) {
   const inputs = action.inputs ?? [];
   const [values, setValues] = useState<Record<string, string>>(() => {
     const init: Record<string, string> = {};
@@ -25,7 +27,7 @@ export function ActionInputsModal({ projectName, action, onCancel, onSubmit }: A
         inp.persist && inp.type !== "password"
           ? localStorage.getItem(persistKey(projectName, action.name, inp.key))
           : null;
-      init[inp.key] = remembered ?? inp.default ?? "";
+      init[inp.key] = initial?.[inp.key] ?? remembered ?? inp.default ?? "";
     }
     return init;
   });

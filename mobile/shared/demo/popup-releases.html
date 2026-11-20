@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Releases</title>
+<style>
+  html, body { margin: 0; height: 100%; background: transparent; }
+  body {
+    font: 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: var(--lpm-text, #ededed);
+    display: flex; flex-direction: column; gap: 8px; padding: 2px 4px 4px; box-sizing: border-box;
+  }
+  .row { display: flex; align-items: baseline; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--lpm-border, #333); }
+  .tag { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .notes { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .muted { color: var(--lpm-muted, #9a9a9a); }
+  .new .tag { color: var(--lpm-green, #50c878); }
+  .release { align-self: flex-start; font: inherit; font-weight: 600; color: var(--lpm-bg, #1a1a1a); background: var(--lpm-accent, #e8916f); border: 0; border-radius: 8px; padding: 6px 12px; }
+  .release:disabled { opacity: 0.5; }
+  .status { min-height: 1.3em; }
+  .tab body { font-size: 15px; gap: 14px; padding: 16px 16px 24px; }
+  .tab .row { padding: 10px 0; }
+  .tab .release { padding: 10px 16px; }
+</style>
+</head>
+<body>
+  <button class="release" id="release">Release</button>
+  <div class="status muted" id="status"></div>
+  <div id="list"></div>
+  <script>
+    (function () {
+      if (window.lpm && lpm.view === "tab") document.documentElement.className = "tab";
+      var shipped = [];
+      var data = (window.lpm && window.lpm.data) || {};
+      var button = document.getElementById("release");
+      var status = document.getElementById("status");
+
+      function draw(next) {
+        data = next || {};
+        var list = document.getElementById("list");
+        list.textContent = "";
+        shipped.concat(data.releases || []).forEach(function (r) {
+          var row = document.createElement("div");
+          row.className = "row" + (r.fresh ? " new" : "");
+          [["tag", r.tag], ["notes", r.notes], ["muted", r.age]].forEach(function (part) {
+            var span = document.createElement("span");
+            span.className = part[0];
+            span.textContent = part[1] || "";
+            row.appendChild(span);
+          });
+          list.appendChild(row);
+        });
+        button.textContent = "Release " + (shipped.length ? "again" : data.next || "");
+      }
+
+      // Runs the project's Release action as its button would: lpm asks first, the
+      // run's output shows as it goes, and the page hears how it ended.
+      button.onclick = function () {
+        if (!window.lpm || !lpm.run) return;
+        button.disabled = true;
+        status.textContent = "Releasing " + (data.next || "") + "…";
+        lpm.run("release").then(function (result) {
+          button.disabled = false;
+          if (result.ok) {
+            shipped.unshift({ tag: data.next, notes: "Shipped from this page", age: "just now", fresh: true });
+            status.textContent = "Released " + data.next + ".";
+          } else {
+            status.textContent = result.canceled ? "" : "Couldn't release: " + (result.error || "it failed");
+          }
+          draw(data);
+        });
+      };
+
+      draw(data);
+      if (window.lpm) window.lpm.onData(draw);
+    })();
+  </script>
+</body>
+</html>

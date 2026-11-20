@@ -31,7 +31,7 @@ describe("HeldCommandsBar", () => {
   it("shows the exact commands on review and allows them for the project", async () => {
     const commands = ["gh api repos/acme/shop --jq .stargazers_count", "./.lpm/stars.sh"];
     act(() => root.render(<HeldCommandsBar projectName="shop" commands={commands} />));
-    expect(container.textContent).toContain("has 2 commands that run by themselves");
+    expect(container.textContent).toContain("has 2 things that run by themselves");
     expect(container.textContent).not.toContain("./.lpm/stars.sh");
 
     act(() => button("Review").click());
@@ -39,5 +39,10 @@ describe("HeldCommandsBar", () => {
 
     await act(async () => button("Allow").click());
     expect(allowRepoCommands).toHaveBeenCalledWith("shop");
+  });
+
+  it("speaks of one held page as one thing", () => {
+    act(() => root.render(<HeldCommandsBar projectName="shop" commands={["page scripts/board.html"]} />));
+    expect(container.textContent).toContain("has something that runs by itself. It waits until you allow it.");
   });
 });

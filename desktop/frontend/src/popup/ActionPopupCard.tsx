@@ -92,8 +92,8 @@ export function ActionPopupCard({ project, action, popup, open, delay = 0, extra
         {shown && onOpenTab && (
           <button
             type="button"
-            aria-label="Open in a tab"
-            title="Open in a tab"
+            aria-label="Open as a mini app"
+            title="Open as a mini app"
             onClick={onOpenTab}
             className={HEADER_BUTTON}
           >
@@ -112,6 +112,7 @@ export function ActionPopupCard({ project, action, popup, open, delay = 0, extra
             width={width}
             height={height}
             onFailure={setFrameFailure}
+            onRefresh={refresh}
           />
         ) : (
           <PopupNote>{settled ? "Loading…" : ""}</PopupNote>

@@ -1,27 +1,19 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type RefObject } from "react";
 import { toast } from "../notifications/toast";
-import {
-  CancelActionBackground,
-  CheckActionPortConflict,
-  RunAction,
-  RunActionBackground,
-} from "../../bridge/commands";
+import { CheckActionPortConflict, RunAction } from "../../bridge/commands";
 import type { TerminalViewHandle } from "../components/TerminalView";
 import type { ActionInfo } from "../types";
 import { substituteText } from "../components/project-detail/actionInputs";
 import { substituteCommand } from "../components/project-detail/commandInputs";
 import { promptTextToSeed } from "../composerValue";
 import { useAppStore } from "../store/app";
-import {
-  showBackgroundRunToast,
-  type BackgroundRunStatus,
-} from "../components/BackgroundRunToast";
-import { trackBackgroundRun } from "../store/backgroundRuns";
 import type { ModelPick } from "../agentModelSwitch";
 import { captureActionRun, type ActionRunCapture } from "./actionRunCapture";
 import { actionRunKey, clearActionRun, markActionRun, setActionRunReopen } from "../store/actionRunMarks";
 import { runState } from "../components/project-detail/runCardPlacement";
 import { appTabSeed } from "../popup/appTab";
+import { givenInputs, whenRunEnds, type PageRunResult } from "../popup/pageRun";
+import { runBackgroundAction } from "./backgroundActionRun";
 
 export interface UseProjectActionsOptions {
   projectName: string;
@@ -47,7 +39,13 @@ export interface ShownRun {
 
 export interface ProjectActionsModals {
   confirm: ActionModalConfig<() => void>;
-  inputs: { action: ActionInfo | null; onCancel: () => void; onSubmit: (values: Record<string, string>) => void };
+  inputs: {
+    action: ActionInfo | null;
+    // What the form starts with: the values a page gave.
+    initial: Record<string, string> | null;
+    onCancel: () => void;
+    onSubmit: (values: Record<string, string>) => void;
+  };
   running: { shown: ShownRun | null; onClose: () => void; onRunAgain: () => void };
 }
 
@@ -68,6 +66,11 @@ export interface RunActionOpts {
   background?: boolean;
   // Opens its terminal in this pane rather than the focused one.
   paneId?: string;
+  // A page's `lpm.run`: values for the action's inputs, which go unasked.
+  given?: Record<string, string>;
+  // Hears how the run went: once it ends, once it starts in a terminal, or
+  // that it was canceled.
+  onDone?: (result: PageRunResult) => void;
 }
 
 export interface UseProjectActionsResult {
@@ -78,6 +81,21 @@ export interface UseProjectActionsResult {
 }
 
 const noSubscribe = () => () => {};
+
+// `onDone` heard at most once, however the run ends.
+function once(opts: RunActionOpts | undefined): RunActionOpts {
+  const done = opts?.onDone;
+  if (!done) return opts ?? {};
+  let told = false;
+  return {
+    ...opts,
+    onDone: (result) => {
+      if (told) return;
+      told = true;
+      done(result);
+    },
+  };
+}
 
 function failedRun(shown: ShownRun): boolean {
   return runState(shown.run.snapshot().done) === "failed";
@@ -105,6 +123,7 @@ export function useProjectActions({
   const keptRef = useRef(new Map<string, ShownRun>());
   const [confirmAction, setConfirmAction] = useState<ActionInfo | null>(null);
   const [inputsAction, setInputsAction] = useState<ActionInfo | null>(null);
+  const [inputsInitial, setInputsInitial] = useState<Record<string, string> | null>(null);
   const [pendingInputValues, setPendingInputValues] = useState<Record<string, string> | null>(null);
   // What the run was asked with (its prompt above all), kept while its inputs
   // or confirmation are up.
@@ -201,40 +220,29 @@ export function useProjectActions({
   ) => {
     setConfirmAction(null);
     setPendingInputValues(null);
-    if (!(await ensurePortFree(action))) return;
+    const done = opts.onDone;
+    if (!(await ensurePortFree(action))) {
+      done?.({ ok: false, error: "It didn't run: its port is in use." });
+      return;
+    }
     if (action.type === "terminal") {
       onSwitchToTerminal();
       try {
         // Route no-input terminals through the restore-aware RPC so the
         // backend can rewrite startCmd/resumeCmd; templated ones substitute
         // here and run ad-hoc.
-        if (!action.inputs?.length) {
-          await terminalViewRef.current?.createTerminalWithCmd(action.label, action.cmd, {
-            configName: action.name,
-            actionName: action.name,
-            reuse: action.reuse,
-            emoji: action.emoji,
-            color: action.color,
-            prompt: actionPrompt(action, inputValues, opts),
-            launchModel: opts.launchModel,
-            fixedAccount: opts.fixedAccount,
-            background: opts.background,
-            paneId: opts.paneId,
-          });
-          return;
-        }
-        const cmd = substituteCommand(action.cmd, inputValues);
-        const env = action.env
-          ? Object.fromEntries(
-              Object.entries(action.env).map(([k, v]) => [
-                k,
-                substituteText(v, inputValues),
-              ]),
-            )
-          : undefined;
+        const templated = !!action.inputs?.length;
+        const cmd = templated ? substituteCommand(action.cmd, inputValues) : action.cmd;
+        const env =
+          templated && action.env
+            ? Object.fromEntries(
+                Object.entries(action.env).map(([k, v]) => [k, substituteText(v, inputValues)]),
+              )
+            : undefined;
         await terminalViewRef.current?.createTerminalWithCmd(action.label, cmd, {
-          cwd: action.cwd && substituteText(action.cwd, inputValues),
-          env,
+          ...(templated
+            ? { cwd: action.cwd && substituteText(action.cwd, inputValues), env }
+            : { configName: action.name }),
           actionName: action.name,
           reuse: action.reuse,
           emoji: action.emoji,
@@ -245,14 +253,17 @@ export function useProjectActions({
           background: opts.background,
           paneId: opts.paneId,
         });
+        done?.({ ok: true });
       } catch (err) {
         toast.error(`${action.label}: ${err}`);
+        done?.({ ok: false, error: String(err) });
       }
       return;
     }
     if (action.type === "app") {
       onSwitchToTerminal();
       await terminalViewRef.current?.openAppTab(appTabSeed(action), opts.paneId);
+      done?.({ ok: true });
       return;
     }
     if (action.type === "command") {
@@ -260,64 +271,67 @@ export function useProjectActions({
       terminalViewRef.current?.sendCommandToActive(
         substituteCommand(action.cmd, inputValues),
       );
+      done?.({ ok: true });
       return;
     }
     if (action.type === "background") {
-      const runId = crypto.randomUUID();
-      const startedAt = Date.now();
-      trackBackgroundRun(runId);
-      const show = (status: BackgroundRunStatus, error?: string) =>
-        showBackgroundRunToast({
-          runId,
-          label: action.label,
-          status,
-          startedAt,
-          error,
-          onCancel: () => void CancelActionBackground(runId).catch(() => {}),
-        });
-      show("running");
-      try {
-        await RunActionBackground(projectName, action.name, inputValues, runId);
-        show("success");
-      } catch (err) {
-        if (String(err) === "cancelled") show("cancelled");
-        else show("error", String(err));
-      }
+      await runBackgroundAction(projectName, action, inputValues, done);
       return;
     }
     let capture: ActionRunCapture | null = null;
+    // The page hears the run out even once its card has closed.
+    let pageCapture: ActionRunCapture | null = null;
     const runKey = actionRunKey(projectName, action.name);
     clearActionRun(runKey);
     try {
       const runId = crypto.randomUUID();
       const startedAt = Date.now();
       capture = await captureActionRun(runId);
+      if (done) pageCapture = await captureActionRun(runId);
       await RunAction(projectName, action.name, inputValues, runId);
       putAwayShown();
       forgetKept(runKey);
       showRun({ id: runId, action, run: capture, startedAt, runKey });
+      if (pageCapture && done) whenRunEnds(pageCapture, done);
     } catch (err) {
       capture?.dispose();
+      pageCapture?.dispose();
       toast.error(`${action.label}: ${err}`);
+      done?.({ ok: false, error: String(err) });
     }
   };
 
-  const handleRunAction = (action: ActionInfo, opts?: RunActionOpts) => {
-    if (opts?.skipPrompts) {
+  // A page's run whose inputs or confirmation are going away unanswered.
+  const cancelPending = () => {
+    const pending = pendingOptsRef.current;
+    pendingOptsRef.current = {};
+    pending.onDone?.({ ok: false, canceled: true });
+  };
+
+  const handleRunAction = (action: ActionInfo, asked?: RunActionOpts) => {
+    const opts = once(asked);
+    if (opts.skipPrompts) {
       // Mobile already collected inputs + confirmed; run straight through.
       executeAction(action, opts.inputValues ?? {}, opts);
       return;
     }
-    pendingOptsRef.current = opts ?? {};
-    if (action.inputs && action.inputs.length > 0) {
-      setInputsAction(action);
+    const given = action.inputs?.length ? givenInputs(action, opts.given ?? {}) : { values: {}, complete: true };
+    if (given.complete && !action.confirm) {
+      executeAction(action, given.values, opts);
       return;
     }
-    if (action.confirm) {
+    // One run asks at a time: this one takes the place of one waiting.
+    if (inputsAction || confirmAction) cancelPending();
+    pendingOptsRef.current = opts;
+    if (given.complete) {
+      setInputsAction(null);
+      setPendingInputValues(action.inputs?.length ? given.values : null);
       setConfirmAction(action);
       return;
     }
-    executeAction(action, undefined, opts);
+    setConfirmAction(null);
+    setInputsInitial(opts.given ? given.values : null);
+    setInputsAction(action);
   };
 
   const handleInputsSubmit = (values: Record<string, string>) => {
@@ -341,6 +355,7 @@ export function useProjectActions({
         onCancel: () => {
           setConfirmAction(null);
           setPendingInputValues(null);
+          cancelPending();
         },
         onConfirm: () => {
           if (confirmAction) executeAction(confirmAction, pendingInputValues ?? undefined, pendingOptsRef.current);
@@ -348,7 +363,11 @@ export function useProjectActions({
       },
       inputs: {
         action: inputsAction,
-        onCancel: () => setInputsAction(null),
+        initial: inputsInitial,
+        onCancel: () => {
+          setInputsAction(null);
+          cancelPending();
+        },
         onSubmit: handleInputsSubmit,
       },
       running: {

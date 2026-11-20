@@ -51,16 +51,18 @@ import cx.lpm.mobile.feature.actions.editor.PlainKeyboard
  * Collects an action's declared inputs before it runs (iOS `ActionInputsSheet`, the
  * desktop's inputs modal). Values go to the Mac as typed; it fills them into the
  * command's `{{key}}` tokens. An action that also asks for confirmation reads "Next".
+ * [initial] values start ahead of the defaults (a page's `lpm.run`).
  */
 @Composable
 fun ActionInputsSheet(
     action: Action,
     onSubmit: (Map<String, String>) -> Unit,
     onDismiss: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    initial: Map<String, String> = emptyMap()
 ) {
     val sheet = rememberModalSheetState()
-    var values by rememberSaveable { mutableStateOf(initialValues(action)) }
+    var values by rememberSaveable { mutableStateOf(initialValues(action) + initial) }
     val canSubmit = action.inputs.all {
         !it.required || values[it.key].orEmpty().trimmingWhitespace().isNotEmpty()
     }
