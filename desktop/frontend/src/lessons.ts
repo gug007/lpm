@@ -8,6 +8,11 @@ export interface Lesson {
 // lists them. The lesson-publish skill prints the entry to add at the top.
 export const LESSONS: readonly Lesson[] = [
   {
+    id: "JRf26eXi_ik",
+    title: "Any AI Coding Agent Can Answer with a Video: lpm's Video Request Mode",
+    published: "2026-11-20",
+  },
+  {
     id: "aJLIUPsDN1c",
     title: "How to Archive Projects in lpm (and Free Up Disk Space)",
     published: "2026-11-18",

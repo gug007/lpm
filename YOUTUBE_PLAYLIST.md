@@ -46,3 +46,4 @@ Manual order. Each published lesson is appended here and to the playlist in the 
 - How to Organize Claude Code and Codex Skills in Folders — https://youtu.be/MI_GqFpr6ms
 - 6 Action Button Ideas for lpm: Live Charts on Your Buttons — https://youtu.be/5VWI8ln_zAQ
 - How to Archive Projects in lpm (and Free Up Disk Space) — https://youtu.be/aJLIUPsDN1c
+- Any AI Coding Agent Can Answer with a Video: lpm's Video Request Mode — https://youtu.be/JRf26eXi_ik

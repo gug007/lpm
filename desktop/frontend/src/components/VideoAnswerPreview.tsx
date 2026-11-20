@@ -1,7 +1,9 @@
 import type { CSSProperties } from "react";
 import type { AICLI } from "../types";
+import { VIDEO_LESSON_LENGTH, VIDEO_LESSON_URL } from "../videoLesson";
 import { AgentGlyph } from "./terminal/AgentGlyph";
 import { PlayIcon, VideoIcon } from "./icons";
+import { VideoLessonLink } from "./VideoLessonLink";
 import { VideoVoiceLine } from "./VideoVoiceLine";
 
 // A still in explaincast's own look, a warm canvas and a serif title, so it
@@ -74,6 +76,7 @@ export function VideoAnswerPreview({ agent, on = false }: { agent: AICLI | null;
               Click the button again for a text answer.
             </span>
           )}
+          <VideoLessonLink url={VIDEO_LESSON_URL} length={VIDEO_LESSON_LENGTH} />
         </div>
       </div>
       <VideoVoiceLine />

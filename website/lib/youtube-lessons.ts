@@ -219,6 +219,13 @@ const LESSONS = {
       "Archive the projects you're done with in lpm, and free the disk space they hold. Right-click a project and pick Archive project, find it later under More, Archive with the space its folder takes, move node_modules and build folders from every archived project to the Trash at once, and unarchive a project set up as it was.",
     uploadDate: "2026-11-18T09:00:00+00:00",
   },
+  "claude-code-codex-video-answers": {
+    id: "JRf26eXi_ik",
+    name: "Any AI Coding Agent Can Answer with a Video: lpm's Video Request Mode",
+    description:
+      "In lpm, your coding agent can answer a prompt with a short narrated video instead of text. Turn on Video in the composer and ask as usual: the one-time setup, asking Claude Code and playing its video inside lpm, asking Codex the same question, and putting the audience and length in the prompt.",
+    uploadDate: "2026-11-20T09:00:00+00:00",
+  },
 } as const;
 
 export type YouTubeLessonId = keyof typeof LESSONS;
