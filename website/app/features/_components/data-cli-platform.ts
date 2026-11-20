@@ -90,7 +90,7 @@ export const PLATFORM_AREA: FeatureArea = {
   id: "platform",
   title: "Free, open source, and no tracking",
   description:
-    "lpm has no account and no paid tier, and the apps ship without analytics. Updating, backing up, and removing lpm are all built in.",
+    "lpm has no account and no paid tier, and the apps don't track you. Updating, backing up, and removing lpm are all built in.",
   highlights: [
     {
       icon: Scale,
@@ -100,7 +100,7 @@ export const PLATFORM_AREA: FeatureArea = {
     {
       icon: ShieldCheck,
       title: "No tracking in the apps",
-      body: "The desktop app, the CLI, and the iPhone app include no analytics, and the desktop app's crash reports can be turned off in Settings. The desktop app checks GitHub for updates; otherwise the apps go online only for features you turn on and things you start.",
+      body: "The CLI and the iPhone app include no analytics. The desktop app sends crash reports and a daily usage ping with no ID on it, and both can be turned off in Settings. It also checks GitHub for updates; otherwise the apps go online only for features you turn on and things you start.",
       note: "Paired-iPhone pushes pass through lpm's relay, encrypted.",
     },
     {

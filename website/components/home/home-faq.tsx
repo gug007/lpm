@@ -112,11 +112,12 @@ const FAQS: QA[] = [
   {
     question: "Does lpm collect my code or telemetry?",
     short:
-      "No. The desktop app has no analytics or account, and crash reports can be turned off in Settings.",
+      "Never your code. The desktop app has no account. It sends crash reports and a daily usage ping with no ID on it, and both can be turned off in Settings.",
     answer: (
       <>
-        No. The desktop app has no analytics or account, and crash reports
-        can be turned off in Settings. It checks
+        Never your code. The desktop app has no account. It sends crash
+        reports and a daily usage ping with no ID on it, and both can be turned
+        off in Settings. It checks
         GitHub for updates, and AI features such as commit messages run through
         your own agent CLI. If you pair an iPhone and turn on push
         notifications, they are sealed on your computer and relayed through lpm.cx,
@@ -129,7 +130,7 @@ const FAQS: QA[] = [
       </>
     ),
     answerText:
-      "No. The desktop app has no analytics or account, and crash reports can be turned off in Settings. It checks GitHub for updates, and AI features such as commit messages run through your own agent CLI. If you pair an iPhone and turn on push notifications, they are sealed on your computer and relayed through lpm.cx, which can't read them. Only this website uses visitor analytics; see the privacy policy.",
+      "Never your code. The desktop app has no account. It sends crash reports and a daily usage ping with no ID on it, and both can be turned off in Settings. It checks GitHub for updates, and AI features such as commit messages run through your own agent CLI. If you pair an iPhone and turn on push notifications, they are sealed on your computer and relayed through lpm.cx, which can't read them. Only this website uses visitor analytics; see the privacy policy.",
   },
   {
     question: "How does lpm update?",

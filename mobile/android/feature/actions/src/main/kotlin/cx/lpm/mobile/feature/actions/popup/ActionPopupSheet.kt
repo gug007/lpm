@@ -3,6 +3,8 @@ package cx.lpm.mobile.feature.actions.popup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -14,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
@@ -36,6 +39,7 @@ import cx.lpm.mobile.core.designsystem.component.SheetScaffold
 import cx.lpm.mobile.core.designsystem.component.rememberModalSheetState
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.core.model.Action
+import cx.lpm.mobile.core.model.ActionPageView
 import cx.lpm.mobile.core.model.ActionPopupContent
 import cx.lpm.mobile.core.model.SessionKey
 import cx.lpm.mobile.core.model.relativeAgo
@@ -70,22 +74,13 @@ private fun ActionPopupSheetContent(
     modifier: Modifier = Modifier,
     viewModel: ActionPopupViewModel =
         hiltViewModel<ActionPopupViewModel, ActionPopupViewModel.Factory>(
-            creationCallback = { it.create(project, action, session) }
+            key = "popup:$session:$project:${action.name}",
+            creationCallback = { it.create(project, action, session, ActionPageView.Popup) }
         )
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val sheet = rememberModalSheetState(medium = true)
-    val refresh = state.popup.content?.refresh ?: 0
-    val lifecycle = LocalLifecycleOwner.current.lifecycle
-    LaunchedEffect(refresh, lifecycle) {
-        if (refresh <= 0) return@LaunchedEffect
-        lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-            while (true) {
-                delay(refresh * 1_000L)
-                viewModel.tick()
-            }
-        }
-    }
+    RefreshTicker(state.popup.content?.refresh ?: 0, viewModel::tick)
     ModalSheet(onDismissRequest = onDismiss, modifier = modifier, state = sheet) {
         ActionPopupScreen(
             state = state,
@@ -98,7 +93,27 @@ private fun ActionPopupSheetContent(
     }
 }
 
-/** The sheet's chrome and body: a spinner, the page, or why there's none. */
+/** Asks again every [refresh] seconds while the screen is resumed; never at 0. */
+@Composable
+internal fun RefreshTicker(refresh: Int, onTick: () -> Unit) {
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val tick by rememberUpdatedState(onTick)
+    LaunchedEffect(refresh, lifecycle) {
+        if (refresh <= 0) return@LaunchedEffect
+        lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            while (true) {
+                delay(refresh * 1_000L)
+                tick()
+            }
+        }
+    }
+}
+
+/**
+ * The sheet's chrome and body: a spinner, the page, or why there's none. A popup's
+ * page has its config's height in a scrolling column; an app's ([view] Tab) fills
+ * the sheet and scrolls itself.
+ */
 @Composable
 internal fun ActionPopupScreen(
     state: ActionPopupUiState,
@@ -106,7 +121,8 @@ internal fun ActionPopupScreen(
     action: String,
     onRefresh: () -> Unit,
     onDone: () -> Unit,
-    onPageFail: () -> Unit
+    onPageFail: () -> Unit,
+    view: ActionPageView = ActionPageView.Popup
 ) {
     SheetScaffold(
         title = state.title,
@@ -125,29 +141,52 @@ internal fun ActionPopupScreen(
             { Age(updatedAt) }
         }
     ) {
+        val fills = view == ActionPageView.Tab
         Column(
-            Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 12.dp)
+            if (fills) {
+                Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+            } else {
+                Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
+            }
         ) {
             when (val phase = state.popup.phase) {
                 ActionPopupPhase.Loading -> Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(state.height.dp),
+                    if (fills) {
+                        Modifier.fillMaxSize()
+                    } else {
+                        Modifier
+                            .fillMaxWidth()
+                            .height(state.height.dp)
+                    },
                     contentAlignment = Alignment.Center
                 ) {
                     ActivityIndicator()
                 }
 
-                is ActionPopupPhase.Failed -> Failure(phase, state.height, onRefresh)
+                is ActionPopupPhase.Failed -> Failure(
+                    failed = phase,
+                    height = state.height,
+                    onRetry = onRefresh,
+                    modifier = if (fills) {
+                        Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 24.dp)
+                    } else {
+                        Modifier
+                    }
+                )
 
                 is ActionPopupPhase.Shown -> Page(
                     content = phase.content,
                     state = state,
                     project = project,
                     action = action,
+                    view = view,
                     onPageFail = onPageFail
                 )
             }
@@ -156,9 +195,14 @@ internal fun ActionPopupScreen(
 }
 
 @Composable
-private fun Failure(failed: ActionPopupPhase.Failed, height: Int, onRetry: () -> Unit) {
+private fun Failure(
+    failed: ActionPopupPhase.Failed,
+    height: Int,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     Column(
-        Modifier
+        modifier
             .fillMaxWidth()
             .heightIn(min = height.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -182,19 +226,24 @@ private fun Failure(failed: ActionPopupPhase.Failed, height: Int, onRetry: () ->
 }
 
 @Composable
-private fun Page(
+private fun ColumnScope.Page(
     content: ActionPopupContent,
     state: ActionPopupUiState,
     project: String,
     action: String,
+    view: ActionPageView,
     onPageFail: () -> Unit
 ) {
     val colors = LpmTheme.colors
-    val payload = remember(content, project, action, colors) {
-        ActionPopupPayload.bootstrap(content, project, action, colors)
+    val fills = view == ActionPageView.Tab
+    val payload = remember(content, project, action, colors, view) {
+        ActionPopupPayload.bootstrap(content, project, action, colors, view)
     }
     val push = remember(content) { ActionPopupPayload.push(content) }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(
+        modifier = if (fills) Modifier.weight(1f) else Modifier,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
         ActionPopupWebView(
             html = content.html.orEmpty(),
             payload = payload,
@@ -202,9 +251,15 @@ private fun Page(
             page = state.popup.page,
             pushes = state.popup.pushes,
             onFailure = onPageFail,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(state.height.dp)
+            modifier = if (fills) {
+                Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+            } else {
+                Modifier
+                    .fillMaxWidth()
+                    .height(state.height.dp)
+            }
         )
         state.popup.note?.let { note ->
             Text(
@@ -212,7 +267,16 @@ private fun Page(
                 style = LpmTheme.typography.footnote,
                 color = colors.orange,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
+                modifier = if (fills) {
+                    Modifier.padding(
+                        start = 16.dp,
+                        end = 16.dp,
+                        bottom = 8.dp
+                    )
+                } else {
+                    Modifier
+                }
             )
         }
     }

@@ -2,6 +2,7 @@ package cx.lpm.mobile.feature.actions.run
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import cx.lpm.mobile.core.data.actions.ActionPopupStore
 import cx.lpm.mobile.core.data.actions.ActionsStore
 import cx.lpm.mobile.core.data.session.MacSessions
 import cx.lpm.mobile.core.model.Action
@@ -25,6 +26,9 @@ sealed interface RunStep {
 
     /** A headless run, its live output open in a sheet. */
     data class Background(val runId: String, val label: String) : RunStep
+
+    /** An action with an app: its page, open in place of a run. */
+    data class App(val action: Action) : RunStep
 }
 
 data class ActionRunUiState(
@@ -35,8 +39,8 @@ data class ActionRunUiState(
 
 /**
  * Runs a project's actions from a screen that shows its ⚡ button (iOS
- * `ProjectMenuHost`'s run flow): asks for the action's inputs, then confirmation, as
- * the desktop does, then runs it — headless on the Mac with its output in a sheet,
+ * `ProjectMenuHost`'s run flow): an action with an app opens it instead; any other
+ * asks for the action's inputs, then confirmation, as the desktop does, then runs it — headless on the Mac with its output in a sheet,
  * or in a terminal there, which [run]'s `onSpawn` is told about. The Mac doesn't ask
  * again (`confirmed: true`).
  */
@@ -49,6 +53,7 @@ class ActionRunViewModel @AssistedInject constructor(
 ) : ViewModel() {
     private val step = MutableStateFlow<RunStep?>(null)
     private val actions: ActionsStore? get() = sessions[sessionKey]?.store()
+    private val pages: ActionPopupStore? get() = sessions[sessionKey]?.store()
 
     val uiState: StateFlow<ActionRunUiState> =
         combine(picks.pending(sessionKey, project), step) { picked, s ->
@@ -62,6 +67,7 @@ class ActionRunViewModel @AssistedInject constructor(
 
     fun run(action: Action, onSpawn: (TerminalInfo) -> Unit) {
         when {
+            pages?.opensApp(action) == true -> step.value = RunStep.App(action)
             action.inputs.isNotEmpty() -> step.value = RunStep.Inputs(action)
             action.confirm -> step.value = RunStep.Confirm(action, emptyMap())
             else -> dispatch(action, emptyMap(), onSpawn)

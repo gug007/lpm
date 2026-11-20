@@ -1,5 +1,5 @@
 import { type RefObject } from "react";
-import { type AdoptedTabOpts, type PaneNode, type PaneLeaf, type SplitDirection } from "../../paneTree";
+import { type AdoptedTabOpts, type AppTabSeed, type PaneNode, type PaneLeaf, type SplitDirection } from "../../paneTree";
 import { type PersistedHistoryEntry } from "../../terminals";
 import { type TerminalMemoryRef } from "../../terminalMemory";
 import type { ModelPick } from "../../agentModelSwitch";
@@ -65,6 +65,8 @@ export interface UseTerminalsResult {
   openToolkitTab: () => Promise<void>;
   // Show a page of one of the project's servers, in the tab already on it or a new one.
   openBrowserTab: (url: string, label?: string, paneId?: string) => Promise<void>;
+  // Show an action's app, in the tab already on it or a new one.
+  openAppTab: (seed: AppTabSeed, paneId?: string) => Promise<void>;
   closeTerminal: (paneId: string, tabIdx: number) => void;
   // Start a terminal whose process has ended again in its own tab.
   restartTerminal: (terminalId: string) => Promise<void>;

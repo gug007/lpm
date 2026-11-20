@@ -5,11 +5,12 @@
 //! app's commands; its own files load from lpm-preview through the `<base>` the
 //! frontend writes into it. The webview waits off screen until the page has
 //! loaded, and one that hasn't within `LOAD_WITHIN` is closed and the card told
-//! why. At most one is open. Linux has no child webviews over the app (see
+//! why. At most one card's page is open; an app's page, in a tab, stays until
+//! its tab closes it. Linux has no child webviews over the app (see
 //! browser.rs), so the frontend draws the page in a sandboxed frame there.
 use base64::Engine;
-use std::collections::HashMap;
-use std::sync::Mutex;
+use std::collections::{HashMap, HashSet};
+use std::sync::{LazyLock, Mutex};
 use std::time::Duration;
 use tauri::webview::{Color, NewWindowResponse, PageLoadEvent};
 use tauri::{
@@ -20,10 +21,19 @@ use tauri::{
 use crate::browser::{EMBEDDED, OFFSCREEN};
 
 const PREFIX: &str = "popup-";
+// An app tab's page, which another card opening leaves alone.
+const TAB_PREFIX: &str = "popup-tab-";
 // macOS can't color a webview before its page paints, so a loaded page gets a
 // moment to draw before the webview moves on screen.
 const PAINT_WAIT: Duration = Duration::from_millis(60);
 const LOAD_WITHIN: Duration = Duration::from_secs(8);
+
+// Opens and closes run on separate threads, so a close can arrive before the
+// open it follows. One at a time, and a close that finds nothing leaves its
+// label here for that open to make nothing, rather than a page no one closes.
+static TURN: Mutex<()> = Mutex::new(());
+static CLOSED_FIRST: LazyLock<Mutex<HashSet<String>>> = LazyLock::new(Default::default);
+const MAX_CLOSED_FIRST: usize = 64;
 
 #[derive(Clone, Copy, serde::Deserialize)]
 pub struct Rect {
@@ -66,7 +76,13 @@ pub fn popup_view_open(
     }
     let label = label_of(&id)?;
     let page = page_url(&html)?;
-    close_all(&app, &pages);
+    let _turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    if CLOSED_FIRST.lock().unwrap().remove(&label) {
+        return Ok(());
+    }
+    if !is_tab_label(&label) {
+        close_cards(&app, &pages);
+    }
     pages.0.lock().unwrap().insert(label.clone(), rect);
     let win = app.get_window("main").ok_or("main window not found")?;
     let blank: Url = "about:blank".parse().map_err(|e| format!("{e}"))?;
@@ -170,9 +186,11 @@ pub fn popup_view_push(app: AppHandle, id: String, payload: String) -> Result<()
 #[tauri::command(async)]
 pub fn popup_view_close(app: AppHandle, pages: State<'_, PopupPages>, id: String) -> Result<(), String> {
     let label = label_of(&id)?;
+    let _turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
     pages.0.lock().unwrap().remove(&label);
-    if let Some(webview) = app.get_webview(&label) {
-        webview.close().map_err(|e| e.to_string())?;
+    match app.get_webview(&label) {
+        Some(webview) => webview.close().map_err(|e| e.to_string())?,
+        None => closed_first(label),
     }
     Ok(())
 }
@@ -181,10 +199,23 @@ fn place(webview: &tauri::Webview, rect: Rect) -> Result<(), String> {
     crate::browser::place(webview, rect.x, rect.y, rect.width, rect.height)
 }
 
-fn close_all(app: &AppHandle, pages: &PopupPages) {
-    pages.0.lock().unwrap().clear();
+fn closed_first(label: String) {
+    let mut closed = CLOSED_FIRST.lock().unwrap();
+    if closed.len() >= MAX_CLOSED_FIRST {
+        closed.clear();
+    }
+    closed.insert(label);
+}
+
+fn is_tab_label(label: &str) -> bool {
+    label.starts_with(TAB_PREFIX)
+}
+
+/// Every card's page, leaving the pages of app tabs, which close with their tab.
+fn close_cards(app: &AppHandle, pages: &PopupPages) {
+    pages.0.lock().unwrap().retain(|label, _| is_tab_label(label));
     for (label, webview) in app.webviews() {
-        if is_popup_label(&label) {
+        if is_popup_label(&label) && !is_tab_label(&label) {
             let _ = webview.close();
         }
     }
@@ -250,6 +281,8 @@ mod tests {
 
     #[test]
     fn ids_are_plain_names() {
+        assert!(is_tab_label(&label_of("tab-a1").unwrap()));
+        assert!(!is_tab_label(&label_of("a1").unwrap()));
         assert_eq!(label_of("a-1").unwrap(), "popup-a-1");
         assert!(label_of("../x").is_err());
         assert!(label_of("").is_err());

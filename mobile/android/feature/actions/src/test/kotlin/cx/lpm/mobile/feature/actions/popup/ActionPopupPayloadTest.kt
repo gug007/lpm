@@ -3,6 +3,7 @@ package cx.lpm.mobile.feature.actions.popup
 import androidx.compose.ui.graphics.Color
 import cx.lpm.mobile.core.designsystem.theme.DarkLpmColors
 import cx.lpm.mobile.core.designsystem.theme.LightLpmColors
+import cx.lpm.mobile.core.model.ActionPageView
 import cx.lpm.mobile.core.model.ActionPopupContent
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
@@ -59,6 +60,7 @@ class ActionPopupPayloadTest {
         assertEquals("""{"total":3}""", parsed["data"].toString())
         assertEquals("gh: not logged in", parsed["error"]!!.jsonPrimitive.content)
         assertEquals("stars", parsed["action"]!!.jsonPrimitive.content)
+        assertEquals("popup", parsed["view"]!!.jsonPrimitive.content)
         val theme = parsed["theme"]!!.jsonObject
         assertEquals("light", theme["mode"]!!.jsonPrimitive.content)
         assertEquals(
@@ -85,5 +87,19 @@ class ActionPopupPayloadTest {
             "dark",
             ActionPopupPayload.theme(DarkLpmColors)["mode"]!!.jsonPrimitive.content
         )
+    }
+
+    @Test
+    fun anAppsPayloadSaysItIsATab() {
+        val parsed = Json.parseToJsonElement(
+            ActionPopupPayload.bootstrap(
+                content(),
+                project = "api",
+                action = "stars",
+                colors = DarkLpmColors,
+                view = ActionPageView.Tab
+            )
+        ).jsonObject
+        assertEquals("tab", parsed["view"]!!.jsonPrimitive.content)
     }
 }

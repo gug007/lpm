@@ -1,0 +1,48 @@
+name: Usage ping
+
+# The Cloudflare Worker that counts the desktop app's daily usage pings (ping/).
+# Pull requests run its checks; a push to main also applies new migrations to
+# its database and deploys it. Deploying needs the CLOUDFLARE_API_TOKEN and
+# CLOUDFLARE_ACCOUNT_ID repository secrets.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "ping/**"
+      - ".github/workflows/ping.yml"
+  pull_request:
+    paths:
+      - "ping/**"
+      - ".github/workflows/ping.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ping-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ping
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: ping/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run typecheck
+      - name: Deploy
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        run: npm run deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

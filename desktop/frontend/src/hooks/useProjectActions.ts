@@ -21,6 +21,7 @@ import type { ModelPick } from "../agentModelSwitch";
 import { captureActionRun, type ActionRunCapture } from "./actionRunCapture";
 import { actionRunKey, clearActionRun, markActionRun, setActionRunReopen } from "../store/actionRunMarks";
 import { runState } from "../components/project-detail/runCardPlacement";
+import { appTabSeed } from "../popup/appTab";
 
 export interface UseProjectActionsOptions {
   projectName: string;
@@ -247,6 +248,11 @@ export function useProjectActions({
       } catch (err) {
         toast.error(`${action.label}: ${err}`);
       }
+      return;
+    }
+    if (action.type === "app") {
+      onSwitchToTerminal();
+      await terminalViewRef.current?.openAppTab(appTabSeed(action), opts.paneId);
       return;
     }
     if (action.type === "command") {

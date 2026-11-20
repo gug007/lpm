@@ -1,0 +1,24 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "lpm-ping",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "lpm-ping",
+      "database_id": "99ae7610-0dac-4e92-a63b-efcd720b9e02",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "ratelimits": [
+    {
+      "name": "PINGS",
+      "namespace_id": "1002",
+      "simple": { "limit": 10, "period": 60 }
+    }
+  ],
+  "workers_dev": true,
+  // Request logs would hold each ping's address; the counts are all it keeps.
+  "observability": { "enabled": false }
+}

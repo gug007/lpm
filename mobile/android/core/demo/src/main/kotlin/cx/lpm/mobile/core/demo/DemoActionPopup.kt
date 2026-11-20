@@ -1,14 +1,20 @@
 package cx.lpm.mobile.core.demo
 
-// Demo handler for `actionPopup`: api-gateway's Stars action shows the repo's GitHub
-// stars month by month, drawn by the sample page in mobile/shared/demo.
+// Demo handlers for `actionPopup` and `actionApp`: api-gateway's Stars action shows
+// the repo's GitHub stars month by month, drawn by the sample page in
+// mobile/shared/demo, which lays itself out larger as the app.
 
 internal fun DemoServer.registerActionPopupHandlers() {
-    register("actionPopup") { o ->
+    registerActionPage("actionPopup", "popup")
+    registerActionPage("actionApp", "app")
+}
+
+private fun DemoServer.registerActionPage(type: String, key: String) {
+    register(type) { o ->
         val project = o.string("project").orEmpty()
         val name = o.string("action").orEmpty()
         val reply = mutableMapOf<String, Any?>(
-            "t" to "actionPopup",
+            "t" to type,
             "project" to project,
             "action" to name
         )
@@ -19,17 +25,17 @@ internal fun DemoServer.registerActionPopupHandlers() {
             push(reply)
             return@register
         }
-        val popup = world.projects[idx].actions.firstOrNull {
+        val page = world.projects[idx].actions.firstOrNull {
             it.string("name") == name
-        }?.dict("popup")
-        if (popup == null) {
+        }?.dict(key)
+        if (page == null) {
             reply["ok"] = false
-            reply["error"] = "This action has no popup."
+            reply["error"] = "This action has no $key."
             push(reply)
             return@register
         }
         reply["ok"] = true
-        reply["popup"] = mapOf(
+        reply[key] = mapOf(
             "refresh" to 0,
             "html" to demoPopupPage,
             "data" to demoStars,

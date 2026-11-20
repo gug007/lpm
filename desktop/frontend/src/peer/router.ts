@@ -299,7 +299,7 @@ export function translateResult(cmd: string, slug: string, result: unknown): unk
     if (typeof r.dir === "string" && r.dir) return { ...result, dir: prefixRoot(slug, r.dir) };
   }
   // A popup's page file is on the host, so nothing here can load from beside it.
-  if (cmd === "action_popup" && result && typeof result === "object") {
+  if ((cmd === "action_popup" || cmd === "action_app") && result && typeof result === "object") {
     const r = result as { file?: unknown };
     if (typeof r.file === "string") return { ...result, file: prefixRoot(slug, r.file) };
   }

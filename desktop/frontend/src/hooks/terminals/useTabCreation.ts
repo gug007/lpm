@@ -33,6 +33,8 @@ import {
   makeFiles,
   makeAutomations,
   makeCommands,
+  makeApp,
+  type AppTabSeed,
   isTerminalTab,
   collectPanes,
   collectTerminals,
@@ -488,6 +490,15 @@ export function useTabCreation({
     [addTerminal, forward],
   );
 
+  // App tabs have no PTY either — they render an action's page.
+  const addAppToPane = useCallback(
+    (seed: AppTabSeed, paneId?: string) => {
+      if (IS_MIRROR_WINDOW) return forward("addAppToPane", seed, paneId);
+      addTerminal(makeApp(nextId("app"), seed), paneId);
+    },
+    [addTerminal, forward],
+  );
+
   return {
     createTerminal,
     adoptTerminal,
@@ -496,6 +507,7 @@ export function useTabCreation({
     forkTerminal,
     forkTerminalIntoCopy,
     addTerminalToPane,
+    addAppToPane,
     addBrowserToPane,
     addMemoryToPane,
     addToolkitToPane,

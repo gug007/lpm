@@ -29,6 +29,7 @@ import {
   reportError,
 } from "./diagnostics";
 import { initCrashReports } from "./crashReports";
+import { initStorageFullNotice } from "./storageFullNotice";
 import "./styles/globals.css";
 import { initSendLater } from "./store/sendLater";
 
@@ -41,6 +42,7 @@ initScrollbarFade();
 initMenuEditEvents();
 initializeDiagnostics(surface);
 initCrashReports();
+initStorageFullNotice();
 
 function reloadWindow() {
   window.location.reload();

@@ -78,6 +78,10 @@ class WireTerminalsTest {
             Wire.actionPopup("api", "stars", fresh = true)
         )
         assertFrame(
+            """{ "t": "actionApp", "project": "api", "action": "stars", "fresh": true }""",
+            Wire.actionApp("api", "stars", fresh = true)
+        )
+        assertFrame(
             """{ "t": "actionBgOutput", "project": "api", "runId": "r-1" }""",
             Wire.actionBgOutput("api", "r-1")
         )

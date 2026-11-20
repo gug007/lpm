@@ -3,6 +3,7 @@ package cx.lpm.mobile.feature.actions.popup
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import cx.lpm.mobile.core.designsystem.theme.LpmColors
+import cx.lpm.mobile.core.model.ActionPageView
 import cx.lpm.mobile.core.model.ActionPopupContent
 import java.util.Locale
 import kotlinx.serialization.json.JsonObject
@@ -19,7 +20,8 @@ internal object ActionPopupPayload {
         content: ActionPopupContent,
         project: String,
         action: String,
-        colors: LpmColors
+        colors: LpmColors,
+        view: ActionPageView = ActionPageView.Popup
     ): String = script(
         buildJsonObject {
             put("data", content.data)
@@ -28,6 +30,7 @@ internal object ActionPopupPayload {
             put("theme", theme(colors))
             put("project", project)
             put("action", action)
+            put("view", view.wire)
         }
     )
 

@@ -61,7 +61,7 @@ struct DuplicateOptionsView: View {
                 seed.count = max(1, min(50, seedCount))
                 seed.labels = Array(repeating: "", count: seed.count)
             }
-            let actions = project.actions.flatMap { $0.runnableLeaves }
+            let actions = project.actions.flatMap { $0.runnableLeaves }.filter { $0.app == nil }
             if let first = actions.first {
                 seed.runMode = .action
                 seed.actionName = first.name
@@ -74,7 +74,7 @@ struct DuplicateOptionsView: View {
 
     private var single: Bool { options.count == 1 }
 
-    private var runnableActions: [Action] { project.actions.flatMap { $0.runnableLeaves } }
+    private var runnableActions: [Action] { project.actions.flatMap { $0.runnableLeaves }.filter { $0.app == nil } }
 
     private var runModes: [RunMode] {
         runnableActions.isEmpty ? [.none, .command] : RunMode.allCases

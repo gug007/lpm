@@ -1,6 +1,8 @@
 package cx.lpm.mobile.core.protocol
 
 import cx.lpm.mobile.core.model.Action
+import cx.lpm.mobile.core.model.ActionAppInfo
+import cx.lpm.mobile.core.model.ActionPageView
 import cx.lpm.mobile.core.model.ActionPopupContent
 import cx.lpm.mobile.core.model.ActionPopupCopy
 import cx.lpm.mobile.core.model.ActionPopupInfo
@@ -75,8 +77,34 @@ class InboundActionPopupTest {
         )) {
             val reply = decode<Inbound.ActionPopup>(frame).reply
             assertNull(frame, reply.content)
-            assertEquals(frame, ActionPopupCopy.COULD_NOT_OPEN, reply.error)
+            assertEquals(frame, ActionPopupCopy.couldNotOpen(ActionPageView.Popup), reply.error)
         }
+    }
+
+    @Test
+    fun anAppReplyCarriesItsPageUnderItsOwnKey() {
+        val reply = decode<Inbound.ActionPopup>(
+            """{ "t": "actionApp", "project": "api", "action": "stars", "ok": true,
+                 "app": { "refresh": 0, "html": "<p>", "data": null, "updatedAt": 5 } }"""
+        ).reply
+        assertEquals(ActionPageView.Tab, reply.view)
+        assertEquals("<p>", reply.content?.html)
+        val refused = decode<Inbound.ActionPopup>(
+            """{ "t": "actionApp", "ok": true, "popup": { "html": "<p>" } }"""
+        ).reply
+        assertNull(refused.content)
+        assertEquals(ActionPopupCopy.couldNotOpen(ActionPageView.Tab), refused.error)
+    }
+
+    @Test
+    fun anActionCarriesItsAppInfo() {
+        val action = Action.parse(
+            Json.parseToJsonElement(
+                """{ "name": "stars", "type": "app", "app": { "format": "html", "title": "Stars" } }"""
+            ).jsonObject
+        )
+        assertEquals(ActionAppInfo("html", "Stars", ""), action.app)
+        assertNull(Action.parse(Json.parseToJsonElement("""{ "name": "x" }""").jsonObject).app)
     }
 
     @Test

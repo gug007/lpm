@@ -126,6 +126,9 @@ export function AllowRepoCommands(projectName) {
 export function ActionPopup(projectName, actionName, fresh) {
   return invoke("action_popup", { projectName, actionName, fresh });
 }
+export function ActionApp(projectName, actionName, fresh) {
+  return invoke("action_app", { projectName, actionName, fresh });
+}
 export function PopupViewOpen(id, html, rect, background) {
   return invoke("popup_view_open", { id, html, rect, background });
 }
@@ -415,6 +418,9 @@ export function CrashReportConfig() {
 }
 export function CrashReportsAllowed() {
   return invoke("crash_reports_allowed");
+}
+export function DailyPingAvailable() {
+  return invoke("daily_ping_available");
 }
 export function GitAbortMerge(cwd) {
   return invoke("git_abort_merge", { cwd });

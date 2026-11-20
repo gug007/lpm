@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActionPopup } from "../../bridge/commands";
-import type { PopupContent } from "./popupTypes";
+import { ActionApp, ActionPopup } from "../../bridge/commands";
+import type { PopupContent, PopupView } from "./popupTypes";
 
 function sameResult(a: PopupContent, b: PopupContent): boolean {
   return a.updatedAt === b.updatedAt && a.refreshError === b.refreshError;
@@ -14,11 +14,17 @@ export interface ActionPopupState {
   refresh: () => void;
 }
 
-// An action's popup while its card is open: what it showed last comes back at
-// once, and one older than the config's `cache` is made again behind it; again
-// on the config's interval, and on demand. A slow answer that lands after the
-// card closed, or after a newer one, is dropped.
-export function useActionPopup(project: string, action: string, open: boolean): ActionPopupState {
+// An action's popup while its card is open, or its app while its tab is in
+// view: what it showed last comes back at once, and one older than the config's
+// `cache` is made again behind it; again on the config's interval, and on
+// demand. A slow answer that lands after it closed, or after a newer one, is
+// dropped.
+export function useActionPopup(
+  project: string,
+  action: string,
+  open: boolean,
+  view: PopupView = "popup",
+): ActionPopupState {
   const [content, setContent] = useState<PopupContent | null>(null);
   const [loading, setLoading] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
@@ -30,12 +36,13 @@ export function useActionPopup(project: string, action: string, open: boolean): 
     (fresh: boolean) => {
       const id = ++latest.current;
       setLoading(true);
-      ActionPopup(project, action, fresh).then(
+      const ask = view === "tab" ? ActionApp : ActionPopup;
+      ask(project, action, fresh).then(
         (next: PopupContent | null) => {
           if (id !== latest.current) return;
           if (!next) {
             setLoading(false);
-            setFailure("No popup came back.");
+            setFailure("No page came back.");
             return;
           }
           // The same result again (a tick within `cache`) leaves the page as it is.
@@ -51,7 +58,7 @@ export function useActionPopup(project: string, action: string, open: boolean): 
         },
       );
     },
-    [project, action],
+    [project, action, view],
   );
 
   useEffect(() => {

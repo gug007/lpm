@@ -46,7 +46,7 @@ export interface ProfileInfo {
   services: string[];
 }
 
-export type ActionType = "terminal" | "background" | "command" | (string & {});
+export type ActionType = "terminal" | "background" | "command" | "app" | (string & {});
 
 export type ActionDisplay = "header" | "menu" | "footer" | (string & {});
 
@@ -128,6 +128,14 @@ export interface ActionPopupInfo {
   problem?: string;
 }
 
+// The page a click on the action opens in a tab of its own, in place of
+// running a command: its format, heading and why the config can't make one.
+export interface ActionAppInfo {
+  format: string;
+  title?: string;
+  problem?: string;
+}
+
 export interface ActionInfo {
   name: string;
   // What the button shows. A label with variables or $(…) commands arrives
@@ -164,6 +172,7 @@ export interface ActionInfo {
   position?: number;
   inputs?: ActionInputInfo[];
   popup?: ActionPopupInfo;
+  app?: ActionAppInfo;
   children?: ActionInfo[];
 }
 

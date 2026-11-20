@@ -14,10 +14,12 @@ import cx.lpm.mobile.core.designsystem.component.LpmAlert
 import cx.lpm.mobile.core.model.SessionKey
 import cx.lpm.mobile.core.model.TerminalInfo
 import cx.lpm.mobile.feature.actions.R
+import cx.lpm.mobile.feature.actions.popup.ActionAppSheet
 
 /**
  * Runs the actions picked from a project's ⚡ sheet, on the screen under it: the
- * inputs sheet, the "Run …?" confirmation and a background run's live output.
+ * inputs sheet, the "Run …?" confirmation, a background run's live output, and the
+ * app an action opens in place of a run.
  * [onSpawnedTerminal] opens a terminal a terminal action starts on the Mac.
  */
 @Composable
@@ -51,6 +53,13 @@ fun ActionRunHost(
                 AlertButton(stringResource(R.string.cancel), AlertRole.Cancel)
             ),
             onDismissRequest = { viewModel.dismiss(step) }
+        )
+
+        is RunStep.App -> ActionAppSheet(
+            project = project,
+            action = step.action,
+            session = session,
+            onDismiss = { viewModel.dismiss(step) }
         )
 
         is RunStep.Background -> BackgroundRunSheet(

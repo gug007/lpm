@@ -58,4 +58,10 @@ export const actionCommands: CommandMap = {
     updatedAt: Date.now(),
     error: "Popups run their commands on your own Mac.",
   }),
+  action_app: () => ({
+    refresh: 0,
+    data: null,
+    updatedAt: Date.now(),
+    error: "Apps run their commands on your own Mac.",
+  }),
 };

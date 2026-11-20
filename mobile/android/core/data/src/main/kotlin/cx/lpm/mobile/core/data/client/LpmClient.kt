@@ -428,6 +428,9 @@ class LpmClient internal constructor(
         // `actionPopup`: an action's popup card, opened from a long press.
         const val ACTION_POPUP_FEATURE = "actionPopup"
 
+        // `actionApp`: an action's app, opened by a tap in place of running it.
+        const val ACTION_APP_FEATURE = "actionApp"
+
         // `gitScanSecrets`: the commit sheet's look for secrets.
         const val GIT_SCAN_SECRETS_FEATURE = "gitScanSecrets"
 

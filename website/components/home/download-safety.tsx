@@ -47,9 +47,9 @@ const OTHER_ITEMS: SafetyItem[] = [
     title: "Private",
     body: (
       <>
-        No account or analytics, and crash reports can be turned off in
-        Settings. Besides GitHub update checks, only optional iPhone push
-        reaches an lpm server.{" "}
+        No account or tracking. Crash reports and a daily usage ping with no
+        ID can be turned off in Settings, and besides those and GitHub update
+        checks, only optional iPhone push leaves your computer by itself.{" "}
         <a href={PRIVACY_PATH} className={LINK}>
           Privacy
         </a>

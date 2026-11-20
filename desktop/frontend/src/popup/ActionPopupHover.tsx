@@ -27,6 +27,7 @@ interface ActionPopupHoverProps {
   children: ReactNode;
   triggerClassName?: string;
   extra?: ReactNode;
+  onOpenTab?: () => void;
 }
 
 // An action's button with its popup card. The page inside the card is a
@@ -41,6 +42,7 @@ export function ActionPopupHover({
   children,
   triggerClassName = "inline-flex",
   extra,
+  onOpenTab,
 }: ActionPopupHoverProps) {
   const triggerRef = useRef<HTMLSpanElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -155,6 +157,7 @@ export function ActionPopupHover({
         onMouseEnter={show}
         onMouseLeave={() => cancel(showTimer)}
         onContextMenu={close}
+        onClickCapture={action.type === "app" ? close : undefined}
       >
         {children}
       </span>
@@ -171,7 +174,20 @@ export function ActionPopupHover({
             }}
             className="fixed z-[9999] rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-3 text-[var(--text-primary)] shadow-[0_1px_3px_rgba(0,0,0,0.12),0_12px_32px_rgba(0,0,0,0.22)]"
           >
-            <ActionPopupCard project={project} action={action} popup={popup} open={pos !== null} extra={extra} />
+            <ActionPopupCard
+              project={project}
+              action={action}
+              popup={popup}
+              open={pos !== null}
+              extra={extra}
+              onOpenTab={
+                onOpenTab &&
+                (() => {
+                  close();
+                  onOpenTab();
+                })
+              }
+            />
           </div>,
           document.body,
         )}

@@ -247,6 +247,14 @@ extension DemoServer {
                 entry["configPopup"] = config
                 entry["popup"] = self.world.projects[idx].actions[i]["popup"]
             }
+            // `app: true` keeps the app the Mac makes from the popup's page.
+            if let i = existing,
+               let config = self.world.projects[idx].actions[i]["configApp"] as? Bool,
+               entry["app"] as? Bool == config {
+                entry["configApp"] = config
+                entry["app"] = self.world.projects[idx].actions[i]["app"]
+                entry["type"] = "app"
+            }
             if let i = existing { self.world.projects[idx].actions[i] = entry }
             else { self.world.projects[idx].actions.append(entry) }
             self.reflowProjectLayer(project)
@@ -341,6 +349,11 @@ extension DemoServer {
         body.removeValue(forKey: "children")
         if let template = body.removeValue(forKey: "configLabel") { body["label"] = template }
         if let popup = body.removeValue(forKey: "configPopup") { body["popup"] = popup }
+        if let app = body.removeValue(forKey: "configApp") {
+            body["app"] = app
+            if body["type"] as? String == "app" { body.removeValue(forKey: "type") }
+            if (body["cmd"] as? String)?.isEmpty == true { body.removeValue(forKey: "cmd") }
+        }
         if let inputs = body["inputs"] as? [[String: Any]] {
             body["inputs"] = ActionInputsYaml.map(from: ActionInputsYaml.drafts(from: inputs))
         }

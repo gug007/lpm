@@ -3,6 +3,7 @@ import {
   CheckKokoroInstalled,
   ClearOpenAIKey,
   CrashReportConfig,
+  DailyPingAvailable,
   HasOpenAIKey,
   InstallKokoro,
   ListSystemSounds,
@@ -77,6 +78,8 @@ export interface MachineCommands {
   uninstallKokoro: () => Promise<void>;
   // Whether the machine's lpm was built to send crash reports (crashreport.rs).
   crashReportsAvailable: () => Promise<boolean>;
+  // Whether the machine's lpm was built to send the daily ping (dailyping.rs).
+  dailyPingAvailable: () => Promise<boolean>;
 }
 
 // A terminal's look as termlook/mod.rs reads it.
@@ -142,6 +145,7 @@ export const LOCAL_COMMANDS: MachineCommands = {
   installKokoro: () => InstallKokoro(),
   uninstallKokoro: () => UninstallKokoro(),
   crashReportsAvailable: () => CrashReportConfig().then(Boolean),
+  dailyPingAvailable: () => DailyPingAvailable().then(Boolean),
 };
 
 // The machine a page opened from Settings edits: a connected one's slug and
@@ -183,6 +187,7 @@ export function peerCommands(slug: string): MachineCommands {
     installKokoro: () => run("install_kokoro"),
     uninstallKokoro: () => run("uninstall_kokoro"),
     crashReportsAvailable: () => run("crash_report_config").then(Boolean),
+    dailyPingAvailable: () => run("daily_ping_available").then(Boolean),
   };
 }
 

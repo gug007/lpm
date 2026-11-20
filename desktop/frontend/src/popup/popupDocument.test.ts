@@ -3,6 +3,7 @@ import { injectHead, popupDocument, scriptJson } from "./popupDocument";
 import type { PopupPayload } from "./popupTypes";
 
 const payload: PopupPayload = {
+  view: "popup",
   data: { total: 3, note: "</script><script>alert(1)</script>" },
   text: "",
   error: "",
@@ -66,5 +67,42 @@ describe("popupDocument", () => {
     lpm.onData((d) => seen.push(d));
     (win.__lpmPush as (p: unknown) => void)({ data: { total: 4 } });
     expect(seen).toEqual([{ total: 4 }]);
+  });
+
+  function boot(view: PopupPayload["view"], framed: boolean) {
+    const doc = popupDocument("<p></p>", { ...payload, view });
+    const script = /<script>([\s\S]*?)<\/script>/.exec(doc)?.[1] ?? "";
+    const opened: string[] = [];
+    const asked: unknown[] = [];
+    const win: Record<string, unknown> = {
+      addEventListener: () => {},
+      console,
+      open: (url: string) => opened.push(url),
+    };
+    win.parent = framed ? { postMessage: (message: unknown) => asked.push(message) } : win;
+    const doc0 = { documentElement: { style: { setProperty: () => {} } }, addEventListener: () => {} };
+    new Function("window", "document", script)(win, doc0);
+    return { lpm: win.lpm as { view: string; open: (url: unknown) => void }, opened, asked };
+  }
+
+  it("tells the page whether it's a card or a tab", () => {
+    expect(boot("popup", false).lpm.view).toBe("popup");
+    expect(boot("tab", false).lpm.view).toBe("tab");
+  });
+
+  it("opens web pages in the browser, and nothing else", () => {
+    const own = boot("tab", false);
+    own.lpm.open("https://github.com/gug007/lpm");
+    own.lpm.open("javascript:alert(1)");
+    own.lpm.open("file:///etc/passwd");
+    own.lpm.open(undefined);
+    expect(own.opened).toEqual(["https://github.com/gug007/lpm"]);
+  });
+
+  it("asks the app to open a page from inside a frame", () => {
+    const framed = boot("tab", true);
+    framed.lpm.open("https://lpm.cx/docs");
+    expect(framed.opened).toEqual([]);
+    expect(framed.asked).toEqual([{ lpmOpen: "https://lpm.cx/docs" }]);
   });
 });

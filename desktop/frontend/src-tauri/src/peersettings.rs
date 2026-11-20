@@ -89,6 +89,7 @@ const SHARED: &[(&str, Kind)] = &[
     ("autoGeneratePRDescription", Kind::Flag),
     ("updateChannel", Kind::OneOf(&["stable", "beta"])),
     (crate::crashreport::CONSENT_KEY, Kind::Flag),
+    (crate::dailyping::CONSENT_KEY, Kind::Flag),
     ("defaultProjectDirectory", Kind::Path),
     ("systemNotifications", Kind::Flag),
     ("soundNotifications", Kind::Flag),

@@ -1,0 +1,35 @@
+appId: cx.lpm.mobile
+name: 78-action-app
+tags: [demo, actions]
+---
+- runFlow: subflows/enter-demo.yaml
+- tapOn: "api-gateway"
+- extendedWaitUntil:
+    visible: "Tap a service for its logs."
+    timeout: 5000
+- tapOn: "Actions"
+- extendedWaitUntil:
+    visible: "Stars"
+    timeout: 5000
+# An action with an app opens it on a tap instead of running: the page the Mac made
+# (the sample's GitHub stars chart, laid out larger) fills a sheet under the app's title.
+- tapOn: "Stars"
+- extendedWaitUntil:
+    visible: "GitHub stars"
+    timeout: 5000
+- assertVisible: "Refresh"
+- assertVisible: "Done"
+- extendedWaitUntil:
+    visible: "Open on GitHub"
+    timeout: 5000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 1-app
+- tapOn: "Refresh"
+- waitForAnimationToEnd:
+    timeout: 3000
+- assertVisible: "GitHub stars"
+- tapOn: "Done"
+- extendedWaitUntil:
+    notVisible: "GitHub stars"
+    timeout: 5000

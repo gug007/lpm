@@ -20,6 +20,8 @@ import { EmojiMark } from "./EmojiMark";
 import { TabContextMenu } from "./terminal/TabContextMenu";
 import { TabClaudeAccountRow } from "./terminal/TabClaudeAccountRow";
 import { tabPopup } from "../popup/tabPopup";
+import { AppTabView } from "../popup/AppTabView";
+import { findActionByPath } from "../actionTree";
 import { TabClaudeAccountSubmenu } from "./terminal/TabClaudeAccountSubmenu";
 import { TabContinueOnSubmenu } from "./terminal/TabContinueOnSubmenu";
 import { ClaudeSwitchOverlay } from "./terminal/ClaudeSwitchOverlay";
@@ -54,7 +56,7 @@ import type { UtilityTabKind } from "./terminal/utilityTabToggle";
 import { TerminalSearchBar } from "./terminal/TerminalSearchBar";
 import type { FindDirection, FindOptions, FindOutcome, FindResults } from "./terminal/terminalFind";
 import { XIcon, GlobeIcon, TerminalIcon, ZapIcon, BrainIcon, LayersIcon, FolderIcon, SourceControlIcon, ClockIcon } from "./icons";
-import { Columns2, SquareSlash } from "lucide-react";
+import { AppWindow, Columns2, SquareSlash } from "lucide-react";
 import { Tooltip } from "./ui/Tooltip";
 import { SortableTab, TabStrip } from "./TerminalTabDnd";
 import { PaneEdgeDropZones } from "./PaneEdgeDropZones";
@@ -166,6 +168,7 @@ function TabIcon({ tab }: { tab: TerminalInstance }) {
   if (tab.kind === "files") return <FilesTabIcon id={tab.id} />;
   if (tab.kind === "automations") return <ClockIcon size={14} />;
   if (tab.kind === "commands") return <SquareSlash size={14} strokeWidth={1.75} />;
+  if (tab.kind === "app" && !tab.emoji) return <AppWindow size={14} strokeWidth={1.75} />;
   if (tab.emoji)
     return (
       <span
@@ -433,7 +436,10 @@ function PaneViewImpl(props: PaneViewProps) {
       : null;
   // Memory and Automations are pages, not a terminal: none of the
   // terminal's tools in their header.
-  const pagePanel = activeUtilityTab === "memory" || activeUtilityTab === "automations";
+  const pagePanel =
+    activeUtilityTab === "memory" ||
+    activeUtilityTab === "automations" ||
+    (activeServiceName === null && activeTerm?.kind === "app");
   const paneActions = usePaneToolbar({
     resume: !!onResumeSession,
     automations: !!onAddAutomations,
@@ -708,7 +714,7 @@ function PaneViewImpl(props: PaneViewProps) {
                         <TabClaudeAccountRow projectName={projectName} terminalId={t.id} />
                       ) : undefined
                     }
-                    popup={tabPopup(newTabProject, t.actionName)}
+                    popup={t.kind === "app" ? undefined : tabPopup(newTabProject, t.actionName)}
                     color={t.color}
                     trailing={
                       <>
@@ -988,6 +994,16 @@ function PaneViewImpl(props: PaneViewProps) {
                     projectLabel={projectLabel}
                     visible={visible && isActive}
                     focused={visible && focused && isActive}
+                  />
+                </ErrorBoundary>
+              ) : t.kind === "app" ? (
+                <ErrorBoundary resetKey={t.id} scope="app">
+                  <AppTabView
+                    project={projectName}
+                    actionName={t.actionName ?? ""}
+                    action={t.actionName ? findActionByPath(newTabProject.actions, t.actionName) : null}
+                    label={t.label}
+                    active={visible && isActive}
                   />
                 </ErrorBoundary>
               ) : t.kind === "automations" ? (

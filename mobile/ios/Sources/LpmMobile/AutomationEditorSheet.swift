@@ -139,7 +139,7 @@ struct AutomationEditorSheet: View {
     private var availableActions: [Action] {
         guard let name = runProject,
               let project = model.projects.first(where: { $0.name == name }) else { return [] }
-        return project.actions.flatMap { $0.runnableLeaves }
+        return project.actions.flatMap { $0.runnableLeaves }.filter { $0.app == nil }
     }
 
     private var actionsAvailable: Bool { !availableActions.isEmpty }

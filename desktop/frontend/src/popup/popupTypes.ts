@@ -1,5 +1,11 @@
-// What `action_popup` answers: the page and the data its command printed, or
-// the words the card shows instead (see src-tauri/src/popup_content.rs).
+// Formats this build draws; another a config names asks for a newer lpm.
+export const SHOWN_FORMATS = new Set(["html"]);
+
+// Which of an action's pages: the card under its button, or its app's tab.
+export type PopupView = "popup" | "tab";
+
+// What `action_popup` and `action_app` answer: the page and the data its
+// command printed, or the words shown instead (see src-tauri/src/popup_content.rs).
 export interface PopupContent {
   // Seconds between refreshes while the card is open; 0 only when it opens.
   refresh: number;
@@ -33,6 +39,7 @@ export interface PopupPayload {
   theme: PopupTheme;
   project: string;
   action: string;
+  view: PopupView;
 }
 
 // A popup page as a frame draws it.
@@ -41,8 +48,12 @@ export interface PopupPageProps {
   // Where the page's own files resolve from.
   base?: string;
   payload: PopupPayload;
-  width: number;
-  height: number;
+  // A card's page has the config's size; an app's fills its tab.
+  width: number | "100%";
+  height: number | "100%";
+  // An app's page, when its tab is in view with nothing drawn over it. A page
+  // out of view keeps running, parked off screen.
+  shown?: boolean;
   onFailure: (message: string) => void;
 }
 

@@ -33,7 +33,7 @@ export default function PrivacyPage() {
         Privacy Policy
       </h1>
       <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-        Last updated: November 13, 2026
+        Last updated: November 20, 2026
       </p>
 
       <section className="mt-10 space-y-4 text-sm leading-relaxed text-gray-700 dark:text-gray-300">
@@ -44,10 +44,11 @@ export default function PrivacyPage() {
           lpm is an open-source project. The <strong>software itself</strong>{" "}
           (the lpm desktop app and the lpm Link apps for iPhone and Android)
           runs on your own machines. It does not collect, transmit, or share
-          any personal data, telemetry, or usage information. Two things reach
-          the network on their own: the desktop app&rsquo;s update check and,
-          if you pair a phone, push notifications. A third is on until you
-          turn it off: crash reports from the desktop app. On Android, two Google
+          any personal data. Two things reach the network on their own: the
+          desktop app&rsquo;s update check and, if you pair a phone, push
+          notifications. Two more are on until you turn them off: the desktop
+          app&rsquo;s crash reports, and its daily usage ping, which lets us
+          count how many computers use lpm without telling them apart. On Android, two Google
           components the app is built with also talk to Google: one reads the
           pairing QR code, the other delivers notifications. All of this is
           described below.
@@ -64,8 +65,8 @@ export default function PrivacyPage() {
         </h2>
         <ul className="list-disc pl-5 space-y-1">
           <li>
-            No analytics or tracking. Crash reports, described below, can be
-            turned off in Settings.
+            No tracking. Crash reports and the daily usage ping, both described
+            below, can be turned off in Settings.
           </li>
           <li>No account required.</li>
           <li>
@@ -99,6 +100,25 @@ export default function PrivacyPage() {
             a location worked out from it. Turning the switch off stops reports
             at once. With it off, the screen lpm shows after a crash still has
             a Send report button, which sends that one error when you press it.
+          </li>
+          <li>
+            <strong>Daily usage ping</strong>: on each day you use the desktop
+            app, it sends one ping, so we can count how many computers use lpm
+            each day, week and month. It is on until you turn off Send daily
+            usage ping in Settings, under General, and each computer has its
+            own switch. A Linux server you add as a host sends one on each day
+            it runs, and has its own switch too. A ping says that lpm was used
+            that day and whether it is the first day this week or this month,
+            your lpm version, operating system and processor type, whether the
+            computer is one you sit at or a server, and the month lpm was
+            installed and whether that was in the last few days. It has no ID,
+            account or name on it, so one day&rsquo;s ping can&rsquo;t be
+            matched with another&rsquo;s, and your code, projects, terminal
+            output and prompts are never part of it. Pings go to a server we
+            run on Cloudflare, which adds each one to that day&rsquo;s totals
+            and keeps nothing else: not the ping itself, and not the address it
+            came from, which is used only to stop one address from sending more
+            than a few pings a minute.
           </li>
           <li>
             <strong>Push notifications</strong> are sent only if you pair a{" "}
@@ -292,7 +312,7 @@ export default function PrivacyPage() {
           Because the software stores no personal data on our side, there is
           nothing for us to export, correct, or delete. Crash reports carry no
           name or account, so we can&rsquo;t tell which ones
-          came from you. For website analytics
+          came from you, and daily usage pings are kept only as totals. For website analytics
           data handled by Google, see Google&rsquo;s privacy policy and
           opt-out tools linked above.
         </p>

@@ -1,7 +1,15 @@
+import CryptoKit
 import Foundation
 
 // The few app types the Demo*.swift files and the helpers copied with them use, from
-// ClaudeAccountModel.swift and LpmProtocol.swift, so the demo compiles on its own.
+// ClaudeAccountModel.swift, LpmProtocol.swift and FileEditScreen.swift, so the demo
+// compiles on its own.
+
+enum FileEditScreen {
+    static func sha256(_ data: Data) -> String {
+        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+}
 
 let claudeMainLogin = "default"
 

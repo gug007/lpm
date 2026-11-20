@@ -16,9 +16,11 @@ permissions:
 
 # Crash reports (desktop/frontend/src-tauri/src/crashreport.rs). Without the DSN
 # variable a build reports nowhere; without the token (on the build steps
-# below) its source maps are not uploaded.
+# below) its source maps are not uploaded. The daily usage ping
+# (dailyping.rs) works the same way: without LPM_PING_URL a build sends none.
 env:
   LPM_SENTRY_DSN: ${{ vars.LPM_SENTRY_DSN }}
+  LPM_PING_URL: ${{ vars.LPM_PING_URL }}
   SENTRY_ORG: ${{ vars.SENTRY_ORG }}
   SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
 

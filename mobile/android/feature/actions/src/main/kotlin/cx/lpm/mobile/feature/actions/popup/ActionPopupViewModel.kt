@@ -7,6 +7,7 @@ import cx.lpm.mobile.core.data.actions.ActionPopupStore
 import cx.lpm.mobile.core.data.actions.ActionPopupsState
 import cx.lpm.mobile.core.data.session.MacSessions
 import cx.lpm.mobile.core.model.Action
+import cx.lpm.mobile.core.model.ActionPageView
 import cx.lpm.mobile.core.model.ActionPopupInfo
 import cx.lpm.mobile.core.model.SessionKey
 import dagger.assisted.Assisted
@@ -28,21 +29,23 @@ data class ActionPopupUiState(
 )
 
 /**
- * An action's popup card (iOS `ActionPopupSheet`): asked for as the sheet opens, again
- * on Refresh and every `refresh` seconds, and forgotten as it closes.
+ * An action's popup card (iOS `ActionPopupSheet`), or its app (iOS `ActionAppScreen`):
+ * asked for as the sheet opens, again on Refresh and every `refresh` seconds, and
+ * forgotten as it closes.
  */
 @HiltViewModel(assistedFactory = ActionPopupViewModel.Factory::class)
 class ActionPopupViewModel @AssistedInject constructor(
     @Assisted private val project: String,
     @Assisted private val action: Action,
     @Assisted sessionKey: SessionKey,
+    @Assisted private val view: ActionPageView,
     sessions: MacSessions
 ) : ViewModel() {
     private val store: ActionPopupStore? = sessions[sessionKey]?.store()
 
     val uiState: StateFlow<ActionPopupUiState> =
         (store?.state ?: flowOf(ActionPopupsState()))
-            .map { uiState(it.popup(project, action.name)) }
+            .map { uiState(it.popup(project, action.name, view)) }
             .stateIn(
                 viewModelScope,
                 SharingStarted.WhileSubscribed(5_000),
@@ -50,38 +53,46 @@ class ActionPopupViewModel @AssistedInject constructor(
             )
 
     init {
-        store?.open(project, action)
+        store?.open(project, action, view)
     }
 
     /** Refresh and Retry. */
     fun reload() {
-        store?.reload(project, action.name)
+        store?.reload(project, action.name, view)
     }
 
     /** The refresh interval passed. */
     fun tick() {
-        store?.tick(project, action.name)
+        store?.tick(project, action.name, view)
     }
 
     fun pageFailed() {
-        store?.pageFailed(project, action.name)
+        store?.pageFailed(project, action.name, view)
     }
 
     override fun onCleared() {
-        store?.close(project, action.name)
+        store?.close(project, action.name, view)
     }
 
     private fun uiState(popup: ActionPopupState): ActionPopupUiState {
-        val info = action.popup
+        val title = when (view) {
+            ActionPageView.Popup -> action.popup?.title
+            ActionPageView.Tab -> action.app?.title
+        }
         return ActionPopupUiState(
-            title = info?.title?.ifEmpty { null } ?: action.label,
-            height = info?.height ?: ActionPopupInfo.DEFAULT_HEIGHT,
+            title = title?.ifEmpty { null } ?: action.label,
+            height = action.popup?.height ?: ActionPopupInfo.DEFAULT_HEIGHT,
             popup = popup
         )
     }
 
     @AssistedFactory
     interface Factory {
-        fun create(project: String, action: Action, session: SessionKey): ActionPopupViewModel
+        fun create(
+            project: String,
+            action: Action,
+            session: SessionKey,
+            view: ActionPageView
+        ): ActionPopupViewModel
     }
 }

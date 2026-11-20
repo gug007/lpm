@@ -1,9 +1,11 @@
 // Runs before an action popup's own scripts and gives the page `window.lpm`:
 // the JSON its `data` command printed (or `text` when it wasn't JSON, and
 // `error` when the command failed), lpm's colors as `theme` and as `--lpm-*`
-// CSS variables, and `onData(fn)` for the values a refresh brings. The apps
-// replace the token it's called with below with that payload as JSON: the phones
-// when they inject it, the desktop in desktop/frontend/src/popup/popupDocument.ts.
+// CSS variables, `onData(fn)` for the values a refresh brings, `view` ("popup"
+// in a card, "tab" as the action's app) and `open(url)` for a web page in the
+// browser. The apps replace the token it's called with below with that payload
+// as JSON: the phones when they inject it, the desktop in
+// desktop/frontend/src/popup/popupDocument.ts.
 (function (payload) {
   "use strict";
   var listeners = [];
@@ -14,8 +16,16 @@
     theme: payload.theme || { mode: "dark", colors: {} },
     project: payload.project || "",
     action: payload.action || "",
+    view: payload.view === "tab" ? "tab" : "popup",
     onData: function (fn) {
       if (typeof fn === "function") listeners.push(fn);
+    },
+    // A frame can't open a window of its own, so it asks the app around it.
+    open: function (url) {
+      url = String(url == null ? "" : url);
+      if (!/^https?:\/\//i.test(url)) return;
+      if (window.parent !== window) window.parent.postMessage({ lpmOpen: url }, "*");
+      else window.open(url, "_blank");
     },
   };
 

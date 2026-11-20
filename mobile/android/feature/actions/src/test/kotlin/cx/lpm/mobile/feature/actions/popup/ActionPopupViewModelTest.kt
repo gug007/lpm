@@ -2,6 +2,7 @@ package cx.lpm.mobile.feature.actions.popup
 
 import cx.lpm.mobile.core.data.actions.ActionPopupPhase
 import cx.lpm.mobile.core.data.actions.ActionPopupStore
+import cx.lpm.mobile.core.model.ActionPageView
 import cx.lpm.mobile.core.model.SessionKey
 import cx.lpm.mobile.core.testing.MainDispatcherRule
 import cx.lpm.mobile.feature.actions.demoAction
@@ -23,7 +24,14 @@ class ActionPopupViewModelTest {
     fun `the demo's Stars popup opens on its sample page`() = runTest {
         val t = demoSession()
         val stars = t.demoAction("api-gateway", "stars")
-        val vm = ActionPopupViewModel("api-gateway", stars, SessionKey.Live, t.sessions)
+        val vm =
+            ActionPopupViewModel(
+                "api-gateway",
+                stars,
+                SessionKey.Live,
+                ActionPageView.Popup,
+                t.sessions
+            )
         backgroundScope.launch { vm.uiState.collect() }
         assertEquals(ActionPopupPhase.Loading, vm.uiState.value.popup.phase)
         assertEquals("GitHub stars", vm.uiState.value.title)
@@ -51,10 +59,41 @@ class ActionPopupViewModelTest {
     fun `an action without a popup asks nothing`() = runTest {
         val t = demoSession()
         val test = t.demoAction("api-gateway", "test")
-        val vm = ActionPopupViewModel("api-gateway", test, SessionKey.Live, t.sessions)
+        val vm =
+            ActionPopupViewModel(
+                "api-gateway",
+                test,
+                SessionKey.Live,
+                ActionPageView.Popup,
+                t.sessions
+            )
         backgroundScope.launch { vm.uiState.collect() }
         t.settle()
         assertTrue(t.store<ActionPopupStore>().state.value.popups.isEmpty())
         assertEquals("Test", vm.uiState.value.title)
+    }
+
+    @Test
+    fun `the demo's Stars app opens the same page as a tab`() = runTest {
+        val t = demoSession()
+        val stars = t.demoAction("api-gateway", "stars")
+        assertTrue(t.store<ActionPopupStore>().opensApp(stars))
+        val vm =
+            ActionPopupViewModel(
+                "api-gateway",
+                stars,
+                SessionKey.Live,
+                ActionPageView.Tab,
+                t.sessions
+            )
+        backgroundScope.launch { vm.uiState.collect() }
+        assertEquals("GitHub stars", vm.uiState.value.title)
+        t.settle()
+        val content = checkNotNull(vm.uiState.value.popup.content)
+        assertTrue(content.html.orEmpty().contains("lpm.view === \"tab\""))
+        assertTrue(
+            "the popup's state is untouched",
+            t.store<ActionPopupStore>().state.value.popup("api-gateway", "stars").content == null
+        )
     }
 }
