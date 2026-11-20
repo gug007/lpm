@@ -153,6 +153,7 @@ export type SettingsTab =
   | "tts"
   | "agents"
   | "accounts"
+  | "generate"
   | "git"
   | "templates"
   | "backup"

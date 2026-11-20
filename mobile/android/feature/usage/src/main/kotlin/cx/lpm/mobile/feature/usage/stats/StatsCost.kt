@@ -71,6 +71,9 @@ private val rateTable: List<Pair<List<String>, Rate>> = listOf(
     // A prompt over 100K tokens bills every bucket at five times the rate.
     listOf("haiku-5-5") to anthropic(0.1, 0.5, longContext = 5.0),
     listOf("haiku") to anthropic(1.0, 5.0),
+    listOf("gpt-6.2-sol") to openai(2.0, 0.1, 10.0, cacheWrite = 2.5),
+    listOf("gpt-6.2-astra") to openai(8.0, 0.4, 40.0, cacheWrite = 10.0),
+    listOf("gpt-6.1-terra") to openai(1.0, 0.05, 5.0, cacheWrite = 1.25),
     listOf("gpt-6.1-sol") to openai(2.0, 0.1, 10.0, cacheWrite = 2.5),
     listOf("gpt-6-astra") to openai(10.0, 1.0, 50.0, cacheWrite = 12.5),
     listOf("gpt-6-sol") to openai(2.0, 0.2, 10.0, cacheWrite = 2.5),

@@ -204,6 +204,9 @@ val WEEKDAYS = listOf("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 private const val MIN_INTERVAL_SECS = 300
 
 private val CODEX_MAX_MODELS = setOf(
+    "gpt-6.2-sol",
+    "gpt-6.2-astra",
+    "gpt-6.1-terra",
     "gpt-6.1-sol",
     "gpt-6-astra",
     "gpt-6-sol",
@@ -213,6 +216,9 @@ private val CODEX_MAX_MODELS = setOf(
     "gpt-5.6-luna"
 )
 private val CODEX_ULTRA_MODELS = setOf(
+    "gpt-6.2-sol",
+    "gpt-6.2-astra",
+    "gpt-6.1-terra",
     "gpt-6.1-sol",
     "gpt-6-astra",
     "gpt-6-sol",

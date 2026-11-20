@@ -22,6 +22,7 @@ import {
   UninstallKokoro,
 } from "../../../bridge/commands";
 import { listMonospaceFonts, mergeFontLists } from "../terminal/fontDetect";
+import { LOCAL_GENERATE, peerGenerate, type GenerateCommands } from "./generateCommands";
 import {
   LOCAL_MOBILE,
   LOCAL_TAILNET,
@@ -63,6 +64,7 @@ export interface MachineCommands {
   telegram: TelegramCommands;
   mobile: MobileCommands;
   tailnet: TailnetCommands;
+  generate: GenerateCommands;
   // The OpenAI speech key, kept in the machine's Keychain (secrets.rs) and never
   // read back, and the voices it offers.
   hasOpenAiKey: () => Promise<boolean>;
@@ -131,6 +133,7 @@ export const LOCAL_COMMANDS: MachineCommands = {
   telegram: LOCAL_TELEGRAM,
   mobile: LOCAL_MOBILE,
   tailnet: LOCAL_TAILNET,
+  generate: LOCAL_GENERATE,
   hasOpenAiKey: () => HasOpenAIKey().then(Boolean),
   setOpenAiKey: (key) => SetOpenAIKey(key),
   clearOpenAiKey: () => ClearOpenAIKey(),
@@ -171,6 +174,7 @@ export function peerCommands(slug: string): MachineCommands {
     telegram: peerTelegram(run),
     mobile: peerMobile(slug, run),
     tailnet: peerTailnet(run),
+    generate: peerGenerate(run),
     hasOpenAiKey: () => run("has_openai_key").then(Boolean),
     setOpenAiKey: (key) => run("set_openai_key", { key }),
     clearOpenAiKey: () => run("clear_openai_key"),

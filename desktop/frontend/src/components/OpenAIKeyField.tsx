@@ -13,11 +13,15 @@ export function OpenAIKeyField({
   onSave,
   onClear,
   autoFocus = false,
+  placeholder = "sk-…",
+  label = "OpenAI API key",
 }: {
   saved: boolean | null;
   onSave: (key: string) => Promise<unknown>;
   onClear: () => Promise<unknown>;
   autoFocus?: boolean;
+  placeholder?: string;
+  label?: string;
 }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState("");
@@ -51,8 +55,8 @@ export function OpenAIKeyField({
           onKeyDown={(e) => {
             if (e.key === "Enter") save();
           }}
-          placeholder="sk-…"
-          aria-label="OpenAI API key"
+          placeholder={placeholder}
+          aria-label={label}
           autoFocus={autoFocus}
           autoComplete="off"
           spellCheck={false}

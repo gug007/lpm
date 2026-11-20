@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { LoadSettings, SaveSettings } from "../../bridge/commands";
 import type { main } from "../../bridge/models";
+import type { GenerateApprovalMode } from "../generate";
 import type { Theme } from "../theme";
 import type { RunMode } from "../types";
 import {
@@ -45,6 +46,10 @@ export interface DetachedWindowState {
 export type FilesTreeSide = "left" | "right";
 
 export type UpdateChannel = "stable" | "beta";
+function isGenerateApproval(v: unknown): v is GenerateApprovalMode {
+  return v === "each" || v === "project" || v === "always";
+}
+
 export type VideoNarrator = "local" | "openai";
 
 export const DEFAULT_SEEN_SHOWN = 3;
@@ -154,6 +159,14 @@ export interface Settings {
   ttsOpenAiVoice?: string;
   ttsVoice?: string;
   ttsSpeed?: number;
+  // Settings › Images & speech, read by `lpm generate` (generate/mod.rs). Unset
+  // means ask once per project, a $2 daily limit (0 is none), Nano Banana 2.1,
+  // the Marin voice, and generated/ kept out of Git.
+  generateApproval?: GenerateApprovalMode;
+  generateDailyLimit?: number;
+  generateImageModel?: string;
+  generateVoice?: string;
+  generateKeepOutOfGit?: boolean;
   // Who narrates video answers, passed to explaincast as EXPLAINCAST_VOICE in
   // new terminals (video_settings.rs). Unset leaves explaincast's own default,
   // the voice on this Mac.
@@ -305,6 +318,12 @@ function normalize(s: main.Settings): Settings {
     ttsOpenAiVoice: s.ttsOpenAiVoice || undefined,
     ttsVoice: s.ttsVoice || undefined,
     ttsSpeed: s.ttsSpeed,
+    generateApproval: isGenerateApproval(s.generateApproval) ? s.generateApproval : undefined,
+    generateDailyLimit:
+      typeof s.generateDailyLimit === "number" && s.generateDailyLimit >= 0 ? s.generateDailyLimit : undefined,
+    generateImageModel: s.generateImageModel || undefined,
+    generateVoice: s.generateVoice || undefined,
+    generateKeepOutOfGit: s.generateKeepOutOfGit === false ? false : undefined,
     videoNarrator: s.videoNarrator === "local" || s.videoNarrator === "openai" ? s.videoNarrator : undefined,
     videoLocalVoice: s.videoLocalVoice || undefined,
     videoCloudVoice: s.videoCloudVoice || undefined,

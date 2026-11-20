@@ -28,6 +28,7 @@ import { RemoteFolderPickerHost } from "./components/RemoteFolderPickerHost";
 import { PortConflictDialog } from "./components/PortConflictDialog";
 import { PairApprovalHost } from "./components/PairApprovalHost";
 import { AgentFilesApproval } from "./components/AgentFilesApproval";
+import { GenerateApproval } from "./components/GenerateApproval";
 import { QuitGuardHost } from "./components/QuitGuardHost";
 import { PairRequestDialog } from "./components/connections/PairRequestDialog";
 import { FileViewerHost } from "./components/FileViewerHost";
@@ -434,6 +435,7 @@ export default function App() {
       <ArchiveProjectDialog />
       <PairApprovalHost />
       <AgentFilesApproval />
+      <GenerateApproval />
       <QuitGuardHost />
       <PairRequestDialog />
       <TabShareHosts />

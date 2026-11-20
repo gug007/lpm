@@ -20,6 +20,7 @@ use std::sync::{Mutex, OnceLock};
 
 pub const OPENAI_API_KEY: &str = "openai-api-key";
 pub const TELEGRAM_BOT_TOKEN: &str = "telegram-bot-token";
+pub const GEMINI_API_KEY: &str = "gemini-api-key";
 
 #[cfg(target_os = "macos")]
 mod native {

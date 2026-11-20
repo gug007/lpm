@@ -246,6 +246,8 @@ fn handle_client(stream: UnixStream, store: &StatusStore, app: &AppHandle, restr
             crate::agentcp::cmd_agent_cp(&shell_split(&line)[1..], app, peer, &mut writer)
         } else if first == "agent_exec" {
             crate::agentexec::cmd_agent_exec(&shell_split(&line)[1..], app, peer, &mut writer)
+        } else if first == "agent_generate" {
+            crate::generate::cmd_agent_generate(&shell_split(&line)[1..], app, peer, &mut writer)
         } else {
             writeln!(writer, "{}", process_command(&line, store, app))
         };
@@ -312,6 +314,7 @@ fn process_command(line: &str, store: &StatusStore, app: &AppHandle) -> String {
         "peer_state" => cmd_peer_state(app),
         "list_ports" => crate::portsall::cmd_list_ports(args, app),
         "agent_files_log" => crate::agentcp::cmd_agent_files_log(args),
+        "generate_models" => crate::generate::cmd_generate_models(),
         "keep_awake" => crate::keepawake_cmds::cmd_keep_awake(args),
         "remote_pair" => cmd_remote_pair(args, app),
         "remote_state" => cmd_remote_state(app),
