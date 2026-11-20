@@ -41,7 +41,7 @@ export const AGENTS_AREA: FeatureArea = {
     },
     {
       title: "Split panes",
-      body: "Split right or down, drag tabs between panes, and let one pane fill the window. Each project remembers its layout.",
+      body: "Split right or down, drag a tab into another pane or onto a pane's edge to split it there, step between panes from the keyboard, and let one pane fill the window. Each project remembers its layout.",
       keys: ["⌘D", "⌘⇧D"],
     },
     {
@@ -110,7 +110,7 @@ export const COMPOSER_AREA: FeatureArea = {
     {
       icon: MessageSquareText,
       title: "A composer under every terminal",
-      body: "Write with normal text editing and undo, press Enter to send and Shift+Enter for a new line. Hide it and a slim bar keeps the agent's status in view.",
+      body: "Write with normal text editing and undo, press Enter to send and Shift+Enter for a new line. Hide it and the terminal takes the full height, with a button in the footer to bring it back.",
       keys: ["⌘I"],
     },
     {

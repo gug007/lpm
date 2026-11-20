@@ -5,6 +5,7 @@ import { type TerminalMemoryRef } from "../../terminalMemory";
 import type { ModelPick } from "../../agentModelSwitch";
 import type { SavedLayoutNode } from "../../savedLayouts";
 import type { HandoffTarget } from "../../sessionHandoff";
+import type { PaneEdge } from "../../paneMoves";
 
 export interface TerminalStartOpts {
   configName?: string;
@@ -94,6 +95,7 @@ export interface UseTerminalsResult {
   remoteTogglePin: (termId: string) => void;
   remoteReorderTerminals: (order: string[]) => void;
   moveTerminal: (fromPaneId: string, termId: string, toPaneId: string, toIdx?: number) => void;
+  moveTerminalToNewPane: (fromPaneId: string, termId: string, targetPaneId: string, edge: PaneEdge) => void;
   splitPane: (paneId: string, direction: SplitDirection) => Promise<void>;
   // Opens a saved layout's panes; what is already open moves into its first.
   applyLayout: (root: SavedLayoutNode) => Promise<void>;

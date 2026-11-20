@@ -40,9 +40,8 @@ import {
   type UtilityReturn,
   type UtilityTabKind,
 } from "./terminal/utilityTabToggle";
-import { useKeyboardShortcut, type KeyboardShortcut } from "../hooks/useKeyboardShortcut";
-import { canonicalShortcut, parseShortcut } from "../shortcutParse";
-import { resolveHotkey, type HotkeyId } from "../hotkeys";
+import { useKeyboardShortcut } from "../hooks/useKeyboardShortcut";
+import { usePaneNavKeys } from "../hooks/usePaneNavKeys";
 import { useServicePorts } from "../hooks/useServicePorts";
 import { linkedPorts, movedFromPort } from "../servicePorts";
 import { useTerminals, type TerminalStartOpts } from "../hooks/useTerminals";
@@ -279,6 +278,7 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
     remoteTogglePin,
     remoteReorderTerminals,
     moveTerminal,
+    moveTerminalToNewPane,
     splitPane,
     applyLayout,
     captureLayout,
@@ -1003,42 +1003,20 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
     onScreen && keysActive,
   );
 
-  // Cycles the focused pane's header entries — configurable in Settings ▸
-  // Keyboard Shortcuts. The combo must carry ⌘ to escape the interactive
-  // terminal's key handler (it only forwards non-meta keys to the agent);
-  // capture phase is needed because the combo is user-configurable and may
-  // carry Ctrl, which the composer stops.
-  const hotkeys = useSettingsStore((s) => s.hotkeys);
-  const { paneNavShortcuts, dirByCanonical } = useMemo(() => {
-    const paneNavShortcuts: KeyboardShortcut[] = [];
-    const dirByCanonical = new Map<string, 1 | -1>();
-    const entries: Array<[HotkeyId, 1 | -1]> = [
-      ["tabSwitchNext", 1],
-      ["tabSwitchPrev", -1],
-    ];
-    for (const [id, dir] of entries) {
-      const parsed = parseShortcut(resolveHotkey(hotkeys, id));
-      if (!parsed) continue;
-      const canon = canonicalShortcut(parsed);
-      if (dirByCanonical.has(canon)) continue;
-      dirByCanonical.set(canon, dir);
-      paneNavShortcuts.push(parsed);
-    }
-    return { paneNavShortcuts, dirByCanonical };
-  }, [hotkeys]);
-
-  useKeyboardShortcut(
-    paneNavShortcuts,
-    (_event, matched) => {
-      const pane = getFocusedPane();
-      if (!pane) return;
-      const dir = dirByCanonical.get(canonicalShortcut(matched)) ?? 1;
-      const serviceNames = stableServices.map((s) => s.name);
-      focusAdjacentPaneItem(pane.id, dir, serviceNames);
+  usePaneNavKeys({
+    enabled: visible && keysActive,
+    tree,
+    maximized: fullscreenPaneId !== null,
+    services: stableServices,
+    getFocusedPane,
+    focusAdjacentPaneItem,
+    focusPane,
+    focusPaneContent: (paneId) => {
+      const handle = resolveActiveHandle(paneId);
+      handle?.focus();
+      return handle !== null;
     },
-    visible && keysActive && paneNavShortcuts.length > 0,
-    true,
-  );
+  });
 
   const focusedPane = getFocusedPane();
   // The focused pane's active tab (or null for a service log / empty pane). TTS
@@ -1294,7 +1272,12 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
     >
       <div className="relative flex min-h-0 flex-1 overflow-hidden">
       {tree ? (
-        <TerminalTabDnd tree={tree} onReorder={reorderTerminals} onMove={moveTerminal}>
+        <TerminalTabDnd
+          tree={tree}
+          onReorder={reorderTerminals}
+          onMove={moveTerminal}
+          onMoveToNewPane={moveTerminalToNewPane}
+        >
           <PaneLayout
             node={tree}
             projectName={projectName}
@@ -1348,6 +1331,7 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
             onRestoreSessionTitle={restoreSessionTitle}
             onTogglePinTab={toggleTabPinned}
             onSplit={splitPane}
+            onMoveToNewPane={moveTerminalToNewPane}
             layouts={paneLayouts}
             onClosePane={closePane}
             onToggleUtility={toggleUtilityInPane}

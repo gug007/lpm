@@ -28,6 +28,8 @@ export interface KeyboardShortcut {
    * layout out from under a half-written prompt.
    */
   whileTyping?: boolean;
+  /** Fire inside the file editor too. Defaults to true; false leaves the keys to Monaco. */
+  inCodeEditor?: boolean;
 }
 
 function matchesMac(event: KeyEventLike, shortcut: KeyboardShortcut): boolean {

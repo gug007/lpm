@@ -2,8 +2,11 @@ import type { ReactNode } from "react";
 import { CircleDot, Copy, GitFork, Link2, Pin, PinOff, Sparkles, Users } from "lucide-react";
 import { PencilIcon, XIcon } from "../icons";
 import { ContextMenuItem } from "../ui/ContextMenuItem";
+import { ContextMenuSeparator } from "../ui/ContextMenuSeparator";
 import { ContextMenuShell } from "../ui/ContextMenuShell";
 import { chordLabel } from "../../keys";
+import { SplitDownIcon, SplitRightIcon } from "./icons";
+import type { PaneEdge } from "../../paneMoves";
 
 interface TabContextMenuProps {
   x: number;
@@ -28,6 +31,8 @@ interface TabContextMenuProps {
   accountMenu?: ReactNode;
   // "Continue on", where the tab's session can move to another computer.
   continueMenu?: ReactNode;
+  // Absent when the pane would be left with nothing to show.
+  onMoveToNewPane?: (edge: Exclude<PaneEdge, "left">) => void;
   onCloseTab: () => void;
   onCloseOthers: () => void;
   onClose: () => void;
@@ -52,6 +57,7 @@ export function TabContextMenu({
   onForkCopy,
   accountMenu,
   continueMenu,
+  onMoveToNewPane,
   onCloseTab,
   onCloseOthers,
   onClose,
@@ -115,6 +121,22 @@ export function TabContextMenu({
           icon={<Link2 size={12} />}
           onClick={close(onCopyLink)}
         />
+      )}
+      {onMoveToNewPane && (
+        <>
+          <ContextMenuSeparator />
+          <ContextMenuItem
+            label="Move to new pane right"
+            icon={<SplitRightIcon />}
+            onClick={close(() => onMoveToNewPane("right"))}
+          />
+          <ContextMenuItem
+            label="Move to new pane below"
+            icon={<SplitDownIcon />}
+            onClick={close(() => onMoveToNewPane("bottom"))}
+          />
+          <ContextMenuSeparator />
+        </>
       )}
       <ContextMenuItem
         label="Close"

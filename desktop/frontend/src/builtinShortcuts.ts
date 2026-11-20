@@ -21,14 +21,16 @@ export interface BuiltinShortcutGroup {
 const cmd = (key: string, mods: Omit<Chord, "key"> = {}) => chordLabel({ key, meta: true, ...mods });
 
 // Every fixed shortcut, as the handlers that own them match it (App.tsx,
-// TerminalView.tsx, useDetailView.ts, useFilesChords.ts, TerminalComposer.tsx,
-// useTTSHotkeys.ts). Settings › Shortcuts lists them under the ones you can
-// change; reservedShortcuts() keeps a recorded shortcut off all of them.
+// useShortcutsPageKey.ts, TerminalView.tsx, useDetailView.ts,
+// useFilesChords.ts, TerminalComposer.tsx, useTTSHotkeys.ts). Settings ›
+// Shortcuts lists them under the ones you can change; reservedShortcuts()
+// keeps a recorded shortcut off all of them.
 export const BUILTIN_SHORTCUT_GROUPS: BuiltinShortcutGroup[] = [
   {
     id: "projects",
     title: "Projects",
     shortcuts: [
+      { id: "shortcuts", label: "Show the shortcuts", description: "Opens this page. Press again to go back", keys: cmd("/") },
       { id: "jump-project", label: "Jump to a project", description: "The first nine in the sidebar, in order", keys: `${cmd("1")} – ${cmd("9")}` },
       { id: "sidebar", label: "Show or hide the sidebar", description: "Gives the terminals the whole window", keys: cmd("b") },
       { id: "config", label: "Edit the project's config", description: "Press again to go back to its terminals", keys: cmd("e") },

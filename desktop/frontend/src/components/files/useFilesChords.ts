@@ -3,6 +3,7 @@ import { useEventListener } from "../../hooks/useEventListener";
 import { isAltGraphChar } from "../../keyEvents";
 import { matchesChord, type Chord } from "../../keys";
 import { isMac } from "../../platform";
+import { insideMonaco } from "../../shortcutScope";
 
 export type FilesChord =
   | "save"
@@ -12,10 +13,6 @@ export type FilesChord =
   | "reveal"
   | "copyPath"
   | "copyRelativePath";
-
-function insideMonaco(target: EventTarget | null): boolean {
-  return target instanceof Element && target.closest(".monaco-editor") !== null;
-}
 
 // Off macOS the ⌘ chords take their keys.ts toPhysical forms, Ctrl+S saves as
 // in any editor, and Ctrl+Alt+PageDown / PageUp step files (Ctrl+Alt+arrows

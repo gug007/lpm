@@ -394,13 +394,15 @@ export function setRatioAtPath(node: PaneNode, path: number[], ratio: number): P
 
 /**
  * Split a pane: the original pane becomes child `a`, a new pane (with the
- * given terminal list) becomes child `b`. Returns the new root tree.
+ * given terminal list) becomes child `b`, or `a` with `before`. Returns the
+ * new root tree.
  */
 export function splitAtPane(
   node: PaneNode,
   paneId: string,
   direction: SplitDirection,
   newPane: PaneLeaf,
+  before = false,
 ): PaneNode {
   const existing = findPane(node, paneId);
   if (!existing) return node;
@@ -408,8 +410,8 @@ export function splitAtPane(
     kind: "split",
     direction,
     ratio: 0.5,
-    a: existing,
-    b: newPane,
+    a: before ? newPane : existing,
+    b: before ? existing : newPane,
   });
 }
 

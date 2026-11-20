@@ -57,6 +57,8 @@ import { XIcon, GlobeIcon, TerminalIcon, ZapIcon, BrainIcon, LayersIcon, FolderI
 import { Columns2, SquareSlash } from "lucide-react";
 import { Tooltip } from "./ui/Tooltip";
 import { SortableTab, TabStrip } from "./TerminalTabDnd";
+import { PaneEdgeDropZones } from "./PaneEdgeDropZones";
+import { canSplitOffTab, type PaneEdge } from "../paneMoves";
 import { TerminalComposer } from "./TerminalComposer";
 import type { DuplicatePromptSeed } from "./BulkDuplicateDialog";
 import { useScrollFade } from "../hooks/useScrollFade";
@@ -265,6 +267,8 @@ export interface PaneViewProps {
   onRestoreSessionTitle: (paneId: string, tabIdx: number) => void;
   onTogglePinTab: (paneId: string, tabIdx: number) => void;
   onSplit: (paneId: string, direction: SplitDirection) => void;
+  // A tab dropped on a pane's edge, or sent from its menu, into a new pane there.
+  onMoveToNewPane: (fromPaneId: string, termId: string, targetPaneId: string, edge: PaneEdge) => void;
   // Saved arrangements of panes: the ones on screen as a layout, and opening one.
   layouts: { capture: () => SavedLayoutNode | null; open: (root: SavedLayoutNode) => void };
   onClosePane: (paneId: string) => void;
@@ -358,6 +362,7 @@ function PaneViewImpl(props: PaneViewProps) {
     onRestoreSessionTitle,
     onTogglePinTab,
     onSplit,
+    onMoveToNewPane,
     layouts,
     onClosePane,
     onToggleUtility,
@@ -397,6 +402,7 @@ function PaneViewImpl(props: PaneViewProps) {
   const claudeSwitches = useClaudeSwitches((s) => s.switches);
 
   const hasMultipleServices = services.length > 1;
+  const splitOff = canSplitOffTab(pane);
   const browserServices = useMemo(
     () => services.filter((s) => !s.exited).flatMap((s) => (s.ports ?? []).map((port) => ({ name: s.name, port }))),
     [services],
@@ -833,6 +839,12 @@ function PaneViewImpl(props: PaneViewProps) {
       <div
         className={`relative flex min-h-0 min-w-0 flex-1 overflow-hidden ${isAllActive ? "divide-x divide-[var(--border)]" : ""}`}
       >
+        <PaneEdgeDropZones
+          paneId={pane.id}
+          // Services show in the first pane, so a new pane left of it would take them.
+          allowLeft={services.length === 0}
+          canSplitOff={splitOff}
+        />
         {searchActive && (
           <TerminalSearchBar
             key={`${pane.id}:${activeServiceName ?? activeTerm?.id ?? "empty"}`}
@@ -1148,6 +1160,9 @@ function PaneViewImpl(props: PaneViewProps) {
                   onClose={() => setTabMenu(null)}
                 />
               ) : undefined
+            }
+            onMoveToNewPane={
+              splitOff ? (edge) => onMoveToNewPane(targetPane.id, tab.id, targetPane.id, edge) : undefined
             }
             onCloseTab={() => onCloseTerminal(tabMenu.paneId, tabMenu.tabIdx)}
             onCloseOthers={() => onCloseOtherTerminals(tabMenu.paneId, tabMenu.tabIdx)}

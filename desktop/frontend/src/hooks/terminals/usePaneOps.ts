@@ -15,14 +15,14 @@ import {
   findPane,
   firstPaneId,
   mapPane,
-  removePane,
   setRatioAtPath,
   splitAtPane,
 } from "../../paneTree";
 import { pickTerminalLabel } from "../../terminalLabels";
 import { IS_MIRROR_WINDOW } from "../../mirror";
 import { tellHost } from "../../peer/tellHost";
-import { nextId, resolveActiveAfterClose } from "./util";
+import { nextId } from "./util";
+import { detachTab, moveTabToNewPane, type PaneEdge } from "../../paneMoves";
 
 interface UsePaneOpsProps {
   projectName: string;
@@ -216,38 +216,12 @@ export function usePaneOps({
       if (fromPaneId === toPaneId) return;
       if (IS_MIRROR_WINDOW) forward("moveTerminal", fromPaneId, termId, toPaneId, toIdx);
       const current = treeRef.current;
-      if (!current) return;
-      const fromPane = findPane(current, fromPaneId);
-      const toPane = findPane(current, toPaneId);
-      if (!fromPane || !toPane) return;
-      const fromIdx = fromPane.tabs.findIndex((t) => t.id === termId);
-      if (fromIdx < 0) return;
-      const term = fromPane.tabs[fromIdx];
+      if (!current || !findPane(current, toPaneId)) return;
+      const detached = detachTab(current, fromPaneId, termId);
+      if (!detached?.tree) return;
+      const term = detached.term;
 
-      let next: PaneNode | null = mapPane(current, fromPaneId, (p) => {
-        const tabs = p.tabs.filter((_, i) => i !== fromIdx);
-        return {
-          ...p,
-          tabs,
-          activeTabIdx: resolveActiveAfterClose(
-            p.activeTabIdx,
-            fromIdx,
-            tabs.length,
-          ),
-        };
-      });
-
-      const updatedFrom = findPane(next, fromPaneId);
-      if (
-        updatedFrom &&
-        updatedFrom.tabs.length === 0 &&
-        !updatedFrom.activeServiceName
-      ) {
-        next = removePane(next, fromPaneId);
-      }
-      if (!next) return;
-
-      next = mapPane(next, toPaneId, (p) => {
+      const next = mapPane(detached.tree, toPaneId, (p) => {
         const insertAt =
           toIdx === undefined
             ? p.tabs.length
@@ -266,6 +240,21 @@ export function usePaneOps({
       });
 
       applyTree(next, toPaneId);
+    },
+    [applyTree, forward],
+  );
+
+  // A tab dropped on a pane's edge, or sent there from its menu, lands in a new
+  // pane on that side. Owner-only, like a split: the new pane id is minted once,
+  // in the tree of record.
+  const moveTerminalToNewPane = useCallback(
+    (fromPaneId: string, termId: string, targetPaneId: string, edge: PaneEdge) => {
+      if (IS_MIRROR_WINDOW) return forward("moveTerminalToNewPane", fromPaneId, termId, targetPaneId, edge);
+      const current = treeRef.current;
+      if (!current) return;
+      const newPaneId = nextId("pane");
+      const next = moveTabToNewPane(current, fromPaneId, termId, targetPaneId, edge, newPaneId);
+      if (next) applyTree(next, newPaneId);
     },
     [applyTree, forward],
   );
@@ -368,6 +357,7 @@ export function usePaneOps({
     toggleTabPinned,
     reorderTerminals,
     moveTerminal,
+    moveTerminalToNewPane,
     splitPane,
     setRatio,
     focusPane,

@@ -13,6 +13,10 @@ export function inTextScope(target: EventTarget | null): boolean {
   return target instanceof Element && target.closest(TEXT_SCOPE_SELECTOR) !== null;
 }
 
+export function insideMonaco(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest(".monaco-editor") !== null;
+}
+
 export function firesForTarget(s: KeyboardShortcut, target: EventTarget | null): boolean {
-  return s.whileTyping !== false || !inTextScope(target);
+  return (s.whileTyping !== false || !inTextScope(target)) && (s.inCodeEditor !== false || !insideMonaco(target));
 }

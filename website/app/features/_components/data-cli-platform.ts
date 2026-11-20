@@ -130,7 +130,7 @@ export const PLATFORM_AREA: FeatureArea = {
     },
     {
       title: "Rebindable shortcuts",
-      body: "Rebind the shortcuts for switching tabs, renaming a project, and removing one. lpm refuses combinations that are already taken.",
+      body: "Rebind the shortcuts for switching tabs and panes, renaming a project, and removing one. Press ⌘/ (Ctrl+/ on Windows and Linux) to see every shortcut. lpm refuses combinations that are already taken.",
       keys: ["⌘⌥←", "⌘⌥→"],
     },
     {

@@ -71,7 +71,7 @@ describe("built-in chords on macOS", () => {
       "cmd+=", "cmd++", "cmd+-", "cmd+0", "cmd+shift+v", "cmd+alt+r",
       "cmd+alt+c", "cmd+alt+shift+c", "cmd+alt+arrowup", "cmd+alt+arrowdown",
       "cmd+e", "cmd+shift+n", "cmd+s", "cmd+shift+l", "cmd+shift+s",
-      "cmd+shift+p", "cmd+,", "cmd+c", "cmd+v", "cmd+x", "cmd+a", "cmd+z",
+      "cmd+shift+p", "cmd+,", "cmd+/", "cmd+c", "cmd+v", "cmd+x", "cmd+a", "cmd+z",
       "cmd+shift+z", "cmd+q", "cmd+m", "cmd+h", "cmd+n", "cmd+o",
       "cmd+enter", "alt+enter",
       ...Array.from({ length: 9 }, (_, i) => `cmd+${i + 1}`),
@@ -98,6 +98,8 @@ describe("built-in chords on macOS", () => {
     expect(Object.fromEntries(hotkeyDefs(true).map((d) => [d.id, d.default]))).toEqual({
       tabSwitchNext: "cmd+alt+arrowright",
       tabSwitchPrev: "cmd+alt+arrowleft",
+      paneFocusNext: "cmd+alt+arrowdown",
+      paneFocusPrev: "cmd+alt+arrowup",
       renameProject: "cmd+r",
       deleteProject: "cmd+shift+backspace",
       dictate: "cmd+alt+v",

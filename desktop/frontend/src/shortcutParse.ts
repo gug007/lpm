@@ -127,6 +127,8 @@ const RESERVED_SHARED = [
   "cmd+shift+p",
   // menu.rs — native Settings accelerator
   "cmd+,",
+  // useShortcutsPageKey.ts — Settings › Shortcuts
+  "cmd+/",
   // Native macOS edit / window commands the OS or webview handles
   "cmd+c",
   "cmd+v",

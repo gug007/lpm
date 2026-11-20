@@ -26,30 +26,31 @@ import {
   type PaneLeaf,
   type PaneNode,
 } from "../paneTree";
+import type { PaneEdge } from "../paneMoves";
 import { HeaderTab } from "./terminal/HeaderTab";
-
-// Tab strip drop targets use the pane id with this suffix so the drag
-// handler can distinguish "dropped on a specific tab" from "dropped on
-// the empty part of a tab strip" (needed for panes that have no tabs of
-// their own, e.g. service-only panes).
-const DROP_SUFFIX = ":tabstrip";
-const tabStripDroppableId = (paneId: string) => `${paneId}${DROP_SUFFIX}`;
-const isStripId = (id: string) => id.endsWith(DROP_SUFFIX);
+import { isEdgeDropId, isStripDropId, parseEdgeDropId, stripDropPaneId, tabStripDropId } from "./tabDropIds";
 
 // Tab droppables and strip droppables overlap: every tab's rect sits
 // inside its strip's rect, so corner- and center-based collision
 // strategies can pick the strip when the cursor is on a tab — especially
 // at the very-left edge of the first tab where their corners coincide,
-// sending the drop to the end of the list. Prefer the pointer-hit tab;
-// fall back to rect intersection when the pointer isn't over anything
-// (e.g. past the last tab in an empty strip area).
+// sending the drop to the end of the list. Prefer the pointer-hit tab,
+// then a strip, then a pane edge; fall back to rect intersection when the
+// pointer isn't over anything (e.g. past the last tab in an empty strip
+// area). A pane edge only counts under the pointer, so a drag that just
+// grazes one never splits a pane.
 const tabPreferringCollision: CollisionDetection = (args) => {
   const pointerHits = pointerWithin(args);
   if (pointerHits.length > 0) {
-    const tabHit = pointerHits.find((c) => !isStripId(String(c.id)));
-    return tabHit ? [tabHit] : pointerHits;
+    const tabHit = pointerHits.find((c) => !isStripDropId(String(c.id)) && !isEdgeDropId(String(c.id)));
+    if (tabHit) return [tabHit];
+    const stripHits = pointerHits.filter((c) => isStripDropId(String(c.id)));
+    return stripHits.length > 0 ? stripHits : pointerHits;
   }
-  return rectIntersection(args);
+  return rectIntersection({
+    ...args,
+    droppableContainers: args.droppableContainers.filter((c) => !isEdgeDropId(String(c.id))),
+  });
 };
 
 interface ActiveDrag {
@@ -73,14 +74,21 @@ const DndHoverContext = createContext<DndHoverState>({
   overIndex: null,
 });
 
+// The pane a tab is being dragged from, for its edge drop zones; null when no
+// tab is being dragged.
+export function useDragSourcePaneId(): string | null {
+  return useContext(DndHoverContext).activePaneId;
+}
+
 interface TerminalTabDndProps {
   tree: PaneNode | null;
   onReorder: (paneId: string, order: string[]) => void;
   onMove: (fromPaneId: string, termId: string, toPaneId: string, toIdx?: number) => void;
+  onMoveToNewPane: (fromPaneId: string, termId: string, targetPaneId: string, edge: PaneEdge) => void;
   children: ReactNode;
 }
 
-export function TerminalTabDnd({ tree, onReorder, onMove, children }: TerminalTabDndProps) {
+export function TerminalTabDnd({ tree, onReorder, onMove, onMoveToNewPane, children }: TerminalTabDndProps) {
   const [active, setActive] = useState<ActiveDrag | null>(null);
   const [overPaneId, setOverPaneId] = useState<string | null>(null);
   const [overIndex, setOverIndex] = useState<number | null>(null);
@@ -124,8 +132,8 @@ export function TerminalTabDnd({ tree, onReorder, onMove, children }: TerminalTa
     const { over, active } = e;
     if (!over) return null;
     const overId = String(over.id);
-    if (isStripId(overId)) {
-      const paneId = overId.slice(0, -DROP_SUFFIX.length);
+    if (isStripDropId(overId)) {
+      const paneId = stripDropPaneId(overId);
       const pane = panes.find((p) => p.id === paneId);
       return pane ? { paneId, index: pane.tabs.length } : null;
     }
@@ -179,6 +187,12 @@ export function TerminalTabDnd({ tree, onReorder, onMove, children }: TerminalTa
     const termId = String(e.active.id);
     const fromPane = byTermId.get(termId);
     if (!fromPane) return;
+
+    const edge = e.over ? parseEdgeDropId(String(e.over.id)) : null;
+    if (edge) {
+      onMoveToNewPane(fromPane.id, termId, edge.paneId, edge.edge);
+      return;
+    }
 
     const target = resolveOverTarget(e, panes, byTermId, fromPane.id);
     if (!target) return;
@@ -263,7 +277,7 @@ function LeadingDropIndicator() {
 // on the strip's empty space (so dropping onto a service-only pane still
 // works — nothing to collide with otherwise).
 export function TabStrip({ paneId, tabIds, children }: TabStripProps) {
-  const { setNodeRef } = useDroppable({ id: tabStripDroppableId(paneId) });
+  const { setNodeRef } = useDroppable({ id: tabStripDropId(paneId) });
   const { isCrossPaneTarget, overIndex } = useCrossPaneHover(paneId);
   const showTrailingIndicator = isCrossPaneTarget && overIndex === tabIds.length;
   return (

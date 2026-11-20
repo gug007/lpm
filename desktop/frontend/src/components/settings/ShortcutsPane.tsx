@@ -11,6 +11,8 @@ import { HotkeyEditor } from "./HotkeyEditor";
 const HOTKEY_GROUP: Record<HotkeyId, string> = {
   tabSwitchNext: "tabs",
   tabSwitchPrev: "tabs",
+  paneFocusNext: "tabs",
+  paneFocusPrev: "tabs",
   renameProject: "projects",
   deleteProject: "projects",
   dictate: "input",

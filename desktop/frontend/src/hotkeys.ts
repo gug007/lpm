@@ -4,6 +4,8 @@ import { isMac } from "./platform";
 export type HotkeyId =
   | "tabSwitchNext"
   | "tabSwitchPrev"
+  | "paneFocusNext"
+  | "paneFocusPrev"
   | "renameProject"
   | "deleteProject"
   | "dictate";
@@ -29,6 +31,18 @@ const MAC_HOTKEYS: HotkeyDef[] = [
     default: "cmd+alt+arrowleft",
   },
   {
+    id: "paneFocusNext",
+    label: "Next pane",
+    description: "Move the focus to the next pane",
+    default: "cmd+alt+arrowdown",
+  },
+  {
+    id: "paneFocusPrev",
+    label: "Previous pane",
+    description: "Move the focus to the previous pane",
+    default: "cmd+alt+arrowup",
+  },
+  {
     id: "renameProject",
     label: "Rename project",
     description: "Rename the project or duplicate selected in the sidebar",
@@ -52,10 +66,13 @@ const MAC_HOTKEYS: HotkeyDef[] = [
 const MAC_ONLY = new Set<HotkeyId>(["dictate"]);
 
 // Ctrl+Alt+arrows switch workspaces on Linux desktops (and rotate the screen on
-// some Windows drivers), so tabs step with Ctrl+PageDown / PageUp there.
+// some Windows drivers), so tabs step with Ctrl+PageDown / PageUp there, and
+// panes with Ctrl+Shift+PageDown / PageUp.
 const PC_DEFAULTS: Partial<Record<HotkeyId, string>> = {
   tabSwitchNext: "cmd+pagedown",
   tabSwitchPrev: "cmd+pageup",
+  paneFocusNext: "cmd+shift+pagedown",
+  paneFocusPrev: "cmd+shift+pageup",
 };
 
 export function hotkeyDefs(mac: boolean = isMac): HotkeyDef[] {

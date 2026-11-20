@@ -7,10 +7,12 @@ import {
 } from "./hotkeys";
 
 describe("hotkeyDefs", () => {
-  it("steps tabs with Ctrl+PageDown / PageUp off macOS, where Ctrl+Alt+arrows switch workspaces", () => {
+  it("steps tabs and panes with PageDown / PageUp off macOS, where Ctrl+Alt+arrows switch workspaces", () => {
     expect(Object.fromEntries(hotkeyDefs(false).map((d) => [d.id, d.default]))).toEqual({
       tabSwitchNext: "cmd+pagedown",
       tabSwitchPrev: "cmd+pageup",
+      paneFocusNext: "cmd+shift+pagedown",
+      paneFocusPrev: "cmd+shift+pageup",
       renameProject: "cmd+r",
       deleteProject: "cmd+shift+backspace",
     });
@@ -27,6 +29,8 @@ describe("normalizeHotkeys", () => {
     expect(normalizeHotkeys(undefined)).toEqual({
       tabSwitchNext: "cmd+alt+arrowright",
       tabSwitchPrev: "cmd+alt+arrowleft",
+      paneFocusNext: "cmd+alt+arrowdown",
+      paneFocusPrev: "cmd+alt+arrowup",
       renameProject: "cmd+r",
       deleteProject: "cmd+shift+backspace",
       dictate: "cmd+alt+v",
@@ -37,6 +41,8 @@ describe("normalizeHotkeys", () => {
     expect(normalizeHotkeys({ tabSwitchNext: "cmd+shift+]", tabSwitchPrev: "" })).toEqual({
       tabSwitchNext: "cmd+shift+]",
       tabSwitchPrev: "cmd+alt+arrowleft",
+      paneFocusNext: "cmd+alt+arrowdown",
+      paneFocusPrev: "cmd+alt+arrowup",
       renameProject: "cmd+r",
       deleteProject: "cmd+shift+backspace",
       dictate: "cmd+alt+v",
@@ -58,13 +64,21 @@ describe("resolveHotkey", () => {
 describe("configuredHotkeyCombos", () => {
   it("collects the canonical combos of all configurable hotkeys", () => {
     expect(configuredHotkeyCombos(undefined)).toEqual(
-      new Set(["cmd+alt+arrowright", "cmd+alt+arrowleft", "cmd+r", "cmd+shift+backspace", "cmd+alt+v"]),
+      new Set([
+        "cmd+alt+arrowright",
+        "cmd+alt+arrowleft",
+        "cmd+alt+arrowdown",
+        "cmd+alt+arrowup",
+        "cmd+r",
+        "cmd+shift+backspace",
+        "cmd+alt+v",
+      ]),
     );
   });
 
   it("excludes the row being edited", () => {
     expect(configuredHotkeyCombos(undefined, "tabSwitchNext")).toEqual(
-      new Set(["cmd+alt+arrowleft", "cmd+r", "cmd+shift+backspace", "cmd+alt+v"]),
+      new Set(["cmd+alt+arrowleft", "cmd+alt+arrowdown", "cmd+alt+arrowup", "cmd+r", "cmd+shift+backspace", "cmd+alt+v"]),
     );
   });
 });

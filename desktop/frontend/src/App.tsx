@@ -75,6 +75,7 @@ import { useKeepAwakeHeadsUp } from "./hooks/useKeepAwakeHeadsUp";
 import { usePeerState } from "./peer/usePeerState";
 import { useSettingsMachine } from "./components/settings/useSettingsMachine";
 import { isSettingsView, useTrackSettingsReturn } from "./store/settingsReturn";
+import { useShortcutsPageKey } from "./hooks/useShortcutsPageKey";
 import { isLinuxHost } from "./peer/platform";
 import { peerStatus } from "./peer/peerStatus";
 import { isPeerName, peerSlugOf } from "./peer/markers";
@@ -237,6 +238,7 @@ export default function App() {
     setSidebarCollapsed((v) => !v);
   }, !settingsShown);
   usePortsWiring();
+  useShortcutsPageKey();
 
   const projectNames = useMemo(() => listed.map((p) => p.name), [listed]);
   useKeyboardShortcut(PROJECT_JUMP_SHORTCUTS, (_e, matched) => {
