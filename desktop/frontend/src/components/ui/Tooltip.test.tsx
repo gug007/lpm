@@ -155,3 +155,46 @@ describe("Tooltip with buttons of its own", () => {
     expect(extend()).toBeUndefined();
   });
 });
+
+describe("Tooltip with an arrow", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  // A 320 px card over a 28 px button whose left edge is at triggerLeft.
+  function show(triggerLeft: number) {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      return this.classList.contains("tooltip-in") ? new DOMRect(0, 0, 320, 300) : new DOMRect(triggerLeft, 700, 28, 28);
+    });
+    act(() =>
+      root.render(
+        <Tooltip content="card" wide flush arrow="red">
+          <button type="button">video</button>
+        </Tooltip>,
+      ),
+    );
+    hover();
+    const card = document.querySelector<HTMLElement>(".tooltip-in")!;
+    return { card, arrow: card.querySelector<HTMLElement>("[aria-hidden]")! };
+  }
+
+  it("points at the middle of its trigger from the card's near edge, in the color it is given", () => {
+    const { arrow } = show(486);
+    expect(arrow.style.left).toBe("154px");
+    expect(arrow.style.bottom).toBe("-6px");
+    expect(arrow.style.background).toBe("red");
+  });
+
+  it("stays on the card when the window's edge pushes the card aside", () => {
+    const { card, arrow } = show(0);
+    expect(card.style.left).toBe("8px");
+    expect(arrow.style.left).toBe("12px");
+  });
+
+  it("leaves the padding to a flush card", () => {
+    expect(show(486).card.className).not.toContain("px-3.5");
+  });
+
+  it("is not drawn unless asked for", () => {
+    hover();
+    expect(tooltip()?.querySelector("[aria-hidden]")).toBeNull();
+  });
+});

@@ -53,20 +53,20 @@ describe("ComposerVideoButton tooltip", () => {
     render();
     const text = hover();
     expect(text).toContain("How does checkout apply a coupon?");
-    expect(text).toContain("chapters · captions");
+    expect(text).toContain("How a coupon gets applied at checkout");
     expect(text).toContain("Ask as usual. The reply is a narrated video.");
     expect(card()?.querySelector('[data-agent="claude"]')).not.toBeNull();
   });
 
   it("ends on the voice on this Mac, free, by default", () => {
     render();
-    expect(hover()).toContain("Voiced on this Mac · free");
+    expect(hover()).toContain("Heart · this Mac · free");
   });
 
   it("names the cloud voice and its price once it is picked", () => {
     useSettingsStore.setState({ videoNarrator: "openai", videoCloudVoice: "cedar" });
     render();
-    expect(hover()).toContain("OpenAI voice, cedar · ≈ $0.02 a minute");
+    expect(hover()).toContain("Cedar · OpenAI · $0.02/min");
   });
 
   it("opens Video settings from the card", () => {
@@ -82,8 +82,8 @@ describe("ComposerVideoButton tooltip", () => {
     const text = hover();
     expect(text).toContain("How does checkout apply a coupon?");
     expect(text).toContain("Answering as a video");
-    expect(text).toContain("Click again for a text answer.");
-    expect(text).toContain("Voiced on this Mac · free");
+    expect(text).toContain("Click the button again for a text answer.");
+    expect(text).toContain("Heart · this Mac · free");
   });
 
   it("says why where it can't be used", () => {

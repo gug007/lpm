@@ -2,7 +2,7 @@ import type { VideoNarrator } from "../../store/settings";
 import { useOpenAiVoices } from "../../hooks/useOpenAiVoices";
 import { useVoiceSample } from "../../hooks/useVoiceSample";
 import { KOKORO_VOICES } from "../../kokoroVoices";
-import { videoVoiceName } from "../../videoVoice";
+import { videoVoiceName, videoVoiceShortName } from "../../videoVoice";
 import { SettingsRow } from "../SettingsRow";
 import { SettingsSelect } from "../SettingsSelect";
 import { LOCAL_COMMANDS } from "../settings/machineCommands";
@@ -25,7 +25,7 @@ export function VideoVoiceRow({
   const { sample, play, stop } = useVoiceSample();
   const voices = narrator === "openai" ? cloudVoices : KOKORO_VOICES;
   const options = voices.includes(value) ? voices : [value, ...voices];
-  const name = videoVoiceName(narrator, value).split(" · ")[0];
+  const name = videoVoiceShortName(narrator, value);
 
   return (
     <SettingsRow label="Voice" description={narrator === "openai" ? "gpt-4o-mini-tts" : "Kokoro, on this Mac"}>
