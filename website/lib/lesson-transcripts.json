@@ -4066,5 +4066,195 @@
    107.5,
    "free the space, and unarchive it the day you need it."
   ]
+ ],
+ "claude-code-codex-video-answers": [
+  [
+   0.5,
+   "Some answers are easier to watch than to read."
+  ],
+  [
+   3.7,
+   "In lpm on a Mac, your coding agent can answer a prompt with a short narrated video,"
+  ],
+  [
+   9.3,
+   "and it works in both Claude Code and Codex."
+  ],
+  [
+   12.7,
+   "Claude and Codex tabs both have a Video button in the composer."
+  ],
+  [
+   17.1,
+   "Hover over it, and a card shows the idea:"
+  ],
+  [
+   19.8,
+   "you ask as usual, and the reply is a narrated video."
+  ],
+  [
+   23.8,
+   "The first time you click Video,"
+  ],
+  [
+   25.5,
+   "lpm lists what this Mac still needs to make one."
+  ],
+  [
+   29,
+   "Click Install all, and it adds each part."
+  ],
+  [
+   32.1,
+   "That happens once, and it covers both agents."
+  ],
+  [
+   35.1,
+   "When it's done, Video turns on for this tab."
+  ],
+  [
+   38.3,
+   "This is video request mode."
+  ],
+  [
+   40.3,
+   "The box turns violet and now asks Claude to make a video."
+  ],
+  [
+   44.3,
+   "Type your question the way you normally would."
+  ],
+  [
+   47.2,
+   "Notice that the Send button turns violet too, so go ahead and click it."
+  ],
+  [
+   51.9,
+   "lpm hands your question to the agent's video skill."
+  ],
+  [
+   55.4,
+   "In Claude Code, the request starts with a slash."
+  ],
+  [
+   58.7,
+   "The mode covers one prompt, so Video has already switched off."
+  ],
+  [
+   63.1,
+   "Claude does the rest on this Mac."
+  ],
+  [
+   65.1,
+   "It reads the code, writes a script,"
+  ],
+  [
+   67.5,
+   "voices each line and records the video."
+  ],
+  [
+   70.2,
+   "A real run takes a few minutes,"
+  ],
+  [
+   72.1,
+   "shortened here to a few seconds."
+  ],
+  [
+   74.5,
+   "The reply ends with the video's path."
+  ],
+  [
+   76.9,
+   "Click the path, and the video plays right here in lpm."
+  ],
+  [
+   80.9,
+   "It's a regular MP4 with a captions file next to it, ready to watch or share."
+  ],
+  [
+   86.5,
+   "Now try the other agent."
+  ],
+  [
+   88.5,
+   "Close the video and click Codex."
+  ],
+  [
+   90.6,
+   "Its composer has the same Video button."
+  ],
+  [
+   93.5,
+   "Once again, click Video."
+  ],
+  [
+   95.5,
+   "Setup is already done, so it turns on right away,"
+  ],
+  [
+   98.2,
+   "and this time the box asks Codex."
+  ],
+  [
+   101,
+   "Type the same question you asked Claude,"
+  ],
+  [
+   103.5,
+   "then click the violet Send button."
+  ],
+  [
+   106,
+   "Codex calls a skill with a dollar sign,"
+  ],
+  [
+   108.5,
+   "not a slash, so lpm writes the request that way."
+  ],
+  [
+   112.4,
+   "You never have to remember which is which."
+  ],
+  [
+   115,
+   "Codex records its own video and replies with its path, just as Claude did."
+  ],
+  [
+   120.2,
+   "For another one, click Video again."
+  ],
+  [
+   122.6,
+   "Anything else you want goes in the prompt,"
+  ],
+  [
+   124.8,
+   "like who the video is for, or how long it should be."
+  ],
+  [
+   128.2,
+   "So whether you're working with Claude or Codex,"
+  ],
+  [
+   130.9,
+   "when an answer would be easier to watch,"
+  ],
+  [
+   133.1,
+   "turn on Video before you send."
+  ],
+  [
+   135.6,
+   "And this video was made with the same workflow it shows:"
+  ],
+  [
+   138.8,
+   "a click on the Video button in lpm,"
+  ],
+  [
+   140.9,
+   "and a one-line prompt."
+  ]
  ]
 }

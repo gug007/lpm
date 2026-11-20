@@ -7,6 +7,10 @@ import { useSettingsStore } from "../store/settings";
 import { useVideoSettings } from "../store/videoSettings";
 import { ComposerVideoButton } from "./ComposerVideoButton";
 
+const lesson = vi.hoisted(() => ({ url: "https://www.youtube.com/watch?v=lesson", open: vi.fn() }));
+vi.mock("../../bridge/runtime", () => ({ BrowserOpenURL: lesson.open }));
+vi.mock("../videoLesson", () => ({ VIDEO_LESSON_URL: lesson.url, VIDEO_LESSON_LENGTH: "2:27" }));
+
 let host: HTMLDivElement;
 let root: Root;
 
@@ -75,6 +79,14 @@ describe("ComposerVideoButton tooltip", () => {
     const settings = [...card()!.querySelectorAll("button")].find((b) => b.textContent === "Settings")!;
     act(() => settings.click());
     expect(useVideoSettings.getState().open).toBe(true);
+  });
+
+  it("opens the lesson on YouTube from the card", () => {
+    render();
+    hover();
+    const link = [...card()!.querySelectorAll("button")].find((b) => b.textContent === "Watch the lesson · 2:27")!;
+    act(() => link.click());
+    expect(lesson.open).toHaveBeenCalledWith(lesson.url);
   });
 
   it("keeps the same card once it is on, saying how to go back", () => {

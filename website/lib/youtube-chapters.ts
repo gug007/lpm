@@ -339,4 +339,14 @@ export const LESSON_CHAPTERS: Record<YouTubeLessonId, LessonChapters> = {
       [94, "Unarchive"],
     ],
   },
+  "claude-code-codex-video-answers": {
+    seconds: 147,
+    chapters: [
+      [0, "What it is"],
+      [23, "Set up once"],
+      [38, "Ask Claude Code"],
+      [86, "Ask Codex"],
+      [120, "Add details"],
+    ],
+  },
 };

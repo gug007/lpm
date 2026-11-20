@@ -154,6 +154,10 @@ const LESSON_CAPTION: Record<
     heading: "Archive finished projects, and free the disk space they hold",
     blurb: "A short video: archive a project, free node_modules from every archived one, and unarchive it later.",
   },
+  "claude-code-codex-video-answers": {
+    heading: "Ask Claude Code or Codex, and get the answer as a video",
+    blurb: "A short video: turn on Video in the composer, ask as usual, and play the narrated answer inside lpm.",
+  },
 };
 
 // The frame sits in the first viewport, so the observer fires on load. Waiting
