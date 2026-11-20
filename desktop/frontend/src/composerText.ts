@@ -1,4 +1,5 @@
 import { providerMeta, type StatusProvider } from "./agentStatus";
+import { ANSWER_KINDS, type AnswerKind } from "./answerKind";
 import { detectAICLI } from "./slashCommands";
 
 export interface ComposerTarget {
@@ -9,15 +10,15 @@ export interface ComposerTarget {
   agent?: string | null;
   // Whether the agent has taken a prompt yet.
   started?: boolean;
-  // The next prompt asks the agent for a video of its answer.
-  video?: boolean;
+  // What the next prompt asks the agent for instead of a text answer.
+  answer?: AnswerKind | null;
 }
 
 // The composer's placeholder, shared by the live input and its closed-state
 // stand-in (ComposerReopenBar) so both always read the same and can't drift.
 // It names who the text goes to: the agent, or the shell a line will run in.
-export function composerPlaceholder({ label, agent, started = false, video = false }: ComposerTarget): string {
-  if (video) return agent ? `Ask ${agent} for a video…` : "Ask for a video…";
+export function composerPlaceholder({ label, agent, started = false, answer = null }: ComposerTarget): string {
+  if (answer) return `Ask ${agent ? `${agent} ` : ""}for ${ANSWER_KINDS[answer].askedFor}…`;
   if (agent === undefined) return `Send to ${label}…`;
   if (agent === null) return `Run a command in ${label}…`;
   return started ? `Reply to ${agent}…` : `Ask ${agent}…`;

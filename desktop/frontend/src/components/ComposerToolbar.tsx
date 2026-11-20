@@ -1,8 +1,12 @@
 import type { RefObject } from "react";
+import type { AnswerKind } from "../answerKind";
+import type { ComposerAnswerTools } from "../hooks/useComposerAnswer";
 import { useComposerToolbar } from "../hooks/useComposerToolbar";
-import type { ComposerToolId, ComposerToolVariant } from "../composerTools";
+import type { AICLI } from "../types";
+import { COMPOSER_TOOL_IDS, type ComposerToolId, type ComposerToolVariant } from "../composerTools";
 import { COLLECTION_DRAFTS } from "../store/messageHistory";
 import { ComposerActionsButton, type ComposerActionsButtonProps } from "./ComposerActionsButton";
+import { ComposerAnswerButton } from "./ComposerAnswerButton";
 import { ComposerForkButton } from "./ComposerForkButton";
 import { ComposerMemoryButton, type ComposerMemoryButtonProps } from "./ComposerMemoryButton";
 import { ComposerMicButton } from "./ComposerMicButton";
@@ -11,7 +15,6 @@ import { ComposerMoreButton, type ComposerMenuHost } from "./ComposerMoreButton"
 import { ComposerNewInputButton } from "./ComposerNewInputButton";
 import { ComposerSaveCommandButton } from "./ComposerSaveCommandButton";
 import { ComposerToolbarSlot } from "./ComposerToolbarSlot";
-import { ComposerVideoButton, type ComposerVideoButtonProps } from "./ComposerVideoButton";
 import { SquarePenIcon } from "./icons";
 import { SendSplitButton, type SendSplitButtonProps } from "./SendSplitButton";
 import { TerminalHistoryButton, type TerminalHistoryButtonProps } from "./TerminalHistoryButton";
@@ -47,8 +50,9 @@ interface ComposerToolbarProps {
   fork: ComposerForkProps;
   // Saving the prompt as an lpm command; null where the terminal runs no agent.
   saveCommand: { disabled: boolean; onSave: () => void } | null;
-  // Asking for a video of the answer; null where the agent can't make one.
-  video: Pick<ComposerVideoButtonProps, "on" | "onToggle" | "offReason" | "agent"> | null;
+  // Asking for a video or an image instead of a text answer: the one
+  // asked for, each kind's tool, and the agent the hover cards name.
+  answer: { kind: AnswerKind | null; tools: ComposerAnswerTools; turnOff: () => void; agent: AICLI | null };
   send: SendSplitButtonProps;
   // History › Drafts asked for from outside the row (a toast's Open Drafts),
   // wherever the Drafts tool sits.
@@ -69,7 +73,7 @@ export function ComposerToolbar({
   model,
   fork,
   saveCommand,
-  video,
+  answer,
   send,
   draftsOpen,
   onDraftsClose,
@@ -88,7 +92,8 @@ export function ComposerToolbar({
     fork: fork.canFork,
     forkCopy: fork.canForkCopy,
     saveCommand: saveCommand !== null,
-    video: video !== null,
+    video: answer.tools.video !== null,
+    image: answer.tools.image !== null,
   });
 
   const renderTool = (id: ComposerToolId, variant: ComposerToolVariant, host?: ComposerMenuHost) => {
@@ -182,22 +187,23 @@ export function ComposerToolbar({
           )
         );
       case "video":
-        return (
-          video && (
-            <ComposerVideoButton
-              {...video}
-              variant={variant}
-              onPick={host?.close}
-            />
-          )
-        );
+      case "image": {
+        const tool = answer.tools[id];
+        return tool && <ComposerAnswerButton {...tool} kind={id} agent={answer.agent} variant={variant} onPick={host?.close} />;
+      }
     }
   };
 
   // Model and the mic keep their seats at the right edge beside Send; every
   // other button sits on the left, in canonical order, with the More menu
   // after them. With nothing to send, the mic takes Send's place.
-  const left = layout.toolbar.filter((id) => id !== "model" && id !== "mic");
+  // The answer asked for wears its pressed button in its seat beside Video
+  // while it's on, even when its tool lives in the More menu, so it stays in
+  // sight and one click from undone.
+  const shownAnswer = answer.kind && !layout.toolbar.includes(answer.kind) ? answer.kind : null;
+  const left = COMPOSER_TOOL_IDS.filter(
+    (id) => id !== "model" && id !== "mic" && (layout.toolbar.includes(id) || id === shownAnswer),
+  );
   const micBesideSend = layout.toolbar.includes("mic");
   const slot = (id: ComposerToolId) => (
     <ComposerToolbarSlot
@@ -219,7 +225,15 @@ export function ComposerToolbar({
         </div>
       ) : (
         <div className="flex items-center gap-1">
-          {left.map(slot)}
+          {left.map((id) =>
+            id === shownAnswer ? (
+              <span key={id} className="inline-flex">
+                {renderTool(id, "button")}
+              </span>
+            ) : (
+              slot(id)
+            ),
+          )}
           {layout.menu.length > 0 && (
             <ComposerMoreButton
               tools={layout.menu}

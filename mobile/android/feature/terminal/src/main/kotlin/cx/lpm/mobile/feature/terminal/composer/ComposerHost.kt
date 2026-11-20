@@ -190,7 +190,8 @@ internal fun ComposerHost(
                 onRecallHistory = {
                     historyStart = HistoryFilter.All
                     showHistory = true
-                }
+                },
+                onAnswerOff = viewModel::answerOff
             ),
             dictationStrip = { stripModifier ->
                 DictationStrip(
@@ -240,13 +241,13 @@ internal fun ComposerHost(
                                 historyStart = HistoryFilter.All
                                 showHistory = true
                             },
-                            onToggleVideo = viewModel::toggleVideo
+                            onToggleAnswer = viewModel::toggleAnswer
                         ),
                         canRewrite = state.canRewrite,
                         enabled = mode.look.enabled && !state.composer.transforming,
                         hasText = state.composer.text.isNotBlank(),
                         hasClipboardImage = context::clipboardHasImage,
-                        video = state.video
+                        answer = state.answer
                     )
                 }
             },
@@ -278,9 +279,11 @@ internal fun ComposerHost(
                             onSend = send,
                             onSaveDraft = viewModel::saveDraft,
                             onTerminal = state.terminalTools,
-                            video = state.videoOn,
-                            // A video is made once, by this tab's agent: it isn't run in copies.
-                            onRunInDuplicates = if (state.terminalTools && !state.videoOn &&
+                            answer = state.answerKind,
+                            // A video or an image is made once, by this tab's agent: it
+                            // isn't run in copies.
+                            onRunInDuplicates = if (state.terminalTools &&
+                                state.answerKind == null &&
                                 mode.duplicateSheet != null
                             ) {
                                 { copies ->

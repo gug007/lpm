@@ -33,7 +33,8 @@ private val DuplicateCopies = 2..10
 /**
  * Send, with a long-press menu: save the prompt as a draft, or run it in several
  * duplicates of the project at once (this terminal being the first copy). A prompt
- * that asks for a [video] goes out on a play button in the video accent.
+ * that asks for an [answer] other than text goes out on that answer's mark in the
+ * answer accent.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -45,13 +46,13 @@ internal fun ComposerSendButton(
     onRunInDuplicates: ((copies: Int) -> Unit)?,
     modifier: Modifier = Modifier,
     onTerminal: Boolean = true,
-    video: Boolean = false
+    answer: AnswerKind? = null
 ) {
     var open by remember { mutableStateOf(false) }
     val colors = LpmTheme.colors
     // White on the dark terminal; the tint on a reply box, as iOS draws each.
     val (ground, glyph) = when {
-        onTerminal && canSend -> (if (video) videoAccent else Color.White) to Color.Black
+        onTerminal && canSend -> (if (answer != null) answerAccent else Color.White) to Color.Black
 
         onTerminal -> Color.White.copy(alpha = 0.12f) to Color.White.copy(alpha = 0.35f)
 
@@ -81,18 +82,12 @@ internal fun ComposerSendButton(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    painterResource(
-                        if (video) {
-                            DesignR.drawable.ic_play_arrow_fill
-                        } else {
-                            DesignR.drawable.ic_arrow_upward
-                        }
-                    ),
+                    painterResource(answer?.sendIcon ?: DesignR.drawable.ic_arrow_upward),
                     contentDescription = stringResource(
-                        if (video) R.string.video_send else R.string.composer_send
+                        answer?.sendLabel ?: R.string.composer_send
                     ),
                     tint = glyph,
-                    modifier = Modifier.size(if (video) 23.dp else 22.dp)
+                    modifier = Modifier.size(if (answer == AnswerKind.Video) 23.dp else 22.dp)
                 )
             }
         }

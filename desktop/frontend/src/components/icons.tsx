@@ -35,7 +35,7 @@ export function PencilIcon({ size = 14 }: { size?: number } = {}) { return <svg 
 export function WorktreeIcon({ size = 14 }: { size?: number } = {}) { return <svg {...iconProps} width={size} height={size}><path d="M9 20H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H20a2 2 0 0 1 2 2v5" /><circle cx="13" cy="12" r="2" /><path d="M18 19c-2.8 0-5-2.2-5-5v8" /><circle cx="20" cy="19" r="2" /></svg>; }
 export function CheckIcon() { return <svg {...iconProps} width={12} height={12} strokeWidth={2}><polyline points="20 6 9 17 4 12" /></svg>; }
 export function CheckSquareIcon() { return <svg {...iconProps}><polyline points="9 11 12 14 22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>; }
-export function PlayIcon() { return <svg {...iconProps} fill="currentColor" stroke="none"><path d="M6 4v16l14-8z" /></svg>; }
+export function PlayIcon({ size = 14 }: { size?: number } = {}) { return <svg {...iconProps} width={size} height={size} fill="currentColor" stroke="none"><path d="M6 4v16l14-8z" /></svg>; }
 export function SparkleIcon() { return <svg {...iconProps}><path d="M9.9 15.5A2 2 0 0 0 8.5 14.1l-6.1-1.6a.5.5 0 0 1 0-1L8.5 9.9A2 2 0 0 0 9.9 8.5l1.6-6.1a.5.5 0 0 1 1 0l1.6 6.1A2 2 0 0 0 15.5 9.9l6.1 1.6a.5.5 0 0 1 0 1l-6.1 1.6a2 2 0 0 0-1.4 1.4l-1.6 6.1a.5.5 0 0 1-1 0z"/><path d="M20 3v4M22 5h-4M4 17v2M5 18H3"/></svg>; }
 export function StopIcon() { return <svg {...iconProps} fill="currentColor" stroke="none"><rect x="6" y="6" width="12" height="12" rx="1" /></svg>; }
 export function MenuIcon() { return <svg {...iconProps}><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" /></svg>; }

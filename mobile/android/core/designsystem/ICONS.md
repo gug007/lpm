@@ -226,3 +226,5 @@ the iPhone screenshots). An icon-only control keeps the accessible name iOS give
 | `arrow.up.circle.fill` (History row) | `arrow_upward` on a 27 dp white circle | 19 dp in a 44 dp target | a History row's send | "Send now" |
 | `at` / `plus.forwardslash.minus` / `doc.on.doc` / `checkmark` (file preview bar) | `alternate_email` / `exposure` / `content_copy` / `check` | 22 dp | the file preview's "Mention", "Diff", "Copy Path" / "Copied" | |
 | `video` / `play.fill` (video answer) | `videocam` / `play_arrow` (fill) | 22 dp in the "+" menu, 23 dp on Send | the composer's "Answer as a video": its "+" row, and Send while it's on | "Answer as a video" / "Send for a video" / "Back to a text answer" |
+| `photo` (image answer) | `image` | 22 dp in the "+" menu and on Send, 16 dp on its chip | the composer's "Generate image": its "+" row (checked while on), its chip, and Send while it's on | "Generate image" / "Send for an image" / "Image, Back to a text answer" |
+| `xmark` (answer chip) | `close` | 14 dp | the end of the composer's answer chip, which goes back to a text answer | |

@@ -56,7 +56,9 @@ internal class ComposerCallbacks(
     /** The last prompt, tapped in the empty field. */
     val onRecall: (String) -> Unit = {},
     /** History, from the last prompt's long-press menu. */
-    val onRecallHistory: () -> Unit = {}
+    val onRecallHistory: () -> Unit = {},
+    /** Back to a text answer, from the picked answer's chip. */
+    val onAnswerOff: () -> Unit = {}
 )
 
 /**
@@ -129,6 +131,13 @@ internal fun TerminalComposer(
             onRetry = callbacks.onRetryUpload,
             onRemove = callbacks.onRemoveAttachment
         )
+        state.answerKind?.let {
+            ComposerAnswerChip(
+                it,
+                onOff = callbacks.onAnswerOff,
+                modifier = Modifier.padding(start = 14.dp, top = 8.dp)
+            )
+        }
         KeysAndInput(
             state,
             input,

@@ -79,25 +79,37 @@ struct TerminalComposer: View {
     private var terminalCli: String {
         model.terminals[project]?.first { $0.id == termId }?.cli ?? ""
     }
-    private var memoryAvailable: Bool {
-        terminalTools && !(model.projects.first { $0.name == project }?.isRemote ?? false)
-    }
+    private var memoryAvailable: Bool { terminalTools && !sshProject }
+    private var sshProject: Bool { model.projects.first { $0.name == project }?.isRemote ?? false }
     /// The user's lpm commands run here: an agent terminal on a Mac that keeps them.
     private var lpmCommandsOn: Bool {
         terminalTools && !terminalCli.isEmpty && model.lpmCommandsAvailable
     }
 
-    // MARK: video answers
+    // MARK: answers other than text
 
-    private var video: ComposerVideo? {
-        guard terminalTools else { return nil }
-        return ComposerVideo(cli: terminalCli, commands: model.slashCommands[termId] ?? [],
-                             record: model.activeRecord, picked: store.videoOn)
+    /// The answers other than text this terminal's agent can make.
+    private var answerOffers: [AnswerKind: AnswerOffer] {
+        guard terminalTools else { return [:] }
+        return [
+            .video: AnswerOffer.video(cli: terminalCli, commands: model.slashCommands[termId] ?? [],
+                                      record: model.activeRecord),
+            .image: AnswerOffer.image(cli: terminalCli, sshProject: sshProject),
+        ].compactMapValues { $0 }
     }
-    /// The next prompt asks the agent for a video of its answer.
-    private var videoOn: Bool { video?.on == true }
-    /// The desktop's `--accent-violet`, which marks a prompt that comes back as a video.
-    private static let videoAccent = ActionTint("violet")?.accent ?? .purple
+    /// What the next prompt asks the agent for instead of a text answer.
+    private var answerKind: AnswerKind? {
+        guard let picked = store.answer, let offer = answerOffers[picked], offer.offReason == nil else { return nil }
+        return picked
+    }
+    private var answerOn: Bool { answerKind != nil }
+    /// The desktop's `--accent-violet`, which marks a prompt that comes back as
+    /// something other than text.
+    private static let answerAccent = ActionTint("violet")?.accent ?? .purple
+
+    private func toggleAnswer(_ kind: AnswerKind) {
+        store.answer = store.answer == kind ? nil : kind
+    }
 
     /// Park the invocation at the end of whatever is already typed rather than
     /// replacing it, keeping exactly one space between the two.
@@ -275,7 +287,7 @@ struct TerminalComposer: View {
             .animation(.easeOut(duration: 0.12), value: slashMatches.count)
             .animation(.easeOut(duration: 0.12), value: hasMentionContent)
             .animation(.easeOut(duration: 0.15), value: store.transforming)
-            .animation(.easeOut(duration: 0.15), value: videoOn)
+            .animation(.easeOut(duration: 0.15), value: answerOn)
             .onAppear {
                 if terminalTools {
                     model.loadSlash(termId, project: project)
@@ -372,6 +384,12 @@ struct TerminalComposer: View {
                                 onRetry: { store.retryUpload($0) },
                                 onRemove: { store.removeAttachment($0) })
                 .equatable()
+            if let answerKind {
+                ComposerAnswerChip(kind: answerKind, accent: Self.answerAccent) { store.answer = nil }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 14)
+                    .padding(.top, 8)
+            }
             keysAndInput
         }
     }
@@ -472,9 +490,9 @@ struct TerminalComposer: View {
             .background(fieldGround)
             .clipShape(RoundedRectangle(cornerRadius: composerCorner, style: .continuous))
             .overlay {
-                if videoOn {
+                if answerOn {
                     RoundedRectangle(cornerRadius: composerCorner, style: .continuous)
-                        .strokeBorder(Self.videoAccent, lineWidth: 1)
+                        .strokeBorder(Self.answerAccent, lineWidth: 1)
                 }
             }
             .overlay {
@@ -650,12 +668,10 @@ struct TerminalComposer: View {
             Button {
                 if canRewrite { showActions = true } else { showRewriteHint = true }
             } label: { Label("Rewrite with AI", systemImage: "sparkles") }
-            if let video {
-                Button { store.videoOn.toggle() } label: {
-                    Label(video.on ? "Back to a text answer" : "Answer as a video", systemImage: "video")
-                    if let reason = video.offReason { Text(reason) }
-                }
-                .disabled(video.offReason != nil)
+            let offers = answerOffers
+            let picked = answerKind
+            ForEach(AnswerKind.allCases.filter { offers[$0] != nil }, id: \.self) { kind in
+                answerToggle(kind, on: picked == kind, offReason: offers[kind]?.offReason)
             }
             // Session memory is written on the Mac that runs the agent, so an SSH
             // project's terminals have nothing here to reach.
@@ -686,6 +702,14 @@ struct TerminalComposer: View {
         }
     }
 
+    private func answerToggle(_ kind: AnswerKind, on: Bool, offReason: String?) -> some View {
+        Toggle(isOn: Binding(get: { on }, set: { _ in toggleAnswer(kind) })) {
+            Label(kind.menuLabel, systemImage: kind.symbol)
+            if let offReason { Text(offReason) }
+        }
+        .disabled(offReason != nil)
+    }
+
     private var fieldStack: some View {
         ZStack(alignment: .topLeading) {
             if isFull {
@@ -705,7 +729,7 @@ struct TerminalComposer: View {
                     .padding(.vertical, 8)
                     .allowsHitTesting(false)
             }
-            TextField(videoOn ? "Ask for a video…" : placeholder, text: store.textBinding, axis: .vertical)
+            TextField(answerKind?.placeholder ?? placeholder, text: store.textBinding, axis: .vertical)
                 .font(.body)
                 .lineLimit(1...(isFull ? fullLineLimit : 5))
                 .opacity(fieldHidden ? 0 : 1)
@@ -725,7 +749,7 @@ struct TerminalComposer: View {
     }
 
     private var sendButton: some View {
-        let videoOn = videoOn
+        let answerKind = answerKind
         return Menu {
             Button {
                 let text = store.text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -735,8 +759,9 @@ struct TerminalComposer: View {
                 }
             } label: { Label("Save as draft", systemImage: "tray.and.arrow.down") }
 
-            // A video is made once, by this tab's agent: it isn't run in copies.
-            if terminalTools && !videoOn {
+            // A video or an image is made once, by this tab's agent: it
+            // isn't run in copies.
+            if terminalTools && answerKind == nil {
                 Menu {
                     ForEach(2...10, id: \.self) { n in
                         Button("\(n) copies") { dupSeed = DupSeed(count: n, prompt: store.text) }
@@ -745,8 +770,8 @@ struct TerminalComposer: View {
                     .disabled(store.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         } label: {
-            Image(systemName: videoOn ? "play.fill" : "arrow.up")
-                .font(.system(size: videoOn ? 14 : 16, weight: .semibold))
+            Image(systemName: answerKind?.sendSymbol ?? "arrow.up")
+                .font(.system(size: answerKind == nil ? 16 : 14, weight: .semibold))
                 .foregroundStyle(sendForeground)
                 .frame(width: 32, height: 32)
                 .background(sendGround)
@@ -756,7 +781,7 @@ struct TerminalComposer: View {
             send()
         }
         .disabled(disabled || (!canSend && !isSendMenuUseful))
-        .accessibilityLabel(videoOn ? "Send for a video" : "Send")
+        .accessibilityLabel(answerKind?.sendLabel ?? "Send")
     }
 
     private var liveSendForeground: SwiftUI.Color { terminalTools ? .black : .white }
@@ -768,7 +793,7 @@ struct TerminalComposer: View {
     }
 
     private var sendGround: SwiftUI.Color {
-        if canSend { return videoOn ? Self.videoAccent : liveSendGround }
+        if canSend { return answerOn ? Self.answerAccent : liveSendGround }
         return terminalTools ? SwiftUI.Color.white.opacity(0.12) : SwiftUI.Color(.tertiarySystemFill)
     }
 
@@ -802,7 +827,7 @@ struct TerminalComposer: View {
     /// instead, filled in by the Mac.
     private func send() {
         guard !expandingCommand, !takeActive else { return }
-        if !videoOn, lpmCommandsOn, let run = LpmCommandRules.parseRun(store.text), let cmd = lpmCommand(run.name) {
+        if !answerOn, lpmCommandsOn, let run = LpmCommandRules.parseRun(store.text), let cmd = lpmCommand(run.name) {
             runLpmCommand(cmd.name, args: run.args)
             return
         }
@@ -841,10 +866,10 @@ struct TerminalComposer: View {
         }
     }
 
-    /// The composed prompt as it goes out: a call to the video skill while the
-    /// next prompt asks for a video, the prompt itself otherwise.
+    /// The composed prompt as it goes out: an ask for a video or an image
+    /// while the next prompt is one, the prompt itself otherwise.
     private func outgoing(_ body: String) -> String {
-        videoOn ? VideoRequest.build(cli: terminalCli, prompt: body) : body
+        answerKind?.request(cli: terminalCli, prompt: body) ?? body
     }
 
     /// Deliver a composed body and reset the active tab (closing it if others exist).
@@ -861,7 +886,7 @@ struct TerminalComposer: View {
         noteSentCommand(body)
         store.lastSent = body
         store.afterSend()
-        store.videoOn = false
+        store.answer = nil
         dictation.noteSent()
         withAnimation(.easeOut(duration: 0.2)) { isFull = false }
     }

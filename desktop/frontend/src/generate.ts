@@ -29,6 +29,8 @@ export interface GenerateChoice {
   id: string;
   label: string;
   provider: string;
+  // About what one image costs at the default size: "about 3¢".
+  cost: string;
 }
 
 export interface GenerateOptions {

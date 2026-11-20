@@ -4,10 +4,12 @@ import { AlarmClock, ListEnd } from "lucide-react";
 import { useAnchoredPanel } from "../hooks/useAnchoredPanel";
 import { useOverlay } from "../store/overlay";
 import { COMPOSER_TOOLTIP_DELAY_MS } from "../composerText";
-import { SEND_SHELL_CLASS, VIDEO_ACCENT, sendFaceClass, sendGlow, sendShellTint, sendVideoFaceClass } from "./composerSendStyles";
+import { answerSendLabel, type AnswerKind } from "../answerKind";
+import { AnswerKindIcon } from "./AnswerKindIcon";
+import { ANSWER_ACCENT, SEND_SHELL_CLASS, sendAnswerFaceClass, sendFaceClass, sendGlow, sendShellTint } from "./composerSendStyles";
 import { MENU_PANEL_CLASS } from "./ui/ContextMenuShell";
 import { ContextMenuItem } from "./ui/ContextMenuItem";
-import { ChevronUpIcon, CopyIcon, ForwardIcon, PlayIcon, SendIcon, SquarePenIcon } from "./icons";
+import { ChevronUpIcon, CopyIcon, ForwardIcon, SendIcon, SquarePenIcon } from "./icons";
 import { Tooltip } from "./ui/Tooltip";
 import { enterHint } from "../shortcutHints";
 
@@ -28,9 +30,9 @@ export interface SendSplitButtonProps {
   onSendElsewhere?: () => void;
   // Spin up `count` project duplicates that each run this prompt in parallel.
   onRunInDuplicates?: (count: number) => void;
-  // The prompt asks for a video of the answer: the button says so and wears
-  // the video accent.
-  video?: boolean;
+  // The prompt asks for a video or an image instead of a text answer:
+  // the button says which and wears the accent for answers that aren't text.
+  answer?: AnswerKind | null;
 }
 
 const MENU_WIDTH = 300;
@@ -46,7 +48,7 @@ const MAX_DUPES = 10;
 // or run it across several parallel duplicates instead. The
 // menu is anchored above the button (the composer sits at the bottom of the
 // pane) and portaled so the composer's rounded, clipping ancestors can't cut it off.
-export function SendSplitButton({ disabled, busy, onSend, onSaveDraft, sendWhenDone, onSendLater, onSendElsewhere, onRunInDuplicates, video = false }: SendSplitButtonProps) {
+export function SendSplitButton({ disabled, busy, onSend, onSaveDraft, sendWhenDone, onSendLater, onSendElsewhere, onRunInDuplicates, answer = null }: SendSplitButtonProps) {
   const [open, setOpen] = useState(false);
   // How many copies "Run in duplicates" spins up; adjusted inline in the menu
   // and carried over as the seeded Copies count when the dialog opens.
@@ -82,13 +84,13 @@ export function SendSplitButton({ disabled, busy, onSend, onSaveDraft, sendWhenD
   }, [inert, open]);
 
   const divider = inert ? "bg-[var(--composer-border)]" : "bg-[var(--bg-primary)]/20";
-  const sendLabel = video ? "Send for a video" : "Send";
+  const sendLabel = answer ? answerSendLabel(answer) : "Send";
 
   return (
     <div
       ref={triggerRef}
-      className={`${SEND_SHELL_CLASS} ${sendShellTint(inert, video)}`}
-      style={sendGlow(inert, video ? VIDEO_ACCENT : undefined)}
+      className={`${SEND_SHELL_CLASS} ${sendShellTint(inert, answer !== null)}`}
+      style={sendGlow(inert, answer ? ANSWER_ACCENT : undefined)}
     >
       <Tooltip content={`${sendLabel}  ·  ${enterHint()}`} delay={COMPOSER_TOOLTIP_DELAY_MS}>
         <button
@@ -99,11 +101,11 @@ export function SendSplitButton({ disabled, busy, onSend, onSaveDraft, sendWhenD
           }}
           disabled={inert}
           aria-label={sendLabel}
-          className={video ? sendVideoFaceClass(inert) : sendFaceClass(inert, "rounded-l-lg")}
+          className={answer ? sendAnswerFaceClass(inert) : sendFaceClass(inert, "rounded-l-lg")}
         >
-          {video ? (
+          {answer ? (
             <>
-              <PlayIcon />
+              <AnswerKindIcon kind={answer} onSend />
               {sendLabel}
             </>
           ) : (

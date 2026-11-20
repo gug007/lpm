@@ -151,11 +151,8 @@ internal fun ComposerPill(
     ) {
         ComposerField(
             input = input,
-            placeholder = if (state.videoOn) {
-                stringResource(R.string.video_placeholder)
-            } else {
-                look.placeholder
-            },
+            placeholder = state.answerKind?.let { stringResource(it.placeholder) }
+                ?: look.placeholder,
             argumentHint = state.slashArgumentHint,
             enabled = look.enabled && !state.composer.transforming,
             focusRequester = focusRequester,
@@ -217,8 +214,8 @@ internal fun ComposerPill(
                     .height(StripHeight)
             )
         }
-        if (state.videoOn) {
-            Box(Modifier.matchParentSize().border(1.dp, videoAccent, RoundedCornerShape(Corner)))
+        if (state.answerKind != null) {
+            Box(Modifier.matchParentSize().border(1.dp, answerAccent, RoundedCornerShape(Corner)))
         }
         if (state.composer.transforming) ShimmerBorder(Corner, Modifier.matchParentSize())
     }

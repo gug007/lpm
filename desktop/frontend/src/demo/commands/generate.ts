@@ -19,9 +19,9 @@ export const generateCommands: CommandMap = {
   },
   generate_options: () => ({
     imageModels: [
-      { id: "nano-banana", label: "Nano Banana 2.1", provider: "Google" },
-      { id: "nano-banana-pro", label: "Nano Banana Pro", provider: "Google" },
-      { id: "gpt-image", label: "GPT Image 2", provider: "OpenAI" },
+      { id: "nano-banana", label: "Nano Banana 2.1", provider: "Google", cost: "about 3¢" },
+      { id: "nano-banana-pro", label: "Nano Banana Pro", provider: "Google", cost: "about 13¢" },
+      { id: "gpt-image", label: "GPT Image 2", provider: "OpenAI", cost: "about 5¢" },
     ],
     voices: ["alloy", "ash", "ballad", "coral", "echo", "fable", "nova", "onyx", "sage", "shimmer", "verse", "marin", "cedar"],
     defaultImageModel: "nano-banana",

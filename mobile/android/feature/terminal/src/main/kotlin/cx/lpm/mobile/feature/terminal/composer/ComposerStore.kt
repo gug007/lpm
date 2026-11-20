@@ -108,7 +108,7 @@ class ComposerStore internal constructor(
     /** The prompt this phone just sent here, offered back while the field is empty. */
     fun rememberSent(text: String) = update { it.copy(lastSent = text) }
 
-    fun setVideoOn(on: Boolean) = update { it.copy(videoOn = on) }
+    fun setAnswer(kind: AnswerKind?) = update { it.copy(answer = kind) }
 
     /**
      * Words from a take go to the prompt it started on, or the one on screen if that

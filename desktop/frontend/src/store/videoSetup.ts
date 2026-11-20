@@ -9,7 +9,7 @@ import {
   type VideoSetupPartId,
   type VideoSetupRun,
 } from "../videoSetup";
-import { useVideoAnswer } from "./videoAnswer";
+import { useAnswerMode } from "./answerMode";
 
 // The one-time setup the Video button asks for on its first click. It lives
 // outside the window so an install keeps going, and still turns Video on, after
@@ -108,7 +108,7 @@ export async function installVideoSetup(): Promise<void> {
   const { open, turnOnFor, errors } = useVideoSetup.getState();
   useVideoSetup.setState({ parts: fresh, running: false });
   if (isVideoSetUp(fresh)) {
-    if (turnOnFor) useVideoAnswer.getState().setOn(turnOnFor, true);
+    if (turnOnFor) useAnswerMode.getState().setMode(turnOnFor, "video");
     useVideoSetup.setState({ open: false, turnOnFor: null, runs: {}, errors: {} });
     toast.success("Video is ready", { description: "Your next prompt comes back as a narrated video." });
     return;

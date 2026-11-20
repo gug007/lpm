@@ -101,8 +101,8 @@ data class ComposerState(
     val uploadError: String? = null,
     /** The last prompt this phone sent here, offered back in the empty field. */
     val lastSent: String? = null,
-    /** The next prompt asks the agent for a video of its answer. */
-    val videoOn: Boolean = false
+    /** What the next prompt asks the agent for instead of a text answer. */
+    val answer: AnswerKind? = null
 ) {
     val activeTab: ComposerTab get() = tabs.getOrNull(activeIndex) ?: ComposerTab()
     val text: String get() = tabs.getOrNull(activeIndex)?.text.orEmpty()

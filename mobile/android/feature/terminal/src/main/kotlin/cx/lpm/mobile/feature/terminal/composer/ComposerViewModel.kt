@@ -100,7 +100,7 @@ class ComposerViewModel @AssistedInject constructor(
 
     private val historyPicks = HistoryPicks(field)
 
-    private val video = ComposerVideoAnswers(target, session, store)
+    private val answers = ComposerAnswers(target, session, store)
 
     // The terminals and the project's git branches, the @-mention menu's sources.
     private val mentionSources = combine(
@@ -148,7 +148,7 @@ class ComposerViewModel @AssistedInject constructor(
         .combine(dictation.state) { state, take ->
             state.copy(dictation = take, dictationOwner = dictationOwner)
         }
-        .combine(video.state) { state, answer -> state.copy(video = answer) }
+        .combine(answers.state) { state, answer -> state.copy(answer = answer) }
         .stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5_000),
@@ -223,7 +223,7 @@ class ComposerViewModel @AssistedInject constructor(
     fun send(onSend: ((String) -> Unit)? = null): Boolean {
         if (lpmCommands.expanding || dictation.state.value.isActive(dictationOwner)) return false
         pushInput(input.text.toString())
-        val runsCommand = !video.on && lpmCommandsHere()
+        val runsCommand = answers.kind == null && lpmCommandsHere()
         if (runsCommand && lpmCommands.runTyped(slashRows(), terminalCli())) return true
         return sendComposed(onSend)
     }
@@ -238,11 +238,11 @@ class ComposerViewModel @AssistedInject constructor(
                 false
             }
 
-            is SendState.Ready -> deliver(video.outgoing(state.body), onSend)
+            is SendState.Ready -> deliver(answers.outgoing(state.body), onSend)
 
             is SendState.DroppedFailures -> {
                 warning.value = R.string.composer_dropped_failures
-                deliver(video.outgoing(state.body), onSend)
+                deliver(answers.outgoing(state.body), onSend)
             }
         }
     }
@@ -267,7 +267,7 @@ class ComposerViewModel @AssistedInject constructor(
         noteSentCommand(body)
         store?.rememberSent(body)
         store?.afterSend()
-        video.turnOff()
+        answers.turnOff()
         historyPicks.dismiss()
         dictation.noteSent()
         return true
@@ -438,9 +438,11 @@ class ComposerViewModel @AssistedInject constructor(
 
     fun dismissRewriteError() = store?.dismissTransformError()
 
-    // MARK: video answers
+    // MARK: answers other than text
 
-    fun toggleVideo() = video.toggle()
+    fun toggleAnswer(kind: AnswerKind) = answers.toggle(kind)
+
+    fun answerOff() = answers.turnOff()
 
     private class PendingLog(val key: String, val label: String)
 

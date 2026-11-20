@@ -14,12 +14,14 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.feature.terminal.R
+import cx.lpm.mobile.feature.terminal.composer.AnswerKind
+import cx.lpm.mobile.feature.terminal.composer.AnswerOffer
+import cx.lpm.mobile.feature.terminal.composer.ComposerAnswer
 import cx.lpm.mobile.feature.terminal.composer.ComposerCallbacks
 import cx.lpm.mobile.feature.terminal.composer.ComposerLook
 import cx.lpm.mobile.feature.terminal.composer.ComposerPlusMenu
 import cx.lpm.mobile.feature.terminal.composer.ComposerSendButton
 import cx.lpm.mobile.feature.terminal.composer.ComposerUiState
-import cx.lpm.mobile.feature.terminal.composer.ComposerVideo
 import cx.lpm.mobile.feature.terminal.composer.MentionActions
 import cx.lpm.mobile.feature.terminal.composer.PlusMenuActions
 import cx.lpm.mobile.feature.terminal.composer.TerminalComposer
@@ -39,13 +41,23 @@ class ComposerVideoUiTest {
 
     private val events = mutableListOf<String>()
 
-    private fun video(on: Boolean = true, offReason: Int? = null) =
-        ComposerVideo(on = on, offReason = offReason)
+    private class Video(val on: Boolean, val offReason: Int?)
 
-    private fun composer(video: ComposerVideo?) = compose.setContent {
+    private fun video(on: Boolean = true, offReason: Int? = null) = Video(on, offReason)
+
+    private fun answer(video: Video?, generate: AnswerOffer? = null, kind: AnswerKind? = null) =
+        ComposerAnswer(
+            buildMap {
+                video?.let { put(AnswerKind.Video, AnswerOffer(it.offReason)) }
+                generate?.let { put(AnswerKind.Image, it) }
+            },
+            kind ?: AnswerKind.Video.takeIf { video?.on == true }
+        )
+
+    private fun composer(video: Video?, kind: AnswerKind? = null) = compose.setContent {
         LpmTheme(darkTheme = true) {
             TerminalComposer(
-                state = ComposerUiState(video = video),
+                state = ComposerUiState(answer = answer(video, kind = kind)),
                 input = remember { TextFieldState() },
                 look = ComposerLook(Color.Black, Color.White.copy(alpha = 0.08f), "Message"),
                 focusRequester = remember { FocusRequester() },
@@ -60,7 +72,8 @@ class ComposerVideoUiTest {
                     onRemoveAttachment = {},
                     onCancelRewrite = {},
                     onPickSlash = {},
-                    mentions = MentionActions({}, {}, {}, {}, {}, {})
+                    mentions = MentionActions({}, {}, {}, {}, {}, {}),
+                    onAnswerOff = { events += "off" }
                 ),
                 plusMenu = {},
                 sendButton = {},
@@ -69,7 +82,7 @@ class ComposerVideoUiTest {
         }
     }
 
-    private fun tray(video: ComposerVideo?) {
+    private fun tray(video: Video?, generate: AnswerOffer? = null, kind: AnswerKind? = null) {
         compose.setContent {
             LpmTheme(darkTheme = true) {
                 ComposerPlusMenu(
@@ -82,13 +95,13 @@ class ComposerVideoUiTest {
                         onMemory = {},
                         onNewPrompt = {},
                         onHistory = {},
-                        onToggleVideo = { events += "toggle" }
+                        onToggleAnswer = { events += "toggle ${it.name}" }
                     ),
                     canRewrite = true,
                     enabled = true,
                     hasText = true,
                     hasClipboardImage = { false },
-                    video = video
+                    answer = answer(video, generate, kind)
                 )
             }
         }
@@ -117,15 +130,29 @@ class ComposerVideoUiTest {
         assertTrue(top("Rewrite with AI") < top("Answer as a video"))
         assertTrue(top("Answer as a video") < top("Memory"))
         compose.onNodeWithText("Answer as a video").performClick()
-        assertEquals(listOf("toggle"), events)
+        assertEquals(listOf("toggle Video"), events)
     }
 
     @Test
-    fun `while it is on the tray offers the way back to text`() {
+    fun `while it is on the tray keeps its row to turn it off`() {
         tray(video())
-        compose.onNodeWithText("Answer as a video").assertDoesNotExist()
-        compose.onNodeWithText("Back to a text answer").performClick()
-        assertEquals(listOf("toggle"), events)
+        compose.onNodeWithText("Back to a text answer").assertDoesNotExist()
+        compose.onNodeWithText("Answer as a video").performClick()
+        assertEquals(listOf("toggle Video"), events)
+    }
+
+    @Test
+    fun `the answer asked for shows as a chip that goes back to text`() {
+        composer(video())
+        compose.onNodeWithText("Video").assertExists()
+        compose.onNodeWithContentDescription("Video, Back to a text answer").performClick()
+        assertEquals(listOf("off"), events)
+    }
+
+    @Test
+    fun `a text answer shows no chip`() {
+        composer(video(on = false))
+        compose.onNodeWithText("Video").assertDoesNotExist()
     }
 
     @Test
@@ -153,7 +180,7 @@ class ComposerVideoUiTest {
                     onSend = { events += "send" },
                     onSaveDraft = { events += "draft" },
                     onRunInDuplicates = null,
-                    video = true
+                    answer = AnswerKind.Video
                 )
             }
         }
@@ -164,5 +191,56 @@ class ComposerVideoUiTest {
         compose.onNodeWithText("Run in duplicates").assertDoesNotExist()
         compose.onNodeWithText("Save as draft").performClick()
         assertEquals(listOf("send", "draft"), events)
+    }
+
+    @Test
+    fun `while an image is asked for the composer asks for one`() {
+        composer(null, AnswerKind.Image)
+        compose.onNodeWithText("Ask for an image…").assertExists()
+    }
+
+    @Test
+    fun `the tray offers an image after the video, before memory`() {
+        tray(video(on = false), AnswerOffer(offReason = null))
+        assertTrue(top("Answer as a video") < top("Generate image"))
+        assertTrue(top("Generate image") < top("Memory"))
+        compose.onNodeWithText("Generate image").performClick()
+        assertEquals(listOf("toggle Image"), events)
+    }
+
+    @Test
+    fun `while an image is on its row still turns it off`() {
+        tray(null, AnswerOffer(offReason = null), AnswerKind.Image)
+        compose.onNodeWithText("Image").assertDoesNotExist()
+        compose.onNodeWithText("Generate image").performClick()
+        assertEquals(listOf("toggle Image"), events)
+    }
+
+    @Test
+    fun `an SSH project says why on rows that are off`() {
+        tray(null, AnswerOffer(offReason = R.string.answer_not_in_ssh))
+        compose.onNodeWithText("Generate image").assertIsNotEnabled().performClick()
+        assertEquals(emptyList<String>(), events)
+    }
+
+    @Test
+    fun `send for an image is named for it`() {
+        compose.setContent {
+            LpmTheme(darkTheme = true) {
+                ComposerSendButton(
+                    canSend = true,
+                    menuUseful = true,
+                    onSend = { events += "send" },
+                    onSaveDraft = {},
+                    onRunInDuplicates = null,
+                    answer = AnswerKind.Image
+                )
+            }
+        }
+        compose.onNodeWithContentDescription(
+            "Send for an image",
+            useUnmergedTree = true
+        ).performClick()
+        assertEquals(listOf("send"), events)
     }
 }

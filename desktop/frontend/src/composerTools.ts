@@ -15,6 +15,7 @@ export const COMPOSER_TOOL_IDS = [
   "memory",
   "fork",
   "video",
+  "image",
   "forkCopy",
   "saveCommand",
   "model",
@@ -33,12 +34,13 @@ export const COMPOSER_TOOL_LABEL: Record<ComposerToolId, string> = {
   forkCopy: "Fork into copy",
   saveCommand: "Save as skill",
   video: "Answer as a video",
+  image: "Generate image",
   model: "Model",
 };
 
-// Forking into a copy and saving a prompt as a skill are once-in-a-while
-// moves, so they start in the menu; everything else is reached often enough
-// that a menu hop would be a tax.
+// Forking into a copy, saving a prompt as a skill and asking for an image are
+// once-in-a-while moves, so they start in the menu; everything else is reached
+// often enough that a menu hop would be a tax.
 export const DEFAULT_COMPOSER_TOOLBAR: readonly ComposerToolId[] = [
   "mic",
   "actions",

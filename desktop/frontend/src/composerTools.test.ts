@@ -56,7 +56,7 @@ describe("withComposerToolbar", () => {
 
 describe("composerMenuTools", () => {
   it("is everything the row does not hold", () => {
-    expect(composerMenuTools(DEFAULT_COMPOSER_TOOLBAR)).toEqual(["forkCopy", "saveCommand"]);
+    expect(composerMenuTools(DEFAULT_COMPOSER_TOOLBAR)).toEqual(["image", "forkCopy", "saveCommand"]);
     expect(composerMenuTools(COMPOSER_TOOL_IDS)).toEqual([]);
   });
 });
@@ -90,6 +90,13 @@ describe("withNewComposerTools", () => {
   it("leaves a new tool that starts in the menu in the menu", () => {
     const seenAllButCopy = COMPOSER_TOOL_IDS.filter((id) => id !== "forkCopy");
     expect(withNewComposerTools(["mic"], seenAllButCopy)).toEqual(["mic"]);
+  });
+
+  it("puts image in the menu of a layout saved before it", () => {
+    const seenBefore = COMPOSER_TOOL_IDS.filter((id) => id !== "image");
+    const row = withNewComposerTools(["mic", "video", "model"], seenBefore);
+    expect(row).toEqual(["mic", "video", "model"]);
+    expect(composerMenuTools(row)).toContain("image");
   });
 });
 

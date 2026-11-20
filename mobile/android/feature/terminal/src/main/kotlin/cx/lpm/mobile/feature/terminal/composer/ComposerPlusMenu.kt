@@ -36,13 +36,13 @@ internal class PlusMenuActions(
     val onSaveAsCommand: (() -> Unit)? = null,
     val onNewPrompt: () -> Unit,
     val onHistory: () -> Unit,
-    val onToggleVideo: () -> Unit = {}
+    val onToggleAnswer: (AnswerKind) -> Unit = {}
 )
 
 /**
  * The "+" tray: tiles for photos, the camera and files, and a copied image when there
- * is one; then rewrite with AI, a video answer where the agent can make one, session
- * memory, save as an lpm command, a new prompt tab and the message history. Rewriting
+ * is one; then rewrite with AI, a video answer where the agent can make one, an image
+ * wherever an agent runs (the picked one checked), session memory, save as an lpm command, a new prompt tab and the message history. Rewriting
  * with nothing typed explains itself instead.
  */
 @Composable
@@ -53,7 +53,7 @@ internal fun ComposerPlusMenu(
     hasText: Boolean,
     hasClipboardImage: () -> Boolean,
     modifier: Modifier = Modifier,
-    video: ComposerVideo? = null
+    answer: ComposerAnswer = ComposerAnswer()
 ) {
     var open by remember { mutableStateOf(false) }
     var hint by remember { mutableStateOf(false) }
@@ -109,16 +109,18 @@ internal fun ComposerPlusMenu(
                 icon = painterResource(DesignR.drawable.ic_auto_awesome),
                 onClick = { if (canRewrite) actions.onRewrite() else hint = true }
             )
-            if (video != null) {
-                ContextMenuItem(
-                    title = stringResource(
-                        if (video.on) R.string.video_back_to_text else R.string.video_answer
-                    ),
-                    icon = painterResource(DesignR.drawable.ic_videocam),
-                    onClick = actions.onToggleVideo,
-                    subtitle = video.offReason?.let { stringResource(it) },
-                    enabled = video.offReason == null
-                )
+            AnswerKind.entries.forEach { kind ->
+                answer.offers[kind]?.let { offer ->
+                    ContextMenuItem(
+                        title = stringResource(kind.menuLabel),
+                        icon = painterResource(kind.icon),
+                        onClick = { actions.onToggleAnswer(kind) },
+                        subtitle = offer.offReason?.let { stringResource(it) },
+                        trailingIcon = painterResource(DesignR.drawable.ic_check)
+                            .takeIf { answer.kind == kind },
+                        enabled = offer.offReason == null
+                    )
+                }
             }
             actions.onMemory?.let {
                 ContextMenuItem(

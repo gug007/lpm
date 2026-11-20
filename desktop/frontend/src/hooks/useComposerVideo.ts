@@ -1,15 +1,14 @@
-import { useCallback, useRef } from "react";
+import { useCallback } from "react";
 import { isMac } from "../platform";
-import { useVideoAnswer } from "../store/videoAnswer";
+import { useAnswerMode } from "../store/answerMode";
 import { ensureVideoReady } from "../store/videoSetup";
-import { buildVideoRequest } from "../videoRequest";
 
 // Agents seen to list the video skill, by CLI and folder. The composer's
 // command list empties whenever it loses focus, so "listed right now" alone
 // would make the button come and go with the caret.
 const skillSeen = new Set<string>();
 
-interface ComposerVideoInput {
+export interface ComposerVideoInput {
   terminalId: string;
   cli: string | null;
   cwd: string;
@@ -20,10 +19,10 @@ interface ComposerVideoInput {
   guest: boolean;
 }
 
-// One terminal's "answer as a video" mode: whether its agent can make one and
-// whether the next prompt asks for one. An agent on this Mac always offers it:
-// the first click installs what's missing. One on another computer offers it
-// only where that computer has the skill.
+// Whether one terminal's agent can make a video, and the toggle that asks for
+// one. An agent on this Mac always offers it: the first click installs what's
+// missing. One on another computer offers it only where that computer has the
+// skill.
 export function useComposerVideo({ terminalId, cli, cwd, listed, local, guest }: ComposerVideoInput) {
   const key = cli && !guest ? `${cli}\u0000${cwd}` : null;
   if (key && listed) skillSeen.add(key);
@@ -31,31 +30,16 @@ export function useComposerVideo({ terminalId, cli, cwd, listed, local, guest }:
   const available = setsUp || (key !== null && skillSeen.has(key));
   const offReason = local && !isMac ? "Videos record on a Mac" : null;
 
-  const asked = useVideoAnswer((s) => terminalId in s.on);
-  const on = asked && available && offReason === null;
-
-  // Callers that read the prompt from a long-lived callback get today's mode,
-  // not the one from the render that made the callback.
-  const wrapNow = (text: string) => (on ? buildVideoRequest(cli, text) : text);
-  const latest = useRef(wrapNow);
-  latest.current = wrapNow;
-  const wrap = useCallback((text: string) => latest.current(text), []);
-
-  const setOn = useCallback(
-    (next: boolean) => useVideoAnswer.getState().setOn(terminalId, next),
-    [terminalId],
-  );
   const toggle = useCallback(() => {
-    const isOn = terminalId in useVideoAnswer.getState().on;
-    if (isOn || !setsUp) {
-      setOn(!isOn);
+    const { modes, setMode } = useAnswerMode.getState();
+    if (modes[terminalId] === "video" || !setsUp) {
+      setMode(terminalId, modes[terminalId] === "video" ? null : "video");
       return;
     }
     void ensureVideoReady(terminalId).then((ready) => {
-      if (ready) setOn(true);
+      if (ready) useAnswerMode.getState().setMode(terminalId, "video");
     });
-  }, [setOn, terminalId, setsUp]);
-  const turnOff = useCallback(() => setOn(false), [setOn]);
+  }, [terminalId, setsUp]);
 
-  return { available, offReason, on, wrap, toggle, turnOff };
+  return { available, offReason, toggle };
 }

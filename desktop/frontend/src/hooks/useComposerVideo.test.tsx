@@ -2,7 +2,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { useVideoAnswer } from "../store/videoAnswer";
+import { useAnswerMode } from "../store/answerMode";
 import { useComposerVideo } from "./useComposerVideo";
 
 const host = vi.hoisted(() => ({ isMac: true }));
@@ -25,6 +25,7 @@ type Video = ReturnType<typeof useComposerVideo>;
 let container: HTMLDivElement;
 let root: Root;
 let video: Video;
+const mode = () => useAnswerMode.getState().modes.t1;
 // Each test gets a folder of its own: the skill, once seen for a CLI and
 // folder, is remembered for the rest of the session.
 let cwd = "";
@@ -46,7 +47,7 @@ beforeEach(() => {
   setup.ready = true;
   setup.asked = [];
   cwd = `/work/${++folders}`;
-  useVideoAnswer.setState({ on: {} });
+  useAnswerMode.setState({ modes: {} });
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
@@ -76,9 +77,9 @@ describe("useComposerVideo", () => {
     render({ listed: false, local: true });
     await act(async () => video.toggle());
     expect(setup.asked).toEqual(["t1"]);
-    expect(video.on).toBe(true);
+    expect(mode()).toBe("video");
     act(() => video.toggle());
-    expect(video.on).toBe(false);
+    expect(mode()).toBeUndefined();
     expect(setup.asked).toEqual(["t1"]);
   });
 
@@ -86,7 +87,7 @@ describe("useComposerVideo", () => {
     setup.ready = false;
     render({ listed: false, local: true });
     await act(async () => video.toggle());
-    expect(video.on).toBe(false);
+    expect(mode()).toBeUndefined();
   });
 
   it("keeps offering it once the command list empties on blur", () => {
@@ -101,35 +102,11 @@ describe("useComposerVideo", () => {
     expect(video.available).toBe(false);
   });
 
-  it("wraps the prompt while on, and only for its own terminal", () => {
-    render();
-    expect(video.wrap("Show checkout")).toBe("Show checkout");
-    act(() => video.toggle());
-    expect(video.on).toBe(true);
-    expect(video.wrap("Show checkout")).toBe("/explaincast Show checkout");
-    render({ terminalId: "t2" });
-    expect(video.on).toBe(false);
-    expect(video.wrap("Show checkout")).toBe("Show checkout");
-  });
-
-  it("hands long-lived callers a wrap that follows the mode", () => {
-    render();
-    const wrap = video.wrap;
-    act(() => video.toggle());
-    expect(video.wrap).toBe(wrap);
-    expect(wrap("Hi")).toBe("/explaincast Hi");
-    act(() => video.turnOff());
-    expect(wrap("Hi")).toBe("Hi");
-  });
-
-  it("says why and stays off where this computer can't record", () => {
+  it("says why where this computer can't record", () => {
     host.isMac = false;
     render({ local: true });
-    act(() => video.toggle());
     expect(video.offReason).toBe("Videos record on a Mac");
-    expect(video.on).toBe(false);
     render();
     expect(video.offReason).toBeNull();
-    expect(video.on).toBe(true);
   });
 });

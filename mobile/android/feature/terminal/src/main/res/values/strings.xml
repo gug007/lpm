@@ -116,10 +116,16 @@
 
     <!-- Video answers -->
     <string name="video_answer">Answer as a video</string>
-    <string name="video_back_to_text">Back to a text answer</string>
+    <string name="answer_back_to_text">Back to a text answer</string>
     <string name="video_needs_mac">Videos record on a Mac</string>
     <string name="video_placeholder">Ask for a video…</string>
     <string name="video_send">Send for a video</string>
+    <string name="answer_image">Generate image</string>
+    <string name="answer_not_in_ssh">Not available in SSH projects</string>
+    <string name="answer_image_placeholder">Ask for an image…</string>
+    <string name="answer_image_send">Send for an image</string>
+    <string name="answer_chip_video">Video</string>
+    <string name="answer_chip_image">Image</string>
 
     <!-- Rewrite -->
     <string name="rewrite_title">Rewrite with AI</string>

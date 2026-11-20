@@ -62,13 +62,13 @@ data class ComposerUiState(
     val lastPrompt: String? = null,
     /** A History pick went after the draft: the toast offers the draft back. */
     val restore: ComposerRestore? = null,
-    /** Answering with a video, where the terminal's agent can make one. */
-    val video: ComposerVideo? = null
+    /** Answers other than text the terminal's agent can make, and the one picked. */
+    val answer: ComposerAnswer = ComposerAnswer()
 ) {
-    val hasText: Boolean get() = composer.text.isNotBlank()
+    /** What the next prompt asks the agent for instead of a text answer. */
+    val answerKind: AnswerKind? get() = answer.kind
 
-    /** The next prompt asks the agent for a video of its answer. */
-    val videoOn: Boolean get() = video?.on == true
+    val hasText: Boolean get() = composer.text.isNotBlank()
 
     val takeActive: Boolean get() = dictation.isActive(dictationOwner)
     val takeFailure: DictationFailure? get() = dictation.failure(dictationOwner)

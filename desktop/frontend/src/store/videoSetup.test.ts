@@ -14,7 +14,7 @@ vi.mock("../notifications/toast", () => ({
 }));
 
 import { ensureVideoReady, installVideoSetup, useVideoSetup } from "./videoSetup";
-import { useVideoAnswer } from "./videoAnswer";
+import { useAnswerMode } from "./answerMode";
 
 const all = (ready: boolean): VideoSetupPart[] =>
   VIDEO_SETUP_PARTS.map((id) => ({
@@ -27,7 +27,7 @@ beforeEach(() => {
   bridge.check.mockReset();
   bridge.install.mockReset();
   useVideoSetup.setState({ parts: null, open: false, turnOnFor: null, running: false, runs: {}, errors: {} });
-  useVideoAnswer.setState({ on: {} });
+  useAnswerMode.setState({ modes: {} });
 });
 
 describe("ensureVideoReady", () => {
@@ -58,7 +58,7 @@ describe("installVideoSetup", () => {
     bridge.install.mockResolvedValue(undefined);
     await installVideoSetup();
     expect(bridge.install.mock.calls.map(([p]) => p)).toEqual(["skill", "chromium", "voice", "xcodeTools"]);
-    expect(useVideoAnswer.getState().on).toEqual({ t1: true });
+    expect(useAnswerMode.getState().modes).toEqual({ t1: "video" });
     expect(useVideoSetup.getState()).toMatchObject({ running: false, open: false, turnOnFor: null });
   });
 
@@ -75,6 +75,6 @@ describe("installVideoSetup", () => {
     expect(s.errors.chromium).toBe("no network");
     expect(s.runs.voice).toBe("done");
     expect(s.open).toBe(true);
-    expect(useVideoAnswer.getState().on).toEqual({});
+    expect(useAnswerMode.getState().modes).toEqual({});
   });
 });

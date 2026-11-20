@@ -141,7 +141,7 @@ import { composerChord, composerKeepsCtrlChord, isFormatInput, runComposerEdit }
 import { isLinux, isMac } from "../platform";
 import { SlashCommandMenu } from "./SlashCommandMenu";
 import { useSlashCommands } from "../hooks/useSlashCommands";
-import { useComposerVideo } from "../hooks/useComposerVideo";
+import { useComposerAnswer } from "../hooks/useComposerAnswer";
 import { VIDEO_SKILL } from "../videoRequest";
 import { missingNote, useLpmCommandRun } from "../hooks/useLpmCommandRun";
 import { useCommandsOpen } from "../store/commandsOpen";
@@ -368,13 +368,14 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   } = useSlashCommands(slashCli, cwd, focused, lpmProject);
   const lpmRun = useLpmCommandRun(lpmProject, lpmLists);
   const videoListed = useMemo(() => isSlashCommand(VIDEO_SKILL), [isSlashCommand]);
-  const video = useComposerVideo({
+  const answer = useComposerAnswer({
     terminalId,
     cli: slashCli,
     cwd,
     listed: videoListed,
     local: !isRemotePeer && !projectIsRemote,
     guest,
+    ssh: projectIsRemote,
   });
   // Only Claude Code and Codex can be re-pointed at another model mid-session,
   // so only their terminals get the model switcher in the button row.
@@ -1267,8 +1268,8 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     const images = Object.fromEntries(imagePaths.current);
     // The mode covers one prompt: it ends once that prompt has gone out, and
     // stays for another try when it couldn't.
-    if (video.on) {
-      if (await deliverPrompt(video.wrap(value), images)) video.turnOff();
+    if (answer.kind) {
+      if (await deliverPrompt(answer.wrap(value), images)) answer.turnOff();
       return;
     }
     const run = slashCli ? lpmRun.match(value) : null;
@@ -1347,8 +1348,8 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     for (const [token, path] of imagePaths.current) {
       if (present.has(token)) images[token] = path;
     }
-    return { id: activeId.current, text: video.wrap(text), images };
-  }, [video.wrap]);
+    return { id: activeId.current, text: answer.wrap(text), images };
+  }, [answer.wrap]);
 
   // Bring a prompt back into the input: in place when the input is empty, as its
   // own prepared prompt when something is already being typed, so nothing there
@@ -1389,7 +1390,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     retire: (id) => {
       const editor = editorRef.current;
       if (editor) finishSend(id, editor);
-      video.turnOff();
+      answer.turnOff();
     },
     restore: restorePrompt,
     shown,
@@ -2430,7 +2431,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
         className={`relative rounded-xl bg-[var(--composer-surface)] transition-colors ${
           busy
             ? "border border-transparent"
-            : video.on
+            : answer.kind
               ? "border border-[var(--accent-violet)] shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent-violet)_16%,transparent)]"
               : "border border-[var(--composer-border)] focus-within:border-[var(--composer-border-focus)]"
         }`}
@@ -2489,7 +2490,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
             style={textStyle}
             className="pointer-events-none absolute left-3.5 right-3.5 top-1.5 truncate text-[var(--composer-fg-muted)]"
           >
-            {composerPlaceholder({ label: targetLabel, agent, started: agentStarted, video: video.on })}
+            {composerPlaceholder({ label: targetLabel, agent, started: agentStarted, answer: answer.kind })}
           </div>
         )}
         {hint && (
@@ -2554,7 +2555,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
           }
           fork={{ canFork, onFork, canForkCopy, onForkCopy }}
           saveCommand={slashCli && lpmProject !== null ? { disabled, onSave: saveAsCommand } : null}
-          video={video.available ? { on: video.on, onToggle: video.toggle, offReason: video.offReason, agent: slashCli } : null}
+          answer={{ kind: answer.kind, tools: answer.tools, turnOff: answer.turnOff, agent: slashCli }}
           send={{
             disabled,
             busy,
@@ -2564,9 +2565,9 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
               ? undefined
               : { run: () => void sendLater.sendWhenDone(), hint: sendLater.whenDoneHint },
             onSendLater: guest ? undefined : sendLater.openForPrompt,
-            // A video is asked of this tab's agent, in its own call form, and
+            // A video or an image is asked of this tab's agent and
             // made once: it isn't handed to another tab or run in copies.
-            onSendElsewhere: guest || video.on
+            onSendElsewhere: guest || answer.kind
               ? undefined
               : () => {
                   const editor = editorRef.current;
@@ -2575,8 +2576,8 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
                     imageCount: editor ? presentImageTokens(editor).size : 0,
                   });
                 },
-            onRunInDuplicates: guest || video.on ? undefined : runInDuplicates,
-            video: video.on,
+            onRunInDuplicates: guest || answer.kind ? undefined : runInDuplicates,
+            answer: answer.kind,
           }}
           draftsOpen={sendLater.draftsOpen}
           onDraftsClose={sendLater.closeDrafts}

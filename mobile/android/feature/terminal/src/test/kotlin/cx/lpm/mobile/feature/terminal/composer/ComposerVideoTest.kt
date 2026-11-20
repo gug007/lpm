@@ -101,8 +101,12 @@ class ComposerVideoTest {
         testScheduler.runCurrent()
     }
 
+    private val ComposerUiState.videoOn get() = answerKind == AnswerKind.Video
+    private val ComposerUiState.video get() = answer.offers[AnswerKind.Video]
+    private val ComposerUiState.generate get() = answer.offers[AnswerKind.Image]
+
     private fun TestScope.turnOn(vm: ComposerViewModel) {
-        vm.toggleVideo()
+        vm.toggleAnswer(AnswerKind.Video)
         testScheduler.runCurrent()
     }
 
@@ -110,7 +114,7 @@ class ComposerVideoTest {
     fun `an agent whose commands hold the skill offers a video, off until asked for`() = runTest {
         val s = setup()
         val video = s.vm.uiState.value.video!!
-        assertFalse(video.on)
+        assertFalse(s.vm.uiState.value.videoOn)
         assertNull(video.offReason)
 
         turnOn(s.vm)
@@ -216,7 +220,7 @@ class ComposerVideoTest {
         val s = setup()
         turnOn(s.vm)
         assertTrue(composer(s, claude).uiState.value.videoOn)
-        s.vm.toggleVideo()
+        s.vm.toggleAnswer(AnswerKind.Video)
         testScheduler.runCurrent()
         assertFalse(composer(s, claude).uiState.value.videoOn)
     }
@@ -227,7 +231,7 @@ class ComposerVideoTest {
         turnOn(s.vm)
         val video = s.vm.uiState.value.video!!
         assertEquals(R.string.video_needs_mac, video.offReason)
-        assertFalse(video.on)
+        assertFalse(s.vm.uiState.value.videoOn)
         type(s.vm, "Explain retries")
         assertTrue(s.vm.send())
         assertEquals(listOf("Explain retries"), submitted)
@@ -239,5 +243,47 @@ class ComposerVideoTest {
         turnOn(s.vm)
         assertNull(s.vm.uiState.value.video?.offReason)
         assertTrue(s.vm.uiState.value.videoOn)
+    }
+
+    @Test
+    fun `an image goes out as an ask for lpm generate, one kind at a time`() = runTest {
+        val s = setup()
+        val generate = s.vm.uiState.value.generate!!
+        assertNull(generate.offReason)
+        turnOn(s.vm)
+        s.vm.toggleAnswer(AnswerKind.Image)
+        testScheduler.runCurrent()
+        assertEquals(AnswerKind.Image, s.vm.uiState.value.answerKind)
+        assertFalse(s.vm.uiState.value.videoOn)
+        type(s.vm, "A logo for the storefront")
+        assertTrue(s.vm.send())
+        testScheduler.runCurrent()
+        assertEquals(
+            "Make an image with `lpm generate image`: A logo for the storefront",
+            submitted.single()
+        )
+        assertNull(s.vm.uiState.value.answerKind)
+    }
+
+    @Test
+    fun `an image is offered wherever an agent runs, but not in a reply box`() = runTest {
+        assertNotNull(setup(commands = """{"name":"review"}""").vm.uiState.value.generate)
+        assertNull(setup(cli = "").vm.uiState.value.generate)
+        val reply = ComposerTarget("t1", "storefront", "Claude", SessionKey.Live, false)
+        assertNull(setup(target = reply).vm.uiState.value.generate)
+    }
+
+    @Test
+    fun `an SSH project says why, and sends text`() = runTest {
+        val s = setup()
+        s.socket.receive("""{"t":"projects","projects":[{"name":"storefront","isRemote":true}]}""")
+        testScheduler.runCurrent()
+        assertEquals(R.string.answer_not_in_ssh, s.vm.uiState.value.generate?.offReason)
+        s.vm.toggleAnswer(AnswerKind.Image)
+        testScheduler.runCurrent()
+        assertNull(s.vm.uiState.value.answerKind)
+        type(s.vm, "A logo")
+        assertTrue(s.vm.send())
+        assertEquals(listOf("A logo"), submitted)
     }
 }

@@ -40,6 +40,8 @@ pub struct Choice {
     id: &'static str,
     label: &'static str,
     provider: &'static str,
+    /// About what one image costs at the default size: "about 3¢".
+    cost: String,
 }
 
 #[derive(Serialize)]
@@ -61,6 +63,7 @@ pub fn generate_options() -> Options {
                 id: m.id,
                 label: m.label,
                 provider: m.provider.name(),
+                cost: models::cost_words(models::image_cents(m, None)),
             })
             .collect(),
         voices: crate::openaitts::VOICES.to_vec(),

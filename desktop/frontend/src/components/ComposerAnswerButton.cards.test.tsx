@@ -3,13 +3,30 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { COMPOSER_TOOLTIP_DELAY_MS } from "../composerText";
+import { useAppStore } from "../store/app";
 import { useSettingsStore } from "../store/settings";
 import { useVideoSettings } from "../store/videoSettings";
-import { ComposerVideoButton } from "./ComposerVideoButton";
+import { ComposerAnswerButton } from "./ComposerAnswerButton";
 
 const lesson = vi.hoisted(() => ({ url: "https://www.youtube.com/watch?v=lesson", open: vi.fn() }));
 vi.mock("../../bridge/runtime", () => ({ BrowserOpenURL: lesson.open }));
 vi.mock("../videoLesson", () => ({ VIDEO_LESSON_URL: lesson.url, VIDEO_LESSON_LENGTH: "2:27" }));
+const gen = vi.hoisted(() => ({ keys: { gemini: true, openai: false } }));
+vi.mock("./settings/generateCommands", () => ({
+  LOCAL_GENERATE: {
+    options: async () => ({
+      imageModels: [
+        { id: "nano-banana", label: "Nano Banana 2.1", provider: "Google", cost: "about 3¢" },
+        { id: "gpt-image", label: "GPT Image 2", provider: "OpenAI", cost: "about 5¢" },
+      ],
+      voices: ["marin"],
+      defaultImageModel: "nano-banana",
+      defaultVoice: "marin",
+      defaultLimit: 2,
+    }),
+    keys: async () => gen.keys,
+  },
+}));
 
 let host: HTMLDivElement;
 let root: Root;
@@ -28,12 +45,12 @@ afterEach(() => {
   document.body.innerHTML = "";
   vi.useRealTimers();
   useVideoSettings.setState({ open: false });
-  useSettingsStore.setState({ videoNarrator: undefined, videoCloudVoice: undefined });
+  useSettingsStore.setState({ videoNarrator: undefined, videoCloudVoice: undefined, generateImageModel: undefined });
 });
 
-function render(props: Partial<Parameters<typeof ComposerVideoButton>[0]> = {}) {
+function render(props: Partial<Parameters<typeof ComposerAnswerButton>[0]> = {}) {
   act(() =>
-    root.render(<ComposerVideoButton on={false} onToggle={() => {}} offReason={null} agent="claude" {...props} />),
+    root.render(<ComposerAnswerButton kind="video" on={false} onToggle={() => {}} offReason={null} agent="claude" {...props} />),
   );
 }
 
@@ -52,7 +69,7 @@ function hover(): string {
 // tooltip role.
 const card = () => document.querySelector(".tooltip-in");
 
-describe("ComposerVideoButton tooltip", () => {
+describe("ComposerAnswerButton video card", () => {
   it("shows a question and the video reply it gets, with the agent's mark", () => {
     render();
     const text = hover();
@@ -104,11 +121,48 @@ describe("ComposerVideoButton tooltip", () => {
   });
 });
 
-describe("ComposerVideoButton off a Mac", () => {
+describe("ComposerAnswerButton off a Mac", () => {
   it("does nothing on a click", () => {
     const onToggle = vi.fn();
     render({ offReason: "Videos record on a Mac", onToggle });
     act(() => host.querySelector("button")!.click());
     expect(onToggle).not.toHaveBeenCalled();
+  });
+});
+
+describe("ComposerAnswerButton image card", () => {
+  async function hoverCard(): Promise<string> {
+    hover();
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    return card()?.textContent ?? "";
+  }
+
+  it("shows a prompt and the image it gets, then the model and its price", async () => {
+    render({ kind: "image" });
+    const text = await hoverCard();
+    expect(text).toContain("A hero image for the pricing page");
+    expect(text).toContain("generated/pricing-hero.png");
+    expect(text).toContain("Generate image");
+    expect(text).toContain("Nano Banana 2.1 · Google · about 3¢");
+  });
+
+  it("names the model picked in Settings, and says when its key isn't saved yet", async () => {
+    useSettingsStore.setState({ generateImageModel: "gpt-image" });
+    render({ kind: "image", on: true });
+    const text = await hoverCard();
+    expect(text).toContain("Generating an image");
+    expect(text).toContain("Click the button again for a text answer.");
+    expect(text).toContain("GPT Image 2 · add a key");
+  });
+
+  it("opens Settings › Images & speech from the card", async () => {
+    render({ kind: "image" });
+    await hoverCard();
+    const settings = [...card()!.querySelectorAll("button")].find((b) => b.textContent === "Settings")!;
+    act(() => settings.click());
+    expect(useAppStore.getState()).toMatchObject({ view: "settings", settingsTab: "generate" });
   });
 });
