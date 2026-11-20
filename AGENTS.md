@@ -81,6 +81,10 @@ lpm starts, stops, duplicates, and switches between local dev projects, with a b
   never a second Sentry client, an SDK's own integrations, or user content (code,
   terminal output, prompts, project names). `website/app/privacy/page.tsx` says
   what a report holds — keep it true
+- Clean up when you're done: delete what you made just for the task — throwaway
+  copies and their build output (in the `lpm-linux` Lima VM, then `sudo fstrim -av`
+  so the Mac gets the space back), one-off simulators and emulators, repro folders.
+  Keep the main checkout's build folders for incremental builds
 - Don't commit or push unless asked
 
  

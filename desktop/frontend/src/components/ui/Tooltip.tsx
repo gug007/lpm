@@ -12,6 +12,11 @@ interface TooltipProps {
   wide?: boolean;
   // A wide card's limit, for one that needs more than the default 340px.
   maxWidth?: number;
+  // A wide card that pads itself, so a band of its own can run edge to edge.
+  flush?: boolean;
+  // An arrow from the card to the middle of its trigger, in the color of the
+  // part of the card it grows out of.
+  arrow?: string;
   // Wrap long content instead of keeping one nowrap line, clamped to this many
   // lines (overflow ellipsized).
   maxLines?: number;
@@ -30,14 +35,29 @@ const GAP = 8;
 const EDGE_MARGIN = 8;
 // How long an interactive card waits for the pointer to cross the gap to it.
 const LEAVE_GRACE_MS = 200;
+const ARROW_SIZE = 10;
+// Half the square, plus the card's border it is placed inside of.
+const ARROW_OFFSET = ARROW_SIZE / 2 + 1;
+// Keeps the arrow off the card's rounded corners.
+const ARROW_INSET = 18;
+// The arrow is a square turned 45° on the card's edge that faces the trigger,
+// bordered on the two sides that stick out.
+const ARROW: Record<Side, { edge: Side; borders: string }> = {
+  top: { edge: "bottom", borders: "border-b border-r" },
+  bottom: { edge: "top", borders: "border-l border-t" },
+  right: { edge: "left", borders: "border-b border-l" },
+  left: { edge: "right", borders: "border-r border-t" },
+};
 
-export function Tooltip({ content, children, side = "top", align = "center", wide = false, maxWidth, maxLines, delay = 0, triggerClassName = "inline-flex", disabled = false, interactive = false }: TooltipProps) {
+export function Tooltip({ content, children, side = "top", align = "center", wide = false, maxWidth, flush = false, arrow, maxLines, delay = 0, triggerClassName = "inline-flex", disabled = false, interactive = false }: TooltipProps) {
   const triggerRef = useRef<HTMLSpanElement>(null);
   const tooltipRef = useRef<HTMLSpanElement>(null);
   const showTimer = useRef<number | null>(null);
   const hideTimer = useRef<number | null>(null);
   const [visible, setVisible] = useState(false);
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  // arrowAt: how far along the card's edge the middle of the trigger is.
+  const [pos, setPos] = useState<{ top: number; left: number; arrowAt: number } | null>(null);
+  const sideways = side === "right" || side === "left";
   // A trigger whose own popover or menu is open (aria-expanded) keeps its
   // tooltip down, so the tooltip can't cover what the click just opened.
   const [expanded, setExpanded] = useState(false);
@@ -131,7 +151,7 @@ export function Tooltip({ content, children, side = "top", align = "center", wid
     let top: number;
     let left: number;
 
-    if (side === "right" || side === "left") {
+    if (sideways) {
       left = side === "right" ? tr.right + GAP : tr.left - tt.width - GAP;
       top =
         align === "start" ? tr.top
@@ -150,8 +170,12 @@ export function Tooltip({ content, children, side = "top", align = "center", wid
     if (top < EDGE_MARGIN) top = EDGE_MARGIN;
     if (top + tt.height > window.innerHeight - EDGE_MARGIN) top = window.innerHeight - EDGE_MARGIN - tt.height;
 
-    setPos((p) => (p && p.top === top && p.left === left ? p : { top, left }));
-  }, [side, align]);
+    const along = sideways ? tr.top + tr.height / 2 - top : tr.left + tr.width / 2 - left;
+    const edge = sideways ? tt.height : tt.width;
+    const arrowAt = Math.min(Math.max(along, ARROW_INSET), edge - ARROW_INSET);
+
+    setPos((p) => (p && p.top === top && p.left === left && p.arrowAt === arrowAt ? p : { top, left, arrowAt }));
+  }, [side, align, sideways]);
 
   // Placed before paint, then again whenever its content changes size while
   // it's up (a toggle that swaps a one-liner for a card): a top-placed tooltip
@@ -214,13 +238,27 @@ export function Tooltip({ content, children, side = "top", align = "center", wid
           }}
           className={`tooltip-in ${interactive ? "pointer-events-auto" : "pointer-events-none"} fixed z-[9999] border border-[var(--border)] bg-[var(--bg-secondary)] text-[var(--text-primary)] shadow-[0_1px_3px_rgba(0,0,0,0.12),0_12px_32px_rgba(0,0,0,0.22)] ${
             wide
-              ? "max-w-[340px] whitespace-normal rounded-xl px-3.5 py-3 text-[12px] leading-relaxed"
+              ? `max-w-[340px] whitespace-normal text-[12px] leading-relaxed ${flush ? "rounded-[14px]" : "rounded-xl px-3.5 py-3"}`
               : maxLines
                 ? "max-w-[260px] whitespace-normal break-words rounded-lg px-3 py-1.5 text-[12px] leading-snug"
                 : "whitespace-nowrap rounded-lg px-3 py-1.5 text-[12px]"
           }`}
         >
-          {content}
+          {/* Clipped to the card's corners inside its border; the arrow stays outside the clip. */}
+          {wide && flush ? <span className="block overflow-hidden rounded-[13px]">{content}</span> : content}
+          {arrow && pos && (
+            <span
+              aria-hidden
+              style={{
+                width: ARROW_SIZE,
+                height: ARROW_SIZE,
+                [ARROW[side].edge]: -ARROW_OFFSET,
+                [sideways ? "top" : "left"]: pos.arrowAt - ARROW_OFFSET,
+                background: arrow,
+              }}
+              className={`absolute rotate-45 border-[var(--border)] ${ARROW[side].borders}`}
+            />
+          )}
         </span>,
         document.body,
       )}

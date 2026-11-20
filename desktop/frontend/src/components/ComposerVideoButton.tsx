@@ -7,6 +7,7 @@ import { VideoIcon } from "./icons";
 import { ContextMenuItem } from "./ui/ContextMenuItem";
 import { Tooltip } from "./ui/Tooltip";
 import { VideoAnswerPreview } from "./VideoAnswerPreview";
+import { VIDEO_CARD_FOOT_BG } from "./VideoVoiceLine";
 
 export interface ComposerVideoButtonProps {
   on: boolean;
@@ -49,13 +50,17 @@ export function ComposerVideoButton({ on, onToggle, offReason, agent, variant = 
   // The tooltip shows what the button does by example, on or off, ending on
   // who will voice it and a Settings link the pointer can reach; where it
   // can't be used, it says why in one line.
+  const tooltip = blocked
+    ? { content: offReason }
+    : {
+        content: <VideoAnswerPreview agent={agent} on={on} />,
+        wide: true,
+        flush: true,
+        arrow: VIDEO_CARD_FOOT_BG,
+        interactive: true,
+      };
   return (
-    <Tooltip
-      content={blocked ? offReason : <VideoAnswerPreview agent={agent} on={on} />}
-      delay={COMPOSER_TOOLTIP_DELAY_MS}
-      wide={!blocked}
-      interactive={!blocked}
-    >
+    <Tooltip {...tooltip} delay={COMPOSER_TOOLTIP_DELAY_MS}>
       <button
         type="button"
         onMouseDown={keepEditorFocus}

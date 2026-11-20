@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { kokoroVoiceName } from "./kokoroVoices";
-import { CLOUD_PRICE, videoVoiceName } from "./videoVoice";
+import { videoVoiceName, videoVoiceSummary } from "./videoVoice";
 
 describe("video voice names", () => {
   it("spells a Kokoro voice's accent and sex out", () => {
@@ -16,7 +16,16 @@ describe("video voice names", () => {
     expect(videoVoiceName("local", "bf_emma")).toBe("Emma · British female");
   });
 
-  it("prices the cloud voice in dollars", () => {
-    expect(CLOUD_PRICE).toBe("≈ $0.02 a minute");
+  it("sums a voice up as its name, where it runs and what it costs", () => {
+    expect(videoVoiceSummary({ narrator: "openai", voice: "marin" })).toEqual({
+      name: "Marin",
+      where: "OpenAI",
+      cost: "$0.02/min",
+    });
+    expect(videoVoiceSummary({ narrator: "local", voice: "af_heart" })).toEqual({
+      name: "Heart",
+      where: "this Mac",
+      cost: "free",
+    });
   });
 });
