@@ -158,6 +158,10 @@ const LESSON_CAPTION: Record<
     heading: "Ask Claude Code or Codex, and get the answer as a video",
     blurb: "A short video: turn on Video in the composer, ask as usual, and play the narrated answer inside lpm.",
   },
+  "claude-code-codex-nano-banana-images": {
+    heading: "Ask Claude Code or Codex for an image, made with Nano Banana",
+    blurb: "A short video: ask in plain words, add your Google Gemini key once, and open the image inside lpm.",
+  },
 };
 
 // The frame sits in the first viewport, so the observer fires on load. Waiting

@@ -51,6 +51,7 @@ const READING: Record<YouTubeLessonId, string[]> = {
   ],
   "auto-pull-complete-guide": [GIT_TERMINAL_MAC_PATH],
   "claude-code-codex-video-answers": [docsPath("agents"), AI_AGENTS_PATH],
+  "claude-code-codex-nano-banana-images": [docsPath("agents"), AI_AGENTS_PATH],
   "manage-claude-code-codex-skills": [SKILLS_PATH],
   "organize-claude-code-codex-skills-folders": [SKILLS_PATH],
   "multiple-accounts": [

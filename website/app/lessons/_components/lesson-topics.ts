@@ -65,6 +65,7 @@ const LESSONS: Record<YouTubeLessonId, { topic: TopicId; title: string }> = {
   "review-code-changes": { topic: "agents", title: "Review code changes" },
   "auto-pull-complete-guide": { topic: "agents", title: "Pull from Git automatically" },
   "claude-code-codex-video-answers": { topic: "agents", title: "Get an answer as a video" },
+  "claude-code-codex-nano-banana-images": { topic: "agents", title: "Make images with Nano Banana" },
   "multiple-accounts": { topic: "accounts", title: "Several Claude Code accounts" },
   "accounts-switching": { topic: "accounts", title: "Switch accounts before a limit" },
   "switch-claude-account-mid-session": {
