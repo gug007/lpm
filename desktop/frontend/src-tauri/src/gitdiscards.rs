@@ -60,7 +60,6 @@ impl Drop for ScratchIndex {
 
 fn lines(out: &str) -> Vec<String> {
     out.split('\0')
-        .map(str::trim)
         .filter(|l| !l.is_empty())
         .map(String::from)
         .collect()
@@ -85,11 +84,9 @@ fn tracked_tree_all(cwd: &str) -> Result<String, String> {
 }
 
 /// Which of `paths` exist at HEAD.
-pub(crate) fn in_head(cwd: &str, paths: &[&str]) -> HashSet<String> {
+pub(crate) fn in_head(cwd: &str, paths: &[&str]) -> Result<HashSet<String>, String> {
     let args = path_args(&["ls-tree", "-r", "-z", "--name-only", "HEAD"], paths);
-    lines(&git_out(cwd, &args).unwrap_or_default())
-        .into_iter()
-        .collect()
+    Ok(lines(&git_out(cwd, &args)?).into_iter().collect())
 }
 
 /// What the staged renames ending at one of `paths` were called at HEAD. Asked
@@ -121,7 +118,7 @@ fn tracked_tree_of(cwd: &str, paths: &[&str]) -> Result<String, String> {
     }
     let scratch = ScratchIndex::new(cwd, "tracked")?;
     scratch.git(cwd, &["read-tree", "HEAD"])?;
-    let at_head = in_head(cwd, paths);
+    let at_head = in_head(cwd, paths)?;
     let present: Vec<&str> = paths
         .iter()
         .copied()
