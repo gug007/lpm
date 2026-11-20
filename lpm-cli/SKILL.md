@@ -1,7 +1,7 @@
 ---
 name: lpm-cli
 version: 1.18.0
-description: "Operate lpm-managed projects through the `lpm` CLI: start or stop projects and services, inspect logs and agent status, wait for readiness, run actions, create, edit, run, pause, and read scheduled automations, manage `/name` skills made in lpm, duplicate projects into standalone copies or create linked Git worktrees, and make images (Nano Banana, GPT Image) or speech audio with the API keys saved in lpm. Use when the user asks to operate or inspect lpm runtime state, manage lpm automations or lpm skills, or make an image or an audio file (\"nano banana\", \"generate an image\", \"read this aloud as an mp3\"). `LPM_PROJECT_NAME` selects the default project after the skill triggers; it is not a trigger by itself. For editing YAML configuration, use `lpm-config`."
+description: "Operate lpm-managed projects through the `lpm` CLI: start or stop projects and services, inspect logs and agent status, wait for readiness, run actions, manage scheduled automations and `/name` skills made in lpm, duplicate projects into standalone copies or create linked Git worktrees, and make images (Nano Banana, GPT Image) or speech audio with the keys saved in lpm. Use when the user asks to operate or inspect lpm runtime state, manage lpm automations or lpm skills, or make an image or audio file. `LPM_PROJECT_NAME` alone is not a trigger. For editing YAML configuration, use `lpm-config`."
 ---
 
 `lpm` is a command-line companion to the lpm desktop app. Verify it is available with `lpm --version`; if it is missing, install it from the lpm app's Settings.
