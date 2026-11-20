@@ -4,6 +4,12 @@ import type * as monacoNs from "monaco-editor";
 import { makeDiffModels } from "./reviewSource";
 
 vi.mock("../../../bridge/commands", () => ({}));
+// A .ts model makes Monaco lazy-load its TypeScript service, which can still be
+// loading when this file ends and then fails the run.
+vi.mock("monaco-editor/esm/vs/language/typescript/tsMode.js", () => ({
+  setupTypeScript: () => {},
+  setupJavaScript: () => {},
+}));
 
 let monaco: typeof monacoNs;
 const errors: string[] = [];
