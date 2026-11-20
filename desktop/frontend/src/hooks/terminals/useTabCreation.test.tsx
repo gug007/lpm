@@ -12,6 +12,7 @@ const bridge = vi.hoisted(() => ({
   StopTerminal: vi.fn(async () => {}),
 }));
 vi.mock("../../../bridge/commands", () => bridge);
+vi.mock("../../../bridge/runtime", () => ({ BrowserOpenURL: vi.fn() }));
 vi.mock("../../mirror", () => ({ IS_MIRROR_WINDOW: false }));
 vi.mock("../../components/InteractivePane", () => ({ isInteractivePaneSessionDead: () => false }));
 vi.mock("../../terminal-io", () => ({ sendTerminalInput: vi.fn(), shellQuote: (s: string) => s }));
@@ -29,7 +30,9 @@ vi.mock("../../terminals", () => ({
   updateProjectTerminalsCache: vi.fn(),
 }));
 
+import { BrowserOpenURL } from "../../../bridge/runtime";
 import { forkedSessionOf } from "../../forkSession";
+import { toast } from "../../notifications/toast";
 import { collectTerminals, makePaneLeaf, makeTerminal } from "../../paneTree";
 import { useTabCreation } from "./useTabCreation";
 import { useTreeCore } from "./useTreeCore";
@@ -78,6 +81,8 @@ const tabStrip = () =>
 beforeEach(() => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   bridge.StartTerminalForConfig.mockReset();
+  bridge.StartTerminal.mockReset();
+  vi.mocked(toast.error).mockClear();
   scheduleCmdInject.mockClear();
   root = createRoot(document.createElement("div"));
   act(() => root.render(<Harness />));
@@ -141,5 +146,27 @@ describe("useTabCreation", () => {
       ["pty-1", "Claude"],
       ["pty-2", "Claude 2"],
     ]);
+  });
+
+  it("says why a launch didn't start rather than rejecting", async () => {
+    bridge.StartTerminalForConfig.mockRejectedValueOnce("no such directory");
+
+    await act(() => tabs.createTerminalWithCmd("Claude", "claude", { configName: "claude" }));
+
+    expect(toast.error).toHaveBeenCalledWith("Claude: no such directory");
+    expect(tabStrip()).toEqual([]);
+  });
+
+  it("sends a Windows machine without Git Bash to Git for Windows", async () => {
+    bridge.StartTerminal.mockRejectedValueOnce(
+      "Git for Windows isn't installed. lpm runs terminals, services and agents in its Git Bash. Install it from git-scm.com/downloads/win, then try again.",
+    );
+
+    await act(() => tabs.createTerminal());
+
+    const [title, options] = vi.mocked(toast.error).mock.calls[0];
+    expect(title).toBe("Git for Windows isn't installed");
+    options!.action!.onClick();
+    expect(BrowserOpenURL).toHaveBeenCalledWith("https://git-scm.com/downloads/win");
   });
 });

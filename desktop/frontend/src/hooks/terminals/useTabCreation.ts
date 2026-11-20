@@ -10,6 +10,7 @@ import {
 import { sendTerminalInput } from "../../terminal-io";
 import { setBrowserStartUrl } from "../../browserStartUrls";
 import { logDiagnostic } from "../../diagnostics";
+import { terminalStartFailed } from "./terminalStartFailed";
 import { buildForkLaunch, claudeSessionIdOf } from "../../forkSession";
 import { claudeResumeSessionId } from "../../agentSession";
 import { isInteractivePaneSessionDead } from "../../components/InteractivePane";
@@ -119,6 +120,7 @@ export function useTabCreation({
         project: projectName,
         error: String(err),
       });
+      terminalStartFailed(err);
     }
   }, [projectName, addTerminal, forward]);
 
@@ -203,7 +205,13 @@ export function useTabCreation({
       if (opts?.configName) {
         // The backend writes this command itself, so it is pinned here too.
         const tab = { label, emoji: opts.emoji, color: opts.color, actionName: opts.actionName };
-        const started = await StartTerminalForConfig(projectName, opts.configName, opts.fixedAccount, tab);
+        let started: Awaited<ReturnType<typeof StartTerminalForConfig>>;
+        try {
+          started = await StartTerminalForConfig(projectName, opts.configName, opts.fixedAccount, tab);
+        } catch (err) {
+          terminalStartFailed(err, label);
+          return;
+        }
         const launch = {
           ...started,
           startCmd: withAgentFolders(pinLaunchCommand(started.startCmd, opts.launchModel), folders),
@@ -231,17 +239,23 @@ export function useTabCreation({
       // ephemeral — the command is typed once but not persisted.
       const sessionId = claudeResumeSessionId(cmd);
       const tab = { label, emoji: opts?.emoji, color: opts?.color, actionName: opts?.actionName };
-      const id =
-        opts?.cwd || opts?.env
-          ? await StartTerminalWithCwdEnv(
-              projectName,
-              opts.cwd ?? "",
-              opts.env ?? {},
-              sessionId,
-              opts.fixedAccount,
-              tab,
-            )
-          : await StartTerminal(projectName, sessionId, opts?.fixedAccount, tab);
+      let id: string;
+      try {
+        id =
+          opts?.cwd || opts?.env
+            ? await StartTerminalWithCwdEnv(
+                projectName,
+                opts.cwd ?? "",
+                opts.env ?? {},
+                sessionId,
+                opts.fixedAccount,
+                tab,
+              )
+            : await StartTerminal(projectName, sessionId, opts?.fixedAccount, tab);
+      } catch (err) {
+        terminalStartFailed(err, label);
+        return;
+      }
       addTerminal(
         makeTerminal(id, label, {
           actionName: opts?.actionName,
@@ -276,7 +290,8 @@ export function useTabCreation({
         id = entry.actionName
           ? await StartTerminalForRestore(projectName, entry.actionName, sessionId)
           : await StartTerminal(projectName, sessionId);
-      } catch {
+      } catch (err) {
+        terminalStartFailed(err, "Couldn't resume the session");
         return;
       }
       const stateAfterRemove = removeHistoryEntry(
@@ -408,7 +423,9 @@ export function useTabCreation({
           makeTerminal(id, pickTerminalLabel(treeRef.current)),
           paneId,
         );
-      } catch {}
+      } catch (err) {
+        terminalStartFailed(err);
+      }
     },
     [projectName, addTerminal, forward],
   );

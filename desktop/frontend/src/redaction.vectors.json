@@ -3,6 +3,7 @@
   ["at /home/bob/src/main.rs:4", "at ~/src/main.rs:4"],
   ["C:\\Users\\carol\\AppData\\lpm", "~\\AppData\\lpm"],
   ["c:/users/dave/x", "~/x"],
+  ["in cwd `Some(\"C:\\\\Users\\\\erin\\\\Documents\\\\x\")`", "in cwd `Some(\"~\\\\Documents\\\\x\")`"],
   ["at /Users/alice:12", "at ~:12"],
   ["src/pty.rs:12", "src/pty.rs:12"],
   ["sent Bearer abc.def-123", "sent Bearer [REDACTED]"],

@@ -179,7 +179,7 @@ static OWN_HOME: LazyLock<Option<String>> = LazyLock::new(|| {
         .filter(|home| home.len() > 1)
 });
 static HOME_DIR: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)(?:/Users/|/home/|\b[a-z]:[\\/]Users[\\/])[^/\\\s:]+").unwrap()
+    Regex::new(r"(?i)(?:/Users/|/home/|\b[a-z]:[\\/]+Users[\\/]+)[^/\\\s:]+").unwrap()
 });
 static BEARER: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?i)\b(Bearer\s+)[A-Za-z0-9._~+/=-]+").unwrap());

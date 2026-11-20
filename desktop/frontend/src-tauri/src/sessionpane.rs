@@ -90,7 +90,8 @@ impl Pane {
             })
             .map_err(|e| format!("open pty: {e}"))?;
 
-        let mut builder = CommandBuilder::new(crate::sys::login_shell());
+        let shell = crate::sys::require_login_shell()?;
+        let mut builder = CommandBuilder::new(&shell);
         // A login shell, because tmux ran panes as login shells too (an empty
         // default-command means "login shell from default-shell") — dropping it
         // would silently take nvm/rbenv/asdf off PATH for every service.
@@ -115,7 +116,7 @@ impl Pane {
         // MSYS's login profile otherwise starts every shell in $HOME.
         #[cfg(windows)]
         builder.env("CHERE_INVOKING", "1");
-        crate::panehook::apply(&mut builder, &crate::sys::login_shell());
+        crate::panehook::apply(&mut builder, &shell);
 
         let child = pair
             .slave
