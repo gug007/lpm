@@ -1,5 +1,6 @@
 import { useRef, useCallback, type Dispatch, type SetStateAction, type RefObject } from "react";
 import { StartTerminal, StopTerminal } from "../../../bridge/commands";
+import { terminalStartFailed } from "./terminalStartFailed";
 import {
   type PaneNode,
   type PaneLeaf,
@@ -276,7 +277,8 @@ export function usePaneOps({
       let newId: string;
       try {
         newId = await StartTerminal(projectName);
-      } catch {
+      } catch (err) {
+        terminalStartFailed(err);
         return;
       }
       // Re-verify the pane still exists after the async PTY start — if the

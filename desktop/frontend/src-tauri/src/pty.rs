@@ -509,7 +509,7 @@ pub(crate) fn env_lacks_locale<I: IntoIterator<Item = (String, String)>>(vars: I
         .any(|(k, _)| k == "LANG" || k == "LC_ALL" || k == "LC_CTYPE")
 }
 
-use crate::sys::login_shell;
+use crate::sys::require_login_shell;
 
 /// Project-level launch inputs resolved once per spawn: root dir, ssh (Some
 /// only when remote), and the Claude account env decision (applied to local
@@ -594,7 +594,7 @@ fn start_internal(
         if dir.is_empty() {
             return Err("project has no root directory".into());
         }
-        let shell = login_shell();
+        let shell = require_login_shell()?;
         builder = CommandBuilder::new(&shell);
         // login shell, matches Go exec.Command(shell, "-l")
         for arg in crate::shellpath::login_args() {
@@ -919,7 +919,7 @@ pub fn start_claude_login(
     let n = state.next_serial();
     let id = format!("claude-login-{n}");
 
-    let shell = login_shell();
+    let shell = require_login_shell()?;
     let mut builder = CommandBuilder::new(&shell);
     // Interactive login shell that runs the login command and exits, so the
     // account's profile (PATH etc.) is sourced before `claude` is resolved.

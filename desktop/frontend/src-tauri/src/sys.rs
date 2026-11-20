@@ -30,6 +30,22 @@ pub(crate) fn login_shell() -> String {
     unix_login_shell()
 }
 
+/// What a Windows spawn fails with when there is no Git Bash to run it.
+#[cfg(windows)]
+pub(crate) const NO_GIT_BASH: &str = "Git for Windows isn't installed. lpm runs terminals, \
+    services and agents in its Git Bash. Install it from git-scm.com/downloads/win, then try again.";
+
+/// `login_shell`, or why nothing can start: without Git for Windows it names a
+/// bash that isn't there, and the spawn fails with a bare "path not found".
+pub(crate) fn require_login_shell() -> Result<String, String> {
+    let shell = login_shell();
+    #[cfg(windows)]
+    if !Path::new(&shell).is_file() {
+        return Err(NO_GIT_BASH.into());
+    }
+    Ok(shell)
+}
+
 /// Separator between PATH entries.
 pub const PATH_SEP: char = if cfg!(windows) { ';' } else { ':' };
 

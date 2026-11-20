@@ -73,7 +73,7 @@ export function onReportedError(
 
 export function redactDiagnosticString(value: string): string {
   return value
-    .replace(/(?:\/Users\/|\/home\/|\b[a-z]:[\\/]Users[\\/])[^/\\\s:]+/gi, "~")
+    .replace(/(?:\/Users\/|\/home\/|\b[a-z]:[\\/]+Users[\\/]+)[^/\\\s:]+/gi, "~")
     .replace(/\b(Bearer\s+)[A-Za-z0-9._~+/=-]+/gi, "$1[REDACTED]")
     .replace(
       /\b((?:authorization|api[_-]?key|password|passphrase|private[_-]?key|secret|token)\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s,;]+)/gi,
