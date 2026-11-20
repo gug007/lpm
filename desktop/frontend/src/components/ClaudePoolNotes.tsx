@@ -12,7 +12,7 @@ interface Props {
   pool: ClaudePool;
   // Suggestions put off, by pool key.
   dismissed: Record<string, string>;
-  // The paired machine these are from, by name; absent for this Mac.
+  // The machine these are from, by name; absent while this one is the only one.
   machine?: string;
   // That machine's accounts, which name its pool's members.
   accounts?: ClaudeAccount[];

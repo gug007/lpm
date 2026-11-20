@@ -34,9 +34,7 @@ pub fn init(app: &AppHandle) {
     let _ = WAKE.set(tx);
     std::thread::spawn(move || {
         let _ = PROFILE_DIR.set(
-            !crate::sys::headless()
-                && crate::sys::capture_login_env(config::CLAUDE_CONFIG_DIR_ENV)
-                    .is_some_and(|v| !v.trim().is_empty()),
+            crate::agentdirs::profile_claude_config_dir().is_some_and(|v| !v.trim().is_empty()),
         );
         publish();
         while rx.recv().is_ok() {
@@ -63,13 +61,11 @@ fn limits() -> HashMap<String, ProviderLimits> {
         .unwrap_or_default()
 }
 
-/// Why switching can't run on this machine at all. A headless host has no one
-/// to ask for consent, and with `CLAUDE_CONFIG_DIR` set for lpm or in the
-/// shell profile, the dir lpm picks would not be the one Claude Code uses.
+/// Why switching can't run on this machine at all: with `CLAUDE_CONFIG_DIR`
+/// set for lpm or in the shell profile, the dir lpm picks would not be the one
+/// Claude Code uses. A server nobody sits at switches like any machine: its
+/// accounts are confirmed from the computer paired with it.
 pub fn unavailable() -> Option<&'static str> {
-    if crate::sys::headless() {
-        return Some("headless");
-    }
     if std::env::var_os(config::CLAUDE_CONFIG_DIR_ENV).is_some_and(|v| !v.is_empty()) {
         return Some("ambient");
     }
@@ -605,13 +601,8 @@ fn apply_patch(f: &mut PoolFile, patch: PoolPatch, at: i64) -> Result<(), String
         if enabled && !f.consented() {
             return Err("Confirm the accounts are yours before turning switching on.".into());
         }
-        if enabled {
-            if let Some(why) = unavailable() {
-                return Err(match why {
-                    "headless" => "Account switching isn't available on a headless host.".into(),
-                    _ => "lpm can't tell your accounts apart while a Claude config folder is set in its environment or your shell profile. Remove it and reopen lpm.".into(),
-                });
-            }
+        if enabled && unavailable().is_some() {
+            return Err("lpm can't tell your accounts apart while a Claude config folder is set in its environment or your shell profile. Remove it and reopen lpm.".into());
         }
         f.enabled = enabled;
         if !enabled {

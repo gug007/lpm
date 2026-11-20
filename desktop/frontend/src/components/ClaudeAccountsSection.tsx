@@ -11,6 +11,7 @@ import { ClaudeAccountMenu } from "./ClaudeAccountMenu";
 import { ClaudeAccountsSetupGuide } from "./ClaudeAccountsSetupGuide";
 import { ClaudeAddAccountModal } from "./ClaudeAddAccountModal";
 import { ClaudeLoginModal } from "./ClaudeLoginModal";
+import { ClaudeOtherMachinesNote } from "./ClaudeOtherMachinesNote";
 import { ClaudeSwitchingControls } from "./ClaudeSwitchingControls";
 import { ClaudeTurnOrder, type ClaudeAccountSummary } from "./ClaudeTurnOrder";
 import { PlusIcon } from "./icons";
@@ -141,6 +142,7 @@ export function ClaudeAccountsSection({ source }: { source: ClaudeAccountsSource
             <ClaudeAccountListRow key={id} {...accountProps(id)} chips={[]} actions={signInButton(id)} />
           ))}
         </div>
+        {!source.host && <ClaudeOtherMachinesNote />}
         <SettingsRow
           label="Add account"
           description="Another Claude login, like Work or Personal, for some projects or for switching near a limit"

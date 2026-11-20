@@ -53,6 +53,7 @@ export interface ClaudePool {
   active: boolean;
   mode: "ask" | "auto";
   consented: boolean;
+  // "headless" comes only from a server on an older lpm.
   unavailable: "headless" | "ambient" | "profile" | null;
   paused: "hold" | "readings" | null;
   held: string | null;
